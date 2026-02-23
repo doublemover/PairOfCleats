@@ -100,6 +100,14 @@ const CRITICAL_EVENTS = new Set(['hello', 'job:start', 'job:spawn', 'job:end', '
 const WATCHDOG_MAX_MS = 60 * 60 * 1000;
 const WATCHDOG_SOFT_KICK_COOLDOWN_DEFAULT_MS = 10_000;
 const WATCHDOG_SOFT_KICK_MAX_ATTEMPTS_DEFAULT = 2;
+const SUPERVISOR_CAPABILITIES = Object.freeze({
+  protocolVersion: PROGRESS_PROTOCOL,
+  supportsCancel: true,
+  supportsResultCapture: true,
+  supportsFlowControl: true,
+  supportsChunking: true
+});
+const PROGRESS_EVENT_DROP_FIELDS = new Set(['proto', 'event', 'ts', 'seq', 'runId', 'jobId']);
 
 const state = {
   shuttingDown: false,
@@ -127,6 +135,7 @@ const clampInt = (value, fallback, { min = 0, max = Number.MAX_SAFE_INTEGER } = 
 };
 
 const nowIso = () => new Date().toISOString();
+const normalizeLineBreaks = (text) => String(text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
 const getJob = (jobId) => (typeof jobId === 'string' ? state.jobs.get(jobId) : null);
 
@@ -268,6 +277,15 @@ const emitLog = (jobId, level, message, extra = {}) => {
   }, { jobId });
 };
 
+const buildFlowSnapshot = ({ includeChunked = false } = {}) => ({
+  credits: state.flow.credits,
+  queueDepth: state.flow.queue.length,
+  sent: state.flow.sent,
+  dropped: state.flow.dropped,
+  coalesced: state.flow.coalesced,
+  ...(includeChunked ? { chunked: state.flow.chunked } : {})
+});
+
 const addFlowCredits = (value) => {
   const credits = clampInt(value, 0, { min: 0, max: FLOW_MAX_CREDITS });
   if (credits <= 0) return 0;
@@ -278,14 +296,14 @@ const addFlowCredits = (value) => {
 
 const emitRuntimeMetrics = () => {
   emit('runtime:metrics', {
-    flow: {
-      credits: state.flow.credits,
-      queueDepth: state.flow.queue.length,
-      sent: state.flow.sent,
-      dropped: state.flow.dropped,
-      coalesced: state.flow.coalesced,
-      chunked: state.flow.chunked
-    }
+    flow: buildFlowSnapshot({ includeChunked: true })
+  }, { critical: true });
+};
+
+const emitHello = () => {
+  emit('hello', {
+    supervisorVersion,
+    capabilities: SUPERVISOR_CAPABILITIES
   }, { critical: true });
 };
 
@@ -434,13 +452,7 @@ const buildSupervisorWatchdogSnapshot = ({
       ? new Date(Number(job.startedAt)).toISOString()
       : null
   },
-  flow: {
-    credits: state.flow.credits,
-    queueDepth: state.flow.queue.length,
-    sent: state.flow.sent,
-    dropped: state.flow.dropped,
-    coalesced: state.flow.coalesced
-  },
+  flow: buildFlowSnapshot(),
   trackedSubprocesses: snapshotTrackedSubprocesses({ limit: 6 }),
   process: captureProcessSnapshot({
     includeStack,
@@ -463,6 +475,193 @@ const parseResultFromStdout = (stdoutText, policy) => {
   } catch {
     return text;
   }
+};
+
+const extractRoutedProgressPayload = (event) => {
+  const payload = {};
+  if (!event || typeof event !== 'object') return payload;
+  for (const [key, value] of Object.entries(event)) {
+    if (PROGRESS_EVENT_DROP_FIELDS.has(key)) continue;
+    payload[key] = value;
+  }
+  return payload;
+};
+
+const routeDecodedProgressEvent = ({ jobId, stream, event }) => {
+  const payload = extractRoutedProgressPayload(event);
+  if (typeof payload.stream !== 'string') {
+    payload.stream = stream;
+  }
+  emit(event?.event, payload, { jobId });
+};
+
+const emitDecoderOverflowLog = ({ jobId, stream, overflowBytes }) => {
+  emitLog(jobId, 'warn', `${stream} decoder overflow (${overflowBytes} bytes truncated).`, { stream });
+};
+
+const createJobStreamDecoder = ({ job, jobId, stream, maxLineBytes, markActivity }) => createProgressLineDecoder({
+  strict: true,
+  maxLineBytes,
+  onLine: ({ line, event }) => {
+    markActivity();
+    if (event) {
+      routeDecodedProgressEvent({ jobId, stream, event });
+      return;
+    }
+    if (line.trim()) {
+      emitLog(jobId, 'info', line, { stream, pid: job.pid || null });
+    }
+  },
+  onOverflow: ({ overflowBytes }) => {
+    markActivity();
+    emitDecoderOverflowLog({ jobId, stream, overflowBytes });
+  }
+});
+
+const resolveWatchdogPollIntervalMs = (watchdogPolicy) => Math.max(
+  250,
+  Math.min(
+    1000,
+    Math.floor(Math.max(watchdogPolicy.hardTimeoutMs || watchdogPolicy.heartbeatMs || 1000, 1000) / 4)
+  )
+);
+
+const createJobWatchdogController = ({
+  job,
+  jobId,
+  watchdogPolicy,
+  getLastActivityAt
+}) => {
+  let watchdogTimer = null;
+  let watchdogLastHeartbeatAt = 0;
+  let watchdogSoftKickAttempts = 0;
+  let watchdogSoftKickInFlight = false;
+  let watchdogLastSoftKickAt = 0;
+
+  const emitWatchdogHeartbeat = (idleMs) => {
+    if (watchdogPolicy.heartbeatMs <= 0) return;
+    const nowMs = Date.now();
+    if (watchdogLastHeartbeatAt > 0 && (nowMs - watchdogLastHeartbeatAt) < watchdogPolicy.heartbeatMs) return;
+    watchdogLastHeartbeatAt = nowMs;
+    const snapshot = buildSupervisorWatchdogSnapshot({
+      job,
+      idleMs,
+      source: 'watchdog_heartbeat',
+      includeStack: false
+    });
+    emitLog(
+      jobId,
+      'info',
+      `watchdog heartbeat idle=${Math.floor(idleMs)}ms pid=${job.pid || 'n/a'}`,
+      {
+        watchdogPhase: 'heartbeat',
+        idleMs: Math.floor(idleMs),
+        watchdogSnapshot: snapshot
+      }
+    );
+  };
+
+  const runSoftKick = (idleMs) => {
+    if (watchdogSoftKickInFlight || job.finalized || job.abortController.signal.aborted) return;
+    watchdogSoftKickInFlight = true;
+    watchdogSoftKickAttempts += 1;
+    watchdogLastSoftKickAt = Date.now();
+    const snapshot = buildSupervisorWatchdogSnapshot({
+      job,
+      idleMs,
+      source: 'watchdog_soft_kick',
+      includeStack: true
+    });
+    emitLog(
+      jobId,
+      'warn',
+      `watchdog soft-kick attempt ${watchdogSoftKickAttempts}/${watchdogPolicy.softKickMaxAttempts} `
+        + `(idle=${Math.floor(idleMs)}ms)`,
+      {
+        watchdogPhase: 'soft-kick',
+        softKickAttempt: watchdogSoftKickAttempts,
+        softKickMaxAttempts: watchdogPolicy.softKickMaxAttempts,
+        idleMs: Math.floor(idleMs),
+        watchdogSnapshot: snapshot
+      }
+    );
+    emit('job:watchdog', {
+      phase: 'soft-kick',
+      idleMs: Math.floor(idleMs),
+      attempt: watchdogSoftKickAttempts,
+      maxAttempts: watchdogPolicy.softKickMaxAttempts,
+      snapshot
+    }, { jobId, critical: true });
+    try {
+      if (Number.isFinite(Number(job.pid)) && Number(job.pid) > 0 && process.platform !== 'win32') {
+        process.kill(Number(job.pid), 'SIGCONT');
+      }
+    } catch {} finally {
+      watchdogSoftKickInFlight = false;
+    }
+  };
+
+  const runHardTimeout = (idleMs) => {
+    const snapshot = buildSupervisorWatchdogSnapshot({
+      job,
+      idleMs,
+      source: 'watchdog_hard_timeout',
+      includeStack: true
+    });
+    job.cancelReason = 'watchdog_timeout';
+    emitLog(
+      jobId,
+      'warn',
+      `watchdog timeout (${watchdogPolicy.hardTimeoutMs}ms inactivity)`,
+      {
+        watchdogPhase: 'hard-timeout',
+        idleMs: Math.floor(idleMs),
+        watchdogSnapshot: snapshot
+      }
+    );
+    emit('job:watchdog', {
+      phase: 'hard-timeout',
+      idleMs: Math.floor(idleMs),
+      hardTimeoutMs: watchdogPolicy.hardTimeoutMs,
+      softKickAttempts: watchdogSoftKickAttempts,
+      snapshot
+    }, { jobId, critical: true });
+    job.abortController.abort('watchdog_timeout');
+  };
+
+  const tick = () => {
+    if (job.finalized || job.abortController.signal.aborted) return;
+    const nowMs = Date.now();
+    const idleMs = Math.max(0, nowMs - getLastActivityAt());
+    if (watchdogPolicy.heartbeatMs > 0 && idleMs >= watchdogPolicy.heartbeatMs) {
+      emitWatchdogHeartbeat(idleMs);
+    }
+    if (
+      watchdogPolicy.softKickMs > 0
+      && idleMs >= watchdogPolicy.softKickMs
+      && watchdogSoftKickAttempts < watchdogPolicy.softKickMaxAttempts
+      && (watchdogPolicy.softKickCooldownMs <= 0 || nowMs - watchdogLastSoftKickAt >= watchdogPolicy.softKickCooldownMs)
+    ) {
+      runSoftKick(idleMs);
+    }
+    if (watchdogPolicy.hardTimeoutMs <= 0 || idleMs < watchdogPolicy.hardTimeoutMs) return;
+    runHardTimeout(idleMs);
+  };
+
+  return {
+    start() {
+      if (watchdogPolicy.hardTimeoutMs <= 0 && watchdogPolicy.softKickMs <= 0 && watchdogPolicy.heartbeatMs <= 0) {
+        return;
+      }
+      watchdogTimer = setInterval(tick, resolveWatchdogPollIntervalMs(watchdogPolicy));
+      if (typeof watchdogTimer.unref === 'function') watchdogTimer.unref();
+    },
+    stop() {
+      if (!watchdogTimer) return;
+      clearInterval(watchdogTimer);
+      watchdogTimer = null;
+    }
+  };
 };
 
 const statArtifact = async ({ kind, label, artifactPath }) => {
@@ -524,6 +723,53 @@ const resolveRequestRepoRoot = ({ request, cwd }) => {
   return baseCwd;
 };
 
+const addIndexArtifacts = async ({ artifacts, repoRoot, userConfig }) => {
+  for (const mode of ['code', 'prose', 'extracted-prose', 'records']) {
+    const indexDir = getIndexDir(repoRoot, mode, userConfig);
+    artifacts.push(await statArtifact({
+      kind: `index:${mode}`,
+      label: `${mode} index`,
+      artifactPath: indexDir
+    }));
+  }
+};
+
+const addSearchArtifacts = async ({ artifacts, repoRoot, userConfig }) => {
+  const metricsDir = getMetricsDir(repoRoot, userConfig);
+  artifacts.push(await statArtifact({
+    kind: 'metrics:search',
+    label: 'search metrics dir',
+    artifactPath: metricsDir
+  }));
+  artifacts.push(await statArtifact({
+    kind: 'metrics:search-history',
+    label: 'search history',
+    artifactPath: path.join(metricsDir, 'searchHistory')
+  }));
+};
+
+const addSetupArtifacts = async ({ artifacts, repoRoot, userConfig }) => {
+  artifacts.push(await statArtifact({
+    kind: 'config:file',
+    label: 'config file',
+    artifactPath: path.join(repoRoot, '.pairofcleats.json')
+  }));
+  const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
+  artifacts.push(await statArtifact({
+    kind: 'cache:repo-root',
+    label: 'repo cache root',
+    artifactPath: repoCacheRoot
+  }));
+};
+
+const ARTIFACT_COLLECTORS = Object.freeze({
+  'index.build': addIndexArtifacts,
+  'index.watch': addIndexArtifacts,
+  search: addSearchArtifacts,
+  setup: addSetupArtifacts,
+  bootstrap: addSetupArtifacts
+});
+
 const collectJobArtifacts = async ({ request, cwd }) => {
   const artifacts = [];
   const argv = Array.isArray(request?.argv) ? request.argv.map((entry) => String(entry)) : [];
@@ -536,43 +782,9 @@ const collectJobArtifacts = async ({ request, cwd }) => {
     userConfig = null;
   }
 
-  if (dispatch?.id === 'index.build' || dispatch?.id === 'index.watch') {
-    for (const mode of ['code', 'prose', 'extracted-prose', 'records']) {
-      const indexDir = getIndexDir(repoRoot, mode, userConfig);
-      artifacts.push(await statArtifact({
-        kind: `index:${mode}`,
-        label: `${mode} index`,
-        artifactPath: indexDir
-      }));
-    }
-  }
-
-  if (dispatch?.id === 'search') {
-    const metricsDir = getMetricsDir(repoRoot, userConfig);
-    artifacts.push(await statArtifact({
-      kind: 'metrics:search',
-      label: 'search metrics dir',
-      artifactPath: metricsDir
-    }));
-    artifacts.push(await statArtifact({
-      kind: 'metrics:search-history',
-      label: 'search history',
-      artifactPath: path.join(metricsDir, 'searchHistory')
-    }));
-  }
-
-  if (dispatch?.id === 'setup' || dispatch?.id === 'bootstrap') {
-    artifacts.push(await statArtifact({
-      kind: 'config:file',
-      label: 'config file',
-      artifactPath: path.join(repoRoot, '.pairofcleats.json')
-    }));
-    const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
-    artifacts.push(await statArtifact({
-      kind: 'cache:repo-root',
-      label: 'repo cache root',
-      artifactPath: repoCacheRoot
-    }));
+  const collectArtifacts = ARTIFACT_COLLECTORS[dispatch?.id];
+  if (typeof collectArtifacts === 'function') {
+    await collectArtifacts({ artifacts, repoRoot, userConfig });
   }
 
   return artifacts
@@ -667,176 +879,31 @@ const startJob = async (request) => {
       ? Math.min(timeoutMs, timeoutFromDeadline)
       : (timeoutMs > 0 ? timeoutMs : timeoutFromDeadline || undefined);
 
-    const stdoutDecoder = createProgressLineDecoder({
-      strict: true,
+    const markActivity = () => {
+      lastActivityAt = Date.now();
+    };
+    const stdoutDecoder = createJobStreamDecoder({
+      job,
+      jobId,
+      stream: 'stdout',
       maxLineBytes: resultPolicy.maxBytes,
-      onLine: ({ line, event }) => {
-        lastActivityAt = Date.now();
-        if (event) {
-          const { proto, event: eventName, ts, seq, runId: ignoredRunId, jobId: ignoredJobId, ...rest } = event;
-          emit(eventName, {
-            ...rest,
-            ...(typeof rest.stream === 'string' ? {} : { stream: 'stdout' })
-          }, { jobId });
-          return;
-        }
-        if (line.trim()) {
-          emitLog(jobId, 'info', line, { stream: 'stdout', pid: job.pid || null });
-        }
-      },
-      onOverflow: ({ overflowBytes }) => {
-        lastActivityAt = Date.now();
-        emitLog(jobId, 'warn', `stdout decoder overflow (${overflowBytes} bytes truncated).`, { stream: 'stdout' });
-      }
+      markActivity
     });
-
-    const stderrDecoder = createProgressLineDecoder({
-      strict: true,
+    const stderrDecoder = createJobStreamDecoder({
+      job,
+      jobId,
+      stream: 'stderr',
       maxLineBytes: resultPolicy.maxBytes,
-      onLine: ({ line, event }) => {
-        lastActivityAt = Date.now();
-        if (event) {
-          const { proto, event: eventName, ts, seq, runId: ignoredRunId, jobId: ignoredJobId, ...rest } = event;
-          emit(eventName, {
-            ...rest,
-            ...(typeof rest.stream === 'string' ? {} : { stream: 'stderr' })
-          }, { jobId });
-          return;
-        }
-        if (line.trim()) {
-          emitLog(jobId, 'info', line, { stream: 'stderr', pid: job.pid || null });
-        }
-      },
-      onOverflow: ({ overflowBytes }) => {
-        lastActivityAt = Date.now();
-        emitLog(jobId, 'warn', `stderr decoder overflow (${overflowBytes} bytes truncated).`, { stream: 'stderr' });
-      }
+      markActivity
     });
-
     const startedAt = Date.now();
-    let watchdogTimer = null;
-    let watchdogLastHeartbeatAt = 0;
-    let watchdogSoftKickAttempts = 0;
-    let watchdogSoftKickInFlight = false;
-    let watchdogLastSoftKickAt = 0;
-    const stopWatchdog = () => {
-      if (watchdogTimer) {
-        clearInterval(watchdogTimer);
-        watchdogTimer = null;
-      }
-    };
-    const emitWatchdogHeartbeat = (idleMs) => {
-      if (watchdogPolicy.heartbeatMs <= 0) return;
-      const nowMs = Date.now();
-      if (watchdogLastHeartbeatAt > 0 && (nowMs - watchdogLastHeartbeatAt) < watchdogPolicy.heartbeatMs) return;
-      watchdogLastHeartbeatAt = nowMs;
-      const snapshot = buildSupervisorWatchdogSnapshot({
-        job,
-        idleMs,
-        source: 'watchdog_heartbeat',
-        includeStack: false
-      });
-      emitLog(
-        jobId,
-        'info',
-        `watchdog heartbeat idle=${Math.floor(idleMs)}ms pid=${job.pid || 'n/a'}`,
-        {
-          watchdogPhase: 'heartbeat',
-          idleMs: Math.floor(idleMs),
-          watchdogSnapshot: snapshot
-        }
-      );
-    };
-    const runSoftKick = (idleMs) => {
-      if (watchdogSoftKickInFlight || job.finalized || job.abortController.signal.aborted) return;
-      watchdogSoftKickInFlight = true;
-      watchdogSoftKickAttempts += 1;
-      watchdogLastSoftKickAt = Date.now();
-      const snapshot = buildSupervisorWatchdogSnapshot({
-        job,
-        idleMs,
-        source: 'watchdog_soft_kick',
-        includeStack: true
-      });
-      emitLog(
-        jobId,
-        'warn',
-        `watchdog soft-kick attempt ${watchdogSoftKickAttempts}/${watchdogPolicy.softKickMaxAttempts} `
-          + `(idle=${Math.floor(idleMs)}ms)`,
-        {
-          watchdogPhase: 'soft-kick',
-          softKickAttempt: watchdogSoftKickAttempts,
-          softKickMaxAttempts: watchdogPolicy.softKickMaxAttempts,
-          idleMs: Math.floor(idleMs),
-          watchdogSnapshot: snapshot
-        }
-      );
-      emit('job:watchdog', {
-        phase: 'soft-kick',
-        idleMs: Math.floor(idleMs),
-        attempt: watchdogSoftKickAttempts,
-        maxAttempts: watchdogPolicy.softKickMaxAttempts,
-        snapshot
-      }, { jobId, critical: true });
-      try {
-        if (Number.isFinite(Number(job.pid)) && Number(job.pid) > 0 && process.platform !== 'win32') {
-          process.kill(Number(job.pid), 'SIGCONT');
-        }
-      } catch {}
-      watchdogSoftKickInFlight = false;
-    };
-    if (watchdogPolicy.hardTimeoutMs > 0 || watchdogPolicy.softKickMs > 0 || watchdogPolicy.heartbeatMs > 0) {
-      const pollMs = Math.max(
-        250,
-        Math.min(
-          1000,
-          Math.floor(Math.max(watchdogPolicy.hardTimeoutMs || watchdogPolicy.heartbeatMs || 1000, 1000) / 4)
-        )
-      );
-      watchdogTimer = setInterval(() => {
-        if (job.finalized || job.abortController.signal.aborted) return;
-        const nowMs = Date.now();
-        const idleMs = Math.max(0, nowMs - lastActivityAt);
-        if (watchdogPolicy.heartbeatMs > 0 && idleMs >= watchdogPolicy.heartbeatMs) {
-          emitWatchdogHeartbeat(idleMs);
-        }
-        if (
-          watchdogPolicy.softKickMs > 0
-          && idleMs >= watchdogPolicy.softKickMs
-          && watchdogSoftKickAttempts < watchdogPolicy.softKickMaxAttempts
-          && (watchdogPolicy.softKickCooldownMs <= 0 || nowMs - watchdogLastSoftKickAt >= watchdogPolicy.softKickCooldownMs)
-        ) {
-          runSoftKick(idleMs);
-        }
-        if (watchdogPolicy.hardTimeoutMs <= 0 || idleMs < watchdogPolicy.hardTimeoutMs) return;
-        const snapshot = buildSupervisorWatchdogSnapshot({
-          job,
-          idleMs,
-          source: 'watchdog_hard_timeout',
-          includeStack: true
-        });
-        job.cancelReason = 'watchdog_timeout';
-        emitLog(
-          jobId,
-          'warn',
-          `watchdog timeout (${watchdogPolicy.hardTimeoutMs}ms inactivity)`,
-          {
-            watchdogPhase: 'hard-timeout',
-            idleMs: Math.floor(idleMs),
-            watchdogSnapshot: snapshot
-          }
-        );
-        emit('job:watchdog', {
-          phase: 'hard-timeout',
-          idleMs: Math.floor(idleMs),
-          hardTimeoutMs: watchdogPolicy.hardTimeoutMs,
-          softKickAttempts: watchdogSoftKickAttempts,
-          snapshot
-        }, { jobId, critical: true });
-        job.abortController.abort('watchdog_timeout');
-      }, pollMs);
-      if (typeof watchdogTimer.unref === 'function') watchdogTimer.unref();
-    }
+    const watchdog = createJobWatchdogController({
+      job,
+      jobId,
+      watchdogPolicy,
+      getLastActivityAt: () => lastActivityAt
+    });
+    watchdog.start();
 
     try {
       const result = await spawnSubprocess(command, args, {
@@ -849,7 +916,7 @@ const startJob = async (request) => {
         onSpawn: (child) => {
           job.pid = child?.pid || null;
           job.status = 'running';
-          lastActivityAt = Date.now();
+          markActivity();
           emit('job:spawn', {
             pid: job.pid,
             spawnedAt: nowIso()
@@ -921,7 +988,7 @@ const startJob = async (request) => {
       finalizeJob(job, payload);
       await emitArtifacts(job, request, { cwd });
     } finally {
-      stopWatchdog();
+      watchdog.stop();
     }
   };
 
@@ -997,16 +1064,7 @@ const handleRequest = async (request) => {
     return;
   }
   if (op === 'hello') {
-    emit('hello', {
-      supervisorVersion,
-      capabilities: {
-        protocolVersion: PROGRESS_PROTOCOL,
-        supportsCancel: true,
-        supportsResultCapture: true,
-        supportsFlowControl: true,
-        supportsChunking: true
-      }
-    }, { critical: true });
+    emitHello();
     emitRuntimeMetrics();
     return;
   }
@@ -1059,26 +1117,32 @@ const handleRequest = async (request) => {
 };
 
 let stdinCarry = '';
-process.stdin.setEncoding('utf8');
-process.stdin.on('data', (chunk) => {
-  const text = `${stdinCarry}${String(chunk || '')}`.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+const handleRequestLine = (line) => {
+  const trimmed = line.trim();
+  if (!trimmed) return;
+  let request;
+  try {
+    request = JSON.parse(trimmed);
+  } catch {
+    emitLog(null, 'error', 'invalid JSON request line');
+    return;
+  }
+  handleRequest(request).catch((error) => {
+    emitLog(null, 'error', error?.message || String(error));
+  });
+};
+
+const consumeStdinChunk = (chunk) => {
+  const text = normalizeLineBreaks(`${stdinCarry}${String(chunk || '')}`);
   const parts = text.split('\n');
   stdinCarry = parts.pop() || '';
   for (const line of parts) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    let request;
-    try {
-      request = JSON.parse(trimmed);
-    } catch {
-      emitLog(null, 'error', 'invalid JSON request line');
-      continue;
-    }
-    handleRequest(request).catch((error) => {
-      emitLog(null, 'error', error?.message || String(error));
-    });
+    handleRequestLine(line);
   }
-});
+};
+
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', consumeStdinChunk);
 
 process.stdin.on('end', () => {
   shutdown('stdin_closed', 0).catch(() => process.exit(0));
@@ -1092,16 +1156,7 @@ process.on('SIGTERM', () => {
   shutdown('sigterm', 130).catch(() => process.exit(130));
 });
 
-emit('hello', {
-  supervisorVersion,
-  capabilities: {
-    protocolVersion: PROGRESS_PROTOCOL,
-    supportsCancel: true,
-    supportsResultCapture: true,
-    supportsFlowControl: true,
-    supportsChunking: true
-  }
-}, { critical: true });
+emitHello();
 
 const runtimeMetricsTimer = setInterval(() => {
   if (state.shuttingDown) return;
