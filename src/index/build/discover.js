@@ -15,9 +15,9 @@ import { createRecordsClassifier } from './records.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { pickMinLimit, resolveFileCaps } from './file-processor/read.js';
 import { getEnvConfig } from '../../shared/env.js';
-import { normalizeRoot } from './watch/shared.js';
 import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
 import { detectShebangLanguage } from './shebang.js';
+import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
 import {
   buildGeneratedPolicyConfig,
   buildGeneratedPolicyDowngradePayload,
@@ -163,25 +163,22 @@ export async function discoverEntries({
     const caps = resolveFileCaps(fileCaps, ext, languageId, null);
     return pickMinLimit(maxBytes, caps.maxBytes);
   };
-  const normalizedRoot = normalizeRoot(root);
-  const normalizedRecordsRoot = recordsDir ? normalizeRoot(recordsDir) : null;
-  const recordsRoot = normalizedRecordsRoot
-    && (normalizedRecordsRoot === normalizedRoot
-      || normalizedRecordsRoot.startsWith(`${normalizedRoot}${path.sep}`))
-    ? normalizedRecordsRoot
+  const canonicalRoot = toRealPathSync(root);
+  const canonicalRecordsRoot = recordsDir ? toRealPathSync(recordsDir) : null;
+  const recordsRoot = canonicalRecordsRoot
+    && isWithinRoot(canonicalRecordsRoot, canonicalRoot)
+    ? canonicalRecordsRoot
     : null;
-  const normalizedRepoRoot = scmRepoRoot ? normalizeRoot(scmRepoRoot) : null;
-  const rootRel = normalizedRepoRoot
-    ? (normalizedRoot === normalizedRepoRoot
-      ? ''
-      : (normalizedRoot.startsWith(`${normalizedRepoRoot}${path.sep}`)
-        ? path.relative(scmRepoRoot, root)
-        : null))
+  const canonicalRepoRoot = scmRepoRoot ? toRealPathSync(scmRepoRoot) : null;
+  const rootRel = canonicalRepoRoot
+    ? (isWithinRoot(canonicalRoot, canonicalRepoRoot)
+      ? toPosix(path.relative(canonicalRepoRoot, canonicalRoot))
+      : null)
     : null;
   const recordsClassifier = createRecordsClassifier({ root, config: recordsConfig });
   const listScmFiles = async () => {
     if (!scmProviderImpl || scmProvider === 'none') return null;
-    if (!scmRepoRoot || !normalizedRepoRoot) return null;
+    if (!scmRepoRoot || !canonicalRepoRoot) return null;
     if (rootRel == null) return null;
     if (typeof scmProviderImpl.listTrackedFiles !== 'function') return null;
     try {
@@ -249,11 +246,15 @@ export async function discoverEntries({
   };
   const processCandidate = async (absPath) => {
     throwIfAborted(abortSignal);
-    const relPosix = toPosix(path.relative(root, absPath));
+    const canonicalAbs = toRealPathSync(absPath);
+    if (!isWithinRoot(canonicalAbs, canonicalRoot)) return;
+    let relPosix = toPosix(path.relative(root, absPath));
+    if (!relPosix || relPosix === '.' || relPosix.startsWith('..') || path.isAbsolute(relPosix)) {
+      relPosix = toPosix(path.relative(canonicalRoot, canonicalAbs));
+    }
     if (!relPosix || relPosix === '.' || relPosix.startsWith('..')) return;
-    const normalizedAbs = normalizeRoot(absPath);
     const inRecordsRoot = recordsRoot
-      ? normalizedAbs.startsWith(`${recordsRoot}${path.sep}`)
+      ? isWithinRoot(canonicalAbs, recordsRoot)
       : false;
     if (maxDepthValue != null) {
       const depth = relPosix.split('/').length - 1;
