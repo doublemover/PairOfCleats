@@ -1522,18 +1522,100 @@ const resolveExtractedProseLowYieldBailoutConfig = (runtime) => {
   return normalizeExtractedProseLowYieldBailoutConfig(extractedProseConfig.lowYieldBailout);
 };
 
-const buildExtractedProseLowYieldBailoutState = ({ mode, runtime, entries }) => {
+const normalizeExtractedProseLowYieldHistoryState = (persistedProfile = null) => {
+  const profile = persistedProfile && typeof persistedProfile === 'object'
+    ? persistedProfile
+    : null;
+  const totals = profile?.totals && typeof profile.totals === 'object'
+    ? profile.totals
+    : {};
+  const builds = Number(profile?.builds);
+  return {
+    builds: Number.isFinite(builds) ? Math.max(0, Math.floor(builds)) : 0,
+    observedFiles: Math.max(0, Math.floor(Number(totals.observedFiles) || 0)),
+    yieldedFiles: Math.max(0, Math.floor(Number(totals.yieldedFiles) || 0))
+  };
+};
+
+const buildExtractedProseLowYieldBailoutState = ({
+  mode,
+  runtime,
+  entries,
+  persistedProfile = null
+}) => {
   if (mode !== 'extracted-prose') return null;
   const config = resolveExtractedProseLowYieldBailoutConfig(runtime);
   const sortedEntries = sortEntriesByOrderIndex(entries);
+  const history = normalizeExtractedProseLowYieldHistoryState(persistedProfile);
+  const disableForYieldHistory = config.disableWhenHistoryHasYield === true
+    && history.yieldedFiles > 0;
+  const historyObservedThreshold = Math.max(
+    1,
+    Math.floor(Math.min(
+      Number(config.historyMinObservedFiles) || 1,
+      Number(config.warmupSampleSize) || 1
+    ))
+  );
+  const hasReliableZeroYieldHistory = history.yieldedFiles === 0
+    && history.builds >= Math.max(1, Math.floor(Number(config.historyMinBuilds) || 1))
+    && history.observedFiles >= historyObservedThreshold;
+  const baseWarmupSampleSize = Math.max(
+    0,
+    Math.min(sortedEntries.length, Math.floor(config.warmupSampleSize))
+  );
+  const reducedWarmupSampleTarget = Math.max(
+    1,
+    Math.floor(Math.max(
+      1,
+      baseWarmupSampleSize * Number(config.historyWarmupSampleScale || 1)
+    ))
+  );
+  const effectiveWarmupSampleTarget = hasReliableZeroYieldHistory && !disableForYieldHistory
+    ? Math.max(
+      Math.max(1, Math.floor(Number(config.historyWarmupSampleFloor) || 1)),
+      reducedWarmupSampleTarget
+    )
+    : baseWarmupSampleSize;
   const warmupWindowSize = Math.max(
     1,
-    Math.min(sortedEntries.length, Math.floor(config.warmupWindowSize))
+    Math.min(
+      sortedEntries.length,
+      Math.max(
+        effectiveWarmupSampleTarget,
+        Math.floor(effectiveWarmupSampleTarget * config.warmupWindowMultiplier)
+      )
+    )
   );
+  if (disableForYieldHistory) {
+    return {
+      enabled: false,
+      config,
+      warmupWindowSize: 0,
+      warmupSampleSize: 0,
+      sampledOrderIndices: new Set(),
+      observedOrderIndices: new Set(),
+      observedSamples: 0,
+      yieldedSamples: 0,
+      sampledChunkCount: 0,
+      decisionMade: false,
+      triggered: false,
+      decisionAtOrderIndex: null,
+      decisionAtMs: null,
+      skippedFiles: 0,
+      history: {
+        builds: history.builds,
+        observedFiles: history.observedFiles,
+        yieldedFiles: history.yieldedFiles,
+        reducedWarmup: false,
+        disabledForYieldHistory: true,
+        baseWarmupSampleSize
+      }
+    };
+  }
   const warmupWindowEntries = sortedEntries.slice(0, warmupWindowSize);
   const warmupSampleSize = Math.max(
     0,
-    Math.min(warmupWindowEntries.length, Math.floor(config.warmupSampleSize))
+    Math.min(warmupWindowEntries.length, Math.floor(effectiveWarmupSampleTarget))
   );
   const sampledEntries = selectDeterministicWarmupSample({
     values: warmupWindowEntries,
@@ -1549,11 +1631,12 @@ const buildExtractedProseLowYieldBailoutState = ({ mode, runtime, entries }) => 
   }
   const hasSufficientWarmupPopulation = sortedEntries.length >= Math.max(
     2,
-    Math.floor(config.warmupSampleSize),
+    Math.floor(warmupSampleSize),
     Math.floor(config.minYieldedFiles)
   );
   return {
     enabled: config.enabled !== false
+      && !disableForYieldHistory
       && sampledOrderIndices.size > 0
       && hasSufficientWarmupPopulation,
     config,
@@ -1568,7 +1651,17 @@ const buildExtractedProseLowYieldBailoutState = ({ mode, runtime, entries }) => 
     triggered: false,
     decisionAtOrderIndex: null,
     decisionAtMs: null,
-    skippedFiles: 0
+    skippedFiles: 0,
+    history: {
+      builds: history.builds,
+      observedFiles: history.observedFiles,
+      yieldedFiles: history.yieldedFiles,
+      reducedWarmup: hasReliableZeroYieldHistory
+        && !disableForYieldHistory
+        && warmupSampleSize < baseWarmupSampleSize,
+      disabledForYieldHistory: disableForYieldHistory,
+      baseWarmupSampleSize
+    }
   };
 };
 
@@ -1930,8 +2023,43 @@ export const processFiles = async ({
   const extractedProseLowYieldBailout = buildExtractedProseLowYieldBailoutState({
     mode,
     runtime,
-    entries
+    entries,
+    persistedProfile: extractedProseYieldProfile
   });
+  if (mode === 'extracted-prose' && extractedProseLowYieldBailout?.history?.disabledForYieldHistory) {
+    logLine(
+      '[stage1:extracted-prose] low-yield bailout disabled (persisted yield history detected).',
+      {
+        kind: 'info',
+        mode,
+        stage: 'processing',
+        extractedProseLowYieldBailout: {
+          disabledForYieldHistory: true,
+          yieldedFiles: extractedProseLowYieldBailout.history.yieldedFiles,
+          observedFiles: extractedProseLowYieldBailout.history.observedFiles,
+          builds: extractedProseLowYieldBailout.history.builds
+        }
+      }
+    );
+  } else if (mode === 'extracted-prose' && extractedProseLowYieldBailout?.history?.reducedWarmup) {
+    logLine(
+      `[stage1:extracted-prose] low-yield warmup reduced `
+        + `(${extractedProseLowYieldBailout.history.baseWarmupSampleSize}`
+        + ` -> ${extractedProseLowYieldBailout.warmupSampleSize}) from persisted zero-yield history.`,
+      {
+        kind: 'info',
+        mode,
+        stage: 'processing',
+        extractedProseLowYieldBailout: {
+          reducedWarmup: true,
+          baseWarmupSampleSize: extractedProseLowYieldBailout.history.baseWarmupSampleSize,
+          warmupSampleSize: extractedProseLowYieldBailout.warmupSampleSize,
+          observedFiles: extractedProseLowYieldBailout.history.observedFiles,
+          builds: extractedProseLowYieldBailout.history.builds
+        }
+      }
+    );
+  }
   const extractedProseYieldProfilePrefilter = normalizeExtractedProseYieldProfilePrefilterState({
     mode,
     runtime,

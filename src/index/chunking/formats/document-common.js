@@ -13,7 +13,12 @@ export const EXTRACTED_PROSE_LOW_YIELD_BAILOUT_DEFAULTS = Object.freeze({
   warmupWindowMultiplier: 4,
   minYieldRatio: 0.08,
   minYieldedFiles: 2,
-  seed: 'extracted-prose-low-yield-v1'
+  seed: 'extracted-prose-low-yield-v1',
+  disableWhenHistoryHasYield: true,
+  historyMinBuilds: 1,
+  historyMinObservedFiles: 48,
+  historyWarmupSampleScale: 0.25,
+  historyWarmupSampleFloor: 8
 });
 export const EXTRACTED_PROSE_YIELD_PROFILE_PREFILTER_DEFAULTS = Object.freeze({
   enabled: true,
@@ -36,6 +41,11 @@ const normalizeBoolean = (value, fallback) => {
 const normalizeRatio = (value, fallback) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) return fallback;
+  return parsed;
+};
+const normalizeRatioExclusiveZero = (value, fallback) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 1) return fallback;
   return parsed;
 };
 const normalizeString = (value, fallback) => {
@@ -66,7 +76,24 @@ export const normalizeExtractedProseLowYieldBailoutConfig = (value = null) => {
     ),
     minYieldRatio: normalizeRatio(config.minYieldRatio, defaults.minYieldRatio),
     minYieldedFiles: normalizePositiveInt(config.minYieldedFiles, defaults.minYieldedFiles),
-    seed: normalizeString(config.seed, defaults.seed)
+    seed: normalizeString(config.seed, defaults.seed),
+    disableWhenHistoryHasYield: normalizeBoolean(
+      config.disableWhenHistoryHasYield,
+      defaults.disableWhenHistoryHasYield
+    ),
+    historyMinBuilds: normalizePositiveInt(config.historyMinBuilds, defaults.historyMinBuilds),
+    historyMinObservedFiles: normalizePositiveInt(
+      config.historyMinObservedFiles,
+      defaults.historyMinObservedFiles
+    ),
+    historyWarmupSampleScale: normalizeRatioExclusiveZero(
+      config.historyWarmupSampleScale,
+      defaults.historyWarmupSampleScale
+    ),
+    historyWarmupSampleFloor: normalizePositiveInt(
+      config.historyWarmupSampleFloor,
+      defaults.historyWarmupSampleFloor
+    )
   };
 };
 
