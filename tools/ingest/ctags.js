@@ -5,7 +5,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { spawn } from 'node:child_process';
 import { createCli } from '../../src/shared/cli.js';
-import { isAbsolutePathNative, toPosix } from '../../src/shared/files.js';
+import { isAbsolutePathNative, isRelativePathEscape, toPosix } from '../../src/shared/files.js';
 import { registerChildProcessForCleanup } from '../../src/shared/subprocess.js';
 import { getRepoCacheRoot, resolveRepoConfig } from '../shared/dict-utils.js';
 
@@ -40,7 +40,10 @@ const normalizePath = (value) => {
   const raw = String(value);
   const resolved = isAbsolutePathNative(raw) ? raw : path.resolve(repoRoot, raw);
   const rel = path.relative(repoRoot, resolved);
-  return toPosix(rel || raw);
+  const normalized = toPosix(rel || raw);
+  if (!normalized || normalized === '.') return null;
+  if (isAbsolutePathNative(normalized) || isRelativePathEscape(normalized)) return null;
+  return normalized;
 };
 
 const mapEntry = (entry) => {

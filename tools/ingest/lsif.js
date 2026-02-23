@@ -4,7 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import readline from 'node:readline';
 import { createCli } from '../../src/shared/cli.js';
-import { isAbsolutePathNative, toPosix } from '../../src/shared/files.js';
+import { isAbsolutePathNative, isRelativePathEscape, toPosix } from '../../src/shared/files.js';
 import { getRepoCacheRoot, resolveRepoConfig } from '../shared/dict-utils.js';
 
 const argv = createCli({
@@ -38,7 +38,10 @@ const normalizePath = (value) => {
   }
   const resolved = isAbsolutePathNative(raw) ? raw : path.resolve(repoRoot, raw);
   const rel = path.relative(repoRoot, resolved);
-  return toPosix(rel || raw);
+  const normalized = toPosix(rel || raw);
+  if (!normalized || normalized === '.') return null;
+  if (isAbsolutePathNative(normalized) || isRelativePathEscape(normalized)) return null;
+  return normalized;
 };
 
 const stats = {
@@ -82,6 +85,17 @@ const normalizeRange = (range) => {
   };
 };
 
+const uriPathFromDocumentUri = (uri) => {
+  if (!uri || typeof uri !== 'string') return null;
+  try {
+    const parsed = new URL(uri);
+    if (parsed.protocol !== 'file:') return null;
+    return parsed.pathname || null;
+  } catch {
+    return null;
+  }
+};
+
 const recordEntry = (payload) => {
   writeStream.write(`${JSON.stringify(payload)}\n`);
 };
@@ -112,8 +126,7 @@ const handleEdge = (edge) => {
   }
   if (label === 'item' && edge.outV != null && Array.isArray(edge.inVs)) {
     const doc = rangeToDoc.get(edge.outV) || null;
-    const docUri = doc?.uri || null;
-    const file = docUri ? normalizePath(new URL(docUri).pathname) : null;
+    const file = normalizePath(uriPathFromDocumentUri(doc?.uri || null));
     if (!file) return;
     const range = rangeById.get(edge.outV);
     const normalized = normalizeRange(range);
