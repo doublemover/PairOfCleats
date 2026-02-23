@@ -1724,6 +1724,7 @@ export async function writeIndexArtifacts(input) {
       piece: { type: 'postings', name: 'vocab_order' }
     });
   }
+  writeProgress.setTotalWrites(writes.length);
   const writeDispatch = await dispatchScheduledArtifactWrites({
     writes,
     artifactConfig,
@@ -1769,7 +1770,6 @@ export async function writeIndexArtifacts(input) {
     artifactQueueDelaySamples,
     logLine
   });
-  writeProgress.setTotalWrites(writeDispatch.totalWrites);
   if (vectorOnlyProfile) {
     const deniedPieces = pieceEntries
       .filter((entry) => VECTOR_ONLY_SPARSE_PIECE_DENYLIST.has(String(entry?.name || '')))
