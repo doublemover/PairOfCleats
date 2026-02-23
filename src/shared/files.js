@@ -22,6 +22,31 @@ export function toPosix(filePath) {
 }
 
 /**
+ * Determine whether a path resolves inside (or equal to) a root directory.
+ *
+ * @param {string} candidatePath
+ * @param {string} rootPath
+ * @param {{platform?:string}} [options]
+ * @returns {boolean}
+ */
+export function isPathWithinRoot(candidatePath, rootPath, options = {}) {
+  if (!candidatePath || !rootPath) return false;
+  const platform = typeof options.platform === 'string' ? options.platform : process.platform;
+  const pathApi = platform === 'win32' ? path.win32 : path.posix;
+  const normalizedCandidate = pathApi.resolve(String(candidatePath));
+  const normalizedRoot = pathApi.resolve(String(rootPath));
+  const candidateForCompare = platform === 'win32'
+    ? normalizedCandidate.toLowerCase()
+    : normalizedCandidate;
+  const rootForCompare = platform === 'win32'
+    ? normalizedRoot.toLowerCase()
+    : normalizedRoot;
+  const boundary = `${rootForCompare}${pathApi.sep}`;
+  return candidateForCompare === rootForCompare
+    || candidateForCompare.startsWith(boundary);
+}
+
+/**
  * Convert a path to platform separators (accepts POSIX or Windows input).
  * @param {string} filePath
  * @returns {string}

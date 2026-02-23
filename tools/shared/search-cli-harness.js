@@ -24,7 +24,11 @@ const createSearchCliError = (code, message, details) => {
 };
 
 const parseJsonPayload = ({ stdout, jsonFallback, hasJsonFallback, details }) => {
-  const source = stdout || (hasJsonFallback ? String(jsonFallback ?? '') : '');
+  const stdoutText = typeof stdout === 'string' ? stdout : toStringOutput(stdout);
+  const normalizedStdout = stdoutText.trim();
+  const source = normalizedStdout.length > 0
+    ? stdoutText
+    : (hasJsonFallback ? String(jsonFallback ?? '') : '');
   try {
     return JSON.parse(source);
   } catch (cause) {
@@ -35,6 +39,14 @@ const parseJsonPayload = ({ stdout, jsonFallback, hasJsonFallback, details }) =>
     );
   }
 };
+
+const normalizeExitCode = (value) => (
+  Number.isInteger(value) ? Number(value) : null
+);
+
+const normalizeSignal = (value) => (
+  typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
+);
 
 /**
  * Build search CLI args.
@@ -129,6 +141,7 @@ export function buildSearchCliArgs(options) {
  *   cwd?:string,
  *   encoding?:BufferEncoding,
  *   maxBuffer?:number,
+ *   spawnSyncImpl?:(command:string,args:string[],options:import('node:child_process').SpawnSyncOptions)=>import('node:child_process').SpawnSyncReturns<string>,
  *   parseJson?:boolean,
  *   jsonFallback?:string,
  *   now?:()=>number
@@ -139,6 +152,9 @@ export function runSearchCliWithSpawnSync(options) {
   const now = typeof options?.now === 'function' ? options.now : Date.now;
   const args = buildSearchCliArgs({ ...(options || {}), includeSearchPath: true });
   const hasJsonFallback = Object.prototype.hasOwnProperty.call(options || {}, 'jsonFallback');
+  const spawnSyncImpl = typeof options?.spawnSyncImpl === 'function'
+    ? options.spawnSyncImpl
+    : spawnSync;
   const spawnOptions = {
     cwd: options?.cwd,
     env: options?.env,
@@ -149,12 +165,14 @@ export function runSearchCliWithSpawnSync(options) {
   }
 
   const startedAt = now();
-  const result = spawnSync(process.execPath, args, spawnOptions);
+  const result = spawnSyncImpl(process.execPath, args, spawnOptions);
   const wallMs = now() - startedAt;
   const stdout = toStringOutput(result.stdout);
   const stderr = toStringOutput(result.stderr);
+  const exitCode = normalizeExitCode(result.status);
+  const signal = normalizeSignal(result.signal);
 
-  if (result.status !== 0) {
+  if (exitCode !== 0 || signal) {
     throw createSearchCliError(
       'ERR_SEARCH_CLI_EXIT',
       'Search CLI exited with non-zero status.',
@@ -162,7 +180,8 @@ export function runSearchCliWithSpawnSync(options) {
         args,
         stdout,
         stderr,
-        exitCode: result.status ?? 1,
+        exitCode,
+        signal,
         spawnError: result.error || null,
         wallMs
       }
@@ -179,7 +198,8 @@ export function runSearchCliWithSpawnSync(options) {
         args,
         stdout,
         stderr,
-        exitCode: result.status ?? 0,
+        exitCode: exitCode ?? 0,
+        signal,
         spawnError: result.error || null,
         wallMs
       }
@@ -210,6 +230,7 @@ export function runSearchCliWithSpawnSync(options) {
  *   env?:NodeJS.ProcessEnv,
  *   cwd?:string,
  *   maxOutputBytes?:number,
+ *   spawnSubprocessSyncImpl?:(command:string,args:string[],options:object)=>{exitCode:number|null,signal:string|null,stdout?:string,stderr?:string},
  *   parseJson?:boolean,
  *   jsonFallback?:string,
  *   now?:()=>number
@@ -220,8 +241,11 @@ export function runSearchCliWithSubprocessSync(options) {
   const now = typeof options?.now === 'function' ? options.now : Date.now;
   const args = buildSearchCliArgs({ ...(options || {}), includeSearchPath: true });
   const hasJsonFallback = Object.prototype.hasOwnProperty.call(options || {}, 'jsonFallback');
+  const spawnSubprocessSyncImpl = typeof options?.spawnSubprocessSyncImpl === 'function'
+    ? options.spawnSubprocessSyncImpl
+    : spawnSubprocessSync;
   const startedAt = now();
-  const result = spawnSubprocessSync(process.execPath, args, {
+  const result = spawnSubprocessSyncImpl(process.execPath, args, {
     cwd: options?.cwd,
     env: options?.env,
     maxOutputBytes: Number.isFinite(Number(options?.maxOutputBytes))
@@ -235,8 +259,10 @@ export function runSearchCliWithSubprocessSync(options) {
   const wallMs = now() - startedAt;
   const stdout = toStringOutput(result.stdout);
   const stderr = toStringOutput(result.stderr);
+  const exitCode = normalizeExitCode(result.exitCode);
+  const signal = normalizeSignal(result.signal);
 
-  if (result.exitCode !== 0) {
+  if (exitCode !== 0 || signal) {
     throw createSearchCliError(
       'ERR_SEARCH_CLI_EXIT',
       'Search CLI exited with non-zero status.',
@@ -244,7 +270,8 @@ export function runSearchCliWithSubprocessSync(options) {
         args,
         stdout,
         stderr,
-        exitCode: result.exitCode ?? 1,
+        exitCode,
+        signal,
         spawnError: null,
         wallMs
       }
@@ -261,7 +288,8 @@ export function runSearchCliWithSubprocessSync(options) {
         args,
         stdout,
         stderr,
-        exitCode: result.exitCode ?? 0,
+        exitCode: exitCode ?? 0,
+        signal,
         spawnError: null,
         wallMs
       }

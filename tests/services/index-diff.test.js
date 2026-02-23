@@ -61,40 +61,46 @@ const seedBuild = async ({
   files,
   chunkSignature,
   configHash,
-  toolVersion
+  toolVersion,
+  fileMetaRows = null,
+  chunkMetaRows = null
 }) => {
   const buildRoot = path.join(repoCacheRoot, 'builds', buildId);
   const indexDir = path.join(buildRoot, 'index-code');
   await fs.mkdir(indexDir, { recursive: true });
 
-  const fileMeta = files.map((entry, index) => ({
-    id: index + 1,
-    file: entry.file,
-    hash: sha1Value(entry.content),
-    size: entry.content.length,
-    ext: 'js'
-  }));
+  const fileMeta = Array.isArray(fileMetaRows) && fileMetaRows.length
+    ? fileMetaRows
+    : files.map((entry, index) => ({
+      id: index + 1,
+      file: entry.file,
+      hash: sha1Value(entry.content),
+      size: entry.content.length,
+      ext: 'js'
+    }));
   await writeJson(path.join(indexDir, 'file_meta.json'), fileMeta);
 
-  const chunkMeta = files.map((entry, index) => ({
-    id: index,
-    fileId: index + 1,
-    file: entry.file,
-    start: 0,
-    end: entry.content.length,
-    startLine: 1,
-    endLine: 1,
-    kind: 'function',
-    name: entry.file,
-    chunkId: entry.chunkId,
-    metaV2: {
+  const chunkMeta = Array.isArray(chunkMetaRows) && chunkMetaRows.length
+    ? chunkMetaRows
+    : files.map((entry, index) => ({
+      id: index,
+      fileId: index + 1,
+      file: entry.file,
+      start: 0,
+      end: entry.content.length,
+      startLine: 1,
+      endLine: 1,
+      kind: 'function',
+      name: entry.file,
       chunkId: entry.chunkId,
-      chunkUid: `ck:${buildId}:${entry.chunkId}`,
-      signature: chunkSignature[entry.file],
-      virtualPath: entry.file,
-      file: entry.file
-    }
-  }));
+      metaV2: {
+        chunkId: entry.chunkId,
+        chunkUid: `ck:${buildId}:${entry.chunkId}`,
+        signature: chunkSignature[entry.file],
+        virtualPath: entry.file,
+        file: entry.file
+      }
+    }));
   await writeJson(path.join(indexDir, 'chunk_meta.json'), chunkMeta);
 
   await writeJson(path.join(indexDir, 'index_state.json'), {
@@ -301,5 +307,145 @@ const toolMismatch = await computeIndexDiff({
   persist: false
 });
 assert.equal(toolMismatch.summary.compat.toolVersionMismatch, true, 'tool mismatch should be annotated');
+
+await seedBuild({
+  repoCacheRoot,
+  buildId: 'build-e',
+  files: [],
+  chunkSignature: {},
+  configHash: 'cfg-shared',
+  toolVersion: '1.0.0',
+  fileMetaRows: [
+    {
+      id: 1,
+      file: 'src/many.js',
+      hash: sha1Value('export const many = 1;'),
+      size: 'export const many = 1;'.length,
+      ext: 'js'
+    }
+  ],
+  chunkMetaRows: [
+    {
+      id: 0,
+      fileId: 1,
+      file: 'src/many.js',
+      start: 0,
+      end: 22,
+      startLine: 1,
+      endLine: 1,
+      kind: 'function',
+      name: 'many-a',
+      chunkId: 'many-chunk-a',
+      metaV2: {
+        chunkId: 'many-chunk-a',
+        chunkUid: 'ck:build-e:many-chunk-a',
+        signature: 'sig-many-e-a',
+        virtualPath: 'src/many.js',
+        file: 'src/many.js'
+      }
+    }
+  ]
+});
+await writeJson(path.join(repoCacheRoot, 'builds', 'current.json'), {
+  buildId: 'build-e',
+  buildRoot: 'builds/build-e',
+  buildRoots: { code: 'builds/build-e' }
+});
+await createPointerSnapshot({
+  repoRoot,
+  userConfig,
+  modes: ['code'],
+  snapshotId: 'snap-20260212000000-diffe'
+});
+
+await seedBuild({
+  repoCacheRoot,
+  buildId: 'build-f',
+  files: [],
+  chunkSignature: {},
+  configHash: 'cfg-shared',
+  toolVersion: '1.0.0',
+  fileMetaRows: [
+    {
+      id: 1,
+      file: 'src/many.js',
+      hash: sha1Value('export const many = 2;'),
+      size: 'export const many = 2;'.length,
+      ext: 'js'
+    }
+  ],
+  chunkMetaRows: [
+    {
+      id: 0,
+      fileId: 1,
+      file: 'src/many.js',
+      start: 0,
+      end: 11,
+      startLine: 1,
+      endLine: 1,
+      kind: 'function',
+      name: 'many-a',
+      chunkId: 'many-chunk-a',
+      metaV2: {
+        chunkId: 'many-chunk-a',
+        chunkUid: 'ck:build-f:many-chunk-a',
+        signature: 'sig-many-f-a',
+        virtualPath: 'src/many.js',
+        file: 'src/many.js'
+      }
+    },
+    {
+      id: 1,
+      fileId: 1,
+      file: 'src/many.js',
+      start: 11,
+      end: 22,
+      startLine: 1,
+      endLine: 1,
+      kind: 'function',
+      name: 'many-b',
+      chunkId: 'many-chunk-b',
+      metaV2: {
+        chunkId: 'many-chunk-b',
+        chunkUid: 'ck:build-f:many-chunk-b',
+        signature: 'sig-many-f-b',
+        virtualPath: 'src/many.js',
+        file: 'src/many.js'
+      }
+    }
+  ]
+});
+await writeJson(path.join(repoCacheRoot, 'builds', 'current.json'), {
+  buildId: 'build-f',
+  buildRoot: 'builds/build-f',
+  buildRoots: { code: 'builds/build-f' }
+});
+await createPointerSnapshot({
+  repoRoot,
+  userConfig,
+  modes: ['code'],
+  snapshotId: 'snap-20260212000000-difff'
+});
+
+const chunkLimited = await computeIndexDiff({
+  repoRoot,
+  userConfig,
+  from: 'snap:snap-20260212000000-diffe',
+  to: 'snap:snap-20260212000000-difff',
+  modes: ['code'],
+  includeRelations: false,
+  maxChunksPerFile: 1,
+  persist: false
+});
+assert.equal(
+  chunkLimited.summary?.modesSummary?.code?.limits?.chunkDiffSkipped,
+  true,
+  'chunk limit summary should report per-file chunk-diff skipping'
+);
+assert.equal(
+  chunkLimited.summary?.modesSummary?.code?.limits?.reason,
+  'max-chunks-per-file',
+  'chunk limit summary reason should describe per-file cap skips'
+);
 
 console.log('index diff service test passed');

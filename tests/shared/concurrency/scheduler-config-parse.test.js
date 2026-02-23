@@ -125,4 +125,40 @@ assert.equal(autotuned.maxIoTokens, 9, 'expected max IO tokens to use autotune r
 assert.equal(autotuned.maxMemoryTokens, 8, 'expected max memory tokens to use autotune recommendation');
 assert.equal(autotuned.autoTune.sourceBuildId, 'prev-build', 'expected autotune source build metadata');
 
+const fdPressureParsed = resolveSchedulerConfig({
+  argv: {},
+  rawArgv: ['node', 'script'],
+  envConfig: {},
+  indexingConfig: {
+    scheduler: {
+      adaptiveSurfaces: {
+        fdPressure: {
+          highPressureThreshold: 0.42
+        },
+        surfaces: {
+          parse: {
+            fdPressureThreshold: 0.39
+          }
+        }
+      }
+    }
+  },
+  envelope: {
+    concurrency: {
+      cpuConcurrency: { value: 4 },
+      ioConcurrency: { value: 4 }
+    }
+  }
+});
+assert.equal(
+  fdPressureParsed.adaptiveSurfaces.fdPressure.highPressureThreshold,
+  0.42,
+  'expected fd pressure root config to be preserved'
+);
+assert.equal(
+  fdPressureParsed.adaptiveSurfaces.surfaces.parse.fdPressureThreshold,
+  0.39,
+  'expected per-surface fd pressure threshold override to be parsed'
+);
+
 console.log('scheduler config parse test passed');

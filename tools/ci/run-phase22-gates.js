@@ -2,6 +2,7 @@
 import path from 'node:path';
 import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
 import { getRuntimeConfig, loadUserConfig, resolveRepoRootArg, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
+import { exitLikeCommandResult } from '../shared/cli-utils.js';
 
 const root = resolveToolRoot();
 const repoRoot = resolveRepoRootArg(null, root);
@@ -22,7 +23,7 @@ for (const test of tests) {
   });
   if (result.exitCode !== 0) {
     console.error(`phase22 gate failed: ${test.label}`);
-    process.exit(result.exitCode ?? 1);
+    exitLikeCommandResult({ status: result.exitCode, signal: result.signal });
   }
 }
 

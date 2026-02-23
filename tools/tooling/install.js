@@ -5,6 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { buildToolingReport, detectTool, normalizeLanguageList, resolveToolsById, resolveToolsForLanguages, selectInstallPlan } from './utils.js';
 import { getToolingConfig, resolveRepoRootArg } from '../shared/dict-utils.js';
+import { exitLikeCommandResult } from '../shared/cli-utils.js';
 
 const argv = createCli({
   scriptName: 'tooling-install',
@@ -57,7 +58,14 @@ for (const tool of tools) {
   }
   const { cmd, args, env, requires } = selection.plan;
   if (requires) {
-    const requireCheck = spawnSync(requires, ['--version'], { encoding: 'utf8' });
+    const requireCheck = spawnSync(requires, ['--version'], {
+      encoding: 'utf8',
+      stdio: 'ignore',
+      windowsHide: true
+    });
+    if (typeof requireCheck.signal === 'string' && requireCheck.signal.trim()) {
+      exitLikeCommandResult({ status: null, signal: requireCheck.signal });
+    }
     if (requireCheck.status !== 0) {
       results.push({ id: tool.id, status: 'missing-requirement', requires, docs: tool.docs || null });
       continue;
@@ -82,22 +90,55 @@ if (argv['dry-run']) {
 for (const action of actions) {
   console.error(`[tooling-install] Installing ${action.id} (${action.scope})...`);
   const env = action.env ? { ...process.env, ...action.env } : process.env;
-  const result = spawnSync(action.cmd, action.args, { stdio: 'inherit', env });
+  const spawnOpts = {
+    env,
+    stdio: argv.json ? ['inherit', 'pipe', 'pipe'] : 'inherit',
+    windowsHide: true
+  };
+  if (argv.json) {
+    spawnOpts.encoding = 'utf8';
+    // Keep JSON mode machine-parseable by capturing child stdout/stderr while
+    // avoiding `ENOBUFS` on verbose installers.
+    spawnOpts.maxBuffer = 1024 * 1024 * 1024;
+  }
+  const result = spawnSync(action.cmd, action.args, spawnOpts);
+  if (argv.json) {
+    if (result.stdout) {
+      process.stderr.write(result.stdout);
+    }
+    if (result.stderr) {
+      process.stderr.write(result.stderr);
+    }
+  }
+  if (typeof result.signal === 'string' && result.signal.trim()) {
+    exitLikeCommandResult({ status: null, signal: result.signal });
+  }
   if (result.status !== 0) {
-    results.push({ id: action.id, status: 'failed', exitCode: result.status, docs: action.docs });
+    const exitCode = Number.isInteger(result.status) ? Number(result.status) : 1;
+    const error = result.error?.message ? String(result.error.message) : null;
+    results.push({
+      id: action.id,
+      status: 'failed',
+      exitCode,
+      ...(error ? { error } : {}),
+      docs: action.docs
+    });
     continue;
   }
   results.push({ id: action.id, status: 'installed' });
 }
 
 const payload = { root, scope, allowFallback, actions, results };
+const hasFailedInstalls = results.some((entry) => (
+  entry?.status === 'failed' || entry?.status === 'missing-requirement'
+));
 if (argv.json) {
   stdoutGuard.writeJson(payload);
 } else {
-  const failed = results.filter((entry) => entry.status === 'failed');
-  if (failed.length) {
+  if (hasFailedInstalls) {
     console.error('[tooling-install] Some installs failed.');
   } else {
     console.error('[tooling-install] Completed.');
   }
 }
+process.exit(hasFailedInstalls ? 1 : 0);

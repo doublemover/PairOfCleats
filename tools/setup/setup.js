@@ -20,7 +20,7 @@ import {
   resolveRuntimeEnv,
   resolveToolRoot
 } from '../shared/dict-utils.js';
-import { runCommand as runCommandBase } from '../shared/cli-utils.js';
+import { exitLikeCommandResult, runCommand as runCommandBase } from '../shared/cli-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/vector-extension.js';
 
 const argv = createCli({
@@ -110,8 +110,9 @@ let runtimeEnv = resolveRuntimeEnv(null, process.env);
 /**
  * Execute a setup subprocess with merged runtime environment defaults.
  *
- * In `--json` mode stdout is piped by default so setup can emit a single final
- * JSON summary on stdout without interleaved child output.
+ * In `--json` mode child stdout is suppressed and stderr is inherited so setup
+ * can emit a single final JSON summary on stdout without interleaved child
+ * output while still surfacing progress/errors.
  *
  * @param {string} cmd
  * @param {string[]} args
@@ -125,7 +126,7 @@ function runCommand(cmd, args, options = {}) {
     env: { ...runtimeEnv, ...(options.env || {}) }
   };
   if (!('stdio' in spawnOptions)) {
-    spawnOptions.stdio = jsonOutput ? 'pipe' : 'inherit';
+    spawnOptions.stdio = jsonOutput ? ['ignore', 'ignore', 'inherit'] : 'inherit';
   }
   if (jsonOutput && !('encoding' in spawnOptions)) {
     spawnOptions.encoding = 'utf8';
@@ -147,7 +148,7 @@ function runOrExit(label, cmd, args, options = {}) {
   if (!result.ok) {
     recordError(label, result, 'command failed');
     console.error(`[setup] Failed: ${label}`);
-    process.exit(result.status ?? 1);
+    exitLikeCommandResult(result);
   }
   return result;
 }
@@ -183,7 +184,7 @@ if (shouldValidateConfig && configExists) {
       : await promptYesNo('Config validation failed. Continue setup anyway?', false);
     if (!continueSetup) {
       if (rl) await rl.close();
-      process.exit(result.status ?? 1);
+      exitLikeCommandResult(result);
     }
   }
 } else {
@@ -326,6 +327,9 @@ if (argv['skip-tooling']) {
     [path.join(toolRoot, 'tools', 'tooling', 'detect.js'), '--root', root, '--json'],
     { encoding: 'utf8', stdio: 'pipe' }
   );
+  if (typeof detectResult.signal === 'string' && detectResult.signal.trim()) {
+    exitLikeCommandResult(detectResult);
+  }
   if (detectResult.status === 0 && detectResult.stdout) {
     try {
       const report = JSON.parse(detectResult.stdout);

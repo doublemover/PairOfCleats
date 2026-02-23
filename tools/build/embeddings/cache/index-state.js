@@ -1,4 +1,5 @@
 export const CACHE_INDEX_VERSION = 1;
+const SHARD_NAME_PATTERN = /^shard-(\d+)\.bin$/;
 
 /**
  * @typedef {object} CacheIndexEntry
@@ -52,6 +53,26 @@ export const createCacheIndex = (identityKey) => {
 };
 
 /**
+ * Derive the next shard id from existing shard names.
+ *
+ * Uses the largest numeric shard suffix + 1, ignoring unrecognized names.
+ *
+ * @param {Record<string,{createdAt?:string,sizeBytes?:number}>|null|undefined} shards
+ * @returns {number}
+ */
+export const resolveNextShardIdFromShards = (shards = {}) => {
+  let next = 0;
+  for (const name of Object.keys(shards || {})) {
+    const match = SHARD_NAME_PATTERN.exec(String(name || '').trim());
+    if (!match) continue;
+    const shardId = Number(match[1]);
+    if (!Number.isFinite(shardId) || shardId < 0) continue;
+    next = Math.max(next, Math.floor(shardId) + 1);
+  }
+  return next;
+};
+
+/**
  * Normalize parsed on-disk cache index payload to the current schema.
  *
  * Invalid versions are reset to a fresh state to avoid carrying mixed
@@ -67,11 +88,13 @@ export const normalizeCacheIndex = (index, identityKey) => {
   const normalized = { ...index };
   normalized.identityKey = normalized.identityKey || identityKey || null;
   normalized.entries = { ...(normalized.entries || {}) };
-  normalized.files = { ...(normalized.files || {}) };
+  normalized.files = buildCacheIndexFileMap(normalized.entries);
   normalized.shards = { ...(normalized.shards || {}) };
-  normalized.nextShardId = Number.isFinite(Number(normalized.nextShardId))
+  const configuredNextShardId = Number.isFinite(Number(normalized.nextShardId))
     ? Math.max(0, Math.floor(Number(normalized.nextShardId)))
-    : Object.keys(normalized.shards).length;
+    : 0;
+  const derivedNextShardId = resolveNextShardIdFromShards(normalized.shards);
+  normalized.nextShardId = Math.max(configuredNextShardId, derivedNextShardId);
   return normalized;
 };
 
@@ -85,6 +108,61 @@ const parseIsoMillis = (value) => {
   if (!value) return 0;
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const toCanonicalFileString = (value) => {
+  const text = typeof value === 'string' ? value.trim() : '';
+  return text || null;
+};
+
+/**
+ * Compare file-key candidates and return positive when `left` should win.
+ *
+ * @param {{lastAccessAtMs:number,hits:number,createdAtMs:number,key:string}} left
+ * @param {{lastAccessAtMs:number,hits:number,createdAtMs:number,key:string}} right
+ * @returns {number}
+ */
+const compareFileKeyCandidates = (left, right) => {
+  if (left.lastAccessAtMs !== right.lastAccessAtMs) {
+    return left.lastAccessAtMs - right.lastAccessAtMs;
+  }
+  if (left.hits !== right.hits) {
+    return left.hits - right.hits;
+  }
+  if (left.createdAtMs !== right.createdAtMs) {
+    return left.createdAtMs - right.createdAtMs;
+  }
+  return left.key.localeCompare(right.key);
+};
+
+/**
+ * Build canonical `files` lookup from cache entries.
+ *
+ * Duplicate file owners are resolved deterministically to the most-recently
+ * used entry, with additional stable tie-breakers.
+ *
+ * @param {Record<string,CacheIndexEntry>} entries
+ * @returns {Record<string,string>}
+ */
+export const buildCacheIndexFileMap = (entries = {}) => {
+  const fileMap = {};
+  const selected = new Map();
+  for (const [key, entry] of Object.entries(entries || {})) {
+    const file = toCanonicalFileString(entry?.file);
+    if (!file) continue;
+    const candidate = {
+      key,
+      lastAccessAtMs: parseIsoMillis(entry?.lastAccessAt),
+      hits: Number.isFinite(Number(entry?.hits)) ? Number(entry.hits) : 0,
+      createdAtMs: parseIsoMillis(entry?.createdAt)
+    };
+    const existing = selected.get(file);
+    if (!existing || compareFileKeyCandidates(candidate, existing) > 0) {
+      selected.set(file, candidate);
+      fileMap[file] = key;
+    }
+  }
+  return fileMap;
 };
 
 /**
@@ -190,7 +268,6 @@ export const mergeCacheIndex = (base, incoming) => {
   if (!incoming || typeof incoming !== 'object') return base;
 
   base.entries = { ...(base.entries || {}) };
-  base.files = { ...(base.files || {}) };
   base.shards = { ...(base.shards || {}) };
 
   for (const [key, entry] of Object.entries(incoming.entries || {})) {
@@ -198,10 +275,7 @@ export const mergeCacheIndex = (base, incoming) => {
     base.entries[key] = existing ? mergeCacheIndexEntry(existing, entry) : entry;
   }
 
-  for (const [file, key] of Object.entries(incoming.files || {})) {
-    if (!file || !key) continue;
-    base.files[file] = key;
-  }
+  base.files = buildCacheIndexFileMap(base.entries);
 
   for (const [shardName, shardMeta] of Object.entries(incoming.shards || {})) {
     const existing = base.shards[shardName] || null;
@@ -219,7 +293,8 @@ export const mergeCacheIndex = (base, incoming) => {
 
   const baseNext = Number.isFinite(Number(base.nextShardId)) ? Number(base.nextShardId) : 0;
   const incomingNext = Number.isFinite(Number(incoming.nextShardId)) ? Number(incoming.nextShardId) : 0;
-  base.nextShardId = Math.max(baseNext, incomingNext);
+  const derivedNext = resolveNextShardIdFromShards(base.shards);
+  base.nextShardId = Math.max(baseNext, incomingNext, derivedNext);
 
   if (incoming.currentShard) {
     base.currentShard = incoming.currentShard;

@@ -82,6 +82,43 @@ const findCacheIndexPaths = async (rootDir) => {
   return matches.sort((a, b) => a.localeCompare(b));
 };
 
+const findPathsByName = async (rootDir, fileName) => {
+  const matches = [];
+  const walk = async (dir) => {
+    let items;
+    try {
+      items = await fsPromises.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const item of items) {
+      const fullPath = path.join(dir, item.name);
+      if (item.isDirectory()) {
+        await walk(fullPath);
+        continue;
+      }
+      if (item.isFile() && item.name === fileName) {
+        matches.push(fullPath);
+      }
+    }
+  };
+  await walk(rootDir);
+  return matches.sort((a, b) => a.localeCompare(b));
+};
+
+const countShardFiles = async (rootDir) => {
+  const shardFiles = await findPathsByName(rootDir, 'cache.index.json');
+  let count = 0;
+  for (const indexPath of shardFiles) {
+    const shardDir = path.join(path.dirname(indexPath), 'shards');
+    try {
+      const entries = await fsPromises.readdir(shardDir, { withFileTypes: true });
+      count += entries.filter((entry) => entry.isFile() && entry.name.endsWith('.bin')).length;
+    } catch {}
+  }
+  return count;
+};
+
 const loadCacheEntries = async (cacheRootDir) => {
   const entries = [];
   const indexPaths = await findCacheIndexPaths(cacheRootDir);
@@ -177,6 +214,25 @@ const firstSet = new Set(firstIndexPaths);
 const hasNew = secondIndexPaths.some((entry) => !firstSet.has(entry));
 if (!hasNew) {
   console.error('embeddings cache identity test failed: expected new cache entries after dims change');
+  process.exit(1);
+}
+
+const metaPaths = await findPathsByName(cacheScanRoot, 'cache.meta.json');
+for (const metaPath of metaPaths) {
+  try {
+    const parsed = JSON.parse(await fsPromises.readFile(metaPath, 'utf8'));
+    parsed.identityKey = 'tampered-identity-key';
+    await fsPromises.writeFile(metaPath, JSON.stringify(parsed, null, 2), 'utf8');
+  } catch {}
+}
+const shardCountBeforeMismatch = await countShardFiles(cacheScanRoot);
+runEmbeddings(12);
+const shardCountAfterMismatch = await countShardFiles(cacheScanRoot);
+if (shardCountAfterMismatch !== shardCountBeforeMismatch) {
+  console.error(
+    `embeddings cache identity test failed: mismatch run should not append cache shards `
+    + `(before=${shardCountBeforeMismatch}, after=${shardCountAfterMismatch})`
+  );
   process.exit(1);
 }
 

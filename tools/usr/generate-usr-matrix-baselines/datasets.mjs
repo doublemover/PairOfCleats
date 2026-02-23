@@ -1,21 +1,587 @@
-import { buildFixtureGovernance } from './fixture-governance.mjs';
-import {
-  CAPABILITIES,
-  languageBaselines,
-  familyNodeKinds,
-  familyEdgeKinds,
-  familyCapabilities,
-  parserFallbackByPreference,
-  customEmbeddingPolicies
-} from './datasets-language-families.mjs';
-import {
-  frameworkProfiles,
-  frameworkEdgeCases,
-  edgeKindConstraints,
-  nodeKindMappings
-} from './datasets-framework-families.mjs';
-
 const SCHEMA_VERSION = 'usr-registry-1.0.0';
+
+const CAPABILITIES = [
+  'imports',
+  'relations',
+  'docmeta',
+  'ast',
+  'controlFlow',
+  'dataFlow',
+  'graphRelations',
+  'riskLocal',
+  'riskInterprocedural',
+  'symbolGraph'
+];
+
+const languageBaselines = [
+  { id: 'javascript', family: 'js-ts', parserPreference: 'hybrid', requiredConformance: ['C0', 'C1', 'C2', 'C3', 'C4'], frameworkProfiles: ['astro', 'next', 'nuxt', 'react', 'svelte', 'sveltekit', 'vue'], minVersion: 'ecma-2020', dialects: ['cjs', 'esm', 'jsx'], featureFlags: ['jsx', 'top-level-await'] },
+  { id: 'typescript', family: 'js-ts', parserPreference: 'hybrid', requiredConformance: ['C0', 'C1', 'C2', 'C3', 'C4'], frameworkProfiles: ['angular', 'astro', 'next', 'nuxt', 'react', 'svelte', 'sveltekit', 'vue'], minVersion: '5.0', dialects: ['ts', 'tsx'], featureFlags: ['decorators', 'jsx', 'project-references'] },
+  { id: 'python', family: 'dynamic', parserPreference: 'hybrid', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: '3.8', dialects: ['cpython'], featureFlags: ['pattern-matching', 'type-hints'] },
+  { id: 'clike', family: 'systems', parserPreference: 'hybrid', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: 'c11-cpp17', dialects: ['c', 'cpp'], featureFlags: ['preprocessor', 'templates'] },
+  { id: 'go', family: 'systems', parserPreference: 'hybrid', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: '1.20', dialects: ['go'], featureFlags: ['generics', 'modules'] },
+  { id: 'java', family: 'managed', parserPreference: 'hybrid', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: '17', dialects: ['java'], featureFlags: ['records', 'sealed-types'] },
+  { id: 'csharp', family: 'managed', parserPreference: 'hybrid', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: '11', dialects: ['csharp'], featureFlags: ['nullable-reference-types', 'records'] },
+  { id: 'kotlin', family: 'managed', parserPreference: 'hybrid', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: '1.9', dialects: ['kotlin'], featureFlags: ['suspend', 'k2'] },
+  { id: 'ruby', family: 'dynamic', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: '3.1', dialects: ['ruby'], featureFlags: ['pattern-matching'] },
+  { id: 'php', family: 'dynamic', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: '8.1', dialects: ['php'], featureFlags: ['attributes', 'union-types'] },
+  { id: 'html', family: 'markup', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C4'], frameworkProfiles: ['angular', 'astro', 'nuxt', 'svelte', 'sveltekit', 'vue'], minVersion: 'html5', dialects: ['html'], featureFlags: ['custom-elements'] },
+  { id: 'css', family: 'style', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C4'], frameworkProfiles: ['astro', 'nuxt', 'svelte', 'sveltekit', 'vue'], minVersion: 'css3', dialects: ['css', 'scss'], featureFlags: ['modules', 'nesting'] },
+  { id: 'lua', family: 'dynamic', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: '5.4', dialects: ['lua'], featureFlags: ['metatables'] },
+  { id: 'sql', family: 'data-interface', parserPreference: 'hybrid', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: 'sql-2016', dialects: ['ansi-sql', 'postgresql', 'sqlite'], featureFlags: ['cte', 'window-functions'] },
+  { id: 'perl', family: 'dynamic', parserPreference: 'heuristic', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: '5.34', dialects: ['perl5'], featureFlags: ['regex-extended'] },
+  { id: 'shell', family: 'dynamic', parserPreference: 'hybrid', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: 'bash-5', dialects: ['bash', 'posix-sh'], featureFlags: ['process-substitution'] },
+  { id: 'rust', family: 'systems', parserPreference: 'hybrid', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: '1.74', dialects: ['rust'], featureFlags: ['macros', 'traits'] },
+  { id: 'swift', family: 'systems', parserPreference: 'hybrid', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: '5.9', dialects: ['swift'], featureFlags: ['result-builders'] },
+  { id: 'cmake', family: 'build-dsl', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2'], frameworkProfiles: [], minVersion: '3.25', dialects: ['cmake'], featureFlags: ['generator-expressions'] },
+  { id: 'starlark', family: 'build-dsl', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2'], frameworkProfiles: [], minVersion: '1.0', dialects: ['bazel-starlark'], featureFlags: ['load', 'rule-macros'] },
+  { id: 'nix', family: 'build-dsl', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2'], frameworkProfiles: [], minVersion: '2.18', dialects: ['nix'], featureFlags: ['flakes'] },
+  { id: 'dart', family: 'managed', parserPreference: 'hybrid', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: '3.0', dialects: ['dart'], featureFlags: ['null-safety', 'records'] },
+  { id: 'scala', family: 'managed', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: '3.3', dialects: ['scala3'], featureFlags: ['givens', 'opaque-types'] },
+  { id: 'groovy', family: 'managed', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: '4.0', dialects: ['groovy'], featureFlags: ['ast-transforms'] },
+  { id: 'r', family: 'dynamic', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: '4.3', dialects: ['r'], featureFlags: ['tidy-eval'] },
+  { id: 'julia', family: 'dynamic', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: '1.10', dialects: ['julia'], featureFlags: ['macros', 'multiple-dispatch'] },
+  { id: 'handlebars', family: 'markup', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C4'], frameworkProfiles: [], minVersion: '4.x', dialects: ['handlebars'], featureFlags: ['helpers', 'partials'] },
+  { id: 'mustache', family: 'markup', parserPreference: 'heuristic', requiredConformance: ['C0', 'C1', 'C4'], frameworkProfiles: [], minVersion: '1.0', dialects: ['mustache'], featureFlags: ['partials'] },
+  { id: 'jinja', family: 'markup', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C4'], frameworkProfiles: [], minVersion: '3.1', dialects: ['jinja2'], featureFlags: ['filters', 'macros'] },
+  { id: 'razor', family: 'markup', parserPreference: 'hybrid', requiredConformance: ['C0', 'C1', 'C4'], frameworkProfiles: [], minVersion: 'aspnetcore-8', dialects: ['razor'], featureFlags: ['tag-helpers', 'model-binding'] },
+  { id: 'proto', family: 'data-interface', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2'], frameworkProfiles: [], minVersion: 'proto3', dialects: ['proto3'], featureFlags: ['options', 'imports'] },
+  { id: 'makefile', family: 'build-dsl', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2'], frameworkProfiles: [], minVersion: 'gnu-make-4.4', dialects: ['gnu-make'], featureFlags: ['pattern-rules'] },
+  { id: 'dockerfile', family: 'build-dsl', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2'], frameworkProfiles: [], minVersion: 'dockerfile-1.5', dialects: ['dockerfile'], featureFlags: ['multistage'] },
+  { id: 'graphql', family: 'data-interface', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2'], frameworkProfiles: [], minVersion: '2021-10', dialects: ['graphql-schema', 'graphql-query'], featureFlags: ['directives', 'fragments'] },
+  { id: 'ini', family: 'config-data', parserPreference: 'heuristic', requiredConformance: ['C0', 'C1', 'C2'], frameworkProfiles: [], minVersion: 'ini-1.0', dialects: ['cfg', 'ini'], featureFlags: ['sections'] },
+  { id: 'json', family: 'config-data', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2'], frameworkProfiles: [], minVersion: 'rfc-8259', dialects: ['json'], featureFlags: ['arrays', 'nested-objects'] },
+  { id: 'toml', family: 'config-data', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2'], frameworkProfiles: [], minVersion: '1.0.0', dialects: ['toml'], featureFlags: ['arrays-of-tables'] },
+  { id: 'xml', family: 'config-data', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2'], frameworkProfiles: [], minVersion: 'xml-1.0', dialects: ['xml'], featureFlags: ['namespaces', 'xinclude'] },
+  { id: 'yaml', family: 'config-data', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2'], frameworkProfiles: [], minVersion: '1.2', dialects: ['yaml'], featureFlags: ['anchors', 'aliases'] }
+];
+
+const familyNodeKinds = {
+  'js-ts': ['call_expr', 'class_decl', 'export_stmt', 'function_decl', 'import_stmt', 'module_decl'],
+  systems: ['call_expr', 'function_decl', 'module_decl', 'type_alias_decl', 'variable_decl'],
+  managed: ['class_decl', 'field_decl', 'interface_decl', 'method_decl', 'param_decl'],
+  dynamic: ['call_expr', 'control_stmt', 'function_decl', 'variable_decl'],
+  markup: ['css_rule', 'directive_expr', 'html_element', 'template_element'],
+  style: ['css_rule', 'directive_expr', 'html_element', 'template_element'],
+  'data-interface': ['graphql_type_decl', 'interface_decl', 'sql_stmt', 'type_alias_decl'],
+  'build-dsl': ['build_stmt', 'call_expr', 'variable_decl'],
+  'config-data': ['config_key', 'config_mapping', 'config_scalar', 'config_section', 'config_sequence']
+};
+
+const familyEdgeKinds = {
+  'js-ts': ['calls', 'defines', 'exports', 'imports', 'references', 'uses_type'],
+  systems: ['calls', 'defines', 'extends', 'implements', 'imports', 'references'],
+  managed: ['calls', 'defines', 'extends', 'implements', 'imports', 'references', 'uses_type'],
+  dynamic: ['calls', 'contains', 'defines', 'imports', 'references'],
+  markup: ['contains', 'style_scopes', 'template_binds', 'template_emits'],
+  style: ['contains', 'style_scopes', 'template_binds', 'template_emits'],
+  'data-interface': ['contains', 'references', 'uses_type'],
+  'build-dsl': ['calls', 'contains', 'references'],
+  'config-data': ['contains', 'references']
+};
+
+const familyCapabilities = {
+  'js-ts': {
+    imports: 'supported',
+    relations: 'supported',
+    docmeta: 'supported',
+    ast: 'supported',
+    controlFlow: 'supported',
+    dataFlow: 'supported',
+    graphRelations: 'supported',
+    riskLocal: 'supported',
+    riskInterprocedural: 'partial',
+    symbolGraph: 'supported'
+  },
+  systems: {
+    imports: 'supported',
+    relations: 'supported',
+    docmeta: 'supported',
+    ast: 'supported',
+    controlFlow: 'supported',
+    dataFlow: 'supported',
+    graphRelations: 'supported',
+    riskLocal: 'supported',
+    riskInterprocedural: 'partial',
+    symbolGraph: 'supported'
+  },
+  managed: {
+    imports: 'supported',
+    relations: 'supported',
+    docmeta: 'supported',
+    ast: 'supported',
+    controlFlow: 'supported',
+    dataFlow: 'supported',
+    graphRelations: 'supported',
+    riskLocal: 'supported',
+    riskInterprocedural: 'partial',
+    symbolGraph: 'supported'
+  },
+  dynamic: {
+    imports: 'supported',
+    relations: 'supported',
+    docmeta: 'supported',
+    ast: 'supported',
+    controlFlow: 'supported',
+    dataFlow: 'partial',
+    graphRelations: 'supported',
+    riskLocal: 'supported',
+    riskInterprocedural: 'partial',
+    symbolGraph: 'supported'
+  },
+  markup: {
+    imports: 'partial',
+    relations: 'partial',
+    docmeta: 'supported',
+    ast: 'partial',
+    controlFlow: 'unsupported',
+    dataFlow: 'unsupported',
+    graphRelations: 'partial',
+    riskLocal: 'partial',
+    riskInterprocedural: 'unsupported',
+    symbolGraph: 'partial'
+  },
+  style: {
+    imports: 'unsupported',
+    relations: 'partial',
+    docmeta: 'supported',
+    ast: 'partial',
+    controlFlow: 'unsupported',
+    dataFlow: 'unsupported',
+    graphRelations: 'partial',
+    riskLocal: 'partial',
+    riskInterprocedural: 'unsupported',
+    symbolGraph: 'partial'
+  },
+  'data-interface': {
+    imports: 'partial',
+    relations: 'supported',
+    docmeta: 'supported',
+    ast: 'supported',
+    controlFlow: 'unsupported',
+    dataFlow: 'unsupported',
+    graphRelations: 'supported',
+    riskLocal: 'partial',
+    riskInterprocedural: 'unsupported',
+    symbolGraph: 'supported'
+  },
+  'build-dsl': {
+    imports: 'unsupported',
+    relations: 'partial',
+    docmeta: 'supported',
+    ast: 'partial',
+    controlFlow: 'partial',
+    dataFlow: 'partial',
+    graphRelations: 'partial',
+    riskLocal: 'partial',
+    riskInterprocedural: 'unsupported',
+    symbolGraph: 'partial'
+  },
+  'config-data': {
+    imports: 'partial',
+    relations: 'partial',
+    docmeta: 'supported',
+    ast: 'partial',
+    controlFlow: 'unsupported',
+    dataFlow: 'unsupported',
+    graphRelations: 'partial',
+    riskLocal: 'partial',
+    riskInterprocedural: 'unsupported',
+    symbolGraph: 'partial'
+  }
+};
+
+const parserFallbackByPreference = {
+  native: ['native-parser', 'tooling', 'heuristic'],
+  hybrid: ['native-parser', 'tree-sitter', 'tooling', 'heuristic'],
+  'tree-sitter': ['tree-sitter', 'tooling', 'heuristic'],
+  heuristic: ['heuristic']
+};
+
+const customEmbeddingPolicies = {
+  javascript: { canHostEmbedded: true, canBeEmbedded: true, embeddedLanguageAllowlist: ['css', 'graphql', 'html', 'sql'] },
+  typescript: { canHostEmbedded: true, canBeEmbedded: true, embeddedLanguageAllowlist: ['css', 'graphql', 'html', 'sql'] },
+  html: { canHostEmbedded: true, canBeEmbedded: true, embeddedLanguageAllowlist: ['css', 'handlebars', 'javascript', 'jinja', 'mustache', 'razor', 'typescript'] },
+  css: { canHostEmbedded: false, canBeEmbedded: true, embeddedLanguageAllowlist: [] },
+  handlebars: { canHostEmbedded: true, canBeEmbedded: true, embeddedLanguageAllowlist: ['css', 'html', 'javascript'] },
+  mustache: { canHostEmbedded: true, canBeEmbedded: true, embeddedLanguageAllowlist: ['css', 'html', 'javascript'] },
+  jinja: { canHostEmbedded: true, canBeEmbedded: true, embeddedLanguageAllowlist: ['css', 'html', 'javascript', 'typescript'] },
+  razor: { canHostEmbedded: true, canBeEmbedded: true, embeddedLanguageAllowlist: ['css', 'csharp', 'html', 'javascript'] },
+  sql: { canHostEmbedded: false, canBeEmbedded: true, embeddedLanguageAllowlist: [] },
+  graphql: { canHostEmbedded: false, canBeEmbedded: true, embeddedLanguageAllowlist: [] },
+  proto: { canHostEmbedded: false, canBeEmbedded: true, embeddedLanguageAllowlist: [] }
+};
+
+const frameworkProfiles = [
+  {
+    id: 'angular',
+    detectionPrecedence: ['config-override', 'angular-decorator-signals', 'angular-workspace-config', 'package-signatures', 'heuristic'],
+    appliesToLanguages: ['html', 'typescript'],
+    segmentationRules: {
+      blocks: ['script', 'template', 'style'],
+      ordering: ['container-segmentation', 'virtual-documents', 'parse-blocks', 'emit-local-entities', 'emit-bridge-edges', 'route-style-hydration-enrichment'],
+      crossBlockLinking: ['component-template-bindings', 'template-style-scope-ownership']
+    },
+    bindingSemantics: {
+      requiredEdgeKinds: ['template_binds', 'template_emits', 'style_scopes', 'route_maps_to', 'hydration_boundary'],
+      requiredAttrs: {
+        template_binds: ['bindingKind'],
+        template_emits: ['eventKind'],
+        style_scopes: ['scopeKind'],
+        route_maps_to: ['routePattern', 'runtimeSide'],
+        hydration_boundary: ['runtimeSide']
+      }
+    },
+    routeSemantics: {
+      enabled: true,
+      patternCanon: 'bracket-form',
+      runtimeSides: ['client', 'server', 'universal', 'unknown']
+    },
+    hydrationSemantics: {
+      required: true,
+      boundarySignals: ['ng-hydrate', 'universal-handoff'],
+      ssrCsrModes: ['ssr', 'csr', 'hybrid']
+    },
+    embeddedLanguageBridges: [
+      { sourceBlock: 'script', targetBlock: 'template', edgeKinds: ['template_binds', 'template_emits'] },
+      { sourceBlock: 'template', targetBlock: 'style', edgeKinds: ['style_scopes'] }
+    ],
+    edgeCaseCaseIds: ['angular-input-output-binding', 'angular-route-config-lazy', 'angular-template-style-encapsulation'],
+    requiredConformance: ['C4']
+  },
+  {
+    id: 'astro',
+    detectionPrecedence: ['config-override', 'astro-file-signature', 'astro-config', 'package-signatures', 'heuristic'],
+    appliesToLanguages: ['css', 'html', 'javascript', 'typescript'],
+    segmentationRules: {
+      blocks: ['frontmatter', 'template', 'style', 'island'],
+      ordering: ['container-segmentation', 'virtual-documents', 'parse-blocks', 'emit-local-entities', 'emit-bridge-edges', 'route-style-hydration-enrichment'],
+      crossBlockLinking: ['frontmatter-template-bridge', 'island-hydration-bridge']
+    },
+    bindingSemantics: {
+      requiredEdgeKinds: ['template_binds', 'template_emits', 'style_scopes', 'route_maps_to', 'hydration_boundary'],
+      requiredAttrs: {
+        template_binds: ['bindingKind'],
+        template_emits: ['eventKind'],
+        style_scopes: ['scopeKind'],
+        route_maps_to: ['routePattern', 'runtimeSide'],
+        hydration_boundary: ['runtimeSide']
+      }
+    },
+    routeSemantics: {
+      enabled: true,
+      patternCanon: 'bracket-form',
+      runtimeSides: ['client', 'server', 'universal', 'unknown']
+    },
+    hydrationSemantics: {
+      required: true,
+      boundarySignals: ['client:load', 'client:idle', 'client:visible', 'client:media', 'client:only'],
+      ssrCsrModes: ['ssr', 'island', 'hybrid']
+    },
+    embeddedLanguageBridges: [
+      { sourceBlock: 'frontmatter', targetBlock: 'template', edgeKinds: ['template_binds'] },
+      { sourceBlock: 'template', targetBlock: 'style', edgeKinds: ['style_scopes'] }
+    ],
+    edgeCaseCaseIds: ['astro-component-style-scope', 'astro-frontmatter-template-bridge', 'astro-island-hydration', 'astro-route-collection', 'astro-template-slot-props'],
+    requiredConformance: ['C4']
+  },
+  {
+    id: 'next',
+    detectionPrecedence: ['config-override', 'next-app-pages-conventions', 'next-config-signals', 'package-signatures', 'heuristic'],
+    appliesToLanguages: ['javascript', 'typescript'],
+    segmentationRules: {
+      blocks: ['script', 'template', 'style', 'route'],
+      ordering: ['container-segmentation', 'virtual-documents', 'parse-blocks', 'emit-local-entities', 'emit-bridge-edges', 'route-style-hydration-enrichment'],
+      crossBlockLinking: ['server-client-boundary', 'route-component-binding']
+    },
+    bindingSemantics: {
+      requiredEdgeKinds: ['template_binds', 'template_emits', 'style_scopes', 'route_maps_to', 'hydration_boundary'],
+      requiredAttrs: {
+        template_binds: ['bindingKind'],
+        template_emits: ['eventKind'],
+        style_scopes: ['scopeKind'],
+        route_maps_to: ['routePattern', 'runtimeSide'],
+        hydration_boundary: ['runtimeSide']
+      }
+    },
+    routeSemantics: {
+      enabled: true,
+      patternCanon: 'bracket-form',
+      runtimeSides: ['client', 'server', 'universal', 'unknown']
+    },
+    hydrationSemantics: {
+      required: true,
+      boundarySignals: ['use client', 'server-component-boundary'],
+      ssrCsrModes: ['ssr', 'csr', 'rsc', 'hybrid']
+    },
+    embeddedLanguageBridges: [
+      { sourceBlock: 'route', targetBlock: 'script', edgeKinds: ['route_maps_to'] },
+      { sourceBlock: 'script', targetBlock: 'style', edgeKinds: ['style_scopes'] }
+    ],
+    edgeCaseCaseIds: ['next-app-router-dynamic-segment', 'next-client-server-boundary', 'next-css-module-style-scope', 'next-route-handler-runtime', 'next-rsc-template-props'],
+    requiredConformance: ['C4']
+  },
+  {
+    id: 'nuxt',
+    detectionPrecedence: ['config-override', 'nuxt-config-signature', 'pages-server-conventions', 'package-signatures', 'heuristic'],
+    appliesToLanguages: ['css', 'html', 'javascript', 'typescript'],
+    segmentationRules: {
+      blocks: ['template', 'script', 'style', 'route'],
+      ordering: ['container-segmentation', 'virtual-documents', 'parse-blocks', 'emit-local-entities', 'emit-bridge-edges', 'route-style-hydration-enrichment'],
+      crossBlockLinking: ['template-script-bridge', 'route-component-binding']
+    },
+    bindingSemantics: {
+      requiredEdgeKinds: ['template_binds', 'template_emits', 'style_scopes', 'route_maps_to', 'hydration_boundary'],
+      requiredAttrs: {
+        template_binds: ['bindingKind'],
+        template_emits: ['eventKind'],
+        style_scopes: ['scopeKind'],
+        route_maps_to: ['routePattern', 'runtimeSide'],
+        hydration_boundary: ['runtimeSide']
+      }
+    },
+    routeSemantics: {
+      enabled: true,
+      patternCanon: 'bracket-form',
+      runtimeSides: ['client', 'server', 'universal', 'unknown']
+    },
+    hydrationSemantics: {
+      required: true,
+      boundarySignals: ['nuxt-client-only', 'suspense-boundary'],
+      ssrCsrModes: ['ssr', 'csr', 'universal']
+    },
+    embeddedLanguageBridges: [
+      { sourceBlock: 'template', targetBlock: 'script', edgeKinds: ['template_binds', 'template_emits'] },
+      { sourceBlock: 'template', targetBlock: 'style', edgeKinds: ['style_scopes'] }
+    ],
+    edgeCaseCaseIds: ['nuxt-pages-route-params', 'nuxt-server-route-mapping', 'nuxt-sfc-style-scope', 'nuxt-template-composable-binding'],
+    requiredConformance: ['C4']
+  },
+  {
+    id: 'react',
+    detectionPrecedence: ['config-override', 'jsx-tsx-signals', 'jsx-runtime-signals', 'package-signatures', 'heuristic'],
+    appliesToLanguages: ['javascript', 'typescript'],
+    segmentationRules: {
+      blocks: ['script', 'template', 'style', 'route'],
+      ordering: ['container-segmentation', 'virtual-documents', 'parse-blocks', 'emit-local-entities', 'emit-bridge-edges', 'route-style-hydration-enrichment'],
+      crossBlockLinking: ['jsx-prop-binding', 'router-component-binding']
+    },
+    bindingSemantics: {
+      requiredEdgeKinds: ['template_binds', 'template_emits', 'style_scopes', 'route_maps_to', 'hydration_boundary'],
+      requiredAttrs: {
+        template_binds: ['bindingKind'],
+        template_emits: ['eventKind'],
+        style_scopes: ['scopeKind'],
+        route_maps_to: ['routePattern', 'runtimeSide'],
+        hydration_boundary: ['runtimeSide']
+      }
+    },
+    routeSemantics: {
+      enabled: true,
+      patternCanon: 'bracket-form',
+      runtimeSides: ['client', 'server', 'universal', 'unknown']
+    },
+    hydrationSemantics: {
+      required: true,
+      boundarySignals: ['hydrateRoot', 'createRoot', 'server-render-boundary'],
+      ssrCsrModes: ['csr', 'ssr', 'hybrid']
+    },
+    embeddedLanguageBridges: [
+      { sourceBlock: 'script', targetBlock: 'template', edgeKinds: ['template_binds', 'template_emits'] },
+      { sourceBlock: 'script', targetBlock: 'style', edgeKinds: ['style_scopes'] }
+    ],
+    edgeCaseCaseIds: ['react-css-module-scope', 'react-hydration-boundary', 'react-jsx-prop-binding', 'react-route-dynamic'],
+    requiredConformance: ['C4']
+  },
+  {
+    id: 'svelte',
+    detectionPrecedence: ['config-override', 'svelte-file-signature', 'compiler-signals', 'package-signatures', 'heuristic'],
+    appliesToLanguages: ['css', 'html', 'javascript', 'typescript'],
+    segmentationRules: {
+      blocks: ['module-script', 'instance-script', 'template', 'style'],
+      ordering: ['container-segmentation', 'virtual-documents', 'parse-blocks', 'emit-local-entities', 'emit-bridge-edges', 'route-style-hydration-enrichment'],
+      crossBlockLinking: ['template-script-bridge', 'template-style-bridge']
+    },
+    bindingSemantics: {
+      requiredEdgeKinds: ['template_binds', 'template_emits', 'style_scopes', 'hydration_boundary'],
+      requiredAttrs: {
+        template_binds: ['bindingKind'],
+        template_emits: ['eventKind'],
+        style_scopes: ['scopeKind'],
+        hydration_boundary: ['runtimeSide']
+      }
+    },
+    routeSemantics: {
+      enabled: false,
+      patternCanon: 'bracket-form',
+      runtimeSides: ['client', 'server', 'universal', 'unknown']
+    },
+    hydrationSemantics: {
+      required: true,
+      boundarySignals: ['hydrate', 'svelte-component-boundary'],
+      ssrCsrModes: ['ssr', 'csr', 'hybrid']
+    },
+    embeddedLanguageBridges: [
+      { sourceBlock: 'template', targetBlock: 'instance-script', edgeKinds: ['template_binds', 'template_emits'] },
+      { sourceBlock: 'template', targetBlock: 'style', edgeKinds: ['style_scopes'] }
+    ],
+    edgeCaseCaseIds: ['svelte-bind-and-event', 'svelte-slot-props', 'svelte-style-scope'],
+    requiredConformance: ['C4']
+  },
+  {
+    id: 'sveltekit',
+    detectionPrecedence: ['config-override', 'sveltekit-route-conventions', 'kit-config-signals', 'package-signatures', 'heuristic'],
+    appliesToLanguages: ['css', 'html', 'javascript', 'typescript'],
+    segmentationRules: {
+      blocks: ['module-script', 'instance-script', 'template', 'style', 'route'],
+      ordering: ['container-segmentation', 'virtual-documents', 'parse-blocks', 'emit-local-entities', 'emit-bridge-edges', 'route-style-hydration-enrichment'],
+      crossBlockLinking: ['route-load-binding', 'template-script-bridge']
+    },
+    bindingSemantics: {
+      requiredEdgeKinds: ['template_binds', 'template_emits', 'style_scopes', 'route_maps_to', 'hydration_boundary'],
+      requiredAttrs: {
+        template_binds: ['bindingKind'],
+        template_emits: ['eventKind'],
+        style_scopes: ['scopeKind'],
+        route_maps_to: ['routePattern', 'runtimeSide'],
+        hydration_boundary: ['runtimeSide']
+      }
+    },
+    routeSemantics: {
+      enabled: true,
+      patternCanon: 'bracket-form',
+      runtimeSides: ['client', 'server', 'universal', 'unknown']
+    },
+    hydrationSemantics: {
+      required: true,
+      boundarySignals: ['csr', 'ssr', 'prerender'],
+      ssrCsrModes: ['ssr', 'csr', 'hybrid']
+    },
+    embeddedLanguageBridges: [
+      { sourceBlock: 'route', targetBlock: 'instance-script', edgeKinds: ['route_maps_to', 'template_binds'] },
+      { sourceBlock: 'template', targetBlock: 'style', edgeKinds: ['style_scopes'] }
+    ],
+    edgeCaseCaseIds: ['sveltekit-component-style-scope', 'sveltekit-load-data-binding', 'sveltekit-page-data-template', 'sveltekit-route-param', 'sveltekit-server-action-route'],
+    requiredConformance: ['C4']
+  },
+  {
+    id: 'vue',
+    detectionPrecedence: ['config-override', 'vue-sfc-signature', 'vue-compiler-metadata', 'package-signatures', 'heuristic'],
+    appliesToLanguages: ['css', 'html', 'javascript', 'typescript'],
+    segmentationRules: {
+      blocks: ['template', 'script', 'script-setup', 'style', 'custom'],
+      ordering: ['container-segmentation', 'virtual-documents', 'parse-blocks', 'emit-local-entities', 'emit-bridge-edges', 'route-style-hydration-enrichment'],
+      crossBlockLinking: ['template-script-bridge', 'template-style-bridge']
+    },
+    bindingSemantics: {
+      requiredEdgeKinds: ['template_binds', 'template_emits', 'style_scopes', 'route_maps_to', 'hydration_boundary'],
+      requiredAttrs: {
+        template_binds: ['bindingKind'],
+        template_emits: ['eventKind'],
+        style_scopes: ['scopeKind'],
+        route_maps_to: ['routePattern', 'runtimeSide'],
+        hydration_boundary: ['runtimeSide']
+      }
+    },
+    routeSemantics: {
+      enabled: true,
+      patternCanon: 'bracket-form',
+      runtimeSides: ['client', 'server', 'universal', 'unknown']
+    },
+    hydrationSemantics: {
+      required: true,
+      boundarySignals: ['suspense', 'teleport', 'async-component'],
+      ssrCsrModes: ['ssr', 'csr', 'universal']
+    },
+    embeddedLanguageBridges: [
+      { sourceBlock: 'template', targetBlock: 'script-setup', edgeKinds: ['template_binds', 'template_emits'] },
+      { sourceBlock: 'template', targetBlock: 'style', edgeKinds: ['style_scopes'] }
+    ],
+    edgeCaseCaseIds: ['vue-router-dynamic-param', 'vue-sfc-scoped-style', 'vue-sfc-script-setup-bindings'],
+    requiredConformance: ['C4']
+  }
+].sort((a, b) => a.id.localeCompare(b.id));
+
+const frameworkEdgeCases = [
+  { id: 'angular-input-output-binding', frameworkProfile: 'angular', category: 'template', requiredEdgeKinds: ['template_binds', 'template_emits'], requiredDiagnostics: [], blocking: true },
+  { id: 'angular-route-config-lazy', frameworkProfile: 'angular', category: 'route', requiredEdgeKinds: ['route_maps_to'], requiredDiagnostics: [], blocking: true },
+  { id: 'angular-template-style-encapsulation', frameworkProfile: 'angular', category: 'style', requiredEdgeKinds: ['style_scopes'], requiredDiagnostics: [], blocking: true },
+  { id: 'astro-component-style-scope', frameworkProfile: 'astro', category: 'style', requiredEdgeKinds: ['style_scopes'], requiredDiagnostics: [], blocking: true },
+  { id: 'astro-frontmatter-template-bridge', frameworkProfile: 'astro', category: 'bridge', requiredEdgeKinds: ['template_binds'], requiredDiagnostics: [], blocking: true },
+  { id: 'astro-island-hydration', frameworkProfile: 'astro', category: 'hydration', requiredEdgeKinds: ['hydration_boundary'], requiredDiagnostics: [], blocking: true },
+  { id: 'astro-route-collection', frameworkProfile: 'astro', category: 'route', requiredEdgeKinds: ['route_maps_to'], requiredDiagnostics: [], blocking: true },
+  { id: 'astro-template-slot-props', frameworkProfile: 'astro', category: 'template', requiredEdgeKinds: ['template_binds'], requiredDiagnostics: [], blocking: true },
+  { id: 'next-app-router-dynamic-segment', frameworkProfile: 'next', category: 'route', requiredEdgeKinds: ['route_maps_to'], requiredDiagnostics: [], blocking: true },
+  { id: 'next-client-server-boundary', frameworkProfile: 'next', category: 'hydration', requiredEdgeKinds: ['hydration_boundary'], requiredDiagnostics: [], blocking: true },
+  { id: 'next-css-module-style-scope', frameworkProfile: 'next', category: 'style', requiredEdgeKinds: ['style_scopes'], requiredDiagnostics: [], blocking: true },
+  { id: 'next-route-handler-runtime', frameworkProfile: 'next', category: 'route', requiredEdgeKinds: ['route_maps_to'], requiredDiagnostics: [], blocking: true },
+  { id: 'next-rsc-template-props', frameworkProfile: 'next', category: 'template', requiredEdgeKinds: ['template_binds'], requiredDiagnostics: [], blocking: true },
+  { id: 'nuxt-pages-route-params', frameworkProfile: 'nuxt', category: 'route', requiredEdgeKinds: ['route_maps_to'], requiredDiagnostics: [], blocking: true },
+  { id: 'nuxt-server-route-mapping', frameworkProfile: 'nuxt', category: 'route', requiredEdgeKinds: ['route_maps_to'], requiredDiagnostics: [], blocking: true },
+  { id: 'nuxt-sfc-style-scope', frameworkProfile: 'nuxt', category: 'style', requiredEdgeKinds: ['style_scopes'], requiredDiagnostics: [], blocking: true },
+  { id: 'nuxt-template-composable-binding', frameworkProfile: 'nuxt', category: 'template', requiredEdgeKinds: ['template_binds'], requiredDiagnostics: [], blocking: true },
+  { id: 'react-css-module-scope', frameworkProfile: 'react', category: 'style', requiredEdgeKinds: ['style_scopes'], requiredDiagnostics: [], blocking: true },
+  { id: 'react-hydration-boundary', frameworkProfile: 'react', category: 'hydration', requiredEdgeKinds: ['hydration_boundary'], requiredDiagnostics: [], blocking: true },
+  { id: 'react-jsx-prop-binding', frameworkProfile: 'react', category: 'template', requiredEdgeKinds: ['template_binds'], requiredDiagnostics: [], blocking: true },
+  { id: 'react-route-dynamic', frameworkProfile: 'react', category: 'route', requiredEdgeKinds: ['route_maps_to'], requiredDiagnostics: [], blocking: true },
+  { id: 'svelte-bind-and-event', frameworkProfile: 'svelte', category: 'template', requiredEdgeKinds: ['template_binds', 'template_emits'], requiredDiagnostics: [], blocking: true },
+  { id: 'svelte-slot-props', frameworkProfile: 'svelte', category: 'template', requiredEdgeKinds: ['template_binds'], requiredDiagnostics: [], blocking: true },
+  { id: 'svelte-style-scope', frameworkProfile: 'svelte', category: 'style', requiredEdgeKinds: ['style_scopes'], requiredDiagnostics: [], blocking: true },
+  { id: 'sveltekit-component-style-scope', frameworkProfile: 'sveltekit', category: 'style', requiredEdgeKinds: ['style_scopes'], requiredDiagnostics: [], blocking: true },
+  { id: 'sveltekit-load-data-binding', frameworkProfile: 'sveltekit', category: 'route', requiredEdgeKinds: ['route_maps_to', 'template_binds'], requiredDiagnostics: [], blocking: true },
+  { id: 'sveltekit-page-data-template', frameworkProfile: 'sveltekit', category: 'template', requiredEdgeKinds: ['template_binds'], requiredDiagnostics: [], blocking: true },
+  { id: 'sveltekit-route-param', frameworkProfile: 'sveltekit', category: 'route', requiredEdgeKinds: ['route_maps_to'], requiredDiagnostics: [], blocking: true },
+  { id: 'sveltekit-server-action-route', frameworkProfile: 'sveltekit', category: 'route', requiredEdgeKinds: ['route_maps_to'], requiredDiagnostics: [], blocking: true },
+  { id: 'vue-router-dynamic-param', frameworkProfile: 'vue', category: 'route', requiredEdgeKinds: ['route_maps_to'], requiredDiagnostics: [], blocking: true },
+  { id: 'vue-sfc-scoped-style', frameworkProfile: 'vue', category: 'style', requiredEdgeKinds: ['style_scopes'], requiredDiagnostics: [], blocking: true },
+  { id: 'vue-sfc-script-setup-bindings', frameworkProfile: 'vue', category: 'template', requiredEdgeKinds: ['template_binds', 'template_emits'], requiredDiagnostics: [], blocking: true }
+].sort((a, b) => a.id.localeCompare(b.id));
+
+const edgeKindConstraints = [
+  { edgeKind: 'ast_parent', sourceEntityKinds: ['node'], targetEntityKinds: ['node'], requiredAttrs: [], optionalAttrs: [], blocking: true },
+  { edgeKind: 'calls', sourceEntityKinds: ['node', 'symbol'], targetEntityKinds: ['node', 'symbol'], requiredAttrs: [], optionalAttrs: ['confidence'], blocking: true },
+  { edgeKind: 'contains', sourceEntityKinds: ['document', 'node', 'segment'], targetEntityKinds: ['node', 'segment', 'symbol'], requiredAttrs: [], optionalAttrs: [], blocking: true },
+  { edgeKind: 'control_next', sourceEntityKinds: ['node'], targetEntityKinds: ['node'], requiredAttrs: [], optionalAttrs: ['branchType'], blocking: true },
+  { edgeKind: 'data_def_use', sourceEntityKinds: ['node', 'symbol'], targetEntityKinds: ['node', 'symbol'], requiredAttrs: [], optionalAttrs: ['flowLabel'], blocking: true },
+  { edgeKind: 'declares', sourceEntityKinds: ['node'], targetEntityKinds: ['symbol'], requiredAttrs: [], optionalAttrs: [], blocking: true },
+  { edgeKind: 'defines', sourceEntityKinds: ['node'], targetEntityKinds: ['symbol'], requiredAttrs: [], optionalAttrs: [], blocking: true },
+  { edgeKind: 'exports', sourceEntityKinds: ['node', 'symbol'], targetEntityKinds: ['document', 'symbol'], requiredAttrs: [], optionalAttrs: [], blocking: true },
+  { edgeKind: 'extends', sourceEntityKinds: ['symbol'], targetEntityKinds: ['symbol'], requiredAttrs: [], optionalAttrs: [], blocking: true },
+  { edgeKind: 'hydration_boundary', sourceEntityKinds: ['node', 'symbol'], targetEntityKinds: ['node', 'symbol'], requiredAttrs: ['runtimeSide'], optionalAttrs: ['boundarySignal'], blocking: true },
+  { edgeKind: 'implements', sourceEntityKinds: ['symbol'], targetEntityKinds: ['symbol'], requiredAttrs: [], optionalAttrs: [], blocking: true },
+  { edgeKind: 'imports', sourceEntityKinds: ['document', 'node', 'segment'], targetEntityKinds: ['document', 'segment', 'symbol'], requiredAttrs: [], optionalAttrs: ['importKind'], blocking: true },
+  { edgeKind: 'references', sourceEntityKinds: ['node', 'symbol'], targetEntityKinds: ['node', 'symbol'], requiredAttrs: [], optionalAttrs: ['confidence'], blocking: true },
+  { edgeKind: 'risk_flow', sourceEntityKinds: ['node', 'symbol'], targetEntityKinds: ['node', 'symbol'], requiredAttrs: ['riskClass'], optionalAttrs: ['pathId'], blocking: true },
+  { edgeKind: 'risk_sink', sourceEntityKinds: ['node', 'symbol'], targetEntityKinds: ['node', 'symbol'], requiredAttrs: ['riskClass'], optionalAttrs: [], blocking: true },
+  { edgeKind: 'risk_source', sourceEntityKinds: ['node', 'symbol'], targetEntityKinds: ['node', 'symbol'], requiredAttrs: ['riskClass'], optionalAttrs: [], blocking: true },
+  { edgeKind: 'route_maps_to', sourceEntityKinds: ['node', 'symbol'], targetEntityKinds: ['document', 'symbol'], requiredAttrs: ['routePattern', 'runtimeSide'], optionalAttrs: ['httpMethod'], blocking: true },
+  { edgeKind: 'sanitizes', sourceEntityKinds: ['node', 'symbol'], targetEntityKinds: ['node', 'symbol'], requiredAttrs: ['sanitizerClass'], optionalAttrs: [], blocking: true },
+  { edgeKind: 'style_scopes', sourceEntityKinds: ['node', 'segment'], targetEntityKinds: ['symbol'], requiredAttrs: ['scopeKind'], optionalAttrs: ['moduleName'], blocking: true },
+  { edgeKind: 'template_binds', sourceEntityKinds: ['node', 'segment'], targetEntityKinds: ['node', 'symbol'], requiredAttrs: ['bindingKind'], optionalAttrs: ['bridgeConfidence'], blocking: true },
+  { edgeKind: 'template_emits', sourceEntityKinds: ['node', 'segment'], targetEntityKinds: ['node', 'symbol'], requiredAttrs: ['eventKind'], optionalAttrs: ['bridgeConfidence'], blocking: true },
+  { edgeKind: 'uses_type', sourceEntityKinds: ['node', 'symbol'], targetEntityKinds: ['node', 'symbol'], requiredAttrs: [], optionalAttrs: ['typeRole'], blocking: true }
+].sort((a, b) => a.edgeKind.localeCompare(b.edgeKind));
+
+const nodeKindMappings = [
+  { languageId: '*', parserSource: '*', rawKind: 'ClassDeclaration', normalizedKind: 'class_decl', category: 'declaration', confidence: 1, priority: 10, provenance: 'manual-policy', languageVersionSelector: null, notes: 'Global class declaration baseline.' },
+  { languageId: '*', parserSource: '*', rawKind: 'FunctionDeclaration', normalizedKind: 'function_decl', category: 'declaration', confidence: 1, priority: 10, provenance: 'manual-policy', languageVersionSelector: null, notes: 'Global function declaration baseline.' },
+  { languageId: '*', parserSource: '*', rawKind: 'Identifier', normalizedKind: 'identifier', category: 'expression', confidence: 1, priority: 20, provenance: 'manual-policy', languageVersionSelector: null, notes: 'Global identifier baseline.' },
+  { languageId: '*', parserSource: '*', rawKind: 'ImportDeclaration', normalizedKind: 'import_stmt', category: 'module', confidence: 1, priority: 10, provenance: 'manual-policy', languageVersionSelector: null, notes: 'Global import baseline.' },
+  { languageId: '*', parserSource: '*', rawKind: 'MethodDefinition', normalizedKind: 'method_decl', category: 'declaration', confidence: 1, priority: 10, provenance: 'manual-policy', languageVersionSelector: null, notes: 'Global method baseline.' },
+  { languageId: '*', parserSource: '*', rawKind: 'VariableDeclaration', normalizedKind: 'variable_decl', category: 'declaration', confidence: 1, priority: 10, provenance: 'manual-policy', languageVersionSelector: null, notes: 'Global variable baseline.' },
+  { languageId: '*', parserSource: 'framework-compiler', rawKind: 'AstroFrontmatter', normalizedKind: 'directive_expr', category: 'template', confidence: 0.95, priority: 5, provenance: 'compiler', languageVersionSelector: null, notes: 'Astro frontmatter overlay mapping.' },
+  { languageId: '*', parserSource: 'framework-compiler', rawKind: 'NgTemplateBinding', normalizedKind: 'directive_expr', category: 'template', confidence: 0.95, priority: 5, provenance: 'compiler', languageVersionSelector: null, notes: 'Angular template compiler binding mapping.' },
+  { languageId: '*', parserSource: 'framework-compiler', rawKind: 'SvelteElement', normalizedKind: 'template_element', category: 'template', confidence: 0.95, priority: 5, provenance: 'compiler', languageVersionSelector: null, notes: 'Svelte compiler template element mapping.' },
+  { languageId: '*', parserSource: 'framework-compiler', rawKind: 'VueTemplateElement', normalizedKind: 'template_element', category: 'template', confidence: 0.95, priority: 5, provenance: 'compiler', languageVersionSelector: null, notes: 'Vue compiler template element mapping.' },
+  { languageId: '*', parserSource: 'tree-sitter', rawKind: 'call_expression', normalizedKind: 'call_expr', category: 'expression', confidence: 1, priority: 10, provenance: 'parser', languageVersionSelector: null, notes: 'Tree-sitter call expression baseline.' },
+  { languageId: '*', parserSource: 'tree-sitter', rawKind: 'function_definition', normalizedKind: 'function_decl', category: 'declaration', confidence: 1, priority: 10, provenance: 'parser', languageVersionSelector: null, notes: 'Tree-sitter function baseline.' },
+  { languageId: 'javascript', parserSource: 'native-parser', rawKind: 'JSXElement', normalizedKind: 'template_element', category: 'template', confidence: 1, priority: 2, provenance: 'parser', languageVersionSelector: null, notes: 'JSX mapping.' },
+  { languageId: 'typescript', parserSource: 'native-parser', rawKind: 'TSInterfaceDeclaration', normalizedKind: 'interface_decl', category: 'declaration', confidence: 1, priority: 2, provenance: 'parser', languageVersionSelector: null, notes: 'TypeScript interface mapping.' }
+].sort((a, b) => {
+  if (a.languageId !== b.languageId) return a.languageId.localeCompare(b.languageId);
+  if (a.parserSource !== b.parserSource) return a.parserSource.localeCompare(b.parserSource);
+  if (a.rawKind !== b.rawKind) return a.rawKind.localeCompare(b.rawKind);
+  return a.priority - b.priority;
+});
 
 const backcompatMatrix = [
   { id: 'BC-001', producerVersion: 'usr-1.0.0', readerVersions: ['usr-1.0.0'], readerMode: 'strict', fixtureFamily: 'language-core', expectedOutcome: 'accept', requiredDiagnostics: [], blocking: true },
@@ -138,7 +704,136 @@ const failureInjectionMatrix = [
   { id: 'fi-serialization-corruption', faultClass: 'serialization-corruption', injectionLayer: 'serialization', strictExpectedOutcome: 'fail-closed', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-E-SCHEMA-VIOLATION'], requiredReasonCodes: ['USR-R-SERIALIZATION-INVALID'], rollbackTriggerConsecutiveFailures: 1, requiredRecoveryArtifacts: ['usr-failure-injection-report.json', 'usr-rollback-drill-report.json'], blocking: true }
 ].sort((a, b) => a.id.localeCompare(b.id));
 
-const fixtureGovernanceSupplementalRows = [
+/**
+ * Derive roadmap tags for fixture governance rows based on profile/family data.
+ *
+ * @param {object} row
+ * @returns {string[]}
+ */
+function roadmapTagsForFixture(row) {
+  const tags = new Set(['phase-7']);
+
+  if (row.profileType === 'language') {
+    tags.add('phase-4');
+    tags.add(`appendix-c:${row.profileId}`);
+  } else if (row.profileType === 'framework') {
+    tags.add('phase-5');
+    tags.add(`appendix-d:${row.profileId}`);
+  } else {
+    tags.add('phase-9');
+  }
+
+  const families = new Set(row.families || []);
+  if (families.has('failure-injection')) tags.add('phase-14');
+  if (families.has('integration') || families.has('api-boundary') || families.has('data-boundary')) tags.add('phase-14');
+  if (families.has('framework-overlay')) tags.add('phase-5');
+  if (families.has('backcompat')) tags.add('phase-10');
+  if (families.has('risk')) tags.add('phase-6');
+  if (families.has('semantic-flow')) tags.add('phase-6');
+  if (families.has('performance')) tags.add('phase-8');
+
+  return [...tags].sort();
+}
+
+const configLanguageFixtureSuffixById = {
+  ini: 'multi-section-001',
+  json: 'nested-objects-001',
+  toml: 'array-of-tables-001',
+  xml: 'namespaces-and-includes-001',
+  yaml: 'anchors-aliases-001'
+};
+
+/**
+ * Resolve default fixture-family coverage for one language baseline row.
+ *
+ * @param {{requiredConformance:string[]}} base
+ * @returns {string[]}
+ */
+function fixtureFamiliesForLanguage(base) {
+  const families = ['language-baseline', 'golden'];
+  if (base.requiredConformance.includes('C2')) families.push('semantic-flow');
+  if (base.requiredConformance.includes('C3')) families.push('risk');
+  if (base.requiredConformance.includes('C4')) families.push('framework-overlay');
+  return [...new Set(families)].sort();
+}
+
+const generatedLanguageFixtureGovernance = languageBaselines
+  .flatMap((base) => {
+    const profileType = 'language';
+    const profileId = base.id;
+    const conformanceLevels = [...base.requiredConformance];
+    const owner = `language-${base.id}`;
+    const reviewers = ['usr-architecture', 'usr-conformance'];
+    const stabilityClass = 'stable';
+    const mutationPolicy = 'require-review';
+    const goldenRequired = true;
+    const blocking = true;
+    const baselineFamilies = fixtureFamiliesForLanguage(base);
+    const rows = [
+      {
+        fixtureId: `${base.id}::baseline::coverage-001`,
+        profileType,
+        profileId,
+        conformanceLevels,
+        families: baselineFamilies,
+        owner,
+        reviewers,
+        stabilityClass,
+        mutationPolicy,
+        goldenRequired,
+        blocking
+      }
+    ];
+
+    const configSuffix = configLanguageFixtureSuffixById[base.id];
+    if (configSuffix) {
+      rows.push({
+        fixtureId: `${base.id}::config::${configSuffix}`,
+        profileType,
+        profileId,
+        conformanceLevels,
+        families: [...new Set([...baselineFamilies, 'config'])].sort(),
+        owner,
+        reviewers,
+        stabilityClass,
+        mutationPolicy,
+        goldenRequired,
+        blocking
+      });
+    }
+
+    return rows;
+  })
+  .sort((a, b) => a.fixtureId.localeCompare(b.fixtureId));
+
+const generatedFrameworkFixtureGovernance = frameworkProfiles
+  .map((profile) => {
+    const requiredEdgeKinds = new Set(profile?.bindingSemantics?.requiredEdgeKinds || []);
+    const families = ['framework-overlay'];
+    if (requiredEdgeKinds.has('template_binds') || requiredEdgeKinds.has('template_emits')) families.push('template-binding');
+    if (requiredEdgeKinds.has('style_scopes')) families.push('style-scope');
+    if (requiredEdgeKinds.has('route_maps_to')) families.push('route-semantics');
+    if (requiredEdgeKinds.has('hydration_boundary')) families.push('hydration');
+
+    return {
+      fixtureId: `${profile.id}::framework-overlay::baseline-001`,
+      profileType: 'framework',
+      profileId: profile.id,
+      conformanceLevels: [...(profile.requiredConformance || ['C4'])],
+      families: [...new Set(families)].sort(),
+      owner: `framework-${profile.id}`,
+      reviewers: ['usr-architecture', 'usr-conformance'],
+      stabilityClass: 'stable',
+      mutationPolicy: 'require-review',
+      goldenRequired: true,
+      blocking: true
+    };
+  })
+  .sort((a, b) => a.fixtureId.localeCompare(b.fixtureId));
+
+const fixtureGovernance = [
+  ...generatedLanguageFixtureGovernance,
+  ...generatedFrameworkFixtureGovernance,
   { fixtureId: 'angular::template-binding::input-output-001', profileType: 'framework', profileId: 'angular', conformanceLevels: ['C4'], families: ['framework-overlay', 'template-binding'], owner: 'framework-angular', reviewers: ['usr-architecture', 'usr-conformance'], stabilityClass: 'stable', mutationPolicy: 'require-review', goldenRequired: true, blocking: true },
   { fixtureId: 'astro::hydration::island-001', profileType: 'framework', profileId: 'astro', conformanceLevels: ['C4'], families: ['framework-overlay', 'hydration'], owner: 'framework-astro', reviewers: ['usr-architecture', 'usr-conformance'], stabilityClass: 'stable', mutationPolicy: 'require-review', goldenRequired: true, blocking: true },
   { fixtureId: 'javascript::normalization::jsx-element-001', profileType: 'language', profileId: 'javascript', conformanceLevels: ['C0', 'C1', 'C2'], families: ['normalization', 'golden'], owner: 'language-javascript', reviewers: ['usr-conformance'], stabilityClass: 'stable', mutationPolicy: 'require-review', goldenRequired: true, blocking: true },
@@ -155,13 +850,12 @@ const fixtureGovernanceSupplementalRows = [
   { fixtureId: 'usr::resolution::ambiguous-cap-001', profileType: 'cross-cutting', profileId: 'usr', conformanceLevels: ['C1', 'C2'], families: ['resolution', 'ambiguity'], owner: 'usr-resolution', reviewers: ['usr-conformance'], stabilityClass: 'stable', mutationPolicy: 'allow-generated-refresh', goldenRequired: true, blocking: false },
   { fixtureId: 'vue::minimum-slice::template-style-001', profileType: 'framework', profileId: 'vue', conformanceLevels: ['C4'], families: ['minimum-slice', 'framework-overlay', 'template-binding', 'style-scope'], owner: 'framework-vue', reviewers: ['usr-architecture', 'usr-conformance'], stabilityClass: 'stable', mutationPolicy: 'require-review', goldenRequired: true, blocking: true },
   { fixtureId: 'vue::template-binding::script-setup-001', profileType: 'framework', profileId: 'vue', conformanceLevels: ['C4'], families: ['framework-overlay', 'template-binding'], owner: 'framework-vue', reviewers: ['usr-architecture', 'usr-conformance'], stabilityClass: 'stable', mutationPolicy: 'require-review', goldenRequired: true, blocking: true }
-];
-
-const fixtureGovernance = buildFixtureGovernance({
-  languageBaselines,
-  frameworkProfiles,
-  supplementalRows: fixtureGovernanceSupplementalRows
-});
+]
+  .map((row) => ({
+    ...row,
+    roadmapTags: roadmapTagsForFixture(row)
+  }))
+  .sort((a, b) => a.fixtureId.localeCompare(b.fixtureId));
 
 const benchmarkPolicy = [
   { id: 'bench-ci-smoke', laneId: 'ci', datasetClass: 'smoke', hostClass: 'standard-ci', warmupRuns: 1, measureRuns: 5, percentileTargets: { p50DurationMs: 120000, p95DurationMs: 180000, p99DurationMs: 220000 }, maxVariancePct: 12, maxPeakMemoryMb: 2048, blocking: true },
@@ -222,11 +916,6 @@ const escalationPolicy = [
 
 /**
  * Resolve embedding policy for one language, with language-level overrides.
- *
- * Derivation rule:
- * - Language-specific policy always wins.
- * - Otherwise, fallback is family-driven (`markup` can host embeds, style/data
- *   families can only be embedded, all others are non-embedding by default).
  *
  * @param {string} languageId
  * @param {string} family

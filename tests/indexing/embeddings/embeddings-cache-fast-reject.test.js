@@ -67,6 +67,18 @@ assert.equal(
   shouldFastRejectCacheLookup({
     cacheIndex,
     cacheKey: 'key-a',
+    identityKey: null,
+    fileHash: 'hash-a',
+    chunkSignature: 'sig-a'
+  }),
+  true,
+  'expected missing runtime identity to fast reject indexed identity cache'
+);
+
+assert.equal(
+  shouldFastRejectCacheLookup({
+    cacheIndex,
+    cacheKey: 'key-a',
     identityKey: 'identity-a',
     fileHash: 'hash-a',
     chunkSignature: 'sig-a',

@@ -2,19 +2,52 @@ import { execaSync } from 'execa';
 import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
 
 /**
+ * Exit current process using child-command exit semantics.
+ *
+ * @param {{status?:number|null,signal?:string|null}|null|undefined} result
+ * @param {{exit:(code?:number)=>void,kill:(pid:number,signal:string)=>void,pid:number}} [proc=process]
+ * @returns {void}
+ */
+export function exitLikeCommandResult(result, proc = process) {
+  const status = Number.isInteger(result?.status) ? Number(result.status) : null;
+  if (status !== null) {
+    proc.exit(status);
+    return;
+  }
+
+  const signal = typeof result?.signal === 'string' && result.signal.trim().length > 0
+    ? result.signal.trim()
+    : null;
+  if (signal) {
+    try {
+      proc.kill(proc.pid, signal);
+      return;
+    } catch {}
+  }
+
+  proc.exit(1);
+}
+
+/**
  * Run a command and return a normalized result.
  * @param {string} cmd
  * @param {string[]} args
  * @param {object} [options]
- * @returns {{ok:boolean,status:number|null,stdout?:string,stderr?:string}}
+ * @returns {{ok:boolean,status:number|null,signal:string|null,stdout?:string,stderr?:string}}
  */
 export function runCommand(cmd, args, options = {}) {
   if (cmd === process.execPath) {
+    const maxOutputBytes = Number.isFinite(Number(options.maxOutputBytes))
+      ? Number(options.maxOutputBytes)
+      : (Number.isFinite(Number(options.maxBuffer)) ? Number(options.maxBuffer) : undefined);
     const result = spawnSubprocessSync(cmd, args, {
       cwd: options.cwd,
       env: options.env,
       stdio: options.stdio,
+      input: options.input,
       shell: options.shell,
+      outputEncoding: options.outputEncoding || options.encoding || 'utf8',
+      maxOutputBytes,
       captureStdout: true,
       captureStderr: true,
       outputMode: 'string',
@@ -23,6 +56,7 @@ export function runCommand(cmd, args, options = {}) {
     return {
       ok: result.exitCode === 0,
       status: result.exitCode ?? null,
+      signal: typeof result.signal === 'string' ? result.signal : null,
       stdout: typeof result.stdout === 'string' ? result.stdout : '',
       stderr: typeof result.stderr === 'string' ? result.stderr : ''
     };
@@ -31,6 +65,7 @@ export function runCommand(cmd, args, options = {}) {
   return {
     ok: result.exitCode === 0,
     status: result.exitCode,
+    signal: typeof result.signal === 'string' ? result.signal : null,
     stdout: result.stdout,
     stderr: result.stderr
   };
@@ -64,7 +99,7 @@ export function runCommandOrExit(label, cmd, args, options = {}) {
   const result = runCommand(cmd, args, options);
   if (!result.ok) {
     console.error(`Failed: ${label || cmd}`);
-    process.exit(result.status ?? 1);
+    exitLikeCommandResult(result);
   }
   return result;
 }
@@ -106,7 +141,10 @@ export function runSubprocessOrExit(options) {
   if (result.exitCode !== 0) {
     logError(`Failed: ${label || command}`);
     if (typeof onFailure === 'function') onFailure(result);
-    process.exit(result.exitCode ?? 1);
+    exitLikeCommandResult({
+      status: result.exitCode,
+      signal: result.signal
+    });
   }
   return result;
 }

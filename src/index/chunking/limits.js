@@ -393,18 +393,28 @@ export const applyChunkingLimits = (chunks, text, context) => {
     && shared.byteMetrics.prefix
     ? shared.byteMetrics
     : null;
-  if (!byteMetrics && (maxBytes || !maxLines)) {
+  const ensureByteMetrics = () => {
+    if (byteMetrics) return byteMetrics;
     byteMetrics = buildUtf8ByteMetrics(text);
     if (shared) shared.byteMetrics = byteMetrics;
-  }
-  const resolveChunkBytes = (chunk) => {
+    return byteMetrics;
+  };
+  let guardrailChecks = 0;
+  const resolveChunkBytes = (chunk, { useGuardrailMetrics = false } = {}) => {
     const start = Number.isFinite(chunk.start) ? chunk.start : 0;
     const end = Number.isFinite(chunk.end) ? chunk.end : start;
     if (end <= start) return 0;
-    return byteLengthByRange(text, start, end, byteMetrics);
+    if (useGuardrailMetrics) {
+      guardrailChecks += 1;
+      const metrics = guardrailChecks >= 4 ? ensureByteMetrics() : null;
+      return byteLengthByRange(text, start, end, metrics);
+    }
+    return byteLengthByRange(text, start, end, null);
   };
   const guardrailMaxBytes = (!maxBytes && !maxLines)
-    ? chunks.some((chunk) => resolveChunkBytes(chunk) > DEFAULT_CHUNK_GUARDRAIL_MAX_BYTES)
+    ? chunks.some((chunk) => (
+      resolveChunkBytes(chunk, { useGuardrailMetrics: true }) > DEFAULT_CHUNK_GUARDRAIL_MAX_BYTES
+    ))
       ? DEFAULT_CHUNK_GUARDRAIL_MAX_BYTES
       : null
     : null;
@@ -429,9 +439,10 @@ export const applyChunkingLimits = (chunks, text, context) => {
   }
   const effectiveMaxBytes = maxBytes || guardrailMaxBytes;
   if (effectiveMaxBytes) {
+    const metrics = ensureByteMetrics();
     const nextOutput = [];
     for (const chunk of output) {
-      const split = splitChunkByBytes(chunk, text, getLineIndex, effectiveMaxBytes, byteMetrics);
+      const split = splitChunkByBytes(chunk, text, getLineIndex, effectiveMaxBytes, metrics);
       for (const item of split) nextOutput.push(item);
     }
     output = nextOutput;

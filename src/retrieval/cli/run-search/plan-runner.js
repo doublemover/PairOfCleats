@@ -1,33 +1,53 @@
 import path from 'node:path';
 import {
+  applyAdaptiveDictConfig,
   DEFAULT_MODEL_ID,
   getCacheRuntimeConfig,
+  getDictConfig,
   getAutoPolicy,
   getRepoRoot,
   getMetricsDir,
   getQueryCacheDir,
   getModelConfig,
-  loadUserConfig
+  loadUserConfig,
+  resolveLmdbPaths,
+  resolveSqlitePaths
 } from '../../../../tools/shared/dict-utils.js';
 import { queryVectorAnn } from '../../../../tools/sqlite/vector-extension.js';
-import { createError, ERROR_CODES } from '../../../shared/error-codes.js';
+import { createError, ERROR_CODES, isErrorCode } from '../../../shared/error-codes.js';
 import { getSearchUsage } from '../../cli-args.js';
+import { loadDictionary } from '../../cli-dictionary.js';
+import { getIndexSignature, resolveIndexDir } from '../../cli-index.js';
+import { isLmdbReady, isSqliteReady, loadIndexState } from '../index-state.js';
+import { resolveAsOfContext, resolveSingleRootForModes } from '../../../index/as-of.js';
 import { configureOutputCaches } from '../../output.js';
-import { getMissingFlagMessages } from '../options.js';
+import { getMissingFlagMessages, resolveIndexedFileCount } from '../options.js';
+import { evaluateAutoSqliteThresholds, resolveIndexStats } from '../auto-sqlite.js';
+import { hasIndexMetaAsync, hasLmdbStore } from '../index-loader.js';
+import { applyBranchFilter } from '../branch-filter.js';
+import { resolveBackendSelection } from '../policy.js';
 import { normalizeSearchOptions } from '../normalize-options.js';
+import { buildQueryPlan } from '../query-plan.js';
 import { createRunnerHelpers } from '../runner.js';
 import { resolveRunConfig } from '../resolve-run-config.js';
 import { resolveRequiredArtifacts } from '../required-artifacts.js';
+import { loadSearchIndexes } from '../load-indexes.js';
 import { executeSearchAndEmit } from '../search-execution.js';
 import { resolveRetrievalCachePath } from '../cache-paths.js';
+import { DEFAULT_CODE_DICT_LANGUAGES, normalizeCodeDictLanguages } from '../../../shared/code-dictionaries.js';
+import { compileFilterPredicates } from '../../output/filters.js';
+import { RETRIEVAL_SPARSE_UNAVAILABLE_CODE } from '../../sparse/requirements.js';
+import { resolveSqliteFtsRoutingByMode } from '../../routing-policy.js';
+import { runWithOperationalFailurePolicy } from '../../../shared/ops-failure-injection.js';
+import { pathExists } from '../../../shared/files.js';
 import {
-  createQueryPlanDiskCache
+  buildQueryPlanCacheKey,
+  buildQueryPlanConfigSignature,
+  buildQueryPlanIndexSignature,
+  createQueryPlanDiskCache,
+  createQueryPlanEntry
 } from '../../query-plan-cache.js';
 import { createRetrievalStageTracker } from '../../pipeline/stage-checkpoints.js';
-import {
-  emitSearchJsonError,
-  flushRunSearchResources
-} from './reporting.js';
 import { createRunSearchTelemetry } from './telemetry.js';
 import {
   emitMissingQueryAndThrow,
@@ -36,25 +56,17 @@ import {
   parseCliArgsOrThrow,
   runFederatedIfRequested
 } from './options.js';
-import {
-  resolveStartupIndexResolution
-} from './startup-index.js';
-import { resolveRunSearchIndexAvailability } from './index-availability.js';
-import { resolveRunSearchBackendContext } from './backend-bootstrap.js';
-import {
-  buildRunSearchBackendBootstrapInput
-} from './backend-bootstrap-input.js';
-import { resolveRunSearchModeProfileAvailability } from './mode-profile-availability.js';
-import { loadRunSearchIndexesWithTracking } from './index-loading.js';
-import { resolveRunSearchQueryBootstrap } from './query-bootstrap.js';
-import { applyRunSearchSparseFallbackPolicy } from './sparse-fallback-orchestration.js';
-import { enforceSparseFallbackAnnAvailability } from './sparse-fallback-guard.js';
-import { buildRunSearchIndexLoadInput } from './index-load-input.js';
-import { buildRunSearchExecutionInput } from './execution-input.js';
-import { resolveRunSearchPlanCache } from './plan-cache-init.js';
+import { createBackendContextWithTracking } from './backend-context.js';
 
 import {
-  resolveAnnActive
+  INDEX_PROFILE_DEFAULT,
+  INDEX_PROFILE_VECTOR_ONLY,
+  resolveAnnActive,
+  resolveProfileCohortModes,
+  resolveProfileForState,
+  resolveSparseFallbackModesWithoutAnn,
+  resolveSparsePreflightMissingTables,
+  resolveSparsePreflightModes
 } from '../preflight.js';
 
 /**
@@ -149,13 +161,19 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const metricsDir = getMetricsDir(rootDir, userConfig);
     const queryCacheDir = getQueryCacheDir(rootDir, userConfig);
     const policy = await getAutoPolicy(rootDir, userConfig);
-    queryPlanCache = resolveRunSearchPlanCache({
-      queryPlanCache,
-      queryCacheDir,
-      metricsDir,
-      resolveRetrievalCachePath,
-      createQueryPlanDiskCache
-    });
+    if (!queryPlanCache) {
+      const queryPlanCachePath = resolveRetrievalCachePath({
+        queryCacheDir,
+        metricsDir,
+        fileName: 'queryPlanCache.json'
+      });
+      if (queryPlanCachePath) {
+        queryPlanCache = createQueryPlanDiskCache({ path: queryPlanCachePath });
+        if (typeof queryPlanCache?.load === 'function') {
+          queryPlanCache.load();
+        }
+      }
+    }
     let normalized;
     try {
       normalized = normalizeSearchOptions({
@@ -276,29 +294,73 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       return bail(getSearchUsage(), 1, ERROR_CODES.INVALID_REQUEST);
     }
 
-    const startupIndexResolution = await resolveStartupIndexResolution({
-      rootDir,
-      userConfig,
-      runCode,
-      runProse,
-      runRecords,
-      searchMode,
-      asOf: argv['as-of'],
-      snapshot: argv.snapshot
-    });
-    if (startupIndexResolution.error) {
-      return bail(
-        startupIndexResolution.error.message,
-        1,
-        startupIndexResolution.error.code
-      );
+    const asOfRequestedModes = [];
+    if (runCode) asOfRequestedModes.push('code');
+    if (runProse) asOfRequestedModes.push('prose');
+    if (runRecords) asOfRequestedModes.push('records');
+    if ((searchMode === 'extracted-prose' || searchMode === 'all') && !asOfRequestedModes.includes('extracted-prose')) {
+      asOfRequestedModes.push('extracted-prose');
     }
-    const {
-      asOfContext,
-      indexResolveOptions,
-      resolveSearchIndexDir,
-      strictIndexMetaByMode
-    } = startupIndexResolution;
+    let asOfContext = null;
+    try {
+      asOfContext = resolveAsOfContext({
+        repoRoot: rootDir,
+        userConfig,
+        requestedModes: asOfRequestedModes,
+        asOf: argv['as-of'],
+        snapshot: argv.snapshot,
+        preferFrozen: true,
+        allowMissingModesForLatest: true
+      });
+    } catch (err) {
+      return bail(err?.message || 'Invalid --as-of value.', 1, err?.code || ERROR_CODES.INVALID_REQUEST);
+    }
+    const indexResolveOptions = asOfContext?.strict
+      ? {
+        indexDirByMode: asOfContext.indexDirByMode,
+        indexBaseRootByMode: asOfContext.indexBaseRootByMode,
+        explicitRef: true
+      }
+      : {};
+    const resolvedIndexDirByMode = new Map();
+    const resolveSearchIndexDir = (mode) => {
+      if (resolvedIndexDirByMode.has(mode)) return resolvedIndexDirByMode.get(mode);
+      const resolved = resolveIndexDir(rootDir, mode, userConfig, indexResolveOptions);
+      resolvedIndexDirByMode.set(mode, resolved);
+      return resolved;
+    };
+    const strictIndexMetaByMode = new Map();
+    if (asOfContext?.strict) {
+      const strictChecks = await Promise.all(
+        asOfRequestedModes.map(async (mode) => {
+          let modeDir = null;
+          try {
+            modeDir = resolveSearchIndexDir(mode);
+          } catch (err) {
+            return { mode, modeDir: null, hasMeta: false, error: err };
+          }
+          const hasMeta = await hasIndexMetaAsync(modeDir);
+          strictIndexMetaByMode.set(mode, hasMeta);
+          return { mode, modeDir, hasMeta, error: null };
+        })
+      );
+      for (const check of strictChecks) {
+        if (check?.error) {
+          return bail(
+            check.error?.message || `[search] ${check.mode} index is unavailable for --as-of ${asOfContext.ref}.`,
+            1,
+            check.error?.code || ERROR_CODES.NO_INDEX
+          );
+        }
+        if (!check.hasMeta) {
+          return bail(
+            `[search] ${check.mode} index not found at ${check.modeDir} for --as-of ${asOfContext.ref}.`,
+            1,
+            ERROR_CODES.NO_INDEX
+          );
+        }
+      }
+    }
 
     telemetry.setMode(searchMode);
 
@@ -310,87 +372,323 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const showMatched = argv.matched === true;
     const stageTracker = createRetrievalStageTracker({ enabled: showStats || explain });
 
-    const modeProfileAvailability = await resolveRunSearchModeProfileAvailability({
-      runCode,
-      runProse,
-      runExtractedProseRaw,
-      runRecords,
-      searchMode,
-      commentsEnabled,
+    const needsCode = runCode;
+    const needsProse = runProse;
+    const needsExtractedProse = runExtractedProseRaw;
+    const requiresExtractedProse = searchMode === 'extracted-prose';
+    const joinComments = commentsEnabled && runCode;
+    const needsSqlite = runCode || runProse || runExtractedProseRaw;
+    let annEnabledEffective = annEnabled;
+    let vectorAnnEnabled = false;
+    let sparseFallbackForcedByPreflight = false;
+    const profileWarnings = [];
+    const profileWarningSet = new Set();
+    const addProfileWarning = (warning) => {
+      const text = typeof warning === 'string' ? warning.trim() : '';
+      if (!text || profileWarningSet.has(text)) return;
+      profileWarningSet.add(text);
+      profileWarnings.push(text);
+    };
+    const syncAnnFlags = () => {
+      vectorAnnEnabled = annEnabledEffective && vectorExtension.enabled === true;
+      telemetry.setAnn(annEnabledEffective ? 'on' : 'off');
+    };
+    const dbModeSelection = [];
+    if (needsCode) dbModeSelection.push('code');
+    if (needsProse) dbModeSelection.push('prose');
+    if (needsExtractedProse) dbModeSelection.push('extracted-prose');
+    const sqliteRootSelection = resolveSingleRootForModes(
+      asOfContext?.strict ? asOfContext.indexBaseRootByMode : null,
+      dbModeSelection
+    );
+    const lmdbRootSelection = resolveSingleRootForModes(
+      asOfContext?.strict ? asOfContext.indexBaseRootByMode : null,
+      dbModeSelection
+    );
+    const sqliteRootsMixed = Boolean(asOfContext?.strict && dbModeSelection.length > 1 && sqliteRootSelection.mixed);
+    const lmdbRootsMixed = Boolean(asOfContext?.strict && dbModeSelection.length > 1 && lmdbRootSelection.mixed);
+
+    const lmdbPaths = resolveLmdbPaths(
       rootDir,
       userConfig,
-      asOfContext,
-      indexResolveOptions,
-      allowSparseFallback,
-      allowUnsafeMix,
-      annFlagPresent,
-      annEnabled,
-      scoreMode,
-      emitOutput,
-      vectorExtension,
-      telemetry,
-      resolveIndexAvailability: resolveRunSearchIndexAvailability
-    });
-    if (modeProfileAvailability.error) {
-      return bail(modeProfileAvailability.error.message, 1, modeProfileAvailability.error.code);
-    }
-    const {
-      modeNeeds,
-      requiresExtractedProse,
-      joinComments,
-      profileWarnings,
-      addProfileWarning,
-      syncAnnFlags,
-      profileAndAvailability
-    } = modeProfileAvailability;
-    let annEnabledEffective = modeProfileAvailability.annEnabledEffective;
-    let vectorAnnEnabled = modeProfileAvailability.vectorAnnEnabled;
-    let sparseFallbackForcedByPreflight = false;
-    const {
-      selectedModes,
-      profilePolicyByMode,
-      vectorOnlyModes,
-      sqliteRootsMixed,
-      lmdbRootsMixed,
-      sqlitePaths,
-      lmdbPaths,
-      sqliteStates,
-      lmdbStates,
-      sqliteAvailability,
-      lmdbAvailability,
-      loadExtractedProseSqlite
-    } = profileAndAvailability;
+      lmdbRootSelection.root ? { indexRoot: lmdbRootSelection.root } : {}
+    );
+    const lmdbCodePath = lmdbPaths.codePath;
+    const lmdbProsePath = lmdbPaths.prosePath;
+    const sqlitePaths = resolveSqlitePaths(
+      rootDir,
+      userConfig,
+      sqliteRootSelection.root ? { indexRoot: sqliteRootSelection.root } : {}
+    );
     const sqliteCodePath = sqlitePaths.codePath;
     const sqliteProsePath = sqlitePaths.prosePath;
     const sqliteExtractedProsePath = sqlitePaths.extractedProsePath;
-    const sqliteStateCode = sqliteStates.code;
-    const sqliteStateProse = sqliteStates.prose;
-    const sqliteStateExtractedProse = sqliteStates['extracted-prose'];
-    const sqliteStateRecords = sqliteStates.records;
 
-    const backendBootstrapInput = buildRunSearchBackendBootstrapInput({
-      modeNeeds,
-      backendArg,
-      defaultBackend: policy?.retrieval?.backend || 'sqlite',
-      asOfContext,
-      emitOutput,
-      sqliteAutoChunkThreshold,
-      sqliteAutoArtifactBytes,
+    const sqliteStateCode = needsCode
+      ? loadIndexState(rootDir, userConfig, 'code', {
+        resolveOptions: indexResolveOptions,
+        onCompatibilityWarning: addProfileWarning
+      })
+      : null;
+    const sqliteStateProse = needsProse
+      ? loadIndexState(rootDir, userConfig, 'prose', {
+        resolveOptions: indexResolveOptions,
+        onCompatibilityWarning: addProfileWarning
+      })
+      : null;
+    const sqliteStateExtractedProse = needsExtractedProse
+      ? loadIndexState(rootDir, userConfig, 'extracted-prose', {
+        resolveOptions: indexResolveOptions,
+        onCompatibilityWarning: addProfileWarning
+      })
+      : null;
+    const sqliteStateRecords = runRecords
+      ? loadIndexState(rootDir, userConfig, 'records', {
+        resolveOptions: indexResolveOptions,
+        onCompatibilityWarning: addProfileWarning
+      })
+      : null;
+    const indexStateByMode = {
+      code: sqliteStateCode,
+      prose: sqliteStateProse,
+      'extracted-prose': sqliteStateExtractedProse,
+      records: sqliteStateRecords
+    };
+    const selectedModes = resolveProfileCohortModes({
       runCode,
       runProse,
+      runRecords,
       runExtractedProse: runExtractedProseRaw,
-      resolveSearchIndexDir,
-      sqliteRootsMixed,
-      lmdbRootsMixed,
-      sqlitePaths,
-      lmdbPaths,
-      sqliteAvailability,
-      lmdbAvailability,
-      loadExtractedProseSqlite,
+      requiresExtractedProse
+    });
+    const selectedModesWithState = selectedModes.filter((mode) => indexStateByMode[mode]);
+    const profilePolicyByMode = {};
+    for (const mode of selectedModes) {
+      const profileId = resolveProfileForState(indexStateByMode[mode]);
+      const vectorOnly = profileId === INDEX_PROFILE_VECTOR_ONLY;
+      profilePolicyByMode[mode] = {
+        profileId,
+        vectorOnly,
+        allowSparseFallback: allowSparseFallback === true,
+        sparseUnavailableReason: vectorOnly ? 'profile_vector_only' : null
+      };
+    }
+    const vectorOnlyModes = selectedModes.filter((mode) => profilePolicyByMode[mode]?.vectorOnly === true);
+    const profileModes = selectedModesWithState
+      .map((mode) => ({ mode, profileId: profilePolicyByMode[mode]?.profileId || INDEX_PROFILE_DEFAULT }))
+      .filter((entry) => typeof entry.profileId === 'string' && entry.profileId);
+    const uniqueProfileIds = Array.from(new Set(profileModes.map((entry) => entry.profileId)));
+    if (uniqueProfileIds.length > 1) {
+      const details = profileModes
+        .map((entry) => `${entry.mode}:${entry.profileId}`)
+        .join(', ');
+      if (allowUnsafeMix !== true) {
+        return bail(
+          `[search] retrieval_profile_mismatch: mixed index profiles detected (${details}). ` +
+            'Rebuild indexes to a single profile or pass --allow-unsafe-mix to override.',
+          1,
+          ERROR_CODES.INVALID_REQUEST
+        );
+      }
+      addProfileWarning(
+        `Unsafe mixed-profile cohort override enabled (--allow-unsafe-mix): ${details}.`
+      );
+    }
+    const sparseOnlyRequested = scoreMode === 'sparse' || (annFlagPresent && annEnabled === false);
+    if (vectorOnlyModes.length && sparseOnlyRequested) {
+      if (allowSparseFallback !== true) {
+        const details = vectorOnlyModes.join(', ');
+        return bail(
+          `[search] retrieval_profile_mismatch: sparse-only retrieval cannot run against vector_only index profile (${details}). ` +
+            'Re-run with ANN enabled or pass --allow-sparse-fallback to allow ANN fallback.',
+          1,
+          ERROR_CODES.INVALID_REQUEST
+        );
+      }
+      addProfileWarning(
+        `Sparse-only request overridden for vector_only mode(s): ${vectorOnlyModes.join(', ')}. ANN fallback was used.`
+      );
+      annEnabledEffective = true;
+    }
+    if (vectorOnlyModes.length && annEnabledEffective !== true) {
+      addProfileWarning(
+        `Forcing ANN on for vector_only mode(s): ${vectorOnlyModes.join(', ')}. Sparse providers are unavailable.`
+      );
+      annEnabledEffective = true;
+    }
+    syncAnnFlags();
+    if (emitOutput && profileWarnings.length) {
+      for (const warning of profileWarnings) {
+        console.warn(`[search] ${warning}`);
+      }
+    }
+    const sqliteCodePathExists = !sqliteRootsMixed && await pathExists(sqliteCodePath);
+    const sqliteProsePathExists = !sqliteRootsMixed && await pathExists(sqliteProsePath);
+    const sqliteExtractedPathExists = !sqliteRootsMixed && await pathExists(sqliteExtractedProsePath);
+    const sqliteCodeAvailable = sqliteCodePathExists && isSqliteReady(sqliteStateCode);
+    const sqliteProseAvailable = sqliteProsePathExists && isSqliteReady(sqliteStateProse);
+    const sqliteExtractedProseAvailable = !sqliteRootsMixed
+      && sqliteExtractedPathExists
+      && isSqliteReady(sqliteStateExtractedProse);
+    const sqliteAvailable = (!needsCode || sqliteCodeAvailable)
+      && (!needsProse || sqliteProseAvailable)
+      && (!requiresExtractedProse || sqliteExtractedProseAvailable);
+    const loadExtractedProseSqlite = needsExtractedProse && sqliteExtractedProseAvailable;
+    const lmdbStateCode = sqliteStateCode;
+    const lmdbStateProse = sqliteStateProse;
+    const lmdbCodeAvailable = !lmdbRootsMixed && hasLmdbStore(lmdbCodePath) && isLmdbReady(lmdbStateCode);
+    const lmdbProseAvailable = !lmdbRootsMixed && hasLmdbStore(lmdbProsePath) && isLmdbReady(lmdbStateProse);
+    const lmdbAvailable = !needsExtractedProse
+      && (!needsCode || lmdbCodeAvailable)
+      && (!needsProse || lmdbProseAvailable);
+
+    const autoChunkThreshold = Number.isFinite(sqliteAutoChunkThreshold)
+      ? Math.max(0, Math.floor(sqliteAutoChunkThreshold))
+      : 0;
+    const autoArtifactThreshold = Number.isFinite(sqliteAutoArtifactBytes)
+      ? Math.max(0, Math.floor(sqliteAutoArtifactBytes))
+      : 0;
+    const autoThresholdsEnabled = autoChunkThreshold > 0 || autoArtifactThreshold > 0;
+    const autoBackendRequested = !backendArg || String(backendArg).trim().toLowerCase() === 'auto';
+    let autoSqliteAllowed = true;
+    let autoSqliteReason = null;
+    if (autoThresholdsEnabled && autoBackendRequested && sqliteAvailable && needsSqlite) {
+      const collectStats = (mode) => {
+        try {
+          return resolveIndexStats(resolveSearchIndexDir(mode));
+        } catch {
+          return null;
+        }
+      };
+      const stats = [];
+      if (runCode) {
+        const resolved = collectStats('code');
+        if (resolved) stats.push({ mode: 'code', ...resolved });
+      }
+      if (runProse) {
+        const resolved = collectStats('prose');
+        if (resolved) stats.push({ mode: 'prose', ...resolved });
+      }
+      if (runExtractedProseRaw) {
+        const resolved = collectStats('extracted-prose');
+        if (resolved) {
+          stats.push({
+            mode: 'extracted-prose',
+            ...resolved
+          });
+        }
+      }
+      const evaluation = evaluateAutoSqliteThresholds({
+        stats,
+        chunkThreshold: autoChunkThreshold,
+        artifactThreshold: autoArtifactThreshold
+      });
+      if (!evaluation.allowed) {
+        autoSqliteAllowed = false;
+        autoSqliteReason = evaluation.reason;
+      }
+    }
+
+    const backendSelection = await resolveBackendSelection({
+      backendArg,
+      sqliteAvailable,
+      sqliteCodeAvailable,
+      sqliteProseAvailable,
+      sqliteExtractedProseAvailable,
+      sqliteCodePath,
+      sqliteProsePath,
+      sqliteExtractedProsePath,
+      lmdbAvailable,
+      lmdbCodeAvailable,
+      lmdbProseAvailable,
+      lmdbCodePath,
+      lmdbProsePath,
+      needsSqlite,
+      needsCode,
+      needsProse,
+      needsExtractedProse: requiresExtractedProse,
+      defaultBackend: policy?.retrieval?.backend || 'sqlite',
+      onWarn: console.warn
+    });
+    if (backendSelection.error) {
+      return bail(backendSelection.error.message);
+    }
+
+    let {
+      backendPolicy,
+      useSqlite: useSqliteSelection,
+      useLmdb: useLmdbSelection,
+      sqliteFtsRequested,
+      backendForcedSqlite,
+      backendForcedLmdb,
+      backendForcedTantivy
+    } = backendSelection;
+    if (sqliteRootsMixed) {
+      if (backendForcedSqlite) {
+        return bail(
+          `[search] --backend sqlite cannot be used with --as-of ${asOfContext.ref}: code/prose resolve to different index roots.`,
+          1,
+          ERROR_CODES.INVALID_REQUEST
+        );
+      }
+      if (emitOutput && autoBackendRequested) {
+        console.warn('[search] sqlite backend disabled: explicit as-of target resolves code/prose to different roots.');
+      }
+      useSqliteSelection = false;
+    }
+    if (lmdbRootsMixed) {
+      if (backendForcedLmdb) {
+        return bail(
+          `[search] --backend lmdb cannot be used with --as-of ${asOfContext.ref}: code/prose resolve to different index roots.`,
+          1,
+          ERROR_CODES.INVALID_REQUEST
+        );
+      }
+      if (emitOutput && autoBackendRequested) {
+        console.warn('[search] lmdb backend disabled: explicit as-of target resolves code/prose to different roots.');
+      }
+      useLmdbSelection = false;
+    }
+    if (!autoSqliteAllowed && autoBackendRequested && useSqliteSelection && !backendForcedSqlite) {
+      useSqliteSelection = false;
+      useLmdbSelection = false;
+      if (autoSqliteReason) {
+        backendPolicy = backendPolicy ? { ...backendPolicy, reason: autoSqliteReason } : backendPolicy;
+        if (emitOutput) {
+          console.warn(`[search] ${autoSqliteReason}. Falling back to file-backed indexes.`);
+        }
+      }
+    }
+    const sqliteFtsEnabled = sqliteFtsRequested || (autoBackendRequested && useSqliteSelection);
+
+    const buildBackendContextInput = () => ({
+      backendPolicy,
+      useSqlite: useSqliteSelection,
+      useLmdb: useLmdbSelection,
+      needsCode,
+      needsProse,
+      needsExtractedProse: loadExtractedProseSqlite,
+      sqliteCodePath,
+      sqliteProsePath,
+      sqliteExtractedProsePath,
+      sqliteFtsRequested: sqliteFtsEnabled,
+      backendForcedSqlite,
+      backendForcedLmdb,
+      backendForcedTantivy,
       vectorExtension,
-      sqliteCache,
-      sqliteStates,
-      lmdbStates,
+      vectorAnnEnabled,
+      dbCache: sqliteCache,
+      sqliteStates: {
+        code: sqliteStateCode,
+        prose: sqliteStateProse,
+        'extracted-prose': sqliteStateExtractedProse
+      },
+      lmdbCodePath,
+      lmdbProsePath,
+      lmdbStates: {
+        code: lmdbStateCode,
+        prose: lmdbStateProse
+      },
       postingsConfig,
       sqliteFtsWeights,
       maxCandidates,
@@ -401,30 +699,24 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       denseVectorMode,
       storageTier,
       sqliteReadPragmas,
-      rootDir,
-      userConfig,
-      stageTracker,
-      vectorAnnEnabled
+      root: rootDir,
+      userConfig
     });
-    const backendContextResolution = await resolveRunSearchBackendContext(backendBootstrapInput);
-    if (backendContextResolution.error) {
-      return bail(
-        backendContextResolution.error.message,
-        1,
-        backendContextResolution.error.code
-      );
-    }
+    const backendInitResult = await runWithOperationalFailurePolicy({
+      target: 'retrieval.hotpath',
+      operation: 'backend-context',
+      execute: async () => createBackendContextWithTracking({
+        stageTracker,
+        contextInput: buildBackendContextInput(),
+        stageName: 'startup.backend'
+      }),
+      log: (message) => {
+        if (emitOutput) console.warn(message);
+      }
+    });
+    let backendContext = backendInitResult.value;
+
     let {
-      backendPolicy,
-      useSqliteSelection,
-      useLmdbSelection,
-      sqliteFtsEnabled,
-      backendForcedLmdb,
-      backendForcedTantivy,
-      buildBackendContextInput,
-      backendContext
-    } = backendContextResolution;
-    const {
       useSqlite,
       useLmdb,
       backendLabel,
@@ -446,22 +738,61 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     if (backendForcedLmdb && !useLmdb) {
       return bail('LMDB backend requested but unavailable.', 1, ERROR_CODES.INVALID_REQUEST);
     }
-    const queryBootstrap = await resolveRunSearchQueryBootstrap({
-      branchGateInput: {
-        branchFilter,
-        caseFile,
-        rootDir,
-        metricsDir,
-        queryCacheDir,
+    const branchResult = await applyBranchFilter({
+      branchFilter,
+      caseSensitive: caseFile,
+      root: rootDir,
+      metricsDir,
+      queryCacheDir,
+      runCode,
+      runProse,
+      backendLabel,
+      backendPolicy: backendPolicyInfo,
+      emitOutput,
+      jsonOutput,
+      recordSearchMetrics,
+      warn: console.warn
+    });
+    if (branchResult?.payload) {
+      return branchResult.payload;
+    }
+
+    const dictConfigBase = getDictConfig(rootDir, userConfig);
+    const dictConfig = applyAdaptiveDictConfig(
+      dictConfigBase,
+      resolveIndexedFileCount(metricsDir, {
         runCode,
         runProse,
-        backendLabel,
-        backendPolicyInfo,
-        emitOutput,
-        jsonOutput,
-        recordSearchMetrics
-      },
-      planInputConfig: {
+        runExtractedProse: runExtractedProseRaw,
+        runRecords
+      })
+    );
+    const baseCodeDictLanguages = normalizeCodeDictLanguages(DEFAULT_CODE_DICT_LANGUAGES);
+    let codeDictLanguages = baseCodeDictLanguages;
+    if (langFilter && langFilter.length) {
+      const filterLangs = normalizeCodeDictLanguages(langFilter);
+      if (filterLangs.size) {
+        const intersect = new Set();
+        for (const lang of baseCodeDictLanguages) {
+          if (filterLangs.has(lang)) intersect.add(lang);
+        }
+        codeDictLanguages = intersect;
+      }
+    }
+    const includeCodeDicts = runCode && codeDictLanguages.size > 0;
+    const dictStart = stageTracker.mark();
+    const { dict } = await loadDictionary(rootDir, dictConfig, {
+      includeCode: includeCodeDicts,
+      codeDictLanguages: Array.from(codeDictLanguages)
+    });
+    stageTracker.record('startup.dictionary', dictStart, { mode: 'all' });
+    throwIfAborted();
+
+    const planStart = stageTracker.mark();
+    const planConfigSignature = queryPlanCache?.enabled !== false
+      ? buildQueryPlanConfigSignature({
+        dictConfig,
+        dictSize: dict?.size ?? null,
         postingsConfig,
         caseTokens,
         fileFilter,
@@ -488,81 +819,163 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         fieldWeightsConfig,
         denseVectorMode,
         branchFilter
-      },
-      planResolutionInput: {
-        stageTracker,
-        throwIfAborted,
-        rootDir,
-        userConfig,
-        metricsDir,
-        query,
-        argv,
-        runCode,
-        runProse,
-        runExtractedProse: runExtractedProseRaw,
-        runRecords,
-        langFilter,
-        queryPlanCache,
-        fileChargramN,
+      })
+      : null;
+    if (planConfigSignature) {
+      queryPlanCache.resetIfConfigChanged(planConfigSignature);
+    }
+    const planIndexSignaturePayload = planConfigSignature
+      ? await getIndexSignature({
         useSqlite,
         backendLabel,
         sqliteCodePath,
         sqliteProsePath,
         sqliteExtractedProsePath,
-        joinComments,
-        asOfContext
-      }
-    });
-    if (queryBootstrap.branchGatePayload) {
-      return queryBootstrap.branchGatePayload;
-    }
-    const { queryPlan, planIndexSignaturePayload } = queryBootstrap;
-
-    const sparseFallbackResolution = await applyRunSearchSparseFallbackPolicy({
-      preflightInput: {
-        annEnabledEffective,
-        useSqlite,
-        backendLabel,
-        sqliteFtsEnabled,
-        runCode,
-        runProse,
-        runExtractedProseRaw,
         runRecords,
-        selectedModes,
-        requiresExtractedProse,
-        loadExtractedProseSqlite,
-        profilePolicyByMode,
-        postingsConfig,
-        allowSparseFallback,
-        filtersActive: queryPlan.filtersActive === true,
-        sparseBackend,
-        sqliteHelpers,
-        addProfileWarning,
-        emitOutput
-      },
-      reinitInput: {
-        stageTracker,
-        buildBackendContextInput,
-        backendPolicy,
-        useSqliteSelection,
-        useLmdbSelection,
-        sqliteFtsEnabled,
-        vectorAnnEnabled,
-        backendForcedLmdb
-      },
-      syncAnnFlags
+        runExtractedProse: runExtractedProseRaw,
+        includeExtractedProse: runExtractedProseRaw || joinComments,
+        root: rootDir,
+        userConfig,
+        indexDirByMode: asOfContext?.strict ? asOfContext.indexDirByMode : null,
+        indexBaseRootByMode: asOfContext?.strict ? asOfContext.indexBaseRootByMode : null,
+        explicitRef: asOfContext?.strict === true,
+        asOfContext
+      })
+      : null;
+    const planIndexSignature = planConfigSignature
+      ? buildQueryPlanIndexSignature(planIndexSignaturePayload)
+      : null;
+    const planCacheKeyInfo = planConfigSignature
+      ? buildQueryPlanCacheKey({
+        query,
+        configSignature: planConfigSignature,
+        indexSignature: planIndexSignature
+      })
+      : null;
+    const cachedPlanEntry = planCacheKeyInfo
+      ? queryPlanCache.get(planCacheKeyInfo.key, {
+        configSignature: planConfigSignature,
+        indexSignature: planIndexSignature
+      })
+      : null;
+    const parseStart = stageTracker.mark();
+    const queryPlan = cachedPlanEntry?.plan || buildQueryPlan({
+      query,
+      argv,
+      dict,
+      dictConfig,
+      postingsConfig,
+      caseTokens,
+      fileFilter,
+      caseFile,
+      searchRegexConfig,
+      filePrefilterEnabled,
+      fileChargramN,
+      searchType,
+      searchAuthor,
+      searchImport,
+      chunkAuthorFilter,
+      branchesMin,
+      loopsMin,
+      breaksMin,
+      continuesMin,
+      churnMin,
+      extFilter,
+      langFilter,
+      extImpossible,
+      langImpossible,
+      metaFilters,
+      modifiedAfter,
+      modifiedSinceDays,
+      fieldWeightsConfig,
+      denseVectorMode,
+      branchFilter
     });
-    annEnabledEffective = sparseFallbackResolution.annEnabledEffective;
-    sparseFallbackForcedByPreflight = sparseFallbackResolution.sparseFallbackForcedByPreflight;
-    const sparseMissingByMode = sparseFallbackResolution.sparseMissingByMode;
-    if (sparseFallbackResolution.error) {
-      return bail(
-        sparseFallbackResolution.error.message,
-        1,
-        sparseFallbackResolution.error.code
+    if (!queryPlan.filterPredicates) {
+      queryPlan.filterPredicates = compileFilterPredicates(queryPlan.filters, { fileChargramN });
+    }
+    stageTracker.record('parse', parseStart, { mode: 'all' });
+    if (!cachedPlanEntry && planCacheKeyInfo && planConfigSignature) {
+      queryPlanCache.set(
+        planCacheKeyInfo.key,
+        createQueryPlanEntry({
+          plan: queryPlan,
+          configSignature: planConfigSignature,
+          indexSignature: planIndexSignature,
+          keyPayload: planCacheKeyInfo.payload
+        })
       );
     }
-    if (sparseFallbackResolution.reinitialized) {
+    stageTracker.record('startup.query-plan', planStart, { mode: 'all' });
+
+    let sparseMissingByMode = {};
+    if (!annEnabledEffective && useSqlite) {
+      const sqliteFtsRouting = resolveSqliteFtsRoutingByMode({
+        useSqlite,
+        sqliteFtsRequested: sqliteFtsEnabled,
+        sqliteFtsExplicit: backendLabel === 'sqlite-fts',
+        runCode,
+        runProse,
+        runExtractedProse: runExtractedProseRaw,
+        runRecords
+      });
+      sparseMissingByMode = {};
+      const sparsePreflightModes = resolveSparsePreflightModes({
+        selectedModes,
+        requiresExtractedProse,
+        loadExtractedProseSqlite
+      });
+      const tablePresenceCache = new Map();
+      for (const mode of sparsePreflightModes) {
+        const policy = profilePolicyByMode[mode];
+        if (policy?.vectorOnly) continue;
+        const missing = resolveSparsePreflightMissingTables({
+          sqliteHelpers,
+          mode,
+          postingsConfig,
+          sqliteFtsRoutingByMode: sqliteFtsRouting,
+          allowSparseFallback,
+          filtersActive: queryPlan.filtersActive === true,
+          sparseBackend,
+          tablePresenceCache
+        });
+        if (missing.length) sparseMissingByMode[mode] = missing;
+      }
+      if (Object.keys(sparseMissingByMode).length) {
+        if (allowSparseFallback === true) {
+          sparseFallbackForcedByPreflight = true;
+          annEnabledEffective = true;
+          const details = Object.entries(sparseMissingByMode)
+            .map(([mode, missing]) => `${mode}: ${missing.join(', ')}`)
+            .join('; ');
+          const warning = (
+            `Sparse tables missing for sparse-only request (${details}). ` +
+            'Enabling ANN fallback because --allow-sparse-fallback was set.'
+          );
+          addProfileWarning(warning);
+          if (emitOutput) {
+            console.warn(`[search] ${warning}`);
+          }
+        } else {
+          const details = Object.entries(sparseMissingByMode)
+            .map(([mode, missing]) => `- ${mode}: ${missing.join(', ')}`)
+            .join('\n');
+          return bail(
+            `[search] ${RETRIEVAL_SPARSE_UNAVAILABLE_CODE}: sparse-only retrieval requires sparse tables, but required tables are missing.\n${details}\n` +
+              'Rebuild sparse artifacts or enable ANN fallback.',
+            1,
+            ERROR_CODES.CAPABILITY_MISSING
+          );
+        }
+      }
+    }
+    if (sparseFallbackForcedByPreflight) {
+      syncAnnFlags();
+      backendContext = await createBackendContextWithTracking({
+        stageTracker,
+        contextInput: buildBackendContextInput(),
+        stageName: 'startup.backend.reinit'
+      });
       ({
         useSqlite,
         useLmdb,
@@ -572,8 +985,11 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         vectorAnnUsed,
         sqliteHelpers,
         lmdbHelpers
-      } = sparseFallbackResolution);
+      } = backendContext);
       telemetry.setBackend(backendLabel);
+      if (backendForcedLmdb && !useLmdb) {
+        return bail('LMDB backend requested but unavailable.', 1, ERROR_CODES.INVALID_REQUEST);
+      }
     }
 
     const annActive = resolveAnnActive({
@@ -595,47 +1011,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const { loadIndexFromSqlite } = sqliteHelpers;
     const { loadIndexFromLmdb } = lmdbHelpers;
 
-    const indexLoadInput = buildRunSearchIndexLoadInput({
-      stageTracker,
-      throwIfAborted,
-      rootDir,
-      userConfig,
-      searchMode,
-      runProse,
-      runExtractedProse: runExtractedProseRaw,
-      runCode,
-      runRecords,
-      useSqlite,
-      useLmdb,
-      emitOutput,
-      exitOnError,
-      annActive,
-      queryPlan,
-      chunkAuthorFilter,
-      contextExpansionEnabled,
-      graphRankingEnabled,
-      sqliteFtsEnabled,
-      backendLabel,
-      backendForcedTantivy,
-      indexCache,
-      modelIdDefault,
-      fileChargramN,
-      hnswConfig,
-      lancedbConfig,
-      tantivyConfig,
-      strictIndexMetaByMode,
-      strict,
-      loadIndexFromSqlite,
-      loadIndexFromLmdb,
-      allowUnsafeMix,
-      requiredArtifacts,
-      asOfContext,
-      sqliteStateCode,
-      sqliteStateProse,
-      sqliteStateExtractedProse,
-      sqliteStateRecords,
-      joinComments
-    });
+    const indexesStart = stageTracker.mark();
     const {
       idxProse,
       idxExtractedProse,
@@ -651,28 +1027,81 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       modelIdForProse,
       modelIdForExtractedProse,
       modelIdForRecords
-    } = await loadRunSearchIndexesWithTracking(indexLoadInput);
-
-    const sparseFallbackAnnError = await enforceSparseFallbackAnnAvailability({
-      sparseFallbackForcedByPreflight,
-      sparseMissingByMode,
-      idxCode,
-      idxProse,
-      idxExtractedProse,
-      idxRecords,
-      vectorAnnState,
-      hnswAnnState,
-      lanceAnnState
+    } = await loadSearchIndexes({
+      rootDir,
+      userConfig,
+      searchMode,
+      runProse,
+      runExtractedProse: runExtractedProseRaw,
+      runCode,
+      runRecords,
+      useSqlite,
+      useLmdb,
+      emitOutput,
+      exitOnError,
+      annActive,
+      filtersActive: queryPlan.filtersActive,
+      chunkAuthorFilterActive: Array.isArray(chunkAuthorFilter) ? chunkAuthorFilter.length > 0 : Boolean(chunkAuthorFilter),
+      contextExpansionEnabled,
+      graphRankingEnabled,
+      sqliteFtsRequested: sqliteFtsEnabled,
+      backendLabel,
+      backendForcedTantivy,
+      indexCache,
+      modelIdDefault,
+      fileChargramN,
+      hnswConfig,
+      lancedbConfig,
+      tantivyConfig,
+      indexMetaByMode: strictIndexMetaByMode,
+      indexStates: {
+        code: sqliteStateCode || null,
+        prose: sqliteStateProse || null,
+        'extracted-prose': sqliteStateExtractedProse || null,
+        records: sqliteStateRecords || null
+      },
+      strict,
+      loadIndexFromSqlite,
+      loadIndexFromLmdb,
+      resolvedDenseVectorMode: queryPlan.resolvedDenseVectorMode,
+      loadExtractedProse: joinComments,
+      allowUnsafeMix,
+      requiredArtifacts,
+      indexDirByMode: asOfContext?.strict ? asOfContext.indexDirByMode : null,
+      indexBaseRootByMode: asOfContext?.strict ? asOfContext.indexBaseRootByMode : null,
+      explicitRef: asOfContext?.strict === true
     });
-    if (sparseFallbackAnnError) {
-      return bail(
-        sparseFallbackAnnError.message,
-        1,
-        sparseFallbackAnnError.code
-      );
+    stageTracker.record('startup.indexes', indexesStart, { mode: 'all' });
+    throwIfAborted();
+
+    if (sparseFallbackForcedByPreflight) {
+      const sparseFallbackModesWithoutAnn = await resolveSparseFallbackModesWithoutAnn({
+        sparseMissingByMode,
+        idxByMode: {
+          code: idxCode,
+          prose: idxProse,
+          'extracted-prose': idxExtractedProse,
+          records: idxRecords
+        },
+        vectorAnnState,
+        hnswAnnState,
+        lanceAnnState
+      });
+      if (sparseFallbackModesWithoutAnn.length) {
+        const sparseDetails = Object.entries(sparseMissingByMode)
+          .map(([mode, missing]) => `- ${mode}: ${missing.join(', ')}`)
+          .join('\n');
+        return bail(
+          `[search] ${RETRIEVAL_SPARSE_UNAVAILABLE_CODE}: --allow-sparse-fallback was set, but no ANN path is available for mode(s): ` +
+            `${sparseFallbackModesWithoutAnn.join(', ')}.\n${sparseDetails}\n` +
+            'Rebuild sparse artifacts or make ANN artifacts/providers available before using sparse fallback.',
+          1,
+          ERROR_CODES.CAPABILITY_MISSING
+        );
+      }
     }
 
-    const executionInput = buildRunSearchExecutionInput({
+    const payload = await executeSearchAndEmit({
       t0,
       emitOutput,
       jsonOutput,
@@ -776,16 +1205,37 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       asOfContext,
       signal
     });
-    const payload = await executeSearchAndEmit(executionInput);
 
     recordSearchMetrics('ok');
     return payload;
   } catch (err) {
     recordSearchMetrics('error');
-    emitSearchJsonError({ err, emitOutput, jsonOutput });
+    if (emitOutput && jsonOutput && !err?.emitted) {
+      let message = err?.message || 'Search failed.';
+      if (err?.code && String(err.code).startsWith('ERR_MANIFEST')
+        && !String(message).toLowerCase().includes('manifest')) {
+        message = message && message !== 'Search failed.'
+          ? `Manifest error: ${message}`
+          : 'Missing pieces manifest.';
+      }
+      const code = isErrorCode(err?.code) ? err.code : ERROR_CODES.INTERNAL;
+      console.log(JSON.stringify({ ok: false, code, message }));
+      if (err) err.emitted = true;
+    }
     throw err;
   } finally {
-    await flushRunSearchResources({ telemetry, emitOutput, queryPlanCache });
+    if (telemetry?.emitResourceWarnings) {
+      telemetry.emitResourceWarnings({
+        warn: (message) => {
+          if (emitOutput) console.warn(message);
+        }
+      });
+    }
+    if (typeof queryPlanCache?.persist === 'function') {
+      try {
+        await queryPlanCache.persist();
+      } catch {}
+    }
   }
 }
 

@@ -102,49 +102,6 @@ const DEFAULT_COLD_ARTIFACTS = Object.freeze([
   'vocab_order'
 ]);
 
-const resolveArtifactTierFromSets = ({
-  artifactName,
-  hotSet,
-  coldSet,
-  defaultTier
-}) => {
-  const normalizedName = normalizeArtifactName(artifactName);
-  if (!normalizedName) return defaultTier;
-  if (hotSet.has(normalizedName)) return 'hot';
-  if (coldSet.has(normalizedName)) return 'cold';
-  return defaultTier;
-};
-
-/**
- * Build a reusable compression-tier resolver with precomputed artifact sets.
- *
- * Use this when resolving tiers repeatedly (for example while constructing
- * compression overrides for many artifact surfaces) to avoid rebuilding hot/cold
- * lookup sets on each resolution call.
- *
- * @param {{
- *   hotArtifacts?: string[],
- *   coldArtifacts?: string[],
- *   defaultTier?: 'hot'|'warm'|'cold'
- * }} [options]
- * @returns {(artifactName:string)=>'hot'|'warm'|'cold'}
- */
-export const createArtifactCompressionTierResolver = ({
-  hotArtifacts = DEFAULT_HOT_ARTIFACTS,
-  coldArtifacts = DEFAULT_COLD_ARTIFACTS,
-  defaultTier = 'warm'
-} = {}) => {
-  const hotSet = toArtifactNameSet(hotArtifacts);
-  const coldSet = toArtifactNameSet(coldArtifacts);
-  const normalizedDefaultTier = normalizeTierName(defaultTier, 'warm');
-  return (artifactName) => resolveArtifactTierFromSets({
-    artifactName,
-    hotSet,
-    coldSet,
-    defaultTier: normalizedDefaultTier
-  });
-};
-
 /**
  * Resolve hot/warm/cold compression tier for an artifact surface.
  *
@@ -158,8 +115,20 @@ export const createArtifactCompressionTierResolver = ({
  */
 export const resolveArtifactCompressionTier = (
   artifactName,
-  options = {}
-) => createArtifactCompressionTierResolver(options)(artifactName);
+  {
+    hotArtifacts = DEFAULT_HOT_ARTIFACTS,
+    coldArtifacts = DEFAULT_COLD_ARTIFACTS,
+    defaultTier = 'warm'
+  } = {}
+) => {
+  const normalizedName = normalizeArtifactName(artifactName);
+  if (!normalizedName) return normalizeTierName(defaultTier, 'warm');
+  const hotSet = toArtifactNameSet(hotArtifacts);
+  const coldSet = toArtifactNameSet(coldArtifacts);
+  if (hotSet.has(normalizedName)) return 'hot';
+  if (coldSet.has(normalizedName)) return 'cold';
+  return normalizeTierName(defaultTier, 'warm');
+};
 
 export const detectCompression = (filePath) => {
   const target = stripBak(filePath);

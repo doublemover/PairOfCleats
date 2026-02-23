@@ -516,7 +516,8 @@ const resolveNearestStructuralCandidate = ({
  *   normalizedFile:string,
  *   fileMapping:FileChunkMapping|null,
  *   mappingIndex:IncrementalChunkMappingIndex,
- *   fallbackState:{cursor:number}
+ *   fallbackState:{cursor:number},
+ *   vectorCount?:number|null
  * }} input
  * @returns {BundleChunkVectorResolution}
  */
@@ -525,24 +526,37 @@ export const resolveBundleChunkVectorIndex = ({
   normalizedFile,
   fileMapping,
   mappingIndex,
-  fallbackState
+  fallbackState,
+  vectorCount = null
 }) => {
+  const isVectorIndexInRange = (value) => {
+    const index = toChunkIndex(value);
+    if (index == null) return false;
+    const count = Number(vectorCount);
+    if (Number.isFinite(count) && count >= 0) {
+      return index < Math.floor(count);
+    }
+    return true;
+  };
   const numericChunkId = toChunkIndex(chunk?.id);
   if (numericChunkId != null && fileMapping?.chunkMap.has(numericChunkId)) {
-    return {
-      vectorIndex: fileMapping.chunkMap.get(numericChunkId),
-      reason: null
-    };
+    const chunkMapIndex = fileMapping.chunkMap.get(numericChunkId);
+    if (isVectorIndexInRange(chunkMapIndex)) {
+      return {
+        vectorIndex: chunkMapIndex,
+        reason: null
+      };
+    }
   }
 
   const stableChunkId = resolveExplicitChunkId(chunk);
   if (stableChunkId) {
     const localStableIdIndex = fileMapping?.chunkIdMap.get(stableChunkId);
-    if (localStableIdIndex != null) {
+    if (isVectorIndexInRange(localStableIdIndex)) {
       return { vectorIndex: localStableIdIndex, reason: null };
     }
     const globalStableIdIndex = mappingIndex.globalChunkIdMap.get(stableChunkId);
-    if (globalStableIdIndex != null) {
+    if (isVectorIndexInRange(globalStableIdIndex)) {
       return { vectorIndex: globalStableIdIndex, reason: null };
     }
   }
@@ -550,11 +564,11 @@ export const resolveBundleChunkVectorIndex = ({
   const hintWithFileKey = buildChunkMappingHintKey(chunk, { includeFile: true });
   if (hintWithFileKey) {
     const localHintWithFile = fileMapping?.hintWithFileMap.get(hintWithFileKey);
-    if (localHintWithFile != null) {
+    if (isVectorIndexInRange(localHintWithFile)) {
       return { vectorIndex: localHintWithFile, reason: null };
     }
     const globalHintWithFile = mappingIndex.globalHintWithFileMap.get(hintWithFileKey);
-    if (globalHintWithFile != null) {
+    if (isVectorIndexInRange(globalHintWithFile)) {
       return { vectorIndex: globalHintWithFile, reason: null };
     }
   }
@@ -562,11 +576,11 @@ export const resolveBundleChunkVectorIndex = ({
   const hintKey = buildChunkMappingHintKey(chunk);
   if (hintKey) {
     const localHint = fileMapping?.hintMap.get(hintKey);
-    if (localHint != null) {
+    if (isVectorIndexInRange(localHint)) {
       return { vectorIndex: localHint, reason: null };
     }
     const globalHint = mappingIndex.globalHintMap.get(hintKey);
-    if (globalHint != null) {
+    if (isVectorIndexInRange(globalHint)) {
       return { vectorIndex: globalHint, reason: null };
     }
   }
@@ -580,7 +594,7 @@ export const resolveBundleChunkVectorIndex = ({
       chunk,
       normalizedFile
     });
-    if (localNearest.accepted) {
+    if (localNearest.accepted && isVectorIndexInRange(localNearest.vectorIndex)) {
       return { vectorIndex: localNearest.vectorIndex, reason: null };
     }
     sawStructuralCandidates = sawStructuralCandidates || localNearest.hasCandidates;
@@ -590,7 +604,7 @@ export const resolveBundleChunkVectorIndex = ({
       chunk,
       normalizedFile
     });
-    if (globalNearest.accepted) {
+    if (globalNearest.accepted && isVectorIndexInRange(globalNearest.vectorIndex)) {
       return { vectorIndex: globalNearest.vectorIndex, reason: null };
     }
     sawStructuralCandidates = sawStructuralCandidates || globalNearest.hasCandidates;
@@ -604,7 +618,7 @@ export const resolveBundleChunkVectorIndex = ({
       chunk,
       normalizedFile
     });
-    if (localNearest.accepted) {
+    if (localNearest.accepted && isVectorIndexInRange(localNearest.vectorIndex)) {
       return { vectorIndex: localNearest.vectorIndex, reason: null };
     }
     sawStructuralCandidates = sawStructuralCandidates || localNearest.hasCandidates;
@@ -614,21 +628,26 @@ export const resolveBundleChunkVectorIndex = ({
       chunk,
       normalizedFile
     });
-    if (globalNearest.accepted) {
+    if (globalNearest.accepted && isVectorIndexInRange(globalNearest.vectorIndex)) {
       return { vectorIndex: globalNearest.vectorIndex, reason: null };
     }
     sawStructuralCandidates = sawStructuralCandidates || globalNearest.hasCandidates;
   }
 
   if (fileMapping && fallbackState.cursor < fileMapping.fallbackIndices.length) {
-    const fallbackIndex = fileMapping.fallbackIndices[fallbackState.cursor];
-    fallbackState.cursor += 1;
-    if (fallbackIndex != null) {
-      return { vectorIndex: fallbackIndex, reason: null };
+    while (fallbackState.cursor < fileMapping.fallbackIndices.length) {
+      const fallbackIndex = fileMapping.fallbackIndices[fallbackState.cursor];
+      fallbackState.cursor += 1;
+      if (isVectorIndexInRange(fallbackIndex)) {
+        return { vectorIndex: fallbackIndex, reason: null };
+      }
     }
   }
-  if (numericChunkId != null) {
-    return { vectorIndex: numericChunkId, reason: null };
+  if (isVectorIndexInRange(numericChunkId)) {
+    return {
+      vectorIndex: numericChunkId,
+      reason: null
+    };
   }
 
   const hasStructuralHints = Boolean(stableChunkId || hintWithFileKey || hintKey || anchor || segmentUid);

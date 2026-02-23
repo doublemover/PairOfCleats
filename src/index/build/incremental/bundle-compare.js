@@ -1,32 +1,8 @@
 import { sha1 } from '../../../shared/hash.js';
 
-/**
- * Build a recursively key-sorted clone for stable object signatures.
- *
- * @param {unknown} value
- * @param {WeakSet<object>} [seen]
- * @returns {unknown}
- */
-const buildCanonicalSignatureValue = (value, seen = new WeakSet()) => {
-  if (Array.isArray(value)) {
-    return value.map((entry) => buildCanonicalSignatureValue(entry, seen));
-  }
-  if (!value || typeof value !== 'object') {
-    return value ?? null;
-  }
-  if (seen.has(value)) return null;
-  seen.add(value);
-  const out = {};
-  for (const key of Object.keys(value).sort()) {
-    out[key] = buildCanonicalSignatureValue(value[key], seen);
-  }
-  seen.delete(value);
-  return out;
-};
-
 const buildStableJsonSignature = (value) => {
   try {
-    return JSON.stringify(buildCanonicalSignatureValue(value ?? null));
+    return JSON.stringify(value ?? null);
   } catch {
     return '';
   }

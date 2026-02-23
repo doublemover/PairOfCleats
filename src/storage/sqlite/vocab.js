@@ -57,7 +57,20 @@ export function ensureVocabIds(
   insertStmt,
   options = {}
 ) {
-  const unique = Array.from(new Set(values.filter(Boolean)));
+  const unique = [];
+  if (values instanceof Set) {
+    for (const value of values) {
+      if (value) unique.push(value);
+    }
+  } else {
+    const source = Array.isArray(values) ? values : [];
+    const seen = new Set();
+    for (const value of source) {
+      if (!value || seen.has(value)) continue;
+      seen.add(value);
+      unique.push(value);
+    }
+  }
   const totalBefore = getVocabCount(db, mode, table);
   if (!unique.length) {
     return { map: new Map(), inserted: 0, total: totalBefore, skip: false };

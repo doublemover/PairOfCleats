@@ -38,7 +38,7 @@ export async function loadDictionary(root, dictConfig, options = {}) {
       codeDictSummary: {
         files: codeDictPaths.all.length,
         words: codeDictWords.allWords.size,
-        languages: Array.from(codeDictPaths.byLanguage.keys()).sort()
+        languages: Array.from(codeDictWords.wordsByLanguage.keys()).sort()
       }
     };
   }

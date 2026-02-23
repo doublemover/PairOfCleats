@@ -7,7 +7,7 @@ import {
   getToolVersion
 } from '../../shared/dict-utils.js';
 import { log } from '../../shared/progress.js';
-import { isAbsolutePathNative, toPosix } from '../../shared/files.js';
+import { isAbsolutePathNative, isPathWithinRoot, toPosix } from '../../shared/files.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
@@ -27,18 +27,18 @@ export async function promoteBuild({
   if (!repoRoot || !buildId || !buildRoot) return null;
   const buildsRoot = getBuildsRoot(repoRoot, userConfig);
   const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
-  const resolvedCacheRoot = toRealPathSync(repoCacheRoot);
-  const resolvedBuildRoot = toRealPathSync(buildRoot);
-  if (!isWithinRoot(resolvedBuildRoot, resolvedCacheRoot)) {
+  const resolvedCacheRoot = path.resolve(repoCacheRoot);
+  const resolvedBuildRoot = path.resolve(buildRoot);
+  if (!isPathWithinRoot(resolvedBuildRoot, resolvedCacheRoot)) {
     throw new Error(`buildRoot escapes repo cache root: ${buildRoot}`);
   }
   const relativeRoot = toPosix(path.relative(resolvedCacheRoot, resolvedBuildRoot));
   const normalizeRelativeRoot = (value) => {
     if (typeof value !== 'string' || !value.trim()) return null;
     const resolved = isAbsolutePathNative(value) ? value : path.join(repoCacheRoot, value);
-    const normalized = toRealPathSync(resolved);
-    if (!isWithinRoot(normalized, resolvedCacheRoot)) return null;
-    return toPosix(path.relative(resolvedCacheRoot, normalized));
+    const normalized = path.resolve(resolved);
+    if (!isPathWithinRoot(normalized, resolvedCacheRoot)) return null;
+    return toPosix(path.relative(repoCacheRoot, normalized));
   };
   const currentPath = path.join(buildsRoot, 'current.json');
   let priorRoots = {};

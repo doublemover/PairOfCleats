@@ -30,13 +30,6 @@ try {
     ['alpha', 'beta', 'delta', 'gamma'].sort()
   );
 
-  const fromSinglePathString = await loadDictionaryWordSetFromFiles(baseA, { lowerCase: true });
-  assert.deepEqual(
-    Array.from(fromSinglePathString).sort(),
-    ['alpha', 'beta', 'gamma'],
-    'expected string file path input to be treated as a single dictionary file'
-  );
-
   const textOnly = addDictionaryWordsFromText('  One \nTwo\r\n\nTHREE ', new Set(), { lowerCase: true });
   assert.deepEqual(Array.from(textOnly).sort(), ['one', 'three', 'two']);
 

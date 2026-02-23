@@ -194,30 +194,11 @@ const resolveAdaptiveSurfacesConfig = (value) => {
   }
   if (isObject(value.fdPressure)) {
     const fdSource = value.fdPressure;
-    const fdPressure = {};
-    if (Object.prototype.hasOwnProperty.call(fdSource, 'enabled')) {
-      fdPressure.enabled = fdSource.enabled !== false;
-    }
-    const softLimit = coercePositiveInt(fdSource.softLimit ?? fdSource.limit);
-    const reserveDescriptors = coerceNonNegativeInt(fdSource.reserveDescriptors ?? fdSource.reserve);
-    const descriptorsPerToken = coercePositiveInt(fdSource.descriptorsPerToken ?? fdSource.fdPerToken);
-    const minTokenCap = coercePositiveInt(fdSource.minTokenCap);
-    const maxTokenCap = coercePositiveInt(fdSource.maxTokenCap);
     const highPressureThreshold = Number(fdSource.highPressureThreshold ?? fdSource.pressureHighThreshold);
-    const lowPressureThreshold = Number(fdSource.lowPressureThreshold ?? fdSource.pressureLowThreshold);
-    if (softLimit != null) fdPressure.softLimit = softLimit;
-    if (reserveDescriptors != null) fdPressure.reserveDescriptors = reserveDescriptors;
-    if (descriptorsPerToken != null) fdPressure.descriptorsPerToken = descriptorsPerToken;
-    if (minTokenCap != null) fdPressure.minTokenCap = minTokenCap;
-    if (maxTokenCap != null) fdPressure.maxTokenCap = maxTokenCap;
     if (Number.isFinite(highPressureThreshold)) {
-      fdPressure.highPressureThreshold = highPressureThreshold;
-    }
-    if (Number.isFinite(lowPressureThreshold)) {
-      fdPressure.lowPressureThreshold = lowPressureThreshold;
-    }
-    if (Object.keys(fdPressure).length > 0) {
-      resolved.fdPressure = fdPressure;
+      resolved.fdPressure = {
+        highPressureThreshold: Math.max(0, Math.min(1, highPressureThreshold))
+      };
     }
   }
   return Object.keys(resolved).length > 0 ? resolved : null;

@@ -66,7 +66,8 @@ export const createTreeSitterSchedulerLookup = ({
     transientFdRetries: 0
   };
   const pageRefCounts = new Map();
-  const consumedVirtualPaths = new Set();
+  const consumedIndexEntries = new WeakSet();
+  const consumedVirtualPathFallback = new Set();
   const readersByManifestPath = new Map();
   let readerUseTick = 0;
   const segmentMetaByGrammarKey = new Map(); // grammarKey -> Promise<Map<number, object>|null>
@@ -182,7 +183,7 @@ export const createTreeSitterSchedulerLookup = ({
     pageIndexByGrammarKey.clear();
     pageRowsCache.clear();
     pageRefCounts.clear();
-    consumedVirtualPaths.clear();
+    consumedVirtualPathFallback.clear();
     await Promise.all(readers.map(async (reader) => {
       try {
         await reader.close();
@@ -555,9 +556,14 @@ export const createTreeSitterSchedulerLookup = ({
     if (!virtualPath) return;
     rowCache.delete(virtualPath);
     missCache.delete(virtualPath);
-    if (consumedVirtualPaths.has(virtualPath)) return;
-    consumedVirtualPaths.add(virtualPath);
     const entry = index.get(virtualPath);
+    if (entry && typeof entry === 'object') {
+      if (consumedIndexEntries.has(entry)) return;
+      consumedIndexEntries.add(entry);
+    } else {
+      if (consumedVirtualPathFallback.has(virtualPath)) return;
+      consumedVirtualPathFallback.add(virtualPath);
+    }
     const pageKey = pageCacheKeyForEntry(entry);
     if (!pageKey) return;
     const remaining = pageRefCounts.get(pageKey);
@@ -631,6 +637,7 @@ export const createTreeSitterSchedulerLookup = ({
     grammarKeys,
     loadRow,
     loadRows,
+    releaseVirtualPathCaches,
     loadChunks,
     loadChunksBatch,
     close,

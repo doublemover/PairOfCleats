@@ -105,7 +105,7 @@ export const resolveIncrementalChangePlan = ({
  * @param {Array<object>} input.changed
  * @param {string} input.bundleDir
  * @returns {Promise<
- *   {ok:true,bundles:Map<string,object>,tokenValues:string[],phraseValues:string[],chargramValues:string[],incomingDims:number|null}|
+ *   {ok:true,bundles:Map<string,object>,tokenValues:Set<string>,phraseValues:Set<string>,chargramValues:Set<string>,incomingDims:number|null}|
  *   {ok:false,reason:string}
  * >}
  */
@@ -152,9 +152,9 @@ export const loadBundlesAndCollectState = async ({ changed, bundleDir }) => {
   return {
     ok: true,
     bundles,
-    tokenValues: Array.from(tokenValues),
-    phraseValues: Array.from(phraseValues),
-    chargramValues: Array.from(chargramValues),
+    tokenValues,
+    phraseValues,
+    chargramValues,
     incomingDims
   };
 };

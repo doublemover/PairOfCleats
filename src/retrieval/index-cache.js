@@ -359,7 +359,8 @@ export async function loadIndexWithCache(cache, dir, options, loader) {
     options?.includeFilterIndex !== false ? 'filter' : 'no-filter',
     options?.includeFileRelations !== false ? 'file-rel' : 'no-file-rel',
     options?.includeRepoMap !== false ? 'repo-map' : 'no-repo-map',
-    options?.includeTokenIndex !== false ? 'token' : 'no-token'
+    options?.includeTokenIndex !== false ? 'token' : 'no-token',
+    options?.includeChunkMetaCold !== false ? 'chunk-meta-cold' : 'chunk-meta-hot'
   ].join(',');
   const cacheKey = `${canonicalDir}::${options?.modelIdDefault || ''}::${options?.fileChargramN || ''}::${hnswKey}::${denseKey}::${includeKey}`;
   const signature = await buildIndexSignature(canonicalDir);

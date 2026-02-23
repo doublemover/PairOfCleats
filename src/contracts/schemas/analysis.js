@@ -1,18 +1,6 @@
-import {
-  nullableArrayOf,
-  nullableNonNegativeInteger,
-  nullableNumber,
-  nullableObjectArray,
-  nullableString,
-  nullableStringArray,
-  openNullableObject,
-  semverString
-} from './analysis/common.js';
-import {
-  nodeRefSchema,
-  referenceEnvelopeSchema,
-  seedRefSchema
-} from './analysis/references.js';
+const nullableString = { type: ['string', 'null'] };
+const nullableNumber = { type: ['number', 'null'] };
+const semverString = { type: 'string', pattern: '^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$' };
 
 const typeEntry = {
   type: 'object',
@@ -23,7 +11,7 @@ const typeEntry = {
     confidence: nullableNumber,
     evidence: { type: ['object', 'null'] },
     shape: { type: ['object', 'null'] },
-    elements: nullableStringArray
+    elements: { type: ['array', 'null'], items: { type: 'string' } }
   },
   additionalProperties: true
 };
@@ -63,7 +51,7 @@ const riskFlowEntry = {
     severity: nullableString,
     category: nullableString,
     confidence: nullableNumber,
-    ruleIds: nullableStringArray,
+    ruleIds: { type: ['array', 'null'], items: { type: 'string' } },
     evidence: { type: ['object', 'null'] },
     via: nullableString
   },
@@ -96,18 +84,18 @@ export const METADATA_V2_SCHEMA = {
         languageId: nullableString,
         ext: nullableString,
         parentSegmentId: nullableString,
-        start: nullableNonNegativeInteger,
-        end: nullableNonNegativeInteger,
-        startLine: nullableNonNegativeInteger,
-        endLine: nullableNonNegativeInteger,
+        start: { type: ['integer', 'null'], minimum: 0 },
+        end: { type: ['integer', 'null'], minimum: 0 },
+        startLine: { type: ['integer', 'null'], minimum: 0 },
+        endLine: { type: ['integer', 'null'], minimum: 0 },
         embeddingContext: nullableString,
         sourceType: { type: ['string', 'null'], enum: ['pdf', 'docx', null] },
-        pageStart: nullableNonNegativeInteger,
-        pageEnd: nullableNonNegativeInteger,
-        paragraphStart: nullableNonNegativeInteger,
-        paragraphEnd: nullableNonNegativeInteger,
-        headingPath: nullableStringArray,
-        windowIndex: nullableNonNegativeInteger,
+        pageStart: { type: ['integer', 'null'], minimum: 0 },
+        pageEnd: { type: ['integer', 'null'], minimum: 0 },
+        paragraphStart: { type: ['integer', 'null'], minimum: 0 },
+        paragraphEnd: { type: ['integer', 'null'], minimum: 0 },
+        headingPath: { type: ['array', 'null'], items: { type: 'string' } },
+        windowIndex: { type: ['integer', 'null'], minimum: 0 },
         anchor: nullableString
       },
       additionalProperties: true
@@ -115,64 +103,84 @@ export const METADATA_V2_SCHEMA = {
     range: {
       type: ['object', 'null'],
       properties: {
-        start: nullableNonNegativeInteger,
-        end: nullableNonNegativeInteger,
-        startLine: nullableNonNegativeInteger,
-        endLine: nullableNonNegativeInteger
+        start: { type: ['integer', 'null'], minimum: 0 },
+        end: { type: ['integer', 'null'], minimum: 0 },
+        startLine: { type: ['integer', 'null'], minimum: 0 },
+        endLine: { type: ['integer', 'null'], minimum: 0 }
       },
       additionalProperties: true
     },
     lang: nullableString,
     ext: nullableString,
-    container: openNullableObject({
-      ext: nullableString,
-      languageId: nullableString
-    }),
-    effective: openNullableObject({
-      ext: nullableString,
-      languageId: nullableString
-    }),
+    container: {
+      type: ['object', 'null'],
+      properties: {
+        ext: nullableString,
+        languageId: nullableString
+      },
+      additionalProperties: true
+    },
+    effective: {
+      type: ['object', 'null'],
+      properties: {
+        ext: nullableString,
+        languageId: nullableString
+      },
+      additionalProperties: true
+    },
     kind: nullableString,
     name: nullableString,
     signature: nullableString,
     doc: nullableString,
     generatedBy: nullableString,
-    tooling: openNullableObject({
-      tool: nullableString,
-      version: nullableString,
-      configHash: nullableString
-    }),
-    parser: openNullableObject({
-      name: nullableString,
-      version: nullableString,
-      mode: nullableString,
-      fallbackMode: nullableString,
-      reasonCode: nullableString,
-      reason: nullableString,
-      deterministic: { type: ['boolean', 'null'] }
-    }),
-    annotations: nullableStringArray,
+    tooling: {
+      type: ['object', 'null'],
+      properties: {
+        tool: nullableString,
+        version: nullableString,
+        configHash: nullableString
+      },
+      additionalProperties: true
+    },
+    parser: {
+      type: ['object', 'null'],
+      properties: {
+        name: nullableString,
+        version: nullableString,
+        mode: nullableString,
+        fallbackMode: nullableString,
+        reasonCode: nullableString,
+        reason: nullableString,
+        deterministic: { type: ['boolean', 'null'] }
+      },
+      additionalProperties: true
+    },
+    annotations: { type: ['array', 'null'], items: { type: 'string' } },
     modifiers: {
       anyOf: [
-        nullableStringArray,
+        { type: ['array', 'null'], items: { type: 'string' } },
         { type: 'object', additionalProperties: true }
       ]
     },
-    params: nullableStringArray,
-    tags: nullableStringArray,
+    params: { type: ['array', 'null'], items: { type: 'string' } },
+    tags: { type: ['array', 'null'], items: { type: 'string' } },
     types: metaTypes,
-    risk: openNullableObject({
-      tags: nullableStringArray,
-      categories: nullableStringArray,
-      severity: nullableString,
-      confidence: nullableNumber,
-      sources: nullableObjectArray,
-      sinks: nullableObjectArray,
-      sanitizers: nullableObjectArray,
-      flows: nullableArrayOf(riskFlowEntry),
-      analysisStatus: { type: ['object', 'null'] },
-      ruleProvenance: { type: ['object', 'null'] }
-    })
+    risk: {
+      type: ['object', 'null'],
+      properties: {
+        tags: { type: ['array', 'null'], items: { type: 'string' } },
+        categories: { type: ['array', 'null'], items: { type: 'string' } },
+        severity: nullableString,
+        confidence: nullableNumber,
+        sources: { type: ['array', 'null'], items: { type: 'object' } },
+        sinks: { type: ['array', 'null'], items: { type: 'object' } },
+        sanitizers: { type: ['array', 'null'], items: { type: 'object' } },
+        flows: { type: ['array', 'null'], items: riskFlowEntry },
+        analysisStatus: { type: ['object', 'null'] },
+        ruleProvenance: { type: ['object', 'null'] }
+      },
+      additionalProperties: true
+    }
   },
   additionalProperties: true
 };
@@ -188,7 +196,7 @@ const riskRuleSchema = {
     severity: nullableString,
     tags: { type: 'array', items: { type: 'string' } },
     confidence: nullableNumber,
-    languages: nullableStringArray,
+    languages: { type: ['array', 'null'], items: { type: 'string' } },
     patterns: { type: 'array', items: { type: 'string' } },
     requires: nullableString
   },
@@ -203,22 +211,34 @@ export const RISK_RULES_BUNDLE_SCHEMA = {
     sources: { type: 'array', items: riskRuleSchema },
     sinks: { type: 'array', items: riskRuleSchema },
     sanitizers: { type: 'array', items: riskRuleSchema },
-    regexConfig: openNullableObject({
-      maxPatternLength: { type: ['integer', 'null'] },
-      maxInputLength: { type: ['integer', 'null'] },
-      maxProgramSize: { type: ['integer', 'null'] },
-      timeoutMs: { type: ['integer', 'null'] },
-      flags: nullableString,
-      engine: nullableString
-    }),
-    provenance: openNullableObject({
-      defaults: { type: 'boolean' },
-      sourcePath: nullableString
-    }),
-    diagnostics: openNullableObject({
-      warnings: nullableObjectArray,
-      errors: nullableObjectArray
-    })
+    regexConfig: {
+      type: ['object', 'null'],
+      properties: {
+        maxPatternLength: { type: ['integer', 'null'] },
+        maxInputLength: { type: ['integer', 'null'] },
+        maxProgramSize: { type: ['integer', 'null'] },
+        timeoutMs: { type: ['integer', 'null'] },
+        flags: nullableString,
+        engine: nullableString
+      },
+      additionalProperties: true
+    },
+    provenance: {
+      type: ['object', 'null'],
+      properties: {
+        defaults: { type: 'boolean' },
+        sourcePath: nullableString
+      },
+      additionalProperties: true
+    },
+    diagnostics: {
+      type: ['object', 'null'],
+      properties: {
+        warnings: { type: ['array', 'null'], items: { type: 'object' } },
+        errors: { type: ['array', 'null'], items: { type: 'object' } }
+      },
+      additionalProperties: true
+    }
   },
   additionalProperties: true
 };
@@ -226,34 +246,130 @@ export const RISK_RULES_BUNDLE_SCHEMA = {
 export const ANALYSIS_POLICY_SCHEMA = {
   type: 'object',
   properties: {
-    metadata: openNullableObject({
-      enabled: { type: 'boolean' }
-    }),
-    risk: openNullableObject({
-      enabled: { type: 'boolean' },
-      crossFile: { type: 'boolean' }
-    }),
-    git: openNullableObject({
-      enabled: { type: 'boolean' },
-      blame: { type: 'boolean' },
-      churn: { type: 'boolean' }
-    }),
-    typeInference: openNullableObject({
-      local: openNullableObject({
+    metadata: {
+      type: ['object', 'null'],
+      properties: {
         enabled: { type: 'boolean' }
-      }),
-      crossFile: openNullableObject({
-        enabled: { type: 'boolean' }
-      }),
-      tooling: openNullableObject({
-        enabled: { type: 'boolean' }
-      })
-    })
+      },
+      additionalProperties: true
+    },
+    risk: {
+      type: ['object', 'null'],
+      properties: {
+        enabled: { type: 'boolean' },
+        crossFile: { type: 'boolean' }
+      },
+      additionalProperties: true
+    },
+    git: {
+      type: ['object', 'null'],
+      properties: {
+        enabled: { type: 'boolean' },
+        blame: { type: 'boolean' },
+        churn: { type: 'boolean' }
+      },
+      additionalProperties: true
+    },
+    typeInference: {
+      type: ['object', 'null'],
+      properties: {
+        local: {
+          type: ['object', 'null'],
+          properties: {
+            enabled: { type: 'boolean' }
+          },
+          additionalProperties: true
+        },
+        crossFile: {
+          type: ['object', 'null'],
+          properties: {
+            enabled: { type: 'boolean' }
+          },
+          additionalProperties: true
+        },
+        tooling: {
+          type: ['object', 'null'],
+          properties: {
+            enabled: { type: 'boolean' }
+          },
+          additionalProperties: true
+        }
+      },
+      additionalProperties: true
+    }
   },
   additionalProperties: true
 };
 
-const nodeOrEnvelopeRefSchema = { anyOf: [nodeRefSchema, referenceEnvelopeSchema] };
+const nodeRefSchema = {
+  anyOf: [
+    {
+      type: 'object',
+      required: ['type', 'chunkUid'],
+      properties: {
+        type: { const: 'chunk' },
+        chunkUid: { type: 'string', minLength: 1 }
+      },
+      additionalProperties: true
+    },
+    {
+      type: 'object',
+      required: ['type', 'symbolId'],
+      properties: {
+        type: { const: 'symbol' },
+        symbolId: { type: 'string', minLength: 1 }
+      },
+      additionalProperties: true
+    },
+    {
+      type: 'object',
+      required: ['type', 'path'],
+      properties: {
+        type: { const: 'file' },
+        path: { type: 'string', minLength: 1 }
+      },
+      additionalProperties: true
+    }
+  ]
+};
+
+const candidateRefSchema = {
+  type: 'object',
+  properties: {
+    chunkUid: nullableString,
+    symbolId: nullableString,
+    path: nullableString,
+    symbolKey: nullableString,
+    kindGroup: nullableString,
+    signatureKey: nullableString,
+    confidence: nullableNumber
+  },
+  additionalProperties: true
+};
+
+const referenceEnvelopeSchema = {
+  type: 'object',
+  required: ['v', 'status', 'candidates', 'resolved'],
+  properties: {
+    v: { type: 'integer' },
+    status: { enum: ['resolved', 'ambiguous', 'unresolved'] },
+    targetName: nullableString,
+    kindHint: nullableString,
+    importHint: {
+      type: ['object', 'null'],
+      properties: {
+        moduleSpecifier: nullableString,
+        resolvedFile: nullableString
+      },
+      additionalProperties: true
+    },
+    candidates: { type: 'array', items: candidateRefSchema },
+    resolved: { anyOf: [candidateRefSchema, { type: 'null' }] },
+    reason: nullableString,
+    confidence: nullableNumber
+  },
+  additionalProperties: true
+};
 
 const truncationRecordSchema = {
   type: 'object',
@@ -293,10 +409,14 @@ const truncationRecordSchema = {
     limit: { anyOf: [{ type: 'number' }, { type: 'object' }] },
     observed: { anyOf: [{ type: 'number' }, { type: 'object' }, { type: 'null' }] },
     omitted: { anyOf: [{ type: 'number' }, { type: 'object' }, { type: 'null' }] },
-    at: openNullableObject({
-      node: nullableString,
-      edge: nullableString
-    }),
+    at: {
+      type: ['object', 'null'],
+      properties: {
+        node: nullableString,
+        edge: nullableString
+      },
+      additionalProperties: true
+    },
     note: nullableString
   },
   additionalProperties: true
@@ -337,9 +457,7 @@ const provenanceSchema = {
   additionalProperties: true
 };
 
-const truncationListSchema = nullableArrayOf(truncationRecordSchema);
-const warningListSchema = nullableArrayOf(warningRecordSchema);
-const nullableStatsSchema = { type: ['object', 'null'], additionalProperties: true };
+const seedRefSchema = { anyOf: [nodeRefSchema, referenceEnvelopeSchema] };
 
 const graphNodeSchema = {
   type: 'object',
@@ -363,8 +481,8 @@ const graphEdgeSchema = {
   properties: {
     edgeType: { type: 'string' },
     graph: nullableString,
-    from: nodeOrEnvelopeRefSchema,
-    to: nodeOrEnvelopeRefSchema,
+    from: { anyOf: [nodeRefSchema, referenceEnvelopeSchema] },
+    to: { anyOf: [nodeRefSchema, referenceEnvelopeSchema] },
     confidence: nullableNumber,
     evidence: { type: ['object', 'null'] }
   },
@@ -378,16 +496,19 @@ const witnessPathSchema = {
     to: nodeRefSchema,
     distance: { type: 'number' },
     nodes: { type: 'array', items: nodeRefSchema },
-    edges: nullableArrayOf({
-      type: 'object',
-      required: ['from', 'to', 'edgeType'],
-      properties: {
-        from: nodeRefSchema,
-        to: nodeRefSchema,
-        edgeType: { type: 'string' }
-      },
-      additionalProperties: true
-    }),
+    edges: {
+      type: ['array', 'null'],
+      items: {
+        type: 'object',
+        required: ['from', 'to', 'edgeType'],
+        properties: {
+          from: nodeRefSchema,
+          to: nodeRefSchema,
+          edgeType: { type: 'string' }
+        },
+        additionalProperties: true
+      }
+    },
     confidence: nullableNumber,
     partial: { type: 'boolean' },
     unresolvedAt: { type: ['array', 'null'], items: { type: 'number' } }
@@ -404,10 +525,10 @@ export const GRAPH_CONTEXT_PACK_SCHEMA = {
     provenance: provenanceSchema,
     nodes: { type: 'array', items: graphNodeSchema },
     edges: { type: 'array', items: graphEdgeSchema },
-    paths: nullableArrayOf(witnessPathSchema),
-    truncation: truncationListSchema,
-    warnings: warningListSchema,
-    stats: nullableStatsSchema
+    paths: { type: ['array', 'null'], items: witnessPathSchema },
+    truncation: { type: ['array', 'null'], items: truncationRecordSchema },
+    warnings: { type: ['array', 'null'], items: warningRecordSchema },
+    stats: { type: ['object', 'null'], additionalProperties: true }
   },
   additionalProperties: true
 };
@@ -434,10 +555,10 @@ export const GRAPH_IMPACT_SCHEMA = {
     direction: { enum: ['upstream', 'downstream'] },
     depth: { type: 'number' },
     impacted: { type: 'array', items: impactedNodeSchema },
-    truncation: truncationListSchema,
-    warnings: warningListSchema,
+    truncation: { type: ['array', 'null'], items: truncationRecordSchema },
+    warnings: { type: ['array', 'null'], items: warningRecordSchema },
     provenance: provenanceSchema,
-    stats: nullableStatsSchema
+    stats: { type: ['object', 'null'], additionalProperties: true }
   },
   additionalProperties: true
 };
@@ -471,7 +592,7 @@ const riskFlowSummarySchema = {
       required: ['nodes'],
       properties: {
         nodes: { type: 'array', items: nodeRefSchema },
-        callSiteIdsByStep: nullableArrayOf({ type: 'array', items: { type: 'string' } })
+        callSiteIdsByStep: { type: ['array', 'null'], items: { type: 'array', items: { type: 'string' } } }
       },
       additionalProperties: true
     },
@@ -493,10 +614,14 @@ export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
       properties: {
         ref: nodeRefSchema,
         file: nullableString,
-        range: openNullableObject({
-          startLine: { type: 'number' },
-          endLine: { type: 'number' }
-        }),
+        range: {
+          type: ['object', 'null'],
+          properties: {
+            startLine: { type: 'number' },
+            endLine: { type: 'number' }
+          },
+          additionalProperties: true
+        },
         excerpt: { type: 'string' },
         excerptHash: nullableString,
         provenance: { type: ['object', 'null'], additionalProperties: true }
@@ -518,9 +643,9 @@ export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
       },
       additionalProperties: true
     },
-    truncation: truncationListSchema,
-    warnings: warningListSchema,
-    stats: nullableStatsSchema
+    truncation: { type: ['array', 'null'], items: truncationRecordSchema },
+    warnings: { type: ['array', 'null'], items: warningRecordSchema },
+    stats: { type: ['object', 'null'], additionalProperties: true }
   },
   additionalProperties: true
 };
@@ -555,7 +680,7 @@ const apiContractEntrySchema = {
         type: 'object',
         properties: {
           arity: nullableNumber,
-          args: nullableStringArray,
+          args: { type: ['array', 'null'], items: { type: 'string' } },
           callSiteId: nullableString,
           file: nullableString,
           startLine: nullableNumber,
@@ -564,8 +689,8 @@ const apiContractEntrySchema = {
         additionalProperties: true
       }
     },
-    warnings: nullableObjectArray,
-    truncation: truncationListSchema
+    warnings: { type: ['array', 'null'], items: { type: 'object' } },
+    truncation: { type: ['array', 'null'], items: truncationRecordSchema }
   },
   additionalProperties: true
 };
@@ -595,8 +720,8 @@ export const API_CONTRACTS_SCHEMA = {
       additionalProperties: true
     },
     symbols: { type: 'array', items: apiContractEntrySchema },
-    truncation: truncationListSchema,
-    warnings: warningListSchema
+    truncation: { type: ['array', 'null'], items: truncationRecordSchema },
+    warnings: { type: ['array', 'null'], items: warningRecordSchema }
   },
   additionalProperties: true
 };
@@ -642,8 +767,8 @@ export const ARCHITECTURE_REPORT_SCHEMA = {
       }
     },
     violations: { type: 'array', items: architectureViolationSchema },
-    truncation: truncationListSchema,
-    warnings: warningListSchema
+    truncation: { type: ['array', 'null'], items: truncationRecordSchema },
+    warnings: { type: ['array', 'null'], items: warningRecordSchema }
   },
   additionalProperties: true
 };
@@ -671,8 +796,8 @@ export const SUGGEST_TESTS_SCHEMA = {
       items: { type: 'object', required: ['path'], properties: { path: { type: 'string' } }, additionalProperties: true }
     },
     suggestions: { type: 'array', items: suggestedTestSchema },
-    truncation: truncationListSchema,
-    warnings: warningListSchema
+    truncation: { type: ['array', 'null'], items: truncationRecordSchema },
+    warnings: { type: ['array', 'null'], items: warningRecordSchema }
   },
   additionalProperties: true
 };

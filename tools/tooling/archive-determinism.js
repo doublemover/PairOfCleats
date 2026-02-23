@@ -21,8 +21,6 @@ const matchesExclude = (relPath, excludes) => {
   return excludes.some((pattern) => pattern.test(posixPath));
 };
 
-const stableSort = (items) => items.slice().sort((a, b) => a.localeCompare(b));
-
 const detectFileMode = async (filePath) => {
   const stat = await fsPromises.stat(filePath);
   const executable = (stat.mode & 0o111) !== 0;
@@ -42,12 +40,43 @@ const ensureDir = async (targetPath) => {
 /**
  * Validate runtime/tooling prerequisites for deterministic packaging flows.
  *
- * @param {{requireNpm?:boolean,requirePython?:boolean}} [options]
+ * @param {{
+ *  requireNpm?:boolean,
+ *  requirePython?:boolean,
+ *  platform?:string,
+ *  probeSpawnSync?:(command:string,args:string[],options?:object)=>{status?:number|null},
+ *  pythonBinaries?:string[]|null
+ * }} [options]
  * @returns {void}
  */
+const resolvePythonProbeCandidates = (platform, overrideCandidates) => {
+  const normalizedOverrides = Array.isArray(overrideCandidates)
+    ? overrideCandidates.map((entry) => String(entry || '').trim()).filter(Boolean)
+    : [];
+  if (normalizedOverrides.length) {
+    return Array.from(new Set(normalizedOverrides));
+  }
+  return platform === 'win32'
+    ? ['python', 'python3']
+    : ['python3', 'python'];
+};
+
+const probePythonBinary = (candidates, probeSpawnSync) => {
+  for (const candidate of candidates) {
+    try {
+      const probe = probeSpawnSync(candidate, ['--version'], { encoding: 'utf8' });
+      if (probe?.status === 0) return candidate;
+    } catch {}
+  }
+  return null;
+};
+
 export const assertPinnedPackagingToolchain = ({
   requireNpm = false,
-  requirePython = false
+  requirePython = false,
+  platform = process.platform,
+  probeSpawnSync = spawnSync,
+  pythonBinaries = null
 } = {}) => {
   if (!process.versions?.node) {
     throw new Error('Packaging toolchain error: Node.js runtime is unavailable.');
@@ -59,9 +88,9 @@ export const assertPinnedPackagingToolchain = ({
     }
   }
   if (requirePython) {
-    const python = process.platform === 'win32' ? 'python' : 'python3';
-    const probe = spawnSync(python, ['--version'], { encoding: 'utf8' });
-    if (probe.status !== 0) {
+    const candidates = resolvePythonProbeCandidates(platform, pythonBinaries);
+    const resolvedPython = probePythonBinary(candidates, probeSpawnSync);
+    if (!resolvedPython) {
       throw new Error('Packaging toolchain error: Python runtime is required but unavailable.');
     }
   }
@@ -121,12 +150,11 @@ export const buildDeterministicZip = async ({
   zip.writeZip(archivePath);
 
   const checksum = sha256File(archivePath);
+  const sortedEntries = entries.slice().sort((left, right) => left.path.localeCompare(right.path));
   return {
     archivePath: path.resolve(archivePath),
     checksum,
-    entries: stableSort(entries.map((entry) => entry.path)).map((entryPath) => (
-      entries.find((entry) => entry.path === entryPath)
-    ))
+    entries: sortedEntries
   };
 };
 

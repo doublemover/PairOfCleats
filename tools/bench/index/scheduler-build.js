@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
 import { loadUserConfig, getIndexDir } from '../../shared/dict-utils.js';
 import { loadChunkMeta, MAX_JSON_BYTES } from '../../../src/shared/artifact-io.js';
+import { exitLikeChild } from '../../../src/tui/wrapper-exit.js';
 
 const parseArgs = () => {
   const out = {};
@@ -64,7 +65,7 @@ const runOnce = async (label, schedulerEnabled) => {
   const result = spawnSync(process.execPath, args, { env, cwd: repoRoot, stdio: 'inherit' });
   if (result.status !== 0) {
     console.error(`[bench] build_index failed for ${label}`);
-    process.exit(result.status ?? 1);
+    exitLikeChild({ status: result.status, signal: result.signal });
   }
   const totalMs = performance.now() - start;
   const userConfig = loadUserConfig(repoRoot);

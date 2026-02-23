@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { loadWorkspaceConfig } from '../../src/workspace/config.js';
 import { generateWorkspaceManifest } from '../../src/workspace/manifest.js';
 import { spawnSubprocess } from '../../src/shared/subprocess.js';
+import { exitLikeCommandResult } from '../shared/cli-utils.js';
 
 const TOOL_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const BUILD_INDEX_SCRIPT = path.join(TOOL_ROOT, 'build_index.js');
@@ -102,17 +103,27 @@ const runRepoBuild = async ({ repo, buildArgs }) => {
       cwd: repo.repoRootCanonical,
       env: process.env,
       stdio: ['ignore', 'pipe', 'pipe'],
+      captureStdout: false,
+      captureStderr: true,
+      maxOutputBytes: 64 * 1024,
       rejectOnNonZeroExit: false
     }
   );
   const stderr = typeof result.stderr === 'string' ? result.stderr.trim() : '';
+  const exitCode = Number.isFinite(Number(result.exitCode)) ? Number(result.exitCode) : null;
+  const signal = typeof result.signal === 'string' && result.signal.trim().length > 0
+    ? result.signal.trim()
+    : null;
   return {
     repoId: repo.repoId,
     repoRootCanonical: repo.repoRootCanonical,
-    exitCode: result.exitCode ?? 1,
+    exitCode: exitCode ?? 1,
+    signal,
     durationMs: Date.now() - startedAt,
-    status: result.exitCode === 0 ? 'passed' : 'failed',
-    error: result.exitCode === 0 ? null : (stderr || `build_index exited with code ${result.exitCode}`)
+    status: exitCode === 0 && !signal ? 'passed' : 'failed',
+    error: (exitCode === 0 && !signal)
+      ? null
+      : (stderr || (signal ? `build_index exited via signal ${signal}` : `build_index exited with code ${result.exitCode}`))
   };
 };
 
@@ -194,6 +205,10 @@ export async function runWorkspaceBuildCli(rawArgs = process.argv.slice(2)) {
   }
 
   if (failed.length > 0) {
+    const firstSignal = failed.find((entry) => typeof entry?.signal === 'string' && entry.signal.trim().length > 0)?.signal || null;
+    if (firstSignal) {
+      exitLikeCommandResult({ status: null, signal: firstSignal });
+    }
     process.exit(1);
   }
 }

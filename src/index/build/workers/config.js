@@ -17,105 +17,6 @@ const coerceNonNegativeInt = (value) => {
   return Math.floor(parsed);
 };
 
-const DEFAULT_FD_SOFT_LIMIT = process.platform === 'win32' ? 4096 : 1024;
-
-/**
- * Resolve a conservative file-descriptor concurrency budget.
- *
- * @param {number} requested
- * @param {{fdPressure?:object,fdSoftLimit?:number}} [options]
- * @returns {{
- *   enabled:boolean,
- *   requested:number|null,
- *   softLimit:number,
- *   reserveDescriptors:number,
- *   descriptorsPerWorker:number,
- *   minConcurrency:number,
- *   maxConcurrency:number,
- *   cap:number|null
- * }}
- */
-export const resolveFdConcurrencyBudget = (requested, options = {}) => {
-  const requestedConcurrency = Number.isFinite(Number(requested)) && Number(requested) > 0
-    ? Math.max(1, Math.floor(Number(requested)))
-    : null;
-  const fdPressureConfig = options?.fdPressure && typeof options.fdPressure === 'object'
-    ? options.fdPressure
-    : {};
-  const enabled = fdPressureConfig.enabled !== false;
-  const softLimit = coercePositiveIntMinOne(
-    fdPressureConfig.softLimit ?? fdPressureConfig.limit ?? options.fdSoftLimit
-  ) || DEFAULT_FD_SOFT_LIMIT;
-  const reserveDefault = Math.max(64, Math.floor(softLimit * 0.15));
-  const reserveConfigured = coerceNonNegativeInt(
-    fdPressureConfig.reserveDescriptors ?? fdPressureConfig.reserve
-  );
-  const reserveDescriptors = Math.max(
-    0,
-    Math.min(
-      Math.max(0, softLimit - 1),
-      reserveConfigured != null ? reserveConfigured : reserveDefault
-    )
-  );
-  const descriptorsPerWorker = coercePositiveIntMinOne(
-    fdPressureConfig.descriptorsPerWorker
-      ?? fdPressureConfig.descriptorsPerToken
-      ?? fdPressureConfig.fdPerWorker
-      ?? fdPressureConfig.fdPerToken
-  ) || 4;
-  const minConcurrency = coercePositiveIntMinOne(
-    fdPressureConfig.minConcurrency ?? fdPressureConfig.minTokenCap
-  ) || 1;
-  const maxConcurrency = coercePositiveIntMinOne(
-    fdPressureConfig.maxConcurrency ?? fdPressureConfig.maxTokenCap
-  ) || (requestedConcurrency || minConcurrency);
-  if (!requestedConcurrency) {
-    return {
-      enabled,
-      requested: null,
-      softLimit,
-      reserveDescriptors,
-      descriptorsPerWorker,
-      minConcurrency,
-      maxConcurrency,
-      cap: null
-    };
-  }
-  const availableDescriptors = Math.max(1, softLimit - reserveDescriptors);
-  const budgetCap = Math.max(
-    minConcurrency,
-    Math.floor(availableDescriptors / Math.max(1, descriptorsPerWorker))
-  );
-  const boundedCap = Math.max(
-    minConcurrency,
-    Math.min(maxConcurrency, budgetCap)
-  );
-  const cap = enabled
-    ? Math.max(1, Math.min(requestedConcurrency, boundedCap))
-    : requestedConcurrency;
-  return {
-    enabled,
-    requested: requestedConcurrency,
-    softLimit,
-    reserveDescriptors,
-    descriptorsPerWorker,
-    minConcurrency,
-    maxConcurrency,
-    cap
-  };
-};
-
-/**
- * Resolve only the capped FD-aware concurrency value.
- *
- * @param {number} requested
- * @param {{fdPressure?:object,fdSoftLimit?:number}} [options]
- * @returns {number|null}
- */
-export const resolveFdConcurrencyCap = (requested, options = {}) => (
-  resolveFdConcurrencyBudget(requested, options).cap
-);
-
 const WORKER_HEAP_TARGET_MIN_MB = 1024;
 const WORKER_HEAP_TARGET_DEFAULT_MB = 1536;
 const WORKER_HEAP_TARGET_MAX_MB = 2048;
@@ -377,15 +278,7 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
   const cappedMax = (!allowOverCap && Number.isFinite(hardMaxWorkers))
     ? Math.min(requestedMax, hardMaxWorkers)
     : requestedMax;
-  const maxWorkersBeforeFdCap = Math.max(1, cappedMax);
-  const fdPressureConfig = raw.fdPressure
-    && typeof raw.fdPressure === 'object'
-    ? raw.fdPressure
-    : {};
-  const fdBudget = resolveFdConcurrencyBudget(maxWorkersBeforeFdCap, {
-    fdPressure: fdPressureConfig
-  });
-  const maxWorkers = Math.max(1, Math.min(maxWorkersBeforeFdCap, fdBudget.cap || maxWorkersBeforeFdCap));
+  const maxWorkers = Math.max(1, cappedMax);
   const maxFileBytesRaw = raw.maxFileBytes;
   let maxFileBytes = 2 * 1024 * 1024;
   if (maxFileBytesRaw === false || maxFileBytesRaw === 0) {
@@ -529,15 +422,6 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
         blockHeavyOnHardPressure
       }
     },
-    fdPressure: {
-      enabled: fdBudget.enabled,
-      softLimit: fdBudget.softLimit,
-      reserveDescriptors: fdBudget.reserveDescriptors,
-      descriptorsPerWorker: fdBudget.descriptorsPerWorker,
-      minConcurrency: fdBudget.minConcurrency,
-      maxConcurrency: fdBudget.maxConcurrency,
-      cap: fdBudget.cap
-    },
     numaPinning: {
       enabled: numaEnabled,
       strategy: numaStrategy,
@@ -577,25 +461,6 @@ export function resolveWorkerPoolConfig(raw = {}, envConfig = null, options = {}
       ? Math.min(maxWorkersOverride, hardMaxWorkers)
       : maxWorkersOverride;
   }
-  const rawFdPressureConfig = raw?.fdPressure && typeof raw.fdPressure === 'object'
-    ? raw.fdPressure
-    : null;
-  const fdBudget = resolveFdConcurrencyBudget(config.maxWorkers, {
-    fdPressure: rawFdPressureConfig || config.fdPressure,
-    fdSoftLimit: config.fdPressure?.softLimit
-  });
-  if (fdBudget?.cap != null) {
-    config.maxWorkers = Math.max(1, Math.min(config.maxWorkers, fdBudget.cap));
-  }
-  config.fdPressure = {
-    enabled: fdBudget.enabled,
-    softLimit: fdBudget.softLimit,
-    reserveDescriptors: fdBudget.reserveDescriptors,
-    descriptorsPerWorker: fdBudget.descriptorsPerWorker,
-    minConcurrency: fdBudget.minConcurrency,
-    maxConcurrency: fdBudget.maxConcurrency,
-    cap: fdBudget.cap
-  };
   const heapTargetOverride = coercePositiveIntMinOne(envConfig?.workerPoolHeapTargetMb);
   const heapMinOverride = coercePositiveIntMinOne(envConfig?.workerPoolHeapMinMb);
   const heapMaxOverride = coercePositiveIntMinOne(envConfig?.workerPoolHeapMaxMb);

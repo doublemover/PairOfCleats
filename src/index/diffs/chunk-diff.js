@@ -160,6 +160,29 @@ const buildRelationSet = (chunk) => {
   return new Set(keys);
 };
 
+/**
+ * Diff chunk-level changes for one changed/renamed file pair.
+ *
+ * Matching order is deterministic:
+ * 1. exact `chunkId` matches
+ * 2. logical-key matches (`segmentId|kind|name|signature`)
+ * 3. residual unmatched chunks are emitted as add/remove
+ *
+ * When either side exceeds `maxChunksPerFile`, chunk diffing is skipped and a
+ * `limits.chunkDiffSkipped` event is emitted for this file.
+ *
+ * @param {{
+ *   mode:string,
+ *   file:string,
+ *   beforeFile:string,
+ *   afterFile:string,
+ *   beforeChunks:Array<object>,
+ *   afterChunks:Array<object>,
+ *   includeRelations:boolean,
+ *   maxChunksPerFile:number
+ * }} input
+ * @returns {Array<object>}
+ */
 const diffChunksForFile = ({
   mode,
   file,
@@ -341,6 +364,25 @@ const diffChunksForFile = ({
   return events;
 };
 
+/**
+ * Compute one mode diff between two index directories.
+ *
+ * This emits deterministic file/chunk/relation events, plus a per-mode summary
+ * that includes limit metadata. Chunk-level diffing can be skipped for:
+ * - too many changed files (`maxChangedFiles`)
+ * - oversized per-file chunk sets (`maxChunksPerFile`)
+ *
+ * @param {{
+ *   mode:string,
+ *   fromDir:string,
+ *   toDir:string,
+ *   detectRenames:boolean,
+ *   includeRelations:boolean,
+ *   maxChangedFiles:number,
+ *   maxChunksPerFile:number
+ * }} input
+ * @returns {Promise<{mode:string,events:Array<object>,summary:object,fastPath:boolean}>}
+ */
 export const computeModeDiff = async ({
   mode,
   fromDir,
@@ -505,6 +547,9 @@ export const computeModeDiff = async ({
         includeRelations,
         maxChunksPerFile
       });
+      if (!chunkDiffSkipped.chunkDiffSkipped && chunkEvents.some((event) => event?.kind === 'limits.chunkDiffSkipped')) {
+        chunkDiffSkipped = { chunkDiffSkipped: true, reason: 'max-chunks-per-file' };
+      }
       events.push(...chunkEvents);
     }
   }

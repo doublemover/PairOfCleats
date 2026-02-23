@@ -1,51 +1,13 @@
+import os from 'node:os';
 import { coerceUnitFraction } from '../number-coerce.js';
+import { ADAPTIVE_SURFACE_KEYS, DEFAULT_ADAPTIVE_SURFACE_POLICY, DEFAULT_ADAPTIVE_SURFACE_QUEUE_MAP } from './adaptive-surfaces.js';
 import { createSchedulerTelemetryCapture } from './scheduler-core-telemetry-capture.js';
-import {
-  normalizeByteCount,
-  normalizeByteLimit,
-  normalizeRequest,
-  normalizeTokenPool,
-  resolvePercentile
-} from './scheduler-core-normalize.js';
 import {
   cloneDecisionEntry,
   cloneQueueDepthEntries,
   cloneTraceEntries,
   normalizeTelemetryStage
 } from './scheduler-telemetry.js';
-import { createAdaptiveSurfaceControllerState } from './scheduler-core-adaptive-surfaces.js';
-import {
-  createWriteBackpressurePolicy,
-  evaluateWriteBackpressureState
-} from './scheduler-core-write-backpressure.js';
-import { recordQueueWaitTimeSample } from './scheduler-core-wait-samples.js';
-import {
-  buildAdaptiveSurfaceSnapshotByName as buildAdaptiveSurfaceSnapshotByNameImpl,
-  buildAdaptiveSurfaceSnapshots as buildAdaptiveSurfaceSnapshotsImpl
-} from './scheduler-core-adaptive-snapshots.js';
-import { resolveSchedulerSystemSignals } from './scheduler-core-system-signals.js';
-import { collectSchedulerQueuePressure } from './scheduler-core-queue-pressure.js';
-import { pickNextSchedulerQueue } from './scheduler-core-queue-selection.js';
-import { clearSchedulerQueuePending } from './scheduler-core-clear-queue.js';
-import { resolveSchedulerScheduleRejection } from './scheduler-core-schedule-guards.js';
-import {
-  applySchedulerTelemetryOptions,
-  applySchedulerTokenLimits
-} from './scheduler-core-controls.js';
-import {
-  buildSchedulerAdaptivePayload,
-  buildSchedulerQueueStatsSnapshot,
-  buildSchedulerAdaptiveSurfaceStats,
-  buildSchedulerStatsPayload,
-  cloneSchedulerSystemSignals,
-  resolveSchedulerUtilization
-} from './scheduler-core-stats.js';
-import {
-  decayAdaptiveTokenTotals,
-  resolveAdaptiveIntervalMs,
-  resolveAdaptiveMemoryHeadroom,
-  smoothAdaptiveValue
-} from './scheduler-core-token-policy.js';
 
 /**
  * Create a build scheduler that coordinates CPU/IO/memory tokens across queues.
@@ -60,6 +22,13 @@ export function createBuildScheduler(input = {}) {
     ? Math.max(0, Math.floor(Number(input.starvationMs)))
     : 30000;
   const WAIT_TIME_SAMPLE_LIMIT = 64;
+  const normalizeTokenPool = (value) => {
+    if (value == null) return 1;
+    const parsed = Math.floor(Number(value));
+    if (!Number.isFinite(parsed)) return 1;
+    // Zero-token pools deadlock queued work that requires that resource.
+    return Math.max(1, parsed);
+  };
   let cpuTokens = normalizeTokenPool(input.cpuTokens);
   let ioTokens = normalizeTokenPool(input.ioTokens);
   let memoryTokens = normalizeTokenPool(input.memoryTokens);
@@ -74,30 +43,278 @@ export function createBuildScheduler(input = {}) {
     io: Math.max(baselineLimits.io, normalizeTokenPool(input.maxIoTokens ?? ioTokens)),
     mem: Math.max(baselineLimits.mem, normalizeTokenPool(input.maxMemoryTokens ?? memoryTokens))
   };
+  const normalizeByteLimit = (value) => {
+    const parsed = Math.floor(Number(value));
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  };
+  const normalizeByteCount = (value) => {
+    const parsed = Math.floor(Number(value));
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  };
+  const normalizeRequest = (req = {}) => ({
+    cpu: Math.max(0, Math.floor(Number(req?.cpu || 0))),
+    io: Math.max(0, Math.floor(Number(req?.io || 0))),
+    mem: Math.max(0, Math.floor(Number(req?.mem || 0))),
+    bytes: normalizeByteCount(req?.bytes)
+  });
+  const resolvePercentile = (values, ratio) => {
+    if (!Array.isArray(values) || !values.length) return 0;
+    const normalized = values
+      .map((entry) => Number(entry))
+      .filter((entry) => Number.isFinite(entry) && entry >= 0)
+      .sort((a, b) => a - b);
+    if (!normalized.length) return 0;
+    const clamped = Math.max(0, Math.min(1, Number(ratio) || 0));
+    const index = Math.min(normalized.length - 1, Math.max(0, Math.ceil(normalized.length * clamped) - 1));
+    return normalized[index];
+  };
+  const normalizeSurfaceName = (value) => (
+    typeof value === 'string' && value.trim() ? value.trim() : null
+  );
+  const normalizePositiveInt = (value, fallback) => {
+    const parsed = Math.floor(Number(value));
+    if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+    return parsed;
+  };
+  const normalizeNonNegativeInt = (value, fallback) => {
+    const parsed = Math.floor(Number(value));
+    if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+    return parsed;
+  };
+  const normalizeRatio = (value, fallback, { min = 0, max = Number.POSITIVE_INFINITY } = {}) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return fallback;
+    return Math.max(min, Math.min(max, parsed));
+  };
+  const normalizeCooldownMs = (value, fallback = 0) => (
+    Math.max(0, normalizeNonNegativeInt(value, fallback) ?? fallback)
+  );
+  const normalizeBacklogRatio = (value, fallback, min = 0) => (
+    Math.max(min, normalizeRatio(value, fallback, { min, max: 64 }) ?? fallback)
+  );
   const nowInput = typeof input.now === 'function' ? input.now : null;
   const nowMs = () => {
     if (!nowInput) return Date.now();
     const value = Number(nowInput());
     return Number.isFinite(value) ? value : Date.now();
   };
-  const {
-    adaptiveSurfaceControllersEnabled,
-    adaptiveSurfaceStates,
-    resolveQueueSurface,
-    adaptiveDecisionTrace,
-    appendAdaptiveDecision,
-    nextAdaptiveDecisionId
-  } = createAdaptiveSurfaceControllerState({
-    input,
-    maxLimits
-  });
+  const isObject = (value) => (
+    value && typeof value === 'object' && !Array.isArray(value)
+  );
+  const resolveSurfaceDefaultBounds = (surfaceName) => {
+    const cpuHeadroom = Math.max(1, maxLimits.cpu);
+    const ioHeadroom = Math.max(1, maxLimits.io);
+    switch (surfaceName) {
+      case 'parse':
+        return {
+          minConcurrency: 1,
+          maxConcurrency: Math.max(1, Math.ceil(cpuHeadroom * 0.9)),
+          initialConcurrency: Math.max(1, Math.ceil(cpuHeadroom * 0.75))
+        };
+      case 'inference':
+        return {
+          minConcurrency: 1,
+          maxConcurrency: Math.max(1, Math.ceil(cpuHeadroom * 0.75)),
+          initialConcurrency: Math.max(1, Math.ceil(cpuHeadroom * 0.5))
+        };
+      case 'artifactWrite':
+        return {
+          minConcurrency: 1,
+          maxConcurrency: Math.max(1, Math.ceil(ioHeadroom * 0.85)),
+          initialConcurrency: Math.max(1, Math.ceil(ioHeadroom * 0.6))
+        };
+      case 'sqlite': {
+        const sharedCap = Math.max(1, Math.min(cpuHeadroom, ioHeadroom));
+        return {
+          minConcurrency: 1,
+          maxConcurrency: Math.max(1, Math.ceil(sharedCap * 0.6)),
+          initialConcurrency: Math.max(1, Math.ceil(sharedCap * 0.5))
+        };
+      }
+      case 'embeddings':
+        return {
+          minConcurrency: 1,
+          maxConcurrency: Math.max(1, Math.ceil(cpuHeadroom * 0.8)),
+          initialConcurrency: Math.max(1, Math.ceil(cpuHeadroom * 0.55))
+        };
+      default:
+        return {
+          minConcurrency: 1,
+          maxConcurrency: Math.max(1, cpuHeadroom),
+          initialConcurrency: 1
+        };
+    }
+  };
+  const adaptiveSurfaceRoot = isObject(input.adaptiveSurfaces)
+    ? input.adaptiveSurfaces
+    : {};
+  const adaptiveSurfaceConfig = isObject(adaptiveSurfaceRoot.surfaces)
+    ? adaptiveSurfaceRoot.surfaces
+    : adaptiveSurfaceRoot;
+  const fdPressureRoot = isObject(adaptiveSurfaceRoot.fdPressure)
+    ? adaptiveSurfaceRoot.fdPressure
+    : null;
+  const globalFdPressureThreshold = normalizeRatio(
+    fdPressureRoot?.highPressureThreshold ?? fdPressureRoot?.pressureHighThreshold,
+    null,
+    { min: 0, max: 1 }
+  );
+  const adaptiveSurfaceControllersEnabled = adaptiveEnabled
+    && adaptiveSurfaceRoot.enabled !== false;
+  const adaptiveSurfaceDecisionTraceMax = normalizePositiveInt(
+    adaptiveSurfaceRoot.decisionTraceMaxSamples
+      ?? input.adaptiveDecisionTraceMaxSamples,
+    512
+  ) || 512;
+  const adaptiveDecisionTrace = [];
+  let adaptiveDecisionId = 0;
+  const appendAdaptiveDecision = (entry) => {
+    if (!entry || typeof entry !== 'object') return;
+    adaptiveDecisionTrace.push(entry);
+    while (adaptiveDecisionTrace.length > adaptiveSurfaceDecisionTraceMax) {
+      adaptiveDecisionTrace.shift();
+    }
+  };
+  const surfaceQueueMap = new Map(Object.entries(DEFAULT_ADAPTIVE_SURFACE_QUEUE_MAP));
+  const adaptiveSurfaceStates = new Map();
+  for (const surfaceName of ADAPTIVE_SURFACE_KEYS) {
+    const defaults = DEFAULT_ADAPTIVE_SURFACE_POLICY[surfaceName]
+      || DEFAULT_ADAPTIVE_SURFACE_POLICY.parse;
+    const bounds = resolveSurfaceDefaultBounds(surfaceName);
+    const config = isObject(adaptiveSurfaceConfig?.[surfaceName])
+      ? adaptiveSurfaceConfig[surfaceName]
+      : {};
+    const explicitQueues = Array.isArray(config.queues)
+      ? config.queues
+        .map((entry) => String(entry || '').trim())
+        .filter(Boolean)
+      : [];
+    if (explicitQueues.length) {
+      for (const queueName of explicitQueues) {
+        surfaceQueueMap.set(queueName, surfaceName);
+      }
+    }
+    const minConcurrency = Math.max(
+      1,
+      normalizePositiveInt(config.minConcurrency, bounds.minConcurrency) || bounds.minConcurrency
+    );
+    const maxConcurrency = Math.max(
+      minConcurrency,
+      normalizePositiveInt(config.maxConcurrency, bounds.maxConcurrency) || bounds.maxConcurrency
+    );
+    const initialConcurrency = Math.max(
+      minConcurrency,
+      Math.min(
+        maxConcurrency,
+        normalizePositiveInt(config.initialConcurrency, bounds.initialConcurrency)
+          || bounds.initialConcurrency
+      )
+    );
+    adaptiveSurfaceStates.set(surfaceName, {
+      name: surfaceName,
+      minConcurrency,
+      maxConcurrency,
+      currentConcurrency: initialConcurrency,
+      upBacklogPerSlot: normalizeBacklogRatio(
+        config.upBacklogPerSlot,
+        defaults.upBacklogPerSlot,
+        0.1
+      ),
+      downBacklogPerSlot: normalizeBacklogRatio(
+        config.downBacklogPerSlot,
+        defaults.downBacklogPerSlot,
+        0
+      ),
+      upWaitMs: normalizeCooldownMs(config.upWaitMs, defaults.upWaitMs),
+      downWaitMs: normalizeCooldownMs(config.downWaitMs, defaults.downWaitMs),
+      upCooldownMs: normalizeCooldownMs(config.upCooldownMs, defaults.upCooldownMs),
+      downCooldownMs: normalizeCooldownMs(config.downCooldownMs, defaults.downCooldownMs),
+      oscillationGuardMs: normalizeCooldownMs(
+        config.oscillationGuardMs,
+        defaults.oscillationGuardMs
+      ),
+      targetUtilization: coerceUnitFraction(config.targetUtilization)
+        ?? defaults.targetUtilization,
+      ioPressureThreshold: normalizeRatio(
+        config.ioPressureThreshold,
+        defaults.ioPressureThreshold,
+        { min: 0, max: 1 }
+      ),
+      memoryPressureThreshold: normalizeRatio(
+        config.memoryPressureThreshold,
+        defaults.memoryPressureThreshold,
+        { min: 0, max: 1 }
+      ),
+      gcPressureThreshold: normalizeRatio(
+        config.gcPressureThreshold,
+        defaults.gcPressureThreshold,
+        { min: 0, max: 1 }
+      ),
+      fdPressureThreshold: normalizeRatio(
+        config.fdPressureThreshold,
+        globalFdPressureThreshold ?? defaults.ioPressureThreshold,
+        { min: 0, max: 1 }
+      ),
+      lastScaleUpAt: Number.NEGATIVE_INFINITY,
+      lastScaleDownAt: Number.NEGATIVE_INFINITY,
+      lastDecisionAt: 0,
+      lastAction: 'hold',
+      decisions: {
+        up: 0,
+        down: 0,
+        hold: 0
+      },
+      lastDecision: null
+    });
+  }
+  const resolveQueueSurface = (queueName, explicitSurface = null) => {
+    const explicit = normalizeSurfaceName(explicitSurface);
+    if (explicit && adaptiveSurfaceStates.has(explicit)) return explicit;
+    const mapped = normalizeSurfaceName(surfaceQueueMap.get(queueName));
+    if (mapped && adaptiveSurfaceStates.has(mapped)) return mapped;
+    return null;
+  };
   let lastMemorySignals = null;
   let lastSystemSignals = null;
 
   const queueConfig = input.queues || {};
   const queues = new Map();
   const queueOrder = [];
-  const { writeBackpressure, writeBackpressureState } = createWriteBackpressurePolicy(input);
+  const normalizeQueueName = (value) => (
+    typeof value === 'string' && value.trim() ? value.trim() : null
+  );
+  const writeBackpressureInput = input.writeBackpressure
+    && typeof input.writeBackpressure === 'object'
+    ? input.writeBackpressure
+    : null;
+  const writeBackpressure = {
+    enabled: writeBackpressureInput?.enabled !== false,
+    writeQueue: normalizeQueueName(writeBackpressureInput?.writeQueue) || 'stage2.write',
+    producerQueues: new Set(
+      Array.isArray(writeBackpressureInput?.producerQueues)
+        ? writeBackpressureInput.producerQueues
+          .map((entry) => normalizeQueueName(entry))
+          .filter(Boolean)
+        : ['stage1.cpu', 'stage1.io', 'stage1.postings', 'stage2.relations', 'stage2.relations.io']
+    ),
+    pendingThreshold: Number.isFinite(Number(writeBackpressureInput?.pendingThreshold))
+      ? Math.max(1, Math.floor(Number(writeBackpressureInput.pendingThreshold)))
+      : 128,
+    pendingBytesThreshold: Number.isFinite(Number(writeBackpressureInput?.pendingBytesThreshold))
+      ? Math.max(1, Math.floor(Number(writeBackpressureInput.pendingBytesThreshold)))
+      : (256 * 1024 * 1024),
+    oldestWaitMsThreshold: Number.isFinite(Number(writeBackpressureInput?.oldestWaitMsThreshold))
+      ? Math.max(1, Math.floor(Number(writeBackpressureInput.oldestWaitMsThreshold)))
+      : 15000
+  };
+  const writeBackpressureState = {
+    active: false,
+    reasons: [],
+    queue: writeBackpressure.writeQueue,
+    pending: 0,
+    pendingBytes: 0,
+    oldestWaitMs: 0
+  };
   const globalMaxInFlightBytes = normalizeByteLimit(input.maxInFlightBytes);
   const startedAtMs = nowMs();
   const counters = {
@@ -132,7 +349,6 @@ export function createBuildScheduler(input = {}) {
       maxPendingBytes: normalizeByteLimit(cfg.maxPendingBytes),
       maxInFlightBytes: normalizeByteLimit(cfg.maxInFlightBytes),
       pending: [],
-      pendingSearchCursor: 0,
       pendingBytes: 0,
       inFlightBytes: 0,
       running: 0,
@@ -196,13 +412,38 @@ export function createBuildScheduler(input = {}) {
   };
 
   const evaluateWriteBackpressure = () => {
-    return evaluateWriteBackpressureState({
-      writeBackpressure,
-      writeBackpressureState,
-      queues,
-      normalizeByteCount,
-      nowMs
-    });
+    if (!writeBackpressure.enabled) {
+      writeBackpressureState.active = false;
+      writeBackpressureState.reasons = [];
+      writeBackpressureState.pending = 0;
+      writeBackpressureState.pendingBytes = 0;
+      writeBackpressureState.oldestWaitMs = 0;
+      return writeBackpressureState;
+    }
+    const writeQueue = queues.get(writeBackpressure.writeQueue);
+    if (!writeQueue) {
+      writeBackpressureState.active = false;
+      writeBackpressureState.reasons = [];
+      writeBackpressureState.pending = 0;
+      writeBackpressureState.pendingBytes = 0;
+      writeBackpressureState.oldestWaitMs = 0;
+      return writeBackpressureState;
+    }
+    const pending = writeQueue.pending.length;
+    const pendingBytes = normalizeByteCount(writeQueue.pendingBytes);
+    const oldestWaitMs = pending > 0
+      ? Math.max(0, nowMs() - Number(writeQueue.pending[0]?.enqueuedAt || nowMs()))
+      : 0;
+    const reasons = [];
+    if (pending >= writeBackpressure.pendingThreshold) reasons.push('pending');
+    if (pendingBytes >= writeBackpressure.pendingBytesThreshold) reasons.push('pendingBytes');
+    if (oldestWaitMs >= writeBackpressure.oldestWaitMsThreshold) reasons.push('oldestWaitMs');
+    writeBackpressureState.active = reasons.length > 0;
+    writeBackpressureState.reasons = reasons;
+    writeBackpressureState.pending = pending;
+    writeBackpressureState.pendingBytes = pendingBytes;
+    writeBackpressureState.oldestWaitMs = oldestWaitMs;
+    return writeBackpressureState;
   };
 
   const registerQueue = (queueName, config = {}) => {
@@ -239,12 +480,25 @@ export function createBuildScheduler(input = {}) {
    * @param {number} waitedMs
    */
   const recordQueueWaitTime = (queue, waitedMs) => {
-    recordQueueWaitTimeSample({
-      queue,
-      waitedMs,
-      sampleLimit: WAIT_TIME_SAMPLE_LIMIT,
-      resolvePercentile
-    });
+    if (!queue?.stats) return;
+    const normalized = Math.max(0, Math.floor(Number(waitedMs) || 0));
+    queue.stats.lastWaitMs = normalized;
+    const samples = Array.isArray(queue.stats.waitSamples)
+      ? queue.stats.waitSamples
+      : [];
+    if (samples.length < WAIT_TIME_SAMPLE_LIMIT) {
+      samples.push(normalized);
+      queue.stats.waitSampleCursor = samples.length % WAIT_TIME_SAMPLE_LIMIT;
+    } else if (samples.length > 0) {
+      const cursorRaw = Number.isFinite(Number(queue.stats.waitSampleCursor))
+        ? Math.floor(Number(queue.stats.waitSampleCursor))
+        : 0;
+      const cursor = ((cursorRaw % samples.length) + samples.length) % samples.length;
+      samples[cursor] = normalized;
+      queue.stats.waitSampleCursor = (cursor + 1) % samples.length;
+    }
+    queue.stats.waitSamples = samples;
+    queue.stats.waitP95Ms = resolvePercentile(samples, 0.95);
   };
   let telemetryStage = normalizeTelemetryStage(input.telemetryStage, 'init');
   let traceIntervalMs = Number.isFinite(Number(input.traceIntervalMs))
@@ -286,36 +540,198 @@ export function createBuildScheduler(input = {}) {
     captureTelemetryIfDue
   } = telemetryCapture;
 
-  const buildAdaptiveSurfaceSnapshotByName = (surfaceName, at = nowMs()) => (
-    buildAdaptiveSurfaceSnapshotByNameImpl({
-      surfaceName,
-      adaptiveSurfaceStates,
-      queueOrder,
-      normalizeByteCount,
-      at
-    })
-  );
+  const buildAdaptiveSurfaceSnapshotByName = (surfaceName, at = nowMs()) => {
+    const state = adaptiveSurfaceStates.get(surfaceName);
+    if (!state) return null;
+    const snapshot = {
+      surface: surfaceName,
+      pending: 0,
+      pendingBytes: 0,
+      running: 0,
+      inFlightBytes: 0,
+      oldestWaitMs: 0,
+      ioPending: 0,
+      ioPendingBytes: 0,
+      ioWaitP95Ms: 0,
+      queues: []
+    };
+    for (const queue of queueOrder) {
+      if (queue?.surface !== surfaceName) continue;
+      const pending = Math.max(0, queue.pending.length);
+      const pendingBytes = normalizeByteCount(queue.pendingBytes);
+      const running = Math.max(0, queue.running);
+      const inFlightBytes = normalizeByteCount(queue.inFlightBytes);
+      const oldestWaitMs = pending > 0
+        ? Math.max(0, at - Number(queue.pending[0]?.enqueuedAt || at))
+        : 0;
+      const waitP95Ms = Math.max(0, Number(queue?.stats?.waitP95Ms) || 0);
+      snapshot.pending += pending;
+      snapshot.pendingBytes += pendingBytes;
+      snapshot.running += running;
+      snapshot.inFlightBytes += inFlightBytes;
+      snapshot.oldestWaitMs = Math.max(snapshot.oldestWaitMs, oldestWaitMs);
+      if ((pendingBytes > 0) || queue.name.includes('.io') || queue.name.includes('write') || queue.name.includes('sqlite')) {
+        snapshot.ioPending += pending;
+        snapshot.ioPendingBytes += pendingBytes;
+        snapshot.ioWaitP95Ms = Math.max(snapshot.ioWaitP95Ms, waitP95Ms);
+      }
+      snapshot.queues.push({
+        name: queue.name,
+        pending,
+        pendingBytes,
+        running,
+        inFlightBytes,
+        oldestWaitMs,
+        waitP95Ms
+      });
+    }
+    snapshot.backlogPerSlot = snapshot.pending / Math.max(1, state.currentConcurrency);
+    const ioPressureByBytes = snapshot.ioPendingBytes / Math.max(1, 256 * 1024 * 1024);
+    const ioPressureByWait = snapshot.ioWaitP95Ms / 10000;
+    snapshot.ioPressureScore = Math.max(
+      0,
+      Math.min(
+        1.5,
+        Math.max(
+          snapshot.ioPending > 0 ? (snapshot.ioPending / Math.max(1, state.currentConcurrency * 2)) : 0,
+          ioPressureByBytes,
+          ioPressureByWait
+        )
+      )
+    );
+    return snapshot;
+  };
 
-  const buildAdaptiveSurfaceSnapshots = (at = nowMs()) => (
-    buildAdaptiveSurfaceSnapshotsImpl({
-      adaptiveSurfaceStates,
-      queueOrder,
-      normalizeByteCount,
-      at
-    })
-  );
+  const buildAdaptiveSurfaceSnapshots = (at = nowMs()) => {
+    const out = {};
+    for (const surfaceName of adaptiveSurfaceStates.keys()) {
+      out[surfaceName] = buildAdaptiveSurfaceSnapshotByName(surfaceName, at);
+    }
+    return out;
+  };
 
   const readSystemSignals = (at = nowMs()) => {
-    const resolved = resolveSchedulerSystemSignals({
-      at,
-      input,
-      telemetryStage,
-      cloneTokenState,
-      tokens,
-      lastMemorySignals
-    });
-    lastMemorySignals = resolved.nextMemorySignals;
-    return resolved.signals;
+    const cpuTokenUtilization = tokens.cpu.total > 0 ? (tokens.cpu.used / tokens.cpu.total) : 0;
+    const ioTokenUtilization = tokens.io.total > 0 ? (tokens.io.used / tokens.io.total) : 0;
+    const memTokenUtilization = tokens.mem.total > 0 ? (tokens.mem.used / tokens.mem.total) : 0;
+    const defaultSignals = {
+      cpu: {
+        tokenUtilization: Math.max(cpuTokenUtilization, ioTokenUtilization),
+        loadRatio: 0
+      },
+      memory: {
+        rssBytes: 0,
+        heapUsedBytes: 0,
+        heapTotalBytes: 0,
+        freeBytes: 0,
+        totalBytes: 0,
+        rssUtilization: null,
+        heapUtilization: null,
+        freeRatio: null,
+        pressureScore: Math.max(memTokenUtilization, 0),
+        gcPressureScore: 0
+      }
+    };
+    if (typeof input.adaptiveSignalSampler === 'function') {
+      try {
+        const sampled = input.adaptiveSignalSampler({
+          at,
+          stage: telemetryStage,
+          tokens: cloneTokenState()
+        });
+        if (sampled && typeof sampled === 'object') {
+          const cpuToken = normalizeRatio(
+            sampled?.cpu?.tokenUtilization,
+            defaultSignals.cpu.tokenUtilization,
+            { min: 0, max: 1.5 }
+          );
+          const cpuLoad = normalizeRatio(sampled?.cpu?.loadRatio, defaultSignals.cpu.loadRatio, { min: 0, max: 2 });
+          const pressureScore = normalizeRatio(
+            sampled?.memory?.pressureScore,
+            defaultSignals.memory.pressureScore,
+            { min: 0, max: 2 }
+          );
+          const gcPressureScore = normalizeRatio(
+            sampled?.memory?.gcPressureScore,
+            defaultSignals.memory.gcPressureScore,
+            { min: 0, max: 2 }
+          );
+          defaultSignals.cpu = {
+            tokenUtilization: cpuToken,
+            loadRatio: cpuLoad
+          };
+          defaultSignals.memory = {
+            ...defaultSignals.memory,
+            pressureScore,
+            gcPressureScore,
+            rssBytes: normalizeNonNegativeInt(sampled?.memory?.rssBytes, defaultSignals.memory.rssBytes),
+            heapUsedBytes: normalizeNonNegativeInt(sampled?.memory?.heapUsedBytes, defaultSignals.memory.heapUsedBytes),
+            heapTotalBytes: normalizeNonNegativeInt(sampled?.memory?.heapTotalBytes, defaultSignals.memory.heapTotalBytes),
+            freeBytes: normalizeNonNegativeInt(sampled?.memory?.freeBytes, defaultSignals.memory.freeBytes),
+            totalBytes: normalizeNonNegativeInt(sampled?.memory?.totalBytes, defaultSignals.memory.totalBytes),
+            rssUtilization: normalizeRatio(sampled?.memory?.rssUtilization, defaultSignals.memory.rssUtilization, { min: 0, max: 1 }),
+            heapUtilization: normalizeRatio(sampled?.memory?.heapUtilization, defaultSignals.memory.heapUtilization, { min: 0, max: 1 }),
+            freeRatio: normalizeRatio(sampled?.memory?.freeRatio, defaultSignals.memory.freeRatio, { min: 0, max: 1 })
+          };
+          return defaultSignals;
+        }
+      } catch {}
+    }
+    const cpuCount = typeof os.availableParallelism === 'function'
+      ? Math.max(1, os.availableParallelism())
+      : Math.max(1, os.cpus().length || 1);
+    const loadAvg = typeof os.loadavg === 'function' ? os.loadavg() : null;
+    const loadRatio = Array.isArray(loadAvg) && Number.isFinite(loadAvg[0]) && cpuCount > 0
+      ? Math.max(0, Math.min(2, Number(loadAvg[0]) / cpuCount))
+      : 0;
+    let rssBytes = 0;
+    let heapUsedBytes = 0;
+    let heapTotalBytes = 0;
+    try {
+      const usage = process.memoryUsage();
+      rssBytes = Number(usage?.rss) || 0;
+      heapUsedBytes = Number(usage?.heapUsed) || 0;
+      heapTotalBytes = Number(usage?.heapTotal) || 0;
+    } catch {}
+    const totalBytes = Number(os.totalmem()) || 0;
+    const freeBytes = Number(os.freemem()) || 0;
+    const rssUtilization = totalBytes > 0 ? Math.max(0, Math.min(1, rssBytes / totalBytes)) : null;
+    const heapUtilization = heapTotalBytes > 0 ? Math.max(0, Math.min(1, heapUsedBytes / heapTotalBytes)) : null;
+    const freeRatio = totalBytes > 0 ? Math.max(0, Math.min(1, freeBytes / totalBytes)) : null;
+    const freePressure = Number.isFinite(freeRatio) ? (1 - freeRatio) : 0;
+    const memoryPressureScore = Math.max(
+      memTokenUtilization,
+      Number.isFinite(rssUtilization) ? rssUtilization : 0,
+      Number.isFinite(heapUtilization) ? heapUtilization : 0,
+      freePressure
+    );
+    let gcPressureScore = 0;
+    if (lastMemorySignals && Number(lastMemorySignals.heapUsedBytes) > 0) {
+      const priorHeap = Number(lastMemorySignals.heapUsedBytes) || 0;
+      const delta = priorHeap - heapUsedBytes;
+      if (delta > 0) {
+        gcPressureScore = Math.max(0, Math.min(1, delta / Math.max(1, priorHeap)));
+      }
+    }
+    lastMemorySignals = { heapUsedBytes };
+    return {
+      cpu: {
+        tokenUtilization: Math.max(cpuTokenUtilization, ioTokenUtilization),
+        loadRatio
+      },
+      memory: {
+        rssBytes,
+        heapUsedBytes,
+        heapTotalBytes,
+        freeBytes,
+        totalBytes,
+        rssUtilization,
+        heapUtilization,
+        freeRatio,
+        pressureScore: memoryPressureScore,
+        gcPressureScore
+      }
+    };
   };
 
   const tokenState = () => ({
@@ -362,14 +778,6 @@ export function createBuildScheduler(input = {}) {
       : 0
   );
 
-  /**
-   * Adapt per-surface concurrency caps from queue backlog plus system signals.
-   *
-   * Cooldown windows and oscillation guards intentionally dampen flip-flopping
-   * when backlog and pressure metrics hover near thresholds.
-   *
-   * @param {number} now
-   */
   const maybeAdaptSurfaceControllers = (now) => {
     if (!adaptiveSurfaceControllersEnabled) return;
     const at = Number.isFinite(Number(now)) ? Number(now) : nowMs();
@@ -394,17 +802,29 @@ export function createBuildScheduler(input = {}) {
       );
       const memoryPressure = Math.max(0, Number(signals?.memory?.pressureScore) || 0);
       const gcPressure = Math.max(0, Number(signals?.memory?.gcPressureScore) || 0);
+      const ioPressureThreshold = Math.min(
+        state.ioPressureThreshold,
+        state.fdPressureThreshold ?? state.ioPressureThreshold
+      );
       let action = 'hold';
       let reason = 'steady';
       if (
         memoryPressure >= state.memoryPressureThreshold
         || gcPressure >= state.gcPressureThreshold
-        || ioPressureScore >= state.ioPressureThreshold
+        || ioPressureScore >= ioPressureThreshold
       ) {
         action = 'down';
         reason = memoryPressure >= state.memoryPressureThreshold
           ? 'memory-pressure'
-          : (gcPressure >= state.gcPressureThreshold ? 'gc-pressure' : 'io-pressure');
+          : (
+            gcPressure >= state.gcPressureThreshold
+              ? 'gc-pressure'
+              : (
+                ioPressureScore >= (state.fdPressureThreshold ?? Number.POSITIVE_INFINITY)
+                  ? 'fd-pressure'
+                  : 'io-pressure'
+              )
+          );
       } else if (
         backlogPerSlot >= state.upBacklogPerSlot
         && oldestWaitMs >= state.upWaitMs
@@ -476,7 +896,7 @@ export function createBuildScheduler(input = {}) {
         memoryPressure,
         gcPressure
       };
-      const adaptiveDecisionId = nextAdaptiveDecisionId();
+      adaptiveDecisionId += 1;
       appendAdaptiveDecision({
         id: adaptiveDecisionId,
         at,
@@ -499,33 +919,35 @@ export function createBuildScheduler(input = {}) {
     }
   };
 
-  /**
-   * Adapt global cpu/io/memory token ceilings.
-   *
-   * Behavior notes:
-   * - `burst` mode opportunistically scales faster under sustained demand.
-   * - `settle` and steady decay modes reduce totals after transient spikes.
-   * - Memory headroom gating is the hard safety rail for all scale-up paths.
-   */
   const maybeAdaptTokens = () => {
     if (!adaptiveEnabled || shuttingDown) return;
     const now = nowMs();
     if ((now - lastAdaptiveAt) < adaptiveCurrentIntervalMs) return;
     lastAdaptiveAt = now;
     maybeAdaptSurfaceControllers(now);
-    const {
-      totalPending,
-      totalPendingBytes,
-      totalRunning,
-      totalRunningBytes,
-      starvedQueues,
-      floorCpu,
-      floorIo,
-      floorMem
-    } = collectSchedulerQueuePressure({
-      queueOrder,
-      normalizeByteCount
-    });
+    let totalPending = 0;
+    let totalPendingBytes = 0;
+    let totalRunning = 0;
+    let totalRunningBytes = 0;
+    let starvedQueues = 0;
+    for (const q of queueOrder) {
+      totalPending += q.pending.length;
+      totalPendingBytes += normalizeByteCount(q.pendingBytes);
+      totalRunning += q.running;
+      totalRunningBytes += normalizeByteCount(q.inFlightBytes);
+      if (q.pending.length > 0 && q.running === 0) {
+        starvedQueues += 1;
+      }
+    }
+    let floorCpu = 0;
+    let floorIo = 0;
+    let floorMem = 0;
+    for (const q of queueOrder) {
+      if ((q.pending.length + q.running) <= 0) continue;
+      floorCpu = Math.max(floorCpu, Number(q.floorCpu) || 0);
+      floorIo = Math.max(floorIo, Number(q.floorIo) || 0);
+      floorMem = Math.max(floorMem, Number(q.floorMem) || 0);
+    }
     const cpuFloor = Math.max(baselineLimits.cpu, floorCpu);
     const ioFloor = Math.max(baselineLimits.io, floorIo);
     const memFloor = Math.max(baselineLimits.mem, floorMem);
@@ -547,52 +969,61 @@ export function createBuildScheduler(input = {}) {
     const ioUtilization = tokens.io.total > 0 ? (tokens.io.used / tokens.io.total) : 0;
     const memUtilization = tokens.mem.total > 0 ? (tokens.mem.used / tokens.mem.total) : 0;
     const utilization = Math.max(cpuUtilization, ioUtilization, memUtilization);
-    smoothedUtilization = smoothAdaptiveValue(smoothedUtilization, utilization);
-    smoothedPendingPressure = smoothAdaptiveValue(
+    const smooth = (prev, next, alpha = 0.25) => (
+      prev == null ? next : ((prev * (1 - alpha)) + (next * alpha))
+    );
+    smoothedUtilization = smooth(smoothedUtilization, utilization);
+    smoothedPendingPressure = smooth(
       smoothedPendingPressure,
       Math.max(totalPending / Math.max(1, tokenBudget), totalPendingBytes / Math.max(1, memoryTokenBudgetBytes))
     );
-    smoothedStarvation = smoothAdaptiveValue(
+    smoothedStarvation = smooth(
       smoothedStarvation,
       queueOrder.length > 0 ? (starvedQueues / queueOrder.length) : 0
     );
+    const utilizationDeficit = utilization < adaptiveTargetUtilization;
     const smoothedUtilizationDeficit = (smoothedUtilization ?? utilization) < adaptiveTargetUtilization;
     const severeUtilizationDeficit = utilization < (adaptiveTargetUtilization * 0.7);
     const starvationScore = starvedQueues + Math.round((smoothedStarvation ?? 0) * 2);
-    adaptiveCurrentIntervalMs = resolveAdaptiveIntervalMs({
-      adaptiveMinIntervalMs,
-      pendingPressure,
-      bytePressure,
-      starvationScore,
-      mostlyIdle
-    });
-    const {
-      headroomBytes,
-      memoryLowHeadroom,
-      memoryHighHeadroom,
-      memoryTokenHeadroomCap,
-      nextMemTotal
-    } = resolveAdaptiveMemoryHeadroom({
-      signals: lastSystemSignals,
-      adaptiveMemoryReserveMb,
-      adaptiveMemoryPerTokenMb,
-      baselineMemLimit: baselineLimits.mem,
-      maxMemLimit: maxLimits.mem,
-      currentMemTotal: tokens.mem.total,
-      currentMemUsed: tokens.mem.used
-    });
-    tokens.mem.total = nextMemTotal;
+    if (pendingPressure || bytePressure || starvationScore > 0) {
+      adaptiveCurrentIntervalMs = Math.max(50, Math.floor(adaptiveMinIntervalMs * 0.5));
+    } else if (mostlyIdle) {
+      adaptiveCurrentIntervalMs = Math.min(2000, Math.max(adaptiveMinIntervalMs, Math.floor(adaptiveMinIntervalMs * 2)));
+    } else {
+      adaptiveCurrentIntervalMs = adaptiveMinIntervalMs;
+    }
+    const totalMem = Number(os.totalmem()) || 0;
+    const freeMem = Number(os.freemem()) || 0;
+    const freeRatio = totalMem > 0 ? (freeMem / totalMem) : null;
+    const headroomBytes = Number.isFinite(totalMem) && Number.isFinite(freeMem)
+      ? Math.max(0, freeMem)
+      : 0;
+    const memoryLowHeadroom = Number.isFinite(freeRatio) && freeRatio < 0.15;
+    const memoryHighHeadroom = !Number.isFinite(freeRatio) || freeRatio > 0.25;
+    let memoryTokenHeadroomCap = maxLimits.mem;
+    if (Number.isFinite(freeMem) && freeMem > 0) {
+      const reserveBytes = adaptiveMemoryReserveMb * 1024 * 1024;
+      const bytesPerToken = adaptiveMemoryPerTokenMb * 1024 * 1024;
+      const availableBytes = Math.max(0, freeMem - reserveBytes);
+      const headroomTokens = Math.max(1, Math.floor(availableBytes / Math.max(1, bytesPerToken)));
+      memoryTokenHeadroomCap = Math.max(
+        baselineLimits.mem,
+        Math.min(maxLimits.mem, headroomTokens)
+      );
+      if (tokens.mem.total > memoryTokenHeadroomCap) {
+        tokens.mem.total = Math.max(tokens.mem.used, memoryTokenHeadroomCap);
+      }
+    }
 
     if (memoryLowHeadroom) {
       adaptiveMode = 'steady';
-      decayAdaptiveTokenTotals({
-        tokens,
-        cpuFloor,
-        ioFloor,
+      tokens.cpu.total = Math.max(cpuFloor, tokens.cpu.used, tokens.cpu.total - adaptiveStep);
+      tokens.io.total = Math.max(ioFloor, tokens.io.used, tokens.io.total - adaptiveStep);
+      tokens.mem.total = Math.max(
         memFloor,
-        adaptiveStep,
-        memoryTokenHeadroomCap
-      });
+        tokens.mem.used,
+        Math.min(memoryTokenHeadroomCap, tokens.mem.total - adaptiveStep)
+      );
       return;
     }
 
@@ -640,13 +1071,9 @@ export function createBuildScheduler(input = {}) {
       );
     if (settleMode) {
       adaptiveMode = 'settle';
-      decayAdaptiveTokenTotals({
-        tokens,
-        cpuFloor,
-        ioFloor,
-        memFloor,
-        adaptiveStep
-      });
+      tokens.cpu.total = Math.max(cpuFloor, tokens.cpu.used, tokens.cpu.total - adaptiveStep);
+      tokens.io.total = Math.max(ioFloor, tokens.io.used, tokens.io.total - adaptiveStep);
+      tokens.mem.total = Math.max(memFloor, tokens.mem.used, tokens.mem.total - adaptiveStep);
       return;
     }
 
@@ -661,28 +1088,12 @@ export function createBuildScheduler(input = {}) {
 
     if (mostlyIdle) {
       adaptiveMode = 'steady';
-      decayAdaptiveTokenTotals({
-        tokens,
-        cpuFloor,
-        ioFloor,
-        memFloor,
-        adaptiveStep
-      });
+      tokens.cpu.total = Math.max(cpuFloor, tokens.cpu.used, tokens.cpu.total - adaptiveStep);
+      tokens.io.total = Math.max(ioFloor, tokens.io.used, tokens.io.total - adaptiveStep);
+      tokens.mem.total = Math.max(memFloor, tokens.mem.used, tokens.mem.total - adaptiveStep);
     }
   };
 
-  /**
-   * Resolve whether a request can start against token and backpressure state.
-   *
-   * `backpressureState` is optional so callers scanning many candidates can
-   * reuse one snapshot and avoid re-evaluating write queue pressure for every
-   * pending item.
-   *
-   * @param {any} queue
-   * @param {{cpu?:number,io?:number,mem?:number,bytes?:number}} req
-   * @param {object|null} [backpressureState]
-   * @returns {boolean}
-   */
   const canStart = (queue, req, backpressureState = null) => {
     const normalized = normalizeRequest(req);
     const resolvedBackpressure = backpressureState || evaluateWriteBackpressure();
@@ -758,25 +1169,54 @@ export function createBuildScheduler(input = {}) {
     }
   };
 
+  const findStartableIndex = (queue, backpressureState = null) => {
+    if (!queue?.pending?.length) return -1;
+    for (let i = 0; i < queue.pending.length; i += 1) {
+      if (canStart(queue, queue.pending[i].tokens, backpressureState)) return i;
+    }
+    return -1;
+  };
+
+  const pickNextQueue = (backpressureState = null) => {
+    if (!queueOrder.length) return null;
+    const now = nowMs();
+    let starving = null;
+    let picked = null;
+    for (const q of queueOrder) {
+      if (!q.pending.length) continue;
+      const index = findStartableIndex(q, backpressureState);
+      if (index < 0) continue;
+      const waited = now - q.pending[index].enqueuedAt;
+      if (waited >= starvationMs && (!starving || waited > starving.waited)) {
+        starving = { queue: q, waited, index };
+        continue;
+      }
+      const weightBoostMs = Math.max(1, Number(q.weight) || 1) * 250;
+      const priorityPenaltyMs = Math.max(0, Number(q.priority) || 0) * 5;
+      // Fairness aging by wait-time percentile: once a queue's current wait
+      // exceeds its own p95 wait, boost the score to pull tail work forward.
+      const waitP95Ms = Number(q.stats?.waitP95Ms) || 0;
+      const agingBoostMs = waitP95Ms > 0 ? Math.max(0, waited - waitP95Ms) : 0;
+      const score = waited + weightBoostMs + agingBoostMs - priorityPenaltyMs;
+      if (!picked || score > picked.score) {
+        picked = { queue: q, index, score };
+      }
+    }
+    if (starving) return { queue: starving.queue, starved: true, index: starving.index };
+    return picked ? { queue: picked.queue, starved: false, index: picked.index } : null;
+  };
+
   const pump = () => {
     if (shuttingDown) return;
     while (true) {
       maybeAdaptTokens();
       const backpressureState = evaluateWriteBackpressure();
-      const pick = pickNextSchedulerQueue({
-        queueOrder,
-        nowMs,
-        starvationMs,
-        backpressureState,
-        canStart
-      });
+      const pick = pickNextQueue(backpressureState);
       if (!pick) return;
-      const { queue, starved, index, item: next } = pick;
-      if (!next) return;
+      const { queue, starved, index } = pick;
+      const next = queue.pending[index];
+      if (!next || !canStart(queue, next.tokens, backpressureState)) return;
       queue.pending.splice(index, 1);
-      if (!queue.pending.length) {
-        queue.pendingSearchCursor = 0;
-      }
       queue.pendingBytes = Math.max(0, normalizeByteCount(queue.pendingBytes) - normalizeByteCount(next.bytes));
       queue.running += 1;
       bumpSurfaceRunning(queue.surface, 1);
@@ -830,15 +1270,28 @@ export function createBuildScheduler(input = {}) {
     }
     const normalizedReq = normalizeRequest(tokensReq || {});
     const queue = ensureQueue(queueName);
-    const rejection = resolveSchedulerScheduleRejection({
-      queueName,
-      queue,
-      normalizedReq,
-      normalizeByteCount,
-      counters
-    });
-    if (rejection) {
-      return Promise.reject(rejection);
+    if (queue.maxPending && queue.pending.length >= queue.maxPending) {
+      queue.stats.rejected += 1;
+      queue.stats.rejectedMaxPending += 1;
+      queue.stats.scheduled += 1;
+      counters.scheduled += 1;
+      counters.rejected += 1;
+      counters.rejectedByReason.maxPending += 1;
+      return Promise.reject(new Error(`queue ${queueName} is at maxPending`));
+    }
+    if (queue.maxPendingBytes && normalizedReq.bytes > 0) {
+      const pendingBytes = normalizeByteCount(queue.pendingBytes);
+      const nextPendingBytes = pendingBytes + normalizedReq.bytes;
+      const oversizeSingle = pendingBytes === 0 && queue.pending.length === 0;
+      if (!oversizeSingle && nextPendingBytes > queue.maxPendingBytes) {
+        queue.stats.rejected += 1;
+        queue.stats.rejectedMaxPendingBytes += 1;
+        queue.stats.scheduled += 1;
+        counters.scheduled += 1;
+        counters.rejected += 1;
+        counters.rejectedByReason.maxPendingBytes += 1;
+        return Promise.reject(new Error(`queue ${queueName} is at maxPendingBytes`));
+      }
     }
     return new Promise((resolve, reject) => {
       queue.pending.push({
@@ -860,65 +1313,147 @@ export function createBuildScheduler(input = {}) {
 
   const clearQueue = (queueName, reason = 'scheduler queue cleared') => {
     const queue = queues.get(queueName);
-    return clearSchedulerQueuePending({
-      queue,
-      reason,
-      normalizeByteCount,
-      counters
-    });
+    if (!queue || !queue.pending.length) return 0;
+    const error = new Error(reason);
+    const cleared = queue.pending.splice(0, queue.pending.length);
+    let clearedBytes = 0;
+    for (const item of cleared) {
+      clearedBytes += normalizeByteCount(item?.bytes);
+      queue.stats.rejected += 1;
+      counters.rejected += 1;
+      counters.rejectedByReason.cleared += 1;
+      try {
+        item.reject(error);
+      } catch {}
+    }
+    queue.pendingBytes = Math.max(0, normalizeByteCount(queue.pendingBytes) - clearedBytes);
+    return cleared.length;
   };
 
   const stats = () => {
     captureTelemetryIfDue('stats');
-    const {
-      queueStats,
-      activity
-    } = buildSchedulerQueueStatsSnapshot({
-      queueOrder,
-      nowMs,
-      normalizeByteCount
-    });
-    const cpuUtilization = resolveSchedulerUtilization(tokens.cpu.used, tokens.cpu.total);
-    const ioUtilization = resolveSchedulerUtilization(tokens.io.used, tokens.io.total);
-    const memUtilization = resolveSchedulerUtilization(tokens.mem.used, tokens.mem.total);
-    const adaptiveSurfaces = buildSchedulerAdaptiveSurfaceStats({
-      adaptiveSurfaceStates,
-      buildAdaptiveSurfaceSnapshotByName
-    });
-    const adaptive = buildSchedulerAdaptivePayload({
-      adaptiveEnabled,
-      baselineLimits,
-      maxLimits,
-      adaptiveTargetUtilization,
-      adaptiveStep,
-      adaptiveMemoryReserveMb,
-      adaptiveMemoryPerTokenMb,
-      globalMaxInFlightBytes,
-      adaptiveCurrentIntervalMs,
-      adaptiveMode,
-      smoothedUtilization,
-      smoothedPendingPressure,
-      smoothedStarvation,
-      adaptiveSurfaceControllersEnabled,
-      adaptiveSurfaces,
-      adaptiveDecisionTrace,
-      cloneDecisionEntry,
-      lastSystemSignals,
-      cloneSchedulerSystemSignals,
-      evaluateWriteBackpressure,
-      writeBackpressure
-    });
-    return buildSchedulerStatsPayload({
-      queueStats,
-      activity,
-      counters,
-      adaptive,
+    const queueStats = {};
+    let totalPending = 0;
+    let totalPendingBytes = 0;
+    let totalRunning = 0;
+    let totalInFlightBytesValue = 0;
+    for (const q of queueOrder) {
+      const oldest = q.pending.length ? nowMs() - q.pending[0].enqueuedAt : 0;
+      totalPending += q.pending.length;
+      totalPendingBytes += normalizeByteCount(q.pendingBytes);
+      totalRunning += q.running;
+      totalInFlightBytesValue += normalizeByteCount(q.inFlightBytes);
+      queueStats[q.name] = {
+        surface: q.surface || null,
+        pending: q.pending.length,
+        pendingBytes: normalizeByteCount(q.pendingBytes),
+        running: q.running,
+        inFlightBytes: normalizeByteCount(q.inFlightBytes),
+        maxPending: q.maxPending,
+        maxPendingBytes: q.maxPendingBytes,
+        maxInFlightBytes: q.maxInFlightBytes,
+        floorCpu: q.floorCpu,
+        floorIo: q.floorIo,
+        floorMem: q.floorMem,
+        priority: q.priority,
+        weight: q.weight,
+        oldestWaitMs: oldest,
+        scheduled: q.stats.scheduled,
+        started: q.stats.started,
+        completed: q.stats.completed,
+        failed: q.stats.failed,
+        rejected: q.stats.rejected,
+        rejectedMaxPending: q.stats.rejectedMaxPending,
+        rejectedMaxPendingBytes: q.stats.rejectedMaxPendingBytes,
+        starvation: q.stats.starvation,
+        lastWaitMs: q.stats.lastWaitMs,
+        waitP95Ms: q.stats.waitP95Ms,
+        waitSampleCount: Array.isArray(q.stats.waitSamples) ? q.stats.waitSamples.length : 0
+      };
+    }
+    const resolveUtilization = (used, total) => (
+      total > 0 ? Math.max(0, Math.min(1, used / total)) : 0
+    );
+    const cpuUtilization = resolveUtilization(tokens.cpu.used, tokens.cpu.total);
+    const ioUtilization = resolveUtilization(tokens.io.used, tokens.io.total);
+    const memUtilization = resolveUtilization(tokens.mem.used, tokens.mem.total);
+    const adaptiveSurfaces = {};
+    for (const [surfaceName, state] of adaptiveSurfaceStates.entries()) {
+      const snapshot = buildAdaptiveSurfaceSnapshotByName(surfaceName);
+      adaptiveSurfaces[surfaceName] = {
+        minConcurrency: state.minConcurrency,
+        maxConcurrency: state.maxConcurrency,
+        currentConcurrency: state.currentConcurrency,
+        thresholds: {
+          ioPressure: state.ioPressureThreshold,
+          fdPressure: state.fdPressureThreshold,
+          memoryPressure: state.memoryPressureThreshold,
+          gcPressure: state.gcPressureThreshold
+        },
+        decisions: { ...state.decisions },
+        lastAction: state.lastAction,
+        lastDecisionAt: state.lastDecisionAt,
+        lastDecision: state.lastDecision
+          ? { ...state.lastDecision }
+          : null,
+        snapshot
+      };
+    }
+    return {
+      queues: queueStats,
+      counters: {
+        ...counters,
+        rejectedByReason: { ...counters.rejectedByReason }
+      },
+      activity: {
+        pending: totalPending,
+        pendingBytes: totalPendingBytes,
+        running: totalRunning,
+        inFlightBytes: totalInFlightBytesValue
+      },
+      adaptive: {
+        enabled: adaptiveEnabled,
+        baseline: baselineLimits,
+        max: maxLimits,
+        targetUtilization: adaptiveTargetUtilization,
+        step: adaptiveStep,
+        memoryReserveMb: adaptiveMemoryReserveMb,
+        memoryPerTokenMb: adaptiveMemoryPerTokenMb,
+        maxInFlightBytes: globalMaxInFlightBytes,
+        intervalMs: adaptiveCurrentIntervalMs,
+        mode: adaptiveMode,
+        smoothedUtilization: smoothedUtilization ?? 0,
+        smoothedPendingPressure: smoothedPendingPressure ?? 0,
+        smoothedStarvation: smoothedStarvation ?? 0,
+        surfaceControllersEnabled: adaptiveSurfaceControllersEnabled,
+        surfaces: adaptiveSurfaces,
+        decisionTrace: adaptiveDecisionTrace.map((entry) => cloneDecisionEntry(entry)),
+        signals: lastSystemSignals && typeof lastSystemSignals === 'object'
+          ? {
+            cpu: lastSystemSignals.cpu && typeof lastSystemSignals.cpu === 'object'
+              ? { ...lastSystemSignals.cpu }
+              : null,
+            memory: lastSystemSignals.memory && typeof lastSystemSignals.memory === 'object'
+              ? { ...lastSystemSignals.memory }
+              : null
+          }
+          : null,
+        writeBackpressure: {
+          ...evaluateWriteBackpressure(),
+          producerQueues: Array.from(writeBackpressure.producerQueues)
+        }
+      },
       utilization: {
         cpu: cpuUtilization,
         io: ioUtilization,
-        mem: memUtilization
+        mem: memUtilization,
+        overall: Math.max(cpuUtilization, ioUtilization, memUtilization)
       },
-      tokens,
+      tokens: {
+        cpu: { ...tokens.cpu },
+        io: { ...tokens.io },
+        mem: { ...tokens.mem }
+      },
       telemetry: {
         stage: telemetryStage,
         traceIntervalMs,
@@ -927,7 +1462,7 @@ export function createBuildScheduler(input = {}) {
         schedulingTrace: cloneTraceEntries(telemetryCapture.getSchedulingTrace()),
         queueDepthSnapshots: cloneQueueDepthEntries(telemetryCapture.getQueueDepthSnapshots())
       }
-    });
+    };
   };
 
   const shutdown = () => {
@@ -936,35 +1471,35 @@ export function createBuildScheduler(input = {}) {
   };
 
   const setLimits = (limits = {}) => {
-    ({
-      cpuTokens,
-      ioTokens,
-      memoryTokens
-    } = applySchedulerTokenLimits({
-      limits,
-      cpuTokens,
-      ioTokens,
-      memoryTokens,
-      tokens
-    }));
+    if (Number.isFinite(Number(limits.cpuTokens))) {
+      cpuTokens = Math.max(1, Math.floor(Number(limits.cpuTokens)));
+    }
+    if (Number.isFinite(Number(limits.ioTokens))) {
+      ioTokens = Math.max(1, Math.floor(Number(limits.ioTokens)));
+    }
+    if (Number.isFinite(Number(limits.memoryTokens))) {
+      memoryTokens = Math.max(1, Math.floor(Number(limits.memoryTokens)));
+    }
+    tokens.cpu.total = cpuTokens;
+    tokens.io.total = ioTokens;
+    tokens.mem.total = memoryTokens;
     captureSchedulingTrace({ reason: 'set-limits', force: true });
     pump();
   };
 
   const setTelemetryOptions = (options = {}) => {
-    ({
-      telemetryStage,
-      queueDepthSnapshotsEnabled,
-      traceIntervalMs,
-      queueDepthSnapshotIntervalMs
-    } = applySchedulerTelemetryOptions({
-      options,
-      telemetryStage,
-      normalizeTelemetryStage,
-      queueDepthSnapshotsEnabled,
-      traceIntervalMs,
-      queueDepthSnapshotIntervalMs
-    }));
+    if (typeof options?.stage === 'string') {
+      telemetryStage = normalizeTelemetryStage(options.stage, telemetryStage);
+    }
+    if (Object.prototype.hasOwnProperty.call(options, 'queueDepthSnapshotsEnabled')) {
+      queueDepthSnapshotsEnabled = options.queueDepthSnapshotsEnabled === true;
+    }
+    if (Number.isFinite(Number(options?.traceIntervalMs))) {
+      traceIntervalMs = Math.max(100, Math.floor(Number(options.traceIntervalMs)));
+    }
+    if (Number.isFinite(Number(options?.queueDepthSnapshotIntervalMs))) {
+      queueDepthSnapshotIntervalMs = Math.max(1000, Math.floor(Number(options.queueDepthSnapshotIntervalMs)));
+    }
     const now = nowMs();
     captureSchedulingTrace({ now, reason: 'telemetry-options', force: true });
     if (queueDepthSnapshotsEnabled) {

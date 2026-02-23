@@ -4,7 +4,7 @@ import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { createStdoutGuard } from '../../src/shared/cli/stdout-guard.js';
 import { spawnSubprocess } from '../../src/shared/subprocess.js';
-import { runCommand } from '../shared/cli-utils.js';
+import { exitLikeCommandResult, runCommand } from '../shared/cli-utils.js';
 import { getDictionaryPaths, getDictConfig, getRepoCacheRoot, getRuntimeConfig, getToolingConfig, resolveRepoConfig, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/vector-extension.js';
 
@@ -49,7 +49,7 @@ const recordStep = (name, data) => {
  * @param {string} cmd
  * @param {string[]} args
  * @param {{cwd?:string,env?:NodeJS.ProcessEnv}} [options]
- * @returns {Promise<{ok:boolean,status:number|null}>}
+ * @returns {Promise<{ok:boolean,status:number|null,signal:string|null}>}
  */
 const streamChildOutputToStderr = async (cmd, args, { cwd = root, env = process.env } = {}) => {
   // execaSync defaults to 100 MB maxBuffer; raise the Windows npm fallback cap
@@ -65,7 +65,8 @@ const streamChildOutputToStderr = async (cmd, args, { cwd = root, env = process.
     relayChildOutputToStderr(npmResult);
     return {
       ok: npmResult.ok,
-      status: npmResult.status ?? null
+      status: npmResult.status ?? null,
+      signal: npmResult.signal ?? null
     };
   }
   const result = await spawnSubprocess(cmd, args, {
@@ -80,7 +81,8 @@ const streamChildOutputToStderr = async (cmd, args, { cwd = root, env = process.
   });
   return {
     ok: result.exitCode === 0,
-    status: result.exitCode ?? null
+    status: result.exitCode ?? null,
+    signal: typeof result.signal === 'string' ? result.signal : null
   };
 };
 
@@ -116,7 +118,7 @@ if (argv['validate-config'] && fs.existsSync(configPath)) {
     relayChildOutputToStderr(result);
   }
   if (!result.ok) {
-    process.exit(result.status ?? 1);
+    exitLikeCommandResult(result);
   }
 }
 
@@ -158,7 +160,7 @@ async function run(cmd, args, label) {
   }
   if (!result.ok) {
     console.error(`Failed: ${label || cmd}`);
-    process.exit(result.status ?? 1);
+    exitLikeCommandResult(result);
   }
 }
 
@@ -212,6 +214,9 @@ if (!argv['skip-tooling']) {
     [path.join(toolRoot, 'tools', 'tooling', 'detect.js'), '--root', root, '--json'],
     { cwd: root, encoding: 'utf8', stdio: 'pipe', env: baseEnv }
   );
+  if (typeof detectResult.signal === 'string' && detectResult.signal.trim()) {
+    exitLikeCommandResult(detectResult);
+  }
   if (detectResult.status === 0 && detectResult.stdout) {
     try {
       const report = JSON.parse(detectResult.stdout);
@@ -251,6 +256,9 @@ if (!argv['skip-tooling']) {
     stdio: 'pipe',
     env: baseEnv
   });
+  if (typeof pyrightEnsure.signal === 'string' && pyrightEnsure.signal.trim()) {
+    exitLikeCommandResult(pyrightEnsure);
+  }
   if (pyrightEnsure.status === 0) {
     try {
       const payload = JSON.parse(pyrightEnsure.stdout || '{}');

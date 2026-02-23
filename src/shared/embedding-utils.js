@@ -50,7 +50,7 @@ export const isNonEmptyVector = (value) => (
  * @returns {number}
  */
 export const countNonEmptyVectors = (vectors) => {
-  if (!Array.isArray(vectors)) return 0;
+  if (!vectors || typeof vectors[Symbol.iterator] !== 'function') return 0;
   let count = 0;
   for (const vector of vectors) {
     if (isNonEmptyVector(vector)) count += 1;

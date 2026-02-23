@@ -9,9 +9,8 @@ import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
 import { getEnvConfig } from '../../../src/shared/env.js';
 import { resolveEmbeddingInputFormatting } from '../../../src/shared/embedding-input-format.js';
 import { hasChunkMetaArtifactsSync } from '../../../src/shared/index-artifact-helpers.js';
-import { isWithinRoot, toRealPathSync } from '../../../src/workspace/identity.js';
-import { spawnSubprocessSync } from '../../../src/shared/subprocess.js';
-import { createToolDisplay } from '../../shared/cli-display.js';
+import { spawnSubprocess, spawnSubprocessSync } from '../../../src/shared/subprocess.js';
+import { isPathWithinRoot } from '../../shared/path-within-root.js';
 import {
   resolveBakeoffFastPathDefaults,
   resolveBakeoffBuildPlan,
@@ -220,31 +219,35 @@ const modelCacheRoot = (modelId) => (
 
 const toFixedMs = (value) => Math.round(Number(value) || 0);
 
-const shouldCapture = argv.json === true;
-const display = createToolDisplay({ argv, stream: process.stderr });
+const streamChildOutputToStderr = argv.json === true;
 const waitMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const isIndexLockContentionMessage = (value) => (
   /index lock (held|unavailable)/i.test(String(value || ''))
 );
-const formatElapsed = (startedAtMs) => {
-  const elapsedMs = Math.max(0, Date.now() - startedAtMs);
-  if (elapsedMs < 1000) return `${elapsedMs}ms`;
-  return `${(elapsedMs / 1000).toFixed(1)}s`;
-};
-const runNode = (args, env, label) => {
-  const result = spawnSubprocessSync(process.execPath, args, {
+const runNode = async (args, env, label) => {
+  const result = await spawnSubprocess(process.execPath, args, {
     cwd: root,
     env,
-    stdio: shouldCapture ? ['ignore', 'pipe', 'pipe'] : 'inherit',
-    captureStdout: shouldCapture,
+    stdio: streamChildOutputToStderr ? ['ignore', 'pipe', 'pipe'] : 'inherit',
+    captureStdout: false,
     captureStderr: true,
+    maxOutputBytes: 32 * 1024,
     outputMode: 'string',
+    onStdout: streamChildOutputToStderr
+      ? (chunk) => process.stderr.write(chunk)
+      : null,
+    onStderr: streamChildOutputToStderr
+      ? (chunk) => process.stderr.write(chunk)
+      : null,
     rejectOnNonZeroExit: false
   });
-  if (result.exitCode !== 0) {
+  if (result.exitCode !== 0 || result.signal) {
     const stderr = String(result.stderr || '').trim();
     const suffix = stderr ? `\n${stderr}` : '';
-    throw new Error(`${label} failed (exit=${result.exitCode ?? 'unknown'})${suffix}`);
+    const reason = result.signal
+      ? `signal=${result.signal}`
+      : `exit=${result.exitCode ?? 'unknown'}`;
+    throw new Error(`${label} failed (${reason})${suffix}`);
   }
   return result;
 };
@@ -259,7 +262,7 @@ const runNode = (args, env, label) => {
  * @param {Record<string, string|undefined>} env
  * @param {string} label
  * @param {{maxAttempts?:number,baseDelayMs?:number}} [options]
- * @returns {Promise<import('../../../src/shared/spawn-subprocess.js').SpawnSubprocessSyncResult>}
+ * @returns {Promise<{exitCode:number|null,signal:string|null,stdout?:string,stderr?:string}>}
  */
 const runNodeWithLockRetry = async (
   args,
@@ -269,7 +272,7 @@ const runNodeWithLockRetry = async (
 ) => {
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      return runNode(args, env, label);
+      return await runNode(args, env, label);
     } catch (err) {
       const message = err?.message || String(err);
       const retryable = isIndexLockContentionMessage(message);
@@ -296,10 +299,13 @@ const runJsonNode = (args, env, label) => {
     outputMode: 'string',
     rejectOnNonZeroExit: false
   });
-  if (result.exitCode !== 0) {
+  if (result.exitCode !== 0 || result.signal) {
     const stderr = String(result.stderr || '').trim();
     const suffix = stderr ? `\n${stderr}` : '';
-    throw new Error(`${label} failed (exit=${result.exitCode ?? 'unknown'})${suffix}`);
+    const reason = result.signal
+      ? `signal=${result.signal}`
+      : `exit=${result.exitCode ?? 'unknown'}`;
+    throw new Error(`${label} failed (${reason})${suffix}`);
   }
   const stdout = String(result.stdout || '{}').trim() || '{}';
   try {
@@ -393,8 +399,9 @@ const resolveModelCurrentBuildRoot = (modelCacheRootPath) => {
     const resolveWithinRepoCache = (value) => {
       if (!value || typeof value !== 'string') return null;
       const resolved = path.isAbsolute(value) ? value : path.join(repoCacheRoot, value);
-      const normalized = toRealPathSync(resolved);
-      if (!isWithinRoot(normalized, repoCacheCanonical)) return null;
+      const normalized = path.resolve(resolved);
+      const normalizedRepo = path.resolve(repoCacheRoot);
+      if (!isPathWithinRoot(normalized, normalizedRepo)) return null;
       return normalized;
     };
     const buildRootFromState = resolveWithinRepoCache(parsed.buildRoot);

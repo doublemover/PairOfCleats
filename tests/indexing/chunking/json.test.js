@@ -26,6 +26,10 @@ expect(arrayChunk[0].name === 'root', 'Expected root chunk for array JSON.');
 
 const invalid = chunkJson('{', {});
 expect(invalid === null, 'Expected invalid JSON to return null.');
+const invalidTrailingComma = chunkJson('{"alpha":1,}', {});
+expect(invalidTrailingComma === null, 'Expected trailing-comma JSON to return null.');
+const escapedKey = chunkJson('{"key\\u0020name":1,"beta":2}', {}) || [];
+expect(escapedKey[0]?.name === 'key name', 'Expected unicode-escaped key names to decode deterministically.');
 
 const nestedText = JSON.stringify({
   alpha: { path: './a.json' },

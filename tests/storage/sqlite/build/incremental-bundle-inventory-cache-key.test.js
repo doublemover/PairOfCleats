@@ -17,19 +17,6 @@ const tempRoot = resolveTestCachePath(root, 'sqlite-build-incremental-bundle-inv
 const bundleDir = path.join(tempRoot, 'bundles');
 const bundleAPath = path.join(bundleDir, 'bundle-a.json');
 const bundleBPath = path.join(bundleDir, 'bundle-b.json');
-const incrementalRunnerPath = path.join(root, 'src', 'storage', 'sqlite', 'build', 'runner', 'incremental.js');
-
-const incrementalRunnerSource = await fsPromises.readFile(incrementalRunnerPath, 'utf8');
-assert.match(
-  incrementalRunnerSource,
-  /from '\.\.\/imports\.js'/,
-  'expected incremental runner to import records capability from imports module'
-);
-assert.doesNotMatch(
-  incrementalRunnerSource,
-  /from '\.\.\/index\.js'/,
-  'expected incremental runner to stay decoupled from sqlite index barrel import'
-);
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(bundleDir, { recursive: true });

@@ -49,6 +49,31 @@ const fallbackSoftKickMs = resolveStage1StallSoftKickTimeoutMs({
 });
 assert.equal(fallbackSoftKickMs, 6000, 'expected default soft-kick threshold to derive from abort threshold');
 
+const disabledSoftKickMs = resolveStage1StallSoftKickTimeoutMs({
+  configuredSoftKickMs: null,
+  stallAbortMs: 0
+});
+assert.equal(disabledSoftKickMs, 0, 'expected soft-kick to disable when stall abort is disabled');
+
+const disabledPolicy = resolveStage1HangPolicy({
+  indexingConfig: {
+    stage1: {
+      watchdog: {
+        stages: {
+          processing: {
+            stallAbortMs: 0
+          }
+        }
+      }
+    }
+  },
+  stage1Queues: {
+    watchdog: {}
+  }
+}, { hardTimeoutMs: 4000 });
+assert.equal(disabledPolicy.stallAbortMs, 0, 'expected policy to preserve explicit stall abort disable');
+assert.equal(disabledPolicy.stallSoftKickMs, 0, 'expected soft-kick policy to disable with stall abort disable');
+
 const softKickDecision = resolveStage1StallAction({
   idleMs: 3600,
   hardAbortMs: policy.stallAbortMs,

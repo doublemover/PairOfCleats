@@ -20,9 +20,9 @@ import { createTempPath, replaceFile } from './atomic.js';
 import {
   createCacheIndex,
   mergeCacheIndex,
-  normalizeCacheIndex
+  normalizeCacheIndex,
+  resolveNextShardIdFromShards
 } from './cache/index-state.js';
-import { upsertCacheIndexEntry as upsertCacheIndexEntryImpl } from './cache/index-entry.js';
 
 const CACHE_KEY_SCHEMA_VERSION = 'embeddings-cache-v1';
 const GLOBAL_CHUNK_CACHE_KEY_SCHEMA_VERSION = 'embeddings-global-chunk-cache-v1';
@@ -32,9 +32,7 @@ const CHUNK_HASH_FINGERPRINT_DELIMITER = '\n';
 const DEFAULT_LOCK_WAIT_MS = 5000;
 const DEFAULT_LOCK_POLL_MS = 100;
 const DEFAULT_LOCK_STALE_MS = 30 * 60 * 1000;
-const GLOBAL_CHUNK_CACHE_DIR_NAME = 'global-chunks';
-const CACHE_INDEX_BINARY_MAGIC = 'pairofcleats.embeddings-cache-index';
-const CACHE_INDEX_BINARY_VERSION = 1;
+const shardReadFailureCache = new WeakMap();
 
 /**
  * @typedef {object} CacheLockOptions
@@ -363,6 +361,82 @@ export const writeCacheIndex = async (cacheDir, index) => {
 };
 
 /**
+ * Build stable shard pointer fingerprint used for failed-read memoization.
+ *
+ * @param {object|null|undefined} indexEntry
+ * @returns {string|null}
+ */
+const buildShardPointerFingerprint = (indexEntry) => {
+  if (!indexEntry?.shard) return null;
+  const offset = Number.isFinite(Number(indexEntry.offset)) ? Number(indexEntry.offset) : -1;
+  const length = Number.isFinite(Number(indexEntry.length)) ? Number(indexEntry.length) : -1;
+  return `${indexEntry.shard}:${offset}:${length}`;
+};
+
+/**
+ * Get per-cache-index set of shard pointers that already failed to decode.
+ *
+ * @param {object|null} cacheIndex
+ * @returns {Set<string>|null}
+ */
+const getFailedShardPointers = (cacheIndex) => {
+  if (!cacheIndex || typeof cacheIndex !== 'object') return null;
+  if (shardReadFailureCache.has(cacheIndex)) {
+    return shardReadFailureCache.get(cacheIndex);
+  }
+  const failures = new Set();
+  shardReadFailureCache.set(cacheIndex, failures);
+  return failures;
+};
+
+/**
+ * Switch one index entry from shard pointer to a standalone cache file path.
+ *
+ * @param {object|null} cacheIndex
+ * @param {string|null} cacheKey
+ * @param {string|null} entryPath
+ * @returns {void}
+ */
+const repairShardIndexEntryToStandalonePath = (cacheIndex, cacheKey, entryPath) => {
+  if (!cacheIndex || !cacheKey || !entryPath) return;
+  const existing = cacheIndex?.entries?.[cacheKey];
+  if (!existing || !existing.shard) return;
+  cacheIndex.entries[cacheKey] = {
+    ...existing,
+    shard: null,
+    offset: null,
+    length: null,
+    path: entryPath
+  };
+  cacheIndex.updatedAt = new Date().toISOString();
+};
+
+/**
+ * Repoint one cache index entry to a standalone file path.
+ *
+ * Unlike shard-only repairs, this also handles stale standalone pointers when
+ * fallback reads promote from primary to legacy entry paths.
+ *
+ * @param {object|null} cacheIndex
+ * @param {string|null} cacheKey
+ * @param {string|null} entryPath
+ * @returns {void}
+ */
+const repointCacheIndexEntryPath = (cacheIndex, cacheKey, entryPath) => {
+  if (!cacheIndex || !cacheKey || !entryPath) return;
+  const existing = cacheIndex?.entries?.[cacheKey];
+  if (!existing || existing.path === entryPath) return;
+  cacheIndex.entries[cacheKey] = {
+    ...existing,
+    shard: null,
+    offset: null,
+    length: null,
+    path: entryPath
+  };
+  cacheIndex.updatedAt = new Date().toISOString();
+};
+
+/**
  * Read one encoded payload from a shard index pointer.
  *
  * @param {string|null} cacheDir
@@ -377,9 +451,28 @@ const readCacheEntryFromShard = async (cacheDir, shardEntry) => {
     const length = Number(shardEntry?.length) || 0;
     const offset = Number(shardEntry?.offset) || 0;
     if (!length || offset < 0) return null;
-    const buffer = Buffer.allocUnsafe(length);
-    await handle.read(buffer, 0, length, offset);
-    return decodeEmbeddingsCache(buffer);
+    const stat = await handle.stat();
+    if (!Number.isFinite(stat?.size) || (offset + length) > stat.size) {
+      return null;
+    }
+    const buffer = Buffer.alloc(length);
+    let totalRead = 0;
+    while (totalRead < length) {
+      const { bytesRead } = await handle.read(
+        buffer,
+        totalRead,
+        length - totalRead,
+        offset + totalRead
+      );
+      if (!bytesRead) break;
+      totalRead += bytesRead;
+    }
+    if (totalRead !== length) return null;
+    try {
+      return decodeEmbeddingsCache(buffer);
+    } catch {
+      return null;
+    }
   } finally {
     await handle.close();
   }
@@ -394,19 +487,46 @@ const readCacheEntryFromShard = async (cacheDir, shardEntry) => {
  */
 export const readCacheEntry = async (cacheDir, cacheKey, cacheIndex = null) => {
   const indexEntry = cacheIndex?.entries?.[cacheKey];
-  if (indexEntry?.shard) {
+  const failedShardPointers = getFailedShardPointers(cacheIndex);
+  const shardPointerFingerprint = buildShardPointerFingerprint(indexEntry);
+  const shardFailureKey = shardPointerFingerprint && cacheKey
+    ? `${cacheKey}:${shardPointerFingerprint}`
+    : null;
+  const shouldTryShard = Boolean(indexEntry?.shard && (!failedShardPointers || !failedShardPointers.has(shardFailureKey)));
+  if (shouldTryShard) {
     const entry = await readCacheEntryFromShard(cacheDir, indexEntry);
     if (entry) {
+      if (failedShardPointers && shardFailureKey) {
+        failedShardPointers.delete(shardFailureKey);
+      }
       return { path: resolveCacheShardPath(cacheDir, indexEntry.shard), entry, indexEntry };
+    }
+    if (failedShardPointers && shardFailureKey) {
+      failedShardPointers.add(shardFailureKey);
     }
   }
   const primaryPath = resolveCacheEntryPath(cacheDir, cacheKey);
   if (primaryPath && fsSync.existsSync(primaryPath)) {
-    return { path: primaryPath, entry: await readCacheEntryFile(primaryPath) };
+    try {
+      repairShardIndexEntryToStandalonePath(cacheIndex, cacheKey, primaryPath);
+      return { path: primaryPath, entry: await readCacheEntryFile(primaryPath) };
+    } catch {
+      try {
+        await fs.rm(primaryPath, { force: true });
+      } catch {}
+    }
   }
   const legacyPath = resolveCacheEntryPath(cacheDir, cacheKey, { legacy: true });
   if (legacyPath && fsSync.existsSync(legacyPath)) {
-    return { path: legacyPath, entry: await readCacheEntryFile(legacyPath) };
+    try {
+      repairShardIndexEntryToStandalonePath(cacheIndex, cacheKey, legacyPath);
+      repointCacheIndexEntryPath(cacheIndex, cacheKey, legacyPath);
+      return { path: legacyPath, entry: await readCacheEntryFile(legacyPath) };
+    } catch {
+      try {
+        await fs.rm(legacyPath, { force: true });
+      } catch {}
+    }
   }
   return { path: primaryPath, entry: null };
 };
@@ -444,9 +564,11 @@ const resolveShardName = (shardId) => `shard-${String(shardId).padStart(5, '0')}
  */
 const allocateShard = (cacheIndex) => {
   const now = new Date().toISOString();
-  const shardId = Number.isFinite(Number(cacheIndex.nextShardId))
+  const configuredNextShardId = Number.isFinite(Number(cacheIndex.nextShardId))
     ? Math.max(0, Math.floor(Number(cacheIndex.nextShardId)))
-    : Object.keys(cacheIndex.shards || {}).length;
+    : 0;
+  const derivedNextShardId = resolveNextShardIdFromShards(cacheIndex.shards || {});
+  const shardId = Math.max(configuredNextShardId, derivedNextShardId);
   const shardName = resolveShardName(shardId);
   cacheIndex.nextShardId = shardId + 1;
   cacheIndex.currentShard = shardName;
@@ -598,13 +720,66 @@ export const writeCacheEntry = async (cacheDir, cacheKey, payload, options = {})
  * @returns {object|null}
  */
 export const upsertCacheIndexEntry = (cacheIndex, cacheKey, payload, shardEntry = null) => {
-  return upsertCacheIndexEntryImpl({
-    cacheIndex,
-    cacheKey,
-    payload,
-    shardEntry,
-    buildChunkHashesFingerprint
-  });
+  if (!cacheIndex || !cacheKey || !payload) return null;
+  const now = new Date().toISOString();
+  const existing = cacheIndex.entries?.[cacheKey] || {};
+  const hasShard = Boolean(shardEntry?.shard);
+  const hasStandalonePath = Boolean(shardEntry?.path);
+  const chunkHashesFingerprint = payload.chunkHashesFingerprint
+    || buildChunkHashesFingerprint(payload.chunkHashes)
+    || existing.chunkHashesFingerprint
+    || null;
+  const chunkHashesCount = Number.isFinite(Number(payload.chunkHashesCount))
+    ? Number(payload.chunkHashesCount)
+    : (
+      Array.isArray(payload.chunkHashes)
+        ? payload.chunkHashes.length
+        : (Number.isFinite(Number(existing.chunkHashesCount)) ? Number(existing.chunkHashesCount) : null)
+    );
+  const chunkCount = Number.isFinite(Number(payload.chunkCount))
+    ? Number(payload.chunkCount)
+    : (
+      Array.isArray(payload.codeVectors)
+        ? payload.codeVectors.length
+        : (Number.isFinite(Number(existing.chunkCount)) ? Number(existing.chunkCount) : null)
+    );
+  const next = {
+    key: cacheKey,
+    file: payload.file || existing.file || null,
+    hash: payload.hash || existing.hash || null,
+    chunkSignature: payload.chunkSignature || existing.chunkSignature || null,
+    shard: hasShard ? shardEntry.shard : (hasStandalonePath ? null : (existing.shard || null)),
+    path: hasStandalonePath ? shardEntry.path : (hasShard ? null : (existing.path || null)),
+    offset: hasShard
+      ? (Number.isFinite(Number(shardEntry?.offset)) ? Number(shardEntry.offset) : null)
+      : (hasStandalonePath ? null : (existing.offset || null)),
+    length: hasShard
+      ? (Number.isFinite(Number(shardEntry?.length)) ? Number(shardEntry.length) : null)
+      : (hasStandalonePath ? null : (existing.length || null)),
+    sizeBytes: Number.isFinite(Number(shardEntry?.sizeBytes))
+      ? Number(shardEntry.sizeBytes)
+      : existing.sizeBytes || null,
+    chunkCount,
+    chunkHashesFingerprint,
+    chunkHashesCount,
+    createdAt: existing.createdAt || now,
+    lastAccessAt: now,
+    hits: Number.isFinite(Number(existing.hits)) ? Number(existing.hits) : 0
+  };
+  const previousFile = typeof existing.file === 'string' && existing.file
+    ? existing.file
+    : null;
+  cacheIndex.entries = { ...(cacheIndex.entries || {}), [cacheKey]: next };
+  const nextFiles = { ...(cacheIndex.files || {}) };
+  if (previousFile && previousFile !== next.file && nextFiles[previousFile] === cacheKey) {
+    delete nextFiles[previousFile];
+  }
+  if (next.file) {
+    nextFiles[next.file] = cacheKey;
+  }
+  cacheIndex.files = nextFiles;
+  cacheIndex.updatedAt = now;
+  return next;
 };
 
 /**
@@ -863,6 +1038,7 @@ export const shouldFastRejectCacheLookup = ({
   if (!indexEntry) return false;
 
   const indexIdentityKey = cacheIndex?.identityKey || null;
+  if (!identityKey && indexIdentityKey) return true;
   if (identityKey && indexIdentityKey && indexIdentityKey !== identityKey) return true;
   if (fileHash && indexEntry?.hash && indexEntry.hash !== fileHash) return true;
   if (chunkSignature && indexEntry?.chunkSignature && indexEntry.chunkSignature !== chunkSignature) return true;

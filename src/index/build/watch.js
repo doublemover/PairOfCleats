@@ -37,13 +37,7 @@ import { startChokidarWatcher } from './watch/backends/chokidar.js';
 import { startParcelWatcher } from './watch/backends/parcel.js';
 import { createWatchAttemptManager } from './watch/attempts.js';
 import { normalizeRoot } from './watch/shared.js';
-import {
-  applyClassificationToTrackedState,
-  buildDiscoveryForMode,
-  createTrackedState,
-  removeTrackedPathFromModes,
-  seedTrackedStateForMode
-} from './watch/tracked-state.js';
+import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
 import { detectShebangLanguage } from './shebang.js';
 import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
 import {
@@ -118,7 +112,10 @@ export async function watchIndex({
   const exitPromise = new Promise((resolve) => {
     resolveExit = resolve;
   });
-  const trackedState = createTrackedState();
+  const trackedEntriesByMode = new Map();
+  const skippedEntriesByMode = new Map();
+  const trackedCounts = new Map();
+  const trackedFiles = new Set();
   const pendingPaths = new Set();
   const pendingUpdates = new Set();
   const burstWindowMs = 1000;
@@ -185,9 +182,9 @@ export async function watchIndex({
   const applyTrackedUpdates = async (absPaths) => {
     const updateQueue = runtimeRef.queues?.io;
     const handleUpdate = async (absPath) => {
-      const beforeTracked = trackedState.trackedCounts.get(absPath) || 0;
+      const beforeTracked = trackedCounts.get(absPath) || 0;
       const changed = await updateTrackedEntry(absPath);
-      const afterTracked = trackedState.trackedCounts.get(absPath) || 0;
+      const afterTracked = trackedCounts.get(absPath) || 0;
       if (beforeTracked > 0 || afterTracked > 0 || changed) scheduleBuild();
     };
     if (!updateQueue) {
@@ -258,6 +255,59 @@ export async function watchIndex({
       updateScheduled = false;
       void flushPendingUpdates();
     });
+  };
+
+  const ensureModeMap = (mode) => {
+    if (!trackedEntriesByMode.has(mode)) trackedEntriesByMode.set(mode, new Map());
+    return trackedEntriesByMode.get(mode);
+  };
+
+  const ensureSkipMap = (mode) => {
+    if (!skippedEntriesByMode.has(mode)) skippedEntriesByMode.set(mode, new Map());
+    return skippedEntriesByMode.get(mode);
+  };
+
+  const recordSkip = (mode, absPath, reason, extra = {}) => {
+    if (!mode) return;
+    const map = ensureSkipMap(mode);
+    map.set(absPath, { file: absPath, reason, ...extra });
+  };
+
+  const clearSkip = (mode, absPath) => {
+    const map = skippedEntriesByMode.get(mode);
+    if (map) map.delete(absPath);
+  };
+
+  const incrementTracked = (absPath) => {
+    const count = trackedCounts.get(absPath) || 0;
+    trackedCounts.set(absPath, count + 1);
+    trackedFiles.add(absPath);
+  };
+
+  const decrementTracked = (absPath) => {
+    const count = trackedCounts.get(absPath) || 0;
+    if (count <= 1) {
+      trackedCounts.delete(absPath);
+      trackedFiles.delete(absPath);
+      return;
+    }
+    trackedCounts.set(absPath, count - 1);
+  };
+
+  const removeEntryFromModes = (absPath) => {
+    for (const [mode, map] of trackedEntriesByMode.entries()) {
+      if (map.delete(absPath)) {
+        decrementTracked(absPath);
+      }
+    }
+  };
+
+  const buildDiscoveryForMode = (mode) => {
+    const map = trackedEntriesByMode.get(mode);
+    const entries = map ? Array.from(map.values()) : [];
+    const skippedMap = skippedEntriesByMode.get(mode);
+    const skippedFiles = skippedMap ? Array.from(skippedMap.values()) : [];
+    return { entries, skippedFiles };
   };
 
   /**
@@ -369,14 +419,75 @@ export async function watchIndex({
    * @returns {Promise<boolean>} true when tracked membership changed.
    */
   const updateTrackedEntry = async (absPath) => {
+    const beforeCount = trackedCounts.get(absPath) || 0;
     const classification = await classifyPath(absPath);
-    return applyClassificationToTrackedState({
-      state: trackedState,
-      absPath,
-      modes,
-      classification,
-      maxFilesCap
-    });
+    if (classification.skip) {
+      if (beforeCount > 0) removeEntryFromModes(absPath);
+      for (const mode of modes) {
+        recordSkip(mode, absPath, classification.reason, classification.extra || {});
+      }
+      return beforeCount > 0;
+    }
+    if (maxFilesCap && beforeCount === 0 && trackedCounts.size >= maxFilesCap) {
+      for (const mode of modes) {
+        recordSkip(mode, absPath, 'max-files', { maxFiles: maxFilesCap });
+      }
+      return false;
+    }
+    const baseEntry = {
+      abs: absPath,
+      rel: classification.relPosix,
+      stat: classification.stat,
+      ext: classification.ext
+    };
+    for (const mode of modes) {
+      if (classification.record) {
+        if (mode === 'records') {
+          const map = ensureModeMap(mode);
+          if (!map.has(absPath)) incrementTracked(absPath);
+          map.set(absPath, { ...baseEntry, record: classification.record });
+          clearSkip(mode, absPath);
+        } else {
+          const map = ensureModeMap(mode);
+          if (map.delete(absPath)) decrementTracked(absPath);
+          recordSkip(mode, absPath, 'records', {
+            recordType: classification.record.recordType || null
+          });
+        }
+        continue;
+      }
+      if (mode === 'records') {
+        const map = ensureModeMap(mode);
+        if (map.delete(absPath)) decrementTracked(absPath);
+        recordSkip(mode, absPath, 'unsupported');
+        continue;
+      }
+      const isProse = mode === 'prose';
+      const isCode = mode === 'code' || mode === 'extracted-prose';
+      const proseAllowed = isProseEntryForPath({
+        ext: classification.ext,
+        relPath: classification.relPosix
+      });
+      const codeAllowed = isCodeEntryForPath({
+        ext: classification.ext,
+        relPath: classification.relPosix,
+        isSpecial: classification.isSpecial
+      });
+      const allowed = (isProse && proseAllowed)
+        || (isCode && codeAllowed)
+        || (mode === 'extracted-prose' && proseAllowed);
+      const map = ensureModeMap(mode);
+      if (allowed) {
+        if (!map.has(absPath)) incrementTracked(absPath);
+        map.set(absPath, baseEntry);
+        clearSkip(mode, absPath);
+      } else {
+        if (map.delete(absPath)) decrementTracked(absPath);
+        recordSkip(mode, absPath, 'unsupported');
+      }
+    }
+    const afterCount = trackedCounts.get(absPath) || 0;
+    return beforeCount !== afterCount;
   };
 
   /**
@@ -464,7 +575,7 @@ export async function watchIndex({
           status = 'aborted';
           break;
         }
-        const discovery = buildDiscoveryForMode(trackedState, mode);
+        const discovery = buildDiscoveryForMode(mode);
         await resolvedDeps.buildIndexForMode({
           mode,
           runtime: attemptRuntime,
@@ -592,9 +703,9 @@ export async function watchIndex({
   const recordRemove = (absPath) => {
     pendingPaths.add(absPath);
     setWatchBacklog(pendingPaths.size);
-    const before = trackedState.trackedCounts.get(absPath) || 0;
+    const before = trackedCounts.get(absPath) || 0;
     if (before > 0) {
-      removeTrackedPathFromModes(trackedState, absPath);
+      removeEntryFromModes(absPath);
       scheduleBuild();
     }
   };
@@ -618,20 +729,24 @@ export async function watchIndex({
   });
   for (const mode of modes) {
     const entries = Array.isArray(discoveredByMode[mode]) ? discoveredByMode[mode] : [];
+    const modeMap = ensureModeMap(mode);
+    for (const entry of entries) {
+      if (!entry?.abs) continue;
+      if (!modeMap.has(entry.abs)) incrementTracked(entry.abs);
+      modeMap.set(entry.abs, entry);
+    }
     const skippedList = Array.isArray(skippedByMode[mode]) ? skippedByMode[mode] : [];
-    seedTrackedStateForMode({
-      state: trackedState,
-      mode,
-      entries,
-      skippedEntries: skippedList
-    });
+    const skipMap = ensureSkipMap(mode);
+    for (const skipped of skippedList) {
+      if (skipped?.file) skipMap.set(skipped.file, skipped);
+    }
   }
   const backendSelection = resolvedDeps.resolveWatcherBackend({ runtime: runtimeRef, pollMs });
   const pollingEnabled = backendSelection.pollingEnabled;
   const pollLabel = pollingEnabled ? ` polling ${Number(pollMs)}ms` : ' fs events';
   const backendLabel = backendSelection.resolved === 'parcel' ? 'parcel' : 'chokidar';
   if (backendSelection.warning) log(`[watch] ${backendSelection.warning}`);
-  log(`[watch] Monitoring ${trackedState.trackedFiles.size} file(s) via ${backendLabel}${pollLabel}.`);
+  log(`[watch] Monitoring ${trackedFiles.size} file(s) via ${backendLabel}${pollLabel}.`);
 
   stabilityGuard = backendSelection.resolved === 'parcel'
     ? {

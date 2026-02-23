@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { exitLikeCommandResult } from '../shared/cli-utils.js';
 
 const ROOT = process.cwd();
 const BENCH_RUNNER = path.join(ROOT, 'tools', 'bench', 'bench-runner.js');
@@ -207,14 +208,19 @@ const runVariant = ({ argv, variant, runIndex, runRoot }) => {
   const startedAt = Date.now();
   const result = spawnSync(process.execPath, args, { cwd: ROOT, env, encoding: 'utf8' });
   const durationMs = Date.now() - startedAt;
+  const exitCode = Number.isInteger(result.status) ? Number(result.status) : null;
+  const signal = typeof result.signal === 'string' && result.signal.trim().length > 0
+    ? result.signal.trim()
+    : null;
   const report = parseJson(result.stdout)
-    || (result.status === 0 ? null : { summary: { error: 1, timeout: 0 }, results: [] });
+    || ((exitCode === 0 && !signal) ? null : { summary: { error: 1, timeout: 0 }, results: [] });
   return {
     runId,
     variant,
     outPath,
     durationMs,
-    status: result.status ?? 1,
+    status: exitCode,
+    signal,
     stdout: result.stdout || '',
     stderr: result.stderr || '',
     report
@@ -248,6 +254,10 @@ const main = async () => {
   for (let index = 0; index < matrix.length; index += 1) {
     const variant = matrix[index];
     const run = runVariant({ argv, variant, runIndex: index, runRoot });
+    if (run.signal) {
+      console.error(`[ab-sweep] ${run.runId} interrupted by signal ${run.signal}`);
+      exitLikeCommandResult({ status: null, signal: run.signal });
+    }
     const report = run.report || JSON.parse(await fs.readFile(run.outPath, 'utf8'));
     const score = scoreRun(report);
     runs.push({

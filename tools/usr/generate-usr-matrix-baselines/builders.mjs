@@ -54,8 +54,7 @@ import {
  * Normalize one raw baseline row into deterministic registry-ready shape.
  *
  * Invariants:
- * - Source arrays are pre-canonicalized in dataset catalogs; this function
- *   copies those arrays without re-sorting to avoid per-run sort overhead.
+ * - Output arrays are sorted so generated JSON remains stable across runs.
  * - `requiredCapabilities` and parser fallback chains are resolved from family
  *   and parser preference catalogs; missing catalog entries are a programmer error.
  * - Risk source/sink expectations are derived from family signal class and must
@@ -82,20 +81,20 @@ function normalizeLanguageBaseline(base) {
     family: base.family,
     parserPreference: base.parserPreference,
     requiredConformance: [...base.requiredConformance],
-    frameworkProfiles: [...base.frameworkProfiles],
+    frameworkProfiles: [...base.frameworkProfiles].sort(),
     languageVersionPolicy: {
       minVersion: base.minVersion,
       maxVersion: null,
-      dialects: [...base.dialects],
-      featureFlags: [...base.featureFlags]
+      dialects: [...base.dialects].sort(),
+      featureFlags: [...base.featureFlags].sort()
     },
     embeddingPolicy: {
       canHostEmbedded: embeddingPolicy.canHostEmbedded,
       canBeEmbedded: embeddingPolicy.canBeEmbedded,
-      embeddedLanguageAllowlist: [...embeddingPolicy.embeddedLanguageAllowlist]
+      embeddedLanguageAllowlist: [...embeddingPolicy.embeddedLanguageAllowlist].sort()
     },
-    requiredNodeKinds: [...familyNodeKinds[base.family]],
-    requiredEdgeKinds: [...familyEdgeKinds[base.family]],
+    requiredNodeKinds: [...familyNodeKinds[base.family]].sort(),
+    requiredEdgeKinds: [...familyEdgeKinds[base.family]].sort(),
     requiredCapabilities: familyCapabilities[base.family],
     fallbackChain: parserFallbackByPreference[base.parserPreference],
     riskLocal: isHighSignal ? 'supported' : 'partial',
@@ -172,17 +171,10 @@ function capabilityRows(normalizedLanguages) {
   return rows;
 }
 
-/**
- * Build conformance requirements for framework/language profiles.
- *
- * Framework profiles are already exported in canonical `id` order from
- * dataset catalogs, so this routine preserves that order directly.
- *
- * @param {object[]} normalizedLanguages
- * @returns {object[]}
- */
 function conformanceRows(normalizedLanguages) {
-  const frameworkRows = frameworkProfiles.map((profile) => {
+  const frameworkRows = [...frameworkProfiles]
+    .sort((a, b) => a.id.localeCompare(b.id))
+    .map((profile) => {
       const requiredFixtureFamilies = ['framework-overlay', 'embedded-bridge'];
       if (profile.routeSemantics?.enabled) {
         requiredFixtureFamilies.push('route-canonicalization');

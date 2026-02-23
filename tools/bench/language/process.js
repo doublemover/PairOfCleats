@@ -5,6 +5,7 @@ import { spawnSubprocess } from '../../../src/shared/subprocess.js';
 import { killProcessTree as killPidTree } from '../../../src/shared/kill-tree.js';
 import { createProgressLineDecoder } from '../../../src/shared/cli/progress-stream.js';
 import { parseProgressEventLine } from '../../../src/shared/cli/progress-events.js';
+import { exitLikeCommandResult } from '../../shared/cli-utils.js';
 import {
   BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION,
   computeBenchProgressConfidence,
@@ -704,7 +705,10 @@ export const createProcessRunner = ({
       stdoutDecoder.flush();
       stderrDecoder.flush();
       const code = result.exitCode;
-      writeLog(`[finish] ${label} code=${code}`);
+      const signal = typeof result.signal === 'string' && result.signal.trim().length > 0
+        ? result.signal.trim()
+        : null;
+      writeLog(`[finish] ${label} code=${code ?? 'null'} signal=${signal ?? 'null'}`);
       clearActiveChild(result.pid);
       emitProgressConfidenceSample({
         reason: 'process-exit',
@@ -736,12 +740,13 @@ export const createProcessRunner = ({
       if (!continueOnError) {
         await flushQueuedJsonLines(telemetryWriteQueues);
         logExit('failure', code ?? 1);
-        process.exit(code ?? 1);
+        exitLikeCommandResult({ status: code, signal });
       }
       await flushQueuedJsonLines(telemetryWriteQueues);
       return {
         ok: false,
         code: code ?? 1,
+        signal,
         schedulerEvents: getSchedulerEvents(),
         diagnostics: buildDiagnosticsSummary(),
         progressConfidence: buildProgressConfidenceSummary()
@@ -750,6 +755,12 @@ export const createProcessRunner = ({
       stdoutDecoder.flush();
       stderrDecoder.flush();
       const message = err?.message || err;
+      const failureStatus = Number.isInteger(err?.result?.exitCode)
+        ? Number(err.result.exitCode)
+        : (Number.isInteger(err?.exitCode) ? Number(err.exitCode) : null);
+      const failureSignal = typeof err?.result?.signal === 'string' && err.result.signal.trim().length > 0
+        ? err.result.signal.trim()
+        : null;
       writeLog(`[error] ${label} spawn failed: ${message}`);
       clearActiveChild(err?.result?.pid ?? null);
       appendLog(`[run] failed: ${label}`);
@@ -764,8 +775,8 @@ export const createProcessRunner = ({
       }
       if (!continueOnError) {
         await flushQueuedJsonLines(telemetryWriteQueues);
-        logExit('failure', err?.exitCode ?? 1);
-        process.exit(err?.exitCode ?? 1);
+        logExit('failure', failureStatus ?? 1);
+        exitLikeCommandResult({ status: failureStatus, signal: failureSignal });
       }
       emitProgressConfidenceSample({
         reason: 'spawn-error',
@@ -776,7 +787,8 @@ export const createProcessRunner = ({
       await flushQueuedJsonLines(telemetryWriteQueues);
       return {
         ok: false,
-        code: err?.exitCode ?? 1,
+        code: failureStatus ?? 1,
+        signal: failureSignal,
         schedulerEvents: getSchedulerEvents(),
         diagnostics: buildDiagnosticsSummary(),
         progressConfidence: buildProgressConfidenceSummary()

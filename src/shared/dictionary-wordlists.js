@@ -12,13 +12,6 @@ const DEFAULT_DICTIONARY_READ_CONCURRENCY = 8;
  */
 const toFileList = (value) => {
   if (!value) return [];
-  if (typeof value === 'string') {
-    return value ? [value] : [];
-  }
-  if (value instanceof String) {
-    const normalized = value.valueOf();
-    return normalized ? [normalized] : [];
-  }
   if (Array.isArray(value)) {
     return value.filter((entry) => typeof entry === 'string' && entry);
   }

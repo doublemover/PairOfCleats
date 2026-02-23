@@ -133,8 +133,14 @@ export const createPostingsQueue = ({
   };
   const notifyWaiters = () => {
     if (!waiters.length) return;
-    const pending = waiters.splice(0, waiters.length);
-    for (const resolve of pending) resolve();
+    const availableByCount = resolvedMaxPending == null
+      ? 1
+      : Math.max(1, resolvedMaxPending - state.pending);
+    const wakeCount = Math.max(1, Math.min(waiters.length, availableByCount));
+    for (let index = 0; index < wakeCount; index += 1) {
+      const resolve = waiters.shift();
+      if (typeof resolve === 'function') resolve();
+    }
   };
 
   const noteHighWater = () => {

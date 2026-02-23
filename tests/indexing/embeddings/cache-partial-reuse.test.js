@@ -131,5 +131,33 @@ if (!changedKeysAfter.some((key) => key !== changedKeyFirst)) {
   console.error('Expected changed file to produce a new cache key');
   process.exit(1);
 }
+const changedKeySecond = changedKeysAfter.find((key) => key !== changedKeyFirst);
+if (!changedKeySecond) {
+  console.error('Expected to resolve a new cache key for changed file');
+  process.exit(1);
+}
+
+if (!second.index.files || typeof second.index.files !== 'object') {
+  console.error('Expected cache index files map to exist after changed build');
+  process.exit(1);
+}
+second.index.files['src/alpha.js'] = changedKeyFirst;
+await fsPromises.writeFile(second.indexPath, JSON.stringify(second.index, null, 2), 'utf8');
+
+runNode('build_embeddings remap stale file key', [
+  path.join(root, 'tools', 'build', 'embeddings.js'),
+  '--stub-embeddings',
+  '--mode',
+  'code',
+  '--repo',
+  repoRoot
+]);
+
+const third = await loadCacheIndex(cacheRoot);
+const remappedKey = third.index.files?.['src/alpha.js'];
+if (remappedKey !== changedKeySecond) {
+  console.error(`Expected cache file map to repoint to latest key (expected ${changedKeySecond}, got ${remappedKey || 'missing'})`);
+  process.exit(1);
+}
 
 console.log('embeddings cache partial reuse test passed');

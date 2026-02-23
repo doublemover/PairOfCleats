@@ -51,7 +51,19 @@ assert.equal(result.skip, true, 'expected vocab growth to be skipped');
 const afterCount = db.prepare('SELECT COUNT(*) AS total FROM token_vocab WHERE mode = ?').get('code').total;
 assert.equal(afterCount, beforeCount, 'expected vocab size to remain unchanged');
 
-const startLargeCount = afterCount;
+result = ensureVocabIds(
+  db,
+  'code',
+  'token_vocab',
+  'token_id',
+  'token',
+  new Set(['gamma', 'theta']),
+  insertStmt
+);
+assert.equal(result.inserted, 1, 'expected Set input to insert only unseen values');
+assert.equal(result.map.get('theta') != null, true, 'expected Set input to populate id map for inserted value');
+
+const startLargeCount = db.prepare('SELECT COUNT(*) AS total FROM token_vocab WHERE mode = ?').get('code').total;
 const bigTokens = Array.from({ length: 1200 }, (_, idx) => `token_${idx}`);
 result = ensureVocabIds(
   db,

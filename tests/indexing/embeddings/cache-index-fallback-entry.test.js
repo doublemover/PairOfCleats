@@ -58,6 +58,16 @@ assert.ok(indexEntry, 'expected index entry to be created');
 assert.equal(indexEntry.shard, null, 'expected fallback entry to remain path-backed');
 assert.equal(indexEntry.path, writeResult.path, 'expected fallback entry path to be indexed');
 assert.equal(index.entries[cacheKey]?.path, writeResult.path, 'expected indexed fallback path in cache index');
+assert.equal(index.files['src/sample.js'], cacheKey, 'expected file lookup to point at cache key');
+
+const movedPayload = {
+  ...payload,
+  file: 'src/moved.js',
+  hash: 'hash-2'
+};
+upsertCacheIndexEntry(index, cacheKey, movedPayload, writeResult);
+assert.equal(index.files['src/sample.js'], undefined, 'expected stale file lookup to be removed on file remap');
+assert.equal(index.files['src/moved.js'], cacheKey, 'expected remapped file lookup to point at cache key');
 
 const loaded = await readCacheEntry(cacheDir, cacheKey, index);
 assert.ok(loaded?.entry, 'expected fallback cache entry to be readable via index metadata');

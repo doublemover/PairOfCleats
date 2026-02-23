@@ -4,6 +4,7 @@ import path from 'node:path';
 import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
 import { createCli } from '../../src/shared/cli.js';
 import { getRuntimeConfig, getTriageConfig, resolveRepoConfig, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
+import { exitLikeCommandResult } from '../shared/cli-utils.js';
 import { normalizeDependabot } from '../../src/integrations/triage/normalize/dependabot.js';
 import { normalizeAwsInspector } from '../../src/integrations/triage/normalize/aws-inspector.js';
 import { normalizeGeneric } from '../../src/integrations/triage/normalize/generic.js';
@@ -102,7 +103,9 @@ if (argv['build-index']) {
     env,
     rejectOnNonZeroExit: false
   });
-  if (result.exitCode !== 0) process.exit(result.exitCode ?? 1);
+  if (result.exitCode !== 0) {
+    exitLikeCommandResult({ status: result.exitCode, signal: result.signal });
+  }
 }
 
 console.log(JSON.stringify(results, null, 2));

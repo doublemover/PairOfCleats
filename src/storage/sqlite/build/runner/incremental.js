@@ -1,6 +1,6 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { resolveRecordsIncrementalCapability } from '../imports.js';
+import { resolveRecordsIncrementalCapability } from '../index.js';
 
 const BUNDLE_INVENTORY_CACHE_LIMIT = 64;
 const bundleInventoryCache = new Map();
@@ -66,6 +66,23 @@ const hashInventoryName = (name) => {
 };
 
 /**
+ * Hash sorted inventory names into one deterministic 64-bit digest.
+ *
+ * @param {string[]} names
+ * @returns {{digest:bigint,sorted:string[]}}
+ */
+const hashInventoryNames = (names) => {
+  const sorted = Array.isArray(names) ? names.slice().sort() : [];
+  let digest = FNV64_OFFSET_BASIS;
+  for (const name of sorted) {
+    const entryHash = hashInventoryName(name);
+    digest ^= entryHash;
+    digest = (digest * FNV64_PRIME) & FNV64_MASK;
+  }
+  return { digest, sorted };
+};
+
+/**
  * Build a cheap change-sensitive snapshot key for a bundle directory.
  *
  * The key combines entry count with xor/sum over hashed names so in-memory
@@ -78,18 +95,14 @@ const resolveBundleInventorySnapshot = (bundleDir) => {
   if (!bundleDir) return null;
   try {
     const names = [];
-    let hashXor = 0n;
-    let hashSum = 0n;
     for (const name of fsSync.readdirSync(bundleDir)) {
       if (typeof name !== 'string' || name.startsWith('.')) continue;
       names.push(name);
-      const entryHash = hashInventoryName(name);
-      hashXor ^= entryHash;
-      hashSum = (hashSum + entryHash) & FNV64_MASK;
     }
+    const { digest, sorted } = hashInventoryNames(names);
     return {
-      cacheKey: `${bundleDir}|${names.length}|${hashXor.toString(16)}|${hashSum.toString(16)}`,
-      names
+      cacheKey: `${bundleDir}|${names.length}|${digest.toString(16)}`,
+      names: sorted
     };
   } catch {
     return null;

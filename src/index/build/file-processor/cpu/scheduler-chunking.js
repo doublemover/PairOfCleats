@@ -208,6 +208,10 @@ export const chunkWithScheduler = async ({
     && typeof treeSitterScheduler.loadChunks === 'function'
     ? treeSitterScheduler.loadChunks.bind(treeSitterScheduler)
     : null;
+  const schedulerReleaseVirtualPathCaches = treeSitterScheduler
+    && typeof treeSitterScheduler.releaseVirtualPathCaches === 'function'
+    ? treeSitterScheduler.releaseVirtualPathCaches.bind(treeSitterScheduler)
+    : null;
   const schedulerDegradedCheck = treeSitterScheduler
     && typeof treeSitterScheduler.isDegradedVirtualPath === 'function'
     ? treeSitterScheduler.isDegradedVirtualPath.bind(treeSitterScheduler)
@@ -222,83 +226,95 @@ export const chunkWithScheduler = async ({
     }
     schedulerLookupItems.push(item);
   }
+  const releaseSchedulerLookupCaches = () => {
+    if (!schedulerReleaseVirtualPathCaches || !schedulerLookupItems.length) return;
+    for (const item of schedulerLookupItems) {
+      try {
+        schedulerReleaseVirtualPathCaches(item.virtualPath);
+      } catch {}
+    }
+  };
   updateCrashStage('chunking:scheduler:plan', {
     scheduledSegmentCount: scheduled.length,
     schedulerLookupItems: schedulerLookupItems.length,
     fallbackSegmentCount: fallbackSegments.length,
     schedulerDegradedCount: counters.schedulerDegradedCount
   });
-  const batchChunks = schedulerLookupItems.length > 0
-    && schedulerLoadChunksBatch
-    ? await (async () => {
-      const virtualPaths = schedulerLookupItems.map((item) => item.virtualPath);
-      updateCrashStage('chunking:scheduler:load-batch:start', {
-        itemCount: virtualPaths.length
-      });
-      const chunks = await schedulerLoadChunksBatch(virtualPaths, schedulerLoadOptions);
-      updateCrashStage('chunking:scheduler:load-batch:done', {
-        itemCount: virtualPaths.length,
-        loadedCount: Array.isArray(chunks) ? chunks.length : null
-      });
-      return chunks;
-    })()
-    : null;
-  if (Array.isArray(batchChunks) && batchChunks.length === schedulerLookupItems.length) {
-    for (let i = 0; i < schedulerLookupItems.length; i += 1) {
-      const item = schedulerLookupItems[i];
-      const chunks = batchChunks[i];
-      if (!Array.isArray(chunks) || !chunks.length) {
-        if (handleMissingScheduledChunks({
-          treeSitterStrict,
-          treeSitterScheduler,
-          item,
-          fallbackSegments,
-          counters,
-          logLine,
-          mode,
-          relKey
-        })) {
-          continue;
-        }
-      }
-      sc.push(...chunks);
-    }
-  } else {
-    const loadChunk = schedulerLoadChunk
-      ? (virtualPath) => schedulerLoadChunk(virtualPath, schedulerLoadOptions)
+  try {
+    const batchChunks = schedulerLookupItems.length > 0
+      && schedulerLoadChunksBatch
+      ? await (async () => {
+        const virtualPaths = schedulerLookupItems.map((item) => item.virtualPath);
+        updateCrashStage('chunking:scheduler:load-batch:start', {
+          itemCount: virtualPaths.length
+        });
+        const chunks = await schedulerLoadChunksBatch(virtualPaths, schedulerLoadOptions);
+        updateCrashStage('chunking:scheduler:load-batch:done', {
+          itemCount: virtualPaths.length,
+          loadedCount: Array.isArray(chunks) ? chunks.length : null
+        });
+        return chunks;
+      })()
       : null;
-    for (const item of schedulerLookupItems) {
-      if (!loadChunk) {
-        fallbackSegments.push(item.segment);
-        counters.codeFallbackSegmentCount += 1;
-        continue;
+    if (Array.isArray(batchChunks) && batchChunks.length === schedulerLookupItems.length) {
+      for (let i = 0; i < schedulerLookupItems.length; i += 1) {
+        const item = schedulerLookupItems[i];
+        const chunks = batchChunks[i];
+        if (!Array.isArray(chunks) || !chunks.length) {
+          if (handleMissingScheduledChunks({
+            treeSitterStrict,
+            treeSitterScheduler,
+            item,
+            fallbackSegments,
+            counters,
+            logLine,
+            mode,
+            relKey
+          })) {
+            continue;
+          }
+        }
+        sc.push(...chunks);
       }
-      updateCrashStage('chunking:scheduler:load-one:start', {
-        label: item.label,
-        virtualPath: item.virtualPath
-      });
-      const chunks = await loadChunk(item.virtualPath);
-      updateCrashStage('chunking:scheduler:load-one:done', {
-        label: item.label,
-        virtualPath: item.virtualPath,
-        chunkCount: Array.isArray(chunks) ? chunks.length : null
-      });
-      if (!Array.isArray(chunks) || !chunks.length) {
-        if (handleMissingScheduledChunks({
-          treeSitterStrict,
-          treeSitterScheduler,
-          item,
-          fallbackSegments,
-          counters,
-          logLine,
-          mode,
-          relKey
-        })) {
+    } else {
+      const loadChunk = schedulerLoadChunk
+        ? (virtualPath) => schedulerLoadChunk(virtualPath, schedulerLoadOptions)
+        : null;
+      for (const item of schedulerLookupItems) {
+        if (!loadChunk) {
+          fallbackSegments.push(item.segment);
+          counters.codeFallbackSegmentCount += 1;
           continue;
         }
+        updateCrashStage('chunking:scheduler:load-one:start', {
+          label: item.label,
+          virtualPath: item.virtualPath
+        });
+        const chunks = await loadChunk(item.virtualPath);
+        updateCrashStage('chunking:scheduler:load-one:done', {
+          label: item.label,
+          virtualPath: item.virtualPath,
+          chunkCount: Array.isArray(chunks) ? chunks.length : null
+        });
+        if (!Array.isArray(chunks) || !chunks.length) {
+          if (handleMissingScheduledChunks({
+            treeSitterStrict,
+            treeSitterScheduler,
+            item,
+            fallbackSegments,
+            counters,
+            logLine,
+            mode,
+            relKey
+          })) {
+            continue;
+          }
+        }
+        sc.push(...chunks);
       }
-      sc.push(...chunks);
     }
+  } finally {
+    releaseSchedulerLookupCaches();
   }
 
   if (counters.schedulerMissingCount > 0) {

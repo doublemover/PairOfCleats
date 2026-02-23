@@ -15,7 +15,17 @@ for (const chunk of splitChunks) {
 
 const smallText = 'short text';
 const smallChunks = [{ start: 0, end: smallText.length }];
-const untouched = applyChunkingLimits(smallChunks, smallText, {});
+const smallContext = {
+  chunkingShared: {
+    text: smallText
+  }
+};
+const untouched = applyChunkingLimits(smallChunks, smallText, smallContext);
 assert.equal(untouched.length, 1, 'expected small text to remain a single chunk');
+assert.equal(
+  smallContext.chunkingShared.byteMetrics,
+  undefined,
+  'expected byte metrics cache to remain unset when no byte limits or guardrails apply'
+);
 
 console.log('chunking guardrails test passed');

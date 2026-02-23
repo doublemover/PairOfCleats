@@ -15,7 +15,8 @@ import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../../
 import { readQueryFileSafe, resolveTopNAndLimit, selectQueriesByLimit } from '../shared/query-file-utils.js';
 import { runSearchCliWithSubprocessSync } from '../shared/search-cli-harness.js';
 import { mean, meanNullable } from '../shared/stats-utils.js';
-import { runSubprocessOrExit } from '../shared/cli-utils.js';
+import { exitLikeCommandResult, runSubprocessOrExit } from '../shared/cli-utils.js';
+import { isPathWithinRoot } from '../shared/path-within-root.js';
 import {
   DEFAULT_MODEL_ID,
   bootstrapRuntime,
@@ -185,8 +186,9 @@ function resolveModelIndexRoot(modelCacheRoot, mode) {
       const resolveRoot = (value) => {
         if (!value) return null;
         const resolved = isAbsolutePathNative(value) ? value : path.join(repoCacheRoot, value);
-        const normalized = toRealPathSync(resolved);
-        if (!isWithinRoot(normalized, repoCacheCanonical)) return null;
+        const normalized = path.resolve(resolved);
+        const rootResolved = path.resolve(repoCacheRoot);
+        if (!isPathWithinRoot(normalized, rootResolved)) return null;
         return normalized;
       };
       const buildId = typeof data.buildId === 'string' ? data.buildId : null;
@@ -268,7 +270,7 @@ function ensureIndex(modelCacheRoot) {
  * @param {string} label
  */
 function runCommand(args, env, label) {
-  const stdio = argv.json ? ['ignore', 'ignore', 'ignore'] : 'inherit';
+  const stdio = argv.json ? ['ignore', 'ignore', 'inherit'] : 'inherit';
   runSubprocessOrExit({
     command: process.execPath,
     args,
@@ -304,7 +306,7 @@ function runSearch(query, env) {
     if (err?.code !== 'ERR_SEARCH_CLI_EXIT') throw err;
     console.error(`Search failed for query="${query}" (model=${resolveModelLabel(env)})`);
     if (err.stderr) console.error(String(err.stderr).trim());
-    process.exit(err.exitCode ?? 1);
+    exitLikeCommandResult({ status: err?.exitCode ?? null, signal: err?.signal ?? null });
   }
 }
 

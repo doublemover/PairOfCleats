@@ -1,10 +1,12 @@
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import { getIndexDir, getMetricsDir } from '../../../shared/dict-utils.js';
 import { buildRecordsIndexForRepo } from '../../../integrations/triage/index-records.js';
 import { createCacheReporter, createLruCache, estimateFileTextBytes } from '../../../shared/cache.js';
 import { getEnvConfig } from '../../../shared/env.js';
-import { log } from '../../../shared/progress.js';
+import { log, showProgress } from '../../../shared/progress.js';
 import { throwIfAborted } from '../../../shared/abort.js';
+import { coerceUnitFraction } from '../../../shared/number-coerce.js';
 import { createCrashLogger } from '../crash-log.js';
 import { recordOrderingSeedInputs, updateBuildState } from '../build-state.js';
 import { estimateContextWindow } from '../context-window.js';
@@ -13,6 +15,7 @@ import { createStageCheckpointRecorder } from '../stage-checkpoints.js';
 import { createIndexState } from '../state.js';
 import { enqueueEmbeddingJob } from './embedding-queue.js';
 import { getTreeSitterStats, resetTreeSitterStats } from '../../../lang/tree-sitter.js';
+import { INDEX_PROFILE_VECTOR_ONLY } from '../../../contracts/index-profile.js';
 import { SCHEDULER_QUEUE_NAMES } from '../runtime/scheduler.js';
 import { writeSchedulerAutoTuneProfile } from '../runtime/scheduler-autotune-profile.js';
 import { formatHealthFailure, runIndexingHealthChecks } from '../../../shared/ops-health.js';
@@ -25,7 +28,14 @@ import {
   readIndexArtifactBytes
 } from '../../../shared/ops-resource-visibility.js';
 import {
+  SIGNATURE_VERSION,
+  buildIncrementalSignature,
+  buildIncrementalSignatureSummary,
+  buildTokenizationKey
+} from './signatures.js';
+import {
   buildFeatureSettings,
+  hasVectorEmbeddingBuildCapability,
   resolveAnalysisFlags,
   resolveVectorOnlyShortcutPolicy
 } from './pipeline/features.js';
@@ -49,15 +59,7 @@ import {
   summarizeGraphRelations,
   summarizePostingsQueue
 } from './pipeline/summaries.js';
-import { createStageOrchestration } from './pipeline/stage-orchestration.js';
-import { initializePipelinePolicyBootstrap } from './pipeline/policy-context.js';
-import {
-  createIncrementalBundleVfsRowsPromise,
-  resolvePostingsBuildResult,
-  resolvePostingsOverlapPolicy,
-  runWriteStageWithIncrementalBundles,
-  startOverlappedPostingsBuild
-} from './pipeline/phase-ordering.js';
+import { resolvePipelinePolicyContext } from './pipeline/policy-context.js';
 import { runDiscovery } from './steps/discover.js';
 import {
   loadIncrementalPlan,
@@ -70,6 +72,7 @@ import { processFiles } from './steps/process-files.js';
 import { postScanImports, preScanImports, runCrossFileInference } from './steps/relations.js';
 import { writeIndexArtifactsForMode } from './steps/write.js';
 
+const HOST_CPU_COUNT = Array.isArray(os.cpus()) ? os.cpus().length : null;
 const INDEX_STAGE_PLAN = Object.freeze([
   Object.freeze({ id: 'discover', label: 'discovery' }),
   Object.freeze({ id: 'imports', label: 'imports' }),
@@ -78,6 +81,7 @@ const INDEX_STAGE_PLAN = Object.freeze([
   Object.freeze({ id: 'postings', label: 'postings' }),
   Object.freeze({ id: 'write', label: 'write' })
 ]);
+const HEAVY_UTILIZATION_STAGES = new Set(['processing', 'relations', 'postings', 'write']);
 
 /**
  * Build indexes for one mode by running discovery/planning/stage pipeline.
@@ -175,19 +179,378 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   };
   const seenFiles = new Set();
 
-  const {
-    advanceStage,
-    getSchedulerStats,
-    getStageNumber,
-    maybeEnableQueueDepthSnapshotsForFileCount,
-    recordStageCheckpoint
-  } = createStageOrchestration({
-    runtime,
-    mode,
-    stagePlan: INDEX_STAGE_PLAN,
-    stageCheckpoints,
-    log
-  });
+  const stageTotal = INDEX_STAGE_PLAN.length;
+  let stageIndex = 0;
+  /**
+   * Read scheduler stats when scheduler telemetry is available.
+   *
+   * @returns {object|null}
+   */
+  const getSchedulerStats = () => (runtime?.scheduler?.stats ? runtime.scheduler.stats() : null);
+  const schedulerTelemetry = runtime?.scheduler
+    && typeof runtime.scheduler.setTelemetryOptions === 'function'
+    ? runtime.scheduler
+    : null;
+  const queueDepthSnapshotIntervalMs = Number.isFinite(
+    Number(runtime?.indexingConfig?.scheduler?.queueDepthSnapshotIntervalMs)
+  )
+    ? Math.max(1000, Math.floor(Number(runtime.indexingConfig.scheduler.queueDepthSnapshotIntervalMs)))
+    : 5000;
+  const queueDepthSnapshotFileThreshold = Number.isFinite(
+    Number(runtime?.indexingConfig?.scheduler?.queueDepthSnapshotFileThreshold)
+  )
+    ? Math.max(1, Math.floor(Number(runtime.indexingConfig.scheduler.queueDepthSnapshotFileThreshold)))
+    : 20000;
+  let queueDepthSnapshotsEnabled = false;
+  /**
+   * Tag scheduler telemetry with the active pipeline stage id.
+   *
+   * @param {string} stageId
+   * @returns {void}
+   */
+  const setSchedulerTelemetryStage = (stageId) => {
+    if (!schedulerTelemetry || typeof stageId !== 'string') return;
+    schedulerTelemetry.setTelemetryOptions({ stage: stageId });
+  };
+  /**
+   * Enable periodic queue-depth snapshots once for large-repo diagnostics.
+   *
+   * @returns {void}
+   */
+  const enableQueueDepthSnapshots = () => {
+    if (!schedulerTelemetry || queueDepthSnapshotsEnabled) return;
+    queueDepthSnapshotsEnabled = true;
+    schedulerTelemetry.setTelemetryOptions({
+      queueDepthSnapshotsEnabled: true,
+      queueDepthSnapshotIntervalMs
+    });
+  };
+  if (runtime?.hugeRepoProfileEnabled === true) {
+    enableQueueDepthSnapshots();
+  }
+  let lowUtilizationWarningEmitted = false;
+  const utilizationTarget = coerceUnitFraction(runtime?.schedulerConfig?.utilizationAlertTarget)
+    ?? 0.75;
+  const utilizationAlertWindowMs = Number.isFinite(Number(runtime?.schedulerConfig?.utilizationAlertWindowMs))
+    ? Math.max(1000, Math.floor(Number(runtime.schedulerConfig.utilizationAlertWindowMs)))
+    : 15000;
+  let utilizationUnderTargetSinceMs = 0;
+  let utilizationTargetWarningEmitted = false;
+  const queueUtilizationUnderTargetSinceMs = new Map();
+  const queueUtilizationWarningEmitted = new Set();
+  let lastCpuUsage = process.cpuUsage();
+  let lastCpuUsageAtMs = Date.now();
+
+  /**
+   * Approximate process CPU busy percentage over the last sampling interval.
+   *
+   * @param {number} cpuCount
+   * @returns {number|null}
+   */
+  const resolveProcessBusyPct = (cpuCount) => {
+    const usage = process.cpuUsage();
+    const nowMs = Date.now();
+    const elapsedMs = Math.max(1, nowMs - lastCpuUsageAtMs);
+    const previous = lastCpuUsage;
+    lastCpuUsage = usage;
+    lastCpuUsageAtMs = nowMs;
+    if (!previous || !Number.isFinite(cpuCount) || cpuCount <= 0) return null;
+    const userDeltaUs = Math.max(0, Number(usage.user) - Number(previous.user));
+    const systemDeltaUs = Math.max(0, Number(usage.system) - Number(previous.system));
+    const consumedMs = (userDeltaUs + systemDeltaUs) / 1000;
+    const capacityMs = elapsedMs * cpuCount;
+    if (!Number.isFinite(consumedMs) || !Number.isFinite(capacityMs) || capacityMs <= 0) return null;
+    return Math.max(0, Math.min(100, (consumedMs / capacityMs) * 100));
+  };
+  /**
+   * Capture an operational snapshot used for stage checkpoint telemetry.
+   *
+   * @returns {object}
+   */
+  const captureRuntimeSnapshot = () => {
+    const schedulerStats = getSchedulerStats();
+    const schedulerQueueDepth = schedulerStats?.queues
+      ? Object.values(schedulerStats.queues).reduce((sum, queue) => (
+        sum + (Number.isFinite(Number(queue?.pending)) ? Number(queue.pending) : 0)
+      ), 0)
+      : null;
+    const queueInflightBytes = runtime?.queues
+      ? {
+        io: Number(runtime.queues.io?.inflightBytes) || 0,
+        cpu: Number(runtime.queues.cpu?.inflightBytes) || 0,
+        embedding: Number(runtime.queues.embedding?.inflightBytes) || 0,
+        proc: Number(runtime.queues.proc?.inflightBytes) || 0
+      }
+      : null;
+    const telemetryInflightBytes = runtime?.telemetry?.readInFlightBytes
+      ? runtime.telemetry.readInFlightBytes()
+      : null;
+    const workerStats = runtime?.workerPool?.stats ? runtime.workerPool.stats() : null;
+    const quantizeWorkerStats = runtime?.quantizePool
+      && runtime.quantizePool !== runtime.workerPool
+      && runtime.quantizePool?.stats
+      ? runtime.quantizePool.stats()
+      : null;
+    const cpuCount = Array.isArray(runtime?.cpuList) && runtime.cpuList.length
+      ? runtime.cpuList.length
+      : HOST_CPU_COUNT;
+    const loadAvg = typeof os.loadavg === 'function' ? os.loadavg() : null;
+    const oneMinuteLoad = Array.isArray(loadAvg) && Number.isFinite(loadAvg[0]) ? loadAvg[0] : null;
+    const normalizedCpuLoad = Number.isFinite(oneMinuteLoad) && Number.isFinite(cpuCount) && cpuCount > 0
+      ? Math.max(0, Math.min(1, oneMinuteLoad / cpuCount))
+      : null;
+    const processBusyPct = resolveProcessBusyPct(cpuCount);
+    const resolvedBusyPct = Number.isFinite(normalizedCpuLoad)
+      ? Math.max(0, Math.min(100, Math.round(normalizedCpuLoad * 1000) / 10))
+      : (Number.isFinite(processBusyPct)
+        ? Math.max(0, Math.min(100, Math.round(processBusyPct * 10) / 10))
+        : null);
+    const totalMem = Number(os.totalmem()) || 0;
+    const freeMem = Number(os.freemem()) || 0;
+    const memoryUtilization = totalMem > 0
+      ? Math.max(0, Math.min(1, (totalMem - freeMem) / totalMem))
+      : null;
+    return {
+      scheduler: schedulerStats,
+      cpu: {
+        cores: Number.isFinite(cpuCount) ? cpuCount : null,
+        loadAvg1m: oneMinuteLoad,
+        normalizedLoad: normalizedCpuLoad,
+        busyPct: resolvedBusyPct
+      },
+      memory: {
+        totalBytes: totalMem > 0 ? totalMem : null,
+        freeBytes: freeMem > 0 ? freeMem : null,
+        utilization: memoryUtilization
+      },
+      queues: runtime?.queues
+        ? {
+          ioPending: Number.isFinite(runtime.queues.io?.size) ? runtime.queues.io.size : null,
+          cpuPending: Number.isFinite(runtime.queues.cpu?.size) ? runtime.queues.cpu.size : null,
+          embeddingPending: Number.isFinite(runtime.queues.embedding?.size) ? runtime.queues.embedding.size : null,
+          procPending: Number.isFinite(runtime.queues.proc?.size) ? runtime.queues.proc.size : null,
+          schedulerPending: schedulerQueueDepth
+        }
+        : null,
+      inFlightBytes: {
+        queue: queueInflightBytes,
+        telemetry: telemetryInflightBytes,
+        total: Number(
+          (queueInflightBytes?.io || 0)
+          + (queueInflightBytes?.cpu || 0)
+          + (queueInflightBytes?.embedding || 0)
+          + (queueInflightBytes?.proc || 0)
+          + (telemetryInflightBytes?.total || 0)
+        ) || 0
+      },
+      workers: {
+        tokenize: workerStats || null,
+        quantize: quantizeWorkerStats || null
+      }
+    };
+  };
+  /**
+   * Emit a one-time warning when queue depth is high but overall utilization is
+   * materially low, indicating potential scheduling bottlenecks.
+   *
+   * @param {{snapshot:object,stage:string,step?:string}} input
+   * @returns {void}
+   */
+  const maybeWarnLowSchedulerUtilization = ({ snapshot, stage, step }) => {
+    if (lowUtilizationWarningEmitted) return;
+    const schedulerStats = snapshot?.scheduler;
+    const utilization = Number(schedulerStats?.utilization?.overall);
+    const pending = Number(schedulerStats?.activity?.pending);
+    const cpuTokens = Number(schedulerStats?.tokens?.cpu?.total);
+    const ioTokens = Number(schedulerStats?.tokens?.io?.total);
+    const tokenBudget = Math.max(1, Math.floor((cpuTokens || 0) + (ioTokens || 0)));
+    if (!Number.isFinite(utilization) || !Number.isFinite(pending)) return;
+    if (pending < Math.max(64, tokenBudget * 4)) return;
+    if (utilization >= 0.35) return;
+    lowUtilizationWarningEmitted = true;
+    log(
+      `[perf] scheduler under-utilization detected at ${stage}${step ? `/${step}` : ''}: ` +
+      `utilization=${utilization.toFixed(2)}, pending=${Math.floor(pending)}, ` +
+      `tokens(cpu=${Math.floor(cpuTokens || 0)}, io=${Math.floor(ioTokens || 0)}).`
+    );
+  };
+  /**
+   * Detect sustained under-target scheduler utilization and record a stage
+   * checkpoint event once per run.
+   *
+   * @param {{snapshot:object,stage:string,step?:string}} input
+   * @returns {void}
+   */
+  const maybeWarnUtilizationTarget = ({ snapshot, stage, step }) => {
+    if (!HEAVY_UTILIZATION_STAGES.has(String(step || stage || '').toLowerCase())) {
+      utilizationUnderTargetSinceMs = 0;
+      return;
+    }
+    const schedulerStats = snapshot?.scheduler;
+    const utilization = Number(schedulerStats?.utilization?.overall);
+    const pending = Number(schedulerStats?.activity?.pending);
+    const cpuTokens = Number(schedulerStats?.tokens?.cpu?.total);
+    const ioTokens = Number(schedulerStats?.tokens?.io?.total);
+    const tokenBudget = Math.max(1, Math.floor((cpuTokens || 0) + (ioTokens || 0)));
+    if (!Number.isFinite(utilization) || !Number.isFinite(pending)) {
+      utilizationUnderTargetSinceMs = 0;
+      return;
+    }
+    if (pending < Math.max(16, tokenBudget * 2)) {
+      utilizationUnderTargetSinceMs = 0;
+      return;
+    }
+    if (utilization >= utilizationTarget) {
+      utilizationUnderTargetSinceMs = 0;
+      return;
+    }
+    const now = Date.now();
+    if (!utilizationUnderTargetSinceMs) {
+      utilizationUnderTargetSinceMs = now;
+      return;
+    }
+    if (utilizationTargetWarningEmitted) return;
+    const underMs = now - utilizationUnderTargetSinceMs;
+    if (underMs < utilizationAlertWindowMs) return;
+    utilizationTargetWarningEmitted = true;
+    const underSeconds = Math.max(1, Math.round(underMs / 1000));
+    log(
+      `[perf] sustained scheduler utilization below target at ${stage}${step ? `/${step}` : ''}: ` +
+      `utilization=${utilization.toFixed(2)}, target=${utilizationTarget.toFixed(2)}, ` +
+      `pending=${Math.floor(pending)}, duration=${underSeconds}s.`
+    );
+    stageCheckpoints.record({
+      stage: 'scheduler',
+      step: 'utilization-target-breach',
+      label: `${stage}${step ? `/${step}` : ''}`,
+      extra: {
+        utilization,
+        target: utilizationTarget,
+        pending: Math.floor(pending),
+        durationMs: underMs
+      }
+    });
+  };
+  /**
+   * Emit per-queue under-utilization warnings for busy queues whose effective
+   * throughput remains below target for the alert window.
+   *
+   * @param {{snapshot:object,stage:string,step?:string}} input
+   * @returns {void}
+   */
+  const maybeWarnQueueUtilizationTarget = ({ snapshot, stage, step }) => {
+    const schedulerStats = snapshot?.scheduler;
+    const queues = schedulerStats?.queues && typeof schedulerStats.queues === 'object'
+      ? schedulerStats.queues
+      : null;
+    if (!queues) return;
+    const now = Date.now();
+    for (const [queueName, queueStats] of Object.entries(queues)) {
+      const pending = Math.max(0, Number(queueStats?.pending) || 0);
+      const running = Math.max(0, Number(queueStats?.running) || 0);
+      const demand = pending + running;
+      const key = String(queueName || '');
+      const warningKey = `${stage || 'unknown'}:${key}`;
+      if (!key || demand < 4) {
+        queueUtilizationUnderTargetSinceMs.delete(key);
+        queueUtilizationWarningEmitted.delete(warningKey);
+        continue;
+      }
+      const utilization = running / Math.max(1, demand);
+      if (!Number.isFinite(utilization) || utilization >= utilizationTarget) {
+        queueUtilizationUnderTargetSinceMs.delete(key);
+        queueUtilizationWarningEmitted.delete(warningKey);
+        continue;
+      }
+      const since = queueUtilizationUnderTargetSinceMs.get(key) || now;
+      queueUtilizationUnderTargetSinceMs.set(key, since);
+      const underMs = now - since;
+      if (underMs < utilizationAlertWindowMs) continue;
+      if (queueUtilizationWarningEmitted.has(warningKey)) continue;
+      queueUtilizationWarningEmitted.add(warningKey);
+      log(
+        `[perf] sustained queue utilization below target at ${stage}${step ? `/${step}` : ''}: ` +
+        `queue=${key}, utilization=${utilization.toFixed(2)}, target=${utilizationTarget.toFixed(2)}, ` +
+        `pending=${pending}, running=${running}, durationMs=${underMs}.`
+      );
+      stageCheckpoints.record({
+        stage: 'scheduler',
+        step: 'queue-utilization-target-breach',
+        label: `${stage}${step ? `/${step}` : ''}:${key}`,
+        extra: {
+          queue: key,
+          utilization,
+          target: utilizationTarget,
+          pending,
+          running,
+          durationMs: underMs
+        }
+      });
+    }
+  };
+  /**
+   * Record a stage checkpoint enriched with the current runtime snapshot.
+   *
+   * @param {object} input
+   * @param {string} input.stage
+   * @param {string|null} [input.step]
+   * @param {string|null} [input.label]
+   * @param {object|null} [input.extra]
+   */
+  const recordStageCheckpoint = ({
+    stage,
+    step = null,
+    label = null,
+    extra = null
+  }) => {
+    const safeExtra = extra && typeof extra === 'object' ? extra : {};
+    const runtimeSnapshot = captureRuntimeSnapshot();
+    stageCheckpoints.record({
+      stage,
+      step,
+      label,
+      extra: {
+        ...safeExtra,
+        runtime: runtimeSnapshot
+      }
+    });
+    maybeWarnLowSchedulerUtilization({
+      snapshot: runtimeSnapshot,
+      stage,
+      step
+    });
+    maybeWarnUtilizationTarget({
+      snapshot: runtimeSnapshot,
+      stage,
+      step
+    });
+    maybeWarnQueueUtilizationTarget({
+      snapshot: runtimeSnapshot,
+      stage,
+      step
+    });
+  };
+  /**
+   * Advance visible stage progress and retag scheduler telemetry.
+   *
+   * @param {{id:string,label:string}} stage
+   * @returns {void}
+   */
+  const advanceStage = (stage) => {
+    if (runtime?.overallProgress?.advance && stageIndex > 0) {
+      const prevStage = INDEX_STAGE_PLAN[stageIndex - 1];
+      runtime.overallProgress.advance({ message: `${mode} ${prevStage.label}` });
+    }
+    stageIndex += 1;
+    setSchedulerTelemetryStage(stage.id);
+    showProgress('Stage', stageIndex, stageTotal, {
+      taskId: `stage:${mode}`,
+      stage: stage.id,
+      mode,
+      message: stage.label,
+      scheduler: getSchedulerStats()
+    });
+  };
 
   advanceStage(INDEX_STAGE_PLAN[0]);
   const discoveryResult = await runWithOperationalFailurePolicy({
@@ -200,12 +563,14 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       discovery,
       state,
       timing,
-      stageNumber: getStageNumber(),
+      stageNumber: stageIndex,
       abortSignal
     })
   });
   const allEntries = discoveryResult.value;
-  maybeEnableQueueDepthSnapshotsForFileCount(allEntries.length);
+  if (!queueDepthSnapshotsEnabled && allEntries.length >= queueDepthSnapshotFileThreshold) {
+    enableQueueDepthSnapshots();
+  }
   recordStageCheckpoint({
     stage: 'stage1',
     step: 'discovery',
@@ -222,26 +587,72 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   throwIfAborted(abortSignal);
   const {
     runtimeRef,
+    tinyRepoFastPath,
     tinyRepoFastPathActive,
     tinyRepoFastPathSummary,
+    vectorOnlyShortcuts,
     vectorOnlyShortcutSummary,
     relationsEnabled,
     importGraphEnabled,
-    crossFileInferenceEnabled,
-    tokenizationKey,
-    cacheSignature,
-    cacheSignatureSummary,
-    modalitySparsityProfilePath,
-    modalitySparsityProfile,
-    cachedZeroModality
-  } = await initializePipelinePolicyBootstrap({
-    runtime,
-    mode,
-    entries: allEntries,
-    log
-  });
+    crossFileInferenceEnabled
+  } = resolvePipelinePolicyContext({ runtime, entries: allEntries });
   state.vectorOnlyShortcuts = vectorOnlyShortcutSummary;
   state.tinyRepoFastPath = tinyRepoFastPathSummary;
+  if (vectorOnlyShortcuts.enabled) {
+    log(
+      '[vector_only] analysis shortcuts: '
+      + `disableImportGraph=${vectorOnlyShortcuts.disableImportGraph}, `
+      + `disableCrossFileInference=${vectorOnlyShortcuts.disableCrossFileInference}.`
+    );
+  }
+  if (tinyRepoFastPathActive) {
+    log(
+      `[tiny_repo] fast path active: files=${tinyRepoFastPath.fileCount}, ` +
+      `bytes=${tinyRepoFastPath.totalBytes}, estimatedLines=${tinyRepoFastPath.estimatedLines}, ` +
+      `disableImportGraph=${tinyRepoFastPath.disableImportGraph}, ` +
+      `disableCrossFileInference=${tinyRepoFastPath.disableCrossFileInference}, ` +
+      `minimalArtifacts=${tinyRepoFastPath.minimalArtifacts}.`
+    );
+  }
+  await updateBuildState(runtimeRef.buildRoot, {
+    analysisShortcuts: {
+      [mode]: {
+        profileId: vectorOnlyShortcuts.profileId,
+        disableImportGraph: vectorOnlyShortcuts.disableImportGraph,
+        disableCrossFileInference: vectorOnlyShortcuts.disableCrossFileInference,
+        tinyRepoFastPath: tinyRepoFastPathSummary
+      }
+    }
+  });
+  const vectorOnlyProfile = runtimeRef?.profile?.id === INDEX_PROFILE_VECTOR_ONLY;
+  if (vectorOnlyProfile && !hasVectorEmbeddingBuildCapability(runtimeRef)) {
+    throw new Error(
+      'indexing.profile=vector_only requires embeddings to be available during index build. ' +
+      'Enable inline/stub embeddings or service-mode embedding queueing and rebuild.'
+    );
+  }
+  const tokenizationKey = buildTokenizationKey(runtimeRef, mode);
+  const cacheSignature = buildIncrementalSignature(runtimeRef, mode, tokenizationKey);
+  const cacheSignatureSummary = buildIncrementalSignatureSummary(runtimeRef, mode, tokenizationKey);
+  await updateBuildState(runtimeRef.buildRoot, {
+    signatures: {
+      [mode]: {
+        tokenizationKey,
+        cacheSignature,
+        signatureVersion: SIGNATURE_VERSION
+      }
+    }
+  });
+  const {
+    profilePath: modalitySparsityProfilePath,
+    profile: modalitySparsityProfile
+  } = await readModalitySparsityProfile(runtimeRef);
+  const modalitySparsityKey = buildModalitySparsityEntryKey({ mode, cacheSignature });
+  const cachedModalitySparsity = modalitySparsityProfile?.entries?.[modalitySparsityKey] || null;
+  const cachedZeroModality = shouldElideModalityProcessingStage({
+    fileCount: cachedModalitySparsity?.fileCount ?? null,
+    chunkCount: cachedModalitySparsity?.chunkCount ?? null
+  });
   const { incrementalState, reused } = await loadIncrementalPlan({
     runtime: runtimeRef,
     mode,
@@ -423,19 +834,24 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   });
   if (postImportResult) importResult = postImportResult;
 
-  const incrementalBundleVfsRowsPromise = createIncrementalBundleVfsRowsPromise({
-    mode,
-    crossFileInferenceEnabled,
-    runtime: runtimeRef,
-    incrementalState,
-    prepareIncrementalBundleVfsRows
-  });
+  const incrementalBundleVfsRowsPromise = mode === 'code'
+    && crossFileInferenceEnabled
+    && runtimeRef.incrementalEnabled === true
+    ? prepareIncrementalBundleVfsRows({
+      runtime: runtimeRef,
+      incrementalState,
+      enabled: true
+    })
+    : null;
 
-  const overlapInferPostings = resolvePostingsOverlapPolicy({
-    mode,
-    runtime: runtimeRef,
-    crossFileInferenceEnabled
-  });
+  const overlapConfig = runtimeRef?.indexingConfig?.pipelineOverlap
+    && typeof runtimeRef.indexingConfig.pipelineOverlap === 'object'
+    ? runtimeRef.indexingConfig.pipelineOverlap
+    : {};
+  const overlapInferPostings = mode === 'code'
+    && overlapConfig.enabled !== false
+    && overlapConfig.inferPostings !== false
+    && crossFileInferenceEnabled;
   const runPostingsBuild = () => (runtimeRef.scheduler?.schedule
     ? runtimeRef.scheduler.schedule(
       SCHEDULER_QUEUE_NAMES.stage1Postings,
@@ -443,10 +859,11 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       () => buildIndexPostings({ runtime: runtimeRef, state, incrementalState })
     )
     : buildIndexPostings({ runtime: runtimeRef, state, incrementalState }));
-  const postingsPromise = startOverlappedPostingsBuild({
-    overlapInferPostings,
-    runPostingsBuild
-  });
+  const postingsPromise = overlapInferPostings ? runPostingsBuild() : null;
+  if (postingsPromise) {
+    // Avoid transient unhandled-rejection noise before the awaited join point.
+    postingsPromise.catch(() => {});
+  }
 
   advanceStage(INDEX_STAGE_PLAN[3]);
   let crossFileEnabled = false;
@@ -515,10 +932,9 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
 
   advanceStage(INDEX_STAGE_PLAN[4]);
   throwIfAborted(abortSignal);
-  const postings = await resolvePostingsBuildResult({
-    postingsPromise,
-    runPostingsBuild
-  });
+  const postings = postingsPromise
+    ? await postingsPromise
+    : await runPostingsBuild();
   recordStageCheckpoint({
     stage: 'stage1',
     step: 'postings',
@@ -537,29 +953,33 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
 
   advanceStage(INDEX_STAGE_PLAN[5]);
   throwIfAborted(abortSignal);
-  await runWriteStageWithIncrementalBundles({
-    writeArtifacts: () => writeIndexArtifactsForMode({
-      runtime: runtimeRef,
-      mode,
-      outDir,
-      state,
-      postings,
-      timing,
-      entries: allEntries,
-      perfProfile,
-      graphRelations,
-      shardSummary,
-      stageCheckpoints
-    }),
+  await writeIndexArtifactsForMode({
     runtime: runtimeRef,
     mode,
-    crossFileEnabled,
-    incrementalBundleVfsRowsPromise,
-    updateIncrementalBundles,
-    incrementalState,
+    outDir,
     state,
-    log
+    postings,
+    timing,
+    entries: allEntries,
+    perfProfile,
+    graphRelations,
+    shardSummary,
+    stageCheckpoints
   });
+  if (runtimeRef.incrementalEnabled === true) {
+    // Write incremental bundles after artifact finalization so bundle metaV2
+    // stays byte-for-byte aligned with emitted chunk_meta.
+    const existingVfsManifestRowsByFile = mode === 'code' && crossFileEnabled && incrementalBundleVfsRowsPromise
+      ? await incrementalBundleVfsRowsPromise
+      : null;
+    await updateIncrementalBundles({
+      runtime: runtimeRef,
+      incrementalState,
+      state,
+      existingVfsManifestRowsByFile,
+      log
+    });
+  }
   const vfsExtra = summarizeVfsManifestStats(state);
   recordStageCheckpoint({
     stage: 'stage2',

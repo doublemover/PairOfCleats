@@ -26,6 +26,36 @@ const second = await loadIndexWithCache(cache, indexDir, { modelIdDefault: 'm', 
 assert.equal(loads, 1, 'cache should prevent reloads');
 assert.equal(first.loaded, second.loaded, 'cached result should match');
 
+const chunkMetaModeCache = new Map();
+let chunkMetaModeLoads = 0;
+const chunkMetaModeLoader = () => {
+  chunkMetaModeLoads += 1;
+  return { loaded: chunkMetaModeLoads };
+};
+await loadIndexWithCache(
+  chunkMetaModeCache,
+  indexDir,
+  { modelIdDefault: 'm', fileChargramN: 3, includeChunkMetaCold: false },
+  chunkMetaModeLoader
+);
+await loadIndexWithCache(
+  chunkMetaModeCache,
+  indexDir,
+  { modelIdDefault: 'm', fileChargramN: 3, includeChunkMetaCold: false },
+  chunkMetaModeLoader
+);
+await loadIndexWithCache(
+  chunkMetaModeCache,
+  indexDir,
+  { modelIdDefault: 'm', fileChargramN: 3, includeChunkMetaCold: true },
+  chunkMetaModeLoader
+);
+assert.equal(
+  chunkMetaModeLoads,
+  2,
+  'cache key should include includeChunkMetaCold to avoid stale meta shape reuse'
+);
+
 await writeMeta([{ id: 2 }]);
 const originalNow = Date.now;
 let now = originalNow();

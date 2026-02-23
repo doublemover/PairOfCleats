@@ -13,6 +13,7 @@ import {
   resolveCliOptionFlagSets
 } from '../src/shared/cli-options.js';
 import { spawnSubprocessSync } from '../src/shared/subprocess.js';
+import { exitLikeChild } from '../src/tui/wrapper-exit.js';
 import { buildErrorPayload, ERROR_CODES, isErrorCode } from '../src/shared/error-codes.js';
 import { resolveDispatchRuntimeEnv } from '../src/shared/dispatch/env.js';
 
@@ -244,11 +245,9 @@ function resolveCommand(primary, rest) {
     });
   }
   if (primary === 'setup') {
-    validateArgs(rest, [], []);
     return { script: 'tools/setup/setup.js', extraArgs: [], args: rest };
   }
   if (primary === 'bootstrap') {
-    validateArgs(rest, [], []);
     return { script: 'tools/setup/bootstrap.js', extraArgs: [], args: rest };
   }
   if (primary === 'cache') {
@@ -890,7 +889,10 @@ async function runScript(scriptPath, extraArgs, restArgs) {
     env,
     rejectOnNonZeroExit: false
   });
-  process.exit(result.exitCode ?? 1);
+  exitLikeChild({
+    status: result.exitCode,
+    signal: result.signal
+  });
 }
 
 /**

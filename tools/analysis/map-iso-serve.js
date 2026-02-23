@@ -8,7 +8,8 @@ import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
 import selfsigned from 'selfsigned';
 import { getRuntimeConfig, resolveRepoConfig, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
-import { decodePathnameSafe, safeJoinUnderBase } from './map-iso-safe-join.js';
+import { exitLikeCommandResult } from '../shared/cli-utils.js';
+import { isPathWithinRoot } from '../shared/path-within-root.js';
 
 const argv = createCli({
   scriptName: 'map-iso',
@@ -72,7 +73,7 @@ const runReport = () => {
     env: runtimeEnv
   });
   if (result.exitCode !== 0) {
-    process.exit(result.exitCode ?? 1);
+    exitLikeCommandResult({ status: result.exitCode, signal: result.signal });
   }
 };
 
@@ -88,40 +89,11 @@ const contentTypeFor = (filePath) => {
   return 'application/octet-stream';
 };
 
-const serveStaticFileOr404 = (res, filePath, notFoundMessage) => {
-  try {
-    const stat = fs.statSync(filePath);
-    if (!stat.isFile()) {
-      res.writeHead(404);
-      res.end(notFoundMessage);
-      return;
-    }
-  } catch {
-    res.writeHead(404);
-    res.end(notFoundMessage);
-    return;
-  }
-
-  res.writeHead(200, { 'Content-Type': contentTypeFor(filePath) });
-  const stream = fs.createReadStream(filePath);
-  const onResponseClose = () => {
-    if (!stream.destroyed) {
-      stream.destroy();
-    }
-  };
-  res.once('close', onResponseClose);
-  stream.once('close', () => {
-    res.off('close', onResponseClose);
-  });
-  stream.on('error', () => {
-    if (!res.headersSent) {
-      res.writeHead(404);
-    }
-    if (!res.writableEnded) {
-      res.end(notFoundMessage);
-    }
-  });
-  stream.pipe(res);
+const safeJoin = (baseDir, requestPath) => {
+  const normalizedBase = path.resolve(baseDir);
+  const safePath = path.resolve(path.join(normalizedBase, requestPath));
+  if (!isPathWithinRoot(safePath, normalizedBase)) return null;
+  return safePath;
 };
 
 const openBrowser = (url) => {
