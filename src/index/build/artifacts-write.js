@@ -86,8 +86,7 @@ import {
   selectMicroWriteBatch,
   selectTailWorkerWriteEntry
 } from './artifacts/write-strategy.js';
-import { drainArtifactWriteQueues } from './artifacts/write-execution.js';
-import { splitScheduledArtifactWriteLanes } from './artifacts/write-lane-planning.js';
+import { dispatchScheduledArtifactWrites } from './artifacts/write-dispatch.js';
 import {
   buildDeterminismReport,
   buildExtractionReport,
@@ -2279,115 +2278,52 @@ export async function writeIndexArtifacts(input) {
       piece: { type: 'postings', name: 'vocab_order' }
     });
   }
-  const {
-    ultraLight: ultraLightWrites,
-    massive: massiveWrites,
-    light: lightWrites,
-    heavy: heavyWrites
-  } = splitScheduledArtifactWriteLanes({
-    entries: writes,
+  const writeDispatch = await dispatchScheduledArtifactWrites({
+    writes,
+    artifactConfig,
     heavyWriteThresholdBytes,
     ultraLightWriteThresholdBytes,
     massiveWriteThresholdBytes,
     forcedHeavyWritePatterns,
     forcedUltraLightWritePatterns,
-    forcedMassiveWritePatterns
+    forcedMassiveWritePatterns,
+    adaptiveWriteConcurrencyEnabled,
+    adaptiveWriteMinConcurrency,
+    adaptiveWriteStartConcurrencyOverride,
+    adaptiveWriteScaleUpBacklogPerSlot,
+    adaptiveWriteScaleDownBacklogPerSlot,
+    adaptiveWriteStallScaleDownSeconds,
+    adaptiveWriteStallScaleUpGuardSeconds,
+    adaptiveWriteScaleUpCooldownMs,
+    adaptiveWriteScaleDownCooldownMs,
+    scheduler,
+    outDir,
+    writeFsStrategy,
+    workClassSmallConcurrencyOverride,
+    workClassMediumConcurrencyOverride,
+    workClassLargeConcurrencyOverride,
+    writeTailRescueEnabled,
+    writeTailRescueMaxPending,
+    writeTailRescueStallSeconds,
+    writeTailRescueBoostIoTokens,
+    writeTailRescueBoostMemTokens,
+    writeTailWorkerEnabled,
+    writeTailWorkerMaxPending,
+    massiveWriteIoTokens,
+    massiveWriteMemTokens,
+    resolveArtifactWriteMemTokens,
+    getLongestWriteStallSeconds,
+    activeWrites,
+    activeWriteBytes,
+    writeHeartbeat,
+    updateWriteInFlightTelemetry,
+    updatePieceMetadata,
+    logWriteProgress,
+    artifactMetrics,
+    artifactQueueDelaySamples,
+    logLine
   });
-  totalWrites = ultraLightWrites.length + massiveWrites.length + lightWrites.length + heavyWrites.length;
-  if (totalWrites) {
-    const artifactLabel = totalWrites === 1 ? 'artifact' : 'artifacts';
-    logLine(`Writing index files (${totalWrites} ${artifactLabel})...`, { kind: 'status' });
-    const { cap: writeConcurrencyCap, override: writeConcurrencyOverride } = resolveArtifactWriteConcurrency({
-      artifactConfig,
-      totalWrites
-    });
-    const writeConcurrency = Math.max(1, Math.min(totalWrites, writeConcurrencyCap));
-    const adaptiveWriteInitialConcurrency = adaptiveWriteConcurrencyEnabled
-      ? (
-        adaptiveWriteStartConcurrencyOverride
-        || (writeConcurrencyOverride
-          ? writeConcurrency
-          : Math.max(adaptiveWriteMinConcurrency, Math.ceil(writeConcurrency * 0.6)))
-      )
-      : writeConcurrency;
-    const writeConcurrencyController = createAdaptiveWriteConcurrencyController({
-      maxConcurrency: writeConcurrency,
-      minConcurrency: adaptiveWriteMinConcurrency,
-      initialConcurrency: adaptiveWriteInitialConcurrency,
-      scaleUpBacklogPerSlot: adaptiveWriteScaleUpBacklogPerSlot,
-      scaleDownBacklogPerSlot: adaptiveWriteScaleDownBacklogPerSlot,
-      stallScaleDownSeconds: adaptiveWriteStallScaleDownSeconds,
-      stallScaleUpGuardSeconds: adaptiveWriteStallScaleUpGuardSeconds,
-      scaleUpCooldownMs: adaptiveWriteScaleUpCooldownMs,
-      scaleDownCooldownMs: adaptiveWriteScaleDownCooldownMs,
-      onChange: ({
-        reason,
-        from,
-        to,
-        pendingWrites,
-        longestStallSec,
-        memoryPressure,
-        gcPressure,
-        rssUtilization
-      }) => {
-        const stallSuffix = longestStallSec > 0 ? `, stall=${longestStallSec}s` : '';
-        const memorySuffix = (
-          Number.isFinite(memoryPressure) || Number.isFinite(gcPressure) || Number.isFinite(rssUtilization)
-        )
-          ? `, mem=${Number.isFinite(memoryPressure) ? memoryPressure.toFixed(2) : 'n/a'},` +
-            ` gc=${Number.isFinite(gcPressure) ? gcPressure.toFixed(2) : 'n/a'},` +
-            ` rss=${Number.isFinite(rssUtilization) ? rssUtilization.toFixed(2) : 'n/a'}`
-          : '';
-        logLine(
-          `[perf] adaptive artifact write concurrency ${from} -> ${to} ` +
-          `(${reason}, pending=${pendingWrites}${stallSuffix}${memorySuffix})`,
-          { kind: 'status' }
-        );
-      }
-    });
-    await drainArtifactWriteQueues({
-      scheduler,
-      outDir,
-      laneWrites: {
-        ultraLight: ultraLightWrites,
-        massive: massiveWrites,
-        light: lightWrites,
-        heavy: heavyWrites
-      },
-      writeFsStrategy,
-      ultraLightWriteThresholdBytes,
-      writeConcurrency,
-      adaptiveWriteConcurrencyEnabled,
-      writeConcurrencyController,
-      workClassSmallConcurrencyOverride,
-      workClassMediumConcurrencyOverride,
-      workClassLargeConcurrencyOverride,
-      writeTailRescueEnabled,
-      writeTailRescueMaxPending,
-      writeTailRescueStallSeconds,
-      writeTailRescueBoostIoTokens,
-      writeTailRescueBoostMemTokens,
-      writeTailWorkerEnabled,
-      writeTailWorkerMaxPending,
-      massiveWriteIoTokens,
-      massiveWriteMemTokens,
-      resolveArtifactWriteMemTokens,
-      getLongestWriteStallSeconds,
-      activeWrites,
-      activeWriteBytes,
-      writeHeartbeat,
-      updateWriteInFlightTelemetry,
-      updatePieceMetadata,
-      logWriteProgress,
-      artifactMetrics,
-      artifactQueueDelaySamples,
-      logLine
-    });
-    logLine('', { kind: 'status' });
-  } else {
-    logLine('Writing index files (0 artifacts)...', { kind: 'status' });
-    logLine('', { kind: 'status' });
-  }
+  totalWrites = writeDispatch.totalWrites;
   if (vectorOnlyProfile) {
     const deniedPieces = pieceEntries
       .filter((entry) => VECTOR_ONLY_SPARSE_PIECE_DENYLIST.has(String(entry?.name || '')))
