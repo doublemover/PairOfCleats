@@ -1,6 +1,6 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { resolveRecordsIncrementalCapability } from '../index.js';
+import { resolveRecordsIncrementalCapability } from '../imports.js';
 
 const BUNDLE_INVENTORY_CACHE_LIMIT = 64;
 const bundleInventoryCache = new Map();
