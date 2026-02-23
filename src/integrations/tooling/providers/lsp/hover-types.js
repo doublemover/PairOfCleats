@@ -7,6 +7,13 @@ export const DEFAULT_DOCUMENT_SYMBOL_CONCURRENCY = 4;
 export const DEFAULT_HOVER_CONCURRENCY = 8;
 export const DEFAULT_HOVER_CACHE_MAX_ENTRIES = 50000;
 
+/**
+ * Clamp numeric values to an integer range with fallback.
+ * @param {unknown} value
+ * @param {number} fallback
+ * @param {{min?:number,max?:number}} [bounds]
+ * @returns {number}
+ */
 export const clampIntRange = (value, fallback, { min = 1, max = 64 } = {}) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
@@ -14,6 +21,13 @@ export const clampIntRange = (value, fallback, { min = 1, max = 64 } = {}) => {
   return Math.max(min, Math.min(max, normalized));
 };
 
+/**
+ * Run async work over a list with a fixed worker pool.
+ * @param {Array<any>} items
+ * @param {number} concurrency
+ * @param {(item:any,index:number)=>Promise<void>} worker
+ * @returns {Promise<void>}
+ */
 export const runWithConcurrency = async (items, concurrency, worker) => {
   const list = Array.isArray(items) ? items : [];
   if (!list.length) return;
@@ -30,6 +44,11 @@ export const runWithConcurrency = async (items, concurrency, worker) => {
   await Promise.all(runners);
 };
 
+/**
+ * Create a generic concurrency limiter for promise-returning tasks.
+ * @param {number} concurrency
+ * @returns {(fn:()=>Promise<any>)=>Promise<any>}
+ */
 export const createConcurrencyLimiter = (concurrency) => {
   const maxWorkers = Math.max(1, clampIntRange(concurrency, 1, { min: 1, max: 256 }));
   let active = 0;
@@ -60,6 +79,13 @@ const resolveHoverCachePath = (cacheRoot) => {
   return path.join(cacheRoot, 'lsp', 'hover-cache-v1.json');
 };
 
+/**
+ * Load persisted hover parse cache from disk.
+ * Invalid/missing cache files degrade to an empty cache.
+ *
+ * @param {string|null} cacheRoot
+ * @returns {Promise<{path:string|null,entries:Map<string,object>}>}
+ */
 export const loadHoverCache = async (cacheRoot) => {
   const cachePath = resolveHoverCachePath(cacheRoot);
   if (!cachePath) return { path: null, entries: new Map() };
@@ -80,6 +106,11 @@ export const loadHoverCache = async (cacheRoot) => {
   }
 };
 
+/**
+ * Persist hover cache entries with recency ordering and bounded size.
+ * @param {{cachePath:string|null,entries:Map<string,object>,maxEntries:number}} input
+ * @returns {Promise<void>}
+ */
 export const persistHoverCache = async ({ cachePath, entries, maxEntries }) => {
   if (!cachePath || !(entries instanceof Map)) return;
   const rows = Array.from(entries.entries()).map(([key, value]) => ({
@@ -97,6 +128,11 @@ export const persistHoverCache = async ({ cachePath, entries, maxEntries }) => {
   }));
 };
 
+/**
+ * Build deterministic cache key for one hover request tuple.
+ * @param {{cmd:string,docHash:string,languageId:string,symbolName:string,position:{line:number,character:number}}} input
+ * @returns {string|null}
+ */
 const buildHoverCacheKey = ({ cmd, docHash, languageId, symbolName, position }) => {
   if (!docHash || !position || !Number.isFinite(position.line) || !Number.isFinite(position.character)) return null;
   return [
@@ -108,6 +144,11 @@ const buildHoverCacheKey = ({ cmd, docHash, languageId, symbolName, position }) 
   ].join('|');
 };
 
+/**
+ * Normalize LSP hover content payloads to plain text.
+ * @param {string|Array<any>|object|null} contents
+ * @returns {string}
+ */
 const normalizeHoverContents = (contents) => {
   if (!contents) return '';
   if (typeof contents === 'string') return contents;
@@ -121,6 +162,11 @@ const normalizeHoverContents = (contents) => {
   return '';
 };
 
+/**
+ * Normalize signature/type strings to compact one-line text.
+ * @param {unknown} value
+ * @returns {string|null}
+ */
 export const normalizeTypeText = (value) => {
   if (!value) return null;
   return String(value).replace(/\s+/g, ' ').trim() || null;
@@ -130,6 +176,12 @@ const normalizeSignatureCacheText = (value) => (
   String(value || '').replace(/\s+/g, ' ').trim()
 );
 
+/**
+ * Parse finite integer values with optional lower bound.
+ * @param {unknown} value
+ * @param {number|null} [min=null]
+ * @returns {number|null}
+ */
 export const toFiniteInt = (value, min = null) => {
   if (value == null) return null;
   const parsed = Number(value);
@@ -173,6 +225,11 @@ const createHoverFileStats = () => ({
   disabledAdaptive: false
 });
 
+/**
+ * Normalize configurable symbol kinds to a set of integer IDs.
+ * @param {number[]|number|string[]|string|null} kinds
+ * @returns {Set<number>|null}
+ */
 export const normalizeHoverKinds = (kinds) => {
   if (kinds == null) return null;
   const source = Array.isArray(kinds) ? kinds : [kinds];
@@ -183,6 +240,11 @@ export const normalizeHoverKinds = (kinds) => {
   return new Set(normalized);
 };
 
+/**
+ * Normalize parsed parameter type payloads to enriched provenance entries.
+ * @param {object|null} paramTypes
+ * @returns {object|null}
+ */
 export const normalizeParamTypes = (paramTypes) => {
   if (!paramTypes || typeof paramTypes !== 'object') return null;
   const output = {};
@@ -223,6 +285,12 @@ const hasParamTypes = (paramTypes) => {
   return false;
 };
 
+/**
+ * Extract a source-level signature candidate from target byte range.
+ * @param {string} text
+ * @param {{start:number,end:number}} virtualRange
+ * @returns {string|null}
+ */
 const buildSourceSignatureCandidate = (text, virtualRange) => {
   if (typeof text !== 'string' || !text) return null;
   const start = Number(virtualRange?.start);
@@ -242,6 +310,17 @@ const buildSourceSignatureCandidate = (text, virtualRange) => {
   return normalizeSignatureCacheText(candidate.slice(0, lastParen + 1));
 };
 
+/**
+ * Resolve best chunk target for a symbol/diagnostic offset range.
+ *
+ * Ranking prefers containing ranges, then optional symbol-name matches, then
+ * smallest span to keep mapping stable for nested declarations.
+ *
+ * @param {Array<object>} targets
+ * @param {{start:number,end:number}|null} offsets
+ * @param {string|null} [nameHint=null]
+ * @returns {object|null}
+ */
 export const findTargetForOffsets = (targets, offsets, nameHint = null) => {
   if (!offsets) return null;
   let best = null;
@@ -266,6 +345,14 @@ export const findTargetForOffsets = (targets, offsets, nameHint = null) => {
   return best;
 };
 
+/**
+ * Merge signature candidates, preferring stronger return/signature evidence and
+ * preserving existing high-confidence param metadata.
+ *
+ * @param {object|null} base
+ * @param {object|null} next
+ * @returns {object|null}
+ */
 const mergeSignatureInfo = (base, next) => {
   if (!next) return base;
   if (!base) return next;
@@ -297,6 +384,10 @@ const mergeSignatureInfo = (base, next) => {
   return merged;
 };
 
+/**
+ * Create default hover metrics envelope.
+ * @returns {object}
+ */
 export const createEmptyHoverMetricsResult = () => ({
   requested: 0,
   succeeded: 0,
@@ -311,6 +402,11 @@ export const createEmptyHoverMetricsResult = () => ({
   files: []
 });
 
+/**
+ * Aggregate per-request and per-file hover metrics for reporting.
+ * @param {{hoverMetrics:object,hoverLatencyMs:number[],hoverFileStats:Map<string,object>}} input
+ * @returns {object}
+ */
 export const summarizeHoverMetrics = ({ hoverMetrics, hoverLatencyMs, hoverFileStats }) => {
   const hoverSummary = summarizeLatencies(hoverLatencyMs);
   const hoverFiles = Array.from(hoverFileStats.entries())
@@ -351,6 +447,11 @@ export const summarizeHoverMetrics = ({ hoverMetrics, hoverLatencyMs, hoverFileS
   };
 };
 
+/**
+ * Emit a one-time check entry when tooling circuit breaker opens.
+ * @param {{cmd:string,guard:object,checks:Array<object>,checkFlags:object}} input
+ * @returns {void}
+ */
 const recordCircuitOpenCheck = ({ cmd, guard, checks, checkFlags }) => {
   if (checkFlags.circuitOpened) return;
   checkFlags.circuitOpened = true;
@@ -363,6 +464,20 @@ const recordCircuitOpenCheck = ({ cmd, guard, checks, checkFlags }) => {
   });
 };
 
+/**
+ * Enrich chunk payloads for one document using symbol + hover information.
+ *
+ * Fallback semantics:
+ * 1. documentSymbol errors are soft-failed per document.
+ * 2. hover requests are deduped by position and can be suppressed by:
+ *    return-type sufficiency, kind filters, per-file budget, adaptive timeout,
+ *    or global timeout circuit.
+ * 3. strict mode throws only when resolved symbol data cannot be mapped to a
+ *    chunk uid.
+ *
+ * @param {object} input
+ * @returns {Promise<{enrichedDelta:number}>}
+ */
 export const processDocumentTypes = async ({
   doc,
   cmd,

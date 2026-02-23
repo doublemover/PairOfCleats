@@ -48,6 +48,15 @@ const BUILD_INDEX_LOCK_POLL_MS = Math.max(
   )
 );
 
+/**
+ * Acquire the build/index global lock using environment-configured wait/poll.
+ *
+ * Throws when the lock cannot be obtained within configured wait time so
+ * callers can fail fast before mutating current build pointers.
+ *
+ * @param {{repoCacheRoot:string,log:(line:string)=>void}} input
+ * @returns {Promise<{release:()=>Promise<void>}>}
+ */
 const acquireBuildIndexLock = async ({ repoCacheRoot, log }) => {
   const lock = await acquireIndexLock({
     repoCacheRoot,
@@ -68,7 +77,28 @@ const acquireBuildIndexLock = async ({ repoCacheRoot, log }) => {
  * Handles build lock acquisition, mode batching rules, progress updates, and
  * cancellation reporting in a deterministic stage3 result shape.
  *
+ * Behavior notes:
+ * 1. Service mode enqueues jobs and never runs embeddings inline.
+ * 2. Inline mode batches to `--mode all` only when all primary modes share
+ *    the same resolved index root.
+ * 3. Cancellation returns a non-throwing `cancelled` payload and skips
+ *    remaining modes.
+ *
  * @param {object} input
+ * @param {string} input.root
+ * @param {object} input.argv
+ * @param {string[]} input.embedModes
+ * @param {object} input.embeddingRuntime
+ * @param {object|null} input.userConfig
+ * @param {string|null} input.indexRoot
+ * @param {boolean} input.includeEmbeddings
+ * @param {{current?:{advance?:(state:object)=>void}}} input.overallProgressRef
+ * @param {(line:string)=>void} input.log
+ * @param {AbortSignal|null} input.abortSignal
+ * @param {string} input.repoCacheRoot
+ * @param {NodeJS.ProcessEnv} input.runtimeEnv
+ * @param {(stage:string,status:'ok'|'error'|'aborted',started:bigint)=>void} input.recordIndexMetric
+ * @param {string} input.buildEmbeddingsPath
  * @returns {Promise<object>}
  */
 export const runEmbeddingsStage = async ({
@@ -381,7 +411,26 @@ export const buildStage2ExecutionPlan = (modes = []) => {
 /**
  * Execute SQLite materialization stage and optional promotion.
  *
+ * Fallback/compat behavior:
+ * 1. When explicit `--index-root` is used for stage4, promotion is skipped.
+ * 2. Mode list collapses to `all` when all primary modes are requested.
+ * 3. Any failure marks active phases as failed before rethrowing.
+ *
  * @param {object} input
+ * @param {string} input.root
+ * @param {object} input.argv
+ * @param {string[]} input.rawArgv
+ * @param {object} input.policy
+ * @param {object|null} input.userConfig
+ * @param {string[]} input.sqliteModes
+ * @param {boolean} input.shouldBuildSqlite
+ * @param {boolean} input.includeSqlite
+ * @param {{current?:{advance?:(state:object)=>void}}} input.overallProgressRef
+ * @param {(line:string)=>void} input.log
+ * @param {AbortSignal|null} input.abortSignal
+ * @param {(stage:string,status:'ok'|'error'|'aborted',started:bigint)=>void} input.recordIndexMetric
+ * @param {object} input.options
+ * @param {object} input.sqliteLogger
  * @returns {Promise<object>}
  */
 export const runSqliteStage = async ({
@@ -542,9 +591,27 @@ export const runSqliteStage = async ({
 /**
  * Run one build stage (`stage2`/`stage3`/`stage4`) with phase tracking.
  *
+ * This is the primary stage orchestrator for discovery, indexing, optional
+ * sqlite, validation, and promotion. It always attempts to mark active phases
+ * on failure and guarantees runtime teardown in all paths.
+ *
  * @param {'stage2'|'stage3'|'stage4'|null} stage
  * @param {object} context
- * @param {{allowSqlite?:boolean,onStage2ModeCompleted?:(input:{mode:string,runtime:object,discovery:object|null})=>Promise<object|null>|object|null}} [options]
+ * @param {string} context.root
+ * @param {object} context.argv
+ * @param {string[]} context.rawArgv
+ * @param {object} context.policy
+ * @param {string[]} context.modes
+ * @param {object} context.options
+ * @param {AbortSignal|null} context.abortSignal
+ * @param {(line:string)=>void} context.log
+ * @param {object|null} context.overallProgressOptions
+ * @param {{current?:object}} context.overallProgressRef
+ * @param {(stage:string,status:'ok'|'error'|'aborted',started:bigint)=>void} context.recordIndexMetric
+ * @param {object} context.sqliteLogger
+ * @param {boolean} context.explicitStage
+ * @param {boolean} context.twoStageEnabled
+ * @param {{allowSqlite?:boolean}} [options]
  * @returns {Promise<object>}
  */
 export const runStage = async (

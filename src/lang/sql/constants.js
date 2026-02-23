@@ -1,3 +1,6 @@
+/**
+ * Map user-facing SQL dialect aliases to parser dialect ids.
+ */
 export const SQL_PARSER_DIALECTS = {
   postgres: 'postgresql',
   postgresql: 'postgresql',
@@ -5,6 +8,9 @@ export const SQL_PARSER_DIALECTS = {
   sqlite: 'sqlite'
 };
 
+/**
+ * Shared SQL keywords used for flow token filtering across dialects.
+ */
 export const SQL_RESERVED_WORDS_COMMON = new Set([
   'add',
   'all',
@@ -244,6 +250,10 @@ export const SQL_RESERVED_WORDS = new Set([
   ...SQLITE_RESERVED_WORDS
 ]);
 
+/**
+ * Build case-variant keyword skip list for heuristic SQL dataflow parsing.
+ * @returns {Set<string>}
+ */
 function buildSqlFlowSkip() {
   const skip = new Set();
   for (const keyword of SQL_RESERVED_WORDS) {
@@ -257,6 +267,9 @@ function buildSqlFlowSkip() {
 
 export const SQL_FLOW_SKIP = buildSqlFlowSkip();
 
+/**
+ * SQL control-flow keyword families used by generic flow summarization.
+ */
 export const SQL_CONTROL_FLOW = {
   branchKeywords: ['case', 'when', 'then', 'else', 'if', 'elseif', 'elsif'],
   loopKeywords: ['loop', 'while', 'repeat', 'until', 'for', 'foreach'],
@@ -266,6 +279,9 @@ export const SQL_CONTROL_FLOW = {
   throwKeywords: ['raise', 'signal']
 };
 
+/**
+ * SQL doc-comment extraction options (`--` and `/* ... *\/`).
+ */
 export const SQL_DOC_OPTIONS = {
   linePrefixes: ['--'],
   blockStarts: ['/*'],

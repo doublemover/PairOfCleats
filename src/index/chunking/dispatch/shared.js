@@ -6,6 +6,17 @@ export const MAX_REGEX_LINE = 8192;
 export const DEFAULT_PROSE_FALLBACK_MAX_CHARS = 120 * 1024;
 export const DEFAULT_PROSE_FALLBACK_CHUNK_CHARS = 24 * 1024;
 
+/**
+ * Attach normalized metadata to each chunk while preserving offsets and names.
+ *
+ * This is used by heuristic dispatchers so downstream scoring can rely on a
+ * consistent `meta.format` marker even when chunkers provide only headings.
+ *
+ * @param {Array<{start:number,end:number,name:string|null,kind?:string,meta?:object}>|null} chunks
+ * @param {string|null} format
+ * @param {string|null} kind
+ * @returns {Array<{start:number,end:number,name:string|null,kind:string,meta?:object}>|null}
+ */
 export const applyFormatMeta = (chunks, format, kind) => {
   if (!chunks) return null;
   const resolvedKind = kind || null;
@@ -22,6 +33,17 @@ export const applyFormatMeta = (chunks, format, kind) => {
   return output;
 };
 
+/**
+ * Split text into lines and return a line-start index, reusing the shared
+ * index cache in `context.chunkingShared` when it matches the current text.
+ *
+ * Reuse keeps regex fallback passes deterministic while avoiding repeated
+ * index construction across multiple chunkers in one dispatch cycle.
+ *
+ * @param {string} text
+ * @param {object|null} [context]
+ * @returns {{lines:string[],lineIndex:number[]}}
+ */
 export const splitLinesWithIndex = (text, context = null) => {
   const lines = text.split('\n');
   const sharedLineIndex = Array.isArray(context?.chunkingShared?.lineIndex)
@@ -37,6 +59,26 @@ export const splitLinesWithIndex = (text, context = null) => {
   return { lines, lineIndex };
 };
 
+/**
+ * Build chunks by scanning lines with a regex heading matcher.
+ *
+ * Fallback behavior is intentionally total: when no headings are found this
+ * always emits one full-file chunk so caller pipelines never receive `null`
+ * for supported text formats.
+ *
+ * @param {string} text
+ * @param {RegExp} matcher
+ * @param {object} [options]
+ * @param {number} [options.maxLineLength]
+ * @param {(line:string)=>boolean} [options.skipLine]
+ * @param {(line:string)=>boolean} [options.precheck]
+ * @param {(match:RegExpMatchArray,line:string)=>string} [options.title]
+ * @param {string|null} [options.format]
+ * @param {string} [options.kind]
+ * @param {string} [options.defaultName]
+ * @param {object|null} [context]
+ * @returns {Array<{start:number,end:number,name:string|null,kind:string,meta:object}>}
+ */
 export const chunkByLineRegex = (text, matcher, options = {}, context = null) => {
   const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];
@@ -70,6 +112,18 @@ export const chunkByLineRegex = (text, matcher, options = {}, context = null) =>
   }];
 };
 
+/**
+ * Attempt tree-sitter chunking for a language, but only return a result when
+ * the parser produced at least one concrete chunk.
+ *
+ * Returning `null` on empty parser output keeps heuristic fallback order
+ * deterministic and avoids accidentally treating "parsed but empty" as success.
+ *
+ * @param {string} text
+ * @param {string} languageId
+ * @param {object} context
+ * @returns {Array<object>|null}
+ */
 export const tryTreeSitterChunks = (text, languageId, context) => {
   // Keep fallback deterministic: only short-circuit when tree-sitter produced
   // concrete chunks for this language; otherwise continue with heuristics.
@@ -81,6 +135,16 @@ export const tryTreeSitterChunks = (text, languageId, context) => {
   return (Array.isArray(chunks) && chunks.length) ? chunks : null;
 };
 
+/**
+ * Resolve the first chunker whose matcher accepts the extension/path.
+ *
+ * Ordering is authoritative and intentionally not score-based.
+ *
+ * @param {Array<{match:(ext:string,relPath:string|null)=>boolean}>} chunkers
+ * @param {string} ext
+ * @param {string|null} relPath
+ * @returns {object|null}
+ */
 export const resolveChunker = (chunkers, ext, relPath) => {
   for (let i = 0; i < chunkers.length; i += 1) {
     const entry = chunkers[i];
@@ -89,6 +153,17 @@ export const resolveChunker = (chunkers, ext, relPath) => {
   return null;
 };
 
+/**
+ * Fallback chunking for large prose bodies when structure-aware parsing fails.
+ *
+ * For small/normal-sized files this preserves one-chunk behavior. For very
+ * large prose files it slices by configured character budget to cap tokenization
+ * latency while still covering the full document.
+ *
+ * @param {string} text
+ * @param {object} [context]
+ * @returns {Array<{start:number,end:number,name:null,kind:'Section',meta:object}>}
+ */
 export const chunkLargeProseFallback = (text, context = {}) => {
   if (!text) return [];
   const chunking = context?.chunking && typeof context.chunking === 'object'

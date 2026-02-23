@@ -14,18 +14,37 @@ const EMPTY_CROSS_FILE_STATS = Object.freeze({
   riskFlows: 0
 });
 
+/**
+ * Parse integer config knobs with lower bound and fallback defaults.
+ * @param {{value:unknown,fallback:number,min:number}} input
+ * @returns {number}
+ */
 const normalizeConfigInteger = ({ value, fallback, min }) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.max(min, Math.floor(parsed));
 };
 
+/**
+ * Attach cache bookkeeping fields to inference stats.
+ * @param {{stats:object,crossFileFingerprint:string,cacheHit:boolean}} input
+ * @returns {object}
+ */
 const withCacheMetadata = ({ stats, crossFileFingerprint, cacheHit }) => ({
   ...stats,
   cacheHit,
   fingerprint: crossFileFingerprint
 });
 
+/**
+ * Resolve optional tooling-assisted propagation options.
+ *
+ * When tooling is disabled this returns an empty object so downstream spreads
+ * preserve existing defaults.
+ *
+ * @param {{rootDir:string,useTooling:boolean}} input
+ * @returns {object}
+ */
 const resolveToolingPropagationOptions = ({ rootDir, useTooling }) => {
   if (!useTooling) return {};
   const toolingConfig = getToolingConfig(rootDir);
@@ -53,6 +72,11 @@ const resolveToolingPropagationOptions = ({ rootDir, useTooling }) => {
   };
 };
 
+/**
+ * Resolve cache paths and deterministic fingerprint inputs.
+ * @param {object} input
+ * @returns {{cacheDir:string|null,cachePath:string|null,crossFileFingerprint:string}}
+ */
 const resolveCacheContext = ({
   cacheRoot,
   cacheEnabled,
@@ -81,6 +105,30 @@ const resolveCacheContext = ({
   };
 };
 
+/**
+ * Run cross-file inference with cache reuse and optional tooling backends.
+ *
+ * Cache behavior:
+ * 1. Compute deterministic fingerprint from chunk graph + inference knobs.
+ * 2. Return cached stats when fingerprint and chunk identities match.
+ * 3. Otherwise run propagation and write cache entry for future runs.
+ *
+ * @param {object} params
+ * @param {string} params.rootDir
+ * @param {string} params.buildRoot
+ * @param {string|null} [params.cacheRoot]
+ * @param {boolean} [params.cacheEnabled=true]
+ * @param {Array<object>} params.chunks
+ * @param {boolean} params.enabled
+ * @param {(line:string)=>void} [params.log]
+ * @param {boolean} [params.useTooling=false]
+ * @param {boolean} [params.enableTypeInference=true]
+ * @param {boolean} [params.enableRiskCorrelation=false]
+ * @param {object|null} [params.fileRelations]
+ * @param {boolean} [params.inferenceLite=false]
+ * @param {boolean} [params.inferenceLiteHighSignalOnly=true]
+ * @returns {Promise<object>}
+ */
 export async function applyCrossFileInference({
   rootDir,
   buildRoot,

@@ -38,12 +38,23 @@ import {
   resolveVfsIoBatching
 } from './lsp/vfs-batching.js';
 
+/**
+ * Parse positive integer configuration with fallback floor of 1.
+ * @param {unknown} value
+ * @param {number} fallback
+ * @returns {number}
+ */
 const clampPositiveInt = (value, fallback) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return Math.max(1, Math.floor(parsed));
 };
 
+/**
+ * Create the canonical empty LSP collection payload.
+ * @param {Array<object>} checks
+ * @returns {{byChunkUid:object,diagnosticsByChunkUid:object,enriched:number,diagnosticsCount:number,checks:Array<object>,hoverMetrics:object}}
+ */
 const buildEmptyCollectResult = (checks) => ({
   byChunkUid: {},
   diagnosticsByChunkUid: {},
@@ -55,6 +66,58 @@ const buildEmptyCollectResult = (checks) => ({
 
 export { resolveVfsIoBatching, ensureVirtualFilesBatch };
 
+/**
+ * Collect LSP-derived signature/hover metadata for indexed chunks.
+ *
+ * Pipeline summary:
+ * 1. Resolve targeted documents/chunks and optional VFS cold-start cache.
+ * 2. Initialize LSP client under tooling guard (retries + circuit breaker).
+ * 3. Process docs with bounded documentSymbol + hover concurrency.
+ * 4. Optionally shape diagnostics into chunk-scoped buckets.
+ *
+ * Fallback behavior:
+ * 1. Initialization failure returns empty result with warning checks.
+ * 2. Worker/document failures are soft unless `strict` requires chunk binding.
+ * 3. Hover can be adaptively disabled on repeated timeout pressure.
+ *
+ * @param {object} params
+ * @param {string} params.rootDir
+ * @param {Array<object>} params.documents
+ * @param {Array<object>} params.targets
+ * @param {(line:string)=>void} [params.log]
+ * @param {string} params.cmd
+ * @param {string[]} params.args
+ * @param {number} [params.timeoutMs=15000]
+ * @param {number} [params.retries=2]
+ * @param {number} [params.breakerThreshold=3]
+ * @param {(detail:string,languageId:string,symbolName?:string)=>object|null} [params.parseSignature]
+ * @param {boolean} [params.strict=true]
+ * @param {string|null} [params.vfsRoot=null]
+ * @param {'file'|'poc-vfs'|string} [params.uriScheme='file']
+ * @param {boolean} [params.captureDiagnostics=false]
+ * @param {string} [params.vfsTokenMode='docHash+virtualPath']
+ * @param {object|null} [params.vfsIoBatching=null]
+ * @param {(text:string)=>number[]} [params.lineIndexFactory]
+ * @param {string|null} [params.indexDir=null]
+ * @param {object|boolean|null} [params.vfsColdStartCache=null]
+ * @param {string|null} [params.cacheRoot=null]
+ * @param {number|null} [params.hoverTimeoutMs=null]
+ * @param {boolean} [params.hoverEnabled=true]
+ * @param {boolean} [params.hoverRequireMissingReturn=true]
+ * @param {number[]|number|null} [params.hoverSymbolKinds=null]
+ * @param {number|null} [params.hoverMaxPerFile=null]
+ * @param {number|null} [params.hoverDisableAfterTimeouts=null]
+ * @param {number} [params.maxDiagnosticUris=1000]
+ * @param {number} [params.maxDiagnosticsPerUri=200]
+ * @param {number} [params.maxDiagnosticsPerChunk=100]
+ * @param {number|null} [params.documentSymbolTimeoutMs=null]
+ * @param {number} [params.documentSymbolConcurrency=4]
+ * @param {number} [params.hoverConcurrency=8]
+ * @param {number} [params.hoverCacheMaxEntries=50000]
+ * @param {(line:string)=>boolean|null} [params.stderrFilter=null]
+ * @param {object|null} [params.initializationOptions=null]
+ * @returns {Promise<{byChunkUid:object,diagnosticsByChunkUid:object,enriched:number,diagnosticsCount:number,checks:Array<object>,hoverMetrics:object}>}
+ */
 export async function collectLspTypes({
   rootDir,
   documents,

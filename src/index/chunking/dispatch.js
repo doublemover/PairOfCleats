@@ -82,6 +82,13 @@ import { chunkGraphql, chunkProto } from './dispatch/schema-chunkers.js';
 
 const INI_LIKE_EXTS = new Set(['.toml', '.ini', '.cfg', '.conf']);
 
+/**
+ * Ordered code chunker registry.
+ *
+ * Dispatch uses first-match semantics, so earlier entries intentionally have
+ * higher precedence when extensions overlap or when parser/fallback behavior
+ * differs across language families.
+ */
 const CODE_CHUNKERS = [
   {
     id: 'javascript',
@@ -270,6 +277,13 @@ const CODE_CHUNKERS = [
   }
 ];
 
+/**
+ * Secondary dispatch table for code-like data formats that are not handled by
+ * the primary language adapters.
+ *
+ * This table is only consulted after `CODE_CHUNKERS` misses or produces no
+ * chunks, preserving language chunker precedence.
+ */
 const CODE_FORMAT_CHUNKERS = [
   { id: 'json', match: (ext) => ext === '.json', chunk: ({ text, context }) => chunkJson(text, context) },
   {
@@ -295,6 +309,11 @@ const CODE_FORMAT_CHUNKERS = [
   }
 ];
 
+/**
+ * Prose/document chunker registry used when indexing in `prose` mode.
+ *
+ * Missing handlers fall back to large-prose chunk slicing in `smartChunk`.
+ */
 const PROSE_CHUNKERS = [
   { id: 'pdf', match: (ext) => ext === '.pdf', chunk: ({ text, context }) => chunkPdfDocument(text, context) },
   { id: 'docx', match: (ext) => ext === '.docx', chunk: ({ text, context }) => chunkDocxDocument(text, context) },
@@ -312,15 +331,23 @@ const PROSE_CHUNKERS = [
 ];
 
 /**
- * Build chunks for a single file using language-aware heuristics.
- * Falls back to generic fixed-size chunks when no parser matches.
+ * Build chunks for a single file using ordered language/format dispatch.
+ *
+ * Fallback behavior is deterministic and mode-sensitive:
+ * 1. `prose`: try prose chunker by extension, then large-prose fallback.
+ * 2. `code`: try language chunker, then code-format chunker.
+ * 3. final fallback: fixed-width slices (`800` chars) with mode-specific kind.
+ *
+ * All successful paths pass through `applyChunkingLimits` so configured
+ * truncation/capping rules are enforced consistently.
+ *
  * @param {object} params
  * @param {string} params.text
  * @param {string} params.ext
  * @param {string|null} [params.relPath]
  * @param {'code'|'prose'} params.mode
  * @param {object} [params.context]
- * @returns {Array<{start:number,end:number,name:string,kind:string,meta:Object}>}
+ * @returns {Array<{start:number,end:number,name:(string|null),kind:string,meta:object}>}
  */
 export function smartChunk({
   text,

@@ -6,6 +6,12 @@ import { treeSitterState } from '../state.js';
 const DEFAULT_CHUNK_CACHE_MAX_ENTRIES = 64;
 const CHUNK_CACHE_PERSISTENT_SCHEMA = '1.0.0';
 
+/**
+ * Build stable cache signature from tree-sitter chunking controls.
+ * @param {object} options
+ * @param {string} resolvedId
+ * @returns {object}
+ */
 const buildChunkCacheSignature = (options, resolvedId) => {
   const config = options?.treeSitter || {};
   const perLanguage = config.byLanguage?.[resolvedId] || {};
@@ -34,6 +40,12 @@ const buildChunkCacheSignature = (options, resolvedId) => {
   };
 };
 
+/**
+ * Resolve in-memory/persistent cache key for one language + config signature.
+ * @param {object} options
+ * @param {string} resolvedId
+ * @returns {string|null}
+ */
 export const resolveChunkCacheKey = (options, resolvedId) => {
   if (options?.treeSitter?.chunkCache === false) return null;
   const rawKey = options?.treeSitterCacheKey ?? options?.treeSitter?.cacheKey ?? null;
@@ -50,6 +62,11 @@ export const resolveChunkCacheKey = (options, resolvedId) => {
   }).key;
 };
 
+/**
+ * Resolve maximum number of LRU chunk entries.
+ * @param {object} options
+ * @returns {number}
+ */
 const resolveChunkCacheMaxEntries = (options) => {
   const raw = options?.treeSitter?.chunkCacheMaxEntries
     ?? options?.treeSitter?.chunkCache?.maxEntries
@@ -59,6 +76,11 @@ const resolveChunkCacheMaxEntries = (options) => {
   return Math.max(1, Math.floor(parsed));
 };
 
+/**
+ * Ensure process-local chunk cache map with configured capacity.
+ * @param {object} options
+ * @returns {{cache:Map<string,Array<object>>,maxEntries:number}}
+ */
 export const ensureChunkCache = (options) => {
   const maxEntries = resolveChunkCacheMaxEntries(options);
   if (!treeSitterState.chunkCache) treeSitterState.chunkCache = new Map();
@@ -69,6 +91,11 @@ export const ensureChunkCache = (options) => {
   return { cache: treeSitterState.chunkCache, maxEntries };
 };
 
+/**
+ * Reset persistent cache memoization state when cache root changes.
+ * @param {string|null} cacheRoot
+ * @returns {string|null}
+ */
 const ensurePersistentChunkCacheRoot = (cacheRoot) => {
   if (!cacheRoot || typeof cacheRoot !== 'string') return null;
   if (treeSitterState.persistentChunkCacheRoot === cacheRoot) return cacheRoot;
@@ -78,6 +105,11 @@ const ensurePersistentChunkCacheRoot = (cacheRoot) => {
   return cacheRoot;
 };
 
+/**
+ * Resolve persistent cache root directory when enabled.
+ * @param {object} options
+ * @returns {string|null}
+ */
 export const resolvePersistentChunkCacheRoot = (options) => {
   const cfg = options?.treeSitter || {};
   if (cfg.cachePersistent !== true) return null;
@@ -88,6 +120,12 @@ export const resolvePersistentChunkCacheRoot = (options) => {
   return ensurePersistentChunkCacheRoot(path.resolve(dir));
 };
 
+/**
+ * Resolve deterministic sharded file path for one persistent cache key.
+ * @param {string|null} cacheRoot
+ * @param {string} key
+ * @returns {string|null}
+ */
 const resolvePersistentChunkCachePath = (cacheRoot, key) => {
   if (!cacheRoot || !key) return null;
   const safeKey = String(key).replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -95,11 +133,23 @@ const resolvePersistentChunkCachePath = (cacheRoot, key) => {
   return path.join(cacheRoot, shard, `${safeKey}.json`);
 };
 
+/**
+ * Defensive clone of chunk rows for cache isolation.
+ * @param {Array<object>} chunks
+ * @returns {Array<object>}
+ */
 const cloneChunkList = (chunks) => chunks.map((chunk) => ({
   ...chunk,
   ...(chunk?.meta ? { meta: { ...chunk.meta } } : {})
 }));
 
+/**
+ * Read persistent chunk cache entry with memoized hits/misses.
+ * @param {string|null} cacheRoot
+ * @param {string} key
+ * @param {(key:string,amount?:number)=>void|null} [bumpMetric=null]
+ * @returns {Array<object>|null}
+ */
 const readPersistentCachedChunks = (cacheRoot, key, bumpMetric = null) => {
   if (!cacheRoot || !key) return null;
   const memo = treeSitterState.persistentChunkCacheMemo;
@@ -142,6 +192,14 @@ const readPersistentCachedChunks = (cacheRoot, key, bumpMetric = null) => {
   }
 };
 
+/**
+ * Write persistent chunk cache entry using atomic temp-file rename.
+ * @param {string|null} cacheRoot
+ * @param {string} key
+ * @param {Array<object>} chunks
+ * @param {(key:string,amount?:number)=>void|null} [bumpMetric=null]
+ * @returns {void}
+ */
 const writePersistentCachedChunks = (cacheRoot, key, chunks, bumpMetric = null) => {
   if (!cacheRoot || !key || !Array.isArray(chunks) || !chunks.length) return;
   const filePath = resolvePersistentChunkCachePath(cacheRoot, key);
@@ -164,6 +222,13 @@ const writePersistentCachedChunks = (cacheRoot, key, chunks, bumpMetric = null) 
   }
 };
 
+/**
+ * Get LRU-managed in-memory cached chunks.
+ * @param {Map<string,Array<object>>} cache
+ * @param {string} key
+ * @param {(key:string,amount?:number)=>void|null} [bumpMetric=null]
+ * @returns {Array<object>|null}
+ */
 const getCachedChunks = (cache, key, bumpMetric = null) => {
   if (!cache?.has?.(key)) {
     if (typeof bumpMetric === 'function') bumpMetric('chunkCacheMisses', 1);
@@ -176,6 +241,15 @@ const getCachedChunks = (cache, key, bumpMetric = null) => {
   return Array.isArray(value) ? cloneChunkList(value) : null;
 };
 
+/**
+ * Set in-memory cache value and evict oldest entries above capacity.
+ * @param {Map<string,Array<object>>} cache
+ * @param {string} key
+ * @param {Array<object>} chunks
+ * @param {number} maxEntries
+ * @param {(key:string,amount?:number)=>void|null} [bumpMetric=null]
+ * @returns {void}
+ */
 const setCachedChunks = (cache, key, chunks, maxEntries, bumpMetric = null) => {
   if (!Array.isArray(chunks) || !chunks.length) return;
   if (typeof bumpMetric === 'function') bumpMetric('chunkCacheSets', 1);
@@ -188,6 +262,11 @@ const setCachedChunks = (cache, key, chunks, maxEntries, bumpMetric = null) => {
   }
 };
 
+/**
+ * Load chunks from memory cache first, then optional persistent cache.
+ * @param {{cache:Map<string,Array<object>>,key:string,cacheRoot?:string|null,bumpMetric?:(key:string,amount?:number)=>void}} input
+ * @returns {Array<object>|null}
+ */
 export const loadCachedChunks = ({ cache, key, cacheRoot = null, bumpMetric = null }) => {
   const cached = getCachedChunks(cache, key, bumpMetric);
   if (cached) return cached;
@@ -205,6 +284,11 @@ export const loadCachedChunks = ({ cache, key, cacheRoot = null, bumpMetric = nu
   return null;
 };
 
+/**
+ * Store chunks in memory cache and optional persistent cache.
+ * @param {object} input
+ * @returns {void}
+ */
 export const storeCachedChunks = ({
   cache,
   key,

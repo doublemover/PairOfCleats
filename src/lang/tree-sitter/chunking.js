@@ -28,6 +28,12 @@ const loggedTraversalBudget = new Set();
 const loggedPlatformGuards = new Set();
 const MAX_TIMEOUTS_PER_RUN = 3;
 
+/**
+ * Increment tree-sitter metric counters when metrics state is enabled.
+ * @param {string} key
+ * @param {number} [amount=1]
+ * @returns {void}
+ */
 const bumpMetric = (key, amount = 1) => {
   if (!key) return;
   const metrics = treeSitterState.metrics;
@@ -45,6 +51,12 @@ const DEFAULT_MAX_CHUNK_NODES = 5_000;
 const QUERY_CAPTURE_NAME = 'chunk';
 const QUERY_MATCH_LIMIT_BUFFER = 32;
 
+/**
+ * Build the declaration/member capture query for one language config.
+ * @param {object|null} language
+ * @param {object|null} config
+ * @returns {string|null}
+ */
 const buildChunkQueryPattern = (language, config) => {
   if (!config) return null;
   const types = new Set();
@@ -67,6 +79,13 @@ const buildChunkQueryPattern = (language, config) => {
   return filtered.map((type) => `(${type}) @${QUERY_CAPTURE_NAME}`).join('\n');
 };
 
+/**
+ * Resolve compiled query for chunk extraction and memoize the result.
+ * @param {string} languageId
+ * @param {object} config
+ * @param {object} options
+ * @returns {object|null}
+ */
 const getTreeSitterChunkQuery = (languageId, config, options) => {
   if (!languageId || !config) return null;
   if (options?.treeSitter?.useQueries === false) return null;
@@ -108,6 +127,11 @@ const getTreeSitterChunkQuery = (languageId, config, options) => {
   }
 };
 
+/**
+ * Count newline-delimited lines without splitting the whole string.
+ * @param {string} text
+ * @returns {number}
+ */
 function countLines(text) {
   if (!text) return 0;
   let count = 1;
@@ -117,6 +141,12 @@ function countLines(text) {
   return count;
 }
 
+/**
+ * Build line accessor backed by a line-start index.
+ * @param {string} text
+ * @param {number[]|null} lineIndex
+ * @returns {{length:number,getLine:(idx:number)=>string}}
+ */
 const createLineAccessor = (text, lineIndex) => {
   const index = Array.isArray(lineIndex) ? lineIndex : buildLineIndex(text);
   const lineCount = index.length;
@@ -134,6 +164,13 @@ const createLineAccessor = (text, lineIndex) => {
   };
 };
 
+/**
+ * Apply per-language max-byte/max-line guards before parsing.
+ * @param {string} text
+ * @param {object} options
+ * @param {string} resolvedId
+ * @returns {boolean}
+ */
 function exceedsTreeSitterLimits(text, options, resolvedId) {
   const config = options?.treeSitter || {};
   const perLanguage = config.byLanguage?.[resolvedId] || {};
@@ -164,6 +201,12 @@ function exceedsTreeSitterLimits(text, options, resolvedId) {
   return false;
 }
 
+/**
+ * Resolve parse timeout configuration in milliseconds.
+ * @param {object} options
+ * @param {string} resolvedId
+ * @returns {number|null}
+ */
 function resolveParseTimeoutMs(options, resolvedId) {
   const config = options?.treeSitter || {};
   const perLanguage = config.byLanguage?.[resolvedId] || {};
@@ -172,6 +215,12 @@ function resolveParseTimeoutMs(options, resolvedId) {
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : null;
 }
 
+/**
+ * Guard known native parser crash paths by language/platform.
+ * @param {string} resolvedId
+ * @param {object} [options={}]
+ * @returns {boolean}
+ */
 const shouldGuardNativeParser = (resolvedId, options = {}) => {
   if (resolvedId !== 'perl') return false;
   const configured = options?.treeSitter?.nativeParserGuards?.perl;
@@ -180,6 +229,13 @@ const shouldGuardNativeParser = (resolvedId, options = {}) => {
   return process.platform === 'win32';
 };
 
+/**
+ * Extract compact one-line signature preview from declaration range.
+ * @param {string} text
+ * @param {number} start
+ * @param {number} end
+ * @returns {string}
+ */
 function extractSignature(text, start, end) {
   const limit = Math.min(end, start + 2000);
   const slice = text.slice(start, limit);
@@ -197,6 +253,12 @@ function extractSignature(text, start, end) {
 const DEFAULT_NAME_SEARCH_MAX_DEPTH = 6;
 const DEFAULT_NAME_SEARCH_MAX_NODES = 128;
 
+/**
+ * Find a likely identifier descendant for declaration naming.
+ * @param {object} node
+ * @param {object} config
+ * @returns {object|null}
+ */
 function findNameNode(node, config) {
   const nameTypes = (config?.nameTypes && config.nameTypes.size) ? config.nameTypes : COMMON_NAME_NODE_TYPES;
   if (!node) return null;
@@ -241,6 +303,12 @@ function findNameNode(node, config) {
   return null;
 }
 
+/**
+ * Slice raw source text for one AST node.
+ * @param {object} node
+ * @param {string} text
+ * @returns {string}
+ */
 function sliceNodeText(node, text) {
   if (!node || typeof text !== 'string') return '';
   const start = Number(node.startIndex);
@@ -250,6 +318,13 @@ function sliceNodeText(node, text) {
   return text.slice(start, Math.min(end, text.length));
 }
 
+/**
+ * Resolve declaration name from language resolver, fields, or bounded BFS.
+ * @param {object} node
+ * @param {string} text
+ * @param {object} config
+ * @returns {string}
+ */
 function extractNodeName(node, text, config) {
   if (!node) return '';
 
@@ -286,7 +361,12 @@ function extractNodeName(node, text, config) {
   return sliceNodeText(nameNode, text).trim();
 }
 
-
+/**
+ * Find nearest ancestor considered a declaration/type node.
+ * @param {object} node
+ * @param {object} config
+ * @returns {object|null}
+ */
 function findNearestType(node, config) {
   let current = node?.parent || null;
   while (current) {
@@ -296,6 +376,14 @@ function findNearestType(node, config) {
   return null;
 }
 
+/**
+ * Traverse AST nodes and convert chunkable declarations under traversal budgets.
+ * @param {object} root
+ * @param {string} text
+ * @param {object} config
+ * @param {{maxAstNodes:number,maxAstStack:number,maxChunkNodes:number}} budget
+ * @returns {{chunks:Array<object>|null,reason:string|null,visited:number,matched:number}}
+ */
 function gatherChunkNodes(root, text, config, budget) {
   const chunks = [];
   const stack = [root];
@@ -346,6 +434,16 @@ function gatherChunkNodes(root, text, config, budget) {
   return { chunks, reason: null, visited, matched };
 }
 
+/**
+ * Attempt chunk extraction via tree-sitter query captures.
+ * @param {object} root
+ * @param {string} text
+ * @param {object} config
+ * @param {{maxChunkNodes:number}} budget
+ * @param {string} resolvedId
+ * @param {object} options
+ * @returns {{chunks:Array<object>|null,reason:string|null,visited:number,matched:number,usedQuery:boolean,shouldFallback:boolean}|null}
+ */
 function gatherChunksWithQuery(root, text, config, budget, resolvedId, options) {
   const query = getTreeSitterChunkQuery(resolvedId, config, options);
   if (!query) return null;
@@ -401,6 +499,15 @@ function gatherChunksWithQuery(root, text, config, budget, resolvedId, options) 
   return { chunks, reason: null, visited: captures.length, matched, usedQuery: true, shouldFallback: false };
 }
 
+/**
+ * Convert one AST node into chunk metadata.
+ * @param {object} node
+ * @param {string} text
+ * @param {object} config
+ * @param {number[]} lineIndex
+ * @param {{getLine:(idx:number)=>string}} lineAccessor
+ * @returns {object|null}
+ */
 function toChunk(node, text, config, lineIndex, lineAccessor) {
   const name = extractNodeName(node, text, config);
   if (!name) return null;
@@ -447,6 +554,12 @@ function toChunk(node, text, config, lineIndex, lineAccessor) {
   };
 }
 
+/**
+ * Resolve canonical parser language id from file extension and optional hint.
+ * @param {string|null} languageId
+ * @param {string|null} ext
+ * @returns {string|null}
+ */
 function resolveLanguageForExt(languageId, ext) {
   const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
   if (normalizedExt === '.tsx') return 'tsx';
@@ -470,6 +583,17 @@ function resolveLanguageForExt(languageId, ext) {
   return null;
 }
 
+/**
+ * Build chunks with tree-sitter parsing in the main thread.
+ *
+ * Strict-mode behavior differs from default fallback behavior: when parsing is
+ * available but chunk extraction cannot proceed safely, strict mode returns a
+ * deterministic whole-file chunk envelope or throws `ERR_TREE_SITTER_STRICT`
+ * for true fallback-required paths.
+ *
+ * @param {{text:string,languageId?:string|null,ext?:string|null,options?:object}} input
+ * @returns {Array<object>|null}
+ */
 export function buildTreeSitterChunks({ text, languageId, ext, options }) {
   const resolvedId = resolveLanguageForExt(languageId, ext);
   if (!resolvedId) return null;
@@ -796,6 +920,15 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
   }
 }
 
+/**
+ * Build tree-sitter chunks using worker pool when configured.
+ *
+ * Worker results are treated as advisory: null/empty/error outcomes fall back
+ * to synchronous parsing to preserve deterministic chunk coverage.
+ *
+ * @param {{text:string,languageId?:string|null,ext?:string|null,options?:object}} input
+ * @returns {Promise<Array<object>|null>}
+ */
 export async function buildTreeSitterChunksAsync({ text, languageId, ext, options }) {
   // If tree-sitter is disabled (or no config provided), keep the synchronous behavior.
   if (!options?.treeSitter || options.treeSitter.enabled === false) {

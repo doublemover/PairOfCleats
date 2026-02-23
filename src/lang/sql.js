@@ -1,3 +1,9 @@
+/**
+ * SQL language surface exported to indexing registry.
+ *
+ * This module intentionally re-exports stable entry points so callers do not
+ * depend on individual implementation file paths.
+ */
 export {
   SQL_RESERVED_WORDS_COMMON,
   POSTGRES_RESERVED_WORDS,

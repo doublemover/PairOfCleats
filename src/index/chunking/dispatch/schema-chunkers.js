@@ -62,6 +62,18 @@ const hasGraphqlCandidate = (line) => (
   || line.includes('extend')
 );
 
+/**
+ * Project heading metadata onto chunk rows produced from heading boundaries.
+ *
+ * Heading and chunk arrays are expected to stay index-aligned because they are
+ * produced from the same heading list. Missing headings degrade to generic
+ * section metadata instead of dropping chunk rows.
+ *
+ * @param {Array<object>} chunks
+ * @param {Array<{kind?:string,definitionType?:string}>} headings
+ * @param {'proto'|'graphql'} format
+ * @returns {Array<object>}
+ */
 const mapChunksWithSchemaMeta = (chunks, headings, format) => {
   const output = new Array(chunks.length);
   for (let i = 0; i < chunks.length; i += 1) {
@@ -80,6 +92,14 @@ const mapChunksWithSchemaMeta = (chunks, headings, format) => {
   return output;
 };
 
+/**
+ * Full-file fallback emitted when no schema declarations are detected.
+ *
+ * @param {string} text
+ * @param {string} name
+ * @param {'proto'|'graphql'} format
+ * @returns {Array<{start:number,end:number,name:string,kind:'Section',meta:{format:string}}>}
+ */
 const buildFallbackChunk = (text, name, format) => [{
   start: 0,
   end: text.length,

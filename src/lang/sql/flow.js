@@ -6,6 +6,11 @@ const SQL_THROW_RE = /\b(?:raise|signal)\b\s+([A-Za-z_][A-Za-z0-9_]*)/gi;
 
 /**
  * Heuristic control-flow/dataflow extraction for SQL chunks.
+ *
+ * Flow analysis is comment-stripped and independently gateable:
+ * - `dataflow=false` disables variable/throw extraction only.
+ * - `controlFlow=false` disables branch/loop summary only.
+ *
  * @param {string} text
  * @param {{start:number,end:number}} chunk
  * @param {{dataflow?:boolean,controlFlow?:boolean}} [options]

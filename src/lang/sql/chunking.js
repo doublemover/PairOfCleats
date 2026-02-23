@@ -33,15 +33,29 @@ const SQL_KIND_MAP = {
 
 const SQL_CREATE_KINDS = ['table', 'view', 'function', 'procedure', 'trigger', 'index', 'schema', 'database'];
 
+/**
+ * ASCII-only lowercase conversion for keyword scanning.
+ * @param {number} code
+ * @returns {number}
+ */
 function lowerAsciiCode(code) {
   if (code >= CHAR_A && code <= CHAR_Z) return code + 32;
   return code;
 }
 
+/**
+ * @param {number} code
+ * @returns {boolean}
+ */
 function isAsciiWhitespaceCode(code) {
   return code === CHAR_TAB || code === CHAR_LF || code === CHAR_CR || code === CHAR_SPACE || code === 12 || code === 11;
 }
 
+/**
+ * SQL token character check (ASCII word characters).
+ * @param {number} code
+ * @returns {boolean}
+ */
 function isSqlWordCode(code) {
   return (code >= CHAR_A && code <= CHAR_Z)
     || (code >= CHAR_a && code <= CHAR_z)
@@ -49,16 +63,34 @@ function isSqlWordCode(code) {
     || code === CHAR_UNDERSCORE;
 }
 
+/**
+ * SQL identifier token check, including quoted identifiers and dotted paths.
+ * @param {number} code
+ * @returns {boolean}
+ */
 function isSqlNameCode(code) {
   return isSqlWordCode(code) || code === CHAR_DQUOTE || code === CHAR_BACKTICK || code === CHAR_DOT;
 }
 
+/**
+ * Skip ASCII whitespace from offset.
+ * @param {string} text
+ * @param {number} start
+ * @returns {number}
+ */
 function skipWhitespace(text, start) {
   let i = start;
   while (i < text.length && isAsciiWhitespaceCode(text.charCodeAt(i))) i += 1;
   return i;
 }
 
+/**
+ * Keyword boundary match using ASCII lowercase compare.
+ * @param {string} text
+ * @param {number} start
+ * @param {string} lowerKeyword
+ * @returns {boolean}
+ */
 function startsWithKeyword(text, start, lowerKeyword) {
   if ((start + lowerKeyword.length) > text.length) return false;
   for (let i = 0; i < lowerKeyword.length; i += 1) {
@@ -69,11 +101,24 @@ function startsWithKeyword(text, start, lowerKeyword) {
   return true;
 }
 
+/**
+ * Consume keyword from current cursor, returning `-1` when unmatched.
+ * @param {string} text
+ * @param {number} start
+ * @param {string} lowerKeyword
+ * @returns {number}
+ */
 function consumeKeyword(text, start, lowerKeyword) {
   if (!startsWithKeyword(text, start, lowerKeyword)) return -1;
   return start + lowerKeyword.length;
 }
 
+/**
+ * Skip leading whitespace and SQL comments.
+ * @param {string} text
+ * @param {number} start
+ * @returns {number}
+ */
 function skipLeadingComments(text, start) {
   let i = start;
   while (i < text.length) {
@@ -94,6 +139,11 @@ function skipLeadingComments(text, start) {
   return i;
 }
 
+/**
+ * Remove identifier quotes used by SQL dialects.
+ * @param {string} token
+ * @returns {string}
+ */
 function stripSqlNameQuotes(token) {
   if (!token) return '';
   let out = '';
@@ -104,6 +154,12 @@ function stripSqlNameQuotes(token) {
   return out;
 }
 
+/**
+ * Read one SQL name token starting at offset.
+ * @param {string} text
+ * @param {number} start
+ * @returns {string}
+ */
 function readSqlNameToken(text, start) {
   let end = start;
   while (end < text.length && isSqlNameCode(text.charCodeAt(end))) end += 1;
@@ -111,6 +167,15 @@ function readSqlNameToken(text, start) {
   return text.slice(start, end);
 }
 
+/**
+ * Classify SQL statement declarations from leading `CREATE ...` forms.
+ *
+ * This is intentionally heuristic and conservative; unknown statements are
+ * returned as generic `Statement` chunks.
+ *
+ * @param {string} statement
+ * @returns {{kind:string,name:string}}
+ */
 function classifySqlStatement(statement) {
   let idx = skipLeadingComments(statement, 0);
   idx = skipWhitespace(statement, idx);
@@ -159,6 +224,11 @@ function classifySqlStatement(statement) {
   };
 }
 
+/**
+ * Return the first non-empty logical line.
+ * @param {string} text
+ * @returns {string}
+ */
 function firstNonEmptyLine(text) {
   if (!text) return '';
   let start = 0;
@@ -174,6 +244,11 @@ function firstNonEmptyLine(text) {
   return '';
 }
 
+/**
+ * Normalize SQL block-comment doc text to plain lines.
+ * @param {string[]} rawLines
+ * @returns {string}
+ */
 function cleanBlockDoc(rawLines) {
   const cleaned = [];
   for (let i = 0; i < rawLines.length; i += 1) {
@@ -201,6 +276,11 @@ function cleanBlockDoc(rawLines) {
   return cleaned.join('\n').trim();
 }
 
+/**
+ * Extract docstring/signature from leading comment prologue within statement.
+ * @param {string} statementText
+ * @returns {{docstring:string,signature:string}}
+ */
 function extractSqlLeadingDoc(statementText) {
   if (!statementText || (!statementText.includes('--') && !statementText.includes('/*'))) {
     return { docstring: '', signature: firstNonEmptyLine(statementText) };
@@ -246,10 +326,17 @@ function extractSqlLeadingDoc(statementText) {
 }
 
 /**
- * Build chunk metadata for SQL statements.
- * Returns null when no statements are found.
+ * Build chunk metadata for SQL statements with parser-first fallback.
+ *
+ * Fallback order:
+ * 1. Use tree-sitter chunks when available and at least as complete as scanner
+ *    output for this file.
+ * 2. Otherwise split statements heuristically and classify `CREATE` forms.
+ * 3. Return `null` only when no statements are found at all.
+ *
  * @param {string} text
- * @returns {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null}
+ * @param {{dialect?:string,[key:string]:any}} [options]
+ * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>|null}
  */
 export function buildSqlChunks(text, options = {}) {
   const statements = splitSqlStatements(text);

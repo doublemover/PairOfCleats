@@ -20,10 +20,20 @@ const JULIA_RX = /^\s*(module|function|macro)\s+([A-Za-z_][A-Za-z0-9_!.]*)/;
 const RAZOR_RX = /^\s*@\s*(page|model|inherits|functions|code|section)\b\s*([A-Za-z_][A-Za-z0-9_]*)?/i;
 
 const DART_SKIP_NAMES = new Set(['if', 'for', 'while', 'switch', 'catch', 'return', 'new']);
+/**
+ * Skip structurally meaningless Nix lines for heading extraction.
+ * @param {string} line
+ * @returns {boolean}
+ */
 const NIX_SKIP_LINE = (line) => {
   const trimmed = line.trim();
   return !trimmed || trimmed.startsWith('#') || trimmed === 'in' || trimmed === 'let';
 };
+/**
+ * Build a readable heading for a matched Jinja directive.
+ * @param {RegExpMatchArray} match
+ * @returns {string}
+ */
 const JINJA_TITLE = (match) => {
   const raw = String(match[2] || '').trim();
   if (!raw) return match[1];
@@ -72,6 +82,14 @@ const JINJA_OPTIONS = {
   title: JINJA_TITLE
 };
 
+/**
+ * Full-file fallback chunk used when no structural headings are detected.
+ * @param {string} text
+ * @param {string} name
+ * @param {string} kind
+ * @param {string|null} format
+ * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
+ */
 const buildSingleChunk = (text, name, kind, format) => [{
   start: 0,
   end: text.length,
@@ -80,6 +98,19 @@ const buildSingleChunk = (text, name, kind, format) => [{
   meta: format ? { format } : {}
 }];
 
+/**
+ * Convert heading rows into bounded chunks and attach format metadata.
+ * Falls back to a single full-file chunk when heading extraction yields none.
+ *
+ * @param {object} input
+ * @param {string} input.text
+ * @param {Array<{line:number,title:string}>} input.headings
+ * @param {number[]} input.lineIndex
+ * @param {string} input.format
+ * @param {string} input.kind
+ * @param {string} input.fallbackName
+ * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
+ */
 const buildFormattedChunksFromHeadings = ({
   text,
   headings,
@@ -95,6 +126,14 @@ const buildFormattedChunksFromHeadings = ({
   return buildSingleChunk(text, fallbackName, kind, format);
 };
 
+/**
+ * Heuristic Dockerfile chunker using instruction boundaries, with `FROM`
+ * clause specialization to preserve stage/image identity in chunk names.
+ *
+ * @param {string} text
+ * @param {object|null} [context]
+ * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
+ */
 export const chunkDockerfile = (text, context = null) => {
   const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];
@@ -121,6 +160,13 @@ export const chunkDockerfile = (text, context = null) => {
   });
 };
 
+/**
+ * Heuristic Makefile chunker by target declarations.
+ *
+ * @param {string} text
+ * @param {object|null} [context]
+ * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
+ */
 export const chunkMakefile = (text, context = null) => {
   const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];
@@ -143,6 +189,12 @@ export const chunkMakefile = (text, context = null) => {
   });
 };
 
+/**
+ * Heuristic CMake chunker by command invocations.
+ * @param {string} text
+ * @param {object|null} [context]
+ * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
+ */
 export const chunkCmake = (text, context = null) => chunkByLineRegex(
   text,
   /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(/,
@@ -150,6 +202,12 @@ export const chunkCmake = (text, context = null) => chunkByLineRegex(
   context
 );
 
+/**
+ * Heuristic Starlark chunker by defs/classes and high-signal top-level calls.
+ * @param {string} text
+ * @param {object|null} [context]
+ * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
+ */
 export const chunkStarlark = (text, context = null) => {
   const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];
@@ -177,6 +235,12 @@ export const chunkStarlark = (text, context = null) => {
   });
 };
 
+/**
+ * Heuristic Nix chunker by assignment headings.
+ * @param {string} text
+ * @param {object|null} [context]
+ * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
+ */
 export const chunkNix = (text, context = null) => chunkByLineRegex(
   text,
   /^\s*([A-Za-z0-9_.-]+)\s*=/,
@@ -184,6 +248,12 @@ export const chunkNix = (text, context = null) => chunkByLineRegex(
   context
 );
 
+/**
+ * Heuristic Dart chunker by type and function declarations.
+ * @param {string} text
+ * @param {object|null} [context]
+ * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
+ */
 export const chunkDart = (text, context = null) => {
   const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];
@@ -220,6 +290,12 @@ export const chunkDart = (text, context = null) => {
   });
 };
 
+/**
+ * Heuristic Scala chunker by type/object/trait/enum and `def` declarations.
+ * @param {string} text
+ * @param {object|null} [context]
+ * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
+ */
 export const chunkScala = (text, context = null) => {
   const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];
@@ -253,6 +329,12 @@ export const chunkScala = (text, context = null) => {
   });
 };
 
+/**
+ * Heuristic Groovy chunker by type declarations and `def` members.
+ * @param {string} text
+ * @param {object|null} [context]
+ * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
+ */
 export const chunkGroovy = (text, context = null) => {
   const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];
@@ -286,6 +368,12 @@ export const chunkGroovy = (text, context = null) => {
   });
 };
 
+/**
+ * Heuristic R chunker for function assignments.
+ * @param {string} text
+ * @param {object|null} [context]
+ * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
+ */
 export const chunkR = (text, context = null) => chunkByLineRegex(
   text,
   /^\s*([A-Za-z.][A-Za-z0-9_.]*)\s*(?:<-|=)\s*function\b/,
@@ -293,6 +381,12 @@ export const chunkR = (text, context = null) => chunkByLineRegex(
   context
 );
 
+/**
+ * Heuristic Julia chunker for modules/functions/macros.
+ * @param {string} text
+ * @param {object|null} [context]
+ * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
+ */
 export const chunkJulia = (text, context = null) => {
   const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];
@@ -315,6 +409,12 @@ export const chunkJulia = (text, context = null) => {
   });
 };
 
+/**
+ * Heuristic Handlebars chunker by section/block tags.
+ * @param {string} text
+ * @param {object|null} [context]
+ * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
+ */
 export const chunkHandlebars = (text, context = null) => chunkByLineRegex(
   text,
   /{{[#^]\s*([A-Za-z0-9_.-]+)\b/,
@@ -322,6 +422,12 @@ export const chunkHandlebars = (text, context = null) => chunkByLineRegex(
   context
 );
 
+/**
+ * Heuristic Mustache chunker by section/block tags.
+ * @param {string} text
+ * @param {object|null} [context]
+ * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
+ */
 export const chunkMustache = (text, context = null) => chunkByLineRegex(
   text,
   /{{[#^]\s*([A-Za-z0-9_.-]+)\b/,
@@ -329,6 +435,12 @@ export const chunkMustache = (text, context = null) => chunkByLineRegex(
   context
 );
 
+/**
+ * Heuristic Jinja chunker by directive blocks.
+ * @param {string} text
+ * @param {object|null} [context]
+ * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
+ */
 export const chunkJinja = (text, context = null) => chunkByLineRegex(
   text,
   /{%\s*(block|macro|for|if|set|include|extends)\s+([^%\n]+)%}/,
@@ -336,6 +448,12 @@ export const chunkJinja = (text, context = null) => chunkByLineRegex(
   context
 );
 
+/**
+ * Heuristic Razor chunker for common `@` directives.
+ * @param {string} text
+ * @param {object|null} [context]
+ * @returns {Array<{start:number,end:number,name:string,kind:string,meta:object}>}
+ */
 export const chunkRazor = (text, context = null) => {
   const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];

@@ -12,6 +12,10 @@ const CHAR_UNDERSCORE = 95;
 const CHAR_a = 97;
 const CHAR_z = 122;
 
+/**
+ * @param {number} code
+ * @returns {boolean}
+ */
 function isAsciiWhitespaceCode(code) {
   return code === CHAR_TAB
     || code === CHAR_LF
@@ -21,21 +25,41 @@ function isAsciiWhitespaceCode(code) {
     || code === CHAR_SPACE;
 }
 
+/**
+ * @param {number} code
+ * @returns {boolean}
+ */
 function isSqlIdentStartCode(code) {
   return (code >= CHAR_A && code <= CHAR_Z)
     || (code >= CHAR_a && code <= CHAR_z)
     || code === CHAR_UNDERSCORE;
 }
 
+/**
+ * @param {number} code
+ * @returns {boolean}
+ */
 function isSqlIdentCode(code) {
   return isSqlIdentStartCode(code) || (code >= CHAR_0 && code <= CHAR_9);
 }
 
+/**
+ * ASCII-only lowercase conversion.
+ * @param {number} code
+ * @returns {number}
+ */
 function lowerAsciiCode(code) {
   if (code >= CHAR_A && code <= CHAR_Z) return code + 32;
   return code;
 }
 
+/**
+ * Case-insensitive ASCII token match at offset.
+ * @param {string} text
+ * @param {number} offset
+ * @param {string} lowerToken
+ * @returns {boolean}
+ */
 function equalsLowerAsciiAt(text, offset, lowerToken) {
   if ((offset + lowerToken.length) > text.length) return false;
   for (let i = 0; i < lowerToken.length; i += 1) {
@@ -44,6 +68,13 @@ function equalsLowerAsciiAt(text, offset, lowerToken) {
   return true;
 }
 
+/**
+ * Check whether a slice contains non-whitespace characters.
+ * @param {string} text
+ * @param {number} start
+ * @param {number} end
+ * @returns {boolean}
+ */
 function hasNonWhitespace(text, start, end) {
   for (let i = start; i < end; i += 1) {
     if (!isAsciiWhitespaceCode(text.charCodeAt(i))) return true;
@@ -51,6 +82,12 @@ function hasNonWhitespace(text, start, end) {
   return false;
 }
 
+/**
+ * Parse PostgreSQL dollar-quoted string delimiters (`$$` or `$tag$`).
+ * @param {string} text
+ * @param {number} start
+ * @returns {string|null}
+ */
 function readDollarTag(text, start) {
   if (text.charCodeAt(start) !== 36) return null;
   const second = text.charCodeAt(start + 1);
@@ -62,12 +99,31 @@ function readDollarTag(text, start) {
   return text.slice(start, i + 1);
 }
 
+/**
+ * Delimiter matcher optimized for common single-character delimiters.
+ * @param {string} text
+ * @param {number} offset
+ * @param {string} delimiter
+ * @param {number} delimiterLength
+ * @param {number} delimiterFirstCode
+ * @returns {boolean}
+ */
 function matchesDelimiterAt(text, offset, delimiter, delimiterLength, delimiterFirstCode) {
   if (!delimiterLength || (offset + delimiterLength) > text.length) return false;
   if (delimiterLength === 1) return text.charCodeAt(offset) === delimiterFirstCode;
   return text.startsWith(delimiter, offset);
 }
 
+/**
+ * Split SQL text into statement ranges while honoring:
+ * - single/double-quoted strings
+ * - line/block comments
+ * - postgres dollar-quoted blocks
+ * - client `DELIMITER` directive overrides
+ *
+ * @param {string} text
+ * @returns {Array<{start:number,end:number}>}
+ */
 export function splitSqlStatements(text) {
   const statements = [];
   let start = 0;
@@ -205,6 +261,11 @@ export function splitSqlStatements(text) {
   return statements;
 }
 
+/**
+ * Remove SQL comments while preserving quoted literal content.
+ * @param {string} text
+ * @returns {string}
+ */
 export function stripSqlComments(text) {
   const out = [];
   let inSingle = false;

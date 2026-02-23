@@ -1,5 +1,11 @@
 export const PHASE_FAILURE_DETAIL_MAX_CHARS = 400;
 
+/**
+ * Parse non-negative integer env/config values with fallback.
+ * @param {unknown} value
+ * @param {number} fallback
+ * @returns {number}
+ */
 export const parseNonNegativeInt = (value, fallback) => {
   const parsed = Number.parseInt(String(value ?? ''), 10);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
@@ -30,6 +36,19 @@ export const toPhaseFailureDetail = (error) => {
   return `${combined.slice(0, PHASE_FAILURE_DETAIL_MAX_CHARS - 3)}...`;
 };
 
+/**
+ * Mark still-running phases as failed after an error.
+ *
+ * The function is intentionally best-effort: individual mark failures are
+ * swallowed to preserve the original build error signal.
+ *
+ * @param {object} input
+ * @param {string} input.buildRoot
+ * @param {(buildRoot:string,phase:string,status:string,detail?:string|null)=>Promise<void>} input.markPhase
+ * @param {string|null} input.phaseFailureDetail
+ * @param {Array<{name:string,running:boolean,done:boolean}>} input.phases
+ * @returns {Promise<void>}
+ */
 export const markFailedPhases = async ({
   buildRoot,
   markPhase,

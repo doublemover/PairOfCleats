@@ -1,7 +1,19 @@
 /**
  * Normalize SQL-specific doc metadata for search output.
  * @param {{meta?:Object}} chunk
- * @returns {{doc:string,params:string[],returns:(string|null),signature:(string|null)}}
+ * @returns {{
+ *   doc:string,
+ *   params:string[],
+ *   returns:(string|null),
+ *   signature:(string|null),
+ *   dialect:(string|null),
+ *   dataflow:(object|null),
+ *   throws:string[],
+ *   awaits:string[],
+ *   yields:boolean,
+ *   returnsValue:boolean,
+ *   controlFlow:(object|null)
+ * }}
  */
 export function extractSqlDocMeta(chunk) {
   const meta = chunk.meta || {};

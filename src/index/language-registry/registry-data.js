@@ -61,10 +61,26 @@ const {
   getKotlinFileStats
 } = kotlinLang;
 
+/**
+ * Normalize possibly-null option bags to plain objects for spread-safe merges.
+ * @param {unknown} options
+ * @returns {object}
+ */
 const toObjectOptions = (options) => (options && typeof options === 'object' ? options : {});
 
+/**
+ * Resolve per-language parser selector (e.g. `options.go.parser`).
+ * @param {object} options
+ * @param {string} parserScope
+ * @returns {string|undefined}
+ */
 const resolveScopedParser = (options, parserScope) => options?.[parserScope]?.parser;
 
+/**
+ * Build options passed to chunk-building functions during `prepare`.
+ * @param {object} input
+ * @returns {object}
+ */
 const buildChunkPrepareOptions = ({ options, relPath, parserScope, extras = null }) => ({
   ...toObjectOptions(options),
   relPath,
@@ -72,6 +88,15 @@ const buildChunkPrepareOptions = ({ options, relPath, parserScope, extras = null
   ...(extras || {})
 });
 
+/**
+ * Build options passed to relation builders after chunk preparation.
+ *
+ * Relation options preserve legacy behavior by spreading the full options bag,
+ * while still forcing scope-specific parser overrides.
+ *
+ * @param {object} input
+ * @returns {object}
+ */
 const buildChunkRelationOptions = ({ options, relPath, parserScope, extras = null }) => ({
   relPath,
   parser: resolveScopedParser(options, parserScope),
@@ -79,14 +104,39 @@ const buildChunkRelationOptions = ({ options, relPath, parserScope, extras = nul
   ...options
 });
 
+/**
+ * Resolve SQL dialect for parser-backed SQL adapters.
+ *
+ * Priority:
+ * 1. `options.resolveSqlDialect(ext)` callback
+ * 2. `options.sql.dialect`
+ * 3. `'generic'`
+ *
+ * @param {object} input
+ * @returns {string}
+ */
 const resolveSqlDialect = ({ options, ext, relPath }) => (
   typeof options?.resolveSqlDialect === 'function'
     ? options.resolveSqlDialect(ext || path.extname(relPath || ''))
     : (options?.sql?.dialect || 'generic')
 );
 
+/**
+ * Adapt collectors that return `{ imports }` payloads into plain list collectors.
+ * @param {(text:string)=>{imports:string[]}} collector
+ * @returns {(text:string)=>string[]}
+ */
 const collectImportsFromPayload = (collector) => (text) => collector(text).imports;
 
+/**
+ * Build a managed language adapter around parser-native chunk/relations APIs.
+ *
+ * The generated adapter guarantees shared parser selection across prepare and
+ * relation phases and centralizes optional metadata hooks.
+ *
+ * @param {object} spec
+ * @returns {object}
+ */
 const createParserChunkAdapter = ({
   id,
   match,
@@ -145,6 +195,11 @@ const createParserChunkAdapter = ({
   return adapter;
 };
 
+/**
+ * Shared SQL adapter extras so chunking and relations use the same dialect.
+ * @param {object} input
+ * @returns {{dialect:string}}
+ */
 const sqlDialectExtras = ({ options, ext, relPath }) => ({
   dialect: resolveSqlDialect({ options, ext, relPath })
 });
@@ -436,6 +491,14 @@ const MANAGED_LANGUAGE_ADAPTERS = [
   ...PARSER_CHUNK_LANGUAGE_ADAPTERS
 ];
 
+/**
+ * Ordered language adapter registry used by index build pipelines.
+ *
+ * Precedence is intentional:
+ * 1. Managed adapters (parser-backed and orchestrated fallbacks)
+ * 2. Heuristic adapters
+ * 3. Config/document format adapters
+ */
 export const LANGUAGE_REGISTRY = [
   ...MANAGED_LANGUAGE_ADAPTERS.map((adapter) => createManagedAdapter(adapter)),
   ...buildHeuristicAdapters(),

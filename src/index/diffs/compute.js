@@ -42,17 +42,39 @@ const DEFAULT_MAX_BYTES = 2 * 1024 * 1024;
 const DEFAULT_MAX_DIFFS = 50;
 const DEFAULT_RETAIN_DAYS = 30;
 
+/**
+ * Lightweight typed error helpers used by diff command surfaces.
+ * @param {string} message
+ * @param {object|null} [details]
+ * @returns {Error}
+ */
 const invalidRequest = (message, details = null) => createError(ERROR_CODES.INVALID_REQUEST, message, details);
 const notFound = (message, details = null) => createError(ERROR_CODES.NOT_FOUND, message, details);
 const queueError = (message, details = null) => createError(ERROR_CODES.QUEUE_OVERLOADED, message, details);
 const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
 
+/**
+ * Validate a diff id and throw an invalid request error when malformed.
+ * @param {string} diffId
+ * @returns {void}
+ */
 const ensureDiffId = (diffId) => {
   if (typeof diffId !== 'string' || !DIFF_ID_RE.test(diffId)) {
     throw invalidRequest(`Invalid diff id "${diffId}".`);
   }
 };
 
+/**
+ * Execute a diff-manifest mutation under the repository index lock.
+ *
+ * Lock acquisition failure is translated into a queue-overloaded error so CLI
+ * callers can surface contention without exposing lock internals.
+ *
+ * @param {string} repoCacheRoot
+ * @param {{waitMs?:number,pollMs?:number,staleMs?:number,log?:(line:string)=>void}} options
+ * @param {(lock:object)=>Promise<any>} worker
+ * @returns {Promise<any>}
+ */
 const withDiffLock = async (repoCacheRoot, options, worker) => {
   const lock = await acquireIndexLock({
     repoCacheRoot,
@@ -71,11 +93,27 @@ const withDiffLock = async (repoCacheRoot, options, worker) => {
   }
 };
 
+/**
+ * Parse user-supplied limits as positive integers with fallback defaults.
+ * @param {unknown} value
+ * @param {number} fallback
+ * @returns {number}
+ */
 const normalizePositiveInt = (value, fallback) => {
   if (!Number.isFinite(Number(value))) return fallback;
   return Math.max(1, Math.floor(Number(value)));
 };
 
+/**
+ * Compute mode-specific diffs in parallel for the selected index modes.
+ * @param {object} input
+ * @param {string[]} input.selectedModes
+ * @param {object} input.resolvedFrom
+ * @param {object} input.resolvedTo
+ * @param {object} input.options
+ * @param {(message:string)=>Error} input.notFound
+ * @returns {Promise<Array<object>>}
+ */
 const computeSelectedModeDiffs = async ({
   selectedModes,
   resolvedFrom,
@@ -99,6 +137,13 @@ const computeSelectedModeDiffs = async ({
   });
 }));
 
+/**
+ * Persist sorted bounded events to JSONL.
+ * @param {string} repoCacheRoot
+ * @param {string} diffId
+ * @param {Array<object>} events
+ * @returns {Promise<string>} Absolute events file path.
+ */
 const writeEventsJsonl = async (repoCacheRoot, diffId, events) => {
   const eventsPath = path.join(repoCacheRoot, 'diffs', diffId, 'events.jsonl');
   const payload = events.map((entry) => serializeEvent(entry)).join('\n');
@@ -106,6 +151,11 @@ const writeEventsJsonl = async (repoCacheRoot, diffId, events) => {
   return eventsPath;
 };
 
+/**
+ * Read diff events from JSONL on disk.
+ * @param {string} eventsPath
+ * @returns {Array<object>}
+ */
 const readEventsJsonl = (eventsPath) => {
   if (!fs.existsSync(eventsPath)) return [];
   const lines = fs.readFileSync(eventsPath, 'utf8').split(/\r?\n/);
@@ -120,6 +170,36 @@ const readEventsJsonl = (eventsPath) => {
 
 const hasPathRef = (parsed) => parsed?.kind === 'path';
 
+/**
+ * Compute a semantic diff between two resolved index refs.
+ *
+ * Persistence policy:
+ * 1. Disabled for dry-run.
+ * 2. Disabled by `persist=false`.
+ * 3. Disabled for path refs unless `persistUnsafe=true`.
+ *
+ * When persistence is enabled, this function is idempotent by canonical
+ * identity hash: identical input tuples reuse the prior stored diff.
+ *
+ * @param {object} params
+ * @param {string} params.repoRoot
+ * @param {object|null} [params.userConfig]
+ * @param {string} params.from
+ * @param {string} params.to
+ * @param {string[]|string} [params.modes=['code']]
+ * @param {boolean} [params.detectRenames=true]
+ * @param {boolean} [params.includeRelations=true]
+ * @param {number} [params.maxChangedFiles=200]
+ * @param {number} [params.maxChunksPerFile=500]
+ * @param {number} [params.maxEvents=20000]
+ * @param {number} [params.maxBytes=2097152]
+ * @param {boolean} [params.allowMismatch=false]
+ * @param {boolean} [params.persist=true]
+ * @param {boolean} [params.persistUnsafe=false]
+ * @param {number} [params.waitMs=0]
+ * @param {boolean} [params.dryRun=false]
+ * @returns {Promise<object>}
+ */
 export const computeIndexDiff = async ({
   repoRoot,
   userConfig = null,
@@ -328,6 +408,15 @@ export const computeIndexDiff = async ({
   });
 };
 
+/**
+ * List persisted diff manifest entries, optionally filtered by required modes.
+ *
+ * @param {object} params
+ * @param {string} params.repoRoot
+ * @param {object|null} [params.userConfig]
+ * @param {string[]|string} [params.modes=[]]
+ * @returns {Array<object>}
+ */
 export const listDiffs = ({
   repoRoot,
   userConfig = null,
@@ -347,6 +436,16 @@ export const listDiffs = ({
   });
 };
 
+/**
+ * Read one persisted diff in summary or JSONL form.
+ *
+ * @param {object} params
+ * @param {string} params.repoRoot
+ * @param {object|null} [params.userConfig]
+ * @param {string} params.diffId
+ * @param {'summary'|'jsonl'|string} [params.format='summary']
+ * @returns {{entry:object,inputs:object,summary:object,events?:Array<object>}|null}
+ */
 export const showDiff = ({
   repoRoot,
   userConfig = null,
@@ -368,6 +467,22 @@ export const showDiff = ({
   return { entry, inputs, summary, events };
 };
 
+/**
+ * Prune persisted diffs by recency and count retention policy.
+ *
+ * Keep semantics:
+ * 1. Always keep up to `maxDiffs` newest entries.
+ * 2. If `retainDays` is set, also keep entries newer than the cutoff.
+ *
+ * @param {object} params
+ * @param {string} params.repoRoot
+ * @param {object|null} [params.userConfig]
+ * @param {number} [params.maxDiffs=50]
+ * @param {number} [params.retainDays=30]
+ * @param {boolean} [params.dryRun=false]
+ * @param {number} [params.waitMs=0]
+ * @returns {Promise<{dryRun:boolean,removed:string[]}>}
+ */
 export const pruneDiffs = async ({
   repoRoot,
   userConfig = null,

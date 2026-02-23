@@ -8,6 +8,10 @@ const CHAR_SEMICOLON = 59;
 const CHAR_A = 65;
 const CHAR_Z = 90;
 
+/**
+ * @param {number} code
+ * @returns {boolean}
+ */
 function isAsciiWhitespaceCode(code) {
   return code === CHAR_TAB
     || code === CHAR_LF
@@ -17,17 +21,34 @@ function isAsciiWhitespaceCode(code) {
     || code === CHAR_SPACE;
 }
 
+/**
+ * ASCII-only lowercase conversion.
+ * @param {number} code
+ * @returns {number}
+ */
 function lowerAsciiCode(code) {
   if (code >= CHAR_A && code <= CHAR_Z) return code + 32;
   return code;
 }
 
+/**
+ * Skip leading spaces/tabs/newlines.
+ * @param {string} text
+ * @param {number} start
+ * @returns {number}
+ */
 function skipSpaces(text, start) {
   let i = start;
   while (i < text.length && isAsciiWhitespaceCode(text.charCodeAt(i))) i += 1;
   return i;
 }
 
+/**
+ * Read an import path token until whitespace/semicolon.
+ * @param {string} text
+ * @param {number} start
+ * @returns {string}
+ */
 function readPathToken(text, start) {
   let end = start;
   while (end < text.length) {
@@ -39,6 +60,13 @@ function readPathToken(text, start) {
   return text.slice(start, end);
 }
 
+/**
+ * Case-insensitive ASCII prefix check.
+ * @param {string} text
+ * @param {number} start
+ * @param {string} lowerToken
+ * @returns {boolean}
+ */
 function startsWithLowerAscii(text, start, lowerToken) {
   if ((start + lowerToken.length) > text.length) return false;
   for (let i = 0; i < lowerToken.length; i += 1) {
@@ -47,6 +75,11 @@ function startsWithLowerAscii(text, start, lowerToken) {
   return true;
 }
 
+/**
+ * Parse one SQL import directive line (`\i`, `\ir`, `@@`, `source`).
+ * @param {string} line
+ * @returns {string}
+ */
 function parseImportDirective(line) {
   if (!line) return '';
   let i = skipSpaces(line, 0);
@@ -79,6 +112,12 @@ function parseImportDirective(line) {
 
 /**
  * Collect imports from SQL source.
+ *
+ * Scanner semantics:
+ * 1. Ignore block and line comments before directive parsing.
+ * 2. Parse directives line-by-line to match common SQL client include forms.
+ *
+ * @param {string} [text='']
  * @returns {string[]}
  */
 export function collectSqlImports(text = '') {

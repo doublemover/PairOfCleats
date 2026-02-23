@@ -7,6 +7,11 @@ const require = createRequire(import.meta.url);
 let sqlParserInstance = null;
 let sqlParserLoadFailed = false;
 
+/**
+ * Remove dialect-specific identifier quoting wrappers.
+ * @param {string} raw
+ * @returns {string}
+ */
 function normalizeSqlIdentifier(raw) {
   if (!raw) return '';
   let out = '';
@@ -18,6 +23,15 @@ function normalizeSqlIdentifier(raw) {
   return out.trim();
 }
 
+/**
+ * Lazily load `node-sql-parser` once per process.
+ *
+ * If loading fails, the failure is memoized and callers fall back to import-only
+ * heuristics for the remainder of the run.
+ *
+ * @param {(line:string)=>void} [log]
+ * @returns {object|null}
+ */
 function getSqlParser(log) {
   if (sqlParserInstance || sqlParserLoadFailed) return sqlParserInstance;
   try {
@@ -31,6 +45,12 @@ function getSqlParser(log) {
   return sqlParserInstance;
 }
 
+/**
+ * Traverse parser AST and collect table usage identifiers.
+ * @param {object} root
+ * @param {Set<string>} tables
+ * @returns {void}
+ */
 function collectSqlTablesFromAst(root, tables) {
   if (!root) return;
 
@@ -82,6 +102,15 @@ function collectSqlTablesFromAst(root, tables) {
   }
 }
 
+/**
+ * Parse SQL text and collect table usages through parser AST traversal.
+ * Parse errors degrade to an empty usage set.
+ *
+ * @param {string} text
+ * @param {string} dialect
+ * @param {(line:string)=>void} [log]
+ * @returns {string[]}
+ */
 function collectSqlParserUsages(text, dialect, log) {
   const parser = getSqlParser(log);
   if (!parser) return [];
@@ -102,6 +131,7 @@ function collectSqlParserUsages(text, dialect, log) {
  * Build import/export/call/usage relations for SQL chunks.
  * @param {string} text
  * @param {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null} sqlChunks
+ * @param {{dialect?:string,log?:(line:string)=>void}} [options]
  * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[],importLinks:string[]}}
  */
 export function buildSqlRelations(text, sqlChunks, options = {}) {

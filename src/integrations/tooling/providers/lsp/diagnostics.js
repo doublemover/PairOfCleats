@@ -7,6 +7,11 @@ export const DEFAULT_MAX_DIAGNOSTIC_URIS = 1000;
 export const DEFAULT_MAX_DIAGNOSTICS_PER_URI = 200;
 export const DEFAULT_MAX_DIAGNOSTICS_PER_CHUNK = 100;
 
+/**
+ * Build a stable dedupe key for one diagnostic entry.
+ * @param {object} diag
+ * @returns {string}
+ */
 const diagnosticKey = (diag) => {
   if (!diag || typeof diag !== 'object') return '';
   const range = diag.range || {};
@@ -22,6 +27,15 @@ const diagnosticKey = (diag) => {
   ].join('|');
 };
 
+/**
+ * Create diagnostic notification collector with bounded in-memory buffers.
+ *
+ * Caps are LRU-like at URI level and truncation at per-URI entry level, with
+ * one-time warning checks recorded through `checks`/`checkFlags`.
+ *
+ * @param {object} input
+ * @returns {{diagnosticsByUri:Map<string,Array<object>>,onNotification:(msg:object)=>void,setDiagnosticsForUri:(uri:string,diagnostics:Array<object>)=>void}}
+ */
 export const createDiagnosticsCollector = ({
   captureDiagnostics,
   checks,
@@ -77,6 +91,15 @@ export const createDiagnosticsCollector = ({
   return { diagnosticsByUri, onNotification, setDiagnosticsForUri };
 };
 
+/**
+ * Project URI-scoped diagnostics into chunk-scoped diagnostic buckets.
+ *
+ * Uses target overlap matching with dedupe per chunk and per-chunk cap to keep
+ * payload size bounded during noisy language-server sessions.
+ *
+ * @param {object} input
+ * @returns {{diagnosticsByChunkUid:object,diagnosticsCount:number}}
+ */
 export const shapeDiagnosticsByChunkUid = ({
   captureDiagnostics,
   diagnosticsByUri,

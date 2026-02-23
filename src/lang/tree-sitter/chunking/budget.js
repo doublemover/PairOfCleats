@@ -12,6 +12,12 @@ const MIN_ADAPTIVE_AST_NODES = 10_000;
 const MIN_ADAPTIVE_AST_STACK = 10_000;
 const MIN_ADAPTIVE_CHUNK_NODES = 200;
 
+/**
+ * Resolve adaptive budget scale from historical node-density telemetry.
+ * @param {object} options
+ * @param {string} resolvedId
+ * @returns {{scale:number,density:number|null}}
+ */
 const resolveAdaptiveBudgetScale = (options, resolvedId) => {
   const adaptive = options?.treeSitter?.adaptive;
   if (adaptive === false || adaptive?.enabled === false) return { scale: 1, density: null };
@@ -51,6 +57,14 @@ const resolveAdaptiveBudgetScale = (options, resolvedId) => {
   return { scale, density };
 };
 
+/**
+ * Apply adaptive budget scaling with lower safety floors.
+ * @param {{maxAstNodes:number,maxAstStack:number,maxChunkNodes:number}} budget
+ * @param {object} options
+ * @param {string} resolvedId
+ * @param {(key:string,amount?:number)=>void|null} [bumpMetric=null]
+ * @returns {{maxAstNodes:number,maxAstStack:number,maxChunkNodes:number}}
+ */
 const applyAdaptiveBudget = (budget, options, resolvedId, bumpMetric = null) => {
   const { scale } = resolveAdaptiveBudgetScale(options, resolvedId);
   if (!Number.isFinite(scale) || scale >= 1) return budget;
@@ -68,6 +82,13 @@ const applyAdaptiveBudget = (budget, options, resolvedId, bumpMetric = null) => 
   };
 };
 
+/**
+ * Record smoothed AST node-density telemetry for adaptive budgets.
+ * @param {string} languageId
+ * @param {number} visited
+ * @param {number} lineCount
+ * @returns {{density:number,samples:number}|null}
+ */
 export function recordNodeDensity(languageId, visited, lineCount) {
   if (!languageId) return null;
   if (!Number.isFinite(visited) || visited <= 0) return null;
@@ -84,6 +105,13 @@ export function recordNodeDensity(languageId, visited, lineCount) {
   return next;
 }
 
+/**
+ * Resolve traversal budgets from config, language defaults, and adaptive scale.
+ * @param {object} options
+ * @param {string} resolvedId
+ * @param {{bumpMetric?:(key:string,amount?:number)=>void}} [helpers]
+ * @returns {{maxAstNodes:number,maxAstStack:number,maxChunkNodes:number}}
+ */
 export function resolveTraversalBudget(options, resolvedId, { bumpMetric = null } = {}) {
   const config = options?.treeSitter || {};
   const perLanguage = config.byLanguage?.[resolvedId] || {};
