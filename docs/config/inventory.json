@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-23T10:35:48.129Z",
+  "generatedAt": "2026-02-23T10:47:47.667Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2108,6 +2108,7 @@
         "tests/cli/search/search-rrf.test.js",
         "tests/cli/search/search-tie-order.test.js",
         "tests/helpers/mcp-client.js",
+        "tests/helpers/search-lifecycle-env-isolation.test.js",
         "tests/helpers/test-env.js",
         "tests/indexer/call-sites/call-sites-emit-artifacts-none.test.js",
         "tests/indexer/call-sites/call-sites-empty-required.test.js",
@@ -2265,6 +2266,7 @@
         "tests/cli/search/search-missing-index.test.js",
         "tests/cli/search/search-rrf.test.js",
         "tests/cli/search/search-tie-order.test.js",
+        "tests/helpers/search-lifecycle-env-isolation.test.js",
         "tests/helpers/test-env-clear.test.js",
         "tests/helpers/test-env-sync-option.test.js",
         "tests/helpers/test-env.js",
@@ -2937,6 +2939,7 @@
         "src/shared/env.js",
         "src/shared/ops-failure-injection.js",
         "tests/helpers/fixture-index.js",
+        "tests/helpers/search-lifecycle-env-isolation.test.js",
         "tests/helpers/test-env-clear.test.js",
         "tests/helpers/test-env-sync-option.test.js",
         "tests/helpers/test-env.js",
