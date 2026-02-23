@@ -5,7 +5,6 @@ import { log, logLine, showProgress } from '../../shared/progress.js';
 import { MAX_JSON_BYTES, readJsonFile, loadJsonArrayArtifact } from '../../shared/artifact-io.js';
 import { toPosix } from '../../shared/files.js';
 import { writeJsonObjectFile } from '../../shared/json-stream.js';
-import { createJsonWriteStream, writeChunk } from '../../shared/json-stream/streams.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { ensureDiskSpace } from '../../shared/disk-space.js';
 import { estimateJsonBytes } from '../../shared/cache.js';
@@ -61,10 +60,6 @@ import { CHARGRAM_HASH_META } from '../../shared/chargram-hash.js';
 import { createOrderingHasher } from '../../shared/order.js';
 import { computePackedChecksum } from '../../shared/artifact-io/checksum.js';
 import {
-  resolveBinaryColumnarWriteHints,
-  writeBinaryRowFrames
-} from '../../shared/artifact-io/binary-columnar.js';
-import {
   INDEX_PROFILE_VECTOR_ONLY,
   normalizeIndexProfileId
 } from '../../contracts/index-profile.js';
@@ -102,6 +97,7 @@ import {
   VECTOR_ONLY_SPARSE_PIECE_DENYLIST
 } from './artifacts/sparse-cleanup.js';
 import { packMinhashSignatures } from './artifacts/minhash-packed.js';
+import { enqueueFieldPostingsArtifacts } from './artifacts/field-postings.js';
 
 export {
   resolveArtifactWriteConcurrency,
@@ -1749,313 +1745,29 @@ export async function writeIndexArtifacts(input) {
       count: tokenOrdering.orderingCount
     };
   }
-  if (sparseArtifactsEnabled && postings.fieldPostings?.fields) {
-    const fieldPostingsObject = postings.fieldPostings.fields;
-    const fieldPostingsEstimatedBytes = estimateJsonBytes(fieldPostingsObject);
-    const fieldNames = Object.keys(fieldPostingsObject);
-    const shouldShardFieldPostings = fieldPostingsShardsEnabled
-      && fieldPostingsShardThresholdBytes > 0
-      && fieldPostingsEstimatedBytes >= fieldPostingsShardThresholdBytes
-      && fieldNames.length > 1;
-    if (shouldShardFieldPostings) {
-      const shardsDirPath = path.join(outDir, 'field_postings.shards');
-      const shardsMetaPath = path.join(outDir, 'field_postings.shards.meta.json');
-      await removeArtifact(shardsDirPath, { recursive: true, policy: 'format_cleanup' });
-      await fs.mkdir(shardsDirPath, { recursive: true });
-      const resolvedFieldPostingsShardCount = resolveAdaptiveShardCount({
-        estimatedBytes: fieldPostingsEstimatedBytes,
-        rowCount: fieldNames.length,
-        throughputBytesPerSec: artifactWriteThroughputBytesPerSec,
-        minShards: fieldPostingsShardMinCount,
-        maxShards: fieldPostingsShardMaxCount,
-        defaultShards: fieldPostingsShardCount,
-        targetShardBytes: fieldPostingsShardTargetBytes,
-        targetShardSeconds: fieldPostingsShardTargetSeconds
-      });
-      const shardSize = Math.max(1, Math.ceil(fieldNames.length / resolvedFieldPostingsShardCount));
-      const partFiles = [];
-      for (let shardIndex = 0; shardIndex < resolvedFieldPostingsShardCount; shardIndex += 1) {
-        const start = shardIndex * shardSize;
-        const end = Math.min(fieldNames.length, start + shardSize);
-        if (start >= end) break;
-        const relPath = `field_postings.shards/field_postings.part-${String(shardIndex).padStart(4, '0')}.json`;
-        const absPath = path.join(outDir, relPath);
-        partFiles.push({ relPath, count: end - start, absPath, start, end });
-      }
-      const partEstimatedBytes = Math.max(
-        1,
-        Math.floor(fieldPostingsEstimatedBytes / Math.max(1, partFiles.length))
-      );
-      /**
-       * Write one field-postings shard and collect per-part metrics.
-       *
-       * @param {object} part
-       * @returns {Promise<void>}
-       */
-      const writeFieldPostingsPartition = async (part) => {
-        const startedAt = Date.now();
-        let serializationMs = 0;
-        let diskMs = 0;
-        const {
-          stream,
-          done,
-          getBytesWritten,
-          getChecksum,
-          checksumAlgo
-        } = createJsonWriteStream(part.absPath, { atomic: true, checksumAlgo: 'sha1' });
-        try {
-          let writeStart = Date.now();
-          await writeChunk(stream, '{"fields":{');
-          diskMs += Math.max(0, Date.now() - writeStart);
-          let first = true;
-          for (let index = part.start; index < part.end; index += 1) {
-            const field = fieldNames[index];
-            const value = fieldPostingsObject[field];
-            const serializeStart = Date.now();
-            const row = `${first ? '' : ','}${JSON.stringify(field)}:${JSON.stringify(value)}`;
-            serializationMs += Math.max(0, Date.now() - serializeStart);
-            writeStart = Date.now();
-            await writeChunk(stream, row);
-            diskMs += Math.max(0, Date.now() - writeStart);
-            first = false;
-          }
-          writeStart = Date.now();
-          await writeChunk(stream, '}}\n');
-          stream.end();
-          await done;
-          diskMs += Math.max(0, Date.now() - writeStart);
-          return {
-            bytes: Number.isFinite(getBytesWritten?.()) ? getBytesWritten() : null,
-            checksum: typeof getChecksum === 'function' ? getChecksum() : null,
-            checksumAlgo: checksumAlgo || null,
-            serializationMs,
-            diskMs,
-            directFdStreaming: true,
-            durationMs: Math.max(0, Date.now() - startedAt)
-          };
-        } catch (err) {
-          try { stream.destroy(err); } catch {}
-          try { await done; } catch {}
-          throw err;
-        }
-      };
-      for (const part of partFiles) {
-        enqueueWrite(
-          part.relPath,
-          () => writeFieldPostingsPartition(part),
-          { priority: 206, estimatedBytes: partEstimatedBytes }
-        );
-        addPieceFile({
-          type: 'postings',
-          name: 'field_postings_shard',
-          format: 'json',
-          count: part.count
-        }, part.absPath);
-      }
-      enqueueWrite(
-        formatArtifactLabel(shardsMetaPath),
-        async () => {
-          await writeJsonObjectFile(shardsMetaPath, {
-            fields: {
-              schemaVersion: '1.0.0',
-              generatedAt: new Date().toISOString(),
-              shardCount: partFiles.length,
-              estimatedBytes: fieldPostingsEstimatedBytes,
-              fields: fieldNames.length,
-              shardTargetBytes: fieldPostingsShardTargetBytes,
-              throughputBytesPerSec: artifactWriteThroughputBytesPerSec,
-              parts: partFiles.map((part) => ({
-                path: part.relPath,
-                fields: part.count
-              })),
-              merge: {
-                strategy: 'streaming-partition-merge',
-                outputPath: 'field_postings.json'
-              }
-            },
-            atomic: true
-          });
-        },
-        { priority: 207, estimatedBytes: Math.max(1024, partFiles.length * 128) }
-      );
-      addPieceFile({ type: 'postings', name: 'field_postings_shards_meta', format: 'json' }, shardsMetaPath);
-      if (typeof log === 'function') {
-        log(
-          `field_postings estimate ~${formatBytes(fieldPostingsEstimatedBytes)}; ` +
-          `emitting streamed shards (${partFiles.length} planned, target=${formatBytes(fieldPostingsShardTargetBytes)}).`
-        );
-      }
-      if (!fieldPostingsKeepLegacyJson && typeof log === 'function') {
-        log(
-          '[warn] fieldPostingsKeepLegacyJson=false ignored while shard readers are unavailable; ' +
-          'emitting field_postings.json for compatibility.'
-        );
-      }
-      /**
-       * Reconstruct legacy monolithic field-postings JSON from shard outputs.
-       *
-       * @returns {Promise<void>}
-       */
-      const writeLegacyFieldPostingsFromShards = async () => {
-        const targetPath = path.join(outDir, 'field_postings.json');
-        const startedAt = Date.now();
-        let serializationMs = 0;
-        let diskMs = 0;
-        const {
-          stream,
-          done,
-          getBytesWritten,
-          getChecksum,
-          checksumAlgo
-        } = createJsonWriteStream(targetPath, { atomic: true, checksumAlgo: 'sha1' });
-        try {
-          let writeStart = Date.now();
-          await writeChunk(stream, '{"fields":{');
-          diskMs += Math.max(0, Date.now() - writeStart);
-          let first = true;
-          for (const part of partFiles) {
-            for (let index = part.start; index < part.end; index += 1) {
-              const field = fieldNames[index];
-              const value = fieldPostingsObject[field];
-              const serializeStart = Date.now();
-              const row = `${first ? '' : ','}${JSON.stringify(field)}:${JSON.stringify(value)}`;
-              serializationMs += Math.max(0, Date.now() - serializeStart);
-              writeStart = Date.now();
-              await writeChunk(stream, row);
-              diskMs += Math.max(0, Date.now() - writeStart);
-              first = false;
-            }
-          }
-          writeStart = Date.now();
-          await writeChunk(stream, '}}\n');
-          stream.end();
-          await done;
-          diskMs += Math.max(0, Date.now() - writeStart);
-          return {
-            bytes: Number.isFinite(getBytesWritten?.()) ? getBytesWritten() : null,
-            checksum: typeof getChecksum === 'function' ? getChecksum() : null,
-            checksumAlgo: checksumAlgo || null,
-            serializationMs,
-            diskMs,
-            directFdStreaming: true,
-            durationMs: Math.max(0, Date.now() - startedAt)
-          };
-        } catch (err) {
-          try { stream.destroy(err); } catch {}
-          try { await done; } catch {}
-          throw err;
-        }
-      };
-      enqueueWrite(
-        'field_postings.json',
-        writeLegacyFieldPostingsFromShards,
-        {
-          priority: 204,
-          estimatedBytes: fieldPostingsEstimatedBytes
-        }
-      );
-      addPieceFile({ type: 'postings', name: 'field_postings' }, path.join(outDir, 'field_postings.json'));
-    } else {
-      enqueueJsonObject('field_postings', { fields: { fields: fieldPostingsObject } }, {
-        piece: { type: 'postings', name: 'field_postings' },
-        priority: 220,
-        estimatedBytes: fieldPostingsEstimatedBytes
-      });
-    }
-    const fieldPostingsBinaryDataPath = path.join(outDir, 'field_postings.binary-columnar.bin');
-    const fieldPostingsBinaryOffsetsPath = path.join(outDir, 'field_postings.binary-columnar.offsets.bin');
-    const fieldPostingsBinaryLengthsPath = path.join(outDir, 'field_postings.binary-columnar.lengths.varint');
-    const fieldPostingsBinaryMetaPath = path.join(outDir, 'field_postings.binary-columnar.meta.json');
-    const shouldWriteFieldPostingsBinary = fieldPostingsBinaryColumnar
-      && fieldPostingsEstimatedBytes >= fieldPostingsBinaryColumnarThresholdBytes
-      && fieldNames.length > 0;
-    if (shouldWriteFieldPostingsBinary) {
-      enqueueWrite(
-        formatArtifactLabel(fieldPostingsBinaryMetaPath),
-        async () => {
-          const serializationStartedAt = Date.now();
-          const rowPayloads = (async function* binaryRows() {
-            for (const field of fieldNames) {
-              yield JSON.stringify({
-                field,
-                postings: fieldPostingsObject[field]
-              });
-            }
-          })();
-          const binaryWriteHints = resolveBinaryColumnarWriteHints({
-            estimatedBytes: fieldPostingsEstimatedBytes,
-            rowCount: fieldNames.length,
-            presize: writeFsStrategy.presizeJsonl
-          });
-          const frames = await writeBinaryRowFrames({
-            rowBuffers: rowPayloads,
-            dataPath: fieldPostingsBinaryDataPath,
-            offsetsPath: fieldPostingsBinaryOffsetsPath,
-            lengthsPath: fieldPostingsBinaryLengthsPath,
-            writeHints: binaryWriteHints
-          });
-          const serializationMs = Math.max(0, Date.now() - serializationStartedAt);
-          const diskStartedAt = Date.now();
-          const binaryMetaResult = await writeJsonObjectFile(fieldPostingsBinaryMetaPath, {
-            fields: {
-              format: 'binary-columnar-v1',
-              rowEncoding: 'json-rows',
-              count: frames.count,
-              data: path.basename(fieldPostingsBinaryDataPath),
-              offsets: path.basename(fieldPostingsBinaryOffsetsPath),
-              lengths: path.basename(fieldPostingsBinaryLengthsPath),
-              estimatedSourceBytes: fieldPostingsEstimatedBytes,
-              preallocatedBytes: Number.isFinite(frames?.preallocatedBytes) ? frames.preallocatedBytes : 0
-            },
-            checksumAlgo: 'sha1',
-            atomic: true
-          });
-          return {
-            bytes: Number.isFinite(Number(binaryMetaResult?.bytes)) ? Number(binaryMetaResult.bytes) : null,
-            checksum: typeof binaryMetaResult?.checksum === 'string' ? binaryMetaResult.checksum : null,
-            checksumAlgo: typeof binaryMetaResult?.checksumAlgo === 'string' ? binaryMetaResult.checksumAlgo : null,
-            serializationMs,
-            diskMs: Math.max(0, Date.now() - diskStartedAt),
-            directFdStreaming: true
-          };
-        },
-        {
-          priority: 223,
-          estimatedBytes: Math.max(fieldPostingsEstimatedBytes, fieldNames.length * 96)
-        }
-      );
-      addPieceFile({
-        type: 'postings',
-        name: 'field_postings_binary_columnar',
-        format: 'binary-columnar',
-        count: fieldNames.length
-      }, fieldPostingsBinaryDataPath);
-      addPieceFile({
-        type: 'postings',
-        name: 'field_postings_binary_columnar_offsets',
-        format: 'binary',
-        count: fieldNames.length
-      }, fieldPostingsBinaryOffsetsPath);
-      addPieceFile({
-        type: 'postings',
-        name: 'field_postings_binary_columnar_lengths',
-        format: 'varint',
-        count: fieldNames.length
-      }, fieldPostingsBinaryLengthsPath);
-      addPieceFile({
-        type: 'postings',
-        name: 'field_postings_binary_columnar_meta',
-        format: 'json'
-      }, fieldPostingsBinaryMetaPath);
-    } else {
-      await Promise.all([
-        removeArtifact(fieldPostingsBinaryDataPath, { policy: 'format_cleanup' }),
-        removeArtifact(fieldPostingsBinaryOffsetsPath, { policy: 'format_cleanup' }),
-        removeArtifact(fieldPostingsBinaryLengthsPath, { policy: 'format_cleanup' }),
-        removeArtifact(fieldPostingsBinaryMetaPath, { policy: 'format_cleanup' })
-      ]);
-    }
-  }
+  await enqueueFieldPostingsArtifacts({
+    sparseArtifactsEnabled,
+    postings,
+    outDir,
+    enqueueWrite,
+    enqueueJsonObject,
+    addPieceFile,
+    formatArtifactLabel,
+    removeArtifact,
+    log,
+    artifactWriteThroughputBytesPerSec,
+    writeFsStrategy,
+    fieldPostingsShardsEnabled,
+    fieldPostingsShardThresholdBytes,
+    fieldPostingsShardCount,
+    fieldPostingsShardMinCount,
+    fieldPostingsShardMaxCount,
+    fieldPostingsShardTargetBytes,
+    fieldPostingsShardTargetSeconds,
+    fieldPostingsKeepLegacyJson,
+    fieldPostingsBinaryColumnar,
+    fieldPostingsBinaryColumnarThresholdBytes
+  });
   if (sparseArtifactsEnabled && resolvedConfig.fielded !== false && Array.isArray(state.fieldTokens)) {
     const fieldTokensEstimatedBytes = estimateJsonBytes(state.fieldTokens);
     const fieldTokensUseShards = fieldTokensShardThresholdBytes > 0
