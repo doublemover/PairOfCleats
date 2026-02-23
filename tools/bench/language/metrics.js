@@ -33,3 +33,5 @@ export {
   buildLineStats,
   validateEncodingFixtures
 } from './metrics/line-stats.js';
+
+export { formatDurationMs } from '../../../src/shared/time-format.js';

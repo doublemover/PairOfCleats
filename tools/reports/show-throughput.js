@@ -29,6 +29,10 @@ import {
   loadFeatureMetricsForPayload
 } from './show-throughput/load.js';
 import {
+  resolveShowThroughputOptions,
+  validateResultsRoot
+} from './show-throughput/options.js';
+import {
   createAstGraphTotals,
   createAstGraphObserved,
   mergeAstGraphTotals,
@@ -57,13 +61,18 @@ import {
   formatAstField
 } from './show-throughput/render.js';
 
-const resultsRoot = path.join(process.cwd(), 'benchmarks', 'results');
-const refreshJson = process.argv.includes('--refresh-json');
-const deepAnalysis = process.argv.includes('--deep-analysis') || refreshJson;
-const verboseOutput = process.argv.includes('--verbose');
-const includeUsrGuardrails = process.argv.includes('--include-usr');
+const {
+  resultsRoot,
+  refreshJson,
+  deepAnalysis,
+  verboseOutput,
+  includeUsrGuardrails
+} = resolveShowThroughputOptions({
+  argv: process.argv.slice(2),
+  cwd: process.cwd()
+});
 
-if (!fs.existsSync(resultsRoot)) {
+if (!validateResultsRoot(resultsRoot)) {
   console.error(`No benchmark results found at ${resultsRoot}`);
   process.exit(1);
 }
