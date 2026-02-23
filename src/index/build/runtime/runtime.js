@@ -22,13 +22,11 @@ import { getEnvConfig, isTestingEnv } from '../../../shared/env.js';
 import { isAbsolutePathNative } from '../../../shared/files.js';
 import { resolveCacheFilesystemProfile } from '../../../shared/cache-roots.js';
 import { buildAutoPolicy } from '../../../shared/auto-policy.js';
-import { warmEmbeddingAdapter } from '../../../shared/embedding-adapter.js';
-import { buildIgnoreMatcher } from '../ignore.js';
 import { normalizePostingsConfig } from '../../../shared/postings-config.js';
 import { normalizeEmbeddingBatchMultipliers } from '../embedding-batch.js';
 import { mergeConfig } from '../../../shared/config.js';
 import { setXxhashBackend } from '../../../shared/hash.js';
-import { getScmProvider, getScmProviderAndRoot, resolveScmConfig } from '../../scm/registry.js';
+import { resolveScmConfig } from '../../scm/registry.js';
 import { setScmRuntimeConfig } from '../../scm/runtime.js';
 import { normalizeRiskConfig } from '../../risk.js';
 import { normalizeRiskInterproceduralConfig } from '../../risk-interprocedural/config.js';
@@ -60,10 +58,7 @@ import {
 import { resolveEmbeddingRuntime } from './embeddings.js';
 import { resolveTreeSitterRuntime } from './tree-sitter.js';
 import {
-  acquireRuntimeDaemonSession,
-  createRuntimeDaemonJobContext,
-  hasDaemonEmbeddingWarmKey,
-  addDaemonEmbeddingWarmKey
+  createRuntimeDaemonJobContext
 } from './daemon-session.js';
 import { resolveLearnedAutoProfileSelection } from './learned-auto-profile.js';
 import {
@@ -83,7 +78,6 @@ import {
   assertKnownIndexProfileId,
   buildIndexProfileState
 } from '../../../contracts/index-profile.js';
-import { resolveRuntimeDictionaries } from './dictionaries.js';
 import { preloadTreeSitterWithDaemonCache } from './tree-sitter-preload.js';
 import { createRuntimeInitTracer, startRuntimeEnvelopeInitialization } from './bootstrap.js';
 import {
@@ -92,6 +86,16 @@ import {
   resolveRuntimeConcurrency,
   resolveRuntimeQueueSetup
 } from './queue-bootstrap.js';
+import {
+  buildRuntimeDaemonState,
+  prewarmRuntimeDaemonEmbeddings,
+  resolveRuntimeDaemonSession
+} from './runtime-daemon-init.js';
+import {
+  configureScmRuntimeConcurrency,
+  resolveRuntimeScmSelection
+} from './runtime-scm-init.js';
+import { resolveRuntimeDictionaryIgnoreState } from './runtime-dictionary-ignore-init.js';
 
 export {
   applyLearnedAutoProfileSelection,
@@ -243,42 +247,15 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
       );
     }
   }
-  const daemonConfig = indexingConfig?.daemon && typeof indexingConfig.daemon === 'object'
-    ? indexingConfig.daemon
-    : {};
-  const daemonEnabledFromArg = argv.daemon === true || argv.daemonEnabled === true;
-  const daemonSessionKeyFromArg = typeof argv.daemonSessionKey === 'string'
-    ? argv.daemonSessionKey.trim()
-    : '';
-  const daemonDeterministicArg = typeof argv.daemonDeterministic === 'boolean'
-    ? argv.daemonDeterministic
-    : null;
-  const daemonHealthArg = argv.daemonHealth && typeof argv.daemonHealth === 'object'
-    ? argv.daemonHealth
-    : null;
-  const daemonEnabled = daemonEnabledFromArg
-    || daemonConfig.enabled === true
-    || envConfig.indexDaemon === true;
-  const daemonDeterministic = daemonDeterministicArg === null
-    ? daemonConfig.deterministic !== false
-    : daemonDeterministicArg !== false;
-  const daemonHealthConfig = daemonHealthArg || (
-    daemonConfig.health && typeof daemonConfig.health === 'object'
-      ? daemonConfig.health
-      : null
-  );
-  const daemonSession = acquireRuntimeDaemonSession({
-    enabled: daemonEnabled,
-    sessionKey: daemonSessionKeyFromArg || daemonConfig.sessionKey || envConfig.indexDaemonSession || null,
+  const { daemonConfig, daemonSession } = resolveRuntimeDaemonSession({
+    argv,
+    envConfig,
+    indexingConfig,
+    profileId: profile.id,
     cacheRoot,
-    repoRoot: root,
-    deterministic: daemonDeterministic,
-    profile: profile.id,
-    health: daemonHealthConfig
+    root,
+    log
   });
-  if (daemonSession) {
-    log(`[init] daemon session: ${daemonSession.key} (jobs=${daemonSession.jobsProcessed}, deterministic=${daemonSession.deterministic !== false}).`);
-  }
   const envelope = await runtimeEnvelopeInit.promise;
   logInit('runtime envelope', runtimeEnvelopeInit.startedAt);
   const logFileRaw = typeof argv['log-file'] === 'string' ? argv['log-file'].trim() : '';
@@ -319,57 +296,17 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   const currentIndexRoot = resolveIndexRoot(root, userConfig);
   const configHash = getEffectiveConfigHash(root, policyConfig);
   const contentConfigHash = buildContentConfigHash(policyConfig, envConfig);
-  const scmProviderOverride = typeof argv['scm-provider'] === 'string'
-    ? argv['scm-provider']
-    : (typeof argv.scmProvider === 'string' ? argv.scmProvider : null);
-  const scmProviderSetting = scmProviderOverride || scmConfig?.provider || 'auto';
-  let scmSelection = getScmProviderAndRoot({
-    provider: scmProviderSetting,
-    startPath: root,
-    log
+  const {
+    scmSelection,
+    repoProvenance,
+    scmHeadId
+  } = await resolveRuntimeScmSelection({
+    argv,
+    root,
+    scmConfig,
+    log,
+    timeInit
   });
-  if (scmSelection.provider === 'none') {
-    log('[scm] provider=none; SCM provenance unavailable.');
-  }
-  let scmProvenanceFailed = false;
-  const repoProvenance = await timeInit('repo provenance', async () => {
-    try {
-      const provenance = await scmSelection.providerImpl.getRepoProvenance({
-        repoRoot: scmSelection.repoRoot
-      });
-      return {
-        ...provenance,
-        provider: provenance?.provider || scmSelection.provider,
-        root: provenance?.root || scmSelection.repoRoot,
-        detectedBy: provenance?.detectedBy ?? scmSelection.detectedBy
-      };
-    } catch (err) {
-      const message = err?.message || String(err);
-      log(`[scm] Failed to read repo provenance; falling back to provider=none. (${message})`);
-      scmProvenanceFailed = true;
-      return {
-        provider: 'none',
-        root: scmSelection.repoRoot,
-        head: null,
-        dirty: null,
-        detectedBy: scmSelection.detectedBy || 'none',
-        isRepo: false
-      };
-    }
-  });
-  if (scmProvenanceFailed && scmSelection.provider !== 'none') {
-    log('[scm] disabling provider after provenance failure; falling back to provider=none.');
-    scmSelection = {
-      ...scmSelection,
-      provider: 'none',
-      providerImpl: getScmProvider('none'),
-      detectedBy: scmSelection.detectedBy || 'none'
-    };
-  }
-  const scmHeadId = repoProvenance?.head?.changeId
-    || repoProvenance?.head?.commitId
-    || repoProvenance?.commit
-    || null;
   const resolvedIndexRoot = indexRootOverride ? path.resolve(indexRootOverride) : null;
   const buildsRoot = getBuildsRoot(root, userConfig);
   const { buildId, buildRoot } = resolveRuntimeBuildRoot({
@@ -566,29 +503,15 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     ioConcurrency,
     cpuConcurrency
   } = resolveRuntimeConcurrency(envelope);
-  const normalizedScmMaxConcurrentProcesses = Number.isFinite(Number(scmConfig?.maxConcurrentProcesses))
-    ? Math.max(1, Math.floor(Number(scmConfig.maxConcurrentProcesses)))
-    : Math.max(
-      1,
-      Math.floor(
-        cpuConcurrency
-        || fileConcurrency
-        || ioConcurrency
-        || 1
-      )
-    );
-  setScmRuntimeConfig({
-    ...scmConfig,
-    repoHeadId: scmHeadId || null,
+  configureScmRuntimeConcurrency({
+    scmConfig,
+    scmHeadId,
     repoProvenance,
-    maxConcurrentProcesses: normalizedScmMaxConcurrentProcesses,
-    runtime: {
-      cpuCount,
-      maxConcurrencyCap,
-      fileConcurrency,
-      ioConcurrency,
-      cpuConcurrency
-    }
+    cpuCount,
+    maxConcurrencyCap,
+    fileConcurrency,
+    ioConcurrency,
+    cpuConcurrency
   });
 
   const embeddingRuntime = await timeInit('embedding runtime', () => resolveEmbeddingRuntime({
@@ -621,45 +544,19 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     getChunkEmbedding,
     getChunkEmbeddings
   } = embeddingRuntime;
-  const daemonPrewarmEmbeddings = daemonConfig.prewarmEmbeddings !== false;
-  const embeddingPrewarmTokenizer = embeddingProvider === 'onnx' && embeddingOnnx?.prewarmTokenizer === true;
-  const embeddingPrewarmModel = embeddingProvider === 'onnx' && embeddingOnnx?.prewarmModel === true;
-  const embeddingPrewarmTexts = Array.isArray(embeddingOnnx?.prewarmTexts)
-    ? embeddingOnnx.prewarmTexts
-    : [];
-  const embeddingWarmKey = [
-    embeddingProvider || 'unknown',
-    modelId || 'none',
-    modelsDir || 'none',
-    embeddingNormalize !== false ? 'normalize' : 'raw',
-    embeddingPrewarmTokenizer ? 'tok' : 'no-tok',
-    embeddingPrewarmModel ? 'model' : 'no-model',
-    embeddingPrewarmTexts.join('|')
-  ].join(':');
-  const daemonEmbeddingWarmHit = daemonSession
-    ? hasDaemonEmbeddingWarmKey(daemonSession, embeddingWarmKey)
-    : false;
-  if (
-    daemonSession
-    && daemonPrewarmEmbeddings
-    && embeddingEnabled
-    && useStubEmbeddings !== true
-    && !daemonEmbeddingWarmHit
-  ) {
-    await timeInit('embedding prewarm', () => warmEmbeddingAdapter({
-      rootDir: root,
-      provider: embeddingProvider,
-      onnxConfig: embeddingOnnx,
-      normalize: embeddingNormalize,
-      useStub: false,
-      modelId,
-      modelsDir,
-      prewarmTokenizer: embeddingPrewarmTokenizer,
-      prewarmModel: embeddingPrewarmModel,
-      prewarmTexts: embeddingPrewarmTexts
-    }));
-    addDaemonEmbeddingWarmKey(daemonSession, embeddingWarmKey);
-  }
+  await prewarmRuntimeDaemonEmbeddings({
+    daemonSession,
+    daemonConfig,
+    embeddingEnabled,
+    useStubEmbeddings,
+    embeddingProvider,
+    modelId,
+    modelsDir,
+    embeddingNormalize,
+    embeddingOnnx,
+    root,
+    timeInit
+  });
   const pythonAstRuntimeConfig = {
     ...pythonAstConfig,
     defaultMaxWorkers: Math.min(4, fileConcurrency),
@@ -690,11 +587,6 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     || isTestingEnv();
 
   const generatedPolicy = buildGeneratedIndexingPolicyConfig(indexingConfig);
-  // Dictionaries and ignore rules are independent; start ignore loading early
-  // and await after dictionaries to preserve stable init log ordering.
-  const ignoreRulesStartedAt = Date.now();
-  const ignoreRulesPromise = buildIgnoreMatcher({ root, userConfig, generatedPolicy })
-    .then((value) => ({ value, error: null }), (error) => ({ value: null, error }));
   const {
     dictConfig,
     dictionaryPaths,
@@ -706,25 +598,21 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     dictSignature,
     dictSharedPayload,
     dictShared,
-    codeDictLanguages
-  } = await resolveRuntimeDictionaries({
+    codeDictLanguages,
+    ignoreMatcher,
+    ignoreConfig,
+    ignoreFiles,
+    ignoreWarnings
+  } = await resolveRuntimeDictionaryIgnoreState({
     root,
     userConfig,
+    generatedPolicy,
     workerPoolConfig,
     daemonSession,
     log,
     logInit
   });
   const codeDictEnabled = codeDictLanguages.size > 0;
-  const ignoreRulesResult = await ignoreRulesPromise;
-  if (ignoreRulesResult.error) throw ignoreRulesResult.error;
-  logInit('ignore rules', ignoreRulesStartedAt);
-  const {
-    ignoreMatcher,
-    config: ignoreConfig,
-    ignoreFiles,
-    warnings: ignoreWarnings
-  } = ignoreRulesResult.value;
   const cacheConfig = getCacheRuntimeConfig(root, userConfig);
   const verboseCache = envConfig.verbose === true;
 
@@ -917,38 +805,10 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     platformRuntimePreset,
     startupCalibration,
     learnedAutoProfile,
-    daemon: daemonSession
-      ? {
-        enabled: true,
-        sessionKey: daemonSession.key,
-        deterministic: daemonSession.deterministic !== false,
-        jobContext: daemonJobContext,
-        generation: daemonSession.generation || 1,
-        generationJobsProcessed: daemonSession.generationJobsProcessed || 0,
-        jobsProcessed: daemonSession.jobsProcessed,
-        recycle: {
-          count: daemonSession.recycleCount || 0,
-          lastAt: daemonSession.lastRecycleAt || null,
-          lastReasons: daemonSession.lastRecycleReasons || []
-        },
-        warmCaches: {
-          dictionaries: daemonSession.dictCache?.size || 0,
-          treeSitterPreload: daemonSession.treeSitterPreloadCache?.size || 0,
-          embeddings: daemonSession.embeddingWarmKeys?.size || 0
-        }
-      }
-      : {
-        enabled: false,
-        sessionKey: null,
-        deterministic: true,
-        jobContext: null,
-        jobsProcessed: 0,
-        warmCaches: {
-          dictionaries: 0,
-          treeSitterPreload: 0,
-          embeddings: 0
-        }
-      },
+    daemon: buildRuntimeDaemonState({
+      daemonSession,
+      daemonJobContext
+    }),
     buildId,
     buildRoot,
     profile,
