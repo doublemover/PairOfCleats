@@ -68,6 +68,10 @@ Coverage closeout:
 Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
+## Follow-up split log (current pass)
+- 2026-02-23T05:04:12.2730914-05:00
+  Split `src/index/build/indexer/steps/process-files.js` stall diagnostics into `src/index/build/indexer/steps/process-files/stall-diagnostics.js`, and optimized stalled-file selection to bounded top-N collection to reduce watchdog snapshot sort/allocation overhead.
+
 ## Architectural assessment (what needs to change)
 
 ### 1) Primary bottleneck pattern: orchestration-heavy monoliths
