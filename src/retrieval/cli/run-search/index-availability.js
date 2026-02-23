@@ -10,10 +10,65 @@ import { loadSearchIndexStates } from './startup-index.js';
 import { resolveRunSearchProfilePolicy } from './profile-policy.js';
 
 /**
+ * Build sqlite path-probe plan for requested modes only.
+ *
+ * Orchestration detail: this intentionally uses `needsExtractedProse` (what the
+ * request may load) instead of `requiresExtractedProse` (hard mode requirement)
+ * so mixed/search-mode side paths do not trigger unnecessary filesystem probes.
+ *
+ * @param {{
+ *   sqliteRootsMixed?:boolean,
+ *   needsCode?:boolean,
+ *   needsProse?:boolean,
+ *   needsExtractedProse?:boolean,
+ *   sqlitePaths?:{codePath?:string,prosePath?:string,extractedProsePath?:string}
+ * }} [input]
+ * @returns {{codePath:string|null,prosePath:string|null,extractedProsePath:string|null}}
+ */
+export const buildRunSearchSqlitePathProbePlan = ({
+  sqliteRootsMixed = false,
+  needsCode = false,
+  needsProse = false,
+  needsExtractedProse = false,
+  sqlitePaths = {}
+} = {}) => ({
+  codePath: !sqliteRootsMixed && needsCode ? sqlitePaths.codePath || null : null,
+  prosePath: !sqliteRootsMixed && needsProse ? sqlitePaths.prosePath || null : null,
+  extractedProsePath: !sqliteRootsMixed && needsExtractedProse
+    ? sqlitePaths.extractedProsePath || null
+    : null
+});
+
+/**
+ * Probe sqlite path existence from a precomputed plan.
+ *
+ * @param {{
+ *   probePlan:{codePath:string|null,prosePath:string|null,extractedProsePath:string|null},
+ *   pathExists:(targetPath:string)=>Promise<boolean>
+ * }} input
+ * @returns {Promise<{code:boolean,prose:boolean,extractedProse:boolean}>}
+ */
+export const probeRunSearchSqlitePathExistence = async ({
+  probePlan,
+  pathExists
+}) => {
+  const probe = (targetPath) => (
+    targetPath ? pathExists(targetPath) : Promise.resolve(false)
+  );
+  const [code, prose, extractedProse] = await Promise.all([
+    probe(probePlan.codePath),
+    probe(probePlan.prosePath),
+    probe(probePlan.extractedProsePath)
+  ]);
+  return { code, prose, extractedProse };
+};
+
+/**
  * Resolve mode profile policy plus sqlite/lmdb availability for run-search.
  *
  * This helper centralizes readiness checks and performs sqlite path existence
- * probes in parallel to reduce startup latency on cold filesystems.
+ * probes in parallel only for requested modes to reduce startup latency on
+ * cold filesystems.
  *
  * @param {object} [input]
  * @param {string} input.rootDir
@@ -145,11 +200,20 @@ export async function resolveRunSearchIndexAvailability({
   const sqliteCodePath = sqlitePaths.codePath;
   const sqliteProsePath = sqlitePaths.prosePath;
   const sqliteExtractedProsePath = sqlitePaths.extractedProsePath;
-  const [sqliteCodePathExists, sqliteProsePathExists, sqliteExtractedPathExists] = await Promise.all([
-    sqliteRootsMixed || !sqliteCodePath ? Promise.resolve(false) : pathExistsImpl(sqliteCodePath),
-    sqliteRootsMixed || !sqliteProsePath ? Promise.resolve(false) : pathExistsImpl(sqliteProsePath),
-    sqliteRootsMixed || !sqliteExtractedProsePath ? Promise.resolve(false) : pathExistsImpl(sqliteExtractedProsePath)
-  ]);
+  const sqliteProbePlan = buildRunSearchSqlitePathProbePlan({
+    sqliteRootsMixed,
+    needsCode,
+    needsProse,
+    needsExtractedProse,
+    sqlitePaths
+  });
+  const sqlitePathExistence = await probeRunSearchSqlitePathExistence({
+    probePlan: sqliteProbePlan,
+    pathExists: pathExistsImpl
+  });
+  const sqliteCodePathExists = sqlitePathExistence.code;
+  const sqliteProsePathExists = sqlitePathExistence.prose;
+  const sqliteExtractedPathExists = sqlitePathExistence.extractedProse;
 
   const sqliteCodeAvailable = sqliteCodePathExists && isSqliteReadyImpl(sqliteStateCode);
   const sqliteProseAvailable = sqliteProsePathExists && isSqliteReadyImpl(sqliteStateProse);

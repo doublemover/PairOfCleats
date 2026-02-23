@@ -42,6 +42,10 @@ import {
 } from './startup-index.js';
 import { resolveRunSearchIndexAvailability } from './index-availability.js';
 import { resolveRunSearchBackendContext } from './backend-bootstrap.js';
+import {
+  buildRunSearchBackendBootstrapInput,
+  resolveRunSearchModeNeeds
+} from './backend-bootstrap-input.js';
 import { loadRunSearchIndexesWithTracking } from './index-loading.js';
 import { resolveRunSearchQueryBootstrap } from './query-bootstrap.js';
 import { applyRunSearchSparseFallbackPolicy } from './sparse-fallback-orchestration.js';
@@ -307,12 +311,14 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const showMatched = argv.matched === true;
     const stageTracker = createRetrievalStageTracker({ enabled: showStats || explain });
 
-    const needsCode = runCode;
-    const needsProse = runProse;
-    const needsExtractedProse = runExtractedProseRaw;
-    const requiresExtractedProse = searchMode === 'extracted-prose';
-    const joinComments = commentsEnabled && runCode;
-    const needsSqlite = runCode || runProse || runExtractedProseRaw;
+    const modeNeeds = resolveRunSearchModeNeeds({
+      runCode,
+      runProse,
+      runExtractedProse: runExtractedProseRaw,
+      searchMode,
+      commentsEnabled
+    });
+    const { requiresExtractedProse, joinComments } = modeNeeds;
     let annEnabledEffective = annEnabled;
     let vectorAnnEnabled = false;
     let sparseFallbackForcedByPreflight = false;
@@ -351,8 +357,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       lmdbRootsMixed,
       sqlitePaths,
       lmdbPaths,
-      sqliteStates: resolvedSqliteStates,
-      lmdbStates: resolvedLmdbStates,
+      sqliteStates,
+      lmdbStates,
       sqliteAvailability,
       lmdbAvailability,
       loadExtractedProseSqlite
@@ -367,90 +373,50 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const sqliteCodePath = sqlitePaths.codePath;
     const sqliteProsePath = sqlitePaths.prosePath;
     const sqliteExtractedProsePath = sqlitePaths.extractedProsePath;
-    const lmdbCodePath = lmdbPaths.codePath;
-    const lmdbProsePath = lmdbPaths.prosePath;
-    const sqliteStateCode = resolvedSqliteStates.code;
-    const sqliteStateProse = resolvedSqliteStates.prose;
-    const sqliteStateExtractedProse = resolvedSqliteStates['extracted-prose'];
-    const sqliteStateRecords = resolvedSqliteStates.records;
-    const lmdbStateCode = resolvedLmdbStates.code;
-    const lmdbStateProse = resolvedLmdbStates.prose;
-    const sqliteCodeAvailable = sqliteAvailability.code;
-    const sqliteProseAvailable = sqliteAvailability.prose;
-    const sqliteExtractedProseAvailable = sqliteAvailability.extractedProse;
-    const sqliteAvailable = sqliteAvailability.all;
-    const lmdbCodeAvailable = lmdbAvailability.code;
-    const lmdbProseAvailable = lmdbAvailability.prose;
-    const lmdbAvailable = lmdbAvailability.all;
+    const sqliteStateCode = sqliteStates.code;
+    const sqliteStateProse = sqliteStates.prose;
+    const sqliteStateExtractedProse = sqliteStates['extracted-prose'];
+    const sqliteStateRecords = sqliteStates.records;
 
-    const backendContextResolution = await resolveRunSearchBackendContext({
-      selectionInput: {
-        backendArg,
-        sqliteAvailable,
-        sqliteCodeAvailable,
-        sqliteProseAvailable,
-        sqliteExtractedProseAvailable,
-        sqliteCodePath,
-        sqliteProsePath,
-        sqliteExtractedProsePath,
-        lmdbAvailable,
-        lmdbCodeAvailable,
-        lmdbProseAvailable,
-        lmdbCodePath,
-        lmdbProsePath,
-        needsSqlite,
-        needsCode,
-        needsProse,
-        requiresExtractedProse,
-        defaultBackend: policy?.retrieval?.backend || 'sqlite',
-        sqliteRootsMixed,
-        lmdbRootsMixed,
-        asOfRef: asOfContext?.ref || 'latest',
-        emitOutput,
-        sqliteAutoChunkThreshold,
-        sqliteAutoArtifactBytes,
-        runCode,
-        runProse,
-        runExtractedProse: runExtractedProseRaw,
-        resolveSearchIndexDir
-      },
-      contextInput: {
-        needsCode,
-        needsProse,
-        loadExtractedProseSqlite,
-        sqliteCodePath,
-        sqliteProsePath,
-        sqliteExtractedProsePath,
-        vectorExtension,
-        dbCache: sqliteCache,
-        sqliteStates: {
-          code: sqliteStateCode,
-          prose: sqliteStateProse,
-          'extracted-prose': sqliteStateExtractedProse
-        },
-        lmdbCodePath,
-        lmdbProsePath,
-        lmdbStates: {
-          code: lmdbStateCode,
-          prose: lmdbStateProse
-        },
-        postingsConfig,
-        sqliteFtsWeights,
-        maxCandidates,
-        queryVectorAnn,
-        modelIdDefault,
-        fileChargramN,
-        hnswConfig,
-        denseVectorMode,
-        storageTier,
-        sqliteReadPragmas,
-        rootDir,
-        userConfig,
-        stageTracker,
-        vectorAnnEnabled,
-        emitOutput
-      }
+    const backendBootstrapInput = buildRunSearchBackendBootstrapInput({
+      modeNeeds,
+      backendArg,
+      defaultBackend: policy?.retrieval?.backend || 'sqlite',
+      asOfContext,
+      emitOutput,
+      sqliteAutoChunkThreshold,
+      sqliteAutoArtifactBytes,
+      runCode,
+      runProse,
+      runExtractedProse: runExtractedProseRaw,
+      resolveSearchIndexDir,
+      sqliteRootsMixed,
+      lmdbRootsMixed,
+      sqlitePaths,
+      lmdbPaths,
+      sqliteAvailability,
+      lmdbAvailability,
+      loadExtractedProseSqlite,
+      vectorExtension,
+      sqliteCache,
+      sqliteStates,
+      lmdbStates,
+      postingsConfig,
+      sqliteFtsWeights,
+      maxCandidates,
+      queryVectorAnn,
+      modelIdDefault,
+      fileChargramN,
+      hnswConfig,
+      denseVectorMode,
+      storageTier,
+      sqliteReadPragmas,
+      rootDir,
+      userConfig,
+      stageTracker,
+      vectorAnnEnabled
     });
+    const backendContextResolution = await resolveRunSearchBackendContext(backendBootstrapInput);
     if (backendContextResolution.error) {
       return bail(
         backendContextResolution.error.message,
