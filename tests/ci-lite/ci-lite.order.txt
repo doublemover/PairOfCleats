@@ -1,6 +1,6 @@
 indexing/embeddings/embedding-batch-multipliers
 shared/cli/noop-task
-retrieval/ann/hnsw-ann
+retrieval/ann/ann-backend-normalization-parity
 retrieval/pipeline/object-pool-leak
 retrieval/output/explain-color-fallback
 shared/cache/cache-policy-contract
