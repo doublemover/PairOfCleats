@@ -69,6 +69,10 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T07:04:05.0228554-05:00
+  Extracted post-load sparse-fallback ANN capability guard from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/sparse-fallback-guard.js`, centralizing capability-missing guardrail logic after index load.
+- 2026-02-23T07:03:11.0000000-05:00
+  Refactored worker-pool failure/restart handling by splitting `src/index/build/workers/pool/task-failure.js` and adding targeted lifecycle/throttle/failure tests under `tests/indexing/workers/worker-pool-*.test.js`.
 - 2026-02-23T07:01:56.8298918-05:00
   Extracted sparse-fallback backend reinitialization from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/backend-reinit.js`, isolating reinit sequencing and LMDB-forced validation after preflight ANN coercion.
 - 2026-02-23T06:58:41.8806747-05:00

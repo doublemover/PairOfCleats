@@ -31,9 +31,6 @@ import {
 } from '../../query-plan-cache.js';
 import { createRetrievalStageTracker } from '../../pipeline/stage-checkpoints.js';
 import {
-  buildSparseFallbackAnnUnavailableMessage
-} from './execution.js';
-import {
   emitSearchJsonError,
   flushRunSearchResources
 } from './reporting.js';
@@ -60,10 +57,10 @@ import { resolveRunSearchSparsePreflight } from './sparse-preflight.js';
 import { runBranchFilterGate } from './branch-gate.js';
 import { resolveRunSearchDictionaryAndPlan } from './query-planning.js';
 import { reinitializeBackendAfterSparseFallback } from './backend-reinit.js';
+import { enforceSparseFallbackAnnAvailability } from './sparse-fallback-guard.js';
 
 import {
-  resolveAnnActive,
-  resolveSparseFallbackModesWithoutAnn
+  resolveAnnActive
 } from '../preflight.js';
 
 /**
@@ -785,29 +782,23 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       asOfContext
     });
 
-    if (sparseFallbackForcedByPreflight) {
-      const sparseFallbackModesWithoutAnn = await resolveSparseFallbackModesWithoutAnn({
-        sparseMissingByMode,
-        idxByMode: {
-          code: idxCode,
-          prose: idxProse,
-          'extracted-prose': idxExtractedProse,
-          records: idxRecords
-        },
-        vectorAnnState,
-        hnswAnnState,
-        lanceAnnState
-      });
-      if (sparseFallbackModesWithoutAnn.length) {
-        return bail(
-          buildSparseFallbackAnnUnavailableMessage({
-            sparseMissingByMode,
-            sparseFallbackModesWithoutAnn
-          }),
-          1,
-          ERROR_CODES.CAPABILITY_MISSING
-        );
-      }
+    const sparseFallbackAnnError = await enforceSparseFallbackAnnAvailability({
+      sparseFallbackForcedByPreflight,
+      sparseMissingByMode,
+      idxCode,
+      idxProse,
+      idxExtractedProse,
+      idxRecords,
+      vectorAnnState,
+      hnswAnnState,
+      lanceAnnState
+    });
+    if (sparseFallbackAnnError) {
+      return bail(
+        sparseFallbackAnnError.message,
+        1,
+        sparseFallbackAnnError.code
+      );
     }
 
     const payload = await executeSearchAndEmit({
