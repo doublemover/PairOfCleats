@@ -1,10 +1,12 @@
 {
-    "swift": {
+  "swift": {
     "label": "Swift",
     "queries": "benchmarks/queries/swift.txt",
     "repos": {
       "huge": [
-        "apple/swift"
+        "apple/swift",
+        "iina/iina",
+        "airbnb/lottie-ios"
       ],
       "large": [
         "apple/swift-nio"
@@ -13,6 +15,18 @@
         "twostraws/simple-swiftui",
         "Alamofire/Alamofire",
         "onevcat/Kingfisher"
+      ],
+      "big": [
+        "exelban/stats",
+        "utmapp/UTM"
+      ],
+      "medium": [
+        "vsouza/awesome-ios",
+        "MonitorControl/MonitorControl"
+      ],
+      "small": [
+        "rxhanson/Rectangle",
+        "apple/container"
       ]
     }
   },
@@ -23,9 +37,13 @@
       "huge": [
         "opencv/opencv",
         "llvm/llvm-project",
-        "godotengine/godot"
+        "godotengine/godot",
+        "torvalds/linux",
+        "tensorflow/tensorflow",
+        "facebook/react-native"
       ],
       "large": [
+        "llvm/llvm-project",
         "curl/curl",
         "redis/redis",
         "git/git"
@@ -35,6 +53,18 @@
         "fmtlib/fmt",
         "gabime/spdlog",
         "madler/zlib"
+      ],
+      "big": [
+        "electron/electron",
+        "microsoft/terminal"
+      ],
+      "medium": [
+        "nomic-ai/gpt4all",
+        "tesseract-ocr/tesseract"
+      ],
+      "small": [
+        "Genymobile/scrcpy",
+        "zhongyang219/TrafficMonitor"
       ]
     }
   },
@@ -45,7 +75,7 @@
       "large": [
         "torch/torch7",
         "luals/lua-language-server",
-        "openresty/lua-nginx-module",
+        "openresty/lua-nginx-module"
       ],
       "typical": [
         "luarocks/luarocks",
@@ -56,7 +86,21 @@
       "huge": [
         "Kong/kong",
         "tarantool/tarantool",
-        "neovim/neovim"
+        "neovim/neovim",
+        "nagadomi/waifu2x",
+        "koreader/koreader"
+      ],
+      "big": [
+        "LazyVim/LazyVim",
+        "LunarVim/LunarVim"
+      ],
+      "medium": [
+        "NvChad/NvChad",
+        "folke/lazy.nvim"
+      ],
+      "small": [
+        "nvim-lua/kickstart.nvim",
+        "hrsh7th/nvim-cmp"
       ]
     }
   },
@@ -77,7 +121,21 @@
       "huge": [
         "Perl/perl5",
         "Ensembl/ensembl",
-        "metacpan/metacpan-web"
+        "metacpan/metacpan-web",
+        "jlord/git-it-electron",
+        "exiftool/exiftool"
+      ],
+      "big": [
+        "AlDanial/cloc",
+        "major/MySQLTuner-perl"
+      ],
+      "medium": [
+        "brendangregg/FlameGraph",
+        "sullo/nikto"
+      ],
+      "small": [
+        "so-fancy/diff-so-fancy",
+        "Jack000/Expose"
       ]
     }
   },
@@ -99,7 +157,21 @@
       "huge": [
         "ohmyzsh/ohmyzsh",
         "github/gitignore",
-        "nvm-sh/nvm"
+        "nvm-sh/nvm",
+        "papers-we-love/papers-we-love",
+        "youngyangyang04/leetcode-master"
+      ],
+      "big": [
+        "d3/d3",
+        "anthropics/claude-code"
+      ],
+      "medium": [
+        "pi-hole/pi-hole",
+        "dockur/windows"
+      ],
+      "small": [
+        "obra/superpowers",
+        "inkonchain/node"
       ]
     }
   },
@@ -113,7 +185,7 @@
       "large": [
         "discourse/discourse",
         "spree/spree",
-        "chef/chef",
+        "chef/chef"
       ],
       "typical": [
         "fastlane/fastlane",
@@ -125,7 +197,21 @@
         "rubocop/rubocop",
         "jekyll/jekyll",
         "huginn/huginn",
-        "rails/rails"
+        "rails/rails",
+        "mastodon/mastodon",
+        "rapid7/metasploit-framework"
+      ],
+      "big": [
+        "Homebrew/brew",
+        "freeCodeCamp/devdocs"
+      ],
+      "medium": [
+        "matteocrippa/awesome-swift",
+        "heartcombo/devise"
+      ],
+      "small": [
+        "kilimchoi/engineering-blogs",
+        "bayandin/awesome-awesomeness"
       ]
     }
   },
@@ -137,7 +223,9 @@
         "symfony/symfony",
         "laravel/framework",
         "magento/magento2",
-        "WordPress/wordpress-develop"
+        "WordPress/wordpress-develop",
+        "danielmiessler/SecLists",
+        "nextcloud/server"
       ],
       "large": [
         "composer/composer",
@@ -149,6 +237,18 @@
         "slimphp/Slim",
         "guzzle/guzzle",
         "nikic/PHP-Parser"
+      ],
+      "big": [
+        "coollabsio/coolify",
+        "monicahq/monica"
+      ],
+      "medium": [
+        "livewire/livewire",
+        "DesignPatternsPHP/DesignPatternsPHP"
+      ],
+      "small": [
+        "Seldaek/monolog",
+        "flarum/flarum"
       ]
     }
   },
@@ -159,7 +259,9 @@
       "huge": [
         "mysql/mysql-server",
         "postgres/postgres",
-        "cockroachdb/cockroach"
+        "cockroachdb/cockroach",
+        "cahyadsn/wilayah",
+        "basedosdados/sdk"
       ],
       "large": [
         "timescale/timescaledb",
@@ -170,7 +272,19 @@
       "typical": [
         "dbt-labs/jaffle_shop",
         "ankane/pghero",
-        "Graphile/graphile-engine",
+        "Graphile/graphile-engine"
+      ],
+      "big": [
+        "ClickHouse/NoiSQL",
+        "brunocampos01/banco-de-dados"
+      ],
+      "medium": [
+        "Velir/dbt-ga4",
+        "tony-landis/agilebill"
+      ],
+      "small": [
+        "ben-nour/SQL-tips-and-tricks",
+        "Thomas-George-T/HackerRank-SQL-Challenges-Solutions"
       ]
     }
   },
@@ -192,7 +306,21 @@
         "django/django",
         "pallets/flask",
         "scikit-learn/scikit-learn",
-        "python/cpython"
+        "python/cpython",
+        "langflow-ai/langflow",
+        "langchain-ai/langchain"
+      ],
+      "big": [
+        "Significant-Gravitas/AutoGPT",
+        "huggingface/transformers"
+      ],
+      "medium": [
+        "EbookFoundation/free-programming-books",
+        "AUTOMATIC1111/stable-diffusion-webui"
+      ],
+      "small": [
+        "public-apis/public-apis",
+        "donnemartin/system-design-primer"
       ]
     }
   },
@@ -203,7 +331,9 @@
       "huge": [
         "rust-lang/rust",
         "servo/servo",
-        "tokio-rs/tokio"
+        "tokio-rs/tokio",
+        "zed-industries/zed",
+        "unionlabs/union"
       ],
       "typical": [
         "BurntSushi/ripgrep",
@@ -215,6 +345,18 @@
         "nushell/nushell",
         "alacritty/alacritty",
         "tokio-rs/tokio"
+      ],
+      "big": [
+        "tauri-apps/tauri",
+        "astral-sh/uv"
+      ],
+      "medium": [
+        "rustdesk/rustdesk",
+        "topjohnwu/Magisk"
+      ],
+      "small": [
+        "rust-lang/rustlings",
+        "rust-unofficial/awesome-rust"
       ]
     }
   },
@@ -225,7 +367,9 @@
       "huge": [
         "kubernetes/kubernetes",
         "prometheus/prometheus",
-        "moby/moby"
+        "moby/moby",
+        "golang/go",
+        "go-gitea/gitea"
       ],
       "large": [
         "etcd-io/etcd",
@@ -237,6 +381,18 @@
         "gin-gonic/gin",
         "spf13/cobra",
         "gorilla/mux"
+      ],
+      "big": [
+        "ollama/ollama",
+        "gohugoio/hugo"
+      ],
+      "medium": [
+        "fatedier/frp",
+        "caddyserver/caddy"
+      ],
+      "small": [
+        "avelino/awesome-go",
+        "junegunn/fzf"
       ]
     }
   },
@@ -247,7 +403,9 @@
       "huge": [
         "elastic/elasticsearch",
         "apache/kafka",
-        "spring-projects/spring-boot"
+        "spring-projects/spring-boot",
+        "krahets/hello-algo",
+        "MisterBooo/LeetCodeAnimation"
       ],
       "large": [
         "apache/spark",
@@ -260,6 +418,18 @@
         "square/okhttp",
         "mockito/mockito",
         "junit-team/junit-framework"
+      ],
+      "big": [
+        "Snailclimb/JavaGuide",
+        "GrowingGit/GitHub-Chinese-Top-Charts"
+      ],
+      "medium": [
+        "iluwatar/java-design-patterns",
+        "macrozheng/mall"
+      ],
+      "small": [
+        "TheAlgorithms/Java",
+        "kdn251/interviews"
       ]
     }
   },
@@ -270,7 +440,9 @@
       "huge": [
         "dotnet/runtime",
         "dotnet/roslyn",
-        "dotnet/aspnetcore"
+        "dotnet/aspnetcore",
+        "microsoft/PowerToys",
+        "dotnet/maui"
       ],
       "large": [
         "AutoMapper/AutoMapper",
@@ -283,6 +455,18 @@
         "Serilog/serilog",
         "FluentValidation/FluentValidation",
         "LuckyPennySoftware/AutoMapper"
+      ],
+      "big": [
+        "PowerShell/PowerShell",
+        "files-community/Files"
+      ],
+      "medium": [
+        "2dust/v2rayN",
+        "jellyfin/jellyfin"
+      ],
+      "small": [
+        "shadowsocks/shadowsocks-windows",
+        "huiyadanli/RevokeMsgPatcher"
       ]
     }
   },
@@ -293,7 +477,9 @@
       "huge": [
         "JetBrains/kotlin",
         "android/architecture-samples",
-        "Kotlin/kotlinx.coroutines"
+        "Kotlin/kotlinx.coroutines",
+        "bannedbook/fanqiang",
+        "signalapp/Signal-Android"
       ],
       "large": [
         "ktorio/ktor",
@@ -306,6 +492,18 @@
         "InsertKoinIO/koin",
         "google/accompanist",
         "Kotlin/kotlinx-datetime"
+      ],
+      "big": [
+        "2dust/v2rayNG",
+        "kavishdevar/librepods"
+      ],
+      "medium": [
+        "gedoor/legado",
+        "shadowsocks/shadowsocks-android"
+      ],
+      "small": [
+        "gkd-kit/gkd",
+        "JunkFood02/Seal"
       ]
     }
   },
@@ -327,7 +525,21 @@
       "huge": [
         "microsoft/vscode",
         "facebook/react",
-        "nodejs/node"
+        "nodejs/node",
+        "Chalarangelo/30-seconds-of-code",
+        "mrdoob/three.js"
+      ],
+      "big": [
+        "sveltejs/svelte",
+        "FortAwesome/Font-Awesome"
+      ],
+      "medium": [
+        "trekhleb/javascript-algorithms",
+        "facebook/create-react-app"
+      ],
+      "small": [
+        "airbnb/javascript",
+        "ryanmcdermott/clean-code-javascript"
       ]
     }
   },
@@ -345,13 +557,27 @@
         "kubernetes/kubernetes",
         "moby/moby",
         "github/actions",
-        "docker-library/official-images"
+        "docker-library/official-images",
+        "goldbergyoni/nodebestpractices",
+        "Anduin2017/HowToCook"
       ],
       "large": [
         "docker/compose",
         "hashicorp/terraform",
         "grafana/grafana",
         "docker/awesome-compose"
+      ],
+      "big": [
+        "mikeroyal/Self-Hosting-Guide",
+        "laradock/laradock"
+      ],
+      "medium": [
+        "autowarefoundation/autoware",
+        "nodejs/docker-node"
+      ],
+      "small": [
+        "kelseyhightower/nocode",
+        "hiifeng/V2ray-for-Doprax"
       ]
     }
   },
@@ -368,12 +594,26 @@
         "llvm/llvm-project",
         "kubernetes/kubernetes",
         "opencv/opencv",
-        "torvalds/linux"
+        "torvalds/linux",
+        "motioneye-project/motioneyeos",
+        "bgreenwell/doxx"
       ],
       "large": [
         "git/git",
         "curl/curl",
         "redis/redis"
+      ],
+      "big": [
+        "PostgresApp/PostgresApp",
+        "foostan/crkbd"
+      ],
+      "medium": [
+        "jobbole/awesome-python-cn",
+        "zh-google-styleguide/zh-google-styleguide"
+      ],
+      "small": [
+        "golang-standards/project-layout",
+        "uber-go/guide"
       ]
     }
   },
@@ -390,13 +630,26 @@
       "huge": [
         "kubernetes/kubernetes",
         "googleapis/googleapis",
-        "envoyproxy/envoy"
+        "envoyproxy/envoy",
+        "grpc/grpc"
       ],
       "large": [
         "istio/istio",
         "prometheus/prometheus",
         "grpc/grpc",
         "protocolbuffers/protobuf"
+      ],
+      "big": [
+        "googleapis/googleapis",
+        "apple/swift-protobuf"
+      ],
+      "medium": [
+        "grpc-ecosystem/grpc-gateway",
+        "stephenh/ts-proto"
+      ],
+      "small": [
+        "protocolbuffers/protobuf-go",
+        "bufbuild/protoc-gen-validate"
       ]
     }
   },
@@ -413,11 +666,24 @@
       "huge": [
         "facebook/relay",
         "apollographql/apollo-client",
-        "hasura/graphql-engine"
+        "hasura/graphql-engine",
+        "prisma/prisma"
       ],
       "large": [
         "apollographql/apollo-server",
         "graphql/graphql-js",
+        "urql-graphql/urql"
+      ],
+      "big": [
+        "apollographql/apollo-server",
+        "apollographql/apollo-client"
+      ],
+      "medium": [
+        "graphql/graphiql",
+        "graphql/graphql-js"
+      ],
+      "small": [
+        "graphql-java/graphql-java",
         "urql-graphql/urql"
       ]
     }
@@ -434,13 +700,27 @@
       "huge": [
         "llvm/llvm-project",
         "opencv/opencv",
-        "godotengine/godot"
+        "godotengine/godot",
+        "Akagi201/learning-cmake",
+        "mint-lab/3dv_tutorial"
       ],
       "large": [
         "microsoft/vcpkg",
         "tensorflow/tensorflow",
         "facebook/folly",
         "Kitware/CMake"
+      ],
+      "big": [
+        "ultralight-ux/Ultralight",
+        "dreamworksanimation/openmoonray"
+      ],
+      "medium": [
+        "ttroy50/cmake-examples",
+        "TheLartians/ModernCppStarter"
+      ],
+      "small": [
+        "Polytonic/Glitter",
+        "wzpan/cmake-demo"
       ]
     }
   },
@@ -457,13 +737,27 @@
       "huge": [
         "tensorflow/tensorflow",
         "bazelbuild/bazel",
-        "google/tsunami-security-scanner"
+        "google/tsunami-security-scanner",
+        "googleapis/googleapis",
+        "bazelbuild/rules_rust"
       ],
       "large": [
         "grpc/grpc",
         "envoyproxy/envoy",
         "protocolbuffers/protobuf",
         "bazelbuild/bazel"
+      ],
+      "big": [
+        "GoogleContainerTools/distroless",
+        "bazelbuild/rules_docker"
+      ],
+      "medium": [
+        "lucperkins/colossus",
+        "bazelbuild/examples"
+      ],
+      "small": [
+        "google/cel-spec",
+        "owncloud-docker/server"
       ]
     }
   },
@@ -480,12 +774,26 @@
       "huge": [
         "NixOS/nixpkgs",
         "nixos/nix",
-        "numtide/flake-utils"
+        "numtide/flake-utils",
+        "ryan4yin/nix-config",
+        "oxalica/rust-overlay"
       ],
       "large": [
         "home-assistant/core",
         "cachix/cachix",
         "nix-community/home-manager"
+      ],
+      "big": [
+        "nix-darwin/nix-darwin",
+        "dustinlyons/nixos-config"
+      ],
+      "medium": [
+        "NixOS/nix.dev",
+        "NixOS/nixos-hardware"
+      ],
+      "small": [
+        "Misterio77/nix-starter-configs",
+        "the-nix-way/dev-templates"
       ]
     }
   },
@@ -502,13 +810,27 @@
       "huge": [
         "flutter/flutter",
         "dart-lang/sdk",
-        "flutter/engine"
+        "flutter/engine",
+        "KRTirtho/spotube",
+        "ente-io/ente"
       ],
       "large": [
         "firebase/flutterfire",
         "dart-lang/http",
         "rrousselGit/riverpod",
         "dart-lang/sdk"
+      ],
+      "big": [
+        "AppFlowy-IO/AppFlowy",
+        "hiddify/hiddify-app"
+      ],
+      "medium": [
+        "localsend/localsend",
+        "chen08209/FlClash"
+      ],
+      "small": [
+        "Solido/awesome-flutter",
+        "ImranR98/Obtainium"
       ]
     }
   },
@@ -524,13 +846,27 @@
       "huge": [
         "apache/spark",
         "akka/akka",
-        "twitter/finagle"
+        "twitter/finagle",
+        "lichess-org/lila",
+        "scala/scala3"
       ],
       "large": [
         "scalaz/scalaz",
         "playframework/playframework",
         "sbt/sbt",
         "akka/akka-core"
+      ],
+      "big": [
+        "scala/scala",
+        "delta-io/delta"
+      ],
+      "medium": [
+        "gitbucket/gitbucket",
+        "snowplow/snowplow"
+      ],
+      "small": [
+        "twitter/the-algorithm",
+        "rtyley/bfg-repo-cleaner"
       ]
     }
   },
@@ -547,13 +883,27 @@
       "huge": [
         "jenkinsci/jenkins",
         "apache/groovy",
-        "gradle/gradle"
+        "gradle/gradle",
+        "rundeck/rundeck",
+        "nextflow-io/nextflow"
       ],
       "large": [
         "spockframework/spock",
         "grails/grails-core",
         "jenkinsci/pipeline-model-definition-plugin",
         "gradle/gradle"
+      ],
+      "big": [
+        "HujiangTechnology/gradle_plugin_android_aspectjx",
+        "kezong/fat-aar-android"
+      ],
+      "medium": [
+        "bregman-arie/devops-resources",
+        "sonatype/docker-nexus3"
+      ],
+      "small": [
+        "jenkinsci/pipeline-examples",
+        "mcxiaoke/gradle-packer-plugin"
       ]
     }
   },
@@ -570,13 +920,27 @@
         "rstudio/rstudio",
         "tidyverse/ggplot2",
         "tidyverse/dplyr",
-        "wch/r-source"
+        "wch/r-source",
+        "IndrajeetPatil/ggstatsplot",
+        "tylermorganwall/rayshader"
       ],
       "large": [
         "r-lib/devtools",
         "r-lib/usethis",
         "yihui/knitr",
         "tidyverse/ggplot2"
+      ],
+      "big": [
+        "rstudio/shiny",
+        "hadley/r4ds"
+      ],
+      "medium": [
+        "swirldev/swirl_courses",
+        "rmcelreath/stat_rethinking_2022"
+      ],
+      "small": [
+        "cxli233/FriendsDontLetFriends",
+        "qinwf/awesome-R"
       ]
     }
   },
@@ -593,13 +957,27 @@
       "huge": [
         "JuliaLang/julia",
         "JuliaData/DataFrames.jl",
-        "SciML/DifferentialEquations.jl"
+        "SciML/DifferentialEquations.jl",
+        "mitmath/computational-thinking",
+        "jump-dev/JuMP.jl"
       ],
       "large": [
         "FluxML/Flux.jl",
         "MakieOrg/Makie.jl",
         "JuMP-dev/JuMP.jl",
         "JuliaData/DataFrames.jl"
+      ],
+      "big": [
+        "GenieFramework/Genie.jl",
+        "TuringLang/Turing.jl"
+      ],
+      "medium": [
+        "JuliaPlots/UnicodePlots.jl",
+        "svaksha/Julia.jl"
+      ],
+      "small": [
+        "FluxML/Zygote.jl",
+        "JuliaLang/PackageCompiler.jl"
       ]
     }
   },
@@ -617,13 +995,27 @@
         "microsoft/vscode",
         "vercel/next.js",
         "nodejs/node",
-        "emberjs/ember.js"
+        "emberjs/ember.js",
+        "wet-boew/wet-boew",
+        "flatlogic/sing-app"
       ],
       "large": [
         "twbs/bootstrap",
         "ghost/ghost",
         "emberjs/ember.js",
         "TryGhost/Ghost"
+      ],
+      "big": [
+        "rust-lang/rust-by-example",
+        "bestony/EasyWordPressBook"
+      ],
+      "medium": [
+        "rust-unofficial/patterns",
+        "OpenGenesisLab/beat-ai"
+      ],
+      "small": [
+        "yeun/open-color",
+        "ActiveCampaign/mailmason"
       ]
     }
   },
@@ -640,37 +1032,27 @@
         "kubernetes/kubernetes",
         "ansible/ansible",
         "elastic/elasticsearch",
-        "OpenAPITools/openapi-generator"
+        "OpenAPITools/openapi-generator",
+        "argoproj/argo-helm",
+        "sentry-kubernetes/charts"
       ],
       "large": [
         "helm/helm",
         "hashicorp/terraform",
         "grafana/grafana",
         "swagger-api/swagger-codegen"
-      ]
-    }
-  },
-  "clike": {
-    "label": "C / C++ / Objective-C",
-    "queries": "benchmarks/queries/clike.txt",
-    "repos": {
-      "huge": [
-        "opencv/opencv",
-        "llvm/llvm-project",
-        "godotengine/godot",
-        "torvalds/linux"
       ],
-      "large": [
-        "llvm/llvm-project",
-        "curl/curl",
-        "redis/redis",
-        "git/git"
+      "big": [
+        "prometheus-community/helm-charts",
+        "goharbor/harbor-helm"
       ],
-      "typical": [
-        "nlohmann/json",
-        "fmtlib/fmt",
-        "gabime/spdlog",
-        "madler/zlib"
+      "medium": [
+        "amzn/selling-partner-api-models",
+        "inlets/inlets-pro"
+      ],
+      "small": [
+        "codecentric/helm-charts",
+        "MoJo2600/pihole-kubernetes"
       ]
     }
   },
@@ -688,12 +1070,26 @@
         "ansible/ansible",
         "home-assistant/core",
         "pallets/flask",
-        "django/django"
+        "django/django",
+        "kubernetes-sigs/kubespray",
+        "easzlab/kubeasz"
       ],
       "large": [
         "django/django",
         "jupyter/notebook",
         "pallets/jinja"
+      ],
+      "big": [
+        "netbootxyz/netboot.xyz",
+        "davestephens/ansible-nas"
+      ],
+      "medium": [
+        "dev-sec/ansible-collection-hardening",
+        "timothystewart6/k3s-ansible"
+      ],
+      "small": [
+        "geerlingguy/internet-pi",
+        "xai-org/grok-prompts"
       ]
     }
   },
@@ -710,13 +1106,26 @@
       "huge": [
         "dotnet/aspnetcore",
         "OrchardCMS/OrchardCore",
-        "nopSolutions/nopCommerce"
+        "nopSolutions/nopCommerce",
+        "abpframework/abp"
       ],
       "large": [
         "MudBlazor/MudBlazor",
         "radzenhq/radzen-blazor",
         "serenity-is/Serenity",
         "OrchardCMS/OrchardCore"
+      ],
+      "big": [
+        "dotnet/AspNetCore.Docs",
+        "dotnet/aspnetcore"
+      ],
+      "medium": [
+        "OrchardCMS/OrchardCore",
+        "aspnetboilerplate/aspnetboilerplate"
+      ],
+      "small": [
+        "dotnet/aspnet-api-versioning",
+        "dotnet/blazor-samples"
       ]
     }
   }
