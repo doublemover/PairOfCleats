@@ -165,6 +165,27 @@ export const normalizeTreeSitterByLanguage = (raw) => {
 };
 
 /**
+ * Apply tree-sitter JS max-bytes fallback to JS-like extensions when no explicit
+ * extension-level cap exists.
+ *
+ * @param {object} caps
+ * @param {number} maxBytes
+ * @returns {boolean}
+ */
+export const applyTreeSitterJsCaps = (caps, maxBytes) => {
+  if (!caps || !Number.isFinite(maxBytes) || maxBytes <= 0) return false;
+  const targets = ['.js', '.jsx', '.mjs', '.cjs', '.jsm'];
+  let applied = false;
+  for (const ext of targets) {
+    const current = caps.byExt?.[ext] || {};
+    if (current.maxBytes != null) continue;
+    caps.byExt[ext] = { ...current, maxBytes };
+    applied = true;
+  }
+  return applied;
+};
+
+/**
  * Resolve file cap configuration and guardrails from indexing config.
  * @param {object} indexingConfig
  * @returns {{fileCaps:object,guardrails:object}}

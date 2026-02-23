@@ -29,12 +29,6 @@ import { warmEmbeddingAdapter } from '../../../shared/embedding-adapter.js';
 import { buildIgnoreMatcher } from '../ignore.js';
 import { normalizePostingsConfig } from '../../../shared/postings-config.js';
 import { createSharedDictionary, createSharedDictionaryView } from '../../../shared/dictionary.js';
-import {
-  coerceClampedFraction,
-  coerceNonNegativeInt,
-  coercePositiveInt
-} from '../../../shared/number-coerce.js';
-import { normalizeOwnershipSegment } from '../../../shared/ownership-segment.js';
 import { normalizeEmbeddingBatchMultipliers } from '../embedding-batch.js';
 import { mergeConfig } from '../../../shared/config.js';
 import { sha1, setXxhashBackend } from '../../../shared/hash.js';
@@ -47,20 +41,23 @@ import { DEFAULT_CODE_DICT_LANGUAGES, normalizeCodeDictLanguages } from '../../.
 import { resolveRuntimeEnvelope } from '../../../shared/runtime-envelope.js';
 import { buildContentConfigHash } from './hash.js';
 import { normalizeStage, buildStageOverrides } from './stage.js';
-import { configureRuntimeLogger } from './logging.js';
-import { normalizeLimit, resolveFileCapsAndGuardrails } from './caps.js';
+import {
+  configureRuntimeLogger,
+  logRuntimeFeatureStatus,
+  logRuntimePostTreeSitterFeatureStatus
+} from './logging.js';
+import { applyTreeSitterJsCaps, normalizeLimit, resolveFileCapsAndGuardrails } from './caps.js';
 import {
   normalizeLanguageParserConfig,
   normalizeLanguageFlowConfig,
   normalizeDictSignaturePath
 } from './normalize.js';
-import { buildAnalysisPolicy } from './policy.js';
+import { buildAnalysisPolicy, buildLexiconConfig } from './policy.js';
 import {
   buildFileScanConfig,
   buildGeneratedIndexingPolicyConfig,
   buildShardConfig,
-  formatBuildNonce,
-  formatBuildTimestamp
+  resolveRuntimeBuildRoot
 } from './config.js';
 import { resolveEmbeddingRuntime } from './embeddings.js';
 import { createBuildScheduler } from '../../../shared/concurrency.js';
@@ -85,6 +82,11 @@ import {
   createRuntimeWorkerPools
 } from './workers.js';
 import {
+  buildStage1SubprocessOwnershipPrefix,
+  createRuntimeTelemetry,
+  resolveStage1Queues
+} from './queues.js';
+import {
   applyLearnedAutoProfileSelection,
   normalizeIndexOptimizationProfile,
   resolvePlatformRuntimePreset,
@@ -102,27 +104,6 @@ import {
  * @returns {boolean}
  */
 const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
-
-/**
- * Normalize optional integer override to non-negative number or null.
- *
- * @param {unknown} value
- * @returns {number|null}
- */
-const coerceOptionalNonNegativeInt = (value) => {
-  if (value === null || value === undefined) return null;
-  return coerceNonNegativeInt(value);
-};
-
-/**
- * Build deterministic ownership prefix for stage1 subprocess queues.
- *
- * @param {{buildId?:string}} [input]
- * @returns {string}
- */
-const buildStage1SubprocessOwnershipPrefix = ({ buildId } = {}) => (
-  `stage1:${normalizeOwnershipSegment(buildId, 'build')}`
-);
 
 export {
   applyLearnedAutoProfileSelection,
@@ -168,226 +149,6 @@ const cloneDaemonDictionaryEntry = (entry) => {
     dictSummary: entry.dictSummary && typeof entry.dictSummary === 'object'
       ? JSON.parse(JSON.stringify(entry.dictSummary))
       : null
-  };
-};
-
-/**
- * Shared runtime telemetry collector for cross-stage in-flight gauges.
- *
- * @returns {{
- *   setInFlightBytes:(channel:string, input?:{bytes?:number,count?:number})=>void,
- *   clearInFlightBytes:(channel:string)=>void,
- *   readInFlightBytes:()=>{total:number,channels:Record<string,{bytes:number,count:number}>},
- *   recordDuration:(channel:string, durationMs:number)=>void,
- *   clearDurationHistogram:(channel:string)=>void,
- *   readDurationHistograms:()=>Record<string,{
- *     count:number,totalMs:number,minMs:number,maxMs:number,avgMs:number,
- *     bucketsMs:number[],counts:number[],overflow:number
- *   }>
- * }}
- */
-const createRuntimeTelemetry = () => {
-  const channels = new Map();
-  const DEFAULT_DURATION_BUCKETS_MS = Object.freeze([50, 100, 250, 500, 1000, 2000, 5000, 10000, 30000, 60000]);
-  const durationHistograms = new Map();
-  const setInFlightBytes = (channel, input = {}) => {
-    if (!channel) return;
-    const bytes = Number(input?.bytes);
-    const count = Number(input?.count);
-    channels.set(String(channel), {
-      bytes: Number.isFinite(bytes) && bytes > 0 ? Math.floor(bytes) : 0,
-      count: Number.isFinite(count) && count > 0 ? Math.floor(count) : 0
-    });
-  };
-  const clearInFlightBytes = (channel) => {
-    if (!channel) return;
-    channels.delete(String(channel));
-  };
-  const readInFlightBytes = () => {
-    const out = {};
-    let total = 0;
-    for (const [name, value] of channels.entries()) {
-      const bytes = Number(value?.bytes) || 0;
-      const count = Number(value?.count) || 0;
-      out[name] = { bytes, count };
-      total += bytes;
-    }
-    return { total, channels: out };
-  };
-  const coerceDurationMs = (value) => {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
-  };
-  const resolveHistogramState = (channel) => {
-    const key = String(channel);
-    const existing = durationHistograms.get(key);
-    if (existing) return existing;
-    const bucketsMs = DEFAULT_DURATION_BUCKETS_MS.slice();
-    const state = {
-      bucketsMs,
-      counts: new Array(bucketsMs.length).fill(0),
-      overflow: 0,
-      count: 0,
-      totalMs: 0,
-      minMs: null,
-      maxMs: 0
-    };
-    durationHistograms.set(key, state);
-    return state;
-  };
-  const recordDuration = (channel, durationMs) => {
-    if (!channel) return;
-    const duration = coerceDurationMs(durationMs);
-    const state = resolveHistogramState(channel);
-    state.count += 1;
-    state.totalMs += duration;
-    state.minMs = state.minMs == null ? duration : Math.min(state.minMs, duration);
-    state.maxMs = Math.max(state.maxMs, duration);
-    let bucketIndex = -1;
-    for (let i = 0; i < state.bucketsMs.length; i += 1) {
-      if (duration <= state.bucketsMs[i]) {
-        bucketIndex = i;
-        break;
-      }
-    }
-    if (bucketIndex >= 0) {
-      state.counts[bucketIndex] += 1;
-    } else {
-      state.overflow += 1;
-    }
-  };
-  const clearDurationHistogram = (channel) => {
-    if (!channel) return;
-    durationHistograms.delete(String(channel));
-  };
-  const readDurationHistograms = () => {
-    const out = {};
-    for (const [name, value] of durationHistograms.entries()) {
-      const count = Number(value?.count) || 0;
-      const totalMs = Number(value?.totalMs) || 0;
-      const minMs = value?.minMs == null ? 0 : (Number(value.minMs) || 0);
-      const maxMs = Number(value?.maxMs) || 0;
-      const avgMs = count > 0 ? totalMs / count : 0;
-      out[name] = {
-        count,
-        totalMs,
-        minMs,
-        maxMs,
-        avgMs,
-        bucketsMs: Array.isArray(value?.bucketsMs) ? value.bucketsMs.slice() : [],
-        counts: Array.isArray(value?.counts) ? value.counts.slice() : [],
-        overflow: Number(value?.overflow) || 0
-      };
-    }
-    return out;
-  };
-  return {
-    setInFlightBytes,
-    clearInFlightBytes,
-    readInFlightBytes,
-    recordDuration,
-    clearDurationHistogram,
-    readDurationHistograms
-  };
-};
-
-/**
- * Resolve stage1 queue controls from indexing configuration, coercing optional
- * numeric overrides into safe integer/fraction values.
- *
- * @param {object} [indexingConfig]
- * @returns {{tokenize:object,postings:object,ordered:object,watchdog:object}}
- */
-const resolveStage1Queues = (indexingConfig = {}) => {
-  const stage1 = indexingConfig?.stage1 && typeof indexingConfig.stage1 === 'object'
-    ? indexingConfig.stage1
-    : {};
-  const tokenize = stage1?.tokenize && typeof stage1.tokenize === 'object'
-    ? stage1.tokenize
-    : {};
-  const postings = stage1?.postings && typeof stage1.postings === 'object'
-    ? stage1.postings
-    : {};
-  const ordered = stage1?.ordered && typeof stage1.ordered === 'object'
-    ? stage1.ordered
-    : {};
-  const watchdog = stage1?.watchdog && typeof stage1.watchdog === 'object'
-    ? stage1.watchdog
-    : {};
-
-  const tokenizeConcurrency = coercePositiveInt(tokenize.concurrency);
-  const tokenizeMaxPending = coercePositiveInt(tokenize.maxPending);
-
-  const postingsMaxPending = coercePositiveInt(
-    postings.maxPending ?? postings.concurrency
-  );
-  const postingsMaxPendingRows = coercePositiveInt(postings.maxPendingRows);
-  const postingsMaxPendingBytes = coercePositiveInt(postings.maxPendingBytes);
-  const postingsMaxHeapFraction = coerceClampedFraction(postings.maxHeapFraction, {
-    min: 0,
-    max: 1,
-    allowZero: false
-  });
-  const orderedMaxPending = coercePositiveInt(ordered.maxPending);
-  const orderedBucketSize = coercePositiveInt(ordered.bucketSize);
-  const orderedMaxPendingEmergencyFactor = Number(ordered.maxPendingEmergencyFactor);
-  const watchdogSlowFileMs = coerceOptionalNonNegativeInt(
-    watchdog.slowFileMs ?? stage1.fileWatchdogMs
-  );
-  const watchdogMaxSlowFileMs = coerceOptionalNonNegativeInt(
-    watchdog.maxSlowFileMs ?? stage1.fileWatchdogMaxMs
-  );
-  const watchdogHardTimeoutMs = coerceOptionalNonNegativeInt(
-    watchdog.hardTimeoutMs ?? stage1.fileWatchdogHardMs
-  );
-  const watchdogBytesPerStep = coercePositiveInt(watchdog.bytesPerStep);
-  const watchdogLinesPerStep = coercePositiveInt(watchdog.linesPerStep);
-  const watchdogStepMs = coercePositiveInt(watchdog.stepMs);
-  const watchdogNearThresholdLowerFraction = coerceClampedFraction(
-    watchdog.nearThresholdLowerFraction,
-    { min: 0, max: 1, allowZero: false }
-  );
-  const watchdogNearThresholdUpperFraction = coerceClampedFraction(
-    watchdog.nearThresholdUpperFraction,
-    { min: 0, max: 1, allowZero: false }
-  );
-  const watchdogNearThresholdAlertFraction = coerceClampedFraction(
-    watchdog.nearThresholdAlertFraction,
-    { min: 0, max: 1, allowZero: false }
-  );
-  const watchdogNearThresholdMinSamples = coercePositiveInt(watchdog.nearThresholdMinSamples);
-
-  return {
-    tokenize: {
-      concurrency: tokenizeConcurrency,
-      maxPending: tokenizeMaxPending
-    },
-    postings: {
-      maxPending: postingsMaxPending,
-      maxPendingRows: postingsMaxPendingRows,
-      maxPendingBytes: postingsMaxPendingBytes,
-      maxHeapFraction: postingsMaxHeapFraction
-    },
-    ordered: {
-      maxPending: orderedMaxPending,
-      bucketSize: orderedBucketSize,
-      maxPendingEmergencyFactor: Number.isFinite(orderedMaxPendingEmergencyFactor)
-        && orderedMaxPendingEmergencyFactor > 1
-        ? orderedMaxPendingEmergencyFactor
-        : null
-    },
-    watchdog: {
-      slowFileMs: watchdogSlowFileMs,
-      maxSlowFileMs: watchdogMaxSlowFileMs,
-      hardTimeoutMs: watchdogHardTimeoutMs,
-      bytesPerStep: watchdogBytesPerStep,
-      linesPerStep: watchdogLinesPerStep,
-      stepMs: watchdogStepMs,
-      nearThresholdLowerFraction: watchdogNearThresholdLowerFraction,
-      nearThresholdUpperFraction: watchdogNearThresholdUpperFraction,
-      nearThresholdAlertFraction: watchdogNearThresholdAlertFraction,
-      nearThresholdMinSamples: watchdogNearThresholdMinSamples
-    }
   };
 };
 
@@ -734,23 +495,15 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     || repoProvenance?.head?.commitId
     || repoProvenance?.commit
     || null;
-  const scmHeadShort = scmHeadId ? String(scmHeadId).slice(0, 7) : 'noscm';
-  const configHash8 = configHash ? configHash.slice(0, 8) : 'nohash';
-  const buildNonce = formatBuildNonce();
-  const computedBuildIdBase = `${formatBuildTimestamp(new Date())}_${buildNonce}_${scmHeadShort}_${configHash8}`;
   const resolvedIndexRoot = indexRootOverride ? path.resolve(indexRootOverride) : null;
   const buildsRoot = getBuildsRoot(root, userConfig);
-  let computedBuildId = computedBuildIdBase;
-  let buildRoot = resolvedIndexRoot || path.join(buildsRoot, computedBuildId);
-  if (!resolvedIndexRoot) {
-    let suffix = 1;
-    while (fsSync.existsSync(buildRoot)) {
-      computedBuildId = `${computedBuildIdBase}_${suffix.toString(36)}`;
-      buildRoot = path.join(buildsRoot, computedBuildId);
-      suffix += 1;
-    }
-  }
-  const buildId = resolvedIndexRoot ? path.basename(buildRoot) : computedBuildId;
+  const { buildId, buildRoot } = resolveRuntimeBuildRoot({
+    resolvedIndexRoot,
+    buildsRoot,
+    scmHeadId,
+    configHash,
+    existsSync: fsSync.existsSync
+  });
   const stage1SubprocessOwnershipPrefix = buildStage1SubprocessOwnershipPrefix({ buildId });
   const daemonJobContext = createRuntimeDaemonJobContext(daemonSession, {
     root,
@@ -777,36 +530,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   const toolingConfig = getToolingConfig(root, userConfig);
   const toolingEnabled = toolingConfig.autoEnableOnDetect !== false;
   const postingsConfig = normalizePostingsConfig(indexingConfig.postings || {});
-  const rawLexiconConfig = indexingConfig.lexicon && typeof indexingConfig.lexicon === 'object'
-    ? indexingConfig.lexicon
-    : {};
-  const policyQualityValue = typeof autoPolicy?.quality?.value === 'string'
-    ? autoPolicy.quality.value
-    : null;
-  const rawLexiconRelations = rawLexiconConfig.relations && typeof rawLexiconConfig.relations === 'object'
-    ? rawLexiconConfig.relations
-    : {};
-  const rawLexiconDrop = rawLexiconRelations.drop && typeof rawLexiconRelations.drop === 'object'
-    ? rawLexiconRelations.drop
-    : {};
-  const lexiconConfig = {
-    enabled: rawLexiconConfig.enabled !== false,
-    relations: {
-      enabled: typeof rawLexiconRelations.enabled === 'boolean'
-        ? rawLexiconRelations.enabled
-        : policyQualityValue === 'max',
-      stableDedupe: rawLexiconRelations.stableDedupe === true,
-      drop: {
-        keywords: rawLexiconDrop.keywords !== false,
-        literals: rawLexiconDrop.literals !== false,
-        builtins: rawLexiconDrop.builtins === true,
-        types: rawLexiconDrop.types === true
-      }
-    }
-  };
-  if (rawLexiconConfig.languageOverrides && typeof rawLexiconConfig.languageOverrides === 'object') {
-    lexiconConfig.languageOverrides = rawLexiconConfig.languageOverrides;
-  }
+  const lexiconConfig = buildLexiconConfig({ indexingConfig, autoPolicy });
   const { maxFileBytes, fileCaps, guardrails } = resolveFileCapsAndGuardrails(indexingConfig);
   const astDataflowEnabled = indexingConfig.astDataflow !== false;
   const controlFlowEnabled = indexingConfig.controlFlow !== false;
@@ -933,18 +657,6 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
       : path.join(repoCacheRoot, 'tree-sitter-chunk-cache'))
     : null;
   logInit('tree-sitter config', treeSitterStart);
-  const applyTreeSitterJsCaps = (caps, maxBytes) => {
-    if (!caps || !Number.isFinite(maxBytes) || maxBytes <= 0) return false;
-    const targets = ['.js', '.jsx', '.mjs', '.cjs', '.jsm'];
-    let applied = false;
-    for (const ext of targets) {
-      const current = caps.byExt?.[ext] || {};
-      if (current.maxBytes != null) continue;
-      caps.byExt[ext] = { ...current, maxBytes };
-      applied = true;
-    }
-    return applied;
-  };
   if (applyTreeSitterJsCaps(fileCaps, treeSitterMaxBytes)) {
     log(`JS file caps default to tree-sitter maxBytes (${treeSitterMaxBytes}).`);
   }
@@ -1290,71 +1002,29 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
       log(`[ignore] ${warning?.type || 'warning'}${file}${detail}`);
     }
   }
-  if (stage === 'stage1') {
-    log('Two-stage indexing: stage1 (sparse) overrides enabled.');
-  } else if (stage === 'stage2') {
-    log('Two-stage indexing: stage2 (enrichment) running.');
-  } else if (stage === 'stage3') {
-    log('Indexing stage3 (embeddings pass) running.');
-  } else if (stage === 'stage4') {
-    log('Indexing stage4 (sqlite/ann pass) running.');
-  }
-  log(`Index profile: ${profile.id}.`);
-  if (hugeRepoProfileEnabled) {
-    log(
-      `Huge-repo profile enabled (${autoPolicyProfile.id || 'huge-repo'}): ` +
-      'cross-file enrichment and expensive relation passes are reduced by default.'
-    );
-  }
-  if (!embeddingEnabled) {
-    const label = embeddingService ? 'service queue' : 'disabled';
-    const deferred = baseEmbeddingsPlanned && (stage === 'stage1' || stage === 'stage2');
-    if (deferred) {
-      const stageLabel = stage === 'stage1' ? 'stage1' : 'stage2';
-      log(`Embeddings: deferred to stage3 (${stageLabel}).`);
-    } else {
-      log(`Embeddings: ${label}.`);
-    }
-  } else if (useStubEmbeddings) {
-    log('Embeddings: stub mode enabled (no model downloads).');
-  } else {
-    const providerLabel = embeddingProvider === 'onnx' ? 'onnxruntime' : 'xenova';
-    log(`Embeddings: model ${modelId} (${providerLabel}).`);
-  }
-  if (embeddingEnabled) {
-    log(`Embedding batch size: ${embeddingBatchSize}`);
-    log(`Embedding concurrency: ${embeddingConcurrency}`);
-  }
-  if (incrementalEnabled) {
-    log(`Incremental cache enabled (root: ${path.join(repoCacheRoot, 'incremental')}).`);
-  }
-  log(`Queue concurrency: io=${ioConcurrency}, cpu=${cpuConcurrency}.`);
-  log(
-    `Memory policy: workerHeap=${runtimeMemoryPolicy.workerHeapPolicy.targetPerWorkerMb}MB ` +
-    `(effective=${runtimeMemoryPolicy.effectiveWorkerHeapMb}MB, ` +
-    `min=${runtimeMemoryPolicy.workerHeapPolicy.minPerWorkerMb}MB, ` +
-    `max=${runtimeMemoryPolicy.workerHeapPolicy.maxPerWorkerMb}MB), ` +
-    `workerCache=${runtimeMemoryPolicy.perWorkerCacheMb}MB, ` +
-    `writeBuffer=${runtimeMemoryPolicy.perWorkerWriteBufferMb}MB.`
-  );
-  if (runtimeMemoryPolicy?.highMemoryProfile?.enabled) {
-    const mode = runtimeMemoryPolicy.highMemoryProfile.applied ? 'applied' : 'eligible';
-    log(
-      `High-memory profile (${mode}): threshold=${runtimeMemoryPolicy.highMemoryProfile.thresholdMb}MB, ` +
-      `cacheScale=${runtimeMemoryPolicy.highMemoryProfile.cacheScale}x, ` +
-      `writeScale=${runtimeMemoryPolicy.highMemoryProfile.writeBufferScale}x, ` +
-      `postingsScale=${runtimeMemoryPolicy.highMemoryProfile.postingsScale}x.`
-    );
-  }
-  if (!astDataflowEnabled) {
-    log('AST dataflow metadata disabled via indexing.astDataflow.');
-  }
-  if (!controlFlowEnabled) {
-    log('Control-flow metadata disabled via indexing.controlFlow.');
-  }
-  if (!pythonAstEnabled) {
-    log('Python AST metadata disabled via indexing.pythonAst.enabled.');
-  }
+  logRuntimeFeatureStatus({
+    log,
+    stage,
+    profileId: profile.id,
+    hugeRepoProfileEnabled,
+    autoPolicyProfileId: autoPolicyProfile.id,
+    embeddingEnabled,
+    embeddingService,
+    baseEmbeddingsPlanned,
+    useStubEmbeddings,
+    modelId,
+    embeddingProvider,
+    embeddingBatchSize,
+    embeddingConcurrency,
+    incrementalEnabled,
+    repoCacheRoot: path.join(repoCacheRoot, 'incremental'),
+    ioConcurrency,
+    cpuConcurrency,
+    runtimeMemoryPolicy,
+    astDataflowEnabled,
+    controlFlowEnabled,
+    pythonAstEnabled
+  });
   if (!treeSitterEnabled) {
     log('Tree-sitter chunking disabled via indexing.treeSitter.enabled.');
   } else {
@@ -1386,36 +1056,18 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
       }
     }
   }
-  if (typeInferenceEnabled) {
-    log('Type inference metadata enabled via indexing.typeInference.');
-  }
-  if (typeInferenceCrossFileEnabled && !typeInferenceEnabled) {
-    log('Cross-file type inference requested but indexing.typeInference is disabled.');
-  }
-  if (!gitBlameEnabled) {
-    log('SCM annotate metadata disabled via indexing.scm.annotate.enabled.');
-  }
-  if (!lintEnabled) {
-    log('Lint metadata disabled via indexing.lint.');
-  }
-  if (!complexityEnabled) {
-    log('Complexity metadata disabled via indexing.complexity.');
-  }
-  if (!riskAnalysisEnabled) {
-    log('Risk analysis disabled via indexing.riskAnalysis.');
-  }
-  if (!riskAnalysisCrossFileEnabled && riskAnalysisEnabled) {
-    log('Cross-file risk correlation disabled via indexing.riskAnalysisCrossFile.');
-  }
-  if (postingsConfig.enablePhraseNgrams === false) {
-    log('Phrase n-gram postings disabled via indexing.postings.enablePhraseNgrams.');
-  }
-  if (postingsConfig.enableChargrams === false) {
-    log('Chargram postings disabled via indexing.postings.enableChargrams.');
-  }
-  if (lexiconConfig.enabled === false) {
-    log('Lexicon features disabled via indexing.lexicon.enabled.');
-  }
+  logRuntimePostTreeSitterFeatureStatus({
+    log,
+    typeInferenceEnabled,
+    typeInferenceCrossFileEnabled,
+    gitBlameEnabled,
+    lintEnabled,
+    complexityEnabled,
+    riskAnalysisEnabled,
+    riskAnalysisCrossFileEnabled,
+    postingsConfig,
+    lexiconConfig
+  });
 
   const workerPoolsResult = await timeInit('worker pools', () => createRuntimeWorkerPools({
     workerPoolConfig,

@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import path from 'node:path';
 import { normalizeLimit, normalizeRatio, normalizeDepth } from './caps.js';
 import { buildGeneratedPolicyConfig } from '../generated-policy.js';
 
@@ -25,6 +26,42 @@ export const formatBuildNonce = (bytes = 4) => {
     ? Math.max(2, Math.floor(Number(bytes)))
     : 3;
   return crypto.randomBytes(size).toString('hex');
+};
+
+/**
+ * Resolve build id/build root (including collision-safe suffixing).
+ *
+ * @param {object} input
+ * @param {string|null} [input.resolvedIndexRoot]
+ * @param {string} input.buildsRoot
+ * @param {string|null} [input.scmHeadId]
+ * @param {string|null} [input.configHash]
+ * @param {(path:string)=>boolean} input.existsSync
+ * @returns {{buildId:string,buildRoot:string}}
+ */
+export const resolveRuntimeBuildRoot = ({
+  resolvedIndexRoot = null,
+  buildsRoot,
+  scmHeadId = null,
+  configHash = null,
+  existsSync
+}) => {
+  const scmHeadShort = scmHeadId ? String(scmHeadId).slice(0, 7) : 'noscm';
+  const configHash8 = configHash ? configHash.slice(0, 8) : 'nohash';
+  const buildNonce = formatBuildNonce();
+  const computedBuildIdBase = `${formatBuildTimestamp(new Date())}_${buildNonce}_${scmHeadShort}_${configHash8}`;
+  let computedBuildId = computedBuildIdBase;
+  let buildRoot = resolvedIndexRoot || path.join(buildsRoot, computedBuildId);
+  if (!resolvedIndexRoot) {
+    let suffix = 1;
+    while (existsSync(buildRoot)) {
+      computedBuildId = `${computedBuildIdBase}_${suffix.toString(36)}`;
+      buildRoot = path.join(buildsRoot, computedBuildId);
+      suffix += 1;
+    }
+  }
+  const buildId = resolvedIndexRoot ? path.basename(buildRoot) : computedBuildId;
+  return { buildId, buildRoot };
 };
 
 /**
