@@ -78,6 +78,24 @@ if (symlinkCreated) {
     'symlinked file outside canonical root must not be indexable'
   );
 }
+
+const aliasTargetRoot = path.join(symlinkTempRoot, 'alias-target');
+const aliasRecordsRoot = path.join(aliasTargetRoot, 'records');
+await fs.mkdir(aliasRecordsRoot, { recursive: true });
+const aliasRootLink = path.join(symlinkTempRoot, 'alias-root-link');
+let aliasLinkCreated = false;
+try {
+  await fs.symlink(aliasTargetRoot, aliasRootLink, process.platform === 'win32' ? 'junction' : 'dir');
+  aliasLinkCreated = true;
+} catch {}
+if (aliasLinkCreated) {
+  assert.equal(
+    resolveRecordsRoot(aliasRootLink, aliasRecordsRoot),
+    normalizeRoot(aliasRecordsRoot),
+    'canonical in-root records path should be accepted even when root is an alias path'
+  );
+}
+
 await fs.rm(symlinkTempRoot, { recursive: true, force: true });
 
 console.log('watch root normalization contract ok.');
