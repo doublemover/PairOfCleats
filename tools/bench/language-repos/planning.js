@@ -137,17 +137,35 @@ export const buildTaskCatalog = ({ benchConfig, argv, scriptRoot }) => {
   const queryExistsCache = new Map();
   const requireQueriesPath = (queriesPath) => {
     if (!queryExistsCache.has(queriesPath)) {
-      queryExistsCache.set(queriesPath, fs.existsSync(queriesPath));
+      let exists = false;
+      let isFile = false;
+      try {
+        const stat = fs.statSync(queriesPath);
+        exists = true;
+        isFile = stat.isFile();
+      } catch {
+        exists = false;
+        isFile = false;
+      }
+      queryExistsCache.set(queriesPath, { exists, isFile });
     }
-    if (queryExistsCache.get(queriesPath) !== true) {
+    const cached = queryExistsCache.get(queriesPath);
+    if (cached?.exists !== true) {
       throw new Error(`Missing queries file: ${queriesPath}`);
+    }
+    if (cached?.isFile !== true) {
+      throw new Error(`Queries path must resolve to a file: ${queriesPath}`);
     }
   };
 
   const plannedTasks = [];
   for (const [language, entry] of Object.entries(benchConfig || {})) {
     if (!matchesLanguageFilter(language, entry, languageFilterTokens)) continue;
-    const queriesPath = queryOverridePath || path.resolve(scriptRoot, entry.queries || '');
+    const configQueries = typeof entry?.queries === 'string' ? entry.queries.trim() : '';
+    if (!queryOverridePath && !configQueries) {
+      throw new Error(`Missing queries path for language "${language}" in bench config.`);
+    }
+    const queriesPath = queryOverridePath || path.resolve(scriptRoot, configQueries);
     requireQueriesPath(queriesPath);
     for (const [tier, repos] of Object.entries(entry?.repos || {})) {
       if (hasTierFilter && !tierFilterSet.has(normalizeSelectorToken(tier))) continue;
@@ -192,6 +210,16 @@ export const getRepoShortName = (repo) => {
   if (!repo) return '';
   return String(repo).split('/').filter(Boolean).pop() || String(repo);
 };
+
+/**
+ * Build a filesystem-safe report file stem for repo identifiers.
+ *
+ * @param {string} repo
+ * @returns {string}
+ */
+export const toRepoOutputStem = (repo) => String(repo || '')
+  .trim()
+  .replace(/[\\/]+/g, '__');
 
 /**
  * Count slug collisions.
@@ -312,7 +340,7 @@ export const buildExecutionPlans = ({ tasks, reposRoot, resultsRoot, cacheRoot }
       tierLabel: String(task.tier || '').trim(),
       repoCacheRoot,
       outDir,
-      outFile: path.join(outDir, `${task.repo.replace('/', '__')}.json`),
+      outFile: path.join(outDir, `${toRepoOutputStem(task.repo)}.json`),
       fallbackLogSlug: task.logSlug || toSafeLogSlug(getRepoShortName(task.repo)) || 'repo'
     };
   });
