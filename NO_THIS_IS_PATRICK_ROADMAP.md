@@ -69,6 +69,10 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T06:30:06.5025887-05:00
+  Split adaptive-surface controller initialization from `src/shared/concurrency/scheduler-core.js` into `src/shared/concurrency/scheduler-core-adaptive-surfaces.js`, centralizing surface bounds/queue mapping/decision-trace state so scheduler-core keeps runtime orchestration hot paths tighter and less config-heavy.
+- 2026-02-23T06:29:34.0000000-05:00
+  Refactored stage1 process-file watchdog and postings telemetry helpers out of `src/index/build/indexer/steps/process-files.js` into `process-files/stage1-watchdog-controller.js` and `process-files/postings-telemetry.js`, with dedicated contract coverage in `tests/indexing/stage1/process-files-postings-telemetry.test.js` to lock sequencing and metrics behavior.
 - 2026-02-23T06:26:31.9527609-05:00
   Extracted retrieval auto-sqlite threshold gating from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/auto-thresholds.js`, centralizing index-size threshold evaluation and reducing repeated inline stats-selection logic in backend selection flow.
 - 2026-02-23T06:25:13.3001612-05:00
