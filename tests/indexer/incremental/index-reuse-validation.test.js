@@ -13,6 +13,16 @@ const tempRoot = resolveTestCachePath(root, 'index-reuse-validation');
 const outDir = path.join(tempRoot, 'out');
 const piecesDir = path.join(outDir, 'pieces');
 const fixtureFile = path.join(tempRoot, 'src', 'a.js');
+const piecesManifestPath = path.join(piecesDir, 'manifest.json');
+
+const validPiecesManifest = {
+  version: 2,
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
+  pieces: [
+    { name: 'chunk_meta', path: 'chunk_meta.json', format: 'json' },
+    { name: 'index_state', path: 'index_state.json', format: 'json' }
+  ]
+};
 
 const setup = async () => {
   await fs.rm(tempRoot, { recursive: true, force: true });
@@ -35,15 +45,8 @@ const setup = async () => {
     'utf8'
   );
   await fs.writeFile(
-    path.join(piecesDir, 'manifest.json'),
-    JSON.stringify({
-      version: 2,
-      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
-      pieces: [
-        { name: 'chunk_meta', path: 'chunk_meta.json', format: 'json' },
-        { name: 'index_state', path: 'index_state.json', format: 'json' }
-      ]
-    }, null, 2),
+    piecesManifestPath,
+    JSON.stringify(validPiecesManifest, null, 2),
     'utf8'
   );
 };
@@ -64,6 +67,31 @@ const reusable = await shouldReuseIncrementalIndex({
   stage: 'stage2'
 });
 assert.equal(reusable, true, 'expected incremental reuse when required artifacts are present');
+
+await fs.writeFile(
+  piecesManifestPath,
+  JSON.stringify({
+    ...validPiecesManifest,
+    pieces: [
+      { name: 'chunk_meta', path: '../escaped-chunk-meta.json', format: 'json' },
+      { name: 'index_state', path: 'index_state.json', format: 'json' }
+    ]
+  }, null, 2),
+  'utf8'
+);
+const reusableEscapedPath = await shouldReuseIncrementalIndex({
+  outDir,
+  entries,
+  manifest,
+  stage: 'stage2'
+});
+assert.equal(
+  reusableEscapedPath,
+  false,
+  'expected incremental reuse to fail when piece path escapes output dir'
+);
+
+await fs.writeFile(piecesManifestPath, JSON.stringify(validPiecesManifest, null, 2), 'utf8');
 
 await fs.rm(path.join(outDir, 'chunk_meta.json'), { force: true });
 const reusableAfterCorruption = await shouldReuseIncrementalIndex({

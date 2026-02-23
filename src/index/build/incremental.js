@@ -31,6 +31,57 @@ const pathExists = async (targetPath) => {
   }
 };
 
+const entryStatsMatch = (cachedEntry, fileStat) => (
+  !!cachedEntry
+  && cachedEntry.size === fileStat?.size
+  && cachedEntry.mtimeMs === fileStat?.mtimeMs
+);
+
+/**
+ * Resolve bundle path/format from manifest entry and fallback format.
+ *
+ * @param {{relKey:string,entry?:object|null,bundleDir:string,fallbackFormat:string}} input
+ * @returns {{bundleName:string,bundlePath:string,bundleFormat:string}|null}
+ */
+const resolveBundleRecord = ({
+  relKey,
+  entry,
+  bundleDir,
+  fallbackFormat
+}) => {
+  const bundleName = entry?.bundle || resolveBundleFilename(relKey, fallbackFormat);
+  if (!bundleName) return null;
+  return {
+    bundleName,
+    bundlePath: path.join(bundleDir, bundleName),
+    bundleFormat: resolveBundleFormatFromName(bundleName, fallbackFormat)
+  };
+};
+
+/**
+ * Read a bundle payload and normalize read failures to null.
+ *
+ * @param {{bundlePath:string,bundleFormat:string}} input
+ * @returns {Promise<object|null>}
+ */
+const readBundleOrNull = async ({ bundlePath, bundleFormat }) => {
+  try {
+    const result = await readBundleFile(bundlePath, { format: bundleFormat });
+    return result.ok ? result.bundle : null;
+  } catch {
+    return null;
+  }
+};
+
+const resolveBundleImports = (bundle) => {
+  const imports = bundle?.fileRelations?.imports;
+  return Array.isArray(imports) ? imports : null;
+};
+
+const resolveBundleVfsManifestRows = (bundle) => (
+  Array.isArray(bundle?.vfsManifestRows) ? bundle.vfsManifestRows : null
+);
+
 /**
  * Summarize changed signature keys for incremental-cache reset diagnostics.
  *
@@ -273,6 +324,38 @@ const stageSatisfied = (requested, existing) => {
   return current >= target;
 };
 
+const createOutDirContainmentCheck = (outDir) => {
+  const outRoot = path.resolve(outDir);
+  if (process.platform === 'win32') {
+    const outRootLower = outRoot.toLowerCase();
+    const outRootPrefix = `${outRootLower}${path.sep}`;
+    return (candidatePath) => {
+      const resolvedLower = path.resolve(candidatePath).toLowerCase();
+      return resolvedLower === outRootLower || resolvedLower.startsWith(outRootPrefix);
+    };
+  }
+  const outRootPrefix = `${outRoot}${path.sep}`;
+  return (candidatePath) => {
+    const resolvedPath = path.resolve(candidatePath);
+    return resolvedPath === outRoot || resolvedPath.startsWith(outRootPrefix);
+  };
+};
+
+const createFileRelationsResolver = (fileRelations) => {
+  if (!fileRelations) return () => null;
+  if (typeof fileRelations.get === 'function') {
+    return (normalizedFile, file) => (
+      fileRelations.get(normalizedFile) || fileRelations.get(file) || null
+    );
+  }
+  if (typeof fileRelations === 'object') {
+    return (normalizedFile, file) => (
+      fileRelations[normalizedFile] || fileRelations[file] || null
+    );
+  }
+  return () => null;
+};
+
 /**
  * Decide whether an incremental index can be reused for the current build.
  * @param {{outDir:string,entries:Array<{rel:string}>,manifest:object,stage?:string,log?:(msg:string)=>void,explain?:boolean}} input
@@ -317,19 +400,14 @@ export async function shouldReuseIncrementalIndex({
   if (!Array.isArray(pieceManifest?.pieces) || pieceManifest.pieces.length === 0) {
     return fail('piece manifest empty');
   }
-  const outRoot = path.resolve(outDir);
-  const canonicalOutRoot = toRealPathSync(outRoot);
+  const isWithinOutDir = createOutDirContainmentCheck(outDir);
   for (const piece of pieceManifest.pieces) {
     const relPath = typeof piece?.path === 'string' ? piece.path : null;
     if (!relPath) {
       return fail('piece manifest missing path');
     }
     const resolvedPath = path.resolve(outDir, relPath);
-    if (!isWithinRoot(resolvedPath, outRoot)) {
-      return fail('piece manifest path escapes output dir');
-    }
-    const canonicalResolvedPath = toRealPathSync(resolvedPath);
-    if (!isWithinRoot(canonicalResolvedPath, canonicalOutRoot)) {
+    if (!isWithinOutDir(resolvedPath)) {
       return fail('piece manifest path escapes output dir');
     }
     if (!(await pathExists(resolvedPath))) {
@@ -378,11 +456,23 @@ export async function readCachedBundle({
   if (!enabled) return { cachedBundle, fileHash, buffer };
 
   const resolvedBundleFormat = normalizeBundleFormat(bundleFormat || manifest?.bundleFormat);
-  const cachedEntry = manifest.files[relKey];
-  const bundleName = cachedEntry?.bundle || resolveBundleFilename(relKey, resolvedBundleFormat);
-  const bundlePath = path.join(bundleDir, bundleName);
-  const bundleExists = await pathExists(bundlePath);
-  if (cachedEntry && cachedEntry.size === fileStat.size && cachedEntry.mtimeMs === fileStat.mtimeMs && bundleExists) {
+  const cachedEntry = manifest?.files?.[relKey];
+  if (!cachedEntry) return { cachedBundle, fileHash, buffer };
+
+  const matchesStat = entryStatsMatch(cachedEntry, fileStat);
+  if (!matchesStat && !cachedEntry.hash) return { cachedBundle, fileHash, buffer };
+
+  const bundleRecord = resolveBundleRecord({
+    relKey,
+    entry: cachedEntry,
+    bundleDir,
+    fallbackFormat: resolvedBundleFormat
+  });
+  if (!bundleRecord || !(await pathExists(bundleRecord.bundlePath))) {
+    return { cachedBundle, fileHash, buffer };
+  }
+
+  if (matchesStat) {
     try {
       if (shouldVerifyHash(fileStat, cachedEntry)) {
         const sharedRead = await readFileBufferAndHash({
@@ -398,35 +488,29 @@ export async function readCachedBundle({
           return { cachedBundle, fileHash, buffer };
         }
       }
-      const result = await readBundleFile(bundlePath, {
-        format: resolveBundleFormatFromName(bundleName, resolvedBundleFormat)
-      });
-      cachedBundle = result.ok ? result.bundle : null;
+      cachedBundle = await readBundleOrNull(bundleRecord);
     } catch {
       cachedBundle = null;
     }
-  } else if (cachedEntry && cachedEntry.hash && bundleExists) {
-    try {
-      const sharedRead = await readFileBufferAndHash({
-        absPath,
-        relKey,
-        fileStat,
-        sharedReadState,
-        requireBuffer: true
-      });
-      buffer = sharedRead.buffer;
-      fileHash = sharedRead.hash;
-      if (fileHash === cachedEntry.hash) {
-        const result = await readBundleFile(bundlePath, {
-          format: resolveBundleFormatFromName(bundleName, resolvedBundleFormat)
-        });
-        cachedBundle = result.ok ? result.bundle : null;
-      }
-    } catch {
-      cachedBundle = null;
-    }
+    return { cachedBundle, fileHash, buffer };
   }
 
+  try {
+    const sharedRead = await readFileBufferAndHash({
+      absPath,
+      relKey,
+      fileStat,
+      sharedReadState,
+      requireBuffer: true
+    });
+    buffer = sharedRead.buffer;
+    fileHash = sharedRead.hash;
+    if (fileHash === cachedEntry.hash) {
+      cachedBundle = await readBundleOrNull(bundleRecord);
+    }
+  } catch {
+    cachedBundle = null;
+  }
   return { cachedBundle, fileHash, buffer };
 }
 
@@ -448,11 +532,19 @@ export async function readCachedImports({
   if (!enabled) return null;
   const resolvedBundleFormat = normalizeBundleFormat(bundleFormat || manifest?.bundleFormat);
   const cachedEntry = manifest.files?.[relKey];
-  if (!cachedEntry || cachedEntry.size !== fileStat.size || cachedEntry.mtimeMs !== fileStat.mtimeMs) {
-    if (!cachedEntry || !cachedEntry.hash) return null;
-    const bundleName = cachedEntry.bundle || resolveBundleFilename(relKey, resolvedBundleFormat);
-    const bundlePath = path.join(bundleDir, bundleName);
-    if (!(await pathExists(bundlePath))) return null;
+  if (!cachedEntry) return null;
+  const matchesStat = entryStatsMatch(cachedEntry, fileStat);
+  if (!matchesStat && !cachedEntry.hash) return null;
+  const bundleRecord = resolveBundleRecord({
+    relKey,
+    entry: cachedEntry,
+    bundleDir,
+    fallbackFormat: resolvedBundleFormat
+  });
+  if (!bundleRecord) return null;
+
+  if (!matchesStat) {
+    if (!(await pathExists(bundleRecord.bundlePath))) return null;
     try {
       const sharedRead = await readFileBufferAndHash({
         absPath,
@@ -463,13 +555,7 @@ export async function readCachedImports({
       });
       const fileHash = sharedRead.hash;
       if (fileHash !== cachedEntry.hash) return null;
-      const result = await readBundleFile(bundlePath, {
-        format: resolveBundleFormatFromName(bundleName, resolvedBundleFormat)
-      });
-      if (!result.ok) return null;
-      const bundle = result.bundle;
-      const imports = bundle?.fileRelations?.imports;
-      return Array.isArray(imports) ? imports : null;
+      return resolveBundleImports(await readBundleOrNull(bundleRecord));
     } catch {
       return null;
     }
@@ -489,20 +575,8 @@ export async function readCachedImports({
       return null;
     }
   }
-  const bundleName = cachedEntry.bundle || resolveBundleFilename(relKey, resolvedBundleFormat);
-  const bundlePath = path.join(bundleDir, bundleName);
-  if (!(await pathExists(bundlePath))) return null;
-  try {
-    const result = await readBundleFile(bundlePath, {
-      format: resolveBundleFormatFromName(bundleName, resolvedBundleFormat)
-    });
-    if (!result.ok) return null;
-    const bundle = result.bundle;
-    const imports = bundle?.fileRelations?.imports;
-    return Array.isArray(imports) ? imports : null;
-  } catch {
-    return null;
-  }
+  if (!(await pathExists(bundleRecord.bundlePath))) return null;
+  return resolveBundleImports(await readBundleOrNull(bundleRecord));
 }
 
 /**
@@ -632,26 +706,22 @@ export async function preloadIncrementalBundleVfsRows({
       if (index >= entries.length) break;
       const [file, entry] = entries[index];
       const normalizedFile = normalizeIncrementalRelPath(file);
-      const bundleName = entry?.bundle || resolveBundleFilename(file, resolvedBundleFormat);
-      if (!bundleName) {
+      const bundleRecord = resolveBundleRecord({
+        relKey: file,
+        entry,
+        bundleDir,
+        fallbackFormat: resolvedBundleFormat
+      });
+      if (!bundleRecord) {
         rowsByFile.set(normalizedFile, null);
         continue;
       }
-      const bundlePath = path.join(bundleDir, bundleName);
-      if (!(await pathExists(bundlePath))) {
+      if (!(await pathExists(bundleRecord.bundlePath))) {
         rowsByFile.set(normalizedFile, null);
         continue;
       }
-      let vfsManifestRows = null;
-      try {
-        const existing = await readBundleFile(bundlePath, {
-          format: resolveBundleFormatFromName(bundleName, resolvedBundleFormat)
-        });
-        vfsManifestRows = Array.isArray(existing?.bundle?.vfsManifestRows)
-          ? existing.bundle.vfsManifestRows
-          : null;
-      } catch {}
-      rowsByFile.set(normalizedFile, vfsManifestRows);
+      const existingBundle = await readBundleOrNull(bundleRecord);
+      rowsByFile.set(normalizedFile, resolveBundleVfsManifestRows(existingBundle));
     }
   });
   await Promise.all(workers);
@@ -695,20 +765,26 @@ export async function updateBundlesWithChunks({
   const pendingUpdates = [];
   for (const [file, entry] of Object.entries(manifest.files || {})) {
     const normalizedFile = normalizeIncrementalRelPath(file);
-    const bundleName = entry?.bundle || resolveBundleFilename(file, resolvedBundleFormat);
     const fileChunks = chunkMap.get(normalizedFile);
-    if (!bundleName || !fileChunks) continue;
+    if (!fileChunks) continue;
+    const bundleRecord = resolveBundleRecord({
+      relKey: file,
+      entry,
+      bundleDir,
+      fallbackFormat: resolvedBundleFormat
+    });
+    if (!bundleRecord) continue;
     pendingUpdates.push({
       file,
       normalizedFile,
       entry,
-      bundleName,
-      bundleFormat: resolveBundleFormatFromName(bundleName, resolvedBundleFormat),
+      bundleRecord,
       fileChunks
     });
   }
   if (!pendingUpdates.length) return;
   const prioritizedPendingUpdates = prioritizePendingCrossFileBundleUpdates(pendingUpdates, { nowMs: startedAt });
+  const resolveFileRelations = createFileRelationsResolver(fileRelations);
   const hasPrefetchedRowsStore = !!(
     existingVfsManifestRowsByFile
     && (
@@ -719,11 +795,14 @@ export async function updateBundlesWithChunks({
   let prefetchHits = 0;
   if (hasPrefetchedRowsStore) {
     for (const pending of prioritizedPendingUpdates) {
-      if (resolvePrefetchedVfsRows(
+      const prefetched = resolvePrefetchedVfsRows(
         existingVfsManifestRowsByFile,
         pending.normalizedFile,
         pending.file
-      ).hit) {
+      );
+      pending.prefetchedHit = prefetched.hit;
+      pending.prefetchedRows = prefetched.rows;
+      if (prefetched.hit) {
         prefetchHits += 1;
       }
     }
@@ -763,39 +842,24 @@ export async function updateBundlesWithChunks({
         file,
         normalizedFile,
         entry,
-        bundleName,
-        bundleFormat,
-        fileChunks
+        bundleRecord,
+        fileChunks,
+        prefetchedHit = false,
+        prefetchedRows = null
       } = prioritizedPendingUpdates[index];
-      let relations = null;
-      if (fileRelations) {
-        relations = typeof fileRelations.get === 'function'
-          ? (fileRelations.get(normalizedFile) || fileRelations.get(file) || null)
-          : (fileRelations[normalizedFile] || fileRelations[file] || null);
-      }
-      const bundlePath = path.join(bundleDir, bundleName);
+      const relations = resolveFileRelations(normalizedFile, file);
+      const bundlePath = bundleRecord.bundlePath;
+      const bundleFormat = bundleRecord.bundleFormat;
       let vfsManifestRows = null;
       let existingBundle = null;
-      const prefetched = resolvePrefetchedVfsRows(
-        existingVfsManifestRowsByFile,
-        normalizedFile,
-        file
-      );
-      if (prefetched.hit) {
-        vfsManifestRows = prefetched.rows;
+      if (prefetchedHit) {
+        vfsManifestRows = prefetchedRows;
       }
-      if (!prefetched.hit || !skipFallbackReadForPrefetchMisses || bundleFormat === 'json') {
-        try {
-          const existing = await readBundleFile(bundlePath, {
-            format: bundleFormat
-          });
-          existingBundle = existing?.bundle || null;
-          if (!prefetched.hit) {
-            vfsManifestRows = Array.isArray(existing?.bundle?.vfsManifestRows)
-              ? existing.bundle.vfsManifestRows
-              : null;
-          }
-        } catch {}
+      if (!prefetchedHit || !skipFallbackReadForPrefetchMisses || bundleFormat === 'json') {
+        existingBundle = await readBundleOrNull(bundleRecord);
+        if (!prefetchedHit) {
+          vfsManifestRows = resolveBundleVfsManifestRows(existingBundle);
+        }
       }
       const bundle = {
         file,

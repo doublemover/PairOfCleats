@@ -96,4 +96,51 @@ assert.equal(bundleResult.fileHash, fileHash, 'expected source hash from cached 
 assert.deepEqual(importsResult, ['./dep.js'], 'expected cached imports to match bundle contents');
 assert.equal(sourceReadCount, 1, 'expected source bytes to be read once across bundle/import cache checks');
 
+const changedStat = {
+  size: coarseStat.size,
+  mtimeMs: coarseStat.mtimeMs + 1
+};
+const changedSharedReadState = new Map();
+let changedSourceReadCount = 0;
+fsPromises.readFile = async (...args) => {
+  if (String(args[0]) === absPath) changedSourceReadCount += 1;
+  return originalReadFile(...args);
+};
+
+let changedBundleResult = null;
+let changedImportsResult = null;
+try {
+  changedBundleResult = await readCachedBundle({
+    enabled: true,
+    absPath,
+    relKey,
+    fileStat: changedStat,
+    manifest,
+    bundleDir,
+    bundleFormat: 'json',
+    sharedReadState: changedSharedReadState
+  });
+  changedImportsResult = await readCachedImports({
+    enabled: true,
+    absPath,
+    relKey,
+    fileStat: changedStat,
+    manifest,
+    bundleDir,
+    bundleFormat: 'json',
+    sharedReadState: changedSharedReadState
+  });
+} finally {
+  fsPromises.readFile = originalReadFile;
+}
+
+assert.ok(changedBundleResult?.cachedBundle, 'expected hash-validated bundle hit after stat drift');
+assert.equal(changedBundleResult.fileHash, fileHash, 'expected hash comparison to preserve cache hit');
+assert.deepEqual(changedImportsResult, ['./dep.js'], 'expected imports cache hit after stat drift');
+assert.equal(
+  changedSourceReadCount,
+  1,
+  'expected source bytes to be read once across hash-fallback bundle/import checks'
+);
+
 console.log('incremental shared buffer/hash reuse for bundle+imports test passed');
