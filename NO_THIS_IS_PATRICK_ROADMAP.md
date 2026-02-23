@@ -101,6 +101,8 @@ Note:
   Split `src/contracts/schemas/artifacts.js` into focused `core`, `state`, `reports`, and `sharded-meta` modules, preserving export ordering and schema identity while centralizing repeated sharded-meta schema assembly helpers.
 - 2026-02-23T05:40:46.5328329-05:00
   Refactored `src/lang/tree-sitter/chunking.js` into `planning`, `policies`, and `assembly` modules, preserving chunk determinism while isolating chunk-policy logic from assembly flow for lower orchestration coupling.
+- 2026-02-23T05:41:08.3134462-05:00
+  Split `src/integrations/core/build-index/stages.js` into stage-focused modules (`stage-execution`, `modes`, `embeddings-runner`, `sqlite-runner`, `promotion`, `lock`), preserving stage transition/lock semantics while reducing top-level stage orchestration complexity.
 
 ## Architectural assessment (what needs to change)
 

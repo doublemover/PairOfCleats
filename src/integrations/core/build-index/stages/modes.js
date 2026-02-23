@@ -44,3 +44,25 @@ export const areAllPrimaryModesRequested = (modes) => {
   }
   return true;
 };
+
+/**
+ * Deduplicate a mode list while preserving first-seen ordering.
+ *
+ * This keeps observable ordering stable while avoiding redundant per-mode
+ * work for callers that accidentally pass duplicates.
+ *
+ * @param {string[]|unknown} modes
+ * @returns {string[]}
+ */
+export const dedupeModeList = (modes) => {
+  if (!Array.isArray(modes)) return [];
+  if (modes.length < 2) return modes.slice();
+  const seen = new Set();
+  const unique = [];
+  for (const mode of modes) {
+    if (seen.has(mode)) continue;
+    seen.add(mode);
+    unique.push(mode);
+  }
+  return unique;
+};
