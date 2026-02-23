@@ -70,6 +70,9 @@ import {
 import {
   validateUsrLanguageRiskProfileCoverage as validateUsrLanguageRiskProfileCoverageCore
 } from './usr-matrix/language-risk-coverage.js';
+import {
+  buildUsrConformanceLevelSummaryReport as buildUsrConformanceLevelSummaryReportCore
+} from './usr-matrix/conformance-level-summary.js';
 
 const ajv = createAjv({
   dialect: '2020',
@@ -483,77 +486,22 @@ export function buildUsrConformanceLevelSummaryReport({
   buildId = null,
   scope = { scopeType: 'lane', scopeId: 'global' }
 } = {}) {
-  const level = typeof targetLevel === 'string' ? targetLevel : '';
-  const conformanceLaneByLevel = buildConformanceLaneByLevel(knownLanes);
-  const defaultLane = conformanceLaneByLevel[level] || 'ci';
-  const evaluation = validateUsrConformanceLevelCoverage({
-    targetLevel: level,
+  return buildUsrConformanceLevelSummaryReportCore({
+    targetLevel,
     languageProfilesPayload,
     conformanceLevelsPayload,
-    knownLanes
-  });
-
-  const rows = evaluation.rows.map((row) => ({
-    profileId: row.profileId,
-    targetLevel: row.targetLevel,
-    requiresLevel: row.requiresLevel,
-    hasConformanceRow: row.hasConformanceRow,
-    pass: row.pass,
-    errors: row.errors,
-    warnings: row.warnings
-  }));
-
-  const status = evaluation.errors.length > 0
-    ? 'fail'
-    : (evaluation.warnings.length > 0 ? 'warn' : 'pass');
-
-  const normalizedScope = (
-    scope && typeof scope === 'object'
-      ? {
-        scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'lane',
-        scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : defaultLane
-      }
-      : { scopeType: 'lane', scopeId: defaultLane }
-  );
-
-  const payload = {
-    schemaVersion: 'usr-1.0.0',
-    artifactId: 'usr-conformance-summary',
+    knownLanes,
     generatedAt,
     producerId,
     producerVersion,
     runId,
-    lane: typeof lane === 'string' && lane.trim() ? lane : defaultLane,
+    lane,
     buildId,
-    status,
-    scope: normalizedScope,
-    summary: {
-      targetLevel: level,
-      profileCount: rows.length,
-      requiredProfileCount: rows.filter((row) => row.requiresLevel).length,
-      passCount: rows.filter((row) => row.pass).length,
-      failCount: rows.filter((row) => !row.pass).length,
-      warningCount: evaluation.warnings.length,
-      errorCount: evaluation.errors.length
-    },
-    blockingFindings: evaluation.errors.map((message) => ({
-      class: 'conformance',
-      message
-    })),
-    advisoryFindings: evaluation.warnings.map((message) => ({
-      class: 'conformance',
-      message
-    })),
-    rows
-  };
-
-  return {
-    ok: evaluation.ok,
-    errors: evaluation.errors,
-    warnings: evaluation.warnings,
-    rows,
-    payload
-  };
+    scope,
+    validateConformanceLevelCoverage: validateUsrConformanceLevelCoverage,
+    buildConformanceLaneByLevel,
+    normalizeScope: normalizeReportScope
+  });
 }
 
 const CONFORMANCE_DASHBOARD_LEVELS = Object.freeze(['C0', 'C1', 'C2', 'C3', 'C4']);

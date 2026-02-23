@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T08:44:18.9458819-05:00
+  Extracted conformance-level summary report builder from `src/contracts/validators/usr-matrix.js` into `src/contracts/validators/usr-matrix/conformance-level-summary.js`, preserving facade behavior with injected coverage/lane callbacks and adding focused coverage in `tests/indexing/contracts/usr-conformance-level-summary-report.test.js`.
 - 2026-02-23T08:42:31.7162351-05:00
   Integrated parallel worker follow-up splits: extracted artifact write dispatch orchestration to `src/index/build/artifacts/write-dispatch.js` (with contract coverage in `tests/indexing/artifacts/artifact-write-dispatch.test.js`), optimized embeddings runner reuse/index hot paths across `tools/build/embeddings/runner.js` and `tools/build/embeddings/runner/cache-orchestration.js` (with coverage in `tests/indexing/embeddings/build/cache-orchestration-reuse-index.test.js`), split stage1 entry batch planning to `src/index/build/indexer/steps/process-files/entry-batch-plan.js` (covered by `tests/indexing/stage1/process-files-entry-batch-plan.test.js`), extracted artifact field-postings writer logic to `src/index/build/artifacts/field-postings.js` (covered by `tests/indexing/artifacts/field-postings-writer.test.js`), and modularized USR baseline fixture-governance dataset assembly to `tools/usr/generate-usr-matrix-baselines/fixture-governance.mjs` (covered by `tools/usr/generate-usr-matrix-baselines/fixture-governance.test.mjs`).
 - 2026-02-23T08:41:29.2685409-05:00
