@@ -7,7 +7,7 @@ import { createCli } from '../../src/shared/cli.js';
 import { SERVICE_INDEXER_OPTIONS } from '../../src/shared/cli-options.js';
 import { parseBuildArgs } from '../../src/index/build/args.js';
 import { buildIndex } from '../../src/integrations/core/index.js';
-import { isAbsolutePathNative } from '../../src/shared/files.js';
+import { isAbsolutePathNative, isRelativePathEscape } from '../../src/shared/files.js';
 import { formatDurationMs } from '../../src/shared/time-format.js';
 import { setProgressHandlers } from '../../src/shared/progress.js';
 import { getEnvConfig } from '../../src/shared/env.js';
@@ -682,7 +682,7 @@ const processQueueOnce = async (metrics) => {
       }
       if (normalized.indexDir) {
         const rel = path.relative(normalized.buildRoot, normalized.indexDir);
-        if (!rel || rel.startsWith('..') || isAbsolutePathNative(rel)) {
+        if (!rel || isRelativePathEscape(rel) || isAbsolutePathNative(rel)) {
           console.error(`[indexer] embedding job ${job.id} indexDir not under buildRoot; continuing with buildRoot only.`);
         }
       }

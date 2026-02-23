@@ -6,7 +6,7 @@ import { createCli } from '../../src/shared/cli.js';
 import { checksumFile } from '../../src/shared/hash.js';
 import { formatBytes } from '../../src/shared/disk-space.js';
 import { loadPiecesManifest } from '../../src/shared/artifact-io.js';
-import { fromPosix } from '../../src/shared/files.js';
+import { fromPosix, isRelativePathEscape } from '../../src/shared/files.js';
 import { getRepoId, loadUserConfig, resolveIndexRoot, resolveRepoRootArg } from '../shared/dict-utils.js';
 
 const MODE_ORDER = ['code', 'prose', 'extracted-prose', 'records'];
@@ -207,7 +207,7 @@ const verifyManifestPieces = async (modeDir, pieces) => {
     const absolutePath = path.resolve(modeDir, fromPosix(relPath));
     const modeRoot = path.resolve(modeDir);
     const relative = path.relative(modeRoot, absolutePath);
-    if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    if (isRelativePathEscape(relative) || path.isAbsolute(relative)) {
       errors.push(`${modeDir}: piece path escapes mode dir (${relPath})`);
       continue;
     }

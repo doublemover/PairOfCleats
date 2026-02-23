@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { isRelativePathEscape } from '../../src/shared/files.js';
 
 /**
  * Resolve a request path under a fixed base directory.
@@ -30,7 +31,7 @@ export const safeJoinUnderBase = (baseDir, requestPath, pathApi = path, fsApi = 
   const canonicalBase = canonicalizePath(resolvedBase);
   const canonicalTarget = canonicalizePath(resolvedTarget);
   const relative = pathApi.relative(canonicalBase, canonicalTarget);
-  if (relative.startsWith('..') || pathApi.isAbsolute(relative)) return null;
+  if (isRelativePathEscape(relative) || pathApi.isAbsolute(relative)) return null;
   return canonicalTarget;
 };
 

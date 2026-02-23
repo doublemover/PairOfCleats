@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { isAbsolutePathNative } from '../../src/shared/files.js';
+import { isAbsolutePathNative, isRelativePathEscape } from '../../src/shared/files.js';
 
 /**
  * Resolve a triage record id to an artifact path under recordsDir.
@@ -20,7 +20,7 @@ export const resolveRecordArtifactPathSafe = (recordsDir, recordId, extension = 
   const resolvedRecordsDir = path.resolve(recordsDir);
   const resolvedPath = path.resolve(resolvedRecordsDir, `${id}${normalizedExt}`);
   const relative = path.relative(resolvedRecordsDir, resolvedPath);
-  if (relative.startsWith('..') || isAbsolutePathNative(relative)) return null;
+  if (isRelativePathEscape(relative) || isAbsolutePathNative(relative)) return null;
   return resolvedPath;
 };
 
