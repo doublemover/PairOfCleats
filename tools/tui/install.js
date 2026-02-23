@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
+import { removePathWithRetry } from '../../src/shared/io/remove-path-with-retry.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
 import { resolveRepoRootArg } from '../shared/dict-utils.js';
 import {
@@ -41,10 +42,14 @@ const resolveEventLogDir = ({ layout }) => {
 const pruneInstallBin = async ({ binDir, keepFile }) => {
   if (!fs.existsSync(binDir)) return;
   const entries = await fsPromises.readdir(binDir, { withFileTypes: true });
-  const tasks = entries
-    .filter((entry) => entry.name !== keepFile)
-    .map((entry) => fsPromises.rm(path.join(binDir, entry.name), { recursive: true, force: true }));
-  await Promise.all(tasks);
+  for (const entry of entries) {
+    if (entry.name === keepFile) continue;
+    const targetPath = path.join(binDir, entry.name);
+    const removed = await removePathWithRetry(targetPath, { recursive: true, force: true });
+    if (!removed.ok) {
+      throw removed.error || new Error(`failed to remove stale install artifact: ${targetPath}`);
+    }
+  }
 };
 
 const main = async () => {

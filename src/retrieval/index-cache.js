@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createLruCache } from '../shared/cache.js';
+import { runWithConcurrency } from '../shared/concurrency.js';
 import { incCacheEviction, setCacheSize } from '../shared/metrics.js';
 import { probeFileSignature } from '../shared/file-signature.js';
 
@@ -8,6 +9,7 @@ const DEFAULT_INDEX_CACHE_MAX_ENTRIES = 4;
 const DEFAULT_INDEX_CACHE_TTL_MS = 15 * 60 * 1000;
 export const INDEX_SIGNATURE_TTL_MS = 5 * 60 * 1000;
 const INDEX_SIGNATURE_CACHE_MAX_ENTRIES = 256;
+const SHARD_SIGNATURE_CONCURRENCY = 32;
 const indexSignatureCache = new Map();
 
 /**
@@ -140,8 +142,11 @@ const shardSignature = async (dir, prefix) => {
       .filter((name) => name.startsWith(prefix))
       .sort();
     if (!entries.length) return null;
-    const sigs = await Promise.all(
-      entries.map((name) => fileSignature(path.join(dir, name)))
+    const concurrency = Math.max(1, Math.min(SHARD_SIGNATURE_CONCURRENCY, entries.length));
+    const sigs = await runWithConcurrency(
+      entries,
+      concurrency,
+      async (name) => fileSignature(path.join(dir, name))
     );
     return sigs.map((sig) => sig || 'missing').join(',');
   } catch {

@@ -75,7 +75,7 @@ try {
   );
 
   installRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'poc-tui-install-'));
-  const result = spawnSync(
+  const runInstaller = () => spawnSync(
     process.execPath,
     [installScript, '--json', '--target', triple, '--install-root', installRoot],
     {
@@ -87,6 +87,7 @@ try {
       }
     }
   );
+  const result = runInstaller();
 
   assert.equal(result.status, 0, result.stderr || 'install script exited non-zero');
   const payload = JSON.parse(result.stdout || '{}');
@@ -96,8 +97,17 @@ try {
 
   const metadataPath = path.join(installRoot, triple, 'install-manifest.json');
   const installedBinary = path.join(installRoot, triple, 'bin', target.artifactName);
+  const binDir = path.dirname(installedBinary);
   assert.equal(fs.existsSync(metadataPath), true, 'expected install metadata');
   assert.equal(fs.existsSync(installedBinary), true, 'expected installed binary');
+
+  const staleFile = path.join(binDir, 'stale-artifact.tmp');
+  await fsPromises.writeFile(staleFile, 'stale', 'utf8');
+  assert.equal(fs.existsSync(staleFile), true, 'expected stale file fixture to exist before reinstall');
+
+  const secondInstall = runInstaller();
+  assert.equal(secondInstall.status, 0, secondInstall.stderr || 'second install script exited non-zero');
+  assert.equal(fs.existsSync(staleFile), false, 'expected stale file to be pruned on reinstall');
 
   const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
   assert.equal(metadata.triple, triple);

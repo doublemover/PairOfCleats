@@ -33,6 +33,7 @@ import {
 } from './build-map/normalize.js';
 import { buildSymbolId, buildMemberIndex, upsertMember } from './build-map/symbols.js';
 import { resolveChunkId } from '../index/chunk-id.js';
+import { removePathWithRetry } from '../shared/io/remove-path-with-retry.js';
 import {
   buildAliasEdges,
   buildEdgesFromCallSummaries,
@@ -111,7 +112,7 @@ const createTempDir = async () => {
 
 const cleanupTempDir = async (dir) => {
   if (!dir) return;
-  await fsPromises.rm(dir, { recursive: true, force: true });
+  await removePathWithRetry(dir, { recursive: true, force: true });
 };
 
 const buildEdgeIteratorFactory = ({

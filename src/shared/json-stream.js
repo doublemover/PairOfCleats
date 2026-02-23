@@ -6,6 +6,7 @@ import { createJsonWriteStream, writeChunk } from './json-stream/streams.js';
 import { createJsonlBatchWriter, createJsonlCompressionPool } from './json-stream/jsonl-batch.js';
 import { throwIfAborted } from './json-stream/runtime.js';
 import { createOffsetsWriter } from './json-stream/offsets.js';
+import { removePathWithRetry } from './io/remove-path-with-retry.js';
 
 export { createTempPath, replaceFile };
 
@@ -27,6 +28,13 @@ const resolveJsonlPartPreallocateBytes = ({ compression, maxBytes, preallocatePa
   const shardCap = normalizeShardLimit(maxBytes);
   if (shardCap >= JSONL_PREALLOCATE_THRESHOLD_BYTES) return shardCap;
   return 0;
+};
+
+const removeTempDirOrThrow = async (targetPath) => {
+  const removed = await removePathWithRetry(targetPath, { recursive: true, force: true });
+  if (!removed.ok) {
+    throw removed.error || new Error(`Failed to remove temporary directory: ${targetPath}`);
+  }
 };
 
 /**
@@ -211,7 +219,7 @@ export async function writeJsonLinesSharded(input) {
   });
   const partsDir = path.join(dir, partsDirName);
   const tempPartsDir = createTempPath(partsDir);
-  await fsPromises.rm(tempPartsDir, { recursive: true, force: true });
+  await removeTempDirOrThrow(tempPartsDir);
   await fsPromises.mkdir(tempPartsDir, { recursive: true });
 
   const extension = resolveJsonlExtension(resolvedCompression);
@@ -339,7 +347,7 @@ export async function writeJsonLinesSharded(input) {
       await offsetsWriter.destroy(err);
       offsetsWriter = null;
     }
-    try { await fsPromises.rm(tempPartsDir, { recursive: true, force: true }); } catch {}
+    try { await removeTempDirOrThrow(tempPartsDir); } catch {}
     throw err;
   } finally {
     await closeCompressionPool();
@@ -395,7 +403,7 @@ export async function writeJsonLinesShardedAsync(input) {
   });
   const partsDir = path.join(dir, partsDirName);
   const tempPartsDir = createTempPath(partsDir);
-  await fsPromises.rm(tempPartsDir, { recursive: true, force: true });
+  await removeTempDirOrThrow(tempPartsDir);
   await fsPromises.mkdir(tempPartsDir, { recursive: true });
 
   const extension = resolveJsonlExtension(resolvedCompression);
@@ -514,7 +522,7 @@ export async function writeJsonLinesShardedAsync(input) {
       await offsetsWriter.destroy(err);
       offsetsWriter = null;
     }
-    try { await fsPromises.rm(tempPartsDir, { recursive: true, force: true }); } catch {}
+    try { await removeTempDirOrThrow(tempPartsDir); } catch {}
     throw err;
   } finally {
     await closeCompressionPool();

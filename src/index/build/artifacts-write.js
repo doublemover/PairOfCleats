@@ -14,6 +14,7 @@ import { estimateJsonBytes } from '../../shared/cache.js';
 import { buildCacheKey } from '../../shared/cache-key.js';
 import { sha1 } from '../../shared/hash.js';
 import { stableStringifyForSignature } from '../../shared/stable-json.js';
+import { removePathWithRetry } from '../../shared/io/remove-path-with-retry.js';
 import { resolveCompressionConfig } from './artifacts/compression.js';
 import { getToolingConfig } from '../../shared/dict-utils.js';
 import { writePiecesManifest } from './artifacts/checksums.js';
@@ -1877,12 +1878,18 @@ export async function writeIndexArtifacts(input) {
   const removeArtifact = async (targetPath, options = {}) => {
     const { recursive = true, policy = 'legacy' } = options;
     try {
-      if (fsSync.existsSync(targetPath)) {
+      const exists = fsSync.existsSync(targetPath);
+      if (exists) {
         logLine(`[artifact-cleanup] remove ${targetPath}`, { kind: 'status' });
         recordCleanupAction({ targetPath, recursive, policy });
       }
-      await fs.rm(targetPath, { recursive, force: true });
-    } catch {}
+      const removed = await removePathWithRetry(targetPath, { recursive, force: true });
+      if (!removed.ok && exists) {
+        log(`[warn] [artifact-cleanup] failed to remove ${targetPath}: ${removed.error?.message || removed.error}`);
+      }
+    } catch (err) {
+      log(`[warn] [artifact-cleanup] exception removing ${targetPath}: ${err?.message || err}`);
+    }
   };
   if (vectorOnlyProfile) {
     await cleanupVectorOnlySparseArtifacts({ outDir, removeArtifact });
