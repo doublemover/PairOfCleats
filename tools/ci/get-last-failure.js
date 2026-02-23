@@ -83,8 +83,48 @@ const collectLogs = async (dirPath) => {
   }
 };
 
-const latestTestLogPath = path.join(root, '.testLogs', 'latest');
-await collectLogs(latestTestLogPath);
+const collectLatestLogs = async () => {
+  const latestPointerPath = path.join(root, '.testLogs', 'latest');
+  let latestStat = null;
+  try {
+    latestStat = await fs.stat(latestPointerPath);
+  } catch {
+    return;
+  }
+
+  // Backward compatibility: older runs may still use a directory at `.testLogs/latest`.
+  if (latestStat.isDirectory()) {
+    await collectLogs(latestPointerPath);
+    return;
+  }
+  if (!latestStat.isFile()) return;
+
+  let pointer = '';
+  try {
+    pointer = String(await fs.readFile(latestPointerPath, 'utf8')).trim();
+  } catch {
+    return;
+  }
+  if (!pointer) return;
+
+  const resolvedTarget = path.resolve(root, pointer);
+  let targetStat = null;
+  try {
+    targetStat = await fs.stat(resolvedTarget);
+  } catch {
+    return;
+  }
+
+  if (targetStat.isDirectory()) {
+    await collectLogs(resolvedTarget);
+    return;
+  }
+  if (targetStat.isFile() && resolvedTarget.toLowerCase().endsWith('.log')) {
+    await addCandidate(resolvedTarget);
+  }
+};
+
+await collectLatestLogs();
 
 if (!candidates.length) {
   const searchRoots = [
