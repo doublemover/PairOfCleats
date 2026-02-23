@@ -1,5 +1,4 @@
 import os from 'node:os';
-import util from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { log as defaultLog } from '../../../shared/progress.js';
 import {
@@ -38,6 +37,7 @@ import {
   serializeCodeDictWordsByLanguage
 } from './pool/payload.js';
 import { createWorkerPoolMetaHelpers } from './pool/meta.js';
+import { createWorkerTaskFailureHandler } from './pool/task-failure.js';
 
 export {
   resolveMemoryPressureState,
@@ -350,17 +350,12 @@ export async function createIndexerWorkerPool(input = {}) {
     }
     updatePoolMetrics();
 
-    const classifyWorkerRunError = (err) => {
-      const detail = summarizeError(err);
-      const opaqueFailure = !detail || detail === 'Error';
-      const errorName = err?.name || '';
-      const loweredName = errorName.toLowerCase();
-      const isCloneError = loweredName.includes('dataclone')
-        || loweredName.includes('datacloneerror')
-        || loweredName.includes('dataclone');
-      const reason = detail || err?.message || String(err);
-      return { detail, opaqueFailure, isCloneError, reason };
-    };
+    const taskFailureHandler = createWorkerTaskFailureHandler({
+      lifecycle,
+      summarizeError,
+      crashLogger,
+      withPooledPayloadMeta
+    });
 
     return {
       config,
@@ -436,27 +431,27 @@ export async function createIndexerWorkerPool(input = {}) {
         }
         return false;
       },
+      /**
+       * Run a tokenize task with cooperative backpressure and deferred restarts.
+       *
+       * Subtle behavior:
+       * - throttle admission waits on both per-language releases and global
+       *   pressure transitions to avoid starvation under mixed workloads
+       * - restarts remain deferred until in-flight tasks drain in lifecycle
+       */
       async tokenizeChunk(payload) {
         activeTasks += 1;
         updatePoolMetrics();
         let throttleSlot = null;
         try {
           if (lifecycle.isDisabled() && !(await lifecycle.ensurePool())) {
-            if (crashLogger?.enabled) {
-              withPooledPayloadMeta(tokenizePayloadMetaPool, (meta) => {
-                assignTokenizePayloadMeta(meta, payload);
-              }, (payloadMeta) => {
-                crashLogger.logError({
-                  phase: 'worker-tokenize',
-                  message: 'worker pool unavailable',
-                  stack: null,
-                  name: 'Error',
-                  code: null,
-                  task: 'tokenizeChunk',
-                  payloadMeta: payload ? payloadMeta : null
-                });
-              });
-            }
+            taskFailureHandler.reportUnavailable({
+              phase: 'worker-tokenize',
+              task: 'tokenizeChunk',
+              payload,
+              payloadMetaPool: tokenizePayloadMetaPool,
+              assignPayloadMeta: assignTokenizePayloadMeta
+            });
             return null;
           }
           queueController.recordPressureCacheEntry(payload);
@@ -468,48 +463,14 @@ export async function createIndexerWorkerPool(input = {}) {
           updatePoolMetrics();
           return result;
         } catch (err) {
-          const { detail, opaqueFailure, isCloneError, reason } = classifyWorkerRunError(err);
-          if (isCloneError) {
-            await lifecycle.disablePermanently(reason || 'data-clone error');
-          } else if (opaqueFailure) {
-            await lifecycle.disablePermanently(reason || 'worker failure');
-          } else {
-            await lifecycle.scheduleRestart(reason);
-          }
-          if (crashLogger?.enabled) {
-            withPooledPayloadMeta(tokenizePayloadMetaPool, (meta) => {
-              assignTokenizePayloadMeta(meta, payload);
-            }, (payloadMeta) => {
-              crashLogger.logError({
-                phase: 'worker-tokenize',
-                message: detail || err?.message || String(err),
-                stack: err?.stack || null,
-                name: err?.name || null,
-                code: err?.code || null,
-                task: 'tokenizeChunk',
-                payloadMeta: payload ? payloadMeta : null,
-                raw: util.inspect(err, { depth: 4, breakLength: 120, showHidden: true, getters: true }),
-                errors: Array.isArray(err?.errors)
-                  ? err.errors.map((inner) => ({
-                    message: inner?.message || String(inner),
-                    stack: inner?.stack || null,
-                    name: inner?.name || null,
-                    code: inner?.code || null,
-                    raw: util.inspect(inner, { depth: 3, breakLength: 120, showHidden: true, getters: true })
-                  }))
-                  : null,
-                cause: err?.cause
-                  ? {
-                    message: err.cause?.message || String(err.cause),
-                    stack: err.cause?.stack || null,
-                    name: err.cause?.name || null,
-                    code: err.cause?.code || null,
-                    raw: util.inspect(err.cause, { depth: 3, breakLength: 120, showHidden: true, getters: true })
-                  }
-                  : null
-              });
-            });
-          }
+          await taskFailureHandler.handleRunFailure({
+            err,
+            phase: 'worker-tokenize',
+            task: 'tokenizeChunk',
+            payload,
+            payloadMetaPool: tokenizePayloadMetaPool,
+            assignPayloadMeta: assignTokenizePayloadMeta
+          });
           return null;
         } finally {
           queueController.releaseLanguageThrottleSlot(throttleSlot);
@@ -518,26 +479,25 @@ export async function createIndexerWorkerPool(input = {}) {
           await lifecycle.handleTaskDrained();
         }
       },
+      /**
+       * Run vector quantization through the worker pool.
+       *
+       * Quantize tasks intentionally share lifecycle restart semantics with
+       * tokenize tasks so restart counters and deferred restart timing remain
+       * consistent across both task types.
+       */
       async runQuantize(payload) {
         activeTasks += 1;
         updatePoolMetrics();
         try {
           if (lifecycle.isDisabled() && !(await lifecycle.ensurePool())) {
-            if (crashLogger?.enabled) {
-              withPooledPayloadMeta(quantizePayloadMetaPool, (meta) => {
-                assignQuantizePayloadMeta(meta, payload);
-              }, (payloadMeta) => {
-                crashLogger.logError({
-                  phase: 'worker-quantize',
-                  message: 'worker pool unavailable',
-                  stack: null,
-                  name: 'Error',
-                  code: null,
-                  task: 'quantizeVectors',
-                  payloadMeta: payload ? payloadMeta : null
-                });
-              });
-            }
+            taskFailureHandler.reportUnavailable({
+              phase: 'worker-quantize',
+              task: 'quantizeVectors',
+              payload,
+              payloadMetaPool: quantizePayloadMetaPool,
+              assignPayloadMeta: assignQuantizePayloadMeta
+            });
             return null;
           }
           const sanitizedPayload = sanitizeQuantizePayload(payload);
@@ -554,48 +514,15 @@ export async function createIndexerWorkerPool(input = {}) {
           updatePoolMetrics();
           return result;
         } catch (err) {
-          const { detail, opaqueFailure, isCloneError, reason } = classifyWorkerRunError(err);
-          if (isCloneError) {
-            await lifecycle.disablePermanently(reason || 'data-clone error');
-          } else if (opaqueFailure) {
-            await lifecycle.disablePermanently(reason || 'worker failure');
-          } else {
-            await lifecycle.scheduleRestart(reason);
-          }
-          if (crashLogger?.enabled) {
-            withPooledPayloadMeta(quantizePayloadMetaPool, (meta) => {
-              assignQuantizePayloadMeta(meta, payload);
-            }, (payloadMeta) => {
-              crashLogger.logError({
-                phase: 'worker-quantize',
-                message: err?.message || String(err),
-                stack: err?.stack || null,
-                name: err?.name || null,
-                code: err?.code || null,
-                task: 'quantizeVectors',
-                payloadMeta: payload ? payloadMeta : null,
-                raw: util.inspect(err, { depth: 4, breakLength: 120, showHidden: true, getters: true }),
-                errors: Array.isArray(err?.errors)
-                  ? err.errors.map((inner) => ({
-                    message: inner?.message || String(inner),
-                    stack: inner?.stack || null,
-                    name: inner?.name || null,
-                    code: inner?.code || null,
-                    raw: util.inspect(inner, { depth: 3, breakLength: 120, showHidden: true, getters: true })
-                  }))
-                  : null,
-                cause: err?.cause
-                  ? {
-                    message: err.cause?.message || String(err.cause),
-                    stack: err.cause?.stack || null,
-                    name: err.cause?.name || null,
-                    code: err.cause?.code || null,
-                    raw: util.inspect(err.cause, { depth: 3, breakLength: 120, showHidden: true, getters: true })
-                  }
-                  : null
-              });
-            });
-          }
+          await taskFailureHandler.handleRunFailure({
+            err,
+            phase: 'worker-quantize',
+            task: 'quantizeVectors',
+            payload,
+            payloadMetaPool: quantizePayloadMetaPool,
+            assignPayloadMeta: assignQuantizePayloadMeta,
+            message: err?.message || String(err)
+          });
           return null;
         } finally {
           activeTasks = Math.max(0, activeTasks - 1);

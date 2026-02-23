@@ -244,6 +244,9 @@ export const createWorkerPoolQueue = (input = {}) => {
     } else {
       tokenizeInFlightByLanguage.set(languageId, current - 1);
     }
+    // Wake language-specific waiters and global waiters so callers blocked on a
+    // pressure-state transition or language slot both get a chance to re-check
+    // admission in the same turn.
     notifyThrottleWaiters(languageId);
   };
 

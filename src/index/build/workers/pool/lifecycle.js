@@ -91,6 +91,16 @@ export const createWorkerPoolLifecycle = (input = {}) => {
     await shutdownNowOrWhenIdle();
   };
 
+  /**
+   * Mark the pool disabled and defer restart until the pool is fully idle.
+   *
+   * Subtle behavior: restart timing begins immediately, but recreation is still
+   * gated by `getActiveTasks() === 0`. This avoids tearing down workers while
+   * tasks are in-flight and preserves the original drain-first lifecycle.
+   *
+   * @param {string} reason
+   * @returns {Promise<void>}
+   */
   const scheduleRestart = async (reason) => {
     if (permanentlyDisabled) return;
     if (!pool && disabled && restartAttempts > maxRestartAttempts) return;
@@ -246,6 +256,8 @@ export const createWorkerPoolLifecycle = (input = {}) => {
       shutdownWhenIdle = false;
       await shutdownPool();
     }
+    // Restart checks run only on idle transitions so restart windows cannot
+    // race with active task completion.
     await maybeRestart();
   };
 
