@@ -14,6 +14,11 @@ assert.equal(
   'expected simple record ids to resolve under records dir'
 );
 assert.equal(
+  resolveRecordPathSafe(recordsDir, '..finding-123'),
+  path.resolve(recordsDir, '..finding-123.json'),
+  'expected dotdot-prefixed in-dir ids to resolve under records dir'
+);
+assert.equal(
   resolveRecordPathSafe(recordsDir, '../outside'),
   null,
   'expected traversal record ids to be rejected'

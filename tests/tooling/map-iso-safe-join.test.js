@@ -12,6 +12,11 @@ assert.equal(
   'expected in-base posix path to resolve'
 );
 assert.equal(
+  safeJoinUnderBase(posixBase, '..assets/isomap/scene.json', path.posix, passthroughFs),
+  '/srv/maps/..assets/isomap/scene.json',
+  'expected in-base dotdot-prefixed segment to resolve'
+);
+assert.equal(
   safeJoinUnderBase(posixBase, '../maps-escape/secret.json', path.posix, passthroughFs),
   null,
   'expected posix traversal escape to be rejected'
@@ -38,6 +43,11 @@ assert.equal(
   safeJoinUnderBase(winBase, 'assets\\isomap\\scene.json', path.win32, passthroughFs),
   'C:\\maps\\assets\\isomap\\scene.json',
   'expected in-base win32 path to resolve'
+);
+assert.equal(
+  safeJoinUnderBase(winBase, '..assets\\isomap\\scene.json', path.win32, passthroughFs),
+  'C:\\maps\\..assets\\isomap\\scene.json',
+  'expected in-base dotdot-prefixed win32 segment to resolve'
 );
 assert.equal(
   safeJoinUnderBase(winBase, '..\\maps-escape\\secret.json', path.win32, passthroughFs),
