@@ -19,12 +19,14 @@ import { createTempPath, replaceFile } from './atomic.js';
 
 const CACHE_INDEX_VERSION = 1;
 const CACHE_KEY_SCHEMA_VERSION = 'embeddings-cache-v1';
+const GLOBAL_CHUNK_CACHE_KEY_SCHEMA_VERSION = 'embeddings-global-chunk-cache-v1';
 const DEFAULT_MAX_SHARD_BYTES = 128 * 1024 * 1024;
 const CACHE_ENTRY_PREFIX_BYTES = 4;
 const CHUNK_HASH_FINGERPRINT_DELIMITER = '\n';
 const DEFAULT_LOCK_WAIT_MS = 5000;
 const DEFAULT_LOCK_POLL_MS = 100;
 const DEFAULT_LOCK_STALE_MS = 30 * 60 * 1000;
+const GLOBAL_CHUNK_CACHE_DIR_NAME = 'global-chunks';
 
 const resolveCacheLockPath = (cacheDir) => (
   cacheDir ? path.join(cacheDir, 'cache.lock') : null
@@ -112,6 +114,16 @@ export const resolveCacheModeDir = (cacheRoot, identity, mode) => (
  */
 export const resolveCacheDir = (cacheRoot, identity, mode) => (
   path.join(resolveCacheModeDir(cacheRoot, identity, mode), 'files')
+);
+
+/**
+ * Resolve the mode-agnostic content-addressed chunk cache directory.
+ * @param {string} cacheRoot
+ * @param {object} identity
+ * @returns {string}
+ */
+export const resolveGlobalChunkCacheDir = (cacheRoot, identity) => (
+  path.join(resolveCacheBase(cacheRoot, identity), GLOBAL_CHUNK_CACHE_DIR_NAME)
 );
 /**
  * Resolve the cache metadata path for a mode.
@@ -795,6 +807,32 @@ export const buildCacheKey = ({
 };
 
 /**
+ * Build a stable mode-agnostic key for content-addressed chunk payload cache entries.
+ * @param {{chunkHash?:string,identityKey?:string,featureFlags?:string[]|null,pathPolicy?:string}} input
+ * @returns {string|null}
+ */
+export const buildGlobalChunkCacheKey = ({
+  chunkHash,
+  identityKey,
+  featureFlags,
+  pathPolicy
+}) => {
+  if (!chunkHash) return null;
+  const keyInfo = buildUnifiedCacheKey({
+    repoHash: null,
+    buildConfigHash: identityKey || null,
+    mode: null,
+    schemaVersion: GLOBAL_CHUNK_CACHE_KEY_SCHEMA_VERSION,
+    featureFlags: featureFlags || null,
+    pathPolicy: pathPolicy || 'posix',
+    extra: {
+      chunkHash
+    }
+  });
+  return keyInfo.digest;
+};
+
+/**
  * Validate a cached entry against the current signature and identity.
  * @param {{cached?:object,signature?:string,identityKey?:string,hash?:string}} input
  * @returns {boolean}
@@ -802,6 +840,18 @@ export const buildCacheKey = ({
 export const isCacheValid = ({ cached, signature, identityKey, hash }) => {
   if (!cached || cached.chunkSignature !== signature) return false;
   if (hash && cached.hash && cached.hash !== hash) return false;
+  return cached.cacheMeta?.identityKey === identityKey;
+};
+
+/**
+ * Validate a global content-addressed chunk cache entry.
+ * @param {{cached?:object,identityKey?:string,chunkHash?:string}} input
+ * @returns {boolean}
+ */
+export const isGlobalChunkCacheValid = ({ cached, identityKey, chunkHash }) => {
+  if (!cached) return false;
+  if (chunkHash && cached.hash !== chunkHash) return false;
+  if (!identityKey) return Boolean(cached.cacheMeta?.identityKey);
   return cached.cacheMeta?.identityKey === identityKey;
 };
 
