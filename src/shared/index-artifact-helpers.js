@@ -6,6 +6,7 @@ import {
   loadPiecesManifest,
   resolveArtifactPresence
 } from './artifact-io.js';
+import { joinPathSafe } from './path-normalize.js';
 
 const CHUNK_META_DIRECT_CANDIDATES = [
   'chunk_meta.json',
@@ -123,9 +124,13 @@ const hasChunkMetaBinaryColumnarPayloadSync = (dir, metaPath) => {
     const lengthsName = typeof parsed?.lengths === 'string'
       ? parsed.lengths
       : 'chunk_meta.binary-columnar.lengths.varint';
-    return fsSync.existsSync(path.join(dir, dataName))
-      && fsSync.existsSync(path.join(dir, offsetsName))
-      && fsSync.existsSync(path.join(dir, lengthsName));
+    const dataPath = joinPathSafe(dir, [dataName]);
+    const offsetsPath = joinPathSafe(dir, [offsetsName]);
+    const lengthsPath = joinPathSafe(dir, [lengthsName]);
+    if (!dataPath || !offsetsPath || !lengthsPath) return false;
+    return fsSync.existsSync(dataPath)
+      && fsSync.existsSync(offsetsPath)
+      && fsSync.existsSync(lengthsPath);
   } catch {
     return false;
   }

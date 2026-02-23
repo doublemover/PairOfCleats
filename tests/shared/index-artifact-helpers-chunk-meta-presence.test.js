@@ -62,6 +62,26 @@ await fs.writeFile(path.join(binaryValidDir, 'chunk_meta.binary-columnar.offsets
 await fs.writeFile(path.join(binaryValidDir, 'chunk_meta.binary-columnar.lengths.varint'), Buffer.from([3]));
 await assertPresence(binaryValidDir, true, 'binary-columnar sidecars should be detected');
 
+const binaryTraversalDir = path.join(testRoot, 'binary-traversal');
+await fs.mkdir(binaryTraversalDir, { recursive: true });
+await fs.writeFile(path.join(testRoot, 'outside.bin'), Buffer.from([1, 2, 3]));
+await fs.writeFile(path.join(binaryTraversalDir, 'chunk_meta.binary-columnar.offsets.bin'), Buffer.from([0, 0, 0, 0]));
+await fs.writeFile(path.join(binaryTraversalDir, 'chunk_meta.binary-columnar.lengths.varint'), Buffer.from([3]));
+await fs.writeFile(
+  path.join(binaryTraversalDir, 'chunk_meta.binary-columnar.meta.json'),
+  JSON.stringify({
+    data: '../outside.bin',
+    offsets: 'chunk_meta.binary-columnar.offsets.bin',
+    lengths: 'chunk_meta.binary-columnar.lengths.varint'
+  }, null, 2),
+  'utf8'
+);
+await assertPresence(
+  binaryTraversalDir,
+  false,
+  'binary-columnar traversal sidecar paths should not count as present'
+);
+
 const manifestDir = path.join(testRoot, 'manifest-custom');
 await fs.mkdir(path.join(manifestDir, 'pieces', 'custom'), { recursive: true });
 await fs.writeFile(path.join(manifestDir, 'pieces', 'custom', 'chunk-data.json'), '[]', 'utf8');

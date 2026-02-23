@@ -12,6 +12,7 @@ import {
   resolveManifestMmapHotLayoutPreference,
   resolveManifestPieceByPath
 } from '../manifest.js';
+import { joinPathSafe } from '../../path-normalize.js';
 import { loadBinaryColumnarRowPayloads } from './binary-columnar.js';
 import {
   createLoaderError,
@@ -347,9 +348,20 @@ const loadBinaryColumnarJsonRows = ({
     maxBytes,
     baseName
   });
-  const dataPathFromMeta = typeof fields?.data === 'string' ? path.join(dir, fields.data) : dataPath;
-  const offsetsPathFromMeta = typeof fields?.offsets === 'string' ? path.join(dir, fields.offsets) : offsetsPath;
-  const lengthsPathFromMeta = typeof fields?.lengths === 'string' ? path.join(dir, fields.lengths) : lengthsPath;
+  const resolveMetaSidecarPath = (candidate, fallbackPath, label) => {
+    if (typeof candidate !== 'string' || candidate.length === 0) return fallbackPath;
+    const safePath = joinPathSafe(dir, [candidate]);
+    if (!safePath) {
+      throw createLoaderError(
+        'ERR_ARTIFACT_INVALID',
+        `Invalid binary-columnar ${label} path for ${baseName}`
+      );
+    }
+    return safePath;
+  };
+  const dataPathFromMeta = resolveMetaSidecarPath(fields?.data, dataPath, 'data');
+  const offsetsPathFromMeta = resolveMetaSidecarPath(fields?.offsets, offsetsPath, 'offsets');
+  const lengthsPathFromMeta = resolveMetaSidecarPath(fields?.lengths, lengthsPath, 'lengths');
   const resolvedDataPath = resolveReadableArtifactPath(dataPathFromMeta);
   const resolvedOffsetsPath = resolveReadableArtifactPath(offsetsPathFromMeta);
   const resolvedLengthsPath = resolveReadableArtifactPath(lengthsPathFromMeta);

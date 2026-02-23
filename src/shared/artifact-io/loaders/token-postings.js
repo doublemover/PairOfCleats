@@ -15,6 +15,7 @@ import {
   unpackTfPostingSlice,
   unpackTfPostings
 } from '../../packed-postings.js';
+import { joinPathSafe } from '../../path-normalize.js';
 import { formatHash64 } from '../../token-id.js';
 import { readJsonFileCached } from './shared.js';
 import { tryLoadTokenPostingsBinaryColumnar } from './binary-columnar.js';
@@ -105,7 +106,10 @@ export const loadTokenPostings = (
     const offsetsName = typeof fields?.offsets === 'string'
       ? fields.offsets
       : 'token_postings.packed.offsets.bin';
-    const offsetsPath = path.join(dir, offsetsName);
+    const offsetsPath = joinPathSafe(dir, [offsetsName]);
+    if (!offsetsPath) {
+      throw new Error('Invalid token_postings packed offsets path');
+    }
     if (!existsOrBak(offsetsPath)) {
       throw new Error('Missing token_postings packed offsets');
     }
