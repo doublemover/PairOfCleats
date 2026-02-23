@@ -21,6 +21,7 @@ const FIXTURE_ROOT = path.join(ROOT, 'tests', 'fixtures', 'sample');
 const MARKER_PATH = path.join(TEMP_ROOT, 'build-complete.json');
 const LOCK_PATH = resolveTestCachePath(ROOT, 'summary-report.lock');
 const REPO_ID = getRepoId(REPO_ROOT);
+const LOCK_STALE_MS = 15 * 60 * 1000;
 
 const DEFAULT_MODEL_ID = 'Xenova/all-MiniLM-L12-v2';
 
@@ -110,6 +111,32 @@ const waitForBuild = async ({ modelId }) => {
   process.exit(1);
 };
 
+const tryAcquireSummaryLock = async ({ lockPath = LOCK_PATH, staleMs = LOCK_STALE_MS } = {}) => {
+  while (true) {
+    try {
+      return await fsPromises.open(lockPath, 'wx');
+    } catch (err) {
+      if (err?.code !== 'EEXIST') throw err;
+      try {
+        const stat = await fsPromises.stat(lockPath);
+        const ageMs = Date.now() - Number(stat.mtimeMs || 0);
+        if (Number.isFinite(ageMs) && ageMs > staleMs) {
+          console.warn('[summary-report] removing stale fixture lock');
+          await fsPromises.rm(lockPath, { force: true });
+          continue;
+        }
+      } catch (statErr) {
+        if (statErr?.code === 'ENOENT') continue;
+      }
+      return null;
+    }
+  }
+};
+
+export const summaryReportFixtureInternals = {
+  tryAcquireSummaryLock
+};
+
 export const ensureSummaryReportFixture = async ({ modelId = DEFAULT_MODEL_ID } = {}) => {
   await fsPromises.mkdir(path.dirname(TEMP_ROOT), { recursive: true });
   if (isMarkerValid() && hasFixtureArtifacts(modelId)) {
@@ -123,7 +150,7 @@ export const ensureSummaryReportFixture = async ({ modelId = DEFAULT_MODEL_ID } 
 
   let lockHandle = null;
   try {
-    lockHandle = await fsPromises.open(LOCK_PATH, 'wx');
+    lockHandle = await tryAcquireSummaryLock();
   } catch {
     lockHandle = null;
   }
