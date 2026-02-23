@@ -6,8 +6,10 @@ import { shouldReuseIncrementalIndex } from '../../../src/index/build/incrementa
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { SIGNATURE_VERSION } from '../../../src/index/build/indexer/signatures.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'index-reuse-validation');
+const tempRoot = resolveTestCachePath(root, 'index-reuse-validation');
 const outDir = path.join(tempRoot, 'out');
 const piecesDir = path.join(outDir, 'pieces');
 const fixtureFile = path.join(tempRoot, 'src', 'a.js');

@@ -488,11 +488,27 @@ const runQueries = async (requestedConcurrency) => {
   const memoryRss = {};
   const hitCounts = {};
   const resultCounts = {};
+  const missTaxonomyByBackend = {};
+  const missTaxonomyLowHitByBackend = {};
+  const tallyMissTaxonomy = (target, labels = []) => {
+    if (!(target instanceof Map)) return;
+    for (const rawLabel of labels) {
+      const label = typeof rawLabel === 'string' ? rawLabel.trim() : '';
+      if (!label) continue;
+      target.set(label, (target.get(label) || 0) + 1);
+    }
+  };
+  const toSortedObject = (target) => Object.fromEntries(
+    Array.from(target.entries())
+      .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+  );
   for (const backend of backends) {
     latency[backend] = [];
     memoryRss[backend] = [];
     hitCounts[backend] = 0;
     resultCounts[backend] = [];
+    missTaxonomyByBackend[backend] = new Map();
+    missTaxonomyLowHitByBackend[backend] = new Map();
   }
 
   const totalSearches = selectedQueries.length * backends.length;
@@ -562,6 +578,13 @@ const runQueries = async (requestedConcurrency) => {
     const codeHits = Array.isArray(payload.code) ? payload.code.length : 0;
     const proseHits = Array.isArray(payload.prose) ? payload.prose.length : 0;
     const totalHits = codeHits + proseHits;
+    const taxonomyLabels = Array.isArray(payload?.stats?.intent?.missTaxonomy?.labels)
+      ? payload.stats.intent.missTaxonomy.labels
+      : [];
+    tallyMissTaxonomy(missTaxonomyByBackend[task.backend], taxonomyLabels);
+    if (totalHits <= 0) {
+      tallyMissTaxonomy(missTaxonomyLowHitByBackend[task.backend], taxonomyLabels);
+    }
     resultCounts[task.backend].push(totalHits);
     if (totalHits > 0) hitCounts[task.backend] += 1;
     const rss = payload.stats?.memory?.rss;
@@ -605,6 +628,16 @@ const runQueries = async (requestedConcurrency) => {
     latencyMs: latencyStats,
     hitRate,
     resultCountAvg,
+    missTaxonomy: {
+      byBackend: Object.fromEntries(backends.map((backend) => [
+        backend,
+        toSortedObject(missTaxonomyByBackend[backend])
+      ])),
+      lowHitByBackend: Object.fromEntries(backends.map((backend) => [
+        backend,
+        toSortedObject(missTaxonomyLowHitByBackend[backend])
+      ]))
+    },
     memoryRss: memoryStats,
     buildMs: Object.keys(buildMs).length ? buildMs : null
   };

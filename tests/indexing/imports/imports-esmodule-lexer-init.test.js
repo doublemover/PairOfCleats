@@ -4,8 +4,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { scanImports } from '../../../src/index/build/imports.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'imports-esmodule-lexer-init');
+const tempRoot = resolveTestCachePath(root, 'imports-esmodule-lexer-init');
 const srcRoot = path.join(tempRoot, 'src');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(srcRoot, { recursive: true });

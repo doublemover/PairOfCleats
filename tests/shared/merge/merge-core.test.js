@@ -5,8 +5,10 @@ import path from 'node:path';
 import { writeJsonLinesFile } from '../../../src/shared/json-stream.js';
 import { mergeSortedRuns, mergeRunsWithPlanner } from '../../../src/shared/merge.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'merge-core');
+const tempRoot = resolveTestCachePath(root, 'merge-core');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

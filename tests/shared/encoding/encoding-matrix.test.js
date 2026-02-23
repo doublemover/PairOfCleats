@@ -5,8 +5,10 @@ import { readTextFileWithHash } from '../../../src/shared/encoding.js';
 import { sha1 } from '../../../src/shared/hash.js';
 import { truncateByBytes } from '../../../src/index/build/file-processor/read.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'encoding-matrix');
+const tempRoot = resolveTestCachePath(root, 'encoding-matrix');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });

@@ -6,8 +6,10 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig, toRealPathSync } from '../../../tools/shared/dict-utils.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'build-index-all');
+const tempRoot = resolveTestCachePath(root, 'build-index-all');
 const repoRootRaw = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 

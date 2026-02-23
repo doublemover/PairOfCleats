@@ -6,8 +6,10 @@ import { createRequire } from 'node:module';
 import { loadHnswIndex, normalizeHnswConfig } from '../../../src/shared/hnsw.js';
 import { requireHnswLib } from '../../helpers/optional-deps.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'hnsw-load-signature');
+const tempRoot = resolveTestCachePath(root, 'hnsw-load-signature');
 const indexPath = path.join(tempRoot, 'dense_vectors_hnsw.bin');
 
 requireHnswLib({ reason: 'hnswlib-node not available; skipping hnsw load signature test.' });

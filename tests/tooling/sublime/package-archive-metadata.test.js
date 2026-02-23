@@ -3,8 +3,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const outDir = path.join(root, '.testCache', 'package-sublime-metadata');
+const outDir = resolveTestCachePath(root, 'package-sublime-metadata');
 
 const run = spawnSync(
   process.execPath,

@@ -11,8 +11,10 @@ import { stripChunkMetaColdFields, extractChunkMetaColdFields } from '../../../s
 import { decodeBinaryRowFrameLengths, decodeU64Offsets } from '../../../src/shared/artifact-io/binary-columnar.js';
 import { toPosix } from '../../../src/shared/files.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'chunk-meta-single-pass-fanout-parity');
+const tempRoot = resolveTestCachePath(root, 'chunk-meta-single-pass-fanout-parity');
 const outDir = path.join(tempRoot, 'index');
 
 await fs.rm(tempRoot, { recursive: true, force: true });

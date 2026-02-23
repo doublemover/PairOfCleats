@@ -5,13 +5,15 @@ import { buildPostings } from '../../../src/index/build/postings.js';
 import { writeIndexArtifacts } from '../../../src/index/build/artifacts.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const fail = (message) => {
   console.error(message);
   process.exit(1);
 };
 
 const root = process.cwd();
-const testRoot = path.join(root, '.testCache', 'index-state-skip-write');
+const testRoot = resolveTestCachePath(root, 'index-state-skip-write');
 const outDir = path.join(testRoot, 'out');
 
 await fsPromises.rm(testRoot, { recursive: true, force: true });

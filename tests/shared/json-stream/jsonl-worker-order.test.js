@@ -6,8 +6,10 @@ import { readJsonLinesArray } from '../../../src/shared/artifact-io.js';
 import { writeJsonLinesFile } from '../../../src/shared/json-stream.js';
 import { tryRequire } from '../../../src/shared/optional-deps.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const outDir = path.join(root, '.testCache', 'jsonl-worker-order');
+const outDir = resolveTestCachePath(root, 'jsonl-worker-order');
 await fs.rm(outDir, { recursive: true, force: true });
 await fs.mkdir(outDir, { recursive: true });
 

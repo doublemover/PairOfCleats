@@ -13,8 +13,10 @@ import {
   validateOffsetsAgainstFile
 } from '../../../src/shared/artifact-io/offsets.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const cacheRoot = path.join(root, '.testCache', 'offsets-unified');
+const cacheRoot = resolveTestCachePath(root, 'offsets-unified');
 await fs.rm(cacheRoot, { recursive: true, force: true });
 await fs.mkdir(cacheRoot, { recursive: true });
 

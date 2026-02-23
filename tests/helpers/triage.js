@@ -3,13 +3,14 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { rmDirRecursive } from './temp.js';
+import { resolveTestCacheDir } from './test-cache.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 export const getTriageContext = async ({ name }) => {
   const repoRoot = path.join(ROOT, 'tests', 'fixtures', 'sample');
   const triageFixtureRoot = path.join(ROOT, 'tests', 'fixtures', 'triage');
-  const cacheRootBase = path.join(ROOT, '.testCache', name);
+  const { dir: cacheRootBase } = resolveTestCacheDir(name, { root: ROOT });
   const cacheSuffix = `${Date.now()}-${process.pid}-${Math.random().toString(16).slice(2, 8)}`;
   const cacheRoot = `${cacheRootBase}-${cacheSuffix}`;
   const traceArtifactIo = process.env.PAIROFCLEATS_TRACE_ARTIFACT_IO === '1';

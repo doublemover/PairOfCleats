@@ -10,10 +10,12 @@ import {
 } from '../../../tools/build/embeddings/cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'embeddings-shard-handle-reuse');
+const tempRoot = resolveTestCachePath(root, 'embeddings-shard-handle-reuse');
 const cacheDir = path.join(tempRoot, 'files');
 const SHARD_ENTRY_PREFIX_BYTES = 4;
 await fs.rm(tempRoot, { recursive: true, force: true });

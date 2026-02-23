@@ -6,8 +6,10 @@ import { createSqliteHelpers } from '../../../src/retrieval/sqlite-helpers.js';
 import { normalizePostingsConfig } from '../../../src/shared/postings-config.js';
 import { CREATE_TABLES_BASE_SQL, SCHEMA_VERSION } from '../../../src/storage/sqlite/schema.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'sqlite-metav2-roundtrip');
+const tempRoot = resolveTestCachePath(root, 'sqlite-metav2-roundtrip');
 const dbPath = path.join(tempRoot, 'index-code.db');
 
 let Database;

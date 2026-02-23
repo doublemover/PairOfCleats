@@ -9,8 +9,10 @@ import { getIndexDir, resolveSqlitePaths } from '../../../tools/shared/dict-util
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { fromPosix } from '../../../src/shared/files.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'chunk-id-backend-parity');
+const tempRoot = resolveTestCachePath(root, 'chunk-id-backend-parity');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 

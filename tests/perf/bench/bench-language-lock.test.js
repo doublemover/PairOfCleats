@@ -5,8 +5,10 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'bench-language-lock');
+const tempRoot = resolveTestCachePath(root, 'bench-language-lock');
 const reposRoot = path.join(tempRoot, 'repos');
 const cacheRoot = path.join(tempRoot, 'cache');
 const resultsRoot = path.join(tempRoot, 'results');

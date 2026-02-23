@@ -4,11 +4,13 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv, syncProcessEnv } from '../../helpers/test-env.js';
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv();
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const cacheRoot = path.join(root, '.testCache', 'retrieval-strict-manifest-embeddings');
+const cacheRoot = resolveTestCachePath(root, 'retrieval-strict-manifest-embeddings');
 
 const env = {
   ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,

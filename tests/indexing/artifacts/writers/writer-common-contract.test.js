@@ -12,8 +12,10 @@ import {
   writeShardedJsonlMeta
 } from '../../../../src/index/build/artifacts/writers/_common.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'writer-common-contract');
+const tempRoot = resolveTestCachePath(root, 'writer-common-contract');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

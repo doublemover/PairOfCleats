@@ -9,6 +9,8 @@ import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../src/storag
 import { requireOrSkip } from '../../helpers/require-or-skip.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 ensureTestingEnv(process.env);
 requireOrSkip({ capability: 'sqlite', reason: 'sqlite chunk_meta gzip fallback test requires better-sqlite3' });
 
@@ -16,7 +18,7 @@ let Database = null;
 ({ default: Database } = await import('better-sqlite3'));
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'sqlite-chunk-meta-json-gzip-fallback');
+const tempRoot = resolveTestCachePath(root, 'sqlite-chunk-meta-json-gzip-fallback');
 const indexDir = path.join(tempRoot, 'index-code');
 const outPath = path.join(tempRoot, 'index-code.db');
 

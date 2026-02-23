@@ -5,8 +5,10 @@ import http from 'node:http';
 import path from 'node:path';
 import { createApiRouter } from '../../../tools/api/router.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'api-router');
+const tempRoot = resolveTestCachePath(root, 'api-router');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

@@ -7,10 +7,12 @@ import { writePiecesManifest } from '../../../../src/index/build/artifacts/check
 import { applyTestEnv } from '../../../helpers/test-env.js';
 import { loadPiecesManifestPieces } from '../../../helpers/pieces-manifest.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'pieces-manifest-precomputed-checksum');
+const tempRoot = resolveTestCachePath(root, 'pieces-manifest-precomputed-checksum');
 const outDir = path.join(tempRoot, 'index-code');
 
 await fs.rm(tempRoot, { recursive: true, force: true });

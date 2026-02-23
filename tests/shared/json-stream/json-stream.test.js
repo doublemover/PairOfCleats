@@ -5,8 +5,10 @@ import { readJsonFile } from '../../../src/shared/artifact-io.js';
 import { writeJsonArrayFile, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import { tryRequire } from '../../../src/shared/optional-deps.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const outDir = path.join(root, '.testCache', 'json-stream');
+const outDir = resolveTestCachePath(root, 'json-stream');
 await fs.rm(outDir, { recursive: true, force: true });
 await fs.mkdir(outDir, { recursive: true });
 

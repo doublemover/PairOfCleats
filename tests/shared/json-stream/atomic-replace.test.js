@@ -5,8 +5,10 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { replaceFile, createTempPath } from '../../../src/shared/json-stream.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const outDir = path.join(root, '.testCache', 'json-stream-atomic-replace');
+const outDir = resolveTestCachePath(root, 'json-stream-atomic-replace');
 await fsPromises.rm(outDir, { recursive: true, force: true });
 await fsPromises.mkdir(outDir, { recursive: true });
 

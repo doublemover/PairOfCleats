@@ -3,8 +3,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createTypeScriptProvider } from '../../../../src/index/tooling/typescript-provider.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'typescript-provider-no-ts');
+const tempRoot = resolveTestCachePath(root, 'typescript-provider-no-ts');
 const repoRoot = path.join(tempRoot, 'repo');
 const srcDir = path.join(repoRoot, 'src');
 

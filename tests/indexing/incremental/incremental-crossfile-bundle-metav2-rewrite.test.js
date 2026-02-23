@@ -7,6 +7,8 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import { updateBundlesWithChunks, writeIncrementalBundle } from '../../../src/index/build/incremental.js';
 import { readBundleFile, resolveBundleFormatFromName } from '../../../src/shared/bundle-io.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({
   testing: '1',
   extraEnv: {
@@ -15,7 +17,7 @@ applyTestEnv({
 });
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'incremental-crossfile-bundle-metav2-rewrite');
+const tempRoot = resolveTestCachePath(root, 'incremental-crossfile-bundle-metav2-rewrite');
 const bundleDir = path.join(tempRoot, 'incremental', 'code', 'files');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(bundleDir, { recursive: true });

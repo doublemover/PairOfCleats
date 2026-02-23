@@ -6,9 +6,11 @@ import { validateIndexArtifacts } from '../../../src/index/validate.js';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const cacheRoot = path.join(root, '.testCache', 'embeddings-validate');
+const cacheRoot = resolveTestCachePath(root, 'embeddings-validate');
 const env = applyTestEnv({
   cacheRoot,
   embeddings: 'stub',

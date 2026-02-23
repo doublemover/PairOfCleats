@@ -2,11 +2,13 @@
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
 
 const run = spawnSync(
   process.execPath,
-  [path.join(root, 'tools', 'package-vscode.js'), '--out-dir', path.join(root, '.testCache', 'package-vscode-missing-toolchain')],
+  [path.join(root, 'tools', 'package-vscode.js'), '--out-dir', resolveTestCachePath(root, 'package-vscode-missing-toolchain')],
   {
     cwd: root,
     encoding: 'utf8',

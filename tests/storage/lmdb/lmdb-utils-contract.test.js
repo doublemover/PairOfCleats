@@ -13,13 +13,15 @@ import {
   validateLmdbSchemaAndMode
 } from '../../../src/storage/lmdb/utils.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv();
 
 const packr = new Packr();
 const encode = (value) => packr.pack(value);
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'lmdb-utils-contract');
+const tempRoot = resolveTestCachePath(root, 'lmdb-utils-contract');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

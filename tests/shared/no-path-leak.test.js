@@ -6,10 +6,12 @@ import path from 'node:path';
 import { writeSnapshot } from '../../src/index/snapshots/registry.js';
 import { loadDiffInputs, writeDiffInputs, writeDiffsManifest } from '../../src/index/diffs/registry.js';
 
+import { resolveTestCachePath } from '../helpers/test-cache.js';
+
 applyTestEnv();
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'phase14-no-path-leak');
+const tempRoot = resolveTestCachePath(root, 'phase14-no-path-leak');
 const repoCacheRoot = path.join(tempRoot, 'repo-cache');
 const absoluteBuildRoot = path.resolve(tempRoot, 'abs-build-root');
 

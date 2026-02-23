@@ -3,9 +3,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const outA = path.join(root, '.testCache', 'package-sublime-determinism-a');
-const outB = path.join(root, '.testCache', 'package-sublime-determinism-b');
+const outA = resolveTestCachePath(root, 'package-sublime-determinism-a');
+const outB = resolveTestCachePath(root, 'package-sublime-determinism-b');
 
 const runPack = (outDir) => spawnSync(
   process.execPath,

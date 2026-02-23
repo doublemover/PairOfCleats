@@ -5,8 +5,10 @@ import path from 'node:path';
 import { enqueueSymbolEdgesArtifacts } from '../../../../src/index/build/artifacts/writers/symbol-edges.js';
 import { enqueueSymbolOccurrencesArtifacts } from '../../../../src/index/build/artifacts/writers/symbol-occurrences.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const root = process.cwd();
-const outDir = path.join(root, '.testCache', 'symbol-endpoint-integrity');
+const outDir = resolveTestCachePath(root, 'symbol-endpoint-integrity');
 await fs.rm(outDir, { recursive: true, force: true });
 await fs.mkdir(outDir, { recursive: true });
 

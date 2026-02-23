@@ -2,7 +2,9 @@
 import path from 'node:path';
 import { cleanup, runNode, root } from './smoke-utils.js';
 
-const cacheRoots = [path.join(root, '.testCache', 'type-inference-crossfile-stats')];
+import { resolveTestCachePath } from '../helpers/test-cache.js';
+
+const cacheRoots = [resolveTestCachePath(root, 'type-inference-crossfile-stats')];
 
 let failure = null;
 try {

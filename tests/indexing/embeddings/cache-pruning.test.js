@@ -5,8 +5,10 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { pruneCacheIndex, resolveCacheEntryPath } from '../../../tools/build/embeddings/cache.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'embeddings-cache-pruning');
+const tempRoot = resolveTestCachePath(root, 'embeddings-cache-pruning');
 const cacheDir = path.join(tempRoot, 'files');
 const shardDir = path.join(cacheDir, 'shards');
 

@@ -8,12 +8,14 @@ import { LMDB_META_KEYS } from '../../../src/storage/lmdb/schema.js';
 import { resolveLmdbPaths } from '../../../tools/shared/dict-utils.js';
 import { requireOrSkip } from '../../helpers/require-or-skip.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 requireOrSkip({ capability: 'lmdb', reason: 'Skipping lmdb mapsize test; lmdb not available.' });
 
 const { open } = await import('lmdb');
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'lmdb-mapsize');
+const tempRoot = resolveTestCachePath(root, 'lmdb-mapsize');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 

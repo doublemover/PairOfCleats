@@ -8,9 +8,11 @@ import { ensureTestingEnv } from '../../helpers/test-env.js';
 import { createProcessRunner } from '../../../tools/bench/language/process.js';
 import { BENCH_PROGRESS_CONFIDENCE_SCHEMA_VERSION } from '../../../tools/bench/language/logging.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 ensureTestingEnv(process.env);
 
-const tempRoot = path.join(process.cwd(), '.testCache', 'bench-language-process-progress-confidence');
+const tempRoot = resolveTestCachePath(process.cwd(), 'bench-language-process-progress-confidence');
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });
 

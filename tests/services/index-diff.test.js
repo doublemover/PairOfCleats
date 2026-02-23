@@ -8,10 +8,12 @@ import { getRepoCacheRoot } from '../../src/shared/dict-utils.js';
 import { createPointerSnapshot } from '../../src/index/snapshots/create.js';
 import { computeIndexDiff, showDiff } from '../../src/index/diffs/compute.js';
 
+import { resolveTestCachePath } from '../helpers/test-cache.js';
+
 applyTestEnv();
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'index-diff-service');
+const tempRoot = resolveTestCachePath(root, 'index-diff-service');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 const userConfig = {

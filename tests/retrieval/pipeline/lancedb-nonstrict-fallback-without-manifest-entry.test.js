@@ -7,10 +7,12 @@ import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { loadSearchIndexes } from '../../../src/retrieval/cli/load-indexes.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
-const fixtureRoot = path.join(root, '.testCache', 'lancedb-nonstrict-fallback-without-manifest-entry');
+const fixtureRoot = resolveTestCachePath(root, 'lancedb-nonstrict-fallback-without-manifest-entry');
 const indexDir = path.join(fixtureRoot, 'index-code');
 await fs.rm(fixtureRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(indexDir, 'pieces'), { recursive: true });

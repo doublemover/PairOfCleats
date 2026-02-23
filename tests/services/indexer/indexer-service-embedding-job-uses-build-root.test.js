@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { buildEmbeddingsArgs, normalizeEmbeddingJob } from '../../../tools/service/indexer-service-helpers.js';
 
-const repoRoot = path.join(process.cwd(), '.testCache', 'indexer-service-embedding-job');
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
+const repoRoot = resolveTestCachePath(process.cwd(), 'indexer-service-embedding-job');
 const buildRoot = path.join(repoRoot, 'builds', 'b1');
 const indexDir = path.join(buildRoot, 'index-code');
 

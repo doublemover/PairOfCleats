@@ -5,8 +5,10 @@ import path from 'node:path';
 import { rankLanceDb } from '../../../src/retrieval/lancedb.js';
 import { requireLanceDb } from '../../helpers/optional-deps.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'lancedb-candidate-filtering');
+const tempRoot = resolveTestCachePath(root, 'lancedb-candidate-filtering');
 
 await requireLanceDb({ reason: 'lancedb not available; skipping lancedb candidate filtering test.' });
 

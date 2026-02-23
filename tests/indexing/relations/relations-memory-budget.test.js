@@ -5,10 +5,12 @@ import { enqueueGraphRelationsArtifacts } from '../../../src/index/build/artifac
 import { loadGraphRelationsSync, readJsonFile } from '../../../src/shared/artifact-io.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
-const cacheRoot = path.join(root, '.testCache', 'relations-memory-budget');
+const cacheRoot = resolveTestCachePath(root, 'relations-memory-budget');
 const outDir = path.join(cacheRoot, 'index-code');
 
 await fs.rm(cacheRoot, { recursive: true, force: true });

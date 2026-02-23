@@ -8,11 +8,13 @@ import { ensureTestingEnv } from '../../helpers/test-env.js';
 import { buildReportOutput } from '../../../tools/bench/language/report.js';
 import { getMetricsDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 ensureTestingEnv(process.env);
 
 const testFilePath = fileURLToPath(import.meta.url);
 const root = path.resolve(path.join(path.dirname(testFilePath), '..', '..', '..'));
-const tempRoot = path.join(root, '.testCache', 'bench-language-stage-timing-report');
+const tempRoot = resolveTestCachePath(root, 'bench-language-stage-timing-report');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 

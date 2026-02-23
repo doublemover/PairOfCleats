@@ -4,8 +4,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { enqueueSymbolsArtifacts } from '../../../src/index/build/artifacts/writers/symbols.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const outDir = path.join(root, '.testCache', 'symbol-artifact-order');
+const outDir = resolveTestCachePath(root, 'symbol-artifact-order');
 await fs.rm(outDir, { recursive: true, force: true });
 await fs.mkdir(outDir, { recursive: true });
 

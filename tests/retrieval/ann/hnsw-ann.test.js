@@ -8,9 +8,11 @@ import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js
 import { normalizeHnswConfig, rankHnswIndex } from '../../../src/shared/hnsw.js';
 import { requireHnswLib } from '../../helpers/optional-deps.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = path.join(root, '.testCache', 'hnsw-ann');
+const tempRoot = resolveTestCachePath(root, 'hnsw-ann');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 

@@ -6,8 +6,10 @@ import path from 'node:path';
 import { createBundleLoader } from '../../../src/storage/sqlite/build/bundle-loader.js';
 import { writeBundleFile, writeBundlePatch } from '../../../src/shared/bundle-io.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'sqlite-bundle-loader-worker');
+const tempRoot = resolveTestCachePath(root, 'sqlite-bundle-loader-worker');
 const bundleDir = path.join(tempRoot, 'bundles');
 const relFile = 'src/example.js';
 const bundleName = 'bundle-example.json';

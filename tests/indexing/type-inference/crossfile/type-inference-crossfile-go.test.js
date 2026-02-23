@@ -8,8 +8,10 @@ import { getIndexDir, loadUserConfig, resolveToolRoot } from '../../../../tools/
 import { repoRoot } from '../../../helpers/root.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const root = repoRoot();
-const tempRoot = path.join(root, '.testCache', 'type-inference-crossfile-go');
+const tempRoot = resolveTestCachePath(root, 'type-inference-crossfile-go');
 const repoDir = path.join(tempRoot, 'repo');
 const hasPython = () => {
   const candidates = ['python', 'python3'];

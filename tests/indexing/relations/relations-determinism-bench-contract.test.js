@@ -6,6 +6,8 @@ import { stableStringify } from '../../../src/shared/stable-json.js';
 import { enqueueGraphRelationsArtifacts } from '../../../src/index/build/artifacts/graph-relations.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const fail = (message) => {
@@ -14,7 +16,7 @@ const fail = (message) => {
 };
 
 const root = process.cwd();
-const testRoot = path.join(root, '.testCache', 'relations-determinism');
+const testRoot = resolveTestCachePath(root, 'relations-determinism');
 
 const buildChunks = ({ chunkCount = 1500, edgesPerChunk = 2 } = {}) => {
   const chunks = new Array(chunkCount);

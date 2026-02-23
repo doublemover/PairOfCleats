@@ -12,12 +12,14 @@ import {
 import { createBoundedWriterQueue } from '../../../tools/build/embeddings/writer-queue.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'embeddings-writer-queue-encode-off-critical-path');
+const tempRoot = resolveTestCachePath(root, 'embeddings-writer-queue-encode-off-critical-path');
 const cacheDir = path.join(tempRoot, 'files');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(cacheDir, { recursive: true });

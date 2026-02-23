@@ -7,8 +7,10 @@ import { parseBuildArgs } from '../../../../src/index/build/args.js';
 import { createBuildRuntime } from '../../../../src/index/build/runtime.js';
 import { buildIncrementalSignaturePayload } from '../../../../src/index/build/indexer/signatures.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'risk-interprocedural-runtime');
+const tempRoot = resolveTestCachePath(root, 'risk-interprocedural-runtime');
 const repoRoot = path.join(tempRoot, 'repo');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });

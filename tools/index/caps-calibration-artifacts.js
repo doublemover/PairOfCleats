@@ -5,7 +5,7 @@ import { buildCapsCalibrationArtifacts } from '../../src/index/build/runtime/cap
 
 const root = process.cwd();
 const outDir = path.join(root, 'docs', 'config');
-const benchDir = path.join(root, 'benchmarks', 'index');
+const fixtureDir = path.join(root, 'tests', 'fixtures', 'perf', 'index');
 
 const writeJson = async (targetPath, value) => {
   const payload = JSON.stringify(value, null, 2) + '\n';
@@ -36,7 +36,7 @@ await writeJson(
 );
 
 await writeJson(
-  path.join(benchDir, 'caps-calibration-inputs.json'),
+  path.join(fixtureDir, 'caps-calibration-inputs.json'),
   {
     schemaVersion: artifacts.schemaVersion,
     generatedAt: artifacts.generatedAt,
@@ -46,7 +46,7 @@ await writeJson(
 );
 
 await writeJson(
-  path.join(benchDir, 'caps-calibration-results.json'),
+  path.join(fixtureDir, 'caps-calibration-results.json'),
   {
     schemaVersion: artifacts.schemaVersion,
     generatedAt: artifacts.generatedAt,

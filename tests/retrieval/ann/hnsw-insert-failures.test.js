@@ -7,8 +7,10 @@ import { createRequire } from 'node:module';
 import { normalizeHnswConfig } from '../../../src/shared/hnsw.js';
 import { requireHnswLib } from '../../helpers/optional-deps.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'hnsw-insert-failures');
+const tempRoot = resolveTestCachePath(root, 'hnsw-insert-failures');
 const indexPath = path.join(tempRoot, 'dense_vectors_hnsw.bin');
 const metaPath = path.join(tempRoot, 'dense_vectors_hnsw.meta.json');
 

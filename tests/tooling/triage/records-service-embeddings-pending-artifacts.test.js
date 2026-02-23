@@ -6,10 +6,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildRecordsIndexForRepo } from '../../../src/integrations/triage/index-records.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv();
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const tempRoot = path.join(root, '.testCache', `triage-records-service-artifacts-${Date.now()}-${process.pid}`);
+const tempRoot = resolveTestCachePath(root, `triage-records-service-artifacts-${Date.now()}-${process.pid}`);
 const repoRoot = path.join(tempRoot, 'repo');
 const buildRoot = path.join(tempRoot, 'builds', 'test-build');
 const recordPath = path.join(repoRoot, 'record.md');

@@ -5,8 +5,10 @@ import { loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { buildAutoPolicy } from '../../../src/shared/auto-policy.js';
 import { resolveRuntimeEnvelope } from '../../../src/shared/runtime-envelope.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'config-normalization');
+const tempRoot = resolveTestCachePath(root, 'config-normalization');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

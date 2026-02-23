@@ -7,13 +7,15 @@ import { applyTestEnv } from '../../../helpers/test-env.js';
 import { getRepoId } from '../../../../tools/shared/dict-utils.js';
 import { resolveVersionedCacheRoot } from '../../../../src/shared/cache-roots.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const fail = (message) => {
   console.error(`stage1 memory budget test failed: ${message}`);
   process.exit(1);
 };
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'stage1-memory-budget');
+const tempRoot = resolveTestCachePath(root, 'stage1-memory-budget');
 const repoRoot = path.join(tempRoot, 'repo');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });

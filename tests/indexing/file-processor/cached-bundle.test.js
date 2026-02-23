@@ -3,13 +3,15 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { reuseCachedBundle } from '../../../src/index/build/file-processor/cached-bundle.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const fail = (message) => {
   console.error(message);
   process.exit(1);
 };
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'file-processor-cached');
+const tempRoot = resolveTestCachePath(root, 'file-processor-cached');
 const repoRoot = path.join(tempRoot, 'repo');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(repoRoot, { recursive: true });

@@ -14,6 +14,8 @@ import {
 import { treeSitterState } from '../../../src/lang/tree-sitter/state.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const timeout = setTimeout(() => {
@@ -23,7 +25,7 @@ const timeout = setTimeout(() => {
 
 const root = process.cwd();
 const fixturePath = path.join(root, 'tests', 'fixtures', 'tree-sitter', 'javascript.js');
-const cacheDir = path.join(root, '.testCache', 'tree-sitter-chunk-cache-persistent');
+const cacheDir = resolveTestCachePath(root, 'tree-sitter-chunk-cache-persistent');
 const text = await fs.readFile(fixturePath, 'utf8');
 const log = () => {};
 

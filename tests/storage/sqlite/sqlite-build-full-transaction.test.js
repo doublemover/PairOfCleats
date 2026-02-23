@@ -8,6 +8,8 @@ import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../src/storag
 import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 let Database = null;
@@ -19,7 +21,7 @@ try {
 }
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'sqlite-build-full-transaction');
+const tempRoot = resolveTestCachePath(root, 'sqlite-build-full-transaction');
 const indexDir = path.join(tempRoot, 'index-code');
 const outPath = path.join(tempRoot, 'index-code.db');
 

@@ -5,8 +5,10 @@ import { fileURLToPath } from 'node:url';
 import { writeBundleFile } from '../../../src/shared/bundle-io.js';
 import { buildDatabaseFromBundles } from '../../../src/storage/sqlite/build/from-bundles.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const tempRoot = path.join(ROOT, '.testCache', 'sqlite-bundle-dims-mismatch');
+const tempRoot = resolveTestCachePath(ROOT, 'sqlite-bundle-dims-mismatch');
 const bundleDir = path.join(tempRoot, 'bundles');
 const dbPath = path.join(tempRoot, 'index-code.db');
 

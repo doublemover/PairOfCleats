@@ -6,8 +6,10 @@ import { writeJsonLinesFile } from '../../../src/shared/json-stream.js';
 import { validateIndexArtifacts } from '../../../src/index/validate.js';
 import { createBaseIndex, defaultUserConfig } from './helpers.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'symbol-integrity-strict');
+const tempRoot = resolveTestCachePath(root, 'symbol-integrity-strict');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

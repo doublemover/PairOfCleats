@@ -4,8 +4,10 @@ import path from 'node:path';
 import { writeJsonLinesShardedAsync } from '../../../src/shared/json-stream.js';
 import { readJsonlRowAt } from '../../../src/shared/artifact-io/offsets.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'offsets-unified-roundtrip');
+const tempRoot = resolveTestCachePath(root, 'offsets-unified-roundtrip');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });

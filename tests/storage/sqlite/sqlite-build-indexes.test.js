@@ -7,6 +7,8 @@ import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 let Database = null;
 try {
   ({ default: Database } = await import('better-sqlite3'));
@@ -16,7 +18,7 @@ try {
 }
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'sqlite-build-indexes');
+const tempRoot = resolveTestCachePath(root, 'sqlite-build-indexes');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 

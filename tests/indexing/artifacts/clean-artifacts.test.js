@@ -5,8 +5,10 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const baseDir = path.join(root, '.testCache', 'clean-artifacts');
+const baseDir = resolveTestCachePath(root, 'clean-artifacts');
 const repoRoot = path.join(baseDir, 'repo');
 const cacheRoot = path.join(baseDir, 'cache');
 

@@ -8,10 +8,12 @@ import { buildIgnoreMatcher } from '../../../src/index/build/ignore.js';
 import { discoverFiles } from '../../../src/index/build/discover.js';
 import { buildGeneratedPolicyConfig, GENERATED_POLICY_REASON_CODE } from '../../../src/index/build/generated-policy.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv();
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'generated-policy-discovery');
+const tempRoot = resolveTestCachePath(root, 'generated-policy-discovery');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'src', 'generated', 'full'), { recursive: true });

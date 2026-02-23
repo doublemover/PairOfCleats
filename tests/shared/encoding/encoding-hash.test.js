@@ -4,8 +4,10 @@ import path from 'node:path';
 import { readTextFileWithHash } from '../../../src/shared/encoding.js';
 import { sha1 } from '../../../src/shared/hash.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'encoding-hash');
+const tempRoot = resolveTestCachePath(root, 'encoding-hash');
 const filePath = path.join(tempRoot, 'latin1.txt');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });

@@ -8,8 +8,10 @@ import { loadChunkMeta, readJsonFile } from '../../../src/shared/artifact-io.js'
 import { filterChunks } from '../../../src/retrieval/output.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'structural-filters');
+const tempRoot = resolveTestCachePath(root, 'structural-filters');
 const repoRoot = path.join(tempRoot, 'repo');
 const srcDir = path.join(repoRoot, 'src');
 const cacheRoot = path.join(tempRoot, 'cache');

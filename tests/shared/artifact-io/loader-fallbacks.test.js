@@ -59,4 +59,29 @@ await assert.rejects(
   'expected streaming loader to fail with deterministic missing-shard error'
 );
 
+const multiSourceDir = path.join(testRoot, 'nonstrict-multi-source-json');
+await fs.mkdir(path.join(multiSourceDir, 'pieces'), { recursive: true });
+await fs.writeFile(
+  path.join(multiSourceDir, 'sample-a.json'),
+  JSON.stringify([{ id: 1 }, { id: 2 }], null, 2)
+);
+await fs.writeFile(
+  path.join(multiSourceDir, 'sample-b.json'),
+  JSON.stringify([{ id: 3 }], null, 2)
+);
+await writePiecesManifest(multiSourceDir, [
+  { name: 'sample', path: 'sample-a.json' },
+  { name: 'sample', path: 'sample-b.json' }
+]);
+
+const mergedRows = await loadJsonArrayArtifact(multiSourceDir, 'sample', { strict: false });
+assert.equal(Array.isArray(mergedRows), true, 'expected merged rows payload');
+assert.equal(mergedRows.length, 3, 'expected non-strict loader to merge all json sources');
+
+let streamedRows = 0;
+for await (const _row of loadJsonArrayArtifactRows(multiSourceDir, 'sample', { strict: false })) {
+  streamedRows += 1;
+}
+assert.equal(streamedRows, 3, 'expected streaming loader to iterate all non-strict json sources');
+
 console.log('loader fallbacks test passed');

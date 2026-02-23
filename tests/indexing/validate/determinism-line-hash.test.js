@@ -8,8 +8,10 @@ import { hashDeterministicLines } from '../../../src/shared/invariants.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { createBaseIndex, defaultUserConfig } from './helpers.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'determinism-line-hash');
+const tempRoot = resolveTestCachePath(root, 'determinism-line-hash');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

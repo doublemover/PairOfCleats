@@ -17,12 +17,16 @@ export const createShardRuntime = (baseRuntime, { fileConcurrency, importConcurr
   const baseWorkerPools = baseRuntime.workerPools;
   const baseWorkerPool = baseRuntime.workerPool;
   const baseQuantizePool = baseRuntime.quantizePool;
-  const ioConcurrency = Number.isFinite(baseRuntime.ioConcurrency)
+  const requestedIoConcurrency = Math.max(1, Math.floor(Math.max(fileConcurrency, importConcurrency) || 1));
+  const requestedCpuConcurrency = Math.max(1, Math.floor(fileConcurrency || 1));
+  const baseIoConcurrency = Number.isFinite(baseRuntime.ioConcurrency)
     ? Math.max(1, Math.floor(baseRuntime.ioConcurrency))
-    : Math.max(fileConcurrency, importConcurrency);
-  const cpuConcurrency = Number.isFinite(baseRuntime.cpuConcurrency)
+    : requestedIoConcurrency;
+  const baseCpuConcurrency = Number.isFinite(baseRuntime.cpuConcurrency)
     ? Math.max(1, Math.floor(baseRuntime.cpuConcurrency))
-    : Math.max(1, fileConcurrency);
+    : requestedCpuConcurrency;
+  const ioConcurrency = Math.max(1, Math.min(baseIoConcurrency, requestedIoConcurrency));
+  const cpuConcurrency = Math.max(1, Math.min(baseCpuConcurrency, requestedCpuConcurrency));
   const pendingLimits = baseRuntime?.envelope?.queues || null;
   const scheduler = baseRuntime?.scheduler || null;
   const stage1Queues = baseRuntime?.stage1Queues || null;

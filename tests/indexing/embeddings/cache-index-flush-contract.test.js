@@ -6,8 +6,10 @@ import { flushCacheIndex, readCacheIndex, writeCacheIndex } from '../../../tools
 import { flushCacheIndexIfNeeded } from '../../../tools/build/embeddings/cache-flush.js';
 import { acquireFileLock } from '../../../src/shared/locks/file-lock.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'embeddings-cache-index-flush-contract');
+const tempRoot = resolveTestCachePath(root, 'embeddings-cache-index-flush-contract');
 const cacheDir = path.join(tempRoot, 'files');
 const lockPath = path.join(cacheDir, 'cache.lock');
 const identityKey = 'identity-test-key';

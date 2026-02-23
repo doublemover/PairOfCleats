@@ -7,10 +7,12 @@ import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import { assembleCompositeContextPackStreaming } from '../../../src/context-pack/assemble.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'context-pack-seed-indexing');
+const tempRoot = resolveTestCachePath(root, 'context-pack-seed-indexing');
 const repoRoot = path.join(tempRoot, 'repo');
 const indexDir = path.join(tempRoot, 'index-code');
 

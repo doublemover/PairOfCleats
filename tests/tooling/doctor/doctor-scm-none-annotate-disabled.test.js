@@ -5,8 +5,10 @@ import path from 'node:path';
 import { registerDefaultToolingProviders } from '../../../src/index/tooling/providers/index.js';
 import { runToolingDoctor } from '../../../src/index/tooling/doctor.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'tooling-doctor-scm-none');
+const tempRoot = resolveTestCachePath(root, 'tooling-doctor-scm-none');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

@@ -5,12 +5,14 @@ import { startMcpServer } from '../../helpers/mcp-client.js';
 import { ensureFixtureIndex } from '../../helpers/fixture-index.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const sampleRepo = path.join(process.cwd(), 'tests', 'fixtures', 'sample');
 const suffix = typeof process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX === 'string'
   ? process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX.trim()
   : '';
 const cacheName = suffix ? `mcp-search-${suffix}` : 'mcp-search';
-const cacheRoot = path.join(process.cwd(), '.testCache', cacheName);
+const cacheRoot = resolveTestCachePath(process.cwd(), cacheName);
 applyTestEnv({ cacheRoot });
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 

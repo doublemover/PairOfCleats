@@ -6,7 +6,9 @@ import {
   rememberQueryCacheEntry
 } from '../../../src/retrieval/query-cache.js';
 
-const cachePath = path.join(process.cwd(), '.testCache', 'query-cache-disk-first-miss', 'queryCache.json');
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
+const cachePath = resolveTestCachePath(process.cwd(), 'query-cache-disk-first-miss', 'queryCache.json');
 const key = 'query-key';
 const signature = 'signature';
 const memoryEntry = { key, signature, ts: 200, payload: { source: 'memory' } };

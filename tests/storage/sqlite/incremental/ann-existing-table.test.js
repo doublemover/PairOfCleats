@@ -6,8 +6,10 @@ import { writeBundleFile } from '../../../../src/shared/bundle-io.js';
 import { incrementalUpdateDatabase } from '../../../../src/storage/sqlite/build/incremental-update.js';
 import { CREATE_TABLES_BASE_SQL, SCHEMA_VERSION } from '../../../../src/storage/sqlite/schema.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
-const tempRoot = path.join(ROOT, '.testCache', 'sqlite-ann-existing-table');
+const tempRoot = resolveTestCachePath(ROOT, 'sqlite-ann-existing-table');
 const bundleDir = path.join(tempRoot, 'bundles');
 const dbPath = path.join(tempRoot, 'index-code.db');
 

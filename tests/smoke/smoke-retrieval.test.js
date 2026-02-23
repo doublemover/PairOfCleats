@@ -7,7 +7,9 @@ import { getCombinedOutput } from '../helpers/stdio.js';
 import { applyTestEnv } from '../helpers/test-env.js';
 import { cleanup, root } from './smoke-utils.js';
 
-const tempRoot = path.join(root, '.testCache', 'smoke-retrieval');
+import { resolveTestCachePath } from '../helpers/test-cache.js';
+
+const tempRoot = resolveTestCachePath(root, 'smoke-retrieval');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');

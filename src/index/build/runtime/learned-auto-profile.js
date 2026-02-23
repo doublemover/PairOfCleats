@@ -58,6 +58,8 @@ const normalizeProfiles = (profiles, maxEntries = AUTO_PROFILE_MAX_TRACKED_PROFI
       confidence: toUnitInterval(entry.confidence, 0),
       reason: typeof entry.reason === 'string' ? entry.reason : 'unknown',
       features: isObject(entry.features) ? entry.features : null,
+      rootMtimeMs: Number.isFinite(Number(entry.rootMtimeMs)) ? Math.floor(Number(entry.rootMtimeMs)) : null,
+      featureSource: typeof entry.featureSource === 'string' ? entry.featureSource : null,
       updatedAt: typeof entry.updatedAt === 'string' ? entry.updatedAt : null,
       applied: entry.applied === true,
       eligible: entry.eligible === true,
@@ -84,6 +86,7 @@ const resolveAutoProfileConfig = (indexingConfig = {}) => {
     minConfidence: toUnitInterval(raw.minConfidence, 0.7),
     maxScanEntries: toPositiveInt(raw.maxScanEntries, 4000),
     includeDotDirs: raw.includeDotDirs === true,
+    featureRescanIntervalMs: toPositiveInt(raw.featureRescanIntervalMs, 30 * 60 * 1000),
     maxTrackedProfiles: toPositiveInt(raw.maxTrackedProfiles, AUTO_PROFILE_MAX_TRACKED_PROFILES)
   };
 };
@@ -187,6 +190,16 @@ const sampleRepoFeatures = async (root, { maxEntries = 4000, includeDotDirs = fa
   };
 };
 
+const readRootMtimeMs = async (root) => {
+  try {
+    const stat = await fs.stat(root);
+    const mtimeMs = Number(stat?.mtimeMs);
+    return Number.isFinite(mtimeMs) ? Math.floor(mtimeMs) : null;
+  } catch {
+    return null;
+  }
+};
+
 const resolveProfileFromFeatures = ({ features, priorProfileId = null }) => {
   const files = Number(features?.files) || 0;
   const bytes = Number(features?.bytes) || 0;
@@ -277,15 +290,40 @@ export const resolveLearnedAutoProfileSelection = async ({
     : null;
   const priorProfileId = priorEntry?.profileId || null;
   const priorConfidence = toUnitInterval(priorEntry?.confidence, 0);
+  const priorFeatures = isObject(priorEntry?.features) ? priorEntry.features : null;
+  const priorUpdatedAtMs = toTimestamp(priorEntry?.updatedAt);
+  const priorRootMtimeMs = Number.isFinite(Number(priorEntry?.rootMtimeMs))
+    ? Math.floor(Number(priorEntry.rootMtimeMs))
+    : null;
+  const rootMtimeMs = await readRootMtimeMs(root);
   let features = null;
   let featureScanError = null;
-  try {
-    features = await sampleRepoFeatures(root, {
-      maxEntries: config.maxScanEntries,
-      includeDotDirs: config.includeDotDirs
-    });
-  } catch (err) {
-    featureScanError = err?.message || String(err);
+  let featureSource = 'scan';
+  const canReusePriorFeatures = (
+    priorFeatures
+    && priorFeatures.scanTruncated !== true
+    && (
+      (Number.isFinite(rootMtimeMs) && Number.isFinite(priorRootMtimeMs) && rootMtimeMs === priorRootMtimeMs)
+      || (
+        !Number.isFinite(rootMtimeMs)
+        && priorUpdatedAtMs > 0
+        && (Date.now() - priorUpdatedAtMs) <= config.featureRescanIntervalMs
+      )
+    )
+  );
+  if (canReusePriorFeatures) {
+    features = priorFeatures;
+    featureSource = 'cache';
+  } else {
+    try {
+      features = await sampleRepoFeatures(root, {
+        maxEntries: config.maxScanEntries,
+        includeDotDirs: config.includeDotDirs
+      });
+    } catch (err) {
+      featureScanError = err?.message || String(err);
+      featureSource = 'fallback';
+    }
   }
   const learned = featureScanError
     ? resolveFeatureScanFallback({ priorProfileId, priorConfidence })
@@ -298,6 +336,8 @@ export const resolveLearnedAutoProfileSelection = async ({
     confidence,
     reason: learned.reason,
     features,
+    rootMtimeMs,
+    featureSource,
     updatedAt: new Date().toISOString(),
     applied,
     eligible,
@@ -315,7 +355,7 @@ export const resolveLearnedAutoProfileSelection = async ({
     log(
       `[auto-profile] learned profile=${learned.profileId} confidence=${confidence.toFixed(2)} ` +
       `(shadowOnly=${config.shadowOnly}, minConfidence=${config.minConfidence.toFixed(2)}, ` +
-      `eligible=${eligible}, applied=${applied}, persisted=${persisted}${fallbackSuffix}).`
+      `eligible=${eligible}, applied=${applied}, source=${featureSource}, persisted=${persisted}${fallbackSuffix}).`
     );
   }
   return {
@@ -328,6 +368,7 @@ export const resolveLearnedAutoProfileSelection = async ({
     minConfidence: config.minConfidence,
     reason: learned.reason,
     features,
+    featureSource,
     overrides: applied ? learned.overrides : null,
     suggestion: learned.overrides || null,
     fallback: featureScanError

@@ -8,10 +8,12 @@ import { listTrackedHeaderPaths } from '../../../../src/index/tooling/clangd-pro
 import { skip } from '../../../helpers/skip.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 applyTestEnv();
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'clangd-tracked-headers-disk-cache');
+const tempRoot = resolveTestCachePath(root, 'clangd-tracked-headers-disk-cache');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheDir = path.join(tempRoot, 'cache');
 

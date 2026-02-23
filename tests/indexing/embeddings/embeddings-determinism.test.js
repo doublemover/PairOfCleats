@@ -9,13 +9,15 @@ import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { loadPiecesManifestPieces } from '../../helpers/pieces-manifest.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const sha256File = async (filePath) => crypto
   .createHash('sha256')
   .update(await fsPromises.readFile(filePath))
   .digest('hex');
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'embeddings-determinism');
+const tempRoot = resolveTestCachePath(root, 'embeddings-determinism');
 const repoRoot = path.join(tempRoot, 'repo');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });

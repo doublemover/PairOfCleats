@@ -8,10 +8,12 @@ import { writeJsonLinesSharded, writeJsonObjectFile } from '../../../src/shared/
 import { createRepoMapIterator } from '../../../src/index/build/artifacts/writers/repo-map.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
-const cacheRoot = path.join(root, '.testCache', 'repo-map-roundtrip');
+const cacheRoot = resolveTestCachePath(root, 'repo-map-roundtrip');
 const outDir = path.join(cacheRoot, 'index-code');
 
 await fs.rm(cacheRoot, { recursive: true, force: true });

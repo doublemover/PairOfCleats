@@ -6,9 +6,11 @@ import { spawnSync } from 'node:child_process';
 import { loadUserConfig, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = path.join(root, '.testCache', 'sqlite-compact');
+const tempRoot = resolveTestCachePath(root, 'sqlite-compact');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 

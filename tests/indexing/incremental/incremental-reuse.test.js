@@ -5,8 +5,10 @@ import { shouldReuseIncrementalIndex } from '../../../src/index/build/incrementa
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { SIGNATURE_VERSION } from '../../../src/index/build/indexer/signatures.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'incremental-reuse');
+const tempRoot = resolveTestCachePath(root, 'incremental-reuse');
 const outDir = path.join(tempRoot, 'index');
 
 await fs.rm(tempRoot, { recursive: true, force: true });

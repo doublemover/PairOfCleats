@@ -6,10 +6,12 @@ import path from 'node:path';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 import { applyCrossFileInference } from '../../../../src/index/type-inference-crossfile/pipeline.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'crossfile-inference-lite-profile');
+const tempRoot = resolveTestCachePath(root, 'crossfile-inference-lite-profile');
 const srcDir = path.join(tempRoot, 'src');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(srcDir, { recursive: true });

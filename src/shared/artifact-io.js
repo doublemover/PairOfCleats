@@ -50,6 +50,7 @@ export {
   loadGraphRelations,
   loadGraphRelationsSync,
   loadChunkMeta,
+  loadChunkMetaRows,
   loadTokenPostings,
   loadMinhashSignatures,
   loadMinhashSignatureRows,

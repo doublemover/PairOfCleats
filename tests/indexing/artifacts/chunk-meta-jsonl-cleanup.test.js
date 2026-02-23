@@ -12,8 +12,10 @@ import { writePiecesManifest } from '../../../src/index/build/artifacts/checksum
 import { loadChunkMeta } from '../../../src/shared/artifact-io.js';
 import { toPosix } from '../../../src/shared/files.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const cacheRoot = path.join(root, '.testCache', 'chunk-meta-jsonl-cleanup');
+const cacheRoot = resolveTestCachePath(root, 'chunk-meta-jsonl-cleanup');
 const outDir = path.join(cacheRoot, 'index');
 
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });

@@ -4,8 +4,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { loadChunkMeta } from '../../../src/shared/artifact-io.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'metaV2-backcompat-v2-reader');
+const tempRoot = resolveTestCachePath(root, 'metaV2-backcompat-v2-reader');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });

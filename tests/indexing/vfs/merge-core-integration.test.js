@@ -6,8 +6,10 @@ import { createVfsManifestCollector } from '../../../src/index/build/vfs-manifes
 import { enqueueVfsManifestArtifacts } from '../../../src/index/build/artifacts/writers/vfs-manifest.js';
 import { compareVfsManifestRows } from '../../../src/index/tooling/vfs.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'vfs-merge-core');
+const tempRoot = resolveTestCachePath(root, 'vfs-merge-core');
 const outDir = path.join(tempRoot, 'out');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(outDir, { recursive: true });

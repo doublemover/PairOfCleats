@@ -4,8 +4,10 @@ import path from 'node:path';
 import { readJsonLinesArray } from '../../../src/shared/artifact-io.js';
 import { writeJsonLinesFile } from '../../../src/shared/json-stream.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const outDir = path.join(root, '.testCache', 'artifact-io-jsonl');
+const outDir = resolveTestCachePath(root, 'artifact-io-jsonl');
 await fs.rm(outDir, { recursive: true, force: true });
 await fs.mkdir(outDir, { recursive: true });
 

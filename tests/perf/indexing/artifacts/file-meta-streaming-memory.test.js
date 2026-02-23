@@ -5,8 +5,10 @@ import { buildFileMetaColumnar } from '../../../../src/index/build/artifacts/fil
 import { writeJsonLinesFile } from '../../../../src/shared/json-stream.js';
 import { writePiecesManifest } from '../../../helpers/artifact-io-fixture.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const root = process.cwd();
-const outDir = path.join(root, '.testCache', 'file-meta-streaming-memory');
+const outDir = resolveTestCachePath(root, 'file-meta-streaming-memory');
 await fs.rm(outDir, { recursive: true, force: true });
 await fs.mkdir(outDir, { recursive: true });
 
@@ -40,7 +42,7 @@ if (!threw) {
   process.exit(1);
 }
 
-const fallbackDir = path.join(root, '.testCache', 'file-meta-streaming-fallback');
+const fallbackDir = resolveTestCachePath(root, 'file-meta-streaming-fallback');
 await fs.rm(fallbackDir, { recursive: true, force: true });
 await fs.mkdir(fallbackDir, { recursive: true });
 

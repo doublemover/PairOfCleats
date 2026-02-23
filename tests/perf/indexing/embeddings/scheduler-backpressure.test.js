@@ -13,8 +13,10 @@ import {
 } from '../../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'embeddings-scheduler-backpressure');
+const tempRoot = resolveTestCachePath(root, 'embeddings-scheduler-backpressure');
 const repoRoot = path.join(tempRoot, 'repo');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });

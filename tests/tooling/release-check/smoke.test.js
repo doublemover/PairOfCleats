@@ -1,42 +1,17 @@
 #!/usr/bin/env node
-import fsPromises from 'node:fs/promises';
-import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { loadReleaseCheckArtifacts, runReleaseCheckCli } from '../../helpers/release-check-fixture.js';
 
-const root = process.cwd();
-const outDir = path.join(root, '.testCache', 'release-check-smoke');
-const reportPath = path.join(outDir, 'release_check_report.json');
-const manifestPath = path.join(outDir, 'release-manifest.json');
+const { run, root, reportPath, manifestPath } = await runReleaseCheckCli({
+  outDirName: 'release-check-smoke'
+});
 
-await fsPromises.rm(outDir, { recursive: true, force: true });
-await fsPromises.mkdir(outDir, { recursive: true });
-
-const result = spawnSync(
-  process.execPath,
-  [
-    path.join(root, 'tools', 'release', 'check.js'),
-    '--dry-run',
-    '--report',
-    reportPath,
-    '--manifest',
-    manifestPath
-  ],
-  {
-    cwd: root,
-    encoding: 'utf8'
-  }
-);
-
-if (result.status !== 0) {
+if (run.status !== 0) {
   console.error('release-check smoke failed');
-  if (result.stderr) console.error(result.stderr.trim());
-  process.exit(result.status ?? 1);
+  if (run.stderr) console.error(run.stderr.trim());
+  process.exit(run.status ?? 1);
 }
 
-const reportRaw = await fsPromises.readFile(reportPath, 'utf8');
-const manifestRaw = await fsPromises.readFile(manifestPath, 'utf8');
-const report = JSON.parse(reportRaw);
-const manifest = JSON.parse(manifestRaw);
+const { report, manifest } = await loadReleaseCheckArtifacts({ reportPath, manifestPath });
 
 if (!report || report.schemaVersion !== 1 || !Array.isArray(report.checks) || !report.ok) {
   console.error('release-check smoke failed: report schema invalid');
@@ -66,6 +41,12 @@ const ids = report.checks.map((step) => step.id);
 for (const id of expected) {
   if (!ids.includes(id)) {
     console.error(`release-check smoke failed: missing step ${id}`);
+    process.exit(1);
+  }
+}
+for (let i = 0; i < expected.length; i += 1) {
+  if (ids[i] !== expected[i]) {
+    console.error(`release-check smoke failed at index ${i}: expected ${expected[i]}, got ${ids[i]}`);
     process.exit(1);
   }
 }

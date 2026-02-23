@@ -8,8 +8,10 @@ import { sha1 } from '../../src/shared/hash.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
 import { applyTestEnv } from '../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'phase14-index-ref');
+const tempRoot = resolveTestCachePath(root, 'phase14-index-ref');
 const cacheRoot = path.join(tempRoot, 'cache');
 const repoRoot = path.join(tempRoot, 'repo');
 const userConfig = { cache: { root: cacheRoot } };

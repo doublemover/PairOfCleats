@@ -4,8 +4,10 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'cache-gc');
+const tempRoot = resolveTestCachePath(root, 'cache-gc');
 const cacheRoot = path.join(tempRoot, 'cache');
 const repoRoot = path.join(cacheRoot, 'repos');
 const toolPath = path.join(root, 'tools', 'index', 'cache-gc.js');

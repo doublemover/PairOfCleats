@@ -15,8 +15,10 @@ import {
 } from '../../../src/index/build/artifacts/writers/chunk-meta.js';
 import { TRIM_POLICY_VERSION, TRIM_REASONS } from '../../../src/index/build/artifacts/trim-policy.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const cacheRoot = path.join(root, '.testCache', 'trim-policy-contract');
+const cacheRoot = resolveTestCachePath(root, 'trim-policy-contract');
 await fs.rm(cacheRoot, { recursive: true, force: true });
 await fs.mkdir(cacheRoot, { recursive: true });
 

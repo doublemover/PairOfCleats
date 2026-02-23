@@ -4,8 +4,10 @@ import path from 'node:path';
 
 import { resolveVfsDiskPath } from '../../../src/index/tooling/vfs.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const baseDir = path.join(root, '.testCache', 'vfs-disk-path-safety');
+const baseDir = resolveTestCachePath(root, 'vfs-disk-path-safety');
 
 const unsafeVirtualPath = '.poc-vfs/src/illegal:chars*?.ts#seg:segu:v1:abc.ts';
 const resolvedUnsafe = resolveVfsDiskPath({ baseDir, virtualPath: unsafeVirtualPath });

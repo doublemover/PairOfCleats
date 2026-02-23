@@ -7,8 +7,10 @@ import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import { validateIndexArtifacts } from '../../../src/index/validate.js';
 import { createBaseIndex, defaultUserConfig } from './helpers.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'index-validate-binary-columnar-manifest-names');
+const tempRoot = resolveTestCachePath(root, 'index-validate-binary-columnar-manifest-names');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

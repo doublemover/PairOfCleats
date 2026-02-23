@@ -11,18 +11,22 @@ import { createCrashLogger } from '../../../src/index/build/crash-log.js';
 import { runTreeSitterScheduler } from '../../../src/index/build/tree-sitter-scheduler/runner.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'tree-sitter-scheduler-crash-fallback');
+const tempRoot = resolveTestCachePath(root, 'tree-sitter-scheduler-crash-fallback');
 const outDir = path.join(tempRoot, 'index-code');
 const repoCacheRoot = path.join(tempRoot, 'repo-cache');
 const perlAbs = path.join(root, 'tests', 'fixtures', 'languages', 'src', 'perl_advanced.pl');
+const perlSiblingAbs = path.join(tempRoot, 'perl_sibling.pl');
 const jsAbs = path.join(root, 'tests', 'fixtures', 'tree-sitter', 'javascript.js');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(outDir, { recursive: true });
 await fs.mkdir(repoCacheRoot, { recursive: true });
+await fs.copyFile(perlAbs, perlSiblingAbs);
 
 const runtime = {
   root,
@@ -45,22 +49,33 @@ const crashLogger = await createCrashLogger({
 const previousCrashInjection = process.env.PAIROFCLEATS_TEST_TREE_SITTER_SCHEDULER_CRASH;
 process.env.PAIROFCLEATS_TEST_TREE_SITTER_SCHEDULER_CRASH = 'perl';
 let scheduler = null;
+let schedulerError = null;
 try {
   scheduler = await runTreeSitterScheduler({
     mode: 'code',
     runtime,
-    entries: [perlAbs, jsAbs],
+    entries: [perlAbs, perlSiblingAbs, jsAbs],
     outDir,
     abortSignal: null,
     log: () => {},
     crashLogger
   });
+} catch (err) {
+  schedulerError = err;
 } finally {
   if (previousCrashInjection === undefined) {
     delete process.env.PAIROFCLEATS_TEST_TREE_SITTER_SCHEDULER_CRASH;
   } else {
     process.env.PAIROFCLEATS_TEST_TREE_SITTER_SCHEDULER_CRASH = previousCrashInjection;
   }
+}
+if (schedulerError) {
+  const message = schedulerError?.message || String(schedulerError);
+  if (/\bgrammar preflight failed unavailable=/.test(message)) {
+    console.log('tree-sitter scheduler crash fallback skipped (native grammars unavailable)');
+    process.exit(0);
+  }
+  throw schedulerError;
 }
 
 assert.ok(scheduler, 'expected scheduler result');
@@ -83,9 +98,13 @@ assert.ok(
   'expected degraded virtual path checker'
 );
 const crashSummary = scheduler.getCrashSummary();
+const degradedPerlVirtualPaths = crashSummary.degradedVirtualPaths.filter((virtualPath) => (
+  virtualPath.includes('perl_advanced.pl') || virtualPath.includes('perl_sibling.pl')
+));
+assert.ok(degradedPerlVirtualPaths.length >= 1, 'expected a failed perl virtual path to be marked degraded');
 assert.ok(
-  crashSummary.degradedVirtualPaths.some((virtualPath) => virtualPath.includes('perl_advanced.pl')),
-  'expected perl virtual path to be marked degraded'
+  degradedPerlVirtualPaths.length <= 1,
+  `expected per-file degradation containment; got ${degradedPerlVirtualPaths.length} perl paths`
 );
 await fs.access(scheduler.crashForensicsBundlePath);
 await fs.access(path.join(repoCacheRoot, 'logs', 'index-crash-forensics-index.json'));

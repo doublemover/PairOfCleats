@@ -14,6 +14,8 @@ import { ensureParityArtifacts } from '../../../tools/shared/parity-indexes.js';
 import { formatParityDuration } from '../../helpers/duration-format.js';
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const argv = createCli({
   scriptName: 'parity',
   options: {
@@ -40,7 +42,7 @@ const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '.
 const userConfig = loadUserConfig(root);
 const isTestRun = process.env.PAIROFCLEATS_TESTING === '1';
 if (isTestRun && !process.env.PAIROFCLEATS_CACHE_ROOT) {
-  process.env.PAIROFCLEATS_CACHE_ROOT = path.join(root, '.testCache', 'retrieval-parity');
+  process.env.PAIROFCLEATS_CACHE_ROOT = resolveTestCachePath(root, 'retrieval-parity');
 }
 const resolveSqlitePathsForRoot = () => resolveSqlitePaths(root, userConfig);
 

@@ -4,8 +4,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { readJsonLinesArray, readJsonLinesEach } from '../../../src/shared/artifact-io.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const cacheRoot = path.join(root, '.testCache', 'jsonl-buffer-scan');
+const cacheRoot = resolveTestCachePath(root, 'jsonl-buffer-scan');
 await fs.rm(cacheRoot, { recursive: true, force: true });
 await fs.mkdir(cacheRoot, { recursive: true });
 

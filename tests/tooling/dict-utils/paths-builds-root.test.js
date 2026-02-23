@@ -6,8 +6,10 @@ import path from 'node:path';
 import { getBuildsRoot, getRepoId } from '../../../tools/dict-utils/paths.js';
 import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'dict-utils-builds');
+const tempRoot = resolveTestCachePath(root, 'dict-utils-builds');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

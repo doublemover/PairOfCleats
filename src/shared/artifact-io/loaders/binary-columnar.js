@@ -49,6 +49,44 @@ const assertSupportedBinaryColumnarMeta = (metaRaw, label) => {
   }
 };
 
+const resolveBinaryColumnarFrameMetadata = ({
+  offsetsPath,
+  lengthsPath,
+  count,
+  offsetsBuffer = null,
+  lengthsBuffer = null,
+  maxBytes = null
+}) => {
+  const hasOffsetsBuffer = Buffer.isBuffer(offsetsBuffer) || offsetsBuffer instanceof Uint8Array;
+  const hasLengthsBuffer = Buffer.isBuffer(lengthsBuffer) || lengthsBuffer instanceof Uint8Array;
+  if (!hasOffsetsBuffer && !existsOrBak(offsetsPath)) {
+    return null;
+  }
+  if (!hasLengthsBuffer && !existsOrBak(lengthsPath)) {
+    return null;
+  }
+  const resolvedOffsetsPath = hasOffsetsBuffer ? null : resolvePathOrBak(offsetsPath);
+  const resolvedLengthsPath = hasLengthsBuffer ? null : resolvePathOrBak(lengthsPath);
+  const resolvedOffsetsBuffer = hasOffsetsBuffer
+    ? (Buffer.isBuffer(offsetsBuffer) ? offsetsBuffer : Buffer.from(offsetsBuffer))
+    : fs.readFileSync(resolvedOffsetsPath);
+  const resolvedLengthsBuffer = hasLengthsBuffer
+    ? (Buffer.isBuffer(lengthsBuffer) ? lengthsBuffer : Buffer.from(lengthsBuffer))
+    : fs.readFileSync(resolvedLengthsPath);
+  assertWithinMaxBytes(resolvedOffsetsBuffer.length, maxBytes, 'Binary-columnar offsets');
+  assertWithinMaxBytes(resolvedLengthsBuffer.length, maxBytes, 'Binary-columnar lengths');
+  const offsets = decodeU64Offsets(resolvedOffsetsBuffer);
+  const lengths = decodeBinaryRowFrameLengths(resolvedLengthsBuffer);
+  if (!Number.isFinite(count) || count < 0) return null;
+  if (offsets.length < count || lengths.length < count) {
+    throw new Error('Binary-columnar frame metadata count mismatch');
+  }
+  return {
+    offsets,
+    lengths
+  };
+};
+
 /**
  * Load framed binary-columnar row payload slices.
  *
@@ -71,38 +109,24 @@ const loadBinaryColumnarRowPayloads = ({
   maxBytes = null
 }) => {
   const hasDataBuffer = Buffer.isBuffer(dataBuffer) || dataBuffer instanceof Uint8Array;
-  const hasOffsetsBuffer = Buffer.isBuffer(offsetsBuffer) || offsetsBuffer instanceof Uint8Array;
-  const hasLengthsBuffer = Buffer.isBuffer(lengthsBuffer) || lengthsBuffer instanceof Uint8Array;
   if (!hasDataBuffer && !existsOrBak(dataPath)) {
     return null;
   }
-  if (!hasOffsetsBuffer && !existsOrBak(offsetsPath)) {
-    return null;
-  }
-  if (!hasLengthsBuffer && !existsOrBak(lengthsPath)) {
-    return null;
-  }
   const resolvedDataPath = hasDataBuffer ? null : resolvePathOrBak(dataPath);
-  const resolvedOffsetsPath = hasOffsetsBuffer ? null : resolvePathOrBak(offsetsPath);
-  const resolvedLengthsPath = hasLengthsBuffer ? null : resolvePathOrBak(lengthsPath);
   const resolvedDataBuffer = hasDataBuffer
     ? (Buffer.isBuffer(dataBuffer) ? dataBuffer : Buffer.from(dataBuffer))
     : fs.readFileSync(resolvedDataPath);
-  const resolvedOffsetsBuffer = hasOffsetsBuffer
-    ? (Buffer.isBuffer(offsetsBuffer) ? offsetsBuffer : Buffer.from(offsetsBuffer))
-    : fs.readFileSync(resolvedOffsetsPath);
-  const resolvedLengthsBuffer = hasLengthsBuffer
-    ? (Buffer.isBuffer(lengthsBuffer) ? lengthsBuffer : Buffer.from(lengthsBuffer))
-    : fs.readFileSync(resolvedLengthsPath);
+  const metadata = resolveBinaryColumnarFrameMetadata({
+    offsetsPath,
+    lengthsPath,
+    count,
+    offsetsBuffer,
+    lengthsBuffer,
+    maxBytes
+  });
+  if (!metadata) return null;
+  const { offsets, lengths } = metadata;
   assertWithinMaxBytes(resolvedDataBuffer.length, maxBytes, 'Binary-columnar data');
-  assertWithinMaxBytes(resolvedOffsetsBuffer.length, maxBytes, 'Binary-columnar offsets');
-  assertWithinMaxBytes(resolvedLengthsBuffer.length, maxBytes, 'Binary-columnar lengths');
-  const offsets = decodeU64Offsets(resolvedOffsetsBuffer);
-  const lengths = decodeBinaryRowFrameLengths(resolvedLengthsBuffer);
-  if (!Number.isFinite(count) || count < 0) return null;
-  if (offsets.length < count || lengths.length < count) {
-    throw new Error('Binary-columnar frame metadata count mismatch');
-  }
   const rows = new Array(count);
   for (let i = 0; i < count; i += 1) {
     const start = offsets[i];
@@ -123,13 +147,84 @@ const loadBinaryColumnarRowPayloads = ({
 };
 
 /**
- * Attempt to load `chunk_meta` from binary-columnar artifacts.
+ * Iterate framed binary-columnar row payloads without materializing full data blobs.
  *
- * @param {string} dir
- * @param {{ maxBytes?: number }} [options]
- * @returns {object[]|null}
+ * @param {{
+ *   dataPath: string,
+ *   offsetsPath: string,
+ *   lengthsPath: string,
+ *   count: number,
+ *   offsetsBuffer?: Buffer|Uint8Array|null,
+ *   lengthsBuffer?: Buffer|Uint8Array|null,
+ *   maxBytes?: number|null,
+ *   enforceDataBudget?: boolean
+ * }} input
+ * @returns {Generator<Buffer, void, unknown>|null}
  */
-const tryLoadChunkMetaBinaryColumnar = (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
+const iterateBinaryColumnarRowPayloads = ({
+  dataPath,
+  offsetsPath,
+  lengthsPath,
+  count,
+  offsetsBuffer = null,
+  lengthsBuffer = null,
+  maxBytes = null,
+  enforceDataBudget = false
+}) => {
+  if (!existsOrBak(dataPath)) return null;
+  const metadata = resolveBinaryColumnarFrameMetadata({
+    offsetsPath,
+    lengthsPath,
+    count,
+    offsetsBuffer,
+    lengthsBuffer,
+    maxBytes
+  });
+  if (!metadata) return null;
+  const { offsets, lengths } = metadata;
+  const resolvedDataPath = resolvePathOrBak(dataPath);
+  const max = toPositiveFinite(maxBytes);
+  return (function* () {
+    const dataHandle = fs.openSync(resolvedDataPath, 'r');
+    try {
+      const dataSize = Number(fs.fstatSync(dataHandle)?.size || 0);
+      if (enforceDataBudget) {
+        assertWithinMaxBytes(dataSize, maxBytes, 'Binary-columnar data');
+      }
+      for (let i = 0; i < count; i += 1) {
+        const start = offsets[i];
+        const length = lengths[i];
+        if (!Number.isSafeInteger(start) || start < 0) {
+          throw new Error(`Invalid binary-columnar row offset: ${start}`);
+        }
+        if (!Number.isSafeInteger(length) || length < 0) {
+          throw new Error(`Invalid binary-columnar row length: ${length}`);
+        }
+        if (max && length > max) {
+          throw new Error(`Binary-columnar row exceeds maxBytes (${length} > ${max})`);
+        }
+        const end = start + length;
+        if (!Number.isSafeInteger(end) || end > dataSize) {
+          throw new Error('Binary-columnar data truncated');
+        }
+        const row = Buffer.allocUnsafe(length);
+        let readOffset = 0;
+        while (readOffset < length) {
+          const bytesRead = fs.readSync(dataHandle, row, readOffset, length - readOffset, start + readOffset);
+          if (!Number.isFinite(bytesRead) || bytesRead <= 0) {
+            throw new Error('Binary-columnar data truncated');
+          }
+          readOffset += bytesRead;
+        }
+        yield row;
+      }
+    } finally {
+      fs.closeSync(dataHandle);
+    }
+  })();
+};
+
+const resolveChunkMetaBinaryColumnarLayout = (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
   const metaPath = path.join(dir, 'chunk_meta.binary-columnar.meta.json');
   if (!existsOrBak(metaPath)) return null;
   const metaRaw = readJsonFileCached(resolvePathOrBak(metaPath), { maxBytes });
@@ -142,7 +237,6 @@ const tryLoadChunkMetaBinaryColumnar = (dir, { maxBytes = MAX_JSON_BYTES } = {})
   const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
   const fileTable = Array.isArray(metaRaw?.arrays?.fileTable) ? metaRaw.arrays.fileTable : [];
   const count = Number.isFinite(Number(meta?.count)) ? Math.max(0, Math.floor(Number(meta.count))) : 0;
-  if (!count) return [];
   const dataPath = path.join(dir, typeof meta?.data === 'string' ? meta.data : 'chunk_meta.binary-columnar.bin');
   const offsetsPath = path.join(
     dir,
@@ -152,24 +246,71 @@ const tryLoadChunkMetaBinaryColumnar = (dir, { maxBytes = MAX_JSON_BYTES } = {})
     dir,
     typeof meta?.lengths === 'string' ? meta.lengths : 'chunk_meta.binary-columnar.lengths.varint'
   );
-  const payloads = loadBinaryColumnarRowPayloads({
+  return {
+    count,
+    fileTable,
+    dataPath,
+    offsetsPath,
+    lengthsPath
+  };
+};
+
+/**
+ * Attempt to iterate `chunk_meta` rows from binary-columnar artifacts.
+ *
+ * @param {string} dir
+ * @param {{ maxBytes?: number, enforceDataBudget?: boolean }} [options]
+ * @returns {Generator<object, void, unknown>|null}
+ */
+const iterateChunkMetaBinaryColumnarRows = (
+  dir,
+  {
+    maxBytes = MAX_JSON_BYTES,
+    enforceDataBudget = false
+  } = {}
+) => {
+  const layout = resolveChunkMetaBinaryColumnarLayout(dir, { maxBytes });
+  if (!layout) return null;
+  const {
+    count,
+    fileTable,
+    dataPath,
+    offsetsPath,
+    lengthsPath
+  } = layout;
+  if (!count) return (function* () {})();
+  const payloads = iterateBinaryColumnarRowPayloads({
     dataPath,
     offsetsPath,
     lengthsPath,
     count,
-    maxBytes
+    maxBytes,
+    enforceDataBudget
   });
   if (!payloads) return null;
-  const rows = new Array(payloads.length);
-  for (let i = 0; i < payloads.length; i += 1) {
-    const row = JSON.parse(payloads[i].toString('utf8'));
-    if (row && Number.isInteger(row.fileRef) && (row.file == null)) {
-      row.file = fileTable[row.fileRef] ?? null;
-      delete row.fileRef;
+  return (function* () {
+    for (const payload of payloads) {
+      const row = JSON.parse(payload.toString('utf8'));
+      if (row && Number.isInteger(row.fileRef) && (row.file == null)) {
+        row.file = fileTable[row.fileRef] ?? null;
+        delete row.fileRef;
+      }
+      yield row;
     }
-    rows[i] = row;
-  }
-  return rows;
+  })();
+};
+
+/**
+ * Attempt to load `chunk_meta` from binary-columnar artifacts.
+ *
+ * @param {string} dir
+ * @param {{ maxBytes?: number }} [options]
+ * @returns {object[]|null}
+ */
+const tryLoadChunkMetaBinaryColumnar = (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
+  const rows = iterateChunkMetaBinaryColumnarRows(dir, { maxBytes, enforceDataBudget: true });
+  if (!rows) return null;
+  return Array.from(rows);
 };
 
 /**
@@ -249,6 +390,8 @@ const tryLoadTokenPostingsBinaryColumnar = (dir, { maxBytes = MAX_JSON_BYTES } =
 
 export {
   loadBinaryColumnarRowPayloads,
+  iterateBinaryColumnarRowPayloads,
+  iterateChunkMetaBinaryColumnarRows,
   tryLoadChunkMetaBinaryColumnar,
   decodePostingPairsVarint,
   tryLoadTokenPostingsBinaryColumnar

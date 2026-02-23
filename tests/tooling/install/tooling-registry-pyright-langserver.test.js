@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { getToolingRegistry } from '../../../tools/tooling/utils.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const toolingRoot = path.join(root, '.testCache', 'tooling-registry-pyright');
+const toolingRoot = resolveTestCachePath(root, 'tooling-registry-pyright');
 const registry = getToolingRegistry(toolingRoot, root);
 const pyright = registry.find((tool) => tool && tool.id === 'pyright');
 

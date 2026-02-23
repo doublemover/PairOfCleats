@@ -2,35 +2,23 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { ensureGitAvailableOrSkip, initGitRepo, runGit } from '../../helpers/git-fixture.js';
+import { prepareTestCacheDir } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'repo-root');
+const { dir: tempRoot } = await prepareTestCacheDir('repo-root');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 const nestedDir = path.join(repoRoot, 'nested');
 
-const gitCheck = spawnSync('git', ['--version'], { encoding: 'utf8' });
-if (gitCheck.status !== 0) {
-  console.log('[skip] git not available');
+if (!ensureGitAvailableOrSkip()) {
   process.exit(0);
 }
 
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(nestedDir, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 
-const runGit = (args, label) => {
-  const result = spawnSync('git', args, { cwd: repoRoot, encoding: 'utf8' });
-  if (result.status !== 0) {
-    console.error(`Failed: ${label}`);
-    if (result.stderr) console.error(result.stderr.trim());
-    process.exit(result.status ?? 1);
-  }
-};
-
-runGit(['init'], 'git init');
-runGit(['config', 'user.email', 'test@example.com'], 'git config email');
-runGit(['config', 'user.name', 'Test User'], 'git config name');
+initGitRepo(repoRoot);
 
 const sourcePath = path.join(nestedDir, 'example.js');
 await fsPromises.writeFile(
@@ -43,8 +31,8 @@ await fsPromises.writeFile(
   ].join('\n')
 );
 
-runGit(['add', '.'], 'git add');
-runGit(['commit', '-m', 'init'], 'git commit');
+runGit(['add', '.'], { cwd: repoRoot, label: 'git add' });
+runGit(['commit', '-m', 'init'], { cwd: repoRoot, label: 'git commit' });
 
 const env = {
   ...process.env,

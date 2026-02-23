@@ -6,6 +6,8 @@ import path from 'node:path';
 import { indexerPipelineInternals } from '../../../src/index/build/indexer/pipeline.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const {
@@ -17,7 +19,7 @@ const {
 } = indexerPipelineInternals;
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'modality-sparsity-profile');
+const tempRoot = resolveTestCachePath(root, 'modality-sparsity-profile');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

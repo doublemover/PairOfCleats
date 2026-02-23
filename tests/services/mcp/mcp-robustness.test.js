@@ -3,10 +3,12 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import { spawn } from 'node:child_process';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv();
 const root = process.cwd();
 const serverPath = path.join(root, 'tools', 'mcp', 'server.js');
-const tempRoot = path.join(root, '.testCache', 'mcp-robustness');
+const tempRoot = resolveTestCachePath(root, 'mcp-robustness');
 const queueCache = path.join(tempRoot, 'queue-cache');
 const timeoutCache = path.join(tempRoot, 'timeout-cache');
 const cancelCache = path.join(tempRoot, 'cancel-cache');

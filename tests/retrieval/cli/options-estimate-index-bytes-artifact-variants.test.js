@@ -4,8 +4,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { estimateIndexBytes } from '../../../src/retrieval/cli/options.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const indexDir = path.join(root, '.testCache', 'options-estimate-index-bytes-artifact-variants');
+const indexDir = resolveTestCachePath(root, 'options-estimate-index-bytes-artifact-variants');
 await fs.rm(indexDir, { recursive: true, force: true });
 await fs.mkdir(path.join(indexDir, 'chunk_meta.parts'), { recursive: true });
 

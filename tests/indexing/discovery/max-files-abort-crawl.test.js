@@ -8,10 +8,12 @@ import { discoverFiles } from '../../../src/index/build/discover.js';
 import { buildIgnoreMatcher } from '../../../src/index/build/ignore.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'discover-max-files-abort-crawl');
+const tempRoot = resolveTestCachePath(root, 'discover-max-files-abort-crawl');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
 for (let i = 0; i < 64; i += 1) {

@@ -5,8 +5,10 @@ import path from 'node:path';
 import { resolveImportLinks } from '../../../src/index/build/import-resolution.js';
 import { applyImportResolutionCacheFileSetDiffInvalidation } from '../../../src/index/build/import-resolution-cache.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'import-cache-neighborhood-invalidation');
+const tempRoot = resolveTestCachePath(root, 'import-cache-neighborhood-invalidation');
 const srcRoot = path.join(tempRoot, 'src');
 
 const makeStats = () => ({

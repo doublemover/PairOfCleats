@@ -5,6 +5,8 @@ import path from 'node:path';
 import { runTreeSitterScheduler } from '../../../src/index/build/tree-sitter-scheduler/runner.js';
 import { getUnavailableNativeGrammars } from './native-availability.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const toPosix = (value) => String(value || '').split(path.sep).join('/');
 const toCanonicalGrammarKey = (value) => String(value || '')
   .trim()
@@ -283,7 +285,7 @@ export async function runNativeLanguageContractSuite({
   root = process.cwd(),
   suiteName = 'tree-sitter-scheduler-native-language-contract'
 } = {}) {
-  const testRoot = path.join(root, '.testCache', suiteName);
+  const testRoot = resolveTestCachePath(root, suiteName);
   const fixtureDir = path.join(testRoot, 'fixtures');
   const outDir = path.join(testRoot, 'index-code');
   const fixtures = NATIVE_LANGUAGE_CONTRACT_FIXTURES.map((fixture) => ({

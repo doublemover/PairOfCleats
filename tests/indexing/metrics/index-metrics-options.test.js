@@ -7,8 +7,10 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getMetricsDir, toRealPathSync } from '../../../tools/shared/dict-utils.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'index-metrics-options');
+const tempRoot = resolveTestCachePath(root, 'index-metrics-options');
 const repoRootRaw = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 

@@ -6,8 +6,10 @@ import { MAX_JSON_BYTES, loadChunkMeta, loadJsonArrayArtifact } from '../../../.
 import { getIndexDir, loadUserConfig, toRealPathSync } from '../../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'type-inference-crossfile-integration');
+const tempRoot = resolveTestCachePath(root, 'type-inference-crossfile-integration');
 const repoRootRaw = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 

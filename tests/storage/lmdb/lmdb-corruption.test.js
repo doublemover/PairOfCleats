@@ -6,6 +6,8 @@ import { spawnSync } from 'node:child_process';
 import { LMDB_META_KEYS } from '../../../src/storage/lmdb/schema.js';
 import { loadUserConfig, resolveLmdbPaths } from '../../../tools/shared/dict-utils.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 let open = null;
 try {
   ({ open } = await import('lmdb'));
@@ -16,7 +18,7 @@ try {
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = path.join(root, '.testCache', 'lmdb-corruption');
+const tempRoot = resolveTestCachePath(root, 'lmdb-corruption');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 

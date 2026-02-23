@@ -11,9 +11,11 @@ import {
   writeCacheIndex
 } from '../../../tools/build/embeddings/cache.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = path.join(root, '.testCache', 'embeddings-dims-mismatch');
+const tempRoot = resolveTestCachePath(root, 'embeddings-dims-mismatch');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 

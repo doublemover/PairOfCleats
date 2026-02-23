@@ -3,8 +3,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createClangdProvider } from '../../../../src/index/tooling/clangd-provider.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'clangd-provider-no-clangd');
+const tempRoot = resolveTestCachePath(root, 'clangd-provider-no-clangd');
 const repoRoot = path.join(tempRoot, 'repo');
 const srcDir = path.join(repoRoot, 'src');
 

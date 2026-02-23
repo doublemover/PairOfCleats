@@ -5,10 +5,12 @@ import path from 'node:path';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { createFileProcessor } from '../../../src/index/build/file-processor.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv();
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'segmented-local-relations');
+const tempRoot = resolveTestCachePath(root, 'segmented-local-relations');
 const repoRoot = path.join(tempRoot, 'repo');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(repoRoot, 'src'), { recursive: true });

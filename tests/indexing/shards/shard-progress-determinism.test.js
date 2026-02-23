@@ -7,8 +7,10 @@ import { parseProgressEventLine } from '../../../src/shared/cli/progress-events.
 import { getCombinedOutput } from '../../helpers/stdio.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'shard-progress-determinism');
+const tempRoot = resolveTestCachePath(root, 'shard-progress-determinism');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 

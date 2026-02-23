@@ -6,6 +6,8 @@ import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../../src/sto
 import { applyTestEnv } from '../../../helpers/test-env.js';
 import { writePiecesManifest } from '../../../helpers/artifact-io-fixture.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const loadDatabaseCtor = async () => {
   try {
     const loaded = await import('better-sqlite3');
@@ -26,7 +28,7 @@ export const setupSqliteBuildFixture = async ({
 
   const Database = await loadDatabaseCtor();
   const root = process.cwd();
-  const tempRoot = path.join(root, '.testCache', tempLabel);
+  const tempRoot = resolveTestCachePath(root, tempLabel);
   const indexDir = path.join(tempRoot, 'index-code');
   const outPath = path.join(tempRoot, 'index-code.db');
 
@@ -186,6 +188,8 @@ export const setupSqliteBuildFixture = async ({
 
   return {
     Database,
+    tempRoot,
+    indexDir,
     outPath,
     mode,
     count,

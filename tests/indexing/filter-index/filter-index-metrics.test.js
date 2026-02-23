@@ -5,11 +5,13 @@ import { spawnSync } from 'node:child_process';
 import { getMetricsDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'empty');
 const buildIndexPath = path.join(root, 'build_index.js');
 
-const cacheRoot = path.join(root, '.testCache', 'filter-index-metrics');
+const cacheRoot = resolveTestCachePath(root, 'filter-index-metrics');
 await fs.rm(cacheRoot, { recursive: true, force: true });
 await fs.mkdir(cacheRoot, { recursive: true });
 

@@ -6,10 +6,12 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getMetricsDir, loadUserConfig } from '../../tools/shared/dict-utils.js';
 
+import { resolveTestCachePath } from '../helpers/test-cache.js';
+
 ensureTestingEnv(process.env);
 
 const root = process.cwd();
-const repoRoot = path.join(root, '.testCache', 'tui-supervisor-artifacts-repo-flag');
+const repoRoot = resolveTestCachePath(root, 'tui-supervisor-artifacts-repo-flag');
 await fs.mkdir(repoRoot, { recursive: true });
 
 const { waitForEvent, send, shutdown, forceKill } = createSupervisorSession({ root });

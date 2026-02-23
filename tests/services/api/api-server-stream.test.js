@@ -6,9 +6,11 @@ import fsPromises from 'node:fs/promises';
 import { spawn, spawnSync } from 'node:child_process';
 import { attachSilentLogging } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const cacheRoot = path.join(root, '.testCache', 'api-server-stream');
+const cacheRoot = resolveTestCachePath(root, 'api-server-stream');
 const serverPath = path.join(root, 'tools', 'api', 'server.js');
 const authToken = 'test-token';
 

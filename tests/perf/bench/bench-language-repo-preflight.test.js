@@ -8,6 +8,8 @@ import {
   parseSubmoduleStatusLines
 } from '../../../tools/bench/language/repos.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const parsed = parseSubmoduleStatusLines([
   '-a1b2c3d extern/doctest (heads/main)',
   ' f0f0f0f include/fmt',
@@ -32,7 +34,7 @@ assert.deepEqual(
   'expected parser to retain marker semantics used for preflight decisions'
 );
 
-const tempRoot = path.join(process.cwd(), '.testCache', 'bench-language-repo-preflight');
+const tempRoot = resolveTestCachePath(process.cwd(), 'bench-language-repo-preflight');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 const missingRepo = path.join(tempRoot, 'missing-repo');

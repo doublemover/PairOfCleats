@@ -3,8 +3,10 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { writePiecesManifest } from '../../../../src/index/build/artifacts/checksums.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'pieces-manifest-strict');
+const tempRoot = resolveTestCachePath(root, 'pieces-manifest-strict');
 const outDir = path.join(tempRoot, 'index-code');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });

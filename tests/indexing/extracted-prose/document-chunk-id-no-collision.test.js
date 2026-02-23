@@ -7,8 +7,10 @@ import { getCurrentBuildInfo, getIndexDir, loadUserConfig } from '../../../tools
 import { loadChunkMeta } from '../../../src/shared/artifact-io.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'phase17-document-chunk-id-no-collision');
+const tempRoot = resolveTestCachePath(root, 'phase17-document-chunk-id-no-collision');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 

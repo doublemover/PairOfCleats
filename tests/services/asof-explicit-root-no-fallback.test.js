@@ -8,11 +8,13 @@ import { runSearchCli } from '../../src/retrieval/cli.js';
 import { createPointerSnapshot } from '../../src/index/snapshots/create.js';
 import { getRepoCacheRoot, loadUserConfig } from '../../tools/shared/dict-utils.js';
 
+import { resolveTestCachePath } from '../helpers/test-cache.js';
+
 applyTestEnv();
 
 const root = process.cwd();
 const cacheName = 'asof-explicit-root-no-fallback';
-const cacheRoot = path.join(root, '.testCache', cacheName);
+const cacheRoot = resolveTestCachePath(root, cacheName);
 await fs.rm(cacheRoot, { recursive: true, force: true });
 
 const { fixtureRoot } = await ensureFixtureIndex({

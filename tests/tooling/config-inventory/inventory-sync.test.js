@@ -4,8 +4,10 @@ import path from 'node:path';
 import { buildInventory } from '../../../tools/config/inventory.js';
 import { normalizeEol } from '../../../src/shared/eol.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'config-inventory-sync');
+const tempRoot = resolveTestCachePath(root, 'config-inventory-sync');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

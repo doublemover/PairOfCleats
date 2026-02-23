@@ -6,8 +6,10 @@ import { loadChunkMeta, readJsonFile } from '../../../src/shared/artifact-io.js'
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'records-exclusion');
+const tempRoot = resolveTestCachePath(root, 'records-exclusion');
 const repoRoot = path.join(tempRoot, 'repo');
 const srcDir = path.join(repoRoot, 'src');
 const docsDir = path.join(repoRoot, 'docs');

@@ -7,9 +7,11 @@ import { ensureTestingEnv } from '../../helpers/test-env.js';
 import { buildReportOutput } from '../../../tools/bench/language/report.js';
 import { BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION } from '../../../tools/bench/language/logging.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 ensureTestingEnv(process.env);
 
-const tempRoot = path.join(process.cwd(), '.testCache', 'bench-language-diagnostics-summary-report');
+const tempRoot = resolveTestCachePath(process.cwd(), 'bench-language-diagnostics-summary-report');
 const logsRoot = path.join(tempRoot, 'logs', 'bench-language');
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(logsRoot, { recursive: true });

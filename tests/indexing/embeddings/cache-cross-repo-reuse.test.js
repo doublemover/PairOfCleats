@@ -4,8 +4,10 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'embeddings-cache-cross-repo');
+const tempRoot = resolveTestCachePath(root, 'embeddings-cache-cross-repo');
 const repoA = path.join(tempRoot, 'repo-a');
 const repoB = path.join(tempRoot, 'repo-b');
 const cacheRoot = path.join(tempRoot, 'cache');

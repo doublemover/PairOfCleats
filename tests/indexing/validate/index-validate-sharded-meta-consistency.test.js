@@ -6,8 +6,10 @@ import { validateIndexArtifacts } from '../../../src/index/validate.js';
 import { ARTIFACT_SURFACE_VERSION, SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../src/contracts/versioning.js';
 import { createBaseIndex, defaultUserConfig } from './helpers.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'index-validate-sharded-meta');
+const tempRoot = resolveTestCachePath(root, 'index-validate-sharded-meta');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

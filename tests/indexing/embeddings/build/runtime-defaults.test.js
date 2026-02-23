@@ -5,8 +5,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { parseBuildEmbeddingsArgs } from '../../../../tools/build/embeddings/cli.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'build-embeddings-defaults');
+const tempRoot = resolveTestCachePath(root, 'build-embeddings-defaults');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

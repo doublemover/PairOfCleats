@@ -5,10 +5,12 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'bench-runner-utilization-cap');
+const tempRoot = resolveTestCachePath(root, 'bench-runner-utilization-cap');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

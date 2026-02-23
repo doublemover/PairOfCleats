@@ -7,10 +7,12 @@ import { loadChunkMeta } from '../../../src/shared/artifact-io.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'chunk-meta-hot-cold-split');
+const tempRoot = resolveTestCachePath(root, 'chunk-meta-hot-cold-split');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });

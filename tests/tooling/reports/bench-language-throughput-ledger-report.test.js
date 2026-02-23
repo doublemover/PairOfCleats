@@ -11,9 +11,11 @@ import {
 } from '../../../tools/bench/language/metrics.js';
 import { BENCH_PROGRESS_CONFIDENCE_SCHEMA_VERSION } from '../../../tools/bench/language/logging.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 ensureTestingEnv(process.env);
 
-const tempRoot = path.join(process.cwd(), '.testCache', 'bench-language-throughput-ledger-report');
+const tempRoot = resolveTestCachePath(process.cwd(), 'bench-language-throughput-ledger-report');
 const logsRoot = path.join(tempRoot, 'logs', 'bench-language');
 const runDir = path.join(tempRoot, 'runs');
 await fsPromises.rm(tempRoot, { recursive: true, force: true });

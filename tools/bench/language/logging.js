@@ -47,6 +47,7 @@ export const normalizeBenchDiagnosticText = (value, { maxLength = 160 } = {}) =>
 };
 
 export const classifyBenchProgressConfidence = (value) => {
+  if (value == null || value === '') return 'unknown';
   const score = Number(value);
   if (!Number.isFinite(score)) return 'unknown';
   if (score >= BENCH_PROGRESS_CONFIDENCE_THRESHOLDS.high) return 'high';
@@ -55,6 +56,7 @@ export const classifyBenchProgressConfidence = (value) => {
 };
 
 export const formatBenchProgressConfidence = (value) => {
+  if (value == null || value === '') return 'unknown';
   const score = Number(value);
   if (!Number.isFinite(score)) return 'unknown';
   const bucket = classifyBenchProgressConfidence(score);

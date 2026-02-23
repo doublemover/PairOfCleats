@@ -7,9 +7,11 @@ import { applyTestEnv } from '../../../helpers/test-env.js';
 import { loadChunkMeta, MAX_JSON_BYTES } from '../../../../src/shared/artifact-io.js';
 import { getIndexDir, loadUserConfig } from '../../../../tools/shared/dict-utils.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'formats');
-const cacheRoot = path.join(root, '.testCache', 'format-fidelity');
+const cacheRoot = resolveTestCachePath(root, 'format-fidelity');
 
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });

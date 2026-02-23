@@ -4,8 +4,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { reuseCachedBundle } from '../../../src/index/build/file-processor/cached-bundle.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const outDir = path.join(root, '.testCache', 'file-caps-cached-bundle');
+const outDir = resolveTestCachePath(root, 'file-caps-cached-bundle');
 await fs.rm(outDir, { recursive: true, force: true });
 await fs.mkdir(outDir, { recursive: true });
 

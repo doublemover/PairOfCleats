@@ -7,6 +7,8 @@ import { writeBundleFile } from '../../../src/shared/bundle-io.js';
 import { buildDatabaseFromBundles } from '../../../src/storage/sqlite/build/from-bundles.js';
 import { incrementalUpdateDatabase } from '../../../src/storage/sqlite/build/incremental-update.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 let Database = null;
 try {
   ({ default: Database } = await import('better-sqlite3'));
@@ -16,7 +18,7 @@ try {
 }
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'sqlite-incremental-memory-profile');
+const tempRoot = resolveTestCachePath(root, 'sqlite-incremental-memory-profile');
 const bundleDir = path.join(tempRoot, 'bundles');
 const outPath = path.join(tempRoot, 'index-code.db');
 

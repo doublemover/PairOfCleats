@@ -7,10 +7,12 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import { resolvePreReadSkip } from '../../../src/index/build/file-processor/skip.js';
 import { buildGeneratedPolicyConfig, GENERATED_POLICY_REASON_CODE } from '../../../src/index/build/generated-policy.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv();
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'generated-policy-preread');
+const tempRoot = resolveTestCachePath(root, 'generated-policy-preread');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'src', 'generated', 'full', 'force-metadata'), { recursive: true });
 

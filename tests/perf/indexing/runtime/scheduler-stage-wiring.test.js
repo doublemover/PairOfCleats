@@ -7,8 +7,10 @@ import { createBuildRuntime } from '../../../../src/index/build/runtime.js';
 import { SCHEDULER_QUEUE_NAMES } from '../../../../src/index/build/runtime/scheduler.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'scheduler-stage-wiring');
+const tempRoot = resolveTestCachePath(root, 'scheduler-stage-wiring');
 const repoRoot = path.join(tempRoot, 'repo');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });

@@ -5,6 +5,8 @@ import path from 'node:path';
 
 import { writeJsonArrayFile, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
 
 const pad = (value, width = 6) => String(value).padStart(width, '0');
@@ -84,7 +86,7 @@ export const createGraphBenchFixture = async ({
   fileRel = 'src/file.js',
   chunkEndLine = 1
 }) => {
-  const tempRoot = path.join(root, '.testCache', tempLabel);
+  const tempRoot = resolveTestCachePath(root, tempLabel);
   const repoRoot = path.join(tempRoot, 'repo');
   const indexDir = path.join(tempRoot, 'index-code');
 

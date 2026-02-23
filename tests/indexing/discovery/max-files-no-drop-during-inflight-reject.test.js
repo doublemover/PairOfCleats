@@ -8,10 +8,12 @@ import { discoverFiles } from '../../../src/index/build/discover.js';
 import { buildIgnoreMatcher } from '../../../src/index/build/ignore.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'discover-max-files-no-drop-during-inflight-reject');
+const tempRoot = resolveTestCachePath(root, 'discover-max-files-no-drop-during-inflight-reject');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
 await fs.writeFile(path.join(tempRoot, 'src', 'good-a.js'), 'export const a = 1;\n', 'utf8');

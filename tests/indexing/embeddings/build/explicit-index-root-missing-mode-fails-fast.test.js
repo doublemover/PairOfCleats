@@ -5,8 +5,10 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'build-embeddings-explicit-index-root-failfast');
+const tempRoot = resolveTestCachePath(root, 'build-embeddings-explicit-index-root-failfast');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 const explicitIndexRoot = path.join(tempRoot, 'explicit-index-root-missing-mode');

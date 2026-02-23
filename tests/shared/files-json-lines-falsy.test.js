@@ -4,10 +4,12 @@ import path from 'node:path';
 import { ensureTestingEnv } from '../helpers/test-env.js';
 import { readJsonLinesSyncSafe } from '../../src/shared/files.js';
 
+import { resolveTestCachePath } from '../helpers/test-cache.js';
+
 ensureTestingEnv(process.env);
 
 const root = process.cwd();
-const tempFile = path.join(root, '.testCache', 'files-json-lines-falsy.jsonl');
+const tempFile = resolveTestCachePath(root, 'files-json-lines-falsy.jsonl');
 await fsPromises.mkdir(path.dirname(tempFile), { recursive: true });
 await fsPromises.writeFile(tempFile, '0\nfalse\n""\n{"ok":true}\n', 'utf8');
 

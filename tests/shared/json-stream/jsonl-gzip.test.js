@@ -5,8 +5,10 @@ import path from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { readJsonLinesArray } from '../../../src/shared/artifact-io.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const cacheRoot = path.join(root, '.testCache', 'jsonl-gzip');
+const cacheRoot = resolveTestCachePath(root, 'jsonl-gzip');
 await fs.rm(cacheRoot, { recursive: true, force: true });
 await fs.mkdir(cacheRoot, { recursive: true });
 

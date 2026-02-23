@@ -3,8 +3,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getVectorExtensionConfig } from '../../../tools/sqlite/vector-extension.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'vector-extension-sanitize');
+const tempRoot = resolveTestCachePath(root, 'vector-extension-sanitize');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

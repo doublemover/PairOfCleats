@@ -5,8 +5,10 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'scip-ingest');
+const tempRoot = resolveTestCachePath(root, 'scip-ingest');
 const cliPath = path.join(root, 'bin', 'pairofcleats.js');
 const repoRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const inputPath = path.join(root, 'tests', 'fixtures', 'scip', 'index.json');

@@ -8,10 +8,12 @@ import { resolveTreeSitterSchedulerPaths } from '../../../src/index/build/tree-s
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { skipIfNativeGrammarsUnavailable } from './native-availability.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
-const baseOutDir = path.join(root, '.testCache', 'tree-sitter-scheduler-native-determinism');
+const baseOutDir = resolveTestCachePath(root, 'tree-sitter-scheduler-native-determinism');
 
 const fixtureRelPaths = [
   'tests/fixtures/tree-sitter/javascript.js',

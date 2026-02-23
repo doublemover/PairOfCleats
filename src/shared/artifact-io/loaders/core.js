@@ -144,8 +144,8 @@ const resolveRequiredSources = ({
       if (!strict) {
         return {
           ...sources,
-          paths: [resolvedPaths[0]],
-          offsets: resolvedOffsets ? [resolvedOffsets[0]] : null,
+          paths: resolvedPaths,
+          offsets: resolvedOffsets,
           binaryColumnar: resolvedBinaryColumnar,
           layout
         };
@@ -187,6 +187,34 @@ const resolveBinaryColumnarDefaultPaths = (dataPath) => {
     metaPath: `${withoutBin}.meta.json`,
     offsetsPath: `${withoutBin}.offsets.bin`,
     lengthsPath: `${withoutBin}.lengths.varint`
+  };
+};
+
+const resolveBinaryColumnarSourcePart = (sources, partIndex = 0) => {
+  const paths = Array.isArray(sources?.paths) ? sources.paths : [];
+  if (!paths.length) return { ...sources, paths: [] };
+  const normalizedIndex = Math.max(0, Math.min(paths.length - 1, Math.floor(Number(partIndex) || 0)));
+  const dataPath = paths[normalizedIndex];
+  const binaryColumnar = sources?.binaryColumnar && typeof sources.binaryColumnar === 'object'
+    ? sources.binaryColumnar
+    : null;
+  const primaryDataPath = binaryColumnar?.dataPath || paths[0] || null;
+  const isPrimaryPath = primaryDataPath && path.resolve(primaryDataPath) === path.resolve(dataPath);
+  const defaults = resolveBinaryColumnarDefaultPaths(dataPath);
+  return {
+    ...sources,
+    paths: [dataPath],
+    offsets: Array.isArray(sources?.offsets) && sources.offsets[normalizedIndex]
+      ? [sources.offsets[normalizedIndex]]
+      : null,
+    binaryColumnar: {
+      ...(binaryColumnar || {}),
+      dataPath,
+      dataName: binaryColumnar?.dataName || null,
+      metaPath: isPrimaryPath ? (binaryColumnar?.metaPath || defaults.metaPath) : defaults.metaPath,
+      offsetsPath: isPrimaryPath ? (binaryColumnar?.offsetsPath || defaults.offsetsPath) : defaults.offsetsPath,
+      lengthsPath: isPrimaryPath ? (binaryColumnar?.lengthsPath || defaults.lengthsPath) : defaults.lengthsPath
+    }
   };
 };
 
@@ -418,25 +446,42 @@ const loadArrayPayloadFromSources = async (
   }
 ) => {
   if (sources.format === 'json') {
-    return readJsonFile(sources.paths[0], { maxBytes });
+    const out = [];
+    for (const sourcePath of sources.paths) {
+      const payload = readJsonFile(sourcePath, { maxBytes });
+      if (!Array.isArray(payload)) {
+        throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid json payload for ${baseName}`);
+      }
+      for (const row of payload) out.push(row);
+    }
+    return out;
   }
   if (sources.format === 'columnar') {
-    const payload = readJsonFile(sources.paths[0], { maxBytes });
-    const inflated = inflateColumnarRows(payload);
-    if (!inflated) {
-      throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid columnar payload for ${baseName}`);
+    const out = [];
+    for (const sourcePath of sources.paths) {
+      const payload = readJsonFile(sourcePath, { maxBytes });
+      const inflated = inflateColumnarRows(payload);
+      if (!inflated) {
+        throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid columnar payload for ${baseName}`);
+      }
+      for (const row of inflated) out.push(row);
     }
-    return inflated;
+    return out;
   }
   if (sources.format === 'binary-columnar') {
-    return loadBinaryColumnarJsonRows({
-      dir,
-      baseName,
-      sources,
-      manifest,
-      maxBytes,
-      strict
-    });
+    const out = [];
+    for (let index = 0; index < sources.paths.length; index += 1) {
+      const rows = loadBinaryColumnarJsonRows({
+        dir,
+        baseName,
+        sources: resolveBinaryColumnarSourcePart(sources, index),
+        manifest,
+        maxBytes,
+        strict
+      });
+      for (const row of rows) out.push(row);
+    }
+    return out;
   }
   return await readJsonLinesArray(sources.paths, {
     maxBytes,
@@ -459,25 +504,42 @@ const loadArrayPayloadFromSourcesSync = (
   }
 ) => {
   if (sources.format === 'json') {
-    return readJsonFile(sources.paths[0], { maxBytes });
+    const out = [];
+    for (const sourcePath of sources.paths) {
+      const payload = readJsonFile(sourcePath, { maxBytes });
+      if (!Array.isArray(payload)) {
+        throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid json payload for ${baseName}`);
+      }
+      for (const row of payload) out.push(row);
+    }
+    return out;
   }
   if (sources.format === 'columnar') {
-    const payload = readJsonFile(sources.paths[0], { maxBytes });
-    const inflated = inflateColumnarRows(payload);
-    if (!inflated) {
-      throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid columnar payload for ${baseName}`);
+    const out = [];
+    for (const sourcePath of sources.paths) {
+      const payload = readJsonFile(sourcePath, { maxBytes });
+      const inflated = inflateColumnarRows(payload);
+      if (!inflated) {
+        throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid columnar payload for ${baseName}`);
+      }
+      for (const row of inflated) out.push(row);
     }
-    return inflated;
+    return out;
   }
   if (sources.format === 'binary-columnar') {
-    return loadBinaryColumnarJsonRows({
-      dir,
-      baseName,
-      sources,
-      manifest,
-      maxBytes,
-      strict
-    });
+    const out = [];
+    for (let index = 0; index < sources.paths.length; index += 1) {
+      const rows = loadBinaryColumnarJsonRows({
+        dir,
+        baseName,
+        sources: resolveBinaryColumnarSourcePart(sources, index),
+        manifest,
+        maxBytes,
+        strict
+      });
+      for (const row of rows) out.push(row);
+    }
+    return out;
   }
   const out = [];
   for (const partPath of sources.paths) {
@@ -613,30 +675,36 @@ export const loadJsonArrayArtifactRows = async function* (
     strict
   });
   if (sources.format === 'json') {
-    const payload = readJsonFile(sources.paths[0], { maxBytes });
-    const rows = Array.isArray(payload) ? payload : [];
-    for (const row of rows) yield row;
+    for (const sourcePath of sources.paths) {
+      const payload = readJsonFile(sourcePath, { maxBytes });
+      const rows = Array.isArray(payload) ? payload : [];
+      for (const row of rows) yield row;
+    }
     return;
   }
   if (sources.format === 'columnar') {
-    const payload = readJsonFile(sources.paths[0], { maxBytes });
-    const rows = iterateColumnarRows(payload);
-    if (!rows) {
-      throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid columnar payload for ${baseName}`);
+    for (const sourcePath of sources.paths) {
+      const payload = readJsonFile(sourcePath, { maxBytes });
+      const rows = iterateColumnarRows(payload);
+      if (!rows) {
+        throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid columnar payload for ${baseName}`);
+      }
+      for (const row of rows) yield row;
     }
-    for (const row of rows) yield row;
     return;
   }
   if (sources.format === 'binary-columnar') {
-    const rows = loadBinaryColumnarJsonRows({
-      dir,
-      baseName,
-      sources,
-      manifest: resolvedManifest,
-      maxBytes,
-      strict
-    });
-    for (const row of rows) yield row;
+    for (let index = 0; index < sources.paths.length; index += 1) {
+      const rows = loadBinaryColumnarJsonRows({
+        dir,
+        baseName,
+        sources: resolveBinaryColumnarSourcePart(sources, index),
+        manifest: resolvedManifest,
+        maxBytes,
+        strict
+      });
+      for (const row of rows) yield row;
+    }
     return;
   }
   for await (const row of streamRows(sources.paths, sources.offsets)) {
@@ -746,30 +814,36 @@ export const loadFileMetaRows = async function* (
     strict
   });
   if (sources.format === 'json') {
-    const payload = readJsonFile(sources.paths[0], { maxBytes });
-    for (const row of yieldJsonRows(payload, 'file_meta')) {
-      yield row;
+    for (const sourcePath of sources.paths) {
+      const payload = readJsonFile(sourcePath, { maxBytes });
+      for (const row of yieldJsonRows(payload, 'file_meta')) {
+        yield row;
+      }
     }
     return;
   }
   if (sources.format === 'columnar') {
-    const payload = readJsonFile(sources.paths[0], { maxBytes });
-    for (const row of yieldColumnarRows(payload, 'file_meta')) {
-      yield row;
+    for (const sourcePath of sources.paths) {
+      const payload = readJsonFile(sourcePath, { maxBytes });
+      for (const row of yieldColumnarRows(payload, 'file_meta')) {
+        yield row;
+      }
     }
     return;
   }
   if (sources.format === 'binary-columnar') {
-    const rows = loadBinaryColumnarJsonRows({
-      dir,
-      baseName: 'file_meta',
-      sources,
-      manifest: resolvedManifest,
-      maxBytes,
-      strict
-    });
-    for (const row of rows) {
-      yield validateFileMetaRow(row, 'file_meta');
+    for (let index = 0; index < sources.paths.length; index += 1) {
+      const rows = loadBinaryColumnarJsonRows({
+        dir,
+        baseName: 'file_meta',
+        sources: resolveBinaryColumnarSourcePart(sources, index),
+        manifest: resolvedManifest,
+        maxBytes,
+        strict
+      });
+      for (const row of rows) {
+        yield validateFileMetaRow(row, 'file_meta');
+      }
     }
     return;
   }

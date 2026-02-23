@@ -11,11 +11,13 @@ import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
 import { stableStringifyForSignature } from '../../../src/shared/stable-json.js';
 import { sha1 } from '../../../src/shared/hash.js';
 import { rmDirRecursive } from '../../helpers/temp.js';
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv();
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const runId = `${process.pid}-${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 8)}`;
-const benchRoot = path.join(root, '.testCache', 'chunk-meta-determinism', runId);
+const benchRoot = resolveTestCachePath(root, 'chunk-meta-determinism', runId);
 const buildIndexPath = path.join(root, 'build_index.js');
 
 const safeRm = async (dir) => {

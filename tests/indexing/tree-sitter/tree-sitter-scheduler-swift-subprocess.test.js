@@ -7,10 +7,12 @@ import { runTreeSitterScheduler } from '../../../src/index/build/tree-sitter-sch
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { skipIfNativeGrammarsUnavailable } from './native-availability.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
-const outDir = path.join(root, '.testCache', 'tree-sitter-scheduler-swift', 'index-code');
+const outDir = resolveTestCachePath(root, 'tree-sitter-scheduler-swift', 'index-code');
 const swiftAbs = path.join(root, 'tests', 'fixtures', 'tree-sitter', 'swift.swift');
 
 const log = () => {};

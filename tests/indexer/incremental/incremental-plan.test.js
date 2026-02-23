@@ -5,13 +5,15 @@ import { shouldReuseIncrementalIndex } from '../../../src/index/build/incrementa
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { SIGNATURE_VERSION } from '../../../src/index/build/indexer/signatures.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const fail = (message) => {
   console.error(message);
   process.exit(1);
 };
 
 const root = process.cwd();
-const baseDir = path.join(root, '.testCache', 'indexer-plan');
+const baseDir = resolveTestCachePath(root, 'indexer-plan');
 const outDir = path.join(baseDir, 'out');
 const piecesDir = path.join(outDir, 'pieces');
 const fixtureFile = path.join(baseDir, 'src', 'a.js');

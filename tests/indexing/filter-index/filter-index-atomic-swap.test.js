@@ -7,13 +7,15 @@ import { writeIndexArtifacts } from '../../../src/index/build/artifacts.js';
 import { fromPosix } from '../../../src/shared/files.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const fail = (message) => {
   console.error(message);
   process.exit(1);
 };
 
 const root = process.cwd();
-const testRoot = path.join(root, '.testCache', 'filter-index-atomic-swap');
+const testRoot = resolveTestCachePath(root, 'filter-index-atomic-swap');
 const outDir = path.join(testRoot, 'index-code');
 
 await fsPromises.rm(testRoot, { recursive: true, force: true });

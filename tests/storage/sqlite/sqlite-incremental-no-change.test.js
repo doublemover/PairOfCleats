@@ -14,9 +14,11 @@ import {
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 import { rmDirRecursive } from '../../helpers/temp.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = path.join(root, '.testCache', 'sqlite-incremental-no-change');
+const tempRoot = resolveTestCachePath(root, 'sqlite-incremental-no-change');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 

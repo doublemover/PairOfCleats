@@ -7,8 +7,10 @@ import { writeIndexArtifacts } from '../../../src/index/build/artifacts.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { getMetricsDir } from '../../../tools/shared/dict-utils.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const testRoot = path.join(root, '.testCache', 'artifact-write-queue-delay-histogram');
+const testRoot = resolveTestCachePath(root, 'artifact-write-queue-delay-histogram');
 const outDir = path.join(testRoot, 'out');
 
 const createState = () => ({

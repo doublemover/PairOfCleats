@@ -6,10 +6,12 @@ import path from 'node:path';
 import { ensureTestingEnv } from '../helpers/test-env.js';
 import { createCrashLogger, retainCrashArtifacts } from '../../src/index/build/crash-log.js';
 
+import { resolveTestCachePath } from '../helpers/test-cache.js';
+
 ensureTestingEnv(process.env);
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'crash-log-retention');
+const tempRoot = resolveTestCachePath(root, 'crash-log-retention');
 const repoCacheRoot = path.join(tempRoot, 'cache', 'repo-cache');
 const diagnosticsRoot = path.join(tempRoot, 'results', 'logs', 'bench-language', 'run-ub003-diagnostics');
 

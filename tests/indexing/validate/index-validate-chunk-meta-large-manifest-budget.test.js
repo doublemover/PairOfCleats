@@ -6,8 +6,10 @@ import path from 'node:path';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'index-validate-chunk-meta-large-manifest-budget');
+const tempRoot = resolveTestCachePath(root, 'index-validate-chunk-meta-large-manifest-budget');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

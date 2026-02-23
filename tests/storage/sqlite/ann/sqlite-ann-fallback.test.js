@@ -7,12 +7,14 @@ import { loadChunkMeta, MAX_JSON_BYTES } from '../../../../src/shared/artifact-i
 import { runSqliteBuild } from '../../../helpers/sqlite-builder.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const root = process.cwd();
 const suffixRaw = typeof process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX === 'string'
   ? process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX.trim()
   : '';
 const cacheName = suffixRaw ? `sqlite-ann-fallback-${suffixRaw}` : 'sqlite-ann-fallback';
-const tempRoot = path.join(root, '.testCache', cacheName);
+const tempRoot = resolveTestCachePath(root, cacheName);
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 

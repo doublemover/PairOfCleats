@@ -6,8 +6,10 @@ import { spawnSync } from 'node:child_process';
 import { getGitMeta } from '../../../src/index/git.js';
 import { rmDirRecursive } from '../../helpers/temp.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'churn-filter');
+const tempRoot = resolveTestCachePath(root, 'churn-filter');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 

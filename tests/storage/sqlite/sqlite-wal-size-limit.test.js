@@ -4,6 +4,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { applyBuildPragmas, restoreBuildPragmas } from '../../../src/storage/sqlite/build/pragmas.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 let Database = null;
 try {
   ({ default: Database } = await import('better-sqlite3'));
@@ -13,7 +15,7 @@ try {
 }
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'sqlite-wal-size-limit');
+const tempRoot = resolveTestCachePath(root, 'sqlite-wal-size-limit');
 const dbPath = path.join(tempRoot, 'wal.db');
 
 await fs.rm(tempRoot, { recursive: true, force: true });

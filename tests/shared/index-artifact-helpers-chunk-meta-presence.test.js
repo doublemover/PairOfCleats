@@ -8,8 +8,10 @@ import {
 } from '../../src/shared/index-artifact-helpers.js';
 import { writePiecesManifest } from '../helpers/artifact-io-fixture.js';
 
+import { resolveTestCachePath } from '../helpers/test-cache.js';
+
 const root = process.cwd();
-const testRoot = path.join(root, '.testCache', 'index-artifact-helpers-chunk-meta-presence');
+const testRoot = resolveTestCachePath(root, 'index-artifact-helpers-chunk-meta-presence');
 await fs.rm(testRoot, { recursive: true, force: true });
 await fs.mkdir(testRoot, { recursive: true });
 

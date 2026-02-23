@@ -5,8 +5,10 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'indexer-service');
+const tempRoot = resolveTestCachePath(root, 'indexer-service');
 const repoRoot = path.join(tempRoot, 'repo');
 const queueDir = path.join(tempRoot, 'queue');
 const configPath = path.join(tempRoot, 'service.json');

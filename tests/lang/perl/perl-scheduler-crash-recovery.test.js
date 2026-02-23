@@ -7,10 +7,12 @@ import { createCrashLogger } from '../../../src/index/build/crash-log.js';
 import { runTreeSitterScheduler } from '../../../src/index/build/tree-sitter-scheduler/runner.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'perl-scheduler-crash-recovery');
+const tempRoot = resolveTestCachePath(root, 'perl-scheduler-crash-recovery');
 const outDir = path.join(tempRoot, 'index-code');
 const repoCacheRoot = path.join(tempRoot, 'repo-cache');
 const perlAbs = path.join(root, 'tests', 'fixtures', 'languages', 'src', 'perl_advanced.pl');

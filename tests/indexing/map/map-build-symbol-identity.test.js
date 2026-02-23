@@ -5,8 +5,10 @@ import path from 'node:path';
 import { buildCodeMap } from '../../../src/map/build-map.js';
 import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'map-build-symbol-identity');
+const tempRoot = resolveTestCachePath(root, 'map-build-symbol-identity');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

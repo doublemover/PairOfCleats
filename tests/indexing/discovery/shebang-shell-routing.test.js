@@ -7,10 +7,12 @@ import { discoverEntries, discoverFiles } from '../../../src/index/build/discove
 import { createFileProcessor } from '../../../src/index/build/file-processor.js';
 import { buildIgnoreMatcher } from '../../../src/index/build/ignore.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv();
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'discover-shebang-shell');
+const tempRoot = resolveTestCachePath(root, 'discover-shebang-shell');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'scripts'), { recursive: true });
 

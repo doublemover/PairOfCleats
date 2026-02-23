@@ -8,8 +8,10 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import { LANGUAGE_CAPS_BASELINES } from '../../../src/index/build/runtime/caps-calibration.js';
 import { resolveFileCapsAndGuardrails } from '../../../src/index/build/runtime/caps.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'js-tree-sitter-maxbytes');
+const tempRoot = resolveTestCachePath(root, 'js-tree-sitter-maxbytes');
 const repoRootRaw = path.join(tempRoot, 'repo');
 const repoRoot = toRealPathSync(repoRootRaw);
 const srcDir = path.join(repoRoot, 'src');

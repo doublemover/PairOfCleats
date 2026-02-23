@@ -14,6 +14,8 @@ import {
   resolveBundlePatchPath
 } from '../../../src/shared/bundle-io.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({
   testing: '1',
   extraEnv: {
@@ -31,7 +33,7 @@ const pathExists = async (targetPath) => {
 };
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'incremental-crossfile-bundle-patch-write');
+const tempRoot = resolveTestCachePath(root, 'incremental-crossfile-bundle-patch-write');
 const bundleDir = path.join(tempRoot, 'incremental', 'code', 'files');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(bundleDir, { recursive: true });

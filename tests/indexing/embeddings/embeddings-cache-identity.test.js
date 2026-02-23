@@ -6,9 +6,11 @@ import { readCacheEntry } from '../../../tools/build/embeddings/cache.js';
 import { buildEmbeddingIdentity } from '../../../src/shared/embedding-identity.js';
 import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = path.join(root, '.testCache', 'embeddings-cache-identity');
+const tempRoot = resolveTestCachePath(root, 'embeddings-cache-identity');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRootBase = path.join(tempRoot, 'cache');
 const cacheRoot = resolveVersionedCacheRoot(cacheRootBase);

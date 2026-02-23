@@ -5,8 +5,10 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'sqlite-missing-dep');
+const tempRoot = resolveTestCachePath(root, 'sqlite-missing-dep');
 const cacheRoot = path.join(tempRoot, '.cache');
 const searchPath = path.join(root, 'search.js');
 const buildIndexPath = path.join(root, 'build_index.js');

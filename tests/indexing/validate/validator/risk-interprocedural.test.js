@@ -9,8 +9,10 @@ import { ARTIFACT_SURFACE_VERSION } from '../../../../src/contracts/versioning.j
 import { createBaseIndex, defaultUserConfig } from '../helpers.js';
 import { updatePiecesManifest } from '../../../helpers/pieces-manifest.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'validator-risk-interprocedural');
+const tempRoot = resolveTestCachePath(root, 'validator-risk-interprocedural');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

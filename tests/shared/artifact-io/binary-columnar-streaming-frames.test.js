@@ -10,10 +10,12 @@ import {
   writeBinaryRowFrames
 } from '../../../src/shared/artifact-io/binary-columnar.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv();
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'binary-columnar-streaming-frames');
+const tempRoot = resolveTestCachePath(root, 'binary-columnar-streaming-frames');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

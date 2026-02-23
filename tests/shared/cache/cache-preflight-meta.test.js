@@ -4,8 +4,10 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { readCacheMeta, writeCacheMeta } from '../../../tools/build/embeddings/cache.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'cache-preflight-meta');
+const tempRoot = resolveTestCachePath(root, 'cache-preflight-meta');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });

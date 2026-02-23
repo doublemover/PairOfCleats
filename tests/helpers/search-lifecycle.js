@@ -4,6 +4,7 @@ import { applyTestEnv } from './test-env.js';
 import { makeTempDir } from './temp.js';
 import { runNode } from './run-node.js';
 import { runSearchCliWithSpawnSync } from '../../tools/shared/search-cli-harness.js';
+import { resolveTestCacheDir } from './test-cache.js';
 
 const DEFAULT_SEARCH_TEST_CONFIG = {
   indexing: {
@@ -33,9 +34,13 @@ export const createSearchLifecycle = async ({
   extraEnv
 } = {}) => {
   const normalizedCacheScope = normalizeCacheScope(cacheScope);
+  const { dir: sharedWorkspaceRoot } = resolveTestCacheDir(
+    path.join('search-lifecycle', String(cacheName || 'search').trim() || 'search'),
+    { root }
+  );
   const workspaceRoot = tempRoot || (
     normalizedCacheScope === 'shared'
-      ? path.join(root, '.testCache', 'search-lifecycle', String(cacheName || 'search').trim() || 'search')
+      ? sharedWorkspaceRoot
       : await makeTempDir(tempPrefix)
   );
   const repoRoot = path.join(workspaceRoot, repoDir);

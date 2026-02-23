@@ -3,8 +3,10 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { enqueueEmbeddingJob } from '../../../src/index/build/indexer/embedding-queue.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'embedding-queue-defaults');
+const tempRoot = resolveTestCachePath(root, 'embedding-queue-defaults');
 const queueDir = path.join(tempRoot, 'queue');
 const buildRoot = path.join(tempRoot, 'builds', 'b1');
 const indexDir = path.join(buildRoot, 'index-code');
