@@ -52,7 +52,7 @@ export const enqueueEmbeddingJob = async ({
       throw new Error(`Embedding job indexDir missing: ${resolvedIndexDir}`);
     }
     const rel = path.relative(buildRoot, resolvedIndexDir);
-    if (!rel || isRelativePathEscape(rel) || isAbsolutePathNative(rel)) {
+    if (isRelativePathEscape(rel) || isAbsolutePathNative(rel)) {
       throw new Error(`Embedding job indexDir must live under buildRoot (${resolvedIndexDir}).`);
     }
     await ensureQueueDir(queueDir);

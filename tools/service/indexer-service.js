@@ -682,7 +682,7 @@ const processQueueOnce = async (metrics) => {
       }
       if (normalized.indexDir) {
         const rel = path.relative(normalized.buildRoot, normalized.indexDir);
-        if (!rel || isRelativePathEscape(rel) || isAbsolutePathNative(rel)) {
+        if (isRelativePathEscape(rel) || isAbsolutePathNative(rel)) {
           console.error(`[indexer] embedding job ${job.id} indexDir not under buildRoot; continuing with buildRoot only.`);
         }
       }
