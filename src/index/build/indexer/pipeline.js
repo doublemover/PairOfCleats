@@ -106,12 +106,41 @@ export const resolveVectorOnlyShortcutPolicy = (runtime) => {
 const MODALITY_SPARSITY_SCHEMA_VERSION = '1.0.0';
 const MODALITY_SPARSITY_PROFILE_FILE = 'modality-sparsity-profile.json';
 const MODALITY_SPARSITY_MAX_ENTRIES = 512;
+const SHARED_PROSE_FILE_TEXT_CACHE_KEY = 'prose-extracted:fileText';
+const SHARED_PROSE_MODES = new Set(['prose', 'extracted-prose']);
 
 const createEmptyModalitySparsityProfile = () => ({
   schemaVersion: MODALITY_SPARSITY_SCHEMA_VERSION,
   updatedAt: null,
   entries: {}
 });
+
+const resolveSharedModeCaches = (runtime) => {
+  if (!runtime || typeof runtime !== 'object') return null;
+  if (!runtime.sharedModeCaches || typeof runtime.sharedModeCaches !== 'object') {
+    runtime.sharedModeCaches = {};
+  }
+  return runtime.sharedModeCaches;
+};
+
+export const resolveFileTextCacheForMode = ({ runtime, mode, cacheReporter }) => {
+  const createCache = () => createLruCache({
+    name: 'fileText',
+    maxMb: runtime.cacheConfig?.fileText?.maxMb,
+    ttlMs: runtime.cacheConfig?.fileText?.ttlMs,
+    sizeCalculation: estimateFileTextBytes,
+    reporter: cacheReporter
+  });
+  if (!SHARED_PROSE_MODES.has(mode)) {
+    return createCache();
+  }
+  const sharedCaches = resolveSharedModeCaches(runtime);
+  if (!sharedCaches) return createCache();
+  if (!sharedCaches[SHARED_PROSE_FILE_TEXT_CACHE_KEY]) {
+    sharedCaches[SHARED_PROSE_FILE_TEXT_CACHE_KEY] = createCache();
+  }
+  return sharedCaches[SHARED_PROSE_FILE_TEXT_CACHE_KEY];
+};
 
 /**
  * Resolve per-repo modality sparsity profile artifact path.
@@ -536,12 +565,10 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
 
   const state = createIndexState({ postingsConfig: runtime.postingsConfig });
   const cacheReporter = createCacheReporter({ enabled: runtime.verboseCache, log });
-  const fileTextCache = createLruCache({
-    name: 'fileText',
-    maxMb: runtime.cacheConfig?.fileText?.maxMb,
-    ttlMs: runtime.cacheConfig?.fileText?.ttlMs,
-    sizeCalculation: estimateFileTextBytes,
-    reporter: cacheReporter
+  const fileTextCache = resolveFileTextCacheForMode({
+    runtime,
+    mode,
+    cacheReporter
   });
   const fileTextByFile = {
     get: (key) => fileTextCache.get(key),

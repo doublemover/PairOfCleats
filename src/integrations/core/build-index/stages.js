@@ -531,6 +531,7 @@ export const runStage = async (stage, context, { allowSqlite = true } = {}) => {
   try {
     throwIfAborted(abortSignal);
     runtime = await createBuildRuntime({ root, argv: stageArgv, rawArgv, policy });
+    runtime.requestedModes = Array.isArray(modes) ? [...modes] : [];
     phaseStage = runtime.stage || phaseStage;
     runtime.featureMetrics = createFeatureMetrics({
       buildId: runtime.buildId,
