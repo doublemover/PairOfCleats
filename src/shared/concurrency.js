@@ -38,7 +38,8 @@ const DEFAULT_ADAPTIVE_SURFACE_POLICY = Object.freeze({
     oscillationGuardMs: 1200,
     ioPressureThreshold: 0.95,
     memoryPressureThreshold: 0.92,
-    gcPressureThreshold: 0.35
+    gcPressureThreshold: 0.35,
+    fdPressureThreshold: 0.88
   }),
   inference: Object.freeze({
     targetUtilization: 0.84,
@@ -51,7 +52,8 @@ const DEFAULT_ADAPTIVE_SURFACE_POLICY = Object.freeze({
     oscillationGuardMs: 1300,
     ioPressureThreshold: 0.9,
     memoryPressureThreshold: 0.9,
-    gcPressureThreshold: 0.3
+    gcPressureThreshold: 0.3,
+    fdPressureThreshold: 0.86
   }),
   artifactWrite: Object.freeze({
     targetUtilization: 0.76,
@@ -64,7 +66,8 @@ const DEFAULT_ADAPTIVE_SURFACE_POLICY = Object.freeze({
     oscillationGuardMs: 1500,
     ioPressureThreshold: 0.72,
     memoryPressureThreshold: 0.88,
-    gcPressureThreshold: 0.25
+    gcPressureThreshold: 0.25,
+    fdPressureThreshold: 0.84
   }),
   sqlite: Object.freeze({
     targetUtilization: 0.74,
@@ -77,7 +80,8 @@ const DEFAULT_ADAPTIVE_SURFACE_POLICY = Object.freeze({
     oscillationGuardMs: 1400,
     ioPressureThreshold: 0.75,
     memoryPressureThreshold: 0.87,
-    gcPressureThreshold: 0.25
+    gcPressureThreshold: 0.25,
+    fdPressureThreshold: 0.82
   }),
   embeddings: Object.freeze({
     targetUtilization: 0.8,
@@ -90,7 +94,8 @@ const DEFAULT_ADAPTIVE_SURFACE_POLICY = Object.freeze({
     oscillationGuardMs: 1350,
     ioPressureThreshold: 0.8,
     memoryPressureThreshold: 0.9,
-    gcPressureThreshold: 0.3
+    gcPressureThreshold: 0.3,
+    fdPressureThreshold: 0.84
   })
 });
 
@@ -406,7 +411,7 @@ export async function runWithConcurrency(items, limit, worker, options = {}) {
 /**
  * Create a build scheduler that coordinates CPU/IO/memory tokens across queues.
  * This is intentionally generic and can be wired into Stage1/2/4 and embeddings.
- * @param {{enabled?:boolean,lowResourceMode?:boolean,cpuTokens?:number,ioTokens?:number,memoryTokens?:number,starvationMs?:number,maxInFlightBytes?:number,queues?:Record<string,{priority?:number,maxPending?:number,maxPendingBytes?:number,maxInFlightBytes?:number}>,traceMaxSamples?:number,queueDepthSnapshotMaxSamples?:number,traceIntervalMs?:number,queueDepthSnapshotIntervalMs?:number,queueDepthSnapshotsEnabled?:boolean,writeBackpressure?:{enabled?:boolean,writeQueue?:string,producerQueues?:string[],pendingThreshold?:number,pendingBytesThreshold?:number,oldestWaitMsThreshold?:number}}} input
+ * @param {{enabled?:boolean,lowResourceMode?:boolean,cpuTokens?:number,ioTokens?:number,memoryTokens?:number,starvationMs?:number,maxInFlightBytes?:number,queues?:Record<string,{priority?:number,maxPending?:number,maxPendingBytes?:number,maxInFlightBytes?:number}>,traceMaxSamples?:number,queueDepthSnapshotMaxSamples?:number,traceIntervalMs?:number,queueDepthSnapshotIntervalMs?:number,queueDepthSnapshotsEnabled?:boolean,writeBackpressure?:{enabled?:boolean,writeQueue?:string,producerQueues?:string[],pendingThreshold?:number,pendingBytesThreshold?:number,oldestWaitMsThreshold?:number},fdPressure?:{enabled?:boolean,softLimit?:number,reserveDescriptors?:number,descriptorsPerToken?:number,minTokenCap?:number,maxTokenCap?:number,highPressureThreshold?:number,lowPressureThreshold?:number}}} input
  * @returns {{schedule:(queueName:string,tokens?:{cpu?:number,io?:number,mem?:number,bytes?:number},fn?:()=>Promise<any>)=>Promise<any>,stats:()=>any,shutdown:()=>void,setLimits:(limits:{cpuTokens?:number,ioTokens?:number,memoryTokens?:number})=>void,setTelemetryOptions:(options:{stage?:string,queueDepthSnapshotsEnabled?:boolean,queueDepthSnapshotIntervalMs?:number,traceIntervalMs?:number})=>void}}
  */
 export function createBuildScheduler(input = {}) {
@@ -547,6 +552,145 @@ export function createBuildScheduler(input = {}) {
     : adaptiveSurfaceRoot;
   const adaptiveSurfaceControllersEnabled = adaptiveEnabled
     && adaptiveSurfaceRoot.enabled !== false;
+  const fdPressureInput = isObject(input.fdPressure)
+    ? input.fdPressure
+    : (isObject(adaptiveSurfaceRoot.fdPressure) ? adaptiveSurfaceRoot.fdPressure : {});
+  const fdPressureEnabled = adaptiveEnabled
+    && fdPressureInput.enabled !== false;
+  const defaultFdSoftLimit = process.platform === 'win32' ? 4096 : 1024;
+  const fdSoftLimit = normalizePositiveInt(
+    fdPressureInput.softLimit ?? fdPressureInput.limit ?? input.fdSoftLimit,
+    defaultFdSoftLimit
+  ) || defaultFdSoftLimit;
+  const configuredFdReserve = normalizeNonNegativeInt(
+    fdPressureInput.reserveDescriptors ?? fdPressureInput.reserve ?? input.fdReserve,
+    Math.max(64, Math.floor(fdSoftLimit * 0.15))
+  ) || 0;
+  const fdReserveDescriptors = Math.max(
+    1,
+    Math.min(Math.max(1, fdSoftLimit - 1), configuredFdReserve)
+  );
+  const fdDescriptorsPerToken = Math.max(
+    1,
+    normalizePositiveInt(
+      fdPressureInput.descriptorsPerToken
+        ?? fdPressureInput.fdPerToken
+        ?? input.fdDescriptorsPerToken,
+      4
+    ) || 4
+  );
+  const fdMinTokenCap = Math.max(
+    1,
+    Math.min(
+      maxLimits.io,
+      normalizePositiveInt(fdPressureInput.minTokenCap, 1) || 1
+    )
+  );
+  const fdMaxTokenCap = Math.max(
+    fdMinTokenCap,
+    Math.min(
+      maxLimits.io,
+      normalizePositiveInt(fdPressureInput.maxTokenCap, maxLimits.io) || maxLimits.io
+    )
+  );
+  const fdHighPressureThreshold = normalizeRatio(
+    fdPressureInput.highPressureThreshold ?? fdPressureInput.pressureHighThreshold,
+    0.88,
+    { min: 0, max: 1.5 }
+  ) ?? 0.88;
+  const fdLowPressureThreshold = normalizeRatio(
+    fdPressureInput.lowPressureThreshold ?? fdPressureInput.pressureLowThreshold,
+    Math.min(fdHighPressureThreshold, 0.72),
+    { min: 0, max: fdHighPressureThreshold }
+  ) ?? Math.min(fdHighPressureThreshold, 0.72);
+  const clampFdTokenCap = (value, fallback = fdMinTokenCap) => {
+    const parsed = normalizePositiveInt(value, fallback);
+    if (!Number.isFinite(parsed) || parsed <= 0) return fdMinTokenCap;
+    return Math.max(fdMinTokenCap, Math.min(fdMaxTokenCap, parsed));
+  };
+  const resolveFdOpenEstimate = () => {
+    try {
+      if (typeof process.getActiveResourcesInfo === 'function') {
+        const resources = process.getActiveResourcesInfo();
+        if (Array.isArray(resources)) {
+          return Math.max(0, resources.length);
+        }
+      }
+    } catch {}
+    try {
+      if (typeof process._getActiveHandles === 'function') {
+        const handles = process._getActiveHandles();
+        if (Array.isArray(handles)) {
+          return Math.max(0, handles.length);
+        }
+      }
+    } catch {}
+    return 0;
+  };
+  const resolveFdSignal = (sampled = null) => {
+    const inputValue = sampled && typeof sampled === 'object' ? sampled : null;
+    const softLimit = Math.max(
+      1,
+      normalizePositiveInt(
+        inputValue?.softLimit ?? inputValue?.limit,
+        fdSoftLimit
+      ) || fdSoftLimit
+    );
+    const reserveDescriptors = Math.max(
+      0,
+      Math.min(
+        Math.max(0, softLimit - 1),
+        normalizeNonNegativeInt(
+          inputValue?.reserveDescriptors ?? inputValue?.reserve,
+          fdReserveDescriptors
+        ) || 0
+      )
+    );
+    const openDescriptors = Math.max(
+      0,
+      normalizeNonNegativeInt(
+        inputValue?.openDescriptors ?? inputValue?.open ?? inputValue?.used,
+        resolveFdOpenEstimate()
+      ) || 0
+    );
+    const availableDescriptors = Math.max(
+      0,
+      normalizeNonNegativeInt(
+        inputValue?.availableDescriptors ?? inputValue?.available,
+        softLimit - reserveDescriptors - openDescriptors
+      ) || 0
+    );
+    const descriptorsBudget = Math.max(1, softLimit - reserveDescriptors);
+    const headroomRatio = Math.max(
+      0,
+      Math.min(1, availableDescriptors / descriptorsBudget)
+    );
+    const tokenCapFromBudget = Math.max(
+      1,
+      Math.floor(availableDescriptors / Math.max(1, fdDescriptorsPerToken))
+    );
+    const tokenCap = clampFdTokenCap(
+      inputValue?.tokenCap ?? inputValue?.budgetTokens ?? inputValue?.concurrencyCap,
+      tokenCapFromBudget
+    );
+    const computedPressure = Math.max(
+      0,
+      1 - headroomRatio
+    );
+    const pressureScore = normalizeRatio(
+      inputValue?.pressureScore,
+      computedPressure,
+      { min: 0, max: 2 }
+    ) ?? computedPressure;
+    return {
+      openDescriptors,
+      softLimit,
+      reserveDescriptors,
+      availableDescriptors,
+      tokenCap: fdPressureEnabled ? tokenCap : maxLimits.io,
+      pressureScore: fdPressureEnabled ? pressureScore : 0
+    };
+  };
   const adaptiveSurfaceDecisionTraceMax = normalizePositiveInt(
     adaptiveSurfaceRoot.decisionTraceMaxSamples
       ?? input.adaptiveDecisionTraceMaxSamples,
@@ -635,6 +779,11 @@ export function createBuildScheduler(input = {}) {
         config.gcPressureThreshold,
         defaults.gcPressureThreshold,
         { min: 0, max: 1 }
+      ),
+      fdPressureThreshold: normalizeRatio(
+        config.fdPressureThreshold,
+        defaults.fdPressureThreshold,
+        { min: 0, max: 1.5 }
       ),
       lastScaleUpAt: Number.NEGATIVE_INFINITY,
       lastScaleDownAt: Number.NEGATIVE_INFINITY,
@@ -1085,6 +1234,7 @@ export function createBuildScheduler(input = {}) {
     const cpuTokenUtilization = tokens.cpu.total > 0 ? (tokens.cpu.used / tokens.cpu.total) : 0;
     const ioTokenUtilization = tokens.io.total > 0 ? (tokens.io.used / tokens.io.total) : 0;
     const memTokenUtilization = tokens.mem.total > 0 ? (tokens.mem.used / tokens.mem.total) : 0;
+    const defaultFdSignals = resolveFdSignal();
     const defaultSignals = {
       cpu: {
         tokenUtilization: Math.max(cpuTokenUtilization, ioTokenUtilization),
@@ -1101,6 +1251,12 @@ export function createBuildScheduler(input = {}) {
         freeRatio: null,
         pressureScore: Math.max(memTokenUtilization, 0),
         gcPressureScore: 0
+      },
+      fd: {
+        ...defaultFdSignals,
+        pressureScore: fdPressureEnabled
+          ? Math.max(ioTokenUtilization, Number(defaultFdSignals.pressureScore) || 0)
+          : 0
       }
     };
     if (typeof input.adaptiveSignalSampler === 'function') {
@@ -1143,6 +1299,13 @@ export function createBuildScheduler(input = {}) {
             rssUtilization: normalizeRatio(sampled?.memory?.rssUtilization, defaultSignals.memory.rssUtilization, { min: 0, max: 1 }),
             heapUtilization: normalizeRatio(sampled?.memory?.heapUtilization, defaultSignals.memory.heapUtilization, { min: 0, max: 1 }),
             freeRatio: normalizeRatio(sampled?.memory?.freeRatio, defaultSignals.memory.freeRatio, { min: 0, max: 1 })
+          };
+          const sampledFdSignals = resolveFdSignal(sampled?.fd);
+          defaultSignals.fd = {
+            ...sampledFdSignals,
+            pressureScore: fdPressureEnabled
+              ? Math.max(ioTokenUtilization, Number(sampledFdSignals.pressureScore) || 0)
+              : 0
           };
           return defaultSignals;
         }
@@ -1201,13 +1364,22 @@ export function createBuildScheduler(input = {}) {
         freeRatio,
         pressureScore: memoryPressureScore,
         gcPressureScore
+      },
+      fd: {
+        ...defaultSignals.fd,
+        pressureScore: fdPressureEnabled
+          ? Math.max(ioTokenUtilization, Number(defaultSignals.fd?.pressureScore) || 0)
+          : 0
       }
     };
   };
 
+  let adaptiveFdTokenCap = fdPressureEnabled
+    ? clampFdTokenCap(resolveFdSignal().tokenCap, fdMaxTokenCap)
+    : maxLimits.io;
   const tokenState = () => ({
     cpu: { total: cpuTokens, used: 0 },
-    io: { total: ioTokens, used: 0 },
+    io: { total: Math.min(ioTokens, adaptiveFdTokenCap), used: 0 },
     mem: { total: memoryTokens, used: 0 }
   });
   let tokens = tokenState();
@@ -1265,6 +1437,9 @@ export function createBuildScheduler(input = {}) {
           : null,
         memory: entry.signals.memory && typeof entry.signals.memory === 'object'
           ? { ...entry.signals.memory }
+          : null,
+        fd: entry.signals.fd && typeof entry.signals.fd === 'object'
+          ? { ...entry.signals.fd }
           : null
       }
       : null
@@ -1294,17 +1469,21 @@ export function createBuildScheduler(input = {}) {
       );
       const memoryPressure = Math.max(0, Number(signals?.memory?.pressureScore) || 0);
       const gcPressure = Math.max(0, Number(signals?.memory?.gcPressureScore) || 0);
+      const fdPressure = Math.max(0, Number(signals?.fd?.pressureScore) || 0);
       let action = 'hold';
       let reason = 'steady';
       if (
-        memoryPressure >= state.memoryPressureThreshold
+        fdPressure >= state.fdPressureThreshold
+        || memoryPressure >= state.memoryPressureThreshold
         || gcPressure >= state.gcPressureThreshold
         || ioPressureScore >= state.ioPressureThreshold
       ) {
         action = 'down';
-        reason = memoryPressure >= state.memoryPressureThreshold
-          ? 'memory-pressure'
-          : (gcPressure >= state.gcPressureThreshold ? 'gc-pressure' : 'io-pressure');
+        reason = fdPressure >= state.fdPressureThreshold
+          ? 'fd-pressure'
+          : (memoryPressure >= state.memoryPressureThreshold
+            ? 'memory-pressure'
+            : (gcPressure >= state.gcPressureThreshold ? 'gc-pressure' : 'io-pressure'));
       } else if (
         backlogPerSlot >= state.upBacklogPerSlot
         && oldestWaitMs >= state.upWaitMs
@@ -1374,7 +1553,8 @@ export function createBuildScheduler(input = {}) {
         ioPressureScore,
         cpuUtilization,
         memoryPressure,
-        gcPressure
+        gcPressure,
+        fdPressure
       };
       adaptiveDecisionId += 1;
       appendAdaptiveDecision({
@@ -1393,7 +1573,8 @@ export function createBuildScheduler(input = {}) {
         },
         signals: {
           cpu: signals?.cpu && typeof signals.cpu === 'object' ? { ...signals.cpu } : null,
-          memory: signals?.memory && typeof signals.memory === 'object' ? { ...signals.memory } : null
+          memory: signals?.memory && typeof signals.memory === 'object' ? { ...signals.memory } : null,
+          fd: signals?.fd && typeof signals.fd === 'object' ? { ...signals.fd } : null
         }
       });
     }
@@ -1405,6 +1586,21 @@ export function createBuildScheduler(input = {}) {
     if ((now - lastAdaptiveAt) < adaptiveCurrentIntervalMs) return;
     lastAdaptiveAt = now;
     maybeAdaptSurfaceControllers(now);
+    const adaptiveSignals = lastSystemSignals && typeof lastSystemSignals === 'object'
+      ? lastSystemSignals
+      : readSystemSignals(now);
+    lastSystemSignals = adaptiveSignals;
+    const fdSignal = adaptiveSignals?.fd && typeof adaptiveSignals.fd === 'object'
+      ? adaptiveSignals.fd
+      : resolveFdSignal();
+    adaptiveFdTokenCap = fdPressureEnabled
+      ? clampFdTokenCap(fdSignal?.tokenCap, adaptiveFdTokenCap)
+      : maxLimits.io;
+    const fdPressure = Math.max(0, Number(fdSignal?.pressureScore) || 0);
+    const fdPressureHigh = fdPressureEnabled
+      && fdPressure >= fdHighPressureThreshold;
+    const fdPressureRecovered = !fdPressureEnabled
+      || fdPressure <= fdLowPressureThreshold;
     let totalPending = 0;
     let totalPendingBytes = 0;
     let totalRunning = 0;
@@ -1428,9 +1624,19 @@ export function createBuildScheduler(input = {}) {
       floorIo = Math.max(floorIo, Number(q.floorIo) || 0);
       floorMem = Math.max(floorMem, Number(q.floorMem) || 0);
     }
+    const effectiveMaxIo = Math.max(1, Math.min(maxLimits.io, adaptiveFdTokenCap));
     const cpuFloor = Math.max(baselineLimits.cpu, floorCpu);
-    const ioFloor = Math.max(baselineLimits.io, floorIo);
+    const ioFloor = Math.max(
+      1,
+      Math.min(
+        Math.max(baselineLimits.io, floorIo),
+        effectiveMaxIo
+      )
+    );
     const memFloor = Math.max(baselineLimits.mem, floorMem);
+    if (tokens.io.total > effectiveMaxIo) {
+      tokens.io.total = Math.max(ioFloor, tokens.io.used, effectiveMaxIo);
+    }
     const tokenBudget = Math.max(1, tokens.cpu.total + tokens.io.total);
     const memoryTokenBudgetBytes = Math.max(1, tokens.mem.total) * adaptiveMemoryPerTokenMb * 1024 * 1024;
     const pendingBytePressure = totalPendingBytes > Math.max(
@@ -1461,11 +1667,10 @@ export function createBuildScheduler(input = {}) {
       smoothedStarvation,
       queueOrder.length > 0 ? (starvedQueues / queueOrder.length) : 0
     );
-    const utilizationDeficit = utilization < adaptiveTargetUtilization;
     const smoothedUtilizationDeficit = (smoothedUtilization ?? utilization) < adaptiveTargetUtilization;
     const severeUtilizationDeficit = utilization < (adaptiveTargetUtilization * 0.7);
     const starvationScore = starvedQueues + Math.round((smoothedStarvation ?? 0) * 2);
-    if (pendingPressure || bytePressure || starvationScore > 0) {
+    if (fdPressureHigh || pendingPressure || bytePressure || starvationScore > 0) {
       adaptiveCurrentIntervalMs = Math.max(50, Math.floor(adaptiveMinIntervalMs * 0.5));
     } else if (mostlyIdle) {
       adaptiveCurrentIntervalMs = Math.min(2000, Math.max(adaptiveMinIntervalMs, Math.floor(adaptiveMinIntervalMs * 2)));
@@ -1495,6 +1700,14 @@ export function createBuildScheduler(input = {}) {
       }
     }
 
+    if (fdPressureHigh) {
+      adaptiveMode = 'steady';
+      tokens.cpu.total = Math.max(cpuFloor, tokens.cpu.used, tokens.cpu.total - 1);
+      tokens.io.total = Math.max(ioFloor, tokens.io.used, tokens.io.total - Math.max(1, adaptiveStep));
+      tokens.mem.total = Math.max(memFloor, tokens.mem.used, tokens.mem.total - 1);
+      return;
+    }
+
     if (memoryLowHeadroom) {
       adaptiveMode = 'steady';
       tokens.cpu.total = Math.max(cpuFloor, tokens.cpu.used, tokens.cpu.total - adaptiveStep);
@@ -1513,10 +1726,11 @@ export function createBuildScheduler(input = {}) {
     const burstMode = now < burstModeUntilMs;
     const queueStarvation = starvationScore > 0;
     const shouldScaleFromHeadroom = memoryHighHeadroom
+      && fdPressureRecovered
       && pendingDemand
       && (smoothedUtilizationDeficit || queueStarvation || burstMode)
       && (totalRunning > 0 || queueStarvation || severeUtilizationDeficit);
-    const shouldScale = memoryHighHeadroom && (
+    const shouldScale = memoryHighHeadroom && fdPressureRecovered && (
       pendingPressure
       || bytePressure
       || queueStarvation
@@ -1532,7 +1746,7 @@ export function createBuildScheduler(input = {}) {
         : ((pressureScale || queueStarvation) ? adaptiveStep + 1 : adaptiveStep);
       const effectiveScaleStep = burstMode ? (scaleStep + 1) : scaleStep;
       const nextCpu = Math.min(maxLimits.cpu, tokens.cpu.total + effectiveScaleStep);
-      const nextIo = Math.min(maxLimits.io, tokens.io.total + effectiveScaleStep);
+      const nextIo = Math.min(effectiveMaxIo, tokens.io.total + effectiveScaleStep);
       const nextMem = Math.min(maxLimits.mem, memoryTokenHeadroomCap, tokens.mem.total + adaptiveStep);
       tokens.cpu.total = nextCpu;
       tokens.io.total = nextIo;
@@ -1546,7 +1760,7 @@ export function createBuildScheduler(input = {}) {
       && utilization >= adaptiveTargetUtilization
       && (
         tokens.cpu.total > baselineLimits.cpu
-        || tokens.io.total > baselineLimits.io
+        || tokens.io.total > ioFloor
         || tokens.mem.total > baselineLimits.mem
       );
     if (settleMode) {
@@ -1855,6 +2069,7 @@ export function createBuildScheduler(input = {}) {
         minConcurrency: state.minConcurrency,
         maxConcurrency: state.maxConcurrency,
         currentConcurrency: state.currentConcurrency,
+        fdPressureThreshold: state.fdPressureThreshold,
         decisions: { ...state.decisions },
         lastAction: state.lastAction,
         lastDecisionAt: state.lastDecisionAt,
@@ -1887,6 +2102,17 @@ export function createBuildScheduler(input = {}) {
         maxInFlightBytes: globalMaxInFlightBytes,
         intervalMs: adaptiveCurrentIntervalMs,
         mode: adaptiveMode,
+        fd: {
+          enabled: fdPressureEnabled,
+          softLimit: fdSoftLimit,
+          reserveDescriptors: fdReserveDescriptors,
+          descriptorsPerToken: fdDescriptorsPerToken,
+          minTokenCap: fdMinTokenCap,
+          maxTokenCap: fdMaxTokenCap,
+          tokenCap: adaptiveFdTokenCap,
+          highPressureThreshold: fdHighPressureThreshold,
+          lowPressureThreshold: fdLowPressureThreshold
+        },
         smoothedUtilization: smoothedUtilization ?? 0,
         smoothedPendingPressure: smoothedPendingPressure ?? 0,
         smoothedStarvation: smoothedStarvation ?? 0,
@@ -1900,6 +2126,9 @@ export function createBuildScheduler(input = {}) {
               : null,
             memory: lastSystemSignals.memory && typeof lastSystemSignals.memory === 'object'
               ? { ...lastSystemSignals.memory }
+              : null,
+            fd: lastSystemSignals.fd && typeof lastSystemSignals.fd === 'object'
+              ? { ...lastSystemSignals.fd }
               : null
           }
           : null,
@@ -1946,7 +2175,7 @@ export function createBuildScheduler(input = {}) {
       memoryTokens = Math.max(1, Math.floor(Number(limits.memoryTokens)));
     }
     tokens.cpu.total = cpuTokens;
-    tokens.io.total = ioTokens;
+    tokens.io.total = Math.min(ioTokens, adaptiveFdTokenCap);
     tokens.mem.total = memoryTokens;
     captureSchedulingTrace({ reason: 'set-limits', force: true });
     pump();

@@ -145,7 +145,12 @@ const resolveAdaptiveSurfacesConfig = (value) => {
   const surfaceConfig = {};
   for (const [surfaceName, config] of Object.entries(sourceSurfaces)) {
     if (!isObject(config)) continue;
-    if (surfaceName === 'enabled' || surfaceName === 'decisionTraceMaxSamples' || surfaceName === 'surfaces') {
+    if (
+      surfaceName === 'enabled'
+      || surfaceName === 'decisionTraceMaxSamples'
+      || surfaceName === 'surfaces'
+      || surfaceName === 'fdPressure'
+    ) {
       continue;
     }
     const normalized = {
@@ -171,7 +176,8 @@ const resolveAdaptiveSurfacesConfig = (value) => {
       'targetUtilization',
       'ioPressureThreshold',
       'memoryPressureThreshold',
-      'gcPressureThreshold'
+      'gcPressureThreshold',
+      'fdPressureThreshold'
     ];
     for (const field of numericFields) {
       const valueRaw = Number(config[field]);
@@ -185,6 +191,34 @@ const resolveAdaptiveSurfacesConfig = (value) => {
   }
   if (Object.keys(surfaceConfig).length > 0) {
     resolved.surfaces = surfaceConfig;
+  }
+  if (isObject(value.fdPressure)) {
+    const fdSource = value.fdPressure;
+    const fdPressure = {};
+    if (Object.prototype.hasOwnProperty.call(fdSource, 'enabled')) {
+      fdPressure.enabled = fdSource.enabled !== false;
+    }
+    const softLimit = coercePositiveInt(fdSource.softLimit ?? fdSource.limit);
+    const reserveDescriptors = coerceNonNegativeInt(fdSource.reserveDescriptors ?? fdSource.reserve);
+    const descriptorsPerToken = coercePositiveInt(fdSource.descriptorsPerToken ?? fdSource.fdPerToken);
+    const minTokenCap = coercePositiveInt(fdSource.minTokenCap);
+    const maxTokenCap = coercePositiveInt(fdSource.maxTokenCap);
+    const highPressureThreshold = Number(fdSource.highPressureThreshold ?? fdSource.pressureHighThreshold);
+    const lowPressureThreshold = Number(fdSource.lowPressureThreshold ?? fdSource.pressureLowThreshold);
+    if (softLimit != null) fdPressure.softLimit = softLimit;
+    if (reserveDescriptors != null) fdPressure.reserveDescriptors = reserveDescriptors;
+    if (descriptorsPerToken != null) fdPressure.descriptorsPerToken = descriptorsPerToken;
+    if (minTokenCap != null) fdPressure.minTokenCap = minTokenCap;
+    if (maxTokenCap != null) fdPressure.maxTokenCap = maxTokenCap;
+    if (Number.isFinite(highPressureThreshold)) {
+      fdPressure.highPressureThreshold = highPressureThreshold;
+    }
+    if (Number.isFinite(lowPressureThreshold)) {
+      fdPressure.lowPressureThreshold = lowPressureThreshold;
+    }
+    if (Object.keys(fdPressure).length > 0) {
+      resolved.fdPressure = fdPressure;
+    }
   }
   return Object.keys(resolved).length > 0 ? resolved : null;
 };

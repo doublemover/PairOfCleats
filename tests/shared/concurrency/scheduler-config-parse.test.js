@@ -29,6 +29,20 @@ const resolved = resolveSchedulerConfig({
       starvationMs: 15000,
       queues: {
         custom: { priority: 7, maxPending: 9, floorCpu: 2 }
+      },
+      adaptiveSurfaces: {
+        parse: {
+          fdPressureThreshold: 0.7
+        },
+        fdPressure: {
+          softLimit: 512,
+          reserveDescriptors: 96,
+          descriptorsPerToken: 6,
+          minTokenCap: 1,
+          maxTokenCap: 8,
+          highPressureThreshold: 0.91,
+          lowPressureThreshold: 0.63
+        }
       }
     }
   },
@@ -49,6 +63,11 @@ assert.equal(resolved.starvationMs, 9999, 'expected env starvation to be used');
 assert.equal(resolved.queues.custom.priority, 7);
 assert.equal(resolved.queues.custom.maxPending, 9);
 assert.equal(resolved.queues.custom.floorCpu, 2);
+assert.equal(resolved.adaptiveSurfaces?.surfaces?.parse?.fdPressureThreshold, 0.7);
+assert.equal(resolved.adaptiveSurfaces?.fdPressure?.softLimit, 512);
+assert.equal(resolved.adaptiveSurfaces?.fdPressure?.reserveDescriptors, 96);
+assert.equal(resolved.adaptiveSurfaces?.fdPressure?.descriptorsPerToken, 6);
+assert.equal(resolved.adaptiveSurfaces?.fdPressure?.maxTokenCap, 8);
 assert.equal(resolved.writeBackpressure.writeQueue, 'stage2.write');
 assert.ok(
   Array.isArray(resolved.writeBackpressure.producerQueues)

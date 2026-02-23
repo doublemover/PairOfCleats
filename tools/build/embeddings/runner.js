@@ -7,6 +7,7 @@ import { validateIndexArtifacts } from '../../../src/index/validate.js';
 import { markBuildPhase, resolveBuildStatePath, startBuildHeartbeat } from '../../../src/index/build/build-state.js';
 import { createStageCheckpointRecorder } from '../../../src/index/build/stage-checkpoints.js';
 import { SCHEDULER_QUEUE_NAMES } from '../../../src/index/build/runtime/scheduler.js';
+import { resolveFdConcurrencyCap } from '../../../src/index/build/workers/config.js';
 import { loadIncrementalManifest, writeIncrementalManifest } from '../../../src/storage/sqlite/incremental.js';
 import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
 import { resolveQuantizationParams } from '../../../src/storage/sqlite/quantization.js';
@@ -648,18 +649,21 @@ export const resolveEmbeddingsFileParallelism = ({
   indexingConfig,
   computeTokensTotal,
   cpuConcurrency,
+  fdConcurrencyCap,
   hnswEnabled
 }) => {
   if (hnswEnabled) return 1;
   const configured = toPositiveIntOrNull(indexingConfig?.embeddings?.fileParallelism);
   const cpuCap = toPositiveIntOrNull(cpuConcurrency);
+  const fdCapRaw = toPositiveIntOrNull(fdConcurrencyCap);
   if (configured) {
-    return cpuCap ? Math.min(cpuCap, configured) : configured;
+    const withCpu = cpuCap ? Math.min(cpuCap, configured) : configured;
+    return fdCapRaw ? Math.min(fdCapRaw, withCpu) : withCpu;
   }
   const tokenDriven = toPositiveIntOrNull(computeTokensTotal);
   const resolved = tokenDriven || cpuCap || DEFAULT_EMBEDDINGS_FILE_PARALLELISM;
-  if (cpuCap) return Math.min(cpuCap, resolved);
-  return resolved;
+  const withCpu = cpuCap ? Math.min(cpuCap, resolved) : resolved;
+  return fdCapRaw ? Math.min(fdCapRaw, withCpu) : withCpu;
 };
 
 export const resolveCrossFileChunkDedupeMaxEntries = (indexingConfig) => {
@@ -2737,10 +2741,33 @@ export async function runBuildEmbeddingsWithConfig(config) {
         const computeTokensTotal = Number.isFinite(Number(schedulerStatsForWriter?.tokens?.cpu?.total))
           ? Math.max(1, Math.floor(Number(schedulerStatsForWriter.tokens.cpu.total)))
           : 1;
+        const schedulerFdTokenCap = Number.isFinite(Number(schedulerStatsForWriter?.adaptive?.fd?.tokenCap))
+          ? Math.max(1, Math.floor(Number(schedulerStatsForWriter.adaptive.fd.tokenCap)))
+          : null;
+        const staticFdCap = resolveFdConcurrencyCap(
+          Math.max(
+            1,
+            Number.isFinite(Number(envelopeCpuConcurrency))
+              ? Math.floor(Number(envelopeCpuConcurrency))
+              : 1,
+            computeTokensTotal
+          ),
+          { fdPressure: indexingConfig?.scheduler?.adaptiveSurfaces?.fdPressure }
+        );
+        const fdConcurrencyCap = Number.isFinite(Number(schedulerFdTokenCap))
+          ? Math.max(
+            1,
+            Math.min(
+              schedulerFdTokenCap,
+              Number.isFinite(Number(staticFdCap)) ? Number(staticFdCap) : schedulerFdTokenCap
+            )
+          )
+          : staticFdCap;
         const fileParallelism = resolveEmbeddingsFileParallelism({
           indexingConfig,
           computeTokensTotal,
           cpuConcurrency: envelopeCpuConcurrency,
+          fdConcurrencyCap,
           hnswEnabled
         });
         const inFlightCoalesceMaxEntries = resolveEmbeddingsInFlightMaxEntries(indexingConfig);
