@@ -10,6 +10,7 @@ import { log } from '../../shared/progress.js';
 import { isAbsolutePathNative, toPosix } from '../../shared/files.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
+import { isWithinRoot } from '../../workspace/identity.js';
 
 export async function promoteBuild({
   repoRoot,
@@ -28,7 +29,7 @@ export async function promoteBuild({
   const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
   const resolvedCacheRoot = path.resolve(repoCacheRoot);
   const resolvedBuildRoot = path.resolve(buildRoot);
-  if (!resolvedBuildRoot.startsWith(resolvedCacheRoot + path.sep) && resolvedBuildRoot !== resolvedCacheRoot) {
+  if (!isWithinRoot(resolvedBuildRoot, resolvedCacheRoot)) {
     throw new Error(`buildRoot escapes repo cache root: ${buildRoot}`);
   }
   const relativeRoot = toPosix(path.relative(repoCacheRoot, buildRoot));
@@ -36,7 +37,7 @@ export async function promoteBuild({
     if (typeof value !== 'string' || !value.trim()) return null;
     const resolved = isAbsolutePathNative(value) ? value : path.join(repoCacheRoot, value);
     const normalized = path.resolve(resolved);
-    if (!normalized.startsWith(resolvedCacheRoot + path.sep) && normalized !== resolvedCacheRoot) return null;
+    if (!isWithinRoot(normalized, resolvedCacheRoot)) return null;
     return toPosix(path.relative(repoCacheRoot, normalized));
   };
   const currentPath = path.join(buildsRoot, 'current.json');

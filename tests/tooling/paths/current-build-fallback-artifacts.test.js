@@ -16,6 +16,9 @@ const normalizePath = (value) => {
   const resolved = path.resolve(value);
   return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
 };
+const swapCase = (value) => String(value).replace(/[A-Za-z]/g, (ch) => (
+  ch === ch.toLowerCase() ? ch.toUpperCase() : ch.toLowerCase()
+));
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(repoRoot, { recursive: true });
@@ -54,5 +57,29 @@ assert.equal(
   normalizePath(validRoot),
   'expected resolveIndexRoot to skip roots with only empty index directories'
 );
+
+if (process.platform === 'win32') {
+  await fs.writeFile(
+    path.join(buildsRoot, 'current.json'),
+    JSON.stringify({
+      buildId: validBuildId,
+      buildRoot: swapCase(validRoot)
+    }, null, 2),
+    'utf8'
+  );
+  const mixedCaseCurrent = getCurrentBuildInfo(repoRoot, userConfig, { mode: 'code' });
+  assert.ok(mixedCaseCurrent, 'expected mixed-case buildRoot pointer to resolve');
+  assert.equal(
+    normalizePath(mixedCaseCurrent.activeRoot),
+    normalizePath(validRoot),
+    'expected mixed-case buildRoot to remain in repo cache scope'
+  );
+  const mixedCaseIndexRoot = resolveIndexRoot(repoRoot, userConfig, { mode: 'code' });
+  assert.equal(
+    normalizePath(mixedCaseIndexRoot),
+    normalizePath(validRoot),
+    'expected resolveIndexRoot to accept mixed-case cache-scoped buildRoot'
+  );
+}
 
 console.log('current build fallback artifacts test passed');

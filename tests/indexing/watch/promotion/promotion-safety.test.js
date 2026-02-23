@@ -13,6 +13,13 @@ applyTestEnv({ cacheRoot: tempRoot });
 const repoRoot = path.join(tempRoot, 'repo');
 await fs.mkdir(repoRoot, { recursive: true });
 const userConfig = {};
+const swapCase = (value) => String(value).replace(/[A-Za-z]/g, (ch) => (
+  ch === ch.toLowerCase() ? ch.toUpperCase() : ch.toLowerCase()
+));
+const normalizePath = (value) => {
+  const resolved = path.resolve(value);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+};
 
 const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
 const outsideRoot = path.join(tempRoot, 'outside');
@@ -31,6 +38,29 @@ await assert.rejects(
 
 const buildsRoot = getBuildsRoot(repoRoot, userConfig);
 await fs.mkdir(buildsRoot, { recursive: true });
+if (process.platform === 'win32') {
+  const caseBuildId = 'case-sensitive-root-normalized';
+  const canonicalCaseRoot = path.join(buildsRoot, caseBuildId);
+  await fs.mkdir(canonicalCaseRoot, { recursive: true });
+  const mixedCaseRoot = swapCase(canonicalCaseRoot);
+  await assert.doesNotReject(
+    () => promoteBuild({
+      repoRoot,
+      userConfig,
+      buildId: caseBuildId,
+      buildRoot: mixedCaseRoot,
+      modes: ['code']
+    }),
+    'expected promoteBuild to accept mixed-case windows path under repo cache root'
+  );
+  const promoted = getCurrentBuildInfo(repoRoot, userConfig);
+  assert.equal(promoted?.buildId, caseBuildId, 'expected mixed-case promotion to be accepted');
+  assert.equal(
+    normalizePath(promoted?.buildRoot || ''),
+    normalizePath(canonicalCaseRoot),
+    'expected promoted buildRoot to resolve to canonical build path'
+  );
+}
 const currentPath = path.join(buildsRoot, 'current.json');
 const unsafeRoot = path.join(repoCacheRoot, '..', '..', 'outside');
 await fs.writeFile(currentPath, JSON.stringify({

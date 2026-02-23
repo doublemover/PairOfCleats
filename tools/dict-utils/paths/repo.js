@@ -3,7 +3,7 @@ import path from 'node:path';
 import { isAbsolutePathNative } from '../../../src/shared/files.js';
 import { findUpwards } from '../../../src/shared/fs/find-upwards.js';
 import { joinPathSafe } from '../../../src/shared/path-normalize.js';
-import { toRealPathSync } from '../../../src/workspace/identity.js';
+import { isWithinRoot, normalizeIdentityPath, toRealPathSync } from '../../../src/workspace/identity.js';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { getCacheRoot, loadUserConfig } from '../config.js';
@@ -24,6 +24,8 @@ export const getLegacyRepoId = (repoRoot) => {
   const resolved = path.resolve(repoRoot);
   return crypto.createHash('sha1').update(resolved).digest('hex');
 };
+
+const sameIdentityPath = (left, right) => normalizeIdentityPath(left) === normalizeIdentityPath(right);
 
 /**
  * Resolve the repo root from a starting directory.
@@ -179,7 +181,7 @@ export function getCurrentBuildInfo(repoRoot, userConfig = null, options = {}) {
         ];
       for (const candidate of candidates) {
         const normalized = path.resolve(candidate);
-        if (normalized === repoCacheResolved || normalized.startsWith(repoCacheResolved + path.sep)) {
+        if (isWithinRoot(normalized, repoCacheResolved)) {
           return normalized;
         }
       }
@@ -195,7 +197,7 @@ export function getCurrentBuildInfo(repoRoot, userConfig = null, options = {}) {
     if (
       buildId
       && buildRoot
-      && path.resolve(buildRoot) === repoCacheResolved
+      && sameIdentityPath(path.resolve(buildRoot), repoCacheResolved)
     ) {
       const buildIdRoot = path.join(buildsRoot, buildId);
       if (fs.existsSync(buildIdRoot)) {
@@ -288,7 +290,7 @@ export function resolveIndexRoot(repoRoot, userConfig = null, options = {}) {
           ];
         for (const candidate of candidates) {
           const normalized = path.resolve(candidate);
-          if (normalized === repoCacheResolved || normalized.startsWith(repoCacheResolved + path.sep)) {
+          if (isWithinRoot(normalized, repoCacheResolved)) {
             return normalized;
           }
         }
@@ -306,7 +308,7 @@ export function resolveIndexRoot(repoRoot, userConfig = null, options = {}) {
       if (
         buildId
         && buildRoot
-        && path.resolve(buildRoot) === repoCacheResolved
+        && sameIdentityPath(path.resolve(buildRoot), repoCacheResolved)
       ) {
         const buildIdRoot = path.join(buildsRoot, buildId);
         if (fs.existsSync(buildIdRoot)) {
