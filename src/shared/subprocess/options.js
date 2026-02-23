@@ -125,29 +125,41 @@ const shouldCapture = (stdio, captureFlag, streamIndex) => {
 
 const createCollector = ({ enabled, maxOutputBytes, encoding }) => {
   const chunks = [];
+  let headIndex = 0;
   let totalBytes = 0;
+
+  const maybeCompact = () => {
+    // Avoid repeated O(n) shifts under sustained output pressure by compacting
+    // in batches once enough head entries were consumed.
+    if (headIndex < 64 || headIndex * 2 < chunks.length) return;
+    chunks.splice(0, headIndex);
+    headIndex = 0;
+  };
+
   const push = (chunk) => {
     if (!enabled) return;
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding);
     if (!buffer.length) return;
     chunks.push(buffer);
     totalBytes += buffer.length;
-    while (totalBytes > maxOutputBytes && chunks.length) {
+    while (totalBytes > maxOutputBytes && headIndex < chunks.length) {
       const overflow = totalBytes - maxOutputBytes;
-      const head = chunks[0];
+      const head = chunks[headIndex];
       if (head.length <= overflow) {
-        chunks.shift();
+        headIndex += 1;
         totalBytes -= head.length;
       } else {
-        chunks[0] = head.subarray(overflow);
+        chunks[headIndex] = head.subarray(overflow);
         totalBytes -= overflow;
       }
     }
+    maybeCompact();
   };
   const toOutput = (mode) => {
     if (!enabled) return undefined;
-    if (!chunks.length) return mode === 'lines' ? [] : '';
-    const text = Buffer.concat(chunks).toString(encoding);
+    const activeChunks = headIndex > 0 ? chunks.slice(headIndex) : chunks;
+    if (!activeChunks.length) return mode === 'lines' ? [] : '';
+    const text = Buffer.concat(activeChunks).toString(encoding);
     if (mode !== 'lines') return text;
     const lines = text.split(/\r?\n/);
     if (lines.length && lines[lines.length - 1] === '') lines.pop();
