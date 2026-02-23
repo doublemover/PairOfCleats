@@ -28,6 +28,15 @@ const argv = createCli({
   }
 }).parse();
 
+const exitWithSummaryError = (message, code = 1) => {
+  if (argv.json) {
+    console.log(JSON.stringify({ ok: false, error: message }, null, 2));
+  } else {
+    console.error(message);
+  }
+  process.exit(code);
+};
+
 const { repoRoot: root, userConfig, runtimeEnv: baseEnv } = bootstrapRuntime(argv.repo);
 const scriptRoot = resolveToolRoot();
 
@@ -39,15 +48,13 @@ const models = resolveCompareModels({
   defaultModel
 });
 if (!models.length) {
-  console.error('No models specified. Use --models or configure models.compare.');
-  process.exit(1);
+  exitWithSummaryError('No models specified. Use --models or configure models.compare.');
 }
 let baseline;
 try {
   baseline = resolveBaseline(models, argv.baseline);
 } catch (err) {
-  console.error(err.message);
-  process.exit(1);
+  exitWithSummaryError(err.message);
 }
 const { annEnabled } = resolveAnnSetting({ rawArgs, argv, userConfig });
 const buildEnabled = argv.build !== false;
@@ -102,12 +109,10 @@ async function ensureParityIndexes() {
   });
 
   if (state.missingIndex.length) {
-    console.error('Index missing for parity. Re-run with --build.');
-    process.exit(1);
+    exitWithSummaryError('Index missing for parity. Re-run with --build.');
   }
   if (state.missingSqlite) {
-    console.error('SQLite index missing for parity. Re-run with --build.');
-    process.exit(1);
+    exitWithSummaryError('SQLite index missing for parity. Re-run with --build.');
   }
 }
 
