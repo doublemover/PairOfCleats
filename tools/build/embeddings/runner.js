@@ -54,13 +54,16 @@ import {
   buildChunkHashesFingerprint,
   buildCacheIdentity,
   buildCacheKey,
+  buildGlobalChunkCacheKey,
   createShardAppendHandlePool,
   encodeCacheEntryPayload,
   isCacheValid,
+  isGlobalChunkCacheValid,
   readCacheIndex,
   readCacheMeta,
   readCacheEntry,
   resolveCacheDir,
+  resolveGlobalChunkCacheDir,
   resolveCacheRoot,
   shouldFastRejectCacheLookup,
   updateCacheIndexAccess,
@@ -738,7 +741,7 @@ const compactChunkMetaV2ForEmbeddings = (metaV2) => {
   return Object.keys(out).length ? out : null;
 };
 
-const compactChunkForEmbeddings = (chunk, filePath) => {
+export const compactChunkForEmbeddings = (chunk, filePath) => {
   if (!chunk || typeof chunk !== 'object') return null;
   const start = Number.isFinite(Number(chunk.start)) ? Number(chunk.start) : 0;
   const endRaw = Number.isFinite(Number(chunk.end)) ? Number(chunk.end) : start;
@@ -757,6 +760,9 @@ const compactChunkForEmbeddings = (chunk, filePath) => {
   if (typeof chunk.kind === 'string' && chunk.kind) out.kind = chunk.kind;
   if (typeof chunk.name === 'string' && chunk.name) out.name = chunk.name;
   if (typeof chunk.chunkId === 'string' && chunk.chunkId) out.chunkId = chunk.chunkId;
+  if (typeof chunk.text === 'string') {
+    out.text = chunk.text;
+  }
   const docText = typeof chunk?.docmeta?.doc === 'string' ? chunk.docmeta.doc : '';
   if (docText) {
     out.docmeta = { doc: docText };
@@ -780,6 +786,15 @@ const compactChunkForEmbeddings = (chunk, filePath) => {
   }
   return out;
 };
+
+export const normalizeChunkPayloadText = (value) => {
+  if (typeof value !== 'string') return '';
+  return value.replace(/\r\n?/g, '\n');
+};
+
+export const buildNormalizedChunkPayloadHash = ({ codeText, docText }) => (
+  sha1(`${normalizeChunkPayloadText(codeText)}\n${normalizeChunkPayloadText(docText)}`)
+);
 
 export const buildChunkTextLookupKey = (chunk) => {
   if (!chunk || typeof chunk !== 'object') return null;
@@ -1767,6 +1782,11 @@ export async function runBuildEmbeddingsWithConfig(config) {
       let cacheMisses = 0;
       let cacheRejected = 0;
       let cacheFastRejects = 0;
+      let globalChunkCacheAttempts = 0;
+      let globalChunkCacheHits = 0;
+      let globalChunkCacheMisses = 0;
+      let globalChunkCacheRejected = 0;
+      let globalChunkCacheStores = 0;
       let crossFileChunkDedupeHits = 0;
       let crossFileChunkDedupeStores = 0;
       const chunkMetaMaxBytes = resolveEmbeddingsChunkMetaMaxBytes(indexingConfig);
@@ -2117,6 +2137,59 @@ export async function runBuildEmbeddingsWithConfig(config) {
           };
           cacheIndexDirty = true;
         }
+
+        const globalChunkCacheDir = resolveGlobalChunkCacheDir(cacheRoot, cacheIdentity);
+        await scheduleIo(() => fs.mkdir(globalChunkCacheDir, { recursive: true }));
+        const globalChunkCacheMemo = new Map();
+        const globalChunkCacheExistingKeys = new Set();
+        const globalChunkCachePendingWrites = new Set();
+        const resolveGlobalChunkVectors = async (chunkHash) => {
+          const cacheKey = buildGlobalChunkCacheKey({
+            chunkHash,
+            identityKey: cacheIdentityKey,
+            featureFlags: cacheKeyFlags,
+            pathPolicy: 'posix'
+          });
+          if (!cacheKey) return null;
+          let pending = globalChunkCacheMemo.get(cacheKey);
+          if (!pending) {
+            pending = (async () => {
+              try {
+                const cachedResult = await scheduleIo(() => readCacheEntry(globalChunkCacheDir, cacheKey));
+                const cached = cachedResult?.entry || null;
+                if (!cached) return { cacheKey, vectors: null, rejected: false };
+                if (!isGlobalChunkCacheValid({
+                  cached,
+                  identityKey: cacheIdentityKey,
+                  chunkHash
+                })) {
+                  return { cacheKey, vectors: null, rejected: true };
+                }
+                const expectedDims = configuredDims || cached.cacheMeta?.identity?.dims || null;
+                validateCachedDims({ vectors: cached.codeVectors, expectedDims, mode });
+                validateCachedDims({ vectors: cached.docVectors, expectedDims, mode });
+                validateCachedDims({ vectors: cached.mergedVectors, expectedDims, mode });
+                const codeVec = ensureVectorArrays(cached.codeVectors, 1)[0] || [];
+                const docVec = ensureVectorArrays(cached.docVectors, 1)[0] || [];
+                const mergedVec = ensureVectorArrays(cached.mergedVectors, 1)[0] || [];
+                if (!isNonEmptyVector(codeVec) || !isNonEmptyVector(docVec) || !isNonEmptyVector(mergedVec)) {
+                  return { cacheKey, vectors: null, rejected: true };
+                }
+                globalChunkCacheExistingKeys.add(cacheKey);
+                return {
+                  cacheKey,
+                  vectors: { code: codeVec, doc: docVec, merged: mergedVec },
+                  rejected: false
+                };
+              } catch (err) {
+                if (isDimsMismatch(err)) throw err;
+                return { cacheKey, vectors: null, rejected: true };
+              }
+            })();
+            globalChunkCacheMemo.set(cacheKey, pending);
+          }
+          return pending;
+        };
 
         const dimsValidator = createDimsValidator({ mode, configuredDims });
         const assertDims = dimsValidator.assertDims;
@@ -2490,6 +2563,95 @@ export async function runBuildEmbeddingsWithConfig(config) {
             }
           }
 
+          if (Array.isArray(entry.chunkHashes) && entry.chunkHashes.length) {
+            try {
+              const writes = [];
+              for (let i = 0; i < entry.items.length; i += 1) {
+                const chunkHash = entry.chunkHashes[i];
+                if (!chunkHash) continue;
+                const globalCacheKey = buildGlobalChunkCacheKey({
+                  chunkHash,
+                  identityKey: cacheIdentityKey,
+                  featureFlags: cacheKeyFlags,
+                  pathPolicy: 'posix'
+                });
+                if (!globalCacheKey) continue;
+                if (
+                  globalChunkCacheExistingKeys.has(globalCacheKey)
+                  || globalChunkCachePendingWrites.has(globalCacheKey)
+                ) {
+                  continue;
+                }
+                const codeVec = cachedCodeVectors[i] || null;
+                const docVec = cachedDocVectors[i] || null;
+                const mergedVec = cachedMergedVectors[i] || null;
+                if (!isNonEmptyVector(codeVec) || !isNonEmptyVector(docVec) || !isNonEmptyVector(mergedVec)) {
+                  continue;
+                }
+                const payload = {
+                  key: globalCacheKey,
+                  hash: chunkHash,
+                  cacheMeta: {
+                    schemaVersion: 1,
+                    scope: 'global-chunk',
+                    identityKey: cacheIdentityKey,
+                    identity: cacheIdentity,
+                    createdAt: new Date().toISOString()
+                  },
+                  codeVectors: [codeVec],
+                  docVectors: [docVec],
+                  mergedVectors: [mergedVec]
+                };
+                globalChunkCachePendingWrites.add(globalCacheKey);
+                writes.push({
+                  globalCacheKey,
+                  payload,
+                  vectors: { code: codeVec, doc: docVec, merged: mergedVec }
+                });
+              }
+              if (writes.length) {
+                try {
+                  const encodedWrites = await Promise.all(
+                    writes.map(async (write) => ({
+                      ...write,
+                      encodedPayload: await encodeCacheEntryPayload(write.payload)
+                    }))
+                  );
+                  await writerQueue.enqueue(async () => {
+                    for (const write of encodedWrites) {
+                      try {
+                        await writeCacheEntry(globalChunkCacheDir, write.globalCacheKey, write.payload, {
+                          encodedBuffer: write.encodedPayload
+                        });
+                        globalChunkCacheExistingKeys.add(write.globalCacheKey);
+                        globalChunkCacheMemo.set(
+                          write.globalCacheKey,
+                          Promise.resolve({
+                            cacheKey: write.globalCacheKey,
+                            vectors: write.vectors,
+                            rejected: false
+                          })
+                        );
+                        globalChunkCacheStores += 1;
+                      } catch {
+                        globalChunkCacheMemo.delete(write.globalCacheKey);
+                      } finally {
+                        globalChunkCachePendingWrites.delete(write.globalCacheKey);
+                      }
+                    }
+                  });
+                } catch (err) {
+                  for (const write of writes) {
+                    globalChunkCachePendingWrites.delete(write.globalCacheKey);
+                  }
+                  throw err;
+                }
+              }
+            } catch {
+              // Ignore global chunk cache write failures.
+            }
+          }
+
           await markFileProcessed({
             chunkCount: entry.items.length,
             source: 'computed'
@@ -2829,7 +2991,10 @@ export async function runBuildEmbeddingsWithConfig(config) {
               }
               const codeText = chunkCodeTexts[i] || '';
               const trimmedDoc = chunkDocTexts[i] || '';
-              chunkHashes[i] = sha1(`${codeText}\n${trimmedDoc}`);
+              chunkHashes[i] = buildNormalizedChunkPayloadHash({
+                codeText,
+                docText: trimmedDoc
+              });
             }
             const chunkHashesFingerprint = buildChunkHashesFingerprint(chunkHashes);
             const reuse = {
@@ -2884,8 +3049,9 @@ export async function runBuildEmbeddingsWithConfig(config) {
               if (reuse.code[i] && reuse.doc[i] && reuse.merged[i]) {
                 continue;
               }
+              const chunkHash = chunkHashes[i];
               if (crossFileChunkDedupe instanceof Map) {
-                const dedupeEntry = crossFileChunkDedupe.get(chunkHashes[i]);
+                const dedupeEntry = crossFileChunkDedupe.get(chunkHash);
                 if (
                   dedupeEntry
                   && isNonEmptyVector(dedupeEntry.code)
@@ -2894,13 +3060,29 @@ export async function runBuildEmbeddingsWithConfig(config) {
                 ) {
                   // Promote recency and reuse vectors for identical chunk payloads
                   // across files/modes within this embeddings run.
-                  crossFileChunkDedupe.delete(chunkHashes[i]);
-                  crossFileChunkDedupe.set(chunkHashes[i], dedupeEntry);
+                  crossFileChunkDedupe.delete(chunkHash);
+                  crossFileChunkDedupe.set(chunkHash, dedupeEntry);
                   reuse.code[i] = dedupeEntry.code;
                   reuse.doc[i] = dedupeEntry.doc;
                   reuse.merged[i] = dedupeEntry.merged;
                   crossFileChunkDedupeHits += 1;
                   continue;
+                }
+              }
+              if (chunkHash) {
+                globalChunkCacheAttempts += 1;
+                const globalChunkHit = await resolveGlobalChunkVectors(chunkHash);
+                if (globalChunkHit?.vectors) {
+                  reuse.code[i] = globalChunkHit.vectors.code;
+                  reuse.doc[i] = globalChunkHit.vectors.doc;
+                  reuse.merged[i] = globalChunkHit.vectors.merged;
+                  globalChunkCacheHits += 1;
+                  continue;
+                }
+                if (globalChunkHit?.rejected) {
+                  globalChunkCacheRejected += 1;
+                } else {
+                  globalChunkCacheMisses += 1;
                 }
               }
               codeMapping.push(i);
@@ -3245,7 +3427,14 @@ export async function runBuildEmbeddingsWithConfig(config) {
             hits: cacheHits,
             misses: cacheMisses,
             rejected: cacheRejected,
-            fastRejects: cacheFastRejects
+            fastRejects: cacheFastRejects,
+            globalChunk: {
+              attempts: globalChunkCacheAttempts,
+              hits: globalChunkCacheHits,
+              misses: globalChunkCacheMisses,
+              rejected: globalChunkCacheRejected,
+              stores: globalChunkCacheStores
+            }
           },
           backends: {
             ...(indexState.embeddings?.backends || {}),
@@ -3339,6 +3528,14 @@ export async function runBuildEmbeddingsWithConfig(config) {
             `[embeddings] ${mode}: cross-file chunk dedupe ` +
             `(hits=${crossFileChunkDedupeHits}, stores=${crossFileChunkDedupeStores}, ` +
             `cacheSize=${crossFileChunkDedupe?.size || 0}, maxEntries=${crossFileChunkDedupeMaxEntries}).`
+          );
+        }
+        if (globalChunkCacheAttempts > 0 || globalChunkCacheStores > 0) {
+          log(
+            `[embeddings] ${mode}: global chunk cache ` +
+            `(attempts=${globalChunkCacheAttempts}, hits=${globalChunkCacheHits}, ` +
+            `misses=${globalChunkCacheMisses}, rejected=${globalChunkCacheRejected}, ` +
+            `stores=${globalChunkCacheStores}).`
           );
         }
         writerStatsByMode[mode] = writerQueue.stats();
