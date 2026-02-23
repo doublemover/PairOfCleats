@@ -2,25 +2,19 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { fileURLToPath } from 'node:url';
 import { createTempPath } from '../../../shared/json-stream.js';
-import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 import { resolveTaskFactory } from '../../../shared/cli/noop-task.js';
-import { sha1 } from '../../../shared/hash.js';
-import { updateSqliteState } from './index-state.js';
 import { getEnvConfig } from '../../../shared/env.js';
 import { resolveRuntimeEnvelope } from '../../../shared/runtime-envelope.js';
 import { markBuildPhase, resolveBuildStatePath, startBuildHeartbeat } from '../../../index/build/build-state.js';
 import { createStageCheckpointRecorder } from '../../../index/build/stage-checkpoints.js';
 import { ensureDiskSpace, estimateDirBytes } from '../../../shared/disk-space.js';
 import {
-  getIndexDir,
   getMetricsDir,
   getModelConfig,
   getRepoCacheRoot,
   getToolVersion,
   loadUserConfig,
-  resolveIndexRoot,
   resolveRepoRootArg,
   resolveSqlitePaths
 } from '../../../shared/dict-utils.js';
@@ -40,14 +34,26 @@ import { buildDatabaseFromBundles } from './from-bundles.js';
 import { incrementalUpdateDatabase } from './incremental-update.js';
 import { SCHEMA_VERSION } from '../schema.js';
 import { resolveOutputPaths } from './output-paths.js';
-import { resolveAsOfContext, resolveSingleRootForModes } from '../../../index/as-of.js';
+import {
+  BUNDLE_LOADER_WORKER_PATH,
+  loadSqliteBundleWorkerProfile,
+  resolveSqliteBundleWorkerProfilePath,
+  saveSqliteBundleWorkerProfile,
+  writeSqliteZeroStateManifest
+} from './runner/config.js';
+import {
+  createAdaptiveBatchPlanner,
+  probeSqliteTargetRuntime,
+  resolveBundleWorkerAutotune
+} from './runner/build.js';
+import { resolveModeExecutionPlan } from './runner/mode-plan.js';
 import { normalizeModeArg, normalizeValidateMode } from './runner/options.js';
 import { resolveChunkMetaTotalRecords } from './runner/chunk-meta.js';
 import {
   countMissingBundleFiles,
-  listIncrementalBundleFiles
+  listIncrementalBundleFiles,
+  resolveIncrementalInputPlan
 } from './runner/incremental.js';
-import { resolveRecordsIncrementalCapability, resolveSqliteIngestPlan } from './index.js';
 import {
   hasVectorTableAtPath,
   readSqliteCounts,
@@ -60,268 +66,16 @@ import {
   formatEmbedStats,
   formatVectorAnnState
 } from './runner/logging.js';
+import {
+  setSqliteModeBuildReadyState,
+  setSqliteModeFailedState,
+  setSqliteModeIncrementalReadyState,
+  setSqliteModeRunningState,
+  setSqliteModeSkippedEmptyState,
+  setSqliteModeVectorMissingState
+} from './runner/state.js';
 
 export { normalizeValidateMode } from './runner/options.js';
-
-const BUNDLE_LOADER_WORKER_PATH = fileURLToPath(new URL('./bundle-loader-worker.js', import.meta.url));
-const SQLITE_ZERO_STATE_SCHEMA_VERSION = '1.0.0';
-const SQLITE_ZERO_STATE_MANIFEST_FILE = 'sqlite-zero-state.json';
-const SQLITE_DEFAULT_PAGE_SIZE = 4096;
-const SQLITE_BUNDLE_WORKER_PROFILE_SCHEMA_VERSION = '1.0.0';
-const SQLITE_BUNDLE_WORKER_PROFILE_FILE = 'bundle-worker-autotune.json';
-
-const readPragmaSimple = (db, name) => {
-  if (!db || !name) return null;
-  try {
-    return db.pragma(name, { simple: true });
-  } catch {
-    return null;
-  }
-};
-
-const probeSqliteTargetRuntime = ({ Database, dbPath }) => {
-  const runtime = {
-    pageSize: SQLITE_DEFAULT_PAGE_SIZE,
-    journalMode: null,
-    walEnabled: false,
-    walBytes: 0,
-    dbBytes: 0,
-    source: 'default'
-  };
-  if (!dbPath) return runtime;
-  try {
-    runtime.dbBytes = Number(fsSync.statSync(dbPath).size) || 0;
-  } catch {}
-  try {
-    runtime.walBytes = Number(fsSync.statSync(`${dbPath}-wal`).size) || 0;
-  } catch {}
-  if (!fsSync.existsSync(dbPath)) {
-    runtime.walEnabled = runtime.walBytes > 0;
-    runtime.source = runtime.walEnabled ? 'wal-sidecar' : 'missing-db';
-    return runtime;
-  }
-  let probeDb = null;
-  try {
-    probeDb = new Database(dbPath, { readonly: true, fileMustExist: true });
-    const pageSize = Number(readPragmaSimple(probeDb, 'page_size'));
-    if (Number.isFinite(pageSize) && pageSize > 0) {
-      runtime.pageSize = Math.max(512, Math.floor(pageSize));
-    }
-    const journalModeRaw = readPragmaSimple(probeDb, 'journal_mode');
-    runtime.journalMode = typeof journalModeRaw === 'string'
-      ? journalModeRaw.trim().toLowerCase()
-      : null;
-    runtime.walEnabled = runtime.journalMode === 'wal' || runtime.walBytes > 0;
-    runtime.source = 'pragma';
-  } catch {
-    runtime.walEnabled = runtime.walBytes > 0;
-    runtime.source = runtime.walEnabled ? 'wal-sidecar' : 'stat';
-  } finally {
-    try {
-      probeDb?.close();
-    } catch {}
-  }
-  return runtime;
-};
-
-const resolveAdaptiveBatchConfig = ({
-  requestedBatchSize,
-  runtime,
-  inputBytes = 0,
-  rowCount = 0,
-  fileCount = 0,
-  repoBytes = 0
-}) => {
-  const resolvedRuntime = runtime && typeof runtime === 'object' ? runtime : {};
-  const numericInputBytes = Number(inputBytes);
-  const numericRepoBytes = Number(repoBytes);
-  const runtimeDbBytes = Number(resolvedRuntime.dbBytes);
-  const config = {
-    requested: Number.isFinite(requestedBatchSize) && requestedBatchSize > 0
-      ? Math.floor(requestedBatchSize)
-      : null,
-    pageSize: resolvedRuntime.pageSize ?? SQLITE_DEFAULT_PAGE_SIZE,
-    journalMode: resolvedRuntime.journalMode ?? null,
-    walEnabled: resolvedRuntime.walEnabled === true,
-    walBytes: Number.isFinite(Number(resolvedRuntime.walBytes)) && Number(resolvedRuntime.walBytes) > 0
-      ? Number(resolvedRuntime.walBytes)
-      : 0,
-    inputBytes: Number.isFinite(numericInputBytes) && numericInputBytes > 0
-      ? numericInputBytes
-      : 0,
-    rowCount: Number.isFinite(Number(rowCount)) && Number(rowCount) > 0
-      ? Number(rowCount)
-      : 0,
-    fileCount: Number.isFinite(Number(fileCount)) && Number(fileCount) > 0
-      ? Number(fileCount)
-      : 0,
-    repoBytes: Math.max(
-      Number.isFinite(numericRepoBytes) && numericRepoBytes > 0 ? numericRepoBytes : 0,
-      Number.isFinite(numericInputBytes) && numericInputBytes > 0 ? numericInputBytes : 0,
-      Number.isFinite(runtimeDbBytes) && runtimeDbBytes > 0 ? runtimeDbBytes : 0
-    )
-  };
-  const plan = resolveSqliteIngestPlan({ batchSize: config });
-  return { config, plan };
-};
-
-const resolveSqliteBundleWorkerProfilePath = (repoCacheRoot) => (
-  repoCacheRoot
-    ? path.join(repoCacheRoot, 'sqlite', SQLITE_BUNDLE_WORKER_PROFILE_FILE)
-    : null
-);
-
-const loadSqliteBundleWorkerProfile = async (repoCacheRoot) => {
-  const profilePath = resolveSqliteBundleWorkerProfilePath(repoCacheRoot);
-  if (!profilePath) {
-    return {
-      profilePath: null,
-      profile: { schemaVersion: SQLITE_BUNDLE_WORKER_PROFILE_SCHEMA_VERSION, updatedAt: null, modes: {} }
-    };
-  }
-  try {
-    const raw = JSON.parse(await fs.readFile(profilePath, 'utf8'));
-    const modes = raw?.modes && typeof raw.modes === 'object' ? raw.modes : {};
-    return {
-      profilePath,
-      profile: {
-        schemaVersion: SQLITE_BUNDLE_WORKER_PROFILE_SCHEMA_VERSION,
-        updatedAt: typeof raw?.updatedAt === 'string' ? raw.updatedAt : null,
-        modes
-      }
-    };
-  } catch {
-    return {
-      profilePath,
-      profile: { schemaVersion: SQLITE_BUNDLE_WORKER_PROFILE_SCHEMA_VERSION, updatedAt: null, modes: {} }
-    };
-  }
-};
-
-const saveSqliteBundleWorkerProfile = async ({ profilePath, profile }) => {
-  if (!profilePath || !profile || typeof profile !== 'object') return;
-  const payload = {
-    schemaVersion: SQLITE_BUNDLE_WORKER_PROFILE_SCHEMA_VERSION,
-    updatedAt: new Date().toISOString(),
-    modes: profile.modes && typeof profile.modes === 'object' ? profile.modes : {}
-  };
-  await fs.mkdir(path.dirname(profilePath), { recursive: true });
-  await atomicWriteJson(profilePath, payload, { spaces: 2 });
-};
-
-const estimateBundleAverageBytes = (bundleDir, manifestFiles) => {
-  if (!bundleDir || !manifestFiles || typeof manifestFiles !== 'object') return 0;
-  const sampleNames = [];
-  for (const entry of Object.values(manifestFiles)) {
-    const bundleName = typeof entry?.bundle === 'string' ? entry.bundle : '';
-    if (!bundleName || sampleNames.includes(bundleName)) continue;
-    sampleNames.push(bundleName);
-    if (sampleNames.length >= 32) break;
-  }
-  if (!sampleNames.length) return 0;
-  let total = 0;
-  let count = 0;
-  for (const bundleName of sampleNames) {
-    const bundlePath = path.join(bundleDir, bundleName);
-    try {
-      const stat = fsSync.statSync(bundlePath);
-      const size = Number(stat?.size);
-      if (!Number.isFinite(size) || size <= 0) continue;
-      total += size;
-      count += 1;
-    } catch {}
-  }
-  if (!count) return 0;
-  return Math.floor(total / count);
-};
-
-const resolveBundleWorkerAutotune = ({
-  mode,
-  manifestFiles,
-  bundleDir,
-  threadLimits,
-  envConfig,
-  profile
-}) => {
-  const explicitBundleThreads = Number(envConfig?.bundleThreads);
-  const concurrencyFloor = 1;
-  const cpuHint = Number.isFinite(Number(threadLimits?.fileConcurrency))
-    ? Math.max(1, Math.floor(Number(threadLimits.fileConcurrency)))
-    : 1;
-  const hostCpu = typeof os.availableParallelism === 'function'
-    ? os.availableParallelism()
-    : (Array.isArray(os.cpus()) ? os.cpus().length : 1);
-  const upperBound = Math.max(1, Math.min(16, Math.max(cpuHint, hostCpu)));
-  const bundleCount = manifestFiles && typeof manifestFiles === 'object'
-    ? Object.keys(manifestFiles).length
-    : 0;
-  if (Number.isFinite(explicitBundleThreads) && explicitBundleThreads > 0) {
-    return {
-      threads: Math.max(concurrencyFloor, Math.min(upperBound, Math.floor(explicitBundleThreads))),
-      reason: 'explicit-env',
-      bundleCount,
-      avgBundleBytes: estimateBundleAverageBytes(bundleDir, manifestFiles)
-    };
-  }
-  let desired = bundleCount >= 96 ? 8
-    : bundleCount >= 48 ? 6
-      : bundleCount >= 16 ? 4
-        : bundleCount >= 8 ? 2
-          : 1;
-  const avgBundleBytes = estimateBundleAverageBytes(bundleDir, manifestFiles);
-  if (avgBundleBytes >= 4 * 1024 * 1024) desired = Math.max(1, desired - 2);
-  else if (avgBundleBytes >= 1024 * 1024) desired = Math.max(1, desired - 1);
-  else if (avgBundleBytes > 0 && avgBundleBytes <= 192 * 1024) desired += 1;
-  if (mode === 'records') desired = Math.max(1, Math.floor(desired * 0.5));
-  if (mode === 'extracted-prose') desired = Math.max(1, desired - 1);
-  const lowCountSafetyCap = bundleCount > 0 && bundleCount < 16
-    ? Math.max(1, Math.ceil(bundleCount / 2))
-    : upperBound;
-  desired = Math.max(concurrencyFloor, Math.min(upperBound, lowCountSafetyCap, desired));
-  const priorMode = profile?.modes && typeof profile.modes === 'object'
-    ? profile.modes[mode]
-    : null;
-  const priorThreads = Number(priorMode?.threads);
-  // Rapid-convergence guard: move by at most one worker per run.
-  if (Number.isFinite(priorThreads) && priorThreads > 0) {
-    const clampedPrior = Math.max(concurrencyFloor, Math.min(upperBound, Math.floor(priorThreads)));
-    if (desired > clampedPrior + 1) desired = clampedPrior + 1;
-    if (desired < clampedPrior - 1) desired = clampedPrior - 1;
-  }
-  return {
-    threads: Math.max(concurrencyFloor, Math.min(upperBound, desired)),
-    reason: 'autotune',
-    bundleCount,
-    avgBundleBytes
-  };
-};
-
-const resolveSqliteZeroStateManifestPath = (modeIndexDir) => (
-  modeIndexDir ? path.join(modeIndexDir, 'pieces', SQLITE_ZERO_STATE_MANIFEST_FILE) : null
-);
-
-const writeSqliteZeroStateManifest = async ({
-  modeIndexDir,
-  mode,
-  outputPath,
-  chunkCount,
-  denseCount
-}) => {
-  const manifestPath = resolveSqliteZeroStateManifestPath(modeIndexDir);
-  if (!manifestPath) return null;
-  const payload = {
-    schemaVersion: SQLITE_ZERO_STATE_SCHEMA_VERSION,
-    generatedAt: new Date().toISOString(),
-    mode,
-    outputPath: outputPath || null,
-    chunkCount: Number.isFinite(Number(chunkCount)) ? Number(chunkCount) : 0,
-    denseCount: Number.isFinite(Number(denseCount)) ? Number(denseCount) : 0
-  };
-  payload.checksum = sha1(JSON.stringify(payload));
-  await fs.mkdir(path.dirname(manifestPath), { recursive: true });
-  await atomicWriteJson(manifestPath, payload, { spaces: 2 });
-  return manifestPath;
-};
 
 /**
  * Build sqlite indexes without CLI parsing.
@@ -462,41 +216,22 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
     const envConfig = getEnvConfig();
     const userConfig = runtime?.userConfig || options.userConfig || loadUserConfig(root);
     const metricsDir = options.metricsDir || getMetricsDir(root, userConfig);
-    const modeList = modeArg === 'all'
-      ? ['code', 'prose', 'extracted-prose', 'records']
-      : [modeArg];
-    const asOfRequested = (
-      (typeof argv['as-of'] === 'string' && argv['as-of'].trim())
-      || (typeof argv.snapshot === 'string' && argv.snapshot.trim())
-    );
-    const asOfContext = asOfRequested
-      ? resolveAsOfContext({
-        repoRoot: root,
-        userConfig,
-        requestedModes: modeList,
-        asOf: argv['as-of'],
-        snapshot: argv.snapshot,
-        preferFrozen: true,
-        allowMissingModesForLatest: false
-      })
-      : null;
-    const asOfRootSelection = asOfContext?.provided
-      ? resolveSingleRootForModes(asOfContext.indexBaseRootByMode, modeList)
-      : { roots: [], root: null, mixed: false };
-    if (asOfContext?.strict && modeList.length > 1 && asOfRootSelection.mixed) {
-      return bail(
-        `[sqlite] --as-of ${asOfContext.ref} resolves to multiple index roots for selected modes. ` +
-        'Select a single mode or pass explicit --*-dir overrides.'
-      );
+    const modePlan = resolveModeExecutionPlan({
+      modeArg,
+      root,
+      argv,
+      options,
+      runtime,
+      userConfig
+    });
+    if (modePlan.errorMessage) {
+      return bail(modePlan.errorMessage);
     }
-    const asOfIndexRoot = asOfContext?.provided && asOfRootSelection.root
-      ? path.resolve(asOfRootSelection.root)
-      : null;
-    const indexRoot = argv['index-root']
-      ? path.resolve(argv['index-root'])
-      : (options.indexRoot
-        ? path.resolve(options.indexRoot)
-        : (asOfIndexRoot || (runtime?.buildRoot ? path.resolve(runtime.buildRoot) : resolveIndexRoot(root, userConfig))));
+    const {
+      modeList,
+      indexRoot,
+      modeIndexDirs
+    } = modePlan;
     const buildStatePath = resolveBuildStatePath(indexRoot);
     const hasBuildState = buildStatePath && fsSync.existsSync(buildStatePath);
     stopHeartbeat = hasBuildState ? startBuildHeartbeat(indexRoot, 'stage4') : () => {};
@@ -565,39 +300,6 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
       sqlitePaths
     });
     const logPrefix = modeArg === 'all' ? '[sqlite]' : `[sqlite:${modeArg}]`;
-    const explicitDirs = {
-      code: argv['code-dir']
-        ? path.resolve(argv['code-dir'])
-        : (options.codeDir
-          ? path.resolve(options.codeDir)
-          : (asOfContext?.provided ? asOfContext.indexDirByMode?.code || null : null)),
-      prose: argv['prose-dir']
-        ? path.resolve(argv['prose-dir'])
-        : (options.proseDir
-          ? path.resolve(options.proseDir)
-          : (asOfContext?.provided ? asOfContext.indexDirByMode?.prose || null : null)),
-      'extracted-prose': argv['extracted-prose-dir']
-        ? path.resolve(argv['extracted-prose-dir'])
-        : (options.extractedProseDir
-          ? path.resolve(options.extractedProseDir)
-          : (asOfContext?.provided ? asOfContext.indexDirByMode?.['extracted-prose'] || null : null)),
-      records: argv['records-dir']
-        ? path.resolve(argv['records-dir'])
-        : (options.recordsDir
-          ? path.resolve(options.recordsDir)
-          : (asOfContext?.provided ? asOfContext.indexDirByMode?.records || null : null))
-    };
-    if (asOfContext?.strict) {
-      for (const mode of modeList) {
-        if (!explicitDirs[mode]) {
-          return bail(`[sqlite] ${mode} index is unavailable for --as-of ${asOfContext.ref}.`);
-        }
-      }
-    }
-    const resolveIndexDir = (mode) => (
-      explicitDirs[mode] || getIndexDir(root, mode, userConfig, { indexRoot })
-    );
-    const indexDir = modeArg === 'all' ? null : resolveIndexDir(modeArg);
     const repoCacheRoot = options.repoCacheRoot || runtime?.repoCacheRoot || getRepoCacheRoot(root, userConfig);
     const {
       profilePath: bundleWorkerProfilePath,
@@ -608,16 +310,13 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
     const batchSizeOverride = Number.isFinite(requestedBatchSize) && requestedBatchSize > 0
       ? Math.floor(requestedBatchSize)
       : null;
+    const resolveAdaptiveBatchConfig = createAdaptiveBatchPlanner();
     const modeOutputPaths = {
       code: codeOutPath,
       prose: proseOutPath,
       'extracted-prose': extractedProseOutPath,
       records: recordsOutPath
     };
-    const modeIndexDirs = {};
-    for (const mode of modeList) {
-      modeIndexDirs[mode] = resolveIndexDir(mode);
-    }
     const indexPieces = {};
     const indexPieceErrors = {};
     const pieceResults = await Promise.all(
@@ -651,7 +350,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
       });
       const modeLabel = `${logPrefix} ${mode}`;
       const startTs = Date.now();
-      const modeIndexDir = modeIndexDirs[mode] || getIndexDir(root, mode, userConfig, { indexRoot });
+      const modeIndexDir = modeIndexDirs[mode];
       const outputPath = modeOutputPaths[mode];
       if (!outputPath) return bail('SQLite output path could not be resolved.');
       const outDir = path.dirname(outputPath);
@@ -670,16 +369,14 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
           fileOnlyLine: `${modeLabel} building ${mode} index -> ${outputPath}`
         });
       }
-      const buildState = await updateSqliteState({
+      await setSqliteModeRunningState({
         root,
         userConfig,
         indexRoot,
         mode,
-        status: 'running',
         path: outputPath,
         schemaVersion: SCHEMA_VERSION,
-        threadLimits,
-        note: null
+        threadLimits
       });
 
       const modeIsZeroState = modeChunkCountHint === 0 && modeDenseCountHint === 0;
@@ -711,21 +408,15 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
               zeroStateManifestPath
             }
           });
-          await updateSqliteState({
+          await setSqliteModeSkippedEmptyState({
             root,
             userConfig,
             indexRoot,
             mode,
-            status: 'ready',
             path: outputPath,
             schemaVersion: SCHEMA_VERSION,
             threadLimits,
-            note: `skipped empty ${mode} rebuild`,
-            stats: {
-              skipped: true,
-              reason: `empty-${mode}-artifacts`,
-              zeroStateManifestPath
-            }
+            zeroStateManifestPath
           });
           if (emitOutput) {
             if (mode === 'records') {
@@ -749,13 +440,6 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
       const bundleInventory = listIncrementalBundleFiles(incrementalBundleDir);
       const incrementalBundleCount = bundleInventory.count;
       const missingBundleCount = countMissingBundleFiles(incrementalData, bundleInventory.names);
-      let hasIncrementalBundles = incrementalRequested && Boolean(
-        incrementalData?.manifest
-        && incrementalFileCount > 0
-        && incrementalBundleCount > 0
-        && missingBundleCount === 0
-        && incrementalBundleDir
-      );
       let resolvedInput = null;
       let tempOutputPath = null;
       let inputBytes = 0;
@@ -796,29 +480,23 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
           ? Object.keys(artifactManifestFiles).length
           : 0;
         const repoFileCountHint = Math.max(incrementalFileCount, artifactFileCountHint);
-        const bundleManifest = incrementalData?.manifest || null;
-        const recordsIncrementalCapability = mode === 'records'
-          ? resolveRecordsIncrementalCapability(bundleManifest)
-          : { supported: true, explicit: false, reason: null };
-        const recordsIncrementalSupported = recordsIncrementalCapability.supported === true;
-        let bundleSkipReason = null;
-        if (!recordsIncrementalSupported) {
-          bundleSkipReason = recordsIncrementalCapability.reason;
-          hasIncrementalBundles = false;
-        }
-        if (hasIncrementalBundles
-          && denseArtifactsRequired
-          && bundleManifest?.bundleEmbeddings !== true) {
-          const stageNote = bundleManifest.bundleEmbeddingStage
-            ? ` (stage ${bundleManifest.bundleEmbeddingStage})`
-            : '';
-          bundleSkipReason = `bundles omit embeddings${stageNote}`;
-          hasIncrementalBundles = false;
-        }
-        if (missingBundleCount > 0) {
-          bundleSkipReason = `bundle file missing (${missingBundleCount})`;
-          hasIncrementalBundles = false;
-        }
+        const incrementalPlan = resolveIncrementalInputPlan({
+          mode,
+          modeIndexDir,
+          incrementalRequested,
+          incrementalData,
+          incrementalFileCount,
+          incrementalBundleCount,
+          missingBundleCount,
+          denseArtifactsRequired
+        });
+        const {
+          bundleManifest,
+          recordsIncrementalCapability,
+          recordsIncrementalSupported,
+          hasIncrementalBundles,
+          bundleSkipReason
+        } = incrementalPlan;
         if (incrementalRequested && emitOutput && !hasIncrementalBundles) {
           const skipMessage = bundleSkipReason
             ? `[sqlite] incremental bundles skipped for ${mode}: ${bundleSkipReason}; using artifacts.`
@@ -829,9 +507,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             log(skipMessage);
           }
         }
-        resolvedInput = hasIncrementalBundles
-          ? { source: 'incremental', bundleDir: incrementalBundleDir }
-          : { source: 'artifacts', indexDir: modeIndexDir };
+        resolvedInput = { ...incrementalPlan.resolvedInput };
         const bundleWorkerAutotune = resolveBundleWorkerAutotune({
           mode,
           manifestFiles: incrementalFiles,
@@ -991,19 +667,16 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
                 }
               }
             });
-            await updateSqliteState({
+            await setSqliteModeIncrementalReadyState({
               root,
               userConfig,
               indexRoot,
               mode,
-              status: 'ready',
               path: outputPath,
               schemaVersion: SCHEMA_VERSION,
               bytes: stat?.size,
-              inputBytes: 0,
               elapsedMs: durationMs,
               threadLimits,
-              note: 'incremental update',
               stats: sqliteStats
             });
             if (emitOutput) {
@@ -1174,12 +847,11 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
           }
         });
         const note = logDetails.length ? logDetails.join(', ') : null;
-        await updateSqliteState({
+        await setSqliteModeBuildReadyState({
           root,
           userConfig,
           indexRoot,
           mode,
-          status: 'ready',
           path: outputPath,
           schemaVersion: SCHEMA_VERSION,
           bytes: stat.size,
@@ -1204,16 +876,14 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
           throw new Error('Index directory missing for artifact build.');
         }
         if (mode === 'code' && vectorAnnEnabled && !hadVectorTable) {
-          await updateSqliteState({
+          await setSqliteModeVectorMissingState({
             root,
             userConfig,
             indexRoot,
             mode,
-            status: 'ready',
             path: outputPath,
             schemaVersion: SCHEMA_VERSION,
-            threadLimits,
-            note: 'vector table missing after build'
+            threadLimits
           });
         }
         if (sqliteStats?.bundleWorkerAutotune && bundleWorkerProfile?.modes) {
@@ -1243,12 +913,11 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
           step: 'error',
           label: errorMessage
         });
-        await updateSqliteState({
+        await setSqliteModeFailedState({
           root,
           userConfig,
           indexRoot,
           mode,
-          status: 'failed',
           path: outputPath,
           schemaVersion: SCHEMA_VERSION,
           threadLimits,
