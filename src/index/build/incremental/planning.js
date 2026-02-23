@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { normalizeBundleFormat } from '../../../shared/bundle-io.js';
+import { isWithinRoot, toRealPathSync } from '../../../workspace/identity.js';
 import { SIGNATURE_VERSION } from '../indexer/signatures.js';
 import { pathExists } from './shared.js';
 
@@ -163,18 +164,12 @@ const stageSatisfied = (requested, existing) => {
  */
 const createOutDirContainmentCheck = (outDir) => {
   const outRoot = path.resolve(outDir);
-  if (process.platform === 'win32') {
-    const outRootLower = outRoot.toLowerCase();
-    const outRootPrefix = `${outRootLower}${path.sep}`;
-    return (candidatePath) => {
-      const resolvedLower = path.resolve(candidatePath).toLowerCase();
-      return resolvedLower === outRootLower || resolvedLower.startsWith(outRootPrefix);
-    };
-  }
-  const outRootPrefix = `${outRoot}${path.sep}`;
-  return (candidatePath) => {
+  const outRootCanonical = toRealPathSync(outRoot);
+  return (candidatePath, { canonical = false } = {}) => {
     const resolvedPath = path.resolve(candidatePath);
-    return resolvedPath === outRoot || resolvedPath.startsWith(outRootPrefix);
+    if (!isWithinRoot(resolvedPath, outRoot)) return false;
+    if (!canonical) return true;
+    return isWithinRoot(toRealPathSync(resolvedPath), outRootCanonical);
   };
 };
 
@@ -254,6 +249,9 @@ export async function shouldReuseIncrementalIndex({
     }
     if (!(await pathExists(resolvedPath))) {
       return fail(`piece missing: ${relPath}`);
+    }
+    if (!isWithinOutDir(resolvedPath, { canonical: true })) {
+      return fail('piece manifest path escapes output dir');
     }
   }
   const entryKeys = new Set();
