@@ -2253,6 +2253,13 @@ export async function runBuildEmbeddingsWithConfig(config) {
         // Ignore index state write failures.
       }
 
+      let fileTask = null;
+      let chunkTask = null;
+      let cacheTask = null;
+      let embedTask = null;
+      let writerTask = null;
+      let bundleTask = null;
+      let backendTask = null;
       try {
         const incremental = loadIncrementalManifest(repoCacheRoot, mode);
         const manifestFiles = incremental?.manifest?.files || {};
@@ -2620,7 +2627,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
             const cachedDims = Number(cacheMeta.dims);
             if (cachedDims !== configuredDims) {
               throw new Error(
-                `[embeddings] ${mode} cache dims mismatch (configured=${configuredDims}, cached=${cachedDims}).`
+                `[embeddings] ${mode} embedding dims mismatch (configured=${configuredDims}, cached=${cachedDims}, source=cache).`
               );
             }
           }
@@ -2677,49 +2684,49 @@ export async function runBuildEmbeddingsWithConfig(config) {
         let cacheHitFiles = 0;
         let computedFiles = 0;
         let skippedFiles = 0;
-        const fileTask = display.task('Files', {
+        fileTask = display.task('Files', {
           taskId: `embeddings:${mode}:files`,
           total: sampledFileEntries.length,
           stage: 'embeddings',
           mode,
           ephemeral: true
         });
-        const chunkTask = display.task('Chunks', {
+        chunkTask = display.task('Chunks', {
           taskId: `embeddings:${mode}:chunks`,
           total: sampledChunkCount,
           stage: 'embeddings',
           mode,
           ephemeral: true
         });
-        const cacheTask = display.task('Cache', {
+        cacheTask = display.task('Cache', {
           taskId: `embeddings:${mode}:cache`,
           total: sampledFileEntries.length,
           stage: 'embeddings',
           mode,
           ephemeral: true
         });
-        const embedTask = display.task('Embed', {
+        embedTask = display.task('Embed', {
           taskId: `embeddings:${mode}:embed`,
           total: 0,
           stage: 'embeddings',
           mode,
           ephemeral: true
         });
-        const writerTask = display.task('Writer', {
+        writerTask = display.task('Writer', {
           taskId: `embeddings:${mode}:writer`,
           total: 0,
           stage: 'embeddings',
           mode,
           ephemeral: true
         });
-        const bundleTask = display.task('Bundles', {
+        bundleTask = display.task('Bundles', {
           taskId: `embeddings:${mode}:bundles`,
           total: 1,
           stage: 'embeddings',
           mode,
           ephemeral: true
         });
-        const backendTask = display.task('Backends', {
+        backendTask = display.task('Backends', {
           taskId: `embeddings:${mode}:backends`,
           total: 5,
           stage: 'embeddings',
@@ -4347,9 +4354,6 @@ export async function runBuildEmbeddingsWithConfig(config) {
             avgFillRatio: embeddingBatchesCompleted > 0
               ? (embeddingBatchFillRatioSum / embeddingBatchesCompleted)
               : null,
-            avgQueueWaitMs: embeddingBatchesCompleted > 0
-              ? (embeddingBatchQueueWaitMs / embeddingBatchesCompleted)
-              : null,
             avgMergedRequests: embeddingBatchesCompleted > 0
               ? (embeddingBatchMergedRequests / embeddingBatchesCompleted)
               : null,
@@ -4556,11 +4560,11 @@ export async function runBuildEmbeddingsWithConfig(config) {
         backendTask.done({ message: 'backend outputs ready' });
         finishMode(`built ${mode}`);
       } catch (err) {
-        cacheTask.fail(err);
-        embedTask.fail(err);
-        writerTask.fail(err);
-        bundleTask.fail(err);
-        backendTask.fail(err);
+        cacheTask?.fail?.(err);
+        embedTask?.fail?.(err);
+        writerTask?.fail?.(err);
+        bundleTask?.fail?.(err);
+        backendTask?.fail?.(err);
         logExpectedArtifacts(mode, indexDir, 'failure');
         const now = new Date().toISOString();
         const failureState = loadIndexState(statePath);
