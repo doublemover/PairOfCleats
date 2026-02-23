@@ -12,6 +12,7 @@ import { hasChunkMetaArtifactsSync } from '../../../src/shared/index-artifact-he
 import { spawnSubprocessSync } from '../../../src/shared/subprocess.js';
 import { createToolDisplay } from '../../shared/cli-display.js';
 import {
+  resolveBakeoffFastPathDefaults,
   resolveBakeoffBuildPlan,
   resolveBakeoffScriptPaths,
   resolveBakeoffStage4Modes
@@ -36,6 +37,12 @@ const normalizeWrappedCliValue = (value) => String(value || '')
   .trim();
 const argv = createCli({
   scriptName: 'bench-embedding-models',
+  usage: [
+    'Usage: $0 [options]',
+    '',
+    'Quick defaults: $0',
+    'Full run: $0 --full-run --models <list> --dataset <path>'
+  ].join('\n'),
   options: {
     models: { type: 'string' },
     baseline: { type: 'string' },
@@ -45,19 +52,40 @@ const argv = createCli({
     backend: { type: 'string', default: 'sqlite' },
     mode: { type: 'string', default: 'both' },
     top: { type: 'number', default: 10 },
-    limit: { type: 'number', default: 20 },
+    limit: { type: 'number', default: 20, describe: 'Query cap (quick default=20, full-run default=0).' },
     'heap-mb': { type: 'number', default: 8192 },
-    'embedding-sample-files': { type: 'number', default: 50 },
-    'embedding-sample-seed': { type: 'string', default: 'quick-smoke' },
+    'embedding-sample-files': {
+      type: 'number',
+      default: 50,
+      describe: 'Per-mode sampled files (quick default=50, full-run default=0).'
+    },
+    'embedding-sample-seed': {
+      type: 'string',
+      default: 'quick-smoke',
+      describe: 'Deterministic sampling seed (quick default=quick-smoke).'
+    },
+    'full-run': {
+      type: 'boolean',
+      default: false,
+      describe: 'Disable quick defaults (sampling/resume/skip-compare/limit) unless explicitly overridden.'
+    },
     build: { type: 'boolean', default: true },
     incremental: { type: 'boolean', default: true },
     'build-sqlite': { type: 'boolean' },
     'skip-eval': { type: 'boolean', default: false },
-    'skip-compare': { type: 'boolean', default: true },
+    'skip-compare': {
+      type: 'boolean',
+      default: true,
+      describe: 'Skip compare-models pass (quick default=true, full-run default=false).'
+    },
     ann: { type: 'boolean' },
     'no-ann': { type: 'boolean' },
     'stub-embeddings': { type: 'boolean', default: false },
-    resume: { type: 'boolean', default: true },
+    resume: {
+      type: 'boolean',
+      default: true,
+      describe: 'Reuse completed model checkpoints (quick default=true, full-run default=false).'
+    },
     checkpoint: { type: 'string' },
     'cache-root': { type: 'string' },
     out: { type: 'string' },
@@ -134,12 +162,22 @@ if (!['code', 'prose', 'both'].includes(mode)) {
   process.exit(1);
 }
 const topN = Math.max(1, Math.floor(Number(argv.top) || 10));
-const limit = Math.max(0, Math.floor(Number(argv.limit) || 0));
 const heapMb = Math.max(0, Math.floor(Number(argv['heap-mb']) || 0));
-const embeddingSampleFiles = Math.max(0, Math.floor(Number(argv['embedding-sample-files']) || 0));
-const embeddingSampleSeed = String(argv['embedding-sample-seed'] || 'bakeoff-v1').trim() || 'bakeoff-v1';
+const fullRun = argv['full-run'] === true;
+const fastPathDefaults = resolveBakeoffFastPathDefaults({
+  rawArgs,
+  fullRun,
+  limit: Number(argv.limit),
+  embeddingSampleFiles: Number(argv['embedding-sample-files']),
+  embeddingSampleSeed: String(argv['embedding-sample-seed'] || ''),
+  skipCompare: argv['skip-compare'] === true,
+  resume: argv.resume !== false
+});
+const limit = fastPathDefaults.limit;
+const embeddingSampleFiles = fastPathDefaults.embeddingSampleFiles;
+const embeddingSampleSeed = fastPathDefaults.embeddingSampleSeed;
 const runEval = argv['skip-eval'] !== true;
-const runCompare = argv['skip-compare'] !== true;
+const runCompare = fastPathDefaults.skipCompare !== true;
 const buildIndex = argv.build === true;
 const { buildSqlite, runStage4OnlyBuild } = resolveBakeoffBuildPlan({
   rawArgs,
@@ -148,7 +186,7 @@ const { buildSqlite, runStage4OnlyBuild } = resolveBakeoffBuildPlan({
 });
 const incremental = argv.incremental === true;
 const useStubEmbeddings = argv['stub-embeddings'] === true;
-const allowResume = argv.resume !== false;
+const allowResume = fastPathDefaults.resume === true;
 const annOverride = argv['no-ann'] === true
   ? false
   : (argv.ann === true ? true : null);
@@ -481,6 +519,7 @@ const outputSettings = {
   mode,
   topN,
   limit,
+  runProfile: fastPathDefaults.profile,
   heapMb,
   embeddingSampleFiles,
   embeddingSampleSeed,

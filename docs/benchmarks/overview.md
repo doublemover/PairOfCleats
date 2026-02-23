@@ -106,6 +106,18 @@ Tinybench creates the baseline/output directory if it is missing.
 Language benchmarks focus on larger repos and end-to-end indexing + search runs.
 See `docs/language/benchmarks.md` for tiered repo lists and recommended commands.
 
+## Embedding model bakeoff
+
+Run embedding bakeoff with:
+
+```
+node tools/bench/embeddings/model-bakeoff.js
+```
+
+The default profile is fast-path (`sampled`, `resumable`, compare skipped). Use
+`--full-run` to opt into full-fidelity defaults (unsampled + compare enabled),
+and then override specific flags as needed.
+
 ### Matrix runner
 To sweep multiple backend/ANN combinations across the repo matrix, use:
 

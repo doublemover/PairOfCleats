@@ -1,5 +1,64 @@
 import path from 'node:path';
 
+const QUICK_BAKEOFF_DEFAULTS = Object.freeze({
+  limit: 20,
+  embeddingSampleFiles: 50,
+  embeddingSampleSeed: 'quick-smoke',
+  skipCompare: true,
+  resume: true
+});
+
+const FULL_RUN_BAKEOFF_DEFAULTS = Object.freeze({
+  limit: 0,
+  embeddingSampleFiles: 0,
+  embeddingSampleSeed: 'full-run',
+  skipCompare: false,
+  resume: false
+});
+
+/**
+ * Check whether a CLI option was provided explicitly in raw argv.
+ *
+ * @param {string[]} rawArgs
+ * @param {string} optionName
+ * @returns {boolean}
+ */
+const hasExplicitOption = (rawArgs, optionName) => {
+  const option = `--${optionName}`;
+  const noOption = `--no-${optionName}`;
+  return rawArgs.some((entry) => (
+    entry === option
+    || entry === noOption
+    || entry.startsWith(`${option}=`)
+    || entry.startsWith(`${noOption}=`)
+  ));
+};
+
+/**
+ * Clamp values to non-negative integers.
+ *
+ * @param {number} value
+ * @param {number} fallback
+ * @returns {number}
+ */
+const toNonNegativeInteger = (value, fallback) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.max(0, Math.floor(numeric));
+};
+
+/**
+ * Trim strings with a fallback.
+ *
+ * @param {string} value
+ * @param {string} fallback
+ * @returns {string}
+ */
+const toTrimmedString = (value, fallback) => {
+  const normalized = String(value || '').trim();
+  return normalized || fallback;
+};
+
 /**
  * Resolve internal script paths used by embedding bakeoff runs.
  * @param {{repoRoot:string,toolRoot:string}} options
@@ -27,6 +86,62 @@ export function resolveBakeoffBuildPlan({ rawArgs, buildIndex, buildSqlite }) {
     buildSqliteExplicit,
     buildSqlite: sqliteStageRequested,
     runStage4OnlyBuild: sqliteStageRequested && !buildIndex
+  };
+}
+
+/**
+ * Resolve quick/full profile defaults while preserving explicit CLI overrides.
+ *
+ * Quick profile is the default when `--full-run` is not set.
+ *
+ * @param {{
+ *  rawArgs:string[],
+ *  fullRun:boolean,
+ *  limit:number,
+ *  embeddingSampleFiles:number,
+ *  embeddingSampleSeed:string,
+ *  skipCompare:boolean,
+ *  resume:boolean
+ * }} options
+ * @returns {{
+ *  profile:'quick'|'full',
+ *  limit:number,
+ *  embeddingSampleFiles:number,
+ *  embeddingSampleSeed:string,
+ *  skipCompare:boolean,
+ *  resume:boolean
+ * }}
+ */
+export function resolveBakeoffFastPathDefaults({
+  rawArgs,
+  fullRun,
+  limit,
+  embeddingSampleFiles,
+  embeddingSampleSeed,
+  skipCompare,
+  resume
+}) {
+  const profile = fullRun ? 'full' : 'quick';
+  const defaults = fullRun
+    ? FULL_RUN_BAKEOFF_DEFAULTS
+    : QUICK_BAKEOFF_DEFAULTS;
+  return {
+    profile,
+    limit: hasExplicitOption(rawArgs, 'limit')
+      ? toNonNegativeInteger(limit, defaults.limit)
+      : defaults.limit,
+    embeddingSampleFiles: hasExplicitOption(rawArgs, 'embedding-sample-files')
+      ? toNonNegativeInteger(embeddingSampleFiles, defaults.embeddingSampleFiles)
+      : defaults.embeddingSampleFiles,
+    embeddingSampleSeed: hasExplicitOption(rawArgs, 'embedding-sample-seed')
+      ? toTrimmedString(embeddingSampleSeed, defaults.embeddingSampleSeed)
+      : defaults.embeddingSampleSeed,
+    skipCompare: hasExplicitOption(rawArgs, 'skip-compare')
+      ? skipCompare === true
+      : defaults.skipCompare,
+    resume: hasExplicitOption(rawArgs, 'resume')
+      ? resume !== false
+      : defaults.resume
   };
 }
 
