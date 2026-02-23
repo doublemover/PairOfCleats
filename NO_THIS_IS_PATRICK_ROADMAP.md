@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T08:06:50.8595854-05:00
+  Extracted USR failure-injection scenario evaluation/report builders from `src/contracts/validators/usr-matrix.js` into `src/contracts/validators/usr-matrix/failure-injection.js`, preserving facade exports and explicit scope passthrough while isolating strict/non-strict diagnostics/reason-code validation with focused contract coverage in `tests/indexing/contracts/usr-failure-injection-report.test.js`.
 - 2026-02-23T08:00:35.6126578-05:00
   Extracted runtime startup policy/sequencing assembly from `src/index/build/runtime/runtime.js` into `src/index/build/runtime/runtime-startup-policy-init.js`, preserving startup ordering contracts and adding focused sequencing coverage in `tests/indexing/runtime/runtime-startup-policy-init.test.js`.
 - 2026-02-23T07:59:52.4220438-05:00
