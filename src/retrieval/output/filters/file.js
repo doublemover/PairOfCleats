@@ -44,6 +44,20 @@ export const buildFileFilters = ({ file, ext, lang, caseFile, normalize = defaul
   };
 };
 
+const resolveEffectiveLang = (chunk) => {
+  const languageValues = [
+    chunk?.metaV2?.lang,
+    chunk?.metaV2?.effective?.languageId,
+    chunk?.lang
+  ];
+  for (const value of languageValues) {
+    if (typeof value !== 'string') continue;
+    const trimmed = value.trim();
+    if (trimmed) return trimmed;
+  }
+  return 'unknown';
+};
+
 export const matchFileFilters = ({ chunk, fileMatchers, extNeedles, langNeedles, normalizeFile, normalize = defaultNormalize }) => {
   if (fileMatchers.length) {
     const fileValue = String(chunk?.file || '');
@@ -58,11 +72,7 @@ export const matchFileFilters = ({ chunk, fileMatchers, extNeedles, langNeedles,
     if (!matches) return false;
   }
   if (langNeedles.length) {
-    const langValue = chunk?.metaV2?.lang
-      || chunk?.metaV2?.effective?.languageId
-      || chunk?.lang
-      || null;
-    if (!langValue) return false;
+    const langValue = resolveEffectiveLang(chunk);
     if (!langNeedles.includes(normalize(langValue))) return false;
   }
   if (extNeedles.length) {

@@ -49,6 +49,21 @@ const meta = [
     file: 'src/nested/util.ts',
     ext: '.ts',
     metaV2: { lang: 'typescript', effective: { languageId: 'typescript' } }
+  },
+  {
+    id: 5,
+    docmeta: {},
+    codeRelations: {},
+    file: 'docs/changelog.txt',
+    ext: '.txt'
+  },
+  {
+    id: 6,
+    docmeta: {},
+    codeRelations: {},
+    file: 'docs/notes.md',
+    ext: '.md',
+    lang: '   '
   }
 ];
 const filterIndex = buildFilterIndex(meta, { fileChargramN: 3 });
@@ -74,5 +89,6 @@ expectIds({ author: 'Alice' }, [0], 'author filter strict');
 expectIds({ author: 'car' }, [4], 'author filter substring');
 expectIds({ file: 'src/b.js', filePrefilter: { enabled: true, chargramN: 3 } }, [1], 'file filter substring');
 expectIds({ file: '/util\\.ts$/i', filePrefilter: { enabled: true, chargramN: 3 } }, [4], 'file filter regex');
+expectIds({ lang: 'unknown' }, [3, 5, 6], 'unknown language fallback');
 
 console.log('filter strictness test passed');
