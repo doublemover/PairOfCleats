@@ -7,6 +7,7 @@ import { getRuntimeConfig, loadUserConfig, resolveRuntimeEnv } from '../shared/d
 import { parseBenchLanguageArgs } from './language/cli.js';
 import { loadBenchConfig } from './language/config.js';
 import { checkIndexLock, formatLockDetail } from './language/locks.js';
+import { formatEtaSeconds } from '../../src/shared/perf/eta.js';
 import {
   buildNonInteractiveGitEnv,
   ensureLongPathsSupport,
@@ -384,21 +385,6 @@ const setBenchInFlightFraction = (value, { refresh = true } = {}) => {
 };
 
 /**
- * Render ETA seconds as `XmYYs`.
- *
- * @param {number} value
- * @returns {string|null}
- */
-const formatEtaSeconds = (value) => {
-  const seconds = Number(value);
-  if (!Number.isFinite(seconds) || seconds < 0) return null;
-  const whole = Math.floor(seconds);
-  const mins = Math.floor(whole / 60);
-  const secs = whole % 60;
-  return `${mins}m${String(secs).padStart(2, '0')}s`;
-};
-
-/**
  * Build a compact status line from structured child task telemetry.
  *
  * @param {BenchProgressEvent|object|null} event
@@ -410,7 +396,7 @@ const formatChildTaskMessage = (event) => {
   if (explicit) return explicit;
   const throughputChunks = Number(event?.throughput?.chunksPerSec ?? event?.chunksPerSec);
   const throughputFiles = Number(event?.throughput?.filesPerSec ?? event?.filesPerSec);
-  const etaText = formatEtaSeconds(event?.etaSeconds);
+  const etaText = formatEtaSeconds(event?.etaSeconds, { preferHours: false });
   const cacheHitRate = Number(event?.cache?.hitRate ?? event?.cacheHitRate);
   const writerPending = Number(event?.writer?.pending ?? event?.writerPending);
   const writerMax = Number(event?.writer?.currentMaxPending ?? event?.writerMaxPending);

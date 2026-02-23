@@ -1,5 +1,6 @@
 import PQueue from 'p-queue';
 import { getScmRuntimeConfig } from '../../runtime.js';
+import { coercePositiveIntMinOne } from '../../../../shared/number-coerce.js';
 
 const GIT_META_BATCH_SMALL_REPO_CHUNK_MAX = 2;
 const GIT_META_PREFETCH_CACHE_MAX_ENTRIES_DEFAULT = 8;
@@ -10,12 +11,6 @@ const GIT_META_TIMEOUT_COOLDOWN_MS_DEFAULT = 3 * 60 * 1000;
 const GIT_META_TIMEOUT_MAX_MS_DEFAULT = 45 * 1000;
 const GIT_META_TIMEOUT_HEATMAP_MAX_ENTRIES_DEFAULT = 32;
 
-const toPositiveIntOrNull = (value) => {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric <= 0) return null;
-  return Math.max(1, Math.floor(numeric));
-};
-
 let gitQueue = null;
 let gitQueueConcurrency = null;
 
@@ -24,10 +19,10 @@ export const resolveGitConfig = ({ timeoutState = null } = {}) => {
   const runtimeConfig = config.runtime && typeof config.runtime === 'object'
     ? config.runtime
     : {};
-  const runtimeThreadFloor = toPositiveIntOrNull(runtimeConfig.cpuConcurrency)
-    || toPositiveIntOrNull(runtimeConfig.fileConcurrency)
+  const runtimeThreadFloor = coercePositiveIntMinOne(runtimeConfig.cpuConcurrency)
+    || coercePositiveIntMinOne(runtimeConfig.fileConcurrency)
     || 1;
-  const explicitMaxConcurrentProcesses = toPositiveIntOrNull(config.maxConcurrentProcesses);
+  const explicitMaxConcurrentProcesses = coercePositiveIntMinOne(config.maxConcurrentProcesses);
   const maxConcurrentProcesses = explicitMaxConcurrentProcesses
     || (runtimeThreadFloor > 1 ? runtimeThreadFloor : 8);
   const gitMetaBatchConfig = config.gitMetaBatch && typeof config.gitMetaBatch === 'object'

@@ -24,6 +24,33 @@ export const coercePositiveIntMinOne = (value) => {
 };
 
 /**
+ * Coerce a value to a finite number and clamp it to a minimum threshold.
+ *
+ * @param {unknown} value
+ * @param {number} [min=0]
+ * @returns {number|null}
+ */
+export const coerceNumberAtLeast = (value, min = 0) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  const floor = Number.isFinite(Number(min)) ? Number(min) : 0;
+  return Math.max(floor, parsed);
+};
+
+/**
+ * Coerce a value to an integer and clamp it to a minimum threshold.
+ *
+ * @param {unknown} value
+ * @param {number} [min=0]
+ * @returns {number|null}
+ */
+export const coerceIntAtLeast = (value, min = 0) => {
+  const coerced = coerceNumberAtLeast(value, min);
+  if (coerced == null) return null;
+  return Math.floor(coerced);
+};
+
+/**
  * Coerce a value to a non-negative integer.
  *
  * @param {unknown} value
