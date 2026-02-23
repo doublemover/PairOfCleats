@@ -5,6 +5,25 @@ import { spawnSync } from 'node:child_process';
 import { isAbsolutePathNative } from '../../src/shared/files.js';
 
 const runGit = (args, cwd) => spawnSync('git', args, { cwd, encoding: 'utf8' });
+const normalizeSignal = (value) => (
+  typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
+);
+
+/**
+ * Build a stable failure message for git subprocess results.
+ *
+ * @param {import('node:child_process').SpawnSyncReturns<string>} result
+ * @param {string} fallback
+ * @returns {string}
+ */
+export const formatGitFailure = (result, fallback) => {
+  const signal = normalizeSignal(result?.signal);
+  if (signal) return `git interrupted by signal ${signal}`;
+  if (typeof result?.error?.message === 'string' && result.error.message.trim().length > 0) {
+    return result.error.message.trim();
+  }
+  return result?.stderr || result?.stdout || fallback;
+};
 
 export function resolveRepoPath(entry, baseDir) {
   if (!entry?.path) return null;
@@ -42,7 +61,7 @@ export async function ensureRepo(entry, baseDir, defaultPolicy = 'pull') {
     cloneArgs.push(entry.url, repoPath);
     const clone = runGit(cloneArgs, process.cwd());
     if (clone.status !== 0) {
-      return { ok: false, message: clone.stderr || clone.stdout || 'git clone failed' };
+      return { ok: false, message: formatGitFailure(clone, 'git clone failed') };
     }
     return { ok: true, repoPath, action: 'clone' };
   }
@@ -51,7 +70,7 @@ export async function ensureRepo(entry, baseDir, defaultPolicy = 'pull') {
   const args = policy === 'fetch' ? ['fetch', '--all', '--prune'] : ['pull', '--ff-only'];
   const sync = runGit(args, repoPath);
   if (sync.status !== 0) {
-    return { ok: false, repoPath, message: sync.stderr || sync.stdout || 'git sync failed' };
+    return { ok: false, repoPath, message: formatGitFailure(sync, 'git sync failed') };
   }
   return { ok: true, repoPath, action: policy };
 }
