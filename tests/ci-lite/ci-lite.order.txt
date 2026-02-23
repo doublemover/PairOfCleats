@@ -479,6 +479,7 @@ indexing/vfs/vfs-disk-path-safety
 retrieval/graph/context-pack-seed-indexing
 shared/runtime/uv-threadpool-env
 indexing/validate/manifest-path-native
+indexing/validate/resolve-index-dir-artifact-variants
 indexing/chunking/chunking-no-blob
 context-pack/contracts/context-pack-determinism
 retrieval/pipeline/search-startup-fastpath
@@ -657,6 +658,9 @@ indexing/git/git-meta
 tooling/ingest/lsif/lsif-ingest
 indexing/validate/metav2-rejects-invalid-type-shapes
 indexing/validate/manifest-checks
+indexing/validate/index-validate
+indexing/validate/index-validate-boilerplate-catalog-manifest-name
+indexing/validate/index-validate-determinism-report-required
 tooling/cache/cache-gc-preserves-recent-access
 indexing/watch/build-state
 indexing/type-inference/providers/type-inference-clangd-provider-no-clangd
@@ -679,6 +683,7 @@ storage/sqlite/build/args-parsing
 shared/hash/xxhash-backends
 tooling/reports/metrics-dashboard
 indexing/validate/index-validate-manifest-safety
+indexing/validate/index-validate-optional-file-meta-nonstrict
 ci/suite-runner.smoke
 indexing/type-inference/providers/type-inference-sourcekit-provider-no-sourcekit
 shared/snapshots-registry
