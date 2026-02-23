@@ -438,22 +438,26 @@ const handleServe = async () => {
   exitLikeCommandResult({ status: result.exitCode, signal: result.signal });
 };
 
-if (command === 'sync') {
-  await handleSync();
-} else if (command === 'enqueue') {
-  await handleEnqueue();
-} else if (command === 'work') {
-  const repoRoot = resolveRepoRootArg(argv.repo);
-  logThreadpoolInfo(repoRoot, 'indexer');
-  await handleWork();
-} else if (command === 'status') {
-  await handleStatus();
-} else if (command === 'smoke') {
-  await handleSmoke();
-} else if (command === 'serve') {
-  await handleServe();
-} else {
-  exitWithCommandError(
-    'Usage: indexer-service <sync|enqueue|work|status|smoke|serve> [--queue index|embeddings] [--stage stage1|stage2|stage3|stage4]'
-  );
+try {
+  if (command === 'sync') {
+    await handleSync();
+  } else if (command === 'enqueue') {
+    await handleEnqueue();
+  } else if (command === 'work') {
+    const repoRoot = resolveRepoRootArg(argv.repo);
+    logThreadpoolInfo(repoRoot, 'indexer');
+    await handleWork();
+  } else if (command === 'status') {
+    await handleStatus();
+  } else if (command === 'smoke') {
+    await handleSmoke();
+  } else if (command === 'serve') {
+    await handleServe();
+  } else {
+    exitWithCommandError(
+      'Usage: indexer-service <sync|enqueue|work|status|smoke|serve> [--queue index|embeddings] [--stage stage1|stage2|stage3|stage4]'
+    );
+  }
+} catch (err) {
+  exitWithCommandError(err?.message || String(err));
 }
