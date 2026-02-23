@@ -87,6 +87,8 @@ Note:
   Split `src/index/build/indexer/pipeline.js` policy-context and telemetry summarizers into `src/index/build/indexer/pipeline/policy-context.js` and `src/index/build/indexer/pipeline/summaries.js`, reducing main-pipeline orchestration coupling and consolidating normalization code for reuse and lower duplication risk.
 - 2026-02-23T05:28:08.7675465-05:00
   Refactored `tools/usr/generate-usr-matrix-baselines.mjs` into modular `datasets`, `builders`, and `io` units, preserving generated matrix outputs while adding write-elision for unchanged payloads to reduce unnecessary disk churn during baseline refresh runs.
+- 2026-02-23T05:29:20.3531152-05:00
+  Decomposed `src/index/build/workers/pool.js` into focused `queue`, `lifecycle`, `worker-coordination`, `payload`, and `meta` modules, preserving backpressure/restart/shutdown semantics and reducing hot-path metrics overhead by skipping redundant gauge writes.
 
 ## Architectural assessment (what needs to change)
 

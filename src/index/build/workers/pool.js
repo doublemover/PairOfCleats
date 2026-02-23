@@ -1,3 +1,4 @@
+import os from 'node:os';
 import util from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { log as defaultLog } from '../../../shared/progress.js';
@@ -9,7 +10,6 @@ import {
   setWorkerGcPressure,
   setWorkerQueueDepth
 } from '../../../shared/metrics.js';
-import { createBoundedObjectPool } from '../../../shared/bounded-object-pool.js';
 import {
   buildWorkerExecArgv,
   resolveMemoryWorkerCap,
@@ -19,7 +19,6 @@ import {
 } from './config.js';
 import { sanitizePoolPayload, sanitizeQuantizePayload, summarizeError } from './protocol.js';
 import {
-  PRESSURE_STATE_NORMAL,
   clampRatio,
   evictDeterministicPressureCacheEntries,
   normalizeLanguageId,
@@ -27,6 +26,18 @@ import {
   resolveMemoryPressureState
 } from './pool/pressure-controls.js';
 import { resolveNumaPinningPlan } from './pool/numa-plan.js';
+import { createWorkerPoolQueue } from './pool/queue.js';
+import { createWorkerPoolLifecycle } from './pool/lifecycle.js';
+import { createWorkerProcessCoordinator } from './pool/worker-coordination.js';
+import {
+  buildQuantizeRunPayload,
+  normalizeCodeDictLanguages,
+  normalizeStringArray,
+  sanitizeDictConfig,
+  sanitizeTreeSitterConfig,
+  serializeCodeDictWordsByLanguage
+} from './pool/payload.js';
+import { createWorkerPoolMetaHelpers } from './pool/meta.js';
 
 export {
   resolveMemoryPressureState,
@@ -87,85 +98,7 @@ export async function createIndexerWorkerPool(input = {}) {
   const codeDictWordsForPool = poolLabel === 'quantize' ? null : codeDictWords;
   const codeDictWordsByLanguageForPool = poolLabel === 'quantize' ? null : codeDictWordsByLanguage;
   const codeDictLanguagesForPool = poolLabel === 'quantize' ? null : codeDictLanguages;
-  const sanitizeDictConfig = (raw) => {
-    const cfg = raw && typeof raw === 'object' ? raw : {};
-    return {
-      segmentation: typeof cfg.segmentation === 'string' ? cfg.segmentation : 'auto',
-      dpMaxTokenLength: Number.isFinite(Number(cfg.dpMaxTokenLength))
-        ? Number(cfg.dpMaxTokenLength)
-        : 32
-    };
-  };
-  const sanitizeTreeSitterConfig = (raw) => {
-    if (!raw || typeof raw !== 'object') return null;
-    const maxBytes = Number(raw.maxBytes);
-    const maxLines = Number(raw.maxLines);
-    const maxParseMs = Number(raw.maxParseMs);
-    return {
-      enabled: raw.enabled !== false,
-      languages: raw.languages && typeof raw.languages === 'object' ? raw.languages : {},
-      allowedLanguages: Array.isArray(raw.allowedLanguages)
-        ? raw.allowedLanguages.filter((entry) => typeof entry === 'string')
-        : undefined,
-      maxBytes: Number.isFinite(maxBytes) && maxBytes > 0 ? Math.floor(maxBytes) : null,
-      maxLines: Number.isFinite(maxLines) && maxLines > 0 ? Math.floor(maxLines) : null,
-      maxParseMs: Number.isFinite(maxParseMs) && maxParseMs > 0 ? Math.floor(maxParseMs) : null,
-      byLanguage: raw.byLanguage && typeof raw.byLanguage === 'object' ? raw.byLanguage : {}
-    };
-  };
-  function *iterateStringEntries(value) {
-    if (!value) return;
-    if (typeof value === 'string') {
-      yield value;
-      return;
-    }
-    if (Array.isArray(value)) {
-      for (const entry of value) {
-        if (typeof entry === 'string') yield entry;
-      }
-      return;
-    }
-    if (value instanceof Set) {
-      for (const entry of value.values()) {
-        if (typeof entry === 'string') yield entry;
-      }
-      return;
-    }
-    if (typeof value[Symbol.iterator] === 'function') {
-      for (const entry of value) {
-        if (typeof entry === 'string') yield entry;
-      }
-    }
-  }
-  const normalizeStringArray = (value) => {
-    if (!Array.isArray(value)) {
-      return Array.from(iterateStringEntries(value));
-    }
-    // Fast path: avoid large array copies when the input is already string-only.
-    for (let i = 0; i < value.length; i += 1) {
-      if (typeof value[i] !== 'string') {
-        return Array.from(iterateStringEntries(value));
-      }
-    }
-    return value;
-  };
-  const normalizeCodeDictLanguages = (value) => {
-    if (!value) return [];
-    return normalizeStringArray(value);
-  };
-  const serializeCodeDictWordsByLanguage = (value) => {
-    if (!value) return null;
-    const entries = value instanceof Map
-      ? value.entries()
-      : Object.entries(value);
-    const out = {};
-    for (const [lang, words] of entries) {
-      if (typeof lang !== 'string' || !lang) continue;
-      const list = normalizeStringArray(words);
-      if (list.length) out[lang] = list;
-    }
-    return Object.keys(out).length ? out : null;
-  };
+
   if (!poolConfig || poolConfig.enabled === false) return null;
   let Piscina;
   try {
@@ -238,39 +171,10 @@ export async function createIndexerWorkerPool(input = {}) {
       hardMaxPerLanguage: Math.min(languageThrottleSoftMax, languageThrottleHardMax),
       blockHeavyOnHardPressure: rawLanguageThrottle?.blockHeavyOnHardPressure !== false
     };
-    let pool = null;
-    let disabled = false;
-    let permanentlyDisabled = false;
-    let restartAttempts = 0;
-    let restartAtMs = 0;
-    let restarting = null;
+
     let activeTasks = 0;
-    let shutdownWhenIdle = false;
-    let pendingRestart = false;
     let quantizeTypedTempBuffers = 0;
-    let effectiveMaxWorkers = configuredMaxWorkers;
-    let numaPinningPlan = resolveNumaPinningPlan({
-      config: poolConfig,
-      maxWorkers: effectiveMaxWorkers
-    });
-    const workerNumaNodeByThreadId = new Map();
-    let workerCreateOrdinal = 0;
-    let pressureDownscaleEvents = 0;
-    let pressureUpscaleEvents = 0;
-    let lastPressureDownscaleAtMs = 0;
-    let lastPressureUpscaleAtMs = 0;
-    let pressureState = PRESSURE_STATE_NORMAL;
-    let pressureTransitions = 0;
-    let lastPressureTransitionAtMs = 0;
-    let pressureThrottleWaitCount = 0;
-    let pressureThrottleWaitMs = 0;
-    let pressureHardBlockCount = 0;
-    let pressureCacheEvictionCount = 0;
-    let pressureCacheEvictionBytes = 0;
-    const tokenizeInFlightByLanguage = new Map();
-    const pressureThrottleWaitersByLanguage = new Map();
-    const pressureCache = new Map();
-    let pressureCacheOrdinal = 0;
+
     const workerExecArgv = buildWorkerExecArgv();
     const heapPolicy = resolveWorkerHeapBudgetPolicy({
       targetPerWorkerMb: poolConfig.heapTargetMb,
@@ -282,7 +186,7 @@ export async function createIndexerWorkerPool(input = {}) {
       minPerWorkerMb: heapPolicy.minPerWorkerMb,
       maxPerWorkerMb: heapPolicy.maxPerWorkerMb
     });
-    let currentResourceLimits = resolveResourceLimitsForWorkers(effectiveMaxWorkers);
+    let currentResourceLimits = resolveResourceLimitsForWorkers(configuredMaxWorkers);
     const serializedDictWords = dictSharedForPool?.bytes && dictSharedForPool?.offsets
       ? null
       : normalizeStringArray(dictWordsForPool);
@@ -291,359 +195,60 @@ export async function createIndexerWorkerPool(input = {}) {
     const serializedCodeDictLanguages = normalizeCodeDictLanguages(codeDictLanguagesForPool);
     const hasCodeDictLangs = codeDictLanguagesForPool != null;
     const serializedTreeSitterPayload = sanitizeTreeSitterConfig(treeSitterConfig);
-    const workerTaskMetricPool = createBoundedObjectPool({
-      maxSize: 1024,
-      create: () => ({
-        pool: 'unknown',
-        task: 'unknown',
-        worker: 'unknown',
-        status: 'unknown',
-        seconds: 0
-      }),
-      reset: (entry) => {
-        entry.pool = 'unknown';
-        entry.task = 'unknown';
-        entry.worker = 'unknown';
-        entry.status = 'unknown';
-        entry.seconds = 0;
-        return entry;
-      }
-    });
-    const tokenizePayloadMetaPool = createBoundedObjectPool({
-      maxSize: 512,
-      create: () => ({ file: null, size: null, textLength: null, mode: null, ext: null }),
-      reset: (entry) => {
-        entry.file = null;
-        entry.size = null;
-        entry.textLength = null;
-        entry.mode = null;
-        entry.ext = null;
-        return entry;
-      }
-    });
-    const quantizePayloadMetaPool = createBoundedObjectPool({
-      maxSize: 512,
-      create: () => ({ vectorCount: null, levels: null }),
-      reset: (entry) => {
-        entry.vectorCount = null;
-        entry.levels = null;
-        return entry;
-      }
-    });
-    const crashPayloadMetaPool = createBoundedObjectPool({
-      maxSize: 64,
-      create: () => ({ threadId: null }),
-      reset: (entry) => {
-        entry.threadId = null;
-        return entry;
-      }
-    });
-    const withPooledPayloadMeta = (poolForMeta, assign, fn) => {
-      const meta = poolForMeta.acquire();
-      assign(meta);
-      try {
-        return fn(meta);
-      } finally {
-        poolForMeta.release(meta);
-      }
-    };
-    const assignTokenizePayloadMeta = (target, payload) => {
-      target.file = payload && typeof payload.file === 'string' ? payload.file : null;
-      target.size = payload && Number.isFinite(payload.size) ? payload.size : null;
-      target.textLength = payload && typeof payload.text === 'string' ? payload.text.length : null;
-      target.mode = payload?.mode || null;
-      target.ext = payload?.ext || null;
-    };
-    const assignQuantizePayloadMeta = (target, payload) => {
-      target.vectorCount = payload && Array.isArray(payload.vectors)
-        ? payload.vectors.length
-        : null;
-      target.levels = payload?.levels ?? null;
-    };
-    const notifyThrottleWaiters = (languageId = null) => {
-      const keys = [];
-      if (typeof languageId === 'string' && languageId) keys.push(languageId);
-      keys.push('*');
-      for (const key of keys) {
-        const waiters = pressureThrottleWaitersByLanguage.get(key);
-        if (!waiters || waiters.size === 0) continue;
-        pressureThrottleWaitersByLanguage.delete(key);
-        for (const resolve of waiters.values()) {
-          try {
-            resolve();
-          } catch {}
-        }
-      }
-    };
-    const registerThrottleWaiter = (languageId, resolve) => {
-      const key = typeof languageId === 'string' && languageId ? languageId : '*';
-      let waiters = pressureThrottleWaitersByLanguage.get(key);
-      if (!waiters) {
-        waiters = new Set();
-        pressureThrottleWaitersByLanguage.set(key, waiters);
-      }
-      waiters.add(resolve);
-      return () => {
-        const current = pressureThrottleWaitersByLanguage.get(key);
-        if (!current) return;
-        current.delete(resolve);
-        if (current.size === 0) {
-          pressureThrottleWaitersByLanguage.delete(key);
-        }
-      };
-    };
-    const waitForThrottleSignal = (languageId) => new Promise((resolve) => {
-      let settled = false;
-      const onResolve = () => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        releaseLang();
-        releaseAll();
-        resolve();
-      };
-      const releaseLang = registerThrottleWaiter(languageId, onResolve);
-      const releaseAll = registerThrottleWaiter('*', onResolve);
-      const timer = setTimeout(onResolve, 50);
-      if (typeof timer?.unref === 'function') timer.unref();
-    });
-    const updatePressureState = ({ pressureRatio, rssPressure, gcPressure, reason = 'sample' }) => {
-      const nextState = resolveMemoryPressureState({
-        pressureRatio,
-        watermarkSoft: pressureWatermarkSoft,
-        watermarkHard: pressureWatermarkHard,
-        currentState: pressureState
-      });
-      if (nextState === pressureState) return nextState;
-      const previousState = pressureState;
-      pressureState = nextState;
-      pressureTransitions += 1;
-      lastPressureTransitionAtMs = Date.now();
-      log(
-        `[workers] pressure state ${previousState}->${nextState} ` +
-        `(ratio=${clampRatio(pressureRatio).toFixed(3)}, rss=${clampRatio(rssPressure).toFixed(3)}, ` +
-        `heap=${clampRatio(gcPressure).toFixed(3)}, reason=${reason}).`
-      );
-      notifyThrottleWaiters();
-      return nextState;
-    };
-    const readProcessPressureSample = () => {
-      const usage = process.memoryUsage();
-      const heapUsed = Number(usage?.heapUsed) || 0;
-      const heapTotal = Number(usage?.heapTotal) || 0;
-      const rss = Number(usage?.rss) || 0;
-      const heapUtilization = heapTotal > 0
-        ? clampRatio(heapUsed / heapTotal)
-        : 0;
-      const rssPressure = maxGlobalRssBytes
-        ? clampRatio(rss / maxGlobalRssBytes)
-        : 0;
-      const pressureRatio = clampRatio(Math.max(heapUtilization, rssPressure));
-      return { heapUsed, heapTotal, rss, heapUtilization, rssPressure, pressureRatio };
-    };
-    const resolvePayloadSizeBytes = (payload) => {
-      if (payload && Number.isFinite(Number(payload.size)) && Number(payload.size) >= 0) {
-        return Math.floor(Number(payload.size));
-      }
-      if (typeof payload?.text === 'string') {
-        return Buffer.byteLength(payload.text, 'utf8');
-      }
-      return 0;
-    };
-    const recordPressureCacheEntry = (payload) => {
-      if (!(pressureCache instanceof Map)) return;
-      const languageId = normalizeLanguageId(payload?.languageId);
-      const mode = typeof payload?.mode === 'string' ? payload.mode.toLowerCase() : '';
-      if (!languageId || mode !== 'code') return;
-      const fileKey = typeof payload?.file === 'string' && payload.file.trim()
-        ? payload.file.trim()
-        : null;
-      const key = fileKey || `${languageId}:anon:${pressureCacheOrdinal++}`;
-      const sizeBytes = resolvePayloadSizeBytes(payload);
-      const prior = pressureCache.get(key);
-      pressureCache.set(key, {
-        languageId,
-        sizeBytes,
-        firstSeenAt: prior?.firstSeenAt ?? Date.now()
-      });
-      const evicted = evictDeterministicPressureCacheEntries({
-        cache: pressureCache,
-        maxEntries: pressureCacheMaxEntries
-      });
-      if (!evicted.length) return;
-      pressureCacheEvictionCount += evicted.length;
-      for (const entry of evicted) {
-        pressureCacheEvictionBytes += Number(entry?.sizeBytes) || 0;
-      }
-    };
-    const acquireLanguageThrottleSlot = async (payload) => {
-      const languageId = normalizeLanguageId(payload?.languageId);
-      const mode = typeof payload?.mode === 'string' ? payload.mode.toLowerCase() : '';
-      if (!languageId || mode !== 'code') return null;
-      while (true) {
-        const sample = readProcessPressureSample();
-        updatePressureState({
-          pressureRatio: sample.pressureRatio,
-          rssPressure: sample.rssPressure,
-          gcPressure: sample.heapUtilization,
-          reason: 'tokenize-admission'
-        });
-        const limit = resolveLanguageThrottleLimit({
-          pressureState,
-          languageId,
-          throttleConfig: languageThrottleConfig
-        });
-        const active = Number(tokenizeInFlightByLanguage.get(languageId) || 0);
-        if (!Number.isFinite(limit) || active < limit) {
-          tokenizeInFlightByLanguage.set(languageId, active + 1);
-          return { languageId, limit };
-        }
-        if (limit === 0) {
-          pressureHardBlockCount += 1;
-        }
-        const waitStart = Date.now();
-        await waitForThrottleSignal(languageId);
-        pressureThrottleWaitCount += 1;
-        pressureThrottleWaitMs += Math.max(0, Date.now() - waitStart);
-      }
-    };
-    const releaseLanguageThrottleSlot = (slot) => {
-      const languageId = normalizeLanguageId(slot?.languageId);
-      if (!languageId) return;
-      const current = Number(tokenizeInFlightByLanguage.get(languageId) || 0);
-      if (current <= 1) {
-        tokenizeInFlightByLanguage.delete(languageId);
-      } else {
-        tokenizeInFlightByLanguage.set(languageId, current - 1);
-      }
-      notifyThrottleWaiters(languageId);
-    };
-    const normalizeQuantizeVectors = (vectors) => {
-      if (!Array.isArray(vectors) || vectors.length === 0) {
-        return { vectors: [], transferList: [], typedTempCount: 0 };
-      }
-      const normalizedVectors = new Array(vectors.length);
-      const transferList = [];
-      let typedTempCount = 0;
-      for (let i = 0; i < vectors.length; i += 1) {
-        const vec = vectors[i];
-        if (ArrayBuffer.isView(vec) && !(vec instanceof DataView)) {
-          normalizedVectors[i] = vec;
-          if (vec.byteOffset === 0 && vec.byteLength === vec.buffer.byteLength) {
-            transferList.push(vec.buffer);
-          }
-          continue;
-        }
-        if (Array.isArray(vec)) {
-          const typed = new Float32Array(vec.length);
-          for (let j = 0; j < vec.length; j += 1) {
-            const numeric = Number(vec[j]);
-            typed[j] = Number.isFinite(numeric) ? numeric : 0;
-          }
-          normalizedVectors[i] = typed;
-          transferList.push(typed.buffer);
-          typedTempCount += 1;
-          continue;
-        }
-        normalizedVectors[i] = vec;
-      }
-      return { vectors: normalizedVectors, transferList, typedTempCount };
-    };
-    const buildQuantizeRunPayload = (payload) => {
-      const basePayload = payload && typeof payload === 'object' ? payload : {};
-      const vectors = Array.isArray(basePayload.vectors) ? basePayload.vectors : null;
-      if (!vectors) {
-        return { payload: basePayload, transferList: [], typedTempCount: 0 };
-      }
-      const normalized = normalizeQuantizeVectors(vectors);
-      const runPayload = normalized.typedTempCount > 0
-        ? { ...basePayload, vectors: normalized.vectors }
-        : basePayload;
-      return {
-        payload: runPayload,
-        transferList: normalized.transferList,
-        typedTempCount: normalized.typedTempCount
-      };
-    };
     const normalizedStage = typeof stage === 'string' && stage.trim()
       ? stage.trim().toLowerCase()
       : 'unknown';
     const maxGlobalRssBytes = Number.isFinite(Number(memoryPolicy?.maxGlobalRssMb))
       ? Math.max(1, Math.floor(Number(memoryPolicy.maxGlobalRssMb) * 1024 * 1024))
       : Math.max(1, Math.floor(Number(os.totalmem() || 0) * 0.9));
-    const gcSampleIntervalMs = 25;
-    const gcByWorker = new Map();
-    let lastGcSampleAt = 0;
-    let gcSampleCount = 0;
-    let gcGlobalPressure = 0;
-    let gcGlobalHeapUtilization = 0;
-    let gcGlobalRssPressure = 0;
-    const updateGcTelemetry = (workerId, durationMs = null) => {
-      const now = Date.now();
-      if ((now - lastGcSampleAt) < gcSampleIntervalMs) return null;
-      lastGcSampleAt = now;
-      const {
-        heapUsed,
-        heapTotal,
-        rss,
-        heapUtilization,
-        rssPressure,
-        pressureRatio
-      } = readProcessPressureSample();
-      gcSampleCount += 1;
-      gcGlobalPressure = pressureRatio;
-      gcGlobalHeapUtilization = heapUtilization;
-      gcGlobalRssPressure = rssPressure;
-      updatePressureState({
-        pressureRatio,
-        rssPressure,
-        gcPressure: heapUtilization,
-        reason: 'worker-task'
-      });
-      setStageGcPressure({ stage: normalizedStage, value: pressureRatio });
-      if (workerId == null) return;
-      const key = String(workerId);
-      const previous = gcByWorker.get(key) || {
-        worker: key,
-        samples: 0,
-        lastDurationMs: null,
-        pressureRatio: 0,
-        heapUtilization: 0,
-        rssPressure: 0,
-        rssBytes: 0,
-        heapUsedBytes: 0,
-        heapTotalBytes: 0,
-        updatedAt: null
-      };
-      const next = {
-        ...previous,
-        samples: previous.samples + 1,
-        lastDurationMs: Number.isFinite(durationMs) ? Math.max(0, durationMs) : previous.lastDurationMs,
-        pressureRatio,
-        heapUtilization,
-        rssPressure,
-        rssBytes: rss,
-        heapUsedBytes: heapUsed,
-        heapTotalBytes: heapTotal,
-        updatedAt: new Date(now).toISOString()
-      };
-      gcByWorker.set(key, next);
-      setWorkerGcPressure({
-        pool: poolLabel,
-        worker: key,
-        stage: normalizedStage,
-        value: pressureRatio
-      });
-      return { rssPressure, gcPressure: heapUtilization, pressureRatio };
-    };
-    const createPool = () => {
-      currentResourceLimits = resolveResourceLimitsForWorkers(effectiveMaxWorkers);
-      numaPinningPlan = resolveNumaPinningPlan({
+
+    const {
+      workerTaskMetricPool,
+      tokenizePayloadMetaPool,
+      quantizePayloadMetaPool,
+      crashPayloadMetaPool,
+      withPooledPayloadMeta,
+      assignTokenizePayloadMeta,
+      assignQuantizePayloadMeta
+    } = createWorkerPoolMetaHelpers();
+
+    const queueController = createWorkerPoolQueue({
+      log,
+      pressureWatermarkSoft,
+      pressureWatermarkHard,
+      pressureCacheMaxEntries,
+      languageThrottleConfig,
+      maxGlobalRssBytes
+    });
+
+    let lifecycle = null;
+    const workerCoordinator = createWorkerProcessCoordinator({
+      poolLabel,
+      normalizedStage,
+      crashLogger,
+      log,
+      summarizeError,
+      withPooledPayloadMeta,
+      workerTaskMetricPool,
+      crashPayloadMetaPool,
+      observeWorkerTaskDuration,
+      setStageGcPressure,
+      setWorkerGcPressure,
+      readProcessPressureSample: queueController.readProcessPressureSample,
+      updatePressureState: queueController.updatePressureState,
+      maybeReduceWorkersOnPressure: async (sample) => {
+        if (!lifecycle) return;
+        await lifecycle.maybeReduceWorkersOnPressure(sample);
+      }
+    });
+
+    const createPool = (maxWorkers) => {
+      currentResourceLimits = resolveResourceLimitsForWorkers(maxWorkers);
+      const numaPinningPlan = resolveNumaPinningPlan({
         config: poolConfig,
-        maxWorkers: effectiveMaxWorkers
+        maxWorkers
       });
-      workerNumaNodeByThreadId.clear();
-      workerCreateOrdinal = 0;
+      workerCoordinator.setNumaPinningPlan(numaPinningPlan);
       const workerData = {
         dictConfig: sanitizeDictConfig(dictConfig),
         postingsConfig: postingsConfig || {},
@@ -680,7 +285,7 @@ export async function createIndexerWorkerPool(input = {}) {
       }
       return new Piscina({
         filename: fileURLToPath(new URL('./indexer-worker.js', import.meta.url)),
-        maxThreads: effectiveMaxWorkers,
+        maxThreads: maxWorkers,
         idleTimeout: poolConfig.idleTimeoutMs,
         taskTimeout: poolConfig.taskTimeoutMs,
         recordTiming: true,
@@ -689,296 +294,53 @@ export async function createIndexerWorkerPool(input = {}) {
         workerData
       });
     };
+
+    lifecycle = createWorkerPoolLifecycle({
+      log,
+      poolLabel,
+      summarizeError,
+      maxRestartAttempts,
+      restartBaseDelayMs,
+      restartMaxDelayMs,
+      configuredMaxWorkers,
+      autoDownscaleOnPressure,
+      downscaleMinWorkers,
+      downscaleRssThreshold,
+      downscaleGcThreshold,
+      downscaleCooldownMs,
+      upscaleCooldownMs,
+      upscaleRssThreshold,
+      upscaleGcThreshold,
+      shouldDownscaleWorkersForPressure,
+      getActiveTasks: () => activeTasks,
+      incWorkerRetries,
+      createPool,
+      attachPoolListeners: workerCoordinator.attachPoolListeners
+    });
+
+    let lastReportedQueueSize = null;
+    let lastReportedActiveTasks = null;
     const updatePoolMetrics = () => {
+      const pool = lifecycle.getPool();
       if (!pool) return;
-      setWorkerQueueDepth({ pool: poolLabel, value: pool.queueSize });
-      setWorkerActiveTasks({ pool: poolLabel, value: activeTasks });
-    };
-    const shutdownPool = async () => {
-      if (!pool) return;
-      try {
-        await pool.destroy();
-      } catch (err) {
-        const detail = summarizeError(err);
-        log(`Worker pool shutdown failed: ${detail || 'unknown error'}`);
+      const queueSize = Number.isFinite(pool.queueSize) ? pool.queueSize : 0;
+      if (queueSize !== lastReportedQueueSize) {
+        lastReportedQueueSize = queueSize;
+        setWorkerQueueDepth({ pool: poolLabel, value: queueSize });
       }
-      pool = null;
-    };
-    const disablePermanently = async (reason) => {
-      if (permanentlyDisabled) return;
-      permanentlyDisabled = true;
-      disabled = true;
-      pendingRestart = false;
-      restartAttempts = maxRestartAttempts + 1;
-      if (reason) log(`Worker pool disabled permanently: ${reason}`);
-      if (activeTasks === 0) {
-        await shutdownPool();
-      } else {
-        shutdownWhenIdle = true;
+      if (activeTasks !== lastReportedActiveTasks) {
+        lastReportedActiveTasks = activeTasks;
+        setWorkerActiveTasks({ pool: poolLabel, value: activeTasks });
       }
     };
-    const scheduleRestart = async (reason) => {
-      if (permanentlyDisabled) return;
-      if (!pool && disabled && restartAttempts > maxRestartAttempts) return;
-      disabled = true;
-      restartAttempts += 1;
-      incWorkerRetries({ pool: poolLabel });
-      if (restartAttempts > maxRestartAttempts) {
-        pendingRestart = false;
-        permanentlyDisabled = true;
-        disabled = true;
-        if (reason) log(`Worker pool disabled: ${reason}`);
-        if (activeTasks === 0) {
-          await shutdownPool();
-        } else {
-          shutdownWhenIdle = true;
-        }
-        return;
-      }
-      const delayMs = Math.min(
-        restartMaxDelayMs,
-        restartBaseDelayMs * (2 ** Math.max(0, restartAttempts - 1))
-      );
-      restartAtMs = Date.now() + delayMs;
-      pendingRestart = true;
-      if (activeTasks === 0) {
-        await shutdownPool();
-      } else {
-        shutdownWhenIdle = true;
-      }
-      if (reason) log(`Worker pool disabled: ${reason} (retry in ${delayMs}ms).`);
-    };
-    const scheduleReconfigureRestart = async (reason) => {
-      if (permanentlyDisabled) return;
-      disabled = true;
-      pendingRestart = true;
-      restartAtMs = Date.now() + 50;
-      if (activeTasks === 0) {
-        await shutdownPool();
-      } else {
-        shutdownWhenIdle = true;
-      }
-      if (reason) log(`Worker pool reconfigure: ${reason}`);
-    };
-    /**
-     * Adapt pool size in response to pressure samples with hysteresis:
-     * - downscale quickly when pressure breaches thresholds
-     * - upscale gradually only after sustained recovery
-     */
-    const maybeReduceWorkersOnPressure = async ({ rssPressure, gcPressure }) => {
-      if (!autoDownscaleOnPressure || permanentlyDisabled) return;
-      if (disabled || pendingRestart || restarting) return;
-      const pressureHigh = shouldDownscaleWorkersForPressure({
-        rssPressure,
-        gcPressure,
-        rssThreshold: downscaleRssThreshold,
-        gcThreshold: downscaleGcThreshold
-      });
-      if (!pressureHigh) {
-        const pressureRecovered = rssPressure <= upscaleRssThreshold && gcPressure <= upscaleGcThreshold;
-        if (!pressureRecovered) return;
-        if (effectiveMaxWorkers >= configuredMaxWorkers) return;
-        const now = Date.now();
-        if ((now - lastPressureDownscaleAtMs) < upscaleCooldownMs) return;
-        if ((now - lastPressureUpscaleAtMs) < upscaleCooldownMs) return;
-        const nextWorkers = Math.min(configuredMaxWorkers, effectiveMaxWorkers + 1);
-        if (nextWorkers <= effectiveMaxWorkers) return;
-        const previousWorkers = effectiveMaxWorkers;
-        effectiveMaxWorkers = nextWorkers;
-        pressureUpscaleEvents += 1;
-        lastPressureUpscaleAtMs = now;
-        await scheduleReconfigureRestart(
-          `rssPressure=${rssPressure.toFixed(3)} gcPressure=${gcPressure.toFixed(3)} ` +
-          `recovery(rss<=${upscaleRssThreshold.toFixed(2)},gc<=${upscaleGcThreshold.toFixed(2)}) ` +
-          `workers ${previousWorkers}->${nextWorkers}.`
-        );
-        return;
-      }
-      if (effectiveMaxWorkers <= downscaleMinWorkers) return;
-      const now = Date.now();
-      if ((now - lastPressureDownscaleAtMs) < downscaleCooldownMs) return;
-      const nextWorkers = Math.max(downscaleMinWorkers, effectiveMaxWorkers - 1);
-      if (nextWorkers >= effectiveMaxWorkers) return;
-      const previousWorkers = effectiveMaxWorkers;
-      effectiveMaxWorkers = nextWorkers;
-      pressureDownscaleEvents += 1;
-      lastPressureDownscaleAtMs = now;
-      await scheduleReconfigureRestart(
-        `rssPressure=${rssPressure.toFixed(3)} gcPressure=${gcPressure.toFixed(3)} ` +
-        `thresholds(rss=${downscaleRssThreshold.toFixed(2)},gc=${downscaleGcThreshold.toFixed(2)}) ` +
-        `workers ${previousWorkers}->${nextWorkers}.`
-      );
-    };
-    const maybeRestart = async () => {
-      if (permanentlyDisabled) {
-        pendingRestart = false;
-        return false;
-      }
-      if (!pendingRestart) return false;
-      if (!disabled) {
-        pendingRestart = false;
-        return false;
-      }
-      if (activeTasks > 0) return false;
-      if (Date.now() < restartAtMs) return false;
-      return ensurePool();
-    };
-    const ensurePool = async () => {
-      if (permanentlyDisabled) {
-        pendingRestart = false;
-        return false;
-      }
-      if (pool && !disabled) {
-        pendingRestart = false;
-        return true;
-      }
-      if (restartAttempts > maxRestartAttempts) {
-        pendingRestart = false;
-        return false;
-      }
-      if (!pendingRestart) return false;
-      if (activeTasks > 0) return false;
-      if (Date.now() < restartAtMs) return false;
-      if (!restarting) {
-        restarting = (async () => {
-          try {
-            await shutdownPool();
-            pool = createPool();
-            attachPoolListeners(pool);
-            disabled = false;
-            restartAttempts = 0;
-            restartAtMs = 0;
-            pendingRestart = false;
-            log('Worker pool restarted.');
-          } catch (err) {
-            const detail = summarizeError(err);
-            await scheduleRestart(`restart failed: ${detail || 'unknown error'}`);
-          } finally {
-            restarting = null;
-          }
-        })();
-      }
-      await restarting;
-      return !!pool && !disabled;
-    };
-    const attachPoolListeners = (poolInstance) => {
-      if (!poolInstance?.on) return;
-      poolInstance.on('message', (message) => {
-        if (!message || typeof message !== 'object') return;
-        if (message.type === 'worker-task') {
-          withPooledPayloadMeta(workerTaskMetricPool, (labels) => {
-            labels.pool = poolLabel;
-            labels.task = message.task;
-            labels.worker = message.threadId != null ? String(message.threadId) : 'unknown';
-            labels.status = message.status;
-            labels.seconds = Number(message.durationMs) / 1000;
-          }, (labels) => {
-            observeWorkerTaskDuration({
-              pool: labels.pool,
-              task: labels.task,
-              worker: labels.worker,
-              status: labels.status,
-              seconds: labels.seconds
-            });
-          });
-          const pressureSample = updateGcTelemetry(message.threadId, Number(message.durationMs));
-          if (pressureSample) {
-            void maybeReduceWorkersOnPressure(pressureSample).catch(() => {});
-          }
-          return;
-        }
-        if (message.type === 'worker-crash') {
-          const detail = message.message || message.raw || 'unknown worker error';
-          const cloneIssue = message.cloneIssue
-            ? `non-cloneable ${message.cloneIssue.type}${message.cloneIssue.name ? ` (${message.cloneIssue.name})` : ''} at ${message.cloneIssue.path}`
-            : null;
-          const taskHint = message.task ? ` task=${message.task}` : '';
-          const stageHint = message.stage ? ` stage=${message.stage}` : '';
-          const suffix = [cloneIssue, `${taskHint}${stageHint}`.trim()].filter(Boolean).join(' | ');
-          log(`Worker crash reported: ${detail}${suffix ? ` | ${suffix}` : ''}`);
-          if (crashLogger?.enabled) {
-            withPooledPayloadMeta(crashPayloadMetaPool, (meta) => {
-              meta.threadId = message.threadId ?? null;
-            }, (payloadMeta) => {
-              crashLogger.logError({
-                phase: 'worker-thread',
-                message: message.message || 'worker crash',
-                stack: message.stack || null,
-                name: message.name || null,
-                code: null,
-                task: message.label || null,
-                cloneIssue: message.cloneIssue || null,
-                cloneStage: message.stage || null,
-                payloadMeta,
-                raw: message.raw || null,
-                cause: message.cause || null
-              });
-            });
-          }
-        }
-      });
-      if (!crashLogger?.enabled) return;
-      const formatPoolError = (err) => ({
-        message: summarizeError(err, { fullDepth: true, maxLen: 0 }) || err?.message || String(err),
-        stack: err?.stack || null,
-        name: err?.name || null,
-        code: err?.code || null,
-        raw: util.inspect(err, { depth: 4, breakLength: 120, showHidden: true, getters: true })
-      });
-      poolInstance.on('error', (err) => {
-        crashLogger.logError({ phase: 'worker-pool', ...formatPoolError(err) });
-      });
-      poolInstance.on('workerCreate', (worker) => {
-        if (!worker) return;
-        const threadId = worker.threadId ?? worker.id ?? worker.worker?.threadId;
-        if (numaPinningPlan.active && Number.isFinite(Number(threadId))) {
-          const assignments = Array.isArray(numaPinningPlan.assignments)
-            ? numaPinningPlan.assignments
-            : [];
-          if (assignments.length > 0) {
-            const slot = workerCreateOrdinal % assignments.length;
-            const node = assignments[slot];
-            workerCreateOrdinal += 1;
-            if (Number.isFinite(Number(node))) {
-              workerNumaNodeByThreadId.set(Number(threadId), Math.floor(Number(node)));
-            }
-          }
-        }
-        const target = typeof worker.on === 'function'
-          ? worker
-          : (worker?.worker && typeof worker.worker.on === 'function'
-            ? worker.worker
-            : null);
-        if (!target) return;
-        target.on('error', (err) => {
-          const detail = summarizeError(err, { fullDepth: true, maxLen: 0 }) || err?.message || String(err);
-          log(`Worker thread error: ${detail}`);
-          crashLogger.logError({
-            phase: 'worker-thread',
-            threadId: worker.threadId ?? worker.id ?? worker.worker?.threadId,
-            ...formatPoolError(err)
-          });
-        });
-        target.on('exit', (code) => {
-          if (Number.isFinite(Number(threadId))) {
-            workerNumaNodeByThreadId.delete(Number(threadId));
-          }
-          if (code === 0) return;
-          log(`Worker thread exited with code ${code}.`);
-          crashLogger.logError({
-            phase: 'worker-exit',
-            threadId: worker.threadId ?? worker.id ?? worker.worker?.threadId,
-            message: `worker exited with code ${code}`
-          });
-        });
-      });
-    };
-    pool = createPool();
+
+    lifecycle.initialize();
     if (poolConfig?.numaPinning?.enabled === true) {
+      const numaPinningPlan = workerCoordinator.getNumaPlan();
       if (numaPinningPlan.active) {
         log(
           `Worker pool NUMA pinning active (${poolLabel}): strategy=${numaPinningPlan.strategy}, ` +
-          `nodes=${numaPinningPlan.nodeCount}, workers=${effectiveMaxWorkers}.`
+          `nodes=${numaPinningPlan.nodeCount}, workers=${lifecycle.getEffectiveMaxWorkers()}.`
         );
       } else {
         log(
@@ -986,72 +348,58 @@ export async function createIndexerWorkerPool(input = {}) {
         );
       }
     }
-    attachPoolListeners(pool);
     updatePoolMetrics();
+
+    const classifyWorkerRunError = (err) => {
+      const detail = summarizeError(err);
+      const opaqueFailure = !detail || detail === 'Error';
+      const errorName = err?.name || '';
+      const loweredName = errorName.toLowerCase();
+      const isCloneError = loweredName.includes('dataclone')
+        || loweredName.includes('datacloneerror')
+        || loweredName.includes('dataclone');
+      const reason = detail || err?.message || String(err);
+      return { detail, opaqueFailure, isCloneError, reason };
+    };
+
     return {
       config,
       heapPolicy,
       get pool() {
-        return pool;
+        return lifecycle.getPool();
       },
       stats() {
+        const pool = lifecycle.getPool();
         const queued = Number.isFinite(pool?.queueSize) ? pool.queueSize : 0;
-        const queueUtilization = effectiveMaxWorkers > 0
-          ? Math.max(0, Math.min(1, (activeTasks + queued) / effectiveMaxWorkers))
+        const maxWorkers = lifecycle.getEffectiveMaxWorkers();
+        const queueUtilization = maxWorkers > 0
+          ? Math.max(0, Math.min(1, (activeTasks + queued) / maxWorkers))
           : null;
+        const pressureSnapshot = queueController.snapshot();
+        const numaPinningPlan = workerCoordinator.getNumaPlan();
+        const workerNumaNodeByThreadId = workerCoordinator.getNumaAssignmentMap();
         return {
           pool: poolLabel,
           activeTasks,
           queuedTasks: queued,
-          maxWorkers: effectiveMaxWorkers,
-          configuredMaxWorkers,
+          maxWorkers,
+          configuredMaxWorkers: lifecycle.getConfiguredMaxWorkers(),
           utilization: queueUtilization,
-          disabled,
-          pendingRestart,
-          restartAttempts,
+          disabled: lifecycle.isDisabled(),
+          pendingRestart: lifecycle.isPendingRestart(),
+          restartAttempts: lifecycle.getRestartAttempts(),
           heapPolicy,
           heapLimitMb: Number(currentResourceLimits?.maxOldGenerationSizeMb) || null,
           quantizeTypedTempBuffers,
-          pressureDownscale: {
-            enabled: autoDownscaleOnPressure,
-            rssThreshold: downscaleRssThreshold,
-            gcThreshold: downscaleGcThreshold,
-            minWorkers: downscaleMinWorkers,
-            cooldownMs: downscaleCooldownMs,
-            events: pressureDownscaleEvents,
-            recoveryEvents: pressureUpscaleEvents,
-            upscaleCooldownMs,
-            upscaleRssThreshold,
-            upscaleGcThreshold,
-            lastEventAt: lastPressureDownscaleAtMs
-              ? new Date(lastPressureDownscaleAtMs).toISOString()
-              : null
-          },
+          pressureDownscale: lifecycle.pressureDownscaleStats(),
           memoryPressure: {
-            state: pressureState,
-            transitions: pressureTransitions,
-            lastTransitionAt: lastPressureTransitionAtMs
-              ? new Date(lastPressureTransitionAtMs).toISOString()
-              : null,
-            watermarkSoft: pressureWatermarkSoft,
-            watermarkHard: pressureWatermarkHard,
-            languageThrottle: {
-              enabled: languageThrottleConfig.enabled !== false,
-              heavyLanguages: Array.from(languageThrottleConfig.heavyLanguages || []),
-              softMaxPerLanguage: languageThrottleConfig.softMaxPerLanguage,
-              hardMaxPerLanguage: languageThrottleConfig.hardMaxPerLanguage,
-              blockHeavyOnHardPressure: languageThrottleConfig.blockHeavyOnHardPressure !== false,
-              waitCount: pressureThrottleWaitCount,
-              waitMs: pressureThrottleWaitMs,
-              hardBlockCount: pressureHardBlockCount,
-              activeByLanguage: Object.fromEntries(tokenizeInFlightByLanguage.entries())
-            },
-            cacheEviction: {
-              maxEntries: pressureCacheMaxEntries,
-              entries: pressureCache.size,
-              evictions: pressureCacheEvictionCount,
-              evictedBytes: pressureCacheEvictionBytes
-            }
+            state: pressureSnapshot.state,
+            transitions: pressureSnapshot.transitions,
+            lastTransitionAt: pressureSnapshot.lastTransitionAt,
+            watermarkSoft: pressureSnapshot.watermarkSoft,
+            watermarkHard: pressureSnapshot.watermarkHard,
+            languageThrottle: pressureSnapshot.languageThrottle,
+            cacheEviction: pressureSnapshot.cacheEviction
           },
           numaPinning: {
             enabled: poolConfig?.numaPinning?.enabled === true,
@@ -1062,16 +410,7 @@ export async function createIndexerWorkerPool(input = {}) {
             workersAssigned: workerNumaNodeByThreadId.size,
             assignments: Object.fromEntries(workerNumaNodeByThreadId.entries())
           },
-          gcPressure: {
-            stage: normalizedStage,
-            samples: gcSampleCount,
-            global: {
-              pressureRatio: gcGlobalPressure,
-              heapUtilization: gcGlobalHeapUtilization,
-              rssPressure: gcGlobalRssPressure
-            },
-            workers: Array.from(gcByWorker.values())
-          },
+          gcPressure: workerCoordinator.gcPressureStats(),
           objectPools: {
             workerTaskMetrics: workerTaskMetricPool.stats(),
             tokenizePayloadMeta: tokenizePayloadMetaPool.stats(),
@@ -1082,7 +421,7 @@ export async function createIndexerWorkerPool(input = {}) {
       },
       dictConfig: sanitizeDictConfig(dictConfig),
       shouldUseForFile(sizeBytes) {
-        if (disabled || permanentlyDisabled) return false;
+        if (lifecycle.isDisabled() || lifecycle.isPermanentlyDisabled()) return false;
         if (config.enabled === true) return true;
         if (config.enabled === 'auto') {
           const normalizedSizeBytes = Number.isFinite(sizeBytes) ? sizeBytes : 0;
@@ -1102,7 +441,7 @@ export async function createIndexerWorkerPool(input = {}) {
         updatePoolMetrics();
         let throttleSlot = null;
         try {
-          if (disabled && !(await ensurePool())) {
+          if (lifecycle.isDisabled() && !(await lifecycle.ensurePool())) {
             if (crashLogger?.enabled) {
               withPooledPayloadMeta(tokenizePayloadMetaPool, (meta) => {
                 assignTokenizePayloadMeta(meta, payload);
@@ -1120,28 +459,22 @@ export async function createIndexerWorkerPool(input = {}) {
             }
             return null;
           }
-          recordPressureCacheEntry(payload);
-          throttleSlot = await acquireLanguageThrottleSlot(payload);
-          const result = await pool.run(
+          queueController.recordPressureCacheEntry(payload);
+          throttleSlot = await queueController.acquireLanguageThrottleSlot(payload);
+          const result = await lifecycle.getPool().run(
             sanitizePoolPayload(payload, sanitizeDictConfig(payload?.dictConfig)),
             { name: 'tokenizeChunk' }
           );
           updatePoolMetrics();
           return result;
         } catch (err) {
-          const detail = summarizeError(err);
-          const opaqueFailure = !detail || detail === 'Error';
-          const errorName = err?.name || '';
-          const isCloneError = errorName.toLowerCase().includes('dataclone')
-            || errorName.toLowerCase().includes('datacloneerror')
-            || errorName.toLowerCase().includes('dataclone');
-          const reason = detail || err?.message || String(err);
+          const { detail, opaqueFailure, isCloneError, reason } = classifyWorkerRunError(err);
           if (isCloneError) {
-            await disablePermanently(reason || 'data-clone error');
+            await lifecycle.disablePermanently(reason || 'data-clone error');
           } else if (opaqueFailure) {
-            await disablePermanently(reason || 'worker failure');
+            await lifecycle.disablePermanently(reason || 'worker failure');
           } else {
-            await scheduleRestart(reason);
+            await lifecycle.scheduleRestart(reason);
           }
           if (crashLogger?.enabled) {
             withPooledPayloadMeta(tokenizePayloadMetaPool, (meta) => {
@@ -1179,23 +512,17 @@ export async function createIndexerWorkerPool(input = {}) {
           }
           return null;
         } finally {
-          releaseLanguageThrottleSlot(throttleSlot);
+          queueController.releaseLanguageThrottleSlot(throttleSlot);
           activeTasks = Math.max(0, activeTasks - 1);
           updatePoolMetrics();
-          if (activeTasks === 0) {
-            if (shutdownWhenIdle) {
-              shutdownWhenIdle = false;
-              await shutdownPool();
-            }
-            await maybeRestart();
-          }
+          await lifecycle.handleTaskDrained();
         }
       },
       async runQuantize(payload) {
         activeTasks += 1;
         updatePoolMetrics();
         try {
-          if (disabled && !(await ensurePool())) {
+          if (lifecycle.isDisabled() && !(await lifecycle.ensurePool())) {
             if (crashLogger?.enabled) {
               withPooledPayloadMeta(quantizePayloadMetaPool, (meta) => {
                 assignQuantizePayloadMeta(meta, payload);
@@ -1223,23 +550,17 @@ export async function createIndexerWorkerPool(input = {}) {
           const runOptions = transferList.length
             ? { name: 'quantizeVectors', transferList }
             : { name: 'quantizeVectors' };
-          const result = await pool.run(runPayload, runOptions);
+          const result = await lifecycle.getPool().run(runPayload, runOptions);
           updatePoolMetrics();
           return result;
         } catch (err) {
-          const detail = summarizeError(err);
-          const opaqueFailure = !detail || detail === 'Error';
-          const errorName = err?.name || '';
-          const isCloneError = errorName.toLowerCase().includes('dataclone')
-            || errorName.toLowerCase().includes('datacloneerror')
-            || errorName.toLowerCase().includes('dataclone');
-          const reason = detail || err?.message || String(err);
+          const { detail, opaqueFailure, isCloneError, reason } = classifyWorkerRunError(err);
           if (isCloneError) {
-            await disablePermanently(reason || 'data-clone error');
+            await lifecycle.disablePermanently(reason || 'data-clone error');
           } else if (opaqueFailure) {
-            await disablePermanently(reason || 'worker failure');
+            await lifecycle.disablePermanently(reason || 'worker failure');
           } else {
-            await scheduleRestart(reason);
+            await lifecycle.scheduleRestart(reason);
           }
           if (crashLogger?.enabled) {
             withPooledPayloadMeta(quantizePayloadMetaPool, (meta) => {
@@ -1279,20 +600,12 @@ export async function createIndexerWorkerPool(input = {}) {
         } finally {
           activeTasks = Math.max(0, activeTasks - 1);
           updatePoolMetrics();
-          if (activeTasks === 0) {
-            if (shutdownWhenIdle) {
-              shutdownWhenIdle = false;
-              await shutdownPool();
-            }
-            await maybeRestart();
-          }
+          await lifecycle.handleTaskDrained();
         }
       },
       async destroy() {
-        disabled = true;
-        restartAttempts = maxRestartAttempts + 1;
-        notifyThrottleWaiters();
-        await shutdownPool();
+        queueController.notifyThrottleWaiters();
+        await lifecycle.destroy();
       }
     };
   } catch (err) {
