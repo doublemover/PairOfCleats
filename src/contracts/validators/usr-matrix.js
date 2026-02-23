@@ -77,6 +77,9 @@ import {
   buildConformanceCoverageMapByLevel,
   CONFORMANCE_DASHBOARD_LEVELS
 } from './usr-matrix/conformance-dashboard-coverage-map.js';
+import {
+  buildUsrLanguageConformanceDashboardReport as buildUsrLanguageConformanceDashboardReportCore
+} from './usr-matrix/language-conformance-dashboard.js';
 
 const ajv = createAjv({
   dialect: '2020',
@@ -520,138 +523,23 @@ export function buildUsrLanguageConformanceDashboardReport({
   buildId = null,
   scope = { scopeType: 'lane', scopeId: 'ci' }
 } = {}) {
-  const languageValidation = validateUsrMatrixRegistry('usr-language-profiles', languageProfilesPayload);
-  if (!languageValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...languageValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([]),
-      payload: null
-    };
-  }
-
-  const conformanceValidation = validateUsrMatrixRegistry('usr-conformance-levels', conformanceLevelsPayload);
-  if (!conformanceValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...conformanceValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([]),
-      payload: null
-    };
-  }
-
-  const { coverageByLevel, errors, warnings } = buildConformanceCoverageMapByLevel({
+  return buildUsrLanguageConformanceDashboardReportCore({
     languageProfilesPayload,
     conformanceLevelsPayload,
     knownLanes,
-    levels: CONFORMANCE_DASHBOARD_LEVELS,
-    validateConformanceLevelCoverage: validateUsrConformanceLevelCoverage
-  });
-
-  const languageRows = Array.isArray(languageProfilesPayload?.rows) ? languageProfilesPayload.rows : [];
-  const rows = [];
-
-  for (const languageRow of languageRows) {
-    const rowErrors = [];
-    const rowWarnings = [];
-    const requiredLevels = asStringArray(languageRow.requiredConformance);
-    const levelStatus = {};
-
-    for (const level of CONFORMANCE_DASHBOARD_LEVELS) {
-      const coverage = coverageByLevel.get(level);
-      const coverageRow = coverage?.rowsByProfileId?.get(languageRow.id) || null;
-      if (!coverageRow) {
-        rowErrors.push(`missing conformance coverage row for level ${level}`);
-        levelStatus[level] = {
-          requiresLevel: requiredLevels.includes(level),
-          pass: false,
-          hasCoverageRow: false
-        };
-        continue;
-      }
-
-      levelStatus[level] = {
-        requiresLevel: coverageRow.requiresLevel,
-        pass: coverageRow.pass,
-        hasCoverageRow: true
-      };
-
-      if (requiredLevels.includes(level) && !coverageRow.pass) {
-        rowErrors.push(`required level ${level} is failing`);
-      }
-
-      if (coverageRow.warnings.length > 0) {
-        rowWarnings.push(...coverageRow.warnings.map((message) => `${level} ${message}`));
-      }
-    }
-
-    if (rowErrors.length > 0) {
-      errors.push(...rowErrors.map((message) => `${languageRow.id} ${message}`));
-    }
-    if (rowWarnings.length > 0) {
-      warnings.push(...rowWarnings.map((message) => `${languageRow.id} ${message}`));
-    }
-
-    rows.push({
-      rowType: 'language-conformance-dashboard',
-      profileId: languageRow.id,
-      requiredLevels,
-      frameworkProfiles: asStringArray(languageRow.frameworkProfiles),
-      levelStatus,
-      pass: rowErrors.length === 0,
-      errors: Object.freeze([...rowErrors]),
-      warnings: Object.freeze([...rowWarnings])
-    });
-  }
-
-  const status = errors.length > 0
-    ? 'fail'
-    : (warnings.length > 0 ? 'warn' : 'pass');
-
-  const payload = {
-    schemaVersion: 'usr-1.0.0',
-    artifactId: 'usr-conformance-summary',
     generatedAt,
     producerId,
     producerVersion,
     runId,
     lane,
     buildId,
-    status,
-    scope: normalizeReportScope(scope, 'lane', lane),
-    summary: {
-      dashboard: 'language-conformance',
-      profileCount: rows.length,
-      passCount: rows.filter((row) => row.pass).length,
-      failCount: rows.filter((row) => !row.pass).length,
-      warningCount: warnings.length,
-      errorCount: errors.length,
-      levelCoverage: Object.fromEntries(CONFORMANCE_DASHBOARD_LEVELS.map((level) => {
-        const requiredCount = rows.filter((row) => asStringArray(row.requiredLevels).includes(level)).length;
-        const passingRequiredCount = rows.filter((row) => asStringArray(row.requiredLevels).includes(level) && row.levelStatus[level]?.pass).length;
-        return [level, { requiredCount, passingRequiredCount }];
-      }))
-    },
-    blockingFindings: errors.map((message) => ({
-      class: 'conformance',
-      message
-    })),
-    advisoryFindings: warnings.map((message) => ({
-      class: 'conformance',
-      message
-    })),
-    rows
-  };
-
-  return {
-    ok: errors.length === 0,
-    errors: Object.freeze([...errors]),
-    warnings: Object.freeze([...warnings]),
-    rows: Object.freeze(rows),
-    payload
-  };
+    scope,
+    conformanceDashboardLevels: CONFORMANCE_DASHBOARD_LEVELS,
+    validateRegistry: validateUsrMatrixRegistry,
+    buildCoverageMapByLevel: buildConformanceCoverageMapByLevel,
+    validateConformanceLevelCoverage: validateUsrConformanceLevelCoverage,
+    normalizeScope: normalizeReportScope
+  });
 }
 
 export function buildUsrFrameworkConformanceDashboardReport({
