@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-22T23:55:35.989Z",
+  "generatedAt": "2026-02-23T04:37:12.904Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -93,6 +93,12 @@
       "PAIROFCLEATS_MODEL",
       "PAIROFCLEATS_MODELS_DIR",
       "PAIROFCLEATS_NODE_OPTIONS",
+      "PAIROFCLEATS_ONNX_CPU_EP_TUNING",
+      "PAIROFCLEATS_ONNX_PREWARM_MODEL",
+      "PAIROFCLEATS_ONNX_PREWARM_TEXTS",
+      "PAIROFCLEATS_ONNX_PREWARM_TOKENIZER",
+      "PAIROFCLEATS_ONNX_TOKENIZATION_CACHE",
+      "PAIROFCLEATS_ONNX_TOKENIZATION_CACHE_MAX",
       "PAIROFCLEATS_PREFER_MEMORY_BACKEND_ON_CACHE_HIT",
       "PAIROFCLEATS_PROFILE",
       "PAIROFCLEATS_PROGRESS_CONTEXT",
@@ -141,6 +147,7 @@
       "PAIROFCLEATS_TEST_CACHE_SUFFIX",
       "PAIROFCLEATS_TEST_CODE_MAP_BUDGET_MS",
       "PAIROFCLEATS_TEST_CONFIG",
+      "PAIROFCLEATS_TEST_EMBEDDING_MIN_THROUGHPUT",
       "PAIROFCLEATS_TEST_FORCE_DOCX_MISSING",
       "PAIROFCLEATS_TEST_FORCE_PDF_MISSING",
       "PAIROFCLEATS_TEST_LOG_DIR",
@@ -2040,10 +2047,7 @@
       "files": [
         "src/shared/env.js",
         "tests/perf/bench/run.test.js",
-        "tests/perf/bench/scenarios/ann-on-off.test.js",
-        "tests/perf/bench/scenarios/bm25-params.test.js",
-        "tests/perf/bench/scenarios/memory-vs-sqlite.test.js",
-        "tests/perf/bench/scenarios/sqlite-fts.test.js",
+        "tests/perf/bench/scenarios/matrix.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2574,6 +2578,54 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_ONNX_CPU_EP_TUNING",
+      "files": [
+        "src/shared/onnx-embeddings.js",
+        "tests/indexing/embeddings/onnx-cpu-tuning-and-token-cache.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_ONNX_PREWARM_MODEL",
+      "files": [
+        "src/shared/onnx-embeddings.js",
+        "tests/indexing/embeddings/onnx-cpu-tuning-and-token-cache.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_ONNX_PREWARM_TEXTS",
+      "files": [
+        "src/shared/onnx-embeddings.js",
+        "tests/indexing/embeddings/onnx-cpu-tuning-and-token-cache.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_ONNX_PREWARM_TOKENIZER",
+      "files": [
+        "src/shared/onnx-embeddings.js",
+        "tests/indexing/embeddings/onnx-cpu-tuning-and-token-cache.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_ONNX_TOKENIZATION_CACHE",
+      "files": [
+        "src/shared/onnx-embeddings.js",
+        "tests/indexing/embeddings/onnx-cpu-tuning-and-token-cache.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_ONNX_TOKENIZATION_CACHE_MAX",
+      "files": [
+        "src/shared/onnx-embeddings.js",
+        "tests/indexing/embeddings/onnx-cpu-tuning-and-token-cache.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_PREFER_MEMORY_BACKEND_ON_CACHE_HIT",
       "files": [
         "src/shared/env.js",
@@ -2963,6 +3015,13 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_TEST_EMBEDDING_MIN_THROUGHPUT",
+      "files": [
+        "tests/indexing/embeddings/embedding-batch-throughput.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_TEST_FORCE_DOCX_MISSING",
       "files": [
         "src/shared/env.js",
@@ -3063,6 +3122,7 @@
     {
       "name": "PAIROFCLEATS_TEST_STUB_DOCX_EXTRACT",
       "files": [
+        "src/index/build/file-processor.js",
         "src/shared/env.js",
         "tests/indexing/extracted-prose/document-bytes-hash-stable.test.js",
         "tests/indexing/extracted-prose/document-extraction-checksums-and-counts.test.js",
@@ -3075,14 +3135,17 @@
     {
       "name": "PAIROFCLEATS_TEST_STUB_PDF_EXTRACT",
       "files": [
+        "src/index/build/file-processor.js",
         "src/shared/env.js",
         "tests/indexing/extracted-prose/document-bytes-hash-stable.test.js",
         "tests/indexing/extracted-prose/document-chunk-id-no-collision.test.js",
+        "tests/indexing/extracted-prose/document-extraction-cache-hit-reason.test.js",
         "tests/indexing/extracted-prose/document-extraction-checksums-and-counts.test.js",
         "tests/indexing/extracted-prose/document-extraction-outcomes-recorded.test.js",
         "tests/indexing/extracted-prose/document-extractor-version-recorded.test.js",
         "tests/indexing/extracted-prose/document-security-guardrails.test.js",
         "tests/indexing/extracted-prose/documents-included-when-available.test.js",
+        "tests/indexing/extracted-prose/extracted-prose-yield-profile-persisted-skip.test.js",
         "tests/indexing/extracted-prose/extraction-report.test.js",
         "tests/services/sqlite-hydration-metaV2-parity.test.js",
         "tools/config/inventory.js"
@@ -3294,12 +3357,14 @@
         "tests/indexing/artifacts/packed-artifact-fastpath.test.js",
         "tests/indexing/extracted-prose/document-bytes-hash-stable.test.js",
         "tests/indexing/extracted-prose/document-chunk-id-no-collision.test.js",
+        "tests/indexing/extracted-prose/document-extraction-cache-hit-reason.test.js",
         "tests/indexing/extracted-prose/document-extraction-checksums-and-counts.test.js",
         "tests/indexing/extracted-prose/document-extraction-outcomes-recorded.test.js",
         "tests/indexing/extracted-prose/document-extractor-version-recorded.test.js",
         "tests/indexing/extracted-prose/documents-included-when-available.test.js",
         "tests/indexing/extracted-prose/documents-skipped-when-unavailable.test.js",
         "tests/indexing/extracted-prose/docx-missing-dep-skips.test.js",
+        "tests/indexing/extracted-prose/extracted-prose-yield-profile-persisted-skip.test.js",
         "tests/indexing/extracted-prose/extraction-report.test.js",
         "tests/indexing/extracted-prose/pdf-missing-dep-skips.test.js",
         "tests/indexing/file-processor/skip-minified-binary.test.js",
@@ -3366,7 +3431,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 353,
+    "totalFlags": 354,
     "publicFlags": [
       "allow-unauthenticated",
       "allowed-repo-roots",
@@ -3490,6 +3555,7 @@
       "format",
       "frame-budget",
       "from",
+      "full-run",
       "global",
       "grace-days",
       "graphFixture",
@@ -4322,6 +4388,7 @@
           "dataset",
           "embedding-sample-files",
           "embedding-sample-seed",
+          "full-run",
           "heap-mb",
           "incremental",
           "json",
@@ -4330,13 +4397,16 @@
           "models",
           "no-ann",
           "out",
+          "progress",
           "queries",
+          "quiet",
           "repo",
           "resume",
           "skip-compare",
           "skip-eval",
           "stub-embeddings",
-          "top"
+          "top",
+          "verbose"
         ]
       },
       {
@@ -5683,6 +5753,21 @@
         ]
       },
       {
+        "flag": "quiet",
+        "count": 9,
+        "files": [
+          "bin/pairofcleats.js",
+          "tools/bench/embeddings/model-bakeoff.js",
+          "tools/build/compact-sqlite-index.js",
+          "tools/build/embeddings/cli.js",
+          "tools/build/lmdb-index.js",
+          "tools/build/tantivy-index.js",
+          "tools/ci/build-artifacts.js",
+          "tools/download/extensions.js",
+          "tools/eval/run.js"
+        ]
+      },
+      {
         "flag": "top",
         "count": 9,
         "files": [
@@ -5754,10 +5839,24 @@
         ]
       },
       {
-        "flag": "quiet",
+        "flag": "progress",
         "count": 8,
         "files": [
-          "bin/pairofcleats.js",
+          "tools/bench/embeddings/model-bakeoff.js",
+          "tools/build/compact-sqlite-index.js",
+          "tools/build/embeddings/cli.js",
+          "tools/build/lmdb-index.js",
+          "tools/build/tantivy-index.js",
+          "tools/ci/build-artifacts.js",
+          "tools/download/extensions.js",
+          "tools/eval/run.js"
+        ]
+      },
+      {
+        "flag": "verbose",
+        "count": 8,
+        "files": [
+          "tools/bench/embeddings/model-bakeoff.js",
           "tools/build/compact-sqlite-index.js",
           "tools/build/embeddings/cli.js",
           "tools/build/lmdb-index.js",
@@ -5794,19 +5893,6 @@
         ]
       },
       {
-        "flag": "progress",
-        "count": 7,
-        "files": [
-          "tools/build/compact-sqlite-index.js",
-          "tools/build/embeddings/cli.js",
-          "tools/build/lmdb-index.js",
-          "tools/build/tantivy-index.js",
-          "tools/ci/build-artifacts.js",
-          "tools/download/extensions.js",
-          "tools/eval/run.js"
-        ]
-      },
-      {
         "flag": "root",
         "count": 7,
         "files": [
@@ -5830,19 +5916,6 @@
           "tools/bench/map/viewer-lod-stress.js",
           "tools/reports/report-code-map.js",
           "tools/tooling/install.js"
-        ]
-      },
-      {
-        "flag": "verbose",
-        "count": 7,
-        "files": [
-          "tools/build/compact-sqlite-index.js",
-          "tools/build/embeddings/cli.js",
-          "tools/build/lmdb-index.js",
-          "tools/build/tantivy-index.js",
-          "tools/ci/build-artifacts.js",
-          "tools/download/extensions.js",
-          "tools/eval/run.js"
         ]
       },
       {
@@ -6907,6 +6980,7 @@
       "src/retrieval/cli/run-search-session.js",
       "src/retrieval/federation/args.js",
       "src/retrieval/federation/coordinator.js",
+      "src/retrieval/index-cache.js",
       "src/shared/cli-options.js",
       "src/shared/cli.js",
       "src/shared/concurrency.js",
