@@ -115,4 +115,34 @@ assert.equal(
 );
 assert.ok(report.ok, `expected strict validation to pass, got issues: ${report.issues.join('; ')}`);
 
+const outsideRoot = path.join(tempRoot, 'outside-build');
+await fs.mkdir(outsideRoot, { recursive: true });
+const symlinkBuildRoot = path.join(buildsRoot, 'escape-link');
+let symlinkCreated = false;
+try {
+  await fs.symlink(outsideRoot, symlinkBuildRoot, process.platform === 'win32' ? 'junction' : 'dir');
+  symlinkCreated = true;
+} catch {}
+if (symlinkCreated) {
+  await writeJson(path.join(buildsRoot, 'current.json'), {
+    buildId: 'escape-link',
+    buildRoot: 'builds/escape-link',
+    modes: ['code'],
+    promotedAt: new Date().toISOString(),
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION
+  });
+  const escapedReport = await validateIndexArtifacts({
+    root: repoRoot,
+    modes: ['code'],
+    userConfig,
+    strict: true,
+    sqliteEnabled: false,
+    lmdbEnabled: false
+  });
+  assert.ok(
+    escapedReport.issues.some((issue) => issue.includes('current.json buildRoot escapes repo cache root')),
+    `expected symlinked current build root escape issue, got: ${escapedReport.issues.join('; ')}`
+  );
+}
+
 console.log('index-validate current build pointer case-insensitive test passed');
