@@ -23,6 +23,7 @@ import {
 } from '../../src/shared/artifact-io.js';
 import { runSearchCli } from '../../src/retrieval/cli.js';
 import { buildSearchCliArgs } from '../../tools/shared/search-cli-harness.js';
+import { acquireFileLock } from '../../src/shared/locks/file-lock.js';
 
 import { rmDirRecursive } from './temp.js';
 import { isPlainObject, mergeConfig } from '../../src/shared/config.js';
@@ -101,19 +102,6 @@ const resolveBuildMode = (requiredModes) => {
   return null;
 };
 
-const sleep = (delayMs) => new Promise((resolve) => {
-  setTimeout(resolve, delayMs);
-});
-
-const isStaleLock = async (lockDir, staleMs) => {
-  try {
-    const stat = await fsPromises.stat(lockDir);
-    return Date.now() - stat.mtimeMs > staleMs;
-  } catch {
-    return false;
-  }
-};
-
 /**
  * Execute callback under directory-based cooperative lock.
  *
@@ -132,31 +120,23 @@ const withDirectoryLock = async (
     maxWaitMs = 20 * 60 * 1000
   } = {}
 ) => {
-  const start = Date.now();
-  while (true) {
-    try {
-      await fsPromises.mkdir(lockDir);
-      break;
-    } catch (error) {
-      if (error?.code !== 'EEXIST') throw error;
-      if (await isStaleLock(lockDir, staleMs)) {
-        await rmDirRecursive(lockDir, { retries: 3, delayMs: 50 });
-        continue;
-      }
-      if (Date.now() - start > maxWaitMs) {
-        throw new Error(`Timed out waiting for fixture lock at ${lockDir}`);
-      }
-      await sleep(pollMs);
-    }
+  const lockPath = `${lockDir}.json`;
+  const lock = await acquireFileLock({
+    lockPath,
+    waitMs: maxWaitMs,
+    pollMs,
+    staleMs,
+    timeoutBehavior: 'throw',
+    timeoutMessage: `Timed out waiting for fixture lock at ${lockDir}`,
+    forceStaleCleanup: false
+  });
+  if (!lock) {
+    throw new Error(`Timed out waiting for fixture lock at ${lockDir}`);
   }
   try {
     return await callback();
   } finally {
-    await rmDirRecursive(lockDir, {
-      retries: 3,
-      delayMs: 50,
-      ignoreRetryableFailure: true
-    });
+    await lock.release({ force: false });
   }
 };
 

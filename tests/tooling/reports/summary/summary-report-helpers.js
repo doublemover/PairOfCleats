@@ -7,6 +7,7 @@ import { runSqliteBuild } from '../../../helpers/sqlite-builder.js';
 import { SCHEMA_VERSION } from '../../../../src/storage/sqlite/schema.js';
 import { resolveVersionedCacheRoot } from '../../../../src/shared/cache-roots.js';
 import { hasChunkMetaArtifactsSync } from '../../../../src/shared/index-artifact-helpers.js';
+import { acquireFileLock } from '../../../../src/shared/locks/file-lock.js';
 import { getRepoId } from '../../../../tools/shared/dict-utils.js';
 
 import { applyTestEnv } from '../../../helpers/test-env.js';
@@ -112,25 +113,16 @@ const waitForBuild = async ({ modelId }) => {
 };
 
 const tryAcquireSummaryLock = async ({ lockPath = LOCK_PATH, staleMs = LOCK_STALE_MS } = {}) => {
-  while (true) {
-    try {
-      return await fsPromises.open(lockPath, 'wx');
-    } catch (err) {
-      if (err?.code !== 'EEXIST') throw err;
-      try {
-        const stat = await fsPromises.stat(lockPath);
-        const ageMs = Date.now() - Number(stat.mtimeMs || 0);
-        if (Number.isFinite(ageMs) && ageMs > staleMs) {
-          console.warn('[summary-report] removing stale fixture lock');
-          await fsPromises.rm(lockPath, { force: true });
-          continue;
-        }
-      } catch (statErr) {
-        if (statErr?.code === 'ENOENT') continue;
-      }
-      return null;
+  return acquireFileLock({
+    lockPath,
+    staleMs,
+    waitMs: 0,
+    timeoutBehavior: 'null',
+    forceStaleCleanup: false,
+    onStale: () => {
+      console.warn('[summary-report] removing stale fixture lock');
     }
-  }
+  });
 };
 
 export const summaryReportFixtureInternals = {
@@ -214,7 +206,6 @@ export const ensureSummaryReportFixture = async ({ modelId = DEFAULT_MODEL_ID } 
       modelCacheRoot
     };
   } finally {
-    await lockHandle.close();
-    await fsPromises.rm(LOCK_PATH, { force: true });
+    await lockHandle.release({ force: false });
   }
 };

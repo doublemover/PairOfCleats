@@ -4,8 +4,8 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { getIndexDir, loadUserConfig } from '../../tools/shared/dict-utils.js';
+import { acquireFileLock } from '../../src/shared/locks/file-lock.js';
 import { applyTestEnv } from './test-env.js';
-import { rmDirRecursive } from './temp.js';
 
 import { resolveTestCachePath } from './test-cache.js';
 
@@ -76,19 +76,6 @@ const normalizeCacheScope = (cacheScope) => {
   return normalized;
 };
 
-const sleep = (delayMs) => new Promise((resolve) => {
-  setTimeout(resolve, delayMs);
-});
-
-const isStaleLock = async (lockDir, staleMs) => {
-  try {
-    const stat = await fsPromises.stat(lockDir);
-    return Date.now() - stat.mtimeMs > staleMs;
-  } catch {
-    return false;
-  }
-};
-
 /**
  * Execute callback under directory lock with stale-lock eviction.
  *
@@ -107,32 +94,23 @@ const withDirectoryLock = async (
     maxWaitMs = 15 * 60 * 1000
   } = {}
 ) => {
-  const startedAt = Date.now();
-  await fsPromises.mkdir(path.dirname(lockDir), { recursive: true });
-  while (true) {
-    try {
-      await fsPromises.mkdir(lockDir);
-      break;
-    } catch (error) {
-      if (error?.code !== 'EEXIST') throw error;
-      if (await isStaleLock(lockDir, staleMs)) {
-        await fsPromises.rm(lockDir, { recursive: true, force: true });
-        continue;
-      }
-      if (Date.now() - startedAt > maxWaitMs) {
-        throw new Error(`Timed out waiting for search-filters lock at ${lockDir}`);
-      }
-      await sleep(pollMs);
-    }
+  const lockPath = `${lockDir}.json`;
+  const lock = await acquireFileLock({
+    lockPath,
+    waitMs: maxWaitMs,
+    pollMs,
+    staleMs,
+    timeoutBehavior: 'throw',
+    timeoutMessage: `Timed out waiting for search-filters lock at ${lockDir}`,
+    forceStaleCleanup: false
+  });
+  if (!lock) {
+    throw new Error(`Timed out waiting for search-filters lock at ${lockDir}`);
   }
   try {
     return await callback();
   } finally {
-    await rmDirRecursive(lockDir, {
-      retries: 3,
-      delayMs: 50,
-      ignoreRetryableFailure: true
-    });
+    await lock.release({ force: false });
   }
 };
 
