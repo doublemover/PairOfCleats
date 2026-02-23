@@ -2,6 +2,41 @@ import { collectDeclaredReturnTypes, collectMetaV2ReturnTypes } from '../../../s
 import { defaultNormalize, matchList } from './predicates.js';
 
 const asObject = (value) => (value && typeof value === 'object' ? value : null);
+const asNonEmptyArray = (value) => (Array.isArray(value) && value.length ? value : null);
+const asNonEmptyObject = (value) => {
+  const objectValue = asObject(value);
+  if (!objectValue) return null;
+  return Object.keys(objectValue).length ? objectValue : null;
+};
+const mergeObjectWithFallback = (preferred, fallback) => {
+  const preferredObject = asObject(preferred);
+  const fallbackObject = asObject(fallback);
+  if (!preferredObject && !fallbackObject) return null;
+  if (!preferredObject) return fallbackObject;
+  if (!fallbackObject) return preferredObject;
+  const merged = { ...fallbackObject };
+  for (const [key, value] of Object.entries(preferredObject)) {
+    if (value == null) continue;
+    if (Array.isArray(value)) {
+      const fallbackValue = merged[key];
+      merged[key] = value.length
+        ? value
+        : (Array.isArray(fallbackValue) ? fallbackValue : value);
+      continue;
+    }
+    if (typeof value === 'object') {
+      const fallbackValue = asObject(merged[key]);
+      if (Object.keys(value).length) {
+        merged[key] = fallbackValue ? { ...fallbackValue, ...value } : value;
+      } else {
+        merged[key] = fallbackValue || value;
+      }
+      continue;
+    }
+    merged[key] = value;
+  }
+  return merged;
+};
 
 const resolveMetaField = (record, key) => {
   if (!record || typeof record !== 'object' || !key) return undefined;
@@ -41,15 +76,21 @@ const matchInferredType = (inferred, value, normalize = defaultNormalize) => {
   return types.some((entry) => normalize(entry).includes(needle));
 };
 
-const resolveChunkDocmeta = (chunk) => (
-  asObject(chunk?.docmeta) || asObject(chunk?.metaV2) || null
-);
+const resolveChunkDocmeta = (chunk) => mergeObjectWithFallback(chunk?.docmeta, chunk?.metaV2);
 
 const resolveChunkRecordMeta = (chunk, docmeta) => (
-  asObject(chunk?.docmeta?.record) || asObject(chunk?.metaV2?.record) || asObject(docmeta?.record) || null
+  mergeObjectWithFallback(chunk?.docmeta?.record, chunk?.metaV2?.record)
+  || asNonEmptyObject(docmeta?.record)
+  || asObject(chunk?.docmeta?.record)
+  || asObject(chunk?.metaV2?.record)
+  || asObject(docmeta?.record)
+  || null
 );
 
 const resolveChunkParamList = (chunk, docmeta) => {
+  if (asNonEmptyArray(chunk?.docmeta?.params)) return chunk.docmeta.params;
+  if (asNonEmptyArray(chunk?.metaV2?.params)) return chunk.metaV2.params;
+  if (asNonEmptyArray(docmeta?.params)) return docmeta.params;
   if (Array.isArray(chunk?.docmeta?.params)) return chunk.docmeta.params;
   if (Array.isArray(chunk?.metaV2?.params)) return chunk.metaV2.params;
   if (Array.isArray(docmeta?.params)) return docmeta.params;
@@ -57,6 +98,9 @@ const resolveChunkParamList = (chunk, docmeta) => {
 };
 
 const resolveChunkInferredTypes = (chunk, docmeta) => {
+  if (asNonEmptyObject(chunk?.docmeta?.inferredTypes)) return chunk.docmeta.inferredTypes;
+  if (asNonEmptyObject(chunk?.metaV2?.types?.inferred)) return chunk.metaV2.types.inferred;
+  if (asNonEmptyObject(docmeta?.inferredTypes)) return docmeta.inferredTypes;
   if (asObject(chunk?.docmeta?.inferredTypes)) return chunk.docmeta.inferredTypes;
   if (asObject(chunk?.metaV2?.types?.inferred)) return chunk.metaV2.types.inferred;
   if (asObject(docmeta?.inferredTypes)) return docmeta.inferredTypes;
@@ -64,7 +108,13 @@ const resolveChunkInferredTypes = (chunk, docmeta) => {
 };
 
 const resolveChunkRiskMeta = (chunk, docmeta) => (
-  asObject(chunk?.docmeta?.risk) || asObject(chunk?.metaV2?.risk) || asObject(docmeta?.risk) || null
+  asNonEmptyObject(chunk?.docmeta?.risk)
+  || asNonEmptyObject(chunk?.metaV2?.risk)
+  || asNonEmptyObject(docmeta?.risk)
+  || asObject(chunk?.docmeta?.risk)
+  || asObject(chunk?.metaV2?.risk)
+  || asObject(docmeta?.risk)
+  || null
 );
 
 export const matchMetaFilters = ({

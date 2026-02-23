@@ -95,13 +95,15 @@ export function buildFilterIndex(chunkMeta = [], options = {}) {
   };
 
   const resolveVisibility = (chunk) => {
-    const docmeta = (chunk?.docmeta && typeof chunk.docmeta === 'object')
-      ? chunk.docmeta
-      : ((chunk?.metaV2 && typeof chunk.metaV2 === 'object') ? chunk.metaV2 : null);
-    if (!docmeta) return null;
-    const directVisibility = typeof docmeta.visibility === 'string' ? docmeta.visibility : null;
-    if (directVisibility) return directVisibility;
-    return resolveVisibilityFromModifiers(docmeta.modifiers);
+    const docmeta = (chunk?.docmeta && typeof chunk.docmeta === 'object') ? chunk.docmeta : null;
+    const metaV2 = (chunk?.metaV2 && typeof chunk.metaV2 === 'object') ? chunk.metaV2 : null;
+    const docmetaVisibility = typeof docmeta?.visibility === 'string' ? docmeta.visibility : null;
+    if (docmetaVisibility) return docmetaVisibility;
+    const docmetaModifierVisibility = resolveVisibilityFromModifiers(docmeta?.modifiers);
+    if (docmetaModifierVisibility) return docmetaModifierVisibility;
+    const metaV2Visibility = typeof metaV2?.visibility === 'string' ? metaV2.visibility : null;
+    if (metaV2Visibility) return metaV2Visibility;
+    return resolveVisibilityFromModifiers(metaV2?.modifiers);
   };
 
   const normalizeFilePathKey = (value) => normalizeFilePath(value, { lower: true });

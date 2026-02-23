@@ -9,6 +9,9 @@ const meta = [
     file: 'src/main.ts',
     ext: '.ts',
     codeRelations: {},
+    docmeta: {
+      record: {}
+    },
     metaV2: {
       lang: 'typescript',
       effective: { languageId: 'typescript' },
@@ -27,6 +30,13 @@ const meta = [
         breaks: 1,
         continues: 1
       },
+      structural: [
+        {
+          pack: 'security',
+          ruleId: 'sql.injection',
+          tags: ['sqli']
+        }
+      ],
       modifiers: ['public', 'async', 'generator', 'returns'],
       risk: {
         tags: ['security'],
@@ -72,6 +82,9 @@ expectIds({ alias: 'cfg' }, [0], 'alias should match metaV2.dataflow.aliases');
 expectIds({ branches: 2 }, [0], 'branches should match metaV2.controlFlow.branches');
 expectIds({ loops: 1 }, [0], 'loops should match metaV2.controlFlow.loops');
 expectIds({ visibility: 'public' }, [0], 'visibility should match metaV2.modifiers');
+expectIds({ structPack: 'security' }, [0], 'structPack should match metaV2.structural');
+expectIds({ structRule: 'sql.injection' }, [0], 'structRule should match metaV2.structural');
+expectIds({ structTag: 'sqli' }, [0], 'structTag should match metaV2.structural');
 expectIds({ async: true }, [0], 'async should match metaV2.modifiers');
 expectIds({ generator: true }, [0], 'generator should match metaV2.modifiers');
 expectIds({ returns: true }, [0], 'returns should match metaV2.modifiers/returns');

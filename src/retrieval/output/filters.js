@@ -21,10 +21,37 @@ import { normalizeFilePath } from '../../shared/path-normalize.js';
 import { resolveFileRelations as resolveFileRelationLookup } from '../file-relations-resolver.js';
 
 const asObject = (value) => (value && typeof value === 'object' ? value : null);
+const mergeObjectWithFallback = (preferred, fallback) => {
+  const preferredObject = asObject(preferred);
+  const fallbackObject = asObject(fallback);
+  if (!preferredObject && !fallbackObject) return null;
+  if (!preferredObject) return fallbackObject;
+  if (!fallbackObject) return preferredObject;
+  const merged = { ...fallbackObject };
+  for (const [key, value] of Object.entries(preferredObject)) {
+    if (value == null) continue;
+    if (Array.isArray(value)) {
+      const fallbackValue = merged[key];
+      merged[key] = value.length
+        ? value
+        : (Array.isArray(fallbackValue) ? fallbackValue : value);
+      continue;
+    }
+    if (typeof value === 'object') {
+      const fallbackValue = asObject(merged[key]);
+      if (Object.keys(value).length) {
+        merged[key] = fallbackValue ? { ...fallbackValue, ...value } : value;
+      } else {
+        merged[key] = fallbackValue || value;
+      }
+      continue;
+    }
+    merged[key] = value;
+  }
+  return merged;
+};
 
-const resolveChunkDocmeta = (chunk) => (
-  asObject(chunk?.docmeta) || asObject(chunk?.metaV2) || null
-);
+const resolveChunkDocmeta = (chunk) => mergeObjectWithFallback(chunk?.docmeta, chunk?.metaV2);
 
 const normalizeModifierToken = (value) => String(value || '').trim().toLowerCase();
 

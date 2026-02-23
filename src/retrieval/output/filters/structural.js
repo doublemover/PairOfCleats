@@ -4,7 +4,15 @@ export const matchStructural = ({ chunk, structPackNeedles, structRuleNeedles, s
   if (!structPackNeedles.length && !structRuleNeedles.length && !structTagNeedles.length) {
     return true;
   }
-  const structural = chunk?.docmeta?.structural;
+  const docmetaObject = chunk?.docmeta && typeof chunk.docmeta === 'object' ? chunk.docmeta : null;
+  const metaV2Object = chunk?.metaV2 && typeof chunk.metaV2 === 'object' ? chunk.metaV2 : null;
+  const docmetaStructural = Array.isArray(docmetaObject?.structural) ? docmetaObject.structural : null;
+  const metaV2Structural = Array.isArray(metaV2Object?.structural) ? metaV2Object.structural : null;
+  const structural = (docmetaStructural && docmetaStructural.length)
+    ? docmetaStructural
+    : ((metaV2Structural && metaV2Structural.length)
+      ? metaV2Structural
+      : (docmetaStructural || metaV2Structural));
   if (!Array.isArray(structural) || !structural.length) return false;
   return structural.some((entry) => {
     if (structPackNeedles.length) {
