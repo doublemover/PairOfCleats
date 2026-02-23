@@ -217,6 +217,12 @@ const storeArtifacts = (db, meta, artifacts) => {
   });
 };
 
+/**
+ * Coarse sparse-artifact readiness probe for LMDB materialization.
+ *
+ * @param {string|null|undefined} indexDir
+ * @returns {boolean}
+ */
 const hasChunkMeta = (indexDir) => {
   if (!indexDir) return false;
   return hasChunkMetaArtifactsSync(indexDir);

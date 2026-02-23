@@ -1,6 +1,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+/**
+ * Validate value-bearing CLI flags and produce actionable error text for any
+ * flag that is present without a usable value.
+ *
+ * This catches both parser-normalized booleans (`--flag` parsed as `true`) and
+ * raw argv forms like `--flag=` or `--flag --next`.
+ *
+ * @param {Record<string, any>} argv
+ * @param {string[]} [rawArgs=[]]
+ * @returns {string[]}
+ */
 export function getMissingFlagMessages(argv, rawArgs = []) {
   const args = Array.isArray(rawArgs) ? rawArgs : [];
   const hasMissingValue = (flag) => {
@@ -86,6 +97,16 @@ export function getMissingFlagMessages(argv, rawArgs = []) {
     .map((entry) => `Missing value for ${entry.flag}. Example: ${entry.example}`);
 }
 
+/**
+ * Estimate on-disk retrieval artifact footprint for a single index mode.
+ *
+ * The estimate intentionally includes compressed siblings (`.gz`, `.zst`) and
+ * sharded directories so backend auto-selection can reason about real storage
+ * cost across legacy and modern artifact layouts.
+ *
+ * @param {string|null|undefined} indexDir
+ * @returns {number}
+ */
 export function estimateIndexBytes(indexDir) {
   if (!indexDir || !fs.existsSync(indexDir)) return 0;
   const targets = [
@@ -143,6 +164,16 @@ export function estimateIndexBytes(indexDir) {
   return total;
 }
 
+/**
+ * Resolve an indexed-file count hint from mode metrics files.
+ *
+ * For mixed-mode queries this returns the maximum candidate count across active
+ * modes as a conservative upper bound for query planning heuristics.
+ *
+ * @param {string|null|undefined} metricsRoot
+ * @param {{runCode?:boolean,runProse?:boolean,runExtractedProse?:boolean,runRecords?:boolean}} modeFlags
+ * @returns {number|null}
+ */
 export function resolveIndexedFileCount(metricsRoot, modeFlags) {
   if (!metricsRoot || !fs.existsSync(metricsRoot)) return null;
   const modes = [];
@@ -167,6 +198,16 @@ export function resolveIndexedFileCount(metricsRoot, modeFlags) {
   return Math.max(...counts);
 }
 
+/**
+ * Derive fallback BM25 defaults from persisted per-mode metrics.
+ *
+ * When multiple modes are active the returned values are averaged to keep the
+ * fallback deterministic and mode-agnostic.
+ *
+ * @param {string|null|undefined} metricsRoot
+ * @param {{runCode?:boolean,runProse?:boolean,runExtractedProse?:boolean,runRecords?:boolean}} modeFlags
+ * @returns {{k1:number,b:number}|null}
+ */
 export function resolveBm25Defaults(metricsRoot, modeFlags) {
   if (!metricsRoot || !fs.existsSync(metricsRoot)) return null;
   const targets = [];
@@ -194,6 +235,13 @@ export function resolveBm25Defaults(metricsRoot, modeFlags) {
   return { k1, b };
 }
 
+/**
+ * Load the recorded branch name for a metrics mode, if present.
+ *
+ * @param {string|null|undefined} metricsDir
+ * @param {string} mode
+ * @returns {string|null}
+ */
 export function loadBranchFromMetrics(metricsDir, mode) {
   try {
     const metricsPath = path.join(metricsDir, `index-${mode}.json`);

@@ -263,6 +263,11 @@ if (argv.json) {
   console.log(JSON.stringify(results, null, 2));
 }
 
+/**
+ * Ensure sparse index artifacts exist before running search micro-benchmarks.
+ *
+ * @returns {Promise<void>}
+ */
 async function maybeBuildIndexes() {
   if (!argv.build) return;
   const indexDir = getIndexDir(repoRoot, mode);
@@ -278,11 +283,23 @@ async function maybeBuildIndexes() {
   });
 }
 
+/**
+ * Coarse chunk-meta presence check used for pre-benchmark readiness.
+ *
+ * @param {string|null|undefined} indexDir
+ * @returns {boolean}
+ */
 function hasChunkMeta(indexDir) {
   if (!indexDir) return false;
   return hasChunkMetaArtifactsSync(indexDir);
 }
 
+/**
+ * Parse and normalize comma-separated component names.
+ *
+ * @param {string} value
+ * @returns {string[]}
+ */
 function parseComponents(value) {
   if (!value) return [];
   return value
@@ -291,6 +308,17 @@ function parseComponents(value) {
     .filter(Boolean);
 }
 
+/**
+ * Build a deterministic sqlite-vector vs lancedb warm-latency summary.
+ *
+ * @param {Record<string, any>} backends
+ * @returns {{
+ *   sqlite:any,
+ *   lancedb:any,
+ *   ratio:{mean:number|null,p50:number|null},
+ *   summary:string
+ * }|null}
+ */
 function buildAnnBackendComparison(backends) {
   if (!backends || typeof backends !== 'object') return null;
   const sqlite = backends['sqlite-vector'] || backends.sqlite || null;

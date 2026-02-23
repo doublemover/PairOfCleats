@@ -321,6 +321,28 @@ export const createOrderedCompletionTracker = () => {
   return { track, throwIfFailed, wait, snapshot };
 };
 
+/**
+ * Resolve per-file watchdog thresholds for stage1 processing.
+ *
+ * This merges queue watchdog config with adaptive defaults and optional
+ * repo-size floors so large repositories can avoid noisy slow-file warnings.
+ *
+ * @param {object} runtime
+ * @param {{repoFileCount?:number}} [input]
+ * @returns {{
+ *   slowFileMs:number,
+ *   maxSlowFileMs:number,
+ *   hardTimeoutMs:number,
+ *   bytesPerStep:number,
+ *   linesPerStep:number,
+ *   stepMs:number,
+ *   nearThresholdLowerFraction:number,
+ *   nearThresholdUpperFraction:number,
+ *   nearThresholdAlertFraction:number,
+ *   nearThresholdMinSamples:number,
+ *   adaptiveSlowFloorMs:number
+ * }}
+ */
 export const resolveFileWatchdogConfig = (runtime, { repoFileCount = 0 } = {}) => {
   const config = runtime?.stage1Queues?.watchdog || {};
   const configuredSlowFileMs = coerceOptionalNonNegativeInt(config.slowFileMs);
@@ -585,6 +607,23 @@ export const resolveStage1HangPolicy = (runtime, watchdogConfig = null) => {
   };
 };
 
+/**
+ * Decide whether stage1 should continue, issue a soft-kick, or abort based on
+ * current idle duration and hang-policy thresholds.
+ *
+ * @param {{
+ *   idleMs?:number,
+ *   hardAbortMs?:number,
+ *   softKickMs?:number,
+ *   softKickAttempts?:number,
+ *   softKickMaxAttempts?:number,
+ *   softKickInFlight?:boolean,
+ *   lastSoftKickAtMs?:number,
+ *   softKickCooldownMs?:number,
+ *   nowMs?:number
+ * }} [input]
+ * @returns {{action:'none'|'soft-kick'|'abort',idleMs:number,reason?:string}}
+ */
 export const resolveStage1StallAction = ({
   idleMs = 0,
   hardAbortMs = 0,

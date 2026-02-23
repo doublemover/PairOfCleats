@@ -134,7 +134,12 @@ const artifactsDir = path.join(root, 'ci-artifacts');
 let restoredArtifacts = false;
 
 /**
- * Run a command and exit on failure.
+ * Run a bootstrap step under the resolved runtime environment and abort on
+ * non-zero exit.
+ *
+ * In `--json` mode child output is routed to stderr so stdout remains a single
+ * machine-parseable summary payload.
+ *
  * @param {string} cmd
  * @param {string[]} args
  * @param {string} label

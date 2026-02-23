@@ -295,12 +295,24 @@ const directorySizeBytes = async (dirPath) => {
 
 const formatBytesGiB = (bytes) => Number((bytes / (1024 * 1024 * 1024)).toFixed(4));
 
+/**
+ * Expand CLI mode selection into sparse index modes required for stage3.
+ *
+ * @param {'code'|'prose'|'both'} resolvedMode
+ * @returns {string[]}
+ */
 const resolveRequiredBuildModes = (resolvedMode) => (
   resolvedMode === 'code'
     ? ['code']
     : (resolvedMode === 'prose' ? ['prose', 'extracted-prose'] : ['code', 'prose', 'extracted-prose', 'records'])
 );
 
+/**
+ * Resolve current build root for a model cache, constrained to repo cache.
+ *
+ * @param {string} modelCacheRootPath
+ * @returns {string|null}
+ */
 const resolveModelCurrentBuildRoot = (modelCacheRootPath) => {
   const versionedRoot = resolveVersionedCacheRoot(modelCacheRootPath);
   const repoCacheRoot = path.join(versionedRoot, 'repos', repoId);
@@ -342,6 +354,13 @@ const modeArtifactsExist = (buildRoot, buildMode) => {
   return hasChunkMetaArtifactsSync(modeRoot);
 };
 
+/**
+ * Decide whether existing sparse artifacts allow stage3-only reuse.
+ *
+ * @param {string} modelCacheRootPath
+ * @param {'code'|'prose'|'both'} resolvedMode
+ * @returns {boolean}
+ */
 const canReuseSparseArtifactsForStage3 = (modelCacheRootPath, resolvedMode) => {
   const buildRoot = resolveModelCurrentBuildRoot(modelCacheRootPath);
   if (!buildRoot) return false;
@@ -349,6 +368,12 @@ const canReuseSparseArtifactsForStage3 = (modelCacheRootPath, resolvedMode) => {
   return requiredModes.every((buildMode) => modeArtifactsExist(buildRoot, buildMode));
 };
 
+/**
+ * Resolve build strategy for a model run.
+ *
+ * @param {{modelCacheRootPath:string,shouldBuildIndex:boolean,resolvedMode:'code'|'prose'|'both'}} input
+ * @returns {'skip'|'stage3'|'full'}
+ */
 const resolveBuildStrategy = ({ modelCacheRootPath, shouldBuildIndex, resolvedMode }) => {
   if (!shouldBuildIndex) return 'skip';
   return canReuseSparseArtifactsForStage3(modelCacheRootPath, resolvedMode)
@@ -356,6 +381,13 @@ const resolveBuildStrategy = ({ modelCacheRootPath, shouldBuildIndex, resolvedMo
     : 'full';
 };
 
+/**
+ * Check stage4 sqlite artifact presence for all required modes.
+ *
+ * @param {string} modelCacheRootPath
+ * @param {'code'|'prose'|'both'} resolvedMode
+ * @returns {boolean}
+ */
 const sqliteArtifactsExist = (modelCacheRootPath, resolvedMode) => {
   const buildRoot = resolveModelCurrentBuildRoot(modelCacheRootPath);
   if (!buildRoot) return false;

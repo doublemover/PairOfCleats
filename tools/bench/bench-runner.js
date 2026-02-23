@@ -10,6 +10,20 @@ import { resolveBenchSuite } from './suites/sweet16.js';
 
 const MAX_UTILIZATION_SAMPLES = 2048;
 
+/**
+ * Parse CLI flags for bench-runner.
+ *
+ * @returns {{
+ *   suite:string|null,
+ *   scripts:string[],
+ *   json:string|null,
+ *   timeoutMs:number,
+ *   quiet:boolean,
+ *   repoRoot:string|null,
+ *   indexDir:string|null,
+ *   help:boolean
+ * }}
+ */
 const parseArgs = () => {
   const out = {
     suite: null,
@@ -71,6 +85,13 @@ const parseArgs = () => {
   return out;
 };
 
+/**
+ * Expand `${token}` placeholders inside script argument templates.
+ *
+ * @param {string} value
+ * @param {Record<string, string>} tokens
+ * @returns {string}
+ */
 const substituteTokens = (value, tokens) => {
   if (!tokens || typeof tokens !== 'object') return value;
   let out = String(value);
@@ -95,6 +116,19 @@ const parseKeyValueMetrics = (line) => {
   return metrics;
 };
 
+/**
+ * Extract canonical baseline/current/delta bench lines from mixed output.
+ *
+ * Supports prefixed forms (e.g. `[bench] run-a baseline ...`) used by some
+ * scripts while preserving deterministic output shape.
+ *
+ * @param {string} output
+ * @returns {{
+ *   baseline:{line:string,metrics:Record<string,number|string>}|null,
+ *   current:{line:string,metrics:Record<string,number|string>}|null,
+ *   delta:{line:string,metrics:Record<string,number|string>}|null
+ * }}
+ */
 const parseBenchOutput = (output) => {
   const lines = String(output || '')
     .split(/\r?\n/g)
@@ -126,6 +160,13 @@ const parseBenchOutput = (output) => {
   };
 };
 
+/**
+ * Parse trailing JSON payloads emitted by benchmark scripts that may also print
+ * human-readable logs earlier in stdout.
+ *
+ * @param {string} text
+ * @returns {any|null}
+ */
 const parseTrailingJson = (text) => {
   const raw = String(text || '').trim();
   if (!raw) return null;
@@ -153,6 +194,13 @@ const detectStorageTier = (value) => {
   return 'disk';
 };
 
+/**
+ * Compute an inclusive percentile from numeric samples.
+ *
+ * @param {Array<number|string>} values
+ * @param {number} ratio
+ * @returns {number}
+ */
 const resolvePercentile = (values, ratio) => {
   if (!Array.isArray(values) || !values.length) return 0;
   const sorted = values
@@ -176,6 +224,12 @@ const toPercent = (value, scale = 100) => {
   return Math.max(0, Math.min(100, num * scale));
 };
 
+/**
+ * Resolve scheduler trace entries from variant JSON payload shapes.
+ *
+ * @param {any} json
+ * @returns {any[]}
+ */
 const resolveTraceEntries = (json) => {
   const candidates = [
     json?.timings?.scheduler?.trace,
@@ -209,6 +263,12 @@ const resolveUtilizationPct = (sample) => {
   return null;
 };
 
+/**
+ * Build normalized utilization samples from scheduler traces.
+ *
+ * @param {{json:any,script:string}} input
+ * @returns {Array<{script:string,sample:number,atMs:number|null,utilizationPct:number}>}
+ */
 const collectUtilizationSamples = ({ json, script }) => {
   const trace = resolveTraceEntries(json);
   if (!trace.length) return [];
@@ -227,6 +287,14 @@ const collectUtilizationSamples = ({ json, script }) => {
   return out;
 };
 
+/**
+ * Append entries while preserving a rolling upper bound.
+ *
+ * @param {any[]} target
+ * @param {any[]} entries
+ * @param {number} maxEntries
+ * @returns {void}
+ */
 const appendBoundedEntries = (target, entries, maxEntries) => {
   if (!Array.isArray(target) || !Array.isArray(entries) || !entries.length) return;
   target.push(...entries);
@@ -282,6 +350,25 @@ const resolveStageOverlapRow = ({ json, script, durationMs }) => {
   };
 };
 
+/**
+ * Execute a bench script and return parsed output + timing metadata.
+ *
+ * @param {{script:string,args?:string[],timeoutMs?:number,tokens?:Record<string,string>}} input
+ * @returns {{
+ *   script:string,
+ *   absScript:string,
+ *   startedAtMs:number,
+ *   endedAtMs:number,
+ *   durationMs:number,
+ *   exitCode:number|null,
+ *   timedOut:boolean,
+ *   ok:boolean,
+ *   stdout:string,
+ *   stderr:string,
+ *   parsed:object,
+ *   json:any
+ * }}
+ */
 const runOne = ({ script, args, timeoutMs, tokens }) => {
   const absScript = path.isAbsolute(script) ? script : path.join(process.cwd(), script);
   const start = Date.now();

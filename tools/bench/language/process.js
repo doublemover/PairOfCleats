@@ -351,6 +351,13 @@ export const createProcessRunner = ({
       )
     });
 
+    /**
+     * Recompute normalized component scores feeding progress-confidence output.
+     *
+     * The component formulas intentionally penalize heartbeat jitter, queue-age
+     * tails, in-flight spread, and repeated stall events to stabilize the
+     * confidence signal across heterogeneous repositories.
+     */
     const updateProgressConfidenceComponentScores = () => {
       const heartbeatMean = mean(heartbeatIntervalsMs);
       const heartbeatStd = stdDev(heartbeatIntervalsMs, heartbeatMean);

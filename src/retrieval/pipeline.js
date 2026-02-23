@@ -78,6 +78,28 @@ const resolveSparseConfidence = ({ sparseHits, searchTopN }) => {
   };
 };
 
+/**
+ * Compute adaptive rerank slack based on query entropy and retrieval confidence.
+ *
+ * The output is deterministic for a given input and is used to widen/narrow the
+ * expensive rerank window (`rerankCap = topN + topkSlack`).
+ *
+ * @param {{
+ *   searchTopN?:number,
+ *   baseTopkSlack?:number,
+ *   queryTokens?:string[],
+ *   sparseHits?:Array<{score?:number}>,
+ *   annHits?:Array<any>
+ * }} [input]
+ * @returns {{
+ *   topkSlack:number,
+ *   rerankCap:number,
+ *   reason:string,
+ *   tokenStats:{tokenCount:number,uniqueCount:number,diversity:number,symbolRatio:number},
+ *   sparseConfidence:{hitCount:number,hasScoreGap:boolean,high:boolean,weak:boolean},
+ *   annHitCount:number
+ * }}
+ */
 export const resolveAdaptiveRerankBudget = ({
   searchTopN = 10,
   baseTopkSlack = 8,

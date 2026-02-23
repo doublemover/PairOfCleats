@@ -54,6 +54,22 @@ const resolveReadableArtifactPath = (targetPath) => {
   return targetPath;
 };
 
+/**
+ * Resolve and validate manifest-declared sources for a required artifact.
+ *
+ * This enforces strict presence checks (including binary-columnar sidecars),
+ * normalizes backup-path fallbacks, and optionally collapses ambiguous
+ * single-source formats when strict mode is disabled.
+ *
+ * @param {{
+ *   dir:string,
+ *   manifest:any,
+ *   name:string,
+ *   maxBytes:number,
+ *   strict:boolean
+ * }} input
+ * @returns {object}
+ */
 const resolveRequiredSources = ({
   dir,
   manifest,

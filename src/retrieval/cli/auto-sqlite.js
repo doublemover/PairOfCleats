@@ -5,6 +5,13 @@ import { estimateIndexBytes } from './options.js';
 
 const MAX_CHUNK_META_COUNT_PARSE_BYTES = 5 * 1024 * 1024;
 
+/**
+ * Read a JSON artifact with a strict byte budget and return `null` on any
+ * parse/load failure so callers can continue through fallback probes.
+ *
+ * @param {string} filePath
+ * @returns {any|null}
+ */
 const readJsonArtifactSafe = (filePath) => {
   try {
     return readJsonFile(filePath, { maxBytes: MAX_CHUNK_META_COUNT_PARSE_BYTES });
@@ -13,6 +20,16 @@ const readJsonArtifactSafe = (filePath) => {
   }
 };
 
+/**
+ * Best-effort chunk count extraction across chunk-meta storage variants.
+ *
+ * Probe order is chosen to prioritize cheap metadata first, then full row
+ * formats with bounded read size. Returning `null` signals that count-based
+ * auto-thresholds should not be applied.
+ *
+ * @param {string} indexDir
+ * @returns {number|null}
+ */
 const resolveChunkCountFromChunkArtifacts = (indexDir) => {
   const shardedMeta = readJsonArtifactSafe(path.join(indexDir, 'chunk_meta.meta.json'));
   const shardedFields = shardedMeta?.fields && typeof shardedMeta.fields === 'object'
@@ -47,6 +64,16 @@ const resolveChunkCountFromChunkArtifacts = (indexDir) => {
   return null;
 };
 
+/**
+ * Resolve per-index statistics used by auto-backend selection heuristics.
+ *
+ * `chunkCount` prefers manifest-reported counts when available; otherwise it
+ * falls back to artifact probes. `artifactBytes` is derived from artifact-size
+ * estimation unless already provided by manifest piece metadata.
+ *
+ * @param {string|null|undefined} indexDir
+ * @returns {{chunkCount:number|null,artifactBytes:number|null,missing:boolean}}
+ */
 export const resolveIndexStats = (indexDir) => {
   if (!indexDir || !fsSync.existsSync(indexDir)) {
     return { chunkCount: null, artifactBytes: null, missing: true };
@@ -83,6 +110,16 @@ export const resolveIndexStats = (indexDir) => {
   return { chunkCount, artifactBytes, missing: false };
 };
 
+/**
+ * Evaluate whether aggregate index stats satisfy auto-SQLite thresholds.
+ *
+ * @param {{
+ *   stats:Array<{chunkCount:number|null,artifactBytes:number|null}>,
+ *   chunkThreshold:number|null|undefined,
+ *   artifactThreshold:number|null|undefined
+ * }} input
+ * @returns {{allowed:boolean,reason:string|null}}
+ */
 export const evaluateAutoSqliteThresholds = ({
   stats,
   chunkThreshold,

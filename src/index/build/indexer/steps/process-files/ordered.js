@@ -11,6 +11,22 @@
 // `orderIndex` has been flushed (i.e., processed in order). That creates
 // backpressure via `runWithQueue`'s awaited `onResult`, bounding in-flight
 // buffered results to queue concurrency.
+/**
+ * Create an ordered result appender that preserves deterministic output order
+ * while supporting concurrent shard/file execution.
+ *
+ * @param {(result:any,state:any,shardMeta:any)=>Promise<void>} handleFileResult
+ * @param {any} state
+ * @param {object} [options]
+ * @returns {{
+ *   enqueue:(orderIndex:number,result:any,shardMeta:any)=>Promise<void>,
+ *   skip:(orderIndex:number)=>Promise<void>,
+ *   peekNextIndex:()=>number,
+ *   snapshot:()=>object,
+ *   waitForCapacity:(input?:number|{orderIndex?:number,bypassWindow?:number})=>Promise<void>,
+ *   abort:(err:any)=>void
+ * }}
+ */
 export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
   const debugOrdered = options.debugOrdered === true;
   const bucketSize = Number.isFinite(options.bucketSize)
@@ -132,6 +148,12 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     lastActivityAt = Date.now();
   };
 
+  /**
+   * Summarize smallest/largest pending indices without full-map sorting.
+   *
+   * @param {number} [limit=5]
+   * @returns {{head:number[],tail:number[]}}
+   */
   const collectPendingKeyWindow = (limit = 5) => {
     const size = Math.max(1, Math.floor(Number(limit) || 5));
     const minKeys = [];
@@ -203,6 +225,12 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     }
   };
 
+  /**
+   * Await pending-buffer capacity before admitting more out-of-order results.
+   *
+   * @param {number|{orderIndex?:number,bypassWindow?:number}|null} [input]
+   * @returns {Promise<void>}
+   */
   const waitForCapacity = (input = null) => {
     let orderIndex = null;
     let bypassWindow = 0;
@@ -234,6 +262,11 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     });
   };
 
+  /**
+   * Emit periodic stall diagnostics when ordered progress cannot advance.
+   *
+   * @returns {void}
+   */
   const scheduleStallCheck = () => {
     if (stallMs <= 0) return;
     if (stallTimer) return;
@@ -285,6 +318,11 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     stallTimer.unref?.();
   };
 
+  /**
+   * Advance `nextIndex` across explicit skips and expected-order gaps.
+   *
+   * @returns {void}
+   */
   const advancePastSkipped = () => {
     while (true) {
       let advanced = false;
@@ -336,6 +374,11 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     }
   };
 
+  /**
+   * Fast-forward when all expected indices are seen but an index gap remains.
+   *
+   * @returns {void}
+   */
   const maybeFinalize = () => {
     advancePastSkipped();
     if (expectedCount == null) return;
@@ -394,6 +437,12 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     seenCount += 1;
   };
 
+  /**
+   * Abort ordered processing and reject all pending completions.
+   *
+   * @param {any} err
+   * @returns {void}
+   */
   const abort = (err) => {
     if (aborted) return;
     aborted = true;
@@ -412,6 +461,11 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     pending.clear();
   };
 
+  /**
+   * Flush any now-orderable pending results in deterministic index order.
+   *
+   * @returns {Promise<void>}
+   */
   const flush = async () => {
     debugLog('[ordered] flush start', {
       nextIndex,
@@ -492,6 +546,11 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     resolveCapacityWaiters();
   };
 
+  /**
+   * Serialize flush execution and coalesce concurrent flush requests.
+   *
+   * @returns {Promise<void>}
+   */
   const scheduleFlush = async () => {
     if (flushing) {
       flushRequested = true;

@@ -107,6 +107,17 @@ async function promptChoice(question, choices, defaultChoice) {
 
 let runtimeEnv = resolveRuntimeEnv(null, process.env);
 
+/**
+ * Execute a setup subprocess with merged runtime environment defaults.
+ *
+ * In `--json` mode stdout is piped by default so setup can emit a single final
+ * JSON summary on stdout without interleaved child output.
+ *
+ * @param {string} cmd
+ * @param {string[]} args
+ * @param {import('node:child_process').SpawnSyncOptions} [options]
+ * @returns {{ok:boolean,status:number|null,stdout?:string,stderr?:string}}
+ */
 function runCommand(cmd, args, options = {}) {
   const spawnOptions = {
     cwd: root,
@@ -122,6 +133,15 @@ function runCommand(cmd, args, options = {}) {
   return runCommandBase(cmd, args, spawnOptions);
 }
 
+/**
+ * Run a setup step and terminate immediately when it fails.
+ *
+ * @param {string} label
+ * @param {string} cmd
+ * @param {string[]} args
+ * @param {import('node:child_process').SpawnSyncOptions} [options]
+ * @returns {{ok:boolean,status:number|null,stdout?:string,stderr?:string}}
+ */
 function runOrExit(label, cmd, args, options = {}) {
   const result = runCommand(cmd, args, options);
   if (!result.ok) {
@@ -371,6 +391,12 @@ recordStep('artifacts', {
 
 const codeIndexDir = getIndexDir(root, 'code', userConfig);
 const proseIndexDir = getIndexDir(root, 'prose', userConfig);
+/**
+ * Coarse index artifact readiness probe used by setup prompts.
+ *
+ * @param {string|null|undefined} indexDir
+ * @returns {boolean}
+ */
 const hasChunkMeta = (indexDir) => {
   if (!indexDir) return false;
   return hasChunkMetaArtifactsSync(indexDir);

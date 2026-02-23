@@ -143,6 +143,15 @@ const writeEvent = (entry) => {
   state.flow.sent += 1;
 };
 
+/**
+ * Enqueue a flow event with bounded-queue coalescing semantics.
+ *
+ * When full, progress events for the same job/task replace older entries and
+ * log events preferentially evict older log entries before generic FIFO drops.
+ *
+ * @param {object} entry
+ * @returns {void}
+ */
 const queueFlowEntry = (entry) => {
   const queue = state.flow.queue;
   if (queue.length < state.flow.queueMax) {

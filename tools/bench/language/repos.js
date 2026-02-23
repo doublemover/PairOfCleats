@@ -413,6 +413,12 @@ export const resolveRepoCacheRoot = ({ repoPath, cacheRoot }) => {
   return getRepoCacheRoot(repoPath, { cache: { root: cacheRoot } });
 };
 
+/**
+ * Determine whether bench-language must build sparse artifacts before running.
+ *
+ * @param {string} repoRoot
+ * @returns {boolean}
+ */
 export const needsIndexArtifacts = (repoRoot) => {
   const userConfig = loadUserConfig(repoRoot);
   const codeDir = getIndexDir(repoRoot, 'code', userConfig);

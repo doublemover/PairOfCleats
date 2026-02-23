@@ -118,10 +118,22 @@ const runtimeConfig = getRuntimeConfig(runtimeRoot, userConfig);
 const embeddingProvider = userConfig.indexing?.embeddings?.provider || 'xenova';
 const needsMemory = backends.includes('memory');
 const needsSqlite = backends.some((entry) => entry.startsWith('sqlite'));
+/**
+ * Detect whether sparse index artifacts already exist for a mode.
+ *
+ * @param {'code'|'prose'} mode
+ * @returns {boolean}
+ */
 const hasIndex = (mode) => {
   const dir = getIndexDir(runtimeRoot, mode, userConfig);
   return hasChunkMetaArtifactsSync(dir);
 };
+/**
+ * Detect whether sqlite artifacts already exist for a mode.
+ *
+ * @param {'code'|'prose'} mode
+ * @returns {boolean}
+ */
 const hasSqliteIndex = (mode) => {
   const paths = resolveSqlitePaths(runtimeRoot, userConfig);
   const target = mode === 'prose' ? paths.prosePath : paths.codePath;

@@ -246,6 +246,11 @@ async function validateScoreMode(scoreMode) {
   }
 }
 
+/**
+ * Build sparse artifacts when required before tinybench search tasks run.
+ *
+ * @returns {Promise<void>}
+ */
 async function maybeBuildIndexes() {
   if (!argv.build) return;
   const indexDir = getIndexDir(repoRoot, mode);
@@ -259,11 +264,23 @@ async function maybeBuildIndexes() {
   });
 }
 
+/**
+ * Coarse chunk-meta presence check used for tinybench setup gating.
+ *
+ * @param {string|null|undefined} indexDir
+ * @returns {boolean}
+ */
 function hasChunkMeta(indexDir) {
   if (!indexDir) return false;
   return hasChunkMetaArtifactsSync(indexDir);
 }
 
+/**
+ * Parse benchmark component names from a comma-delimited flag value.
+ *
+ * @param {string} value
+ * @returns {string[]}
+ */
 function parseComponents(value) {
   if (!value) return [];
   return value
@@ -272,6 +289,11 @@ function parseComponents(value) {
     .filter(Boolean);
 }
 
+/**
+ * Capture host/runtime metadata for reproducibility.
+ *
+ * @returns {{node:string,platform:string,arch:string,cpuModel:string,cpuCount:number}}
+ */
 function buildEnvSnapshot() {
   const cpu = os.cpus();
   return {
@@ -283,6 +305,12 @@ function buildEnvSnapshot() {
   };
 }
 
+/**
+ * Convert Tinybench task results into a stable report object.
+ *
+ * @param {Array<any>} tasks
+ * @returns {Record<string, any>}
+ */
 function summarizeBenchTasks(tasks) {
   const entries = {};
   for (const task of tasks) {
@@ -291,6 +319,12 @@ function summarizeBenchTasks(tasks) {
   return entries;
 }
 
+/**
+ * Normalize a Tinybench task into percentile and latency metrics.
+ *
+ * @param {any} task
+ * @returns {object}
+ */
 function summarizeTask(task) {
   const latency = task.result?.latency || {};
   const samples = Array.isArray(latency.samples) ? latency.samples : [];
@@ -307,6 +341,12 @@ function summarizeTask(task) {
   };
 }
 
+/**
+ * Compute p50/p95/p99 from raw latency samples via HDR histogram.
+ *
+ * @param {number[]} samples
+ * @returns {{p50:number,p95:number,p99:number}}
+ */
 function summarizeSamples(samples) {
   if (!samples.length) return { p50: 0, p95: 0, p99: 0 };
   const scaled = samples.map((value) => Math.max(1, Math.round(value * 1000)));
@@ -324,6 +364,13 @@ function summarizeSamples(samples) {
   };
 }
 
+/**
+ * Compare current run metrics against a persisted baseline report.
+ *
+ * @param {object} current
+ * @param {string} baselineFile
+ * @returns {{path:string,deltas:Record<string,any>}|null}
+ */
 function compareBaseline(current, baselineFile) {
   if (!fs.existsSync(baselineFile)) return null;
   let baseline = null;

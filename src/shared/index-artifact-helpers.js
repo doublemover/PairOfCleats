@@ -43,6 +43,15 @@ const hasArtifactFileAsync = async (targetPath) => (
   || await pathExists(`${targetPath}.zst`)
 );
 
+/**
+ * Coarse chunk-meta manifest probe for presence checks.
+ *
+ * This helper is intentionally optimized for speed in status/preflight paths:
+ * oversized manifests short-circuit to `true` rather than fully parsing.
+ *
+ * @param {string} dir
+ * @returns {boolean}
+ */
 const hasManifestChunkMetaArtifacts = (dir) => {
   const manifestPath = path.join(dir, 'pieces', 'manifest.json');
   if (!fsSync.existsSync(manifestPath)) return false;
@@ -75,16 +84,35 @@ const hasManifestChunkMetaArtifacts = (dir) => {
   }
 };
 
+/**
+ * Determine whether sharded chunk-meta artifacts are present.
+ *
+ * @param {string} dir
+ * @returns {boolean}
+ */
 const hasChunkMetaShardedSync = (dir) => (
   hasArtifactFileSync(path.join(dir, 'chunk_meta.meta.json'))
   && fsSync.existsSync(path.join(dir, 'chunk_meta.parts'))
 );
 
+/**
+ * Async variant of sharded chunk-meta presence detection.
+ *
+ * @param {string} dir
+ * @returns {Promise<boolean>}
+ */
 const hasChunkMetaShardedAsync = async (dir) => (
   await hasArtifactFileAsync(path.join(dir, 'chunk_meta.meta.json'))
   && await pathExists(path.join(dir, 'chunk_meta.parts'))
 );
 
+/**
+ * Validate binary-columnar sidecar availability from metadata references.
+ *
+ * @param {string} dir
+ * @param {string} metaPath
+ * @returns {boolean}
+ */
 const hasChunkMetaBinaryColumnarPayloadSync = (dir, metaPath) => {
   try {
     const parsed = JSON.parse(fsSync.readFileSync(metaPath, 'utf8')) || {};
@@ -103,6 +131,12 @@ const hasChunkMetaBinaryColumnarPayloadSync = (dir, metaPath) => {
   }
 };
 
+/**
+ * Detect binary-columnar chunk-meta presence (sync).
+ *
+ * @param {string} dir
+ * @returns {boolean}
+ */
 const hasChunkMetaBinaryColumnarSync = (dir) => {
   const metaPath = path.join(dir, 'chunk_meta.binary-columnar.meta.json');
   if (fsSync.existsSync(metaPath)) {
@@ -114,6 +148,12 @@ const hasChunkMetaBinaryColumnarSync = (dir) => {
   return false;
 };
 
+/**
+ * Detect binary-columnar chunk-meta presence (async).
+ *
+ * @param {string} dir
+ * @returns {Promise<boolean>}
+ */
 const hasChunkMetaBinaryColumnarAsync = async (dir) => {
   const metaPath = path.join(dir, 'chunk_meta.binary-columnar.meta.json');
   if (await pathExists(metaPath)) {
@@ -125,6 +165,12 @@ const hasChunkMetaBinaryColumnarAsync = async (dir) => {
   return false;
 };
 
+/**
+ * Coarse chunk-meta presence detection for sync preflight/status checks.
+ *
+ * @param {string|null|undefined} dir
+ * @returns {boolean}
+ */
 export function hasChunkMetaArtifactsSync(dir) {
   if (!dir) return false;
   for (const relPath of CHUNK_META_DIRECT_CANDIDATES) {
@@ -135,6 +181,12 @@ export function hasChunkMetaArtifactsSync(dir) {
   return hasManifestChunkMetaArtifacts(dir);
 }
 
+/**
+ * Coarse chunk-meta presence detection for async callsites.
+ *
+ * @param {string|null|undefined} dir
+ * @returns {Promise<boolean>}
+ */
 export async function hasChunkMetaArtifactsAsync(dir) {
   if (!dir) return false;
   for (const relPath of CHUNK_META_DIRECT_CANDIDATES) {
@@ -145,6 +197,12 @@ export async function hasChunkMetaArtifactsAsync(dir) {
   return hasManifestChunkMetaArtifacts(dir);
 }
 
+/**
+ * Normalize loader errors that represent optional-artifact absence.
+ *
+ * @param {any} err
+ * @returns {boolean}
+ */
 export function isOptionalArtifactMissingError(err) {
   const code = typeof err?.code === 'string' ? err.code : '';
   if (OPTIONAL_ARTIFACT_MISSING_CODES.has(code)) return true;
@@ -186,6 +244,14 @@ export async function loadOptionalWithFallback(
   }
 }
 
+/**
+ * Wrap an optional async iterable loader and suppress expected missing/too-large
+ * failures while preserving stream shape.
+ *
+ * @param {() => Promise<AsyncIterable<any>|null>} loader
+ * @param {{name?:string|null,onTooLarge?:(name:string|null,err:any)=>void,onMissing?:(name:string|null,err:any)=>void}} [options]
+ * @returns {AsyncIterable<any>}
+ */
 export function iterateOptionalWithFallback(
   loader,
   { name = null, onTooLarge = null, onMissing = null } = {}

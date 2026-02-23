@@ -35,6 +35,12 @@ const fail = (message, code = 1) => {
   display.close();
   process.exit(code);
 };
+/**
+ * Coarse sparse-artifact readiness probe for Tantivy materialization.
+ *
+ * @param {string|null|undefined} indexDir
+ * @returns {boolean}
+ */
 const hasChunkMeta = (indexDir) => {
   return hasChunkMetaArtifactsSync(indexDir);
 };

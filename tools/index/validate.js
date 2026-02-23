@@ -7,6 +7,12 @@ import { hasChunkMetaArtifactsSync } from '../../src/shared/index-artifact-helpe
 import { getIndexDir, resolveRepoConfig } from '../shared/dict-utils.js';
 import { validateIndexArtifacts } from '../../src/index/validate.js';
 
+/**
+ * Coarse index-mode readiness check used for default mode selection.
+ *
+ * @param {string|null|undefined} dir
+ * @returns {boolean}
+ */
 const hasIndexMeta = (dir) => {
   if (!dir) return false;
   const manifest = path.join(dir, 'pieces', 'manifest.json');
@@ -14,11 +20,26 @@ const hasIndexMeta = (dir) => {
   return hasChunkMetaArtifactsSync(dir);
 };
 
+/**
+ * Resolve modes that appear present on disk.
+ *
+ * @param {string} root
+ * @param {object} userConfig
+ * @returns {string[]}
+ */
 const resolveAvailableModes = (root, userConfig) => {
   const modes = ['code', 'prose', 'extracted-prose', 'records'];
   return modes.filter((mode) => hasIndexMeta(getIndexDir(root, mode, userConfig)));
 };
 
+/**
+ * Parse and validate `--mode` input.
+ *
+ * @param {string|null|undefined} raw
+ * @param {string} root
+ * @param {object} userConfig
+ * @returns {string[]}
+ */
 const parseModes = (raw, root, userConfig) => {
   const tokens = String(raw || '')
     .split(/[,\s]+/)

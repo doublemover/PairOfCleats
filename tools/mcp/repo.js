@@ -124,6 +124,12 @@ export function resolveRepoPath(inputPath) {
   return resolvedRoot;
 }
 
+/**
+ * Resolve the repo root used for MCP config lookup.
+ *
+ * @param {{repoPath?:string}|null|undefined} args
+ * @returns {string}
+ */
 const resolveConfigRoot = (args) => {
   const candidate = args?.repoPath ? path.resolve(String(args.repoPath)) : null;
   if (candidate && fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
@@ -132,18 +138,46 @@ const resolveConfigRoot = (args) => {
   return toRealPathSync(resolveRepoRoot(process.cwd()));
 };
 
+/**
+ * Load and normalize the `mcp` config block for the resolved repo.
+ *
+ * @param {{repoPath?:string}|null|undefined} args
+ * @returns {object}
+ */
 const resolveMcpConfig = (args) => {
   const repoRoot = resolveConfigRoot(args);
   const cfg = loadUserConfig(repoRoot);
   return cfg?.mcp && typeof cfg.mcp === 'object' ? cfg.mcp : {};
 };
 
+/**
+ * Normalize timeout input into a non-negative integer or `null`.
+ *
+ * @param {any} value
+ * @returns {number|null}
+ */
 export const parseTimeoutMs = (value) => {
   if (value == null || value === '') return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : null;
 };
 
+/**
+ * Resolve effective timeout for a specific MCP tool.
+ *
+ * Precedence:
+ * 1) `mcp.toolTimeouts[name]`
+ * 2) `mcp.toolTimeoutMs` / env override
+ * 3) per-tool default map
+ * 4) global default timeout
+ *
+ * Non-positive values collapse to `null` (no timeout).
+ *
+ * @param {string} name
+ * @param {{repoPath?:string}|null|undefined} args
+ * @param {{envToolTimeoutMs:any,defaultToolTimeoutMs:number,defaultToolTimeouts:Record<string,number>}} input
+ * @returns {number|null}
+ */
 export const resolveToolTimeoutMs = (name, args, { envToolTimeoutMs, defaultToolTimeoutMs, defaultToolTimeouts }) => {
   const mcpConfig = resolveMcpConfig(args);
   const toolTimeouts = mcpConfig.toolTimeouts && typeof mcpConfig.toolTimeouts === 'object'
