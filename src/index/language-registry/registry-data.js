@@ -61,11 +61,259 @@ const {
   getKotlinFileStats
 } = kotlinLang;
 
+const toObjectOptions = (options) => (options && typeof options === 'object' ? options : {});
+
+const resolveScopedParser = (options, parserScope) => options?.[parserScope]?.parser;
+
+const buildChunkPrepareOptions = ({ options, relPath, parserScope, extras = null }) => ({
+  ...toObjectOptions(options),
+  relPath,
+  parser: resolveScopedParser(options, parserScope),
+  ...(extras || {})
+});
+
+const buildChunkRelationOptions = ({ options, relPath, parserScope, extras = null }) => ({
+  relPath,
+  parser: resolveScopedParser(options, parserScope),
+  ...(extras || {}),
+  ...options
+});
+
+const resolveSqlDialect = ({ options, ext, relPath }) => (
+  typeof options?.resolveSqlDialect === 'function'
+    ? options.resolveSqlDialect(ext || path.extname(relPath || ''))
+    : (options?.sql?.dialect || 'generic')
+);
+
+const collectImportsFromPayload = (collector) => (text) => collector(text).imports;
+
+const createParserChunkAdapter = ({
+  id,
+  match,
+  collectImports,
+  chunkKey,
+  buildChunks,
+  buildRelations,
+  parserScope,
+  extractDocMeta,
+  flow,
+  attachName = true,
+  metadata = null,
+  prepareExtras = null,
+  relationExtras = null
+}) => {
+  const adapter = {
+    id,
+    match,
+    collectImports,
+    prepare: async ({ text, relPath, ext, options }) => {
+      const extras = typeof prepareExtras === 'function'
+        ? prepareExtras({ text, relPath, ext, options })
+        : null;
+      return {
+        [chunkKey]: buildChunks(
+          text,
+          buildChunkPrepareOptions({
+            options,
+            relPath,
+            parserScope,
+            extras
+          })
+        )
+      };
+    },
+    buildRelations: ({ text, context, relPath, ext, options }) => {
+      const extras = typeof relationExtras === 'function'
+        ? relationExtras({ text, relPath, ext, options, context })
+        : null;
+      return buildRelations(
+        text,
+        context[chunkKey],
+        buildChunkRelationOptions({
+          options,
+          relPath,
+          parserScope,
+          extras
+        })
+      );
+    },
+    extractDocMeta,
+    flow: ({ text, chunk, options }) => flow(text, chunk, flowOptions(options)),
+    attachName
+  };
+  if (typeof metadata === 'function') adapter.metadata = metadata;
+  return adapter;
+};
+
+const sqlDialectExtras = ({ options, ext, relPath }) => ({
+  dialect: resolveSqlDialect({ options, ext, relPath })
+});
+
+const PARSER_CHUNK_LANGUAGE_ADAPTERS = [
+  createParserChunkAdapter({
+    id: 'go',
+    match: (ext) => isGo(ext),
+    collectImports: collectGoImports,
+    chunkKey: 'goChunks',
+    buildChunks: buildGoChunks,
+    buildRelations: buildGoRelations,
+    parserScope: 'go',
+    extractDocMeta: ({ chunk }) => extractGoDocMeta(chunk),
+    flow: computeGoFlow
+  }),
+  createParserChunkAdapter({
+    id: 'java',
+    match: (ext) => isJava(ext),
+    collectImports: collectJavaImports,
+    chunkKey: 'javaChunks',
+    buildChunks: buildJavaChunks,
+    buildRelations: buildJavaRelations,
+    parserScope: 'java',
+    extractDocMeta: ({ chunk }) => extractJavaDocMeta(chunk),
+    flow: computeJavaFlow
+  }),
+  createParserChunkAdapter({
+    id: 'csharp',
+    match: (ext) => isCSharp(ext),
+    collectImports: collectCSharpImports,
+    chunkKey: 'csChunks',
+    buildChunks: buildCSharpChunks,
+    buildRelations: buildCSharpRelations,
+    parserScope: 'csharp',
+    extractDocMeta: ({ chunk }) => extractCSharpDocMeta(chunk),
+    flow: computeCSharpFlow
+  }),
+  createParserChunkAdapter({
+    id: 'kotlin',
+    match: (ext) => isKotlin(ext),
+    collectImports: collectKotlinImports,
+    chunkKey: 'kotlinChunks',
+    buildChunks: buildKotlinChunks,
+    buildRelations: buildKotlinRelations,
+    parserScope: 'kotlin',
+    extractDocMeta: ({ chunk, fileRelations }) => extractKotlinDocMeta(chunk, fileRelations),
+    flow: computeKotlinFlow
+  }),
+  createParserChunkAdapter({
+    id: 'ruby',
+    match: (ext) => isRuby(ext),
+    collectImports: collectRubyImports,
+    chunkKey: 'rubyChunks',
+    buildChunks: buildRubyChunks,
+    buildRelations: buildRubyRelations,
+    parserScope: 'ruby',
+    extractDocMeta: ({ chunk }) => extractRubyDocMeta(chunk),
+    flow: computeRubyFlow
+  }),
+  createParserChunkAdapter({
+    id: 'php',
+    match: (ext) => isPhp(ext),
+    collectImports: collectPhpImports,
+    chunkKey: 'phpChunks',
+    buildChunks: buildPhpChunks,
+    buildRelations: buildPhpRelations,
+    parserScope: 'php',
+    extractDocMeta: ({ chunk }) => extractPhpDocMeta(chunk),
+    flow: computePhpFlow
+  }),
+  createParserChunkAdapter({
+    id: 'html',
+    match: (ext) => isHtml(ext),
+    collectImports: collectHtmlImports,
+    chunkKey: 'htmlChunks',
+    buildChunks: buildHtmlChunks,
+    buildRelations: buildHtmlRelations,
+    parserScope: 'html',
+    extractDocMeta: ({ chunk, fileRelations }) => extractHtmlDocMeta(chunk, fileRelations),
+    flow: computeHtmlFlow,
+    metadata: getHtmlMetadata
+  }),
+  createParserChunkAdapter({
+    id: 'css',
+    match: (ext) => isCss(ext),
+    collectImports: collectCssImports,
+    chunkKey: 'cssChunks',
+    buildChunks: buildCssChunks,
+    buildRelations: buildCssRelations,
+    parserScope: 'css',
+    extractDocMeta: ({ chunk }) => extractCssDocMeta(chunk),
+    flow: computeCssFlow
+  }),
+  createParserChunkAdapter({
+    id: 'lua',
+    match: (ext) => isLua(ext),
+    collectImports: collectLuaImports,
+    chunkKey: 'luaChunks',
+    buildChunks: buildLuaChunks,
+    buildRelations: buildLuaRelations,
+    parserScope: 'lua',
+    extractDocMeta: ({ chunk }) => extractLuaDocMeta(chunk),
+    flow: computeLuaFlow
+  }),
+  createParserChunkAdapter({
+    id: 'sql',
+    match: (ext) => isSql(ext),
+    collectImports: collectSqlImports,
+    chunkKey: 'sqlChunks',
+    buildChunks: buildSqlChunks,
+    buildRelations: buildSqlRelations,
+    parserScope: 'sql',
+    prepareExtras: sqlDialectExtras,
+    relationExtras: sqlDialectExtras,
+    extractDocMeta: ({ chunk }) => extractSqlDocMeta(chunk),
+    flow: computeSqlFlow
+  }),
+  createParserChunkAdapter({
+    id: 'perl',
+    match: (ext) => isPerl(ext),
+    collectImports: collectPerlImports,
+    chunkKey: 'perlChunks',
+    buildChunks: buildPerlChunks,
+    buildRelations: buildPerlRelations,
+    parserScope: 'perl',
+    extractDocMeta: ({ chunk }) => extractPerlDocMeta(chunk),
+    flow: computePerlFlow
+  }),
+  createParserChunkAdapter({
+    id: 'shell',
+    match: (ext) => isShell(ext),
+    collectImports: collectShellImports,
+    chunkKey: 'shellChunks',
+    buildChunks: buildShellChunks,
+    buildRelations: buildShellRelations,
+    parserScope: 'shell',
+    extractDocMeta: ({ chunk }) => extractShellDocMeta(chunk),
+    flow: computeShellFlow
+  }),
+  createParserChunkAdapter({
+    id: 'rust',
+    match: (ext) => ext === '.rs',
+    collectImports: collectRustImports,
+    chunkKey: 'rustChunks',
+    buildChunks: buildRustChunks,
+    buildRelations: buildRustRelations,
+    parserScope: 'rust',
+    extractDocMeta: ({ chunk }) => extractRustDocMeta(chunk),
+    flow: computeRustFlow
+  }),
+  createParserChunkAdapter({
+    id: 'swift',
+    match: (ext) => ext === '.swift',
+    collectImports: collectImportsFromPayload(collectSwiftImports),
+    chunkKey: 'swiftChunks',
+    buildChunks: buildSwiftChunks,
+    buildRelations: buildSwiftRelations,
+    parserScope: 'swift',
+    extractDocMeta: ({ chunk, context }) => extractSwiftDocMeta(chunk, context),
+    flow: computeSwiftFlow
+  })
+];
+
 const MANAGED_LANGUAGE_ADAPTERS = [
   {
     id: 'javascript',
     match: (ext) => isJsLike(ext),
-    collectImports: (text, options) => collectImports(text, options),
+    collectImports,
     prepare: async ({ text, mode, ext, options }) => {
       if (mode !== 'code') return {};
       const context = {};
@@ -96,7 +344,7 @@ const MANAGED_LANGUAGE_ADAPTERS = [
   {
     id: 'typescript',
     match: (ext) => isTypeScript(ext),
-    collectImports: (text, options) => collectTypeScriptImports(text, options),
+    collectImports: collectTypeScriptImports,
     prepare: async ({ text, mode, ext, relPath, options }) => {
       if (mode !== 'code') return {};
       if (options?.typescript?.importsOnly === true) return {};
@@ -137,7 +385,7 @@ const MANAGED_LANGUAGE_ADAPTERS = [
   {
     id: 'python',
     match: (ext) => ext === '.py',
-    collectImports: (text) => collectPythonImports(text).imports,
+    collectImports: collectImportsFromPayload(collectPythonImports),
     prepare: async ({ text, mode, relPath, options }) => {
       if (mode !== 'code') return {};
       let pythonAst = null;
@@ -179,278 +427,13 @@ const MANAGED_LANGUAGE_ADAPTERS = [
   {
     id: 'clike',
     match: (ext) => isCLike(ext),
-    collectImports: (text, options) => collectCLikeImports(text, options),
+    collectImports: collectCLikeImports,
     buildRelations: ({ text, relPath, options }) => buildCLikeRelations(text, relPath, options),
     extractDocMeta: ({ text, chunk, fileRelations }) => extractCLikeDocMeta(text, chunk, fileRelations),
     flow: ({ text, chunk, options }) => computeCLikeFlow(text, chunk, flowOptions(options)),
     attachName: true
   },
-  {
-    id: 'go',
-    match: (ext) => isGo(ext),
-    collectImports: (text, options) => collectGoImports(text, options),
-    prepare: async ({ text, relPath, options }) => {
-      const goChunks = buildGoChunks(text, {
-        ...(options && typeof options === 'object' ? options : {}),
-        relPath,
-        parser: options?.go?.parser
-      });
-      return { goChunks };
-    },
-    buildRelations: ({ text, context, relPath, options }) =>
-      buildGoRelations(text, context.goChunks, { relPath, parser: options?.go?.parser, ...options }),
-    extractDocMeta: ({ chunk }) => extractGoDocMeta(chunk),
-    flow: ({ text, chunk, options }) => computeGoFlow(text, chunk, flowOptions(options)),
-    attachName: true
-  },
-  {
-    id: 'java',
-    match: (ext) => isJava(ext),
-    collectImports: (text, options) => collectJavaImports(text, options),
-    prepare: async ({ text, relPath, options }) => {
-      const javaChunks = buildJavaChunks(text, {
-        ...(options && typeof options === 'object' ? options : {}),
-        relPath,
-        parser: options?.java?.parser
-      });
-      return { javaChunks };
-    },
-    buildRelations: ({ text, context, relPath, options }) =>
-      buildJavaRelations(text, context.javaChunks, { relPath, parser: options?.java?.parser, ...options }),
-    extractDocMeta: ({ chunk }) => extractJavaDocMeta(chunk),
-    flow: ({ text, chunk, options }) => computeJavaFlow(text, chunk, flowOptions(options)),
-    attachName: true
-  },
-  {
-    id: 'csharp',
-    match: (ext) => isCSharp(ext),
-    collectImports: (text, options) => collectCSharpImports(text, options),
-    prepare: async ({ text, relPath, options }) => {
-      const csChunks = buildCSharpChunks(text, {
-        ...(options && typeof options === 'object' ? options : {}),
-        relPath,
-        parser: options?.csharp?.parser
-      });
-      return { csChunks };
-    },
-    buildRelations: ({ text, context, relPath, options }) =>
-      buildCSharpRelations(text, context.csChunks, { relPath, parser: options?.csharp?.parser, ...options }),
-    extractDocMeta: ({ chunk }) => extractCSharpDocMeta(chunk),
-    flow: ({ text, chunk, options }) => computeCSharpFlow(text, chunk, flowOptions(options)),
-    attachName: true
-  },
-  {
-    id: 'kotlin',
-    match: (ext) => isKotlin(ext),
-    collectImports: (text, options) => collectKotlinImports(text, options),
-    prepare: async ({ text, relPath, options }) => {
-      const kotlinChunks = buildKotlinChunks(text, {
-        ...(options && typeof options === 'object' ? options : {}),
-        relPath,
-        parser: options?.kotlin?.parser
-      });
-      return { kotlinChunks };
-    },
-    buildRelations: ({ text, context, relPath, options }) =>
-      buildKotlinRelations(text, context.kotlinChunks, { relPath, parser: options?.kotlin?.parser, ...options }),
-    extractDocMeta: ({ chunk, fileRelations }) => extractKotlinDocMeta(chunk, fileRelations),
-    flow: ({ text, chunk, options }) => computeKotlinFlow(text, chunk, flowOptions(options)),
-    attachName: true
-  },
-  {
-    id: 'ruby',
-    match: (ext) => isRuby(ext),
-    collectImports: (text, options) => collectRubyImports(text, options),
-    prepare: async ({ text, relPath, options }) => {
-      const rubyChunks = buildRubyChunks(text, {
-        ...(options && typeof options === 'object' ? options : {}),
-        relPath,
-        parser: options?.ruby?.parser
-      });
-      return { rubyChunks };
-    },
-    buildRelations: ({ text, context, relPath, options }) =>
-      buildRubyRelations(text, context.rubyChunks, { relPath, parser: options?.ruby?.parser, ...options }),
-    extractDocMeta: ({ chunk }) => extractRubyDocMeta(chunk),
-    flow: ({ text, chunk, options }) => computeRubyFlow(text, chunk, flowOptions(options)),
-    attachName: true
-  },
-  {
-    id: 'php',
-    match: (ext) => isPhp(ext),
-    collectImports: (text, options) => collectPhpImports(text, options),
-    prepare: async ({ text, relPath, options }) => {
-      const phpChunks = buildPhpChunks(text, {
-        ...(options && typeof options === 'object' ? options : {}),
-        relPath,
-        parser: options?.php?.parser
-      });
-      return { phpChunks };
-    },
-    buildRelations: ({ text, context, relPath, options }) =>
-      buildPhpRelations(text, context.phpChunks, { relPath, parser: options?.php?.parser, ...options }),
-    extractDocMeta: ({ chunk }) => extractPhpDocMeta(chunk),
-    flow: ({ text, chunk, options }) => computePhpFlow(text, chunk, flowOptions(options)),
-    attachName: true
-  },
-  {
-    id: 'html',
-    match: (ext) => isHtml(ext),
-    collectImports: (text, options) => collectHtmlImports(text, options),
-    prepare: async ({ text, relPath, options }) => {
-      const htmlChunks = buildHtmlChunks(text, {
-        ...(options && typeof options === 'object' ? options : {}),
-        relPath,
-        parser: options?.html?.parser
-      });
-      return { htmlChunks };
-    },
-    buildRelations: ({ text, context, relPath, options }) =>
-      buildHtmlRelations(text, context.htmlChunks, { relPath, parser: options?.html?.parser, ...options }),
-    extractDocMeta: ({ chunk, fileRelations }) => extractHtmlDocMeta(chunk, fileRelations),
-    flow: ({ text, chunk, options }) => computeHtmlFlow(text, chunk, flowOptions(options)),
-    attachName: true,
-    metadata: getHtmlMetadata
-  },
-  {
-    id: 'css',
-    match: (ext) => isCss(ext),
-    collectImports: (text, options) => collectCssImports(text, options),
-    prepare: async ({ text, relPath, options }) => {
-      const cssChunks = buildCssChunks(text, {
-        ...(options && typeof options === 'object' ? options : {}),
-        relPath,
-        parser: options?.css?.parser
-      });
-      return { cssChunks };
-    },
-    buildRelations: ({ text, context, relPath, options }) =>
-      buildCssRelations(text, context.cssChunks, { relPath, parser: options?.css?.parser, ...options }),
-    extractDocMeta: ({ chunk }) => extractCssDocMeta(chunk),
-    flow: ({ text, chunk, options }) => computeCssFlow(text, chunk, flowOptions(options)),
-    attachName: true
-  },
-  {
-    id: 'lua',
-    match: (ext) => isLua(ext),
-    collectImports: (text, options) => collectLuaImports(text, options),
-    prepare: async ({ text, relPath, options }) => {
-      const luaChunks = buildLuaChunks(text, {
-        ...(options && typeof options === 'object' ? options : {}),
-        relPath,
-        parser: options?.lua?.parser
-      });
-      return { luaChunks };
-    },
-    buildRelations: ({ text, context, relPath, options }) =>
-      buildLuaRelations(text, context.luaChunks, { relPath, parser: options?.lua?.parser, ...options }),
-    extractDocMeta: ({ chunk }) => extractLuaDocMeta(chunk),
-    flow: ({ text, chunk, options }) => computeLuaFlow(text, chunk, flowOptions(options)),
-    attachName: true
-  },
-  {
-    id: 'sql',
-    match: (ext) => isSql(ext),
-    collectImports: (text, options) => collectSqlImports(text, options),
-    prepare: async ({ text, relPath, ext, options }) => {
-      const dialect = typeof options?.resolveSqlDialect === 'function'
-        ? options.resolveSqlDialect(ext || path.extname(relPath || ''))
-        : (options?.sql?.dialect || 'generic');
-      const sqlChunks = buildSqlChunks(text, {
-        ...(options && typeof options === 'object' ? options : {}),
-        relPath,
-        parser: options?.sql?.parser,
-        dialect
-      });
-      return { sqlChunks };
-    },
-    buildRelations: ({ text, context, relPath, ext, options }) => {
-      const dialect = typeof options?.resolveSqlDialect === 'function'
-        ? options.resolveSqlDialect(ext || path.extname(relPath || ''))
-        : (options?.sql?.dialect || 'generic');
-      return buildSqlRelations(text, context.sqlChunks, {
-        relPath,
-        parser: options?.sql?.parser,
-        dialect,
-        ...options
-      });
-    },
-    extractDocMeta: ({ chunk }) => extractSqlDocMeta(chunk),
-    flow: ({ text, chunk, options }) => computeSqlFlow(text, chunk, flowOptions(options)),
-    attachName: true
-  },
-  {
-    id: 'perl',
-    match: (ext) => isPerl(ext),
-    collectImports: (text, options) => collectPerlImports(text, options),
-    prepare: async ({ text, relPath, options }) => {
-      const perlChunks = buildPerlChunks(text, {
-        ...(options && typeof options === 'object' ? options : {}),
-        relPath,
-        parser: options?.perl?.parser
-      });
-      return { perlChunks };
-    },
-    buildRelations: ({ text, context, relPath, options }) =>
-      buildPerlRelations(text, context.perlChunks, { relPath, parser: options?.perl?.parser, ...options }),
-    extractDocMeta: ({ chunk }) => extractPerlDocMeta(chunk),
-    flow: ({ text, chunk, options }) => computePerlFlow(text, chunk, flowOptions(options)),
-    attachName: true
-  },
-  {
-    id: 'shell',
-    match: (ext) => isShell(ext),
-    collectImports: (text, options) => collectShellImports(text, options),
-    prepare: async ({ text, relPath, options }) => {
-      const shellChunks = buildShellChunks(text, {
-        ...(options && typeof options === 'object' ? options : {}),
-        relPath,
-        parser: options?.shell?.parser
-      });
-      return { shellChunks };
-    },
-    buildRelations: ({ text, context, relPath, options }) =>
-      buildShellRelations(text, context.shellChunks, { relPath, parser: options?.shell?.parser, ...options }),
-    extractDocMeta: ({ chunk }) => extractShellDocMeta(chunk),
-    flow: ({ text, chunk, options }) => computeShellFlow(text, chunk, flowOptions(options)),
-    attachName: true
-  },
-  {
-    id: 'rust',
-    match: (ext) => ext === '.rs',
-    collectImports: (text, options) => collectRustImports(text, options),
-    prepare: async ({ text, relPath, options }) => {
-      const rustChunks = buildRustChunks(text, {
-        ...(options && typeof options === 'object' ? options : {}),
-        relPath,
-        parser: options?.rust?.parser
-      });
-      return { rustChunks };
-    },
-    buildRelations: ({ text, context, relPath, options }) =>
-      buildRustRelations(text, context.rustChunks, { relPath, parser: options?.rust?.parser, ...options }),
-    extractDocMeta: ({ chunk }) => extractRustDocMeta(chunk),
-    flow: ({ text, chunk, options }) => computeRustFlow(text, chunk, flowOptions(options)),
-    attachName: true
-  },
-  {
-    id: 'swift',
-    match: (ext) => ext === '.swift',
-    collectImports: (text) => collectSwiftImports(text).imports,
-    prepare: async ({ text, relPath, options }) => {
-      const swiftChunks = buildSwiftChunks(text, {
-        ...(options && typeof options === 'object' ? options : {}),
-        relPath,
-        parser: options?.swift?.parser
-      });
-      return { swiftChunks };
-    },
-    buildRelations: ({ text, context, relPath, options }) =>
-      buildSwiftRelations(text, context.swiftChunks, { relPath, parser: options?.swift?.parser, ...options }),
-    extractDocMeta: ({ chunk, context }) => extractSwiftDocMeta(chunk, context),
-    flow: ({ text, chunk, options }) => computeSwiftFlow(text, chunk, flowOptions(options)),
-    attachName: true
-  },
+  ...PARSER_CHUNK_LANGUAGE_ADAPTERS
 ];
 
 export const LANGUAGE_REGISTRY = [
@@ -458,3 +441,4 @@ export const LANGUAGE_REGISTRY = [
   ...buildHeuristicAdapters(),
   ...buildConfigFileAdapters()
 ];
+
