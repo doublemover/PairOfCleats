@@ -82,6 +82,9 @@ if (symlinkCreated) {
 const aliasTargetRoot = path.join(symlinkTempRoot, 'alias-target');
 const aliasRecordsRoot = path.join(aliasTargetRoot, 'records');
 await fs.mkdir(aliasRecordsRoot, { recursive: true });
+const aliasCodeFile = path.join(aliasTargetRoot, 'src', 'alias.js');
+await fs.mkdir(path.dirname(aliasCodeFile), { recursive: true });
+await fs.writeFile(aliasCodeFile, 'export const alias = true;\n', 'utf8');
 const aliasRootLink = path.join(symlinkTempRoot, 'alias-root-link');
 let aliasLinkCreated = false;
 try {
@@ -93,6 +96,17 @@ if (aliasLinkCreated) {
     resolveRecordsRoot(aliasRootLink, aliasRecordsRoot),
     normalizeRoot(aliasRecordsRoot),
     'canonical in-root records path should be accepted even when root is an alias path'
+  );
+  assert.equal(
+    isIndexablePath({
+      absPath: aliasCodeFile,
+      root: aliasRootLink,
+      recordsRoot: aliasRecordsRoot,
+      ignoreMatcher,
+      modes: ['code']
+    }),
+    true,
+    'canonical in-root file should remain indexable when root is an alias path'
   );
 }
 

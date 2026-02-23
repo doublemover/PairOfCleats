@@ -321,7 +321,7 @@ export async function watchIndex({
     if (!isWithinRoot(canonicalAbs, canonicalRoot)) {
       return { skip: true, reason: 'outside-root' };
     }
-    const relPosix = toPosix(path.relative(root, absPath));
+    const relPosix = toPosix(path.relative(canonicalRoot, canonicalAbs));
     if (!relPosix || relPosix === '.' || relPosix.startsWith('..')) {
       return { skip: true, reason: 'outside-root' };
     }

@@ -25,7 +25,7 @@ export const isIndexablePath = ({ absPath, root, recordsRoot, ignoreMatcher, mod
   const canonicalRoot = toRealPathSync(root);
   const canonicalAbs = toRealPathSync(absPath);
   if (!isWithinRoot(canonicalAbs, canonicalRoot)) return false;
-  const relPosix = toPosix(path.relative(root, absPath));
+  const relPosix = toPosix(path.relative(canonicalRoot, canonicalAbs));
   if (!relPosix || relPosix === '.' || relPosix.startsWith('..')) return false;
   const normalizedRecordsRoot = recordsRoot ? toRealPathSync(recordsRoot) : null;
   if (normalizedRecordsRoot) {
