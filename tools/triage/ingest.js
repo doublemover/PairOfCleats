@@ -9,6 +9,7 @@ import { normalizeAwsInspector } from '../../src/integrations/triage/normalize/a
 import { normalizeGeneric } from '../../src/integrations/triage/normalize/generic.js';
 import { renderRecordMarkdown } from '../../src/integrations/triage/render.js';
 import { parseMetaArgs } from '../shared/input-parsers.js';
+import { resolveRecordArtifactPathSafe } from './context-pack-paths.js';
 
 const argv = createCli({
   scriptName: 'triage-ingest',
@@ -69,8 +70,11 @@ for (let index = 0; index < rawEntries.length; index += 1) {
     if (!record || !record.recordId) {
       throw new Error('Record normalization failed or missing recordId');
     }
-    const jsonPath = path.join(triageConfig.recordsDir, `${record.recordId}.json`);
-    const mdPath = path.join(triageConfig.recordsDir, `${record.recordId}.md`);
+    const jsonPath = resolveRecordArtifactPathSafe(triageConfig.recordsDir, record.recordId, '.json');
+    const mdPath = resolveRecordArtifactPathSafe(triageConfig.recordsDir, record.recordId, '.md');
+    if (!jsonPath || !mdPath) {
+      throw new Error(`Invalid recordId path: ${record.recordId}`);
+    }
     await fsPromises.writeFile(jsonPath, JSON.stringify(record, null, 2));
     await fsPromises.writeFile(mdPath, renderRecordMarkdown(record));
     results.recordIds.push(record.recordId);

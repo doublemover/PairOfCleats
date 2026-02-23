@@ -7,6 +7,7 @@ import { buildRecordId } from '../../src/integrations/triage/record-utils.js';
 import { applyRoutingMeta } from '../../src/integrations/triage/normalize/helpers.js';
 import { renderRecordMarkdown } from '../../src/integrations/triage/render.js';
 import { parseMetaArgs } from '../shared/input-parsers.js';
+import { resolveRecordArtifactPathSafe, resolveRecordPathSafe } from './context-pack-paths.js';
 
 const argv = createCli({
   scriptName: 'triage-decision',
@@ -41,7 +42,11 @@ if (!allowedStatuses.has(status)) {
 }
 
 const triageConfig = getTriageConfig(repoRoot, userConfig);
-const findingPath = path.join(triageConfig.recordsDir, `${findingId}.json`);
+const findingPath = resolveRecordPathSafe(triageConfig.recordsDir, findingId);
+if (!findingPath) {
+  console.error(`Invalid finding record id: ${findingId}`);
+  process.exit(1);
+}
 
 let finding;
 try {
@@ -84,8 +89,12 @@ applyRoutingMeta(decisionRecord, meta, repoRoot);
 const stableKey = `${decisionRecord.decision.findingRecordId}:${status}:${createdAt}`;
 decisionRecord.recordId = buildRecordId(decisionRecord.source, stableKey);
 
-const jsonPath = path.join(triageConfig.recordsDir, `${decisionRecord.recordId}.json`);
-const mdPath = path.join(triageConfig.recordsDir, `${decisionRecord.recordId}.md`);
+const jsonPath = resolveRecordArtifactPathSafe(triageConfig.recordsDir, decisionRecord.recordId, '.json');
+const mdPath = resolveRecordArtifactPathSafe(triageConfig.recordsDir, decisionRecord.recordId, '.md');
+if (!jsonPath || !mdPath) {
+  console.error(`Invalid decision record id: ${decisionRecord.recordId}`);
+  process.exit(1);
+}
 await fsPromises.mkdir(triageConfig.recordsDir, { recursive: true });
 await fsPromises.writeFile(jsonPath, JSON.stringify(decisionRecord, null, 2));
 await fsPromises.writeFile(mdPath, renderRecordMarkdown(decisionRecord));
