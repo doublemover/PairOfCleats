@@ -10,6 +10,8 @@
  */
 export const createFileEmbeddingsProcessor = ({
   embeddingBatchSize,
+  embeddingBatchTokenBudget = 0,
+  estimateEmbeddingTokens = null,
   getChunkEmbeddings,
   runBatched,
   assertVectorArrays,
@@ -87,6 +89,8 @@ export const createFileEmbeddingsProcessor = ({
       const computed = await runBatched({
         texts: uniqueTexts,
         batchSize: embeddingBatchSize,
+        maxBatchTokens: embeddingBatchTokenBudget,
+        estimateTokens: estimateEmbeddingTokens,
         embed: (batch) => scheduleCompute(() => getChunkEmbeddings(batch)),
         onBatch: batchObserver
           ? (batchInfo) => {

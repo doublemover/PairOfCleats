@@ -5,7 +5,8 @@ import { resolveAutoEmbeddingBatchSize } from '../../../src/shared/embedding-bat
 import { getEnvConfig } from '../../../src/shared/env.js';
 import { normalizeEmbeddingProvider, normalizeOnnxConfig } from '../../../src/shared/onnx-embeddings.js';
 import { normalizeHnswConfig } from '../../../src/shared/hnsw.js';
-import { getModelConfig, loadUserConfig, resolveIndexRoot, resolveRepoRootArg } from '../../shared/dict-utils.js';
+import { getModelConfig, getRepoCacheRoot, loadUserConfig, resolveIndexRoot, resolveRepoRootArg } from '../../shared/dict-utils.js';
+import { loadEmbeddingsAutoTuneRecommendation } from './autotune-profile.js';
 
 export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
   const resolvedRawArgs = Array.isArray(rawArgs) ? rawArgs : [];
@@ -33,6 +34,15 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
   const embeddingProvider = normalizeEmbeddingProvider(embeddingsConfig.provider, { strict: true });
   const embeddingOnnx = normalizeOnnxConfig(embeddingsConfig.onnx || {});
   const hnswConfig = normalizeHnswConfig(embeddingsConfig.hnsw || {});
+  const modelConfig = getModelConfig(root, userConfig);
+  const modelId = modelConfig.id;
+  const repoCacheRoot = getRepoCacheRoot(root, userConfig);
+  const autoTune = loadEmbeddingsAutoTuneRecommendation({
+    repoCacheRoot,
+    provider: embeddingProvider,
+    modelId,
+    log: null
+  });
 
   const embeddingModeRaw = typeof embeddingsConfig.mode === 'string'
     ? embeddingsConfig.mode.trim().toLowerCase()
@@ -51,7 +61,7 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
 
   const useStubEmbeddings = resolvedEmbeddingMode === 'stub' || baseStubEmbeddings;
 
-  const embeddingBatchRaw = Number(argv.batch ?? indexingConfig.embeddingBatchSize);
+  const embeddingBatchRaw = Number(argv.batch ?? indexingConfig.embeddingBatchSize ?? autoTune?.recommended?.batchSize);
   let embeddingBatchSize = Number.isFinite(embeddingBatchRaw)
     ? Math.max(0, Math.floor(embeddingBatchRaw))
     : 0;
@@ -64,11 +74,28 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
       cpuCount
     });
   }
+  const maxBatchTokensRaw = Number(
+    embeddingsConfig.maxBatchTokens ?? autoTune?.recommended?.maxBatchTokens
+  );
+  const embeddingBatchTokenBudget = Number.isFinite(maxBatchTokensRaw) && maxBatchTokensRaw > 0
+    ? Math.max(1, Math.floor(maxBatchTokensRaw))
+    : Math.max(embeddingBatchSize, embeddingBatchSize * 256);
+  const explicitFileParallelism = Number(embeddingsConfig.fileParallelism);
+  const recommendedFileParallelism = Number(autoTune?.recommended?.fileParallelism);
+  if (
+    (!Number.isFinite(explicitFileParallelism) || explicitFileParallelism <= 0)
+    && Number.isFinite(recommendedFileParallelism)
+    && recommendedFileParallelism > 0
+  ) {
+    indexingConfig.embeddings = {
+      ...(indexingConfig.embeddings || {}),
+      fileParallelism: Math.max(1, Math.floor(recommendedFileParallelism))
+    };
+  }
   const configuredDims = Number.isFinite(Number(argv.dims))
     ? Math.max(1, Math.floor(Number(argv.dims)))
     : null;
 
-  const modelConfig = getModelConfig(root, userConfig);
   const cliIndexRoot = argv['index-root'] ?? argv.indexRoot;
   const indexRoot = cliIndexRoot
     ? path.resolve(cliIndexRoot)
@@ -95,9 +122,10 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
     resolvedEmbeddingMode,
     useStubEmbeddings,
     embeddingBatchSize,
+    embeddingBatchTokenBudget,
     configuredDims,
     modelConfig,
-    modelId: modelConfig.id,
+    modelId,
     modelsDir: modelConfig.dir || null,
     indexRoot,
     modes

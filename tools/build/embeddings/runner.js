@@ -69,6 +69,11 @@ import {
   writeCacheEntry,
   writeCacheMeta
 } from './cache.js';
+import { createPersistentEmbeddingTextKvStore } from './text-kv-cache.js';
+import {
+  deriveEmbeddingsAutoTuneRecommendation,
+  writeEmbeddingsAutoTuneRecommendation
+} from './autotune-profile.js';
 import { flushCacheIndexIfNeeded } from './cache-flush.js';
 import { buildChunkSignature, buildChunksFromBundles } from './chunks.js';
 import {
@@ -119,6 +124,9 @@ const DEFAULT_EMBEDDINGS_SOURCE_HASH_CACHE_MAX_ENTRIES = 200000;
 const DEFAULT_EMBEDDINGS_CHUNK_META_RETRY_CEILING_BYTES = 1024 * 1024 * 1024;
 const DEFAULT_EMBEDDINGS_TEXT_REUSE_CACHE_ENTRIES = 20000;
 const DEFAULT_EMBEDDINGS_TEXT_REUSE_MAX_TEXT_CHARS = 4096;
+const DEFAULT_EMBEDDINGS_PERSISTENT_TEXT_CACHE_MAX_ENTRIES = 500000;
+const DEFAULT_EMBEDDINGS_BATCH_TOKEN_MULTIPLIER = 256;
+const DEFAULT_EMBEDDINGS_CHARS_PER_TOKEN = 4;
 
 let Database = null;
 try {
@@ -690,6 +698,41 @@ const resolveEmbeddingsTextReuseMaxTextChars = (indexingConfig) => {
   return DEFAULT_EMBEDDINGS_TEXT_REUSE_MAX_TEXT_CHARS;
 };
 
+const resolveEmbeddingsPersistentTextCacheEnabled = (indexingConfig) => (
+  indexingConfig?.embeddings?.persistentTextCache !== false
+);
+
+const resolveEmbeddingsPersistentTextCacheMaxEntries = (indexingConfig) => {
+  const configured = Number(indexingConfig?.embeddings?.persistentTextCacheMaxEntries);
+  if (Number.isFinite(configured) && configured > 0) {
+    return Math.max(1, Math.floor(configured));
+  }
+  return DEFAULT_EMBEDDINGS_PERSISTENT_TEXT_CACHE_MAX_ENTRIES;
+};
+
+const resolveEmbeddingsBatchTokenBudget = ({ indexingConfig, embeddingBatchSize }) => {
+  const explicit = Number(indexingConfig?.embeddings?.maxBatchTokens);
+  if (Number.isFinite(explicit) && explicit > 0) {
+    return Math.max(1, Math.floor(explicit));
+  }
+  const multiplierRaw = Number(indexingConfig?.embeddings?.batchTokenMultiplier);
+  const multiplier = Number.isFinite(multiplierRaw) && multiplierRaw > 0
+    ? Math.max(1, Math.floor(multiplierRaw))
+    : DEFAULT_EMBEDDINGS_BATCH_TOKEN_MULTIPLIER;
+  const batchSize = Number.isFinite(Number(embeddingBatchSize)) && Number(embeddingBatchSize) > 0
+    ? Math.max(1, Math.floor(Number(embeddingBatchSize)))
+    : 1;
+  return Math.max(batchSize, batchSize * multiplier);
+};
+
+const resolveEmbeddingsCharsPerToken = (indexingConfig) => {
+  const configured = Number(indexingConfig?.embeddings?.charsPerToken);
+  if (Number.isFinite(configured) && configured > 0) {
+    return Math.max(1, Math.floor(configured));
+  }
+  return DEFAULT_EMBEDDINGS_CHARS_PER_TOKEN;
+};
+
 /**
  * Create a bounded in-memory text->vector reuse cache for stage3 embedding.
  *
@@ -697,49 +740,76 @@ const resolveEmbeddingsTextReuseMaxTextChars = (indexingConfig) => {
  * values are model output vectors. This is deterministic and only affects
  * throughput: cache hits skip model calls while preserving payload order.
  *
- * @param {{maxEntries:number,maxTextChars:number}} input
+ * @param {{maxEntries:number,maxTextChars:number,persistentStore?:object|null}} input
  * @returns {{
  *   canCache:(text:unknown)=>boolean,
- *   get:(text:unknown)=>ArrayLike<number>|null,
- *   set:(text:unknown,vector:unknown)=>boolean,
- *   size:()=>number,
+  *   get:(text:unknown)=>ArrayLike<number>|null,
+  *   set:(text:unknown,vector:unknown)=>boolean,
+  *   size:()=>number,
  *   stats:()=>object
  * }|null}
  */
-const createEmbeddingTextReuseCache = ({ maxEntries, maxTextChars }) => {
+const createEmbeddingTextReuseCache = ({ maxEntries, maxTextChars, persistentStore = null }) => {
   const entries = Number.isFinite(Number(maxEntries))
     ? Math.max(0, Math.floor(Number(maxEntries)))
     : 0;
-  if (!entries) return null;
+  const persistent = persistentStore
+    && typeof persistentStore.get === 'function'
+    && typeof persistentStore.set === 'function'
+    ? persistentStore
+    : null;
+  if (!entries && !persistent) return null;
   const textLimit = Number.isFinite(Number(maxTextChars)) && Number(maxTextChars) > 0
     ? Math.max(64, Math.floor(Number(maxTextChars)))
     : DEFAULT_EMBEDDINGS_TEXT_REUSE_MAX_TEXT_CHARS;
   const cache = createLruCache({
     name: 'embeddings-text-reuse',
-    maxEntries: entries
+    maxEntries: entries > 0 ? entries : 1
   });
   const isVectorLike = (value) => (
     Array.isArray(value)
     || (ArrayBuffer.isView(value) && !(value instanceof DataView))
   );
   const canCache = (text) => typeof text === 'string' && text.length <= textLimit;
+  const counters = {
+    persistentHits: 0,
+    persistentMisses: 0,
+    persistentWrites: 0
+  };
   return {
     canCache,
     get(text) {
       if (!canCache(text)) return null;
-      return cache.get(text);
+      const local = entries > 0 ? cache.get(text) : null;
+      if (isVectorLike(local) && local.length) return local;
+      if (!persistent) return null;
+      const persisted = persistent.get(text);
+      if (isVectorLike(persisted) && persisted.length) {
+        counters.persistentHits += 1;
+        if (entries > 0) cache.set(text, persisted);
+        return persisted;
+      }
+      counters.persistentMisses += 1;
+      return null;
     },
     set(text, vector) {
       if (!canCache(text)) return false;
       if (!isVectorLike(vector) || !vector.length) return false;
-      cache.set(text, vector);
+      if (entries > 0) {
+        cache.set(text, vector);
+      }
+      if (persistent && persistent.set(text, vector)) {
+        counters.persistentWrites += 1;
+      }
       return true;
     },
-    size: () => cache.size(),
+    size: () => (entries > 0 ? cache.size() : 0),
     stats: () => ({
-      ...cache.stats,
-      size: cache.size(),
-      maxTextChars: textLimit
+      ...(entries > 0 ? cache.stats : {}),
+      ...counters,
+      size: entries > 0 ? cache.size() : 0,
+      maxTextChars: textLimit,
+      persistent: persistent?.stats?.() || null
     })
   };
 };
@@ -1274,6 +1344,7 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
  *   resolvedEmbeddingMode:string,
  *   useStubEmbeddings:boolean,
  *   embeddingBatchSize:number,
+ *   embeddingBatchTokenBudget?:number,
  *   configuredDims:number|null,
  *   modelId:string|null,
  *   modelsDir:string|null,
@@ -1298,6 +1369,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
     resolvedEmbeddingMode,
     useStubEmbeddings,
     embeddingBatchSize,
+    embeddingBatchTokenBudget: configuredEmbeddingBatchTokenBudget = null,
     configuredDims,
     modelId,
     modelsDir,
@@ -1845,6 +1917,24 @@ export async function runBuildEmbeddingsWithConfig(config) {
   const cacheMaxAgeDays = Number(embeddingsConfig.cache?.maxAgeDays);
   const cacheMaxBytes = Number.isFinite(cacheMaxGb) ? Math.max(0, cacheMaxGb) * 1024 * 1024 * 1024 : 0;
   const cacheMaxAgeMs = Number.isFinite(cacheMaxAgeDays) ? Math.max(0, cacheMaxAgeDays) * 24 * 60 * 60 * 1000 : 0;
+  const persistentTextCacheEnabled = resolveEmbeddingsPersistentTextCacheEnabled(indexingConfig);
+  const persistentTextCacheMaxEntries = resolveEmbeddingsPersistentTextCacheMaxEntries(indexingConfig);
+  const persistentTextCacheStore = persistentTextCacheEnabled
+    ? await createPersistentEmbeddingTextKvStore({
+      Database,
+      cacheRoot,
+      cacheIdentity,
+      cacheIdentityKey,
+      maxEntries: persistentTextCacheMaxEntries,
+      log
+    })
+    : null;
+  if (persistentTextCacheStore) {
+    log(
+      `[embeddings] persistent text cache enabled ` +
+      `(maxEntries=${persistentTextCacheMaxEntries}).`
+    );
+  }
   const maintenanceConfig = normalizeEmbeddingsMaintenanceConfig(embeddingsConfig.maintenance || {});
   const queuedMaintenance = new Set();
   /**
@@ -2422,11 +2512,24 @@ export async function runBuildEmbeddingsWithConfig(config) {
         const backendParallelDispatch = getChunkEmbeddings?.supportsParallelDispatch === true;
         const parallelBatchDispatch = backendParallelDispatch && computeTokensTotal > 1;
         const mergeCodeDocBatches = indexingConfig?.embeddings?.mergeCodeDocBatches !== false;
+        const embeddingBatchTokenBudget = Number.isFinite(Number(configuredEmbeddingBatchTokenBudget))
+          && Number(configuredEmbeddingBatchTokenBudget) > 0
+          ? Math.max(1, Math.floor(Number(configuredEmbeddingBatchTokenBudget)))
+          : resolveEmbeddingsBatchTokenBudget({
+            indexingConfig,
+            embeddingBatchSize
+          });
+        const embeddingCharsPerToken = resolveEmbeddingsCharsPerToken(indexingConfig);
+        const estimateEmbeddingTokens = (text) => {
+          const chars = typeof text === 'string' ? text.length : 0;
+          return Math.max(1, Math.ceil(chars / embeddingCharsPerToken));
+        };
         const textReuseCacheEntries = resolveEmbeddingsTextReuseCacheEntries(indexingConfig);
         const textReuseMaxTextChars = resolveEmbeddingsTextReuseMaxTextChars(indexingConfig);
         const embeddingTextCache = createEmbeddingTextReuseCache({
           maxEntries: textReuseCacheEntries,
-          maxTextChars: textReuseMaxTextChars
+          maxTextChars: textReuseMaxTextChars,
+          persistentStore: persistentTextCacheStore
         });
         if (fileParallelism > 1) {
           log(`[embeddings] ${mode}: file parallelism enabled (${fileParallelism} workers).`);
@@ -2437,6 +2540,10 @@ export async function runBuildEmbeddingsWithConfig(config) {
             `(${textReuseCacheEntries} entries, <=${textReuseMaxTextChars} chars).`
           );
         }
+        log(
+          `[embeddings] ${mode}: token-aware batching enabled ` +
+          `(budget=${embeddingBatchTokenBudget} est=${embeddingCharsPerToken} chars/token).`
+        );
         const defaultWriterMaxPending = Math.max(1, Math.min(4, ioTokensTotal * 2));
         const writerMaxPending = schedulerIoMaxPending
           ? Math.max(1, Math.min(defaultWriterMaxPending, schedulerIoMaxPending))
@@ -2490,6 +2597,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
         let embeddingTextsResolved = 0;
         let embeddingTextsEmbedded = 0;
         let embeddingBatchesCompleted = 0;
+        let embeddingBatchTokensProcessed = 0;
         let embeddingBatchComputeMs = 0;
         let embeddingTextCacheHits = 0;
         let embeddingTextCacheMisses = 0;
@@ -2590,6 +2698,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
                 `${embeddingTextsEmbedded} embedded`,
                 `reuse ${embeddingTextReuseHits} (${embeddingTextReuseRate.toFixed(1)}%)`,
                 `${embeddingBatchesCompleted} batches`,
+                `${embeddingBatchTokensProcessed} tokens`,
                 `${embeddingTextsPerSec.toFixed(1)} resolved/s`,
                 `eta ${formatEta(embedEtaSeconds)}`,
                 `compute ${Math.max(0, Math.round(embeddingBatchComputeMs))}ms`,
@@ -2770,6 +2879,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
 
         const computeFileEmbeddings = createFileEmbeddingsProcessor({
           embeddingBatchSize,
+          embeddingBatchTokenBudget,
+          estimateEmbeddingTokens,
           getChunkEmbeddings,
           runBatched,
           assertVectorArrays,
@@ -2779,8 +2890,9 @@ export async function runBuildEmbeddingsWithConfig(config) {
           parallelDispatch: parallelBatchDispatch,
           mergeCodeDocBatches,
           embeddingTextCache,
-          onEmbeddingBatch: ({ durationMs }) => {
+          onEmbeddingBatch: ({ durationMs, batchTokens }) => {
             embeddingBatchesCompleted += 1;
+            embeddingBatchTokensProcessed += Math.max(0, Math.floor(Number(batchTokens) || 0));
             embeddingBatchComputeMs += Math.max(0, Number(durationMs) || 0);
           },
           onEmbeddingUsage: ({ requested, embedded, cacheHits, cacheMisses, batchDedupHits }) => {
@@ -3693,6 +3805,45 @@ export async function runBuildEmbeddingsWithConfig(config) {
             .join(', ');
           warn(`[embeddings] scheduler starvation events: ${starvationCount}${starvedQueues ? ` (${starvedQueues})` : ''}`);
         }
+        {
+          const computeQueue = schedulerStats?.queues?.[SCHEDULER_QUEUE_NAMES.embeddingsCompute] || {};
+          const computeQueuePressure = (() => {
+            const pending = Math.max(0, Number(computeQueue.pending) || 0);
+            const maxPending = Math.max(1, Number(computeQueue.maxPending) || 1);
+            return Math.max(0, Math.min(1, pending / maxPending));
+          })();
+          const reuseRate = embeddingTextsResolved > 0
+            ? (embeddingTextCacheHits + embeddingTextBatchDedupHits) / embeddingTextsResolved
+            : 0;
+          const observed = {
+            mode,
+            textsResolved: embeddingTextsResolved,
+            textsEmbedded: embeddingTextsEmbedded,
+            reuseRate,
+            batches: embeddingBatchesCompleted,
+            batchComputeMs: embeddingBatchComputeMs,
+            tokensProcessed: embeddingBatchTokensProcessed,
+            computeQueuePressure
+          };
+          const recommendation = deriveEmbeddingsAutoTuneRecommendation({
+            observed,
+            current: {
+              batchSize: embeddingBatchSize,
+              maxBatchTokens: embeddingBatchTokenBudget,
+              fileParallelism
+            }
+          });
+          if (recommendation) {
+            await writeEmbeddingsAutoTuneRecommendation({
+              repoCacheRoot,
+              provider: runtimeEmbeddingProvider,
+              modelId,
+              recommended: recommendation,
+              observed,
+              log
+            });
+          }
+        }
         backendTask.done({ message: 'backend outputs ready' });
         finishMode(`built ${mode}`);
       } catch (err) {
@@ -3753,6 +3904,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
     });
     throw err;
   } finally {
+    await persistentTextCacheStore?.close?.();
     scheduler?.shutdown?.();
     finalize();
   }
