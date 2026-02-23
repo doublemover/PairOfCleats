@@ -7,6 +7,7 @@ import { compareWithAntisymmetryInvariant } from '../../shared/invariants.js';
 import { createJsonWriteStream, writeChunk } from '../../shared/json-stream/streams.js';
 import { stringifyJsonValue, writeJsonValue } from '../../shared/json-stream/encode.js';
 import { writeJsonLinesFile } from '../../shared/json-stream.js';
+import { removePathWithRetry } from '../../shared/io/remove-path-with-retry.js';
 
 export const readJsonOptional = (filePath, warnings) => {
   try {
@@ -196,7 +197,21 @@ export const createSpillSorter = ({ label, compare, maxInMemory = 5000, tempDir 
     },
     async cleanup() {
       if (!runs.length) return;
-      await Promise.all(runs.map((runPath) => fsPromises.rm(runPath, { force: true })));
+      for (const runPath of runs) {
+        const removeResult = await removePathWithRetry(runPath, {
+          recursive: false,
+          force: true,
+          attempts: 10,
+          baseDelayMs: 20,
+          maxDelayMs: 300
+        });
+        if (!removeResult.ok) {
+          const codeSuffix = removeResult.error?.code ? ` (${removeResult.error.code})` : '';
+          throw new Error(
+            `Failed to remove spill run ${runPath}${codeSuffix}: ${removeResult.error?.message || 'unknown error'}`
+          );
+        }
+      }
     },
     get total() {
       return total;

@@ -445,6 +445,7 @@ shared/runtime/uv-threadpool-no-override
 indexing/vfs/vfs-manifest-collector-isolation
 indexing/relations/ts-call-details-tsx
 map/build-map/temp-cleanup-on-failure
+map/build-map/spill-cleanup-retries
 storage/sqlite/sqlite-dense-meta-fallback
 retrieval/pipeline/query-cache-hit
 shared/artifact-io/loader-fallbacks
