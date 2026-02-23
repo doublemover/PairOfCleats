@@ -4,6 +4,7 @@ import { MAX_JSON_BYTES } from '../constants.js';
 import { existsOrBak, resolvePathOrBak } from '../fs.js';
 import { decodeBinaryRowFrameLengths, decodeU64Offsets } from '../binary-columnar.js';
 import { decodeVarint64List } from '../varint.js';
+import { joinPathSafe } from '../../path-normalize.js';
 import { readJsonFileCached } from './shared.js';
 
 const SUPPORTED_BINARY_COLUMNAR_FORMAT = 'binary-columnar-v1';
@@ -85,6 +86,17 @@ const resolveBinaryColumnarFrameMetadata = ({
     offsets,
     lengths
   };
+};
+
+const resolveSafeLayoutPath = (dir, candidate, fallback, label) => {
+  const relPath = typeof candidate === 'string' && candidate.length > 0
+    ? candidate
+    : fallback;
+  const resolved = joinPathSafe(dir, [relPath]);
+  if (!resolved) {
+    throw new Error(`Invalid ${label} path: ${String(relPath)}`);
+  }
+  return resolved;
 };
 
 /**
@@ -240,14 +252,23 @@ const resolveChunkMetaBinaryColumnarLayout = (dir, { maxBytes = MAX_JSON_BYTES }
   const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
   const fileTable = Array.isArray(metaRaw?.arrays?.fileTable) ? metaRaw.arrays.fileTable : [];
   const count = Number.isFinite(Number(meta?.count)) ? Math.max(0, Math.floor(Number(meta.count))) : 0;
-  const dataPath = path.join(dir, typeof meta?.data === 'string' ? meta.data : 'chunk_meta.binary-columnar.bin');
-  const offsetsPath = path.join(
+  const dataPath = resolveSafeLayoutPath(
     dir,
-    typeof meta?.offsets === 'string' ? meta.offsets : 'chunk_meta.binary-columnar.offsets.bin'
+    meta?.data,
+    'chunk_meta.binary-columnar.bin',
+    'chunk_meta binary-columnar data'
   );
-  const lengthsPath = path.join(
+  const offsetsPath = resolveSafeLayoutPath(
     dir,
-    typeof meta?.lengths === 'string' ? meta.lengths : 'chunk_meta.binary-columnar.lengths.varint'
+    meta?.offsets,
+    'chunk_meta.binary-columnar.offsets.bin',
+    'chunk_meta binary-columnar offsets'
+  );
+  const lengthsPath = resolveSafeLayoutPath(
+    dir,
+    meta?.lengths,
+    'chunk_meta.binary-columnar.lengths.varint',
+    'chunk_meta binary-columnar lengths'
   );
   return {
     count,
@@ -366,14 +387,23 @@ const tryLoadTokenPostingsBinaryColumnar = (
   const vocabIds = Array.isArray(arrays.vocabIds) ? arrays.vocabIds : [];
   if (count > 0 && vocab.length === 0) return null;
   if (vocabIds.length > 0 && vocabIds.length !== vocab.length) return null;
-  const dataPath = path.join(dir, typeof meta?.data === 'string' ? meta.data : 'token_postings.binary-columnar.bin');
-  const offsetsPath = path.join(
+  const dataPath = resolveSafeLayoutPath(
     dir,
-    typeof meta?.offsets === 'string' ? meta.offsets : 'token_postings.binary-columnar.offsets.bin'
+    meta?.data,
+    'token_postings.binary-columnar.bin',
+    'token_postings binary-columnar data'
   );
-  const lengthsPath = path.join(
+  const offsetsPath = resolveSafeLayoutPath(
     dir,
-    typeof meta?.lengths === 'string' ? meta.lengths : 'token_postings.binary-columnar.lengths.varint'
+    meta?.offsets,
+    'token_postings.binary-columnar.offsets.bin',
+    'token_postings binary-columnar offsets'
+  );
+  const lengthsPath = resolveSafeLayoutPath(
+    dir,
+    meta?.lengths,
+    'token_postings.binary-columnar.lengths.varint',
+    'token_postings binary-columnar lengths'
   );
   const payloads = loadBinaryColumnarRowPayloads({
     dataPath,
