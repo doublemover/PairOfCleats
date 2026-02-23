@@ -402,6 +402,31 @@ export const runEmbeddingsStage = async ({
   }
 };
 
+export const buildStage2ExecutionPlan = (modes = []) => {
+  const normalized = Array.isArray(modes) ? modes.filter((mode) => typeof mode === 'string' && mode) : [];
+  const hasProsePair = normalized.includes('prose') && normalized.includes('extracted-prose');
+  const executionPlan = [];
+  let prosePairScheduled = false;
+  for (const modeItem of normalized) {
+    if (hasProsePair && (modeItem === 'prose' || modeItem === 'extracted-prose')) {
+      if (prosePairScheduled) continue;
+      executionPlan.push({
+        id: 'prose+extracted-prose',
+        modes: ['prose', 'extracted-prose'],
+        fusedProsePair: true
+      });
+      prosePairScheduled = true;
+      continue;
+    }
+    executionPlan.push({
+      id: modeItem,
+      modes: [modeItem],
+      fusedProsePair: false
+    });
+  }
+  return executionPlan;
+};
+
 /**
  * Execute SQLite materialization stage and optional promotion.
  *
@@ -570,10 +595,14 @@ export const runSqliteStage = async ({
  *
  * @param {'stage2'|'stage3'|'stage4'|null} stage
  * @param {object} context
- * @param {{allowSqlite?:boolean}} [options]
+ * @param {{allowSqlite?:boolean,onStage2ModeCompleted?:(input:{mode:string,runtime:object,discovery:object|null})=>Promise<object|null>|object|null}} [options]
  * @returns {Promise<object>}
  */
-export const runStage = async (stage, context, { allowSqlite = true } = {}) => {
+export const runStage = async (
+  stage,
+  context,
+  { allowSqlite = true, onStage2ModeCompleted = null } = {}
+) => {
   const {
     root,
     argv,
@@ -700,11 +729,36 @@ export const runStage = async (stage, context, { allowSqlite = true } = {}) => {
       await markBuildPhase(runtime.buildRoot, 'discovery', 'done');
       await markBuildPhase(runtime.buildRoot, phaseStage, 'running');
       phaseRunning = true;
-      for (const modeItem of modes) {
-        throwIfAborted(abortSignal);
-        const discovery = sharedDiscovery ? sharedDiscovery[modeItem] : null;
-        await buildIndexForMode({ mode: modeItem, runtime, discovery, abortSignal });
+      const executionPlan = phaseStage === 'stage2'
+        ? buildStage2ExecutionPlan(modes)
+        : modes.map((modeItem) => ({
+          id: modeItem,
+          modes: [modeItem],
+          fusedProsePair: false
+        }));
+      executionPlanLoop:
+      for (const group of executionPlan) {
+        runtime.activeModeGroup = group;
+        if (group.fusedProsePair) {
+          log('[stage2] fused prose/extracted-prose mode group active.');
+        }
+        for (const modeItem of group.modes) {
+          throwIfAborted(abortSignal);
+          const discovery = sharedDiscovery ? sharedDiscovery[modeItem] : null;
+          await buildIndexForMode({ mode: modeItem, runtime, discovery, abortSignal });
+          if (phaseStage === 'stage2' && typeof onStage2ModeCompleted === 'function') {
+            const callbackResult = await Promise.resolve(onStage2ModeCompleted({
+              mode: modeItem,
+              runtime,
+              discovery
+            }));
+            if (callbackResult?.cancelled === true) {
+              break executionPlanLoop;
+            }
+          }
+        }
       }
+      runtime.activeModeGroup = null;
       if (runtime.featureMetrics) {
         await writeFeatureMetrics({
           metricsDir: getMetricsDir(runtime.root, runtime.userConfig),

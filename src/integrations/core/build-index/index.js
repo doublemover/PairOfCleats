@@ -30,6 +30,29 @@ import { runEmbeddingsStage, runSqliteStage, runStage } from './stages.js';
 const toolRoot = resolveToolRoot();
 const buildEmbeddingsPath = path.join(toolRoot, 'tools', 'build/embeddings.js');
 
+export const buildStreamedStage3Result = ({
+  embedModes,
+  streamedEmbeddingsByMode,
+  streamedCancelled,
+  repo
+}) => ({
+  modes: Array.isArray(embedModes) ? embedModes : [],
+  embeddings: {
+    queued: false,
+    inline: true,
+    streamedFromStage2: true,
+    cancelled: streamedCancelled === true,
+    perMode: Array.isArray(streamedEmbeddingsByMode)
+      ? streamedEmbeddingsByMode.map((entry) => ({
+        mode: entry?.mode || null,
+        embeddings: entry?.result?.embeddings || null
+      }))
+      : []
+  },
+  repo,
+  stage: 'stage3'
+});
+
 /**
  * Build file-backed indexes for a repo.
  * @param {string} repoRoot
@@ -184,23 +207,62 @@ export async function buildIndex(repoRoot, options = {}) {
   }
 
   if (!twoStageEnabled) {
-    const stage2Result = await runStage('stage2', stageContext, { allowSqlite: false });
-    const stage3Result = await runEmbeddingsStage({
-      root,
-      argv,
-      embedModes,
-      embeddingRuntime,
-      userConfig,
-      indexRoot: stage2Result?.buildRoot || null,
-      includeEmbeddings,
-      overallProgressRef,
-      log,
-      abortSignal,
-      repoCacheRoot,
-      runtimeEnv,
-      recordIndexMetric,
-      buildEmbeddingsPath
+    const streamedEmbeddingsByMode = [];
+    let streamedCancelled = false;
+    const stage2Result = await runStage('stage2', stageContext, {
+      allowSqlite: false,
+      onStage2ModeCompleted: async ({ mode: modeItem, runtime }) => {
+        if (!includeEmbeddings || !embedModes.includes(modeItem)) return null;
+        const modeEmbedResult = await runEmbeddingsStage({
+          root,
+          argv,
+          embedModes: [modeItem],
+          embeddingRuntime,
+          userConfig,
+          indexRoot: runtime?.buildRoot || null,
+          includeEmbeddings,
+          overallProgressRef,
+          log,
+          abortSignal,
+          repoCacheRoot,
+          runtimeEnv,
+          recordIndexMetric,
+          buildEmbeddingsPath
+        });
+        streamedEmbeddingsByMode.push({
+          mode: modeItem,
+          result: modeEmbedResult
+        });
+        if (modeEmbedResult?.embeddings?.cancelled) {
+          streamedCancelled = true;
+          return { cancelled: true };
+        }
+        return null;
+      }
     });
+    const stage3Result = includeEmbeddings
+      ? buildStreamedStage3Result({
+        embedModes,
+        streamedEmbeddingsByMode,
+        streamedCancelled,
+        repo: root
+      })
+      : await runEmbeddingsStage({
+        root,
+        argv,
+        embedModes,
+        embeddingRuntime,
+        userConfig,
+        indexRoot: stage2Result?.buildRoot || null,
+        includeEmbeddings,
+        overallProgressRef,
+        log,
+        abortSignal,
+        repoCacheRoot,
+        runtimeEnv,
+        recordIndexMetric,
+        buildEmbeddingsPath
+      });
     if (stage3Result?.embeddings?.cancelled) {
       return { modes, stage2: stage2Result, stage3: stage3Result, repo: root };
     }
