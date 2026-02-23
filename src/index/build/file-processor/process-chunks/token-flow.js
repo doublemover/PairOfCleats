@@ -1,4 +1,3 @@
-import util from 'node:util';
 import { analyzeComplexity, lintChunk } from '../../../analysis.js';
 import { getChunkAuthorsFromLines } from '../../../scm/annotate.js';
 import { isJsLike } from '../../../constants.js';
@@ -7,14 +6,11 @@ import {
   resolveChunkBoilerplateMatch
 } from '../../../boilerplate.js';
 import {
-  classifyTokenBuckets,
-  createTokenizationBuffers,
-  tokenizeChunkText
+  createTokenizationBuffers
 } from '../../tokenization.js';
 import { assignCommentsToChunks } from '../chunk.js';
 import { buildChunkPayload } from '../assemble.js';
 import { attachEmbeddings } from '../embeddings.js';
-import { formatError } from '../meta.js';
 import { createLineReader, stripCommentText } from '../utils.js';
 import { resolveSegmentTokenMode } from '../../../segments/config.js';
 import { attachCallDetailsByChunkIndex } from './dedupe.js';
@@ -33,7 +29,7 @@ import { createLintChunkResolver } from './token-flow/lint-resolver.js';
 import { normalizeChunkDocmeta } from './token-flow/normalization.js';
 import { resolveParserFallbackProfile } from './token-flow/parser-profile.js';
 import { createTokenFlowCaches } from './token-flow/cache.js';
-import { applyTokenClassification, createDisabledTokenPayload } from './token-flow/token-assembly.js';
+import { createChunkTokenizer } from './token-flow/chunk-tokenizer.js';
 
 export { canUseLineTokenStreamSlice } from './token-flow/parser-profile.js';
 
@@ -373,6 +369,26 @@ export const processChunks = async (context) => {
     ? await detectBoilerplateCommentBlocks({ text })
     : [];
   const hasFileBoilerplateBlocks = fileBoilerplateBlocks.length > 0;
+  const tokenizeChunkForFile = createChunkTokenizer({
+    effectiveTokenizeEnabled,
+    runTokenize,
+    workerState,
+    log,
+    crashLogger,
+    relKey,
+    fileSize,
+    fileLanguageId,
+    lang,
+    workerDictOverride,
+    parserMode,
+    parserReasonCode: parserFallbackProfile.reasonCode,
+    addTokenizeDuration,
+    addSettingMetric,
+    updateCrashStage,
+    dictConfig,
+    fileTokenContext,
+    tokenBuffers
+  });
 
   for (let ci = 0; ci < chunkCount; ++ci) {
     const c = chunksForProcessing[ci];
@@ -514,7 +530,6 @@ export const processChunks = async (context) => {
       tokenText = stripCommentText(ctext, c.start, assignedRanges);
     }
 
-    let tokenPayload = null;
     const pretokenized = tokenFlowCaches.resolvePretokenizedChunk({
       effectiveTokenizeEnabled,
       tokenText,
@@ -528,169 +543,16 @@ export const processChunks = async (context) => {
       effectiveExt,
       dictWordsForChunk
     });
-    let usedWorkerTokenize = false;
-    if (effectiveTokenizeEnabled && runTokenize && !pretokenized) {
-      try {
-        const tokenStart = Date.now();
-        updateCrashStage('tokenize-worker', {
-          chunkIndex: ci,
-          chunkMode,
-          chunkLanguageId: chunkLanguageId || null,
-          parserMode,
-          parserReasonCode: parserFallbackProfile.reasonCode
-        });
-        tokenPayload = await runTokenize({
-          text: tokenText,
-          mode: chunkMode,
-          ext: effectiveExt,
-          languageId: chunkLanguageId,
-          file: relKey,
-          size: fileSize,
-          // chargramTokens is intentionally omitted (see note above).
-          ...(workerDictOverride ? { dictConfig: workerDictOverride } : {})
-        });
-        updateCrashStage('tokenize-worker:done', {
-          chunkIndex: ci,
-          chunkMode,
-          chunkLanguageId: chunkLanguageId || null,
-          parserMode,
-          parserReasonCode: parserFallbackProfile.reasonCode,
-          hasPayload: Boolean(tokenPayload),
-          tokenCount: Array.isArray(tokenPayload?.tokens) ? tokenPayload.tokens.length : 0
-        });
-        const tokenDurationMs = Date.now() - tokenStart;
-        addTokenizeDuration(tokenDurationMs);
-        if (tokenPayload) {
-          usedWorkerTokenize = true;
-          addSettingMetric('tokenize', chunkLanguageId, chunkLineCount, tokenDurationMs);
-        }
-      } catch (err) {
-        if (!workerState.workerTokenizeFailed) {
-          const message = formatError(err);
-          const detail = err?.stack || err?.cause || null;
-          log(`Worker tokenization failed; falling back to main thread. ${message}`);
-          if (detail) log(`Worker tokenization detail: ${detail}`);
-          workerState.workerTokenizeFailed = true;
-        }
-        workerState.tokenWorkerDisabled = true;
-        if (crashLogger?.enabled) {
-          crashLogger.logError({
-            phase: 'worker-tokenize',
-            file: relKey,
-            size: fileSize || null,
-            languageId: fileLanguageId || lang?.id || null,
-            message: formatError(err),
-            stack: err?.stack || null,
-            raw: util.inspect(err, {
-              depth: 5,
-              breakLength: 120,
-              showHidden: true,
-              getters: true
-            }),
-            ownProps: err && typeof err === 'object'
-              ? Object.getOwnPropertyNames(err)
-              : [],
-            ownSymbols: err && typeof err === 'object'
-              ? Object.getOwnPropertySymbols(err).map((sym) => sym.toString())
-              : []
-          });
-        }
-      }
-    }
-    if (effectiveTokenizeEnabled && !tokenPayload) {
-      const tokenStart = Date.now();
-      updateCrashStage('tokenize', {
-        chunkIndex: ci,
-        chunkMode,
-        chunkLanguageId: chunkLanguageId || null,
-        parserMode,
-        parserReasonCode: parserFallbackProfile.reasonCode
-      });
-      tokenPayload = tokenizeChunkText({
-        text: tokenText,
-        mode: chunkMode,
-        ext: effectiveExt,
-        context: fileTokenContext,
-        languageId: chunkLanguageId,
-        pretokenized,
-        // chargramTokens is intentionally omitted (see note above).
-        buffers: tokenBuffers
-      });
-      const tokenDurationMs = Date.now() - tokenStart;
-      addTokenizeDuration(tokenDurationMs);
-      addSettingMetric('tokenize', chunkLanguageId, chunkLineCount, tokenDurationMs);
-    }
-    if (!effectiveTokenizeEnabled) {
-      tokenPayload = createDisabledTokenPayload();
-    }
-
-    const tokenClassificationEnabled = effectiveTokenizeEnabled
-      && fileTokenContext?.tokenClassification?.enabled === true
-      && chunkMode === 'code';
-    if (tokenClassificationEnabled && usedWorkerTokenize) {
-      // Tokenization workers intentionally do not run tree-sitter classification to avoid
-      // multiplying parser/grammar memory across --threads. Attach buckets here using the
-      // main thread tree-sitter runtime (global caps).
-      const tokenList = Array.isArray(tokenPayload.tokens) ? tokenPayload.tokens : [];
-      const tokenClassificationRuntime = fileTokenContext?.tokenClassificationRuntime;
-      updateCrashStage('token-classification:start', {
-        chunkIndex: ci,
-        chunkMode,
-        chunkLanguageId: chunkLanguageId || null,
-        parserMode,
-        parserReasonCode: parserFallbackProfile.reasonCode,
-        tokenCount: tokenList.length,
-        treeSitterEnabled: tokenClassificationRuntime?.treeSitterEnabled !== false,
-        remainingChunks: Number.isFinite(tokenClassificationRuntime?.remainingChunks)
-          ? tokenClassificationRuntime.remainingChunks
-          : null,
-        remainingBytes: Number.isFinite(tokenClassificationRuntime?.remainingBytes)
-          ? tokenClassificationRuntime.remainingBytes
-          : null
-      });
-      try {
-        const classification = classifyTokenBuckets({
-          text: tokenText,
-          tokens: tokenList,
-          languageId: chunkLanguageId,
-          ext: effectiveExt,
-          dictWords: dictWordsForChunk,
-          dictConfig,
-          context: fileTokenContext
-        });
-        updateCrashStage('token-classification:done', {
-          chunkIndex: ci,
-          chunkMode,
-          chunkLanguageId: chunkLanguageId || null,
-          parserMode,
-          parserReasonCode: parserFallbackProfile.reasonCode,
-          identifierCount: Array.isArray(classification?.identifierTokens)
-            ? classification.identifierTokens.length
-            : 0,
-          keywordCount: Array.isArray(classification?.keywordTokens)
-            ? classification.keywordTokens.length
-            : 0,
-          operatorCount: Array.isArray(classification?.operatorTokens)
-            ? classification.operatorTokens.length
-            : 0,
-          literalCount: Array.isArray(classification?.literalTokens)
-            ? classification.literalTokens.length
-            : 0
-        });
-        applyTokenClassification(tokenPayload, classification);
-      } catch (err) {
-        updateCrashStage('token-classification:error', {
-          chunkIndex: ci,
-          chunkMode,
-          chunkLanguageId: chunkLanguageId || null,
-          parserMode,
-          parserReasonCode: parserFallbackProfile.reasonCode,
-          errorName: err?.name || null,
-          errorCode: err?.code || null
-        });
-        throw err;
-      }
-    }
+    const tokenPayload = await tokenizeChunkForFile({
+      chunkIndex: ci,
+      chunkMode,
+      chunkLanguageId,
+      tokenText,
+      effectiveExt,
+      pretokenized,
+      chunkLineCount,
+      dictWordsForChunk
+    });
 
     const {
       tokens,
