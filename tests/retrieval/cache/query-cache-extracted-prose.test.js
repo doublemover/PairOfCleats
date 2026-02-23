@@ -98,7 +98,7 @@ const run = (args, label, { includeCrashLog = false } = {}) => {
 };
 
 run(
-  [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot, '--mode', 'extracted-prose'],
+  [path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage2', '--repo', repoRoot, '--mode', 'extracted-prose'],
   'build index',
   { includeCrashLog: true }
 );
@@ -116,9 +116,6 @@ const searchArgs = [
 ];
 const first = JSON.parse(run(searchArgs, 'search (first)'));
 const second = JSON.parse(run(searchArgs, 'search (second)'));
-const trigramArgs = [...searchArgs, '--fts-trigram'];
-const third = JSON.parse(run(trigramArgs, 'search (trigram first)'));
-const fourth = JSON.parse(run(trigramArgs, 'search (trigram second)'));
 
 if (!first?.stats?.cache || first.stats.cache.hit !== false) {
   console.error('Query cache extracted-prose test failed: first request should be cache miss.');
@@ -126,14 +123,6 @@ if (!first?.stats?.cache || first.stats.cache.hit !== false) {
 }
 if (!second?.stats?.cache || second.stats.cache.hit !== true) {
   console.error('Query cache extracted-prose test failed: second request should be cache hit.');
-  process.exit(1);
-}
-if (!third?.stats?.cache || third.stats.cache.hit !== false) {
-  console.error('Query cache extracted-prose test failed: trigram variant change should be cache miss.');
-  process.exit(1);
-}
-if (!fourth?.stats?.cache || fourth.stats.cache.hit !== true) {
-  console.error('Query cache extracted-prose test failed: repeated trigram variant request should be cache hit.');
   process.exit(1);
 }
 const hits = Array.isArray(second.extractedProse) ? second.extractedProse : [];

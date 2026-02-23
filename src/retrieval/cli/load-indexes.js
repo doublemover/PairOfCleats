@@ -88,6 +88,7 @@ export async function loadSearchIndexes({
   tantivyConfig,
   strict = true,
   allowUnsafeMix = false,
+  indexMetaByMode = null,
   indexStates = null,
   loadIndexFromSqlite,
   loadIndexFromLmdb,
@@ -232,6 +233,23 @@ export async function loadSearchIndexes({
   let extractedProseDir = null;
   let resolvedRunExtractedProse = runExtractedProse;
   let resolvedLoadExtractedProse = runExtractedProse || loadExtractedProse;
+  const indexMetaCacheByDir = new Map();
+  const initialMetaByMode = indexMetaByMode instanceof Map
+    ? indexMetaByMode
+    : null;
+  const hasIndexMetaCached = async (dir, mode = null) => {
+    if (!dir) return false;
+    if (mode && initialMetaByMode?.has(mode)) {
+      return initialMetaByMode.get(mode) === true;
+    }
+    if (indexMetaCacheByDir.has(dir)) return indexMetaCacheByDir.get(dir);
+    const value = await hasIndexMetaAsync(dir);
+    indexMetaCacheByDir.set(dir, value);
+    if (mode && initialMetaByMode) {
+      initialMetaByMode.set(mode, value);
+    }
+    return value;
+  };
 
   /**
    * Disable optional extracted-prose comment joins without affecting explicit
@@ -267,7 +285,7 @@ export async function loadSearchIndexes({
         resolvedLoadExtractedProse = false;
         extractedProseDir = null;
       }
-      if (!await hasIndexMetaAsync(extractedProseDir)) {
+      if (!await hasIndexMetaCached(extractedProseDir, 'extracted-prose')) {
         if (resolvedRunExtractedProse && emitOutput) {
           console.warn('[search] extracted-prose index not found; skipping.');
         }
@@ -299,7 +317,7 @@ export async function loadSearchIndexes({
   const compatibilityChecks = await Promise.all(
     compatibilityTargetCandidates.map(async (entry) => ({
       entry,
-      hasMeta: await hasIndexMetaAsync(entry.dir)
+      hasMeta: await hasIndexMetaCached(entry.dir, entry.mode)
     }))
   );
   const compatibilityTargets = compatibilityChecks
@@ -407,45 +425,56 @@ export async function loadSearchIndexes({
   };
 
   const primaryBackend = useSqlite ? 'sqlite' : (useLmdb ? 'lmdb' : 'cached');
-  const idxProse = await loadModeIndex({
+  const proseLoadPromise = loadModeIndex({
     mode: 'prose',
     run: runProse,
     dir: proseDir,
     backend: primaryBackend
   });
-  let idxExtractedProse = emptyIndex();
-  if (resolvedLoadExtractedProse) {
-    const extractedCachedLoadOptions = {
-      ...cachedLoadOptions,
-      includeHnsw: annActive && resolvedRunExtractedProse
-    };
-    try {
-      idxExtractedProse = await loadModeIndex({
-        mode: 'extracted-prose',
-        run: true,
-        dir: extractedProseDir,
-        backend: useSqlite ? 'sqlite' : 'cached',
-        modeLoadOptions: extractedCachedLoadOptions,
-        allowSqliteFallback: useSqlite
-      });
-    } catch (err) {
-      if (!isMissingManifestLikeError(err) || !disableOptionalExtractedProse('optional extracted-prose artifacts unavailable')) {
-        throw err;
-      }
-      idxExtractedProse = emptyIndex();
-    }
-  }
-  const idxCode = await loadModeIndex({
+  const codeLoadPromise = loadModeIndex({
     mode: 'code',
     run: runCode,
     dir: codeDir,
     backend: primaryBackend
   });
-  const idxRecords = await loadModeIndex({
+  const recordsLoadPromise = loadModeIndex({
     mode: 'records',
     run: runRecords,
     dir: recordsDir
   });
+  const extractedLoadPromise = resolvedLoadExtractedProse
+    ? (async () => {
+      const extractedCachedLoadOptions = {
+        ...cachedLoadOptions,
+        includeHnsw: annActive && resolvedRunExtractedProse
+      };
+      try {
+        return await loadModeIndex({
+          mode: 'extracted-prose',
+          run: true,
+          dir: extractedProseDir,
+          backend: useSqlite ? 'sqlite' : 'cached',
+          modeLoadOptions: extractedCachedLoadOptions,
+          allowSqliteFallback: useSqlite
+        });
+      } catch (err) {
+        if (!isMissingManifestLikeError(err) || !disableOptionalExtractedProse('optional extracted-prose artifacts unavailable')) {
+          throw err;
+        }
+        return emptyIndex();
+      }
+    })()
+    : Promise.resolve(emptyIndex());
+  let idxProse = emptyIndex();
+  let idxExtractedProse = emptyIndex();
+  let idxCode = emptyIndex();
+  let idxRecords = emptyIndex();
+  [idxProse, idxExtractedProse, idxCode, idxRecords] = await Promise.all([
+    proseLoadPromise,
+    extractedLoadPromise,
+    codeLoadPromise,
+    recordsLoadPromise
+  ]);
 
   /**
    * Reattach persisted index state when the loaded payload omitted state blobs

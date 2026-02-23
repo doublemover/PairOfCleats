@@ -14,6 +14,11 @@ import {
   persistSearchSession,
   resolveAnnBackendUsed
 } from './run-search-session/persist.js';
+import {
+  attachCommentExcerpts,
+  buildCommentLookup
+} from './run-search-session/comment-excerpts.js';
+import { normalizeDenseVectorMode } from '../../shared/dense-vector-mode.js';
 
 const EMBEDDING_MODE_ORDER = Object.freeze([
   'code',
@@ -28,42 +33,6 @@ const EXPANSION_MODE_ORDER = Object.freeze([
   'code',
   'records'
 ]);
-
-/**
- * Normalize dense-vector mode to the canonical lowercase token used by cache
- * policy and sqlite ANN compatibility checks.
- *
- * @param {unknown} value
- * @returns {string}
- */
-const normalizeDenseVectorMode = (value) => (
-  typeof value === 'string'
-    ? value.trim().toLowerCase()
-    : 'merged'
-);
-
-/**
- * Convert optional numeric payload fields (for example comment spans) into a
- * finite number or `null` when the value is not usable.
- *
- * @param {unknown} value
- * @returns {number|null}
- */
-const normalizeFiniteNumber = (value) => {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : null;
-};
-
-/**
- * Build the dedupe/join key used to align extracted comment spans with code hit
- * comment references.
- *
- * @param {string} file
- * @param {number} start
- * @param {number} end
- * @returns {string}
- */
-const buildCommentLookupKey = (file, start, end) => `${file}:${start}:${end}`;
 
 /**
  * sqlite-vec only supports merged vectors. When a split dense mode is selected,
@@ -352,6 +321,7 @@ async function persistSessionQueryCache({
  * @param {boolean} input.queryCacheEnabled
  * @param {boolean} input.annActive
  * @param {string} [input.resolvedDenseVectorMode]
+ * @param {object|null} [input.indexSignaturePayload]
  * @param {(mode:string)=>boolean} [input.sqliteHasDb]
  * @returns {Promise<object>}
  */
@@ -450,6 +420,7 @@ export async function runSearchSession({
   preferMemoryBackendOnCacheHit,
   backendLabel,
   resolvedDenseVectorMode,
+  indexSignaturePayload = null,
   intentInfo,
   asOfContext = null,
   indexDirByMode = null,
@@ -458,7 +429,7 @@ export async function runSearchSession({
   signal,
   stageTracker
 }) {
-  const resolvedDenseMode = normalizeDenseVectorMode(resolvedDenseVectorMode);
+  const resolvedDenseMode = normalizeDenseVectorMode(resolvedDenseVectorMode, 'merged');
   enforceSqliteAnnDenseModeCompatibility({
     resolvedDenseMode,
     vectorAnnEnabled,
@@ -597,6 +568,7 @@ export async function runSearchSession({
       indexDirByMode,
       indexBaseRootByMode,
       explicitRef,
+      indexSignaturePayload,
       asOfContext,
       query,
       searchMode,
@@ -704,88 +676,15 @@ export async function runSearchSession({
 
   const joinComments = commentsEnabled && runCode && extractedProseLoaded;
 
-  /**
-   * Precompute extracted-comment lookup data keyed by file/start/end so comment
-   * excerpts can be stitched into code hits without repeated full scans.
-   */
-  const commentLookup = (() => {
-    if (!joinComments || !idxExtractedProse?.chunkMeta?.length) return null;
-    const map = new Map();
-    for (const chunk of idxExtractedProse.chunkMeta) {
-      if (!chunk?.file) continue;
-      const comments = chunk.docmeta?.comments;
-      if (!Array.isArray(comments) || !comments.length) continue;
-      for (const comment of comments) {
-        if (!comment || !comment.text) continue;
-        const start = normalizeFiniteNumber(comment.start);
-        const end = normalizeFiniteNumber(comment.end);
-        if (start === null || end === null) continue;
-        const key = buildCommentLookupKey(chunk.file, start, end);
-        const list = map.get(key) || [];
-        list.push(comment);
-        map.set(key, list);
-      }
-    }
-    return map.size ? map : null;
-  })();
+  const commentLookup = buildCommentLookup({
+    joinComments,
+    extractedChunkMeta: idxExtractedProse?.chunkMeta || null
+  });
 
-  /**
-   * Enrich code hits with up to three unique extracted comment excerpts.
-   *
-   * @param {any[]} hits
-   * @returns {void}
-   */
-  const attachCommentExcerpts = (hits) => {
-    if (!commentLookup || !Array.isArray(hits) || !hits.length) return;
-    for (const hit of hits) {
-      if (!hit?.file) continue;
-      const docmeta = hit.docmeta && typeof hit.docmeta === 'object' ? hit.docmeta : {};
-      if (docmeta.commentExcerpts || docmeta.commentExcerpt) continue;
-      const refs = docmeta.commentRefs;
-      if (!Array.isArray(refs) || !refs.length) continue;
-      const excerpts = [];
-      for (const ref of refs) {
-        const start = normalizeFiniteNumber(ref?.start);
-        const end = normalizeFiniteNumber(ref?.end);
-        if (start === null || end === null) continue;
-        const matches = commentLookup.get(buildCommentLookupKey(hit.file, start, end));
-        if (!matches?.length) continue;
-        for (const match of matches) {
-          if (!match?.text) continue;
-          excerpts.push({
-            type: ref?.type || match.type || null,
-            style: ref?.style || match.style || null,
-            languageId: ref?.languageId || match.languageId || null,
-            start,
-            end,
-            startLine: ref?.startLine ?? match.startLine ?? null,
-            endLine: ref?.endLine ?? match.endLine ?? null,
-            text: match.text,
-            truncated: match.truncated || false,
-            indexed: match.indexed !== false
-          });
-        }
-      }
-      if (!excerpts.length) continue;
-      const unique = [];
-      const seen = new Set();
-      for (const entry of excerpts) {
-        const key = `${entry.start}:${entry.end}:${entry.text}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        unique.push(entry);
-      }
-      if (!unique.length) continue;
-      const limited = unique.slice(0, 3);
-      hit.docmeta = {
-        ...docmeta,
-        commentExcerpts: limited,
-        commentExcerpt: limited[0]?.text || null
-      };
-    }
-  };
-
-  attachCommentExcerpts(codeHits);
+  attachCommentExcerpts({
+    hits: codeHits,
+    commentLookup
+  });
 
   const {
     contextExpansionStats,
@@ -815,7 +714,10 @@ export async function runSearchSession({
   const codeExpanded = expandedByMode.code;
   const recordExpanded = expandedByMode.records;
 
-  attachCommentExcerpts(codeExpanded.hits);
+  attachCommentExcerpts({
+    hits: codeExpanded.hits,
+    commentLookup
+  });
   throwIfAborted();
 
   const annBackendUsed = resolveAnnBackendUsed({

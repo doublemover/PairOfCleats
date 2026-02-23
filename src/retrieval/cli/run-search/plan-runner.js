@@ -329,21 +329,32 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       resolvedIndexDirByMode.set(mode, resolved);
       return resolved;
     };
+    const strictIndexMetaByMode = new Map();
     if (asOfContext?.strict) {
-      for (const mode of asOfRequestedModes) {
-        let modeDir = null;
-        try {
-          modeDir = resolveSearchIndexDir(mode);
-        } catch (err) {
+      const strictChecks = await Promise.all(
+        asOfRequestedModes.map(async (mode) => {
+          let modeDir = null;
+          try {
+            modeDir = resolveSearchIndexDir(mode);
+          } catch (err) {
+            return { mode, modeDir: null, hasMeta: false, error: err };
+          }
+          const hasMeta = await hasIndexMetaAsync(modeDir);
+          strictIndexMetaByMode.set(mode, hasMeta);
+          return { mode, modeDir, hasMeta, error: null };
+        })
+      );
+      for (const check of strictChecks) {
+        if (check?.error) {
           return bail(
-            err?.message || `[search] ${mode} index is unavailable for --as-of ${asOfContext.ref}.`,
+            check.error?.message || `[search] ${check.mode} index is unavailable for --as-of ${asOfContext.ref}.`,
             1,
-            err?.code || ERROR_CODES.NO_INDEX
+            check.error?.code || ERROR_CODES.NO_INDEX
           );
         }
-        if (!await hasIndexMetaAsync(modeDir)) {
+        if (!check.hasMeta) {
           return bail(
-            `[search] ${mode} index not found at ${modeDir} for --as-of ${asOfContext.ref}.`,
+            `[search] ${check.mode} index not found at ${check.modeDir} for --as-of ${asOfContext.ref}.`,
             1,
             ERROR_CODES.NO_INDEX
           );
@@ -1042,6 +1053,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       hnswConfig,
       lancedbConfig,
       tantivyConfig,
+      indexMetaByMode: strictIndexMetaByMode,
       indexStates: {
         code: sqliteStateCode || null,
         prose: sqliteStateProse || null,
@@ -1185,6 +1197,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       queryCacheMemoryFreshMs,
       backendLabel,
       backendPolicyInfo,
+      indexSignaturePayload: planIndexSignaturePayload,
       showStats,
       showMatched,
       verboseCache,

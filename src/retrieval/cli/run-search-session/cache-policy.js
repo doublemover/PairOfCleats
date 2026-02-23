@@ -83,6 +83,7 @@ export async function resolveQueryCacheLookup({
   indexDirByMode = null,
   indexBaseRootByMode = null,
   explicitRef = false,
+  indexSignaturePayload = null,
   asOfContext = null,
   query,
   searchMode,
@@ -158,22 +159,24 @@ export async function resolveQueryCacheLookup({
     };
   }
 
-  const signature = await getIndexSignature({
-    useSqlite,
-    backendLabel,
-    sqliteCodePath,
-    sqliteProsePath,
-    sqliteExtractedProsePath,
-    runRecords,
-    runExtractedProse,
-    includeExtractedProse: extractedProseLoaded || commentsEnabled,
-    root: rootDir,
-    userConfig,
-    indexDirByMode,
-    indexBaseRootByMode,
-    explicitRef,
-    asOfContext
-  });
+  const signature = indexSignaturePayload && typeof indexSignaturePayload === 'object'
+    ? indexSignaturePayload
+    : await getIndexSignature({
+      useSqlite,
+      backendLabel,
+      sqliteCodePath,
+      sqliteProsePath,
+      sqliteExtractedProsePath,
+      runRecords,
+      runExtractedProse,
+      includeExtractedProse: extractedProseLoaded || commentsEnabled,
+      root: rootDir,
+      userConfig,
+      indexDirByMode,
+      indexBaseRootByMode,
+      explicitRef,
+      asOfContext
+    });
   cacheSignature = stableStringifyForSignature(signature);
   const cacheKeyInfo = buildQueryCacheKey({
     query,

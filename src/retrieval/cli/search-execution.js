@@ -104,6 +104,7 @@ export async function executeSearchAndEmit(input) {
     preferMemoryBackendOnCacheHit,
     backendLabel,
     backendPolicyInfo,
+    indexSignaturePayload = null,
     showStats,
     showMatched,
     verboseCache,
@@ -235,6 +236,7 @@ export async function executeSearchAndEmit(input) {
     indexDirByMode: asOfContext?.strict ? asOfContext.indexDirByMode : null,
     indexBaseRootByMode: asOfContext?.strict ? asOfContext.indexBaseRootByMode : null,
     explicitRef: asOfContext?.strict === true,
+    indexSignaturePayload,
     signal: input.signal,
     stageTracker
   });
