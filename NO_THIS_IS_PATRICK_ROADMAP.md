@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T07:29:37.1349546-05:00
+  Extracted cross-file symbol-ref TTL/LRU caching from `src/index/type-inference-crossfile/propagation.js` into `src/index/type-inference-crossfile/symbol-ref-cache.js`, preserving resolver semantics while isolating cache eviction policy and adding dedicated coverage in `tests/indexing/type-inference/crossfile/symbol-ref-cache-resolver.test.js`.
 - 2026-02-23T07:26:52.5111724-05:00
   Extracted retrieval index/profile availability resolution from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/index-availability.js`, preserving mode/backend semantics while parallelizing sqlite path-existence probes and adding focused coverage in `tests/retrieval/cli/run-search-index-availability.test.js`.
 - 2026-02-23T07:22:25.5219013-05:00

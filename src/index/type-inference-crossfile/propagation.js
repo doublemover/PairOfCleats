@@ -6,7 +6,8 @@ import { addInferredParam, addInferredReturn } from './apply.js';
 import { extractParamTypes, extractReturnCalls, extractReturnTypes, inferArgType } from './extract.js';
 import { isTypeDeclaration } from './symbols.js';
 import { runToolingPass } from './tooling.js';
-import { buildSymbolIndex, resolveSymbolRef } from './resolver.js';
+import { buildSymbolIndex } from './resolver.js';
+import { createSymbolRefCacheResolver } from './symbol-ref-cache.js';
 import {
   createBundleSizing,
   resolvePropagationParallelOptions,
@@ -22,8 +23,6 @@ const LARGE_REPO_CALL_LINKS_TOTAL = 25000;
 const LARGE_REPO_USAGE_LINKS_TOTAL = 25000;
 const LARGE_REPO_CALL_SAMPLE_LIMIT = 10;
 const LARGE_REPO_PARAM_TYPE_LIMIT = 3;
-const SYMBOL_REF_CACHE_MAX_ENTRIES = 20000;
-const SYMBOL_REF_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const resolveLinkRef = (link) => link?.to || link?.calleeRef || link?.ref || link?.symbolRef || null;
 
@@ -128,27 +127,7 @@ export async function runCrossFilePropagation({
   const entryByUid = new Map();
   const chunkByUid = new Map();
   const fileSet = new Set();
-  const symbolRefCache = new Map();
   const callSampleCounts = new Map();
-
-  const pruneSymbolRefCache = (nowMs) => {
-    if (!symbolRefCache.size) return;
-    if (symbolRefCache.size > SYMBOL_REF_CACHE_MAX_ENTRIES) {
-      const toEvict = symbolRefCache.size - SYMBOL_REF_CACHE_MAX_ENTRIES;
-      const iter = symbolRefCache.keys();
-      for (let index = 0; index < toEvict; index += 1) {
-        const next = iter.next();
-        if (next.done) break;
-        symbolRefCache.delete(next.value);
-      }
-    }
-    const cutoff = nowMs - SYMBOL_REF_CACHE_TTL_MS;
-    for (const [key, entry] of symbolRefCache.entries()) {
-      if (!entry || Number(entry.ts) < cutoff) {
-        symbolRefCache.delete(key);
-      }
-    }
-  };
 
   for (const chunk of chunks) {
     if (!chunk?.name) continue;
@@ -176,38 +155,11 @@ export async function runCrossFilePropagation({
   }
 
   const symbolResolver = buildSymbolIndex(symbolEntries);
-  const resolveSymbolRefCached = ({
-    targetName,
-    kindHint = null,
-    fromFile = null
-  }) => {
-    const name = typeof targetName === 'string' ? targetName : null;
-    if (!name) return null;
-    const now = Date.now();
-    const cacheKey = `${fromFile || ''}\u0001${kindHint || ''}\u0001${name}`;
-    const cached = symbolRefCache.get(cacheKey);
-    if (cached && Number(cached.ts) >= (now - SYMBOL_REF_CACHE_TTL_MS)) {
-      symbolRefCache.delete(cacheKey);
-      symbolRefCache.set(cacheKey, cached);
-      return cached.value;
-    }
-    if (cached) {
-      symbolRefCache.delete(cacheKey);
-    }
-    const resolved = resolveSymbolRef({
-      targetName: name,
-      kindHint,
-      fromFile,
-      fileRelations,
-      symbolIndex: symbolResolver,
-      fileSet
-    });
-    symbolRefCache.set(cacheKey, { value: resolved || null, ts: now });
-    if (symbolRefCache.size > SYMBOL_REF_CACHE_MAX_ENTRIES) {
-      pruneSymbolRefCache(now);
-    }
-    return resolved || null;
-  };
+  const resolveSymbolRefCached = createSymbolRefCacheResolver({
+    fileRelations,
+    symbolIndex: symbolResolver,
+    fileSet
+  });
 
   const largeRepoBudget = buildLargeRepoBudget({
     chunkCount: chunks.length,
