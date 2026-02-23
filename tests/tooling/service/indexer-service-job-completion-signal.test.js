@@ -70,4 +70,13 @@ assert.equal(calls[0].status, 'done');
 assert.equal(calls[0].result.error, null, 'successful jobs should not emit failure error strings');
 assert.equal(metrics.succeeded, 1);
 
+calls.length = 0;
+await completion.finalizeJobRun({
+  job: { id: 'job-4', attempts: '1', maxRetries: '2' },
+  runResult: { exitCode: 1, signal: null, executionMode: 'subprocess' },
+  metrics
+});
+assert.equal(calls[0].status, 'queued', 'string attempts/maxRetries should be parsed numerically');
+assert.equal(calls[0].result.attempts, 2);
+
 console.log('indexer service job-completion signal test passed');

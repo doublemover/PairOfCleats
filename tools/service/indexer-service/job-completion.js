@@ -74,10 +74,14 @@ export const createJobCompletion = ({
    */
   const finalizeJobRun = async ({ job, runResult, metrics }) => {
     const normalized = normalizeRunResult(runResult);
-    const attempts = Number.isFinite(job.attempts) ? job.attempts : 0;
-    const maxRetries = Number.isFinite(job.maxRetries)
-      ? job.maxRetries
-      : (queueMaxRetries ?? 0);
+    const parsedAttempts = Number(job?.attempts);
+    const attempts = Number.isFinite(parsedAttempts)
+      ? Math.max(0, Math.trunc(parsedAttempts))
+      : 0;
+    const parsedMaxRetries = Number(job?.maxRetries);
+    const maxRetries = Number.isFinite(parsedMaxRetries)
+      ? Math.max(0, Math.trunc(parsedMaxRetries))
+      : Math.max(0, Math.trunc(Number(queueMaxRetries ?? 0)));
     const normalizedError = normalized.status === 'failed'
       ? (normalized.signal ? `signal ${normalized.signal}` : `exit ${normalized.exitCode}`)
       : null;
