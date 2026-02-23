@@ -52,6 +52,22 @@ This roadmap covers modularization and performance hardening for the 49 specifie
 - `tests/ci-lite/ci-lite.order.txt`
 - `tests/fixtures/perf/index/caps-calibration-inputs.json`
 
+## Implementation status (2026-02-23T03:53:13.5445815-05:00)
+Status classification used for this roadmap:
+- Implemented on branch: file appears in diff against `origin/main`.
+- Remaining in scope: file does not yet appear in diff against `origin/main`.
+
+Current snapshot:
+- Scoped files: 49
+- Implemented on branch: 48
+- Remaining in scope: 1
+
+Remaining in scope:
+- `tests/fixtures/perf/index/caps-calibration-inputs.json`
+
+Note:
+- 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
+
 ## Architectural assessment (what needs to change)
 
 ### 1) Primary bottleneck pattern: orchestration-heavy monoliths
