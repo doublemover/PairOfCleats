@@ -25,6 +25,7 @@ import {
   buildAdaptiveSurfaceSnapshots as buildAdaptiveSurfaceSnapshotsImpl
 } from './scheduler-core-adaptive-snapshots.js';
 import { resolveSchedulerSystemSignals } from './scheduler-core-system-signals.js';
+import { collectSchedulerQueuePressure } from './scheduler-core-queue-pressure.js';
 
 /**
  * Create a build scheduler that coordinates CPU/IO/memory tokens across queues.
@@ -475,29 +476,19 @@ export function createBuildScheduler(input = {}) {
     if ((now - lastAdaptiveAt) < adaptiveCurrentIntervalMs) return;
     lastAdaptiveAt = now;
     maybeAdaptSurfaceControllers(now);
-    let totalPending = 0;
-    let totalPendingBytes = 0;
-    let totalRunning = 0;
-    let totalRunningBytes = 0;
-    let starvedQueues = 0;
-    for (const q of queueOrder) {
-      totalPending += q.pending.length;
-      totalPendingBytes += normalizeByteCount(q.pendingBytes);
-      totalRunning += q.running;
-      totalRunningBytes += normalizeByteCount(q.inFlightBytes);
-      if (q.pending.length > 0 && q.running === 0) {
-        starvedQueues += 1;
-      }
-    }
-    let floorCpu = 0;
-    let floorIo = 0;
-    let floorMem = 0;
-    for (const q of queueOrder) {
-      if ((q.pending.length + q.running) <= 0) continue;
-      floorCpu = Math.max(floorCpu, Number(q.floorCpu) || 0);
-      floorIo = Math.max(floorIo, Number(q.floorIo) || 0);
-      floorMem = Math.max(floorMem, Number(q.floorMem) || 0);
-    }
+    const {
+      totalPending,
+      totalPendingBytes,
+      totalRunning,
+      totalRunningBytes,
+      starvedQueues,
+      floorCpu,
+      floorIo,
+      floorMem
+    } = collectSchedulerQueuePressure({
+      queueOrder,
+      normalizeByteCount
+    });
     const cpuFloor = Math.max(baselineLimits.cpu, floorCpu);
     const ioFloor = Math.max(baselineLimits.io, floorIo);
     const memFloor = Math.max(baselineLimits.mem, floorMem);

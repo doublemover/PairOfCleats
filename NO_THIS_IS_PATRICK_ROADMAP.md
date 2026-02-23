@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T07:21:26.2727957-05:00
+  Extracted scheduler adaptive queue-pressure aggregation from `src/shared/concurrency/scheduler-core.js` into `src/shared/concurrency/scheduler-core-queue-pressure.js`, replacing duplicated queue traversals in the adapt loop with a single-pass collector and adding focused contract coverage in `tests/shared/concurrency/scheduler-queue-pressure-collector.test.js`.
 - 2026-02-23T07:18:48.0483481-05:00
   Extracted waiver-policy validation/report builders from `src/contracts/validators/usr-matrix.js` into `src/contracts/validators/usr-matrix/waiver-policy.js`, preserving facade exports while isolating governance/evidence/expiry policy evaluation and adding dedicated report-contract coverage in `tests/indexing/contracts/usr-waiver-report-builders.test.js`.
 - 2026-02-23T07:11:29.5874933-05:00
