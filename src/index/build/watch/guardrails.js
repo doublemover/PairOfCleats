@@ -5,7 +5,7 @@ import {
   isSpecialCodeFile,
   resolveSpecialCodeExt
 } from '../../constants.js';
-import { fileExt, toPosix } from '../../../shared/files.js';
+import { fileExt, isRelativePathEscape, toPosix } from '../../../shared/files.js';
 import { pickMinLimit, resolveFileCaps } from '../file-processor/read.js';
 import { normalizeRoot } from './shared.js';
 import { isCodeEntryForPath, isProseEntryForPath } from '../mode-routing.js';
@@ -26,7 +26,7 @@ export const isIndexablePath = ({ absPath, root, recordsRoot, ignoreMatcher, mod
   const canonicalAbs = toRealPathSync(absPath);
   if (!isWithinRoot(canonicalAbs, canonicalRoot)) return false;
   const relPosix = toPosix(path.relative(canonicalRoot, canonicalAbs));
-  if (!relPosix || relPosix === '.' || relPosix.startsWith('..')) return false;
+  if (!relPosix || relPosix === '.' || isRelativePathEscape(relPosix)) return false;
   const normalizedRecordsRoot = recordsRoot ? toRealPathSync(recordsRoot) : null;
   if (normalizedRecordsRoot) {
     if (isWithinRoot(canonicalAbs, normalizedRecordsRoot)) {

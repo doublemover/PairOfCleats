@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { isAbsolutePathNative, toPosix } from '../../../shared/files.js';
+import { isAbsolutePathNative, isRelativePathEscape, toPosix } from '../../../shared/files.js';
 import { DEFAULT_IMPORT_EXTS } from './constants.js';
 
 export const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
@@ -40,6 +40,6 @@ export const stripImportExtension = (value) => {
 
 export const resolveWithinRoot = (rootAbs, absPath) => {
   const rel = path.relative(rootAbs, absPath);
-  if (!rel || rel.startsWith('..') || isAbsolutePathNative(rel)) return null;
+  if (!rel || isRelativePathEscape(rel) || isAbsolutePathNative(rel)) return null;
   return normalizeRelPath(toPosix(rel));
 };

@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { isAbsolutePathNative, toPosix } from '../../shared/files.js';
+import { isAbsolutePathNative, isRelativePathEscape, toPosix } from '../../shared/files.js';
 
 export const toRepoPosixPath = (filePath, repoRoot) => {
   if (!filePath) return null;
@@ -9,6 +9,6 @@ export const toRepoPosixPath = (filePath, repoRoot) => {
     : (baseRoot ? path.resolve(baseRoot, filePath) : path.resolve(filePath));
   const rel = baseRoot ? path.relative(baseRoot, resolved) : resolved;
   const normalized = toPosix(rel).replace(/^\.\//, '');
-  if (normalized.startsWith('..')) return null;
+  if (isRelativePathEscape(normalized)) return null;
   return normalized;
 };

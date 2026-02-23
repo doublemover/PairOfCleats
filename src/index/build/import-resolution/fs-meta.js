@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { isAbsolutePathNative } from '../../../shared/files.js';
+import { isAbsolutePathNative, isRelativePathEscape } from '../../../shared/files.js';
 import { FS_META_PREFETCH_CONCURRENCY, FS_META_TRANSIENT_ERROR_CODES } from './constants.js';
 
 const normalizeMetaPath = (targetPath) => path.resolve(String(targetPath || ''));
@@ -90,7 +90,7 @@ export const prepareImportResolutionFsMeta = async ({
     let dir = path.resolve(startDir);
     for (;;) {
       const rel = path.relative(rootAbs, dir);
-      if (rel && (rel.startsWith('..') || isAbsolutePathNative(rel))) break;
+      if (rel && (isRelativePathEscape(rel) || isAbsolutePathNative(rel))) break;
       candidatePaths.add(path.join(dir, 'tsconfig.json'));
       const parent = path.dirname(dir);
       if (parent === dir) break;

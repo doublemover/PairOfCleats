@@ -2,7 +2,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { readJsoncFile } from '../../../shared/jsonc.js';
 import { sha1 } from '../../../shared/hash.js';
-import { isAbsolutePathNative } from '../../../shared/files.js';
+import { isAbsolutePathNative, isRelativePathEscape } from '../../../shared/files.js';
 import { escapeRegex } from '../../../shared/text/escape-regex.js';
 import { createFsMemo } from './fs-meta.js';
 import { resolveCandidate, resolveWithinRoot } from './lookup.js';
@@ -63,7 +63,7 @@ export const createTsConfigLoader = ({ rootAbs, fileSet, fsMemo = null }) => {
   const fileLookup = fileSet instanceof Set ? fileSet : null;
   const isWithinRoot = (dir) => {
     const rel = path.relative(rootAbs, dir);
-    return rel === '' || (!rel.startsWith('..') && !isAbsolutePathNative(rel));
+    return rel === '' || (!isRelativePathEscape(rel) && !isAbsolutePathNative(rel));
   };
 
   const loadConfig = (tsconfigPath, stack = new Set()) => {

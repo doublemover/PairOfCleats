@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getLanguageForFile } from '../language-registry.js';
 import { countLinesForEntries } from '../../shared/file-stats.js';
-import { toPosix } from '../../shared/files.js';
+import { isRelativePathEscape, toPosix } from '../../shared/files.js';
 import { runWithConcurrency } from '../../shared/concurrency.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { createFileScanner, readFileSample } from './file-scan.js';
@@ -88,7 +88,7 @@ const validateEntries = (entries) => {
   for (const entry of entries || []) {
     const rel = entry?.rel || '';
     const abs = entry?.abs || '';
-    if (!rel || !abs || rel.startsWith('..')) {
+    if (!rel || !abs || isRelativePathEscape(rel)) {
       invalid.push({ rel, abs });
     }
   }

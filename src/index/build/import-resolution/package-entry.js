@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { isAbsolutePathNative } from '../../../shared/files.js';
+import { isAbsolutePathNative, isRelativePathEscape } from '../../../shared/files.js';
 import { normalizeRelPath, sortStrings } from './path-utils.js';
 import { resolveCandidate, resolveFromLookup } from './lookup.js';
 
@@ -23,7 +23,7 @@ const normalizePackageEntryPath = (value) => {
   if (trimmed.startsWith('/')) return null;
   if (trimmed === '.' || trimmed === './') return '';
   const normalized = normalizeRelPath(trimmed);
-  if (normalized.startsWith('..')) return null;
+  if (isRelativePathEscape(normalized)) return null;
   return normalized;
 };
 

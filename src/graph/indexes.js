@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { toPosix, isAbsolutePathNative } from '../shared/files.js';
+import { isAbsolutePathNative, isRelativePathEscape, toPosix } from '../shared/files.js';
 import { compareStrings } from '../shared/sort.js';
 import { compareCandidates } from './ordering.js';
 
@@ -9,7 +9,7 @@ export const normalizeImportPath = (value, repoRoot) => {
   let normalized = raw;
   if (repoRoot && isAbsolutePathNative(raw)) {
     const rel = path.relative(repoRoot, raw) || '.';
-    if (rel && !rel.startsWith('..') && !isAbsolutePathNative(rel)) {
+    if (rel && !isRelativePathEscape(rel) && !isAbsolutePathNative(rel)) {
       normalized = rel;
     }
   }

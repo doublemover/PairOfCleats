@@ -10,7 +10,7 @@ import {
   resolveSpecialCodeExt
 } from '../constants.js';
 import { getLanguageForFile } from '../language-registry.js';
-import { fileExt, toPosix } from '../../shared/files.js';
+import { fileExt, isRelativePathEscape, toPosix } from '../../shared/files.js';
 import { createRecordsClassifier } from './records.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { pickMinLimit, resolveFileCaps } from './file-processor/read.js';
@@ -208,7 +208,7 @@ export async function discoverEntries({
     if (ignoreMatcher) {
       crawler = crawler.exclude((entryPath) => {
         const relPosix = toPosix(path.relative(root, entryPath));
-        if (!relPosix || relPosix === '.' || relPosix.startsWith('..')) return false;
+        if (!relPosix || relPosix === '.' || isRelativePathEscape(relPosix)) return false;
         if (path.isAbsolute(relPosix)) return false;
         return ignoreMatcher.ignores(relPosix);
       });
@@ -249,10 +249,10 @@ export async function discoverEntries({
     const canonicalAbs = toRealPathSync(absPath);
     if (!isWithinRoot(canonicalAbs, canonicalRoot)) return;
     let relPosix = toPosix(path.relative(root, absPath));
-    if (!relPosix || relPosix === '.' || relPosix.startsWith('..') || path.isAbsolute(relPosix)) {
+    if (!relPosix || relPosix === '.' || isRelativePathEscape(relPosix) || path.isAbsolute(relPosix)) {
       relPosix = toPosix(path.relative(canonicalRoot, canonicalAbs));
     }
-    if (!relPosix || relPosix === '.' || relPosix.startsWith('..')) return;
+    if (!relPosix || relPosix === '.' || isRelativePathEscape(relPosix)) return;
     const inRecordsRoot = recordsRoot
       ? isWithinRoot(canonicalAbs, recordsRoot)
       : false;

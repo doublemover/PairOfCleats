@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { toPosix } from '../../../shared/files.js';
+import { isRelativePathEscape, toPosix } from '../../../shared/files.js';
 import { stableStringifyForSignature } from '../../../shared/stable-json.js';
 import { DOCUMENT_CHUNKER_VERSION } from '../../chunking/formats/document-common.js';
 import { DOCUMENT_EXTRACTION_REASON_CODES } from '../../extractors/common.js';
@@ -147,7 +147,7 @@ const normalizeExtractionFilePath = (file, root) => {
   const normalizedRaw = toPosix(raw);
   if (!root || !path.isAbsolute(raw)) return normalizedRaw;
   const rel = toPosix(path.relative(root, raw));
-  return rel && !rel.startsWith('..') ? rel : normalizedRaw;
+  return rel && !isRelativePathEscape(rel) ? rel : normalizedRaw;
 };
 
 const resolveDocumentSourceType = (filePath, fallback = null) => {

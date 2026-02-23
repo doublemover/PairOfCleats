@@ -1,6 +1,6 @@
 import path from 'node:path';
 import picomatch from 'picomatch';
-import { toPosix } from '../../shared/files.js';
+import { isRelativePathEscape, toPosix } from '../../shared/files.js';
 import { EXTS_CODE, EXTS_PROSE } from '../constants.js';
 
 const RECORD_EXT_TYPES = new Map([
@@ -115,7 +115,7 @@ export const createRecordsClassifier = ({ root, config }) => {
   };
   const classify = ({ absPath, relPath, ext, sampleText }) => {
     const rel = relPath ? toPosix(relPath) : normalizeRel(absPath || '');
-    if (!rel || rel.startsWith('..')) return null;
+    if (!rel || isRelativePathEscape(rel)) return null;
     const pathResult = detectRecordByPath({
       relPath: rel,
       ext,

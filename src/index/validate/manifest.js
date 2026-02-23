@@ -3,7 +3,7 @@ import path from 'node:path';
 import { loadPiecesManifest } from '../../shared/artifact-io.js';
 import { existsOrBak } from '../../shared/artifact-io/fs.js';
 import { checksumFile, sha1File } from '../../shared/hash.js';
-import { fromPosix, isAbsolutePathNative } from '../../shared/files.js';
+import { fromPosix, isAbsolutePathNative, isRelativePathEscape } from '../../shared/files.js';
 import { ARTIFACT_SURFACE_VERSION, isSupportedVersion } from '../../contracts/versioning.js';
 import { isManifestPathSafe, normalizeManifestPath } from './paths.js';
 import { addIssue } from './issues.js';
@@ -75,7 +75,7 @@ export const loadAndValidateManifest = async ({ report, mode, dir, strict, modeR
         const absPath = path.resolve(dir, fromPosix(normalizeManifestPath(relPath)));
         const root = path.resolve(dir);
         const relative = path.relative(root, absPath);
-        if (relative.startsWith('..') || isAbsolutePathNative(relative)) {
+        if (isRelativePathEscape(relative) || isAbsolutePathNative(relative)) {
           const issue = `manifest path escapes index root: ${relPath}`;
           if (strict) {
             modeReport.ok = false;

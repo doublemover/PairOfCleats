@@ -20,7 +20,7 @@ import {
   observeWatchBuildDuration,
   setWatchBacklog
 } from '../../shared/metrics.js';
-import { fileExt, toPosix } from '../../shared/files.js';
+import { fileExt, isRelativePathEscape, toPosix } from '../../shared/files.js';
 import { runWithConcurrency, runWithQueue } from '../../shared/concurrency.js';
 import { createDebouncedScheduler } from '../../shared/scheduler/debounce.js';
 import { getLanguageForFile } from '../language-registry.js';
@@ -322,7 +322,7 @@ export async function watchIndex({
       return { skip: true, reason: 'outside-root' };
     }
     const relPosix = toPosix(path.relative(canonicalRoot, canonicalAbs));
-    if (!relPosix || relPosix === '.' || relPosix.startsWith('..')) {
+    if (!relPosix || relPosix === '.' || isRelativePathEscape(relPosix)) {
       return { skip: true, reason: 'outside-root' };
     }
     const inRecordsRoot = normalizedRecordsRoot

@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { readTextFileSync } from '../../shared/encoding.js';
-import { isAbsolutePathNative } from '../../shared/files.js';
+import { isAbsolutePathNative, isRelativePathEscape } from '../../shared/files.js';
 import { getFileTextCache, getSummaryCache } from './cache.js';
 import { buildLocalCacheKey } from '../../shared/cache-key.js';
 import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
@@ -12,7 +12,7 @@ export function getBodySummary(rootDir, chunk, maxWords = 80) {
     const absPath = path.resolve(rootDir, chunk.file);
     const canonicalAbsPath = toRealPathSync(absPath);
     const relative = path.relative(root, absPath);
-    if (relative.startsWith('..') || isAbsolutePathNative(relative)) {
+    if (isRelativePathEscape(relative) || isAbsolutePathNative(relative)) {
       return '(Could not load summary)';
     }
     if (!isWithinRoot(canonicalAbsPath, canonicalRoot)) {
