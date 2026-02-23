@@ -4,6 +4,7 @@ import path from 'node:path';
 import { getExtensionsDir, loadUserConfig } from '../shared/dict-utils.js';
 import { incAnnCandidatePushdown, incFallback } from '../../src/shared/metrics.js';
 import { isAbsolutePathNative, toPosix } from '../../src/shared/files.js';
+import { joinPathSafe } from '../../src/shared/path-normalize.js';
 import { normalizePositiveInt } from '../../src/shared/limits.js';
 import { createWarnOnce } from '../../src/shared/logging/warn-once.js';
 import { normalizeEmbeddingDims } from '../../src/retrieval/ann/dims.js';
@@ -108,8 +109,8 @@ function sanitizeVectorExtensionConfig(config) {
  */
 function resolvePath(repoRoot, value) {
   if (!value) return null;
-  if (isAbsolutePathNative(value)) return value;
-  return path.join(repoRoot, value);
+  if (isAbsolutePathNative(value)) return path.resolve(value);
+  return joinPathSafe(repoRoot, [value]);
 }
 
 /**
@@ -173,15 +174,24 @@ export function getVectorExtensionConfig(repoRoot, userConfig = null, overrides 
   const options = merged.options || providerDefaults.options || '';
   const capabilities = providerDefaults.capabilities || {};
 
-  const dir = merged.dir
-    ? resolvePath(repoRoot, merged.dir)
-    : getExtensionsDir(repoRoot, cfg);
+  const resolvedDirOverride = merged.dir ? resolvePath(repoRoot, merged.dir) : null;
+  if (merged.dir && !resolvedDirOverride) {
+    warnOnce(
+      'vector-extension-unsafe-dir',
+      '[sqlite] Ignoring sqlite.vectorExtension.dir that escapes repo root.'
+    );
+  }
+  const dir = resolvedDirOverride || getExtensionsDir(repoRoot, cfg);
   const filename = merged.filename
     || providerDefaults.filename
     || `${moduleName}${getBinarySuffix(platform)}`;
-  const pathOverride = merged.path
-    ? resolvePath(repoRoot, merged.path)
-    : null;
+  const pathOverride = merged.path ? resolvePath(repoRoot, merged.path) : null;
+  if (merged.path && !pathOverride) {
+    warnOnce(
+      'vector-extension-unsafe-path',
+      '[sqlite] Ignoring sqlite.vectorExtension.path that escapes repo root.'
+    );
+  }
 
   const url = merged.url || providerDefaults.url || null;
   const downloads = merged.downloads || providerDefaults.downloads || null;
