@@ -289,10 +289,9 @@ export async function updateBundlesWithChunks({
   const prefetchCoverage = prioritizedPendingUpdates.length
     ? (prefetchHits / prioritizedPendingUpdates.length)
     : 0;
-  const skipFallbackReadForPrefetchMisses = hasPrefetchedRowsStore && prefetchCoverage >= 0.95;
   if (
     hasPrefetchedRowsStore
-    && !skipFallbackReadForPrefetchMisses
+    && prefetchCoverage < 1
     && typeof log === 'function'
   ) {
     log(
@@ -330,15 +329,12 @@ export async function updateBundlesWithChunks({
       const bundlePath = bundleRecord.bundlePath;
       const bundleFormatLocal = bundleRecord.bundleFormat;
       let vfsManifestRows = null;
-      let existingBundle = null;
       if (prefetchedHit) {
         vfsManifestRows = prefetchedRows;
       }
-      if (!prefetchedHit || !skipFallbackReadForPrefetchMisses || bundleFormatLocal === 'json') {
-        existingBundle = await readBundleOrNull(bundleRecord);
-        if (!prefetchedHit) {
-          vfsManifestRows = resolveBundleVfsManifestRows(existingBundle);
-        }
+      const existingBundle = await readBundleOrNull(bundleRecord);
+      if (!prefetchedHit) {
+        vfsManifestRows = resolveBundleVfsManifestRows(existingBundle);
       }
       const bundle = {
         file,
