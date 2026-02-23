@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T06:05:04.1697959-05:00
+  Extracted stage1 timing/watchdog aggregation from `src/index/build/indexer/steps/process-files.js` into `src/index/build/indexer/steps/process-files/stage-timing.js`, preserving telemetry payload shape while isolating queue-delay histogram/near-threshold logic and reducing core orchestration surface in the main stage1 loop.
 - 2026-02-23T06:02:27.7371036-05:00
   Split `src/retrieval/cli/run-search/plan-runner.js` into focused `planning`, `execution`, `reporting`, and `shared` modules to isolate query-plan cache/dictionary sequencing, sparse-preflight fallback decisions, and error/finalizer output paths; added a reusable backend-context input factory to reduce repeated startup object allocation.
 - 2026-02-23T05:56:42.6293117-05:00

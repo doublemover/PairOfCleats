@@ -53,6 +53,7 @@ import {
   resolvePostingsQueueConfig,
   resolveTreeSitterPlannerEntries
 } from './process-files/planner.js';
+import { createStage1TimingAggregator } from './process-files/stage-timing.js';
 import {
   buildWatchdogNearThresholdSummary as buildWatchdogNearThresholdSummaryShared,
   createDurationHistogram as createDurationHistogramShared,
@@ -548,20 +549,6 @@ export const processFiles = async ({
   }
   const processStart = Date.now();
   const stageFileWatchdogConfig = resolveFileWatchdogConfig(runtime, { repoFileCount: stageFileCount });
-  const extractedProseExtrasCache = (mode === 'prose' || mode === 'extracted-prose')
-    ? resolveExtractedProseExtrasCache(runtime)
-    : null;
-  const sharedScmMetaCache = (mode === 'prose' || mode === 'extracted-prose')
-    ? resolveSharedScmMetaCache(runtime)
-    : null;
-  const primeExtractedProseExtrasCache = mode === 'prose'
-    && Array.isArray(runtime?.requestedModes)
-    && runtime.requestedModes.includes('extracted-prose');
-  const stageTimingBreakdown = {
-    parseChunk: { totalMs: 0, byLanguage: new Map(), bySizeBin: new Map() },
-    inference: { totalMs: 0, byLanguage: new Map(), bySizeBin: new Map() },
-    embedding: { totalMs: 0, byLanguage: new Map(), bySizeBin: new Map() }
-  };
   const extractedProseLowYieldBailout = buildExtractedProseLowYieldBailoutState({
     mode,
     runtime,
@@ -611,19 +598,20 @@ export const processFiles = async ({
     mode,
     runtime
   });
-  const queueDelayHistogram = createDurationHistogram(FILE_QUEUE_DELAY_HISTOGRAM_BUCKETS_MS);
-  const queueDelaySummary = { count: 0, totalMs: 0, minMs: null, maxMs: 0 };
-  const watchdogNearThreshold = {
-    sampleCount: 0,
-    nearThresholdCount: 0,
-    slowWarningCount: 0,
-    thresholdTotalMs: 0,
-    activeTotalMs: 0
-  };
+  const {
+    queueDelaySummary,
+    queueDelayTelemetryChannel,
+    recordStageTimingSample,
+    observeQueueDelay,
+    observeWatchdogNearThreshold,
+    buildStageTimingBreakdownPayload
+  } = createStage1TimingAggregator({
+    runtime,
+    stageFileWatchdogConfig,
+    extractedProseLowYieldBailout
+  });
   const lifecycleByOrderIndex = new Map();
   const lifecycleByRelKey = new Map();
-  const queueDelayTelemetryChannel = 'stage1.file-queue-delay';
-  runtime?.telemetry?.clearDurationHistogram?.(queueDelayTelemetryChannel);
   const ensureLifecycleRecord = ({
     orderIndex,
     file = null,
@@ -656,174 +644,6 @@ export const processFiles = async ({
     lifecycleByOrderIndex.set(normalizedOrderIndex, created);
     return created;
   };
-  /**
-   * Update one timing aggregation bucket with normalized sample values.
-   *
-   * @param {Map<string,object>} bucketMap
-   * @param {string} key
-   * @param {{durationMs?:number,files?:number,bytes?:number,lines?:number}} [input]
-   * @returns {void}
-   */
-  const updateStageTimingBucket = (bucketMap, key, { durationMs = 0, files = 1, bytes = 0, lines = 0 } = {}) => {
-    const bucketKey = key || 'unknown';
-    const entry = bucketMap.get(bucketKey) || {
-      files: 0,
-      totalMs: 0,
-      bytes: 0,
-      lines: 0
-    };
-    entry.files += Math.max(0, Math.floor(Number(files) || 0));
-    entry.totalMs += clampDurationMs(durationMs);
-    entry.bytes += Math.max(0, Math.floor(Number(bytes) || 0));
-    entry.lines += Math.max(0, Math.floor(Number(lines) || 0));
-    bucketMap.set(bucketKey, entry);
-  };
-  const recordStageTimingSample = (section, {
-    languageId = null,
-    bytes = 0,
-    lines = 0,
-    durationMs = 0
-  } = {}) => {
-    const sectionBucket = stageTimingBreakdown[section];
-    if (!sectionBucket) return;
-    const safeDurationMs = clampDurationMs(durationMs);
-    if (safeDurationMs <= 0) return;
-    const safeBytes = Math.max(0, Math.floor(Number(bytes) || 0));
-    const safeLines = Math.max(0, Math.floor(Number(lines) || 0));
-    const normalizedLanguage = languageId || 'unknown';
-    const sizeBin = resolveStageTimingSizeBin(safeBytes);
-    sectionBucket.totalMs += safeDurationMs;
-    updateStageTimingBucket(sectionBucket.byLanguage, normalizedLanguage, {
-      durationMs: safeDurationMs,
-      files: 1,
-      bytes: safeBytes,
-      lines: safeLines
-    });
-    updateStageTimingBucket(sectionBucket.bySizeBin, sizeBin, {
-      durationMs: safeDurationMs,
-      files: 1,
-      bytes: safeBytes,
-      lines: safeLines
-    });
-  };
-  /**
-   * Record queue-delay sample into histogram and running summary.
-   *
-   * @param {number} durationMs
-   * @returns {void}
-   */
-  const observeQueueDelay = (durationMs) => {
-    const safeDurationMs = clampDurationMs(durationMs);
-    queueDelaySummary.count += 1;
-    queueDelaySummary.totalMs += safeDurationMs;
-    queueDelaySummary.minMs = queueDelaySummary.minMs == null
-      ? safeDurationMs
-      : Math.min(queueDelaySummary.minMs, safeDurationMs);
-    queueDelaySummary.maxMs = Math.max(queueDelaySummary.maxMs, safeDurationMs);
-    queueDelayHistogram.observe(safeDurationMs);
-    runtime?.telemetry?.recordDuration?.(queueDelayTelemetryChannel, safeDurationMs);
-  };
-  const observeWatchdogNearThreshold = ({
-    activeDurationMs = 0,
-    thresholdMs = 0,
-    triggeredSlowWarning = false,
-    lowerFraction = stageFileWatchdogConfig?.nearThresholdLowerFraction,
-    upperFraction = stageFileWatchdogConfig?.nearThresholdUpperFraction
-  } = {}) => {
-    const threshold = Number(thresholdMs);
-    if (!Number.isFinite(threshold) || threshold <= 0) return;
-    const activeMs = clampDurationMs(activeDurationMs);
-    watchdogNearThreshold.sampleCount += 1;
-    watchdogNearThreshold.thresholdTotalMs += threshold;
-    watchdogNearThreshold.activeTotalMs += activeMs;
-    if (triggeredSlowWarning) {
-      watchdogNearThreshold.slowWarningCount += 1;
-      return;
-    }
-    if (isNearThresholdSlowFileDuration({
-      activeDurationMs: activeMs,
-      thresholdMs: threshold,
-      lowerFraction,
-      upperFraction
-    })) {
-      watchdogNearThreshold.nearThresholdCount += 1;
-    }
-  };
-  /**
-   * Materialize sorted breakdown rows from timing bucket map.
-   *
-   * @param {Map<string,object>} bucketMap
-   * @returns {object[]}
-   */
-  const finalizeBreakdownBucket = (bucketMap) => (
-    Object.fromEntries(
-      Array.from(bucketMap.entries())
-        .sort((a, b) => compareStrings(a[0], b[0]))
-        .map(([key, value]) => {
-          const totalMs = clampDurationMs(value?.totalMs);
-          const files = Math.max(0, Math.floor(Number(value?.files) || 0));
-          const bytes = Math.max(0, Math.floor(Number(value?.bytes) || 0));
-          const lines = Math.max(0, Math.floor(Number(value?.lines) || 0));
-          return [key, {
-            files,
-            totalMs,
-            avgMs: files > 0 ? totalMs / files : 0,
-            bytes,
-            lines
-          }];
-        })
-    )
-  );
-  /**
-   * Build full stage1 timing breakdown payload for telemetry/artifacts.
-   *
-   * @returns {object}
-   */
-  const buildStageTimingBreakdownPayload = () => ({
-    schemaVersion: STAGE_TIMING_SCHEMA_VERSION,
-    parseChunk: {
-      totalMs: clampDurationMs(stageTimingBreakdown.parseChunk.totalMs),
-      byLanguage: finalizeBreakdownBucket(stageTimingBreakdown.parseChunk.byLanguage),
-      bySizeBin: finalizeBreakdownBucket(stageTimingBreakdown.parseChunk.bySizeBin)
-    },
-    inference: {
-      totalMs: clampDurationMs(stageTimingBreakdown.inference.totalMs),
-      byLanguage: finalizeBreakdownBucket(stageTimingBreakdown.inference.byLanguage),
-      bySizeBin: finalizeBreakdownBucket(stageTimingBreakdown.inference.bySizeBin)
-    },
-    embedding: {
-      totalMs: clampDurationMs(stageTimingBreakdown.embedding.totalMs),
-      byLanguage: finalizeBreakdownBucket(stageTimingBreakdown.embedding.byLanguage),
-      bySizeBin: finalizeBreakdownBucket(stageTimingBreakdown.embedding.bySizeBin)
-    },
-    extractedProseLowYieldBailout: buildExtractedProseLowYieldBailoutSummary(extractedProseLowYieldBailout),
-    watchdog: {
-      queueDelayMs: {
-        summary: {
-          count: Math.max(0, Math.floor(queueDelaySummary.count)),
-          totalMs: clampDurationMs(queueDelaySummary.totalMs),
-          minMs: queueDelaySummary.minMs == null ? 0 : clampDurationMs(queueDelaySummary.minMs),
-          maxMs: clampDurationMs(queueDelaySummary.maxMs),
-          avgMs: queueDelaySummary.count > 0
-            ? clampDurationMs(queueDelaySummary.totalMs) / queueDelaySummary.count
-            : 0
-        },
-        histogram: queueDelayHistogram.snapshot()
-      },
-      nearThreshold: buildWatchdogNearThresholdSummary({
-        sampleCount: watchdogNearThreshold.sampleCount,
-        nearThresholdCount: watchdogNearThreshold.nearThresholdCount,
-        slowWarningCount: watchdogNearThreshold.slowWarningCount,
-        thresholdTotalMs: watchdogNearThreshold.thresholdTotalMs,
-        activeTotalMs: watchdogNearThreshold.activeTotalMs,
-        lowerFraction: stageFileWatchdogConfig?.nearThresholdLowerFraction,
-        upperFraction: stageFileWatchdogConfig?.nearThresholdUpperFraction,
-        alertFraction: stageFileWatchdogConfig?.nearThresholdAlertFraction,
-        minSamples: stageFileWatchdogConfig?.nearThresholdMinSamples,
-        slowFileMs: stageFileWatchdogConfig?.slowFileMs
-      })
-    }
-  });
   const ioQueueConcurrency = Number.isFinite(runtime?.queues?.io?.concurrency)
     ? runtime.queues.io.concurrency
     : runtime.ioConcurrency;
