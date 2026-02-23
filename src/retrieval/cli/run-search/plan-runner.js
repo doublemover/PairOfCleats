@@ -14,13 +14,12 @@ import {
 import { queryVectorAnn } from '../../../../tools/sqlite/vector-extension.js';
 import { createError, ERROR_CODES } from '../../../shared/error-codes.js';
 import { getSearchUsage } from '../../cli-args.js';
-import { resolveIndexDir } from '../../cli-index.js';
-import { isLmdbReady, isSqliteReady, loadIndexState } from '../index-state.js';
-import { resolveAsOfContext, resolveSingleRootForModes } from '../../../index/as-of.js';
+import { isLmdbReady, isSqliteReady } from '../index-state.js';
+import { resolveSingleRootForModes } from '../../../index/as-of.js';
 import { configureOutputCaches } from '../../output.js';
 import { getMissingFlagMessages } from '../options.js';
 import { evaluateAutoSqliteThresholds, resolveIndexStats } from '../auto-sqlite.js';
-import { hasIndexMetaAsync, hasLmdbStore } from '../index-loader.js';
+import { hasLmdbStore } from '../index-loader.js';
 import { applyBranchFilter } from '../branch-filter.js';
 import { resolveBackendSelection } from '../policy.js';
 import { normalizeSearchOptions } from '../normalize-options.js';
@@ -56,6 +55,10 @@ import {
   runFederatedIfRequested
 } from './options.js';
 import { createBackendContextWithTracking } from './backend-context.js';
+import {
+  loadSearchIndexStates,
+  resolveStartupIndexResolution
+} from './startup-index.js';
 
 import {
   INDEX_PROFILE_VECTOR_ONLY,
@@ -290,73 +293,29 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       return bail(getSearchUsage(), 1, ERROR_CODES.INVALID_REQUEST);
     }
 
-    const asOfRequestedModes = [];
-    if (runCode) asOfRequestedModes.push('code');
-    if (runProse) asOfRequestedModes.push('prose');
-    if (runRecords) asOfRequestedModes.push('records');
-    if ((searchMode === 'extracted-prose' || searchMode === 'all') && !asOfRequestedModes.includes('extracted-prose')) {
-      asOfRequestedModes.push('extracted-prose');
-    }
-    let asOfContext = null;
-    try {
-      asOfContext = resolveAsOfContext({
-        repoRoot: rootDir,
-        userConfig,
-        requestedModes: asOfRequestedModes,
-        asOf: argv['as-of'],
-        snapshot: argv.snapshot,
-        preferFrozen: true,
-        allowMissingModesForLatest: true
-      });
-    } catch (err) {
-      return bail(err?.message || 'Invalid --as-of value.', 1, err?.code || ERROR_CODES.INVALID_REQUEST);
-    }
-    const indexResolveOptions = asOfContext?.strict
-      ? {
-        indexDirByMode: asOfContext.indexDirByMode,
-        indexBaseRootByMode: asOfContext.indexBaseRootByMode,
-        explicitRef: true
-      }
-      : {};
-    const resolvedIndexDirByMode = new Map();
-    const resolveSearchIndexDir = (mode) => {
-      if (resolvedIndexDirByMode.has(mode)) return resolvedIndexDirByMode.get(mode);
-      const resolved = resolveIndexDir(rootDir, mode, userConfig, indexResolveOptions);
-      resolvedIndexDirByMode.set(mode, resolved);
-      return resolved;
-    };
-    const strictIndexMetaByMode = new Map();
-    if (asOfContext?.strict) {
-      const strictChecks = await Promise.all(
-        asOfRequestedModes.map(async (mode) => {
-          let modeDir = null;
-          try {
-            modeDir = resolveSearchIndexDir(mode);
-          } catch (err) {
-            return { mode, modeDir: null, hasMeta: false, error: err };
-          }
-          const hasMeta = await hasIndexMetaAsync(modeDir);
-          strictIndexMetaByMode.set(mode, hasMeta);
-          return { mode, modeDir, hasMeta, error: null };
-        })
+    const startupIndexResolution = await resolveStartupIndexResolution({
+      rootDir,
+      userConfig,
+      runCode,
+      runProse,
+      runRecords,
+      searchMode,
+      asOf: argv['as-of'],
+      snapshot: argv.snapshot
+    });
+    if (startupIndexResolution.error) {
+      return bail(
+        startupIndexResolution.error.message,
+        1,
+        startupIndexResolution.error.code
       );
-      for (const check of strictChecks) {
-        if (check?.error) {
-          return bail(
-            check.error?.message || `[search] ${check.mode} index is unavailable for --as-of ${asOfContext.ref}.`,
-            1,
-            check.error?.code || ERROR_CODES.NO_INDEX
-          );
-        }
-        if (!check.hasMeta) {
-          return bail(
-            `[search] ${check.mode} index not found at ${check.modeDir} for --as-of ${asOfContext.ref}.`,
-            1,
-            ERROR_CODES.NO_INDEX
-          );
-        }
-      }
     }
+    const {
+      asOfContext,
+      indexResolveOptions,
+      resolveSearchIndexDir,
+      strictIndexMetaByMode
+    } = startupIndexResolution;
 
     telemetry.setMode(searchMode);
 
@@ -415,30 +374,20 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const sqliteProsePath = sqlitePaths.prosePath;
     const sqliteExtractedProsePath = sqlitePaths.extractedProsePath;
 
-    const sqliteStateCode = needsCode
-      ? loadIndexState(rootDir, userConfig, 'code', {
-        resolveOptions: indexResolveOptions,
-        onCompatibilityWarning: addProfileWarning
-      })
-      : null;
-    const sqliteStateProse = needsProse
-      ? loadIndexState(rootDir, userConfig, 'prose', {
-        resolveOptions: indexResolveOptions,
-        onCompatibilityWarning: addProfileWarning
-      })
-      : null;
-    const sqliteStateExtractedProse = needsExtractedProse
-      ? loadIndexState(rootDir, userConfig, 'extracted-prose', {
-        resolveOptions: indexResolveOptions,
-        onCompatibilityWarning: addProfileWarning
-      })
-      : null;
-    const sqliteStateRecords = runRecords
-      ? loadIndexState(rootDir, userConfig, 'records', {
-        resolveOptions: indexResolveOptions,
-        onCompatibilityWarning: addProfileWarning
-      })
-      : null;
+    const loadedIndexStates = loadSearchIndexStates({
+      rootDir,
+      userConfig,
+      runCode: needsCode,
+      runProse: needsProse,
+      runExtractedProse: needsExtractedProse,
+      runRecords,
+      indexResolveOptions,
+      addProfileWarning
+    });
+    const sqliteStateCode = loadedIndexStates.code;
+    const sqliteStateProse = loadedIndexStates.prose;
+    const sqliteStateExtractedProse = loadedIndexStates.extractedProse;
+    const sqliteStateRecords = loadedIndexStates.records;
     const indexStateByMode = {
       code: sqliteStateCode,
       prose: sqliteStateProse,

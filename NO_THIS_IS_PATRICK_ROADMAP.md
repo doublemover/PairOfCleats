@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T06:21:08.5062610-05:00
+  Extracted retrieval startup index/as-of orchestration from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/startup-index.js`, centralizing strict `--as-of` mode checks and per-mode index-state loading to reduce top-level branch churn and keep mode resolution caching in one place.
 - 2026-02-23T06:18:26.8543337-05:00
   Split `tools/build/embeddings/runner.js` into focused `runner/config.js`, `runner/incremental-refresh.js`, and `runner/cache-orchestration.js`, reducing duplicated cache lookup/reuse/write paths and centralizing cache-index flush coordination/counters to lower hot-loop branching while preserving stage3/stage4 ordering and fallback semantics.
 - 2026-02-23T06:14:17.9887751-05:00
