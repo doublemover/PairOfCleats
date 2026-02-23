@@ -53,6 +53,7 @@ export const parseBenchLanguageArgs = (rawArgs = process.argv.slice(2)) => {
       'dry-run': { type: 'boolean', default: false },
       'cache-run': { type: 'boolean', default: false },
       'keep-cache': { type: 'boolean', default: false },
+      random: { type: 'boolean', default: false },
       config: { type: 'string' },
       root: { type: 'string' },
       'cache-root': { type: 'string' },

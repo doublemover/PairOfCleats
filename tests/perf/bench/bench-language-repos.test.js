@@ -38,6 +38,39 @@ assert.match(
   'quiet list output should still print target listing'
 );
 
+const languageFilterResult = spawnSync(
+  process.execPath,
+  [scriptPath, '--list', '--json', '--tier', 'typical', '--language', 'JavaScript / TypeScript'],
+  { encoding: 'utf8' }
+);
+if (languageFilterResult.status !== 0) {
+  console.error(languageFilterResult.stderr || 'bench-language-repos --language filter failed');
+  process.exit(languageFilterResult.status ?? 1);
+}
+const languagePayload = JSON.parse(languageFilterResult.stdout || '{}');
+assert.ok(Array.isArray(languagePayload.tasks), 'language filter tasks array missing');
+assert.ok(languagePayload.tasks.length > 0, 'language filter returned no tasks');
+assert.equal(
+  languagePayload.tasks.every((task) => String(task.language || '').toLowerCase() === 'javascript'),
+  true,
+  'language filter should scope tasks to javascript benchmark key'
+);
+
+const randomResult = spawnSync(
+  process.execPath,
+  [scriptPath, '--list', '--json', '--tier', 'typical', '--random'],
+  { encoding: 'utf8' }
+);
+if (randomResult.status !== 0) {
+  console.error(randomResult.stderr || 'bench-language-repos --random failed');
+  process.exit(randomResult.status ?? 1);
+}
+const randomPayload = JSON.parse(randomResult.stdout || '{}');
+assert.equal(randomPayload.randomizedOrder, true, 'randomizedOrder flag missing from list payload');
+const canonicalOrder = (payload.tasks || []).map((task) => `${task.language}|${task.tier}|${task.repo}`);
+const randomOrder = (randomPayload.tasks || []).map((task) => `${task.language}|${task.tier}|${task.repo}`);
+assert.notDeepEqual(randomOrder, canonicalOrder, 'random ordering should differ from default list order');
+
 const shardByLabel = new Map([['src', { index: 2, total: 4 }]]);
 const progressLine = formatShardFileProgress(
   {

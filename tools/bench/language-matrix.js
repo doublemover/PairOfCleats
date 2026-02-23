@@ -30,6 +30,7 @@ const benchOptions = mergeCliOptions(
     languages: { type: 'string' },
     repos: { type: 'string' },
     only: { type: 'string' },
+    random: { type: 'boolean', default: false },
     'dry-run': { type: 'boolean', default: false },
     'fail-fast': { type: 'boolean', default: false },
     'lock-mode': { type: 'string' },
@@ -122,6 +123,7 @@ const configToArgs = (config, outFile, logFile) => {
   if (argv['real-embeddings']) args.push('--real-embeddings');
   if (argv['dry-run']) args.push('--dry-run');
   if (argv['keep-cache']) args.push('--keep-cache');
+  if (argv.random) args.push('--random');
 
   appendArgs(args, '--config', argv.config);
   appendArgs(args, '--root', argv.root);
