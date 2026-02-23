@@ -28,6 +28,8 @@ import { collectSchedulerQueuePressure } from './scheduler-core-queue-pressure.j
 import { pickNextSchedulerQueue } from './scheduler-core-queue-selection.js';
 import {
   buildSchedulerQueueStatsSnapshot,
+  buildSchedulerAdaptiveSurfaceStats,
+  cloneSchedulerSystemSignals,
   resolveSchedulerUtilization
 } from './scheduler-core-stats.js';
 import {
@@ -894,22 +896,10 @@ export function createBuildScheduler(input = {}) {
     const cpuUtilization = resolveSchedulerUtilization(tokens.cpu.used, tokens.cpu.total);
     const ioUtilization = resolveSchedulerUtilization(tokens.io.used, tokens.io.total);
     const memUtilization = resolveSchedulerUtilization(tokens.mem.used, tokens.mem.total);
-    const adaptiveSurfaces = {};
-    for (const [surfaceName, state] of adaptiveSurfaceStates.entries()) {
-      const snapshot = buildAdaptiveSurfaceSnapshotByName(surfaceName);
-      adaptiveSurfaces[surfaceName] = {
-        minConcurrency: state.minConcurrency,
-        maxConcurrency: state.maxConcurrency,
-        currentConcurrency: state.currentConcurrency,
-        decisions: { ...state.decisions },
-        lastAction: state.lastAction,
-        lastDecisionAt: state.lastDecisionAt,
-        lastDecision: state.lastDecision
-          ? { ...state.lastDecision }
-          : null,
-        snapshot
-      };
-    }
+    const adaptiveSurfaces = buildSchedulerAdaptiveSurfaceStats({
+      adaptiveSurfaceStates,
+      buildAdaptiveSurfaceSnapshotByName
+    });
     return {
       queues: queueStats,
       counters: {
@@ -934,16 +924,7 @@ export function createBuildScheduler(input = {}) {
         surfaceControllersEnabled: adaptiveSurfaceControllersEnabled,
         surfaces: adaptiveSurfaces,
         decisionTrace: adaptiveDecisionTrace.map((entry) => cloneDecisionEntry(entry)),
-        signals: lastSystemSignals && typeof lastSystemSignals === 'object'
-          ? {
-            cpu: lastSystemSignals.cpu && typeof lastSystemSignals.cpu === 'object'
-              ? { ...lastSystemSignals.cpu }
-              : null,
-            memory: lastSystemSignals.memory && typeof lastSystemSignals.memory === 'object'
-              ? { ...lastSystemSignals.memory }
-              : null
-          }
-          : null,
+        signals: cloneSchedulerSystemSignals(lastSystemSignals),
         writeBackpressure: {
           ...evaluateWriteBackpressure(),
           producerQueues: Array.from(writeBackpressure.producerQueues)

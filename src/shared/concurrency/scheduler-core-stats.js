@@ -65,3 +65,52 @@ export const buildSchedulerQueueStatsSnapshot = ({ queueOrder, nowMs, normalizeB
 export const resolveSchedulerUtilization = (used, total) => (
   total > 0 ? Math.max(0, Math.min(1, used / total)) : 0
 );
+
+/**
+ * Build adaptive-surface stats payload for scheduler diagnostics.
+ *
+ * @param {{adaptiveSurfaceStates:Map<string,object>,buildAdaptiveSurfaceSnapshotByName:(surfaceName:string)=>object}} input
+ * @returns {Record<string,object>}
+ */
+export const buildSchedulerAdaptiveSurfaceStats = ({
+  adaptiveSurfaceStates,
+  buildAdaptiveSurfaceSnapshotByName
+}) => {
+  if (!(adaptiveSurfaceStates instanceof Map) || adaptiveSurfaceStates.size === 0) {
+    return {};
+  }
+  const adaptiveSurfaces = {};
+  for (const [surfaceName, state] of adaptiveSurfaceStates.entries()) {
+    adaptiveSurfaces[surfaceName] = {
+      minConcurrency: state.minConcurrency,
+      maxConcurrency: state.maxConcurrency,
+      currentConcurrency: state.currentConcurrency,
+      decisions: { ...state.decisions },
+      lastAction: state.lastAction,
+      lastDecisionAt: state.lastDecisionAt,
+      lastDecision: state.lastDecision
+        ? { ...state.lastDecision }
+        : null,
+      snapshot: buildAdaptiveSurfaceSnapshotByName(surfaceName)
+    };
+  }
+  return adaptiveSurfaces;
+};
+
+/**
+ * Clone scheduler system signals snapshot for stats output.
+ *
+ * @param {object|null} signals
+ * @returns {{cpu:object|null,memory:object|null}|null}
+ */
+export const cloneSchedulerSystemSignals = (signals) => {
+  if (!signals || typeof signals !== 'object') return null;
+  return {
+    cpu: signals.cpu && typeof signals.cpu === 'object'
+      ? { ...signals.cpu }
+      : null,
+    memory: signals.memory && typeof signals.memory === 'object'
+      ? { ...signals.memory }
+      : null
+  };
+};

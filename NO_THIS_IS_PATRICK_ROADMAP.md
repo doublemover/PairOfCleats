@@ -69,6 +69,10 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T09:24:01.4847805-05:00
+  Extracted scheduler adaptive-surface/system-signal stats snapshot assembly from `src/shared/concurrency/scheduler-core.js` into `src/shared/concurrency/scheduler-core-stats.js`, keeping `stats()` focused on orchestration while centralizing clone/build helpers reused by queue snapshot reporting; expanded focused coverage in `tests/shared/concurrency/scheduler-core-stats-snapshot.test.js`.
+- 2026-02-23T09:21:10.6556880-05:00
+  Integrated parallel worker follow-ups across `src/index/build/watch.js` and `src/contracts/schemas/analysis.js`: extracted tracked-state reconciliation into `src/index/build/watch/tracked-state.js` (with focused watch coverage in `tests/indexing/watch/watch-tracked-state.test.js`) and modularized repeated analysis schema fragments into `src/contracts/schemas/analysis/common.js` + `src/contracts/schemas/analysis/references.js` (with expanded contract coverage in `tests/shared/contracts/analysis-schemas-validate.test.js`).
 - 2026-02-23T09:18:32.2305712-05:00
   Extracted artifact write-progress state/telemetry callbacks from `src/index/build/artifacts-write.js` into `src/index/build/artifacts/write-progress.js`, preserving write heartbeat/dispatch contracts while centralizing total/completed counters and throttled status logging; added focused coverage in `tests/indexing/artifacts/artifact-write-progress-tracker.test.js`.
 - 2026-02-23T09:13:16.7558796-05:00

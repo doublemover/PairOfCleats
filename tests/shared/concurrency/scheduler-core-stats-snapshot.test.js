@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import {
+  buildSchedulerAdaptiveSurfaceStats,
   buildSchedulerQueueStatsSnapshot,
+  cloneSchedulerSystemSignals,
   resolveSchedulerUtilization
 } from '../../../src/shared/concurrency/scheduler-core-stats.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
@@ -86,5 +88,37 @@ assert.equal(snapshot.queueStats.write.pending, 0);
 assert.equal(resolveSchedulerUtilization(5, 10), 0.5);
 assert.equal(resolveSchedulerUtilization(5, 0), 0);
 assert.equal(resolveSchedulerUtilization(20, 10), 1);
+
+const adaptiveSurfaceStates = new Map([
+  ['io', {
+    minConcurrency: 1,
+    maxConcurrency: 8,
+    currentConcurrency: 4,
+    decisions: { up: 2, down: 1 },
+    lastAction: 'scale-up',
+    lastDecisionAt: 1700000000000,
+    lastDecision: { reason: 'pressure' }
+  }]
+]);
+const adaptiveStats = buildSchedulerAdaptiveSurfaceStats({
+  adaptiveSurfaceStates,
+  buildAdaptiveSurfaceSnapshotByName: (surfaceName) => ({ surfaceName, pending: 3 })
+});
+assert.deepEqual(adaptiveStats.io.snapshot, { surfaceName: 'io', pending: 3 });
+assert.equal(adaptiveStats.io.currentConcurrency, 4);
+assert.deepEqual(buildSchedulerAdaptiveSurfaceStats({
+  adaptiveSurfaceStates: new Map(),
+  buildAdaptiveSurfaceSnapshotByName: () => ({})
+}), {});
+
+const clonedSignals = cloneSchedulerSystemSignals({
+  cpu: { utilization: 0.8 },
+  memory: { rssMb: 1024 }
+});
+assert.deepEqual(clonedSignals, {
+  cpu: { utilization: 0.8 },
+  memory: { rssMb: 1024 }
+});
+assert.equal(cloneSchedulerSystemSignals(null), null);
 
 console.log('scheduler core stats snapshot test passed');
