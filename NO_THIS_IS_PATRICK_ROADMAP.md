@@ -69,6 +69,10 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T06:54:51.9285216-05:00
+  Extracted retrieval branch short-circuit gate from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/branch-gate.js`, isolating branch-filter early-return handling from startup orchestration flow.
+- 2026-02-23T06:54:06.0000000-05:00
+  Split embeddings backend-state probe logic from `tools/build/embeddings/runner.js` into `tools/build/embeddings/runner/backend-state.js` and added focused verification in `tests/indexing/embeddings/build/backend-state-probe.test.js`.
 - 2026-02-23T06:53:04.0517509-05:00
   Extracted sparse-preflight policy resolution/handling from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/sparse-preflight.js`, centralizing warning propagation and capability-missing error coercion around sparse fallback decisions.
 - 2026-02-23T06:52:18.0000000-05:00

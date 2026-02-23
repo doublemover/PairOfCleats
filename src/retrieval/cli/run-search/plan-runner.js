@@ -19,7 +19,6 @@ import { resolveSingleRootForModes } from '../../../index/as-of.js';
 import { configureOutputCaches } from '../../output.js';
 import { getMissingFlagMessages } from '../options.js';
 import { hasLmdbStore } from '../index-loader.js';
-import { applyBranchFilter } from '../branch-filter.js';
 import { normalizeSearchOptions } from '../normalize-options.js';
 import { createRunnerHelpers } from '../runner.js';
 import { resolveRunConfig } from '../resolve-run-config.js';
@@ -61,6 +60,7 @@ import { loadRunSearchIndexesWithTracking } from './index-loading.js';
 import { buildQueryPlanInput } from './plan-input.js';
 import { buildIndexSignatureInput } from './signature-input.js';
 import { resolveRunSearchSparsePreflight } from './sparse-preflight.js';
+import { runBranchFilterGate } from './branch-gate.js';
 
 import {
   resolveAnnActive,
@@ -572,23 +572,22 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     if (backendForcedLmdb && !useLmdb) {
       return bail('LMDB backend requested but unavailable.', 1, ERROR_CODES.INVALID_REQUEST);
     }
-    const branchResult = await applyBranchFilter({
+    const branchGatePayload = await runBranchFilterGate({
       branchFilter,
-      caseSensitive: caseFile,
-      root: rootDir,
+      caseFile,
+      rootDir,
       metricsDir,
       queryCacheDir,
       runCode,
       runProse,
       backendLabel,
-      backendPolicy: backendPolicyInfo,
+      backendPolicyInfo,
       emitOutput,
       jsonOutput,
-      recordSearchMetrics,
-      warn: console.warn
+      recordSearchMetrics
     });
-    if (branchResult?.payload) {
-      return branchResult.payload;
+    if (branchGatePayload) {
+      return branchGatePayload;
     }
 
     const planInput = buildQueryPlanInput({
