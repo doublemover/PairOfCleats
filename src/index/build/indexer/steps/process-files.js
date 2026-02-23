@@ -394,6 +394,13 @@ export const createOrderedCompletionTracker = () => {
   const pending = new Set();
   let firstError = null;
 
+  /**
+   * Track a completion promise and remember first rejection.
+   *
+   * @param {Promise<unknown>|unknown} completion
+   * @param {(() => void)|null} [onSettled]
+   * @returns {Promise<unknown>|unknown}
+   */
   const track = (completion, onSettled = null) => {
     if (!completion || typeof completion.then !== 'function') return completion;
     pending.add(completion);
@@ -409,18 +416,21 @@ export const createOrderedCompletionTracker = () => {
     return completion;
   };
 
+  /**
+   * Throw first observed completion failure, if any.
+   *
+   * @returns {void}
+   */
   const throwIfFailed = () => {
     if (firstError) throw firstError;
   };
 
-  const wait = async (options = {}) => {
-    const stallPollMs = Number.isFinite(Number(options?.stallPollMs))
-      ? Math.max(0, Math.floor(Number(options.stallPollMs)))
-      : 0;
-    const onStall = typeof options?.onStall === 'function' ? options.onStall : null;
-    let stallCount = 0;
-    let pendingDrainPromise = null;
-    let pendingDrainSize = -1;
+  /**
+   * Wait for all tracked completions and propagate first failure.
+   *
+   * @returns {Promise<void>}
+   */
+  const wait = async () => {
     while (pending.size > 0) {
       if (!pendingDrainPromise || pendingDrainSize !== pending.size) {
         pendingDrainSize = pending.size;
@@ -462,6 +472,11 @@ export const createOrderedCompletionTracker = () => {
     throwIfFailed();
   };
 
+  /**
+   * Snapshot current completion tracker state.
+   *
+   * @returns {{pending:number,failed:boolean}}
+   */
   const snapshot = () => ({
     pending: pending.size,
     failed: Boolean(firstError)
@@ -1159,6 +1174,13 @@ const createStage1ProgressTracker = ({
       checkpoint?.tick?.();
     }
   };
+  /**
+   * Advance progress exactly once per order index.
+   *
+   * @param {number|null} orderIndex
+   * @param {{count:number,total:number,meta:object}|null} [shardProgress]
+   * @returns {boolean}
+   */
   const markOrderedEntryComplete = (orderIndex, shardProgress = null) => {
     if (!progress || typeof progress.tick !== 'function') return false;
     if (Number.isFinite(orderIndex)) {
@@ -1265,6 +1287,12 @@ const buildStage1SchedulerStallSnapshot = (runtime) => {
   const stats = runtime.scheduler.stats();
   if (!stats || typeof stats !== 'object') return null;
   const queues = stats?.queues && typeof stats.queues === 'object' ? stats.queues : {};
+  /**
+   * Project one scheduler queue into a compact stall-diagnostic row.
+   *
+   * @param {string} queueName
+   * @returns {object|null}
+   */
   const summarizeQueue = (queueName) => {
     const queue = queues?.[queueName];
     if (!queue || typeof queue !== 'object') return null;
@@ -1342,6 +1370,12 @@ const formatStage1SchedulerStallSummary = (snapshot) => {
     (Array.isArray(snapshot.highlightedQueues) ? snapshot.highlightedQueues : [])
       .map((entry) => [entry.name, entry])
   );
+  /**
+   * Format one highlighted queue into compact summary text.
+   *
+   * @param {string} name
+   * @returns {string}
+   */
   const formatQueue = (name) => {
     const queue = queueByName.get(name);
     if (!queue) return `${name}=n/a`;
@@ -1414,6 +1448,12 @@ const buildStage1ProcessingStallSnapshot = ({
   };
 };
 
+/**
+ * Summarize soft-kick cleanup outcomes for watchdog diagnostics.
+ *
+ * @param {Array<{timedOut?:boolean,error?:unknown}>} [cleanupResults]
+ * @returns {{count:number,timedOut:number,errors:number}}
+ */
 const summarizeStage1SoftKickCleanup = (cleanupResults = []) => {
   const summaries = (Array.isArray(cleanupResults) ? cleanupResults : [])
     .filter((entry) => entry && typeof entry === 'object');
@@ -1650,6 +1690,11 @@ export const processFiles = async ({
   const effectiveAbortSignal = stageAbortController?.signal || abortSignal || null;
   let detachExternalAbort = null;
   if (stageAbortController && abortSignal && typeof abortSignal.addEventListener === 'function') {
+    /**
+     * Propagate outer abort to file-local controller.
+     *
+     * @returns {void}
+     */
     const forwardAbort = () => {
       if (effectiveAbortSignal?.aborted) return;
       try {
@@ -1664,6 +1709,12 @@ export const processFiles = async ({
     };
     if (abortSignal.aborted) forwardAbort();
   }
+  /**
+   * Abort active stage1 processing and trigger runtime cancellation hooks.
+   *
+   * @param {unknown} [reason]
+   * @returns {void}
+   */
   const abortProcessing = (reason = null) => {
     if (!stageAbortController || effectiveAbortSignal?.aborted) return;
     try {
@@ -1820,6 +1871,14 @@ export const processFiles = async ({
     lifecycleByOrderIndex.set(normalizedOrderIndex, created);
     return created;
   };
+  /**
+   * Update one timing aggregation bucket with normalized sample values.
+   *
+   * @param {Map<string,object>} bucketMap
+   * @param {string} key
+   * @param {{durationMs?:number,files?:number,bytes?:number,lines?:number}} [input]
+   * @returns {void}
+   */
   const updateStageTimingBucket = (bucketMap, key, { durationMs = 0, files = 1, bytes = 0, lines = 0 } = {}) => {
     const bucketKey = key || 'unknown';
     const entry = bucketMap.get(bucketKey) || {
@@ -1862,6 +1921,12 @@ export const processFiles = async ({
       lines: safeLines
     });
   };
+  /**
+   * Record queue-delay sample into histogram and running summary.
+   *
+   * @param {number} durationMs
+   * @returns {void}
+   */
   const observeQueueDelay = (durationMs) => {
     const safeDurationMs = clampDurationMs(durationMs);
     queueDelaySummary.count += 1;
@@ -1899,6 +1964,12 @@ export const processFiles = async ({
       watchdogNearThreshold.nearThresholdCount += 1;
     }
   };
+  /**
+   * Materialize sorted breakdown rows from timing bucket map.
+   *
+   * @param {Map<string,object>} bucketMap
+   * @returns {object[]}
+   */
   const finalizeBreakdownBucket = (bucketMap) => (
     Object.fromEntries(
       Array.from(bucketMap.entries())
@@ -1918,6 +1989,11 @@ export const processFiles = async ({
         })
     )
   );
+  /**
+   * Build full stage1 timing breakdown payload for telemetry/artifacts.
+   *
+   * @returns {object}
+   */
   const buildStageTimingBreakdownPayload = () => ({
     schemaVersion: STAGE_TIMING_SCHEMA_VERSION,
     parseChunk: {
@@ -2042,6 +2118,11 @@ export const processFiles = async ({
     }
   }
 
+  /**
+   * Stop and flush tree-sitter scheduler resources when used by this stage.
+   *
+   * @returns {Promise<void>}
+   */
   const closeTreeSitterScheduler = async () => {
     if (!treeSitterScheduler || typeof treeSitterScheduler.close !== 'function') return;
     await treeSitterScheduler.close();
@@ -2103,6 +2184,12 @@ export const processFiles = async ({
       ? resolvePostingsQueueConfig(runtime)
       : null;
     const orderedAppenderConfig = resolveOrderedAppenderConfig(runtime);
+    /**
+     * Publish postings queue snapshot to stage1 and global telemetry channels.
+     *
+     * @param {object|null} [snapshot]
+     * @returns {void}
+     */
     const updatePostingsTelemetry = (snapshot = null) => {
       if (!runtime?.telemetry?.setInFlightBytes) return;
       const pendingCount = Number(snapshot?.pendingCount) || 0;
@@ -2143,6 +2230,13 @@ export const processFiles = async ({
       startOrderIndex,
       expectedOrderIndices
     } = resolveOrderedEntryProgressPlan(entries);
+    /**
+     * Resolve lifecycle timing row from processor result payload.
+     *
+     * @param {object} result
+     * @param {object|null} [shardMeta]
+     * @returns {object}
+     */
     const resolveResultLifecycleRecord = (result, shardMeta = null) => {
       if (!result || typeof result !== 'object') return null;
       const fromRelKey = result.relKey && lifecycleByRelKey.has(result.relKey)
@@ -2162,6 +2256,14 @@ export const processFiles = async ({
         shardId: shardMeta?.id || null
       });
     };
+    /**
+     * Merge one file-processing result into stage state and write pipelines.
+     *
+     * @param {object} result
+     * @param {object} stateRef
+     * @param {object|null} shardMeta
+     * @returns {Promise<void>}
+     */
     const applyFileResult = async (result, stateRef, shardMeta) => {
       if (!result) return;
       const lifecycle = resolveResultLifecycleRecord(result, shardMeta);
@@ -2301,6 +2403,11 @@ export const processFiles = async ({
     let lastProgressAt = Date.now();
     let lastStallSnapshotAt = 0;
     let watchdogAdaptiveLogged = false;
+    /**
+     * Resolve pending ordered-appender queue depth for watchdog snapshots.
+     *
+     * @returns {number}
+     */
     const getOrderedPendingCount = () => {
       if (!activeOrderedCompletionTracker || typeof activeOrderedCompletionTracker.snapshot !== 'function') {
         return 0;
@@ -2308,6 +2415,12 @@ export const processFiles = async ({
       const snapshot = activeOrderedCompletionTracker.snapshot();
       return Number(snapshot?.pending) || 0;
     };
+    /**
+     * Collect currently stalled in-flight files for watchdog logging.
+     *
+     * @param {number} [limit=6]
+     * @returns {object[]}
+     */
     const collectStalledFiles = (limit = 6) => (
       collectStage1StalledFiles(inFlightFiles, { limit })
     );
@@ -2330,8 +2443,26 @@ export const processFiles = async ({
       stage1OwnershipPrefix: stage1OwnershipPrefix,
       runtime
     });
+    /**
+     * Format stalled-file rows for heartbeat/abort logs.
+     *
+     * @param {object[]} [stalledFiles]
+     * @returns {string}
+     */
     const toStalledFileText = (stalledFiles = []) => formatStage1StalledFileText(stalledFiles);
+    /**
+     * Format scheduler stall snapshot to compact log summary.
+     *
+     * @param {object|null} snapshot
+     * @returns {string|null}
+     */
     const formatSchedulerStallSummary = (snapshot) => formatStage1SchedulerStallSummary(snapshot);
+    /**
+     * Summarize soft-kick cleanup results for diagnostics payload.
+     *
+     * @param {Array<object>} [cleanupResults]
+     * @returns {{count:number,timedOut:number,errors:number}}
+     */
     const summarizeSoftKickCleanup = (cleanupResults = []) => summarizeStage1SoftKickCleanup(cleanupResults);
     const performStage1SoftKick = async ({
       idleMs = 0,
@@ -2423,6 +2554,12 @@ export const processFiles = async ({
         stage1StallSoftKickInFlight = false;
       }
     };
+    /**
+     * Evaluate current idle state and trigger soft-kick/abort actions as needed.
+     *
+     * @param {string} [source='watchdog']
+     * @returns {void}
+     */
     const evaluateStalledProcessing = (source = 'watchdog') => {
       if (!progress || stage1StallAbortTriggered) return;
       const orderedPending = getOrderedPendingCount();
@@ -2532,6 +2669,11 @@ export const processFiles = async ({
         );
       }).catch(() => {});
     };
+    /**
+     * Emit a watchdog stall snapshot event/log payload.
+     *
+     * @returns {void}
+     */
     const emitProcessingStallSnapshot = () => {
       if (stallSnapshotMs <= 0 || !progress) return;
       const orderedPending = getOrderedPendingCount();
@@ -2600,6 +2742,11 @@ export const processFiles = async ({
       }
       evaluateStalledProcessing('stall_snapshot');
     };
+    /**
+     * Emit periodic progress heartbeat and run stall evaluation.
+     *
+     * @returns {void}
+     */
     const emitProcessingProgressHeartbeat = () => {
       if (progressHeartbeatMs <= 0 || !progress) return;
       const orderedPending = getOrderedPendingCount();
@@ -2653,6 +2800,12 @@ export const processFiles = async ({
         }
       }
     );
+    /**
+     * Process one shard or global entry list with stage1 watchdog integration.
+     *
+     * @param {{entries:object[],runtime:object,shardMeta?:object|null,stateRef:object}} input
+     * @returns {Promise<void>}
+     */
     const processEntries = async ({ entries: shardEntries, runtime: runtimeRef, shardMeta = null, stateRef }) => {
       const shardLabel = shardMeta?.label || shardMeta?.id || null;
       const shardProgress = shardMeta
@@ -2748,6 +2901,12 @@ export const processFiles = async ({
           + `slow-file base threshold raised to ${fileWatchdogConfig.slowFileMs}ms.`
         );
       }
+      /**
+       * Execute one bounded entry batch and update queue telemetry around it.
+       *
+       * @param {object[]} batchEntries
+       * @returns {Promise<void>}
+       */
       const runEntryBatch = async (batchEntries) => {
         const orderedCompletionTracker = createOrderedCompletionTracker();
         const orderedWaitRecoveryPollMs = Math.max(
@@ -3438,6 +3597,12 @@ export const processFiles = async ({
         batch,
         subsetCount: batch.length
       }));
+      /**
+       * Execute one shard worker and normalize worker-level failures.
+       *
+       * @param {object} workerContext
+       * @returns {Promise<object>}
+       */
       const runShardWorker = async (workerContext) => {
         const { workerId, workerIndex, batch } = workerContext;
         const shardRuntime = createShardRuntime(runtime, {

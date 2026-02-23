@@ -75,6 +75,13 @@ const resolveJsonlReadPlan = (byteSize) => {
  * @returns {any}
  */
 export const readJsonFile = (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
+  /**
+   * Parse JSON payload buffer with size/heap guards.
+   *
+   * @param {Buffer} buffer
+   * @param {string} sourcePath
+   * @returns {any}
+   */
   const parseBuffer = (buffer, sourcePath) => {
     if (buffer.length > maxBytes) {
       throw toJsonTooLargeError(sourcePath, buffer.length);
@@ -91,6 +98,13 @@ export const readJsonFile = (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
       throw err;
     }
   };
+  /**
+   * Read one JSON source candidate and record read metrics.
+   *
+   * @param {string} targetPath
+   * @param {{compression?:string|null,cleanup?:boolean}} [options]
+   * @returns {any}
+   */
   const tryRead = (targetPath, options = {}) => {
     const { compression = null, cleanup = false } = options;
     const shouldMeasure = hasArtifactReadObserver();
@@ -165,6 +179,13 @@ export const readJsonLinesEach = async (
   { maxBytes = MAX_JSON_BYTES, requiredKeys = null, validationMode = 'strict' } = {}
 ) => {
   if (typeof onEntry !== 'function') return;
+  /**
+   * Parse JSONL rows from an in-memory payload buffer.
+   *
+   * @param {Buffer|string} buffer
+   * @param {string} sourcePath
+   * @returns {{rows:number,bytes:number}}
+   */
   const readJsonlFromBuffer = (buffer, sourcePath) => (
     scanJsonlBuffer(buffer, sourcePath, {
       maxBytes,
@@ -173,6 +194,14 @@ export const readJsonLinesEach = async (
       onEntry
     })
   );
+  /**
+   * Parse JSONL rows from a stream and emit telemetry.
+   *
+   * @param {string} targetPath
+   * @param {import('stream').Readable} stream
+   * @param {{rawBytes?:number,compression?:string|null,cleanup?:boolean}} [options]
+   * @returns {Promise<void>}
+   */
   const readJsonlFromStream = async (targetPath, stream, { rawBytes, compression, cleanup = false } = {}) => {
     const shouldMeasure = hasArtifactReadObserver();
     const start = shouldMeasure ? performance.now() : 0;
@@ -210,6 +239,13 @@ export const readJsonLinesEach = async (
       });
     }
   };
+  /**
+   * Read gzip-compressed JSONL via buffered or streaming path.
+   *
+   * @param {string} targetPath
+   * @param {boolean} [cleanup=false]
+   * @returns {Promise<void>}
+   */
   const readJsonlFromGzipStream = async (targetPath, cleanup = false) => {
     const stat = fs.statSync(targetPath);
     if (stat.size > maxBytes) {
@@ -253,6 +289,13 @@ export const readJsonLinesEach = async (
     }
   };
 
+  /**
+   * Read zstd-compressed JSONL via streaming decompression.
+   *
+   * @param {string} targetPath
+   * @param {boolean} [cleanup=false]
+   * @returns {Promise<void>}
+   */
   const readJsonlFromZstdStream = async (targetPath, cleanup = false) => {
     const stat = fs.statSync(targetPath);
     if (stat.size > maxBytes) {
@@ -281,6 +324,13 @@ export const readJsonLinesEach = async (
       stream.destroy();
     }
   };
+  /**
+   * Attempt small zstd JSONL decode via in-memory decompression.
+   *
+   * @param {string} targetPath
+   * @param {boolean} [cleanup=false]
+   * @returns {Promise<boolean|null>}
+   */
   const readJsonlFromZstdBuffer = async (targetPath, cleanup = false) => {
     const zstd = resolveOptionalZstd();
     if (!zstd) return null;
@@ -321,6 +371,13 @@ export const readJsonLinesEach = async (
     }
   };
 
+  /**
+   * Read one JSONL source candidate with compression-aware strategy.
+   *
+   * @param {string} targetPath
+   * @param {boolean} [cleanup=false]
+   * @returns {Promise<void>}
+   */
   const tryRead = async (targetPath, cleanup = false) => {
     const compression = detectCompression(targetPath);
     if (compression) {
@@ -462,6 +519,12 @@ const readJsonLinesIteratorSingle = async function* (
     onResume
   });
 
+  /**
+   * Producer coroutine that discovers source candidate, parses rows, and pushes
+   * entries into the bounded consumer queue.
+   *
+   * @returns {Promise<void>}
+   */
   const producer = (async () => {
     try {
       const candidates = targetPath.endsWith('.jsonl')
@@ -690,7 +753,20 @@ export const readJsonLinesArray = async (
     concurrency = null
   } = {}
 ) => {
+  /**
+   * Materialize JSONL rows from a single source path.
+   *
+   * @param {string} targetPath
+   * @returns {Promise<any[]>}
+   */
   const readJsonLinesArraySingle = async (targetPath) => {
+    /**
+     * Parse JSONL rows from in-memory payload.
+     *
+     * @param {Buffer|string} buffer
+     * @param {string} sourcePath
+     * @returns {any[]}
+     */
     const readJsonlFromBuffer = (buffer, sourcePath) => {
       const parsed = [];
       scanJsonlBuffer(buffer, sourcePath, {
@@ -701,6 +777,14 @@ export const readJsonLinesArray = async (
       });
       return parsed;
     };
+    /**
+     * Parse JSONL rows from stream source and return accumulated rows.
+     *
+     * @param {string} sourcePath
+     * @param {import('stream').Readable} stream
+     * @param {{rawBytes?:number,compression?:string|null,cleanup?:boolean}} [options]
+     * @returns {Promise<any[]>}
+     */
     const readJsonlFromStream = async (sourcePath, stream, { rawBytes, compression, cleanup = false } = {}) => {
       const shouldMeasure = hasArtifactReadObserver();
       const start = shouldMeasure ? performance.now() : 0;
@@ -740,6 +824,13 @@ export const readJsonLinesArray = async (
       }
       return parsed;
     };
+    /**
+     * Attempt in-memory zstd decode path for smaller JSONL payloads.
+     *
+     * @param {string} sourcePath
+     * @param {boolean} [cleanup=false]
+     * @returns {Promise<any[]|null>}
+     */
     const readJsonlFromZstdBuffer = async (sourcePath, cleanup = false) => {
       const zstd = resolveOptionalZstd();
       if (!zstd) return null;
@@ -778,6 +869,13 @@ export const readJsonLinesArray = async (
         throw err;
       }
     };
+    /**
+     * Parse gzip-compressed JSONL for one source path.
+     *
+     * @param {string} sourcePath
+     * @param {boolean} [cleanup=false]
+     * @returns {Promise<any[]>}
+     */
     const readJsonlFromGzipStream = async (sourcePath, cleanup = false) => {
       const stat = fs.statSync(sourcePath);
       if (stat.size > maxBytes) {
@@ -821,6 +919,13 @@ export const readJsonLinesArray = async (
       }
     };
 
+    /**
+     * Parse zstd-compressed JSONL for one source path.
+     *
+     * @param {string} sourcePath
+     * @param {boolean} [cleanup=false]
+     * @returns {Promise<any[]>}
+     */
     const readJsonlFromZstdStream = async (sourcePath, cleanup = false) => {
       const stat = fs.statSync(sourcePath);
       if (stat.size > maxBytes) {
@@ -850,6 +955,13 @@ export const readJsonLinesArray = async (
       }
     };
 
+    /**
+     * Read one source path with compression-aware decode and telemetry.
+     *
+     * @param {string} sourcePath
+     * @param {boolean} [cleanup=false]
+     * @returns {Promise<any[]>}
+     */
     const tryRead = async (sourcePath, cleanup = false) => {
       const compression = detectCompression(sourcePath);
       if (compression) {
@@ -947,6 +1059,11 @@ export const readJsonLinesArray = async (
   const resolvedConcurrency = Math.max(1, Math.min(Number(concurrency) || 4, paths.length));
   const results = new Array(paths.length);
   let cursor = 0;
+  /**
+   * Parallel worker for multi-path JSONL reads.
+   *
+   * @returns {Promise<void>}
+   */
   const worker = async () => {
     for (;;) {
       const index = cursor;
@@ -984,7 +1101,20 @@ export const readJsonLinesArraySync = (
   { maxBytes = MAX_JSON_BYTES, requiredKeys = null, validationMode = 'strict' } = {}
 ) => {
   const useCache = !requiredKeys;
+  /**
+   * Resolve sync JSONL cache hit when cache is enabled.
+   *
+   * @param {string} targetPath
+   * @returns {any[]|null}
+   */
   const readCached = (targetPath) => (useCache ? readCache(targetPath) : null);
+  /**
+   * Parse sync JSONL payload from buffer.
+   *
+   * @param {Buffer} buffer
+   * @param {string} sourcePath
+   * @returns {any[]}
+   */
   const readJsonlFromBuffer = (buffer, sourcePath) => {
     if (buffer.length > maxBytes) {
       throw toJsonTooLargeError(sourcePath, buffer.length);
@@ -1006,6 +1136,13 @@ export const readJsonLinesArraySync = (
     }
     return parsed;
   };
+  /**
+   * Read one sync JSONL source candidate with optional cleanup.
+   *
+   * @param {string} targetPath
+   * @param {boolean} [cleanup=false]
+   * @returns {any[]}
+   */
   const tryRead = (targetPath, cleanup = false) => {
     const cached = readCached(targetPath);
     if (cached) return cached;

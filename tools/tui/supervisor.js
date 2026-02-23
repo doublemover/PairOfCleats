@@ -136,17 +136,39 @@ const state = {
   }
 };
 
+/**
+ * Clamp numeric input to bounded integer range with fallback on invalid input.
+ *
+ * @param {unknown} value
+ * @param {number} fallback
+ * @param {{min?:number,max?:number}} [options]
+ * @returns {number}
+ */
 const clampInt = (value, fallback, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.max(min, Math.min(max, Math.floor(parsed)));
 };
 
+/** @returns {string} */
 const nowIso = () => new Date().toISOString();
+/**
+ * Normalize mixed newline sequences to LF.
+ *
+ * @param {string} text
+ * @returns {string}
+ */
 const normalizeLineBreaks = (text) => String(text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
+/** @param {string|null} jobId @returns {object|null} */
 const getJob = (jobId) => (typeof jobId === 'string' ? state.jobs.get(jobId) : null);
 
+/**
+ * Allocate next event sequence id globally or for a specific job.
+ *
+ * @param {string|null} [jobId]
+ * @returns {number}
+ */
 const nextSeq = (jobId = null) => {
   if (!jobId) {
     state.globalSeq += 1;
@@ -161,11 +183,22 @@ const nextSeq = (jobId = null) => {
   return job.seq;
 };
 
+/**
+ * Allocate next chunk id for split flow-control events.
+ *
+ * @returns {string}
+ */
 const nextChunkId = () => {
   state.flow.chunkSeq += 1;
   return `${runId}-chunk-${state.flow.chunkSeq}`;
 };
 
+/**
+ * Write one protocol event frame to stdout and optional event log.
+ *
+ * @param {object} entry
+ * @returns {void}
+ */
 const writeEvent = (entry) => {
   process.stdout.write(`${JSON.stringify(entry)}\n`);
   eventLogRecorder?.write(entry);
@@ -298,6 +331,15 @@ const emit = (event, payload = {}, { jobId = null, critical = false } = {}) => {
   emitEntry(entry, { critical: critical || CRITICAL_EVENTS.has(event) });
 };
 
+/**
+ * Emit normalized supervisor log event.
+ *
+ * @param {string|null} jobId
+ * @param {'info'|'warn'|'error'} level
+ * @param {string} message
+ * @param {object} [extra]
+ * @returns {void}
+ */
 const emitLog = (jobId, level, message, extra = {}) => {
   emit('log', {
     level,
@@ -306,6 +348,12 @@ const emitLog = (jobId, level, message, extra = {}) => {
   }, { jobId });
 };
 
+/**
+ * Build current flow-control counters snapshot.
+ *
+ * @param {{includeChunked?:boolean}} [input]
+ * @returns {object}
+ */
 const buildFlowSnapshot = ({ includeChunked = false } = {}) => ({
   credits: state.flow.credits,
   queueDepth: state.flow.queue.length,
@@ -315,6 +363,12 @@ const buildFlowSnapshot = ({ includeChunked = false } = {}) => ({
   ...(includeChunked ? { chunked: state.flow.chunked } : {})
 });
 
+/**
+ * Add downstream flow credits and drain queued events.
+ *
+ * @param {number} value
+ * @returns {number}
+ */
 const addFlowCredits = (value) => {
   const credits = clampInt(value, 0, { min: 0, max: FLOW_MAX_CREDITS });
   if (credits <= 0) return 0;
@@ -323,12 +377,22 @@ const addFlowCredits = (value) => {
   return credits;
 };
 
+/**
+ * Emit periodic runtime metrics heartbeat for supervisor health.
+ *
+ * @returns {void}
+ */
 const emitRuntimeMetrics = () => {
   emit('runtime:metrics', {
     flow: buildFlowSnapshot({ includeChunked: true })
   }, { critical: true });
 };
 
+/**
+ * Emit startup capabilities handshake event.
+ *
+ * @returns {void}
+ */
 const emitHello = () => {
   emit('hello', {
     supervisorVersion,
@@ -380,6 +444,12 @@ const resolveResultPolicy = (request) => {
   return { captureStdout, maxBytes };
 };
 
+/**
+ * Remove completed job from in-memory registry.
+ *
+ * @param {string} jobId
+ * @returns {void}
+ */
 const cleanupFinalizedJob = (jobId) => {
   const job = getJob(jobId);
   if (!job || !job.finalized) return;
@@ -520,6 +590,12 @@ const buildSupervisorWatchdogSnapshot = ({
   })
 });
 
+/**
+ * Sleep for a bounded delay.
+ *
+ * @param {number} ms
+ * @returns {Promise<void>}
+ */
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
@@ -561,6 +637,12 @@ const extractRoutedProgressPayload = (event) => {
   return payload;
 };
 
+/**
+ * Re-emit decoded progress frame into supervisor protocol stream.
+ *
+ * @param {{jobId:string,stream:string,event:object}} input
+ * @returns {void}
+ */
 const routeDecodedProgressEvent = ({ jobId, stream, event }) => {
   const payload = extractRoutedProgressPayload(event);
   if (typeof payload.stream !== 'string') {
@@ -569,6 +651,12 @@ const routeDecodedProgressEvent = ({ jobId, stream, event }) => {
   emit(event?.event, payload, { jobId });
 };
 
+/**
+ * Emit warning when stream decoder drops oversized frame content.
+ *
+ * @param {{jobId:string,stream:string,overflowBytes:number}} input
+ * @returns {void}
+ */
 const emitDecoderOverflowLog = ({ jobId, stream, overflowBytes }) => {
   emitLog(jobId, 'warn', `${stream} decoder overflow (${overflowBytes} bytes truncated).`, { stream });
 };
@@ -598,6 +686,12 @@ const createJobStreamDecoder = ({ job, jobId, stream, maxLineBytes, markActivity
   }
 });
 
+/**
+ * Resolve watchdog polling cadence from active timeout policy.
+ *
+ * @param {{hardTimeoutMs:number,heartbeatMs:number}} watchdogPolicy
+ * @returns {number}
+ */
 const resolveWatchdogPollIntervalMs = (watchdogPolicy) => Math.max(
   250,
   Math.min(
@@ -627,6 +721,12 @@ const createJobWatchdogController = ({
   let watchdogSoftKickInFlight = false;
   let watchdogLastSoftKickAt = 0;
 
+  /**
+   * Emit watchdog heartbeat log when job is idle past heartbeat threshold.
+   *
+   * @param {number} idleMs
+   * @returns {void}
+   */
   const emitWatchdogHeartbeat = (idleMs) => {
     if (watchdogPolicy.heartbeatMs <= 0) return;
     const nowMs = Date.now();
@@ -650,6 +750,12 @@ const createJobWatchdogController = ({
     );
   };
 
+  /**
+   * Execute one watchdog soft-kick attempt.
+   *
+   * @param {number} idleMs
+   * @returns {void}
+   */
   const runSoftKick = (idleMs) => {
     if (watchdogSoftKickInFlight || job.finalized || job.abortController.signal.aborted) return;
     watchdogSoftKickInFlight = true;
@@ -690,6 +796,12 @@ const createJobWatchdogController = ({
     }
   };
 
+  /**
+   * Abort job due to watchdog hard-timeout.
+   *
+   * @param {number} idleMs
+   * @returns {void}
+   */
   const runHardTimeout = (idleMs) => {
     const snapshot = buildSupervisorWatchdogSnapshot({
       job,
@@ -718,6 +830,11 @@ const createJobWatchdogController = ({
     job.abortController.abort('watchdog_timeout');
   };
 
+  /**
+   * Watchdog polling tick: heartbeat, soft-kick, and hard-timeout checks.
+   *
+   * @returns {void}
+   */
   const tick = () => {
     if (job.finalized || job.abortController.signal.aborted) return;
     const nowMs = Date.now();
@@ -753,6 +870,12 @@ const createJobWatchdogController = ({
   };
 };
 
+/**
+ * Stat one candidate artifact path and return normalized artifact metadata.
+ *
+ * @param {{kind:string,label:string,artifactPath:string}} input
+ * @returns {Promise<object>}
+ */
 const statArtifact = async ({ kind, label, artifactPath }) => {
   try {
     const stat = await fs.promises.stat(artifactPath);
@@ -824,6 +947,12 @@ const resolveRequestRepoRoot = ({ request, cwd }) => {
   return baseCwd;
 };
 
+/**
+ * Append index artifact roots for all supported modes.
+ *
+ * @param {{artifacts:object[],repoRoot:string,userConfig:object|null}} input
+ * @returns {Promise<void>}
+ */
 const addIndexArtifacts = async ({ artifacts, repoRoot, userConfig }) => {
   for (const mode of ['code', 'prose', 'extracted-prose', 'records']) {
     const indexDir = getIndexDir(repoRoot, mode, userConfig);
@@ -835,6 +964,12 @@ const addIndexArtifacts = async ({ artifacts, repoRoot, userConfig }) => {
   }
 };
 
+/**
+ * Append search metrics artifact paths.
+ *
+ * @param {{artifacts:object[],repoRoot:string,userConfig:object|null}} input
+ * @returns {Promise<void>}
+ */
 const addSearchArtifacts = async ({ artifacts, repoRoot, userConfig }) => {
   const metricsDir = getMetricsDir(repoRoot, userConfig);
   artifacts.push(await statArtifact({
@@ -849,6 +984,12 @@ const addSearchArtifacts = async ({ artifacts, repoRoot, userConfig }) => {
   }));
 };
 
+/**
+ * Append setup/config/cache artifact paths.
+ *
+ * @param {{artifacts:object[],repoRoot:string,userConfig:object|null}} input
+ * @returns {Promise<void>}
+ */
 const addSetupArtifacts = async ({ artifacts, repoRoot, userConfig }) => {
   artifacts.push(await statArtifact({
     kind: 'config:file',
@@ -899,6 +1040,13 @@ const collectJobArtifacts = async ({ request, cwd }) => {
     .sort((a, b) => `${a.kind}|${a.path}`.localeCompare(`${b.kind}|${b.path}`));
 };
 
+/**
+ * Finalize job state once and emit terminal `job:end` event.
+ *
+ * @param {object} job
+ * @param {object} payload
+ * @returns {void}
+ */
 const finalizeJob = (job, payload) => {
   if (job.finalized) return;
   job.finalized = true;
@@ -983,6 +1131,12 @@ const startJob = async (request) => {
     }
   }, { jobId });
 
+  /**
+   * Run one attempt of the configured command with stream decoding and watchdogs.
+   *
+   * @param {number} attempt
+   * @returns {Promise<object>}
+   */
   const runAttempt = async (attempt) => {
     const { command, args, cwd } = resolveRunRequest(request);
     const resultPolicy = resolveResultPolicy(request);
@@ -1003,6 +1157,11 @@ const startJob = async (request) => {
       ? Math.min(timeoutMs, timeoutFromDeadline)
       : (timeoutMs > 0 ? timeoutMs : timeoutFromDeadline || undefined);
 
+    /**
+     * Mark most recent child-process output/activity timestamp.
+     *
+     * @returns {void}
+     */
     const markActivity = () => {
       lastActivityAt = Date.now();
     };
@@ -1138,6 +1297,13 @@ const startJob = async (request) => {
   });
 };
 
+/**
+ * Cancel one running job and propagate abort reason.
+ *
+ * @param {string} jobId
+ * @param {string} [reason]
+ * @returns {boolean}
+ */
 const cancelJob = (jobId, reason = 'cancel_requested') => {
   const job = getJob(jobId);
   if (!job) return false;
@@ -1152,6 +1318,13 @@ const cancelJob = (jobId, reason = 'cancel_requested') => {
   return true;
 };
 
+/**
+ * Gracefully cancel all jobs and terminate supervisor process.
+ *
+ * @param {string} [reason='shutdown']
+ * @param {number} [exitCode=0]
+ * @returns {Promise<void>}
+ */
 const shutdown = async (reason = 'shutdown', exitCode = 0) => {
   if (state.shuttingDown) return;
   state.shuttingDown = true;

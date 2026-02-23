@@ -214,6 +214,14 @@ export async function writeIndexArtifacts(input) {
     tinyRepoFastPath = null
   } = input;
   const orderingStage = indexState?.stage || 'stage2';
+  /**
+   * Persist deterministic ordering hash metadata for one artifact.
+   *
+   * @param {string} artifact
+   * @param {{orderingHash?:string,orderingCount?:number}|null} ordering
+   * @param {string} rule
+   * @returns {Promise<void>}
+   */
   const recordOrdering = async (artifact, ordering, rule) => {
     if (!buildRoot || !ordering?.orderingHash) return;
     await recordOrderingHash(buildRoot, {
@@ -225,6 +233,12 @@ export async function writeIndexArtifacts(input) {
       count: ordering.orderingCount
     });
   };
+  /**
+   * Hash vocabulary iteration order for determinism diagnostics.
+   *
+   * @param {string[]} [vocab]
+   * @returns {{orderingHash:string|null,orderingCount:number}}
+   */
   const measureVocabOrdering = (vocab = []) => {
     if (!Array.isArray(vocab) || !vocab.length) {
       return { orderingHash: null, orderingCount: 0 };
@@ -270,6 +284,12 @@ export async function writeIndexArtifacts(input) {
   const compressionTiersEnabled = compressionTierConfig.enabled !== false;
   const compressionTierHotNoCompression = compressionTierConfig.hotNoCompression !== false;
   const compressionTierColdForceCompression = compressionTierConfig.coldForceCompression !== false;
+  /**
+   * Normalize user-provided tier artifact names into a clean list.
+   *
+   * @param {unknown} value
+   * @returns {string[]}
+   */
   const normalizeTierArtifactList = (value) => (
     Array.isArray(value)
       ? value.filter((entry) => typeof entry === 'string' && entry.trim())
@@ -302,6 +322,12 @@ export async function writeIndexArtifacts(input) {
   ];
   const tierHotArtifacts = normalizeTierArtifactList(compressionTierConfig.hotArtifacts);
   const tierColdArtifacts = normalizeTierArtifactList(compressionTierConfig.coldArtifacts);
+  /**
+   * Resolve compression tier assignment for one artifact name.
+   *
+   * @param {string} artifactName
+   * @returns {'hot'|'warm'|'cold'}
+   */
   const resolveArtifactTier = (artifactName) => resolveArtifactCompressionTier(artifactName, {
     hotArtifacts: tierHotArtifacts.length ? tierHotArtifacts : defaultHotTierArtifacts,
     coldArtifacts: tierColdArtifacts.length ? tierColdArtifacts : defaultColdTierArtifacts,
@@ -333,11 +359,23 @@ export async function writeIndexArtifacts(input) {
       }
     }
   }
+  /**
+   * Resolve explicit compression override for an artifact base name.
+   *
+   * @param {string} base
+   * @returns {object|null}
+   */
   const resolveCompressionOverride = (base) => (
     tieredCompressionOverrides && Object.prototype.hasOwnProperty.call(tieredCompressionOverrides, base)
       ? tieredCompressionOverrides[base]
       : null
   );
+  /**
+   * Resolve effective shard compression mode after override/tier policy.
+   *
+   * @param {string} base
+   * @returns {string|null}
+   */
   const resolveShardCompression = (base) => {
     const override = resolveCompressionOverride(base);
     if (override) {
@@ -462,7 +500,20 @@ export async function writeIndexArtifacts(input) {
   const maxJsonBytes = MAX_JSON_BYTES;
   const byteBudgetState = resolveByteBudgetMap({ indexingConfig, maxJsonBytes });
   const byteBudgetPolicies = byteBudgetState.policies || {};
+  /**
+   * Resolve byte-budget policy row for an artifact.
+   *
+   * @param {string} name
+   * @returns {object|null}
+   */
   const resolveBudget = (name) => byteBudgetPolicies?.[name] || null;
+  /**
+   * Resolve max-bytes cap from budget policy with fallback.
+   *
+   * @param {string} name
+   * @param {number} fallback
+   * @returns {number}
+   */
   const resolveBudgetMaxBytes = (name, fallback) => {
     const budget = resolveBudget(name);
     return Number.isFinite(budget?.maxBytes) ? budget.maxBytes : fallback;
@@ -517,6 +568,11 @@ export async function writeIndexArtifacts(input) {
   const vfsHashRouting = toolingConfig?.vfs?.hashRouting === true;
   // Keep file_meta fingerprint source deterministic: prefer discovery order when
   // available, otherwise fall back to sorted fileInfo keys.
+  /**
+   * Resolve deterministic file ordering for file_meta fingerprinting.
+   *
+   * @returns {string[]}
+   */
   const resolveFileMetaFiles = () => {
     if (Array.isArray(state?.discoveredFiles) && state.discoveredFiles.length) {
       return state.discoveredFiles.slice();
@@ -633,6 +689,12 @@ export async function writeIndexArtifacts(input) {
 
 
   const resolvedConfig = normalizePostingsConfig(postingsConfig || {});
+  /**
+   * Resolve existing artifact path, falling back to `.bak` sibling when present.
+   *
+   * @param {string} targetPath
+   * @returns {string|null}
+   */
   const resolveExistingOrBakPath = (targetPath) => {
     if (!targetPath) return null;
     if (fsSync.existsSync(targetPath)) return targetPath;
@@ -675,6 +737,12 @@ export async function writeIndexArtifacts(input) {
   let filterIndexStats = null;
   let filterIndexReused = false;
   let filterIndexFallback = null;
+  /**
+   * Register reuse of previously persisted filter index metadata.
+   *
+   * @param {string} reason
+   * @returns {void}
+   */
   const reusePreviousFilterIndex = (reason) => {
     const previous = resolvePreviousFilterIndex();
     const previousFilterIndexSource = previous?.source || null;
@@ -710,6 +778,12 @@ export async function writeIndexArtifacts(input) {
     }
     return true;
   };
+  /**
+   * Validate serialized filter-index shape before reuse.
+   *
+   * @param {object} candidate
+   * @returns {boolean}
+   */
   const validateSerializedFilterIndex = (candidate) => {
     if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
       throw new Error('expected object');
@@ -869,6 +943,12 @@ export async function writeIndexArtifacts(input) {
     });
   }
   const cleanupActions = [];
+  /**
+   * Record artifact cleanup action for manifest/debug reporting.
+   *
+   * @param {{targetPath:string,recursive?:boolean,policy?:string}} input
+   * @returns {void}
+   */
   const recordCleanupAction = ({ targetPath, recursive = false, policy = 'legacy' }) => {
     if (!targetPath) return;
     cleanupActions.push({
@@ -877,6 +957,13 @@ export async function writeIndexArtifacts(input) {
       policy
     });
   };
+  /**
+   * Remove artifact file or directory according to cleanup policy.
+   *
+   * @param {string} targetPath
+   * @param {{recursive?:boolean,policy?:string}} [options]
+   * @returns {Promise<void>}
+   */
   const removeArtifact = async (targetPath, options = {}) => {
     const { recursive = true, policy = 'legacy' } = options;
     try {
@@ -977,6 +1064,13 @@ export async function writeIndexArtifacts(input) {
     writeStallThresholdsSeconds.push(legacyCriticalThreshold);
   }
   const normalizedWriteStallThresholds = Array.from(new Set(writeStallThresholdsSeconds)).sort((a, b) => a - b);
+  /**
+   * Resolve readable stall-threshold level label for telemetry.
+   *
+   * @param {number} thresholdSec
+   * @param {number} index
+   * @returns {string}
+   */
   const stallThresholdLevelName = (thresholdSec, index) => {
     if (thresholdSec >= 60) return 'severe';
     if (thresholdSec >= 30) return 'critical';
@@ -1032,6 +1126,12 @@ export async function writeIndexArtifacts(input) {
   const massiveWriteMemTokens = Number.isFinite(Number(artifactConfig.writeMassiveMemTokens))
     ? Math.max(0, Math.floor(Number(artifactConfig.writeMassiveMemTokens)))
     : 2;
+  /**
+   * Resolve first non-negative numeric work-class concurrency override.
+   *
+   * @param {...unknown} values
+   * @returns {number|null}
+   */
   const resolveWorkClassOverride = (...values) => {
     for (const candidate of values) {
       const parsed = Number(candidate);
@@ -1110,6 +1210,11 @@ export async function writeIndexArtifacts(input) {
     ? Math.max(1, Math.floor(Number(artifactConfig.writeTailWorkerMaxPending)))
     : Math.max(2, writeTailRescueMaxPending + 1);
   const writeStallAlerts = new Map();
+  /**
+   * Publish current write in-flight bytes/count into runtime telemetry.
+   *
+   * @returns {void}
+   */
   const updateWriteInFlightTelemetry = () => {
     if (!telemetry || typeof telemetry.setInFlightBytes !== 'function') return;
     let bytes = 0;
@@ -1121,6 +1226,11 @@ export async function writeIndexArtifacts(input) {
       count: activeWrites.size
     });
   };
+  /**
+   * Compute longest active write runtime in seconds.
+   *
+   * @returns {number}
+   */
   const getLongestWriteStallSeconds = () => {
     if (!activeWrites.size) return 0;
     const now = Date.now();
@@ -1132,10 +1242,23 @@ export async function writeIndexArtifacts(input) {
     return Math.max(0, Math.round(longest / 1000));
   };
   let enqueueSeq = 0;
+  /**
+   * Convert artifact path to normalized output-root relative label.
+   *
+   * @param {string} filePath
+   * @returns {string}
+   */
   const formatArtifactLabel = (filePath) => toPosix(path.relative(outDir, filePath));
   const pieceEntries = [];
   const pieceEntriesByPath = new Map();
   let mmapHotLayoutOrder = 0;
+  /**
+   * Resolve piece tier (`hot`/`cold`/`warm`) from metadata or artifact policy.
+   *
+   * @param {object} entry
+   * @param {string} normalizedPath
+   * @returns {string}
+   */
   const resolvePieceTier = (entry, normalizedPath) => {
     const explicitTier = typeof entry?.tier === 'string' ? entry.tier.trim().toLowerCase() : null;
     if (explicitTier === 'hot' || explicitTier === 'warm' || explicitTier === 'cold') {
@@ -1146,6 +1269,13 @@ export async function writeIndexArtifacts(input) {
       : normalizedPath;
     return resolveArtifactTier(candidateName);
   };
+  /**
+   * Register one written artifact file in the pieces manifest.
+   *
+   * @param {object} entry
+   * @param {string} filePath
+   * @returns {void}
+   */
   const addPieceFile = (entry, filePath) => {
     const normalizedPath = formatArtifactLabel(filePath);
     const tier = resolvePieceTier(entry, normalizedPath);
@@ -1183,6 +1313,13 @@ export async function writeIndexArtifacts(input) {
     }
     pieceEntriesByPath.get(normalizedPath).push(normalizedEntry);
   };
+  /**
+   * Attach incremental metadata updates to a tracked piece-manifest file row.
+   *
+   * @param {string} piecePath
+   * @param {object} [meta]
+   * @returns {void}
+   */
   const updatePieceMetadata = (piecePath, meta = {}) => {
     if (typeof piecePath !== 'string' || !piecePath) return;
     const targets = pieceEntriesByPath.get(piecePath);
@@ -1200,6 +1337,12 @@ export async function writeIndexArtifacts(input) {
     }
   };
   addPieceFile({ type: 'stats', name: 'filelists', format: 'json' }, path.join(outDir, '.filelists.json'));
+  /**
+   * Emit periodic write-progress summary and stall diagnostics.
+   *
+   * @param {string} label
+   * @returns {void}
+   */
   const logWriteProgress = (label) => {
     completedWrites += 1;
     if (label) lastWriteLabel = label;
@@ -1217,6 +1360,13 @@ export async function writeIndexArtifacts(input) {
       logLine(`Writing index files ${completedWrites}/${totalWrites} (${percent}%)${suffix}`, { kind: 'status' });
     }
   };
+  /**
+   * Record one artifact write metric row and update latency histograms.
+   *
+   * @param {string} label
+   * @param {object} metric
+   * @returns {void}
+   */
   const recordArtifactMetric = (label, metric) => {
     if (!label) return;
     const existing = artifactMetrics.get(label) || { path: label };
@@ -1235,6 +1385,11 @@ export async function writeIndexArtifacts(input) {
     }
     artifactMetrics.set(label, nextMetric);
   };
+  /**
+   * Start periodic write-heartbeat timer when enabled.
+   *
+   * @returns {void}
+   */
   const startWriteHeartbeat = () => {
     if (writeProgressHeartbeatMs <= 0 || writeHeartbeatTimer) return;
     writeHeartbeatTimer = setInterval(() => {
@@ -1290,11 +1445,23 @@ export async function writeIndexArtifacts(input) {
       writeHeartbeatTimer.unref();
     }
   };
+  /**
+   * Stop and clear the active write-heartbeat timer.
+   *
+   * @returns {void}
+   */
   const stopWriteHeartbeat = () => {
     if (!writeHeartbeatTimer) return;
     clearInterval(writeHeartbeatTimer);
     writeHeartbeatTimer = null;
   };
+  /**
+   * Resolve scheduler token envelope for eager prefetch scheduling.
+   *
+   * @param {number} estimatedBytes
+   * @param {string} laneHint
+   * @returns {{io:number,mem?:number}}
+   */
   const resolveEagerSchedulerTokens = (estimatedBytes, laneHint) => {
     const memTokens = resolveArtifactWriteMemTokens(estimatedBytes);
     if (laneHint === 'massive') {
@@ -1305,6 +1472,14 @@ export async function writeIndexArtifacts(input) {
     }
     return memTokens > 0 ? { io: 1, mem: memTokens } : { io: 1 };
   };
+  /**
+   * Enqueue one artifact write task with optional eager scheduler prefetch.
+   *
+   * @param {string} label
+   * @param {() => Promise<object|void>} job
+   * @param {object} [meta]
+   * @returns {void}
+   */
   const enqueueWrite = (label, job, meta = {}) => {
     const parsedPriority = Number(meta?.priority);
     const priority = Number.isFinite(parsedPriority) ? parsedPriority : 0;
@@ -1338,6 +1513,12 @@ export async function writeIndexArtifacts(input) {
     });
     enqueueSeq += 1;
   };
+  /**
+   * Resolve deterministic write ordering weight for batch scheduling.
+   *
+   * @param {object} entry
+   * @returns {number}
+   */
   const resolveWriteWeight = (entry) => {
     if (!entry || typeof entry !== 'object') return 0;
     let weight = Number.isFinite(entry.priority) ? entry.priority : 0;
@@ -1352,6 +1533,12 @@ export async function writeIndexArtifacts(input) {
     }
     return weight;
   };
+  /**
+   * Return write entries ordered by scheduler weight then label.
+   *
+   * @param {object[]} entries
+   * @returns {object[]}
+   */
   const scheduleWrites = (entries) => (
     Array.isArray(entries)
       ? entries.slice().sort((a, b) => {
@@ -1363,6 +1550,12 @@ export async function writeIndexArtifacts(input) {
       })
       : []
   );
+  /**
+   * Partition writes into lane classes used by adaptive dispatcher.
+   *
+   * @param {object[]} entries
+   * @returns {{ultraLight:object[],massive:object[],light:object[],heavy:object[]}}
+   */
   const splitWriteLanes = (entries) => {
     const ordered = scheduleWrites(entries);
     const lanes = {
@@ -1482,6 +1675,12 @@ export async function writeIndexArtifacts(input) {
     } catch {}
     const indexStateWarnBytes = Math.max(1024 * 64, Math.floor(maxJsonBytes * 0.1));
     const indexStateCompressThreshold = Math.max(1024 * 128, Math.floor(maxJsonBytes * 0.2));
+    /**
+     * Persist compact metadata for index_state reuse checks.
+     *
+     * @param {number|null} bytes
+     * @returns {Promise<void>}
+     */
     const writeIndexStateMeta = async (bytes) => {
       await writeJsonObjectFile(indexStateMetaPath, {
         fields: {
@@ -2047,6 +2246,12 @@ export async function writeIndexArtifacts(input) {
         1,
         Math.floor(fieldPostingsEstimatedBytes / Math.max(1, partFiles.length))
       );
+      /**
+       * Write one field-postings shard and collect per-part metrics.
+       *
+       * @param {object} part
+       * @returns {Promise<void>}
+       */
       const writeFieldPostingsPartition = async (part) => {
         const startedAt = Date.now();
         let serializationMs = 0;
@@ -2146,6 +2351,11 @@ export async function writeIndexArtifacts(input) {
           'emitting field_postings.json for compatibility.'
         );
       }
+      /**
+       * Reconstruct legacy monolithic field-postings JSON from shard outputs.
+       *
+       * @returns {Promise<void>}
+       */
       const writeLegacyFieldPostingsFromShards = async () => {
         const targetPath = path.join(outDir, 'field_postings.json');
         const startedAt = Date.now();
@@ -2607,12 +2817,22 @@ export async function writeIndexArtifacts(input) {
     let forcedTailRescueConcurrency = null;
     let tailRescueActive = false;
     let tailWorkerActive = 0;
+    /**
+     * Count queued write entries across all dispatch lanes.
+     *
+     * @returns {number}
+     */
     const pendingWriteCount = () => (
       laneQueues.ultraLight.length
       + laneQueues.massive.length
       + laneQueues.light.length
       + laneQueues.heavy.length
     );
+    /**
+     * Resolve current effective write concurrency with optional tail-rescue boost.
+     *
+     * @returns {number}
+     */
     const getActiveWriteConcurrency = () => (
       forcedTailRescueConcurrency != null
         ? Math.max(
@@ -2627,6 +2847,11 @@ export async function writeIndexArtifacts(input) {
             : writeConcurrency
         )
     );
+    /**
+     * Compute whether tail-rescue mode should be active for stalled tail writes.
+     *
+     * @returns {{active:boolean,remainingWrites:number,longestStallSec:number}}
+     */
     const resolveTailRescueState = () => {
       const pendingWrites = pendingWriteCount();
       const remainingWrites = pendingWrites + activeCount;
@@ -2641,6 +2866,11 @@ export async function writeIndexArtifacts(input) {
         longestStallSec
       };
     };
+    /**
+     * Update adaptive write concurrency controller from runtime signals.
+     *
+     * @returns {number}
+     */
     const observeAdaptiveWriteConcurrency = () => {
       const rescueState = resolveTailRescueState();
       if (rescueState.active !== tailRescueActive) {
@@ -2668,6 +2898,11 @@ export async function writeIndexArtifacts(input) {
         rssUtilization: Number(memorySignals?.rssUtilization)
       });
     };
+    /**
+     * Compute per-lane concurrency budgets from work-class policy.
+     *
+     * @returns {{ultraLightConcurrency:number,massiveConcurrency:number,lightConcurrency:number,heavyConcurrency:number,workClass:object}}
+     */
     const resolveLaneBudgets = () => {
       const ultraLightWritesTotal = laneQueues.ultraLight.length + laneActive.ultraLight;
       const lightWritesTotal = laneQueues.light.length + laneActive.light;
@@ -2711,6 +2946,12 @@ export async function writeIndexArtifacts(input) {
         workClass
       };
     };
+    /**
+     * Select next lane eligible for dispatch under current budgets.
+     *
+     * @param {object} budgets
+     * @returns {'ultraLight'|'massive'|'light'|'heavy'|null}
+     */
     const pickDispatchLane = (budgets) => {
       const ultraLightAvailable = laneQueues.ultraLight.length > 0
         && laneActive.ultraLight < Math.max(0, budgets.ultraLightConcurrency);
@@ -2726,6 +2967,12 @@ export async function writeIndexArtifacts(input) {
       if (lightAvailable) return 'light';
       return null;
     };
+    /**
+     * Dequeue one dispatch unit from a lane (or micro-batch for ultra-light).
+     *
+     * @param {'ultraLight'|'massive'|'light'|'heavy'} laneName
+     * @returns {object[]}
+     */
     const takeLaneDispatchEntries = (laneName) => {
       const queue = Array.isArray(laneQueues?.[laneName]) ? laneQueues[laneName] : null;
       if (!queue || !queue.length) return [];
@@ -2740,6 +2987,14 @@ export async function writeIndexArtifacts(input) {
       const entry = queue.shift();
       return entry ? [entry] : [];
     };
+    /**
+     * Resolve scheduler io/mem tokens for one write dispatch unit.
+     *
+     * @param {number} estimatedBytes
+     * @param {string} laneName
+     * @param {boolean} [rescueBoost=false]
+     * @returns {{io:number,mem?:number}}
+     */
     const resolveWriteSchedulerTokens = (estimatedBytes, laneName, rescueBoost = false) => {
       const memTokens = resolveArtifactWriteMemTokens(estimatedBytes);
       if (laneName === 'massive') {
@@ -2754,6 +3009,13 @@ export async function writeIndexArtifacts(input) {
       const memBudget = memTokens + (rescueBoost ? writeTailRescueBoostMemTokens : 0);
       return memBudget > 0 ? { io: ioTokens, mem: memBudget } : { io: ioTokens };
     };
+    /**
+     * Schedule a write job through scheduler queue when available.
+     *
+     * @param {Function} fn
+     * @param {{io:number,mem?:number}} tokens
+     * @returns {Promise<unknown>|unknown}
+     */
     const scheduleWriteJob = (fn, tokens) => {
       if (!scheduler?.schedule || typeof fn !== 'function') return fn();
       return scheduler.schedule(
@@ -2843,6 +3105,14 @@ export async function writeIndexArtifacts(input) {
         logWriteProgress(label);
       }
     };
+    /**
+     * Execute one dispatch batch serially while preserving per-entry telemetry.
+     *
+     * @param {object[]} entries
+     * @param {string} laneName
+     * @param {object} [options]
+     * @returns {Promise<void>}
+     */
     const runWriteBatch = async (entries, laneName, options = {}) => {
       const list = Array.isArray(entries) ? entries.filter(Boolean) : [];
       if (!list.length) return;
@@ -2858,6 +3128,11 @@ export async function writeIndexArtifacts(input) {
         });
       }
     };
+    /**
+     * Drive lane dispatch loop until all writes settle or a fatal write error occurs.
+     *
+     * @returns {void}
+     */
     const dispatchWrites = () => {
       observeAdaptiveWriteConcurrency();
       while (!fatalWriteError) {
