@@ -10,6 +10,7 @@ import { normalizeEmbeddingProvider, normalizeOnnxConfig, resolveOnnxModelPath }
 import { isAbsolutePathNative } from '../../src/shared/files.js';
 import { resolveVersionedCacheRoot } from '../../src/shared/cache-roots.js';
 import { hasChunkMetaArtifactsSync } from '../../src/shared/index-artifact-helpers.js';
+import { isWithinRoot, toRealPathSync } from '../../src/workspace/identity.js';
 import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../../src/experimental/compare/config.js';
 import { readQueryFileSafe, resolveTopNAndLimit, selectQueriesByLimit } from '../shared/query-file-utils.js';
 import { runSearchCliWithSubprocessSync } from '../shared/search-cli-harness.js';
@@ -175,6 +176,7 @@ function buildEnv(modelId, modelCacheRoot) {
 function resolveModelIndexRoot(modelCacheRoot, mode) {
   const resolvedCacheRoot = resolveVersionedCacheRoot(modelCacheRoot);
   const repoCacheRoot = path.join(resolvedCacheRoot, 'repos', repoId);
+  const repoCacheCanonical = toRealPathSync(repoCacheRoot);
   let indexRoot = repoCacheRoot;
   const currentPath = path.join(repoCacheRoot, 'builds', 'current.json');
   if (fs.existsSync(currentPath)) {
@@ -183,9 +185,8 @@ function resolveModelIndexRoot(modelCacheRoot, mode) {
       const resolveRoot = (value) => {
         if (!value) return null;
         const resolved = isAbsolutePathNative(value) ? value : path.join(repoCacheRoot, value);
-        const normalized = path.resolve(resolved);
-        const rootResolved = path.resolve(repoCacheRoot);
-        if (!normalized.startsWith(rootResolved + path.sep) && normalized !== rootResolved) return null;
+        const normalized = toRealPathSync(resolved);
+        if (!isWithinRoot(normalized, repoCacheCanonical)) return null;
         return normalized;
       };
       const buildId = typeof data.buildId === 'string' ? data.buildId : null;

@@ -160,6 +160,46 @@ const badSnapshot = await createPointerSnapshot({
   modes: ['code'],
   snapshotId: 'snap-20260212000000-frz002'
 });
+
+const escapeFreezeTarget = path.join(tempRoot, 'freeze-escape-target');
+const escapeFreezeLink = path.join(repoCacheRoot, 'builds', 'build-freeze-escape-link');
+let freezeEscapeLinkCreated = false;
+try {
+  await fs.mkdir(path.join(escapeFreezeTarget, 'index-code'), { recursive: true });
+  await fs.symlink(escapeFreezeTarget, escapeFreezeLink, process.platform === 'win32' ? 'junction' : 'dir');
+  freezeEscapeLinkCreated = true;
+} catch {}
+if (freezeEscapeLinkCreated) {
+  const escapeSnapshot = await createPointerSnapshot({
+    repoRoot,
+    userConfig,
+    modes: ['code'],
+    snapshotId: 'snap-20260212000000-frz003'
+  });
+  const escapeSnapshotPath = path.join(repoCacheRoot, 'snapshots', escapeSnapshot.snapshotId, 'snapshot.json');
+  const escapeSnapshotJson = JSON.parse(await fs.readFile(escapeSnapshotPath, 'utf8'));
+  escapeSnapshotJson.pointer = {
+    ...(escapeSnapshotJson.pointer || {}),
+    buildRootsByMode: {
+      ...(escapeSnapshotJson.pointer?.buildRootsByMode || {}),
+      code: 'builds/build-freeze-escape-link'
+    }
+  };
+  await fs.writeFile(escapeSnapshotPath, `${JSON.stringify(escapeSnapshotJson, null, 2)}\n`, 'utf8');
+
+  await assert.rejects(
+    () => freezeSnapshot({
+      repoRoot,
+      userConfig,
+      snapshotId: escapeSnapshot.snapshotId,
+      modes: ['code'],
+      method: 'copy'
+    }),
+    /escapes repo cache root/,
+    'freeze should reject pointer roots that escape via symlink'
+  );
+}
+
 await assert.rejects(
   () => freezeSnapshot({
     repoRoot,

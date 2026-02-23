@@ -686,6 +686,7 @@ storage/sqlite/build/args-parsing
 shared/hash/xxhash-backends
 tooling/reports/metrics-dashboard
 indexing/validate/index-validate-manifest-safety
+indexing/validate/index-validate-manifest-symlink-escape
 indexing/validate/index-validate-optional-file-meta-nonstrict
 ci/suite-runner.smoke
 indexing/type-inference/providers/type-inference-sourcekit-provider-no-sourcekit

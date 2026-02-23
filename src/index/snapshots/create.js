@@ -9,6 +9,7 @@ import { isManifestPathSafe } from '../validate/paths.js';
 import { toPosix } from '../../shared/files.js';
 import { sha1 } from '../../shared/hash.js';
 import { getRepoCacheRoot, getRepoId } from '../../shared/dict-utils.js';
+import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
 import {
   loadSnapshot,
   loadSnapshotsManifest,
@@ -82,15 +83,9 @@ const generateSnapshotId = (now = new Date()) => {
 };
 
 const relativeToRepoCache = (repoCacheRoot, absolutePath, label) => {
-  const root = path.resolve(repoCacheRoot);
-  const resolved = path.resolve(absolutePath);
-  const within = process.platform === 'win32'
-    ? (
-      resolved.toLowerCase() === root.toLowerCase()
-      || resolved.toLowerCase().startsWith(`${root.toLowerCase()}${path.sep}`)
-    )
-    : (resolved === root || resolved.startsWith(`${root}${path.sep}`));
-  if (!within) {
+  const root = toRealPathSync(path.resolve(repoCacheRoot));
+  const resolved = toRealPathSync(path.resolve(absolutePath));
+  if (!isWithinRoot(resolved, root)) {
     throw invalidRequest(`${label} escapes repo cache root.`);
   }
   const relative = toPosix(path.relative(root, resolved));

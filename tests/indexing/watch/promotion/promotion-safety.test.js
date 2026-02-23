@@ -38,6 +38,32 @@ await assert.rejects(
 
 const buildsRoot = getBuildsRoot(repoRoot, userConfig);
 await fs.mkdir(buildsRoot, { recursive: true });
+const currentPath = path.join(buildsRoot, 'current.json');
+const symlinkEscapeRoot = path.join(buildsRoot, 'escape-link');
+let symlinkCreated = false;
+try {
+  await fs.symlink(outsideRoot, symlinkEscapeRoot, process.platform === 'win32' ? 'junction' : 'dir');
+  symlinkCreated = true;
+} catch {}
+if (symlinkCreated) {
+  await assert.rejects(
+    () => promoteBuild({
+      repoRoot,
+      userConfig,
+      buildId: 'bad-build-link',
+      buildRoot: symlinkEscapeRoot,
+      modes: ['code']
+    }),
+    /escapes repo cache root/
+  );
+
+  await fs.writeFile(currentPath, JSON.stringify({
+    buildId: 'unsafe-link',
+    buildRoot: 'builds/escape-link'
+  }, null, 2));
+  const symlinkInfo = getCurrentBuildInfo(repoRoot, userConfig);
+  assert.equal(symlinkInfo, null, 'expected symlinked current.json root to be rejected');
+}
 if (process.platform === 'win32') {
   const caseBuildId = 'case-sensitive-root-normalized';
   const canonicalCaseRoot = path.join(buildsRoot, caseBuildId);
@@ -61,7 +87,6 @@ if (process.platform === 'win32') {
     'expected promoted buildRoot to resolve to canonical build path'
   );
 }
-const currentPath = path.join(buildsRoot, 'current.json');
 const unsafeRoot = path.join(repoCacheRoot, '..', '..', 'outside');
 await fs.writeFile(currentPath, JSON.stringify({
   buildId: 'unsafe-build',

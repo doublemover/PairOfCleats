@@ -91,6 +91,39 @@ const firstSnapshotJson = loadSnapshot(repoCacheRoot, firstSnapshot.snapshotId);
 assert.deepEqual(Object.keys(firstSnapshotJson.pointer.buildRootsByMode), ['code']);
 assert.equal(firstSnapshotJson.pointer.buildRootsByMode.code, 'builds/build-code');
 
+const escapeTargetRoot = path.join(tempRoot, 'snapshot-escape-target');
+const escapeLinkRoot = path.join(buildsRoot, 'build-escape-link');
+let escapeLinkCreated = false;
+try {
+  await fs.mkdir(escapeTargetRoot, { recursive: true });
+  await writeJson(path.join(escapeTargetRoot, 'build_state.json'), {
+    schemaVersion: 1,
+    buildId: 'escape-build',
+    configHash: 'cfg-escape-build',
+    tool: { version: '1.0.0' },
+    validation: { ok: true, issueCount: 0, warningCount: 0, issues: [] }
+  });
+  await fs.symlink(escapeTargetRoot, escapeLinkRoot, process.platform === 'win32' ? 'junction' : 'dir');
+  escapeLinkCreated = true;
+} catch {}
+if (escapeLinkCreated) {
+  await writeJson(path.join(buildsRoot, 'current.json'), {
+    buildId: 'escape-build',
+    buildRoot: 'builds/build-escape-link',
+    buildRoots: { code: 'builds/build-escape-link' }
+  });
+  await assert.rejects(
+    () => createPointerSnapshot({
+      repoRoot,
+      userConfig,
+      modes: ['code'],
+      snapshotId: 'snap-20260212000000-aa0002'
+    }),
+    /escapes repo cache root/,
+    'snapshot create should reject symlinked build roots that escape repo cache'
+  );
+}
+
 const badBuildRoot = await writeBuildState({
   repoCacheRoot,
   buildId: 'build-invalid',

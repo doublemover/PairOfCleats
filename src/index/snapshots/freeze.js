@@ -6,6 +6,7 @@ import { acquireIndexLock } from '../build/lock.js';
 import { createError, ERROR_CODES } from '../../shared/error-codes.js';
 import { fromPosix, isAbsolutePathAny, toPosix } from '../../shared/files.js';
 import { getRepoCacheRoot } from '../../shared/dict-utils.js';
+import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
 import { isManifestPathSafe } from '../validate/paths.js';
 import { validateArtifact } from '../../contracts/validators/artifacts.js';
 import {
@@ -69,15 +70,9 @@ const resolveCacheRelativePath = (repoCacheRoot, relativePath, label) => {
   if (!isManifestPathSafe(normalized) || isAbsolutePathAny(normalized)) {
     throw invalidRequest(`${label} must be repo-cache-relative and traversal-safe.`);
   }
-  const resolved = path.resolve(repoCacheRoot, fromPosix(normalized));
-  const cacheRootResolved = path.resolve(repoCacheRoot);
-  const within = process.platform === 'win32'
-    ? (
-      resolved.toLowerCase() === cacheRootResolved.toLowerCase()
-      || resolved.toLowerCase().startsWith(`${cacheRootResolved.toLowerCase()}${path.sep}`)
-    )
-    : (resolved === cacheRootResolved || resolved.startsWith(`${cacheRootResolved}${path.sep}`));
-  if (!within) {
+  const resolved = toRealPathSync(path.resolve(repoCacheRoot, fromPosix(normalized)));
+  const cacheRootResolved = toRealPathSync(path.resolve(repoCacheRoot));
+  if (!isWithinRoot(resolved, cacheRootResolved)) {
     throw invalidRequest(`${label} escapes repo cache root.`);
   }
   return { normalized, resolved };

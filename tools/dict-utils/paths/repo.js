@@ -168,7 +168,7 @@ export function getCurrentBuildInfo(repoRoot, userConfig = null, options = {}) {
     const data = JSON.parse(fs.readFileSync(currentPath, 'utf8')) || {};
     const buildId = typeof data.buildId === 'string' ? data.buildId : null;
     const buildRootRaw = typeof data.buildRoot === 'string' ? data.buildRoot : null;
-    const repoCacheResolved = path.resolve(repoCacheRoot);
+    const repoCacheResolved = toRealPathSync(repoCacheRoot);
     const resolveRoot = (value) => {
       if (typeof value !== 'string') return null;
       const trimmed = value.trim();
@@ -180,7 +180,7 @@ export function getCurrentBuildInfo(repoRoot, userConfig = null, options = {}) {
           path.join(buildsRoot, trimmed)
         ];
       for (const candidate of candidates) {
-        const normalized = path.resolve(candidate);
+        const normalized = toRealPathSync(candidate);
         if (isWithinRoot(normalized, repoCacheResolved)) {
           return normalized;
         }
@@ -277,7 +277,7 @@ export function resolveIndexRoot(repoRoot, userConfig = null, options = {}) {
   if (fs.existsSync(currentPath)) {
     try {
       const data = JSON.parse(fs.readFileSync(currentPath, 'utf8')) || {};
-      const repoCacheResolved = path.resolve(repoCacheRoot);
+      const repoCacheResolved = toRealPathSync(repoCacheRoot);
       const resolveRoot = (value) => {
         if (typeof value !== 'string') return null;
         const trimmed = value.trim();
@@ -289,7 +289,7 @@ export function resolveIndexRoot(repoRoot, userConfig = null, options = {}) {
             path.join(buildsRoot, trimmed)
           ];
         for (const candidate of candidates) {
-          const normalized = path.resolve(candidate);
+          const normalized = toRealPathSync(candidate);
           if (isWithinRoot(normalized, repoCacheResolved)) {
             return normalized;
           }

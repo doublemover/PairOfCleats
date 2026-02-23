@@ -6,6 +6,7 @@ import {
   validateArtifact
 } from '../../shared/artifact-schemas.js';
 import { fromPosix } from '../../shared/files.js';
+import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
 import { addIssue } from './issues.js';
 import { isManifestPathSafe, normalizeManifestPath } from './paths.js';
 
@@ -13,6 +14,7 @@ export const validateManifestEntries = (report, mode, dir, manifest, { strictSch
   const pieces = Array.isArray(manifest?.pieces) ? manifest.pieces : [];
   const seenPaths = new Set();
   const root = path.resolve(dir);
+  const rootCanonical = toRealPathSync(root);
   for (const entry of pieces) {
     const name = typeof entry?.name === 'string' ? entry.name : '';
     if (!name) {
@@ -43,7 +45,7 @@ export const validateManifestEntries = (report, mode, dir, manifest, { strictSch
       seenPaths.add(normalized);
     }
     const resolved = path.resolve(dir, fromPosix(normalized));
-    if (!resolved.startsWith(root + path.sep) && resolved !== root) {
+    if (!isWithinRoot(toRealPathSync(resolved), rootCanonical)) {
       addIssue(report, mode, `manifest path escapes index root: ${relPath}`);
       continue;
     }

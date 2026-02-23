@@ -9,6 +9,7 @@ import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
 import { getEnvConfig } from '../../../src/shared/env.js';
 import { resolveEmbeddingInputFormatting } from '../../../src/shared/embedding-input-format.js';
 import { hasChunkMetaArtifactsSync } from '../../../src/shared/index-artifact-helpers.js';
+import { isWithinRoot, toRealPathSync } from '../../../src/workspace/identity.js';
 import { spawnSubprocessSync } from '../../../src/shared/subprocess.js';
 import { createToolDisplay } from '../../shared/cli-display.js';
 import {
@@ -384,6 +385,7 @@ const resolveRequiredBuildModes = (resolvedMode) => (
 const resolveModelCurrentBuildRoot = (modelCacheRootPath) => {
   const versionedRoot = resolveVersionedCacheRoot(modelCacheRootPath);
   const repoCacheRoot = path.join(versionedRoot, 'repos', repoId);
+  const repoCacheCanonical = toRealPathSync(repoCacheRoot);
   const currentPath = path.join(repoCacheRoot, 'builds', 'current.json');
   if (!fs.existsSync(currentPath)) return null;
   try {
@@ -391,9 +393,8 @@ const resolveModelCurrentBuildRoot = (modelCacheRootPath) => {
     const resolveWithinRepoCache = (value) => {
       if (!value || typeof value !== 'string') return null;
       const resolved = path.isAbsolute(value) ? value : path.join(repoCacheRoot, value);
-      const normalized = path.resolve(resolved);
-      const normalizedRepo = path.resolve(repoCacheRoot);
-      if (!normalized.startsWith(`${normalizedRepo}${path.sep}`) && normalized !== normalizedRepo) return null;
+      const normalized = toRealPathSync(resolved);
+      if (!isWithinRoot(normalized, repoCacheCanonical)) return null;
       return normalized;
     };
     const buildRootFromState = resolveWithinRepoCache(parsed.buildRoot);
