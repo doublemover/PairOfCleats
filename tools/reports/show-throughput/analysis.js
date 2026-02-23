@@ -330,12 +330,49 @@ export const loadOrComputeBenchAnalysis = ({
   return { analysis: computed, changed: true };
 };
 
-export const resolveRepoIdentity = ({ payload, file }) => (
-  payload?.repo?.root
-  || payload?.artifacts?.repo?.root
-  || payload?.artifacts?.repo?.cacheRoot
-  || String(file || '').replace(/\.json$/i, '')
-);
+const GENERIC_PATH_SEGMENTS = new Set([
+  'usr',
+  'users',
+  'home',
+  'var',
+  'tmp',
+  'private',
+  'opt',
+  'mnt',
+  'repos',
+  'repo',
+  'cache',
+  'caches',
+  'builds',
+  'current'
+]);
+
+const normalizeRepoIdentityValue = (value, fallback = '') => {
+  const candidate = String(value || '').trim();
+  const fallbackText = String(fallback || '').trim();
+  if (!candidate) return fallbackText;
+  if (!candidate.includes('/') && !candidate.includes('\\')) return candidate;
+  const normalized = candidate.replace(/[\\/]+/g, '/').replace(/\/+$/g, '');
+  const segments = normalized.split('/').filter(Boolean);
+  for (let i = segments.length - 1; i >= 0; i -= 1) {
+    const segment = segments[i];
+    const lower = segment.toLowerCase();
+    if (!segment || GENERIC_PATH_SEGMENTS.has(lower)) continue;
+    if (/^[a-z]:$/i.test(segment)) continue;
+    return segment;
+  }
+  return fallbackText || candidate;
+};
+
+export const resolveRepoIdentity = ({ payload, file }) => {
+  const fileFallback = String(file || '').replace(/\.json$/i, '').trim();
+  const candidate = payload?.repo?.root
+    || payload?.artifacts?.repo?.root
+    || fileFallback
+    || payload?.artifacts?.repo?.cacheRoot
+    || '';
+  return normalizeRepoIdentityValue(candidate, fileFallback || 'unknown');
+};
 
 export const loadOrComputeThroughputLedger = ({ payload, indexingSummary }) => {
   const existing = payload?.artifacts?.throughputLedger;
