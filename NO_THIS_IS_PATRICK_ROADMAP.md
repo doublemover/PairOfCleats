@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T08:41:29.2685409-05:00
+  Extracted language risk-profile coverage validation from `src/contracts/validators/usr-matrix.js` into `src/contracts/validators/usr-matrix/language-risk-coverage.js`, preserving facade semantics while isolating taxonomy-overlap and gating checks with focused coverage in `tests/indexing/contracts/usr-language-risk-profile-coverage.test.js`.
 - 2026-02-23T08:38:57.0176991-05:00
   Extracted conformance-level coverage validation from `src/contracts/validators/usr-matrix.js` into `src/contracts/validators/usr-matrix/conformance-level-coverage.js`, preserving facade behavior with injected lane/registry callbacks and adding focused coverage in `tests/indexing/contracts/usr-conformance-level-coverage.test.js`.
 - 2026-02-23T08:35:56.5926511-05:00
