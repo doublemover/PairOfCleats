@@ -177,10 +177,11 @@ const printPayload = (payload) => {
  */
 const exitWithCommandError = (message, { code = 1, payload = {} } = {}) => {
   if (argv.json) {
+    const payloadObject = payload && typeof payload === 'object' ? payload : {};
     printPayload({
+      ...payloadObject,
       ok: false,
-      error: message,
-      ...(payload && typeof payload === 'object' ? payload : {})
+      error: message
     });
   } else {
     console.error(message);
@@ -291,6 +292,12 @@ const handleSync = async () => {
   const failed = results.filter((entry) => !entry?.ok);
   printPayload({ ok: failed.length === 0, results });
   if (failed.length > 0) {
+    const firstSignal = failed.find((entry) => (
+      typeof entry?.signal === 'string' && entry.signal.trim().length > 0
+    ))?.signal || null;
+    if (firstSignal) {
+      exitLikeCommandResult({ status: null, signal: firstSignal });
+    }
     process.exit(1);
   }
 };
