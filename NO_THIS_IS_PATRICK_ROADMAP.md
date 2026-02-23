@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T06:08:28.0253007-05:00
+  Split runtime config coercion/override resolution out of `src/contracts/validators/usr-matrix.js` into `src/contracts/validators/usr-matrix/runtime-config.js`, preserving validator behavior through a callback-bound facade while isolating layered override logic and adding direct contract coverage for precedence and strict-mode failure handling.
 - 2026-02-23T06:05:04.1697959-05:00
   Extracted stage1 timing/watchdog aggregation from `src/index/build/indexer/steps/process-files.js` into `src/index/build/indexer/steps/process-files/stage-timing.js`, preserving telemetry payload shape while isolating queue-delay histogram/near-threshold logic and reducing core orchestration surface in the main stage1 loop.
 - 2026-02-23T06:02:27.7371036-05:00
