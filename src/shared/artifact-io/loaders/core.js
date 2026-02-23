@@ -316,7 +316,8 @@ const loadBinaryColumnarJsonRows = ({
   sources,
   manifest,
   maxBytes,
-  strict
+  strict,
+  enforceBinaryDataBudget = true
 }) => {
   const sourcePath = sources.paths[0];
   const sidecars = sources.binaryColumnar || null;
@@ -365,9 +366,10 @@ const loadBinaryColumnarJsonRows = ({
   const resolvedDataPath = resolveReadableArtifactPath(dataPathFromMeta);
   const resolvedOffsetsPath = resolveReadableArtifactPath(offsetsPathFromMeta);
   const resolvedLengthsPath = resolveReadableArtifactPath(lengthsPathFromMeta);
-  assertBinaryPartWithinMaxBytes(resolvedDataPath, maxBytes, `${baseName} binary-columnar data`);
-  assertBinaryPartWithinMaxBytes(resolvedOffsetsPath, maxBytes, `${baseName} binary-columnar offsets`);
-  assertBinaryPartWithinMaxBytes(resolvedLengthsPath, maxBytes, `${baseName} binary-columnar lengths`);
+  const binaryPartBudget = enforceBinaryDataBudget ? maxBytes : null;
+  assertBinaryPartWithinMaxBytes(resolvedDataPath, binaryPartBudget, `${baseName} binary-columnar data`);
+  assertBinaryPartWithinMaxBytes(resolvedOffsetsPath, binaryPartBudget, `${baseName} binary-columnar offsets`);
+  assertBinaryPartWithinMaxBytes(resolvedLengthsPath, binaryPartBudget, `${baseName} binary-columnar lengths`);
   const dataBuffer = fs.readFileSync(resolvedDataPath);
   const offsetsBuffer = fs.readFileSync(resolvedOffsetsPath);
   const lengthsBuffer = fs.readFileSync(resolvedLengthsPath);
@@ -415,7 +417,8 @@ const loadBinaryColumnarJsonRows = ({
     dataBuffer,
     offsetsBuffer,
     lengthsBuffer,
-    maxBytes
+    maxBytes,
+    enforceDataBudget: enforceBinaryDataBudget
   });
   if (!payloads) {
     throw createLoaderError(
@@ -454,7 +457,8 @@ const loadArrayPayloadFromSources = async (
     maxBytes,
     requiredKeys,
     validationMode,
-    concurrency = null
+    concurrency = null,
+    enforceBinaryDataBudget = true
   }
 ) => {
   if (sources.format === 'json') {
@@ -489,7 +493,8 @@ const loadArrayPayloadFromSources = async (
         sources: resolveBinaryColumnarSourcePart(sources, index),
         manifest,
         maxBytes,
-        strict
+        strict,
+        enforceBinaryDataBudget
       });
       for (const row of rows) out.push(row);
     }
@@ -512,7 +517,8 @@ const loadArrayPayloadFromSourcesSync = (
     baseName,
     maxBytes,
     requiredKeys,
-    validationMode
+    validationMode,
+    enforceBinaryDataBudget = true
   }
 ) => {
   if (sources.format === 'json') {
@@ -547,7 +553,8 @@ const loadArrayPayloadFromSourcesSync = (
         sources: resolveBinaryColumnarSourcePart(sources, index),
         manifest,
         maxBytes,
-        strict
+        strict,
+        enforceBinaryDataBudget
       });
       for (const row of rows) out.push(row);
     }
@@ -572,6 +579,7 @@ const loadArrayPayloadFromSourcesSync = (
  * @property {object|null} [manifest]
  * @property {boolean} [strict]
  * @property {number|null} [concurrency]
+ * @property {boolean} [enforceBinaryDataBudget]
  */
 
 /**
@@ -592,7 +600,8 @@ export const loadJsonArrayArtifact = async (
     requiredKeys = null,
     manifest = null,
     strict = true,
-    concurrency = null
+    concurrency = null,
+    enforceBinaryDataBudget = true
   } = {}
 ) => {
   const validationMode = strict ? 'strict' : 'trusted';
@@ -616,7 +625,8 @@ export const loadJsonArrayArtifact = async (
     maxBytes,
     requiredKeys: resolvedKeys,
     validationMode,
-    concurrency
+    concurrency,
+    enforceBinaryDataBudget
   });
 };
 
@@ -635,7 +645,8 @@ export const loadJsonArrayArtifact = async (
  *   materialize?: boolean,
  *   maxInFlight?: number,
  *   onBackpressure?: (() => void)|null,
- *   onResume?: (() => void)|null
+ *   onResume?: (() => void)|null,
+ *   enforceBinaryDataBudget?: boolean
  * }} [options]
  * @returns {AsyncGenerator<any, void, unknown>}
  */
@@ -650,7 +661,8 @@ export const loadJsonArrayArtifactRows = async function* (
     materialize = false,
     maxInFlight = 0,
     onBackpressure = null,
-    onResume = null
+    onResume = null,
+    enforceBinaryDataBudget = true
   } = {}
 ) {
   const validationMode = strict ? 'strict' : 'trusted';
@@ -713,7 +725,8 @@ export const loadJsonArrayArtifactRows = async function* (
         sources: resolveBinaryColumnarSourcePart(sources, index),
         manifest: resolvedManifest,
         maxBytes,
-        strict
+        strict,
+        enforceBinaryDataBudget
       });
       for (const row of rows) yield row;
     }
@@ -755,7 +768,8 @@ const validateFileMetaRow = (row, label) => {
  *   materialize?: boolean,
  *   maxInFlight?: number,
  *   onBackpressure?: (() => void)|null,
- *   onResume?: (() => void)|null
+ *   onResume?: (() => void)|null,
+ *   enforceBinaryDataBudget?: boolean
  * }} [options]
  * @returns {AsyncGenerator<object, void, unknown>}
  */
@@ -768,7 +782,8 @@ export const loadFileMetaRows = async function* (
     materialize = false,
     maxInFlight = 0,
     onBackpressure = null,
-    onResume = null
+    onResume = null,
+    enforceBinaryDataBudget = true
   } = {}
 ) {
   const validationMode = strict ? 'strict' : 'trusted';
@@ -851,7 +866,8 @@ export const loadFileMetaRows = async function* (
         sources: resolveBinaryColumnarSourcePart(sources, index),
         manifest: resolvedManifest,
         maxBytes,
-        strict
+        strict,
+        enforceBinaryDataBudget
       });
       for (const row of rows) {
         yield validateFileMetaRow(row, 'file_meta');
@@ -973,7 +989,8 @@ export const loadJsonObjectArtifactSync = (
  *   maxBytes?: number,
  *   requiredKeys?: string[]|null,
  *   manifest?: object|null,
- *   strict?: boolean
+ *   strict?: boolean,
+ *   enforceBinaryDataBudget?: boolean
  * }} [options]
  * @returns {any[]}
  */
@@ -984,7 +1001,8 @@ export const loadJsonArrayArtifactSync = (
     maxBytes = MAX_JSON_BYTES,
     requiredKeys = null,
     manifest = null,
-    strict = true
+    strict = true,
+    enforceBinaryDataBudget = true
   } = {}
 ) => {
   const validationMode = strict ? 'strict' : 'trusted';
@@ -1007,6 +1025,7 @@ export const loadJsonArrayArtifactSync = (
     baseName,
     maxBytes,
     requiredKeys: resolvedKeys,
-    validationMode
+    validationMode,
+    enforceBinaryDataBudget
   });
 };

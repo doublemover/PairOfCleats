@@ -142,7 +142,10 @@ export async function loadIndex(dir, options) {
   let fileMetaById = null;
   fileMetaById = new Map();
   let fileMetaLoaded = false;
-  for await (const entry of loadOptionalRows('file_meta', { materialize: true })) {
+  for await (const entry of loadOptionalRows('file_meta', {
+    materialize: true,
+    enforceBinaryDataBudget: false
+  })) {
     fileMetaLoaded = true;
     if (!entry || entry.id == null) continue;
     fileMetaById.set(entry.id, entry);
