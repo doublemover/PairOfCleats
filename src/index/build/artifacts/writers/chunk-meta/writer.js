@@ -9,7 +9,6 @@ import {
 } from '../../../../../shared/artifact-io.js';
 import { writeBinaryRowFrames } from '../../../../../shared/artifact-io/binary-columnar.js';
 import { ensureDiskSpace, formatBytes } from '../../../../../shared/disk-space.js';
-import { createOrderingHasher } from '../../../../../shared/order.js';
 import {
   extractChunkMetaColdFields,
   stripChunkMetaColdFields
@@ -48,6 +47,7 @@ import {
   buildColumnarChunkMeta,
   buildColumnarChunkMetaFromRows
 } from './iterator.js';
+import { analyzeChunkMetaRows } from './scan.js';
 import {
   COMPAT_CHUNK_META_JSON_MAX_BYTES,
   COMPAT_CHUNK_META_JSON_MAX_ROWS
@@ -102,108 +102,28 @@ export const enqueueChunkMetaArtifacts = async ({
   const projectColdEntry = (entry) => (
     enableHotColdSplit ? extractChunkMetaColdFields(entry) : null
   );
-  const scanChunkMeta = ({ collectRows = false } = {}) => {
-    let totalJsonlBytes = 0;
-    let coldJsonlBytes = 0;
-    let total = 0;
-    let maxRowBytes = 0;
-    let ordered = true;
-    let firstOutOfOrder = null;
-    let lastId = null;
-    let firstIdMismatch = null;
-    const orderingHasher = createOrderingHasher();
-    const hotRows = collectRows ? [] : null;
-    const coldRows = collectRows ? [] : null;
-    chunkMetaIterator.resetStats?.();
-    for (const entry of chunkMetaIterator(0, chunkMetaCount, true)) {
-      const hotEntry = projectHotEntry(entry);
-      const { line, lineBytes } = serializeAndCacheRow(hotEntry);
-      orderingHasher.update(line);
-      maxRowBytes = Math.max(maxRowBytes, lineBytes);
-      if (resolvedMaxJsonBytes && (lineBytes + 1) > resolvedMaxJsonBytes) {
-        throw new Error(`chunk_meta entry exceeds max JSON size (${lineBytes} bytes).`);
-      }
-      totalJsonlBytes += lineBytes + 1;
-      if (hotRows) hotRows.push(hotEntry);
-      const coldEntry = projectColdEntry(entry);
-      if (coldEntry) {
-        const { lineBytes: coldLineBytes } = serializeAndCacheRow(coldEntry);
-        if (resolvedMaxJsonBytes && (coldLineBytes + 1) > resolvedMaxJsonBytes) {
-          throw new Error(`chunk_meta_cold entry exceeds max JSON size (${coldLineBytes} bytes).`);
-        }
-        coldJsonlBytes += coldLineBytes + 1;
-        if (coldRows) coldRows.push(coldEntry);
-      }
-      total += 1;
-      const id = Number.isFinite(hotEntry?.id) ? hotEntry.id : null;
-      if (id == null || id !== (total - 1)) {
-        if (!firstIdMismatch) {
-          firstIdMismatch = { index: total - 1, id };
-        }
-      }
-      if (id == null) {
-        if (!firstOutOfOrder) firstOutOfOrder = { prevId: lastId, nextId: id };
-        ordered = false;
-      } else if (Number.isFinite(lastId) && id < lastId) {
-        if (!firstOutOfOrder) firstOutOfOrder = { prevId: lastId, nextId: id };
-        ordered = false;
-      }
-      if (id != null) lastId = id;
-    }
-    const orderingResult = total ? orderingHasher.digest() : null;
-    return {
-      totalJsonlBytes,
-      coldJsonlBytes,
-      total,
-      maxRowBytes,
-      ordered,
-      firstOutOfOrder,
-      firstIdMismatch,
-      orderingHash: orderingResult?.hash || null,
-      orderingCount: orderingResult?.count || 0,
-      hotRows,
-      coldRows
-    };
-  };
-  const measureChunkMeta = () => {
-    let totalJsonBytes = 2;
-    let totalJsonlBytes = 0;
-    let coldJsonlBytes = 0;
-    let total = 0;
-    let maxRowBytes = 0;
-    const orderingHasher = createOrderingHasher();
-    chunkMetaIterator.resetStats?.();
-    for (const entry of chunkMetaIterator(0, chunkMetaCount, true)) {
-      const hotEntry = projectHotEntry(entry);
-      const { line, lineBytes } = serializeAndCacheRow(hotEntry);
-      orderingHasher.update(line);
-      maxRowBytes = Math.max(maxRowBytes, lineBytes);
-      if (resolvedMaxJsonBytes && (lineBytes + 1) > resolvedMaxJsonBytes) {
-        throw new Error(`chunk_meta entry exceeds max JSON size (${lineBytes} bytes).`);
-      }
-      totalJsonBytes += lineBytes + (total > 0 ? 1 : 0);
-      totalJsonlBytes += lineBytes + 1;
-      const coldEntry = projectColdEntry(entry);
-      if (coldEntry) {
-        const { lineBytes: coldLineBytes } = serializeAndCacheRow(coldEntry);
-        if (resolvedMaxJsonBytes && (coldLineBytes + 1) > resolvedMaxJsonBytes) {
-          throw new Error(`chunk_meta_cold entry exceeds max JSON size (${coldLineBytes} bytes).`);
-        }
-        coldJsonlBytes += coldLineBytes + 1;
-      }
-      total += 1;
-    }
-    const orderingResult = total ? orderingHasher.digest() : null;
-    return {
-      totalJsonBytes,
-      totalJsonlBytes,
-      coldJsonlBytes,
-      total,
-      maxRowBytes,
-      orderingHash: orderingResult?.hash || null,
-      orderingCount: orderingResult?.count || 0
-    };
-  };
+  const scanChunkMeta = ({ collectRows = false } = {}) => (
+    analyzeChunkMetaRows({
+      chunkMetaIterator,
+      chunkMetaCount,
+      resolvedMaxJsonBytes,
+      projectHotEntry,
+      projectColdEntry,
+      collectRows,
+      includeJsonArrayBytes: false
+    })
+  );
+  const measureChunkMeta = () => (
+    analyzeChunkMetaRows({
+      chunkMetaIterator,
+      chunkMetaCount,
+      resolvedMaxJsonBytes,
+      projectHotEntry,
+      projectColdEntry,
+      collectRows: false,
+      includeJsonArrayBytes: true
+    })
+  );
 
   let resolvedUseJsonl = chunkMetaUseJsonl;
   let resolvedUseShards = chunkMetaUseShards;
