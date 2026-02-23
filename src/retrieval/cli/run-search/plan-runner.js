@@ -46,6 +46,7 @@ import { loadRunSearchIndexesWithTracking } from './index-loading.js';
 import { resolveRunSearchQueryBootstrap } from './query-bootstrap.js';
 import { applyRunSearchSparseFallbackPolicy } from './sparse-fallback-orchestration.js';
 import { enforceSparseFallbackAnnAvailability } from './sparse-fallback-guard.js';
+import { buildRunSearchIndexLoadInput } from './index-load-input.js';
 
 import {
   resolveAnnActive
@@ -642,15 +643,47 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const { loadIndexFromSqlite } = sqliteHelpers;
     const { loadIndexFromLmdb } = lmdbHelpers;
 
-    const chunkAuthorFilterActive = Array.isArray(chunkAuthorFilter)
-      ? chunkAuthorFilter.length > 0
-      : Boolean(chunkAuthorFilter);
-    const indexStatesForLoad = {
-      code: sqliteStateCode || null,
-      prose: sqliteStateProse || null,
-      'extracted-prose': sqliteStateExtractedProse || null,
-      records: sqliteStateRecords || null
-    };
+    const indexLoadInput = buildRunSearchIndexLoadInput({
+      stageTracker,
+      throwIfAborted,
+      rootDir,
+      userConfig,
+      searchMode,
+      runProse,
+      runExtractedProse: runExtractedProseRaw,
+      runCode,
+      runRecords,
+      useSqlite,
+      useLmdb,
+      emitOutput,
+      exitOnError,
+      annActive,
+      queryPlan,
+      chunkAuthorFilter,
+      contextExpansionEnabled,
+      graphRankingEnabled,
+      sqliteFtsEnabled,
+      backendLabel,
+      backendForcedTantivy,
+      indexCache,
+      modelIdDefault,
+      fileChargramN,
+      hnswConfig,
+      lancedbConfig,
+      tantivyConfig,
+      strictIndexMetaByMode,
+      strict,
+      loadIndexFromSqlite,
+      loadIndexFromLmdb,
+      allowUnsafeMix,
+      requiredArtifacts,
+      asOfContext,
+      sqliteStateCode,
+      sqliteStateProse,
+      sqliteStateExtractedProse,
+      sqliteStateRecords,
+      joinComments
+    });
     const {
       idxProse,
       idxExtractedProse,
@@ -666,45 +699,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       modelIdForProse,
       modelIdForExtractedProse,
       modelIdForRecords
-    } = await loadRunSearchIndexesWithTracking({
-      stageTracker,
-      throwIfAborted,
-      rootDir,
-      userConfig,
-      searchMode,
-      runProse,
-      runExtractedProse: runExtractedProseRaw,
-      runCode,
-      runRecords,
-      useSqlite,
-      useLmdb,
-      emitOutput,
-      exitOnError,
-      annActive,
-      filtersActive: queryPlan.filtersActive,
-      chunkAuthorFilterActive,
-      contextExpansionEnabled,
-      graphRankingEnabled,
-      sqliteFtsRequested: sqliteFtsEnabled,
-      backendLabel,
-      backendForcedTantivy,
-      indexCache,
-      modelIdDefault,
-      fileChargramN,
-      hnswConfig,
-      lancedbConfig,
-      tantivyConfig,
-      strictIndexMetaByMode,
-      indexStates: indexStatesForLoad,
-      strict,
-      loadIndexFromSqlite,
-      loadIndexFromLmdb,
-      resolvedDenseVectorMode: queryPlan.resolvedDenseVectorMode,
-      joinComments,
-      allowUnsafeMix,
-      requiredArtifacts,
-      asOfContext
-    });
+    } = await loadRunSearchIndexesWithTracking(indexLoadInput);
 
     const sparseFallbackAnnError = await enforceSparseFallbackAnnAvailability({
       sparseFallbackForcedByPreflight,
