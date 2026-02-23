@@ -15,15 +15,12 @@ import {
   resolveIndexRoot
 } from '../../../shared/dict-utils.js';
 import { normalizeBundleFormat } from '../../../shared/bundle-io.js';
-import { normalizeCommentConfig } from '../../comments.js';
-import { normalizeSegmentsConfig } from '../../segments.js';
 import { log } from '../../../shared/progress.js';
 import { getEnvConfig, isTestingEnv } from '../../../shared/env.js';
 import { isAbsolutePathNative } from '../../../shared/files.js';
 import { resolveCacheFilesystemProfile } from '../../../shared/cache-roots.js';
 import { buildAutoPolicy } from '../../../shared/auto-policy.js';
 import { normalizePostingsConfig } from '../../../shared/postings-config.js';
-import { normalizeEmbeddingBatchMultipliers } from '../embedding-batch.js';
 import { mergeConfig } from '../../../shared/config.js';
 import { setXxhashBackend } from '../../../shared/hash.js';
 import { resolveScmConfig } from '../../scm/registry.js';
@@ -38,11 +35,7 @@ import {
   logRuntimeFeatureStatus,
   logRuntimePostTreeSitterFeatureStatus
 } from './logging.js';
-import { applyTreeSitterJsCaps, normalizeLimit, resolveFileCapsAndGuardrails } from './caps.js';
-import {
-  normalizeLanguageParserConfig,
-  normalizeLanguageFlowConfig
-} from './normalize.js';
+import { applyTreeSitterJsCaps, resolveFileCapsAndGuardrails } from './caps.js';
 import {
   applyAutoPolicyIndexingConfig,
   buildAnalysisPolicy,
@@ -93,9 +86,15 @@ import {
 } from './runtime-daemon-init.js';
 import {
   configureScmRuntimeConcurrency,
+  logRuntimeScmPolicy,
+  resolveRuntimeScmAnnotatePolicy,
   resolveRuntimeScmSelection
 } from './runtime-scm-init.js';
 import { resolveRuntimeDictionaryIgnoreState } from './runtime-dictionary-ignore-init.js';
+import {
+  createRuntimeSqlDialectResolver,
+  resolveRuntimeLanguageInitConfig
+} from './runtime-language-init.js';
 
 export {
   applyLearnedAutoProfileSelection,
@@ -362,31 +361,21 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     {}
   );
   const riskInterproceduralEnabled = riskAnalysisEnabled && riskInterproceduralConfig.enabled;
-  const scmAnnotateEnabled = scmConfig?.annotate?.enabled !== false;
-  const effectiveScmAnnotateEnabled = scmAnnotateEnabled && scmSelection.provider !== 'none';
-  const scmAnnotateTimeoutMs = Number.isFinite(Number(scmConfig?.annotate?.timeoutMs))
-    ? Math.max(0, Math.floor(Number(scmConfig.annotate.timeoutMs)))
-    : null;
-  const scmAnnotateTimeoutLadder = Array.isArray(scmConfig?.annotate?.timeoutLadderMs)
-    ? scmConfig.annotate.timeoutLadderMs
-      .map((value) => Number(value))
-      .filter((value) => Number.isFinite(value) && value > 0)
-      .map((value) => Math.max(1, Math.floor(value)))
-    : [];
-  if (scmAnnotateEnabled && scmSelection.provider === 'none') {
-    log('[scm] annotate disabled: provider=none.');
-  }
-  const gitBlameEnabled = effectiveScmAnnotateEnabled;
-  const scmTimeoutMs = Number.isFinite(Number(scmConfig?.timeoutMs))
-    ? Math.max(0, Math.floor(Number(scmConfig.timeoutMs)))
-    : null;
-  log(
-    `[scm] policy provider=${scmSelection.provider} annotate=${gitBlameEnabled ? 'on' : 'off'} ` +
-      `benchRun=${envConfig.benchRun === true ? '1' : '0'} ` +
-      `metaTimeoutMs=${scmTimeoutMs ?? 'default'} ` +
-      `annotateTimeoutMs=${scmAnnotateTimeoutMs ?? 'default'} ` +
-      `annotateLadder=${scmAnnotateTimeoutLadder.length ? scmAnnotateTimeoutLadder.join('>') : 'default'}`
-  );
+  const scmAnnotatePolicy = resolveRuntimeScmAnnotatePolicy({
+    scmConfig,
+    scmProvider: scmSelection.provider,
+    log
+  });
+  const gitBlameEnabled = scmAnnotatePolicy.gitBlameEnabled;
+  logRuntimeScmPolicy({
+    log,
+    scmProvider: scmSelection.provider,
+    benchRun: envConfig.benchRun === true,
+    scmTimeoutMs: scmAnnotatePolicy.scmTimeoutMs,
+    scmAnnotateTimeoutMs: scmAnnotatePolicy.scmAnnotateTimeoutMs,
+    scmAnnotateTimeoutLadder: scmAnnotatePolicy.scmAnnotateTimeoutLadder,
+    gitBlameEnabled
+  });
   const lintEnabled = indexingConfig.lint !== false;
   const complexityEnabled = indexingConfig.complexity !== false;
   const analysisPolicy = buildAnalysisPolicy({
@@ -401,45 +390,24 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   });
   const skipUnknownLanguages = indexingConfig.skipUnknownLanguages === true;
   const skipOnParseError = indexingConfig.skipOnParseError === true;
-  const yamlChunkingModeRaw = typeof indexingConfig.yamlChunking === 'string'
-    ? indexingConfig.yamlChunking.trim().toLowerCase()
-    : '';
-  const yamlChunkingMode = ['auto', 'root', 'top-level'].includes(yamlChunkingModeRaw)
-    ? yamlChunkingModeRaw
-    : 'auto';
-  const yamlTopLevelMaxBytesRaw = Number(indexingConfig.yamlTopLevelMaxBytes);
-  const yamlTopLevelMaxBytes = Number.isFinite(yamlTopLevelMaxBytesRaw)
-    ? Math.max(0, Math.floor(yamlTopLevelMaxBytesRaw))
-    : 200 * 1024;
-  const kotlinConfig = indexingConfig.kotlin || {};
-  const kotlinFlowMaxBytes = normalizeLimit(kotlinConfig.flowMaxBytes, 200 * 1024);
-  const kotlinFlowMaxLines = normalizeLimit(kotlinConfig.flowMaxLines, 3000);
-  const kotlinRelationsMaxBytes = normalizeLimit(kotlinConfig.relationsMaxBytes, 200 * 1024);
-  const kotlinRelationsMaxLines = normalizeLimit(kotlinConfig.relationsMaxLines, 2000);
-  const parserConfig = normalizeLanguageParserConfig(indexingConfig);
-  const typescriptConfig = indexingConfig.typescript || {};
-  const typescriptImportsOnly = typescriptConfig.importsOnly === true;
-  const typescriptEmbeddingBatchRaw = Number(typescriptConfig.embeddingBatchMultiplier);
-  const typescriptEmbeddingBatchMultiplier = Number.isFinite(typescriptEmbeddingBatchRaw)
-    && typescriptEmbeddingBatchRaw > 0
-    ? typescriptEmbeddingBatchRaw
-    : null;
-  const embeddingBatchMultipliers = normalizeEmbeddingBatchMultipliers(
-    indexingConfig.embeddingBatchMultipliers || {},
-    typescriptEmbeddingBatchMultiplier ? { typescript: typescriptEmbeddingBatchMultiplier } : {}
-  );
-  const flowConfig = normalizeLanguageFlowConfig(indexingConfig);
-  const pythonAstConfig = indexingConfig.pythonAst || {};
+  const {
+    parserConfig,
+    flowConfig,
+    typescriptImportsOnly,
+    embeddingBatchMultipliers,
+    pythonAstConfig,
+    segmentsConfig,
+    commentsConfig,
+    tokenizationFileStream,
+    chunking,
+    yamlChunkingMode,
+    yamlTopLevelMaxBytes,
+    kotlinFlowMaxBytes,
+    kotlinFlowMaxLines,
+    kotlinRelationsMaxBytes,
+    kotlinRelationsMaxLines
+  } = resolveRuntimeLanguageInitConfig(indexingConfig);
   const pythonAstEnabled = pythonAstConfig.enabled !== false;
-  const segmentsConfig = normalizeSegmentsConfig(indexingConfig.segments || {});
-  const commentsConfig = normalizeCommentConfig(indexingConfig.comments || {});
-  const chunkingConfig = indexingConfig.chunking || {};
-  const tokenizationConfig = indexingConfig.tokenization || {};
-  const tokenizationFileStream = tokenizationConfig.fileStream !== false;
-  const chunking = {
-    maxBytes: normalizeLimit(chunkingConfig.maxBytes, null),
-    maxLines: normalizeLimit(chunkingConfig.maxLines, null)
-  };
   const treeSitterStart = Date.now();
   const {
     treeSitterEnabled,
@@ -472,25 +440,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   if (applyTreeSitterJsCaps(fileCaps, treeSitterMaxBytes)) {
     log(`JS file caps default to tree-sitter maxBytes (${treeSitterMaxBytes}).`);
   }
-  const sqlConfig = userConfig.sql || {};
-  const defaultSqlDialects = {
-    '.psql': 'postgres',
-    '.pgsql': 'postgres',
-    '.mysql': 'mysql',
-    '.sqlite': 'sqlite'
-  };
-  const sqlDialectByExt = { ...defaultSqlDialects, ...(sqlConfig.dialectByExt || {}) };
-  const sqlDialectOverride = typeof sqlConfig.dialect === 'string' && sqlConfig.dialect.trim()
-    ? sqlConfig.dialect.trim()
-    : '';
-  /**
-   * Resolve effective SQL dialect for a file extension, honoring explicit
-   * global override first, then extension mapping fallback.
-   *
-   * @param {string} ext
-   * @returns {string}
-   */
-  const resolveSqlDialect = (ext) => (sqlDialectOverride || sqlDialectByExt[ext] || 'generic');
+  const resolveSqlDialect = createRuntimeSqlDialectResolver(userConfig.sql || {});
   const twoStageEnabled = twoStageConfig.enabled === true;
   const twoStageBackground = twoStageConfig.background === true;
   const twoStageQueue = twoStageConfig.queue !== false && twoStageBackground;

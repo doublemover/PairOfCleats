@@ -84,6 +84,96 @@ export const resolveRuntimeScmSelection = async ({
   };
 };
 
+const normalizeOptionalTimeoutMs = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.max(0, Math.floor(parsed));
+};
+
+const normalizeTimeoutLadderMs = (ladder) => (
+  Array.isArray(ladder)
+    ? ladder
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value) && value > 0)
+      .map((value) => Math.max(1, Math.floor(value)))
+    : []
+);
+
+/**
+ * Resolve SCM annotate policy + timeout controls from runtime SCM config.
+ *
+ * Sequencing contract:
+ * - Run after provider selection to ensure provider=`none` can force annotate
+ *   off even when config enables it.
+ * - Run before analysis-policy assembly so `gitBlameEnabled` can gate
+ *   type/risk metadata policy in one pass.
+ *
+ * @param {{
+ *   scmConfig:object,
+ *   scmProvider:string,
+ *   log:(line:string)=>void
+ * }} input
+ * @returns {{
+ *   scmAnnotateEnabled:boolean,
+ *   gitBlameEnabled:boolean,
+ *   scmTimeoutMs:number|null,
+ *   scmAnnotateTimeoutMs:number|null,
+ *   scmAnnotateTimeoutLadder:number[]
+ * }}
+ */
+export const resolveRuntimeScmAnnotatePolicy = ({
+  scmConfig,
+  scmProvider,
+  log
+}) => {
+  const scmAnnotateEnabled = scmConfig?.annotate?.enabled !== false;
+  const gitBlameEnabled = scmAnnotateEnabled && scmProvider !== 'none';
+  const scmTimeoutMs = normalizeOptionalTimeoutMs(scmConfig?.timeoutMs);
+  const scmAnnotateTimeoutMs = normalizeOptionalTimeoutMs(scmConfig?.annotate?.timeoutMs);
+  const scmAnnotateTimeoutLadder = normalizeTimeoutLadderMs(scmConfig?.annotate?.timeoutLadderMs);
+  if (scmAnnotateEnabled && scmProvider === 'none') {
+    log('[scm] annotate disabled: provider=none.');
+  }
+  return {
+    scmAnnotateEnabled,
+    gitBlameEnabled,
+    scmTimeoutMs,
+    scmAnnotateTimeoutMs,
+    scmAnnotateTimeoutLadder
+  };
+};
+
+/**
+ * Emit normalized SCM policy status line used by runtime startup logs.
+ *
+ * @param {{
+ *   log:(line:string)=>void,
+ *   scmProvider:string,
+ *   gitBlameEnabled:boolean,
+ *   benchRun:boolean,
+ *   scmTimeoutMs:number|null,
+ *   scmAnnotateTimeoutMs:number|null,
+ *   scmAnnotateTimeoutLadder:number[]
+ * }} input
+ */
+export const logRuntimeScmPolicy = ({
+  log,
+  scmProvider,
+  gitBlameEnabled,
+  benchRun,
+  scmTimeoutMs,
+  scmAnnotateTimeoutMs,
+  scmAnnotateTimeoutLadder
+}) => {
+  log(
+    `[scm] policy provider=${scmProvider} annotate=${gitBlameEnabled ? 'on' : 'off'} `
+      + `benchRun=${benchRun ? '1' : '0'} `
+      + `metaTimeoutMs=${scmTimeoutMs ?? 'default'} `
+      + `annotateTimeoutMs=${scmAnnotateTimeoutMs ?? 'default'} `
+      + `annotateLadder=${scmAnnotateTimeoutLadder.length ? scmAnnotateTimeoutLadder.join('>') : 'default'}`
+  );
+};
+
 /**
  * Publish resolved SCM runtime config with concurrency defaults.
  *
