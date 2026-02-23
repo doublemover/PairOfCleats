@@ -20,16 +20,28 @@ import {
 const ROOT = resolveToolRoot();
 const SUPERVISOR_PROTOCOL = 'poc.tui@1';
 const tuiEnvConfig = getTuiEnvConfig(process.env);
-const runId = tuiEnvConfig.runId
-  || `run-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+const generatedRunId = `run-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+const sanitizeRunIdForFilename = (value) => {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  const safe = text
+    .replace(/[\x00-\x1f]+/g, '-')
+    .replace(/[<>:"/\\|?*]+/g, '-')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^[.-]+|[.-]+$/g, '');
+  return safe || '';
+};
+const runId = tuiEnvConfig.runId || generatedRunId;
+const runFileId = sanitizeRunIdForFilename(runId) || generatedRunId;
 const supervisorVersion = getToolVersion() || '0.0.0';
 
 const createEventLogRecorder = () => {
   const requestedDir = tuiEnvConfig.eventLogDir;
   if (!requestedDir) return null;
   const logsDir = path.resolve(requestedDir);
-  const eventLogPath = path.join(logsDir, `${runId}.jsonl`);
-  const sessionMetaPath = path.join(logsDir, `${runId}.meta.json`);
+  const eventLogPath = path.join(logsDir, `${runFileId}.jsonl`);
+  const sessionMetaPath = path.join(logsDir, `${runFileId}.meta.json`);
   try {
     fs.mkdirSync(logsDir, { recursive: true });
     const meta = {

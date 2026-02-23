@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-23T13:21:45.401Z",
+  "generatedAt": "2026-02-23T14:13:52.994Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3218,6 +3218,7 @@
         "bin/pairofcleats-tui.js",
         "src/shared/env.js",
         "tests/tui/observability/replay-determinism.test.js",
+        "tests/tui/observability/run-id-path-safety.test.js",
         "tests/tui/observability/session-correlation.test.js",
         "tools/config/inventory.js"
       ]
@@ -3244,6 +3245,7 @@
         "bin/pairofcleats-tui.js",
         "src/shared/env.js",
         "tests/tui/observability/replay-determinism.test.js",
+        "tests/tui/observability/run-id-path-safety.test.js",
         "tests/tui/observability/session-correlation.test.js",
         "tools/config/inventory.js"
       ]
