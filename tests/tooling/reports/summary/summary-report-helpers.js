@@ -154,8 +154,9 @@ export const ensureSummaryReportFixture = async ({ modelId = DEFAULT_MODEL_ID } 
       '--repo',
       REPO_ROOT
     ]);
-    Object.assign(process.env, baseEnv, repoEnv);
-    await runSqliteBuild(REPO_ROOT);
+    await runSqliteBuild(REPO_ROOT, {
+      env: { ...baseEnv, ...repoEnv }
+    });
 
     const modelCacheRoot = path.join(CACHE_ROOT, 'model-compare', modelSlug(modelId));
     const modelEnv = {
@@ -170,8 +171,9 @@ export const ensureSummaryReportFixture = async ({ modelId = DEFAULT_MODEL_ID } 
       '--repo',
       REPO_ROOT
     ]);
-    Object.assign(process.env, baseEnv, modelEnv);
-    await runSqliteBuild(REPO_ROOT);
+    await runSqliteBuild(REPO_ROOT, {
+      env: { ...baseEnv, ...modelEnv }
+    });
 
     await fsPromises.writeFile(
       MARKER_PATH,

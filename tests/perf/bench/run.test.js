@@ -451,9 +451,9 @@ if (buildIndex || buildSqlite) {
     }
   }
   if (buildSqlite) {
-    Object.assign(process.env, buildEnv);
     const sqliteStarted = Date.now();
     await runSqliteBuild(runtimeRoot, {
+      env: buildEnv,
       incremental: buildIncremental,
       emitOutput: true,
       logger: {
