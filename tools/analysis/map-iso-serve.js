@@ -88,6 +88,42 @@ const contentTypeFor = (filePath) => {
   return 'application/octet-stream';
 };
 
+const serveStaticFileOr404 = (res, filePath, notFoundMessage) => {
+  try {
+    const stat = fs.statSync(filePath);
+    if (!stat.isFile()) {
+      res.writeHead(404);
+      res.end(notFoundMessage);
+      return;
+    }
+  } catch {
+    res.writeHead(404);
+    res.end(notFoundMessage);
+    return;
+  }
+
+  res.writeHead(200, { 'Content-Type': contentTypeFor(filePath) });
+  const stream = fs.createReadStream(filePath);
+  const onResponseClose = () => {
+    if (!stream.destroyed) {
+      stream.destroy();
+    }
+  };
+  res.once('close', onResponseClose);
+  stream.once('close', () => {
+    res.off('close', onResponseClose);
+  });
+  stream.on('error', () => {
+    if (!res.headersSent) {
+      res.writeHead(404);
+    }
+    if (!res.writableEnded) {
+      res.end(notFoundMessage);
+    }
+  });
+  stream.pipe(res);
+};
+
 const openBrowser = (url) => {
   if (argv.open === false) return;
   if (process.platform === 'win32') {
@@ -116,62 +152,51 @@ const server = https.createServer({ key, cert }, (req, res) => {
     return;
   }
   if (pathname === '/' || pathname === '/map.iso.html') {
-    const htmlPath = outPath;
-    if (!fs.existsSync(htmlPath)) {
-      res.writeHead(404);
-      res.end('map.iso.html not found.');
-      return;
-    }
-    res.writeHead(200, { 'Content-Type': contentTypeFor(htmlPath) });
-    fs.createReadStream(htmlPath).pipe(res);
+    serveStaticFileOr404(res, outPath, 'map.iso.html not found.');
     return;
   }
   if (pathname.startsWith('/three/examples/')) {
     const relativePath = pathname.replace('/three/examples/', '');
     const targetPath = safeJoinUnderBase(threeExamplesRoot, relativePath);
-    if (!targetPath || !fs.existsSync(targetPath)) {
+    if (!targetPath) {
       res.writeHead(404);
       res.end('three.js example asset not found.');
       return;
     }
-    res.writeHead(200, { 'Content-Type': contentTypeFor(targetPath) });
-    fs.createReadStream(targetPath).pipe(res);
+    serveStaticFileOr404(res, targetPath, 'three.js example asset not found.');
     return;
   }
   if (pathname.startsWith('/three/')) {
     const relativePath = pathname.replace('/three/', '');
     const targetPath = safeJoinUnderBase(threeBuildRoot, relativePath);
-    if (!targetPath || !fs.existsSync(targetPath)) {
+    if (!targetPath) {
       res.writeHead(404);
       res.end('three.js asset not found.');
       return;
     }
-    res.writeHead(200, { 'Content-Type': contentTypeFor(targetPath) });
-    fs.createReadStream(targetPath).pipe(res);
+    serveStaticFileOr404(res, targetPath, 'three.js asset not found.');
     return;
   }
   if (pathname.startsWith('/assets/isomap/')) {
     const relativePath = pathname.replace('/assets/isomap/', '');
     const targetPath = safeJoinUnderBase(isomapAssetsRoot, relativePath);
-    if (!targetPath || !fs.existsSync(targetPath)) {
+    if (!targetPath) {
       res.writeHead(404);
       res.end('isomap asset not found.');
       return;
     }
-    res.writeHead(200, { 'Content-Type': contentTypeFor(targetPath) });
-    fs.createReadStream(targetPath).pipe(res);
+    serveStaticFileOr404(res, targetPath, 'isomap asset not found.');
     return;
   }
   if (pathname.startsWith('/isomap/')) {
     const relativePath = pathname.replace('/isomap/', '');
     const targetPath = safeJoinUnderBase(isomapClientRoot, relativePath);
-    if (!targetPath || !fs.existsSync(targetPath)) {
+    if (!targetPath) {
       res.writeHead(404);
       res.end('isomap client asset not found.');
       return;
     }
-    res.writeHead(200, { 'Content-Type': contentTypeFor(targetPath) });
-    fs.createReadStream(targetPath).pipe(res);
+    serveStaticFileOr404(res, targetPath, 'isomap client asset not found.');
     return;
   }
   res.writeHead(404);
