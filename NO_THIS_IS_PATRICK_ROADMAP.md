@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T06:13:11.8881660-05:00
+  Split runtime bootstrap/queue initialization from `src/index/build/runtime/runtime.js` into `src/index/build/runtime/bootstrap.js` and `src/index/build/runtime/queue-bootstrap.js`, and hoisted additional runtime policy assembly into `src/index/build/runtime/policy.js` to reduce orchestration coupling and overlap early envelope/scheduler prefetch work during startup.
 - 2026-02-23T06:12:35.0616619-05:00
   Further decomposed `src/index/build/indexer/pipeline.js` into `pipeline/stage-orchestration.js` and `pipeline/phase-ordering.js`, isolating scheduler/checkpoint telemetry wiring and overlap/prefetch phase ordering policy to reduce repeated normalization logic and keep top-level pipeline orchestration lean.
 - 2026-02-23T06:12:06.3899446-05:00

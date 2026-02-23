@@ -33,7 +33,6 @@ import { setScmRuntimeConfig } from '../../scm/runtime.js';
 import { normalizeRiskConfig } from '../../risk.js';
 import { normalizeRiskInterproceduralConfig } from '../../risk-interprocedural/config.js';
 import { normalizeRecordsConfig } from '../records.js';
-import { resolveRuntimeEnvelope } from '../../../shared/runtime-envelope.js';
 import { buildContentConfigHash } from './hash.js';
 import { normalizeStage, buildStageOverrides } from './stage.js';
 import {
@@ -46,7 +45,12 @@ import {
   normalizeLanguageParserConfig,
   normalizeLanguageFlowConfig
 } from './normalize.js';
-import { buildAnalysisPolicy, buildLexiconConfig } from './policy.js';
+import {
+  applyAutoPolicyIndexingConfig,
+  buildAnalysisPolicy,
+  buildLexiconConfig,
+  resolveBaseEmbeddingPlan
+} from './policy.js';
 import {
   buildFileScanConfig,
   buildGeneratedIndexingPolicyConfig,
@@ -54,9 +58,6 @@ import {
   resolveRuntimeBuildRoot
 } from './config.js';
 import { resolveEmbeddingRuntime } from './embeddings.js';
-import { createBuildScheduler } from '../../../shared/concurrency.js';
-import { resolveSchedulerConfig } from './scheduler.js';
-import { loadSchedulerAutoTuneProfile } from './scheduler-autotune-profile.js';
 import { resolveTreeSitterRuntime } from './tree-sitter.js';
 import {
   acquireRuntimeDaemonSession,
@@ -66,15 +67,11 @@ import {
 } from './daemon-session.js';
 import { resolveLearnedAutoProfileSelection } from './learned-auto-profile.js';
 import {
-  createRuntimeQueues,
-  resolveRuntimeMemoryPolicy,
-  resolveWorkerPoolRuntimeConfig,
   createRuntimeWorkerPools
 } from './workers.js';
 import {
   buildStage1SubprocessOwnershipPrefix,
-  createRuntimeTelemetry,
-  resolveStage1Queues
+  createRuntimeTelemetry
 } from './queues.js';
 import {
   applyLearnedAutoProfileSelection,
@@ -88,6 +85,13 @@ import {
 } from '../../../contracts/index-profile.js';
 import { resolveRuntimeDictionaries } from './dictionaries.js';
 import { preloadTreeSitterWithDaemonCache } from './tree-sitter-preload.js';
+import { createRuntimeInitTracer, startRuntimeEnvelopeInitialization } from './bootstrap.js';
+import {
+  createRuntimeSchedulerSetup,
+  prefetchSchedulerAutoTuneProfile,
+  resolveRuntimeConcurrency,
+  resolveRuntimeQueueSetup
+} from './queue-bootstrap.js';
 
 export {
   applyLearnedAutoProfileSelection,
@@ -97,45 +101,13 @@ export {
 };
 
 /**
- * Narrow values to plain object records (excluding arrays).
- *
- * @param {unknown} value
- * @returns {boolean}
- */
-const isObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-
-/**
  * Create runtime configuration for build_index.
  * @param {{root:string,argv:object,rawArgv:string[]}} input
  * @returns {Promise<object>}
  */
 export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoot: indexRootOverride = null } = {}) {
   const initStartedAt = Date.now();
-  /**
-   * Emit a timed initialization step log entry.
-   *
-   * @param {string} label
-   * @param {number} startedAt
-   * @returns {void}
-   */
-  const logInit = (label, startedAt) => {
-    const elapsed = Math.max(0, Date.now() - startedAt);
-    log(`[init] ${label} (${elapsed}ms)`);
-  };
-  /**
-   * Run one initialization phase and log elapsed time.
-   *
-   * @template T
-   * @param {string} label
-   * @param {() => Promise<T>} fn
-   * @returns {Promise<T>}
-   */
-  const timeInit = async (label, fn) => {
-    const startedAt = Date.now();
-    const result = await fn();
-    logInit(label, startedAt);
-    return result;
-  };
+  const { logInit, timeInit } = createRuntimeInitTracer({ log });
 
   const userConfig = await timeInit('load config', () => loadUserConfig(root));
   const envConfig = getEnvConfig();
@@ -150,60 +122,14 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   if (policy) {
     log('[init] auto policy (provided)');
   }
-  const policyConcurrency = autoPolicy?.indexing?.concurrency || null;
-  const policyEmbeddings = autoPolicy?.indexing?.embeddings || null;
-  const policyWorkerPool = autoPolicy?.runtime?.workerPool || null;
-  const autoPolicyProfile = isObject(autoPolicy?.profile)
-    ? autoPolicy.profile
-    : { id: 'default', enabled: false };
-  const policyHugeRepoProfile = isObject(autoPolicy?.indexing?.hugeRepoProfile)
-    ? autoPolicy.indexing.hugeRepoProfile
-    : null;
-  const explicitHugeRepoProfile = isObject(indexingConfig?.hugeRepoProfile)
-    ? indexingConfig.hugeRepoProfile
-    : {};
-  const hugeRepoProfileEnabled = typeof explicitHugeRepoProfile.enabled === 'boolean'
-    ? explicitHugeRepoProfile.enabled
-    : policyHugeRepoProfile?.enabled === true;
-  if (hugeRepoProfileEnabled && isObject(policyHugeRepoProfile?.overrides)) {
-    indexingConfig = mergeConfig(indexingConfig, policyHugeRepoProfile.overrides);
-  }
-  if (policyConcurrency) {
-    indexingConfig = mergeConfig(indexingConfig, {
-      concurrency: policyConcurrency.files,
-      importConcurrency: policyConcurrency.imports,
-      ioConcurrencyCap: policyConcurrency.io
-    });
-  }
-  if (policyEmbeddings && typeof policyEmbeddings.enabled === 'boolean') {
-    indexingConfig = mergeConfig(indexingConfig, {
-      embeddings: { enabled: policyEmbeddings.enabled }
-    });
-  }
-  if (policyWorkerPool) {
-    indexingConfig = mergeConfig(indexingConfig, {
-      workerPool: {
-        enabled: policyWorkerPool.enabled !== false ? 'auto' : false,
-        maxWorkers: policyWorkerPool.maxThreads
-      }
-    });
-  }
-  if (hugeRepoProfileEnabled) {
-    indexingConfig = mergeConfig(indexingConfig, {
-      hugeRepoProfile: {
-        enabled: true,
-        id: autoPolicyProfile.id || 'huge-repo'
-      }
-    });
-  }
-  const baseEmbeddingsConfig = indexingConfig.embeddings || {};
-  const baseEmbeddingModeRaw = typeof baseEmbeddingsConfig.mode === 'string'
-    ? baseEmbeddingsConfig.mode.trim().toLowerCase()
-    : 'auto';
-  const baseEmbeddingMode = ['auto', 'inline', 'service', 'stub', 'off'].includes(baseEmbeddingModeRaw)
-    ? baseEmbeddingModeRaw
-    : 'auto';
-  const baseEmbeddingsPlanned = baseEmbeddingsConfig.enabled !== false && baseEmbeddingMode !== 'off';
+  const autoPolicyResolution = applyAutoPolicyIndexingConfig({
+    indexingConfig,
+    autoPolicy
+  });
+  indexingConfig = autoPolicyResolution.indexingConfig;
+  const autoPolicyProfile = autoPolicyResolution.autoPolicyProfile;
+  const hugeRepoProfileEnabled = autoPolicyResolution.hugeRepoProfileEnabled;
+  const { baseEmbeddingsPlanned } = resolveBaseEmbeddingPlan(indexingConfig);
   const requestedHashBackend = typeof indexingConfig?.hash?.backend === 'string'
     ? indexingConfig.hash.backend.trim().toLowerCase()
     : '';
@@ -216,13 +142,14 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   if (stageOverrides) {
     indexingConfig = mergeConfig(indexingConfig, stageOverrides);
   }
+  const systemCpuCount = os.cpus().length;
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const cacheRootCandidate = (userConfig.cache && userConfig.cache.root) || getCacheRoot();
   const filesystemProfile = resolveCacheFilesystemProfile(cacheRootCandidate, process.platform);
   const platformRuntimePreset = resolvePlatformRuntimePreset({
     platform: process.platform,
     filesystemProfile,
-    cpuCount: os.cpus().length,
+    cpuCount: systemCpuCount,
     indexingConfig
   });
   if (platformRuntimePreset?.overrides) {
@@ -277,6 +204,30 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
       `(fs=${filesystemProfile}, subprocessFanout=${fanoutHint || 'n/a'}, reason=${fanoutReason}).`
     );
   }
+  const toolVersion = getToolVersion();
+  const runtimeEnvelopeInit = startRuntimeEnvelopeInitialization({
+    argv,
+    rawArgv,
+    userConfig,
+    autoPolicy,
+    env: process.env,
+    execArgv: process.execArgv,
+    cpuCount: systemCpuCount,
+    processInfo: {
+      pid: process.pid,
+      argv: process.argv,
+      execPath: process.execPath,
+      nodeVersion: process.version,
+      platform: process.platform,
+      arch: process.arch,
+      cpuCount: systemCpuCount
+    },
+    toolVersion
+  });
+  const schedulerAutoTuneProfilePromise = prefetchSchedulerAutoTuneProfile({
+    repoCacheRoot,
+    log
+  });
   const startupCalibrationEnabled = indexingConfig?.platformPresets?.startupCalibration !== false;
   const startupCalibration = await timeInit('startup calibration', () => runStartupCalibrationProbe({
     cacheRoot,
@@ -328,25 +279,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   if (daemonSession) {
     log(`[init] daemon session: ${daemonSession.key} (jobs=${daemonSession.jobsProcessed}, deterministic=${daemonSession.deterministic !== false}).`);
   }
-  const envelope = await timeInit('runtime envelope', () => resolveRuntimeEnvelope({
-    argv,
-    rawArgv,
-    userConfig,
-    autoPolicy,
-    env: process.env,
-    execArgv: process.execArgv,
-    cpuCount: os.cpus().length,
-    processInfo: {
-      pid: process.pid,
-      argv: process.argv,
-      execPath: process.execPath,
-      nodeVersion: process.version,
-      platform: process.platform,
-      arch: process.arch,
-      cpuCount: os.cpus().length
-    },
-    toolVersion: getToolVersion()
-  }));
+  const envelope = await runtimeEnvelopeInit.promise;
+  logInit('runtime envelope', runtimeEnvelopeInit.startedAt);
   const logFileRaw = typeof argv['log-file'] === 'string' ? argv['log-file'].trim() : '';
   const logFormatRaw = typeof argv['log-format'] === 'string' ? argv['log-format'].trim() : '';
   const logFormatOverride = logFormatRaw ? logFormatRaw.toLowerCase() : null;
@@ -365,46 +299,21 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     }
   }
   const telemetry = createRuntimeTelemetry();
-  const preRuntimeMemoryPolicy = resolveRuntimeMemoryPolicy({
-    indexingConfig,
-    cpuConcurrency: envelope?.concurrency?.cpuConcurrency?.value
-  });
-  const schedulerAutoTuneProfile = await loadSchedulerAutoTuneProfile({
-    repoCacheRoot,
-    log: (line) => log(line)
-  });
-  const schedulerConfig = resolveSchedulerConfig({
+  const {
+    schedulerConfig,
+    scheduler,
+    stage1Queues
+  } = await createRuntimeSchedulerSetup({
     argv,
     rawArgv,
     envConfig,
     indexingConfig,
     runtimeConfig: userConfig.runtime || null,
     envelope,
-    autoTuneProfile: schedulerAutoTuneProfile
+    repoCacheRoot,
+    log,
+    schedulerAutoTuneProfilePromise
   });
-  const scheduler = createBuildScheduler({
-    enabled: schedulerConfig.enabled,
-    lowResourceMode: schedulerConfig.lowResourceMode,
-    cpuTokens: schedulerConfig.cpuTokens,
-    ioTokens: schedulerConfig.ioTokens,
-    memoryTokens: schedulerConfig.memoryTokens,
-    adaptive: schedulerConfig.adaptive,
-    adaptiveTargetUtilization: schedulerConfig.adaptiveTargetUtilization,
-    adaptiveStep: schedulerConfig.adaptiveStep,
-    adaptiveMemoryReserveMb: Math.max(
-      schedulerConfig.adaptiveMemoryReserveMb,
-      preRuntimeMemoryPolicy?.reserveRssMb || 0
-    ),
-    adaptiveMemoryPerTokenMb: schedulerConfig.adaptiveMemoryPerTokenMb,
-    maxCpuTokens: schedulerConfig.maxCpuTokens,
-    maxIoTokens: schedulerConfig.maxIoTokens,
-    maxMemoryTokens: schedulerConfig.maxMemoryTokens,
-    starvationMs: schedulerConfig.starvationMs,
-    queues: schedulerConfig.queues,
-    writeBackpressure: schedulerConfig.writeBackpressure,
-    adaptiveSurfaces: schedulerConfig.adaptiveSurfaces
-  });
-  const stage1Queues = resolveStage1Queues(indexingConfig);
   const triageConfig = getTriageConfig(root, userConfig);
   const recordsConfig = normalizeRecordsConfig(userConfig.records || {});
   const currentIndexRoot = resolveIndexRoot(root, userConfig);
@@ -457,7 +366,6 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
       detectedBy: scmSelection.detectedBy || 'none'
     };
   }
-  const toolVersion = getToolVersion();
   const scmHeadId = repoProvenance?.head?.changeId
     || repoProvenance?.head?.commitId
     || repoProvenance?.commit
@@ -657,14 +565,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     importConcurrency,
     ioConcurrency,
     cpuConcurrency
-  } = {
-    cpuCount: envelope.concurrency.cpuCount,
-    maxConcurrencyCap: envelope.concurrency.maxConcurrencyCap,
-    fileConcurrency: envelope.concurrency.fileConcurrency.value,
-    importConcurrency: envelope.concurrency.importConcurrency.value,
-    ioConcurrency: envelope.concurrency.ioConcurrency.value,
-    cpuConcurrency: envelope.concurrency.cpuConcurrency.value
-  };
+  } = resolveRuntimeConcurrency(envelope);
   const normalizedScmMaxConcurrentProcesses = Number.isFinite(Number(scmConfig?.maxConcurrentProcesses))
     ? Math.max(1, Math.floor(Number(scmConfig.maxConcurrentProcesses)))
     : Math.max(
@@ -689,28 +590,6 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
       cpuConcurrency
     }
   });
-  const runtimeMemoryPolicy = resolveRuntimeMemoryPolicy({
-    indexingConfig,
-    cpuConcurrency
-  });
-  const rawWorkerPoolConfig = indexingConfig.workerPool && typeof indexingConfig.workerPool === 'object'
-    ? indexingConfig.workerPool
-    : {};
-  if (rawWorkerPoolConfig.heapTargetMb == null || rawWorkerPoolConfig.heapMinMb == null || rawWorkerPoolConfig.heapMaxMb == null) {
-    indexingConfig = mergeConfig(indexingConfig, {
-      workerPool: {
-        ...(rawWorkerPoolConfig.heapTargetMb == null
-          ? { heapTargetMb: runtimeMemoryPolicy.workerHeapPolicy.targetPerWorkerMb }
-          : {}),
-        ...(rawWorkerPoolConfig.heapMinMb == null
-          ? { heapMinMb: runtimeMemoryPolicy.workerHeapPolicy.minPerWorkerMb }
-          : {}),
-        ...(rawWorkerPoolConfig.heapMaxMb == null
-          ? { heapMaxMb: runtimeMemoryPolicy.workerHeapPolicy.maxPerWorkerMb }
-          : {})
-      }
-    });
-  }
 
   const embeddingRuntime = await timeInit('embedding runtime', () => resolveEmbeddingRuntime({
     rootDir: root,
@@ -786,33 +665,19 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     defaultMaxWorkers: Math.min(4, fileConcurrency),
     hardMaxWorkers: 8
   };
-  const workerPoolConfig = resolveWorkerPoolRuntimeConfig({
+  const runtimeQueueSetup = resolveRuntimeQueueSetup({
     indexingConfig,
     envConfig,
-    cpuConcurrency,
-    fileConcurrency
-  });
-  const procConcurrencyCap = Number.isFinite(fileConcurrency)
-    ? Math.max(
-      Math.max(1, Math.floor(cpuConcurrency || 1)),
-      Math.floor(fileConcurrency / 2)
-    )
-    : Math.max(1, Math.floor(cpuConcurrency || 1));
-  const procConcurrency = workerPoolConfig?.enabled !== false && Number.isFinite(workerPoolConfig?.maxWorkers)
-    ? Math.max(1, Math.min(procConcurrencyCap, Math.floor(workerPoolConfig.maxWorkers)))
-    : null;
-  const queueConfig = createRuntimeQueues({
-    ioConcurrency,
-    cpuConcurrency,
-    fileConcurrency,
-    embeddingConcurrency,
-    pendingLimits: envelope.queues,
+    envelope,
     scheduler,
     stage1Queues,
-    procConcurrency,
-    memoryPolicy: runtimeMemoryPolicy
+    embeddingConcurrency
   });
-  const { queues } = queueConfig;
+  indexingConfig = runtimeQueueSetup.indexingConfig;
+  const runtimeMemoryPolicy = runtimeQueueSetup.runtimeMemoryPolicy;
+  const workerPoolConfig = runtimeQueueSetup.workerPoolConfig;
+  const procConcurrency = runtimeQueueSetup.procConcurrency;
+  const { queues } = runtimeQueueSetup;
 
   const incrementalEnabled = argv.incremental === true;
   const incrementalBundlesConfig = indexingConfig.incrementalBundles || {};
@@ -824,6 +689,12 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     || indexingConfig.debugCrash === true
     || isTestingEnv();
 
+  const generatedPolicy = buildGeneratedIndexingPolicyConfig(indexingConfig);
+  // Dictionaries and ignore rules are independent; start ignore loading early
+  // and await after dictionaries to preserve stable init log ordering.
+  const ignoreRulesStartedAt = Date.now();
+  const ignoreRulesPromise = buildIgnoreMatcher({ root, userConfig, generatedPolicy })
+    .then((value) => ({ value, error: null }), (error) => ({ value: null, error }));
   const {
     dictConfig,
     dictionaryPaths,
@@ -845,14 +716,15 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     logInit
   });
   const codeDictEnabled = codeDictLanguages.size > 0;
-  const generatedPolicy = buildGeneratedIndexingPolicyConfig(indexingConfig);
-
+  const ignoreRulesResult = await ignoreRulesPromise;
+  if (ignoreRulesResult.error) throw ignoreRulesResult.error;
+  logInit('ignore rules', ignoreRulesStartedAt);
   const {
     ignoreMatcher,
     config: ignoreConfig,
     ignoreFiles,
     warnings: ignoreWarnings
-  } = await timeInit('ignore rules', () => buildIgnoreMatcher({ root, userConfig, generatedPolicy }));
+  } = ignoreRulesResult.value;
   const cacheConfig = getCacheRuntimeConfig(root, userConfig);
   const verboseCache = envConfig.verbose === true;
 
