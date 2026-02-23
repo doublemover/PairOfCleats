@@ -77,6 +77,8 @@ Note:
   Split scheduler telemetry capture out of `src/shared/concurrency/scheduler-core.js` into `src/shared/concurrency/scheduler-core-telemetry-capture.js`, reducing core-module surface area and preserving queue/trace snapshot behavior with explicit JSDoc on concurrency-sensitive capture paths.
 - 2026-02-23T05:08:20.0964593-05:00
   Decomposed `tools/tui/supervisor.js` into focused modules (`constants`, `protocol-flow`, `request-utils`, `progress-decoder`, `watchdog`, `artifacts`, `jobs`) and kept the top-level supervisor as orchestration-only glue, including concurrent artifact stat probing for lower end-of-run overhead.
+- 2026-02-23T05:12:01.7734790-05:00
+  Split `tools/service/indexer-service.js` into `progress-monitor`, `job-executor`, `job-completion`, and `queue-worker` modules, preserving queue semantics while reducing monolith coupling and deduplicating concurrent stale-job sweep work to lower lock/contention overhead at higher worker concurrency.
 
 ## Architectural assessment (what needs to change)
 
