@@ -1,31 +1,19 @@
-import path from 'node:path';
 import { incCacheEvent } from '../../shared/metrics.js';
-import { MAX_JSON_BYTES, readJsonFile } from '../../shared/artifact-io.js';
 import { ERROR_CODES } from '../../shared/error-codes.js';
 import { createSearchPipeline } from '../pipeline.js';
-import { buildQueryCacheKey, getIndexSignature } from '../cli-index.js';
-import { getQueryEmbedding } from '../embedding.js';
-import { buildIndexSignature } from '../index-cache.js';
-import { buildLocalCacheKey } from '../../shared/cache-key.js';
-import {
-  buildContextIndex,
-  expandContext,
-  serializeContextIndex,
-  hydrateContextIndex
-} from '../context-expansion.js';
-import {
-  findQueryCacheEntry,
-  loadQueryCache,
-  pruneQueryCache,
-  rememberQueryCacheEntry
-} from '../query-cache.js';
-import { filterChunks } from '../output.js';
 import { runSearchByMode } from './search-runner.js';
-import { resolveStubDims } from '../../shared/embedding.js';
-import { atomicWriteJson } from '../../shared/io/atomic-write.js';
-import { stableStringifyForSignature } from '../../shared/stable-json.js';
 import { resolveSqliteFtsRoutingByMode } from '../routing-policy.js';
-import { resolveRetrievalCachePath } from './cache-paths.js';
+import {
+  resolveQueryCachePolicy,
+  resolveEmbeddingInputFormattingByMode,
+  resolveQueryCacheLookup
+} from './run-search-session/cache-policy.js';
+import { createEmbeddingResolver } from './run-search-session/embedding-cache.js';
+import { createModeExpander } from './run-search-session/mode-expansion.js';
+import {
+  persistSearchSession,
+  resolveAnnBackendUsed
+} from './run-search-session/persist.js';
 
 /**
  * Execute one retrieval session, including query cache lookup, per-mode search,
@@ -145,14 +133,6 @@ export async function runSearchSession({
   signal,
   stageTracker
 }) {
-  const readContextCacheJson = (filePath, maxBytes = MAX_JSON_BYTES) => {
-    if (!filePath) return null;
-    try {
-      return readJsonFile(filePath, { maxBytes });
-    } catch {
-      return null;
-    }
-  };
   const resolvedDenseMode = typeof resolvedDenseVectorMode === 'string'
     ? resolvedDenseVectorMode.trim().toLowerCase()
     : 'merged';
@@ -250,198 +230,104 @@ export async function runSearchSession({
   });
   throwIfAborted();
 
-  let cacheHit = false;
-  let cacheKey = null;
-  let cacheSignature = null;
-  let cacheData = null;
-  let cachedPayload = null;
-  let cacheShouldPersist = false;
-  let cacheHotPathHit = false;
-  const cacheStrategy = queryCacheStrategy === 'memory-first' || preferMemoryBackendOnCacheHit === true
-    ? 'memory-first'
-    : 'disk-first';
-  const cachePrewarmEnabled = queryCachePrewarm === true || cacheStrategy === 'memory-first';
-  const cachePrewarmLimit = Number.isFinite(Number(queryCachePrewarmMaxEntries))
-    ? Math.max(1, Math.floor(Number(queryCachePrewarmMaxEntries)))
-    : 128;
-  const cacheMemoryFreshMs = Number.isFinite(Number(queryCacheMemoryFreshMs))
-    ? Math.max(0, Math.floor(Number(queryCacheMemoryFreshMs)))
-    : 0;
-  const sqliteFtsOverfetchCacheKey = {
-    rowCap: Number.isFinite(Number(sqliteFtsOverfetch?.rowCap))
-      ? Math.max(1, Math.floor(Number(sqliteFtsOverfetch.rowCap)))
-      : null,
-    timeBudgetMs: Number.isFinite(Number(sqliteFtsOverfetch?.timeBudgetMs))
-      ? Math.max(1, Math.floor(Number(sqliteFtsOverfetch.timeBudgetMs)))
-      : null,
-    chunkSize: Number.isFinite(Number(sqliteFtsOverfetch?.chunkSize))
-      ? Math.max(1, Math.floor(Number(sqliteFtsOverfetch.chunkSize)))
-      : null
-  };
-  const extractEmbeddingInputFormatting = (idx) => {
-    const formatting = idx?.state?.embeddings?.embeddingIdentity?.inputFormatting;
-    return formatting && typeof formatting === 'object' ? formatting : null;
-  };
-  const embeddingInputFormattingByMode = {
-    code: extractEmbeddingInputFormatting(idxCode),
-    prose: extractEmbeddingInputFormatting(idxProse),
-    extractedProse: extractEmbeddingInputFormatting(idxExtractedProse),
-    records: extractEmbeddingInputFormatting(idxRecords)
-  };
-
-  const queryCachePath = resolveRetrievalCachePath({
+  const {
+    cacheStrategy,
+    cachePrewarmEnabled,
+    cachePrewarmLimit,
+    cacheMemoryFreshMs,
+    sqliteFtsOverfetchCacheKey
+  } = resolveQueryCachePolicy({
+    queryCacheStrategy,
+    preferMemoryBackendOnCacheHit,
+    queryCachePrewarm,
+    queryCachePrewarmMaxEntries,
+    queryCacheMemoryFreshMs,
+    sqliteFtsOverfetch
+  });
+  const embeddingInputFormattingByMode = resolveEmbeddingInputFormattingByMode({
+    idxCode,
+    idxProse,
+    idxExtractedProse,
+    idxRecords
+  });
+  let {
+    queryCachePath,
+    cacheHit,
+    cacheKey,
+    cacheSignature,
+    cacheData,
+    cachedPayload,
+    cacheShouldPersist,
+    cacheHotPathHit
+  } = await resolveQueryCacheLookup({
+    queryCacheEnabled,
     queryCacheDir,
     metricsDir,
-    fileName: 'queryCache.json'
+    useSqlite,
+    backendLabel,
+    sqliteCodePath,
+    sqliteProsePath,
+    sqliteExtractedProsePath,
+    runCode,
+    runProse,
+    runRecords,
+    runExtractedProse,
+    extractedProseLoaded,
+    commentsEnabled,
+    rootDir,
+    userConfig,
+    indexDirByMode,
+    indexBaseRootByMode,
+    explicitRef,
+    asOfContext,
+    query,
+    searchMode,
+    topN,
+    sqliteFtsRequested,
+    annActive,
+    annBackend,
+    vectorExtension,
+    vectorAnnEnabled,
+    annAdaptiveProviders,
+    relationBoost,
+    annCandidateCap,
+    annCandidateMinDocCount,
+    annCandidateMaxDocCount,
+    bm25K1,
+    bm25B,
+    scoreBlend,
+    rrf,
+    fieldWeights,
+    symbolBoost,
+    resolvedDenseVectorMode,
+    intentInfo,
+    minhashMaxDocs,
+    maxCandidates,
+    sparseBackend,
+    explain,
+    sqliteFtsNormalize,
+    sqliteFtsProfile,
+    sqliteFtsWeights,
+    sqliteFtsTrigram,
+    sqliteFtsStemming,
+    sqliteTailLatencyTuning,
+    sqliteFtsOverfetchCacheKey,
+    modelIds,
+    embeddingProvider,
+    embeddingOnnx,
+    embeddingInputFormattingByMode,
+    contextExpansionEnabled,
+    contextExpansionOptions,
+    contextExpansionRespectFilters,
+    cacheFilters,
+    graphRankingConfig,
+    queryCacheTtlMs,
+    queryCacheMaxEntries,
+    cacheStrategy,
+    cachePrewarmEnabled,
+    cachePrewarmLimit,
+    cacheMemoryFreshMs
   });
-  if (queryCacheEnabled) {
-    const signature = await getIndexSignature({
-      useSqlite,
-      backendLabel,
-      sqliteCodePath,
-      sqliteProsePath,
-      sqliteExtractedProsePath,
-      runRecords,
-      runExtractedProse,
-      includeExtractedProse: extractedProseLoaded || commentsEnabled,
-      root: rootDir,
-      userConfig,
-      indexDirByMode,
-      indexBaseRootByMode,
-      explicitRef,
-      asOfContext
-    });
-    cacheSignature = stableStringifyForSignature(signature);
-    const cacheKeyInfo = buildQueryCacheKey({
-      query,
-      backend: backendLabel,
-      mode: searchMode,
-      topN,
-      sqliteFtsRequested: sqliteFtsRequested === true,
-      ann: annActive,
-      annBackend,
-      annMode: vectorExtension.annMode,
-      annProvider: vectorExtension.provider,
-      annExtension: vectorAnnEnabled,
-      annAdaptiveProviders,
-      relationBoost,
-      annCandidatePolicy: {
-        cap: annCandidateCap,
-        minDocCount: annCandidateMinDocCount,
-        maxDocCount: annCandidateMaxDocCount
-      },
-      bm25: {
-        k1: bm25K1,
-        b: bm25B
-      },
-      scoreBlend,
-      rrf,
-      fieldWeights,
-      symbolBoost,
-      denseVectorMode: resolvedDenseVectorMode,
-      intent: intentInfo?.type || null,
-      minhashMaxDocs,
-      maxCandidates,
-      sparseBackend,
-      explain,
-      sqliteFtsNormalize,
-      sqliteFtsProfile,
-      sqliteFtsWeights,
-      // FTS compilation variants change query behavior; include them in the
-      // cache key so toggling flags invalidates prior cache entries.
-      sqliteFtsVariant: {
-        trigram: sqliteFtsTrigram === true,
-        stemming: sqliteFtsStemming === true
-      },
-      sqliteFtsTuning: {
-        tailLatencyTuning: sqliteTailLatencyTuning === true,
-        overfetch: sqliteFtsOverfetchCacheKey
-      },
-      comments: { enabled: commentsEnabled },
-      models: modelIds,
-      embeddings: {
-        provider: embeddingProvider,
-        onnxModel: embeddingOnnx.modelPath || null,
-        onnxTokenizer: embeddingOnnx.tokenizerId || null,
-        inputFormattingByMode: embeddingInputFormattingByMode
-      },
-      contextExpansion: {
-        enabled: contextExpansionEnabled,
-        maxPerHit: contextExpansionOptions.maxPerHit || null,
-        maxTotal: contextExpansionOptions.maxTotal || null,
-        includeCalls: contextExpansionOptions.includeCalls !== false,
-        includeImports: contextExpansionOptions.includeImports !== false,
-        includeExports: contextExpansionOptions.includeExports === true,
-        includeUsages: contextExpansionOptions.includeUsages === true,
-        respectFilters: contextExpansionRespectFilters
-      },
-      graphRanking: graphRankingConfig || null,
-      filters: cacheFilters,
-      asOf: asOfContext
-        ? {
-          ref: asOfContext.ref || null,
-          identityHash: asOfContext.identityHash || null
-        }
-        : null
-    });
-    cacheKey = cacheKeyInfo.key;
-    let entry = null;
-    if (cacheStrategy === 'memory-first') {
-      entry = findQueryCacheEntry(null, cacheKey, cacheSignature, {
-        cachePath: queryCachePath,
-        strategy: cacheStrategy,
-        memoryFreshMs: cacheMemoryFreshMs,
-        maxHotEntries: queryCacheMaxEntries
-      });
-      if (entry) cacheHotPathHit = true;
-    }
-    if (!entry) {
-      cacheData = queryCachePath ? loadQueryCache(queryCachePath, {
-        prewarm: cachePrewarmEnabled,
-        prewarmMaxEntries: cachePrewarmLimit
-      }) : null;
-      entry = findQueryCacheEntry(cacheData, cacheKey, cacheSignature, {
-        cachePath: queryCachePath,
-        strategy: cacheStrategy,
-        memoryFreshMs: cacheMemoryFreshMs,
-        maxHotEntries: queryCacheMaxEntries
-      });
-    }
-    if (entry) {
-      const ttl = Number.isFinite(Number(entry.ttlMs)) ? Number(entry.ttlMs) : queryCacheTtlMs;
-      if (!ttl || (Date.now() - entry.ts) <= ttl) {
-        cachedPayload = entry.payload || null;
-        if (cachedPayload) {
-          const hasCode = !runCode || Array.isArray(cachedPayload.code);
-          const hasProse = !runProse || Array.isArray(cachedPayload.prose);
-          const hasExtractedProse = !runExtractedProse || Array.isArray(cachedPayload.extractedProse);
-          const hasRecords = !runRecords || Array.isArray(cachedPayload.records);
-          if (hasCode && hasProse && hasExtractedProse && hasRecords) {
-            cacheHit = true;
-            entry.ts = Date.now();
-            rememberQueryCacheEntry(queryCachePath, cacheKey, cacheSignature, entry, queryCacheMaxEntries);
-            if (!cacheData) {
-              cacheData = loadQueryCache(queryCachePath, { prewarm: false });
-            }
-            if (cacheData && Array.isArray(cacheData.entries)) {
-              const existingIndex = cacheData.entries.findIndex((candidate) => (
-                candidate?.key === cacheKey && candidate?.signature === cacheSignature
-              ));
-              if (existingIndex >= 0) {
-                cacheData.entries[existingIndex] = {
-                  ...cacheData.entries[existingIndex],
-                  ts: entry.ts
-                };
-              } else {
-                cacheData.entries.push(entry);
-              }
-              cacheShouldPersist = Boolean(queryCachePath);
-            }
-          }
-        }
-      }
-    }
-  }
   if (queryCacheEnabled) {
     incCacheEvent({ cache: 'query', result: cacheHit ? 'hit' : 'miss' });
   }
@@ -469,47 +355,15 @@ export async function runSearchSession({
     ?? lanceAnnState?.[mode]?.dims
     ?? null
   );
-  const embeddingCache = new Map();
-  const getEmbeddingForModel = async (modelId, dims, normalize, inputFormatting) => {
-    throwIfAborted();
-    if (!modelId) return null;
-    const normalizeFlag = normalize !== false;
-    const formatting = inputFormatting && typeof inputFormatting === 'object'
-      ? inputFormatting
-      : null;
-    const resolvedDims = useStubEmbeddings
-      ? resolveStubDims(dims)
-      : (Number.isFinite(Number(dims)) ? Math.floor(Number(dims)) : null);
-    const cacheKeyLocal = buildLocalCacheKey({
-      namespace: 'embedding-query',
-      payload: {
-        modelId,
-        dims: useStubEmbeddings ? resolvedDims : null,
-        normalize: normalizeFlag,
-        inputFormatting: formatting,
-        stub: useStubEmbeddings
-      }
-    }).key;
-    if (embeddingCache.has(cacheKeyLocal)) {
-      incCacheEvent({ cache: 'embedding', result: 'hit' });
-      return embeddingCache.get(cacheKeyLocal);
-    }
-    incCacheEvent({ cache: 'embedding', result: 'miss' });
-    const embedding = await getQueryEmbedding({
-      text: embeddingQueryText,
-      modelId,
-      dims: resolvedDims,
-      modelDir: modelConfig.dir,
-      useStub: useStubEmbeddings,
-      provider: embeddingProvider,
-      onnxConfig: embeddingOnnx,
-      rootDir,
-      normalize: normalizeFlag,
-      inputFormatting: formatting
-    });
-    embeddingCache.set(cacheKeyLocal, embedding);
-    return embedding;
-  };
+  const getEmbeddingForModel = createEmbeddingResolver({
+    throwIfAborted,
+    embeddingQueryText,
+    modelConfig,
+    useStubEmbeddings,
+    embeddingProvider,
+    embeddingOnnx,
+    rootDir
+  });
   const queryEmbeddingCode = needsEmbedding && runCode && hasAnn('code', idxCode)
     ? await getEmbeddingForModel(
       modelIds.code,
@@ -644,88 +498,18 @@ export async function runSearchSession({
 
   attachCommentExcerpts(codeHits);
 
-  const contextExpansionStats = {
-    enabled: contextExpansionEnabled,
-    code: { added: 0, workUnitsUsed: 0, truncation: null },
-    prose: { added: 0, workUnitsUsed: 0, truncation: null },
-    'extracted-prose': { added: 0, workUnitsUsed: 0, truncation: null },
-    records: { added: 0, workUnitsUsed: 0, truncation: null }
-  };
-  const loadContextIndexCache = async (idx) => {
-    if (!idx?.indexDir) return null;
-    const metaPath = path.join(idx.indexDir, 'context_index.meta.json');
-    const dataPath = path.join(idx.indexDir, 'context_index.json');
-    const meta = readContextCacheJson(metaPath);
-    if (!meta) return null;
-    if (!meta?.signature || meta.version !== 1) return null;
-    const signature = await buildIndexSignature(idx.indexDir);
-    if (signature !== meta.signature) return null;
-    const raw = readContextCacheJson(dataPath);
-    if (!raw) return null;
-    return hydrateContextIndex(raw);
-  };
-  const persistContextIndexCache = async (idx, contextIndex) => {
-    if (!idx?.indexDir || !contextIndex) return;
-    const signature = await buildIndexSignature(idx.indexDir);
-    const payload = serializeContextIndex(contextIndex);
-    if (!signature || !payload) return;
-    const metaPath = path.join(idx.indexDir, 'context_index.meta.json');
-    const dataPath = path.join(idx.indexDir, 'context_index.json');
-    try {
-      await atomicWriteJson(dataPath, payload, { spaces: 0 });
-      await atomicWriteJson(metaPath, { version: 1, signature }, { spaces: 0 });
-    } catch {}
-  };
-  const getContextIndex = async (idx) => {
-    if (!idx?.chunkMeta?.length) return null;
-    const cached = idx.contextIndex;
-    if (cached && cached.chunkMeta === idx.chunkMeta && cached.repoMap === idx.repoMap) {
-      return cached;
-    }
-    let next = await loadContextIndexCache(idx);
-    if (next) {
-      next.chunkMeta = idx.chunkMeta;
-      next.repoMap = idx.repoMap;
-      idx.contextIndex = next;
-      return next;
-    }
-    next = buildContextIndex({ chunkMeta: idx.chunkMeta, repoMap: idx.repoMap });
-    idx.contextIndex = next;
-    await persistContextIndexCache(idx, next);
-    return next;
-  };
-  const expandModeHits = async (mode, idx, hits) => {
-    if (!contextExpansionEnabled || !hits.length || !idx?.chunkMeta?.length) {
-      return { hits, contextHits: [], stats: { added: 0, workUnitsUsed: 0, truncation: null } };
-    }
-    const allowedIds = contextExpansionRespectFilters && filtersActive
-      ? new Set(
-        filterChunks(idx.chunkMeta, filters, idx.filterIndex, idx.fileRelations, {
-          compiled: filterPredicates
-        })
-          .map((chunk) => chunk.id)
-      )
-      : null;
-    const result = expandContext({
-      hits,
-      chunkMeta: idx.chunkMeta,
-      fileRelations: idx.fileRelations,
-      repoMap: idx.repoMap,
-      graphRelations: idx.graphRelations || null,
-      options: {
-        ...contextExpansionOptions,
-        explain
-      },
-      allowedIds,
-      contextIndex: await getContextIndex(idx)
-    });
-    contextExpansionStats[mode] = result.stats;
-    return {
-      hits: hits.concat(result.contextHits),
-      contextHits: result.contextHits,
-      stats: result.stats
-    };
-  };
+  const {
+    contextExpansionStats,
+    expandModeHits
+  } = createModeExpander({
+    contextExpansionEnabled,
+    contextExpansionOptions,
+    contextExpansionRespectFilters,
+    filters,
+    filtersActive,
+    filterPredicates,
+    explain
+  });
   const proseExpanded = runProse
     ? await expandModeHits('prose', idxProse, proseHits)
     : { hits: proseHits, contextHits: [] };
@@ -742,53 +526,29 @@ export async function runSearchSession({
   attachCommentExcerpts(codeExpanded.hits);
   throwIfAborted();
 
-  const hnswActive = Object.values(hnswAnnUsed).some(Boolean);
-  const lanceActive = Object.values(lanceAnnUsed).some(Boolean);
-  const sqliteVectorActive = vectorAnnEnabled && Object.values(vectorAnnUsed).some(Boolean);
-  // Report backend from providers that actually ran for this query.
-  // Requested/available backends are advisory and must not overwrite
-  // observed execution telemetry.
-  let annBackendUsed = sqliteVectorActive
-    ? 'sqlite-extension'
-    : (lanceActive ? 'lancedb' : (hnswActive ? 'hnsw' : 'js'));
-
-  if (queryCacheEnabled && cacheKey) {
-    if (!cacheData && !cacheHit && queryCachePath) {
-      cacheData = { version: 1, entries: [] };
-    }
-    if (!cacheHit) {
-      if (cacheData && Array.isArray(cacheData.entries)) {
-        cacheData.entries = cacheData.entries.filter((entry) => entry.key !== cacheKey);
-      }
-      const entry = {
-        key: cacheKey,
-        ts: Date.now(),
-        ttlMs: queryCacheTtlMs,
-        signature: cacheSignature,
-        meta: {
-          query,
-          backend: backendLabel
-        },
-        payload: {
-          prose: proseHits,
-          extractedProse: extractedProseHits,
-          code: codeHits,
-          records: recordHits
-        }
-      };
-      if (cacheData && Array.isArray(cacheData.entries)) {
-        cacheData.entries.push(entry);
-        cacheShouldPersist = Boolean(queryCachePath);
-      }
-      rememberQueryCacheEntry(queryCachePath, cacheKey, cacheSignature, entry, queryCacheMaxEntries);
-    }
-    if (cacheShouldPersist && cacheData && queryCachePath) {
-      pruneQueryCache(cacheData, queryCacheMaxEntries);
-      try {
-        await atomicWriteJson(queryCachePath, cacheData, { spaces: 2 });
-      } catch {}
-    }
-  }
+  const annBackendUsed = resolveAnnBackendUsed({
+    vectorAnnEnabled,
+    vectorAnnUsed,
+    hnswAnnUsed,
+    lanceAnnUsed
+  });
+  ({ cacheData, cacheShouldPersist } = await persistSearchSession({
+    queryCacheEnabled,
+    cacheKey,
+    cacheHit,
+    cacheData,
+    queryCachePath,
+    cacheShouldPersist,
+    queryCacheTtlMs,
+    cacheSignature,
+    query,
+    backendLabel,
+    proseHits,
+    extractedProseHits,
+    codeHits,
+    recordHits,
+    queryCacheMaxEntries
+  }));
 
   return {
     proseHits,
