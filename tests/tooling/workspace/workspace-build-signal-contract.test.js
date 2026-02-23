@@ -22,5 +22,10 @@ assert.match(
   /exitLikeCommandResult\(\{\s*status:\s*null,\s*signal:\s*firstSignal\s*\}\)/,
   'expected workspace build to preserve signal-based child exits'
 );
+assert.match(
+  source,
+  /stdio:\s*\['ignore',\s*'ignore',\s*'pipe'\]/,
+  'expected workspace build to ignore child stdout to avoid undrained pipe hangs'
+);
 
 console.log('workspace build signal contract test passed');

@@ -102,7 +102,7 @@ const runRepoBuild = async ({ repo, buildArgs }) => {
     {
       cwd: repo.repoRootCanonical,
       env: process.env,
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: ['ignore', 'ignore', 'pipe'],
       captureStdout: false,
       captureStderr: true,
       maxOutputBytes: 64 * 1024,
