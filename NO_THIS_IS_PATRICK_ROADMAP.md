@@ -69,6 +69,10 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T09:42:20.8777321-05:00
+  Integrated parallel worker follow-up for `tools/build/embeddings/runner.js`: extracted chunk-meta workset orchestration into `tools/build/embeddings/runner/chunk-workset.js` with allocation/ordering-path optimizations (order-check short-circuit, incremental sampled counts, map reuse) and focused coverage in `tests/indexing/embeddings/build/chunk-workset-orchestration.test.js`.
+- 2026-02-23T09:42:14.8275433-05:00
+  Extracted schedule-guard rejection accounting from `src/shared/concurrency/scheduler-core.js` into `src/shared/concurrency/scheduler-core-schedule-guards.js`, preserving maxPending/maxPendingBytes semantics while consolidating counter mutation logic; added focused coverage in `tests/shared/concurrency/scheduler-core-schedule-guards.test.js`.
 - 2026-02-23T09:39:25.1694869-05:00
   Extracted artifact write dispatch/adaptive/tail tuning resolution from `src/index/build/artifacts-write.js` into `src/index/build/artifacts/write-dispatch-config.js`, hoisting default pattern sets and removing dead local heavy-concurrency state while preserving dispatch contracts; added focused coverage in `tests/indexing/artifacts/artifact-write-dispatch-config.test.js`.
 - 2026-02-23T09:33:52.1516947-05:00

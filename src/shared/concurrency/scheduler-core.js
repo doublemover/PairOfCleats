@@ -27,6 +27,7 @@ import { resolveSchedulerSystemSignals } from './scheduler-core-system-signals.j
 import { collectSchedulerQueuePressure } from './scheduler-core-queue-pressure.js';
 import { pickNextSchedulerQueue } from './scheduler-core-queue-selection.js';
 import { clearSchedulerQueuePending } from './scheduler-core-clear-queue.js';
+import { resolveSchedulerScheduleRejection } from './scheduler-core-schedule-guards.js';
 import {
   buildSchedulerQueueStatsSnapshot,
   buildSchedulerAdaptiveSurfaceStats,
@@ -823,28 +824,15 @@ export function createBuildScheduler(input = {}) {
     }
     const normalizedReq = normalizeRequest(tokensReq || {});
     const queue = ensureQueue(queueName);
-    if (queue.maxPending && queue.pending.length >= queue.maxPending) {
-      queue.stats.rejected += 1;
-      queue.stats.rejectedMaxPending += 1;
-      queue.stats.scheduled += 1;
-      counters.scheduled += 1;
-      counters.rejected += 1;
-      counters.rejectedByReason.maxPending += 1;
-      return Promise.reject(new Error(`queue ${queueName} is at maxPending`));
-    }
-    if (queue.maxPendingBytes && normalizedReq.bytes > 0) {
-      const pendingBytes = normalizeByteCount(queue.pendingBytes);
-      const nextPendingBytes = pendingBytes + normalizedReq.bytes;
-      const oversizeSingle = pendingBytes === 0 && queue.pending.length === 0;
-      if (!oversizeSingle && nextPendingBytes > queue.maxPendingBytes) {
-        queue.stats.rejected += 1;
-        queue.stats.rejectedMaxPendingBytes += 1;
-        queue.stats.scheduled += 1;
-        counters.scheduled += 1;
-        counters.rejected += 1;
-        counters.rejectedByReason.maxPendingBytes += 1;
-        return Promise.reject(new Error(`queue ${queueName} is at maxPendingBytes`));
-      }
+    const rejection = resolveSchedulerScheduleRejection({
+      queueName,
+      queue,
+      normalizedReq,
+      normalizeByteCount,
+      counters
+    });
+    if (rejection) {
+      return Promise.reject(rejection);
     }
     return new Promise((resolve, reject) => {
       queue.pending.push({
