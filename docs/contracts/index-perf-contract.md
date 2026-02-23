@@ -5,7 +5,7 @@ Last updated: 2026-02-21T00:00:00Z
 
 ## Artifact set
 
-Sequence-0 perf runs must emit all four artifacts under `benchmarks/index/`:
+Sequence-0 perf runs must emit all four artifacts under `tests/fixtures/perf/index/`:
 
 1. `perf-corpus-manifest.json`
 2. `perf-baseline-telemetry.json`
@@ -31,8 +31,8 @@ Sequence-0 perf runs must emit all four artifacts under `benchmarks/index/`:
   - `totals.files` equals `files.length`.
   - `totals.bytes` equals the sum of `files[].sizeBytes`.
 - `perf-delta-report.json` is cross-linked and stage-aligned:
-  - `baselineRef` points to `benchmarks/index/perf-baseline-telemetry.json`.
-  - `afterRef` points to `benchmarks/index/perf-after-telemetry.json`.
+  - `baselineRef` points to `tests/fixtures/perf/index/perf-baseline-telemetry.json`.
+  - `afterRef` points to `tests/fixtures/perf/index/perf-after-telemetry.json`.
   - `deltaByStage` uses the same stage keys as telemetry `stageMetrics`.
   - Each `deltaByStage[stage]` equals `after.stageMetrics[stage].wallMs - baseline.stageMetrics[stage].wallMs`.
 

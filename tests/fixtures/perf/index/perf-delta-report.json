@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "generatedAt": "2026-02-21T00:00:00Z",
   "indexOptimizationProfile": "default",
-  "baselineRef": "benchmarks/index/perf-baseline-telemetry.json",
-  "afterRef": "benchmarks/index/perf-after-telemetry.json",
+  "baselineRef": "tests/fixtures/perf/index/perf-baseline-telemetry.json",
+  "afterRef": "tests/fixtures/perf/index/perf-after-telemetry.json",
   "deltaByStage": {
     "scan": -8.3,
     "read": -15.5,

@@ -16,10 +16,10 @@ const readJson = (relPath) => JSON.parse(
   fs.readFileSync(path.join(root, relPath), 'utf8')
 );
 
-const corpusPath = 'benchmarks/index/perf-corpus-manifest.json';
-const baselinePath = 'benchmarks/index/perf-baseline-telemetry.json';
-const afterPath = 'benchmarks/index/perf-after-telemetry.json';
-const deltaPath = 'benchmarks/index/perf-delta-report.json';
+const corpusPath = 'tests/fixtures/perf/index/perf-corpus-manifest.json';
+const baselinePath = 'tests/fixtures/perf/index/perf-baseline-telemetry.json';
+const afterPath = 'tests/fixtures/perf/index/perf-after-telemetry.json';
+const deltaPath = 'tests/fixtures/perf/index/perf-delta-report.json';
 
 const corpus = readJson(corpusPath);
 const baseline = readJson(baselinePath);
