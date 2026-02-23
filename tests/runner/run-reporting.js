@@ -490,12 +490,15 @@ export const renderSummary = ({ context, summary, results, runLogDir, border, in
     && String(result.skipReason || '').toLowerCase().startsWith('excluded tag:'));
   const skippedOnly = results.filter((result) => result.status === 'skipped'
     && !String(result.skipReason || '').toLowerCase().startsWith('excluded tag:'));
+  const skippedTotal = Number.isFinite(Number(summary?.skipped))
+    ? Math.max(0, Math.floor(Number(summary.skipped)))
+    : results.filter((result) => result.status === 'skipped').length;
   const failedValue = colorize(String(failedOnly.length), ANSI.fgBrightWhite, useColor);
-  const skippedValue = colorize(String(skippedOnly.length), ANSI.fgBrightWhite, useColor);
+  const skippedValue = colorize(String(skippedTotal), ANSI.fgBrightWhite, useColor);
   const timeoutsValue = colorize(String(timeouts.length), ANSI.fgBrightWhite, useColor);
   const summaryFailedWord = resolveWord(failedOnly.length, 'Failure', 'Failed');
   const summaryTimeoutWord = resolveWord(timeouts.length, 'Timeout', 'Timeouts');
-  const summarySkipWord = resolveWord(skippedOnly.length, 'Skip', 'Skipped');
+  const summarySkipWord = resolveWord(skippedTotal, 'Skip', 'Skipped');
 
   consoleStream.write(`${applyLineBackground('', summaryBg)}\n`);
   if (runLogDir) {
