@@ -23,6 +23,11 @@ import { normalizeSegmentsConfig } from '../../segments.js';
 import { log } from '../../../shared/progress.js';
 import { getEnvConfig, isTestingEnv } from '../../../shared/env.js';
 import { isAbsolutePathNative } from '../../../shared/files.js';
+import {
+  collectDictionaryFileSignatures,
+  loadCodeDictionaryWordSets,
+  loadDictionaryWordSetFromFiles
+} from '../../../shared/dictionary-wordlists.js';
 import { resolveCacheFilesystemProfile } from '../../../shared/cache-roots.js';
 import { buildAutoPolicy } from '../../../shared/auto-policy.js';
 import { warmEmbeddingAdapter } from '../../../shared/embedding-adapter.js';
@@ -134,6 +139,29 @@ const cloneMapOfSets = (source) => {
 };
 
 /**
+ * Clone shared dictionary payload metadata while retaining underlying
+ * SharedArrayBuffer references.
+ *
+ * @param {object|null|undefined} payload
+ * @returns {object|null}
+ */
+const cloneSharedDictionaryPayload = (payload) => {
+  if (!payload || typeof payload !== 'object') return null;
+  if (!payload.bytes || !payload.offsets) return null;
+  const cloned = {
+    bytes: payload.bytes,
+    offsets: payload.offsets
+  };
+  if (Number.isFinite(payload.count)) {
+    cloned.count = Math.max(0, Math.floor(payload.count));
+  }
+  if (Number.isFinite(payload.maxLen)) {
+    cloned.maxLen = Math.max(0, Math.floor(payload.maxLen));
+  }
+  return cloned;
+};
+
+/**
  * Deep-clone daemon dictionary cache entries before attaching to runtime state.
  *
  * @param {object|null|undefined} entry
@@ -146,6 +174,7 @@ const cloneDaemonDictionaryEntry = (entry) => {
     codeDictCommonWords: cloneSet(entry.codeDictCommonWords),
     codeDictWordsAll: cloneSet(entry.codeDictWordsAll),
     codeDictWordsByLanguage: cloneMapOfSets(entry.codeDictWordsByLanguage),
+    dictSharedPayload: cloneSharedDictionaryPayload(entry.dictSharedPayload),
     dictSummary: entry.dictSummary && typeof entry.dictSummary === 'object'
       ? JSON.parse(JSON.stringify(entry.dictSummary))
       : null
@@ -875,31 +904,29 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   const dictStartedAt = Date.now();
   const dictConfig = getDictConfig(root, userConfig);
   const dictDir = dictConfig?.dir;
-  const dictionaryPaths = await getDictionaryPaths(root, dictConfig);
   const codeDictLanguages = normalizeCodeDictLanguages(DEFAULT_CODE_DICT_LANGUAGES);
   const codeDictEnabled = codeDictLanguages.size > 0;
-  const codeDictPaths = codeDictEnabled
-    ? await getCodeDictionaryPaths(root, dictConfig, { languages: Array.from(codeDictLanguages) })
-    : { baseDir: path.join(dictDir || '', 'code-dicts'), common: [], byLanguage: new Map(), all: [] };
-  const dictSignatureParts = [];
-  for (const dictFile of dictionaryPaths) {
-    const signaturePath = normalizeDictSignaturePath({ dictFile, dictDir, repoRoot: root });
-    try {
-      const stat = await fs.stat(dictFile);
-      dictSignatureParts.push(`${signaturePath}:${stat.size}:${stat.mtimeMs}`);
-    } catch {
-      dictSignatureParts.push(`${signaturePath}:missing`);
-    }
-  }
-  for (const dictFile of codeDictPaths.all) {
-    const signaturePath = normalizeDictSignaturePath({ dictFile, dictDir, repoRoot: root });
-    try {
-      const stat = await fs.stat(dictFile);
-      dictSignatureParts.push(`code:${signaturePath}:${stat.size}:${stat.mtimeMs}`);
-    } catch {
-      dictSignatureParts.push(`code:${signaturePath}:missing`);
-    }
-  }
+  const emptyCodeDictPaths = {
+    baseDir: path.join(dictDir || '', 'code-dicts'),
+    common: [],
+    byLanguage: new Map(),
+    all: []
+  };
+  const [dictionaryPaths, codeDictPaths] = await Promise.all([
+    getDictionaryPaths(root, dictConfig),
+    codeDictEnabled
+      ? getCodeDictionaryPaths(root, dictConfig, { languages: Array.from(codeDictLanguages) })
+      : Promise.resolve(emptyCodeDictPaths)
+  ]);
+  const toDictSignaturePath = (dictFile) => normalizeDictSignaturePath({ dictFile, dictDir, repoRoot: root });
+  const [baseSignatures, codeSignatures] = await Promise.all([
+    collectDictionaryFileSignatures(dictionaryPaths, { toSignaturePath: toDictSignaturePath }),
+    collectDictionaryFileSignatures(codeDictPaths.all, {
+      toSignaturePath: toDictSignaturePath,
+      prefix: 'code:'
+    })
+  ]);
+  const dictSignatureParts = baseSignatures.concat(codeSignatures);
   dictSignatureParts.sort();
   const dictSignature = dictSignatureParts.length
     ? sha1(dictSignatureParts.join('|'))
@@ -915,53 +942,20 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   const codeDictWordsAll = cachedDaemonDict?.codeDictWordsAll || new Set();
   const daemonDictCacheHit = Boolean(cachedDaemonDict);
   if (!daemonDictCacheHit) {
-    for (const dictFile of dictionaryPaths) {
-      try {
-        const contents = await fs.readFile(dictFile, 'utf8');
-        for (const line of contents.split(/\r?\n/)) {
-          const trimmed = line.trim();
-          if (trimmed) dictWords.add(trimmed);
-        }
-      } catch {}
-    }
-    /**
-     * Normalize and register one code dictionary token into both the local
-     * target set and the global all-languages set.
-     *
-     * @param {Set<string>} target
-     * @param {string} word
-     * @returns {void}
-     */
-    const addCodeWord = (target, word) => {
-      if (!word) return;
-      const normalized = word.toLowerCase();
-      if (!normalized) return;
-      target.add(normalized);
-      codeDictWordsAll.add(normalized);
-    };
-    for (const dictFile of codeDictPaths.common) {
-      try {
-        const contents = await fs.readFile(dictFile, 'utf8');
-        for (const line of contents.split(/\r?\n/)) {
-          const trimmed = line.trim();
-          if (trimmed) addCodeWord(codeDictCommonWords, trimmed);
-        }
-      } catch {}
-    }
-    for (const [lang, dictFiles] of codeDictPaths.byLanguage.entries()) {
-      const words = new Set();
-      for (const dictFile of dictFiles) {
-        try {
-          const contents = await fs.readFile(dictFile, 'utf8');
-          for (const line of contents.split(/\r?\n/)) {
-            const trimmed = line.trim();
-            if (trimmed) addCodeWord(words, trimmed);
-          }
-        } catch {}
-      }
-      if (words.size) {
-        codeDictWordsByLanguage.set(lang, words);
-      }
+    const [, codeDictWordSets] = await Promise.all([
+      loadDictionaryWordSetFromFiles(dictionaryPaths, { target: dictWords }),
+      codeDictEnabled
+        ? loadCodeDictionaryWordSets({
+          commonFiles: codeDictPaths.common,
+          byLanguage: codeDictPaths.byLanguage,
+          lowerCase: true
+        })
+        : Promise.resolve({ commonWords: new Set(), wordsByLanguage: new Map(), allWords: new Set() })
+    ]);
+    for (const word of codeDictWordSets.commonWords) codeDictCommonWords.add(word);
+    for (const word of codeDictWordSets.allWords) codeDictWordsAll.add(word);
+    for (const [lang, words] of codeDictWordSets.wordsByLanguage.entries()) {
+      if (words?.size) codeDictWordsByLanguage.set(lang, words);
     }
   } else {
     log('[init] dictionaries loaded from daemon warm cache.');
@@ -978,20 +972,26 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
         : null
     }
   };
+  const LARGE_DICT_SHARED_THRESHOLD = 200000;
+  const shouldShareDict = dictSummary.words
+    && (workerPoolConfig.enabled !== false || dictSummary.words >= LARGE_DICT_SHARED_THRESHOLD);
+  const dictSharedPayload = shouldShareDict
+    ? (
+      cloneSharedDictionaryPayload(cachedDaemonDict?.dictSharedPayload)
+      || createSharedDictionary(dictWords)
+    )
+    : null;
+  const dictShared = dictSharedPayload ? createSharedDictionaryView(dictSharedPayload) : null;
   if (daemonSession && dictSignature && !daemonDictCacheHit) {
     setDaemonDictionaryCacheEntry(daemonSession, dictSignature, {
       dictWords,
       codeDictCommonWords,
       codeDictWordsAll,
       codeDictWordsByLanguage,
+      dictSharedPayload,
       dictSummary
     });
   }
-  const LARGE_DICT_SHARED_THRESHOLD = 200000;
-  const shouldShareDict = dictSummary.words
-    && (workerPoolConfig.enabled !== false || dictSummary.words >= LARGE_DICT_SHARED_THRESHOLD);
-  const dictSharedPayload = shouldShareDict ? createSharedDictionary(dictWords) : null;
-  const dictShared = dictSharedPayload ? createSharedDictionaryView(dictSharedPayload) : null;
   logInit('dictionaries', dictStartedAt);
   const generatedPolicy = buildGeneratedIndexingPolicyConfig(indexingConfig);
 
