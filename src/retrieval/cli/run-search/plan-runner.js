@@ -43,9 +43,8 @@ import {
 import { resolveRunSearchIndexAvailability } from './index-availability.js';
 import { resolveRunSearchBackendContext } from './backend-bootstrap.js';
 import { loadRunSearchIndexesWithTracking } from './index-loading.js';
-import { resolveRunSearchSparsePreflight } from './sparse-preflight.js';
 import { resolveRunSearchQueryBootstrap } from './query-bootstrap.js';
-import { reinitializeBackendAfterSparseFallback } from './backend-reinit.js';
+import { applyRunSearchSparseFallbackPolicy } from './sparse-fallback-orchestration.js';
 import { enforceSparseFallbackAnnAvailability } from './sparse-fallback-guard.js';
 
 import {
@@ -566,40 +565,29 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
     const { queryPlan, planIndexSignaturePayload } = queryBootstrap;
 
-    const sparsePreflight = resolveRunSearchSparsePreflight({
-      annEnabledEffective,
-      useSqlite,
-      backendLabel,
-      sqliteFtsEnabled,
-      runCode,
-      runProse,
-      runExtractedProseRaw,
-      runRecords,
-      selectedModes,
-      requiresExtractedProse,
-      loadExtractedProseSqlite,
-      profilePolicyByMode,
-      postingsConfig,
-      allowSparseFallback,
-      filtersActive: queryPlan.filtersActive === true,
-      sparseBackend,
-      sqliteHelpers,
-      addProfileWarning,
-      emitOutput
-    });
-    annEnabledEffective = sparsePreflight.annEnabledEffective;
-    sparseFallbackForcedByPreflight = sparsePreflight.sparseFallbackForcedByPreflight;
-    const sparseMissingByMode = sparsePreflight.sparseMissingByMode;
-    if (sparsePreflight.error) {
-      return bail(
-        sparsePreflight.error.message,
-        1,
-        sparsePreflight.error.code
-      );
-    }
-    if (sparseFallbackForcedByPreflight) {
-      syncAnnFlags();
-      const backendReinit = await reinitializeBackendAfterSparseFallback({
+    const sparseFallbackResolution = await applyRunSearchSparseFallbackPolicy({
+      preflightInput: {
+        annEnabledEffective,
+        useSqlite,
+        backendLabel,
+        sqliteFtsEnabled,
+        runCode,
+        runProse,
+        runExtractedProseRaw,
+        runRecords,
+        selectedModes,
+        requiresExtractedProse,
+        loadExtractedProseSqlite,
+        profilePolicyByMode,
+        postingsConfig,
+        allowSparseFallback,
+        filtersActive: queryPlan.filtersActive === true,
+        sparseBackend,
+        sqliteHelpers,
+        addProfileWarning,
+        emitOutput
+      },
+      reinitInput: {
         stageTracker,
         buildBackendContextInput,
         backendPolicy,
@@ -608,10 +596,20 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         sqliteFtsEnabled,
         vectorAnnEnabled,
         backendForcedLmdb
-      });
-      if (backendReinit.error) {
-        return bail(backendReinit.error.message, 1, backendReinit.error.code);
-      }
+      },
+      syncAnnFlags
+    });
+    annEnabledEffective = sparseFallbackResolution.annEnabledEffective;
+    sparseFallbackForcedByPreflight = sparseFallbackResolution.sparseFallbackForcedByPreflight;
+    const sparseMissingByMode = sparseFallbackResolution.sparseMissingByMode;
+    if (sparseFallbackResolution.error) {
+      return bail(
+        sparseFallbackResolution.error.message,
+        1,
+        sparseFallbackResolution.error.code
+      );
+    }
+    if (sparseFallbackResolution.reinitialized) {
       ({
         useSqlite,
         useLmdb,
@@ -621,7 +619,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         vectorAnnUsed,
         sqliteHelpers,
         lmdbHelpers
-      } = backendReinit);
+      } = sparseFallbackResolution);
       telemetry.setBackend(backendLabel);
     }
 

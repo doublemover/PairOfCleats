@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T07:48:40.8125524-05:00
+  Extracted run-search sparse preflight/reinit orchestration from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/sparse-fallback-orchestration.js`, preserving fallback semantics and adding focused dependency-injected coverage in `tests/retrieval/cli/run-search-sparse-fallback-orchestration.test.js`.
 - 2026-02-23T07:46:25.4880131-05:00
   Extracted scheduler stats snapshot/utilization helpers from `src/shared/concurrency/scheduler-core.js` into `src/shared/concurrency/scheduler-core-stats.js`, preserving runtime counters while isolating queue-activity aggregation and adding focused coverage in `tests/shared/concurrency/scheduler-core-stats-snapshot.test.js`.
 - 2026-02-23T07:44:49.7942061-05:00
