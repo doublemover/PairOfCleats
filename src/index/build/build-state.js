@@ -26,6 +26,8 @@ import {
   resolveStatePath,
   setActiveStateKeyResolver
 } from './build-state/store.js';
+import { markBuildPhaseState } from './build-state/phases.js';
+import { createBuildCheckpointTracker } from './build-state/progress.js';
 
 const patchQueue = createPatchQueue({
   mergeState,
@@ -169,37 +171,16 @@ export async function flushBuildState(buildRoot) {
 }
 
 export async function markBuildPhase(buildRoot, phase, status, detail = null) {
-  if (!buildRoot || !phase || !status) return null;
-  if (!(await buildRootExists(buildRoot))) return null;
-  const now = new Date().toISOString();
-  const loadedState = await loadBuildState(buildRoot);
-  const current = ensureStateVersions(loadedState?.state || {}, buildRoot, loadedState?.loaded);
-  const existing = current?.phases?.[phase] || {};
-  const next = {
-    ...existing,
-    status,
-    detail: detail || existing.detail || null,
-    updatedAt: now
-  };
-  if (status === 'running' && !existing.startedAt) next.startedAt = now;
-  if (status === 'done' || status === 'failed') next.finishedAt = now;
-  const finishedAt = (status === 'done' || status === 'failed')
-    && (phase === 'promote' || phase === 'watch')
-    ? now
-    : current?.finishedAt || null;
-  const patch = {
-    currentPhase: phase,
-    phases: { [phase]: next },
-    finishedAt
-  };
-  const events = [{
-    at: now,
-    type: 'phase',
+  return markBuildPhaseState({
+    buildRoot,
     phase,
     status,
-    detail: detail || null
-  }];
-  return patchQueue.queueStatePatch(buildRoot, patch, events);
+    detail,
+    buildRootExists,
+    loadBuildState,
+    ensureStateVersions,
+    queueStatePatch: patchQueue.queueStatePatch
+  });
 }
 
 export function startBuildHeartbeat(buildRoot, stage, intervalMs = 30000) {
@@ -220,36 +201,14 @@ export function createBuildCheckpoint({
   batchSize = 1000,
   intervalMs = 120000
 }) {
-  if (!buildRoot || !mode) {
-    return { tick() {}, finish() {} };
-  }
-  let processed = 0;
-  let lastAt = 0;
-  const flush = () => {
-    const now = new Date().toISOString();
-    void updateBuildState(buildRoot, {
-      progress: {
-        [mode]: {
-          processedFiles: processed,
-          totalFiles: Number.isFinite(totalFiles) ? totalFiles : null,
-          updatedAt: now
-        }
-      }
-    }).catch(() => {});
-    lastAt = Date.now();
-  };
-  return {
-    tick() {
-      processed += 1;
-      const now = Date.now();
-      if (processed % batchSize === 0 || now - lastAt >= intervalMs) {
-        flush();
-      }
-    },
-    finish() {
-      flush();
-    }
-  };
+  return createBuildCheckpointTracker({
+    buildRoot,
+    mode,
+    totalFiles,
+    batchSize,
+    intervalMs,
+    updateBuildState
+  });
 }
 
 export function resolveBuildStatePath(buildRoot) {
