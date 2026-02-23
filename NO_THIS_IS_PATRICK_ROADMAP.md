@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T09:01:53.1787669-05:00
+  Extracted operational readiness evaluation/report builders from `src/contracts/validators/usr-matrix.js` into `src/contracts/validators/usr-matrix/operational-readiness.js`, preserving facade behavior while isolating policy blocker synthesis and conformance-readiness integration; added focused coverage in `tests/indexing/contracts/usr-operational-readiness-validation-report.test.js`.
 - 2026-02-23T08:57:47.1293026-05:00
   Extracted conformance promotion-readiness evaluation from `src/contracts/validators/usr-matrix.js` into `src/contracts/validators/usr-matrix/conformance-promotion-readiness.js`, preserving facade behavior while isolating blocker synthesis across C0-C4 levels and external artifact/gate inputs; added focused coverage in `tests/indexing/contracts/usr-conformance-promotion-readiness.test.js`.
 - 2026-02-23T08:54:53.8003933-05:00

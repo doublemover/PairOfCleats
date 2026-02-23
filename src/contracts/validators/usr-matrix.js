@@ -86,6 +86,10 @@ import {
 import {
   evaluateUsrConformancePromotionReadiness as evaluateUsrConformancePromotionReadinessCore
 } from './usr-matrix/conformance-promotion-readiness.js';
+import {
+  buildUsrOperationalReadinessValidationReport as buildUsrOperationalReadinessValidationReportCore,
+  evaluateUsrOperationalReadiness as evaluateUsrOperationalReadinessCore
+} from './usr-matrix/operational-readiness.js';
 
 const ajv = createAjv({
   dialect: '2020',
@@ -594,10 +598,6 @@ export function evaluateUsrConformancePromotionReadiness({
   });
 }
 
-const REQUIRED_OPERATIONAL_PHASES = Object.freeze(['pre-cutover', 'cutover', 'incident', 'post-cutover']);
-const REQUIRED_BLOCKING_OPERATIONAL_PHASES = Object.freeze(['pre-cutover', 'cutover', 'incident']);
-const REQUIRED_BLOCKING_QUALITY_DOMAINS = Object.freeze(['framework-binding', 'minimum-slice', 'provenance', 'resolution']);
-
 export function evaluateUsrOperationalReadiness({
   operationalReadinessPolicyPayload,
   qualityGatesPayload,
@@ -607,145 +607,17 @@ export function evaluateUsrOperationalReadiness({
   missingArtifactSchemas = [],
   failingBlockingGateIds = []
 } = {}) {
-  const operationalValidation = validateUsrMatrixRegistry('usr-operational-readiness-policy', operationalReadinessPolicyPayload);
-  if (!operationalValidation.ok) {
-    return {
-      ok: false,
-      blocked: true,
-      blockers: Object.freeze([]),
-      errors: Object.freeze([...operationalValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([]),
-      conformanceByLevel: Object.freeze({}),
-      readiness: Object.freeze({
-        testRolloutBlocked: true,
-        deepConformanceBlocked: true,
-        frameworkConformanceBlocked: true
-      })
-    };
-  }
-
-  const qualityValidation = validateUsrMatrixRegistry('usr-quality-gates', qualityGatesPayload);
-  if (!qualityValidation.ok) {
-    return {
-      ok: false,
-      blocked: true,
-      blockers: Object.freeze([]),
-      errors: Object.freeze([...qualityValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([]),
-      conformanceByLevel: Object.freeze({}),
-      readiness: Object.freeze({
-        testRolloutBlocked: true,
-        deepConformanceBlocked: true,
-        frameworkConformanceBlocked: true
-      })
-    };
-  }
-
-  const errors = [];
-  const warnings = [];
-  const policyBlockers = [];
-  const rows = [];
-
-  const operationalRows = Array.isArray(operationalReadinessPolicyPayload?.rows) ? operationalReadinessPolicyPayload.rows : [];
-  const qualityRows = Array.isArray(qualityGatesPayload?.rows) ? qualityGatesPayload.rows : [];
-
-  const phasesPresent = new Set(operationalRows.map((row) => row.phase));
-  for (const phase of REQUIRED_OPERATIONAL_PHASES) {
-    if (!phasesPresent.has(phase)) {
-      const message = `operational readiness policy missing required phase: ${phase}`;
-      errors.push(message);
-      policyBlockers.push(`operational-readiness-policy:${phase}:missing-phase`);
-    }
-  }
-
-  for (const phase of REQUIRED_BLOCKING_OPERATIONAL_PHASES) {
-    const phaseRows = operationalRows.filter((row) => row.phase === phase);
-    if (phaseRows.length === 0) {
-      const message = `operational readiness policy missing phase rows for ${phase}`;
-      errors.push(message);
-      policyBlockers.push(`operational-readiness-policy:${phase}:missing-phase-rows`);
-      continue;
-    }
-    if (!phaseRows.some((row) => row.blocking === true)) {
-      const message = `operational readiness policy phase ${phase} requires at least one blocking row`;
-      errors.push(message);
-      policyBlockers.push(`operational-readiness-policy:${phase}:missing-blocking-row`);
-    }
-  }
-
-  const blockingQualityRows = qualityRows.filter((row) => row.blocking === true);
-  if (blockingQualityRows.length === 0) {
-    errors.push('quality gates policy must include blocking rows');
-    policyBlockers.push('quality-gates-policy:missing-blocking-rows');
-  }
-
-  const blockingDomains = new Set(blockingQualityRows.map((row) => row.domain));
-  for (const domain of REQUIRED_BLOCKING_QUALITY_DOMAINS) {
-    if (!blockingDomains.has(domain)) {
-      const message = `quality gates policy missing blocking domain: ${domain}`;
-      errors.push(message);
-      policyBlockers.push(`quality-gates-policy:${domain}:missing-blocking-domain`);
-    }
-  }
-
-  const blockingQualityGateIds = new Set(blockingQualityRows.map((row) => row.id));
-  const normalizedFailingGateIds = [];
-  for (const gateId of asStringArray(failingBlockingGateIds)) {
-    if (blockingQualityGateIds.has(gateId)) {
-      normalizedFailingGateIds.push(gateId);
-    } else {
-      warnings.push(`failing gate id does not map to blocking quality gate: ${gateId}`);
-    }
-  }
-
-  const promotionReadiness = evaluateUsrConformancePromotionReadiness({
+  return evaluateUsrOperationalReadinessCore({
+    operationalReadinessPolicyPayload,
+    qualityGatesPayload,
     languageProfilesPayload,
     conformanceLevelsPayload,
     knownLanes,
-    missingArtifacts: missingArtifactSchemas,
-    failingBlockingGateIds: normalizedFailingGateIds
+    missingArtifactSchemas,
+    failingBlockingGateIds,
+    validateRegistry: validateUsrMatrixRegistry,
+    evaluateConformancePromotionReadiness: evaluateUsrConformancePromotionReadiness
   });
-
-  for (const row of operationalRows) {
-    rows.push({
-      rowType: 'operational-phase',
-      id: row.id,
-      phase: row.phase,
-      blocking: Boolean(row.blocking),
-      pass: true,
-      errors: Object.freeze([]),
-      warnings: Object.freeze([])
-    });
-  }
-
-  for (const row of qualityRows) {
-    rows.push({
-      rowType: 'quality-gate',
-      id: row.id,
-      domain: row.domain,
-      blocking: Boolean(row.blocking),
-      pass: true,
-      errors: Object.freeze([]),
-      warnings: Object.freeze([])
-    });
-  }
-
-  const blockers = [...new Set([...policyBlockers, ...promotionReadiness.blockers])];
-  const allErrors = [...errors, ...promotionReadiness.errors];
-  const allWarnings = [...warnings, ...promotionReadiness.warnings];
-
-  return {
-    ok: blockers.length === 0 && allErrors.length === 0,
-    blocked: blockers.length > 0 || allErrors.length > 0,
-    blockers: Object.freeze(blockers),
-    errors: Object.freeze(allErrors),
-    warnings: Object.freeze(allWarnings),
-    rows: Object.freeze(rows),
-    conformanceByLevel: promotionReadiness.conformanceByLevel,
-    readiness: promotionReadiness.readiness
-  };
 }
 
 /**
@@ -777,65 +649,25 @@ export function buildUsrOperationalReadinessValidationReport({
   buildId = null,
   scope = { scopeType: 'lane', scopeId: 'ci' }
 } = {}) {
-  const evaluation = evaluateUsrOperationalReadiness({
+  return buildUsrOperationalReadinessValidationReportCore({
     operationalReadinessPolicyPayload,
     qualityGatesPayload,
     languageProfilesPayload,
     conformanceLevelsPayload,
     knownLanes,
     missingArtifactSchemas,
-    failingBlockingGateIds
-  });
-
-  const status = evaluation.errors.length > 0 || evaluation.blocked
-    ? 'fail'
-    : (evaluation.warnings.length > 0 ? 'warn' : 'pass');
-
-  const rows = evaluation.rows.map((row) => ({
-    ...row,
-    errors: row.errors,
-    warnings: row.warnings
-  }));
-
-  const payload = {
-    schemaVersion: 'usr-1.0.0',
-    artifactId: 'usr-operational-readiness-validation',
+    failingBlockingGateIds,
     generatedAt,
     producerId,
     producerVersion,
     runId,
     lane,
     buildId,
-    status,
-    scope: normalizeReportScope(scope, 'lane', lane),
-    summary: {
-      blocked: evaluation.blocked,
-      blockerCount: evaluation.blockers.length,
-      errorCount: evaluation.errors.length,
-      warningCount: evaluation.warnings.length,
-      rowCount: rows.length,
-      operationalPhaseRowCount: rows.filter((row) => row.rowType === 'operational-phase').length,
-      qualityGateRowCount: rows.filter((row) => row.rowType === 'quality-gate').length,
-      readiness: evaluation.readiness,
-      conformanceByLevel: evaluation.conformanceByLevel
-    },
-    blockingFindings: [
-      ...evaluation.blockers.map((message) => ({ class: 'operational-readiness', message })),
-      ...evaluation.errors.map((message) => ({ class: 'operational-readiness', message }))
-    ],
-    advisoryFindings: evaluation.warnings.map((message) => ({ class: 'operational-readiness', message })),
-    rows
-  };
-
-  return {
-    ok: evaluation.ok,
-    blocked: evaluation.blocked,
-    blockers: evaluation.blockers,
-    errors: evaluation.errors,
-    warnings: evaluation.warnings,
-    rows,
-    payload
-  };
+    scope,
+    validateRegistry: validateUsrMatrixRegistry,
+    evaluateConformancePromotionReadiness: evaluateUsrConformancePromotionReadiness,
+    normalizeScope: normalizeReportScope
+  });
 }
 
 export function buildUsrReleaseReadinessScorecard({
