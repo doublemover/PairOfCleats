@@ -304,7 +304,8 @@ export async function loadIndex(dir, options) {
       idx.tokenIndex = loadTokenPostings(dir, {
         maxBytes: MAX_JSON_BYTES,
         manifest,
-        strict
+        strict,
+        enforceBinaryDataBudget: false
       });
     } catch (err) {
       const message = String(err?.message || '');

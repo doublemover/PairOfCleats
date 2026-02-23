@@ -35,7 +35,8 @@ import { tryLoadTokenPostingsBinaryColumnar } from './binary-columnar.js';
  *   strict?: boolean,
  *   preferBinaryColumnar?: boolean,
  *   packedWindowTokens?: number,
- *   packedWindowBytes?: number
+ *   packedWindowBytes?: number,
+ *   enforceBinaryDataBudget?: boolean
  * }} [options]
  * @returns {any}
  */
@@ -47,7 +48,8 @@ export const loadTokenPostings = (
     strict = true,
     preferBinaryColumnar = true,
     packedWindowTokens = 1024,
-    packedWindowBytes = 16 * 1024 * 1024
+    packedWindowBytes = 16 * 1024 * 1024,
+    enforceBinaryDataBudget = true
   } = {}
 ) => {
   const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
@@ -278,7 +280,10 @@ export const loadTokenPostings = (
     };
   };
   if (useBinaryColumnar) {
-    const binary = tryLoadTokenPostingsBinaryColumnar(dir, { maxBytes });
+    const binary = tryLoadTokenPostingsBinaryColumnar(dir, {
+      maxBytes,
+      enforceDataBudget: enforceBinaryDataBudget
+    });
     if (binary) return binary;
   }
   const sources = resolveManifestArtifactSources({
@@ -307,7 +312,10 @@ export const loadTokenPostings = (
     return loadSharded(sources.meta || {}, sources.paths, path.join(dir, 'token_postings.shards'));
   }
   if (sources.format === 'binary-columnar') {
-    const binary = tryLoadTokenPostingsBinaryColumnar(dir, { maxBytes });
+    const binary = tryLoadTokenPostingsBinaryColumnar(dir, {
+      maxBytes,
+      enforceDataBudget: enforceBinaryDataBudget
+    });
     if (binary) return binary;
   }
   throw new Error(`Unsupported token_postings format: ${sources.format}`);

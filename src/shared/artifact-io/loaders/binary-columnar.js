@@ -106,7 +106,8 @@ const loadBinaryColumnarRowPayloads = ({
   dataBuffer = null,
   offsetsBuffer = null,
   lengthsBuffer = null,
-  maxBytes = null
+  maxBytes = null,
+  enforceDataBudget = true
 }) => {
   const hasDataBuffer = Buffer.isBuffer(dataBuffer) || dataBuffer instanceof Uint8Array;
   if (!hasDataBuffer && !existsOrBak(dataPath)) {
@@ -126,7 +127,9 @@ const loadBinaryColumnarRowPayloads = ({
   });
   if (!metadata) return null;
   const { offsets, lengths } = metadata;
-  assertWithinMaxBytes(resolvedDataBuffer.length, maxBytes, 'Binary-columnar data');
+  if (enforceDataBudget) {
+    assertWithinMaxBytes(resolvedDataBuffer.length, maxBytes, 'Binary-columnar data');
+  }
   const rows = new Array(count);
   for (let i = 0; i < count; i += 1) {
     const start = offsets[i];
@@ -337,10 +340,16 @@ const decodePostingPairsVarint = (payload) => {
  * Attempt to load `token_postings` from binary-columnar artifacts.
  *
  * @param {string} dir
- * @param {{ maxBytes?: number }} [options]
+ * @param {{ maxBytes?: number, enforceDataBudget?: boolean }} [options]
  * @returns {object|null}
  */
-const tryLoadTokenPostingsBinaryColumnar = (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
+const tryLoadTokenPostingsBinaryColumnar = (
+  dir,
+  {
+    maxBytes = MAX_JSON_BYTES,
+    enforceDataBudget = true
+  } = {}
+) => {
   const metaPath = path.join(dir, 'token_postings.binary-columnar.meta.json');
   if (!existsOrBak(metaPath)) return null;
   const metaRaw = readJsonFileCached(resolvePathOrBak(metaPath), { maxBytes });
@@ -371,7 +380,8 @@ const tryLoadTokenPostingsBinaryColumnar = (dir, { maxBytes = MAX_JSON_BYTES } =
     offsetsPath,
     lengthsPath,
     count,
-    maxBytes
+    maxBytes,
+    enforceDataBudget
   });
   if (!payloads) return null;
   const postings = new Array(payloads.length);

@@ -125,4 +125,34 @@ assert.equal(
   'expected token_postings loader default to prefer binary-columnar when available'
 );
 
+const oversizedTokenPayload = encodeVarint64List(
+  Array.from({ length: 40 }, (_, index) => (index % 2 === 0 ? Math.floor(index / 2) + 1 : 1))
+);
+const oversizedTokenPostingsRows = encodeBinaryRowFrames([oversizedTokenPayload]);
+await fs.writeFile(path.join(testRoot, 'token_postings.binary-columnar.bin'), oversizedTokenPostingsRows.dataBuffer);
+await fs.writeFile(path.join(testRoot, 'token_postings.binary-columnar.offsets.bin'), oversizedTokenPostingsRows.offsetsBuffer);
+await fs.writeFile(path.join(testRoot, 'token_postings.binary-columnar.lengths.varint'), oversizedTokenPostingsRows.lengthsBuffer);
+
+assert.throws(
+  () => loadTokenPostings(testRoot, {
+    strict: true,
+    preferBinaryColumnar: true,
+    maxBytes: 16
+  }),
+  /maxBytes/i,
+  'expected default binary token_postings load to respect maxBytes'
+);
+
+const postingsBudgetBypassed = loadTokenPostings(testRoot, {
+  strict: true,
+  preferBinaryColumnar: true,
+  enforceBinaryDataBudget: false,
+  maxBytes: 16
+});
+assert.equal(
+  postingsBudgetBypassed?.vocab?.[0],
+  'binary_tok',
+  'expected disable-enforce flag to allow large binary token_postings to load'
+);
+
 console.log('prefer binary-columnar loaders test passed');
