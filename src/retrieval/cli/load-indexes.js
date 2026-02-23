@@ -294,263 +294,203 @@ export async function loadSearchIndexes({
     }
   }
 
-  const loadOptions = {
-    includeDense: needsAnnArtifacts && !lazyDenseVectorsEnabled,
+  const denseArtifactsEnabled = needsAnnArtifacts && !lazyDenseVectorsEnabled;
+  const emptyIndex = () => ({ ...EMPTY_INDEX });
+  const baseBackendLoadOptions = {
+    includeDense: denseArtifactsEnabled,
     includeMinhash: needsAnnArtifacts,
-    includeFilterIndex: needsFilterIndex,
+    includeFilterIndex: needsFilterIndex
+  };
+  const sqliteBackendLoadOptions = {
+    ...baseBackendLoadOptions,
+    includeChunks: sqliteContextChunks
+  };
+  const lmdbBackendLoadOptions = {
+    ...baseBackendLoadOptions,
+    includeChunks: true
+  };
+  const cachedLoadOptions = {
+    ...baseBackendLoadOptions,
     includeFileRelations: needsFileRelations,
     includeRepoMap: needsRepoMap,
     includeChunkMetaCold: needsChunkMetaCold,
     includeHnsw: annActive
   };
-  const idxProse = runProse
-    ? (useSqlite ? loadIndexFromSqlite('prose', {
-      includeDense: needsAnnArtifacts && !lazyDenseVectorsEnabled,
-      includeMinhash: needsAnnArtifacts,
-      includeChunks: sqliteContextChunks,
-      includeFilterIndex: needsFilterIndex
-    }) : (useLmdb ? loadIndexFromLmdb('prose', {
-      includeDense: needsAnnArtifacts && !lazyDenseVectorsEnabled,
-      includeMinhash: needsAnnArtifacts,
-      includeChunks: true,
-      includeFilterIndex: needsFilterIndex
-    }) : await loadIndexCachedLocal(proseDir, loadOptions, 'prose')))
-    : { ...EMPTY_INDEX };
-  let idxExtractedProse = { ...EMPTY_INDEX };
-  if (resolvedLoadExtractedProse) {
-    try {
-      if (useSqlite) {
+  const loadCachedModeIndex = (mode, dir, modeLoadOptions = cachedLoadOptions) => (
+    loadIndexCachedLocal(dir, modeLoadOptions, mode)
+  );
+  const loadModeIndex = async ({
+    mode,
+    run,
+    dir,
+    backend = 'cached',
+    modeLoadOptions = cachedLoadOptions,
+    allowSqliteFallback = false
+  }) => {
+    if (!run) return emptyIndex();
+    if (backend === 'sqlite') {
+      if (allowSqliteFallback) {
         try {
-          idxExtractedProse = loadIndexFromSqlite('extracted-prose', {
-            includeDense: needsAnnArtifacts && !lazyDenseVectorsEnabled,
-            includeMinhash: needsAnnArtifacts,
-            includeChunks: sqliteContextChunks,
-            includeFilterIndex: needsFilterIndex
-          });
+          return loadIndexFromSqlite(mode, sqliteBackendLoadOptions);
         } catch {
-          idxExtractedProse = await loadIndexCachedLocal(extractedProseDir, {
-            ...loadOptions,
-            includeHnsw: annActive && resolvedRunExtractedProse
-          }, 'extracted-prose');
+          return loadCachedModeIndex(mode, dir, modeLoadOptions);
         }
-      } else {
-        idxExtractedProse = await loadIndexCachedLocal(extractedProseDir, {
-          ...loadOptions,
-          includeHnsw: annActive && resolvedRunExtractedProse
-        }, 'extracted-prose');
       }
+      return loadIndexFromSqlite(mode, sqliteBackendLoadOptions);
+    }
+    if (backend === 'lmdb') {
+      return loadIndexFromLmdb(mode, lmdbBackendLoadOptions);
+    }
+    return loadCachedModeIndex(mode, dir, modeLoadOptions);
+  };
+
+  const primaryBackend = useSqlite ? 'sqlite' : (useLmdb ? 'lmdb' : 'cached');
+  const idxProse = await loadModeIndex({
+    mode: 'prose',
+    run: runProse,
+    dir: proseDir,
+    backend: primaryBackend
+  });
+  let idxExtractedProse = emptyIndex();
+  if (resolvedLoadExtractedProse) {
+    const extractedCachedLoadOptions = {
+      ...cachedLoadOptions,
+      includeHnsw: annActive && resolvedRunExtractedProse
+    };
+    try {
+      idxExtractedProse = await loadModeIndex({
+        mode: 'extracted-prose',
+        run: true,
+        dir: extractedProseDir,
+        backend: useSqlite ? 'sqlite' : 'cached',
+        modeLoadOptions: extractedCachedLoadOptions,
+        allowSqliteFallback: useSqlite
+      });
     } catch (err) {
       if (!isMissingManifestLikeError(err) || !disableOptionalExtractedProse('optional extracted-prose artifacts unavailable')) {
         throw err;
       }
-      idxExtractedProse = { ...EMPTY_INDEX };
+      idxExtractedProse = emptyIndex();
     }
   }
-  const idxCode = runCode
-    ? (useSqlite ? loadIndexFromSqlite('code', {
-      includeDense: needsAnnArtifacts && !lazyDenseVectorsEnabled,
-      includeMinhash: needsAnnArtifacts,
-      includeChunks: sqliteContextChunks,
-      includeFilterIndex: needsFilterIndex
-    }) : (useLmdb ? loadIndexFromLmdb('code', {
-      includeDense: needsAnnArtifacts && !lazyDenseVectorsEnabled,
-      includeMinhash: needsAnnArtifacts,
-      includeChunks: true,
-      includeFilterIndex: needsFilterIndex
-    }) : await loadIndexCachedLocal(codeDir, loadOptions, 'code')))
-    : { ...EMPTY_INDEX };
-  const idxRecords = runRecords
-    ? await loadIndexCachedLocal(recordsDir, loadOptions, 'records')
-    : { ...EMPTY_INDEX };
+  const idxCode = await loadModeIndex({
+    mode: 'code',
+    run: runCode,
+    dir: codeDir,
+    backend: primaryBackend
+  });
+  const idxRecords = await loadModeIndex({
+    mode: 'records',
+    run: runRecords,
+    dir: recordsDir
+  });
 
-  if (!idxCode.state && indexStates?.code) idxCode.state = indexStates.code;
-  if (!idxProse.state && indexStates?.prose) idxProse.state = indexStates.prose;
-  if (!idxExtractedProse.state && indexStates?.['extracted-prose']) {
-    idxExtractedProse.state = indexStates['extracted-prose'];
-  }
-  if (!idxRecords.state && indexStates?.records) idxRecords.state = indexStates.records;
+  const applyFallbackIndexState = (idx, mode) => {
+    if (!idx?.state && indexStates?.[mode]) {
+      idx.state = indexStates[mode];
+    }
+  };
+  applyFallbackIndexState(idxCode, 'code');
+  applyFallbackIndexState(idxProse, 'prose');
+  applyFallbackIndexState(idxExtractedProse, 'extracted-prose');
+  applyFallbackIndexState(idxRecords, 'records');
 
   warnPendingState(idxCode, 'code', { emitOutput, useSqlite, annActive });
   warnPendingState(idxProse, 'prose', { emitOutput, useSqlite, annActive });
   warnPendingState(idxExtractedProse, 'extracted-prose', { emitOutput, useSqlite, annActive });
 
   const relationLoadTasks = [];
-  if (runCode) {
-    idxCode.denseVec = resolveDenseVector(idxCode, 'code', resolvedDenseVectorMode);
-    if (!idxCode.denseVec && idxCode?.state?.embeddings?.embeddingIdentity) {
-      idxCode.denseVec = { ...idxCode.state.embeddings.embeddingIdentity, vectors: null };
+  const queueRelationLoad = ({ idx, mode, relation, loader }) => {
+    relationLoadTasks.push(
+      loader(rootDir, userConfig, mode, { resolveOptions })
+        .then((value) => {
+          idx[relation] = value;
+        })
+    );
+  };
+  const hydrateLoadedIndex = ({
+    idx,
+    mode,
+    dir,
+    loadRelations = false
+  }) => {
+    idx.denseVec = resolveDenseVector(idx, mode, resolvedDenseVectorMode);
+    if (!idx.denseVec && idx?.state?.embeddings?.embeddingIdentity) {
+      idx.denseVec = { ...idx.state.embeddings.embeddingIdentity, vectors: null };
     }
     attachDenseVectorLoader({
+      idx,
+      mode,
+      dir,
+      needsAnnArtifacts,
+      lazyDenseVectorsEnabled,
+      resolvedDenseVectorMode,
+      strict,
+      modelIdDefault
+    });
+    idx.indexDir = dir;
+    if (loadRelations && needsFileRelations && !idx.fileRelations) {
+      queueRelationLoad({ idx, mode, relation: 'fileRelations', loader: loadFileRelations });
+    }
+    if (loadRelations && needsRepoMap && !idx.repoMap) {
+      queueRelationLoad({ idx, mode, relation: 'repoMap', loader: loadRepoMap });
+    }
+  };
+
+  if (runCode) {
+    hydrateLoadedIndex({
       idx: idxCode,
       mode: 'code',
       dir: codeIndexDir,
-      needsAnnArtifacts,
-      lazyDenseVectorsEnabled,
-      resolvedDenseVectorMode,
-      strict,
-      modelIdDefault
+      loadRelations: useSqlite || useLmdb
     });
-    idxCode.indexDir = codeIndexDir;
-    if ((useSqlite || useLmdb) && needsFileRelations && !idxCode.fileRelations) {
-      relationLoadTasks.push(
-        loadFileRelations(rootDir, userConfig, 'code', { resolveOptions })
-          .then((value) => {
-            idxCode.fileRelations = value;
-          })
-      );
-    }
-    if ((useSqlite || useLmdb) && needsRepoMap && !idxCode.repoMap) {
-      relationLoadTasks.push(
-        loadRepoMap(rootDir, userConfig, 'code', { resolveOptions })
-          .then((value) => {
-            idxCode.repoMap = value;
-          })
-      );
-    }
   }
   if (runProse) {
-    idxProse.denseVec = resolveDenseVector(idxProse, 'prose', resolvedDenseVectorMode);
-    if (!idxProse.denseVec && idxProse?.state?.embeddings?.embeddingIdentity) {
-      idxProse.denseVec = { ...idxProse.state.embeddings.embeddingIdentity, vectors: null };
-    }
-    attachDenseVectorLoader({
+    hydrateLoadedIndex({
       idx: idxProse,
       mode: 'prose',
       dir: proseIndexDir,
-      needsAnnArtifacts,
-      lazyDenseVectorsEnabled,
-      resolvedDenseVectorMode,
-      strict,
-      modelIdDefault
+      loadRelations: useSqlite || useLmdb
     });
-    idxProse.indexDir = proseIndexDir;
-    if ((useSqlite || useLmdb) && needsFileRelations && !idxProse.fileRelations) {
-      relationLoadTasks.push(
-        loadFileRelations(rootDir, userConfig, 'prose', { resolveOptions })
-          .then((value) => {
-            idxProse.fileRelations = value;
-          })
-      );
-    }
-    if ((useSqlite || useLmdb) && needsRepoMap && !idxProse.repoMap) {
-      relationLoadTasks.push(
-        loadRepoMap(rootDir, userConfig, 'prose', { resolveOptions })
-          .then((value) => {
-            idxProse.repoMap = value;
-          })
-      );
-    }
   }
   if (resolvedLoadExtractedProse) {
-    idxExtractedProse.denseVec = resolveDenseVector(
-      idxExtractedProse,
-      'extracted-prose',
-      resolvedDenseVectorMode
-    );
-    if (!idxExtractedProse.denseVec && idxExtractedProse?.state?.embeddings?.embeddingIdentity) {
-      idxExtractedProse.denseVec = { ...idxExtractedProse.state.embeddings.embeddingIdentity, vectors: null };
-    }
-    attachDenseVectorLoader({
+    hydrateLoadedIndex({
       idx: idxExtractedProse,
       mode: 'extracted-prose',
       dir: extractedProseDir,
-      needsAnnArtifacts,
-      lazyDenseVectorsEnabled,
-      resolvedDenseVectorMode,
-      strict,
-      modelIdDefault
+      loadRelations: true
     });
-    idxExtractedProse.indexDir = extractedProseDir;
-    if (needsFileRelations && !idxExtractedProse.fileRelations) {
-      relationLoadTasks.push(
-        loadFileRelations(rootDir, userConfig, 'extracted-prose', { resolveOptions })
-          .then((value) => {
-            idxExtractedProse.fileRelations = value;
-          })
-      );
-    }
-    if (needsRepoMap && !idxExtractedProse.repoMap) {
-      relationLoadTasks.push(
-        loadRepoMap(rootDir, userConfig, 'extracted-prose', { resolveOptions })
-          .then((value) => {
-            idxExtractedProse.repoMap = value;
-          })
-      );
-    }
+  }
+  if (runRecords) {
+    hydrateLoadedIndex({
+      idx: idxRecords,
+      mode: 'records',
+      dir: recordsDir
+    });
   }
   if (relationLoadTasks.length) {
     await Promise.all(relationLoadTasks);
   }
 
-  if (runRecords) {
-    idxRecords.denseVec = resolveDenseVector(idxRecords, 'records', resolvedDenseVectorMode);
-    if (!idxRecords.denseVec && idxRecords?.state?.embeddings?.embeddingIdentity) {
-      idxRecords.denseVec = { ...idxRecords.state.embeddings.embeddingIdentity, vectors: null };
-    }
-    attachDenseVectorLoader({
-      idx: idxRecords,
-      mode: 'records',
-      dir: recordsDir,
-      needsAnnArtifacts,
-      lazyDenseVectorsEnabled,
-      resolvedDenseVectorMode,
-      strict,
-      modelIdDefault
-    });
-    idxRecords.indexDir = recordsDir;
-  }
-
-  const scmHydrationTasks = [];
-  if (runCode) {
-    scmHydrationTasks.push(hydrateChunkAuthorsForIndex({
-      idx: idxCode,
-      mode: 'code',
-      rootDir,
-      userConfig,
-      fileChargramN,
-      filtersActive,
-      chunkAuthorFilterActive,
-      emitOutput
-    }));
-  }
-  if (runProse) {
-    scmHydrationTasks.push(hydrateChunkAuthorsForIndex({
-      idx: idxProse,
-      mode: 'prose',
-      rootDir,
-      userConfig,
-      fileChargramN,
-      filtersActive,
-      chunkAuthorFilterActive,
-      emitOutput
-    }));
-  }
-  if (resolvedLoadExtractedProse) {
-    scmHydrationTasks.push(hydrateChunkAuthorsForIndex({
-      idx: idxExtractedProse,
-      mode: 'extracted-prose',
-      rootDir,
-      userConfig,
-      fileChargramN,
-      filtersActive,
-      chunkAuthorFilterActive,
-      emitOutput
-    }));
-  }
-  if (runRecords) {
-    scmHydrationTasks.push(hydrateChunkAuthorsForIndex({
-      idx: idxRecords,
-      mode: 'records',
-      rootDir,
-      userConfig,
-      fileChargramN,
-      filtersActive,
-      chunkAuthorFilterActive,
-      emitOutput
-    }));
-  }
-  if (scmHydrationTasks.length) {
-    await Promise.all(scmHydrationTasks);
+  const scmHydrationTargets = [
+    runCode ? { idx: idxCode, mode: 'code' } : null,
+    runProse ? { idx: idxProse, mode: 'prose' } : null,
+    resolvedLoadExtractedProse ? { idx: idxExtractedProse, mode: 'extracted-prose' } : null,
+    runRecords ? { idx: idxRecords, mode: 'records' } : null
+  ].filter(Boolean);
+  if (scmHydrationTargets.length) {
+    await Promise.all(
+      scmHydrationTargets.map(({ idx, mode }) => hydrateChunkAuthorsForIndex({
+        idx,
+        mode,
+        rootDir,
+        userConfig,
+        fileChargramN,
+        filtersActive,
+        chunkAuthorFilterActive,
+        emitOutput
+      }))
+    );
   }
 
   await attachAnnAndGraphArtifacts({
