@@ -15,6 +15,236 @@ import {
   resolveAnnBackendUsed
 } from './run-search-session/persist.js';
 
+const EMBEDDING_MODE_ORDER = Object.freeze([
+  'code',
+  'prose',
+  'extracted-prose',
+  'records'
+]);
+
+const EXPANSION_MODE_ORDER = Object.freeze([
+  'prose',
+  'extracted-prose',
+  'code',
+  'records'
+]);
+
+const normalizeDenseVectorMode = (value) => (
+  typeof value === 'string'
+    ? value.trim().toLowerCase()
+    : 'merged'
+);
+
+const normalizeFiniteNumber = (value) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+};
+
+const buildCommentLookupKey = (file, start, end) => `${file}:${start}:${end}`;
+
+function enforceSqliteAnnDenseModeCompatibility({
+  resolvedDenseMode,
+  vectorAnnEnabled,
+  vectorAnnState
+}) {
+  if (resolvedDenseMode === 'merged' || !vectorAnnEnabled || !vectorAnnState) return;
+  let hasSqliteAnn = false;
+  for (const entry of Object.values(vectorAnnState)) {
+    if (!entry) continue;
+    if (entry.available === true) {
+      hasSqliteAnn = true;
+    }
+    entry.available = false;
+  }
+  if (!hasSqliteAnn) return;
+  console.warn(
+    `[ann] sqlite-vec only supports merged vectors; disabling sqlite ANN for denseVectorMode=${resolvedDenseMode}.`
+  );
+}
+
+async function resolveSessionCacheState({
+  queryCachePolicyInput,
+  embeddingInputFormattingInput,
+  cacheLookupInput
+}) {
+  const {
+    cacheStrategy,
+    cachePrewarmEnabled,
+    cachePrewarmLimit,
+    cacheMemoryFreshMs,
+    sqliteFtsOverfetchCacheKey
+  } = resolveQueryCachePolicy(queryCachePolicyInput);
+  const embeddingInputFormattingByMode = resolveEmbeddingInputFormattingByMode(
+    embeddingInputFormattingInput
+  );
+  const cacheLookup = await resolveQueryCacheLookup({
+    ...cacheLookupInput,
+    sqliteFtsOverfetchCacheKey,
+    embeddingInputFormattingByMode,
+    cacheStrategy,
+    cachePrewarmEnabled,
+    cachePrewarmLimit,
+    cacheMemoryFreshMs
+  });
+
+  return {
+    cacheStrategy,
+    embeddingInputFormattingByMode,
+    ...cacheLookup
+  };
+}
+
+function createModeState({
+  runCode,
+  runProse,
+  runExtractedProse,
+  runRecords,
+  idxCode,
+  idxProse,
+  idxExtractedProse,
+  idxRecords,
+  modelIds,
+  embeddingInputFormattingByMode
+}) {
+  return {
+    code: {
+      run: runCode,
+      idx: idxCode,
+      modelId: modelIds.code,
+      inputFormatting: embeddingInputFormattingByMode.code
+    },
+    prose: {
+      run: runProse,
+      idx: idxProse,
+      modelId: modelIds.prose,
+      inputFormatting: embeddingInputFormattingByMode.prose
+    },
+    'extracted-prose': {
+      run: runExtractedProse,
+      idx: idxExtractedProse,
+      modelId: modelIds.extractedProse,
+      inputFormatting: embeddingInputFormattingByMode.extractedProse
+    },
+    records: {
+      run: runRecords,
+      idx: idxRecords,
+      modelId: modelIds.records,
+      inputFormatting: embeddingInputFormattingByMode.records
+    }
+  };
+}
+
+function resolveModeAnnMetadata({
+  modeState,
+  vectorAnnState,
+  hnswAnnState,
+  lanceAnnState
+}) {
+  for (const mode of EMBEDDING_MODE_ORDER) {
+    const state = modeState[mode];
+    const idx = state.idx;
+    state.hasAnn = Boolean(
+      idx?.denseVec?.vectors?.length
+      || typeof idx?.loadDenseVectors === 'function'
+      || vectorAnnState?.[mode]?.available
+      || hnswAnnState?.[mode]?.available
+      || lanceAnnState?.[mode]?.available
+    );
+    state.embeddingDims = (
+      idx?.denseVec?.dims
+      ?? idx?.hnsw?.meta?.dims
+      ?? lanceAnnState?.[mode]?.dims
+      ?? null
+    );
+    state.embeddingNormalize = idx?.state?.embeddings?.embeddingIdentity?.normalize !== false;
+  }
+  return modeState;
+}
+
+async function resolveQueryEmbeddingsByMode({
+  modeState,
+  needsEmbedding,
+  getEmbeddingForModel
+}) {
+  const embeddingsByMode = {
+    code: null,
+    prose: null,
+    'extracted-prose': null,
+    records: null
+  };
+  if (!needsEmbedding) return embeddingsByMode;
+  for (const mode of EMBEDDING_MODE_ORDER) {
+    const state = modeState[mode];
+    if (!(state.run && state.hasAnn)) continue;
+    embeddingsByMode[mode] = await getEmbeddingForModel(
+      state.modelId,
+      state.embeddingDims,
+      state.embeddingNormalize,
+      state.inputFormatting
+    );
+  }
+  return embeddingsByMode;
+}
+
+function resolveCachedHits(cachedPayload) {
+  if (!cachedPayload) return null;
+  return {
+    proseHits: cachedPayload.prose || [],
+    extractedProseHits: cachedPayload.extractedProse || [],
+    codeHits: cachedPayload.code || [],
+    recordHits: cachedPayload.records || []
+  };
+}
+
+async function expandSessionHitsByMode({
+  expandModeHits,
+  modeState,
+  hitsByMode
+}) {
+  const expandedByMode = {};
+  for (const mode of EXPANSION_MODE_ORDER) {
+    const state = modeState[mode];
+    const hits = hitsByMode[mode];
+    expandedByMode[mode] = state.run
+      ? await expandModeHits(mode, state.idx, hits)
+      : { hits, contextHits: [] };
+  }
+  return expandedByMode;
+}
+
+async function persistSessionQueryCache({
+  queryCacheEnabled,
+  cacheKey,
+  cacheHit,
+  cacheData,
+  queryCachePath,
+  cacheShouldPersist,
+  queryCacheTtlMs,
+  cacheSignature,
+  query,
+  backendLabel,
+  hitsByMode,
+  queryCacheMaxEntries
+}) {
+  return persistSearchSession({
+    queryCacheEnabled,
+    cacheKey,
+    cacheHit,
+    cacheData,
+    queryCachePath,
+    cacheShouldPersist,
+    queryCacheTtlMs,
+    cacheSignature,
+    query,
+    backendLabel,
+    proseHits: hitsByMode.prose,
+    extractedProseHits: hitsByMode['extracted-prose'],
+    codeHits: hitsByMode.code,
+    recordHits: hitsByMode.records,
+    queryCacheMaxEntries
+  });
+}
+
 /**
  * Execute one retrieval session, including query cache lookup, per-mode search,
  * context expansion, and telemetry payload assembly.
@@ -133,22 +363,12 @@ export async function runSearchSession({
   signal,
   stageTracker
 }) {
-  const resolvedDenseMode = typeof resolvedDenseVectorMode === 'string'
-    ? resolvedDenseVectorMode.trim().toLowerCase()
-    : 'merged';
-  const sqliteVectorAllowed = resolvedDenseMode === 'merged';
-  if (!sqliteVectorAllowed && vectorAnnEnabled && vectorAnnState) {
-    const hasSqliteAnn = Object.values(vectorAnnState)
-      .some((entry) => entry?.available === true);
-    if (hasSqliteAnn) {
-      console.warn(
-        `[ann] sqlite-vec only supports merged vectors; disabling sqlite ANN for denseVectorMode=${resolvedDenseMode}.`
-      );
-    }
-    for (const entry of Object.values(vectorAnnState)) {
-      if (entry) entry.available = false;
-    }
-  }
+  const resolvedDenseMode = normalizeDenseVectorMode(resolvedDenseVectorMode);
+  enforceSqliteAnnDenseModeCompatibility({
+    resolvedDenseMode,
+    vectorAnnEnabled,
+    vectorAnnState
+  });
   const throwIfAborted = () => {
     if (!signal?.aborted) return;
     const error = new Error('Search cancelled.');
@@ -230,27 +450,9 @@ export async function runSearchSession({
   });
   throwIfAborted();
 
-  const {
-    cacheStrategy,
-    cachePrewarmEnabled,
-    cachePrewarmLimit,
-    cacheMemoryFreshMs,
-    sqliteFtsOverfetchCacheKey
-  } = resolveQueryCachePolicy({
-    queryCacheStrategy,
-    preferMemoryBackendOnCacheHit,
-    queryCachePrewarm,
-    queryCachePrewarmMaxEntries,
-    queryCacheMemoryFreshMs,
-    sqliteFtsOverfetch
-  });
-  const embeddingInputFormattingByMode = resolveEmbeddingInputFormattingByMode({
-    idxCode,
-    idxProse,
-    idxExtractedProse,
-    idxRecords
-  });
   let {
+    cacheStrategy,
+    embeddingInputFormattingByMode,
     queryCachePath,
     cacheHit,
     cacheKey,
@@ -259,102 +461,111 @@ export async function runSearchSession({
     cachedPayload,
     cacheShouldPersist,
     cacheHotPathHit
-  } = await resolveQueryCacheLookup({
-    queryCacheEnabled,
-    queryCacheDir,
-    metricsDir,
-    useSqlite,
-    backendLabel,
-    sqliteCodePath,
-    sqliteProsePath,
-    sqliteExtractedProsePath,
-    runCode,
-    runProse,
-    runRecords,
-    runExtractedProse,
-    extractedProseLoaded,
-    commentsEnabled,
-    rootDir,
-    userConfig,
-    indexDirByMode,
-    indexBaseRootByMode,
-    explicitRef,
-    asOfContext,
-    query,
-    searchMode,
-    topN,
-    sqliteFtsRequested,
-    annActive,
-    annBackend,
-    vectorExtension,
-    vectorAnnEnabled,
-    annAdaptiveProviders,
-    relationBoost,
-    annCandidateCap,
-    annCandidateMinDocCount,
-    annCandidateMaxDocCount,
-    bm25K1,
-    bm25B,
-    scoreBlend,
-    rrf,
-    fieldWeights,
-    symbolBoost,
-    resolvedDenseVectorMode,
-    intentInfo,
-    minhashMaxDocs,
-    maxCandidates,
-    sparseBackend,
-    explain,
-    sqliteFtsNormalize,
-    sqliteFtsProfile,
-    sqliteFtsWeights,
-    sqliteFtsTrigram,
-    sqliteFtsStemming,
-    sqliteTailLatencyTuning,
-    sqliteFtsOverfetchCacheKey,
-    modelIds,
-    embeddingProvider,
-    embeddingOnnx,
-    embeddingInputFormattingByMode,
-    contextExpansionEnabled,
-    contextExpansionOptions,
-    contextExpansionRespectFilters,
-    cacheFilters,
-    graphRankingConfig,
-    queryCacheTtlMs,
-    queryCacheMaxEntries,
-    cacheStrategy,
-    cachePrewarmEnabled,
-    cachePrewarmLimit,
-    cacheMemoryFreshMs
+  } = await resolveSessionCacheState({
+    queryCachePolicyInput: {
+      queryCacheStrategy,
+      preferMemoryBackendOnCacheHit,
+      queryCachePrewarm,
+      queryCachePrewarmMaxEntries,
+      queryCacheMemoryFreshMs,
+      sqliteFtsOverfetch
+    },
+    embeddingInputFormattingInput: {
+      idxCode,
+      idxProse,
+      idxExtractedProse,
+      idxRecords
+    },
+    cacheLookupInput: {
+      queryCacheEnabled,
+      queryCacheDir,
+      metricsDir,
+      useSqlite,
+      backendLabel,
+      sqliteCodePath,
+      sqliteProsePath,
+      sqliteExtractedProsePath,
+      runCode,
+      runProse,
+      runRecords,
+      runExtractedProse,
+      extractedProseLoaded,
+      commentsEnabled,
+      rootDir,
+      userConfig,
+      indexDirByMode,
+      indexBaseRootByMode,
+      explicitRef,
+      asOfContext,
+      query,
+      searchMode,
+      topN,
+      sqliteFtsRequested,
+      annActive,
+      annBackend,
+      vectorExtension,
+      vectorAnnEnabled,
+      annAdaptiveProviders,
+      relationBoost,
+      annCandidateCap,
+      annCandidateMinDocCount,
+      annCandidateMaxDocCount,
+      bm25K1,
+      bm25B,
+      scoreBlend,
+      rrf,
+      fieldWeights,
+      symbolBoost,
+      resolvedDenseVectorMode,
+      intentInfo,
+      minhashMaxDocs,
+      maxCandidates,
+      sparseBackend,
+      explain,
+      sqliteFtsNormalize,
+      sqliteFtsProfile,
+      sqliteFtsWeights,
+      sqliteFtsTrigram,
+      sqliteFtsStemming,
+      sqliteTailLatencyTuning,
+      modelIds,
+      embeddingProvider,
+      embeddingOnnx,
+      contextExpansionEnabled,
+      contextExpansionOptions,
+      contextExpansionRespectFilters,
+      cacheFilters,
+      graphRankingConfig,
+      queryCacheTtlMs,
+      queryCacheMaxEntries
+    }
   });
   if (queryCacheEnabled) {
     incCacheEvent({ cache: 'query', result: cacheHit ? 'hit' : 'miss' });
   }
   throwIfAborted();
 
-  const hasAnn = (mode, idx) => Boolean(
-    idx?.denseVec?.vectors?.length
-    || typeof idx?.loadDenseVectors === 'function'
-    || vectorAnnState?.[mode]?.available
-    || hnswAnnState?.[mode]?.available
-    || lanceAnnState?.[mode]?.available
-  );
-  const resolveEmbeddingNormalize = (idx) => (
-    idx?.state?.embeddings?.embeddingIdentity?.normalize !== false
-  );
-  const needsEmbedding = !cacheHit && annActive && (
-    (runProse && hasAnn('prose', idxProse))
-    || (runCode && hasAnn('code', idxCode))
-    || (runExtractedProse && hasAnn('extracted-prose', idxExtractedProse))
-    || (runRecords && hasAnn('records', idxRecords))
-  );
-  const resolveEmbeddingDims = (mode, idx) => (
-    idx?.denseVec?.dims
-    ?? idx?.hnsw?.meta?.dims
-    ?? lanceAnnState?.[mode]?.dims
-    ?? null
-  );
+  const modeState = resolveModeAnnMetadata({
+    modeState: createModeState({
+      runCode,
+      runProse,
+      runExtractedProse,
+      runRecords,
+      idxCode,
+      idxProse,
+      idxExtractedProse,
+      idxRecords,
+      modelIds,
+      embeddingInputFormattingByMode
+    }),
+    vectorAnnState,
+    hnswAnnState,
+    lanceAnnState
+  });
+  const needsEmbedding = !cacheHit && annActive && EMBEDDING_MODE_ORDER.some((mode) => {
+    const state = modeState[mode];
+    return state.run && state.hasAnn;
+  });
   const getEmbeddingForModel = createEmbeddingResolver({
     throwIfAborted,
     embeddingQueryText,
@@ -364,48 +575,14 @@ export async function runSearchSession({
     embeddingOnnx,
     rootDir
   });
-  const queryEmbeddingCode = needsEmbedding && runCode && hasAnn('code', idxCode)
-    ? await getEmbeddingForModel(
-      modelIds.code,
-      resolveEmbeddingDims('code', idxCode),
-      resolveEmbeddingNormalize(idxCode),
-      embeddingInputFormattingByMode.code
-    )
-    : null;
-  const queryEmbeddingProse = needsEmbedding && runProse && hasAnn('prose', idxProse)
-    ? await getEmbeddingForModel(
-      modelIds.prose,
-      resolveEmbeddingDims('prose', idxProse),
-      resolveEmbeddingNormalize(idxProse),
-      embeddingInputFormattingByMode.prose
-    )
-    : null;
-  const queryEmbeddingExtractedProse = needsEmbedding && runExtractedProse && hasAnn('extracted-prose', idxExtractedProse)
-    ? await getEmbeddingForModel(
-      modelIds.extractedProse,
-      resolveEmbeddingDims('extracted-prose', idxExtractedProse),
-      resolveEmbeddingNormalize(idxExtractedProse),
-      embeddingInputFormattingByMode.extractedProse
-    )
-    : null;
-  const queryEmbeddingRecords = needsEmbedding && runRecords && hasAnn('records', idxRecords)
-    ? await getEmbeddingForModel(
-      modelIds.records,
-      resolveEmbeddingDims('records', idxRecords),
-      resolveEmbeddingNormalize(idxRecords),
-      embeddingInputFormattingByMode.records
-    )
-    : null;
+  const queryEmbeddingsByMode = await resolveQueryEmbeddingsByMode({
+    modeState,
+    needsEmbedding,
+    getEmbeddingForModel
+  });
   throwIfAborted();
 
-  const cachedHits = cacheHit && cachedPayload
-    ? {
-      proseHits: cachedPayload.prose || [],
-      extractedProseHits: cachedPayload.extractedProse || [],
-      codeHits: cachedPayload.code || [],
-      recordHits: cachedPayload.records || []
-    }
-    : null;
+  const cachedHits = cacheHit ? resolveCachedHits(cachedPayload) : null;
   const { proseHits, extractedProseHits, codeHits, recordHits } = cachedHits || await runSearchByMode({
     searchPipeline,
     runProse,
@@ -416,10 +593,10 @@ export async function runSearchSession({
     idxExtractedProse,
     idxCode,
     idxRecords,
-    queryEmbeddingProse,
-    queryEmbeddingExtractedProse,
-    queryEmbeddingCode,
-    queryEmbeddingRecords,
+    queryEmbeddingProse: queryEmbeddingsByMode.prose,
+    queryEmbeddingExtractedProse: queryEmbeddingsByMode['extracted-prose'],
+    queryEmbeddingCode: queryEmbeddingsByMode.code,
+    queryEmbeddingRecords: queryEmbeddingsByMode.records,
     signal
   });
   throwIfAborted();
@@ -434,10 +611,10 @@ export async function runSearchSession({
       if (!Array.isArray(comments) || !comments.length) continue;
       for (const comment of comments) {
         if (!comment || !comment.text) continue;
-        const start = Number(comment.start);
-        const end = Number(comment.end);
-        if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
-        const key = `${chunk.file}:${start}:${end}`;
+        const start = normalizeFiniteNumber(comment.start);
+        const end = normalizeFiniteNumber(comment.end);
+        if (start === null || end === null) continue;
+        const key = buildCommentLookupKey(chunk.file, start, end);
         const list = map.get(key) || [];
         list.push(comment);
         map.set(key, list);
@@ -456,10 +633,10 @@ export async function runSearchSession({
       if (!Array.isArray(refs) || !refs.length) continue;
       const excerpts = [];
       for (const ref of refs) {
-        const start = Number(ref?.start);
-        const end = Number(ref?.end);
-        if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
-        const matches = commentLookup.get(`${hit.file}:${start}:${end}`);
+        const start = normalizeFiniteNumber(ref?.start);
+        const end = normalizeFiniteNumber(ref?.end);
+        if (start === null || end === null) continue;
+        const matches = commentLookup.get(buildCommentLookupKey(hit.file, start, end));
         if (!matches?.length) continue;
         for (const match of matches) {
           if (!match?.text) continue;
@@ -510,18 +687,21 @@ export async function runSearchSession({
     filterPredicates,
     explain
   });
-  const proseExpanded = runProse
-    ? await expandModeHits('prose', idxProse, proseHits)
-    : { hits: proseHits, contextHits: [] };
-  const extractedProseExpanded = runExtractedProse
-    ? await expandModeHits('extracted-prose', idxExtractedProse, extractedProseHits)
-    : { hits: extractedProseHits, contextHits: [] };
-  const codeExpanded = runCode
-    ? await expandModeHits('code', idxCode, codeHits)
-    : { hits: codeHits, contextHits: [] };
-  const recordExpanded = runRecords
-    ? await expandModeHits('records', idxRecords, recordHits)
-    : { hits: recordHits, contextHits: [] };
+  const hitsByMode = {
+    prose: proseHits,
+    'extracted-prose': extractedProseHits,
+    code: codeHits,
+    records: recordHits
+  };
+  const expandedByMode = await expandSessionHitsByMode({
+    expandModeHits,
+    modeState,
+    hitsByMode
+  });
+  const proseExpanded = expandedByMode.prose;
+  const extractedProseExpanded = expandedByMode['extracted-prose'];
+  const codeExpanded = expandedByMode.code;
+  const recordExpanded = expandedByMode.records;
 
   attachCommentExcerpts(codeExpanded.hits);
   throwIfAborted();
@@ -532,7 +712,7 @@ export async function runSearchSession({
     hnswAnnUsed,
     lanceAnnUsed
   });
-  ({ cacheData, cacheShouldPersist } = await persistSearchSession({
+  ({ cacheData, cacheShouldPersist } = await persistSessionQueryCache({
     queryCacheEnabled,
     cacheKey,
     cacheHit,
@@ -543,10 +723,7 @@ export async function runSearchSession({
     cacheSignature,
     query,
     backendLabel,
-    proseHits,
-    extractedProseHits,
-    codeHits,
-    recordHits,
+    hitsByMode,
     queryCacheMaxEntries
   }));
 
