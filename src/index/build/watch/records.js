@@ -1,11 +1,15 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { normalizeRoot } from './shared.js';
+import { isWithinRoot, toRealPathSync } from '../../../workspace/identity.js';
 
 export const resolveRecordsRoot = (root, recordsDir) => {
   if (!recordsDir) return null;
   const normalizedRoot = normalizeRoot(root);
   const normalizedRecords = normalizeRoot(recordsDir);
+  const canonicalRoot = toRealPathSync(root);
+  const canonicalRecords = toRealPathSync(recordsDir);
+  if (!isWithinRoot(canonicalRecords, canonicalRoot)) return null;
   if (normalizedRecords === normalizedRoot) return normalizedRecords;
   if (normalizedRecords.startsWith(`${normalizedRoot}${path.sep}`)) return normalizedRecords;
   return null;

@@ -9,6 +9,7 @@ import { fileExt, toPosix } from '../../../shared/files.js';
 import { pickMinLimit, resolveFileCaps } from '../file-processor/read.js';
 import { normalizeRoot } from './shared.js';
 import { isCodeEntryForPath, isProseEntryForPath } from '../mode-routing.js';
+import { isWithinRoot, toRealPathSync } from '../../../workspace/identity.js';
 
 export const resolveMaxFilesCap = (maxFiles) => {
   const cap = Number(maxFiles);
@@ -21,12 +22,14 @@ export const resolveMaxDepthCap = (maxDepth) => {
 };
 
 export const isIndexablePath = ({ absPath, root, recordsRoot, ignoreMatcher, modes }) => {
+  const canonicalRoot = toRealPathSync(root);
+  const canonicalAbs = toRealPathSync(absPath);
+  if (!isWithinRoot(canonicalAbs, canonicalRoot)) return false;
   const relPosix = toPosix(path.relative(root, absPath));
   if (!relPosix || relPosix === '.' || relPosix.startsWith('..')) return false;
-  const normalizedRecordsRoot = recordsRoot ? normalizeRoot(recordsRoot) : null;
+  const normalizedRecordsRoot = recordsRoot ? toRealPathSync(recordsRoot) : null;
   if (normalizedRecordsRoot) {
-    const normalizedAbs = normalizeRoot(absPath);
-    if (normalizedAbs.startsWith(`${normalizedRecordsRoot}${path.sep}`)) {
+    if (isWithinRoot(canonicalAbs, normalizedRecordsRoot)) {
       return modes.includes('records');
     }
   }

@@ -36,9 +36,9 @@ import { resolveMaxBytesForFile, resolveMaxDepthCap, resolveMaxFilesCap, isIndex
 import { startChokidarWatcher } from './watch/backends/chokidar.js';
 import { startParcelWatcher } from './watch/backends/parcel.js';
 import { createWatchAttemptManager } from './watch/attempts.js';
-import { normalizeRoot } from './watch/shared.js';
 import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
 import { detectShebangLanguage } from './shebang.js';
+import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
 import {
   buildGeneratedPolicyConfig,
   buildGeneratedPolicyDowngradePayload,
@@ -81,8 +81,9 @@ export async function watchIndex({
     incrementalEnabled: true
   };
   const root = runtimeRef.root;
+  const canonicalRoot = toRealPathSync(root);
   const recordsRoot = resolveRecordsRoot(root, runtimeRef.recordsDir);
-  const normalizedRecordsRoot = recordsRoot ? normalizeRoot(recordsRoot) : null;
+  const normalizedRecordsRoot = recordsRoot ? toRealPathSync(recordsRoot) : null;
   const ignoreMatcher = runtimeRef.ignoreMatcher;
   const generatedPolicy = runtimeRef.generatedPolicy && typeof runtimeRef.generatedPolicy === 'object'
     ? runtimeRef.generatedPolicy
@@ -316,13 +317,16 @@ export async function watchIndex({
    * @returns {Promise<object>}
    */
   const classifyPath = async (absPath) => {
+    const canonicalAbs = toRealPathSync(absPath);
+    if (!isWithinRoot(canonicalAbs, canonicalRoot)) {
+      return { skip: true, reason: 'outside-root' };
+    }
     const relPosix = toPosix(path.relative(root, absPath));
     if (!relPosix || relPosix === '.' || relPosix.startsWith('..')) {
       return { skip: true, reason: 'outside-root' };
     }
-    const normalizedAbs = normalizeRoot(absPath);
     const inRecordsRoot = normalizedRecordsRoot
-      ? normalizedAbs.startsWith(`${normalizedRecordsRoot}${path.sep}`)
+      ? isWithinRoot(canonicalAbs, normalizedRecordsRoot)
       : false;
     if (maxDepthCap != null) {
       const depth = relPosix.split('/').length - 1;
