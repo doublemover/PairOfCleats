@@ -24,6 +24,16 @@ const loadRulesFile = (rulesPath) => {
   return readJsoncFile(rulesPath);
 };
 
+/**
+ * CLI entrypoint for architecture-rule validation against graph artifacts.
+ *
+ * Loads JSON/JSONC/YAML rule definitions, evaluates graph relations against
+ * parsed rules, validates the report contract, and supports violation-gated
+ * failure via `--fail-on-violation`.
+ *
+ * @param {string[]} [rawArgs]
+ * @returns {Promise<{ok:boolean,code?:string,payload?:object,message?:string}>}
+ */
 export async function runArchitectureCheckCli(rawArgs = process.argv.slice(2)) {
   const cli = createCli({
     scriptName: 'architecture-check',

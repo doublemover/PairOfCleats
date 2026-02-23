@@ -2,12 +2,24 @@ import crypto from 'node:crypto';
 import { normalizeLimit, normalizeRatio, normalizeDepth } from './caps.js';
 import { buildGeneratedPolicyConfig } from '../generated-policy.js';
 
+/**
+ * Format build timestamp token for artifact directory names.
+ *
+ * @param {Date} date
+ * @returns {string}
+ */
 export const formatBuildTimestamp = (date) => (
   // Keep second precision for shorter build roots on Windows path-length
   // constrained environments.
   date.toISOString().replace(/\.\d{3}Z$/, 'Z').replace(/[-:]/g, '')
 );
 
+/**
+ * Format random build nonce.
+ *
+ * @param {number} [bytes]
+ * @returns {string}
+ */
 export const formatBuildNonce = (bytes = 4) => {
   const size = Number.isFinite(Number(bytes))
     ? Math.max(2, Math.floor(Number(bytes)))
@@ -15,6 +27,12 @@ export const formatBuildNonce = (bytes = 4) => {
   return crypto.randomBytes(size).toString('hex');
 };
 
+/**
+ * Build normalized file-scan tuning config used by stage-0 discovery.
+ *
+ * @param {object} indexingConfig
+ * @returns {object}
+ */
 export const buildFileScanConfig = (indexingConfig) => {
   const fileScanConfig = indexingConfig.fileScan || {};
   const minifiedScanConfig = fileScanConfig.minified || {};
@@ -41,6 +59,12 @@ export const buildFileScanConfig = (indexingConfig) => {
   };
 };
 
+/**
+ * Build normalized shard/cluster config with deterministic merge defaults.
+ *
+ * @param {object} indexingConfig
+ * @returns {object}
+ */
 export const buildShardConfig = (indexingConfig) => {
   const shardsConfig = indexingConfig.shards || {};
   const shardsClusterConfig = shardsConfig.cluster && typeof shardsConfig.cluster === 'object'
@@ -86,6 +110,12 @@ export const buildShardConfig = (indexingConfig) => {
   };
 };
 
+/**
+ * Build generated/minified/vendor indexing policy config.
+ *
+ * @param {object} indexingConfig
+ * @returns {object}
+ */
 export const buildGeneratedIndexingPolicyConfig = (indexingConfig) => (
   buildGeneratedPolicyConfig(indexingConfig || {})
 );

@@ -45,6 +45,11 @@ const DEFAULT_EDITOR_CONFIG_CONTRACT = Object.freeze({
 
 const DEFAULT_VSCODE_SETTINGS = Object.freeze(DEFAULT_EDITOR_CONFIG_CONTRACT.settings.vscode);
 
+/**
+ * Load editor config contract from docs, falling back to embedded defaults.
+ *
+ * @returns {object}
+ */
 function loadEditorConfigContract() {
   const contractPath = path.resolve(
     __dirname,
@@ -65,6 +70,13 @@ function loadEditorConfigContract() {
 
 const EDITOR_CONFIG_CONTRACT = loadEditorConfigContract();
 
+/**
+ * Read nested contract value by path with fallback.
+ *
+ * @param {string[]} pathParts
+ * @param {unknown} fallback
+ * @returns {unknown}
+ */
 function readContract(pathParts, fallback) {
   let current = EDITOR_CONFIG_CONTRACT;
   for (const key of pathParts) {
@@ -112,6 +124,12 @@ const REPO_MARKERS = Array.isArray(REPO_MARKERS_RAW)
 const VSCODE_REPO_WALKUP = readContract(['repoRoot', 'vscode', 'walkUpFromWorkspaceFolder'], false) === true;
 const VALID_ENV_SOURCES = new Set(['process', 'settings']);
 
+/**
+ * Normalize env merge order to valid unique sources.
+ *
+ * @param {unknown} order
+ * @returns {string[]}
+ */
 function normalizeEnvMergeOrder(order) {
   const normalized = [];
   if (Array.isArray(order)) {
@@ -133,14 +151,32 @@ const VSCODE_ENV_STRINGIFY_VALUES = readContract(
   DEFAULT_EDITOR_CONFIG_CONTRACT.env.stringifyValues
 ) !== false;
 
+/**
+ * Normalize settings values that are expected to be arrays of strings.
+ *
+ * @param {unknown} value
+ * @returns {string[]}
+ */
 function normalizeStringArray(value) {
   return Array.isArray(value) ? value.map((item) => String(item)) : [];
 }
 
+/**
+ * Return extension-scoped workspace configuration.
+ *
+ * @returns {import('vscode').WorkspaceConfiguration}
+ */
 function getExtensionConfiguration() {
   return vscode.workspace.getConfiguration(VSCODE_SETTINGS.namespace);
 }
 
+/**
+ * Resolve a configured path relative to repo root when not absolute.
+ *
+ * @param {string|null} repoRoot
+ * @param {string} rawPath
+ * @returns {string}
+ */
 function resolveConfigPath(repoRoot, rawPath) {
   if (!rawPath) return '';
   if (path.isAbsolute(rawPath) && fs.existsSync(rawPath)) return rawPath;
@@ -148,10 +184,22 @@ function resolveConfigPath(repoRoot, rawPath) {
   return rawPath;
 }
 
+/**
+ * Check whether one directory matches any repository root marker.
+ *
+ * @param {string} candidatePath
+ * @returns {boolean}
+ */
 function hasRepoMarker(candidatePath) {
   return REPO_MARKERS.some((marker) => fs.existsSync(path.join(candidatePath, marker)));
 }
 
+/**
+ * Walk upward from a start path to find the nearest repository root marker.
+ *
+ * @param {string|null|undefined} startPath
+ * @returns {string|null}
+ */
 function findRepoRoot(startPath) {
   if (!startPath) return null;
   let candidate = path.resolve(startPath);
@@ -164,6 +212,11 @@ function findRepoRoot(startPath) {
   return null;
 }
 
+/**
+ * Resolve repository root for current workspace settings.
+ *
+ * @returns {string|null}
+ */
 function resolveRepoRoot() {
   const folders = vscode.workspace.workspaceFolders;
   if (!folders || !folders.length) return null;
@@ -172,6 +225,13 @@ function resolveRepoRoot() {
   return findRepoRoot(workspacePath) || workspacePath;
 }
 
+/**
+ * Resolve CLI executable + argument prefix from extension settings and repo.
+ *
+ * @param {string|null} repoRoot
+ * @param {import('vscode').WorkspaceConfiguration} config
+ * @returns {{command:string,argsPrefix:string[]}}
+ */
 function resolveCli(repoRoot, config) {
   const configuredPath = String(config.get(VSCODE_SETTINGS.cliPathKey) || '').trim();
   const extraArgs = normalizeStringArray(config.get(VSCODE_SETTINGS.cliArgsKey));
@@ -196,6 +256,14 @@ function resolveCli(repoRoot, config) {
   return { command: CLI_DEFAULT_COMMAND, argsPrefix: extraArgs };
 }
 
+/**
+ * Build search CLI args from extension settings and query input.
+ *
+ * @param {string} query
+ * @param {string|null} repoRoot
+ * @param {import('vscode').WorkspaceConfiguration} config
+ * @returns {string[]}
+ */
 function buildArgs(query, repoRoot, config) {
   const mode = String(config.get(VSCODE_SETTINGS.modeKey) || 'both');
   const backend = String(config.get(VSCODE_SETTINGS.backendKey) || '').trim();
@@ -215,6 +283,12 @@ function buildArgs(query, repoRoot, config) {
   return args;
 }
 
+/**
+ * Build child-process env from configured merge order (`process` + settings).
+ *
+ * @param {import('vscode').WorkspaceConfiguration} config
+ * @returns {Record<string,string>}
+ */
 function buildSpawnEnv(config) {
   const extraEnv = config.get(VSCODE_SETTINGS.envKey);
   const settingsEnv = extraEnv && typeof extraEnv === 'object' && !Array.isArray(extraEnv)
@@ -238,6 +312,11 @@ function buildSpawnEnv(config) {
   return env;
 }
 
+/**
+ * Prompt for query, run CLI search, and open selected result in editor.
+ *
+ * @returns {Promise<void>}
+ */
 async function runSearch() {
   const repoRoot = resolveRepoRoot();
   if (!repoRoot) {
@@ -351,11 +430,22 @@ async function runSearch() {
   );
 }
 
+/**
+ * Extension activation hook: register search command and subscriptions.
+ *
+ * @param {import('vscode').ExtensionContext} context
+ * @returns {void}
+ */
 function activate(context) {
   const command = vscode.commands.registerCommand('pairofcleats.search', runSearch);
   context.subscriptions.push(command);
 }
 
+/**
+ * Extension deactivation hook.
+ *
+ * @returns {void}
+ */
 function deactivate() {}
 
 module.exports = {

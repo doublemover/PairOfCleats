@@ -15,6 +15,14 @@ export const SIGNATURE_VERSION = 2;
 
 const normalizeRegex = (value) => (value instanceof RegExp ? value : (value || null));
 
+/**
+ * Build hashed per-field summary for incremental signature payload.
+ *
+ * @param {object} payload
+ * @param {string|null} [mode]
+ * @param {string|null} [tokenizationKey]
+ * @returns {Record<string,string>}
+ */
 export const buildIncrementalSignatureSummary = (payload, mode = null, tokenizationKey = null) => {
   const resolvedPayload = mode != null
     ? buildIncrementalSignaturePayload(payload, mode, tokenizationKey)
@@ -27,6 +35,14 @@ export const buildIncrementalSignatureSummary = (payload, mode = null, tokenizat
   return summary;
 };
 
+/**
+ * Build full incremental signature payload from runtime + mode settings.
+ *
+ * @param {object} runtime
+ * @param {string} mode
+ * @param {string|null} tokenizationKey
+ * @returns {object}
+ */
 export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey) => {
   const languageOptions = runtime.languageOptions || {};
   const indexingConfig = runtime.indexingConfig || {};
@@ -154,6 +170,13 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
   };
 };
 
+/**
+ * Build tokenization key used in incremental signature inputs.
+ *
+ * @param {object} runtime
+ * @param {string} mode
+ * @returns {string}
+ */
 export const buildTokenizationKey = (runtime, mode) => {
   const commentsConfig = runtime.commentsConfig || {};
   const dictConfig = runtime.dictConfig || {};
@@ -175,6 +198,14 @@ export const buildTokenizationKey = (runtime, mode) => {
   return sha1(stableStringifyForSignature(payload));
 };
 
+/**
+ * Build stable incremental signature hash for current runtime/mode.
+ *
+ * @param {object} runtime
+ * @param {string} mode
+ * @param {string|null} tokenizationKey
+ * @returns {string}
+ */
 export const buildIncrementalSignature = (runtime, mode, tokenizationKey) => {
   const payload = buildIncrementalSignaturePayload(runtime, mode, tokenizationKey);
   return sha1(stableStringifyForSignature(payload));

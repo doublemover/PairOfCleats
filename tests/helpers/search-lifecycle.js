@@ -21,6 +21,23 @@ const normalizeCacheScope = (cacheScope) => {
   return normalized;
 };
 
+/**
+ * Create reusable search test lifecycle helpers for one fixture workspace.
+ *
+ * @param {{
+ *  root?:string,
+ *  tempPrefix?:string,
+ *  tempRoot?:string,
+ *  cacheScope?:'isolated'|'shared',
+ *  cacheName?:string,
+ *  repoDir?:string,
+ *  cacheDir?:string,
+ *  embeddings?:string,
+ *  testConfig?:object,
+ *  extraEnv?:object
+ * }} [options]
+ * @returns {Promise<object>}
+ */
 export const createSearchLifecycle = async ({
   root = process.cwd(),
   tempPrefix = 'pairofcleats-search-',

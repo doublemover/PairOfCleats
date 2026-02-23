@@ -999,6 +999,15 @@ const summarizeArtifactLatencyClasses = (metrics) => {
   };
 };
 
+/**
+ * Build deterministic comparator for tail-worker write candidates.
+ *
+ * Sort order: estimated bytes (desc), explicit priority (desc), lane rank,
+ * enqueue sequence (asc), label (asc).
+ *
+ * @param {string[]} laneOrder
+ * @returns {(left:object,right:object)=>number}
+ */
 const resolveTailWorkerComparator = (laneOrder) => {
   const order = Array.isArray(laneOrder) && laneOrder.length
     ? laneOrder

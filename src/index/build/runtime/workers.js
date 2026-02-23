@@ -13,6 +13,13 @@ const MIN_RUNTIME_WRITE_BUFFER_MB = 64;
 const DEFAULT_HOT_DICTIONARY_MB = 192;
 const DEFAULT_HOT_SYMBOL_MAP_MB = 96;
 
+/**
+ * Parse runtime memory budget in MB with optional minimum bound.
+ *
+ * @param {unknown} value
+ * @param {number} [min]
+ * @returns {number|null}
+ */
 const coerceRuntimeBudgetMb = (value, min = 1) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return null;

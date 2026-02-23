@@ -21,18 +21,41 @@ const graphIndexCache = new Map();
 const GRAPH_ARTIFACT_CACHE_MAX = 2;
 const graphArtifactCache = new Map();
 
+/**
+ * Increment one telemetry counter field.
+ *
+ * @param {object|null|undefined} bucket
+ * @param {string} key
+ * @param {number} [amount=1]
+ * @returns {void}
+ */
 const bumpTelemetry = (bucket, key, amount = 1) => {
   if (!bucket || typeof bucket !== 'object' || !key) return;
   const current = Number.isFinite(bucket[key]) ? bucket[key] : 0;
   bucket[key] = current + amount;
 };
 
+/**
+ * Record telemetry peak value for one metric key.
+ *
+ * @param {object|null|undefined} bucket
+ * @param {string} key
+ * @param {number} value
+ * @returns {void}
+ */
 const recordPeakTelemetry = (bucket, key, value) => {
   if (!bucket || typeof bucket !== 'object' || !key) return;
   const current = Number.isFinite(bucket[key]) ? bucket[key] : 0;
   if (value > current) bucket[key] = value;
 };
 
+/**
+ * Read graph-index cache entry and refresh LRU order on hit.
+ *
+ * @param {string|null} key
+ * @param {object|null} [telemetry]
+ * @returns {object|null}
+ */
 const getCachedGraphIndex = (key, telemetry = null) => {
   if (!key) return null;
   if (!graphIndexCache.has(key)) {
@@ -46,6 +69,14 @@ const getCachedGraphIndex = (key, telemetry = null) => {
   return value;
 };
 
+/**
+ * Insert graph-index cache entry and evict least-recently-used rows.
+ *
+ * @param {string|null} key
+ * @param {object} value
+ * @param {object|null} [telemetry]
+ * @returns {void}
+ */
 const setCachedGraphIndex = (key, value, telemetry = null) => {
   if (!key) return;
   if (graphIndexCache.has(key)) graphIndexCache.delete(key);
@@ -58,6 +89,13 @@ const setCachedGraphIndex = (key, value, telemetry = null) => {
   recordPeakTelemetry(telemetry?.indexCache, 'peakSize', graphIndexCache.size);
 };
 
+/**
+ * Read graph-artifact cache entry and refresh LRU order on hit.
+ *
+ * @param {string|null} key
+ * @param {object|null} [telemetry]
+ * @returns {object|null}
+ */
 const getCachedGraphArtifacts = (key, telemetry = null) => {
   if (!key) return null;
   if (!graphArtifactCache.has(key)) {
@@ -71,6 +109,14 @@ const getCachedGraphArtifacts = (key, telemetry = null) => {
   return value;
 };
 
+/**
+ * Insert graph-artifact cache entry and evict oldest rows past cap.
+ *
+ * @param {string|null} key
+ * @param {object} value
+ * @param {object|null} [telemetry]
+ * @returns {void}
+ */
 const setCachedGraphArtifacts = (key, value, telemetry = null) => {
   if (!key) return;
   if (graphArtifactCache.has(key)) graphArtifactCache.delete(key);
@@ -83,6 +129,12 @@ const setCachedGraphArtifacts = (key, value, telemetry = null) => {
   recordPeakTelemetry(telemetry?.artifactCache, 'peakSize', graphArtifactCache.size);
 };
 
+/**
+ * Normalize graph selection input into a list-or-null shape.
+ *
+ * @param {string|string[]|Set<string>|null} graphs
+ * @returns {string[]|null}
+ */
 const normalizeGraphList = (graphs) => {
   if (!graphs) return null;
   if (graphs instanceof Set) return Array.from(graphs);
@@ -219,6 +271,13 @@ export const buildGraphIndex = ({
   };
 };
 
+/**
+ * Create graph artifact loader with memoized artifact reads and reusable index
+ * cache entries keyed by index signature + graph selection.
+ *
+ * @param {{indexDir:string,strict?:boolean,maxBytes?:number,manifest?:object|null}} [input]
+ * @returns {object}
+ */
 export const createGraphStore = ({
   indexDir,
   strict = true,
@@ -238,6 +297,12 @@ export const createGraphStore = ({
     lastBuild: null
   };
 
+  /**
+   * Estimate byte footprint of CSR typed-array payloads.
+   *
+   * @param {object|null|undefined} csr
+   * @returns {number}
+   */
   const estimateCsrBytes = (csr) => {
     if (!csr || typeof csr !== 'object') return 0;
     let total = 0;
@@ -252,6 +317,12 @@ export const createGraphStore = ({
     return total;
   };
 
+  /**
+   * Extract string node ids from graph node tables.
+   *
+   * @param {object|null|undefined} graph
+   * @returns {string[]}
+   */
   const resolveGraphIds = (graph) => {
     const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
     const ids = [];
@@ -262,6 +333,12 @@ export const createGraphStore = ({
     return ids;
   };
 
+  /**
+   * Sort and deduplicate id list using stable shared comparator.
+   *
+   * @param {string[]} ids
+   * @returns {string[]}
+   */
   const sortedUnique = (ids) => {
     const ordered = ids.slice().sort(compareStrings);
     const out = [];
@@ -274,6 +351,13 @@ export const createGraphStore = ({
     return out;
   };
 
+  /**
+   * Validate CSR graph node ordering against canonical graph relation nodes.
+   *
+   * @param {object|null|undefined} csr
+   * @param {object|null|undefined} graphRelations
+   * @returns {{ok:boolean,reason?:string}}
+   */
   const validateCsrNodeOrdering = (csr, graphRelations) => {
     if (!csr || typeof csr !== 'object') return { ok: true };
     if (!graphRelations || typeof graphRelations !== 'object') return { ok: true };
@@ -292,6 +376,12 @@ export const createGraphStore = ({
     return { ok: true };
   };
 
+  /**
+   * Resolve artifact presence and memoize result in-request.
+   *
+   * @param {string} name
+   * @returns {object}
+   */
   const resolvePresence = (name) => {
     if (presenceCache.has(name)) return presenceCache.get(name);
     const presence = resolveArtifactPresence(indexDir, name, {
@@ -303,11 +393,24 @@ export const createGraphStore = ({
     return presence;
   };
 
+  /**
+   * Check whether one artifact is present and loadable.
+   *
+   * @param {string} name
+   * @returns {boolean}
+   */
   const hasArtifact = (name) => {
     const presence = resolvePresence(name);
     return presence && presence.format !== 'missing' && !presence.error;
   };
 
+  /**
+   * Memoize one async artifact loader by artifact name.
+   *
+   * @param {string} name
+   * @param {() => Promise<unknown>} loader
+   * @returns {Promise<unknown>}
+   */
   const loadOnce = async (name, loader) => {
     if (artifactCache.has(name)) return artifactCache.get(name);
     const promise = Promise.resolve()
@@ -359,6 +462,18 @@ export const createGraphStore = ({
     return rows;
   });
 
+  /**
+   * Load or build cached graph index for selected graph artifacts.
+   *
+   * @param {{
+   *  repoRoot?:string|null,
+   *  cacheKey?:string|null,
+   *  indexSignature?:string|null,
+   *  graphs?:string[]|Set<string>|string|null,
+   *  includeCsr?:boolean
+   * }} [options]
+   * @returns {Promise<object>}
+   */
   const loadGraphIndex = async ({
     repoRoot = null,
     cacheKey = null,
@@ -397,6 +512,12 @@ export const createGraphStore = ({
         }
       }
 
+      /**
+       * Normalize persisted CSR artifact shape into buildGraphIndex input shape.
+       *
+       * @param {object|null|undefined} csr
+       * @returns {object|null}
+       */
       const normalizeGraphCsrForIndex = (csr) => {
         if (!csr || typeof csr !== 'object') return null;
         const graphsObj = csr.graphs && typeof csr.graphs === 'object' ? csr.graphs : null;

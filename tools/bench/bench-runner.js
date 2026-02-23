@@ -101,6 +101,12 @@ const substituteTokens = (value, tokens) => {
   return out;
 };
 
+/**
+ * Parse `key=value` metric pairs from a bench output line.
+ *
+ * @param {string} line
+ * @returns {Record<string, number|string>}
+ */
 const parseKeyValueMetrics = (line) => {
   const metrics = {};
   if (typeof line !== 'string') return metrics;
@@ -328,6 +334,12 @@ const resolveStageDurations = (json) => {
   return fromObject(json?.stageTelemetry || {});
 };
 
+/**
+ * Build stage-overlap diagnostics row from parsed bench JSON payload.
+ *
+ * @param {{json:any,script:string,durationMs:number}} input
+ * @returns {{script:string,totalMs:number,parseMs:number|null,inferMs:number|null,writeMs:number|null,overlapMs:number,overlapPct:number}|null}
+ */
 const resolveStageOverlapRow = ({ json, script, durationMs }) => {
   const totalMs = toFiniteNumber(json?.timings?.totalMs ?? json?.timings?.durationMs ?? durationMs);
   const durations = resolveStageDurations(json);
@@ -401,6 +413,11 @@ const runOne = ({ script, args, timeoutMs, tokens }) => {
   };
 };
 
+/**
+ * Run selected benchmark suite/scripts and emit summary report artifact.
+ *
+ * @returns {Promise<void>}
+ */
 const main = async () => {
   const envConfig = getEnvConfig(process.env);
   const argv = parseArgs();

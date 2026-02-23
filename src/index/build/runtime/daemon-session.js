@@ -19,23 +19,64 @@ const DEFAULT_DAEMON_HEALTH = Object.freeze({
 
 const daemonSessions = new Map();
 
+/**
+ * Return current timestamp in ISO-8601 format.
+ *
+ * @returns {string}
+ */
 const nowIso = () => new Date().toISOString();
+/**
+ * Convert megabytes to bytes with non-negative clamping.
+ *
+ * @param {number} mb
+ * @returns {number}
+ */
 const toBytes = (mb) => Math.max(0, Math.floor(Number(mb) * MB));
+
+/**
+ * Parse positive integer with fallback.
+ *
+ * @param {unknown} value
+ * @param {number} fallback
+ * @returns {number}
+ */
 const toPositiveInt = (value, fallback) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) return fallback;
   return Math.max(1, Math.floor(numeric));
 };
+
+/**
+ * Parse positive number with fallback.
+ *
+ * @param {unknown} value
+ * @param {number} fallback
+ * @returns {number}
+ */
 const toPositiveNumber = (value, fallback) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) return fallback;
   return numeric;
 };
+
+/**
+ * Parse non-negative integer with fallback.
+ *
+ * @param {unknown} value
+ * @param {number} [fallback]
+ * @returns {number}
+ */
 const toNonNegativeInt = (value, fallback = 0) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric < 0) return Math.max(0, Math.floor(fallback));
   return Math.max(0, Math.floor(numeric));
 };
+
+/**
+ * Read current process heap usage safely.
+ *
+ * @returns {number}
+ */
 const safeHeapUsedBytes = () => {
   try {
     const used = Number(process.memoryUsage?.().heapUsed);
@@ -46,6 +87,12 @@ const safeHeapUsedBytes = () => {
   }
 };
 
+/**
+ * Normalize repository root to a stable case-folded token on Windows.
+ *
+ * @param {unknown} value
+ * @returns {string}
+ */
 const normalizeRepoRoot = (value) => {
   if (typeof value !== 'string') return '';
   const trimmed = value.trim();
@@ -54,6 +101,12 @@ const normalizeRepoRoot = (value) => {
   return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
 };
 
+/**
+ * Build deterministic repo scope token used in daemon session keys.
+ *
+ * @param {string} repoRoot
+ * @returns {string}
+ */
 const resolveRepoScopeToken = (repoRoot) => {
   const normalizedRoot = normalizeRepoRoot(repoRoot);
   if (!normalizedRoot) return 'repo-default';
@@ -61,6 +114,12 @@ const resolveRepoScopeToken = (repoRoot) => {
   return `repo-${digest}`;
 };
 
+/**
+ * Normalize daemon session key from explicit key or cache/profile/repo tuple.
+ *
+ * @param {{sessionKey?:string|null,cacheRoot?:string|null,profile?:string,repoRoot?:string|null}} [input]
+ * @returns {string}
+ */
 const normalizeSessionKey = ({ sessionKey, cacheRoot, profile = 'default', repoRoot = null } = {}) => {
   const explicit = typeof sessionKey === 'string' ? sessionKey.trim() : '';
   if (explicit) return explicit;
@@ -70,6 +129,11 @@ const normalizeSessionKey = ({ sessionKey, cacheRoot, profile = 'default', repoR
   return `${safeCache}::${profile}::${repoScope}`;
 };
 
+/**
+ * Enforce global session LRU size cap.
+ *
+ * @returns {void}
+ */
 const trimDaemonSessions = () => {
   while (daemonSessions.size > DAEMON_SESSION_MAX_ENTRIES) {
     const oldest = daemonSessions.entries().next().value;
@@ -78,6 +142,13 @@ const trimDaemonSessions = () => {
   }
 };
 
+/**
+ * Enforce Map LRU capacity by deleting oldest entries.
+ *
+ * @param {Map<unknown, unknown>} cache
+ * @param {number} maxEntries
+ * @returns {void}
+ */
 const trimMapLru = (cache, maxEntries) => {
   if (!(cache instanceof Map)) return;
   const capped = toPositiveInt(maxEntries, 1);
@@ -88,6 +159,13 @@ const trimMapLru = (cache, maxEntries) => {
   }
 };
 
+/**
+ * Enforce Set LRU capacity by deleting oldest entries.
+ *
+ * @param {Set<unknown>} cache
+ * @param {number} maxEntries
+ * @returns {void}
+ */
 const trimSetLru = (cache, maxEntries) => {
   if (!(cache instanceof Set)) return;
   const capped = toPositiveInt(maxEntries, 1);
@@ -98,6 +176,13 @@ const trimSetLru = (cache, maxEntries) => {
   }
 };
 
+/**
+ * Normalize daemon health thresholds with compatibility aliases.
+ *
+ * @param {object|null} [health]
+ * @param {object} [fallback]
+ * @returns {object}
+ */
 const normalizeDaemonHealthConfig = (health = null, fallback = DEFAULT_DAEMON_HEALTH) => {
   const raw = health && typeof health === 'object' ? health : {};
   return {
@@ -121,6 +206,13 @@ const normalizeDaemonHealthConfig = (health = null, fallback = DEFAULT_DAEMON_HE
   };
 };
 
+/**
+ * Ensure a session has a normalized health config attached.
+ *
+ * @param {object|null} session
+ * @param {object} [fallback]
+ * @returns {object}
+ */
 const ensureHealthConfig = (session, fallback = DEFAULT_DAEMON_HEALTH) => {
   if (!session || typeof session !== 'object') {
     return normalizeDaemonHealthConfig(null, fallback);
@@ -131,6 +223,12 @@ const ensureHealthConfig = (session, fallback = DEFAULT_DAEMON_HEALTH) => {
   return session.health;
 };
 
+/**
+ * Clear all in-memory warm caches tracked by a daemon session.
+ *
+ * @param {object|null} session
+ * @returns {void}
+ */
 const clearRuntimeDaemonWarmCaches = (session) => {
   if (!session || typeof session !== 'object') return;
   getDaemonDictionaryCache(session)?.clear();
@@ -138,6 +236,13 @@ const clearRuntimeDaemonWarmCaches = (session) => {
   getDaemonEmbeddingWarmSet(session)?.clear();
 };
 
+/**
+ * Recycle daemon session generation and reset warm-cache state.
+ *
+ * @param {object|null} session
+ * @param {string[]} [reasons]
+ * @returns {{recycled:boolean,reasons:string[],generation?:number,recycleCount?:number,heapUsedBytes?:number}}
+ */
 const recycleRuntimeDaemonSession = (session, reasons = []) => {
   if (!session || typeof session !== 'object') {
     return {
@@ -165,6 +270,13 @@ const recycleRuntimeDaemonSession = (session, reasons = []) => {
   };
 };
 
+/**
+ * Probe daemon session health and recycle generation when thresholds are hit.
+ *
+ * @param {object|null} session
+ * @param {{force?:boolean}} [options]
+ * @returns {{recycled:boolean,reasons:string[],generation:number,recycleCount?:number,heapUsedBytes?:number}}
+ */
 export const probeRuntimeDaemonSessionHealth = (session, { force = false } = {}) => {
   if (!session || typeof session !== 'object') {
     return {
@@ -226,6 +338,20 @@ export const probeRuntimeDaemonSessionHealth = (session, { force = false } = {})
   return recycleRuntimeDaemonSession(session, reasons);
 };
 
+/**
+ * Acquire (or create) daemon session scoped by cache/profile/repo tuple.
+ *
+ * @param {{
+ *  enabled?:boolean,
+ *  sessionKey?:string|null,
+ *  cacheRoot?:string|null,
+ *  repoRoot?:string|null,
+ *  deterministic?:boolean,
+ *  profile?:string,
+ *  health?:object|null
+ * }} [options]
+ * @returns {object|null}
+ */
 export const acquireRuntimeDaemonSession = ({
   enabled = false,
   sessionKey = null,
@@ -269,6 +395,13 @@ export const acquireRuntimeDaemonSession = ({
   return session;
 };
 
+/**
+ * Create per-job context snapshot and advance daemon session counters.
+ *
+ * @param {object|null} session
+ * @param {{root?:string|null,buildId?:string|null}} [options]
+ * @returns {object|null}
+ */
 export const createRuntimeDaemonJobContext = (session, { root = null, buildId = null } = {}) => {
   if (!session) return null;
   const healthResult = probeRuntimeDaemonSessionHealth(session);
@@ -289,6 +422,12 @@ export const createRuntimeDaemonJobContext = (session, { root = null, buildId = 
   };
 };
 
+/**
+ * Get dictionary LRU cache attached to daemon session.
+ *
+ * @param {object|null} session
+ * @returns {Map<string, unknown>|null}
+ */
 export const getDaemonDictionaryCache = (session) => {
   if (!session) return null;
   if (!(session.dictCache instanceof Map)) {
@@ -299,6 +438,12 @@ export const getDaemonDictionaryCache = (session) => {
   return session.dictCache;
 };
 
+/**
+ * Get tree-sitter preload LRU cache attached to daemon session.
+ *
+ * @param {object|null} session
+ * @returns {Map<string, unknown>|null}
+ */
 export const getDaemonTreeSitterCache = (session) => {
   if (!session) return null;
   if (!(session.treeSitterPreloadCache instanceof Map)) {
@@ -309,6 +454,12 @@ export const getDaemonTreeSitterCache = (session) => {
   return session.treeSitterPreloadCache;
 };
 
+/**
+ * Get embedding warm-key LRU set attached to daemon session.
+ *
+ * @param {object|null} session
+ * @returns {Set<string>|null}
+ */
 export const getDaemonEmbeddingWarmSet = (session) => {
   if (!session) return null;
   if (!(session.embeddingWarmKeys instanceof Set)) {
@@ -319,6 +470,14 @@ export const getDaemonEmbeddingWarmSet = (session) => {
   return session.embeddingWarmKeys;
 };
 
+/**
+ * Insert dictionary cache entry and refresh LRU ordering.
+ *
+ * @param {object|null} session
+ * @param {string} signature
+ * @param {unknown} payload
+ * @returns {void}
+ */
 export const setDaemonDictionaryCacheEntry = (session, signature, payload) => {
   const dictCache = getDaemonDictionaryCache(session);
   if (!dictCache || !signature || !payload) return;
@@ -327,6 +486,13 @@ export const setDaemonDictionaryCacheEntry = (session, signature, payload) => {
   trimMapLru(dictCache, ensureHealthConfig(session).maxDictionaryEntries);
 };
 
+/**
+ * Lookup dictionary cache entry and refresh LRU ordering on hit.
+ *
+ * @param {object|null} session
+ * @param {string} signature
+ * @returns {unknown|null}
+ */
 export const getDaemonDictionaryCacheEntry = (session, signature) => {
   const dictCache = getDaemonDictionaryCache(session);
   if (!dictCache || !signature) return null;
@@ -337,6 +503,13 @@ export const getDaemonDictionaryCacheEntry = (session, signature) => {
   return cached;
 };
 
+/**
+ * Lookup tree-sitter preload cache entry and refresh LRU ordering on hit.
+ *
+ * @param {object|null} session
+ * @param {string} key
+ * @returns {unknown|null}
+ */
 export const getDaemonTreeSitterCacheEntry = (session, key) => {
   const treeCache = getDaemonTreeSitterCache(session);
   if (!treeCache || !key) return null;
@@ -347,6 +520,14 @@ export const getDaemonTreeSitterCacheEntry = (session, key) => {
   return cached;
 };
 
+/**
+ * Insert tree-sitter preload cache entry and refresh LRU ordering.
+ *
+ * @param {object|null} session
+ * @param {string} key
+ * @param {unknown} payload
+ * @returns {void}
+ */
 export const setDaemonTreeSitterCacheEntry = (session, key, payload) => {
   const treeCache = getDaemonTreeSitterCache(session);
   if (!treeCache || !key) return;
@@ -355,6 +536,13 @@ export const setDaemonTreeSitterCacheEntry = (session, key, payload) => {
   trimMapLru(treeCache, ensureHealthConfig(session).maxTreeSitterEntries);
 };
 
+/**
+ * Probe embedding warm set and refresh LRU ordering on hit.
+ *
+ * @param {object|null} session
+ * @param {string} key
+ * @returns {boolean}
+ */
 export const hasDaemonEmbeddingWarmKey = (session, key) => {
   const warmSet = getDaemonEmbeddingWarmSet(session);
   if (!warmSet || !key) return false;
@@ -364,6 +552,13 @@ export const hasDaemonEmbeddingWarmKey = (session, key) => {
   return true;
 };
 
+/**
+ * Insert embedding warm key and enforce warm-set capacity.
+ *
+ * @param {object|null} session
+ * @param {string} key
+ * @returns {void}
+ */
 export const addDaemonEmbeddingWarmKey = (session, key) => {
   const warmSet = getDaemonEmbeddingWarmSet(session);
   if (!warmSet || !key) return;

@@ -4,18 +4,38 @@ import path from 'node:path';
 const SCHEDULER_AUTOTUNE_PROFILE_VERSION = 1;
 const PROFILE_FILE_NAME = 'scheduler-autotune.json';
 
+/**
+ * Clamp optional numeric input to positive integer fallback.
+ *
+ * @param {unknown} value
+ * @param {number|null} fallback
+ * @returns {number|null}
+ */
 const clampPositiveInt = (value, fallback) => {
   const parsed = Math.floor(Number(value));
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return parsed;
 };
 
+/**
+ * Clamp optional numeric input into inclusive [0,1] range.
+ *
+ * @param {unknown} value
+ * @param {number} fallback
+ * @returns {number}
+ */
 const clampUnit = (value, fallback) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.max(0, Math.min(1, parsed));
 };
 
+/**
+ * Resolve scheduler autotune profile path under repo cache metrics directory.
+ *
+ * @param {string} repoCacheRoot
+ * @returns {string|null}
+ */
 const resolveProfilePath = (repoCacheRoot) => {
   if (typeof repoCacheRoot !== 'string' || !repoCacheRoot.trim()) return null;
   return path.join(repoCacheRoot, 'metrics', PROFILE_FILE_NAME);
@@ -25,6 +45,12 @@ const isObject = (value) => (
   value && typeof value === 'object' && !Array.isArray(value)
 );
 
+/**
+ * Normalize persisted autotune profile shape and discard invalid payloads.
+ *
+ * @param {unknown} value
+ * @returns {object|null}
+ */
 const normalizeProfile = (value) => {
   if (!isObject(value)) return null;
   if (Number(value.version) !== SCHEDULER_AUTOTUNE_PROFILE_VERSION) return null;
@@ -46,6 +72,12 @@ const normalizeProfile = (value) => {
   };
 };
 
+/**
+ * Load scheduler autotune recommendation profile from repo cache.
+ *
+ * @param {{repoCacheRoot?:string,log?:(line:string)=>void}} [input]
+ * @returns {Promise<object|null>}
+ */
 export async function loadSchedulerAutoTuneProfile({ repoCacheRoot, log = null } = {}) {
   const profilePath = resolveProfilePath(repoCacheRoot);
   if (!profilePath) return null;
@@ -62,6 +94,12 @@ export async function loadSchedulerAutoTuneProfile({ repoCacheRoot, log = null }
   }
 }
 
+/**
+ * Derive next scheduler token recommendations from observed queue/utilization.
+ *
+ * @param {{schedulerStats?:object,schedulerConfig?:object,buildId?:string|null}} [input]
+ * @returns {object|null}
+ */
 export const deriveSchedulerAutoTuneRecommendation = ({
   schedulerStats,
   schedulerConfig,
@@ -130,6 +168,18 @@ export const deriveSchedulerAutoTuneRecommendation = ({
   };
 };
 
+/**
+ * Persist scheduler autotune recommendation for future startup overrides.
+ *
+ * @param {{
+ *   repoCacheRoot?:string,
+ *   schedulerStats?:object,
+ *   schedulerConfig?:object,
+ *   buildId?:string|null,
+ *   log?:(line:string)=>void
+ * }} [input]
+ * @returns {Promise<object|null>}
+ */
 export async function writeSchedulerAutoTuneProfile({
   repoCacheRoot,
   schedulerStats,

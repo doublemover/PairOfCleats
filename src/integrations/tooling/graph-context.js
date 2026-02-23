@@ -13,6 +13,15 @@ import { resolveIndexDir } from '../../retrieval/cli-index.js';
 import { prepareGraphIndex, prepareGraphInputs } from './graph-helpers.js';
 import { loadUserConfig, resolveRepoRoot } from '../../../tools/shared/dict-utils.js';
 
+/**
+ * CLI entrypoint for graph-neighborhood context pack generation.
+ *
+ * Validates graph traversal arguments, applies graph filter/cap overrides, and
+ * emits a schema-validated `GraphContextPack` payload.
+ *
+ * @param {string[]} [rawArgs]
+ * @returns {Promise<{ok:boolean,code?:string,payload?:object,message?:string}>}
+ */
 export async function runGraphContextCli(rawArgs = process.argv.slice(2)) {
   const cli = createCli({
     scriptName: 'graph-context',

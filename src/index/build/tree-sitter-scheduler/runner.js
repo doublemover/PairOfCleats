@@ -38,8 +38,21 @@ const MAX_SCHEDULER_TASK_TIMEOUT_MS = 30 * 60 * 1000;
 const require = createRequire(import.meta.url);
 const packageVersionCache = new Map();
 
+/**
+ * Sleep helper used for bounded retry backoff while polling scheduler indexes.
+ *
+ * @param {number} ms
+ * @returns {Promise<void>}
+ */
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * Sanitize a value so it is safe to embed in cross-platform filenames.
+ *
+ * @param {unknown} value
+ * @param {string} [fallback]
+ * @returns {string}
+ */
 const sanitizePathToken = (value, fallback = 'unknown') => {
   const raw = value == null ? '' : String(value);
   const trimmed = raw.trim();
@@ -48,6 +61,12 @@ const sanitizePathToken = (value, fallback = 'unknown') => {
   return cleaned || fallback;
 };
 
+/**
+ * Resolve package version from installed package metadata with memoization.
+ *
+ * @param {string} packageName
+ * @returns {string|null}
+ */
 const readPackageVersion = (packageName) => {
   if (typeof packageName !== 'string' || !packageName.trim()) return null;
   const normalized = packageName.trim();
@@ -67,6 +86,12 @@ const readPackageVersion = (packageName) => {
   return version;
 };
 
+/**
+ * Parse structured crash-event JSON payloads emitted by scheduler subprocesses.
+ *
+ * @param {Error & {result?:{stderr?:string}}} error
+ * @returns {object[]}
+ */
 const parseSubprocessCrashEvents = (error) => {
   const stderr = String(error?.result?.stderr || '');
   if (!stderr.trim()) return [];
@@ -91,11 +116,24 @@ const parseSubprocessCrashEvents = (error) => {
   return out;
 };
 
+/**
+ * Split text into trimmed non-empty lines.
+ *
+ * @param {unknown} value
+ * @returns {string[]}
+ */
 const splitNonEmptyLines = (value) => String(value || '')
   .split(/\r?\n/)
   .map((line) => line.trim())
   .filter(Boolean);
 
+/**
+ * Return the trailing N non-empty lines from subprocess output.
+ *
+ * @param {unknown} value
+ * @param {number} [maxLines]
+ * @returns {string[]}
+ */
 const tailLines = (value, maxLines = SUBPROCESS_OUTPUT_TAIL_LINES) => {
   const lines = splitNonEmptyLines(value);
   if (!lines.length) return [];
@@ -104,6 +142,12 @@ const tailLines = (value, maxLines = SUBPROCESS_OUTPUT_TAIL_LINES) => {
   return lines.slice(lines.length - maxLines);
 };
 
+/**
+ * Identify fatal child exits that indicate a native parser crash path.
+ *
+ * @param {{exitCode?:number,signal?:string|null}} input
+ * @returns {boolean}
+ */
 const isSubprocessCrashExit = ({ exitCode, signal }) => {
   if (typeof signal === 'string' && signal) return true;
   if (!Number.isFinite(exitCode)) return false;
@@ -112,6 +156,12 @@ const isSubprocessCrashExit = ({ exitCode, signal }) => {
   return exitCode >= 0xC0000000;
 };
 
+/**
+ * Infer likely failed grammar keys by reconciling start/done lifecycle logs.
+ *
+ * @param {{grammarKeysForTask?:string[],stdout?:string,stderr?:string}} input
+ * @returns {string[]}
+ */
 const inferFailedGrammarKeysFromSubprocessOutput = ({ grammarKeysForTask, stdout = '', stderr = '' }) => {
   const keys = Array.isArray(grammarKeysForTask)
     ? grammarKeysForTask.filter((key) => typeof key === 'string' && key)
@@ -145,6 +195,12 @@ const inferFailedGrammarKeysFromSubprocessOutput = ({ grammarKeysForTask, stdout
   return [keys[keys.length - 1]];
 };
 
+/**
+ * Build parser metadata recorded in crash forensics and crash logs.
+ *
+ * @param {string|null|undefined} languageId
+ * @returns {object}
+ */
 const resolveParserMetadata = (languageId) => {
   const normalizedLanguage = typeof languageId === 'string' && languageId
     ? languageId
@@ -163,12 +219,24 @@ const resolveParserMetadata = (languageId) => {
   };
 };
 
+/**
+ * Resolve representative failed job sample for one grammar group.
+ *
+ * @param {object|null|undefined} group
+ * @returns {object|null}
+ */
 const resolveFirstFailedJob = (group) => {
   const jobs = Array.isArray(group?.jobs) ? group.jobs : [];
   if (!jobs.length) return null;
   return jobs[0];
 };
 
+/**
+ * Normalize file fingerprint fields for crash signature generation.
+ *
+ * @param {object|null|undefined} job
+ * @returns {{hash:string|null,size:number|null,mtimeMs:number|null}}
+ */
 const resolveFileFingerprint = (job) => {
   const signature = job?.fileVersionSignature && typeof job.fileVersionSignature === 'object'
     ? job.fileVersionSignature
@@ -183,6 +251,19 @@ const resolveFileFingerprint = (job) => {
   };
 };
 
+/**
+ * Build deterministic crash signature from parser/runtime/file dimensions.
+ *
+ * @param {{
+ *  parserMetadata?:object,
+ *  grammarKey?:string,
+ *  fileFingerprint?:object,
+ *  stage?:string,
+ *  exitCode?:number,
+ *  signal?:string|null
+ * }} input
+ * @returns {string}
+ */
 const buildCrashSignature = ({
   parserMetadata,
   grammarKey,
@@ -208,6 +289,12 @@ const buildCrashSignature = ({
   return `tscrash:${sha1(payload).slice(0, 20)}`;
 };
 
+/**
+ * Resolve durable crash bundle path under repository cache roots.
+ *
+ * @param {{runtime?:object,outDir:string}} input
+ * @returns {string|null}
+ */
 const resolveDurableCrashBundlePath = ({ runtime, outDir }) => {
   const repoCacheRoot = typeof runtime?.repoCacheRoot === 'string' && runtime.repoCacheRoot
     ? path.resolve(runtime.repoCacheRoot)
@@ -220,6 +307,18 @@ const resolveDurableCrashBundlePath = ({ runtime, outDir }) => {
   return path.join(durableDir, `${repoToken}-${buildToken}-${CRASH_BUNDLE_FILE}`);
 };
 
+/**
+ * Materialize immutable bundle snapshot from tracker state.
+ *
+ * @param {{
+ *  runtime?:object,
+ *  outDir:string,
+ *  eventsBySignature:Map<string,object>,
+ *  failedGrammarKeys:Set<string>,
+ *  degradedVirtualPaths:Set<string>
+ * }} input
+ * @returns {object}
+ */
 const makeBundleSnapshot = ({
   runtime,
   outDir,
@@ -239,6 +338,27 @@ const makeBundleSnapshot = ({
     .sort((a, b) => String(a.signature).localeCompare(String(b.signature)))
 });
 
+/**
+ * Create crash tracker used to persist and summarize scheduler crash forensics.
+ *
+ * @param {{
+ *  runtime:object,
+ *  outDir:string,
+ *  paths:object,
+ *  groupByGrammarKey:Map<string,object>,
+ *  crashLogger?:object|null,
+ *  log?:(line:string)=>void|null
+ * }} input
+ * @returns {{
+ *  recordFailure: (input:object)=>Promise<void>,
+ *  getFailedGrammarKeys: ()=>Set<string>,
+ *  getDegradedVirtualPaths: ()=>Set<string>,
+ *  getBundlePath: ()=>string,
+ *  getDurableBundlePath: ()=>string|null,
+ *  summarize: ()=>object,
+ *  waitForPersistence: ()=>Promise<void>
+ * }}
+ */
 const createSchedulerCrashTracker = ({
   runtime,
   outDir,
@@ -254,6 +374,12 @@ const createSchedulerCrashTracker = ({
   const durableBundlePath = resolveDurableCrashBundlePath({ runtime, outDir });
   let persistSerial = Promise.resolve();
 
+  /**
+   * Serialize crash bundle persistence to keep on-disk snapshots deterministic.
+   *
+   * @param {object} bundle
+   * @returns {Promise<void>}
+   */
   const enqueuePersist = (bundle) => {
     persistSerial = persistSerial.then(async () => {
       await fs.mkdir(path.dirname(localBundlePath), { recursive: true });
@@ -280,6 +406,15 @@ const createSchedulerCrashTracker = ({
     return persistSerial;
   };
 
+  /**
+   * Mark degraded virtual paths for one grammar failure event.
+   *
+   * Prefers explicit crash-event virtual paths, then falls back to first failed
+   * job path, then first group job path to keep degraded-mode deterministic.
+   *
+   * @param {{grammarKey:string,firstJob?:object|null,subprocessCrashEvents?:object[]}} input
+   * @returns {void}
+   */
   const addDegradedVirtualPathsForFailure = ({ grammarKey, firstJob, subprocessCrashEvents }) => {
     const failedVirtualPaths = new Set();
     const crashEvents = Array.isArray(subprocessCrashEvents) ? subprocessCrashEvents : [];
@@ -307,6 +442,20 @@ const createSchedulerCrashTracker = ({
     }
   };
 
+  /**
+   * Record one scheduler subprocess failure into crash diagnostics artifacts.
+   *
+   * @param {{
+   *  grammarKey:string,
+   *  stage?:string,
+   *  error:Error & {result?:object},
+   *  taskId?:string|null,
+   *  markFailed?:boolean,
+   *  taskGrammarKeys?:string[]|null,
+   *  inferredFailedGrammarKeys?:string[]|null
+   * }} input
+   * @returns {Promise<void>}
+   */
   const recordFailure = async ({
     grammarKey,
     stage,
@@ -452,6 +601,12 @@ const createSchedulerCrashTracker = ({
   };
 };
 
+/**
+ * Resolve scheduler subprocess fanout bounded by grammar cardinality.
+ *
+ * @param {{schedulerConfig?:object,grammarCount:number}} input
+ * @returns {number}
+ */
 const resolveExecConcurrency = ({ schedulerConfig, grammarCount }) => {
   if (!Number.isFinite(grammarCount) || grammarCount <= 1) return 1;
   const configured = Number(
@@ -497,6 +652,17 @@ const resolveExecutionOrder = (plan = {}) => {
   );
 };
 
+/**
+ * Choose lane count for a base grammar warm pool.
+ *
+ * @param {{
+ *  schedulerConfig?:object,
+ *  baseGrammarKey:string,
+ *  keyCount:number,
+ *  execConcurrency:number
+ * }} input
+ * @returns {number}
+ */
 const resolveWarmPoolLaneCount = ({
   schedulerConfig,
   baseGrammarKey,
@@ -536,6 +702,13 @@ const resolveWarmPoolLaneCount = ({
   return Math.max(1, Math.min(keyCount, byConcurrency, heuristic));
 };
 
+/**
+ * Clamp scheduler task timeout to a safe operating band.
+ *
+ * @param {unknown} value
+ * @param {unknown} [maxValue]
+ * @returns {number}
+ */
 const clampSchedulerTaskTimeoutMs = (value, maxValue = MAX_SCHEDULER_TASK_TIMEOUT_MS) => {
   const parsed = Number(value);
   const resolvedMax = Number.isFinite(Number(maxValue)) && Number(maxValue) >= MIN_SCHEDULER_TASK_TIMEOUT_MS
@@ -548,6 +721,16 @@ const clampSchedulerTaskTimeoutMs = (value, maxValue = MAX_SCHEDULER_TASK_TIMEOU
   return Math.max(MIN_SCHEDULER_TASK_TIMEOUT_MS, Math.min(resolvedMax, normalized));
 };
 
+/**
+ * Resolve per-subprocess timeout using explicit override or workload heuristic.
+ *
+ * @param {{
+ *  schedulerConfig?:object,
+ *  task?:{grammarKeys?:string[]},
+ *  groupByGrammarKey?:Map<string,object>
+ * }} input
+ * @returns {number}
+ */
 const resolveSchedulerTaskTimeoutMs = ({
   schedulerConfig,
   task,
@@ -665,6 +848,12 @@ const buildWarmPoolTasks = ({
   return tasks;
 };
 
+/**
+ * Load subprocess profile rows and eagerly remove profile artifact.
+ *
+ * @param {string|null|undefined} profilePath
+ * @returns {Promise<object[]>}
+ */
 const loadSubprocessProfile = async (profilePath) => {
   if (!profilePath) return [];
   try {
@@ -710,6 +899,12 @@ const createLineBuffer = (onLine) => {
   };
 };
 
+/**
+ * Aggregate planned segment metadata grouped by container path.
+ *
+ * @param {Array<object>} groups
+ * @returns {Map<string, Array<object>>}
+ */
 const buildPlannedSegmentsByContainer = (groups) => {
   const byContainer = new Map();
   const seen = new Map();
@@ -742,6 +937,12 @@ const buildPlannedSegmentsByContainer = (groups) => {
   return byContainer;
 };
 
+/**
+ * Build the set of language ids participating in scheduled parsing.
+ *
+ * @param {Array<object>} groups
+ * @returns {Set<string>}
+ */
 const buildScheduledLanguageSet = (groups) => {
   const scheduled = new Set();
   const entries = Array.isArray(groups) ? groups : [];
@@ -755,6 +956,13 @@ const buildScheduledLanguageSet = (groups) => {
   return scheduled;
 };
 
+/**
+ * Parse and validate newline-delimited scheduler index rows.
+ *
+ * @param {string} text
+ * @param {string} indexPath
+ * @returns {Map<string, object>}
+ */
 const parseIndexRows = (text, indexPath) => {
   const rows = new Map();
   let invalidRows = 0;
@@ -811,6 +1019,12 @@ const parseIndexRows = (text, indexPath) => {
   return rows;
 };
 
+/**
+ * Read scheduler index rows with bounded retry for transient writer races.
+ *
+ * @param {{indexPath:string,abortSignal?:AbortSignal|null}} input
+ * @returns {Promise<Map<string, object>>}
+ */
 const readIndexRowsWithRetry = async ({ indexPath, abortSignal = null }) => {
   let lastError = null;
   for (let attempt = 0; attempt < INDEX_LOAD_RETRY_ATTEMPTS; attempt += 1) {
@@ -830,6 +1044,12 @@ const readIndexRowsWithRetry = async ({ indexPath, abortSignal = null }) => {
   throw lastError || new Error(`[tree-sitter:schedule] failed to load index rows: ${indexPath}`);
 };
 
+/**
+ * Load and merge per-grammar scheduler index rows into a virtual-path map.
+ *
+ * @param {{grammarKeys:string[],paths:object,abortSignal?:AbortSignal|null}} input
+ * @returns {Promise<Map<string, object>>}
+ */
 const loadIndexEntries = async ({ grammarKeys, paths, abortSignal = null }) => {
   throwIfAborted(abortSignal);
   const index = new Map();

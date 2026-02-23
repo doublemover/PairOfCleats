@@ -86,6 +86,18 @@ export async function saveQueue(dirPath, queue, queueName = null) {
   await atomicWriteJson(queuePath, queue, { spaces: 2 });
 }
 
+/**
+ * Enqueue one job payload after queue-capacity checks and path normalization.
+ *
+ * The returned job includes resolved log/report file paths and normalized retry
+ * policy fields that downstream workers rely on.
+ *
+ * @param {string} dirPath
+ * @param {object} job
+ * @param {number|null} [maxQueued=null]
+ * @param {string|null} [queueName=null]
+ * @returns {Promise<{ok:boolean,job?:object,message?:string}>}
+ */
 export async function enqueueJob(dirPath, job, maxQueued = null, queueName = null) {
   await ensureQueueDir(dirPath);
   const { logsDir, reportsDir } = await ensureJobDirs(dirPath);
@@ -215,6 +227,18 @@ const resolveRetryDelayMs = (attempts) => {
   return 10 * 60 * 1000;
 };
 
+/**
+ * Requeue or fail stale running jobs whose heartbeat exceeded stage thresholds.
+ *
+ * Retry behavior is deterministic: attempts are incremented once per stale
+ * detection, delayed by `resolveRetryDelayMs`, and failed when max retries are
+ * exhausted.
+ *
+ * @param {string} dirPath
+ * @param {string|null} [queueName=null]
+ * @param {{maxRetries?:number}} [options={}]
+ * @returns {Promise<{stale:number,retried:number,failed:number}>}
+ */
 export async function requeueStaleJobs(dirPath, queueName = null, options = {}) {
   const { lockPath } = getQueuePaths(dirPath, queueName);
   return withLock(lockPath, async () => {

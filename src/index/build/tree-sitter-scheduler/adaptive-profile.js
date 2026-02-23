@@ -10,6 +10,12 @@ const TAIL_EMA_ALPHA = 0.2;
 const LANE_COOLDOWN_STEPS_DEFAULT = 3;
 const BUCKET_COUNT_PATTERN = /~b\d+of(\d+)/i;
 
+/**
+ * Parse positive number, otherwise null.
+ *
+ * @param {unknown} value
+ * @returns {number|null}
+ */
 const normalizePositiveNumber = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
@@ -24,6 +30,12 @@ const normalizeSampleCount = (value) => {
   return Math.floor(parsed);
 };
 
+/**
+ * Normalize persisted lane-state payload shape.
+ *
+ * @param {unknown} value
+ * @returns {{bucketCount:number,cooldownSteps:number,lastAction:'split'|'merge'|'hold',updatedAt:string|null}|null}
+ */
 const normalizeLaneState = (value) => {
   if (!value || typeof value !== 'object') return null;
   const bucketCount = Math.max(1, Math.floor(Number(value.bucketCount) || 0));
@@ -41,6 +53,12 @@ const normalizeLaneState = (value) => {
   };
 };
 
+/**
+ * Parse bucket count suffix from sharded grammar key.
+ *
+ * @param {unknown} grammarKey
+ * @returns {number|null}
+ */
 const parseBucketCountFromGrammarKey = (grammarKey) => {
   if (typeof grammarKey !== 'string' || !grammarKey) return null;
   const match = grammarKey.match(BUCKET_COUNT_PATTERN);
@@ -50,6 +68,14 @@ const parseBucketCountFromGrammarKey = (grammarKey) => {
   return Math.max(1, Math.floor(parsed));
 };
 
+/**
+ * Merge scalar observations using EMA smoothing.
+ *
+ * @param {unknown} prior
+ * @param {unknown} observed
+ * @param {number} [alpha]
+ * @returns {number|null}
+ */
 const mergeEma = (prior, observed, alpha = EMA_ALPHA) => {
   const priorValue = normalizePositiveNumber(prior);
   const observedValue = normalizePositiveNumber(observed);
@@ -58,6 +84,13 @@ const mergeEma = (prior, observed, alpha = EMA_ALPHA) => {
   return (priorValue * (1 - alpha)) + (observedValue * alpha);
 };
 
+/**
+ * Merge tail-latency series using sticky EMA to preserve outlier memory.
+ *
+ * @param {unknown} prior
+ * @param {unknown} observed
+ * @returns {number|null}
+ */
 const mergeTailEma = (prior, observed) => {
   const priorValue = normalizePositiveNumber(prior);
   const observedValue = normalizePositiveNumber(observed);
@@ -67,12 +100,26 @@ const mergeTailEma = (prior, observed) => {
   return Math.max(observedValue, (priorValue * (1 - TAIL_EMA_ALPHA)) + (observedValue * TAIL_EMA_ALPHA));
 };
 
+/**
+ * Resolve observed bucket-count from explicit field or grammar-key suffix.
+ *
+ * @param {object} sample
+ * @returns {number|null}
+ */
 const resolveObservedBucketCount = (sample) => {
   const explicit = Math.max(0, Math.floor(Number(sample?.bucketCount) || 0));
   if (explicit > 0) return explicit;
   return parseBucketCountFromGrammarKey(sample?.grammarKey);
 };
 
+/**
+ * Merge prior lane state with observed bucket count and cooldown transitions.
+ *
+ * @param {object|null|undefined} priorState
+ * @param {number|null|undefined} observedBucketCount
+ * @param {string} at
+ * @returns {{bucketCount:number,cooldownSteps:number,lastAction:'split'|'merge'|'hold',updatedAt:string|null}|null}
+ */
 const mergeLaneState = (priorState, observedBucketCount, at) => {
   const prior = normalizeLaneState(priorState);
   if (!prior && !observedBucketCount) return null;
@@ -110,6 +157,12 @@ const mergeLaneState = (priorState, observedBucketCount, at) => {
   return normalizeLaneState(next);
 };
 
+/**
+ * Resolve adaptive profile file path for this repository/runtime.
+ *
+ * @param {{runtime?:object,treeSitterConfig?:object|null}} input
+ * @returns {string|null}
+ */
 export const resolveTreeSitterSchedulerAdaptiveProfilePath = ({ runtime, treeSitterConfig }) => {
   const schedulerConfig = treeSitterConfig?.scheduler || {};
   const configuredRoot = typeof schedulerConfig.adaptiveProfileDir === 'string'
@@ -124,6 +177,12 @@ export const resolveTreeSitterSchedulerAdaptiveProfilePath = ({ runtime, treeSit
   return null;
 };
 
+/**
+ * Convert profile map to stable JSON-serializable object form.
+ *
+ * @param {Map<string,object>} entriesByGrammarKey
+ * @returns {Record<string, object>}
+ */
 const toSerializableEntries = (entriesByGrammarKey) => {
   const out = {};
   const keys = Array.from(entriesByGrammarKey.keys()).sort(compareStrings);
@@ -147,6 +206,12 @@ const toSerializableEntries = (entriesByGrammarKey) => {
   return out;
 };
 
+/**
+ * Hydrate profile map from serialized JSON payload.
+ *
+ * @param {unknown} entries
+ * @returns {Map<string, object>}
+ */
 const fromSerializableEntries = (entries) => {
   const map = new Map();
   if (!entries || typeof entries !== 'object') return map;
@@ -169,6 +234,12 @@ const fromSerializableEntries = (entries) => {
   return map;
 };
 
+/**
+ * Load adaptive scheduler profile from disk.
+ *
+ * @param {{runtime?:object,treeSitterConfig?:object|null,log?:(line:string)=>void|null}} input
+ * @returns {Promise<{profilePath:string|null,entriesByGrammarKey:Map<string,object>}>}
+ */
 export const loadTreeSitterSchedulerAdaptiveProfile = async ({
   runtime,
   treeSitterConfig,
@@ -245,6 +316,12 @@ export const mergeTreeSitterSchedulerAdaptiveProfile = (existing, samples = []) 
   return next;
 };
 
+/**
+ * Persist adaptive scheduler profile to disk atomically.
+ *
+ * @param {{profilePath:string|null,entriesByGrammarKey:Map<string,object>,log?:(line:string)=>void|null}} input
+ * @returns {Promise<void>}
+ */
 export const saveTreeSitterSchedulerAdaptiveProfile = async ({
   profilePath,
   entriesByGrammarKey,

@@ -9,6 +9,12 @@ import { configureScmMetaCache } from '../../../scm/cache.js';
 import { setRecordsIncrementalCapability } from '../../../../storage/sqlite/build/index.js';
 import { log } from '../../../../shared/progress.js';
 
+/**
+ * Load incremental state and decide whether current mode can be reused.
+ *
+ * @param {object} input
+ * @returns {Promise<{incrementalState:object,reused:boolean}>}
+ */
 export const loadIncrementalPlan = async ({
   runtime,
   mode,
@@ -61,6 +67,12 @@ export const loadIncrementalPlan = async ({
   return { incrementalState, reused };
 };
 
+/**
+ * Prune incremental manifest entries not seen in current discovery set.
+ *
+ * @param {{runtime:object,incrementalState:object,seenFiles:Set<string>|string[]}} input
+ * @returns {Promise<void>}
+ */
 export const pruneIncrementalState = async ({ runtime, incrementalState, seenFiles }) => {
   await pruneIncrementalManifest({
     enabled: runtime.incrementalEnabled,
@@ -71,6 +83,12 @@ export const pruneIncrementalState = async ({ runtime, incrementalState, seenFil
   });
 };
 
+/**
+ * Preload incremental bundle VFS rows for faster unchanged-file reuse.
+ *
+ * @param {{runtime:object,incrementalState:object,enabled?:boolean}} input
+ * @returns {Promise<object|null>|null}
+ */
 export const prepareIncrementalBundleVfsRows = ({
   runtime,
   incrementalState,
@@ -89,6 +107,12 @@ export const prepareIncrementalBundleVfsRows = ({
   });
 };
 
+/**
+ * Update incremental bundles with latest chunk + relation outputs.
+ *
+ * @param {object} input
+ * @returns {Promise<void>}
+ */
 export const updateIncrementalBundles = async ({
   runtime,
   incrementalState,

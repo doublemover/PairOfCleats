@@ -20,6 +20,13 @@ import { matchStructural } from './filters/structural.js';
 import { normalizeFilePath } from '../../shared/path-normalize.js';
 import { resolveFileRelations as resolveFileRelationLookup } from '../file-relations-resolver.js';
 
+/**
+ * Compile raw filter config into normalized predicate/search structures.
+ *
+ * @param {object} [filters]
+ * @param {{fileChargramN?:number|null}} [options]
+ * @returns {object}
+ */
 export function compileFilterPredicates(filters = {}, { fileChargramN = null } = {}) {
   const normalize = (value) => String(value || '').toLowerCase();
   const caseFile = filters.caseFile === true;
@@ -89,6 +96,12 @@ export function compileFilterPredicates(filters = {}, { fileChargramN = null } =
   };
 }
 
+/**
+ * Resolve immutable filter execution state used across chunk-id filtering.
+ *
+ * @param {{meta:Array<object>,filters:object,filterIndex?:object|null,fileRelations?:object|null,options?:object}} input
+ * @returns {object}
+ */
 const resolveFilterState = ({
   meta,
   filters,
@@ -251,6 +264,13 @@ const resolveFilterState = ({
   };
 };
 
+/**
+ * Decide whether filter output should use bitmap representation.
+ *
+ * @param {object} state
+ * @param {number} sourceCount
+ * @returns {boolean}
+ */
 const shouldUseBitmapOutput = (state, sourceCount) => {
   if (!state.roaringAvailable) return false;
   const minSize = Number.isFinite(Number(state.resolvedBitmapMinSize))
@@ -260,6 +280,13 @@ const shouldUseBitmapOutput = (state, sourceCount) => {
   return Number.isFinite(sourceCount) && sourceCount >= minSize;
 };
 
+/**
+ * Evaluate all configured filter predicates for a single chunk.
+ *
+ * @param {object} c
+ * @param {object} state
+ * @returns {boolean}
+ */
 const matchChunkFilters = (c, state) => {
   if (!c) return false;
   const {
@@ -477,6 +504,21 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
   return sourceMeta.filter((c) => matchChunkFilters(c, state));
 }
 
+/**
+ * Filter chunk ids with optional bitmap acceleration/candidate prefiltering.
+ *
+ * Returns:
+ * - `null` when every source candidate matched (caller can skip ID filtering)
+ * - `Set<number>` for sparse output mode
+ * - bitmap object when roaring output is preferred and available
+ *
+ * @param {Array<object>} meta
+ * @param {object} [filters]
+ * @param {object|null} [filterIndex]
+ * @param {object|null} [fileRelations]
+ * @param {object} [options]
+ * @returns {Set<number>|object|null}
+ */
 export function filterChunkIds(meta, filters = {}, filterIndex = null, fileRelations = null, options = {}) {
   const { extImpossible, langImpossible } = filters;
   if (extImpossible || langImpossible) return new Set();

@@ -25,6 +25,12 @@ const hasEmittedDenseVectors = (postings) => (
   || (Array.isArray(postings?.quantizedCodeVectors) && postings.quantizedCodeVectors.length > 0)
 );
 
+/**
+ * Finalize mode state and emit index artifacts for stage2 write step.
+ *
+ * @param {object} input
+ * @returns {Promise<void>}
+ */
 export const writeIndexArtifactsForMode = async ({
   runtime,
   mode,

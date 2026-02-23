@@ -48,6 +48,13 @@ runScript(resolved.script, resolved.extraArgs, resolved.args).catch((err) => {
   });
 });
 
+/**
+ * Resolve CLI command + subcommand matrix into a script dispatch target.
+ *
+ * @param {string} primary
+ * @param {string[]} rest
+ * @returns {{script:string,extraArgs:string[],args:string[]}|null}
+ */
 function resolveCommand(primary, rest) {
   if (primary === 'index') {
     const sub = rest.shift();
@@ -785,6 +792,14 @@ function resolveCommand(primary, rest) {
   return null;
 }
 
+/**
+ * Validate command args against allowed/value flag sets and fail on invalid use.
+ *
+ * @param {string[]} args
+ * @param {string[]} allowedFlags
+ * @param {string[]} valueFlags
+ * @returns {void}
+ */
 function validateArgs(args, allowedFlags, valueFlags) {
   const allowed = new Set(allowedFlags);
   const expectsValue = new Set(valueFlags);
@@ -823,6 +838,13 @@ function validateArgs(args, allowedFlags, valueFlags) {
   }
 }
 
+/**
+ * Read flag value from argv supporting `--name value` and `--name=value`.
+ *
+ * @param {string[]} args
+ * @param {string} name
+ * @returns {string|null}
+ */
 function readFlagValue(args, name) {
   const flag = `--${name}`;
   const flagEq = `${flag}=`;
@@ -839,6 +861,14 @@ function readFlagValue(args, name) {
   return null;
 }
 
+/**
+ * Execute resolved script target with dispatch runtime env propagation.
+ *
+ * @param {string} scriptPath
+ * @param {string[]} extraArgs
+ * @param {string[]} restArgs
+ * @returns {Promise<never>}
+ */
 async function runScript(scriptPath, extraArgs, restArgs) {
   const resolved = path.join(ROOT, scriptPath);
   if (!fs.existsSync(resolved)) {
@@ -863,6 +893,14 @@ async function runScript(scriptPath, extraArgs, restArgs) {
   process.exit(result.exitCode ?? 1);
 }
 
+/**
+ * Extract `--repo` override from CLI args before end-of-options marker.
+ *
+ * Supports `--repo value` and `--repo=value` forms.
+ *
+ * @param {string[]} args
+ * @returns {string|null}
+ */
 function extractRepoArg(args) {
   const endOfOptions = args.indexOf('--');
   const scanArgs = endOfOptions === -1 ? args : args.slice(0, endOfOptions);
@@ -877,14 +915,31 @@ function extractRepoArg(args) {
   return null;
 }
 
+/**
+ * Check whether token requests CLI help output.
+ *
+ * @param {string} value
+ * @returns {boolean}
+ */
 function isHelpCommand(value) {
   return value === 'help' || value === '--help' || value === '-h';
 }
 
+/**
+ * Check whether token requests CLI version output.
+ *
+ * @param {string} value
+ * @returns {boolean}
+ */
 function isVersionCommand(value) {
   return value === 'version' || value === '--version' || value === '-v';
 }
 
+/**
+ * Print top-level CLI command reference to stderr.
+ *
+ * @returns {void}
+ */
 function printHelp() {
   process.stderr.write(`Usage: pairofcleats <command> [args]
 
@@ -957,6 +1012,13 @@ Risk:
 `);
 }
 
+/**
+ * Emit standardized CLI error payload and terminate process.
+ *
+ * @param {string} message
+ * @param {{code?:string,hint?:string|null,showHelp?:boolean,exitCode?:number}} [options]
+ * @returns {never}
+ */
 function failCli(message, { code = ERROR_CODES.INVALID_REQUEST, hint = null, showHelp = false, exitCode = 1 } = {}) {
   const payload = buildErrorPayload({
     code,

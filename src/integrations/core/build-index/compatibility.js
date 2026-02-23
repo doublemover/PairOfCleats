@@ -2,6 +2,12 @@ import { buildCompatibilityKey, buildCohortKey } from '../../../contracts/compat
 import { buildTokenizationKey } from '../../../index/build/indexer/signatures.js';
 import { applyAdaptiveDictConfig } from '../../../../tools/shared/dict-utils.js';
 
+/**
+ * Compute per-mode tokenization keys and attach compatibility/cohort keys.
+ *
+ * @param {{runtime:object,modes:string[],sharedDiscovery?:object|null}} input
+ * @returns {Record<string,string>}
+ */
 export const computeCompatibilityKey = ({ runtime, modes, sharedDiscovery }) => {
   const tokenizationKeys = {};
   const baseDictConfig = runtime.dictConfig || {};

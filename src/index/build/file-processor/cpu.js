@@ -124,12 +124,31 @@ const HEAVY_RELATIONS_PATH_PARTS = [
   '/.github/workflows/'
 ];
 
+/**
+ * Normalize repo-relative paths for case-insensitive SCM heuristics.
+ *
+ * @param {string} relPath
+ * @returns {string}
+ */
 const normalizeScmPath = (relPath) => String(relPath || '').replace(/\\/g, '/').toLowerCase();
+
+/**
+ * Normalize and bound one path for stable `includes("/segment/")` checks.
+ *
+ * @param {string} relPath
+ * @returns {string}
+ */
 const toBoundedScmPath = (relPath) => {
   const normalized = normalizeScmPath(relPath);
   return `/${normalized.replace(/^\/+|\/+$/g, '')}/`;
 };
 
+/**
+ * Detect generated Python lexer tables that should use stricter SCM budgets.
+ *
+ * @param {string} relPath
+ * @returns {boolean}
+ */
 const isPythonGeneratedDataPath = (relPath) => {
   const normalizedPath = normalizeScmPath(relPath);
   if (!normalizedPath.endsWith('.py') && !normalizedPath.endsWith('.pyi')) return false;
@@ -166,6 +185,12 @@ const isScmFastPath = ({ relPath, ext, lines }) => {
   return false;
 };
 
+/**
+ * Force strict SCM timeout caps for known high-overhead repository areas.
+ *
+ * @param {string} relPath
+ * @returns {boolean}
+ */
 const shouldForceScmTimeoutCaps = (relPath) => {
   const boundedPath = toBoundedScmPath(relPath);
   for (const part of SCM_FORCE_TIMEOUT_CAP_PATH_PARTS) {
@@ -174,6 +199,12 @@ const shouldForceScmTimeoutCaps = (relPath) => {
   return false;
 };
 
+/**
+ * Convert per-task timeout into queue deadline budget with fixed scheduling slack.
+ *
+ * @param {number} taskTimeoutMs
+ * @returns {number}
+ */
 const resolveScmTaskDeadlineMs = (taskTimeoutMs) => {
   const baseTimeout = Number(taskTimeoutMs);
   if (!Number.isFinite(baseTimeout) || baseTimeout <= 0) return 0;
@@ -181,10 +212,22 @@ const resolveScmTaskDeadlineMs = (taskTimeoutMs) => {
   return boundedBase + SCM_TASK_QUEUE_WAIT_SLACK_MS;
 };
 
+/**
+ * Identify SCM task timeout errors from queue/deadline wrappers.
+ *
+ * @param {Error & {code?:string}} error
+ * @returns {boolean}
+ */
 const isScmTaskTimeoutError = (error) => (
   error?.code === 'SCM_TASK_TIMEOUT'
 );
 
+/**
+ * Identify paths that produce disproportionately expensive relation extraction.
+ *
+ * @param {string} relPath
+ * @returns {boolean}
+ */
 const isHeavyRelationsPath = (relPath) => {
   const boundedPath = toBoundedScmPath(relPath);
   for (const part of HEAVY_RELATIONS_PATH_PARTS) {
@@ -193,6 +236,12 @@ const isHeavyRelationsPath = (relPath) => {
   return false;
 };
 
+/**
+ * Skip heavy relation extraction on oversized files under known expensive paths.
+ *
+ * @param {{relPath:string,fileBytes:number,fileLines:number}} input
+ * @returns {boolean}
+ */
 const shouldSkipHeavyRelationsByPath = ({ relPath, fileBytes, fileLines }) => (
   isHeavyRelationsPath(relPath)
   && (
@@ -237,6 +286,13 @@ const mergePlannedSegmentsWithExtras = ({ plannedSegments, extraSegments, relKey
   return deduped;
 };
 
+/**
+ * Count newline-delimited lines, optionally short-circuiting past `maxLines`.
+ *
+ * @param {string} text
+ * @param {number|null} [maxLines=null]
+ * @returns {number}
+ */
 const countLines = (text, maxLines = null) => {
   if (!text) return 0;
   const capped = Number.isFinite(Number(maxLines)) && Number(maxLines) > 0
@@ -250,6 +306,12 @@ const countLines = (text, maxLines = null) => {
   return count;
 };
 
+/**
+ * Check per-language tree-sitter max-bytes/max-lines guardrails.
+ *
+ * @param {{text:string,languageId:string|null,treeSitterConfig:object|null}} input
+ * @returns {boolean}
+ */
 const exceedsTreeSitterLimits = ({ text, languageId, treeSitterConfig }) => {
   const config = treeSitterConfig && typeof treeSitterConfig === 'object' ? treeSitterConfig : {};
   const perLanguage = (config.byLanguage && languageId && config.byLanguage[languageId]) || {};

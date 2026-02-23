@@ -1,5 +1,11 @@
 import { showProgress } from '../../../shared/progress.js';
 
+/**
+ * Create overall progress tracker spanning requested modes/stages.
+ *
+ * @param {{modes:string[],buildId?:string,includeEmbeddings?:boolean,includeSqlite?:boolean}} input
+ * @returns {{total:number,advance:(meta?:{message?:string|null})=>void,finish:(meta?:{message?:string|null})=>void}|null}
+ */
 export const createOverallProgress = ({ modes, buildId, includeEmbeddings = false, includeSqlite = false }) => {
   const stageCounts = {
     code: 6,

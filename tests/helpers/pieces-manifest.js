@@ -28,6 +28,14 @@ export const loadPiecesManifestPieces = (indexDir, options = {}) => {
   return manifest ? manifest.pieces : [];
 };
 
+/**
+ * Read, mutate, and rewrite pieces manifest with normalized fields.
+ *
+ * @param {string} indexDir
+ * @param {(target:object,context:{manifestPath:string,raw:object})=>Promise<void>|void} mutator
+ * @param {{maxBytes?:number}} [options]
+ * @returns {Promise<object>}
+ */
 export const updatePiecesManifest = async (
   indexDir,
   mutator,

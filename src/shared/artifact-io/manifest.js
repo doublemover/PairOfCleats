@@ -437,6 +437,13 @@ export const listShardFiles = (dir, prefix, extensions = ['.json', '.jsonl']) =>
     .map((name) => path.join(dir, name));
 };
 
+/**
+ * Locate chunk-meta shard files using meta manifest first, directory scan fallback.
+ *
+ * @param {string} dir
+ * @param {{metaPath?:string|null,partsDir?:string|null,metaFields?:object|null,maxBytes?:number}} [options]
+ * @returns {{parts:string[],metaPath:string|null,partsDir:string|null,meta:object|null,missing:string[],source:'meta'|'directory'|null}}
+ */
 export const locateChunkMetaShards = (
   dir,
   {

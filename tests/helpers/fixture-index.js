@@ -69,6 +69,12 @@ const resolveCacheName = (baseName, { cacheScope = 'isolated' } = {}) => {
   return truncateWithHash(`${baseName}-${suffixRaw}`);
 };
 
+/**
+ * Normalize and validate required fixture index modes.
+ *
+ * @param {string[]|null|undefined} requiredModes
+ * @returns {string[]}
+ */
 const normalizeRequiredModes = (requiredModes) => {
   if (!Array.isArray(requiredModes) || requiredModes.length === 0) {
     return [...DEFAULT_REQUIRED_MODES];
@@ -108,6 +114,15 @@ const isStaleLock = async (lockDir, staleMs) => {
   }
 };
 
+/**
+ * Execute callback under directory-based cooperative lock.
+ *
+ * @template T
+ * @param {string} lockDir
+ * @param {() => Promise<T>} callback
+ * @param {{pollMs?:number,staleMs?:number,maxWaitMs?:number}} [options]
+ * @returns {Promise<T>}
+ */
 const withDirectoryLock = async (
   lockDir,
   callback,
@@ -245,6 +260,12 @@ const readIndexCompatibilityKey = (dir) => {
   }
 };
 
+/**
+ * Determine cross-mode compatibility status for required fixture indexes.
+ *
+ * @param {{modeDirs:Record<string,string>,requiredModes:string[]}} input
+ * @returns {{compatible:boolean,keyByMode:Record<string,string|null>,baseline:string|null}}
+ */
 const getCompatibilityStatus = ({ modeDirs, requiredModes }) => {
   if (!Array.isArray(requiredModes) || requiredModes.length === 0) {
     return { compatible: false, keyByMode: {}, baseline: null };
@@ -306,6 +327,13 @@ const readFixtureHealthStamp = async (stampPath) => {
   }
 };
 
+/**
+ * Persist/merge fixture health stamp used to skip unnecessary rebuilds.
+ *
+ * @param {string} stampPath
+ * @param {{requiredModes:string[],compatibilityKeyByMode:Record<string,string|null>,hasRiskTags:boolean}} input
+ * @returns {Promise<void>}
+ */
 const writeFixtureHealthStamp = async (
   stampPath,
   {
@@ -333,6 +361,13 @@ const writeFixtureHealthStamp = async (
   await fsPromises.writeFile(stampPath, JSON.stringify(payload), 'utf8');
 };
 
+/**
+ * Check whether an existing health stamp satisfies current requirements.
+ *
+ * @param {object|null} stamp
+ * @param {{requiredModes:string[],requireRiskTags:boolean,compatibilityKeyByMode:Record<string,string|null>}} input
+ * @returns {boolean}
+ */
 const canUseFixtureHealthStamp = (
   stamp,
   {
@@ -365,6 +400,21 @@ const run = (args, label, options) => {
   }
 };
 
+/**
+ * Ensure fixture indexes exist and satisfy compatibility + health constraints.
+ *
+ * Rebuilds under a cross-process lock when indexes are missing/incompatible.
+ *
+ * @param {{
+ *  fixtureName:string,
+ *  cacheName?:string,
+ *  envOverrides?:object,
+ *  requireRiskTags?:boolean,
+ *  cacheScope?:'isolated'|'shared',
+ *  requiredModes?:string[]
+ * }} [options]
+ * @returns {Promise<{root:string,fixtureRoot:string,cacheRoot:string,env:object,userConfig:object,codeDir:string,proseDir:string}>}
+ */
 export const ensureFixtureIndex = async ({
   fixtureName,
   cacheName = `fixture-${fixtureName}`,
@@ -570,6 +620,13 @@ export const loadFixtureIndexMeta = (fixtureRoot, userConfig) => {
 export const loadFixtureMetricsDir = (fixtureRoot, userConfig) =>
   getMetricsDir(fixtureRoot, userConfig);
 
+/**
+ * Temporarily apply env overrides while executing async callback.
+ *
+ * @param {Record<string, string|number|boolean|undefined>|null} targetEnv
+ * @param {() => Promise<unknown>} callback
+ * @returns {Promise<unknown>}
+ */
 const withTemporaryEnv = async (targetEnv, callback) => {
   const restore = [];
   if (targetEnv && typeof targetEnv === 'object') {
@@ -595,6 +652,12 @@ const withTemporaryEnv = async (targetEnv, callback) => {
   }
 };
 
+/**
+ * Create in-process search runner bound to one fixture repository.
+ *
+ * @param {{root?:string,fixtureRoot:string,env?:object}} [options]
+ * @returns {(options?:object)=>Promise<object>}
+ */
 export const createInProcessSearchRunner = ({
   root = null,
   fixtureRoot,
@@ -647,6 +710,12 @@ export const createInProcessSearchRunner = ({
   };
 };
 
+/**
+ * Run search CLI as child process against fixture repo and parse JSON payload.
+ *
+ * @param {{root?:string,fixtureRoot:string,env?:object,query:string,args?:string[],mode?:string}} input
+ * @returns {object}
+ */
 export const runSearch = ({
   root = ROOT,
   fixtureRoot,

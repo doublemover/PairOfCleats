@@ -13,6 +13,15 @@ import { resolveIndexDir } from '../../retrieval/cli-index.js';
 import { prepareGraphIndex, prepareGraphInputs } from './graph-helpers.js';
 import { loadUserConfig, resolveRepoRoot } from '../../../tools/shared/dict-utils.js';
 
+/**
+ * CLI entrypoint for composite context-pack generation.
+ *
+ * Parses seed-centric context options, resolves graph/index dependencies, and
+ * emits a contract-validated `CompositeContextPack` report.
+ *
+ * @param {string[]} [rawArgs]
+ * @returns {Promise<{ok:boolean,code?:string,payload?:object,message?:string}>}
+ */
 export async function runContextPackCli(rawArgs = process.argv.slice(2)) {
   const cli = createCli({
     scriptName: 'context-pack',

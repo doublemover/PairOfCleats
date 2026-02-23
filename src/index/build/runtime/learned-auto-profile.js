@@ -6,6 +6,12 @@ const AUTO_PROFILE_STATE_FILE = 'learned-auto-profile.json';
 const AUTO_PROFILE_SCHEMA_VERSION = '1.0.0';
 const AUTO_PROFILE_MAX_TRACKED_PROFILES = 256;
 
+/**
+ * Narrow runtime values to plain object records.
+ *
+ * @param {unknown} value
+ * @returns {boolean}
+ */
 const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
 
 const toPositiveInt = (value, fallback) => {
@@ -76,6 +82,12 @@ const resolveStatePath = (repoCacheRoot) => (
     : null
 );
 
+/**
+ * Normalize learned auto-profile runtime config.
+ *
+ * @param {object} [indexingConfig={}]
+ * @returns {{enabled:boolean,shadowOnly:boolean,minConfidence:number,maxScanEntries:number,includeDotDirs:boolean,maxTrackedProfiles:number}}
+ */
 const resolveAutoProfileConfig = (indexingConfig = {}) => {
   const raw = indexingConfig?.autoProfile && typeof indexingConfig.autoProfile === 'object'
     ? indexingConfig.autoProfile
@@ -91,6 +103,13 @@ const resolveAutoProfileConfig = (indexingConfig = {}) => {
   };
 };
 
+/**
+ * Load learned auto-profile state file from repo cache root.
+ *
+ * @param {string|null} repoCacheRoot
+ * @param {{maxTrackedProfiles?:number}} [options]
+ * @returns {Promise<{statePath:string|null,state:object,recovered:boolean}>}
+ */
 const loadAutoProfileState = async (repoCacheRoot, { maxTrackedProfiles = AUTO_PROFILE_MAX_TRACKED_PROFILES } = {}) => {
   const statePath = resolveStatePath(repoCacheRoot);
   if (!statePath) {
@@ -120,6 +139,12 @@ const loadAutoProfileState = async (repoCacheRoot, { maxTrackedProfiles = AUTO_P
   }
 };
 
+/**
+ * Persist normalized learned profile state to disk.
+ *
+ * @param {{statePath:string|null,state:object,maxTrackedProfiles?:number}} input
+ * @returns {Promise<boolean>}
+ */
 const saveAutoProfileState = async ({
   statePath,
   state,
@@ -146,6 +171,13 @@ const shouldSkipEntry = (entry, includeDotDirs) => (
   || (!includeDotDirs && entry.name.startsWith('.'))
 );
 
+/**
+ * Sample repository size/shape features using bounded directory traversal.
+ *
+ * @param {string} root
+ * @param {{maxEntries?:number,includeDotDirs?:boolean}} [options]
+ * @returns {Promise<{files:number,dirs:number,bytes:number,entriesScanned:number,scanTruncated:boolean}>}
+ */
 const sampleRepoFeatures = async (root, { maxEntries = 4000, includeDotDirs = false } = {}) => {
   const stack = [root];
   let files = 0;
@@ -190,6 +222,12 @@ const sampleRepoFeatures = async (root, { maxEntries = 4000, includeDotDirs = fa
   };
 };
 
+/**
+ * Read repository root mtime used to decide feature rescan freshness.
+ *
+ * @param {string} root
+ * @returns {Promise<number|null>}
+ */
 const readRootMtimeMs = async (root) => {
   try {
     const stat = await fs.stat(root);
@@ -200,6 +238,12 @@ const readRootMtimeMs = async (root) => {
   }
 };
 
+/**
+ * Resolve recommended profile and overrides from sampled repo features.
+ *
+ * @param {{features:object,priorProfileId?:string|null}} input
+ * @returns {{profileId:string,confidence:number,reason:string,overrides:object|null}}
+ */
 const resolveProfileFromFeatures = ({ features, priorProfileId = null }) => {
   const files = Number(features?.files) || 0;
   const bytes = Number(features?.bytes) || 0;
@@ -248,6 +292,12 @@ const resolveProfileFromFeatures = ({ features, priorProfileId = null }) => {
   };
 };
 
+/**
+ * Resolve fallback profile when feature scan fails.
+ *
+ * @param {{priorProfileId?:string|null,priorConfidence?:number}} [input]
+ * @returns {{profileId:string,confidence:number,reason:string,overrides:null}}
+ */
 const resolveFeatureScanFallback = ({ priorProfileId = null, priorConfidence = 0 }) => ({
   profileId: priorProfileId || 'balanced',
   confidence: priorProfileId ? Math.min(0.65, toUnitInterval(priorConfidence, 0.45)) : 0,
@@ -255,6 +305,16 @@ const resolveFeatureScanFallback = ({ priorProfileId = null, priorConfidence = 0
   overrides: null
 });
 
+/**
+ * Resolve learned auto-profile suggestion/application for current repository.
+ *
+ * The selector samples repo features, chooses a profile, applies confidence and
+ * shadow-mode gating, persists decisions, and returns both applied overrides and
+ * diagnostics metadata for logging/telemetry.
+ *
+ * @param {{root:string,repoCacheRoot?:string|null,indexingConfig?:object,log?:(line:string)=>void}} [input]
+ * @returns {Promise<object>}
+ */
 export const resolveLearnedAutoProfileSelection = async ({
   root,
   repoCacheRoot = null,

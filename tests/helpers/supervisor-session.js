@@ -5,6 +5,20 @@ const DEFAULT_POLL_MS = 20;
 
 const normalizeLineBreaks = (text) => text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
+/**
+ * Spawn TUI supervisor child and expose polling helpers for JSON events.
+ *
+ * @param {{root?:string,timeoutMs?:number}} [options]
+ * @returns {{
+ *  child: import('node:child_process').ChildProcessWithoutNullStreams,
+ *  events: any[],
+ *  waitForEvent: (predicate:(event:any)=>boolean,waitTimeoutMs?:number)=>Promise<any>,
+ *  send: (payload:object)=>void,
+ *  waitForExit: ()=>Promise<number|null>,
+ *  shutdown: (reason?:string)=>Promise<number|null>,
+ *  forceKill: ()=>void
+ * }}
+ */
 export const createSupervisorSession = ({
   root = process.cwd(),
   timeoutMs = 8000

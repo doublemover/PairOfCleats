@@ -17,6 +17,15 @@ import {
   resolveFormat
 } from './cli-helpers.js';
 
+/**
+ * CLI entrypoint for changed-file driven test suggestion generation.
+ *
+ * Normalizes changed input paths, loads graph relations, applies cap overrides,
+ * and emits a validated `SuggestTests` report.
+ *
+ * @param {string[]} [rawArgs]
+ * @returns {Promise<{ok:boolean,code?:string,payload?:object,message?:string}>}
+ */
 export async function runSuggestTestsCli(rawArgs = process.argv.slice(2)) {
   const cli = createCli({
     scriptName: 'suggest-tests',

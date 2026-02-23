@@ -24,6 +24,12 @@ const DEFAULT_CJK_MIN_GRAM = 2;
 const DEFAULT_CJK_MAX_GRAM = 3;
 const MAX_CJK_FALLBACK_TOKENS = 256;
 
+/**
+ * Normalize language tag into lowercased primary language subtag.
+ *
+ * @param {unknown} value
+ * @returns {string|null}
+ */
 const normalizeLanguageTag = (value) => {
   const trimmed = String(value || '').trim().toLowerCase();
   if (!trimmed) return null;
@@ -62,6 +68,21 @@ const resolveNumericOption = (value, fallback, min, max) => {
   return Math.max(min, Math.min(max, Math.floor(parsed)));
 };
 
+/**
+ * Resolve language/tokenization profile for query token augmentation.
+ *
+ * @param {object} [options]
+ * @param {string[]|string} [rawTerms]
+ * @returns {{
+ *  language:string,
+ *  requestedLanguage:string|null,
+ *  detectedLanguage:string,
+ *  stemmingEnabled:boolean,
+ *  cjkFallbackEnabled:boolean,
+ *  cjkMinGram:number,
+ *  cjkMaxGram:number
+ * }}
+ */
 export const resolveLanguageTokenProfile = (options = {}, rawTerms = []) => {
   const entries = Array.isArray(rawTerms) ? rawTerms : (rawTerms ? [rawTerms] : []);
   const rawText = entries.map((entry) => String(entry || '')).join(' ').trim();
@@ -121,6 +142,13 @@ const addTokenArray = (target, seen, values) => {
   }
 };
 
+/**
+ * Derive CJK fallback tokens and n-grams from raw terms.
+ *
+ * @param {string[]|string} rawTerms
+ * @param {{cjkFallbackEnabled:boolean,cjkMinGram:number,cjkMaxGram:number}} profile
+ * @returns {string[]}
+ */
 const extractCjkFallbackTokens = (rawTerms, profile) => {
   if (!profile.cjkFallbackEnabled) return [];
   const entries = Array.isArray(rawTerms) ? rawTerms : (rawTerms ? [rawTerms] : []);
@@ -163,6 +191,12 @@ const expandStemTokens = (tokens, profile) => {
   return out;
 };
 
+/**
+ * Apply language-aware token expansions (CJK n-grams, stemming, hook output).
+ *
+ * @param {{rawTerms:string[]|string,baseTokens:string[],options?:object,kind?:'query'|'phrase'}} input
+ * @returns {string[]}
+ */
 export const applyLanguageTokenHooks = ({ rawTerms, baseTokens, options = {}, kind = 'query' }) => {
   const tokens = Array.isArray(baseTokens) ? baseTokens : [];
   const profile = resolveLanguageTokenProfile(options, rawTerms);
@@ -197,6 +231,14 @@ export const parseQueryInput = parseQueryInputCore;
 export const parseQueryWithFallback = parseQueryWithFallbackCore;
 export const buildPhraseNgrams = buildPhraseNgramsCore;
 
+/**
+ * Tokenize query terms and apply language-aware token expansion hooks.
+ *
+ * @param {string[]|string} rawTerms
+ * @param {Set<string>|Map<string, number>|object|null} dict
+ * @param {object} [options]
+ * @returns {string[]}
+ */
 export const tokenizeQueryTerms = (rawTerms, dict, options = {}) => {
   const baseTokens = tokenizeQueryTermsCore(rawTerms, dict, options);
   return applyLanguageTokenHooks({
@@ -207,6 +249,14 @@ export const tokenizeQueryTerms = (rawTerms, dict, options = {}) => {
   });
 };
 
+/**
+ * Tokenize phrase text and apply language-aware token expansion hooks.
+ *
+ * @param {string} phrase
+ * @param {Set<string>|Map<string, number>|object|null} dict
+ * @param {object} [options]
+ * @returns {string[]}
+ */
 export const tokenizePhrase = (phrase, dict, options = {}) => {
   const baseTokens = tokenizePhraseCore(phrase, dict, options);
   return applyLanguageTokenHooks({
@@ -217,6 +267,15 @@ export const tokenizePhrase = (phrase, dict, options = {}) => {
   });
 };
 
+/**
+ * Walk boolean query AST and attach token/ngram payloads per node type.
+ *
+ * @param {object} ast
+ * @param {Set<string>|Map<string, number>|object|null} dict
+ * @param {object} [options]
+ * @param {object} [postingsConfig]
+ * @returns {object|null}
+ */
 export function annotateQueryAst(ast, dict, options = {}, postingsConfig) {
   if (!ast || typeof ast !== 'object') return null;
   const visit = (node) => {

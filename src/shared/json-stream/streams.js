@@ -8,18 +8,38 @@ import { createTempPath, replaceFile } from './atomic.js';
 import { createFflateGzipStream, createZstdStream, normalizeHighWaterMark } from './compress.js';
 import { createAbortError } from './runtime.js';
 
+/**
+ * Write one chunk while honoring writable backpressure.
+ *
+ * @param {import('node:stream').Writable} stream
+ * @param {string|Buffer|Uint8Array} chunk
+ * @returns {Promise<void>}
+ */
 export const writeChunk = async (stream, chunk) => {
   if (!stream.write(chunk)) {
     await once(stream, 'drain');
   }
 };
 
+/**
+ * Await stream completion event (`finish` or `close`).
+ *
+ * @param {import('node:stream').Writable} stream
+ * @param {boolean} [requireClose]
+ * @returns {Promise<void>}
+ */
 const waitForFinish = (stream, requireClose = false) => new Promise((resolve, reject) => {
   stream.on('error', reject);
   const event = requireClose ? 'close' : 'finish';
   stream.on(event, resolve);
 });
 
+/**
+ * Await stream close, swallowing close-race errors.
+ *
+ * @param {import('node:stream').Writable|null} stream
+ * @returns {Promise<void>}
+ */
 const waitForClose = (stream) => {
   if (!stream) return Promise.resolve();
   if (stream.closed) return Promise.resolve();
@@ -32,6 +52,12 @@ const RETRYABLE_RM_CODES = new Set(['EBUSY', 'EPERM', 'EACCES', 'EMFILE', 'ENOTE
 let pendingDeleteCounter = 0;
 const MAX_PREALLOCATE_BYTES = 2 * 1024 * 1024 * 1024;
 
+/**
+ * Clamp preallocation bytes to supported range.
+ *
+ * @param {unknown} value
+ * @returns {number}
+ */
 const resolvePreallocateBytes = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return 0;
@@ -53,6 +79,13 @@ const createPendingDeletePath = (targetPath) => {
   return path.join(dir, `pending-delete-${base}-${nonce}`);
 };
 
+/**
+ * Remove path with retries and fallback tombstone cleanup.
+ *
+ * @param {string} target
+ * @param {{attempts?:number,baseDelayMs?:number,recursive?:boolean}} [options]
+ * @returns {Promise<boolean>}
+ */
 const removePathWithRetry = async (target, {
   attempts = 40,
   baseDelayMs = 20,
@@ -113,6 +146,14 @@ const cleanupPendingDeleteTombstones = async (targetPath) => {
   } catch {}
 };
 
+/**
+ * Create unique temp output stream for atomic write-replace flow.
+ *
+ * @param {string} filePath
+ * @param {number|null} highWaterMark
+ * @param {number} [preallocateBytes]
+ * @returns {{tempPath:string,fileStream:import('node:fs').WriteStream}}
+ */
 const createExclusiveAtomicFileStream = (filePath, highWaterMark, preallocateBytes = 0) => {
   const preallocate = resolvePreallocateBytes(preallocateBytes);
   let lastErr = null;
@@ -153,6 +194,14 @@ const createExclusiveAtomicFileStream = (filePath, highWaterMark, preallocateByt
   throw lastErr || new Error(`Failed to allocate unique atomic temp file for ${filePath}`);
 };
 
+/**
+ * Create direct output stream with optional size preallocation.
+ *
+ * @param {string} targetPath
+ * @param {number|null} highWaterMark
+ * @param {number} [preallocateBytes]
+ * @returns {import('node:fs').WriteStream}
+ */
 const createPreallocatedFileStream = (targetPath, highWaterMark, preallocateBytes = 0) => {
   fs.mkdirSync(path.dirname(targetPath), { recursive: true });
   const fd = fs.openSync(targetPath, 'w');
@@ -172,6 +221,14 @@ const createPreallocatedFileStream = (targetPath, highWaterMark, preallocateByte
   });
 };
 
+/**
+ * Build transform that counts bytes and optional checksum while enforcing cap.
+ *
+ * @param {number|null} maxBytes
+ * @param {number|null} highWaterMark
+ * @param {string|null} [checksumAlgo]
+ * @returns {{counter:Transform,getBytes:()=>number,isOverLimit:()=>boolean,checksumAlgo:string|null,getChecksum:()=>string|null}}
+ */
 const createByteCounter = (maxBytes, highWaterMark, checksumAlgo = null) => {
   let bytes = 0;
   let overLimit = false;
@@ -210,6 +267,13 @@ const createByteCounter = (maxBytes, highWaterMark, checksumAlgo = null) => {
   };
 };
 
+/**
+ * Create JSON write stream wrapper with compression/atomic/checksum options.
+ *
+ * @param {string} filePath
+ * @param {object} [options]
+ * @returns {{stream:import('node:stream').Writable,getBytesWritten:()=>number,checksumAlgo:string|null,getChecksum:()=>string|null,done:Promise<void>}}
+ */
 export const createJsonWriteStream = (filePath, options = {}) => {
   const {
     compression = null,

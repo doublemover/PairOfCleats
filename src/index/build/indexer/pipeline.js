@@ -83,6 +83,12 @@ const hasVectorEmbeddingBuildCapability = (runtime) => (
   runtime?.embeddingEnabled === true || runtime?.embeddingService === true
 );
 
+/**
+ * Resolve vector-only profile shortcut policy for downstream stages.
+ *
+ * @param {object} runtime
+ * @returns {{profileId:string,enabled:boolean,disableImportGraph:boolean,disableCrossFileInference:boolean}}
+ */
 export const resolveVectorOnlyShortcutPolicy = (runtime) => {
   const profileId = runtime?.profile?.id || runtime?.indexingConfig?.profile || 'default';
   const vectorOnly = profileId === INDEX_PROFILE_VECTOR_ONLY;
@@ -107,12 +113,24 @@ const createEmptyModalitySparsityProfile = () => ({
   entries: {}
 });
 
+/**
+ * Resolve per-repo modality sparsity profile artifact path.
+ *
+ * @param {object} runtime
+ * @returns {string|null}
+ */
 export const resolveModalitySparsityProfilePath = (runtime) => {
   const repoCacheRoot = typeof runtime?.repoCacheRoot === 'string' ? runtime.repoCacheRoot : '';
   if (!repoCacheRoot) return null;
   return path.join(repoCacheRoot, MODALITY_SPARSITY_PROFILE_FILE);
 };
 
+/**
+ * Build stable key for modality sparsity profile entries.
+ *
+ * @param {{mode:string,cacheSignature:string}} input
+ * @returns {string}
+ */
 export const buildModalitySparsityEntryKey = ({ mode, cacheSignature }) => (
   `${String(mode || 'unknown')}:${String(cacheSignature || 'nosig')}`
 );
@@ -129,6 +147,12 @@ const normalizeModalitySparsityProfile = (profile) => {
   };
 };
 
+/**
+ * Read modality sparsity profile from disk (or return empty profile).
+ *
+ * @param {object} runtime
+ * @returns {Promise<{profilePath:string|null,profile:object}>}
+ */
 export const readModalitySparsityProfile = async (runtime) => {
   const profilePath = resolveModalitySparsityProfilePath(runtime);
   if (!profilePath) {
@@ -155,6 +179,22 @@ const trimModalitySparsityEntries = (entries = {}) => {
   return Object.fromEntries(keep);
 };
 
+/**
+ * Upsert one modality sparsity observation and persist profile atomically.
+ *
+ * @param {{
+ *  runtime:object,
+ *  profilePath:string|null,
+ *  profile:object,
+ *  mode:string,
+ *  cacheSignature:string,
+ *  fileCount:number,
+ *  chunkCount:number,
+ *  elided:boolean,
+ *  source:string
+ * }} input
+ * @returns {Promise<void>}
+ */
 export const writeModalitySparsityEntry = async ({
   runtime,
   profilePath,
@@ -191,6 +231,12 @@ export const writeModalitySparsityEntry = async ({
   await atomicWriteJson(profilePath, next, { spaces: 2 });
 };
 
+/**
+ * Determine whether stage processing can be elided for empty modality.
+ *
+ * @param {{fileCount:number,chunkCount:number}} input
+ * @returns {boolean}
+ */
 export const shouldElideModalityProcessingStage = ({ fileCount, chunkCount }) => (
   Number(fileCount) === 0 && Number(chunkCount) === 0
 );
@@ -217,6 +263,12 @@ const estimateRepoLinesFromEntries = (entries = []) => {
   };
 };
 
+/**
+ * Resolve tiny-repo fast-path activation and shortcut settings.
+ *
+ * @param {{runtime:object,entries:Array<object>}} [input]
+ * @returns {object}
+ */
 export const resolveTinyRepoFastPath = ({ runtime, entries = [] } = {}) => {
   const config = runtime?.indexingConfig?.tinyRepoFastPath
     && typeof runtime.indexingConfig.tinyRepoFastPath === 'object'
@@ -401,8 +453,15 @@ const summarizeDocumentExtractionForMode = (state) => {
 };
 
 /**
- * Build indexes for a given mode.
- * @param {{mode:'code'|'prose'|'records'|'extracted-prose',runtime:object,discovery?:{entries:Array,skippedFiles:Array}}} input
+ * Build indexes for one mode by running discovery/planning/stage pipeline.
+ *
+ * @param {{
+ *  mode:'code'|'prose'|'records'|'extracted-prose',
+ *  runtime:object,
+ *  discovery?:{entries:Array,skippedFiles:Array},
+ *  abortSignal?:AbortSignal|null
+ * }} input
+ * @returns {Promise<void>}
  */
 export async function buildIndexForMode({ mode, runtime, discovery = null, abortSignal = null }) {
   throwIfAborted(abortSignal);

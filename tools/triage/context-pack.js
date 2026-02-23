@@ -83,6 +83,15 @@ console.log(JSON.stringify({
   warnings: warnings.length ? warnings : undefined
 }, null, 2));
 
+/**
+ * Build related historical triage records using deterministic query passes.
+ *
+ * First pass includes service/env route filters, then a relaxed decision-only
+ * pass fills remaining slots up to `maxHistory`.
+ *
+ * @param {object} input
+ * @returns {Promise<object[]>}
+ */
 async function buildHistory({ repoRoot, recordsDir, recordId, finding, maxHistory, warnings }) {
   const historyMap = new Map();
   const vulnId = finding?.vuln?.cve || finding?.vuln?.vulnId || null;
@@ -134,6 +143,12 @@ async function buildHistory({ repoRoot, recordsDir, recordId, finding, maxHistor
   return Array.from(historyMap.values()).slice(0, maxHistory);
 }
 
+/**
+ * Build per-query repository evidence hits across supported retrieval modes.
+ *
+ * @param {object} input
+ * @returns {Promise<{queries:Array<object>}>}
+ */
 async function buildRepoEvidence({ repoRoot, finding, maxEvidencePerQuery, warnings }) {
   const queries = buildEvidenceQueries(finding);
   const results = [];
@@ -230,6 +245,12 @@ async function loadRecord(recordsDir, recordId) {
   }
 }
 
+/**
+ * Run `tools/search.js` and return JSON payload/error as a tagged result.
+ *
+ * @param {{repoRoot:string,query:string,mode:string,metaFilters:string[],top:number}} input
+ * @returns {{ok:boolean,payload?:object|null,error?:string}}
+ */
 function runSearchJson({ repoRoot, query, mode, metaFilters, top }) {
   const scriptRoot = resolveToolRoot();
   const searchPath = path.join(scriptRoot, 'search.js');

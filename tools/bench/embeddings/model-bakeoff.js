@@ -200,6 +200,18 @@ const runNode = (args, env, label) => {
   return result;
 };
 
+/**
+ * Run a node subprocess and retry only on index-lock contention failures.
+ *
+ * Retry delay scales linearly as `baseDelayMs * attempt`. Non-lock failures
+ * bypass retry and are rethrown immediately.
+ *
+ * @param {string[]} args
+ * @param {Record<string, string|undefined>} env
+ * @param {string} label
+ * @param {{maxAttempts?:number,baseDelayMs?:number}} [options]
+ * @returns {Promise<import('../../../src/shared/spawn-subprocess.js').SpawnSubprocessSyncResult>}
+ */
 const runNodeWithLockRetry = async (
   args,
   env,
@@ -249,6 +261,15 @@ const runJsonNode = (args, env, label) => {
   }
 };
 
+/**
+ * Build an isolated per-model process environment for bakeoff runs.
+ *
+ * Each model gets a dedicated cache root while optionally sharing model/dictionary
+ * directories to avoid redownloading artifacts across runs.
+ *
+ * @param {string} modelId
+ * @returns {Record<string, string|undefined>}
+ */
 const toModelEnv = (modelId) => {
   const env = {
     ...baseEnv,
@@ -514,6 +535,15 @@ const isModelReportComplete = (entry) => {
   return true;
 };
 
+/**
+ * Load checkpointed model reports that can be safely resumed for this invocation.
+ *
+ * Resume is accepted only when saved settings exactly match current settings and
+ * each reused model report is complete for the current mode (including eval data
+ * when eval is enabled).
+ *
+ * @returns {Promise<object[]>}
+ */
 const loadResumedModelReports = async () => {
   if (!allowResume) return [];
   if (!fs.existsSync(checkpointOutPath)) return [];

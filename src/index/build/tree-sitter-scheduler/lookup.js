@@ -17,6 +17,12 @@ const DEFAULT_ROW_CACHE_MAX = 4096;
 const DEFAULT_MISS_CACHE_MAX = 10000;
 const DEFAULT_PAGE_CACHE_MAX = 1024;
 
+/**
+ * Create lookup service for scheduler virtual-path row/chunk retrieval.
+ *
+ * @param {{outDir:string,index?:Map<string,object>,log?:(line:string)=>void,maxCacheEntries?:number|null,maxMissCacheEntries?:number|null}} input
+ * @returns {object}
+ */
 export const createTreeSitterSchedulerLookup = ({
   outDir,
   index = new Map(),
@@ -45,6 +51,12 @@ export const createTreeSitterSchedulerLookup = ({
   const segmentMetaByGrammarKey = new Map(); // grammarKey -> Promise<Map<number, object>|null>
   const pageIndexByGrammarKey = new Map(); // grammarKey -> Promise<Map<number, object>|null>
 
+  /**
+   * Resolve shared page-cache key for a paged-json index entry.
+   *
+   * @param {object} entry
+   * @returns {string|null}
+   */
   const pageCacheKeyForEntry = (entry) => {
     if (!entry || entry.store !== 'paged-json') return null;
     const grammarKey = typeof entry.grammarKey === 'string' ? entry.grammarKey : null;
@@ -60,6 +72,13 @@ export const createTreeSitterSchedulerLookup = ({
     pageRefCounts.set(pageKey, current + 1);
   }
 
+  /**
+   * Get or create VFS manifest reader for one manifest+format tuple.
+   *
+   * @param {string} manifestPath
+   * @param {'jsonl'|'binary-v1'} [format='jsonl']
+   * @returns {object}
+   */
   const getReaderForManifest = (manifestPath, format = 'jsonl') => {
     const key = `${manifestPath}|${format}`;
     if (readersByManifestPath.has(key)) {
@@ -73,6 +92,11 @@ export const createTreeSitterSchedulerLookup = ({
     return reader;
   };
 
+  /**
+   * Close readers and clear lookup caches.
+   *
+   * @returns {Promise<void>}
+   */
   const close = async () => {
     const readers = Array.from(readersByManifestPath.values());
     readersByManifestPath.clear();
@@ -88,6 +112,12 @@ export const createTreeSitterSchedulerLookup = ({
     }));
   };
 
+  /**
+   * Load per-grammar segment metadata indexed by `segmentRef`.
+   *
+   * @param {string} grammarKey
+   * @returns {Promise<Map<number, object>|null>}
+   */
   const loadSegmentMeta = async (grammarKey) => {
     if (!grammarKey) return null;
     if (segmentMetaByGrammarKey.has(grammarKey)) {
@@ -113,6 +143,13 @@ export const createTreeSitterSchedulerLookup = ({
     return pending;
   };
 
+  /**
+   * Hydrate row with segment metadata fields when missing from row payload.
+   *
+   * @param {object} row
+   * @param {Map<number, object>|null} metaByRef
+   * @returns {object|null}
+   */
   const hydrateRowWithSegmentMeta = (row, metaByRef) => {
     if (!row || typeof row !== 'object') return null;
     if (
@@ -142,11 +179,23 @@ export const createTreeSitterSchedulerLookup = ({
     };
   };
 
+  /**
+   * Load one row by virtual path.
+   *
+   * @param {string} virtualPath
+   * @returns {Promise<object|null>}
+   */
   const loadRow = async (virtualPath) => {
     const [row] = await loadRows([virtualPath]);
     return row || null;
   };
 
+  /**
+   * Load paged-json index map for one grammar key.
+   *
+   * @param {string} grammarKey
+   * @returns {Promise<Map<number, object>|null>}
+   */
   const loadPageIndex = async (grammarKey) => {
     if (!grammarKey) return null;
     if (pageIndexByGrammarKey.has(grammarKey)) {
@@ -206,6 +255,12 @@ export const createTreeSitterSchedulerLookup = ({
     return pending;
   };
 
+  /**
+   * Decode paged row payload in plain or gzip-encoded JSON format.
+   *
+   * @param {object} pagePayload
+   * @returns {object[]|null}
+   */
   const decodePageRows = (pagePayload) => {
     if (!pagePayload || typeof pagePayload !== 'object') return null;
     const codec = typeof pagePayload.codec === 'string'
@@ -221,6 +276,12 @@ export const createTreeSitterSchedulerLookup = ({
     return Array.isArray(pagePayload.rows) ? pagePayload.rows : null;
   };
 
+  /**
+   * Load rows for a batch of virtual paths using grouped manifest reads.
+   *
+   * @param {string[]} virtualPaths
+   * @returns {Promise<Array<object|null>>}
+   */
   const loadRows = async (virtualPaths) => {
     const keys = Array.isArray(virtualPaths) ? virtualPaths : [];
     if (!keys.length) return [];
@@ -395,6 +456,12 @@ export const createTreeSitterSchedulerLookup = ({
     return rows;
   };
 
+  /**
+   * Release per-virtual-path caches and decrement page reference tracking.
+   *
+   * @param {string} virtualPath
+   * @returns {void}
+   */
   const releaseVirtualPathCaches = (virtualPath) => {
     if (!virtualPath) return;
     rowCache.delete(virtualPath);
@@ -417,6 +484,13 @@ export const createTreeSitterSchedulerLookup = ({
     pageRowsCache.delete(pageKey);
   };
 
+  /**
+   * Load parsed chunks for one virtual path.
+   *
+   * @param {string} virtualPath
+   * @param {{consume?:boolean}} [options]
+   * @returns {Promise<object[]|null>}
+   */
   const loadChunks = async (virtualPath, options = {}) => {
     const consume = options?.consume !== false;
     const row = await loadRow(virtualPath);
@@ -427,6 +501,13 @@ export const createTreeSitterSchedulerLookup = ({
     return chunks || null;
   };
 
+  /**
+   * Load parsed chunks for many virtual paths.
+   *
+   * @param {string[]} virtualPaths
+   * @param {{consume?:boolean}} [options]
+   * @returns {Promise<Array<object[]|null>>}
+   */
   const loadChunksBatch = async (virtualPaths, options = {}) => {
     const keys = Array.isArray(virtualPaths) ? virtualPaths : [];
     if (!keys.length) return [];
@@ -441,6 +522,11 @@ export const createTreeSitterSchedulerLookup = ({
     return chunks;
   };
 
+  /**
+   * List distinct grammar keys represented in lookup index.
+   *
+   * @returns {string[]}
+   */
   const grammarKeys = () => {
     const keys = new Set();
     for (const entry of index.values()) {

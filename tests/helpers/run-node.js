@@ -1,5 +1,15 @@
 import { spawnSync } from 'node:child_process';
 
+/**
+ * Run Node script via `spawnSync` with standard failure handling.
+ *
+ * @param {string[]} args
+ * @param {string} label
+ * @param {string} cwd
+ * @param {object} env
+ * @param {{timeoutMs?:number,stdio?:any,encoding?:BufferEncoding,spawnOptions?:object,onFailure?:(result:import('node:child_process').SpawnSyncReturns<string|Buffer>)=>void}} [options]
+ * @returns {import('node:child_process').SpawnSyncReturns<string|Buffer>}
+ */
 export const runNode = (args, label, cwd, env, options = {}) => {
   const {
     timeoutMs,

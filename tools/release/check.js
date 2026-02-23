@@ -133,6 +133,14 @@ const ensureParentDir = (filePath) => {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
 };
 
+/**
+ * Execute one release-check step and capture normalized result metadata.
+ *
+ * In dry-run mode, returns synthetic success/failure without spawning.
+ *
+ * @param {object} input
+ * @returns {object}
+ */
 const recordStep = ({
   id,
   phase,
@@ -201,6 +209,13 @@ const recordStep = ({
   };
 };
 
+/**
+ * Validate CHANGELOG presence and ensure current package version entry exists.
+ *
+ * Optionally enforces a populated `### Breaking` subsection.
+ *
+ * @returns {string}
+ */
 const validateChangelog = () => {
   const packagePath = path.join(root, 'package.json');
   const changelogPath = path.join(root, 'CHANGELOG.md');
@@ -259,6 +274,12 @@ const writeOutputs = (reportPayload, manifestPayload) => {
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifestPayload, null, 2)}\n`);
 };
 
+/**
+ * Collect deterministic release-manifest artifact metadata.
+ *
+ * @param {object[]} steps
+ * @returns {Array<{path:string,exists:boolean,sizeBytes:number|null,sha256:string|null}>}
+ */
 const collectManifestArtifacts = (steps) => {
   const inventory = new Set([
     normalizePath(path.relative(root, reportPath)),
@@ -293,6 +314,11 @@ const collectManifestArtifacts = (steps) => {
     });
 };
 
+/**
+ * Execute release-check workflow and emit report/manifest outputs.
+ *
+ * @returns {void}
+ */
 const main = () => {
   const startedAtMs = Date.now();
   const startedAt = toIso(startedAtMs);

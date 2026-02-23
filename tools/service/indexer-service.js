@@ -66,8 +66,19 @@ const serviceExecutionMode = String(serviceExecutionModeRaw || '').trim().toLowe
   ? 'daemon'
   : 'subprocess';
 
+/**
+ * Resolve repo registry entry from CLI repo argument.
+ *
+ * @param {string} repoArg
+ * @returns {object|null}
+ */
 const resolveRepoEntryForArg = (repoArg) => resolveRepoEntry(repoArg, repoEntries, baseDir);
 
+/**
+ * Build a queue job id that stays sortable by enqueue time.
+ *
+ * @returns {string}
+ */
 const formatJobId = () => `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
 
 const toolRoot = resolveToolRoot();
@@ -81,6 +92,13 @@ const printPayload = (payload) => {
 };
 
 
+/**
+ * Emit effective UV threadpool configuration diagnostics for service startup.
+ *
+ * @param {string|null} repoRoot
+ * @param {string} [label='indexer']
+ * @returns {void}
+ */
 function logThreadpoolInfo(repoRoot, label = 'indexer') {
   const runtimeConfig = repoRoot ? getRuntimeConfig(repoRoot) : { uvThreadpoolSize: null };
   const effectiveUvRaw = Number(process.env.UV_THREADPOOL_SIZE);
@@ -105,8 +123,20 @@ const BUILD_STATE_FILE = 'build_state.json';
 const BUILD_STATE_POLL_MS = 5000;
 const BUILD_STATE_LOOKBACK_MS = 5 * 60 * 1000;
 
+/**
+ * Resolve the build artifacts root under one repo cache root.
+ *
+ * @param {string} repoCacheRoot
+ * @returns {string}
+ */
 const resolveBuildsRoot = (repoCacheRoot) => path.join(repoCacheRoot, 'builds');
 
+/**
+ * Read one build-state snapshot from a build root directory.
+ *
+ * @param {string|null} buildRoot
+ * @returns {Promise<{state:object,path:string}|null>}
+ */
 const readBuildState = async (buildRoot) => {
   if (!buildRoot) return null;
   const statePath = path.join(buildRoot, BUILD_STATE_FILE);
@@ -119,6 +149,15 @@ const readBuildState = async (buildRoot) => {
   }
 };
 
+/**
+ * Enumerate build directories that currently expose `build_state.json`.
+ *
+ * Returned list is sorted newest-first by state file mtime so callers can
+ * prefer active/latest builds without scanning timestamps again.
+ *
+ * @param {string} repoCacheRoot
+ * @returns {Promise<Array<{buildRoot:string,statePath:string,mtimeMs:number}>>}
+ */
 const listBuildStateCandidates = async (repoCacheRoot) => {
   const buildsRoot = resolveBuildsRoot(repoCacheRoot);
   let entries;
@@ -140,6 +179,14 @@ const listBuildStateCandidates = async (repoCacheRoot) => {
   return candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
 };
 
+/**
+ * Pick the newest viable build-state snapshot for stage progress reporting.
+ *
+ * @param {string} repoCacheRoot
+ * @param {string|null} stage
+ * @param {number} sinceMs
+ * @returns {Promise<{buildRoot:string,state:object,path:string}|null>}
+ */
 const pickBuildState = async (repoCacheRoot, stage, sinceMs) => {
   const candidates = await listBuildStateCandidates(repoCacheRoot);
   for (const candidate of candidates) {
@@ -156,6 +203,12 @@ const pickBuildState = async (repoCacheRoot, stage, sinceMs) => {
 
 const formatDuration = (ms) => formatDurationMs(ms);
 
+/**
+ * Format one progress line from build_state snapshot telemetry.
+ *
+ * @param {{jobId:string,stage:string|null,state:object}} input
+ * @returns {string|null}
+ */
 const formatProgressLine = ({ jobId, stage, state }) => {
   if (!state) return null;
   const phases = state?.phases || {};
@@ -244,6 +297,14 @@ const startBuildProgressMonitor = ({ job, repoPath, stage }) => {
   };
 };
 
+/**
+ * Execute a Node subprocess and route output into the shared log helper.
+ *
+ * @param {string[]} args
+ * @param {Record<string, string>} [extraEnv={}]
+ * @param {string|null} [logPath=null]
+ * @returns {Promise<number>}
+ */
 const spawnWithLog = async (args, extraEnv = {}, logPath = null) => {
   const result = await runLoggedSubprocess({
     command: process.execPath,
@@ -264,6 +325,17 @@ const spawnWithLog = async (args, extraEnv = {}, logPath = null) => {
   return Number.isFinite(result.exitCode) ? result.exitCode : 1;
 };
 
+/**
+ * Run `build_index.js` in subprocess mode with either explicit argv passthrough
+ * or reconstructed `--repo/--mode/--stage` arguments.
+ *
+ * @param {string} repoPath
+ * @param {string|null} mode
+ * @param {string|null} stage
+ * @param {string[]|null} [extraArgs]
+ * @param {string|null} [logPath]
+ * @returns {Promise<number>}
+ */
 const runBuildIndexSubprocess = (repoPath, mode, stage, extraArgs = null, logPath = null) => {
   const buildPath = path.join(toolRoot, 'build_index.js');
   const args = [buildPath];
@@ -280,6 +352,13 @@ const runBuildIndexSubprocess = (repoPath, mode, stage, extraArgs = null, logPat
   return spawnWithLog(args, runtimeEnv, logPath);
 };
 
+/**
+ * Normalize arbitrary values for use inside daemon session key segments.
+ *
+ * @param {unknown} value
+ * @param {string} [fallback='default']
+ * @returns {string}
+ */
 const toSafeSegment = (value, fallback = 'default') => {
   if (typeof value !== 'string') return fallback;
   const trimmed = value.trim();
@@ -287,6 +366,15 @@ const toSafeSegment = (value, fallback = 'default') => {
   return trimmed.replace(/[^a-zA-Z0-9._:-]+/g, '_');
 };
 
+/**
+ * Build a deterministic daemon session key for one repo + queue namespace.
+ *
+ * Repo path is canonicalized and hashed so keys stay short and safe for
+ * logging/metrics tags while remaining stable across runs.
+ *
+ * @param {{repoPath?:string,queueName?:string,namespace?:string}} [input]
+ * @returns {string}
+ */
 const buildDaemonSessionKey = ({
   repoPath,
   queueName: daemonQueueName = 'index',
@@ -302,6 +390,13 @@ const buildDaemonSessionKey = ({
   return `${namespaceSegment}:${queueSegment}:${digest}`;
 };
 
+/**
+ * Append one line to daemon execution logs, creating parent directories lazily.
+ *
+ * @param {string|null} logPath
+ * @param {string} line
+ * @returns {Promise<void>}
+ */
 const appendDaemonLogLine = async (logPath, line) => {
   if (!logPath || !line) return;
   try {
@@ -312,6 +407,15 @@ const appendDaemonLogLine = async (logPath, line) => {
   }
 };
 
+/**
+ * Resolve build-index argv for daemon or subprocess execution.
+ *
+ * @param {string} repoPath
+ * @param {string|null} mode
+ * @param {string|null} stage
+ * @param {string[]|null} [extraArgs]
+ * @returns {string[]}
+ */
 const resolveBuildIndexArgs = (repoPath, mode, stage, extraArgs = null) => {
   if (Array.isArray(extraArgs) && extraArgs.length) return extraArgs.slice();
   const args = ['--repo', repoPath];
@@ -320,6 +424,12 @@ const resolveBuildIndexArgs = (repoPath, mode, stage, extraArgs = null) => {
   return args;
 };
 
+/**
+ * Remove CLI parser internals before forwarding args into `buildIndex`.
+ *
+ * @param {object} argvValue
+ * @returns {object}
+ */
 const sanitizeBuildArgv = (argvValue) => {
   const next = {};
   for (const [key, value] of Object.entries(argvValue || {})) {
@@ -329,6 +439,17 @@ const sanitizeBuildArgv = (argvValue) => {
   return next;
 };
 
+/**
+ * Execute build-index request in daemon mode and return normalized result.
+ *
+ * @param {string} repoPath
+ * @param {string|null} mode
+ * @param {string|null} stage
+ * @param {string[]|null} [extraArgs]
+ * @param {string|null} [logPath]
+ * @param {object} [daemonOptions]
+ * @returns {Promise<{exitCode:number,executionMode:'daemon',daemon:object}>}
+ */
 const runBuildIndexDaemon = async (
   repoPath,
   mode,
@@ -393,6 +514,16 @@ const runBuildIndexDaemon = async (
   }
 };
 
+/**
+ * Run embeddings build worker for one repo/build root pair.
+ *
+ * @param {string} repoPath
+ * @param {string|null} mode
+ * @param {string} indexRoot
+ * @param {Record<string, string>} [extraEnv={}]
+ * @param {string|null} [logPath=null]
+ * @returns {Promise<number>}
+ */
 const runBuildEmbeddings = (repoPath, mode, indexRoot, extraEnv = {}, logPath = null) => {
   const buildPath = path.join(toolRoot, 'tools', 'build', 'embeddings.js');
   const args = buildEmbeddingsArgs({ buildPath, repoPath, mode, indexRoot });
@@ -655,6 +786,11 @@ const processQueueOnce = async (metrics) => {
   return true;
 };
 
+/**
+ * Drain queue jobs with bounded concurrency and optional watch-loop polling.
+ *
+ * @returns {Promise<void>}
+ */
 const handleWork = async () => {
   await ensureQueueDir(queueDir);
   const workerConfig = queueName === 'embeddings'

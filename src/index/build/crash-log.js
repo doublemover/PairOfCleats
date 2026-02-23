@@ -7,6 +7,11 @@ import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { sha1 } from '../../shared/hash.js';
 import { normalizeFailureEvent, validateFailureEvent } from './failure-taxonomy.js';
 
+/**
+ * Produce ISO-8601 timestamp for crash log entries.
+ *
+ * @returns {string}
+ */
 const formatTimestamp = () => new Date().toISOString();
 const RENAME_RETRY_CODES = new Set(['EEXIST', 'EPERM', 'ENOTEMPTY', 'EACCES', 'EXDEV']);
 const CRASH_RETENTION_SCHEMA_VERSION = '1.0.0';
@@ -22,6 +27,12 @@ const RETAINED_CRASH_LOG_BASENAMES = new Set([
   'index-crash-forensics-index.json'
 ]);
 
+/**
+ * Safely JSON-stringify values used in append-only log lines.
+ *
+ * @param {unknown} value
+ * @returns {string}
+ */
 const safeStringify = (value) => {
   try {
     return JSON.stringify(value);
@@ -30,6 +41,13 @@ const safeStringify = (value) => {
   }
 };
 
+/**
+ * Convert arbitrary values to filesystem-safe path token fragments.
+ *
+ * @param {unknown} value
+ * @param {string} [fallback='unknown']
+ * @returns {string}
+ */
 const sanitizePathToken = (value, fallback = 'unknown') => {
   const raw = value == null ? '' : String(value);
   const trimmed = raw.trim();
@@ -38,6 +56,12 @@ const sanitizePathToken = (value, fallback = 'unknown') => {
   return cleaned || fallback;
 };
 
+/**
+ * Compute stable forensic payload signature for dedupe/indexing.
+ *
+ * @param {unknown} payload
+ * @returns {string}
+ */
 const computeForensicSignature = (payload) => {
   try {
     return sha1(JSON.stringify(payload || null)).slice(0, 20);
@@ -46,6 +70,13 @@ const computeForensicSignature = (payload) => {
   }
 };
 
+/**
+ * Extract recent non-empty lines from crash log text.
+ *
+ * @param {string} text
+ * @param {number} [limit]
+ * @returns {string[]}
+ */
 const extractLogTailLines = (text, limit = CRASH_RETENTION_LOG_TAIL_LIMIT) => {
   const rows = String(text || '')
     .split(/\r?\n/)
@@ -55,6 +86,12 @@ const extractLogTailLines = (text, limit = CRASH_RETENTION_LOG_TAIL_LIMIT) => {
   return rows.slice(-Math.max(1, Math.floor(limit)));
 };
 
+/**
+ * Normalize scheduler event line/object into canonical retention shape.
+ *
+ * @param {object|string|null|undefined} entry
+ * @returns {object|null}
+ */
 const normalizeSchedulerEventEntry = (entry) => {
   if (!entry) return null;
   if (typeof entry === 'string') {
@@ -85,6 +122,14 @@ const normalizeSchedulerEventEntry = (entry) => {
   return normalized;
 };
 
+/**
+ * Merge scheduler events from structured payloads + crash log tail.
+ *
+ * Filters to scheduler-tagged messages and deduplicates by stable digest.
+ *
+ * @param {{schedulerEvents?:Array<object|string>,crashLogTail?:string[]}} [input]
+ * @returns {Array<object>}
+ */
 const mergeSchedulerEvents = ({ schedulerEvents = [], crashLogTail = [] }) => {
   const merged = [];
   const seen = new Set();
@@ -107,6 +152,12 @@ const mergeSchedulerEvents = ({ schedulerEvents = [], crashLogTail = [] }) => {
   return merged.slice(-CRASH_RETENTION_SCHEDULER_EVENT_LIMIT);
 };
 
+/**
+ * Merge parser metadata candidates while removing structural duplicates.
+ *
+ * @param {{parserMetadata?:Array<object>,payload?:object|null}} [input]
+ * @returns {Array<object>}
+ */
 const mergeParserMetadata = ({ parserMetadata = [], payload = null }) => {
   if (!payload || typeof payload !== 'object') return parserMetadata;
   const entries = Array.isArray(parserMetadata) ? parserMetadata.slice() : [];
@@ -131,10 +182,24 @@ const mergeParserMetadata = ({ parserMetadata = [], payload = null }) => {
   return entries;
 };
 
+/**
+ * Ensure target parent directory exists.
+ *
+ * @param {string} targetPath
+ * @returns {Promise<void>}
+ */
 const ensureParentDir = async (targetPath) => {
   await fs.mkdir(path.dirname(targetPath), { recursive: true });
 };
 
+/**
+ * Atomically rename temp file to final path with retry for common Windows
+ * rename races and cross-device replacement cases.
+ *
+ * @param {string} tempPath
+ * @param {string} targetPath
+ * @returns {Promise<void>}
+ */
 const renameWithFallback = async (tempPath, targetPath) => {
   try {
     await fs.rename(tempPath, targetPath);
@@ -147,6 +212,13 @@ const renameWithFallback = async (tempPath, targetPath) => {
   }
 };
 
+/**
+ * Copy one artifact through a temp file and atomic rename.
+ *
+ * @param {string} sourcePath
+ * @param {string} targetPath
+ * @returns {Promise<{bytes:number,sha1:string}>}
+ */
 const copyFileAtomic = async (sourcePath, targetPath) => {
   const tempPath = createTempPath(targetPath);
   try {
@@ -167,6 +239,12 @@ const copyFileAtomic = async (sourcePath, targetPath) => {
   }
 };
 
+/**
+ * Recursively list files under one root directory.
+ *
+ * @param {string} rootDir
+ * @returns {Promise<string[]>}
+ */
 const listFilesRecursive = async (rootDir) => {
   const out = [];
   const walk = async (dirPath) => {
@@ -190,6 +268,12 @@ const listFilesRecursive = async (rootDir) => {
   return out;
 };
 
+/**
+ * Select crash-log and forensics artifacts eligible for retention bundles.
+ *
+ * @param {{repoCacheRoot:string}} input
+ * @returns {Promise<Array<{sourcePath:string,relativePath:string}>>}
+ */
 const selectCrashArtifacts = async ({ repoCacheRoot }) => {
   const resolvedRepoCacheRoot = path.resolve(String(repoCacheRoot || ''));
   const logsDir = path.join(resolvedRepoCacheRoot, 'logs');
@@ -397,6 +481,12 @@ const writeJsonAtomicSync = (filePath, value) => {
   }
 };
 
+/**
+ * Create crash logger façade used by indexing runtime for crash diagnostics.
+ *
+ * @param {{repoCacheRoot:string,enabled:boolean}} input
+ * @returns {Promise<object>}
+ */
 export async function createCrashLogger({ repoCacheRoot, enabled }) {
   if (!enabled || !repoCacheRoot) {
     return {

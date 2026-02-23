@@ -106,6 +106,13 @@ export async function compactDatabase(input) {
     process.exit(1);
   }
   const modeColumnByTable = new Map();
+  /**
+   * Probe whether a table exposes a `mode` column and memoize the result.
+   *
+   * @param {Database} db
+   * @param {string} table
+   * @returns {boolean}
+   */
   const tableHasModeColumn = (db, table) => {
     if (modeColumnByTable.has(table)) return modeColumnByTable.get(table);
     try {
@@ -119,6 +126,13 @@ export async function compactDatabase(input) {
       return false;
     }
   };
+  /**
+   * Count rows for a table, filtering by current mode when supported.
+   *
+   * @param {Database} db
+   * @param {string} table
+   * @returns {number}
+   */
   const countRows = (db, table) => {
     try {
       const hasMode = tableHasModeColumn(db, table);

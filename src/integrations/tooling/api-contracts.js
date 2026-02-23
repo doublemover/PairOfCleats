@@ -20,6 +20,12 @@ import { renderApiContracts } from '../../retrieval/output/api-contracts.js';
 import { loadUserConfig, resolveRepoRoot } from '../../../tools/shared/dict-utils.js';
 import { writeJsonLinesFile } from '../../shared/json-stream.js';
 
+/**
+ * Build non-null API contract cap payload used in report metadata.
+ *
+ * @param {{maxSymbols?:number,maxCallsPerSymbol?:number,maxWarnings?:number}} input
+ * @returns {object}
+ */
 const buildCapsPayload = ({ maxSymbols, maxCallsPerSymbol, maxWarnings }) => {
   const caps = {};
   if (Number.isFinite(maxSymbols)) caps.maxSymbols = maxSymbols;
@@ -28,6 +34,17 @@ const buildCapsPayload = ({ maxSymbols, maxCallsPerSymbol, maxWarnings }) => {
   return caps;
 };
 
+/**
+ * Resolve manifest-backed JSONL paths for an artifact or return `null`.
+ *
+ * Rejects mixed or non-JSONL source formats to keep streaming readers on a
+ * deterministic path.
+ *
+ * @param {string} indexDir
+ * @param {object} manifest
+ * @param {string} name
+ * @returns {string[]|null}
+ */
 const resolveJsonlSources = (indexDir, manifest, name) => {
   const sources = resolveManifestArtifactSources({
     dir: indexDir,
@@ -61,6 +78,13 @@ const collectRows = async (iterator) => {
   return rows;
 };
 
+/**
+ * Load call-site rows and index them by target symbol identifiers.
+ *
+ * @param {string} indexDir
+ * @param {object} manifest
+ * @returns {Promise<Map<string, object[]>|null>}
+ */
 const loadCallSitesByTarget = async (indexDir, manifest) => {
   const jsonlPaths = resolveJsonlSources(indexDir, manifest, 'call_sites');
   if (!jsonlPaths) return null;
@@ -83,6 +107,12 @@ const loadCallSitesByTarget = async (indexDir, manifest) => {
 };
 
 
+/**
+ * Determine whether a symbol should be treated as exported.
+ *
+ * @param {object} symbol
+ * @returns {boolean}
+ */
 const isExportedSymbol = (symbol) => {
   const kind = String(symbol.kind || '').toLowerCase();
   const group = String(symbol.kindGroup || '').toLowerCase();
@@ -93,6 +123,12 @@ const isExportedSymbol = (symbol) => {
 
 const signatureArityCache = new Map();
 
+/**
+ * Parse signature text into required/optional/variadic arity metadata.
+ *
+ * @param {string} signature
+ * @returns {{requiredCount:number,maxCount:number|null,variadic:boolean}|null}
+ */
 const parseSignatureArity = (signature) => {
   if (!signature || typeof signature !== 'string') return null;
   const text = String(signature);
@@ -324,6 +360,14 @@ const resolveSignatureArity = (signature) => {
   return parsed;
 };
 
+/**
+ * Build deterministic API contracts report from symbols and call sites.
+ *
+ * Applies filtering, truncation caps, and warning-policy handling.
+ *
+ * @param {object} [input]
+ * @returns {object}
+ */
 export const buildApiContractsReport = ({
   symbols = [],
   callSites = [],
@@ -527,6 +571,12 @@ export const buildApiContractsReport = ({
   return report;
 };
 
+/**
+ * CLI entrypoint for API contracts report generation.
+ *
+ * @param {string[]} [rawArgs]
+ * @returns {Promise<object>}
+ */
 export async function runApiContractsCli(rawArgs = process.argv.slice(2)) {
   const cli = createCli({
     scriptName: 'api-contracts',

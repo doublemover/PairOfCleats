@@ -64,6 +64,12 @@ const BOOLEAN_OPERATORS = new Set(['and', 'or', 'not']);
 const FALLBACK_STRIP_QUOTES = /^["']+|["']+$/g;
 const FALLBACK_HARD_ERROR_PATTERN = /Standalone "-" is not allowed/i;
 
+/**
+ * Tokenize boolean query string into operator/term/phrase tokens.
+ *
+ * @param {string} raw
+ * @returns {{tokens:Array<object>,errors:string[]}}
+ */
 const tokenizeBooleanQuery = (raw) => {
   const tokens = [];
   const errors = [];
@@ -145,6 +151,14 @@ const tokenizeBooleanQuery = (raw) => {
   return { tokens, errors };
 };
 
+/**
+ * Parse boolean query tokens into expression AST with error collection.
+ *
+ * Supports implicit AND adjacency and explicit `AND`/`OR`/`NOT` precedence.
+ *
+ * @param {string} raw
+ * @returns {{ast:object|null,errors:string[]}}
+ */
 const parseBooleanQuery = (raw) => {
   const { tokens, errors } = tokenizeBooleanQuery(raw);
   if (errors.length) return { ast: null, errors };
@@ -225,6 +239,15 @@ const parseBooleanQuery = (raw) => {
   return { ast, errors };
 };
 
+/**
+ * Flatten boolean AST into include/exclude term + phrase buckets.
+ *
+ * @param {object|null} ast
+ * @param {{includeTerms:string[],excludeTerms:string[],phrases:string[],excludePhrases:string[]}|null} [state]
+ * @param {boolean} [negated=false]
+ * @param {boolean} [inCompoundNegation=false]
+ * @returns {{includeTerms:string[],excludeTerms:string[],phrases:string[],excludePhrases:string[]}}
+ */
 const flattenQueryAst = (ast, state = null, negated = false, inCompoundNegation = false) => {
   const acc = state || {
     includeTerms: [],

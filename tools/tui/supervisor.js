@@ -183,6 +183,11 @@ const queueFlowEntry = (entry) => {
   queue.push(entry);
 };
 
+/**
+ * Flush queued flow entries while per-interval send credits remain.
+ *
+ * @returns {void}
+ */
 const drainFlowQueue = () => {
   while (state.flow.credits > 0 && state.flow.queue.length > 0) {
     const next = state.flow.queue.shift();
@@ -328,6 +333,22 @@ const resolveWatchdogConfigSource = (request) => {
   return { rawWatchdog, runStageWatchdog };
 };
 
+/**
+ * Resolve run-stage watchdog policy from layered request fields.
+ *
+ * Order of precedence is stage-specific watchdog config, then top-level watchdog
+ * config, then legacy `watchdogMs`. Derived values are clamped, and `softKickMs`
+ * is guaranteed to be strictly below `hardTimeoutMs` when hard timeouts are enabled.
+ *
+ * @param {object} [request]
+ * @returns {{
+ *  hardTimeoutMs:number,
+ *  heartbeatMs:number,
+ *  softKickMs:number,
+ *  softKickCooldownMs:number,
+ *  softKickMaxAttempts:number
+ * }}
+ */
 const resolveWatchdogPolicy = (request) => {
   const { rawWatchdog, runStageWatchdog } = resolveWatchdogConfigSource(request);
   const hardTimeoutMs = clampInt(

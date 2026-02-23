@@ -19,6 +19,14 @@ const toUtf8ByteLength = (value) => {
   return Buffer.byteLength(value, 'utf8');
 };
 
+/**
+ * Append non-empty lines to log file, creating parent directory on demand.
+ *
+ * @param {string|null} logPath
+ * @param {string[]} lines
+ * @param {{onWriteError?:(error:Error)=>void}} [input]
+ * @returns {number}
+ */
 const appendLogLines = (logPath, lines, { onWriteError = null } = {}) => {
   if (!logPath || typeof logPath !== 'string') return 0;
   const payload = Array.isArray(lines)
@@ -62,6 +70,12 @@ export const resolveLoggedSubprocessPolicy = ({
   };
 };
 
+/**
+ * Render one structured subprocess log block for stdout/stderr/error telemetry.
+ *
+ * @param {object} input
+ * @returns {string[]}
+ */
 const buildLogBlock = ({
   startedAt,
   endedAt,
@@ -98,6 +112,26 @@ const buildLogBlock = ({
   return lines;
 };
 
+/**
+ * Execute subprocess and optionally capture/write bounded stdout/stderr logs.
+ *
+ * @param {{
+ *   command:string,
+ *   args?:string[],
+ *   env?:Record<string,string>,
+ *   signal?:AbortSignal|null,
+ *   extraEnv?:Record<string,string>,
+ *   logPath?:string|null,
+ *   maxOutputBytes?:number|null,
+ *   timeoutMs?:number|null,
+ *   onWriteError?:(error:Error)=>void
+ * }} [input]
+ * @returns {Promise<{
+ *   exitCode:number,timedOut:boolean,durationMs:number|null,stdout:string,stderr:string,
+ *   stdoutBytes:number,stderrBytes:number,logBytesWritten:number,maxOutputBytes:number,
+ *   timeoutMs:number|null,errorCode:string|null,errorMessage:string|null
+ * }>}
+ */
 export const runLoggedSubprocess = async ({
   command,
   args = [],

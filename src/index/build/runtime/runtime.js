@@ -89,13 +89,33 @@ import {
   buildIndexProfileState
 } from '../../../contracts/index-profile.js';
 
+/**
+ * Narrow values to plain object records (excluding arrays).
+ *
+ * @param {unknown} value
+ * @returns {boolean}
+ */
 const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
 const INDEX_OPTIMIZATION_PROFILE_IDS = Object.freeze(['default', 'throughput', 'memory-saver']);
+
+/**
+ * Normalize optional integer override to non-negative number or null.
+ *
+ * @param {unknown} value
+ * @returns {number|null}
+ */
 const coerceOptionalNonNegativeInt = (value) => {
   if (value === null || value === undefined) return null;
   return coerceNonNegativeInt(value);
 };
 
+/**
+ * Normalize ownership key fragments used in daemon/subprocess attribution tags.
+ *
+ * @param {unknown} value
+ * @param {string} [fallback='unknown']
+ * @returns {string}
+ */
 const normalizeOwnershipSegment = (value, fallback = 'unknown') => {
   if (typeof value !== 'string') return fallback;
   const trimmed = value.trim();
@@ -103,15 +123,33 @@ const normalizeOwnershipSegment = (value, fallback = 'unknown') => {
   return trimmed.replace(/[^a-zA-Z0-9._:-]+/g, '_');
 };
 
+/**
+ * Build deterministic ownership prefix for stage1 subprocess queues.
+ *
+ * @param {{buildId?:string}} [input]
+ * @returns {string}
+ */
 const buildStage1SubprocessOwnershipPrefix = ({ buildId } = {}) => (
   `stage1:${normalizeOwnershipSegment(buildId, 'build')}`
 );
 
+/**
+ * Normalize index optimization profile id.
+ *
+ * @param {unknown} value
+ * @returns {'default'|'throughput'|'memory-saver'}
+ */
 export const normalizeIndexOptimizationProfile = (value) => {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
   return INDEX_OPTIMIZATION_PROFILE_IDS.includes(normalized) ? normalized : 'default';
 };
 
+/**
+ * Apply learned auto-profile overrides when marked as applied.
+ *
+ * @param {{indexingConfig?:object,learnedAutoProfile?:object|null}} [input]
+ * @returns {object}
+ */
 export const applyLearnedAutoProfileSelection = ({
   indexingConfig = {},
   learnedAutoProfile = null
@@ -123,6 +161,12 @@ export const applyLearnedAutoProfileSelection = ({
   return mergeConfig(indexingConfig, learnedAutoProfile.overrides);
 };
 
+/**
+ * Resolve platform/filesystem runtime preset and suggested overrides.
+ *
+ * @param {{platform?:string,filesystemProfile?:string,cpuCount?:number,indexingConfig?:object}} [input]
+ * @returns {{enabled:boolean,presetId:string,filesystemProfile:string,subprocessFanout:object,overrides:object|null}}
+ */
 export const resolvePlatformRuntimePreset = ({
   platform = process.platform,
   filesystemProfile = 'unknown',
@@ -181,6 +225,12 @@ export const resolvePlatformRuntimePreset = ({
   };
 };
 
+/**
+ * Run tiny startup I/O probe used by runtime auto-tuning heuristics.
+ *
+ * @param {{cacheRoot?:string,enabled?:boolean}} [input]
+ * @returns {Promise<object>}
+ */
 export const runStartupCalibrationProbe = async ({
   cacheRoot,
   enabled = true
@@ -224,8 +274,20 @@ export const runStartupCalibrationProbe = async ({
   };
 };
 
+/**
+ * Clone set values while tolerating nullish/non-set inputs.
+ *
+ * @param {Set<unknown>|unknown} source
+ * @returns {Set<unknown>}
+ */
 const cloneSet = (source) => new Set(source instanceof Set ? source : []);
 
+/**
+ * Clone `Map<K, Set<V>>` style dictionary payloads.
+ *
+ * @param {Map<unknown, Set<unknown>>|unknown} source
+ * @returns {Map<unknown, Set<unknown>>}
+ */
 const cloneMapOfSets = (source) => {
   if (!(source instanceof Map)) return new Map();
   return new Map(
@@ -233,6 +295,12 @@ const cloneMapOfSets = (source) => {
   );
 };
 
+/**
+ * Deep-clone daemon dictionary cache entries before attaching to runtime state.
+ *
+ * @param {object|null|undefined} entry
+ * @returns {object|null}
+ */
 const cloneDaemonDictionaryEntry = (entry) => {
   if (!entry || typeof entry !== 'object') return null;
   return {

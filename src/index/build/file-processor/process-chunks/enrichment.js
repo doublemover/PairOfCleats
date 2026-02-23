@@ -35,6 +35,15 @@ const buildUsrCapabilitiesEnvelope = (activeLang) => {
   };
 };
 
+/**
+ * Build per-chunk enrichment payload (docmeta, relations, flow/type/risk).
+ *
+ * Returns either `{ skip: true }` via `failFile(...)` on enrichment failures,
+ * or `{ codeRelations, docmeta, structuralMatches, usrCapabilities }`.
+ *
+ * @param {object} input
+ * @returns {object}
+ */
 export const buildChunkEnrichment = ({
   chunkMode,
   text,

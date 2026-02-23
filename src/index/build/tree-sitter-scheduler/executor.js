@@ -18,14 +18,41 @@ import {
   treeSitterFileVersionSignaturesEqual
 } from './file-signature.js';
 
+/**
+ * Normalize any path-like value to posix form.
+ *
+ * @param {unknown} value
+ * @returns {string}
+ */
 const coercePosix = (value) => toPosix(String(value || ''));
 
+/**
+ * Format process memory snapshot used in scheduler diagnostic logs.
+ *
+ * @returns {string}
+ */
 const formatMemoryUsage = () => {
   const usage = process.memoryUsage();
   const toMb = (value) => (Number(value) / (1024 * 1024)).toFixed(1);
   return `rss=${toMb(usage.rss)}MB heapUsed=${toMb(usage.heapUsed)}MB ext=${toMb(usage.external)}MB ab=${toMb(usage.arrayBuffers)}MB`;
 };
 
+/**
+ * Rebase chunk offsets/line metadata to container-file coordinates.
+ *
+ * @param {{
+ *  chunk:object,
+ *  segment?:object|null,
+ *  segmentUid?:string|null,
+ *  segmentExt?:string,
+ *  segmentStart:number,
+ *  segmentEnd:number,
+ *  segmentStartLine:number,
+ *  segmentEndLine:number,
+ *  embeddingContext?:object|null
+ * }} input
+ * @returns {object}
+ */
 const attachSegmentMeta = ({
   chunk,
   segment,
@@ -66,12 +93,25 @@ const attachSegmentMeta = ({
   return adjusted;
 };
 
+/**
+ * Parse positive integer with fallback.
+ *
+ * @param {unknown} value
+ * @param {number} fallback
+ * @returns {number}
+ */
 const clampPositiveInt = (value, fallback) => {
   const parsed = Math.floor(Number(value));
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return parsed;
 };
 
+/**
+ * Scale parse timeout for large segments and lightweight parse mode.
+ *
+ * @param {{baseTimeoutMs:unknown,segmentText:string,parseMode?:string}} input
+ * @returns {number}
+ */
 const resolveEscalatedParseTimeoutMs = ({
   baseTimeoutMs,
   segmentText,
@@ -92,6 +132,18 @@ const resolveEscalatedParseTimeoutMs = ({
   return Math.max(base, Math.min(8000, base * multiplier));
 };
 
+/**
+ * Build deterministic cache key for scheduler parse chunks.
+ *
+ * @param {{
+ *  languageId?:string,
+ *  parseMode?:string,
+ *  expectedSignature?:{hash?:string,size?:number,mtimeMs?:number}|null,
+ *  segmentStart?:number,
+ *  segmentEnd?:number
+ * }} input
+ * @returns {string}
+ */
 const buildSchedulerCacheKey = ({
   languageId,
   parseMode,
@@ -181,6 +233,19 @@ const buildTreeSitterOptionsForJob = ({
   };
 };
 
+/**
+ * Execute scheduler plan in-process (single-worker fallback/subprocess mode).
+ *
+ * @param {{
+ *  mode:string,
+ *  runtime:object,
+ *  groups:Array<object>,
+ *  outDir:string,
+ *  abortSignal?:AbortSignal|null,
+ *  log?:(line:string)=>void|null
+ * }} input
+ * @returns {Promise<{index:Map<string,object>,stats:object}|null>}
+ */
 export const executeTreeSitterSchedulerPlan = async ({
   mode,
   runtime,

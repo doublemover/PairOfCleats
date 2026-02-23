@@ -3,6 +3,12 @@ import { Gzip } from 'fflate';
 import { tryRequire } from '../optional-deps.js';
 import { warnOnce } from './runtime.js';
 
+/**
+ * Normalize gzip options to supported deterministic subset.
+ *
+ * @param {object|null|undefined} input
+ * @returns {{level:number,mtime:number,mem?:number}}
+ */
 export const normalizeGzipOptions = (input) => {
   const output = input && typeof input === 'object' ? { ...input } : {};
   const supported = new Set(['level', 'mem', 'mtime']);
@@ -25,6 +31,12 @@ export const normalizeGzipOptions = (input) => {
   return output;
 };
 
+/**
+ * Create streaming gzip transform backed by `fflate`.
+ *
+ * @param {{gzipOptions?:object,highWaterMark?:number}} [options]
+ * @returns {Transform}
+ */
 export const createFflateGzipStream = (options = {}) => {
   const gzipOptions = normalizeGzipOptions(options.gzipOptions);
   const highWaterMark = normalizeHighWaterMark(options.highWaterMark);
@@ -59,6 +71,12 @@ export const createFflateGzipStream = (options = {}) => {
   return stream;
 };
 
+/**
+ * Load optional zstd module or throw actionable install/load error.
+ *
+ * @param {object} [options]
+ * @returns {object}
+ */
 export const resolveZstd = (options = {}) => {
   const result = tryRequire('@mongodb-js/zstd', options);
   if (result.ok) return result.mod;
@@ -68,6 +86,12 @@ export const resolveZstd = (options = {}) => {
   throw new Error(`zstd compression requested but ${message}`);
 };
 
+/**
+ * Normalize stream high-water-mark to bounded byte size.
+ *
+ * @param {unknown} value
+ * @returns {number|undefined}
+ */
 const normalizeHighWaterMark = (value) => {
   const size = Number(value);
   if (!Number.isFinite(size) || size <= 0) return undefined;
@@ -77,6 +101,12 @@ const normalizeHighWaterMark = (value) => {
   return Math.min(max, Math.max(min, bounded));
 };
 
+/**
+ * Normalize zstd internal batch chunk size.
+ *
+ * @param {unknown} value
+ * @returns {number}
+ */
 const normalizeZstdChunkSize = (value) => {
   const size = Number(value);
   if (!Number.isFinite(size) || size <= 0) return 256 * 1024;
@@ -87,6 +117,12 @@ const normalizeZstdChunkSize = (value) => {
 
 const toBuffer = (value) => (Buffer.isBuffer(value) ? value : Buffer.from(value));
 
+/**
+ * Create streaming zstd transform with bounded chunk buffering.
+ *
+ * @param {{level?:number,chunkSize?:number,highWaterMark?:number}} [options]
+ * @returns {Transform}
+ */
 export const createZstdStream = (options = {}) => {
   const zstd = resolveZstd(options);
   const level = Number.isFinite(Number(options.level)) ? Math.floor(Number(options.level)) : 3;

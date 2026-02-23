@@ -16,6 +16,12 @@ const formatModeLabel = (value) => {
     .join(' ');
 };
 
+/**
+ * Run discovery step (or reuse shared discovery) and normalize ordering.
+ *
+ * @param {object} input
+ * @returns {Promise<Array<object>>}
+ */
 export const runDiscovery = async ({
   runtime,
   mode,

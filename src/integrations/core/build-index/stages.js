@@ -38,6 +38,15 @@ const parseNonNegativeInt = (value, fallback) => {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 };
 
+/**
+ * Build a bounded build-phase failure detail string for state snapshots.
+ *
+ * Prefers `error.code` + `error.message` when available and truncates overly
+ * long payloads to keep heartbeat/build-state artifacts compact.
+ *
+ * @param {unknown} error
+ * @returns {string|null}
+ */
 const toPhaseFailureDetail = (error) => {
   if (!error) return null;
   const code = typeof error?.code === 'string' && error.code.trim()
@@ -80,6 +89,15 @@ const acquireBuildIndexLock = async ({ repoCacheRoot, log }) => {
   throw new Error('Index lock unavailable.');
 };
 
+/**
+ * Execute embeddings stage (inline or queued service mode) for requested modes.
+ *
+ * Handles build lock acquisition, mode batching rules, progress updates, and
+ * cancellation reporting in a deterministic stage3 result shape.
+ *
+ * @param {object} input
+ * @returns {Promise<object>}
+ */
 export const runEmbeddingsStage = async ({
   root,
   argv,
@@ -317,6 +335,12 @@ export const runEmbeddingsStage = async ({
   }
 };
 
+/**
+ * Execute SQLite materialization stage and optional promotion.
+ *
+ * @param {object} input
+ * @returns {Promise<object>}
+ */
 export const runSqliteStage = async ({
   root,
   argv,
@@ -474,6 +498,14 @@ export const runSqliteStage = async ({
   }
 };
 
+/**
+ * Run one build stage (`stage2`/`stage3`/`stage4`) with phase tracking.
+ *
+ * @param {'stage2'|'stage3'|'stage4'|null} stage
+ * @param {object} context
+ * @param {{allowSqlite?:boolean}} [options]
+ * @returns {Promise<object>}
+ */
 export const runStage = async (stage, context, { allowSqlite = true } = {}) => {
   const {
     root,

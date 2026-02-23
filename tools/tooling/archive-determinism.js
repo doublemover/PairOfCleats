@@ -39,6 +39,12 @@ const ensureDir = async (targetPath) => {
   await fsPromises.mkdir(path.dirname(targetPath), { recursive: true });
 };
 
+/**
+ * Validate runtime/tooling prerequisites for deterministic packaging flows.
+ *
+ * @param {{requireNpm?:boolean,requirePython?:boolean}} [options]
+ * @returns {void}
+ */
 export const assertPinnedPackagingToolchain = ({
   requireNpm = false,
   requirePython = false
@@ -61,6 +67,21 @@ export const assertPinnedPackagingToolchain = ({
   }
 };
 
+/**
+ * Build a deterministic zip archive from a source tree.
+ *
+ * Entries are sorted and normalized with fixed mtime/mode metadata so repeated
+ * runs over identical inputs produce identical bytes/checksums.
+ *
+ * @param {{
+ *  sourceDir:string,
+ *  archivePath:string,
+ *  rootPrefix?:string,
+ *  excludes?:RegExp[],
+ *  fixedMtime?:Date
+ * }} options
+ * @returns {Promise<{archivePath:string,checksum:string,entries:Array<{path:string,mode:number,sizeBytes:number,mtime:string}>}>}
+ */
 export const buildDeterministicZip = async ({
   sourceDir,
   archivePath,

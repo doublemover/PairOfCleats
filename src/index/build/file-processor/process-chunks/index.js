@@ -58,6 +58,20 @@ export const createFrameworkProfileResolver = ({
   };
 };
 
+/**
+ * Verify chunk byte bounds align exactly to the requested line window so token
+ * slicing can reuse prebuilt file line-token streams without re-tokenization.
+ *
+ * @param {{
+ *   chunkStart:number,
+ *   chunkEnd:number,
+ *   startLine:number,
+ *   endLine:number,
+ *   lineIndex:number[],
+ *   fileLength:number
+ * }} input
+ * @returns {boolean}
+ */
 export const canUseLineTokenStreamSlice = ({
   chunkStart,
   chunkEnd,
@@ -137,6 +151,12 @@ const HEAVY_FILE_PATH_PREFIXES = [
 const BOILERPLATE_SCAN_WINDOW_CHARS = 8192;
 const BOILERPLATE_COMMENT_HINT_RX = /(?:^|\n)\s*(?:\/\/|\/\*|#|;|--|<!--|\*)/;
 
+/**
+ * Normalize heavy-file policy thresholds used by parser/downgrade decisions.
+ *
+ * @param {object|null|undefined} languageOptions
+ * @returns {object}
+ */
 const normalizeHeavyFilePolicy = (languageOptions) => {
   const raw = languageOptions?.heavyFile;
   const config = raw && typeof raw === 'object' ? raw : {};
@@ -238,12 +258,30 @@ const normalizeHeavyFilePolicy = (languageOptions) => {
   };
 };
 
+/**
+ * Match paths that are known to produce heavy parser/tokenization workloads.
+ *
+ * @param {string} relPath
+ * @returns {boolean}
+ */
 const isHeavyFilePath = (relPath) => {
   const normalized = String(relPath || '').replace(/\\/g, '/').toLowerCase();
   const bounded = `/${normalized.replace(/^\/+|\/+$/g, '')}/`;
   return HEAVY_FILE_PATH_PREFIXES.some((prefix) => bounded.startsWith(prefix));
 };
 
+/**
+ * Decide whether file should downshift based on heavy-path thresholds.
+ *
+ * @param {{
+ *   relPath:string,
+ *   fileBytes:number,
+ *   fileLines:number,
+ *   chunkCount:number,
+ *   heavyFilePolicy:object
+ * }} input
+ * @returns {boolean}
+ */
 const shouldDownshiftForHeavyPath = ({
   relPath,
   fileBytes,
@@ -259,6 +297,12 @@ const shouldDownshiftForHeavyPath = ({
   );
 };
 
+/**
+ * Enable extra coalescing for large Swift test/utility hot paths.
+ *
+ * @param {{relPath:string,ext:string,chunkCount:number,heavyFilePolicy:object}} input
+ * @returns {boolean}
+ */
 const shouldApplySwiftHotPathCoalescing = ({
   relPath,
   ext,
@@ -723,6 +767,16 @@ export const processChunks = async (context) => {
   let lastLineLogMs = 0;
   const effectiveContextWin = heavyFileDownshift ? 0 : contextWin;
   const lineReader = effectiveContextWin > 0 ? createLineReader(text, lineIndex) : null;
+
+  /**
+   * Fallback chunk-lint filter used when incremental resolver cannot be reused.
+   *
+   * @param {Array<object>} entries
+   * @param {number} startLine
+   * @param {number} endLine
+   * @param {boolean} includeUnscoped
+   * @returns {Array<object>}
+   */
   const filterLintForChunk = (entries, startLine, endLine, includeUnscoped) => {
     if (!entries.length) return entries;
     return entries.filter((entry) => {
@@ -732,6 +786,16 @@ export const processChunks = async (context) => {
       return entryLine <= endLine && entryEnd >= startLine;
     });
   };
+
+  /**
+   * Build monotonic chunk-lint resolver with active-window cursor reuse.
+   *
+   * Chunks are processed in source order, so this avoids rescanning the full
+   * lint list per chunk while still handling occasional out-of-order calls.
+   *
+   * @param {Array<object>} entries
+   * @returns {(startLine:number,endLine:number,includeUnscoped?:boolean)=>Array<object>}
+   */
   const createLintChunkResolver = (entries) => {
     if (!Array.isArray(entries) || entries.length === 0) {
       return () => [];

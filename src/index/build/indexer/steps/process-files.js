@@ -96,6 +96,12 @@ const toIsoTimestamp = (value) => {
   return Number.isFinite(parsed) && parsed > 0 ? new Date(parsed).toISOString() : null;
 };
 
+/**
+ * Classify file size into stable stage-timing telemetry bins.
+ *
+ * @param {number} bytes
+ * @returns {string}
+ */
 export const resolveStageTimingSizeBin = (bytes) => {
   const safeBytes = coerceNonNegativeInt(bytes) ?? 0;
   for (const bin of STAGE_TIMING_SIZE_BINS) {
@@ -104,6 +110,12 @@ export const resolveStageTimingSizeBin = (bytes) => {
   return STAGE_TIMING_SIZE_BINS[STAGE_TIMING_SIZE_BINS.length - 1].id;
 };
 
+/**
+ * Create histogram collector for duration samples.
+ *
+ * @param {number[]} [bucketsMs]
+ * @returns {{observe:(value:number)=>void,snapshot:()=>{bucketsMs:number[],counts:number[],overflow:number}}}
+ */
 export const createDurationHistogram = (bucketsMs = FILE_QUEUE_DELAY_HISTOGRAM_BUCKETS_MS) => {
   const normalizedBuckets = Array.from(
     new Set(
@@ -140,6 +152,12 @@ export const createDurationHistogram = (bucketsMs = FILE_QUEUE_DELAY_HISTOGRAM_B
   };
 };
 
+/**
+ * Resolve queue/active/write/total durations from lifecycle timestamps.
+ *
+ * @param {object} [lifecycle]
+ * @returns {{queueDelayMs:number,activeDurationMs:number,writeDurationMs:number,totalDurationMs:number}}
+ */
 export const resolveFileLifecycleDurations = (lifecycle = {}) => {
   const enqueuedAtMs = Number(lifecycle?.enqueuedAtMs);
   const dequeuedAtMs = Number(lifecycle?.dequeuedAtMs);
@@ -198,6 +216,12 @@ export const isNearThresholdSlowFileDuration = ({
   return durationMs >= lowerBoundMs && durationMs < upperBoundMs;
 };
 
+/**
+ * Build near-threshold watchdog summary and optional tuning suggestion.
+ *
+ * @param {object} [input]
+ * @returns {object}
+ */
 export const buildWatchdogNearThresholdSummary = ({
   sampleCount = 0,
   nearThresholdCount = 0,
@@ -404,6 +428,16 @@ export const resolveFileWatchdogConfig = (runtime, { repoFileCount = 0 } = {}) =
   };
 };
 
+/**
+ * Resolve soft slow-file timeout budget for one entry.
+ *
+ * Timeout scales by byte/line steps and is capped at the configured
+ * `maxSlowFileMs` ceiling.
+ *
+ * @param {object} watchdogConfig
+ * @param {object} entry
+ * @returns {number}
+ */
 export const resolveFileWatchdogMs = (watchdogConfig, entry) => {
   if (!watchdogConfig || watchdogConfig.slowFileMs <= 0) return 0;
   const fileBytes = coerceNonNegativeInt(entry?.stat?.size) ?? 0;
@@ -415,6 +449,17 @@ export const resolveFileWatchdogMs = (watchdogConfig, entry) => {
   return Math.min(watchdogConfig.maxSlowFileMs, timeoutMs);
 };
 
+/**
+ * Resolve a hard timeout for a single file, scaled by file size and line count.
+ *
+ * Hard timeout is capped globally and always kept at or above both the base
+ * hard timeout and a soft-timeout-derived floor when provided.
+ *
+ * @param {object} watchdogConfig
+ * @param {object} entry
+ * @param {number} [softTimeoutMs=0]
+ * @returns {number}
+ */
 export const resolveFileHardTimeoutMs = (watchdogConfig, entry, softTimeoutMs = 0) => {
   if (!watchdogConfig || watchdogConfig.hardTimeoutMs <= 0) return 0;
   const fileBytes = coerceNonNegativeInt(entry?.stat?.size) ?? 0;
@@ -429,6 +474,14 @@ export const resolveFileHardTimeoutMs = (watchdogConfig, entry, softTimeoutMs = 
   return Math.min(FILE_HARD_TIMEOUT_MAX_MS, Math.max(watchdogConfig.hardTimeoutMs, sizeScaledTimeout, softScaledTimeout));
 };
 
+/**
+ * Resolve cleanup timeout for stage1 subprocess teardown.
+ *
+ * A configured value of `0` explicitly disables timeout enforcement.
+ *
+ * @param {object} runtime
+ * @returns {number}
+ */
 export const resolveProcessCleanupTimeoutMs = (runtime) => {
   const config = runtime?.stage1Queues?.watchdog || {};
   const configured = coerceOptionalNonNegativeInt(config.cleanupTimeoutMs);
@@ -436,6 +489,13 @@ export const resolveProcessCleanupTimeoutMs = (runtime) => {
   return configured ?? FILE_PROCESS_CLEANUP_TIMEOUT_DEFAULT_MS;
 };
 
+/**
+ * Resolve the stage1 stall-abort threshold from config and watchdog defaults.
+ *
+ * @param {object} runtime
+ * @param {object|null} [watchdogConfig=null]
+ * @returns {number}
+ */
 export const resolveStage1StallAbortTimeoutMs = (runtime, watchdogConfig = null) => {
   const config = runtime?.stage1Queues?.watchdog || {};
   const configured = coerceOptionalNonNegativeInt(
@@ -479,6 +539,12 @@ const resolveStage1WatchdogSourceConfig = (runtime) => {
   };
 };
 
+/**
+ * Resolve soft-kick stall timeout, optionally deriving it from hard abort budget.
+ *
+ * @param {{configuredSoftKickMs?:number|null,stallAbortMs?:number}} [options]
+ * @returns {number}
+ */
 export const resolveStage1StallSoftKickTimeoutMs = ({
   configuredSoftKickMs = null,
   stallAbortMs = 0
@@ -666,6 +732,13 @@ export const resolveStage1StallAction = ({
   return { action: 'soft-kick', idleMs: safeIdleMs };
 };
 
+/**
+ * Build deterministic subprocess-ownership id prefix for stage1 file workers.
+ *
+ * @param {object} runtime
+ * @param {string} [mode='unknown']
+ * @returns {string}
+ */
 export const resolveStage1FileSubprocessOwnershipPrefix = (runtime, mode = 'unknown') => {
   const configuredPrefix = typeof runtime?.subprocessOwnership?.stage1FilePrefix === 'string'
     ? runtime.subprocessOwnership.stage1FilePrefix.trim()
@@ -677,6 +750,18 @@ export const resolveStage1FileSubprocessOwnershipPrefix = (runtime, mode = 'unkn
   return `stage1:${fallbackBuildId}:${normalizeOwnershipSegment(mode, 'mode')}`;
 };
 
+/**
+ * Build deterministic ownership id for per-file stage1 subprocesses.
+ *
+ * @param {{
+ *  runtime:object,
+ *  mode?:string,
+ *  fileIndex?:number|null,
+ *  rel?:string,
+ *  shardId?:string|number|null
+ * }} [input]
+ * @returns {string}
+ */
 export const buildStage1FileSubprocessOwnershipId = ({
   runtime,
   mode = 'unknown',
@@ -693,6 +778,19 @@ export const buildStage1FileSubprocessOwnershipId = ({
   return `${prefix}:shard:${normalizedShardId}:file:${normalizedFileIndex}:${normalizedRel}`;
 };
 
+/**
+ * Render watchdog heartbeat progress text for stage1 processing loop.
+ *
+ * @param {{
+ *  count?:number,
+ *  total?:number,
+ *  startedAtMs?:number,
+ *  nowMs?:number,
+ *  inFlight?:number,
+ *  trackedSubprocesses?:number
+ * }} [input]
+ * @returns {string}
+ */
 export const buildFileProgressHeartbeatText = ({
   count = 0,
   total = 0,
@@ -727,6 +825,22 @@ export const buildFileProgressHeartbeatText = ({
   );
 };
 
+/**
+ * Run async cleanup with optional timeout/telemetry handling.
+ *
+ * Returns timing and timeout metadata regardless of cleanup outcome. Timeout
+ * callbacks are best-effort and do not suppress original timeout errors.
+ *
+ * @param {{
+ *  label:string,
+ *  cleanup:Function,
+ *  timeoutMs?:number,
+ *  log?:(message:string,meta?:object)=>void,
+ *  logMeta?:object|null,
+ *  onTimeout?:Function|null
+ * }} input
+ * @returns {Promise<{skipped:boolean,timedOut:boolean,elapsedMs:number,error?:unknown}>}
+ */
 export const runCleanupWithTimeout = async ({
   label,
   cleanup,
@@ -783,6 +897,15 @@ export const runCleanupWithTimeout = async ({
   }
 };
 
+/**
+ * Allow near-front ordered entries to bypass postings backpressure temporarily.
+ *
+ * This avoids pipeline stalls when the next ordered entry is only slightly
+ * behind the current work item.
+ *
+ * @param {{orderIndex:number,nextOrderedIndex:number,bypassWindow?:number}} input
+ * @returns {boolean}
+ */
 export const shouldBypassPostingsBackpressure = ({
   orderIndex,
   nextOrderedIndex,
@@ -797,6 +920,13 @@ export const shouldBypassPostingsBackpressure = ({
   return normalizedOrderIndex <= (normalizedNextIndex + normalizedWindow);
 };
 
+/**
+ * Resolve deterministic entry order index with compatibility fallbacks.
+ *
+ * @param {object} entry
+ * @param {number|null} [fallbackIndex=null]
+ * @returns {number|null}
+ */
 export const resolveEntryOrderIndex = (entry, fallbackIndex = null) => {
   if (Number.isFinite(entry?.orderIndex)) return Math.floor(entry.orderIndex);
   if (Number.isFinite(entry?.canonicalOrderIndex)) return Math.floor(entry.canonicalOrderIndex);
@@ -823,6 +953,12 @@ export const sortEntriesByOrderIndex = (entries) => {
     .map((item) => item.entry);
 };
 
+/**
+ * Build stable shard subset id used for retries/merge-plan determinism.
+ *
+ * @param {object} workItem
+ * @returns {string}
+ */
 export const resolveShardSubsetId = (workItem) => {
   const shardId = normalizeOwnershipSegment(
     String(workItem?.shard?.id || workItem?.shard?.label || 'unknown'),
@@ -837,6 +973,12 @@ export const resolveShardSubsetId = (workItem) => {
   return `${shardId}#${String(partIndex).padStart(4, '0')}/${String(partTotal).padStart(4, '0')}`;
 };
 
+/**
+ * Resolve minimum order index represented by one shard work item.
+ *
+ * @param {object} workItem
+ * @returns {number|null}
+ */
 export const resolveShardSubsetMinOrderIndex = (workItem) => {
   const list = Array.isArray(workItem?.entries) ? workItem.entries : [];
   let minIndex = null;
@@ -854,6 +996,15 @@ const resolveShardWorkItemMinOrderIndex = (workItem) => {
   return resolveShardSubsetMinOrderIndex(workItem);
 };
 
+/**
+ * Build deterministic merge order for sharded processing outputs.
+ *
+ * Primary sort key is minimum file order index, followed by shard id and part
+ * metadata to guarantee stable merge ordering across runs.
+ *
+ * @param {object[]} [workItems=[]]
+ * @returns {Array<{mergeIndex:number,subsetId:string,shardId:string|null,partIndex:number,partTotal:number,firstOrderIndex:number|null,fileCount:number}>}
+ */
 export const buildDeterministicShardMergePlan = (workItems = []) => {
   const list = Array.isArray(workItems)
     ? workItems.filter((workItem) => workItem && typeof workItem === 'object')
@@ -894,6 +1045,12 @@ export const buildDeterministicShardMergePlan = (workItems = []) => {
     });
 };
 
+/**
+ * Resolve per-subset retry policy for clustered shard execution.
+ *
+ * @param {object} runtime
+ * @returns {{enabled:boolean,maxSubsetRetries:number,retryDelayMs:number}}
+ */
 export const resolveClusterSubsetRetryConfig = (runtime) => {
   const clusterConfig = runtime?.shards?.cluster && typeof runtime.shards.cluster === 'object'
     ? runtime.shards.cluster
@@ -911,6 +1068,19 @@ export const resolveClusterSubsetRetryConfig = (runtime) => {
   };
 };
 
+/**
+ * Execute shard subsets sequentially with bounded retry policy.
+ *
+ * @param {{
+ *  workItems?:object[],
+ *  executeWorkItem:Function,
+ *  maxSubsetRetries?:number,
+ *  retryDelayMs?:number,
+ *  onRetry?:Function|null,
+ *  isRetryableError?:Function|null
+ * }} [input]
+ * @returns {Promise<{attemptsBySubset:Record<string,number>,retriedSubsetIds:string[],recoveredSubsetIds:string[]}>}
+ */
 export const runShardSubsetsWithRetry = async ({
   workItems,
   executeWorkItem,
@@ -1211,6 +1381,15 @@ const resolveOrderedAppenderConfig = (runtime) => {
   };
 };
 
+/**
+ * Filter entries eligible for Tree-sitter planning.
+ *
+ * Entries skipped by discovery flags or language/path policy are excluded, and
+ * skip count is returned for diagnostics.
+ *
+ * @param {{entries:object[],root:string}} input
+ * @returns {{entries:object[],skipped:number}}
+ */
 const resolveTreeSitterPlannerEntries = ({ entries, root }) => {
   if (!Array.isArray(entries) || !entries.length) {
     return { entries: [], skipped: 0 };
@@ -1237,6 +1416,12 @@ const resolveTreeSitterPlannerEntries = ({ entries, root }) => {
   return { entries: plannerEntries, skipped };
 };
 
+/**
+ * Emit aggregate lexicon-filter drop telemetry for relation extraction.
+ *
+ * @param {{state:object,logFn:Function}} input
+ * @returns {void}
+ */
 const logLexiconFilterAggregate = ({ state, logFn }) => {
   if (!state?.lexiconRelationFilterByFile || typeof state.lexiconRelationFilterByFile.entries !== 'function') return;
   const entries = Array.from(state.lexiconRelationFilterByFile.entries());

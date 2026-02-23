@@ -65,12 +65,26 @@ const LANE_MAX_STEP_DOWN_DEFAULT = 1;
 const LANE_SPLIT_HYSTERESIS_RATIO_DEFAULT = 1.18;
 const LANE_MERGE_HYSTERESIS_RATIO_DEFAULT = 0.72;
 
+/**
+ * Parse positive integer and fallback on invalid input.
+ *
+ * @param {unknown} value
+ * @param {number} fallback
+ * @returns {number}
+ */
 const coercePositiveInt = (value, fallback) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return Math.max(1, Math.floor(parsed));
 };
 
+/**
+ * Parse positive number and fallback on invalid input.
+ *
+ * @param {unknown} value
+ * @param {number} fallback
+ * @returns {number}
+ */
 const coercePositiveNumber = (value, fallback) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;

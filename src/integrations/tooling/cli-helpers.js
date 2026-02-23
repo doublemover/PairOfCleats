@@ -1,6 +1,12 @@
 import fs from 'node:fs';
 import { normalizeRepoRelativePath } from '../../shared/path-normalize.js';
 
+/**
+ * Resolve output format from parsed CLI args.
+ *
+ * @param {object} argv
+ * @returns {'md'|'json'}
+ */
 export const resolveFormat = (argv) => {
   const formatRaw = argv.format || (argv.json ? 'json' : 'md');
   const format = String(formatRaw).trim().toLowerCase();
@@ -8,6 +14,13 @@ export const resolveFormat = (argv) => {
   return 'json';
 };
 
+/**
+ * Merge capability maps, ignoring null/undefined overrides.
+ *
+ * @param {object|null} baseCaps
+ * @param {object|null} overrides
+ * @returns {object}
+ */
 export const mergeCaps = (baseCaps, overrides) => {
   const merged = { ...(baseCaps || {}) };
   for (const [key, value] of Object.entries(overrides || {})) {
@@ -17,6 +30,12 @@ export const mergeCaps = (baseCaps, overrides) => {
   return merged;
 };
 
+/**
+ * Parse list-like CLI input (array or comma-separated string).
+ *
+ * @param {unknown} value
+ * @returns {string[]}
+ */
 export const parseList = (value) => {
   if (!value) return [];
   if (Array.isArray(value)) {
@@ -28,6 +47,13 @@ export const parseList = (value) => {
     .filter(Boolean);
 };
 
+/**
+ * Parse changed-file inputs from inline list and optional file path.
+ *
+ * @param {{changed?:string|string[],changedFile?:string|null}} input
+ * @param {string} repoRoot
+ * @returns {string[]}
+ */
 export const parseChangedInputs = ({ changed, changedFile }, repoRoot) => {
   const entries = [];
   for (const item of parseList(changed)) {
@@ -49,6 +75,12 @@ export const parseChangedInputs = ({ changed, changedFile }, repoRoot) => {
   return resolved;
 };
 
+/**
+ * Emit CLI payload in selected format and return payload.
+ *
+ * @param {{format:'md'|'json',payload:any,renderMarkdown:(payload:any)=>string}} input
+ * @returns {any}
+ */
 export const emitCliOutput = ({ format, payload, renderMarkdown }) => {
   if (format === 'md') {
     console.log(renderMarkdown(payload));
@@ -58,6 +90,12 @@ export const emitCliOutput = ({ format, payload, renderMarkdown }) => {
   return payload;
 };
 
+/**
+ * Emit standardized CLI error payload in selected format.
+ *
+ * @param {{format:'md'|'json',code:string,message:string}} input
+ * @returns {{ok:false,code:string,message:string}}
+ */
 export const emitCliError = ({ format, code, message }) => {
   const errorPayload = { ok: false, code, message };
   if (format === 'json') {

@@ -279,6 +279,12 @@ const ensureCjsLexer = async () => {
   await cjsInitPromise;
 };
 
+/**
+ * Deduplicate and stable-sort import specifiers for deterministic output.
+ *
+ * @param {string[]} list
+ * @returns {string[]}
+ */
 const normalizeImports = (list) => {
   const set = new Set();
   if (Array.isArray(list)) {
@@ -291,6 +297,15 @@ const normalizeImports = (list) => {
   return output;
 };
 
+/**
+ * Fast-path JS/TS import discovery using ESM/CJS lexers with regex fallback.
+ *
+ * Returns `null` when no parser path produced any signal, allowing callers to
+ * defer to slower parsing logic.
+ *
+ * @param {{text:string,ext:string}} input
+ * @returns {Promise<string[]|null>}
+ */
 const collectModuleImportsFast = async ({ text, ext }) => {
   if (!isJsLike(ext) && !isTypeScript(ext)) return null;
   const imports = new Set();

@@ -18,6 +18,27 @@ const normalizeSelection = (selection) => {
   return normalized.length ? normalized : null;
 };
 
+/**
+ * Load canonical graph-input artifacts for tooling commands.
+ *
+ * @param {{
+ *  repoRoot?:string|null,
+ *  indexDir:string,
+ *  strict?:boolean,
+ *  maxBytes?:number,
+ *  includeChunkMeta?:boolean
+ * }} [options]
+ * @returns {Promise<{
+ *  repoRoot:string|null,
+ *  indexDir:string,
+ *  strict:boolean,
+ *  maxBytes:number,
+ *  manifest:object,
+ *  chunkMeta:object|null,
+ *  indexCompatKey:string|null,
+ *  indexSignature:string|null
+ * }>}
+ */
 export const prepareGraphInputs = async ({
   repoRoot = null,
   indexDir,
@@ -49,6 +70,32 @@ export const prepareGraphInputs = async ({
   };
 };
 
+/**
+ * Prepare graph store + optional graph index/relations for tooling execution.
+ *
+ * Accepts either explicit options or preloaded `graphInputs` and always
+ * normalizes selection into a deterministic list-or-null shape.
+ *
+ * @param {{
+ *  repoRoot?:string|null,
+ *  indexDir?:string|null,
+ *  selection?:string|string[]|null,
+ *  strict?:boolean,
+ *  maxBytes?:number,
+ *  graphInputs?:object|null,
+ *  includeGraphIndex?:boolean,
+ *  includeGraphRelations?:boolean
+ * }} [options]
+ * @returns {Promise<{
+ *  graphStore:ReturnType<typeof createGraphStore>,
+ *  graphSelection:string[]|null,
+ *  includeCsr:boolean,
+ *  graphCacheKey:string,
+ *  graphIndex:object|null,
+ *  graphRelations:object|null,
+ *  indexSignature:string|null
+ * }>}
+ */
 export const prepareGraphIndex = async ({
   repoRoot = null,
   indexDir = null,

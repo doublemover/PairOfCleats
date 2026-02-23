@@ -1,5 +1,10 @@
 import { createWarnOnce } from '../logging/warn-once.js';
 
+/**
+ * Shared warn-once emitter for json-stream runtime warnings.
+ *
+ * @type {(key:string,message:string)=>void}
+ */
 const warnOnce = createWarnOnce({
   logger: (message) => {
     try {
@@ -8,6 +13,11 @@ const warnOnce = createWarnOnce({
   }
 });
 
+/**
+ * Create standardized abort error used by stream/runtime helpers.
+ *
+ * @returns {Error & {code:string}}
+ */
 const createAbortError = () => {
   const err = new Error('Operation aborted');
   err.name = 'AbortError';
@@ -15,6 +25,12 @@ const createAbortError = () => {
   return err;
 };
 
+/**
+ * Throw standardized abort error when signal is already aborted.
+ *
+ * @param {AbortSignal|null|undefined} signal
+ * @returns {void}
+ */
 const throwIfAborted = (signal) => {
   if (signal?.aborted) {
     throw createAbortError();

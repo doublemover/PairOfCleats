@@ -34,6 +34,12 @@ import {
 const DOCUMENT_EXTS = new Set(['.pdf', '.docx']);
 
 const isDocumentExt = (ext) => DOCUMENT_EXTS.has(ext);
+/**
+ * Normalize an extension into a stable fallback language id token.
+ *
+ * @param {string} ext
+ * @returns {string|null}
+ */
 const normalizeFallbackLanguageFromExt = (ext) => {
   const raw = typeof ext === 'string' ? ext.trim().toLowerCase() : '';
   if (!raw) return null;
@@ -43,6 +49,12 @@ const normalizeFallbackLanguageFromExt = (ext) => {
   return normalized || null;
 };
 
+/**
+ * Build normalized PDF text plus per-page offsets for downstream chunking.
+ *
+ * @param {Array<{text?:string,pageNumber?:number}>} pages
+ * @returns {{text:string,units:Array<object>,counts:{pages:number,paragraphs:number,totalUnits:number}}}
+ */
 const buildPdfExtractionText = (pages) => {
   const units = [];
   let cursor = 0;
@@ -78,6 +90,12 @@ const buildPdfExtractionText = (pages) => {
   };
 };
 
+/**
+ * Build normalized DOCX text plus per-paragraph offsets for chunk attribution.
+ *
+ * @param {Array<{text?:string,index?:number,style?:string|null}>} paragraphs
+ * @returns {{text:string,units:Array<object>,counts:{pages:number,paragraphs:number,totalUnits:number}}}
+ */
 const buildDocxExtractionText = (paragraphs) => {
   const units = [];
   let cursor = 0;
@@ -299,6 +317,15 @@ export function createFileProcessor(options) {
   });
 
   let treeSitterSerial = Promise.resolve();
+  /**
+   * Serialize Tree-sitter executions to avoid parser/runtime contention.
+   *
+   * This preserves FIFO execution order while keeping the chain alive after
+   * failures by swallowing the previous rejection in the queue tail.
+   *
+   * @param {Function} fn
+   * @returns {Promise<any>}
+   */
   const runTreeSitterSerial = async (fn) => {
     const run = treeSitterSerial.then(fn, fn);
     treeSitterSerial = run.catch(() => {});

@@ -31,6 +31,12 @@ import {
 import { INDEX_PROFILE_VECTOR_ONLY } from '../contracts/index-profile.js';
 import { normalizePositiveInt } from '../shared/limits.js';
 
+/**
+ * Normalize token-like input into trimmed string token list.
+ *
+ * @param {unknown} value
+ * @returns {string[]}
+ */
 const normalizeTokenList = (value) => (
   Array.isArray(value)
     ? value
@@ -39,6 +45,12 @@ const normalizeTokenList = (value) => (
     : []
 );
 
+/**
+ * Compute token-level entropy features used by adaptive rerank sizing.
+ *
+ * @param {string[]} queryTokens
+ * @returns {{tokens:string[],tokenCount:number,uniqueCount:number,diversity:number,symbolRatio:number}}
+ */
 const resolveTokenStats = (queryTokens) => {
   const tokens = normalizeTokenList(queryTokens);
   const uniqueCount = new Set(tokens).size;
@@ -61,6 +73,12 @@ const resolveTokenStats = (queryTokens) => {
   };
 };
 
+/**
+ * Estimate sparse-stage confidence from hit count and top-score gap.
+ *
+ * @param {{sparseHits:Array<{score?:number}>,searchTopN:number}} input
+ * @returns {{hitCount:number,hasScoreGap:boolean,high:boolean,weak:boolean}}
+ */
 const resolveSparseConfidence = ({ sparseHits, searchTopN }) => {
   const hits = Array.isArray(sparseHits) ? sparseHits : [];
   const topScore = Number(hits[0]?.score);
@@ -154,6 +172,12 @@ export const resolveAdaptiveRerankBudget = ({
   };
 };
 
+/**
+ * Normalize an integer option to `>=1`, or `null` when invalid/unset.
+ *
+ * @param {unknown} value
+ * @returns {number|null}
+ */
 const normalizeMinOneIntOrNull = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return null;

@@ -91,11 +91,23 @@ const indexRoot = argv['index-root']
 const lmdbPaths = resolveLmdbPaths(root, userConfig, { indexRoot });
 const metricsDir = getMetricsDir(root, userConfig);
 
+/**
+ * Read JSON artifact when present; return `null` for missing files.
+ *
+ * @param {string} filePath
+ * @returns {object|null}
+ */
 const readJsonOptional = (filePath) => {
   if (!filePath || !fsSync.existsSync(filePath)) return null;
   return readJsonFile(filePath, { maxBytes: MAX_JSON_BYTES });
 };
 
+/**
+ * Sum numeric doc-length entries, ignoring non-finite values.
+ *
+ * @param {unknown[]} docLengths
+ * @returns {number|null}
+ */
 const sumDocLengths = (docLengths) => {
   if (!Array.isArray(docLengths)) return null;
   let total = 0;
@@ -107,6 +119,13 @@ const sumDocLengths = (docLengths) => {
 };
 
 
+/**
+ * Update `index_state.json` with LMDB metadata patch and refresh manifest.
+ *
+ * @param {string} indexDir
+ * @param {object} patch
+ * @returns {Promise<object|null>}
+ */
 const updateLmdbState = async (indexDir, patch) => {
   if (!indexDir) return null;
   const statePath = path.join(indexDir, 'index_state.json');
@@ -181,6 +200,12 @@ const estimateLmdbBytes = (meta, artifacts) => {
   return total;
 };
 
+/**
+ * Resolve LMDB map size from estimated payload bytes with padding/alignment.
+ *
+ * @param {number} estimatedBytes
+ * @returns {number}
+ */
 const resolveMapSizeBytes = (estimatedBytes) => {
   const estimated = Number.isFinite(estimatedBytes) ? estimatedBytes : 0;
   const padded = estimated * LMDB_MAP_SIZE_FACTOR;

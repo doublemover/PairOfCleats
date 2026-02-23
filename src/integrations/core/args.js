@@ -1,3 +1,14 @@
+/**
+ * Append a normalized CLI flag/value pair to an args array.
+ *
+ * `true` emits `--name`, `false` emits `--no-name`, and other non-null values
+ * emit `--name <value>`.
+ *
+ * @param {string[]} args
+ * @param {string} name
+ * @param {unknown} value
+ * @returns {void}
+ */
 const pushFlag = (args, name, value) => {
   if (value === undefined || value === null) return;
   if (value === true) {
@@ -9,6 +20,12 @@ const pushFlag = (args, name, value) => {
   }
 };
 
+/**
+ * Build normalized raw `index build` CLI args from integration options.
+ *
+ * @param {object} [options]
+ * @returns {string[]}
+ */
 export const buildRawArgs = (options = {}) => {
   const args = [];
   if (options.mode) args.push('--mode', String(options.mode));
@@ -26,6 +43,12 @@ export const buildRawArgs = (options = {}) => {
   return args;
 };
 
+/**
+ * Build search CLI args with consistent boolean flag normalization.
+ *
+ * @param {object} [params]
+ * @returns {string[]}
+ */
 export const buildSearchArgs = (params = {}) => {
   const args = [];
   pushFlag(args, 'as-of', params.asOf);
@@ -51,6 +74,12 @@ export const buildSearchArgs = (params = {}) => {
   return args;
 };
 
+/**
+ * Normalize stage aliases into canonical stage identifiers.
+ *
+ * @param {string} raw
+ * @returns {'stage1'|'stage2'|'stage3'|'stage4'|null}
+ */
 export const normalizeStage = (raw) => {
   const value = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
   if (!value) return null;
@@ -61,6 +90,12 @@ export const normalizeStage = (raw) => {
   return null;
 };
 
+/**
+ * Build canonical stage2 invocation args from parsed CLI/runtime options.
+ *
+ * @param {{root:string,argv:object,rawArgv:string[]}} input
+ * @returns {string[]}
+ */
 export const buildStage2Args = ({ root, argv, rawArgv }) => {
   const args = ['--repo', root, '--stage', 'stage2'];
   if (argv.mode && argv.mode !== 'all') args.push('--mode', argv.mode);

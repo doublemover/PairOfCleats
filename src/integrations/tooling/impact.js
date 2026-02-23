@@ -26,6 +26,16 @@ const createImpactInputError = (code, message) => {
   return err;
 };
 
+/**
+ * CLI entrypoint for graph impact analysis.
+ *
+ * Enforces seed/changed input requirements, resolves graph caps/filters, loads
+ * graph index artifacts, and emits a validated `GraphImpact` payload in JSON or
+ * markdown formats.
+ *
+ * @param {string[]} [rawArgs]
+ * @returns {Promise<{ok:boolean,code?:string,payload?:object,message?:string}>}
+ */
 export async function runImpactCli(rawArgs = process.argv.slice(2)) {
   const cli = createCli({
     scriptName: 'impact',

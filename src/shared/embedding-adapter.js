@@ -65,6 +65,12 @@ export const __setTransformersModuleLoaderForTests = (loader) => {
   resetEmbeddingAdapterCachesInternal();
 };
 
+/**
+ * Load transformers module singleton and apply optional model cache directory.
+ *
+ * @param {string|null} modelsDir
+ * @returns {Promise<object>}
+ */
 async function loadTransformersModule(modelsDir) {
   if (!transformersModulePromise) {
     transformersModulePromise = transformersModuleLoader().catch((err) => {
@@ -142,6 +148,12 @@ const createXenovaAdapter = ({ modelId, modelsDir, normalize }) => {
   };
 };
 
+/**
+ * Create provider-specific embedding adapter with optional fallback behavior.
+ *
+ * @param {object} input
+ * @returns {object}
+ */
 const createAdapter = ({
   rootDir,
   useStub,
@@ -227,6 +239,15 @@ const createAdapter = ({
   return createXenovaAdapter({ modelId, modelsDir, normalize });
 };
 
+/**
+ * Get cached embedding adapter instance for normalized provider/model config.
+ *
+ * Caches adapters with TTL+LRU pruning to avoid repeated model/provider
+ * initialization during repeated indexing/search sessions.
+ *
+ * @param {object} options
+ * @returns {object}
+ */
 export function getEmbeddingAdapter(options) {
   const resolvedProvider = normalizeEmbeddingProvider(options?.provider, { strict: true });
   const normalizedOnnxConfig = normalizeOnnxConfig(options?.onnxConfig);
@@ -267,6 +288,12 @@ export function getEmbeddingAdapter(options) {
   return adapter;
 }
 
+/**
+ * Resolve and optionally preload cached embedding adapter.
+ *
+ * @param {object} [options]
+ * @returns {Promise<object|null>}
+ */
 export const warmEmbeddingAdapter = async (options = {}) => {
   const adapter = getEmbeddingAdapter(options);
   if (!adapter) return null;

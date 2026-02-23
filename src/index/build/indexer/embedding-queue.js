@@ -7,6 +7,18 @@ import { throwIfAborted } from '../../../shared/abort.js';
 import { ensureQueueDir, enqueueJob } from '../../../shared/queue.js';
 import { isAbsolutePathNative } from '../../../shared/files.js';
 
+/**
+ * Enqueue stage3 embedding job for asynchronous embedding service processing.
+ *
+ * @param {{
+ *  runtime:object,
+ *  mode:string,
+ *  indexDir?:string|null,
+ *  indexRoot?:string|null,
+ *  abortSignal?:AbortSignal|null
+ * }} input
+ * @returns {Promise<object|null>}
+ */
 export const enqueueEmbeddingJob = async ({
   runtime,
   mode,

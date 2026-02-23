@@ -11,6 +11,15 @@ import { resolveTestCachePath } from './test-cache.js';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const VALID_CACHE_SCOPES = new Set(['isolated', 'shared']);
 
+/**
+ * Run git command for fixture setup and fail fast on non-zero exit.
+ *
+ * @param {string[]} args
+ * @param {string} label
+ * @param {string} cwd
+ * @param {Record<string, string>} [envOverride]
+ * @returns {void}
+ */
 const runGit = (args, label, cwd, envOverride = {}) => {
   const result = spawnSync('git', args, {
     cwd,
@@ -79,6 +88,15 @@ const isStaleLock = async (lockDir, staleMs) => {
   }
 };
 
+/**
+ * Execute callback under directory lock with stale-lock eviction.
+ *
+ * @template T
+ * @param {string} lockDir
+ * @param {() => Promise<T>} callback
+ * @param {{pollMs?:number,staleMs?:number,maxWaitMs?:number}} [options]
+ * @returns {Promise<T>}
+ */
 const withDirectoryLock = async (
   lockDir,
   callback,
@@ -113,6 +131,12 @@ const withDirectoryLock = async (
   }
 };
 
+/**
+ * Ensure deterministic git fixture repo exists for search filter tests.
+ *
+ * @param {{cacheScope?:'isolated'|'shared'}} [options]
+ * @returns {Promise<{root:string,repoRoot:string,cacheRoot:string,env:object,branchName:string|null}|null>}
+ */
 export const ensureSearchFiltersRepo = async ({ cacheScope = 'shared' } = {}) => {
   if (!hasGit()) {
     console.log('[skip] git not available');
@@ -244,6 +268,20 @@ export const ensureSearchFiltersRepo = async ({ cacheScope = 'shared' } = {}) =>
   });
 };
 
+/**
+ * Run JSON search against filter fixture repo with stable defaults.
+ *
+ * @param {{
+ *  root?:string,
+ *  repoRoot:string,
+ *  env:object,
+ *  query:string,
+ *  args?:string[],
+ *  mode?:string,
+ *  backend?:string
+ * }} input
+ * @returns {object}
+ */
 export const runFilterSearch = ({
   root = ROOT,
   repoRoot,

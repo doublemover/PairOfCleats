@@ -1,6 +1,15 @@
 import path from 'node:path';
 import { getIndexDir, loadUserConfig } from '../shared/dict-utils.js';
 
+/**
+ * Resolve legacy embedding payload roots into build/index directory fields.
+ *
+ * Older jobs may provide only `indexRoot`; this helper infers whether that path
+ * points at a build root or a concrete index subdirectory.
+ *
+ * @param {object} job
+ * @returns {{buildRoot:string|null,indexDir:string|null,legacyIndexRoot:string|null}}
+ */
 export const resolveLegacyEmbeddingPaths = (job) => {
   const legacyIndexRoot = typeof job?.indexRoot === 'string' ? path.resolve(job.indexRoot) : null;
   if (!legacyIndexRoot) return { buildRoot: null, indexDir: null, legacyIndexRoot: null };
@@ -21,6 +30,18 @@ export const resolveLegacyEmbeddingPaths = (job) => {
   return { buildRoot: legacyIndexRoot, indexDir: null, legacyIndexRoot };
 };
 
+/**
+ * Normalize embedding queue job payload into canonical processing fields.
+ *
+ * @param {object} job
+ * @returns {{
+ *   repoRoot:string|null,
+ *   buildRoot:string|null,
+ *   indexDir:string|null,
+ *   legacyIndexRoot:string|null,
+ *   formatVersion:number|null
+ * }}
+ */
 export const normalizeEmbeddingJob = (job) => {
   const repoRoot = job?.repoRoot || job?.repo || null;
   let buildRoot = job?.buildRoot ? path.resolve(job.buildRoot) : null;
@@ -47,6 +68,12 @@ export const normalizeEmbeddingJob = (job) => {
   };
 };
 
+/**
+ * Build `tools/build/embeddings.js` argv for one job.
+ *
+ * @param {{buildPath:string,repoPath:string,mode?:string|null,indexRoot?:string|null}} input
+ * @returns {string[]}
+ */
 export const buildEmbeddingsArgs = ({ buildPath, repoPath, mode, indexRoot }) => {
   const args = [buildPath, '--repo', repoPath];
   if (mode && mode !== 'both') args.push('--mode', mode);

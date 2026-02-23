@@ -1,5 +1,11 @@
 import path from 'node:path';
 
+/**
+ * Sanitize key fragments for safe scheduler artifact filenames.
+ *
+ * @param {unknown} value
+ * @returns {string}
+ */
 const sanitizeKey = (value) => {
   const raw = value == null ? '' : String(value);
   const trimmed = raw.trim();
@@ -8,6 +14,12 @@ const sanitizeKey = (value) => {
   return trimmed.replace(/[^a-zA-Z0-9._-]+/g, '_');
 };
 
+/**
+ * Resolve canonical Tree-sitter scheduler artifact paths under an index root.
+ *
+ * @param {string} indexDir
+ * @returns {object}
+ */
 export const resolveTreeSitterSchedulerPaths = (indexDir) => {
   const baseDir = path.join(indexDir, 'tree-sitter');
   const jobsDir = path.join(baseDir, 'jobs');

@@ -82,6 +82,16 @@ const hasGeneratedDocPath = (fileLower, baseNameLower) => {
   return false;
 };
 
+/**
+ * Decide whether phrase postings should be suppressed for a chunk/file pair.
+ *
+ * This applies deterministic heuristics for fixtures, infra/prose docs, license
+ * material, and generated documentation to reduce noisy high-frequency terms.
+ *
+ * @param {object} chunk
+ * @param {string} fileLower
+ * @returns {boolean}
+ */
 export const shouldSkipPhrasePostingsForChunk = (chunk, fileLower) => {
   const baseNameLower = getLowerBasename(fileLower);
   if (baseNameLower === 'cmakelists.txt') return true;

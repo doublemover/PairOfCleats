@@ -8,6 +8,23 @@ import { resolveStubDims } from '../../../shared/embedding.js';
 import { normalizeEmbeddingProvider, normalizeOnnxConfig, resolveOnnxModelPath } from '../../../shared/onnx-embeddings.js';
 import { resolveQuantizationParams } from '../../../storage/sqlite/quantization.js';
 
+/**
+ * Resolve embedding runtime configuration and lazy embedding adapters.
+ *
+ * This function applies CLI/env/config precedence, computes effective batch and
+ * concurrency limits, derives identity metadata, and returns lazy embedding
+ * callables so the model is only initialized when embeddings are requested.
+ *
+ * @param {{
+ *   rootDir:string,
+ *   userConfig:object,
+ *   indexingConfig:object,
+ *   envConfig:object,
+ *   argv:object,
+ *   cpuConcurrency:number
+ * }} input
+ * @returns {Promise<object>}
+ */
 export const resolveEmbeddingRuntime = async ({
   rootDir,
   userConfig,

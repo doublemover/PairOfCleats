@@ -52,6 +52,13 @@ const ESTIMATED_COST_BASELINE_PER_JOB = 40;
 const MIN_ESTIMATED_PARSE_COST = 1;
 const MAX_BUCKET_REBALANCE_ITERATIONS = 4;
 
+/**
+ * Count lines with optional early-exit cap for limit checks.
+ *
+ * @param {string} text
+ * @param {number|null} [maxLines]
+ * @returns {number}
+ */
 const countLines = (text, maxLines = null) => {
   if (!text) return 0;
   const capped = Number.isFinite(Number(maxLines)) && Number(maxLines) > 0
@@ -65,6 +72,12 @@ const countLines = (text, maxLines = null) => {
   return count;
 };
 
+/**
+ * Resolve per-language parser size limits for scheduler planning.
+ *
+ * @param {{languageId?:string|null,treeSitterConfig?:object|null}} input
+ * @returns {{maxBytes:unknown,maxLines:unknown}}
+ */
 const resolveTreeSitterLimits = ({ languageId, treeSitterConfig }) => {
   const config = treeSitterConfig && typeof treeSitterConfig === 'object' ? treeSitterConfig : {};
   const perLanguage = (config.byLanguage && languageId && config.byLanguage[languageId]) || {};
@@ -73,6 +86,17 @@ const resolveTreeSitterLimits = ({ languageId, treeSitterConfig }) => {
   return { maxBytes, maxLines };
 };
 
+/**
+ * Determine whether a segment exceeds planner-side tree-sitter limits.
+ *
+ * @param {{
+ *  text:string,
+ *  languageId:string,
+ *  treeSitterConfig?:object|null,
+ *  recordSkip?:(reason:string,buildMessage:()=>string)=>void
+ * }} input
+ * @returns {boolean}
+ */
 const exceedsTreeSitterLimits = ({ text, languageId, treeSitterConfig, recordSkip }) => {
   const { maxBytes, maxLines } = resolveTreeSitterLimits({ languageId, treeSitterConfig });
   if (typeof maxBytes === 'number' && maxBytes > 0) {
@@ -100,6 +124,13 @@ const exceedsTreeSitterLimits = ({ text, languageId, treeSitterConfig, recordSki
   return false;
 };
 
+/**
+ * Normalize input file entry into absolute path + stable relative key.
+ *
+ * @param {string|{abs?:string,path?:string,rel?:string}} entry
+ * @param {string} root
+ * @returns {{abs:string|null,relKey:string|null}}
+ */
 const resolveEntryPaths = (entry, root) => {
   if (typeof entry === 'string') {
     const abs = entry;
@@ -112,6 +143,13 @@ const resolveEntryPaths = (entry, root) => {
   return { abs, relKey };
 };
 
+/**
+ * Stable sort for scheduler jobs to keep planner output deterministic.
+ *
+ * @param {object} a
+ * @param {object} b
+ * @returns {number}
+ */
 const sortJobs = (a, b) => {
   const langDelta = compareStrings(a.languageId || '', b.languageId || '');
   if (langDelta !== 0) return langDelta;
@@ -124,6 +162,12 @@ const sortJobs = (a, b) => {
   return compareStrings(a.virtualPath || '', b.virtualPath || '');
 };
 
+/**
+ * Compute deterministic 32-bit hash used for low-cost bucket assignment.
+ *
+ * @param {unknown} value
+ * @returns {number}
+ */
 const hashString = (value) => {
   const text = String(value || '');
   let hash = 2166136261;
@@ -134,12 +178,26 @@ const hashString = (value) => {
   return hash >>> 0;
 };
 
+/**
+ * Parse positive finite number, otherwise return fallback.
+ *
+ * @param {unknown} value
+ * @param {number|null} [fallback]
+ * @returns {number|null}
+ */
 const normalizePositiveNumber = (value, fallback = null) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return parsed;
 };
 
+/**
+ * Parse positive integer, otherwise return fallback.
+ *
+ * @param {unknown} value
+ * @param {number|null} [fallback]
+ * @returns {number|null}
+ */
 const normalizePositiveInt = (value, fallback = null) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
@@ -213,6 +271,12 @@ const estimateSegmentParseCost = (text) => {
   };
 };
 
+/**
+ * Resolve per-job estimated parse cost, with span-derived fallback.
+ *
+ * @param {object} job
+ * @returns {number}
+ */
 const resolveJobEstimatedParseCost = (job) => {
   const estimated = normalizePositiveNumber(job?.estimatedParseCost);
   if (estimated) return estimated;
@@ -223,6 +287,20 @@ const resolveJobEstimatedParseCost = (job) => {
   return Math.max(MIN_ESTIMATED_PARSE_COST, Math.ceil(span / 64));
 };
 
+/**
+ * Summarize parse-cost distribution for a grammar workload.
+ *
+ * @param {Array<object>} jobs
+ * @returns {{
+ *  jobCount:number,
+ *  totalEstimatedCost:number,
+ *  avgCost:number,
+ *  minCost:number,
+ *  maxCost:number,
+ *  p95Cost:number,
+ *  skewRatio:number
+ * }}
+ */
 const summarizeGrammarJobs = (jobs) => {
   const list = Array.isArray(jobs) ? jobs : [];
   if (!list.length) {
@@ -269,6 +347,13 @@ const summarizeGrammarJobs = (jobs) => {
   };
 };
 
+/**
+ * Resolve observed adaptive profile entry for a grammar key.
+ *
+ * @param {string} grammarKey
+ * @param {Map<string, unknown>|null} observedRowsPerSecByGrammar
+ * @returns {object|null}
+ */
 const resolveObservedProfileEntry = (grammarKey, observedRowsPerSecByGrammar) => {
   if (!(observedRowsPerSecByGrammar instanceof Map) || !grammarKey) return null;
   const raw = observedRowsPerSecByGrammar.get(grammarKey);
@@ -279,24 +364,52 @@ const resolveObservedProfileEntry = (grammarKey, observedRowsPerSecByGrammar) =>
   return raw;
 };
 
+/**
+ * Resolve observed rows/sec for adaptive planner tuning.
+ *
+ * @param {string} grammarKey
+ * @param {Map<string, unknown>|null} observedRowsPerSecByGrammar
+ * @returns {number|null}
+ */
 const resolveObservedRowsPerSec = (grammarKey, observedRowsPerSecByGrammar) => {
   const entry = resolveObservedProfileEntry(grammarKey, observedRowsPerSecByGrammar);
   if (!entry) return null;
   return normalizePositiveNumber(entry?.rowsPerSec, null);
 };
 
+/**
+ * Resolve observed parse-cost throughput for adaptive planner tuning.
+ *
+ * @param {string} grammarKey
+ * @param {Map<string, unknown>|null} observedRowsPerSecByGrammar
+ * @returns {number|null}
+ */
 const resolveObservedCostPerSec = (grammarKey, observedRowsPerSecByGrammar) => {
   const entry = resolveObservedProfileEntry(grammarKey, observedRowsPerSecByGrammar);
   if (!entry) return null;
   return normalizePositiveNumber(entry?.costPerSec, null);
 };
 
+/**
+ * Resolve observed tail duration for adaptive lane-splitting heuristics.
+ *
+ * @param {string} grammarKey
+ * @param {Map<string, unknown>|null} observedRowsPerSecByGrammar
+ * @returns {number|null}
+ */
 const resolveObservedTailDurationMs = (grammarKey, observedRowsPerSecByGrammar) => {
   const entry = resolveObservedProfileEntry(grammarKey, observedRowsPerSecByGrammar);
   if (!entry) return null;
   return normalizePositiveNumber(entry?.tailDurationMs, null);
 };
 
+/**
+ * Resolve previous lane-state snapshot used for hysteresis/cooldown handling.
+ *
+ * @param {string} grammarKey
+ * @param {Map<string, unknown>|null} observedRowsPerSecByGrammar
+ * @returns {{bucketCount:number,cooldownSteps:number,lastAction:'split'|'merge'|'hold'}|null}
+ */
 const resolveObservedLaneState = (grammarKey, observedRowsPerSecByGrammar) => {
   const entry = resolveObservedProfileEntry(grammarKey, observedRowsPerSecByGrammar);
   if (!entry || typeof entry !== 'object') return null;
@@ -315,6 +428,16 @@ const resolveObservedLaneState = (grammarKey, observedRowsPerSecByGrammar) => {
   };
 };
 
+/**
+ * Resolve target jobs per bucket using adaptive profile throughput.
+ *
+ * @param {{
+ *  group?:object,
+ *  schedulerConfig?:object,
+ *  observedRowsPerSecByGrammar?:Map<string,unknown>|null
+ * }} input
+ * @returns {number}
+ */
 const resolveAdaptiveBucketTargetJobs = ({
   group,
   schedulerConfig = {},
@@ -335,6 +458,16 @@ const resolveAdaptiveBucketTargetJobs = ({
   return Math.max(ADAPTIVE_BUCKET_MIN_JOBS, defaultTarget);
 };
 
+/**
+ * Resolve target jobs per wave for within-bucket slicing.
+ *
+ * @param {{
+ *  group?:object,
+ *  schedulerConfig?:object,
+ *  observedRowsPerSecByGrammar?:Map<string,unknown>|null
+ * }} input
+ * @returns {number}
+ */
 const resolveAdaptiveWaveTargetJobs = ({
   group,
   schedulerConfig = {},
@@ -353,6 +486,16 @@ const resolveAdaptiveWaveTargetJobs = ({
   return Math.max(ADAPTIVE_WAVE_MIN_JOBS, Math.min(ADAPTIVE_WAVE_MAX_JOBS, fallback));
 };
 
+/**
+ * Resolve target parse-cost per bucket for adaptive sharding.
+ *
+ * @param {{
+ *  group?:object,
+ *  schedulerConfig?:object,
+ *  observedRowsPerSecByGrammar?:Map<string,unknown>|null
+ * }} input
+ * @returns {number}
+ */
 const resolveAdaptiveBucketTargetCost = ({
   group,
   schedulerConfig = {},
@@ -381,6 +524,16 @@ const resolveAdaptiveBucketTargetCost = ({
   );
 };
 
+/**
+ * Resolve target parse-cost per wave for adaptive bucketing.
+ *
+ * @param {{
+ *  group?:object,
+ *  schedulerConfig?:object,
+ *  observedRowsPerSecByGrammar?:Map<string,unknown>|null
+ * }} input
+ * @returns {number}
+ */
 const resolveAdaptiveWaveTargetCost = ({
   group,
   schedulerConfig = {},
@@ -409,6 +562,22 @@ const resolveAdaptiveWaveTargetCost = ({
   );
 };
 
+/**
+ * Summarize load distribution metrics used for balancing diagnostics.
+ *
+ * @param {number[]} loads
+ * @returns {{
+ *  loads:number[],
+ *  total:number,
+ *  avg:number,
+ *  min:number,
+ *  minNonZero:number,
+ *  max:number,
+ *  spreadRatio:number,
+ *  imbalanceRatio:number,
+ *  stdDev:number
+ * }}
+ */
 const summarizeLoadDistribution = (loads) => {
   const normalized = Array.isArray(loads)
     ? loads.map((value) => Number(value) || 0)
@@ -450,6 +619,12 @@ const summarizeLoadDistribution = (loads) => {
   };
 };
 
+/**
+ * Summarize per-bucket job/cost metrics for adaptive balancing decisions.
+ *
+ * @param {Array<Array<object>>} buckets
+ * @returns {{cost:object,jobs:object}}
+ */
 const summarizeBucketMetrics = (buckets) => {
   const list = Array.isArray(buckets) ? buckets : [];
   const costLoads = list.map((bucketJobs) => (
@@ -549,6 +724,20 @@ const assignPathAwareBuckets = ({ jobs, bucketCount }) => {
   return buckets.map((bucketJobs) => bucketJobs.sort(sortJobs));
 };
 
+/**
+ * Apply hysteresis/cooldown guardrails to lane split/merge transitions.
+ *
+ * @param {{
+ *  desiredBucketCount:number,
+ *  minBuckets:number,
+ *  maxBuckets:number,
+ *  laneState?:{bucketCount?:number,cooldownSteps?:number,lastAction?:string}|null,
+ *  guardrails:{maxStepUp:number,maxStepDown:number,splitHysteresisRatio:number,mergeHysteresisRatio:number},
+ *  hasSplitPressure?:boolean,
+ *  hasMergePressure?:boolean
+ * }} input
+ * @returns {number}
+ */
 const applyBucketCountGuardrails = ({
   desiredBucketCount,
   minBuckets,
@@ -585,6 +774,16 @@ const applyBucketCountGuardrails = ({
   return Math.max(minBuckets, Math.min(maxBuckets, resolved));
 };
 
+/**
+ * Split a grammar group into one or more bucket shards based on observed load.
+ *
+ * @param {{
+ *  group:object,
+ *  schedulerConfig?:object,
+ *  observedRowsPerSecByGrammar?:Map<string,unknown>|null
+ * }} input
+ * @returns {Array<object>}
+ */
 const shardGrammarGroup = ({
   group,
   schedulerConfig = {},
@@ -739,6 +938,16 @@ const shardGrammarGroup = ({
   return out.length ? out : [group];
 };
 
+/**
+ * Split bucketed grammar jobs into multiple execution waves.
+ *
+ * @param {{
+ *  group:object,
+ *  schedulerConfig?:object,
+ *  observedRowsPerSecByGrammar?:Map<string,unknown>|null
+ * }} input
+ * @returns {Array<object>}
+ */
 const splitGrammarBucketIntoWaves = ({
   group,
   schedulerConfig = {},
@@ -805,6 +1014,12 @@ const splitGrammarBucketIntoWaves = ({
   return out.length ? out : [group];
 };
 
+/**
+ * Build deterministic interleaved execution order across bucket waves.
+ *
+ * @param {Array<object>} groups
+ * @returns {string[]}
+ */
 const buildContinuousWaveExecutionOrder = (groups) => {
   const byBucket = new Map();
   const entries = Array.isArray(groups) ? groups : [];
@@ -844,6 +1059,12 @@ const buildContinuousWaveExecutionOrder = (groups) => {
   return order.length ? order : entries.map((group) => group.grammarKey).filter(Boolean);
 };
 
+/**
+ * Build lane/bucket imbalance diagnostics for planner artifacts.
+ *
+ * @param {Array<object>} groups
+ * @returns {{byBaseGrammar:object,summary:object}}
+ */
 const buildLaneDiagnostics = (groups) => {
   const byBaseGrammar = new Map();
   const entries = Array.isArray(groups) ? groups : [];
@@ -931,6 +1152,7 @@ const buildLaneDiagnostics = (groups) => {
  * host parallelism with an upper safety cap.
  *
  * @param {object|null|undefined} treeSitterConfig
+ * @param {number} [entryCount]
  * @returns {number}
  */
 const resolvePlannerIoConcurrency = (treeSitterConfig, entryCount = 0) => {
@@ -960,6 +1182,12 @@ const resolvePlannerIoConcurrency = (treeSitterConfig, entryCount = 0) => {
   return resolved;
 };
 
+/**
+ * Create aggregated skip logger with per-reason sampling and final summary.
+ *
+ * @param {{treeSitterConfig?:object|null,log?:(line:string)=>void|null}} input
+ * @returns {{record:(reason:string,message:string|(()=>string))=>void,flush:()=>void}}
+ */
 const createSkipLogger = ({ treeSitterConfig, log }) => {
   const schedulerConfig = treeSitterConfig?.scheduler || {};
   const sampleLimitRaw = Number(
@@ -1005,6 +1233,20 @@ const createSkipLogger = ({ treeSitterConfig, log }) => {
   return { record, flush };
 };
 
+/**
+ * Build scheduler planning artifacts for tree-sitter subprocess execution.
+ *
+ * @param {{
+ *  mode:'code'|'prose'|'records'|'extracted-prose',
+ *  runtime:object,
+ *  entries:Array<object|string>,
+ *  outDir:string,
+ *  fileTextCache?:Map<string,object>|null,
+ *  abortSignal?:AbortSignal|null,
+ *  log?:(line:string)=>void|null
+ * }} input
+ * @returns {Promise<object|null>}
+ */
 export const buildTreeSitterSchedulerPlan = async ({
   mode,
   runtime,

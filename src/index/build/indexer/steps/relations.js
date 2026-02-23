@@ -328,6 +328,12 @@ const collectUsageSignalTokens = (usages, maxTokens) => {
   return out;
 };
 
+/**
+ * Build adaptive cross-file inference budget plan for current chunk/file set.
+ *
+ * @param {{chunks?:Array<object>,fileRelations?:object|Map<string,object>,inferenceLiteEnabled?:boolean}} [input]
+ * @returns {object}
+ */
 export const buildCrossFileInferenceBudgetPlan = ({
   chunks,
   fileRelations,
@@ -509,6 +515,12 @@ export const buildCrossFileInferenceBudgetPlan = ({
   };
 };
 
+/**
+ * Apply cross-file inference budgets to chunk relations and file usages.
+ *
+ * @param {{chunks?:Array<object>,fileRelations?:object|Map<string,object>,plan?:object}} [input]
+ * @returns {{fileRelations:object|Map<string,object>,budgetStats:object|null}}
+ */
 export const applyCrossFileInferenceBudgetPlan = ({
   chunks,
   fileRelations,
@@ -603,6 +615,12 @@ export const applyCrossFileInferenceBudgetPlan = ({
   };
 };
 
+/**
+ * Build ROI/retention telemetry from cross-file inference and budget stats.
+ *
+ * @param {{crossFileStats?:object,budgetStats?:object,durationMs?:number}} [input]
+ * @returns {object}
+ */
 export const buildCrossFileInferenceRoiMetrics = ({
   crossFileStats,
   budgetStats,
@@ -648,6 +666,12 @@ export const resolveImportScanPlan = ({ runtime, mode, relationsEnabled }) => {
   return { importScanMode, enableImportLinks, usePreScan, shouldScan, importGraphEnabled };
 };
 
+/**
+ * Perform optional pre-scan import discovery before chunk processing.
+ *
+ * @param {object} input
+ * @returns {Promise<{importResult:{importsByFile:object,durationMs:number,stats:object|null},scanPlan:object}>}
+ */
 export const preScanImports = async ({
   runtime,
   mode,

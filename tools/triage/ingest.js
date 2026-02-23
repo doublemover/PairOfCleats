@@ -119,6 +119,16 @@ function resolveNormalizer(sourceValue) {
   return null;
 }
 
+/**
+ * Load triage entries from JSON or JSONL inputs.
+ *
+ * Supports top-level arrays, common wrapper keys (`alerts`, `findings`,
+ * `records`, `items`), and a fallback to the first array value found in an
+ * object payload. If JSON parsing fails, the payload is treated as JSONL.
+ *
+ * @param {string} filePath
+ * @returns {Promise<object[]>}
+ */
 async function loadInputEntries(filePath) {
   const rawText = await fsPromises.readFile(filePath, 'utf8');
   const trimmed = rawText.trim();

@@ -10,6 +10,12 @@ export const INDEX_SIGNATURE_TTL_MS = 5 * 60 * 1000;
 const INDEX_SIGNATURE_CACHE_MAX_ENTRIES = 256;
 const indexSignatureCache = new Map();
 
+/**
+ * Canonicalize index directory path (realpath when available).
+ *
+ * @param {string} dir
+ * @returns {Promise<string|null>}
+ */
 const canonicalizeIndexDir = async (dir) => {
   const resolved = path.resolve(String(dir || ''));
   if (!resolved) return null;
@@ -45,6 +51,12 @@ const INDEX_FILES = [
   'index_state.json'
 ];
 
+/**
+ * Prune signature cache by TTL first, then LRU overflow eviction.
+ *
+ * @param {number} [now]
+ * @returns {void}
+ */
 const pruneIndexSignatureCache = (now = Date.now()) => {
   for (const [key, value] of indexSignatureCache.entries()) {
     if (!value || typeof value !== 'object') {
@@ -90,6 +102,12 @@ const setCachedSignature = (cacheKey, signature) => {
   pruneIndexSignatureCache(now);
 };
 
+/**
+ * Build index-state signature preferring semantic build metadata when present.
+ *
+ * @param {string} dir
+ * @returns {Promise<{signature:string,buildId:string|null}|null>}
+ */
 const indexStateSignature = async (dir) => {
   if (!dir) return null;
   const statePath = path.join(dir, 'index_state.json');
@@ -141,6 +159,12 @@ const binaryColumnarSignature = async (dir, baseName) => {
   return `${metaName}:${metaSig}|data:${dataSig || 'missing'}|offsets:${offsetsSig || 'missing'}|lengths:${lengthsSig || 'missing'}`;
 };
 
+/**
+ * Build chunk-meta artifact signature across supported storage variants.
+ *
+ * @param {string} dir
+ * @returns {Promise<string>}
+ */
 const chunkMetaSignature = async (dir) => {
   const jsonPath = path.join(dir, 'chunk_meta.json');
   const jsonSig = await fileSignature(jsonPath);
@@ -162,6 +186,12 @@ const chunkMetaSignature = async (dir) => {
   return 'chunk_meta.json:missing';
 };
 
+/**
+ * Build token-postings artifact signature across packed/json/sharded variants.
+ *
+ * @param {string} dir
+ * @returns {Promise<string>}
+ */
 const tokenPostingsSignature = async (dir) => {
   const packedPath = path.join(dir, 'token_postings.packed.bin');
   const packedSig = await fileSignature(packedPath);
@@ -200,6 +230,15 @@ const jsonlArtifactSignature = async (dir, baseName) => {
   return `${baseName}.json:missing`;
 };
 
+/**
+ * Build deterministic index signature across active artifact variants.
+ *
+ * Prefers `index_state` when present; otherwise hashes core artifact files and
+ * shard metadata so cache invalidation reacts to any retrieval-surface change.
+ *
+ * @param {string} dir
+ * @returns {Promise<string|null>}
+ */
 export async function buildIndexSignature(dir) {
   if (!dir) return null;
   const canonicalDir = await canonicalizeIndexDir(dir);
@@ -236,6 +275,12 @@ export async function buildIndexSignature(dir) {
   return signature;
 }
 
+/**
+ * Create bounded in-memory cache wrapper for loaded index payloads.
+ *
+ * @param {{maxEntries?:number,ttlMs?:number,onEvict?:(event:{key:string,value:unknown,reason:string})=>void}} [options]
+ * @returns {{get:(key:string)=>unknown,set:(key:string,value:unknown)=>void,delete:(key:string)=>void,clear:()=>void,size:()=>number,cache:Map<string,unknown>|null}}
+ */
 export function createIndexCache({
   maxEntries = DEFAULT_INDEX_CACHE_MAX_ENTRIES,
   ttlMs = DEFAULT_INDEX_CACHE_TTL_MS,
@@ -288,6 +333,15 @@ export function createIndexCache({
   };
 }
 
+/**
+ * Load index artifacts with signature-based cache validation.
+ *
+ * @param {ReturnType<typeof createIndexCache>|null} cache
+ * @param {string} dir
+ * @param {object} options
+ * @param {(dir:string,options:object)=>Promise<unknown>} loader
+ * @returns {Promise<unknown>}
+ */
 export async function loadIndexWithCache(cache, dir, options, loader) {
   if (!cache) return loader(dir, options);
   const resolvedDir = path.resolve(String(dir || ''));

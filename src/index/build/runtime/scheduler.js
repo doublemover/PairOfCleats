@@ -4,17 +4,58 @@ import {
   coerceUnitFraction
 } from '../../../shared/number-coerce.js';
 
+/**
+ * Normalize permissive boolean input used by CLI/env flags.
+ *
+ * @param {unknown} value
+ * @returns {boolean}
+ */
 const normalizeBoolean = (value) => value === true || value === 'true' || value === '1';
+/**
+ * Check for plain-object values (excluding arrays).
+ *
+ * @param {unknown} value
+ * @returns {boolean}
+ */
 const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
 
+/**
+ * Normalize tri-state boolean inputs where `null` means "unset".
+ *
+ * @param {unknown} value
+ * @returns {boolean|null}
+ */
 const normalizeOptionalBoolean = (value) => {
   if (value == null) return null;
   return normalizeBoolean(value);
 };
 
+/**
+ * Detect whether raw argv contains a CLI flag in plain or `--flag=value` form.
+ *
+ * @param {string[]} rawArgv
+ * @param {string} name
+ * @returns {boolean}
+ */
 const hasCliArg = (rawArgv, name) => Array.isArray(rawArgv)
   && rawArgv.some((arg) => arg === name || String(arg).startsWith(`${name}=`));
 
+/**
+ * Resolve an effective boolean option using CLI > env > config > fallback.
+ *
+ * CLI presence is treated as authoritative even for falsey values (for
+ * example `--no-flag`), so callers must provide both parsed CLI value and a
+ * presence bit.
+ *
+ * @param {{
+ *  cliValue: unknown,
+ *  cliPresent: boolean,
+ *  envValue: unknown,
+ *  configValue: unknown,
+ *  fallback: boolean
+ * }} input
+ * @returns {boolean}
+ */
 const resolveBoolean = ({ cliValue, cliPresent, envValue, configValue, fallback }) => {
   if (cliPresent) return normalizeBoolean(cliValue);
   if (envValue != null) return envValue === true;
@@ -22,6 +63,19 @@ const resolveBoolean = ({ cliValue, cliPresent, envValue, configValue, fallback 
   return fallback;
 };
 
+/**
+ * Resolve an integer option using CLI > env > config > fallback precedence.
+ *
+ * @param {{
+ *  cliValue: unknown,
+ *  cliPresent: boolean,
+ *  envValue: unknown,
+ *  configValue: unknown,
+ *  fallback: number,
+ *  allowZero?: boolean
+ * }} input
+ * @returns {number}
+ */
 const resolveNumber = ({ cliValue, cliPresent, envValue, configValue, fallback, allowZero = true }) => {
   if (cliPresent) {
     const parsed = allowZero ? coerceNonNegativeInt(cliValue) : coercePositiveInt(cliValue);
@@ -38,6 +92,12 @@ const resolveNumber = ({ cliValue, cliPresent, envValue, configValue, fallback, 
   return fallback;
 };
 
+/**
+ * Normalize scheduler queue overrides from config, dropping invalid entries.
+ *
+ * @param {unknown} value
+ * @returns {Record<string, object>}
+ */
 const resolveQueueConfig = (value) => {
   if (!isObject(value)) return {};
   const resolved = {};
@@ -65,6 +125,12 @@ const resolveQueueConfig = (value) => {
   return resolved;
 };
 
+/**
+ * Normalize adaptive per-surface scheduler controls.
+ *
+ * @param {unknown} value
+ * @returns {object|null}
+ */
 const resolveAdaptiveSurfacesConfig = (value) => {
   if (!isObject(value)) return null;
   const resolved = {};
@@ -138,6 +204,19 @@ const DEFAULT_WRITE_BACKPRESSURE = Object.freeze({
   oldestWaitMsThreshold: 15000
 });
 
+/**
+ * Resolve write-backpressure controls used by stage queue throttling.
+ *
+ * @param {unknown} value
+ * @returns {{
+ *  enabled: boolean,
+ *  writeQueue: string,
+ *  producerQueues: string[],
+ *  pendingThreshold: number,
+ *  pendingBytesThreshold: number,
+ *  oldestWaitMsThreshold: number
+ * }}
+ */
 const resolveWriteBackpressureConfig = (value) => {
   const config = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   const writeQueue = typeof config.writeQueue === 'string' && config.writeQueue.trim()
@@ -179,6 +258,13 @@ const SCHEDULER_DEFAULT_QUEUE_CONFIG = Object.freeze({
   'embeddings.io': Object.freeze({ priority: 32, weight: 3, floorIo: 1 })
 });
 
+/**
+ * Merge queue defaults with user overrides while preserving unknown queue keys.
+ *
+ * @param {Record<string, object>|null|undefined} defaults
+ * @param {Record<string, object>|null|undefined} overrides
+ * @returns {Record<string, object>}
+ */
 const mergeQueueConfig = (defaults, overrides) => {
   const merged = {};
   const defaultEntries = defaults && typeof defaults === 'object'
@@ -212,6 +298,20 @@ export const SCHEDULER_QUEUE_NAMES = {
   embeddingsIo: 'embeddings.io'
 };
 
+/**
+ * Build the effective scheduler runtime config from CLI/env/config defaults.
+ *
+ * @param {{
+ *  argv?: object,
+ *  rawArgv?: string[],
+ *  envConfig?: object,
+ *  indexingConfig?: object,
+ *  runtimeConfig?: object,
+ *  envelope?: object,
+ *  autoTuneProfile?: object|null
+ * }} input
+ * @returns {object}
+ */
 export const resolveSchedulerConfig = ({
   argv,
   rawArgv,
