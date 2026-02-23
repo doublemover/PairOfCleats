@@ -28,7 +28,6 @@ import {
   emitSearchJsonError,
   flushRunSearchResources
 } from './reporting.js';
-import { createWarningCollector } from './shared.js';
 import { createRunSearchTelemetry } from './telemetry.js';
 import {
   emitMissingQueryAndThrow,
@@ -43,9 +42,9 @@ import {
 import { resolveRunSearchIndexAvailability } from './index-availability.js';
 import { resolveRunSearchBackendContext } from './backend-bootstrap.js';
 import {
-  buildRunSearchBackendBootstrapInput,
-  resolveRunSearchModeNeeds
+  buildRunSearchBackendBootstrapInput
 } from './backend-bootstrap-input.js';
+import { resolveRunSearchModeProfileAvailability } from './mode-profile-availability.js';
 import { loadRunSearchIndexesWithTracking } from './index-loading.js';
 import { resolveRunSearchQueryBootstrap } from './query-bootstrap.js';
 import { applyRunSearchSparseFallbackPolicy } from './sparse-fallback-orchestration.js';
@@ -311,44 +310,42 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const showMatched = argv.matched === true;
     const stageTracker = createRetrievalStageTracker({ enabled: showStats || explain });
 
-    const modeNeeds = resolveRunSearchModeNeeds({
+    const modeProfileAvailability = await resolveRunSearchModeProfileAvailability({
       runCode,
       runProse,
-      runExtractedProse: runExtractedProseRaw,
-      searchMode,
-      commentsEnabled
-    });
-    const { requiresExtractedProse, joinComments } = modeNeeds;
-    let annEnabledEffective = annEnabled;
-    let vectorAnnEnabled = false;
-    let sparseFallbackForcedByPreflight = false;
-    const warningCollector = createWarningCollector();
-    const profileWarnings = warningCollector.warnings;
-    const addProfileWarning = warningCollector.add;
-    const syncAnnFlags = () => {
-      vectorAnnEnabled = annEnabledEffective && vectorExtension.enabled === true;
-      telemetry.setAnn(annEnabledEffective ? 'on' : 'off');
-    };
-    const profileAndAvailability = await resolveRunSearchIndexAvailability({
-      rootDir,
-      userConfig,
-      runCode,
-      runProse,
-      runExtractedProse: runExtractedProseRaw,
+      runExtractedProseRaw,
       runRecords,
       searchMode,
+      commentsEnabled,
+      rootDir,
+      userConfig,
       asOfContext,
       indexResolveOptions,
-      addProfileWarning,
       allowSparseFallback,
       allowUnsafeMix,
       annFlagPresent,
-      annEnabled: annEnabledEffective,
-      scoreMode
+      annEnabled,
+      scoreMode,
+      emitOutput,
+      vectorExtension,
+      telemetry,
+      resolveIndexAvailability: resolveRunSearchIndexAvailability
     });
-    if (profileAndAvailability.error) {
-      return bail(profileAndAvailability.error.message, 1, profileAndAvailability.error.code);
+    if (modeProfileAvailability.error) {
+      return bail(modeProfileAvailability.error.message, 1, modeProfileAvailability.error.code);
     }
+    const {
+      modeNeeds,
+      requiresExtractedProse,
+      joinComments,
+      profileWarnings,
+      addProfileWarning,
+      syncAnnFlags,
+      profileAndAvailability
+    } = modeProfileAvailability;
+    let annEnabledEffective = modeProfileAvailability.annEnabledEffective;
+    let vectorAnnEnabled = modeProfileAvailability.vectorAnnEnabled;
+    let sparseFallbackForcedByPreflight = false;
     const {
       selectedModes,
       profilePolicyByMode,
@@ -363,13 +360,6 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       lmdbAvailability,
       loadExtractedProseSqlite
     } = profileAndAvailability;
-    annEnabledEffective = profileAndAvailability.annEnabledEffective;
-    syncAnnFlags();
-    if (emitOutput && profileWarnings.length) {
-      for (const warning of profileWarnings) {
-        console.warn(`[search] ${warning}`);
-      }
-    }
     const sqliteCodePath = sqlitePaths.codePath;
     const sqliteProsePath = sqlitePaths.prosePath;
     const sqliteExtractedProsePath = sqlitePaths.extractedProsePath;

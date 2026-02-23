@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T09:27:18.1321753-05:00
+  Extracted run-search mode/profile availability + ANN-flag synchronization orchestration from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/mode-profile-availability.js`, preserving warning emission and sparse-fallback hook contracts while reducing plan-runner branching density; added focused coverage in `tests/retrieval/cli/run-search-mode-profile-availability.test.js`.
 - 2026-02-23T09:24:01.4847805-05:00
   Extracted scheduler adaptive-surface/system-signal stats snapshot assembly from `src/shared/concurrency/scheduler-core.js` into `src/shared/concurrency/scheduler-core-stats.js`, keeping `stats()` focused on orchestration while centralizing clone/build helpers reused by queue snapshot reporting; expanded focused coverage in `tests/shared/concurrency/scheduler-core-stats-snapshot.test.js`.
 - 2026-02-23T09:21:10.6556880-05:00
