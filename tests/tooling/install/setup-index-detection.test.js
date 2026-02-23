@@ -3,7 +3,8 @@ import { applyTestEnv, syncProcessEnv } from '../../helpers/test-env.js';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getIndexDir, loadUserConfig, toRealPathSync } from '../../../tools/shared/dict-utils.js';
+import { pathToFileURL } from 'node:url';
+import { toRealPathSync } from '../../../tools/shared/dict-utils.js';
 import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 
@@ -11,19 +12,16 @@ const root = process.cwd();
 const tempRoot = await makeTempDir('pairofcleats-setup-index-detection-');
 const repoRootRaw = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
+const priorProcessEnv = { ...process.env };
 
 await fsPromises.mkdir(repoRootRaw, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 const repoRoot = toRealPathSync(repoRootRaw);
-const prevEnv = {
-  PAIROFCLEATS_TESTING: process.env.PAIROFCLEATS_TESTING,
-  PAIROFCLEATS_CACHE_ROOT: process.env.PAIROFCLEATS_CACHE_ROOT
-};
-applyTestEnv({ cacheRoot });
+const testEnv = applyTestEnv({ cacheRoot });
 let codeIndexDir = '';
 
 async function resetIndexDir() {
-  await fsPromises.rm(codeIndexDir, { recursive: true, force: true });
+  await rmDirRecursive(codeIndexDir, { retries: 8, delayMs: 120 });
   await fsPromises.mkdir(codeIndexDir, { recursive: true });
 }
 
@@ -48,7 +46,7 @@ function runSetup(label) {
     {
       cwd: repoRoot,
       encoding: 'utf8',
-      env: { ...process.env, PAIROFCLEATS_CACHE_ROOT: cacheRoot }
+      env: { ...testEnv, PAIROFCLEATS_CACHE_ROOT: cacheRoot }
     }
   );
   if (result.status !== 0) {
@@ -66,11 +64,35 @@ function runSetup(label) {
   return payload;
 }
 
+function resolveSetupIndexDir(mode = 'code') {
+  const dictUtilsUrl = pathToFileURL(path.join(root, 'tools', 'shared', 'dict-utils.js')).href;
+  const script = `
+import { getIndexDir, loadUserConfig, toRealPathSync } from ${JSON.stringify(dictUtilsUrl)};
+const repoRoot = toRealPathSync(process.argv[1]);
+const userConfig = loadUserConfig(repoRoot);
+process.stdout.write(getIndexDir(repoRoot, process.argv[2], userConfig));
+`;
+  const result = spawnSync(
+    process.execPath,
+    ['--input-type=module', '-e', script, repoRoot, mode],
+    {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      env: { ...testEnv, PAIROFCLEATS_CACHE_ROOT: cacheRoot }
+    }
+  );
+  if (result.status !== 0) {
+    console.error('setup index detection failed: unable to resolve setup index dir');
+    if (result.stderr) console.error(result.stderr.trim());
+    process.exit(result.status ?? 1);
+  }
+  return String(result.stdout || '').trim();
+}
+
 try {
   await fsPromises.writeFile(path.join(repoRoot, 'README.md'), 'setup detection fixture\n');
 
-  const userConfig = loadUserConfig(repoRoot);
-  codeIndexDir = getIndexDir(repoRoot, 'code', userConfig);
+  codeIndexDir = resolveSetupIndexDir('code');
 
   const scenarios = [
     {
@@ -176,6 +198,8 @@ try {
   }
   console.log('setup index detection tests passed');
 } finally {
-  syncProcessEnv(prevEnv, Object.keys(prevEnv), { clearMissing: true });
+  const pairEnvKeys = Object.keys({ ...priorProcessEnv, ...process.env })
+    .filter((key) => key.startsWith('PAIROFCLEATS_'));
+  syncProcessEnv(priorProcessEnv, pairEnvKeys, { clearMissing: true });
   await rmDirRecursive(tempRoot);
 }
