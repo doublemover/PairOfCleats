@@ -79,6 +79,8 @@ Note:
   Decomposed `tools/tui/supervisor.js` into focused modules (`constants`, `protocol-flow`, `request-utils`, `progress-decoder`, `watchdog`, `artifacts`, `jobs`) and kept the top-level supervisor as orchestration-only glue, including concurrent artifact stat probing for lower end-of-run overhead.
 - 2026-02-23T05:12:01.7734790-05:00
   Split `tools/service/indexer-service.js` into `progress-monitor`, `job-executor`, `job-completion`, and `queue-worker` modules, preserving queue semantics while reducing monolith coupling and deduplicating concurrent stale-job sweep work to lower lock/contention overhead at higher worker concurrency.
+- 2026-02-23T05:12:27.7018204-05:00
+  Decomposed `tools/bench/language-repos.js` into focused `planning`, `logging`, `lifecycle`, and `run-loop` modules, preserving deterministic execution and adding cache-backed query/runtime/artifact reuse plus one-time repo config guards to reduce repeated setup/scanning overhead across large benchmark matrices.
 
 ## Architectural assessment (what needs to change)
 
