@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { buildChunkPayload } from '../../../src/index/build/file-processor/assemble.js';
-import { buildChunkEnrichment } from '../../../src/index/build/file-processor/process-chunks/enrichment.js';
+import { buildChunkEnrichment } from '../../../src/index/build/file-processor/process-chunks/index.js';
 
 applyTestEnv();
 

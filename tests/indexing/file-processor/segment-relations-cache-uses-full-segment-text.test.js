@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { applyTestEnv } from '../../helpers/test-env.js';
-import { buildChunkEnrichment } from '../../../src/index/build/file-processor/process-chunks/enrichment.js';
+import { buildChunkEnrichment } from '../../../src/index/build/file-processor/process-chunks/index.js';
 
 applyTestEnv();
 
