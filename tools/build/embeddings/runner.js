@@ -11,7 +11,7 @@ import { loadIncrementalManifest, writeIncrementalManifest } from '../../../src/
 import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
 import { resolveQuantizationParams } from '../../../src/storage/sqlite/quantization.js';
 import {
-  loadChunkMeta,
+  loadChunkMetaRows,
   loadFileMetaRows,
   readJsonFile,
   MAX_JSON_BYTES
@@ -33,6 +33,7 @@ import { fromPosix, toPosix } from '../../../src/shared/files.js';
 import { getEnvConfig, isTestingEnv } from '../../../src/shared/env.js';
 import { normalizeDenseVectorMode } from '../../../src/shared/dense-vector-mode.js';
 import { spawnSubprocess } from '../../../src/shared/subprocess.js';
+import { runWithConcurrency } from '../../../src/shared/concurrency.js';
 import {
   normalizeBundleFormat,
   readBundleFile,
@@ -105,6 +106,9 @@ import {
 
 const EMBEDDINGS_TOOLS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const COMPACT_SQLITE_SCRIPT = path.join(EMBEDDINGS_TOOLS_DIR, '..', 'compact-sqlite-index.js');
+const DEFAULT_EMBEDDINGS_CHUNK_META_MAX_BYTES = 512 * 1024 * 1024;
+const DEFAULT_EMBEDDINGS_PROGRESS_HEARTBEAT_MS = 1500;
+const DEFAULT_EMBEDDINGS_FILE_PARALLELISM = 2;
 
 let Database = null;
 try {
@@ -578,6 +582,138 @@ const toPositiveIntOrNull = (value) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) return null;
   return Math.max(1, Math.floor(numeric));
+};
+
+const resolveEmbeddingsChunkMetaMaxBytes = (indexingConfig) => {
+  const configured = Number(indexingConfig?.embeddings?.chunkMetaMaxBytes);
+  if (Number.isFinite(configured) && configured > 0) {
+    return Math.max(MAX_JSON_BYTES, Math.floor(configured));
+  }
+  return Math.max(MAX_JSON_BYTES, DEFAULT_EMBEDDINGS_CHUNK_META_MAX_BYTES);
+};
+
+const resolveEmbeddingsProgressHeartbeatMs = (indexingConfig) => {
+  const configured = Number(indexingConfig?.embeddings?.progressHeartbeatMs);
+  if (Number.isFinite(configured) && configured > 0) {
+    return Math.max(1000, Math.floor(configured));
+  }
+  return DEFAULT_EMBEDDINGS_PROGRESS_HEARTBEAT_MS;
+};
+
+const resolveEmbeddingsFileParallelism = ({
+  indexingConfig,
+  computeTokensTotal,
+  hnswEnabled
+}) => {
+  if (hnswEnabled) return 1;
+  const configured = toPositiveIntOrNull(indexingConfig?.embeddings?.fileParallelism);
+  if (configured) return configured;
+  const tokenDriven = Math.max(
+    DEFAULT_EMBEDDINGS_FILE_PARALLELISM,
+    Math.min(4, Number.isFinite(Number(computeTokensTotal)) ? Math.floor(Number(computeTokensTotal)) : 1)
+  );
+  return Math.max(1, tokenDriven);
+};
+
+const isChunkMetaTooLargeError = (err) => {
+  const code = String(err?.code || '');
+  if (code === 'ERR_JSON_TOO_LARGE' || code === 'ERR_ARTIFACT_TOO_LARGE') {
+    return true;
+  }
+  const message = String(err?.message || '').toLowerCase();
+  return message.includes('exceeds maxbytes');
+};
+
+const isMissingArtifactError = (err, artifactBaseName) => {
+  const code = String(err?.code || '');
+  if (code === 'ERR_MANIFEST_ENTRY_MISSING') return true;
+  const message = String(err?.message || '').toLowerCase();
+  const baseName = String(artifactBaseName || '').toLowerCase();
+  if (!baseName) return false;
+  return message.includes(`missing manifest entry for ${baseName}`)
+    || message.includes(`missing index artifact: ${baseName}.json`);
+};
+
+const compactChunkMetaV2ForEmbeddings = (metaV2) => {
+  if (!metaV2 || typeof metaV2 !== 'object') return null;
+  const out = {};
+  if (typeof metaV2.chunkId === 'string' && metaV2.chunkId) out.chunkId = metaV2.chunkId;
+  if (typeof metaV2.file === 'string' && metaV2.file) out.file = metaV2.file;
+  if (typeof metaV2.kind === 'string' && metaV2.kind) out.kind = metaV2.kind;
+  if (typeof metaV2.name === 'string' && metaV2.name) out.name = metaV2.name;
+  if (typeof metaV2.doc === 'string' && metaV2.doc) out.doc = metaV2.doc;
+  const segment = metaV2.segment && typeof metaV2.segment === 'object'
+    ? metaV2.segment
+    : null;
+  if (segment) {
+    const compactSegment = {};
+    if (typeof segment.anchor === 'string' && segment.anchor) {
+      compactSegment.anchor = segment.anchor;
+    }
+    if (typeof segment.segmentUid === 'string' && segment.segmentUid) {
+      compactSegment.segmentUid = segment.segmentUid;
+    }
+    if (Object.keys(compactSegment).length) {
+      out.segment = compactSegment;
+    }
+  }
+  return Object.keys(out).length ? out : null;
+};
+
+const compactChunkForEmbeddings = (chunk, filePath) => {
+  if (!chunk || typeof chunk !== 'object') return null;
+  const start = Number.isFinite(Number(chunk.start)) ? Number(chunk.start) : 0;
+  const endRaw = Number.isFinite(Number(chunk.end)) ? Number(chunk.end) : start;
+  const end = endRaw >= start ? endRaw : start;
+  const out = {
+    start,
+    end
+  };
+  const chunkId = toChunkIndex(chunk.id);
+  if (chunkId != null) out.id = chunkId;
+  if (typeof filePath === 'string' && filePath) {
+    out.file = filePath;
+  } else if (typeof chunk.file === 'string' && chunk.file) {
+    out.file = chunk.file;
+  }
+  if (typeof chunk.kind === 'string' && chunk.kind) out.kind = chunk.kind;
+  if (typeof chunk.name === 'string' && chunk.name) out.name = chunk.name;
+  if (typeof chunk.chunkId === 'string' && chunk.chunkId) out.chunkId = chunk.chunkId;
+  const docText = typeof chunk?.docmeta?.doc === 'string' ? chunk.docmeta.doc : '';
+  if (docText) {
+    out.docmeta = { doc: docText };
+  }
+  const segment = chunk.segment && typeof chunk.segment === 'object' ? chunk.segment : null;
+  if (segment) {
+    const compactSegment = {};
+    if (typeof segment.anchor === 'string' && segment.anchor) {
+      compactSegment.anchor = segment.anchor;
+    }
+    if (typeof segment.segmentUid === 'string' && segment.segmentUid) {
+      compactSegment.segmentUid = segment.segmentUid;
+    }
+    if (Object.keys(compactSegment).length) {
+      out.segment = compactSegment;
+    }
+  }
+  const compactMetaV2 = compactChunkMetaV2ForEmbeddings(chunk.metaV2);
+  if (compactMetaV2) {
+    out.metaV2 = compactMetaV2;
+  }
+  return out;
+};
+
+const formatEta = (seconds) => {
+  if (!Number.isFinite(seconds) || seconds < 0) return 'n/a';
+  const whole = Math.max(0, Math.floor(seconds));
+  const mins = Math.floor(whole / 60);
+  const secs = whole % 60;
+  if (mins >= 60) {
+    const hours = Math.floor(mins / 60);
+    const remMins = mins % 60;
+    return `${hours}h${String(remMins).padStart(2, '0')}m`;
+  }
+  return `${mins}m${String(secs).padStart(2, '0')}s`;
 };
 
 /**
@@ -1501,6 +1637,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
       let cacheMisses = 0;
       let cacheRejected = 0;
       let cacheFastRejects = 0;
+      const chunkMetaMaxBytes = resolveEmbeddingsChunkMetaMaxBytes(indexingConfig);
       const modeIndexRoot = resolveModeIndexRoot(mode);
       const modeTracker = ensureBuildStateTracker(modeIndexRoot);
       if (modeTracker?.hasBuildState && !modeTracker.runningMarked) {
@@ -1547,68 +1684,85 @@ export async function runBuildEmbeddingsWithConfig(config) {
         const incremental = loadIncrementalManifest(repoCacheRoot, mode);
         const manifestFiles = incremental?.manifest?.files || {};
 
-        let chunkMeta;
-        try {
-          chunkMeta = await scheduleIo(() => loadChunkMeta(indexDir, {
-            maxBytes: MAX_JSON_BYTES,
-            strict: false
-          }));
-        } catch (err) {
-          const message = String(err?.message || '');
-          if (err?.code === 'ERR_JSON_TOO_LARGE') {
-            warn(`[embeddings] chunk_meta too large for ${mode}; using incremental bundles if available.`);
-          } else if (!message.includes('Missing index artifact: chunk_meta.json')) {
-            warn(`[embeddings] Failed to load chunk_meta for ${mode}: ${err?.message || err}`);
-          }
-          chunkMeta = null;
-        }
-
         let chunksByFile = new Map();
         let totalChunks = 0;
-        if (Array.isArray(chunkMeta)) {
-          const fileMetaPath = path.join(indexDir, 'file_meta.json');
-          let fileMeta = [];
-          if (fsSync.existsSync(fileMetaPath)) {
-            try {
-              fileMeta = await scheduleIo(() => readJsonFile(fileMetaPath, { maxBytes: MAX_JSON_BYTES }));
-            } catch (err) {
-              warn(`[embeddings] Failed to read file_meta for ${mode}: ${err?.message || err}`);
-              fileMeta = [];
-            }
-          } else {
-            try {
-              for await (const row of loadFileMetaRows(indexDir, {
-                maxBytes: MAX_JSON_BYTES,
-                strict: false
-              })) {
-                fileMeta.push(row);
+        let loadedChunkMetaFromArtifacts = false;
+        try {
+          await scheduleIo(async () => {
+            const fileMetaById = new Map();
+            let fileMetaLoaded = false;
+            let fileMetaLoadFailed = false;
+            const ensureFileMetaById = async () => {
+              if (fileMetaLoaded || fileMetaLoadFailed) return;
+              try {
+                for await (const row of loadFileMetaRows(indexDir, {
+                  maxBytes: chunkMetaMaxBytes,
+                  strict: false
+                })) {
+                  if (!row || !Number.isFinite(Number(row.id)) || typeof row.file !== 'string') continue;
+                  fileMetaById.set(Number(row.id), row.file);
+                }
+                fileMetaLoaded = true;
+              } catch (err) {
+                fileMetaLoadFailed = true;
+                if (!isMissingArtifactError(err, 'file_meta')) {
+                  warn(`[embeddings] Failed to stream file_meta for ${mode}: ${err?.message || err}`);
+                }
               }
-            } catch (err) {
-              const message = String(err?.message || '');
-              if (!message.includes('Missing index artifact: file_meta.json')) {
-                warn(`[embeddings] Failed to stream file_meta for ${mode}: ${err?.message || err}`);
+            };
+            let unresolvedFileRows = 0;
+            let nextIndex = 0;
+            for await (const chunkRow of loadChunkMetaRows(indexDir, {
+              maxBytes: chunkMetaMaxBytes,
+              strict: false,
+              includeCold: false
+            })) {
+              const chunkIndex = nextIndex;
+              nextIndex += 1;
+              if (!chunkRow || typeof chunkRow !== 'object') continue;
+              const fileId = Number(chunkRow.fileId);
+              let filePath = typeof chunkRow.file === 'string' && chunkRow.file
+                ? chunkRow.file
+                : null;
+              if (!filePath && Number.isFinite(fileId)) {
+                if (!fileMetaLoaded && !fileMetaLoadFailed) {
+                  await ensureFileMetaById();
+                }
+                filePath = fileMetaById.get(fileId) || null;
               }
-              fileMeta = [];
+              if (!filePath) {
+                unresolvedFileRows += 1;
+                continue;
+              }
+              const compactChunk = compactChunkForEmbeddings(chunkRow, filePath);
+              if (!compactChunk) {
+                unresolvedFileRows += 1;
+                continue;
+              }
+              const list = chunksByFile.get(filePath) || [];
+              list.push({ index: chunkIndex, chunk: compactChunk });
+              chunksByFile.set(filePath, list);
             }
-          }
-          const fileMetaById = new Map();
-          if (Array.isArray(fileMeta)) {
-            for (const entry of fileMeta) {
-              if (!entry || !Number.isFinite(entry.id)) continue;
-              fileMetaById.set(entry.id, entry);
+            if (unresolvedFileRows > 0) {
+              warn(
+                `[embeddings] ${mode}: skipped ${unresolvedFileRows} chunk_meta rows with unresolved file mapping.`
+              );
             }
+            totalChunks = nextIndex;
+          });
+          loadedChunkMetaFromArtifacts = true;
+        } catch (err) {
+          if (isChunkMetaTooLargeError(err)) {
+            warn(
+              `[embeddings] chunk_meta exceeded budget for ${mode} ` +
+              `(${chunkMetaMaxBytes} bytes); using incremental bundles if available.`
+            );
+          } else if (!isMissingArtifactError(err, 'chunk_meta')) {
+            warn(`[embeddings] Failed to load chunk_meta for ${mode}: ${err?.message || err}`);
           }
-          for (let i = 0; i < chunkMeta.length; i += 1) {
-            const chunk = chunkMeta[i];
-            if (!chunk) continue;
-            const filePath = chunk.file || fileMetaById.get(chunk.fileId)?.file;
-            if (!filePath) continue;
-            const list = chunksByFile.get(filePath) || [];
-            list.push({ index: i, chunk });
-            chunksByFile.set(filePath, list);
-          }
-          totalChunks = chunkMeta.length;
-        } else {
+          loadedChunkMetaFromArtifacts = false;
+        }
+        if (!loadedChunkMetaFromArtifacts) {
           if (!manifestFiles || !Object.keys(manifestFiles).length) {
             warn(`[embeddings] Missing chunk_meta and no incremental bundles for ${mode}; skipping.`);
             finishMode(`skipped ${mode}`);
@@ -1787,8 +1941,15 @@ export async function runBuildEmbeddingsWithConfig(config) {
         const markCacheIndexDirty = () => {
           cacheIndexDirty = true;
         };
+        let cacheIndexFlushInFlight = null;
         const flushCacheIndexMaybe = async ({ force = false } = {}) => {
           if (!cacheIndex || !cacheEligible) return;
+          if (cacheIndexFlushInFlight) {
+            if (force) {
+              await cacheIndexFlushInFlight;
+            }
+            return;
+          }
           if (!cacheIndexDirty) {
             if (force) filesSinceCacheIndexFlush = 0;
             return;
@@ -1796,28 +1957,46 @@ export async function runBuildEmbeddingsWithConfig(config) {
           if (!force && filesSinceCacheIndexFlush < CACHE_INDEX_FLUSH_INTERVAL_FILES) {
             return;
           }
-          const flushState = await flushCacheIndexIfNeeded({
-            cacheDir,
-            cacheIndex,
-            cacheEligible,
-            cacheIndexDirty,
-            cacheIdentityKey,
-            cacheMaxBytes,
-            cacheMaxAgeMs,
-            scheduleIo
-          });
-          cacheIndexDirty = flushState.cacheIndexDirty;
-          if (!cacheIndexDirty || force) {
-            filesSinceCacheIndexFlush = 0;
-          } else {
-            filesSinceCacheIndexFlush = CACHE_INDEX_FLUSH_INTERVAL_FILES;
+          cacheIndexFlushInFlight = (async () => {
+            const flushState = await flushCacheIndexIfNeeded({
+              cacheDir,
+              cacheIndex,
+              cacheEligible,
+              cacheIndexDirty,
+              cacheIdentityKey,
+              cacheMaxBytes,
+              cacheMaxAgeMs,
+              scheduleIo
+            });
+            cacheIndexDirty = flushState.cacheIndexDirty;
+            if (!cacheIndexDirty || force) {
+              filesSinceCacheIndexFlush = 0;
+            } else {
+              filesSinceCacheIndexFlush = CACHE_INDEX_FLUSH_INTERVAL_FILES;
+            }
+          })();
+          try {
+            await cacheIndexFlushInFlight;
+          } finally {
+            cacheIndexFlushInFlight = null;
           }
         };
 
         let processedFiles = 0;
+        let processedChunks = 0;
+        let cacheHitFiles = 0;
+        let computedFiles = 0;
+        let skippedFiles = 0;
         const fileTask = display.task('Files', {
           taskId: `embeddings:${mode}:files`,
           total: sampledFileEntries.length,
+          stage: 'embeddings',
+          mode,
+          ephemeral: true
+        });
+        const chunkTask = display.task('Chunks', {
+          taskId: `embeddings:${mode}:chunks`,
+          total: sampledChunkCount,
           stage: 'embeddings',
           mode,
           ephemeral: true
@@ -1837,8 +2016,16 @@ export async function runBuildEmbeddingsWithConfig(config) {
         const computeTokensTotal = Number.isFinite(Number(schedulerStatsForWriter?.tokens?.cpu?.total))
           ? Math.max(1, Math.floor(Number(schedulerStatsForWriter.tokens.cpu.total)))
           : 1;
+        const fileParallelism = resolveEmbeddingsFileParallelism({
+          indexingConfig,
+          computeTokensTotal,
+          hnswEnabled
+        });
         const backendParallelDispatch = getChunkEmbeddings?.supportsParallelDispatch === true;
         const parallelBatchDispatch = backendParallelDispatch && computeTokensTotal > 1;
+        if (fileParallelism > 1) {
+          log(`[embeddings] ${mode}: file parallelism enabled (${fileParallelism} workers).`);
+        }
         const defaultWriterMaxPending = Math.max(1, Math.min(4, ioTokensTotal * 2));
         const writerMaxPending = schedulerIoMaxPending
           ? Math.max(1, Math.min(defaultWriterMaxPending, schedulerIoMaxPending))
@@ -1886,19 +2073,98 @@ export async function runBuildEmbeddingsWithConfig(config) {
           resolveMaxPending: resolveAdaptiveWriterLimit
         });
         const cacheShardHandlePool = createShardAppendHandlePool();
+        const progressHeartbeatMs = resolveEmbeddingsProgressHeartbeatMs(indexingConfig);
+        const progressStartedAtMs = Date.now();
+        let lastProgressEmitMs = 0;
+        let progressTimer = null;
+        const emitProgressSnapshot = ({ force = false } = {}) => {
+          const nowMs = Date.now();
+          if (!force && (nowMs - lastProgressEmitMs) < progressHeartbeatMs) return;
+          lastProgressEmitMs = nowMs;
+          const elapsedSec = Math.max(0.001, (nowMs - progressStartedAtMs) / 1000);
+          const filesPerSec = processedFiles / elapsedSec;
+          const chunksPerSec = processedChunks / elapsedSec;
+          const remainingChunks = Math.max(0, sampledChunkCount - processedChunks);
+          const etaSeconds = chunksPerSec > 0 ? (remainingChunks / chunksPerSec) : null;
+          const cacheHitRate = cacheAttempts > 0 ? ((cacheHits / cacheAttempts) * 100) : null;
+          const writerStats = writerQueue.stats();
+          const schedulerStats = scheduler?.stats?.();
+          const computeQueueStats = schedulerStats?.queues?.[SCHEDULER_QUEUE_NAMES.embeddingsCompute] || {};
+          const ioQueueStats = schedulerStats?.queues?.[SCHEDULER_QUEUE_NAMES.embeddingsIo] || {};
+          const filesMessage = [
+            `${processedFiles}/${sampledFileEntries.length} files`,
+            `${processedChunks}/${sampledChunkCount} chunks`,
+            `${filesPerSec.toFixed(1)} files/s`,
+            `${chunksPerSec.toFixed(1)} chunks/s`,
+            `eta ${formatEta(etaSeconds)}`,
+            `cache ${cacheHitRate == null ? 'n/a' : `${cacheHitRate.toFixed(1)}%`}`,
+            `writer ${writerStats.pending}/${writerStats.currentMaxPending}`,
+            `q(c=${Number(computeQueueStats.pending || 0)},io=${Number(ioQueueStats.pending || 0)})`
+          ].join(' | ');
+          fileTask.set(processedFiles, sampledFileEntries.length, {
+            message: filesMessage,
+            throughput: {
+              filesPerSec,
+              chunksPerSec
+            },
+            etaSeconds,
+            cache: {
+              attempts: cacheAttempts,
+              hits: cacheHits,
+              misses: cacheMisses,
+              rejected: cacheRejected,
+              fastRejects: cacheFastRejects,
+              hitRate: cacheHitRate
+            },
+            writer: writerStats,
+            queue: {
+              computePending: Number(computeQueueStats.pending || 0),
+              ioPending: Number(ioQueueStats.pending || 0)
+            },
+            completed: {
+              files: processedFiles,
+              chunks: processedChunks,
+              cacheHitFiles,
+              computedFiles,
+              skippedFiles
+            }
+          });
+          chunkTask.set(Math.min(processedChunks, sampledChunkCount), sampledChunkCount, {
+            message: `${processedChunks}/${sampledChunkCount} chunks | ${chunksPerSec.toFixed(1)} chunks/s | eta ${formatEta(etaSeconds)}`,
+            throughput: {
+              chunksPerSec
+            },
+            etaSeconds
+          });
+        };
+        const stopProgressTimer = () => {
+          if (!progressTimer) return;
+          clearInterval(progressTimer);
+          progressTimer = null;
+        };
+        progressTimer = setInterval(() => {
+          try {
+            emitProgressSnapshot();
+          } catch {
+            // Progress reporting must never fail the embedding pass.
+          }
+        }, progressHeartbeatMs);
 
         let sharedZeroVec = new Float32Array(0);
-        const markFileProcessed = async () => {
+        const markFileProcessed = async ({ chunkCount = 0, source = 'computed', skipped = false } = {}) => {
           processedFiles += 1;
+          processedChunks += Math.max(0, Math.floor(Number(chunkCount) || 0));
+          if (source === 'cache') cacheHitFiles += 1;
+          if (source === 'computed') computedFiles += 1;
+          if (skipped) skippedFiles += 1;
           filesSinceCacheIndexFlush += 1;
           await flushCacheIndexMaybe();
-          if (processedFiles % 8 === 0 || processedFiles === sampledFileEntries.length) {
-            fileTask.set(processedFiles, sampledFileEntries.length, {
-              message: `${processedFiles}/${sampledFileEntries.length} files`
-            });
-            if (traceArtifactIo) {
-              log(`[embeddings] ${mode}: processed ${processedFiles}/${sampledFileEntries.length} files`);
-            }
+          emitProgressSnapshot({ force: processedFiles === sampledFileEntries.length });
+          if (traceArtifactIo && (processedFiles % 8 === 0 || processedFiles === sampledFileEntries.length)) {
+            log(
+              `[embeddings] ${mode}: processed ${processedFiles}/${sampledFileEntries.length} files ` +
+              `(${processedChunks}/${sampledChunkCount} chunks)`
+            );
           }
         };
         const processFileEmbeddings = async (entry) => {
@@ -2027,7 +2293,10 @@ export async function runBuildEmbeddingsWithConfig(config) {
             }
           }
 
-          await markFileProcessed();
+          await markFileProcessed({
+            chunkCount: entry.items.length,
+            source: 'computed'
+          });
         };
 
         const computeFileEmbeddings = createFileEmbeddingsProcessor({
@@ -2041,7 +2310,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           parallelDispatch: parallelBatchDispatch
         });
         try {
-          for (const [relPath, items] of sampledFileEntries) {
+          const processFileEntry = async ([relPath, items]) => {
             const normalizedRel = toPosix(relPath);
             const chunkSignature = buildChunkSignature(items);
             const manifestEntry = manifestFiles[normalizedRel] || null;
@@ -2058,7 +2327,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
               pathPolicy: 'posix'
             });
             let cachedResult = null;
-            if (cacheEligible && cacheKey) {
+            const canLookupWithManifestHash = cacheEligible && cacheKey && !!fileHash;
+            if (canLookupWithManifestHash) {
               cacheAttempts += 1;
               if (shouldFastRejectCacheLookup({
                 cacheIndex,
@@ -2073,7 +2343,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
               }
             }
             const cached = cachedResult?.entry;
-            if (!cached && cacheEligible && cacheKey) {
+            if (!cached && canLookupWithManifestHash) {
               cacheMisses += 1;
             }
             if (cached) {
@@ -2121,14 +2391,20 @@ export async function runBuildEmbeddingsWithConfig(config) {
                   }
                   if (cacheIndex && cacheKey) {
                     updateCacheIndexAccess(cacheIndex, cacheKey);
-                    if (!cacheIndex.files?.[normalizedRel]) {
-                      cacheIndex.files = { ...(cacheIndex.files || {}), [normalizedRel]: cacheKey };
+                    if (!cacheIndex.files || typeof cacheIndex.files !== 'object') {
+                      cacheIndex.files = {};
+                    }
+                    if (!cacheIndex.files[normalizedRel]) {
+                      cacheIndex.files[normalizedRel] = cacheKey;
                     }
                     markCacheIndexDirty();
                   }
                   cacheHits += 1;
-                  await markFileProcessed();
-                  continue;
+                  await markFileProcessed({
+                    chunkCount: items.length,
+                    source: 'cache'
+                  });
+                  return;
                 }
               } catch (err) {
                 if (isDimsMismatch(err)) throw err;
@@ -2180,7 +2456,12 @@ export async function runBuildEmbeddingsWithConfig(config) {
             } catch (err) {
               const reason = err?.code ? `${err.code}: ${err.message || err}` : (err?.message || err);
               warn(`[embeddings] ${mode}: Failed to read ${normalizedRel}; skipping (${reason}).`);
-              continue;
+              await markFileProcessed({
+                chunkCount: items.length,
+                source: 'skipped',
+                skipped: true
+              });
+              return;
             }
             const text = textInfo.text;
             if (!fileHash) {
@@ -2259,14 +2540,20 @@ export async function runBuildEmbeddingsWithConfig(config) {
                     }
                     if (cacheIndex && cacheKey) {
                       updateCacheIndexAccess(cacheIndex, cacheKey);
-                      if (!cacheIndex.files?.[normalizedRel]) {
-                        cacheIndex.files = { ...(cacheIndex.files || {}), [normalizedRel]: cacheKey };
+                      if (!cacheIndex.files || typeof cacheIndex.files !== 'object') {
+                        cacheIndex.files = {};
+                      }
+                      if (!cacheIndex.files[normalizedRel]) {
+                        cacheIndex.files[normalizedRel] = cacheKey;
                       }
                       markCacheIndexDirty();
                     }
                     cacheHits += 1;
-                    await markFileProcessed();
-                    continue;
+                    await markFileProcessed({
+                      chunkCount: items.length,
+                      source: 'cache'
+                    });
+                    return;
                   }
                 } catch (err) {
                   if (isDimsMismatch(err)) throw err;
@@ -2367,10 +2654,24 @@ export async function runBuildEmbeddingsWithConfig(config) {
               docMapping,
               reuse
             });
+          };
+          if (fileParallelism <= 1 || sampledFileEntries.length <= 1) {
+            for (const entry of sampledFileEntries) {
+              await processFileEntry(entry);
+            }
+          } else {
+            await runWithConcurrency(
+              sampledFileEntries,
+              fileParallelism,
+              async (entry) => processFileEntry(entry),
+              { collectResults: false }
+            );
           }
         } finally {
+          stopProgressTimer();
           await writerQueue.onIdle();
           await cacheShardHandlePool.close();
+          emitProgressSnapshot({ force: true });
         }
         await flushCacheIndexMaybe({ force: true });
 

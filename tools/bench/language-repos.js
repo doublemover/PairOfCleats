@@ -251,6 +251,44 @@ const setBenchInFlightFraction = (value, { refresh = true } = {}) => {
   if (refresh) updateBenchProgress();
 };
 
+const formatEtaSeconds = (value) => {
+  const seconds = Number(value);
+  if (!Number.isFinite(seconds) || seconds < 0) return null;
+  const whole = Math.floor(seconds);
+  const mins = Math.floor(whole / 60);
+  const secs = whole % 60;
+  return `${mins}m${String(secs).padStart(2, '0')}s`;
+};
+
+const formatChildTaskMessage = (event) => {
+  if (!event || typeof event !== 'object') return null;
+  const explicit = typeof event.message === 'string' ? event.message.trim() : '';
+  if (explicit) return explicit;
+  const throughputChunks = Number(event?.throughput?.chunksPerSec ?? event?.chunksPerSec);
+  const throughputFiles = Number(event?.throughput?.filesPerSec ?? event?.filesPerSec);
+  const etaText = formatEtaSeconds(event?.etaSeconds);
+  const cacheHitRate = Number(event?.cache?.hitRate ?? event?.cacheHitRate);
+  const writerPending = Number(event?.writer?.pending ?? event?.writerPending);
+  const writerMax = Number(event?.writer?.currentMaxPending ?? event?.writerMaxPending);
+  const parts = [];
+  if (Number.isFinite(throughputFiles) && throughputFiles > 0) {
+    parts.push(`${throughputFiles.toFixed(1)} files/s`);
+  }
+  if (Number.isFinite(throughputChunks) && throughputChunks > 0) {
+    parts.push(`${throughputChunks.toFixed(1)} chunks/s`);
+  }
+  if (etaText) {
+    parts.push(`eta ${etaText}`);
+  }
+  if (Number.isFinite(cacheHitRate)) {
+    parts.push(`cache ${cacheHitRate.toFixed(1)}%`);
+  }
+  if (Number.isFinite(writerPending) && Number.isFinite(writerMax) && writerMax > 0) {
+    parts.push(`writer ${writerPending}/${writerMax}`);
+  }
+  return parts.length ? parts.join(' | ') : null;
+};
+
 /**
  * Consume child progress events and map them onto the interactive bench task
  * renderer plus repo-level in-flight progress state.
@@ -290,20 +328,26 @@ const handleProgressEvent = (event) => {
     total,
     ephemeral: event.ephemeral === true
   });
+  const taskMessage = formatChildTaskMessage(event);
+  const taskMeta = {
+    ...event,
+    message: taskMessage,
+    name
+  };
   const current = Number.isFinite(event.current) ? event.current : 0;
   if (event.event === 'task:start') {
-    task.set(current, total, { message: event.message, name });
+    task.set(current, total, taskMeta);
     return;
   }
   if (event.event === 'task:progress') {
-    task.set(current, total, { message: event.message, name });
+    task.set(current, total, taskMeta);
     return;
   }
   if (event.event === 'task:end') {
     if (event.status === 'failed') {
-      task.fail(new Error(event.message || 'failed'));
+      task.fail(new Error(taskMessage || 'failed'));
     } else {
-      task.done({ message: event.message, name });
+      task.done(taskMeta);
     }
   }
 };
