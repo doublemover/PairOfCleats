@@ -158,6 +158,51 @@ const probeChunkMetaJsonlIsEmpty = (filePath, maxProbeBytes = CHUNK_META_PROBE_M
   }
 };
 
+const resolveChunkMetaCountFromPaths = (paths) => {
+  const presencePaths = Array.isArray(paths) ? paths.filter(Boolean) : [];
+  if (presencePaths.length && presencePaths.every((targetPath) => isUncompressedJsonPath(targetPath))) {
+    if (presencePaths.length === 1) {
+      const empty = probeChunkMetaJsonArrayEmpty(presencePaths[0]);
+      if (empty === true) return 0;
+      if (empty === false) return null;
+    }
+  }
+  if (presencePaths.length && presencePaths.every((targetPath) => isUncompressedJsonlPath(targetPath))) {
+    let allEmpty = true;
+    for (const targetPath of presencePaths) {
+      const empty = probeChunkMetaJsonlIsEmpty(targetPath);
+      if (empty === false) return null;
+      if (empty == null) {
+        allEmpty = false;
+        break;
+      }
+    }
+    if (allEmpty) return 0;
+  }
+  return null;
+};
+
+/**
+ * Best-effort count probe from preloaded `chunkMetaSources` metadata.
+ *
+ * Reuses metadata already resolved by `loadIndexPieces` to avoid repeating
+ * manifest/presence reads in the build hot path. Falls back to the same
+ * lightweight JSON/JSONL emptiness probes used by directory-based resolution.
+ *
+ * @param {object|null|undefined} sources
+ * @returns {number|null}
+ */
+export const resolveChunkMetaTotalRecordsFromSources = (sources) => {
+  if (!sources || typeof sources !== 'object') return null;
+  const rawMeta = sources.meta;
+  const meta = rawMeta?.fields && typeof rawMeta.fields === 'object'
+    ? rawMeta.fields
+    : rawMeta;
+  const metaCount = resolveChunkMetaCountFromMeta(meta);
+  if (metaCount != null) return metaCount;
+  return resolveChunkMetaCountFromPaths(sources.paths);
+};
+
 /**
  * Best-effort chunk count probe used to skip redundant empty-mode rebuilds.
  *
@@ -210,25 +255,8 @@ export const resolveChunkMetaTotalRecords = (indexDir) => {
   const manifestCount = resolveChunkMetaCountFromManifest(manifest);
   if (manifestCount != null) return manifestCount;
   const presencePaths = Array.isArray(presence?.paths) ? presence.paths : [];
-  if (presencePaths.length && presencePaths.every((targetPath) => isUncompressedJsonPath(targetPath))) {
-    if (presencePaths.length === 1) {
-      const empty = probeChunkMetaJsonArrayEmpty(presencePaths[0]);
-      if (empty === true) return 0;
-      if (empty === false) return null;
-    }
-  }
-  if (presencePaths.length && presencePaths.every((targetPath) => isUncompressedJsonlPath(targetPath))) {
-    let allEmpty = true;
-    for (const targetPath of presencePaths) {
-      const empty = probeChunkMetaJsonlIsEmpty(targetPath);
-      if (empty === false) return null;
-      if (empty == null) {
-        allEmpty = false;
-        break;
-      }
-    }
-    if (allEmpty) return 0;
-  }
+  const presencePathCount = resolveChunkMetaCountFromPaths(presencePaths);
+  if (presencePathCount != null) return presencePathCount;
   const jsonCandidates = [
     path.join(indexDir, 'chunk_meta.json')
   ];
