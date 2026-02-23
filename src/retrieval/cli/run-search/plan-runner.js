@@ -24,7 +24,6 @@ import { normalizeSearchOptions } from '../normalize-options.js';
 import { createRunnerHelpers } from '../runner.js';
 import { resolveRunConfig } from '../resolve-run-config.js';
 import { resolveRequiredArtifacts } from '../required-artifacts.js';
-import { loadSearchIndexes } from '../load-indexes.js';
 import { executeSearchAndEmit } from '../search-execution.js';
 import { resolveRetrievalCachePath } from '../cache-paths.js';
 import { pathExists } from '../../../shared/files.js';
@@ -59,6 +58,7 @@ import { resolveRunSearchProfilePolicy } from './profile-policy.js';
 import { resolveAutoSqliteEligibility } from './auto-thresholds.js';
 import { resolveRunSearchBackendSelection } from './backend-selection.js';
 import { initializeBackendContext } from './backend-context-setup.js';
+import { loadRunSearchIndexesWithTracking } from './index-loading.js';
 
 import {
   resolveAnnActive,
@@ -747,7 +747,6 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       'extracted-prose': sqliteStateExtractedProse || null,
       records: sqliteStateRecords || null
     };
-    const indexesStart = stageTracker.mark();
     const {
       idxProse,
       idxExtractedProse,
@@ -763,7 +762,9 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       modelIdForProse,
       modelIdForExtractedProse,
       modelIdForRecords
-    } = await loadSearchIndexes({
+    } = await loadRunSearchIndexesWithTracking({
+      stageTracker,
+      throwIfAborted,
       rootDir,
       userConfig,
       searchMode,
@@ -789,21 +790,17 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       hnswConfig,
       lancedbConfig,
       tantivyConfig,
-      indexMetaByMode: strictIndexMetaByMode,
+      strictIndexMetaByMode,
       indexStates: indexStatesForLoad,
       strict,
       loadIndexFromSqlite,
       loadIndexFromLmdb,
       resolvedDenseVectorMode: queryPlan.resolvedDenseVectorMode,
-      loadExtractedProse: joinComments,
+      joinComments,
       allowUnsafeMix,
       requiredArtifacts,
-      indexDirByMode: asOfContext?.strict ? asOfContext.indexDirByMode : null,
-      indexBaseRootByMode: asOfContext?.strict ? asOfContext.indexBaseRootByMode : null,
-      explicitRef: asOfContext?.strict === true
+      asOfContext
     });
-    stageTracker.record('startup.indexes', indexesStart, { mode: 'all' });
-    throwIfAborted();
 
     if (sparseFallbackForcedByPreflight) {
       const sparseFallbackModesWithoutAnn = await resolveSparseFallbackModesWithoutAnn({

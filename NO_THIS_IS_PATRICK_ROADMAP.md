@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T06:43:42.4865689-05:00
+  Extracted staged index-load orchestration from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/index-loading.js`, centralizing stage-checkpoint tracking and post-load abort gating around `loadSearchIndexes`.
 - 2026-02-23T06:41:31.1637748-05:00
   Split embeddings artifact trace/promotion helpers from `tools/build/embeddings/runner.js` into `tools/build/embeddings/runner/artifacts.js`, isolating trace snapshot logging and backend artifact promotion logic so stage3 orchestration retains less file-IO branching.
 - 2026-02-23T06:40:54.0000000-05:00
