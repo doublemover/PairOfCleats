@@ -25,6 +25,7 @@ import {
 } from './scheduler-core-adaptive-snapshots.js';
 import { resolveSchedulerSystemSignals } from './scheduler-core-system-signals.js';
 import { collectSchedulerQueuePressure } from './scheduler-core-queue-pressure.js';
+import { pickNextSchedulerQueue } from './scheduler-core-queue-selection.js';
 import {
   buildSchedulerQueueStatsSnapshot,
   resolveSchedulerUtilization
@@ -121,6 +122,7 @@ export function createBuildScheduler(input = {}) {
       maxPendingBytes: normalizeByteLimit(cfg.maxPendingBytes),
       maxInFlightBytes: normalizeByteLimit(cfg.maxInFlightBytes),
       pending: [],
+      pendingSearchCursor: 0,
       pendingBytes: 0,
       inFlightBytes: 0,
       running: 0,
@@ -350,6 +352,14 @@ export function createBuildScheduler(input = {}) {
       : 0
   );
 
+  /**
+   * Adapt per-surface concurrency caps from queue backlog plus system signals.
+   *
+   * Cooldown windows and oscillation guards intentionally dampen flip-flopping
+   * when backlog and pressure metrics hover near thresholds.
+   *
+   * @param {number} now
+   */
   const maybeAdaptSurfaceControllers = (now) => {
     if (!adaptiveSurfaceControllersEnabled) return;
     const at = Number.isFinite(Number(now)) ? Number(now) : nowMs();
@@ -479,6 +489,14 @@ export function createBuildScheduler(input = {}) {
     }
   };
 
+  /**
+   * Adapt global cpu/io/memory token ceilings.
+   *
+   * Behavior notes:
+   * - `burst` mode opportunistically scales faster under sustained demand.
+   * - `settle` and steady decay modes reduce totals after transient spikes.
+   * - Memory headroom gating is the hard safety rail for all scale-up paths.
+   */
   const maybeAdaptTokens = () => {
     if (!adaptiveEnabled || shuttingDown) return;
     const now = nowMs();
@@ -643,6 +661,18 @@ export function createBuildScheduler(input = {}) {
     }
   };
 
+  /**
+   * Resolve whether a request can start against token and backpressure state.
+   *
+   * `backpressureState` is optional so callers scanning many candidates can
+   * reuse one snapshot and avoid re-evaluating write queue pressure for every
+   * pending item.
+   *
+   * @param {any} queue
+   * @param {{cpu?:number,io?:number,mem?:number,bytes?:number}} req
+   * @param {object|null} [backpressureState]
+   * @returns {boolean}
+   */
   const canStart = (queue, req, backpressureState = null) => {
     const normalized = normalizeRequest(req);
     const resolvedBackpressure = backpressureState || evaluateWriteBackpressure();
@@ -718,54 +748,25 @@ export function createBuildScheduler(input = {}) {
     }
   };
 
-  const findStartableIndex = (queue, backpressureState = null) => {
-    if (!queue?.pending?.length) return -1;
-    for (let i = 0; i < queue.pending.length; i += 1) {
-      if (canStart(queue, queue.pending[i].tokens, backpressureState)) return i;
-    }
-    return -1;
-  };
-
-  const pickNextQueue = (backpressureState = null) => {
-    if (!queueOrder.length) return null;
-    const now = nowMs();
-    let starving = null;
-    let picked = null;
-    for (const q of queueOrder) {
-      if (!q.pending.length) continue;
-      const index = findStartableIndex(q, backpressureState);
-      if (index < 0) continue;
-      const waited = now - q.pending[index].enqueuedAt;
-      if (waited >= starvationMs && (!starving || waited > starving.waited)) {
-        starving = { queue: q, waited, index };
-        continue;
-      }
-      const weightBoostMs = Math.max(1, Number(q.weight) || 1) * 250;
-      const priorityPenaltyMs = Math.max(0, Number(q.priority) || 0) * 5;
-      // Fairness aging by wait-time percentile: once a queue's current wait
-      // exceeds its own p95 wait, boost the score to pull tail work forward.
-      const waitP95Ms = Number(q.stats?.waitP95Ms) || 0;
-      const agingBoostMs = waitP95Ms > 0 ? Math.max(0, waited - waitP95Ms) : 0;
-      const score = waited + weightBoostMs + agingBoostMs - priorityPenaltyMs;
-      if (!picked || score > picked.score) {
-        picked = { queue: q, index, score };
-      }
-    }
-    if (starving) return { queue: starving.queue, starved: true, index: starving.index };
-    return picked ? { queue: picked.queue, starved: false, index: picked.index } : null;
-  };
-
   const pump = () => {
     if (shuttingDown) return;
     while (true) {
       maybeAdaptTokens();
       const backpressureState = evaluateWriteBackpressure();
-      const pick = pickNextQueue(backpressureState);
+      const pick = pickNextSchedulerQueue({
+        queueOrder,
+        nowMs,
+        starvationMs,
+        backpressureState,
+        canStart
+      });
       if (!pick) return;
-      const { queue, starved, index } = pick;
-      const next = queue.pending[index];
-      if (!next || !canStart(queue, next.tokens, backpressureState)) return;
+      const { queue, starved, index, item: next } = pick;
+      if (!next) return;
       queue.pending.splice(index, 1);
+      if (!queue.pending.length) {
+        queue.pendingSearchCursor = 0;
+      }
       queue.pendingBytes = Math.max(0, normalizeByteCount(queue.pendingBytes) - normalizeByteCount(next.bytes));
       queue.running += 1;
       bumpSurfaceRunning(queue.surface, 1);
@@ -876,6 +877,7 @@ export function createBuildScheduler(input = {}) {
       } catch {}
     }
     queue.pendingBytes = Math.max(0, normalizeByteCount(queue.pendingBytes) - clearedBytes);
+    queue.pendingSearchCursor = 0;
     return cleared.length;
   };
 
