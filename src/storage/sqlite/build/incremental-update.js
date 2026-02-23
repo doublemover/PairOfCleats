@@ -1,39 +1,19 @@
 import fsSync from 'node:fs';
-import { performance } from 'node:perf_hooks';
-import path from 'node:path';
-import { readBundleFile } from '../../../shared/bundle-io.js';
-import { buildChunkRow, buildTokenFrequency, prepareVectorAnnInsert } from '../build-helpers.js';
 import { REQUIRED_TABLES, SCHEMA_VERSION } from '../schema.js';
 import {
-  chunkArray,
   hasRequiredTables,
-  normalizeFilePath,
   removeSqliteSidecars,
   resolveSqliteBatchSize,
   bumpSqliteBatchStat
 } from '../utils.js';
-import {
-  createUint8ClampStats,
-  packUint32,
-  packUint8,
-  isVectorEncodingCompatible,
-  quantizeVec,
-  resolveEncodedVectorBytes,
-  resolveVectorEncodingBytes,
-  toSqliteRowId
-} from '../vector.js';
+import { createUint8ClampStats } from '../vector.js';
 import { resolveQuantizationParams } from '../quantization.js';
-import { deleteDocIds, updateTokenStats } from './delete.js';
 import { applyBuildPragmas, restoreBuildPragmas } from './pragmas.js';
-import {
-  diffFileManifests,
-  getFileManifest,
-  normalizeManifestFiles,
-  validateIncrementalManifest
-} from './manifest.js';
 import { createInsertStatements } from './statements.js';
-import { getSchemaVersion, validateSqliteDatabase } from './validate.js';
-import { ensureVocabIds } from '../vocab.js';
+import { getSchemaVersion } from './validate.js';
+import { resolveIncrementalChangePlan, loadBundlesAndCollectState } from './incremental-update/planner.js';
+import { createIncrementalDocIdResolver } from './incremental-update/doc-id-resolver.js';
+import { runIncrementalUpdatePhase } from './incremental-update/update-phase.js';
 
 const MAX_INCREMENTAL_CHANGE_RATIO = 0.35;
 const MAX_INCREMENTAL_CHANGE_RATIO_BY_MODE = {
@@ -52,13 +32,6 @@ const VOCAB_GROWTH_LIMITS = {
   phrase_vocab: { ratio: 0.5, absolute: 150000 },
   chargram_vocab: { ratio: 1.0, absolute: 250000 }
 };
-
-class IncrementalSkipError extends Error {
-  constructor(reason) {
-    super(reason);
-    this.reason = reason;
-  }
-}
 
 /**
  * Resolve how many dense vectors a payload expects, supporting both current
@@ -108,52 +81,6 @@ const evaluateIncrementalChangeGuard = ({ mode, totalFiles, changedCount, delete
     ok: changeRatio <= maxChangeRatio || withinGrace,
     changeRatio,
     maxChangeRatio: withinGrace ? maxGraceRatio : maxChangeRatio
-  };
-};
-
-/**
- * Allocate a deterministic doc id for incremental inserts.
- *
- * Priority: reuse existing ids for the file -> deleted-file free list for new
- * files -> overflow free list -> remaining deleted free list -> append new id.
- *
- * @param {object} input
- * @param {number[]} input.reuseIds
- * @param {number} input.reuseIndex
- * @param {boolean} input.isNewFile
- * @param {number[]} input.freeDocIdsDeleted
- * @param {number[]} input.freeDocIdsOverflow
- * @param {number} input.nextDocId
- * @returns {{docId:number,reuseIndex:number,nextDocId:number}}
- */
-const allocateIncrementalDocId = ({
-  reuseIds,
-  reuseIndex,
-  isNewFile,
-  freeDocIdsDeleted,
-  freeDocIdsOverflow,
-  nextDocId
-}) => {
-  if (reuseIndex < reuseIds.length) {
-    return {
-      docId: reuseIds[reuseIndex],
-      reuseIndex: reuseIndex + 1,
-      nextDocId
-    };
-  }
-  if (isNewFile && freeDocIdsDeleted.length) {
-    return { docId: freeDocIdsDeleted.pop(), reuseIndex, nextDocId };
-  }
-  if (freeDocIdsOverflow.length) {
-    return { docId: freeDocIdsOverflow.pop(), reuseIndex, nextDocId };
-  }
-  if (freeDocIdsDeleted.length) {
-    return { docId: freeDocIdsDeleted.pop(), reuseIndex, nextDocId };
-  }
-  return {
-    docId: nextDocId,
-    reuseIndex,
-    nextDocId: nextDocId + 1
   };
 };
 
@@ -273,55 +200,26 @@ export async function incrementalUpdateDatabase({
     return { used: false, reason: 'schema missing' };
   }
 
-  const manifestValidation = validateIncrementalManifest(incrementalData.manifest);
-  if (!manifestValidation.ok) {
-    await finalize();
-    return { used: false, reason: `invalid manifest (${manifestValidation.errors.join('; ')})` };
-  }
-
-  const manifestFiles = incrementalData.manifest.files || {};
-  const manifestLookup = normalizeManifestFiles(manifestFiles);
-  if (!manifestLookup.entries.length) {
-    await finalize();
-    return { used: false, reason: 'incremental manifest empty' };
-  }
-  if (manifestLookup.conflicts.length) {
-    await finalize();
-    return { used: false, reason: 'manifest path conflicts' };
-  }
-
-  const dbFiles = getFileManifest(db, mode);
-  if (!dbFiles.size) {
-    const chunkRow = db.prepare('SELECT COUNT(*) AS total FROM chunks WHERE mode = ?')
-      .get(mode) || {};
-    if (Number.isFinite(chunkRow.total) && chunkRow.total > 0) {
-      await finalize();
-      return { used: false, reason: 'file manifest empty' };
-    }
-  }
-
-  const { changed, deleted, manifestUpdates } = diffFileManifests(manifestLookup.entries, dbFiles);
-  const totalFiles = manifestLookup.entries.length;
-  const changeSummary = {
-    totalFiles,
-    changedFiles: changed.length,
-    deletedFiles: deleted.length,
-    manifestUpdates: manifestUpdates.length
-  };
-  const changeGuard = evaluateIncrementalChangeGuard({
+  const changePlan = resolveIncrementalChangePlan({
+    db,
     mode,
-    totalFiles,
-    changedCount: changed.length,
-    deletedCount: deleted.length
+    manifest: incrementalData.manifest,
+    evaluateChangeGuard: evaluateIncrementalChangeGuard
   });
-  if (!changeGuard.ok) {
+  if (!changePlan.ok) {
     await finalize();
     return {
       used: false,
-      reason: `change ratio ${changeGuard.changeRatio.toFixed(2)} (changed=${changed.length}, deleted=${deleted.length}, total=${totalFiles}) exceeds ${changeGuard.maxChangeRatio}`,
-      ...changeSummary
+      reason: changePlan.reason,
+      ...(changePlan.changeSummary || {})
     };
   }
+  const {
+    changed,
+    deleted,
+    manifestUpdates,
+    changeSummary
+  } = changePlan;
   if (!changed.length && !deleted.length && !manifestUpdates.length) {
     await finalize();
     return { used: true, insertedChunks: 0, ...changeSummary };
@@ -375,73 +273,6 @@ export async function incrementalUpdateDatabase({
     }
   }
 
-  const bundles = new Map();
-  for (const record of changed) {
-    const fileKey = record.file;
-    const normalizedFile = record.normalized;
-    const entry = record.entry;
-    const bundleName = entry?.bundle;
-    if (!bundleName) {
-      await finalize();
-      return { used: false, reason: `missing bundle for ${fileKey}`, ...changeSummary };
-    }
-    const bundlePath = path.join(incrementalData.bundleDir, bundleName);
-    if (!fsSync.existsSync(bundlePath)) {
-      await finalize();
-      return { used: false, reason: `bundle missing for ${fileKey}`, ...changeSummary };
-    }
-    const result = await readBundleFile(bundlePath);
-    if (!result.ok) {
-      await finalize();
-      return { used: false, reason: `invalid bundle for ${fileKey}`, ...changeSummary };
-    }
-    bundles.set(normalizedFile, { bundle: result.bundle, entry, fileKey, normalizedFile });
-  }
-
-  const tokenValues = new Set();
-  const phraseValues = new Set();
-  const chargramValues = new Set();
-  const incomingDimsSet = new Set();
-  for (const bundleEntry of bundles.values()) {
-    const bundle = bundleEntry.bundle;
-    for (const chunk of bundle.chunks || []) {
-      const tokensArray = Array.isArray(chunk.tokens) ? chunk.tokens : [];
-      if (tokensArray.length) {
-        for (const token of tokensArray) tokenValues.add(token);
-      }
-      if (Array.isArray(chunk.ngrams)) {
-        for (const ngram of chunk.ngrams) phraseValues.add(ngram);
-      }
-      if (Array.isArray(chunk.chargrams)) {
-        for (const gram of chunk.chargrams) chargramValues.add(gram);
-      }
-      if (Array.isArray(chunk.embedding) && chunk.embedding.length) {
-        incomingDimsSet.add(chunk.embedding.length);
-      }
-    }
-  }
-  if (incomingDimsSet.size > 1) {
-    await finalize();
-    return { used: false, reason: 'embedding dims mismatch across bundles', ...changeSummary };
-  }
-  const incomingDims = incomingDimsSet.size ? [...incomingDimsSet][0] : null;
-  if (incomingDims !== null && dbDims !== null && incomingDims !== dbDims) {
-    await finalize();
-    return {
-      used: false,
-      reason: `embedding dims mismatch (db=${dbDims}, incoming=${incomingDims})`,
-      ...changeSummary
-    };
-  }
-  if (incomingDims !== null && expectedDims !== null && incomingDims !== expectedDims) {
-    await finalize();
-    return {
-      used: false,
-      reason: `embedding dims mismatch (expected=${expectedDims}, incoming=${incomingDims})`,
-      ...changeSummary
-    };
-  }
-
   const updateFileManifest = db.prepare(
     'UPDATE file_manifest SET hash = ?, mtimeMs = ?, size = ? WHERE mode = ? AND file = ?'
   );
@@ -471,425 +302,106 @@ export async function incrementalUpdateDatabase({
     return { used: true, insertedChunks: 0, ...changeSummary };
   }
 
-  const statements = createInsertStatements(db);
+  const bundlePlan = await loadBundlesAndCollectState({
+    changed,
+    bundleDir: incrementalData.bundleDir
+  });
+  if (!bundlePlan.ok) {
+    await finalize();
+    return { used: false, reason: bundlePlan.reason, ...changeSummary };
+  }
   const {
-    insertChunk,
-    insertFts,
-    insertTokenVocab,
-    insertTokenPosting,
-    insertDocLength,
-    insertTokenStats,
-    insertPhraseVocab,
-    insertPhrasePosting,
-    insertChargramVocab,
-    insertChargramPosting,
-    insertMinhash,
-    insertDense,
-    insertDenseMeta,
-    insertFileManifest
-  } = statements;
+    bundles,
+    tokenValues,
+    phraseValues,
+    chargramValues,
+    incomingDims
+  } = bundlePlan;
+  if (incomingDims !== null && dbDims !== null && incomingDims !== dbDims) {
+    await finalize();
+    return {
+      used: false,
+      reason: `embedding dims mismatch (db=${dbDims}, incoming=${incomingDims})`,
+      ...changeSummary
+    };
+  }
+  if (incomingDims !== null && expectedDims !== null && incomingDims !== expectedDims) {
+    await finalize();
+    return {
+      used: false,
+      reason: `embedding dims mismatch (expected=${expectedDims}, incoming=${incomingDims})`,
+      ...changeSummary
+    };
+  }
 
-  const existingIdsByFile = new Map();
-  const normalizedFileExpr = process.platform === 'win32'
-    ? "lower(replace(file, char(92), '/'))"
-    : 'file';
-  const toFileKey = (value) => {
-    const normalized = normalizeFilePath(value);
-    if (!normalized) return null;
-    return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
-  };
-  const readDocIdsForFile = db.prepare(
-    'SELECT id, file FROM chunks WHERE mode = ? AND file = ? ORDER BY id'
-  );
-  const readDocIdsForFileCaseFold = process.platform === 'win32'
-    ? db.prepare(`SELECT id, file FROM chunks WHERE mode = ? AND ${normalizedFileExpr} = ? ORDER BY id`)
-    : null;
-  const recordExistingDocRows = (rows = []) => {
-    for (const row of rows) {
-      const fileKey = toFileKey(row?.file);
-      if (!fileKey) continue;
-      const entry = existingIdsByFile.get(fileKey) || { file: normalizeFilePath(row.file), ids: [] };
-      entry.ids.push(row.id);
-      existingIdsByFile.set(fileKey, entry);
-    }
-  };
-  const resolveExistingDocIds = (filePath) => {
-    const fileKey = toFileKey(filePath);
-    if (!fileKey) return [];
-    const cached = existingIdsByFile.get(fileKey);
-    if (cached) return cached.ids || [];
-    const exactRows = readDocIdsForFile.all(mode, normalizeFilePath(filePath));
-    if (exactRows.length) {
-      recordExistingDocRows(exactRows);
-      return existingIdsByFile.get(fileKey)?.ids || [];
-    }
-    if (readDocIdsForFileCaseFold) {
-      const foldedRows = readDocIdsForFileCaseFold.all(mode, fileKey);
-      if (foldedRows.length) {
-        recordExistingDocRows(foldedRows);
-        const resolved = existingIdsByFile.get(fileKey);
-        if (resolved?.ids?.length) return resolved.ids;
-      }
-    }
-    existingIdsByFile.set(fileKey, { file: normalizeFilePath(filePath), ids: [] });
-    return [];
-  };
-  const targetFiles = new Set();
-  for (const record of changed) {
-    const key = toFileKey(record?.normalized);
-    if (key) targetFiles.add(key);
-  }
-  for (const file of deleted) {
-    const key = toFileKey(file);
-    if (key) targetFiles.add(key);
-  }
-  const targetList = Array.from(targetFiles).filter(Boolean);
-  const fileQueryBatch = Math.max(1, resolvedBatchSize);
-  if (targetList.length) {
-    for (const batch of chunkArray(targetList, fileQueryBatch)) {
-      const rows = process.platform === 'win32'
-        ? (() => {
-          const placeholders = batch.map(() => '?').join(',');
-          const stmt = db.prepare(
-            `SELECT id, file FROM chunks WHERE mode = ? AND ${normalizedFileExpr} IN (${placeholders}) ORDER BY id`
-          );
-          return stmt.all(mode, ...batch);
-        })()
-        : (() => {
-          const placeholders = batch.map(() => '?').join(',');
-          const stmt = db.prepare(
-            `SELECT id, file FROM chunks WHERE mode = ? AND file IN (${placeholders}) ORDER BY id`
-          );
-          return stmt.all(mode, ...batch);
-        })();
+  const statements = createInsertStatements(db);
+  const docIdResolver = createIncrementalDocIdResolver({
+    db,
+    mode,
+    changed,
+    deleted,
+    batchSize: resolvedBatchSize,
+    onBatch: (rows) => {
       recordBatch('existingChunkBatches');
       if (batchStats) {
-        batchStats.existingChunkRows = (batchStats.existingChunkRows || 0) + rows.length;
+        batchStats.existingChunkRows = (batchStats.existingChunkRows || 0) + rows;
       }
-      recordExistingDocRows(rows);
     }
-  }
-
+  });
+  const orderedChanged = docIdResolver.orderChangedRecords(changed);
   const maxRow = db.prepare('SELECT MAX(id) AS maxId FROM chunks WHERE mode = ?')
     .get(mode);
-  let nextDocId = Number.isFinite(maxRow?.maxId) ? maxRow.maxId + 1 : 0;
-  // Prefer ids freed by explicit file deletes before overflow ids from changed
-  // files so replacements are stable across incremental runs.
-  const freeDocIdsDeleted = [];
-  const freeDocIdsOverflow = [];
+  const startDocId = Number.isFinite(maxRow?.maxId) ? maxRow.maxId + 1 : 0;
+
   let insertedChunks = 0;
-
-  const vectorExtension = vectorConfig?.extension || {};
-  const vectorAnnEnabled = vectorConfig?.enabled === true;
-  const encodeVector = vectorConfig?.encodeVector;
-  let denseMetaSet = false;
-  let denseDims = null;
-  let vectorAnnWarned = false;
-  let vectorAnnInsertWarned = false;
-  let vectorAnn = null;
-  if (vectorAnnEnabled) {
-    vectorAnn = prepareVectorAnnInsert({ db, mode, vectorConfig });
-    if (vectorAnn.loaded === false && vectorAnn.reason && emitOutput) {
-      warn(`[sqlite] Vector extension unavailable for ${mode}: ${vectorAnn.reason}`);
-      vectorAnnWarned = true;
-    }
-  }
-
-  const vectorDeleteTargets = vectorAnn?.ready
-    ? [{ table: vectorAnn.tableName, column: 'rowid', withMode: false, transform: toSqliteRowId }]
-    : [];
-  if (vectorAnn?.ready && vectorDeleteTargets.length && vectorDeleteTargets[0].column !== 'rowid') {
-    throw new Error('[sqlite] Vector delete targets must use rowid');
-  }
-
-  let chunkRows = 0;
-  let ftsRows = 0;
-  let docLengthRows = 0;
-  let tokenVocabRows = 0;
-  let tokenPostingRows = 0;
-  let phraseVocabRows = 0;
-  let phrasePostingRows = 0;
-  let chargramVocabRows = 0;
-  let chargramPostingRows = 0;
-  let minhashRows = 0;
-  let denseRows = 0;
-  let denseMetaRows = 0;
-  let fileManifestRows = 0;
-  let tokenStatsRows = 0;
-  let validationMs = 0;
-  let deleteApplied = false;
-  let insertApplied = false;
-
-  const applyDeletes = db.transaction(() => {
-    for (const file of deleted) {
-      const normalizedFile = normalizeFilePath(file);
-      if (!normalizedFile) continue;
-      const docIds = resolveExistingDocIds(normalizedFile);
-      deleteDocIds(db, mode, docIds, vectorDeleteTargets);
-      if (docIds.length) {
-        freeDocIdsDeleted.push(...docIds);
-      }
-      db.prepare('DELETE FROM file_manifest WHERE mode = ? AND file = ?')
-        .run(mode, normalizedFile);
-    }
-
-    for (const record of changed) {
-      const normalizedFile = record?.normalized;
-      if (!normalizedFile) continue;
-      const docIds = resolveExistingDocIds(normalizedFile);
-      deleteDocIds(db, mode, docIds, vectorDeleteTargets);
-    }
-
-    for (const record of manifestUpdates) {
-      const normalizedFile = record.normalized;
-      const entry = record.entry || {};
-      updateFileManifest.run(
-        entry?.hash || null,
-        Number.isFinite(entry?.mtimeMs) ? entry.mtimeMs : null,
-        Number.isFinite(entry?.size) ? entry.size : null,
-        mode,
-        normalizedFile
-      );
-    }
-  });
-
-  const applyInserts = db.transaction(() => {
-    const tokenVocab = ensureVocabIds(
-      db,
-      mode,
-      'token_vocab',
-      'token_id',
-      'token',
-      Array.from(tokenValues),
-      insertTokenVocab,
-      { limits: VOCAB_GROWTH_LIMITS.token_vocab }
-    );
-    if (tokenVocab.skip) {
-      throw new IncrementalSkipError(tokenVocab.reason || 'token vocab growth too large');
-    }
-    tokenVocabRows += tokenVocab.inserted || 0;
-
-    const phraseVocab = ensureVocabIds(
-      db,
-      mode,
-      'phrase_vocab',
-      'phrase_id',
-      'ngram',
-      Array.from(phraseValues),
-      insertPhraseVocab,
-      { limits: VOCAB_GROWTH_LIMITS.phrase_vocab }
-    );
-    if (phraseVocab.skip) {
-      throw new IncrementalSkipError(phraseVocab.reason || 'phrase vocab growth too large');
-    }
-    phraseVocabRows += phraseVocab.inserted || 0;
-
-    const chargramVocab = ensureVocabIds(
-      db,
-      mode,
-      'chargram_vocab',
-      'gram_id',
-      'gram',
-      Array.from(chargramValues),
-      insertChargramVocab,
-      { limits: VOCAB_GROWTH_LIMITS.chargram_vocab }
-    );
-    if (chargramVocab.skip) {
-      throw new IncrementalSkipError(chargramVocab.reason || 'chargram vocab growth too large');
-    }
-    chargramVocabRows += chargramVocab.inserted || 0;
-
-    const tokenIdMap = tokenVocab.map;
-    const phraseIdMap = phraseVocab.map;
-    const chargramIdMap = chargramVocab.map;
-
-    const orderedChanged = [...changed].sort((a, b) => {
-      const aIds = existingIdsByFile.get(toFileKey(a?.normalized || ''))?.ids || [];
-      const bIds = existingIdsByFile.get(toFileKey(b?.normalized || ''))?.ids || [];
-      const aIsNew = aIds.length === 0;
-      const bIsNew = bIds.length === 0;
-      if (aIsNew === bIsNew) return 0;
-      return aIsNew ? -1 : 1;
-    });
-
-    for (const record of orderedChanged) {
-      const normalizedFile = record.normalized;
-      const reuseIds = resolveExistingDocIds(normalizedFile);
-      let reuseIndex = 0;
-
-      const bundleEntry = bundles.get(normalizedFile);
-      const bundle = bundleEntry?.bundle;
-      let chunkCount = 0;
-      const isNewFile = reuseIds.length === 0;
-      for (const chunk of bundle?.chunks || []) {
-        const allocation = allocateIncrementalDocId({
-          reuseIds,
-          reuseIndex,
-          isNewFile,
-          freeDocIdsDeleted,
-          freeDocIdsOverflow,
-          nextDocId
-        });
-        const docId = allocation.docId;
-        reuseIndex = allocation.reuseIndex;
-        nextDocId = allocation.nextDocId;
-        const row = buildChunkRow(
-          { ...chunk, file: chunk.file || normalizedFile },
-          mode,
-          docId
-        );
-        insertChunk.run(row);
-        insertFts.run(row);
-        chunkRows += 1;
-        ftsRows += 1;
-
-        const tokensArray = Array.isArray(chunk.tokens) ? chunk.tokens : [];
-        insertDocLength.run(mode, docId, tokensArray.length);
-        docLengthRows += 1;
-        const freq = buildTokenFrequency(tokensArray);
-        for (const [token, tf] of freq.entries()) {
-          const tokenId = tokenIdMap.get(token);
-          if (tokenId === undefined) continue;
-          insertTokenPosting.run(mode, tokenId, docId, tf);
-          tokenPostingRows += 1;
-        }
-
-        if (Array.isArray(chunk.ngrams)) {
-          const unique = new Set(chunk.ngrams);
-          for (const ng of unique) {
-            const phraseId = phraseIdMap.get(ng);
-            if (phraseId === undefined) continue;
-            insertPhrasePosting.run(mode, phraseId, docId);
-            phrasePostingRows += 1;
-          }
-        }
-
-        if (Array.isArray(chunk.chargrams)) {
-          const unique = new Set(chunk.chargrams);
-          for (const gram of unique) {
-            const gramId = chargramIdMap.get(gram);
-            if (gramId === undefined) continue;
-            insertChargramPosting.run(mode, gramId, docId);
-            chargramPostingRows += 1;
-          }
-        }
-
-        if (Array.isArray(chunk.minhashSig) && chunk.minhashSig.length) {
-          insertMinhash.run(mode, docId, packUint32(chunk.minhashSig));
-          minhashRows += 1;
-        }
-
-        if (Array.isArray(chunk.embedding) && chunk.embedding.length) {
-          const dims = chunk.embedding.length;
-          if (!denseMetaSet) {
-            insertDenseMeta.run(
-              mode,
-              dims,
-              1.0,
-              modelConfig.id || null,
-              quantization.minVal,
-              quantization.maxVal,
-              quantization.levels
-            );
-            denseMetaSet = true;
-            denseDims = dims;
-            denseMetaRows += 1;
-          } else if (denseDims !== null && dims !== denseDims) {
-            throw new Error(`Dense vector dims mismatch for ${mode}: expected ${denseDims}, got ${dims}`);
-          }
-          insertDense.run(
-            mode,
-            docId,
-            packUint8(
-              quantizeVec(chunk.embedding, quantization.minVal, quantization.maxVal, quantization.levels),
-              { onClamp: recordDenseClamp }
-            )
-          );
-          denseRows += 1;
-          if (vectorAnn?.loaded) {
-            if (!vectorAnn.ready) {
-              const created = prepareVectorAnnInsert({ db, mode, vectorConfig, dims });
-              if (created.ready) {
-                vectorAnn = created;
-              } else if (created.reason && !vectorAnnWarned && emitOutput) {
-                warn(`[sqlite] Failed to prepare vector table for ${mode}: ${created.reason}`);
-                vectorAnnWarned = true;
-              }
-            }
-            if (vectorAnn.ready && vectorAnn.insert && encodeVector) {
-              const encoded = encodeVector(chunk.embedding, vectorExtension);
-              if (encoded) {
-                const compatible = isVectorEncodingCompatible({
-                  encoded,
-                  dims,
-                  encoding: vectorExtension.encoding
-                });
-                if (!compatible) {
-                  if (!vectorAnnInsertWarned && emitOutput) {
-                    const expectedBytes = resolveVectorEncodingBytes(dims, vectorExtension.encoding);
-                    const actualBytes = resolveEncodedVectorBytes(encoded);
-                    warn(
-                      `[sqlite] Vector extension insert skipped for ${mode}: ` +
-                      `encoded length ${actualBytes ?? 'unknown'} != expected ${expectedBytes ?? 'unknown'} ` +
-                      `(dims=${dims}, encoding=${vectorExtension.encoding || 'float32'}).`
-                    );
-                    vectorAnnInsertWarned = true;
-                  }
-                } else {
-                  vectorAnn.insert.run(toSqliteRowId(docId), encoded);
-                }
-              }
-            }
-          }
-        }
-
-        chunkCount += 1;
-        insertedChunks += 1;
-      }
-      if (reuseIndex < reuseIds.length) {
-        freeDocIdsOverflow.push(...reuseIds.slice(reuseIndex));
-      }
-
-      const manifestEntry = record.entry || bundleEntry?.entry || {};
-      insertFileManifest.run(
-        mode,
-        normalizedFile,
-        manifestEntry?.hash || null,
-        Number.isFinite(manifestEntry?.mtimeMs) ? manifestEntry.mtimeMs : null,
-        Number.isFinite(manifestEntry?.size) ? manifestEntry.size : null,
-        chunkCount
-      );
-      fileManifestRows += 1;
-    }
-
-    updateTokenStats(db, mode, insertTokenStats);
-    tokenStatsRows += 1;
-    const validationStart = performance.now();
-    validateSqliteDatabase(db, mode, { validateMode, emitOutput, logger, dbPath: outPath });
-    validationMs = performance.now() - validationStart;
-  });
-
   try {
-    applyDeletes();
-    deleteApplied = true;
-    const applyStart = performance.now();
-    applyInserts();
-    insertApplied = true;
-    const applyDurationMs = performance.now() - applyStart;
-    recordTable('chunks', chunkRows, applyDurationMs);
-    recordTable('chunks_fts', ftsRows, applyDurationMs);
-    recordTable('doc_lengths', docLengthRows, applyDurationMs);
-    recordTable('token_vocab', tokenVocabRows, applyDurationMs);
-    recordTable('token_postings', tokenPostingRows, applyDurationMs);
-    recordTable('phrase_vocab', phraseVocabRows, applyDurationMs);
-    recordTable('phrase_postings', phrasePostingRows, applyDurationMs);
-    recordTable('chargram_vocab', chargramVocabRows, applyDurationMs);
-    recordTable('chargram_postings', chargramPostingRows, applyDurationMs);
-    recordTable('minhash_signatures', minhashRows, applyDurationMs);
-    recordTable('dense_vectors', denseRows, applyDurationMs);
-    recordTable('dense_meta', denseMetaRows, 0);
-    recordTable('file_manifest', fileManifestRows, applyDurationMs);
-    recordTable('token_stats', tokenStatsRows, 0);
+    const updateResult = runIncrementalUpdatePhase({
+      db,
+      outPath,
+      mode,
+      changed,
+      deleted,
+      manifestUpdates,
+      bundles,
+      tokenValues,
+      phraseValues,
+      chargramValues,
+      modelConfig,
+      vectorConfig,
+      quantization,
+      validateMode,
+      emitOutput,
+      logger,
+      warn,
+      updateFileManifest,
+      statements,
+      resolveExistingDocIds: docIdResolver.resolveExistingDocIds,
+      orderedChanged,
+      startDocId,
+      recordDenseClamp,
+      vocabGrowthLimits: VOCAB_GROWTH_LIMITS
+    });
+    if (!updateResult.ok) {
+      await finalize();
+      return { used: false, reason: updateResult.skipReason, ...changeSummary };
+    }
+    insertedChunks = updateResult.insertedChunks;
+    const rows = updateResult.tableRows;
+    const applyDurationMs = updateResult.applyDurationMs;
+    recordTable('chunks', rows.chunks, applyDurationMs);
+    recordTable('chunks_fts', rows.chunks_fts, applyDurationMs);
+    recordTable('doc_lengths', rows.doc_lengths, applyDurationMs);
+    recordTable('token_vocab', rows.token_vocab, applyDurationMs);
+    recordTable('token_postings', rows.token_postings, applyDurationMs);
+    recordTable('phrase_vocab', rows.phrase_vocab, applyDurationMs);
+    recordTable('phrase_postings', rows.phrase_postings, applyDurationMs);
+    recordTable('chargram_vocab', rows.chargram_vocab, applyDurationMs);
+    recordTable('chargram_postings', rows.chargram_postings, applyDurationMs);
+    recordTable('minhash_signatures', rows.minhash_signatures, applyDurationMs);
+    recordTable('dense_vectors', rows.dense_vectors, applyDurationMs);
+    recordTable('dense_meta', rows.dense_meta, 0);
+    recordTable('file_manifest', rows.file_manifest, applyDurationMs);
+    recordTable('token_stats', rows.token_stats, 0);
     if (denseClampStats.totalValues > 0 && emitOutput) {
       warn(
         `[sqlite] Uint8 vector values clamped while updating ${mode}: ` +
@@ -897,11 +409,8 @@ export async function incrementalUpdateDatabase({
       );
     }
     if (batchStats) {
-      batchStats.validationMs = validationMs;
-      batchStats.transactionPhases = {
-        deletes: deleteApplied,
-        inserts: insertApplied
-      };
+      batchStats.validationMs = updateResult.validationMs;
+      batchStats.transactionPhases = updateResult.transactionPhases;
     }
     try {
       db.pragma('wal_checkpoint(TRUNCATE)');
@@ -912,9 +421,6 @@ export async function incrementalUpdateDatabase({
     }
   } catch (err) {
     await finalize();
-    if (err instanceof IncrementalSkipError) {
-      return { used: false, reason: err.reason, ...changeSummary };
-    }
     throw err;
   }
   await finalize();
@@ -924,4 +430,3 @@ export async function incrementalUpdateDatabase({
     ...changeSummary
   };
 }
-
