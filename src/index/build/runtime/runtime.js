@@ -25,8 +25,6 @@ import { mergeConfig } from '../../../shared/config.js';
 import { setXxhashBackend } from '../../../shared/hash.js';
 import { resolveScmConfig } from '../../scm/registry.js';
 import { setScmRuntimeConfig } from '../../scm/runtime.js';
-import { normalizeRiskConfig } from '../../risk.js';
-import { normalizeRiskInterproceduralConfig } from '../../risk-interprocedural/config.js';
 import { normalizeRecordsConfig } from '../records.js';
 import { buildContentConfigHash } from './hash.js';
 import { normalizeStage, buildStageOverrides } from './stage.js';
@@ -95,6 +93,7 @@ import {
   createRuntimeSqlDialectResolver,
   resolveRuntimeLanguageInitConfig
 } from './runtime-language-init.js';
+import { resolveRuntimeAnalysisConfig } from './runtime-analysis-init.js';
 
 export {
   applyLearnedAutoProfileSelection,
@@ -343,24 +342,20 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   const postingsConfig = normalizePostingsConfig(indexingConfig.postings || {});
   const lexiconConfig = buildLexiconConfig({ indexingConfig, autoPolicy });
   const { maxFileBytes, fileCaps, guardrails } = resolveFileCapsAndGuardrails(indexingConfig);
-  const astDataflowEnabled = indexingConfig.astDataflow !== false;
-  const controlFlowEnabled = indexingConfig.controlFlow !== false;
-  const typeInferenceEnabled = indexingConfig.typeInference !== false;
-  const typeInferenceCrossFileEnabled = indexingConfig.typeInferenceCrossFile !== false;
-  const riskAnalysisEnabled = indexingConfig.riskAnalysis !== false;
-  const riskAnalysisCrossFileEnabled = riskAnalysisEnabled
-    && indexingConfig.riskAnalysisCrossFile !== false;
-  const riskConfig = normalizeRiskConfig({
-    enabled: riskAnalysisEnabled,
-    rules: indexingConfig.riskRules,
-    caps: indexingConfig.riskCaps,
-    regex: indexingConfig.riskRegex || indexingConfig.riskRules?.regex
-  }, { rootDir: root });
-  const riskInterproceduralConfig = normalizeRiskInterproceduralConfig(
-    indexingConfig.riskInterprocedural,
-    {}
-  );
-  const riskInterproceduralEnabled = riskAnalysisEnabled && riskInterproceduralConfig.enabled;
+  const {
+    astDataflowEnabled,
+    controlFlowEnabled,
+    typeInferenceEnabled,
+    typeInferenceCrossFileEnabled,
+    riskAnalysisEnabled,
+    riskAnalysisCrossFileEnabled,
+    riskConfig,
+    riskInterproceduralConfig,
+    riskInterproceduralEnabled
+  } = resolveRuntimeAnalysisConfig({
+    indexingConfig,
+    rootDir: root
+  });
   const scmAnnotatePolicy = resolveRuntimeScmAnnotatePolicy({
     scmConfig,
     scmProvider: scmSelection.provider,

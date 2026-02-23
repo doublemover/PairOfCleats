@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T07:11:29.5874933-05:00
+  Extracted runtime analysis/risk flag/config normalization from `src/index/build/runtime/runtime.js` into `src/index/build/runtime/runtime-analysis-init.js`, separating pure analysis-policy derivation from startup orchestration.
 - 2026-02-23T07:08:03.0016663-05:00
   Extracted adaptive system-signal resolution from `src/shared/concurrency/scheduler-core.js` into `src/shared/concurrency/scheduler-core-system-signals.js`, isolating sampler-vs-host telemetry normalization and gc-pressure memory history updates from scheduler orchestration.
 - 2026-02-23T07:05:10.1004247-05:00
