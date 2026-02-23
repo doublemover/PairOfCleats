@@ -1,4 +1,3 @@
-import os from 'node:os';
 import { coerceUnitFraction } from '../number-coerce.js';
 import { createSchedulerTelemetryCapture } from './scheduler-core-telemetry-capture.js';
 import {
@@ -30,6 +29,12 @@ import {
   buildSchedulerQueueStatsSnapshot,
   resolveSchedulerUtilization
 } from './scheduler-core-stats.js';
+import {
+  decayAdaptiveTokenTotals,
+  resolveAdaptiveIntervalMs,
+  resolveAdaptiveMemoryHeadroom,
+  smoothAdaptiveValue
+} from './scheduler-core-token-policy.js';
 
 /**
  * Create a build scheduler that coordinates CPU/IO/memory tokens across queues.
@@ -514,61 +519,52 @@ export function createBuildScheduler(input = {}) {
     const ioUtilization = tokens.io.total > 0 ? (tokens.io.used / tokens.io.total) : 0;
     const memUtilization = tokens.mem.total > 0 ? (tokens.mem.used / tokens.mem.total) : 0;
     const utilization = Math.max(cpuUtilization, ioUtilization, memUtilization);
-    const smooth = (prev, next, alpha = 0.25) => (
-      prev == null ? next : ((prev * (1 - alpha)) + (next * alpha))
-    );
-    smoothedUtilization = smooth(smoothedUtilization, utilization);
-    smoothedPendingPressure = smooth(
+    smoothedUtilization = smoothAdaptiveValue(smoothedUtilization, utilization);
+    smoothedPendingPressure = smoothAdaptiveValue(
       smoothedPendingPressure,
       Math.max(totalPending / Math.max(1, tokenBudget), totalPendingBytes / Math.max(1, memoryTokenBudgetBytes))
     );
-    smoothedStarvation = smooth(
+    smoothedStarvation = smoothAdaptiveValue(
       smoothedStarvation,
       queueOrder.length > 0 ? (starvedQueues / queueOrder.length) : 0
     );
-    const utilizationDeficit = utilization < adaptiveTargetUtilization;
     const smoothedUtilizationDeficit = (smoothedUtilization ?? utilization) < adaptiveTargetUtilization;
     const severeUtilizationDeficit = utilization < (adaptiveTargetUtilization * 0.7);
     const starvationScore = starvedQueues + Math.round((smoothedStarvation ?? 0) * 2);
-    if (pendingPressure || bytePressure || starvationScore > 0) {
-      adaptiveCurrentIntervalMs = Math.max(50, Math.floor(adaptiveMinIntervalMs * 0.5));
-    } else if (mostlyIdle) {
-      adaptiveCurrentIntervalMs = Math.min(2000, Math.max(adaptiveMinIntervalMs, Math.floor(adaptiveMinIntervalMs * 2)));
-    } else {
-      adaptiveCurrentIntervalMs = adaptiveMinIntervalMs;
-    }
-    const totalMem = Number(os.totalmem()) || 0;
-    const freeMem = Number(os.freemem()) || 0;
-    const freeRatio = totalMem > 0 ? (freeMem / totalMem) : null;
-    const headroomBytes = Number.isFinite(totalMem) && Number.isFinite(freeMem)
-      ? Math.max(0, freeMem)
-      : 0;
-    const memoryLowHeadroom = Number.isFinite(freeRatio) && freeRatio < 0.15;
-    const memoryHighHeadroom = !Number.isFinite(freeRatio) || freeRatio > 0.25;
-    let memoryTokenHeadroomCap = maxLimits.mem;
-    if (Number.isFinite(freeMem) && freeMem > 0) {
-      const reserveBytes = adaptiveMemoryReserveMb * 1024 * 1024;
-      const bytesPerToken = adaptiveMemoryPerTokenMb * 1024 * 1024;
-      const availableBytes = Math.max(0, freeMem - reserveBytes);
-      const headroomTokens = Math.max(1, Math.floor(availableBytes / Math.max(1, bytesPerToken)));
-      memoryTokenHeadroomCap = Math.max(
-        baselineLimits.mem,
-        Math.min(maxLimits.mem, headroomTokens)
-      );
-      if (tokens.mem.total > memoryTokenHeadroomCap) {
-        tokens.mem.total = Math.max(tokens.mem.used, memoryTokenHeadroomCap);
-      }
-    }
+    adaptiveCurrentIntervalMs = resolveAdaptiveIntervalMs({
+      adaptiveMinIntervalMs,
+      pendingPressure,
+      bytePressure,
+      starvationScore,
+      mostlyIdle
+    });
+    const {
+      headroomBytes,
+      memoryLowHeadroom,
+      memoryHighHeadroom,
+      memoryTokenHeadroomCap,
+      nextMemTotal
+    } = resolveAdaptiveMemoryHeadroom({
+      signals: lastSystemSignals,
+      adaptiveMemoryReserveMb,
+      adaptiveMemoryPerTokenMb,
+      baselineMemLimit: baselineLimits.mem,
+      maxMemLimit: maxLimits.mem,
+      currentMemTotal: tokens.mem.total,
+      currentMemUsed: tokens.mem.used
+    });
+    tokens.mem.total = nextMemTotal;
 
     if (memoryLowHeadroom) {
       adaptiveMode = 'steady';
-      tokens.cpu.total = Math.max(cpuFloor, tokens.cpu.used, tokens.cpu.total - adaptiveStep);
-      tokens.io.total = Math.max(ioFloor, tokens.io.used, tokens.io.total - adaptiveStep);
-      tokens.mem.total = Math.max(
+      decayAdaptiveTokenTotals({
+        tokens,
+        cpuFloor,
+        ioFloor,
         memFloor,
-        tokens.mem.used,
-        Math.min(memoryTokenHeadroomCap, tokens.mem.total - adaptiveStep)
-      );
+        adaptiveStep,
+        memoryTokenHeadroomCap
+      });
       return;
     }
 
@@ -616,9 +612,13 @@ export function createBuildScheduler(input = {}) {
       );
     if (settleMode) {
       adaptiveMode = 'settle';
-      tokens.cpu.total = Math.max(cpuFloor, tokens.cpu.used, tokens.cpu.total - adaptiveStep);
-      tokens.io.total = Math.max(ioFloor, tokens.io.used, tokens.io.total - adaptiveStep);
-      tokens.mem.total = Math.max(memFloor, tokens.mem.used, tokens.mem.total - adaptiveStep);
+      decayAdaptiveTokenTotals({
+        tokens,
+        cpuFloor,
+        ioFloor,
+        memFloor,
+        adaptiveStep
+      });
       return;
     }
 
@@ -633,9 +633,13 @@ export function createBuildScheduler(input = {}) {
 
     if (mostlyIdle) {
       adaptiveMode = 'steady';
-      tokens.cpu.total = Math.max(cpuFloor, tokens.cpu.used, tokens.cpu.total - adaptiveStep);
-      tokens.io.total = Math.max(ioFloor, tokens.io.used, tokens.io.total - adaptiveStep);
-      tokens.mem.total = Math.max(memFloor, tokens.mem.used, tokens.mem.total - adaptiveStep);
+      decayAdaptiveTokenTotals({
+        tokens,
+        cpuFloor,
+        ioFloor,
+        memFloor,
+        adaptiveStep
+      });
     }
   };
 
