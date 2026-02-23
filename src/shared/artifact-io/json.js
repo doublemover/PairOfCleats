@@ -63,6 +63,16 @@ const resolveJsonlReadPlan = (byteSize) => {
 };
 
 /**
+ * Detect filesystem \"not found\" read errors for fallback routing.
+ *
+ * @param {unknown} err
+ * @returns {boolean}
+ */
+const isMissingReadError = (err) => (
+  err?.code === 'ENOENT' || err?.code === 'ENOTDIR'
+);
+
+/**
  * Read and parse a JSON artifact with compression and backup fallbacks.
  *
  * Fallback order:
@@ -127,15 +137,11 @@ export const readJsonFile = (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
     return parsed;
   };
   const bakPath = getBakPath(filePath);
-  if (fs.existsSync(filePath)) {
-    try {
-      return tryRead(filePath, { cleanup: true });
-    } catch (err) {
-      if (fs.existsSync(bakPath)) {
-        return tryRead(bakPath);
-      }
-      throw err;
-    }
+  let primaryErr = null;
+  try {
+    return tryRead(filePath, { cleanup: true });
+  } catch (err) {
+    primaryErr = err;
   }
   if (filePath.endsWith('.json')) {
     const candidates = collectCompressedCandidates(filePath);
@@ -151,11 +157,18 @@ export const readJsonFile = (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
           lastErr = err;
         }
       }
-      if (lastErr) throw lastErr;
+      if (lastErr && (primaryErr == null || isMissingReadError(primaryErr))) {
+        primaryErr = lastErr;
+      }
     }
   }
-  if (fs.existsSync(bakPath)) {
+  try {
     return tryRead(bakPath);
+  } catch (bakErr) {
+    if (!isMissingReadError(bakErr)) throw bakErr;
+  }
+  if (primaryErr && !isMissingReadError(primaryErr)) {
+    throw primaryErr;
   }
   throw new Error(`Missing JSON artifact: ${filePath}`);
 };
@@ -440,21 +453,18 @@ export const readJsonLinesEach = async (
   };
 
   const bakPath = getBakPath(filePath);
-  if (fs.existsSync(filePath)) {
-    try {
-      await tryRead(filePath, true);
-      return;
-    } catch (err) {
-      if (fs.existsSync(bakPath)) {
-        await tryRead(bakPath);
-        return;
-      }
-      throw err;
-    }
+  let primaryErr = null;
+  try {
+    await tryRead(filePath, true);
+    return;
+  } catch (err) {
+    primaryErr = err;
   }
-  if (fs.existsSync(bakPath)) {
+  try {
     await tryRead(bakPath);
     return;
+  } catch (bakErr) {
+    if (!isMissingReadError(bakErr)) throw bakErr;
   }
   if (filePath.endsWith('.jsonl')) {
     const candidates = collectCompressedJsonlCandidates(filePath);
@@ -468,8 +478,13 @@ export const readJsonLinesEach = async (
           lastErr = err;
         }
       }
-      if (lastErr) throw lastErr;
+      if (lastErr && (primaryErr == null || isMissingReadError(primaryErr))) {
+        primaryErr = lastErr;
+      }
     }
+  }
+  if (primaryErr && !isMissingReadError(primaryErr)) {
+    throw primaryErr;
   }
   throw new Error(`Missing JSONL artifact: ${filePath}`);
 };

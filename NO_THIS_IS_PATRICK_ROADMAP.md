@@ -71,6 +71,8 @@ Note:
 ## Follow-up split log (current pass)
 - 2026-02-23T05:04:12.2730914-05:00
   Split `src/index/build/indexer/steps/process-files.js` stall diagnostics into `src/index/build/indexer/steps/process-files/stall-diagnostics.js`, and optimized stalled-file selection to bounded top-N collection to reduce watchdog snapshot sort/allocation overhead.
+- 2026-02-23T05:07:10.7270007-05:00
+  Optimized `src/shared/artifact-io/json.js` hot fallback reads by removing preflight `existsSync` probes in `readJsonFile`/`readJsonLinesEach` and preserving deterministic fallback/error semantics via explicit missing-read classification.
 
 ## Architectural assessment (what needs to change)
 
