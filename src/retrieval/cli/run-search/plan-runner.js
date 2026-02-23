@@ -7,25 +7,19 @@ import {
   getMetricsDir,
   getQueryCacheDir,
   getModelConfig,
-  loadUserConfig,
-  resolveLmdbPaths,
-  resolveSqlitePaths
+  loadUserConfig
 } from '../../../../tools/shared/dict-utils.js';
 import { queryVectorAnn } from '../../../../tools/sqlite/vector-extension.js';
 import { createError, ERROR_CODES } from '../../../shared/error-codes.js';
 import { getSearchUsage } from '../../cli-args.js';
-import { isLmdbReady, isSqliteReady } from '../index-state.js';
-import { resolveSingleRootForModes } from '../../../index/as-of.js';
 import { configureOutputCaches } from '../../output.js';
 import { getMissingFlagMessages } from '../options.js';
-import { hasLmdbStore } from '../index-loader.js';
 import { normalizeSearchOptions } from '../normalize-options.js';
 import { createRunnerHelpers } from '../runner.js';
 import { resolveRunConfig } from '../resolve-run-config.js';
 import { resolveRequiredArtifacts } from '../required-artifacts.js';
 import { executeSearchAndEmit } from '../search-execution.js';
 import { resolveRetrievalCachePath } from '../cache-paths.js';
-import { pathExists } from '../../../shared/files.js';
 import {
   createQueryPlanDiskCache
 } from '../../query-plan-cache.js';
@@ -44,12 +38,11 @@ import {
   runFederatedIfRequested
 } from './options.js';
 import {
-  loadSearchIndexStates,
   resolveStartupIndexResolution
 } from './startup-index.js';
-import { resolveRunSearchProfilePolicy } from './profile-policy.js';
 import { resolveAutoSqliteEligibility } from './auto-thresholds.js';
 import { resolveRunSearchBackendSelection } from './backend-selection.js';
+import { resolveRunSearchIndexAvailability } from './index-availability.js';
 import { initializeBackendContext } from './backend-context-setup.js';
 import { loadRunSearchIndexesWithTracking } from './index-loading.js';
 import { buildQueryPlanInput } from './plan-input.js';
@@ -338,107 +331,65 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       vectorAnnEnabled = annEnabledEffective && vectorExtension.enabled === true;
       telemetry.setAnn(annEnabledEffective ? 'on' : 'off');
     };
-    const dbModeSelection = [];
-    if (needsCode) dbModeSelection.push('code');
-    if (needsProse) dbModeSelection.push('prose');
-    if (needsExtractedProse) dbModeSelection.push('extracted-prose');
-    const sqliteRootSelection = resolveSingleRootForModes(
-      asOfContext?.strict ? asOfContext.indexBaseRootByMode : null,
-      dbModeSelection
-    );
-    const lmdbRootSelection = resolveSingleRootForModes(
-      asOfContext?.strict ? asOfContext.indexBaseRootByMode : null,
-      dbModeSelection
-    );
-    const sqliteRootsMixed = Boolean(asOfContext?.strict && dbModeSelection.length > 1 && sqliteRootSelection.mixed);
-    const lmdbRootsMixed = Boolean(asOfContext?.strict && dbModeSelection.length > 1 && lmdbRootSelection.mixed);
-
-    const lmdbPaths = resolveLmdbPaths(
+    const profileAndAvailability = await resolveRunSearchIndexAvailability({
       rootDir,
       userConfig,
-      lmdbRootSelection.root ? { indexRoot: lmdbRootSelection.root } : {}
-    );
-    const lmdbCodePath = lmdbPaths.codePath;
-    const lmdbProsePath = lmdbPaths.prosePath;
-    const sqlitePaths = resolveSqlitePaths(
-      rootDir,
-      userConfig,
-      sqliteRootSelection.root ? { indexRoot: sqliteRootSelection.root } : {}
-    );
-    const sqliteCodePath = sqlitePaths.codePath;
-    const sqliteProsePath = sqlitePaths.prosePath;
-    const sqliteExtractedProsePath = sqlitePaths.extractedProsePath;
-
-    const loadedIndexStates = loadSearchIndexStates({
-      rootDir,
-      userConfig,
-      runCode: needsCode,
-      runProse: needsProse,
-      runExtractedProse: needsExtractedProse,
-      runRecords,
-      indexResolveOptions,
-      addProfileWarning
-    });
-    const sqliteStateCode = loadedIndexStates.code;
-    const sqliteStateProse = loadedIndexStates.prose;
-    const sqliteStateExtractedProse = loadedIndexStates.extractedProse;
-    const sqliteStateRecords = loadedIndexStates.records;
-    const indexStateByMode = {
-      code: sqliteStateCode,
-      prose: sqliteStateProse,
-      'extracted-prose': sqliteStateExtractedProse,
-      records: sqliteStateRecords
-    };
-    const profileResolution = resolveRunSearchProfilePolicy({
       runCode,
       runProse,
-      runRecords,
       runExtractedProse: runExtractedProseRaw,
-      requiresExtractedProse,
-      indexStateByMode,
+      runRecords,
+      searchMode,
+      asOfContext,
+      indexResolveOptions,
+      addProfileWarning,
       allowSparseFallback,
       allowUnsafeMix,
       annFlagPresent,
       annEnabled: annEnabledEffective,
       scoreMode
     });
-    if (profileResolution.error) {
-      return bail(profileResolution.error.message, 1, profileResolution.error.code);
+    if (profileAndAvailability.error) {
+      return bail(profileAndAvailability.error.message, 1, profileAndAvailability.error.code);
     }
     const {
       selectedModes,
       profilePolicyByMode,
-      vectorOnlyModes
-    } = profileResolution;
-    annEnabledEffective = profileResolution.annEnabledEffective;
-    for (const warning of profileResolution.warnings) {
-      addProfileWarning(warning);
-    }
+      vectorOnlyModes,
+      sqliteRootsMixed,
+      lmdbRootsMixed,
+      sqlitePaths,
+      lmdbPaths,
+      sqliteStates: resolvedSqliteStates,
+      lmdbStates: resolvedLmdbStates,
+      sqliteAvailability,
+      lmdbAvailability,
+      loadExtractedProseSqlite
+    } = profileAndAvailability;
+    annEnabledEffective = profileAndAvailability.annEnabledEffective;
     syncAnnFlags();
     if (emitOutput && profileWarnings.length) {
       for (const warning of profileWarnings) {
         console.warn(`[search] ${warning}`);
       }
     }
-    const sqliteCodePathExists = !sqliteRootsMixed && await pathExists(sqliteCodePath);
-    const sqliteProsePathExists = !sqliteRootsMixed && await pathExists(sqliteProsePath);
-    const sqliteExtractedPathExists = !sqliteRootsMixed && await pathExists(sqliteExtractedProsePath);
-    const sqliteCodeAvailable = sqliteCodePathExists && isSqliteReady(sqliteStateCode);
-    const sqliteProseAvailable = sqliteProsePathExists && isSqliteReady(sqliteStateProse);
-    const sqliteExtractedProseAvailable = !sqliteRootsMixed
-      && sqliteExtractedPathExists
-      && isSqliteReady(sqliteStateExtractedProse);
-    const sqliteAvailable = (!needsCode || sqliteCodeAvailable)
-      && (!needsProse || sqliteProseAvailable)
-      && (!requiresExtractedProse || sqliteExtractedProseAvailable);
-    const loadExtractedProseSqlite = needsExtractedProse && sqliteExtractedProseAvailable;
-    const lmdbStateCode = sqliteStateCode;
-    const lmdbStateProse = sqliteStateProse;
-    const lmdbCodeAvailable = !lmdbRootsMixed && hasLmdbStore(lmdbCodePath) && isLmdbReady(lmdbStateCode);
-    const lmdbProseAvailable = !lmdbRootsMixed && hasLmdbStore(lmdbProsePath) && isLmdbReady(lmdbStateProse);
-    const lmdbAvailable = !needsExtractedProse
-      && (!needsCode || lmdbCodeAvailable)
-      && (!needsProse || lmdbProseAvailable);
+    const sqliteCodePath = sqlitePaths.codePath;
+    const sqliteProsePath = sqlitePaths.prosePath;
+    const sqliteExtractedProsePath = sqlitePaths.extractedProsePath;
+    const lmdbCodePath = lmdbPaths.codePath;
+    const lmdbProsePath = lmdbPaths.prosePath;
+    const sqliteStateCode = resolvedSqliteStates.code;
+    const sqliteStateProse = resolvedSqliteStates.prose;
+    const sqliteStateExtractedProse = resolvedSqliteStates['extracted-prose'];
+    const sqliteStateRecords = resolvedSqliteStates.records;
+    const lmdbStateCode = resolvedLmdbStates.code;
+    const lmdbStateProse = resolvedLmdbStates.prose;
+    const sqliteCodeAvailable = sqliteAvailability.code;
+    const sqliteProseAvailable = sqliteAvailability.prose;
+    const sqliteExtractedProseAvailable = sqliteAvailability.extractedProse;
+    const sqliteAvailable = sqliteAvailability.all;
+    const lmdbCodeAvailable = lmdbAvailability.code;
+    const lmdbProseAvailable = lmdbAvailability.prose;
+    const lmdbAvailable = lmdbAvailability.all;
 
     const {
       autoBackendRequested,

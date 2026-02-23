@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T07:26:52.5111724-05:00
+  Extracted retrieval index/profile availability resolution from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/index-availability.js`, preserving mode/backend semantics while parallelizing sqlite path-existence probes and adding focused coverage in `tests/retrieval/cli/run-search-index-availability.test.js`.
 - 2026-02-23T07:22:25.5219013-05:00
   Extracted artifact-write lane planning from `src/index/build/artifacts-write.js` into `src/index/build/artifacts/write-lane-planning.js`, preserving deterministic weight/tie-break/lane precedence semantics and adding focused regression coverage in `tests/indexing/artifacts/artifact-write-lane-planning.test.js`.
 - 2026-02-23T07:21:26.2727957-05:00
