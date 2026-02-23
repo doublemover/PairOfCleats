@@ -1,6 +1,4 @@
-import { assignSegmentUids, chunkSegments, discoverSegments } from '../../segments.js';
-import { finalizeSegments } from '../../segments/finalize.js';
-import { getLanguageForFile } from '../../language-registry.js';
+import { assignSegmentUids, discoverSegments } from '../../segments.js';
 import { toRepoPosixPath } from '../../scm/paths.js';
 import { buildLineAuthors } from '../../scm/annotate.js';
 import { buildCallIndex, buildFileRelations } from './relations.js';
@@ -9,348 +7,39 @@ import {
   getLexiconRelationFilterStats
 } from './lexicon-relations-filter.js';
 import {
-  isTreeSitterSchedulerLanguage,
-  resolveTreeSitterLanguageForSegment
-} from './tree-sitter.js';
-import { TREE_SITTER_LANGUAGE_IDS } from '../../../lang/tree-sitter/config.js';
-import { isTreeSitterEnabled } from '../../../lang/tree-sitter/options.js';
-import {
   sanitizeChunkBounds,
   validateChunkBounds
 } from './cpu/chunking.js';
 import { buildLanguageAnalysisContext } from './cpu/analyze.js';
 import { buildCommentMeta } from './cpu/meta.js';
+import { resolveFileParsePolicy } from './cpu/parse-policy.js';
+import { chunkWithScheduler } from './cpu/scheduler-chunking.js';
+import {
+  SCM_ANNOTATE_DEFAULT_TIMEOUT_CAP_MS,
+  SCM_ANNOTATE_FAST_TIMEOUT_EXTS,
+  SCM_ANNOTATE_FAST_TIMEOUT_MS,
+  SCM_ANNOTATE_HEAVY_PATH_TIMEOUT_MS,
+  SCM_ANNOTATE_PYTHON_HEAVY_LINE_CUTOFF,
+  SCM_ANNOTATE_PYTHON_MAX_BYTES,
+  SCM_CHURN_MAX_BYTES,
+  SCM_META_FAST_TIMEOUT_EXTS,
+  SCM_PYTHON_EXTS,
+  isHeavyRelationsPath,
+  isPythonGeneratedDataPath,
+  isScmFastPath,
+  isScmTaskTimeoutError,
+  resolveScmTaskDeadlineMs,
+  shouldForceScmTimeoutCaps,
+  shouldSkipHeavyRelations
+} from './cpu/guardrails.js';
+import { mergePlannedSegmentsWithExtras } from './cpu/segment-planning.js';
 import { resolveFileCaps } from './read.js';
 import { shouldPreferDocsProse } from '../mode-routing.js';
 import { buildLineIndex } from '../../../shared/lines.js';
-import { exceedsTreeSitterLimits as exceedsSharedTreeSitterLimits } from '../../../shared/indexing/tree-sitter-limits.js';
 import { formatError } from './meta.js';
 import { processChunks } from './process-chunks.js';
-import { buildVfsVirtualPath } from '../../tooling/vfs.js';
 import { resolveChunkingFileRole } from '../../chunking/limits.js';
-import { shouldSkipTreeSitterPlanningForPath } from '../tree-sitter-scheduler/policy.js';
 import { createTimeoutError, runWithTimeout } from '../../../shared/promise-timeout.js';
-import {
-  resolveSegmentExt,
-  resolveSegmentTokenMode,
-  shouldIndexSegment
-} from '../../segments/config.js';
-
-const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
-const SCM_ANNOTATE_FAST_TIMEOUT_EXTS = new Set([
-  '.yml',
-  '.yaml',
-  '.json',
-  '.toml',
-  '.lock',
-  '.py',
-  '.pyi',
-  '.swift',
-  '.html',
-  '.htm'
-]);
-const SCM_META_FAST_TIMEOUT_EXTS = new Set([
-  '.yml',
-  '.yaml',
-  '.json',
-  '.toml',
-  '.lock',
-  '.py',
-  '.pyi',
-  '.swift',
-  '.html',
-  '.htm'
-]);
-const SCM_PYTHON_EXTS = new Set(['.py', '.pyi']);
-const SCM_ANNOTATE_PYTHON_MAX_BYTES = 64 * 1024;
-const SCM_ANNOTATE_PYTHON_HEAVY_LINE_CUTOFF = 2500;
-const SCM_ANNOTATE_FAST_TIMEOUT_MS = 5000;
-const SCM_ANNOTATE_HEAVY_PATH_TIMEOUT_MS = 5000;
-const SCM_ANNOTATE_DEFAULT_TIMEOUT_CAP_MS = 5000;
-const SCM_TASK_QUEUE_WAIT_SLACK_MS = 250;
-const SCM_FAST_TIMEOUT_BASENAMES = new Set([
-  'cmakelists.txt',
-  'makefile',
-  'dockerfile',
-  'podfile',
-  'gemfile',
-  'justfile'
-]);
-const SCM_FAST_TIMEOUT_PATH_PARTS = [
-  '/.github/workflows/',
-  '/.circleci/',
-  '/.gitlab/'
-];
-const SCM_FORCE_TIMEOUT_CAP_PATH_PARTS = [
-  '/test/',
-  '/validation-test/',
-  '/unittests/',
-  '/utils/unicodedata/',
-  '/utils/gen-unicode-data/'
-];
-const SCM_JAVA_FAST_TIMEOUT_MIN_LINES = 400;
-const SCM_FAST_TIMEOUT_MAX_LINES = 900;
-const SCM_CHURN_MAX_BYTES = 256 * 1024;
-const HEAVY_RELATIONS_MAX_BYTES = 512 * 1024;
-const HEAVY_RELATIONS_MAX_LINES = 6000;
-const HEAVY_RELATIONS_PATH_MIN_BYTES = 64 * 1024;
-const HEAVY_RELATIONS_PATH_MIN_LINES = 1200;
-const HEAVY_RELATIONS_PATH_PARTS = [
-  '/3rdparty/',
-  '/third_party/',
-  '/thirdparty/',
-  '/vendor/',
-  '/single_include/',
-  '/include/fmt/',
-  '/include/spdlog/fmt/',
-  '/include/nlohmann/',
-  '/modules/core/include/opencv2/core/hal/',
-  '/modules/core/src/',
-  '/modules/dnn/',
-  '/modules/js/perf/',
-  '/sources/cniollhttp/',
-  '/sources/nio/',
-  '/sources/niocore/',
-  '/sources/nioposix/',
-  '/tests/nio/',
-  '/test/api-digester/inputs/',
-  '/test/remote-run/',
-  '/test/stdlib/inputs/',
-  '/tests/abi/',
-  '/test/gtest/',
-  '/utils/unicodedata/',
-  '/utils/gen-unicode-data/',
-  '/samples/',
-  '/docs/mkdocs/',
-  '/.github/workflows/'
-];
-const EXTRACTED_PROSE_EXTRAS_CACHE_SCHEMA = 'v1';
-
-const normalizeLowerToken = (value) => (
-  typeof value === 'string' && value.trim()
-    ? value.trim().toLowerCase()
-    : ''
-);
-
-const buildExtractedProseExtrasCacheKey = ({
-  fileHash,
-  fileHashAlgo,
-  ext,
-  languageId
-}) => {
-  const hash = typeof fileHash === 'string' ? fileHash.trim() : '';
-  if (!hash) return null;
-  const algo = normalizeLowerToken(fileHashAlgo) || 'sha1';
-  const normalizedExt = normalizeLowerToken(ext);
-  const normalizedLanguageId = normalizeLowerToken(languageId);
-  return [
-    EXTRACTED_PROSE_EXTRAS_CACHE_SCHEMA,
-    algo,
-    hash,
-    normalizedExt,
-    normalizedLanguageId
-  ].join('|');
-};
-
-const cloneCachedExtrasEntry = (entry) => {
-  if (!entry || typeof entry !== 'object') {
-    return {
-      commentEntries: [],
-      commentRanges: [],
-      extraSegments: []
-    };
-  }
-  const cloneItem = (item) => {
-    if (!item || typeof item !== 'object') return item;
-    const next = { ...item };
-    if (Array.isArray(item.tokens)) next.tokens = item.tokens.slice();
-    if (item.meta && typeof item.meta === 'object') next.meta = { ...item.meta };
-    return next;
-  };
-  return {
-    commentEntries: Array.isArray(entry.commentEntries)
-      ? entry.commentEntries.map(cloneItem)
-      : [],
-    commentRanges: Array.isArray(entry.commentRanges)
-      ? entry.commentRanges.map(cloneItem)
-      : [],
-    extraSegments: Array.isArray(entry.extraSegments)
-      ? entry.extraSegments.map(cloneItem)
-      : []
-  };
-};
-
-/**
- * Normalize repo-relative paths for case-insensitive SCM heuristics.
- *
- * @param {string} relPath
- * @returns {string}
- */
-const normalizeScmPath = (relPath) => String(relPath || '').replace(/\\/g, '/').toLowerCase();
-
-/**
- * Normalize and bound one path for stable `includes("/segment/")` checks.
- *
- * @param {string} relPath
- * @returns {string}
- */
-const toBoundedScmPath = (relPath) => {
-  const normalized = normalizeScmPath(relPath);
-  return `/${normalized.replace(/^\/+|\/+$/g, '')}/`;
-};
-
-/**
- * Detect generated Python lexer tables that should use stricter SCM budgets.
- *
- * @param {string} relPath
- * @returns {boolean}
- */
-const isPythonGeneratedDataPath = (relPath) => {
-  const normalizedPath = normalizeScmPath(relPath);
-  if (!normalizedPath.endsWith('.py') && !normalizedPath.endsWith('.pyi')) return false;
-  if (!normalizedPath.includes('pygments/lexers/')) return false;
-  return normalizedPath.endsWith('_builtins.py') || normalizedPath.endsWith('/_mapping.py');
-};
-
-/**
- * Files that frequently incur SCM command overhead (lockfiles/config/docs search payloads)
- * are routed through tighter timeout caps so they do not dominate queue latency.
- *
- * @param {{relPath?:string,ext?:string,lines?:number}} input
- * @returns {boolean}
- */
-const isScmFastPath = ({ relPath, ext, lines }) => {
-  const normalizedPath = normalizeScmPath(relPath);
-  const boundedPath = toBoundedScmPath(relPath);
-  const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
-  if (SCM_META_FAST_TIMEOUT_EXTS.has(normalizedExt) || SCM_ANNOTATE_FAST_TIMEOUT_EXTS.has(normalizedExt)) {
-    return true;
-  }
-  if (normalizedExt === '.java' && Number.isFinite(Number(lines)) && Number(lines) >= SCM_JAVA_FAST_TIMEOUT_MIN_LINES) {
-    return true;
-  }
-  if (Number.isFinite(Number(lines)) && Number(lines) >= SCM_FAST_TIMEOUT_MAX_LINES) {
-    return true;
-  }
-  const base = normalizedPath.split('/').pop() || '';
-  if (SCM_FAST_TIMEOUT_BASENAMES.has(base)) return true;
-  for (const part of SCM_FAST_TIMEOUT_PATH_PARTS) {
-    if (boundedPath.includes(part)) return true;
-  }
-  if (isHeavyRelationsPath(normalizedPath)) return true;
-  return false;
-};
-
-/**
- * Force strict SCM timeout caps for known high-overhead repository areas.
- *
- * @param {string} relPath
- * @returns {boolean}
- */
-const shouldForceScmTimeoutCaps = (relPath) => {
-  const boundedPath = toBoundedScmPath(relPath);
-  for (const part of SCM_FORCE_TIMEOUT_CAP_PATH_PARTS) {
-    if (boundedPath.includes(part)) return true;
-  }
-  return false;
-};
-
-/**
- * Convert per-task timeout into queue deadline budget with fixed scheduling slack.
- *
- * @param {number} taskTimeoutMs
- * @returns {number}
- */
-const resolveScmTaskDeadlineMs = (taskTimeoutMs) => {
-  const baseTimeout = Number(taskTimeoutMs);
-  if (!Number.isFinite(baseTimeout) || baseTimeout <= 0) return 0;
-  const boundedBase = Math.max(1, Math.floor(baseTimeout));
-  return boundedBase + SCM_TASK_QUEUE_WAIT_SLACK_MS;
-};
-
-/**
- * Identify SCM task timeout errors from queue/deadline wrappers.
- *
- * @param {Error & {code?:string}} error
- * @returns {boolean}
- */
-const isScmTaskTimeoutError = (error) => (
-  error?.code === 'SCM_TASK_TIMEOUT'
-);
-
-/**
- * Identify paths that produce disproportionately expensive relation extraction.
- *
- * @param {string} relPath
- * @returns {boolean}
- */
-const isHeavyRelationsPath = (relPath) => {
-  const boundedPath = toBoundedScmPath(relPath);
-  for (const part of HEAVY_RELATIONS_PATH_PARTS) {
-    if (boundedPath.includes(part)) return true;
-  }
-  return false;
-};
-
-/**
- * Skip heavy relation extraction on oversized files under known expensive paths.
- *
- * @param {{relPath:string,fileBytes:number,fileLines:number}} input
- * @returns {boolean}
- */
-const shouldSkipHeavyRelationsByPath = ({ relPath, fileBytes, fileLines }) => (
-  isHeavyRelationsPath(relPath)
-  && (
-    fileBytes >= HEAVY_RELATIONS_PATH_MIN_BYTES
-    || fileLines >= HEAVY_RELATIONS_PATH_MIN_LINES
-  )
-);
-
-/**
- * Merge scheduler-planned segments with comment/frontmatter extras while keeping
- * the scheduler segment shape stable for VFS lookup and avoiding duplicate slices.
- *
- * @param {{
- *   plannedSegments?: Array<object>|null,
- *   extraSegments?: Array<object>|null,
- *   relKey?: string|null
- * }} input
- * @returns {Array<object>}
- */
-const mergePlannedSegmentsWithExtras = ({ plannedSegments, extraSegments, relKey }) => {
-  const planned = Array.isArray(plannedSegments) ? plannedSegments : [];
-  const extras = Array.isArray(extraSegments) ? extraSegments : [];
-  if (!extras.length) return planned;
-  const merged = finalizeSegments([...planned, ...extras], relKey);
-  const deduped = [];
-  const seen = new Set();
-  for (const segment of merged) {
-    if (!segment) continue;
-    const key = [
-      segment.segmentId || '',
-      segment.start,
-      segment.end,
-      segment.type || '',
-      segment.languageId || '',
-      segment.parentSegmentId || '',
-      segment.embeddingContext || segment.meta?.embeddingContext || ''
-    ].join('|');
-    if (seen.has(key)) continue;
-    seen.add(key);
-    deduped.push(segment);
-  }
-  return deduped;
-};
-
-/**
- * Check per-language tree-sitter max-bytes/max-lines guardrails.
- *
- * @param {{text:string,languageId:string|null,treeSitterConfig:object|null}} input
- * @returns {boolean}
- */
-const exceedsTreeSitterLimits = ({ text, languageId, treeSitterConfig }) => {
-  return exceedsSharedTreeSitterLimits({ text, languageId, treeSitterConfig });
-};
 
 export const processFileCpu = async (context) => {
   const {
@@ -471,75 +160,32 @@ export const processFileCpu = async (context) => {
   let fileLineCount = 0;
   updateCrashStage('start', { size: fileStat?.size || null, ext });
 
-  const baseTreeSitterConfig = fileEntry?.treeSitterDisabled
-    ? { ...(languageOptions?.treeSitter || {}), enabled: false }
-    : languageOptions?.treeSitter;
-  const allowedLanguages = Array.isArray(fileEntry?.treeSitterAllowedLanguages)
-    ? fileEntry.treeSitterAllowedLanguages
-    : null;
-  const treeSitterConfig = allowedLanguages && allowedLanguages.length
-    && baseTreeSitterConfig?.languagePasses === false
-    ? { ...(baseTreeSitterConfig || {}), allowedLanguages }
-    : baseTreeSitterConfig;
-  const primaryLanguageId = languageHint?.id || null;
-  const treeSitterPolicySkipped = shouldSkipTreeSitterPlanningForPath({
+  const {
+    extractedDocumentFile,
+    resolvedSegmentsConfig,
+    treeSitterEnabled,
+    treeSitterLanguagePasses,
+    treeSitterConfigForMode,
+    schedulerPlannedSegments,
+    hasSchedulerPlannedSegments,
+    shouldSerializeLanguageContext,
+    languageContextOptions,
+    primaryLanguageId
+  } = resolveFileParsePolicy({
+    fileEntry,
+    languageOptions,
+    mode,
+    fileHash,
+    treeSitterScheduler,
     relKey,
-    languageId: primaryLanguageId
+    languageHint,
+    normalizedSegmentsConfig,
+    documentExtraction,
+    relationsEnabled,
+    metricsCollector,
+    abs,
+    fileStat
   });
-  const extractedDocumentFile = documentExtraction && typeof documentExtraction === 'object';
-  const resolvedSegmentsConfig = mode === 'extracted-prose' && !extractedDocumentFile
-    ? { ...normalizedSegmentsConfig, onlyExtras: true }
-    : normalizedSegmentsConfig;
-  const treeSitterEnabled = treeSitterConfig?.enabled !== false
-    && mode === 'code'
-    && !treeSitterPolicySkipped;
-  const treeSitterLanguagePasses = treeSitterEnabled && treeSitterConfig?.languagePasses !== false;
-  const treeSitterCacheKey = treeSitterConfig?.cacheKey ?? fileHash ?? null;
-  const treeSitterConfigForMode = treeSitterEnabled
-    ? { ...(treeSitterConfig || {}), cacheKey: treeSitterCacheKey }
-    : { ...(treeSitterConfig || {}), enabled: false, cacheKey: treeSitterCacheKey };
-  let schedulerPlannedSegments = null;
-  if (
-    treeSitterEnabled
-    && treeSitterScheduler
-    && typeof treeSitterScheduler.loadPlannedSegments === 'function'
-  ) {
-    try {
-      schedulerPlannedSegments = treeSitterScheduler.loadPlannedSegments(relKey);
-    } catch {}
-  }
-  const hasSchedulerPlannedSegments = Array.isArray(schedulerPlannedSegments)
-    && schedulerPlannedSegments.length > 0;
-  const contextTreeSitterConfig = treeSitterLanguagePasses
-    ? { ...(treeSitterConfigForMode || {}), enabled: false }
-    : treeSitterConfigForMode;
-  const languageContextOptions = languageOptions && typeof languageOptions === 'object'
-    ? {
-      ...languageOptions,
-      relationsEnabled,
-      metricsCollector,
-      filePath: abs,
-      fileSizeBytes: fileStat?.size ?? null,
-      fileLineCountHint: Number.isFinite(Number(fileEntry?.lines))
-        ? Math.max(0, Math.floor(Number(fileEntry.lines)))
-        : null,
-      // When scheduler chunks are already planned, stage1 can skip language-level
-      // prepare passes and avoid duplicate parser work on large files.
-      skipPrepare: hasSchedulerPlannedSegments && mode === 'code' && relationsEnabled !== true,
-      treeSitter: contextTreeSitterConfig
-    }
-    : {
-      relationsEnabled,
-      metricsCollector,
-      filePath: abs,
-      fileSizeBytes: fileStat?.size ?? null,
-      fileLineCountHint: Number.isFinite(Number(fileEntry?.lines))
-        ? Math.max(0, Math.floor(Number(fileEntry.lines)))
-        : null,
-      skipPrepare: hasSchedulerPlannedSegments && mode === 'code' && relationsEnabled !== true,
-      treeSitter: contextTreeSitterConfig
-    };
-  const shouldSerializeLanguageContext = treeSitterEnabled && treeSitterLanguagePasses === false;
   const runTreeSitter = shouldSerializeLanguageContext ? runTreeSitterSerial : (fn) => fn();
   let lang = null;
   let languageContext = {};
@@ -605,6 +251,7 @@ export const processFileCpu = async (context) => {
   const tokenMode = mode === 'extracted-prose' ? 'prose' : mode;
   const lineIndex = buildLineIndex(text);
   const totalLines = lineIndex.length || 1;
+  const fileBytes = fileStat?.size ?? 0;
   fileLineCount = totalLines;
   const capsByLanguage = resolveFileCaps(fileCaps, ext, lang?.id, mode);
   if (capsByLanguage.maxLines && totalLines > capsByLanguage.maxLines) {
@@ -620,17 +267,13 @@ export const processFileCpu = async (context) => {
       }
     };
   }
-  const skipHeavyRelations = mode === 'code'
-    && relationsEnabled
-    && (
-      (fileStat?.size ?? 0) >= HEAVY_RELATIONS_MAX_BYTES
-      || totalLines >= HEAVY_RELATIONS_MAX_LINES
-      || shouldSkipHeavyRelationsByPath({
-        relPath: relKey,
-        fileBytes: fileStat?.size ?? 0,
-        fileLines: totalLines
-      })
-    );
+  const skipHeavyRelations = shouldSkipHeavyRelations({
+    mode,
+    relationsEnabled,
+    relPath: relKey,
+    fileBytes,
+    fileLines: totalLines
+  });
   const effectiveRelationsEnabled = relationsEnabled && !skipHeavyRelations;
   let rawRelations = null;
   if (mode === 'code' && effectiveRelationsEnabled && lang && typeof lang.buildRelations === 'function') {
@@ -750,91 +393,7 @@ export const processFileCpu = async (context) => {
   if (!skipScmForProseRoute && scmActive && filePosix) {
     const includeChurn = resolvedGitChurnEnabled
       && !scmFastPath
-      && (fileStat?.size ?? 0) <= SCM_CHURN_MAX_BYTES;
-    const supportsScmMetaCache = Boolean(
-      scmMetaCache
-      && typeof scmMetaCache.get === 'function'
-      && typeof scmMetaCache.set === 'function'
-      && typeof scmMetaCache.delete === 'function'
-    );
-    const applyScmMetaResult = (value) => {
-      if (!value || typeof value !== 'object') return;
-      fileGitCommitId = typeof value.fileGitCommitId === 'string'
-        ? value.fileGitCommitId
-        : null;
-      fileGitMeta = value.fileGitMeta && typeof value.fileGitMeta === 'object'
-        ? value.fileGitMeta
-        : {};
-      scmMetaUnavailableReason = typeof value.scmMetaUnavailableReason === 'string'
-        ? value.scmMetaUnavailableReason
-        : null;
-    };
-    const readScmMetaFromProvider = async () => {
-      const result = {
-        fileGitCommitId: null,
-        fileGitMeta: {},
-        scmMetaUnavailableReason: null
-      };
-      if (typeof scmProviderImpl.getFileMeta !== 'function') return result;
-      try {
-        await runScmTaskWithDeadline({
-          label: 'file-meta',
-          timeoutMs: metaTimeoutMs,
-          task: async (taskSignal) => {
-            if (taskSignal?.aborted) return;
-            const fileMeta = await Promise.resolve(scmProviderImpl.getFileMeta({
-              repoRoot: scmRepoRoot,
-              filePosix,
-              timeoutMs: Math.max(0, metaTimeoutMs),
-              includeChurn,
-              signal: taskSignal || undefined
-            }));
-            if (taskSignal?.aborted) return;
-            if (fileMeta && fileMeta.ok !== false) {
-              result.fileGitCommitId = typeof fileMeta.lastCommitId === 'string'
-                ? fileMeta.lastCommitId
-                : null;
-              result.fileGitMeta = {
-                last_modified: fileMeta.lastModifiedAt ?? null,
-                last_author: fileMeta.lastAuthor ?? null,
-                churn: Number.isFinite(fileMeta.churn) ? fileMeta.churn : null,
-                churn_added: Number.isFinite(fileMeta.churnAdded) ? fileMeta.churnAdded : null,
-                churn_deleted: Number.isFinite(fileMeta.churnDeleted) ? fileMeta.churnDeleted : null,
-                churn_commits: Number.isFinite(fileMeta.churnCommits) ? fileMeta.churnCommits : null
-              };
-              return;
-            }
-            const reason = String(fileMeta?.reason || '').toLowerCase();
-            if (reason === 'timeout' || reason === 'unavailable') {
-              result.scmMetaUnavailableReason = reason;
-            }
-          }
-        });
-      } catch (error) {
-        if (isScmTaskTimeoutError(error)) {
-          result.scmMetaUnavailableReason = 'timeout';
-        } else {
-          throw error;
-        }
-      }
-      return result;
-    };
-    const readCachedOrProviderScmMeta = async () => {
-      if (!supportsScmMetaCache) {
-        return readScmMetaFromProvider();
-      }
-      const cacheKey = `${filePosix}|churn:${includeChurn ? '1' : '0'}`;
-      const existing = scmMetaCache.get(cacheKey);
-      if (existing) {
-        return existing;
-      }
-      const pending = readScmMetaFromProvider().catch((error) => {
-        scmMetaCache.delete(cacheKey);
-        throw error;
-      });
-      scmMetaCache.set(cacheKey, pending);
-      return pending;
-    };
+      && fileBytes <= SCM_CHURN_MAX_BYTES;
     const snapshotMeta = (() => {
       if (!scmFileMetaByPath) return null;
       if (typeof scmFileMetaByPath.get === 'function') {
@@ -899,7 +458,7 @@ export const processFileCpu = async (context) => {
         annotateTimeoutMs = Math.min(annotateTimeoutMs, annotateCapMs);
       }
       const withinAnnotateCap = maxAnnotateBytes == null
-        || (fileStat?.size ?? 0) <= maxAnnotateBytes;
+        || fileBytes <= maxAnnotateBytes;
       if (withinAnnotateCap) {
         const timeoutMs = Math.max(0, annotateTimeoutMs);
         try {
@@ -1047,12 +606,6 @@ export const processFileCpu = async (context) => {
     && treeSitterScheduler
     && typeof treeSitterScheduler.loadChunks === 'function';
   const treeSitterStrict = treeSitterConfigForMode?.strict === true;
-  const schedulerLanguageIds = treeSitterScheduler?.scheduledLanguageIds;
-  const schedulerLanguageSet = schedulerLanguageIds instanceof Set
-    ? schedulerLanguageIds
-    : (Array.isArray(schedulerLanguageIds)
-      ? new Set(schedulerLanguageIds.filter((languageId) => typeof languageId === 'string' && languageId))
-      : null);
   let segments;
   let segmentsFromSchedulerPlan = false;
   updateCrashStage('segments');
@@ -1140,7 +693,7 @@ export const processFileCpu = async (context) => {
     throw new Error(`[tree-sitter:schedule] Tree-sitter enabled but scheduler is missing for ${relKey}.`);
   }
   let sc = [];
-  const chunkingDiagnostics = {
+  let chunkingDiagnostics = {
     treeSitterEnabled,
     schedulerRequired: mustUseTreeSitterScheduler,
     scheduledSegmentCount: 0,
@@ -1153,254 +706,26 @@ export const processFileCpu = async (context) => {
   };
   updateCrashStage('chunking');
   try {
-    const fallbackSegments = [];
-    const scheduled = [];
-    let schedulerMissingCount = 0;
-    let schedulerDegradedCount = 0;
-    let codeFallbackSegmentCount = 0;
-    const treeSitterOptions = { treeSitter: treeSitterConfigForMode || {} };
-    for (const segment of segments || []) {
-      if (!segment) continue;
-      const segmentTokenMode = resolveSegmentTokenMode(segment);
-      if (!shouldIndexSegment(segment, segmentTokenMode, tokenMode)) continue;
-
-      if (!mustUseTreeSitterScheduler || segmentTokenMode !== 'code') {
-        fallbackSegments.push(segment);
-        if (segmentTokenMode === 'code') codeFallbackSegmentCount += 1;
-        continue;
-      }
-
-      const segmentExt = resolveSegmentExt(ext, segment);
-      const rawLanguageId = segment.languageId || lang?.id || null;
-      const resolvedLang = resolveTreeSitterLanguageForSegment(rawLanguageId, segmentExt);
-      const schedulerSupportsLanguage = !schedulerLanguageSet || schedulerLanguageSet.has(resolvedLang);
-      const canUseTreeSitter = resolvedLang
-        && TREE_SITTER_LANG_IDS.has(resolvedLang)
-        && isTreeSitterSchedulerLanguage(resolvedLang)
-        && schedulerSupportsLanguage
-        && isTreeSitterEnabled(treeSitterOptions, resolvedLang);
-      if (!canUseTreeSitter) {
-        fallbackSegments.push(segment);
-        codeFallbackSegmentCount += 1;
-        continue;
-      }
-
-      const segmentText = text.slice(segment.start, segment.end);
-      if (exceedsTreeSitterLimits({ text: segmentText, languageId: resolvedLang, treeSitterConfig: treeSitterConfigForMode })) {
-        fallbackSegments.push(segment);
-        codeFallbackSegmentCount += 1;
-        continue;
-      }
-
-      const segmentUid = segment.segmentUid || null;
-      const isFullFile = segment.start === 0 && segment.end === text.length;
-      if (!isFullFile && !segmentUid) {
-        logLine?.(
-          '[tree-sitter:schedule] missing segmentUid for scheduled segment',
-          {
-            kind: 'error',
-            mode,
-            stage: 'processing',
-            file: relKey,
-            substage: 'chunking',
-            fileOnlyLine:
-              `[tree-sitter:schedule] missing segmentUid for ${relKey} (${segment.start}-${segment.end})`
-          }
-        );
-        throw new Error(`[tree-sitter:schedule] Missing segmentUid for ${relKey} (${segment.start}-${segment.end}).`);
-      }
-      const virtualPath = buildVfsVirtualPath({
-        containerPath: relKey,
-        segmentUid,
-        effectiveExt: segmentExt
-      });
-      scheduled.push({
-        virtualPath,
-        label: `${resolvedLang}:${segment.start}-${segment.end}`,
-        segment
-      });
-    }
-
-    const schedulerLoadOptions = { consume: false };
-    const schedulerLoadChunksBatch = treeSitterScheduler
-      && typeof treeSitterScheduler.loadChunksBatch === 'function'
-      ? treeSitterScheduler.loadChunksBatch.bind(treeSitterScheduler)
-      : null;
-    const schedulerLoadChunk = treeSitterScheduler
-      && typeof treeSitterScheduler.loadChunks === 'function'
-      ? treeSitterScheduler.loadChunks.bind(treeSitterScheduler)
-      : null;
-    const schedulerDegradedCheck = treeSitterScheduler
-      && typeof treeSitterScheduler.isDegradedVirtualPath === 'function'
-      ? treeSitterScheduler.isDegradedVirtualPath.bind(treeSitterScheduler)
-      : () => false;
-    const schedulerLookupItems = [];
-    for (const item of scheduled) {
-      if (schedulerDegradedCheck(item.virtualPath)) {
-        fallbackSegments.push(item.segment);
-        schedulerDegradedCount += 1;
-        codeFallbackSegmentCount += 1;
-        continue;
-      }
-      schedulerLookupItems.push(item);
-    }
-    updateCrashStage('chunking:scheduler:plan', {
-      scheduledSegmentCount: scheduled.length,
-      schedulerLookupItems: schedulerLookupItems.length,
-      fallbackSegmentCount: fallbackSegments.length,
-      schedulerDegradedCount
+    const chunkingResult = await chunkWithScheduler({
+      segments,
+      tokenMode,
+      mustUseTreeSitterScheduler,
+      treeSitterEnabled,
+      treeSitterScheduler,
+      treeSitterConfigForMode,
+      treeSitterStrict,
+      text,
+      ext,
+      relKey,
+      mode,
+      lang,
+      segmentContext,
+      lineIndex,
+      logLine,
+      updateCrashStage
     });
-    const batchChunks = schedulerLookupItems.length > 0
-      && schedulerLoadChunksBatch
-      ? await (async () => {
-        const virtualPaths = schedulerLookupItems.map((item) => item.virtualPath);
-        updateCrashStage('chunking:scheduler:load-batch:start', {
-          itemCount: virtualPaths.length
-        });
-        const chunks = await schedulerLoadChunksBatch(virtualPaths, schedulerLoadOptions);
-        updateCrashStage('chunking:scheduler:load-batch:done', {
-          itemCount: virtualPaths.length,
-          loadedCount: Array.isArray(chunks) ? chunks.length : null
-        });
-        return chunks;
-      })()
-      : null;
-    if (Array.isArray(batchChunks) && batchChunks.length === schedulerLookupItems.length) {
-      for (let i = 0; i < schedulerLookupItems.length; i += 1) {
-        const item = schedulerLookupItems[i];
-        const chunks = batchChunks[i];
-        if (!Array.isArray(chunks) || !chunks.length) {
-          const hasScheduledEntry = treeSitterScheduler?.index instanceof Map
-            ? treeSitterScheduler.index.has(item.virtualPath)
-            : null;
-          if (!treeSitterStrict && hasScheduledEntry === false) {
-            fallbackSegments.push(item.segment);
-            schedulerMissingCount += 1;
-            codeFallbackSegmentCount += 1;
-            continue;
-          }
-          logLine?.(
-            '[tree-sitter:schedule] missing scheduled chunks',
-            {
-              kind: 'error',
-              mode,
-              stage: 'processing',
-              file: relKey,
-              substage: 'chunking',
-              fileOnlyLine: `[tree-sitter:schedule] missing scheduled chunks for ${relKey}: ${item.label}`
-            }
-          );
-          throw new Error(`[tree-sitter:schedule] Missing scheduled chunks for ${relKey}: ${item.label}`);
-        }
-        sc.push(...chunks);
-      }
-    } else {
-      const loadChunk = schedulerLoadChunk
-        ? (virtualPath) => schedulerLoadChunk(virtualPath, schedulerLoadOptions)
-        : null;
-      for (const item of schedulerLookupItems) {
-        if (!loadChunk) {
-          fallbackSegments.push(item.segment);
-          codeFallbackSegmentCount += 1;
-          continue;
-        }
-        updateCrashStage('chunking:scheduler:load-one:start', {
-          label: item.label,
-          virtualPath: item.virtualPath
-        });
-        const chunks = await loadChunk(item.virtualPath);
-        updateCrashStage('chunking:scheduler:load-one:done', {
-          label: item.label,
-          virtualPath: item.virtualPath,
-          chunkCount: Array.isArray(chunks) ? chunks.length : null
-        });
-        if (!Array.isArray(chunks) || !chunks.length) {
-          const hasScheduledEntry = treeSitterScheduler?.index instanceof Map
-            ? treeSitterScheduler.index.has(item.virtualPath)
-            : null;
-          if (!treeSitterStrict && hasScheduledEntry === false) {
-            fallbackSegments.push(item.segment);
-            schedulerMissingCount += 1;
-            codeFallbackSegmentCount += 1;
-            continue;
-          }
-          logLine?.(
-            '[tree-sitter:schedule] missing scheduled chunks',
-            {
-              kind: 'error',
-              mode,
-              stage: 'processing',
-              file: relKey,
-              substage: 'chunking',
-              fileOnlyLine: `[tree-sitter:schedule] missing scheduled chunks for ${relKey}: ${item.label}`
-            }
-          );
-          throw new Error(`[tree-sitter:schedule] Missing scheduled chunks for ${relKey}: ${item.label}`);
-        }
-        sc.push(...chunks);
-      }
-    }
-
-    if (schedulerMissingCount > 0) {
-      logLine?.(
-        `[tree-sitter:schedule] scheduler missed ${schedulerMissingCount} segment(s); using fallback chunking.`,
-        {
-          kind: 'warn',
-          mode,
-          stage: 'processing',
-          file: relKey,
-          substage: 'chunking',
-          fileOnlyLine:
-            `[tree-sitter:schedule] scheduler missing ${schedulerMissingCount} segment(s); using fallback chunking for ${relKey}`
-        }
-      );
-    }
-    if (schedulerDegradedCount > 0) {
-      logLine?.(
-        `[tree-sitter:schedule] parser crash degraded ${schedulerDegradedCount} scheduled segment(s); using fallback chunking.`,
-        {
-          kind: 'warning',
-          mode,
-          stage: 'processing',
-          file: relKey,
-          substage: 'chunking',
-          fileOnlyLine:
-            `[tree-sitter:schedule] parser degraded ${schedulerDegradedCount} segment(s); using fallback chunking for ${relKey}`
-        }
-      );
-    }
-    chunkingDiagnostics.scheduledSegmentCount = scheduled.length;
-    chunkingDiagnostics.fallbackSegmentCount = fallbackSegments.length;
-    chunkingDiagnostics.codeFallbackSegmentCount = codeFallbackSegmentCount;
-    chunkingDiagnostics.schedulerMissingCount = schedulerMissingCount;
-    chunkingDiagnostics.schedulerDegradedCount = schedulerDegradedCount;
-
-    if (fallbackSegments.length) {
-      chunkingDiagnostics.usedHeuristicChunking = true;
-      chunkingDiagnostics.usedHeuristicCodeChunking = codeFallbackSegmentCount > 0;
-      updateCrashStage('chunking:fallback:start', {
-        fallbackSegmentCount: fallbackSegments.length,
-        codeFallbackSegmentCount
-      });
-      const fallbackChunks = chunkSegments({
-        text,
-        ext,
-        relPath: relKey,
-        mode,
-        segments: fallbackSegments,
-        lineIndex,
-        context: segmentContext
-      });
-      if (Array.isArray(fallbackChunks) && fallbackChunks.length) sc.push(...fallbackChunks);
-      updateCrashStage('chunking:fallback:done', {
-        fallbackSegmentCount: fallbackSegments.length,
-        fallbackChunkCount: Array.isArray(fallbackChunks) ? fallbackChunks.length : 0
-      });
-    }
-
-    if (sc.length > 1) {
-      sc.sort((a, b) => (a.start - b.start) || (a.end - b.end));
-    }
+    sc = chunkingResult.chunks;
+    chunkingDiagnostics = chunkingResult.chunkingDiagnostics;
   } catch (err) {
     if (languageOptions?.skipOnParseError) {
       return {
