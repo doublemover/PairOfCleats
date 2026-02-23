@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T09:33:52.1516947-05:00
+  Extracted pending-queue drain/clear helper from `src/shared/concurrency/scheduler-core.js` into `src/shared/concurrency/scheduler-core-clear-queue.js`, preserving rejection accounting while switching to in-place pending-array clearing to avoid high-backlog splice allocations; added focused coverage in `tests/shared/concurrency/scheduler-core-clear-queue.test.js`.
 - 2026-02-23T09:32:10.7016089-05:00
   Integrated parallel worker follow-up for `tools/usr/generate-usr-matrix-baselines/datasets.mjs`: extracted language/framework static catalogs into `datasets-language-families.mjs` and `datasets-framework-families.mjs`, removed redundant builder-level sorting in `builders.mjs`, and added parity/order coverage in `datasets-catalogs.test.mjs` plus `builders-parity.test.mjs`.
 - 2026-02-23T09:32:01.0666482-05:00

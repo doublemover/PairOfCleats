@@ -26,6 +26,7 @@ import {
 import { resolveSchedulerSystemSignals } from './scheduler-core-system-signals.js';
 import { collectSchedulerQueuePressure } from './scheduler-core-queue-pressure.js';
 import { pickNextSchedulerQueue } from './scheduler-core-queue-selection.js';
+import { clearSchedulerQueuePending } from './scheduler-core-clear-queue.js';
 import {
   buildSchedulerQueueStatsSnapshot,
   buildSchedulerAdaptiveSurfaceStats,
@@ -865,22 +866,12 @@ export function createBuildScheduler(input = {}) {
 
   const clearQueue = (queueName, reason = 'scheduler queue cleared') => {
     const queue = queues.get(queueName);
-    if (!queue || !queue.pending.length) return 0;
-    const error = new Error(reason);
-    const cleared = queue.pending.splice(0, queue.pending.length);
-    let clearedBytes = 0;
-    for (const item of cleared) {
-      clearedBytes += normalizeByteCount(item?.bytes);
-      queue.stats.rejected += 1;
-      counters.rejected += 1;
-      counters.rejectedByReason.cleared += 1;
-      try {
-        item.reject(error);
-      } catch {}
-    }
-    queue.pendingBytes = Math.max(0, normalizeByteCount(queue.pendingBytes) - clearedBytes);
-    queue.pendingSearchCursor = 0;
-    return cleared.length;
+    return clearSchedulerQueuePending({
+      queue,
+      reason,
+      normalizeByteCount,
+      counters
+    });
   };
 
   const stats = () => {
