@@ -75,6 +75,8 @@ Note:
   Optimized `src/shared/artifact-io/json.js` hot fallback reads by removing preflight `existsSync` probes in `readJsonFile`/`readJsonLinesEach` and preserving deterministic fallback/error semantics via explicit missing-read classification.
 - 2026-02-23T05:07:52.0764099-05:00
   Split scheduler telemetry capture out of `src/shared/concurrency/scheduler-core.js` into `src/shared/concurrency/scheduler-core-telemetry-capture.js`, reducing core-module surface area and preserving queue/trace snapshot behavior with explicit JSDoc on concurrency-sensitive capture paths.
+- 2026-02-23T05:08:20.0964593-05:00
+  Decomposed `tools/tui/supervisor.js` into focused modules (`constants`, `protocol-flow`, `request-utils`, `progress-decoder`, `watchdog`, `artifacts`, `jobs`) and kept the top-level supervisor as orchestration-only glue, including concurrent artifact stat probing for lower end-of-run overhead.
 
 ## Architectural assessment (what needs to change)
 
