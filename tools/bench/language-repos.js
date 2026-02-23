@@ -862,8 +862,10 @@ for (const task of tasks) {
               fileOnlyLine: `[clone] mirror ${mirrorClone.mirrorAction} ${task.repo} -> ${repoPath} (${mirrorClone.mirrorPath})`
             });
           } else if (mirrorClone.attempted) {
+            const mirrorAction = mirrorClone.mirrorAction || 'mirror-failed';
+            const mirrorReason = mirrorClone.reason || 'unknown';
             appendLog(
-              `[clone] mirror unavailable for ${repoLabel}; falling back to direct clone (${mirrorClone.reason || 'unknown'}).`,
+              `[clone] mirror unavailable for ${repoLabel}; falling back to direct clone (${mirrorAction}: ${mirrorReason}).`,
               'warn'
             );
             try {
