@@ -92,24 +92,12 @@ for (const action of actions) {
   const env = action.env ? { ...process.env, ...action.env } : process.env;
   const spawnOpts = {
     env,
-    stdio: argv.json ? ['inherit', 'pipe', 'pipe'] : 'inherit',
+    // Keep JSON mode machine-parseable: suppress child stdout and stream
+    // installer diagnostics through stderr only.
+    stdio: argv.json ? ['inherit', 'ignore', 'inherit'] : 'inherit',
     windowsHide: true
   };
-  if (argv.json) {
-    spawnOpts.encoding = 'utf8';
-    // Keep JSON mode machine-parseable by capturing child stdout/stderr while
-    // avoiding `ENOBUFS` on verbose installers.
-    spawnOpts.maxBuffer = 1024 * 1024 * 1024;
-  }
   const result = spawnSync(action.cmd, action.args, spawnOpts);
-  if (argv.json) {
-    if (result.stdout) {
-      process.stderr.write(result.stdout);
-    }
-    if (result.stderr) {
-      process.stderr.write(result.stderr);
-    }
-  }
   if (typeof result.signal === 'string' && result.signal.trim()) {
     exitLikeCommandResult({ status: null, signal: result.signal });
   }
