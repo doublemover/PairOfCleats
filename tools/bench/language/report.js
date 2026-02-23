@@ -436,6 +436,33 @@ const buildRankedRemediationSuggestions = ({ severity }) => {
     }));
 };
 
+const resolveTopMissTaxonomyLabels = (summary, maxLabels = 6) => {
+  const source = summary?.missTaxonomy && typeof summary.missTaxonomy === 'object'
+    ? summary.missTaxonomy
+    : null;
+  if (!source) return [];
+  const counts = new Map();
+  const appendCounts = (bucket) => {
+    if (!bucket || typeof bucket !== 'object') return;
+    for (const labels of Object.values(bucket)) {
+      if (!labels || typeof labels !== 'object') continue;
+      for (const [rawLabel, rawCount] of Object.entries(labels)) {
+        const label = typeof rawLabel === 'string' ? rawLabel.trim() : '';
+        if (!label) continue;
+        const count = Number(rawCount);
+        if (!Number.isFinite(count) || count <= 0) continue;
+        counts.set(label, (counts.get(label) || 0) + count);
+      }
+    }
+  };
+  appendCounts(source.lowHitByBackend);
+  appendCounts(source.byBackend);
+  return Array.from(counts.entries())
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, Math.max(1, Math.floor(Number(maxLabels) || 6)))
+    .map(([label, count]) => ({ label, count }));
+};
+
 const buildRemediationSummary = (tasks) => {
   const remediationRows = [];
   const aggregateSuggestions = new Map();
@@ -476,6 +503,7 @@ const buildRemediationSummary = (tasks) => {
       queryWallMsPerSearch: roundValue(severity.queryWallMsPerSearch, 2),
       queryWallMsPerQuery: roundValue(severity.queryWallMsPerQuery, 2),
       severityScore: roundValue(severity.severityScore, 3),
+      missTaxonomyTop: resolveTopMissTaxonomyLabels(entry.summary),
       rankedSuggestions
     });
   }

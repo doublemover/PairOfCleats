@@ -79,9 +79,21 @@ const toFiniteNumber = (value) => {
 
 export const getBestHitRate = (summary) => {
   if (!summary || typeof summary !== 'object') return null;
-  const candidates = Object.values(summary.hitRate || {})
-    .map(toFiniteRate)
-    .filter(Number.isFinite);
+  const candidates = [];
+  const collectRateValues = (value) => {
+    if (!value || typeof value !== 'object') return;
+    for (const candidate of Object.values(value)) {
+      const normalized = toFiniteRate(candidate);
+      if (Number.isFinite(normalized)) candidates.push(normalized);
+    }
+  };
+  collectRateValues(summary.hitRate);
+  collectRateValues(summary.hitRates);
+  collectRateValues(summary.hitRateByBackend);
+  for (const field of ['hitRateMemory', 'hitRateSqlite', 'hitRateSqliteFts']) {
+    const normalized = toFiniteRate(summary?.[field]);
+    if (Number.isFinite(normalized)) candidates.push(normalized);
+  }
   if (!candidates.length) return null;
   return Math.max(...candidates);
 };
@@ -91,7 +103,12 @@ export const computeLowHitSeverity = ({
   lowHitThreshold = 0.82
 } = {}) => {
   const bestHitRate = getBestHitRate(summary);
-  const resultCountAvg = Object.values(summary?.resultCountAvg || {})
+  const resultCountAvg = [
+    ...Object.values(summary?.resultCountAvg || {}),
+    summary?.resultCountMemory,
+    summary?.resultCountSqlite,
+    summary?.resultCountSqliteFts
+  ]
     .map(toFiniteNumber)
     .filter(Number.isFinite);
   const avgResultCount = resultCountAvg.length
