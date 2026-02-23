@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T07:05:10.1004247-05:00
+  Completed runtime follow-up split extracting language init normalization and SCM annotate-policy initialization from `src/index/build/runtime/runtime.js` into `runtime-language-init.js` and enhanced `runtime-scm-init.js`, with dedicated runtime policy tests (`runtime-language-init.test.js`, `runtime-scm-policy.test.js`).
 - 2026-02-23T07:04:05.0228554-05:00
   Extracted post-load sparse-fallback ANN capability guard from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/sparse-fallback-guard.js`, centralizing capability-missing guardrail logic after index load.
 - 2026-02-23T07:03:11.0000000-05:00
