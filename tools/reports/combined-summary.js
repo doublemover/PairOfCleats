@@ -68,11 +68,12 @@ const resolveSqlitePathsForRoot = () => resolveSqlitePaths(root, userConfig);
  * @returns {void}
  */
 function runNode(args, label) {
+  const stdio = argv.json ? ['ignore', 'ignore', 'inherit'] : 'inherit';
   runSubprocessOrExit({
     command: process.execPath,
     args,
     label,
-    stdio: 'inherit',
+    stdio,
     cwd: root,
     env: baseEnv
   });
