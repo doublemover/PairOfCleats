@@ -23,7 +23,7 @@ await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(repoRoot, { recursive: true });
 await fsPromises.writeFile(path.join(repoRoot, 'index.js'), 'export const answer = 42;\n');
 
-applyTestEnv({
+const testEnv = applyTestEnv({
   cacheRoot: tempRoot,
   embeddings: 'stub',
   testConfig: {
@@ -64,7 +64,7 @@ applyTestEnv({
 const buildResult = spawnSync(
   process.execPath,
   [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot],
-  { cwd: repoRoot, env: process.env, stdio: 'inherit' }
+  { cwd: repoRoot, env: testEnv, stdio: 'inherit' }
 );
 if (buildResult.status !== 0) {
   console.error('embeddings scheduler backpressure test failed: build_index failed');

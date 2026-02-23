@@ -8,7 +8,7 @@ import Ajv from 'ajv';
 
 import { applyTestEnv } from '../../../helpers/test-env.js';
 
-applyTestEnv({ testing: '1' });
+const testEnv = applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
 const ajv = new Ajv({ allErrors: true, strict: false });
@@ -42,7 +42,7 @@ for (const entry of matrix) {
   const result = spawnSync(
     process.execPath,
     [entry.script, ...entry.args],
-    { cwd: root, env: process.env, encoding: 'utf8' }
+    { cwd: root, env: testEnv, encoding: 'utf8' }
   );
   if (result.status !== 0) {
     console.error(result.stdout || '');

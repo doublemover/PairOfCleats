@@ -7,7 +7,7 @@ import { applyTestEnv } from '../../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
 
-applyTestEnv({ testing: '1' });
+const testEnv = applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'bench-runner-utilization-cap');
@@ -34,7 +34,7 @@ const benchRunner = path.join(root, 'tools', 'bench', 'bench-runner.js');
 const result = spawnSync(
   process.execPath,
   [benchRunner, '--scripts', fixtureScript, '--timeout-ms', '2000'],
-  { cwd: root, env: process.env, encoding: 'utf8' }
+  { cwd: root, env: testEnv, encoding: 'utf8' }
 );
 
 if (result.status !== 0) {

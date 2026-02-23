@@ -8,7 +8,7 @@ import { applyTestEnv } from '../../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
 
-applyTestEnv({ testing: '1' });
+const testEnv = applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'bench-guardrails-contract');
@@ -65,7 +65,7 @@ const passing = spawnSync(
     '10',
     '--json'
   ],
-  { cwd: root, env: process.env, encoding: 'utf8' }
+  { cwd: root, env: testEnv, encoding: 'utf8' }
 );
 if (passing.status !== 0) {
   console.error(passing.stdout || '');
@@ -85,7 +85,7 @@ const failing = spawnSync(
     '80',
     '--json'
   ],
-  { cwd: root, env: process.env, encoding: 'utf8' }
+  { cwd: root, env: testEnv, encoding: 'utf8' }
 );
 assert.equal(failing.status, 1, 'expected guardrails failure exit code');
 const failPayload = JSON.parse(String(failing.stdout || '{}'));

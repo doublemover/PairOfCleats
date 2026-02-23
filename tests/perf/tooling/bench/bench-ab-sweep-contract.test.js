@@ -8,7 +8,7 @@ import { applyTestEnv } from '../../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
 
-applyTestEnv({ testing: '1' });
+const testEnv = applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'bench-ab-sweep-contract');
@@ -61,7 +61,7 @@ const result = spawnSync(
     '--write-concurrency',
     '2,3'
   ],
-  { cwd: root, env: process.env, encoding: 'utf8' }
+  { cwd: root, env: testEnv, encoding: 'utf8' }
 );
 
 if (result.status !== 0) {

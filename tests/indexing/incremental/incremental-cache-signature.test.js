@@ -19,14 +19,14 @@ await fsPromises.mkdir(cacheRoot, { recursive: true });
 const filePath = path.join(repoRoot, 'src.js');
 await fsPromises.writeFile(filePath, 'function alpha() { return 1; }\n');
 
-const baseEnv = {
-  ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub',
-  PAIROFCLEATS_WORKER_POOL: 'off'
-};
-applyTestEnv();
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+const buildTestEnv = (testConfig) => applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  testConfig: testConfig ?? null,
+  extraEnv: {
+    PAIROFCLEATS_WORKER_POOL: 'off'
+  }
+});
 
 const runBuild = (label, testConfig) => {
   const result = spawnSync(
@@ -34,9 +34,7 @@ const runBuild = (label, testConfig) => {
     [path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--incremental', '--repo', repoRoot],
     {
       cwd: repoRoot,
-      env: testConfig
-        ? { ...baseEnv, PAIROFCLEATS_TEST_CONFIG: JSON.stringify(testConfig) }
-        : baseEnv,
+      env: buildTestEnv(testConfig),
       stdio: 'inherit'
     }
   );
@@ -49,7 +47,7 @@ const runBuild = (label, testConfig) => {
 runBuild('initial build', { indexing: { lint: false } });
 runBuild('cache build', { indexing: { lint: false } });
 
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+applyTestEnv({ cacheRoot, embeddings: 'stub' });
 const userConfig = loadUserConfig(repoRoot);
 const codeDir = getIndexDir(repoRoot, 'code', userConfig);
 const fileListsPath = path.join(codeDir, '.filelists.json');
@@ -76,4 +74,3 @@ if (!rebuildEntry || rebuildEntry.cached === true) {
 }
 
 console.log('incremental cache signature test passed');
-

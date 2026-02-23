@@ -42,7 +42,7 @@ const baseConfig = {
 
 const runBuild = async (label, schedulerEnabled) => {
   const cacheRoot = path.join(tempRoot, label);
-  applyTestEnv({
+  const testEnv = applyTestEnv({
     cacheRoot,
     embeddings: 'off',
     testConfig: {
@@ -63,7 +63,7 @@ const runBuild = async (label, schedulerEnabled) => {
   const result = spawnSync(
     process.execPath,
     [path.join(root, 'build_index.js'), '--repo', repoRoot, '--stub-embeddings', '--scm-provider', 'none'],
-    { cwd: repoRoot, env: process.env, stdio: 'inherit' }
+    { cwd: repoRoot, env: testEnv, stdio: 'inherit' }
   );
   if (result.status !== 0) {
     console.error(`scheduler output regression test failed: build_index ${label} failed`);

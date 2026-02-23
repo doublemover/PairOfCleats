@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import { applyTestEnv } from '../../helpers/test-env.js';
 
-applyTestEnv({ testing: '1' });
+const testEnv = applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
 const benchScript = path.join(root, 'tools', 'bench', 'index', 'tree-sitter-load.js');
@@ -23,7 +23,7 @@ const runBenchPayload = () => {
       '1',
       '--json'
     ],
-    { cwd: root, env: process.env, encoding: 'utf8' }
+    { cwd: root, env: testEnv, encoding: 'utf8' }
   );
   if (result.status !== 0) {
     console.error(result.stdout || '');

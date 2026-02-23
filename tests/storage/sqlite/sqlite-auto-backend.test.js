@@ -24,19 +24,21 @@ export function greet(name) {
 `;
 await fsPromises.writeFile(path.join(tempRoot, 'sample.js'), sampleCode);
 
-const baseEnv = {
-  ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
-applyTestEnv();
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+const buildTestEnv = (testConfig = null) => applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  testConfig: testConfig ?? null,
+  extraEnv: {
+    PAIROFCLEATS_WORKER_POOL: 'off'
+  }
+});
 
 const run = (args, label, config = null) => {
-  const env = { ...baseEnv };
-  if (config) {
-    env.PAIROFCLEATS_TEST_CONFIG = JSON.stringify(config);
-  }
-  const result = spawnSync(process.execPath, args, { cwd: tempRoot, env, encoding: 'utf8' });
+  const result = spawnSync(process.execPath, args, {
+    cwd: tempRoot,
+    env: buildTestEnv(config),
+    encoding: 'utf8'
+  });
   if (result.status !== 0) {
     console.error(`Failed: ${label}`);
     if (result.stderr) console.error(result.stderr.trim());
@@ -97,4 +99,3 @@ if (backendD !== 'memory') {
 }
 
 console.log('SQLite auto backend test passed');
-

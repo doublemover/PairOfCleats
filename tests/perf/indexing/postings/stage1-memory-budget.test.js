@@ -35,7 +35,7 @@ await fsPromises.writeFile(path.join(repoRoot, 'src', 'big.js'), `${bigLines}\n`
 
 const maxHeapFraction = 0.0001;
 
-applyTestEnv({
+const testEnv = applyTestEnv({
   cacheRoot: tempRoot,
   embeddings: 'stub',
   testConfig: {
@@ -85,7 +85,7 @@ const result = spawnSync(
     '--progress',
     'off'
   ],
-  { cwd: repoRoot, env: process.env, encoding: 'utf8' }
+  { cwd: repoRoot, env: testEnv, encoding: 'utf8' }
 );
 
 if (result.status !== 0) {

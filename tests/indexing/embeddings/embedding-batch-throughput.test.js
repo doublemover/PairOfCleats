@@ -5,7 +5,7 @@ import path from 'node:path';
 import { runBatched } from '../../../tools/build/embeddings/embed.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
-applyTestEnv({ testing: '1' });
+const testEnv = applyTestEnv({ testing: '1' });
 
 const texts = Array.from({ length: 100 }, (_, i) => `t${i}`);
 let calls = 0;
@@ -43,7 +43,7 @@ const result = spawnSync(
   ],
   {
     cwd: root,
-    env: process.env,
+    env: testEnv,
     encoding: 'utf8'
   }
 );
