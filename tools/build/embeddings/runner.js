@@ -139,17 +139,7 @@ const COMPACT_SQLITE_SCRIPT = path.join(EMBEDDINGS_TOOLS_DIR, '..', 'compact-sql
 const DEFAULT_EMBEDDINGS_CHUNK_META_MAX_BYTES = 512 * 1024 * 1024;
 const DEFAULT_EMBEDDINGS_PROGRESS_HEARTBEAT_MS = 1500;
 const DEFAULT_EMBEDDINGS_FILE_PARALLELISM = 2;
-const DEFAULT_CROSS_FILE_CHUNK_DEDUPE_MAX_ENTRIES = 200000;
-const DEFAULT_EMBEDDINGS_SOURCE_HASH_CACHE_MAX_ENTRIES = 200000;
-const DEFAULT_EMBEDDINGS_CHUNK_META_RETRY_CEILING_BYTES = 1024 * 1024 * 1024;
-const DEFAULT_EMBEDDINGS_TEXT_REUSE_CACHE_ENTRIES = 20000;
-const DEFAULT_EMBEDDINGS_TEXT_REUSE_MAX_TEXT_CHARS = 4096;
-const DEFAULT_EMBEDDINGS_PERSISTENT_TEXT_CACHE_MAX_ENTRIES = 500000;
-const DEFAULT_EMBEDDINGS_BATCH_TOKEN_MULTIPLIER = 256;
-const DEFAULT_EMBEDDINGS_CHARS_PER_TOKEN = 4;
-const DEFAULT_EMBEDDINGS_IN_FLIGHT_MAX_ENTRIES = 200000;
-const DEFAULT_EMBEDDINGS_ADAPTIVE_FILE_PARALLELISM_STEP_MS = 500;
-const DEFAULT_EMBEDDINGS_ADAPTIVE_FILE_PARALLELISM_MAX_MULTIPLIER = 2;
+const DEFAULT_EMBEDDINGS_BUNDLE_REFRESH_PARALLELISM = 2;
 
 /**
  * @typedef {object} RefreshIncrementalBundlesResult
@@ -224,6 +214,26 @@ const resolveEmbeddingsFileParallelism = ({
   if (configured) return configured;
   const tokenDriven = coercePositiveIntMinOne(computeTokensTotal);
   return tokenDriven || DEFAULT_EMBEDDINGS_FILE_PARALLELISM;
+};
+
+/**
+ * Resolve per-bundle concurrency used when refreshing incremental stage-3
+ * embedding payloads.
+ *
+ * @param {{indexingConfig:object,ioTokensTotal:number|null}} input
+ * @returns {number}
+ */
+const resolveEmbeddingsBundleRefreshParallelism = ({
+  indexingConfig,
+  ioTokensTotal
+}) => {
+  const configured = coercePositiveIntMinOne(indexingConfig?.embeddings?.bundleRefreshParallelism);
+  if (configured) return configured;
+  const tokenDriven = coercePositiveIntMinOne(ioTokensTotal);
+  if (tokenDriven) {
+    return Math.max(1, Math.min(8, tokenDriven));
+  }
+  return DEFAULT_EMBEDDINGS_BUNDLE_REFRESH_PARALLELISM;
 };
 
 /**
@@ -392,6 +402,7 @@ const shouldUseInlineHnswBuilders = ({ enabled, hnswIsolate, samplingActive }) =
  *   embeddingMode:string,
  *   embeddingIdentityKey:string|null,
  *   lowYieldBailout:object,
+ *   parallelism?:number,
  *   scheduleIo:(worker:()=>Promise<any>)=>Promise<any>,
  *   log:(line:string)=>void,
  *   warn:(line:string)=>void
@@ -406,7 +417,7 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
   embeddingMode,
   embeddingIdentityKey,
   lowYieldBailout,
-  onProgress = null,
+  parallelism = 1,
   scheduleIo,
   log,
   warn
@@ -494,42 +505,56 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
   };
   emitProgress({ force: true });
 
-  for (const [filePath, entry] of manifestEntries) {
-    if (lowYieldBailoutTriggered) break;
+  const refreshParallelism = coercePositiveIntMinOne(parallelism) || 1;
+
+  /**
+   * Record warmup mapping yield for deterministic low-yield bailout sampling.
+   *
+   * @param {{normalizedFile:string,chunkMapping:any}} input
+   * @returns {void}
+   */
+  const observeWarmupMapping = ({ normalizedFile, chunkMapping }) => {
+    if (!lowYieldEnabled || lowYieldDecisionMade || warmupSampleSize <= 0) return;
+    if (!sampledWarmupFiles.has(normalizedFile) || observedWarmupFiles.has(normalizedFile)) return;
+    observedWarmupFiles.add(normalizedFile);
+    warmupObserved += 1;
+    if (chunkMapping) warmupMapped += 1;
+    if (warmupObserved < warmupSampleSize) return;
+    lowYieldDecisionMade = true;
+    const observedYieldRatio = warmupObserved > 0 ? warmupMapped / warmupObserved : 0;
+    const minYieldedFiles = Math.min(
+      Math.max(1, Math.floor(Number(lowYieldConfig.minYieldedFiles) || 1)),
+      Math.max(1, warmupObserved)
+    );
+    lowYieldBailoutTriggered = observedYieldRatio < lowYieldConfig.minYieldRatio
+      && warmupMapped < minYieldedFiles;
+    lowYieldBailoutSummary = {
+      enabled: lowYieldEnabled,
+      triggered: lowYieldBailoutTriggered,
+      seed: lowYieldConfig.seed,
+      warmupWindowSize,
+      warmupSampleSize,
+      sampledFiles: warmupObserved,
+      sampledMappedFiles: warmupMapped,
+      observedYieldRatio,
+      minYieldRatio: lowYieldConfig.minYieldRatio,
+      minYieldedFiles
+    };
+  };
+
+  /**
+   * Refresh one manifest bundle entry against stage-3 vectors.
+   *
+   * @param {[string, any]} manifestEntry
+   * @param {{trackWarmup?:boolean}} [input]
+   * @returns {Promise<void>}
+   */
+  const processManifestEntry = async (manifestEntry, { trackWarmup = false } = {}) => {
+    const [filePath, entry] = manifestEntry;
     processedEntries += 1;
     const normalizedFile = toPosix(filePath).trim();
     const chunkMapping = resolveChunkFileMapping(mappingIndex, normalizedFile);
-    if (
-      lowYieldEnabled
-      && sampledWarmupFiles.has(normalizedFile)
-      && !observedWarmupFiles.has(normalizedFile)
-    ) {
-      observedWarmupFiles.add(normalizedFile);
-      warmupObserved += 1;
-      if (chunkMapping) warmupMapped += 1;
-      if (!lowYieldDecisionMade && warmupObserved >= warmupSampleSize) {
-        lowYieldDecisionMade = true;
-        const observedYieldRatio = warmupObserved > 0 ? warmupMapped / warmupObserved : 0;
-        const minYieldedFiles = Math.min(
-          Math.max(1, Math.floor(Number(lowYieldConfig.minYieldedFiles) || 1)),
-          Math.max(1, warmupObserved)
-        );
-        lowYieldBailoutTriggered = observedYieldRatio < lowYieldConfig.minYieldRatio
-          && warmupMapped < minYieldedFiles;
-        lowYieldBailoutSummary = {
-          enabled: lowYieldEnabled,
-          triggered: lowYieldBailoutTriggered,
-          seed: lowYieldConfig.seed,
-          warmupWindowSize,
-          warmupSampleSize,
-          sampledFiles: warmupObserved,
-          sampledMappedFiles: warmupMapped,
-          observedYieldRatio,
-          minYieldRatio: lowYieldConfig.minYieldRatio,
-          minYieldedFiles
-        };
-      }
-    }
+    if (trackWarmup) observeWarmupMapping({ normalizedFile, chunkMapping });
     const bundleName = entry?.bundle || resolveBundleFilename(filePath, resolvedBundleFormat);
     const bundlePath = path.join(incremental.bundleDir, bundleName);
     const bundleFormat = resolveBundleFormatFromName(bundleName, resolvedBundleFormat);
@@ -541,15 +566,13 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
     }
     if (!existing?.ok || !Array.isArray(existing.bundle?.chunks)) {
       skippedInvalidBundle += 1;
-      emitProgress();
-      continue;
+      return;
     }
 
     const bundle = existing.bundle;
     if (!bundle.chunks.length) {
       skippedEmptyBundle += 1;
-      emitProgress();
-      continue;
+      return;
     }
     eligible += 1;
     const fallbackState = { cursor: 0 };
@@ -594,8 +617,7 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
 
     if (!changed) {
       if (fileCovered) covered += 1;
-      emitProgress();
-      continue;
+      return;
     }
     try {
       await scheduleIo(() => writeBundleFile({
@@ -608,7 +630,35 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
     } catch (err) {
       warn(`[embeddings] ${mode}: failed to refresh bundle ${filePath}: ${err?.message || err}`);
     }
-    emitProgress();
+  };
+
+  let nextEntryIndex = 0;
+  if (lowYieldEnabled && warmupSampleSize > 0) {
+    for (; nextEntryIndex < manifestEntries.length; nextEntryIndex += 1) {
+      await processManifestEntry(manifestEntries[nextEntryIndex], { trackWarmup: true });
+      if (lowYieldBailoutTriggered || lowYieldDecisionMade) {
+        nextEntryIndex += 1;
+        break;
+      }
+    }
+  }
+
+  const remainingEntries = lowYieldEnabled && warmupSampleSize > 0
+    ? manifestEntries.slice(nextEntryIndex)
+    : manifestEntries;
+  if (!lowYieldBailoutTriggered && remainingEntries.length) {
+    if (refreshParallelism > 1 && remainingEntries.length > 1) {
+      await runWithConcurrency(
+        remainingEntries,
+        refreshParallelism,
+        async (manifestEntry) => processManifestEntry(manifestEntry),
+        { collectResults: false }
+      );
+    } else {
+      for (const manifestEntry of remainingEntries) {
+        await processManifestEntry(manifestEntry);
+      }
+    }
   }
 
   if (lowYieldBailoutTriggered) {
@@ -1957,78 +2007,10 @@ export async function runBuildEmbeddingsWithConfig(config) {
           fdConcurrencyCap,
           hnswEnabled
         });
-        const inFlightCoalesceMaxEntries = resolveEmbeddingsInFlightMaxEntries(indexingConfig);
-        const embeddingInFlightCoalescer = createEmbeddingInFlightCoalescer({
-          maxEntries: inFlightCoalesceMaxEntries
+        const bundleRefreshParallelism = resolveEmbeddingsBundleRefreshParallelism({
+          indexingConfig,
+          ioTokensTotal
         });
-        const adaptiveFileParallelismEnabled = (
-          indexingConfig?.embeddings?.adaptiveFileParallelism !== false
-          && fileParallelism > 1
-        );
-        const adaptiveFileParallelismStepMs = Number.isFinite(Number(indexingConfig?.embeddings?.adaptiveFileParallelismStepMs))
-          ? Math.max(100, Math.floor(Number(indexingConfig.embeddings.adaptiveFileParallelismStepMs)))
-          : DEFAULT_EMBEDDINGS_ADAPTIVE_FILE_PARALLELISM_STEP_MS;
-        const adaptiveFileParallelismMaxMultiplierRaw = Number(indexingConfig?.embeddings?.adaptiveFileParallelismMaxMultiplier);
-        const adaptiveFileParallelismMaxMultiplier = Number.isFinite(adaptiveFileParallelismMaxMultiplierRaw)
-          && adaptiveFileParallelismMaxMultiplierRaw > 1
-          ? Math.max(1, Number(adaptiveFileParallelismMaxMultiplierRaw))
-          : DEFAULT_EMBEDDINGS_ADAPTIVE_FILE_PARALLELISM_MAX_MULTIPLIER;
-        let adaptiveFileParallelismCeiling = resolveEmbeddingsAdaptiveFileParallelismCeiling({
-          baseFileParallelism: fileParallelism,
-          maxMultiplier: adaptiveFileParallelismMaxMultiplier,
-          computeTokensTotal,
-          cpuConcurrency: envelopeCpuConcurrency,
-          fdConcurrencyCap
-        });
-        let adaptiveFileParallelismCurrent = fileParallelism;
-        let adaptiveFileParallelismAdjustments = 0;
-        let adaptiveFileParallelismLastAdjustAt = 0;
-        const resolveAdaptiveFileParallelism = () => {
-          if (!adaptiveFileParallelismEnabled) return fileParallelism;
-          const now = Date.now();
-          if ((now - adaptiveFileParallelismLastAdjustAt) < adaptiveFileParallelismStepMs) {
-            return adaptiveFileParallelismCurrent;
-          }
-          adaptiveFileParallelismLastAdjustAt = now;
-          const schedulerStats = scheduler?.stats?.() || null;
-          const currentFdConcurrencyCap = resolveCurrentFdConcurrencyCap();
-          adaptiveFileParallelismCeiling = resolveEmbeddingsAdaptiveFileParallelismCeiling({
-            baseFileParallelism: fileParallelism,
-            maxMultiplier: adaptiveFileParallelismMaxMultiplier,
-            computeTokensTotal,
-            cpuConcurrency: envelopeCpuConcurrency,
-            fdConcurrencyCap: currentFdConcurrencyCap
-          });
-          const computeQueue = schedulerStats?.queues?.[SCHEDULER_QUEUE_NAMES.embeddingsCompute] || {};
-          const ioQueue = schedulerStats?.queues?.[SCHEDULER_QUEUE_NAMES.embeddingsIo] || {};
-          const computePending = Math.max(0, Number(computeQueue.pending) || 0);
-          const computeMaxPending = Math.max(1, Number(computeQueue.maxPending) || 1);
-          const ioPending = Math.max(0, Number(ioQueue.pending) || 0);
-          const ioMaxPending = Math.max(1, Number(ioQueue.maxPending) || 1);
-          const computePressure = Math.max(0, Math.min(1, computePending / computeMaxPending));
-          const ioPressure = Math.max(0, Math.min(1, ioPending / ioMaxPending));
-          const memorySignals = schedulerStats?.adaptive?.signals?.memory || null;
-          const rssUtilization = Number(memorySignals?.rssUtilization);
-          const gcPressure = Number(memorySignals?.gcPressureScore);
-          const isMemoryHot = (
-            (Number.isFinite(rssUtilization) && rssUtilization >= 0.88)
-            || (Number.isFinite(gcPressure) && gcPressure >= 0.45)
-          );
-          const isBackpressured = isMemoryHot || computePressure >= 0.9 || ioPressure >= 0.9;
-          const isUnderutilized = !isMemoryHot && computePressure <= 0.3 && ioPressure <= 0.35;
-          let next = adaptiveFileParallelismCurrent;
-          if (isBackpressured) {
-            next = Math.max(fileParallelism, adaptiveFileParallelismCurrent - 1);
-          } else if (isUnderutilized) {
-            next = Math.min(adaptiveFileParallelismCeiling, adaptiveFileParallelismCurrent + 1);
-          }
-          if (next !== adaptiveFileParallelismCurrent) {
-            adaptiveFileParallelismCurrent = next;
-            adaptiveFileParallelismAdjustments += 1;
-          }
-          embeddingFileConcurrencyPeak = Math.max(embeddingFileConcurrencyPeak, adaptiveFileParallelismCurrent);
-          return adaptiveFileParallelismCurrent;
-        };
         const backendParallelDispatch = getChunkEmbeddings?.supportsParallelDispatch === true;
         const parallelBatchDispatch = backendParallelDispatch && computeTokensTotal > 1;
         const mergeCodeDocBatches = indexingConfig?.embeddings?.mergeCodeDocBatches !== false;
@@ -2079,32 +2061,12 @@ export async function runBuildEmbeddingsWithConfig(config) {
         if (fileParallelism > 1) {
           log(`[embeddings] ${mode}: file parallelism enabled (${fileParallelism} workers).`);
         }
-        if (embeddingTextCache) {
+        if (bundleRefreshParallelism > 1) {
           log(
-            `[embeddings] ${mode}: text reuse cache enabled ` +
-            `(${textReuseCacheEntries} entries, <=${textReuseMaxTextChars} chars).`
+            `[embeddings] ${mode}: incremental bundle refresh parallelism enabled `
+              + `(${bundleRefreshParallelism} workers).`
           );
         }
-        if (adaptiveFileParallelismEnabled) {
-          log(
-            `[embeddings] ${mode}: adaptive file parallelism enabled ` +
-            `(base=${fileParallelism}, ceiling=${adaptiveFileParallelismCeiling}).`
-          );
-        }
-        log(
-          `[embeddings] ${mode}: token-aware batching enabled ` +
-          `(budget=${embeddingBatchTokenBudget} est=${embeddingCharsPerToken} chars/token).`
-        );
-        if (globalMicroBatchingEnabled) {
-          log(
-            `[embeddings] ${mode}: global micro-batching enabled ` +
-            `(fillTarget=${Math.round(globalMicroBatchingFillTarget * 100)}% maxWaitMs=${globalMicroBatchingMaxWaitMs}).`
-          );
-        }
-        if (estimateEmbeddingTokensBatch) {
-          log(`[embeddings] ${mode}: model-aware token estimator enabled.`);
-        }
-        log(`[embeddings] ${mode}: sqlite dense write batching enabled (batchSize=${sqliteDenseWriteBatchSize}).`);
         const defaultWriterMaxPending = Math.max(1, Math.min(4, ioTokensTotal * 2));
         const writerMaxPending = schedulerIoMaxPending
           ? Math.max(1, Math.min(defaultWriterMaxPending, schedulerIoMaxPending))
@@ -3442,29 +3404,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           embeddingMode: resolvedEmbeddingMode,
           embeddingIdentityKey: cacheIdentityKey,
           lowYieldBailout: extractedProseLowYieldBailout,
-          onProgress: ({
-            scanned,
-            processedEntries,
-            eligible,
-            rewritten,
-            covered,
-            lowYieldBailoutTriggered
-          }) => {
-            const total = Math.max(1, Number(scanned) || 1);
-            const done = Math.max(0, Math.min(total, Number(processedEntries) || 0));
-            const eligibleCount = Math.max(0, Number(eligible) || 0);
-            const rewrittenCount = Math.max(0, Number(rewritten) || 0);
-            const coveredCount = Math.max(0, Number(covered) || 0);
-            bundleTask.set(done, total, {
-              message: [
-                `${done}/${total} scanned`,
-                `${rewrittenCount}/${eligibleCount} rewritten`,
-                `coverage ${coveredCount}/${eligibleCount}`,
-                lowYieldBailoutTriggered ? 'low-yield bailout' : null,
-                formatEta((Date.now() - bundleRefreshStartedAtMs) / 1000)
-              ].filter(Boolean).join(' | ')
-            });
-          },
+          parallelism: bundleRefreshParallelism,
           scheduleIo,
           log,
           warn
