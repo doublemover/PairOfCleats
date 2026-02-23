@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T08:47:57.1278127-05:00
+  Extracted shared conformance dashboard coverage-map logic from `src/contracts/validators/usr-matrix.js` into `src/contracts/validators/usr-matrix/conformance-dashboard-coverage-map.js`, keeping level-evaluation fanout reusable for dashboard builders and adding focused helper coverage in `tests/indexing/contracts/usr-conformance-dashboard-coverage-map.test.js`.
 - 2026-02-23T08:44:18.9458819-05:00
   Extracted conformance-level summary report builder from `src/contracts/validators/usr-matrix.js` into `src/contracts/validators/usr-matrix/conformance-level-summary.js`, preserving facade behavior with injected coverage/lane callbacks and adding focused coverage in `tests/indexing/contracts/usr-conformance-level-summary-report.test.js`.
 - 2026-02-23T08:42:31.7162351-05:00

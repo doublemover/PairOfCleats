@@ -73,6 +73,10 @@ import {
 import {
   buildUsrConformanceLevelSummaryReport as buildUsrConformanceLevelSummaryReportCore
 } from './usr-matrix/conformance-level-summary.js';
+import {
+  buildConformanceCoverageMapByLevel,
+  CONFORMANCE_DASHBOARD_LEVELS
+} from './usr-matrix/conformance-dashboard-coverage-map.js';
 
 const ajv = createAjv({
   dialect: '2020',
@@ -504,46 +508,6 @@ export function buildUsrConformanceLevelSummaryReport({
   });
 }
 
-const CONFORMANCE_DASHBOARD_LEVELS = Object.freeze(['C0', 'C1', 'C2', 'C3', 'C4']);
-
-const buildConformanceCoverageMapByLevel = ({
-  languageProfilesPayload,
-  conformanceLevelsPayload,
-  knownLanes = [],
-  levels = CONFORMANCE_DASHBOARD_LEVELS
-} = {}) => {
-  const coverageByLevel = new Map();
-  const errors = [];
-  const warnings = [];
-
-  for (const level of levels) {
-    const evaluation = validateUsrConformanceLevelCoverage({
-      targetLevel: level,
-      languageProfilesPayload,
-      conformanceLevelsPayload,
-      knownLanes
-    });
-
-    coverageByLevel.set(level, {
-      evaluation,
-      rowsByProfileId: new Map((evaluation.rows || []).map((row) => [row.profileId, row]))
-    });
-
-    if (evaluation.errors.length > 0) {
-      errors.push(...evaluation.errors.map((message) => `${level} ${message}`));
-    }
-    if (evaluation.warnings.length > 0) {
-      warnings.push(...evaluation.warnings.map((message) => `${level} ${message}`));
-    }
-  }
-
-  return {
-    coverageByLevel,
-    errors,
-    warnings
-  };
-};
-
 export function buildUsrLanguageConformanceDashboardReport({
   languageProfilesPayload,
   conformanceLevelsPayload,
@@ -582,7 +546,8 @@ export function buildUsrLanguageConformanceDashboardReport({
     languageProfilesPayload,
     conformanceLevelsPayload,
     knownLanes,
-    levels: CONFORMANCE_DASHBOARD_LEVELS
+    levels: CONFORMANCE_DASHBOARD_LEVELS,
+    validateConformanceLevelCoverage: validateUsrConformanceLevelCoverage
   });
 
   const languageRows = Array.isArray(languageProfilesPayload?.rows) ? languageProfilesPayload.rows : [];
