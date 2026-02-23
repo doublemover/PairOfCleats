@@ -425,6 +425,20 @@ const scanComments = (text, style) => {
   return out;
 };
 
+const hasPotentialCommentMarkers = (text, style) => {
+  if (!text || !style) return false;
+  const lineMarkers = Array.isArray(style.line) ? style.line : [];
+  for (const marker of lineMarkers) {
+    if (typeof marker === 'string' && marker && text.includes(marker)) return true;
+  }
+  const blockMarkers = Array.isArray(style.block) ? style.block : [];
+  for (const block of blockMarkers) {
+    const marker = typeof block?.start === 'string' ? block.start : '';
+    if (marker && text.includes(marker)) return true;
+  }
+  return false;
+};
+
 export function extractComments({
   text,
   ext,
@@ -438,6 +452,9 @@ export function extractComments({
   }
   const style = resolveCommentStyle({ ext, languageId });
   if (!style) {
+    return { comments: [], configSegments: [] };
+  }
+  if (!hasPotentialCommentMarkers(text, style)) {
     return { comments: [], configSegments: [] };
   }
   const comments = [];
