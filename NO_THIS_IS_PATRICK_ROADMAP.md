@@ -97,6 +97,8 @@ Note:
   Optimized `src/shared/concurrency/scheduler-core.js` queue wait sampling by replacing per-event bounded-array shifts with a fixed-size ring buffer, preserving percentile behavior while reducing completion-path allocation/compaction overhead in long-lived schedulers.
 - 2026-02-23T05:36:56.8007092-05:00
   Completed the `src/index/build/incremental.js` split into `planning`, `shared`, `state-reconciliation`, and `writeback` modules, preserving the public incremental API through a facade while reducing duplicated IO/hash/bundle helper code and parallelizing reuse checks in planning.
+- 2026-02-23T05:38:33.5413226-05:00
+  Split `src/contracts/schemas/artifacts.js` into focused `core`, `state`, `reports`, and `sharded-meta` modules, preserving export ordering and schema identity while centralizing repeated sharded-meta schema assembly helpers.
 
 ## Architectural assessment (what needs to change)
 
