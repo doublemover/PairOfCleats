@@ -1,11 +1,7 @@
 import { compareStrings } from '../../../../../shared/sort.js';
+import { normalizeOwnershipSegment } from '../../../../../shared/ownership-segment.js';
 
-export const normalizeOwnershipSegment = (value, fallback = 'unknown') => {
-  if (typeof value !== 'string') return fallback;
-  const trimmed = value.trim();
-  if (!trimmed) return fallback;
-  return trimmed.replace(/[^a-zA-Z0-9._:-]+/g, '_');
-};
+export { normalizeOwnershipSegment };
 
 /**
  * Resolve deterministic entry order index with compatibility fallbacks.

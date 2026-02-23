@@ -34,6 +34,7 @@ import {
   coerceNonNegativeInt,
   coercePositiveInt
 } from '../../../shared/number-coerce.js';
+import { normalizeOwnershipSegment } from '../../../shared/ownership-segment.js';
 import { normalizeEmbeddingBatchMultipliers } from '../embedding-batch.js';
 import { mergeConfig } from '../../../shared/config.js';
 import { sha1, setXxhashBackend } from '../../../shared/hash.js';
@@ -107,20 +108,6 @@ const INDEX_OPTIMIZATION_PROFILE_IDS = Object.freeze(['default', 'throughput', '
 const coerceOptionalNonNegativeInt = (value) => {
   if (value === null || value === undefined) return null;
   return coerceNonNegativeInt(value);
-};
-
-/**
- * Normalize ownership key fragments used in daemon/subprocess attribution tags.
- *
- * @param {unknown} value
- * @param {string} [fallback='unknown']
- * @returns {string}
- */
-const normalizeOwnershipSegment = (value, fallback = 'unknown') => {
-  if (typeof value !== 'string') return fallback;
-  const trimmed = value.trim();
-  if (!trimmed) return fallback;
-  return trimmed.replace(/[^a-zA-Z0-9._:-]+/g, '_');
 };
 
 /**
