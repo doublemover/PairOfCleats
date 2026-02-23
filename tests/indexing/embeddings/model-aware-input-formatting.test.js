@@ -59,6 +59,9 @@ vectorsClose(
   e5Chunk,
   stubEmbedding(`${E5_PASSAGE_PREFIX}${sampleText}`, dims, true)
 );
+const e5EstimatedTokens = await e5Embedder.getChunkEmbeddings.estimateTokensBatch([sampleText]);
+assert.equal(e5EstimatedTokens.length, 1, 'expected one token estimate for one payload');
+assert.ok(e5EstimatedTokens[0] >= 1, 'expected positive e5 token estimate');
 
 const bgeEmbedder = createEmbedder({
   rootDir: process.cwd(),
@@ -74,6 +77,12 @@ const bgeChunk = await bgeEmbedder.getChunkEmbedding(sampleText);
 vectorsClose(
   bgeChunk,
   stubEmbedding(sampleText, dims, true)
+);
+const bgeEstimatedTokens = await bgeEmbedder.getChunkEmbeddings.estimateTokensBatch([sampleText]);
+assert.equal(bgeEstimatedTokens.length, 1, 'expected one token estimate for one payload');
+assert.ok(
+  e5EstimatedTokens[0] >= bgeEstimatedTokens[0],
+  'expected e5 passage-prefix estimate to be >= bge estimate for same input'
 );
 
 const e5QueryVec = await getQueryEmbedding({

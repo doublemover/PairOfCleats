@@ -75,6 +75,7 @@ export const updateSqliteDense = ({
   quantization,
   dbPath,
   sharedDb = false,
+  writeBatchSize = 256,
   emitOutput = true,
   warnOnMissing = true,
   logger = console
@@ -179,13 +180,9 @@ export const updateSqliteDense = ({
     }
 
     const deleteMeta = db.prepare('DELETE FROM dense_meta WHERE mode = ?');
-    const deleteDenseByDocId = db.prepare('DELETE FROM dense_vectors WHERE mode = ? AND doc_id = ?');
     const selectDenseByMode = db.prepare(
       'SELECT doc_id, vector FROM dense_vectors WHERE mode = ? ORDER BY doc_id ASC'
     );
-    const deleteVectorAnnByRowId = vectorAnnReady
-      ? db.prepare(`DELETE FROM ${vectorAnnTable} WHERE rowid = ?`)
-      : null;
     const insertDense = db.prepare(
       'INSERT OR REPLACE INTO dense_vectors (mode, doc_id, vector) VALUES (?, ?, ?)'
     );
@@ -203,7 +200,7 @@ export const updateSqliteDense = ({
       return null;
     };
     const upsertVectorAnnRow = (docId, vec) => {
-      if (!vectorAnnReady || !insertVectorAnn) return;
+      if (!vectorAnnReady || !insertVectorAnn) return null;
       const vectorInput = ingestEncoding === 'quantized'
         ? vec
         : dequantizeUint8ToFloat32(
@@ -214,10 +211,73 @@ export const updateSqliteDense = ({
         );
       const encoded = encodeVector(vectorInput, vectorExtension);
       if (encoded) {
-        insertVectorAnn.run(toSqliteRowId(docId), encoded);
+        return [toSqliteRowId(docId), encoded];
       }
+      return null;
     };
     const run = db.transaction(() => {
+      const batchSize = Number.isFinite(Number(writeBatchSize)) && Number(writeBatchSize) > 0
+        ? Math.max(16, Math.floor(Number(writeBatchSize)))
+        : 256;
+      const denseDeleteBatch = [];
+      const denseUpsertBatch = [];
+      const vectorAnnDeleteBatch = [];
+      const vectorAnnUpsertBatch = [];
+      const deleteDenseBatchStmtCache = new Map();
+      const deleteVectorAnnBatchStmtCache = new Map();
+      const runDenseDeleteBatch = (ids) => {
+        if (!Array.isArray(ids) || !ids.length) return;
+        const placeholders = ids.map(() => '?').join(', ');
+        let stmt = deleteDenseBatchStmtCache.get(ids.length);
+        if (!stmt) {
+          stmt = db.prepare(
+            `DELETE FROM dense_vectors WHERE mode = ? AND doc_id IN (${placeholders})`
+          );
+          deleteDenseBatchStmtCache.set(ids.length, stmt);
+        }
+        stmt.run(mode, ...ids);
+      };
+      const runVectorAnnDeleteBatch = (rowIds) => {
+        if (!vectorAnnReady || !Array.isArray(rowIds) || !rowIds.length) return;
+        const placeholders = rowIds.map(() => '?').join(', ');
+        let stmt = deleteVectorAnnBatchStmtCache.get(rowIds.length);
+        if (!stmt) {
+          stmt = db.prepare(`DELETE FROM ${vectorAnnTable} WHERE rowid IN (${placeholders})`);
+          deleteVectorAnnBatchStmtCache.set(rowIds.length, stmt);
+        }
+        stmt.run(...rowIds);
+      };
+      const flushBatches = ({ force = false } = {}) => {
+        if (
+          !force
+          && denseDeleteBatch.length < batchSize
+          && denseUpsertBatch.length < batchSize
+          && vectorAnnDeleteBatch.length < batchSize
+          && vectorAnnUpsertBatch.length < batchSize
+        ) {
+          return;
+        }
+        while (denseDeleteBatch.length) {
+          const ids = denseDeleteBatch.splice(0, batchSize);
+          runDenseDeleteBatch(ids);
+        }
+        while (vectorAnnDeleteBatch.length) {
+          const rowIds = vectorAnnDeleteBatch.splice(0, batchSize);
+          runVectorAnnDeleteBatch(rowIds);
+        }
+        while (denseUpsertBatch.length) {
+          const rows = denseUpsertBatch.splice(0, batchSize);
+          for (const row of rows) {
+            insertDense.run(mode, row.docId, row.packed);
+          }
+        }
+        while (vectorAnnUpsertBatch.length) {
+          const rows = vectorAnnUpsertBatch.splice(0, batchSize);
+          for (const row of rows) {
+            insertVectorAnn.run(row.rowId, row.encoded);
+          }
+        }
+      };
       deleteMeta.run(mode);
       insertMeta.run(
         mode,
@@ -235,12 +295,11 @@ export const updateSqliteDense = ({
       for (let docId = 0; docId < vectorRows.length; docId += 1) {
         while (current && Number(current.doc_id) < docId) {
           const staleDocId = Number(current.doc_id);
-          deleteDenseByDocId.run(mode, staleDocId);
-          if (deleteVectorAnnByRowId) {
-            deleteVectorAnnByRowId.run(toSqliteRowId(staleDocId));
-          }
+          denseDeleteBatch.push(staleDocId);
+          if (vectorAnnReady) vectorAnnDeleteBatch.push(toSqliteRowId(staleDocId));
           existingIndex += 1;
           current = existingRows[existingIndex] || null;
+          flushBatches();
         }
 
         const hasExisting = Boolean(current) && Number(current.doc_id) === docId;
@@ -249,12 +308,11 @@ export const updateSqliteDense = ({
 
         if (!hasVector) {
           if (hasExisting) {
-            deleteDenseByDocId.run(mode, docId);
-            if (deleteVectorAnnByRowId) {
-              deleteVectorAnnByRowId.run(toSqliteRowId(docId));
-            }
+            denseDeleteBatch.push(docId);
+            if (vectorAnnReady) vectorAnnDeleteBatch.push(toSqliteRowId(docId));
             existingIndex += 1;
             current = existingRows[existingIndex] || null;
+            flushBatches();
           }
           continue;
         }
@@ -274,22 +332,28 @@ export const updateSqliteDense = ({
           continue;
         }
 
-        insertDense.run(mode, docId, packed);
-        if (deleteVectorAnnByRowId) {
-          deleteVectorAnnByRowId.run(toSqliteRowId(docId));
+        denseUpsertBatch.push({ docId, packed });
+        if (vectorAnnReady) {
+          const annRow = upsertVectorAnnRow(docId, vec);
+          if (annRow) {
+            vectorAnnUpsertBatch.push({
+              rowId: annRow[0],
+              encoded: annRow[1]
+            });
+          }
         }
-        upsertVectorAnnRow(docId, vec);
+        flushBatches();
       }
 
       while (current) {
         const staleDocId = Number(current.doc_id);
-        deleteDenseByDocId.run(mode, staleDocId);
-        if (deleteVectorAnnByRowId) {
-          deleteVectorAnnByRowId.run(toSqliteRowId(staleDocId));
-        }
+        denseDeleteBatch.push(staleDocId);
+        if (vectorAnnReady) vectorAnnDeleteBatch.push(toSqliteRowId(staleDocId));
         existingIndex += 1;
         current = existingRows[existingIndex] || null;
+        flushBatches();
       }
+      flushBatches({ force: true });
     });
     run();
     if (emitOutput) {

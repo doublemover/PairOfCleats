@@ -166,6 +166,11 @@ Pruning uses LRU metadata in the cache index:
 - `maxGb`: size limit for pruning
 - `maxAgeDays`: age limit for pruning
 
+`indexing.embeddings`:
+- `persistentTextCache`: enable/disable persistent text->vector cache (default enabled)
+- `persistentTextCacheMaxEntries`: max SQLite rows for persistent text cache
+- `persistentTextCacheVectorEncoding`: `float32` (default) or `float16`
+
 ## Telemetry
 
 `index_state.embeddings.cacheStats` records per-run cache usage:

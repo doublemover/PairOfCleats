@@ -32,6 +32,7 @@ export const assertVectorArrays = (vectors, count, label) => {
  *   batchSize:number,
  *   maxBatchTokens?:number,
  *   estimateTokens?:(text:string)=>number,
+ *   tokenEstimates?:number[]|null,
  *   embed:(batch:string[])=>Promise<Array<ArrayLike<number>>>,
  *   onBatch?:(input:{batchIndex:number,batchCount:number,batchSize:number,batchTokens:number,completed:number,total:number,durationMs:number})=>void
  * }} input
@@ -42,6 +43,7 @@ export const runBatched = async ({
   batchSize,
   maxBatchTokens = 0,
   estimateTokens = null,
+  tokenEstimates = null,
   embed,
   onBatch = null
 }) => {
@@ -59,6 +61,13 @@ export const runBatched = async ({
       const chars = typeof text === 'string' ? text.length : 0;
       return Math.max(1, Math.ceil(chars / 4));
     };
+  const normalizedTokenEstimates = Array.isArray(tokenEstimates) && tokenEstimates.length === texts.length
+    ? tokenEstimates.map((value) => Math.max(1, Math.floor(Number(value) || 1)))
+    : null;
+  const resolveTokenEstimate = (text, index) => {
+    if (normalizedTokenEstimates) return normalizedTokenEstimates[index] || 1;
+    return Math.max(1, Math.floor(Number(tokenEstimator(text)) || 1));
+  };
   const batches = [];
   if (!tokenBudget && maxItems === Number.MAX_SAFE_INTEGER) {
     batches.push(texts);
@@ -69,8 +78,9 @@ export const runBatched = async ({
   } else {
     let current = [];
     let currentTokens = 0;
-    for (const text of texts) {
-      const estimated = Math.max(1, Math.floor(Number(tokenEstimator(text)) || 1));
+    for (let i = 0; i < texts.length; i += 1) {
+      const text = texts[i];
+      const estimated = resolveTokenEstimate(text, i);
       const wouldExceedTokens = current.length > 0 && (currentTokens + estimated) > tokenBudget;
       const wouldExceedItems = current.length >= maxItems;
       if (wouldExceedTokens || wouldExceedItems) {
@@ -86,8 +96,8 @@ export const runBatched = async ({
   if (batches.length === 1) {
     const singleBatch = batches[0] || texts;
     let batchTokens = 0;
-    for (const text of singleBatch) {
-      batchTokens += Math.max(1, Math.floor(Number(tokenEstimator(text)) || 1));
+    for (let i = 0; i < singleBatch.length; i += 1) {
+      batchTokens += resolveTokenEstimate(singleBatch[i], i);
     }
     const startedAt = Date.now();
     const vectors = await embed(singleBatch);
@@ -105,12 +115,14 @@ export const runBatched = async ({
   const out = [];
   const batchCount = batches.length;
   let completed = 0;
+  let completedTokenEstimateOffset = 0;
   for (let batchIndex = 1; batchIndex <= batchCount; batchIndex += 1) {
     const slice = batches[batchIndex - 1] || [];
     let batchTokens = 0;
-    for (const text of slice) {
-      batchTokens += Math.max(1, Math.floor(Number(tokenEstimator(text)) || 1));
+    for (let i = 0; i < slice.length; i += 1) {
+      batchTokens += resolveTokenEstimate(slice[i], completedTokenEstimateOffset + i);
     }
+    completedTokenEstimateOffset += slice.length;
     const startedAt = Date.now();
     const batch = await embed(slice);
     out.push(...batch);

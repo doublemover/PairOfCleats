@@ -11,6 +11,7 @@ import { validateIndexArtifacts } from '../../../index/validate.js';
 import { logError as defaultLogError, logLine, showProgress } from '../../../shared/progress.js';
 import { isAbortError, throwIfAborted } from '../../../shared/abort.js';
 import { getEnvConfig, isTestingEnv } from '../../../shared/env.js';
+import { parseEmbeddingsPerfLine } from '../../../shared/embeddings-progress.js';
 import { SCHEDULER_QUEUE_NAMES } from '../../../index/build/runtime/scheduler.js';
 import { createFeatureMetrics, writeFeatureMetrics } from '../../../index/build/feature-metrics.js';
 import {
@@ -116,6 +117,30 @@ export const runEmbeddingsStage = async ({
 }) => {
   const started = process.hrtime.bigint();
   const fileProgressPattern = /^\[embeddings\]\s+([^:]+):\s+processed\s+(\d+)\/(\d+)\s+files\b/;
+  const toFiniteNumber = (value) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : null;
+  };
+  const buildEmbeddingModeProgressMessage = (modeName, metrics) => {
+    if (!metrics || typeof metrics !== 'object') return modeName;
+    const filesDone = toFiniteNumber(metrics.files_done);
+    const filesTotal = toFiniteNumber(metrics.files_total);
+    const chunksDone = toFiniteNumber(metrics.chunks_done);
+    const chunksTotal = toFiniteNumber(metrics.chunks_total);
+    const elapsedMs = toFiniteNumber(metrics.elapsed_ms);
+    if (
+      filesDone == null
+      || filesTotal == null
+      || chunksDone == null
+      || chunksTotal == null
+      || elapsedMs == null
+    ) {
+      return modeName;
+    }
+    return `${modeName} files=${Math.max(0, Math.floor(filesDone))}/${Math.max(0, Math.floor(filesTotal))}`
+      + ` chunks=${Math.max(0, Math.floor(chunksDone))}/${Math.max(0, Math.floor(chunksTotal))}`
+      + ` elapsed_ms=${Math.max(0, Math.floor(elapsedMs))}`;
+  };
   const recordOk = (result) => {
     recordIndexMetric('stage3', 'ok', started);
     return result;
@@ -143,6 +168,7 @@ export const runEmbeddingsStage = async ({
       throwIfAborted(abortSignal);
       const embedTotal = embedModes.length;
       let embedIndex = 0;
+      const modePerfMetricsByMode = new Map();
       if (embedTotal) {
         showProgress('Embeddings', embedIndex, embedTotal, { stage: 'embeddings' });
       }
@@ -221,6 +247,43 @@ export const runEmbeddingsStage = async ({
               || line.includes('No existing dataset at')) {
               return;
             }
+            const perfLine = parseEmbeddingsPerfLine(line);
+            if (perfLine) {
+              const metrics = perfLine.metrics || {};
+              const mode = perfLine.mode || null;
+              const filesCurrent = toFiniteNumber(metrics.files_done);
+              const filesTotal = toFiniteNumber(metrics.files_total);
+              const chunksCurrent = toFiniteNumber(metrics.chunks_done);
+              const chunksTotal = toFiniteNumber(metrics.chunks_total);
+              const chunksPerSec = toFiniteNumber(metrics.chunks_per_sec);
+              const elapsedMs = toFiniteNumber(metrics.elapsed_ms);
+              if (mode && perfLine.kind === 'perf_summary') {
+                modePerfMetricsByMode.set(mode, metrics);
+              }
+              if (
+                mode
+                && filesCurrent != null
+                && filesTotal != null
+                && filesTotal > 0
+              ) {
+                const messageParts = [
+                  chunksCurrent != null && chunksTotal != null
+                    ? `${Math.max(0, Math.floor(chunksCurrent))}/${Math.max(0, Math.floor(chunksTotal))} chunks`
+                    : null,
+                  chunksPerSec != null ? `${Math.max(0, chunksPerSec).toFixed(1)} chunks/s` : null,
+                  elapsedMs != null ? `elapsed ${Math.max(0, Math.floor(elapsedMs))}ms` : null
+                ].filter(Boolean);
+                showProgress('Files', Math.max(0, Math.floor(filesCurrent)), Math.max(0, Math.floor(filesTotal)), {
+                  stage: 'embeddings',
+                  mode,
+                  taskId: `embeddings:${mode}:files`,
+                  ephemeral: true,
+                  message: messageParts.join(' | ')
+                });
+              }
+              logLine(line, { kind: 'status' });
+              return;
+            }
             const match = fileProgressPattern.exec(line);
             if (match) {
               const mode = match[1];
@@ -251,9 +314,13 @@ export const runEmbeddingsStage = async ({
           }
           if (embedTotal) {
             embedIndex += 1;
+            const message = buildEmbeddingModeProgressMessage(
+              modeName,
+              modePerfMetricsByMode.get(modeName) || null
+            );
             showProgress('Embeddings', embedIndex, embedTotal, {
               stage: 'embeddings',
-              message: modeName
+              message
             });
           }
         }

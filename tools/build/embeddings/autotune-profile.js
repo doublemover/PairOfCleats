@@ -5,6 +5,7 @@ import path from 'node:path';
 const PROFILE_VERSION = 1;
 const PROFILE_NAME = 'embeddings-autotune.json';
 const MAX_ENTRIES = 64;
+export const DEFAULT_EMBEDDINGS_AUTOTUNE_WRITE_CADENCE_MS = 5 * 60 * 1000;
 
 const isObject = (value) => (
   value && typeof value === 'object' && !Array.isArray(value)
@@ -20,6 +21,27 @@ const clampUnit = (value, fallback = 0) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.max(0, Math.min(1, parsed));
+};
+
+const toTimestampMs = (value, fallback = null) => {
+  if (value == null) return fallback;
+  if (value instanceof Date) {
+    const ms = value.getTime();
+    return Number.isFinite(ms) ? ms : fallback;
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? Math.floor(value) : fallback;
+  }
+  const parsed = Date.parse(value || '');
+  if (!Number.isFinite(parsed)) return fallback;
+  return parsed;
+};
+
+const resolveWriteCadenceMs = (value) => {
+  if (value == null) return DEFAULT_EMBEDDINGS_AUTOTUNE_WRITE_CADENCE_MS;
+  const parsed = Math.floor(Number(value));
+  if (!Number.isFinite(parsed)) return DEFAULT_EMBEDDINGS_AUTOTUNE_WRITE_CADENCE_MS;
+  return Math.max(0, parsed);
 };
 
 const resolveProfilePath = (repoCacheRoot) => (
@@ -169,6 +191,8 @@ export const deriveEmbeddingsAutoTuneRecommendation = ({
  *  modelId?:string,
  *  recommended?:object,
  *  observed?:object,
+ *  minWriteIntervalMs?:number,
+ *  now?:string|number|Date,
  *  log?:(line:string)=>void
  * }} [input]
  * @returns {Promise<object|null>}
@@ -179,6 +203,8 @@ export const writeEmbeddingsAutoTuneRecommendation = async ({
   modelId,
   recommended = {},
   observed = {},
+  minWriteIntervalMs = DEFAULT_EMBEDDINGS_AUTOTUNE_WRITE_CADENCE_MS,
+  now = null,
   log = null
 } = {}) => {
   const profilePath = resolveProfilePath(repoCacheRoot);
@@ -200,7 +226,9 @@ export const writeEmbeddingsAutoTuneRecommendation = async ({
       byIdentity: {}
     };
   }
-  const now = new Date().toISOString();
+  const writeCadenceMs = resolveWriteCadenceMs(minWriteIntervalMs);
+  const nowMs = toTimestampMs(now, Date.now());
+  const nowIso = new Date(nowMs).toISOString();
   const prior = normalizeEntry(profile.byIdentity[key]) || {
     provider,
     modelId,
@@ -225,15 +253,23 @@ export const writeEmbeddingsAutoTuneRecommendation = async ({
       : {})
   };
   if (!Object.keys(normalizedRecommended).length) return null;
+  const priorUpdatedAtMs = toTimestampMs(prior.updatedAt, null);
+  if (
+    Number.isFinite(priorUpdatedAtMs)
+    && writeCadenceMs > 0
+    && (nowMs - priorUpdatedAtMs) < writeCadenceMs
+  ) {
+    return prior;
+  }
   profile.byIdentity[key] = {
     provider,
     modelId,
     sampleCount: Math.max(1, (Number(prior.sampleCount) || 0) + 1),
-    updatedAt: now,
+    updatedAt: nowIso,
     recommended: normalizedRecommended,
     observed: isObject(observed) ? observed : null
   };
-  profile.updatedAt = now;
+  profile.updatedAt = nowIso;
   const normalizedProfile = normalizeProfile(profile);
   if (!normalizedProfile) return null;
   try {

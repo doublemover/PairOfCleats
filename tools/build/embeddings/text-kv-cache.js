@@ -6,6 +6,11 @@ import { resolveCacheBase } from './cache.js';
 const PROFILE_DB_FILE = 'text-vectors.sqlite';
 const DEFAULT_MAX_ENTRIES = 500000;
 const PRUNE_INTERVAL_WRITES = 512;
+const VECTOR_ENCODING_FLOAT32 = 'float32';
+const VECTOR_ENCODING_FLOAT16 = 'float16';
+
+const FLOAT32_BITS_VIEW = new Uint32Array(1);
+const FLOAT32_VALUE_VIEW = new Float32Array(FLOAT32_BITS_VIEW.buffer);
 
 const isVectorLike = (value) => (
   Array.isArray(value)
@@ -18,15 +23,150 @@ const toFloat32Copy = (value) => {
   return Float32Array.from(value);
 };
 
+export const normalizePersistentTextVectorEncoding = (value) => {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (normalized === VECTOR_ENCODING_FLOAT16 || normalized === 'f16' || normalized === 'fp16' || normalized === 'half') {
+    return VECTOR_ENCODING_FLOAT16;
+  }
+  return VECTOR_ENCODING_FLOAT32;
+};
+
+const float32ToFloat16Bits = (value) => {
+  FLOAT32_VALUE_VIEW[0] = Number(value);
+  const bits = FLOAT32_BITS_VIEW[0] >>> 0;
+  const sign = (bits >>> 16) & 0x8000;
+  const exponent = (bits >>> 23) & 0xff;
+  const mantissa = bits & 0x7fffff;
+
+  if (exponent === 0xff) {
+    if (mantissa !== 0) return sign | 0x7e00;
+    return sign | 0x7c00;
+  }
+
+  let halfExponent = exponent - 127 + 15;
+  if (halfExponent >= 0x1f) {
+    return sign | 0x7c00;
+  }
+
+  if (halfExponent <= 0) {
+    if (halfExponent < -10) return sign;
+    const subnormalMantissa = mantissa | 0x800000;
+    const shift = 14 - halfExponent;
+    let halfMantissa = subnormalMantissa >>> shift;
+    const roundBit = (subnormalMantissa >>> (shift - 1)) & 1;
+    const stickyMask = (1 << (shift - 1)) - 1;
+    const stickyBits = subnormalMantissa & stickyMask;
+    if (roundBit && (stickyBits !== 0 || (halfMantissa & 1) !== 0)) {
+      halfMantissa += 1;
+    }
+    return sign | (halfMantissa & 0x03ff);
+  }
+
+  let halfMantissa = mantissa >>> 13;
+  const roundBit = (mantissa >>> 12) & 1;
+  const stickyBits = mantissa & 0x0fff;
+  if (roundBit && (stickyBits !== 0 || (halfMantissa & 1) !== 0)) {
+    halfMantissa += 1;
+    if (halfMantissa === 0x0400) {
+      halfMantissa = 0;
+      halfExponent += 1;
+      if (halfExponent >= 0x1f) {
+        return sign | 0x7c00;
+      }
+    }
+  }
+  return sign | ((halfExponent & 0x1f) << 10) | (halfMantissa & 0x03ff);
+};
+
+const float16BitsToFloat32 = (bits) => {
+  const sign = (bits & 0x8000) << 16;
+  const exponent = (bits >>> 10) & 0x1f;
+  let mantissa = bits & 0x03ff;
+  let outBits = 0;
+
+  if (exponent === 0) {
+    if (mantissa === 0) {
+      outBits = sign;
+    } else {
+      let exp = -14;
+      while ((mantissa & 0x0400) === 0) {
+        mantissa <<= 1;
+        exp -= 1;
+      }
+      mantissa &= 0x03ff;
+      outBits = sign | ((exp + 127) << 23) | (mantissa << 13);
+    }
+  } else if (exponent === 0x1f) {
+    outBits = sign | 0x7f800000 | (mantissa << 13);
+  } else {
+    outBits = sign | ((exponent + 112) << 23) | (mantissa << 13);
+  }
+
+  FLOAT32_BITS_VIEW[0] = outBits >>> 0;
+  return FLOAT32_VALUE_VIEW[0];
+};
+
+const encodeVectorBlob = (vector, vectorEncoding) => {
+  if (!(vector instanceof Float32Array) || !vector.length) return null;
+  if (vectorEncoding === VECTOR_ENCODING_FLOAT16) {
+    const out = new Uint16Array(vector.length);
+    for (let i = 0; i < vector.length; i += 1) {
+      out[i] = float32ToFloat16Bits(vector[i]);
+    }
+    return Buffer.from(out.buffer, out.byteOffset, out.byteLength);
+  }
+  return Buffer.from(vector.buffer, vector.byteOffset, vector.byteLength);
+};
+
+const decodeFloat32Blob = (buffer, length) => {
+  if ((length * Float32Array.BYTES_PER_ELEMENT) > buffer.byteLength) return null;
+  try {
+    const view = new Float32Array(buffer.buffer, buffer.byteOffset, length);
+    return new Float32Array(view);
+  } catch {
+    const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+    const out = new Float32Array(length);
+    for (let i = 0; i < length; i += 1) {
+      out[i] = view.getFloat32(i * Float32Array.BYTES_PER_ELEMENT, true);
+    }
+    return out;
+  }
+};
+
+const decodeFloat16Blob = (buffer, length) => {
+  if ((length * Uint16Array.BYTES_PER_ELEMENT) > buffer.byteLength) return null;
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  const out = new Float32Array(length);
+  for (let i = 0; i < length; i += 1) {
+    out[i] = float16BitsToFloat32(view.getUint16(i * Uint16Array.BYTES_PER_ELEMENT, true));
+  }
+  return out;
+};
+
 const bufferToFloat32 = (buffer, dims = null) => {
   if (!buffer || !buffer.byteLength) return null;
   const length = Number.isFinite(Number(dims)) && Number(dims) > 0
     ? Math.max(1, Math.floor(Number(dims)))
     : Math.floor(buffer.byteLength / Float32Array.BYTES_PER_ELEMENT);
   if (!length) return null;
-  if ((length * Float32Array.BYTES_PER_ELEMENT) > buffer.byteLength) return null;
-  const view = new Float32Array(buffer.buffer, buffer.byteOffset, length);
-  return new Float32Array(view);
+  const float16Bytes = length * Uint16Array.BYTES_PER_ELEMENT;
+  const float32Bytes = length * Float32Array.BYTES_PER_ELEMENT;
+  if (Number.isFinite(Number(dims)) && Number(dims) > 0) {
+    if (buffer.byteLength === float16Bytes) {
+      return decodeFloat16Blob(buffer, length);
+    }
+    if (buffer.byteLength === float32Bytes || buffer.byteLength > float32Bytes) {
+      return decodeFloat32Blob(buffer, length);
+    }
+    return null;
+  }
+  if (buffer.byteLength % Float32Array.BYTES_PER_ELEMENT === 0) {
+    return decodeFloat32Blob(buffer, Math.floor(buffer.byteLength / Float32Array.BYTES_PER_ELEMENT));
+  }
+  if (buffer.byteLength % Uint16Array.BYTES_PER_ELEMENT === 0) {
+    return decodeFloat16Blob(buffer, Math.floor(buffer.byteLength / Uint16Array.BYTES_PER_ELEMENT));
+  }
+  return null;
 };
 
 const buildCacheKey = (identityKey, text) => sha1(`${identityKey}\n${text}`);
@@ -49,6 +189,7 @@ const resolveMaxEntries = (value) => {
  *  cacheIdentity?:object|null,
  *  cacheIdentityKey?:string|null,
  *  maxEntries?:number,
+ *  vectorEncoding?:string,
  *  log?:(line:string)=>void
  * }} [input]
  * @returns {Promise<{
@@ -65,10 +206,12 @@ export const createPersistentEmbeddingTextKvStore = async ({
   cacheIdentity = null,
   cacheIdentityKey = null,
   maxEntries = DEFAULT_MAX_ENTRIES,
+  vectorEncoding = VECTOR_ENCODING_FLOAT32,
   log = null
 } = {}) => {
   if (!Database || !cacheRoot || !cacheIdentity || !cacheIdentityKey) return null;
   const maxRows = resolveMaxEntries(maxEntries);
+  const resolvedVectorEncoding = normalizePersistentTextVectorEncoding(vectorEncoding);
   const baseDir = resolveCacheBase(cacheRoot, cacheIdentity);
   const dbPath = path.join(baseDir, PROFILE_DB_FILE);
   try {
@@ -201,11 +344,13 @@ export const createPersistentEmbeddingTextKvStore = async ({
       if (!normalized || !normalized.length) return false;
       const key = buildCacheKey(cacheIdentityKey, text);
       const now = new Date().toISOString();
+      const encodedVector = encodeVectorBlob(normalized, resolvedVectorEncoding);
+      if (!encodedVector) return false;
       try {
         upsertStmt.run(
           key,
           normalized.length,
-          Buffer.from(normalized.buffer),
+          encodedVector,
           now,
           now,
           now
@@ -230,6 +375,7 @@ export const createPersistentEmbeddingTextKvStore = async ({
       return {
         ...counters,
         maxEntries: maxRows,
+        vectorEncoding: resolvedVectorEncoding,
         size: this.size()
       };
     },

@@ -39,6 +39,14 @@ const normalizePrewarmTexts = (value) => {
   return out.length ? out : null;
 };
 
+const estimateTokensHeuristic = (text) => {
+  const value = typeof text === 'string' ? text : String(text ?? '');
+  if (!value) return 1;
+  const words = value.match(/[A-Za-z0-9_]+/g)?.length || 0;
+  const punctuation = value.match(/[^\sA-Za-z0-9_]/g)?.length || 0;
+  return Math.max(1, words + Math.ceil(punctuation * 0.5));
+};
+
 const touchEntry = (entry, ttlMs, now = Date.now()) => {
   if (!entry || typeof entry !== 'object') return;
   entry.lastAccessAt = now;
@@ -156,6 +164,10 @@ const createXenovaAdapter = ({ modelId, modelsDir, normalize }) => {
   return {
     embed,
     embedOne,
+    estimateTokensBatch: async (texts) => {
+      const list = Array.isArray(texts) ? texts : [];
+      return list.map((text) => estimateTokensHeuristic(text));
+    },
     get embedderPromise() {
       return ensureEmbedder();
     },
@@ -194,6 +206,10 @@ const createAdapter = ({
     return {
       embed,
       embedOne,
+      estimateTokensBatch: async (texts) => {
+        const list = Array.isArray(texts) ? texts : [];
+        return list.map((text) => estimateTokensHeuristic(text));
+      },
       embedderPromise: null,
       provider: resolvedProvider,
       // Stub adapter has no shared model state and is always concurrency-safe.
@@ -244,6 +260,17 @@ const createAdapter = ({
           if (isDlopenFailure(err)) {
             warnFallback(err);
             return ensureFallback().embedOne(text);
+          }
+          throw err;
+        }
+      },
+      estimateTokensBatch: async (texts) => {
+        try {
+          return await onnxEmbedder.estimateTokens(texts);
+        } catch (err) {
+          if (isDlopenFailure(err)) {
+            warnFallback(err);
+            return ensureFallback().estimateTokensBatch(texts);
           }
           throw err;
         }

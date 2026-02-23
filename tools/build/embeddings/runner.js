@@ -33,8 +33,8 @@ import { fromPosix, toPosix } from '../../../src/shared/files.js';
 import { getEnvConfig, isTestingEnv } from '../../../src/shared/env.js';
 import { createLruCache } from '../../../src/shared/cache.js';
 import { normalizeDenseVectorMode } from '../../../src/shared/dense-vector-mode.js';
+import { formatEmbeddingsPerfLine } from '../../../src/shared/embeddings-progress.js';
 import { spawnSubprocess } from '../../../src/shared/subprocess.js';
-import { runWithConcurrency } from '../../../src/shared/concurrency.js';
 import {
   normalizeBundleFormat,
   readBundleFile,
@@ -72,7 +72,10 @@ import {
   writeCacheEntry,
   writeCacheMeta
 } from './cache.js';
-import { createPersistentEmbeddingTextKvStore } from './text-kv-cache.js';
+import {
+  createPersistentEmbeddingTextKvStore,
+  normalizePersistentTextVectorEncoding
+} from './text-kv-cache.js';
 import {
   deriveEmbeddingsAutoTuneRecommendation,
   writeEmbeddingsAutoTuneRecommendation
@@ -130,6 +133,9 @@ const DEFAULT_EMBEDDINGS_TEXT_REUSE_MAX_TEXT_CHARS = 4096;
 const DEFAULT_EMBEDDINGS_PERSISTENT_TEXT_CACHE_MAX_ENTRIES = 500000;
 const DEFAULT_EMBEDDINGS_BATCH_TOKEN_MULTIPLIER = 256;
 const DEFAULT_EMBEDDINGS_CHARS_PER_TOKEN = 4;
+const DEFAULT_EMBEDDINGS_IN_FLIGHT_MAX_ENTRIES = 200000;
+const DEFAULT_EMBEDDINGS_ADAPTIVE_FILE_PARALLELISM_STEP_MS = 500;
+const DEFAULT_EMBEDDINGS_ADAPTIVE_FILE_PARALLELISM_MAX_MULTIPLIER = 2;
 
 let Database = null;
 try {
@@ -713,6 +719,10 @@ const resolveEmbeddingsPersistentTextCacheMaxEntries = (indexingConfig) => {
   return DEFAULT_EMBEDDINGS_PERSISTENT_TEXT_CACHE_MAX_ENTRIES;
 };
 
+export const resolveEmbeddingsPersistentTextCacheVectorEncoding = (indexingConfig) => (
+  normalizePersistentTextVectorEncoding(indexingConfig?.embeddings?.persistentTextCacheVectorEncoding)
+);
+
 const resolveEmbeddingsBatchTokenBudget = ({ indexingConfig, embeddingBatchSize }) => {
   const explicit = Number(indexingConfig?.embeddings?.maxBatchTokens);
   if (Number.isFinite(explicit) && explicit > 0) {
@@ -736,6 +746,155 @@ const resolveEmbeddingsCharsPerToken = (indexingConfig) => {
   return DEFAULT_EMBEDDINGS_CHARS_PER_TOKEN;
 };
 
+const resolveEmbeddingsSqliteDenseWriteBatchSize = (indexingConfig) => {
+  const configured = Number(indexingConfig?.embeddings?.sqliteDenseWriteBatchSize);
+  if (Number.isFinite(configured) && configured > 0) {
+    return Math.max(16, Math.floor(configured));
+  }
+  return 256;
+};
+
+const resolveEmbeddingsInFlightMaxEntries = (indexingConfig) => {
+  const configured = Number(indexingConfig?.embeddings?.inFlightCoalesceMaxEntries);
+  if (Number.isFinite(configured) && configured > 0) {
+    return Math.max(1, Math.floor(configured));
+  }
+  return DEFAULT_EMBEDDINGS_IN_FLIGHT_MAX_ENTRIES;
+};
+
+const createEmbeddingInFlightCoalescer = ({ maxEntries }) => {
+  const limit = Number.isFinite(Number(maxEntries)) && Number(maxEntries) > 0
+    ? Math.max(1, Math.floor(Number(maxEntries)))
+    : DEFAULT_EMBEDDINGS_IN_FLIGHT_MAX_ENTRIES;
+  const pending = new Map();
+  const counters = {
+    claims: 0,
+    joins: 0,
+    bypassed: 0,
+    peakSize: 0
+  };
+  return {
+    claim(text) {
+      if (typeof text !== 'string' || !text) return null;
+      const existing = pending.get(text);
+      if (existing) {
+        counters.joins += 1;
+        return { owner: false, promise: existing.promise };
+      }
+      if (pending.size >= limit) {
+        counters.bypassed += 1;
+        return null;
+      }
+      let resolvePromise = null;
+      let rejectPromise = null;
+      const promise = new Promise((resolve, reject) => {
+        resolvePromise = resolve;
+        rejectPromise = reject;
+      });
+      const entry = {
+        promise,
+        resolve: (value) => {
+          if (pending.get(text) === entry) pending.delete(text);
+          resolvePromise(value);
+        },
+        reject: (err) => {
+          if (pending.get(text) === entry) pending.delete(text);
+          rejectPromise(err);
+        }
+      };
+      pending.set(text, entry);
+      counters.claims += 1;
+      if (pending.size > counters.peakSize) counters.peakSize = pending.size;
+      return { owner: true, promise, resolve: entry.resolve, reject: entry.reject };
+    },
+    stats() {
+      return {
+        ...counters,
+        size: pending.size,
+        maxEntries: limit
+      };
+    }
+  };
+};
+
+const runWithAdaptiveConcurrency = async ({
+  items,
+  initialConcurrency,
+  resolveConcurrency,
+  worker
+}) => {
+  const list = Array.isArray(items) ? items : [];
+  const baseConcurrency = Math.max(1, Math.floor(Number(initialConcurrency) || 1));
+  if (list.length <= 1 || baseConcurrency <= 1) {
+    for (const item of list) {
+      await worker(item);
+    }
+    return {
+      peakConcurrency: Math.min(1, list.length || 1),
+      finalConcurrency: 1,
+      adjustments: 0
+    };
+  }
+  let nextIndex = 0;
+  let active = 0;
+  let currentConcurrency = baseConcurrency;
+  let peakConcurrency = 0;
+  let adjustments = 0;
+  let failed = false;
+  const resolveAdaptive = typeof resolveConcurrency === 'function'
+    ? resolveConcurrency
+    : (() => baseConcurrency);
+  return new Promise((resolve, reject) => {
+    const pump = () => {
+      if (failed) return;
+      const proposed = Math.max(1, Math.floor(Number(resolveAdaptive({
+        currentConcurrency,
+        active,
+        remaining: Math.max(0, list.length - nextIndex)
+      })) || currentConcurrency));
+      if (proposed !== currentConcurrency) {
+        currentConcurrency = proposed;
+        adjustments += 1;
+      }
+      while (!failed && active < currentConcurrency && nextIndex < list.length) {
+        const item = list[nextIndex];
+        nextIndex += 1;
+        active += 1;
+        if (active > peakConcurrency) peakConcurrency = active;
+        Promise.resolve(worker(item))
+          .then(() => {
+            active -= 1;
+            if (!failed && nextIndex >= list.length && active === 0) {
+              resolve({
+                peakConcurrency,
+                finalConcurrency: currentConcurrency,
+                adjustments
+              });
+              return;
+            }
+            pump();
+          })
+          .catch((err) => {
+            if (failed) return;
+            failed = true;
+            reject(err);
+          });
+      }
+      if (!failed && nextIndex >= list.length && active === 0) {
+        resolve({
+          peakConcurrency,
+          finalConcurrency: currentConcurrency,
+          adjustments
+        });
+      }
+    };
+    pump();
+  });
+};
+
+export const __createEmbeddingInFlightCoalescerForTests = createEmbeddingInFlightCoalescer;
+export const __runWithAdaptiveConcurrencyForTests = runWithAdaptiveConcurrency;
+
 /**
  * Create a bounded in-memory text->vector reuse cache for stage3 embedding.
  *
@@ -746,9 +905,9 @@ const resolveEmbeddingsCharsPerToken = (indexingConfig) => {
  * @param {{maxEntries:number,maxTextChars:number,persistentStore?:object|null}} input
  * @returns {{
  *   canCache:(text:unknown)=>boolean,
-  *   get:(text:unknown)=>ArrayLike<number>|null,
-  *   set:(text:unknown,vector:unknown)=>boolean,
-  *   size:()=>number,
+ *   get:(text:unknown)=>ArrayLike<number>|null,
+ *   set:(text:unknown,vector:unknown)=>boolean,
+ *   size:()=>number,
  *   stats:()=>object
  * }|null}
  */
@@ -1934,6 +2093,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
   const cacheMaxAgeMs = Number.isFinite(cacheMaxAgeDays) ? Math.max(0, cacheMaxAgeDays) * 24 * 60 * 60 * 1000 : 0;
   const persistentTextCacheEnabled = resolveEmbeddingsPersistentTextCacheEnabled(indexingConfig);
   const persistentTextCacheMaxEntries = resolveEmbeddingsPersistentTextCacheMaxEntries(indexingConfig);
+  const persistentTextCacheVectorEncoding = resolveEmbeddingsPersistentTextCacheVectorEncoding(indexingConfig);
   const persistentTextCacheStore = persistentTextCacheEnabled
     ? await createPersistentEmbeddingTextKvStore({
       Database,
@@ -1941,13 +2101,14 @@ export async function runBuildEmbeddingsWithConfig(config) {
       cacheIdentity,
       cacheIdentityKey,
       maxEntries: persistentTextCacheMaxEntries,
+      vectorEncoding: persistentTextCacheVectorEncoding,
       log
     })
     : null;
   if (persistentTextCacheStore) {
     log(
       `[embeddings] persistent text cache enabled ` +
-      `(maxEntries=${persistentTextCacheMaxEntries}).`
+      `(maxEntries=${persistentTextCacheMaxEntries}, encoding=${persistentTextCacheVectorEncoding}).`
     );
   }
   const maintenanceConfig = normalizeEmbeddingsMaintenanceConfig(embeddingsConfig.maintenance || {});
@@ -2582,6 +2743,70 @@ export async function runBuildEmbeddingsWithConfig(config) {
           cpuConcurrency: envelopeCpuConcurrency,
           hnswEnabled
         });
+        const inFlightCoalesceMaxEntries = resolveEmbeddingsInFlightMaxEntries(indexingConfig);
+        const embeddingInFlightCoalescer = createEmbeddingInFlightCoalescer({
+          maxEntries: inFlightCoalesceMaxEntries
+        });
+        const adaptiveFileParallelismEnabled = (
+          indexingConfig?.embeddings?.adaptiveFileParallelism !== false
+          && fileParallelism > 1
+        );
+        const adaptiveFileParallelismStepMs = Number.isFinite(Number(indexingConfig?.embeddings?.adaptiveFileParallelismStepMs))
+          ? Math.max(100, Math.floor(Number(indexingConfig.embeddings.adaptiveFileParallelismStepMs)))
+          : DEFAULT_EMBEDDINGS_ADAPTIVE_FILE_PARALLELISM_STEP_MS;
+        const adaptiveFileParallelismMaxMultiplierRaw = Number(indexingConfig?.embeddings?.adaptiveFileParallelismMaxMultiplier);
+        const adaptiveFileParallelismMaxMultiplier = Number.isFinite(adaptiveFileParallelismMaxMultiplierRaw)
+          && adaptiveFileParallelismMaxMultiplierRaw > 1
+          ? Math.max(1, Number(adaptiveFileParallelismMaxMultiplierRaw))
+          : DEFAULT_EMBEDDINGS_ADAPTIVE_FILE_PARALLELISM_MAX_MULTIPLIER;
+        const adaptiveFileParallelismCeiling = Math.max(
+          fileParallelism,
+          Math.min(
+            Math.max(fileParallelism, toPositiveIntOrNull(envelopeCpuConcurrency) || fileParallelism),
+            Math.max(fileParallelism, Math.floor(fileParallelism * adaptiveFileParallelismMaxMultiplier))
+          )
+        );
+        let adaptiveFileParallelismCurrent = fileParallelism;
+        let adaptiveFileParallelismAdjustments = 0;
+        let adaptiveFileParallelismLastAdjustAt = 0;
+        const resolveAdaptiveFileParallelism = () => {
+          if (!adaptiveFileParallelismEnabled) return fileParallelism;
+          const now = Date.now();
+          if ((now - adaptiveFileParallelismLastAdjustAt) < adaptiveFileParallelismStepMs) {
+            return adaptiveFileParallelismCurrent;
+          }
+          adaptiveFileParallelismLastAdjustAt = now;
+          const schedulerStats = scheduler?.stats?.() || null;
+          const computeQueue = schedulerStats?.queues?.[SCHEDULER_QUEUE_NAMES.embeddingsCompute] || {};
+          const ioQueue = schedulerStats?.queues?.[SCHEDULER_QUEUE_NAMES.embeddingsIo] || {};
+          const computePending = Math.max(0, Number(computeQueue.pending) || 0);
+          const computeMaxPending = Math.max(1, Number(computeQueue.maxPending) || 1);
+          const ioPending = Math.max(0, Number(ioQueue.pending) || 0);
+          const ioMaxPending = Math.max(1, Number(ioQueue.maxPending) || 1);
+          const computePressure = Math.max(0, Math.min(1, computePending / computeMaxPending));
+          const ioPressure = Math.max(0, Math.min(1, ioPending / ioMaxPending));
+          const memorySignals = schedulerStats?.adaptive?.signals?.memory || null;
+          const rssUtilization = Number(memorySignals?.rssUtilization);
+          const gcPressure = Number(memorySignals?.gcPressureScore);
+          const isMemoryHot = (
+            (Number.isFinite(rssUtilization) && rssUtilization >= 0.88)
+            || (Number.isFinite(gcPressure) && gcPressure >= 0.45)
+          );
+          const isBackpressured = isMemoryHot || computePressure >= 0.9 || ioPressure >= 0.9;
+          const isUnderutilized = !isMemoryHot && computePressure <= 0.3 && ioPressure <= 0.35;
+          let next = adaptiveFileParallelismCurrent;
+          if (isBackpressured) {
+            next = Math.max(1, adaptiveFileParallelismCurrent - 1);
+          } else if (isUnderutilized) {
+            next = Math.min(adaptiveFileParallelismCeiling, adaptiveFileParallelismCurrent + 1);
+          }
+          if (next !== adaptiveFileParallelismCurrent) {
+            adaptiveFileParallelismCurrent = next;
+            adaptiveFileParallelismAdjustments += 1;
+          }
+          embeddingFileConcurrencyPeak = Math.max(embeddingFileConcurrencyPeak, adaptiveFileParallelismCurrent);
+          return adaptiveFileParallelismCurrent;
+        };
         const backendParallelDispatch = getChunkEmbeddings?.supportsParallelDispatch === true;
         const parallelBatchDispatch = backendParallelDispatch && computeTokensTotal > 1;
         const mergeCodeDocBatches = indexingConfig?.embeddings?.mergeCodeDocBatches !== false;
@@ -2593,12 +2818,30 @@ export async function runBuildEmbeddingsWithConfig(config) {
             embeddingBatchSize
           });
         const embeddingCharsPerToken = resolveEmbeddingsCharsPerToken(indexingConfig);
-        const estimateEmbeddingTokens = (text) => {
+        const estimateEmbeddingTokensFallback = (text) => {
           const chars = typeof text === 'string' ? text.length : 0;
           return Math.max(1, Math.ceil(chars / embeddingCharsPerToken));
         };
+        const estimateEmbeddingTokensBatch = typeof getChunkEmbeddings?.estimateTokensBatch === 'function'
+          ? async (texts) => {
+            try {
+              const estimated = await getChunkEmbeddings.estimateTokensBatch(texts);
+              if (!Array.isArray(estimated) || estimated.length !== texts.length) return null;
+              return estimated.map((value, index) => {
+                const numeric = Math.floor(Number(value));
+                return Number.isFinite(numeric) && numeric > 0
+                  ? numeric
+                  : estimateEmbeddingTokensFallback(texts[index]);
+              });
+            } catch {
+              return null;
+            }
+          }
+          : null;
+        const estimateEmbeddingTokens = (text) => estimateEmbeddingTokensFallback(text);
         const textReuseCacheEntries = resolveEmbeddingsTextReuseCacheEntries(indexingConfig);
         const textReuseMaxTextChars = resolveEmbeddingsTextReuseMaxTextChars(indexingConfig);
+        const sqliteDenseWriteBatchSize = resolveEmbeddingsSqliteDenseWriteBatchSize(indexingConfig);
         const embeddingTextCache = createEmbeddingTextReuseCache({
           maxEntries: textReuseCacheEntries,
           maxTextChars: textReuseMaxTextChars,
@@ -2613,10 +2856,20 @@ export async function runBuildEmbeddingsWithConfig(config) {
             `(${textReuseCacheEntries} entries, <=${textReuseMaxTextChars} chars).`
           );
         }
+        if (adaptiveFileParallelismEnabled) {
+          log(
+            `[embeddings] ${mode}: adaptive file parallelism enabled ` +
+            `(base=${fileParallelism}, ceiling=${adaptiveFileParallelismCeiling}).`
+          );
+        }
         log(
           `[embeddings] ${mode}: token-aware batching enabled ` +
           `(budget=${embeddingBatchTokenBudget} est=${embeddingCharsPerToken} chars/token).`
         );
+        if (estimateEmbeddingTokensBatch) {
+          log(`[embeddings] ${mode}: model-aware token estimator enabled.`);
+        }
+        log(`[embeddings] ${mode}: sqlite dense write batching enabled (batchSize=${sqliteDenseWriteBatchSize}).`);
         const defaultWriterMaxPending = Math.max(1, Math.min(4, ioTokensTotal * 2));
         const writerMaxPending = schedulerIoMaxPending
           ? Math.max(1, Math.min(defaultWriterMaxPending, schedulerIoMaxPending))
@@ -2675,12 +2928,13 @@ export async function runBuildEmbeddingsWithConfig(config) {
         let embeddingTextCacheHits = 0;
         let embeddingTextCacheMisses = 0;
         let embeddingTextBatchDedupHits = 0;
+        let embeddingInFlightJoinHits = 0;
+        let embeddingInFlightClaims = 0;
+        let embeddingFileConcurrencyPeak = 0;
         let lastProgressEmitMs = 0;
         let progressTimer = null;
-        const emitProgressSnapshot = ({ force = false } = {}) => {
-          const nowMs = Date.now();
-          if (!force && (nowMs - lastProgressEmitMs) < progressHeartbeatMs) return;
-          lastProgressEmitMs = nowMs;
+        let lastPerfStatusLine = '';
+        const buildPerfSnapshot = (nowMs) => {
           const elapsedSec = Math.max(0.001, (nowMs - progressStartedAtMs) / 1000);
           const filesPerSec = processedFiles / elapsedSec;
           const chunksPerSec = processedChunks / elapsedSec;
@@ -2703,12 +2957,95 @@ export async function runBuildEmbeddingsWithConfig(config) {
           const embeddingTextReuseRate = embeddingTextsScheduled > 0
             ? (embeddingTextReuseHits / embeddingTextsScheduled) * 100
             : 0;
+          const inFlightStats = embeddingInFlightCoalescer?.stats?.() || {};
           const embeddingTextsPerSec = elapsedSec > 0
             ? (embeddingTextsResolved / elapsedSec)
             : 0;
           const embedEtaSeconds = embeddingTextsPerSec > 0
             ? Math.max(0, (embeddingTextsScheduled - embeddingTextsResolved) / embeddingTextsPerSec)
             : null;
+          const perfMetrics = {
+            files_total: sampledFileEntries.length,
+            files_done: processedFiles,
+            chunks_total: sampledChunkCount,
+            chunks_done: processedChunks,
+            cache_attempts: cacheAttempts,
+            cache_hits: cacheHits,
+            cache_misses: cacheMisses,
+            cache_rejected: cacheRejected,
+            cache_fast_rejects: cacheFastRejects,
+            cache_hit_files: cacheHitFiles,
+            computed_files: computedFiles,
+            skipped_files: skippedFiles,
+            texts_scheduled: embeddingTextsScheduled,
+            texts_resolved: embeddingTextsResolved,
+            texts_embedded: embeddingTextsEmbedded,
+            batches_completed: embeddingBatchesCompleted,
+            tokens_processed: embeddingBatchTokensProcessed,
+            inflight_join_hits: embeddingInFlightJoinHits,
+            inflight_claims: embeddingInFlightClaims,
+            embed_compute_ms: Math.max(0, Math.round(embeddingBatchComputeMs)),
+            elapsed_ms: Math.max(0, nowMs - progressStartedAtMs),
+            files_per_sec: filesPerSec,
+            chunks_per_sec: chunksPerSec,
+            embed_resolved_per_sec: embeddingTextsPerSec,
+            file_parallelism_current: adaptiveFileParallelismCurrent,
+            file_parallelism_peak: Math.max(embeddingFileConcurrencyPeak, adaptiveFileParallelismCurrent),
+            file_parallelism_adjustments: adaptiveFileParallelismAdjustments,
+            writer_pending: Number(writerStats.pending || 0),
+            writer_max_pending: Number(writerStats.currentMaxPending || 0),
+            queue_compute_pending: Number(computeQueueStats.pending || 0),
+            queue_io_pending: Number(ioQueueStats.pending || 0)
+          };
+          return {
+            elapsedSec,
+            filesPerSec,
+            chunksPerSec,
+            etaSeconds,
+            cacheHitRate,
+            writerStats,
+            writerCompleted,
+            writerTotal,
+            computeQueueStats,
+            ioQueueStats,
+            embeddingTextReuseHits,
+            embeddingTextReuseRate,
+            inFlightStats,
+            embeddingTextsPerSec,
+            embedEtaSeconds,
+            perfMetrics
+          };
+        };
+        const emitProgressSnapshot = ({ force = false, summary = false } = {}) => {
+          const nowMs = Date.now();
+          if (!force && (nowMs - lastProgressEmitMs) < progressHeartbeatMs) return;
+          lastProgressEmitMs = nowMs;
+          const {
+            filesPerSec,
+            chunksPerSec,
+            etaSeconds,
+            cacheHitRate,
+            writerStats,
+            writerCompleted,
+            writerTotal,
+            computeQueueStats,
+            ioQueueStats,
+            embeddingTextReuseHits,
+            embeddingTextReuseRate,
+            inFlightStats,
+            embeddingTextsPerSec,
+            embedEtaSeconds,
+            perfMetrics
+          } = buildPerfSnapshot(nowMs);
+          const perfStatusLine = formatEmbeddingsPerfLine({
+            mode,
+            kind: summary ? 'perf_summary' : 'perf_progress',
+            metrics: perfMetrics
+          });
+          if (force || perfStatusLine !== lastPerfStatusLine) {
+            lastPerfStatusLine = perfStatusLine;
+            log(perfStatusLine);
+          }
           const filesMessage = [
             `${processedFiles}/${sampledFileEntries.length} files`,
             `${processedChunks}/${sampledChunkCount} chunks`,
@@ -2716,6 +3053,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
             `${chunksPerSec.toFixed(1)} chunks/s`,
             `eta ${formatEta(etaSeconds)}`,
             `cache ${cacheHitRate == null ? 'n/a' : `${cacheHitRate.toFixed(1)}%`}`,
+            `fp ${adaptiveFileParallelismCurrent}/${Math.max(embeddingFileConcurrencyPeak, adaptiveFileParallelismCurrent)}`,
             `writer ${writerStats.pending}/${writerStats.currentMaxPending}`,
             `q(c=${Number(computeQueueStats.pending || 0)},io=${Number(ioQueueStats.pending || 0)})`
           ].join(' | ');
@@ -2770,12 +3108,14 @@ export async function runBuildEmbeddingsWithConfig(config) {
                 `${embeddingTextsResolved}/${embeddingTextsScheduled} resolved`,
                 `${embeddingTextsEmbedded} embedded`,
                 `reuse ${embeddingTextReuseHits} (${embeddingTextReuseRate.toFixed(1)}%)`,
+                `coalesced ${embeddingInFlightJoinHits}`,
                 `${embeddingBatchesCompleted} batches`,
                 `${embeddingBatchTokensProcessed} tokens`,
                 `${embeddingTextsPerSec.toFixed(1)} resolved/s`,
                 `eta ${formatEta(embedEtaSeconds)}`,
                 `compute ${Math.max(0, Math.round(embeddingBatchComputeMs))}ms`,
-                `cache ${embeddingTextCache ? embeddingTextCache.size() : 0}`
+                `cache ${embeddingTextCache ? embeddingTextCache.size() : 0}`,
+                `inflight ${Number(inFlightStats.size || 0)}`
               ].join(' | ')
             }
           );
@@ -3043,6 +3383,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           embeddingBatchSize,
           embeddingBatchTokenBudget,
           estimateEmbeddingTokens,
+          estimateEmbeddingTokensBatch,
           getChunkEmbeddings,
           runBatched,
           assertVectorArrays,
@@ -3052,17 +3393,28 @@ export async function runBuildEmbeddingsWithConfig(config) {
           parallelDispatch: parallelBatchDispatch,
           mergeCodeDocBatches,
           embeddingTextCache,
+          embeddingInFlightCoalescer,
           onEmbeddingBatch: ({ durationMs, batchTokens }) => {
             embeddingBatchesCompleted += 1;
             embeddingBatchTokensProcessed += Math.max(0, Math.floor(Number(batchTokens) || 0));
             embeddingBatchComputeMs += Math.max(0, Number(durationMs) || 0);
           },
-          onEmbeddingUsage: ({ requested, embedded, cacheHits, cacheMisses, batchDedupHits }) => {
+          onEmbeddingUsage: ({
+            requested,
+            embedded,
+            cacheHits,
+            cacheMisses,
+            batchDedupHits,
+            inFlightJoined,
+            inFlightOwned
+          }) => {
             embeddingTextsResolved += Math.max(0, Math.floor(Number(requested) || 0));
             embeddingTextsEmbedded += Math.max(0, Math.floor(Number(embedded) || 0));
             embeddingTextCacheHits += Math.max(0, Math.floor(Number(cacheHits) || 0));
             embeddingTextCacheMisses += Math.max(0, Math.floor(Number(cacheMisses) || 0));
             embeddingTextBatchDedupHits += Math.max(0, Math.floor(Number(batchDedupHits) || 0));
+            embeddingInFlightJoinHits += Math.max(0, Math.floor(Number(inFlightJoined) || 0));
+            embeddingInFlightClaims += Math.max(0, Math.floor(Number(inFlightOwned) || 0));
           }
         });
         try {
@@ -3533,19 +3885,32 @@ export async function runBuildEmbeddingsWithConfig(config) {
             for (const entry of sampledFileEntries) {
               await processFileEntry(entry);
             }
+            embeddingFileConcurrencyPeak = Math.max(embeddingFileConcurrencyPeak, 1);
           } else {
-            await runWithConcurrency(
-              sampledFileEntries,
-              fileParallelism,
-              async (entry) => processFileEntry(entry),
-              { collectResults: false }
+            const adaptiveRun = await runWithAdaptiveConcurrency({
+              items: sampledFileEntries,
+              initialConcurrency: fileParallelism,
+              resolveConcurrency: () => resolveAdaptiveFileParallelism(),
+              worker: async (entry) => processFileEntry(entry)
+            });
+            embeddingFileConcurrencyPeak = Math.max(
+              embeddingFileConcurrencyPeak,
+              Number(adaptiveRun?.peakConcurrency || 0)
+            );
+            adaptiveFileParallelismCurrent = Math.max(
+              1,
+              Math.floor(Number(adaptiveRun?.finalConcurrency || adaptiveFileParallelismCurrent || fileParallelism))
+            );
+            adaptiveFileParallelismAdjustments = Math.max(
+              adaptiveFileParallelismAdjustments,
+              Math.max(0, Math.floor(Number(adaptiveRun?.adjustments || 0)))
             );
           }
         } finally {
           stopProgressTimer();
           await writerQueue.onIdle();
           await cacheShardHandlePool.close();
-          emitProgressSnapshot({ force: true });
+          emitProgressSnapshot({ force: true, summary: true });
           cacheTask.done({ message: `${cacheHits}/${cacheAttempts} cache hits` });
           embedTask.done({
             message: [
@@ -3750,6 +4115,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
             modelId,
             quantization,
             sharedDb: sqliteSharedDbForMode,
+            writeBatchSize: sqliteDenseWriteBatchSize,
             emitOutput: true,
             warnOnMissing: false,
             logger
@@ -3886,8 +4252,17 @@ export async function runBuildEmbeddingsWithConfig(config) {
             cacheHits: embeddingTextCacheHits,
             cacheMisses: embeddingTextCacheMisses,
             batchDedupHits: embeddingTextBatchDedupHits,
+            inFlightJoinHits: embeddingInFlightJoinHits,
+            inFlightClaims: embeddingInFlightClaims,
             reuseHits: embeddingTextCacheHits + embeddingTextBatchDedupHits,
             cache: embeddingTextCache?.stats?.() || null
+          },
+          fileConcurrency: {
+            base: fileParallelism,
+            final: adaptiveFileParallelismCurrent,
+            peak: Math.max(embeddingFileConcurrencyPeak, adaptiveFileParallelismCurrent),
+            adaptive: adaptiveFileParallelismEnabled,
+            adjustments: adaptiveFileParallelismAdjustments
           },
           backends: {
             ...(indexState.embeddings?.backends || {}),
@@ -3992,6 +4367,22 @@ export async function runBuildEmbeddingsWithConfig(config) {
             `stores=${globalChunkCacheStores}).`
           );
         }
+        {
+          const inFlightStats = embeddingInFlightCoalescer?.stats?.() || {};
+          log(
+            `[embeddings] ${mode}: in-flight coalescing ` +
+            `(joins=${inFlightStats.joins || 0}, claims=${inFlightStats.claims || 0}, ` +
+            `bypassed=${inFlightStats.bypassed || 0}, peak=${inFlightStats.peakSize || 0}).`
+          );
+        }
+        if (adaptiveFileParallelismEnabled) {
+          log(
+            `[embeddings] ${mode}: adaptive file parallelism ` +
+            `(base=${fileParallelism}, final=${adaptiveFileParallelismCurrent}, ` +
+            `peak=${embeddingFileConcurrencyPeak || adaptiveFileParallelismCurrent}, ` +
+            `adjustments=${adaptiveFileParallelismAdjustments}).`
+          );
+        }
         writerStatsByMode[mode] = writerQueue.stats();
         const schedulerStats = scheduler?.stats?.();
         const starvationCount = schedulerStats?.counters?.starvation ?? 0;
@@ -4020,14 +4411,20 @@ export async function runBuildEmbeddingsWithConfig(config) {
             batches: embeddingBatchesCompleted,
             batchComputeMs: embeddingBatchComputeMs,
             tokensProcessed: embeddingBatchTokensProcessed,
-            computeQueuePressure
+            computeQueuePressure,
+            inFlightJoinHits: embeddingInFlightJoinHits,
+            inFlightClaims: embeddingInFlightClaims,
+            fileConcurrencyBase: fileParallelism,
+            fileConcurrencyFinal: adaptiveFileParallelismCurrent,
+            fileConcurrencyPeak: Math.max(embeddingFileConcurrencyPeak, adaptiveFileParallelismCurrent),
+            fileConcurrencyAdjustments: adaptiveFileParallelismAdjustments
           };
           const recommendation = deriveEmbeddingsAutoTuneRecommendation({
             observed,
             current: {
               batchSize: embeddingBatchSize,
               maxBatchTokens: embeddingBatchTokenBudget,
-              fileParallelism
+              fileParallelism: adaptiveFileParallelismCurrent
             }
           });
           if (recommendation) {

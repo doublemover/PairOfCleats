@@ -699,6 +699,23 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, no
     const mask = encoded.attention_mask;
     return meanPool(mainOutput, mask, normalizeVec);
   };
+  const estimateTokens = async (texts) => {
+    const list = Array.isArray(texts) ? texts : [];
+    if (!list.length) return [];
+    const { tokenizer, session } = await embedderPromise;
+    const encoded = encodeTexts(tokenizer, session, list);
+    const masks = Array.isArray(encoded?.attention_mask) ? encoded.attention_mask : [];
+    const counts = new Array(list.length);
+    for (let i = 0; i < list.length; i += 1) {
+      const row = Array.isArray(masks[i]) ? masks[i] : [];
+      let tokenCount = 0;
+      for (let j = 0; j < row.length; j += 1) {
+        tokenCount += Number(row[j]) ? 1 : 0;
+      }
+      counts[i] = Math.max(1, tokenCount);
+    }
+    return counts;
+  };
   const prewarm = async ({ tokenizer = true, model = false, texts = null } = {}) => {
     const shouldWarmTokenizer = tokenizer !== false;
     const shouldWarmModel = model === true;
@@ -717,6 +734,7 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, no
   return {
     embedderPromise,
     getEmbeddings,
+    estimateTokens,
     prewarm,
     getEmbedding: async (text) => {
       const list = await getEmbeddings([text]);
