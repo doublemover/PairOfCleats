@@ -67,6 +67,131 @@ import { postScanImports, preScanImports, runCrossFileInference } from './steps/
 import { writeIndexArtifactsForMode } from './steps/write.js';
 
 const HOST_CPU_COUNT = Array.isArray(os.cpus()) ? os.cpus().length : null;
+const INDEX_STAGE_PLAN = Object.freeze([
+  Object.freeze({ id: 'discover', label: 'discovery' }),
+  Object.freeze({ id: 'imports', label: 'imports' }),
+  Object.freeze({ id: 'processing', label: 'processing' }),
+  Object.freeze({ id: 'relations', label: 'relations' }),
+  Object.freeze({ id: 'postings', label: 'postings' }),
+  Object.freeze({ id: 'write', label: 'write' })
+]);
+const HEAVY_UTILIZATION_STAGES = new Set(['processing', 'relations', 'postings', 'write']);
+
+const summarizeImportStats = (importResult) => {
+  if (!importResult?.stats) {
+    return { modules: 0, edges: 0, files: 0 };
+  }
+  return {
+    modules: Number(importResult.stats.modules) || 0,
+    edges: Number(importResult.stats.edges) || 0,
+    files: Number(importResult.stats.files) || 0
+  };
+};
+
+const summarizeImportGraphCacheStats = (importResult) => {
+  if (!importResult?.cacheStats) return null;
+  const files = Number(importResult.cacheStats.files) || 0;
+  const filesReused = Number(importResult.cacheStats.filesReused) || 0;
+  return {
+    files,
+    filesHashed: Number(importResult.cacheStats.filesHashed) || 0,
+    filesReused,
+    filesInvalidated: Number(importResult.cacheStats.filesInvalidated) || 0,
+    specs: Number(importResult.cacheStats.specs) || 0,
+    specsReused: Number(importResult.cacheStats.specsReused) || 0,
+    specsComputed: Number(importResult.cacheStats.specsComputed) || 0,
+    packageInvalidated: importResult.cacheStats.packageInvalidated === true,
+    reuseRatio: files ? filesReused / Number(importResult.cacheStats.files || 1) : 0
+  };
+};
+
+const summarizeImportGraphStats = (state) => {
+  const stats = state?.importResolutionGraph?.stats;
+  if (!stats) return null;
+  return {
+    files: Number(stats.files) || 0,
+    nodes: Number(stats.nodes) || 0,
+    edges: Number(stats.edges) || 0,
+    resolved: Number(stats.resolved) || 0,
+    external: Number(stats.external) || 0,
+    unresolved: Number(stats.unresolved) || 0,
+    truncatedEdges: Number(stats.truncatedEdges) || 0,
+    truncatedNodes: Number(stats.truncatedNodes) || 0,
+    warningSuppressed: Number(stats.warningSuppressed) || 0
+  };
+};
+
+const summarizeVfsManifestStats = (state) => {
+  const vfsStats = state?.vfsManifestStats || state?.vfsManifestCollector?.stats || null;
+  if (!vfsStats) return null;
+  return {
+    rows: vfsStats.totalRecords || 0,
+    bytes: vfsStats.totalBytes || 0,
+    maxLineBytes: vfsStats.maxLineBytes || 0,
+    trimmedRows: vfsStats.trimmedRows || 0,
+    droppedRows: vfsStats.droppedRows || 0,
+    runsSpilled: vfsStats.runsSpilled || 0
+  };
+};
+
+const summarizeTinyRepoFastPath = (tinyRepoFastPath) => (
+  tinyRepoFastPath?.active === true
+    ? {
+      active: true,
+      estimatedLines: tinyRepoFastPath.estimatedLines,
+      totalBytes: tinyRepoFastPath.totalBytes,
+      fileCount: tinyRepoFastPath.fileCount,
+      disableImportGraph: tinyRepoFastPath.disableImportGraph,
+      disableCrossFileInference: tinyRepoFastPath.disableCrossFileInference,
+      minimalArtifacts: tinyRepoFastPath.minimalArtifacts
+    }
+    : null
+);
+
+const resolvePipelinePolicyContext = ({ runtime, entries }) => {
+  const dictConfig = applyAdaptiveDictConfig(runtime.dictConfig, entries.length);
+  const tinyRepoFastPath = resolveTinyRepoFastPath({ runtime, entries });
+  const tinyRepoFastPathActive = tinyRepoFastPath.active === true;
+  const runtimeWithDictConfig = dictConfig === runtime.dictConfig
+    ? runtime
+    : { ...runtime, dictConfig };
+  const runtimeRef = tinyRepoFastPathActive
+    ? {
+      ...runtimeWithDictConfig,
+      // Tiny-repo fast path: disable expensive cross-file analysis passes.
+      typeInferenceEnabled: false,
+      typeInferenceCrossFileEnabled: false,
+      riskAnalysisCrossFileEnabled: false,
+      tinyRepoFastPath
+    }
+    : runtimeWithDictConfig;
+  const vectorOnlyShortcuts = resolveVectorOnlyShortcutPolicy(runtimeRef);
+  const vectorOnlyShortcutSummary = vectorOnlyShortcuts.enabled
+    ? {
+      disableImportGraph: vectorOnlyShortcuts.disableImportGraph,
+      disableCrossFileInference: vectorOnlyShortcuts.disableCrossFileInference
+    }
+    : null;
+  const tinyRepoFastPathSummary = summarizeTinyRepoFastPath(tinyRepoFastPath);
+  const relationsEnabled = runtimeRef.stage !== 'stage1';
+  const importGraphEnabled = relationsEnabled
+    && !vectorOnlyShortcuts.disableImportGraph
+    && !(tinyRepoFastPathActive && tinyRepoFastPath.disableImportGraph);
+  const crossFileInferenceEnabled = relationsEnabled
+    && !vectorOnlyShortcuts.disableCrossFileInference
+    && !(tinyRepoFastPathActive && tinyRepoFastPath.disableCrossFileInference);
+  return {
+    runtimeRef,
+    tinyRepoFastPath,
+    tinyRepoFastPathActive,
+    tinyRepoFastPathSummary,
+    vectorOnlyShortcuts,
+    vectorOnlyShortcutSummary,
+    relationsEnabled,
+    importGraphEnabled,
+    crossFileInferenceEnabled
+  };
+};
 
 /**
  * Build indexes for one mode by running discovery/planning/stage pipeline.
@@ -164,15 +289,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   };
   const seenFiles = new Set();
 
-  const stagePlan = [
-    { id: 'discover', label: 'discovery' },
-    { id: 'imports', label: 'imports' },
-    { id: 'processing', label: 'processing' },
-    { id: 'relations', label: 'relations' },
-    { id: 'postings', label: 'postings' },
-    { id: 'write', label: 'write' }
-  ];
-  const stageTotal = stagePlan.length;
+  const stageTotal = INDEX_STAGE_PLAN.length;
   let stageIndex = 0;
   const getSchedulerStats = () => (runtime?.scheduler?.stats ? runtime.scheduler.stats() : null);
   const schedulerTelemetry = runtime?.scheduler
@@ -211,7 +328,6 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   const utilizationAlertWindowMs = Number.isFinite(Number(runtime?.schedulerConfig?.utilizationAlertWindowMs))
     ? Math.max(1000, Math.floor(Number(runtime.schedulerConfig.utilizationAlertWindowMs)))
     : 15000;
-  const heavyUtilizationStages = new Set(['processing', 'relations', 'postings', 'write']);
   let utilizationUnderTargetSinceMs = 0;
   let utilizationTargetWarningEmitted = false;
   const queueUtilizationUnderTargetSinceMs = new Map();
@@ -340,7 +456,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     );
   };
   const maybeWarnUtilizationTarget = ({ snapshot, stage, step }) => {
-    if (!heavyUtilizationStages.has(String(step || stage || '').toLowerCase())) {
+    if (!HEAVY_UTILIZATION_STAGES.has(String(step || stage || '').toLowerCase())) {
       utilizationUnderTargetSinceMs = 0;
       return;
     }
@@ -484,7 +600,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   };
   const advanceStage = (stage) => {
     if (runtime?.overallProgress?.advance && stageIndex > 0) {
-      const prevStage = stagePlan[stageIndex - 1];
+      const prevStage = INDEX_STAGE_PLAN[stageIndex - 1];
       runtime.overallProgress.advance({ message: `${mode} ${prevStage.label}` });
     }
     stageIndex += 1;
@@ -498,7 +614,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     });
   };
 
-  advanceStage(stagePlan[0]);
+  advanceStage(INDEX_STAGE_PLAN[0]);
   const discoveryResult = await runWithOperationalFailurePolicy({
     target: 'indexing.hotpath',
     operation: 'discovery',
@@ -531,40 +647,19 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     fileCount: allEntries.length
   }, { stage: 'stage1', mode });
   throwIfAborted(abortSignal);
-  const dictConfig = applyAdaptiveDictConfig(runtime.dictConfig, allEntries.length);
-  const tinyRepoFastPath = resolveTinyRepoFastPath({ runtime, entries: allEntries });
-  const tinyRepoFastPathActive = tinyRepoFastPath.active === true;
-  const runtimeRefBase = dictConfig === runtime.dictConfig
-    ? runtime
-    : { ...runtime, dictConfig };
-  const runtimeRef = tinyRepoFastPathActive
-    ? {
-      ...runtimeRefBase,
-      // Tiny-repo fast path: disable expensive cross-file analysis passes.
-      typeInferenceEnabled: false,
-      typeInferenceCrossFileEnabled: false,
-      riskAnalysisCrossFileEnabled: false,
-      tinyRepoFastPath
-    }
-    : runtimeRefBase;
-  const vectorOnlyShortcuts = resolveVectorOnlyShortcutPolicy(runtimeRef);
-  state.vectorOnlyShortcuts = vectorOnlyShortcuts.enabled
-    ? {
-      disableImportGraph: vectorOnlyShortcuts.disableImportGraph,
-      disableCrossFileInference: vectorOnlyShortcuts.disableCrossFileInference
-    }
-    : null;
-  state.tinyRepoFastPath = tinyRepoFastPathActive
-    ? {
-      active: true,
-      estimatedLines: tinyRepoFastPath.estimatedLines,
-      totalBytes: tinyRepoFastPath.totalBytes,
-      fileCount: tinyRepoFastPath.fileCount,
-      disableImportGraph: tinyRepoFastPath.disableImportGraph,
-      disableCrossFileInference: tinyRepoFastPath.disableCrossFileInference,
-      minimalArtifacts: tinyRepoFastPath.minimalArtifacts
-    }
-    : null;
+  const {
+    runtimeRef,
+    tinyRepoFastPath,
+    tinyRepoFastPathActive,
+    tinyRepoFastPathSummary,
+    vectorOnlyShortcuts,
+    vectorOnlyShortcutSummary,
+    relationsEnabled,
+    importGraphEnabled,
+    crossFileInferenceEnabled
+  } = resolvePipelinePolicyContext({ runtime, entries: allEntries });
+  state.vectorOnlyShortcuts = vectorOnlyShortcutSummary;
+  state.tinyRepoFastPath = tinyRepoFastPathSummary;
   if (vectorOnlyShortcuts.enabled) {
     log(
       '[vector_only] analysis shortcuts: '
@@ -587,16 +682,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
         profileId: vectorOnlyShortcuts.profileId,
         disableImportGraph: vectorOnlyShortcuts.disableImportGraph,
         disableCrossFileInference: vectorOnlyShortcuts.disableCrossFileInference,
-        tinyRepoFastPath: tinyRepoFastPathActive
-          ? {
-            estimatedLines: tinyRepoFastPath.estimatedLines,
-            totalBytes: tinyRepoFastPath.totalBytes,
-            fileCount: tinyRepoFastPath.fileCount,
-            disableImportGraph: tinyRepoFastPath.disableImportGraph,
-            disableCrossFileInference: tinyRepoFastPath.disableCrossFileInference,
-            minimalArtifacts: tinyRepoFastPath.minimalArtifacts
-          }
-          : null
+        tinyRepoFastPath: tinyRepoFastPathSummary
       }
     }
   });
@@ -679,14 +765,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     return;
   }
 
-  const relationsEnabled = runtimeRef.stage !== 'stage1';
-  const importGraphEnabled = relationsEnabled
-    && !vectorOnlyShortcuts.disableImportGraph
-    && !(tinyRepoFastPathActive && tinyRepoFastPath.disableImportGraph);
-  const crossFileInferenceEnabled = relationsEnabled
-    && !vectorOnlyShortcuts.disableCrossFileInference
-    && !(tinyRepoFastPathActive && tinyRepoFastPath.disableCrossFileInference);
-  advanceStage(stagePlan[1]);
+  advanceStage(INDEX_STAGE_PLAN[1]);
   let { importResult, scanPlan } = await preScanImports({
     runtime: runtimeRef,
     mode,
@@ -702,13 +781,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     stage: 'stage1',
     step: 'imports',
     extra: {
-      imports: importResult?.stats
-        ? {
-          modules: Number(importResult.stats.modules) || 0,
-          edges: Number(importResult.stats.edges) || 0,
-          files: Number(importResult.stats.files) || 0
-        }
-        : { modules: 0, edges: 0, files: 0 }
+      imports: summarizeImportStats(importResult)
     }
   });
   throwIfAborted(abortSignal);
@@ -726,7 +799,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   };
   if (shouldElideProcessingStage) {
     const elisionSource = cachedZeroModality ? 'sparsity-cache-hit' : 'discovery';
-    advanceStage(stagePlan[2]);
+    advanceStage(INDEX_STAGE_PLAN[2]);
     processResult = {
       ...processResult,
       stageElided: true
@@ -752,7 +825,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     });
     log(`Auto-selected context window: ${contextWin} lines`);
 
-    advanceStage(stagePlan[2]);
+    advanceStage(INDEX_STAGE_PLAN[2]);
     processResult = await processFiles({
       mode,
       runtime: runtimeRef,
@@ -882,7 +955,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     postingsPromise.catch(() => {});
   }
 
-  advanceStage(stagePlan[3]);
+  advanceStage(INDEX_STAGE_PLAN[3]);
   let crossFileEnabled = false;
   let graphRelations = null;
   if (crossFileInferenceEnabled || importGraphEnabled) {
@@ -922,34 +995,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     step: 'relations',
     extra: {
       fileRelations: state.fileRelations?.size || 0,
-      importGraphCache: postImportResult?.cacheStats
-        ? {
-          files: Number(postImportResult.cacheStats.files) || 0,
-          filesHashed: Number(postImportResult.cacheStats.filesHashed) || 0,
-          filesReused: Number(postImportResult.cacheStats.filesReused) || 0,
-          filesInvalidated: Number(postImportResult.cacheStats.filesInvalidated) || 0,
-          specs: Number(postImportResult.cacheStats.specs) || 0,
-          specsReused: Number(postImportResult.cacheStats.specsReused) || 0,
-          specsComputed: Number(postImportResult.cacheStats.specsComputed) || 0,
-          packageInvalidated: postImportResult.cacheStats.packageInvalidated === true,
-          reuseRatio: postImportResult.cacheStats.files
-            ? Number(postImportResult.cacheStats.filesReused || 0) / Number(postImportResult.cacheStats.files || 1)
-            : 0
-        }
-        : null,
-      importGraph: state.importResolutionGraph?.stats
-        ? {
-          files: Number(state.importResolutionGraph.stats.files) || 0,
-          nodes: Number(state.importResolutionGraph.stats.nodes) || 0,
-          edges: Number(state.importResolutionGraph.stats.edges) || 0,
-          resolved: Number(state.importResolutionGraph.stats.resolved) || 0,
-          external: Number(state.importResolutionGraph.stats.external) || 0,
-          unresolved: Number(state.importResolutionGraph.stats.unresolved) || 0,
-          truncatedEdges: Number(state.importResolutionGraph.stats.truncatedEdges) || 0,
-          truncatedNodes: Number(state.importResolutionGraph.stats.truncatedNodes) || 0,
-          warningSuppressed: Number(state.importResolutionGraph.stats.warningSuppressed) || 0
-        }
-        : null,
+      importGraphCache: summarizeImportGraphCacheStats(postImportResult),
+      importGraph: summarizeImportGraphStats(state),
       graphs: summarizeGraphRelations(graphRelations),
       shortcuts: {
         importGraphEnabled,
@@ -973,7 +1020,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
 
   log(`   → Indexed ${state.chunks.length} chunks, total tokens: ${state.totalTokens.toLocaleString()}`);
 
-  advanceStage(stagePlan[4]);
+  advanceStage(INDEX_STAGE_PLAN[4]);
   throwIfAborted(abortSignal);
   const postings = postingsPromise
     ? await postingsPromise
@@ -994,7 +1041,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     }
   });
 
-  advanceStage(stagePlan[5]);
+  advanceStage(INDEX_STAGE_PLAN[5]);
   throwIfAborted(abortSignal);
   await writeIndexArtifactsForMode({
     runtime: runtimeRef,
@@ -1023,17 +1070,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       log
     });
   }
-  const vfsStats = state.vfsManifestStats || state.vfsManifestCollector?.stats || null;
-  const vfsExtra = vfsStats
-    ? {
-      rows: vfsStats.totalRecords || 0,
-      bytes: vfsStats.totalBytes || 0,
-      maxLineBytes: vfsStats.maxLineBytes || 0,
-      trimmedRows: vfsStats.trimmedRows || 0,
-      droppedRows: vfsStats.droppedRows || 0,
-      runsSpilled: vfsStats.runsSpilled || 0
-    }
-    : null;
+  const vfsExtra = summarizeVfsManifestStats(state);
   recordStageCheckpoint({
     stage: 'stage2',
     step: 'write',
@@ -1062,7 +1099,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   }
   throwIfAborted(abortSignal);
   if (runtimeRef?.overallProgress?.advance) {
-    const finalStage = stagePlan[stagePlan.length - 1];
+    const finalStage = INDEX_STAGE_PLAN[INDEX_STAGE_PLAN.length - 1];
     runtimeRef.overallProgress.advance({ message: `${mode} ${finalStage.label}` });
   }
   await writeSchedulerAutoTuneProfile({
