@@ -1,5 +1,3 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
 import { extractDocComment, sliceSignature } from '../shared.js';
 import {
@@ -13,7 +11,14 @@ import { isTreeSitterEnabled } from './options.js';
 import { getNativeTreeSitterParser, loadNativeTreeSitterGrammar } from './native-runtime.js';
 import { treeSitterState } from './state.js';
 import { getTreeSitterWorkerPool, sanitizeTreeSitterOptions } from './worker.js';
-import { buildLocalCacheKey } from '../../shared/cache-key.js';
+import { recordNodeDensity, resolveTraversalBudget } from './chunking/budget.js';
+import {
+  ensureChunkCache,
+  loadCachedChunks,
+  resolveChunkCacheKey,
+  resolvePersistentChunkCacheRoot,
+  storeCachedChunks
+} from './chunking/cache.js';
 
 const loggedParseFailures = new Set();
 const loggedParseTimeouts = new Set();
@@ -37,16 +42,8 @@ const DEFAULT_MAX_AST_NODES = 250_000;
 const DEFAULT_MAX_AST_STACK = 250_000;
 const DEFAULT_MAX_CHUNK_NODES = 5_000;
 
-const JS_TS_LANGUAGE_IDS = new Set(['javascript', 'typescript', 'tsx', 'jsx']);
 const QUERY_CAPTURE_NAME = 'chunk';
 const QUERY_MATCH_LIMIT_BUFFER = 32;
-const DEFAULT_DENSE_NODE_THRESHOLD = 250;
-const DEFAULT_DENSER_NODE_THRESHOLD = 600;
-const DEFAULT_DENSE_SCALE = 0.5;
-const DEFAULT_DENSER_SCALE = 0.25;
-const MIN_ADAPTIVE_AST_NODES = 10_000;
-const MIN_ADAPTIVE_AST_STACK = 10_000;
-const MIN_ADAPTIVE_CHUNK_NODES = 200;
 
 const buildChunkQueryPattern = (language, config) => {
   if (!config) return null;
@@ -109,297 +106,6 @@ const getTreeSitterChunkQuery = (languageId, config, options) => {
     }
     return null;
   }
-};
-
-const resolveAdaptiveBudgetScale = (options, resolvedId) => {
-  const adaptive = options?.treeSitter?.adaptive;
-  if (adaptive === false || adaptive?.enabled === false) return { scale: 1, density: null };
-  const entry = treeSitterState.nodeDensity?.get?.(resolvedId);
-  const density = entry && typeof entry === 'object' ? entry.density : entry;
-  if (!Number.isFinite(density) || density <= 0) return { scale: 1, density: null };
-
-  const denseThreshold = Number.isFinite(adaptive?.denseThreshold)
-    ? adaptive.denseThreshold
-    : DEFAULT_DENSE_NODE_THRESHOLD;
-  const denserThreshold = Number.isFinite(adaptive?.denserThreshold)
-    ? adaptive.denserThreshold
-    : DEFAULT_DENSER_NODE_THRESHOLD;
-  const denseScale = Number.isFinite(adaptive?.denseScale)
-    ? adaptive.denseScale
-    : DEFAULT_DENSE_SCALE;
-  const denserScale = Number.isFinite(adaptive?.denserScale)
-    ? adaptive.denserScale
-    : DEFAULT_DENSER_SCALE;
-
-  let scale = 1;
-  if (Number.isFinite(denserThreshold) && density >= denserThreshold) {
-    scale = denserScale;
-  } else if (Number.isFinite(denseThreshold) && density >= denseThreshold) {
-    scale = denseScale;
-  }
-
-  if (!Number.isFinite(scale) || scale <= 0) scale = 1;
-  if (scale < 1 && options?.log && !treeSitterState.loggedAdaptiveBudgets?.has?.(resolvedId)) {
-    options.log(
-      `[tree-sitter] Dense AST for ${resolvedId} (${density.toFixed(1)} nodes/line); ` +
-      `scaling traversal budgets by ${scale}.`
-    );
-    treeSitterState.loggedAdaptiveBudgets?.add?.(resolvedId);
-  }
-
-  return { scale, density };
-};
-
-const applyAdaptiveBudget = (budget, options, resolvedId) => {
-  const { scale } = resolveAdaptiveBudgetScale(options, resolvedId);
-  if (!Number.isFinite(scale) || scale >= 1) return budget;
-  bumpMetric('adaptiveBudgetCuts', 1);
-  const clamp = (value, min) => {
-    const base = Number.isFinite(value) ? value : min;
-    const scaled = Math.floor(base * scale);
-    const floor = Math.min(base, min);
-    return Math.max(floor, scaled);
-  };
-  return {
-    maxAstNodes: clamp(budget.maxAstNodes, MIN_ADAPTIVE_AST_NODES),
-    maxAstStack: clamp(budget.maxAstStack, MIN_ADAPTIVE_AST_STACK),
-    maxChunkNodes: clamp(budget.maxChunkNodes, MIN_ADAPTIVE_CHUNK_NODES)
-  };
-};
-
-const recordNodeDensity = (languageId, visited, lineCount) => {
-  if (!languageId) return null;
-  if (!Number.isFinite(visited) || visited <= 0) return null;
-  if (!Number.isFinite(lineCount) || lineCount <= 0) return null;
-  const density = visited / Math.max(1, lineCount);
-  const prev = treeSitterState.nodeDensity?.get?.(languageId);
-  const prevDensity = prev && typeof prev === 'object' ? prev.density : prev;
-  const prevSamples = prev && typeof prev === 'object' ? prev.samples : 0;
-  const nextDensity = Number.isFinite(prevDensity)
-    ? (prevDensity * 0.7) + (density * 0.3)
-    : density;
-  const next = { density: nextDensity, samples: prevSamples + 1 };
-  treeSitterState.nodeDensity?.set?.(languageId, next);
-  return next;
-};
-
-function resolveTraversalBudget(options, resolvedId) {
-  const config = options?.treeSitter || {};
-  const perLanguage = config.byLanguage?.[resolvedId] || {};
-  const isJsTs = JS_TS_LANGUAGE_IDS.has(resolvedId);
-  const defaultMaxChunkNodes = isJsTs ? 1_000 : DEFAULT_MAX_CHUNK_NODES;
-  const maxAstNodes = perLanguage.maxAstNodes ?? config.maxAstNodes ?? DEFAULT_MAX_AST_NODES;
-  const maxAstStack = perLanguage.maxAstStack ?? config.maxAstStack ?? DEFAULT_MAX_AST_STACK;
-  const maxChunkNodes = perLanguage.maxChunkNodes ?? config.maxChunkNodes ?? defaultMaxChunkNodes;
-  const budget = {
-    maxAstNodes: Number.isFinite(maxAstNodes) && maxAstNodes > 0 ? Math.floor(maxAstNodes) : DEFAULT_MAX_AST_NODES,
-    maxAstStack: Number.isFinite(maxAstStack) && maxAstStack > 0 ? Math.floor(maxAstStack) : DEFAULT_MAX_AST_STACK,
-    maxChunkNodes: Number.isFinite(maxChunkNodes) && maxChunkNodes > 0 ? Math.floor(maxChunkNodes) : defaultMaxChunkNodes
-  };
-  return applyAdaptiveBudget(budget, options, resolvedId);
-}
-
-const DEFAULT_CHUNK_CACHE_MAX_ENTRIES = 64;
-const CHUNK_CACHE_PERSISTENT_SCHEMA = '1.0.0';
-
-const buildChunkCacheSignature = (options, resolvedId) => {
-  const config = options?.treeSitter || {};
-  const perLanguage = config.byLanguage?.[resolvedId] || {};
-  const adaptiveRaw = config.adaptive;
-  const adaptive = adaptiveRaw === false || adaptiveRaw?.enabled === false
-    ? false
-    : adaptiveRaw && typeof adaptiveRaw === 'object'
-      ? {
-        denseThreshold: adaptiveRaw.denseThreshold ?? null,
-        denserThreshold: adaptiveRaw.denserThreshold ?? null,
-        denseScale: adaptiveRaw.denseScale ?? null,
-        denserScale: adaptiveRaw.denserScale ?? null
-      }
-      : null;
-
-  // Keep this signature small but output-sensitive: if any of these knobs change,
-  // chunk boundaries/names can change (or tree-sitter may fall back).
-  return {
-    useQueries: config.useQueries ?? null,
-    maxBytes: perLanguage.maxBytes ?? config.maxBytes ?? null,
-    maxLines: perLanguage.maxLines ?? config.maxLines ?? null,
-    maxParseMs: perLanguage.maxParseMs ?? config.maxParseMs ?? null,
-    maxAstNodes: perLanguage.maxAstNodes ?? config.maxAstNodes ?? null,
-    maxAstStack: perLanguage.maxAstStack ?? config.maxAstStack ?? null,
-    maxChunkNodes: perLanguage.maxChunkNodes ?? config.maxChunkNodes ?? null,
-    adaptive,
-    configChunking: config.configChunking === true
-  };
-};
-
-const resolveChunkCacheKey = (options, resolvedId) => {
-  if (options?.treeSitter?.chunkCache === false) return null;
-  const rawKey = options?.treeSitterCacheKey ?? options?.treeSitter?.cacheKey ?? null;
-  if (rawKey == null || rawKey === '') return null;
-  const base = typeof rawKey === 'string' ? rawKey : String(rawKey);
-  if (!base) return null;
-  return buildLocalCacheKey({
-    namespace: 'tree-sitter-chunk',
-    payload: {
-      languageId: resolvedId,
-      key: base,
-      signature: buildChunkCacheSignature(options, resolvedId)
-    }
-  }).key;
-};
-
-const resolveChunkCacheMaxEntries = (options) => {
-  const raw = options?.treeSitter?.chunkCacheMaxEntries
-    ?? options?.treeSitter?.chunkCache?.maxEntries
-    ?? DEFAULT_CHUNK_CACHE_MAX_ENTRIES;
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_CHUNK_CACHE_MAX_ENTRIES;
-  return Math.max(1, Math.floor(parsed));
-};
-
-const ensureChunkCache = (options) => {
-  const maxEntries = resolveChunkCacheMaxEntries(options);
-  if (!treeSitterState.chunkCache) treeSitterState.chunkCache = new Map();
-  if (treeSitterState.chunkCacheMaxEntries !== maxEntries) {
-    treeSitterState.chunkCache.clear();
-    treeSitterState.chunkCacheMaxEntries = maxEntries;
-  }
-  return { cache: treeSitterState.chunkCache, maxEntries };
-};
-
-const ensurePersistentChunkCacheRoot = (cacheRoot) => {
-  if (!cacheRoot || typeof cacheRoot !== 'string') return null;
-  if (treeSitterState.persistentChunkCacheRoot === cacheRoot) return cacheRoot;
-  treeSitterState.persistentChunkCacheRoot = cacheRoot;
-  treeSitterState.persistentChunkCacheMemo = new Map();
-  treeSitterState.persistentChunkCacheMisses = new Set();
-  return cacheRoot;
-};
-
-const resolvePersistentChunkCacheRoot = (options) => {
-  const cfg = options?.treeSitter || {};
-  if (cfg.cachePersistent !== true) return null;
-  const dir = typeof cfg.cachePersistentDir === 'string'
-    ? cfg.cachePersistentDir.trim()
-    : '';
-  if (!dir) return null;
-  return ensurePersistentChunkCacheRoot(path.resolve(dir));
-};
-
-const resolvePersistentChunkCachePath = (cacheRoot, key) => {
-  if (!cacheRoot || !key) return null;
-  const safeKey = String(key).replace(/[^a-zA-Z0-9._-]/g, '_');
-  const shard = safeKey.slice(0, 2) || '00';
-  return path.join(cacheRoot, shard, `${safeKey}.json`);
-};
-
-const readPersistentCachedChunks = (cacheRoot, key) => {
-  if (!cacheRoot || !key) return null;
-  const memo = treeSitterState.persistentChunkCacheMemo;
-  if (memo?.has(key)) {
-    bumpMetric('chunkCachePersistentHits', 1);
-    return cloneChunkList(memo.get(key));
-  }
-  const misses = treeSitterState.persistentChunkCacheMisses;
-  if (misses?.has(key)) {
-    bumpMetric('chunkCachePersistentMisses', 1);
-    return null;
-  }
-  const filePath = resolvePersistentChunkCachePath(cacheRoot, key);
-  if (!filePath || !fs.existsSync(filePath)) {
-    misses?.add?.(key);
-    bumpMetric('chunkCachePersistentMisses', 1);
-    return null;
-  }
-  try {
-    const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    if (!raw || raw.schemaVersion !== CHUNK_CACHE_PERSISTENT_SCHEMA || raw.cacheKey !== key) {
-      misses?.add?.(key);
-      bumpMetric('chunkCachePersistentMisses', 1);
-      return null;
-    }
-    const chunks = Array.isArray(raw.chunks) ? raw.chunks : null;
-    if (!chunks || !chunks.length) {
-      misses?.add?.(key);
-      bumpMetric('chunkCachePersistentMisses', 1);
-      return null;
-    }
-    memo?.set?.(key, chunks);
-    misses?.delete?.(key);
-    bumpMetric('chunkCachePersistentHits', 1);
-    return cloneChunkList(chunks);
-  } catch {
-    misses?.add?.(key);
-    bumpMetric('chunkCachePersistentErrors', 1);
-    return null;
-  }
-};
-
-const writePersistentCachedChunks = (cacheRoot, key, chunks) => {
-  if (!cacheRoot || !key || !Array.isArray(chunks) || !chunks.length) return;
-  const filePath = resolvePersistentChunkCachePath(cacheRoot, key);
-  if (!filePath) return;
-  try {
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    const tempPath = `${filePath}.${process.pid}.tmp`;
-    const payload = {
-      schemaVersion: CHUNK_CACHE_PERSISTENT_SCHEMA,
-      cacheKey: key,
-      chunks: cloneChunkList(chunks)
-    };
-    fs.writeFileSync(tempPath, JSON.stringify(payload), 'utf8');
-    fs.renameSync(tempPath, filePath);
-    treeSitterState.persistentChunkCacheMemo?.set?.(key, payload.chunks);
-    treeSitterState.persistentChunkCacheMisses?.delete?.(key);
-    bumpMetric('chunkCachePersistentWrites', 1);
-  } catch {
-    bumpMetric('chunkCachePersistentErrors', 1);
-  }
-};
-
-const cloneChunkList = (chunks) => chunks.map((chunk) => ({
-  ...chunk,
-  ...(chunk?.meta ? { meta: { ...chunk.meta } } : {})
-}));
-
-const getCachedChunks = (cache, key) => {
-  if (!cache?.has?.(key)) {
-    bumpMetric('chunkCacheMisses', 1);
-    return null;
-  }
-  const value = cache.get(key);
-  cache.delete(key);
-  cache.set(key, value);
-  bumpMetric('chunkCacheHits', 1);
-  return Array.isArray(value) ? cloneChunkList(value) : null;
-};
-
-const setCachedChunks = (cache, key, chunks, maxEntries) => {
-  if (!Array.isArray(chunks) || !chunks.length) return;
-  bumpMetric('chunkCacheSets', 1);
-  cache.set(key, cloneChunkList(chunks));
-  while (cache.size > maxEntries) {
-    const oldest = cache.keys().next().value;
-    if (!oldest) break;
-    cache.delete(oldest);
-    bumpMetric('chunkCacheEvictions', 1);
-  }
-};
-
-const loadCachedChunks = ({ cache, key, cacheRoot = null }) => {
-  const cached = getCachedChunks(cache, key);
-  if (cached) return cached;
-  const persistent = readPersistentCachedChunks(cacheRoot, key);
-  if (persistent) {
-    setCachedChunks(cache, key, persistent, treeSitterState.chunkCacheMaxEntries || DEFAULT_CHUNK_CACHE_MAX_ENTRIES);
-    return persistent;
-  }
-  return null;
-};
-
-const storeCachedChunks = ({ cache, key, chunks, maxEntries, cacheRoot = null }) => {
-  setCachedChunks(cache, key, chunks, maxEntries);
-  writePersistentCachedChunks(cacheRoot, key, chunks);
 };
 
 function countLines(text) {
@@ -832,7 +538,8 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     const cached = loadCachedChunks({
       cache: cacheRef.cache,
       key: cacheKey,
-      cacheRoot: persistentCacheRoot
+      cacheRoot: persistentCacheRoot,
+      bumpMetric
     });
     if (cached) {
       recordMetrics();
@@ -884,7 +591,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     }
     return null;
   }
-  const traversalBudget = resolveTraversalBudget(options, resolvedId);
+  const traversalBudget = resolveTraversalBudget(options, resolvedId, { bumpMetric });
   let tree = null;
   try {
     try {
@@ -974,7 +681,8 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
             key: cacheKey,
             chunks: queryResult.chunks,
             maxEntries: cacheRef.maxEntries,
-            cacheRoot: persistentCacheRoot
+            cacheRoot: persistentCacheRoot,
+            bumpMetric
           });
         }
         recordMetrics();
@@ -1063,7 +771,8 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
         key: cacheKey,
         chunks: traversalResult.chunks,
         maxEntries: cacheRef.maxEntries,
-        cacheRoot: persistentCacheRoot
+        cacheRoot: persistentCacheRoot,
+        bumpMetric
       });
     }
     recordMetrics();
@@ -1109,7 +818,8 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
     const cached = loadCachedChunks({
       cache: cacheRef.cache,
       key: cacheKey,
-      cacheRoot: persistentCacheRoot
+      cacheRoot: persistentCacheRoot,
+      bumpMetric
     });
     if (cached) return cached;
   }
@@ -1156,7 +866,8 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
           key: cacheKey,
           chunks: result,
           maxEntries: cacheRef.maxEntries,
-          cacheRoot: persistentCacheRoot
+          cacheRoot: persistentCacheRoot,
+          bumpMetric
         });
       }
       return result;
