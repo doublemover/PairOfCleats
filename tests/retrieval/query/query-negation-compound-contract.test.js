@@ -1,27 +1,26 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { parseQueryInput } from '../../../src/retrieval/query.js';
+import { parseQueryInput, parseQueryWithFallback } from '../../../src/retrieval/query.js';
 
 const simple = parseQueryInput('NOT alpha');
 assert.deepEqual(simple.excludeTerms, ['alpha'], 'expected direct NOT term to populate excludes');
 
-const compoundAnd = parseQueryInput('NOT (alpha AND beta)');
-assert.deepEqual(
-  compoundAnd.excludeTerms,
-  [],
-  'expected compound negation to avoid flattening into term excludes'
+assert.throws(
+  () => parseQueryInput('NOT (alpha AND beta)'),
+  /Compound negation is not supported/i,
+  'expected compound AND negation to be rejected explicitly'
 );
 
-const compoundOr = parseQueryInput('NOT (alpha OR "beta gamma")');
-assert.deepEqual(
-  compoundOr.excludeTerms,
-  [],
-  'expected OR negation to avoid flattening into term excludes'
+assert.throws(
+  () => parseQueryInput('NOT (alpha OR "beta gamma")'),
+  /Compound negation is not supported/i,
+  'expected compound OR negation to be rejected explicitly'
 );
-assert.deepEqual(
-  compoundOr.excludePhrases,
-  [],
-  'expected OR negation to avoid flattening into phrase excludes'
+
+assert.throws(
+  () => parseQueryWithFallback('NOT (alpha AND beta)'),
+  /Compound negation is not supported/i,
+  'expected fallback parser path to treat compound negation as hard error'
 );
 
 console.log('query negation compound contract test passed');

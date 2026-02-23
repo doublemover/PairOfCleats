@@ -62,7 +62,8 @@ const BOOLEAN_TOKEN = {
 const BOOLEAN_OPERATORS = new Set(['and', 'or', 'not']);
 
 const FALLBACK_STRIP_QUOTES = /^["']+|["']+$/g;
-const FALLBACK_HARD_ERROR_PATTERN = /Standalone "-" is not allowed/i;
+const COMPOUND_NEGATION_ERROR = 'Compound negation is not supported in boolean queries.';
+const FALLBACK_HARD_ERROR_PATTERN = /Standalone "-" is not allowed|Compound negation is not supported/i;
 
 /**
  * Tokenize boolean query string into operator/term/phrase tokens.
@@ -258,11 +259,15 @@ const flattenQueryAst = (ast, state = null, negated = false, inCompoundNegation 
   if (!ast) return acc;
   switch (ast.type) {
     case BOOLEAN_TOKEN.TERM:
-      if (negated && inCompoundNegation) return acc;
+      if (negated && inCompoundNegation) {
+        throw new Error(COMPOUND_NEGATION_ERROR);
+      }
       (negated ? acc.excludeTerms : acc.includeTerms).push(ast.value);
       return acc;
     case BOOLEAN_TOKEN.PHRASE:
-      if (negated && inCompoundNegation) return acc;
+      if (negated && inCompoundNegation) {
+        throw new Error(COMPOUND_NEGATION_ERROR);
+      }
       (negated ? acc.excludePhrases : acc.phrases).push(ast.value);
       return acc;
     case BOOLEAN_TOKEN.NOT:
