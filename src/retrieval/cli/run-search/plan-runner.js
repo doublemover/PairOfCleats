@@ -43,10 +43,8 @@ import {
 import { resolveRunSearchIndexAvailability } from './index-availability.js';
 import { resolveRunSearchBackendContext } from './backend-bootstrap.js';
 import { loadRunSearchIndexesWithTracking } from './index-loading.js';
-import { buildQueryPlanInput } from './plan-input.js';
 import { resolveRunSearchSparsePreflight } from './sparse-preflight.js';
-import { runBranchFilterGate } from './branch-gate.js';
-import { resolveRunSearchDictionaryAndPlan } from './query-planning.js';
+import { resolveRunSearchQueryBootstrap } from './query-bootstrap.js';
 import { reinitializeBackendAfterSparseFallback } from './backend-reinit.js';
 import { enforceSparseFallbackAnnAvailability } from './sparse-fallback-guard.js';
 
@@ -496,79 +494,77 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     if (backendForcedLmdb && !useLmdb) {
       return bail('LMDB backend requested but unavailable.', 1, ERROR_CODES.INVALID_REQUEST);
     }
-    const branchGatePayload = await runBranchFilterGate({
-      branchFilter,
-      caseFile,
-      rootDir,
-      metricsDir,
-      queryCacheDir,
-      runCode,
-      runProse,
-      backendLabel,
-      backendPolicyInfo,
-      emitOutput,
-      jsonOutput,
-      recordSearchMetrics
+    const queryBootstrap = await resolveRunSearchQueryBootstrap({
+      branchGateInput: {
+        branchFilter,
+        caseFile,
+        rootDir,
+        metricsDir,
+        queryCacheDir,
+        runCode,
+        runProse,
+        backendLabel,
+        backendPolicyInfo,
+        emitOutput,
+        jsonOutput,
+        recordSearchMetrics
+      },
+      planInputConfig: {
+        postingsConfig,
+        caseTokens,
+        fileFilter,
+        caseFile,
+        searchRegexConfig,
+        filePrefilterEnabled,
+        fileChargramN,
+        searchType,
+        searchAuthor,
+        searchImport,
+        chunkAuthorFilter,
+        branchesMin,
+        loopsMin,
+        breaksMin,
+        continuesMin,
+        churnMin,
+        extFilter,
+        langFilter,
+        extImpossible,
+        langImpossible,
+        metaFilters,
+        modifiedAfter,
+        modifiedSinceDays,
+        fieldWeightsConfig,
+        denseVectorMode,
+        branchFilter
+      },
+      planResolutionInput: {
+        stageTracker,
+        throwIfAborted,
+        rootDir,
+        userConfig,
+        metricsDir,
+        query,
+        argv,
+        runCode,
+        runProse,
+        runExtractedProse: runExtractedProseRaw,
+        runRecords,
+        langFilter,
+        queryPlanCache,
+        fileChargramN,
+        useSqlite,
+        backendLabel,
+        sqliteCodePath,
+        sqliteProsePath,
+        sqliteExtractedProsePath,
+        joinComments,
+        asOfContext
+      }
     });
-    if (branchGatePayload) {
-      return branchGatePayload;
+    if (queryBootstrap.branchGatePayload) {
+      return queryBootstrap.branchGatePayload;
     }
-
-    const planInput = buildQueryPlanInput({
-      postingsConfig,
-      caseTokens,
-      fileFilter,
-      caseFile,
-      searchRegexConfig,
-      filePrefilterEnabled,
-      fileChargramN,
-      searchType,
-      searchAuthor,
-      searchImport,
-      chunkAuthorFilter,
-      branchesMin,
-      loopsMin,
-      breaksMin,
-      continuesMin,
-      churnMin,
-      extFilter,
-      langFilter,
-      extImpossible,
-      langImpossible,
-      metaFilters,
-      modifiedAfter,
-      modifiedSinceDays,
-      fieldWeightsConfig,
-      denseVectorMode,
-      branchFilter
-    });
-    const {
-      queryPlan,
-      planIndexSignaturePayload
-    } = await resolveRunSearchDictionaryAndPlan({
-      stageTracker,
-      throwIfAborted,
-      rootDir,
-      userConfig,
-      metricsDir,
-      query,
-      argv,
-      runCode,
-      runProse,
-      runExtractedProse: runExtractedProseRaw,
-      runRecords,
-      langFilter,
-      queryPlanCache,
-      planInput,
-      fileChargramN,
-      useSqlite,
-      backendLabel,
-      sqliteCodePath,
-      sqliteProsePath,
-      sqliteExtractedProsePath,
-      joinComments,
-      asOfContext
-    });
+    const { queryPlan, planIndexSignaturePayload } = queryBootstrap;
 
     const sparsePreflight = resolveRunSearchSparsePreflight({
       annEnabledEffective,
