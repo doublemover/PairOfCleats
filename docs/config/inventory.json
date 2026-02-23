@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-23T11:06:11.706Z",
+  "generatedAt": "2026-02-23T13:21:45.401Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3013,6 +3013,7 @@
         "src/shared/env.js",
         "tests/indexing/artifacts/artifact-size-guardrails.test.js",
         "tests/indexing/validate/index-validate-chunk-meta-large-manifest-budget.test.js",
+        "tests/retrieval/pipeline/index-loader-binary-chunk-meta-budget-fallback.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3090,6 +3091,7 @@
         "tests/indexing/extracted-prose/document-extractor-version-recorded.test.js",
         "tests/indexing/extracted-prose/document-security-guardrails.test.js",
         "tests/indexing/extracted-prose/documents-included-when-available.test.js",
+        "tests/indexing/extracted-prose/extracted-prose-low-yield-history-disable.test.js",
         "tests/indexing/extracted-prose/extracted-prose-yield-profile-persisted-skip.test.js",
         "tests/indexing/extracted-prose/extraction-report.test.js",
         "tests/services/sqlite-hydration-metaV2-parity.test.js",
@@ -3310,6 +3312,8 @@
         "tests/indexing/extracted-prose/documents-included-when-available.test.js",
         "tests/indexing/extracted-prose/documents-skipped-when-unavailable.test.js",
         "tests/indexing/extracted-prose/docx-missing-dep-skips.test.js",
+        "tests/indexing/extracted-prose/extracted-prose-low-yield-history-disable.test.js",
+        "tests/indexing/extracted-prose/extracted-prose-low-yield-history-warmup-reduction.test.js",
         "tests/indexing/extracted-prose/extracted-prose-yield-profile-persisted-skip.test.js",
         "tests/indexing/extracted-prose/extraction-report.test.js",
         "tests/indexing/extracted-prose/pdf-missing-dep-skips.test.js",
