@@ -32,7 +32,7 @@ import {
 } from '../../../src/shared/embedding-utils.js';
 import { resolveEmbeddingInputFormatting } from '../../../src/shared/embedding-input-format.js';
 import { resolveOnnxModelPath } from '../../../src/shared/onnx-embeddings.js';
-import { fromPosix, toPosix } from '../../../src/shared/files.js';
+import { toPosix } from '../../../src/shared/files.js';
 import { getEnvConfig, isTestingEnv } from '../../../src/shared/env.js';
 import { createLruCache } from '../../../src/shared/cache.js';
 import { normalizeDenseVectorMode } from '../../../src/shared/dense-vector-mode.js';
@@ -112,6 +112,7 @@ import {
 } from './runner/artifacts.js';
 import { resolvePublishedBackendStates } from './runner/backend-state.js';
 import { prepareFileEmbeddingWorkset } from './runner/file-workset.js';
+import { createFileEntryProcessor } from './runner/file-entry-orchestration.js';
 
 const EMBEDDINGS_TOOLS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const COMPACT_SQLITE_SCRIPT = path.join(EMBEDDINGS_TOOLS_DIR, '..', 'compact-sqlite-index.js');
@@ -1927,190 +1928,33 @@ export async function runBuildEmbeddingsWithConfig(config) {
           }
         });
         try {
-          /**
-           * Process one file's chunk items with cache lookup and fallback compute.
-           *
-           * @param {[string, object[]]} input
-           * @returns {Promise<void>}
-           */
-          const processFileEntry = async ([relPath, items]) => {
-            const normalizedRel = toPosix(relPath);
-            const chunkSignature = buildChunkSignature(items);
-            const manifestEntry = manifestFiles[normalizedRel] || null;
-            const manifestHash = typeof manifestEntry?.hash === 'string' ? manifestEntry.hash : null;
-            let fileHash = manifestHash;
-            const resolveCacheKey = (hash) => buildCacheKey({
-              file: normalizedRel,
-              hash,
-              signature: chunkSignature,
-              identityKey: cacheIdentityKey,
-              repoId: cacheRepoId,
-              mode,
-              featureFlags: cacheKeyFlags,
-              pathPolicy: 'posix'
-            });
-            let cacheKey = resolveCacheKey(fileHash);
-            /**
-             * Try serving this file fully from cache for the provided content hash.
-             *
-             * @param {{cacheKeyForFile:string|null,fileHashForFile:string|null}} input
-             * @returns {Promise<boolean>}
-             */
-            const tryServeFromCache = async ({ cacheKeyForFile, fileHashForFile }) => {
-              const cached = await lookupCacheEntryWithStats({
-                cacheState,
-                cacheKey: cacheKeyForFile,
-                fileHash: fileHashForFile,
-                chunkSignature,
-                cacheIdentityKey,
-                scheduleIo,
-                counters: cacheCounters
-              });
-              const reused = tryApplyCachedVectors({
-                cached,
-                items,
-                normalizedRel,
-                mode,
-                configuredDims,
-                cacheIdentityKey,
-                chunkSignature,
-                fileHash: fileHashForFile,
-                cacheKey: cacheKeyForFile,
-                cacheState,
-                counters: cacheCounters,
-                assertDims,
-                codeVectors,
-                docVectors,
-                mergedVectors,
-                addHnswFromQuantized
-              });
-              if (!reused) return false;
-              await markFileProcessed({
-                chunkCount: items.length,
-                source: 'cache'
-              });
-              return true;
-            };
-            if (await tryServeFromCache({ cacheKeyForFile: cacheKey, fileHashForFile: fileHash })) {
-              return;
-            }
-
-            /**
-             * Resolve candidate absolute paths for a logical relative file.
-             *
-             * @returns {string[]}
-             */
-            const candidates = (() => {
-              if (mode !== 'records') {
-                return [path.resolve(root, fromPosix(normalizedRel))];
-              }
-              const resolvedRecordsDir = typeof recordsDir === 'string' && recordsDir
-                ? recordsDir
-                : root;
-              if (normalizedRel.startsWith('triage/records/')) {
-                const stripped = normalizedRel.slice('triage/records/'.length);
-                return [
-                  path.resolve(resolvedRecordsDir, fromPosix(stripped)),
-                  path.resolve(root, fromPosix(normalizedRel))
-                ];
-              }
-              return [
-                path.resolve(root, fromPosix(normalizedRel)),
-                path.resolve(resolvedRecordsDir, fromPosix(normalizedRel))
-              ];
-            })();
-            let absPath = candidates[0];
-            let textInfo = null;
-            let lastErr = null;
-            try {
-              for (const candidate of candidates) {
-                absPath = candidate;
-                try {
-                  textInfo = await scheduleIo(() => readTextFileWithHash(candidate));
-                  lastErr = null;
-                  break;
-                } catch (err) {
-                  lastErr = err;
-                  if (mode === 'records' && err?.code === 'ENOENT') {
-                    continue;
-                  }
-                  break;
-                }
-              }
-              if (!textInfo) {
-                throw lastErr || new Error('Unknown read error');
-              }
-            } catch (err) {
-              const reason = err?.code ? `${err.code}: ${err.message || err}` : (err?.message || err);
-              warn(`[embeddings] ${mode}: Failed to read ${normalizedRel}; skipping (${reason}).`);
-              await markFileProcessed({
-                chunkCount: items.length,
-                source: 'skipped',
-                skipped: true
-              });
-              return;
-            }
-            const text = textInfo.text;
-            if (!fileHash) {
-              fileHash = textInfo.hash;
-              cacheKey = resolveCacheKey(fileHash);
-              if (await tryServeFromCache({ cacheKeyForFile: cacheKey, fileHashForFile: fileHash })) {
-                return;
-              }
-            }
-
-            const {
-              codeTexts,
-              docTexts,
-              codeMapping,
-              docMapping,
-              chunkHashes,
-              chunkHashesFingerprint,
-              reuse
-            } = await prepareFileEmbeddingWorkset({
-              text,
-              items,
-              cacheState,
-              cacheKey,
-              normalizedRel,
-              scheduleIo
-            });
-            await computeFileEmbeddings({
-              normalizedRel,
-              items,
-              cacheKey,
-              fileHash,
-              chunkSignature,
-              chunkHashes,
-              chunkHashesFingerprint,
-              codeTexts,
-              docTexts,
-              codeMapping,
-              docMapping,
-              reuse
-            });
-            if (crossFileChunkDedupe instanceof Map) {
-              for (let i = 0; i < items.length; i += 1) {
-                const chunkIndex = items[i]?.index;
-                if (!Number.isFinite(chunkIndex)) continue;
-                const dedupeKey = chunkHashes[i];
-                if (!dedupeKey) continue;
-                const codeVec = codeVectors[chunkIndex];
-                const docVec = docVectors[chunkIndex];
-                const mergedVec = mergedVectors[chunkIndex];
-                if (!isNonEmptyVector(codeVec) || !isNonEmptyVector(docVec) || !isNonEmptyVector(mergedVec)) {
-                  continue;
-                }
-                boundedMapSet(
-                  crossFileChunkDedupe,
-                  dedupeKey,
-                  { code: codeVec, doc: docVec, merged: mergedVec },
-                  crossFileChunkDedupeMaxEntries
-                );
-                crossFileChunkDedupeStores += 1;
-              }
-            }
-          };
+          const processFileEntry = createFileEntryProcessor({
+            mode,
+            root,
+            recordsDir,
+            manifestFiles,
+            cacheState,
+            cacheRepoId,
+            cacheIdentityKey,
+            cacheKeyFlags,
+            configuredDims,
+            cacheCounters,
+            scheduleIo,
+            assertDims,
+            codeVectors,
+            docVectors,
+            mergedVectors,
+            addHnswFromQuantized,
+            markFileProcessed,
+            computeFileEmbeddings,
+            prepareFileEmbeddingWorkset,
+            warn,
+            buildChunkSignatureImpl: buildChunkSignature,
+            buildCacheKeyImpl: buildCacheKey,
+            lookupCacheEntryWithStatsImpl: lookupCacheEntryWithStats,
+            tryApplyCachedVectorsImpl: tryApplyCachedVectors,
+            readTextFileWithHashImpl: readTextFileWithHash
+          });
           if (fileParallelism <= 1 || sampledFileEntries.length <= 1) {
             for (const entry of sampledFileEntries) {
               await processFileEntry(entry);
