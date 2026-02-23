@@ -19,7 +19,8 @@ await fsPromises.mkdir(cacheRoot, { recursive: true });
 
 const env = applyTestEnv({
   cacheRoot,
-  embeddings: 'stub'
+  embeddings: 'stub',
+  syncProcess: false
 });
 
 const build = spawnSync(

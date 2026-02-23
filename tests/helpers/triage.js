@@ -32,6 +32,7 @@ export const getTriageContext = async ({ name }) => {
   const env = applyTestEnv({
     cacheRoot,
     embeddings: 'stub',
+    syncProcess: false,
     extraEnv: {
       PAIROFCLEATS_TRACE_ARTIFACT_IO: traceArtifactIo ? '1' : undefined
     }

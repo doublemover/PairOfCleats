@@ -36,7 +36,8 @@ export const applyTestEnv = ({
   embeddings,
   testing = TESTING_ENABLED,
   testConfig,
-  extraEnv
+  extraEnv,
+  syncProcess = true
 } = {}) => {
   const env = { ...process.env };
   const deletedKeys = new Set();
@@ -89,12 +90,14 @@ export const applyTestEnv = ({
       }
     }
   }
-  const syncKeys = new Set(DEFAULT_TEST_ENV_KEYS);
-  for (const key of Object.keys(env)) {
-    if (key.startsWith('PAIROFCLEATS_')) syncKeys.add(key);
+  if (syncProcess) {
+    const syncKeys = new Set(DEFAULT_TEST_ENV_KEYS);
+    for (const key of Object.keys(env)) {
+      if (key.startsWith('PAIROFCLEATS_')) syncKeys.add(key);
+    }
+    for (const key of deletedKeys) syncKeys.add(key);
+    syncProcessEnv(env, Array.from(syncKeys), { clearMissing: true });
   }
-  for (const key of deletedKeys) syncKeys.add(key);
-  syncProcessEnv(env, Array.from(syncKeys), { clearMissing: true });
   return env;
 };
 
