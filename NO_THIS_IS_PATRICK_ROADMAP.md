@@ -89,6 +89,8 @@ Note:
   Refactored `tools/usr/generate-usr-matrix-baselines.mjs` into modular `datasets`, `builders`, and `io` units, preserving generated matrix outputs while adding write-elision for unchanged payloads to reduce unnecessary disk churn during baseline refresh runs.
 - 2026-02-23T05:29:20.3531152-05:00
   Decomposed `src/index/build/workers/pool.js` into focused `queue`, `lifecycle`, `worker-coordination`, `payload`, and `meta` modules, preserving backpressure/restart/shutdown semantics and reducing hot-path metrics overhead by skipping redundant gauge writes.
+- 2026-02-23T05:29:42.9459667-05:00
+  Split `src/index/build/tree-sitter-scheduler/plan.js` into `policy-normalization`, `candidate-ranking`, and `assembly` modules, preserving deterministic plan ordering while reducing repeated rebalance work via cached bucketing context during shard assembly.
 
 ## Architectural assessment (what needs to change)
 
