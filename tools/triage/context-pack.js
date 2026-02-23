@@ -4,6 +4,7 @@ import path from 'node:path';
 import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
 import { createCli } from '../../src/shared/cli.js';
 import { getRepoCacheRoot, getRuntimeConfig, getTriageConfig, resolveRepoConfig, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
+import { resolveRecordPathSafe } from './context-pack-paths.js';
 
 const argv = createCli({
   scriptName: 'triage-context-pack',
@@ -33,7 +34,7 @@ const recordsDir = triageConfig.recordsDir;
 const finding = await loadRecord(recordsDir, recordId);
 
 if (!finding) {
-  console.error(`Finding record not found: ${path.join(recordsDir, `${recordId}.json`)}`);
+  console.error(`Finding record not found: ${recordId}`);
   process.exit(1);
 }
 
@@ -236,7 +237,8 @@ function extractRecordId(hit) {
 }
 
 async function loadRecord(recordsDir, recordId) {
-  const filePath = path.join(recordsDir, `${recordId}.json`);
+  const filePath = resolveRecordPathSafe(recordsDir, recordId);
+  if (!filePath) return null;
   try {
     const raw = await fsPromises.readFile(filePath, 'utf8');
     return JSON.parse(raw);
