@@ -18,6 +18,52 @@ import { isNonEmptyVector } from '../../../../src/shared/embedding-utils.js';
 const EMPTY_VECTOR = Object.freeze([]);
 
 /**
+ * Create a duplicate-aware FIFO index for chunk hashes.
+ *
+ * Each hash key can map to many prior chunk indices. We need deterministic
+ * "first unmatched prior index wins" semantics, but we cannot use array
+ * `shift()` in the hot path because repeated duplicate consumption turns into
+ * O(n^2) work. This queue stores linked-list next pointers in a flat typed
+ * array so every `take()` call remains O(1).
+ *
+ * @param {string[]|null|undefined} chunkHashes
+ * @returns {{take:(hash:string)=>number|null}}
+ */
+export const createChunkHashReuseIndex = (chunkHashes) => {
+  const safeHashes = Array.isArray(chunkHashes) ? chunkHashes : [];
+  const heads = new Map();
+  const tails = new Map();
+  const nextByIndex = new Uint32Array(safeHashes.length);
+  for (let i = 0; i < safeHashes.length; i += 1) {
+    const hash = safeHashes[i];
+    if (!hash) continue;
+    const tail = tails.get(hash);
+    if (tail == null) {
+      heads.set(hash, i);
+      tails.set(hash, i);
+      continue;
+    }
+    nextByIndex[tail] = i + 1;
+    tails.set(hash, i);
+  }
+  return {
+    take: (hash) => {
+      if (!hash) return null;
+      const head = heads.get(hash);
+      if (head == null) return null;
+      const nextPlusOne = nextByIndex[head];
+      if (nextPlusOne > 0) {
+        heads.set(hash, nextPlusOne - 1);
+      } else {
+        heads.delete(hash);
+        tails.delete(hash);
+      }
+      return head;
+    }
+  };
+};
+
+/**
  * @typedef {object} EmbeddingsCacheCounters
  * @property {number} attempts
  * @property {number} hits
@@ -366,7 +412,8 @@ export const tryApplyCachedVectors = ({
  *   chunkHashes:string[],
  *   chunkHashesFingerprint:string|null,
  *   reuse:{code:any[],doc:any[],merged:any[]},
- *   scheduleIo:(worker:()=>Promise<any>)=>Promise<any>
+ *   scheduleIo:(worker:()=>Promise<any>)=>Promise<any>,
+ *   readCacheEntryImpl?:(cacheDir:string,cacheKey:string,cacheIndex:object)=>Promise<{entry:object|null}>
  * }} input
  * @returns {Promise<void>}
  */
@@ -377,7 +424,8 @@ export const reuseVectorsFromPriorCacheEntry = async ({
   chunkHashes,
   chunkHashesFingerprint,
   reuse,
-  scheduleIo
+  scheduleIo,
+  readCacheEntryImpl = readCacheEntry
 }) => {
   if (!cacheState.cacheEligible) return;
   const priorKey = cacheState.cacheIndex?.files?.[normalizedRel];
@@ -388,26 +436,23 @@ export const reuseVectorsFromPriorCacheEntry = async ({
   const fingerprintMatches = !canCheckFingerprint
     || priorIndexEntry.chunkHashesFingerprint === chunkHashesFingerprint;
   const priorResult = fingerprintMatches
-    ? await scheduleIo(() => readCacheEntry(cacheState.cacheDir, priorKey, cacheState.cacheIndex))
+    ? await scheduleIo(() => readCacheEntryImpl(cacheState.cacheDir, priorKey, cacheState.cacheIndex))
     : null;
   const priorEntry = priorResult?.entry;
   if (!priorEntry || !Array.isArray(priorEntry.chunkHashes)) return;
-  const hashMap = new Map();
-  for (let i = 0; i < priorEntry.chunkHashes.length; i += 1) {
-    const hash = priorEntry.chunkHashes[i];
-    if (!hash) continue;
-    const list = hashMap.get(hash) || [];
-    list.push(i);
-    hashMap.set(hash, list);
-  }
-  const priorCode = ensureVectorArrays(priorEntry.codeVectors, priorEntry.chunkHashes.length);
-  const priorDoc = ensureVectorArrays(priorEntry.docVectors, priorEntry.chunkHashes.length);
-  const priorMerged = ensureVectorArrays(priorEntry.mergedVectors, priorEntry.chunkHashes.length);
+  const hashReuseIndex = createChunkHashReuseIndex(priorEntry.chunkHashes);
+  let priorCode = null;
+  let priorDoc = null;
+  let priorMerged = null;
   for (let i = 0; i < chunkHashes.length; i += 1) {
     const hash = chunkHashes[i];
-    const list = hashMap.get(hash);
-    if (!list || !list.length) continue;
-    const priorIndex = list.shift();
+    const priorIndex = hashReuseIndex.take(hash);
+    if (priorIndex == null) continue;
+    if (!priorCode || !priorDoc || !priorMerged) {
+      priorCode = ensureVectorArrays(priorEntry.codeVectors, priorEntry.chunkHashes.length);
+      priorDoc = ensureVectorArrays(priorEntry.docVectors, priorEntry.chunkHashes.length);
+      priorMerged = ensureVectorArrays(priorEntry.mergedVectors, priorEntry.chunkHashes.length);
+    }
     const codeVec = priorCode[priorIndex] || null;
     const docVec = priorDoc[priorIndex] || null;
     const mergedVec = priorMerged[priorIndex] || null;

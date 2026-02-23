@@ -1074,6 +1074,11 @@ export async function runBuildEmbeddingsWithConfig(config) {
           }
           if (floatVec) addHnswFloatVector(target, chunkIndex, floatVec);
         };
+        const quantizedHnswAdders = hnswEnabled ? {
+          merged: (id, vec) => addHnswFloatVector('merged', id, vec),
+          doc: (id, vec) => addHnswFloatVector('doc', id, vec),
+          code: (id, vec) => addHnswFloatVector('code', id, vec)
+        } : null;
         const hnswResults = { merged: null, doc: null, code: null };
 
         const {
@@ -1674,20 +1679,22 @@ export async function runBuildEmbeddingsWithConfig(config) {
          * @returns {Promise<void>}
          */
         const processFileEmbeddings = async (entry) => {
+          const items = Array.isArray(entry?.items) ? entry.items : [];
+          const itemCount = items.length;
           const codeEmbeds = entry.codeEmbeds || [];
           const docVectorsRaw = entry.docVectorsRaw || [];
           const reuse = entry.reuse || null;
-          if (!Array.isArray(codeEmbeds) || codeEmbeds.length !== entry.items.length) {
+          if (!Array.isArray(codeEmbeds) || codeEmbeds.length !== itemCount) {
             throw new Error(
-              `[embeddings] ${mode} code batch size mismatch (expected ${entry.items.length}, got ${codeEmbeds?.length ?? 0}).`
+              `[embeddings] ${mode} code batch size mismatch (expected ${itemCount}, got ${codeEmbeds?.length ?? 0}).`
             );
           }
-          if (!Array.isArray(docVectorsRaw) || docVectorsRaw.length !== entry.items.length) {
+          if (!Array.isArray(docVectorsRaw) || docVectorsRaw.length !== itemCount) {
             throw new Error(
-              `[embeddings] ${mode} doc batch size mismatch (expected ${entry.items.length}, got ${docVectorsRaw?.length ?? 0}).`
+              `[embeddings] ${mode} doc batch size mismatch (expected ${itemCount}, got ${docVectorsRaw?.length ?? 0}).`
             );
           }
-          const fileCodeEmbeds = ensureVectorArrays(codeEmbeds, entry.items.length);
+          const fileCodeEmbeds = ensureVectorArrays(codeEmbeds, itemCount);
           for (const vec of fileCodeEmbeds) {
             if (isVectorLike(vec) && vec.length) assertDims(vec.length);
           }
@@ -1701,11 +1708,12 @@ export async function runBuildEmbeddingsWithConfig(config) {
           }
           const zeroVec = sharedZeroVec;
 
-          const cachedCodeVectors = [];
-          const cachedDocVectors = [];
-          const cachedMergedVectors = [];
-          for (let i = 0; i < entry.items.length; i += 1) {
-            const chunkIndex = entry.items[i].index;
+          const shouldWriteCacheEntry = Boolean(entry.cacheKey);
+          const cachedCodeVectors = shouldWriteCacheEntry ? new Array(itemCount) : null;
+          const cachedDocVectors = shouldWriteCacheEntry ? new Array(itemCount) : null;
+          const cachedMergedVectors = shouldWriteCacheEntry ? new Array(itemCount) : null;
+          for (let i = 0; i < itemCount; i += 1) {
+            const chunkIndex = items[i].index;
             const reusedCode = reuse?.code?.[i];
             const reusedDoc = reuse?.doc?.[i];
             const reusedMerged = reuse?.merged?.[i];
@@ -1721,9 +1729,11 @@ export async function runBuildEmbeddingsWithConfig(config) {
                 addHnswFromQuantized('doc', chunkIndex, reusedDoc);
                 addHnswFromQuantized('code', chunkIndex, reusedCode);
               }
-              cachedCodeVectors.push(reusedCode);
-              cachedDocVectors.push(reusedDoc);
-              cachedMergedVectors.push(reusedMerged);
+              if (shouldWriteCacheEntry) {
+                cachedCodeVectors[i] = reusedCode;
+                cachedDocVectors[i] = reusedDoc;
+                cachedMergedVectors[i] = reusedMerged;
+              }
               continue;
             }
             const embedCode = isVectorLike(fileCodeEmbeds[i]) ? fileCodeEmbeds[i] : [];
@@ -1733,23 +1743,21 @@ export async function runBuildEmbeddingsWithConfig(config) {
               codeVector: embedCode,
               docVector: embedDoc,
               zeroVector: zeroVec,
-              addHnswVectors: hnswEnabled ? {
-                merged: (id, vec) => addHnswFloatVector('merged', id, vec),
-                doc: (id, vec) => addHnswFloatVector('doc', id, vec),
-                code: (id, vec) => addHnswFloatVector('code', id, vec)
-              } : null,
+              addHnswVectors: quantizedHnswAdders,
               quantization,
               normalize: embeddingNormalize
             });
             codeVectors[chunkIndex] = quantized.quantizedCode;
             docVectors[chunkIndex] = quantized.quantizedDoc;
             mergedVectors[chunkIndex] = quantized.quantizedMerged;
-            cachedCodeVectors.push(quantized.quantizedCode);
-            cachedDocVectors.push(quantized.quantizedDoc);
-            cachedMergedVectors.push(quantized.quantizedMerged);
+            if (shouldWriteCacheEntry) {
+              cachedCodeVectors[i] = quantized.quantizedCode;
+              cachedDocVectors[i] = quantized.quantizedDoc;
+              cachedMergedVectors[i] = quantized.quantizedMerged;
+            }
           }
 
-          if (entry.cacheKey) {
+          if (shouldWriteCacheEntry) {
             try {
               await enqueueCacheEntryWrite({
                 cacheState,
@@ -1761,7 +1769,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
                 chunkSignature: entry.chunkSignature,
                 chunkHashes: entry.chunkHashes,
                 chunkHashesFingerprint: entry.chunkHashesFingerprint || null,
-                chunkCount: entry.items.length,
+                chunkCount: itemCount,
                 codeVectors: cachedCodeVectors,
                 docVectors: cachedDocVectors,
                 mergedVectors: cachedMergedVectors,
@@ -1863,7 +1871,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           }
 
           await markFileProcessed({
-            chunkCount: entry.items.length,
+            chunkCount: itemCount,
             source: 'computed'
           });
         };

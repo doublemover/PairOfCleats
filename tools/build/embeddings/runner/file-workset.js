@@ -33,6 +33,54 @@ const resolveChunkDocText = (chunk) => {
 };
 
 /**
+ * Parse one numeric chunk boundary while preserving historical slice behavior.
+ *
+ * We intentionally do not clamp or round here. JavaScript `String#slice` already
+ * normalizes floating/negative values, and stage3 has long relied on that
+ * behavior for malformed legacy ranges in old bundle snapshots.
+ *
+ * @param {unknown} value
+ * @param {number} fallback
+ * @returns {number}
+ */
+const resolveChunkBoundary = (value, fallback) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+};
+
+/**
+ * Precompute per-chunk code/doc payloads and their stable hash inputs.
+ *
+ * This helper is reused by stage3 workset assembly so hashing, cache fingerprint
+ * checks, and embedding payload generation all share the exact same source text
+ * normalization rules.
+ *
+ * @param {{text:string,items:Array<{chunk?:object}>}} input
+ * @returns {{chunkCodeTexts:string[],chunkDocTexts:string[],chunkHashes:string[]}}
+ */
+export const buildChunkEmbeddingInputs = ({ text, items }) => {
+  const chunkCount = Array.isArray(items) ? items.length : 0;
+  const chunkHashes = new Array(chunkCount);
+  const chunkCodeTexts = new Array(chunkCount);
+  const chunkDocTexts = new Array(chunkCount);
+  for (let i = 0; i < chunkCount; i += 1) {
+    const chunk = items[i]?.chunk || null;
+    const start = resolveChunkBoundary(chunk?.start, 0);
+    const end = resolveChunkBoundary(chunk?.end, start);
+    const codeText = text.slice(start, end);
+    const docText = resolveChunkDocText(chunk);
+    chunkCodeTexts[i] = codeText;
+    chunkDocTexts[i] = docText;
+    chunkHashes[i] = sha1(`${codeText}\n${docText}`);
+  }
+  return {
+    chunkCodeTexts,
+    chunkDocTexts,
+    chunkHashes
+  };
+};
+
+/**
  * Build per-file embedding workset with cache-aware chunk reuse.
  *
  * Control-flow contract:
@@ -80,17 +128,14 @@ export const prepareFileEmbeddingWorkset = async ({
   reuseVectorsFromPriorCacheEntryImpl = reuseVectorsFromPriorCacheEntry
 }) => {
   const chunkCount = Array.isArray(items) ? items.length : 0;
-  const chunkHashes = new Array(chunkCount);
-  const chunkCodeTexts = new Array(chunkCount);
-  for (let i = 0; i < chunkCount; i += 1) {
-    const chunk = items[i]?.chunk || null;
-    const start = Number.isFinite(Number(chunk?.start)) ? Number(chunk.start) : 0;
-    const end = Number.isFinite(Number(chunk?.end)) ? Number(chunk.end) : start;
-    const codeText = text.slice(start, end);
-    const docText = resolveChunkDocText(chunk);
-    chunkCodeTexts[i] = codeText;
-    chunkHashes[i] = sha1(`${codeText}\n${docText}`);
-  }
+  const {
+    chunkCodeTexts,
+    chunkDocTexts,
+    chunkHashes
+  } = buildChunkEmbeddingInputs({
+    text,
+    items
+  });
   const chunkHashesFingerprint = buildChunkHashesFingerprint(chunkHashes);
   const reuse = createReuseSlots(chunkCount);
   await reuseVectorsFromPriorCacheEntryImpl({
@@ -106,14 +151,17 @@ export const prepareFileEmbeddingWorkset = async ({
   const codeTexts = new Array(chunkCount);
   const docTexts = new Array(chunkCount);
   const mapping = new Array(chunkCount);
+  const reuseCode = reuse.code;
+  const reuseDoc = reuse.doc;
+  const reuseMerged = reuse.merged;
   let pendingCount = 0;
   for (let i = 0; i < chunkCount; i += 1) {
-    if (reuse.code[i] && reuse.doc[i] && reuse.merged[i]) {
+    if (reuseCode[i] && reuseDoc[i] && reuseMerged[i]) {
       continue;
     }
     mapping[pendingCount] = i;
     codeTexts[pendingCount] = chunkCodeTexts[i];
-    docTexts[pendingCount] = resolveChunkDocText(items[i]?.chunk || null);
+    docTexts[pendingCount] = chunkDocTexts[i];
     pendingCount += 1;
   }
   mapping.length = pendingCount;
