@@ -192,11 +192,13 @@ const createAdapter = ({
       normalize
     });
     let fallbackAdapter = null;
+    let activeProvider = resolvedProvider;
     let warned = false;
     const ensureFallback = () => {
       if (!fallbackAdapter) {
         fallbackAdapter = createXenovaAdapter({ modelId, modelsDir, normalize });
       }
+      activeProvider = 'xenova';
       return fallbackAdapter;
     };
     const warnFallback = (err) => {
@@ -229,7 +231,9 @@ const createAdapter = ({
         }
       },
       embedderPromise: onnxEmbedder.embedderPromise,
-      provider: resolvedProvider,
+      get provider() {
+        return activeProvider;
+      },
       // ONNX adapter executes batch calls independently; callers may parallelize
       // code/doc dispatch at the orchestration layer.
       supportsParallelDispatch: true

@@ -28,7 +28,12 @@ export const normalizeVec = normalizeEmbeddingVector;
  * @param {string} options.modelId
  * @param {number} options.dims
  * @param {string} options.modelsDir
- * @returns {{getChunkEmbedding:(text:string)=>Promise<number[]>,getChunkEmbeddings:(texts:string[])=>Promise<number[][]>,embedderPromise:Promise<any>|null}}
+ * @returns {{
+ *   getChunkEmbedding:(text:string)=>Promise<number[]>,
+ *   getChunkEmbeddings:(texts:string[])=>Promise<number[][]>,
+ *   embedderPromise:Promise<any>|null,
+ *   getActiveProvider:()=>string
+ * }}
  */
 export function createEmbedder({
   rootDir,
@@ -72,6 +77,17 @@ export function createEmbedder({
   // Surface adapter concurrency capability so embedding pipelines can safely
   // decide whether code/doc batches may run in parallel.
   getChunkEmbeddings.supportsParallelDispatch = adapter?.supportsParallelDispatch === true;
+  const getActiveProvider = () => {
+    const provider = adapter?.provider;
+    return typeof provider === 'string' && provider.trim()
+      ? provider
+      : 'xenova';
+  };
 
-  return { getChunkEmbedding, getChunkEmbeddings, embedderPromise: adapter.embedderPromise };
+  return {
+    getChunkEmbedding,
+    getChunkEmbeddings,
+    embedderPromise: adapter.embedderPromise,
+    getActiveProvider
+  };
 }
