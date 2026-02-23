@@ -259,6 +259,11 @@ const resolveOptionalNonNegativeIntFromValues = (...values) => {
 /**
  * Collect stage1 watchdog config from all supported config surfaces.
  *
+ * This intentionally preserves legacy wiring where stage1 watchdog settings
+ * may appear at different nesting depths. Consumers should apply
+ * `processingWatchdog` first, then `rawWatchdog`, then `indexingStage1`,
+ * with `queueWatchdog` as the compatibility fallback.
+ *
  * @param {object} runtime
  * @returns {{indexingStage1:object,rawWatchdog:object,processingWatchdog:object,queueWatchdog:object}}
  */
@@ -285,6 +290,10 @@ const resolveStage1WatchdogSourceConfig = (runtime) => {
 
 /**
  * Resolve soft-kick stall timeout, optionally deriving it from hard abort budget.
+ *
+ * A configured value of `0` disables soft-kick attempts. When unset and an
+ * abort budget exists, soft-kick defaults to 50% of that budget and is clamped
+ * to remain at least one second below the abort threshold.
  *
  * @param {{configuredSoftKickMs?:number|null,stallAbortMs?:number}} [options]
  * @returns {number}
@@ -321,6 +330,11 @@ export const resolveStage1StallSoftKickTimeoutMs = ({
  *
  * All values are milliseconds. A value of `0` explicitly disables the
  * corresponding timeout/soft-kick behavior where supported.
+ *
+ * Policy edge: explicit `stallAbortMs` values are clamped to at least 1000ms
+ * here, while fallback abort thresholds (when unset) flow through
+ * `resolveStage1StallAbortTimeoutMs` and keep a much larger safety floor to
+ * avoid over-eager aborting on unconstrained repositories.
  *
  * @param {object} runtime
  * @param {object|null} watchdogConfig
