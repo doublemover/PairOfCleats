@@ -69,6 +69,12 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T06:53:04.0517509-05:00
+  Extracted sparse-preflight policy resolution/handling from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/sparse-preflight.js`, centralizing warning propagation and capability-missing error coercion around sparse fallback decisions.
+- 2026-02-23T06:52:18.0000000-05:00
+  Refactored artifact-write lane execution runtime out of `src/index/build/artifacts-write.js` into `src/index/build/artifacts/write-execution.js` and added targeted execution-dispatch coverage in `tests/indexing/artifacts/artifact-write-execution-dispatch.test.js`.
+- 2026-02-23T06:51:49.0000000-05:00
+  Performed follow-up pipeline sequencing split across `src/index/build/indexer/pipeline.js`, `pipeline/policy-context.js`, and `pipeline/phase-ordering.js`, with dedicated sequencing coverage in `tests/indexing/runtime/phase-ordering-sequencing.test.js`.
 - 2026-02-23T06:51:17.2002230-05:00
   Extracted adaptive-surface snapshot builders from `src/shared/concurrency/scheduler-core.js` into `src/shared/concurrency/scheduler-core-adaptive-snapshots.js`, keeping queue-pressure snapshot math reusable while trimming scheduler core orchestration code.
 - 2026-02-23T06:49:15.2714426-05:00

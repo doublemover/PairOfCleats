@@ -33,8 +33,7 @@ import {
 import { createRetrievalStageTracker } from '../../pipeline/stage-checkpoints.js';
 import { resolveDictionaryAndQueryPlan } from './planning.js';
 import {
-  buildSparseFallbackAnnUnavailableMessage,
-  resolveSparsePreflightFallback
+  buildSparseFallbackAnnUnavailableMessage
 } from './execution.js';
 import {
   emitSearchJsonError,
@@ -61,6 +60,7 @@ import { initializeBackendContext } from './backend-context-setup.js';
 import { loadRunSearchIndexesWithTracking } from './index-loading.js';
 import { buildQueryPlanInput } from './plan-input.js';
 import { buildIndexSignatureInput } from './signature-input.js';
+import { resolveRunSearchSparsePreflight } from './sparse-preflight.js';
 
 import {
   resolveAnnActive,
@@ -653,15 +653,14 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       })
     });
 
-    let sparseMissingByMode = {};
-    const sparsePreflight = resolveSparsePreflightFallback({
+    const sparsePreflight = resolveRunSearchSparsePreflight({
       annEnabledEffective,
       useSqlite,
       backendLabel,
       sqliteFtsEnabled,
       runCode,
       runProse,
-      runExtractedProse: runExtractedProseRaw,
+      runExtractedProseRaw,
       runRecords,
       selectedModes,
       requiresExtractedProse,
@@ -671,22 +670,18 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       allowSparseFallback,
       filtersActive: queryPlan.filtersActive === true,
       sparseBackend,
-      sqliteHelpers
+      sqliteHelpers,
+      addProfileWarning,
+      emitOutput
     });
     annEnabledEffective = sparsePreflight.annEnabledEffective;
     sparseFallbackForcedByPreflight = sparsePreflight.sparseFallbackForcedByPreflight;
-    sparseMissingByMode = sparsePreflight.sparseMissingByMode;
-    if (sparsePreflight.warning) {
-      addProfileWarning(sparsePreflight.warning);
-      if (emitOutput) {
-        console.warn(`[search] ${sparsePreflight.warning}`);
-      }
-    }
-    if (sparsePreflight.errorMessage) {
+    const sparseMissingByMode = sparsePreflight.sparseMissingByMode;
+    if (sparsePreflight.error) {
       return bail(
-        sparsePreflight.errorMessage,
+        sparsePreflight.error.message,
         1,
-        sparsePreflight.errorCode || ERROR_CODES.CAPABILITY_MISSING
+        sparsePreflight.error.code
       );
     }
     if (sparseFallbackForcedByPreflight) {
