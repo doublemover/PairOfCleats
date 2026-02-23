@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T07:37:41.1253874-05:00
+  Extracted USR observability rollup evaluation/reporting from `src/contracts/validators/usr-matrix.js` into `src/contracts/validators/usr-matrix/observability-rollup.js`, preserving public facade exports while isolating SLO/alert policy evaluation and adding dedicated contract coverage in `tests/indexing/contracts/usr-observability-rollup.test.js`.
 - 2026-02-23T07:33:54.6645063-05:00
   Extracted embeddings cache-index upsert logic from `tools/build/embeddings/cache.js` into `tools/build/embeddings/cache/index-entry.js`, preserving index semantics while switching hot-path entry/file map updates to in-place mutation (avoiding per-upsert map cloning) and adding focused regression coverage in `tests/indexing/embeddings/cache-index-upsert-mutation.test.js`.
 - 2026-02-23T07:30:43.3243071-05:00
