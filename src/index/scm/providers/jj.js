@@ -22,12 +22,15 @@ const logState = {
   mode: false,
   roots: new Set()
 };
+let logVersionPromise = null;
 
 let jjQueue = null;
 let jjQueueConcurrency = null;
 const pinnedOperations = new Map();
 const snapshotPromises = new Map();
+const jjFileMetaCache = new Map();
 const DEFAULT_CHANGED_FILES_MAX = 10000;
+const JJ_FILE_META_CACHE_MAX_ENTRIES = 50000;
 const JJ_METADATA_CAPABILITIES = Object.freeze({
   author: true,
   time: true,
@@ -79,6 +82,67 @@ const getQueue = (concurrency) => {
   return jjQueue;
 };
 
+const normalizeRepoCacheRoot = (repoRoot) => {
+  if (!repoRoot || typeof repoRoot !== 'string') return null;
+  const resolved = path.resolve(repoRoot);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+};
+
+const buildJjFileMetaCacheKey = ({ repoRoot, filePosix, includeChurn, headId }) => {
+  const normalizedRoot = normalizeRepoCacheRoot(repoRoot);
+  const normalizedPath = toPosix(String(filePosix || ''));
+  const normalizedHeadId = typeof headId === 'string' && headId.trim()
+    ? headId.trim()
+    : null;
+  if (!normalizedRoot || !normalizedPath || !normalizedHeadId) return null;
+  return `${normalizedRoot}|${normalizedPath}|${includeChurn === true ? '1' : '0'}|${normalizedHeadId}`;
+};
+
+const pruneJjFileMetaCache = () => {
+  while (jjFileMetaCache.size > JJ_FILE_META_CACHE_MAX_ENTRIES) {
+    const oldest = jjFileMetaCache.keys().next()?.value;
+    if (!oldest) break;
+    jjFileMetaCache.delete(oldest);
+  }
+};
+
+const readJjFileMetaCache = ({ repoRoot, filePosix, includeChurn, headId }) => {
+  const key = buildJjFileMetaCacheKey({
+    repoRoot,
+    filePosix,
+    includeChurn,
+    headId
+  });
+  if (!key) return null;
+  const cached = jjFileMetaCache.get(key);
+  if (!cached || typeof cached !== 'object') return null;
+  jjFileMetaCache.delete(key);
+  jjFileMetaCache.set(key, cached);
+  return { ...cached };
+};
+
+const writeJjFileMetaCache = ({ repoRoot, filePosix, includeChurn, headId, meta }) => {
+  const key = buildJjFileMetaCacheKey({
+    repoRoot,
+    filePosix,
+    includeChurn,
+    headId
+  });
+  if (!key || !meta || typeof meta !== 'object') return;
+  jjFileMetaCache.set(key, { ...meta });
+  pruneJjFileMetaCache();
+};
+
+const toBatchFileMeta = (meta) => ({
+  lastCommitId: meta?.lastCommitId || null,
+  lastModifiedAt: meta?.lastModifiedAt || null,
+  lastAuthor: meta?.lastAuthor || null,
+  churn: Number.isFinite(meta?.churn) ? meta.churn : null,
+  churnAdded: Number.isFinite(meta?.churnAdded) ? meta.churnAdded : null,
+  churnDeleted: Number.isFinite(meta?.churnDeleted) ? meta.churnDeleted : null,
+  churnCommits: Number.isFinite(meta?.churnCommits) ? meta.churnCommits : null
+});
+
 const buildBaseArgs = ({ operation, ignoreWorkingCopy }) => {
   const args = ['--no-pager', '--color=never', '--quiet'];
   if (operation) args.push(`--at-operation=${operation}`);
@@ -116,17 +180,24 @@ const logJjInfo = async (repoRoot, config) => {
     log(`[scm] jj pinning mode: ${mode}`);
   }
   if (!logState.version) {
-    const result = await runJjRaw({
-      repoRoot,
-      args: ['--no-pager', '--color=never', '--quiet', '--version'],
-      timeoutMs: 2000,
-      useQueue: false
-    });
-    if (result.exitCode === 0) {
-      const version = String(result.stdout || '').trim();
-      if (version) log(`[scm] jj version: ${version}`);
+    if (!logVersionPromise) {
+      logVersionPromise = (async () => {
+        const result = await runJjRaw({
+          repoRoot,
+          args: ['--no-pager', '--color=never', '--quiet', '--version'],
+          timeoutMs: 2000,
+          useQueue: false
+        });
+        if (result.exitCode === 0) {
+          const version = String(result.stdout || '').trim();
+          if (version) log(`[scm] jj version: ${version}`);
+        }
+        logState.version = true;
+      })().finally(() => {
+        logVersionPromise = null;
+      });
     }
-    logState.version = true;
+    await logVersionPromise;
   }
 };
 
@@ -343,7 +414,14 @@ export const jjProvider = {
     }
     return { filesPosix };
   },
-  async getFileMeta({ repoRoot, filePosix, timeoutMs, includeChurn = true }) {
+  async getFileMeta({ repoRoot, filePosix, timeoutMs, includeChurn = true, headId = null }) {
+    const cached = readJjFileMetaCache({
+      repoRoot,
+      filePosix,
+      includeChurn,
+      headId
+    });
+    if (cached) return cached;
     const config = resolveJjConfig();
     const fileset = toJjFileset(filePosix);
     if (!fileset) return { ok: false, reason: 'unavailable' };
@@ -390,7 +468,7 @@ export const jjProvider = {
         churnDeleted += Number.isFinite(removed) ? removed : 0;
       }
     }
-    return {
+    const resolved = {
       lastCommitId: first.commit_id || null,
       lastModifiedAt: first.timestamp || null,
       lastAuthor: first.author || null,
@@ -399,28 +477,49 @@ export const jjProvider = {
       churnDeleted: includeChurn ? churnDeleted : null,
       churnCommits: includeChurn ? churnCommits : null
     };
+    writeJjFileMetaCache({
+      repoRoot,
+      filePosix,
+      includeChurn,
+      headId,
+      meta: resolved
+    });
+    return resolved;
   },
-  async getFileMetaBatch({ repoRoot, filesPosix, timeoutMs, includeChurn = true }) {
+  async getFileMetaBatch({ repoRoot, filesPosix, timeoutMs, includeChurn = true, headId = null }) {
+    const config = resolveJjConfig();
     const normalizedFiles = toUniquePosixFiles(filesPosix, repoRoot);
     const fileMetaByPath = Object.create(null);
     if (!normalizedFiles.length) return { fileMetaByPath };
+    const uncached = [];
     for (const filePosix of normalizedFiles) {
-      const meta = await this.getFileMeta({
+      const cached = readJjFileMetaCache({
         repoRoot,
         filePosix,
-        timeoutMs,
-        includeChurn
+        includeChurn,
+        headId
       });
-      if (!meta || meta.ok === false) continue;
-      fileMetaByPath[filePosix] = {
-        lastCommitId: meta.lastCommitId || null,
-        lastModifiedAt: meta.lastModifiedAt || null,
-        lastAuthor: meta.lastAuthor || null,
-        churn: Number.isFinite(meta.churn) ? meta.churn : null,
-        churnAdded: Number.isFinite(meta.churnAdded) ? meta.churnAdded : null,
-        churnDeleted: Number.isFinite(meta.churnDeleted) ? meta.churnDeleted : null,
-        churnCommits: Number.isFinite(meta.churnCommits) ? meta.churnCommits : null
-      };
+      if (cached) {
+        fileMetaByPath[filePosix] = toBatchFileMeta(cached);
+      } else {
+        uncached.push(filePosix);
+      }
+    }
+    if (uncached.length) {
+      const queue = new PQueue({
+        concurrency: Math.max(1, Math.min(config.maxConcurrentProcesses, uncached.length))
+      });
+      await Promise.all(uncached.map((filePosix) => queue.add(async () => {
+        const meta = await this.getFileMeta({
+          repoRoot,
+          filePosix,
+          timeoutMs,
+          includeChurn,
+          headId
+        });
+        if (!meta || meta.ok === false) return;
+        fileMetaByPath[filePosix] = toBatchFileMeta(meta);
+      })));
     }
     return { fileMetaByPath };
   },
