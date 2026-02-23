@@ -1,6 +1,6 @@
 indexing/embeddings/embedding-batch-multipliers
 shared/cli/noop-task
-retrieval/ann/hnsw-target-selection
+retrieval/ann/hnsw-ann
 retrieval/pipeline/object-pool-leak
 retrieval/output/explain-color-fallback
 shared/cache/cache-policy-contract
@@ -669,7 +669,7 @@ tooling/lsp/lsp-param-fallback-from-source
 indexing/tree-sitter/tree-sitter-preload-order-deterministic
 tooling/vfs/vfs-partial-lsp-open
 indexing/build-state/build-truth-ledger-hash-alignment
-workspace/build-pointer-buildid-absolute-invalid
+workspace/build-pointer-invalid-scenarios
 tooling/ingest/ctags/ctags-ingest
 tooling/ingest/scip/scip-ingest
 workspace/windows-path-canonicalization-contract
@@ -691,8 +691,6 @@ indexing/validate/index-validate-file-name-collision
 indexing/validate/index-validate-unknown-artifact-fails-strict
 retrieval/federation/build-pointer-invalid-clears-cache
 indexing/validate/index-validate-jsonl-required-keys
-workspace/build-pointer-buildid-prefers-builds-root
-workspace/build-pointer-unresolved-root-invalid
 shared/diffs-registry
 indexing/stage1/token-id-collision-policy
 indexing/validate/index-validate-missing-manifest
@@ -713,7 +711,6 @@ indexing/validate/index-validate-sharded-meta-consistency
 indexing/validate/index-validate-binary-columnar-manifest-names
 graph/graph-memory-plateau
 retrieval/ann/lancedb-candidate-filtering
-workspace/build-pointer-buildid-traversal-invalid
 tooling/install/tooling-install
 indexing/validate/index-validate-chunk-meta-large-manifest-budget
 services/indexing/compressed-artifact-presence
@@ -721,7 +718,6 @@ indexing/tree-sitter/tree-sitter-load-bench-contract
 indexing/records/records-discovery
 indexing/validate/symbol-integrity-strict
 indexing/ignore/ignore-overrides
-workspace/build-pointer-invalid-treated-missing
 indexing/imports/import-scan-cache-read
 indexing/imports/imports-require-regex-fallback-on-lexer-failure
 shared/config/config-normalization-quality-threads
@@ -730,9 +726,8 @@ indexing/artifacts/symbols/symbol-links-by-chunkuid
 indexing/imports/imports-proto-safe-module-keys
 tooling/paths/explicit-repo-root-arg
 indexing/artifacts/symbols/symbol-edges-ambiguous
-tooling/impact/impact-seed-normalization
+tooling/impact/impact-seed-and-changed-behavior
 indexing/tree-sitter/tree-sitter-batch-by-language
-tooling/impact/impact-changed-and-seed-warning
 shared/runtime/thread-limits
 indexing/imports/imports-options-forwarding-flowmode
 indexing/imports/import-scan
@@ -740,7 +735,7 @@ tooling/index-stats/index-stats-missing-artifact
 indexing/imports/imports-esmodule-lexer-init
 indexing/validate/index-validate-unknown-mode
 tooling/type-inference/crossfile-stats.unit
-workspace/manifest-hash-invalidation
+workspace/manifest-determinism-and-hash
 indexing/imports/import-priority
 indexing/imports/import-resolver-relative
 indexing/artifacts/index-state-skip-write
@@ -756,7 +751,6 @@ storage/sqlite/sqlite-chunk-meta-streaming
 tooling/lsp/typescript/typescript-node-matching-range
 indexing/artifacts/clean-artifacts
 indexing/preprocess/preprocess-files
-workspace/manifest-determinism
 indexing/filter-index/filter-index-atomic-swap
 tooling/lsp/typescript/typescript-ambiguous-fallback-does-not-guess
 tooling/triage/ingest-sources.smoke
