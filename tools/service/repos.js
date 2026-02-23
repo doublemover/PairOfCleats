@@ -22,7 +22,14 @@ export const formatGitFailure = (result, fallback) => {
   if (typeof result?.error?.message === 'string' && result.error.message.trim().length > 0) {
     return result.error.message.trim();
   }
-  return result?.stderr || result?.stdout || fallback;
+  const stderr = typeof result?.stderr === 'string' ? result.stderr.trim() : '';
+  if (stderr) return stderr;
+  const stdout = typeof result?.stdout === 'string' ? result.stdout.trim() : '';
+  if (stdout) return stdout;
+  if (Number.isInteger(result?.status)) {
+    return `${fallback} (exit ${Number(result.status)})`;
+  }
+  return fallback;
 };
 
 export function resolveRepoPath(entry, baseDir) {
@@ -61,7 +68,11 @@ export async function ensureRepo(entry, baseDir, defaultPolicy = 'pull') {
     cloneArgs.push(entry.url, repoPath);
     const clone = runGit(cloneArgs, process.cwd());
     if (clone.status !== 0) {
-      return { ok: false, message: formatGitFailure(clone, 'git clone failed') };
+      return {
+        ok: false,
+        signal: normalizeSignal(clone.signal),
+        message: formatGitFailure(clone, 'git clone failed')
+      };
     }
     return { ok: true, repoPath, action: 'clone' };
   }
@@ -70,7 +81,12 @@ export async function ensureRepo(entry, baseDir, defaultPolicy = 'pull') {
   const args = policy === 'fetch' ? ['fetch', '--all', '--prune'] : ['pull', '--ff-only'];
   const sync = runGit(args, repoPath);
   if (sync.status !== 0) {
-    return { ok: false, repoPath, message: formatGitFailure(sync, 'git sync failed') };
+    return {
+      ok: false,
+      repoPath,
+      signal: normalizeSignal(sync.signal),
+      message: formatGitFailure(sync, 'git sync failed')
+    };
   }
   return { ok: true, repoPath, action: policy };
 }

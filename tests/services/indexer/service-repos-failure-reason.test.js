@@ -16,7 +16,11 @@ assert.equal(
 );
 assert.equal(
   formatGitFailure({ status: 1, signal: null, stderr: '', stdout: '' }, 'fallback'),
-  'fallback'
+  'fallback (exit 1)'
+);
+assert.equal(
+  formatGitFailure({ status: 1, signal: null, stderr: 'fatal: bad ref\n', stdout: '' }, 'fallback'),
+  'fatal: bad ref'
 );
 
 console.log('service repos failure reason test passed');
