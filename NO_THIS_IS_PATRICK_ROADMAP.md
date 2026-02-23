@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T06:58:41.8806747-05:00
+  Extracted token-flow chunk tokenization/fallback handling from `src/index/build/file-processor/process-chunks/token-flow.js` into `src/index/build/file-processor/process-chunks/token-flow/chunk-tokenizer.js`, and added regression coverage in `tests/indexing/file-processor/tokenization-worker-fallback-retention.test.js`.
 - 2026-02-23T06:57:51.2988469-05:00
   Extracted dictionary/query-plan orchestration from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/query-planning.js`, including centralized index-signature input assembly for plan-cache invalidation.
 - 2026-02-23T06:54:51.9285216-05:00
