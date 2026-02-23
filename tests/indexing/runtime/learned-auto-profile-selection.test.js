@@ -56,6 +56,25 @@ const appliedResult = await resolveLearnedAutoProfileSelection({
 assert.equal(appliedResult.applied, true, 'low confidence gate should apply latency overrides');
 assert.ok(appliedResult.overrides?.tinyRepoFastPath, 'applied result should include overrides');
 assert.equal(appliedResult.state.persisted, true, 'state should persist when cache root is writable');
+assert.equal(
+  appliedResult.featureSource === 'scan' || appliedResult.featureSource === 'cache',
+  true,
+  'applied run should resolve features from scan or prior cache'
+);
+
+const cachedResult = await resolveLearnedAutoProfileSelection({
+  root: repoRoot,
+  repoCacheRoot,
+  indexingConfig: {
+    autoProfile: {
+      enabled: true,
+      shadowOnly: false,
+      minConfidence: 0.5,
+      maxScanEntries: 200
+    }
+  }
+});
+assert.equal(cachedResult.featureSource, 'cache', 'subsequent run should reuse cached features when repo unchanged');
 
 const gatedResult = await resolveLearnedAutoProfileSelection({
   root: repoRoot,
