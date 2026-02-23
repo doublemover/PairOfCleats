@@ -28,9 +28,9 @@ import {
   formatGb,
   formatMetricSummary,
   getRecommendedHeapMb,
-  stripMaxOldSpaceFlag,
   validateEncodingFixtures
 } from './language/metrics.js';
+import { sanitizeBenchNodeOptions } from './language/node-options.js';
 import { buildReportOutput, printSummary } from './language/report.js';
 import { retainCrashArtifacts } from '../../src/index/build/crash-log.js';
 import { createToolDisplay } from '../shared/cli-display.js';
@@ -925,10 +925,9 @@ for (const task of tasks) {
 
     const repoUserConfig = loadUserConfig(repoPath);
     const repoRuntimeConfig = getRuntimeConfig(repoPath, repoUserConfig);
-    let baseNodeOptions = baseEnv.NODE_OPTIONS || '';
-    if (Number.isFinite(heapArg) && heapArg > 0) {
-      baseNodeOptions = stripMaxOldSpaceFlag(baseNodeOptions);
-    }
+    let baseNodeOptions = sanitizeBenchNodeOptions(baseEnv.NODE_OPTIONS || '', {
+      stripHeap: Number.isFinite(heapArg) && heapArg > 0
+    });
     const hasHeapFlag = baseNodeOptions.includes('--max-old-space-size');
     let heapOverride = null;
     if (Number.isFinite(heapArg) && heapArg > 0) {
@@ -960,7 +959,9 @@ for (const task of tasks) {
     }
     const repoEnvBase = resolveRuntimeEnv(runtimeConfigForRun, baseEnvForRepo);
     if (heapOverride) {
-      repoEnvBase.NODE_OPTIONS = stripMaxOldSpaceFlag(repoEnvBase.NODE_OPTIONS || '');
+      repoEnvBase.NODE_OPTIONS = sanitizeBenchNodeOptions(repoEnvBase.NODE_OPTIONS || '', {
+        stripHeap: true
+      });
       repoEnvBase.NODE_OPTIONS = [repoEnvBase.NODE_OPTIONS, `--max-old-space-size=${heapOverride}`].filter(Boolean).join(' ').trim();
     }
 

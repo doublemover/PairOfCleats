@@ -19,6 +19,7 @@ import { countLinesForEntries } from '../../../src/shared/file-stats.js';
 import { formatDurationMs } from '../../../src/shared/time-format.js';
 import { getMetricsDir, getTriageConfig, loadUserConfig } from '../../shared/dict-utils.js';
 import { emitBenchLog } from './logging.js';
+import { stripMaxOldSpaceFlag } from './node-options.js';
 
 export const formatDuration = (ms) => formatDurationMs(ms);
 
@@ -29,14 +30,6 @@ export const formatLoc = (value) => {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
   if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
   return `${Math.floor(value)}`;
-};
-
-export const stripMaxOldSpaceFlag = (options) => {
-  if (!options) return '';
-  return options
-    .replace(/--max-old-space-size=\d+/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
 };
 
 export const getRecommendedHeapMb = () => {

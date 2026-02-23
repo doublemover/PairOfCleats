@@ -18,6 +18,7 @@ import { build as buildHistogram } from 'hdr-histogram-js';
 import { applyTestEnv, attachSilentLogging } from '../../helpers/test-env.js';
 import { formatBenchDuration as formatDuration, formatBenchDurationMs as formatDurationMs } from '../../helpers/duration-format.js';
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
+import { sanitizeBenchNodeOptions } from '../../../tools/bench/language/node-options.js';
 
 applyTestEnv();
 
@@ -151,7 +152,9 @@ if (buildSqlite && !buildIndex) buildIndex = true;
 const heapArgRaw = argv['heap-mb'];
 const heapArg = Number.isFinite(Number(heapArgRaw)) ? Math.floor(Number(heapArgRaw)) : null;
 const heapRecommendation = getRecommendedHeapMb();
-const baseNodeOptions = stripMaxOldSpaceFlag(process.env.NODE_OPTIONS || '');
+const baseNodeOptions = sanitizeBenchNodeOptions(process.env.NODE_OPTIONS || '', {
+  stripHeap: true
+});
 const hasHeapFlag = baseNodeOptions.includes('--max-old-space-size');
 let heapOverride = null;
 if (Number.isFinite(heapArg) && heapArg > 0) {
@@ -177,7 +180,9 @@ if (realEmbeddings && baseEnv.PAIROFCLEATS_EMBEDDINGS) {
   delete baseEnv.PAIROFCLEATS_EMBEDDINGS;
 }
 if (heapOverride) {
-  baseEnv.NODE_OPTIONS = stripMaxOldSpaceFlag(baseEnv.NODE_OPTIONS || '');
+  baseEnv.NODE_OPTIONS = sanitizeBenchNodeOptions(baseEnv.NODE_OPTIONS || '', {
+    stripHeap: true
+  });
   baseEnv.NODE_OPTIONS = [baseEnv.NODE_OPTIONS, `--max-old-space-size=${heapOverride}`]
     .filter(Boolean)
     .join(' ')
@@ -344,14 +349,6 @@ function buildStats(values, { scale = 1 } = {}) {
     min: Math.min(...values),
     max: Math.max(...values)
   };
-}
-
-function stripMaxOldSpaceFlag(options) {
-  if (!options) return '';
-  return options
-    .replace(/--max-old-space-size=\d+/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
 }
 
 function formatGb(mb) {
