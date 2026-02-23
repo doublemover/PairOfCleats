@@ -23,7 +23,6 @@ import { createCrashLogger } from '../../../src/index/build/crash-log.js';
 import { resolveHnswPaths } from '../../../src/shared/hnsw.js';
 import { normalizeLanceDbConfig } from '../../../src/shared/lancedb.js';
 import { DEFAULT_STUB_DIMS, resolveStubDims } from '../../../src/shared/embedding.js';
-import { sha1 } from '../../../src/shared/hash.js';
 import {
   countNonEmptyVectors,
   clampQuantizedVectorsInPlace,
@@ -51,7 +50,6 @@ import {
   resolveSqlitePaths
 } from '../../shared/dict-utils.js';
 import {
-  buildChunkHashesFingerprint,
   buildCacheIdentity,
   buildCacheKey,
   buildGlobalChunkCacheKey,
@@ -106,7 +104,6 @@ import {
   enqueueCacheEntryWrite,
   initializeEmbeddingsCacheState,
   lookupCacheEntryWithStats,
-  reuseVectorsFromPriorCacheEntry,
   tryApplyCachedVectors
 } from './runner/cache-orchestration.js';
 import {
@@ -114,6 +111,7 @@ import {
   promoteBackendArtifacts
 } from './runner/artifacts.js';
 import { resolvePublishedBackendStates } from './runner/backend-state.js';
+import { prepareFileEmbeddingWorkset } from './runner/file-workset.js';
 
 const EMBEDDINGS_TOOLS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const COMPACT_SQLITE_SCRIPT = path.join(EMBEDDINGS_TOOLS_DIR, '..', 'compact-sqlite-index.js');
@@ -2061,287 +2059,22 @@ export async function runBuildEmbeddingsWithConfig(config) {
               }
             }
 
-            const codeTexts = [];
-            const docTexts = [];
-            const codeMapping = [];
-            const docMapping = [];
-            const chunkHashes = new Array(items.length);
-            const chunkCodeTexts = new Array(items.length);
-            const chunkDocTexts = new Array(items.length);
-            let missingCodeTextCount = 0;
-            for (let i = 0; i < items.length; i += 1) {
-              const { chunk } = items[i];
-              if (typeof chunk?.text === 'string') {
-                chunkCodeTexts[i] = chunk.text;
-              } else {
-                missingCodeTextCount += 1;
-              }
-              const docText = typeof chunk?.docmeta?.doc === 'string' ? chunk.docmeta.doc : '';
-              chunkDocTexts[i] = docText.trim() ? docText : '';
-            }
-
-            if (missingCodeTextCount > 0 && incremental?.bundleDir && manifestEntry?.bundle) {
-              try {
-                const bundleName = manifestEntry.bundle;
-                const bundlePath = path.join(incremental.bundleDir, bundleName);
-                const bundleResult = await scheduleIo(() => readBundleFile(bundlePath, {
-                  format: resolveBundleFormatFromName(bundleName, incremental?.manifest?.bundleFormat)
-                }));
-                const bundleChunks = Array.isArray(bundleResult?.bundle?.chunks)
-                  ? bundleResult.bundle.chunks
-                  : [];
-                missingCodeTextCount = hydrateMissingChunkTextsFromBundle({
-                  items,
-                  chunkCodeTexts,
-                  bundleChunks
-                });
-              } catch {
-                // Fall through to source-file reads for unresolved chunk text.
-              }
-            }
-
-            const requiresSourceReadForText = missingCodeTextCount > 0;
-            const requiresSourceReadForHash = !fileHash;
-            let sourceText = null;
-            if (requiresSourceReadForText || requiresSourceReadForHash) {
-              const candidates = (() => {
-                if (mode !== 'records') {
-                  return [path.resolve(root, fromPosix(normalizedRel))];
-                }
-                const resolvedRecordsDir = typeof recordsDir === 'string' && recordsDir
-                  ? recordsDir
-                  : root;
-                if (normalizedRel.startsWith('triage/records/')) {
-                  const stripped = normalizedRel.slice('triage/records/'.length);
-                  return [
-                    path.resolve(resolvedRecordsDir, fromPosix(stripped)),
-                    path.resolve(root, fromPosix(normalizedRel))
-                  ];
-                }
-                return [
-                  path.resolve(root, fromPosix(normalizedRel)),
-                  path.resolve(resolvedRecordsDir, fromPosix(normalizedRel))
-                ];
-              })();
-              let textInfo = null;
-              let lastErr = null;
-              try {
-                for (const candidate of candidates) {
-                  try {
-                    textInfo = await scheduleIo(() => readTextFileWithHash(candidate));
-                    lastErr = null;
-                    break;
-                  } catch (err) {
-                    lastErr = err;
-                    if (mode === 'records' && err?.code === 'ENOENT') {
-                      continue;
-                    }
-                    break;
-                  }
-                }
-                if (!textInfo) {
-                  throw lastErr || new Error('Unknown read error');
-                }
-              } catch (err) {
-                if (requiresSourceReadForText) {
-                  const reason = err?.code ? `${err.code}: ${err.message || err}` : (err?.message || err);
-                  warn(`[embeddings] ${mode}: Failed to read ${normalizedRel}; skipping (${reason}).`);
-                  await markFileProcessed({
-                    chunkCount: items.length,
-                    source: 'skipped',
-                    skipped: true
-                  });
-                  return;
-                }
-              }
-              if (textInfo) {
-                sourceText = textInfo.text;
-                if (!fileHash) {
-                  fileHash = textInfo.hash;
-                  boundedMapSet(
-                    sourceFileHashes,
-                    normalizedRel,
-                    fileHash,
-                    sourceFileHashCacheMaxEntries
-                  );
-                  cacheKey = buildCacheKey({
-                    file: normalizedRel,
-                    hash: fileHash,
-                    signature: chunkSignature,
-                    identityKey: cacheIdentityKey,
-                    repoId: cacheRepoId,
-                    mode,
-                    featureFlags: cacheKeyFlags,
-                    pathPolicy: 'posix'
-                  });
-                  let cachedAfterHash = null;
-                  if (cacheEligible && cacheKey) {
-                    cacheAttempts += 1;
-                    if (shouldFastRejectCacheLookup({
-                      cacheIndex,
-                      cacheKey,
-                      identityKey: cacheIdentityKey,
-                      fileHash,
-                      chunkSignature
-                    })) {
-                      cacheFastRejects += 1;
-                    } else {
-                      cachedAfterHash = await scheduleIo(() => readCacheEntry(cacheDir, cacheKey, cacheIndex));
-                    }
-                  }
-                  const cached = cachedAfterHash?.entry;
-                  if (!cached && cacheEligible && cacheKey) {
-                    cacheMisses += 1;
-                  }
-                  if (cached) {
-                    try {
-                      const cacheIdentityMatches = cached.cacheMeta?.identityKey === cacheIdentityKey;
-                      if (cacheIdentityMatches) {
-                        const expectedDims = configuredDims || cached.cacheMeta?.identity?.dims || null;
-                        validateCachedDims({ vectors: cached.codeVectors, expectedDims, mode });
-                        validateCachedDims({ vectors: cached.docVectors, expectedDims, mode });
-                        validateCachedDims({ vectors: cached.mergedVectors, expectedDims, mode });
-                      }
-                      if (isCacheValid({
-                        cached,
-                        signature: chunkSignature,
-                        identityKey: cacheIdentityKey,
-                        hash: fileHash
-                      })) {
-                        const cachedCode = ensureVectorArrays(cached.codeVectors, items.length);
-                        const cachedDoc = ensureVectorArrays(cached.docVectors, items.length);
-                        const cachedMerged = ensureVectorArrays(cached.mergedVectors, items.length);
-                        let hasEmptyCached = false;
-                        for (let i = 0; i < items.length; i += 1) {
-                          const chunkIndex = items[i].index;
-                          const codeVec = cachedCode[i] || [];
-                          const docVec = cachedDoc[i] || [];
-                          const mergedVec = cachedMerged[i] || [];
-                          if (!isNonEmptyVector(codeVec) || !isNonEmptyVector(docVec) || !isNonEmptyVector(mergedVec)) {
-                            hasEmptyCached = true;
-                            break;
-                          }
-                          assertDims(codeVec.length);
-                          assertDims(docVec.length);
-                          assertDims(mergedVec.length);
-                          codeVectors[chunkIndex] = codeVec;
-                          docVectors[chunkIndex] = docVec;
-                          mergedVectors[chunkIndex] = mergedVec;
-                          if (hnswEnabled) {
-                            addHnswFromQuantized('merged', chunkIndex, mergedVec);
-                            addHnswFromQuantized('doc', chunkIndex, docVec);
-                            addHnswFromQuantized('code', chunkIndex, codeVec);
-                          }
-                        }
-                        if (hasEmptyCached) {
-                          throw new Error(`[embeddings] ${mode} cached vectors incomplete; recomputing ${normalizedRel}.`);
-                        }
-                        if (cacheIndex && cacheKey) {
-                          updateCacheIndexAccess(cacheIndex, cacheKey);
-                          if (!cacheIndex.files || typeof cacheIndex.files !== 'object') {
-                            cacheIndex.files = {};
-                          }
-                          if (!cacheIndex.files[normalizedRel]) {
-                            cacheIndex.files[normalizedRel] = cacheKey;
-                          }
-                          markCacheIndexDirty();
-                        }
-                        cacheHits += 1;
-                        await markFileProcessed({
-                          chunkCount: items.length,
-                          source: 'cache'
-                        });
-                        return;
-                      }
-                    } catch (err) {
-                      if (isDimsMismatch(err)) throw err;
-                      // Ignore cache parse errors.
-                      cacheRejected += 1;
-                    }
-                  }
-                }
-              }
-            }
-
-            for (let i = 0; i < items.length; i += 1) {
-              const { chunk } = items[i];
-              if (typeof chunkCodeTexts[i] !== 'string') {
-                const start = Number.isFinite(Number(chunk.start)) ? Number(chunk.start) : 0;
-                const end = Number.isFinite(Number(chunk.end)) ? Number(chunk.end) : start;
-                chunkCodeTexts[i] = sourceText ? sourceText.slice(start, end) : '';
-              }
-              const codeText = chunkCodeTexts[i] || '';
-              const trimmedDoc = chunkDocTexts[i] || '';
-              chunkHashes[i] = buildNormalizedChunkPayloadHash({
-                codeText,
-                docText: trimmedDoc
-              });
-            }
-            const chunkHashesFingerprint = buildChunkHashesFingerprint(chunkHashes);
-            const reuse = {
-              code: new Array(items.length).fill(null),
-              doc: new Array(items.length).fill(null),
-              merged: new Array(items.length).fill(null)
-            };
-            await reuseVectorsFromPriorCacheEntry({
+            const {
+              codeTexts,
+              docTexts,
+              codeMapping,
+              docMapping,
+              chunkHashes,
+              chunkHashesFingerprint,
+              reuse
+            } = await prepareFileEmbeddingWorkset({
+              text,
+              items,
               cacheState,
               cacheKey,
               normalizedRel,
-              chunkHashes,
-              chunkHashesFingerprint,
-              reuse,
               scheduleIo
             });
-            for (let i = 0; i < items.length; i += 1) {
-              if (reuse.code[i] && reuse.doc[i] && reuse.merged[i]) {
-                continue;
-              }
-              const chunkHash = chunkHashes[i];
-              if (crossFileChunkDedupe instanceof Map) {
-                const dedupeEntry = crossFileChunkDedupe.get(chunkHash);
-                if (
-                  dedupeEntry
-                  && isNonEmptyVector(dedupeEntry.code)
-                  && isNonEmptyVector(dedupeEntry.doc)
-                  && isNonEmptyVector(dedupeEntry.merged)
-                ) {
-                  // Promote recency and reuse vectors for identical chunk payloads
-                  // across files/modes within this embeddings run.
-                  crossFileChunkDedupe.delete(chunkHash);
-                  crossFileChunkDedupe.set(chunkHash, dedupeEntry);
-                  reuse.code[i] = dedupeEntry.code;
-                  reuse.doc[i] = dedupeEntry.doc;
-                  reuse.merged[i] = dedupeEntry.merged;
-                  crossFileChunkDedupeHits += 1;
-                  continue;
-                }
-              }
-              if (chunkHash) {
-                globalChunkCacheAttempts += 1;
-                const globalChunkHit = await resolveGlobalChunkVectors(chunkHash);
-                if (globalChunkHit?.vectors) {
-                  reuse.code[i] = globalChunkHit.vectors.code;
-                  reuse.doc[i] = globalChunkHit.vectors.doc;
-                  reuse.merged[i] = globalChunkHit.vectors.merged;
-                  globalChunkCacheHits += 1;
-                  continue;
-                }
-                if (globalChunkHit?.rejected) {
-                  globalChunkCacheRejected += 1;
-                } else {
-                  globalChunkCacheMisses += 1;
-                }
-              }
-              codeMapping.push(i);
-              codeTexts.push(chunkCodeTexts[i]);
-              docMapping.push(i);
-              docTexts.push(chunkDocTexts[i]);
-            }
-            let docTextsNonEmpty = 0;
-            for (const value of docTexts) {
-              if (typeof value === 'string' && value) docTextsNonEmpty += 1;
-            }
-            embeddingTextsScheduled += codeTexts.length + docTextsNonEmpty;
             await computeFileEmbeddings({
               normalizedRel,
               items,
