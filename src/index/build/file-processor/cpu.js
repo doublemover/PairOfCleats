@@ -123,6 +123,61 @@ const HEAVY_RELATIONS_PATH_PARTS = [
   '/docs/mkdocs/',
   '/.github/workflows/'
 ];
+const EXTRACTED_PROSE_EXTRAS_CACHE_SCHEMA = 'v1';
+
+const normalizeLowerToken = (value) => (
+  typeof value === 'string' && value.trim()
+    ? value.trim().toLowerCase()
+    : ''
+);
+
+const buildExtractedProseExtrasCacheKey = ({
+  fileHash,
+  fileHashAlgo,
+  ext,
+  languageId
+}) => {
+  const hash = typeof fileHash === 'string' ? fileHash.trim() : '';
+  if (!hash) return null;
+  const algo = normalizeLowerToken(fileHashAlgo) || 'sha1';
+  const normalizedExt = normalizeLowerToken(ext);
+  const normalizedLanguageId = normalizeLowerToken(languageId);
+  return [
+    EXTRACTED_PROSE_EXTRAS_CACHE_SCHEMA,
+    algo,
+    hash,
+    normalizedExt,
+    normalizedLanguageId
+  ].join('|');
+};
+
+const cloneCachedExtrasEntry = (entry) => {
+  if (!entry || typeof entry !== 'object') {
+    return {
+      commentEntries: [],
+      commentRanges: [],
+      extraSegments: []
+    };
+  }
+  const cloneItem = (item) => {
+    if (!item || typeof item !== 'object') return item;
+    const next = { ...item };
+    if (Array.isArray(item.tokens)) next.tokens = item.tokens.slice();
+    if (item.meta && typeof item.meta === 'object') next.meta = { ...item.meta };
+    return next;
+  };
+  return {
+    commentEntries: Array.isArray(entry.commentEntries)
+      ? entry.commentEntries.map(cloneItem)
+      : [],
+    commentRanges: Array.isArray(entry.commentRanges)
+      ? entry.commentRanges.map(cloneItem)
+      : [],
+    extraSegments: Array.isArray(entry.extraSegments)
+      ? entry.extraSegments.map(cloneItem)
+      : []
+  };
+};
 
 /**
  * Normalize repo-relative paths for case-insensitive SCM heuristics.
@@ -394,7 +449,9 @@ export const processFileCpu = async (context) => {
     vfsManifestConcurrency,
     complexityCache,
     lintCache,
-    buildStage
+    buildStage,
+    extractedProseExtrasCache = null,
+    primeExtractedProseExtrasCache = false
   } = context;
 
   const {
@@ -883,21 +940,79 @@ export const processFileCpu = async (context) => {
   let commentEntries = [];
   let commentRanges = [];
   let extraSegments = [];
+  const shouldPrimeExtractedProseExtras = mode === 'prose' && primeExtractedProseExtrasCache === true;
+  const shouldUseExtractedProseCommentMeta = mode === 'extracted-prose' || shouldPrimeExtractedProseExtras;
+  const supportsExtractedProseExtrasCache = Boolean(
+    extractedProseExtrasCache
+    && typeof extractedProseExtrasCache.get === 'function'
+    && typeof extractedProseExtrasCache.set === 'function'
+  );
+  const extractedProseExtrasCacheKey = shouldUseExtractedProseCommentMeta
+    ? buildExtractedProseExtrasCacheKey({
+      fileHash,
+      fileHashAlgo,
+      ext,
+      languageId: lang?.id || null
+    })
+    : null;
+  const loadCachedExtractedProseCommentMeta = () => {
+    if (!supportsExtractedProseExtrasCache || !extractedProseExtrasCacheKey) return null;
+    const cached = extractedProseExtrasCache.get(extractedProseExtrasCacheKey);
+    if (!cached || typeof cached !== 'object') return null;
+    return cloneCachedExtrasEntry(cached);
+  };
+  const storeCachedExtractedProseCommentMeta = (entry) => {
+    if (!supportsExtractedProseExtrasCache || !extractedProseExtrasCacheKey || !entry) return;
+    extractedProseExtrasCache.set(extractedProseExtrasCacheKey, cloneCachedExtrasEntry(entry));
+  };
+  const buildExtractedProseCommentMeta = () => buildCommentMeta({
+    text,
+    ext,
+    mode: 'extracted-prose',
+    languageId: lang?.id || null,
+    lineIndex,
+    normalizedCommentsConfig,
+    tokenDictWords,
+    dictConfig
+  });
   updateCrashStage('comments');
   try {
-    const commentMeta = buildCommentMeta({
-      text,
-      ext,
-      mode,
-      languageId: lang?.id || null,
-      lineIndex,
-      normalizedCommentsConfig,
-      tokenDictWords,
-      dictConfig
-    });
-    commentEntries = commentMeta.commentEntries;
-    commentRanges = commentMeta.commentRanges;
-    extraSegments = commentMeta.extraSegments;
+    if (mode === 'extracted-prose') {
+      let extractedCommentMeta = loadCachedExtractedProseCommentMeta();
+      if (!extractedCommentMeta) {
+        extractedCommentMeta = buildExtractedProseCommentMeta();
+        storeCachedExtractedProseCommentMeta(extractedCommentMeta);
+      }
+      commentEntries = extractedCommentMeta.commentEntries;
+      commentRanges = extractedCommentMeta.commentRanges;
+      extraSegments = extractedCommentMeta.extraSegments;
+    } else if (shouldPrimeExtractedProseExtras) {
+      let extractedCommentMeta = loadCachedExtractedProseCommentMeta();
+      if (!extractedCommentMeta) {
+        extractedCommentMeta = buildExtractedProseCommentMeta();
+        storeCachedExtractedProseCommentMeta(extractedCommentMeta);
+      }
+      // Prose mode does not consume comment-derived segments directly, but we
+      // precompute extracted-prose comment metadata to avoid re-scanning text
+      // in the paired extracted-prose pass.
+      commentEntries = [];
+      commentRanges = [];
+      extraSegments = [];
+    } else {
+      const commentMeta = buildCommentMeta({
+        text,
+        ext,
+        mode,
+        languageId: lang?.id || null,
+        lineIndex,
+        normalizedCommentsConfig,
+        tokenDictWords,
+        dictConfig
+      });
+      commentEntries = commentMeta.commentEntries;
+      commentRanges = commentMeta.commentRanges;
+      extraSegments = commentMeta.extraSegments;
+    }
   } catch (err) {
     return failFile('parse-error', 'comments', err);
   }

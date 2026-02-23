@@ -76,6 +76,50 @@ const STAGE_TIMING_SIZE_BINS = Object.freeze([
 ]);
 const FILE_QUEUE_DELAY_HISTOGRAM_BUCKETS_MS = Object.freeze([50, 100, 250, 500, 1000, 2000, 5000, 10000, 30000, 60000]);
 const EXTRACTED_PROSE_LOW_YIELD_SKIP_REASON = 'extracted-prose-low-yield-bailout';
+const SHARED_EXTRACTED_PROSE_EXTRAS_CACHE_KEY = 'prose-extracted:extras';
+const DEFAULT_EXTRACTED_PROSE_EXTRAS_CACHE_MAX_ENTRIES = 20000;
+
+const resolveSharedModeCaches = (runtime) => {
+  if (!runtime || typeof runtime !== 'object') return null;
+  if (!runtime.sharedModeCaches || typeof runtime.sharedModeCaches !== 'object') {
+    runtime.sharedModeCaches = {};
+  }
+  return runtime.sharedModeCaches;
+};
+
+export const resolveExtractedProseExtrasCache = (runtime) => {
+  const shared = resolveSharedModeCaches(runtime);
+  if (!shared) return null;
+  if (shared[SHARED_EXTRACTED_PROSE_EXTRAS_CACHE_KEY]) {
+    return shared[SHARED_EXTRACTED_PROSE_EXTRAS_CACHE_KEY];
+  }
+  const configuredLimit = Number(runtime?.cacheConfig?.extractedProseExtras?.maxEntries);
+  const maxEntries = Number.isFinite(configuredLimit) && configuredLimit > 0
+    ? Math.max(1, Math.floor(configuredLimit))
+    : DEFAULT_EXTRACTED_PROSE_EXTRAS_CACHE_MAX_ENTRIES;
+  const entries = new Map();
+  const get = (key) => {
+    if (!entries.has(key)) return null;
+    const value = entries.get(key);
+    // Promote recency.
+    entries.delete(key);
+    entries.set(key, value);
+    return value;
+  };
+  const set = (key, value) => {
+    if (!key) return;
+    if (entries.has(key)) entries.delete(key);
+    entries.set(key, value);
+    while (entries.size > maxEntries) {
+      const oldestKey = entries.keys().next().value;
+      if (oldestKey == null) break;
+      entries.delete(oldestKey);
+    }
+  };
+  const cache = { get, set, size: () => entries.size, maxEntries };
+  shared[SHARED_EXTRACTED_PROSE_EXTRAS_CACHE_KEY] = cache;
+  return cache;
+};
 
 const coerceOptionalNonNegativeInt = (value) => {
   if (value === null || value === undefined) return null;
@@ -1553,6 +1597,12 @@ export const processFiles = async ({
   }
   const processStart = Date.now();
   const stageFileWatchdogConfig = resolveFileWatchdogConfig(runtime, { repoFileCount: stageFileCount });
+  const extractedProseExtrasCache = (mode === 'prose' || mode === 'extracted-prose')
+    ? resolveExtractedProseExtrasCache(runtime)
+    : null;
+  const primeExtractedProseExtrasCache = mode === 'prose'
+    && Array.isArray(runtime?.requestedModes)
+    && runtime.requestedModes.includes('extracted-prose');
   const stageTimingBreakdown = {
     parseChunk: { totalMs: 0, byLanguage: new Map(), bySizeBin: new Map() },
     inference: { totalMs: 0, byLanguage: new Map(), bySizeBin: new Map() },
@@ -2707,6 +2757,8 @@ export const processFiles = async ({
         featureMetrics: runtimeRef.featureMetrics,
         perfEventLogger,
         buildStage: runtimeRef.stage,
+        extractedProseExtrasCache,
+        primeExtractedProseExtrasCache,
         abortSignal: effectiveAbortSignal
       });
       const fileWatchdogConfig = resolveFileWatchdogConfig(runtimeRef, { repoFileCount });

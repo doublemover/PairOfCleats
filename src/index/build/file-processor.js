@@ -194,6 +194,8 @@ export function createFileProcessor(options) {
     perfEventLogger = null,
     buildStage = null,
     documentExtractionConfig = null,
+    extractedProseExtrasCache = null,
+    primeExtractedProseExtrasCache = false,
     abortSignal = null
   } = options;
   const lintEnabled = lintEnabledRaw !== false;
@@ -786,7 +788,9 @@ export function createFileProcessor(options) {
       vfsManifestConcurrency,
       complexityCache,
       lintCache,
-      buildStage
+      buildStage,
+      extractedProseExtrasCache,
+      primeExtractedProseExtrasCache
     }));
     updateCrashStage('pre-cpu:handoff-to-cpu:done');
     throwIfAborted();
