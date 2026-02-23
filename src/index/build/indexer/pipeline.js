@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
-import { applyAdaptiveDictConfig, getIndexDir, getMetricsDir } from '../../../shared/dict-utils.js';
+import { getIndexDir, getMetricsDir } from '../../../shared/dict-utils.js';
 import { buildRecordsIndexForRepo } from '../../../integrations/triage/index-records.js';
 import { createCacheReporter, createLruCache, estimateFileTextBytes } from '../../../shared/cache.js';
 import { getEnvConfig } from '../../../shared/env.js';
@@ -50,10 +50,16 @@ import { resolveTinyRepoFastPath } from './pipeline/tiny-repo-policy.js';
 import {
   countFieldArrayEntries,
   countFieldEntries,
+  summarizeImportGraphCacheStats,
+  summarizeImportGraphStats,
+  summarizeImportStats,
+  summarizeTinyRepoFastPath,
+  summarizeVfsManifestStats,
   summarizeDocumentExtractionForMode,
   summarizeGraphRelations,
   summarizePostingsQueue
 } from './pipeline/summaries.js';
+import { resolvePipelinePolicyContext } from './pipeline/policy-context.js';
 import { runDiscovery } from './steps/discover.js';
 import {
   loadIncrementalPlan,
@@ -76,158 +82,6 @@ const INDEX_STAGE_PLAN = Object.freeze([
   Object.freeze({ id: 'write', label: 'write' })
 ]);
 const HEAVY_UTILIZATION_STAGES = new Set(['processing', 'relations', 'postings', 'write']);
-
-/**
- * Normalize import-scan aggregate counters for telemetry payloads.
- *
- * @param {object|null} importResult
- * @returns {{modules:number,edges:number,files:number}}
- */
-const summarizeImportStats = (importResult) => {
-  if (!importResult?.stats) {
-    return { modules: 0, edges: 0, files: 0 };
-  }
-  return {
-    modules: Number(importResult.stats.modules) || 0,
-    edges: Number(importResult.stats.edges) || 0,
-    files: Number(importResult.stats.files) || 0
-  };
-};
-
-/**
- * Normalize import-graph cache reuse counters.
- *
- * @param {object|null} importResult
- * @returns {object|null}
- */
-const summarizeImportGraphCacheStats = (importResult) => {
-  if (!importResult?.cacheStats) return null;
-  const files = Number(importResult.cacheStats.files) || 0;
-  const filesReused = Number(importResult.cacheStats.filesReused) || 0;
-  return {
-    files,
-    filesHashed: Number(importResult.cacheStats.filesHashed) || 0,
-    filesReused,
-    filesInvalidated: Number(importResult.cacheStats.filesInvalidated) || 0,
-    specs: Number(importResult.cacheStats.specs) || 0,
-    specsReused: Number(importResult.cacheStats.specsReused) || 0,
-    specsComputed: Number(importResult.cacheStats.specsComputed) || 0,
-    packageInvalidated: importResult.cacheStats.packageInvalidated === true,
-    reuseRatio: files ? filesReused / Number(importResult.cacheStats.files || 1) : 0
-  };
-};
-
-/**
- * Normalize import resolution graph statistics from state.
- *
- * @param {object|null} state
- * @returns {object|null}
- */
-const summarizeImportGraphStats = (state) => {
-  const stats = state?.importResolutionGraph?.stats;
-  if (!stats) return null;
-  return {
-    files: Number(stats.files) || 0,
-    nodes: Number(stats.nodes) || 0,
-    edges: Number(stats.edges) || 0,
-    resolved: Number(stats.resolved) || 0,
-    external: Number(stats.external) || 0,
-    unresolved: Number(stats.unresolved) || 0,
-    truncatedEdges: Number(stats.truncatedEdges) || 0,
-    truncatedNodes: Number(stats.truncatedNodes) || 0,
-    warningSuppressed: Number(stats.warningSuppressed) || 0
-  };
-};
-
-/**
- * Normalize VFS manifest write stats from stage state.
- *
- * @param {object|null} state
- * @returns {object|null}
- */
-const summarizeVfsManifestStats = (state) => {
-  const vfsStats = state?.vfsManifestStats || state?.vfsManifestCollector?.stats || null;
-  if (!vfsStats) return null;
-  return {
-    rows: vfsStats.totalRecords || 0,
-    bytes: vfsStats.totalBytes || 0,
-    maxLineBytes: vfsStats.maxLineBytes || 0,
-    trimmedRows: vfsStats.trimmedRows || 0,
-    droppedRows: vfsStats.droppedRows || 0,
-    runsSpilled: vfsStats.runsSpilled || 0
-  };
-};
-
-/**
- * Normalize tiny-repo fast-path status for diagnostics.
- *
- * @param {object|null} tinyRepoFastPath
- * @returns {object|null}
- */
-const summarizeTinyRepoFastPath = (tinyRepoFastPath) => (
-  tinyRepoFastPath?.active === true
-    ? {
-      active: true,
-      estimatedLines: tinyRepoFastPath.estimatedLines,
-      totalBytes: tinyRepoFastPath.totalBytes,
-      fileCount: tinyRepoFastPath.fileCount,
-      disableImportGraph: tinyRepoFastPath.disableImportGraph,
-      disableCrossFileInference: tinyRepoFastPath.disableCrossFileInference,
-      minimalArtifacts: tinyRepoFastPath.minimalArtifacts
-    }
-    : null
-);
-
-/**
- * Resolve mode pipeline toggles from runtime policy and repo-size shortcuts.
- *
- * @param {{runtime:object,entries:Array<object>}} input
- * @returns {object}
- */
-const resolvePipelinePolicyContext = ({ runtime, entries }) => {
-  const dictConfig = applyAdaptiveDictConfig(runtime.dictConfig, entries.length);
-  const tinyRepoFastPath = resolveTinyRepoFastPath({ runtime, entries });
-  const tinyRepoFastPathActive = tinyRepoFastPath.active === true;
-  const runtimeWithDictConfig = dictConfig === runtime.dictConfig
-    ? runtime
-    : { ...runtime, dictConfig };
-  const runtimeRef = tinyRepoFastPathActive
-    ? {
-      ...runtimeWithDictConfig,
-      // Tiny-repo fast path: disable expensive cross-file analysis passes.
-      typeInferenceEnabled: false,
-      typeInferenceCrossFileEnabled: false,
-      riskAnalysisCrossFileEnabled: false,
-      tinyRepoFastPath
-    }
-    : runtimeWithDictConfig;
-  const vectorOnlyShortcuts = resolveVectorOnlyShortcutPolicy(runtimeRef);
-  const vectorOnlyShortcutSummary = vectorOnlyShortcuts.enabled
-    ? {
-      disableImportGraph: vectorOnlyShortcuts.disableImportGraph,
-      disableCrossFileInference: vectorOnlyShortcuts.disableCrossFileInference
-    }
-    : null;
-  const tinyRepoFastPathSummary = summarizeTinyRepoFastPath(tinyRepoFastPath);
-  const relationsEnabled = runtimeRef.stage !== 'stage1';
-  const importGraphEnabled = relationsEnabled
-    && !vectorOnlyShortcuts.disableImportGraph
-    && !(tinyRepoFastPathActive && tinyRepoFastPath.disableImportGraph);
-  const crossFileInferenceEnabled = relationsEnabled
-    && !vectorOnlyShortcuts.disableCrossFileInference
-    && !(tinyRepoFastPathActive && tinyRepoFastPath.disableCrossFileInference);
-  return {
-    runtimeRef,
-    tinyRepoFastPath,
-    tinyRepoFastPathActive,
-    tinyRepoFastPathSummary,
-    vectorOnlyShortcuts,
-    vectorOnlyShortcutSummary,
-    relationsEnabled,
-    importGraphEnabled,
-    crossFileInferenceEnabled
-  };
-};
 
 /**
  * Build indexes for one mode by running discovery/planning/stage pipeline.

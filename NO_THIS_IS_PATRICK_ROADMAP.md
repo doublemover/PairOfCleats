@@ -83,6 +83,8 @@ Note:
   Decomposed `tools/bench/language-repos.js` into focused `planning`, `logging`, `lifecycle`, and `run-loop` modules, preserving deterministic execution and adding cache-backed query/runtime/artifact reuse plus one-time repo config guards to reduce repeated setup/scanning overhead across large benchmark matrices.
 - 2026-02-23T05:17:48.3241468-05:00
   Extracted runtime dictionary and tree-sitter preload warm-cache logic from `src/index/build/runtime/runtime.js` into `src/index/build/runtime/dictionaries.js` and `src/index/build/runtime/tree-sitter-preload.js`, preserving daemon cache semantics while reducing runtime monolith coupling and trimming repeated signature/preload key work via memoized normalization.
+- 2026-02-23T05:20:52.8948618-05:00
+  Split `src/index/build/indexer/pipeline.js` policy-context and telemetry summarizers into `src/index/build/indexer/pipeline/policy-context.js` and `src/index/build/indexer/pipeline/summaries.js`, reducing main-pipeline orchestration coupling and consolidating normalization code for reuse and lower duplication risk.
 
 ## Architectural assessment (what needs to change)
 

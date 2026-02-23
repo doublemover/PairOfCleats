@@ -16,6 +16,107 @@ export const countFieldArrayEntries = (fieldArrays) => {
   return total;
 };
 
+/**
+ * Normalize import-scan aggregate counters for telemetry payloads.
+ *
+ * @param {object|null} importResult
+ * @returns {{modules:number,edges:number,files:number}}
+ */
+export const summarizeImportStats = (importResult) => {
+  if (!importResult?.stats) {
+    return { modules: 0, edges: 0, files: 0 };
+  }
+  return {
+    modules: Number(importResult.stats.modules) || 0,
+    edges: Number(importResult.stats.edges) || 0,
+    files: Number(importResult.stats.files) || 0
+  };
+};
+
+/**
+ * Normalize import-graph cache reuse counters.
+ *
+ * @param {object|null} importResult
+ * @returns {object|null}
+ */
+export const summarizeImportGraphCacheStats = (importResult) => {
+  if (!importResult?.cacheStats) return null;
+  const files = Number(importResult.cacheStats.files) || 0;
+  const filesReused = Number(importResult.cacheStats.filesReused) || 0;
+  return {
+    files,
+    filesHashed: Number(importResult.cacheStats.filesHashed) || 0,
+    filesReused,
+    filesInvalidated: Number(importResult.cacheStats.filesInvalidated) || 0,
+    specs: Number(importResult.cacheStats.specs) || 0,
+    specsReused: Number(importResult.cacheStats.specsReused) || 0,
+    specsComputed: Number(importResult.cacheStats.specsComputed) || 0,
+    packageInvalidated: importResult.cacheStats.packageInvalidated === true,
+    reuseRatio: files ? filesReused / Number(importResult.cacheStats.files || 1) : 0
+  };
+};
+
+/**
+ * Normalize import resolution graph statistics from state.
+ *
+ * @param {object|null} state
+ * @returns {object|null}
+ */
+export const summarizeImportGraphStats = (state) => {
+  const stats = state?.importResolutionGraph?.stats;
+  if (!stats) return null;
+  return {
+    files: Number(stats.files) || 0,
+    nodes: Number(stats.nodes) || 0,
+    edges: Number(stats.edges) || 0,
+    resolved: Number(stats.resolved) || 0,
+    external: Number(stats.external) || 0,
+    unresolved: Number(stats.unresolved) || 0,
+    truncatedEdges: Number(stats.truncatedEdges) || 0,
+    truncatedNodes: Number(stats.truncatedNodes) || 0,
+    warningSuppressed: Number(stats.warningSuppressed) || 0
+  };
+};
+
+/**
+ * Normalize VFS manifest write stats from stage state.
+ *
+ * @param {object|null} state
+ * @returns {object|null}
+ */
+export const summarizeVfsManifestStats = (state) => {
+  const vfsStats = state?.vfsManifestStats || state?.vfsManifestCollector?.stats || null;
+  if (!vfsStats) return null;
+  return {
+    rows: vfsStats.totalRecords || 0,
+    bytes: vfsStats.totalBytes || 0,
+    maxLineBytes: vfsStats.maxLineBytes || 0,
+    trimmedRows: vfsStats.trimmedRows || 0,
+    droppedRows: vfsStats.droppedRows || 0,
+    runsSpilled: vfsStats.runsSpilled || 0
+  };
+};
+
+/**
+ * Normalize tiny-repo fast-path status for diagnostics.
+ *
+ * @param {object|null} tinyRepoFastPath
+ * @returns {object|null}
+ */
+export const summarizeTinyRepoFastPath = (tinyRepoFastPath) => (
+  tinyRepoFastPath?.active === true
+    ? {
+      active: true,
+      estimatedLines: tinyRepoFastPath.estimatedLines,
+      totalBytes: tinyRepoFastPath.totalBytes,
+      fileCount: tinyRepoFastPath.fileCount,
+      disableImportGraph: tinyRepoFastPath.disableImportGraph,
+      disableCrossFileInference: tinyRepoFastPath.disableCrossFileInference,
+      minimalArtifacts: tinyRepoFastPath.minimalArtifacts
+    }
+    : null
+);
+
 export const summarizeGraphRelations = (graphRelations) => {
   if (!graphRelations || typeof graphRelations !== 'object') return null;
   const summarize = (graph) => ({
