@@ -577,6 +577,25 @@ export function resolveWorkerPoolConfig(raw = {}, envConfig = null, options = {}
       ? Math.min(maxWorkersOverride, hardMaxWorkers)
       : maxWorkersOverride;
   }
+  const rawFdPressureConfig = raw?.fdPressure && typeof raw.fdPressure === 'object'
+    ? raw.fdPressure
+    : null;
+  const fdBudget = resolveFdConcurrencyBudget(config.maxWorkers, {
+    fdPressure: rawFdPressureConfig || config.fdPressure,
+    fdSoftLimit: config.fdPressure?.softLimit
+  });
+  if (fdBudget?.cap != null) {
+    config.maxWorkers = Math.max(1, Math.min(config.maxWorkers, fdBudget.cap));
+  }
+  config.fdPressure = {
+    enabled: fdBudget.enabled,
+    softLimit: fdBudget.softLimit,
+    reserveDescriptors: fdBudget.reserveDescriptors,
+    descriptorsPerWorker: fdBudget.descriptorsPerWorker,
+    minConcurrency: fdBudget.minConcurrency,
+    maxConcurrency: fdBudget.maxConcurrency,
+    cap: fdBudget.cap
+  };
   const heapTargetOverride = coercePositiveIntMinOne(envConfig?.workerPoolHeapTargetMb);
   const heapMinOverride = coercePositiveIntMinOne(envConfig?.workerPoolHeapMinMb);
   const heapMaxOverride = coercePositiveIntMinOne(envConfig?.workerPoolHeapMaxMb);
