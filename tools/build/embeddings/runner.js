@@ -41,12 +41,10 @@ import { spawnSubprocess } from '../../../src/shared/subprocess.js';
 import { runWithConcurrency } from '../../../src/shared/concurrency.js';
 import { formatEtaSeconds } from '../../../src/shared/perf/eta.js';
 import {
-  getCurrentBuildInfo,
   getIndexDir,
   getMetricsDir,
   getRepoCacheRoot,
   getTriageConfig,
-  resolveIndexRoot,
   resolveSqlitePaths
 } from '../../shared/dict-utils.js';
 import {
@@ -113,6 +111,10 @@ import {
 import { resolvePublishedBackendStates } from './runner/backend-state.js';
 import { prepareFileEmbeddingWorkset } from './runner/file-workset.js';
 import { createFileEntryProcessor } from './runner/file-entry-orchestration.js';
+import {
+  createEmbeddingsIndexRootResolver,
+  normalizeEmbeddingsPath
+} from './runner/index-root-resolution.js';
 
 const EMBEDDINGS_TOOLS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const COMPACT_SQLITE_SCRIPT = path.join(EMBEDDINGS_TOOLS_DIR, '..', 'compact-sqlite-index.js');
@@ -310,155 +312,22 @@ export async function runBuildEmbeddingsWithConfig(config) {
 
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const repoCacheRootResolved = path.resolve(repoCacheRoot);
-  /**
-   * Detect whether the caller explicitly supplied an index root, which means
-   * we must fail fast on missing artifacts instead of auto-falling back.
-   *
-   * @param {Record<string, any>} parsedArgv
-   * @param {string[]|unknown} rawArgs
-   * @returns {boolean}
-   */
-  const hasExplicitIndexRootArg = (parsedArgv, rawArgs) => {
-    if (typeof parsedArgv?.['index-root'] === 'string' && parsedArgv['index-root'].trim()) return true;
-    if (typeof parsedArgv?.indexRoot === 'string' && parsedArgv.indexRoot.trim()) return true;
-    if (!Array.isArray(rawArgs) || !rawArgs.length) return false;
-    return rawArgs.some((arg) => arg === '--index-root' || arg.startsWith('--index-root='));
-  };
-  const explicitIndexRoot = hasExplicitIndexRootArg(argv, rawArgv);
-  let activeIndexRoot = indexRoot
-    ? path.resolve(indexRoot)
-    : resolveIndexRoot(root, userConfig, { mode: modes[0] || null });
-  /**
-   * Normalize path for case-insensitive comparisons on Windows.
-   *
-   * @param {string} value
-   * @returns {string|null}
-   */
-  const normalizePath = (value) => {
-    if (!value) return null;
-    const normalized = path.resolve(value);
-    return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
-  };
-  const repoCacheRootKey = normalizePath(repoCacheRootResolved);
-  const buildsRootKey = normalizePath(path.join(repoCacheRootResolved, 'builds'));
-  /**
-   * Detect whether an index root contains stage2 artifacts for a mode.
-   *
-   * @param {string} candidateRoot
-   * @param {string|null} [mode]
-   * @returns {boolean}
-   */
-  const hasModeArtifacts = (candidateRoot, mode = null) => {
-    if (!candidateRoot || !fsSync.existsSync(candidateRoot)) return false;
-    const candidateModes = mode
-      ? [mode]
-      : (Array.isArray(modes) && modes.length ? modes : ['code', 'prose', 'extracted-prose', 'records']);
-    for (const modeName of candidateModes) {
-      if (typeof modeName !== 'string' || !modeName) continue;
-      const indexDir = path.join(candidateRoot, `index-${modeName}`);
-      if (!fsSync.existsSync(indexDir)) continue;
-      const hasPiecesManifest = fsSync.existsSync(path.join(indexDir, 'pieces', 'manifest.json'));
-      const hasChunkMeta = (
-        fsSync.existsSync(path.join(indexDir, 'chunk_meta.json'))
-        || fsSync.existsSync(path.join(indexDir, 'chunk_meta.json.gz'))
-        || fsSync.existsSync(path.join(indexDir, 'chunk_meta.json.zst'))
-        || fsSync.existsSync(path.join(indexDir, 'chunk_meta.jsonl'))
-        || fsSync.existsSync(path.join(indexDir, 'chunk_meta.jsonl.gz'))
-        || fsSync.existsSync(path.join(indexDir, 'chunk_meta.jsonl.zst'))
-        || fsSync.existsSync(path.join(indexDir, 'chunk_meta.meta.json'))
-        || fsSync.existsSync(path.join(indexDir, 'chunk_meta.parts'))
-        || fsSync.existsSync(path.join(indexDir, 'chunk_meta.columnar.json'))
-        || fsSync.existsSync(path.join(indexDir, 'chunk_meta.binary-columnar.meta.json'))
-      );
-      if (hasPiecesManifest || hasChunkMeta) {
-        return true;
-      }
-    }
-    return false;
-  };
-  const primaryMode = typeof modes?.[0] === 'string' && modes[0] ? modes[0] : null;
-  /**
-   * Resolve newest build root containing artifacts for requested mode.
-   *
-   * @param {string|null} [mode]
-   * @returns {string|null}
-   */
-  const findLatestModeRoot = (mode = primaryMode) => {
-    const buildsRoot = path.join(repoCacheRootResolved, 'builds');
-    if (!fsSync.existsSync(buildsRoot)) return null;
-    let entries = [];
-    try {
-      entries = fsSync.readdirSync(buildsRoot, { withFileTypes: true });
-    } catch {
-      return null;
-    }
-    const candidates = [];
-    for (const entry of entries) {
-      if (!entry?.isDirectory?.()) continue;
-      const candidateRoot = path.join(buildsRoot, entry.name);
-      if (!hasModeArtifacts(candidateRoot, mode)) continue;
-      let mtimeMs = 0;
-      try {
-        mtimeMs = Number(fsSync.statSync(candidateRoot).mtimeMs) || 0;
-      } catch {}
-      candidates.push({ root: candidateRoot, mtimeMs });
-    }
-    candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
-    return candidates[0]?.root || null;
-  };
-  /**
-   * Resolve the effective root for a mode. Auto mode can fall back to current
-   * build/latest build; explicit --index-root always stays pinned to caller root.
-   *
-   * @param {string} mode
-   * @returns {string|null}
-   */
-  const resolveModeIndexRoot = (mode) => {
-    if (hasModeArtifacts(activeIndexRoot, mode)) return activeIndexRoot;
-    if (explicitIndexRoot) return activeIndexRoot;
-    const currentBuild = getCurrentBuildInfo(root, userConfig, { mode });
-    const currentRoot = currentBuild?.activeRoot || currentBuild?.buildRoot || null;
-    if (currentRoot && hasModeArtifacts(currentRoot, mode)) return currentRoot;
-    return findLatestModeRoot(mode) || activeIndexRoot;
-  };
-  if (activeIndexRoot && !explicitIndexRoot) {
-    const activeRootKey = normalizePath(activeIndexRoot);
-    const underRepoCache = activeRootKey
-      && repoCacheRootKey
-      && (activeRootKey === repoCacheRootKey || activeRootKey.startsWith(`${repoCacheRootKey}${path.sep}`));
-    const needsCurrentBuildRoot = underRepoCache && (
-      activeRootKey === repoCacheRootKey
-      || activeRootKey === buildsRootKey
-      || !hasModeArtifacts(activeIndexRoot, primaryMode)
-    );
-    if (needsCurrentBuildRoot) {
-      const currentBuild = getCurrentBuildInfo(root, userConfig, { mode: modes[0] || null });
-      const buildRootCandidate = currentBuild?.buildRoot || null;
-      const activeRootCandidate = currentBuild?.activeRoot || null;
-      const promotedRoot = hasModeArtifacts(buildRootCandidate, primaryMode)
-        ? buildRootCandidate
-        : (hasModeArtifacts(activeRootCandidate, primaryMode) ? activeRootCandidate : null);
-      const promotedRootKey = normalizePath(promotedRoot);
-      if (promotedRoot && promotedRootKey && promotedRootKey !== activeRootKey) {
-        activeIndexRoot = promotedRoot;
-        log(`[embeddings] using active build root from current.json: ${activeIndexRoot}`);
-      }
-    }
-  }
-  if (!explicitIndexRoot && activeIndexRoot && !hasModeArtifacts(activeIndexRoot, primaryMode)) {
-    const activeRootKey = normalizePath(activeIndexRoot);
-    const allowLatestFallback = !activeRootKey
-      || !fsSync.existsSync(activeIndexRoot)
-      || activeRootKey === repoCacheRootKey
-      || activeRootKey === buildsRootKey;
-    if (allowLatestFallback) {
-      const fallbackRoot = findLatestModeRoot(primaryMode);
-      if (fallbackRoot && normalizePath(fallbackRoot) !== normalizePath(activeIndexRoot)) {
-        activeIndexRoot = fallbackRoot;
-        log(`[embeddings] index root lacked mode artifacts; using latest build root: ${activeIndexRoot}`);
-      }
-    }
-  }
+  const {
+    explicitIndexRoot,
+    activeIndexRoot,
+    hasModeArtifacts,
+    resolveModeIndexRoot
+  } = createEmbeddingsIndexRootResolver({
+    argv,
+    rawArgv,
+    root,
+    userConfig,
+    indexRoot,
+    modes,
+    repoCacheRootResolved,
+    log
+  });
+  const normalizePath = normalizeEmbeddingsPath;
   const metricsDir = getMetricsDir(root, userConfig);
   const envConfig = configEnv || getEnvConfig();
   const crashLogger = await createCrashLogger({
