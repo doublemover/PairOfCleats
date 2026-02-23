@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T05:47:43.9847056-05:00
+  Extracted stage1 watchdog policy/coercion/cleanup helpers from `src/index/build/indexer/steps/process-files.js` into `src/index/build/indexer/steps/process-files/watchdog-policy.js`, preserving public exports through re-export while reducing monolith coupling and reusing `coerceClampedFraction` from `src/shared/number-coerce.js` to centralize numeric policy parsing.
 - 2026-02-23T05:04:12.2730914-05:00
   Split `src/index/build/indexer/steps/process-files.js` stall diagnostics into `src/index/build/indexer/steps/process-files/stall-diagnostics.js`, and optimized stalled-file selection to bounded top-N collection to reduce watchdog snapshot sort/allocation overhead.
 - 2026-02-23T05:07:10.7270007-05:00
