@@ -3,165 +3,38 @@ import path from 'node:path';
 import {
   getBuildsRoot,
   getRepoRoot,
-  loadUserConfig,
-  resolveSqlitePaths
+  loadUserConfig
 } from '../shared/dict-utils.js';
 import { normalizePostingsConfig } from '../shared/postings-config.js';
 import {
-  MAX_JSON_BYTES,
-  loadChunkMeta,
   loadGraphRelations,
   loadJsonArrayArtifact,
-  loadTokenPostings,
-  readJsonFile,
-  resolveBinaryArtifactPath,
-  resolveDirArtifactPath
+  readJsonFile
 } from '../shared/artifact-io.js';
-import { resolveLanceDbPaths } from '../shared/lancedb.js';
 import { isAbsolutePathNative } from '../shared/files.js';
 import { ARTIFACT_SURFACE_VERSION, isSupportedVersion } from '../contracts/versioning.js';
 import { isWithinRoot, toRealPathSync } from '../workspace/identity.js';
 import { resolveIndexDir } from './validate/paths.js';
 import { buildArtifactLists } from './validate/artifacts.js';
-import {
-  hashDeterministicLines,
-  hashDeterministicValues
-} from '../shared/invariants.js';
-import {
-  extractArray,
-  normalizeDenseVectors,
-  normalizeFieldPostings,
-  normalizeFilterIndex,
-  normalizeMinhash,
-  normalizePhrasePostings,
-  normalizeTokenPostings
-} from './validate/normalize.js';
+import { normalizeFilterIndex } from './validate/normalize.js';
 import { addIssue } from './validate/issues.js';
 import { validateSchema } from './validate/schema.js';
 import { createArtifactPresenceHelpers } from './validate/presence.js';
 import { loadAndValidateManifest, sumManifestCounts } from './validate/manifest.js';
 import { buildLmdbReport } from './validate/lmdb-report.js';
 import { buildSqliteReport } from './validate/sqlite-report.js';
-import { validateRiskInterproceduralArtifacts } from './validate/risk-interprocedural.js';
-import { loadOrderingLedger } from './build/build-state.js';
-import { createGraphRelationsIterator } from './build/artifacts/helpers.js';
 import {
-  validateChunkIds,
-  validateChunkIdentity,
-  validateFileNameCollisions,
-  validateMetaV2Equivalence,
-  validateMetaV2Types,
-  validateSqliteMetaV2Parity,
-  validateIdPostings,
-  validatePostingsDocIds
-} from './validate/checks.js';
-
-const SQLITE_META_V2_PARITY_SAMPLE = 10;
-const VALIDATION_ARTIFACT_MAX_CAP_BYTES = 1024 * 1024 * 1024; // 1 GiB safety cap
-const VALIDATION_ARTIFACT_HEADROOM_BYTES = 8 * 1024 * 1024; // absorb small metadata drift
-
-const resolveArtifactValidationMaxBytes = ({
-  manifest,
-  artifactNames,
-  baseMaxBytes = MAX_JSON_BYTES
-}) => {
-  let resolved = Number.isFinite(Number(baseMaxBytes))
-    ? Math.max(1, Math.floor(Number(baseMaxBytes)))
-    : MAX_JSON_BYTES;
-  const names = artifactNames instanceof Set
-    ? artifactNames
-    : new Set(Array.isArray(artifactNames) ? artifactNames : []);
-  if (!names.size) return resolved;
-  const pieces = Array.isArray(manifest?.pieces) ? manifest.pieces : [];
-  for (const piece of pieces) {
-    const name = typeof piece?.name === 'string' ? piece.name : '';
-    if (!names.has(name)) continue;
-    const bytes = Number(piece?.bytes);
-    if (!Number.isFinite(bytes) || bytes <= 0) continue;
-    const candidate = Math.min(
-      VALIDATION_ARTIFACT_MAX_CAP_BYTES,
-      Math.max(1, Math.floor(bytes + VALIDATION_ARTIFACT_HEADROOM_BYTES))
-    );
-    if (candidate > resolved) resolved = candidate;
-  }
-  return resolved;
-};
-
-const hashOrderingRows = (
-  rows,
-  { encodeLine = (row) => JSON.stringify(row) } = {}
-) => {
-  if (!Array.isArray(rows) || rows.length === 0) return null;
-  // Validate against the exact ordering-line representation emitted by writers.
-  const lines = rows.map((row) => encodeLine(row));
-  return hashDeterministicLines(lines, { encodeLine: (line) => line });
-};
-
-const hashGraphRelationsRows = (relations) => {
-  if (!relations || typeof relations !== 'object') return null;
-  const iterator = createGraphRelationsIterator(relations)();
-  const lines = [];
-  for (const row of iterator) {
-    lines.push(JSON.stringify(row));
-  }
-  return hashDeterministicLines(lines, { encodeLine: (line) => line });
-};
-
-const hashVocabList = (vocab) => {
-  return hashDeterministicValues(vocab);
-};
-
-const resolveLedgerStageKey = (ledger, stage, mode) => {
-  if (!ledger?.stages || typeof ledger.stages !== 'object') return null;
-  const stageKey = stage ? String(stage) : null;
-  const modeKey = stageKey && mode ? `${stageKey}:${mode}` : null;
-  if (modeKey && ledger.stages[modeKey]) return modeKey;
-  if (stageKey && ledger.stages[stageKey]) return stageKey;
-  if (mode) {
-    const match = Object.keys(ledger.stages).find((key) => key.endsWith(`:${mode}`));
-    if (match) return match;
-  }
-  const keys = Object.keys(ledger.stages);
-  return keys.length ? keys[0] : null;
-};
-
-const recordOrderingDrift = ({
-  report,
-  modeReport,
-  mode,
-  stageKey,
-  artifact,
-  expected,
-  actual,
-  strict,
-  source = null
-}) => {
-  const expectedHash = expected?.hash || null;
-  const actualHash = actual?.hash || null;
-  const rule = expected?.rule || null;
-  const issueLabel = `ordering ledger mismatch for ${artifact}`;
-  const detail = `${issueLabel} (expected ${expectedHash ?? 'null'}, got ${actualHash ?? 'null'})`;
-  const note = `[${mode}] ${detail}`;
-  const drift = {
-    stage: stageKey,
-    mode,
-    artifact,
-    rule,
-    expectedHash,
-    actualHash,
-    source
-  };
-  report.orderingDrift.push(drift);
-  if (strict) {
-    modeReport.ok = false;
-    modeReport.missing.push(detail);
-    report.issues.push(note);
-  } else {
-    modeReport.warnings.push(issueLabel);
-    report.warnings.push(note);
-  }
-  report.hints.push('Rebuild ordering ledger by re-running index build.');
-};
+  loadAndValidateChunkMeta,
+  validateFileMetaConsistency
+} from './validate/chunk-meta.js';
+import {
+  validateCorePostingsArtifacts,
+  validateSupplementalPostingsArtifacts
+} from './validate/postings.js';
+import { validateEmbeddingArtifacts } from './validate/embeddings.js';
+import { validateOrderingLedger } from './validate/ordering-ledger.js';
+import { loadOrderingLedger } from './build/build-state.js';
+import { validateFileNameCollisions, validateIdPostings } from './validate/checks.js';
 
 /**
  * Validate index artifacts for selected modes against manifest presence and
@@ -292,215 +165,52 @@ export async function validateIndexArtifacts(input = {}) {
       }
     }
     try {
-      let chunkMeta = null;
-      const indexState = readJsonArtifact('index_state', { required: strict });
-      const chunkMetaMaxBytes = resolveArtifactValidationMaxBytes({
-        manifest,
-        artifactNames: new Set([
-          'chunk_meta',
-          'chunk_meta_binary_columnar',
-          'chunk_meta_cold'
-        ])
-      });
-      try {
-        chunkMeta = await loadChunkMeta(dir, {
-          manifest,
-          strict,
-          maxBytes: chunkMetaMaxBytes
-        });
-      } catch (err) {
-        addIssue(report, mode, `chunk_meta load failed (${err?.code || err?.message || err})`, 'Rebuild index artifacts for this mode.');
-        modeReport.ok = false;
-      }
-      if (!chunkMeta) {
-        report.modes[mode] = modeReport;
-        continue;
-      }
-      validateSchema(report, mode, 'chunk_meta', chunkMeta, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
-      let fileMeta = null;
-      const fileMetaMaxBytes = resolveArtifactValidationMaxBytes({
-        manifest,
-        artifactNames: new Set(['file_meta'])
-      });
-      try {
-        fileMeta = await loadJsonArrayArtifact(dir, 'file_meta', {
-          manifest,
-          strict,
-          maxBytes: fileMetaMaxBytes
-        });
-      } catch (err) {
-        const code = String(err?.code || '');
-        const message = String(err?.message || '');
-        const missingOptional = !strict && (
-          code === 'ERR_ARTIFACT_MISSING'
-          || code === 'ERR_MANIFEST_MISSING'
-          || code === 'ENOENT'
-          || /Missing manifest entry for file_meta/i.test(message)
-          || /Missing pieces manifest/i.test(message)
-        );
-        if (!missingOptional) {
-          addIssue(report, mode, `file_meta load failed (${err?.code || err?.message || err})`, 'Rebuild index artifacts for this mode.');
-          if (strict) modeReport.ok = false;
-        }
-      }
-      if (Array.isArray(fileMeta) && fileMeta.length) {
-        const fileMetaById = new Map();
-        for (const entry of fileMeta) {
-          if (!entry || entry.id == null) continue;
-          fileMetaById.set(entry.id, entry);
-        }
-        if (fileMetaById.size) {
-          for (const entry of chunkMeta) {
-            if (!entry) continue;
-            if (!entry.chunkId && entry.metaV2?.chunkId) entry.chunkId = entry.metaV2.chunkId;
-            const meta = fileMetaById.get(entry.fileId);
-            if (!meta) continue;
-            if (!entry.file && meta.file) entry.file = meta.file;
-            if (!entry.ext && meta.ext) entry.ext = meta.ext;
-            if (!entry.fileHash && meta.hash) entry.fileHash = meta.hash;
-            if (!entry.fileHashAlgo && meta.hashAlgo) entry.fileHashAlgo = meta.hashAlgo;
-            if (!Number.isFinite(entry.fileSize) && Number.isFinite(meta.size)) entry.fileSize = meta.size;
-          }
-        }
-      }
-      validateChunkIds(report, mode, chunkMeta);
-      const chunkUidSet = new Set();
-      for (const entry of chunkMeta) {
-        const uid = entry?.chunkUid || entry?.metaV2?.chunkUid || null;
-        if (uid) chunkUidSet.add(uid);
-      }
-      await validateRiskInterproceduralArtifacts({
+      const {
+        chunkMeta,
+        fileMeta,
+        indexState,
+        chunkUidSet
+      } = await loadAndValidateChunkMeta({
         report,
         mode,
         dir,
         manifest,
         strict,
-        chunkUidSet,
-        indexState,
+        modeReport,
+        root,
+        userConfig,
+        indexRoot,
+        sqliteEnabled,
         readJsonArtifact,
         shouldLoadOptional,
         checkPresence
       });
-      if (strict) {
-        validateChunkIdentity(report, mode, chunkMeta);
-        validateMetaV2Types(report, mode, chunkMeta);
-        validateMetaV2Equivalence(report, mode, chunkMeta, { maxSamples: 25, maxErrors: 10 });
-        if (sqliteEnabled && (mode === 'code' || mode === 'prose')) {
-          const sqlitePaths = resolveSqlitePaths(root, userConfig, indexRoot ? { indexRoot } : {});
-          const dbPath = mode === 'code' ? sqlitePaths.codePath : sqlitePaths.prosePath;
-          if (dbPath && fs.existsSync(dbPath)) {
-            let Database = null;
-            try {
-              ({ default: Database } = await import('better-sqlite3'));
-            } catch {
-              addIssue(report, mode, 'sqlite parity check skipped: better-sqlite3 unavailable');
-            }
-            if (Database) {
-              const db = new Database(dbPath, { readonly: true });
-              try {
-                const rows = db.prepare(
-                  'SELECT id, chunk_id, metaV2_json FROM chunks WHERE mode = ? ORDER BY id LIMIT ?'
-                ).all(mode, SQLITE_META_V2_PARITY_SAMPLE);
-                validateSqliteMetaV2Parity(report, mode, chunkMeta, rows, { maxErrors: 10 });
-              } finally {
-                db.close();
-              }
-            }
-          }
-        }
+      if (!chunkMeta) {
+        report.modes[mode] = modeReport;
+        continue;
       }
 
-      if (postingsConfig.fielded && chunkMeta.length > 0) {
-        const missingFieldArtifacts = [];
-        const isMissingFieldArtifact = (name) => {
-          if (strict) {
-            const presence = resolvePresence(name);
-            return !presence || presence.format === 'missing' || presence.error;
-          }
-          return !hasLegacyArtifact(name);
-        };
-        if (isMissingFieldArtifact('field_postings')) missingFieldArtifacts.push('field_postings');
-        if (isMissingFieldArtifact('field_tokens')) missingFieldArtifacts.push('field_tokens');
-        if (missingFieldArtifacts.length) {
-          modeReport.ok = false;
-          modeReport.missing.push(...missingFieldArtifacts);
-          missingFieldArtifacts.forEach((artifact) => {
-            report.issues.push(`[${mode}] missing ${artifact}`);
-            report.hints.push('Run `pairofcleats index build` to rebuild missing artifacts.');
-          });
-        }
-      }
+      const { vocabHashes } = validateCorePostingsArtifacts({
+        report,
+        mode,
+        dir,
+        manifest,
+        strict,
+        modeReport,
+        chunkMeta,
+        postingsConfig,
+        resolvePresence,
+        hasLegacyArtifact,
+        readJsonArtifact
+      });
 
-      let tokenNormalized = null;
-      let phraseNormalized = null;
-      let chargramNormalized = null;
-      try {
-        const tokenIndex = loadTokenPostings(dir, { manifest, strict });
-        tokenNormalized = normalizeTokenPostings(tokenIndex);
-      } catch (err) {
-        addIssue(report, mode, `token_postings load failed (${err?.code || err?.message || err})`, 'Rebuild index artifacts for this mode.');
-        modeReport.ok = false;
-      }
-      if (tokenNormalized) {
-        validateSchema(
-          report,
-          mode,
-          'token_postings',
-          tokenNormalized,
-          'Rebuild index artifacts for this mode.',
-          { strictSchema: strict }
-        );
-        const vocabIds = Array.isArray(tokenNormalized.vocabIds) ? tokenNormalized.vocabIds : [];
-        if (vocabIds.length && vocabIds.length !== tokenNormalized.vocab.length) {
-          const issue = `token_postings vocabIds mismatch (${vocabIds.length} !== ${tokenNormalized.vocab.length})`;
-          modeReport.ok = false;
-          modeReport.missing.push(issue);
-          report.issues.push(`[${mode}] ${issue}`);
-        }
-        const docLengths = tokenNormalized.docLengths || [];
-        if (docLengths.length && chunkMeta.length !== docLengths.length) {
-          const issue = `docLengths mismatch (${docLengths.length} !== ${chunkMeta.length})`;
-          modeReport.ok = false;
-          modeReport.missing.push(issue);
-          report.issues.push(`[${mode}] ${issue}`);
-        }
-        validatePostingsDocIds(report, mode, 'token_postings', tokenNormalized.postings, chunkMeta.length);
-      }
-
-      const phraseRaw = readJsonArtifact('phrase_ngrams');
-      if (phraseRaw) {
-        phraseNormalized = normalizePhrasePostings(phraseRaw);
-        validateSchema(report, mode, 'phrase_ngrams', phraseNormalized, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
-        validateIdPostings(report, mode, 'phrase_ngrams', phraseNormalized.postings, chunkMeta.length);
-      }
-
-      const chargramRaw = readJsonArtifact('chargram_postings');
-      if (chargramRaw) {
-        chargramNormalized = normalizePhrasePostings(chargramRaw);
-        validateSchema(report, mode, 'chargram_postings', chargramNormalized, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
-        validateIdPostings(report, mode, 'chargram_postings', chargramNormalized.postings, chunkMeta.length);
-      }
-
-      if (fileMeta) {
-        validateSchema(report, mode, 'file_meta', fileMeta, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
-        const fileIds = new Set();
-        for (const entry of Array.isArray(fileMeta) ? fileMeta : []) {
-          if (!Number.isFinite(entry?.id)) continue;
-          if (fileIds.has(entry.id)) {
-            addIssue(report, mode, `file_meta duplicate id ${entry.id}`, 'Rebuild index artifacts for this mode.');
-            break;
-          }
-          fileIds.add(entry.id);
-        }
-        for (const chunk of chunkMeta) {
-          const fileId = chunk?.fileId;
-          if (fileId == null) continue;
-          if (!fileIds.has(fileId)) {
-            addIssue(report, mode, `chunk_meta fileId missing in file_meta (${fileId})`, 'Rebuild index artifacts for this mode.');
-            break;
-          }
-        }
-      }
+      validateFileMetaConsistency({
+        report,
+        mode,
+        strict,
+        fileMeta,
+        chunkMeta
+      });
 
       let repoMap = null;
       if (shouldLoadOptional('repo_map')) {
@@ -595,61 +305,19 @@ export async function validateIndexArtifacts(input = {}) {
         validateSchema(report, mode, 'file_relations', relations, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
       }
 
-      if (orderingLedger) {
-        const stageKey = resolveLedgerStageKey(orderingLedger, indexState?.stage || 'stage2', mode);
-        const ledgerStage = stageKey ? orderingLedger.stages?.[stageKey] : null;
-        if (!ledgerStage || !ledgerStage.artifacts) {
-          const warning = `[${mode}] ordering ledger missing stage ${stageKey || 'unknown'}`;
-          if (orderingStrict) {
-            modeReport.ok = false;
-            modeReport.missing.push(warning);
-            report.issues.push(warning);
-          } else {
-            modeReport.warnings.push('ordering ledger stage missing');
-            report.warnings.push(warning);
-          }
-        } else {
-          const actualHashes = {
-            chunk_meta: hashOrderingRows(chunkMeta),
-            file_relations: relations ? hashOrderingRows(relations) : null,
-            repo_map: repoMap ? hashOrderingRows(repoMap) : null,
-            graph_relations: graphRelations ? hashGraphRelationsRows(graphRelations) : null,
-            token_vocab: tokenNormalized ? hashVocabList(tokenNormalized.vocab) : null,
-            phrase_ngrams: phraseNormalized ? hashVocabList(phraseNormalized.vocab) : null,
-            chargram_postings: chargramNormalized ? hashVocabList(chargramNormalized.vocab) : null
-          };
-          for (const [artifact, expected] of Object.entries(ledgerStage.artifacts)) {
-            const actual = actualHashes[artifact] || null;
-            if (!actual) {
-              recordOrderingDrift({
-                report,
-                modeReport,
-                mode,
-                stageKey,
-                artifact,
-                expected,
-                actual,
-                strict: orderingStrict,
-                source: 'missing-artifact'
-              });
-              continue;
-            }
-            if (expected?.hash && expected.hash !== actual.hash) {
-              recordOrderingDrift({
-                report,
-                modeReport,
-                mode,
-                stageKey,
-                artifact,
-                expected,
-                actual,
-                strict: orderingStrict,
-                source: 'hash-mismatch'
-              });
-            }
-          }
-        }
-      }
+      validateOrderingLedger({
+        orderingLedger,
+        orderingStrict,
+        report,
+        modeReport,
+        mode,
+        indexState,
+        chunkMeta,
+        relations,
+        repoMap,
+        graphRelations,
+        vocabHashes
+      });
 
       let callSites = null;
       if (shouldLoadOptional('call_sites')) {
@@ -757,246 +425,32 @@ export async function validateIndexArtifacts(input = {}) {
         validateSchema(report, mode, 'vfs_manifest', vfsManifest, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
       }
 
-      const minhashRaw = readJsonArtifact('minhash_signatures');
-      if (minhashRaw) {
-        const minhash = normalizeMinhash(minhashRaw);
-        validateSchema(report, mode, 'minhash_signatures', minhash, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
-        const signatures = minhash.signatures || [];
-        if (signatures.length && signatures.length !== chunkMeta.length) {
-          const issue = `minhash mismatch (${signatures.length} !== ${chunkMeta.length})`;
-          modeReport.ok = false;
-          modeReport.missing.push(issue);
-          report.issues.push(`[${mode}] ${issue}`);
-        }
-      }
+      await validateSupplementalPostingsArtifacts({
+        report,
+        mode,
+        dir,
+        manifest,
+        strict,
+        modeReport,
+        chunkMeta,
+        shouldLoadOptional,
+        readJsonArtifact,
+        validateManifestCount,
+        vocabHashes
+      });
 
-      let fieldTokens = null;
-      if (shouldLoadOptional('field_tokens')) {
-        try {
-          fieldTokens = await loadJsonArrayArtifact(dir, 'field_tokens', { manifest, strict });
-        } catch (err) {
-          addIssue(report, mode, `field_tokens load failed (${err?.message || err})`, 'Rebuild index artifacts for this mode.');
-        }
-      }
-      if (fieldTokens) {
-        validateSchema(report, mode, 'field_tokens', fieldTokens, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
-        if (Array.isArray(fieldTokens) && fieldTokens.length !== chunkMeta.length) {
-          const issue = `field_tokens mismatch (${fieldTokens.length} !== ${chunkMeta.length})`;
-          modeReport.ok = false;
-          modeReport.missing.push(issue);
-          report.issues.push(`[${mode}] ${issue}`);
-        }
-      }
-
-      const fieldPostingsRaw = readJsonArtifact('field_postings', { allowOversize: true });
-      const fieldPostings = normalizeFieldPostings(fieldPostingsRaw);
-      if (fieldPostings) {
-        validateSchema(report, mode, 'field_postings', fieldPostings, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
-        const fields = fieldPostings.fields || {};
-        for (const entry of Object.values(fields)) {
-          validatePostingsDocIds(report, mode, 'field_postings', entry?.postings, chunkMeta.length);
-          const lengths = Array.isArray(entry?.docLengths) ? entry.docLengths : [];
-          if (lengths.length && lengths.length !== chunkMeta.length) {
-            const issue = `field_postings docLengths mismatch (${lengths.length} !== ${chunkMeta.length})`;
-            modeReport.ok = false;
-            modeReport.missing.push(issue);
-            report.issues.push(`[${mode}] ${issue}`);
-          }
-        }
-      }
-
-      const vocabOrder = readJsonArtifact('vocab_order');
-      if (vocabOrder && typeof vocabOrder === 'object') {
-        const tokenHash = tokenNormalized ? hashVocabList(tokenNormalized.vocab) : null;
-        const phraseHash = phraseNormalized ? hashVocabList(phraseNormalized.vocab) : null;
-        const chargramHash = chargramNormalized ? hashVocabList(chargramNormalized.vocab) : null;
-        const vocab = vocabOrder?.fields?.vocab || vocabOrder?.vocab || null;
-        const expectToken = vocab?.token?.hash || null;
-        const expectPhrase = vocab?.phrase?.hash || null;
-        const expectChargram = vocab?.chargram?.hash || null;
-        if (expectToken && tokenHash?.hash && expectToken !== tokenHash.hash) {
-          addIssue(report, mode, 'vocab_order token hash mismatch', 'Rebuild index artifacts for this mode.');
-          modeReport.ok = false;
-        }
-        if (expectPhrase && phraseHash?.hash && expectPhrase !== phraseHash.hash) {
-          addIssue(report, mode, 'vocab_order phrase hash mismatch', 'Rebuild index artifacts for this mode.');
-          modeReport.ok = false;
-        }
-        if (expectChargram && chargramHash?.hash && expectChargram !== chargramHash.hash) {
-          addIssue(report, mode, 'vocab_order chargram hash mismatch', 'Rebuild index artifacts for this mode.');
-          modeReport.ok = false;
-        }
-      }
-
-      const hasJsonVariant = (basePath) => (
-        fs.existsSync(basePath)
-        || fs.existsSync(`${basePath}.gz`)
-        || fs.existsSync(`${basePath}.zst`)
-      );
-      const readJsonVariant = (basePath) => (
-        hasJsonVariant(basePath) ? readJsonFile(basePath) : null
-      );
-      const denseTargets = [
-        { label: 'dense_vectors', name: 'dense_vectors', file: 'dense_vectors_uint8.json' },
-        { label: 'dense_vectors_doc', name: 'dense_vectors_doc', file: 'dense_vectors_doc_uint8.json' },
-        { label: 'dense_vectors_code', name: 'dense_vectors_code', file: 'dense_vectors_code_uint8.json' }
-      ];
-      for (const target of denseTargets) {
-        const denseRaw = strict
-          ? readJsonArtifact(target.name)
-          : (() => {
-            const densePath = path.join(dir, target.file);
-            return readJsonVariant(densePath);
-          })();
-        if (!denseRaw) continue;
-        const dense = normalizeDenseVectors(denseRaw);
-        validateSchema(report, mode, target.name, dense, 'Rebuild embeddings for this mode.', { strictSchema: strict });
-        const vectors = dense.vectors || [];
-        validateManifestCount(target.name, vectors.length, target.label);
-        if (vectors.length && vectors.length !== chunkMeta.length) {
-          const issue = `${target.label} mismatch (${vectors.length} !== ${chunkMeta.length})`;
-          modeReport.ok = false;
-          modeReport.missing.push(issue);
-          report.issues.push(`[${mode}] ${issue}`);
-        }
-        if (dense.dims) {
-          for (let i = 0; i < Math.min(vectors.length, 25); i += 1) {
-            if (!Array.isArray(vectors[i]) || vectors[i].length !== dense.dims) {
-              addIssue(report, mode, `${target.label} dims mismatch at ${i}`, 'Rebuild embeddings for this mode.');
-              break;
-            }
-          }
-        }
-      }
-      const hnswTargets = [
-        {
-          label: 'dense_vectors_hnsw',
-          metaName: 'dense_vectors_hnsw_meta',
-          binName: 'dense_vectors_hnsw',
-          metaPath: path.join(dir, 'dense_vectors_hnsw.meta.json'),
-          binPath: path.join(dir, 'dense_vectors_hnsw.bin')
-        },
-        {
-          label: 'dense_vectors_doc_hnsw',
-          metaName: 'dense_vectors_doc_hnsw_meta',
-          binName: 'dense_vectors_doc_hnsw',
-          metaPath: path.join(dir, 'dense_vectors_doc_hnsw.meta.json'),
-          binPath: path.join(dir, 'dense_vectors_doc_hnsw.bin')
-        },
-        {
-          label: 'dense_vectors_code_hnsw',
-          metaName: 'dense_vectors_code_hnsw_meta',
-          binName: 'dense_vectors_code_hnsw',
-          metaPath: path.join(dir, 'dense_vectors_code_hnsw.meta.json'),
-          binPath: path.join(dir, 'dense_vectors_code_hnsw.bin')
-        }
-      ];
-      for (const target of hnswTargets) {
-        const hnswMeta = strict
-          ? readJsonArtifact(target.metaName)
-          : readJsonVariant(target.metaPath);
-        if (!hnswMeta) continue;
-        validateSchema(
-          report,
-          mode,
-          target.metaName,
-          hnswMeta,
-          'Rebuild embeddings for this mode.',
-          { strictSchema: strict }
-        );
-        const hnswCount = Number.isFinite(hnswMeta?.count) ? hnswMeta.count : chunkMeta.length;
-        validateManifestCount(target.metaName, hnswCount, `${target.label} meta`);
-        validateManifestCount(target.binName, hnswCount, `${target.label} bin`);
-        if (Number.isFinite(hnswMeta?.count) && hnswMeta.count !== chunkMeta.length) {
-          const issue = `${target.label} count mismatch (${hnswMeta.count} !== ${chunkMeta.length})`;
-          modeReport.ok = false;
-          modeReport.missing.push(issue);
-          report.issues.push(`[${mode}] ${issue}`);
-        }
-        const hnswIndexPath = resolveBinaryArtifactPath(dir, target.binName, {
-          manifest,
-          strict,
-          fallbackPath: target.binPath
-        });
-        if (!hnswIndexPath || !fs.existsSync(hnswIndexPath)) {
-          addIssue(report, mode, `${target.label} index missing`, 'Rebuild embeddings for this mode.');
-        }
-      }
-      if (lanceConfig.enabled) {
-        const lancePaths = resolveLanceDbPaths(dir);
-        const lanceTargets = [
-          {
-            label: 'dense_vectors_lancedb',
-            metaName: 'dense_vectors_lancedb_meta',
-            dirName: 'dense_vectors_lancedb',
-            metaPath: lancePaths.merged.metaPath,
-            dir: lancePaths.merged.dir
-          },
-          {
-            label: 'dense_vectors_doc_lancedb',
-            metaName: 'dense_vectors_doc_lancedb_meta',
-            dirName: 'dense_vectors_doc_lancedb',
-            metaPath: lancePaths.doc.metaPath,
-            dir: lancePaths.doc.dir
-          },
-          {
-            label: 'dense_vectors_code_lancedb',
-            metaName: 'dense_vectors_code_lancedb_meta',
-            dirName: 'dense_vectors_code_lancedb',
-            metaPath: lancePaths.code.metaPath,
-            dir: lancePaths.code.dir
-          }
-        ];
-        for (const target of lanceTargets) {
-          const meta = strict
-            ? readJsonArtifact(target.metaName)
-            : readJsonVariant(target.metaPath);
-          if (!meta) continue;
-          validateSchema(
-            report,
-            mode,
-            target.metaName,
-            meta,
-            'Rebuild embeddings for this mode.',
-            { strictSchema: strict }
-          );
-          const lanceCount = Number.isFinite(meta?.count) ? meta.count : chunkMeta.length;
-          validateManifestCount(target.metaName, lanceCount, `${target.label} meta`);
-          validateManifestCount(target.dirName, lanceCount, `${target.label} dir`);
-          if (Number.isFinite(meta?.count) && meta.count !== chunkMeta.length) {
-            const issue = `${target.label} count mismatch (${meta.count} !== ${chunkMeta.length})`;
-            modeReport.ok = false;
-            modeReport.missing.push(issue);
-            report.issues.push(`[${mode}] ${issue}`);
-          }
-          const lanceDir = resolveDirArtifactPath(dir, target.dirName, {
-            manifest,
-            strict,
-            fallbackPath: target.dir
-          });
-          if (!lanceDir || !fs.existsSync(lanceDir)) {
-            addIssue(report, mode, `${target.label} directory missing`, 'Rebuild embeddings for this mode.');
-          }
-        }
-      }
-      const sqliteVecMeta = strict
-        ? readJsonArtifact('dense_vectors_sqlite_vec_meta')
-        : (() => {
-          const sqliteMetaPath = path.join(dir, 'dense_vectors_sqlite_vec.meta.json');
-          return readJsonVariant(sqliteMetaPath);
-        })();
-      if (sqliteVecMeta) {
-        validateSchema(
-          report,
-          mode,
-          'dense_vectors_sqlite_vec_meta',
-          sqliteVecMeta,
-          'Rebuild embeddings for this mode.',
-          { strictSchema: strict }
-        );
-        const sqliteCount = Number.isFinite(sqliteVecMeta?.count) ? sqliteVecMeta.count : chunkMeta.length;
-        validateManifestCount('dense_vectors_sqlite_vec_meta', sqliteCount, 'dense_vectors_sqlite_vec_meta');
-      }
+      validateEmbeddingArtifacts({
+        report,
+        mode,
+        dir,
+        manifest,
+        strict,
+        modeReport,
+        chunkMeta,
+        validateManifestCount,
+        lanceConfig,
+        readJsonArtifact
+      });
     } catch (err) {
       const issue = `validation failed (${err?.code || err?.message || 'error'})`;
       modeReport.ok = false;
@@ -1081,4 +535,3 @@ export async function validateIndexArtifacts(input = {}) {
   report.ok = report.issues.length === 0;
   return report;
 }
-
