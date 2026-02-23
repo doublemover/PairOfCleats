@@ -6,6 +6,7 @@ import {
   resolveJsonlExtension,
   resolveJsonExtension,
   measureJsonlRows,
+  removeArtifacts,
   buildJsonlVariantPaths,
   buildJsonVariantPaths,
   buildShardedPartEntries,
@@ -42,6 +43,15 @@ assert.deepEqual(
   jsonVariants.map((entry) => path.basename(entry)),
   ['file_relations.json', 'file_relations.json.gz', 'file_relations.json.zst']
 );
+
+const staleFile = path.join(tempRoot, 'stale.txt');
+const staleDir = path.join(tempRoot, 'stale-dir');
+await fs.writeFile(staleFile, 'stale\n', 'utf8');
+await fs.mkdir(staleDir, { recursive: true });
+await fs.writeFile(path.join(staleDir, 'nested.txt'), 'nested\n', 'utf8');
+await removeArtifacts([staleFile, staleDir]);
+await assert.rejects(() => fs.stat(staleFile), /ENOENT/, 'expected stale file removal');
+await assert.rejects(() => fs.stat(staleDir), /ENOENT/, 'expected stale dir removal');
 
 const result = {
   parts: ['symbols.parts/part-00000.jsonl', 'symbols.parts/part-00001.jsonl'],

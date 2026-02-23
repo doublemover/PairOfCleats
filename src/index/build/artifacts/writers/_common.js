@@ -1,7 +1,7 @@
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
 import { resolveJsonlExtension, writeJsonObjectFile } from '../../../../shared/json-stream.js';
+import { removePathWithRetry } from '../../../../shared/io/remove-path-with-retry.js';
 export { resolveJsonlExtension };
 
 export const resolveJsonExtension = (value) => {
@@ -25,9 +25,7 @@ export const measureJsonlRows = (rows, { serialize = JSON.stringify } = {}) => {
 export const removeArtifacts = async (targetPaths) => {
   for (const targetPath of targetPaths || []) {
     if (!targetPath) continue;
-    try {
-      await fs.rm(targetPath, { recursive: true, force: true });
-    } catch {}
+    await removePathWithRetry(targetPath, { recursive: true, force: true });
   }
 };
 

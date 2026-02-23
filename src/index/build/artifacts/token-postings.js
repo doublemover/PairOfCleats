@@ -6,6 +6,7 @@ import { createTempPath, replaceFile } from '../../../shared/json-stream/atomic.
 import { DEFAULT_PACKED_BLOCK_SIZE, encodePackedOffsets, packTfPostings } from '../../../shared/packed-postings.js';
 import { encodeVarint64List } from '../../../shared/artifact-io/varint.js';
 import { encodeBinaryRowFrames } from '../../../shared/artifact-io/binary-columnar.js';
+import { removePathWithRetry } from '../../../shared/io/remove-path-with-retry.js';
 import { estimatePostingsBytes, formatBytes } from './helpers.js';
 
 const normalizeTokenPostingsFormat = (value, artifactMode) => {
@@ -38,6 +39,13 @@ const createArrayWindowIterable = (values, start, end) => ({
     }
   }
 });
+
+const removePathOrThrow = async (targetPath, { recursive = false } = {}) => {
+  const removed = await removePathWithRetry(targetPath, { recursive, force: true });
+  if (!removed.ok) {
+    throw removed.error || new Error(`Failed to remove path: ${targetPath}`);
+  }
+};
 
 export function resolveTokenPostingsPlan({
   artifactMode,
@@ -247,7 +255,7 @@ export async function enqueueTokenPostingsArtifacts({
       async () => {
         const tempDir = `${shardsDir}.tmp-${Date.now()}`;
         const backupDir = `${shardsDir}.bak`;
-        await fs.rm(tempDir, { recursive: true, force: true });
+        await removePathOrThrow(tempDir, { recursive: true });
         await fs.mkdir(tempDir, { recursive: true });
         for (const part of shardPlan) {
           const partPath = path.join(tempDir, part.partName);
@@ -264,13 +272,13 @@ export async function enqueueTokenPostingsArtifacts({
             atomic: true
           });
         }
-        await fs.rm(backupDir, { recursive: true, force: true });
+        await removePathOrThrow(backupDir, { recursive: true });
         try {
           await fs.stat(shardsDir);
           await fs.rename(shardsDir, backupDir);
         } catch {}
         await fs.rename(tempDir, shardsDir);
-        await fs.rm(backupDir, { recursive: true, force: true });
+        await removePathOrThrow(backupDir, { recursive: true });
         await writeJsonObjectFile(metaPath, {
           fields: {
             avgDocLen: postings.avgDocLen,
@@ -380,10 +388,10 @@ export async function enqueueTokenPostingsArtifacts({
     enqueueWrite(
       formatArtifactLabel(binaryMetaPath),
       async () => {
-        await fs.rm(binaryDataPath, { force: true });
-        await fs.rm(binaryOffsetsPath, { force: true });
-        await fs.rm(binaryLengthsPath, { force: true });
-        await fs.rm(binaryMetaPath, { force: true });
+        await removePathOrThrow(binaryDataPath);
+        await removePathOrThrow(binaryOffsetsPath);
+        await removePathOrThrow(binaryLengthsPath);
+        await removePathOrThrow(binaryMetaPath);
       }
     );
   }
