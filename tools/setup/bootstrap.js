@@ -52,38 +52,35 @@ const recordStep = (name, data) => {
  * @returns {Promise<{ok:boolean,status:number|null,signal:string|null}>}
  */
 const streamChildOutputToStderr = async (cmd, args, { cwd = root, env = process.env } = {}) => {
-  // On Windows, npm resolves through command shims. Keep execa pathing but
-  // cap buffer aggressively to avoid unbounded JSON-mode memory growth.
-  if (process.platform === 'win32' && String(cmd || '').toLowerCase() === 'npm') {
-    const npmResult = runCommand(cmd, args, {
+  // On Windows, run `npm` through the command shim so stdout/stderr can still
+  // be streamed without buffering the full child output in memory.
+  const isWindowsNpm = process.platform === 'win32' && String(cmd || '').trim().toLowerCase() === 'npm';
+  const command = isWindowsNpm ? (process.env.ComSpec || 'cmd.exe') : cmd;
+  const commandArgs = isWindowsNpm ? ['/d', '/s', '/c', 'npm', ...args] : args;
+  try {
+    const result = await spawnSubprocess(command, commandArgs, {
       cwd,
       env,
-      stdio: 'pipe',
-      encoding: 'utf8',
-      maxBuffer: 64 * 1024 * 1024
+      stdio: ['inherit', 'pipe', 'pipe'],
+      captureStdout: false,
+      captureStderr: false,
+      onStdout: (chunk) => process.stderr.write(chunk),
+      onStderr: (chunk) => process.stderr.write(chunk),
+      rejectOnNonZeroExit: false
     });
-    relayChildOutputToStderr(npmResult);
     return {
-      ok: npmResult.ok,
-      status: npmResult.status ?? null,
-      signal: npmResult.signal ?? null
+      ok: result.exitCode === 0,
+      status: result.exitCode ?? null,
+      signal: typeof result.signal === 'string' ? result.signal : null
+    };
+  } catch (err) {
+    const result = err?.result && typeof err.result === 'object' ? err.result : {};
+    return {
+      ok: false,
+      status: Number.isFinite(Number(result.exitCode)) ? Number(result.exitCode) : 1,
+      signal: typeof result.signal === 'string' ? result.signal : null
     };
   }
-  const result = await spawnSubprocess(cmd, args, {
-    cwd,
-    env,
-    stdio: ['inherit', 'pipe', 'pipe'],
-    captureStdout: false,
-    captureStderr: false,
-    onStdout: (chunk) => process.stderr.write(chunk),
-    onStderr: (chunk) => process.stderr.write(chunk),
-    rejectOnNonZeroExit: false
-  });
-  return {
-    ok: result.exitCode === 0,
-    status: result.exitCode ?? null,
-    signal: typeof result.signal === 'string' ? result.signal : null
-  };
 };
 
 /**
