@@ -4,6 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -16,12 +17,7 @@ await fsPromises.rm(baseDir, { recursive: true, force: true });
 await fsPromises.mkdir(repoRoot, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-
-const env = {
-  ...process.env,
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot
-};
+const env = applyTestEnv({ cacheRoot });
 
 const repoCacheRoot = getRepoCacheRoot(repoRoot, null);
 await fsPromises.mkdir(path.join(repoCacheRoot, 'index-code'), { recursive: true });

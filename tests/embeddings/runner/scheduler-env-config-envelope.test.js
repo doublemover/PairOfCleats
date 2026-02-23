@@ -1,9 +1,14 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { createEmbeddingsScheduler } from '../../../tools/build/embeddings/scheduler.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
-const prevThreads = process.env.PAIROFCLEATS_THREADS;
-process.env.PAIROFCLEATS_THREADS = '11';
+applyTestEnv({
+  testing: '1',
+  extraEnv: {
+    PAIROFCLEATS_THREADS: '11'
+  }
+});
 
 let schedulerHandle = null;
 try {
@@ -26,6 +31,4 @@ try {
   console.log('scheduler env-config envelope test passed');
 } finally {
   schedulerHandle?.shutdown?.();
-  if (prevThreads === undefined) delete process.env.PAIROFCLEATS_THREADS;
-  else process.env.PAIROFCLEATS_THREADS = prevThreads;
 }

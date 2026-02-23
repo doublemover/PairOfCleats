@@ -4,6 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -15,11 +16,10 @@ const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 
-const env = {
-  ...process.env,
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub'
+});
 
 const buildResult = spawnSync(
   process.execPath,
@@ -31,7 +31,6 @@ if (buildResult.status !== 0) {
   process.exit(buildResult.status ?? 1);
 }
 
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 const userConfig = loadUserConfig(fixtureRoot);
 const fieldPostings = path.join(
   getIndexDir(fixtureRoot, 'code', userConfig),
