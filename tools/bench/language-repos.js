@@ -34,6 +34,7 @@ import { sanitizeBenchNodeOptions } from './language/node-options.js';
 import { resolveAdaptiveBenchTimeoutMs, summarizeBenchLineStats } from './language/timeout.js';
 import { buildReportOutput, printSummary } from './language/report.js';
 import { retainCrashArtifacts } from '../../src/index/build/crash-log.js';
+import { removePathWithRetry } from '../../src/shared/io/remove-path-with-retry.js';
 import { createToolDisplay } from '../shared/cli-display.js';
 import { parseCommaList } from '../shared/text-utils.js';
 
@@ -759,8 +760,22 @@ const cleanRepoCache = async ({ repoCacheRoot, repoLabel }) => {
       return;
     }
     if (!fs.existsSync(resolvedRepoCacheRoot)) return;
-    await fsPromises.rm(resolvedRepoCacheRoot, { recursive: true, force: true });
-    appendLog(`[cache] cleaned ${repoLabel}.`);
+    const removeResult = await removePathWithRetry(resolvedRepoCacheRoot, {
+      recursive: true,
+      force: true,
+      attempts: 20,
+      baseDelayMs: 40,
+      maxDelayMs: 1200
+    });
+    if (!removeResult.ok) {
+      const code = removeResult.error?.code ? ` (${removeResult.error.code})` : '';
+      appendLog(
+        `[cache] cleanup failed for ${repoLabel} after ${removeResult.attempts} attempts${code}: ${removeResult.error?.message || 'unknown error'}`,
+        'warn'
+      );
+      return;
+    }
+    appendLog(`[cache] cleaned ${repoLabel} (attempts=${removeResult.attempts}).`);
   } catch (err) {
     appendLog(`[cache] cleanup failed for ${repoLabel}: ${err?.message || err}`, 'warn');
   }

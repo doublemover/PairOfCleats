@@ -340,6 +340,7 @@ indexing/artifacts/offsets-unified-roundtrip
 shared/artifact-io/validation-fastpath
 services/queue/service-queue
 shared/io/atomic-write-contract
+shared/io/remove-path-with-retry
 indexing/imports/import-graph-incremental-reuse
 retrieval/output/clean-context-fences
 indexing/file-caps/pre-read-skip-respects-language

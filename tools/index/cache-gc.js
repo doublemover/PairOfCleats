@@ -10,6 +10,7 @@ import {
   DEFAULT_CAS_DESIGN_GATE,
   describeCacheLayers
 } from '../../src/shared/cache.js';
+import { removePathWithRetry } from '../../src/shared/io/remove-path-with-retry.js';
 import {
   getCasMetaPath,
   getCasObjectPath,
@@ -147,13 +148,30 @@ const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays }) => {
     }
   }
 
+  const failedRemovals = [];
   for (const repo of removals) {
     if (isRootPath(repo.path)) {
       console.error(`refusing to delete root path: ${repo.path}`);
       process.exit(1);
     }
     if (dryRun) continue;
-    await fs.rm(repo.path, { recursive: true, force: true });
+    const deleteResult = await removePathWithRetry(repo.path, {
+      recursive: true,
+      force: true,
+      attempts: 20,
+      baseDelayMs: 40,
+      maxDelayMs: 1200
+    });
+    if (!deleteResult.ok) {
+      failedRemovals.push({
+        id: repo.id,
+        path: path.resolve(repo.path),
+        reason: repo.reason,
+        code: deleteResult.error?.code || null,
+        message: deleteResult.error?.message || 'unknown error',
+        attempts: deleteResult.attempts
+      });
+    }
   }
 
   const hasSizeData = repos.some((repo) => Number.isFinite(repo.bytes));
@@ -162,7 +180,7 @@ const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays }) => {
     : null;
   const freedBytes = removals.reduce((sum, repo) => sum + (Number.isFinite(repo.bytes) ? repo.bytes : 0), 0);
   const payload = {
-    ok: true,
+    ok: failedRemovals.length === 0,
     mode: 'repo',
     dryRun,
     cacheRoot: path.resolve(cacheRoot),
@@ -181,6 +199,7 @@ const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays }) => {
       bytes: repo.bytes,
       reason: repo.reason
     })),
+    failedRemovals,
     freedBytes
   };
 
@@ -190,6 +209,13 @@ const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays }) => {
     console.error(`Cache GC: ${removals.length} repo(s) removed, freed ${formatBytes(freedBytes)}.`);
     for (const repo of removals) {
       console.error(`- ${repo.id}: ${formatBytes(repo.bytes)} (${repo.reason})`);
+    }
+    if (failedRemovals.length) {
+      console.error(`- failed removals: ${failedRemovals.length}`);
+      for (const failure of failedRemovals) {
+        const codeSuffix = failure.code ? ` (${failure.code})` : '';
+        console.error(`  - ${failure.id}: ${failure.message}${codeSuffix}`);
+      }
     }
   }
 };
@@ -341,6 +367,7 @@ const runCasManifestGc = async ({ cacheRoot, gcConfig }) => {
 
   const deletionPlan = candidates.slice(0, maxDeletes);
   const deleted = [];
+  const deleteFailures = [];
   if (!dryRun && deletionPlan.length) {
     await runWithConcurrency(deletionPlan, deleteConcurrency, async (entry) => {
       const objectPathResolved = path.resolve(entry.objectPath);
@@ -351,11 +378,47 @@ const runCasManifestGc = async ({ cacheRoot, gcConfig }) => {
       if (isRootPath(objectPathResolved) || isRootPath(metadataPathResolved)) {
         throw new Error(`Refusing to delete root path during CAS GC: ${objectPathResolved}`);
       }
-      await fs.rm(objectPathResolved, { force: true });
-      await fs.rm(metadataPathResolved, { force: true });
+      const objectDelete = await removePathWithRetry(objectPathResolved, {
+        recursive: false,
+        force: true,
+        attempts: 20,
+        baseDelayMs: 30,
+        maxDelayMs: 800
+      });
+      if (!objectDelete.ok) {
+        deleteFailures.push({
+          hash: entry.hash,
+          path: objectPathResolved,
+          code: objectDelete.error?.code || null,
+          message: objectDelete.error?.message || 'unknown error',
+          attempts: objectDelete.attempts
+        });
+        return;
+      }
+      const metadataDelete = await removePathWithRetry(metadataPathResolved, {
+        recursive: false,
+        force: true,
+        attempts: 20,
+        baseDelayMs: 30,
+        maxDelayMs: 800
+      });
+      if (!metadataDelete.ok) {
+        deleteFailures.push({
+          hash: entry.hash,
+          path: metadataPathResolved,
+          code: metadataDelete.error?.code || null,
+          message: metadataDelete.error?.message || 'unknown error',
+          attempts: metadataDelete.attempts
+        });
+        return;
+      }
       deleted.push(entry.hash);
     });
     deleted.sort((a, b) => a.localeCompare(b));
+    deleteFailures.sort((a, b) => (
+      a.hash.localeCompare(b.hash)
+      || a.path.localeCompare(b.path)
+    ));
   }
 
   const layers = describeCacheLayers({
@@ -363,7 +426,7 @@ const runCasManifestGc = async ({ cacheRoot, gcConfig }) => {
     federationCacheRoot: path.join(cacheRoot, 'federation')
   });
   const payload = {
-    ok: true,
+    ok: deleteFailures.length === 0,
     mode: 'cas',
     dryRun,
     cacheRoot: path.resolve(cacheRoot),
@@ -384,7 +447,8 @@ const runCasManifestGc = async ({ cacheRoot, gcConfig }) => {
       candidateDeletes: candidates.length,
       skippedByLease: skippedByLease.length,
       plannedDeletes: deletionPlan.length,
-      deleted: deleted.length
+      deleted: deleted.length,
+      failedDeletes: deleteFailures.length
     },
     reachableSample: Array.from(reachableHashes).sort((a, b) => a.localeCompare(b)).slice(0, 20),
     candidates: deletionPlan.map((entry) => ({
@@ -399,6 +463,7 @@ const runCasManifestGc = async ({ cacheRoot, gcConfig }) => {
       path: entry.objectPath,
       size: entry.size
     })),
+    deleteFailures,
     manifests: manifestPaths
   };
   if (!dryRun) {
@@ -418,6 +483,13 @@ const runCasManifestGc = async ({ cacheRoot, gcConfig }) => {
   console.error(`- skipped by lease: ${payload.counts.skippedByLease}`);
   if (!payload.dryRun) {
     console.error(`- deleted: ${payload.counts.deleted}`);
+    if (payload.counts.failedDeletes) {
+      console.error(`- failed deletes: ${payload.counts.failedDeletes}`);
+      for (const failure of payload.deleteFailures) {
+        const codeSuffix = failure.code ? ` (${failure.code})` : '';
+        console.error(`  - ${failure.hash}: ${failure.message}${codeSuffix}`);
+      }
+    }
   }
   for (const entry of payload.candidates) {
     console.error(`- candidate ${entry.hash} (${formatBytes(entry.size)})`);
