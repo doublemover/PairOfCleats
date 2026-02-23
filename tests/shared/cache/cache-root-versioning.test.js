@@ -10,8 +10,10 @@ import {
   resolveVersionedCacheRoot
 } from '../../../src/shared/cache-roots.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'cache-root-versioning');
+const tempRoot = resolveTestCachePath(root, 'cache-root-versioning');
 await fsp.rm(tempRoot, { recursive: true, force: true });
 await fsp.mkdir(tempRoot, { recursive: true });
 

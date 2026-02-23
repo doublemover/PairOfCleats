@@ -11,10 +11,12 @@ import {
   writeBundlePatch
 } from '../../../src/shared/bundle-io.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'incremental-crossfile-bundle-worker-transform');
+const tempRoot = resolveTestCachePath(root, 'incremental-crossfile-bundle-worker-transform');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

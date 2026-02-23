@@ -4,8 +4,10 @@ import path from 'node:path';
 import { buildIgnoreMatcher } from '../../../src/index/build/ignore.js';
 import { discoverFiles } from '../../../src/index/build/discover.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'ignore-overrides');
+const tempRoot = resolveTestCachePath(root, 'ignore-overrides');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'dist'), { recursive: true });

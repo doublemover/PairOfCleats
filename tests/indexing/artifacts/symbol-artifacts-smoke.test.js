@@ -8,8 +8,10 @@ import {
   runSymbolArtifactWriters
 } from './symbols/helpers/symbol-artifact-fixture.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const outDir = path.join(root, '.testCache', 'symbol-artifacts-smoke');
+const outDir = resolveTestCachePath(root, 'symbol-artifacts-smoke');
 await fs.rm(outDir, { recursive: true, force: true });
 await fs.mkdir(outDir, { recursive: true });
 

@@ -5,8 +5,10 @@ import { spawnSync } from 'node:child_process';
 import { repoRoot } from '../../helpers/root.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = repoRoot();
-const tempRoot = path.join(root, '.testCache', 'index-lifecycle');
+const tempRoot = resolveTestCachePath(root, 'index-lifecycle');
 const repoDir = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 

@@ -5,6 +5,8 @@ import path from 'node:path';
 
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({
   testing: '1',
   extraEnv: {
@@ -15,7 +17,7 @@ applyTestEnv({
 const { updateBundlesWithChunks } = await import('../../../src/index/build/incremental.js');
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'incremental-crossfile-hot-cold-priority');
+const tempRoot = resolveTestCachePath(root, 'incremental-crossfile-hot-cold-priority');
 const bundleDir = path.join(tempRoot, 'incremental', 'code', 'files');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(bundleDir, { recursive: true });

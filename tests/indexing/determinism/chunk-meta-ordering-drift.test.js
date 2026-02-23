@@ -8,8 +8,10 @@ import { createOrderingHasher, stableOrderWithComparator } from '../../../src/sh
 import { compareChunkMetaRows } from '../../../src/index/build/artifacts/helpers.js';
 import { createBaseIndex, defaultUserConfig } from '../validate/helpers.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'chunk-meta-ordering-drift');
+const tempRoot = resolveTestCachePath(root, 'chunk-meta-ordering-drift');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

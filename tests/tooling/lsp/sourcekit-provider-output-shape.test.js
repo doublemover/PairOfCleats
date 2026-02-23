@@ -6,8 +6,10 @@ import { fileURLToPath } from 'node:url';
 import { registerDefaultToolingProviders } from '../../../src/index/tooling/providers/index.js';
 import { getToolingProvider } from '../../../src/index/tooling/provider-registry.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const tempRoot = path.join(root, '.testCache', 'sourcekit-provider-output-shape');
+const tempRoot = resolveTestCachePath(root, 'sourcekit-provider-output-shape');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
 await fs.writeFile(path.join(tempRoot, 'src', 'one.swift'), 'func alpha() -> Int { return 1 }\n', 'utf8');

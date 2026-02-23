@@ -9,8 +9,10 @@ import {
 } from '../../../src/index/build/artifacts/writers/chunk-meta.js';
 import { toPosix } from '../../../src/shared/files.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'chunk-meta-cached-jsonl-reuse');
+const tempRoot = resolveTestCachePath(root, 'chunk-meta-cached-jsonl-reuse');
 const outDir = path.join(tempRoot, 'index');
 
 await fs.rm(tempRoot, { recursive: true, force: true });

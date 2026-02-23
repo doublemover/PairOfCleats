@@ -9,8 +9,10 @@ import { MAX_JSON_BYTES, loadChunkMeta, loadTokenPostings } from '../../../src/s
 import { stableStringify } from '../../../src/shared/stable-json.js';
 import { rmDirRecursive } from '../../helpers/temp.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'shard-merge');
+const tempRoot = resolveTestCachePath(root, 'shard-merge');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRootA = path.join(tempRoot, 'cache-a');
 const cacheRootB = path.join(tempRoot, 'cache-b');

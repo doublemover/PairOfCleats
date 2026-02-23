@@ -5,6 +5,8 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { tryRequire } from '../../src/shared/optional-deps.js';
+import { resolveTestCachePath } from '../helpers/test-cache.js';
+
 applyTestEnv();
 const gate = String(process.env.PAIROFCLEATS_TEST_TANTIVY || '').trim().toLowerCase();
 if (!['1', 'true', 'yes', 'on'].includes(gate)) {
@@ -20,7 +22,7 @@ if (!tantivyAvailable) {
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = path.join(root, '.testCache', 'tantivy-smoke');
+const tempRoot = resolveTestCachePath(root, 'tantivy-smoke');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 

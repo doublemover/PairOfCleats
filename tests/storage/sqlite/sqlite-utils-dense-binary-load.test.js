@@ -4,8 +4,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { loadSqliteIndexOptionalArtifacts } from '../../../src/storage/sqlite/utils.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempDir = path.join(root, '.testCache', 'sqlite-utils-dense-binary-load');
+const tempDir = resolveTestCachePath(root, 'sqlite-utils-dense-binary-load');
 await fs.rm(tempDir, { recursive: true, force: true });
 await fs.mkdir(tempDir, { recursive: true });
 

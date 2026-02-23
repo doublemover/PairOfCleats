@@ -13,10 +13,12 @@ import {
 } from '../../src/index/snapshots/create.js';
 import { loadSnapshot, loadSnapshotsManifest } from '../../src/index/snapshots/registry.js';
 
+import { resolveTestCachePath } from '../helpers/test-cache.js';
+
 applyTestEnv();
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'snapshot-create-service');
+const tempRoot = resolveTestCachePath(root, 'snapshot-create-service');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 const userConfig = { cache: { root: cacheRoot } };

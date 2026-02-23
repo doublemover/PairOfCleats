@@ -14,8 +14,10 @@ import {
   summarizeUnresolvedImportTaxonomy
 } from '../../../src/index/build/imports.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'import-graph-unresolved-refresh');
+const tempRoot = resolveTestCachePath(root, 'import-graph-unresolved-refresh');
 const srcRoot = path.join(tempRoot, 'src');
 const incrementalDir = path.join(tempRoot, '.incremental');
 

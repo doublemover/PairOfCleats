@@ -5,6 +5,8 @@ import path from 'node:path';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { treeSitterSchedulerExecutorInternals } from '../../../src/index/build/tree-sitter-scheduler/executor.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const {
@@ -40,7 +42,7 @@ const options = buildTreeSitterOptionsForJob({
     maxParseMs: 400,
     byLanguage: { cpp: { maxParseMs: 450 } }
   },
-  runtime: { repoCacheRoot: path.join(process.cwd(), '.testCache', 'tree-sitter-timeout-mode') },
+  runtime: { repoCacheRoot: resolveTestCachePath(process.cwd(), 'tree-sitter-timeout-mode') },
   log: null,
   job: { languageId: 'cpp', parseMode: 'lightweight-relations', segmentStart: 0, segmentEnd: 100 },
   segmentText: `${'x\n'.repeat(4000)}`,

@@ -7,8 +7,10 @@ import { getIndexDir, loadUserConfig } from '../../../../tools/shared/dict-utils
 import { repoRoot } from '../../../helpers/root.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const root = repoRoot();
-const tempRoot = path.join(root, '.testCache', 'lsp-enrichment');
+const tempRoot = resolveTestCachePath(root, 'lsp-enrichment');
 const repoDir = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 const srcDir = path.join(repoDir, 'src');

@@ -7,8 +7,10 @@ import { pipeline } from 'node:stream/promises';
 import { createZstdCompress } from 'node:zlib';
 import { readJsonLinesArray } from '../../../src/shared/artifact-io.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const cacheRoot = path.join(root, '.testCache', 'jsonl-zstd');
+const cacheRoot = resolveTestCachePath(root, 'jsonl-zstd');
 await fs.rm(cacheRoot, { recursive: true, force: true });
 await fs.mkdir(cacheRoot, { recursive: true });
 

@@ -10,8 +10,10 @@ import { computeIndexDiff } from '../../src/index/diffs/compute.js';
 import { loadUserConfig } from '../../tools/shared/dict-utils.js';
 import { startApiServer } from '../helpers/api-server.js';
 
+import { resolveTestCachePath } from '../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'api-search-asof-service');
+const tempRoot = resolveTestCachePath(root, 'api-search-asof-service');
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');

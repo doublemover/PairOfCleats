@@ -6,6 +6,8 @@ import { buildSqliteIndex } from '../../../tools/build/sqlite/runner.js';
 import { requireOrSkip } from '../../helpers/require-or-skip.js';
 import { applyTestEnv, ensureTestingEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 ensureTestingEnv(process.env);
 requireOrSkip({ capability: 'sqlite', reason: 'sqlite empty code rebuild test requires better-sqlite3' });
 
@@ -13,7 +15,7 @@ let Database = null;
 ({ default: Database } = await import('better-sqlite3'));
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'sqlite-skip-empty-code-rebuild');
+const tempRoot = resolveTestCachePath(root, 'sqlite-skip-empty-code-rebuild');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 const buildRoot = path.join(tempRoot, 'build-root');

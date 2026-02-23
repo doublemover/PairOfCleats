@@ -4,10 +4,12 @@ import path from 'node:path';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
 import { collectV8CoverageEntries } from '../../../tools/testing/coverage/index.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 ensureTestingEnv(process.env);
 
 const root = process.cwd();
-const tempDir = path.join(root, '.testCache', 'coverage-malformed-json-skip');
+const tempDir = resolveTestCachePath(root, 'coverage-malformed-json-skip');
 await fsPromises.rm(tempDir, { recursive: true, force: true });
 await fsPromises.mkdir(tempDir, { recursive: true });
 

@@ -5,10 +5,12 @@ import path from 'node:path';
 import { ensureTestingEnv } from '../helpers/test-env.js';
 import { createCrashLogger } from '../../src/index/build/crash-log.js';
 
+import { resolveTestCachePath } from '../helpers/test-cache.js';
+
 ensureTestingEnv(process.env);
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'crash-log-announcement');
+const tempRoot = resolveTestCachePath(root, 'crash-log-announcement');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

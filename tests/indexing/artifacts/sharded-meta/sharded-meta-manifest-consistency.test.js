@@ -7,8 +7,10 @@ import { writePiecesManifest } from '../../../../src/index/build/artifacts/check
 import { toPosix } from '../../../../src/shared/files.js';
 import { loadPiecesManifestPieces } from '../../../helpers/pieces-manifest.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const root = process.cwd();
-const cacheRoot = path.join(root, '.testCache', 'sharded-meta-manifest');
+const cacheRoot = resolveTestCachePath(root, 'sharded-meta-manifest');
 await fs.rm(cacheRoot, { recursive: true, force: true });
 await fs.mkdir(cacheRoot, { recursive: true });
 

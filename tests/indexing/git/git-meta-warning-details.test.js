@@ -5,9 +5,11 @@ import path from 'node:path';
 import { prepareScmFileMetaSnapshot } from '../../../src/index/scm/file-meta-snapshot.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 ensureTestingEnv(process.env);
 
-const tempRoot = path.join(process.cwd(), '.testCache', 'git-meta-warning-details');
+const tempRoot = resolveTestCachePath(process.cwd(), 'git-meta-warning-details');
 const fallbackRepoRoot = path.join(tempRoot, 'fallback-repo');
 const diagnosticsRepoRoot = path.join(tempRoot, 'diagnostics-repo');
 const fallbackCacheRoot = path.join(tempRoot, 'fallback-cache');

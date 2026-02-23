@@ -4,12 +4,14 @@ import path from 'node:path';
 import { requireOrSkip } from '../../helpers/require-or-skip.js';
 import { updateSqliteDense } from '../../../tools/build/embeddings/sqlite-dense.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 requireOrSkip({ capability: 'sqlite', reason: 'Skipping embeddings backend resilience test; sqlite unavailable.' });
 
 const { default: Database } = await import('better-sqlite3');
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'embeddings-backend-resilience');
+const tempRoot = resolveTestCachePath(root, 'embeddings-backend-resilience');
 const dbPath = path.join(tempRoot, 'shared-index.db');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });

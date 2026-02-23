@@ -7,6 +7,8 @@ import { enqueueGraphRelationsArtifacts } from '../../../src/index/build/artifac
 import { fromPosix } from '../../../src/shared/files.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const fail = (message) => {
@@ -15,7 +17,7 @@ const fail = (message) => {
 };
 
 const root = process.cwd();
-const testRoot = path.join(root, '.testCache', 'relations-atomicity-rollback');
+const testRoot = resolveTestCachePath(root, 'relations-atomicity-rollback');
 const outDir = path.join(testRoot, 'index-code');
 
 await fs.rm(testRoot, { recursive: true, force: true });

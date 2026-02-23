@@ -11,8 +11,10 @@ import {
 } from '../../../src/shared/artifact-io.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const cacheRoot = path.join(root, '.testCache', 'jsonl-validation');
+const cacheRoot = resolveTestCachePath(root, 'jsonl-validation');
 await fs.rm(cacheRoot, { recursive: true, force: true });
 await fs.mkdir(cacheRoot, { recursive: true });
 

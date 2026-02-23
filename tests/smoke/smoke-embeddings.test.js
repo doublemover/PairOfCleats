@@ -2,10 +2,12 @@
 import path from 'node:path';
 import { cleanup, runNode, root } from './smoke-utils.js';
 
+import { resolveTestCachePath } from '../helpers/test-cache.js';
+
 const cacheRoots = [
-  path.join(root, '.testCache', 'build-embeddings-cache'),
-  path.join(root, '.testCache', 'embeddings-dims-mismatch'),
-  path.join(root, '.testCache', 'embeddings-cache-identity')
+  resolveTestCachePath(root, 'build-embeddings-cache'),
+  resolveTestCachePath(root, 'embeddings-dims-mismatch'),
+  resolveTestCachePath(root, 'embeddings-cache-identity')
 ];
 
 let failure = null;

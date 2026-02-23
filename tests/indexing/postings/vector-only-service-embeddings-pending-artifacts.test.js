@@ -6,12 +6,14 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv();
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const buildScript = path.join(root, 'build_index.js');
-const cacheRoot = path.join(root, '.testCache', 'phase18-vector-only-service-embeddings');
+const cacheRoot = resolveTestCachePath(root, 'phase18-vector-only-service-embeddings');
 
 const testConfig = {
   indexing: {

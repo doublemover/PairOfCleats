@@ -8,8 +8,10 @@ import { spawnSync } from 'node:child_process';
 import { resolveRepoPath, resolveToolTimeoutMs } from '../../../tools/mcp/repo.js';
 import { getRepoCacheRoot, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const workspaceRoot = process.cwd();
-const testRoot = path.join(workspaceRoot, '.testCache', 'mcp-repo-path-resolution');
+const testRoot = resolveTestCachePath(workspaceRoot, 'mcp-repo-path-resolution');
 const repoRoot = path.join(testRoot, 'repo');
 const nested = path.join(repoRoot, 'nested', 'pkg');
 const cacheRoot = path.join(testRoot, 'cache');

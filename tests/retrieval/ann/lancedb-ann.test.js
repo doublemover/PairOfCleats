@@ -8,9 +8,11 @@ import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js
 import { normalizeLanceDbConfig } from '../../../src/shared/lancedb.js';
 import { requireLanceDb } from '../../helpers/optional-deps.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = path.join(root, '.testCache', 'lancedb-ann');
+const tempRoot = resolveTestCachePath(root, 'lancedb-ann');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 

@@ -7,8 +7,10 @@ import {
 import { writeJsonLinesFile } from '../../../../src/shared/json-stream.js';
 import { writePiecesManifest } from '../../../helpers/artifact-io-fixture.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const root = process.cwd();
-const outDir = path.join(root, '.testCache', 'file-meta-streaming');
+const outDir = resolveTestCachePath(root, 'file-meta-streaming');
 await fs.rm(outDir, { recursive: true, force: true });
 await fs.mkdir(outDir, { recursive: true });
 

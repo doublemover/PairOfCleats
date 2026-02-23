@@ -8,10 +8,12 @@ import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import { validateIndexArtifacts } from '../../../src/index/validate.js';
 import { createBaseIndex, defaultUserConfig } from './helpers.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv();
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'index-validate-boilerplate-catalog-manifest-name');
+const tempRoot = resolveTestCachePath(root, 'index-validate-boilerplate-catalog-manifest-name');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

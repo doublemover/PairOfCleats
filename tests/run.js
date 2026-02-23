@@ -56,6 +56,8 @@ import {
   writeCoverageArtifact
 } from '../tools/testing/coverage/index.js';
 
+import { resolveTestCachePath } from './helpers/test-cache.js';
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TESTS_DIR = path.join(ROOT, 'tests');
 const DEFAULT_TIMEOUT_MS = 30000;
@@ -512,7 +514,7 @@ const main = async () => {
   scrubInheritedPairOfCleatsEnv(baseEnv);
   ensureTestingEnv(baseEnv);
   if (!baseEnv.PAIROFCLEATS_CACHE_ROOT) {
-    baseEnv.PAIROFCLEATS_CACHE_ROOT = path.join(ROOT, '.testCache');
+    baseEnv.PAIROFCLEATS_CACHE_ROOT = resolveTestCachePath(ROOT);
   }
   if (Number.isFinite(argv.retries) || !baseEnv.PAIROFCLEATS_TEST_RETRIES) {
     baseEnv.PAIROFCLEATS_TEST_RETRIES = String(retries);

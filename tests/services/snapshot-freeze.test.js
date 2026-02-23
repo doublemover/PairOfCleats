@@ -12,10 +12,12 @@ import { loadFrozen, loadSnapshotsManifest } from '../../src/index/snapshots/reg
 import { replaceDir } from '../../src/shared/json-stream/atomic.js';
 import { createBaseIndex } from '../indexing/validate/helpers.js';
 
+import { resolveTestCachePath } from '../helpers/test-cache.js';
+
 applyTestEnv();
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'snapshot-freeze-service');
+const tempRoot = resolveTestCachePath(root, 'snapshot-freeze-service');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 const userConfig = {

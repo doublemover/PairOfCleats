@@ -6,6 +6,8 @@ import { spawnSync } from 'node:child_process';
 import { createCli } from '../../../src/shared/cli.js';
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const argv = createCli({
   scriptName: 'fixture-eval',
   options: {
@@ -81,7 +83,7 @@ for (const fixtureName of fixtures) {
   const evalPath = path.join(fixtureRoot, 'eval.json');
   if (!fs.existsSync(evalPath)) continue;
 
-  const cacheRoot = path.join(root, '.testCache', `eval-${fixtureName}`);
+  const cacheRoot = resolveTestCachePath(root, `eval-${fixtureName}`);
   await fsPromises.rm(cacheRoot, { recursive: true, force: true });
   await fsPromises.mkdir(cacheRoot, { recursive: true });
 

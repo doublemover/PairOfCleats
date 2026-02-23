@@ -4,6 +4,8 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { formatBytes, sizeOfPath } from '../../../src/shared/disk-space.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 assert.equal(formatBytes(0), '0B');
 assert.equal(formatBytes(1), '1B');
 assert.equal(formatBytes(1023), '1023B');
@@ -13,7 +15,7 @@ assert.equal(formatBytes(1024 * 1024), '1.0MB');
 assert.equal(formatBytes(2 * 1024 * 1024 * 1024), '2.0GB');
 
 const root = process.cwd();
-const outDir = path.join(root, '.testCache', 'disk-space-format-contract');
+const outDir = resolveTestCachePath(root, 'disk-space-format-contract');
 await fsPromises.rm(outDir, { recursive: true, force: true });
 await fsPromises.mkdir(path.join(outDir, 'sub'), { recursive: true });
 await fsPromises.writeFile(path.join(outDir, 'a.txt'), 'abc', 'utf8');

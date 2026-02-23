@@ -5,7 +5,9 @@ import { normalizeRoot } from '../../../src/index/build/watch/shared.js';
 import { resolveRecordsRoot } from '../../../src/index/build/watch/records.js';
 import { isIndexablePath } from '../../../src/index/build/watch/guardrails.js';
 
-const root = path.resolve('.testCache', 'watch-root-normalization');
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
+const root = resolveTestCachePath(process.cwd(), 'watch-root-normalization');
 const recordsRoot = path.join(root, 'Records');
 const nestedRecord = path.join(recordsRoot, 'note.md');
 

@@ -6,9 +6,11 @@ import http from 'node:http';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
 const fixturesRoot = path.join(root, 'tests', 'fixtures', 'extensions');
-const tempRoot = path.join(root, '.testCache', 'download-extensions');
+const tempRoot = resolveTestCachePath(root, 'download-extensions');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });

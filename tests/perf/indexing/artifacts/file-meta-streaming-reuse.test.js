@@ -3,8 +3,10 @@ import path from 'node:path';
 import { loadFileMetaRows } from '../../../../src/shared/artifact-io.js';
 import { writePiecesManifest } from '../../../helpers/artifact-io-fixture.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const root = process.cwd();
-const outDir = path.join(root, '.testCache', 'file-meta-streaming-reuse');
+const outDir = resolveTestCachePath(root, 'file-meta-streaming-reuse');
 await fs.rm(outDir, { recursive: true, force: true });
 await fs.mkdir(outDir, { recursive: true });
 
@@ -50,7 +52,7 @@ if (threw) {
   process.exit(1);
 }
 
-const invalidDir = path.join(root, '.testCache', 'file-meta-streaming-invalid');
+const invalidDir = resolveTestCachePath(root, 'file-meta-streaming-invalid');
 await fs.rm(invalidDir, { recursive: true, force: true });
 await fs.mkdir(invalidDir, { recursive: true });
 const invalidRows = [

@@ -5,8 +5,10 @@ import path from 'node:path';
 import { createRowSpillCollector } from '../../../src/index/build/artifacts/helpers.js';
 import { createSpillSorter } from '../../../src/map/build-map/io.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'merge-comparator-adopters');
+const tempRoot = resolveTestCachePath(root, 'merge-comparator-adopters');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

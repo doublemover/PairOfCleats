@@ -9,8 +9,10 @@ import { getIndexDir, resolveRepoConfig } from '../../../../tools/shared/dict-ut
 import { MAX_JSON_BYTES, loadChunkMeta, loadPiecesManifest } from '../../../../src/shared/artifact-io.js';
 import { buildCodeMap } from '../../../../src/map/build-map.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'stage-usage-checklist');
+const tempRoot = resolveTestCachePath(root, 'stage-usage-checklist');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 

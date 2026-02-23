@@ -6,8 +6,10 @@ import { gzipSync } from 'node:zlib';
 import { readJsonFile, readJsonLinesArraySync } from '../../../src/shared/artifact-io.js';
 import { writeJsonLinesFile } from '../../../src/shared/json-stream.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'artifact-bak-recovery');
+const tempRoot = resolveTestCachePath(root, 'artifact-bak-recovery');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });

@@ -8,8 +8,10 @@ import { runSearchCli } from '../../src/retrieval/cli.js';
 import { createPointerSnapshot } from '../../src/index/snapshots/create.js';
 import { loadUserConfig } from '../../tools/shared/dict-utils.js';
 
+import { resolveTestCachePath } from '../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'snapshot-query-service');
+const tempRoot = resolveTestCachePath(root, 'snapshot-query-service');
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');

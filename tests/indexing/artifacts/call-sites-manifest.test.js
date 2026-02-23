@@ -4,8 +4,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createCallSites, enqueueCallSitesArtifacts } from '../../../src/index/build/artifacts/writers/call-sites.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const outDir = path.join(root, '.testCache', 'call-sites-manifest');
+const outDir = resolveTestCachePath(root, 'call-sites-manifest');
 await fs.rm(outDir, { recursive: true, force: true });
 await fs.mkdir(outDir, { recursive: true });
 

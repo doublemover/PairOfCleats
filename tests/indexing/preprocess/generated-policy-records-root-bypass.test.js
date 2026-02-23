@@ -8,10 +8,12 @@ import { buildIgnoreMatcher } from '../../../src/index/build/ignore.js';
 import { preprocessFiles } from '../../../src/index/build/preprocess.js';
 import { buildGeneratedPolicyConfig } from '../../../src/index/build/generated-policy.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv();
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'generated-policy-records-preprocess');
+const tempRoot = resolveTestCachePath(root, 'generated-policy-records-preprocess');
 const recordsDir = path.join(tempRoot, 'generated', 'records');
 
 await fs.rm(tempRoot, { recursive: true, force: true });

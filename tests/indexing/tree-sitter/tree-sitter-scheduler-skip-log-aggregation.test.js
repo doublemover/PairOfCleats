@@ -6,10 +6,12 @@ import path from 'node:path';
 import { buildTreeSitterSchedulerPlan } from '../../../src/index/build/tree-sitter-scheduler/plan.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'tree-sitter-scheduler-skip-log-aggregation');
+const tempRoot = resolveTestCachePath(root, 'tree-sitter-scheduler-skip-log-aggregation');
 const outDir = path.join(tempRoot, 'out');
 
 await fs.rm(tempRoot, { recursive: true, force: true });

@@ -5,8 +5,10 @@ import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { readCacheEntry } from '../../../tools/build/embeddings/cache.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'embeddings-cache-partial-reuse');
+const tempRoot = resolveTestCachePath(root, 'embeddings-cache-partial-reuse');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 const srcDir = path.join(repoRoot, 'src');

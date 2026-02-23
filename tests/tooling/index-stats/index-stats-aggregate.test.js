@@ -5,10 +5,12 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv();
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'index-stats-aggregate');
+const tempRoot = resolveTestCachePath(root, 'index-stats-aggregate');
 const indexRoot = path.join(tempRoot, 'build-root');
 const toolPath = path.join(root, 'tools', 'index', 'stats.js');
 

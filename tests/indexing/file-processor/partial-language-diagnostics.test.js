@@ -3,13 +3,15 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createFileProcessor } from '../../../src/index/build/file-processor.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const fail = (message) => {
   console.error(message);
   process.exit(1);
 };
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'partial-language-diagnostics');
+const tempRoot = resolveTestCachePath(root, 'partial-language-diagnostics');
 const repoRoot = path.join(tempRoot, 'repo');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });

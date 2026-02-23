@@ -8,10 +8,12 @@ import { executeTreeSitterSchedulerPlan } from '../../../src/index/build/tree-si
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { skipIfNativeGrammarsUnavailable } from './native-availability.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'tree-sitter-plan-stale-file-resilience');
+const tempRoot = resolveTestCachePath(root, 'tree-sitter-plan-stale-file-resilience');
 const sourcePath = path.join(tempRoot, 'sample.js');
 const outDir = path.join(tempRoot, 'out', 'index-code');
 if (skipIfNativeGrammarsUnavailable(['javascript'], 'tree-sitter scheduler stale-plan resilience')) {

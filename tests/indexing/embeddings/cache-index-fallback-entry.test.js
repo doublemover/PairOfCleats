@@ -10,8 +10,10 @@ import {
   writeCacheEntry
 } from '../../../tools/build/embeddings/cache.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'embeddings-cache-fallback-entry');
+const tempRoot = resolveTestCachePath(root, 'embeddings-cache-fallback-entry');
 const cacheDir = path.join(tempRoot, 'files');
 const cacheKey = 'cache-fallback-key';
 const now = new Date().toISOString();

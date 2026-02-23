@@ -6,8 +6,10 @@ import { enqueueSymbolsArtifacts } from '../../../../src/index/build/artifacts/w
 import { enqueueSymbolOccurrencesArtifacts } from '../../../../src/index/build/artifacts/writers/symbol-occurrences.js';
 import { enqueueSymbolEdgesArtifacts } from '../../../../src/index/build/artifacts/writers/symbol-edges.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'symbol-artifacts-emission');
+const tempRoot = resolveTestCachePath(root, 'symbol-artifacts-emission');
 const rawDir = path.join(tempRoot, 'raw');
 const shardDir = path.join(tempRoot, 'sharded');
 await fs.rm(tempRoot, { recursive: true, force: true });

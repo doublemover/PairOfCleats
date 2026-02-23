@@ -5,8 +5,10 @@ import path from 'node:path';
 import { writeJsonLinesSharded } from '../../../src/shared/json-stream.js';
 import { fromPosix } from '../../../src/shared/files.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const cacheRoot = path.join(root, '.testCache', 'json-stream-typedarray-sharded');
+const cacheRoot = resolveTestCachePath(root, 'json-stream-typedarray-sharded');
 await fs.rm(cacheRoot, { recursive: true, force: true });
 await fs.mkdir(cacheRoot, { recursive: true });
 

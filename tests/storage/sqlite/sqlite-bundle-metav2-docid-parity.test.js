@@ -7,6 +7,8 @@ import { writeBundleFile } from '../../../src/shared/bundle-io.js';
 import { validateSqliteMetaV2Parity } from '../../../src/index/validate/checks.js';
 import { buildDatabaseFromBundles } from '../../../src/storage/sqlite/build/from-bundles.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 let Database;
 try {
   ({ default: Database } = await import('better-sqlite3'));
@@ -16,7 +18,7 @@ try {
 }
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'sqlite-bundle-metav2-docid-parity');
+const tempRoot = resolveTestCachePath(root, 'sqlite-bundle-metav2-docid-parity');
 const bundleDir = path.join(tempRoot, 'bundles');
 const dbPath = path.join(tempRoot, 'index-code.db');
 

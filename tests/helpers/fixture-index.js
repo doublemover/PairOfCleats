@@ -28,6 +28,8 @@ import { rmDirRecursive } from './temp.js';
 import { isPlainObject, mergeConfig } from '../../src/shared/config.js';
 import { runSqliteBuild } from './sqlite-builder.js';
 
+import { resolveTestCachePath } from './test-cache.js';
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 const ensureDir = async (dir) => {
@@ -376,11 +378,7 @@ export const ensureFixtureIndex = async ({
   const normalizedRequiredModes = normalizeRequiredModes(requiredModes);
   const fixtureRootRaw = path.join(ROOT, 'tests', 'fixtures', fixtureName);
   const fixtureRoot = toRealPathSync(fixtureRootRaw);
-  const cacheRoot = path.join(
-    ROOT,
-    '.testCache',
-    resolveCacheName(cacheName, { cacheScope: normalizedCacheScope })
-  );
+  const cacheRoot = resolveTestCachePath(ROOT, resolveCacheName(cacheName, { cacheScope: normalizedCacheScope }));
   await ensureDir(cacheRoot);
   const env = createFixtureEnv(cacheRoot, envOverrides);
   const userConfig = loadUserConfig(fixtureRoot);

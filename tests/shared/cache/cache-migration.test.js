@@ -5,8 +5,10 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { getCacheRoot, resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'cache-migration');
+const tempRoot = resolveTestCachePath(root, 'cache-migration');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

@@ -6,8 +6,10 @@ import { sha1 } from '../../../src/shared/hash.js';
 import { resolveImportLinks } from '../../../src/index/build/import-resolution.js';
 import { loadImportResolutionCache, saveImportResolutionCache } from '../../../src/index/build/import-resolution-cache.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'import-graph-incremental');
+const tempRoot = resolveTestCachePath(root, 'import-graph-incremental');
 const srcRoot = path.join(tempRoot, 'src');
 const incrementalDir = path.join(tempRoot, '.incremental');
 

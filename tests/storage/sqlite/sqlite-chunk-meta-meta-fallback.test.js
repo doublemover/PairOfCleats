@@ -7,6 +7,8 @@ import { writeJsonLinesFile, writeJsonObjectFile } from '../../../src/shared/jso
 import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../src/storage/sqlite/build/from-artifacts.js';
 import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 let Database = null;
 try {
   ({ default: Database } = await import('better-sqlite3'));
@@ -16,7 +18,7 @@ try {
 }
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'sqlite-chunk-meta-meta-fallback');
+const tempRoot = resolveTestCachePath(root, 'sqlite-chunk-meta-meta-fallback');
 const indexDir = path.join(tempRoot, 'index-code');
 const outPath = path.join(tempRoot, 'index-code.db');
 

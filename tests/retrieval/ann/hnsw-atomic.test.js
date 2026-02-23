@@ -8,9 +8,11 @@ import { loadHnswIndex, normalizeHnswConfig, resolveHnswPaths } from '../../../s
 import { loadChunkMeta, readJsonFile } from '../../../src/shared/artifact-io.js';
 import { requireHnswLib } from '../../helpers/optional-deps.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = path.join(root, '.testCache', 'hnsw-atomic');
+const tempRoot = resolveTestCachePath(root, 'hnsw-atomic');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 

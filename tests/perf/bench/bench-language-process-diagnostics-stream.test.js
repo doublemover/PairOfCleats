@@ -11,9 +11,11 @@ import {
   BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION
 } from '../../../tools/bench/language/logging.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 ensureTestingEnv(process.env);
 
-const tempRoot = path.join(process.cwd(), '.testCache', 'bench-language-process-diagnostics-stream');
+const tempRoot = resolveTestCachePath(process.cwd(), 'bench-language-process-diagnostics-stream');
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });
 

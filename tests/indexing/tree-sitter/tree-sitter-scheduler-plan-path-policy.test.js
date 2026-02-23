@@ -6,11 +6,13 @@ import path from 'node:path';
 import { buildTreeSitterSchedulerPlan } from '../../../src/index/build/tree-sitter-scheduler/plan.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
-const outDir = path.join(root, '.testCache', 'tree-sitter-scheduler-plan-path-policy', 'index-code');
-const fixtureDir = path.join(root, '.testCache', 'tree-sitter-scheduler-plan-path-policy', 'fixtures');
+const outDir = resolveTestCachePath(root, 'tree-sitter-scheduler-plan-path-policy', 'index-code');
+const fixtureDir = resolveTestCachePath(root, 'tree-sitter-scheduler-plan-path-policy', 'fixtures');
 const infraAbs = path.join(fixtureDir, 'workflow.yml');
 const actionAbs = path.join(fixtureDir, 'action.js');
 const vendorAbs = path.join(fixtureDir, 'json.hpp');
@@ -19,7 +21,7 @@ const opencvHeavyAbs = path.join(fixtureDir, 'opencv-heavy.hpp');
 const jsHeavyAbs = path.join(fixtureDir, 'opencv-heavy.js');
 const jsAbs = path.join(root, 'tests', 'fixtures', 'tree-sitter', 'javascript.js');
 
-await fs.rm(path.join(root, '.testCache', 'tree-sitter-scheduler-plan-path-policy'), { recursive: true, force: true });
+await fs.rm(resolveTestCachePath(root, 'tree-sitter-scheduler-plan-path-policy'), { recursive: true, force: true });
 await fs.mkdir(outDir, { recursive: true });
 await fs.mkdir(fixtureDir, { recursive: true });
 await fs.writeFile(infraAbs, 'name: CI\non: push\n', 'utf8');

@@ -6,8 +6,10 @@ import { sha1 } from '../../../src/shared/hash.js';
 import { createTreeSitterSchedulerLookup } from '../../../src/index/build/tree-sitter-scheduler/lookup.js';
 import { resolveTreeSitterSchedulerPaths } from '../../../src/index/build/tree-sitter-scheduler/paths.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const outDir = path.join(root, '.testCache', 'scheduler-binary-row-format', 'index-code');
+const outDir = resolveTestCachePath(root, 'scheduler-binary-row-format', 'index-code');
 await fs.rm(outDir, { recursive: true, force: true });
 const paths = resolveTreeSitterSchedulerPaths(outDir);
 await fs.mkdir(paths.resultsDir, { recursive: true });

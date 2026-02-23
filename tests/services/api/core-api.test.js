@@ -6,9 +6,11 @@ import { buildIndex, search, status } from '../../../src/integrations/core/index
 import { loadChunkMeta, MAX_JSON_BYTES } from '../../../src/shared/artifact-io.js';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const cacheRoot = path.join(root, '.testCache', 'core-api');
+const cacheRoot = resolveTestCachePath(root, 'core-api');
 
 if (!fs.existsSync(fixtureRoot)) {
   console.error(`Fixture not found: ${fixtureRoot}`);

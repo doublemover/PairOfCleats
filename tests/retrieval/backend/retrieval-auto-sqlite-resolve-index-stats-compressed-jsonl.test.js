@@ -5,8 +5,10 @@ import path from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { resolveIndexStats } from '../../../src/retrieval/cli/auto-sqlite.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const indexDir = path.join(root, '.testCache', 'retrieval-auto-sqlite-resolve-index-stats-compressed-jsonl');
+const indexDir = resolveTestCachePath(root, 'retrieval-auto-sqlite-resolve-index-stats-compressed-jsonl');
 await fs.rm(indexDir, { recursive: true, force: true });
 await fs.mkdir(indexDir, { recursive: true });
 

@@ -9,6 +9,8 @@ import { skip } from '../../../helpers/skip.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 import { writePiecesManifest } from '../../../helpers/artifact-io-fixture.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const loadDatabaseCtor = async () => {
   try {
     const loaded = await import('better-sqlite3');
@@ -40,7 +42,7 @@ export const runSqliteJsonlStreamingCompressionCase = async ({
   ensureCompressionSupport(compression);
 
   const root = process.cwd();
-  const tempRoot = path.join(root, '.testCache', tempLabel);
+  const tempRoot = resolveTestCachePath(root, tempLabel);
   const indexDir = path.join(tempRoot, 'index-code');
   const outPath = path.join(tempRoot, 'index-code.db');
 

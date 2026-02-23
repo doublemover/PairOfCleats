@@ -5,8 +5,10 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { repoRoot } from '../../helpers/root.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = repoRoot();
-const cacheRoot = path.join(root, '.testCache', 'config-validate');
+const cacheRoot = resolveTestCachePath(root, 'config-validate');
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 

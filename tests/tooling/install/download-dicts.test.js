@@ -7,9 +7,11 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { attachSilentLogging } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
 const fixturesRoot = path.join(root, 'tests', 'fixtures', 'dicts');
-const tempRoot = path.join(root, '.testCache', 'download-dicts');
+const tempRoot = resolveTestCachePath(root, 'download-dicts');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });

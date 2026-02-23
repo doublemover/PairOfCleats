@@ -7,6 +7,8 @@ import { createCli } from '../../../src/shared/cli.js';
 import { runNode } from '../../helpers/run-node.js';
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
 const fixturesRoot = path.join(root, 'tests', 'fixtures');
 const argv = createCli({
@@ -50,7 +52,7 @@ for (const fixtureName of fixtures) {
     console.error(`Fixture not found: ${fixtureRoot}`);
     process.exit(1);
   }
-  const cacheRoot = path.join(root, '.testCache', `parity-${fixtureName}-${runTag}`);
+  const cacheRoot = resolveTestCachePath(root, `parity-${fixtureName}-${runTag}`);
   console.log(`\nFixture parity: ${fixtureName}`);
   await fsPromises.rm(cacheRoot, { recursive: true, force: true });
   await fsPromises.mkdir(cacheRoot, { recursive: true });

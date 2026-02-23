@@ -5,8 +5,10 @@ import path from 'node:path';
 import { preprocessFiles } from '../../../src/index/build/preprocess.js';
 import { buildIgnoreMatcher } from '../../../src/index/build/ignore.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const cacheRoot = path.join(root, '.testCache', 'preprocess');
+const cacheRoot = resolveTestCachePath(root, 'preprocess');
 await fs.rm(cacheRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(cacheRoot, 'src'), { recursive: true });
 await fs.mkdir(path.join(cacheRoot, 'docs'), { recursive: true });

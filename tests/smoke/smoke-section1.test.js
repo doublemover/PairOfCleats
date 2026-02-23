@@ -2,9 +2,11 @@
 import path from 'node:path';
 import { cleanup, runNode, root } from './smoke-utils.js';
 
+import { resolveTestCachePath } from '../helpers/test-cache.js';
+
 const cacheRoots = [
-  path.join(root, '.testCache', 'core-api'),
-  path.join(root, '.testCache', 'api-health-status')
+  resolveTestCachePath(root, 'core-api'),
+  resolveTestCachePath(root, 'api-health-status')
 ];
 
 let failure = null;

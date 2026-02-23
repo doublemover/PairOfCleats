@@ -3,9 +3,11 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv();
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'code-map-guardrails');
+const tempRoot = resolveTestCachePath(root, 'code-map-guardrails');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 

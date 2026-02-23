@@ -7,6 +7,8 @@ import { writeJsonLinesSharded, writeJsonObjectFile } from '../../../src/shared/
 import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../src/storage/sqlite/build/from-artifacts.js';
 import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 let Database = null;
 try {
   ({ default: Database } = await import('better-sqlite3'));
@@ -16,7 +18,7 @@ try {
 }
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'sqlite-build-memory-guard');
+const tempRoot = resolveTestCachePath(root, 'sqlite-build-memory-guard');
 const indexDir = path.join(tempRoot, 'index-code');
 const outPath = path.join(tempRoot, 'index-code.db');
 

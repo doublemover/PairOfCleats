@@ -6,8 +6,10 @@ import { validateIndexArtifacts } from '../../../src/index/validate.js';
 import { createBaseIndex, defaultUserConfig } from './helpers.js';
 import { updatePiecesManifest } from '../../helpers/pieces-manifest.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'index-validate-jsonl-required');
+const tempRoot = resolveTestCachePath(root, 'index-validate-jsonl-required');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

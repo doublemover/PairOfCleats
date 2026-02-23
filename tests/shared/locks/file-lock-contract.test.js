@@ -5,8 +5,10 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { acquireFileLock, readLockInfo } from '../../../src/shared/locks/file-lock.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'file-lock-contract');
+const tempRoot = resolveTestCachePath(root, 'file-lock-contract');
 const lockPath = path.join(tempRoot, 'contract.lock');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });

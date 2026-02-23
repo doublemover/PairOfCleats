@@ -15,10 +15,12 @@ import {
 } from '../../src/index/diffs/registry.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
 
+import { resolveTestCachePath } from '../helpers/test-cache.js';
+
 applyTestEnv();
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'diffs-registry');
+const tempRoot = resolveTestCachePath(root, 'diffs-registry');
 const repoCacheRoot = path.join(tempRoot, 'repo-cache');
 const diffsRoot = path.join(repoCacheRoot, 'diffs');
 const manifestPath = path.join(diffsRoot, 'manifest.json');

@@ -14,8 +14,10 @@ import {
 } from './helpers/symbol-artifact-fixture.js';
 import { writePiecesManifest } from '../../../helpers/artifact-io-fixture.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'symbol-by-file-index');
+const tempRoot = resolveTestCachePath(root, 'symbol-by-file-index');
 const outDir = path.join(tempRoot, 'out');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(outDir, { recursive: true });

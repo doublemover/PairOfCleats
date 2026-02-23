@@ -8,10 +8,12 @@ import { discoverFiles } from '../../../src/index/build/discover.js';
 import { buildIgnoreMatcher } from '../../../src/index/build/ignore.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'discover-max-files-fdir-no-raw-cap');
+const tempRoot = resolveTestCachePath(root, 'discover-max-files-fdir-no-raw-cap');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
 for (let i = 0; i < 12; i += 1) {

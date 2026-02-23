@@ -6,6 +6,8 @@ import { createLruCache } from '../../../src/shared/cache.js';
 import { createIndexCache } from '../../../src/retrieval/index-cache.js';
 import { createSqliteDbCache } from '../../../src/retrieval/sqlite-cache.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const evictions = [];
 const cache = createLruCache({
   name: 'parity',
@@ -32,7 +34,7 @@ assert.equal(indexCache.get('first'), null);
 assert.deepEqual(indexCache.get('second'), { signature: 's2', value: 2 });
 
 const root = process.cwd();
-const outDir = path.join(root, '.testCache', 'sqlite-cache-parity');
+const outDir = resolveTestCachePath(root, 'sqlite-cache-parity');
 await fsPromises.rm(outDir, { recursive: true, force: true });
 await fsPromises.mkdir(outDir, { recursive: true });
 const dbPath = path.join(outDir, 'index.db');

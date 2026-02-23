@@ -6,8 +6,10 @@ import { stableStringify } from '../../../../src/shared/stable-json.js';
 import { loadGraphRelationsSync } from '../../../../src/shared/artifact-io.js';
 import { enqueueGraphRelationsArtifacts } from '../../../../src/index/build/artifacts/graph-relations.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const root = process.cwd();
-const cacheRoot = path.join(root, '.testCache', 'relations-streaming-build');
+const cacheRoot = resolveTestCachePath(root, 'relations-streaming-build');
 const outA = path.join(cacheRoot, 'a');
 const outB = path.join(cacheRoot, 'b');
 

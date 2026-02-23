@@ -4,8 +4,10 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonWithDir } from '../../../tools/bench/micro/utils.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'bench-micro-baseline');
+const tempRoot = resolveTestCachePath(root, 'bench-micro-baseline');
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 
 const targetPath = path.join(tempRoot, 'nested', 'baseline.json');

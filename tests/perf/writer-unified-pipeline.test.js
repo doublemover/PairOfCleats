@@ -5,8 +5,10 @@ import path from 'node:path';
 import { enqueueCallSitesArtifacts } from '../../src/index/build/artifacts/writers/call-sites.js';
 import { enqueueSymbolsArtifacts } from '../../src/index/build/artifacts/writers/symbols.js';
 
+import { resolveTestCachePath } from '../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'writer-unified-pipeline');
+const tempRoot = resolveTestCachePath(root, 'writer-unified-pipeline');
 const callSitesDir = path.join(tempRoot, 'call-sites');
 const symbolsDir = path.join(tempRoot, 'symbols');
 

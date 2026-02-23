@@ -9,6 +9,8 @@ import { LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../../../src/storage/lmdb/s
 import { resolveLmdbPaths } from '../../../tools/shared/dict-utils.js';
 import { getCombinedOutput } from '../../helpers/stdio.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 let open = null;
 try {
   ({ open } = await import('lmdb'));
@@ -18,7 +20,7 @@ try {
 }
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'lmdb-backend');
+const tempRoot = resolveTestCachePath(root, 'lmdb-backend');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 

@@ -7,10 +7,12 @@ import { buildPostings } from '../../../src/index/build/postings.js';
 import { writeIndexArtifacts } from '../../../src/index/build/artifacts.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv();
 
 const root = process.cwd();
-const testRoot = path.join(root, '.testCache', 'phase18-vector-only-allowlist-safety');
+const testRoot = resolveTestCachePath(root, 'phase18-vector-only-allowlist-safety');
 const outDir = path.join(testRoot, 'index-code');
 await fs.rm(testRoot, { recursive: true, force: true });
 await fs.mkdir(outDir, { recursive: true });

@@ -7,8 +7,10 @@ import { enqueueFileRelationsArtifacts } from '../../../../src/index/build/artif
 import { enqueueCallSitesArtifacts } from '../../../../src/index/build/artifacts/writers/call-sites.js';
 import { validateArtifact } from '../../../../src/shared/artifact-schemas.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const root = process.cwd();
-const cacheRoot = path.join(root, '.testCache', 'sharded-meta-schema');
+const cacheRoot = resolveTestCachePath(root, 'sharded-meta-schema');
 await fs.rm(cacheRoot, { recursive: true, force: true });
 await fs.mkdir(cacheRoot, { recursive: true });
 

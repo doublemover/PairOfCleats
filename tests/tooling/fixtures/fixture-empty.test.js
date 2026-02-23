@@ -7,6 +7,8 @@ import { getIndexDir, loadUserConfig, resolveSqlitePaths } from '../../../tools/
 import { runNode } from '../../helpers/run-node.js';
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'empty');
 const buildIndexPath = path.join(root, 'build_index.js');
@@ -16,7 +18,7 @@ if (!fs.existsSync(fixtureRoot)) {
   process.exit(1);
 }
 
-const cacheRoot = path.join(root, '.testCache', 'fixture-empty');
+const cacheRoot = resolveTestCachePath(root, 'fixture-empty');
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 

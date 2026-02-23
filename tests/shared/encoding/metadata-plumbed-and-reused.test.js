@@ -5,8 +5,10 @@ import assert from 'node:assert/strict';
 import { reuseCachedBundle } from '../../../src/index/build/file-processor/cached-bundle.js';
 import { buildFileMeta } from '../../../src/index/build/artifacts/file-meta.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'encoding-meta');
+const tempRoot = resolveTestCachePath(root, 'encoding-meta');
 const repoRoot = path.join(tempRoot, 'repo');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(repoRoot, { recursive: true });

@@ -11,8 +11,10 @@ import { loadIndex } from '../../../src/retrieval/cli-index.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { rmDirRecursive } from '../../helpers/temp.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'filter-index-artifact');
+const tempRoot = resolveTestCachePath(root, 'filter-index-artifact');
 const repoRoot = path.join(tempRoot, 'repo');
 const srcDir = path.join(repoRoot, 'src');
 

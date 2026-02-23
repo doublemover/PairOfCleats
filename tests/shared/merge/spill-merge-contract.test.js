@@ -11,8 +11,10 @@ import {
   writeMergeRunManifest
 } from '../../../src/shared/merge.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const testRoot = path.join(root, '.testCache', 'spill-merge-contract');
+const testRoot = resolveTestCachePath(root, 'spill-merge-contract');
 await fs.rm(testRoot, { recursive: true, force: true });
 await fs.mkdir(testRoot, { recursive: true });
 

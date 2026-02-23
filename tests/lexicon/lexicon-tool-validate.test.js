@@ -4,6 +4,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
+import { resolveTestCachePath } from '../helpers/test-cache.js';
+
 const root = process.cwd();
 const scriptPath = path.join(root, 'tools', 'lexicon', 'validate.js');
 const schemaPath = path.join(root, 'src', 'lang', 'lexicon', 'language-lexicon-wordlist.schema.json');
@@ -17,7 +19,7 @@ const okPayload = JSON.parse(ok.stdout || '{}');
 assert.equal(okPayload.ok, true, 'expected validate payload ok=true');
 assert.ok(okPayload.counts?.filesScanned >= 1, 'expected at least one lexicon file');
 
-const tempRoot = path.join(root, '.testCache', 'lexicon-tool-validate');
+const tempRoot = resolveTestCachePath(root, 'lexicon-tool-validate');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 await fs.writeFile(

@@ -5,13 +5,14 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { resolveTestCachePath } from '../helpers/test-cache.js';
 
 ensureTestingEnv(process.env);
 
 const root = process.cwd();
 const buildScript = path.join(root, 'tools', 'tui', 'build.js');
-const distRel = path.join('.testCache', 'tui-build-verify', 'dist');
-const distDir = path.join(root, distRel);
+const distDir = resolveTestCachePath(root, 'tui-build-verify', 'dist');
+const distRel = path.relative(root, distDir);
 const manifestPath = path.join(distDir, 'tui-artifacts-manifest.json');
 const checksumPath = `${manifestPath}.sha256`;
 const sha256 = (text) => crypto.createHash('sha256').update(text).digest('hex');

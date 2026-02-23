@@ -8,8 +8,10 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import { rmDirRecursive } from '../../helpers/temp.js';
 import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'query-cache-extracted-prose');
+const tempRoot = resolveTestCachePath(root, 'query-cache-extracted-prose');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 const cacheRootResolved = resolveVersionedCacheRoot(cacheRoot);

@@ -5,6 +5,8 @@ import path from 'node:path';
 import fsSync from 'node:fs';
 import { applyBuildPragmas, restoreBuildPragmas } from '../../../src/storage/sqlite/build/pragmas.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 let Database = null;
 try {
   ({ default: Database } = await import('better-sqlite3'));
@@ -14,7 +16,7 @@ try {
 }
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'sqlite-build-pragmas-restore');
+const tempRoot = resolveTestCachePath(root, 'sqlite-build-pragmas-restore');
 const dbPath = path.join(tempRoot, 'restore.db');
 
 await fs.rm(tempRoot, { recursive: true, force: true });

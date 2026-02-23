@@ -5,8 +5,10 @@ import path from 'node:path';
 import { shouldReuseIncrementalIndex } from '../../../src/index/build/incremental.js';
 import { SIGNATURE_VERSION } from '../../../src/index/build/indexer/signatures.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'incremental-signature-version');
+const tempRoot = resolveTestCachePath(root, 'incremental-signature-version');
 const repoRoot = path.join(tempRoot, 'repo');
 const outDir = path.join(tempRoot, 'out');
 const piecesDir = path.join(outDir, 'pieces');

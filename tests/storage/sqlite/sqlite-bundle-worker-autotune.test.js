@@ -4,13 +4,15 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { sqliteBuildRunnerInternals } from '../../../src/storage/sqlite/build/runner.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const {
   resolveSqliteBundleWorkerProfilePath,
   resolveBundleWorkerAutotune
 } = sqliteBuildRunnerInternals;
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'sqlite-bundle-worker-autotune');
+const tempRoot = resolveTestCachePath(root, 'sqlite-bundle-worker-autotune');
 const bundleDir = path.join(tempRoot, 'bundles');
 
 await fs.rm(tempRoot, { recursive: true, force: true });

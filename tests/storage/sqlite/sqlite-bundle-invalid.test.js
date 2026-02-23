@@ -4,6 +4,8 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { buildDatabaseFromBundles } from '../../../src/storage/sqlite/build/from-bundles.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 let Database;
 try {
   ({ default: Database } = await import('better-sqlite3'));
@@ -13,7 +15,7 @@ try {
 }
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'sqlite-bundle-invalid');
+const tempRoot = resolveTestCachePath(root, 'sqlite-bundle-invalid');
 const bundleDir = path.join(tempRoot, 'bundles');
 const dbPath = path.join(tempRoot, 'index-code.db');
 

@@ -4,6 +4,8 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { updateSqliteDense } from '../../../tools/build/embeddings/sqlite-dense.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 let Database = null;
 try {
   ({ default: Database } = await import('better-sqlite3'));
@@ -13,7 +15,7 @@ try {
 }
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'vector-extension-missing');
+const tempRoot = resolveTestCachePath(root, 'vector-extension-missing');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 await fsPromises.rm(tempRoot, { recursive: true, force: true });

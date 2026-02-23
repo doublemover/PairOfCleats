@@ -5,8 +5,10 @@ import path from 'node:path';
 import { resolveIndexDir } from '../../../src/index/validate/paths.js';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const testRoot = path.join(root, '.testCache', 'resolve-index-dir-artifact-variants');
+const testRoot = resolveTestCachePath(root, 'resolve-index-dir-artifact-variants');
 const repoRoot = path.join(testRoot, 'repo');
 const cacheRoot = path.join(testRoot, 'cache');
 

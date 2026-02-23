@@ -7,12 +7,14 @@ import { getScmCommandRunner, setScmCommandRunner } from '../../../src/index/scm
 import { getScmRuntimeConfig, setScmRuntimeConfig } from '../../../src/index/scm/runtime.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 ensureTestingEnv(process.env);
 
 const defaultRunner = getScmCommandRunner();
 const defaultScmConfig = getScmRuntimeConfig();
 
-const tempRoot = path.join(process.cwd(), '.testCache', 'git-meta-timeout-backoff');
+const tempRoot = resolveTestCachePath(process.cwd(), 'git-meta-timeout-backoff');
 const adaptiveRepoRoot = path.join(tempRoot, 'adaptive-repo');
 const cooldownRepoRoot = path.join(tempRoot, 'cooldown-repo');
 

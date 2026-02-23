@@ -7,9 +7,11 @@ import { getCombinedOutput } from '../../helpers/stdio.js';
 import { getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = path.join(root, '.testCache', 'sqlite-bundle-missing');
+const tempRoot = resolveTestCachePath(root, 'sqlite-bundle-missing');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 

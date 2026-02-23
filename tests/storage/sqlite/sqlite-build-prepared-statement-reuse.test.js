@@ -7,6 +7,8 @@ import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../src/storag
 import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 let Database = null;
@@ -18,7 +20,7 @@ try {
 }
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'sqlite-build-prepared-statement-reuse');
+const tempRoot = resolveTestCachePath(root, 'sqlite-build-prepared-statement-reuse');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });

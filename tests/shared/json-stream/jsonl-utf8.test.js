@@ -4,8 +4,10 @@ import path from 'node:path';
 import { readJsonLinesArray } from '../../../src/shared/artifact-io.js';
 import { writeJsonLinesFile } from '../../../src/shared/json-stream.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'jsonl-utf8');
+const tempRoot = resolveTestCachePath(root, 'jsonl-utf8');
 const jsonlPath = path.join(tempRoot, 'sample.jsonl');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });

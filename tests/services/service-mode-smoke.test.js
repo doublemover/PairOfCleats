@@ -2,6 +2,8 @@
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
+import { resolveTestCachePath } from '../helpers/test-cache.js';
+
 const root = process.cwd();
 
 const run = spawnSync(
@@ -12,7 +14,7 @@ const run = spawnSync(
     encoding: 'utf8',
     env: {
       ...process.env,
-      PAIROFCLEATS_CACHE_ROOT: path.join(root, '.testCache', 'service-mode-smoke')
+      PAIROFCLEATS_CACHE_ROOT: resolveTestCachePath(root, 'service-mode-smoke')
     }
   }
 );

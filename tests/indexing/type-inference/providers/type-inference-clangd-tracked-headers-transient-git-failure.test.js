@@ -6,8 +6,10 @@ import { spawnSync } from 'node:child_process';
 import { listTrackedHeaderPaths } from '../../../../src/index/tooling/clangd-provider.js';
 import { skip } from '../../../helpers/skip.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'clangd-tracked-headers-transient-git-failure');
+const tempRoot = resolveTestCachePath(root, 'clangd-tracked-headers-transient-git-failure');
 const repoRoot = path.join(tempRoot, 'repo');
 
 const gitVersion = spawnSync('git', ['--version'], { encoding: 'utf8' });

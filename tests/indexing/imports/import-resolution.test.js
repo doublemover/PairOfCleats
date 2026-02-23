@@ -4,8 +4,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { resolveImportLinks } from '../../../src/index/build/import-resolution.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'import-resolution');
+const tempRoot = resolveTestCachePath(root, 'import-resolution');
 const srcRoot = path.join(tempRoot, 'src');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(srcRoot, 'a'), { recursive: true });

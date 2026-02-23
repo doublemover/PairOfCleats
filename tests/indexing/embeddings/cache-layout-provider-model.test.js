@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { resolveEmbeddingsCacheBase, resolveEmbeddingsCacheModeDir } from '../../../src/shared/embeddings-cache/layout.js';
 
-const cacheRoot = path.join(process.cwd(), '.testCache', 'cache-layout');
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
+const cacheRoot = resolveTestCachePath(process.cwd(), 'cache-layout');
 const base = resolveEmbeddingsCacheBase({
   cacheRoot,
   provider: 'provider:alpha',

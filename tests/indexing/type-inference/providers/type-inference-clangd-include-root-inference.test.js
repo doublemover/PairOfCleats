@@ -7,8 +7,10 @@ import {
   inferIncludeRootsFromHeaderPaths
 } from '../../../../src/index/tooling/clangd-provider.js';
 
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'clangd-include-root-inference');
+const tempRoot = resolveTestCachePath(root, 'clangd-include-root-inference');
 const repoRoot = path.join(tempRoot, 'repo');
 
 await fs.rm(tempRoot, { recursive: true, force: true });

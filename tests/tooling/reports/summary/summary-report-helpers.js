@@ -10,14 +10,16 @@ import { hasChunkMetaArtifactsSync } from '../../../../src/shared/index-artifact
 import { getRepoId } from '../../../../tools/shared/dict-utils.js';
 
 import { applyTestEnv } from '../../../helpers/test-env.js';
+import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+
 applyTestEnv();
 const ROOT = process.cwd();
-const TEMP_ROOT = path.join(ROOT, '.testCache', 'summary-report');
+const TEMP_ROOT = resolveTestCachePath(ROOT, 'summary-report');
 const CACHE_ROOT = path.join(TEMP_ROOT, 'cache');
 const REPO_ROOT = path.join(TEMP_ROOT, 'repo');
 const FIXTURE_ROOT = path.join(ROOT, 'tests', 'fixtures', 'sample');
 const MARKER_PATH = path.join(TEMP_ROOT, 'build-complete.json');
-const LOCK_PATH = path.join(ROOT, '.testCache', 'summary-report.lock');
+const LOCK_PATH = resolveTestCachePath(ROOT, 'summary-report.lock');
 const REPO_ID = getRepoId(REPO_ROOT);
 
 const DEFAULT_MODEL_ID = 'Xenova/all-MiniLM-L12-v2';

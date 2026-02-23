@@ -4,8 +4,10 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { acquireIndexLock } from '../../../src/index/build/lock.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const baseDir = path.join(root, '.testCache', 'index-lock');
+const baseDir = resolveTestCachePath(root, 'index-lock');
 const repoCacheRoot = path.join(baseDir, 'repo');
 const lockDir = path.join(repoCacheRoot, 'locks');
 const lockPath = path.join(lockDir, 'index.lock');

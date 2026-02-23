@@ -10,8 +10,10 @@ import { buildSqliteIndex } from '../../src/integrations/core/index.js';
 import { createPointerSnapshot } from '../../src/index/snapshots/create.js';
 import { loadUserConfig } from '../../tools/shared/dict-utils.js';
 
+import { resolveTestCachePath } from '../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'sqlite-build-snapshot-service');
+const tempRoot = resolveTestCachePath(root, 'sqlite-build-snapshot-service');
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');

@@ -4,20 +4,22 @@ import path from 'node:path';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
 import { buildReportOutput } from '../../../tools/bench/language/report.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 ensureTestingEnv(process.env);
 
 const now = new Date().toISOString();
 const output = buildReportOutput({
   configPath: path.join(process.cwd(), 'benchmarks', 'repos.json'),
-  cacheRoot: path.join(process.cwd(), '.testCache', 'bench-lang-remediation-cache'),
-  resultsRoot: path.join(process.cwd(), '.testCache', 'bench-lang-remediation-results'),
+  cacheRoot: resolveTestCachePath(process.cwd(), 'bench-lang-remediation-cache'),
+  resultsRoot: resolveTestCachePath(process.cwd(), 'bench-lang-remediation-results'),
   results: [
     {
       language: 'lua',
       tier: 'typical',
       repo: 'lunarmodules/luasocket',
       repoPath: null,
-      outFile: path.join(process.cwd(), '.testCache', 'bench-lang-remediation-results', 'lua', 'luasocket.json'),
+      outFile: resolveTestCachePath(process.cwd(), 'bench-lang-remediation-results', 'lua', 'luasocket.json'),
       summary: {
         generatedAt: now,
         backends: ['memory', 'sqlite'],
@@ -43,7 +45,7 @@ const output = buildReportOutput({
       tier: 'small',
       repo: 'golang/example',
       repoPath: null,
-      outFile: path.join(process.cwd(), '.testCache', 'bench-lang-remediation-results', 'go', 'example.json'),
+      outFile: resolveTestCachePath(process.cwd(), 'bench-lang-remediation-results', 'go', 'example.json'),
       summary: {
         generatedAt: now,
         backends: ['memory', 'sqlite'],
@@ -61,7 +63,7 @@ const output = buildReportOutput({
       tier: 'typical',
       repo: 'expressjs/express',
       repoPath: null,
-      outFile: path.join(process.cwd(), '.testCache', 'bench-lang-remediation-results', 'javascript', 'express.json'),
+      outFile: resolveTestCachePath(process.cwd(), 'bench-lang-remediation-results', 'javascript', 'express.json'),
       summary: {
         generatedAt: now,
         backends: ['memory', 'sqlite'],

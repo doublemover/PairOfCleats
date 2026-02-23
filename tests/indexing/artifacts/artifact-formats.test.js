@@ -4,8 +4,10 @@ import path from 'node:path';
 import { loadIndex } from '../../../src/retrieval/cli-index.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const cacheRoot = path.join(root, '.testCache', 'artifact-formats');
+const cacheRoot = resolveTestCachePath(root, 'artifact-formats');
 
 await fs.rm(cacheRoot, { recursive: true, force: true });
 await fs.mkdir(cacheRoot, { recursive: true });

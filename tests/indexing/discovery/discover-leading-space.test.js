@@ -9,8 +9,10 @@ import { gitProvider } from '../../../src/index/scm/providers/git.js';
 import { repoRoot } from '../../helpers/root.js';
 import { skip } from '../../helpers/skip.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = repoRoot();
-const tempRoot = path.join(root, '.testCache', 'discover-leading-space');
+const tempRoot = resolveTestCachePath(root, 'discover-leading-space');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
 

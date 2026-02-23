@@ -5,6 +5,8 @@ import path from 'node:path';
 import { normalizeWordlistPayload } from '../../src/lang/lexicon/normalize.js';
 import { loadLanguageLexicon } from '../../src/lang/lexicon/load.js';
 
+import { resolveTestCachePath } from '../helpers/test-cache.js';
+
 assert.throws(
   () => normalizeWordlistPayload({
     formatVersion: 1,
@@ -17,7 +19,7 @@ assert.throws(
 );
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'lexicon-ascii-only');
+const tempRoot = resolveTestCachePath(root, 'lexicon-ascii-only');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

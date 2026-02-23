@@ -7,8 +7,10 @@ import { loadChunkMeta, MAX_JSON_BYTES } from '../../../src/shared/artifact-io.j
 import { getIndexDir, loadUserConfig, toRealPathSync } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'unicode-offset');
+const tempRoot = resolveTestCachePath(root, 'unicode-offset');
 const repoRootRaw = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 

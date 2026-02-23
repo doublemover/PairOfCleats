@@ -6,8 +6,10 @@ import { spawnSync } from 'node:child_process';
 import { getIndexDir, getMetricsDir, loadUserConfig, toRealPathSync } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'file-line-guard');
+const tempRoot = resolveTestCachePath(root, 'file-line-guard');
 const repoRootRaw = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 

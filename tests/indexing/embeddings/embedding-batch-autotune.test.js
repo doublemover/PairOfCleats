@@ -5,8 +5,10 @@ import path from 'node:path';
 import { parseBuildArgs } from '../../../src/index/build/args.js';
 import { createBuildRuntime } from '../../../src/index/build/runtime.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'embedding-batch-autotune');
+const tempRoot = resolveTestCachePath(root, 'embedding-batch-autotune');
 const repoRoot = path.join(tempRoot, 'repo');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });

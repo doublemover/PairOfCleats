@@ -2,10 +2,12 @@
 import path from 'node:path';
 import { cleanup, runNode, root } from './smoke-utils.js';
 
+import { resolveTestCachePath } from '../helpers/test-cache.js';
+
 const cacheSuffix = 'smoke-sqlite';
 const cacheRoots = [
-  path.join(root, '.testCache', 'sqlite-incremental', `file-manifest-updates-${cacheSuffix}`),
-  path.join(root, '.testCache', `sqlite-ann-fallback-${cacheSuffix}`)
+  resolveTestCachePath(root, 'sqlite-incremental', `file-manifest-updates-${cacheSuffix}`),
+  resolveTestCachePath(root, `sqlite-ann-fallback-${cacheSuffix}`)
 ];
 
 let failure = null;

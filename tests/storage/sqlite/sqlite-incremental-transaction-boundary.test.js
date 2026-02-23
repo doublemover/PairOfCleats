@@ -8,6 +8,8 @@ import { buildDatabaseFromBundles } from '../../../src/storage/sqlite/build/from
 import { incrementalUpdateDatabase } from '../../../src/storage/sqlite/build/incremental-update.js';
 import { resolveSqliteBatchSize, resolveSqliteIngestPlan } from '../../../src/storage/sqlite/utils.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 let Database = null;
 try {
   ({ default: Database } = await import('better-sqlite3'));
@@ -17,7 +19,7 @@ try {
 }
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'sqlite-incremental-transaction-boundary');
+const tempRoot = resolveTestCachePath(root, 'sqlite-incremental-transaction-boundary');
 const bundleDir = path.join(tempRoot, 'bundles');
 const outPath = path.join(tempRoot, 'index-code.db');
 

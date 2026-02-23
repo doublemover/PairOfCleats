@@ -6,11 +6,13 @@ import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv, syncProcessEnv } from '../../helpers/test-env.js';
 import { loadPiecesManifestPieces, resolvePiecesManifestPath } from '../../helpers/pieces-manifest.js';
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv();
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const cacheRoot = path.join(root, '.testCache', 'manifest-embeddings-pieces');
+const cacheRoot = resolveTestCachePath(root, 'manifest-embeddings-pieces');
 
 const env = {
   ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,

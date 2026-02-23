@@ -5,8 +5,10 @@ import path from 'node:path';
 import { needsIndexArtifacts } from '../../../tools/bench/language/repos.js';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'language-needs-index-artifacts-compressed');
+const tempRoot = resolveTestCachePath(root, 'language-needs-index-artifacts-compressed');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 

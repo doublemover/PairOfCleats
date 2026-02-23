@@ -6,9 +6,11 @@ import { prepareScmFileMetaSnapshot, resolveScmFileMetaSnapshotPath } from '../.
 import { getScmRuntimeConfig, setScmRuntimeConfig } from '../../../src/index/scm/runtime.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 ensureTestingEnv(process.env);
 
-const cacheRoot = path.join(process.cwd(), '.testCache', 'scm-file-meta-snapshot-reuse');
+const cacheRoot = resolveTestCachePath(process.cwd(), 'scm-file-meta-snapshot-reuse');
 const repoRoot = path.join(cacheRoot, 'repo');
 fs.rmSync(cacheRoot, { recursive: true, force: true });
 fs.mkdirSync(repoRoot, { recursive: true });

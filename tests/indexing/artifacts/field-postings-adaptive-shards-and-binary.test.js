@@ -6,10 +6,12 @@ import { buildPostings } from '../../../src/index/build/postings.js';
 import { writeIndexArtifacts } from '../../../src/index/build/artifacts.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
-const testRoot = path.join(root, '.testCache', 'field-postings-adaptive-shards-and-binary');
+const testRoot = resolveTestCachePath(root, 'field-postings-adaptive-shards-and-binary');
 const outDir = path.join(testRoot, 'out');
 
 const createState = () => ({

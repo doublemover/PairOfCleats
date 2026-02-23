@@ -9,8 +9,10 @@ import {
   summarizeUnresolvedImportTaxonomy
 } from '../../../src/index/build/imports.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'import-resolution-language-coverage');
+const tempRoot = resolveTestCachePath(root, 'import-resolution-language-coverage');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 

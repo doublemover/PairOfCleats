@@ -8,8 +8,10 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { loadPiecesManifest } from '../../../src/shared/artifact-io/manifest.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'artifact-write-concurrency-order');
+const tempRoot = resolveTestCachePath(root, 'artifact-write-concurrency-order');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 

@@ -3,9 +3,11 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const cacheRoot = path.join(root, '.testCache', 'bootstrap-json-output');
+const cacheRoot = resolveTestCachePath(root, 'bootstrap-json-output');
 const fakeBin = path.join(cacheRoot, 'fake-bin');
 const fakeNpmScript = path.join(fakeBin, 'fake-npm.js');
 const tailMarker = 'FAKE_NPM_TAIL_MARKER';

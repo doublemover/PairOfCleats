@@ -12,10 +12,12 @@ import {
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { skipIfNativeGrammarsUnavailable } from './native-availability.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
-const outDir = path.join(root, '.testCache', 'tree-sitter-scheduler-native-plan-contract', 'index-code');
+const outDir = resolveTestCachePath(root, 'tree-sitter-scheduler-native-plan-contract', 'index-code');
 const jsAbs = path.join(root, 'tests', 'fixtures', 'tree-sitter', 'javascript.js');
 
 await fs.access(jsAbs);

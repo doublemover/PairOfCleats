@@ -8,8 +8,10 @@ import {
   normalizeSearchOptions
 } from '../../../src/retrieval/cli/normalize-options.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const rootDir = process.cwd();
-const metricsDir = path.join(rootDir, '.testCache', 'ops-config-guardrails');
+const metricsDir = resolveTestCachePath(rootDir, 'ops-config-guardrails');
 
 const normalizeWithConfig = ({ args, userConfig, policy } = {}) => normalizeSearchOptions({
   argv: parseSearchArgs(args || ['hello']),

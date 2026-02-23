@@ -5,13 +5,15 @@ import { createFileScanner } from '../../../src/index/build/file-scan.js';
 import { createFileProcessor } from '../../../src/index/build/file-processor.js';
 import { resolveBinarySkip, resolvePreReadSkip } from '../../../src/index/build/file-processor/skip.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const fail = (message) => {
   console.error(message);
   process.exit(1);
 };
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'file-processor-skip');
+const tempRoot = resolveTestCachePath(root, 'file-processor-skip');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

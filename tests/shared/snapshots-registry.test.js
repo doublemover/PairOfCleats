@@ -12,10 +12,12 @@ import {
 } from '../../src/index/snapshots/registry.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
 
+import { resolveTestCachePath } from '../helpers/test-cache.js';
+
 applyTestEnv();
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'snapshots-registry');
+const tempRoot = resolveTestCachePath(root, 'snapshots-registry');
 const repoCacheRoot = path.join(tempRoot, 'repo-cache');
 const snapshotsRoot = path.join(repoCacheRoot, 'snapshots');
 const manifestPath = path.join(snapshotsRoot, 'manifest.json');

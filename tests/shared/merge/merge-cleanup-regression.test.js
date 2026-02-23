@@ -4,8 +4,10 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { mergeRunsWithPlanner, writeJsonlRunFile } from '../../../src/shared/merge.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'merge-cleanup-regression');
+const tempRoot = resolveTestCachePath(root, 'merge-cleanup-regression');
 
 const compareRows = (a, b) => {
   const left = String(a?.token || '');

@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { runSqliteJsonlStreamingCompressionCase } from './helpers/jsonl-streaming-matrix.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const result = await runSqliteJsonlStreamingCompressionCase({
   compression: 'zstd',
   tempLabel: 'sqlite-jsonl-streaming-zstd'
@@ -22,7 +24,7 @@ if (!result.outPathExists) {
 }
 
 const { default: Database } = await import('better-sqlite3');
-const outPath = path.join(process.cwd(), '.testCache', 'sqlite-jsonl-streaming-zstd', 'index-code.db');
+const outPath = resolveTestCachePath(process.cwd(), 'sqlite-jsonl-streaming-zstd', 'index-code.db');
 const db = new Database(outPath, { readonly: true, fileMustExist: true });
 const chunksIndexRow = db.prepare(
   "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_chunks_file_id'"

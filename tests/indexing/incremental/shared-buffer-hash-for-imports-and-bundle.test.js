@@ -12,10 +12,12 @@ import {
 import { sha1 } from '../../../src/shared/hash.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'incremental-shared-buffer-hash');
+const tempRoot = resolveTestCachePath(root, 'incremental-shared-buffer-hash');
 const bundleDir = path.join(tempRoot, 'incremental', 'code', 'files');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(bundleDir, { recursive: true });

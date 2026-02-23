@@ -7,8 +7,10 @@ import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { loadTokenPostings } from '../../../src/shared/artifact-io/loaders.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const cacheRoot = path.join(root, '.testCache', 'packed-artifact-fastpath');
+const cacheRoot = resolveTestCachePath(root, 'packed-artifact-fastpath');
 const repoRoot = path.join(cacheRoot, 'repo');
 
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });

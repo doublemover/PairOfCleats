@@ -6,6 +6,8 @@ import path from 'node:path';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { resolvePlatformRuntimePreset, runStartupCalibrationProbe } from '../../../src/index/build/runtime/runtime.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv();
 
 const winPreset = resolvePlatformRuntimePreset({
@@ -59,7 +61,7 @@ const disabledPreset = resolvePlatformRuntimePreset({
 assert.equal(disabledPreset.enabled, false, 'expected preset to disable via config');
 assert.equal(disabledPreset.presetId, 'disabled', 'expected disabled preset id');
 
-const tempRoot = path.join(process.cwd(), '.testCache', 'platform-runtime-preset');
+const tempRoot = resolveTestCachePath(process.cwd(), 'platform-runtime-preset');
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });
 

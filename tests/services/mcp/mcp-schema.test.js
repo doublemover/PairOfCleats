@@ -6,11 +6,13 @@ import path from 'node:path';
 import { getToolCatalog, getToolDefs, MCP_SCHEMA_VERSION } from '../../../src/integrations/mcp/defs.js';
 import { stableStringify } from '../../../src/shared/stable-json.js';
 import { DEFAULT_MODEL_ID } from '../../../tools/shared/dict-utils.js';
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv();
 const root = process.cwd();
 const serverPath = path.join(root, 'tools', 'mcp', 'server.js');
 const sampleRepo = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = path.join(root, '.testCache', 'mcp-schema');
+const tempRoot = resolveTestCachePath(root, 'mcp-schema');
 const cacheRoot = path.join(tempRoot, 'cache');
 const emptyRepo = path.join(tempRoot, 'empty');
 const defaultCacheHome = path.join(tempRoot, 'default-cache-home');

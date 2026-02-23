@@ -7,8 +7,10 @@ import { getRepoCacheRoot, loadUserConfig } from '../../../tools/shared/dict-uti
 import { buildIndex } from '../../../src/integrations/core/index.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'stage4-explicit-index-root-no-promotion');
+const tempRoot = resolveTestCachePath(root, 'stage4-explicit-index-root-no-promotion');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 

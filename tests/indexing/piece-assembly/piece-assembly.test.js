@@ -9,6 +9,8 @@ import { rmDirRecursive } from '../../helpers/temp.js';
 import { loadChunkMeta, loadGraphRelationsSync, loadTokenPostings } from '../../../src/shared/artifact-io.js';
 import { stableStringify } from '../../../src/shared/stable-json.js';
 import { loadPiecesManifestPieces, resolvePiecesManifestPath } from '../../helpers/pieces-manifest.js';
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv();
 
 const root = process.cwd();
@@ -21,7 +23,7 @@ if (!fs.existsSync(fixtureRoot)) {
   process.exit(1);
 }
 
-const cacheRoot = path.join(root, '.testCache', 'piece-assembly');
+const cacheRoot = resolveTestCachePath(root, 'piece-assembly');
 const cacheA = path.join(cacheRoot, 'a');
 const cacheB = path.join(cacheRoot, 'b');
 const outputMono = path.join(cacheRoot, 'assembled-single', 'index-code');

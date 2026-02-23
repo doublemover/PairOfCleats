@@ -6,10 +6,12 @@ import { createChunkMetaIterator } from '../../../src/index/build/artifacts/writ
 import { enqueueChunkMetaArtifacts } from '../../../src/index/build/artifacts/writers/chunk-meta/writer.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'chunk-meta-binary-eager-start');
+const tempRoot = resolveTestCachePath(root, 'chunk-meta-binary-eager-start');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });

@@ -6,8 +6,10 @@ import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { MAX_JSON_BYTES, loadJsonArrayArtifactSync } from '../../../src/shared/artifact-io.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'chunkuid-determinism');
+const tempRoot = resolveTestCachePath(root, 'chunkuid-determinism');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRootA = path.join(tempRoot, 'cache-a');
 const cacheRootB = path.join(tempRoot, 'cache-b');

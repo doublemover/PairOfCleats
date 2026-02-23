@@ -3,6 +3,8 @@ import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { repoRoot } from '../../helpers/root.js';
 
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+
 const root = repoRoot();
 const scriptCoveragePath = path.join(root, 'tests', 'tooling', 'script-coverage', 'script-coverage.runner.js');
 
@@ -11,7 +13,7 @@ export const runScriptCoverageGroup = (group) => {
     throw new Error('script coverage group is required');
   }
 
-  const cacheRoot = path.join(root, '.testCache', 'script-coverage-groups', group);
+  const cacheRoot = resolveTestCachePath(root, 'script-coverage-groups', group);
   const env = applyTestEnv({
     testing: '1',
     embeddings: 'stub',
