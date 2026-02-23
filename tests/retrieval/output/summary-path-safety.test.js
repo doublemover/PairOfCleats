@@ -16,6 +16,15 @@ await fs.writeFile(localFile, 'alpha beta gamma delta', 'utf8');
 const localSummary = getBodySummary(repoRoot, { file: 'in-root.txt', start: 0, end: 22 }, 3);
 assert.equal(localSummary, 'alpha beta gamma', 'expected in-root summary extraction to work');
 
+const dotDotPrefixedFile = path.join(repoRoot, '..notes.txt');
+await fs.writeFile(dotDotPrefixedFile, 'inside dotdot prefix file works', 'utf8');
+const dotDotSummary = getBodySummary(repoRoot, { file: '..notes.txt', start: 0, end: 32 }, 4);
+assert.equal(
+  dotDotSummary,
+  'inside dotdot prefix file',
+  'expected in-root ..-prefixed segment summary extraction to work'
+);
+
 const outsideFile = path.join(outsideRoot, 'outside.txt');
 await fs.writeFile(outsideFile, 'outside content should never be read', 'utf8');
 const linkedFile = path.join(repoRoot, 'linked-outside.txt');

@@ -20,6 +20,7 @@ await fs.mkdir(path.join(tempRoot, 'src', 'site'), { recursive: true });
 await fs.mkdir(path.join(tempRoot, 'docs', 'reference'), { recursive: true });
 await fs.mkdir(path.join(tempRoot, 'src', 'deep', 'nested'), { recursive: true });
 await fs.mkdir(path.join(tempRoot, 'logs'), { recursive: true });
+await fs.mkdir(path.join(tempRoot, '..config'), { recursive: true });
 
 const gitCheck = spawnSync('git', ['--version'], { encoding: 'utf8' });
 if (gitCheck.status !== 0) {
@@ -47,6 +48,7 @@ await fs.writeFile(path.join(tempRoot, 'docs', 'reference', 'site.js'), 'console
 await fs.writeFile(path.join(tempRoot, 'docs', 'reference', 'search.json'), '{"hits":[{"title":"docs"}]}\n');
 await fs.writeFile(path.join(tempRoot, 'docs', 'reference', 'site.css'), '.docs { color: #000; }\n');
 await fs.writeFile(path.join(tempRoot, 'logs', 'app.log'), '2024-01-01 12:00:00 started\n');
+await fs.writeFile(path.join(tempRoot, '..config', 'hooks.js'), 'export const hook = true;\n');
 await fs.writeFile(path.join(tempRoot, 'Dockerfile.dev'), 'FROM node:20\n');
 await fs.writeFile(path.join(tempRoot, 'Makefile.in'), 'build:\n\t@echo ok\n');
 runGit(['add', '.']);
@@ -69,6 +71,7 @@ const codeEntries = await discoverFiles({
 });
 const codeRel = codeEntries.map((entry) => entry.rel);
 assert.ok(codeRel.includes('src/app.js'), 'tracked code file missing');
+assert.ok(codeRel.includes('..config/hooks.js'), 'dotdot-prefixed in-root file missing');
 assert.ok(codeRel.includes('Dockerfile.dev'), 'Dockerfile variant missing');
 assert.ok(codeRel.includes('Makefile.in'), 'Makefile variant missing');
 assert.ok(!codeRel.includes('src/untracked.js'), 'untracked file should not be discovered');
@@ -134,6 +137,7 @@ const byMode = await discoverFilesForModes({
   maxFileBytes: null
 });
 assert.ok(byMode.code.some((entry) => entry.rel === 'src/app.js'), 'code mode missing app.js');
+assert.ok(byMode.code.some((entry) => entry.rel === '..config/hooks.js'), 'code mode missing ..config/hooks.js');
 assert.ok(byMode.code.some((entry) => entry.rel === 'src/lib.rs'), 'code mode missing lib.rs');
 assert.ok(byMode.code.some((entry) => entry.rel === 'src/site/index.html'), 'code mode missing non-docs html');
 assert.ok(byMode.prose.some((entry) => entry.rel === 'docs/readme.md'), 'prose mode missing readme');
@@ -142,6 +146,7 @@ assert.ok(byMode.prose.some((entry) => entry.rel === 'docs/reference/site.js'), 
 assert.ok(byMode.prose.some((entry) => entry.rel === 'docs/reference/search.json'), 'prose mode missing docs json');
 assert.ok(byMode.prose.some((entry) => entry.rel === 'docs/reference/site.css'), 'prose mode missing docs css');
 assert.ok(byMode['extracted-prose'].some((entry) => entry.rel === 'src/app.js'), 'extracted-prose missing app.js');
+assert.ok(byMode['extracted-prose'].some((entry) => entry.rel === '..config/hooks.js'), 'extracted-prose missing ..config/hooks.js');
 assert.ok(byMode['extracted-prose'].some((entry) => entry.rel === 'docs/readme.md'), 'extracted-prose missing readme');
 assert.ok(byMode['extracted-prose'].some((entry) => entry.rel === 'docs/reference/index.html'), 'extracted-prose missing docs html');
 assert.ok(byMode['extracted-prose'].some((entry) => entry.rel === 'docs/reference/site.js'), 'extracted-prose missing docs js');

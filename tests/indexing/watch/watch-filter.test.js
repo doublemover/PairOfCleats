@@ -139,6 +139,13 @@ assert.equal(
   'expected path outside root to be excluded'
 );
 
+const dotDotPrefixedPath = path.join(root, '..config', 'module.js');
+assert.equal(
+  isIndexablePath({ absPath: dotDotPrefixedPath, root, ignoreMatcher, modes: ['code'] }),
+  true,
+  'expected in-root ..-prefixed segment to remain indexable'
+);
+
 const mixedModesPath = path.join(root, 'content', 'story.md');
 assert.equal(
   isIndexablePath({ absPath: mixedModesPath, root, ignoreMatcher, modes: ['code', 'prose'] }),
