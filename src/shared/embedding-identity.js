@@ -107,7 +107,8 @@ export const buildEmbeddingIdentity = ({
       executionProviders: normalizeArray(onnxConfig.executionProviders),
       intraOpNumThreads: normalizeInt(onnxConfig.intraOpNumThreads),
       interOpNumThreads: normalizeInt(onnxConfig.interOpNumThreads),
-      graphOptimizationLevel: normalizeString(onnxConfig.graphOptimizationLevel)
+      graphOptimizationLevel: normalizeString(onnxConfig.graphOptimizationLevel),
+      cpuExecutionProviderTuning: onnxConfig.cpuExecutionProviderTuning === false ? false : true
     } : null
   };
   return identity;

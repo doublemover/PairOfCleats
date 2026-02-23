@@ -14,12 +14,29 @@ let transformersModuleLoader = () => import('@xenova/transformers');
 let transformersModulePromise = null;
 const pipelineCache = new Map();
 const adapterCache = new Map();
+let adapterFactory = null;
 
 const isDlopenFailure = (err) => {
   const code = err?.code || err?.cause?.code;
   if (code === 'ERR_DLOPEN_FAILED') return true;
   const message = err?.message || '';
   return message.includes('ERR_DLOPEN_FAILED');
+};
+
+const normalizePrewarmTexts = (value) => {
+  const source = Array.isArray(value)
+    ? value
+    : (typeof value === 'string' ? value.split(/[\r\n,]+/) : null);
+  if (!source) return null;
+  const out = [];
+  const seen = new Set();
+  for (const entry of source) {
+    const text = typeof entry === 'string' ? entry.trim() : '';
+    if (!text || seen.has(text)) continue;
+    seen.add(text);
+    out.push(text);
+  }
+  return out.length ? out : null;
 };
 
 const touchEntry = (entry, ttlMs, now = Date.now()) => {
@@ -52,6 +69,7 @@ const resetEmbeddingAdapterCachesInternal = () => {
   transformersModulePromise = null;
   pipelineCache.clear();
   adapterCache.clear();
+  adapterFactory = createAdapter;
 };
 
 export const __resetEmbeddingAdapterCachesForTests = () => {
@@ -230,6 +248,32 @@ const createAdapter = ({
           throw err;
         }
       },
+      prewarm: async ({
+        tokenizer = true,
+        model = false,
+        texts = null
+      } = {}) => {
+        try {
+          await onnxEmbedder.prewarm({ tokenizer, model, texts });
+        } catch (err) {
+          if (isDlopenFailure(err)) {
+            warnFallback(err);
+            const fallback = ensureFallback();
+            const warmTexts = normalizePrewarmTexts(texts);
+            const shouldWarmModel = model === true;
+            if (shouldWarmModel && warmTexts?.length) {
+              await fallback.embed(warmTexts);
+            } else {
+              const preloadPromise = fallback?.embedderPromise;
+              if (preloadPromise && typeof preloadPromise.then === 'function') {
+                await preloadPromise;
+              }
+            }
+            return;
+          }
+          throw err;
+        }
+      },
       embedderPromise: onnxEmbedder.embedderPromise,
       get provider() {
         return activeProvider;
@@ -241,6 +285,13 @@ const createAdapter = ({
   }
 
   return createXenovaAdapter({ modelId, modelsDir, normalize });
+};
+
+adapterFactory = createAdapter;
+
+export const __setAdapterFactoryForTests = (factory) => {
+  resetEmbeddingAdapterCachesInternal();
+  adapterFactory = typeof factory === 'function' ? factory : createAdapter;
 };
 
 /**
@@ -273,7 +324,7 @@ export function getEmbeddingAdapter(options) {
     touchEntry(cached, ADAPTER_CACHE_TTL_MS, now);
     return cached.adapter;
   }
-  const adapter = createAdapter({
+  const adapter = adapterFactory({
     rootDir: options?.rootDir,
     useStub: options?.useStub === true,
     modelId: options?.modelId,
@@ -301,11 +352,22 @@ export function getEmbeddingAdapter(options) {
 export const warmEmbeddingAdapter = async (options = {}) => {
   const adapter = getEmbeddingAdapter(options);
   if (!adapter) return null;
-  if (options?.preloadModel === false) return adapter;
+  const skipPreload = options?.preloadModel === false;
   try {
-    const preloadPromise = adapter?.embedderPromise;
-    if (preloadPromise && typeof preloadPromise.then === 'function') {
-      await preloadPromise;
+    if (!skipPreload) {
+      const preloadPromise = adapter?.embedderPromise;
+      if (preloadPromise && typeof preloadPromise.then === 'function') {
+        await preloadPromise;
+      }
+    }
+    const shouldPrewarmTokenizer = options?.prewarmTokenizer === true;
+    const shouldPrewarmModel = options?.prewarmModel === true;
+    if ((shouldPrewarmTokenizer || shouldPrewarmModel) && typeof adapter?.prewarm === 'function') {
+      await adapter.prewarm({
+        tokenizer: shouldPrewarmTokenizer,
+        model: shouldPrewarmModel,
+        texts: normalizePrewarmTexts(options?.prewarmTexts)
+      });
     }
   } catch {}
   return adapter;
