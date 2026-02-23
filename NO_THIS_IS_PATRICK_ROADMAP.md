@@ -93,6 +93,8 @@ Note:
   Split `src/index/build/tree-sitter-scheduler/plan.js` into `policy-normalization`, `candidate-ranking`, and `assembly` modules, preserving deterministic plan ordering while reducing repeated rebalance work via cached bucketing context during shard assembly.
 - 2026-02-23T05:29:59.0378464-05:00
   Refactored `src/storage/sqlite/build/runner.js` into `selection-planning`, `execution-orchestration`, and `reporting-state-transitions` modules, preserving sqlite build mode semantics while reducing redundant chunk-meta/output probing and isolating checkpoint/report flow control.
+- 2026-02-23T05:32:16.9516919-05:00
+  Optimized `src/shared/concurrency/scheduler-core.js` queue wait sampling by replacing per-event bounded-array shifts with a fixed-size ring buffer, preserving percentile behavior while reducing completion-path allocation/compaction overhead in long-lived schedulers.
 
 ## Architectural assessment (what needs to change)
 

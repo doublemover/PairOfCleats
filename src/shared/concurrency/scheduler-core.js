@@ -349,6 +349,7 @@ export function createBuildScheduler(input = {}) {
         lastWaitMs: 0,
         waitP95Ms: 0,
         waitSamples: [],
+        waitSampleCursor: 0,
         rejectedMaxPending: 0,
         rejectedMaxPendingBytes: 0
       }
@@ -459,7 +460,10 @@ export function createBuildScheduler(input = {}) {
   /**
    * Track bounded wait-time samples so queue picking can age tail-latency work.
    * The fixed sample cap prevents unbounded growth for long-lived schedulers.
-   * @param {{stats?:{lastWaitMs?:number,waitP95Ms?:number,waitSamples?:number[]}}} queue
+   * Uses a fixed-size ring buffer once the sample cap is reached so long-lived
+   * queues avoid repeated `Array#shift` compaction on every completion.
+   *
+   * @param {{stats?:{lastWaitMs?:number,waitP95Ms?:number,waitSamples?:number[],waitSampleCursor?:number}}} queue
    * @param {number} waitedMs
    */
   const recordQueueWaitTime = (queue, waitedMs) => {
@@ -469,8 +473,17 @@ export function createBuildScheduler(input = {}) {
     const samples = Array.isArray(queue.stats.waitSamples)
       ? queue.stats.waitSamples
       : [];
-    samples.push(normalized);
-    while (samples.length > WAIT_TIME_SAMPLE_LIMIT) samples.shift();
+    if (samples.length < WAIT_TIME_SAMPLE_LIMIT) {
+      samples.push(normalized);
+      queue.stats.waitSampleCursor = samples.length % WAIT_TIME_SAMPLE_LIMIT;
+    } else if (samples.length > 0) {
+      const cursorRaw = Number.isFinite(Number(queue.stats.waitSampleCursor))
+        ? Math.floor(Number(queue.stats.waitSampleCursor))
+        : 0;
+      const cursor = ((cursorRaw % samples.length) + samples.length) % samples.length;
+      samples[cursor] = normalized;
+      queue.stats.waitSampleCursor = (cursor + 1) % samples.length;
+    }
     queue.stats.waitSamples = samples;
     queue.stats.waitP95Ms = resolvePercentile(samples, 0.95);
   };
