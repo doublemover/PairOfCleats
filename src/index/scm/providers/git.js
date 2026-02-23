@@ -29,29 +29,116 @@ import {
   runGitMetaBatchFetch
 } from './git/meta-batch.js';
 
+const SCM_STRING_COMMAND_OPTIONS = Object.freeze({
+  outputMode: 'string',
+  captureStdout: true,
+  captureStderr: true,
+  rejectOnNonZeroExit: false
+});
+
+const compareLexicographically = (left, right) => (
+  left < right ? -1 : left > right ? 1 : 0
+);
+
 const parseNullSeparated = (value) => (
   String(value || '')
     .split('\0')
-    .map((entry) => entry)
     .filter(Boolean)
 );
 
 const parseLines = (value) => (
   String(value || '')
     .split(/\r?\n/)
-    .map((entry) => entry)
     .filter(Boolean)
 );
 
-const ensurePosixList = (entries) => (
-  entries
-    .map((entry) => toPosix(entry))
-    .filter(Boolean)
-);
+const toSortedRepoPosixFiles = (entries, repoRoot) => {
+  const filesPosix = [];
+  for (const entry of Array.isArray(entries) ? entries : []) {
+    const normalized = toRepoPosixPath(toPosix(entry), repoRoot);
+    if (!normalized) continue;
+    filesPosix.push(normalized);
+  }
+  filesPosix.sort(compareLexicographically);
+  return filesPosix;
+};
+
+const toUnavailableResult = () => ({ ok: false, reason: 'unavailable' });
 
 const runGitProviderTask = (task, options = {}) => runGitTask(task, {
   ...options,
   timeoutState: getGitMetaTimeoutState()
+});
+
+const runGitProviderCommand = (args) => runGitProviderTask(() => runScmCommand('git', args, {
+  ...SCM_STRING_COMMAND_OPTIONS
+}));
+
+const buildGitFreshnessGuard = ({ repoRoot, headId = null }) => buildScmFreshnessGuard({
+  provider: 'git',
+  repoRoot,
+  repoHeadId: headId
+});
+
+const appendScopedSubdirArg = (args, { repoRoot, subdir = null }) => {
+  const scoped = subdir ? toRepoPosixPath(subdir, repoRoot) : null;
+  if (scoped) args.push('--', scoped);
+  return args;
+};
+
+const appendDiffRefArgs = (args, { fromRef = null, toRef = null }) => {
+  if (fromRef && toRef) {
+    args.push(fromRef, toRef);
+  } else if (fromRef) {
+    args.push(fromRef);
+  } else if (toRef) {
+    args.push(toRef);
+  }
+  return args;
+};
+
+const parseProviderFileList = ({ stdout, repoRoot, parser }) => (
+  toSortedRepoPosixFiles(parser(stdout), repoRoot)
+);
+
+const normalizeSingleFileMeta = (meta) => ({
+  lastCommitId: typeof meta?.last_commit === 'string' ? meta.last_commit : null,
+  lastModifiedAt: meta?.last_modified || null,
+  lastAuthor: meta?.last_author || null,
+  churn: Number.isFinite(meta?.churn) ? meta.churn : null,
+  churnAdded: Number.isFinite(meta?.churn_added) ? meta.churn_added : null,
+  churnDeleted: Number.isFinite(meta?.churn_deleted) ? meta.churn_deleted : null,
+  churnCommits: Number.isFinite(meta?.churn_commits) ? meta.churn_commits : null
+});
+
+const upsertSingleFileMetaPrefetch = ({ freshnessGuard, config, filePosix, meta }) => {
+  upsertGitMetaPrefetch({
+    freshnessGuard,
+    config,
+    filesPosix: [filePosix],
+    fileMetaByPath: { [filePosix]: meta }
+  });
+};
+
+const getPrefetchMissingFiles = (entry, filesPosix) => (
+  entry?.knownFiles
+    ? filesPosix.filter((filePosix) => !entry.knownFiles.has(filePosix))
+    : filesPosix
+);
+
+const fetchGitMetaBatch = async ({ repoRoot, filesPosix, timeoutMs, config }) => {
+  const fetched = await runGitMetaBatchFetch({
+    repoRoot,
+    filesPosix,
+    timeoutMs,
+    config
+  });
+  return fetched.ok ? fetched : null;
+};
+
+const buildFetchedBatchResponse = (fetched) => ({
+  fileMetaByPath: fetched.fileMetaByPath,
+  diagnostics: fetched.diagnostics || null
 });
 
 const GIT_METADATA_CAPABILITIES = Object.freeze({
@@ -75,23 +162,18 @@ export const gitProvider = {
     return repoRoot ? { ok: true, provider: 'git', repoRoot, detectedBy: 'git-root' } : { ok: false };
   },
   async listTrackedFiles({ repoRoot, subdir = null }) {
-    const args = ['-C', repoRoot, 'ls-files', '-z'];
-    const scoped = subdir ? toRepoPosixPath(subdir, repoRoot) : null;
-    if (scoped) args.push('--', scoped);
-    const result = await runGitProviderTask(() => runScmCommand('git', args, {
-      outputMode: 'string',
-      captureStdout: true,
-      captureStderr: true,
-      rejectOnNonZeroExit: false
-    }));
+    const args = appendScopedSubdirArg(['-C', repoRoot, 'ls-files', '-z'], { repoRoot, subdir });
+    const result = await runGitProviderCommand(args);
     if (result.exitCode !== 0) {
-      return { ok: false, reason: 'unavailable' };
+      return toUnavailableResult();
     }
-    const entries = ensurePosixList(parseNullSeparated(result.stdout))
-      .map((entry) => toRepoPosixPath(entry, repoRoot))
-      .filter(Boolean)
-      .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-    return { filesPosix: entries };
+    return {
+      filesPosix: parseProviderFileList({
+        stdout: result.stdout,
+        repoRoot,
+        parser: parseNullSeparated
+      })
+    };
   },
   async getRepoProvenance({ repoRoot }) {
     const repoProvenance = await getRepoProvenance(repoRoot);
@@ -112,42 +194,29 @@ export const gitProvider = {
     };
   },
   async getChangedFiles({ repoRoot, fromRef = null, toRef = null, subdir = null }) {
-    const args = ['-C', repoRoot, 'diff', '--name-only'];
-    if (fromRef && toRef) {
-      args.push(fromRef, toRef);
-    } else if (fromRef) {
-      args.push(fromRef);
-    } else if (toRef) {
-      args.push(toRef);
-    }
-    const scoped = subdir ? toRepoPosixPath(subdir, repoRoot) : null;
-    if (scoped) args.push('--', scoped);
-    const result = await runGitProviderTask(() => runScmCommand('git', args, {
-      outputMode: 'string',
-      captureStdout: true,
-      captureStderr: true,
-      rejectOnNonZeroExit: false
-    }));
+    const args = appendScopedSubdirArg(
+      appendDiffRefArgs(['-C', repoRoot, 'diff', '--name-only'], { fromRef, toRef }),
+      { repoRoot, subdir }
+    );
+    const result = await runGitProviderCommand(args);
     if (result.exitCode !== 0) {
-      return { ok: false, reason: 'unavailable' };
+      return toUnavailableResult();
     }
-    const entries = ensurePosixList(parseLines(result.stdout))
-      .map((entry) => toRepoPosixPath(entry, repoRoot))
-      .filter(Boolean)
-      .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-    return { filesPosix: entries };
+    return {
+      filesPosix: parseProviderFileList({
+        stdout: result.stdout,
+        repoRoot,
+        parser: parseLines
+      })
+    };
   },
   async getFileMeta({ repoRoot, filePosix, timeoutMs, includeChurn = true, headId = null }) {
     const config = resolveGitConfig({ timeoutState: getGitMetaTimeoutState() });
     const normalizedFilePosix = toRepoPosixPath(filePosix, repoRoot);
     if (!normalizedFilePosix) {
-      return { ok: false, reason: 'unavailable' };
+      return toUnavailableResult();
     }
-    const freshnessGuard = buildScmFreshnessGuard({
-      provider: 'git',
-      repoRoot,
-      repoHeadId: headId
-    });
+    const freshnessGuard = buildGitFreshnessGuard({ repoRoot, headId });
     const cachedMeta = readGitMetaPrefetchValue({
       freshnessGuard,
       config,
@@ -164,28 +233,20 @@ export const gitProvider = {
       includeChurn
     }));
     if (!meta || !meta.last_modified) {
-      upsertGitMetaPrefetch({
+      upsertSingleFileMetaPrefetch({
         freshnessGuard,
         config,
-        filesPosix: [normalizedFilePosix],
-        fileMetaByPath: { [normalizedFilePosix]: createUnavailableFileMeta() }
+        filePosix: normalizedFilePosix,
+        meta: createUnavailableFileMeta()
       });
-      return { ok: false, reason: 'unavailable' };
+      return toUnavailableResult();
     }
-    const normalizedMeta = {
-      lastCommitId: typeof meta.last_commit === 'string' ? meta.last_commit : null,
-      lastModifiedAt: meta.last_modified || null,
-      lastAuthor: meta.last_author || null,
-      churn: Number.isFinite(meta.churn) ? meta.churn : null,
-      churnAdded: Number.isFinite(meta.churn_added) ? meta.churn_added : null,
-      churnDeleted: Number.isFinite(meta.churn_deleted) ? meta.churn_deleted : null,
-      churnCommits: Number.isFinite(meta.churn_commits) ? meta.churn_commits : null
-    };
-    upsertGitMetaPrefetch({
+    const normalizedMeta = normalizeSingleFileMeta(meta);
+    upsertSingleFileMetaPrefetch({
       freshnessGuard,
       config,
-      filesPosix: [normalizedFilePosix],
-      fileMetaByPath: { [normalizedFilePosix]: normalizedMeta }
+      filePosix: normalizedFilePosix,
+      meta: normalizedMeta
     });
     return normalizedMeta;
   },
@@ -195,37 +256,31 @@ export const gitProvider = {
     if (!normalizedFiles.length) {
       return { fileMetaByPath: Object.create(null) };
     }
-    const freshnessGuard = buildScmFreshnessGuard({
-      provider: 'git',
-      repoRoot,
-      repoHeadId: headId
-    });
+    const freshnessGuard = buildGitFreshnessGuard({ repoRoot, headId });
     const canUsePrefetchCache = Boolean(freshnessGuard.key && config.prefetchCacheMaxEntries > 0);
     if (canUsePrefetchCache) {
       const cachedEntry = getGitMetaPrefetchEntry(freshnessGuard, config);
-      const missing = cachedEntry
-        ? normalizedFiles.filter((filePosix) => !cachedEntry.knownFiles.has(filePosix))
-        : normalizedFiles;
+      const missing = getPrefetchMissingFiles(cachedEntry, normalizedFiles);
       if (!missing.length) {
         return buildGitMetaBatchResponseFromEntry({ entry: cachedEntry, filesPosix: normalizedFiles });
       }
       const hydratedResult = await runGitMetaPrefetchTask(freshnessGuard, async () => {
         const reusableEntry = getGitMetaPrefetchEntry(freshnessGuard, config)
           || createGitMetaPrefetchEntry(freshnessGuard);
-        const unresolvedFiles = normalizedFiles.filter((filePosix) => !reusableEntry.knownFiles.has(filePosix));
+        const unresolvedFiles = getPrefetchMissingFiles(reusableEntry, normalizedFiles);
         if (!unresolvedFiles.length) {
           return {
             entry: reusableEntry,
             diagnostics: createBatchDiagnostics()
           };
         }
-        const fetched = await runGitMetaBatchFetch({
+        const fetched = await fetchGitMetaBatch({
           repoRoot,
           filesPosix: unresolvedFiles,
           timeoutMs,
           config
         });
-        if (!fetched.ok) return null;
+        if (!fetched) return null;
         mergeGitMetaPrefetchEntry({
           entry: reusableEntry,
           filesPosix: unresolvedFiles,
@@ -238,7 +293,7 @@ export const gitProvider = {
         };
       });
       if (!hydratedResult?.entry) {
-        return { ok: false, reason: 'unavailable' };
+        return toUnavailableResult();
       }
       return buildGitMetaBatchResponseFromEntry({
         entry: hydratedResult.entry,
@@ -246,19 +301,14 @@ export const gitProvider = {
         diagnostics: hydratedResult.diagnostics || null
       });
     }
-    const fetched = await runGitMetaBatchFetch({
+    const fetched = await fetchGitMetaBatch({
       repoRoot,
       filesPosix: normalizedFiles,
       timeoutMs,
       config
     });
-    if (!fetched.ok) {
-      return { ok: false, reason: 'unavailable' };
-    }
-    return {
-      fileMetaByPath: fetched.fileMetaByPath,
-      diagnostics: fetched.diagnostics || null
-    };
+    if (!fetched) return toUnavailableResult();
+    return buildFetchedBatchResponse(fetched);
   },
   async annotate({ repoRoot, filePosix, timeoutMs, signal, commitId = null }) {
     const absPath = path.join(repoRoot, filePosix);
