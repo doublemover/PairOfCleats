@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { exitLikeChildResult } from './postinstall-exit.js';
 
 function hasPatchFiles(cwd) {
   const patchesDir = path.join(cwd, 'patches');
@@ -80,7 +81,7 @@ function run() {
   }
 
   if (result.status !== 0) {
-    process.exit(Number.isInteger(result.status) ? result.status : 1);
+    exitLikeChildResult(result);
   }
 
   if (!fs.existsSync(rebuildNativeScript)) {
@@ -95,7 +96,7 @@ function run() {
     console.error(`[postinstall] Failed to execute rebuild:native: ${rebuildResult.error.message}`);
     process.exit(1);
   }
-  process.exit(Number.isInteger(rebuildResult.status) ? rebuildResult.status : 1);
+  exitLikeChildResult(rebuildResult);
 }
 
 run();
