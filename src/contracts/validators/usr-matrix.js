@@ -83,6 +83,9 @@ import {
 import {
   buildUsrFrameworkConformanceDashboardReport as buildUsrFrameworkConformanceDashboardReportCore
 } from './usr-matrix/framework-conformance-dashboard.js';
+import {
+  evaluateUsrConformancePromotionReadiness as evaluateUsrConformancePromotionReadinessCore
+} from './usr-matrix/conformance-promotion-readiness.js';
 
 const ajv = createAjv({
   dialect: '2020',
@@ -574,31 +577,6 @@ export function buildUsrFrameworkConformanceDashboardReport({
   });
 }
 
-const TEST_ROLLOUT_LEVELS = Object.freeze(['C0', 'C1']);
-const DEEP_CONFORMANCE_LEVELS = Object.freeze(['C2', 'C3']);
-const FRAMEWORK_CONFORMANCE_LEVELS = Object.freeze(['C4']);
-const PROMOTION_READINESS_LEVELS = Object.freeze([
-  ...TEST_ROLLOUT_LEVELS,
-  ...DEEP_CONFORMANCE_LEVELS,
-  ...FRAMEWORK_CONFORMANCE_LEVELS
-]);
-
-const toConformanceSummaryByLevel = (levelResults) => Object.freeze(
-  Object.fromEntries(
-    levelResults.map((row) => [
-      row.level,
-      Object.freeze({
-        level: row.level,
-        requiredProfileCount: row.requiredProfileCount,
-        failingRequiredProfileCount: row.failingRequiredProfileCount,
-        errorCount: row.errorCount,
-        warningCount: row.warningCount,
-        pass: row.pass
-      })
-    ])
-  )
-);
-
 export function evaluateUsrConformancePromotionReadiness({
   languageProfilesPayload,
   conformanceLevelsPayload,
@@ -606,82 +584,14 @@ export function evaluateUsrConformancePromotionReadiness({
   missingArtifacts = [],
   failingBlockingGateIds = []
 } = {}) {
-  const errors = [];
-  const warnings = [];
-  const blockers = [];
-  const levelResults = [];
-
-  for (const level of PROMOTION_READINESS_LEVELS) {
-    const coverage = validateUsrConformanceLevelCoverage({
-      targetLevel: level,
-      languageProfilesPayload,
-      conformanceLevelsPayload,
-      knownLanes
-    });
-
-    const requiredRows = coverage.rows.filter((row) => row.requiresLevel);
-    const failingRequiredRows = requiredRows.filter((row) => !row.pass);
-
-    const levelPass = coverage.errors.length === 0 && failingRequiredRows.length === 0 && requiredRows.length > 0;
-    levelResults.push({
-      level,
-      requiredProfileCount: requiredRows.length,
-      failingRequiredProfileCount: failingRequiredRows.length,
-      errorCount: coverage.errors.length,
-      warningCount: coverage.warnings.length,
-      pass: levelPass
-    });
-
-    if (coverage.errors.length > 0) {
-      errors.push(...coverage.errors.map((message) => `${level} ${message}`));
-    }
-    if (coverage.warnings.length > 0) {
-      warnings.push(...coverage.warnings.map((message) => `${level} ${message}`));
-    }
-
-    if (!levelPass) {
-      const missingRows = requiredRows.length === 0;
-      const levelReason = missingRows
-        ? 'no required profiles'
-        : (coverage.errors[0] || `${failingRequiredRows.length} required profiles failing`);
-
-      if (TEST_ROLLOUT_LEVELS.includes(level)) {
-        blockers.push(`missing-test-rollout-readiness:${level}:${levelReason}`);
-      }
-      if (DEEP_CONFORMANCE_LEVELS.includes(level)) {
-        blockers.push(`missing-deep-conformance-readiness:${level}:${levelReason}`);
-      }
-      if (FRAMEWORK_CONFORMANCE_LEVELS.includes(level)) {
-        blockers.push(`missing-framework-conformance-readiness:${level}:${levelReason}`);
-      }
-    }
-  }
-
-  for (const artifactId of asStringArray(missingArtifacts)) {
-    blockers.push(`missing-artifact:${artifactId}`);
-  }
-  for (const gateId of asStringArray(failingBlockingGateIds)) {
-    blockers.push(`failing-gate:${gateId}`);
-  }
-
-  const uniqueBlockers = [...new Set(blockers)];
-  const testRolloutBlocked = uniqueBlockers.some((blocker) => blocker.startsWith('missing-test-rollout-readiness:'));
-  const deepConformanceBlocked = uniqueBlockers.some((blocker) => blocker.startsWith('missing-deep-conformance-readiness:'));
-  const frameworkConformanceBlocked = uniqueBlockers.some((blocker) => blocker.startsWith('missing-framework-conformance-readiness:'));
-
-  return {
-    ok: uniqueBlockers.length === 0,
-    blocked: uniqueBlockers.length > 0,
-    blockers: Object.freeze(uniqueBlockers),
-    errors: Object.freeze([...errors]),
-    warnings: Object.freeze([...warnings]),
-    conformanceByLevel: toConformanceSummaryByLevel(levelResults),
-    readiness: Object.freeze({
-      testRolloutBlocked,
-      deepConformanceBlocked,
-      frameworkConformanceBlocked
-    })
-  };
+  return evaluateUsrConformancePromotionReadinessCore({
+    languageProfilesPayload,
+    conformanceLevelsPayload,
+    knownLanes,
+    missingArtifacts,
+    failingBlockingGateIds,
+    validateConformanceLevelCoverage: validateUsrConformanceLevelCoverage
+  });
 }
 
 const REQUIRED_OPERATIONAL_PHASES = Object.freeze(['pre-cutover', 'cutover', 'incident', 'post-cutover']);
