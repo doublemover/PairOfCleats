@@ -3,12 +3,11 @@ import {
   buildChunkInfo,
   buildGraphNodeIndex,
   buildImportGraphIndex,
-  buildReverseAdjacencyCsr,
   buildSymbolEdgesIndex,
   normalizeFileRef,
   normalizeImportPath
 } from './indexes.js';
-import { normalizeCap, normalizeDepth } from '../shared/limits.js';
+import { normalizeDepth } from '../shared/limits.js';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
 import { compareStrings } from '../shared/sort.js';
 import { createTruncationRecorder } from '../shared/truncation.js';
@@ -16,283 +15,26 @@ import {
   compareGraphEdges,
   compareGraphNodes,
   compareWitnessPaths,
-  edgeKey,
   nodeKey
 } from './ordering.js';
 import { createWorkBudget } from './work-budget.js';
-
-const GRAPH_EDGE_TYPES = {
-  callGraph: 'call',
-  usageGraph: 'usage',
-  importGraph: 'import'
-};
-
-const GRAPH_NODE_TYPES = {
-  callGraph: 'chunk',
-  usageGraph: 'chunk',
-  importGraph: 'file'
-};
-
-const GRAPH_NAMES = new Set(['callGraph', 'usageGraph', 'importGraph', 'symbolEdges']);
-const EDGE_TYPE_ALIASES = new Map([
-  ['calls', 'call'],
-  ['call', 'call'],
-  ['imports', 'import'],
-  ['import', 'import'],
-  ['usages', 'usage'],
-  ['usage', 'usage'],
-  ['exports', 'export'],
-  ['export', 'export'],
-  ['dataflow', 'dataflow'],
-  ['symbols', 'symbol'],
-  ['symbol', 'symbol']
-]);
-const KNOWN_EDGE_TYPES = new Set(['call', 'usage', 'import', 'export', 'dataflow', 'symbol']);
+import { getCachedValue, setCachedValue } from './neighborhood/cache.js';
+import { normalizeCaps, normalizeDirection, applyCandidateCap } from './neighborhood/caps.js';
+import {
+  GRAPH_EDGE_TYPES,
+  GRAPH_NAMES,
+  GRAPH_NODE_TYPES,
+  createEdgeFilterPredicate,
+  normalizeEdgeFilter
+} from './neighborhood/filter.js';
+import { dedupeSortedEdges, edgeKeyFromIndex, isEdgeBetter } from './neighborhood/edge-policy.js';
+import { formatEvidence, resolveNodeMeta, resolveSeedNodeRef } from './neighborhood/seed-meta.js';
+import { validateGraphCounts } from './neighborhood/validation.js';
+import { createGraphNeighborResolver, resolveSymbolNeighbors } from './neighborhood/walker.js';
 
 const TRAVERSAL_CACHE_MAX = 32;
 
-const getCachedValue = (cache, key) => {
-  if (!cache || !key) return null;
-  if (!cache.has(key)) return null;
-  const value = cache.get(key);
-  cache.delete(key);
-  cache.set(key, value);
-  return value;
-};
-
-const setCachedValue = (cache, key, value, maxSize) => {
-  if (!cache || !key) return;
-  if (cache.has(key)) cache.delete(key);
-  cache.set(key, value);
-  let evictions = 0;
-  while (cache.size > maxSize) {
-    const oldest = cache.keys().next().value;
-    cache.delete(oldest);
-    evictions += 1;
-  }
-  return evictions;
-};
-
-const normalizeCaps = (caps) => ({
-  maxDepth: normalizeCap(caps?.maxDepth),
-  maxFanoutPerNode: normalizeCap(caps?.maxFanoutPerNode),
-  maxNodes: normalizeCap(caps?.maxNodes),
-  maxEdges: normalizeCap(caps?.maxEdges),
-  maxPaths: normalizeCap(caps?.maxPaths),
-  maxCandidates: normalizeCap(caps?.maxCandidates),
-  maxWorkUnits: normalizeCap(caps?.maxWorkUnits),
-  maxWallClockMs: normalizeCap(caps?.maxWallClockMs)
-});
-
-const normalizeDirection = (value) => {
-  const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
-  if (raw === 'in' || raw === 'out' || raw === 'both') return raw;
-  return 'both';
-};
-
-const normalizeFilterList = (value) => {
-  if (!value) return [];
-  if (Array.isArray(value)) return value.map((entry) => String(entry)).filter(Boolean);
-  return String(value)
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-};
-
-const normalizeEdgeType = (value) => {
-  const raw = String(value || '').trim().toLowerCase();
-  if (!raw) return null;
-  return EDGE_TYPE_ALIASES.get(raw) || raw;
-};
-
-const normalizeEdgeFilter = (edgeFilters) => {
-  const graphs = normalizeFilterList(edgeFilters?.graphs);
-  const edgeTypesRaw = normalizeFilterList(edgeFilters?.edgeTypes);
-  const edgeTypes = [];
-  const unknownGraphs = [];
-  const unknownEdgeTypes = [];
-  for (const entry of graphs) {
-    if (!GRAPH_NAMES.has(entry)) unknownGraphs.push(entry);
-  }
-  for (const entry of edgeTypesRaw) {
-    const normalized = normalizeEdgeType(entry);
-    if (!normalized || !KNOWN_EDGE_TYPES.has(normalized)) {
-      unknownEdgeTypes.push(entry);
-      continue;
-    }
-    edgeTypes.push(normalized);
-  }
-  const minConfidenceRaw = Number(edgeFilters?.minConfidence);
-  const minConfidence = Number.isFinite(minConfidenceRaw) ? minConfidenceRaw : null;
-  return {
-    graphs: graphs.length ? new Set(graphs) : null,
-    edgeTypes: edgeTypes.length ? new Set(edgeTypes) : null,
-    minConfidence,
-    unknownGraphs,
-    unknownEdgeTypes,
-    normalizedEdgeTypes: edgeTypes
-  };
-};
-
-const isEdgeBetter = (candidate, current) => {
-  if (!current) return true;
-  const candConf = Number.isFinite(candidate?.confidence) ? candidate.confidence : null;
-  const currConf = Number.isFinite(current?.confidence) ? current.confidence : null;
-  if (candConf != null && currConf != null && candConf !== currConf) {
-    return candConf > currConf;
-  }
-  if (candConf != null && currConf == null) return true;
-  if (candConf == null && currConf != null) return false;
-  const candEvidence = candidate?.evidence && Object.keys(candidate.evidence).length > 0;
-  const currEvidence = current?.evidence && Object.keys(current.evidence).length > 0;
-  if (candEvidence !== currEvidence) return candEvidence;
-  return false;
-};
-
-const dedupeSortedEdges = (sortedEdges) => {
-  if (!Array.isArray(sortedEdges) || sortedEdges.length <= 1) return sortedEdges || [];
-  const deduped = [];
-  let lastKey = null;
-  let best = null;
-  for (const edge of sortedEdges) {
-    const key = edgeKey(edge);
-    if (key !== lastKey) {
-      if (best) deduped.push(best);
-      best = edge;
-      lastKey = key;
-      continue;
-    }
-    if (isEdgeBetter(edge, best)) best = edge;
-  }
-  if (best) deduped.push(best);
-  return deduped;
-};
-
-const validateGraphCounts = (graphRelations, warnings) => {
-  if (!graphRelations || typeof graphRelations !== 'object') return;
-  for (const graphName of ['callGraph', 'usageGraph', 'importGraph']) {
-    const graph = graphRelations[graphName];
-    if (!graph || typeof graph !== 'object') continue;
-    const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
-    const invalidNodes = [];
-    if (Number.isFinite(graph.nodeCount) && graph.nodeCount !== nodes.length) {
-      warnings.push({
-        code: 'GRAPH_COUNT_MISMATCH',
-        message: `${graphName} nodeCount does not match node list length.`,
-        data: { graph: graphName, expected: graph.nodeCount, actual: nodes.length }
-      });
-    }
-    if (Number.isFinite(graph.edgeCount)) {
-      let actualEdges = 0;
-      for (const node of nodes) {
-        if (!node || typeof node.id !== 'string' || !Array.isArray(node.out) || !Array.isArray(node.in)) {
-          if (invalidNodes.length < 3) {
-            invalidNodes.push({ id: node?.id ?? null });
-          }
-        }
-        const out = Array.isArray(node?.out) ? node.out.length : 0;
-        actualEdges += out;
-      }
-      if (graph.edgeCount !== actualEdges) {
-        warnings.push({
-          code: 'GRAPH_COUNT_MISMATCH',
-          message: `${graphName} edgeCount does not match out-edge totals.`,
-          data: { graph: graphName, expected: graph.edgeCount, actual: actualEdges }
-        });
-      }
-    }
-    if (invalidNodes.length) {
-      warnings.push({
-        code: 'GRAPH_NODE_INVALID',
-        message: `${graphName} nodes missing required id/out/in fields.`,
-        data: { graph: graphName, samples: invalidNodes }
-      });
-    }
-  }
-};
-
-
-const createEdgeFilterPredicate = ({ graphFilter, edgeTypeFilter, minConfidence }) => (
-  ({ graph, edgeType, confidence }) => {
-    if (graphFilter && !graphFilter.has(graph)) return false;
-    if (edgeTypeFilter && !edgeTypeFilter.has(String(edgeType || '').toLowerCase())) return false;
-    if (minConfidence != null && confidence != null && confidence < minConfidence) return false;
-    return true;
-  }
-);
-
 const buildGraphIndex = buildGraphNodeIndex;
-
-const resolveSeedNodeRef = (seed) => {
-  if (!seed || typeof seed !== 'object') return null;
-  if (seed.type && typeof seed.type === 'string') return seed;
-  const status = seed.status;
-  if (status && seed.resolved && typeof seed.resolved === 'object') {
-    const resolved = seed.resolved;
-    if (resolved.chunkUid) return { type: 'chunk', chunkUid: resolved.chunkUid };
-    if (resolved.symbolId) return { type: 'symbol', symbolId: resolved.symbolId };
-    if (resolved.path) return { type: 'file', path: resolved.path };
-  }
-  const candidates = Array.isArray(seed.candidates) ? seed.candidates : [];
-  for (const candidate of candidates) {
-    if (!candidate || typeof candidate !== 'object') continue;
-    if (candidate.chunkUid) return { type: 'chunk', chunkUid: candidate.chunkUid };
-    if (candidate.symbolId) return { type: 'symbol', symbolId: candidate.symbolId };
-    if (candidate.path) return { type: 'file', path: candidate.path };
-  }
-  return null;
-};
-
-const applyCandidateCap = (ref, maxCandidates, recordTruncation) => {
-  if (!ref || typeof ref !== 'object') return ref;
-  if (!Number.isFinite(maxCandidates) || maxCandidates == null) return ref;
-  if (!Array.isArray(ref.candidates) || ref.candidates.length <= maxCandidates) return ref;
-  recordTruncation('maxCandidates', {
-    limit: maxCandidates,
-    observed: ref.candidates.length,
-    omitted: ref.candidates.length - maxCandidates
-  });
-  return {
-    ...ref,
-    candidates: ref.candidates.slice(0, maxCandidates)
-  };
-};
-
-const resolveNodeMeta = (ref, chunkInfo, importGraphIndex, normalizeImport) => {
-  if (!ref || typeof ref !== 'object') return {};
-  if (ref.type === 'chunk') {
-    const meta = chunkInfo.get(ref.chunkUid);
-    return meta ? {
-      file: meta.file ?? null,
-      kind: meta.kind ?? null,
-      name: meta.name ?? null,
-      signature: meta.signature ?? null
-    } : {};
-  }
-  if (ref.type === 'file') {
-    const normalizedPath = normalizeImport(ref.path);
-    const meta = normalizedPath ? importGraphIndex.get(normalizedPath) : null;
-    const file = normalizeImport(meta?.file || ref.path) || ref.path;
-    return { file };
-  }
-  if (ref.type === 'symbol') {
-    return {
-      name: ref.symbolId
-    };
-  }
-  return {};
-};
-
-const formatEvidence = (edgeType, fromRef, toRef, callSiteIndex) => {
-  if (edgeType !== 'call') return null;
-  if (!fromRef || !toRef) return null;
-  if (fromRef.type !== 'chunk' || toRef.type !== 'chunk') return null;
-  const key = `${fromRef.chunkUid}|${toRef.chunkUid}`;
-  const list = callSiteIndex.get(key);
-  if (!list || !list.length) return null;
-  const ids = list.slice(0, 25);
-  return { callSiteIds: ids };
-};
 
 export const buildGraphNeighborhood = ({
   seed,
@@ -572,9 +314,7 @@ export const buildGraphNeighborhood = ({
   };
 
   const addEdge = (edge) => {
-    const key = graphIndexEffective
-      ? edgeKeyFromIndex(edge, graphIndexEffective)
-      : edgeKey(edge);
+    const key = edgeKeyFromIndex(edge, graphIndexEffective, normalizeImport);
     if (!key) return false;
     if (!edgeByKey.has(key) && normalizedCaps.maxEdges != null && edgeByKey.size >= normalizedCaps.maxEdges) {
       recordTruncation('maxEdges', {
@@ -634,162 +374,7 @@ export const buildGraphNeighborhood = ({
       message: 'Requested graphs were excluded by filters.'
     });
   }
-
-  const ensureReverseCsr = (graphName) => {
-    if (!graphIndexEffective?.graphRelationsCsr || !graphName) return null;
-    const forward = graphIndexEffective.graphRelationsCsr[graphName];
-    if (!forward || !(forward.offsets instanceof Uint32Array) || !(forward.edges instanceof Uint32Array)) return null;
-    const cache = graphIndexEffective._csrReverse || (graphIndexEffective._csrReverse = {});
-    if (cache[graphName]) return cache[graphName];
-    const reverse = buildReverseAdjacencyCsr({ offsets: forward.offsets, edges: forward.edges });
-    if (!reverse) return null;
-    cache[graphName] = reverse;
-    return reverse;
-  };
-
-  const mergeSortedUniqueStrings = (left, right) => {
-    const out = [];
-    let i = 0;
-    let j = 0;
-    let last = null;
-    while (i < left.length || j < right.length) {
-      const pickLeft = j >= right.length
-        || (i < left.length && compareStrings(left[i], right[j]) <= 0);
-      const value = pickLeft ? left[i++] : right[j++];
-      if (!value || value === last) continue;
-      out.push(value);
-      last = value;
-    }
-    return out;
-  };
-
-  const collectCsrNeighborIds = ({ ids, offsets, edges, nodeIndex }) => {
-    if (!Array.isArray(ids)) return [];
-    if (!(offsets instanceof Uint32Array) || !(edges instanceof Uint32Array)) return [];
-    if (!Number.isFinite(nodeIndex) || nodeIndex < 0 || nodeIndex + 1 >= offsets.length) return [];
-    const start = offsets[nodeIndex];
-    const end = offsets[nodeIndex + 1];
-    if (end <= start) return [];
-    const neighbors = [];
-    let prev = null;
-    for (let idx = start; idx < end; idx += 1) {
-      const neighborIndex = edges[idx];
-      if (prev != null && neighborIndex === prev) continue;
-      prev = neighborIndex;
-      const neighborId = ids[neighborIndex];
-      if (neighborId) neighbors.push(neighborId);
-    }
-    return neighbors;
-  };
-
-  const resolveCsrNeighbors = (graphName, nodeId, dir, normalizeNeighborId = null) => {
-    const csr = graphIndexEffective?.graphRelationsCsr;
-    if (!csr || !graphName) return null;
-    const graph = csr[graphName];
-    if (!graph || !Array.isArray(graph.ids)) return null;
-    const idTable = graphName === 'callGraph'
-      ? graphIndexEffective.callGraphIds
-      : graphName === 'usageGraph'
-        ? graphIndexEffective.usageGraphIds
-        : graphIndexEffective.importGraphIds;
-    const nodeIndex = idTable?.idToIndex?.get(nodeId);
-    if (nodeIndex == null) return [];
-    if (dir === 'out') {
-      const out = collectCsrNeighborIds({ ...graph, nodeIndex });
-      if (!normalizeNeighborId) return out;
-      const set = new Set();
-      for (const entry of out) {
-        const normalized = normalizeNeighborId(entry);
-        if (normalized) set.add(normalized);
-      }
-      const list = Array.from(set);
-      list.sort(compareStrings);
-      return list;
-    }
-    if (dir === 'in') {
-      const reverse = ensureReverseCsr(graphName);
-      if (!reverse) return [];
-      const incoming = collectCsrNeighborIds({
-        ids: graph.ids,
-        offsets: reverse.offsets,
-        edges: reverse.edges,
-        nodeIndex
-      });
-      if (!normalizeNeighborId) return incoming;
-      const set = new Set();
-      for (const entry of incoming) {
-        const normalized = normalizeNeighborId(entry);
-        if (normalized) set.add(normalized);
-      }
-      const list = Array.from(set);
-      list.sort(compareStrings);
-      return list;
-    }
-    const out = resolveCsrNeighbors(graphName, nodeId, 'out', normalizeNeighborId) || [];
-    const incoming = resolveCsrNeighbors(graphName, nodeId, 'in', normalizeNeighborId) || [];
-    if (!out.length) return incoming;
-    if (!incoming.length) return out;
-    return mergeSortedUniqueStrings(out, incoming);
-  };
-
-  const resolveGraphNeighbors = (
-    graphNodes,
-    nodeId,
-    dir,
-    normalizeNeighborId = null,
-    adjacencyIndex = null,
-    graphName = null
-  ) => {
-    const csrNeighbors = resolveCsrNeighbors(graphName, nodeId, dir, normalizeNeighborId);
-    if (csrNeighbors) return csrNeighbors;
-    if (adjacencyIndex && adjacencyIndex.has(nodeId)) {
-      const entry = adjacencyIndex.get(nodeId);
-      if (!entry) return [];
-      if (dir === 'out') return entry.out || [];
-      if (dir === 'in') return entry.in || [];
-      if (entry.both) return entry.both;
-      const out = Array.isArray(entry.out) ? entry.out : [];
-      const incoming = Array.isArray(entry.in) ? entry.in : [];
-      if (!out.length && !incoming.length) return [];
-      const set = new Set();
-      for (const neighbor of out) set.add(neighbor);
-      for (const neighbor of incoming) set.add(neighbor);
-      const list = Array.from(set);
-      list.sort(compareStrings);
-      return list;
-    }
-    const node = graphNodes.get(nodeId);
-    if (!node) return [];
-    const out = Array.isArray(node.out) ? node.out : [];
-    const incoming = Array.isArray(node.in) ? node.in : [];
-    let neighbors = [];
-    if (dir === 'out') neighbors = out;
-    else if (dir === 'in') neighbors = incoming;
-    else neighbors = out.concat(incoming);
-    const set = new Set();
-    for (const neighbor of neighbors) {
-      if (!neighbor) continue;
-      const normalized = normalizeNeighborId ? normalizeNeighborId(neighbor) : neighbor;
-      if (!normalized) continue;
-      set.add(normalized);
-    }
-    const list = Array.from(set);
-    list.sort(compareStrings);
-    return list;
-  };
-
-  const resolveSymbolNeighbors = (ref, dir) => {
-    if (!hasSymbolEdges) return [];
-    if (ref.type === 'chunk') {
-      if (dir === 'in') return [];
-      return symbolIndex.byChunk.get(ref.chunkUid) || [];
-    }
-    if (ref.type === 'symbol') {
-      if (dir === 'out') return [];
-      return symbolIndex.bySymbol.get(ref.symbolId) || [];
-    }
-    return [];
-  };
+  const resolveGraphNeighbors = createGraphNeighborResolver({ graphIndex: graphIndexEffective });
 
   const missingImportFiles = new Set();
   const resolveImportSourceId = (ref) => {
@@ -809,38 +394,6 @@ export const buildGraphNeighborhood = ({
       return normalizeImport(meta?.file || null);
     }
     return null;
-  };
-
-  const edgeKeyFromIndex = (edge, index) => {
-    if (!edge || typeof edge !== 'object' || !edge.graph) return edgeKey(edge);
-    const graphName = edge.graph;
-    if (graphName === 'callGraph') {
-      const fromId = index.callGraphIds?.idToIndex?.get(edge.from?.chunkUid || '');
-      const toId = index.callGraphIds?.idToIndex?.get(edge.to?.chunkUid || '');
-      if (fromId != null && toId != null) {
-        return `callGraph|${fromId}|${edge.edgeType || ''}|${toId}`;
-      }
-      return edgeKey(edge);
-    }
-    if (graphName === 'usageGraph') {
-      const fromId = index.usageGraphIds?.idToIndex?.get(edge.from?.chunkUid || '');
-      const toId = index.usageGraphIds?.idToIndex?.get(edge.to?.chunkUid || '');
-      if (fromId != null && toId != null) {
-        return `usageGraph|${fromId}|${edge.edgeType || ''}|${toId}`;
-      }
-      return edgeKey(edge);
-    }
-    if (graphName === 'importGraph') {
-      const fromPath = normalizeImport(edge.from?.path) || edge.from?.path || '';
-      const toPath = normalizeImport(edge.to?.path) || edge.to?.path || '';
-      const fromId = index.importGraphIds?.idToIndex?.get(fromPath);
-      const toId = index.importGraphIds?.idToIndex?.get(toPath);
-      if (fromId != null && toId != null) {
-        return `importGraph|${fromId}|${edge.edgeType || ''}|${toId}`;
-      }
-      return edgeKey(edge);
-    }
-    return edgeKey(edge);
   };
 
   let queueIndex = 0;
@@ -948,7 +501,12 @@ export const buildGraphNeighborhood = ({
     }
 
     if (includeGraph('symbolEdges') && hasSymbolEdges) {
-      const symbolNeighbors = resolveSymbolNeighbors(currentRef, normalizedDirection);
+      const symbolNeighbors = resolveSymbolNeighbors(
+        hasSymbolEdges,
+        symbolIndex,
+        currentRef,
+        normalizedDirection
+      );
       for (const entry of symbolNeighbors) {
         if (!entry?.edge || !entry?.toRef) continue;
         const edgeType = entry.edge.type || 'symbol';
