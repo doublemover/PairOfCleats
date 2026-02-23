@@ -28,6 +28,7 @@ assert.deepEqual(
 );
 
 assert.equal(classifyBenchProgressConfidence(Number.NaN), 'unknown', 'non-numeric confidence should be unknown');
+assert.equal(classifyBenchProgressConfidence(null), 'unknown', 'null confidence should be unknown');
 assert.equal(classifyBenchProgressConfidence(1), 'high', '1.0 confidence should be high');
 assert.equal(classifyBenchProgressConfidence(0.75), 'high', 'high threshold should be inclusive');
 assert.equal(classifyBenchProgressConfidence(0.74), 'medium', 'score below high threshold should be medium');
@@ -35,6 +36,7 @@ assert.equal(classifyBenchProgressConfidence(0.5), 'medium', 'medium threshold s
 assert.equal(classifyBenchProgressConfidence(0.49), 'low', 'score below medium threshold should be low');
 
 assert.equal(formatBenchProgressConfidence(undefined), 'unknown', 'undefined confidence should be unknown');
+assert.equal(formatBenchProgressConfidence(null), 'unknown', 'null confidence should be unknown');
 assert.equal(formatBenchProgressConfidence(0.9), 'high 90.0%', 'high confidence should include formatted percentage');
 assert.equal(formatBenchProgressConfidence(0.6), 'medium 60.0%', 'medium confidence should include formatted percentage');
 assert.equal(formatBenchProgressConfidence(0.2), 'low 20.0%', 'low confidence should include formatted percentage');
@@ -86,5 +88,10 @@ assert.equal(partial.bucket, 'low', 'expected partial confidence to weight avail
 assert.equal(partial.text, 'low 32.7%', 'expected normalized score when only subset of components are present');
 assert.equal(partial.components.queueAge.score, null, 'expected missing component score to remain null');
 assert.equal(partial.components.inFlightSpread.score, null, 'expected missing component score to remain null');
+
+const empty = computeBenchProgressConfidence({});
+assert.equal(empty.score, null, 'expected empty confidence payload to report null score');
+assert.equal(empty.bucket, 'unknown', 'expected empty confidence payload to classify as unknown');
+assert.equal(empty.text, 'unknown', 'expected empty confidence payload to format as unknown');
 
 console.log('bench language progress confidence test passed');
