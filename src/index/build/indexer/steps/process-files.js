@@ -10,7 +10,6 @@ import { log, logLine, showProgress } from '../../../../shared/progress.js';
 import { createTimeoutError, runWithTimeout } from '../../../../shared/promise-timeout.js';
 import { coercePositiveInt } from '../../../../shared/number-coerce.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
-import { compareStrings } from '../../../../shared/sort.js';
 import {
   terminateTrackedSubprocesses,
   withTrackedSubprocessSignalScope
@@ -21,7 +20,7 @@ import { getLanguageForFile } from '../../../language-registry.js';
 import { runTreeSitterScheduler } from '../../tree-sitter-scheduler/runner.js';
 import { createHeavyFilePerfAggregator, createPerfEventLogger } from '../../perf-event-log.js';
 import { loadStructuralMatches } from '../../../structural.js';
-import { planShardBatches, planShards } from '../../shards.js';
+import { planShards } from '../../shards.js';
 import { recordFileMetric } from '../../perf-profile.js';
 import { createVfsManifestCollector } from '../../vfs-manifest-collector.js';
 import { createTokenRetentionState } from './postings.js';
@@ -36,7 +35,6 @@ import {
   resolveEntryOrderIndex,
   resolveShardSubsetId,
   resolveShardSubsetMinOrderIndex,
-  resolveShardWorkItemMinOrderIndex,
   runShardSubsetsWithRetry,
   sortEntriesByOrderIndex
 } from './process-files/ordering.js';
@@ -53,6 +51,12 @@ import {
   resolvePostingsQueueConfig,
   resolveTreeSitterPlannerEntries
 } from './process-files/planner.js';
+import {
+  assignFileIndexes,
+  createStage1ProgressTracker,
+  resolveOrderedEntryProgressPlan,
+  resolveStage1ShardExecutionQueuePlan
+} from './process-files/stage1-execution-plan.js';
 import { createStage1TimingAggregator } from './process-files/stage-timing.js';
 import {
   buildWatchdogNearThresholdSummary as buildWatchdogNearThresholdSummaryShared,
@@ -160,274 +164,6 @@ export {
   resolveShardSubsetMinOrderIndex,
   runShardSubsetsWithRetry,
   sortEntriesByOrderIndex
-};
-
-/**
- * Assign deterministic 1-based file indices used in logs and ownership ids.
- *
- * @param {object[]} entries
- * @returns {void}
- */
-const assignFileIndexes = (entries) => {
-  if (!Array.isArray(entries)) return;
-  for (let i = 0; i < entries.length; i += 1) {
-    const entry = entries[i];
-    if (!entry || typeof entry !== 'object') continue;
-    entry.fileIndex = i + 1;
-  }
-};
-
-/**
- * Build ordered-progress seed data from entry order indexes.
- *
- * @param {object[]} entries
- * @returns {{startOrderIndex:number,expectedOrderIndices:number[]}}
- */
-const resolveOrderedEntryProgressPlan = (entries) => {
-  const safeEntries = Array.isArray(entries) ? entries : [];
-  let minIndex = null;
-  const expected = new Set();
-  for (let i = 0; i < safeEntries.length; i += 1) {
-    const entry = safeEntries[i];
-    if (!entry || typeof entry !== 'object') continue;
-    const startValue = resolveEntryOrderIndex(entry, null);
-    if (Number.isFinite(startValue)) {
-      minIndex = minIndex == null ? startValue : Math.min(minIndex, startValue);
-    }
-    const expectedValue = resolveEntryOrderIndex(entry, i);
-    if (Number.isFinite(expectedValue)) expected.add(Math.floor(expectedValue));
-  }
-  return {
-    startOrderIndex: Number.isFinite(minIndex) ? Math.max(0, Math.floor(minIndex)) : 0,
-    expectedOrderIndices: Array.from(expected).sort((a, b) => a - b)
-  };
-};
-
-/**
- * Create a shared stage1 progress tracker that supports ordered and shard-local
- * progress updates without double-counting.
- *
- * @param {{total?:number,mode?:string,checkpoint?:object,onTick?:Function}} [input]
- * @returns {{progress:{total:number,count:number,tick:Function},markOrderedEntryComplete:Function}}
- */
-const createStage1ProgressTracker = ({
-  total = 0,
-  mode = 'unknown',
-  checkpoint = null,
-  onTick = null
-} = {}) => {
-  const completedOrderIndexes = new Set();
-  const safeTotal = Number.isFinite(Number(total))
-    ? Math.max(0, Math.floor(Number(total)))
-    : 0;
-  const progress = {
-    total: safeTotal,
-    count: 0,
-    tick() {
-      this.count += 1;
-      if (typeof onTick === 'function') onTick(this.count);
-      showProgress('Files', this.count, this.total, { stage: 'processing', mode });
-      checkpoint?.tick?.();
-    }
-  };
-  /**
-   * Advance progress exactly once per order index.
-   *
-   * @param {number|null} orderIndex
-   * @param {{count:number,total:number,meta:object}|null} [shardProgress]
-   * @returns {boolean}
-   */
-  const markOrderedEntryComplete = (orderIndex, shardProgress = null) => {
-    if (!progress || typeof progress.tick !== 'function') return false;
-    if (Number.isFinite(orderIndex)) {
-      const normalizedOrderIndex = Math.floor(orderIndex);
-      if (completedOrderIndexes.has(normalizedOrderIndex)) return false;
-      completedOrderIndexes.add(normalizedOrderIndex);
-    }
-    progress.tick();
-    if (shardProgress) {
-      shardProgress.count += 1;
-      showProgress('Shard', shardProgress.count, shardProgress.total, shardProgress.meta);
-    }
-    return true;
-  };
-  return {
-    progress,
-    markOrderedEntryComplete
-  };
-};
-
-const buildStage1ShardWorkPlan = ({
-  shardExecutionPlan,
-  shardIndexById,
-  totals
-}) => {
-  const work = [];
-  const totalShards = shardExecutionPlan.length;
-  const totalFiles = totals.totalFiles;
-  const totalLines = totals.totalLines;
-  const totalBytes = totals.totalBytes;
-  const totalCost = totals.totalCost;
-  for (const shard of shardExecutionPlan) {
-    const fileCount = shard.entries.length;
-    const costPerFile = shard.costMs && fileCount ? shard.costMs / fileCount : 0;
-    const fileShare = totalFiles > 0 ? fileCount / totalFiles : 0;
-    const lineCount = shard.lineCount || 0;
-    const lineShare = totalLines > 0 ? lineCount / totalLines : 0;
-    const byteCount = shard.byteCount || 0;
-    const byteShare = totalBytes > 0 ? byteCount / totalBytes : 0;
-    const costMs = shard.costMs || 0;
-    const costShare = totalCost > 0 ? costMs / totalCost : 0;
-    const share = Math.max(fileShare, lineShare, byteShare, costShare);
-    let parts = 1;
-    if (share > 0.05) parts = share > 0.1 ? 4 : 2;
-    parts = Math.min(parts, Math.max(1, fileCount));
-    if (parts <= 1) {
-      work.push({
-        shard,
-        entries: shard.entries,
-        partIndex: 1,
-        partTotal: 1,
-        predictedCostMs: costPerFile ? costPerFile * fileCount : costMs,
-        shardIndex: shardIndexById.get(shard.id) || 1,
-        shardTotal: totalShards
-      });
-      continue;
-    }
-    const perPart = Math.ceil(fileCount / parts);
-    for (let i = 0; i < parts; i += 1) {
-      const start = i * perPart;
-      const end = Math.min(start + perPart, fileCount);
-      if (start >= end) continue;
-      const partCount = end - start;
-      work.push({
-        shard,
-        entries: shard.entries.slice(start, end),
-        partIndex: i + 1,
-        partTotal: parts,
-        predictedCostMs: costPerFile ? costPerFile * partCount : costMs / parts,
-        shardIndex: shardIndexById.get(shard.id) || 1,
-        shardTotal: totalShards
-      });
-    }
-  }
-  return work;
-};
-
-const resolveStage1ShardExecutionQueuePlan = ({
-  shardPlan,
-  runtime,
-  clusterModeEnabled = false,
-  clusterDeterministicMerge = true
-}) => {
-  const shardExecutionPlan = [...shardPlan].sort((a, b) => {
-    if (clusterModeEnabled && clusterDeterministicMerge) {
-      return compareStrings(a.id, b.id);
-    }
-    const costDelta = (b.costMs || 0) - (a.costMs || 0);
-    if (costDelta !== 0) return costDelta;
-    const lineDelta = (b.lineCount || 0) - (a.lineCount || 0);
-    if (lineDelta !== 0) return lineDelta;
-    const sizeDelta = b.entries.length - a.entries.length;
-    if (sizeDelta !== 0) return sizeDelta;
-    return compareStrings(a.label || a.id, b.label || b.id);
-  });
-  const shardIndexById = new Map(
-    shardExecutionPlan.map((shard, index) => [shard.id, index + 1])
-  );
-  const shardExecutionOrderById = new Map(
-    shardExecutionPlan.map((shard, index) => [shard.id, index + 1])
-  );
-  const totals = {
-    totalFiles: shardPlan.reduce((sum, shard) => sum + shard.entries.length, 0),
-    totalLines: shardPlan.reduce((sum, shard) => sum + (shard.lineCount || 0), 0),
-    totalBytes: shardPlan.reduce((sum, shard) => sum + (shard.byteCount || 0), 0),
-    totalCost: shardPlan.reduce((sum, shard) => sum + (shard.costMs || 0), 0)
-  };
-  const shardWorkPlan = buildStage1ShardWorkPlan({
-    shardExecutionPlan,
-    shardIndexById,
-    totals
-  }).map((workItem) => ({
-    ...workItem,
-    subsetId: resolveShardSubsetId(workItem),
-    firstOrderIndex: resolveShardWorkItemMinOrderIndex(workItem)
-  }));
-  const shardMergePlan = buildDeterministicShardMergePlan(shardWorkPlan);
-  const mergeOrderBySubsetId = new Map(
-    shardMergePlan.map((entry) => [entry.subsetId, entry.mergeIndex])
-  );
-  const mergeOrderByShardId = new Map();
-  for (const entry of shardMergePlan) {
-    const shardId = entry?.shardId;
-    if (!shardId || mergeOrderByShardId.has(shardId)) continue;
-    mergeOrderByShardId.set(shardId, entry.mergeIndex);
-  }
-  for (const workItem of shardWorkPlan) {
-    workItem.mergeIndex = mergeOrderBySubsetId.get(workItem.subsetId) || null;
-  }
-  const defaultShardConcurrency = Math.max(
-    1,
-    Math.min(32, runtime.fileConcurrency, runtime.cpuConcurrency)
-  );
-  let shardConcurrency = Number.isFinite(runtime.shards?.cluster?.workerCount)
-    ? Math.max(1, Math.floor(runtime.shards.cluster.workerCount))
-    : (Number.isFinite(runtime.shards.maxWorkers)
-      ? Math.max(1, Math.floor(runtime.shards.maxWorkers))
-      : defaultShardConcurrency);
-  shardConcurrency = Math.min(shardConcurrency, runtime.fileConcurrency);
-  let shardBatches = planShardBatches(shardWorkPlan, shardConcurrency, {
-    resolveWeight: (workItem) => Number.isFinite(workItem.predictedCostMs)
-      ? workItem.predictedCostMs
-      : (workItem.shard.costMs || workItem.shard.lineCount || workItem.entries.length || 0),
-    resolveTieBreaker: (workItem) => {
-      const shardId = workItem.shard?.id || workItem.shard?.label || '';
-      const part = Number.isFinite(workItem.partIndex) ? workItem.partIndex : 0;
-      return `${shardId}:${part}`;
-    }
-  });
-  if (shardBatches.length) {
-    shardBatches = shardBatches.map((batch) => [...batch].sort((a, b) => {
-      const aOrder = Number.isFinite(a?.firstOrderIndex) ? a.firstOrderIndex : Number.MAX_SAFE_INTEGER;
-      const bOrder = Number.isFinite(b?.firstOrderIndex) ? b.firstOrderIndex : Number.MAX_SAFE_INTEGER;
-      if (aOrder !== bOrder) return aOrder - bOrder;
-      const aMerge = Number.isFinite(a?.mergeIndex) ? a.mergeIndex : Number.MAX_SAFE_INTEGER;
-      const bMerge = Number.isFinite(b?.mergeIndex) ? b.mergeIndex : Number.MAX_SAFE_INTEGER;
-      if (aMerge !== bMerge) return aMerge - bMerge;
-      const aShard = a?.shard?.id || a?.shard?.label || '';
-      const bShard = b?.shard?.id || b?.shard?.label || '';
-      return compareStrings(aShard, bShard);
-    }));
-  }
-  if (!shardBatches.length && shardWorkPlan.length) {
-    shardBatches = [shardWorkPlan.slice()];
-  }
-  shardConcurrency = Math.max(1, shardBatches.length);
-  const perShardFileConcurrency = Math.max(
-    1,
-    Math.min(4, Math.floor(runtime.fileConcurrency / shardConcurrency))
-  );
-  const perShardImportConcurrency = Math.max(1, Math.floor(runtime.importConcurrency / shardConcurrency));
-  const baseEmbedConcurrency = Number.isFinite(runtime.embeddingConcurrency)
-    ? runtime.embeddingConcurrency
-    : runtime.cpuConcurrency;
-  const perShardEmbeddingConcurrency = Math.max(
-    1,
-    Math.min(perShardFileConcurrency, Math.floor(baseEmbedConcurrency / shardConcurrency))
-  );
-  return {
-    shardExecutionPlan,
-    shardExecutionOrderById,
-    totals,
-    shardWorkPlan,
-    shardMergePlan,
-    mergeOrderByShardId,
-    shardBatches,
-    shardConcurrency,
-    perShardFileConcurrency,
-    perShardImportConcurrency,
-    perShardEmbeddingConcurrency
-  };
 };
 
 /**
@@ -728,15 +464,15 @@ export const processFiles = async ({
   try {
     assignFileIndexes(entries);
     const repoFileCount = Array.isArray(entries) ? entries.length : 0;
-    const scmFilesPosix = entries.map((entry) => (
-      entry?.rel
-        ? toPosix(entry.rel)
-        : toPosix(path.relative(runtime.root, entry?.abs || ''))
-    ));
     const scmSnapshotConfig = runtime?.scmConfig?.snapshot || {};
     const scmSnapshotEnabled = scmSnapshotConfig.enabled !== false;
     let scmFileMetaByPath = null;
     if (scmSnapshotEnabled) {
+      const scmFilesPosix = entries.map((entry) => (
+        entry?.rel
+          ? toPosix(entry.rel)
+          : toPosix(path.relative(runtime.root, entry?.abs || ''))
+      ));
       const scmMetaStart = Date.now();
       const scmSnapshot = await prepareScmFileMetaSnapshot({
         repoCacheRoot: runtime.repoCacheRoot,
@@ -2049,8 +1785,16 @@ export const processFiles = async ({
       state.extractedProseYieldProfile = extractedProseYieldProfileSummary;
       state.shardExecution = shardExecutionMeta;
     }
-    const parseSkipCount = state.skippedFiles.filter((entry) => entry?.reason === 'parse-error').length;
-    const relationSkipCount = state.skippedFiles.filter((entry) => entry?.reason === 'relation-error').length;
+    let parseSkipCount = 0;
+    let relationSkipCount = 0;
+    const skippedFiles = Array.isArray(state?.skippedFiles) ? state.skippedFiles : [];
+    for (const skippedFile of skippedFiles) {
+      if (skippedFile?.reason === 'parse-error') {
+        parseSkipCount += 1;
+      } else if (skippedFile?.reason === 'relation-error') {
+        relationSkipCount += 1;
+      }
+    }
     const skipTotal = parseSkipCount + relationSkipCount;
     if (skipTotal > 0) {
       const parts = [];
