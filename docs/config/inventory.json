@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-23T04:37:12.904Z",
+  "generatedAt": "2026-02-23T09:19:59.940Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3122,7 +3122,6 @@
     {
       "name": "PAIROFCLEATS_TEST_STUB_DOCX_EXTRACT",
       "files": [
-        "src/index/build/file-processor.js",
         "src/shared/env.js",
         "tests/indexing/extracted-prose/document-bytes-hash-stable.test.js",
         "tests/indexing/extracted-prose/document-extraction-checksums-and-counts.test.js",
@@ -3135,7 +3134,6 @@
     {
       "name": "PAIROFCLEATS_TEST_STUB_PDF_EXTRACT",
       "files": [
-        "src/index/build/file-processor.js",
         "src/shared/env.js",
         "tests/indexing/extracted-prose/document-bytes-hash-stable.test.js",
         "tests/indexing/extracted-prose/document-chunk-id-no-collision.test.js",
