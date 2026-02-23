@@ -753,6 +753,9 @@ export const createProcessRunner = ({
       writeLog(`[error] ${label} spawn failed: ${message}`);
       clearActiveChild(err?.result?.pid ?? null);
       appendLog(`[run] failed: ${label}`);
+      if (err?.code === 'SUBPROCESS_TIMEOUT') {
+        appendLog(`[run] timeout: ${label} (${message})`, 'warn');
+      }
       emitLogPaths('[error]');
       if (logHistory.length) {
         appendLog('[run] tail:');

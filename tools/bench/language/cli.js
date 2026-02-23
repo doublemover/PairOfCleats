@@ -3,6 +3,8 @@ import { createCli } from '../../../src/shared/cli.js';
 import { BENCH_OPTIONS, mergeCliOptions, validateBenchArgs } from '../../../src/shared/cli-options.js';
 import { getCacheRoot, resolveToolRoot } from '../../shared/dict-utils.js';
 
+export const BENCH_REPO_TIMEOUT_DEFAULT_MS = 30 * 60 * 1000;
+
 const parseMs = (value, fallback) => {
   const parsed = Number(value);
   if (Number.isFinite(parsed) && parsed >= 0) return Math.floor(parsed);
@@ -68,7 +70,8 @@ export const parseBenchLanguageArgs = (rawArgs = process.argv.slice(2)) => {
       'log-lines': { type: 'number' },
       'lock-mode': { type: 'string' },
       'lock-wait-ms': { type: 'number' },
-      'lock-stale-ms': { type: 'number' }
+      'lock-stale-ms': { type: 'number' },
+      'timeout-ms': { type: 'number' }
     }
   );
   const argv = createCli({
@@ -110,6 +113,7 @@ export const parseBenchLanguageArgs = (rawArgs = process.argv.slice(2)) => {
   );
   const lockWaitMs = parseMs(argv['lock-wait-ms'], 5 * 60 * 1000);
   const lockStaleMs = parseMs(argv['lock-stale-ms'], 30 * 60 * 1000);
+  const benchTimeoutMs = parseMs(argv['timeout-ms'], BENCH_REPO_TIMEOUT_DEFAULT_MS);
 
   const backendList = resolveBackendList(argv.backend);
   const wantsSqlite = backendList.includes('sqlite')
@@ -135,6 +139,7 @@ export const parseBenchLanguageArgs = (rawArgs = process.argv.slice(2)) => {
     lockMode,
     lockWaitMs,
     lockStaleMs,
+    benchTimeoutMs,
     backendList,
     wantsSqlite
   };

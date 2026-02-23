@@ -97,6 +97,7 @@ const {
   lockMode,
   lockWaitMs,
   lockStaleMs,
+  benchTimeoutMs,
   backendList,
   wantsSqlite
 } = parseBenchLanguageArgs();
@@ -458,6 +459,7 @@ const runUsrGuardrailBenchmarks = async () => {
       {
         cwd: scriptRoot,
         env: { ...baseEnv },
+        timeoutMs: benchTimeoutMs,
         continueOnError: true
       }
     );
@@ -877,6 +879,7 @@ for (const task of tasks) {
           const args = cloneTool.buildArgs(task.repo, repoPath);
           const cloneResult = await processRunner.runProcess(`clone ${task.repo}`, cloneTool.label, args, {
             env: buildNonInteractiveGitEnv(process.env),
+            timeoutMs: benchTimeoutMs,
             continueOnError: true
           });
           if (!cloneResult.ok) {
@@ -1078,6 +1081,7 @@ for (const task of tasks) {
       const benchResult = await processRunner.runProcess(`bench ${repoLabel}`, process.execPath, benchArgs, {
         cwd: scriptRoot,
         env: benchProcessEnv,
+        timeoutMs: benchTimeoutMs,
         continueOnError: true
       });
       if (!benchResult.ok) {
