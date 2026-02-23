@@ -33,6 +33,7 @@ import { INDEX_PROFILE_VECTOR_ONLY } from '../../../../contracts/index-profile.j
 import { prepareScmFileMetaSnapshot } from '../../../scm/file-meta-snapshot.js';
 import {
   normalizeExtractedProseLowYieldBailoutConfig,
+  normalizeExtractedProseYieldProfilePrefilterConfig,
   selectDeterministicWarmupSample
 } from '../../../chunking/formats/document-common.js';
 
@@ -76,8 +77,21 @@ const STAGE_TIMING_SIZE_BINS = Object.freeze([
 ]);
 const FILE_QUEUE_DELAY_HISTOGRAM_BUCKETS_MS = Object.freeze([50, 100, 250, 500, 1000, 2000, 5000, 10000, 30000, 60000]);
 const EXTRACTED_PROSE_LOW_YIELD_SKIP_REASON = 'extracted-prose-low-yield-bailout';
+const EXTRACTED_PROSE_YIELD_PROFILE_SKIP_REASON = 'extracted-prose-yield-profile';
 const SHARED_EXTRACTED_PROSE_EXTRAS_CACHE_KEY = 'prose-extracted:extras';
 const DEFAULT_EXTRACTED_PROSE_EXTRAS_CACHE_MAX_ENTRIES = 20000;
+const EXTRACTED_PROSE_YIELD_PROFILE_PATH_FAMILIES = Object.freeze([
+  ['node_modules', '/node_modules/'],
+  ['vendor', '/vendor/'],
+  ['dist', '/dist/'],
+  ['build', '/build/'],
+  ['coverage', '/coverage/'],
+  ['git', '/.git/']
+]);
+const EXTRACTED_PROSE_YIELD_PROFILE_PATH_FAMILY_DEFAULT = '(root)';
+const EXTRACTED_PROSE_YIELD_PROFILE_EXT_DEFAULT = '(none)';
+const EXTRACTED_PROSE_YIELD_PROFILE_MAX_FAMILIES_DEFAULT = 512;
+const EXTRACTED_PROSE_YIELD_PROFILE_MAX_FAMILIES_HARD_LIMIT = 4096;
 
 const resolveSharedModeCaches = (runtime) => {
   if (!runtime || typeof runtime !== 'object') return null;
@@ -1200,6 +1214,186 @@ export const runShardSubsetsWithRetry = async ({
   };
 };
 
+const normalizeExtractedProseYieldProfilePath = (value) => (
+  String(value || '')
+    .replace(/\\/g, '/')
+    .toLowerCase()
+);
+const normalizeExtractedProseYieldProfileExt = (value) => {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return EXTRACTED_PROSE_YIELD_PROFILE_EXT_DEFAULT;
+  return raw.startsWith('.') ? raw : `.${raw}`;
+};
+const resolveExtractedProseYieldProfilePathFamily = (value) => {
+  const normalizedPath = normalizeExtractedProseYieldProfilePath(value);
+  if (!normalizedPath) return EXTRACTED_PROSE_YIELD_PROFILE_PATH_FAMILY_DEFAULT;
+  const bounded = normalizedPath.startsWith('/')
+    ? normalizedPath
+    : `/${normalizedPath}`;
+  for (const [family, part] of EXTRACTED_PROSE_YIELD_PROFILE_PATH_FAMILIES) {
+    if (bounded.includes(part)) return family;
+  }
+  const firstSegment = bounded.replace(/^\/+/, '').split('/')[0];
+  return firstSegment || EXTRACTED_PROSE_YIELD_PROFILE_PATH_FAMILY_DEFAULT;
+};
+const buildExtractedProseYieldProfileFamilyFromPath = ({ relPath = null, absPath = null, ext = null } = {}) => {
+  const normalizedPath = normalizeExtractedProseYieldProfilePath(relPath || absPath || '');
+  const normalizedExt = normalizeExtractedProseYieldProfileExt(ext);
+  const pathFamily = resolveExtractedProseYieldProfilePathFamily(normalizedPath);
+  return {
+    key: `${normalizedExt}|${pathFamily}`,
+    ext: normalizedExt,
+    pathFamily,
+    pathHint: normalizedPath || null
+  };
+};
+const buildExtractedProseYieldProfileFamilyFromEntry = (entry, runtimeRoot = '') => {
+  if (!entry || typeof entry !== 'object') return null;
+  const relPath = entry.rel || toPosix(path.relative(runtimeRoot || '', entry.abs || ''));
+  return buildExtractedProseYieldProfileFamilyFromPath({
+    relPath,
+    ext: entry.ext || fileExt(relPath || '')
+  });
+};
+const resolveExtractedProseYieldProfileConfig = (runtime) => {
+  const extractedProseConfig = runtime?.indexingConfig?.extractedProse
+    && typeof runtime.indexingConfig.extractedProse === 'object'
+    ? runtime.indexingConfig.extractedProse
+    : {};
+  const yieldProfileRaw = extractedProseConfig.yieldProfile
+    && typeof extractedProseConfig.yieldProfile === 'object'
+    ? extractedProseConfig.yieldProfile
+    : {};
+  const prefilterYieldProfileRaw = extractedProseConfig.prefilter?.yieldProfile
+    && typeof extractedProseConfig.prefilter.yieldProfile === 'object'
+    ? extractedProseConfig.prefilter.yieldProfile
+    : {};
+  const normalized = normalizeExtractedProseYieldProfilePrefilterConfig({
+    ...yieldProfileRaw,
+    ...prefilterYieldProfileRaw
+  });
+  const maxFamiliesRaw = Number(prefilterYieldProfileRaw.maxFamilies ?? yieldProfileRaw.maxFamilies);
+  const maxFamilies = Number.isFinite(maxFamiliesRaw) && maxFamiliesRaw > 0
+    ? Math.max(1, Math.min(EXTRACTED_PROSE_YIELD_PROFILE_MAX_FAMILIES_HARD_LIMIT, Math.floor(maxFamiliesRaw)))
+    : EXTRACTED_PROSE_YIELD_PROFILE_MAX_FAMILIES_DEFAULT;
+  return {
+    ...normalized,
+    maxFamilies
+  };
+};
+const normalizeExtractedProseYieldProfilePrefilterState = ({ mode, runtime, persistedProfile } = {}) => {
+  if (mode !== 'extracted-prose') return null;
+  const config = resolveExtractedProseYieldProfileConfig(runtime);
+  const profile = persistedProfile && typeof persistedProfile === 'object'
+    ? persistedProfile
+    : null;
+  const totals = profile?.totals && typeof profile.totals === 'object'
+    ? profile.totals
+    : {};
+  const builds = Number(profile?.builds);
+  return {
+    ...(profile || {}),
+    config,
+    builds: Number.isFinite(builds) ? Math.max(0, Math.floor(builds)) : 0,
+    totals: {
+      observedFiles: Math.max(0, Math.floor(Number(totals.observedFiles) || 0)),
+      yieldedFiles: Math.max(0, Math.floor(Number(totals.yieldedFiles) || 0)),
+      chunkCount: Math.max(0, Math.floor(Number(totals.chunkCount) || 0))
+    },
+    families: profile?.families && typeof profile.families === 'object'
+      ? profile.families
+      : {}
+  };
+};
+const createExtractedProseYieldProfileObservationState = ({ mode, runtime } = {}) => {
+  if (mode !== 'extracted-prose') return null;
+  const config = resolveExtractedProseYieldProfileConfig(runtime);
+  return {
+    schemaVersion: 1,
+    config,
+    maxFamilies: config.maxFamilies,
+    observedFiles: 0,
+    yieldedFiles: 0,
+    chunkCount: 0,
+    overflowFamilies: 0,
+    families: new Map()
+  };
+};
+const observeExtractedProseYieldProfileResult = ({ observation, entry, result, runtimeRoot = '' } = {}) => {
+  if (!observation || !entry || !result || typeof result !== 'object') return;
+  const chunkCount = Array.isArray(result.chunks) ? result.chunks.length : 0;
+  const safeChunkCount = Math.max(0, Math.floor(Number(chunkCount) || 0));
+  observation.observedFiles += 1;
+  if (safeChunkCount > 0) {
+    observation.yieldedFiles += 1;
+  }
+  observation.chunkCount += safeChunkCount;
+  const family = buildExtractedProseYieldProfileFamilyFromEntry(entry, runtimeRoot);
+  if (!family?.key) return;
+  let familyStats = observation.families.get(family.key) || null;
+  if (!familyStats) {
+    if (observation.families.size >= observation.maxFamilies) {
+      observation.overflowFamilies += 1;
+      return;
+    }
+    familyStats = {
+      key: family.key,
+      ext: family.ext,
+      pathFamily: family.pathFamily,
+      pathHint: family.pathHint,
+      observedFiles: 0,
+      yieldedFiles: 0,
+      chunkCount: 0
+    };
+    observation.families.set(family.key, familyStats);
+  }
+  familyStats.observedFiles += 1;
+  if (safeChunkCount > 0) {
+    familyStats.yieldedFiles += 1;
+  }
+  familyStats.chunkCount += safeChunkCount;
+};
+const buildExtractedProseYieldProfileObservationSummary = ({ observation, skippedFiles } = {}) => {
+  if (!observation) return null;
+  const familyKeys = Array.from(observation.families.keys()).sort((a, b) => compareStrings(a, b));
+  const families = {};
+  for (const familyKey of familyKeys) {
+    const family = observation.families.get(familyKey);
+    if (!family) continue;
+    const observedFiles = Math.max(0, Math.floor(Number(family.observedFiles) || 0));
+    const yieldedFiles = Math.max(0, Math.floor(Number(family.yieldedFiles) || 0));
+    const chunkCount = Math.max(0, Math.floor(Number(family.chunkCount) || 0));
+    const yieldRatio = observedFiles > 0 ? yieldedFiles / observedFiles : 0;
+    families[familyKey] = {
+      key: family.key,
+      ext: family.ext,
+      pathFamily: family.pathFamily,
+      pathHint: family.pathHint,
+      observedFiles,
+      yieldedFiles,
+      chunkCount,
+      yieldRatio
+    };
+  }
+  const profileSkips = Array.isArray(skippedFiles)
+    ? skippedFiles.reduce((count, entry) => count + (entry?.reason === EXTRACTED_PROSE_YIELD_PROFILE_SKIP_REASON ? 1 : 0), 0)
+    : 0;
+  return {
+    schemaVersion: observation.schemaVersion,
+    builds: 1,
+    config: observation.config,
+    totals: {
+      observedFiles: Math.max(0, Math.floor(Number(observation.observedFiles) || 0)),
+      yieldedFiles: Math.max(0, Math.floor(Number(observation.yieldedFiles) || 0)),
+      chunkCount: Math.max(0, Math.floor(Number(observation.chunkCount) || 0)),
+      familyCount: familyKeys.length,
+      overflowFamilies: Math.max(0, Math.floor(Number(observation.overflowFamilies) || 0)),
+      skippedByProfile: profileSkips
+    },
+    families
+  };
+};
+
 const resolveExtractedProseLowYieldBailoutConfig = (runtime) => {
   const extractedProseConfig = runtime?.indexingConfig?.extractedProse
     && typeof runtime.indexingConfig.extractedProse === 'object'
@@ -1527,6 +1721,8 @@ export const processFiles = async ({
   relationsEnabled,
   shardPerfProfile,
   fileTextCache,
+  extractedProseYieldProfile = null,
+  documentExtractionCache = null,
   abortSignal = null
 }) => {
   const stageAbortController = typeof AbortController === 'function'
@@ -1612,6 +1808,15 @@ export const processFiles = async ({
     mode,
     runtime,
     entries
+  });
+  const extractedProseYieldProfilePrefilter = normalizeExtractedProseYieldProfilePrefilterState({
+    mode,
+    runtime,
+    persistedProfile: extractedProseYieldProfile
+  });
+  const extractedProseYieldProfileObservation = createExtractedProseYieldProfileObservationState({
+    mode,
+    runtime
   });
   const queueDelayHistogram = createDurationHistogram(FILE_QUEUE_DELAY_HISTOGRAM_BUCKETS_MS);
   const queueDelaySummary = { count: 0, totalMs: 0, minMs: null, maxMs: 0 };
@@ -2742,6 +2947,8 @@ export const processFiles = async ({
         tokenizationStats,
         structuralMatches,
         documentExtractionConfig: runtimeRef.indexingConfig?.documentExtraction || null,
+        documentExtractionCache,
+        extractedProseYieldProfile: extractedProseYieldProfilePrefilter,
         cacheConfig: runtimeRef.cacheConfig,
         cacheReporter,
         queues: runtimeRef.queues,
@@ -3055,6 +3262,12 @@ export const processFiles = async ({
                 const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
                 const entry = orderedBatchEntries[entryIndex];
                 const orderIndex = resolveEntryOrderIndex(entry, entryIndex);
+                observeExtractedProseYieldProfileResult({
+                  observation: extractedProseYieldProfileObservation,
+                  entry,
+                  result,
+                  runtimeRoot: runtimeRef.root
+                });
                 const bailoutDecision = observeExtractedProseLowYieldSample({
                   bailout: extractedProseLowYieldBailout,
                   orderIndex,
@@ -3727,6 +3940,10 @@ export const processFiles = async ({
     timing.processMs = Date.now() - processStart;
     const stageTimingBreakdownPayload = buildStageTimingBreakdownPayload();
     const extractedProseLowYieldSummary = buildExtractedProseLowYieldBailoutSummary(extractedProseLowYieldBailout);
+    const extractedProseYieldProfileSummary = buildExtractedProseYieldProfileObservationSummary({
+      observation: extractedProseYieldProfileObservation,
+      skippedFiles: state?.skippedFiles
+    });
     const watchdogNearThresholdSummary = stageTimingBreakdownPayload?.watchdog?.nearThreshold;
     if (watchdogNearThresholdSummary?.anomaly) {
       const ratioPct = (watchdogNearThresholdSummary.nearThresholdRatio * 100).toFixed(1);
@@ -3753,6 +3970,7 @@ export const processFiles = async ({
     if (timing && typeof timing === 'object') {
       timing.stageTimingBreakdown = stageTimingBreakdownPayload;
       timing.extractedProseLowYieldBailout = extractedProseLowYieldSummary;
+      timing.extractedProseYieldProfile = extractedProseYieldProfileSummary;
       timing.shards = shardExecutionMeta;
       timing.watchdog = {
         ...(timing.watchdog && typeof timing.watchdog === 'object' ? timing.watchdog : {}),
@@ -3771,6 +3989,7 @@ export const processFiles = async ({
     }
     if (state && typeof state === 'object') {
       state.extractedProseLowYieldBailout = extractedProseLowYieldSummary;
+      state.extractedProseYieldProfile = extractedProseYieldProfileSummary;
       state.shardExecution = shardExecutionMeta;
     }
     const parseSkipCount = state.skippedFiles.filter((entry) => entry?.reason === 'parse-error').length;
@@ -3796,7 +4015,8 @@ export const processFiles = async ({
       shardPlan,
       shardExecution: shardExecutionMeta,
       postingsQueueStats,
-      extractedProseLowYieldBailout: extractedProseLowYieldSummary
+      extractedProseLowYieldBailout: extractedProseLowYieldSummary,
+      extractedProseYieldProfile: extractedProseYieldProfileSummary
     };
   } finally {
     if (typeof stallSnapshotTimer === 'object' && stallSnapshotTimer) {

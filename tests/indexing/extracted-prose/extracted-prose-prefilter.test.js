@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 
-import { resolveExtractedProsePrefilterDecision } from '../../../src/index/build/file-processor/skip.js';
+import {
+  EXTRACTED_PROSE_YIELD_PROFILE_SKIP_REASON_CODE,
+  resolveExtractedProsePrefilterDecision,
+  resolvePreReadSkip
+} from '../../../src/index/build/file-processor/skip.js';
 import { buildGeneratedPolicyConfig } from '../../../src/index/build/generated-policy.js';
 
 const tinySkip = resolveExtractedProsePrefilterDecision({
@@ -70,5 +74,86 @@ assert.equal(
   null,
   'expected build-generated policy to preserve extracted-prose prefilter overrides'
 );
+
+const profileSkip = await resolvePreReadSkip({
+  abs: 'C:\\repo\\src\\main.js',
+  rel: 'src/main.js',
+  fileEntry: { lines: 12 },
+  fileStat: { size: 4096 },
+  ext: '.js',
+  fileCaps: null,
+  fileScanner: {
+    binary: { maxNonTextRatio: 0.3 },
+    scanFile: async () => ({ skip: null })
+  },
+  runIo: async (fn) => fn(),
+  languageId: 'javascript',
+  mode: 'extracted-prose',
+  generatedPolicy: buildGeneratedPolicyConfig({}),
+  extractedProseYieldProfile: {
+    builds: 2,
+    totals: { observedFiles: 500, yieldedFiles: 0, chunkCount: 0 },
+    config: {
+      enabled: true,
+      minBuilds: 1,
+      minProfileSamples: 100,
+      minFamilySamples: 10,
+      maxYieldRatio: 0,
+      maxYieldedFiles: 0
+    },
+    families: {
+      '.js|src': {
+        observedFiles: 80,
+        yieldedFiles: 0,
+        chunkCount: 0,
+        yieldRatio: 0
+      }
+    }
+  }
+});
+assert.equal(profileSkip?.reason, 'extracted-prose-yield-profile', 'expected persisted yield profile skip reason');
+assert.equal(
+  profileSkip?.reasonCode,
+  EXTRACTED_PROSE_YIELD_PROFILE_SKIP_REASON_CODE,
+  'expected persisted yield profile reason code'
+);
+
+const profileDisabled = await resolvePreReadSkip({
+  abs: 'C:\\repo\\src\\main.js',
+  rel: 'src/main.js',
+  fileEntry: { lines: 12 },
+  fileStat: { size: 4096 },
+  ext: '.js',
+  fileCaps: null,
+  fileScanner: {
+    binary: { maxNonTextRatio: 0.3 },
+    scanFile: async () => ({ skip: null })
+  },
+  runIo: async (fn) => fn(),
+  languageId: 'javascript',
+  mode: 'extracted-prose',
+  generatedPolicy: buildGeneratedPolicyConfig({}),
+  extractedProseYieldProfile: {
+    builds: 2,
+    totals: { observedFiles: 500, yieldedFiles: 0, chunkCount: 0 },
+    config: {
+      enabled: false,
+      minBuilds: 1,
+      minProfileSamples: 100,
+      minFamilySamples: 10,
+      maxYieldRatio: 0,
+      maxYieldedFiles: 0
+    },
+    families: {
+      '.js|src': {
+        observedFiles: 80,
+        yieldedFiles: 0,
+        chunkCount: 0,
+        yieldRatio: 0
+      }
+    }
+  }
+});
+assert.equal(profileDisabled, null, 'expected profile prefilter opt-out to bypass persisted skip');
 
 console.log('extracted prose prefilter test passed');

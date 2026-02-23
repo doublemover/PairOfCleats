@@ -22,8 +22,8 @@ import {
   isDocsSearchIndexJsonPath
 } from './file-processor/docs-search-json.js';
 import { getLanguageForFile } from '../language-registry.js';
-import { extractPdf } from '../extractors/pdf.js';
-import { extractDocx } from '../extractors/docx.js';
+import { extractPdf, loadPdfExtractorRuntime } from '../extractors/pdf.js';
+import { extractDocx, loadDocxExtractorRuntime } from '../extractors/docx.js';
 import {
   EXTRACTION_NORMALIZATION_POLICY,
   normalizeDocumentExtractionPolicy,
@@ -32,6 +32,8 @@ import {
 } from '../extractors/common.js';
 
 const DOCUMENT_EXTS = new Set(['.pdf', '.docx']);
+const DOCUMENT_EXTRACTION_CACHE_HIT_REASON_CODE = 'document-extraction-cache-hit';
+const DOCUMENT_EXTRACTION_CACHE_MISS_REASON_CODE = 'document-extraction-cache-miss';
 
 const isDocumentExt = (ext) => DOCUMENT_EXTS.has(ext);
 /**
@@ -194,6 +196,8 @@ export function createFileProcessor(options) {
     perfEventLogger = null,
     buildStage = null,
     documentExtractionConfig = null,
+    documentExtractionCache = null,
+    extractedProseYieldProfile = null,
     extractedProseExtrasCache = null,
     primeExtractedProseExtrasCache = false,
     abortSignal = null
@@ -229,6 +233,89 @@ export function createFileProcessor(options) {
   const documentExtractionEnabled = mode === 'extracted-prose'
     && resolvedDocumentExtraction.enabled === true;
   const documentExtractionPolicy = normalizeDocumentExtractionPolicy(resolvedDocumentExtraction);
+  const supportsDocumentExtractionCache = Boolean(
+    documentExtractionCache
+    && typeof documentExtractionCache.get === 'function'
+    && typeof documentExtractionCache.set === 'function'
+  );
+  const cloneDocumentExtractionCacheRecord = (record) => {
+    if (!record || typeof record !== 'object') return null;
+    return {
+      sourceType: record.sourceType === 'docx' ? 'docx' : 'pdf',
+      extractor: record.extractor && typeof record.extractor === 'object'
+        ? {
+          name: record.extractor.name || null,
+          version: record.extractor.version || null,
+          target: record.extractor.target || null
+        }
+        : null,
+      text: typeof record.text === 'string' ? record.text : '',
+      counts: record.counts && typeof record.counts === 'object'
+        ? {
+          pages: Math.max(0, Math.floor(Number(record.counts.pages) || 0)),
+          paragraphs: Math.max(0, Math.floor(Number(record.counts.paragraphs) || 0)),
+          totalUnits: Math.max(0, Math.floor(Number(record.counts.totalUnits) || 0))
+        }
+        : { pages: 0, paragraphs: 0, totalUnits: 0 },
+      units: Array.isArray(record.units)
+        ? record.units
+          .filter((unit) => unit && typeof unit === 'object')
+          .map((unit) => ({
+            type: unit.type === 'docx' ? 'docx' : 'pdf',
+            ...(Number.isFinite(Number(unit.pageNumber)) ? { pageNumber: Math.floor(Number(unit.pageNumber)) } : {}),
+            ...(Number.isFinite(Number(unit.index)) ? { index: Math.floor(Number(unit.index)) } : {}),
+            ...(typeof unit.style === 'string' ? { style: unit.style } : {}),
+            start: Math.max(0, Math.floor(Number(unit.start) || 0)),
+            end: Math.max(0, Math.floor(Number(unit.end) || 0))
+          }))
+        : [],
+      normalizationPolicy: record.normalizationPolicy || EXTRACTION_NORMALIZATION_POLICY,
+      warnings: Array.isArray(record.warnings)
+        ? record.warnings.slice(0, 32).map((item) => String(item))
+        : []
+    };
+  };
+  const resolveDocumentExtractorIdentity = async (sourceType) => {
+    if (sourceType === 'pdf') {
+      if (process.env.PAIROFCLEATS_TEST_STUB_PDF_EXTRACT === '1') {
+        return { name: 'pdf-test-stub', version: 'test', target: 'stub' };
+      }
+      const runtimeInfo = await loadPdfExtractorRuntime();
+      return {
+        name: runtimeInfo?.name || 'pdfjs-dist',
+        version: runtimeInfo?.version || null,
+        target: runtimeInfo?.target || null
+      };
+    }
+    if (process.env.PAIROFCLEATS_TEST_STUB_DOCX_EXTRACT === '1') {
+      return { name: 'docx-test-stub', version: 'test', target: 'stub' };
+    }
+    const runtimeInfo = await loadDocxExtractorRuntime();
+    return {
+      name: runtimeInfo?.name || 'mammoth',
+      version: runtimeInfo?.version || null,
+      target: runtimeInfo?.target || null
+    };
+  };
+  const buildDocumentExtractionCacheKey = ({ sourceBytesHash, extractor }) => {
+    const bytesHash = typeof sourceBytesHash === 'string' ? sourceBytesHash.trim() : '';
+    if (!bytesHash) return null;
+    return sha256Hex([
+      bytesHash,
+      extractor?.name || 'unknown',
+      extractor?.version || 'unknown',
+      extractor?.target || ''
+    ].join('|'));
+  };
+  const loadCachedDocumentExtraction = (cacheKey) => {
+    if (!supportsDocumentExtractionCache || !cacheKey) return null;
+    const cached = documentExtractionCache.get(cacheKey);
+    return cloneDocumentExtractionCacheRecord(cached);
+  };
+  const storeCachedDocumentExtraction = (cacheKey, record) => {
+    if (!supportsDocumentExtractionCache || !cacheKey || !record) return;
+    documentExtractionCache.set(cacheKey, cloneDocumentExtractionCacheRecord(record));
+  };
   const ioQueue = queues?.io || null;
   const cpuQueue = queues?.cpu || null;
   const embeddingQueue = queues?.embedding || null;
@@ -427,7 +514,8 @@ export function createFileProcessor(options) {
       maxFileBytes,
       bypassBinaryMinifiedSkip: documentExtractionEnabled && isDocumentExt(ext),
       rel: relKey,
-      generatedPolicy
+      generatedPolicy,
+      extractedProseYieldProfile
     });
     updateCrashStage('pre-cpu:resolve-pre-read-skip:done', {
       skipped: Boolean(preReadSkip)
@@ -574,42 +662,7 @@ export function createFileProcessor(options) {
       }
     }
     if (documentExtractionEnabled && isDocumentExt(ext)) {
-      updateCrashStage('pre-cpu:extract:start', {
-        sourceType: ext === '.pdf' ? 'pdf' : 'docx'
-      });
-      const extracted = ext === '.pdf'
-        ? await extractPdf({ filePath: abs, buffer: fileBuffer, policy: documentExtractionPolicy })
-        : await extractDocx({ filePath: abs, buffer: fileBuffer, policy: documentExtractionPolicy });
-      updateCrashStage('pre-cpu:extract:done', {
-        ok: extracted?.ok === true,
-        sourceType: ext === '.pdf' ? 'pdf' : 'docx'
-      });
-      if (!extracted?.ok) {
-        updateCrashStage('pre-cpu:skip:extract', {
-          reason: extracted?.reason || 'extract_failed',
-          sourceType: ext === '.pdf' ? 'pdf' : 'docx'
-        });
-        recordSkip(abs, extracted?.reason || 'extract_failed', {
-          stage: 'extract',
-          sourceType: ext === '.pdf' ? 'pdf' : 'docx',
-          warnings: extracted?.warnings || []
-        });
-        return null;
-      }
-      const joined = ext === '.pdf'
-        ? buildPdfExtractionText(extracted.pages)
-        : buildDocxExtractionText(extracted.paragraphs);
-      if (!joined.text) {
-        updateCrashStage('pre-cpu:skip:unsupported-scanned', {
-          sourceType: ext === '.pdf' ? 'pdf' : 'docx'
-        });
-        recordSkip(abs, 'unsupported_scanned', {
-          stage: 'extract',
-          sourceType: ext === '.pdf' ? 'pdf' : 'docx'
-        });
-        return null;
-      }
-      text = joined.text;
+      const sourceType = ext === '.pdf' ? 'pdf' : 'docx';
       let sourceHashBuffer = Buffer.isBuffer(fileBuffer) ? fileBuffer : null;
       if (!sourceHashBuffer) {
         try {
@@ -624,22 +677,95 @@ export function createFileProcessor(options) {
           sourceHashBuffer = null;
         }
       }
-      if (!fileHash) {
-        if (sourceHashBuffer) {
-          fileHash = sha1(sourceHashBuffer);
-          fileHashAlgo = 'sha1';
+      const sourceBytesHash = sourceHashBuffer ? sha256Hex(sourceHashBuffer) : null;
+      const extractorIdentity = await resolveDocumentExtractorIdentity(sourceType);
+      const extractionCacheKey = buildDocumentExtractionCacheKey({
+        sourceBytesHash,
+        extractor: extractorIdentity
+      });
+      const cachedExtraction = loadCachedDocumentExtraction(extractionCacheKey);
+      let extractionCacheHit = false;
+      let extracted = null;
+      let joined = null;
+      if (cachedExtraction?.text) {
+        extractionCacheHit = true;
+        joined = {
+          text: cachedExtraction.text,
+          units: Array.isArray(cachedExtraction.units) ? cachedExtraction.units : [],
+          counts: cachedExtraction.counts || { pages: 0, paragraphs: 0, totalUnits: 0 }
+        };
+        text = joined.text;
+        updateCrashStage('pre-cpu:extract:cache-hit', {
+          sourceType,
+          reasonCode: DOCUMENT_EXTRACTION_CACHE_HIT_REASON_CODE
+        });
+      } else {
+        updateCrashStage('pre-cpu:extract:start', { sourceType });
+        extracted = sourceType === 'pdf'
+          ? await extractPdf({ filePath: abs, buffer: fileBuffer, policy: documentExtractionPolicy })
+          : await extractDocx({ filePath: abs, buffer: fileBuffer, policy: documentExtractionPolicy });
+        updateCrashStage('pre-cpu:extract:done', {
+          ok: extracted?.ok === true,
+          sourceType,
+          reasonCode: DOCUMENT_EXTRACTION_CACHE_MISS_REASON_CODE
+        });
+        if (!extracted?.ok) {
+          updateCrashStage('pre-cpu:skip:extract', {
+            reason: extracted?.reason || 'extract_failed',
+            sourceType
+          });
+          recordSkip(abs, extracted?.reason || 'extract_failed', {
+            stage: 'extract',
+            sourceType,
+            warnings: extracted?.warnings || []
+          });
+          return null;
         }
+        joined = sourceType === 'pdf'
+          ? buildPdfExtractionText(extracted.pages)
+          : buildDocxExtractionText(extracted.paragraphs);
+        if (!joined.text) {
+          updateCrashStage('pre-cpu:skip:unsupported-scanned', { sourceType });
+          recordSkip(abs, 'unsupported_scanned', {
+            stage: 'extract',
+            sourceType
+          });
+          return null;
+        }
+        text = joined.text;
+        storeCachedDocumentExtraction(extractionCacheKey, {
+          sourceType,
+          extractor: extracted.extractor || extractorIdentity || null,
+          text: joined.text,
+          counts: joined.counts,
+          units: joined.units.map((unit) => ({
+            type: unit.type,
+            ...(Number.isFinite(unit.pageNumber) ? { pageNumber: unit.pageNumber } : {}),
+            ...(Number.isFinite(unit.index) ? { index: unit.index } : {}),
+            ...(unit.style ? { style: unit.style } : {}),
+            start: unit.start,
+            end: unit.end
+          })),
+          normalizationPolicy: EXTRACTION_NORMALIZATION_POLICY,
+          warnings: extracted.warnings || []
+        });
+      }
+      if (!fileHash && sourceHashBuffer) {
+        fileHash = sha1(sourceHashBuffer);
+        fileHashAlgo = 'sha1';
       }
       fileEncoding = 'document-extracted';
       fileEncodingFallback = null;
       fileEncodingConfidence = null;
       documentExtraction = {
-        sourceType: ext === '.pdf' ? 'pdf' : 'docx',
+        sourceType,
         status: 'ok',
-        extractor: extracted.extractor || null,
-        sourceBytesHash: sourceHashBuffer ? sha256Hex(sourceHashBuffer) : null,
+        extractor: extractionCacheHit
+          ? (cachedExtraction?.extractor || extractorIdentity || null)
+          : (extracted?.extractor || extractorIdentity || null),
+        sourceBytesHash: sourceBytesHash || null,
         sourceBytesHashAlgo: 'sha256',
-        counts: joined.counts,
+        counts: joined?.counts || { pages: 0, paragraphs: 0, totalUnits: 0 },
         units: joined.units.map((unit) => ({
           type: unit.type,
           ...(Number.isFinite(unit.pageNumber) ? { pageNumber: unit.pageNumber } : {}),
@@ -649,7 +775,19 @@ export function createFileProcessor(options) {
           end: unit.end
         })),
         normalizationPolicy: EXTRACTION_NORMALIZATION_POLICY,
-        warnings: extracted.warnings || []
+        warnings: extractionCacheHit
+          ? Array.from(new Set([
+            ...(Array.isArray(cachedExtraction?.warnings) ? cachedExtraction.warnings : []),
+            DOCUMENT_EXTRACTION_CACHE_HIT_REASON_CODE
+          ]))
+          : (extracted?.warnings || []),
+        cache: {
+          status: extractionCacheHit ? 'hit' : 'miss',
+          reasonCode: extractionCacheHit
+            ? DOCUMENT_EXTRACTION_CACHE_HIT_REASON_CODE
+            : DOCUMENT_EXTRACTION_CACHE_MISS_REASON_CODE,
+          key: extractionCacheKey || null
+        }
       };
     } else {
       updateCrashStage('pre-cpu:resolve-binary-skip:start');

@@ -15,6 +15,14 @@ export const EXTRACTED_PROSE_LOW_YIELD_BAILOUT_DEFAULTS = Object.freeze({
   minYieldedFiles: 2,
   seed: 'extracted-prose-low-yield-v1'
 });
+export const EXTRACTED_PROSE_YIELD_PROFILE_PREFILTER_DEFAULTS = Object.freeze({
+  enabled: true,
+  minBuilds: 1,
+  minProfileSamples: 192,
+  minFamilySamples: 64,
+  maxYieldRatio: 0.01,
+  maxYieldedFiles: 0
+});
 
 const normalizePositiveInt = (value, fallback) => {
   const parsed = Number(value);
@@ -33,6 +41,11 @@ const normalizeRatio = (value, fallback) => {
 const normalizeString = (value, fallback) => {
   const raw = typeof value === 'string' ? value.trim() : '';
   return raw || fallback;
+};
+const normalizeNonNegativeInt = (value, fallback) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+  return Math.floor(parsed);
 };
 
 export const normalizeExtractedProseLowYieldBailoutConfig = (value = null) => {
@@ -54,6 +67,19 @@ export const normalizeExtractedProseLowYieldBailoutConfig = (value = null) => {
     minYieldRatio: normalizeRatio(config.minYieldRatio, defaults.minYieldRatio),
     minYieldedFiles: normalizePositiveInt(config.minYieldedFiles, defaults.minYieldedFiles),
     seed: normalizeString(config.seed, defaults.seed)
+  };
+};
+
+export const normalizeExtractedProseYieldProfilePrefilterConfig = (value = null) => {
+  const config = value && typeof value === 'object' ? value : {};
+  const defaults = EXTRACTED_PROSE_YIELD_PROFILE_PREFILTER_DEFAULTS;
+  return {
+    enabled: normalizeBoolean(config.enabled, defaults.enabled),
+    minBuilds: Math.max(1, normalizePositiveInt(config.minBuilds, defaults.minBuilds)),
+    minProfileSamples: Math.max(1, normalizePositiveInt(config.minProfileSamples, defaults.minProfileSamples)),
+    minFamilySamples: Math.max(1, normalizePositiveInt(config.minFamilySamples, defaults.minFamilySamples)),
+    maxYieldRatio: normalizeRatio(config.maxYieldRatio, defaults.maxYieldRatio),
+    maxYieldedFiles: Math.max(0, normalizeNonNegativeInt(config.maxYieldedFiles, defaults.maxYieldedFiles))
   };
 };
 

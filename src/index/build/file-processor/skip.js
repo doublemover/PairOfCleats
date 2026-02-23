@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { pickMinLimit, resolveFileCaps } from './read.js';
 import { detectBinary, isMinifiedName, readFileSample } from '../file-scan.js';
+import { normalizeExtractedProseYieldProfilePrefilterConfig } from '../../chunking/formats/document-common.js';
 import {
   buildGeneratedPolicyConfig,
   buildGeneratedPolicyDowngradePayload,
@@ -41,8 +42,66 @@ const EXTRACTED_PROSE_LOW_YIELD_PATHS = [
   '/.git/'
 ];
 const EXTRACTED_PROSE_MIN_BYTES = 256;
+const EXTRACTED_PROSE_YIELD_PROFILE_SKIP_EXT_ALLOWLIST = new Set(EXTRACTED_PROSE_ALLOWED_EXTS);
+const EXTRACTED_PROSE_YIELD_PROFILE_PATH_FAMILIES = Object.freeze([
+  ['node_modules', '/node_modules/'],
+  ['vendor', '/vendor/'],
+  ['dist', '/dist/'],
+  ['build', '/build/'],
+  ['coverage', '/coverage/'],
+  ['git', '/.git/']
+]);
+const EXTRACTED_PROSE_YIELD_PROFILE_PATH_FAMILY_DEFAULT = '(root)';
+const EXTRACTED_PROSE_YIELD_PROFILE_EXT_DEFAULT = '(none)';
+export const EXTRACTED_PROSE_YIELD_PROFILE_SKIP_REASON = 'extracted-prose-yield-profile';
+export const EXTRACTED_PROSE_YIELD_PROFILE_SKIP_REASON_CODE = 'extracted-prose-yield-profile-low-yield-family';
 
 const normalizeProseProbePath = (value) => String(value || '').replace(/\\/g, '/').toLowerCase();
+const normalizeProseProbeExt = (value) => {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return EXTRACTED_PROSE_YIELD_PROFILE_EXT_DEFAULT;
+  return raw.startsWith('.') ? raw : `.${raw}`;
+};
+const resolveExtractedProsePathFamily = (value) => {
+  const normalizedPath = normalizeProseProbePath(value);
+  if (!normalizedPath) return EXTRACTED_PROSE_YIELD_PROFILE_PATH_FAMILY_DEFAULT;
+  const bounded = normalizedPath.startsWith('/') ? normalizedPath : `/${normalizedPath}`;
+  for (const [family, part] of EXTRACTED_PROSE_YIELD_PROFILE_PATH_FAMILIES) {
+    if (bounded.includes(part)) return family;
+  }
+  const firstSegment = bounded.replace(/^\/+/, '').split('/')[0];
+  return firstSegment || EXTRACTED_PROSE_YIELD_PROFILE_PATH_FAMILY_DEFAULT;
+};
+const buildExtractedProseYieldProfileFamily = ({ relPath = null, absPath = null, ext = null } = {}) => {
+  const normalizedPath = normalizeProseProbePath(relPath || absPath || '');
+  const normalizedExt = normalizeProseProbeExt(ext);
+  const pathFamily = resolveExtractedProsePathFamily(normalizedPath);
+  return {
+    key: `${normalizedExt}|${pathFamily}`,
+    ext: normalizedExt,
+    pathFamily,
+    pathHint: normalizedPath || null
+  };
+};
+const resolveExtractedProseYieldProfileEntry = (value) => {
+  if (!value || typeof value !== 'object') return null;
+  const families = value.families && typeof value.families === 'object'
+    ? value.families
+    : {};
+  const totals = value.totals && typeof value.totals === 'object'
+    ? value.totals
+    : {};
+  return {
+    ...value,
+    families,
+    totals: {
+      observedFiles: Math.max(0, Math.floor(Number(totals.observedFiles) || 0)),
+      yieldedFiles: Math.max(0, Math.floor(Number(totals.yieldedFiles) || 0)),
+      chunkCount: Math.max(0, Math.floor(Number(totals.chunkCount) || 0))
+    },
+    builds: Math.max(0, Math.floor(Number(value.builds) || 0))
+  };
+};
 
 const resolveExtractedProsePrefilterPolicy = (generatedPolicy = null) => {
   if (!generatedPolicy || typeof generatedPolicy !== 'object') {
@@ -110,6 +169,53 @@ export const resolveExtractedProsePrefilterDecision = ({
   return null;
 };
 
+const resolveExtractedProseYieldProfileSkipDecision = ({
+  relPath = null,
+  absPath = null,
+  ext = null,
+  mode = null,
+  generatedPolicy = null,
+  extractedProseYieldProfile = null
+} = {}) => {
+  if (mode !== 'extracted-prose') return null;
+  const { enabled: prefilterEnabled } = resolveExtractedProsePrefilterPolicy(generatedPolicy);
+  if (!prefilterEnabled) return null;
+  const profile = resolveExtractedProseYieldProfileEntry(extractedProseYieldProfile);
+  if (!profile) return null;
+  const config = normalizeExtractedProseYieldProfilePrefilterConfig(profile.config);
+  if (config.enabled !== true) return null;
+  if (profile.builds < config.minBuilds) return null;
+  if (profile.totals.observedFiles < config.minProfileSamples) return null;
+  const family = buildExtractedProseYieldProfileFamily({ relPath, absPath, ext });
+  if (EXTRACTED_PROSE_YIELD_PROFILE_SKIP_EXT_ALLOWLIST.has(family.ext)) return null;
+  const stats = profile.families?.[family.key];
+  if (!stats || typeof stats !== 'object') return null;
+  const observedFiles = Math.max(0, Math.floor(Number(stats.observedFiles) || 0));
+  const yieldedFiles = Math.max(0, Math.floor(Number(stats.yieldedFiles) || 0));
+  if (observedFiles < config.minFamilySamples) return null;
+  if (yieldedFiles > config.maxYieldedFiles) return null;
+  const yieldRatio = Number.isFinite(Number(stats.yieldRatio))
+    ? Number(stats.yieldRatio)
+    : (observedFiles > 0 ? yieldedFiles / observedFiles : 0);
+  if (!Number.isFinite(yieldRatio) || yieldRatio > config.maxYieldRatio) return null;
+  return {
+    reason: EXTRACTED_PROSE_YIELD_PROFILE_SKIP_REASON,
+    stage: 'pre-read',
+    prefilterClass: 'yield-profile',
+    reasonCode: EXTRACTED_PROSE_YIELD_PROFILE_SKIP_REASON_CODE,
+    profileFamily: family.key,
+    profileExt: family.ext,
+    profilePathFamily: family.pathFamily,
+    pathHint: family.pathHint,
+    profileBuilds: profile.builds,
+    profileObservedFiles: observedFiles,
+    profileYieldedFiles: yieldedFiles,
+    profileYieldRatio: yieldRatio,
+    profileMinFamilySamples: config.minFamilySamples,
+    profileMaxYieldRatio: config.maxYieldRatio
+  };
+};
+
 /**
  * Resolve pre-read skip decisions (caps/minified/binary scanner) before full
  * file decode. Supports a document-extraction bypass for binary/minified
@@ -132,7 +238,8 @@ export async function resolvePreReadSkip({
   mode = null,
   maxFileBytes = null,
   bypassBinaryMinifiedSkip = false,
-  generatedPolicy = null
+  generatedPolicy = null,
+  extractedProseYieldProfile = null
 }) {
   const effectiveGeneratedPolicy = generatedPolicy && typeof generatedPolicy === 'object'
     ? generatedPolicy
@@ -174,6 +281,17 @@ export async function resolvePreReadSkip({
       bytes: fileStat.size,
       maxBytes: effectiveMaxBytes
     };
+  }
+  const extractedProseYieldProfileSkip = resolveExtractedProseYieldProfileSkipDecision({
+    relPath: rel,
+    absPath: abs,
+    ext,
+    mode,
+    generatedPolicy: effectiveGeneratedPolicy,
+    extractedProseYieldProfile
+  });
+  if (extractedProseYieldProfileSkip) {
+    return extractedProseYieldProfileSkip;
   }
   const extractedProsePrefilterSkip = resolveExtractedProsePrefilterDecision({
     relPath: rel,

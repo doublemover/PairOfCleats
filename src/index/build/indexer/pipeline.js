@@ -106,6 +106,13 @@ export const resolveVectorOnlyShortcutPolicy = (runtime) => {
 const MODALITY_SPARSITY_SCHEMA_VERSION = '1.0.0';
 const MODALITY_SPARSITY_PROFILE_FILE = 'modality-sparsity-profile.json';
 const MODALITY_SPARSITY_MAX_ENTRIES = 512;
+const EXTRACTED_PROSE_YIELD_PROFILE_SCHEMA_VERSION = '1.0.0';
+const EXTRACTED_PROSE_YIELD_PROFILE_FILE = 'extracted-prose-yield-profile.json';
+const EXTRACTED_PROSE_YIELD_PROFILE_MAX_ENTRIES = 128;
+const DOCUMENT_EXTRACTION_CACHE_SCHEMA_VERSION = '1.0.0';
+const DOCUMENT_EXTRACTION_CACHE_FILE = 'document-extraction-cache.json';
+const DOCUMENT_EXTRACTION_CACHE_MAX_ENTRIES = 1024;
+const DOCUMENT_EXTRACTION_CACHE_MAX_TEXT_BYTES = 2 * 1024 * 1024;
 const SHARED_PROSE_FILE_TEXT_CACHE_KEY = 'prose-extracted:fileText';
 const SHARED_PROSE_MODES = new Set(['prose', 'extracted-prose']);
 
@@ -258,6 +265,449 @@ export const writeModalitySparsityEntry = async ({
   next.entries = trimModalitySparsityEntries(next.entries);
   await fs.mkdir(path.dirname(profilePath), { recursive: true });
   await atomicWriteJson(profilePath, next, { spaces: 2 });
+};
+
+const createEmptyExtractedProseYieldProfile = () => ({
+  schemaVersion: EXTRACTED_PROSE_YIELD_PROFILE_SCHEMA_VERSION,
+  updatedAt: null,
+  entries: {}
+});
+
+const createEmptyDocumentExtractionCache = () => ({
+  schemaVersion: DOCUMENT_EXTRACTION_CACHE_SCHEMA_VERSION,
+  updatedAt: null,
+  entries: {}
+});
+
+const resolveExtractedProseYieldProfilePath = (runtime) => {
+  const repoCacheRoot = typeof runtime?.repoCacheRoot === 'string' ? runtime.repoCacheRoot : '';
+  if (!repoCacheRoot) return null;
+  return path.join(repoCacheRoot, EXTRACTED_PROSE_YIELD_PROFILE_FILE);
+};
+
+const resolveDocumentExtractionCachePath = (runtime) => {
+  const repoCacheRoot = typeof runtime?.repoCacheRoot === 'string' ? runtime.repoCacheRoot : '';
+  if (!repoCacheRoot) return null;
+  return path.join(repoCacheRoot, DOCUMENT_EXTRACTION_CACHE_FILE);
+};
+
+const buildExtractedProseYieldProfileEntryKey = ({ mode, cacheSignature }) => (
+  `${String(mode || 'unknown')}:${String(cacheSignature || 'nosig')}`
+);
+
+const normalizeExtractedProseYieldProfileFamily = (family, key) => {
+  if (!family || typeof family !== 'object') return null;
+  const observedFiles = Math.max(0, Math.floor(Number(family.observedFiles) || 0));
+  if (observedFiles <= 0) return null;
+  const yieldedFiles = Math.max(0, Math.floor(Number(family.yieldedFiles) || 0));
+  const chunkCount = Math.max(0, Math.floor(Number(family.chunkCount) || 0));
+  return {
+    key: family.key || key || null,
+    ext: family.ext || null,
+    pathFamily: family.pathFamily || null,
+    pathHint: family.pathHint || null,
+    observedFiles,
+    yieldedFiles,
+    chunkCount,
+    yieldRatio: observedFiles > 0
+      ? yieldedFiles / observedFiles
+      : 0
+  };
+};
+
+const normalizeExtractedProseYieldProfileEntry = (entry) => {
+  if (!entry || typeof entry !== 'object') return null;
+  const familiesRaw = entry.families && typeof entry.families === 'object'
+    ? entry.families
+    : {};
+  const families = {};
+  for (const [key, family] of Object.entries(familiesRaw)) {
+    const normalized = normalizeExtractedProseYieldProfileFamily(family, key);
+    if (!normalized) continue;
+    families[key] = normalized;
+  }
+  const totals = entry.totals && typeof entry.totals === 'object'
+    ? entry.totals
+    : {};
+  return {
+    schemaVersion: EXTRACTED_PROSE_YIELD_PROFILE_SCHEMA_VERSION,
+    key: entry.key || null,
+    mode: entry.mode || 'extracted-prose',
+    cacheSignature: entry.cacheSignature || null,
+    builds: Math.max(0, Math.floor(Number(entry.builds) || 0)),
+    config: entry.config && typeof entry.config === 'object' ? entry.config : {},
+    totals: {
+      observedFiles: Math.max(0, Math.floor(Number(totals.observedFiles) || 0)),
+      yieldedFiles: Math.max(0, Math.floor(Number(totals.yieldedFiles) || 0)),
+      chunkCount: Math.max(0, Math.floor(Number(totals.chunkCount) || 0)),
+      familyCount: Math.max(0, Math.floor(Number(totals.familyCount) || 0)),
+      overflowFamilies: Math.max(0, Math.floor(Number(totals.overflowFamilies) || 0)),
+      skippedByProfile: Math.max(0, Math.floor(Number(totals.skippedByProfile) || 0))
+    },
+    families,
+    repoRoot: entry.repoRoot || null,
+    updatedAt: typeof entry.updatedAt === 'string' ? entry.updatedAt : null
+  };
+};
+
+const normalizeExtractedProseYieldProfile = (profile) => {
+  if (!profile || typeof profile !== 'object') return createEmptyExtractedProseYieldProfile();
+  const entriesRaw = profile.entries && typeof profile.entries === 'object'
+    ? profile.entries
+    : {};
+  const entries = {};
+  for (const [key, value] of Object.entries(entriesRaw)) {
+    const normalized = normalizeExtractedProseYieldProfileEntry(value);
+    if (!normalized) continue;
+    entries[key] = normalized;
+  }
+  return {
+    schemaVersion: typeof profile.schemaVersion === 'string'
+      ? profile.schemaVersion
+      : EXTRACTED_PROSE_YIELD_PROFILE_SCHEMA_VERSION,
+    updatedAt: typeof profile.updatedAt === 'string' ? profile.updatedAt : null,
+    entries
+  };
+};
+
+const trimExtractedProseYieldProfileEntries = (entries = {}) => {
+  const list = Object.entries(entries);
+  if (list.length <= EXTRACTED_PROSE_YIELD_PROFILE_MAX_ENTRIES) return entries;
+  list.sort((a, b) => {
+    const aTs = Date.parse(a?.[1]?.updatedAt || 0) || 0;
+    const bTs = Date.parse(b?.[1]?.updatedAt || 0) || 0;
+    return bTs - aTs;
+  });
+  return Object.fromEntries(list.slice(0, EXTRACTED_PROSE_YIELD_PROFILE_MAX_ENTRIES));
+};
+
+const selectExtractedProseYieldProfileEntry = ({ profile, mode, cacheSignature }) => {
+  const normalized = normalizeExtractedProseYieldProfile(profile);
+  const exactKey = buildExtractedProseYieldProfileEntryKey({ mode, cacheSignature });
+  const exactEntry = normalized.entries?.[exactKey] || null;
+  if (exactEntry) {
+    return {
+      key: exactKey,
+      source: 'exact',
+      entry: exactEntry
+    };
+  }
+  const candidates = Object.entries(normalized.entries || {})
+    .filter(([, value]) => value?.mode === mode)
+    .sort((a, b) => {
+      const aTs = Date.parse(a?.[1]?.updatedAt || 0) || 0;
+      const bTs = Date.parse(b?.[1]?.updatedAt || 0) || 0;
+      return bTs - aTs;
+    });
+  if (!candidates.length) return { key: null, source: null, entry: null };
+  return {
+    key: candidates[0][0],
+    source: 'latest',
+    entry: candidates[0][1]
+  };
+};
+
+const mergeExtractedProseYieldProfileEntry = ({
+  existingEntry,
+  observation,
+  runtime,
+  mode,
+  cacheSignature
+}) => {
+  const existing = normalizeExtractedProseYieldProfileEntry(existingEntry) || {
+    schemaVersion: EXTRACTED_PROSE_YIELD_PROFILE_SCHEMA_VERSION,
+    key: null,
+    mode,
+    cacheSignature,
+    builds: 0,
+    config: {},
+    totals: {
+      observedFiles: 0,
+      yieldedFiles: 0,
+      chunkCount: 0,
+      familyCount: 0,
+      overflowFamilies: 0,
+      skippedByProfile: 0
+    },
+    families: {},
+    repoRoot: runtime?.root || null,
+    updatedAt: null
+  };
+  const observedTotals = observation?.totals && typeof observation.totals === 'object'
+    ? observation.totals
+    : {};
+  const observedFamilies = observation?.families && typeof observation.families === 'object'
+    ? observation.families
+    : {};
+  const families = { ...(existing.families || {}) };
+  for (const [key, family] of Object.entries(observedFamilies)) {
+    const normalized = normalizeExtractedProseYieldProfileFamily(family, key);
+    if (!normalized) continue;
+    const current = normalizeExtractedProseYieldProfileFamily(families[key], key) || {
+      key,
+      ext: normalized.ext || null,
+      pathFamily: normalized.pathFamily || null,
+      pathHint: normalized.pathHint || null,
+      observedFiles: 0,
+      yieldedFiles: 0,
+      chunkCount: 0,
+      yieldRatio: 0
+    };
+    const mergedObserved = current.observedFiles + normalized.observedFiles;
+    const mergedYielded = current.yieldedFiles + normalized.yieldedFiles;
+    const mergedChunkCount = current.chunkCount + normalized.chunkCount;
+    families[key] = {
+      key,
+      ext: normalized.ext || current.ext || null,
+      pathFamily: normalized.pathFamily || current.pathFamily || null,
+      pathHint: normalized.pathHint || current.pathHint || null,
+      observedFiles: mergedObserved,
+      yieldedFiles: mergedYielded,
+      chunkCount: mergedChunkCount,
+      yieldRatio: mergedObserved > 0 ? mergedYielded / mergedObserved : 0
+    };
+  }
+  const maxFamilies = Number(observation?.config?.maxFamilies);
+  const familyEntries = Object.entries(families);
+  if (Number.isFinite(maxFamilies) && maxFamilies > 0 && familyEntries.length > maxFamilies) {
+    familyEntries.sort((a, b) => {
+      const aObserved = Number(a?.[1]?.observedFiles) || 0;
+      const bObserved = Number(b?.[1]?.observedFiles) || 0;
+      if (aObserved !== bObserved) return bObserved - aObserved;
+      return String(a?.[0] || '').localeCompare(String(b?.[0] || ''));
+    });
+    familyEntries.length = Math.max(1, Math.floor(maxFamilies));
+  } else {
+    familyEntries.sort((a, b) => String(a?.[0] || '').localeCompare(String(b?.[0] || '')));
+  }
+  const now = new Date().toISOString();
+  return {
+    schemaVersion: EXTRACTED_PROSE_YIELD_PROFILE_SCHEMA_VERSION,
+    key: buildExtractedProseYieldProfileEntryKey({ mode, cacheSignature }),
+    mode,
+    cacheSignature: cacheSignature || null,
+    builds: Math.max(0, Math.floor(Number(existing.builds) || 0))
+      + Math.max(0, Math.floor(Number(observation?.builds) || 0)),
+    config: observation?.config && typeof observation.config === 'object'
+      ? observation.config
+      : (existing.config || {}),
+    totals: {
+      observedFiles: Math.max(0, Math.floor(Number(existing?.totals?.observedFiles) || 0))
+        + Math.max(0, Math.floor(Number(observedTotals.observedFiles) || 0)),
+      yieldedFiles: Math.max(0, Math.floor(Number(existing?.totals?.yieldedFiles) || 0))
+        + Math.max(0, Math.floor(Number(observedTotals.yieldedFiles) || 0)),
+      chunkCount: Math.max(0, Math.floor(Number(existing?.totals?.chunkCount) || 0))
+        + Math.max(0, Math.floor(Number(observedTotals.chunkCount) || 0)),
+      familyCount: familyEntries.length,
+      overflowFamilies: Math.max(0, Math.floor(Number(existing?.totals?.overflowFamilies) || 0))
+        + Math.max(0, Math.floor(Number(observedTotals.overflowFamilies) || 0)),
+      skippedByProfile: Math.max(0, Math.floor(Number(existing?.totals?.skippedByProfile) || 0))
+        + Math.max(0, Math.floor(Number(observedTotals.skippedByProfile) || 0))
+    },
+    families: Object.fromEntries(familyEntries),
+    repoRoot: runtime?.root || null,
+    updatedAt: now
+  };
+};
+
+const readExtractedProseYieldProfile = async (runtime) => {
+  const profilePath = resolveExtractedProseYieldProfilePath(runtime);
+  if (!profilePath) {
+    return { profilePath: null, profile: createEmptyExtractedProseYieldProfile() };
+  }
+  try {
+    const raw = await fs.readFile(profilePath, 'utf8');
+    return {
+      profilePath,
+      profile: normalizeExtractedProseYieldProfile(JSON.parse(raw))
+    };
+  } catch {
+    return { profilePath, profile: createEmptyExtractedProseYieldProfile() };
+  }
+};
+
+const writeExtractedProseYieldProfileEntry = async ({
+  runtime,
+  profilePath,
+  profile,
+  mode,
+  cacheSignature,
+  observation
+}) => {
+  if (!profilePath || !observation || typeof observation !== 'object') return;
+  const key = buildExtractedProseYieldProfileEntryKey({ mode, cacheSignature });
+  const next = normalizeExtractedProseYieldProfile(profile);
+  next.updatedAt = new Date().toISOString();
+  next.entries = {
+    ...next.entries,
+    [key]: mergeExtractedProseYieldProfileEntry({
+      existingEntry: next.entries?.[key] || null,
+      observation,
+      runtime,
+      mode,
+      cacheSignature
+    })
+  };
+  next.entries = trimExtractedProseYieldProfileEntries(next.entries);
+  await fs.mkdir(path.dirname(profilePath), { recursive: true });
+  await atomicWriteJson(profilePath, next, { spaces: 2 });
+};
+
+const normalizeDocumentExtractionCacheEntry = (entry) => {
+  if (!entry || typeof entry !== 'object') return null;
+  const text = typeof entry.text === 'string' ? entry.text : '';
+  if (!text) return null;
+  const sourceType = entry.sourceType === 'docx' ? 'docx' : 'pdf';
+  return {
+    sourceType,
+    extractor: entry.extractor && typeof entry.extractor === 'object'
+      ? {
+        name: entry.extractor.name || null,
+        version: entry.extractor.version || null,
+        target: entry.extractor.target || null
+      }
+      : null,
+    text,
+    counts: {
+      pages: Math.max(0, Math.floor(Number(entry?.counts?.pages) || 0)),
+      paragraphs: Math.max(0, Math.floor(Number(entry?.counts?.paragraphs) || 0)),
+      totalUnits: Math.max(0, Math.floor(Number(entry?.counts?.totalUnits) || 0))
+    },
+    units: Array.isArray(entry.units)
+      ? entry.units
+        .filter((unit) => unit && typeof unit === 'object')
+        .map((unit) => ({
+          type: unit.type === 'docx' ? 'docx' : 'pdf',
+          ...(Number.isFinite(Number(unit.pageNumber)) ? { pageNumber: Math.floor(Number(unit.pageNumber)) } : {}),
+          ...(Number.isFinite(Number(unit.index)) ? { index: Math.floor(Number(unit.index)) } : {}),
+          ...(typeof unit.style === 'string' ? { style: unit.style } : {}),
+          start: Math.max(0, Math.floor(Number(unit.start) || 0)),
+          end: Math.max(0, Math.floor(Number(unit.end) || 0))
+        }))
+      : [],
+    normalizationPolicy: entry.normalizationPolicy || null,
+    warnings: Array.isArray(entry.warnings)
+      ? entry.warnings.slice(0, 32).map((item) => String(item))
+      : []
+  };
+};
+
+const normalizeDocumentExtractionCache = (cache) => {
+  if (!cache || typeof cache !== 'object') return createEmptyDocumentExtractionCache();
+  const entriesRaw = cache.entries && typeof cache.entries === 'object'
+    ? cache.entries
+    : {};
+  const entries = {};
+  for (const [key, value] of Object.entries(entriesRaw)) {
+    const normalized = normalizeDocumentExtractionCacheEntry(value);
+    if (!normalized) continue;
+    entries[key] = normalized;
+  }
+  return {
+    schemaVersion: typeof cache.schemaVersion === 'string'
+      ? cache.schemaVersion
+      : DOCUMENT_EXTRACTION_CACHE_SCHEMA_VERSION,
+    updatedAt: typeof cache.updatedAt === 'string' ? cache.updatedAt : null,
+    entries
+  };
+};
+
+const readDocumentExtractionCache = async (runtime) => {
+  const cachePath = resolveDocumentExtractionCachePath(runtime);
+  if (!cachePath) {
+    return { cachePath: null, cache: createEmptyDocumentExtractionCache() };
+  }
+  try {
+    const raw = await fs.readFile(cachePath, 'utf8');
+    return {
+      cachePath,
+      cache: normalizeDocumentExtractionCache(JSON.parse(raw))
+    };
+  } catch {
+    return { cachePath, cache: createEmptyDocumentExtractionCache() };
+  }
+};
+
+const createDocumentExtractionCacheRuntime = ({ runtime, cachePath, cache }) => {
+  const config = runtime?.indexingConfig?.documentExtraction?.cache
+    && typeof runtime.indexingConfig.documentExtraction.cache === 'object'
+    ? runtime.indexingConfig.documentExtraction.cache
+    : {};
+  const enabled = config.enabled !== false;
+  const maxEntriesRaw = Number(config.maxEntries ?? runtime?.cacheConfig?.documentExtraction?.maxEntries);
+  const maxEntries = Number.isFinite(maxEntriesRaw) && maxEntriesRaw > 0
+    ? Math.max(1, Math.floor(maxEntriesRaw))
+    : DOCUMENT_EXTRACTION_CACHE_MAX_ENTRIES;
+  const maxTextBytesRaw = Number(config.maxTextBytes);
+  const maxTextBytes = Number.isFinite(maxTextBytesRaw) && maxTextBytesRaw > 0
+    ? Math.max(1024, Math.floor(maxTextBytesRaw))
+    : DOCUMENT_EXTRACTION_CACHE_MAX_TEXT_BYTES;
+  const normalized = normalizeDocumentExtractionCache(cache);
+  const entries = new Map(Object.entries(normalized.entries || {}));
+  const stats = {
+    hits: 0,
+    misses: 0,
+    stores: 0,
+    evictions: 0
+  };
+  let dirty = false;
+  const get = (key) => {
+    if (!enabled) return null;
+    const cacheKey = typeof key === 'string' ? key : '';
+    if (!cacheKey || !entries.has(cacheKey)) {
+      stats.misses += 1;
+      return null;
+    }
+    stats.hits += 1;
+    return normalizeDocumentExtractionCacheEntry(entries.get(cacheKey));
+  };
+  const set = (key, value) => {
+    if (!enabled) return;
+    const cacheKey = typeof key === 'string' ? key : '';
+    if (!cacheKey) return;
+    const normalizedValue = normalizeDocumentExtractionCacheEntry(value);
+    if (!normalizedValue) return;
+    if (Buffer.byteLength(normalizedValue.text, 'utf8') > maxTextBytes) return;
+    if (entries.has(cacheKey)) entries.delete(cacheKey);
+    entries.set(cacheKey, normalizedValue);
+    stats.stores += 1;
+    dirty = true;
+    while (entries.size > maxEntries) {
+      const oldestKey = entries.keys().next().value;
+      if (oldestKey == null) break;
+      entries.delete(oldestKey);
+      stats.evictions += 1;
+    }
+  };
+  const snapshot = () => ({
+    schemaVersion: DOCUMENT_EXTRACTION_CACHE_SCHEMA_VERSION,
+    updatedAt: new Date().toISOString(),
+    entries: Object.fromEntries(
+      Array.from(entries.entries()).sort((a, b) => String(a[0]).localeCompare(String(b[0])))
+    )
+  });
+  return {
+    cachePath,
+    enabled,
+    maxEntries,
+    maxTextBytes,
+    get,
+    set,
+    stats: () => ({
+      ...stats,
+      entries: entries.size,
+      maxEntries,
+      maxTextBytes
+    }),
+    isDirty: () => dirty,
+    snapshot
+  };
+};
+
+const writeDocumentExtractionCacheRuntime = async (cacheRuntime) => {
+  if (!cacheRuntime?.enabled || !cacheRuntime?.cachePath || cacheRuntime?.isDirty?.() !== true) return;
+  await fs.mkdir(path.dirname(cacheRuntime.cachePath), { recursive: true });
+  await atomicWriteJson(cacheRuntime.cachePath, cacheRuntime.snapshot(), { spaces: 2 });
 };
 
 /**
@@ -1035,6 +1485,34 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     profilePath: modalitySparsityProfilePath,
     profile: modalitySparsityProfile
   } = await readModalitySparsityProfile(runtimeRef);
+  const {
+    profilePath: extractedProseYieldProfilePath,
+    profile: extractedProseYieldProfile
+  } = mode === 'extracted-prose'
+    ? await readExtractedProseYieldProfile(runtimeRef)
+    : { profilePath: null, profile: createEmptyExtractedProseYieldProfile() };
+  const extractedProseYieldProfileSelection = mode === 'extracted-prose'
+    ? selectExtractedProseYieldProfileEntry({
+      profile: extractedProseYieldProfile,
+      mode,
+      cacheSignature
+    })
+    : { key: null, source: null, entry: null };
+  const documentExtractionEnabledForMode = mode === 'extracted-prose'
+    && runtimeRef?.indexingConfig?.documentExtraction?.enabled === true;
+  const {
+    cachePath: documentExtractionCachePath,
+    cache: documentExtractionCache
+  } = documentExtractionEnabledForMode
+    ? await readDocumentExtractionCache(runtimeRef)
+    : { cachePath: null, cache: createEmptyDocumentExtractionCache() };
+  const documentExtractionCacheRuntime = documentExtractionEnabledForMode
+    ? createDocumentExtractionCacheRuntime({
+      runtime: runtimeRef,
+      cachePath: documentExtractionCachePath,
+      cache: documentExtractionCache
+    })
+    : null;
   const modalitySparsityKey = buildModalitySparsityEntryKey({ mode, cacheSignature });
   const cachedModalitySparsity = modalitySparsityProfile?.entries?.[modalitySparsityKey] || null;
   const cachedZeroModality = shouldElideModalityProcessingStage({
@@ -1154,11 +1632,18 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       relationsEnabled,
       shardPerfProfile,
       fileTextCache,
+      extractedProseYieldProfile: extractedProseYieldProfileSelection?.entry || null,
+      documentExtractionCache: documentExtractionCacheRuntime,
       abortSignal
     });
   }
   throwIfAborted(abortSignal);
-  const { tokenizationStats, shardSummary, postingsQueueStats } = processResult;
+  const {
+    tokenizationStats,
+    shardSummary,
+    postingsQueueStats,
+    extractedProseYieldProfile: extractedProseYieldProfileObservation
+  } = processResult;
   const summarizePostingsQueue = (stats) => {
     if (!stats || typeof stats !== 'object') return null;
     return {
@@ -1210,6 +1695,15 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       : 'observed'
   });
   if (mode === 'extracted-prose') {
+    await writeExtractedProseYieldProfileEntry({
+      runtime: runtimeRef,
+      profilePath: extractedProseYieldProfilePath,
+      profile: extractedProseYieldProfile,
+      mode,
+      cacheSignature,
+      observation: extractedProseYieldProfileObservation
+    });
+    await writeDocumentExtractionCacheRuntime(documentExtractionCacheRuntime);
     const extractionSummary = summarizeDocumentExtractionForMode(state);
     if (extractionSummary) {
       await updateBuildState(runtimeRef.buildRoot, {
