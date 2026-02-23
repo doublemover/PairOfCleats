@@ -95,6 +95,8 @@ Note:
   Refactored `src/storage/sqlite/build/runner.js` into `selection-planning`, `execution-orchestration`, and `reporting-state-transitions` modules, preserving sqlite build mode semantics while reducing redundant chunk-meta/output probing and isolating checkpoint/report flow control.
 - 2026-02-23T05:32:16.9516919-05:00
   Optimized `src/shared/concurrency/scheduler-core.js` queue wait sampling by replacing per-event bounded-array shifts with a fixed-size ring buffer, preserving percentile behavior while reducing completion-path allocation/compaction overhead in long-lived schedulers.
+- 2026-02-23T05:36:56.8007092-05:00
+  Completed the `src/index/build/incremental.js` split into `planning`, `shared`, `state-reconciliation`, and `writeback` modules, preserving the public incremental API through a facade while reducing duplicated IO/hash/bundle helper code and parallelizing reuse checks in planning.
 
 ## Architectural assessment (what needs to change)
 
