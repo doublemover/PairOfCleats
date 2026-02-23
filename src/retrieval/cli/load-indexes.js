@@ -34,9 +34,29 @@ export { __testScmChunkAuthorHydration };
 /**
  * Load retrieval indexes across enabled modes and attach optional ANN/graph
  * side artifacts while enforcing cohort compatibility and embedding identity.
- * In non-strict mode, incompatible ANN sources are disabled instead of failing.
+ *
+ * Strict-vs-fallback behavior:
+ * - In strict mode, required manifests and compatibility keys must exist and
+ *   match across loaded modes (unless `allowUnsafeMix` is explicitly enabled).
+ * - Optional extracted-prose joins are allowed to degrade to "disabled" when
+ *   they are not directly requested and become incompatible or unavailable.
+ * - When sqlite mode is active for extracted-prose, a sqlite load failure can
+ *   fall back to cached artifact loading.
+ *
+ * Artifact invariants:
+ * - All loaded modes must resolve to one embedding identity cohort unless
+ *   unsafe mixing is explicitly allowed.
+ * - ANN/graph side artifacts are only attached when required for downstream
+ *   ranking, filtering, or context expansion.
  *
  * @param {object} input
+ * @param {string} input.rootDir
+ * @param {object} input.userConfig
+ * @param {boolean} input.strict
+ * @param {boolean} input.useSqlite
+ * @param {boolean} input.useLmdb
+ * @param {(mode:string, options:object) => any} input.loadIndexFromSqlite
+ * @param {(mode:string, options:object) => any} input.loadIndexFromLmdb
  * @returns {Promise<object>}
  */
 export async function loadSearchIndexes({
@@ -125,6 +145,15 @@ export async function loadSearchIndexes({
     }
   }
 
+  /**
+   * Resolve tantivy sidecar availability for one mode. Metadata parse failures
+   * are tolerated and treated as unavailable so strict caller paths decide how
+   * to enforce required availability.
+   *
+   * @param {string} mode
+   * @param {string|null} indexDir
+   * @returns {Promise<{dir:string|null,metaPath:string|null,meta:object|null,available:boolean}>}
+   */
   const resolveTantivyAvailability = async (mode, indexDir) => {
     if (!tantivyEnabled || !indexDir) {
       return { dir: null, metaPath: null, meta: null, available: false };
@@ -140,6 +169,14 @@ export async function loadSearchIndexes({
     return { ...paths, meta, available };
   };
 
+  /**
+   * Ensure tantivy is available for a mode, optionally auto-building missing
+   * indexes when backend policy requires tantivy and auto-build is enabled.
+   *
+   * @param {string} mode
+   * @param {string|null} indexDir
+   * @returns {Promise<{dir:string|null,metaPath:string|null,meta:object|null,available:boolean}>}
+   */
   const ensureTantivyIndex = async (mode, indexDir) => {
     const availability = await resolveTantivyAvailability(mode, indexDir);
     if (availability.available) return availability;
@@ -161,6 +198,15 @@ export async function loadSearchIndexes({
     return resolveTantivyAvailability(mode, indexDir);
   };
 
+  /**
+   * Local wrapper around shared index cache loading that preserves strict-mode
+   * parsing and mode-specific dense-vector selection.
+   *
+   * @param {string} dir
+   * @param {object} [options]
+   * @param {string|null} [mode]
+   * @returns {Promise<object>}
+   */
   const loadIndexCachedLocal = async (dir, options = {}, mode = null) => loadIndexCached({
     indexCache,
     dir,
@@ -186,6 +232,14 @@ export async function loadSearchIndexes({
   let extractedProseDir = null;
   let resolvedRunExtractedProse = runExtractedProse;
   let resolvedLoadExtractedProse = runExtractedProse || loadExtractedProse;
+
+  /**
+   * Disable optional extracted-prose comment joins without affecting explicit
+   * extracted-prose search mode.
+   *
+   * @param {string|null} [reason]
+   * @returns {boolean} True when the optional path was disabled.
+   */
   const disableOptionalExtractedProse = (reason = null) => {
     if (!resolvedLoadExtractedProse || resolvedRunExtractedProse) return false;
     if (reason && emitOutput) {
@@ -319,6 +373,14 @@ export async function loadSearchIndexes({
   const loadCachedModeIndex = (mode, dir, modeLoadOptions = cachedLoadOptions) => (
     loadIndexCachedLocal(dir, modeLoadOptions, mode)
   );
+
+  /**
+   * Load one mode from the selected backend with optional sqlite-to-artifact
+   * fallback used for optional extracted-prose joins.
+   *
+   * @param {object} input
+   * @returns {Promise<object>}
+   */
   const loadModeIndex = async ({
     mode,
     run,
@@ -385,6 +447,14 @@ export async function loadSearchIndexes({
     dir: recordsDir
   });
 
+  /**
+   * Reattach persisted index state when the loaded payload omitted state blobs
+   * (for example lightweight backend loaders).
+   *
+   * @param {object} idx
+   * @param {string} mode
+   * @returns {void}
+   */
   const applyFallbackIndexState = (idx, mode) => {
     if (!idx?.state && indexStates?.[mode]) {
       idx.state = indexStates[mode];
@@ -408,6 +478,14 @@ export async function loadSearchIndexes({
         })
     );
   };
+
+  /**
+   * Normalize index payloads after load so downstream ranking can assume stable
+   * dense-vector and relation fields regardless of backend.
+   *
+   * @param {object} input
+   * @returns {void}
+   */
   const hydrateLoadedIndex = ({
     idx,
     mode,
@@ -523,6 +601,14 @@ export async function loadSearchIndexes({
     emitOutput
   });
 
+  /**
+   * Attach tantivy availability metadata to a loaded mode index.
+   *
+   * @param {object|null} idx
+   * @param {string} mode
+   * @param {string|null} dir
+   * @returns {Promise<object|null>}
+   */
   const attachTantivy = async (idx, mode, dir) => {
     if (!idx || !dir || !tantivyEnabled) return null;
     const availability = await ensureTantivyIndex(mode, dir);

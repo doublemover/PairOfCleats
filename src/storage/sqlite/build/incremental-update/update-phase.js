@@ -13,6 +13,10 @@ import {
 import { deleteDocIds, updateTokenStats } from '../delete.js';
 import { validateSqliteDatabase } from '../validate.js';
 
+/**
+ * Sentinel error used to convert transactional guard failures into
+ * non-throwing incremental skip results.
+ */
 class IncrementalSkipError extends Error {
   constructor(reason) {
     super(reason);
@@ -68,6 +72,14 @@ const allocateIncrementalDocId = ({
 
 /**
  * Apply incremental delete/insert transactions for sqlite index updates.
+ *
+ * Transaction invariants:
+ * - Deletes (including changed-file replacement deletes) execute in their own
+ *   transaction before inserts begin.
+ * - Inserts validate vocab growth limits before writing postings.
+ * - Post-insert validation runs inside the insert transaction to ensure the
+ *   committed state is internally consistent.
+ * - Returning `{ ok: false }` means no partial writes escaped both phases.
  *
  * @param {object} input
  * @returns {{ok:true,insertedChunks:number,applyDurationMs:number,validationMs:number,transactionPhases:{deletes:boolean,inserts:boolean},tableRows:Record<string,number>}|{ok:false,skipReason:string}}
@@ -167,6 +179,10 @@ export const runIncrementalUpdatePhase = ({
   const phraseUniqueScratch = new Set();
   const chargramUniqueScratch = new Set();
 
+  /**
+   * Delete stale rows and apply manifest-only updates before inserts.
+   * Any ids released here become available to deterministic doc-id allocation.
+   */
   const applyDeletes = db.transaction(() => {
     for (const file of deleted) {
       const normalizedFile = file;
@@ -199,6 +215,10 @@ export const runIncrementalUpdatePhase = ({
     }
   });
 
+  /**
+   * Insert all changed bundles and dependent vocab/postings rows.
+   * Throws IncrementalSkipError when growth guards require full rebuild.
+   */
   const applyInserts = db.transaction(() => {
     const tokenVocab = ensureVocabIds(
       db,

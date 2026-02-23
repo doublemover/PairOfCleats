@@ -13,10 +13,22 @@ import {
 
 const SINGLE_SOURCE_FORMATS = new Set(['json', 'columnar', 'binary-columnar']);
 
+/**
+ * Resolve the max bytes budget used when reading manifest metadata.
+ *
+ * @param {unknown} maxBytes
+ * @returns {number}
+ */
 const resolveManifestMaxBytes = (maxBytes) => (
   Number.isFinite(Number(maxBytes)) ? Number(maxBytes) : MAX_JSON_BYTES
 );
 
+/**
+ * Summarize source layout hints used by higher-level mmap/hot-path decisions.
+ *
+ * @param {{manifest:any,sources:any}} input
+ * @returns {{preferMmapHotLayout:boolean,hotCount:number,hotContiguousCount:number}|null}
+ */
 const resolveSourceLayoutSummary = ({ manifest, sources }) => {
   const entries = Array.isArray(sources?.entries) ? sources.entries : [];
   if (!entries.length) return null;
@@ -39,6 +51,13 @@ const resolveSourceLayoutSummary = ({ manifest, sources }) => {
   };
 };
 
+/**
+ * Resolve an artifact path to the readable target, preferring the primary file
+ * and falling back to `.bak` when present.
+ *
+ * @param {string} targetPath
+ * @returns {{path:string,exists:boolean}}
+ */
 const resolveReadableArtifactPathState = (targetPath) => {
   if (typeof targetPath !== 'string' || !targetPath.length) {
     return {
@@ -65,6 +84,12 @@ const resolveReadableArtifactPathState = (targetPath) => {
   };
 };
 
+/**
+ * Convenience wrapper returning only the resolved readable path.
+ *
+ * @param {string} targetPath
+ * @returns {string}
+ */
 const resolveReadableArtifactPath = (targetPath) => resolveReadableArtifactPathState(targetPath).path;
 
 /**
@@ -73,6 +98,12 @@ const resolveReadableArtifactPath = (targetPath) => resolveReadableArtifactPathS
  * This enforces strict presence checks (including binary-columnar sidecars),
  * normalizes backup-path fallbacks, and optionally collapses ambiguous
  * single-source formats when strict mode is disabled.
+ *
+ * Invariants:
+ * - Every returned `paths` entry exists (primary or backup).
+ * - Binary-columnar sidecars are required when the selected format is
+ *   `binary-columnar`.
+ * - Strict mode forbids ambiguous single-source declarations.
  *
  * @param {{
  *   dir:string,
@@ -210,6 +241,12 @@ const resolveRequiredSources = ({
   };
 };
 
+/**
+ * Infer default binary-columnar sidecar names from a data-path convention.
+ *
+ * @param {string|null} dataPath
+ * @returns {{metaPath:string|null,offsetsPath:string|null,lengthsPath:string|null}}
+ */
 const resolveBinaryColumnarDefaultPaths = (dataPath) => {
   if (!dataPath || typeof dataPath !== 'string') {
     return {
@@ -226,6 +263,14 @@ const resolveBinaryColumnarDefaultPaths = (dataPath) => {
   };
 };
 
+/**
+ * Select one shard from a binary-columnar source declaration, rebuilding
+ * sidecar paths for non-primary shards so part-local sidecars are addressed.
+ *
+ * @param {object} sources
+ * @param {number} [partIndex=0]
+ * @returns {object}
+ */
 const resolveBinaryColumnarSourcePart = (sources, partIndex = 0) => {
   const paths = Array.isArray(sources?.paths) ? sources.paths : [];
   if (!paths.length) return { ...sources, paths: [] };

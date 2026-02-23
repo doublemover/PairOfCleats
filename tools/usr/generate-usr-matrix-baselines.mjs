@@ -9,6 +9,12 @@ const repoRoot = path.resolve(__dirname, '..', '..');
 const DEFAULT_MATRIX_DIR = path.join(repoRoot, 'tests', 'lang', 'matrix');
 
 const SCHEMA_VERSION = 'usr-registry-1.0.0';
+/**
+ * Parse CLI flags for baseline generation/check workflows.
+ *
+ * @param {string[]} [argv=process.argv.slice(2)]
+ * @returns {{matrixDir:string,checkMode:boolean}}
+ */
 function parseGeneratorOptions(argv = process.argv.slice(2)) {
   let matrixDir = DEFAULT_MATRIX_DIR;
   let checkMode = false;
@@ -736,6 +742,12 @@ const failureInjectionMatrix = [
   { id: 'fi-serialization-corruption', faultClass: 'serialization-corruption', injectionLayer: 'serialization', strictExpectedOutcome: 'fail-closed', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-E-SCHEMA-VIOLATION'], requiredReasonCodes: ['USR-R-SERIALIZATION-INVALID'], rollbackTriggerConsecutiveFailures: 1, requiredRecoveryArtifacts: ['usr-failure-injection-report.json', 'usr-rollback-drill-report.json'], blocking: true }
 ].sort((a, b) => a.id.localeCompare(b.id));
 
+/**
+ * Derive roadmap tags for fixture governance rows based on profile/family data.
+ *
+ * @param {object} row
+ * @returns {string[]}
+ */
 function roadmapTagsForFixture(row) {
   const tags = new Set(['phase-7']);
 
@@ -769,6 +781,12 @@ const configLanguageFixtureSuffixById = {
   yaml: 'anchors-aliases-001'
 };
 
+/**
+ * Resolve default fixture-family coverage for one language baseline row.
+ *
+ * @param {{requiredConformance:string[]}} base
+ * @returns {string[]}
+ */
 function fixtureFamiliesForLanguage(base) {
   const families = ['language-baseline', 'golden'];
   if (base.requiredConformance.includes('C2')) families.push('semantic-flow');
@@ -934,6 +952,13 @@ const escalationPolicy = [
   { id: 'esc-taxonomy-drift', triggerClass: 'taxonomy-drift', severity: 'medium', requiredApprovers: ['usr-conformance', 'usr-architecture'], maxAckMinutes: 120, maxResolutionMinutes: 720, autoBlockPromotion: false }
 ].sort((a, b) => a.id.localeCompare(b.id));
 
+/**
+ * Resolve embedding policy for one language, with language-level overrides.
+ *
+ * @param {string} languageId
+ * @param {string} family
+ * @returns {{canHostEmbedded:boolean,canBeEmbedded:boolean,embeddedLanguageAllowlist:string[]}}
+ */
 function embeddingPolicyFor(languageId, family) {
   if (customEmbeddingPolicies[languageId]) {
     return customEmbeddingPolicies[languageId];
@@ -967,6 +992,12 @@ const RISK_SINKS_LOW_SIGNAL = ['template-render'];
 const RISK_INTERPROCEDURAL_UNSUPPORTED_SOURCES = ['interprocedural-source'];
 const RISK_INTERPROCEDURAL_UNSUPPORTED_SINKS = ['interprocedural-sink'];
 
+/**
+ * Normalize one raw baseline row into deterministic registry-ready shape.
+ *
+ * @param {object} base
+ * @returns {object}
+ */
 function normalizeLanguageBaseline(base) {
   const embeddingPolicy = embeddingPolicyFor(base.id, base.family);
   const isHighSignal = HIGH_SIGNAL_RISK_FAMILIES.has(base.family);
@@ -1138,6 +1169,13 @@ function riskRows(normalizedLanguages) {
   }));
 }
 
+/**
+ * Build canonical payload envelope for one registry document.
+ *
+ * @param {string} registryId
+ * @param {object[]} rows
+ * @returns {{schemaVersion:string,registryId:string,rows:object[]}}
+ */
 function buildRegistryPayload(registryId, rows) {
   return {
     schemaVersion: SCHEMA_VERSION,
@@ -1146,6 +1184,12 @@ function buildRegistryPayload(registryId, rows) {
   };
 }
 
+/**
+ * Build all registry records (id/path/serialized JSON) for current baselines.
+ *
+ * @param {object[]} normalizedLanguages
+ * @returns {{registryId:string,filePath:string,serialized:string}[]}
+ */
 function buildRegistryRecords(normalizedLanguages) {
   const languageProfiles = languageProfileRows(normalizedLanguages);
   const registryRows = [
@@ -1202,6 +1246,11 @@ function ensureDir() {
   fs.mkdirSync(matrixDir, { recursive: true });
 }
 
+/**
+ * Assert bidirectional consistency between language and framework applicability.
+ *
+ * @returns {void}
+ */
 function assertLanguageFrameworkApplicability() {
   const appliesByFramework = new Map(
     frameworkProfiles.map((profile) => [profile.id, new Set(profile.appliesToLanguages)])
@@ -1235,6 +1284,11 @@ function assertLanguageFrameworkApplicability() {
   }
 }
 
+/**
+ * Run generator workflow in write or drift-check mode.
+ *
+ * @returns {void}
+ */
 function main() {
   assertLanguageFrameworkApplicability();
   ensureDir();

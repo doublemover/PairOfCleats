@@ -29,19 +29,55 @@ const EXPANSION_MODE_ORDER = Object.freeze([
   'records'
 ]);
 
+/**
+ * Normalize dense-vector mode to the canonical lowercase token used by cache
+ * policy and sqlite ANN compatibility checks.
+ *
+ * @param {unknown} value
+ * @returns {string}
+ */
 const normalizeDenseVectorMode = (value) => (
   typeof value === 'string'
     ? value.trim().toLowerCase()
     : 'merged'
 );
 
+/**
+ * Convert optional numeric payload fields (for example comment spans) into a
+ * finite number or `null` when the value is not usable.
+ *
+ * @param {unknown} value
+ * @returns {number|null}
+ */
 const normalizeFiniteNumber = (value) => {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : null;
 };
 
+/**
+ * Build the dedupe/join key used to align extracted comment spans with code hit
+ * comment references.
+ *
+ * @param {string} file
+ * @param {number} start
+ * @param {number} end
+ * @returns {string}
+ */
 const buildCommentLookupKey = (file, start, end) => `${file}:${start}:${end}`;
 
+/**
+ * sqlite-vec only supports merged vectors. When a split dense mode is selected,
+ * mark sqlite ANN unavailable for every mode so downstream routing cannot pick
+ * an incompatible ANN provider.
+ *
+ * Mutates `vectorAnnState` in place.
+ *
+ * @param {object} input
+ * @param {string} input.resolvedDenseMode
+ * @param {boolean} input.vectorAnnEnabled
+ * @param {Record<string, {available?: boolean}>|null} input.vectorAnnState
+ * @returns {void}
+ */
 function enforceSqliteAnnDenseModeCompatibility({
   resolvedDenseMode,
   vectorAnnEnabled,
@@ -62,6 +98,16 @@ function enforceSqliteAnnDenseModeCompatibility({
   );
 }
 
+/**
+ * Resolve all cache-related runtime state in one place so cache lookup and
+ * embedding input formatting stay keyed to the same policy snapshot.
+ *
+ * @param {object} input
+ * @param {object} input.queryCachePolicyInput
+ * @param {object} input.embeddingInputFormattingInput
+ * @param {object} input.cacheLookupInput
+ * @returns {Promise<object>}
+ */
 async function resolveSessionCacheState({
   queryCachePolicyInput,
   embeddingInputFormattingInput,
@@ -94,6 +140,13 @@ async function resolveSessionCacheState({
   };
 }
 
+/**
+ * Build per-mode runtime descriptors used by embedding resolution, search
+ * execution, and context expansion.
+ *
+ * @param {object} input
+ * @returns {Record<string, {run:boolean,idx:any,modelId:any,inputFormatting:any}>}
+ */
 function createModeState({
   runCode,
   runProse,
@@ -134,6 +187,15 @@ function createModeState({
   };
 }
 
+/**
+ * Derive ANN availability metadata for each mode from loaded indexes and ANN
+ * backend state.
+ *
+ * This mutates the mode-state entries to avoid duplicating large structures.
+ *
+ * @param {object} input
+ * @returns {object}
+ */
 function resolveModeAnnMetadata({
   modeState,
   vectorAnnState,
@@ -161,6 +223,13 @@ function resolveModeAnnMetadata({
   return modeState;
 }
 
+/**
+ * Resolve query embeddings for ANN-capable active modes in deterministic mode
+ * order so provider work is reproducible across runs.
+ *
+ * @param {object} input
+ * @returns {Promise<Record<string, any>>}
+ */
 async function resolveQueryEmbeddingsByMode({
   modeState,
   needsEmbedding,
@@ -186,6 +255,13 @@ async function resolveQueryEmbeddingsByMode({
   return embeddingsByMode;
 }
 
+/**
+ * Normalize persisted cache payload shape into the same output shape produced
+ * by fresh search execution.
+ *
+ * @param {any} cachedPayload
+ * @returns {{proseHits:any[],extractedProseHits:any[],codeHits:any[],recordHits:any[]}|null}
+ */
 function resolveCachedHits(cachedPayload) {
   if (!cachedPayload) return null;
   return {
@@ -196,6 +272,13 @@ function resolveCachedHits(cachedPayload) {
   };
 }
 
+/**
+ * Apply context expansion to each enabled mode while preserving pass-through
+ * hits for disabled modes.
+ *
+ * @param {object} input
+ * @returns {Promise<Record<string, {hits:any[],contextHits:any[]}>>}
+ */
 async function expandSessionHitsByMode({
   expandModeHits,
   modeState,
@@ -212,6 +295,13 @@ async function expandSessionHitsByMode({
   return expandedByMode;
 }
 
+/**
+ * Persist retrieval hits into the query cache when the active cache policy
+ * requests write-through for this session.
+ *
+ * @param {object} input
+ * @returns {Promise<{cacheData:any,cacheShouldPersist:boolean}>}
+ */
 async function persistSessionQueryCache({
   queryCacheEnabled,
   cacheKey,
@@ -257,6 +347,11 @@ async function persistSessionQueryCache({
  *   code/prose remain SQLite-backed).
  *
  * @param {object} input
+ * @param {string} input.query
+ * @param {'default'|'code'|'prose'|'extracted-prose'|'records'} input.searchMode
+ * @param {boolean} input.queryCacheEnabled
+ * @param {boolean} input.annActive
+ * @param {string} [input.resolvedDenseVectorMode]
  * @param {(mode:string)=>boolean} [input.sqliteHasDb]
  * @returns {Promise<object>}
  */
@@ -369,6 +464,12 @@ export async function runSearchSession({
     vectorAnnEnabled,
     vectorAnnState
   });
+
+  /**
+   * Raise a cancellation error that is normalized to shared error-code shape.
+   *
+   * @returns {void}
+   */
   const throwIfAborted = () => {
     if (!signal?.aborted) return;
     const error = new Error('Search cancelled.');
@@ -602,6 +703,11 @@ export async function runSearchSession({
   throwIfAborted();
 
   const joinComments = commentsEnabled && runCode && extractedProseLoaded;
+
+  /**
+   * Precompute extracted-comment lookup data keyed by file/start/end so comment
+   * excerpts can be stitched into code hits without repeated full scans.
+   */
   const commentLookup = (() => {
     if (!joinComments || !idxExtractedProse?.chunkMeta?.length) return null;
     const map = new Map();
@@ -623,6 +729,12 @@ export async function runSearchSession({
     return map.size ? map : null;
   })();
 
+  /**
+   * Enrich code hits with up to three unique extracted comment excerpts.
+   *
+   * @param {any[]} hits
+   * @returns {void}
+   */
   const attachCommentExcerpts = (hits) => {
     if (!commentLookup || !Array.isArray(hits) || !hits.length) return;
     for (const hit of hits) {

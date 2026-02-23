@@ -2,6 +2,11 @@
 import assert from 'node:assert/strict';
 import { applyTreeSitterJsCaps } from '../../../src/index/build/runtime/caps.js';
 
+/**
+ * Baseline extension caps fixture with partial JS-family overrides.
+ *
+ * @type {{byExt: Record<string, {maxBytes?:number,maxLines?:number}>}}
+ */
 const fileCaps = {
   byExt: {
     '.js': { maxLines: 5200 },

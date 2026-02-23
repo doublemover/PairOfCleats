@@ -30,6 +30,12 @@ const JSONL_HIGH_WATERMARK_SMALL = 64 * 1024;
 const JSONL_HIGH_WATERMARK_MEDIUM = 256 * 1024;
 const JSONL_HIGH_WATERMARK_LARGE = 1024 * 1024;
 const ZSTD_STREAM_THRESHOLD = 8 * 1024 * 1024;
+
+/**
+ * Resolve optional userland zstd bindings once and memoize the result.
+ *
+ * @returns {{decompress:(buffer:Buffer)=>Promise<Buffer|Uint8Array>}|null}
+ */
 const resolveOptionalZstd = () => {
   if (checkedZstd) return cachedZstd;
   checkedZstd = true;
@@ -40,6 +46,12 @@ const resolveOptionalZstd = () => {
   return cachedZstd;
 };
 
+/**
+ * Choose stream chunk sizes based on compressed/plain JSONL file size.
+ *
+ * @param {number} byteSize
+ * @returns {{highWaterMark:number,chunkSize:number,smallFile:boolean}}
+ */
 const resolveJsonlReadPlan = (byteSize) => {
   if (byteSize <= SMALL_JSONL_BYTES) {
     return { highWaterMark: JSONL_HIGH_WATERMARK_SMALL, chunkSize: JSONL_HIGH_WATERMARK_SMALL, smallFile: true };
@@ -50,6 +62,18 @@ const resolveJsonlReadPlan = (byteSize) => {
   return { highWaterMark: JSONL_HIGH_WATERMARK_LARGE, chunkSize: JSONL_HIGH_WATERMARK_LARGE, smallFile: false };
 };
 
+/**
+ * Read and parse a JSON artifact with compression and backup fallbacks.
+ *
+ * Fallback order:
+ * 1. `filePath` (and cleanup stale `.bak` when successful)
+ * 2. compressed sibling candidates for `.json` targets
+ * 3. `filePath.bak`
+ *
+ * @param {string} filePath
+ * @param {{maxBytes?: number}} [options]
+ * @returns {any}
+ */
 export const readJsonFile = (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
   const parseBuffer = (buffer, sourcePath) => {
     if (buffer.length > maxBytes) {
@@ -122,6 +146,19 @@ export const readJsonFile = (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
   throw new Error(`Missing JSON artifact: ${filePath}`);
 };
 
+/**
+ * Stream JSONL entries and invoke `onEntry` for each parsed row.
+ *
+ * Parsing invariants:
+ * - Honors strict/trusted validation mode.
+ * - Enforces `maxBytes` on compressed and decompressed paths.
+ * - Uses `.bak` and compressed-candidate fallbacks when primary files fail.
+ *
+ * @param {string} filePath
+ * @param {(entry:any)=>void|Promise<void>} onEntry
+ * @param {{maxBytes?: number, requiredKeys?: string[]|null, validationMode?: 'strict'|'trusted'}} [options]
+ * @returns {Promise<void>}
+ */
 export const readJsonLinesEach = async (
   filePath,
   onEntry,
@@ -380,6 +417,24 @@ export const readJsonLinesEach = async (
   throw new Error(`Missing JSONL artifact: ${filePath}`);
 };
 
+/**
+ * Read a single JSONL source as an async iterator with bounded buffering.
+ *
+ * Uses `createRowQueue` to apply producer-side backpressure when
+ * `maxInFlight > 0`.
+ *
+ * @param {string} targetPath
+ * @param {{
+ *   maxBytes?: number,
+ *   requiredKeys?: string[]|null,
+ *   validationMode?: 'strict'|'trusted',
+ *   maxInFlight?: number,
+ *   onBackpressure?: ((pending:number) => void)|null,
+ *   onResume?: ((pending:number) => void)|null,
+ *   byteRange?: {start:number,end:number}|null
+ * }} [options]
+ * @returns {AsyncGenerator<any, void, unknown>}
+ */
 const readJsonLinesIteratorSingle = async function* (
   targetPath,
   {
@@ -575,6 +630,13 @@ const readJsonLinesIteratorSingle = async function* (
   }
 };
 
+/**
+ * Create an async iterator over one or more JSONL sources.
+ *
+ * @param {string|string[]} filePath
+ * @param {object} [options]
+ * @returns {AsyncGenerator<any, void, unknown>}
+ */
 export const readJsonLinesIterator = function (filePath, options = {}) {
   const paths = Array.isArray(filePath) ? filePath : [filePath];
   return (async function* () {
@@ -584,6 +646,14 @@ export const readJsonLinesIterator = function (filePath, options = {}) {
   })();
 };
 
+/**
+ * Iterate JSONL rows and await `onEntry` serially for each parsed row.
+ *
+ * @param {string|string[]} filePath
+ * @param {(entry:any)=>Promise<void>} onEntry
+ * @param {{maxBytes?: number, requiredKeys?: string[]|null, validationMode?: 'strict'|'trusted'}} [options]
+ * @returns {Promise<void>}
+ */
 export const readJsonLinesEachAwait = async (
   filePath,
   onEntry,
@@ -596,6 +666,21 @@ export const readJsonLinesEachAwait = async (
 };
 
 
+/**
+ * Materialize JSONL entries from one or more sources.
+ *
+ * Uses compression-aware fast paths for small files and bounded parallelism
+ * when multiple input files are supplied.
+ *
+ * @param {string|string[]} filePath
+ * @param {{
+ *   maxBytes?: number,
+ *   requiredKeys?: string[]|null,
+ *   validationMode?: 'strict'|'trusted',
+ *   concurrency?: number|null
+ * }} [options]
+ * @returns {Promise<any[]>}
+ */
 export const readJsonLinesArray = async (
   filePath,
   {
@@ -883,6 +968,17 @@ export const readJsonLinesArray = async (
 };
 
 
+/**
+ * Synchronously materialize JSONL entries from a single source.
+ *
+ * Cache behavior:
+ * - Cache is used only when `requiredKeys` is not specified.
+ * - Successful primary reads may cleanup stale `.bak` files.
+ *
+ * @param {string} filePath
+ * @param {{maxBytes?: number, requiredKeys?: string[]|null, validationMode?: 'strict'|'trusted'}} [options]
+ * @returns {any[]}
+ */
 export const readJsonLinesArraySync = (
   filePath,
   { maxBytes = MAX_JSON_BYTES, requiredKeys = null, validationMode = 'strict' } = {}

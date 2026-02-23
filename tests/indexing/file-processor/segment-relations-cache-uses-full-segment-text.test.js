@@ -5,7 +5,17 @@ import { buildChunkEnrichment } from '../../../src/index/build/file-processor/pr
 
 applyTestEnv();
 
+/**
+ * No-op telemetry hook used by chunk enrichment test scaffolding.
+ *
+ * @returns {void}
+ */
 const noop = () => {};
+/**
+ * Stubbed failure handler; this test expects enrichment to remain on success path.
+ *
+ * @returns {{reason:string}}
+ */
 const failFile = () => ({ reason: 'unexpected-failure' });
 
 const text = [
@@ -41,6 +51,10 @@ const chunkTwo = {
 };
 
 let buildRelationsCalls = 0;
+/**
+ * Language adapter stub that records whether segment-level relation extraction
+ * is computed once and then reused from cache for sibling chunks.
+ */
 const activeLang = {
   id: 'javascript',
   extractDocMeta: () => ({}),

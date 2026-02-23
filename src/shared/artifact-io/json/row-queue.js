@@ -1,3 +1,26 @@
+/**
+ * @typedef {object} RowQueue
+ * @property {(value:any)=>Promise<void>} push
+ * @property {(err?:Error|null)=>void} finish
+ * @property {(err?:Error|null)=>void} cancel
+ * @property {() => AsyncGenerator<any, void, unknown>} iterator
+ */
+
+/**
+ * Create a bounded async producer/consumer queue used by JSONL iterators.
+ *
+ * Invariants:
+ * - `push()` blocks when `maxPending` is reached until a consumer drains.
+ * - `finish(err)` ends iteration and rethrows `err` from the consumer side.
+ * - `cancel()` aliases `finish()` so callers can stop producers in `finally`.
+ *
+ * @param {{
+ *   maxPending?: number,
+ *   onBackpressure?: ((pending:number) => void)|null,
+ *   onResume?: ((pending:number) => void)|null
+ * }} [options]
+ * @returns {RowQueue}
+ */
 export const createRowQueue = ({ maxPending = 0, onBackpressure = null, onResume = null } = {}) => {
   const buffer = [];
   const waiters = [];

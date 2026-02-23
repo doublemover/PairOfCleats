@@ -106,6 +106,12 @@ const formatJobId = () => `${Date.now()}-${Math.random().toString(16).slice(2, 1
 
 const toolRoot = resolveToolRoot();
 
+/**
+ * Print command output payload in compact or pretty JSON mode.
+ *
+ * @param {object} payload
+ * @returns {void}
+ */
 const printPayload = (payload) => {
   if (argv.json) {
     console.log(JSON.stringify(payload));
@@ -584,6 +590,11 @@ const runBuildEmbeddings = (repoPath, mode, indexRoot, extraEnv = {}, logPath = 
   return spawnWithLog(args, runtimeEnv, logPath);
 };
 
+/**
+ * Synchronize configured repos according to service sync policy.
+ *
+ * @returns {Promise<void>}
+ */
 const handleSync = async () => {
   const targets = argv.repo ? [resolveRepoEntryForArg(argv.repo)].filter(Boolean) : repoEntries;
   if (!targets.length) {
@@ -599,6 +610,11 @@ const handleSync = async () => {
   printPayload({ ok: true, results });
 };
 
+/**
+ * Enqueue one index/embedding job from CLI inputs.
+ *
+ * @returns {Promise<void>}
+ */
 const handleEnqueue = async () => {
   const target = resolveRepoEntryForArg(resolveRepoRootArg(argv.repo));
   if (!target) {
@@ -624,11 +640,21 @@ const handleEnqueue = async () => {
   printPayload({ ok: true, job: result.job });
 };
 
+/**
+ * Emit queue summary for the resolved queue namespace.
+ *
+ * @returns {Promise<void>}
+ */
 const handleStatus = async () => {
   const summary = await queueSummary(queueDir, resolvedQueueName);
   printPayload({ ok: true, queue: summary, name: resolvedQueueName });
 };
 
+/**
+ * Emit smoke-test metadata that callers can use to validate worker bootstrap.
+ *
+ * @returns {Promise<void>}
+ */
 const handleSmoke = async () => {
   await ensureQueueDir(queueDir);
   const summary = await queueSummary(queueDir, resolvedQueueName);
@@ -945,6 +971,11 @@ const handleWork = async () => {
   }
 };
 
+/**
+ * Launch the API server subprocess with resolved runtime env.
+ *
+ * @returns {Promise<void>}
+ */
 const handleServe = async () => {
   const apiPath = path.join(toolRoot, 'tools', 'api', 'server.js');
   const repoArg = resolveRepoRootArg(argv.repo);

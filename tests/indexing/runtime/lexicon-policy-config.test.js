@@ -2,6 +2,9 @@
 import assert from 'node:assert/strict';
 import { buildLexiconConfig } from '../../../src/index/build/runtime/policy.js';
 
+/**
+ * Auto-policy fixture used to validate default lexicon relation toggles.
+ */
 const policyDriven = buildLexiconConfig({
   indexingConfig: { lexicon: {} },
   autoPolicy: { quality: { value: 'max' } }
@@ -14,6 +17,9 @@ assert.equal(policyDriven.relations.drop.literals, true, 'expected default liter
 assert.equal(policyDriven.relations.drop.builtins, false, 'expected default builtin drop disabled');
 assert.equal(policyDriven.relations.drop.types, false, 'expected default type drop disabled');
 
+/**
+ * Explicit config fixture validating that user overrides bypass policy defaults.
+ */
 const explicit = buildLexiconConfig({
   indexingConfig: {
     lexicon: {

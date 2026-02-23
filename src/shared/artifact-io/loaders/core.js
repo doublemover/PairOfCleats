@@ -19,6 +19,14 @@ import {
   iterateColumnarRows
 } from './shared.js';
 
+/**
+ * Append rows to a destination array without creating intermediate arrays.
+ *
+ * @template T
+ * @param {T[]} target
+ * @param {T[]} rows
+ * @returns {T[]}
+ */
 const appendRows = (target, rows) => {
   for (let i = 0; i < rows.length; i += 1) {
     target.push(rows[i]);
@@ -26,6 +34,12 @@ const appendRows = (target, rows) => {
   return target;
 };
 
+/**
+ * Iterate decoded binary-columnar rows across all declared source parts.
+ *
+ * @param {object} input
+ * @returns {Generator<any, void, unknown>}
+ */
 const iterateBinaryColumnarRows = function* ({
   dir,
   baseName,
@@ -49,6 +63,23 @@ const iterateBinaryColumnarRows = function* ({
   }
 };
 
+/**
+ * Stream JSONL rows from multi-part artifact sources, validating optional
+ * offsets sidecars before consuming each part.
+ *
+ * @param {string[]} paths
+ * @param {string[]|null} offsetsPaths
+ * @param {{
+ *   maxBytes:number,
+ *   requiredKeys:string[]|null,
+ *   validationMode:'strict'|'trusted',
+ *   maxInFlight?:number,
+ *   onBackpressure?:(() => void)|null,
+ *   onResume?:(() => void)|null,
+ *   rowMapper?:((row:any) => any)|null
+ * }} options
+ * @returns {AsyncGenerator<any, void, unknown>}
+ */
 const streamJsonlRowsFromSources = async function* (
   paths,
   offsetsPaths,
@@ -82,6 +113,12 @@ const streamJsonlRowsFromSources = async function* (
   }
 };
 
+/**
+ * Load a single JSON-object artifact from resolved manifest sources.
+ *
+ * @param {object} input
+ * @returns {any}
+ */
 const loadManifestJsonObjectFromSources = ({
   sources,
   baseName,
@@ -103,6 +140,13 @@ const loadManifestJsonObjectFromSources = ({
   return readJsonFile(resolveReadableArtifactPath(sources.paths[0]), { maxBytes });
 };
 
+/**
+ * Load array payloads from resolved sources (json/jsonl/columnar/binary-columnar).
+ *
+ * @param {object} sources
+ * @param {object} options
+ * @returns {Promise<any[]>}
+ */
 const loadArrayPayloadFromSources = async (
   sources,
   {
@@ -162,6 +206,13 @@ const loadArrayPayloadFromSources = async (
   });
 };
 
+/**
+ * Synchronous variant of {@link loadArrayPayloadFromSources}.
+ *
+ * @param {object} sources
+ * @param {object} options
+ * @returns {any[]}
+ */
 const loadArrayPayloadFromSourcesSync = (
   sources,
   {
@@ -238,6 +289,8 @@ const loadArrayPayloadFromSourcesSync = (
  * Load array-style artifacts from manifest-declared sources.
  *
  * Supports JSON arrays, JSONL shards, columnar JSON, and binary-columnar row frames.
+ * Strict mode requires manifest-valid source declarations and strict row
+ * validation for JSONL payloads.
  *
  * @param {string} dir
  * @param {string} baseName
@@ -285,7 +338,8 @@ export const loadJsonArrayArtifact = async (
 /**
  * Stream array artifact rows from JSONL sources, optionally materializing JSON/columnar/binary payloads.
  *
- * In strict mode, only manifest-declared sources are accepted.
+ * In strict mode, only manifest-declared sources are accepted and JSONL rows
+ * are validated in strict parsing mode.
  *
  * @param {string} dir
  * @param {string} baseName
@@ -398,6 +452,8 @@ const validateFileMetaRow = (row, label) => {
 /**
  * Stream `file_meta` rows while enforcing required shape and fallback policy.
  *
+ * Every yielded row must contain numeric `id` and string `file`.
+ *
  * @param {string} dir
  * @param {{
  *   maxBytes?: number,
@@ -491,6 +547,7 @@ export const loadFileMetaRows = async function* (
 
 /**
  * Load object-style artifacts (single JSON object) from manifest paths.
+ * Strict mode rejects ambiguous manifest source declarations.
  *
  * @param {string} dir
  * @param {string} baseName
@@ -569,6 +626,7 @@ export const loadJsonObjectArtifactSync = (
 
 /**
  * Synchronous variant of {@link loadJsonArrayArtifact}.
+ * Preserves strict/trusted row validation semantics used by the async loader.
  *
  * @param {string} dir
  * @param {string} baseName

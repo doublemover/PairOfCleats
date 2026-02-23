@@ -13,6 +13,15 @@ applyTestEnv();
 const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-extracted-sqlite-fallback-'));
 const compatibilityKey = 'compat-extracted-sqlite-fallback';
 
+/**
+ * Write a minimal index artifact bundle for one mode.
+ *
+ * This keeps fallback loading deterministic when sqlite read paths fail.
+ *
+ * @param {string} mode
+ * @param {object[]} chunkMeta
+ * @returns {Promise<void>}
+ */
 const writeModeIndex = async (mode, chunkMeta) => {
   const indexDir = path.join(rootDir, `index-${mode}`);
   await fs.mkdir(path.join(indexDir, 'pieces'), { recursive: true });
@@ -49,6 +58,14 @@ await writeModeIndex('code', [{ id: 11, file: 'src/code.js', start: 0, end: 4 }]
 await writeModeIndex('extracted-prose', [{ id: 22, file: 'docs/notes.md', start: 0, end: 4 }]);
 
 const sqliteCalls = [];
+/**
+ * SQLite loader stub: returns synthetic code rows and intentionally fails for
+ * extracted-prose to exercise optional artifact fallback behavior.
+ *
+ * @param {string} mode
+ * @param {object} options
+ * @returns {{chunkMeta:object[]}}
+ */
 const loadIndexFromSqlite = (mode, options) => {
   sqliteCalls.push({
     mode,

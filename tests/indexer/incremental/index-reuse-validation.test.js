@@ -24,6 +24,11 @@ const validPiecesManifest = {
   ]
 };
 
+/**
+ * Build a minimal on-disk artifact set that satisfies incremental reuse checks.
+ *
+ * @returns {Promise<void>}
+ */
 const setup = async () => {
   await fs.rm(tempRoot, { recursive: true, force: true });
   await fs.mkdir(path.dirname(fixtureFile), { recursive: true });

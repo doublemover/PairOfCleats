@@ -13,6 +13,13 @@ import {
 
 const SUPPORTED_BINARY_COLUMNAR_FORMAT = 'binary-columnar-v1';
 
+/**
+ * Resolve an optional manifest checksum validator for one binary-columnar part.
+ * Missing or malformed checksums are treated as "no checksum enforcement".
+ *
+ * @param {object} input
+ * @returns {ReturnType<typeof createPackedChecksumValidator>|null}
+ */
 const createManifestChecksumValidator = ({
   manifest,
   dir,
@@ -39,6 +46,12 @@ const createManifestChecksumValidator = ({
   }
 };
 
+/**
+ * Verify a payload buffer against its manifest checksum validator.
+ *
+ * @param {object} input
+ * @returns {void}
+ */
 const verifyManifestChecksum = ({
   validator,
   buffer,
@@ -58,6 +71,12 @@ const verifyManifestChecksum = ({
   }
 };
 
+/**
+ * Parse and validate binary-columnar metadata.
+ *
+ * @param {object} input
+ * @returns {{fields:object,count:number}}
+ */
 const parseBinaryColumnarMeta = ({
   metaPath,
   maxBytes,
@@ -87,6 +106,14 @@ const parseBinaryColumnarMeta = ({
   return { fields, count };
 };
 
+/**
+ * Enforce max-bytes limits for binary-columnar sidecar files.
+ *
+ * @param {string} targetPath
+ * @param {number} maxBytes
+ * @param {string} label
+ * @returns {void}
+ */
 const assertBinaryPartWithinMaxBytes = (targetPath, maxBytes, label) => {
   const max = Number(maxBytes);
   if (!Number.isFinite(max) || max <= 0) return;
@@ -105,6 +132,23 @@ const assertBinaryPartWithinMaxBytes = (targetPath, maxBytes, label) => {
   }
 };
 
+/**
+ * Load and decode manifest-backed binary-columnar JSON rows.
+ *
+ * Strictness and integrity invariants:
+ * - Sidecar paths (meta/offsets/lengths) must be present and readable.
+ * - Optional manifest checksums are validated for each binary sidecar payload.
+ * - Declared row count in metadata must match decoded payload count.
+ *
+ * @param {object} input
+ * @param {string} input.dir
+ * @param {string} input.baseName
+ * @param {object} input.sources
+ * @param {object|null} input.manifest
+ * @param {number} input.maxBytes
+ * @param {boolean} input.strict
+ * @returns {any[]}
+ */
 const loadBinaryColumnarJsonRows = ({
   dir,
   baseName,

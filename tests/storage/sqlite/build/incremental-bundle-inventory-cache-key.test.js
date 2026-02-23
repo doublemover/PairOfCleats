@@ -29,6 +29,11 @@ const frozenBundleDirStat = {
   size: 4096
 };
 
+/**
+ * Patch statSync so bundle-dir stat metadata stays constant across file churn.
+ *
+ * This isolates the cache-key behavior under test from directory mtime entropy.
+ */
 fs.statSync = (targetPath, ...rest) => {
   if (typeof targetPath === 'string' && path.resolve(targetPath) === resolvedBundleDir) {
     return frozenBundleDirStat;

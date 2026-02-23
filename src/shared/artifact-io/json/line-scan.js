@@ -1,8 +1,25 @@
 import { parseJsonlLine } from '../jsonl.js';
 import { toJsonTooLargeError } from '../limits.js';
 
+/**
+ * Normalize line terminators so CRLF sources are parsed like LF-only sources.
+ *
+ * @param {string} line
+ * @returns {string}
+ */
 const trimCr = (line) => (line.endsWith('\r') ? line.slice(0, -1) : line);
 
+/**
+ * Visit all complete newline-terminated lines in `text`.
+ *
+ * Returns the trailing partial segment (if any) for the caller to carry into
+ * the next chunk.
+ *
+ * @param {string} text
+ * @param {number} lineNumber
+ * @param {(line:string,lineNumber:number)=>void} onLine
+ * @returns {{remaining:string,lineNumber:number}}
+ */
 const forEachCompleteLine = (text, lineNumber, onLine) => {
   let start = 0;
   for (let i = 0; i < text.length; i += 1) {
@@ -14,6 +31,14 @@ const forEachCompleteLine = (text, lineNumber, onLine) => {
   return { remaining: text.slice(start), lineNumber };
 };
 
+/**
+ * Async variant of {@link forEachCompleteLine}.
+ *
+ * @param {string} text
+ * @param {number} lineNumber
+ * @param {(line:string,lineNumber:number)=>Promise<void>} onLine
+ * @returns {Promise<{remaining:string,lineNumber:number}>}
+ */
 const forEachCompleteLineAsync = async (text, lineNumber, onLine) => {
   let start = 0;
   for (let i = 0; i < text.length; i += 1) {
@@ -25,18 +50,51 @@ const forEachCompleteLineAsync = async (text, lineNumber, onLine) => {
   return { remaining: text.slice(start), lineNumber };
 };
 
+/**
+ * Emit the final unterminated line segment.
+ *
+ * @param {string} text
+ * @param {number} lineNumber
+ * @param {(line:string,lineNumber:number)=>void} onLine
+ * @returns {number}
+ */
 const emitFinalLine = (text, lineNumber, onLine) => {
   lineNumber += 1;
   onLine(trimCr(text), lineNumber);
   return lineNumber;
 };
 
+/**
+ * Async variant of {@link emitFinalLine}.
+ *
+ * @param {string} text
+ * @param {number} lineNumber
+ * @param {(line:string,lineNumber:number)=>Promise<void>} onLine
+ * @returns {Promise<number>}
+ */
 const emitFinalLineAsync = async (text, lineNumber, onLine) => {
   lineNumber += 1;
   await onLine(trimCr(text), lineNumber);
   return lineNumber;
 };
 
+/**
+ * Parse JSONL entries from a single in-memory buffer.
+ *
+ * Empty buffers return zero rows. A trailing newline emits a final empty line
+ * so strict/trusted parser behavior matches stream scanning.
+ *
+ * @param {Buffer} buffer
+ * @param {string} sourcePath
+ * @param {{
+ *   maxBytes:number,
+ *   requiredKeys?:string[]|null,
+ *   validationMode?:'strict'|'trusted',
+ *   onEntry?:(entry:any)=>void,
+ *   collect?:any[]|null
+ * }} [options]
+ * @returns {{rows:number,bytes:number}}
+ */
 export const scanJsonlBuffer = (
   buffer,
   sourcePath,
@@ -81,6 +139,21 @@ export const scanJsonlBuffer = (
   return { rows, bytes: buffer.length };
 };
 
+/**
+ * Parse JSONL entries from a stream while preserving line numbers across chunk
+ * boundaries and enforcing total byte limits on the compressed/plain stream.
+ *
+ * @param {AsyncIterable<string|Buffer>} stream
+ * @param {{
+ *   targetPath:string,
+ *   maxBytes:number,
+ *   requiredKeys?:string[]|null,
+ *   validationMode?:'strict'|'trusted',
+ *   onEntry?:(entry:any)=>void,
+ *   collect?:any[]|null
+ * }} [options]
+ * @returns {Promise<{rows:number,bytes:number}>}
+ */
 export const scanJsonlStream = async (
   stream,
   {
@@ -136,6 +209,14 @@ export const scanJsonlStream = async (
   return { rows, bytes };
 };
 
+/**
+ * Materialize parsed JSONL entries from a buffer.
+ *
+ * @param {Buffer} buffer
+ * @param {string} sourcePath
+ * @param {{maxBytes:number,requiredKeys?:string[]|null,validationMode?:'strict'|'trusted'}} [options]
+ * @returns {{entries:any[],bytes:number}}
+ */
 export const parseJsonlBufferEntries = (
   buffer,
   sourcePath,
@@ -151,6 +232,19 @@ export const parseJsonlBufferEntries = (
   return { entries, bytes };
 };
 
+/**
+ * Parse JSONL stream entries and dispatch each parsed row to an async callback.
+ *
+ * @param {AsyncIterable<string|Buffer>} stream
+ * @param {{
+ *   targetPath:string,
+ *   maxBytes:number,
+ *   requiredKeys?:string[]|null,
+ *   validationMode?:'strict'|'trusted',
+ *   onEntry:(entry:any)=>Promise<void>
+ * }} [options]
+ * @returns {Promise<{rows:number,bytes:number}>}
+ */
 export const parseJsonlStreamEntries = async (
   stream,
   {

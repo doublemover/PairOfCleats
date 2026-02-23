@@ -10,6 +10,10 @@ import {
 
 ensureTestingEnv(process.env);
 
+/**
+ * Stage1 policy fixture that mixes stage-level and queue-level watchdog inputs
+ * to verify precedence and minimum-clamp behavior.
+ */
 const policy = resolveStage1HangPolicy(
   {
     indexingConfig: {

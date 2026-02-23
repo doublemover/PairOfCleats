@@ -8,6 +8,14 @@ const FNV64_OFFSET_BASIS = 0xcbf29ce484222325n;
 const FNV64_PRIME = 0x100000001b3n;
 const FNV64_MASK = 0xffffffffffffffffn;
 
+/**
+ * Read a cached directory inventory snapshot.
+ *
+ * Access updates recency (LRU behavior).
+ *
+ * @param {string|null} cacheKey
+ * @returns {{count:number,names:Set<string>}|null}
+ */
 const readBundleInventoryCache = (cacheKey) => {
   if (!cacheKey) return null;
   const cached = bundleInventoryCache.get(cacheKey);
@@ -20,6 +28,13 @@ const readBundleInventoryCache = (cacheKey) => {
   };
 };
 
+/**
+ * Write an inventory snapshot into the bounded LRU cache.
+ *
+ * @param {string|null} cacheKey
+ * @param {Set<string>} names
+ * @returns {void}
+ */
 const writeBundleInventoryCache = (cacheKey, names) => {
   if (!cacheKey || !(names instanceof Set)) return;
   if (bundleInventoryCache.has(cacheKey)) {
@@ -35,6 +50,12 @@ const writeBundleInventoryCache = (cacheKey, names) => {
   }
 };
 
+/**
+ * Hash one inventory file name using 64-bit FNV-1a.
+ *
+ * @param {string} name
+ * @returns {bigint}
+ */
 const hashInventoryName = (name) => {
   let hash = FNV64_OFFSET_BASIS;
   for (let i = 0; i < name.length; i += 1) {
@@ -44,6 +65,15 @@ const hashInventoryName = (name) => {
   return hash;
 };
 
+/**
+ * Build a cheap change-sensitive snapshot key for a bundle directory.
+ *
+ * The key combines entry count with xor/sum over hashed names so in-memory
+ * inventory cache invalidates when directory contents change.
+ *
+ * @param {string|null|undefined} bundleDir
+ * @returns {{cacheKey:string,names:string[]} | null}
+ */
 const resolveBundleInventorySnapshot = (bundleDir) => {
   if (!bundleDir) return null;
   try {
@@ -68,6 +98,8 @@ const resolveBundleInventorySnapshot = (bundleDir) => {
 
 /**
  * Build a directory inventory for incremental bundle files.
+ * Uses an in-memory LRU cache keyed by directory snapshot.
+ *
  * @param {string|null|undefined} bundleDir
  * @returns {{count:number,names:Set<string>}}
  */
@@ -85,6 +117,8 @@ export const listIncrementalBundleFiles = (bundleDir) => {
 
 /**
  * Count missing bundle files declared in incremental manifest.
+ * Supports precomputed bundle-name inventory to avoid repeated fs exists checks.
+ *
  * @param {object|null|undefined} incrementalData
  * @param {Set<string>|null} [bundleNames]
  * @returns {number}
@@ -115,6 +149,13 @@ export const countMissingBundleFiles = (incrementalData, bundleNames = null) => 
 
 /**
  * Resolve incremental-vs-artifact mode input plan.
+ *
+ * Invariants:
+ * - Records mode must advertise incremental support from manifest capabilities.
+ * - Dense-required modes cannot use incremental bundles unless embeddings are
+ *   present in bundle manifest metadata.
+ * - Missing bundle files always force artifact fallback.
+ *
  * @param {object} options
  * @returns {{
  *   bundleManifest: object|null,

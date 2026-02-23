@@ -6,7 +6,17 @@ import { buildChunkEnrichment } from '../../../src/index/build/file-processor/pr
 
 applyTestEnv();
 
+/**
+ * No-op telemetry hook used by chunk enrichment test scaffolding.
+ *
+ * @returns {void}
+ */
 const noop = () => {};
+/**
+ * Stubbed failure handler; this test expects enrichment/payload assembly to succeed.
+ *
+ * @returns {{reason:string}}
+ */
 const failFile = () => ({ reason: 'unexpected-failure' });
 
 const chunk = {

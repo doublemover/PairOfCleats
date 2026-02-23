@@ -59,6 +59,10 @@ const manifest = {
 const sharedReadState = new Map();
 const originalReadFile = fsPromises.readFile;
 let sourceReadCount = 0;
+/**
+ * Intercept source reads so this test can assert shared read-state reuse
+ * across bundle/import cache lookups.
+ */
 fsPromises.readFile = async (...args) => {
   if (String(args[0]) === absPath) sourceReadCount += 1;
   return originalReadFile(...args);
@@ -102,6 +106,9 @@ const changedStat = {
 };
 const changedSharedReadState = new Map();
 let changedSourceReadCount = 0;
+/**
+ * Second interception verifies hash-fallback lookups still share one source read.
+ */
 fsPromises.readFile = async (...args) => {
   if (String(args[0]) === absPath) changedSourceReadCount += 1;
   return originalReadFile(...args);

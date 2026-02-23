@@ -2,6 +2,14 @@ import { chunkArray, normalizeFilePath } from '../../utils.js';
 
 const NORMALIZED_FILE_EXPR = "lower(replace(file, char(92), '/'))";
 
+/**
+ * Ensure a file-key entry exists in the doc-id cache map.
+ *
+ * @param {Map<string, {file:string,ids:number[]}>} map
+ * @param {string} key
+ * @param {string} file
+ * @returns {{file:string,ids:number[]}}
+ */
 const ensureExistingIdEntry = (map, key, file) => {
   const existing = map.get(key);
   if (existing) return existing;
@@ -12,6 +20,14 @@ const ensureExistingIdEntry = (map, key, file) => {
 
 /**
  * Build a doc-id resolver with prefetching and cached batch statements.
+ *
+ * Invariants:
+ * - File keys are normalized (and case-folded on Windows) to keep id reuse
+ *   stable across path separator/case variance.
+ * - `resolveExistingDocIds` memoizes lookups to avoid repeated sqlite scans in
+ *   delete/insert phases.
+ * - `orderChangedRecords` prioritizes new files so free-list allocation for
+ *   deleted ids remains deterministic.
  *
  * @param {object} input
  * @param {import('better-sqlite3').Database} input.db

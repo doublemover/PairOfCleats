@@ -5,6 +5,10 @@ import {
   resolveStage1Queues
 } from '../../../src/index/build/runtime/queues.js';
 
+/**
+ * Mixed-type queue config fixture that exercises numeric coercion and legacy
+ * fallback wiring across stage1 queue/watchdog settings.
+ */
 const stage1Queues = resolveStage1Queues({
   stage1: {
     tokenize: {

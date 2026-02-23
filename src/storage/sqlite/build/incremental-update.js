@@ -86,6 +86,16 @@ const evaluateIncrementalChangeGuard = ({ mode, totalFiles, changedCount, delete
 
 /**
  * Apply an incremental update to a sqlite index using bundle deltas.
+ *
+ * High-level invariants:
+ * - Incremental mode is used only when schema/table checks and manifest change
+ *   guards pass.
+ * - Dense metadata identity (model/dims/quantization shape) must remain
+ *   compatible across db state, expected artifacts, and incoming bundles.
+ * - Delete and insert work is delegated to transactional phases in
+ *   `runIncrementalUpdatePhase`; failures return `{ used:false }` where
+ *   possible to allow caller fallback to full rebuild.
+ *
  * @param {object} params
  * @param {import('better-sqlite3').Database} params.Database
  * @param {string} params.outPath
@@ -101,7 +111,7 @@ const evaluateIncrementalChangeGuard = ({ mode, totalFiles, changedCount, delete
  * @param {number} [params.batchSize]
  * @param {boolean} [params.buildPragmas]
  * @param {object} [params.stats]
- * @returns {Promise<{used:boolean,reason?:string,insertedChunks?:number}>}
+ * @returns {Promise<{used:boolean,reason?:string,insertedChunks?:number,totalFiles?:number,changedFiles?:number,deletedFiles?:number,manifestUpdates?:number}>}
  */
 export async function incrementalUpdateDatabase({
   Database,
@@ -168,6 +178,14 @@ export async function incrementalUpdateDatabase({
   const db = new Database(outPath);
   const pragmaState = useBuildPragmas ? applyBuildPragmas(db, { inputBytes, stats: batchStats }) : null;
   let dbClosed = false;
+
+  /**
+   * Ensure sqlite resources are cleaned up for every exit path.
+   * This includes WAL checkpoint best-effort, pragma restoration, close, and
+   * sidecar cleanup.
+   *
+   * @returns {Promise<void>}
+   */
   const finalize = async () => {
     if (dbClosed) return;
     dbClosed = true;

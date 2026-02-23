@@ -36,6 +36,14 @@ const runId = tuiEnvConfig.runId || generatedRunId;
 const runFileId = sanitizeRunIdForFilename(runId) || generatedRunId;
 const supervisorVersion = getToolVersion() || '0.0.0';
 
+/**
+ * Initialize optional JSONL event logging for one supervisor run.
+ *
+ * Recorder setup is intentionally fail-open: if initialization fails, runtime
+ * progress streaming still continues and only durable event logging is disabled.
+ *
+ * @returns {{eventLogPath:string,write:(entry:object)=>void,finalize:(reason?:string)=>void}|null}
+ */
 const createEventLogRecorder = () => {
   const requestedDir = tuiEnvConfig.eventLogDir;
   if (!requestedDir) return null;
@@ -218,6 +226,13 @@ const drainFlowQueue = () => {
   }
 };
 
+/**
+ * Emit immediately when credits allow, otherwise enqueue for later drain.
+ *
+ * @param {object} entry
+ * @param {{critical?:boolean}} [options]
+ * @returns {void}
+ */
 const emitEntry = (entry, { critical = false } = {}) => {
   if (critical || state.flow.credits > 0) {
     if (!critical) {
@@ -229,6 +244,12 @@ const emitEntry = (entry, { critical = false } = {}) => {
   queueFlowEntry(entry);
 };
 
+/**
+ * Split oversized serialized events into chunk protocol frames.
+ *
+ * @param {object} entry
+ * @returns {object[]|null}
+ */
 const splitEventPayloadIntoChunks = (entry) => {
   const serialized = JSON.stringify(entry);
   if (serialized.length <= state.flow.maxEventChars || entry.event === 'event:chunk') {
@@ -252,6 +273,14 @@ const splitEventPayloadIntoChunks = (entry) => {
   }));
 };
 
+/**
+ * Emit one protocol event with chunking and flow-control semantics applied.
+ *
+ * @param {string} event
+ * @param {object} [payload={}]
+ * @param {{jobId?:string|null,critical?:boolean}} [options]
+ * @returns {void}
+ */
 const emit = (event, payload = {}, { jobId = null, critical = false } = {}) => {
   const entry = formatProgressEvent(event, {
     runId,
@@ -307,6 +336,12 @@ const emitHello = () => {
   }, { critical: true });
 };
 
+/**
+ * Resolve execution command from either explicit command/args or CLI argv.
+ *
+ * @param {object} request
+ * @returns {{command:string,args:string[],cwd:string}}
+ */
 const resolveRunRequest = (request) => {
   if (typeof request?.command === 'string' && request.command.trim()) {
     const command = request.command.trim();
@@ -326,6 +361,12 @@ const resolveRunRequest = (request) => {
   return { command, args, cwd };
 };
 
+/**
+ * Normalize result capture policy from modern `resultPolicy` or legacy fields.
+ *
+ * @param {object} request
+ * @returns {{captureStdout:'none'|'text'|'json',maxBytes:number}}
+ */
 const resolveResultPolicy = (request) => {
   const fallbackPolicy = request && typeof request === 'object' ? request : {};
   const policy = request?.resultPolicy && typeof request.resultPolicy === 'object'
@@ -345,6 +386,12 @@ const cleanupFinalizedJob = (jobId) => {
   state.jobs.delete(jobId);
 };
 
+/**
+ * Resolve retry policy with defensive clamping for untrusted request values.
+ *
+ * @param {object} request
+ * @returns {{maxAttempts:number,delayMs:number}}
+ */
 const resolveRetryPolicy = (request) => {
   const retry = request?.retry && typeof request.retry === 'object' ? request.retry : {};
   return {
@@ -353,6 +400,12 @@ const resolveRetryPolicy = (request) => {
   };
 };
 
+/**
+ * Extract top-level and run-stage watchdog config objects from one request.
+ *
+ * @param {object} request
+ * @returns {{rawWatchdog:object,runStageWatchdog:object}}
+ */
 const resolveWatchdogConfigSource = (request) => {
   const rawWatchdog = request?.watchdog && typeof request.watchdog === 'object'
     ? request.watchdog
@@ -435,6 +488,12 @@ const resolveWatchdogPolicy = (request) => {
   };
 };
 
+/**
+ * Capture a compact watchdog diagnostic snapshot for logs and protocol events.
+ *
+ * @param {{job?:object,idleMs?:number,source?:string,includeStack?:boolean}} [input]
+ * @returns {object}
+ */
 const buildSupervisorWatchdogSnapshot = ({
   job,
   idleMs = 0,
@@ -463,6 +522,15 @@ const buildSupervisorWatchdogSnapshot = ({
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * Parse subprocess stdout according to configured capture policy.
+ *
+ * `json` mode falls back to raw text when payload parsing fails.
+ *
+ * @param {string} stdoutText
+ * @param {{captureStdout:'none'|'text'|'json'}} policy
+ * @returns {object|string|null}
+ */
 const parseResultFromStdout = (stdoutText, policy) => {
   if (policy.captureStdout === 'none') return null;
   const text = String(stdoutText || '').trim();
@@ -477,6 +545,12 @@ const parseResultFromStdout = (stdoutText, policy) => {
   }
 };
 
+/**
+ * Strip transport-level keys before re-emitting decoded progress payloads.
+ *
+ * @param {object} event
+ * @returns {object}
+ */
 const extractRoutedProgressPayload = (event) => {
   const payload = {};
   if (!event || typeof event !== 'object') return payload;
@@ -499,6 +573,12 @@ const emitDecoderOverflowLog = ({ jobId, stream, overflowBytes }) => {
   emitLog(jobId, 'warn', `${stream} decoder overflow (${overflowBytes} bytes truncated).`, { stream });
 };
 
+/**
+ * Build a strict line decoder that routes protocol frames and plain logs.
+ *
+ * @param {{job:object,jobId:string,stream:'stdout'|'stderr',maxLineBytes:number,markActivity:()=>void}} input
+ * @returns {ReturnType<typeof createProgressLineDecoder>}
+ */
 const createJobStreamDecoder = ({ job, jobId, stream, maxLineBytes, markActivity }) => createProgressLineDecoder({
   strict: true,
   maxLineBytes,
@@ -526,6 +606,15 @@ const resolveWatchdogPollIntervalMs = (watchdogPolicy) => Math.max(
   )
 );
 
+/**
+ * Build watchdog timer controls for one running job attempt.
+ *
+ * Controller emits heartbeat/soft-kick/hard-timeout diagnostics and aborts
+ * the subprocess when hard inactivity thresholds are crossed.
+ *
+ * @param {{job:object,jobId:string,watchdogPolicy:object,getLastActivityAt:()=>number}} input
+ * @returns {{start:()=>void,stop:()=>void}}
+ */
 const createJobWatchdogController = ({
   job,
   jobId,
@@ -689,6 +778,12 @@ const statArtifact = async ({ kind, label, artifactPath }) => {
   }
 };
 
+/**
+ * Parse `--repo` from tokenized argv/args vectors.
+ *
+ * @param {unknown[]} tokens
+ * @returns {string|null}
+ */
 const resolveRepoArgFromTokens = (tokens) => {
   const list = Array.isArray(tokens) ? tokens.map((entry) => String(entry)) : [];
   for (let i = 0; i < list.length; i += 1) {
@@ -707,6 +802,12 @@ const resolveRepoArgFromTokens = (tokens) => {
   return null;
 };
 
+/**
+ * Resolve the repo root used for artifact indexing for one run request.
+ *
+ * @param {{request:object,cwd?:string}} input
+ * @returns {string}
+ */
 const resolveRequestRepoRoot = ({ request, cwd }) => {
   const baseCwd = request?.cwd
     ? path.resolve(String(request.cwd))
@@ -770,6 +871,12 @@ const ARTIFACT_COLLECTORS = Object.freeze({
   bootstrap: addSetupArtifacts
 });
 
+/**
+ * Collect post-run artifact metadata for supported dispatch commands.
+ *
+ * @param {{request:object,cwd?:string}} input
+ * @returns {Promise<object[]>}
+ */
 const collectJobArtifacts = async ({ request, cwd }) => {
   const artifacts = [];
   const argv = Array.isArray(request?.argv) ? request.argv.map((entry) => String(entry)) : [];
@@ -799,6 +906,14 @@ const finalizeJob = (job, payload) => {
   emit('job:end', payload, { jobId: job.id });
 };
 
+/**
+ * Emit job artifact inventory without failing the parent run path.
+ *
+ * @param {object} job
+ * @param {object} request
+ * @param {{cwd?:string}} [options]
+ * @returns {Promise<void>}
+ */
 const emitArtifacts = async (job, request, { cwd } = {}) => {
   try {
     const artifacts = await collectJobArtifacts({ request, cwd });
@@ -821,6 +936,15 @@ const emitArtifacts = async (job, request, { cwd } = {}) => {
   }
 };
 
+/**
+ * Accept and schedule one `job:run` request lifecycle.
+ *
+ * The returned promise resolves once the run attempt loop is scheduled. Final
+ * completion is emitted asynchronously via `job:end`.
+ *
+ * @param {object} request
+ * @returns {Promise<void>}
+ */
 const startJob = async (request) => {
   const jobId = String(request?.jobId || '').trim();
   if (!jobId) {
@@ -1049,6 +1173,12 @@ const shutdown = async (reason = 'shutdown', exitCode = 0) => {
   process.exit(exitCode);
 };
 
+/**
+ * Route one parsed supervisor request message.
+ *
+ * @param {object} request
+ * @returns {Promise<void>}
+ */
 const handleRequest = async (request) => {
   if (!request || typeof request !== 'object' || Array.isArray(request)) {
     emitLog(null, 'error', 'invalid request shape');
@@ -1117,6 +1247,12 @@ const handleRequest = async (request) => {
 };
 
 let stdinCarry = '';
+/**
+ * Parse one newline-delimited request frame.
+ *
+ * @param {string} line
+ * @returns {void}
+ */
 const handleRequestLine = (line) => {
   const trimmed = line.trim();
   if (!trimmed) return;
@@ -1132,6 +1268,12 @@ const handleRequestLine = (line) => {
   });
 };
 
+/**
+ * Consume a raw stdin chunk and dispatch complete JSONL request lines.
+ *
+ * @param {string|Buffer} chunk
+ * @returns {void}
+ */
 const consumeStdinChunk = (chunk) => {
   const text = normalizeLineBreaks(`${stdinCarry}${String(chunk || '')}`);
   const parts = text.split('\n');

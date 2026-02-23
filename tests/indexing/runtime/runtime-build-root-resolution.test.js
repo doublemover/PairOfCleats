@@ -4,6 +4,9 @@ import path from 'node:path';
 import { resolveRuntimeBuildRoot } from '../../../src/index/build/runtime/config.js';
 
 let existsCalls = 0;
+/**
+ * `existsSync` returns true twice to force build-id collision suffixing.
+ */
 const resolved = resolveRuntimeBuildRoot({
   resolvedIndexRoot: null,
   buildsRoot: path.join(process.cwd(), '.tmp-runtime-builds'),

@@ -2,6 +2,10 @@
 import assert from 'node:assert/strict';
 import { createRuntimeTelemetry } from '../../../src/index/build/runtime/queues.js';
 
+/**
+ * Runtime telemetry collector under test; assertions below validate coercion,
+ * histogram bucketing, and explicit channel/histogram clearing paths.
+ */
 const telemetry = createRuntimeTelemetry();
 
 telemetry.setInFlightBytes('cpu', { bytes: 1024.9, count: 3.9 });

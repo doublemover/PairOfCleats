@@ -8,6 +8,13 @@ import {
   validateIncrementalManifest
 } from '../manifest.js';
 
+/**
+ * Add optional string arrays into a dedupe set.
+ *
+ * @param {Set<string>} target
+ * @param {any} values
+ * @returns {void}
+ */
 const addArrayValues = (target, values) => {
   if (!Array.isArray(values) || values.length === 0) return;
   for (const value of values) {
@@ -17,6 +24,11 @@ const addArrayValues = (target, values) => {
 
 /**
  * Build an incremental manifest change plan for sqlite updates.
+ *
+ * Guard invariants:
+ * - Incremental manifests must validate and normalize without path conflicts.
+ * - Change ratio checks are delegated to the caller-supplied guard function.
+ * - A non-empty chunks table requires a non-empty file_manifest baseline.
  *
  * @param {object} input
  * @param {import('better-sqlite3').Database} input.db
@@ -84,6 +96,10 @@ export const resolveIncrementalChangePlan = ({
 /**
  * Load changed bundles and collect insertion vocabulary/dense shape state in
  * one pass to avoid an additional bundle iteration.
+ *
+ * Invariants:
+ * - Every changed file must resolve to an existing readable bundle.
+ * - Embedding dimensions must match across all loaded changed bundles.
  *
  * @param {object} input
  * @param {Array<object>} input.changed
