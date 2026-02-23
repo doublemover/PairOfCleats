@@ -31,6 +31,7 @@ import {
   validateEncodingFixtures
 } from './language/metrics.js';
 import { sanitizeBenchNodeOptions } from './language/node-options.js';
+import { resolveAdaptiveBenchTimeoutMs, summarizeBenchLineStats } from './language/timeout.js';
 import { buildReportOutput, printSummary } from './language/report.js';
 import { retainCrashArtifacts } from '../../src/index/build/crash-log.js';
 import { createToolDisplay } from '../shared/cli-display.js';
@@ -992,11 +993,12 @@ for (const task of tasks) {
     }
 
     const shouldBuildIndex = argv.build || argv['build-index'] || autoBuildIndex;
+    let lineStats = null;
     if (shouldBuildIndex && !dryRun) {
       try {
         appendLog(`[metrics] scanning lines for ${repoLabel}...`);
-        const stats = await buildLineStats(repoPath, repoUserConfig);
-        const totals = stats.totals || {};
+        lineStats = await buildLineStats(repoPath, repoUserConfig);
+        const totals = lineStats.totals || {};
         const parts = [
           `code=${Number(totals.code || 0).toLocaleString()}`,
           `prose=${Number(totals.prose || 0).toLocaleString()}`,
@@ -1072,6 +1074,21 @@ for (const task of tasks) {
     updateBenchProgress();
 
     let summary = null;
+    const effectiveBenchTimeoutMs = resolveAdaptiveBenchTimeoutMs({
+      baseTimeoutMs: benchTimeoutMs,
+      lineStats,
+      buildIndex: shouldBuildIndex,
+      buildSqlite: Boolean(argv.build || argv['build-sqlite'] || autoBuildSqlite || wantsSqlite)
+    });
+    if (effectiveBenchTimeoutMs > benchTimeoutMs) {
+      const timeoutMinutes = (effectiveBenchTimeoutMs / (60 * 1000)).toFixed(1);
+      const baseMinutes = (benchTimeoutMs / (60 * 1000)).toFixed(1);
+      const summaryStats = summarizeBenchLineStats(lineStats);
+      appendLog(
+        `[timeout] auto-raised ${repoLabel} timeout ${baseMinutes}m -> ${timeoutMinutes}m `
+          + `(lines=${summaryStats.totalLines.toLocaleString()}, files=${summaryStats.totalFiles.toLocaleString()}).`
+      );
+    }
     if (dryRun) {
       appendLog(`[dry-run] node ${benchArgs.join(' ')}`);
     } else {
@@ -1082,7 +1099,7 @@ for (const task of tasks) {
       const benchResult = await processRunner.runProcess(`bench ${repoLabel}`, process.execPath, benchArgs, {
         cwd: scriptRoot,
         env: benchProcessEnv,
-        timeoutMs: benchTimeoutMs,
+        timeoutMs: effectiveBenchTimeoutMs,
         continueOnError: true
       });
       if (!benchResult.ok) {
