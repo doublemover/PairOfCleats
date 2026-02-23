@@ -152,7 +152,11 @@ const withDirectoryLock = async (
   try {
     return await callback();
   } finally {
-    await rmDirRecursive(lockDir, { retries: 3, delayMs: 50 });
+    await rmDirRecursive(lockDir, {
+      retries: 3,
+      delayMs: 50,
+      ignoreRetryableFailure: true
+    });
   }
 };
 

@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { getIndexDir, loadUserConfig } from '../../tools/shared/dict-utils.js';
 import { applyTestEnv } from './test-env.js';
+import { rmDirRecursive } from './temp.js';
 
 import { resolveTestCachePath } from './test-cache.js';
 
@@ -127,7 +128,11 @@ const withDirectoryLock = async (
   try {
     return await callback();
   } finally {
-    await fsPromises.rm(lockDir, { recursive: true, force: true });
+    await rmDirRecursive(lockDir, {
+      retries: 3,
+      delayMs: 50,
+      ignoreRetryableFailure: true
+    });
   }
 };
 

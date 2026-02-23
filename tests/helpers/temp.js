@@ -3,7 +3,15 @@ import os from 'node:os';
 import path from 'node:path';
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-export const RETRYABLE_RM_CODES = new Set(['EPERM', 'EACCES', 'EBUSY', 'ENOTEMPTY', 'EMFILE', 'ENFILE']);
+export const RETRYABLE_RM_CODES = new Set([
+  'EPERM',
+  'EACCES',
+  'EBUSY',
+  'ENOTEMPTY',
+  'EMFILE',
+  'ENFILE',
+  'ENOENT'
+]);
 
 export const makeTempDir = async (prefix = 'pairofcleats-') => {
   const base = path.join(os.tmpdir(), prefix);
@@ -26,6 +34,9 @@ export const rmDirRecursive = async (
       });
       return true;
     } catch (error) {
+      if (error?.code === 'ENOENT') {
+        return true;
+      }
       const retryable = RETRYABLE_RM_CODES.has(error?.code);
       if (attempt >= resolvedRetries || !retryable) {
         if (attempt >= resolvedRetries && retryable) {
