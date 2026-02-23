@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T07:46:25.4880131-05:00
+  Extracted scheduler stats snapshot/utilization helpers from `src/shared/concurrency/scheduler-core.js` into `src/shared/concurrency/scheduler-core-stats.js`, preserving runtime counters while isolating queue-activity aggregation and adding focused coverage in `tests/shared/concurrency/scheduler-core-stats-snapshot.test.js`.
 - 2026-02-23T07:44:49.7942061-05:00
   Extracted artifact-write telemetry finalization from `src/index/build/artifacts-write.js` into `src/index/build/artifacts/write-telemetry.js` (`finalizeArtifactWriteTelemetry`), preserving deterministic post-write ordering and adding targeted coverage in `tests/indexing/artifacts/artifact-write-telemetry-finalization.test.js`.
 - 2026-02-23T07:44:07.1736590-05:00
