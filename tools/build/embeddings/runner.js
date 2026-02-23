@@ -20,8 +20,8 @@ import { readTextFileWithHash } from '../../../src/shared/encoding.js';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import { writeDenseVectorArtifacts } from '../../../src/shared/dense-vector-artifacts.js';
 import { createCrashLogger } from '../../../src/index/build/crash-log.js';
-import { resolveHnswPaths, resolveHnswTarget } from '../../../src/shared/hnsw.js';
-import { normalizeLanceDbConfig, resolveLanceDbPaths, resolveLanceDbTarget } from '../../../src/shared/lancedb.js';
+import { resolveHnswPaths } from '../../../src/shared/hnsw.js';
+import { normalizeLanceDbConfig } from '../../../src/shared/lancedb.js';
 import { DEFAULT_STUB_DIMS, resolveStubDims } from '../../../src/shared/embedding.js';
 import { sha1 } from '../../../src/shared/hash.js';
 import {
@@ -113,6 +113,7 @@ import {
   createArtifactTraceLogger,
   promoteBackendArtifacts
 } from './runner/artifacts.js';
+import { resolvePublishedBackendStates } from './runner/backend-state.js';
 
 const EMBEDDINGS_TOOLS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const COMPACT_SQLITE_SCRIPT = path.join(EMBEDDINGS_TOOLS_DIR, '..', 'compact-sqlite-index.js');
@@ -2646,38 +2647,17 @@ export async function runBuildEmbeddingsWithConfig(config) {
         }
         backendTask.set(3, 5, { message: 'validating backend metadata' });
 
-        const hnswTarget = resolveHnswTarget(mode, denseVectorMode);
-        const hnswTargetPaths = resolveHnswPaths(indexDir, hnswTarget);
-        const hnswMeta = await scheduleIo(() => readJsonOptional(hnswTargetPaths.metaPath));
-        const hnswIndexExists = fsSync.existsSync(hnswTargetPaths.indexPath)
-        || fsSync.existsSync(`${hnswTargetPaths.indexPath}.bak`);
-        const hnswAvailable = Boolean(hnswMeta) && hnswIndexExists;
-        const hnswState = {
-          enabled: hnswConfig.enabled !== false,
-          available: hnswAvailable,
-          target: hnswTarget
-        };
-        if (hnswMeta) {
-          hnswState.dims = Number.isFinite(Number(hnswMeta.dims)) ? Number(hnswMeta.dims) : finalDims;
-          hnswState.count = Number.isFinite(Number(hnswMeta.count)) ? Number(hnswMeta.count) : totalChunks;
-        }
-
-        const lancePaths = resolveLanceDbPaths(indexDir);
-        const lanceTarget = resolveLanceDbTarget(mode, denseVectorMode);
-        const targetPaths = lancePaths?.[lanceTarget] || lancePaths?.merged || {};
-        const lanceMeta = await scheduleIo(() => readJsonOptional(targetPaths.metaPath));
-        const lanceAvailable = Boolean(lanceMeta)
-        && Boolean(targetPaths.dir)
-        && fsSync.existsSync(targetPaths.dir);
-        const lancedbState = {
-          enabled: lanceConfig.enabled !== false,
-          available: lanceAvailable,
-          target: lanceTarget
-        };
-        if (lanceMeta) {
-          lancedbState.dims = Number.isFinite(Number(lanceMeta.dims)) ? Number(lanceMeta.dims) : finalDims;
-          lancedbState.count = Number.isFinite(Number(lanceMeta.count)) ? Number(lanceMeta.count) : totalChunks;
-        }
+        const { hnswState, lancedbState } = await resolvePublishedBackendStates({
+          mode,
+          indexDir,
+          denseVectorMode,
+          hnswConfig,
+          lanceConfig,
+          finalDims,
+          totalChunks,
+          scheduleIo,
+          readJsonOptional
+        });
 
         stageCheckpoints.record({
           stage: 'stage3',
