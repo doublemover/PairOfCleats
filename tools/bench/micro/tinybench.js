@@ -8,6 +8,7 @@ import { Bench } from 'tinybench';
 import { build as buildHistogram } from 'hdr-histogram-js';
 import { buildIndex, search } from '../../../src/integrations/core/index.js';
 import { createSqliteDbCache } from '../../../src/retrieval/sqlite-cache.js';
+import { hasChunkMetaArtifactsSync } from '../../../src/shared/index-artifact-helpers.js';
 import { getIndexDir, resolveRepoRootArg, resolveToolRoot } from '../../shared/dict-utils.js';
 import { formatMs, writeJsonWithDir } from './utils.js';
 
@@ -259,10 +260,8 @@ async function maybeBuildIndexes() {
 }
 
 function hasChunkMeta(indexDir) {
-  const json = path.join(indexDir, 'chunk_meta.json');
-  const jsonl = path.join(indexDir, 'chunk_meta.jsonl');
-  const meta = path.join(indexDir, 'chunk_meta.meta.json');
-  return fs.existsSync(json) || fs.existsSync(jsonl) || fs.existsSync(meta);
+  if (!indexDir) return false;
+  return hasChunkMetaArtifactsSync(indexDir);
 }
 
 function parseComponents(value) {

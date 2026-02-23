@@ -1,13 +1,50 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { readJsonFile, readJsonLinesArraySync } from '../../shared/artifact-io.js';
 import { estimateIndexBytes } from './options.js';
 
-const readJsonFile = (filePath) => {
+const MAX_CHUNK_META_COUNT_PARSE_BYTES = 5 * 1024 * 1024;
+
+const readJsonArtifactSafe = (filePath) => {
   try {
-    return JSON.parse(fsSync.readFileSync(filePath, 'utf8'));
+    return readJsonFile(filePath, { maxBytes: MAX_CHUNK_META_COUNT_PARSE_BYTES });
   } catch {
     return null;
   }
+};
+
+const resolveChunkCountFromChunkArtifacts = (indexDir) => {
+  const shardedMeta = readJsonArtifactSafe(path.join(indexDir, 'chunk_meta.meta.json'));
+  const shardedFields = shardedMeta?.fields && typeof shardedMeta.fields === 'object'
+    ? shardedMeta.fields
+    : shardedMeta;
+  if (Number.isFinite(shardedFields?.totalRecords)) return shardedFields.totalRecords;
+  if (Number.isFinite(shardedFields?.totalChunks)) return shardedFields.totalChunks;
+
+  const binaryMeta = readJsonArtifactSafe(path.join(indexDir, 'chunk_meta.binary-columnar.meta.json'));
+  const binaryFields = binaryMeta?.fields && typeof binaryMeta.fields === 'object'
+    ? binaryMeta.fields
+    : binaryMeta;
+  if (Number.isFinite(binaryFields?.count)) return binaryFields.count;
+  if (Number.isFinite(binaryFields?.totalRecords)) return binaryFields.totalRecords;
+
+  const jsonRows = readJsonArtifactSafe(path.join(indexDir, 'chunk_meta.json'));
+  if (Array.isArray(jsonRows)) return jsonRows.length;
+
+  try {
+    const jsonlRows = readJsonLinesArraySync(path.join(indexDir, 'chunk_meta.jsonl'), {
+      maxBytes: MAX_CHUNK_META_COUNT_PARSE_BYTES
+    });
+    if (Array.isArray(jsonlRows)) return jsonlRows.length;
+  } catch {}
+
+  const columnar = readJsonArtifactSafe(path.join(indexDir, 'chunk_meta.columnar.json'));
+  if (Array.isArray(columnar)) return columnar.length;
+  if (Number.isFinite(columnar?.count)) return columnar.count;
+  if (Number.isFinite(columnar?.totalRecords)) return columnar.totalRecords;
+  if (Array.isArray(columnar?.ids)) return columnar.ids.length;
+
+  return null;
 };
 
 export const resolveIndexStats = (indexDir) => {
@@ -17,7 +54,7 @@ export const resolveIndexStats = (indexDir) => {
   let chunkCount = null;
   let artifactBytes = null;
   const manifestPath = path.join(indexDir, 'pieces', 'manifest.json');
-  const manifest = fsSync.existsSync(manifestPath) ? readJsonFile(manifestPath) : null;
+  const manifest = fsSync.existsSync(manifestPath) ? readJsonArtifactSafe(manifestPath) : null;
   const manifestFields = manifest?.fields && typeof manifest.fields === 'object' ? manifest.fields : manifest;
   if (Array.isArray(manifestFields?.pieces)) {
     let count = 0;
@@ -38,24 +75,7 @@ export const resolveIndexStats = (indexDir) => {
     if (bytesSeen) artifactBytes = bytes;
   }
   if (chunkCount === null) {
-    const chunkMetaMetaPath = path.join(indexDir, 'chunk_meta.meta.json');
-    if (fsSync.existsSync(chunkMetaMetaPath)) {
-      const meta = readJsonFile(chunkMetaMetaPath);
-      const metaFields = meta?.fields && typeof meta.fields === 'object' ? meta.fields : meta;
-      if (Number.isFinite(metaFields?.totalRecords)) chunkCount = metaFields.totalRecords;
-      if (chunkCount === null && Number.isFinite(metaFields?.totalChunks)) chunkCount = metaFields.totalChunks;
-    } else {
-      const chunkMetaPath = path.join(indexDir, 'chunk_meta.json');
-      if (fsSync.existsSync(chunkMetaPath)) {
-        try {
-          const stat = fsSync.statSync(chunkMetaPath);
-          if (stat.size <= 5 * 1024 * 1024) {
-            const data = readJsonFile(chunkMetaPath);
-            if (Array.isArray(data)) chunkCount = data.length;
-          }
-        } catch {}
-      }
-    }
+    chunkCount = resolveChunkCountFromChunkArtifacts(indexDir);
   }
   if (artifactBytes === null) {
     artifactBytes = estimateIndexBytes(indexDir);

@@ -92,11 +92,20 @@ export function estimateIndexBytes(indexDir) {
     'chunk_meta.json',
     'chunk_meta.jsonl',
     'chunk_meta.meta.json',
+    'chunk_meta.columnar.json',
+    'chunk_meta.binary-columnar.meta.json',
+    'chunk_meta.binary-columnar.bin',
+    'chunk_meta.binary-columnar.offsets.bin',
+    'chunk_meta.binary-columnar.lengths.varint',
     'token_postings.json',
     'token_postings.meta.json',
     'token_postings.packed.bin',
     'token_postings.packed.offsets.bin',
     'token_postings.packed.meta.json',
+    'token_postings.binary-columnar.meta.json',
+    'token_postings.binary-columnar.bin',
+    'token_postings.binary-columnar.offsets.bin',
+    'token_postings.binary-columnar.lengths.varint',
     'phrase_ngrams.json',
     'chargram_postings.json',
     'dense_vectors_uint8.json',
@@ -111,8 +120,13 @@ export function estimateIndexBytes(indexDir) {
     }
   };
   let total = 0;
+  const sumFileWithCompressedVariants = (name) => (
+    sumFile(path.join(indexDir, name))
+    + sumFile(path.join(indexDir, `${name}.gz`))
+    + sumFile(path.join(indexDir, `${name}.zst`))
+  );
   for (const name of targets) {
-    total += sumFile(path.join(indexDir, name));
+    total += sumFileWithCompressedVariants(name);
   }
   const chunkMetaPartsDir = path.join(indexDir, 'chunk_meta.parts');
   if (fs.existsSync(chunkMetaPartsDir)) {

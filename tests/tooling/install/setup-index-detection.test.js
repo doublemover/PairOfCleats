@@ -4,6 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig, toRealPathSync } from '../../../tools/shared/dict-utils.js';
+import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 
 const root = process.cwd();
@@ -87,6 +88,13 @@ try {
       expectReady: true
     },
     {
+      label: 'chunk_meta.jsonl.gz',
+      build: async () => {
+        await fsPromises.writeFile(path.join(codeIndexDir, 'chunk_meta.jsonl.gz'), 'compressed\n');
+      },
+      expectReady: true
+    },
+    {
       label: 'chunk_meta.meta.json + parts',
       build: async () => {
         const partsDir = path.join(codeIndexDir, 'chunk_meta.parts');
@@ -116,6 +124,17 @@ try {
           path.join(codeIndexDir, 'chunk_meta.meta.json'),
           JSON.stringify(meta, null, 2)
         );
+      },
+      expectReady: true
+    },
+    {
+      label: 'pieces manifest chunk_meta entry',
+      build: async () => {
+        await fsPromises.mkdir(path.join(codeIndexDir, 'pieces', 'custom'), { recursive: true });
+        await fsPromises.writeFile(path.join(codeIndexDir, 'pieces', 'custom', 'chunk-data.json'), '[]');
+        await writePiecesManifest(codeIndexDir, [
+          { name: 'chunk_meta', path: 'pieces/custom/chunk-data.json', format: 'json' }
+        ]);
       },
       expectReady: true
     },

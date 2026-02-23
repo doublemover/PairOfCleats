@@ -5,6 +5,7 @@ import simpleGit from 'simple-git';
 import { createError, ERROR_CODES } from '../../src/shared/error-codes.js';
 import { getEnvConfig } from '../../src/shared/env.js';
 import { getCapabilities } from '../../src/shared/capabilities.js';
+import { hasChunkMetaArtifactsSync } from '../../src/shared/index-artifact-helpers.js';
 import {
   getCacheRoot,
   getDictConfig,
@@ -41,6 +42,54 @@ export const clearRepoCaches = (repoPath) => {
 };
 
 const INDEX_MODES = ['code', 'prose', 'extracted-prose', 'records'];
+const CHUNK_META_CANDIDATES = [
+  'chunk_meta.json',
+  'chunk_meta.jsonl',
+  'chunk_meta.meta.json',
+  'chunk_meta.columnar.json',
+  'chunk_meta.binary-columnar.meta.json'
+];
+
+/**
+ * Resolve a concrete on-disk artifact path, including compressed siblings.
+ *
+ * @param {string} indexDir
+ * @param {string} relPath
+ * @returns {string|null}
+ */
+const resolveExistingArtifactPath = (indexDir, relPath) => {
+  const base = path.join(indexDir, relPath);
+  if (fs.existsSync(base)) return base;
+  if (fs.existsSync(`${base}.gz`)) return `${base}.gz`;
+  if (fs.existsSync(`${base}.zst`)) return `${base}.zst`;
+  return null;
+};
+
+/**
+ * Resolve a stable chunk-meta artifact path for MCP metadata/reporting surfaces.
+ *
+ * The resolver intentionally prefers concrete on-disk artifacts first, then
+ * falls back to manifest-backed layouts so callers can display actionable
+ * locations regardless of whether the index uses legacy, compressed, sharded,
+ * or manifest-only chunk metadata.
+ *
+ * @param {string|null|undefined} indexDir
+ * @returns {string|null}
+ */
+const resolveChunkMetaPath = (indexDir) => {
+  if (!indexDir) return null;
+  for (const candidate of CHUNK_META_CANDIDATES) {
+    const existing = resolveExistingArtifactPath(indexDir, candidate);
+    if (existing) return existing;
+  }
+  const partsDir = path.join(indexDir, 'chunk_meta.parts');
+  if (fs.existsSync(partsDir)) return partsDir;
+  const manifestPath = path.join(indexDir, 'pieces', 'manifest.json');
+  if (fs.existsSync(manifestPath) && hasChunkMetaArtifactsSync(indexDir)) {
+    return manifestPath;
+  }
+  return path.join(indexDir, 'chunk_meta.json');
+};
 
 const hasRepoArtifacts = (repoPath) => {
   try {
@@ -125,17 +174,17 @@ function listArtifacts(repoPath, userConfig) {
     index: {
       code: {
         dir: indexCode,
-        chunkMeta: path.join(indexCode, 'chunk_meta.json'),
+        chunkMeta: resolveChunkMetaPath(indexCode),
         tokenPostings: path.join(indexCode, 'token_postings.json')
       },
       prose: {
         dir: indexProse,
-        chunkMeta: path.join(indexProse, 'chunk_meta.json'),
+        chunkMeta: resolveChunkMetaPath(indexProse),
         tokenPostings: path.join(indexProse, 'token_postings.json')
       },
       records: {
         dir: indexRecords,
-        chunkMeta: path.join(indexRecords, 'chunk_meta.json'),
+        chunkMeta: resolveChunkMetaPath(indexRecords),
         tokenPostings: path.join(indexRecords, 'token_postings.json')
       }
     },

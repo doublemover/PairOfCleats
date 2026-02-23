@@ -12,6 +12,7 @@ import {
   readJsonFile,
   MAX_JSON_BYTES
 } from '../../src/shared/artifact-io.js';
+import { hasChunkMetaArtifactsSync } from '../../src/shared/index-artifact-helpers.js';
 import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
 import { updateIndexStateManifest } from '../shared/index-state-utils.js';
 import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../../src/storage/lmdb/schema.js';
@@ -218,14 +219,7 @@ const storeArtifacts = (db, meta, artifacts) => {
 
 const hasChunkMeta = (indexDir) => {
   if (!indexDir) return false;
-  const json = path.join(indexDir, 'chunk_meta.json');
-  const jsonl = path.join(indexDir, 'chunk_meta.jsonl');
-  const meta = path.join(indexDir, 'chunk_meta.meta.json');
-  const parts = path.join(indexDir, 'chunk_meta.parts');
-  return fsSync.existsSync(json)
-    || fsSync.existsSync(jsonl)
-    || fsSync.existsSync(meta)
-    || fsSync.existsSync(parts);
+  return hasChunkMetaArtifactsSync(indexDir);
 };
 
 const hasTokenPostings = (indexDir) => {

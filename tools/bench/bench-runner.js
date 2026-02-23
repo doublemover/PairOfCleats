@@ -8,6 +8,8 @@ import { spawnSync } from 'node:child_process';
 import { getEnvConfig } from '../../src/shared/env.js';
 import { resolveBenchSuite } from './suites/sweet16.js';
 
+const MAX_UTILIZATION_SAMPLES = 2048;
+
 const parseArgs = () => {
   const out = {
     suite: null,
@@ -225,6 +227,14 @@ const collectUtilizationSamples = ({ json, script }) => {
   return out;
 };
 
+const appendBoundedEntries = (target, entries, maxEntries) => {
+  if (!Array.isArray(target) || !Array.isArray(entries) || !entries.length) return;
+  target.push(...entries);
+  const cap = Math.max(0, Math.floor(Number(maxEntries) || 0));
+  if (cap <= 0 || target.length <= cap) return;
+  target.splice(0, target.length - cap);
+};
+
 const resolveStageDurations = (json) => {
   const stages = json?.timings?.stages;
   const fromObject = (source) => ({
@@ -397,7 +407,11 @@ const main = async () => {
       durationMs: entry.durationMs
     });
     if (stageOverlapRow) stageOverlapRows.push(stageOverlapRow);
-    utilizationSamples.push(...collectUtilizationSamples({ json: entry?.json, script: entry.script }));
+    appendBoundedEntries(
+      utilizationSamples,
+      collectUtilizationSamples({ json: entry?.json, script: entry.script }),
+      MAX_UTILIZATION_SAMPLES
+    );
     const artifacts = Array.isArray(entry?.json?.timings?.artifacts)
       ? entry.json.timings.artifacts
       : [];

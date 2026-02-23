@@ -132,6 +132,45 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     lastActivityAt = Date.now();
   };
 
+  const collectPendingKeyWindow = (limit = 5) => {
+    const size = Math.max(1, Math.floor(Number(limit) || 5));
+    const minKeys = [];
+    const maxKeys = [];
+    const insertAsc = (arr, value) => {
+      let inserted = false;
+      for (let i = 0; i < arr.length; i += 1) {
+        if (value < arr[i]) {
+          arr.splice(i, 0, value);
+          inserted = true;
+          break;
+        }
+      }
+      if (!inserted) arr.push(value);
+      if (arr.length > size) arr.pop();
+    };
+    const insertDesc = (arr, value) => {
+      let inserted = false;
+      for (let i = 0; i < arr.length; i += 1) {
+        if (value > arr[i]) {
+          arr.splice(i, 0, value);
+          inserted = true;
+          break;
+        }
+      }
+      if (!inserted) arr.push(value);
+      if (arr.length > size) arr.pop();
+    };
+    for (const key of pending.keys()) {
+      if (!Number.isFinite(key)) continue;
+      insertAsc(minKeys, key);
+      insertDesc(maxKeys, key);
+    }
+    return {
+      head: minKeys,
+      tail: maxKeys.slice().reverse()
+    };
+  };
+
   const rejectCapacityWaiters = (err) => {
     if (!capacityWaiters.size) return;
     const error = err instanceof Error ? err : new Error(String(err || 'Ordered appender aborted.'));
@@ -220,9 +259,9 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
         scheduleStallCheck();
         return;
       }
-      const keys = Array.from(pending.keys()).sort((a, b) => a - b);
-      const head = keys.slice(0, 5).join(', ');
-      const tail = keys.length > 5 ? keys.slice(-5).join(', ') : '';
+      const window = collectPendingKeyWindow(5);
+      const head = window.head.join(', ');
+      const tail = pending.size > window.head.length ? window.tail.join(', ') : '';
       const tailText = tail ? ` … ${tail}` : '';
       const idleSeconds = Math.round(idleMs / 1000);
       const seenRemaining = expectedCount != null ? Math.max(0, expectedCount - seenCount) : null;
@@ -313,8 +352,11 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       expectedCount,
       seenCount
     });
-    const keys = Array.from(pending.keys()).sort((a, b) => a - b);
-    const minPending = keys[0];
+    let minPending = null;
+    for (const key of pending.keys()) {
+      if (!Number.isFinite(key) || key < nextIndex) continue;
+      if (minPending == null || key < minPending) minPending = key;
+    }
     if (!Number.isFinite(minPending) || minPending <= nextIndex) return;
     let expectedMissing = true;
     if (expectedOrder.length) {

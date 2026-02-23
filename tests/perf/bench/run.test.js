@@ -6,6 +6,7 @@ import { fork, spawnSync } from 'node:child_process';
 import { createCli } from '../../../src/shared/cli.js';
 import { BENCH_OPTIONS, validateBenchArgs } from '../../../src/shared/cli-options.js';
 import { createDisplay } from '../../../src/shared/cli/display.js';
+import { hasChunkMetaArtifactsSync } from '../../../src/shared/index-artifact-helpers.js';
 import { buildSearchCliArgs } from '../../../tools/shared/search-cli-harness.js';
 import { readQueryFileSafe, resolveTopNAndLimit, selectQueriesByLimit } from '../../../tools/shared/query-file-utils.js';
 import { getIndexDir, getRuntimeConfig, loadUserConfig, resolveRuntimeEnv, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
@@ -119,13 +120,7 @@ const needsMemory = backends.includes('memory');
 const needsSqlite = backends.some((entry) => entry.startsWith('sqlite'));
 const hasIndex = (mode) => {
   const dir = getIndexDir(runtimeRoot, mode, userConfig);
-  const metaPaths = [
-    'chunk_meta.json',
-    'chunk_meta.jsonl',
-    'chunk_meta.meta.json',
-    'chunk_meta.parts'
-  ];
-  return metaPaths.some((entry) => fsSync.existsSync(path.join(dir, entry)));
+  return hasChunkMetaArtifactsSync(dir);
 };
 const hasSqliteIndex = (mode) => {
   const paths = resolveSqlitePaths(runtimeRoot, userConfig);

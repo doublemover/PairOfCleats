@@ -1,8 +1,8 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../../src/shared/cli.js';
 import { buildIndex } from '../../../src/integrations/core/index.js';
 import { createSqliteDbCache } from '../../../src/retrieval/sqlite-cache.js';
+import { hasChunkMetaArtifactsSync } from '../../../src/shared/index-artifact-helpers.js';
 import { getIndexDir, resolveRepoRoot, resolveToolRoot } from '../../shared/dict-utils.js';
 import { parseCommaList } from '../../shared/text-utils.js';
 import { formatMs, formatStats, writeJsonWithDir } from './utils.js';
@@ -279,10 +279,8 @@ async function maybeBuildIndexes() {
 }
 
 function hasChunkMeta(indexDir) {
-  const json = path.join(indexDir, 'chunk_meta.json');
-  const jsonl = path.join(indexDir, 'chunk_meta.jsonl');
-  const meta = path.join(indexDir, 'chunk_meta.meta.json');
-  return fs.existsSync(json) || fs.existsSync(jsonl) || fs.existsSync(meta);
+  if (!indexDir) return false;
+  return hasChunkMetaArtifactsSync(indexDir);
 }
 
 function parseComponents(value) {

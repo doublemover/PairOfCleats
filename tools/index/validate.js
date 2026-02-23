@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
+import { hasChunkMetaArtifactsSync } from '../../src/shared/index-artifact-helpers.js';
 import { getIndexDir, resolveRepoConfig } from '../shared/dict-utils.js';
 import { validateIndexArtifacts } from '../../src/index/validate.js';
 
@@ -10,11 +11,7 @@ const hasIndexMeta = (dir) => {
   if (!dir) return false;
   const manifest = path.join(dir, 'pieces', 'manifest.json');
   if (fs.existsSync(manifest)) return true;
-  const meta = path.join(dir, 'chunk_meta.json');
-  const jsonl = path.join(dir, 'chunk_meta.jsonl');
-  const metaParts = path.join(dir, 'chunk_meta.meta.json');
-  const partsDir = path.join(dir, 'chunk_meta.parts');
-  return fs.existsSync(meta) || fs.existsSync(jsonl) || fs.existsSync(metaParts) || fs.existsSync(partsDir);
+  return hasChunkMetaArtifactsSync(dir);
 };
 
 const resolveAvailableModes = (root, userConfig) => {

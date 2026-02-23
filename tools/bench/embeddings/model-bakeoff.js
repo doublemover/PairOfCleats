@@ -8,6 +8,7 @@ import { createCli } from '../../../src/shared/cli.js';
 import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
 import { getEnvConfig } from '../../../src/shared/env.js';
 import { resolveEmbeddingInputFormatting } from '../../../src/shared/embedding-input-format.js';
+import { hasChunkMetaArtifactsSync } from '../../../src/shared/index-artifact-helpers.js';
 import { spawnSubprocessSync } from '../../../src/shared/subprocess.js';
 import {
   resolveBakeoffBuildPlan,
@@ -327,16 +328,18 @@ const resolveModelCurrentBuildRoot = (modelCacheRootPath) => {
   }
 };
 
+/**
+ * Decide whether a mode already has readable sparse artifacts so stage3-only
+ * resume can be used safely.
+ *
+ * @param {string|null} buildRoot
+ * @param {string} buildMode
+ * @returns {boolean}
+ */
 const modeArtifactsExist = (buildRoot, buildMode) => {
   if (!buildRoot) return false;
   const modeRoot = path.join(buildRoot, `index-${buildMode}`);
-  const candidates = [
-    path.join(modeRoot, 'chunk_meta.meta.json'),
-    path.join(modeRoot, 'chunk_meta.json'),
-    path.join(modeRoot, 'chunk_meta.jsonl'),
-    path.join(modeRoot, 'pieces', 'manifest.json')
-  ];
-  return candidates.some((candidate) => fs.existsSync(candidate));
+  return hasChunkMetaArtifactsSync(modeRoot);
 };
 
 const canReuseSparseArtifactsForStage3 = (modelCacheRootPath, resolvedMode) => {

@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { hasChunkMetaArtifactsSync } from '../../../src/shared/index-artifact-helpers.js';
 import { runCommand } from '../../shared/cli-utils.js';
 import { getIndexDir, getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from '../../shared/dict-utils.js';
 import { emitBenchLog } from './logging.js';
@@ -416,12 +417,7 @@ export const needsIndexArtifacts = (repoRoot) => {
   const userConfig = loadUserConfig(repoRoot);
   const codeDir = getIndexDir(repoRoot, 'code', userConfig);
   const proseDir = getIndexDir(repoRoot, 'prose', userConfig);
-  const hasChunkMeta = (dir) => (
-    fs.existsSync(path.join(dir, 'chunk_meta.json'))
-    || fs.existsSync(path.join(dir, 'chunk_meta.jsonl'))
-    || fs.existsSync(path.join(dir, 'chunk_meta.meta.json'))
-    || fs.existsSync(path.join(dir, 'chunk_meta.parts'))
-  );
+  const hasChunkMeta = (dir) => hasChunkMetaArtifactsSync(dir);
   return !hasChunkMeta(codeDir) || !hasChunkMeta(proseDir);
 };
 

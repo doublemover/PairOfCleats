@@ -6,6 +6,7 @@ import { createCli } from '../../src/shared/cli.js';
 import readline from 'node:readline/promises';
 import { readJsoncFile } from '../../src/shared/jsonc.js';
 import { createStdoutGuard } from '../../src/shared/cli/stdout-guard.js';
+import { hasChunkMetaArtifactsSync } from '../../src/shared/index-artifact-helpers.js';
 import {
   getDictionaryPaths,
   getDictConfig,
@@ -371,13 +372,8 @@ recordStep('artifacts', {
 const codeIndexDir = getIndexDir(root, 'code', userConfig);
 const proseIndexDir = getIndexDir(root, 'prose', userConfig);
 const hasChunkMeta = (indexDir) => {
-  const jsonPath = path.join(indexDir, 'chunk_meta.json');
-  const jsonlPath = path.join(indexDir, 'chunk_meta.jsonl');
-  const metaPath = path.join(indexDir, 'chunk_meta.meta.json');
-  const partsDir = path.join(indexDir, 'chunk_meta.parts');
-  return fs.existsSync(jsonPath)
-    || fs.existsSync(jsonlPath)
-    || (fs.existsSync(metaPath) && fs.existsSync(partsDir));
+  if (!indexDir) return false;
+  return hasChunkMetaArtifactsSync(indexDir);
 };
 const codeIndexPresent = hasChunkMeta(codeIndexDir);
 const proseIndexPresent = hasChunkMeta(proseIndexDir);

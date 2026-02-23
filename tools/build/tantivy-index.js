@@ -5,6 +5,7 @@ import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { createToolDisplay } from '../shared/cli-display.js';
 import { loadChunkMeta, loadTokenPostings, MAX_JSON_BYTES } from '../../src/shared/artifact-io.js';
+import { hasChunkMetaArtifactsSync } from '../../src/shared/index-artifact-helpers.js';
 import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
 import { tryRequire } from '../../src/shared/optional-deps.js';
 import { normalizeTantivyConfig, resolveTantivyPaths, TANTIVY_SCHEMA_VERSION } from '../../src/shared/tantivy.js';
@@ -35,13 +36,7 @@ const fail = (message, code = 1) => {
   process.exit(code);
 };
 const hasChunkMeta = (indexDir) => {
-  const jsonPath = path.join(indexDir, 'chunk_meta.json');
-  const jsonlPath = path.join(indexDir, 'chunk_meta.jsonl');
-  const metaPath = path.join(indexDir, 'chunk_meta.meta.json');
-  const partsDir = path.join(indexDir, 'chunk_meta.parts');
-  return fsSync.existsSync(jsonPath)
-    || fsSync.existsSync(jsonlPath)
-    || (fsSync.existsSync(metaPath) && fsSync.existsSync(partsDir));
+  return hasChunkMetaArtifactsSync(indexDir);
 };
 const hasTokenPostings = (indexDir) => {
   const jsonPath = path.join(indexDir, 'token_postings.json');

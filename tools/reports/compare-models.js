@@ -9,6 +9,7 @@ import { resolveEmbeddingInputFormatting } from '../../src/shared/embedding-inpu
 import { normalizeEmbeddingProvider, normalizeOnnxConfig, resolveOnnxModelPath } from '../../src/shared/onnx-embeddings.js';
 import { isAbsolutePathNative } from '../../src/shared/files.js';
 import { resolveVersionedCacheRoot } from '../../src/shared/cache-roots.js';
+import { hasChunkMetaArtifactsSync } from '../../src/shared/index-artifact-helpers.js';
 import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../../src/experimental/compare/config.js';
 import { readQueryFileSafe, resolveTopNAndLimit, selectQueriesByLimit } from '../shared/query-file-utils.js';
 import { runSearchCliWithSubprocessSync } from '../shared/search-cli-harness.js';
@@ -224,10 +225,8 @@ function resolveModelIndexRoot(modelCacheRoot, mode) {
  */
 function indexExists(modelCacheRoot, mode) {
   const indexRoot = resolveModelIndexRoot(modelCacheRoot, mode);
-  const manifestPath = path.join(indexRoot, `index-${mode}`, 'pieces', 'manifest.json');
-  if (fs.existsSync(manifestPath)) return true;
-  const metaPath = path.join(indexRoot, `index-${mode}`, 'chunk_meta.json');
-  return fs.existsSync(metaPath);
+  const modeRoot = path.join(indexRoot, `index-${mode}`);
+  return hasChunkMetaArtifactsSync(modeRoot);
 }
 
 /**

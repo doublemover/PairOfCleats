@@ -477,6 +477,30 @@ export const resolveStage1StallSoftKickTimeoutMs = ({
   return Math.max(0, Math.floor(candidateMs));
 };
 
+/**
+ * Resolve deterministic stage-1 hang watchdog timers from layered config.
+ *
+ * Precedence is highest-to-lowest within each field:
+ * `indexingConfig.stage1.watchdog.stages.processing` ->
+ * `indexingConfig.stage1.watchdog` ->
+ * `indexingConfig.stage1` ->
+ * `stage1Queues.watchdog` ->
+ * hardcoded defaults in this module.
+ *
+ * All values are milliseconds. A value of `0` explicitly disables the
+ * corresponding timeout/soft-kick behavior where supported.
+ *
+ * @param {object} runtime
+ * @param {object|null} watchdogConfig
+ * @returns {{
+ *   progressHeartbeatMs:number,
+ *   stallSnapshotMs:number,
+ *   stallAbortMs:number,
+ *   stallSoftKickMs:number,
+ *   stallSoftKickCooldownMs:number,
+ *   stallSoftKickMaxAttempts:number
+ * }}
+ */
 export const resolveStage1HangPolicy = (runtime, watchdogConfig = null) => {
   const {
     indexingStage1,
