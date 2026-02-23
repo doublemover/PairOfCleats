@@ -45,6 +45,30 @@ const metaPath = `${outPath}.meta.json`;
 const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
 assert.equal(meta.stats.entries, lines.length);
 
+const escapeInputPath = path.join(tempRoot, 'escape-gtags.txt');
+const escapeOutPath = path.join(tempRoot, 'escape-gtags.jsonl');
+const outsidePath = path.join(root, 'outside.js');
+await fsPromises.writeFile(escapeInputPath, [
+  'kept 1 src/kept.js',
+  'escaped 2 ../outside.js',
+  `absolute 3 ${outsidePath}`
+].join('\n'));
+const escapeResult = spawnSync(
+  process.execPath,
+  [cliPath, 'ingest', 'gtags', '--repo', repoRoot, '--input', escapeInputPath, '--out', escapeOutPath, '--json'],
+  { encoding: 'utf8' }
+);
+if (escapeResult.status !== 0) {
+  console.error(escapeResult.stderr || escapeResult.stdout || 'gtags escape ingest failed');
+  process.exit(escapeResult.status ?? 1);
+}
+const escapedLines = fs.readFileSync(escapeOutPath, 'utf8').trim().split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
+assert.equal(escapedLines.length, 1, 'expected out-of-repo gtags paths to be dropped');
+assert.equal(escapedLines[0].file, 'src/kept.js');
+assert.ok(escapedLines.every((entry) => !entry.file.startsWith('..')));
+assert.ok(escapedLines.every((entry) => !/^[A-Za-z]:\//.test(entry.file)));
+assert.ok(escapedLines.every((entry) => !entry.file.startsWith('/')));
+
 const missingInputPath = path.join(tempRoot, 'missing-gtags.txt');
 const missingResult = spawnSync(
   process.execPath,

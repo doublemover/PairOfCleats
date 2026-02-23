@@ -48,6 +48,41 @@ assert.ok(meta.stats.edges >= 2);
 assert.ok(meta.stats.definitions >= 1);
 assert.ok(meta.stats.references >= 1);
 
+const escapeInputPath = path.join(tempRoot, 'escape.lsif');
+const escapeOutPath = path.join(tempRoot, 'escape-lsif.jsonl');
+await fsPromises.writeFile(escapeInputPath, [
+  JSON.stringify({ id: 1, type: 'vertex', label: 'document', uri: 'file:///repo/src/kept.ts', languageId: 'typescript' }),
+  JSON.stringify({ id: 2, type: 'vertex', label: 'document', uri: 'file:///repo/../outside.ts', languageId: 'typescript' }),
+  JSON.stringify({ id: 3, type: 'vertex', label: 'document', uri: 'not a valid uri', languageId: 'typescript' }),
+  JSON.stringify({ id: 10, type: 'vertex', label: 'range', start: { line: 0, character: 0 }, end: { line: 0, character: 1 } }),
+  JSON.stringify({ id: 11, type: 'vertex', label: 'range', start: { line: 0, character: 0 }, end: { line: 0, character: 1 } }),
+  JSON.stringify({ id: 12, type: 'vertex', label: 'range', start: { line: 0, character: 0 }, end: { line: 0, character: 1 } }),
+  JSON.stringify({ id: 100, type: 'vertex', label: 'definitionResult' }),
+  JSON.stringify({ id: 101, type: 'vertex', label: 'definitionResult' }),
+  JSON.stringify({ id: 102, type: 'vertex', label: 'definitionResult' }),
+  JSON.stringify({ id: 200, type: 'edge', label: 'contains', outV: 1, inVs: [10] }),
+  JSON.stringify({ id: 201, type: 'edge', label: 'contains', outV: 2, inVs: [11] }),
+  JSON.stringify({ id: 202, type: 'edge', label: 'contains', outV: 3, inVs: [12] }),
+  JSON.stringify({ id: 300, type: 'edge', label: 'item', outV: 10, inVs: [100] }),
+  JSON.stringify({ id: 301, type: 'edge', label: 'item', outV: 11, inVs: [101] }),
+  JSON.stringify({ id: 302, type: 'edge', label: 'item', outV: 12, inVs: [102] })
+].join('\n'));
+const escapeResult = spawnSync(
+  process.execPath,
+  [cliPath, 'ingest', 'lsif', '--repo', repoRoot, '--input', escapeInputPath, '--out', escapeOutPath, '--json'],
+  { encoding: 'utf8' }
+);
+if (escapeResult.status !== 0) {
+  console.error(escapeResult.stderr || escapeResult.stdout || 'lsif escape ingest failed');
+  process.exit(escapeResult.status ?? 1);
+}
+const escapedLines = fs.readFileSync(escapeOutPath, 'utf8').trim().split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
+assert.equal(escapedLines.length, 1, 'expected out-of-repo lsif paths to be dropped');
+assert.equal(escapedLines[0].file, 'src/kept.ts');
+assert.ok(escapedLines.every((entry) => !entry.file.startsWith('..')));
+assert.ok(escapedLines.every((entry) => !/^[A-Za-z]:\//.test(entry.file)));
+assert.ok(escapedLines.every((entry) => !entry.file.startsWith('/')));
+
 const missingInputPath = path.join(tempRoot, 'missing.lsif');
 const missingResult = spawnSync(
   process.execPath,

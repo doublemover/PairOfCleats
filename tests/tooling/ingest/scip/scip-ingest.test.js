@@ -47,6 +47,44 @@ assert.equal(meta.stats.occurrences, lines.length);
 assert.equal(meta.stats.definitions, 1);
 assert.equal(meta.stats.references, 1);
 
+const escapeInputPath = path.join(tempRoot, 'escape-index.json');
+const escapeOutPath = path.join(tempRoot, 'escape-scip.jsonl');
+const outsidePath = path.join(root, 'outside.js');
+await fsPromises.writeFile(escapeInputPath, JSON.stringify({
+  documents: [
+    {
+      relativePath: 'src/kept.js',
+      language: 'javascript',
+      occurrences: [{ symbol: 'kept', range: [0, 0, 1], symbolRoles: 1 }]
+    },
+    {
+      relativePath: '../outside.js',
+      language: 'javascript',
+      occurrences: [{ symbol: 'escaped', range: [0, 0, 1], symbolRoles: 1 }]
+    },
+    {
+      path: outsidePath,
+      language: 'javascript',
+      occurrences: [{ symbol: 'abs', range: [0, 0, 1], symbolRoles: 1 }]
+    }
+  ]
+}, null, 2));
+const escapeResult = spawnSync(
+  process.execPath,
+  [cliPath, 'ingest', 'scip', '--repo', repoRoot, '--input', escapeInputPath, '--out', escapeOutPath, '--json'],
+  { encoding: 'utf8' }
+);
+if (escapeResult.status !== 0) {
+  console.error(escapeResult.stderr || escapeResult.stdout || 'scip escape ingest failed');
+  process.exit(escapeResult.status ?? 1);
+}
+const escapedLines = fs.readFileSync(escapeOutPath, 'utf8').trim().split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
+assert.equal(escapedLines.length, 1, 'expected out-of-repo scip paths to be dropped');
+assert.equal(escapedLines[0].file, 'src/kept.js');
+assert.ok(escapedLines.every((entry) => !entry.file.startsWith('..')));
+assert.ok(escapedLines.every((entry) => !/^[A-Za-z]:\//.test(entry.file)));
+assert.ok(escapedLines.every((entry) => !entry.file.startsWith('/')));
+
 const missingInputPath = path.join(tempRoot, 'missing-scip.json');
 const missingResult = spawnSync(
   process.execPath,

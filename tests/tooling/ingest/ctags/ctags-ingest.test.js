@@ -46,5 +46,29 @@ const metaPath = `${outPath}.meta.json`;
 const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
 assert.equal(meta.stats.entries, lines.length);
 
+const escapeInputPath = path.join(tempRoot, 'escape-tags.jsonl');
+const escapeOutPath = path.join(tempRoot, 'escape-ctags.jsonl');
+const outsidePath = path.join(root, 'outside.js');
+await fsPromises.writeFile(escapeInputPath, [
+  JSON.stringify({ _type: 'tag', name: 'kept', path: 'src/kept.js', line: 1, kind: 'function' }),
+  JSON.stringify({ _type: 'tag', name: 'escaped', path: '../outside.js', line: 2, kind: 'function' }),
+  JSON.stringify({ _type: 'tag', name: 'absolute', path: outsidePath, line: 3, kind: 'function' })
+].join('\n'));
+const escapeResult = spawnSync(
+  process.execPath,
+  [cliPath, 'ingest', 'ctags', '--repo', repoRoot, '--input', escapeInputPath, '--out', escapeOutPath, '--json'],
+  { encoding: 'utf8' }
+);
+if (escapeResult.status !== 0) {
+  console.error(escapeResult.stderr || escapeResult.stdout || 'ctags escape ingest failed');
+  process.exit(escapeResult.status ?? 1);
+}
+const escapedLines = fs.readFileSync(escapeOutPath, 'utf8').trim().split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
+assert.equal(escapedLines.length, 1, 'expected out-of-repo ctags paths to be dropped');
+assert.equal(escapedLines[0].file, 'src/kept.js');
+assert.ok(escapedLines.every((entry) => !entry.file.startsWith('..')));
+assert.ok(escapedLines.every((entry) => !/^[A-Za-z]:\//.test(entry.file)));
+assert.ok(escapedLines.every((entry) => !entry.file.startsWith('/')));
+
 console.log('ctags ingest test passed');
 
