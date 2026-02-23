@@ -80,6 +80,9 @@ import {
 import {
   buildUsrLanguageConformanceDashboardReport as buildUsrLanguageConformanceDashboardReportCore
 } from './usr-matrix/language-conformance-dashboard.js';
+import {
+  buildUsrFrameworkConformanceDashboardReport as buildUsrFrameworkConformanceDashboardReportCore
+} from './usr-matrix/framework-conformance-dashboard.js';
 
 const ajv = createAjv({
   dialect: '2020',
@@ -420,8 +423,6 @@ export function buildUsrGeneratedProvenanceCoverageReport({
   });
 }
 
-const sortedStrings = (value) => [...asStringArray(value)].sort((left, right) => left.localeCompare(right));
-
 export function validateUsrLanguageBatchShards({
   batchShardsPayload,
   languageProfilesPayload
@@ -555,140 +556,22 @@ export function buildUsrFrameworkConformanceDashboardReport({
   buildId = null,
   scope = { scopeType: 'lane', scopeId: 'ci' }
 } = {}) {
-  const frameworkValidation = validateUsrMatrixRegistry('usr-framework-profiles', frameworkProfilesPayload);
-  if (!frameworkValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...frameworkValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([]),
-      payload: null
-    };
-  }
-
-  const languageValidation = validateUsrMatrixRegistry('usr-language-profiles', languageProfilesPayload);
-  if (!languageValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...languageValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([]),
-      payload: null
-    };
-  }
-
-  const c4Coverage = validateUsrConformanceLevelCoverage({
-    targetLevel: 'C4',
+  return buildUsrFrameworkConformanceDashboardReportCore({
+    frameworkProfilesPayload,
     languageProfilesPayload,
     conformanceLevelsPayload,
-    knownLanes
-  });
-
-  const errors = [...c4Coverage.errors.map((message) => `C4 ${message}`)];
-  const warnings = [...c4Coverage.warnings.map((message) => `C4 ${message}`)];
-  const rows = [];
-
-  const frameworkRows = Array.isArray(frameworkProfilesPayload?.rows) ? frameworkProfilesPayload.rows : [];
-  const languageRows = Array.isArray(languageProfilesPayload?.rows) ? languageProfilesPayload.rows : [];
-  const languageById = new Map(languageRows.map((row) => [row.id, row]));
-  const c4ByLanguageId = new Map((c4Coverage.rows || []).map((row) => [row.profileId, row]));
-
-  for (const frameworkRow of frameworkRows) {
-    const rowErrors = [];
-    const rowWarnings = [];
-    const appliesToLanguages = asStringArray(frameworkRow.appliesToLanguages);
-    const failingLanguages = [];
-
-    if (appliesToLanguages.length === 0) {
-      rowErrors.push('appliesToLanguages must not be empty');
-    }
-
-    for (const languageId of appliesToLanguages) {
-      const languageRow = languageById.get(languageId);
-      if (!languageRow) {
-        rowErrors.push(`unknown language in appliesToLanguages: ${languageId}`);
-        continue;
-      }
-
-      const languageFrameworkProfiles = asStringArray(languageRow.frameworkProfiles);
-      if (!languageFrameworkProfiles.includes(frameworkRow.id)) {
-        rowErrors.push(`inverse language frameworkProfiles linkage is missing for ${languageId}`);
-      }
-
-      const coverageRow = c4ByLanguageId.get(languageId);
-      if (!coverageRow) {
-        rowErrors.push(`missing C4 coverage row for ${languageId}`);
-        failingLanguages.push(languageId);
-        continue;
-      }
-
-      if (coverageRow.requiresLevel && !coverageRow.pass) {
-        rowErrors.push(`C4 required coverage is failing for ${languageId}`);
-        failingLanguages.push(languageId);
-      } else if (!coverageRow.requiresLevel) {
-        rowWarnings.push(`language ${languageId} does not require C4 despite framework applicability`);
-      }
-    }
-
-    if (rowErrors.length > 0) {
-      errors.push(...rowErrors.map((message) => `${frameworkRow.id} ${message}`));
-    }
-    if (rowWarnings.length > 0) {
-      warnings.push(...rowWarnings.map((message) => `${frameworkRow.id} ${message}`));
-    }
-
-    rows.push({
-      rowType: 'framework-conformance-dashboard',
-      profileId: frameworkRow.id,
-      appliesToLanguages,
-      failingLanguages: sortedStrings(failingLanguages),
-      pass: rowErrors.length === 0,
-      errors: Object.freeze([...rowErrors]),
-      warnings: Object.freeze([...rowWarnings])
-    });
-  }
-
-  const status = errors.length > 0
-    ? 'fail'
-    : (warnings.length > 0 ? 'warn' : 'pass');
-
-  const payload = {
-    schemaVersion: 'usr-1.0.0',
-    artifactId: 'usr-conformance-summary',
+    knownLanes,
     generatedAt,
     producerId,
     producerVersion,
     runId,
     lane,
     buildId,
-    status,
-    scope: normalizeReportScope(scope, 'lane', lane),
-    summary: {
-      dashboard: 'framework-conformance',
-      profileCount: rows.length,
-      passCount: rows.filter((row) => row.pass).length,
-      failCount: rows.filter((row) => !row.pass).length,
-      warningCount: warnings.length,
-      errorCount: errors.length
-    },
-    blockingFindings: errors.map((message) => ({
-      class: 'framework-conformance',
-      message
-    })),
-    advisoryFindings: warnings.map((message) => ({
-      class: 'framework-conformance',
-      message
-    })),
-    rows
-  };
-
-  return {
-    ok: errors.length === 0,
-    errors: Object.freeze([...errors]),
-    warnings: Object.freeze([...warnings]),
-    rows: Object.freeze(rows),
-    payload
-  };
+    scope,
+    validateRegistry: validateUsrMatrixRegistry,
+    validateConformanceLevelCoverage: validateUsrConformanceLevelCoverage,
+    normalizeScope: normalizeReportScope
+  });
 }
 
 const TEST_ROLLOUT_LEVELS = Object.freeze(['C0', 'C1']);

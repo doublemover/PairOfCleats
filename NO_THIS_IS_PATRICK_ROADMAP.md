@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T08:54:53.8003933-05:00
+  Extracted framework conformance dashboard report builder from `src/contracts/validators/usr-matrix.js` into `src/contracts/validators/usr-matrix/framework-conformance-dashboard.js`, preserving facade behavior while replacing summary pass/fail filter scans with single-pass counting and adding focused coverage in `tests/indexing/contracts/usr-framework-conformance-dashboard-report.test.js`.
 - 2026-02-23T08:51:11.0431512-05:00
   Extracted language conformance dashboard report builder from `src/contracts/validators/usr-matrix.js` into `src/contracts/validators/usr-matrix/language-conformance-dashboard.js`, preserving facade behavior while reducing repeated level-summary filter scans via single-pass aggregation; added focused coverage in `tests/indexing/contracts/usr-language-conformance-dashboard-report.test.js`.
 - 2026-02-23T08:47:57.1278127-05:00
