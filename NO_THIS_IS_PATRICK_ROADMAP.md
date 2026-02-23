@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T07:30:43.3243071-05:00
+  Extracted embeddings per-file workset preparation from `tools/build/embeddings/runner.js` into `tools/build/embeddings/runner/file-workset.js`, reducing hot-path allocations (`fill(null)` removal, pre-sized pending arrays, mapping reuse) and adding targeted coverage in `tests/indexing/embeddings/build/file-workset-prep.test.js`.
 - 2026-02-23T07:29:37.1349546-05:00
   Extracted cross-file symbol-ref TTL/LRU caching from `src/index/type-inference-crossfile/propagation.js` into `src/index/type-inference-crossfile/symbol-ref-cache.js`, preserving resolver semantics while isolating cache eviction policy and adding dedicated coverage in `tests/indexing/type-inference/crossfile/symbol-ref-cache-resolver.test.js`.
 - 2026-02-23T07:26:52.5111724-05:00
