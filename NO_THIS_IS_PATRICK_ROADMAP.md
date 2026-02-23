@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T05:50:50.5174259-05:00
+  Refactored `src/index/build/artifacts-write.js` compression-tier policy into `src/index/build/artifacts/compression-tier-policy.js` and added `createArtifactCompressionTierResolver` in `src/shared/artifact-io/compression.js` so hot/cold tier sets are precomputed once per policy instead of rebuilt per artifact resolution, reducing repeated normalization/set-allocation overhead on artifact-write hot paths.
 - 2026-02-23T05:47:43.9847056-05:00
   Extracted stage1 watchdog policy/coercion/cleanup helpers from `src/index/build/indexer/steps/process-files.js` into `src/index/build/indexer/steps/process-files/watchdog-policy.js`, preserving public exports through re-export while reducing monolith coupling and reusing `coerceClampedFraction` from `src/shared/number-coerce.js` to centralize numeric policy parsing.
 - 2026-02-23T05:04:12.2730914-05:00

@@ -4,7 +4,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { log, logLine, showProgress } from '../../shared/progress.js';
 import { MAX_JSON_BYTES, readJsonFile, loadJsonArrayArtifact } from '../../shared/artifact-io.js';
-import { resolveArtifactCompressionTier } from '../../shared/artifact-io/compression.js';
 import { toPosix } from '../../shared/files.js';
 import { writeJsonObjectFile } from '../../shared/json-stream.js';
 import { createJsonWriteStream, writeChunk } from '../../shared/json-stream/streams.js';
@@ -16,6 +15,7 @@ import { sha1 } from '../../shared/hash.js';
 import { stableStringifyForSignature } from '../../shared/stable-json.js';
 import { coerceIntAtLeast, coerceNumberAtLeast } from '../../shared/number-coerce.js';
 import { resolveCompressionConfig } from './artifacts/compression.js';
+import { buildTieredCompressionPolicy } from './artifacts/compression-tier-policy.js';
 import { getToolingConfig } from '../../shared/dict-utils.js';
 import { writePiecesManifest } from './artifacts/checksums.js';
 import { writeFileLists } from './artifacts/file-lists.js';
@@ -283,115 +283,18 @@ export async function writeIndexArtifacts(input) {
     compressionOverrides
   } = resolveCompressionConfig(indexingConfig);
   const artifactConfig = indexingConfig.artifacts || {};
-  const compressionTierConfig = (
-    artifactConfig.compressionTiers && typeof artifactConfig.compressionTiers === 'object'
-      ? artifactConfig.compressionTiers
-      : {}
-  );
-  const compressionTiersEnabled = compressionTierConfig.enabled !== false;
-  const compressionTierHotNoCompression = compressionTierConfig.hotNoCompression !== false;
-  const compressionTierColdForceCompression = compressionTierConfig.coldForceCompression !== false;
-  /**
-   * Normalize user-provided tier artifact names into a clean list.
-   *
-   * @param {unknown} value
-   * @returns {string[]}
-   */
-  const normalizeTierArtifactList = (value) => (
-    Array.isArray(value)
-      ? value.filter((entry) => typeof entry === 'string' && entry.trim())
-      : []
-  );
-  const defaultHotTierArtifacts = [
-    'chunk_meta',
-    'chunk_uid_map',
-    'file_meta',
-    'token_postings',
-    'token_postings_packed',
-    'token_postings_binary-columnar',
-    'dense_vectors_uint8',
-    'dense_vectors_doc_uint8',
-    'dense_vectors_code_uint8',
-    'dense_meta',
-    'index_state',
-    'pieces_manifest'
-  ];
-  const defaultColdTierArtifacts = [
-    'repo_map',
-    'risk_summaries',
-    'risk_flows',
-    'call_sites',
-    'graph_relations',
-    'graph_relations_meta',
-    'determinism_report',
-    'extraction_report',
-    'vocab_order'
-  ];
-  const tierHotArtifacts = normalizeTierArtifactList(compressionTierConfig.hotArtifacts);
-  const tierColdArtifacts = normalizeTierArtifactList(compressionTierConfig.coldArtifacts);
-  /**
-   * Resolve compression tier assignment for one artifact name.
-   *
-   * @param {string} artifactName
-   * @returns {'hot'|'warm'|'cold'}
-   */
-  const resolveArtifactTier = (artifactName) => resolveArtifactCompressionTier(artifactName, {
-    hotArtifacts: tierHotArtifacts.length ? tierHotArtifacts : defaultHotTierArtifacts,
-    coldArtifacts: tierColdArtifacts.length ? tierColdArtifacts : defaultColdTierArtifacts,
-    defaultTier: 'warm'
+  const {
+    tieredCompressionOverrides,
+    resolveArtifactTier,
+    resolveShardCompression
+  } = buildTieredCompressionPolicy({
+    artifactConfig,
+    compressionOverrides,
+    compressibleArtifacts,
+    compressionEnabled,
+    compressionMode,
+    compressionKeepRaw
   });
-  const tieredCompressionOverrides = {
-    ...(compressionOverrides && typeof compressionOverrides === 'object'
-      ? compressionOverrides
-      : {})
-  };
-  if (compressionTiersEnabled) {
-    for (const artifactName of compressibleArtifacts) {
-      if (Object.prototype.hasOwnProperty.call(tieredCompressionOverrides, artifactName)) continue;
-      const tier = resolveArtifactTier(artifactName);
-      if (tier === 'hot' && compressionTierHotNoCompression) {
-        tieredCompressionOverrides[artifactName] = {
-          enabled: false,
-          mode: compressionMode,
-          keepRaw: true
-        };
-        continue;
-      }
-      if (tier === 'cold' && compressionTierColdForceCompression && compressionEnabled && compressionMode) {
-        tieredCompressionOverrides[artifactName] = {
-          enabled: true,
-          mode: compressionMode,
-          keepRaw: compressionKeepRaw
-        };
-      }
-    }
-  }
-  /**
-   * Resolve explicit compression override for an artifact base name.
-   *
-   * @param {string} base
-   * @returns {object|null}
-   */
-  const resolveCompressionOverride = (base) => (
-    tieredCompressionOverrides && Object.prototype.hasOwnProperty.call(tieredCompressionOverrides, base)
-      ? tieredCompressionOverrides[base]
-      : null
-  );
-  /**
-   * Resolve effective shard compression mode after override/tier policy.
-   *
-   * @param {string} base
-   * @returns {string|null}
-   */
-  const resolveShardCompression = (base) => {
-    const override = resolveCompressionOverride(base);
-    if (override) {
-      return override.enabled ? override.mode : null;
-    }
-    return compressionEnabled && !compressionKeepRaw && compressibleArtifacts.has(base)
-      ? compressionMode
-      : null;
-  };
   const writeFsStrategy = resolveArtifactWriteFsStrategy({ artifactConfig });
   const writeJsonlShapeAware = artifactConfig.writeJsonlShapeAware !== false;
   const writeJsonlLargeThresholdBytes = coerceIntAtLeast(

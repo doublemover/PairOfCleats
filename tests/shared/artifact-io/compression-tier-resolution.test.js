@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { resolveArtifactCompressionTier } from '../../../src/shared/artifact-io/compression.js';
+import {
+  createArtifactCompressionTierResolver,
+  resolveArtifactCompressionTier
+} from '../../../src/shared/artifact-io/compression.js';
 
 assert.equal(
   resolveArtifactCompressionTier('chunk_meta'),
@@ -30,6 +33,26 @@ assert.equal(
   }),
   'hot',
   'expected custom hot tier override to be honored'
+);
+const cachedResolver = createArtifactCompressionTierResolver({
+  hotArtifacts: ['custom_payload'],
+  coldArtifacts: ['repo_map'],
+  defaultTier: 'warm'
+});
+assert.equal(
+  cachedResolver('custom_payload'),
+  'hot',
+  'expected cached resolver hot-tier mapping to match one-shot resolver behavior'
+);
+assert.equal(
+  cachedResolver('repo_map'),
+  'cold',
+  'expected cached resolver cold-tier mapping to be applied'
+);
+assert.equal(
+  cachedResolver('unknown_payload'),
+  'warm',
+  'expected cached resolver to honor default warm tier'
 );
 
 console.log('compression tier resolution test passed');
