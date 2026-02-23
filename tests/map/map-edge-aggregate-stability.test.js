@@ -1,58 +1,20 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fsPromises from 'node:fs/promises';
-import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { applyTestEnv } from '../helpers/test-env.js';
-import { getIndexDir, resolveRepoConfig } from '../../tools/shared/dict-utils.js';
 import { buildCodeMap } from '../../src/map/build-map.js';
 import { DEFAULT_EDGE_WEIGHTS } from '../../src/map/constants.js';
+import { prepareMapBuildFixture } from './map-build-fixture.js';
 
-const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'map-edge-aggregate-stability');
-const repoRoot = path.join(tempRoot, 'repo');
-const cacheRoot = path.join(tempRoot, 'cache');
-
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
-await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
-await fsPromises.mkdir(cacheRoot, { recursive: true });
-
-await fsPromises.writeFile(
-  path.join(repoRoot, 'src', 'one.js'),
-  'export function one() { return 1; }\n'
-);
-await fsPromises.writeFile(
-  path.join(repoRoot, 'src', 'two.js'),
-  'import { one } from "./one.js";\nexport function two() { return one(); }\n'
-);
-await fsPromises.writeFile(
-  path.join(repoRoot, 'src', 'three.js'),
-  'import { one } from "./one.js";\nimport { two } from "./two.js";\nexport function three() { return one() + two(); }\n'
-);
-
-const env = applyTestEnv({
-  cacheRoot,
-  embeddings: 'stub',
-  testConfig: {
-    indexing: {
-      scm: { provider: 'none' }
-    }
-  }
+const { repoRoot, indexDir } = await prepareMapBuildFixture({
+  tempName: 'map-edge-aggregate-stability',
+  files: [
+    ['src/one.js', 'export function one() { return 1; }\n'],
+    ['src/two.js', 'import { one } from "./one.js";\nexport function two() { return one(); }\n'],
+    [
+      'src/three.js',
+      'import { one } from "./one.js";\nimport { two } from "./two.js";\nexport function three() { return one() + two(); }\n'
+    ]
+  ]
 });
-
-const buildResult = spawnSync(
-  process.execPath,
-  [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot],
-  { cwd: repoRoot, env, stdio: 'inherit' }
-);
-
-if (buildResult.status !== 0) {
-  console.error('Failed: build index for edge aggregate test');
-  process.exit(buildResult.status ?? 1);
-}
-
-const { userConfig } = resolveRepoConfig(repoRoot);
-const indexDir = getIndexDir(repoRoot, 'code', userConfig, {});
 
 const mapModel = await buildCodeMap({ repoRoot, indexDir, options: { mode: 'code' } });
 const edgeAggregates = Array.isArray(mapModel.edgeAggregates) ? mapModel.edgeAggregates : [];
