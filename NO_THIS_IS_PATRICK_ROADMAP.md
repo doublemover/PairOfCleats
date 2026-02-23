@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T08:20:28.7879761-05:00
+  Extracted security-gate/redaction validation+report logic from `src/contracts/validators/usr-matrix.js` into `src/contracts/validators/usr-matrix/security-gates.js`, preserving facade exports while consolidating observed-result normalization and replacing repeated summary `filter` scans with single-pass counters; added focused coverage in `tests/indexing/contracts/usr-security-gate-validation-report.test.js`.
 - 2026-02-23T08:17:23.8117505-05:00
   Extracted fixture-governance validation/report builders from `src/contracts/validators/usr-matrix.js` into `src/contracts/validators/usr-matrix/fixture-governance.js`, preserving facade exports while reducing repeated reviewer scans and centralizing scope/status helpers, with focused coverage in `tests/indexing/contracts/usr-fixture-governance-validation-report.test.js`.
 - 2026-02-23T08:14:29.3710140-05:00
