@@ -169,6 +169,26 @@ const printPayload = (payload) => {
 };
 
 /**
+ * Emit a command error in JSON/plain mode and exit.
+ *
+ * @param {string} message
+ * @param {{code?:number,payload?:object}} [options]
+ * @returns {never}
+ */
+const exitWithCommandError = (message, { code = 1, payload = {} } = {}) => {
+  if (argv.json) {
+    printPayload({
+      ok: false,
+      error: message,
+      ...(payload && typeof payload === 'object' ? payload : {})
+    });
+  } else {
+    console.error(message);
+  }
+  process.exit(code);
+};
+
+/**
  * Cache runtime config by resolved repo root to avoid repeated config parsing.
  *
  * @param {string} repoPath
@@ -260,8 +280,7 @@ function logThreadpoolInfo(repoRoot, label = 'indexer') {
 const handleSync = async () => {
   const targets = argv.repo ? [resolveRepoEntryForArg(argv.repo)].filter(Boolean) : repoEntries;
   if (!targets.length) {
-    console.error('No repos configured for sync.');
-    process.exit(1);
+    exitWithCommandError('No repos configured for sync.');
   }
   const policy = config.sync?.policy || 'pull';
   const results = [];
@@ -284,8 +303,7 @@ const handleSync = async () => {
 const handleEnqueue = async () => {
   const target = resolveRepoEntryForArg(resolveRepoRootArg(argv.repo));
   if (!target) {
-    console.error('Repo not found for enqueue.');
-    process.exit(1);
+    exitWithCommandError('Repo not found for enqueue.');
   }
   await ensureQueueDir(queueDir);
   const id = formatJobId();
@@ -300,8 +318,7 @@ const handleEnqueue = async () => {
     maxRetries: queueMaxRetries ?? null
   }, queueConfig.maxQueued ?? null, queueName);
   if (!result.ok) {
-    console.error(result.message || 'Failed to enqueue job.');
-    process.exit(1);
+    exitWithCommandError(result.message || 'Failed to enqueue job.');
   }
   printPayload({ ok: true, job: result.job });
 };
@@ -429,6 +446,7 @@ if (command === 'sync') {
 } else if (command === 'serve') {
   await handleServe();
 } else {
-  console.error('Usage: indexer-service <sync|enqueue|work|status|smoke|serve> [--queue index|embeddings] [--stage stage1|stage2|stage3|stage4]');
-  process.exit(1);
+  exitWithCommandError(
+    'Usage: indexer-service <sync|enqueue|work|status|smoke|serve> [--queue index|embeddings] [--stage stage1|stage2|stage3|stage4]'
+  );
 }
