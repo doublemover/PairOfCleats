@@ -1180,6 +1180,49 @@ export const buildDeterministicShardMergePlan = (workItems = []) => {
     });
 };
 
+export const clampShardConcurrencyToRuntime = (runtime, shardConcurrency) => {
+  let clamped = Number.isFinite(Number(shardConcurrency))
+    ? Math.max(1, Math.floor(Number(shardConcurrency)))
+    : 1;
+  const caps = [
+    runtime?.fileConcurrency,
+    runtime?.cpuConcurrency,
+    runtime?.importConcurrency
+  ];
+  for (const cap of caps) {
+    const numericCap = Number(cap);
+    if (!Number.isFinite(numericCap) || numericCap <= 0) continue;
+    clamped = Math.min(clamped, Math.max(1, Math.floor(numericCap)));
+  }
+  return Math.max(1, clamped);
+};
+
+const resolveShardBatchMinOrder = (batch = []) => batch.reduce((minValue, item) => {
+  const order = Number.isFinite(item?.firstOrderIndex) ? item.firstOrderIndex : Number.MAX_SAFE_INTEGER;
+  return Math.min(minValue, order);
+}, Number.MAX_SAFE_INTEGER);
+
+const resolveShardBatchMinMerge = (batch = []) => batch.reduce((minValue, item) => {
+  const merge = Number.isFinite(item?.mergeIndex) ? item.mergeIndex : Number.MAX_SAFE_INTEGER;
+  return Math.min(minValue, merge);
+}, Number.MAX_SAFE_INTEGER);
+
+export const sortShardBatchesByDeterministicMergeOrder = (shardBatches = []) => {
+  const list = Array.isArray(shardBatches) ? shardBatches : [];
+  if (list.length <= 1) return list;
+  return [...list].sort((leftBatch, rightBatch) => {
+    const leftOrder = resolveShardBatchMinOrder(leftBatch);
+    const rightOrder = resolveShardBatchMinOrder(rightBatch);
+    if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+    const leftMerge = resolveShardBatchMinMerge(leftBatch);
+    const rightMerge = resolveShardBatchMinMerge(rightBatch);
+    if (leftMerge !== rightMerge) return leftMerge - rightMerge;
+    const leftShard = leftBatch?.[0]?.shard?.id || leftBatch?.[0]?.shard?.label || '';
+    const rightShard = rightBatch?.[0]?.shard?.id || rightBatch?.[0]?.shard?.label || '';
+    return compareStrings(leftShard, rightShard);
+  });
+};
+
 /**
  * Resolve per-subset retry policy for clustered shard execution.
  *
@@ -3798,7 +3841,7 @@ export const processFiles = async ({
         : (Number.isFinite(runtime.shards.maxWorkers)
           ? Math.max(1, Math.floor(runtime.shards.maxWorkers))
           : defaultShardConcurrency);
-      shardConcurrency = Math.min(shardConcurrency, runtime.fileConcurrency);
+      shardConcurrency = clampShardConcurrencyToRuntime(runtime, shardConcurrency);
       let shardBatches = planShardBatches(shardWorkPlan, shardConcurrency, {
         resolveWeight: (workItem) => Number.isFinite(workItem.predictedCostMs)
           ? workItem.predictedCostMs
@@ -3821,6 +3864,9 @@ export const processFiles = async ({
           const bShard = b?.shard?.id || b?.shard?.label || '';
           return compareStrings(aShard, bShard);
         }));
+        if (clusterModeEnabled && clusterDeterministicMerge && shardBatches.length > 1) {
+          shardBatches = sortShardBatchesByDeterministicMergeOrder(shardBatches);
+        }
       }
       if (!shardBatches.length && shardWorkPlan.length) {
         shardBatches = [shardWorkPlan.slice()];
