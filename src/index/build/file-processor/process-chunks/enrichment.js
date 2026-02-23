@@ -1,8 +1,38 @@
 import { buildChunkRelations } from '../../../language-registry.js';
+import { detectFrameworkProfile } from '../../../framework-profile.js';
 import { detectRiskSignals } from '../../../risk.js';
 import { inferTypeMetadata } from '../../../type-inference.js';
 import { getStructuralMatchesForChunk } from '../chunk.js';
 import { mergeFlowMeta, normalizeDocMeta } from '../meta.js';
+
+/**
+ * Resolve framework profile once per file and reuse across chunk iterations.
+ *
+ * `detectFrameworkProfile` inspects full-file text and path heuristics, so calling it per chunk
+ * would repeatedly rescan the same content on large files.
+ *
+ * @param {{relPath:string,ext:string,text:string,detect?:(input:{relPath:string,ext:string,text:string})=>object|null}} input
+ * @returns {() => object|null}
+ */
+export const createFrameworkProfileResolver = ({
+  relPath,
+  ext,
+  text,
+  detect = detectFrameworkProfile
+}) => {
+  let resolved = false;
+  let cachedProfile = null;
+  return () => {
+    if (resolved) return cachedProfile;
+    cachedProfile = detect({
+      relPath,
+      ext,
+      text
+    }) || null;
+    resolved = true;
+    return cachedProfile;
+  };
+};
 
 const normalizeCapabilityDiagnostic = (entry) => {
   if (!entry || typeof entry !== 'object') return null;
