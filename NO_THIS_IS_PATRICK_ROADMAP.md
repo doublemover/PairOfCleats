@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T07:18:48.0483481-05:00
+  Extracted waiver-policy validation/report builders from `src/contracts/validators/usr-matrix.js` into `src/contracts/validators/usr-matrix/waiver-policy.js`, preserving facade exports while isolating governance/evidence/expiry policy evaluation and adding dedicated report-contract coverage in `tests/indexing/contracts/usr-waiver-report-builders.test.js`.
 - 2026-02-23T07:11:29.5874933-05:00
   Extracted runtime analysis/risk flag/config normalization from `src/index/build/runtime/runtime.js` into `src/index/build/runtime/runtime-analysis-init.js`, separating pure analysis-policy derivation from startup orchestration.
 - 2026-02-23T07:08:03.0016663-05:00
