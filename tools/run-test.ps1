@@ -103,8 +103,15 @@ if (-not $process) {
   Write-Error 'Failed to start test process.'
   exit 1
 }
-$completed = $process.WaitForExit([Math]::Max(1, $TimeoutSeconds) * 1000)
-$timedOut = -not $completed
+$timeoutEnabled = $TimeoutSeconds -gt 0
+$completed = $true
+$timedOut = $false
+if ($timeoutEnabled) {
+  $completed = $process.WaitForExit([Math]::Max(1, $TimeoutSeconds) * 1000)
+  $timedOut = -not $completed
+} else {
+  $process.WaitForExit()
+}
 if ($timedOut) {
   Stop-Process -Id $process.Id -Force
 }
@@ -141,7 +148,7 @@ if ($runStart -ge 0 -and $runEnd -gt $runStart) {
   Set-Content -Path $timesPath -Value $lines
 }
 
-if (-not $GenShort -and ($timedOut -or $elapsed.TotalSeconds -gt $TimeoutSeconds)) {
+if (-not $GenShort -and $timeoutEnabled -and ($timedOut -or $elapsed.TotalSeconds -gt $TimeoutSeconds)) {
   if (-not (Test-Path -LiteralPath $slowPath)) {
     Set-Content -Path $slowPath -Value @('# Slow Tests', '')
   }
