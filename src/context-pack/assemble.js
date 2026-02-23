@@ -9,7 +9,7 @@ import {
 import { resolveProvenance } from '../shared/provenance.js';
 import { buildGraphContextPack } from '../graph/context-pack.js';
 import { compareStrings } from '../shared/sort.js';
-import { readFileRangeSync } from '../shared/files.js';
+import { isRelativePathEscape, readFileRangeSync } from '../shared/files.js';
 import { normalizePathForRepo } from '../shared/path-normalize.js';
 import {
   MAX_JSON_BYTES,
@@ -189,7 +189,7 @@ const readFilePrefix = (filePath, maxBytes) => {
     const slice = trimUtf8Buffer(buffer.subarray(0, bytesRead));
     return slice.toString('utf8');
   } finally {
-    if (fd) fs.closeSync(fd);
+    if (fd !== null) fs.closeSync(fd);
   }
 };
 
@@ -222,7 +222,7 @@ const prefetchFileRanges = (ranges) => {
 const isPathInsideRepo = (repoRoot, filePath) => {
   const relative = path.relative(repoRoot, filePath);
   if (!relative) return true;
-  if (relative.startsWith('..')) return false;
+  if (isRelativePathEscape(relative)) return false;
   return !path.isAbsolute(relative);
 };
 
