@@ -666,6 +666,31 @@ export const resolveEmbeddingsFileParallelism = ({
   return fdCapRaw ? Math.min(fdCapRaw, withCpu) : withCpu;
 };
 
+export const resolveEmbeddingsAdaptiveFileParallelismCeiling = ({
+  baseFileParallelism,
+  maxMultiplier,
+  computeTokensTotal,
+  cpuConcurrency,
+  fdConcurrencyCap
+}) => {
+  const base = toPositiveIntOrNull(baseFileParallelism) || 1;
+  const multiplierRaw = Number(maxMultiplier);
+  const multiplier = Number.isFinite(multiplierRaw) && multiplierRaw > 1
+    ? Math.max(1, multiplierRaw)
+    : DEFAULT_EMBEDDINGS_ADAPTIVE_FILE_PARALLELISM_MAX_MULTIPLIER;
+  const multiplierCap = Math.max(base, Math.floor(base * multiplier));
+  const hardCaps = [
+    toPositiveIntOrNull(computeTokensTotal),
+    toPositiveIntOrNull(cpuConcurrency),
+    toPositiveIntOrNull(fdConcurrencyCap)
+  ].filter((value) => Number.isFinite(value) && value > 0);
+  if (!hardCaps.length) {
+    return multiplierCap;
+  }
+  const hardCap = Math.max(base, Math.min(...hardCaps));
+  return Math.max(base, Math.min(multiplierCap, hardCap));
+};
+
 export const resolveCrossFileChunkDedupeMaxEntries = (indexingConfig) => {
   const configured = toPositiveIntOrNull(indexingConfig?.embeddings?.crossFileChunkDedupeMaxEntries);
   return configured || DEFAULT_CROSS_FILE_CHUNK_DEDUPE_MAX_ENTRIES;
@@ -2793,13 +2818,13 @@ export async function runBuildEmbeddingsWithConfig(config) {
           && adaptiveFileParallelismMaxMultiplierRaw > 1
           ? Math.max(1, Number(adaptiveFileParallelismMaxMultiplierRaw))
           : DEFAULT_EMBEDDINGS_ADAPTIVE_FILE_PARALLELISM_MAX_MULTIPLIER;
-        const adaptiveFileParallelismCeiling = Math.max(
-          fileParallelism,
-          Math.min(
-            Math.max(fileParallelism, toPositiveIntOrNull(envelopeCpuConcurrency) || fileParallelism),
-            Math.max(fileParallelism, Math.floor(fileParallelism * adaptiveFileParallelismMaxMultiplier))
-          )
-        );
+        const adaptiveFileParallelismCeiling = resolveEmbeddingsAdaptiveFileParallelismCeiling({
+          baseFileParallelism: fileParallelism,
+          maxMultiplier: adaptiveFileParallelismMaxMultiplier,
+          computeTokensTotal,
+          cpuConcurrency: envelopeCpuConcurrency,
+          fdConcurrencyCap
+        });
         let adaptiveFileParallelismCurrent = fileParallelism;
         let adaptiveFileParallelismAdjustments = 0;
         let adaptiveFileParallelismLastAdjustAt = 0;
