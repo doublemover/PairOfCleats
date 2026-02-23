@@ -11,7 +11,7 @@ import {
   loadFileMetaRows,
   readJsonFile
 } from '../../shared/artifact-io.js';
-import { normalizeFilePath as normalizeFilePathShared } from '../../shared/path-normalize.js';
+import { joinPathSafe, normalizeFilePath as normalizeFilePathShared } from '../../shared/path-normalize.js';
 import { clamp } from '../../shared/limits.js';
 import { logLine } from '../../shared/progress.js';
 import { loadOptionalSyncWithFallback } from '../../shared/optional-artifact-fallback.js';
@@ -412,7 +412,8 @@ const loadOptionalDenseBinary = (dir, baseName, modelId) => {
   const relPath = typeof meta?.path === 'string' && meta.path
     ? meta.path
     : `${baseName}.bin`;
-  const binPath = path.join(dir, relPath);
+  const binPath = joinPathSafe(dir, [relPath]);
+  if (!binPath) return null;
   if (!fs.existsSync(binPath)) return null;
   const dims = Number.isFinite(Number(meta?.dims)) ? Math.max(0, Math.floor(Number(meta.dims))) : 0;
   const count = Number.isFinite(Number(meta?.count)) ? Math.max(0, Math.floor(Number(meta.count))) : 0;

@@ -2,6 +2,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
 import { pathExists } from '../shared/files.js';
+import { joinPathSafe } from '../shared/path-normalize.js';
 import { getIndexDir } from '../../tools/shared/dict-utils.js';
 import { buildFilterIndex, hydrateFilterIndex } from './filter-index.js';
 import { createError, ERROR_CODES } from '../shared/error-codes.js';
@@ -104,7 +105,8 @@ export async function loadIndex(dir, options) {
     const relPath = typeof meta.path === 'string' && meta.path
       ? meta.path
       : `${baseName}.bin`;
-    const absPath = path.join(dir, relPath);
+    const absPath = joinPathSafe(dir, [relPath]);
+    if (!absPath) return null;
     if (!await pathExists(absPath)) return null;
     try {
       const buffer = await fsPromises.readFile(absPath);

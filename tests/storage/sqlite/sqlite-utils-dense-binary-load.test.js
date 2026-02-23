@@ -44,4 +44,25 @@ for await (const entry of optional.denseVec.rows) {
 }
 assert.deepEqual(rows, [[1, 2, 3], [4, 5, 6]], 'dense rows mismatch');
 
+const outsideBinPath = path.join(root, '.testCache', 'sqlite-utils-dense-binary-outside.bin');
+await fs.writeFile(outsideBinPath, vectors);
+await fs.writeFile(metaPath, JSON.stringify({
+  fields: {
+    schemaVersion: '1.0.0',
+    artifact: baseName,
+    format: 'uint8-row-major',
+    path: path.posix.join('..', '..', '.testCache', 'sqlite-utils-dense-binary-outside.bin'),
+    dims: 3,
+    count: 2,
+    model: 'demo-model'
+  }
+}), 'utf8');
+
+const blockedTraversal = loadSqliteIndexOptionalArtifacts(tempDir, { modelId: 'fallback-model' });
+assert.equal(
+  blockedTraversal?.denseVec,
+  null,
+  'dense binary loader should reject traversal paths in .bin.meta.json'
+);
+
 console.log('sqlite utils dense binary load test passed');
