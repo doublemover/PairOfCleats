@@ -3,7 +3,6 @@ import {
   USR_MATRIX_SCHEMA_DEFS,
   USR_MATRIX_ROW_SCHEMAS
 } from '../schemas/usr-matrix.js';
-import { USR_REPORT_SCHEMA_DEFS } from '../schemas/usr.js';
 import {
   validateUsrDiagnosticCode,
   validateUsrReasonCode
@@ -13,6 +12,21 @@ import {
   buildConformanceLaneByLevel
 } from './conformance-lanes.js';
 import { resolveUsrRuntimeConfig as resolveUsrRuntimeConfigWithValidator } from './usr-matrix/runtime-config.js';
+import {
+  buildUsrFeatureFlagStateReport as buildUsrFeatureFlagStateReportWithResolver,
+  validateUsrFeatureFlagConflicts as validateUsrFeatureFlagConflictsCore
+} from './usr-matrix/runtime-config-policy.js';
+import {
+  WAIVER_SCOPE_TYPES,
+  WAIVER_APPROVER_PATTERN,
+  WAIVER_EXPIRY_WARNING_WINDOW_MS,
+  DISALLOWED_WAIVER_CLASSES,
+  toIsoDate,
+  toFixedDays,
+  buildKnownUsrArtifactIds,
+  buildKnownCompensatingArtifacts,
+  buildGovernanceApprovers
+} from './usr-matrix/waiver-policy-helpers.js';
 
 const ajv = createAjv({
   dialect: '2020',
@@ -75,32 +89,10 @@ export function validateUsrFeatureFlagConflicts({
   values = {},
   strictMode = true
 } = {}) {
-  const errors = [];
-  const warnings = [];
-
-  const addConflict = (message) => {
-    if (strictMode) {
-      errors.push(message);
-    } else {
-      warnings.push(message);
-    }
-  };
-
-  const cutoverEnabled = values['usr.rollout.cutoverEnabled'] === true;
-  const shadowReadEnabled = values['usr.rollout.shadowReadEnabled'] === true;
-  if (cutoverEnabled && shadowReadEnabled) {
-    addConflict('disallowed feature-flag conflict: usr.rollout.cutoverEnabled and usr.rollout.shadowReadEnabled cannot both be true');
-  }
-
-  if (strictMode && values['usr.strictMode.enabled'] === false) {
-    errors.push('disallowed feature-flag value in strict mode: usr.strictMode.enabled cannot be false');
-  }
-
-  return {
-    ok: errors.length === 0,
-    errors: Object.freeze([...errors]),
-    warnings: Object.freeze([...warnings])
-  };
+  return validateUsrFeatureFlagConflictsCore({
+    values,
+    strictMode
+  });
 }
 
 export function buildUsrFeatureFlagStateReport({
@@ -115,89 +107,19 @@ export function buildUsrFeatureFlagStateReport({
   buildId = null,
   scope = { scopeType: 'global', scopeId: 'global' }
 } = {}) {
-  const resolved = resolveUsrRuntimeConfig({
+  return buildUsrFeatureFlagStateReportWithResolver({
     policyPayload,
     layers,
-    strictMode
-  });
-
-  const conflictValidation = validateUsrFeatureFlagConflicts({
-    values: resolved.values,
-    strictMode
-  });
-
-  const errors = [
-    ...resolved.errors,
-    ...conflictValidation.errors
-  ];
-  const warnings = [
-    ...resolved.warnings,
-    ...conflictValidation.warnings
-  ];
-
-  const policyRows = Array.isArray(policyPayload?.rows) ? policyPayload.rows : [];
-  const rows = policyRows.map((row) => ({
-    id: row.id,
-    key: row.key,
-    value: resolved.values[row.key],
-    source: resolved.appliedByKey[row.key] || 'default',
-    valueType: row.valueType,
-    rolloutClass: row.rolloutClass,
-    strictModeBehavior: row.strictModeBehavior,
-    requiresRestart: Boolean(row.requiresRestart),
-    blocking: Boolean(row.blocking)
-  }));
-
-  const normalizedScope = (
-    scope && typeof scope === 'object'
-      ? {
-        scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'global',
-        scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : 'global'
-      }
-      : { scopeType: 'global', scopeId: 'global' }
-  );
-
-  const status = errors.length > 0
-    ? 'fail'
-    : (warnings.length > 0 ? 'warn' : 'pass');
-
-  const payload = {
-    schemaVersion: 'usr-1.0.0',
-    artifactId: 'usr-feature-flag-state',
+    strictMode,
     generatedAt,
     producerId,
     producerVersion,
     runId,
     lane,
     buildId,
-    status,
-    scope: normalizedScope,
-    summary: {
-      strictMode,
-      keyCount: rows.length,
-      errorCount: errors.length,
-      warningCount: warnings.length,
-      conflictCount: conflictValidation.errors.length + conflictValidation.warnings.length
-    },
-    blockingFindings: errors.map((message) => ({
-      class: 'runtime-config',
-      message
-    })),
-    advisoryFindings: warnings.map((message) => ({
-      class: 'runtime-config',
-      message
-    })),
-    rows
-  };
-
-  return {
-    ok: errors.length === 0,
-    errors: Object.freeze([...errors]),
-    warnings: Object.freeze([...warnings]),
-    values: resolved.values,
-    appliedByKey: resolved.appliedByKey,
-    payload
-  };
+    scope,
+    resolveRuntimeConfig: resolveUsrRuntimeConfig
+  });
 }
 
 const normalizeFailureScenarioResults = (results) => {
@@ -4073,47 +3995,6 @@ export function buildUsrThreatModelCoverageReport({
   };
 }
 
-const WAIVER_SCOPE_TYPES = Object.freeze(new Set([
-  'global',
-  'lane',
-  'language',
-  'framework',
-  'artifact',
-  'phase'
-]));
-
-const WAIVER_APPROVER_PATTERN = /^(usr|language|framework)-[a-z0-9][a-z0-9-]*$/;
-const WAIVER_EXPIRY_WARNING_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
-const DISALLOWED_WAIVER_CLASSES = Object.freeze(new Set([
-  'strict-security-bypass',
-  'schema-hard-block-bypass'
-]));
-
-const toIsoDate = (value) => {
-  if (typeof value !== 'string') {
-    return null;
-  }
-  const timestamp = Date.parse(value);
-  if (!Number.isFinite(timestamp)) {
-    return null;
-  }
-  return new Date(timestamp);
-};
-
-const toFixedDays = (ms) => Number((ms / (24 * 60 * 60 * 1000)).toFixed(2));
-
-const buildKnownCompensatingArtifacts = ({ ownershipRows = [] } = {}) => {
-  const known = new Set(
-    Object.keys(USR_REPORT_SCHEMA_DEFS).map((artifactId) => `${artifactId}.json`)
-  );
-  for (const row of ownershipRows) {
-    for (const evidenceArtifact of asStringArray(row.evidenceArtifacts)) {
-      known.add(evidenceArtifact);
-    }
-  }
-  return known;
-};
-
 export function validateUsrWaiverPolicyControls({
   waiverPolicyPayload,
   ownershipMatrixPayload,
@@ -4169,23 +4050,12 @@ export function validateUsrWaiverPolicyControls({
   const ownershipRows = Array.isArray(ownershipMatrixPayload?.rows) ? ownershipMatrixPayload.rows : [];
   const escalationRows = Array.isArray(escalationPolicyPayload?.rows) ? escalationPolicyPayload.rows : [];
 
-  const knownArtifactIds = new Set(Object.keys(USR_REPORT_SCHEMA_DEFS));
+  const knownArtifactIds = buildKnownUsrArtifactIds();
   const knownCompensatingArtifacts = buildKnownCompensatingArtifacts({ ownershipRows });
-
-  const governanceApprovers = new Set();
-  for (const row of ownershipRows) {
-    if (typeof row.ownerRole === 'string') {
-      governanceApprovers.add(row.ownerRole);
-    }
-    if (typeof row.backupOwnerRole === 'string') {
-      governanceApprovers.add(row.backupOwnerRole);
-    }
-  }
-  for (const row of escalationRows) {
-    for (const approver of asStringArray(row.requiredApprovers)) {
-      governanceApprovers.add(approver);
-    }
-  }
+  const governanceApprovers = buildGovernanceApprovers({
+    ownershipRows,
+    escalationRows
+  });
 
   const waiverIdCounts = new Map();
   for (const row of waiverRows) {

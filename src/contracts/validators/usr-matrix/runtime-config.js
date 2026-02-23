@@ -1,3 +1,11 @@
+/**
+ * Runtime config layer precedence from lowest to highest priority.
+ *
+ * Precedence contract:
+ * - `policy-file` is applied first, then `env`, then `argv`.
+ * - A later layer only replaces a value when coercion succeeds.
+ * - Failed coercions never erase the last valid value.
+ */
 const RUNTIME_CONFIG_LAYER_ORDER = Object.freeze([
   { key: 'policyFile', label: 'policy-file' },
   { key: 'env', label: 'env' },
@@ -105,6 +113,14 @@ const validateUnknownRuntimeKeys = ({
   }
 };
 
+/**
+ * Attempt to apply a single layer override for one runtime-config row.
+ *
+ * Failure contract:
+ * - Invalid overrides become errors only when `strictMode=true` and policy marks the key as `disallow`.
+ * - All other invalid overrides are emitted as warnings.
+ * - On any failure, caller retains the previously resolved value/source.
+ */
 const applyRuntimeOverride = ({
   row,
   layerLabel,
@@ -131,6 +147,17 @@ const applyRuntimeOverride = ({
 
 /**
  * Resolve effective USR runtime config values from layered overrides.
+ *
+ * Precedence contract:
+ * - Defaults are seeded from policy rows.
+ * - Layers are applied in this fixed order: `policy-file` < `env` < `argv`.
+ * - Higher-precedence values win only when coercion/validation succeeds.
+ *
+ * Failure contract:
+ * - Invalid policy payload returns immediately with schema errors.
+ * - Unknown keys are strict-mode errors, non-strict warnings.
+ * - Invalid overrides are strict-mode errors only for `strictModeBehavior=disallow`; otherwise warnings.
+ * - The resolver never throws; all failures are surfaced through `errors`/`warnings`.
  *
  * @param {{
  *   policyPayload:object,
