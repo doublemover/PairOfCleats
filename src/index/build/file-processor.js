@@ -5,7 +5,7 @@ import { normalizeCommentConfig } from '../comments.js';
 import { createLruCache, estimateJsonBytes } from '../../shared/cache.js';
 import { fromPosix, toPosix } from '../../shared/files.js';
 import { log, logLine } from '../../shared/progress.js';
-import { getEnvConfig } from '../../shared/env.js';
+import { getDocumentExtractorTestConfig, getEnvConfig } from '../../shared/env.js';
 import { readTextFileWithHash } from '../../shared/encoding.js';
 import { sha1 } from '../../shared/hash.js';
 import { buildPostingsPayloadMetadata } from './postings-payload.js';
@@ -230,6 +230,7 @@ export function createFileProcessor(options) {
   const resolvedDocumentExtraction = documentExtractionConfig && typeof documentExtractionConfig === 'object'
     ? documentExtractionConfig
     : {};
+  const documentExtractorTestConfig = getDocumentExtractorTestConfig();
   const documentExtractionEnabled = mode === 'extracted-prose'
     && resolvedDocumentExtraction.enabled === true;
   const documentExtractionPolicy = normalizeDocumentExtractionPolicy(resolvedDocumentExtraction);
@@ -277,7 +278,7 @@ export function createFileProcessor(options) {
   };
   const resolveDocumentExtractorIdentity = async (sourceType) => {
     if (sourceType === 'pdf') {
-      if (process.env.PAIROFCLEATS_TEST_STUB_PDF_EXTRACT === '1') {
+      if (documentExtractorTestConfig.stubPdfExtract) {
         return { name: 'pdf-test-stub', version: 'test', target: 'stub' };
       }
       const runtimeInfo = await loadPdfExtractorRuntime();
@@ -287,7 +288,7 @@ export function createFileProcessor(options) {
         target: runtimeInfo?.target || null
       };
     }
-    if (process.env.PAIROFCLEATS_TEST_STUB_DOCX_EXTRACT === '1') {
+    if (documentExtractorTestConfig.stubDocxExtract) {
       return { name: 'docx-test-stub', version: 'test', target: 'stub' };
     }
     const runtimeInfo = await loadDocxExtractorRuntime();
