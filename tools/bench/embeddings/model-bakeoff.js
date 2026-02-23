@@ -10,7 +10,9 @@ import { getEnvConfig } from '../../../src/shared/env.js';
 import { resolveEmbeddingInputFormatting } from '../../../src/shared/embedding-input-format.js';
 import { hasChunkMetaArtifactsSync } from '../../../src/shared/index-artifact-helpers.js';
 import { spawnSubprocessSync } from '../../../src/shared/subprocess.js';
+import { createToolDisplay } from '../../shared/cli-display.js';
 import {
+  resolveBakeoffFastPathDefaults,
   resolveBakeoffBuildPlan,
   resolveBakeoffScriptPaths,
   resolveBakeoffStage4Modes
@@ -35,6 +37,12 @@ const normalizeWrappedCliValue = (value) => String(value || '')
   .trim();
 const argv = createCli({
   scriptName: 'bench-embedding-models',
+  usage: [
+    'Usage: $0 [options]',
+    '',
+    'Quick defaults: $0',
+    'Full run: $0 --full-run --models <list> --dataset <path>'
+  ].join('\n'),
   options: {
     models: { type: 'string' },
     baseline: { type: 'string' },
@@ -44,23 +52,47 @@ const argv = createCli({
     backend: { type: 'string', default: 'sqlite' },
     mode: { type: 'string', default: 'both' },
     top: { type: 'number', default: 10 },
-    limit: { type: 'number', default: 20 },
+    limit: { type: 'number', default: 20, describe: 'Query cap (quick default=20, full-run default=0).' },
     'heap-mb': { type: 'number', default: 8192 },
-    'embedding-sample-files': { type: 'number', default: 50 },
-    'embedding-sample-seed': { type: 'string', default: 'quick-smoke' },
+    'embedding-sample-files': {
+      type: 'number',
+      default: 50,
+      describe: 'Per-mode sampled files (quick default=50, full-run default=0).'
+    },
+    'embedding-sample-seed': {
+      type: 'string',
+      default: 'quick-smoke',
+      describe: 'Deterministic sampling seed (quick default=quick-smoke).'
+    },
+    'full-run': {
+      type: 'boolean',
+      default: false,
+      describe: 'Disable quick defaults (sampling/resume/skip-compare/limit) unless explicitly overridden.'
+    },
     build: { type: 'boolean', default: true },
     incremental: { type: 'boolean', default: true },
     'build-sqlite': { type: 'boolean' },
     'skip-eval': { type: 'boolean', default: false },
-    'skip-compare': { type: 'boolean', default: true },
+    'skip-compare': {
+      type: 'boolean',
+      default: true,
+      describe: 'Skip compare-models pass (quick default=true, full-run default=false).'
+    },
     ann: { type: 'boolean' },
     'no-ann': { type: 'boolean' },
     'stub-embeddings': { type: 'boolean', default: false },
-    resume: { type: 'boolean', default: true },
+    resume: {
+      type: 'boolean',
+      default: true,
+      describe: 'Reuse completed model checkpoints (quick default=true, full-run default=false).'
+    },
     checkpoint: { type: 'string' },
     'cache-root': { type: 'string' },
     out: { type: 'string' },
-    json: { type: 'boolean', default: true }
+    json: { type: 'boolean', default: true },
+    progress: { type: 'string', default: 'auto' },
+    verbose: { type: 'boolean', default: false },
+    quiet: { type: 'boolean', default: false }
   }
 }).parse();
 const positionalArgs = Array.isArray(argv._)
@@ -130,12 +162,22 @@ if (!['code', 'prose', 'both'].includes(mode)) {
   process.exit(1);
 }
 const topN = Math.max(1, Math.floor(Number(argv.top) || 10));
-const limit = Math.max(0, Math.floor(Number(argv.limit) || 0));
 const heapMb = Math.max(0, Math.floor(Number(argv['heap-mb']) || 0));
-const embeddingSampleFiles = Math.max(0, Math.floor(Number(argv['embedding-sample-files']) || 0));
-const embeddingSampleSeed = String(argv['embedding-sample-seed'] || 'bakeoff-v1').trim() || 'bakeoff-v1';
+const fullRun = argv['full-run'] === true;
+const fastPathDefaults = resolveBakeoffFastPathDefaults({
+  rawArgs,
+  fullRun,
+  limit: Number(argv.limit),
+  embeddingSampleFiles: Number(argv['embedding-sample-files']),
+  embeddingSampleSeed: String(argv['embedding-sample-seed'] || ''),
+  skipCompare: argv['skip-compare'] === true,
+  resume: argv.resume !== false
+});
+const limit = fastPathDefaults.limit;
+const embeddingSampleFiles = fastPathDefaults.embeddingSampleFiles;
+const embeddingSampleSeed = fastPathDefaults.embeddingSampleSeed;
 const runEval = argv['skip-eval'] !== true;
-const runCompare = argv['skip-compare'] !== true;
+const runCompare = fastPathDefaults.skipCompare !== true;
 const buildIndex = argv.build === true;
 const { buildSqlite, runStage4OnlyBuild } = resolveBakeoffBuildPlan({
   rawArgs,
@@ -144,7 +186,7 @@ const { buildSqlite, runStage4OnlyBuild } = resolveBakeoffBuildPlan({
 });
 const incremental = argv.incremental === true;
 const useStubEmbeddings = argv['stub-embeddings'] === true;
-const allowResume = argv.resume !== false;
+const allowResume = fastPathDefaults.resume === true;
 const annOverride = argv['no-ann'] === true
   ? false
   : (argv.ann === true ? true : null);
@@ -178,10 +220,16 @@ const modelCacheRoot = (modelId) => (
 const toFixedMs = (value) => Math.round(Number(value) || 0);
 
 const shouldCapture = argv.json === true;
+const display = createToolDisplay({ argv, stream: process.stderr });
 const waitMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const isIndexLockContentionMessage = (value) => (
   /index lock (held|unavailable)/i.test(String(value || ''))
 );
+const formatElapsed = (startedAtMs) => {
+  const elapsedMs = Math.max(0, Date.now() - startedAtMs);
+  if (elapsedMs < 1000) return `${elapsedMs}ms`;
+  return `${(elapsedMs / 1000).toFixed(1)}s`;
+};
 const runNode = (args, env, label) => {
   const result = spawnSubprocessSync(process.execPath, args, {
     cwd: root,
@@ -226,11 +274,10 @@ const runNodeWithLockRetry = async (
       const retryable = isIndexLockContentionMessage(message);
       if (!retryable || attempt >= maxAttempts) throw err;
       const delayMs = baseDelayMs * attempt;
-      if (!argv.json) {
-        console.error(
-          `[bakeoff] ${label}: index lock contention, retrying (${attempt}/${maxAttempts}) in ${delayMs}ms`
-        );
-      }
+      display.warn(
+        `[bakeoff] ${label}: index lock contention, retrying (${attempt}/${maxAttempts}) in ${delayMs}ms`,
+        { kind: 'status', stage: 'bakeoff' }
+      );
       await waitMs(delayMs);
     }
   }
@@ -472,6 +519,7 @@ const outputSettings = {
   mode,
   topN,
   limit,
+  runProfile: fastPathDefaults.profile,
   heapMb,
   embeddingSampleFiles,
   embeddingSampleSeed,
@@ -487,13 +535,40 @@ const outputSettings = {
   cacheRootBase
 };
 const settingsSignature = JSON.stringify(outputSettings);
+const modelsTask = display.task('Models', {
+  taskId: 'bakeoff:models',
+  total: models.length,
+  stage: 'bakeoff'
+});
+let activeModelId = null;
+let activePhase = null;
+let activePhaseStartedAt = null;
+let completedModelsProgress = 0;
 
 /**
  * Build the current output payload.
- * @param {{modelReports:object[],compareReport:object|null,status:'running'|'completed'|'failed',error?:object|null,resumedModels?:number}} options
+ * @param {{
+ *  modelReports:object[],
+ *  compareReport:object|null,
+ *  status:'running'|'completed'|'failed',
+ *  error?:object|null,
+ *  resumedModels?:number,
+ *  currentModel?:string|null,
+ *  currentPhase?:string|null,
+ *  phaseStartedAt?:string|null
+ * }} options
  * @returns {object}
  */
-const buildOutputPayload = ({ modelReports, compareReport, status, error = null, resumedModels = 0 }) => ({
+const buildOutputPayload = ({
+  modelReports,
+  compareReport,
+  status,
+  error = null,
+  resumedModels = 0,
+  currentModel = null,
+  currentPhase = null,
+  phaseStartedAt = null
+}) => ({
   generatedAt: new Date().toISOString(),
   repo: {
     root,
@@ -503,7 +578,10 @@ const buildOutputPayload = ({ modelReports, compareReport, status, error = null,
     status,
     totalModels: models.length,
     completedModels: modelReports.length,
-    resumedModels
+    resumedModels,
+    currentModel,
+    currentPhase,
+    phaseStartedAt
   },
   error: error || null,
   settings: outputSettings,
@@ -519,11 +597,38 @@ const buildOutputPayload = ({ modelReports, compareReport, status, error = null,
 
 /**
  * Persist a checkpoint/final bakeoff payload.
- * @param {{modelReports:object[],compareReport:object|null,status:'running'|'completed'|'failed',error?:object|null,resumedModels?:number}} options
+ * @param {{
+ *  modelReports:object[],
+ *  compareReport:object|null,
+ *  status:'running'|'completed'|'failed',
+ *  error?:object|null,
+ *  resumedModels?:number,
+ *  currentModel?:string|null,
+ *  currentPhase?:string|null,
+ *  phaseStartedAt?:string|null
+ * }} options
  * @returns {Promise<object>}
  */
-const writeOutputPayload = async ({ modelReports, compareReport, status, error = null, resumedModels = 0 }) => {
-  const payload = buildOutputPayload({ modelReports, compareReport, status, error, resumedModels });
+const writeOutputPayload = async ({
+  modelReports,
+  compareReport,
+  status,
+  error = null,
+  resumedModels = 0,
+  currentModel = null,
+  currentPhase = null,
+  phaseStartedAt = null
+}) => {
+  const payload = buildOutputPayload({
+    modelReports,
+    compareReport,
+    status,
+    error,
+    resumedModels,
+    currentModel,
+    currentPhase,
+    phaseStartedAt
+  });
   await fsPromises.mkdir(path.dirname(checkpointOutPath), { recursive: true });
   await fsPromises.writeFile(checkpointOutPath, JSON.stringify(payload, null, 2), 'utf8');
   return payload;
@@ -569,13 +674,28 @@ const loadResumedModelReports = async () => {
 const modelReports = await loadResumedModelReports();
 const resumedModels = modelReports.length;
 const completedModelIds = new Set(modelReports.map((entry) => entry.modelId));
+completedModelsProgress = completedModelIds.size;
+modelsTask.set(completedModelsProgress, models.length, {
+  message: resumedModels > 0
+    ? `${resumedModels} resumed`
+    : 'starting'
+});
+
+const setActivePhase = (modelId, phase) => {
+  activeModelId = modelId || null;
+  activePhase = phase || null;
+  activePhaseStartedAt = activePhase ? new Date().toISOString() : null;
+  const modelPrefix = activeModelId ? `${activeModelId}` : 'idle';
+  const phaseLabel = activePhase || 'idle';
+  modelsTask.set(completedModelsProgress, models.length, {
+    message: `${modelPrefix} · ${phaseLabel}`
+  });
+};
 
 let compareReport = null;
 for (const modelId of models) {
   if (completedModelIds.has(modelId)) {
-    if (!argv.json) {
-      console.error(`[bakeoff] resume: skipping completed model=${modelId}`);
-    }
+    display.log(`[bakeoff] resume: skipping completed model=${modelId}`, { kind: 'status', stage: 'bakeoff' });
     continue;
   }
   const env = toModelEnv(modelId);
@@ -585,10 +705,10 @@ for (const modelId of models) {
     buildSqliteMs: 0,
     totalBuildMs: 0
   };
-
-  if (!argv.json) {
-    console.error(`[bakeoff] model=${modelId} cache=${env.PAIROFCLEATS_CACHE_ROOT}`);
-  }
+  display.log(`[bakeoff] model=${modelId} cache=${env.PAIROFCLEATS_CACHE_ROOT}`, {
+    kind: 'status',
+    stage: 'bakeoff'
+  });
 
   try {
     timings.strategy = resolveBuildStrategy({
@@ -596,34 +716,100 @@ for (const modelId of models) {
       shouldBuildIndex: buildIndex,
       resolvedMode: mode
     });
+    const sqliteRequested = runStage4OnlyBuild || (sqliteBackend && buildIndex);
+    const hasSqliteArtifacts = sqliteRequested
+      ? sqliteArtifactsExist(env.PAIROFCLEATS_CACHE_ROOT, mode)
+      : false;
+    const shouldRunStage4 = sqliteRequested
+      ? (runStage4OnlyBuild || timings.strategy === 'full' || !hasSqliteArtifacts)
+      : false;
+
+    const phasePlan = [];
+    if (timings.strategy === 'full') phasePlan.push('stage2', 'stage3');
+    else if (timings.strategy === 'stage3') phasePlan.push('stage3');
+    if (shouldRunStage4) phasePlan.push('stage4');
+    if (runEval) phasePlan.push('eval');
+    const phaseTotal = Math.max(1, phasePlan.length);
+    let phaseCompleted = 0;
+    const phaseTask = display.task(`Model ${modelId}`, {
+      taskId: `bakeoff:model:${modelId}`,
+      total: phaseTotal,
+      stage: 'bakeoff',
+      mode: modelId,
+      ephemeral: true
+    });
+    const runPhase = async (phaseName, fn) => {
+      const phaseStartedAtMs = Date.now();
+      setActivePhase(modelId, phaseName);
+      await writeOutputPayload({
+        modelReports,
+        compareReport: null,
+        status: 'running',
+        resumedModels,
+        currentModel: activeModelId,
+        currentPhase: activePhase,
+        phaseStartedAt: activePhaseStartedAt
+      });
+      const runningStep = Math.min(phaseTotal, phaseCompleted + 1);
+      phaseTask.set(runningStep, phaseTotal, {
+        message: `${phaseName} running (${formatElapsed(phaseStartedAtMs)})`
+      });
+      display.log(`[bakeoff] ${modelId}: ${phaseName} started`, { kind: 'status', stage: 'bakeoff' });
+      const heartbeat = setInterval(() => {
+        phaseTask.set(runningStep, phaseTotal, {
+          message: `${phaseName} running (${formatElapsed(phaseStartedAtMs)})`
+        });
+      }, 1500);
+      try {
+        return await fn();
+      } finally {
+        clearInterval(heartbeat);
+        phaseCompleted += 1;
+        const elapsedLabel = formatElapsed(phaseStartedAtMs);
+        phaseTask.set(phaseCompleted, phaseTotal, {
+          message: `${phaseName} done (${elapsedLabel})`
+        });
+        display.log(`[bakeoff] ${modelId}: ${phaseName} completed in ${elapsedLabel}`, {
+          kind: 'status',
+          stage: 'bakeoff'
+        });
+        await writeOutputPayload({
+          modelReports,
+          compareReport: null,
+          status: 'running',
+          resumedModels,
+          currentModel: activeModelId,
+          currentPhase: activePhase,
+          phaseStartedAt: activePhaseStartedAt
+        });
+      }
+    };
 
     if (timings.strategy === 'full') {
       const startedAt = Date.now();
       const stage2Args = [buildIndexScript, '--stage', '2', '--repo', root, '--mode', mode];
       if (incremental) stage2Args.push('--incremental');
-      await runNodeWithLockRetry(stage2Args, env, `build stage2 (${modelId})`);
+      await runPhase('stage2', async () => runNodeWithLockRetry(stage2Args, env, `build stage2 (${modelId})`));
 
       const args = [buildIndexScript, '--stage', '3', '--repo', root, '--mode', mode];
       if (incremental) args.push('--incremental');
       if (useStubEmbeddings) args.push('--stub-embeddings');
-      await runNodeWithLockRetry(args, env, `build embeddings (${modelId})`);
+      await runPhase('stage3', async () => runNodeWithLockRetry(args, env, `build embeddings (${modelId})`));
       timings.buildIndexMs = Date.now() - startedAt;
     } else if (timings.strategy === 'stage3') {
       const args = [buildIndexScript, '--stage', '3', '--repo', root, '--mode', mode];
       if (incremental) args.push('--incremental');
       if (useStubEmbeddings) args.push('--stub-embeddings');
       const startedAt = Date.now();
-      await runNodeWithLockRetry(args, env, `build embeddings (${modelId})`);
+      await runPhase('stage3', async () => runNodeWithLockRetry(args, env, `build embeddings (${modelId})`));
       timings.buildIndexMs = Date.now() - startedAt;
     }
 
-    const sqliteRequested = runStage4OnlyBuild || (sqliteBackend && buildIndex);
-    if (sqliteRequested) {
-      const hasSqliteArtifacts = sqliteArtifactsExist(env.PAIROFCLEATS_CACHE_ROOT, mode);
-      const shouldRunStage4 = runStage4OnlyBuild || timings.strategy === 'full' || !hasSqliteArtifacts;
-      if (shouldRunStage4) {
-        timings.buildSqliteMs = await runIsolatedStage4({ modelId, env, resolvedMode: mode });
-      }
+    if (shouldRunStage4) {
+      timings.buildSqliteMs = await runPhase(
+        'stage4',
+        async () => runIsolatedStage4({ modelId, env, resolvedMode: mode })
+      );
     }
     timings.totalBuildMs = timings.buildIndexMs + timings.buildSqliteMs;
 
@@ -643,7 +829,7 @@ for (const modelId of models) {
       if (annOverride === true) evalArgs.push('--ann');
       if (annOverride === false) evalArgs.push('--no-ann');
       if (limit > 0) evalArgs.push('--limit', String(limit));
-      const evalReport = runJsonNode(evalArgs, env, `eval (${modelId})`);
+      const evalReport = await runPhase('eval', async () => runJsonNode(evalArgs, env, `eval (${modelId})`));
       evalSummary = evalReport?.summary || null;
     }
 
@@ -666,18 +852,30 @@ for (const modelId of models) {
       evalReportPath: null
     });
     completedModelIds.add(modelId);
+    completedModelsProgress += 1;
+    modelsTask.set(completedModelsProgress, models.length, {
+      message: `${modelId} done`
+    });
+    setActivePhase(modelId, 'checkpoint');
     await writeOutputPayload({
       modelReports,
       compareReport: null,
       status: 'running',
-      resumedModels
+      resumedModels,
+      currentModel: activeModelId,
+      currentPhase: activePhase,
+      phaseStartedAt: activePhaseStartedAt
     });
+    setActivePhase(null, null);
   } catch (err) {
     await writeOutputPayload({
       modelReports,
       compareReport: null,
       status: 'failed',
       resumedModels,
+      currentModel: activeModelId,
+      currentPhase: activePhase,
+      phaseStartedAt: activePhaseStartedAt,
       error: {
         phase: 'model',
         modelId,
@@ -689,7 +887,35 @@ for (const modelId of models) {
 }
 
 if (runCompare) {
+  let compareTask = null;
+  let compareHeartbeat = null;
+  let compareStartedAtMs = 0;
   try {
+    setActivePhase('compare', 'latency-compare');
+    compareTask = display.task('Compare', {
+      taskId: 'bakeoff:compare',
+      total: 1,
+      stage: 'bakeoff',
+      ephemeral: true
+    });
+    compareStartedAtMs = Date.now();
+    compareTask.set(0, 1, {
+      message: `running (${formatElapsed(compareStartedAtMs)})`
+    });
+    compareHeartbeat = setInterval(() => {
+      compareTask.set(0, 1, {
+        message: `running (${formatElapsed(compareStartedAtMs)})`
+      });
+    }, 1500);
+    await writeOutputPayload({
+      modelReports,
+      compareReport: null,
+      status: 'running',
+      resumedModels,
+      currentModel: activeModelId,
+      currentPhase: activePhase,
+      phaseStartedAt: activePhaseStartedAt
+    });
     const compareArgs = [
       compareScript,
       '--json',
@@ -713,18 +939,34 @@ if (runCompare) {
     if (queriesPath) compareArgs.push('--queries', queriesPath);
     if (limit > 0) compareArgs.push('--limit', String(limit));
     compareReport = runJsonNode(compareArgs, baseEnv, 'compare-models');
+    setActivePhase(null, null);
   } catch (err) {
     await writeOutputPayload({
       modelReports,
       compareReport: null,
       status: 'failed',
       resumedModels,
+      currentModel: activeModelId,
+      currentPhase: activePhase,
+      phaseStartedAt: activePhaseStartedAt,
       error: {
         phase: 'compare',
         message: err?.message || String(err)
       }
     });
     throw err;
+  } finally {
+    if (compareHeartbeat) {
+      clearInterval(compareHeartbeat);
+      compareHeartbeat = null;
+    }
+    if (compareTask) {
+      const message = compareReport
+        ? `completed (${formatElapsed(compareStartedAtMs)})`
+        : `failed (${formatElapsed(compareStartedAtMs)})`;
+      compareTask.done({ message });
+      compareTask = null;
+    }
   }
 }
 
@@ -732,8 +974,15 @@ const output = await writeOutputPayload({
   modelReports,
   compareReport,
   status: 'completed',
-  resumedModels
+  resumedModels,
+  currentModel: null,
+  currentPhase: null,
+  phaseStartedAt: null
 });
+setActivePhase(null, null);
+modelsTask.done({ message: 'completed' });
+display.flush();
+display.close();
 
 if (argv.json) {
   console.log(JSON.stringify(output, null, 2));

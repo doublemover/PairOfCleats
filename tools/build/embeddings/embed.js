@@ -23,16 +23,107 @@ export const assertVectorArrays = (vectors, count, label) => {
   }
 };
 
-export const runBatched = async ({ texts, batchSize, embed }) => {
+/**
+ * Run embedding requests in deterministic batches and optionally report batch
+ * completion telemetry to callers.
+ *
+ * @param {{
+ *   texts:string[],
+ *   batchSize:number,
+ *   maxBatchTokens?:number,
+ *   estimateTokens?:(text:string)=>number,
+ *   embed:(batch:string[])=>Promise<Array<ArrayLike<number>>>,
+ *   onBatch?:(input:{batchIndex:number,batchCount:number,batchSize:number,batchTokens:number,completed:number,total:number,durationMs:number})=>void
+ * }} input
+ * @returns {Promise<Array<ArrayLike<number>>>}
+ */
+export const runBatched = async ({
+  texts,
+  batchSize,
+  maxBatchTokens = 0,
+  estimateTokens = null,
+  embed,
+  onBatch = null
+}) => {
   if (!texts.length) return [];
-  if (!batchSize || texts.length <= batchSize) {
-    return embed(texts);
+  const observer = typeof onBatch === 'function' ? onBatch : null;
+  const maxItems = Number.isFinite(Number(batchSize)) && Number(batchSize) > 0
+    ? Math.max(1, Math.floor(Number(batchSize)))
+    : Number.MAX_SAFE_INTEGER;
+  const tokenBudget = Number.isFinite(Number(maxBatchTokens)) && Number(maxBatchTokens) > 0
+    ? Math.max(1, Math.floor(Number(maxBatchTokens)))
+    : 0;
+  const tokenEstimator = typeof estimateTokens === 'function'
+    ? estimateTokens
+    : (text) => {
+      const chars = typeof text === 'string' ? text.length : 0;
+      return Math.max(1, Math.ceil(chars / 4));
+    };
+  const batches = [];
+  if (!tokenBudget && maxItems === Number.MAX_SAFE_INTEGER) {
+    batches.push(texts);
+  } else if (!tokenBudget) {
+    for (let i = 0; i < texts.length; i += maxItems) {
+      batches.push(texts.slice(i, i + maxItems));
+    }
+  } else {
+    let current = [];
+    let currentTokens = 0;
+    for (const text of texts) {
+      const estimated = Math.max(1, Math.floor(Number(tokenEstimator(text)) || 1));
+      const wouldExceedTokens = current.length > 0 && (currentTokens + estimated) > tokenBudget;
+      const wouldExceedItems = current.length >= maxItems;
+      if (wouldExceedTokens || wouldExceedItems) {
+        batches.push(current);
+        current = [];
+        currentTokens = 0;
+      }
+      current.push(text);
+      currentTokens += estimated;
+    }
+    if (current.length) batches.push(current);
+  }
+  if (batches.length === 1) {
+    const singleBatch = batches[0] || texts;
+    let batchTokens = 0;
+    for (const text of singleBatch) {
+      batchTokens += Math.max(1, Math.floor(Number(tokenEstimator(text)) || 1));
+    }
+    const startedAt = Date.now();
+    const vectors = await embed(singleBatch);
+    observer?.({
+      batchIndex: 1,
+      batchCount: 1,
+      batchSize: singleBatch.length,
+      batchTokens,
+      completed: singleBatch.length,
+      total: texts.length,
+      durationMs: Math.max(0, Date.now() - startedAt)
+    });
+    return vectors;
   }
   const out = [];
-  for (let i = 0; i < texts.length; i += batchSize) {
-    const slice = texts.slice(i, i + batchSize);
+  const batchCount = batches.length;
+  let completed = 0;
+  for (let batchIndex = 1; batchIndex <= batchCount; batchIndex += 1) {
+    const slice = batches[batchIndex - 1] || [];
+    let batchTokens = 0;
+    for (const text of slice) {
+      batchTokens += Math.max(1, Math.floor(Number(tokenEstimator(text)) || 1));
+    }
+    const startedAt = Date.now();
     const batch = await embed(slice);
     out.push(...batch);
+    completed += slice.length;
+    observer?.({
+      batchIndex,
+      batchCount,
+      batchSize: slice.length,
+      batchTokens,
+      completed: Math.min(texts.length, completed),
+      total: texts.length,
+      durationMs: Math.max(0, Date.now() - startedAt)
+    });
   }
   return out;
 };

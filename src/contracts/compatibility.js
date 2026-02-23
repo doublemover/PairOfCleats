@@ -27,7 +27,12 @@ const VOLATILE_LANGUAGE_OPTION_KEYS = new Set([
   'tmpDir',
   'workDir',
   'outputDir',
-  'indexRoot'
+  'indexRoot',
+  'prewarmTokenizer',
+  'prewarmModel',
+  'prewarmTexts',
+  'tokenizationCacheEnabled',
+  'tokenizationCacheMaxEntries'
 ]);
 
 const sanitizeVolatileConfig = (value) => {

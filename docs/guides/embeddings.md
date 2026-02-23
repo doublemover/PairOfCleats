@@ -112,3 +112,18 @@ The worker MUST refuse to run if `buildRoot` does not exist and should treat `in
 ## 7) Strict manifest compliance
 
 Strict tooling must only discover artifacts via `pieces/manifest.json`. Non-strict fallback is allowed only when explicitly enabled and must emit a warning. See the Phase 7 strict manifest addendum in `GIGAROADMAP_2.md`.
+
+## 8) Embeddings throughput KPI gate
+
+- `tests/indexing/embeddings/embedding-batch-throughput.test.js` enforces a hard minimum throughput KPI from the benchmark output emitted by `tools/bench/embeddings/embedding-batch-throughput.js`.
+- The test runs the benchmark with `--providers stub` and deterministic timing via `--stub-batch-ms`, then parses the existing `[bench] ... throughput=<n>/s` line.
+- Minimum allowed throughput is configurable with `PAIROFCLEATS_TEST_EMBEDDING_MIN_THROUGHPUT` (default: `4500` for the deterministic test scenario).
+- If observed throughput drops below the configured threshold, the test fails and blocks CI lanes that include `indexing/embeddings/embedding-batch-throughput`.
+
+## 9) Throughput tuning defaults (batching/reuse)
+
+- Stage3 embedding dispatch now uses token-aware batching in addition to item-count batching.
+- `indexing.embeddings.maxBatchTokens` can hard-cap token volume per batch; when unset, it is derived from `batchSize * batchTokenMultiplier` (default multiplier `256`).
+- `indexing.embeddings.charsPerToken` controls token estimation for batching (default `4` chars/token).
+- Text reuse cache can persist across runs with `indexing.embeddings.persistentTextCache` (default `true`) and `indexing.embeddings.persistentTextCacheMaxEntries` (default `500000`).
+- Per-model profile-guided defaults are written under `<repoCacheRoot>/metrics/embeddings-autotune.json` and can influence batch size, token budget, and file parallelism when no explicit value is configured.

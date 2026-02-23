@@ -51,7 +51,8 @@ const parallelProcessor = createFileEmbeddingsProcessor({
   scheduleCompute: (fn) => fn(),
   processFileEmbeddings,
   mode: 'code',
-  parallelDispatch: true
+  parallelDispatch: true,
+  mergeCodeDocBatches: false
 });
 
 const parallelEntry = buildEntry();
@@ -87,7 +88,8 @@ const serialProcessor = createFileEmbeddingsProcessor({
   scheduleCompute: (fn) => fn(),
   processFileEmbeddings,
   mode: 'code',
-  parallelDispatch: false
+  parallelDispatch: false,
+  mergeCodeDocBatches: false
 });
 
 const serialEntry = buildEntry();
