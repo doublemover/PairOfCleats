@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
 import selfsigned from 'selfsigned';
 import { getRuntimeConfig, resolveRepoConfig, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
+import { safeJoinUnderBase } from './map-iso-safe-join.js';
 
 const argv = createCli({
   scriptName: 'map-iso',
@@ -87,12 +88,6 @@ const contentTypeFor = (filePath) => {
   return 'application/octet-stream';
 };
 
-const safeJoin = (baseDir, requestPath) => {
-  const safePath = path.normalize(path.join(baseDir, requestPath));
-  if (!safePath.startsWith(baseDir)) return null;
-  return safePath;
-};
-
 const openBrowser = (url) => {
   if (argv.open === false) return;
   if (process.platform === 'win32') {
@@ -128,7 +123,7 @@ const server = https.createServer({ key, cert }, (req, res) => {
   }
   if (pathname.startsWith('/three/examples/')) {
     const relativePath = pathname.replace('/three/examples/', '');
-    const targetPath = safeJoin(threeExamplesRoot, relativePath);
+    const targetPath = safeJoinUnderBase(threeExamplesRoot, relativePath);
     if (!targetPath || !fs.existsSync(targetPath)) {
       res.writeHead(404);
       res.end('three.js example asset not found.');
@@ -140,7 +135,7 @@ const server = https.createServer({ key, cert }, (req, res) => {
   }
   if (pathname.startsWith('/three/')) {
     const relativePath = pathname.replace('/three/', '');
-    const targetPath = safeJoin(threeBuildRoot, relativePath);
+    const targetPath = safeJoinUnderBase(threeBuildRoot, relativePath);
     if (!targetPath || !fs.existsSync(targetPath)) {
       res.writeHead(404);
       res.end('three.js asset not found.');
@@ -152,7 +147,7 @@ const server = https.createServer({ key, cert }, (req, res) => {
   }
   if (pathname.startsWith('/assets/isomap/')) {
     const relativePath = pathname.replace('/assets/isomap/', '');
-    const targetPath = safeJoin(isomapAssetsRoot, relativePath);
+    const targetPath = safeJoinUnderBase(isomapAssetsRoot, relativePath);
     if (!targetPath || !fs.existsSync(targetPath)) {
       res.writeHead(404);
       res.end('isomap asset not found.');
@@ -164,7 +159,7 @@ const server = https.createServer({ key, cert }, (req, res) => {
   }
   if (pathname.startsWith('/isomap/')) {
     const relativePath = pathname.replace('/isomap/', '');
-    const targetPath = safeJoin(isomapClientRoot, relativePath);
+    const targetPath = safeJoinUnderBase(isomapClientRoot, relativePath);
     if (!targetPath || !fs.existsSync(targetPath)) {
       res.writeHead(404);
       res.end('isomap client asset not found.');
