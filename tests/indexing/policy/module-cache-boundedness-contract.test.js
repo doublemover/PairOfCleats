@@ -36,7 +36,7 @@ const contracts = [
     ]
   },
   {
-    file: 'src/index/build/build-state.js',
+    file: 'src/index/build/build-state/store.js',
     patterns: [
       /STATE_MAP_MAX_ENTRIES/,
       /trimStateMap\(stateCaches,\s*\{\s*skipActive:\s*true\s*\}\)/,
