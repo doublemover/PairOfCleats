@@ -1,450 +1,106 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { MAX_JSON_BYTES } from '../constants.js';
-import { getBakPath } from '../cache.js';
-import { existsOrBak } from '../fs.js';
 import { readJsonFile, readJsonLinesArray, readJsonLinesArraySync, readJsonLinesIterator } from '../json.js';
 import { resolveJsonlRequiredKeys } from '../jsonl.js';
-import { createPackedChecksumValidator } from '../checksum.js';
 import {
   loadPiecesManifest,
-  resolveManifestArtifactSources,
-  resolveManifestMmapHotLayoutPreference,
-  resolveManifestPieceByPath
+  resolveManifestArtifactSources
 } from '../manifest.js';
-import { joinPathSafe } from '../../path-normalize.js';
-import { loadBinaryColumnarRowPayloads } from './binary-columnar.js';
+import { loadBinaryColumnarJsonRows } from './core-binary-columnar.js';
+import {
+  resolveManifestMaxBytes,
+  resolveReadableArtifactPath,
+  resolveRequiredSources,
+  resolveBinaryColumnarSourcePart
+} from './core-source-resolution.js';
 import {
   createLoaderError,
-  assertNoShardIndexGaps,
   ensureOffsetsValid,
   inflateColumnarRows,
   iterateColumnarRows
 } from './shared.js';
 
-const resolveManifestMaxBytes = (maxBytes) => (
-  Number.isFinite(Number(maxBytes)) ? Number(maxBytes) : MAX_JSON_BYTES
-);
-
-const resolveSourceLayoutSummary = ({ manifest, sources }) => {
-  const entries = Array.isArray(sources?.entries) ? sources.entries : [];
-  if (!entries.length) return null;
-  const preferMmapHotLayout = resolveManifestMmapHotLayoutPreference(manifest);
-  let hotCount = 0;
-  let hotContiguousCount = 0;
-  for (const entry of entries) {
-    const tier = typeof entry?.tier === 'string' ? entry.tier.trim().toLowerCase() : '';
-    const layout = entry?.layout && typeof entry.layout === 'object' ? entry.layout : null;
-    const contiguous = layout?.contiguous === true;
-    if (tier === 'hot') {
-      hotCount += 1;
-      if (contiguous) hotContiguousCount += 1;
-    }
+const appendRows = (target, rows) => {
+  for (let i = 0; i < rows.length; i += 1) {
+    target.push(rows[i]);
   }
-  return {
-    preferMmapHotLayout,
-    hotCount,
-    hotContiguousCount
-  };
+  return target;
 };
 
-const resolveReadableArtifactPath = (targetPath) => {
-  if (fs.existsSync(targetPath)) return targetPath;
-  const backupPath = getBakPath(targetPath);
-  if (fs.existsSync(backupPath)) return backupPath;
-  return targetPath;
-};
-
-/**
- * Resolve and validate manifest-declared sources for a required artifact.
- *
- * This enforces strict presence checks (including binary-columnar sidecars),
- * normalizes backup-path fallbacks, and optionally collapses ambiguous
- * single-source formats when strict mode is disabled.
- *
- * @param {{
- *   dir:string,
- *   manifest:any,
- *   name:string,
- *   maxBytes:number,
- *   strict:boolean
- * }} input
- * @returns {object}
- */
-const resolveRequiredSources = ({
-  dir,
-  manifest,
-  name,
-  maxBytes,
-  strict
-}) => {
-  if (!manifest) {
-    const manifestPath = path.join(dir, 'pieces', 'manifest.json');
-    throw createLoaderError('ERR_MANIFEST_MISSING', `Missing pieces manifest: ${manifestPath}`);
-  }
-  let sources = resolveManifestArtifactSources({
-    dir,
-    manifest,
-    name,
-    strict,
-    maxBytes
-  });
-  if (!sources?.paths?.length) {
-    throw createLoaderError('ERR_MANIFEST_ENTRY_MISSING', `Missing manifest entry for ${name}`);
-  }
-  const missingPaths = sources.paths.filter((target) => !existsOrBak(target));
-  if (missingPaths.length) {
-    throw createLoaderError(
-      'ERR_ARTIFACT_PARTS_MISSING',
-      `Missing manifest parts for ${name}: ${missingPaths.join(', ')}`
-    );
-  }
-  if (sources.format === 'binary-columnar') {
-    const sidecars = sources.binaryColumnar || null;
-    const missingSidecars = [];
-    if (sidecars?.metaPath && !existsOrBak(sidecars.metaPath)) {
-      missingSidecars.push(sidecars.metaPath);
-    }
-    if (sidecars?.offsetsPath && !existsOrBak(sidecars.offsetsPath)) {
-      missingSidecars.push(sidecars.offsetsPath);
-    }
-    if (sidecars?.lengthsPath && !existsOrBak(sidecars.lengthsPath)) {
-      missingSidecars.push(sidecars.lengthsPath);
-    }
-    if (missingSidecars.length) {
-      throw createLoaderError(
-        'ERR_ARTIFACT_PARTS_MISSING',
-        `Missing binary-columnar sidecars for ${name}: ${missingSidecars.join(', ')}`
-      );
-    }
-  }
-  const resolvedPaths = sources.paths.map(resolveReadableArtifactPath);
-  const resolvedOffsets = Array.isArray(sources.offsets)
-    ? sources.offsets.map(resolveReadableArtifactPath)
-    : null;
-  const resolvedBinaryColumnar = sources.binaryColumnar && typeof sources.binaryColumnar === 'object'
-    ? {
-      ...sources.binaryColumnar,
-      dataPath: sources.binaryColumnar.dataPath
-        ? resolveReadableArtifactPath(sources.binaryColumnar.dataPath)
-        : resolvedPaths[0],
-      metaPath: sources.binaryColumnar.metaPath
-        ? resolveReadableArtifactPath(sources.binaryColumnar.metaPath)
-        : null,
-      offsetsPath: sources.binaryColumnar.offsetsPath
-        ? resolveReadableArtifactPath(sources.binaryColumnar.offsetsPath)
-        : null,
-      lengthsPath: sources.binaryColumnar.lengthsPath
-        ? resolveReadableArtifactPath(sources.binaryColumnar.lengthsPath)
-        : null
-    }
-    : null;
-  const layout = resolveSourceLayoutSummary({ manifest, sources });
-  if (sources.format === 'json' || sources.format === 'columnar' || sources.format === 'binary-columnar') {
-    if (sources.paths.length > 1) {
-      if (!strict) {
-        return {
-          ...sources,
-          paths: resolvedPaths,
-          offsets: resolvedOffsets,
-          binaryColumnar: resolvedBinaryColumnar,
-          layout
-        };
-      }
-      throw createLoaderError(
-        'ERR_MANIFEST_SOURCE_AMBIGUOUS',
-        `Ambiguous ${sources.format.toUpperCase()} sources for ${name}`
-      );
-    }
-    return {
-      ...sources,
-      paths: resolvedPaths,
-      offsets: resolvedOffsets,
-      binaryColumnar: resolvedBinaryColumnar,
-      layout
-    };
-  }
-  assertNoShardIndexGaps(resolvedPaths, name);
-  return {
-    ...sources,
-    paths: resolvedPaths,
-    offsets: resolvedOffsets,
-    layout
-  };
-};
-
-const SUPPORTED_BINARY_COLUMNAR_FORMAT = 'binary-columnar-v1';
-
-const resolveBinaryColumnarDefaultPaths = (dataPath) => {
-  if (!dataPath || typeof dataPath !== 'string') {
-    return {
-      metaPath: null,
-      offsetsPath: null,
-      lengthsPath: null
-    };
-  }
-  const withoutBin = dataPath.replace(/\.bin$/i, '');
-  return {
-    metaPath: `${withoutBin}.meta.json`,
-    offsetsPath: `${withoutBin}.offsets.bin`,
-    lengthsPath: `${withoutBin}.lengths.varint`
-  };
-};
-
-const resolveBinaryColumnarSourcePart = (sources, partIndex = 0) => {
-  const paths = Array.isArray(sources?.paths) ? sources.paths : [];
-  if (!paths.length) return { ...sources, paths: [] };
-  const normalizedIndex = Math.max(0, Math.min(paths.length - 1, Math.floor(Number(partIndex) || 0)));
-  const dataPath = paths[normalizedIndex];
-  const binaryColumnar = sources?.binaryColumnar && typeof sources.binaryColumnar === 'object'
-    ? sources.binaryColumnar
-    : null;
-  const primaryDataPath = binaryColumnar?.dataPath || paths[0] || null;
-  const isPrimaryPath = primaryDataPath && path.resolve(primaryDataPath) === path.resolve(dataPath);
-  const defaults = resolveBinaryColumnarDefaultPaths(dataPath);
-  return {
-    ...sources,
-    paths: [dataPath],
-    offsets: Array.isArray(sources?.offsets) && sources.offsets[normalizedIndex]
-      ? [sources.offsets[normalizedIndex]]
-      : null,
-    binaryColumnar: {
-      ...(binaryColumnar || {}),
-      dataPath,
-      dataName: binaryColumnar?.dataName || null,
-      metaPath: isPrimaryPath ? (binaryColumnar?.metaPath || defaults.metaPath) : defaults.metaPath,
-      offsetsPath: isPrimaryPath ? (binaryColumnar?.offsetsPath || defaults.offsetsPath) : defaults.offsetsPath,
-      lengthsPath: isPrimaryPath ? (binaryColumnar?.lengthsPath || defaults.lengthsPath) : defaults.lengthsPath
-    }
-  };
-};
-
-const createManifestChecksumValidator = ({
-  manifest,
-  dir,
-  targetPath,
-  expectedName,
-  label
-}) => {
-  const piece = resolveManifestPieceByPath({
-    manifest,
-    dir,
-    targetPath,
-    expectedName
-  });
-  if (!piece || typeof piece.checksum !== 'string' || !piece.checksum.includes(':')) {
-    return null;
-  }
-  try {
-    return createPackedChecksumValidator(
-      { checksum: piece.checksum },
-      { label }
-    );
-  } catch {
-    return null;
-  }
-};
-
-const verifyManifestChecksum = ({
-  validator,
-  buffer,
-  baseName,
-  artifactPath
-}) => {
-  if (!validator) return;
-  try {
-    validator.update(buffer);
-    validator.verify();
-  } catch (err) {
-    throw createLoaderError(
-      'ERR_ARTIFACT_CORRUPT',
-      `Checksum mismatch for ${baseName}: ${artifactPath}`,
-      err instanceof Error ? err : null
-    );
-  }
-};
-
-const parseBinaryColumnarMeta = ({
-  metaPath,
-  maxBytes,
-  baseName
-}) => {
-  const raw = readJsonFile(metaPath, { maxBytes });
-  const fields = raw?.fields && typeof raw.fields === 'object'
-    ? raw.fields
-    : raw;
-  const format = typeof fields?.format === 'string'
-    ? fields.format.trim().toLowerCase()
-    : '';
-  if (format && format !== SUPPORTED_BINARY_COLUMNAR_FORMAT) {
-    throw createLoaderError(
-      'ERR_ARTIFACT_INVALID',
-      `Unsupported binary-columnar format for ${baseName}: ${fields.format}`
-    );
-  }
-  const countRaw = Number(fields?.count);
-  if (!Number.isFinite(countRaw) || countRaw < 0) {
-    throw createLoaderError(
-      'ERR_ARTIFACT_INVALID',
-      `Missing binary-columnar count for ${baseName}`
-    );
-  }
-  const count = Math.max(0, Math.floor(countRaw));
-  return { raw, fields, count };
-};
-
-const assertBinaryPartWithinMaxBytes = (targetPath, maxBytes, label) => {
-  if (!Number.isFinite(Number(maxBytes)) || Number(maxBytes) <= 0) return;
-  let size = null;
-  try {
-    size = Number(fs.statSync(targetPath)?.size);
-  } catch {
-    size = null;
-  }
-  if (!Number.isFinite(size) || size < 0) return;
-  if (size > Number(maxBytes)) {
-    throw createLoaderError(
-      'ERR_ARTIFACT_TOO_LARGE',
-      `${label} exceeds maxBytes (${size} > ${Number(maxBytes)})`
-    );
-  }
-};
-
-const loadBinaryColumnarJsonRows = ({
+const iterateBinaryColumnarRows = function* ({
   dir,
   baseName,
   sources,
   manifest,
   maxBytes,
+  strict
+}) {
+  for (let index = 0; index < sources.paths.length; index += 1) {
+    const rows = loadBinaryColumnarJsonRows({
+      dir,
+      baseName,
+      sources: resolveBinaryColumnarSourcePart(sources, index),
+      manifest,
+      maxBytes,
+      strict
+    });
+    for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+      yield rows[rowIndex];
+    }
+  }
+};
+
+const streamJsonlRowsFromSources = async function* (
+  paths,
+  offsetsPaths,
+  {
+    maxBytes,
+    requiredKeys,
+    validationMode,
+    maxInFlight = 0,
+    onBackpressure = null,
+    onResume = null,
+    rowMapper = null
+  }
+) {
+  const hasOffsets = Array.isArray(offsetsPaths);
+  for (let i = 0; i < paths.length; i += 1) {
+    const partPath = paths[i];
+    const offsetsPath = hasOffsets ? offsetsPaths[i] : null;
+    if (offsetsPath) {
+      await ensureOffsetsValid(partPath, offsetsPath);
+    }
+    for await (const row of readJsonLinesIterator(partPath, {
+      maxBytes,
+      requiredKeys,
+      validationMode,
+      maxInFlight,
+      onBackpressure,
+      onResume
+    })) {
+      yield rowMapper ? rowMapper(row) : row;
+    }
+  }
+};
+
+const loadManifestJsonObjectFromSources = ({
+  sources,
+  baseName,
   strict,
-  enforceBinaryDataBudget = true
+  maxBytes
 }) => {
-  const sourcePath = sources.paths[0];
-  const sidecars = sources.binaryColumnar || null;
-  const defaults = resolveBinaryColumnarDefaultPaths(sourcePath);
-  const dataPath = sidecars?.dataPath || sourcePath;
-  const metaPath = sidecars?.metaPath || defaults.metaPath;
-  const offsetsPath = sidecars?.offsetsPath || defaults.offsetsPath;
-  const lengthsPath = sidecars?.lengthsPath || defaults.lengthsPath;
-  if (strict && (!metaPath || !offsetsPath || !lengthsPath)) {
+  if (!sources?.paths?.length) {
+    throw createLoaderError('ERR_MANIFEST_ENTRY_MISSING', `Missing manifest entry for ${baseName}`);
+  }
+  if (sources.format !== 'json') {
     throw createLoaderError(
-      'ERR_MANIFEST_INCOMPLETE',
-      `Missing binary-columnar sidecars for ${baseName}`
+      'ERR_MANIFEST_FORMAT_UNSUPPORTED',
+      `Unsupported JSON object format for ${baseName}: ${sources.format}`
     );
   }
-  if (!dataPath || !metaPath || !offsetsPath || !lengthsPath) {
-    throw createLoaderError(
-      'ERR_ARTIFACT_PARTS_MISSING',
-      `Missing binary-columnar sidecars for ${baseName}`
-    );
+  if (sources.paths.length > 1 && strict) {
+    throw createLoaderError('ERR_MANIFEST_SOURCE_AMBIGUOUS', `Ambiguous JSON sources for ${baseName}`);
   }
-  if (!existsOrBak(metaPath) || !existsOrBak(offsetsPath) || !existsOrBak(lengthsPath)) {
-    throw createLoaderError(
-      'ERR_ARTIFACT_PARTS_MISSING',
-      `Missing binary-columnar sidecars for ${baseName}`
-    );
-  }
-  const { fields, count } = parseBinaryColumnarMeta({
-    metaPath,
-    maxBytes,
-    baseName
-  });
-  const resolveMetaSidecarPath = (candidate, fallbackPath, label) => {
-    if (typeof candidate !== 'string' || candidate.length === 0) return fallbackPath;
-    const safePath = joinPathSafe(dir, [candidate]);
-    if (!safePath) {
-      throw createLoaderError(
-        'ERR_ARTIFACT_INVALID',
-        `Invalid binary-columnar ${label} path for ${baseName}`
-      );
-    }
-    return safePath;
-  };
-  const dataPathFromMeta = resolveMetaSidecarPath(fields?.data, dataPath, 'data');
-  const offsetsPathFromMeta = resolveMetaSidecarPath(fields?.offsets, offsetsPath, 'offsets');
-  const lengthsPathFromMeta = resolveMetaSidecarPath(fields?.lengths, lengthsPath, 'lengths');
-  const resolvedDataPath = resolveReadableArtifactPath(dataPathFromMeta);
-  const resolvedOffsetsPath = resolveReadableArtifactPath(offsetsPathFromMeta);
-  const resolvedLengthsPath = resolveReadableArtifactPath(lengthsPathFromMeta);
-  const binaryPartBudget = enforceBinaryDataBudget ? maxBytes : null;
-  assertBinaryPartWithinMaxBytes(resolvedDataPath, binaryPartBudget, `${baseName} binary-columnar data`);
-  assertBinaryPartWithinMaxBytes(resolvedOffsetsPath, binaryPartBudget, `${baseName} binary-columnar offsets`);
-  assertBinaryPartWithinMaxBytes(resolvedLengthsPath, binaryPartBudget, `${baseName} binary-columnar lengths`);
-  const dataBuffer = fs.readFileSync(resolvedDataPath);
-  const offsetsBuffer = fs.readFileSync(resolvedOffsetsPath);
-  const lengthsBuffer = fs.readFileSync(resolvedLengthsPath);
-  verifyManifestChecksum({
-    validator: createManifestChecksumValidator({
-      manifest,
-      dir,
-      targetPath: resolvedDataPath,
-      expectedName: sidecars?.dataName || null,
-      label: `${baseName} binary-columnar data`
-    }),
-    buffer: dataBuffer,
-    baseName,
-    artifactPath: resolvedDataPath
-  });
-  verifyManifestChecksum({
-    validator: createManifestChecksumValidator({
-      manifest,
-      dir,
-      targetPath: resolvedOffsetsPath,
-      expectedName: sidecars?.offsetsName || null,
-      label: `${baseName} binary-columnar offsets`
-    }),
-    buffer: offsetsBuffer,
-    baseName,
-    artifactPath: resolvedOffsetsPath
-  });
-  verifyManifestChecksum({
-    validator: createManifestChecksumValidator({
-      manifest,
-      dir,
-      targetPath: resolvedLengthsPath,
-      expectedName: sidecars?.lengthsName || null,
-      label: `${baseName} binary-columnar lengths`
-    }),
-    buffer: lengthsBuffer,
-    baseName,
-    artifactPath: resolvedLengthsPath
-  });
-  const payloads = loadBinaryColumnarRowPayloads({
-    dataPath: resolvedDataPath,
-    offsetsPath: resolvedOffsetsPath,
-    lengthsPath: resolvedLengthsPath,
-    count,
-    dataBuffer,
-    offsetsBuffer,
-    lengthsBuffer,
-    maxBytes,
-    enforceDataBudget: enforceBinaryDataBudget
-  });
-  if (!payloads) {
-    throw createLoaderError(
-      'ERR_ARTIFACT_PARTS_MISSING',
-      `Missing binary-columnar payload for ${baseName}`
-    );
-  }
-  const rows = new Array(payloads.length);
-  for (let i = 0; i < payloads.length; i += 1) {
-    try {
-      rows[i] = JSON.parse(payloads[i].toString('utf8'));
-    } catch (err) {
-      throw createLoaderError(
-        'ERR_ARTIFACT_CORRUPT',
-        `Invalid binary-columnar row payload for ${baseName}`,
-        err instanceof Error ? err : null
-      );
-    }
-  }
-  if (Number.isFinite(Number(fields?.count)) && rows.length !== count) {
-    throw createLoaderError(
-      'ERR_ARTIFACT_CORRUPT',
-      `Binary-columnar row count mismatch for ${baseName}`
-    );
-  }
-  return rows;
+  return readJsonFile(resolveReadableArtifactPath(sources.paths[0]), { maxBytes });
 };
 
 const loadArrayPayloadFromSources = async (
@@ -468,7 +124,7 @@ const loadArrayPayloadFromSources = async (
       if (!Array.isArray(payload)) {
         throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid json payload for ${baseName}`);
       }
-      for (const row of payload) out.push(row);
+      appendRows(out, payload);
     }
     return out;
   }
@@ -480,23 +136,21 @@ const loadArrayPayloadFromSources = async (
       if (!inflated) {
         throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid columnar payload for ${baseName}`);
       }
-      for (const row of inflated) out.push(row);
+      appendRows(out, inflated);
     }
     return out;
   }
   if (sources.format === 'binary-columnar') {
     const out = [];
-    for (let index = 0; index < sources.paths.length; index += 1) {
-      const rows = loadBinaryColumnarJsonRows({
-        dir,
-        baseName,
-        sources: resolveBinaryColumnarSourcePart(sources, index),
-        manifest,
-        maxBytes,
-        strict,
-        enforceBinaryDataBudget
-      });
-      for (const row of rows) out.push(row);
+    for (const row of iterateBinaryColumnarRows({
+      dir,
+      baseName,
+      sources,
+      manifest,
+      maxBytes,
+      strict
+    })) {
+      out.push(row);
     }
     return out;
   }
@@ -528,7 +182,7 @@ const loadArrayPayloadFromSourcesSync = (
       if (!Array.isArray(payload)) {
         throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid json payload for ${baseName}`);
       }
-      for (const row of payload) out.push(row);
+      appendRows(out, payload);
     }
     return out;
   }
@@ -540,23 +194,21 @@ const loadArrayPayloadFromSourcesSync = (
       if (!inflated) {
         throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid columnar payload for ${baseName}`);
       }
-      for (const row of inflated) out.push(row);
+      appendRows(out, inflated);
     }
     return out;
   }
   if (sources.format === 'binary-columnar') {
     const out = [];
-    for (let index = 0; index < sources.paths.length; index += 1) {
-      const rows = loadBinaryColumnarJsonRows({
-        dir,
-        baseName,
-        sources: resolveBinaryColumnarSourcePart(sources, index),
-        manifest,
-        maxBytes,
-        strict,
-        enforceBinaryDataBudget
-      });
-      for (const row of rows) out.push(row);
+    for (const row of iterateBinaryColumnarRows({
+      dir,
+      baseName,
+      sources,
+      manifest,
+      maxBytes,
+      strict
+    })) {
+      out.push(row);
     }
     return out;
   }
@@ -567,7 +219,7 @@ const loadArrayPayloadFromSourcesSync = (
       requiredKeys,
       validationMode
     });
-    for (const entry of part) out.push(entry);
+    appendRows(out, part);
   }
   return out;
 };
@@ -672,25 +324,6 @@ export const loadJsonArrayArtifactRows = async function* (
   );
   const resolvedKeys = requiredKeys ?? resolveJsonlRequiredKeys(baseName);
   void materialize;
-  const streamRows = async function* (paths, offsetsPaths = null) {
-    for (let i = 0; i < paths.length; i += 1) {
-      const partPath = paths[i];
-      const offsetsPath = Array.isArray(offsetsPaths) ? offsetsPaths[i] : null;
-      if (offsetsPath) {
-        await ensureOffsetsValid(partPath, offsetsPath);
-      }
-      for await (const row of readJsonLinesIterator(partPath, {
-        maxBytes,
-        requiredKeys: resolvedKeys,
-        validationMode,
-        maxInFlight,
-        onBackpressure,
-        onResume
-      })) {
-        yield row;
-      }
-    }
-  };
   const sources = resolveRequiredSources({
     dir,
     manifest: resolvedManifest,
@@ -718,21 +351,26 @@ export const loadJsonArrayArtifactRows = async function* (
     return;
   }
   if (sources.format === 'binary-columnar') {
-    for (let index = 0; index < sources.paths.length; index += 1) {
-      const rows = loadBinaryColumnarJsonRows({
-        dir,
-        baseName,
-        sources: resolveBinaryColumnarSourcePart(sources, index),
-        manifest: resolvedManifest,
-        maxBytes,
-        strict,
-        enforceBinaryDataBudget
-      });
-      for (const row of rows) yield row;
+    for (const row of iterateBinaryColumnarRows({
+      dir,
+      baseName,
+      sources,
+      manifest: resolvedManifest,
+      maxBytes,
+      strict
+    })) {
+      yield row;
     }
     return;
   }
-  for await (const row of streamRows(sources.paths, sources.offsets)) {
+  for await (const row of streamJsonlRowsFromSources(sources.paths, sources.offsets, {
+    maxBytes,
+    requiredKeys: resolvedKeys,
+    validationMode,
+    maxInFlight,
+    onBackpressure,
+    onResume
+  })) {
     yield row;
   }
 };
@@ -793,46 +431,6 @@ export const loadFileMetaRows = async function* (
   );
   const resolvedKeys = resolveJsonlRequiredKeys('file_meta');
   void materialize;
-  const streamRows = async function* (paths, offsetsPaths = null) {
-    for (let i = 0; i < paths.length; i += 1) {
-      const partPath = paths[i];
-      const offsetsPath = Array.isArray(offsetsPaths) ? offsetsPaths[i] : null;
-      if (offsetsPath) {
-        await ensureOffsetsValid(partPath, offsetsPath);
-      }
-      for await (const row of readJsonLinesIterator(partPath, {
-        maxBytes,
-        requiredKeys: resolvedKeys,
-        validationMode,
-        maxInFlight,
-        onBackpressure,
-        onResume
-      })) {
-        yield validateFileMetaRow(row, 'file_meta');
-      }
-    }
-  };
-  const yieldJsonRows = (payload, label) => {
-    if (!Array.isArray(payload)) {
-      throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid json payload for ${label}`);
-    }
-    return (function* () {
-      for (const row of payload) {
-        yield validateFileMetaRow(row, label);
-      }
-    })();
-  };
-  const yieldColumnarRows = (payload, label) => {
-    const iterator = iterateColumnarRows(payload);
-    if (!iterator) {
-      throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid columnar payload for ${label}`);
-    }
-    return (function* () {
-      for (const row of iterator) {
-        yield validateFileMetaRow(row, label);
-      }
-    })();
-  };
   const sources = resolveRequiredSources({
     dir,
     manifest: resolvedManifest,
@@ -843,8 +441,11 @@ export const loadFileMetaRows = async function* (
   if (sources.format === 'json') {
     for (const sourcePath of sources.paths) {
       const payload = readJsonFile(sourcePath, { maxBytes });
-      for (const row of yieldJsonRows(payload, 'file_meta')) {
-        yield row;
+      if (!Array.isArray(payload)) {
+        throw createLoaderError('ERR_ARTIFACT_INVALID', 'Invalid json payload for file_meta');
+      }
+      for (let i = 0; i < payload.length; i += 1) {
+        yield validateFileMetaRow(payload[i], 'file_meta');
       }
     }
     return;
@@ -852,30 +453,38 @@ export const loadFileMetaRows = async function* (
   if (sources.format === 'columnar') {
     for (const sourcePath of sources.paths) {
       const payload = readJsonFile(sourcePath, { maxBytes });
-      for (const row of yieldColumnarRows(payload, 'file_meta')) {
-        yield row;
+      const iterator = iterateColumnarRows(payload);
+      if (!iterator) {
+        throw createLoaderError('ERR_ARTIFACT_INVALID', 'Invalid columnar payload for file_meta');
       }
-    }
-    return;
-  }
-  if (sources.format === 'binary-columnar') {
-    for (let index = 0; index < sources.paths.length; index += 1) {
-      const rows = loadBinaryColumnarJsonRows({
-        dir,
-        baseName: 'file_meta',
-        sources: resolveBinaryColumnarSourcePart(sources, index),
-        manifest: resolvedManifest,
-        maxBytes,
-        strict,
-        enforceBinaryDataBudget
-      });
-      for (const row of rows) {
+      for (const row of iterator) {
         yield validateFileMetaRow(row, 'file_meta');
       }
     }
     return;
   }
-  for await (const row of streamRows(sources.paths, sources.offsets)) {
+  if (sources.format === 'binary-columnar') {
+    for (const row of iterateBinaryColumnarRows({
+      dir,
+      baseName: 'file_meta',
+      sources,
+      manifest: resolvedManifest,
+      maxBytes,
+      strict
+    })) {
+      yield validateFileMetaRow(row, 'file_meta');
+    }
+    return;
+  }
+  for await (const row of streamJsonlRowsFromSources(sources.paths, sources.offsets, {
+    maxBytes,
+    requiredKeys: resolvedKeys,
+    validationMode,
+    maxInFlight,
+    onBackpressure,
+    onResume,
+    rowMapper: (entry) => validateFileMetaRow(entry, 'file_meta')
+  })) {
     yield row;
   }
 };
@@ -905,29 +514,18 @@ export const loadJsonObjectArtifact = async (
     dir,
     { maxBytes: resolveManifestMaxBytes(maxBytes), strict }
   );
-  const sources = resolveManifestArtifactSources({
-    dir,
-    manifest: resolvedManifest,
-    name: baseName,
+  return loadManifestJsonObjectFromSources({
+    sources: resolveManifestArtifactSources({
+      dir,
+      manifest: resolvedManifest,
+      name: baseName,
+      strict,
+      maxBytes
+    }),
+    baseName,
     strict,
     maxBytes
   });
-  if (!sources?.paths?.length) {
-    throw createLoaderError('ERR_MANIFEST_ENTRY_MISSING', `Missing manifest entry for ${baseName}`);
-  }
-  if (sources.format !== 'json') {
-    throw createLoaderError(
-      'ERR_MANIFEST_FORMAT_UNSUPPORTED',
-      `Unsupported JSON object format for ${baseName}: ${sources.format}`
-    );
-  }
-  if (sources.paths.length > 1) {
-    if (strict) {
-      throw createLoaderError('ERR_MANIFEST_SOURCE_AMBIGUOUS', `Ambiguous JSON sources for ${baseName}`);
-    }
-    return readJsonFile(resolveReadableArtifactPath(sources.paths[0]), { maxBytes });
-  }
-  return readJsonFile(resolveReadableArtifactPath(sources.paths[0]), { maxBytes });
 };
 
 /**
@@ -955,29 +553,18 @@ export const loadJsonObjectArtifactSync = (
     dir,
     { maxBytes: resolveManifestMaxBytes(maxBytes), strict }
   );
-  const sources = resolveManifestArtifactSources({
-    dir,
-    manifest: resolvedManifest,
-    name: baseName,
+  return loadManifestJsonObjectFromSources({
+    sources: resolveManifestArtifactSources({
+      dir,
+      manifest: resolvedManifest,
+      name: baseName,
+      strict,
+      maxBytes
+    }),
+    baseName,
     strict,
     maxBytes
   });
-  if (!sources?.paths?.length) {
-    throw createLoaderError('ERR_MANIFEST_ENTRY_MISSING', `Missing manifest entry for ${baseName}`);
-  }
-  if (sources.format !== 'json') {
-    throw createLoaderError(
-      'ERR_MANIFEST_FORMAT_UNSUPPORTED',
-      `Unsupported JSON object format for ${baseName}: ${sources.format}`
-    );
-  }
-  if (sources.paths.length > 1) {
-    if (strict) {
-      throw createLoaderError('ERR_MANIFEST_SOURCE_AMBIGUOUS', `Ambiguous JSON sources for ${baseName}`);
-    }
-    return readJsonFile(resolveReadableArtifactPath(sources.paths[0]), { maxBytes });
-  }
-  return readJsonFile(resolveReadableArtifactPath(sources.paths[0]), { maxBytes });
 };
 
 /**
