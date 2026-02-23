@@ -109,4 +109,30 @@ try {
   await lookup.close();
 }
 
+const originalReadFile = fs.readFile;
+let emfileAttempts = 0;
+const pageIndexPath = paths.resultsPageIndexPathForGrammarKey(grammarKey);
+fs.readFile = async (...args) => {
+  const [targetPath] = args;
+  if (String(targetPath) === String(pageIndexPath) && emfileAttempts < 12) {
+    emfileAttempts += 1;
+    const err = new Error('too many open files');
+    err.code = 'EMFILE';
+    throw err;
+  }
+  return originalReadFile(...args);
+};
+try {
+  const retryLookup = createTreeSitterSchedulerLookup({ outDir, index });
+  try {
+    const loaded = await retryLookup.loadRows(rows.map((row) => row.virtualPath));
+    assert.equal(loaded.length, rows.length, 'expected paged lookup to recover after transient EMFILE');
+  } finally {
+    await retryLookup.close();
+  }
+} finally {
+  fs.readFile = originalReadFile;
+}
+assert.equal(emfileAttempts, 12, 'expected transient EMFILE retries for paged index reads');
+
 console.log('scheduler paged-json gzip test passed');

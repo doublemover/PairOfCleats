@@ -16,10 +16,11 @@ import { resolveTreeSitterSchedulerPaths } from './paths.js';
 const DEFAULT_ROW_CACHE_MAX = 4096;
 const DEFAULT_MISS_CACHE_MAX = 10000;
 const DEFAULT_PAGE_CACHE_MAX = 1024;
-const DEFAULT_MAX_OPEN_READERS = 32;
+const DEFAULT_MAX_OPEN_READERS = process.platform === 'win32' ? 8 : 32;
 const TRANSIENT_FD_ERROR_CODES = new Set(['EAGAIN', 'EMFILE', 'ENFILE']);
-const TRANSIENT_FD_RETRY_ATTEMPTS = 8;
-const TRANSIENT_FD_RETRY_BASE_DELAY_MS = 25;
+const TRANSIENT_FD_RETRY_ATTEMPTS = 24;
+const TRANSIENT_FD_RETRY_BASE_DELAY_MS = 50;
+const TRANSIENT_FD_RETRY_MAX_DELAY_MS = 1000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -90,7 +91,11 @@ export const createTreeSitterSchedulerLookup = ({
             `retrying (${String(err?.code || 'ERR')}).`
           );
         }
-        await sleep(TRANSIENT_FD_RETRY_BASE_DELAY_MS * (attempt + 1));
+        const delayMs = Math.min(
+          TRANSIENT_FD_RETRY_BASE_DELAY_MS * (attempt + 1),
+          TRANSIENT_FD_RETRY_MAX_DELAY_MS
+        );
+        await sleep(delayMs);
       }
     }
     throw lastError || new Error('Transient fd retry failed.');
