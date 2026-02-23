@@ -29,6 +29,10 @@ import { pickNextSchedulerQueue } from './scheduler-core-queue-selection.js';
 import { clearSchedulerQueuePending } from './scheduler-core-clear-queue.js';
 import { resolveSchedulerScheduleRejection } from './scheduler-core-schedule-guards.js';
 import {
+  applySchedulerTelemetryOptions,
+  applySchedulerTokenLimits
+} from './scheduler-core-controls.js';
+import {
   buildSchedulerAdaptivePayload,
   buildSchedulerQueueStatsSnapshot,
   buildSchedulerAdaptiveSurfaceStats,
@@ -932,35 +936,35 @@ export function createBuildScheduler(input = {}) {
   };
 
   const setLimits = (limits = {}) => {
-    if (Number.isFinite(Number(limits.cpuTokens))) {
-      cpuTokens = Math.max(1, Math.floor(Number(limits.cpuTokens)));
-    }
-    if (Number.isFinite(Number(limits.ioTokens))) {
-      ioTokens = Math.max(1, Math.floor(Number(limits.ioTokens)));
-    }
-    if (Number.isFinite(Number(limits.memoryTokens))) {
-      memoryTokens = Math.max(1, Math.floor(Number(limits.memoryTokens)));
-    }
-    tokens.cpu.total = cpuTokens;
-    tokens.io.total = ioTokens;
-    tokens.mem.total = memoryTokens;
+    ({
+      cpuTokens,
+      ioTokens,
+      memoryTokens
+    } = applySchedulerTokenLimits({
+      limits,
+      cpuTokens,
+      ioTokens,
+      memoryTokens,
+      tokens
+    }));
     captureSchedulingTrace({ reason: 'set-limits', force: true });
     pump();
   };
 
   const setTelemetryOptions = (options = {}) => {
-    if (typeof options?.stage === 'string') {
-      telemetryStage = normalizeTelemetryStage(options.stage, telemetryStage);
-    }
-    if (Object.prototype.hasOwnProperty.call(options, 'queueDepthSnapshotsEnabled')) {
-      queueDepthSnapshotsEnabled = options.queueDepthSnapshotsEnabled === true;
-    }
-    if (Number.isFinite(Number(options?.traceIntervalMs))) {
-      traceIntervalMs = Math.max(100, Math.floor(Number(options.traceIntervalMs)));
-    }
-    if (Number.isFinite(Number(options?.queueDepthSnapshotIntervalMs))) {
-      queueDepthSnapshotIntervalMs = Math.max(1000, Math.floor(Number(options.queueDepthSnapshotIntervalMs)));
-    }
+    ({
+      telemetryStage,
+      queueDepthSnapshotsEnabled,
+      traceIntervalMs,
+      queueDepthSnapshotIntervalMs
+    } = applySchedulerTelemetryOptions({
+      options,
+      telemetryStage,
+      normalizeTelemetryStage,
+      queueDepthSnapshotsEnabled,
+      traceIntervalMs,
+      queueDepthSnapshotIntervalMs
+    }));
     const now = nowMs();
     captureSchedulingTrace({ now, reason: 'telemetry-options', force: true });
     if (queueDepthSnapshotsEnabled) {

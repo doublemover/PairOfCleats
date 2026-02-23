@@ -69,6 +69,8 @@ Note:
 - 4 scoped files are still over 800 lines. Those are already-refactored surfaces with remaining follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T09:50:13.4923283-05:00
+  Extracted scheduler runtime controls from `src/shared/concurrency/scheduler-core.js` into `src/shared/concurrency/scheduler-core-controls.js`, centralizing token-limit and telemetry-option coercion paths used by `setLimits`/`setTelemetryOptions`; added focused coverage in `tests/shared/concurrency/scheduler-core-controls.test.js`.
 - 2026-02-23T09:48:03.4661165-05:00
   Integrated parallel worker follow-up for `src/index/build/indexer/steps/process-files.js`: extracted shard-preflight planning to `src/index/build/indexer/steps/process-files/shard-preflight.js`, threaded `hasPositiveLineCounts` through stage1 execution planning to remove redundant scans, and added focused coverage in `tests/indexing/stage1/process-files-shard-preflight.test.js` + `tests/indexing/stage1/process-files-stage1-execution-plan.test.js`.
 - 2026-02-23T09:46:53.7891297-05:00
