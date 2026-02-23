@@ -213,11 +213,26 @@ export async function watchIndex({
   const flushPendingUpdates = async () => {
     if (updateRunning) return;
     updateRunning = true;
+    const drainPendingUpdateBatch = () => {
+      const batch = Array.from(pendingUpdates);
+      for (const absPath of batch) {
+        pendingUpdates.delete(absPath);
+      }
+      return batch;
+    };
     try {
       while (pendingUpdates.size) {
-        const batch = Array.from(pendingUpdates);
-        pendingUpdates.clear();
-        await applyTrackedUpdates(batch);
+        const batch = drainPendingUpdateBatch();
+        if (!batch.length) break;
+        try {
+          await applyTrackedUpdates(batch);
+        } catch (err) {
+          // Requeue the current batch so transient failures don't drop updates.
+          for (const absPath of batch) {
+            pendingUpdates.add(absPath);
+          }
+          throw err;
+        }
       }
     } catch (err) {
       if (!abortSignal?.aborted) {
