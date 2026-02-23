@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { formatSpawnFailureReason } from './rebuild-native-exit.js';
 import { listNativeTreeSitterGrammarModuleNames } from '../../src/lang/tree-sitter/native-runtime.js';
 
 const REQUIRED_NATIVE_PACKAGES = [
@@ -139,7 +140,7 @@ const rebuildPackage = (pkgName, { buildFromSource = false } = {}) => {
 
   return {
     ok: result.status === 0,
-    message: result.status === 0 ? null : `exit ${result.status ?? 'unknown'}`
+    message: result.status === 0 ? null : formatSpawnFailureReason(result)
   };
 };
 
@@ -180,7 +181,7 @@ const runPackageInstallScript = (pkgName, { buildFromSource = false } = {}) => {
 
   return {
     ok: result.status === 0,
-    message: result.status === 0 ? null : `exit ${result.status ?? 'unknown'}`
+    message: result.status === 0 ? null : formatSpawnFailureReason(result)
   };
 };
 
