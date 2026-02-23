@@ -2786,15 +2786,23 @@ export async function runBuildEmbeddingsWithConfig(config) {
           ),
           { fdPressure: indexingConfig?.scheduler?.adaptiveSurfaces?.fdPressure }
         );
-        const fdConcurrencyCap = Number.isFinite(Number(schedulerFdTokenCap))
-          ? Math.max(
-            1,
-            Math.min(
-              schedulerFdTokenCap,
-              Number.isFinite(Number(staticFdCap)) ? Number(staticFdCap) : schedulerFdTokenCap
-            )
-          )
-          : staticFdCap;
+        const resolveCurrentFdConcurrencyCap = () => {
+          const schedulerStats = scheduler?.stats?.() || null;
+          const dynamicSchedulerFdTokenCap = Number.isFinite(Number(schedulerStats?.adaptive?.fd?.tokenCap))
+            ? Math.max(1, Math.floor(Number(schedulerStats.adaptive.fd.tokenCap)))
+            : schedulerFdTokenCap;
+          if (Number.isFinite(Number(dynamicSchedulerFdTokenCap))) {
+            return Math.max(
+              1,
+              Math.min(
+                Number(dynamicSchedulerFdTokenCap),
+                Number.isFinite(Number(staticFdCap)) ? Number(staticFdCap) : Number(dynamicSchedulerFdTokenCap)
+              )
+            );
+          }
+          return staticFdCap;
+        };
+        const fdConcurrencyCap = resolveCurrentFdConcurrencyCap();
         const fileParallelism = resolveEmbeddingsFileParallelism({
           indexingConfig,
           computeTokensTotal,
@@ -2818,7 +2826,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           && adaptiveFileParallelismMaxMultiplierRaw > 1
           ? Math.max(1, Number(adaptiveFileParallelismMaxMultiplierRaw))
           : DEFAULT_EMBEDDINGS_ADAPTIVE_FILE_PARALLELISM_MAX_MULTIPLIER;
-        const adaptiveFileParallelismCeiling = resolveEmbeddingsAdaptiveFileParallelismCeiling({
+        let adaptiveFileParallelismCeiling = resolveEmbeddingsAdaptiveFileParallelismCeiling({
           baseFileParallelism: fileParallelism,
           maxMultiplier: adaptiveFileParallelismMaxMultiplier,
           computeTokensTotal,
@@ -2836,6 +2844,14 @@ export async function runBuildEmbeddingsWithConfig(config) {
           }
           adaptiveFileParallelismLastAdjustAt = now;
           const schedulerStats = scheduler?.stats?.() || null;
+          const currentFdConcurrencyCap = resolveCurrentFdConcurrencyCap();
+          adaptiveFileParallelismCeiling = resolveEmbeddingsAdaptiveFileParallelismCeiling({
+            baseFileParallelism: fileParallelism,
+            maxMultiplier: adaptiveFileParallelismMaxMultiplier,
+            computeTokensTotal,
+            cpuConcurrency: envelopeCpuConcurrency,
+            fdConcurrencyCap: currentFdConcurrencyCap
+          });
           const computeQueue = schedulerStats?.queues?.[SCHEDULER_QUEUE_NAMES.embeddingsCompute] || {};
           const ioQueue = schedulerStats?.queues?.[SCHEDULER_QUEUE_NAMES.embeddingsIo] || {};
           const computePending = Math.max(0, Number(computeQueue.pending) || 0);
@@ -2855,7 +2871,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           const isUnderutilized = !isMemoryHot && computePressure <= 0.3 && ioPressure <= 0.35;
           let next = adaptiveFileParallelismCurrent;
           if (isBackpressured) {
-            next = Math.max(1, adaptiveFileParallelismCurrent - 1);
+            next = Math.max(fileParallelism, adaptiveFileParallelismCurrent - 1);
           } else if (isUnderutilized) {
             next = Math.min(adaptiveFileParallelismCeiling, adaptiveFileParallelismCurrent + 1);
           }
@@ -2965,6 +2981,18 @@ export async function runBuildEmbeddingsWithConfig(config) {
             return writerAdaptiveLimit;
           }
           const schedulerStats = scheduler?.stats?.();
+          const ioQueue = schedulerStats?.queues?.[SCHEDULER_QUEUE_NAMES.embeddingsIo] || null;
+          const dynamicSchedulerIoMaxPending = Number.isFinite(Number(ioQueue?.maxPending))
+            ? Math.max(1, Math.floor(Number(ioQueue.maxPending)))
+            : null;
+          const effectiveAdaptiveCeiling = dynamicSchedulerIoMaxPending
+            ? Math.max(1, Math.min(writerAdaptiveCeiling, dynamicSchedulerIoMaxPending))
+            : writerAdaptiveCeiling;
+          const effectiveAdaptiveFloor = Math.max(1, Math.min(writerAdaptiveFloor, effectiveAdaptiveCeiling));
+          writerAdaptiveLimit = Math.max(
+            effectiveAdaptiveFloor,
+            Math.min(writerAdaptiveLimit, effectiveAdaptiveCeiling)
+          );
           const memorySignals = schedulerStats?.adaptive?.signals?.memory || null;
           const rssUtilization = Number(memorySignals?.rssUtilization);
           const gcPressure = Number(memorySignals?.gcPressureScore);
@@ -2972,12 +3000,12 @@ export async function runBuildEmbeddingsWithConfig(config) {
             return writerAdaptiveLimit;
           }
           if (rssUtilization >= writerAdaptiveRssHigh || gcPressure >= 0.4) {
-            writerAdaptiveLimit = Math.max(writerAdaptiveFloor, writerAdaptiveLimit - 1);
+            writerAdaptiveLimit = Math.max(effectiveAdaptiveFloor, writerAdaptiveLimit - 1);
             writerAdaptiveLastAdjustAt = nowMs;
             return writerAdaptiveLimit;
           }
           if (rssUtilization <= writerAdaptiveRssLow && gcPressure <= 0.2) {
-            writerAdaptiveLimit = Math.min(writerAdaptiveCeiling, writerAdaptiveLimit + 1);
+            writerAdaptiveLimit = Math.min(effectiveAdaptiveCeiling, writerAdaptiveLimit + 1);
             writerAdaptiveLastAdjustAt = nowMs;
             return writerAdaptiveLimit;
           }
@@ -4009,7 +4037,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
               Number(adaptiveRun?.peakConcurrency || 0)
             );
             adaptiveFileParallelismCurrent = Math.max(
-              1,
+              fileParallelism,
               Math.floor(Number(adaptiveRun?.finalConcurrency || adaptiveFileParallelismCurrent || fileParallelism))
             );
             adaptiveFileParallelismAdjustments = Math.max(

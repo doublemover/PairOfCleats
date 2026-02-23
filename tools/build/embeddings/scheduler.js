@@ -33,6 +33,9 @@ const scheduleWithFallback = async (scheduler, queueName, tokens, fn, enabled) =
 
 export const createEmbeddingsScheduler = ({ argv, rawArgv, userConfig, envConfig, indexingConfig }) => {
   const resolvedRawArgv = Array.isArray(rawArgv) ? rawArgv : [];
+  const resolvedEnvConfig = envConfig && typeof envConfig === 'object'
+    ? envConfig
+    : process.env;
   const cpuCount = typeof os.availableParallelism === 'function'
     ? os.availableParallelism()
     : os.cpus().length;
@@ -40,7 +43,7 @@ export const createEmbeddingsScheduler = ({ argv, rawArgv, userConfig, envConfig
     argv,
     rawArgv: resolvedRawArgv,
     userConfig,
-    env: process.env,
+    env: resolvedEnvConfig,
     execArgv: process.execArgv,
     cpuCount
   });
