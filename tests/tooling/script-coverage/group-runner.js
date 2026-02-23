@@ -17,6 +17,7 @@ export const runScriptCoverageGroup = (group) => {
   const env = applyTestEnv({
     testing: '1',
     embeddings: 'stub',
+    syncProcess: false,
     extraEnv: {
       PAIROFCLEATS_SCRIPT_COVERAGE_GROUPS: group,
       PAIROFCLEATS_SCRIPT_COVERAGE_CACHE_ROOT: cacheRoot

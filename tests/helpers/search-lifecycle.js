@@ -70,7 +70,8 @@ export const createSearchLifecycle = async ({
     cacheRoot,
     embeddings,
     testConfig,
-    extraEnv
+    extraEnv,
+    syncProcess: false
   });
 
   const buildIndex = (buildOptions = 'build index') => {
