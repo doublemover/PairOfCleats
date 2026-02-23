@@ -87,7 +87,8 @@ const buildLogBlock = ({
   maxOutputBytes,
   stdout,
   stderr,
-  errorMessage
+  errorMessage,
+  signal
 }) => {
   const lines = [];
   lines.push(`[${startedAt}] job start`);
@@ -108,7 +109,7 @@ const buildLogBlock = ({
   } else if (errorMessage) {
     lines.push(`[${endedAt}] job error ${errorMessage}`);
   }
-  lines.push(`[${endedAt}] job exit ${exitCode}`);
+  lines.push(`[${endedAt}] job exit ${exitCode}${signal ? ` signal=${signal}` : ''}`);
   return lines;
 };
 
@@ -124,10 +125,13 @@ const buildLogBlock = ({
  *   logPath?:string|null,
  *   maxOutputBytes?:number|null,
  *   timeoutMs?:number|null,
- *   onWriteError?:(error:Error)=>void
+ *   onWriteError?:(error:Error)=>void,
+ *   spawnSubprocessImpl?:(command:string,args:string[],options:object)=>Promise<{
+ *     exitCode:number|null,signal:string|null,durationMs:number|null,stdout?:string,stderr?:string
+ *   }>
  * }} [input]
  * @returns {Promise<{
- *   exitCode:number,timedOut:boolean,durationMs:number|null,stdout:string,stderr:string,
+ *   exitCode:number,signal:string|null,timedOut:boolean,durationMs:number|null,stdout:string,stderr:string,
  *   stdoutBytes:number,stderrBytes:number,logBytesWritten:number,maxOutputBytes:number,
  *   timeoutMs:number|null,errorCode:string|null,errorMessage:string|null
  * }>}
@@ -141,8 +145,12 @@ export const runLoggedSubprocess = async ({
   logPath = null,
   maxOutputBytes = null,
   timeoutMs = null,
-  onWriteError = null
+  onWriteError = null,
+  spawnSubprocessImpl = null
 } = {}) => {
+  const runSubprocess = typeof spawnSubprocessImpl === 'function'
+    ? spawnSubprocessImpl
+    : spawnSubprocess;
   if (!command) {
     throw new Error('runLoggedSubprocess requires command.');
   }
@@ -179,10 +187,13 @@ export const runLoggedSubprocess = async ({
   }
 
   try {
-    const result = await spawnSubprocess(command, args, baseOptions);
+    const result = await runSubprocess(command, args, baseOptions);
     const endedAt = new Date().toISOString();
     const stdout = typeof result.stdout === 'string' ? result.stdout : '';
     const stderr = typeof result.stderr === 'string' ? result.stderr : '';
+    const signal = typeof result.signal === 'string' && result.signal.trim()
+      ? result.signal.trim()
+      : null;
     const exitCode = Number.isFinite(result.exitCode) ? result.exitCode : 1;
     if (useLog) {
       logBytesWritten += appendLogLines(
@@ -198,13 +209,15 @@ export const runLoggedSubprocess = async ({
           maxOutputBytes: policy.maxOutputBytes,
           stdout,
           stderr,
-          errorMessage: null
+          errorMessage: null,
+          signal
         }),
         { onWriteError }
       );
     }
     return {
       exitCode,
+      signal,
       timedOut: false,
       durationMs: result.durationMs,
       stdout,
@@ -223,6 +236,9 @@ export const runLoggedSubprocess = async ({
     const result = err?.result || {};
     const stdout = typeof result.stdout === 'string' ? result.stdout : '';
     const stderr = typeof result.stderr === 'string' ? result.stderr : '';
+    const signal = typeof result.signal === 'string' && result.signal.trim()
+      ? result.signal.trim()
+      : null;
     const exitCode = Number.isFinite(result.exitCode) ? result.exitCode : 1;
     const errorMessage = err?.message || String(err);
     if (useLog) {
@@ -239,13 +255,15 @@ export const runLoggedSubprocess = async ({
           maxOutputBytes: policy.maxOutputBytes,
           stdout,
           stderr,
-          errorMessage
+          errorMessage,
+          signal
         }),
         { onWriteError }
       );
     }
     return {
       exitCode,
+      signal,
       timedOut,
       durationMs: Number.isFinite(result.durationMs) ? result.durationMs : null,
       stdout,
