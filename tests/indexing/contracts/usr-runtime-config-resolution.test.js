@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { resolveUsrRuntimeConfig } from '../../../src/contracts/validators/usr-matrix.js';
+import { ensureTestingEnv } from '../../helpers/test-env.js';
+
+ensureTestingEnv(process.env);
 
 const root = process.cwd();
 const policyPath = path.join(root, 'tests', 'lang', 'matrix', 'usr-runtime-config-policy.json');
@@ -50,6 +53,43 @@ assert(
 assert(
   invalidResult.errors.some((entry) => entry.includes('unknown runtime config key at argv: usr.unknown.flag')),
   'expected strict-mode error for unknown runtime config key'
+);
+
+const nonStrictResult = resolveUsrRuntimeConfig({
+  policyPayload,
+  strictMode: false,
+  layers: {
+    policyFile: {
+      'usr.parser.maxSegmentMs': '1800'
+    },
+    env: {
+      'usr.parser.maxSegmentMs': 'oops'
+    },
+    argv: {
+      'usr.unknown.flag': '1'
+    }
+  }
+});
+
+assert.equal(nonStrictResult.ok, true, 'expected non-strict mode to surface resolver issues as warnings');
+assert.equal(nonStrictResult.errors.length, 0, 'expected non-strict mode to avoid blocking errors for invalid overrides');
+assert.equal(
+  nonStrictResult.values['usr.parser.maxSegmentMs'],
+  1800,
+  'expected invalid higher-precedence override to preserve last valid value'
+);
+assert.equal(
+  nonStrictResult.appliedByKey['usr.parser.maxSegmentMs'],
+  'policy-file',
+  'expected source attribution to remain at last valid layer when higher layer fails'
+);
+assert(
+  nonStrictResult.warnings.some((entry) => entry.includes('invalid runtime config value for usr.parser.maxSegmentMs at env')),
+  'expected warning for non-strict invalid override'
+);
+assert(
+  nonStrictResult.warnings.some((entry) => entry.includes('unknown runtime config key at argv: usr.unknown.flag')),
+  'expected warning for unknown runtime key in non-strict mode'
 );
 
 console.log('usr runtime config resolution test passed');
