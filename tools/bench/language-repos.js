@@ -525,29 +525,27 @@ const runUsrGuardrailBenchmarks = async () => {
 const config = loadBenchConfig(configPath, { onLog: appendLog });
 await validateEncodingFixtures(scriptRoot, { onLog: appendLog });
 const normalizeSelectorToken = (value) => String(value || '').trim().toLowerCase();
-const languageFilter = new Set(
-  parseCommaList(argv.languages || argv.language)
-    .map(normalizeSelectorToken)
-    .filter(Boolean)
-);
-let tierFilter = parseCommaList(argv.tier)
-  .map(normalizeSelectorToken)
-  .filter(Boolean);
-const repoFilter = parseCommaList(argv.only || argv.repos).map((entry) => entry.toLowerCase());
-const knownTiers = new Set();
-for (const entry of Object.values(config)) {
-  for (const tier of Object.keys(entry?.repos || {})) {
-    knownTiers.add(normalizeSelectorToken(tier));
+const collectKnownTiers = (benchConfig) => {
+  const tiers = new Set();
+  for (const entry of Object.values(benchConfig || {})) {
+    for (const tier of Object.keys(entry?.repos || {})) {
+      tiers.add(normalizeSelectorToken(tier));
+    }
   }
-}
-if (!tierFilter.length && Array.isArray(argv._) && argv._.length) {
-  const positionalTiers = argv._
-    .map((entry) => normalizeSelectorToken(entry))
-    .filter((entry) => knownTiers.has(entry));
-  if (positionalTiers.length) tierFilter = positionalTiers;
-}
-tierFilter = [...new Set(tierFilter)];
-
+  return tiers;
+};
+const resolveTierFilter = ({ argvTier, positionalArgs, knownTiers }) => {
+  let resolved = parseCommaList(argvTier)
+    .map(normalizeSelectorToken)
+    .filter(Boolean);
+  if (!resolved.length && Array.isArray(positionalArgs) && positionalArgs.length) {
+    const positionalTiers = positionalArgs
+      .map((entry) => normalizeSelectorToken(entry))
+      .filter((entry) => knownTiers.has(entry));
+    if (positionalTiers.length) resolved = positionalTiers;
+  }
+  return [...new Set(resolved)];
+};
 const collectLanguageSelectors = (language, entry) => {
   const selectors = new Set();
   selectors.add(normalizeSelectorToken(language));
@@ -560,30 +558,57 @@ const collectLanguageSelectors = (language, entry) => {
   }
   return selectors;
 };
-
-const tasks = [];
-for (const [language, entry] of Object.entries(config)) {
-  if (languageFilter.size) {
-    const selectors = collectLanguageSelectors(language, entry);
-    const matchesLanguage = [...languageFilter].some((token) => selectors.has(token));
-    if (!matchesLanguage) continue;
+const languageFilter = new Set(
+  parseCommaList(argv.languages || argv.language)
+    .map(normalizeSelectorToken)
+    .filter(Boolean)
+);
+const languageFilterTokens = [...languageFilter];
+const hasLanguageFilter = languageFilterTokens.length > 0;
+const tierFilter = resolveTierFilter({
+  argvTier: argv.tier,
+  positionalArgs: argv._,
+  knownTiers: collectKnownTiers(config)
+});
+const tierFilterSet = new Set(tierFilter);
+const hasTierFilter = tierFilterSet.size > 0;
+const repoFilterSet = new Set(
+  parseCommaList(argv.only || argv.repos)
+    .map((entry) => String(entry || '').toLowerCase())
+    .filter(Boolean)
+);
+const hasRepoFilter = repoFilterSet.size > 0;
+const matchesLanguageFilter = (language, entry) => {
+  if (!hasLanguageFilter) return true;
+  const selectors = collectLanguageSelectors(language, entry);
+  for (const token of languageFilterTokens) {
+    if (selectors.has(token)) return true;
   }
-  const queriesPath = argv.queries
-    ? path.resolve(argv.queries)
-    : path.resolve(scriptRoot, entry.queries || '');
-  if (!fs.existsSync(queriesPath)) {
-    display.error(`Missing queries file: ${queriesPath}`);
-    exitWithDisplay(1);
-  }
-  const repoGroups = entry.repos || {};
-  for (const [tier, repos] of Object.entries(repoGroups)) {
-    if (tierFilter.length && !tierFilter.includes(tier.toLowerCase())) continue;
-    for (const repo of repos) {
-      if (repoFilter.length && !repoFilter.includes(repo.toLowerCase())) continue;
-      tasks.push({ language, label: entry.label || language, tier, repo, queriesPath });
+  return false;
+};
+const buildTaskCatalog = (benchConfig) => {
+  const plannedTasks = [];
+  const queryOverridePath = argv.queries ? path.resolve(argv.queries) : null;
+  for (const [language, entry] of Object.entries(benchConfig || {})) {
+    if (!matchesLanguageFilter(language, entry)) continue;
+    const queriesPath = queryOverridePath || path.resolve(scriptRoot, entry.queries || '');
+    if (!fs.existsSync(queriesPath)) {
+      display.error(`Missing queries file: ${queriesPath}`);
+      exitWithDisplay(1);
+    }
+    const repoGroups = entry.repos || {};
+    for (const [tier, repos] of Object.entries(repoGroups)) {
+      if (hasTierFilter && !tierFilterSet.has(normalizeSelectorToken(tier))) continue;
+      for (const repo of repos) {
+        if (hasRepoFilter && !repoFilterSet.has(String(repo || '').toLowerCase())) continue;
+        plannedTasks.push({ language, label: entry.label || language, tier, repo, queriesPath });
+      }
     }
   }
-}
+  return plannedTasks;
+};
+
+const tasks = buildTaskCatalog(config);
 
 const shuffleInPlace = (items) => {
   for (let idx = items.length - 1; idx > 0; idx -= 1) {
@@ -618,52 +643,54 @@ const countSlugs = (slugs) => {
   return counts;
 };
 
-if (repoLogsEnabled && tasks.length) {
-  const baseSlugs = tasks.map((task) => toSafeLogSlug(getRepoShortName(task.repo)) || 'repo');
-  const fullSlugs = tasks.map((task) => {
-    const raw = String(task.repo || '').replace(/[\\/]+/g, '__');
-    return toSafeLogSlug(raw) || 'repo';
+const assignRepoLogMetadata = (plannedTasks) => {
+  if (!repoLogsEnabled || !plannedTasks.length) return;
+  const slugPlans = plannedTasks.map((task) => {
+    const repoShortName = getRepoShortName(task.repo);
+    const baseSlug = toSafeLogSlug(repoShortName) || 'repo';
+    const fullSlugRaw = String(task.repo || '').replace(/[\\/]+/g, '__');
+    const fullSlug = toSafeLogSlug(fullSlugRaw) || 'repo';
+    const languageSlug = toSafeLogSlug(task.language);
+    const tierSlug = toSafeLogSlug(task.tier);
+    return {
+      task,
+      repoShortName,
+      baseSlug,
+      fullSlug,
+      languageSlug,
+      tierSlug
+    };
   });
-  const baseCounts = countSlugs(baseSlugs);
-  const fullCounts = countSlugs(fullSlugs);
-
-  const initial = tasks.map((task, idx) => {
-    const base = baseSlugs[idx];
-    if (base && baseCounts.get(base) === 1) return base;
-    return fullSlugs[idx] || base || 'repo';
+  const baseCounts = countSlugs(slugPlans.map((plan) => plan.baseSlug));
+  const fullCounts = countSlugs(slugPlans.map((plan) => plan.fullSlug));
+  const initial = slugPlans.map((plan) => {
+    if (plan.baseSlug && baseCounts.get(plan.baseSlug) === 1) return plan.baseSlug;
+    return plan.fullSlug || plan.baseSlug || 'repo';
   });
   const initialCounts = countSlugs(initial);
-
-  const withLang = tasks.map((task, idx) => {
+  const withLang = slugPlans.map((plan, idx) => {
     const slug = initial[idx] || 'repo';
     if (initialCounts.get(slug) === 1) return slug;
-    const lang = toSafeLogSlug(task.language);
-    return [slug, lang].filter(Boolean).join('-');
+    return [slug, plan.languageSlug].filter(Boolean).join('-');
   });
   const withLangCounts = countSlugs(withLang);
-
-  const withTier = tasks.map((task, idx) => {
+  const withTier = slugPlans.map((plan, idx) => {
     const slug = withLang[idx] || 'repo';
     if (withLangCounts.get(slug) === 1) return slug;
-    const tier = toSafeLogSlug(task.tier);
-    return [slug, tier].filter(Boolean).join('-');
+    return [slug, plan.tierSlug].filter(Boolean).join('-');
   });
   const withTierCounts = countSlugs(withTier);
-
-  const final = tasks.map((task, idx) => {
+  for (let idx = 0; idx < slugPlans.length; idx += 1) {
+    const plan = slugPlans[idx];
     const slug = withTier[idx] || 'repo';
-    if (withTierCounts.get(slug) === 1) return slug;
-    return `${slug}-${idx + 1}`;
-  });
-
-  tasks.forEach((task, idx) => {
-    task.logSlug = final[idx];
-    task.repoShortName = getRepoShortName(task.repo);
-    if (fullCounts.get(fullSlugs[idx]) > 1) {
-      task.repoLogNameCollision = true;
+    plan.task.logSlug = withTierCounts.get(slug) === 1 ? slug : `${slug}-${idx + 1}`;
+    plan.task.repoShortName = plan.repoShortName;
+    if ((fullCounts.get(plan.fullSlug) || 0) > 1) {
+      plan.task.repoLogNameCollision = true;
     }
-  });
-}
+  }
+};
+assignRepoLogMetadata(tasks);
 
 if (argv.list) {
   const payload = {
@@ -716,6 +743,7 @@ if (cloneEnabled && !dryRun) {
   ensureLongPathsSupport({ onLog: appendLog });
   cloneTool = resolveCloneTool({ onLog: appendLog });
 }
+const cloneCommandEnv = buildNonInteractiveGitEnv(process.env);
 await fsPromises.mkdir(reposRoot, { recursive: true });
 await fsPromises.mkdir(resultsRoot, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
@@ -759,6 +787,78 @@ const completeBenchRepo = () => {
   updateBenchProgress();
 };
 updateBenchProgress();
+const executionPlans = tasks.map((task) => {
+  const repoPath = resolveRepoDir({ reposRoot, repo: task.repo, language: task.language });
+  const outDir = path.join(resultsRoot, task.language);
+  return {
+    task,
+    repoPath,
+    repoLabel: `${task.language}/${task.repo}`,
+    tierLabel: String(task.tier || '').trim(),
+    repoCacheRoot: resolveRepoCacheRoot({ repoPath, cacheRoot }),
+    outDir,
+    outFile: path.join(outDir, `${task.repo.replace('/', '__')}.json`),
+    fallbackLogSlug: task.logSlug || toSafeLogSlug(getRepoShortName(task.repo)) || 'repo'
+  };
+});
+const precreateDirs = new Set();
+for (const plan of executionPlans) {
+  precreateDirs.add(path.dirname(plan.repoPath));
+  precreateDirs.add(plan.outDir);
+}
+await Promise.all(
+  [...precreateDirs].map((dir) => fsPromises.mkdir(dir, { recursive: true }))
+);
+const heapArgEnabled = Number.isFinite(heapArg) && heapArg > 0;
+const baseNodeOptionsForRun = heapArgEnabled
+  ? stripMaxOldSpaceFlag(baseEnv.NODE_OPTIONS || '')
+  : (baseEnv.NODE_OPTIONS || '');
+const baseNodeOptionsHasHeapFlag = baseNodeOptionsForRun.includes('--max-old-space-size');
+const baseEnvForRepoRuntime = { ...baseEnv };
+if (typeof baseEnv.NODE_OPTIONS === 'string' || baseNodeOptionsForRun) {
+  baseEnvForRepoRuntime.NODE_OPTIONS = baseNodeOptionsForRun;
+}
+const wantsMemoryBackend = backendList.includes('memory');
+const buildRequested = Boolean(argv.build);
+const buildIndexFlag = Boolean(argv['build-index']);
+const buildSqliteFlag = Boolean(argv['build-sqlite']);
+const buildIndexRequested = buildRequested || buildIndexFlag;
+const buildSqliteRequested = buildRequested || buildSqliteFlag;
+const autoBuildEnabled = !(buildRequested || buildIndexFlag || buildSqliteFlag);
+const benchArgsPrefix = [argv['stub-embeddings'] ? '--stub-embeddings' : '--real-embeddings'];
+const benchArgsSuffix = [];
+if (argv.incremental) benchArgsSuffix.push('--incremental');
+if (argv.ann) benchArgsSuffix.push('--ann');
+if (argv['no-ann']) benchArgsSuffix.push('--no-ann');
+if (argv.backend) benchArgsSuffix.push('--backend', String(argv.backend));
+if (argv.top) benchArgsSuffix.push('--top', String(argv.top));
+if (argv.limit) benchArgsSuffix.push('--limit', String(argv.limit));
+if (argv.threads) benchArgsSuffix.push('--threads', String(argv.threads));
+const childProgressMode = argv.progress === 'off' ? 'off' : 'jsonl';
+benchArgsSuffix.push('--progress', childProgressMode);
+if (argv.verbose) benchArgsSuffix.push('--verbose');
+if (argv.quiet || argv.json) benchArgsSuffix.push('--quiet');
+const buildBenchArgs = ({ repoPath, queriesPath, outFile, autoBuildIndex, autoBuildSqlite }) => {
+  const args = [
+    benchScript,
+    '--repo',
+    repoPath,
+    '--queries',
+    queriesPath,
+    '--write-report',
+    '--out',
+    outFile,
+    ...benchArgsPrefix
+  ];
+  if (buildRequested) {
+    args.push('--build');
+  } else {
+    if (buildIndexFlag || autoBuildIndex) args.push('--build-index');
+    if (buildSqliteFlag || autoBuildSqlite) args.push('--build-sqlite');
+  }
+  args.push(...benchArgsSuffix);
+  return args;
+};
 
 /**
  * Remove a repo-scoped cache directory after a bench run while guarding
@@ -847,17 +947,21 @@ const attachCrashRetention = async ({
   }
 };
 
-for (const task of tasks) {
-  const repoPath = resolveRepoDir({ reposRoot, repo: task.repo, language: task.language });
-  await fsPromises.mkdir(path.dirname(repoPath), { recursive: true });
-  const repoLabel = `${task.language}/${task.repo}`;
-  const tierLabel = String(task.tier || '').trim();
+for (const plan of executionPlans) {
+  const {
+    task,
+    repoPath,
+    repoLabel,
+    tierLabel,
+    repoCacheRoot,
+    outFile,
+    fallbackLogSlug
+  } = plan;
   benchTierTag = formatBenchTierTag(tierLabel) || benchTierTag;
   benchRepoLabel = formatBenchRepoLabel(task.repo);
   setBenchInFlightFraction(0, { refresh: false });
   display.resetTasks({ preserveStages: ['bench'] });
   updateBenchProgress();
-  const repoCacheRoot = resolveRepoCacheRoot({ repoPath, cacheRoot });
 
   // Reset per-repo transient history so failure summaries and disk-full detection reflect
   // only the currently executing repo.
@@ -867,7 +971,7 @@ for (const task of tasks) {
       label: repoLabel,
       tier: tierLabel,
       repoPath,
-      slug: task.logSlug || toSafeLogSlug(getRepoShortName(task.repo)) || 'repo'
+      slug: fallbackLogSlug
     });
     if (!quietMode && repoLogPath) {
       appendLog(`[logs] ${repoLabel}: ${path.basename(repoLogPath)}`, 'info', {
@@ -913,8 +1017,7 @@ for (const task of tasks) {
         if (!clonedFromMirror) {
           const args = cloneTool.buildArgs(task.repo, repoPath);
           const cloneResult = await processRunner.runProcess(`clone ${task.repo}`, cloneTool.label, args, {
-            env: buildNonInteractiveGitEnv(process.env),
-            timeoutMs: benchTimeoutMs,
+            env: cloneCommandEnv,
             continueOnError: true
           });
           if (!cloneResult.ok) {
@@ -960,12 +1063,9 @@ for (const task of tasks) {
 
     const repoUserConfig = loadUserConfig(repoPath);
     const repoRuntimeConfig = getRuntimeConfig(repoPath, repoUserConfig);
-    let baseNodeOptions = sanitizeBenchNodeOptions(baseEnv.NODE_OPTIONS || '', {
-      stripHeap: Number.isFinite(heapArg) && heapArg > 0
-    });
-    const hasHeapFlag = baseNodeOptions.includes('--max-old-space-size');
+    const hasHeapFlag = baseNodeOptionsHasHeapFlag;
     let heapOverride = null;
-    if (Number.isFinite(heapArg) && heapArg > 0) {
+    if (heapArgEnabled) {
       heapOverride = heapArg;
       if (!heapLogged) {
         appendLog(`[heap] using ${formatGb(heapOverride)} (${heapOverride} MB) from --heap-mb.`);
@@ -988,11 +1088,7 @@ for (const task of tasks) {
       ? { ...repoRuntimeConfig, maxOldSpaceMb: heapOverride }
       : repoRuntimeConfig;
 
-    const baseEnvForRepo = { ...baseEnv };
-    if (typeof baseEnv.NODE_OPTIONS === 'string' || baseNodeOptions) {
-      baseEnvForRepo.NODE_OPTIONS = baseNodeOptions;
-    }
-    const repoEnvBase = resolveRuntimeEnv(runtimeConfigForRun, baseEnvForRepo);
+    const repoEnvBase = resolveRuntimeEnv(runtimeConfigForRun, baseEnvForRepoRuntime);
     if (heapOverride) {
       repoEnvBase.NODE_OPTIONS = sanitizeBenchNodeOptions(repoEnvBase.NODE_OPTIONS || '', {
         stripHeap: true
@@ -1000,23 +1096,16 @@ for (const task of tasks) {
       repoEnvBase.NODE_OPTIONS = [repoEnvBase.NODE_OPTIONS, `--max-old-space-size=${heapOverride}`].filter(Boolean).join(' ').trim();
     }
 
-    const outDir = path.join(resultsRoot, task.language);
-    const outFile = path.join(outDir, `${task.repo.replace('/', '__')}.json`);
-    await fsPromises.mkdir(outDir, { recursive: true });
-
-    const wantsMemory = backendList.includes('memory');
     const missingIndex = needsIndexArtifacts(repoPath);
     const missingSqlite = wantsSqlite && needsSqliteArtifacts(repoPath);
     let autoBuildIndex = false;
     let autoBuildSqlite = false;
-    const buildIndexRequested = argv.build || argv['build-index'];
-    const buildSqliteRequested = argv.build || argv['build-sqlite'];
     if (buildSqliteRequested && !buildIndexRequested && missingIndex) {
       autoBuildIndex = true;
       appendLog('[auto-build] sqlite needs index artifacts; enabling --build-index.');
     }
-    if (!argv.build && !argv['build-index'] && !argv['build-sqlite']) {
-      if (missingIndex && wantsMemory) autoBuildIndex = true;
+    if (autoBuildEnabled) {
+      if (missingIndex && wantsMemoryBackend) autoBuildIndex = true;
       if (missingSqlite) autoBuildSqlite = true;
       if (autoBuildSqlite && missingIndex) autoBuildIndex = true;
       if (autoBuildIndex || autoBuildSqlite) {
@@ -1026,8 +1115,7 @@ for (const task of tasks) {
       }
     }
 
-    const shouldBuildIndex = argv.build || argv['build-index'] || autoBuildIndex;
-    let lineStats = null;
+    const shouldBuildIndex = buildIndexRequested || autoBuildIndex;
     if (shouldBuildIndex && !dryRun) {
       try {
         appendLog(`[metrics] scanning lines for ${repoLabel}...`);
@@ -1072,38 +1160,13 @@ for (const task of tasks) {
       continue;
     }
 
-    const benchArgs = [
-      benchScript,
-      '--repo',
+    const benchArgs = buildBenchArgs({
       repoPath,
-      '--queries',
-      task.queriesPath,
-      '--write-report',
-      '--out',
-      outFile
-    ];
-    if (argv['stub-embeddings']) {
-      benchArgs.push('--stub-embeddings');
-    } else {
-      benchArgs.push('--real-embeddings');
-    }
-    if (argv.build) {
-      benchArgs.push('--build');
-    } else {
-      if (argv['build-index'] || autoBuildIndex) benchArgs.push('--build-index');
-      if (argv['build-sqlite'] || autoBuildSqlite) benchArgs.push('--build-sqlite');
-    }
-    if (argv.incremental) benchArgs.push('--incremental');
-    if (argv.ann) benchArgs.push('--ann');
-    if (argv['no-ann']) benchArgs.push('--no-ann');
-    if (argv.backend) benchArgs.push('--backend', String(argv.backend));
-    if (argv.top) benchArgs.push('--top', String(argv.top));
-    if (argv.limit) benchArgs.push('--limit', String(argv.limit));
-    if (argv.threads) benchArgs.push('--threads', String(argv.threads));
-    const childProgressMode = argv.progress === 'off' ? 'off' : 'jsonl';
-    benchArgs.push('--progress', childProgressMode);
-    if (argv.verbose) benchArgs.push('--verbose');
-    if (argv.quiet || argv.json) benchArgs.push('--quiet');
+      queriesPath: task.queriesPath,
+      outFile,
+      autoBuildIndex,
+      autoBuildSqlite
+    });
 
     updateBenchProgress();
 
