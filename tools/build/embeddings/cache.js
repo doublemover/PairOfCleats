@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { deserialize as deserializeV8, serialize as serializeV8 } from 'node:v8';
 import { sha1 } from '../../../src/shared/hash.js';
 import { buildCacheKey as buildUnifiedCacheKey } from '../../../src/shared/cache-key.js';
 import { buildEmbeddingIdentity, buildEmbeddingIdentityKey } from '../../../src/shared/embedding-identity.js';
@@ -27,6 +28,8 @@ const DEFAULT_LOCK_WAIT_MS = 5000;
 const DEFAULT_LOCK_POLL_MS = 100;
 const DEFAULT_LOCK_STALE_MS = 30 * 60 * 1000;
 const GLOBAL_CHUNK_CACHE_DIR_NAME = 'global-chunks';
+const CACHE_INDEX_BINARY_MAGIC = 'pairofcleats.embeddings-cache-index';
+const CACHE_INDEX_BINARY_VERSION = 1;
 
 const resolveCacheLockPath = (cacheDir) => (
   cacheDir ? path.join(cacheDir, 'cache.lock') : null
@@ -143,6 +146,15 @@ export const resolveCacheMetaPath = (cacheRoot, identity, mode) => (
  */
 export const resolveCacheIndexPath = (cacheDir) => (
   cacheDir ? path.join(cacheDir, 'cache.index.json') : null
+);
+
+/**
+ * Resolve the binary cache index file path.
+ * @param {string|null} cacheDir
+ * @returns {string|null}
+ */
+export const resolveCacheIndexBinaryPath = (cacheDir) => (
+  cacheDir ? path.join(cacheDir, 'cache.index.v8') : null
 );
 
 /**
@@ -280,6 +292,36 @@ const normalizeCacheIndex = (index, identityKey) => {
   return normalized;
 };
 
+const encodeCacheIndexBinary = (index) => serializeV8({
+  magic: CACHE_INDEX_BINARY_MAGIC,
+  version: CACHE_INDEX_BINARY_VERSION,
+  index
+});
+
+const decodeCacheIndexBinary = (buffer) => {
+  if (!Buffer.isBuffer(buffer) || buffer.length === 0) return null;
+  const payload = deserializeV8(buffer);
+  if (!payload || typeof payload !== 'object') return null;
+  if (payload.magic !== CACHE_INDEX_BINARY_MAGIC) return null;
+  if (payload.version !== CACHE_INDEX_BINARY_VERSION) return null;
+  if (!payload.index || typeof payload.index !== 'object') return null;
+  return payload.index;
+};
+
+const writeBinaryFileAtomic = async (targetPath, buffer) => {
+  if (!targetPath || !Buffer.isBuffer(buffer)) return;
+  const tempPath = createTempPath(targetPath);
+  try {
+    await fs.writeFile(tempPath, buffer);
+    await replaceFile(tempPath, targetPath);
+  } catch (error) {
+    try {
+      await fs.rm(tempPath, { force: true });
+    } catch {}
+    throw error;
+  }
+};
+
 /**
  * Read the cache index from disk, falling back to a fresh index on errors.
  * @param {string|null} cacheDir
@@ -287,7 +329,23 @@ const normalizeCacheIndex = (index, identityKey) => {
  * @returns {Promise<object>}
  */
 export const readCacheIndex = async (cacheDir, identityKey = null) => {
+  const binaryPath = resolveCacheIndexBinaryPath(cacheDir);
   const indexPath = resolveCacheIndexPath(cacheDir);
+  if (binaryPath && fsSync.existsSync(binaryPath)) {
+    try {
+      const rawBinary = await fs.readFile(binaryPath);
+      const decodedBinary = decodeCacheIndexBinary(rawBinary);
+      if (decodedBinary) {
+        const parsedBinary = normalizeCacheIndex(decodedBinary, identityKey);
+        if (identityKey && parsedBinary.identityKey && parsedBinary.identityKey !== identityKey) {
+          return createCacheIndex(identityKey);
+        }
+        return parsedBinary;
+      }
+    } catch {
+      // Fallback to JSON index.
+    }
+  }
   if (!indexPath || !fsSync.existsSync(indexPath)) return createCacheIndex(identityKey);
   try {
     const raw = await fs.readFile(indexPath, 'utf8');
@@ -309,8 +367,12 @@ export const readCacheIndex = async (cacheDir, identityKey = null) => {
  */
 export const writeCacheIndex = async (cacheDir, index) => {
   const indexPath = resolveCacheIndexPath(cacheDir);
+  const binaryPath = resolveCacheIndexBinaryPath(cacheDir);
   if (!indexPath) return;
   await fs.mkdir(path.dirname(indexPath), { recursive: true });
+  if (binaryPath) {
+    await writeBinaryFileAtomic(binaryPath, encodeCacheIndexBinary(index));
+  }
   await writeJsonObjectFile(indexPath, { fields: index, atomic: true });
 };
 
@@ -889,7 +951,7 @@ export const writeCacheMeta = async (cacheRoot, identity, mode, meta) => {
 };
 
 /**
- * Decide whether a cache lookup can be rejected using only cache.index.json metadata.
+ * Decide whether a cache lookup can be rejected using only cache index metadata.
  * This avoids reading shard payloads or standalone cache entry files for known mismatches.
  *
  * Note: when no index entry exists we must not fast-reject, because legacy standalone cache
