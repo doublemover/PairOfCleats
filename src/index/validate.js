@@ -20,6 +20,7 @@ import {
 import { resolveLanceDbPaths } from '../shared/lancedb.js';
 import { isAbsolutePathNative } from '../shared/files.js';
 import { ARTIFACT_SURFACE_VERSION, isSupportedVersion } from '../contracts/versioning.js';
+import { isWithinRoot } from '../workspace/identity.js';
 import { resolveIndexDir } from './validate/paths.js';
 import { buildArtifactLists } from './validate/artifacts.js';
 import {
@@ -1033,7 +1034,7 @@ export async function validateIndexArtifacts(input = {}) {
             if (!value) return;
             const resolved = isAbsolutePathNative(value) ? value : path.join(repoCacheRoot, value);
             const normalized = path.resolve(resolved);
-            if (!normalized.startsWith(repoCacheRoot + path.sep) && normalized !== repoCacheRoot) {
+            if (!isWithinRoot(normalized, repoCacheRoot)) {
               addIssue(report, null, `current.json ${label} escapes repo cache root`);
             }
           };

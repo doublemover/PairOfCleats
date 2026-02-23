@@ -661,6 +661,7 @@ tooling/ingest/lsif/lsif-ingest
 indexing/validate/metav2-rejects-invalid-type-shapes
 indexing/validate/manifest-checks
 indexing/validate/index-validate
+indexing/validate/index-validate-current-build-pointer-case-insensitive
 indexing/validate/index-validate-boilerplate-catalog-manifest-name
 indexing/validate/index-validate-determinism-report-required
 tooling/cache/cache-gc-preserves-recent-access
