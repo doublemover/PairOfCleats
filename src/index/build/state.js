@@ -1,477 +1,36 @@
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
-import { forEachRollingChargramHash } from '../../shared/chargram-hash.js';
 import { registerTokenIdInvariant } from '../../shared/invariants.js';
 import { isLexiconStopword } from '../../lang/lexicon/index.js';
-import { isDocsPath, isFixturePath, shouldPreferInfraProse } from './mode-routing.js';
+import { createTypedTokenPostingMap } from '../../shared/token-id.js';
+import { shouldSkipPhrasePostingsForChunk } from './state/phrase-postings.js';
+import { normalizeTokenRetention, applyTokenRetention } from './state/token-retention.js';
 import {
-  createTypedTokenPostingMap,
-  formatHash64,
-  hashTokenId64Window
-} from '../../shared/token-id.js';
+  ALLOWED_CHARGRAM_FIELDS,
+  appendDocIdToPostingsMap,
+  appendPhraseNgramsToHashBuckets,
+  appendPhraseNgramsToPostingsMap,
+  appendChargramsToSet
+} from './state/postings-helpers.js';
+import {
+  POSTINGS_GUARDS,
+  createGuardEntry,
+  getPostingsGuardWarnings,
+  recordGuardSample,
+  resolveGuardMaxPerChunk,
+  resolvePostingsGuardTier
+} from './state/postings-guards.js';
+import {
+  mergeCompactPostingsMapWithOffset,
+  mergeFrequencyPostingsMapWithOffset,
+  mergeLengthsWithOffset
+} from './state/merge-helpers.js';
 
 const DEFAULT_POSTINGS_CONFIG = normalizePostingsConfig();
-const TOKEN_RETENTION_MODES = new Set(['full', 'sample', 'none']);
-const POSTINGS_GUARD_SAMPLES = 5;
 const TOKEN_ID_COLLISION_SAMPLE_SIZE = 5;
-const POSTINGS_GUARDS = {
-  phrase: { maxUnique: 1000000, maxPerChunk: 20000 },
-  chargram: { maxUnique: 2000000, maxPerChunk: 50000 }
-};
-const POSTINGS_GUARD_TIER_MAX_PER_CHUNK = Object.freeze({
-  docs: { phrase: 12000, chargram: 24000 },
-  fixtures: { phrase: 6000, chargram: 12000 }
-});
 
-const resolvePostingsGuardTier = (file) => {
-  if (!file || typeof file !== 'string') return null;
-  if (isFixturePath(file)) return 'fixtures';
-  if (isDocsPath(file)) return 'docs';
-  return null;
-};
-
-const getLowerBasename = (fileLower) => {
-  if (!fileLower || typeof fileLower !== 'string') return null;
-  const slashIndex = Math.max(fileLower.lastIndexOf('/'), fileLower.lastIndexOf('\\'));
-  return slashIndex >= 0 ? fileLower.slice(slashIndex + 1) : fileLower;
-};
-
-const getLowerExtension = (baseNameLower) => {
-  if (!baseNameLower || typeof baseNameLower !== 'string') return '';
-  const dotIndex = baseNameLower.lastIndexOf('.');
-  if (dotIndex <= 0 || dotIndex === (baseNameLower.length - 1)) return '';
-  return baseNameLower.slice(dotIndex);
-};
-
-const GENERATED_DOC_BASENAME_SET = new Set([
-  'mkdocs.yml',
-  'antora.yml',
-  'manual.txt',
-  'docbook-entities.txt',
-  'idnamappingtable.txt'
-]);
-const GENERATED_DOC_EXT_SET = new Set(['.html', '.htm']);
-const LICENSE_LIKE_RE = /(^|[-_.])(license|licence|copying|copyright|notice)([-_.]|$)/i;
-const RFC_TXT_RE = /^rfc\d+\.txt$/i;
-
-const hasLicenseBoilerplateTags = (tags) => {
-  if (!Array.isArray(tags) || !tags.length) return false;
-  for (const tag of tags) {
-    if (typeof tag !== 'string') continue;
-    const normalized = tag.trim().toLowerCase();
-    if (!normalized) continue;
-    if (normalized === 'boilerplate:license') return true;
-    if (normalized.startsWith('license:')) return true;
-  }
-  return false;
-};
-
-const hasLicenseLikePath = (fileLower, baseNameLower) => {
-  if (!fileLower || !baseNameLower) return false;
-  if (LICENSE_LIKE_RE.test(baseNameLower)) return true;
-  if (fileLower.startsWith('licenses/') || fileLower.startsWith('licenses\\')) return true;
-  if (fileLower.includes('/licenses/') || fileLower.includes('\\licenses\\')) return true;
-  return false;
-};
-
-const hasGeneratedDocPath = (fileLower, baseNameLower) => {
-  if (!fileLower || !baseNameLower) return false;
-  const ext = getLowerExtension(baseNameLower);
-  if (isDocsPath(fileLower) && GENERATED_DOC_EXT_SET.has(ext)) return true;
-  if (GENERATED_DOC_BASENAME_SET.has(baseNameLower)) return true;
-  if (isDocsPath(fileLower) && RFC_TXT_RE.test(baseNameLower)) return true;
-  return false;
-};
-
-/**
- * Decide whether phrase postings should be suppressed for a chunk/file pair.
- *
- * This applies deterministic heuristics for fixtures, infra/prose docs, license
- * material, and generated documentation to reduce noisy high-frequency terms.
- *
- * @param {object} chunk
- * @param {string} fileLower
- * @returns {boolean}
- */
-export const shouldSkipPhrasePostingsForChunk = (chunk, fileLower) => {
-  const baseNameLower = getLowerBasename(fileLower);
-  if (baseNameLower === 'cmakelists.txt') return true;
-  if (isFixturePath(fileLower)) return true;
-  if (shouldPreferInfraProse({ relPath: fileLower })) return true;
-  if (hasLicenseLikePath(fileLower, baseNameLower)) return true;
-  if (hasGeneratedDocPath(fileLower, baseNameLower)) return true;
-  const chunkTags = Array.isArray(chunk?.docmeta?.boilerplateTags) ? chunk.docmeta.boilerplateTags : null;
-  if (hasLicenseBoilerplateTags(chunkTags)) return true;
-  const metaTags = Array.isArray(chunk?.metaV2?.docmeta?.boilerplateTags)
-    ? chunk.metaV2.docmeta.boilerplateTags
-    : null;
-  return hasLicenseBoilerplateTags(metaTags);
-};
-
-const resolveGuardMaxPerChunk = (guard, kind, tier) => {
-  const base = Number.isFinite(guard?.maxPerChunk) ? Math.max(0, Math.floor(guard.maxPerChunk)) : 0;
-  if (!base || !tier) return base;
-  const tierCap = Number.isFinite(POSTINGS_GUARD_TIER_MAX_PER_CHUNK[tier]?.[kind])
-    ? Math.max(0, Math.floor(POSTINGS_GUARD_TIER_MAX_PER_CHUNK[tier][kind]))
-    : 0;
-  if (!tierCap) return base;
-  return Math.min(base, tierCap);
-};
-
-const createGuardEntry = (label, limits) => ({
-  label,
-  maxUnique: limits.maxUnique,
-  maxPerChunk: limits.maxPerChunk,
-  effectiveMaxPerChunk: limits.maxPerChunk,
-  disabled: false,
-  reason: null,
-  dropped: 0,
-  truncatedChunks: 0,
-  peakUnique: 0,
-  samples: []
-});
-
-const recordGuardSample = (guard, context) => {
-  if (!guard || !context) return;
-  if (guard.samples.length >= POSTINGS_GUARD_SAMPLES) return;
-  guard.samples.push({
-    file: context.file || null,
-    chunkId: context.chunkId ?? null
-  });
-};
-
-// Postings maps can be extremely large (especially phrase n-grams and chargrams).
-// Storing posting lists as `Set`s is extremely memory-expensive when the vast
-// majority of terms are singletons (df=1).
-//
-// We store posting lists in a compact representation:
-//   - number: a single docId
-//   - number[]: a list of docIds in insertion order (typically increasing)
-//
-// This avoids allocating one `Set` per term.
-function appendDocIdToPostingsMap(map, key, docId, guard = null, context = null) {
-  if (!map) return;
-  const current = map.get(key);
-  if (current === undefined) {
-    if (guard?.maxUnique && map.size >= guard.maxUnique) {
-      if (!guard.disabled) {
-        guard.disabled = true;
-        guard.reason = guard.reason || 'max-unique';
-        recordGuardSample(guard, context);
-      }
-      guard.dropped += 1;
-      return;
-    }
-    map.set(key, docId);
-    if (guard) {
-      guard.peakUnique = Math.max(guard.peakUnique || 0, map.size);
-    }
-    return;
-  }
-  if (typeof current === 'number') {
-    if (current !== docId) map.set(key, [current, docId]);
-    return;
-  }
-  if (Array.isArray(current)) {
-    const last = current[current.length - 1];
-    if (last !== docId) current.push(docId);
-    return;
-  }
-  // Back-compat: if older states used Sets, continue supporting them.
-  if (current && typeof current.add === 'function') {
-    current.add(docId);
-  }
-}
-
-/**
- * Appends phrase n-grams for a token sequence to a postings map without
- * materializing the full n-gram array.
- *
- * This significantly reduces transient allocation pressure compared to
- * `extractNgrams(...)`, especially for long token sequences.
- */
-function appendPhraseNgramsToPostingsMap(
-  map,
-  tokens,
-  docId,
-  minN,
-  maxN,
-  guard = null,
-  context = null,
-  maxPerChunkOverride = null
-) {
-  if (!map) return;
-  if (!Array.isArray(tokens) || tokens.length === 0) return;
-  const min = Number.isFinite(minN) ? minN : 2;
-  const max = Number.isFinite(maxN) ? maxN : 4;
-  if (min < 1 || max < min) return;
-
-  const len = tokens.length;
-  // For very short token sequences, nothing to do.
-  if (len < min) return;
-
-  const sep = '\u0001';
-  const maxSpan = Math.min(max, len);
-
-  let emitted = 0;
-  const maxPerChunk = Number.isFinite(maxPerChunkOverride)
-    ? Math.max(0, Math.floor(maxPerChunkOverride))
-    : (guard?.maxPerChunk || 0);
-  for (let i = 0; i < len; i += 1) {
-    // Build incrementally: token[i], token[i]␁token[i+1], ...
-    let key = '';
-    for (let n = 1; n <= maxSpan; n += 1) {
-      const j = i + n - 1;
-      if (j >= len) break;
-      const tok = tokens[j];
-      if (tok == null || tok === '') {
-        // Reset on empty tokens so we don't emit malformed n-grams.
-        key = '';
-        continue;
-      }
-      key = key ? `${key}${sep}${tok}` : String(tok);
-      if (n >= min) {
-        if (maxPerChunk && emitted >= maxPerChunk) {
-          guard.truncatedChunks += 1;
-          recordGuardSample(guard, context);
-          return;
-        }
-        appendDocIdToPostingsMap(map, key, docId, guard, context);
-        emitted += 1;
-      }
-    }
-  }
-}
-
-const appendDocIdToPostingValue = (posting, docId) => {
-  if (posting == null) return docId;
-  if (typeof posting === 'number') {
-    return posting === docId ? posting : [posting, docId];
-  }
-  if (Array.isArray(posting)) {
-    const last = posting[posting.length - 1];
-    if (last !== docId) posting.push(docId);
-    return posting;
-  }
-  if (posting && typeof posting.add === 'function') {
-    posting.add(docId);
-    return posting;
-  }
-  return posting;
-};
-const ALLOWED_CHARGRAM_FIELDS = new Set(['name', 'signature', 'doc', 'comment', 'body']);
-
-const phraseIdsEqual = (leftIds, rightIds, start) => {
-  if (!Array.isArray(leftIds) || !Array.isArray(rightIds)) return false;
-  if (!Number.isFinite(start) || start < 0) return false;
-  if ((start + leftIds.length) > rightIds.length) return false;
-  for (let i = 0; i < leftIds.length; i += 1) {
-    if (leftIds[i] !== rightIds[start + i]) return false;
-  }
-  return true;
-};
-
-function appendPhraseNgramsToHashBuckets({
-  bucketMap,
-  tokenIds,
-  docId,
-  minN,
-  maxN,
-  guard = null,
-  context = null,
-  state = null,
-  maxPerChunk = null
-}) {
-  if (!bucketMap || typeof bucketMap.get !== 'function' || typeof bucketMap.set !== 'function') return;
-  if (!Array.isArray(tokenIds) || !tokenIds.length) return;
-  const min = Number.isFinite(minN) ? minN : 2;
-  const max = Number.isFinite(maxN) ? maxN : 4;
-  if (min < 1 || max < min) return;
-  const len = tokenIds.length;
-  if (len < min) return;
-  const maxSpan = Math.min(max, len);
-  let emitted = 0;
-  const resolvedMaxPerChunk = Number.isFinite(maxPerChunk)
-    ? Math.max(0, Math.floor(maxPerChunk))
-    : (guard?.maxPerChunk || 0);
-  for (let i = 0; i < len; i += 1) {
-    for (let n = min; n <= maxSpan; n += 1) {
-      if ((i + n) > len) break;
-      if (resolvedMaxPerChunk && emitted >= resolvedMaxPerChunk) {
-        if (guard) {
-          guard.truncatedChunks += 1;
-          recordGuardSample(guard, context);
-        }
-        return;
-      }
-      const hash = formatHash64(hashTokenId64Window(tokenIds, i, n));
-      const bucket = bucketMap.get(hash);
-      if (!bucket) {
-        if (guard?.maxUnique && Number(state?.phrasePostHashUnique || 0) >= guard.maxUnique) {
-          if (!guard.disabled) {
-            guard.disabled = true;
-            guard.reason = guard.reason || 'max-unique';
-            recordGuardSample(guard, context);
-          }
-          guard.dropped += 1;
-          emitted += 1;
-          continue;
-        }
-        bucketMap.set(hash, {
-          kind: 'single',
-          ids: tokenIds.slice(i, i + n),
-          posting: docId
-        });
-        if (state) {
-          state.phrasePostHashUnique = Number(state.phrasePostHashUnique || 0) + 1;
-          if (state.phraseHashStats && typeof state.phraseHashStats === 'object') {
-            state.phraseHashStats.buckets = bucketMap.size;
-          }
-        }
-        if (guard) {
-          guard.peakUnique = Math.max(guard.peakUnique || 0, Number(state?.phrasePostHashUnique || 0));
-        }
-        emitted += 1;
-        continue;
-      }
-      if (bucket.kind === 'single') {
-        if (phraseIdsEqual(bucket.ids, tokenIds, i)) {
-          bucket.posting = appendDocIdToPostingValue(bucket.posting, docId);
-        } else {
-          if (guard?.maxUnique && Number(state?.phrasePostHashUnique || 0) >= guard.maxUnique) {
-            if (!guard.disabled) {
-              guard.disabled = true;
-              guard.reason = guard.reason || 'max-unique';
-              recordGuardSample(guard, context);
-            }
-            guard.dropped += 1;
-            emitted += 1;
-            continue;
-          }
-          const prior = { ids: bucket.ids, posting: bucket.posting };
-          bucket.kind = 'collision';
-          bucket.entries = [
-            prior,
-            { ids: tokenIds.slice(i, i + n), posting: docId }
-          ];
-          delete bucket.ids;
-          delete bucket.posting;
-          if (state) {
-            state.phrasePostHashUnique = Number(state.phrasePostHashUnique || 0) + 1;
-            if (state.phraseHashStats && typeof state.phraseHashStats === 'object') {
-              state.phraseHashStats.collisions = Number(state.phraseHashStats.collisions || 0) + 1;
-            }
-          }
-        }
-        emitted += 1;
-        continue;
-      }
-      if (!Array.isArray(bucket.entries)) bucket.entries = [];
-      let matched = false;
-      for (const entry of bucket.entries) {
-        if (!phraseIdsEqual(entry?.ids, tokenIds, i)) continue;
-        entry.posting = appendDocIdToPostingValue(entry.posting, docId);
-        matched = true;
-        break;
-      }
-      if (!matched) {
-        if (guard?.maxUnique && Number(state?.phrasePostHashUnique || 0) >= guard.maxUnique) {
-          if (!guard.disabled) {
-            guard.disabled = true;
-            guard.reason = guard.reason || 'max-unique';
-            recordGuardSample(guard, context);
-          }
-          guard.dropped += 1;
-          emitted += 1;
-          continue;
-        }
-        bucket.entries.push({
-          ids: tokenIds.slice(i, i + n),
-          posting: docId
-        });
-        if (state) {
-          state.phrasePostHashUnique = Number(state.phrasePostHashUnique || 0) + 1;
-        }
-      }
-      emitted += 1;
-    }
-  }
-}
-
-function appendChargramsToSet(
-  token,
-  minN,
-  maxN,
-  set,
-  maxPerChunk = 0,
-  _buffer = null,
-  { maxTokenLength = null } = {}
-) {
-  if (!token) return;
-  forEachRollingChargramHash(token, minN, maxN, { maxTokenLength }, (hash) => {
-    set.add(hash);
-    if (maxPerChunk && set.size >= maxPerChunk) return false;
-    return true;
-  });
-}
-
-function *iteratePostingDocIds(posting) {
-  if (posting == null) return;
-  if (typeof posting === 'number') {
-    yield posting;
-    return;
-  }
-  if (Array.isArray(posting)) {
-    for (const id of posting) yield id;
-    return;
-  }
-  if (typeof posting[Symbol.iterator] === 'function') {
-     
-    for (const id of posting) yield id;
-  }
-}
-
-/**
- * Normalize token retention options to a stable shape.
- * @param {object} [raw]
- * @returns {{mode:'full'|'sample'|'none',sampleSize:number}}
- */
-export function normalizeTokenRetention(raw = {}) {
-  if (!raw || typeof raw !== 'object') {
-    return { mode: 'full', sampleSize: 32 };
-  }
-  const modeRaw = typeof raw.mode === 'string' ? raw.mode.trim().toLowerCase() : 'full';
-  const mode = TOKEN_RETENTION_MODES.has(modeRaw) ? modeRaw : 'full';
-  const sampleSize = Number.isFinite(Number(raw.sampleSize))
-    ? Math.max(1, Math.floor(Number(raw.sampleSize)))
-    : 32;
-  return { mode, sampleSize };
-}
-
-/**
- * Apply token retention rules to a chunk in-place.
- * @param {object} chunk
- * @param {{mode:'full'|'sample'|'none',sampleSize:number}} retention
- */
-export function applyTokenRetention(chunk, retention) {
-  if (!chunk || !retention || retention.mode === 'full') return;
-  if (retention.mode === 'none') {
-    if (chunk.tokens) delete chunk.tokens;
-    if (chunk.tokenIds) delete chunk.tokenIds;
-    if (chunk.ngrams) delete chunk.ngrams;
-    return;
-  }
-  if (retention.mode === 'sample') {
-    if (Array.isArray(chunk.tokens) && chunk.tokens.length > retention.sampleSize) {
-      chunk.tokens = chunk.tokens.slice(0, retention.sampleSize);
-    }
-    if (Array.isArray(chunk.tokenIds) && chunk.tokenIds.length > retention.sampleSize) {
-      chunk.tokenIds = chunk.tokenIds.slice(0, retention.sampleSize);
-    }
-    if (Array.isArray(chunk.ngrams) && chunk.ngrams.length > retention.sampleSize) {
-      chunk.ngrams = chunk.ngrams.slice(0, retention.sampleSize);
-    }
-  }
-}
+export { shouldSkipPhrasePostingsForChunk };
+export { normalizeTokenRetention, applyTokenRetention };
+export { getPostingsGuardWarnings };
 
 /**
  * Create the mutable state for index building.
@@ -940,22 +499,15 @@ export function mergeIndexState(target, source) {
     target.chunks.push({ ...chunk, id: offset + sourceId });
   }
 
-  const mergeLengths = (dest, src) => {
-    if (!Array.isArray(src)) return;
-    for (let i = 0; i < src.length; i += 1) {
-      dest[offset + i] = src[i];
-    }
-  };
-
-  mergeLengths(target.docLengths, source.docLengths);
+  mergeLengthsWithOffset(target.docLengths, source.docLengths, offset);
   if (target.fieldDocLengths && source.fieldDocLengths) {
     for (const [field, lengths] of Object.entries(source.fieldDocLengths)) {
       if (!target.fieldDocLengths[field]) target.fieldDocLengths[field] = [];
-      mergeLengths(target.fieldDocLengths[field], lengths);
+      mergeLengthsWithOffset(target.fieldDocLengths[field], lengths, offset);
     }
   }
   if (Array.isArray(source.fieldTokens)) {
-    mergeLengths(target.fieldTokens, source.fieldTokens);
+    mergeLengthsWithOffset(target.fieldTokens, source.fieldTokens, offset);
   }
 
   if (source.df && typeof source.df.entries === 'function') {
@@ -964,59 +516,17 @@ export function mergeIndexState(target, source) {
     }
   }
 
-  if (source.tokenPostings && typeof source.tokenPostings.entries === 'function') {
-    for (const [token, postings] of source.tokenPostings.entries()) {
-      let dest = target.tokenPostings.get(token);
-      if (!dest) {
-        dest = [];
-        target.tokenPostings.set(token, dest);
-      }
-      for (const entry of postings || []) {
-        const docId = Array.isArray(entry) ? entry[0] : null;
-        const tf = Array.isArray(entry) ? entry[1] : null;
-        if (!Number.isFinite(docId)) continue;
-        dest.push([docId + offset, tf]);
-      }
-    }
-  }
+  mergeFrequencyPostingsMapWithOffset(target.tokenPostings, source.tokenPostings, offset);
 
   if (source.fieldPostings) {
     for (const [field, postingsMap] of Object.entries(source.fieldPostings)) {
       if (!target.fieldPostings[field]) target.fieldPostings[field] = new Map();
-      if (!postingsMap || typeof postingsMap.entries !== 'function') continue;
-      for (const [token, postings] of postingsMap.entries()) {
-        let dest = target.fieldPostings[field].get(token);
-        if (!dest) {
-          dest = [];
-          target.fieldPostings[field].set(token, dest);
-        }
-        for (const entry of postings || []) {
-          const docId = Array.isArray(entry) ? entry[0] : null;
-          const tf = Array.isArray(entry) ? entry[1] : null;
-          if (!Number.isFinite(docId)) continue;
-          dest.push([docId + offset, tf]);
-        }
-      }
+      mergeFrequencyPostingsMapWithOffset(target.fieldPostings[field], postingsMap, offset);
     }
   }
 
-  if (source.phrasePost && typeof source.phrasePost.entries === 'function') {
-    for (const [phrase, posting] of source.phrasePost.entries()) {
-      for (const docId of iteratePostingDocIds(posting)) {
-        if (!Number.isFinite(docId)) continue;
-        appendDocIdToPostingsMap(target.phrasePost, phrase, docId + offset);
-      }
-    }
-  }
-
-  if (source.triPost && typeof source.triPost.entries === 'function') {
-    for (const [gram, posting] of source.triPost.entries()) {
-      for (const docId of iteratePostingDocIds(posting)) {
-        if (!Number.isFinite(docId)) continue;
-        appendDocIdToPostingsMap(target.triPost, gram, docId + offset);
-      }
-    }
-  }
+  mergeCompactPostingsMapWithOffset(target.phrasePost, source.phrasePost, offset);
+  mergeCompactPostingsMapWithOffset(target.triPost, source.triPost, offset);
 
   if (Array.isArray(source.scannedFiles)) {
     target.scannedFiles.push(...source.scannedFiles);
@@ -1091,43 +601,4 @@ export function mergeIndexState(target, source) {
       }
     }
   }
-}
-
-const formatGuardSample = (sample) => {
-  if (!sample) return null;
-  const file = sample.file || 'unknown';
-  const chunkId = Number.isFinite(sample.chunkId) ? `#${sample.chunkId}` : '';
-  return `${file}${chunkId}`;
-};
-
-/**
- * Build warning messages from postings guard counters.
- * @param {object} state
- * @returns {string[]}
- */
-export function getPostingsGuardWarnings(state) {
-  const guards = state?.postingsGuard;
-  if (!guards) return [];
-  const warnings = [];
-  for (const guard of Object.values(guards)) {
-    if (!guard) continue;
-    const samples = (guard.samples || [])
-      .map(formatGuardSample)
-      .filter(Boolean);
-    const sampleSuffix = samples.length ? ` Examples: ${samples.join(', ')}` : '';
-    if (guard.disabled && guard.maxUnique) {
-      warnings.push(
-        `[postings] ${guard.label} postings capped at ${guard.maxUnique} unique terms; further entries skipped.${sampleSuffix}`
-      );
-    }
-    const effectiveMaxPerChunk = Number.isFinite(guard.effectiveMaxPerChunk)
-      ? guard.effectiveMaxPerChunk
-      : guard.maxPerChunk;
-    if (guard.truncatedChunks && effectiveMaxPerChunk) {
-      warnings.push(
-        `[postings] ${guard.label} postings truncated for ${guard.truncatedChunks} chunk(s) (limit ${effectiveMaxPerChunk} per chunk).${sampleSuffix}`
-      );
-    }
-  }
-  return warnings;
 }
