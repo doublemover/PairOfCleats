@@ -318,10 +318,7 @@ export function createBuildScheduler(input = {}) {
       cleared: 0
     }
   };
-  const totalInFlightBytes = () => queueOrder.reduce(
-    (sum, queue) => sum + normalizeByteCount(queue.inFlightBytes),
-    0
-  );
+  let globalInFlightBytes = 0;
 
   const ensureQueue = (name) => {
     if (queues.has(name)) return queues.get(name);
@@ -364,6 +361,8 @@ export function createBuildScheduler(input = {}) {
 
   const applyQueueConfig = (queue, config) => {
     if (!queue || !config || typeof config !== 'object') return;
+    const previousSurface = queue.surface;
+    const runningBeforeSurfaceChange = Math.max(0, Number(queue.running) || 0);
     if (Number.isFinite(Number(config.priority))) {
       queue.priority = Number(config.priority);
     }
@@ -390,6 +389,10 @@ export function createBuildScheduler(input = {}) {
     }
     if (Object.prototype.hasOwnProperty.call(config, 'surface')) {
       queue.surface = resolveQueueSurface(queue.name, config.surface);
+      if (runningBeforeSurfaceChange > 0 && previousSurface !== queue.surface) {
+        bumpSurfaceRunning(previousSurface, -runningBeforeSurfaceChange);
+        bumpSurfaceRunning(queue.surface, runningBeforeSurfaceChange);
+      }
     }
     queueOrder.sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name));
   };
@@ -440,6 +443,17 @@ export function createBuildScheduler(input = {}) {
     for (const [queueName, config] of Object.entries(configMap)) {
       registerQueue(queueName, config);
     }
+  };
+  const runningBySurface = new Map();
+  const bumpSurfaceRunning = (surfaceName, delta) => {
+    if (!surfaceName || !Number.isFinite(Number(delta)) || Number(delta) === 0) return;
+    const current = Math.max(0, Number(runningBySurface.get(surfaceName)) || 0);
+    const next = Math.max(0, current + Number(delta));
+    if (next > 0) {
+      runningBySurface.set(surfaceName, next);
+      return;
+    }
+    runningBySurface.delete(surfaceName);
   };
 
   const recordQueueWaitTime = (queue, waitedMs) => {
@@ -792,15 +806,11 @@ export function createBuildScheduler(input = {}) {
     : null;
   telemetryTimer?.unref?.();
 
-  const countSurfaceRunning = (surfaceName) => {
-    if (!surfaceName) return 0;
-    let total = 0;
-    for (const queue of queueOrder) {
-      if (queue?.surface !== surfaceName) continue;
-      total += Math.max(0, Number(queue?.running) || 0);
-    }
-    return total;
-  };
+  const countSurfaceRunning = (surfaceName) => (
+    surfaceName
+      ? Math.max(0, Number(runningBySurface.get(surfaceName)) || 0)
+      : 0
+  );
 
   const maybeAdaptSurfaceControllers = (now) => {
     if (!adaptiveSurfaceControllersEnabled) return;
@@ -1106,10 +1116,10 @@ export function createBuildScheduler(input = {}) {
     }
   };
 
-  const canStart = (queue, req) => {
+  const canStart = (queue, req, backpressureState = null) => {
     const normalized = normalizeRequest(req);
-    const backpressureState = evaluateWriteBackpressure();
-    const producerBlocked = backpressureState.active
+    const resolvedBackpressure = backpressureState || evaluateWriteBackpressure();
+    const producerBlocked = resolvedBackpressure.active
       && queue
       && queue.name !== writeBackpressure.writeQueue
       && writeBackpressure.producerQueues.has(queue.name);
@@ -1146,7 +1156,7 @@ export function createBuildScheduler(input = {}) {
       }
     }
     if (globalMaxInFlightBytes && normalized.bytes > 0) {
-      const runningBytes = totalInFlightBytes();
+      const runningBytes = normalizeByteCount(globalInFlightBytes);
       const oversizeSingle = runningBytes === 0;
       if (!oversizeSingle && runningBytes + normalized.bytes > globalMaxInFlightBytes) {
         return false;
@@ -1162,6 +1172,7 @@ export function createBuildScheduler(input = {}) {
     tokens.mem.used += normalized.mem;
     if (queue && normalized.bytes > 0) {
       queue.inFlightBytes = normalizeByteCount(queue.inFlightBytes) + normalized.bytes;
+      globalInFlightBytes = normalizeByteCount(globalInFlightBytes) + normalized.bytes;
     }
     return normalized;
   };
@@ -1173,26 +1184,31 @@ export function createBuildScheduler(input = {}) {
     tokens.mem.used = Math.max(0, tokens.mem.used - normalized.mem);
     if (queue && normalized.bytes > 0) {
       queue.inFlightBytes = Math.max(0, normalizeByteCount(queue.inFlightBytes) - normalized.bytes);
+      globalInFlightBytes = Math.max(
+        0,
+        normalizeByteCount(globalInFlightBytes) - normalized.bytes
+      );
     }
   };
 
-  const findStartableIndex = (queue) => {
+  const findStartableIndex = (queue, backpressureState = null) => {
     if (!queue?.pending?.length) return -1;
     for (let i = 0; i < queue.pending.length; i += 1) {
-      if (canStart(queue, queue.pending[i].tokens)) return i;
+      if (canStart(queue, queue.pending[i].tokens, backpressureState)) return i;
     }
     return -1;
   };
 
-  const pickNextQueue = () => {
+  const pickNextQueue = (backpressureState = null) => {
     if (!queueOrder.length) return null;
+    const now = nowMs();
     let starving = null;
     let picked = null;
     for (const q of queueOrder) {
       if (!q.pending.length) continue;
-      const index = findStartableIndex(q);
+      const index = findStartableIndex(q, backpressureState);
       if (index < 0) continue;
-      const waited = nowMs() - q.pending[index].enqueuedAt;
+      const waited = now - q.pending[index].enqueuedAt;
       if (waited >= starvationMs && (!starving || waited > starving.waited)) {
         starving = { queue: q, waited, index };
         continue;
@@ -1216,14 +1232,16 @@ export function createBuildScheduler(input = {}) {
     if (shuttingDown) return;
     while (true) {
       maybeAdaptTokens();
-      const pick = pickNextQueue();
+      const backpressureState = evaluateWriteBackpressure();
+      const pick = pickNextQueue(backpressureState);
       if (!pick) return;
       const { queue, starved, index } = pick;
       const next = queue.pending[index];
-      if (!next || !canStart(queue, next.tokens)) return;
+      if (!next || !canStart(queue, next.tokens, backpressureState)) return;
       queue.pending.splice(index, 1);
       queue.pendingBytes = Math.max(0, normalizeByteCount(queue.pendingBytes) - normalizeByteCount(next.bytes));
       queue.running += 1;
+      bumpSurfaceRunning(queue.surface, 1);
       queue.stats.started += 1;
       counters.started += 1;
       if (starved) {
@@ -1248,6 +1266,7 @@ export function createBuildScheduler(input = {}) {
         )
         .finally(() => {
           queue.running -= 1;
+          bumpSurfaceRunning(queue.surface, -1);
           release(queue, used);
           pump();
         });

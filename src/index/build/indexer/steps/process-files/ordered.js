@@ -80,7 +80,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
   }
   const seen = expectedCount != null ? new Set() : null;
   let seenCount = 0;
-  const capacityWaiters = new Set();
+  const capacityWaiters = [];
   let abortError = null;
   let lastActivityAt = Date.now();
   let emergencyCapacityActive = false;
@@ -207,17 +207,19 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
   };
 
   const rejectCapacityWaiters = (err) => {
-    if (!capacityWaiters.size) return;
+    if (!capacityWaiters.length) return;
     const error = err instanceof Error ? err : new Error(String(err || 'Ordered appender aborted.'));
-    const waiters = Array.from(capacityWaiters);
-    capacityWaiters.clear();
-    for (const waiter of waiters) {
-      settleCapacityWaiter(waiter, (entry) => entry.reject(error));
+    for (let i = 0; i < capacityWaiters.length; i += 1) {
+      const waiter = capacityWaiters[i];
+      try {
+        waiter.reject(error);
+      } catch {}
     }
+    capacityWaiters.length = 0;
   };
 
   const resolveCapacityWaiters = () => {
-    if (!capacityWaiters.size) return;
+    if (!capacityWaiters.length) return;
     if (aborted) {
       rejectCapacityWaiters(abortError || new Error('Ordered appender aborted.'));
       return;
@@ -227,11 +229,13 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       const maxPendingAllowed = maxPendingBeforeBackpressure;
       if (maxPendingAllowed > 0 && pending.size > maxPendingAllowed) return;
     }
-    const waiters = Array.from(capacityWaiters);
-    capacityWaiters.clear();
-    for (const waiter of waiters) {
-      settleCapacityWaiter(waiter, (entry) => entry.resolve());
+    for (let i = 0; i < capacityWaiters.length; i += 1) {
+      const waiter = capacityWaiters[i];
+      try {
+        waiter.resolve();
+      } catch {}
     }
+    capacityWaiters.length = 0;
   };
 
   /**
@@ -267,16 +271,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       return Promise.resolve();
     }
     return new Promise((resolve, reject) => {
-      const waiter = {
-        resolve,
-        reject,
-        settled: false,
-        timeout: null
-      };
-      capacityWaiters.add(waiter);
-      // Always arm stall checks while blocked at capacity gates so emergency
-      // fail-open can trigger even when no new enqueue/skip activity occurs.
-      scheduleStallCheck();
+      capacityWaiters.push({ resolve, reject });
     });
   };
 

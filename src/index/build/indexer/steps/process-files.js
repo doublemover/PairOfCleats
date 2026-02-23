@@ -1,5 +1,8 @@
 import path from 'node:path';
-import { runWithQueue } from '../../../../shared/concurrency.js';
+import {
+  runWithQueue,
+  createOrderedCompletionTracker as createSharedOrderedCompletionTracker
+} from '../../../../shared/concurrency.js';
 import { getEnvConfig } from '../../../../shared/env.js';
 import { fileExt, toPosix } from '../../../../shared/files.js';
 import { countLinesForEntries } from '../../../../shared/file-stats.js';
@@ -51,6 +54,14 @@ import {
   resolvePostingsQueueConfig,
   resolveTreeSitterPlannerEntries
 } from './process-files/planner.js';
+import {
+  buildWatchdogNearThresholdSummary as buildWatchdogNearThresholdSummaryShared,
+  createDurationHistogram as createDurationHistogramShared,
+  isNearThresholdSlowFileDuration as isNearThresholdSlowFileDurationShared,
+  resolveFileLifecycleDurations as resolveFileLifecycleDurationsShared,
+  resolveStageTimingSizeBin as resolveStageTimingSizeBinShared,
+  shouldTriggerSlowFileWarning as shouldTriggerSlowFileWarningShared
+} from './process-files/watchdog.js';
 import { SCHEDULER_QUEUE_NAMES } from '../../runtime/scheduler.js';
 import { INDEX_PROFILE_VECTOR_ONLY } from '../../../../contracts/index-profile.js';
 import { prepareScmFileMetaSnapshot } from '../../../scm/file-meta-snapshot.js';
@@ -80,14 +91,6 @@ const FILE_STALL_SOFT_KICK_MIN_MS = 1000;
 const FILE_STALL_SOFT_KICK_COOLDOWN_DEFAULT_MS = 30 * 1000;
 const FILE_STALL_SOFT_KICK_MAX_ATTEMPTS_DEFAULT = 2;
 const STAGE_TIMING_SCHEMA_VERSION = 1;
-const STAGE_TIMING_SIZE_BINS = Object.freeze([
-  Object.freeze({ id: '0-16kb', maxBytes: 16 * 1024 }),
-  Object.freeze({ id: '16-64kb', maxBytes: 64 * 1024 }),
-  Object.freeze({ id: '64-256kb', maxBytes: 256 * 1024 }),
-  Object.freeze({ id: '256kb-1mb', maxBytes: 1024 * 1024 }),
-  Object.freeze({ id: '1mb-4mb', maxBytes: 4 * 1024 * 1024 }),
-  Object.freeze({ id: '4mb+', maxBytes: Number.POSITIVE_INFINITY })
-]);
 const FILE_QUEUE_DELAY_HISTOGRAM_BUCKETS_MS = Object.freeze([50, 100, 250, 500, 1000, 2000, 5000, 10000, 30000, 60000]);
 
 /**
@@ -136,223 +139,12 @@ const toIsoTimestamp = (value) => {
   return Number.isFinite(parsed) && parsed > 0 ? new Date(parsed).toISOString() : null;
 };
 
-/**
- * Classify file size into stable stage-timing telemetry bins.
- *
- * @param {number} bytes
- * @returns {string}
- */
-export const resolveStageTimingSizeBin = (bytes) => {
-  const safeBytes = coerceNonNegativeInt(bytes) ?? 0;
-  for (const bin of STAGE_TIMING_SIZE_BINS) {
-    if (safeBytes <= bin.maxBytes) return bin.id;
-  }
-  return STAGE_TIMING_SIZE_BINS[STAGE_TIMING_SIZE_BINS.length - 1].id;
-};
-
-/**
- * Create histogram collector for duration samples.
- *
- * @param {number[]} [bucketsMs]
- * @returns {{observe:(value:number)=>void,snapshot:()=>{bucketsMs:number[],counts:number[],overflow:number}}}
- */
-export const createDurationHistogram = (bucketsMs = FILE_QUEUE_DELAY_HISTOGRAM_BUCKETS_MS) => {
-  const normalizedBuckets = Array.from(
-    new Set(
-      (Array.isArray(bucketsMs) ? bucketsMs : [])
-        .map((value) => coerceNonNegativeInt(value))
-        .filter((value) => value != null && value >= 0)
-    )
-  ).sort((a, b) => a - b);
-  const bucketList = normalizedBuckets.length
-    ? normalizedBuckets
-    : FILE_QUEUE_DELAY_HISTOGRAM_BUCKETS_MS.slice();
-  const counts = new Array(bucketList.length).fill(0);
-  let overflow = 0;
-  return {
-    observe(value) {
-      const durationMs = clampDurationMs(value);
-      let matched = false;
-      for (let i = 0; i < bucketList.length; i += 1) {
-        if (durationMs <= bucketList[i]) {
-          counts[i] += 1;
-          matched = true;
-          break;
-        }
-      }
-      if (!matched) overflow += 1;
-    },
-    snapshot() {
-      return {
-        bucketsMs: bucketList.slice(),
-        counts: counts.slice(),
-        overflow
-      };
-    }
-  };
-};
-
-/**
- * Resolve queue/active/write/total durations from lifecycle timestamps.
- *
- * @param {object} [lifecycle]
- * @returns {{
- *   queueDelayMs:number,
- *   activeDurationMs:number,
- *   scmProcQueueWaitMs:number,
- *   activeProcessingDurationMs:number,
- *   writeDurationMs:number,
- *   totalDurationMs:number
- * }}
- */
-export const resolveFileLifecycleDurations = (lifecycle = {}) => {
-  const enqueuedAtMs = Number(lifecycle?.enqueuedAtMs);
-  const dequeuedAtMs = Number(lifecycle?.dequeuedAtMs);
-  const parseStartAtMs = Number(lifecycle?.parseStartAtMs);
-  const parseEndAtMs = Number(lifecycle?.parseEndAtMs);
-  const writeStartAtMs = Number(lifecycle?.writeStartAtMs);
-  const writeEndAtMs = Number(lifecycle?.writeEndAtMs);
-  const scmProcQueueWaitMs = clampDurationMs(lifecycle?.scmProcQueueWaitMs);
-  const queueDelayMs = Number.isFinite(enqueuedAtMs) && Number.isFinite(dequeuedAtMs)
-    ? Math.max(0, dequeuedAtMs - enqueuedAtMs)
-    : 0;
-  const activeDurationMs = Number.isFinite(parseStartAtMs) && Number.isFinite(parseEndAtMs)
-    ? Math.max(0, parseEndAtMs - parseStartAtMs)
-    : 0;
-  const activeProcessingDurationMs = Math.max(0, activeDurationMs - scmProcQueueWaitMs);
-  const writeDurationMs = Number.isFinite(writeStartAtMs) && Number.isFinite(writeEndAtMs)
-    ? Math.max(0, writeEndAtMs - writeStartAtMs)
-    : 0;
-  const totalDurationMs = Number.isFinite(enqueuedAtMs) && Number.isFinite(writeEndAtMs)
-    ? Math.max(0, writeEndAtMs - enqueuedAtMs)
-    : (queueDelayMs + activeDurationMs + writeDurationMs);
-  return {
-    queueDelayMs,
-    activeDurationMs,
-    scmProcQueueWaitMs,
-    activeProcessingDurationMs,
-    writeDurationMs,
-    totalDurationMs
-  };
-};
-
-/**
- * Determine whether active processing time crossed slow-file warning threshold.
- *
- * @param {{activeDurationMs:number,thresholdMs:number}} input
- * @returns {boolean}
- */
-/**
- * Decide whether a file should be flagged as slow for watchdog telemetry.
- *
- * @param {{activeDurationMs:number,thresholdMs:number}} input
- * @returns {boolean}
- */
-export const shouldTriggerSlowFileWarning = ({ activeDurationMs, thresholdMs }) => {
-  const threshold = Number(thresholdMs);
-  if (!Number.isFinite(threshold) || threshold <= 0) return false;
-  const effectiveDurationMs = resolveEffectiveSlowFileDurationMs({
-    activeDurationMs,
-    scmProcQueueWaitMs
-  });
-  return effectiveDurationMs >= threshold;
-};
-
-/**
- * Detect durations that are close to, but still below, the slow-file threshold.
- *
- * @param {{
- *   activeDurationMs:number,
- *   thresholdMs:number,
- *   lowerFraction?:number,
- *   upperFraction?:number
- * }} [input]
- * @returns {boolean}
- */
-export const isNearThresholdSlowFileDuration = ({
-  activeDurationMs,
-  thresholdMs,
-  lowerFraction = FILE_WATCHDOG_NEAR_THRESHOLD_LOWER_FRACTION,
-  upperFraction = FILE_WATCHDOG_NEAR_THRESHOLD_UPPER_FRACTION
-} = {}) => {
-  const threshold = Number(thresholdMs);
-  if (!Number.isFinite(threshold) || threshold <= 0) return false;
-  const clampedLower = coerceClampedFractionOrDefault(lowerFraction, FILE_WATCHDOG_NEAR_THRESHOLD_LOWER_FRACTION, {
-    min: 0,
-    max: 1,
-    allowZero: false
-  });
-  const clampedUpper = coerceClampedFractionOrDefault(upperFraction, FILE_WATCHDOG_NEAR_THRESHOLD_UPPER_FRACTION, {
-    min: 0,
-    max: 1,
-    allowZero: false
-  });
-  const normalizedUpper = Math.max(clampedLower, clampedUpper);
-  const durationMs = clampDurationMs(activeDurationMs);
-  const lowerBoundMs = threshold * clampedLower;
-  const upperBoundMs = threshold * normalizedUpper;
-  return durationMs >= lowerBoundMs && durationMs < upperBoundMs;
-};
-
-/**
- * Build near-threshold watchdog summary and optional tuning suggestion.
- *
- * @param {object} [input]
- * @returns {object}
- */
-export const buildWatchdogNearThresholdSummary = ({
-  sampleCount = 0,
-  nearThresholdCount = 0,
-  slowWarningCount = 0,
-  thresholdTotalMs = 0,
-  activeTotalMs = 0,
-  lowerFraction = FILE_WATCHDOG_NEAR_THRESHOLD_LOWER_FRACTION,
-  upperFraction = FILE_WATCHDOG_NEAR_THRESHOLD_UPPER_FRACTION,
-  alertFraction = FILE_WATCHDOG_NEAR_THRESHOLD_ALERT_FRACTION,
-  minSamples = FILE_WATCHDOG_NEAR_THRESHOLD_MIN_SAMPLES,
-  slowFileMs = FILE_WATCHDOG_DEFAULT_MS
-} = {}) => {
-  const safeSampleCount = Math.max(0, Math.floor(Number(sampleCount) || 0));
-  const safeNearThresholdCount = Math.max(0, Math.floor(Number(nearThresholdCount) || 0));
-  const safeSlowWarningCount = Math.max(0, Math.floor(Number(slowWarningCount) || 0));
-  const nearThresholdRatio = safeSampleCount > 0
-    ? Math.min(1, safeNearThresholdCount / safeSampleCount)
-    : 0;
-  const clampedAlertFraction = coerceClampedFractionOrDefault(
-    alertFraction,
-    FILE_WATCHDOG_NEAR_THRESHOLD_ALERT_FRACTION,
-    { min: 0, max: 1, allowZero: false }
-  );
-  const safeMinSamples = Math.max(1, Math.floor(Number(minSamples) || FILE_WATCHDOG_NEAR_THRESHOLD_MIN_SAMPLES));
-  const anomaly = safeSampleCount >= safeMinSamples
-    && nearThresholdRatio >= clampedAlertFraction;
-  const safeSlowFileMs = Math.max(1, Math.floor(Number(slowFileMs) || FILE_WATCHDOG_DEFAULT_MS));
-  const suggestedSlowFileMs = anomaly
-    ? Math.max(safeSlowFileMs + 1, Math.ceil(safeSlowFileMs * 1.25))
-    : null;
-  return {
-    sampleCount: safeSampleCount,
-    nearThresholdCount: safeNearThresholdCount,
-    slowWarningCount: safeSlowWarningCount,
-    nearThresholdRatio,
-    avgThresholdMs: safeSampleCount > 0 ? clampDurationMs(thresholdTotalMs) / safeSampleCount : 0,
-    avgActiveMs: safeSampleCount > 0 ? clampDurationMs(activeTotalMs) / safeSampleCount : 0,
-    lowerFraction: coerceClampedFractionOrDefault(lowerFraction, FILE_WATCHDOG_NEAR_THRESHOLD_LOWER_FRACTION, {
-      min: 0,
-      max: 1,
-      allowZero: false
-    }),
-    upperFraction: coerceClampedFractionOrDefault(upperFraction, FILE_WATCHDOG_NEAR_THRESHOLD_UPPER_FRACTION, {
-      min: 0,
-      max: 1,
-      allowZero: false
-    }),
-    alertFraction: clampedAlertFraction,
-    minSamples: safeMinSamples,
-    anomaly,
-    suggestedSlowFileMs
-  };
-};
+export const resolveStageTimingSizeBin = resolveStageTimingSizeBinShared;
+export const createDurationHistogram = createDurationHistogramShared;
+export const resolveFileLifecycleDurations = resolveFileLifecycleDurationsShared;
+export const shouldTriggerSlowFileWarning = shouldTriggerSlowFileWarningShared;
+export const isNearThresholdSlowFileDuration = isNearThresholdSlowFileDurationShared;
+export const buildWatchdogNearThresholdSummary = buildWatchdogNearThresholdSummaryShared;
 
 /**
  * Resolve chunk-processing feature gates from runtime profile.
@@ -377,113 +169,11 @@ export const resolveChunkProcessingFeatureFlags = (runtime) => {
 };
 
 /**
- * Track ordered-appender completion promises and rethrow the first flush failure.
+ * Shared ordered-completion tracker used by stage1 ordered appender plumbing.
  *
- * `runWithQueue` may await throttling hooks (capacity) instead of each append completion.
- * This tracker keeps failures from `orderedAppender.enqueue()` observable even when callers
- * are only awaiting backpressure gates.
- *
- * @returns {{
- *   track:(completion:Promise<unknown>|unknown,onSettled?:(()=>void)|null)=>Promise<unknown>|unknown,
- *   throwIfFailed:()=>void,
- *   wait:(options?:{stallPollMs?:number,onStall?:(state:{pending:number,failed:boolean,stallCount:number})=>Promise<void>|void})=>Promise<void>,
- *   snapshot:()=>{pending:number,failed:boolean}
- * }}
+ * @type {import('../../../../shared/concurrency/ordered-completion.js').createOrderedCompletionTracker}
  */
-export const createOrderedCompletionTracker = () => {
-  const pending = new Set();
-  let firstError = null;
-
-  /**
-   * Track a completion promise and remember first rejection.
-   *
-   * @param {Promise<unknown>|unknown} completion
-   * @param {(() => void)|null} [onSettled]
-   * @returns {Promise<unknown>|unknown}
-   */
-  const track = (completion, onSettled = null) => {
-    if (!completion || typeof completion.then !== 'function') return completion;
-    pending.add(completion);
-    const settle = completion
-      .catch((err) => {
-        if (!firstError) firstError = err;
-      })
-      .finally(() => {
-        pending.delete(completion);
-        if (typeof onSettled === 'function') onSettled();
-      });
-    void settle.catch(() => {});
-    return completion;
-  };
-
-  /**
-   * Throw first observed completion failure, if any.
-   *
-   * @returns {void}
-   */
-  const throwIfFailed = () => {
-    if (firstError) throw firstError;
-  };
-
-  /**
-   * Wait for all tracked completions and propagate first failure.
-   *
-   * @returns {Promise<void>}
-   */
-  const wait = async () => {
-    while (pending.size > 0) {
-      if (!pendingDrainPromise || pendingDrainSize !== pending.size) {
-        pendingDrainSize = pending.size;
-        pendingDrainPromise = Promise.allSettled(Array.from(pending));
-      }
-      if (!(stallPollMs > 0 && onStall)) {
-        await pendingDrainPromise;
-        pendingDrainPromise = null;
-        continue;
-      }
-      const settled = await new Promise((resolve) => {
-        let done = false;
-        const timer = setTimeout(() => {
-          if (done) return;
-          done = true;
-          resolve(false);
-        }, stallPollMs);
-        pendingDrainPromise.then(() => {
-          if (done) return;
-          done = true;
-          clearTimeout(timer);
-          resolve(true);
-        });
-      });
-      if (settled) {
-        pendingDrainPromise = null;
-        stallCount = 0;
-        continue;
-      }
-      if (pending.size > 0) {
-        stallCount += 1;
-        await onStall({
-          pending: pending.size,
-          failed: Boolean(firstError),
-          stallCount
-        });
-      }
-    }
-    throwIfFailed();
-  };
-
-  /**
-   * Snapshot current completion tracker state.
-   *
-   * @returns {{pending:number,failed:boolean}}
-   */
-  const snapshot = () => ({
-    pending: pending.size,
-    failed: Boolean(firstError)
-  });
-
-  return { track, throwIfFailed, wait, snapshot };
-};
+export const createOrderedCompletionTracker = createSharedOrderedCompletionTracker;
 
 /**
  * Resolve per-file watchdog thresholds for stage1 processing.
@@ -3235,10 +2925,20 @@ export const processFiles = async ({
                   const entry = orderedBatchEntries[entryIndex];
                   const orderIndex = resolveEntryOrderIndex(entry, entryIndex);
                   const dispatchBypassWindow = Math.max(1, Math.floor(runtimeRef.fileConcurrency || 1));
-                  await orderedAppender.waitForCapacity({
-                    orderIndex,
-                    bypassWindow: dispatchBypassWindow
-                  });
+                  const nextOrderedIndex = typeof orderedAppender.peekNextIndex === 'function'
+                    ? orderedAppender.peekNextIndex()
+                    : null;
+                  const withinBypassWindow = Number.isFinite(orderIndex)
+                    && Number.isFinite(nextOrderedIndex)
+                    && orderIndex <= (nextOrderedIndex + dispatchBypassWindow);
+                  const shouldProbeCapacity = entryIndex === 0
+                    || (entryIndex % dispatchBypassWindow) === 0;
+                  if (!withinBypassWindow && shouldProbeCapacity) {
+                    await orderedAppender.waitForCapacity({
+                      orderIndex,
+                      bypassWindow: dispatchBypassWindow
+                    });
+                  }
                 }
                 orderedCompletionTracker.throwIfFailed();
               },

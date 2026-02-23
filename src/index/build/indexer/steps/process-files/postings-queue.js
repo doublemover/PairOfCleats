@@ -30,17 +30,7 @@ const resolvePayloadBytes = (result) => {
   const measureJsonValueBytes = (value) => {
     if (value == null) return 0;
     try {
-      if (Array.isArray(value)) {
-        let total = 2;
-        for (let i = 0; i < value.length; i += 1) {
-          const encoded = JSON.stringify(value[i]);
-          total += Buffer.byteLength(encoded, 'utf8');
-          if (i > 0) total += 1;
-        }
-        return total;
-      }
-      const encoded = JSON.stringify(value);
-      return Buffer.byteLength(encoded, 'utf8');
+      return Buffer.byteLength(JSON.stringify(value), 'utf8');
     } catch {
       return 0;
     }
@@ -49,7 +39,7 @@ const resolvePayloadBytes = (result) => {
   let total = chunks ? measureJsonValueBytes(chunks) : 0;
   if (result.fileRelations) total += measureJsonValueBytes(result.fileRelations);
   if (result.vfsManifestRows) total += measureJsonValueBytes(result.vfsManifestRows);
-  return total;
+  return Math.max(0, Math.floor(total));
 };
 
 /**

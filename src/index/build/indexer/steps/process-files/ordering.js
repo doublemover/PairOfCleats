@@ -21,19 +21,23 @@ export const sortEntriesByOrderIndex = (entries) => {
   if (!Array.isArray(entries) || entries.length <= 1) {
     return Array.isArray(entries) ? entries : [];
   }
-  return [...entries]
-    .map((entry, index) => ({
-      entry,
-      index,
-      orderIndex: resolveEntryOrderIndex(entry, index)
-    }))
-    .sort((a, b) => {
-      const aOrder = Number.isFinite(a.orderIndex) ? a.orderIndex : Number.MAX_SAFE_INTEGER;
-      const bOrder = Number.isFinite(b.orderIndex) ? b.orderIndex : Number.MAX_SAFE_INTEGER;
-      if (aOrder !== bOrder) return aOrder - bOrder;
-      return a.index - b.index;
-    })
-    .map((item) => item.entry);
+  const orderByIndex = new Array(entries.length);
+  const indices = new Array(entries.length);
+  for (let i = 0; i < entries.length; i += 1) {
+    indices[i] = i;
+    orderByIndex[i] = resolveEntryOrderIndex(entries[i], i);
+  }
+  indices.sort((a, b) => {
+    const aOrder = Number.isFinite(orderByIndex[a]) ? orderByIndex[a] : Number.MAX_SAFE_INTEGER;
+    const bOrder = Number.isFinite(orderByIndex[b]) ? orderByIndex[b] : Number.MAX_SAFE_INTEGER;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    return a - b;
+  });
+  const sorted = new Array(entries.length);
+  for (let i = 0; i < indices.length; i += 1) {
+    sorted[i] = entries[indices[i]];
+  }
+  return sorted;
 };
 
 /**
