@@ -190,12 +190,15 @@ if (!sources.length) {
 }
 
 const results = [];
+const failures = [];
 for (const source of sources) {
   try {
     const result = await downloadSource(source);
     results.push(result);
   } catch (err) {
-    console.error(String(err));
+    const message = err?.message || String(err);
+    failures.push({ name: source?.name || '(unknown)', message });
+    console.error(`[download-dicts] ${source?.name || '(unknown)'}: ${message}`);
   }
 }
 
@@ -203,4 +206,7 @@ await writeJsonFile(manifestPath, manifest, { trailingNewline: true });
 
 const downloaded = results.filter((r) => !r.skipped).length;
 const skipped = results.filter((r) => r.skipped).length;
-console.error(`Done. downloaded=${downloaded} skipped=${skipped}`);
+console.error(`Done. downloaded=${downloaded} skipped=${skipped} failed=${failures.length}`);
+if (failures.length > 0) {
+  process.exit(1);
+}

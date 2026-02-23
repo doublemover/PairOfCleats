@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { runSqliteBuild } from '../../../helpers/sqlite-builder.js';
 import { SCHEMA_VERSION } from '../../../../src/storage/sqlite/schema.js';
 import { resolveVersionedCacheRoot } from '../../../../src/shared/cache-roots.js';
+import { hasChunkMetaArtifactsSync } from '../../../../src/shared/index-artifact-helpers.js';
 import { getRepoId } from '../../../../tools/shared/dict-utils.js';
 
 import { applyTestEnv } from '../../../helpers/test-env.js';
@@ -40,13 +41,7 @@ const modelSlug = (value) => {
 const hasIndexModeArtifacts = (buildRoot, mode) => {
   const modeRoot = path.join(buildRoot, `index-${mode}`);
   if (!fs.existsSync(modeRoot)) return false;
-  const chunkMetaCandidates = [
-    path.join(modeRoot, 'chunk_meta.json'),
-    path.join(modeRoot, 'chunk_meta.jsonl'),
-    path.join(modeRoot, 'chunk_meta.meta.json'),
-    path.join(modeRoot, 'pieces', 'manifest.json')
-  ];
-  return chunkMetaCandidates.some((candidate) => fs.existsSync(candidate));
+  return hasChunkMetaArtifactsSync(modeRoot);
 };
 
 const resolveBuildRoot = (cacheRoot) => {

@@ -1,6 +1,6 @@
 # DUPEMAP
 
-Generated: 2026-02-22T22:40:00.000Z (working draft; actively updated during sweep)
+Generated: 2026-02-23T00:30:00.000Z (working draft; actively updated during sweep)
 
 ## Method
 
@@ -18,7 +18,7 @@ Generated: 2026-02-22T22:40:00.000Z (working draft; actively updated during swee
 - `tools`: `295`
 - Additional covered surfaces: `bin`, `extensions`, `sublime`, root scripts/config.
 
-## Implementation Matrix (2026-02-22T22:40:00.000Z)
+## Implementation Matrix (2026-02-23T00:30:00.000Z)
 
 - Totals:
 - `closed`: `70`
@@ -58,6 +58,8 @@ Generated: 2026-02-22T22:40:00.000Z (working draft; actively updated during swee
 - Extract one `resolveFormat(argv)` helper in a shared CLI utility module and import everywhere.
 
 - Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
+- Audit (2026-02-23T00:20:00.000Z): Deep re-audit pass: fixed a regression where resolveFormat defaulted to json instead of md; added resolveFormat contract regression coverage.
 
 ### 2) Duplicated `mergeCaps(baseCaps, overrides)` logic
 
@@ -199,6 +201,8 @@ Generated: 2026-02-22T22:40:00.000Z (working draft; actively updated during swee
 
 - Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): regression found in newer extracted-prose tests; fixture scaffolding and build invocation now flow through shared extracted-prose fixture helpers.
 
+- Audit (2026-02-23T00:20:00.000Z): Deep re-audit pass: migrated extraction-report fixture orchestration onto shared extracted-prose fixture/build helpers to prevent setup drift.
+
 ### 11) Repeated document-extraction state inspection
 
 - Files:
@@ -213,6 +217,8 @@ Generated: 2026-02-22T22:40:00.000Z (working draft; actively updated during swee
 - Add helper(s) returning parsed state + normalized extracted-prose entry per path.
 
 - Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): regression found in newer extracted-prose tests; build-state and artifact reads now flow through shared extracted-prose artifact readers for deterministic inspection.
+
+- Audit (2026-02-23T00:20:00.000Z): Deep re-audit pass: migrated extraction-report artifact/state reads onto shared extracted-prose artifact readers for deterministic state plumbing.
 
 ### 12) Repeated TUI supervisor session wiring in tests
 
@@ -376,6 +382,8 @@ Generated: 2026-02-22T22:40:00.000Z (working draft; actively updated during swee
 
 - Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
+- Audit (2026-02-23T00:20:00.000Z): Deep re-audit pass: hardened download dictionary workflow to exit non-zero when any source fails; added partial-failure exit-code regression test.
+
 ### 23) Repeated manifest JSON read/write boilerplate
 
 - Files:
@@ -417,6 +425,8 @@ Generated: 2026-02-22T22:40:00.000Z (working draft; actively updated during swee
 - Reuse shared `emitJson` from tooling utilities everywhere.
 
 - Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
+- Audit (2026-02-23T00:28:00.000Z): Deep re-audit pass: index-diff CLI flag contract aligned with implementation (--mode alias wired in tools/index-diff and stale --compact acceptance removed from bin validation).
 
 ### 26) Local `emitError` helpers duplicated in index tooling
 
@@ -1029,6 +1039,8 @@ Generated: 2026-02-22T22:40:00.000Z (working draft; actively updated during swee
 - Extract shared `ensureParityIndexes(...)` helper.
 
 - Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
+- Audit (2026-02-23T00:20:00.000Z): Deep re-audit pass: parity artifact detection now accepts compressed chunk meta and parts/manifest-backed layouts; combined-summary and summary fixture detection aligned to shared artifact checks.
 
 ### 69) Mean aggregation helpers duplicated
 

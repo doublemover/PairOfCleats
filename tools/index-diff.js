@@ -132,6 +132,7 @@ export async function runDiffCli(rawArgs = process.argv.slice(2)) {
       .option('repo', { type: 'string' })
       .option('from', { type: 'string', demandOption: true })
       .option('to', { type: 'string', demandOption: true })
+      .option('mode', { type: 'string' })
       .option('modes', { type: 'string' })
       .option('detect-renames', { type: 'boolean' })
       .option('include-relations', { type: 'boolean' })
@@ -161,7 +162,7 @@ export async function runDiffCli(rawArgs = process.argv.slice(2)) {
           userConfig,
           from: argv.from,
           to: argv.to,
-          modes: argv.modes ?? diffDefaults.compute.modes.join(','),
+          modes: argv.modes ?? argv.mode ?? diffDefaults.compute.modes.join(','),
           detectRenames: resolveBooleanArg('detect-renames', diffDefaults.compute.detectRenames),
           includeRelations: resolveBooleanArg('include-relations', diffDefaults.compute.includeRelations),
           allowMismatch: resolveBooleanArg('allow-mismatch', false),
@@ -194,6 +195,7 @@ export async function runDiffCli(rawArgs = process.argv.slice(2)) {
     'List persisted diffs',
     (command) => command
       .option('repo', { type: 'string' })
+      .option('mode', { type: 'string' })
       .option('modes', { type: 'string' })
       .option('json', { type: 'boolean', default: false }),
     async (argv) => {
@@ -202,7 +204,7 @@ export async function runDiffCli(rawArgs = process.argv.slice(2)) {
         const diffs = listDiffs({
           repoRoot,
           userConfig,
-          modes: argv.modes || []
+          modes: argv.modes ?? argv.mode ?? []
         });
         if (argv.json) {
           emitJson({ ok: true, diffs });

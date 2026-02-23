@@ -86,7 +86,6 @@ async function ensureParityIndexes() {
   const state = await ensureParityArtifacts({
     root,
     userConfig,
-    chunkMetaCandidates: ['chunk_meta.json'],
     resolveSqlitePathsForRoot,
     canBuild: buildEnabled,
     buildIndex: () => {

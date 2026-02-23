@@ -27,7 +27,7 @@ if (!command || isHelpCommand(command)) {
 }
 
 if (isVersionCommand(command)) {
-  console.error(readVersion());
+  console.error(getToolVersion() || '0.0.0');
   process.exit(0);
 }
 
@@ -156,8 +156,7 @@ function resolveCommand(primary, rest) {
           'retain-days',
           'wait-ms',
           'dry-run',
-          'json',
-          'compact'
+          'json'
         ],
         [
           'repo',
@@ -884,10 +883,6 @@ function isHelpCommand(value) {
 
 function isVersionCommand(value) {
   return value === 'version' || value === '--version' || value === '-v';
-}
-
-function readVersion() {
-  return getToolVersion() || '0.0.0';
 }
 
 function printHelp() {

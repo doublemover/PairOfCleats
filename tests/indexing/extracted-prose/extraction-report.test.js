@@ -3,23 +3,20 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { getCurrentBuildInfo, getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { validateArtifact } from '../../../src/contracts/validators/artifacts.js';
+import {
+  readExtractedProseArtifacts,
+  runExtractedProseBuild,
+  setupExtractedProseFixture
+} from '../../helpers/extracted-prose-fixture.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 const sha256 = (value) => crypto.createHash('sha256').update(String(value || ''), 'utf8').digest('hex');
 
-const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'phase17-extraction-report');
-const repoRoot = path.join(tempRoot, 'repo');
-const cacheRoot = path.join(tempRoot, 'cache');
+const { root, repoRoot, cacheRoot, docsDir } = await setupExtractedProseFixture('phase17-extraction-report');
 
-await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(path.join(repoRoot, 'docs'), { recursive: true });
-await fs.mkdir(cacheRoot, { recursive: true });
-await fs.writeFile(path.join(repoRoot, 'docs', 'sample.pdf'), Buffer.from('phase17 extraction report pdf', 'utf8'));
-await fs.writeFile(path.join(repoRoot, 'docs', 'sample.docx'), Buffer.from('phase17 extraction report docx', 'utf8'));
+await fs.writeFile(path.join(docsDir, 'sample.pdf'), Buffer.from('phase17 extraction report pdf', 'utf8'));
+await fs.writeFile(path.join(docsDir, 'sample.docx'), Buffer.from('phase17 extraction report docx', 'utf8'));
 for (let i = 1; i <= 6; i += 1) {
   await fs.writeFile(
     path.join(repoRoot, `a-low-yield-${i}.js`),
@@ -54,20 +51,11 @@ const env = applyTestEnv({
   }
 });
 
-const buildResult = spawnSync(
-  process.execPath,
-  [path.join(root, 'build_index.js'), '--repo', repoRoot, '--mode', 'extracted-prose', '--stub-embeddings'],
-  { cwd: repoRoot, env, stdio: 'inherit' }
-);
-assert.equal(buildResult.status, 0, 'expected extracted-prose build to succeed');
+runExtractedProseBuild({ root, repoRoot, env });
 
-const userConfig = loadUserConfig(repoRoot);
-const buildInfo = getCurrentBuildInfo(repoRoot, userConfig, { mode: 'extracted-prose' });
-const indexRoot = buildInfo?.activeRoot || buildInfo?.buildRoot || null;
-assert.ok(indexRoot, 'expected extracted-prose build root');
-
-const indexDir = getIndexDir(repoRoot, 'extracted-prose', userConfig, { indexRoot });
-const report = JSON.parse(await fs.readFile(path.join(indexDir, 'extraction_report.json'), 'utf8'));
+const { state, extractionReport: report } = await readExtractedProseArtifacts(repoRoot);
+assert.ok(state?.indexDir, 'expected extracted-prose index dir');
+assert.ok(report, 'expected extraction_report artifact');
 assert.equal(report?.schemaVersion, 1, 'expected extraction report schemaVersion=1');
 assert.equal(report?.mode, 'extracted-prose', 'expected extraction report mode');
 assert.ok(Array.isArray(report?.files) && report.files.length >= 2, 'expected report file entries');
@@ -110,7 +98,7 @@ for (const file of report.files) {
   assert.equal(file?.extractionIdentityHash, expected, `expected extractionIdentityHash for ${file?.file}`);
 }
 
-const piecesManifest = JSON.parse(await fs.readFile(path.join(indexDir, 'pieces', 'manifest.json'), 'utf8'));
+const piecesManifest = JSON.parse(await fs.readFile(path.join(state.indexDir, 'pieces', 'manifest.json'), 'utf8'));
 const extractionPiece = Array.isArray(piecesManifest?.pieces)
   ? piecesManifest.pieces.find((piece) => piece?.name === 'extraction_report')
   : null;

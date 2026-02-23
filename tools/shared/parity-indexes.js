@@ -1,12 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getIndexDir } from './dict-utils.js';
+import { hasChunkMetaArtifactsSync } from '../../src/shared/index-artifact-helpers.js';
 
 const DEFAULT_PARITY_MODES = Object.freeze(['code', 'prose']);
 export const DEFAULT_PARITY_CHUNK_META_CANDIDATES = Object.freeze([
   'chunk_meta.json',
   'chunk_meta.jsonl',
-  'chunk_meta.meta.json'
+  'chunk_meta.meta.json',
+  'chunk_meta.columnar.json',
+  'chunk_meta.binary-columnar.meta.json'
 ]);
 
 const normalizeList = (values, fallback) => {
@@ -17,12 +20,21 @@ const normalizeList = (values, fallback) => {
   return normalized.length ? normalized : [...fallback];
 };
 
+const resolveExistingArtifactPath = (dir, relPath) => {
+  const base = path.join(dir, relPath);
+  if (fs.existsSync(base)) return base;
+  if (fs.existsSync(`${base}.gz`)) return `${base}.gz`;
+  if (fs.existsSync(`${base}.zst`)) return `${base}.zst`;
+  return null;
+};
+
 const hasChunkMetaArtifact = (dir, chunkMetaCandidates) => {
   if (!dir) return false;
   for (const candidateName of chunkMetaCandidates) {
-    if (fs.existsSync(path.join(dir, candidateName))) return true;
+    if (resolveExistingArtifactPath(dir, candidateName)) return true;
   }
-  return false;
+  if (fs.existsSync(path.join(dir, 'chunk_meta.parts'))) return true;
+  return hasChunkMetaArtifactsSync(dir);
 };
 
 /**
@@ -57,9 +69,13 @@ export function resolveParityChunkMetaPath(indexDir, options = {}) {
     DEFAULT_PARITY_CHUNK_META_CANDIDATES
   );
   for (const candidateName of chunkMetaCandidates) {
-    const candidatePath = path.join(indexDir, candidateName);
-    if (fs.existsSync(candidatePath)) return candidatePath;
+    const existing = resolveExistingArtifactPath(indexDir, candidateName);
+    if (existing) return existing;
   }
+  const partsDir = path.join(indexDir, 'chunk_meta.parts');
+  if (fs.existsSync(partsDir)) return partsDir;
+  const manifestPath = path.join(indexDir, 'pieces', 'manifest.json');
+  if (fs.existsSync(manifestPath)) return manifestPath;
   return path.join(indexDir, chunkMetaCandidates[0] || 'chunk_meta.json');
 }
 

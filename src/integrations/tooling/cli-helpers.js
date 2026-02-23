@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import { normalizeRepoRelativePath } from '../../shared/path-normalize.js';
 
 export const resolveFormat = (argv) => {
-  const formatRaw = argv.format || (argv.json ? 'json' : 'json');
+  const formatRaw = argv.format || (argv.json ? 'json' : 'md');
   const format = String(formatRaw).trim().toLowerCase();
   if (format === 'md' || format === 'markdown') return 'md';
   return 'json';
