@@ -23,20 +23,22 @@ const restoreEnv = () => {
 };
 
 applyTestEnv();
-process.env.PAIROFCLEATS_CACHE_ROOT = path.join(tempRoot, 'cache');
-process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+try {
+  process.env.PAIROFCLEATS_CACHE_ROOT = path.join(tempRoot, 'cache');
+  process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 
-const parsed = parseBuildEmbeddingsArgs([
-  '--repo', tempRoot,
-  '--mode', 'code',
-  '--dims', '384'
-]);
+  const parsed = parseBuildEmbeddingsArgs([
+    '--repo', tempRoot,
+    '--mode', 'code',
+    '--dims', '384'
+  ]);
 
-assert.equal(parsed.useStubEmbeddings, true, 'expected stub embeddings when env requests stub');
-assert.equal(parsed.resolvedEmbeddingMode, 'stub');
-assert.equal(parsed.configuredDims, 384, 'expected dims to parse as number');
-assert.ok(parsed.embeddingBatchSize > 0, 'expected auto batch size to be resolved');
+  assert.equal(parsed.useStubEmbeddings, true, 'expected stub embeddings when env requests stub');
+  assert.equal(parsed.resolvedEmbeddingMode, 'stub');
+  assert.equal(parsed.configuredDims, 384, 'expected dims to parse as number');
+  assert.ok(parsed.embeddingBatchSize > 0, 'expected auto batch size to be resolved');
 
-restoreEnv();
-
-console.log('build-embeddings runtime defaults test passed');
+  console.log('build-embeddings runtime defaults test passed');
+} finally {
+  restoreEnv();
+}

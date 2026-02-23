@@ -24,29 +24,31 @@ const restoreEnv = () => {
 };
 
 applyTestEnv();
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+try {
+  process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 
-const parsed = parseBuildEmbeddingsArgs([
-  '--repo', tempRoot,
-  '--mode', 'both',
-  '--index-root', path.join(tempRoot, 'index'),
-  '--stub-embeddings',
-  '--batch', '16'
-]);
+  const parsed = parseBuildEmbeddingsArgs([
+    '--repo', tempRoot,
+    '--mode', 'both',
+    '--index-root', path.join(tempRoot, 'index'),
+    '--stub-embeddings',
+    '--batch', '16'
+  ]);
 
-assert.deepEqual(
-  parsed.modes,
-  ['code', 'prose', 'extracted-prose', 'records'],
-  'expected both/all mode to expand to all modes'
-);
-assert.equal(
-  parsed.indexRoot,
-  path.resolve(path.join(tempRoot, 'index')),
-  'expected index-root to resolve to absolute path'
-);
-assert.equal(parsed.useStubEmbeddings, true, 'expected stub embeddings to be enabled');
-assert.equal(parsed.embeddingBatchSize, 16, 'expected batch size to respect cli value');
+  assert.deepEqual(
+    parsed.modes,
+    ['code', 'prose', 'extracted-prose', 'records'],
+    'expected both/all mode to expand to all modes'
+  );
+  assert.equal(
+    parsed.indexRoot,
+    path.resolve(path.join(tempRoot, 'index')),
+    'expected index-root to resolve to absolute path'
+  );
+  assert.equal(parsed.useStubEmbeddings, true, 'expected stub embeddings to be enabled');
+  assert.equal(parsed.embeddingBatchSize, 16, 'expected batch size to respect cli value');
 
-restoreEnv();
-
-console.log('build-embeddings args parsing test passed');
+  console.log('build-embeddings args parsing test passed');
+} finally {
+  restoreEnv();
+}

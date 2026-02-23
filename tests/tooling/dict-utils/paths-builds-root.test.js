@@ -24,20 +24,22 @@ const restoreEnv = () => {
 };
 
 applyTestEnv();
-process.env.PAIROFCLEATS_CACHE_ROOT = path.join(tempRoot, 'cache');
+try {
+  process.env.PAIROFCLEATS_CACHE_ROOT = path.join(tempRoot, 'cache');
 
-const repoRoot = path.join(tempRoot, 'repo');
-await fs.mkdir(repoRoot, { recursive: true });
+  const repoRoot = path.join(tempRoot, 'repo');
+  await fs.mkdir(repoRoot, { recursive: true });
 
-const expected = path.join(
-  resolveVersionedCacheRoot(process.env.PAIROFCLEATS_CACHE_ROOT),
-  'repos',
-  getRepoId(repoRoot),
-  'builds'
-);
+  const expected = path.join(
+    resolveVersionedCacheRoot(process.env.PAIROFCLEATS_CACHE_ROOT),
+    'repos',
+    getRepoId(repoRoot),
+    'builds'
+  );
 
-assert.equal(getBuildsRoot(repoRoot), expected);
+  assert.equal(getBuildsRoot(repoRoot), expected);
 
-restoreEnv();
-
-console.log('dict-utils builds root test passed');
+  console.log('dict-utils builds root test passed');
+} finally {
+  restoreEnv();
+}
