@@ -11,10 +11,11 @@ import { runLoggedSubprocess } from '../subprocess-log.js';
 /**
  * Build the default run result shape used when execution fails unexpectedly.
  *
- * @returns {{exitCode:number,executionMode:'subprocess',daemon:null}}
+ * @returns {{exitCode:number,signal:null,executionMode:'subprocess',daemon:null}}
  */
 const buildDefaultRunResult = () => ({
   exitCode: 1,
+  signal: null,
   executionMode: 'subprocess',
   daemon: null
 });
@@ -33,8 +34,8 @@ const buildDefaultRunResult = () => ({
  *   completeNonRetriableFailure:(job:{id:string},error:string)=>Promise<void>
  * }} input
  * @returns {{
- *   buildDefaultRunResult:()=>{exitCode:number,executionMode:'subprocess',daemon:null},
- *   executeClaimedJob:(input:{job:object,jobLifecycle:object,logPath:string})=>Promise<{handled:boolean,runResult?:{exitCode:number,executionMode:string,daemon:object|null}}>
+ *   buildDefaultRunResult:()=>{exitCode:number,signal:null,executionMode:'subprocess',daemon:null},
+ *   executeClaimedJob:(input:{job:object,jobLifecycle:object,logPath:string})=>Promise<{handled:boolean,runResult?:{exitCode:number,signal:string|null,executionMode:string,daemon:object|null}}>
  * }}
  */
 export const createJobExecutor = ({
@@ -53,7 +54,7 @@ export const createJobExecutor = ({
    * @param {string[]} args
    * @param {Record<string, string>} [extraEnv={}]
    * @param {string|null} [logPath=null]
-   * @returns {Promise<number>}
+   * @returns {Promise<{exitCode:number,signal:string|null}>}
    */
   const spawnWithLog = async (args, extraEnv = {}, logPath = null) => {
     const result = await runLoggedSubprocess({
@@ -71,8 +72,15 @@ export const createJobExecutor = ({
         ? `timed out after ${result.durationMs ?? 'unknown'}ms`
         : result.errorMessage;
       console.error(`[indexer] subprocess failed: ${reason}`);
+    } else if (typeof result.signal === 'string' && result.signal.trim().length > 0) {
+      console.error(`[indexer] subprocess terminated via signal ${result.signal}.`);
     }
-    return Number.isFinite(result.exitCode) ? result.exitCode : 1;
+    return {
+      exitCode: Number.isFinite(result.exitCode) ? result.exitCode : 1,
+      signal: typeof result.signal === 'string' && result.signal.trim().length > 0
+        ? result.signal.trim()
+        : null
+    };
   };
 
   /**
@@ -84,7 +92,7 @@ export const createJobExecutor = ({
    * @param {string|null} stage
    * @param {string[]|null} [extraArgs]
    * @param {string|null} [logPath]
-   * @returns {Promise<number>}
+   * @returns {Promise<{exitCode:number,signal:string|null}>}
    */
   const runBuildIndexSubprocess = (repoPath, mode, stage, extraArgs = null, logPath = null) => {
     const buildPath = path.join(toolRoot, 'build_index.js');
@@ -196,7 +204,7 @@ export const createJobExecutor = ({
    * @param {string[]|null} [extraArgs]
    * @param {string|null} [logPath]
    * @param {object} [daemonOptions]
-   * @returns {Promise<{exitCode:number,executionMode:'daemon',daemon:object}>}
+   * @returns {Promise<{exitCode:number,signal:null,executionMode:'daemon',daemon:object}>}
    */
   const runBuildIndexDaemon = async (
     repoPath,
@@ -237,6 +245,7 @@ export const createJobExecutor = ({
       await appendDaemonLogLine(logPath, `[daemon] completed durationMs=${durationMs}`);
       return {
         exitCode: 0,
+        signal: null,
         executionMode: 'daemon',
         daemon: {
           sessionKey: daemonSessionKey,
@@ -251,6 +260,7 @@ export const createJobExecutor = ({
       console.error(`[indexer] daemon build failed: ${message}`);
       return {
         exitCode: 1,
+        signal: null,
         executionMode: 'daemon',
         daemon: {
           sessionKey: daemonSessionKey,
@@ -270,7 +280,7 @@ export const createJobExecutor = ({
    * @param {string} indexRoot
    * @param {Record<string, string>} [extraEnv={}]
    * @param {string|null} [logPath=null]
-   * @returns {Promise<number>}
+   * @returns {Promise<{exitCode:number,signal:string|null}>}
    */
   const runBuildEmbeddings = (repoPath, mode, indexRoot, extraEnv = {}, logPath = null) => {
     const buildPath = path.join(toolRoot, 'tools', 'build', 'embeddings.js');
@@ -283,7 +293,7 @@ export const createJobExecutor = ({
    * Execute one embeddings queue job.
    *
    * @param {{job:object,jobLifecycle:object,logPath:string}} input
-   * @returns {Promise<{handled:boolean,runResult?:{exitCode:number,executionMode:string,daemon:object|null}}>}
+   * @returns {Promise<{handled:boolean,runResult?:{exitCode:number,signal:string|null,executionMode:string,daemon:object|null}}>}
    */
   const executeEmbeddingJob = async ({ job, jobLifecycle, logPath }) => {
     const normalized = normalizeEmbeddingJob(job);
@@ -307,7 +317,7 @@ export const createJobExecutor = ({
         console.error(`[indexer] embedding job ${job.id} indexDir not under buildRoot; continuing with buildRoot only.`);
       }
     }
-    const exitCode = await jobLifecycle.registerPromise(
+    const subprocessResult = await jobLifecycle.registerPromise(
       runBuildEmbeddings(
         normalized.repoRoot || job.repo,
         job.mode,
@@ -320,7 +330,8 @@ export const createJobExecutor = ({
     return {
       handled: false,
       runResult: {
-        exitCode,
+        exitCode: subprocessResult.exitCode,
+        signal: subprocessResult.signal,
         executionMode: 'subprocess',
         daemon: null
       }
@@ -331,7 +342,7 @@ export const createJobExecutor = ({
    * Execute one index queue job in daemon/subprocess mode.
    *
    * @param {{job:object,jobLifecycle:object,logPath:string}} input
-   * @returns {Promise<{handled:boolean,runResult:{exitCode:number,executionMode:string,daemon:object|null}}>}
+   * @returns {Promise<{handled:boolean,runResult:{exitCode:number,signal:string|null,executionMode:string,daemon:object|null}}>}
    */
   const executeIndexJob = async ({ job, jobLifecycle, logPath }) => {
     if (serviceExecutionMode === 'daemon') {
@@ -353,14 +364,15 @@ export const createJobExecutor = ({
       );
       return { handled: false, runResult };
     }
-    const exitCode = await jobLifecycle.registerPromise(
+    const subprocessResult = await jobLifecycle.registerPromise(
       runBuildIndexSubprocess(job.repo, job.mode, job.stage, job.args, logPath),
       { label: 'indexer-service-run-index-subprocess' }
     );
     return {
       handled: false,
       runResult: {
-        exitCode,
+        exitCode: subprocessResult.exitCode,
+        signal: subprocessResult.signal,
         executionMode: 'subprocess',
         daemon: null
       }
@@ -371,7 +383,7 @@ export const createJobExecutor = ({
    * Route a claimed job to the appropriate executor.
    *
    * @param {{job:object,jobLifecycle:object,logPath:string}} input
-   * @returns {Promise<{handled:boolean,runResult?:{exitCode:number,executionMode:string,daemon:object|null}}>}
+   * @returns {Promise<{handled:boolean,runResult?:{exitCode:number,signal:string|null,executionMode:string,daemon:object|null}}>}
    */
   const executeClaimedJob = ({ job, jobLifecycle, logPath }) => (isEmbeddingsQueue
     ? executeEmbeddingJob({ job, jobLifecycle, logPath })

@@ -1,20 +1,24 @@
 /**
  * Normalize run result shape for queue completion/retry transitions.
  *
- * @param {{exitCode?:number,executionMode?:string,daemon?:object|null}|null|undefined} runResult
- * @returns {{exitCode:number,executionMode:'daemon'|'subprocess',daemon:object|null,status:'done'|'failed'}}
+ * @param {{exitCode?:number,signal?:string|null,executionMode?:string,daemon?:object|null}|null|undefined} runResult
+ * @returns {{exitCode:number,signal:string|null,executionMode:'daemon'|'subprocess',daemon:object|null,status:'done'|'failed'}}
  */
 const normalizeRunResult = (runResult) => {
   const exitCode = Number.isFinite(runResult?.exitCode) ? runResult.exitCode : 1;
+  const signal = typeof runResult?.signal === 'string' && runResult.signal.trim().length > 0
+    ? runResult.signal.trim()
+    : null;
   const executionMode = runResult?.executionMode === 'daemon' ? 'daemon' : 'subprocess';
   const daemon = runResult?.daemon && typeof runResult.daemon === 'object'
     ? runResult.daemon
     : null;
   return {
     exitCode,
+    signal,
     executionMode,
     daemon,
-    status: exitCode === 0 ? 'done' : 'failed'
+    status: exitCode === 0 && !signal ? 'done' : 'failed'
   };
 };
 
@@ -30,7 +34,7 @@ const normalizeRunResult = (runResult) => {
  * @returns {{
  *   completeNonRetriableFailure:(job:{id:string},error:string)=>Promise<void>,
  *   finalizeJobRun:(input:{job:object,runResult:object,metrics:{processed:number,succeeded:number,failed:number,retried:number}})=>Promise<void>,
- *   normalizeRunResult:(runResult:object|null|undefined)=>{exitCode:number,executionMode:'daemon'|'subprocess',daemon:object|null,status:'done'|'failed'}
+ *   normalizeRunResult:(runResult:object|null|undefined)=>{exitCode:number,signal:string|null,executionMode:'daemon'|'subprocess',daemon:object|null,status:'done'|'failed'}
  * }}
  */
 export const createJobCompletion = ({
@@ -53,6 +57,7 @@ export const createJobCompletion = ({
       'failed',
       {
         exitCode: 1,
+        signal: null,
         error,
         executionMode: 'subprocess'
       },
@@ -72,6 +77,9 @@ export const createJobCompletion = ({
     const maxRetries = Number.isFinite(job.maxRetries)
       ? job.maxRetries
       : (queueMaxRetries ?? 0);
+    const normalizedError = normalized.signal
+      ? `signal ${normalized.signal}`
+      : `exit ${normalized.exitCode}`;
     if (normalized.status === 'failed' && maxRetries > attempts) {
       const nextAttempts = attempts + 1;
       metrics.retried += 1;
@@ -81,9 +89,10 @@ export const createJobCompletion = ({
         'queued',
         {
           exitCode: normalized.exitCode,
+          signal: normalized.signal,
           retry: true,
           attempts: nextAttempts,
-          error: `exit ${normalized.exitCode}`,
+          error: normalizedError,
           executionMode: normalized.executionMode,
           daemon: normalized.daemon
         },
@@ -102,7 +111,8 @@ export const createJobCompletion = ({
       normalized.status,
       {
         exitCode: normalized.exitCode,
-        error: `exit ${normalized.exitCode}`,
+        signal: normalized.signal,
+        error: normalizedError,
         executionMode: normalized.executionMode,
         daemon: normalized.daemon
       },
