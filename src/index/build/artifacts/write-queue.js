@@ -56,9 +56,13 @@ export const createArtifactWriteQueue = ({
         massiveWriteMemTokens,
         resolveArtifactWriteMemTokens
       });
-      prefetched = scheduler?.schedule
-        ? scheduler.schedule(SCHEDULER_QUEUE_NAMES.stage2Write, tokens, job)
-        : job();
+      try {
+        prefetched = scheduler?.schedule
+          ? scheduler.schedule(SCHEDULER_QUEUE_NAMES.stage2Write, tokens, job)
+          : job();
+      } catch (error) {
+        prefetched = Promise.reject(error);
+      }
       // Avoid unhandled-rejection noise for fire-and-forget prefetch.
       Promise.resolve(prefetched).catch(() => {});
     }

@@ -136,4 +136,61 @@ assert.equal(fallbackQueue.writes[0].prefetchStartedAt, 701, 'expected fallback 
 assert.equal(fallbackQueue.writes[0].enqueuedAt, 702, 'expected fallback enqueue timestamp');
 await fallbackQueue.writes[0].prefetched;
 
+const schedulerThrowTimes = [801, 802];
+const schedulerThrowQueue = createArtifactWriteQueue({
+  scheduler: {
+    schedule: () => {
+      throw new Error('sync scheduler throw');
+    }
+  },
+  massiveWriteIoTokens: 1,
+  massiveWriteMemTokens: 1,
+  resolveArtifactWriteMemTokens: () => 0,
+  resolveSchedulerTokens: () => ({ io: 1, mem: 0 }),
+  now: () => schedulerThrowTimes.shift()
+});
+schedulerThrowQueue.enqueueWrite('epsilon.json', async () => ({ bytes: 1 }), { eagerStart: true });
+assert.equal(
+  typeof schedulerThrowQueue.writes[0].prefetched?.then,
+  'function',
+  'expected sync scheduler throws to be captured as rejected prefetch promises'
+);
+await assert.rejects(
+  schedulerThrowQueue.writes[0].prefetched,
+  /sync scheduler throw/,
+  'expected prefetched promise rejection from scheduler sync throw'
+);
+assert.equal(
+  schedulerThrowQueue.writes[0].enqueuedAt,
+  802,
+  'expected enqueue metadata to be recorded even when scheduler throws synchronously'
+);
+
+const jobThrowTimes = [901, 902];
+const jobThrowQueue = createArtifactWriteQueue({
+  massiveWriteIoTokens: 1,
+  massiveWriteMemTokens: 1,
+  resolveArtifactWriteMemTokens: () => 0,
+  resolveSchedulerTokens: () => ({ io: 1, mem: 0 }),
+  now: () => jobThrowTimes.shift()
+});
+jobThrowQueue.enqueueWrite('zeta.json', () => {
+  throw new Error('sync job throw');
+}, { eagerStart: true });
+assert.equal(
+  typeof jobThrowQueue.writes[0].prefetched?.then,
+  'function',
+  'expected sync job throws to be captured as rejected prefetch promises'
+);
+await assert.rejects(
+  jobThrowQueue.writes[0].prefetched,
+  /sync job throw/,
+  'expected prefetched promise rejection from direct job sync throw'
+);
+assert.equal(
+  jobThrowQueue.writes[0].enqueuedAt,
+  902,
+  'expected enqueue metadata to be recorded even when eager job throws synchronously'
+);
+
 console.log('artifact write queue helper test passed');
