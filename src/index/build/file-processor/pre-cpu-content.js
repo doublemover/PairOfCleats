@@ -17,6 +17,12 @@ import {
 } from './docs-search-json.js';
 import { resolveBinarySkip } from './skip.js';
 
+/**
+ * Normalize extractor units into stable, serializable metadata.
+ *
+ * @param {Array<object>} units
+ * @returns {Array<object>}
+ */
 const buildDocumentExtractionUnits = (units) => {
   const nextUnits = [];
   for (const unit of units || []) {

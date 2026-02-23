@@ -1,5 +1,11 @@
 import { finalizeSegments } from '../../../segments/finalize.js';
 
+/**
+ * Merge scheduler-planned segments with mode-specific extras, then dedupe deterministically.
+ *
+ * @param {{plannedSegments:Array<object>,extraSegments:Array<object>,relKey:string}} input
+ * @returns {Array<object>}
+ */
 export const mergePlannedSegmentsWithExtras = ({ plannedSegments, extraSegments, relKey }) => {
   const planned = Array.isArray(plannedSegments) ? plannedSegments : [];
   const extras = Array.isArray(extraSegments) ? extraSegments : [];

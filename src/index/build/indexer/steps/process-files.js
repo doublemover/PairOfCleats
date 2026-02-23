@@ -90,20 +90,47 @@ const STAGE_TIMING_SIZE_BINS = Object.freeze([
 ]);
 const FILE_QUEUE_DELAY_HISTOGRAM_BUCKETS_MS = Object.freeze([50, 100, 250, 500, 1000, 2000, 5000, 10000, 30000, 60000]);
 
+/**
+ * Coerce optional numeric input to non-negative integer while preserving nullish values.
+ *
+ * @param {unknown} value
+ * @returns {number|null}
+ */
 const coerceOptionalNonNegativeInt = (value) => {
   if (value === null || value === undefined) return null;
   return coerceNonNegativeInt(value);
 };
+/**
+ * Parse a fractional config value and clamp via bounds; fall back when invalid.
+ *
+ * @param {unknown} value
+ * @param {number} fallback
+ * @param {{min?:number,max?:number,allowZero?:boolean}} [options]
+ * @returns {number}
+ */
 const coerceClampedFractionOrDefault = (value, fallback, { min = 0, max = 1, allowZero = false } = {}) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   if ((!allowZero && parsed <= 0) || parsed < min || parsed > max) return fallback;
   return parsed;
 };
+/**
+ * Normalize a duration input to a finite non-negative number of milliseconds.
+ *
+ * @param {unknown} value
+ * @returns {number}
+ */
 const clampDurationMs = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 };
+
+/**
+ * Convert epoch milliseconds to ISO timestamp when the input is valid.
+ *
+ * @param {unknown} value
+ * @returns {string|null}
+ */
 const toIsoTimestamp = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? new Date(parsed).toISOString() : null;
@@ -209,15 +236,19 @@ export const resolveFileLifecycleDurations = (lifecycle = {}) => {
   };
 };
 
-export const resolveEffectiveSlowFileDurationMs = ({ activeDurationMs, scmProcQueueWaitMs = 0 }) => {
-  return Math.max(0, clampDurationMs(activeDurationMs) - clampDurationMs(scmProcQueueWaitMs));
-};
-
-export const shouldTriggerSlowFileWarning = ({
-  activeDurationMs,
-  thresholdMs,
-  scmProcQueueWaitMs = 0
-}) => {
+/**
+ * Determine whether active processing time crossed slow-file warning threshold.
+ *
+ * @param {{activeDurationMs:number,thresholdMs:number}} input
+ * @returns {boolean}
+ */
+/**
+ * Decide whether a file should be flagged as slow for watchdog telemetry.
+ *
+ * @param {{activeDurationMs:number,thresholdMs:number}} input
+ * @returns {boolean}
+ */
+export const shouldTriggerSlowFileWarning = ({ activeDurationMs, thresholdMs }) => {
   const threshold = Number(thresholdMs);
   if (!Number.isFinite(threshold) || threshold <= 0) return false;
   const effectiveDurationMs = resolveEffectiveSlowFileDurationMs({
@@ -227,6 +258,17 @@ export const shouldTriggerSlowFileWarning = ({
   return effectiveDurationMs >= threshold;
 };
 
+/**
+ * Detect durations that are close to, but still below, the slow-file threshold.
+ *
+ * @param {{
+ *   activeDurationMs:number,
+ *   thresholdMs:number,
+ *   lowerFraction?:number,
+ *   upperFraction?:number
+ * }} [input]
+ * @returns {boolean}
+ */
 export const isNearThresholdSlowFileDuration = ({
   activeDurationMs,
   thresholdMs,
@@ -312,6 +354,18 @@ export const buildWatchdogNearThresholdSummary = ({
   };
 };
 
+/**
+ * Resolve chunk-processing feature gates from runtime profile.
+ *
+ * @param {object} runtime
+ * @returns {{tokenizeEnabled:boolean,sparsePostingsEnabled:boolean}}
+ */
+/**
+ * Resolve stage1 feature gates for tokenization and sparse postings.
+ *
+ * @param {object} runtime
+ * @returns {{tokenizeEnabled:boolean,sparsePostingsEnabled:boolean}}
+ */
 export const resolveChunkProcessingFeatureFlags = (runtime) => {
   const vectorOnlyProfile = runtime?.profile?.id === INDEX_PROFILE_VECTOR_ONLY;
   return {
@@ -581,6 +635,18 @@ export const resolveStage1StallAbortTimeoutMs = (runtime, watchdogConfig = null)
   return FILE_STALL_ABORT_DEFAULT_MS;
 };
 
+/**
+ * Return the first valid optional non-negative integer from ordered candidates.
+ *
+ * @param {...unknown} values
+ * @returns {number|null}
+ */
+/**
+ * Return the first non-null parsed non-negative integer from a value list.
+ *
+ * @param {...unknown} values
+ * @returns {number|null}
+ */
 const resolveOptionalNonNegativeIntFromValues = (...values) => {
   for (const value of values) {
     const parsed = coerceOptionalNonNegativeInt(value);
@@ -589,6 +655,18 @@ const resolveOptionalNonNegativeIntFromValues = (...values) => {
   return null;
 };
 
+/**
+ * Resolve watchdog config surfaces used for stage1 stall policy synthesis.
+ *
+ * @param {object} runtime
+ * @returns {{indexingStage1:object,rawWatchdog:object,processingWatchdog:object,queueWatchdog:object}}
+ */
+/**
+ * Collect stage1 watchdog config from all supported config surfaces.
+ *
+ * @param {object} runtime
+ * @returns {{indexingStage1:object,rawWatchdog:object,processingWatchdog:object,queueWatchdog:object}}
+ */
 const resolveStage1WatchdogSourceConfig = (runtime) => {
   const indexingStage1 = runtime?.indexingConfig?.stage1 && typeof runtime.indexingConfig.stage1 === 'object'
     ? runtime.indexingConfig.stage1
@@ -1001,6 +1079,18 @@ export {
   sortEntriesByOrderIndex
 };
 
+/**
+ * Assign stable 1-based file indexes to entry records.
+ *
+ * @param {Array<object>} entries
+ * @returns {void}
+ */
+/**
+ * Assign deterministic 1-based file indices used in logs and ownership ids.
+ *
+ * @param {object[]} entries
+ * @returns {void}
+ */
 const assignFileIndexes = (entries) => {
   if (!Array.isArray(entries)) return;
   for (let i = 0; i < entries.length; i += 1) {
@@ -1010,6 +1100,18 @@ const assignFileIndexes = (entries) => {
   }
 };
 
+/**
+ * Build ordered progress metadata from entry order-index values.
+ *
+ * @param {Array<object>} entries
+ * @returns {{startOrderIndex:number,expectedOrderIndices:number[]}}
+ */
+/**
+ * Build ordered-progress seed data from entry order indexes.
+ *
+ * @param {object[]} entries
+ * @returns {{startOrderIndex:number,expectedOrderIndices:number[]}}
+ */
 const resolveOrderedEntryProgressPlan = (entries) => {
   const safeEntries = Array.isArray(entries) ? entries : [];
   let minIndex = null;
@@ -1030,6 +1132,13 @@ const resolveOrderedEntryProgressPlan = (entries) => {
   };
 };
 
+/**
+ * Create a shared stage1 progress tracker that supports ordered and shard-local
+ * progress updates without double-counting.
+ *
+ * @param {{total?:number,mode?:string,checkpoint?:object,onTick?:Function}} [input]
+ * @returns {{progress:{total:number,count:number,tick:Function},markOrderedEntryComplete:Function}}
+ */
 const createStage1ProgressTracker = ({
   total = 0,
   mode = 'unknown',
@@ -1070,6 +1179,13 @@ const createStage1ProgressTracker = ({
   };
 };
 
+/**
+ * Normalize one in-flight file row for stall diagnostic snapshots.
+ *
+ * @param {object} entry
+ * @param {number} [nowMs]
+ * @returns {object|null}
+ */
 const toStage1StallFileSummary = (entry, nowMs = Date.now()) => {
   if (!entry || typeof entry !== 'object') return null;
   const startedAt = Number(entry.startedAt) || nowMs;
@@ -1083,6 +1199,13 @@ const toStage1StallFileSummary = (entry, nowMs = Date.now()) => {
   };
 };
 
+/**
+ * Collect and rank the most stalled in-flight files for watchdog reporting.
+ *
+ * @param {Map<string,object>} inFlightFiles
+ * @param {{limit?:number,nowMs?:number}} [options]
+ * @returns {object[]}
+ */
 const collectStage1StalledFiles = (inFlightFiles, { limit = 6, nowMs = Date.now() } = {}) => (
   Array.from(inFlightFiles?.values?.() || [])
     .map((value) => toStage1StallFileSummary(value, nowMs))
@@ -1091,6 +1214,18 @@ const collectStage1StalledFiles = (inFlightFiles, { limit = 6, nowMs = Date.now(
     .slice(0, limit)
 );
 
+/**
+ * Normalize queue-delay aggregate for stage1 stall diagnostics.
+ *
+ * @param {object|null} queueDelaySummary
+ * @returns {{count:number,avgMs:number,maxMs:number}}
+ */
+/**
+ * Reduce raw queue-delay accumulators to stable summary metrics.
+ *
+ * @param {object} queueDelaySummary
+ * @returns {{count:number,avgMs:number,maxMs:number}}
+ */
 const summarizeStage1QueueDelay = (queueDelaySummary) => ({
   count: Math.max(0, Math.floor(Number(queueDelaySummary?.count) || 0)),
   avgMs: Number(queueDelaySummary?.count) > 0
@@ -1099,6 +1234,12 @@ const summarizeStage1QueueDelay = (queueDelaySummary) => ({
   maxMs: clampDurationMs(queueDelaySummary?.maxMs)
 });
 
+/**
+ * Format stalled-file summary rows for compact watchdog log lines.
+ *
+ * @param {object[]} [stalledFiles]
+ * @returns {string}
+ */
 const formatStage1StalledFileText = (stalledFiles = []) => (
   stalledFiles
     .map((entry) => `${entry.file || 'unknown'}#${entry.orderIndex ?? '?'}@${Math.round((entry.elapsedMs || 0) / 1000)}s`)
@@ -1107,6 +1248,18 @@ const formatStage1StalledFileText = (stalledFiles = []) => (
 
 const STALL_DIAGNOSTIC_QUEUE_NAMES = Object.freeze(['stage1.cpu', 'stage1.io', 'stage1.postings']);
 
+/**
+ * Capture scheduler queue/load state used by stage1 stall watchdog reports.
+ *
+ * @param {object} runtime
+ * @returns {object|null}
+ */
+/**
+ * Capture scheduler state relevant to stage1 stall diagnosis.
+ *
+ * @param {object} runtime
+ * @returns {object|null}
+ */
 const buildStage1SchedulerStallSnapshot = (runtime) => {
   if (typeof runtime?.scheduler?.stats !== 'function') return null;
   const stats = runtime.scheduler.stats();
@@ -1168,6 +1321,18 @@ const buildStage1SchedulerStallSnapshot = (runtime) => {
   };
 };
 
+/**
+ * Format compact scheduler stall summary text for logs and alerts.
+ *
+ * @param {object|null} snapshot
+ * @returns {string|null}
+ */
+/**
+ * Render compact queue/parse capacity text for stall warning lines.
+ *
+ * @param {object|null} snapshot
+ * @returns {string|null}
+ */
 const formatStage1SchedulerStallSummary = (snapshot) => {
   if (!snapshot || typeof snapshot !== 'object') return null;
   const parse = snapshot.parseSurface && typeof snapshot.parseSurface === 'object'

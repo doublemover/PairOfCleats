@@ -38,6 +38,12 @@ setActiveStateKeyResolver(patchQueue.isActiveStateKey);
 
 export { ORDERING_LEDGER_SCHEMA_VERSION };
 
+/**
+ * Initialize build-state metadata file for a build root.
+ *
+ * @param {object} input
+ * @returns {Promise<string|null>}
+ */
 export async function initBuildState({
   buildRoot,
   buildId,
@@ -86,12 +92,27 @@ export async function initBuildState({
   return statePath;
 }
 
+/**
+ * Queue a state patch and emit derived checkpoint events.
+ *
+ * @param {string} buildRoot
+ * @param {object} patch
+ * @returns {Promise<object|null>}
+ */
 export async function updateBuildState(buildRoot, patch) {
   if (!buildRoot || !patch) return null;
   const events = collectCheckpointEvents(patch.stageCheckpoints);
   return patchQueue.queueStatePatch(buildRoot, patch, events);
 }
 
+/**
+ * Record deterministic ordering-seed inputs for overall or stage-scoped ledger state.
+ *
+ * @param {string} buildRoot
+ * @param {object} [inputs]
+ * @param {{stage?:string|null,mode?:string|null}} [options]
+ * @returns {Promise<object|null>}
+ */
 export async function recordOrderingSeedInputs(buildRoot, inputs = {}, { stage = null, mode = null } = {}) {
   if (!buildRoot) return null;
   const seeds = normalizeSeedInputs({ ...inputs, mode });
@@ -106,6 +127,14 @@ export async function recordOrderingSeedInputs(buildRoot, inputs = {}, { stage =
   return updateBuildState(buildRoot, patch);
 }
 
+/**
+ * Record a stage artifact ordering hash if it changed.
+ * No-op when the current ledger entry already matches.
+ *
+ * @param {string} buildRoot
+ * @param {object} [input]
+ * @returns {Promise<object|null>}
+ */
 export async function recordOrderingHash(buildRoot, {
   stage,
   mode = null,
@@ -148,16 +177,35 @@ export async function recordOrderingHash(buildRoot, {
   return updateBuildState(buildRoot, patch);
 }
 
+/**
+ * Load and normalize persisted ordering ledger state.
+ *
+ * @param {string} buildRoot
+ * @returns {Promise<object|null>}
+ */
 export async function loadOrderingLedger(buildRoot) {
   if (!buildRoot) return null;
   const loaded = await loadBuildState(buildRoot);
   return normalizeOrderingLedger(loaded?.state?.orderingLedger);
 }
 
+/**
+ * Validate ordering ledger structural contract.
+ *
+ * @param {object} ledger
+ * @returns {object}
+ */
 export function validateOrderingLedger(ledger) {
   return validateOrderingLedgerShape(ledger);
 }
 
+/**
+ * Export normalized ordering ledger to optional path.
+ *
+ * @param {string} buildRoot
+ * @param {string|null} [outputPath]
+ * @returns {Promise<object|null>}
+ */
 export async function exportOrderingLedger(buildRoot, outputPath = null) {
   const ledger = await loadOrderingLedger(buildRoot);
   if (outputPath && ledger) {
@@ -166,10 +214,25 @@ export async function exportOrderingLedger(buildRoot, outputPath = null) {
   return ledger;
 }
 
+/**
+ * Flush queued build-state patches for a build root.
+ *
+ * @param {string} buildRoot
+ * @returns {Promise<object|null>}
+ */
 export async function flushBuildState(buildRoot) {
   return patchQueue.flushBuildState(buildRoot);
 }
 
+/**
+ * Persist a lifecycle transition for a named build phase.
+ *
+ * @param {string} buildRoot
+ * @param {string} phase
+ * @param {string} status
+ * @param {object|null} [detail]
+ * @returns {Promise<object|null>}
+ */
 export async function markBuildPhase(buildRoot, phase, status, detail = null) {
   return markBuildPhaseState({
     buildRoot,
@@ -183,6 +246,14 @@ export async function markBuildPhase(buildRoot, phase, status, detail = null) {
   });
 }
 
+/**
+ * Start periodic heartbeat patching for a build stage.
+ *
+ * @param {string} buildRoot
+ * @param {string} stage
+ * @param {number} [intervalMs]
+ * @returns {{stop:()=>Promise<void>,flush:()=>Promise<void>}|null}
+ */
 export function startBuildHeartbeat(buildRoot, stage, intervalMs = 30000) {
   return startHeartbeat({
     buildRoot,
@@ -194,6 +265,12 @@ export function startBuildHeartbeat(buildRoot, stage, intervalMs = 30000) {
   });
 }
 
+/**
+ * Create per-mode checkpoint writer for processed-file progress.
+ *
+ * @param {object} input
+ * @returns {{tick:()=>void,finish:()=>void}}
+ */
 export function createBuildCheckpoint({
   buildRoot,
   mode,
@@ -211,6 +288,12 @@ export function createBuildCheckpoint({
   });
 }
 
+/**
+ * Resolve build-state file path for a build root.
+ *
+ * @param {string} buildRoot
+ * @returns {string|null}
+ */
 export function resolveBuildStatePath(buildRoot) {
   return buildRoot ? resolveStatePath(buildRoot) : null;
 }

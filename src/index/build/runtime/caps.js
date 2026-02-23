@@ -65,6 +65,12 @@ export const normalizeRatio = (value, fallback) => {
   return Math.min(1, Math.max(0, parsed));
 };
 
+/**
+ * Normalize optional cap value where `0`/`false` means disabled.
+ *
+ * @param {unknown} value
+ * @returns {number|null}
+ */
 const normalizeCapValue = (value) => (
   normalizeCapNullOnZero(value, null)
 );

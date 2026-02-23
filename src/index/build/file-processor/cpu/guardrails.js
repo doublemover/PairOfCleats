@@ -79,19 +79,43 @@ const HEAVY_RELATIONS_PATH_PARTS = [
   '/.github/workflows/'
 ];
 
+/**
+ * Normalize an SCM-relative path for deterministic guardrail matching.
+ *
+ * @param {string} relPath
+ * @returns {string}
+ */
 export const normalizeScmPath = (relPath) => String(relPath || '').replace(/\\/g, '/').toLowerCase();
 
+/**
+ * Wrap a normalized path in sentinels so substring checks avoid partial-token collisions.
+ *
+ * @param {string} relPath
+ * @returns {string}
+ */
 export const toBoundedScmPath = (relPath) => {
   const normalized = normalizeScmPath(relPath);
   return `/${normalized.replace(/^\/+|\/+$/g, '')}/`;
 };
 
+/**
+ * Coerce an input to a finite non-negative integer.
+ *
+ * @param {unknown} value
+ * @returns {number|null}
+ */
 export const toFiniteNonNegativeInt = (value) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return null;
   return Math.max(0, Math.floor(numeric));
 };
 
+/**
+ * Detect known generated Python lexer tables that are expensive for SCM annotation.
+ *
+ * @param {string} relPath
+ * @returns {boolean}
+ */
 export const isPythonGeneratedDataPath = (relPath) => {
   const normalizedPath = normalizeScmPath(relPath);
   if (!normalizedPath.endsWith('.py') && !normalizedPath.endsWith('.pyi')) return false;
@@ -99,6 +123,12 @@ export const isPythonGeneratedDataPath = (relPath) => {
   return normalizedPath.endsWith('_builtins.py') || normalizedPath.endsWith('/_mapping.py');
 };
 
+/**
+ * Check whether a file lives under known vendor/fixture zones that need heavy-relation guardrails.
+ *
+ * @param {string} relPath
+ * @returns {boolean}
+ */
 export const isHeavyRelationsPath = (relPath) => {
   const boundedPath = toBoundedScmPath(relPath);
   for (const part of HEAVY_RELATIONS_PATH_PARTS) {
@@ -107,6 +137,12 @@ export const isHeavyRelationsPath = (relPath) => {
   return false;
 };
 
+/**
+ * Decide if relation extraction should be skipped due to heavy path heuristics.
+ *
+ * @param {{relPath:string,fileBytes:number,fileLines:number}} input
+ * @returns {boolean}
+ */
 export const shouldSkipHeavyRelationsByPath = ({ relPath, fileBytes, fileLines }) => (
   isHeavyRelationsPath(relPath)
   && (
@@ -135,6 +171,12 @@ export const shouldSkipHeavyRelations = ({
   )
 );
 
+/**
+ * Flag SCM workloads that should use aggressive timeout caps.
+ *
+ * @param {{relPath:string,ext:string,lines:number}} input
+ * @returns {boolean}
+ */
 export const isScmFastPath = ({ relPath, ext, lines }) => {
   const normalizedPath = normalizeScmPath(relPath);
   const boundedPath = toBoundedScmPath(relPath);
@@ -158,6 +200,12 @@ export const isScmFastPath = ({ relPath, ext, lines }) => {
   return false;
 };
 
+/**
+ * Force strict SCM timeout caps for deterministic high-risk subtrees.
+ *
+ * @param {string} relPath
+ * @returns {boolean}
+ */
 export const shouldForceScmTimeoutCaps = (relPath) => {
   const boundedPath = toBoundedScmPath(relPath);
   for (const part of SCM_FORCE_TIMEOUT_CAP_PATH_PARTS) {
@@ -166,6 +214,12 @@ export const shouldForceScmTimeoutCaps = (relPath) => {
   return false;
 };
 
+/**
+ * Compute task deadline including queue-wait slack to avoid false timeout reports.
+ *
+ * @param {number} taskTimeoutMs
+ * @returns {number}
+ */
 export const resolveScmTaskDeadlineMs = (taskTimeoutMs) => {
   const baseTimeout = Number(taskTimeoutMs);
   if (!Number.isFinite(baseTimeout) || baseTimeout <= 0) return 0;
@@ -173,10 +227,22 @@ export const resolveScmTaskDeadlineMs = (taskTimeoutMs) => {
   return boundedBase + SCM_TASK_QUEUE_WAIT_SLACK_MS;
 };
 
+/**
+ * Check whether a caught error corresponds to SCM task timeout classification.
+ *
+ * @param {unknown} error
+ * @returns {boolean}
+ */
 export const isScmTaskTimeoutError = (error) => (
   error?.code === 'SCM_TASK_TIMEOUT'
 );
 
+/**
+ * Apply shared tree-sitter byte/line caps to raw segment text.
+ *
+ * @param {{text:string,languageId:string|null,treeSitterConfig:object}} input
+ * @returns {boolean}
+ */
 export const exceedsTreeSitterLimits = ({ text, languageId, treeSitterConfig }) => (
   exceedsSharedTreeSitterLimits({ text, languageId, treeSitterConfig })
 );

@@ -6,6 +6,12 @@ import {
   sumJobEstimatedParseCost
 } from './metrics.js';
 
+/**
+ * Resolve per-group parse cost with fallback to aggregated job cost.
+ *
+ * @param {object} group
+ * @returns {number}
+ */
 const resolveGroupEstimatedParseCost = (group) => {
   const jobs = Array.isArray(group?.jobs) ? group.jobs : [];
   return normalizePositiveNumber(

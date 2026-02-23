@@ -1,3 +1,18 @@
+/**
+ * Allocate the per-file artifact container used across pre-CPU stages.
+ *
+ * @returns {{
+ *   cachedBundle:object|null,
+ *   text:string|null,
+ *   fileHash:string|null,
+ *   fileHashAlgo:string|null,
+ *   fileBuffer:Buffer|null,
+ *   fileEncoding:string|null,
+ *   fileEncodingFallback:boolean|null,
+ *   fileEncodingConfidence:number|null,
+ *   documentExtraction:object|null
+ * }}
+ */
 const createEmptyArtifacts = () => ({
   cachedBundle: null,
   text: null,

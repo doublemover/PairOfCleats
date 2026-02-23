@@ -41,6 +41,16 @@ import { processChunks } from './process-chunks.js';
 import { resolveChunkingFileRole } from '../../chunking/limits.js';
 import { createTimeoutError, runWithTimeout } from '../../../shared/promise-timeout.js';
 
+/**
+ * Execute CPU-phase analysis for a file, including parse policy resolution,
+ * chunk production, relations/lint/complexity passes, and enrichment payload assembly.
+ *
+ * The function is stateful by design: it updates crash-stage breadcrumbs, timing
+ * collectors, cache-backed analysis artifacts, and SCM/Tree-sitter fallback paths.
+ *
+ * @param {object} context
+ * @returns {Promise<object|null>}
+ */
 export const processFileCpu = async (context) => {
   const {
     abs,
@@ -128,6 +138,13 @@ export const processFileCpu = async (context) => {
     setPythonAstDuration
   } = timing;
 
+  /**
+   * Record per-file CPU pipeline stage updates in crash telemetry.
+   *
+   * @param {string} substage
+   * @param {object} [extra]
+   * @returns {void}
+   */
   const updateCrashStage = (substage, extra = {}) => {
     if (!crashLogger?.enabled) return;
     const entry = {
@@ -145,6 +162,16 @@ export const processFileCpu = async (context) => {
     }
   };
 
+  /**
+   * Build a normalized "skip this file" result payload for recoverable CPU
+   * stage failures.
+   *
+   * @param {string} reason
+   * @param {string} stage
+   * @param {unknown} err
+   * @param {object} [extra]
+   * @returns {{chunks:Array, fileRelations:null, skip:{reason:string,stage:string,message:string}}}
+   */
   const failFile = (reason, stage, err, extra = {}) => ({
     chunks: [],
     fileRelations: null,
@@ -354,19 +381,14 @@ export const processFileCpu = async (context) => {
     const metaCapMs = scmFastPath || SCM_META_FAST_TIMEOUT_EXTS.has(normalizedExt) ? 250 : 750;
     metaTimeoutMs = Math.min(metaTimeoutMs, metaCapMs);
   }
-  const runScmTask = async (fn) => {
-    if (typeof runProc !== 'function') return fn();
-    const enqueuedAtMs = Date.now();
-    return runProc(async () => {
-      const queueWaitMs = Math.max(0, Date.now() - enqueuedAtMs);
-      if (queueWaitMs > 0 && typeof onScmProcQueueWait === 'function') {
-        try {
-          onScmProcQueueWait(queueWaitMs);
-        } catch {}
-      }
-      return fn();
-    });
-  };
+  const runScmTask = typeof runProc === 'function' ? runProc : (fn) => fn();
+  /**
+   * Run an SCM metadata task under a hard deadline and route it through the
+   * process queue when available.
+   *
+   * @param {{label?:string,timeoutMs?:number,task:(signal:AbortSignal|null)=>Promise<unknown>}} input
+   * @returns {Promise<unknown>}
+   */
   const runScmTaskWithDeadline = async ({ label, timeoutMs, task }) => {
     const deadlineMs = resolveScmTaskDeadlineMs(timeoutMs);
     if (!(Number.isFinite(deadlineMs) && deadlineMs > 0)) {

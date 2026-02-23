@@ -1,6 +1,14 @@
 import { shouldSkipTreeSitterPlanningForPath } from '../../tree-sitter-scheduler/policy.js';
 import { toFiniteNonNegativeInt } from './guardrails.js';
 
+/**
+ * Load preplanned scheduler segments defensively.
+ * Scheduler failures must not block fallback chunking.
+ *
+ * @param {object|null} treeSitterScheduler
+ * @param {string} relKey
+ * @returns {Array<object>|null}
+ */
 const loadSchedulerPlannedSegments = (treeSitterScheduler, relKey) => {
   if (!treeSitterScheduler || typeof treeSitterScheduler.loadPlannedSegments !== 'function') {
     return null;

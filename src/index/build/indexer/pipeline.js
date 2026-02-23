@@ -77,6 +77,12 @@ const INDEX_STAGE_PLAN = Object.freeze([
 ]);
 const HEAVY_UTILIZATION_STAGES = new Set(['processing', 'relations', 'postings', 'write']);
 
+/**
+ * Normalize import-scan aggregate counters for telemetry payloads.
+ *
+ * @param {object|null} importResult
+ * @returns {{modules:number,edges:number,files:number}}
+ */
 const summarizeImportStats = (importResult) => {
   if (!importResult?.stats) {
     return { modules: 0, edges: 0, files: 0 };
@@ -88,6 +94,12 @@ const summarizeImportStats = (importResult) => {
   };
 };
 
+/**
+ * Normalize import-graph cache reuse counters.
+ *
+ * @param {object|null} importResult
+ * @returns {object|null}
+ */
 const summarizeImportGraphCacheStats = (importResult) => {
   if (!importResult?.cacheStats) return null;
   const files = Number(importResult.cacheStats.files) || 0;
@@ -105,6 +117,12 @@ const summarizeImportGraphCacheStats = (importResult) => {
   };
 };
 
+/**
+ * Normalize import resolution graph statistics from state.
+ *
+ * @param {object|null} state
+ * @returns {object|null}
+ */
 const summarizeImportGraphStats = (state) => {
   const stats = state?.importResolutionGraph?.stats;
   if (!stats) return null;
@@ -121,6 +139,12 @@ const summarizeImportGraphStats = (state) => {
   };
 };
 
+/**
+ * Normalize VFS manifest write stats from stage state.
+ *
+ * @param {object|null} state
+ * @returns {object|null}
+ */
 const summarizeVfsManifestStats = (state) => {
   const vfsStats = state?.vfsManifestStats || state?.vfsManifestCollector?.stats || null;
   if (!vfsStats) return null;
@@ -134,6 +158,12 @@ const summarizeVfsManifestStats = (state) => {
   };
 };
 
+/**
+ * Normalize tiny-repo fast-path status for diagnostics.
+ *
+ * @param {object|null} tinyRepoFastPath
+ * @returns {object|null}
+ */
 const summarizeTinyRepoFastPath = (tinyRepoFastPath) => (
   tinyRepoFastPath?.active === true
     ? {
@@ -148,6 +178,12 @@ const summarizeTinyRepoFastPath = (tinyRepoFastPath) => (
     : null
 );
 
+/**
+ * Resolve mode pipeline toggles from runtime policy and repo-size shortcuts.
+ *
+ * @param {{runtime:object,entries:Array<object>}} input
+ * @returns {object}
+ */
 const resolvePipelinePolicyContext = ({ runtime, entries }) => {
   const dictConfig = applyAdaptiveDictConfig(runtime.dictConfig, entries.length);
   const tinyRepoFastPath = resolveTinyRepoFastPath({ runtime, entries });
@@ -291,6 +327,11 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
 
   const stageTotal = INDEX_STAGE_PLAN.length;
   let stageIndex = 0;
+  /**
+   * Read scheduler stats when scheduler telemetry is available.
+   *
+   * @returns {object|null}
+   */
   const getSchedulerStats = () => (runtime?.scheduler?.stats ? runtime.scheduler.stats() : null);
   const schedulerTelemetry = runtime?.scheduler
     && typeof runtime.scheduler.setTelemetryOptions === 'function'
@@ -307,10 +348,21 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     ? Math.max(1, Math.floor(Number(runtime.indexingConfig.scheduler.queueDepthSnapshotFileThreshold)))
     : 20000;
   let queueDepthSnapshotsEnabled = false;
+  /**
+   * Tag scheduler telemetry with the active pipeline stage id.
+   *
+   * @param {string} stageId
+   * @returns {void}
+   */
   const setSchedulerTelemetryStage = (stageId) => {
     if (!schedulerTelemetry || typeof stageId !== 'string') return;
     schedulerTelemetry.setTelemetryOptions({ stage: stageId });
   };
+  /**
+   * Enable periodic queue-depth snapshots once for large-repo diagnostics.
+   *
+   * @returns {void}
+   */
   const enableQueueDepthSnapshots = () => {
     if (!schedulerTelemetry || queueDepthSnapshotsEnabled) return;
     queueDepthSnapshotsEnabled = true;
@@ -335,6 +387,12 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   let lastCpuUsage = process.cpuUsage();
   let lastCpuUsageAtMs = Date.now();
 
+  /**
+   * Approximate process CPU busy percentage over the last sampling interval.
+   *
+   * @param {number} cpuCount
+   * @returns {number|null}
+   */
   const resolveProcessBusyPct = (cpuCount) => {
     const usage = process.cpuUsage();
     const nowMs = Date.now();
@@ -437,6 +495,13 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       }
     };
   };
+  /**
+   * Emit a one-time warning when queue depth is high but overall utilization is
+   * materially low, indicating potential scheduling bottlenecks.
+   *
+   * @param {{snapshot:object,stage:string,step?:string}} input
+   * @returns {void}
+   */
   const maybeWarnLowSchedulerUtilization = ({ snapshot, stage, step }) => {
     if (lowUtilizationWarningEmitted) return;
     const schedulerStats = snapshot?.scheduler;
@@ -455,6 +520,13 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       `tokens(cpu=${Math.floor(cpuTokens || 0)}, io=${Math.floor(ioTokens || 0)}).`
     );
   };
+  /**
+   * Detect sustained under-target scheduler utilization and record a stage
+   * checkpoint event once per run.
+   *
+   * @param {{snapshot:object,stage:string,step?:string}} input
+   * @returns {void}
+   */
   const maybeWarnUtilizationTarget = ({ snapshot, stage, step }) => {
     if (!HEAVY_UTILIZATION_STAGES.has(String(step || stage || '').toLowerCase())) {
       utilizationUnderTargetSinceMs = 0;
@@ -505,6 +577,13 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       }
     });
   };
+  /**
+   * Emit per-queue under-utilization warnings for busy queues whose effective
+   * throughput remains below target for the alert window.
+   *
+   * @param {{snapshot:object,stage:string,step?:string}} input
+   * @returns {void}
+   */
   const maybeWarnQueueUtilizationTarget = ({ snapshot, stage, step }) => {
     const schedulerStats = snapshot?.scheduler;
     const queues = schedulerStats?.queues && typeof schedulerStats.queues === 'object'
@@ -598,6 +677,12 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       step
     });
   };
+  /**
+   * Advance visible stage progress and retag scheduler telemetry.
+   *
+   * @param {{id:string,label:string}} stage
+   * @returns {void}
+   */
   const advanceStage = (stage) => {
     if (runtime?.overallProgress?.advance && stageIndex > 0) {
       const prevStage = INDEX_STAGE_PLAN[stageIndex - 1];

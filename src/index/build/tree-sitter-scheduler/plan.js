@@ -156,6 +156,12 @@ const hashString = (value) => {
   return hash >>> 0;
 };
 
+/**
+ * Check whether a char code should be counted as part of a word-like token.
+ *
+ * @param {number} code
+ * @returns {boolean}
+ */
 const isWordLikeCharCode = (code) => (
   (code >= 48 && code <= 57)
   || (code >= 65 && code <= 90)
@@ -164,6 +170,12 @@ const isWordLikeCharCode = (code) => (
   || code === 36
 );
 
+/**
+ * Check whether a char code is treated as whitespace by the segment scanner.
+ *
+ * @param {number} code
+ * @returns {boolean}
+ */
 const isWhitespaceCharCode = (code) => (
   code === 9 || code === 10 || code === 13 || code === 32 || code === 12
 );

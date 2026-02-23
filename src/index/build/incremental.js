@@ -22,6 +22,12 @@ import {
   resolvePrefetchedVfsRows
 } from './incremental/paths.js';
 
+/**
+ * Check whether a filesystem path is accessible.
+ *
+ * @param {string} targetPath
+ * @returns {Promise<boolean>}
+ */
 const pathExists = async (targetPath) => {
   try {
     await fs.access(targetPath);
@@ -31,6 +37,13 @@ const pathExists = async (targetPath) => {
   }
 };
 
+/**
+ * Validate manifest stat cache entry against current file stat.
+ *
+ * @param {{size:number,mtimeMs:number}|null} cachedEntry
+ * @param {{size:number,mtimeMs:number}|null} fileStat
+ * @returns {boolean}
+ */
 const entryStatsMatch = (cachedEntry, fileStat) => (
   !!cachedEntry
   && cachedEntry.size === fileStat?.size
@@ -73,11 +86,23 @@ const readBundleOrNull = async ({ bundlePath, bundleFormat }) => {
   }
 };
 
+/**
+ * Read normalized imports list from bundle payload.
+ *
+ * @param {object|null} bundle
+ * @returns {Array<object>|null}
+ */
 const resolveBundleImports = (bundle) => {
   const imports = bundle?.fileRelations?.imports;
   return Array.isArray(imports) ? imports : null;
 };
 
+/**
+ * Read optional VFS manifest rows from bundle payload.
+ *
+ * @param {object|null} bundle
+ * @returns {Array<object>|null}
+ */
 const resolveBundleVfsManifestRows = (bundle) => (
   Array.isArray(bundle?.vfsManifestRows) ? bundle.vfsManifestRows : null
 );
@@ -110,16 +135,35 @@ const summarizeSignatureDelta = (current, previous, limit = 5) => {
   return `${diffList.join(', ')}${extra}`;
 };
 
+/**
+ * Detect coarse timestamp resolution where hash verification is safer.
+ *
+ * @param {number} mtimeMs
+ * @returns {boolean}
+ */
 const isCoarseMtime = (mtimeMs) => (
   Number.isFinite(mtimeMs) && Math.trunc(mtimeMs) % 1000 === 0
 );
 
+/**
+ * Decide whether incremental reuse should verify file hash despite stat match.
+ *
+ * @param {{mtimeMs:number}|null} fileStat
+ * @param {{hash?:string}|null} cachedEntry
+ * @returns {boolean}
+ */
 const shouldVerifyHash = (fileStat, cachedEntry) => (
   isCoarseMtime(fileStat?.mtimeMs) && !!cachedEntry?.hash
 );
 
 const MAX_SHARED_HASH_READ_ENTRIES = 256;
 
+/**
+ * Normalize optional shared read-state cache to a Map.
+ *
+ * @param {unknown} sharedReadState
+ * @returns {Map<string, object>|null}
+ */
 const resolveSharedReadCache = (sharedReadState) => (
   sharedReadState instanceof Map ? sharedReadState : null
 );
@@ -317,6 +361,13 @@ const STAGE_ORDER = {
   stage4: 4
 };
 
+/**
+ * Check whether existing manifest stage is at least as complete as requested.
+ *
+ * @param {string|null} requested
+ * @param {string|null} existing
+ * @returns {boolean}
+ */
 const stageSatisfied = (requested, existing) => {
   if (!requested) return true;
   const target = STAGE_ORDER[requested] || 0;
@@ -324,6 +375,12 @@ const stageSatisfied = (requested, existing) => {
   return current >= target;
 };
 
+/**
+ * Build a path containment predicate bounded to the output directory root.
+ *
+ * @param {string} outDir
+ * @returns {(candidatePath:string)=>boolean}
+ */
 const createOutDirContainmentCheck = (outDir) => {
   const outRoot = path.resolve(outDir);
   if (process.platform === 'win32') {
@@ -341,6 +398,12 @@ const createOutDirContainmentCheck = (outDir) => {
   };
 };
 
+/**
+ * Normalize file-relations input into a lookup function.
+ *
+ * @param {Map<string, object>|Record<string, object>|null} fileRelations
+ * @returns {(normalizedFile:string,file:string)=>object|null}
+ */
 const createFileRelationsResolver = (fileRelations) => {
   if (!fileRelations) return () => null;
   if (typeof fileRelations.get === 'function') {
@@ -370,6 +433,12 @@ export async function shouldReuseIncrementalIndex({
   explain = false
 }) {
   const shouldExplain = explain === true && typeof log === 'function';
+  /**
+   * Emit explanatory reuse rejection reason when `explain` mode is enabled.
+   *
+   * @param {string} reason
+   * @returns {false}
+   */
   const fail = (reason) => {
     if (shouldExplain) log(`[incremental] reuse skipped: ${reason}.`);
     return false;

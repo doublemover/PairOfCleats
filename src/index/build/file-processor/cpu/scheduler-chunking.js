@@ -15,6 +15,12 @@ import { exceedsTreeSitterLimits } from './guardrails.js';
 
 const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
 
+/**
+ * Build mutable diagnostic counters for scheduler/fallback chunk routing.
+ *
+ * @param {{treeSitterEnabled:boolean,schedulerRequired:boolean}} input
+ * @returns {object}
+ */
 const createChunkingDiagnostics = ({ treeSitterEnabled, schedulerRequired }) => ({
   treeSitterEnabled,
   schedulerRequired,
@@ -27,6 +33,12 @@ const createChunkingDiagnostics = ({ treeSitterEnabled, schedulerRequired }) => 
   usedHeuristicCodeChunking: false
 });
 
+/**
+ * Normalize scheduler language-id capability input to a Set.
+ *
+ * @param {object|null} treeSitterScheduler
+ * @returns {Set<string>|null}
+ */
 const resolveSchedulerLanguageSet = (treeSitterScheduler) => {
   const schedulerLanguageIds = treeSitterScheduler?.scheduledLanguageIds;
   if (schedulerLanguageIds instanceof Set) return schedulerLanguageIds;

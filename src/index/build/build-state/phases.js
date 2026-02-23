@@ -1,3 +1,9 @@
+/**
+ * Persist a phase transition into build-state with lifecycle timestamps and audit event.
+ *
+ * @param {object} input
+ * @returns {Promise<object|null>}
+ */
 export const markBuildPhaseState = async ({
   buildRoot,
   phase,

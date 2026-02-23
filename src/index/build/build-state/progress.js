@@ -1,3 +1,9 @@
+/**
+ * Create batched progress checkpoint writer for long-running stage processing.
+ *
+ * @param {object} input
+ * @returns {{tick:()=>void,finish:()=>void}}
+ */
 export const createBuildCheckpointTracker = ({
   buildRoot,
   mode,
@@ -14,6 +20,15 @@ export const createBuildCheckpointTracker = ({
   let lastAt = Date.now();
   let lastFlushedProcessed = null;
 
+  /**
+   * Persist batched progress snapshot to build-state.
+   *
+   * Flush is best-effort and non-blocking so stage workers never stall on
+   * state-file IO.
+   *
+   * @param {{force?:boolean}} [input]
+   * @returns {void}
+   */
   const flush = ({ force = false } = {}) => {
     if (!force && lastFlushedProcessed === processed) return;
     const now = new Date().toISOString();

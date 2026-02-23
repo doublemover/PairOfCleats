@@ -43,6 +43,13 @@ const VALIDATION_CRITICAL_ARTIFACT_PATTERNS = Object.freeze([
   /(^|\/)pieces\/manifest\.json$/
 ]);
 
+/**
+ * Resolve an upper percentile from sorted millisecond samples.
+ *
+ * @param {number[]} samples
+ * @param {number} ratio
+ * @returns {number}
+ */
 const resolvePercentileMs = (samples, ratio) => {
   if (!Array.isArray(samples) || !samples.length) return 0;
   if (!Number.isFinite(ratio)) return samples[0];
@@ -51,12 +58,25 @@ const resolvePercentileMs = (samples, ratio) => {
   return samples[index];
 };
 
+/**
+ * Coerce optional numeric config to strictly positive number.
+ *
+ * @param {unknown} value
+ * @param {number|null} [fallback=null]
+ * @returns {number|null}
+ */
 const resolveOptionalPositiveNumber = (value, fallback = null) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return parsed;
 };
 
+/**
+ * Resolve observed artifact-write throughput from perf profile variants.
+ *
+ * @param {object} perfProfile
+ * @returns {number|null}
+ */
 export const resolveArtifactWriteThroughputProfile = (perfProfile) => {
   const candidates = [
     perfProfile?.indexOptimizationProfile?.artifactWrite?.throughputBytesPerSec,
@@ -72,12 +92,24 @@ export const resolveArtifactWriteThroughputProfile = (perfProfile) => {
   return null;
 };
 
+/**
+ * Normalize filesystem write strategy mode selector.
+ *
+ * @param {unknown} value
+ * @returns {'auto'|'ntfs'|'generic'}
+ */
 const normalizeStrategyMode = (value) => {
   const mode = typeof value === 'string' ? value.trim().toLowerCase() : 'auto';
   if (mode === 'ntfs' || mode === 'generic' || mode === 'auto') return mode;
   return 'auto';
 };
 
+/**
+ * Coerce optional value to non-negative finite number.
+ *
+ * @param {unknown} value
+ * @returns {number|null}
+ */
 const toNonNegativeNumberOrNull = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 0) return null;
@@ -93,6 +125,12 @@ const resolveArtifactWriteSizeClass = (metric = {}) => {
   return 'huge';
 };
 
+/**
+ * Build deterministic candidate comparator for tail-worker queue selection.
+ *
+ * @param {string[]} laneOrder
+ * @returns {(left:object,right:object)=>number}
+ */
 const resolveTailWorkerComparator = (laneOrder) => {
   const order = Array.isArray(laneOrder) && laneOrder.length
     ? laneOrder
@@ -125,6 +163,13 @@ const resolveTailWorkerComparator = (laneOrder) => {
   };
 };
 
+/**
+ * Determine whether a queue entry can be coalesced into micro-write batches.
+ *
+ * @param {object} entry
+ * @param {number} maxEntryBytes
+ * @returns {boolean}
+ */
 const isMicroCoalescibleWrite = (entry, maxEntryBytes) => {
   if (!entry || typeof entry !== 'object') return false;
   if (entry.prefetched) return false;
@@ -366,6 +411,12 @@ export const resolveArtifactWriteMemTokens = (estimatedBytes) => {
   return 0;
 };
 
+/**
+ * Summarize queue-delay samples into stable histogram and percentiles.
+ *
+ * @param {Array<number>} samples
+ * @returns {object|null}
+ */
 export const summarizeQueueDelayHistogram = (samples) => {
   if (!Array.isArray(samples) || !samples.length) return null;
   const normalized = samples
@@ -408,6 +459,12 @@ export const summarizeQueueDelayHistogram = (samples) => {
   };
 };
 
+/**
+ * Check whether an artifact label is critical for index-validation reliability.
+ *
+ * @param {string} label
+ * @returns {boolean}
+ */
 export const isValidationCriticalArtifact = (label) => (
   typeof label === 'string' && VALIDATION_CRITICAL_ARTIFACT_PATTERNS.some((pattern) => pattern.test(label))
 );
@@ -469,6 +526,12 @@ export const resolveArtifactWriteLatencyClass = (metric = {}) => {
   return `${sizeClass}:tail`;
 };
 
+/**
+ * Build class-count summary for artifact write latency telemetry.
+ *
+ * @param {Array<object>} metrics
+ * @returns {{total:number,classes:Array<{name:string,count:number}>}|null}
+ */
 export const summarizeArtifactLatencyClasses = (metrics) => {
   if (!Array.isArray(metrics) || !metrics.length) return null;
   const counts = {};
