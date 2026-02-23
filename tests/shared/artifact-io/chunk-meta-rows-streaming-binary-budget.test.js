@@ -100,4 +100,12 @@ await assert.rejects(
   'materialized loadChunkMeta should enforce binary data budget'
 );
 
+const relaxed = await loadChunkMeta(testRoot, {
+  strict: true,
+  maxBytes: 1024,
+  enforceBinaryDataBudget: false
+});
+assert.equal(relaxed.length, 2, 'expected relaxed binary budget mode to load chunk_meta rows');
+assert.equal(relaxed[0]?.file, 'src/streamed.js', 'expected binary fileRef lookup in relaxed mode');
+
 console.log('chunk-meta rows streaming binary budget test passed');

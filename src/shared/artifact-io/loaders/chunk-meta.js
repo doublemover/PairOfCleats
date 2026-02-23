@@ -255,7 +255,8 @@ export const loadChunkMetaRows = async function* (
  *   strict?: boolean,
  *   preferBinaryColumnar?: boolean,
  *   materializeTokenIds?: boolean,
- *   includeCold?: boolean
+ *   includeCold?: boolean,
+ *   enforceBinaryDataBudget?: boolean
  * }} [options]
  * @returns {Promise<any[]>}
  */
@@ -267,7 +268,8 @@ export const loadChunkMeta = async (
     strict = true,
     preferBinaryColumnar = true,
     materializeTokenIds = false,
-    includeCold = true
+    includeCold = true,
+    enforceBinaryDataBudget = true
   } = {}
 ) => {
   const rows = [];
@@ -278,7 +280,7 @@ export const loadChunkMeta = async (
     preferBinaryColumnar,
     materializeTokenIds,
     includeCold,
-    enforceBinaryDataBudget: true
+    enforceBinaryDataBudget
   })) {
     rows.push(row);
   }

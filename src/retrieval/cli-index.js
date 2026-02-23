@@ -132,7 +132,10 @@ export async function loadIndex(dir, options) {
     maxBytes: MAX_JSON_BYTES,
     manifest,
     strict,
-    includeCold: includeChunkMetaCold !== false
+    includeCold: includeChunkMetaCold !== false,
+    // Search requires materialized chunk metadata; allow streamed binary-columnar
+    // reads even when artifact payload exceeds MAX_JSON_BYTES.
+    enforceBinaryDataBudget: false
   });
   let fileMetaById = null;
   fileMetaById = new Map();
