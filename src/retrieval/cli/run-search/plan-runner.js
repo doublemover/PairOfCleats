@@ -1,9 +1,7 @@
 import path from 'node:path';
 import {
-  applyAdaptiveDictConfig,
   DEFAULT_MODEL_ID,
   getCacheRuntimeConfig,
-  getDictConfig,
   getAutoPolicy,
   getRepoRoot,
   getMetricsDir,
@@ -14,40 +12,41 @@ import {
   resolveSqlitePaths
 } from '../../../../tools/shared/dict-utils.js';
 import { queryVectorAnn } from '../../../../tools/sqlite/vector-extension.js';
-import { createError, ERROR_CODES, isErrorCode } from '../../../shared/error-codes.js';
+import { createError, ERROR_CODES } from '../../../shared/error-codes.js';
 import { getSearchUsage } from '../../cli-args.js';
-import { loadDictionary } from '../../cli-dictionary.js';
-import { getIndexSignature, resolveIndexDir } from '../../cli-index.js';
+import { resolveIndexDir } from '../../cli-index.js';
 import { isLmdbReady, isSqliteReady, loadIndexState } from '../index-state.js';
 import { resolveAsOfContext, resolveSingleRootForModes } from '../../../index/as-of.js';
 import { configureOutputCaches } from '../../output.js';
-import { getMissingFlagMessages, resolveIndexedFileCount } from '../options.js';
+import { getMissingFlagMessages } from '../options.js';
 import { evaluateAutoSqliteThresholds, resolveIndexStats } from '../auto-sqlite.js';
 import { hasIndexMetaAsync, hasLmdbStore } from '../index-loader.js';
 import { applyBranchFilter } from '../branch-filter.js';
 import { resolveBackendSelection } from '../policy.js';
 import { normalizeSearchOptions } from '../normalize-options.js';
-import { buildQueryPlan } from '../query-plan.js';
 import { createRunnerHelpers } from '../runner.js';
 import { resolveRunConfig } from '../resolve-run-config.js';
 import { resolveRequiredArtifacts } from '../required-artifacts.js';
 import { loadSearchIndexes } from '../load-indexes.js';
 import { executeSearchAndEmit } from '../search-execution.js';
 import { resolveRetrievalCachePath } from '../cache-paths.js';
-import { DEFAULT_CODE_DICT_LANGUAGES, normalizeCodeDictLanguages } from '../../../shared/code-dictionaries.js';
-import { compileFilterPredicates } from '../../output/filters.js';
-import { RETRIEVAL_SPARSE_UNAVAILABLE_CODE } from '../../sparse/requirements.js';
-import { resolveSqliteFtsRoutingByMode } from '../../routing-policy.js';
 import { runWithOperationalFailurePolicy } from '../../../shared/ops-failure-injection.js';
 import { pathExists } from '../../../shared/files.js';
 import {
-  buildQueryPlanCacheKey,
-  buildQueryPlanConfigSignature,
-  buildQueryPlanIndexSignature,
-  createQueryPlanDiskCache,
-  createQueryPlanEntry
+  createQueryPlanDiskCache
 } from '../../query-plan-cache.js';
 import { createRetrievalStageTracker } from '../../pipeline/stage-checkpoints.js';
+import { resolveDictionaryAndQueryPlan } from './planning.js';
+import {
+  buildSparseFallbackAnnUnavailableMessage,
+  createBackendContextInputFactory,
+  resolveSparsePreflightFallback
+} from './execution.js';
+import {
+  emitSearchJsonError,
+  flushRunSearchResources
+} from './reporting.js';
+import { createWarningCollector } from './shared.js';
 import { createRunSearchTelemetry } from './telemetry.js';
 import {
   emitMissingQueryAndThrow,
@@ -59,14 +58,11 @@ import {
 import { createBackendContextWithTracking } from './backend-context.js';
 
 import {
-  INDEX_PROFILE_DEFAULT,
   INDEX_PROFILE_VECTOR_ONLY,
   resolveAnnActive,
   resolveProfileCohortModes,
   resolveProfileForState,
-  resolveSparseFallbackModesWithoutAnn,
-  resolveSparsePreflightMissingTables,
-  resolveSparsePreflightModes
+  resolveSparseFallbackModesWithoutAnn
 } from '../preflight.js';
 
 /**
@@ -381,14 +377,9 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     let annEnabledEffective = annEnabled;
     let vectorAnnEnabled = false;
     let sparseFallbackForcedByPreflight = false;
-    const profileWarnings = [];
-    const profileWarningSet = new Set();
-    const addProfileWarning = (warning) => {
-      const text = typeof warning === 'string' ? warning.trim() : '';
-      if (!text || profileWarningSet.has(text)) return;
-      profileWarningSet.add(text);
-      profileWarnings.push(text);
-    };
+    const warningCollector = createWarningCollector();
+    const profileWarnings = warningCollector.warnings;
+    const addProfileWarning = warningCollector.add;
     const syncAnnFlags = () => {
       vectorAnnEnabled = annEnabledEffective && vectorExtension.enabled === true;
       telemetry.setAnn(annEnabledEffective ? 'on' : 'off');
@@ -461,8 +452,10 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       runExtractedProse: runExtractedProseRaw,
       requiresExtractedProse
     });
-    const selectedModesWithState = selectedModes.filter((mode) => indexStateByMode[mode]);
     const profilePolicyByMode = {};
+    const vectorOnlyModes = [];
+    const profileModeDetails = [];
+    const uniqueProfileIds = new Set();
     for (const mode of selectedModes) {
       const profileId = resolveProfileForState(indexStateByMode[mode]);
       const vectorOnly = profileId === INDEX_PROFILE_VECTOR_ONLY;
@@ -472,16 +465,14 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         allowSparseFallback: allowSparseFallback === true,
         sparseUnavailableReason: vectorOnly ? 'profile_vector_only' : null
       };
+      if (vectorOnly) vectorOnlyModes.push(mode);
+      if (!indexStateByMode[mode]) continue;
+      if (typeof profileId !== 'string' || !profileId) continue;
+      uniqueProfileIds.add(profileId);
+      profileModeDetails.push(`${mode}:${profileId}`);
     }
-    const vectorOnlyModes = selectedModes.filter((mode) => profilePolicyByMode[mode]?.vectorOnly === true);
-    const profileModes = selectedModesWithState
-      .map((mode) => ({ mode, profileId: profilePolicyByMode[mode]?.profileId || INDEX_PROFILE_DEFAULT }))
-      .filter((entry) => typeof entry.profileId === 'string' && entry.profileId);
-    const uniqueProfileIds = Array.from(new Set(profileModes.map((entry) => entry.profileId)));
-    if (uniqueProfileIds.length > 1) {
-      const details = profileModes
-        .map((entry) => `${entry.mode}:${entry.profileId}`)
-        .join(', ');
+    if (uniqueProfileIds.size > 1) {
+      const details = profileModeDetails.join(', ');
       if (allowUnsafeMix !== true) {
         return bail(
           `[search] retrieval_profile_mismatch: mixed index profiles detected (${details}). ` +
@@ -661,34 +652,31 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
     const sqliteFtsEnabled = sqliteFtsRequested || (autoBackendRequested && useSqliteSelection);
 
-    const buildBackendContextInput = () => ({
-      backendPolicy,
-      useSqlite: useSqliteSelection,
-      useLmdb: useLmdbSelection,
+    const sqliteStates = {
+      code: sqliteStateCode,
+      prose: sqliteStateProse,
+      'extracted-prose': sqliteStateExtractedProse
+    };
+    const lmdbStates = {
+      code: lmdbStateCode,
+      prose: lmdbStateProse
+    };
+    const buildBackendContextInput = createBackendContextInputFactory({
       needsCode,
       needsProse,
       needsExtractedProse: loadExtractedProseSqlite,
       sqliteCodePath,
       sqliteProsePath,
       sqliteExtractedProsePath,
-      sqliteFtsRequested: sqliteFtsEnabled,
       backendForcedSqlite,
       backendForcedLmdb,
       backendForcedTantivy,
       vectorExtension,
-      vectorAnnEnabled,
       dbCache: sqliteCache,
-      sqliteStates: {
-        code: sqliteStateCode,
-        prose: sqliteStateProse,
-        'extracted-prose': sqliteStateExtractedProse
-      },
+      sqliteStates,
       lmdbCodePath,
       lmdbProsePath,
-      lmdbStates: {
-        code: lmdbStateCode,
-        prose: lmdbStateProse
-      },
+      lmdbStates,
       postingsConfig,
       sqliteFtsWeights,
       maxCandidates,
@@ -707,7 +695,13 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       operation: 'backend-context',
       execute: async () => createBackendContextWithTracking({
         stageTracker,
-        contextInput: buildBackendContextInput(),
+        contextInput: buildBackendContextInput({
+          backendPolicy,
+          useSqlite: useSqliteSelection,
+          useLmdb: useLmdbSelection,
+          sqliteFtsRequested: sqliteFtsEnabled,
+          vectorAnnEnabled
+        }),
         stageName: 'startup.backend'
       }),
       log: (message) => {
@@ -757,113 +751,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       return branchResult.payload;
     }
 
-    const dictConfigBase = getDictConfig(rootDir, userConfig);
-    const dictConfig = applyAdaptiveDictConfig(
-      dictConfigBase,
-      resolveIndexedFileCount(metricsDir, {
-        runCode,
-        runProse,
-        runExtractedProse: runExtractedProseRaw,
-        runRecords
-      })
-    );
-    const baseCodeDictLanguages = normalizeCodeDictLanguages(DEFAULT_CODE_DICT_LANGUAGES);
-    let codeDictLanguages = baseCodeDictLanguages;
-    if (langFilter && langFilter.length) {
-      const filterLangs = normalizeCodeDictLanguages(langFilter);
-      if (filterLangs.size) {
-        const intersect = new Set();
-        for (const lang of baseCodeDictLanguages) {
-          if (filterLangs.has(lang)) intersect.add(lang);
-        }
-        codeDictLanguages = intersect;
-      }
-    }
-    const includeCodeDicts = runCode && codeDictLanguages.size > 0;
-    const dictStart = stageTracker.mark();
-    const { dict } = await loadDictionary(rootDir, dictConfig, {
-      includeCode: includeCodeDicts,
-      codeDictLanguages: Array.from(codeDictLanguages)
-    });
-    stageTracker.record('startup.dictionary', dictStart, { mode: 'all' });
-    throwIfAborted();
-
-    const planStart = stageTracker.mark();
-    const planConfigSignature = queryPlanCache?.enabled !== false
-      ? buildQueryPlanConfigSignature({
-        dictConfig,
-        dictSize: dict?.size ?? null,
-        postingsConfig,
-        caseTokens,
-        fileFilter,
-        caseFile,
-        searchRegexConfig,
-        filePrefilterEnabled,
-        fileChargramN,
-        searchType,
-        searchAuthor,
-        searchImport,
-        chunkAuthorFilter,
-        branchesMin,
-        loopsMin,
-        breaksMin,
-        continuesMin,
-        churnMin,
-        extFilter,
-        langFilter,
-        extImpossible,
-        langImpossible,
-        metaFilters,
-        modifiedAfter,
-        modifiedSinceDays,
-        fieldWeightsConfig,
-        denseVectorMode,
-        branchFilter
-      })
-      : null;
-    if (planConfigSignature) {
-      queryPlanCache.resetIfConfigChanged(planConfigSignature);
-    }
-    const planIndexSignaturePayload = planConfigSignature
-      ? await getIndexSignature({
-        useSqlite,
-        backendLabel,
-        sqliteCodePath,
-        sqliteProsePath,
-        sqliteExtractedProsePath,
-        runRecords,
-        runExtractedProse: runExtractedProseRaw,
-        includeExtractedProse: runExtractedProseRaw || joinComments,
-        root: rootDir,
-        userConfig,
-        indexDirByMode: asOfContext?.strict ? asOfContext.indexDirByMode : null,
-        indexBaseRootByMode: asOfContext?.strict ? asOfContext.indexBaseRootByMode : null,
-        explicitRef: asOfContext?.strict === true,
-        asOfContext
-      })
-      : null;
-    const planIndexSignature = planConfigSignature
-      ? buildQueryPlanIndexSignature(planIndexSignaturePayload)
-      : null;
-    const planCacheKeyInfo = planConfigSignature
-      ? buildQueryPlanCacheKey({
-        query,
-        configSignature: planConfigSignature,
-        indexSignature: planIndexSignature
-      })
-      : null;
-    const cachedPlanEntry = planCacheKeyInfo
-      ? queryPlanCache.get(planCacheKeyInfo.key, {
-        configSignature: planConfigSignature,
-        indexSignature: planIndexSignature
-      })
-      : null;
-    const parseStart = stageTracker.mark();
-    const queryPlan = cachedPlanEntry?.plan || buildQueryPlan({
-      query,
-      argv,
-      dict,
-      dictConfig,
+    const planInput = {
       postingsConfig,
       caseTokens,
       fileFilter,
@@ -890,90 +778,91 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       fieldWeightsConfig,
       denseVectorMode,
       branchFilter
+    };
+    const {
+      queryPlan,
+      planIndexSignaturePayload
+    } = await resolveDictionaryAndQueryPlan({
+      stageTracker,
+      throwIfAborted,
+      rootDir,
+      userConfig,
+      metricsDir,
+      query,
+      argv,
+      runCode,
+      runProse,
+      runExtractedProse: runExtractedProseRaw,
+      runRecords,
+      langFilter,
+      queryPlanCache,
+      planInput,
+      fileChargramN,
+      indexSignatureInput: {
+        useSqlite,
+        backendLabel,
+        sqliteCodePath,
+        sqliteProsePath,
+        sqliteExtractedProsePath,
+        runRecords,
+        runExtractedProse: runExtractedProseRaw,
+        includeExtractedProse: runExtractedProseRaw || joinComments,
+        root: rootDir,
+        userConfig,
+        indexDirByMode: asOfContext?.strict ? asOfContext.indexDirByMode : null,
+        indexBaseRootByMode: asOfContext?.strict ? asOfContext.indexBaseRootByMode : null,
+        explicitRef: asOfContext?.strict === true,
+        asOfContext
+      }
     });
-    if (!queryPlan.filterPredicates) {
-      queryPlan.filterPredicates = compileFilterPredicates(queryPlan.filters, { fileChargramN });
-    }
-    stageTracker.record('parse', parseStart, { mode: 'all' });
-    if (!cachedPlanEntry && planCacheKeyInfo && planConfigSignature) {
-      queryPlanCache.set(
-        planCacheKeyInfo.key,
-        createQueryPlanEntry({
-          plan: queryPlan,
-          configSignature: planConfigSignature,
-          indexSignature: planIndexSignature,
-          keyPayload: planCacheKeyInfo.payload
-        })
-      );
-    }
-    stageTracker.record('startup.query-plan', planStart, { mode: 'all' });
 
     let sparseMissingByMode = {};
-    if (!annEnabledEffective && useSqlite) {
-      const sqliteFtsRouting = resolveSqliteFtsRoutingByMode({
-        useSqlite,
-        sqliteFtsRequested: sqliteFtsEnabled,
-        sqliteFtsExplicit: backendLabel === 'sqlite-fts',
-        runCode,
-        runProse,
-        runExtractedProse: runExtractedProseRaw,
-        runRecords
-      });
-      sparseMissingByMode = {};
-      const sparsePreflightModes = resolveSparsePreflightModes({
-        selectedModes,
-        requiresExtractedProse,
-        loadExtractedProseSqlite
-      });
-      const tablePresenceCache = new Map();
-      for (const mode of sparsePreflightModes) {
-        const policy = profilePolicyByMode[mode];
-        if (policy?.vectorOnly) continue;
-        const missing = resolveSparsePreflightMissingTables({
-          sqliteHelpers,
-          mode,
-          postingsConfig,
-          sqliteFtsRoutingByMode: sqliteFtsRouting,
-          allowSparseFallback,
-          filtersActive: queryPlan.filtersActive === true,
-          sparseBackend,
-          tablePresenceCache
-        });
-        if (missing.length) sparseMissingByMode[mode] = missing;
+    const sparsePreflight = resolveSparsePreflightFallback({
+      annEnabledEffective,
+      useSqlite,
+      backendLabel,
+      sqliteFtsEnabled,
+      runCode,
+      runProse,
+      runExtractedProse: runExtractedProseRaw,
+      runRecords,
+      selectedModes,
+      requiresExtractedProse,
+      loadExtractedProseSqlite,
+      profilePolicyByMode,
+      postingsConfig,
+      allowSparseFallback,
+      filtersActive: queryPlan.filtersActive === true,
+      sparseBackend,
+      sqliteHelpers
+    });
+    annEnabledEffective = sparsePreflight.annEnabledEffective;
+    sparseFallbackForcedByPreflight = sparsePreflight.sparseFallbackForcedByPreflight;
+    sparseMissingByMode = sparsePreflight.sparseMissingByMode;
+    if (sparsePreflight.warning) {
+      addProfileWarning(sparsePreflight.warning);
+      if (emitOutput) {
+        console.warn(`[search] ${sparsePreflight.warning}`);
       }
-      if (Object.keys(sparseMissingByMode).length) {
-        if (allowSparseFallback === true) {
-          sparseFallbackForcedByPreflight = true;
-          annEnabledEffective = true;
-          const details = Object.entries(sparseMissingByMode)
-            .map(([mode, missing]) => `${mode}: ${missing.join(', ')}`)
-            .join('; ');
-          const warning = (
-            `Sparse tables missing for sparse-only request (${details}). ` +
-            'Enabling ANN fallback because --allow-sparse-fallback was set.'
-          );
-          addProfileWarning(warning);
-          if (emitOutput) {
-            console.warn(`[search] ${warning}`);
-          }
-        } else {
-          const details = Object.entries(sparseMissingByMode)
-            .map(([mode, missing]) => `- ${mode}: ${missing.join(', ')}`)
-            .join('\n');
-          return bail(
-            `[search] ${RETRIEVAL_SPARSE_UNAVAILABLE_CODE}: sparse-only retrieval requires sparse tables, but required tables are missing.\n${details}\n` +
-              'Rebuild sparse artifacts or enable ANN fallback.',
-            1,
-            ERROR_CODES.CAPABILITY_MISSING
-          );
-        }
-      }
+    }
+    if (sparsePreflight.errorMessage) {
+      return bail(
+        sparsePreflight.errorMessage,
+        1,
+        sparsePreflight.errorCode || ERROR_CODES.CAPABILITY_MISSING
+      );
     }
     if (sparseFallbackForcedByPreflight) {
       syncAnnFlags();
       backendContext = await createBackendContextWithTracking({
         stageTracker,
-        contextInput: buildBackendContextInput(),
+        contextInput: buildBackendContextInput({
+          backendPolicy,
+          useSqlite: useSqliteSelection,
+          useLmdb: useLmdbSelection,
+          sqliteFtsRequested: sqliteFtsEnabled,
+          vectorAnnEnabled
+        }),
         stageName: 'startup.backend.reinit'
       });
       ({
@@ -1011,6 +900,15 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const { loadIndexFromSqlite } = sqliteHelpers;
     const { loadIndexFromLmdb } = lmdbHelpers;
 
+    const chunkAuthorFilterActive = Array.isArray(chunkAuthorFilter)
+      ? chunkAuthorFilter.length > 0
+      : Boolean(chunkAuthorFilter);
+    const indexStatesForLoad = {
+      code: sqliteStateCode || null,
+      prose: sqliteStateProse || null,
+      'extracted-prose': sqliteStateExtractedProse || null,
+      records: sqliteStateRecords || null
+    };
     const indexesStart = stageTracker.mark();
     const {
       idxProse,
@@ -1041,7 +939,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       exitOnError,
       annActive,
       filtersActive: queryPlan.filtersActive,
-      chunkAuthorFilterActive: Array.isArray(chunkAuthorFilter) ? chunkAuthorFilter.length > 0 : Boolean(chunkAuthorFilter),
+      chunkAuthorFilterActive,
       contextExpansionEnabled,
       graphRankingEnabled,
       sqliteFtsRequested: sqliteFtsEnabled,
@@ -1054,12 +952,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       lancedbConfig,
       tantivyConfig,
       indexMetaByMode: strictIndexMetaByMode,
-      indexStates: {
-        code: sqliteStateCode || null,
-        prose: sqliteStateProse || null,
-        'extracted-prose': sqliteStateExtractedProse || null,
-        records: sqliteStateRecords || null
-      },
+      indexStates: indexStatesForLoad,
       strict,
       loadIndexFromSqlite,
       loadIndexFromLmdb,
@@ -1088,13 +981,11 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         lanceAnnState
       });
       if (sparseFallbackModesWithoutAnn.length) {
-        const sparseDetails = Object.entries(sparseMissingByMode)
-          .map(([mode, missing]) => `- ${mode}: ${missing.join(', ')}`)
-          .join('\n');
         return bail(
-          `[search] ${RETRIEVAL_SPARSE_UNAVAILABLE_CODE}: --allow-sparse-fallback was set, but no ANN path is available for mode(s): ` +
-            `${sparseFallbackModesWithoutAnn.join(', ')}.\n${sparseDetails}\n` +
-            'Rebuild sparse artifacts or make ANN artifacts/providers available before using sparse fallback.',
+          buildSparseFallbackAnnUnavailableMessage({
+            sparseMissingByMode,
+            sparseFallbackModesWithoutAnn
+          }),
           1,
           ERROR_CODES.CAPABILITY_MISSING
         );
@@ -1210,32 +1101,10 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     return payload;
   } catch (err) {
     recordSearchMetrics('error');
-    if (emitOutput && jsonOutput && !err?.emitted) {
-      let message = err?.message || 'Search failed.';
-      if (err?.code && String(err.code).startsWith('ERR_MANIFEST')
-        && !String(message).toLowerCase().includes('manifest')) {
-        message = message && message !== 'Search failed.'
-          ? `Manifest error: ${message}`
-          : 'Missing pieces manifest.';
-      }
-      const code = isErrorCode(err?.code) ? err.code : ERROR_CODES.INTERNAL;
-      console.log(JSON.stringify({ ok: false, code, message }));
-      if (err) err.emitted = true;
-    }
+    emitSearchJsonError({ err, emitOutput, jsonOutput });
     throw err;
   } finally {
-    if (telemetry?.emitResourceWarnings) {
-      telemetry.emitResourceWarnings({
-        warn: (message) => {
-          if (emitOutput) console.warn(message);
-        }
-      });
-    }
-    if (typeof queryPlanCache?.persist === 'function') {
-      try {
-        await queryPlanCache.persist();
-      } catch {}
-    }
+    await flushRunSearchResources({ telemetry, emitOutput, queryPlanCache });
   }
 }
 

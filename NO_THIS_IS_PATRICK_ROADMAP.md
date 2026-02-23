@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T06:02:27.7371036-05:00
+  Split `src/retrieval/cli/run-search/plan-runner.js` into focused `planning`, `execution`, `reporting`, and `shared` modules to isolate query-plan cache/dictionary sequencing, sparse-preflight fallback decisions, and error/finalizer output paths; added a reusable backend-context input factory to reduce repeated startup object allocation.
 - 2026-02-23T05:56:42.6293117-05:00
   Decomposed `src/index/build/artifacts/writers/chunk-meta/writer.js` into `write-plan`, `row-assembly`, and `persistence` modules, preserving chunk-meta ordering/manifest contracts while isolating plan derivation from IO fanout and reusing materialized hot rows in compat JSON fanout to avoid duplicate async replay work.
 - 2026-02-23T05:56:02.3049796-05:00
