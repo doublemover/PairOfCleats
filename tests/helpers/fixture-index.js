@@ -37,7 +37,7 @@ const ensureDir = async (dir) => {
 const FIXTURE_MODES = new Set(['code', 'prose', 'extracted-prose', 'records']);
 const DEFAULT_REQUIRED_MODES = Object.freeze(['code', 'prose', 'extracted-prose']);
 const VALID_CACHE_SCOPES = new Set(['isolated', 'shared']);
-const FIXTURE_HEALTH_VERSION = 1;
+const FIXTURE_HEALTH_VERSION = 2;
 
 const normalizeCacheScope = (cacheScope) => {
   const normalized = String(cacheScope || 'isolated').trim().toLowerCase();
@@ -210,6 +210,31 @@ const hasRiskTags = (codeDir) => {
   }
 };
 
+const hasMissingSqlDialectMetadata = async (codeDir) => {
+  try {
+    const chunkMeta = await loadChunkMeta(codeDir, { strict: false });
+    if (!Array.isArray(chunkMeta) || chunkMeta.length === 0) return false;
+    const fileMeta = loadJsonArrayArtifactSync(codeDir, 'file_meta', {
+      maxBytes: MAX_JSON_BYTES,
+      strict: false
+    });
+    const fileById = new Map(
+      (Array.isArray(fileMeta) ? fileMeta : []).map((entry) => [entry.id, entry.file])
+    );
+    const isSqlFile = (file) => typeof file === 'string' && /\.(sql|psql|pgsql|mysql|sqlite)$/i.test(file);
+    for (const entry of chunkMeta) {
+      const filePath = entry?.file || fileById.get(entry?.fileId) || null;
+      const isSqlChunk = String(entry?.lang || '').toLowerCase() === 'sql' || isSqlFile(filePath);
+      if (!isSqlChunk) continue;
+      const dialect = entry?.docmeta?.dialect;
+      if (typeof dialect !== 'string' || !dialect.trim()) {
+        return true;
+      }
+    }
+  } catch {}
+  return false;
+};
+
 const readIndexCompatibilityKey = (dir) => {
   try {
     return readCompatibilityKey(dir, { maxBytes: MAX_JSON_BYTES, strict: false }).key;
@@ -284,7 +309,8 @@ const writeFixtureHealthStamp = async (
   {
     requiredModes,
     compatibilityKeyByMode,
-    hasRiskTags
+    hasRiskTags,
+    hasSqlDialectMetadata
   }
 ) => {
   const existing = await readFixtureHealthStamp(stampPath);
@@ -299,7 +325,8 @@ const writeFixtureHealthStamp = async (
     checkedAt: new Date().toISOString(),
     modes: mergedModes,
     compatibilityKeyByMode: mergedCompatibility,
-    hasRiskTags: Boolean(existing?.hasRiskTags || hasRiskTags)
+    hasRiskTags: Boolean(existing?.hasRiskTags || hasRiskTags),
+    hasSqlDialectMetadata: Boolean(hasSqlDialectMetadata)
   };
   await fsPromises.writeFile(stampPath, JSON.stringify(payload), 'utf8');
 };
@@ -309,6 +336,7 @@ const canUseFixtureHealthStamp = (
   {
     requiredModes,
     requireRiskTags,
+    requireSqlDialectMetadata,
     compatibilityKeyByMode
   }
 ) => {
@@ -317,6 +345,7 @@ const canUseFixtureHealthStamp = (
   const stampModes = new Set(Array.isArray(stamp.modes) ? stamp.modes : []);
   if (requiredModes.some((mode) => !stampModes.has(mode))) return false;
   if (requireRiskTags && stamp.hasRiskTags !== true) return false;
+  if (requireSqlDialectMetadata && stamp.hasSqlDialectMetadata !== true) return false;
   const stampedKeys = stamp.compatibilityKeyByMode || {};
   for (const mode of requiredModes) {
     if ((stampedKeys[mode] || null) !== (compatibilityKeyByMode?.[mode] || null)) {
@@ -371,10 +400,12 @@ export const ensureFixtureIndex = async ({
     });
     const compatibleIndexes = compatibility.compatible;
     const requireCodeRiskTags = requireRiskTags && normalizedRequiredModes.includes('code');
+    const requireSqlDialectMetadata = normalizedRequiredModes.includes('code');
     if (!compatibleIndexes) {
       return {
         modeDirs,
         needsRiskTags: requireCodeRiskTags,
+        missingSqlDialects: requireSqlDialectMetadata,
         missingChunkUids: true,
         compatibleIndexes,
         usedHealthStamp: false
@@ -384,37 +415,49 @@ export const ensureFixtureIndex = async ({
     if (canUseFixtureHealthStamp(healthStamp, {
       requiredModes: normalizedRequiredModes,
       requireRiskTags: requireCodeRiskTags,
+      requireSqlDialectMetadata,
       compatibilityKeyByMode: compatibility.keyByMode
     })) {
       return {
         modeDirs,
         needsRiskTags: false,
+        missingSqlDialects: false,
         missingChunkUids: false,
         compatibleIndexes,
         usedHealthStamp: true
       };
     }
     const needsRiskTags = requireCodeRiskTags && !hasRiskTags(modeDirs.code);
+    const missingSqlDialects = requireSqlDialectMetadata
+      ? await hasMissingSqlDialectMetadata(modeDirs.code)
+      : false;
     const missingChunkUids = await hasMissingChunkUids({
       modeDirs,
       requiredModes: normalizedRequiredModes
     });
-    if (!needsRiskTags && !missingChunkUids) {
+    if (!needsRiskTags && !missingChunkUids && !missingSqlDialects) {
       await writeFixtureHealthStamp(healthStampPath, {
         requiredModes: normalizedRequiredModes,
         compatibilityKeyByMode: compatibility.keyByMode,
-        hasRiskTags: requireCodeRiskTags
+        hasRiskTags: requireCodeRiskTags,
+        hasSqlDialectMetadata: !missingSqlDialects
       });
     }
     return {
       modeDirs,
       needsRiskTags,
+      missingSqlDialects,
       missingChunkUids,
       compatibleIndexes,
       usedHealthStamp: false
     };
   };
-  const needsBuild = (state) => !state.compatibleIndexes || state.needsRiskTags || state.missingChunkUids;
+  const needsBuild = (state) => (
+    !state.compatibleIndexes
+    || state.needsRiskTags
+    || state.missingChunkUids
+    || state.missingSqlDialects
+  );
 
   let state = await evaluateFixtureState();
   if (needsBuild(state)) {
@@ -555,7 +598,7 @@ const withTemporaryEnv = async (targetEnv, callback) => {
 };
 
 export const createInProcessSearchRunner = ({
-  root = ROOT,
+  root = null,
   fixtureRoot,
   env
 } = {}) => {
@@ -588,13 +631,16 @@ export const createInProcessSearchRunner = ({
       extraArgs
     });
     try {
-      return await withTemporaryEnv(env, async () => runSearchCli(rawArgs, {
+      const runOptions = {
         emitOutput: false,
         exitOnError: false,
         indexCache,
-        sqliteCache,
-        root
-      }));
+        sqliteCache
+      };
+      if (typeof root === 'string' && root.trim()) {
+        runOptions.root = root;
+      }
+      return await withTemporaryEnv(env, async () => runSearchCli(rawArgs, runOptions));
     } catch (err) {
       console.error('Failed: search');
       if (err?.message) console.error(err.message);
