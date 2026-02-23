@@ -33,6 +33,7 @@ export const buildRawArgs = (options = {}) => {
   if (options.stage) args.push('--stage', String(options.stage));
   if (options.threads !== undefined) args.push('--threads', String(options.threads));
   if (options.incremental) args.push('--incremental');
+  if (options['cache-rebuild'] === true || options.cacheRebuild === true) args.push('--cache-rebuild');
   if (options['stub-embeddings'] || options.stubEmbeddings) args.push('--stub-embeddings');
   if (options.watch) args.push('--watch');
   if (options['watch-poll'] !== undefined) args.push('--watch-poll', String(options['watch-poll']));
@@ -105,6 +106,8 @@ export const buildStage2Args = ({ root, argv, rawArgv }) => {
     args.push('--threads', String(stageThreads));
   }
   if (argv.incremental) args.push('--incremental');
+  const cacheRebuild = argv['cache-rebuild'] === true || rawArgv.includes('--cache-rebuild');
+  if (cacheRebuild) args.push('--cache-rebuild');
   if (rawArgv.includes('--stub-embeddings')) args.push('--stub-embeddings');
   if (typeof argv.sqlite === 'boolean') args.push(argv.sqlite ? '--sqlite' : '--no-sqlite');
   if (argv.model) args.push('--model', String(argv.model));
