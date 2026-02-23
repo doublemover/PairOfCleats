@@ -33,7 +33,8 @@ import { createArtifactWriter } from './artifacts/writer.js';
 import { formatBytes } from './artifacts/helpers.js';
 import { resolveFilterIndexArtifactState } from './artifacts/filter-index-reuse.js';
 import {
-  createWriteHeartbeatController
+  createWriteHeartbeatController,
+  finalizeArtifactWriteTelemetry
 } from './artifacts/write-telemetry.js';
 import {
   resolveEagerWriteSchedulerTokens
@@ -83,8 +84,7 @@ import {
   resolveArtifactWriteMemTokens,
   resolveArtifactWriteThroughputProfile,
   selectMicroWriteBatch,
-  selectTailWorkerWriteEntry,
-  summarizeArtifactLatencyClasses
+  selectTailWorkerWriteEntry
 } from './artifacts/write-strategy.js';
 import { drainArtifactWriteQueues } from './artifacts/write-execution.js';
 import { splitScheduledArtifactWriteLanes } from './artifacts/write-lane-planning.js';
@@ -2440,64 +2440,13 @@ export async function writeIndexArtifacts(input) {
     }
   }
 
-  for (const entry of pieceEntries) {
-    if (!entry?.path) continue;
-    const metric = artifactMetrics.get(entry.path) || { path: entry.path };
-    if (Number.isFinite(entry.count)) metric.count = entry.count;
-    if (Number.isFinite(entry.dims)) metric.dims = entry.dims;
-    if (entry.compression) metric.compression = entry.compression;
-    if (Number.isFinite(entry.bytes) && entry.bytes >= 0) metric.bytes = entry.bytes;
-    if (typeof entry.checksum === 'string' && entry.checksum.includes(':')) {
-      const [checksumAlgo, checksum] = entry.checksum.split(':');
-      if (checksumAlgo && checksum) {
-        metric.checksumAlgo = checksumAlgo;
-        metric.checksum = checksum;
-      }
-    }
-    artifactMetrics.set(entry.path, metric);
-  }
-  for (const entry of pieceEntries) {
-    if (!entry?.path) continue;
-    const metric = artifactMetrics.get(entry.path);
-    if (!metric || typeof metric !== 'object') continue;
-    if (!Number.isFinite(entry.bytes) && Number.isFinite(metric.bytes)) {
-      entry.bytes = metric.bytes;
-    }
-    if (
-      typeof entry.checksum !== 'string'
-      && typeof metric.checksumAlgo === 'string'
-      && typeof metric.checksum === 'string'
-      && metric.checksumAlgo
-      && metric.checksum
-    ) {
-      entry.checksum = `${metric.checksumAlgo}:${metric.checksum}`;
-    }
-  }
-  if (timing) {
-    const artifactLatencyClasses = summarizeArtifactLatencyClasses(Array.from(artifactMetrics.values()));
-    timing.cleanup = {
-      profileId,
-      actions: cleanupActions,
-      writeFsStrategy,
-      artifactLatencyClasses
-    };
-    timing.artifacts = Array.from(artifactMetrics.values()).sort((a, b) => {
-      const aPath = String(a?.path || '');
-      const bPath = String(b?.path || '');
-      return aPath.localeCompare(bPath);
-    });
-  }
-
-  pieceEntries.sort((a, b) => {
-    const pathA = String(a?.path || '');
-    const pathB = String(b?.path || '');
-    if (pathA !== pathB) return pathA.localeCompare(pathB);
-    const typeA = String(a?.type || '');
-    const typeB = String(b?.type || '');
-    if (typeA !== typeB) return typeA.localeCompare(typeB);
-    const nameA = String(a?.name || '');
-    const nameB = String(b?.name || '');
-    return nameA.localeCompare(nameB);
+  finalizeArtifactWriteTelemetry({
+    pieceEntries,
+    artifactMetrics,
+    timing,
+    cleanupActions,
+    writeFsStrategy,
+    profileId
   });
   await writePiecesManifest({
     pieceEntries,
