@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T06:25:13.3001612-05:00
+  Extracted JSON artifact fallback/decompression read path from `src/shared/artifact-io/json.js` into `src/shared/artifact-io/json/read-json-file.js`, isolating primary/compressed/backup resolution and telemetry so JSONL-focused hot paths in the main module carry less branching overhead.
 - 2026-02-23T06:23:44.6469391-05:00
   Split retrieval profile cohort and vector-only fallback policy from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/profile-policy.js`, centralizing mixed-profile/sparse-only guardrails and reducing orchestration-path branching around ANN coercion and warning emission.
 - 2026-02-23T06:22:57.0000000-05:00
