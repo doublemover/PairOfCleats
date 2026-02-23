@@ -2,6 +2,7 @@ import path from 'node:path';
 import { createLifecycleRegistry } from '../../../src/shared/lifecycle/registry.js';
 
 const NOOP_ASYNC = async () => {};
+const STALE_SWEEP_MIN_INTERVAL_MS = 1000;
 
 /**
  * Create queue worker orchestration helpers for job lifecycle and watch-loop
@@ -46,6 +47,7 @@ export const createQueueWorker = ({
   jobHeartbeatIntervalMs = 30000
 }) => {
   let staleSweepPromise = null;
+  let lastStaleSweepAtMs = 0;
 
   /**
    * Deduplicate concurrent stale-sweep scans across workers.
@@ -56,10 +58,15 @@ export const createQueueWorker = ({
    * @returns {Promise<void>}
    */
   const ensureStaleSweep = async () => {
+    const now = Date.now();
+    if ((now - lastStaleSweepAtMs) < STALE_SWEEP_MIN_INTERVAL_MS) {
+      return;
+    }
     if (!staleSweepPromise) {
       staleSweepPromise = requeueStaleJobs(queueDir, resolvedQueueName, {
         maxRetries: staleQueueMaxRetries
       }).finally(() => {
+        lastStaleSweepAtMs = Date.now();
         staleSweepPromise = null;
       });
     }

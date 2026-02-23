@@ -67,4 +67,41 @@ const createSingleJobQueueWorker = ({
   assert.equal(payloads[0].metrics.failed, 1, 'thrown execution should count as failed');
 }
 
+{
+  let staleSweepCalls = 0;
+  const payloads = [];
+  let cursor = 0;
+  const worker = createQueueWorker({
+    queueDir: '/tmp/indexer-queue',
+    resolvedQueueName: 'index',
+    staleQueueMaxRetries: 2,
+    monitorBuildProgress: false,
+    startBuildProgressMonitor: () => async () => {},
+    touchJobHeartbeat: async () => {},
+    requeueStaleJobs: async () => {
+      staleSweepCalls += 1;
+    },
+    ensureQueueDir: async () => {},
+    claimNextJob: async () => {
+      if (cursor >= 3) return null;
+      cursor += 1;
+      return { id: `job-${cursor}`, repo: '/tmp/repo', stage: 'stage1' };
+    },
+    executeClaimedJob: async () => ({
+      handled: false,
+      runResult: { exitCode: 0, signal: null, executionMode: 'subprocess', daemon: null }
+    }),
+    finalizeJobRun: async ({ metrics }) => {
+      metrics.succeeded += 1;
+    },
+    buildDefaultRunResult: () => ({ exitCode: 1, signal: null, executionMode: 'subprocess', daemon: null }),
+    printPayload: (payload) => payloads.push(payload)
+  });
+  await worker.runBatch(1);
+  assert.equal(staleSweepCalls, 1, 'expected stale sweep to run once per hot batch');
+  assert.equal(payloads.length, 1);
+  assert.equal(payloads[0].metrics.processed, 3);
+  assert.equal(payloads[0].metrics.succeeded, 3);
+}
+
 console.log('indexer service queue-worker contract test passed');
