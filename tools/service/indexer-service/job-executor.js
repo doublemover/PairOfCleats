@@ -297,8 +297,13 @@ export const createJobExecutor = ({
    */
   const executeEmbeddingJob = async ({ job, jobLifecycle, logPath }) => {
     const normalized = normalizeEmbeddingJob(job);
+    const repoPath = normalized.repoRoot || job.repo;
     if (job.repoRoot && job.repo && path.resolve(job.repoRoot) !== path.resolve(job.repo)) {
       console.error(`[indexer] embedding job ${job.id} repoRoot mismatch (repo=${job.repo}, repoRoot=${job.repoRoot}); using repoRoot.`);
+    }
+    if (!repoPath || typeof repoPath !== 'string' || repoPath.trim().length === 0) {
+      await completeNonRetriableFailure(job, 'missing repo path for embedding job');
+      return { handled: true };
     }
     if (!normalized.buildRoot) {
       await completeNonRetriableFailure(job, 'missing buildRoot for embedding job');
@@ -313,13 +318,13 @@ export const createJobExecutor = ({
     }
     if (normalized.indexDir) {
       const rel = path.relative(normalized.buildRoot, normalized.indexDir);
-      if (!rel || rel.startsWith('..') || isAbsolutePathNative(rel)) {
+      if (rel.startsWith('..') || isAbsolutePathNative(rel)) {
         console.error(`[indexer] embedding job ${job.id} indexDir not under buildRoot; continuing with buildRoot only.`);
       }
     }
     const subprocessResult = await jobLifecycle.registerPromise(
       runBuildEmbeddings(
-        normalized.repoRoot || job.repo,
+        repoPath,
         job.mode,
         normalized.buildRoot,
         embeddingExtraEnv,
