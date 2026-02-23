@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { resolveMapViewerPathUnderBase } from '../../tools/bench/map/shared.js';
+import {
+  decodeMapViewerPathname,
+  resolveMapViewerPathUnderBase
+} from '../../tools/bench/map/shared.js';
 
 const posixBase = '/srv/bench/assets/isomap';
 assert.equal(
@@ -25,6 +28,16 @@ assert.equal(
   resolveMapViewerPathUnderBase(winBase, '..\\isomap-escape\\secret.png', path.win32),
   null,
   'expected win32 sibling-prefix escape to be rejected'
+);
+assert.equal(
+  decodeMapViewerPathname('/assets/isomap/scene.png'),
+  '/assets/isomap/scene.png',
+  'expected valid map viewer pathname decoding'
+);
+assert.equal(
+  decodeMapViewerPathname('/%E0%A4%A'),
+  null,
+  'expected malformed map viewer pathname encoding to be rejected'
 );
 
 console.log('map bench safe join test passed');

@@ -19,3 +19,16 @@ export const safeJoinUnderBase = (baseDir, requestPath, pathApi = path) => {
   return resolvedTarget;
 };
 
+/**
+ * Decode a URL pathname and return null when URI encoding is malformed.
+ *
+ * @param {string} rawPathname
+ * @returns {string|null}
+ */
+export const decodePathnameSafe = (rawPathname) => {
+  try {
+    return decodeURIComponent(String(rawPathname || '/'));
+  } catch {
+    return null;
+  }
+};

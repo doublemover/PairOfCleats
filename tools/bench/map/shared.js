@@ -3,7 +3,7 @@ import http from 'node:http';
 import path from 'node:path';
 
 import { getIndexDir, resolveRepoConfig, resolveToolRoot } from '../../shared/dict-utils.js';
-import { safeJoinUnderBase } from '../../analysis/map-iso-safe-join.js';
+import { decodePathnameSafe, safeJoinUnderBase } from '../../analysis/map-iso-safe-join.js';
 
 export const resolveLimit = (value) => {
   const num = Number(value);
@@ -58,6 +58,8 @@ export const resolveMapViewerPathUnderBase = (baseDir, requestPath, pathApi = pa
   safeJoinUnderBase(baseDir, requestPath, pathApi)
 );
 
+export const decodeMapViewerPathname = (rawPathname) => decodePathnameSafe(rawPathname);
+
 export const startMapViewerStaticServer = async ({ outPath, port = 0 }) => {
   const toolRoot = resolveToolRoot();
   const threeRoot = path.join(toolRoot, 'node_modules', 'three');
@@ -69,7 +71,12 @@ export const startMapViewerStaticServer = async ({ outPath, port = 0 }) => {
 
   const server = http.createServer((req, res) => {
     const url = new URL(req.url || '/', 'http://localhost');
-    const pathname = decodeURIComponent(url.pathname || '/');
+    const pathname = decodeMapViewerPathname(url.pathname || '/');
+    if (pathname == null) {
+      res.writeHead(400);
+      res.end('Malformed request path');
+      return;
+    }
     if (pathname === '/' || pathname === `/${htmlName}`) {
       if (!fs.existsSync(outPath)) {
         res.writeHead(404);

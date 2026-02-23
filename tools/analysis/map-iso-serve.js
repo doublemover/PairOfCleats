@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
 import selfsigned from 'selfsigned';
 import { getRuntimeConfig, resolveRepoConfig, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
-import { safeJoinUnderBase } from './map-iso-safe-join.js';
+import { decodePathnameSafe, safeJoinUnderBase } from './map-iso-safe-join.js';
 
 const argv = createCli({
   scriptName: 'map-iso',
@@ -109,7 +109,12 @@ const isomapClientRoot = path.join(toolRoot, 'src', 'map', 'isometric', 'client'
 
 const server = https.createServer({ key, cert }, (req, res) => {
   const url = new URL(req.url || '/', 'https://localhost');
-  const pathname = decodeURIComponent(url.pathname || '/');
+  const pathname = decodePathnameSafe(url.pathname || '/');
+  if (pathname == null) {
+    res.writeHead(400);
+    res.end('Malformed request path.');
+    return;
+  }
   if (pathname === '/' || pathname === '/map.iso.html') {
     const htmlPath = outPath;
     if (!fs.existsSync(htmlPath)) {

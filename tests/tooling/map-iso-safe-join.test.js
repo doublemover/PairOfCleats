@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { safeJoinUnderBase } from '../../tools/analysis/map-iso-safe-join.js';
+import { decodePathnameSafe, safeJoinUnderBase } from '../../tools/analysis/map-iso-safe-join.js';
 
 const posixBase = '/srv/maps';
 assert.equal(
@@ -25,6 +25,16 @@ assert.equal(
   safeJoinUnderBase(winBase, '..\\maps-escape\\secret.json', path.win32),
   null,
   'expected win32 sibling-prefix escape to be rejected'
+);
+assert.equal(
+  decodePathnameSafe('/assets/isomap/scene.json'),
+  '/assets/isomap/scene.json',
+  'expected valid pathname decoding'
+);
+assert.equal(
+  decodePathnameSafe('/%E0%A4%A'),
+  null,
+  'expected malformed pathname encoding to be rejected'
 );
 
 console.log('map-iso safe join test passed');
