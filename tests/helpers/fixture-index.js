@@ -635,11 +635,17 @@ const withTemporaryEnv = async (targetEnv, callback) => {
   const restore = [];
   if (targetEnv && typeof targetEnv === 'object') {
     for (const [key, rawValue] of Object.entries(targetEnv)) {
-      if (rawValue === undefined) continue;
-      const nextValue = String(rawValue);
-      if (process.env[key] === nextValue) continue;
-      restore.push([key, process.env[key]]);
-      process.env[key] = nextValue;
+      const hadKey = Object.prototype.hasOwnProperty.call(process.env, key);
+      const previousValue = hadKey ? process.env[key] : undefined;
+      const nextValue = rawValue === undefined ? undefined : String(rawValue);
+      if (nextValue === undefined && previousValue === undefined) continue;
+      if (nextValue !== undefined && previousValue === nextValue) continue;
+      restore.push([key, previousValue]);
+      if (nextValue === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = nextValue;
+      }
     }
   }
   try {
@@ -654,6 +660,10 @@ const withTemporaryEnv = async (targetEnv, callback) => {
       }
     }
   }
+};
+
+export const fixtureIndexInternals = {
+  withTemporaryEnv
 };
 
 /**
