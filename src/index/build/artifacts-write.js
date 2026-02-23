@@ -83,6 +83,7 @@ import {
 } from './artifacts/write-strategy.js';
 import { dispatchScheduledArtifactWrites } from './artifacts/write-dispatch.js';
 import { createPieceManifestRegistry } from './artifacts/piece-manifest-registry.js';
+import { createArtifactWriteProgressTracker } from './artifacts/write-progress.js';
 import {
   buildDeterminismReport,
   buildExtractionReport,
@@ -760,10 +761,6 @@ export async function writeIndexArtifacts(input) {
   }
   const writeStart = Date.now();
   const writes = [];
-  let totalWrites = 0;
-  let completedWrites = 0;
-  let lastWriteLog = 0;
-  let lastWriteLabel = '';
   const activeWrites = new Map();
   const activeWriteBytes = new Map();
   const artifactMetrics = new Map();
@@ -918,37 +915,20 @@ export async function writeIndexArtifacts(input) {
   const writeTailWorkerMaxPending = Number.isFinite(Number(artifactConfig.writeTailWorkerMaxPending))
     ? Math.max(1, Math.floor(Number(artifactConfig.writeTailWorkerMaxPending)))
     : Math.max(2, writeTailRescueMaxPending + 1);
-  /**
-   * Publish current write in-flight bytes/count into runtime telemetry.
-   *
-   * @returns {void}
-   */
-  const updateWriteInFlightTelemetry = () => {
-    if (!telemetry || typeof telemetry.setInFlightBytes !== 'function') return;
-    let bytes = 0;
-    for (const value of activeWriteBytes.values()) {
-      if (Number.isFinite(value) && value > 0) bytes += value;
-    }
-    telemetry.setInFlightBytes('artifacts.write', {
-      bytes,
-      count: activeWrites.size
-    });
-  };
-  /**
-   * Compute longest active write runtime in seconds.
-   *
-   * @returns {number}
-   */
-  const getLongestWriteStallSeconds = () => {
-    if (!activeWrites.size) return 0;
-    const now = Date.now();
-    let longest = 0;
-    for (const startedAt of activeWrites.values()) {
-      const elapsed = Math.max(0, now - (Number(startedAt) || now));
-      if (elapsed > longest) longest = elapsed;
-    }
-    return Math.max(0, Math.round(longest / 1000));
-  };
+  const writeProgress = createArtifactWriteProgressTracker({
+    telemetry,
+    activeWrites,
+    activeWriteBytes,
+    writeProgressMeta,
+    writeLogIntervalMs,
+    showProgress,
+    logLine
+  });
+  const {
+    getLongestWriteStallSeconds,
+    updateWriteInFlightTelemetry,
+    logWriteProgress
+  } = writeProgress;
   let enqueueSeq = 0;
   const {
     pieceEntries,
@@ -960,35 +940,12 @@ export async function writeIndexArtifacts(input) {
     resolveArtifactTier
   });
   addPieceFile({ type: 'stats', name: 'filelists', format: 'json' }, path.join(outDir, '.filelists.json'));
-  /**
-   * Emit periodic write-progress summary and stall diagnostics.
-   *
-   * @param {string} label
-   * @returns {void}
-   */
-  const logWriteProgress = (label) => {
-    completedWrites += 1;
-    if (label) lastWriteLabel = label;
-    showProgress('Artifacts', completedWrites, totalWrites, {
-      ...writeProgressMeta,
-      message: label || null
-    });
-    const now = Date.now();
-    if (completedWrites === totalWrites || completedWrites === 1 || (now - lastWriteLog) >= writeLogIntervalMs) {
-      lastWriteLog = now;
-      const percent = totalWrites > 0
-        ? (completedWrites / totalWrites * 100).toFixed(1)
-        : '100.0';
-      const suffix = lastWriteLabel ? ` | ${lastWriteLabel}` : '';
-      logLine(`Writing index files ${completedWrites}/${totalWrites} (${percent}%)${suffix}`, { kind: 'status' });
-    }
-  };
   const writeHeartbeat = createWriteHeartbeatController({
     writeProgressHeartbeatMs,
     activeWrites,
     activeWriteBytes,
-    getCompletedWrites: () => completedWrites,
-    getTotalWrites: () => totalWrites,
+    getCompletedWrites: writeProgress.getCompletedWrites,
+    getTotalWrites: writeProgress.getTotalWrites,
     normalizedWriteStallThresholds,
     stageCheckpoints,
     logLine,
@@ -1951,7 +1908,7 @@ export async function writeIndexArtifacts(input) {
     artifactQueueDelaySamples,
     logLine
   });
-  totalWrites = writeDispatch.totalWrites;
+  writeProgress.setTotalWrites(writeDispatch.totalWrites);
   if (vectorOnlyProfile) {
     const deniedPieces = pieceEntries
       .filter((entry) => VECTOR_ONLY_SPARSE_PIECE_DENYLIST.has(String(entry?.name || '')))
