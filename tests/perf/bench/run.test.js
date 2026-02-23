@@ -19,6 +19,7 @@ import { applyTestEnv, attachSilentLogging } from '../../helpers/test-env.js';
 import { formatBenchDuration as formatDuration, formatBenchDurationMs as formatDurationMs } from '../../helpers/duration-format.js';
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 import { sanitizeBenchNodeOptions } from '../../../tools/bench/language/node-options.js';
+import { resolveBenchQueryBackends } from '../../../tools/bench/language/query-backends.js';
 
 applyTestEnv();
 
@@ -108,7 +109,7 @@ function resolveBackends(value) {
   const list = lower === 'all' ? ['memory', 'sqlite', 'sqlite-fts'] : lower.split(',');
   return Array.from(new Set(list.map((entry) => entry.trim()).filter(Boolean)));
 }
-const backends = resolveBackends(argv.backend);
+const requestedBackends = resolveBackends(argv.backend);
 let buildIndex = argv['build-index'] || argv.build;
 let buildSqlite = argv['build-sqlite'] || argv.build;
 const buildIncremental = argv.incremental === true || buildSqlite;
@@ -117,8 +118,8 @@ const runtimeRoot = repoArg || root;
 const userConfig = loadUserConfig(runtimeRoot);
 const runtimeConfig = getRuntimeConfig(runtimeRoot, userConfig);
 const embeddingProvider = userConfig.indexing?.embeddings?.provider || 'xenova';
-const needsMemory = backends.includes('memory');
-const needsSqlite = backends.some((entry) => entry.startsWith('sqlite'));
+const needsMemory = requestedBackends.includes('memory');
+const needsSqlite = requestedBackends.some((entry) => entry.startsWith('sqlite') || entry === 'fts');
 /**
  * Detect whether sparse index artifacts already exist for a mode.
  *
@@ -464,6 +465,42 @@ if (buildIndex || buildSqlite) {
   if (buildIndex && useEmbeddingService) {
     runServiceQueue('embeddings', buildEnv);
   }
+}
+
+const resolveSqliteModeStatus = (mode) => {
+  const modeIndexDir = getIndexDir(runtimeRoot, mode, userConfig);
+  const zeroStateManifestPath = path.join(modeIndexDir, 'pieces', 'sqlite-zero-state.json');
+  return {
+    dbExists: hasSqliteIndex(mode),
+    zeroState: fsSync.existsSync(zeroStateManifestPath),
+    zeroStateManifestPath
+  };
+};
+
+const queryBackendDecision = resolveBenchQueryBackends({
+  requestedBackends,
+  sqliteModes: {
+    code: resolveSqliteModeStatus('code'),
+    prose: resolveSqliteModeStatus('prose')
+  },
+  sqlitePaths: (() => {
+    const paths = resolveSqlitePaths(runtimeRoot, userConfig);
+    return {
+      code: paths.codePath,
+      prose: paths.prosePath
+    };
+  })()
+});
+if (queryBackendDecision.reason) {
+  if (queryBackendDecision.skippedSqlite) {
+    logBench(`[bench] ${queryBackendDecision.reason}`);
+  } else {
+    fatalExit(`[bench] ${queryBackendDecision.reason}`);
+  }
+}
+const backends = queryBackendDecision.backends;
+if (!backends.length) {
+  fatalExit('[bench] No query backends remain after sqlite zero-state filtering.');
 }
 
 const queryTasks = [];
