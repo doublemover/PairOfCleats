@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T07:52:06.7939730-05:00
+  Extracted USR threat-model coverage validation/report builders from `src/contracts/validators/usr-matrix.js` into `src/contracts/validators/usr-matrix/threat-model.js`, preserving facade exports and adding focused contract coverage in `tests/indexing/contracts/usr-threat-model-coverage.test.js`.
 - 2026-02-23T07:48:40.8125524-05:00
   Extracted run-search sparse preflight/reinit orchestration from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/sparse-fallback-orchestration.js`, preserving fallback semantics and adding focused dependency-injected coverage in `tests/retrieval/cli/run-search-sparse-fallback-orchestration.test.js`.
 - 2026-02-23T07:46:25.4880131-05:00
