@@ -11,8 +11,6 @@ import { loadIncrementalManifest } from '../../../src/storage/sqlite/incremental
 import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
 import { resolveQuantizationParams } from '../../../src/storage/sqlite/quantization.js';
 import {
-  loadChunkMetaRows,
-  loadFileMetaRows,
   readJsonFile,
   MAX_JSON_BYTES
 } from '../../../src/shared/artifact-io.js';
@@ -32,7 +30,6 @@ import {
 } from '../../../src/shared/embedding-utils.js';
 import { resolveEmbeddingInputFormatting } from '../../../src/shared/embedding-input-format.js';
 import { resolveOnnxModelPath } from '../../../src/shared/onnx-embeddings.js';
-import { toPosix } from '../../../src/shared/files.js';
 import { getEnvConfig, isTestingEnv } from '../../../src/shared/env.js';
 import { createLruCache } from '../../../src/shared/cache.js';
 import { normalizeDenseVectorMode } from '../../../src/shared/dense-vector-mode.js';
@@ -55,7 +52,7 @@ import {
   resolveCacheRoot,
   writeCacheMeta
 } from './cache.js';
-import { buildChunkSignature, buildChunksFromBundles } from './chunks.js';
+import { buildChunkSignature } from './chunks.js';
 import {
   assertVectorArrays,
   buildQuantizedVectors,
@@ -71,10 +68,6 @@ import { createFileEmbeddingsProcessor } from './pipeline.js';
 import { createEmbeddingsScheduler } from './scheduler.js';
 import { createBoundedWriterQueue } from './writer-queue.js';
 import { updateSqliteDense } from './sqlite-dense.js';
-import {
-  createDeterministicFileStreamSampler,
-  selectDeterministicFileSample
-} from './sampling.js';
 import {
   normalizeEmbeddingsMaintenanceConfig,
   shouldQueueSqliteMaintenance
@@ -92,10 +85,7 @@ import {
   resolveEmbeddingsProgressHeartbeatMs,
   shouldUseInlineHnswBuilders
 } from './runner/config.js';
-import {
-  compactChunkForEmbeddings,
-  refreshIncrementalBundlesWithEmbeddings
-} from './runner/incremental-refresh.js';
+import { refreshIncrementalBundlesWithEmbeddings } from './runner/incremental-refresh.js';
 import {
   createCacheIndexFlushCoordinator,
   createEmbeddingsCacheCounters,
@@ -111,6 +101,7 @@ import {
 import { resolvePublishedBackendStates } from './runner/backend-state.js';
 import { prepareFileEmbeddingWorkset } from './runner/file-workset.js';
 import { createFileEntryProcessor } from './runner/file-entry-orchestration.js';
+import { loadModeChunkWorkset } from './runner/chunk-workset.js';
 import {
   createEmbeddingsIndexRootResolver,
   normalizeEmbeddingsPath
@@ -613,230 +604,30 @@ export async function runBuildEmbeddingsWithConfig(config) {
       try {
         const incremental = loadIncrementalManifest(repoCacheRoot, mode);
         const manifestFiles = incremental?.manifest?.files || {};
-
-        let chunksByFile = new Map();
-        let totalChunks = 0;
-        let loadedChunkMetaFromArtifacts = false;
-        let streamSamplingSummary = null;
-        try {
-          await scheduleIo(async () => {
-            const fileMetaById = new Map();
-            const streamSampler = embeddingSampling.maxFiles
-              ? createDeterministicFileStreamSampler({
-                mode,
-                maxFiles: embeddingSampling.maxFiles,
-                seed: embeddingSampling.seed
-              })
-              : null;
-            let fileMetaLoaded = false;
-            let fileMetaLoadFailed = false;
-            /**
-             * Lazily load file id -> file path mapping for chunk rows that only
-             * include `fileId`.
-             *
-             * @returns {Promise<void>}
-             */
-            const ensureFileMetaById = async () => {
-              if (fileMetaLoaded || fileMetaLoadFailed) return;
-              try {
-                for await (const row of loadFileMetaRows(indexDir, {
-                  maxBytes: chunkMetaMaxBytes,
-                  strict: false
-                })) {
-                  if (!row || !Number.isFinite(Number(row.id)) || typeof row.file !== 'string') continue;
-                  fileMetaById.set(Number(row.id), row.file);
-                }
-                fileMetaLoaded = true;
-              } catch (err) {
-                fileMetaLoadFailed = true;
-                if (!isMissingArtifactError(err, 'file_meta')) {
-                  warn(`[embeddings] Failed to stream file_meta for ${mode}: ${err?.message || err}`);
-                }
-              }
-            };
-            let unresolvedFileRows = 0;
-            let nextIndex = 0;
-            for await (const chunkRow of loadChunkMetaRows(indexDir, {
-              maxBytes: chunkMetaMaxBytes,
-              strict: false,
-              includeCold: false
-            })) {
-              const chunkIndex = nextIndex;
-              nextIndex += 1;
-              if (!chunkRow || typeof chunkRow !== 'object') continue;
-              const fileId = Number(chunkRow.fileId);
-              let filePath = typeof chunkRow.file === 'string' && chunkRow.file
-                ? chunkRow.file
-                : null;
-              let fileMetaLoaded = false;
-              let fileMetaLoadFailed = false;
-              const ensureFileMetaById = async () => {
-                if (fileMetaLoaded || fileMetaLoadFailed) return;
-                try {
-                  for await (const row of loadFileMetaRows(indexDir, {
-                    maxBytes: chunkMetaMaxBytesActive,
-                    strict: false
-                  })) {
-                    if (!row || !Number.isFinite(Number(row.id)) || typeof row.file !== 'string') continue;
-                    fileMetaById.set(Number(row.id), row.file);
-                  }
-                  fileMetaLoaded = true;
-                } catch (err) {
-                  fileMetaLoadFailed = true;
-                  if (!isMissingArtifactError(err, 'file_meta')) {
-                    warn(`[embeddings] Failed to stream file_meta for ${mode}: ${err?.message || err}`);
-                  }
-                }
-              };
-              let unresolvedFileRows = 0;
-              let nextIndex = 0;
-              for await (const chunkRow of loadChunkMetaRows(indexDir, {
-                maxBytes: chunkMetaMaxBytesActive,
-                strict: false,
-                includeCold: false
-              })) {
-                const chunkIndex = nextIndex;
-                nextIndex += 1;
-                if (!chunkRow || typeof chunkRow !== 'object') continue;
-                const fileId = Number(chunkRow.fileId);
-                let filePath = typeof chunkRow.file === 'string' && chunkRow.file
-                  ? chunkRow.file
-                  : null;
-                if (!filePath && Number.isFinite(fileId)) {
-                  if (!fileMetaLoaded && !fileMetaLoadFailed) {
-                    await ensureFileMetaById();
-                  }
-                  filePath = fileMetaById.get(fileId) || null;
-                }
-                if (!filePath) {
-                  unresolvedFileRows += 1;
-                  continue;
-                }
-                const normalizedFilePath = toPosix(filePath);
-                if (!normalizedFilePath) {
-                  unresolvedFileRows += 1;
-                  continue;
-                }
-                if (streamSampler) {
-                  const decision = streamSampler.considerFile(normalizedFilePath);
-                  if (decision.evicted) {
-                    chunksByFile.delete(decision.evicted);
-                  }
-                  if (!decision.selected) {
-                    continue;
-                  }
-                }
-                const compactChunk = compactChunkForEmbeddings(chunkRow, filePath);
-                if (!compactChunk) {
-                  unresolvedFileRows += 1;
-                  continue;
-                }
-                const list = chunksByFile.get(normalizedFilePath) || [];
-                list.push({ index: chunkIndex, chunk: compactChunk });
-                chunksByFile.set(normalizedFilePath, list);
-              }
-              if (unresolvedFileRows > 0) {
-                warn(
-                  `[embeddings] ${mode}: skipped ${unresolvedFileRows} chunk_meta rows with unresolved file mapping.`
-                );
-              }
-              if (streamSampler) {
-                streamSamplingSummary = {
-                  seenFiles: streamSampler.getSeenCount(),
-                  selectedFiles: streamSampler.getSelectedCount()
-                };
-              }
-              totalChunks = nextIndex;
-            });
-            loadedChunkMetaFromArtifacts = true;
-          } catch (err) {
-            chunkMetaLoadError = err;
-            const retryMaxBytes = resolveChunkMetaRetryMaxBytes({
-              err,
-              currentMaxBytes: chunkMetaMaxBytesActive,
-              retryCeilingBytes: chunkMetaRetryCeilingBytes
-            });
-            if (retryMaxBytes && retryMaxBytes > chunkMetaMaxBytesActive) {
-              warn(
-                `[embeddings] chunk_meta exceeded budget for ${mode} ` +
-                `(${chunkMetaMaxBytesActive} bytes); retrying with ${retryMaxBytes} bytes.`
-              );
-              chunkMetaMaxBytesActive = retryMaxBytes;
-              continue;
-            }
-            break;
-          }
+        const {
+          skipped: skippedChunkWorkset,
+          chunksByFile,
+          sampledChunksByFile,
+          sampledFileEntries,
+          totalFileCount,
+          totalChunks,
+          sampledChunkCount
+        } = await loadModeChunkWorkset({
+          mode,
+          indexDir,
+          incremental,
+          chunkMetaMaxBytes,
+          embeddingSampling,
+          scheduleIo,
+          log,
+          warn,
+          isChunkMetaTooLargeError,
+          isMissingArtifactError
+        });
+        if (skippedChunkWorkset) {
+          finishMode(`skipped ${mode}`);
+          continue;
         }
-        if (!loadedChunkMetaFromArtifacts) {
-          if (isChunkMetaTooLargeError(chunkMetaLoadError)) {
-            warn(
-              `[embeddings] chunk_meta exceeded budget for ${mode} ` +
-              `(${chunkMetaMaxBytesActive} bytes); using incremental bundles if available.`
-            );
-          } else if (!isMissingArtifactError(chunkMetaLoadError, 'chunk_meta')) {
-            warn(`[embeddings] Failed to load chunk_meta for ${mode}: ${chunkMetaLoadError?.message || chunkMetaLoadError}`);
-          }
-        }
-        if (!loadedChunkMetaFromArtifacts) {
-          if (!manifestFiles || !Object.keys(manifestFiles).length) {
-            warn(`[embeddings] Missing chunk_meta and no incremental bundles for ${mode}; skipping.`);
-            finishMode(`skipped ${mode}`);
-            continue;
-          }
-          const bundleResult = await scheduleIo(() => buildChunksFromBundles(
-            incremental.bundleDir,
-            manifestFiles,
-            incremental?.manifest?.bundleFormat
-          ));
-          chunksByFile = bundleResult.chunksByFile;
-          totalChunks = bundleResult.totalChunks;
-          if (!chunksByFile.size || !totalChunks) {
-            warn(`[embeddings] Incremental bundles empty for ${mode}; skipping.`);
-            finishMode(`skipped ${mode}`);
-            continue;
-          }
-          log(`[embeddings] ${mode}: using incremental bundles (${chunksByFile.size} files).`);
-        }
-
-        // Deterministic chunk ordering per file, independent of Map insertion order.
-        for (const list of chunksByFile.values()) {
-          if (!Array.isArray(list) || list.length < 2) continue;
-          list.sort((a, b) => (a?.index ?? 0) - (b?.index ?? 0));
-        }
-        const fileEntries = Array.from(chunksByFile.entries())
-          .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
-        let sampledFileEntries = fileEntries;
-        let totalFileCount = fileEntries.length;
-        let sampledChunkCount = totalChunks;
-        if (streamSamplingSummary && embeddingSampling.maxFiles) {
-          totalFileCount = Math.max(fileEntries.length, streamSamplingSummary.seenFiles || 0);
-          sampledChunkCount = sampledFileEntries.reduce(
-            (sum, entry) => sum + (Array.isArray(entry?.[1]) ? entry[1].length : 0),
-            0
-          );
-          if (totalFileCount > sampledFileEntries.length) {
-            log(
-              `[embeddings] ${mode}: sampling ${sampledFileEntries.length}/${totalFileCount} files ` +
-              `(${sampledChunkCount}/${totalChunks} chunks, seed=${embeddingSampling.seed}).`
-            );
-          }
-        } else if (embeddingSampling.maxFiles && embeddingSampling.maxFiles < fileEntries.length) {
-          sampledFileEntries = selectDeterministicFileSample({
-            fileEntries,
-            mode,
-            maxFiles: embeddingSampling.maxFiles,
-            seed: embeddingSampling.seed
-          });
-          sampledChunkCount = sampledFileEntries.reduce(
-            (sum, entry) => sum + (Array.isArray(entry?.[1]) ? entry[1].length : 0),
-            0
-          );
-          log(
-            `[embeddings] ${mode}: sampling ${sampledFileEntries.length}/${totalFileCount} files ` +
-            `(${sampledChunkCount}/${totalChunks} chunks, seed=${embeddingSampling.seed}).`
-          );
-        }
-        const sampledChunksByFile = new Map(sampledFileEntries);
         const samplingActive = sampledChunkCount < totalChunks;
 
         stageCheckpoints = createStageCheckpointRecorder({
