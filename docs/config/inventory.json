@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-22T16:50:19.175Z",
+  "generatedAt": "2026-02-22T23:55:35.989Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -66,6 +66,8 @@
       "PAIROFCLEATS_DISCOVERY_STAT_CONCURRENCY",
       "PAIROFCLEATS_DOC_EXTRACT",
       "PAIROFCLEATS_EMBEDDINGS",
+      "PAIROFCLEATS_EMBEDDINGS_SAMPLE_FILES",
+      "PAIROFCLEATS_EMBEDDINGS_SAMPLE_SEED",
       "PAIROFCLEATS_ENV_ALLOWLIST",
       "PAIROFCLEATS_EXTENSIONS_DIR",
       "PAIROFCLEATS_FILE_CACHE_MAX",
@@ -73,6 +75,9 @@
       "PAIROFCLEATS_HOME",
       "PAIROFCLEATS_IMPORT_GRAPH",
       "PAIROFCLEATS_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY",
+      "PAIROFCLEATS_INDEXER_SERVICE_EXECUTION",
+      "PAIROFCLEATS_INDEX_DAEMON",
+      "PAIROFCLEATS_INDEX_DAEMON_SESSION",
       "PAIROFCLEATS_IO_OVERSUBSCRIBE",
       "PAIROFCLEATS_LANCEDB_CHILD",
       "PAIROFCLEATS_LANCEDB_ISOLATE",
@@ -2183,6 +2188,7 @@
         "tests/tooling/reports/summary/summary-report-helpers.js",
         "tests/tooling/script-coverage/script-coverage.runner.js",
         "tests/tooling/triage/records-index-and-search.test.js",
+        "tools/bench/embeddings/model-bakeoff.js",
         "tools/bench/index/postings-real.js",
         "tools/bench/index/scheduler-build.js",
         "tools/bench/index/scheduler-store-format.js",
@@ -2253,6 +2259,7 @@
       "name": "PAIROFCLEATS_DICT_DIR",
       "files": [
         "src/shared/env.js",
+        "tools/bench/embeddings/model-bakeoff.js",
         "tools/config/inventory.js",
         "tools/reports/compare-models.js"
       ]
@@ -2339,11 +2346,28 @@
         "tests/tooling/fixtures/fixture-eval.test.js",
         "tests/tooling/reports/summary/summary-report-helpers.js",
         "tests/tooling/script-coverage/script-coverage.runner.js",
+        "tools/bench/embeddings/model-bakeoff.js",
         "tools/ci/run-suite.js",
         "tools/config/inventory.js",
         "tools/reports/compare-models.js",
         "tools/triage/context-pack.js",
         "tools/triage/ingest.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_EMBEDDINGS_SAMPLE_FILES",
+      "files": [
+        "src/shared/env.js",
+        "tools/bench/embeddings/model-bakeoff.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_EMBEDDINGS_SAMPLE_SEED",
+      "files": [
+        "src/shared/env.js",
+        "tools/bench/embeddings/model-bakeoff.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -2406,19 +2430,22 @@
     {
       "name": "PAIROFCLEATS_INDEX_DAEMON",
       "files": [
-        "src/index/build/runtime/runtime.js"
+        "src/shared/env.js",
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_INDEX_DAEMON_SESSION",
       "files": [
-        "src/index/build/runtime/runtime.js"
+        "src/shared/env.js",
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_INDEXER_SERVICE_EXECUTION",
       "files": [
-        "tools/service/indexer-service.js"
+        "src/shared/env.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -2475,6 +2502,7 @@
         "tests/shared/runtime/runtime-envelope-node-options-merge.test.js",
         "tests/shared/runtime/runtime-envelope-spawn-env.test.js",
         "tests/storage/sqlite/sqlite-incremental-no-change.test.js",
+        "tools/bench/embeddings/model-bakeoff.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2521,6 +2549,7 @@
       "name": "PAIROFCLEATS_MODEL",
       "files": [
         "tests/tooling/reports/summary/summary-report-helpers.js",
+        "tools/bench/embeddings/model-bakeoff.js",
         "tools/config/inventory.js",
         "tools/reports/compare-models.js"
       ]
@@ -2529,6 +2558,7 @@
       "name": "PAIROFCLEATS_MODELS_DIR",
       "files": [
         "src/shared/env.js",
+        "tools/bench/embeddings/model-bakeoff.js",
         "tools/config/inventory.js",
         "tools/reports/compare-models.js"
       ]
@@ -3334,13 +3364,9 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [
-    "PAIROFCLEATS_INDEXER_SERVICE_EXECUTION",
-    "PAIROFCLEATS_INDEX_DAEMON",
-    "PAIROFCLEATS_INDEX_DAEMON_SESSION"
-  ],
+  "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 346,
+    "totalFlags": 353,
     "publicFlags": [
       "allow-unauthenticated",
       "allowed-repo-roots",
@@ -3397,6 +3423,7 @@
       "cert-dir",
       "changed",
       "changedFile",
+      "checkpoint",
       "chunk",
       "chunk-meta-size",
       "clean",
@@ -3432,6 +3459,8 @@
       "duplicate-rate",
       "edgeTypes",
       "edits",
+      "embedding-sample-files",
+      "embedding-sample-seed",
       "emitArtifact",
       "encoding",
       "enforce",
@@ -3467,6 +3496,7 @@
       "graphs",
       "groups",
       "hashes",
+      "heap-mb",
       "hops",
       "import-rate",
       "in",
@@ -3606,6 +3636,7 @@
       "require-sqlite",
       "required",
       "results",
+      "resume",
       "retries",
       "reviewer",
       "root",
@@ -3633,7 +3664,9 @@
       "skip-artifacts",
       "skip-bench",
       "skip-build",
+      "skip-compare",
       "skip-dicts",
+      "skip-eval",
       "skip-extensions",
       "skip-index",
       "skip-install",
@@ -4277,6 +4310,36 @@
         ]
       },
       {
+        "file": "tools/bench/embeddings/model-bakeoff.js",
+        "flags": [
+          "ann",
+          "backend",
+          "baseline",
+          "build",
+          "build-sqlite",
+          "cache-root",
+          "checkpoint",
+          "dataset",
+          "embedding-sample-files",
+          "embedding-sample-seed",
+          "heap-mb",
+          "incremental",
+          "json",
+          "limit",
+          "mode",
+          "models",
+          "no-ann",
+          "out",
+          "queries",
+          "repo",
+          "resume",
+          "skip-compare",
+          "skip-eval",
+          "stub-embeddings",
+          "top"
+        ]
+      },
+      {
         "file": "tools/bench/graph-caps-harness.js",
         "flags": [
           "depth",
@@ -4890,6 +4953,7 @@
           "ann",
           "backend",
           "dataset",
+          "limit",
           "match-mode",
           "out",
           "pretty",
@@ -5311,7 +5375,7 @@
     "duplicated": [
       {
         "flag": "repo",
-        "count": 60,
+        "count": 61,
         "files": [
           "bin/pairofcleats.js",
           "src/integrations/tooling/api-contracts.js",
@@ -5322,6 +5386,7 @@
           "src/integrations/tooling/suggest-tests.js",
           "tools/analysis/map-iso-serve.js",
           "tools/analysis/structural-search.js",
+          "tools/bench/embeddings/model-bakeoff.js",
           "tools/bench/graph/context-pack-latency.js",
           "tools/bench/graph/neighborhood-index-dir.js",
           "tools/bench/graph/store-lazy-load.js",
@@ -5377,7 +5442,7 @@
       },
       {
         "flag": "json",
-        "count": 59,
+        "count": 60,
         "files": [
           "bin/pairofcleats.js",
           "src/integrations/tooling/api-contracts.js",
@@ -5390,6 +5455,7 @@
           "tools/analysis/explain-risk.js",
           "tools/analysis/structural-search.js",
           "tools/bench/dict-seg.js",
+          "tools/bench/embeddings/model-bakeoff.js",
           "tools/bench/index/tree-sitter-load.js",
           "tools/bench/map/build-map-memory.js",
           "tools/bench/map/build-map-streaming.js",
@@ -5442,7 +5508,7 @@
       },
       {
         "flag": "out",
-        "count": 41,
+        "count": 42,
         "files": [
           "tests/fixtures/medium/generate.js",
           "tests/retrieval/parity/parity.test.js",
@@ -5450,6 +5516,7 @@
           "tools/analysis/map-iso-serve.js",
           "tools/analysis/structural-search.js",
           "tools/bench/dict-seg.js",
+          "tools/bench/embeddings/model-bakeoff.js",
           "tools/bench/index/tree-sitter-load.js",
           "tools/bench/map/build-map-streaming.js",
           "tools/bench/map/viewer-fps.js",
@@ -5489,7 +5556,7 @@
       },
       {
         "flag": "mode",
-        "count": 34,
+        "count": 35,
         "files": [
           "bin/pairofcleats.js",
           "tests/map/map-build-determinism.test.js",
@@ -5497,6 +5564,7 @@
           "tests/map/map-build-streaming.test.js",
           "tests/map/map-edge-aggregate-stability.test.js",
           "tests/perf/indexing/validate/stage-usage-checklist.test.js",
+          "tools/bench/embeddings/model-bakeoff.js",
           "tools/bench/graph/context-pack-latency.js",
           "tools/bench/graph/neighborhood-cache.js",
           "tools/bench/graph/neighborhood-index-dir.js",
@@ -5615,6 +5683,21 @@
         ]
       },
       {
+        "flag": "top",
+        "count": 9,
+        "files": [
+          "tests/retrieval/parity/parity.test.js",
+          "tests/tooling/fixtures/fixture-eval.test.js",
+          "tools/bench/embeddings/model-bakeoff.js",
+          "tools/eval/run.js",
+          "tools/reports/combined-summary.js",
+          "tools/reports/compare-models.js",
+          "tools/reports/metrics-dashboard.js",
+          "tools/reports/parity-matrix.js",
+          "tools/test_times/report.js"
+        ]
+      },
+      {
         "flag": "dry-run",
         "count": 8,
         "files": [
@@ -5685,20 +5768,6 @@
         ]
       },
       {
-        "flag": "top",
-        "count": 8,
-        "files": [
-          "tests/retrieval/parity/parity.test.js",
-          "tests/tooling/fixtures/fixture-eval.test.js",
-          "tools/eval/run.js",
-          "tools/reports/combined-summary.js",
-          "tools/reports/compare-models.js",
-          "tools/reports/metrics-dashboard.js",
-          "tools/reports/parity-matrix.js",
-          "tools/test_times/report.js"
-        ]
-      },
-      {
         "flag": "focus",
         "count": 7,
         "files": [
@@ -5709,6 +5778,19 @@
           "tools/bench/map/viewer-fps.js",
           "tools/bench/map/viewer-lod-stress.js",
           "tools/reports/report-code-map.js"
+        ]
+      },
+      {
+        "flag": "incremental",
+        "count": 7,
+        "files": [
+          "tools/bench/embeddings/model-bakeoff.js",
+          "tools/ci/build-artifacts.js",
+          "tools/reports/combined-summary.js",
+          "tools/reports/compare-models.js",
+          "tools/setup/bootstrap.js",
+          "tools/setup/setup.js",
+          "tools/triage/ingest.js"
         ]
       },
       {
@@ -5764,6 +5846,30 @@
         ]
       },
       {
+        "flag": "ann",
+        "count": 6,
+        "files": [
+          "tests/retrieval/parity/parity.test.js",
+          "tools/bench/embeddings/model-bakeoff.js",
+          "tools/eval/run.js",
+          "tools/reports/combined-summary.js",
+          "tools/reports/compare-models.js",
+          "tools/triage/context-pack.js"
+        ]
+      },
+      {
+        "flag": "backend",
+        "count": 6,
+        "files": [
+          "tests/tooling/fixtures/fixture-eval.test.js",
+          "tools/bench/embeddings/model-bakeoff.js",
+          "tools/bench/micro/run.js",
+          "tools/eval/run.js",
+          "tools/reports/compare-models.js",
+          "tools/reports/parity-matrix.js"
+        ]
+      },
+      {
         "flag": "depth",
         "count": 6,
         "files": [
@@ -5788,18 +5894,6 @@
         ]
       },
       {
-        "flag": "incremental",
-        "count": 6,
-        "files": [
-          "tools/ci/build-artifacts.js",
-          "tools/reports/combined-summary.js",
-          "tools/reports/compare-models.js",
-          "tools/setup/bootstrap.js",
-          "tools/setup/setup.js",
-          "tools/triage/ingest.js"
-        ]
-      },
-      {
         "flag": "iterations",
         "count": 6,
         "files": [
@@ -5812,14 +5906,27 @@
         ]
       },
       {
-        "flag": "ann",
-        "count": 5,
+        "flag": "limit",
+        "count": 6,
         "files": [
           "tests/retrieval/parity/parity.test.js",
+          "tools/bench/embeddings/model-bakeoff.js",
           "tools/eval/run.js",
           "tools/reports/combined-summary.js",
           "tools/reports/compare-models.js",
-          "tools/triage/context-pack.js"
+          "tools/reports/parity-matrix.js"
+        ]
+      },
+      {
+        "flag": "stub-embeddings",
+        "count": 6,
+        "files": [
+          "tools/bench/embeddings/model-bakeoff.js",
+          "tools/bench/micro/run.js",
+          "tools/build/embeddings/cli.js",
+          "tools/reports/compare-models.js",
+          "tools/triage/context-pack.js",
+          "tools/triage/ingest.js"
         ]
       },
       {
@@ -5834,14 +5941,14 @@
         ]
       },
       {
-        "flag": "backend",
+        "flag": "cache-root",
         "count": 5,
         "files": [
-          "tests/tooling/fixtures/fixture-eval.test.js",
-          "tools/bench/micro/run.js",
-          "tools/eval/run.js",
-          "tools/reports/compare-models.js",
-          "tools/reports/parity-matrix.js"
+          "tests/tooling/script-coverage/script-coverage.runner.js",
+          "tools/bench/embeddings/model-bakeoff.js",
+          "tools/cache/clear-cache.js",
+          "tools/index/cache-gc.js",
+          "tools/reports/compare-models.js"
         ]
       },
       {
@@ -5966,6 +6073,17 @@
         ]
       },
       {
+        "flag": "queries",
+        "count": 5,
+        "files": [
+          "tests/retrieval/parity/parity.test.js",
+          "tools/bench/embeddings/model-bakeoff.js",
+          "tools/reports/combined-summary.js",
+          "tools/reports/compare-models.js",
+          "tools/reports/parity-matrix.js"
+        ]
+      },
+      {
         "flag": "size",
         "count": 5,
         "files": [
@@ -5974,17 +6092,6 @@
           "tools/bench/vfs/cdc-segmentation.js",
           "tools/bench/vfs/io-batching.js",
           "tools/bench/vfs/segment-hash-cache.js"
-        ]
-      },
-      {
-        "flag": "stub-embeddings",
-        "count": 5,
-        "files": [
-          "tools/bench/micro/run.js",
-          "tools/build/embeddings/cli.js",
-          "tools/reports/compare-models.js",
-          "tools/triage/context-pack.js",
-          "tools/triage/ingest.js"
         ]
       },
       {
@@ -6009,12 +6116,12 @@
         ]
       },
       {
-        "flag": "cache-root",
+        "flag": "build",
         "count": 4,
         "files": [
-          "tests/tooling/script-coverage/script-coverage.runner.js",
-          "tools/cache/clear-cache.js",
-          "tools/index/cache-gc.js",
+          "tools/bench/embeddings/model-bakeoff.js",
+          "tools/bench/micro/run.js",
+          "tools/reports/combined-summary.js",
           "tools/reports/compare-models.js"
         ]
       },
@@ -6066,16 +6173,6 @@
           "tools/bench/vfs/coalesce-docs.js",
           "tools/tooling/detect.js",
           "tools/tooling/install.js"
-        ]
-      },
-      {
-        "flag": "limit",
-        "count": 4,
-        "files": [
-          "tests/retrieval/parity/parity.test.js",
-          "tools/reports/combined-summary.js",
-          "tools/reports/compare-models.js",
-          "tools/reports/parity-matrix.js"
         ]
       },
       {
@@ -6159,16 +6256,6 @@
         ]
       },
       {
-        "flag": "queries",
-        "count": 4,
-        "files": [
-          "tests/retrieval/parity/parity.test.js",
-          "tools/reports/combined-summary.js",
-          "tools/reports/compare-models.js",
-          "tools/reports/parity-matrix.js"
-        ]
-      },
-      {
         "flag": "runs",
         "count": 4,
         "files": [
@@ -6198,10 +6285,10 @@
         ]
       },
       {
-        "flag": "build",
+        "flag": "baseline",
         "count": 3,
         "files": [
-          "tools/bench/micro/run.js",
+          "tools/bench/embeddings/model-bakeoff.js",
           "tools/reports/combined-summary.js",
           "tools/reports/compare-models.js"
         ]
@@ -6249,6 +6336,24 @@
           "src/integrations/tooling/context-pack.js",
           "src/integrations/tooling/graph-context.js",
           "src/integrations/tooling/impact.js"
+        ]
+      },
+      {
+        "flag": "models",
+        "count": 3,
+        "files": [
+          "tools/bench/embeddings/model-bakeoff.js",
+          "tools/reports/combined-summary.js",
+          "tools/reports/compare-models.js"
+        ]
+      },
+      {
+        "flag": "no-ann",
+        "count": 3,
+        "files": [
+          "tools/bench/embeddings/model-bakeoff.js",
+          "tools/reports/combined-summary.js",
+          "tools/reports/compare-models.js"
         ]
       },
       {
@@ -6314,14 +6419,6 @@
         ]
       },
       {
-        "flag": "baseline",
-        "count": 2,
-        "files": [
-          "tools/reports/combined-summary.js",
-          "tools/reports/compare-models.js"
-        ]
-      },
-      {
         "flag": "batch",
         "count": 2,
         "files": [
@@ -6335,6 +6432,14 @@
         "files": [
           "tools/reports/compare-models.js",
           "tools/triage/ingest.js"
+        ]
+      },
+      {
+        "flag": "build-sqlite",
+        "count": 2,
+        "files": [
+          "tools/bench/embeddings/model-bakeoff.js",
+          "tools/reports/compare-models.js"
         ]
       },
       {
@@ -6399,6 +6504,14 @@
         "files": [
           "tests/fixtures/medium/generate.js",
           "tools/bench/query-generator.js"
+        ]
+      },
+      {
+        "flag": "dataset",
+        "count": 2,
+        "files": [
+          "tools/bench/embeddings/model-bakeoff.js",
+          "tools/eval/run.js"
         ]
       },
       {
@@ -6551,22 +6664,6 @@
         "files": [
           "src/integrations/tooling/graph-context.js",
           "src/integrations/tooling/impact.js"
-        ]
-      },
-      {
-        "flag": "models",
-        "count": 2,
-        "files": [
-          "tools/reports/combined-summary.js",
-          "tools/reports/compare-models.js"
-        ]
-      },
-      {
-        "flag": "no-ann",
-        "count": 2,
-        "files": [
-          "tools/reports/combined-summary.js",
-          "tools/reports/compare-models.js"
         ]
       },
       {
