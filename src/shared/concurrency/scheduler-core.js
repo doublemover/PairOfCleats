@@ -21,6 +21,7 @@ import {
   createWriteBackpressurePolicy,
   evaluateWriteBackpressureState
 } from './scheduler-core-write-backpressure.js';
+import { recordQueueWaitTimeSample } from './scheduler-core-wait-samples.js';
 
 /**
  * Create a build scheduler that coordinates CPU/IO/memory tokens across queues.
@@ -213,25 +214,12 @@ export function createBuildScheduler(input = {}) {
    * @param {number} waitedMs
    */
   const recordQueueWaitTime = (queue, waitedMs) => {
-    if (!queue?.stats) return;
-    const normalized = Math.max(0, Math.floor(Number(waitedMs) || 0));
-    queue.stats.lastWaitMs = normalized;
-    const samples = Array.isArray(queue.stats.waitSamples)
-      ? queue.stats.waitSamples
-      : [];
-    if (samples.length < WAIT_TIME_SAMPLE_LIMIT) {
-      samples.push(normalized);
-      queue.stats.waitSampleCursor = samples.length % WAIT_TIME_SAMPLE_LIMIT;
-    } else if (samples.length > 0) {
-      const cursorRaw = Number.isFinite(Number(queue.stats.waitSampleCursor))
-        ? Math.floor(Number(queue.stats.waitSampleCursor))
-        : 0;
-      const cursor = ((cursorRaw % samples.length) + samples.length) % samples.length;
-      samples[cursor] = normalized;
-      queue.stats.waitSampleCursor = (cursor + 1) % samples.length;
-    }
-    queue.stats.waitSamples = samples;
-    queue.stats.waitP95Ms = resolvePercentile(samples, 0.95);
+    recordQueueWaitTimeSample({
+      queue,
+      waitedMs,
+      sampleLimit: WAIT_TIME_SAMPLE_LIMIT,
+      resolvePercentile
+    });
   };
   let telemetryStage = normalizeTelemetryStage(input.telemetryStage, 'init');
   let traceIntervalMs = Number.isFinite(Number(input.traceIntervalMs))
