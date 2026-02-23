@@ -72,4 +72,21 @@ assert.ok(
   'expected queue to accept in-root ..-prefixed indexDir segment'
 );
 
+const buildRoot4 = path.join(repoRoot, 'builds', 'b4');
+await fs.mkdir(buildRoot4, { recursive: true });
+await enqueueEmbeddingJob({
+  runtime: {
+    ...okRuntime,
+    buildId: 'b4',
+    buildRoot: buildRoot4
+  },
+  mode: 'code',
+  indexDir: buildRoot4
+});
+const queueAfterBuildRootIndexDir = await loadQueue(queueDir, 'embeddings');
+assert.ok(
+  queueAfterBuildRootIndexDir.jobs.some((entry) => entry.buildId === 'b4' && entry.indexDir === path.resolve(buildRoot4)),
+  'expected queue to accept indexDir equal to buildRoot'
+);
+
 console.log('embedding queue tests passed');
