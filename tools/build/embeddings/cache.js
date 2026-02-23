@@ -22,6 +22,7 @@ import {
   mergeCacheIndex,
   normalizeCacheIndex
 } from './cache/index-state.js';
+import { upsertCacheIndexEntry as upsertCacheIndexEntryImpl } from './cache/index-entry.js';
 
 const CACHE_KEY_SCHEMA_VERSION = 'embeddings-cache-v1';
 const GLOBAL_CHUNK_CACHE_KEY_SCHEMA_VERSION = 'embeddings-global-chunk-cache-v1';
@@ -597,58 +598,13 @@ export const writeCacheEntry = async (cacheDir, cacheKey, payload, options = {})
  * @returns {object|null}
  */
 export const upsertCacheIndexEntry = (cacheIndex, cacheKey, payload, shardEntry = null) => {
-  if (!cacheIndex || !cacheKey || !payload) return null;
-  const now = new Date().toISOString();
-  const existing = cacheIndex.entries?.[cacheKey] || {};
-  const hasShard = Boolean(shardEntry?.shard);
-  const hasStandalonePath = Boolean(shardEntry?.path);
-  const chunkHashesFingerprint = payload.chunkHashesFingerprint
-    || buildChunkHashesFingerprint(payload.chunkHashes)
-    || existing.chunkHashesFingerprint
-    || null;
-  const chunkHashesCount = Number.isFinite(Number(payload.chunkHashesCount))
-    ? Number(payload.chunkHashesCount)
-    : (
-      Array.isArray(payload.chunkHashes)
-        ? payload.chunkHashes.length
-        : (Number.isFinite(Number(existing.chunkHashesCount)) ? Number(existing.chunkHashesCount) : null)
-    );
-  const chunkCount = Number.isFinite(Number(payload.chunkCount))
-    ? Number(payload.chunkCount)
-    : (
-      Array.isArray(payload.codeVectors)
-        ? payload.codeVectors.length
-        : (Number.isFinite(Number(existing.chunkCount)) ? Number(existing.chunkCount) : null)
-    );
-  const next = {
-    key: cacheKey,
-    file: payload.file || existing.file || null,
-    hash: payload.hash || existing.hash || null,
-    chunkSignature: payload.chunkSignature || existing.chunkSignature || null,
-    shard: hasShard ? shardEntry.shard : (hasStandalonePath ? null : (existing.shard || null)),
-    path: hasStandalonePath ? shardEntry.path : (hasShard ? null : (existing.path || null)),
-    offset: hasShard
-      ? (Number.isFinite(Number(shardEntry?.offset)) ? Number(shardEntry.offset) : null)
-      : (hasStandalonePath ? null : (existing.offset || null)),
-    length: hasShard
-      ? (Number.isFinite(Number(shardEntry?.length)) ? Number(shardEntry.length) : null)
-      : (hasStandalonePath ? null : (existing.length || null)),
-    sizeBytes: Number.isFinite(Number(shardEntry?.sizeBytes))
-      ? Number(shardEntry.sizeBytes)
-      : existing.sizeBytes || null,
-    chunkCount,
-    chunkHashesFingerprint,
-    chunkHashesCount,
-    createdAt: existing.createdAt || now,
-    lastAccessAt: now,
-    hits: Number.isFinite(Number(existing.hits)) ? Number(existing.hits) : 0
-  };
-  cacheIndex.entries = { ...(cacheIndex.entries || {}), [cacheKey]: next };
-  if (next.file) {
-    cacheIndex.files = { ...(cacheIndex.files || {}), [next.file]: cacheKey };
-  }
-  cacheIndex.updatedAt = now;
-  return next;
+  return upsertCacheIndexEntryImpl({
+    cacheIndex,
+    cacheKey,
+    payload,
+    shardEntry,
+    buildChunkHashesFingerprint
+  });
 };
 
 /**
