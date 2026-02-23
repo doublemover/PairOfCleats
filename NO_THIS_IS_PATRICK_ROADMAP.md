@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T05:56:02.3049796-05:00
+  Extracted boilerplate-reference aggregation from `src/index/build/artifacts-write.js` into `src/index/build/artifacts/boilerplate-catalog.js`, preserving output shape while reducing top-level artifact-write surface and replacing repeated sample-file membership scans with bounded Set-backed dedupe.
 - 2026-02-23T05:54:25.5531677-05:00
   Split `src/index/build/file-processor/process-chunks/token-flow.js` into focused `token-flow` modules (`cache`, `normalization`, `parser-profile`, `lint-resolver`, `token-assembly`) to isolate token/docmeta/parser fallback contracts, reduce per-chunk cache recomputation, and keep orchestration in the top-level flow.
 - 2026-02-23T05:54:07.6235557-05:00

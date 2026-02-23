@@ -15,6 +15,7 @@ import { sha1 } from '../../shared/hash.js';
 import { stableStringifyForSignature } from '../../shared/stable-json.js';
 import { coerceIntAtLeast, coerceNumberAtLeast } from '../../shared/number-coerce.js';
 import { resolveCompressionConfig } from './artifacts/compression.js';
+import { buildBoilerplateCatalog } from './artifacts/boilerplate-catalog.js';
 import { buildTieredCompressionPolicy } from './artifacts/compression-tier-policy.js';
 import { getToolingConfig } from '../../shared/dict-utils.js';
 import { writePiecesManifest } from './artifacts/checksums.js';
@@ -118,52 +119,6 @@ export {
   resolveArtifactWriteLatencyClass,
   selectTailWorkerWriteEntry,
   selectMicroWriteBatch
-};
-
-/**
- * Aggregate per-chunk boilerplate metadata into a compact reference catalog.
- *
- * @param {Array<object>} chunks
- * @returns {Array<{ref:string,count:number,positions:Record<string,number>,tags:Array<string>,sampleFiles:Array<string>}>}
- */
-const buildBoilerplateCatalog = (chunks) => {
-  if (!Array.isArray(chunks) || !chunks.length) return [];
-  const byRef = new Map();
-  for (const chunk of chunks) {
-    const docmeta = chunk?.docmeta;
-    const ref = typeof docmeta?.boilerplateRef === 'string' ? docmeta.boilerplateRef : null;
-    if (!ref) continue;
-    const row = byRef.get(ref) || {
-      ref,
-      count: 0,
-      positions: {},
-      tags: new Set(),
-      sampleFiles: []
-    };
-    row.count += 1;
-    const position = typeof docmeta?.boilerplatePosition === 'string'
-      ? docmeta.boilerplatePosition
-      : 'unknown';
-    row.positions[position] = (row.positions[position] || 0) + 1;
-    const tags = Array.isArray(docmeta?.boilerplateTags) ? docmeta.boilerplateTags : [];
-    for (const tag of tags) {
-      if (typeof tag === 'string' && tag.trim()) row.tags.add(tag.trim());
-    }
-    const file = typeof chunk?.file === 'string' ? chunk.file : null;
-    if (file && row.sampleFiles.length < 8 && !row.sampleFiles.includes(file)) {
-      row.sampleFiles.push(file);
-    }
-    byRef.set(ref, row);
-  }
-  return Array.from(byRef.values())
-    .map((row) => ({
-      ref: row.ref,
-      count: row.count,
-      positions: row.positions,
-      tags: Array.from(row.tags).sort(),
-      sampleFiles: row.sampleFiles
-    }))
-    .sort((a, b) => b.count - a.count || a.ref.localeCompare(b.ref));
 };
 
 /**
