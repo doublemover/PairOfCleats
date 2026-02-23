@@ -69,6 +69,10 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T06:38:58.6083819-05:00
+  Extracted scheduler write-backpressure policy/evaluation from `src/shared/concurrency/scheduler-core.js` into `src/shared/concurrency/scheduler-core-write-backpressure.js`, centralizing queue pressure thresholds and reset/evaluate semantics to simplify hot-path scheduling flow.
+- 2026-02-23T06:38:10.0000000-05:00
+  Refactored `tools/reports/show-throughput.js` into focused `show-throughput/load-report-data.js`, `show-throughput/aggregate-report.js`, and `show-throughput/render-report.js` modules with dedicated aggregate dedupe coverage in `tests/tooling/reports/show-throughput-aggregate-report.test.js`.
 - 2026-02-23T06:36:57.6578230-05:00
   Extracted backend context factory/initialization from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/backend-context-setup.js`, centralizing failure-policy wrapped backend bootstrap and reducing run-search startup wiring complexity.
 - 2026-02-23T06:34:41.9724053-05:00
