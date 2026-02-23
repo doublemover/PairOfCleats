@@ -4,9 +4,6 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   getCacheRuntimeConfig,
-  getCodeDictionaryPaths,
-  getDictionaryPaths,
-  getDictConfig,
   getEffectiveConfigHash,
   getBuildsRoot,
   getCacheRoot,
@@ -23,26 +20,19 @@ import { normalizeSegmentsConfig } from '../../segments.js';
 import { log } from '../../../shared/progress.js';
 import { getEnvConfig, isTestingEnv } from '../../../shared/env.js';
 import { isAbsolutePathNative } from '../../../shared/files.js';
-import {
-  collectDictionaryFileSignatures,
-  loadCodeDictionaryWordSets,
-  loadDictionaryWordSetFromFiles
-} from '../../../shared/dictionary-wordlists.js';
 import { resolveCacheFilesystemProfile } from '../../../shared/cache-roots.js';
 import { buildAutoPolicy } from '../../../shared/auto-policy.js';
 import { warmEmbeddingAdapter } from '../../../shared/embedding-adapter.js';
 import { buildIgnoreMatcher } from '../ignore.js';
 import { normalizePostingsConfig } from '../../../shared/postings-config.js';
-import { createSharedDictionary, createSharedDictionaryView } from '../../../shared/dictionary.js';
 import { normalizeEmbeddingBatchMultipliers } from '../embedding-batch.js';
 import { mergeConfig } from '../../../shared/config.js';
-import { sha1, setXxhashBackend } from '../../../shared/hash.js';
+import { setXxhashBackend } from '../../../shared/hash.js';
 import { getScmProvider, getScmProviderAndRoot, resolveScmConfig } from '../../scm/registry.js';
 import { setScmRuntimeConfig } from '../../scm/runtime.js';
 import { normalizeRiskConfig } from '../../risk.js';
 import { normalizeRiskInterproceduralConfig } from '../../risk-interprocedural/config.js';
 import { normalizeRecordsConfig } from '../records.js';
-import { DEFAULT_CODE_DICT_LANGUAGES, normalizeCodeDictLanguages } from '../../../shared/code-dictionaries.js';
 import { resolveRuntimeEnvelope } from '../../../shared/runtime-envelope.js';
 import { buildContentConfigHash } from './hash.js';
 import { normalizeStage, buildStageOverrides } from './stage.js';
@@ -54,8 +44,7 @@ import {
 import { applyTreeSitterJsCaps, normalizeLimit, resolveFileCapsAndGuardrails } from './caps.js';
 import {
   normalizeLanguageParserConfig,
-  normalizeLanguageFlowConfig,
-  normalizeDictSignaturePath
+  normalizeLanguageFlowConfig
 } from './normalize.js';
 import { buildAnalysisPolicy, buildLexiconConfig } from './policy.js';
 import {
@@ -68,14 +57,10 @@ import { resolveEmbeddingRuntime } from './embeddings.js';
 import { createBuildScheduler } from '../../../shared/concurrency.js';
 import { resolveSchedulerConfig } from './scheduler.js';
 import { loadSchedulerAutoTuneProfile } from './scheduler-autotune-profile.js';
-import { resolveTreeSitterRuntime, preloadTreeSitterRuntimeLanguages } from './tree-sitter.js';
+import { resolveTreeSitterRuntime } from './tree-sitter.js';
 import {
   acquireRuntimeDaemonSession,
   createRuntimeDaemonJobContext,
-  getDaemonDictionaryCacheEntry,
-  setDaemonDictionaryCacheEntry,
-  getDaemonTreeSitterCacheEntry,
-  setDaemonTreeSitterCacheEntry,
   hasDaemonEmbeddingWarmKey,
   addDaemonEmbeddingWarmKey
 } from './daemon-session.js';
@@ -101,14 +86,8 @@ import {
   assertKnownIndexProfileId,
   buildIndexProfileState
 } from '../../../contracts/index-profile.js';
-
-/**
- * Narrow values to plain object records (excluding arrays).
- *
- * @param {unknown} value
- * @returns {boolean}
- */
-const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
+import { resolveRuntimeDictionaries } from './dictionaries.js';
+import { preloadTreeSitterWithDaemonCache } from './tree-sitter-preload.js';
 
 export {
   applyLearnedAutoProfileSelection,
@@ -118,68 +97,12 @@ export {
 };
 
 /**
- * Clone set values while tolerating nullish/non-set inputs.
+ * Narrow values to plain object records (excluding arrays).
  *
- * @param {Set<unknown>|unknown} source
- * @returns {Set<unknown>}
+ * @param {unknown} value
+ * @returns {boolean}
  */
-const cloneSet = (source) => new Set(source instanceof Set ? source : []);
-
-/**
- * Clone `Map<K, Set<V>>` style dictionary payloads.
- *
- * @param {Map<unknown, Set<unknown>>|unknown} source
- * @returns {Map<unknown, Set<unknown>>}
- */
-const cloneMapOfSets = (source) => {
-  if (!(source instanceof Map)) return new Map();
-  return new Map(
-    Array.from(source.entries()).map(([key, value]) => [key, cloneSet(value)])
-  );
-};
-
-/**
- * Clone shared dictionary payload metadata while retaining underlying
- * SharedArrayBuffer references.
- *
- * @param {object|null|undefined} payload
- * @returns {object|null}
- */
-const cloneSharedDictionaryPayload = (payload) => {
-  if (!payload || typeof payload !== 'object') return null;
-  if (!payload.bytes || !payload.offsets) return null;
-  const cloned = {
-    bytes: payload.bytes,
-    offsets: payload.offsets
-  };
-  if (Number.isFinite(payload.count)) {
-    cloned.count = Math.max(0, Math.floor(payload.count));
-  }
-  if (Number.isFinite(payload.maxLen)) {
-    cloned.maxLen = Math.max(0, Math.floor(payload.maxLen));
-  }
-  return cloned;
-};
-
-/**
- * Deep-clone daemon dictionary cache entries before attaching to runtime state.
- *
- * @param {object|null|undefined} entry
- * @returns {object|null}
- */
-const cloneDaemonDictionaryEntry = (entry) => {
-  if (!entry || typeof entry !== 'object') return null;
-  return {
-    dictWords: cloneSet(entry.dictWords),
-    codeDictCommonWords: cloneSet(entry.codeDictCommonWords),
-    codeDictWordsAll: cloneSet(entry.codeDictWordsAll),
-    codeDictWordsByLanguage: cloneMapOfSets(entry.codeDictWordsByLanguage),
-    dictSharedPayload: cloneSharedDictionaryPayload(entry.dictSharedPayload),
-    dictSummary: entry.dictSummary && typeof entry.dictSummary === 'object'
-      ? JSON.parse(JSON.stringify(entry.dictSummary))
-      : null
-  };
-};
+const isObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
 /**
  * Create runtime configuration for build_index.
@@ -901,98 +824,27 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     || indexingConfig.debugCrash === true
     || isTestingEnv();
 
-  const dictStartedAt = Date.now();
-  const dictConfig = getDictConfig(root, userConfig);
-  const dictDir = dictConfig?.dir;
-  const codeDictLanguages = normalizeCodeDictLanguages(DEFAULT_CODE_DICT_LANGUAGES);
+  const {
+    dictConfig,
+    dictionaryPaths,
+    codeDictPaths,
+    dictWords,
+    codeDictCommonWords,
+    codeDictWordsByLanguage,
+    dictSummary,
+    dictSignature,
+    dictSharedPayload,
+    dictShared,
+    codeDictLanguages
+  } = await resolveRuntimeDictionaries({
+    root,
+    userConfig,
+    workerPoolConfig,
+    daemonSession,
+    log,
+    logInit
+  });
   const codeDictEnabled = codeDictLanguages.size > 0;
-  const emptyCodeDictPaths = {
-    baseDir: path.join(dictDir || '', 'code-dicts'),
-    common: [],
-    byLanguage: new Map(),
-    all: []
-  };
-  const [dictionaryPaths, codeDictPaths] = await Promise.all([
-    getDictionaryPaths(root, dictConfig),
-    codeDictEnabled
-      ? getCodeDictionaryPaths(root, dictConfig, { languages: Array.from(codeDictLanguages) })
-      : Promise.resolve(emptyCodeDictPaths)
-  ]);
-  const toDictSignaturePath = (dictFile) => normalizeDictSignaturePath({ dictFile, dictDir, repoRoot: root });
-  const [baseSignatures, codeSignatures] = await Promise.all([
-    collectDictionaryFileSignatures(dictionaryPaths, { toSignaturePath: toDictSignaturePath }),
-    collectDictionaryFileSignatures(codeDictPaths.all, {
-      toSignaturePath: toDictSignaturePath,
-      prefix: 'code:'
-    })
-  ]);
-  const dictSignatureParts = baseSignatures.concat(codeSignatures);
-  dictSignatureParts.sort();
-  const dictSignature = dictSignatureParts.length
-    ? sha1(dictSignatureParts.join('|'))
-    : null;
-  const cachedDaemonDict = cloneDaemonDictionaryEntry(
-    daemonSession && dictSignature
-      ? getDaemonDictionaryCacheEntry(daemonSession, dictSignature)
-      : null
-  );
-  const dictWords = cachedDaemonDict?.dictWords || new Set();
-  const codeDictCommonWords = cachedDaemonDict?.codeDictCommonWords || new Set();
-  const codeDictWordsByLanguage = cachedDaemonDict?.codeDictWordsByLanguage || new Map();
-  const codeDictWordsAll = cachedDaemonDict?.codeDictWordsAll || new Set();
-  const daemonDictCacheHit = Boolean(cachedDaemonDict);
-  if (!daemonDictCacheHit) {
-    const [, codeDictWordSets] = await Promise.all([
-      loadDictionaryWordSetFromFiles(dictionaryPaths, { target: dictWords }),
-      codeDictEnabled
-        ? loadCodeDictionaryWordSets({
-          commonFiles: codeDictPaths.common,
-          byLanguage: codeDictPaths.byLanguage,
-          lowerCase: true
-        })
-        : Promise.resolve({ commonWords: new Set(), wordsByLanguage: new Map(), allWords: new Set() })
-    ]);
-    for (const word of codeDictWordSets.commonWords) codeDictCommonWords.add(word);
-    for (const word of codeDictWordSets.allWords) codeDictWordsAll.add(word);
-    for (const [lang, words] of codeDictWordSets.wordsByLanguage.entries()) {
-      if (words?.size) codeDictWordsByLanguage.set(lang, words);
-    }
-  } else {
-    log('[init] dictionaries loaded from daemon warm cache.');
-  }
-  const dictSummary = {
-    files: dictionaryPaths.length,
-    words: dictWords.size,
-    code: {
-      files: codeDictPaths.all.length,
-      words: codeDictWordsAll.size,
-      languages: Array.from(codeDictWordsByLanguage.keys()).sort(),
-      bundleProfileVersion: typeof codeDictPaths?.bundleProfileVersion === 'string'
-        ? codeDictPaths.bundleProfileVersion
-        : null
-    }
-  };
-  const LARGE_DICT_SHARED_THRESHOLD = 200000;
-  const shouldShareDict = dictSummary.words
-    && (workerPoolConfig.enabled !== false || dictSummary.words >= LARGE_DICT_SHARED_THRESHOLD);
-  const dictSharedPayload = shouldShareDict
-    ? (
-      cloneSharedDictionaryPayload(cachedDaemonDict?.dictSharedPayload)
-      || createSharedDictionary(dictWords)
-    )
-    : null;
-  const dictShared = dictSharedPayload ? createSharedDictionaryView(dictSharedPayload) : null;
-  if (daemonSession && dictSignature && !daemonDictCacheHit) {
-    setDaemonDictionaryCacheEntry(daemonSession, dictSignature, {
-      dictWords,
-      codeDictCommonWords,
-      codeDictWordsAll,
-      codeDictWordsByLanguage,
-      dictSharedPayload,
-      dictSummary
-    });
-  }
-  logInit('dictionaries', dictStartedAt);
   const generatedPolicy = buildGeneratedIndexingPolicyConfig(indexingConfig);
 
   const {
@@ -1055,37 +907,15 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     controlFlowEnabled,
     pythonAstEnabled
   });
-  if (!treeSitterEnabled) {
-    log('Tree-sitter chunking disabled via indexing.treeSitter.enabled.');
-  } else {
-    const preloadCacheKey = JSON.stringify({
-      languages: Array.isArray(treeSitterLanguages)
-        ? treeSitterLanguages.slice().sort()
-        : [],
-      preload: treeSitterPreload !== false,
-      preloadConcurrency: Number(treeSitterPreloadConcurrency) || 0
-    });
-    const cachedPreloadCount = Number(getDaemonTreeSitterCacheEntry(daemonSession, preloadCacheKey));
-    if (Number.isFinite(cachedPreloadCount) && cachedPreloadCount >= 0) {
-      if (cachedPreloadCount > 0) {
-        log(`[init] tree-sitter preload warm hit (${cachedPreloadCount} languages).`);
-      }
-    } else {
-      const preloadStart = Date.now();
-      const preloadCount = await preloadTreeSitterRuntimeLanguages({
-        treeSitterEnabled,
-        treeSitterLanguages,
-        treeSitterPreload,
-        treeSitterPreloadConcurrency,
-        observedLanguages: null,
-        log
-      });
-      setDaemonTreeSitterCacheEntry(daemonSession, preloadCacheKey, preloadCount);
-      if (preloadCount > 0) {
-        logInit('tree-sitter preload', preloadStart);
-      }
-    }
-  }
+  await preloadTreeSitterWithDaemonCache({
+    daemonSession,
+    treeSitterEnabled,
+    treeSitterLanguages,
+    treeSitterPreload,
+    treeSitterPreloadConcurrency,
+    log,
+    logInit
+  });
   logRuntimePostTreeSitterFeatureStatus({
     log,
     typeInferenceEnabled,
