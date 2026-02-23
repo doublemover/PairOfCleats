@@ -75,10 +75,13 @@ const streamChildOutputToStderr = async (cmd, args, { cwd = root, env = process.
     };
   } catch (err) {
     const result = err?.result && typeof err.result === 'object' ? err.result : {};
+    const signal = typeof result.signal === 'string' ? result.signal : null;
     return {
       ok: false,
-      status: Number.isFinite(Number(result.exitCode)) ? Number(result.exitCode) : 1,
-      signal: typeof result.signal === 'string' ? result.signal : null
+      status: Number.isFinite(Number(result.exitCode))
+        ? Number(result.exitCode)
+        : (signal ? null : 1),
+      signal
     };
   }
 };
