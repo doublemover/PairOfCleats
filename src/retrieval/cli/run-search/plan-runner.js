@@ -47,6 +47,7 @@ import { resolveRunSearchQueryBootstrap } from './query-bootstrap.js';
 import { applyRunSearchSparseFallbackPolicy } from './sparse-fallback-orchestration.js';
 import { enforceSparseFallbackAnnAvailability } from './sparse-fallback-guard.js';
 import { buildRunSearchIndexLoadInput } from './index-load-input.js';
+import { buildRunSearchExecutionInput } from './execution-input.js';
 
 import {
   resolveAnnActive
@@ -720,7 +721,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       );
     }
 
-    const payload = await executeSearchAndEmit({
+    const executionInput = buildRunSearchExecutionInput({
       t0,
       emitOutput,
       jsonOutput,
@@ -824,6 +825,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       asOfContext,
       signal
     });
+    const payload = await executeSearchAndEmit(executionInput);
 
     recordSearchMetrics('ok');
     return payload;

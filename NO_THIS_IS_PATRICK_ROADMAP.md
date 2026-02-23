@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T08:34:30.2183797-05:00
+  Extracted run-search execution payload assembly from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/execution-input.js`, isolating large emit payload wiring from orchestration flow and adding focused helper coverage in `tests/retrieval/cli/run-search-execution-input.test.js`.
 - 2026-02-23T08:32:38.2801780-05:00
   Extracted matrix-driven harness coverage validation from `src/contracts/validators/usr-matrix.js` into `src/contracts/validators/usr-matrix/matrix-harness-coverage.js`, preserving facade behavior with injected registry/batch/lane resolvers while isolating cross-matrix linkage invariants; added focused coverage in `tests/indexing/contracts/usr-matrix-driven-harness-coverage.test.js`.
 - 2026-02-23T08:29:11.0511798-05:00
