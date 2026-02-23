@@ -159,10 +159,25 @@ const cloneDaemonDictionaryEntry = (entry) => {
  */
 export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoot: indexRootOverride = null } = {}) {
   const initStartedAt = Date.now();
+  /**
+   * Emit a timed initialization step log entry.
+   *
+   * @param {string} label
+   * @param {number} startedAt
+   * @returns {void}
+   */
   const logInit = (label, startedAt) => {
     const elapsed = Math.max(0, Date.now() - startedAt);
     log(`[init] ${label} (${elapsed}ms)`);
   };
+  /**
+   * Run one initialization phase and log elapsed time.
+   *
+   * @template T
+   * @param {string} label
+   * @param {() => Promise<T>} fn
+   * @returns {Promise<T>}
+   */
   const timeInit = async (label, fn) => {
     const startedAt = Date.now();
     const result = await fn();
@@ -671,6 +686,13 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   const sqlDialectOverride = typeof sqlConfig.dialect === 'string' && sqlConfig.dialect.trim()
     ? sqlConfig.dialect.trim()
     : '';
+  /**
+   * Resolve effective SQL dialect for a file extension, honoring explicit
+   * global override first, then extension mapping fallback.
+   *
+   * @param {string} ext
+   * @returns {string}
+   */
   const resolveSqlDialect = (ext) => (sqlDialectOverride || sqlDialectByExt[ext] || 'generic');
   const twoStageEnabled = twoStageConfig.enabled === true;
   const twoStageBackground = twoStageConfig.background === true;
@@ -902,6 +924,14 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
         }
       } catch {}
     }
+    /**
+     * Normalize and register one code dictionary token into both the local
+     * target set and the global all-languages set.
+     *
+     * @param {Set<string>} target
+     * @param {string} word
+     * @returns {void}
+     */
     const addCodeWord = (target, word) => {
       if (!word) return;
       const normalized = word.toLowerCase();

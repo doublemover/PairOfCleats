@@ -106,6 +106,14 @@ export function createFileProcessor(options) {
   const resolvedAnalysisPolicy = analysisPolicy && typeof analysisPolicy === 'object'
     ? analysisPolicy
     : null;
+  /**
+   * Resolve a nullable policy flag while preserving the hard-coded runtime
+   * default when config omits the value.
+   *
+   * @param {unknown} value
+   * @param {boolean} fallback
+   * @returns {boolean}
+   */
   const resolvePolicyFlag = (value, fallback) => (typeof value === 'boolean' ? value : fallback);
   const resolvedTypeInferenceEnabled = resolvePolicyFlag(
     resolvedAnalysisPolicy?.typeInference?.local?.enabled,
@@ -232,6 +240,16 @@ export function createFileProcessor(options) {
     count: 0,
     limit: 50
   };
+  /**
+   * Emit one bounded warning per file when decoding falls back from UTF-8.
+   *
+   * Warnings are rate-limited globally to avoid log storms in mixed-encoding
+   * repositories.
+   *
+   * @param {string} fileKey
+   * @param {{encodingFallback?:boolean,encoding?:string,encodingConfidence?:number,file?:string}} info
+   * @returns {void}
+   */
   const warnEncodingFallback = (fileKey, info) => {
     if (!info?.encodingFallback) return;
     const key = fileKey || info?.file || '';
@@ -264,10 +282,24 @@ export function createFileProcessor(options) {
   const normalizedSegmentsConfig = normalizeSegmentsConfig(segmentsConfig);
   const normalizedCommentsConfig = normalizeCommentConfig(commentsConfig);
   const fileScanner = createFileScanner(fileScan);
+  /**
+   * Record skip metadata for diagnostics and later artifact emission.
+   *
+   * @param {string} filePath
+   * @param {string} reason
+   * @param {object} [extra]
+   * @returns {void}
+   */
   const recordSkip = (filePath, reason, extra = {}) => {
     if (!skippedFiles) return;
     skippedFiles.push({ file: filePath, reason, ...extra });
   };
+  /**
+   * Resolve tokenization dictionary overrides that must be forwarded to worker
+   * tokenizers when runtime dict settings diverge from worker defaults.
+   *
+   * @returns {{segmentation:string,dpMaxTokenLength:number}|null}
+   */
   const getWorkerDictOverride = () => {
     if (!workerPool?.dictConfig || !dictConfig) return null;
     const base = workerPool.dictConfig;
@@ -329,9 +361,11 @@ export function createFileProcessor(options) {
     const signal = options?.signal && typeof options.signal === 'object'
       ? options.signal
       : null;
-    const onScmProcQueueWait = typeof options?.onScmProcQueueWait === 'function'
-      ? options.onScmProcQueueWait
-      : null;
+    /**
+     * Fail fast when the per-file abort signal has been cancelled.
+     *
+     * @returns {void}
+     */
     const throwIfAborted = () => {
       if (!signal?.aborted) return;
       const reason = signal.reason;
@@ -358,6 +392,13 @@ export function createFileProcessor(options) {
       : path.relative(root, abs);
     const fileStructural = structuralMatches?.get(relKey) || null;
     if (seenFiles) seenFiles.add(relKey);
+    /**
+     * Update crash telemetry with file-local processing stage context.
+     *
+     * @param {string} substage
+     * @param {object} [extra]
+     * @returns {void}
+     */
     const updateCrashStage = (substage, extra = {}) => {
       if (!crashLogger?.enabled) return;
       const entry = {
@@ -373,6 +414,13 @@ export function createFileProcessor(options) {
         crashLogger.traceFileStage(entry);
       }
     };
+    /**
+     * Normalize thrown error metadata for crash logs without leaking large
+     * stack payloads into the stage tracker.
+     *
+     * @param {unknown} err
+     * @returns {{errorCode:string|null,errorName:string|null,errorMessage:string}}
+     */
     const formatCrashErrorMeta = (err) => ({
       errorCode: typeof err?.code === 'string' ? err.code : null,
       errorName: typeof err?.name === 'string' ? err.name : null,

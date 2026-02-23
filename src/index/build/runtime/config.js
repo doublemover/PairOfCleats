@@ -114,6 +114,13 @@ export const buildShardConfig = (indexingConfig) => {
     ...shardsClusterConfig,
     ...topLevelClusterConfig
   };
+  /**
+   * Normalize optional cluster numeric settings to non-negative integers.
+   *
+   * @param {unknown} value
+   * @param {number} fallback
+   * @returns {number}
+   */
   const normalizeNonNegativeInt = (value, fallback) => {
     const parsed = Number(value);
     if (!Number.isFinite(parsed) || parsed < 0) return fallback;
