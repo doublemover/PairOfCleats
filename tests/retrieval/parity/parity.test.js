@@ -40,10 +40,14 @@ const argv = createCli({
 
 const root = process.cwd();
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const userConfig = loadUserConfig(root);
 const isTestRun = process.env.PAIROFCLEATS_TESTING === '1';
 if (isTestRun && !process.env.PAIROFCLEATS_CACHE_ROOT) {
   syncProcessEnv({ PAIROFCLEATS_CACHE_ROOT: resolveTestCachePath(root, 'retrieval-parity') });
+}
+const userConfig = loadUserConfig(root);
+const parityEnv = ensureTestingEnv({ ...process.env });
+if (!parityEnv.PAIROFCLEATS_EMBEDDINGS) {
+  parityEnv.PAIROFCLEATS_EMBEDDINGS = 'stub';
 }
 const resolveSqlitePathsForRoot = () => resolveSqlitePaths(root, userConfig);
 
@@ -63,11 +67,7 @@ const parityArtifacts = await ensureParityArtifacts({
   buildIndexOnSqliteMissing: true,
   buildSqliteAfterIndexBuild: true,
   buildIndex: () => {
-    const env = ensureTestingEnv({ ...process.env });
-    if (!env.PAIROFCLEATS_EMBEDDINGS) {
-      env.PAIROFCLEATS_EMBEDDINGS = 'stub';
-    }
-    process.env.PAIROFCLEATS_EMBEDDINGS = env.PAIROFCLEATS_EMBEDDINGS;
+    const env = { ...parityEnv };
     const runBuildStage = (stage) => spawnSync(
       process.execPath,
       [path.join(scriptRoot, 'build_index.js'), '--stage', stage, '--stub-embeddings', '--repo', root],
@@ -158,6 +158,7 @@ function runSearch(query, backend) {
       topN,
       annArg,
       repo: root,
+      env: parityEnv,
       maxBuffer: 50 * 1024 * 1024,
       now: () => performance.now()
     });
