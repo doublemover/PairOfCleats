@@ -18,6 +18,52 @@ import {
   selectTailWorkerWriteEntry
 } from './write-strategy.js';
 
+const DEFAULT_FATAL_WRITE_DRAIN_TIMEOUT_MS = 5000;
+
+/**
+ * Best-effort wait for currently in-flight writes with a bounded timeout.
+ *
+ * This preserves failure-drain semantics for normal completions while still
+ * failing fast when a sibling write is hung indefinitely.
+ *
+ * @param {{
+ *   inFlightWrites:Set<Promise<any>>,
+ *   timeoutMs:number,
+ *   logLine:(message:string,options?:object)=>void
+ * }} input
+ * @returns {Promise<void>}
+ */
+const awaitInFlightWritesWithTimeout = async ({
+  inFlightWrites,
+  timeoutMs,
+  logLine
+}) => {
+  if (!(inFlightWrites instanceof Set) || inFlightWrites.size === 0) return;
+  const pending = Array.from(inFlightWrites);
+  const normalizedTimeoutMs = Number.isFinite(Number(timeoutMs))
+    ? Math.max(0, Math.floor(Number(timeoutMs)))
+    : DEFAULT_FATAL_WRITE_DRAIN_TIMEOUT_MS;
+  if (normalizedTimeoutMs === 0) return;
+  let timer = null;
+  let timedOut = false;
+  await Promise.race([
+    Promise.allSettled(pending),
+    new Promise((resolve) => {
+      timer = setTimeout(() => {
+        timedOut = true;
+        resolve();
+      }, normalizedTimeoutMs);
+    })
+  ]);
+  if (timer) clearTimeout(timer);
+  if (timedOut && typeof logLine === 'function') {
+    logLine(
+      `[perf] write failure drain timeout (${normalizedTimeoutMs}ms); continuing fail-fast.`,
+      { kind: 'warning' }
+    );
+  }
+};
+
 /**
  * Drain artifact write lanes with adaptive concurrency and tail-rescue behavior.
  *
@@ -57,6 +103,7 @@ import {
  * @param {Map<string, object>} input.artifactMetrics
  * @param {Map<string, number[]>} input.artifactQueueDelaySamples
  * @param {(message:string,options?:object)=>void} input.logLine
+ * @param {number} [input.fatalWriteDrainTimeoutMs]
  * @returns {Promise<void>}
  */
 export const drainArtifactWriteQueues = async ({
@@ -90,7 +137,8 @@ export const drainArtifactWriteQueues = async ({
   logWriteProgress,
   artifactMetrics,
   artifactQueueDelaySamples,
-  logLine
+  logLine,
+  fatalWriteDrainTimeoutMs = DEFAULT_FATAL_WRITE_DRAIN_TIMEOUT_MS
 }) => {
   const hostConcurrency = typeof os.availableParallelism === 'function'
     ? os.availableParallelism()
@@ -408,7 +456,11 @@ export const drainArtifactWriteQueues = async ({
     }
     if (fatalWriteError) {
       if (inFlightWrites.size > 0) {
-        await Promise.allSettled(Array.from(inFlightWrites));
+        await awaitInFlightWritesWithTimeout({
+          inFlightWrites,
+          timeoutMs: fatalWriteDrainTimeoutMs,
+          logLine
+        });
       }
       throw fatalWriteError;
     }
