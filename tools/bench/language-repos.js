@@ -501,19 +501,50 @@ const runUsrGuardrailBenchmarks = async () => {
 
 const config = loadBenchConfig(configPath, { onLog: appendLog });
 await validateEncodingFixtures(scriptRoot, { onLog: appendLog });
-const languageFilter = parseCommaList(argv.languages || argv.language).map((entry) => entry.toLowerCase());
-let tierFilter = parseCommaList(argv.tier).map((entry) => entry.toLowerCase());
+const normalizeSelectorToken = (value) => String(value || '').trim().toLowerCase();
+const languageFilter = new Set(
+  parseCommaList(argv.languages || argv.language)
+    .map(normalizeSelectorToken)
+    .filter(Boolean)
+);
+let tierFilter = parseCommaList(argv.tier)
+  .map(normalizeSelectorToken)
+  .filter(Boolean);
 const repoFilter = parseCommaList(argv.only || argv.repos).map((entry) => entry.toLowerCase());
+const knownTiers = new Set();
+for (const entry of Object.values(config)) {
+  for (const tier of Object.keys(entry?.repos || {})) {
+    knownTiers.add(normalizeSelectorToken(tier));
+  }
+}
 if (!tierFilter.length && Array.isArray(argv._) && argv._.length) {
   const positionalTiers = argv._
-    .map((entry) => String(entry).toLowerCase())
-    .filter((entry) => entry === 'large' || entry === 'typical' || entry === 'small' || entry === 'tiny');
+    .map((entry) => normalizeSelectorToken(entry))
+    .filter((entry) => knownTiers.has(entry));
   if (positionalTiers.length) tierFilter = positionalTiers;
 }
+tierFilter = [...new Set(tierFilter)];
+
+const collectLanguageSelectors = (language, entry) => {
+  const selectors = new Set();
+  selectors.add(normalizeSelectorToken(language));
+  const rawLabel = normalizeSelectorToken(entry?.label);
+  if (rawLabel) {
+    selectors.add(rawLabel);
+    for (const part of rawLabel.split(/[\\/,|&()]+/g).map((token) => token.trim()).filter(Boolean)) {
+      selectors.add(part);
+    }
+  }
+  return selectors;
+};
 
 const tasks = [];
 for (const [language, entry] of Object.entries(config)) {
-  if (languageFilter.length && !languageFilter.includes(language.toLowerCase())) continue;
+  if (languageFilter.size) {
+    const selectors = collectLanguageSelectors(language, entry);
+    const matchesLanguage = [...languageFilter].some((token) => selectors.has(token));
+    if (!matchesLanguage) continue;
+  }
   const queriesPath = argv.queries
     ? path.resolve(argv.queries)
     : path.resolve(scriptRoot, entry.queries || '');
@@ -529,6 +560,20 @@ for (const [language, entry] of Object.entries(config)) {
       tasks.push({ language, label: entry.label || language, tier, repo, queriesPath });
     }
   }
+}
+
+const shuffleInPlace = (items) => {
+  for (let idx = items.length - 1; idx > 0; idx -= 1) {
+    const swapIdx = Math.floor(Math.random() * (idx + 1));
+    if (swapIdx === idx) continue;
+    const temp = items[idx];
+    items[idx] = items[swapIdx];
+    items[swapIdx] = temp;
+  }
+};
+
+if (argv.random) {
+  shuffleInPlace(tasks);
 }
 
 const toSafeLogSlug = (value) => String(value || '')
@@ -608,6 +653,7 @@ if (argv.list) {
     logsRoot: path.dirname(masterLogPath),
     diagnosticsRoot: runDiagnosticsRoot,
     runSuffix,
+    randomizedOrder: argv.random === true,
     masterLog: masterLogPath,
     languages: Object.keys(config),
     usrGuardrailBenchmarks: USR_GUARDRAIL_BENCHMARKS,
