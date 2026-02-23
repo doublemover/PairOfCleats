@@ -77,7 +77,6 @@ import {
 } from './artifacts/lane-policy.js';
 import {
   createAdaptiveWriteConcurrencyController,
-  isValidationCriticalArtifact,
   resolveAdaptiveShardCount,
   resolveArtifactWriteFsStrategy,
   resolveArtifactWriteLatencyClass,
@@ -88,6 +87,7 @@ import {
   summarizeArtifactLatencyClasses
 } from './artifacts/write-strategy.js';
 import { drainArtifactWriteQueues } from './artifacts/write-execution.js';
+import { splitScheduledArtifactWriteLanes } from './artifacts/write-lane-planning.js';
 import {
   buildDeterminismReport,
   buildExtractionReport,
@@ -1129,82 +1129,6 @@ export async function writeIndexArtifacts(input) {
       job
     });
     enqueueSeq += 1;
-  };
-  /**
-   * Resolve deterministic write ordering weight for batch scheduling.
-   *
-   * @param {object} entry
-   * @returns {number}
-   */
-  const resolveWriteWeight = (entry) => {
-    if (!entry || typeof entry !== 'object') return 0;
-    let weight = Number.isFinite(entry.priority) ? entry.priority : 0;
-    if (isValidationCriticalArtifact(entry.label)) {
-      // Keep strict-validation-critical artifacts ahead of optional debug/derived
-      // outputs when the write queue is saturated.
-      weight += 500;
-    }
-    // Keep FIFO ordering unless a write has explicit priority.
-    if (weight > 0 && Number.isFinite(entry.estimatedBytes) && entry.estimatedBytes > 0) {
-      weight += Math.log2(entry.estimatedBytes + 1);
-    }
-    return weight;
-  };
-  /**
-   * Return write entries ordered by scheduler weight then label.
-   *
-   * @param {object[]} entries
-   * @returns {object[]}
-   */
-  const scheduleWrites = (entries) => (
-    Array.isArray(entries)
-      ? entries.slice().sort((a, b) => {
-        const delta = resolveWriteWeight(b) - resolveWriteWeight(a);
-        if (delta !== 0) return delta;
-        const aSeq = Number.isFinite(a?.seq) ? a.seq : 0;
-        const bSeq = Number.isFinite(b?.seq) ? b.seq : 0;
-        return aSeq - bSeq;
-      })
-      : []
-  );
-  /**
-   * Partition writes into lane classes used by adaptive dispatcher.
-   *
-   * @param {object[]} entries
-   * @returns {{ultraLight:object[],massive:object[],light:object[],heavy:object[]}}
-   */
-  const splitWriteLanes = (entries) => {
-    const ordered = scheduleWrites(entries);
-    const lanes = {
-      ultraLight: [],
-      light: [],
-      heavy: [],
-      massive: []
-    };
-    for (const entry of ordered) {
-      const estimated = Number(entry?.estimatedBytes);
-      const label = typeof entry?.label === 'string' ? entry.label : '';
-      const isForcedMassive = forcedMassiveWritePatterns.some((pattern) => pattern.test(label));
-      const isForcedHeavy = forcedHeavyWritePatterns.some((pattern) => pattern.test(label));
-      const isForcedUltraLight = forcedUltraLightWritePatterns.some((pattern) => pattern.test(label));
-      const isMassiveBySize = Number.isFinite(estimated) && estimated >= massiveWriteThresholdBytes;
-      const isMassive = isForcedMassive || isMassiveBySize;
-      const isHeavyBySize = Number.isFinite(estimated) && estimated >= heavyWriteThresholdBytes;
-      const isHeavy = isForcedHeavy || isHeavyBySize;
-      const isUltraLightBySize = Number.isFinite(estimated)
-        && estimated > 0
-        && estimated <= ultraLightWriteThresholdBytes;
-      if (isMassive) {
-        lanes.massive.push(entry);
-      } else if (isHeavy) {
-        lanes.heavy.push(entry);
-      } else if (isForcedUltraLight || isUltraLightBySize) {
-        lanes.ultraLight.push(entry);
-      } else {
-        lanes.light.push(entry);
-      }
-    }
-    return lanes;
   };
   if (mode === 'extracted-prose' && documentExtractionEnabled && !tinyRepoMinimalArtifacts) {
     const extractionReportPath = path.join(outDir, 'extraction_report.json');
@@ -2360,7 +2284,15 @@ export async function writeIndexArtifacts(input) {
     massive: massiveWrites,
     light: lightWrites,
     heavy: heavyWrites
-  } = splitWriteLanes(writes);
+  } = splitScheduledArtifactWriteLanes({
+    entries: writes,
+    heavyWriteThresholdBytes,
+    ultraLightWriteThresholdBytes,
+    massiveWriteThresholdBytes,
+    forcedHeavyWritePatterns,
+    forcedUltraLightWritePatterns,
+    forcedMassiveWritePatterns
+  });
   totalWrites = ultraLightWrites.length + massiveWrites.length + lightWrites.length + heavyWrites.length;
   if (totalWrites) {
     const artifactLabel = totalWrites === 1 ? 'artifact' : 'artifacts';
