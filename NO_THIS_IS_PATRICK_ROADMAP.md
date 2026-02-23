@@ -99,6 +99,8 @@ Note:
   Completed the `src/index/build/incremental.js` split into `planning`, `shared`, `state-reconciliation`, and `writeback` modules, preserving the public incremental API through a facade while reducing duplicated IO/hash/bundle helper code and parallelizing reuse checks in planning.
 - 2026-02-23T05:38:33.5413226-05:00
   Split `src/contracts/schemas/artifacts.js` into focused `core`, `state`, `reports`, and `sharded-meta` modules, preserving export ordering and schema identity while centralizing repeated sharded-meta schema assembly helpers.
+- 2026-02-23T05:40:46.5328329-05:00
+  Refactored `src/lang/tree-sitter/chunking.js` into `planning`, `policies`, and `assembly` modules, preserving chunk determinism while isolating chunk-policy logic from assembly flow for lower orchestration coupling.
 
 ## Architectural assessment (what needs to change)
 
