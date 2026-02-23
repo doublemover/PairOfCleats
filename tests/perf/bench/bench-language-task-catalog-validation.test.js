@@ -91,6 +91,11 @@ const { executionPlans } = buildExecutionPlans({
 });
 assert.equal(executionPlans.length, 1, 'expected one execution plan');
 assert.equal(
+  path.basename(executionPlans[0].repoPath),
+  'group__subgroup__project',
+  'expected repo path stem to replace all repo path separators'
+);
+assert.equal(
   path.basename(executionPlans[0].outFile),
   'group__subgroup__project.json',
   'expected outFile stem to replace all repo path separators'

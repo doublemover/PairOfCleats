@@ -486,7 +486,9 @@ export const ensureLongPathsSupport = ({ onLog = null } = {}) => {
 };
 
 export const resolveRepoDir = ({ reposRoot, repo, language }) => {
-  const safeName = repo.replace('/', '__');
+  const safeName = String(repo || '')
+    .trim()
+    .replace(/[\\/]+/g, '__');
   return path.join(reposRoot, language, safeName);
 };
 

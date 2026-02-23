@@ -15,7 +15,7 @@ const resultsRoot = path.join(tempRoot, 'results');
 const configPath = path.join(tempRoot, 'repos.json');
 const queriesPath = path.join(root, 'tests', 'fixtures', 'sample', 'queries.txt');
 const repoId = 'test/lock-repo';
-const repoPath = path.join(reposRoot, 'javascript', repoId.replace('/', '__'));
+const repoPath = path.join(reposRoot, 'javascript', repoId.replace(/[\\/]+/g, '__'));
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(repoPath, { recursive: true });
