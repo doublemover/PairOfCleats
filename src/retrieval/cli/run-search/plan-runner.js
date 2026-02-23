@@ -30,7 +30,6 @@ import {
   createQueryPlanDiskCache
 } from '../../query-plan-cache.js';
 import { createRetrievalStageTracker } from '../../pipeline/stage-checkpoints.js';
-import { resolveDictionaryAndQueryPlan } from './planning.js';
 import {
   buildSparseFallbackAnnUnavailableMessage
 } from './execution.js';
@@ -58,9 +57,9 @@ import { resolveRunSearchBackendSelection } from './backend-selection.js';
 import { initializeBackendContext } from './backend-context-setup.js';
 import { loadRunSearchIndexesWithTracking } from './index-loading.js';
 import { buildQueryPlanInput } from './plan-input.js';
-import { buildIndexSignatureInput } from './signature-input.js';
 import { resolveRunSearchSparsePreflight } from './sparse-preflight.js';
 import { runBranchFilterGate } from './branch-gate.js';
+import { resolveRunSearchDictionaryAndPlan } from './query-planning.js';
 
 import {
   resolveAnnActive,
@@ -621,7 +620,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const {
       queryPlan,
       planIndexSignaturePayload
-    } = await resolveDictionaryAndQueryPlan({
+    } = await resolveRunSearchDictionaryAndPlan({
       stageTracker,
       throwIfAborted,
       rootDir,
@@ -637,19 +636,13 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       queryPlanCache,
       planInput,
       fileChargramN,
-      indexSignatureInput: buildIndexSignatureInput({
-        useSqlite,
-        backendLabel,
-        sqliteCodePath,
-        sqliteProsePath,
-        sqliteExtractedProsePath,
-        runRecords,
-        runExtractedProseRaw,
-        joinComments,
-        rootDir,
-        userConfig,
-        asOfContext
-      })
+      useSqlite,
+      backendLabel,
+      sqliteCodePath,
+      sqliteProsePath,
+      sqliteExtractedProsePath,
+      joinComments,
+      asOfContext
     });
 
     const sparsePreflight = resolveRunSearchSparsePreflight({
