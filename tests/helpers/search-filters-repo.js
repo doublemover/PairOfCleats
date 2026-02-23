@@ -87,6 +87,7 @@ const withDirectoryLock = async (
   } = {}
 ) => {
   const startedAt = Date.now();
+  await fsPromises.mkdir(path.dirname(lockDir), { recursive: true });
   while (true) {
     try {
       await fsPromises.mkdir(lockDir);
