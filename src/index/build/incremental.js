@@ -14,6 +14,7 @@ import {
 } from '../../shared/bundle-io.js';
 import { normalizeFilePath } from '../../shared/path-normalize.js';
 import { getEnvConfig } from '../../shared/env.js';
+import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
 
 const pathExists = async (targetPath) => {
   try {
@@ -503,19 +504,18 @@ export async function shouldReuseIncrementalIndex({
     return fail('piece manifest empty');
   }
   const outRoot = path.resolve(outDir);
+  const canonicalOutRoot = toRealPathSync(outRoot);
   for (const piece of pieceManifest.pieces) {
     const relPath = typeof piece?.path === 'string' ? piece.path : null;
     if (!relPath) {
       return fail('piece manifest missing path');
     }
     const resolvedPath = path.resolve(outDir, relPath);
-    const withinOutDir = process.platform === 'win32'
-      ? (
-        resolvedPath.toLowerCase() === outRoot.toLowerCase()
-        || resolvedPath.toLowerCase().startsWith(`${outRoot.toLowerCase()}${path.sep}`)
-      )
-      : (resolvedPath === outRoot || resolvedPath.startsWith(`${outRoot}${path.sep}`));
-    if (!withinOutDir) {
+    if (!isWithinRoot(resolvedPath, outRoot)) {
+      return fail('piece manifest path escapes output dir');
+    }
+    const canonicalResolvedPath = toRealPathSync(resolvedPath);
+    if (!isWithinRoot(canonicalResolvedPath, canonicalOutRoot)) {
       return fail('piece manifest path escapes output dir');
     }
     if (!(await pathExists(resolvedPath))) {

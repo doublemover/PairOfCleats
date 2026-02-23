@@ -80,5 +80,32 @@ if (noReuse) {
   process.exit(1);
 }
 
+const outsideDir = path.join(tempRoot, 'outside');
+await fs.mkdir(outsideDir, { recursive: true });
+await fs.writeFile(path.join(outsideDir, 'chunk_meta.json'), '[]', 'utf8');
+const symlinkPieceDir = path.join(outDir, 'symlink-piece');
+let symlinkCreated = false;
+try {
+  await fs.symlink(outsideDir, symlinkPieceDir, process.platform === 'win32' ? 'junction' : 'dir');
+  symlinkCreated = true;
+} catch {}
+if (symlinkCreated) {
+  const escapedPieceManifest = {
+    ...pieceManifest,
+    pieces: [{ name: 'chunk_meta', path: 'symlink-piece/chunk_meta.json' }]
+  };
+  await fs.writeFile(path.join(outDir, 'pieces', 'manifest.json'), JSON.stringify(escapedPieceManifest));
+  const escapedReuse = await shouldReuseIncrementalIndex({
+    outDir,
+    entries,
+    manifest,
+    stage: 'stage1'
+  });
+  if (escapedReuse) {
+    console.error('incremental reuse test failed: expected symlink-escaped manifest piece to be rejected');
+    process.exit(1);
+  }
+}
+
 console.log('incremental reuse test passed');
 
