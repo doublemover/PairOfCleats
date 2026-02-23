@@ -5,7 +5,6 @@ import {
 } from '../../../../shared/concurrency.js';
 import { getEnvConfig } from '../../../../shared/env.js';
 import { toPosix } from '../../../../shared/files.js';
-import { countLinesForEntries } from '../../../../shared/file-stats.js';
 import { log, logLine, showProgress } from '../../../../shared/progress.js';
 import { createTimeoutError, runWithTimeout } from '../../../../shared/promise-timeout.js';
 import { coercePositiveInt } from '../../../../shared/number-coerce.js';
@@ -20,7 +19,6 @@ import { getLanguageForFile } from '../../../language-registry.js';
 import { runTreeSitterScheduler } from '../../tree-sitter-scheduler/runner.js';
 import { createHeavyFilePerfAggregator, createPerfEventLogger } from '../../perf-event-log.js';
 import { loadStructuralMatches } from '../../../structural.js';
-import { planShards } from '../../shards.js';
 import { createTokenRetentionState } from './postings.js';
 import { createPostingsQueue, estimatePostingsPayload } from './process-files/postings-queue.js';
 import { createStage1PostingsQueueTelemetry } from './process-files/postings-telemetry.js';
@@ -61,6 +59,7 @@ import {
   resolveOrderedEntryProgressPlan,
   resolveStage1ShardExecutionQueuePlan
 } from './process-files/stage1-execution-plan.js';
+import { resolveShardPlanningPreflight } from './process-files/shard-preflight.js';
 import { createStage1TimingAggregator } from './process-files/stage-timing.js';
 import {
   buildWatchdogNearThresholdSummary as buildWatchdogNearThresholdSummaryShared,
@@ -468,7 +467,7 @@ export const processFiles = async ({
   const cleanupTimeoutMs = resolveProcessCleanupTimeoutMs(runtime);
 
   try {
-    assignFileIndexes(entries);
+    const { hasPositiveLineCounts: hasIndexedEntryLines } = assignFileIndexes(entries);
     const repoFileCount = Array.isArray(entries) ? entries.length : 0;
     const scmSnapshotConfig = runtime?.scmConfig?.snapshot || {};
     const scmSnapshotEnabled = scmSnapshotConfig.enabled !== false;
@@ -1194,78 +1193,32 @@ export const processFiles = async ({
     };
 
     const discoveryLineCounts = discovery?.lineCounts instanceof Map ? discovery.lineCounts : null;
-    const clusterModeEnabled = runtime.shards?.cluster?.enabled === true;
-    const clusterDeterministicMerge = runtime.shards?.cluster?.deterministicMerge !== false;
-    let lineCounts = discoveryLineCounts;
-    if (runtime.shards?.enabled && !lineCounts) {
-      const hasEntryLines = entries.some((entry) => Number.isFinite(entry?.lines) && entry.lines > 0);
-      if (!hasEntryLines) {
-        const lineStart = Date.now();
-        const lineConcurrency = Math.max(1, Math.min(128, runtime.cpuConcurrency * 2));
-        if (envConfig.verbose === true) {
-          log(`→ Shard planning: counting lines (${lineConcurrency} workers)...`);
-        }
-        lineCounts = await countLinesForEntries(entries, { concurrency: lineConcurrency });
-        timing.lineCountsMs = Date.now() - lineStart;
-      }
-    }
-    const shardFeatureWeights = {
-      relations: relationsEnabled ? 0.15 : 0,
-      flow: (runtime.astDataflowEnabled || runtime.controlFlowEnabled) ? 0.1 : 0,
-      treeSitter: runtime.languageOptions?.treeSitter?.enabled !== false ? 0.1 : 0,
-      tooling: runtime.toolingEnabled ? 0.1 : 0,
-      embeddings: runtime.embeddingEnabled ? 0.2 : 0
-    };
-    const shardPlan = runtime.shards?.enabled
-      ? planShards(entries, {
-        mode,
-        maxShards: runtime.shards.maxShards,
-        minFiles: runtime.shards.minFiles,
-        dirDepth: runtime.shards.dirDepth,
-        lineCounts,
-        perfProfile: shardPerfProfile,
-        featureWeights: shardFeatureWeights,
-        maxShardBytes: runtime.shards.maxShardBytes,
-        maxShardLines: runtime.shards.maxShardLines
-      })
-      : null;
-    let shardSummary = shardPlan
-      ? shardPlan.map((shard) => ({
-        id: shard.id,
-        label: shard.label || shard.id,
-        dir: shard.dir,
-        lang: shard.lang,
-        fileCount: shard.entries.length,
-        lineCount: shard.lineCount || 0,
-        byteCount: shard.byteCount || 0,
-        costMs: shard.costMs || 0
-      }))
-      : [];
+    /**
+     * Sequencing-sensitive: this preflight runs after `assignFileIndexes` so
+     * it can reuse that pass-level line presence signal and skip a second full
+     * scan before shard planning.
+     */
+    const {
+      clusterModeEnabled,
+      clusterDeterministicMerge,
+      shardPlan,
+      shardSummary: initialShardSummary,
+      shardExecutionMeta: initialShardExecutionMeta
+    } = await resolveShardPlanningPreflight({
+      entries,
+      runtime,
+      mode,
+      relationsEnabled,
+      shardPerfProfile,
+      discoveryLineCounts,
+      hasPositiveLineCounts: hasIndexedEntryLines,
+      timing,
+      verbose: envConfig.verbose === true,
+      log
+    });
+    let shardSummary = initialShardSummary;
     const clusterRetryConfig = resolveClusterSubsetRetryConfig(runtime);
-    let shardExecutionMeta = runtime.shards?.enabled
-      ? {
-        enabled: true,
-        mode: clusterModeEnabled ? 'cluster' : 'local',
-        mergeOrder: clusterDeterministicMerge ? 'stable' : 'adaptive',
-        deterministicMerge: clusterDeterministicMerge,
-        shardCount: Array.isArray(shardPlan) ? shardPlan.length : 0,
-        subsetCount: 0,
-        workerCount: 1,
-        workers: [],
-        mergeOrderCount: 0,
-        mergeOrderPreview: [],
-        mergeOrderTail: [],
-        retry: {
-          enabled: false,
-          maxSubsetRetries: 0,
-          retryDelayMs: 0,
-          attemptedSubsets: 0,
-          retriedSubsets: 0,
-          recoveredSubsets: 0,
-          failedSubsets: 0
-        }
-      }
-      : { enabled: false };
+    let shardExecutionMeta = initialShardExecutionMeta;
     const checkpointBatchSize = resolveCheckpointBatchSize(entries.length, shardPlan);
     checkpoint = createBuildCheckpoint({
       buildRoot: runtime.buildRoot,

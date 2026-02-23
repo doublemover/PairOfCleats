@@ -12,15 +12,20 @@ import {
 ensureTestingEnv(process.env);
 
 const entries = [
-  { rel: 'a.js', orderIndex: 9 },
+  { rel: 'a.js', orderIndex: 9, lines: 0 },
   null,
-  { rel: 'b.js', canonicalOrderIndex: 3 },
+  { rel: 'b.js', canonicalOrderIndex: 3, lines: 27 },
   { rel: 'c.js' }
 ];
-assignFileIndexes(entries);
+const assignmentSummary = assignFileIndexes(entries);
 assert.equal(entries[0].fileIndex, 1, 'expected first entry to be assigned index 1');
 assert.equal(entries[2].fileIndex, 3, 'expected file index assignment to stay position-based');
 assert.equal(entries[3].fileIndex, 4, 'expected file index assignment to include sparse/null slots');
+assert.equal(
+  assignmentSummary.hasPositiveLineCounts,
+  true,
+  'expected index assignment pass to report whether entries already include line counts'
+);
 
 const orderedPlan = resolveOrderedEntryProgressPlan(entries);
 assert.equal(orderedPlan.startOrderIndex, 3, 'expected minimum explicit order index as start index');

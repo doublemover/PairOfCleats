@@ -12,15 +12,22 @@ import {
  * Assign deterministic 1-based file indices used in logs and ownership ids.
  *
  * @param {object[]} entries
- * @returns {void}
+ * @returns {{hasPositiveLineCounts:boolean}}
  */
 export const assignFileIndexes = (entries) => {
-  if (!Array.isArray(entries)) return;
+  let hasPositiveLineCounts = false;
+  if (!Array.isArray(entries)) {
+    return { hasPositiveLineCounts };
+  }
   for (let i = 0; i < entries.length; i += 1) {
     const entry = entries[i];
     if (!entry || typeof entry !== 'object') continue;
     entry.fileIndex = i + 1;
+    if (!hasPositiveLineCounts && Number.isFinite(entry.lines) && entry.lines > 0) {
+      hasPositiveLineCounts = true;
+    }
   }
+  return { hasPositiveLineCounts };
 };
 
 /**
