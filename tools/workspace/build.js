@@ -96,35 +96,56 @@ const printWorkspaceBuildHelp = () => {
 
 const runRepoBuild = async ({ repo, buildArgs }) => {
   const startedAt = Date.now();
-  const result = await spawnSubprocess(
-    process.execPath,
-    [BUILD_INDEX_SCRIPT, ...buildArgs, '--repo', repo.repoRootCanonical],
-    {
-      cwd: repo.repoRootCanonical,
-      env: process.env,
-      stdio: ['ignore', 'ignore', 'pipe'],
-      captureStdout: false,
-      captureStderr: true,
-      maxOutputBytes: 64 * 1024,
-      rejectOnNonZeroExit: false
-    }
-  );
-  const stderr = typeof result.stderr === 'string' ? result.stderr.trim() : '';
-  const exitCode = Number.isFinite(Number(result.exitCode)) ? Number(result.exitCode) : null;
-  const signal = typeof result.signal === 'string' && result.signal.trim().length > 0
-    ? result.signal.trim()
-    : null;
-  return {
-    repoId: repo.repoId,
-    repoRootCanonical: repo.repoRootCanonical,
-    exitCode: exitCode ?? 1,
-    signal,
-    durationMs: Date.now() - startedAt,
-    status: exitCode === 0 && !signal ? 'passed' : 'failed',
-    error: (exitCode === 0 && !signal)
-      ? null
-      : (stderr || (signal ? `build_index exited via signal ${signal}` : `build_index exited with code ${result.exitCode}`))
-  };
+  try {
+    const result = await spawnSubprocess(
+      process.execPath,
+      [BUILD_INDEX_SCRIPT, ...buildArgs, '--repo', repo.repoRootCanonical],
+      {
+        cwd: repo.repoRootCanonical,
+        env: process.env,
+        stdio: ['ignore', 'ignore', 'pipe'],
+        captureStdout: false,
+        captureStderr: true,
+        maxOutputBytes: 64 * 1024,
+        rejectOnNonZeroExit: false
+      }
+    );
+    const stderr = typeof result.stderr === 'string' ? result.stderr.trim() : '';
+    const exitCode = Number.isFinite(Number(result.exitCode)) ? Number(result.exitCode) : null;
+    const signal = typeof result.signal === 'string' && result.signal.trim().length > 0
+      ? result.signal.trim()
+      : null;
+    return {
+      repoId: repo.repoId,
+      repoRootCanonical: repo.repoRootCanonical,
+      exitCode: exitCode ?? 1,
+      signal,
+      durationMs: Date.now() - startedAt,
+      status: exitCode === 0 && !signal ? 'passed' : 'failed',
+      error: (exitCode === 0 && !signal)
+        ? null
+        : (stderr || (signal ? `build_index exited via signal ${signal}` : `build_index exited with code ${result.exitCode}`))
+    };
+  } catch (err) {
+    const result = err?.result && typeof err.result === 'object' ? err.result : {};
+    const stderr = typeof result.stderr === 'string' ? result.stderr.trim() : '';
+    const signal = typeof result.signal === 'string' && result.signal.trim().length > 0
+      ? result.signal.trim()
+      : null;
+    const exitCode = Number.isFinite(Number(result.exitCode)) ? Number(result.exitCode) : 1;
+    const errorMessage = stderr
+      || (typeof err?.message === 'string' && err.message.trim().length > 0 ? err.message.trim() : '')
+      || (signal ? `build_index exited via signal ${signal}` : `build_index exited with code ${exitCode}`);
+    return {
+      repoId: repo.repoId,
+      repoRootCanonical: repo.repoRootCanonical,
+      exitCode,
+      signal,
+      durationMs: Date.now() - startedAt,
+      status: 'failed',
+      error: errorMessage
+    };
+  }
 };
 
 const runWorkspaceBuild = async (workspaceConfig, {
