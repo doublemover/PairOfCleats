@@ -4,7 +4,7 @@ import {
   createOrderedCompletionTracker as createSharedOrderedCompletionTracker
 } from '../../../../shared/concurrency.js';
 import { getEnvConfig } from '../../../../shared/env.js';
-import { fileExt, toPosix } from '../../../../shared/files.js';
+import { toPosix } from '../../../../shared/files.js';
 import { countLinesForEntries } from '../../../../shared/file-stats.js';
 import { log, logLine, showProgress } from '../../../../shared/progress.js';
 import { createTimeoutError, runWithTimeout } from '../../../../shared/promise-timeout.js';
@@ -21,13 +21,12 @@ import { runTreeSitterScheduler } from '../../tree-sitter-scheduler/runner.js';
 import { createHeavyFilePerfAggregator, createPerfEventLogger } from '../../perf-event-log.js';
 import { loadStructuralMatches } from '../../../structural.js';
 import { planShards } from '../../shards.js';
-import { recordFileMetric } from '../../perf-profile.js';
-import { createVfsManifestCollector } from '../../vfs-manifest-collector.js';
 import { createTokenRetentionState } from './postings.js';
 import { createPostingsQueue, estimatePostingsPayload } from './process-files/postings-queue.js';
 import { createStage1PostingsQueueTelemetry } from './process-files/postings-telemetry.js';
 import { buildOrderedAppender } from './process-files/ordered.js';
 import { createShardRuntime, resolveCheckpointBatchSize } from './process-files/runtime.js';
+import { createStage1FileResultApplier } from './process-files/result-application.js';
 import {
   buildDeterministicShardMergePlan,
   normalizeOwnershipSegment,
@@ -81,8 +80,7 @@ import {
   resolveFileWatchdogMs,
   resolveProcessCleanupTimeoutMs,
   resolveStage1HangPolicy,
-  runCleanupWithTimeout,
-  toIsoTimestamp
+  runCleanupWithTimeout
 } from './process-files/watchdog-policy.js';
 
 export {
@@ -336,6 +334,9 @@ export const processFiles = async ({
     extractedProseLowYieldBailout
   });
   const lifecycleByOrderIndex = new Map();
+  // onResult records relKey -> orderIndex before ordered flush. The ordered
+  // result applier consumes this map so write lifecycle timestamps stay bound
+  // to the deterministic order slot, including retry/late result paths.
   const lifecycleByRelKey = new Map();
   const ensureLifecycleRecord = ({
     orderIndex,
@@ -541,144 +542,17 @@ export const processFiles = async ({
       startOrderIndex,
       expectedOrderIndices
     } = resolveOrderedEntryProgressPlan(entries);
-    /**
-     * Resolve lifecycle timing row from processor result payload.
-     *
-     * @param {object} result
-     * @param {object|null} [shardMeta]
-     * @returns {object}
-     */
-    const resolveResultLifecycleRecord = (result, shardMeta = null) => {
-      if (!result || typeof result !== 'object') return null;
-      const fromRelKey = result.relKey && lifecycleByRelKey.has(result.relKey)
-        ? lifecycleByRelKey.get(result.relKey)
-        : null;
-      const fromOrderIndex = Number.isFinite(result?.orderIndex)
-        ? Math.floor(result.orderIndex)
-        : null;
-      const resolvedOrderIndex = Number.isFinite(fromRelKey)
-        ? fromRelKey
-        : (Number.isFinite(fromOrderIndex) ? fromOrderIndex : null);
-      if (!Number.isFinite(resolvedOrderIndex)) return null;
-      return ensureLifecycleRecord({
-        orderIndex: resolvedOrderIndex,
-        file: result.relKey || result.abs || null,
-        fileIndex: result.fileIndex,
-        shardId: shardMeta?.id || null
-      });
-    };
-    /**
-     * Merge one file-processing result into stage state and write pipelines.
-     *
-     * @param {object} result
-     * @param {object} stateRef
-     * @param {object|null} shardMeta
-     * @returns {Promise<void>}
-     */
-    const applyFileResult = async (result, stateRef, shardMeta) => {
-      if (!result) return;
-      const lifecycle = resolveResultLifecycleRecord(result, shardMeta);
-      if (lifecycle && !Number.isFinite(lifecycle.writeStartAtMs)) {
-        lifecycle.writeStartAtMs = Date.now();
-      }
-      if (result.fileMetrics) {
-        recordFileMetric(perfProfile, result.fileMetrics);
-      }
-      for (const chunk of result.chunks) {
-        appendChunkWithRetention(stateRef, chunk, state);
-      }
-      if (result.manifestEntry) {
-        if (shardMeta?.id) result.manifestEntry.shard = shardMeta.id;
-        incrementalState.manifest.files[result.relKey] = result.manifestEntry;
-      }
-      if (result.fileInfo && result.relKey) {
-        if (!stateRef.fileInfoByPath) stateRef.fileInfoByPath = new Map();
-        stateRef.fileInfoByPath.set(result.relKey, result.fileInfo);
-      }
-      if (result.relKey && Array.isArray(result.chunks) && result.chunks.length) {
-        if (!stateRef.fileDetailsByPath) stateRef.fileDetailsByPath = new Map();
-        if (!stateRef.fileDetailsByPath.has(result.relKey)) {
-          const first = result.chunks[0] || {};
-          const info = result.fileInfo || {};
-          stateRef.fileDetailsByPath.set(result.relKey, {
-            file: result.relKey,
-            ext: first.ext || fileExt(result.relKey),
-            size: Number.isFinite(info.size) ? info.size : (Number.isFinite(first.fileSize) ? first.fileSize : null),
-            hash: info.hash || first.fileHash || null,
-            hashAlgo: info.hashAlgo || first.fileHashAlgo || null,
-            externalDocs: first.externalDocs || null,
-            last_modified: first.last_modified || null,
-            last_author: first.last_author || null,
-            churn: first.churn || null,
-            churn_added: first.churn_added || null,
-            churn_deleted: first.churn_deleted || null,
-            churn_commits: first.churn_commits || null
-          });
-        }
-      }
-      if (Array.isArray(result.chunks) && result.chunks.length) {
-        if (!stateRef.chunkUidToFile) stateRef.chunkUidToFile = new Map();
-        for (const chunk of result.chunks) {
-          const chunkUid = chunk?.chunkUid || chunk?.metaV2?.chunkUid || null;
-          if (!chunkUid || stateRef.chunkUidToFile.has(chunkUid)) continue;
-          stateRef.chunkUidToFile.set(chunkUid, result.relKey);
-        }
-      }
-      if (result.fileRelations) {
-        stateRef.fileRelations.set(result.relKey, result.fileRelations);
-      }
-      if (result.lexiconFilterStats && result.relKey) {
-        if (!stateRef.lexiconRelationFilterByFile) {
-          stateRef.lexiconRelationFilterByFile = new Map();
-        }
-        stateRef.lexiconRelationFilterByFile.set(result.relKey, {
-          ...result.lexiconFilterStats,
-          file: result.relKey
-        });
-      }
-      if (Array.isArray(result.vfsManifestRows) && result.vfsManifestRows.length) {
-        if (!stateRef.vfsManifestCollector) {
-          stateRef.vfsManifestCollector = createVfsManifestCollector({
-            buildRoot: runtime.buildRoot || runtime.root,
-            log
-          });
-          stateRef.vfsManifestRows = null;
-          stateRef.vfsManifestStats = stateRef.vfsManifestCollector.stats;
-        }
-        await stateRef.vfsManifestCollector.appendRows(result.vfsManifestRows, { log });
-      }
-      if (lifecycle) {
-        lifecycle.writeEndAtMs = Date.now();
-      }
-      const lifecycleDurations = lifecycle ? resolveFileLifecycleDurations(lifecycle) : null;
-      stateRef.scannedFilesTimes.push({
-        file: result.abs,
-        duration_ms: clampDurationMs(result.durationMs),
-        cached: result.cached,
-        ...(lifecycle
-          ? {
-            lifecycle: {
-              enqueuedAt: toIsoTimestamp(lifecycle.enqueuedAtMs),
-              dequeuedAt: toIsoTimestamp(lifecycle.dequeuedAtMs),
-              parseStartAt: toIsoTimestamp(lifecycle.parseStartAtMs),
-              parseEndAt: toIsoTimestamp(lifecycle.parseEndAtMs),
-              writeStartAt: toIsoTimestamp(lifecycle.writeStartAtMs),
-              writeEndAt: toIsoTimestamp(lifecycle.writeEndAtMs)
-            },
-            queue_delay_ms: lifecycleDurations?.queueDelayMs || 0,
-            active_duration_ms: lifecycleDurations?.activeDurationMs || 0,
-            write_duration_ms: lifecycleDurations?.writeDurationMs || 0
-          }
-          : {})
-      });
-      stateRef.scannedFiles.push(result.abs);
-      if (result.relKey && Number.isFinite(lifecycle?.orderIndex)) {
-        lifecycleByRelKey.delete(result.relKey);
-      }
-      if (Number.isFinite(lifecycle?.orderIndex)) {
-        lifecycleByOrderIndex.delete(lifecycle.orderIndex);
-      }
-    };
+    const applyFileResult = createStage1FileResultApplier({
+      appendChunkWithRetention,
+      ensureLifecycleRecord,
+      incrementalState,
+      lifecycleByOrderIndex,
+      lifecycleByRelKey,
+      log,
+      perfProfile,
+      runtime,
+      sharedState: state
+    });
     const orderedAppender = buildOrderedAppender(
       (result, stateRef, shardMeta) => schedulePostings(() => applyFileResult(result, stateRef, shardMeta)),
       state,
