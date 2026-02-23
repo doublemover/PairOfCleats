@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 import { sha1 } from '../../../../src/shared/hash.js';
 import { buildChunkHashesFingerprint } from '../../../../tools/build/embeddings/cache.js';
-import { prepareFileEmbeddingWorkset } from '../../../../tools/build/embeddings/runner/file-workset.js';
+import {
+  buildChunkEmbeddingInputs,
+  prepareFileEmbeddingWorkset
+} from '../../../../tools/build/embeddings/runner/file-workset.js';
 
 applyTestEnv();
 
@@ -76,5 +79,21 @@ assert.deepEqual(second.docTexts, [''], 'expected whitespace-only docs to normal
 assert.deepEqual(second.codeMapping, [0]);
 assert.deepEqual(second.docMapping, [0]);
 assert.deepEqual(second.chunkHashes, [sha1('2345\n')]);
+
+const inputs = buildChunkEmbeddingInputs({
+  text: 'abcdef',
+  items: [
+    { chunk: { start: 1, end: 4.9, docmeta: { doc: '  keep spacing  ' } } },
+    { chunk: { start: -3, end: -1, docmeta: { doc: '   ' } } },
+    { chunk: { start: 'bad', end: 'also-bad', docmeta: { doc: 'doc2' } } }
+  ]
+});
+assert.deepEqual(inputs.chunkCodeTexts, ['bcd', 'de', '']);
+assert.deepEqual(inputs.chunkDocTexts, ['  keep spacing  ', '', 'doc2']);
+assert.deepEqual(inputs.chunkHashes, [
+  sha1('bcd\n  keep spacing  '),
+  sha1('de\n'),
+  sha1('\ndoc2')
+]);
 
 console.log('file workset prep helper test passed');
