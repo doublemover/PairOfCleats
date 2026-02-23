@@ -66,9 +66,11 @@ Coverage closeout:
 - `tests/fixtures/perf/index/caps-calibration-inputs.json` and companion results fixture were regenerated from deterministic runtime calibration artifacts and are guarded by `tests/indexing/runtime/caps-calibration-fixture-parity.test.js`.
 
 Note:
-- 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
+- 4 scoped files are still over 800 lines. Those are already-refactored surfaces with remaining follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T09:48:03.4661165-05:00
+  Integrated parallel worker follow-up for `src/index/build/indexer/steps/process-files.js`: extracted shard-preflight planning to `src/index/build/indexer/steps/process-files/shard-preflight.js`, threaded `hasPositiveLineCounts` through stage1 execution planning to remove redundant scans, and added focused coverage in `tests/indexing/stage1/process-files-shard-preflight.test.js` + `tests/indexing/stage1/process-files-stage1-execution-plan.test.js`.
 - 2026-02-23T09:46:53.7891297-05:00
   Extracted scheduler adaptive/final stats payload assembly from `src/shared/concurrency/scheduler-core.js` into helpers in `src/shared/concurrency/scheduler-core-stats.js` (`buildSchedulerAdaptivePayload`, `buildSchedulerStatsPayload`), preserving diagnostics payload shape while reducing core orchestration density; expanded focused coverage in `tests/shared/concurrency/scheduler-core-stats-snapshot.test.js`.
 - 2026-02-23T09:42:20.8777321-05:00
