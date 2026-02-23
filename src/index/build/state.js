@@ -5,12 +5,21 @@ import { createTypedTokenPostingMap } from '../../shared/token-id.js';
 import { shouldSkipPhrasePostingsForChunk } from './state/phrase-postings.js';
 import { normalizeTokenRetention, applyTokenRetention } from './state/token-retention.js';
 import {
-  ALLOWED_CHARGRAM_FIELDS,
   appendDocIdToPostingsMap,
   appendPhraseNgramsToHashBuckets,
   appendPhraseNgramsToPostingsMap,
   appendChargramsToSet
 } from './state/postings-helpers.js';
+import {
+  BASE_FIELD_POSTINGS_FIELDS,
+  CLASSIFIED_FIELD_POSTINGS_FIELDS,
+  PHRASE_SOURCE_FIELDS,
+  accumulateFrequency,
+  appendFrequencyToPostingsMap,
+  normalizeChargramFields,
+  resolveBoundedNgramRange,
+  resolveFieldTokenSampleSize
+} from './state/append-chunk-helpers.js';
 import {
   POSTINGS_GUARDS,
   createGuardEntry,
@@ -24,6 +33,14 @@ import {
   mergeFrequencyPostingsMapWithOffset,
   mergeLengthsWithOffset
 } from './state/merge-helpers.js';
+import {
+  appendArrayProperty,
+  copyArrayPropertyWhenTargetEmpty,
+  copyScalarPropertyWhenMissing,
+  mergeMapEntries,
+  mergeMapEntriesIfMissing,
+  mergeNumericObjectTotals
+} from './state/merge-state.js';
 
 const DEFAULT_POSTINGS_CONFIG = normalizePostingsConfig();
 const TOKEN_ID_COLLISION_SAMPLE_SIZE = 5;
@@ -162,11 +179,16 @@ export const enforceTokenIdCollisionPolicy = (
  * @param {object} state
  * @param {object} chunk
  * @param {object} [postingsConfig=DEFAULT_POSTINGS_CONFIG]
- * @param {object|null} [tokenRetention=null]
+ * @param {{mode:'full'|'sample'|'none',sampleSize:number}|null} [tokenRetention=null]
  * @param {{sparsePostingsEnabled?:boolean}|null} [options=null]
  * When `sparsePostingsEnabled=false`, sparse postings/token statistics are
  * intentionally skipped (vector-only profile), while chunk/token payloads are
  * still retained for downstream filtering/query-AST matching.
+ *
+ * Retention ordering is intentional:
+ * 1. Build postings/doc-length counters from full in-memory token payloads.
+ * 2. Apply retention policy to the chunk object before persistence in `state.chunks`.
+ * This keeps scoring/postings stable across retention modes.
  */
 export function appendChunk(
   state,
@@ -184,14 +206,11 @@ export function appendChunk(
   const seq = Array.isArray(chunk.seq) && chunk.seq.length ? chunk.seq : tokens;
 
   const phraseEnabled = sparseEnabled && config.enablePhraseNgrams !== false;
-  const phraseMinRaw = Number.isFinite(config.phraseMinN)
-    ? Math.max(1, Math.floor(config.phraseMinN))
-    : DEFAULT_POSTINGS_CONFIG.phraseMinN;
-  const phraseMaxRaw = Number.isFinite(config.phraseMaxN)
-    ? Math.max(1, Math.floor(config.phraseMaxN))
-    : DEFAULT_POSTINGS_CONFIG.phraseMaxN;
-  const phraseMinN = phraseMinRaw <= phraseMaxRaw ? phraseMinRaw : phraseMaxRaw;
-  const phraseMaxN = phraseMaxRaw >= phraseMinRaw ? phraseMaxRaw : phraseMinRaw;
+  const { min: phraseMinN, max: phraseMaxN } = resolveBoundedNgramRange(
+    config.phraseMinN,
+    config.phraseMaxN,
+    { min: DEFAULT_POSTINGS_CONFIG.phraseMinN, max: DEFAULT_POSTINGS_CONFIG.phraseMaxN }
+  );
   const phraseSource = config.phraseSource === 'full' ? 'full' : 'fields';
   const phraseHashEnabled = config.phraseHash === true
     && phraseSource === 'full'
@@ -204,28 +223,12 @@ export function appendChunk(
   const tokenClassificationEnabled = sparseEnabled && config.tokenClassification?.enabled === true;
   const chargramSource = config.chargramSource === 'full' ? 'full' : 'fields';
   const chargramStopwords = config.chargramStopwords === true;
-  const chargramFieldsRaw = Array.isArray(config.chargramFields)
-    ? config.chargramFields
-    : [];
-  const chargramFields = [];
-  for (const entry of chargramFieldsRaw) {
-    if (typeof entry !== 'string') continue;
-    const normalized = entry.trim().toLowerCase();
-    if (!normalized || !ALLOWED_CHARGRAM_FIELDS.has(normalized)) continue;
-    if (chargramFields.includes(normalized)) continue;
-    chargramFields.push(normalized);
-  }
-  if (!chargramFields.length) {
-    chargramFields.push('name', 'doc');
-  }
-  const chargramMinRaw = Number.isFinite(config.chargramMinN)
-    ? Math.max(1, Math.floor(config.chargramMinN))
-    : DEFAULT_POSTINGS_CONFIG.chargramMinN;
-  const chargramMaxRaw = Number.isFinite(config.chargramMaxN)
-    ? Math.max(1, Math.floor(config.chargramMaxN))
-    : DEFAULT_POSTINGS_CONFIG.chargramMaxN;
-  const chargramMinN = chargramMinRaw <= chargramMaxRaw ? chargramMinRaw : chargramMaxRaw;
-  const chargramMaxN = chargramMaxRaw >= chargramMinRaw ? chargramMaxRaw : chargramMinRaw;
+  const chargramFields = normalizeChargramFields(config.chargramFields);
+  const { min: chargramMinN, max: chargramMaxN } = resolveBoundedNgramRange(
+    config.chargramMinN,
+    config.chargramMaxN,
+    { min: DEFAULT_POSTINGS_CONFIG.chargramMinN, max: DEFAULT_POSTINGS_CONFIG.chargramMaxN }
+  );
   const chargramMaxTokenLength = config.chargramMaxTokenLength == null
     ? DEFAULT_POSTINGS_CONFIG.chargramMaxTokenLength
     : Math.max(2, Math.floor(Number(config.chargramMaxTokenLength)));
@@ -334,19 +337,11 @@ export function appendChunk(
   if (sparseEnabled) {
     const freq = state.tokenBuffers?.freq || new Map();
     if (state.tokenBuffers?.freq) freq.clear();
-    tokenKeys.forEach((t) => {
-      freq.set(t, (freq.get(t) || 0) + 1);
-    });
+    accumulateFrequency(freq, tokenKeys);
 
     state.docLengths[chunkId] = tokens.length;
-    for (const [tok, count] of freq.entries()) {
-      let postings = state.tokenPostings.get(tok);
-      if (!postings) {
-        postings = [];
-        state.tokenPostings.set(tok, postings);
-      }
-      postings.push([chunkId, count]);
-    }
+    appendFrequencyToPostingsMap(state.tokenPostings, freq, chunkId);
+    if (state.tokenBuffers?.freq) freq.clear();
   }
 
   if (phraseEnabled && !skipPhrasePostings) {
@@ -378,8 +373,7 @@ export function appendChunk(
       // IMPORTANT: Do not fall back to the full token stream here. The entire
       // point of the field-based strategy is to keep phrase vocabulary bounded,
       // especially across many languages.
-      const phraseFields = ['name', 'signature', 'doc', 'comment'];
-      for (const field of phraseFields) {
+      for (const field of PHRASE_SOURCE_FIELDS) {
         const fieldTokens = Array.isArray(fields[field]) ? fields[field] : null;
         if (!fieldTokens || !fieldTokens.length) continue;
         appendPhraseNgramsToPostingsMap(
@@ -417,11 +411,10 @@ export function appendChunk(
   if (fieldedEnabled) {
     const fields = chunk.fieldTokens || {};
     const fieldNames = tokenClassificationEnabled
-      ? ['name', 'signature', 'doc', 'comment', 'body', 'keyword', 'operator', 'literal']
-      : ['name', 'signature', 'doc', 'comment', 'body'];
-    const fieldTokenSampleSize = Number.isFinite(Number(tokenRetention?.sampleSize))
-      ? Math.max(1, Math.floor(Number(tokenRetention.sampleSize)))
-      : 32;
+      ? CLASSIFIED_FIELD_POSTINGS_FIELDS
+      : BASE_FIELD_POSTINGS_FIELDS;
+    const fieldTokenSampleSize = resolveFieldTokenSampleSize(tokenRetention);
+    const fieldFreq = state.tokenBuffers?.fieldFreq || new Map();
     // Ensure a schema-valid object exists for each chunk (avoid array holes -> nulls).
     state.fieldTokens[chunkId] = state.fieldTokens[chunkId] || {};
     for (const field of fieldNames) {
@@ -447,22 +440,12 @@ export function appendChunk(
       }
 
       if (!fieldTokens.length) continue;
-      const fieldFreq = state.tokenBuffers?.fieldFreq || new Map();
-      if (state.tokenBuffers?.fieldFreq) fieldFreq.clear();
-      for (let i = 0; i < fieldTokens.length; i += 1) {
-        const tok = fieldTokens[i];
-        fieldFreq.set(tok, (fieldFreq.get(tok) || 0) + 1);
-      }
-      for (const [tok, count] of fieldFreq.entries()) {
-        let postings = state.fieldPostings[field].get(tok);
-        if (!postings) {
-          postings = [];
-          state.fieldPostings[field].set(tok, postings);
-        }
-        postings.push([chunkId, count]);
-      }
-      if (state.tokenBuffers?.fieldFreq) fieldFreq.clear();
+      if (fieldFreq.clear) fieldFreq.clear();
+      accumulateFrequency(fieldFreq, fieldTokens);
+      if (!state.fieldPostings[field]) state.fieldPostings[field] = new Map();
+      appendFrequencyToPostingsMap(state.fieldPostings[field], fieldFreq, chunkId);
     }
+    if (state.tokenBuffers?.fieldFreq) fieldFreq.clear();
   }
   chunk.id = chunkId;
   chunk.tokenCount = tokens.length;
@@ -473,6 +456,7 @@ export function appendChunk(
       entry.anchorChunkId = chunkId;
     }
   }
+  // Retention applies to persisted chunk payload only; postings above already used full token data.
   applyTokenRetention(chunk, tokenRetention);
   if (chunk.seq) delete chunk.seq;
   if (chunk.chargrams) delete chunk.chargrams;
@@ -483,7 +467,15 @@ export function appendChunk(
 }
 
 /**
- * Merge a shard state into the main state with doc id offsets.
+ * Merge shard-local index state into a target aggregate, remapping doc ids by
+ * the target's current chunk length (`offset`).
+ *
+ * Merge policy is intentionally asymmetric:
+ * - postings/doc counters are additive and remapped by offset
+ * - discovery snapshot metadata is first-writer-wins
+ * - path metadata maps (`fileInfoByPath`, `fileDetailsByPath`, `chunkUidToFile`)
+ *   are also first-writer-wins to preserve deterministic provenance
+ *
  * @param {object} target
  * @param {object} source
  */
@@ -517,88 +509,44 @@ export function mergeIndexState(target, source) {
   }
 
   mergeFrequencyPostingsMapWithOffset(target.tokenPostings, source.tokenPostings, offset);
-
   if (source.fieldPostings) {
     for (const [field, postingsMap] of Object.entries(source.fieldPostings)) {
       if (!target.fieldPostings[field]) target.fieldPostings[field] = new Map();
       mergeFrequencyPostingsMapWithOffset(target.fieldPostings[field], postingsMap, offset);
     }
   }
-
   mergeCompactPostingsMapWithOffset(target.phrasePost, source.phrasePost, offset);
   mergeCompactPostingsMapWithOffset(target.triPost, source.triPost, offset);
 
-  if (Array.isArray(source.scannedFiles)) {
-    target.scannedFiles.push(...source.scannedFiles);
-  }
-  if (Array.isArray(source.discoveredFiles) && source.discoveredFiles.length) {
-    if (!Array.isArray(target.discoveredFiles) || target.discoveredFiles.length === 0) {
-      target.discoveredFiles = source.discoveredFiles.slice();
-    }
-  }
-  if (source.discoveryHash && !target.discoveryHash) {
-    target.discoveryHash = source.discoveryHash;
-  }
-  if (source.fileListHash && !target.fileListHash) {
-    target.fileListHash = source.fileListHash;
-  }
-  if (Array.isArray(source.scannedFilesTimes)) {
-    target.scannedFilesTimes.push(...source.scannedFilesTimes);
-  }
-  if (Array.isArray(source.skippedFiles)) {
-    target.skippedFiles.push(...source.skippedFiles);
-  }
+  appendArrayProperty(target, 'scannedFiles', source.scannedFiles);
+  copyArrayPropertyWhenTargetEmpty(target, 'discoveredFiles', source.discoveredFiles);
+  copyScalarPropertyWhenMissing(target, 'discoveryHash', source.discoveryHash);
+  copyScalarPropertyWhenMissing(target, 'fileListHash', source.fileListHash);
+  appendArrayProperty(target, 'scannedFilesTimes', source.scannedFilesTimes);
+  appendArrayProperty(target, 'skippedFiles', source.skippedFiles);
   if (Number.isFinite(source.totalTokens)) {
     target.totalTokens += source.totalTokens;
   }
-  if (source.fileRelations && typeof source.fileRelations.entries === 'function') {
-    for (const [file, relations] of source.fileRelations.entries()) {
-      target.fileRelations.set(file, relations);
-    }
-  }
+
+  if (!target.fileRelations) target.fileRelations = new Map();
+  mergeMapEntries(target.fileRelations, source.fileRelations);
+
   if (source.lexiconRelationFilterByFile && typeof source.lexiconRelationFilterByFile.entries === 'function') {
     if (!target.lexiconRelationFilterByFile) target.lexiconRelationFilterByFile = new Map();
-    for (const [file, stats] of source.lexiconRelationFilterByFile.entries()) {
-      target.lexiconRelationFilterByFile.set(file, stats);
-    }
+    mergeMapEntries(target.lexiconRelationFilterByFile, source.lexiconRelationFilterByFile);
   }
   if (source.fileInfoByPath && typeof source.fileInfoByPath.entries === 'function') {
     if (!target.fileInfoByPath) target.fileInfoByPath = new Map();
-    for (const [file, info] of source.fileInfoByPath.entries()) {
-      if (!target.fileInfoByPath.has(file)) {
-        target.fileInfoByPath.set(file, info);
-      }
-    }
+    mergeMapEntriesIfMissing(target.fileInfoByPath, source.fileInfoByPath);
   }
   if (source.fileDetailsByPath && typeof source.fileDetailsByPath.entries === 'function') {
     if (!target.fileDetailsByPath) target.fileDetailsByPath = new Map();
-    for (const [file, info] of source.fileDetailsByPath.entries()) {
-      if (!target.fileDetailsByPath.has(file)) {
-        target.fileDetailsByPath.set(file, info);
-      }
-    }
+    mergeMapEntriesIfMissing(target.fileDetailsByPath, source.fileDetailsByPath);
   }
   if (source.chunkUidToFile && typeof source.chunkUidToFile.entries === 'function') {
     if (!target.chunkUidToFile) target.chunkUidToFile = new Map();
-    for (const [chunkUid, file] of source.chunkUidToFile.entries()) {
-      if (!target.chunkUidToFile.has(chunkUid)) {
-        target.chunkUidToFile.set(chunkUid, file);
-      }
-    }
+    mergeMapEntriesIfMissing(target.chunkUidToFile, source.chunkUidToFile);
   }
-  if (Array.isArray(source.vfsManifestRows)) {
-    if (!Array.isArray(target.vfsManifestRows)) target.vfsManifestRows = [];
-    target.vfsManifestRows.push(...source.vfsManifestRows);
-  }
-  if (source.vfsManifestStats && typeof source.vfsManifestStats === 'object') {
-    if (!target.vfsManifestStats || typeof target.vfsManifestStats !== 'object') {
-      target.vfsManifestStats = { ...source.vfsManifestStats };
-    } else {
-      for (const [key, value] of Object.entries(source.vfsManifestStats)) {
-        if (Number.isFinite(value)) {
-          target.vfsManifestStats[key] = (target.vfsManifestStats[key] || 0) + value;
-        }
-      }
-    }
-  }
+  appendArrayProperty(target, 'vfsManifestRows', source.vfsManifestRows);
+  mergeNumericObjectTotals(target, 'vfsManifestStats', source.vfsManifestStats);
 }
