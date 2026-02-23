@@ -52,6 +52,7 @@ export const createWatchAttemptManager = ({ repoRoot, userConfig, log }) => {
       await trimAttempts(failedAttempts, keepFailed);
     } else {
       failedAttempts.push(attempt);
+      await trimAttempts(failedAttempts, keepFailed);
     }
   };
 

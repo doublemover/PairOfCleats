@@ -41,14 +41,16 @@ const failed2 = await manager.createAttempt();
 await fs.mkdir(failed2.buildRoot, { recursive: true });
 await manager.recordOutcome(failed2, false);
 
+await assert.rejects(
+  () => fs.stat(failed1.buildRoot),
+  'expected oldest failed attempt to be trimmed immediately'
+);
+await fs.stat(failed2.buildRoot);
+
 const success4 = await manager.createAttempt();
 await fs.mkdir(success4.buildRoot, { recursive: true });
 await manager.recordOutcome(success4, true);
 
-await assert.rejects(
-  () => fs.stat(failed1.buildRoot),
-  'expected oldest failed attempt to be trimmed on success'
-);
 await fs.stat(failed2.buildRoot);
 
 console.log('watch attempt retention tests passed');
