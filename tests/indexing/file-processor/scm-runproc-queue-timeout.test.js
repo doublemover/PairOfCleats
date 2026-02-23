@@ -37,7 +37,8 @@ const createContext = ({
   scmProviderImpl,
   fileHash,
   scmConfig = { allowSlowTimeouts: true, timeoutMs: 25, annotate: { timeoutMs: 20 } },
-  runProc = (fn) => fn()
+  runProc = (fn) => fn(),
+  onScmProcQueueWait = null
 }) => ({
   abs,
   root,
@@ -94,6 +95,7 @@ const createContext = ({
   getChunkEmbeddings: null,
   runEmbedding: (fn) => fn(),
   runProc,
+  onScmProcQueueWait,
   runTreeSitterSerial: (fn) => fn(),
   runIo: (fn) => fn(),
   log: noop,
@@ -213,5 +215,54 @@ assert.ok(
   `expected annotate queue timeout before queued task ran (elapsed=${annotateElapsedMs}ms)`
 );
 assert.ok(Array.isArray(annotateResult?.chunks), 'expected processing to complete after annotate queue timeout');
+
+let queueMetricMetaCalls = 0;
+let queueMetricAnnotateCalls = 0;
+const scmQueueWaitSamples = [];
+const queueMetricScmProvider = {
+  async getFileMeta() {
+    queueMetricMetaCalls += 1;
+    return {
+      ok: true,
+      lastModifiedAt: '2026-01-01T00:00:00Z',
+      lastAuthor: 'queue-metric-author',
+      lastCommitId: 'queue-metric-commit'
+    };
+  },
+  async annotate() {
+    queueMetricAnnotateCalls += 1;
+    return {
+      ok: true,
+      lines: [{ line: 1, author: 'queue-metric-author', commit: 'queue-metric-commit' }]
+    };
+  }
+};
+const queueMetricRunProc = async (fn) => {
+  await new Promise((resolve) => setTimeout(resolve, 15));
+  return fn();
+};
+await processFileCpu(createContext({
+  abs: fixtureAbs,
+  ext: '.yml',
+  rel: fixtureRel,
+  relKey: fixtureRelKey,
+  text: fixtureText,
+  fileStat: fixtureStat,
+  languageHint: fixtureLanguageHint,
+  scmProviderImpl: queueMetricScmProvider,
+  fileHash: 'scm-runproc-queue-timeout-metrics',
+  runProc: queueMetricRunProc,
+  onScmProcQueueWait: (waitMs) => {
+    scmQueueWaitSamples.push(waitMs);
+  }
+}));
+assert.equal(queueMetricMetaCalls >= 1, true, 'expected metadata call in queue metric scenario');
+assert.equal(queueMetricAnnotateCalls >= 1, true, 'expected annotate call in queue metric scenario');
+assert.equal(scmQueueWaitSamples.length >= 2, true, 'expected SCM queue wait callback for metadata and annotate tasks');
+assert.equal(
+  scmQueueWaitSamples.every((waitMs) => Number.isFinite(waitMs) && waitMs > 0),
+  true,
+  'expected SCM queue wait callback samples to be positive finite durations'
+);
 
 console.log('scm runProc queue timeout test passed');

@@ -226,7 +226,14 @@ export const createDurationHistogram = (bucketsMs = FILE_QUEUE_DELAY_HISTOGRAM_B
  * Resolve queue/active/write/total durations from lifecycle timestamps.
  *
  * @param {object} [lifecycle]
- * @returns {{queueDelayMs:number,activeDurationMs:number,writeDurationMs:number,totalDurationMs:number}}
+ * @returns {{
+ *   queueDelayMs:number,
+ *   activeDurationMs:number,
+ *   scmProcQueueWaitMs:number,
+ *   activeProcessingDurationMs:number,
+ *   writeDurationMs:number,
+ *   totalDurationMs:number
+ * }}
  */
 export const resolveFileLifecycleDurations = (lifecycle = {}) => {
   const enqueuedAtMs = Number(lifecycle?.enqueuedAtMs);
@@ -235,12 +242,14 @@ export const resolveFileLifecycleDurations = (lifecycle = {}) => {
   const parseEndAtMs = Number(lifecycle?.parseEndAtMs);
   const writeStartAtMs = Number(lifecycle?.writeStartAtMs);
   const writeEndAtMs = Number(lifecycle?.writeEndAtMs);
+  const scmProcQueueWaitMs = clampDurationMs(lifecycle?.scmProcQueueWaitMs);
   const queueDelayMs = Number.isFinite(enqueuedAtMs) && Number.isFinite(dequeuedAtMs)
     ? Math.max(0, dequeuedAtMs - enqueuedAtMs)
     : 0;
   const activeDurationMs = Number.isFinite(parseStartAtMs) && Number.isFinite(parseEndAtMs)
     ? Math.max(0, parseEndAtMs - parseStartAtMs)
     : 0;
+  const activeProcessingDurationMs = Math.max(0, activeDurationMs - scmProcQueueWaitMs);
   const writeDurationMs = Number.isFinite(writeStartAtMs) && Number.isFinite(writeEndAtMs)
     ? Math.max(0, writeEndAtMs - writeStartAtMs)
     : 0;
@@ -250,15 +259,29 @@ export const resolveFileLifecycleDurations = (lifecycle = {}) => {
   return {
     queueDelayMs,
     activeDurationMs,
+    scmProcQueueWaitMs,
+    activeProcessingDurationMs,
     writeDurationMs,
     totalDurationMs
   };
 };
 
-export const shouldTriggerSlowFileWarning = ({ activeDurationMs, thresholdMs }) => {
+export const resolveEffectiveSlowFileDurationMs = ({ activeDurationMs, scmProcQueueWaitMs = 0 }) => {
+  return Math.max(0, clampDurationMs(activeDurationMs) - clampDurationMs(scmProcQueueWaitMs));
+};
+
+export const shouldTriggerSlowFileWarning = ({
+  activeDurationMs,
+  thresholdMs,
+  scmProcQueueWaitMs = 0
+}) => {
   const threshold = Number(thresholdMs);
   if (!Number.isFinite(threshold) || threshold <= 0) return false;
-  return clampDurationMs(activeDurationMs) >= threshold;
+  const effectiveDurationMs = resolveEffectiveSlowFileDurationMs({
+    activeDurationMs,
+    scmProcQueueWaitMs
+  });
+  return effectiveDurationMs >= threshold;
 };
 
 export const isNearThresholdSlowFileDuration = ({
@@ -373,7 +396,7 @@ export const resolveChunkProcessingFeatureFlags = (runtime) => {
  * @returns {{
  *   track:(completion:Promise<unknown>|unknown,onSettled?:(()=>void)|null)=>Promise<unknown>|unknown,
  *   throwIfFailed:()=>void,
- *   wait:()=>Promise<void>,
+ *   wait:(options?:{stallPollMs?:number,onStall?:(state:{pending:number,failed:boolean,stallCount:number})=>Promise<void>|void})=>Promise<void>,
  *   snapshot:()=>{pending:number,failed:boolean}
  * }}
  */
@@ -400,9 +423,51 @@ export const createOrderedCompletionTracker = () => {
     if (firstError) throw firstError;
   };
 
-  const wait = async () => {
+  const wait = async (options = {}) => {
+    const stallPollMs = Number.isFinite(Number(options?.stallPollMs))
+      ? Math.max(0, Math.floor(Number(options.stallPollMs)))
+      : 0;
+    const onStall = typeof options?.onStall === 'function' ? options.onStall : null;
+    let stallCount = 0;
+    let pendingDrainPromise = null;
+    let pendingDrainSize = -1;
     while (pending.size > 0) {
-      await Promise.allSettled(Array.from(pending));
+      if (!pendingDrainPromise || pendingDrainSize !== pending.size) {
+        pendingDrainSize = pending.size;
+        pendingDrainPromise = Promise.allSettled(Array.from(pending));
+      }
+      if (!(stallPollMs > 0 && onStall)) {
+        await pendingDrainPromise;
+        pendingDrainPromise = null;
+        continue;
+      }
+      const settled = await new Promise((resolve) => {
+        let done = false;
+        const timer = setTimeout(() => {
+          if (done) return;
+          done = true;
+          resolve(false);
+        }, stallPollMs);
+        pendingDrainPromise.then(() => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          resolve(true);
+        });
+      });
+      if (settled) {
+        pendingDrainPromise = null;
+        stallCount = 0;
+        continue;
+      }
+      if (pending.size > 0) {
+        stallCount += 1;
+        await onStall({
+          pending: pending.size,
+          failed: Boolean(firstError),
+          stallCount
+        });
+      }
     }
     throwIfFailed();
   };
@@ -3001,6 +3066,38 @@ export const processFiles = async ({
       }
       const runEntryBatch = async (batchEntries) => {
         const orderedCompletionTracker = createOrderedCompletionTracker();
+        const orderedWaitRecoveryPollMs = Math.max(
+          200,
+          Math.min(2000, Math.floor((stage1HangPolicy?.progressHeartbeatMs || 1000) / 2))
+        );
+        const recoverMissingOrderedGap = (source = 'ordered_wait', stallCount = 0) => {
+          if (typeof orderedAppender?.recoverMissingRange !== 'function') return 0;
+          if (inFlightFiles.size > 0) return 0;
+          const trackerSnapshot = typeof orderedCompletionTracker.snapshot === 'function'
+            ? orderedCompletionTracker.snapshot()
+            : null;
+          const pendingCount = Number(trackerSnapshot?.pending) || 0;
+          if (pendingCount <= 0) return 0;
+          const recovery = orderedAppender.recoverMissingRange({
+            reason: stallCount > 0 ? `${source}:${stallCount}` : source
+          });
+          const recoveredCount = Number(recovery?.recovered) || 0;
+          if (recoveredCount > 0) {
+            lastProgressAt = Date.now();
+            logLine(
+              `[ordered] recovered ${recoveredCount} missing indices at queue-drain (${source}).`,
+              {
+                kind: 'warning',
+                mode,
+                stage: 'processing',
+                source,
+                recoveredCount,
+                recovery
+              }
+            );
+          }
+          return recoveredCount;
+        };
         const orderedBatchEntries = sortEntriesByOrderIndex(batchEntries);
         for (let i = 0; i < orderedBatchEntries.length; i += 1) {
           const entry = orderedBatchEntries[i];
@@ -3081,6 +3178,9 @@ export const processFiles = async ({
                 if (!Number.isFinite(lifecycle.parseStartAtMs)) {
                   lifecycle.parseStartAtMs = activeStartAtMs;
                 }
+                if (!Number.isFinite(lifecycle.scmProcQueueWaitMs)) {
+                  lifecycle.scmProcQueueWaitMs = 0;
+                }
                 const lifecycleDurations = resolveFileLifecycleDurations(lifecycle);
                 observeQueueDelay(lifecycleDurations.queueDelayMs);
               }
@@ -3097,17 +3197,24 @@ export const processFiles = async ({
               if (fileWatchdogMs > 0) {
                 watchdog = setTimeout(() => {
                   const activeDurationMs = Math.max(0, Date.now() - activeStartAtMs);
+                  const lifecycleDurations = lifecycle
+                    ? resolveFileLifecycleDurations(lifecycle)
+                    : null;
+                  const scmProcQueueWaitMs = lifecycleDurations?.scmProcQueueWaitMs || 0;
+                  const effectiveDurationMs = resolveEffectiveSlowFileDurationMs({
+                    activeDurationMs,
+                    scmProcQueueWaitMs
+                  });
                   if (!shouldTriggerSlowFileWarning({
                     activeDurationMs,
-                    thresholdMs: fileWatchdogMs
+                    thresholdMs: fileWatchdogMs,
+                    scmProcQueueWaitMs
                   })) {
                     return;
                   }
-                  const queueDelayMs = lifecycle
-                    ? resolveFileLifecycleDurations(lifecycle).queueDelayMs
-                    : 0;
+                  const queueDelayMs = lifecycleDurations?.queueDelayMs || 0;
                   const lineText = Number.isFinite(entry.lines) ? ` lines ${entry.lines}` : '';
-                  logLine(`[watchdog] slow file ${stableFileIndex ?? '?'} ${rel} (${activeDurationMs}ms)${lineText}`, {
+                  logLine(`[watchdog] slow file ${stableFileIndex ?? '?'} ${rel} (${Math.round(effectiveDurationMs)}ms)${lineText}`, {
                     kind: 'file-watchdog',
                     mode,
                     stage: 'processing',
@@ -3115,8 +3222,10 @@ export const processFiles = async ({
                     fileIndex: stableFileIndex,
                     total: progress.total,
                     lines: entry.lines || null,
-                    durationMs: activeDurationMs,
+                    durationMs: effectiveDurationMs,
+                    effectiveDurationMs,
                     activeDurationMs,
+                    scmProcQueueWaitMs,
                     queueDelayMs,
                     thresholdMs: fileWatchdogMs
                   });
@@ -3155,7 +3264,15 @@ export const processFiles = async ({
                   (signal) => withTrackedSubprocessSignalScope(
                     signal,
                     fileSubprocessOwnershipId,
-                    () => processFile(entry, stableFileIndex, { signal })
+                    () => processFile(entry, stableFileIndex, {
+                      signal,
+                      onScmProcQueueWait: (queueWaitMs) => {
+                        if (!(Number.isFinite(queueWaitMs) && queueWaitMs > 0)) return;
+                        if (lifecycle) {
+                          lifecycle.scmProcQueueWaitMs = (Number(lifecycle.scmProcQueueWaitMs) || 0) + queueWaitMs;
+                        }
+                      }
+                    })
                   ),
                   {
                     timeoutMs: fileHardTimeoutMs,
@@ -3236,12 +3353,20 @@ export const processFiles = async ({
                 throw err;
               } finally {
                 const activeDurationMs = Math.max(0, Date.now() - activeStartAtMs);
+                const scmProcQueueWaitMs = lifecycle
+                  ? (resolveFileLifecycleDurations(lifecycle).scmProcQueueWaitMs || 0)
+                  : 0;
+                const effectiveDurationMs = resolveEffectiveSlowFileDurationMs({
+                  activeDurationMs,
+                  scmProcQueueWaitMs
+                });
                 const triggeredSlowWarning = shouldTriggerSlowFileWarning({
                   activeDurationMs,
-                  thresholdMs: fileWatchdogMs
+                  thresholdMs: fileWatchdogMs,
+                  scmProcQueueWaitMs
                 });
                 observeWatchdogNearThreshold({
-                  activeDurationMs,
+                  activeDurationMs: effectiveDurationMs,
                   thresholdMs: fileWatchdogMs,
                   triggeredSlowWarning,
                   lowerFraction: fileWatchdogConfig?.nearThresholdLowerFraction,
@@ -3409,7 +3534,14 @@ export const processFiles = async ({
               retryDelayMs: 200
             }
           );
-          await orderedCompletionTracker.wait();
+          recoverMissingOrderedGap('queue_drain_pre_wait');
+          await orderedCompletionTracker.wait({
+            stallPollMs: orderedWaitRecoveryPollMs,
+            onStall: ({ stallCount }) => {
+              orderedCompletionTracker.throwIfFailed();
+              recoverMissingOrderedGap('queue_drain_wait', stallCount);
+            }
+          });
         } finally {
           if (activeOrderedCompletionTracker === orderedCompletionTracker) {
             activeOrderedCompletionTracker = null;

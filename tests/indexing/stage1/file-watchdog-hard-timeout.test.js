@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import { ensureTestingEnv } from '../../helpers/test-env.js';
 import {
+  resolveEffectiveSlowFileDurationMs,
   resolveFileLifecycleDurations,
   resolveFileHardTimeoutMs,
   resolveFileWatchdogConfig,
@@ -112,6 +113,12 @@ const queueDelayedLifecycle = resolveFileLifecycleDurations({
 });
 assert.equal(queueDelayedLifecycle.queueDelayMs, 8_000, 'expected queue delay to capture enqueue->dequeue wait');
 assert.equal(queueDelayedLifecycle.activeDurationMs, 800, 'expected active duration to capture parse-only window');
+assert.equal(queueDelayedLifecycle.scmProcQueueWaitMs, 0, 'expected scm proc-queue wait to default to zero');
+assert.equal(
+  queueDelayedLifecycle.activeProcessingDurationMs,
+  800,
+  'expected effective active processing duration to match active duration when no proc-queue wait is recorded'
+);
 assert.equal(
   shouldTriggerSlowFileWarning({
     activeDurationMs: queueDelayedLifecycle.activeDurationMs,
@@ -119,6 +126,23 @@ assert.equal(
   }),
   false,
   'expected slow-file warning gate to ignore long queue delay when active time is below threshold'
+);
+assert.equal(
+  resolveEffectiveSlowFileDurationMs({
+    activeDurationMs: 1_300,
+    scmProcQueueWaitMs: 650
+  }),
+  650,
+  'expected effective slow-file duration to subtract SCM proc-queue wait'
+);
+assert.equal(
+  shouldTriggerSlowFileWarning({
+    activeDurationMs: 1_300,
+    thresholdMs: 1_000,
+    scmProcQueueWaitMs: 650
+  }),
+  false,
+  'expected slow-file warning gate to suppress warnings when SCM proc-queue wait dominates duration'
 );
 assert.equal(
   shouldTriggerSlowFileWarning({
@@ -133,10 +157,17 @@ const clampedLifecycle = resolveFileLifecycleDurations({
   enqueuedAtMs: 10_000,
   dequeuedAtMs: 9_000,
   parseStartAtMs: 12_000,
-  parseEndAtMs: 11_500
+  parseEndAtMs: 11_500,
+  scmProcQueueWaitMs: -500
 });
 assert.equal(clampedLifecycle.queueDelayMs, 0, 'expected negative queue duration to clamp to zero');
 assert.equal(clampedLifecycle.activeDurationMs, 0, 'expected negative active duration to clamp to zero');
+assert.equal(clampedLifecycle.scmProcQueueWaitMs, 0, 'expected negative SCM proc-queue wait to clamp to zero');
+assert.equal(
+  clampedLifecycle.activeProcessingDurationMs,
+  0,
+  'expected effective active processing duration to clamp to zero'
+);
 
 console.log('file watchdog hard timeout test passed');
 

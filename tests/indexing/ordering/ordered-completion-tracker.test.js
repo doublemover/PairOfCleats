@@ -54,4 +54,22 @@ assert.equal(drainError, earlyMarker, 'expected wait to report first completion 
 assert.equal(settledCount, 2, 'expected wait to drain all tracked completions before returning');
 assert.ok(drainElapsedMs >= 15, 'expected wait to hold until slow completion settled');
 
+const stalledTracker = createOrderedCompletionTracker();
+let resolveStalled = null;
+stalledTracker.track(new Promise((resolve) => {
+  resolveStalled = resolve;
+}));
+let stallCallbacks = 0;
+await stalledTracker.wait({
+  stallPollMs: 10,
+  onStall: ({ pending, stallCount }) => {
+    stallCallbacks += 1;
+    assert.equal(pending, 1, 'expected stall callback to report pending completions');
+    if (stallCount >= 2) {
+      resolveStalled?.();
+    }
+  }
+});
+assert.ok(stallCallbacks >= 2, 'expected wait to invoke stall callback while blocked');
+
 console.log('ordered completion tracker test passed');

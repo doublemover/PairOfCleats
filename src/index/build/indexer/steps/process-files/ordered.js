@@ -193,15 +193,26 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     };
   };
 
+  const settleCapacityWaiter = (waiter, settle) => {
+    if (!waiter || typeof waiter !== 'object') return;
+    if (waiter.settled === true) return;
+    waiter.settled = true;
+    if (waiter.timeout) {
+      try { clearTimeout(waiter.timeout); } catch {}
+      waiter.timeout = null;
+    }
+    try {
+      settle(waiter);
+    } catch {}
+  };
+
   const rejectCapacityWaiters = (err) => {
     if (!capacityWaiters.size) return;
     const error = err instanceof Error ? err : new Error(String(err || 'Ordered appender aborted.'));
     const waiters = Array.from(capacityWaiters);
     capacityWaiters.clear();
     for (const waiter of waiters) {
-      try {
-        waiter.reject(error);
-      } catch {}
+      settleCapacityWaiter(waiter, (entry) => entry.reject(error));
     }
   };
 
@@ -219,9 +230,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     const waiters = Array.from(capacityWaiters);
     capacityWaiters.clear();
     for (const waiter of waiters) {
-      try {
-        waiter.resolve();
-      } catch {}
+      settleCapacityWaiter(waiter, (entry) => entry.resolve());
     }
   };
 
@@ -258,8 +267,74 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       return Promise.resolve();
     }
     return new Promise((resolve, reject) => {
-      capacityWaiters.add({ resolve, reject });
+      const waiter = {
+        resolve,
+        reject,
+        settled: false,
+        timeout: null
+      };
+      capacityWaiters.add(waiter);
+      // Always arm stall checks while blocked at capacity gates so emergency
+      // fail-open can trigger even when no new enqueue/skip activity occurs.
+      scheduleStallCheck();
     });
+  };
+
+  /**
+   * Recover a missing ordered gap by synthetically skipping absent indices.
+   *
+   * This is a defensive escape hatch for situations where producers completed
+   * but one or more expected indices never arrived, which would otherwise keep
+   * later completion promises unresolved forever.
+   *
+   * @param {{reason?:string}} [input]
+   * @returns {{recovered:number,start:number|null,end:number|null,nextIndex:number,pendingCount:number}}
+   */
+  const recoverMissingRange = ({ reason = 'recovery' } = {}) => {
+    if (aborted) {
+      return {
+        recovered: 0,
+        start: null,
+        end: null,
+        nextIndex,
+        pendingCount: pending.size
+      };
+    }
+    let minPending = null;
+    for (const key of pending.keys()) {
+      if (!Number.isFinite(key) || key < nextIndex) continue;
+      if (minPending == null || key < minPending) minPending = key;
+    }
+    if (!Number.isFinite(minPending) || minPending <= nextIndex) {
+      return {
+        recovered: 0,
+        start: null,
+        end: null,
+        nextIndex,
+        pendingCount: pending.size
+      };
+    }
+    const start = nextIndex;
+    const end = minPending - 1;
+    for (let index = start; index <= end; index += 1) {
+      skipped.add(index);
+    }
+    noteActivity();
+    emitLog(
+      `[ordered] recovered missing indices ${start}-${end}; advancing to ${minPending} (${reason}).`,
+      { kind: 'warning' }
+    );
+    // Trigger deterministic advancement + waiter release.
+    scheduleFlush().catch(() => {});
+    resolveCapacityWaiters();
+    scheduleStallCheck();
+    return {
+      recovered: Math.max(0, end - start + 1),
+      start,
+      end,
+      nextIndex,
+      pendingCount: pending.size
+    };
   };
 
   /**
@@ -692,6 +767,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       };
     },
     waitForCapacity,
+    recoverMissingRange,
     abort
   };
 };

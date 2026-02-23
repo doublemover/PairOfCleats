@@ -432,6 +432,9 @@ export function createFileProcessor(options) {
     const signal = options?.signal && typeof options.signal === 'object'
       ? options.signal
       : null;
+    const onScmProcQueueWait = typeof options?.onScmProcQueueWait === 'function'
+      ? options.onScmProcQueueWait
+      : null;
     const throwIfAborted = () => {
       if (!signal?.aborted) return;
       const reason = signal.reason;
@@ -931,7 +934,8 @@ export function createFileProcessor(options) {
       lintCache,
       buildStage,
       extractedProseExtrasCache,
-      primeExtractedProseExtrasCache
+      primeExtractedProseExtrasCache,
+      onScmProcQueueWait
     }));
     updateCrashStage('pre-cpu:handoff-to-cpu:done');
     throwIfAborted();

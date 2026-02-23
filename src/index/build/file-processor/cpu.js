@@ -452,7 +452,8 @@ export const processFileCpu = async (context) => {
     buildStage,
     scmMetaCache = null,
     extractedProseExtrasCache = null,
-    primeExtractedProseExtrasCache = false
+    primeExtractedProseExtrasCache = false,
+    onScmProcQueueWait = null
   } = context;
 
   const {
@@ -741,7 +742,19 @@ export const processFileCpu = async (context) => {
     const metaCapMs = scmFastPath || SCM_META_FAST_TIMEOUT_EXTS.has(normalizedExt) ? 250 : 750;
     metaTimeoutMs = Math.min(metaTimeoutMs, metaCapMs);
   }
-  const runScmTask = typeof runProc === 'function' ? runProc : (fn) => fn();
+  const runScmTask = async (fn) => {
+    if (typeof runProc !== 'function') return fn();
+    const enqueuedAtMs = Date.now();
+    return runProc(async () => {
+      const queueWaitMs = Math.max(0, Date.now() - enqueuedAtMs);
+      if (queueWaitMs > 0 && typeof onScmProcQueueWait === 'function') {
+        try {
+          onScmProcQueueWait(queueWaitMs);
+        } catch {}
+      }
+      return fn();
+    });
+  };
   const runScmTaskWithDeadline = async ({ label, timeoutMs, task }) => {
     const deadlineMs = resolveScmTaskDeadlineMs(timeoutMs);
     if (!(Number.isFinite(deadlineMs) && deadlineMs > 0)) {
