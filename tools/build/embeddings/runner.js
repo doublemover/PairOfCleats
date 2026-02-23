@@ -17,7 +17,7 @@ import {
   MAX_JSON_BYTES
 } from '../../../src/shared/artifact-io.js';
 import { readTextFileWithHash } from '../../../src/shared/encoding.js';
-import { replaceFile, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import { writeDenseVectorArtifacts } from '../../../src/shared/dense-vector-artifacts.js';
 import { createCrashLogger } from '../../../src/index/build/crash-log.js';
 import { resolveHnswPaths, resolveHnswTarget } from '../../../src/shared/hnsw.js';
@@ -109,6 +109,10 @@ import {
   reuseVectorsFromPriorCacheEntry,
   tryApplyCachedVectors
 } from './runner/cache-orchestration.js';
+import {
+  createArtifactTraceLogger,
+  promoteBackendArtifacts
+} from './runner/artifacts.js';
 
 const EMBEDDINGS_TOOLS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const COMPACT_SQLITE_SCRIPT = path.join(EMBEDDINGS_TOOLS_DIR, '..', 'compact-sqlite-index.js');
@@ -235,106 +239,10 @@ export async function runBuildEmbeddingsWithConfig(config) {
     }
   };
   const traceArtifactIo = (configEnv || getEnvConfig()).traceArtifactIo === true;
-  /**
-   * Check whether artifact file exists in raw/compressed/backup forms.
-   *
-   * @param {string} filePath
-   * @returns {boolean}
-   */
-  const hasArtifactFile = (filePath) => (
-    fsSync.existsSync(filePath)
-    || fsSync.existsSync(`${filePath}.gz`)
-    || fsSync.existsSync(`${filePath}.zst`)
-    || fsSync.existsSync(`${filePath}.bak`)
-  );
-  /**
-   * Emit trace-level artifact existence line when IO tracing is enabled.
-   *
-   * @param {string} mode
-   * @param {string} label
-   * @param {string} filePath
-   * @returns {void}
-   */
-  const logArtifactLocation = (mode, label, filePath) => {
-    if (!traceArtifactIo) return;
-    const exists = hasArtifactFile(filePath);
-    log(`[embeddings] ${mode}: artifact ${label} path=${filePath} exists=${exists}`);
-  };
-  /**
-   * Log expected stage artifacts snapshot for debug traceability.
-   *
-   * @param {string} mode
-   * @param {string} indexDir
-   * @param {string} stageLabel
-   * @returns {void}
-   */
-  const logExpectedArtifacts = (mode, indexDir, stageLabel) => {
-    if (!traceArtifactIo) return;
-    const expected = [
-      { label: 'chunk_meta', path: path.join(indexDir, 'chunk_meta.json') },
-      { label: 'chunk_meta_stream', path: path.join(indexDir, 'chunk_meta.jsonl') },
-      { label: 'chunk_meta_meta', path: path.join(indexDir, 'chunk_meta.meta.json') },
-      { label: 'token_postings', path: path.join(indexDir, 'token_postings.json') },
-      { label: 'token_postings_stream', path: path.join(indexDir, 'token_postings.jsonl') },
-      { label: 'token_postings_meta', path: path.join(indexDir, 'token_postings.meta.json') },
-      { label: 'phrase_ngrams', path: path.join(indexDir, 'phrase_ngrams.json') },
-      { label: 'chargram_postings', path: path.join(indexDir, 'chargram_postings.json') },
-      { label: 'index_state', path: path.join(indexDir, 'index_state.json') },
-      { label: 'filelists', path: path.join(indexDir, '.filelists.json') },
-      { label: 'pieces_manifest', path: path.join(indexDir, 'pieces', 'manifest.json') }
-    ];
-    log(`[embeddings] ${mode}: expected artifact snapshot (${stageLabel})`);
-    for (const entry of expected) {
-      logArtifactLocation(mode, `${stageLabel}:${entry.label}`, entry.path);
-    }
-  };
-  const BACKEND_ARTIFACT_RELATIVE_PATHS = [
-    'dense_vectors_hnsw.bin',
-    'dense_vectors_hnsw.meta.json',
-    'dense_vectors_doc_hnsw.bin',
-    'dense_vectors_doc_hnsw.meta.json',
-    'dense_vectors_code_hnsw.bin',
-    'dense_vectors_code_hnsw.meta.json',
-    'dense_vectors.lancedb',
-    'dense_vectors.lancedb.meta.json',
-    'dense_vectors_doc.lancedb',
-    'dense_vectors_doc.lancedb.meta.json',
-    'dense_vectors_code.lancedb',
-    'dense_vectors_code.lancedb.meta.json'
-  ];
-  /**
-   * Promote backend-only artifacts from a staging directory into the active
-   * index directory. Stage3 uses this to isolate backend writers from the core
-   * stage2 artifact surface and then copy only ANN outputs back.
-   *
-   * @param {{stageDir:string,indexDir:string}} input
-   * @returns {Promise<void>}
-   */
-  const promoteBackendArtifacts = async ({ stageDir, indexDir }) => {
-    for (const relPath of BACKEND_ARTIFACT_RELATIVE_PATHS) {
-      const sourcePath = path.join(stageDir, relPath);
-      if (!fsSync.existsSync(sourcePath)) continue;
-      const targetPath = path.join(indexDir, relPath);
-      await fs.mkdir(path.dirname(targetPath), { recursive: true });
-      const stat = await fs.lstat(sourcePath).catch(() => null);
-      if (!stat) continue;
-      if (stat.isDirectory()) {
-        await fs.rm(targetPath, { recursive: true, force: true });
-        try {
-          await fs.rename(sourcePath, targetPath);
-        } catch (err) {
-          if (!['EXDEV', 'EPERM', 'EACCES'].includes(err?.code)) throw err;
-          await fs.cp(sourcePath, targetPath, { recursive: true, force: true });
-          await fs.rm(sourcePath, { recursive: true, force: true });
-        }
-      } else {
-        try {
-          await fs.rm(`${targetPath}.bak`, { force: true });
-        } catch {}
-        await replaceFile(sourcePath, targetPath, { keepBackup: true });
-      }
-    }
-  };
+  const { logArtifactLocation, logExpectedArtifacts } = createArtifactTraceLogger({
+    traceArtifactIo,
+    log
+  });
 
   if (embeddingsConfig.enabled === false || resolvedEmbeddingMode === 'off') {
     error('Embeddings disabled; skipping build-embeddings.');

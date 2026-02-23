@@ -69,6 +69,10 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T06:41:31.1637748-05:00
+  Split embeddings artifact trace/promotion helpers from `tools/build/embeddings/runner.js` into `tools/build/embeddings/runner/artifacts.js`, isolating trace snapshot logging and backend artifact promotion logic so stage3 orchestration retains less file-IO branching.
+- 2026-02-23T06:40:54.0000000-05:00
+  Refactored `src/contracts/validators/usr-matrix.js` by extracting runtime-config policy helpers (`runtime-config-policy.js`) and waiver policy helpers (`waiver-policy-helpers.js`), with targeted contract coverage updates in `tests/indexing/contracts/usr-feature-flag-state-report.test.js` and `tests/indexing/contracts/usr-waiver-policy-controls.test.js`.
 - 2026-02-23T06:38:58.6083819-05:00
   Extracted scheduler write-backpressure policy/evaluation from `src/shared/concurrency/scheduler-core.js` into `src/shared/concurrency/scheduler-core-write-backpressure.js`, centralizing queue pressure thresholds and reset/evaluate semantics to simplify hot-path scheduling flow.
 - 2026-02-23T06:38:10.0000000-05:00
