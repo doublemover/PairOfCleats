@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T09:10:17.8026074-05:00
+  Extracted piece-manifest tracking from `src/index/build/artifacts-write.js` into `src/index/build/artifacts/piece-manifest-registry.js`, centralizing tier/layout normalization and metadata patching callbacks used across writer dispatch, while reducing map lookup churn on repeated path registrations; added focused coverage in `tests/indexing/artifacts/piece-manifest-registry.test.js`.
 - 2026-02-23T09:01:53.1787669-05:00
   Extracted operational readiness evaluation/report builders from `src/contracts/validators/usr-matrix.js` into `src/contracts/validators/usr-matrix/operational-readiness.js`, preserving facade behavior while isolating policy blocker synthesis and conformance-readiness integration; added focused coverage in `tests/indexing/contracts/usr-operational-readiness-validation-report.test.js`.
 - 2026-02-23T08:57:47.1293026-05:00
