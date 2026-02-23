@@ -52,4 +52,22 @@ const normalizedSuccess = completion.normalizeRunResult({
 assert.equal(normalizedSuccess.status, 'done');
 assert.equal(normalizedSuccess.signal, null);
 
+const normalizedStringExit = completion.normalizeRunResult({
+  exitCode: '2',
+  signal: null,
+  executionMode: 'subprocess'
+});
+assert.equal(normalizedStringExit.exitCode, 2);
+assert.equal(normalizedStringExit.status, 'failed');
+
+calls.length = 0;
+await completion.finalizeJobRun({
+  job: { id: 'job-3', attempts: 0, maxRetries: 0 },
+  runResult: { exitCode: 0, signal: null, executionMode: 'daemon' },
+  metrics
+});
+assert.equal(calls[0].status, 'done');
+assert.equal(calls[0].result.error, null, 'successful jobs should not emit failure error strings');
+assert.equal(metrics.succeeded, 1);
+
 console.log('indexer service job-completion signal test passed');

@@ -5,7 +5,8 @@
  * @returns {{exitCode:number,signal:string|null,executionMode:'daemon'|'subprocess',daemon:object|null,status:'done'|'failed'}}
  */
 const normalizeRunResult = (runResult) => {
-  const exitCode = Number.isFinite(runResult?.exitCode) ? runResult.exitCode : 1;
+  const parsedExitCode = Number(runResult?.exitCode);
+  const exitCode = Number.isFinite(parsedExitCode) ? Math.trunc(parsedExitCode) : 1;
   const signal = typeof runResult?.signal === 'string' && runResult.signal.trim().length > 0
     ? runResult.signal.trim()
     : null;
@@ -77,9 +78,9 @@ export const createJobCompletion = ({
     const maxRetries = Number.isFinite(job.maxRetries)
       ? job.maxRetries
       : (queueMaxRetries ?? 0);
-    const normalizedError = normalized.signal
-      ? `signal ${normalized.signal}`
-      : `exit ${normalized.exitCode}`;
+    const normalizedError = normalized.status === 'failed'
+      ? (normalized.signal ? `signal ${normalized.signal}` : `exit ${normalized.exitCode}`)
+      : null;
     if (normalized.status === 'failed' && maxRetries > attempts) {
       const nextAttempts = attempts + 1;
       metrics.retried += 1;
