@@ -4,6 +4,9 @@ import { resolveRecordsIncrementalCapability } from '../index.js';
 
 const BUNDLE_INVENTORY_CACHE_LIMIT = 64;
 const bundleInventoryCache = new Map();
+const FNV64_OFFSET_BASIS = 0xcbf29ce484222325n;
+const FNV64_PRIME = 0x100000001b3n;
+const FNV64_MASK = 0xffffffffffffffffn;
 
 const readBundleInventoryCache = (cacheKey) => {
   if (!cacheKey) return null;
@@ -32,11 +35,32 @@ const writeBundleInventoryCache = (cacheKey, names) => {
   }
 };
 
-const resolveBundleInventoryCacheKey = (bundleDir) => {
+const hashInventoryName = (name) => {
+  let hash = FNV64_OFFSET_BASIS;
+  for (let i = 0; i < name.length; i += 1) {
+    hash ^= BigInt(name.charCodeAt(i));
+    hash = (hash * FNV64_PRIME) & FNV64_MASK;
+  }
+  return hash;
+};
+
+const resolveBundleInventorySnapshot = (bundleDir) => {
   if (!bundleDir) return null;
   try {
-    const stat = fsSync.statSync(bundleDir);
-    return `${bundleDir}|${Math.floor(Number(stat?.mtimeMs) || 0)}|${Number(stat?.size) || 0}`;
+    const names = [];
+    let hashXor = 0n;
+    let hashSum = 0n;
+    for (const name of fsSync.readdirSync(bundleDir)) {
+      if (typeof name !== 'string' || name.startsWith('.')) continue;
+      names.push(name);
+      const entryHash = hashInventoryName(name);
+      hashXor ^= entryHash;
+      hashSum = (hashSum + entryHash) & FNV64_MASK;
+    }
+    return {
+      cacheKey: `${bundleDir}|${names.length}|${hashXor.toString(16)}|${hashSum.toString(16)}`,
+      names
+    };
   } catch {
     return null;
   }
@@ -48,16 +72,14 @@ const resolveBundleInventoryCacheKey = (bundleDir) => {
  * @returns {{count:number,names:Set<string>}}
  */
 export const listIncrementalBundleFiles = (bundleDir) => {
-  if (!bundleDir || !fsSync.existsSync(bundleDir)) {
+  const snapshot = resolveBundleInventorySnapshot(bundleDir);
+  if (!snapshot) {
     return { count: 0, names: new Set() };
   }
-  const cacheKey = resolveBundleInventoryCacheKey(bundleDir);
-  const cached = readBundleInventoryCache(cacheKey);
+  const cached = readBundleInventoryCache(snapshot.cacheKey);
   if (cached) return cached;
-  const names = new Set(
-    fsSync.readdirSync(bundleDir).filter((name) => typeof name === 'string' && !name.startsWith('.'))
-  );
-  writeBundleInventoryCache(cacheKey, names);
+  const names = new Set(snapshot.names);
+  writeBundleInventoryCache(snapshot.cacheKey, names);
   return { count: names.size, names };
 };
 
