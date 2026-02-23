@@ -73,6 +73,8 @@ Note:
   Split `src/index/build/indexer/steps/process-files.js` stall diagnostics into `src/index/build/indexer/steps/process-files/stall-diagnostics.js`, and optimized stalled-file selection to bounded top-N collection to reduce watchdog snapshot sort/allocation overhead.
 - 2026-02-23T05:07:10.7270007-05:00
   Optimized `src/shared/artifact-io/json.js` hot fallback reads by removing preflight `existsSync` probes in `readJsonFile`/`readJsonLinesEach` and preserving deterministic fallback/error semantics via explicit missing-read classification.
+- 2026-02-23T05:07:52.0764099-05:00
+  Split scheduler telemetry capture out of `src/shared/concurrency/scheduler-core.js` into `src/shared/concurrency/scheduler-core-telemetry-capture.js`, reducing core-module surface area and preserving queue/trace snapshot behavior with explicit JSDoc on concurrency-sensitive capture paths.
 
 ## Architectural assessment (what needs to change)
 

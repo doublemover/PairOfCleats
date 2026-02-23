@@ -1,8 +1,8 @@
 import os from 'node:os';
 import { coerceUnitFraction } from '../number-coerce.js';
 import { ADAPTIVE_SURFACE_KEYS, DEFAULT_ADAPTIVE_SURFACE_POLICY, DEFAULT_ADAPTIVE_SURFACE_QUEUE_MAP } from './adaptive-surfaces.js';
+import { createSchedulerTelemetryCapture } from './scheduler-core-telemetry-capture.js';
 import {
-  appendBounded,
   cloneDecisionEntry,
   cloneQueueDepthEntries,
   cloneTraceEntries,
@@ -456,6 +456,12 @@ export function createBuildScheduler(input = {}) {
     runningBySurface.delete(surfaceName);
   };
 
+  /**
+   * Track bounded wait-time samples so queue picking can age tail-latency work.
+   * The fixed sample cap prevents unbounded growth for long-lived schedulers.
+   * @param {{stats?:{lastWaitMs?:number,waitP95Ms?:number,waitSamples?:number[]}}} queue
+   * @param {number} waitedMs
+   */
   const recordQueueWaitTime = (queue, waitedMs) => {
     if (!queue?.stats) return;
     const normalized = Math.max(0, Math.floor(Number(waitedMs) || 0));
@@ -482,97 +488,31 @@ export function createBuildScheduler(input = {}) {
   const queueDepthSnapshotMaxSamples = Number.isFinite(Number(input.queueDepthSnapshotMaxSamples))
     ? Math.max(16, Math.floor(Number(input.queueDepthSnapshotMaxSamples)))
     : 512;
-  const schedulingTrace = [];
-  const queueDepthSnapshots = [];
-  let lastTraceAtMs = 0;
-  let lastQueueDepthSnapshotAtMs = 0;
-
   const cloneTokenState = () => ({
     cpu: { ...tokens.cpu },
     io: { ...tokens.io },
     mem: { ...tokens.mem }
   });
-
-  const buildQueueDepthState = () => {
-    const byQueue = {};
-    let pending = 0;
-    let pendingBytes = 0;
-    let running = 0;
-    let inFlightBytes = 0;
-    for (const q of queueOrder) {
-      pending += q.pending.length;
-      pendingBytes += normalizeByteCount(q.pendingBytes);
-      running += q.running;
-      inFlightBytes += normalizeByteCount(q.inFlightBytes);
-      byQueue[q.name] = {
-        pending: q.pending.length,
-        pendingBytes: normalizeByteCount(q.pendingBytes),
-        running: q.running,
-        inFlightBytes: normalizeByteCount(q.inFlightBytes)
-      };
-    }
-    return { byQueue, pending, pendingBytes, running, inFlightBytes };
-  };
-
-  const captureSchedulingTrace = ({
-    now = nowMs(),
-    reason = 'interval',
-    force = false
-  } = {}) => {
-    if (!force && (now - lastTraceAtMs) < traceIntervalMs) return null;
-    const queueDepth = buildQueueDepthState();
-    const sample = {
-      at: new Date(now).toISOString(),
-      elapsedMs: Math.max(0, now - startedAtMs),
-      stage: telemetryStage,
-      reason,
-      tokens: cloneTokenState(),
-      activity: {
-        pending: queueDepth.pending,
-        pendingBytes: queueDepth.pendingBytes,
-        running: queueDepth.running,
-        inFlightBytes: queueDepth.inFlightBytes
-      },
-      backpressure: {
-        ...evaluateWriteBackpressure(),
-        reasons: Array.from(writeBackpressureState.reasons || [])
-      },
-      queues: queueDepth.byQueue
-    };
-    lastTraceAtMs = now;
-    appendBounded(schedulingTrace, sample, traceMaxSamples);
-    return sample;
-  };
-
-  const captureQueueDepthSnapshot = ({
-    now = nowMs(),
-    reason = 'interval',
-    force = false
-  } = {}) => {
-    if (!queueDepthSnapshotsEnabled) return null;
-    if (!force && (now - lastQueueDepthSnapshotAtMs) < queueDepthSnapshotIntervalMs) return null;
-    const queueDepth = buildQueueDepthState();
-    const snapshot = {
-      at: new Date(now).toISOString(),
-      elapsedMs: Math.max(0, now - startedAtMs),
-      stage: telemetryStage,
-      reason,
-      pending: queueDepth.pending,
-      pendingBytes: queueDepth.pendingBytes,
-      running: queueDepth.running,
-      inFlightBytes: queueDepth.inFlightBytes,
-      queues: queueDepth.byQueue
-    };
-    lastQueueDepthSnapshotAtMs = now;
-    appendBounded(queueDepthSnapshots, snapshot, queueDepthSnapshotMaxSamples);
-    return snapshot;
-  };
-
-  const captureTelemetryIfDue = (reason = 'interval') => {
-    const now = nowMs();
-    captureSchedulingTrace({ now, reason });
-    captureQueueDepthSnapshot({ now, reason });
-  };
+  const telemetryCapture = createSchedulerTelemetryCapture({
+    nowMs,
+    startedAtMs,
+    queueOrder,
+    normalizeByteCount,
+    evaluateWriteBackpressure,
+    writeBackpressureState,
+    cloneTokenState,
+    traceMaxSamples,
+    queueDepthSnapshotMaxSamples,
+    getStage: () => telemetryStage,
+    getTraceIntervalMs: () => traceIntervalMs,
+    getQueueDepthSnapshotIntervalMs: () => queueDepthSnapshotIntervalMs,
+    isQueueDepthSnapshotsEnabled: () => queueDepthSnapshotsEnabled
+  });
+  const {
+    captureSchedulingTrace,
+    captureQueueDepthSnapshot,
+    captureTelemetryIfDue
+  } = telemetryCapture;
 
   const buildAdaptiveSurfaceSnapshotByName = (surfaceName, at = nowMs()) => {
     const state = adaptiveSurfaceStates.get(surfaceName);
@@ -1475,8 +1415,8 @@ export function createBuildScheduler(input = {}) {
         traceIntervalMs,
         queueDepthSnapshotIntervalMs,
         queueDepthSnapshotsEnabled,
-        schedulingTrace: cloneTraceEntries(schedulingTrace),
-        queueDepthSnapshots: cloneQueueDepthEntries(queueDepthSnapshots)
+        schedulingTrace: cloneTraceEntries(telemetryCapture.getSchedulingTrace()),
+        queueDepthSnapshots: cloneQueueDepthEntries(telemetryCapture.getQueueDepthSnapshots())
       }
     };
   };
