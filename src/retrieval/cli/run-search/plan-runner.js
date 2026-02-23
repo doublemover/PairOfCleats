@@ -27,7 +27,6 @@ import { resolveRequiredArtifacts } from '../required-artifacts.js';
 import { loadSearchIndexes } from '../load-indexes.js';
 import { executeSearchAndEmit } from '../search-execution.js';
 import { resolveRetrievalCachePath } from '../cache-paths.js';
-import { runWithOperationalFailurePolicy } from '../../../shared/ops-failure-injection.js';
 import { pathExists } from '../../../shared/files.js';
 import {
   createQueryPlanDiskCache
@@ -36,7 +35,6 @@ import { createRetrievalStageTracker } from '../../pipeline/stage-checkpoints.js
 import { resolveDictionaryAndQueryPlan } from './planning.js';
 import {
   buildSparseFallbackAnnUnavailableMessage,
-  createBackendContextInputFactory,
   resolveSparsePreflightFallback
 } from './execution.js';
 import {
@@ -60,6 +58,7 @@ import {
 import { resolveRunSearchProfilePolicy } from './profile-policy.js';
 import { resolveAutoSqliteEligibility } from './auto-thresholds.js';
 import { resolveRunSearchBackendSelection } from './backend-selection.js';
+import { initializeBackendContext } from './backend-context-setup.js';
 
 import {
   resolveAnnActive,
@@ -508,10 +507,13 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       code: lmdbStateCode,
       prose: lmdbStateProse
     };
-    const buildBackendContextInput = createBackendContextInputFactory({
+    const {
+      buildBackendContextInput,
+      backendContext
+    } = await initializeBackendContext({
       needsCode,
       needsProse,
-      needsExtractedProse: loadExtractedProseSqlite,
+      loadExtractedProseSqlite,
       sqliteCodePath,
       sqliteProsePath,
       sqliteExtractedProsePath,
@@ -534,28 +536,17 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       denseVectorMode,
       storageTier,
       sqliteReadPragmas,
-      root: rootDir,
-      userConfig
+      rootDir,
+      userConfig,
+      stageTracker,
+      backendPolicy,
+      useSqliteSelection,
+      useLmdbSelection,
+      sqliteFtsEnabled,
+      vectorAnnEnabled,
+      emitOutput
     });
-    const backendInitResult = await runWithOperationalFailurePolicy({
-      target: 'retrieval.hotpath',
-      operation: 'backend-context',
-      execute: async () => createBackendContextWithTracking({
-        stageTracker,
-        contextInput: buildBackendContextInput({
-          backendPolicy,
-          useSqlite: useSqliteSelection,
-          useLmdb: useLmdbSelection,
-          sqliteFtsRequested: sqliteFtsEnabled,
-          vectorAnnEnabled
-        }),
-        stageName: 'startup.backend'
-      }),
-      log: (message) => {
-        if (emitOutput) console.warn(message);
-      }
-    });
-    let backendContext = backendInitResult.value;
+    let backendContextMutable = backendContext;
 
     let {
       useSqlite,
@@ -566,7 +557,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       vectorAnnUsed,
       sqliteHelpers,
       lmdbHelpers
-    } = backendContext;
+    } = backendContextMutable;
     telemetry.setBackend(backendLabel);
     ensureRetrievalHealth({
       query,
@@ -701,7 +692,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
     if (sparseFallbackForcedByPreflight) {
       syncAnnFlags();
-      backendContext = await createBackendContextWithTracking({
+      backendContextMutable = await createBackendContextWithTracking({
         stageTracker,
         contextInput: buildBackendContextInput({
           backendPolicy,
@@ -721,7 +712,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         vectorAnnUsed,
         sqliteHelpers,
         lmdbHelpers
-      } = backendContext);
+      } = backendContextMutable);
       telemetry.setBackend(backendLabel);
       if (backendForcedLmdb && !useLmdb) {
         return bail('LMDB backend requested but unavailable.', 1, ERROR_CODES.INVALID_REQUEST);

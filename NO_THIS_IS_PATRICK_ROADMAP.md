@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T06:36:57.6578230-05:00
+  Extracted backend context factory/initialization from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/backend-context-setup.js`, centralizing failure-policy wrapped backend bootstrap and reducing run-search startup wiring complexity.
 - 2026-02-23T06:34:41.9724053-05:00
   Split retrieval backend selection/mixed-root fallback policy out of `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/backend-selection.js`, isolating backend coercion/error handling so startup orchestration can stay focused on context assembly and execution sequencing.
 - 2026-02-23T06:32:26.1095508-05:00
