@@ -22,6 +22,9 @@ export const createFileEmbeddingsProcessor = ({
   parallelDispatch = false,
   mergeCodeDocBatches = true,
   onEmbeddingBatch = null,
+  globalMicroBatching = false,
+  globalMicroBatchingFillTarget = 0.85,
+  globalMicroBatchingMaxWaitMs = 8,
   embeddingTextCache = null,
   embeddingInFlightCoalescer = null,
   onEmbeddingUsage = null
@@ -39,11 +42,221 @@ export const createFileEmbeddingsProcessor = ({
   const estimateTokensBatch = typeof estimateEmbeddingTokensBatch === 'function'
     ? estimateEmbeddingTokensBatch
     : null;
+  const globalBatchingEnabled = globalMicroBatching === true;
+  const globalBatchingFillTarget = Number.isFinite(Number(globalMicroBatchingFillTarget))
+    ? Math.max(0.5, Math.min(0.99, Number(globalMicroBatchingFillTarget)))
+    : 0.85;
+  const globalBatchingMaxWait = Number.isFinite(Number(globalMicroBatchingMaxWaitMs))
+    ? Math.max(0, Math.floor(Number(globalMicroBatchingMaxWaitMs)))
+    : 8;
+  const maxBatchItems = Number.isFinite(Number(embeddingBatchSize)) && Number(embeddingBatchSize) > 0
+    ? Math.max(1, Math.floor(Number(embeddingBatchSize)))
+    : Number.MAX_SAFE_INTEGER;
 
   const isVectorLike = (value) => (
     Array.isArray(value)
     || (ArrayBuffer.isView(value) && !(value instanceof DataView))
   );
+  const resolveTokenEstimate = (text, estimated) => {
+    const normalized = Math.floor(Number(estimated));
+    if (Number.isFinite(normalized) && normalized > 0) return normalized;
+    if (typeof estimateEmbeddingTokens === 'function') {
+      const fallback = Math.floor(Number(estimateEmbeddingTokens(text)));
+      if (Number.isFinite(fallback) && fallback > 0) return fallback;
+    }
+    const chars = typeof text === 'string' ? text.length : 0;
+    return Math.max(1, Math.ceil(chars / 4));
+  };
+  const resolveGlobalTargetTokens = () => {
+    if (embeddingBatchTokenBudget > 0) {
+      return Math.max(1, Math.floor(embeddingBatchTokenBudget * globalBatchingFillTarget));
+    }
+    const targetItems = maxBatchItems === Number.MAX_SAFE_INTEGER
+      ? 1
+      : maxBatchItems;
+    return Math.max(1, Math.floor(targetItems * globalBatchingFillTarget));
+  };
+  let globalPendingRequests = [];
+  let globalPendingTextCount = 0;
+  let globalPendingTokenCount = 0;
+  let globalFlushTimer = null;
+  let globalFlushInFlight = null;
+  let globalForceFlushRequested = false;
+
+  const clearGlobalFlushTimer = () => {
+    if (!globalFlushTimer) return;
+    clearTimeout(globalFlushTimer);
+    globalFlushTimer = null;
+  };
+
+  const hasGlobalCapacityPressure = () => {
+    if (globalPendingTextCount <= 0) return false;
+    if (embeddingBatchTokenBudget > 0 && globalPendingTokenCount >= embeddingBatchTokenBudget) return true;
+    return maxBatchItems !== Number.MAX_SAFE_INTEGER && globalPendingTextCount >= maxBatchItems;
+  };
+
+  const hasGlobalFillTarget = () => (
+    globalPendingTextCount > 0 && globalPendingTokenCount >= resolveGlobalTargetTokens()
+  );
+
+  const scheduleGlobalFlushTimer = () => {
+    if (!globalBatchingEnabled) return;
+    if (globalFlushTimer || globalFlushInFlight || globalPendingRequests.length === 0) return;
+    if (globalBatchingMaxWait === 0) {
+      void flushGlobalRequests({ force: true });
+      return;
+    }
+    let oldestEnqueuedAt = Number.POSITIVE_INFINITY;
+    for (const request of globalPendingRequests) {
+      if (request.enqueuedAt < oldestEnqueuedAt) oldestEnqueuedAt = request.enqueuedAt;
+    }
+    const ageMs = Number.isFinite(oldestEnqueuedAt)
+      ? Math.max(0, Date.now() - oldestEnqueuedAt)
+      : 0;
+    const delayMs = Math.max(0, globalBatchingMaxWait - ageMs);
+    globalFlushTimer = setTimeout(() => {
+      globalFlushTimer = null;
+      void flushGlobalRequests({ force: true });
+    }, delayMs);
+  };
+
+  const flushGlobalRequests = async ({ force = false } = {}) => {
+    if (!globalBatchingEnabled) return;
+    if (force) globalForceFlushRequested = true;
+    if (globalFlushInFlight) return globalFlushInFlight;
+    globalFlushInFlight = (async () => {
+      const flushAll = force || globalForceFlushRequested;
+      globalForceFlushRequested = false;
+      while (globalPendingRequests.length > 0) {
+        const shouldFlushNow = flushAll || hasGlobalCapacityPressure() || hasGlobalFillTarget();
+        if (!shouldFlushNow) break;
+        clearGlobalFlushTimer();
+        const snapshot = globalPendingRequests;
+        globalPendingRequests = [];
+        globalPendingTextCount = 0;
+        globalPendingTokenCount = 0;
+
+        const requestSizes = [];
+        const requestLabels = new Set();
+        const flattenedTexts = [];
+        const flattenedTokenEstimates = [];
+        let oldestEnqueuedAt = Number.POSITIVE_INFINITY;
+        for (const request of snapshot) {
+          const texts = Array.isArray(request.texts) ? request.texts : [];
+          const estimates = Array.isArray(request.tokenEstimates) ? request.tokenEstimates : null;
+          requestSizes.push(texts.length);
+          requestLabels.add(request.label || `${mode} global`);
+          if (request.enqueuedAt < oldestEnqueuedAt) oldestEnqueuedAt = request.enqueuedAt;
+          for (let i = 0; i < texts.length; i += 1) {
+            const text = texts[i];
+            flattenedTexts.push(text);
+            flattenedTokenEstimates.push(resolveTokenEstimate(text, estimates?.[i]));
+          }
+        }
+        const queueWaitMs = Number.isFinite(oldestEnqueuedAt)
+          ? Math.max(0, Date.now() - oldestEnqueuedAt)
+          : 0;
+        const mergedLabel = requestLabels.size === 1
+          ? [...requestLabels][0]
+          : `${mode} global(${requestLabels.size})`;
+        const targetTokens = resolveGlobalTargetTokens();
+        try {
+          const computed = await runBatched({
+            texts: flattenedTexts,
+            batchSize: embeddingBatchSize,
+            maxBatchTokens: embeddingBatchTokenBudget,
+            estimateTokens: estimateEmbeddingTokens,
+            tokenEstimates: flattenedTokenEstimates,
+            embed: (batch) => scheduleCompute(() => getChunkEmbeddings(batch)),
+            onBatch: batchObserver
+              ? (batchInfo) => {
+                const budget = Math.max(0, Math.floor(Number(batchInfo?.batchTokenBudget) || 0));
+                const targetBatchTokens = budget > 0
+                  ? Math.max(1, targetTokens)
+                  : Math.max(1, Math.floor(Number(batchInfo?.targetBatchTokens) || 0));
+                const batchTokens = Math.max(0, Math.floor(Number(batchInfo?.batchTokens) || 0));
+                const underfilledTokens = Math.max(0, targetBatchTokens - batchTokens);
+                const batchFillRatio = targetBatchTokens > 0
+                  ? Math.max(0, Math.min(1, batchTokens / targetBatchTokens))
+                  : 1;
+                batchObserver({
+                  ...batchInfo,
+                  label: mergedLabel,
+                  targetBatchTokens,
+                  underfilledTokens,
+                  batchFillRatio,
+                  queueWaitMs,
+                  mergedRequests: snapshot.length,
+                  mergedLabels: requestLabels.size
+                });
+              }
+              : null
+          });
+          assertVectorArrays(computed, flattenedTexts.length, mergedLabel);
+          let offset = 0;
+          for (let i = 0; i < snapshot.length; i += 1) {
+            const request = snapshot[i];
+            const count = requestSizes[i] || 0;
+            request.resolve(computed.slice(offset, offset + count));
+            offset += count;
+          }
+        } catch (err) {
+          for (const request of snapshot) {
+            request.reject(err);
+          }
+        }
+      }
+    })().finally(() => {
+      globalFlushInFlight = null;
+      if (globalPendingRequests.length > 0) {
+        if (hasGlobalCapacityPressure() || hasGlobalFillTarget()) {
+          void flushGlobalRequests();
+        } else {
+          scheduleGlobalFlushTimer();
+        }
+      }
+    });
+    return globalFlushInFlight;
+  };
+
+  const enqueueGlobalBatchRequest = ({ texts, label, tokenEstimates }) => new Promise((resolve, reject) => {
+    if (!globalBatchingEnabled) {
+      resolve([]);
+      return;
+    }
+    const normalizedTexts = Array.isArray(texts) ? texts : [];
+    const normalizedTokenEstimates = Array.isArray(tokenEstimates) && tokenEstimates.length === normalizedTexts.length
+      ? tokenEstimates
+      : null;
+    let requestTokens = 0;
+    for (let i = 0; i < normalizedTexts.length; i += 1) {
+      requestTokens += resolveTokenEstimate(normalizedTexts[i], normalizedTokenEstimates?.[i]);
+    }
+    globalPendingRequests.push({
+      texts: normalizedTexts,
+      tokenEstimates: normalizedTokenEstimates,
+      label,
+      resolve,
+      reject,
+      enqueuedAt: Date.now()
+    });
+    globalPendingTextCount += normalizedTexts.length;
+    globalPendingTokenCount += requestTokens;
+    if (hasGlobalCapacityPressure() || hasGlobalFillTarget()) {
+      void flushGlobalRequests();
+    } else {
+      scheduleGlobalFlushTimer();
+    }
+  });
+
+  const drainGlobalBatching = async () => {
+    if (!globalBatchingEnabled) return;
+    clearGlobalFlushTimer();
+    await flushGlobalRequests({ force: true });
+    if (globalFlushInFlight) {
+      await globalFlushInFlight;
+    }
+  };
 
   /**
    * Deduplicate repeated payloads before embedding and optionally reuse
@@ -134,22 +347,30 @@ export const createFileEmbeddingsProcessor = ({
       let computed = [];
       try {
         if (computeTexts.length > 0) {
-          computed = await runBatched({
-            texts: computeTexts,
-            batchSize: embeddingBatchSize,
-            maxBatchTokens: embeddingBatchTokenBudget,
-            estimateTokens: estimateEmbeddingTokens,
-            tokenEstimates,
-            embed: (batch) => scheduleCompute(() => getChunkEmbeddings(batch)),
-            onBatch: batchObserver
-              ? (batchInfo) => {
-                batchObserver({
-                  ...batchInfo,
-                  label
-                });
-              }
-              : null
-          });
+          if (globalBatchingEnabled) {
+            computed = await enqueueGlobalBatchRequest({
+              texts: computeTexts,
+              label,
+              tokenEstimates
+            });
+          } else {
+            computed = await runBatched({
+              texts: computeTexts,
+              batchSize: embeddingBatchSize,
+              maxBatchTokens: embeddingBatchTokenBudget,
+              estimateTokens: estimateEmbeddingTokens,
+              tokenEstimates,
+              embed: (batch) => scheduleCompute(() => getChunkEmbeddings(batch)),
+              onBatch: batchObserver
+                ? (batchInfo) => {
+                  batchObserver({
+                    ...batchInfo,
+                    label
+                  });
+                }
+                : null
+            });
+          }
           assertVectorArrays(computed, computeTexts.length, label);
         }
       } catch (err) {
@@ -217,7 +438,7 @@ export const createFileEmbeddingsProcessor = ({
     return vectors;
   };
 
-  return async (entry) => {
+  const processor = async (entry) => {
     entry.codeEmbeds = new Array(entry.items.length).fill(null);
     entry.docVectorsRaw = new Array(entry.items.length).fill(null);
 
@@ -261,4 +482,8 @@ export const createFileEmbeddingsProcessor = ({
 
     await processFileEmbeddings(entry);
   };
+  processor.drain = async () => {
+    await drainGlobalBatching();
+  };
+  return processor;
 };

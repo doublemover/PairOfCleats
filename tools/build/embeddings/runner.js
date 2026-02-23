@@ -2837,6 +2837,13 @@ export async function runBuildEmbeddingsWithConfig(config) {
         const backendParallelDispatch = getChunkEmbeddings?.supportsParallelDispatch === true;
         const parallelBatchDispatch = backendParallelDispatch && computeTokensTotal > 1;
         const mergeCodeDocBatches = indexingConfig?.embeddings?.mergeCodeDocBatches !== false;
+        const globalMicroBatchingEnabled = indexingConfig?.embeddings?.globalMicroBatching !== false;
+        const globalMicroBatchingFillTarget = Number.isFinite(Number(indexingConfig?.embeddings?.globalBatchFillTarget))
+          ? Math.max(0.5, Math.min(0.99, Number(indexingConfig.embeddings.globalBatchFillTarget)))
+          : 0.85;
+        const globalMicroBatchingMaxWaitMs = Number.isFinite(Number(indexingConfig?.embeddings?.globalBatchMaxWaitMs))
+          ? Math.max(0, Math.floor(Number(indexingConfig.embeddings.globalBatchMaxWaitMs)))
+          : 8;
         const embeddingBatchTokenBudget = Number.isFinite(Number(configuredEmbeddingBatchTokenBudget))
           && Number(configuredEmbeddingBatchTokenBudget) > 0
           ? Math.max(1, Math.floor(Number(configuredEmbeddingBatchTokenBudget)))
@@ -2893,6 +2900,12 @@ export async function runBuildEmbeddingsWithConfig(config) {
           `[embeddings] ${mode}: token-aware batching enabled ` +
           `(budget=${embeddingBatchTokenBudget} est=${embeddingCharsPerToken} chars/token).`
         );
+        if (globalMicroBatchingEnabled) {
+          log(
+            `[embeddings] ${mode}: global micro-batching enabled ` +
+            `(fillTarget=${Math.round(globalMicroBatchingFillTarget * 100)}% maxWaitMs=${globalMicroBatchingMaxWaitMs}).`
+          );
+        }
         if (estimateEmbeddingTokensBatch) {
           log(`[embeddings] ${mode}: model-aware token estimator enabled.`);
         }
@@ -2952,6 +2965,12 @@ export async function runBuildEmbeddingsWithConfig(config) {
         let embeddingBatchesCompleted = 0;
         let embeddingBatchTokensProcessed = 0;
         let embeddingBatchComputeMs = 0;
+        let embeddingBatchTargetTokens = 0;
+        let embeddingBatchUnderfilledTokens = 0;
+        let embeddingBatchFillRatioSum = 0;
+        let embeddingBatchQueueWaitMs = 0;
+        let embeddingBatchMergedRequests = 0;
+        let embeddingBatchMergedLabels = 0;
         let embeddingTextCacheHits = 0;
         let embeddingTextCacheMisses = 0;
         let embeddingTextBatchDedupHits = 0;
@@ -2987,6 +3006,12 @@ export async function runBuildEmbeddingsWithConfig(config) {
           const inFlightStats = embeddingInFlightCoalescer?.stats?.() || {};
           const embeddingTextsPerSec = elapsedSec > 0
             ? (embeddingTextsResolved / elapsedSec)
+            : 0;
+          const embeddingBatchFillPercent = embeddingBatchTargetTokens > 0
+            ? Math.max(0, Math.min(1, embeddingBatchTokensProcessed / embeddingBatchTargetTokens)) * 100
+            : 100;
+          const embeddingBatchAvgWaitMs = embeddingBatchesCompleted > 0
+            ? (embeddingBatchQueueWaitMs / embeddingBatchesCompleted)
             : 0;
           const embedEtaSeconds = embeddingTextsPerSec > 0
             ? Math.max(0, (embeddingTextsScheduled - embeddingTextsResolved) / embeddingTextsPerSec)
@@ -3040,6 +3065,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
             inFlightStats,
             embeddingTextsPerSec,
             embedEtaSeconds,
+            embeddingBatchFillPercent,
+            embeddingBatchAvgWaitMs,
             perfMetrics
           };
         };
@@ -3062,6 +3089,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
             inFlightStats,
             embeddingTextsPerSec,
             embedEtaSeconds,
+            embeddingBatchFillPercent,
+            embeddingBatchAvgWaitMs,
             perfMetrics
           } = buildPerfSnapshot(nowMs);
           const perfStatusLine = formatEmbeddingsPerfLine({
@@ -3138,6 +3167,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
                 `coalesced ${embeddingInFlightJoinHits}`,
                 `${embeddingBatchesCompleted} batches`,
                 `${embeddingBatchTokensProcessed} tokens`,
+                `fill ${embeddingBatchFillPercent.toFixed(1)}%`,
+                `wait ${embeddingBatchAvgWaitMs.toFixed(1)}ms`,
                 `${embeddingTextsPerSec.toFixed(1)} resolved/s`,
                 `eta ${formatEta(embedEtaSeconds)}`,
                 `compute ${Math.max(0, Math.round(embeddingBatchComputeMs))}ms`,
@@ -3419,12 +3450,33 @@ export async function runBuildEmbeddingsWithConfig(config) {
           mode,
           parallelDispatch: parallelBatchDispatch,
           mergeCodeDocBatches,
+          globalMicroBatching: globalMicroBatchingEnabled,
+          globalMicroBatchingFillTarget,
+          globalMicroBatchingMaxWaitMs,
           embeddingTextCache,
           embeddingInFlightCoalescer,
-          onEmbeddingBatch: ({ durationMs, batchTokens }) => {
+          onEmbeddingBatch: ({
+            durationMs,
+            batchTokens,
+            targetBatchTokens,
+            underfilledTokens,
+            batchFillRatio,
+            queueWaitMs,
+            mergedRequests,
+            mergedLabels
+          }) => {
             embeddingBatchesCompleted += 1;
             embeddingBatchTokensProcessed += Math.max(0, Math.floor(Number(batchTokens) || 0));
             embeddingBatchComputeMs += Math.max(0, Number(durationMs) || 0);
+            embeddingBatchTargetTokens += Math.max(
+              0,
+              Math.floor(Number(targetBatchTokens) || Number(batchTokens) || 0)
+            );
+            embeddingBatchUnderfilledTokens += Math.max(0, Math.floor(Number(underfilledTokens) || 0));
+            embeddingBatchFillRatioSum += Math.max(0, Math.min(1, Number(batchFillRatio) || 0));
+            embeddingBatchQueueWaitMs += Math.max(0, Number(queueWaitMs) || 0);
+            embeddingBatchMergedRequests += Math.max(0, Math.floor(Number(mergedRequests) || 0));
+            embeddingBatchMergedLabels += Math.max(0, Math.floor(Number(mergedLabels) || 0));
           },
           onEmbeddingUsage: ({
             requested,
@@ -3935,6 +3987,9 @@ export async function runBuildEmbeddingsWithConfig(config) {
           }
         } finally {
           stopProgressTimer();
+          if (typeof computeFileEmbeddings?.drain === 'function') {
+            await computeFileEmbeddings.drain();
+          }
           await writerQueue.onIdle();
           await cacheShardHandlePool.close();
           emitProgressSnapshot({ force: true, summary: true });
@@ -4284,6 +4339,24 @@ export async function runBuildEmbeddingsWithConfig(config) {
             reuseHits: embeddingTextCacheHits + embeddingTextBatchDedupHits,
             cache: embeddingTextCache?.stats?.() || null
           },
+          batchFillStats: {
+            batches: embeddingBatchesCompleted,
+            tokensProcessed: embeddingBatchTokensProcessed,
+            targetTokens: embeddingBatchTargetTokens,
+            underfilledTokens: embeddingBatchUnderfilledTokens,
+            avgFillRatio: embeddingBatchesCompleted > 0
+              ? (embeddingBatchFillRatioSum / embeddingBatchesCompleted)
+              : null,
+            avgQueueWaitMs: embeddingBatchesCompleted > 0
+              ? (embeddingBatchQueueWaitMs / embeddingBatchesCompleted)
+              : null,
+            avgMergedRequests: embeddingBatchesCompleted > 0
+              ? (embeddingBatchMergedRequests / embeddingBatchesCompleted)
+              : null,
+            avgMergedLabels: embeddingBatchesCompleted > 0
+              ? (embeddingBatchMergedLabels / embeddingBatchesCompleted)
+              : null
+          },
           fileConcurrency: {
             base: fileParallelism,
             final: adaptiveFileParallelismCurrent,
@@ -4408,6 +4481,21 @@ export async function runBuildEmbeddingsWithConfig(config) {
             `(base=${fileParallelism}, final=${adaptiveFileParallelismCurrent}, ` +
             `peak=${embeddingFileConcurrencyPeak || adaptiveFileParallelismCurrent}, ` +
             `adjustments=${adaptiveFileParallelismAdjustments}).`
+          );
+        }
+        if (globalMicroBatchingEnabled && embeddingBatchesCompleted > 0) {
+          const fillPercent = embeddingBatchTargetTokens > 0
+            ? Math.max(0, Math.min(1, embeddingBatchTokensProcessed / embeddingBatchTargetTokens)) * 100
+            : 100;
+          const avgQueueWaitMs = embeddingBatchQueueWaitMs / embeddingBatchesCompleted;
+          const avgMergedRequests = embeddingBatchMergedRequests / embeddingBatchesCompleted;
+          const avgMergedLabels = embeddingBatchMergedLabels / embeddingBatchesCompleted;
+          const avgFillRatio = embeddingBatchFillRatioSum / embeddingBatchesCompleted;
+          log(
+            `[embeddings] ${mode}: global micro-batching ` +
+            `(fill=${fillPercent.toFixed(1)}% avgFill=${(avgFillRatio * 100).toFixed(1)}% ` +
+            `underfilled=${embeddingBatchUnderfilledTokens} wait=${avgQueueWaitMs.toFixed(1)}ms ` +
+            `mergedRequests=${avgMergedRequests.toFixed(2)} mergedLabels=${avgMergedLabels.toFixed(2)}).`
           );
         }
         writerStatsByMode[mode] = writerQueue.stats();

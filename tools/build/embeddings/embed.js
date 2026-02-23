@@ -34,7 +34,7 @@ export const assertVectorArrays = (vectors, count, label) => {
  *   estimateTokens?:(text:string)=>number,
  *   tokenEstimates?:number[]|null,
  *   embed:(batch:string[])=>Promise<Array<ArrayLike<number>>>,
- *   onBatch?:(input:{batchIndex:number,batchCount:number,batchSize:number,batchTokens:number,completed:number,total:number,durationMs:number})=>void
+ *   onBatch?:(input:{batchIndex:number,batchCount:number,batchSize:number,batchTokens:number,targetBatchTokens:number,batchTokenBudget:number,batchFillRatio:number,underfilledTokens:number,completed:number,total:number,durationMs:number})=>void
  * }} input
  * @returns {Promise<Array<ArrayLike<number>>>}
  */
@@ -67,6 +67,23 @@ export const runBatched = async ({
   const resolveTokenEstimate = (text, index) => {
     if (normalizedTokenEstimates) return normalizedTokenEstimates[index] || 1;
     return Math.max(1, Math.floor(Number(tokenEstimator(text)) || 1));
+  };
+  const resolveBatchTargets = (batchTokens) => {
+    const tokenCount = Math.max(0, Math.floor(Number(batchTokens) || 0));
+    const budget = tokenBudget > 0 ? tokenBudget : 0;
+    const targetBatchTokens = budget > 0 ? budget : Math.max(1, tokenCount);
+    const underfilledTokens = budget > 0
+      ? Math.max(0, targetBatchTokens - tokenCount)
+      : 0;
+    const batchFillRatio = targetBatchTokens > 0
+      ? Math.max(0, Math.min(1, tokenCount / targetBatchTokens))
+      : 1;
+    return {
+      batchTokenBudget: budget,
+      targetBatchTokens,
+      underfilledTokens,
+      batchFillRatio
+    };
   };
   const batches = [];
   if (!tokenBudget && maxItems === Number.MAX_SAFE_INTEGER) {
@@ -101,11 +118,13 @@ export const runBatched = async ({
     }
     const startedAt = Date.now();
     const vectors = await embed(singleBatch);
+    const targets = resolveBatchTargets(batchTokens);
     observer?.({
       batchIndex: 1,
       batchCount: 1,
       batchSize: singleBatch.length,
       batchTokens,
+      ...targets,
       completed: singleBatch.length,
       total: texts.length,
       durationMs: Math.max(0, Date.now() - startedAt)
@@ -127,11 +146,13 @@ export const runBatched = async ({
     const batch = await embed(slice);
     out.push(...batch);
     completed += slice.length;
+    const targets = resolveBatchTargets(batchTokens);
     observer?.({
       batchIndex,
       batchCount,
       batchSize: slice.length,
       batchTokens,
+      ...targets,
       completed: Math.min(texts.length, completed),
       total: texts.length,
       durationMs: Math.max(0, Date.now() - startedAt)

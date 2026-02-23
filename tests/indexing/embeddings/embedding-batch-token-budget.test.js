@@ -34,6 +34,13 @@ assert.equal(batches.length, 3);
 assert.equal(batches[0].batchTokens, 6);
 assert.equal(batches[1].batchTokens, 6);
 assert.equal(batches[2].batchTokens, 4);
+assert.equal(batches[0].batchTokenBudget, 6);
+assert.equal(batches[0].targetBatchTokens, 6);
+assert.equal(batches[0].batchFillRatio, 1);
+assert.equal(batches[0].underfilledTokens, 0);
+assert.equal(batches[2].targetBatchTokens, 6);
+assert.equal(batches[2].underfilledTokens, 2);
+assert.equal(batches[2].batchFillRatio, (4 / 6));
 assert.equal(batches[2].completed, texts.length);
 
 console.log('embedding batch token budget test passed');
