@@ -40,10 +40,8 @@ import {
 import {
   resolveStartupIndexResolution
 } from './startup-index.js';
-import { resolveAutoSqliteEligibility } from './auto-thresholds.js';
-import { resolveRunSearchBackendSelection } from './backend-selection.js';
 import { resolveRunSearchIndexAvailability } from './index-availability.js';
-import { initializeBackendContext } from './backend-context-setup.js';
+import { resolveRunSearchBackendContext } from './backend-bootstrap.js';
 import { loadRunSearchIndexesWithTracking } from './index-loading.js';
 import { buildQueryPlanInput } from './plan-input.js';
 import { resolveRunSearchSparsePreflight } from './sparse-preflight.js';
@@ -391,111 +389,92 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const lmdbProseAvailable = lmdbAvailability.prose;
     const lmdbAvailable = lmdbAvailability.all;
 
-    const {
-      autoBackendRequested,
-      autoSqliteAllowed,
-      autoSqliteReason
-    } = resolveAutoSqliteEligibility({
-      backendArg,
-      sqliteAvailable,
-      needsSqlite,
-      sqliteAutoChunkThreshold,
-      sqliteAutoArtifactBytes,
-      runCode,
-      runProse,
-      runExtractedProse: runExtractedProseRaw,
-      resolveSearchIndexDir
+    const backendContextResolution = await resolveRunSearchBackendContext({
+      selectionInput: {
+        backendArg,
+        sqliteAvailable,
+        sqliteCodeAvailable,
+        sqliteProseAvailable,
+        sqliteExtractedProseAvailable,
+        sqliteCodePath,
+        sqliteProsePath,
+        sqliteExtractedProsePath,
+        lmdbAvailable,
+        lmdbCodeAvailable,
+        lmdbProseAvailable,
+        lmdbCodePath,
+        lmdbProsePath,
+        needsSqlite,
+        needsCode,
+        needsProse,
+        requiresExtractedProse,
+        defaultBackend: policy?.retrieval?.backend || 'sqlite',
+        sqliteRootsMixed,
+        lmdbRootsMixed,
+        asOfRef: asOfContext?.ref || 'latest',
+        emitOutput,
+        sqliteAutoChunkThreshold,
+        sqliteAutoArtifactBytes,
+        runCode,
+        runProse,
+        runExtractedProse: runExtractedProseRaw,
+        resolveSearchIndexDir
+      },
+      contextInput: {
+        needsCode,
+        needsProse,
+        loadExtractedProseSqlite,
+        sqliteCodePath,
+        sqliteProsePath,
+        sqliteExtractedProsePath,
+        vectorExtension,
+        dbCache: sqliteCache,
+        sqliteStates: {
+          code: sqliteStateCode,
+          prose: sqliteStateProse,
+          'extracted-prose': sqliteStateExtractedProse
+        },
+        lmdbCodePath,
+        lmdbProsePath,
+        lmdbStates: {
+          code: lmdbStateCode,
+          prose: lmdbStateProse
+        },
+        postingsConfig,
+        sqliteFtsWeights,
+        maxCandidates,
+        queryVectorAnn,
+        modelIdDefault,
+        fileChargramN,
+        hnswConfig,
+        denseVectorMode,
+        storageTier,
+        sqliteReadPragmas,
+        rootDir,
+        userConfig,
+        stageTracker,
+        vectorAnnEnabled,
+        emitOutput
+      }
     });
-
-    const backendSelection = await resolveRunSearchBackendSelection({
-      backendArg,
-      sqliteAvailable,
-      sqliteCodeAvailable,
-      sqliteProseAvailable,
-      sqliteExtractedProseAvailable,
-      sqliteCodePath,
-      sqliteProsePath,
-      sqliteExtractedProsePath,
-      lmdbAvailable,
-      lmdbCodeAvailable,
-      lmdbProseAvailable,
-      lmdbCodePath,
-      lmdbProsePath,
-      needsSqlite,
-      needsCode,
-      needsProse,
-      requiresExtractedProse,
-      defaultBackend: policy?.retrieval?.backend || 'sqlite',
-      sqliteRootsMixed,
-      lmdbRootsMixed,
-      autoBackendRequested,
-      autoSqliteAllowed,
-      autoSqliteReason,
-      asOfRef: asOfContext?.ref || 'latest',
-      emitOutput
-    });
-    if (backendSelection.error) {
-      return bail(backendSelection.error.message, 1, backendSelection.error.code);
+    if (backendContextResolution.error) {
+      return bail(
+        backendContextResolution.error.message,
+        1,
+        backendContextResolution.error.code
+      );
     }
     let {
       backendPolicy,
       useSqliteSelection,
       useLmdbSelection,
       sqliteFtsEnabled,
-      backendForcedSqlite,
-      backendForcedLmdb,
-      backendForcedTantivy
-    } = backendSelection;
-
-    const sqliteStates = {
-      code: sqliteStateCode,
-      prose: sqliteStateProse,
-      'extracted-prose': sqliteStateExtractedProse
-    };
-    const lmdbStates = {
-      code: lmdbStateCode,
-      prose: lmdbStateProse
-    };
-    const {
-      buildBackendContextInput,
-      backendContext
-    } = await initializeBackendContext({
-      needsCode,
-      needsProse,
-      loadExtractedProseSqlite,
-      sqliteCodePath,
-      sqliteProsePath,
-      sqliteExtractedProsePath,
-      backendForcedSqlite,
       backendForcedLmdb,
       backendForcedTantivy,
-      vectorExtension,
-      dbCache: sqliteCache,
-      sqliteStates,
-      lmdbCodePath,
-      lmdbProsePath,
-      lmdbStates,
-      postingsConfig,
-      sqliteFtsWeights,
-      maxCandidates,
-      queryVectorAnn,
-      modelIdDefault,
-      fileChargramN,
-      hnswConfig,
-      denseVectorMode,
-      storageTier,
-      sqliteReadPragmas,
-      rootDir,
-      userConfig,
-      stageTracker,
-      backendPolicy,
-      useSqliteSelection,
-      useLmdbSelection,
-      sqliteFtsEnabled,
-      vectorAnnEnabled,
-      emitOutput
-    });
-    let {
+      buildBackendContextInput,
+      backendContext
+    } = backendContextResolution;
+    const {
       useSqlite,
       useLmdb,
       backendLabel,

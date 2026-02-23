@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T07:41:43.9256517-05:00
+  Extracted run-search backend auto-selection/bootstrap wiring from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/backend-bootstrap.js`, preserving backend policy/context behavior while centralizing error handling and adding focused dependency-injected coverage in `tests/retrieval/cli/run-search-backend-bootstrap.test.js`.
 - 2026-02-23T07:38:20.6876465-05:00
   Extracted stage1 ordered result-application/lifecycle merge logic from `src/index/build/indexer/steps/process-files.js` into `src/index/build/indexer/steps/process-files/result-application.js`, preserving deterministic flush semantics and adding focused coverage in `tests/indexing/stage1/process-files-result-application.test.js`.
 - 2026-02-23T07:37:41.1253874-05:00
