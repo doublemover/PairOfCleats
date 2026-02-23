@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { isAbsolutePathNative } from '../shared/files.js';
+import { isAbsolutePathNative, isRelativePathEscape } from '../shared/files.js';
 
 export const normalizeIdentityPath = (value, { platform = process.platform } = {}) => {
   const resolved = value ? path.resolve(String(value)) : '';
@@ -103,5 +103,5 @@ export const isWithinRoot = (candidate, root, options = {}) => {
   if (!normalizedCandidate || !normalizedRoot) return false;
   const relative = path.relative(normalizedRoot, normalizedCandidate);
   if (!relative) return true;
-  return !relative.startsWith('..') && !isAbsolutePathNative(relative);
+  return !isRelativePathEscape(relative) && !isAbsolutePathNative(relative);
 };

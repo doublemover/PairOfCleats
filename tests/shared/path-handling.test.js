@@ -30,11 +30,15 @@ if (isWin) {
 
 const repoRoot = path.resolve('repo-root');
 const nestedPath = path.join(repoRoot, 'src', 'main.js');
+const dotDotPrefixedName = path.join(repoRoot, '..config', 'settings.json');
 assert.equal(normalizeRepoRelativePath('src/main.js', repoRoot), 'src/main.js');
 assert.equal(normalizeRepoRelativePath('./src/main.js', repoRoot), 'src/main.js');
 assert.equal(normalizeRepoRelativePath(nestedPath, repoRoot), 'src/main.js');
+assert.equal(normalizeRepoRelativePath(dotDotPrefixedName, repoRoot), '..config/settings.json');
+assert.equal(normalizeRepoRelativePath('..config/settings.json', repoRoot), '..config/settings.json');
 assert.equal(normalizeRepoRelativePath('../outside.js', repoRoot), null);
 assert.equal(normalizePathForRepo(nestedPath, repoRoot), 'src/main.js');
+assert.equal(normalizePathForRepo(dotDotPrefixedName, repoRoot), '..config/settings.json');
 assert.equal(normalizePathForRepo('src/main.js', repoRoot), 'src/main.js');
 
 console.log('path handling helpers ok.');

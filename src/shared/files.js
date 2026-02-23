@@ -54,6 +54,18 @@ export function isAbsolutePathNative(value, platform = process.platform) {
 }
 
 /**
+ * Detect whether a relative path denotes parent traversal (`..` segment).
+ * Accepts both separator styles so checks are robust across mixed inputs.
+ *
+ * @param {string} value
+ * @returns {boolean}
+ */
+export function isRelativePathEscape(value) {
+  if (typeof value !== 'string') return false;
+  return /^\.\.(?:[\\/]|$)/.test(value);
+}
+
+/**
  * Detect absolute paths across POSIX and Windows semantics.
  * Only use when you intentionally want cross-platform interpretation.
  * @param {string} value

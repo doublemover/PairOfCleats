@@ -1,6 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs';
-import { isAbsolutePathNative, toPosix } from './files.js';
+import { isAbsolutePathNative, isRelativePathEscape, toPosix } from './files.js';
 
 const stripDotPrefix = (value) => (
   value.startsWith('./') ? value.slice(2) : value
@@ -52,7 +52,7 @@ export const normalizeRepoRelativePath = (value, repoRoot, { stripDot = true } =
     ? normalizedRaw
     : pathApi.resolve(normalizedRoot, normalizedRaw);
   const rel = pathApi.relative(normalizedRoot, abs);
-  if (rel.startsWith('..') || isAbsolutePathNative(rel, platform)) return null;
+  if (isRelativePathEscape(rel) || isAbsolutePathNative(rel, platform)) return null;
   const normalized = toPosix(rel);
   return stripDot ? stripDotPrefix(normalized) : normalized;
 };
@@ -74,7 +74,7 @@ export const normalizePathForRepo = (value, repoRoot, { stripDot = true } = {}) 
   let normalized = raw;
   if (isAbsolutePathNative(raw)) {
     const rel = path.relative(repoRoot, raw);
-    if (!rel.startsWith('..') && !isAbsolutePathNative(rel)) {
+    if (!isRelativePathEscape(rel) && !isAbsolutePathNative(rel)) {
       normalized = rel;
     }
   }
@@ -170,7 +170,7 @@ export const joinPathSafe = (baseDir, segments, { platform = process.platform } 
     : [];
   const resolved = pathApi.resolve(normalizedBase, ...normalizedSegments);
   const rel = pathApi.relative(pathApi.resolve(normalizedBase), resolved);
-  if (rel.startsWith('..') || isAbsolutePathNative(rel, platform)) {
+  if (isRelativePathEscape(rel) || isAbsolutePathNative(rel, platform)) {
     return null;
   }
   return normalizePathForPlatform(resolved, { platform });
@@ -202,5 +202,5 @@ export const isPathUnderDir = (baseDir, targetPath) => {
   const canonicalBaseDir = resolveCanonicalPath(baseDir);
   const canonicalTargetPath = resolveCanonicalPath(targetPath);
   const rel = path.relative(canonicalBaseDir, canonicalTargetPath);
-  return rel === '' || (!rel.startsWith('..') && !isAbsolutePathNative(rel));
+  return rel === '' || (!isRelativePathEscape(rel) && !isAbsolutePathNative(rel));
 };

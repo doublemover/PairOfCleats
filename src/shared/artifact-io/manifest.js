@@ -9,7 +9,7 @@ import {
 import { readJsonFile } from './json.js';
 import { readCache, writeCache } from './cache.js';
 import { getTestEnvConfig } from '../env.js';
-import { fromPosix, isAbsolutePathNative, toPosix } from '../files.js';
+import { fromPosix, isAbsolutePathNative, isRelativePathEscape, toPosix } from '../files.js';
 import { logLine } from '../progress.js';
 
 const MIN_MANIFEST_BYTES = 64 * 1024;
@@ -115,7 +115,7 @@ export const resolveManifestPath = (dir, relPath, strict) => {
   const resolved = path.resolve(dir, fromPosix(relPath));
   const root = path.resolve(dir);
   const relative = path.relative(root, resolved);
-  const escapes = relative.startsWith('..') || isAbsolutePathNative(relative);
+  const escapes = isRelativePathEscape(relative) || isAbsolutePathNative(relative);
   if (escapes) {
     if (strict) {
       const err = new Error(`Manifest path escapes index root: ${relPath}`);
@@ -332,7 +332,7 @@ export const resolveManifestPieceByPath = ({
   const resolvedRoot = path.resolve(dir);
   const resolvedTarget = path.resolve(targetPath);
   const relative = path.relative(resolvedRoot, resolvedTarget);
-  if (!relative || relative.startsWith('..') || isAbsolutePathNative(relative)) return null;
+  if (!relative || isRelativePathEscape(relative) || isAbsolutePathNative(relative)) return null;
   const relPath = toPosix(relative);
   const pieces = Array.isArray(manifest?.pieces) ? manifest.pieces : [];
   return pieces.find((entry) => {
