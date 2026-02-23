@@ -3,6 +3,7 @@ import http from 'node:http';
 import path from 'node:path';
 
 import { getIndexDir, resolveRepoConfig, resolveToolRoot } from '../../shared/dict-utils.js';
+import { safeJoinUnderBase } from '../../analysis/map-iso-safe-join.js';
 
 export const resolveLimit = (value) => {
   const num = Number(value);
@@ -53,11 +54,9 @@ const contentTypeFor = (filePath) => {
   return 'application/octet-stream';
 };
 
-const safeJoin = (baseDir, requestPath) => {
-  const safePath = path.normalize(path.join(baseDir, requestPath));
-  if (!safePath.startsWith(baseDir)) return null;
-  return safePath;
-};
+export const resolveMapViewerPathUnderBase = (baseDir, requestPath, pathApi = path) => (
+  safeJoinUnderBase(baseDir, requestPath, pathApi)
+);
 
 export const startMapViewerStaticServer = async ({ outPath, port = 0 }) => {
   const toolRoot = resolveToolRoot();
@@ -83,7 +82,7 @@ export const startMapViewerStaticServer = async ({ outPath, port = 0 }) => {
     }
     if (pathname.startsWith('/three/examples/')) {
       const relativePath = pathname.replace('/three/examples/', '');
-      const targetPath = safeJoin(threeExamplesRoot, relativePath);
+      const targetPath = resolveMapViewerPathUnderBase(threeExamplesRoot, relativePath);
       if (!targetPath || !fs.existsSync(targetPath)) {
         res.writeHead(404);
         res.end('three.js example asset not found');
@@ -95,7 +94,7 @@ export const startMapViewerStaticServer = async ({ outPath, port = 0 }) => {
     }
     if (pathname.startsWith('/three/')) {
       const relativePath = pathname.replace('/three/', '');
-      const targetPath = safeJoin(threeBuildRoot, relativePath);
+      const targetPath = resolveMapViewerPathUnderBase(threeBuildRoot, relativePath);
       if (!targetPath || !fs.existsSync(targetPath)) {
         res.writeHead(404);
         res.end('three.js asset not found');
@@ -107,7 +106,7 @@ export const startMapViewerStaticServer = async ({ outPath, port = 0 }) => {
     }
     if (pathname.startsWith('/assets/isomap/')) {
       const relativePath = pathname.replace('/assets/isomap/', '');
-      const targetPath = safeJoin(isomapAssetsRoot, relativePath);
+      const targetPath = resolveMapViewerPathUnderBase(isomapAssetsRoot, relativePath);
       if (!targetPath || !fs.existsSync(targetPath)) {
         res.writeHead(404);
         res.end('isomap asset not found');
@@ -119,7 +118,7 @@ export const startMapViewerStaticServer = async ({ outPath, port = 0 }) => {
     }
     if (pathname.startsWith('/isomap/')) {
       const relativePath = pathname.replace('/isomap/', '');
-      const targetPath = safeJoin(isomapClientRoot, relativePath);
+      const targetPath = resolveMapViewerPathUnderBase(isomapClientRoot, relativePath);
       if (!targetPath || !fs.existsSync(targetPath)) {
         res.writeHead(404);
         res.end('isomap client asset not found');
