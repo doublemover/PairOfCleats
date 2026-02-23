@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-23T10:47:47.667Z",
+  "generatedAt": "2026-02-23T11:06:11.706Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3160,7 +3160,6 @@
         "tests/perf/bench/bench-language-regression-gate.test.js",
         "tests/retrieval/parity/parity.test.js",
         "tests/services/mcp/repo-path-resolution.test.js",
-        "tests/tooling/install/setup-index-detection.test.js",
         "tools/bench/ab-sweep.js",
         "tools/bench/index/scheduler-store-format.js",
         "tools/bench/language/logging.js",
@@ -3176,6 +3175,7 @@
         "src/shared/env.js",
         "src/shared/runtime-envelope.js",
         "src/shared/threads.js",
+        "tests/embeddings/runner/scheduler-env-config-envelope.test.js",
         "tests/helpers/search-filters-repo.js",
         "tests/indexing/scm/no-scm-build-id.test.js",
         "tests/perf/baseline-artifacts.test.js",
