@@ -280,12 +280,30 @@ const createSchedulerCrashTracker = ({
     return persistSerial;
   };
 
-  const addFailedGrammarVirtualPaths = (grammarKey) => {
-    const group = groupByGrammarKey.get(grammarKey);
-    const jobs = Array.isArray(group?.jobs) ? group.jobs : [];
-    for (const job of jobs) {
-      const virtualPath = typeof job?.virtualPath === 'string' ? job.virtualPath : null;
-      if (virtualPath) degradedVirtualPaths.add(virtualPath);
+  const addDegradedVirtualPathsForFailure = ({ grammarKey, firstJob, subprocessCrashEvents }) => {
+    const failedVirtualPaths = new Set();
+    const crashEvents = Array.isArray(subprocessCrashEvents) ? subprocessCrashEvents : [];
+    for (const event of crashEvents) {
+      const eventVirtualPath = (
+        (typeof event?.virtualPath === 'string' && event.virtualPath)
+        || (typeof event?.file?.virtualPath === 'string' && event.file.virtualPath)
+        || (typeof event?.meta?.virtualPath === 'string' && event.meta.virtualPath)
+        || null
+      );
+      if (eventVirtualPath) failedVirtualPaths.add(eventVirtualPath);
+    }
+    if (!failedVirtualPaths.size) {
+      const firstVirtualPath = typeof firstJob?.virtualPath === 'string' ? firstJob.virtualPath : null;
+      if (firstVirtualPath) failedVirtualPaths.add(firstVirtualPath);
+    }
+    if (!failedVirtualPaths.size) {
+      const group = groupByGrammarKey.get(grammarKey);
+      const jobs = Array.isArray(group?.jobs) ? group.jobs : [];
+      const fallbackVirtualPath = typeof jobs[0]?.virtualPath === 'string' ? jobs[0].virtualPath : null;
+      if (fallbackVirtualPath) failedVirtualPaths.add(fallbackVirtualPath);
+    }
+    for (const virtualPath of failedVirtualPaths) {
+      degradedVirtualPaths.add(virtualPath);
     }
   };
 
@@ -299,18 +317,22 @@ const createSchedulerCrashTracker = ({
     inferredFailedGrammarKeys = null
   }) => {
     if (!grammarKey) return;
-    if (markFailed) {
-      failedGrammarKeys.add(grammarKey);
-      addFailedGrammarVirtualPaths(grammarKey);
-    }
     const group = groupByGrammarKey.get(grammarKey) || null;
     const firstJob = resolveFirstFailedJob(group);
+    const subprocessCrashEvents = parseSubprocessCrashEvents(error);
+    if (markFailed) {
+      failedGrammarKeys.add(grammarKey);
+      addDegradedVirtualPathsForFailure({
+        grammarKey,
+        firstJob,
+        subprocessCrashEvents
+      });
+    }
     const languageId = typeof firstJob?.languageId === 'string' && firstJob.languageId
       ? firstJob.languageId
       : (Array.isArray(group?.languages) ? group.languages[0] : null);
     const parserMetadata = resolveParserMetadata(languageId);
     const fileFingerprint = resolveFileFingerprint(firstJob);
-    const subprocessCrashEvents = parseSubprocessCrashEvents(error);
     const firstSubprocessEvent = subprocessCrashEvents[0] || null;
     const exitCode = Number(error?.result?.exitCode);
     const signal = typeof error?.result?.signal === 'string' ? error.result.signal : null;
