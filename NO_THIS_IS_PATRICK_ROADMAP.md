@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T06:14:17.9887751-05:00
+  Refactored `src/shared/artifact-io/json.js` into focused `json/*` helpers (`error-classification`, `fallback-rules`, `read-plan`, `io`, `line-scan-async`), preserving hard-cutover manifest fallback semantics while reducing repeated probe logic and avoiding unnecessary intermediate allocations in async line scanning paths.
 - 2026-02-23T06:13:11.8881660-05:00
   Split runtime bootstrap/queue initialization from `src/index/build/runtime/runtime.js` into `src/index/build/runtime/bootstrap.js` and `src/index/build/runtime/queue-bootstrap.js`, and hoisted additional runtime policy assembly into `src/index/build/runtime/policy.js` to reduce orchestration coupling and overlap early envelope/scheduler prefetch work during startup.
 - 2026-02-23T06:12:35.0616619-05:00
