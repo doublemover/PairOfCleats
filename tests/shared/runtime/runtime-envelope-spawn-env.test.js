@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { repoRoot } from '../../helpers/root.js';
+import { ensureTestingEnv } from '../../helpers/test-env.js';
 
 const root = repoRoot();
 const wrapperPath = path.join(root, 'bin', 'pairofcleats.js');
@@ -13,7 +14,7 @@ const buildEnv = (overrides) => {
   delete env.UV_THREADPOOL_SIZE;
   delete env.NODE_OPTIONS;
   delete env.PAIROFCLEATS_NODE_OPTIONS;
-  return env;
+  return ensureTestingEnv(env);
 };
 
 const runDump = (env) => {

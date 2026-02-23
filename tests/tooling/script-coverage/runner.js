@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { toPosix } from '../../../src/shared/files.js';
 import { normalizeEol } from '../../../src/shared/eol.js';
 import { rmDirRecursive } from '../../helpers/temp.js';
+import { ensureTestingEnv } from '../../helpers/test-env.js';
 
 export const resolveRetries = ({ argvRetries, envRetries, defaultRetries = 2 }) => {
   if (Number.isFinite(argvRetries)) return Math.max(0, argvRetries);
@@ -54,7 +55,7 @@ export const createCommandRunner = ({ retries, failureLogRoot }) => {
     };
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       const { env: optionEnv, ...spawnOptions } = options;
-      const env = { ...process.env, ...optionEnv };
+      const env = ensureTestingEnv({ ...process.env, ...optionEnv });
       if (!env.PAIROFCLEATS_TEST_LOG_DIR) {
         env.PAIROFCLEATS_TEST_LOG_DIR = failureLogRoot;
       }

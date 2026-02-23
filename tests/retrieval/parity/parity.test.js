@@ -13,6 +13,7 @@ import { loadUserConfig, resolveSqlitePaths } from '../../../tools/shared/dict-u
 import { ensureParityArtifacts } from '../../../tools/shared/parity-indexes.js';
 import { formatParityDuration } from '../../helpers/duration-format.js';
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
+import { ensureTestingEnv, syncProcessEnv } from '../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -42,7 +43,7 @@ const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '.
 const userConfig = loadUserConfig(root);
 const isTestRun = process.env.PAIROFCLEATS_TESTING === '1';
 if (isTestRun && !process.env.PAIROFCLEATS_CACHE_ROOT) {
-  process.env.PAIROFCLEATS_CACHE_ROOT = resolveTestCachePath(root, 'retrieval-parity');
+  syncProcessEnv({ PAIROFCLEATS_CACHE_ROOT: resolveTestCachePath(root, 'retrieval-parity') });
 }
 const resolveSqlitePathsForRoot = () => resolveSqlitePaths(root, userConfig);
 
@@ -62,7 +63,7 @@ const parityArtifacts = await ensureParityArtifacts({
   buildIndexOnSqliteMissing: true,
   buildSqliteAfterIndexBuild: true,
   buildIndex: () => {
-    const env = { ...process.env };
+    const env = ensureTestingEnv({ ...process.env });
     if (!env.PAIROFCLEATS_EMBEDDINGS) {
       env.PAIROFCLEATS_EMBEDDINGS = 'stub';
     }

@@ -5,6 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getMetricsDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 
+import { applyTestEnv } from '../../helpers/test-env.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
@@ -15,7 +16,7 @@ const cacheRoot = path.join(tempRoot, 'cache');
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(repoRoot, { recursive: true });
 
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+const env = applyTestEnv({ cacheRoot });
 const userConfig = loadUserConfig(repoRoot);
 const metricsDir = getMetricsDir(repoRoot, userConfig);
 await fsPromises.mkdir(metricsDir, { recursive: true });
@@ -48,7 +49,6 @@ await fsPromises.writeFile(
 );
 
 const outPath = path.join(tempRoot, 'dashboard.json');
-const env = { ...process.env, PAIROFCLEATS_CACHE_ROOT: cacheRoot };
 const result = spawnSync(
   process.execPath,
   [path.join(root, 'tools', 'reports', 'metrics-dashboard.js'), '--json', '--out', outPath],
