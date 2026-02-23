@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 import { promoteBuild } from '../../../../src/index/build/promotion.js';
+import { toRealPathSync } from '../../../../src/workspace/identity.js';
 import { getBuildsRoot, getCurrentBuildInfo, getRepoCacheRoot } from '../../../../tools/shared/dict-utils.js';
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-promotion-'));
@@ -17,8 +18,7 @@ const swapCase = (value) => String(value).replace(/[A-Za-z]/g, (ch) => (
   ch === ch.toLowerCase() ? ch.toUpperCase() : ch.toLowerCase()
 ));
 const normalizePath = (value) => {
-  const resolved = path.resolve(value);
-  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+  return toRealPathSync(path.resolve(value));
 };
 
 const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
