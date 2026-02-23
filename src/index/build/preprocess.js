@@ -18,6 +18,19 @@ import {
 
 const DOCUMENT_EXTS = new Set(['.pdf', '.docx']);
 const isDocumentExt = (ext) => DOCUMENT_EXTS.has(String(ext || '').toLowerCase());
+const EXTRACTED_PROSE_PREFILTER_SAMPLE_BYTES = 4096;
+const EXTRACTED_PROSE_ALWAYS_INCLUDE_EXTS = new Set(['.md', '.mdx']);
+const EXTRACTED_PROSE_SAMPLE_MARKER = /(^|\n)\s*(---|\+\+\+)\s*$|<!--|\/\*|\/\/|(^|\n)\s*#|```/m;
+
+const isLikelyExtractedProseProseCandidate = ({ ext, sampleText }) => {
+  const normalizedExt = String(ext || '').toLowerCase();
+  if (EXTRACTED_PROSE_ALWAYS_INCLUDE_EXTS.has(normalizedExt)) return true;
+  if (typeof sampleText !== 'string' || !sampleText.trim()) {
+    // Be conservative when samples are unavailable.
+    return true;
+  }
+  return EXTRACTED_PROSE_SAMPLE_MARKER.test(sampleText);
+};
 
 const hasMaxLinesCaps = (fileCaps) => {
   const defaultMax = fileCaps?.default?.maxLines;
@@ -53,7 +66,7 @@ const isSupportedEntry = (entry, mode, { documentExtractionEnabled = false } = {
   if (mode === 'code') return codeAllowed;
   if (mode === 'extracted-prose') {
     return codeAllowed
-      || proseAllowed
+      || (proseAllowed && entry.extractedProseCandidate !== false)
       || (documentExtractionEnabled && isDocumentExt(entry.ext));
   }
   if (mode === 'prose') return proseAllowed;
@@ -144,9 +157,9 @@ export async function preprocessFiles({
         && isDocumentExt(entry.ext)
         && scanResult?.skip?.reason === 'binary'
       );
+      let sampleText = null;
+      let sampleBuffer = scanResult?.sampleBuffer || null;
       if (recordsClassifier && !entry.record) {
-        let sampleText = null;
-        let sampleBuffer = scanResult?.sampleBuffer || null;
         if (!sampleBuffer && recordSniffBytes > 0 && shouldSniffRecordContent(entry.ext)) {
           try {
             sampleBuffer = await readFileSample(entry.abs, recordSniffBytes);
@@ -168,6 +181,13 @@ export async function preprocessFiles({
           sampleText
         });
         if (record) entry.record = record;
+      }
+      if (sampleText == null && sampleBuffer) {
+        try {
+          sampleText = sampleBuffer.toString('utf8');
+        } catch {
+          sampleText = null;
+        }
       }
       // Records entries are already routed by discover/records classification;
       // do not re-downgrade them via generated/minified/vendor policy.
@@ -205,6 +225,32 @@ export async function preprocessFiles({
         checkedMinified: scanResult?.checkedMinified === true || bypassBinarySkip,
         bypassBinarySkip
       };
+      const proseAllowed = isProseEntryForPath({ ext: entry.ext, relPath: entry.rel });
+      const codeAllowed = isCodeEntryForPath({
+        ext: entry.ext,
+        relPath: entry.rel,
+        isSpecial: entry.isSpecial
+      });
+      if (proseAllowed && !codeAllowed) {
+        if (!sampleBuffer) {
+          try {
+            sampleBuffer = await readFileSample(entry.abs, EXTRACTED_PROSE_PREFILTER_SAMPLE_BYTES);
+          } catch {
+            sampleBuffer = null;
+          }
+        }
+        if (sampleText == null && sampleBuffer) {
+          try {
+            sampleText = sampleBuffer.toString('utf8');
+          } catch {
+            sampleText = null;
+          }
+        }
+        entry.extractedProseCandidate = isLikelyExtractedProseProseCandidate({
+          ext: entry.ext,
+          sampleText
+        });
+      }
     },
     { collectResults: false, signal: abortSignal }
   );

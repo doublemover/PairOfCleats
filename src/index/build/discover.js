@@ -447,7 +447,7 @@ function filterEntriesByMode(entries, mode, skippedFiles, documentExtractionConf
     const isCode = mode === 'code' || mode === 'extracted-prose';
     const allowed = (isProse && proseAllowed)
       || (isCode && codeAllowed)
-      || (mode === 'extracted-prose' && proseAllowed)
+      || (mode === 'extracted-prose' && proseAllowed && entry.extractedProseCandidate !== false)
       || (allowDocumentExt && DOCUMENT_EXTS.has(entry.ext));
     if (!allowed) {
       if (skippedFiles) skippedFiles.push({ file: entry.abs, reason: 'unsupported' });
