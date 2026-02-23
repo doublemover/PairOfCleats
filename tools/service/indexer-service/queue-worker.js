@@ -107,10 +107,25 @@ export const createQueueWorker = ({
     };
     try {
       execution = await executeClaimedJob({ job, jobLifecycle, logPath });
+    } catch (err) {
+      const message = err?.message || String(err);
+      console.error(`[indexer] job ${job.id} execution failed before completion: ${message}`);
+      execution = {
+        handled: false,
+        runResult: {
+          ...buildDefaultRunResult(),
+          error: message
+        }
+      };
     } finally {
       await jobLifecycle.close().catch(() => {});
     }
-    if (execution?.handled) return true;
+    if (execution?.handled) {
+      // `handled` jobs are completed out-of-band (currently non-retriable failures),
+      // so they still count toward failure metrics.
+      metrics.failed += 1;
+      return true;
+    }
     await finalizeJobRun({
       job,
       runResult: execution?.runResult || buildDefaultRunResult(),
