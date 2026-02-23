@@ -11,7 +11,7 @@ const { codeDir } = await ensureFixtureIndex({
   fixtureName: 'risk-interprocedural/js-simple',
   cacheName: 'risk-interprocedural-js-simple',
   requireRiskTags: true,
-  cacheScope: 'shared',
+  cacheScope: 'isolated',
   requiredModes: ['code']
 });
 

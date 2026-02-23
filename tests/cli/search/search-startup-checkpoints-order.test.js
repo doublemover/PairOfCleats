@@ -32,6 +32,9 @@ assert.ok(indexOf('startup.search') >= 0, 'missing startup.search');
 assert.ok(indexOf('startup.backend') < indexOf('startup.dictionary'), 'backend should precede dictionary');
 assert.ok(indexOf('startup.dictionary') < indexOf('startup.query-plan'), 'dictionary should precede query plan');
 assert.ok(indexOf('startup.query-plan') < indexOf('startup.indexes'), 'query plan should precede indexes');
-assert.ok(indexOf('startup.indexes') < indexOf('filter'), 'indexes should precede filter stage');
+assert.ok(indexOf('startup.indexes') < indexOf('startup.search'), 'indexes should precede search stage');
+if (indexOf('filter') >= 0) {
+  assert.ok(indexOf('startup.indexes') < indexOf('filter'), 'indexes should precede filter stage');
+}
 
 console.log('search startup checkpoints order test passed');

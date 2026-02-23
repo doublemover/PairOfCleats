@@ -15,7 +15,8 @@ await fsPromises.writeFile(
 
 buildIndex({
   label: 'build index for search contract',
-  mode: 'prose'
+  mode: 'prose',
+  extraArgs: ['--stage', 'stage2']
 });
 
 const payload = runSearchPayload('alpha', {

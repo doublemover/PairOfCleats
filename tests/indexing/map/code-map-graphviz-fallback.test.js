@@ -28,7 +28,7 @@ const env = {
 
 const buildResult = spawnSync(
   process.execPath,
-  [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot],
+  [path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage2', '--mode', 'code', '--repo', repoRoot],
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
 

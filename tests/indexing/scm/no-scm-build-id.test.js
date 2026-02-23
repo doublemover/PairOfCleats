@@ -32,6 +32,8 @@ try {
       [
         path.join(process.cwd(), 'build_index.js'),
         '--stub-embeddings',
+        '--stage',
+        'stage2',
         '--repo',
         repoRoot,
         '--mode',

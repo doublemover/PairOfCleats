@@ -7,7 +7,8 @@ const { repoRoot, indexDir } = await prepareMapBuildFixture({
   files: [
     ['src/alpha.js', 'export function alpha() { return 1; }\n'],
     ['src/beta.js', 'import { alpha } from "./alpha.js";\nexport function beta() { return alpha(); }\n']
-  ]
+  ],
+  buildIndexArgs: ['--stage', 'stage2', '--mode', 'code']
 });
 
 let threw = false;

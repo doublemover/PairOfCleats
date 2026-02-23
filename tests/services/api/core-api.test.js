@@ -24,6 +24,7 @@ process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 
 await buildIndex(fixtureRoot, {
+  stage: 'stage2',
   mode: 'code',
   sqlite: false,
   stubEmbeddings: true,

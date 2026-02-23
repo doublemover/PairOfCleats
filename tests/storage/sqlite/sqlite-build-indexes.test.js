@@ -29,10 +29,13 @@ await fsPromises.mkdir(cacheRoot, { recursive: true });
 await fsPromises.writeFile(path.join(repoRoot, 'alpha.js'), 'const alpha = 1;\n');
 await fsPromises.writeFile(path.join(repoRoot, 'beta.js'), 'const beta = 2;\n');
 
-const env = applyTestEnv({
-  cacheRoot: cacheRoot,
-  embeddings: 'stub'
-});
+const env = {
+  ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
+  PAIROFCLEATS_EMBEDDINGS: 'stub'
+};
+applyTestEnv();
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 
 const runNode = (label, args) => {
   const result = spawnSync(process.execPath, args, { cwd: repoRoot, env, stdio: 'inherit' });
@@ -42,8 +45,8 @@ const runNode = (label, args) => {
   }
 };
 
-runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot]);
-await runSqliteBuild(repoRoot);
+runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage2', '--mode', 'code', '--repo', repoRoot]);
+await runSqliteBuild(repoRoot, { mode: 'code' });
 
 const previousCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;

@@ -11,9 +11,9 @@ applyTestEnv();
 
 const { root, codeDir, env } = await ensureFixtureIndex({
   fixtureName: 'risk-interprocedural/js-simple',
-  cacheName: 'risk-interprocedural-js-simple',
+  cacheName: 'risk-interprocedural-js-simple-risk-explain',
   requireRiskTags: true,
-  cacheScope: 'shared',
+  cacheScope: 'isolated',
   requiredModes: ['code']
 });
 

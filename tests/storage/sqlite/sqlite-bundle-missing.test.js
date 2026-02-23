@@ -46,6 +46,8 @@ run([
   path.join(root, 'build_index.js'),
   '--incremental',
   '--stub-embeddings',
+  '--stage',
+  'stage2',
   '--scm-provider',
   'none',
   '--mode',

@@ -39,7 +39,7 @@ if (missingResult.status === 0) {
 
 const buildResult = spawnSync(
   process.execPath,
-  [buildPath, '--stub-embeddings', '--repo', fixtureRoot],
+  [buildPath, '--stub-embeddings', '--stage', 'stage2', '--mode', 'code', '--repo', fixtureRoot],
   { env, encoding: 'utf8' }
 );
 if (buildResult.status !== 0) {

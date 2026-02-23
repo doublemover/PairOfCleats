@@ -8,7 +8,8 @@ const { repoRoot, indexDir } = await prepareMapBuildFixture({
   files: [
     ['src/one.js', 'export function one() { return 1; }\n'],
     ['src/two.js', 'import { one } from "./one.js";\nexport function two() { return one(); }\n']
-  ]
+  ],
+  buildIndexArgs: ['--stage', 'stage2', '--mode', 'code']
 });
 
 const strip = (payload) => {

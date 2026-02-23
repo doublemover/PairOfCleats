@@ -51,7 +51,7 @@ const buildOnce = async (fixtureRoot, { label }) => {
 
   const result = spawnSync(
     process.execPath,
-    [BUILD_INDEX, '--stub-embeddings', '--repo', fixtureRoot, '--mode', 'code'],
+    [BUILD_INDEX, '--stub-embeddings', '--stage', 'stage2', '--repo', fixtureRoot, '--mode', 'code'],
     { cwd: fixtureRoot, env, encoding: 'utf8' }
   );
 
