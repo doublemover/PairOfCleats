@@ -29,6 +29,11 @@ try {
     Array.from(lowerCased).sort(),
     ['alpha', 'beta', 'delta', 'gamma'].sort()
   );
+  const singlePathWords = await loadDictionaryWordSetFromFiles(baseA, { lowerCase: true });
+  assert.deepEqual(
+    Array.from(singlePathWords).sort(),
+    ['alpha', 'beta', 'gamma']
+  );
 
   const textOnly = addDictionaryWordsFromText('  One \nTwo\r\n\nTHREE ', new Set(), { lowerCase: true });
   assert.deepEqual(Array.from(textOnly).sort(), ['one', 'three', 'two']);
@@ -43,6 +48,12 @@ try {
   assert.equal(signatureRows.length, 2);
   assert(signatureRows.some((row) => /^dict:dict-a\.txt:\d+:\d+(\.\d+)?$/.test(row)));
   assert(signatureRows.some((row) => row === 'dict:missing.txt:missing'));
+  const singleSignatureRows = await collectDictionaryFileSignatures(baseA, {
+    toSignaturePath: (filePath) => path.basename(filePath),
+    prefix: 'dict:'
+  });
+  assert.equal(singleSignatureRows.length, 1);
+  assert(/^dict:dict-a\.txt:\d+:\d+(\.\d+)?$/.test(singleSignatureRows[0]));
 
   const common = path.join(tmpRoot, 'code-common.txt');
   const jsWords = path.join(tmpRoot, 'code-js.txt');
