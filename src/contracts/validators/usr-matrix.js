@@ -54,6 +54,10 @@ import {
   buildUsrSecurityGateValidationReport as buildUsrSecurityGateValidationReportCore,
   validateUsrSecurityGateControls as validateUsrSecurityGateControlsCore
 } from './usr-matrix/security-gates.js';
+import {
+  buildUsrEmbeddingBridgeCoverageReport as buildUsrEmbeddingBridgeCoverageReportCore,
+  validateUsrEmbeddingBridgeCoverage as validateUsrEmbeddingBridgeCoverageCore
+} from './usr-matrix/embedding-bridge.js';
 
 const ajv = createAjv({
   dialect: '2020',
@@ -324,102 +328,11 @@ export function validateUsrEmbeddingBridgeCoverage({
   bridgeCasesPayload,
   bridgeBundlePayload
 } = {}) {
-  const bridgeValidation = validateUsrMatrixRegistry('usr-embedding-bridge-cases', bridgeCasesPayload);
-  if (!bridgeValidation.ok) {
-    return {
-      ok: false,
-      errors: Object.freeze([...bridgeValidation.errors]),
-      warnings: Object.freeze([]),
-      rows: Object.freeze([])
-    };
-  }
-
-  const errors = [];
-  const warnings = [];
-  const rows = [];
-
-  const caseRows = Array.isArray(bridgeCasesPayload?.rows) ? bridgeCasesPayload.rows : [];
-  const bundleRows = Array.isArray(bridgeBundlePayload?.rows) ? bridgeBundlePayload.rows : [];
-  const bundleByCaseId = new Map();
-
-  for (const row of bundleRows) {
-    const caseId = typeof row?.bridgeCaseId === 'string' ? row.bridgeCaseId : null;
-    if (!caseId) {
-      errors.push('bridge bundle row is missing bridgeCaseId');
-      continue;
-    }
-    if (bundleByCaseId.has(caseId)) {
-      errors.push(`duplicate bridgeCaseId in bundle: ${caseId}`);
-      continue;
-    }
-    bundleByCaseId.set(caseId, row);
-  }
-
-  const expectedCaseIds = new Set(caseRows.map((row) => row.id));
-  for (const caseRow of caseRows) {
-    const rowErrors = [];
-    const rowWarnings = [];
-
-    const bundleRow = bundleByCaseId.get(caseRow.id);
-    if (!bundleRow) {
-      rowErrors.push('missing bridge case in fixture bundle');
-    } else {
-      const edgeKinds = new Set(
-        (Array.isArray(bundleRow.edges) ? bundleRow.edges : [])
-          .map((edge) => edge?.kind)
-          .filter((kind) => typeof kind === 'string')
-      );
-      const diagnosticCodes = new Set(
-        (Array.isArray(bundleRow.diagnostics) ? bundleRow.diagnostics : [])
-          .map((diagnostic) => diagnostic?.code)
-          .filter((code) => typeof code === 'string')
-      );
-
-      for (const requiredEdgeKind of asStringArray(caseRow.requiredEdgeKinds)) {
-        if (!edgeKinds.has(requiredEdgeKind)) {
-          rowErrors.push(`missing required edge kind: ${requiredEdgeKind}`);
-        }
-      }
-
-      for (const requiredDiagnostic of asStringArray(caseRow.requiredDiagnostics)) {
-        if (!diagnosticCodes.has(requiredDiagnostic)) {
-          rowErrors.push(`missing required diagnostic: ${requiredDiagnostic}`);
-        }
-      }
-
-      if (edgeKinds.size === 0) {
-        rowWarnings.push('bridge case bundle row has no edges');
-      }
-    }
-
-    if (rowErrors.length > 0) {
-      errors.push(...rowErrors.map((message) => `${caseRow.id} ${message}`));
-    }
-    if (rowWarnings.length > 0) {
-      warnings.push(...rowWarnings.map((message) => `${caseRow.id} ${message}`));
-    }
-
-    rows.push({
-      rowType: 'embedding-bridge-coverage',
-      bridgeCaseId: caseRow.id,
-      pass: rowErrors.length === 0,
-      errors: Object.freeze([...rowErrors]),
-      warnings: Object.freeze([...rowWarnings])
-    });
-  }
-
-  for (const bridgeCaseId of bundleByCaseId.keys()) {
-    if (!expectedCaseIds.has(bridgeCaseId)) {
-      errors.push(`fixture bundle includes unknown bridgeCaseId: ${bridgeCaseId}`);
-    }
-  }
-
-  return {
-    ok: errors.length === 0,
-    errors: Object.freeze([...errors]),
-    warnings: Object.freeze([...warnings]),
-    rows: Object.freeze(rows)
-  };
+  return validateUsrEmbeddingBridgeCoverageCore({
+    bridgeCasesPayload,
+    bridgeBundlePayload,
+    validateRegistry: validateUsrMatrixRegistry
+  });
 }
 
 export function buildUsrEmbeddingBridgeCoverageReport({
@@ -433,58 +346,19 @@ export function buildUsrEmbeddingBridgeCoverageReport({
   buildId = null,
   scope = { scopeType: 'lane', scopeId: 'ci' }
 } = {}) {
-  const evaluation = validateUsrEmbeddingBridgeCoverage({
+  return buildUsrEmbeddingBridgeCoverageReportCore({
     bridgeCasesPayload,
-    bridgeBundlePayload
-  });
-
-  const status = evaluation.errors.length > 0
-    ? 'fail'
-    : (evaluation.warnings.length > 0 ? 'warn' : 'pass');
-
-  const rows = evaluation.rows.map((row) => ({
-    ...row,
-    errors: row.errors,
-    warnings: row.warnings
-  }));
-
-  const payload = {
-    schemaVersion: 'usr-1.0.0',
-    artifactId: 'usr-validation-report',
+    bridgeBundlePayload,
     generatedAt,
     producerId,
     producerVersion,
     runId,
     lane,
     buildId,
-    status,
-    scope: normalizeReportScope(scope, 'lane', lane),
-    summary: {
-      dashboard: 'embedding-bridge-coverage',
-      rowCount: rows.length,
-      passCount: rows.filter((row) => row.pass).length,
-      failCount: rows.filter((row) => !row.pass).length,
-      warningCount: evaluation.warnings.length,
-      errorCount: evaluation.errors.length
-    },
-    blockingFindings: evaluation.errors.map((message) => ({
-      class: 'embedding-bridge',
-      message
-    })),
-    advisoryFindings: evaluation.warnings.map((message) => ({
-      class: 'embedding-bridge',
-      message
-    })),
-    rows
-  };
-
-  return {
-    ok: evaluation.ok,
-    errors: evaluation.errors,
-    warnings: evaluation.warnings,
-    rows,
-    payload
-  };
+    scope,
+    validateRegistry: validateUsrMatrixRegistry,
+    normalizeScope: normalizeReportScope
+  });
 }
 
 export function validateUsrGeneratedProvenanceCoverage({
