@@ -1010,6 +1010,446 @@ const assignFileIndexes = (entries) => {
   }
 };
 
+const resolveOrderedEntryProgressPlan = (entries) => {
+  const safeEntries = Array.isArray(entries) ? entries : [];
+  let minIndex = null;
+  const expected = new Set();
+  for (let i = 0; i < safeEntries.length; i += 1) {
+    const entry = safeEntries[i];
+    if (!entry || typeof entry !== 'object') continue;
+    const startValue = resolveEntryOrderIndex(entry, null);
+    if (Number.isFinite(startValue)) {
+      minIndex = minIndex == null ? startValue : Math.min(minIndex, startValue);
+    }
+    const expectedValue = resolveEntryOrderIndex(entry, i);
+    if (Number.isFinite(expectedValue)) expected.add(Math.floor(expectedValue));
+  }
+  return {
+    startOrderIndex: Number.isFinite(minIndex) ? Math.max(0, Math.floor(minIndex)) : 0,
+    expectedOrderIndices: Array.from(expected).sort((a, b) => a - b)
+  };
+};
+
+const createStage1ProgressTracker = ({
+  total = 0,
+  mode = 'unknown',
+  checkpoint = null,
+  onTick = null
+} = {}) => {
+  const completedOrderIndexes = new Set();
+  const safeTotal = Number.isFinite(Number(total))
+    ? Math.max(0, Math.floor(Number(total)))
+    : 0;
+  const progress = {
+    total: safeTotal,
+    count: 0,
+    tick() {
+      this.count += 1;
+      if (typeof onTick === 'function') onTick(this.count);
+      showProgress('Files', this.count, this.total, { stage: 'processing', mode });
+      checkpoint?.tick?.();
+    }
+  };
+  const markOrderedEntryComplete = (orderIndex, shardProgress = null) => {
+    if (!progress || typeof progress.tick !== 'function') return false;
+    if (Number.isFinite(orderIndex)) {
+      const normalizedOrderIndex = Math.floor(orderIndex);
+      if (completedOrderIndexes.has(normalizedOrderIndex)) return false;
+      completedOrderIndexes.add(normalizedOrderIndex);
+    }
+    progress.tick();
+    if (shardProgress) {
+      shardProgress.count += 1;
+      showProgress('Shard', shardProgress.count, shardProgress.total, shardProgress.meta);
+    }
+    return true;
+  };
+  return {
+    progress,
+    markOrderedEntryComplete
+  };
+};
+
+const toStage1StallFileSummary = (entry, nowMs = Date.now()) => {
+  if (!entry || typeof entry !== 'object') return null;
+  const startedAt = Number(entry.startedAt) || nowMs;
+  return {
+    orderIndex: Number.isFinite(entry.orderIndex) ? entry.orderIndex : null,
+    file: entry.file || null,
+    shardId: entry.shardId || null,
+    fileIndex: Number.isFinite(entry.fileIndex) ? entry.fileIndex : null,
+    ownershipId: typeof entry.ownershipId === 'string' ? entry.ownershipId : null,
+    elapsedMs: Math.max(0, nowMs - startedAt)
+  };
+};
+
+const collectStage1StalledFiles = (inFlightFiles, { limit = 6, nowMs = Date.now() } = {}) => (
+  Array.from(inFlightFiles?.values?.() || [])
+    .map((value) => toStage1StallFileSummary(value, nowMs))
+    .filter(Boolean)
+    .sort((a, b) => (b.elapsedMs || 0) - (a.elapsedMs || 0))
+    .slice(0, limit)
+);
+
+const summarizeStage1QueueDelay = (queueDelaySummary) => ({
+  count: Math.max(0, Math.floor(Number(queueDelaySummary?.count) || 0)),
+  avgMs: Number(queueDelaySummary?.count) > 0
+    ? clampDurationMs(queueDelaySummary?.totalMs) / Number(queueDelaySummary.count)
+    : 0,
+  maxMs: clampDurationMs(queueDelaySummary?.maxMs)
+});
+
+const formatStage1StalledFileText = (stalledFiles = []) => (
+  stalledFiles
+    .map((entry) => `${entry.file || 'unknown'}#${entry.orderIndex ?? '?'}@${Math.round((entry.elapsedMs || 0) / 1000)}s`)
+    .join(', ')
+);
+
+const STALL_DIAGNOSTIC_QUEUE_NAMES = Object.freeze(['stage1.cpu', 'stage1.io', 'stage1.postings']);
+
+const buildStage1SchedulerStallSnapshot = (runtime) => {
+  if (typeof runtime?.scheduler?.stats !== 'function') return null;
+  const stats = runtime.scheduler.stats();
+  if (!stats || typeof stats !== 'object') return null;
+  const queues = stats?.queues && typeof stats.queues === 'object' ? stats.queues : {};
+  const summarizeQueue = (queueName) => {
+    const queue = queues?.[queueName];
+    if (!queue || typeof queue !== 'object') return null;
+    return {
+      name: queueName,
+      surface: queue.surface || null,
+      pending: Number(queue.pending) || 0,
+      running: Number(queue.running) || 0,
+      pendingBytes: Number(queue.pendingBytes) || 0,
+      inFlightBytes: Number(queue.inFlightBytes) || 0,
+      oldestWaitMs: Number(queue.oldestWaitMs) || 0
+    };
+  };
+  const highlightedQueues = STALL_DIAGNOSTIC_QUEUE_NAMES
+    .map((queueName) => summarizeQueue(queueName))
+    .filter(Boolean);
+  const topPendingQueues = Object.entries(queues)
+    .map(([name, queue]) => ({
+      name,
+      surface: queue?.surface || null,
+      pending: Number(queue?.pending) || 0,
+      running: Number(queue?.running) || 0,
+      oldestWaitMs: Number(queue?.oldestWaitMs) || 0
+    }))
+    .filter((entry) => entry.pending > 0 || entry.running > 0)
+    .sort((left, right) => {
+      if (right.pending !== left.pending) return right.pending - left.pending;
+      if (right.running !== left.running) return right.running - left.running;
+      return right.oldestWaitMs - left.oldestWaitMs;
+    })
+    .slice(0, 8);
+  const parseSurface = stats?.adaptive?.surfaces?.parse && typeof stats.adaptive.surfaces.parse === 'object'
+    ? {
+      minConcurrency: Number(stats.adaptive.surfaces.parse.minConcurrency) || 0,
+      maxConcurrency: Number(stats.adaptive.surfaces.parse.maxConcurrency) || 0,
+      currentConcurrency: Number(stats.adaptive.surfaces.parse.currentConcurrency) || 0,
+      running: Number(stats.adaptive.surfaces.parse.snapshot?.running) || 0,
+      pending: Number(stats.adaptive.surfaces.parse.snapshot?.pending) || 0
+    }
+    : null;
+  return {
+    activity: {
+      pending: Number(stats?.activity?.pending) || 0,
+      running: Number(stats?.activity?.running) || 0
+    },
+    utilization: {
+      cpu: Number(stats?.utilization?.cpu) || 0,
+      io: Number(stats?.utilization?.io) || 0,
+      mem: Number(stats?.utilization?.mem) || 0
+    },
+    parseSurface,
+    highlightedQueues,
+    topPendingQueues
+  };
+};
+
+const formatStage1SchedulerStallSummary = (snapshot) => {
+  if (!snapshot || typeof snapshot !== 'object') return null;
+  const parse = snapshot.parseSurface && typeof snapshot.parseSurface === 'object'
+    ? snapshot.parseSurface
+    : null;
+  const queueByName = new Map(
+    (Array.isArray(snapshot.highlightedQueues) ? snapshot.highlightedQueues : [])
+      .map((entry) => [entry.name, entry])
+  );
+  const formatQueue = (name) => {
+    const queue = queueByName.get(name);
+    if (!queue) return `${name}=n/a`;
+    return `${name}=r${queue.running}/p${queue.pending}/wait${Math.round((queue.oldestWaitMs || 0) / 1000)}s`;
+  };
+  return [
+    parse
+      ? `parse=r${parse.running}/p${parse.pending}/cap${parse.currentConcurrency}`
+      : 'parse=n/a',
+    formatQueue('stage1.cpu'),
+    formatQueue('stage1.io'),
+    formatQueue('stage1.postings')
+  ].join(' ');
+};
+
+const buildStage1ProcessingStallSnapshot = ({
+  reason = 'stall_snapshot',
+  idleMs = null,
+  includeStack = false,
+  nowMs = Date.now(),
+  lastProgressAt = 0,
+  progress = null,
+  processStart = 0,
+  inFlightFiles,
+  getOrderedPendingCount = () => 0,
+  orderedAppender = null,
+  postingsQueue = null,
+  queueDelaySummary = null,
+  stage1OwnershipPrefix = '',
+  runtime = null
+} = {}) => {
+  const resolvedIdleMs = Number.isFinite(Number(idleMs))
+    ? clampDurationMs(idleMs)
+    : Math.max(0, nowMs - (Number(lastProgressAt) || nowMs));
+  const orderedPending = getOrderedPendingCount();
+  const orderedSnapshot = typeof orderedAppender?.snapshot === 'function'
+    ? orderedAppender.snapshot()
+    : null;
+  const postingsSnapshot = typeof postingsQueue?.stats === 'function'
+    ? postingsQueue.stats()
+    : null;
+  const stalledFiles = collectStage1StalledFiles(inFlightFiles, { limit: 6, nowMs });
+  const trackedSubprocesses = snapshotTrackedSubprocesses({
+    ownershipPrefix: stage1OwnershipPrefix,
+    limit: 8
+  });
+  const schedulerSnapshot = buildStage1SchedulerStallSnapshot(runtime);
+  return {
+    reason,
+    generatedAt: new Date(nowMs).toISOString(),
+    source: 'stage1-watchdog',
+    idleMs: resolvedIdleMs,
+    progressDone: progress?.count || 0,
+    progressTotal: progress?.total || 0,
+    progressElapsedMs: Math.max(0, nowMs - processStart),
+    lastProgressAt: toIsoTimestamp(lastProgressAt),
+    inFlight: inFlightFiles?.size || 0,
+    orderedPending,
+    orderedSnapshot,
+    postingsSnapshot,
+    queueDelayMs: summarizeStage1QueueDelay(queueDelaySummary),
+    stalledFiles,
+    trackedSubprocesses,
+    scheduler: schedulerSnapshot,
+    process: captureProcessSnapshot({
+      includeStack,
+      frameLimit: includeStack ? 16 : 8,
+      handleTypeLimit: 8
+    })
+  };
+};
+
+const summarizeStage1SoftKickCleanup = (cleanupResults = []) => {
+  const summaries = (Array.isArray(cleanupResults) ? cleanupResults : [])
+    .filter((entry) => entry && typeof entry === 'object');
+  const attempted = summaries.reduce((sum, entry) => sum + (Number(entry.attempted) || 0), 0);
+  const failures = summaries.reduce((sum, entry) => sum + (Number(entry.failures) || 0), 0);
+  const terminatedPids = Array.from(new Set(
+    summaries.flatMap((entry) => (
+      Array.isArray(entry.terminatedPids)
+        ? entry.terminatedPids.filter((pid) => Number.isFinite(pid))
+        : []
+    ))
+  )).sort((a, b) => a - b);
+  const ownershipIds = Array.from(new Set(
+    summaries.flatMap((entry) => (
+      Array.isArray(entry.terminatedOwnershipIds)
+        ? entry.terminatedOwnershipIds.filter((value) => typeof value === 'string' && value)
+        : []
+    ))
+  )).sort((left, right) => left.localeCompare(right));
+  return {
+    attempted,
+    failures,
+    terminatedPids,
+    ownershipIds,
+    cleanupResults: summaries
+  };
+};
+
+const buildStage1ShardWorkPlan = ({
+  shardExecutionPlan,
+  shardIndexById,
+  totals
+}) => {
+  const work = [];
+  const totalShards = shardExecutionPlan.length;
+  const totalFiles = totals.totalFiles;
+  const totalLines = totals.totalLines;
+  const totalBytes = totals.totalBytes;
+  const totalCost = totals.totalCost;
+  for (const shard of shardExecutionPlan) {
+    const fileCount = shard.entries.length;
+    const costPerFile = shard.costMs && fileCount ? shard.costMs / fileCount : 0;
+    const fileShare = totalFiles > 0 ? fileCount / totalFiles : 0;
+    const lineCount = shard.lineCount || 0;
+    const lineShare = totalLines > 0 ? lineCount / totalLines : 0;
+    const byteCount = shard.byteCount || 0;
+    const byteShare = totalBytes > 0 ? byteCount / totalBytes : 0;
+    const costMs = shard.costMs || 0;
+    const costShare = totalCost > 0 ? costMs / totalCost : 0;
+    const share = Math.max(fileShare, lineShare, byteShare, costShare);
+    let parts = 1;
+    if (share > 0.05) parts = share > 0.1 ? 4 : 2;
+    parts = Math.min(parts, Math.max(1, fileCount));
+    if (parts <= 1) {
+      work.push({
+        shard,
+        entries: shard.entries,
+        partIndex: 1,
+        partTotal: 1,
+        predictedCostMs: costPerFile ? costPerFile * fileCount : costMs,
+        shardIndex: shardIndexById.get(shard.id) || 1,
+        shardTotal: totalShards
+      });
+      continue;
+    }
+    const perPart = Math.ceil(fileCount / parts);
+    for (let i = 0; i < parts; i += 1) {
+      const start = i * perPart;
+      const end = Math.min(start + perPart, fileCount);
+      if (start >= end) continue;
+      const partCount = end - start;
+      work.push({
+        shard,
+        entries: shard.entries.slice(start, end),
+        partIndex: i + 1,
+        partTotal: parts,
+        predictedCostMs: costPerFile ? costPerFile * partCount : costMs / parts,
+        shardIndex: shardIndexById.get(shard.id) || 1,
+        shardTotal: totalShards
+      });
+    }
+  }
+  return work;
+};
+
+const resolveStage1ShardExecutionQueuePlan = ({
+  shardPlan,
+  runtime,
+  clusterModeEnabled = false,
+  clusterDeterministicMerge = true
+}) => {
+  const shardExecutionPlan = [...shardPlan].sort((a, b) => {
+    if (clusterModeEnabled && clusterDeterministicMerge) {
+      return compareStrings(a.id, b.id);
+    }
+    const costDelta = (b.costMs || 0) - (a.costMs || 0);
+    if (costDelta !== 0) return costDelta;
+    const lineDelta = (b.lineCount || 0) - (a.lineCount || 0);
+    if (lineDelta !== 0) return lineDelta;
+    const sizeDelta = b.entries.length - a.entries.length;
+    if (sizeDelta !== 0) return sizeDelta;
+    return compareStrings(a.label || a.id, b.label || b.id);
+  });
+  const shardIndexById = new Map(
+    shardExecutionPlan.map((shard, index) => [shard.id, index + 1])
+  );
+  const shardExecutionOrderById = new Map(
+    shardExecutionPlan.map((shard, index) => [shard.id, index + 1])
+  );
+  const totals = {
+    totalFiles: shardPlan.reduce((sum, shard) => sum + shard.entries.length, 0),
+    totalLines: shardPlan.reduce((sum, shard) => sum + (shard.lineCount || 0), 0),
+    totalBytes: shardPlan.reduce((sum, shard) => sum + (shard.byteCount || 0), 0),
+    totalCost: shardPlan.reduce((sum, shard) => sum + (shard.costMs || 0), 0)
+  };
+  const shardWorkPlan = buildStage1ShardWorkPlan({
+    shardExecutionPlan,
+    shardIndexById,
+    totals
+  }).map((workItem) => ({
+    ...workItem,
+    subsetId: resolveShardSubsetId(workItem),
+    firstOrderIndex: resolveShardWorkItemMinOrderIndex(workItem)
+  }));
+  const shardMergePlan = buildDeterministicShardMergePlan(shardWorkPlan);
+  const mergeOrderBySubsetId = new Map(
+    shardMergePlan.map((entry) => [entry.subsetId, entry.mergeIndex])
+  );
+  const mergeOrderByShardId = new Map();
+  for (const entry of shardMergePlan) {
+    const shardId = entry?.shardId;
+    if (!shardId || mergeOrderByShardId.has(shardId)) continue;
+    mergeOrderByShardId.set(shardId, entry.mergeIndex);
+  }
+  for (const workItem of shardWorkPlan) {
+    workItem.mergeIndex = mergeOrderBySubsetId.get(workItem.subsetId) || null;
+  }
+  const defaultShardConcurrency = Math.max(
+    1,
+    Math.min(32, runtime.fileConcurrency, runtime.cpuConcurrency)
+  );
+  let shardConcurrency = Number.isFinite(runtime.shards?.cluster?.workerCount)
+    ? Math.max(1, Math.floor(runtime.shards.cluster.workerCount))
+    : (Number.isFinite(runtime.shards.maxWorkers)
+      ? Math.max(1, Math.floor(runtime.shards.maxWorkers))
+      : defaultShardConcurrency);
+  shardConcurrency = Math.min(shardConcurrency, runtime.fileConcurrency);
+  let shardBatches = planShardBatches(shardWorkPlan, shardConcurrency, {
+    resolveWeight: (workItem) => Number.isFinite(workItem.predictedCostMs)
+      ? workItem.predictedCostMs
+      : (workItem.shard.costMs || workItem.shard.lineCount || workItem.entries.length || 0),
+    resolveTieBreaker: (workItem) => {
+      const shardId = workItem.shard?.id || workItem.shard?.label || '';
+      const part = Number.isFinite(workItem.partIndex) ? workItem.partIndex : 0;
+      return `${shardId}:${part}`;
+    }
+  });
+  if (shardBatches.length) {
+    shardBatches = shardBatches.map((batch) => [...batch].sort((a, b) => {
+      const aOrder = Number.isFinite(a?.firstOrderIndex) ? a.firstOrderIndex : Number.MAX_SAFE_INTEGER;
+      const bOrder = Number.isFinite(b?.firstOrderIndex) ? b.firstOrderIndex : Number.MAX_SAFE_INTEGER;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      const aMerge = Number.isFinite(a?.mergeIndex) ? a.mergeIndex : Number.MAX_SAFE_INTEGER;
+      const bMerge = Number.isFinite(b?.mergeIndex) ? b.mergeIndex : Number.MAX_SAFE_INTEGER;
+      if (aMerge !== bMerge) return aMerge - bMerge;
+      const aShard = a?.shard?.id || a?.shard?.label || '';
+      const bShard = b?.shard?.id || b?.shard?.label || '';
+      return compareStrings(aShard, bShard);
+    }));
+  }
+  if (!shardBatches.length && shardWorkPlan.length) {
+    shardBatches = [shardWorkPlan.slice()];
+  }
+  shardConcurrency = Math.max(1, shardBatches.length);
+  const perShardFileConcurrency = Math.max(
+    1,
+    Math.min(4, Math.floor(runtime.fileConcurrency / shardConcurrency))
+  );
+  const perShardImportConcurrency = Math.max(1, Math.floor(runtime.importConcurrency / shardConcurrency));
+  const baseEmbedConcurrency = Number.isFinite(runtime.embeddingConcurrency)
+    ? runtime.embeddingConcurrency
+    : runtime.cpuConcurrency;
+  const perShardEmbeddingConcurrency = Math.max(
+    1,
+    Math.min(perShardFileConcurrency, Math.floor(baseEmbedConcurrency / shardConcurrency))
+  );
+  return {
+    shardExecutionPlan,
+    shardExecutionOrderById,
+    totals,
+    shardWorkPlan,
+    shardMergePlan,
+    mergeOrderByShardId,
+    shardBatches,
+    shardConcurrency,
+    perShardFileConcurrency,
+    perShardImportConcurrency,
+    perShardEmbeddingConcurrency
+  };
+};
+
 /**
  * Main stage1 file-processing orchestration.
  * Handles scheduler prep, concurrent file processing, ordered output append,
@@ -1533,41 +1973,11 @@ export const processFiles = async ({
       : (fn) => fn();
     let checkpoint = null;
     let progress = null;
-    const completedOrderIndexes = new Set();
-    const markOrderedEntryComplete = (orderIndex, shardProgress = null) => {
-      if (!progress || typeof progress.tick !== 'function') return false;
-      if (Number.isFinite(orderIndex)) {
-        const normalizedOrderIndex = Math.floor(orderIndex);
-        if (completedOrderIndexes.has(normalizedOrderIndex)) return false;
-        completedOrderIndexes.add(normalizedOrderIndex);
-      }
-      progress.tick();
-      if (shardProgress) {
-        shardProgress.count += 1;
-        showProgress('Shard', shardProgress.count, shardProgress.total, shardProgress.meta);
-      }
-      return true;
-    };
-    const startOrderIndex = (() => {
-      let minIndex = null;
-      for (const entry of entries || []) {
-        if (!entry || typeof entry !== 'object') continue;
-        const value = resolveEntryOrderIndex(entry, null);
-        if (!Number.isFinite(value)) continue;
-        minIndex = minIndex == null ? value : Math.min(minIndex, value);
-      }
-      return Number.isFinite(minIndex) ? Math.max(0, Math.floor(minIndex)) : 0;
-    })();
-    const expectedOrderIndices = (() => {
-      const out = new Set();
-      for (let i = 0; i < (entries?.length || 0); i += 1) {
-        const entry = entries[i];
-        const value = resolveEntryOrderIndex(entry, i);
-        if (!Number.isFinite(value)) continue;
-        out.add(Math.floor(value));
-      }
-      return Array.from(out).sort((a, b) => a - b);
-    })();
+    let markOrderedEntryComplete = () => false;
+    const {
+      startOrderIndex,
+      expectedOrderIndices
+    } = resolveOrderedEntryProgressPlan(entries);
     const resolveResultLifecycleRecord = (result, shardMeta = null) => {
       if (!result || typeof result !== 'object') return null;
       const fromRelKey = result.relKey && lifecycleByRelKey.has(result.relKey)
@@ -1726,13 +2136,6 @@ export const processFiles = async ({
     let lastProgressAt = Date.now();
     let lastStallSnapshotAt = 0;
     let watchdogAdaptiveLogged = false;
-    const collectStalledFiles = (limit = 6) => (
-      Array.from(inFlightFiles.values())
-        .map((value) => toStallFileSummary(value))
-        .filter(Boolean)
-        .sort((a, b) => (b.elapsedMs || 0) - (a.elapsedMs || 0))
-        .slice(0, limit)
-    );
     const getOrderedPendingCount = () => {
       if (!activeOrderedCompletionTracker || typeof activeOrderedCompletionTracker.snapshot !== 'function') {
         return 0;
@@ -1740,187 +2143,31 @@ export const processFiles = async ({
       const snapshot = activeOrderedCompletionTracker.snapshot();
       return Number(snapshot?.pending) || 0;
     };
-    const toStallFileSummary = (entry) => {
-      if (!entry || typeof entry !== 'object') return null;
-      const startedAt = Number(entry.startedAt) || Date.now();
-      return {
-        orderIndex: Number.isFinite(entry.orderIndex) ? entry.orderIndex : null,
-        file: entry.file || null,
-        shardId: entry.shardId || null,
-        fileIndex: Number.isFinite(entry.fileIndex) ? entry.fileIndex : null,
-        ownershipId: typeof entry.ownershipId === 'string' ? entry.ownershipId : null,
-        elapsedMs: Math.max(0, Date.now() - startedAt)
-      };
-    };
-    const summarizeQueueDelay = () => ({
-      count: Math.max(0, Math.floor(queueDelaySummary.count)),
-      avgMs: queueDelaySummary.count > 0
-        ? clampDurationMs(queueDelaySummary.totalMs) / queueDelaySummary.count
-        : 0,
-      maxMs: clampDurationMs(queueDelaySummary.maxMs)
-    });
-    const toStalledFileText = (stalledFiles = []) => (
-      stalledFiles
-        .map((entry) => `${entry.file || 'unknown'}#${entry.orderIndex ?? '?'}@${Math.round((entry.elapsedMs || 0) / 1000)}s`)
-        .join(', ')
+    const collectStalledFiles = (limit = 6) => (
+      collectStage1StalledFiles(inFlightFiles, { limit })
     );
-    const STALL_DIAGNOSTIC_QUEUE_NAMES = ['stage1.cpu', 'stage1.io', 'stage1.postings'];
-    const buildSchedulerStallSnapshot = () => {
-      if (typeof runtime?.scheduler?.stats !== 'function') return null;
-      const stats = runtime.scheduler.stats();
-      if (!stats || typeof stats !== 'object') return null;
-      const queues = stats?.queues && typeof stats.queues === 'object' ? stats.queues : {};
-      const summarizeQueue = (queueName) => {
-        const queue = queues?.[queueName];
-        if (!queue || typeof queue !== 'object') return null;
-        return {
-          name: queueName,
-          surface: queue.surface || null,
-          pending: Number(queue.pending) || 0,
-          running: Number(queue.running) || 0,
-          pendingBytes: Number(queue.pendingBytes) || 0,
-          inFlightBytes: Number(queue.inFlightBytes) || 0,
-          oldestWaitMs: Number(queue.oldestWaitMs) || 0
-        };
-      };
-      const highlightedQueues = STALL_DIAGNOSTIC_QUEUE_NAMES
-        .map((queueName) => summarizeQueue(queueName))
-        .filter(Boolean);
-      const topPendingQueues = Object.entries(queues)
-        .map(([name, queue]) => ({
-          name,
-          surface: queue?.surface || null,
-          pending: Number(queue?.pending) || 0,
-          running: Number(queue?.running) || 0,
-          oldestWaitMs: Number(queue?.oldestWaitMs) || 0
-        }))
-        .filter((entry) => entry.pending > 0 || entry.running > 0)
-        .sort((left, right) => {
-          if (right.pending !== left.pending) return right.pending - left.pending;
-          if (right.running !== left.running) return right.running - left.running;
-          return right.oldestWaitMs - left.oldestWaitMs;
-        })
-        .slice(0, 8);
-      const parseSurface = stats?.adaptive?.surfaces?.parse && typeof stats.adaptive.surfaces.parse === 'object'
-        ? {
-          minConcurrency: Number(stats.adaptive.surfaces.parse.minConcurrency) || 0,
-          maxConcurrency: Number(stats.adaptive.surfaces.parse.maxConcurrency) || 0,
-          currentConcurrency: Number(stats.adaptive.surfaces.parse.currentConcurrency) || 0,
-          running: Number(stats.adaptive.surfaces.parse.snapshot?.running) || 0,
-          pending: Number(stats.adaptive.surfaces.parse.snapshot?.pending) || 0
-        }
-        : null;
-      return {
-        activity: {
-          pending: Number(stats?.activity?.pending) || 0,
-          running: Number(stats?.activity?.running) || 0
-        },
-        utilization: {
-          cpu: Number(stats?.utilization?.cpu) || 0,
-          io: Number(stats?.utilization?.io) || 0,
-          mem: Number(stats?.utilization?.mem) || 0
-        },
-        parseSurface,
-        highlightedQueues,
-        topPendingQueues
-      };
-    };
-    const formatSchedulerStallSummary = (snapshot) => {
-      if (!snapshot || typeof snapshot !== 'object') return null;
-      const parse = snapshot.parseSurface && typeof snapshot.parseSurface === 'object'
-        ? snapshot.parseSurface
-        : null;
-      const queueByName = new Map(
-        (Array.isArray(snapshot.highlightedQueues) ? snapshot.highlightedQueues : [])
-          .map((entry) => [entry.name, entry])
-      );
-      const formatQueue = (name) => {
-        const queue = queueByName.get(name);
-        if (!queue) return `${name}=n/a`;
-        return `${name}=r${queue.running}/p${queue.pending}/wait${Math.round((queue.oldestWaitMs || 0) / 1000)}s`;
-      };
-      return [
-        parse
-          ? `parse=r${parse.running}/p${parse.pending}/cap${parse.currentConcurrency}`
-          : 'parse=n/a',
-        formatQueue('stage1.cpu'),
-        formatQueue('stage1.io'),
-        formatQueue('stage1.postings')
-      ].join(' ');
-    };
     const buildProcessingStallSnapshot = ({
       reason = 'stall_snapshot',
       idleMs = null,
       includeStack = false
-    } = {}) => {
-      const now = Date.now();
-      const resolvedIdleMs = Number.isFinite(Number(idleMs))
-        ? clampDurationMs(idleMs)
-        : Math.max(0, now - lastProgressAt);
-      const orderedPending = getOrderedPendingCount();
-      const orderedSnapshot = typeof orderedAppender.snapshot === 'function'
-        ? orderedAppender.snapshot()
-        : null;
-      const postingsSnapshot = typeof postingsQueue?.stats === 'function'
-        ? postingsQueue.stats()
-        : null;
-      const stalledFiles = collectStalledFiles(6);
-      const trackedSubprocesses = snapshotTrackedSubprocesses({
-        ownershipPrefix: stage1OwnershipPrefix,
-        limit: 8
-      });
-      const schedulerSnapshot = buildSchedulerStallSnapshot();
-      return {
-        reason,
-        generatedAt: new Date(now).toISOString(),
-        source: 'stage1-watchdog',
-        idleMs: resolvedIdleMs,
-        progressDone: progress?.count || 0,
-        progressTotal: progress?.total || 0,
-        progressElapsedMs: Math.max(0, now - processStart),
-        lastProgressAt: toIsoTimestamp(lastProgressAt),
-        inFlight: inFlightFiles.size,
-        orderedPending,
-        orderedSnapshot,
-        postingsSnapshot,
-        queueDelayMs: summarizeQueueDelay(),
-        stalledFiles,
-        trackedSubprocesses,
-        scheduler: schedulerSnapshot,
-        process: captureProcessSnapshot({
-          includeStack,
-          frameLimit: includeStack ? 16 : 8,
-          handleTypeLimit: 8
-        })
-      };
-    };
-    const summarizeSoftKickCleanup = (cleanupResults = []) => {
-      const summaries = (Array.isArray(cleanupResults) ? cleanupResults : [])
-        .filter((entry) => entry && typeof entry === 'object');
-      const attempted = summaries.reduce((sum, entry) => sum + (Number(entry.attempted) || 0), 0);
-      const failures = summaries.reduce((sum, entry) => sum + (Number(entry.failures) || 0), 0);
-      const terminatedPids = Array.from(new Set(
-        summaries.flatMap((entry) => (
-          Array.isArray(entry.terminatedPids)
-            ? entry.terminatedPids.filter((pid) => Number.isFinite(pid))
-            : []
-        ))
-      )).sort((a, b) => a - b);
-      const ownershipIds = Array.from(new Set(
-        summaries.flatMap((entry) => (
-          Array.isArray(entry.terminatedOwnershipIds)
-            ? entry.terminatedOwnershipIds.filter((value) => typeof value === 'string' && value)
-            : []
-        ))
-      )).sort((left, right) => left.localeCompare(right));
-      return {
-        attempted,
-        failures,
-        terminatedPids,
-        ownershipIds,
-        cleanupResults: summaries
-      };
-    };
+    } = {}) => buildStage1ProcessingStallSnapshot({
+      reason,
+      idleMs,
+      includeStack,
+      lastProgressAt,
+      progress,
+      processStart,
+      inFlightFiles,
+      getOrderedPendingCount,
+      orderedAppender,
+      postingsQueue,
+      queueDelaySummary,
+      stage1OwnershipPrefix: stage1OwnershipPrefix,
+      runtime
+    });
+    const toStalledFileText = (stalledFiles = []) => formatStage1StalledFileText(stalledFiles);
+    const formatSchedulerStallSummary = (snapshot) => formatStage1SchedulerStallSummary(snapshot);
+    const summarizeSoftKickCleanup = (cleanupResults = []) => summarizeStage1SoftKickCleanup(cleanupResults);
     const performStage1SoftKick = async ({
       idleMs = 0,
       source = 'watchdog',
@@ -2914,21 +3161,21 @@ export const processFiles = async ({
       totalFiles: entries.length,
       batchSize: checkpointBatchSize
     });
-    progress = {
+    const stage1ProgressTracker = createStage1ProgressTracker({
       total: entries.length,
-      count: 0,
-      tick() {
-        this.count += 1;
+      mode,
+      checkpoint,
+      onTick: () => {
         lastProgressAt = Date.now();
         if (stage1StallSoftKickAttempts > 0) {
           stage1StallSoftKickAttempts = 0;
           lastStallSoftKickAt = 0;
           stage1StallSoftKickResetCount += 1;
         }
-        showProgress('Files', this.count, this.total, { stage: 'processing', mode });
-        checkpoint.tick();
       }
-    };
+    });
+    progress = stage1ProgressTracker.progress;
+    markOrderedEntryComplete = stage1ProgressTracker.markOrderedEntryComplete;
     if (stallSnapshotMs > 0) {
       stallSnapshotTimer = setInterval(() => {
         emitProcessingStallSnapshot();
@@ -2942,28 +3189,30 @@ export const processFiles = async ({
       progressHeartbeatTimer.unref?.();
     }
     if (shardPlan && shardPlan.length > 1) {
-      const shardExecutionPlan = [...shardPlan].sort((a, b) => {
-        if (clusterModeEnabled && clusterDeterministicMerge) {
-          return compareStrings(a.id, b.id);
-        }
-        const costDelta = (b.costMs || 0) - (a.costMs || 0);
-        if (costDelta !== 0) return costDelta;
-        const lineDelta = (b.lineCount || 0) - (a.lineCount || 0);
-        if (lineDelta !== 0) return lineDelta;
-        const sizeDelta = b.entries.length - a.entries.length;
-        if (sizeDelta !== 0) return sizeDelta;
-        return compareStrings(a.label || a.id, b.label || b.id);
+      const shardQueuePlan = resolveStage1ShardExecutionQueuePlan({
+        shardPlan,
+        runtime,
+        clusterModeEnabled,
+        clusterDeterministicMerge
       });
-      const shardIndexById = new Map(
-        shardExecutionPlan.map((shard, index) => [shard.id, index + 1])
-      );
-      const shardExecutionOrderById = new Map(
-        shardExecutionPlan.map((shard, index) => [shard.id, index + 1])
-      );
-      const totalFiles = shardPlan.reduce((sum, shard) => sum + shard.entries.length, 0);
-      const totalLines = shardPlan.reduce((sum, shard) => sum + (shard.lineCount || 0), 0);
-      const totalBytes = shardPlan.reduce((sum, shard) => sum + (shard.byteCount || 0), 0);
-      const totalCost = shardPlan.reduce((sum, shard) => sum + (shard.costMs || 0), 0);
+      const {
+        shardExecutionPlan,
+        shardExecutionOrderById,
+        totals: {
+          totalFiles,
+          totalLines,
+          totalBytes,
+          totalCost
+        },
+        shardWorkPlan,
+        shardMergePlan,
+        mergeOrderByShardId,
+        shardBatches,
+        shardConcurrency,
+        perShardFileConcurrency,
+        perShardImportConcurrency,
+        perShardEmbeddingConcurrency
+      } = shardQueuePlan;
       if (envConfig.verbose === true) {
         const top = shardExecutionPlan.slice(0, Math.min(10, shardExecutionPlan.length));
         const costLabel = totalCost ? `, est ${Math.round(totalCost).toLocaleString()}ms` : '';
@@ -2990,129 +3239,11 @@ export const processFiles = async ({
           log(`[shards] split ${label} -> ${group.count} parts (${group.lines.toLocaleString()} lines, ${group.bytes.toLocaleString()} bytes${costText})`);
         }
       }
-      const buildShardWorkPlan = () => {
-        const work = [];
-        const totalShards = shardExecutionPlan.length;
-        for (const shard of shardExecutionPlan) {
-          const fileCount = shard.entries.length;
-          const costPerFile = shard.costMs && fileCount ? shard.costMs / fileCount : 0;
-          const fileShare = totalFiles > 0 ? fileCount / totalFiles : 0;
-          const lineCount = shard.lineCount || 0;
-          const lineShare = totalLines > 0 ? lineCount / totalLines : 0;
-          const byteCount = shard.byteCount || 0;
-          const byteShare = totalBytes > 0 ? byteCount / totalBytes : 0;
-          const costMs = shard.costMs || 0;
-          const costShare = totalCost > 0 ? costMs / totalCost : 0;
-          const share = Math.max(fileShare, lineShare, byteShare, costShare);
-          let parts = 1;
-          if (share > 0.05) parts = share > 0.1 ? 4 : 2;
-          parts = Math.min(parts, Math.max(1, fileCount));
-          if (parts <= 1) {
-            work.push({
-              shard,
-              entries: shard.entries,
-              partIndex: 1,
-              partTotal: 1,
-              predictedCostMs: costPerFile ? costPerFile * fileCount : costMs,
-              shardIndex: shardIndexById.get(shard.id) || 1,
-              shardTotal: totalShards
-            });
-            continue;
-          }
-          const perPart = Math.ceil(fileCount / parts);
-          for (let i = 0; i < parts; i += 1) {
-            const start = i * perPart;
-            const end = Math.min(start + perPart, fileCount);
-            if (start >= end) continue;
-            const partCount = end - start;
-            work.push({
-              shard,
-              entries: shard.entries.slice(start, end),
-              partIndex: i + 1,
-              partTotal: parts,
-              predictedCostMs: costPerFile ? costPerFile * partCount : costMs / parts,
-              shardIndex: shardIndexById.get(shard.id) || 1,
-              shardTotal: totalShards
-            });
-          }
-        }
-        return work;
-      };
-      const shardWorkPlan = buildShardWorkPlan().map((workItem) => ({
-        ...workItem,
-        subsetId: resolveShardSubsetId(workItem),
-        firstOrderIndex: resolveShardWorkItemMinOrderIndex(workItem)
-      }));
-      const shardMergePlan = buildDeterministicShardMergePlan(shardWorkPlan);
-      const mergeOrderBySubsetId = new Map(
-        shardMergePlan.map((entry) => [entry.subsetId, entry.mergeIndex])
-      );
-      const mergeOrderByShardId = new Map();
-      for (const entry of shardMergePlan) {
-        const shardId = entry?.shardId;
-        if (!shardId || mergeOrderByShardId.has(shardId)) continue;
-        mergeOrderByShardId.set(shardId, entry.mergeIndex);
-      }
-      for (const workItem of shardWorkPlan) {
-        workItem.mergeIndex = mergeOrderBySubsetId.get(workItem.subsetId) || null;
-      }
       shardSummary = shardSummary.map((summary) => ({
         ...summary,
         executionOrder: shardExecutionOrderById.get(summary.id) || null,
         mergeOrder: mergeOrderByShardId.get(summary.id) || null
       }));
-      let defaultShardConcurrency = Math.max(
-        1,
-        Math.min(32, runtime.fileConcurrency, runtime.cpuConcurrency)
-      );
-      let shardConcurrency = Number.isFinite(runtime.shards?.cluster?.workerCount)
-        ? Math.max(1, Math.floor(runtime.shards.cluster.workerCount))
-        : (Number.isFinite(runtime.shards.maxWorkers)
-          ? Math.max(1, Math.floor(runtime.shards.maxWorkers))
-          : defaultShardConcurrency);
-      shardConcurrency = clampShardConcurrencyToRuntime(runtime, shardConcurrency);
-      let shardBatches = planShardBatches(shardWorkPlan, shardConcurrency, {
-        resolveWeight: (workItem) => Number.isFinite(workItem.predictedCostMs)
-          ? workItem.predictedCostMs
-          : (workItem.shard.costMs || workItem.shard.lineCount || workItem.entries.length || 0),
-        resolveTieBreaker: (workItem) => {
-          const shardId = workItem.shard?.id || workItem.shard?.label || '';
-          const part = Number.isFinite(workItem.partIndex) ? workItem.partIndex : 0;
-          return `${shardId}:${part}`;
-        }
-      });
-      if (shardBatches.length) {
-        shardBatches = shardBatches.map((batch) => [...batch].sort((a, b) => {
-          const aOrder = Number.isFinite(a?.firstOrderIndex) ? a.firstOrderIndex : Number.MAX_SAFE_INTEGER;
-          const bOrder = Number.isFinite(b?.firstOrderIndex) ? b.firstOrderIndex : Number.MAX_SAFE_INTEGER;
-          if (aOrder !== bOrder) return aOrder - bOrder;
-          const aMerge = Number.isFinite(a?.mergeIndex) ? a.mergeIndex : Number.MAX_SAFE_INTEGER;
-          const bMerge = Number.isFinite(b?.mergeIndex) ? b.mergeIndex : Number.MAX_SAFE_INTEGER;
-          if (aMerge !== bMerge) return aMerge - bMerge;
-          const aShard = a?.shard?.id || a?.shard?.label || '';
-          const bShard = b?.shard?.id || b?.shard?.label || '';
-          return compareStrings(aShard, bShard);
-        }));
-        if (clusterModeEnabled && clusterDeterministicMerge && shardBatches.length > 1) {
-          shardBatches = sortShardBatchesByDeterministicMergeOrder(shardBatches);
-        }
-      }
-      if (!shardBatches.length && shardWorkPlan.length) {
-        shardBatches = [shardWorkPlan.slice()];
-      }
-      shardConcurrency = Math.max(1, shardBatches.length);
-      const perShardFileConcurrency = Math.max(
-        1,
-        Math.min(4, Math.floor(runtime.fileConcurrency / shardConcurrency))
-      );
-      const perShardImportConcurrency = Math.max(1, Math.floor(runtime.importConcurrency / shardConcurrency));
-      const baseEmbedConcurrency = Number.isFinite(runtime.embeddingConcurrency)
-        ? runtime.embeddingConcurrency
-        : runtime.cpuConcurrency;
-      const perShardEmbeddingConcurrency = Math.max(
-        1,
-        Math.min(perShardFileConcurrency, Math.floor(baseEmbedConcurrency / shardConcurrency))
-      );
       const shardModeLabel = clusterModeEnabled ? 'cluster' : 'local';
       const mergeModeLabel = clusterDeterministicMerge ? 'stable' : 'adaptive';
       const clusterRetryEnabled = clusterModeEnabled && clusterRetryConfig.enabled;
