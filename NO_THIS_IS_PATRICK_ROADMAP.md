@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T06:26:31.9527609-05:00
+  Extracted retrieval auto-sqlite threshold gating from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/auto-thresholds.js`, centralizing index-size threshold evaluation and reducing repeated inline stats-selection logic in backend selection flow.
 - 2026-02-23T06:25:13.3001612-05:00
   Extracted JSON artifact fallback/decompression read path from `src/shared/artifact-io/json.js` into `src/shared/artifact-io/json/read-json-file.js`, isolating primary/compressed/backup resolution and telemetry so JSONL-focused hot paths in the main module carry less branching overhead.
 - 2026-02-23T06:23:44.6469391-05:00
