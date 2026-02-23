@@ -135,6 +135,18 @@ export const resolveExtractedProseExtrasCache = (runtime) => {
   return cache;
 };
 
+export const resolveSharedScmMetaCache = (runtime) => {
+  const shared = resolveSharedModeCaches(runtime);
+  if (!shared) return null;
+  const existing = shared.sharedScmMetaCache;
+  if (existing && typeof existing.get === 'function' && typeof existing.set === 'function') {
+    return existing;
+  }
+  const cache = new Map();
+  shared.sharedScmMetaCache = cache;
+  return cache;
+};
+
 const coerceOptionalNonNegativeInt = (value) => {
   if (value === null || value === undefined) return null;
   return coerceNonNegativeInt(value);
@@ -1796,6 +1808,9 @@ export const processFiles = async ({
   const extractedProseExtrasCache = (mode === 'prose' || mode === 'extracted-prose')
     ? resolveExtractedProseExtrasCache(runtime)
     : null;
+  const sharedScmMetaCache = (mode === 'prose' || mode === 'extracted-prose')
+    ? resolveSharedScmMetaCache(runtime)
+    : null;
   const primeExtractedProseExtrasCache = mode === 'prose'
     && Array.isArray(runtime?.requestedModes)
     && runtime.requestedModes.includes('extracted-prose');
@@ -2923,6 +2938,7 @@ export const processFiles = async ({
         scmRepoRoot: runtimeRef.scmRepoRoot,
         scmConfig: runtimeRef.scmConfig,
         scmFileMetaByPath,
+        scmMetaCache: sharedScmMetaCache,
         languageOptions: runtimeRef.languageOptions,
         postingsConfig: runtimeRef.postingsConfig,
         segmentsConfig: runtimeRef.segmentsConfig,

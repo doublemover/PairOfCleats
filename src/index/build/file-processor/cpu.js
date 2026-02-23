@@ -450,6 +450,7 @@ export const processFileCpu = async (context) => {
     complexityCache,
     lintCache,
     buildStage,
+    scmMetaCache = null,
     extractedProseExtrasCache = null,
     primeExtractedProseExtrasCache = false
   } = context;
@@ -724,6 +725,8 @@ export const processFileCpu = async (context) => {
     );
   const annotateConfig = scmConfig?.annotate || {};
   const skipScmAnnotateForProseMode = mode === 'prose' && annotateConfig?.prose !== true;
+  const skipScmAnnotateForExtractedProseMode = mode === 'extracted-prose'
+    && annotateConfig?.extractedProse !== true;
   const forceScmTimeoutCaps = shouldForceScmTimeoutCaps(relKey);
   const enforceScmTimeoutCaps = forceScmTimeoutCaps || (
     scmConfig?.allowSlowTimeouts !== true
@@ -766,6 +769,90 @@ export const processFileCpu = async (context) => {
     const includeChurn = resolvedGitChurnEnabled
       && !scmFastPath
       && (fileStat?.size ?? 0) <= SCM_CHURN_MAX_BYTES;
+    const supportsScmMetaCache = Boolean(
+      scmMetaCache
+      && typeof scmMetaCache.get === 'function'
+      && typeof scmMetaCache.set === 'function'
+      && typeof scmMetaCache.delete === 'function'
+    );
+    const applyScmMetaResult = (value) => {
+      if (!value || typeof value !== 'object') return;
+      fileGitCommitId = typeof value.fileGitCommitId === 'string'
+        ? value.fileGitCommitId
+        : null;
+      fileGitMeta = value.fileGitMeta && typeof value.fileGitMeta === 'object'
+        ? value.fileGitMeta
+        : {};
+      scmMetaUnavailableReason = typeof value.scmMetaUnavailableReason === 'string'
+        ? value.scmMetaUnavailableReason
+        : null;
+    };
+    const readScmMetaFromProvider = async () => {
+      const result = {
+        fileGitCommitId: null,
+        fileGitMeta: {},
+        scmMetaUnavailableReason: null
+      };
+      if (typeof scmProviderImpl.getFileMeta !== 'function') return result;
+      try {
+        await runScmTaskWithDeadline({
+          label: 'file-meta',
+          timeoutMs: metaTimeoutMs,
+          task: async (taskSignal) => {
+            if (taskSignal?.aborted) return;
+            const fileMeta = await Promise.resolve(scmProviderImpl.getFileMeta({
+              repoRoot: scmRepoRoot,
+              filePosix,
+              timeoutMs: Math.max(0, metaTimeoutMs),
+              includeChurn,
+              signal: taskSignal || undefined
+            }));
+            if (taskSignal?.aborted) return;
+            if (fileMeta && fileMeta.ok !== false) {
+              result.fileGitCommitId = typeof fileMeta.lastCommitId === 'string'
+                ? fileMeta.lastCommitId
+                : null;
+              result.fileGitMeta = {
+                last_modified: fileMeta.lastModifiedAt ?? null,
+                last_author: fileMeta.lastAuthor ?? null,
+                churn: Number.isFinite(fileMeta.churn) ? fileMeta.churn : null,
+                churn_added: Number.isFinite(fileMeta.churnAdded) ? fileMeta.churnAdded : null,
+                churn_deleted: Number.isFinite(fileMeta.churnDeleted) ? fileMeta.churnDeleted : null,
+                churn_commits: Number.isFinite(fileMeta.churnCommits) ? fileMeta.churnCommits : null
+              };
+              return;
+            }
+            const reason = String(fileMeta?.reason || '').toLowerCase();
+            if (reason === 'timeout' || reason === 'unavailable') {
+              result.scmMetaUnavailableReason = reason;
+            }
+          }
+        });
+      } catch (error) {
+        if (isScmTaskTimeoutError(error)) {
+          result.scmMetaUnavailableReason = 'timeout';
+        } else {
+          throw error;
+        }
+      }
+      return result;
+    };
+    const readCachedOrProviderScmMeta = async () => {
+      if (!supportsScmMetaCache) {
+        return readScmMetaFromProvider();
+      }
+      const cacheKey = `${filePosix}|churn:${includeChurn ? '1' : '0'}`;
+      const existing = scmMetaCache.get(cacheKey);
+      if (existing) {
+        return existing;
+      }
+      const pending = readScmMetaFromProvider().catch((error) => {
+        scmMetaCache.delete(cacheKey);
+        throw error;
+      });
+      scmMetaCache.set(cacheKey, pending);
+      return pending;
+    };
     const snapshotMeta = (() => {
       if (!scmFileMetaByPath) return null;
       if (typeof scmFileMetaByPath.get === 'function') {
@@ -795,56 +882,14 @@ export const processFileCpu = async (context) => {
       };
     } else if (snapshotMeta && !snapshotHasIdentity) {
       scmMetaUnavailableReason = 'unavailable';
-    } else if (
-      typeof scmProviderImpl.getFileMeta === 'function'
-      && (!snapshotMeta || snapshotMissingRequestedChurn)
-    ) {
-      try {
-        await runScmTaskWithDeadline({
-          label: 'file-meta',
-          timeoutMs: metaTimeoutMs,
-          task: async (taskSignal) => {
-            if (taskSignal?.aborted) return;
-            const fileMeta = await Promise.resolve(scmProviderImpl.getFileMeta({
-              repoRoot: scmRepoRoot,
-              filePosix,
-              timeoutMs: Math.max(0, metaTimeoutMs),
-              includeChurn,
-              signal: taskSignal || undefined
-            }));
-            if (taskSignal?.aborted) return;
-            if (fileMeta && fileMeta.ok !== false) {
-              fileGitCommitId = typeof fileMeta.lastCommitId === 'string'
-                ? fileMeta.lastCommitId
-                : null;
-              fileGitMeta = {
-                last_modified: fileMeta.lastModifiedAt ?? null,
-                last_author: fileMeta.lastAuthor ?? null,
-                churn: Number.isFinite(fileMeta.churn) ? fileMeta.churn : null,
-                churn_added: Number.isFinite(fileMeta.churnAdded) ? fileMeta.churnAdded : null,
-                churn_deleted: Number.isFinite(fileMeta.churnDeleted) ? fileMeta.churnDeleted : null,
-                churn_commits: Number.isFinite(fileMeta.churnCommits) ? fileMeta.churnCommits : null
-              };
-              return;
-            }
-            const reason = String(fileMeta?.reason || '').toLowerCase();
-            if (reason === 'timeout' || reason === 'unavailable') {
-              scmMetaUnavailableReason = reason;
-            }
-          }
-        });
-      } catch (error) {
-        if (isScmTaskTimeoutError(error)) {
-          scmMetaUnavailableReason = 'timeout';
-        } else {
-          throw error;
-        }
-      }
+    } else if (!snapshotMeta || snapshotMissingRequestedChurn) {
+      applyScmMetaResult(await readCachedOrProviderScmMeta());
     }
     if (
       resolvedGitBlameEnabled
       && !skipScmAnnotateForProseRoute
       && !skipScmAnnotateForProseMode
+      && !skipScmAnnotateForExtractedProseMode
       && !skipScmAnnotateForGeneratedPython
       && scmMetaUnavailableReason == null
       && typeof scmProviderImpl.annotate === 'function'

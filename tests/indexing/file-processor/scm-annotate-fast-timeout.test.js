@@ -702,7 +702,35 @@ await processFileCpu(createContext({
   fileHash: 'scm-annotate-fast-timeout-extracted-code'
 }));
 assert.equal(extractedCodeMetaCalls, 1, 'expected extracted-prose code files to keep SCM metadata');
-assert.equal(extractedCodeAnnotateCalls, 1, 'expected extracted-prose code files to keep SCM annotate');
+assert.equal(extractedCodeAnnotateCalls, 0, 'expected extracted-prose code files to skip SCM annotate by default');
+
+let extractedCodeOptInMetaCalls = 0;
+let extractedCodeOptInAnnotateCalls = 0;
+const extractedCodeOptInScmProvider = {
+  async getFileMeta() {
+    extractedCodeOptInMetaCalls += 1;
+    return { ok: false };
+  },
+  async annotate() {
+    extractedCodeOptInAnnotateCalls += 1;
+    return { ok: false, reason: 'timeout' };
+  }
+};
+await processFileCpu(createContext({
+  mode: 'extracted-prose',
+  abs: jsAbs,
+  ext: '.js',
+  rel: extractedCodeRelKey,
+  relKey: extractedCodeRelKey,
+  text: jsText,
+  fileStat: jsStat,
+  languageHint: getLanguageForFile('.js', extractedCodeRelKey),
+  scmConfig: { annotate: { extractedProse: true } },
+  scmProviderImpl: extractedCodeOptInScmProvider,
+  fileHash: 'scm-annotate-fast-timeout-extracted-code-opt-in'
+}));
+assert.equal(extractedCodeOptInMetaCalls, 1, 'expected extracted-prose annotate opt-in to keep SCM metadata');
+assert.equal(extractedCodeOptInAnnotateCalls, 1, 'expected extracted-prose annotate opt-in to enable SCM annotate');
 
 let extractedDocsProseMetaCalls = 0;
 let extractedDocsProseAnnotateCalls = 0;
