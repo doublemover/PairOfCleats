@@ -38,6 +38,11 @@ import {
   sortEntriesByOrderIndex
 } from './process-files/ordering.js';
 import {
+  buildStage1BatchExecutionPlan,
+  resolveStage1BatchEntryMeta,
+  shouldWaitForOrderedDispatchCapacity
+} from './process-files/entry-batch-plan.js';
+import {
   buildExtractedProseLowYieldBailoutState,
   buildExtractedProseLowYieldBailoutSummary,
   EXTRACTED_PROSE_LOW_YIELD_SKIP_REASON,
@@ -693,52 +698,16 @@ export const processFiles = async ({
        */
       const runEntryBatch = async (batchEntries) => {
         const orderedCompletionTracker = createOrderedCompletionTracker();
-        const orderedWaitRecoveryPollMs = Math.max(
-          200,
-          Math.min(2000, Math.floor((stage1HangPolicy?.progressHeartbeatMs || 1000) / 2))
-        );
-        const recoverMissingOrderedGap = (source = 'ordered_wait', stallCount = 0) => {
-          if (typeof orderedAppender?.recoverMissingRange !== 'function') return 0;
-          if (inFlightFiles.size > 0) return 0;
-          const trackerSnapshot = typeof orderedCompletionTracker.snapshot === 'function'
-            ? orderedCompletionTracker.snapshot()
-            : null;
-          const pendingCount = Number(trackerSnapshot?.pending) || 0;
-          if (pendingCount <= 0) return 0;
-          const recovery = orderedAppender.recoverMissingRange({
-            reason: stallCount > 0 ? `${source}:${stallCount}` : source
-          });
-          const recoveredCount = Number(recovery?.recovered) || 0;
-          if (recoveredCount > 0) {
-            lastProgressAt = Date.now();
-            logLine(
-              `[ordered] recovered ${recoveredCount} missing indices at queue-drain (${source}).`,
-              {
-                kind: 'warning',
-                mode,
-                stage: 'processing',
-                source,
-                recoveredCount,
-                recovery
-              }
-            );
-          }
-          return recoveredCount;
-        };
-        const orderedBatchEntries = sortEntriesByOrderIndex(batchEntries);
-        for (let i = 0; i < orderedBatchEntries.length; i += 1) {
-          const entry = orderedBatchEntries[i];
-          const orderIndex = resolveEntryOrderIndex(entry, i);
-          const lifecycle = ensureLifecycleRecord({
-            orderIndex,
-            file: entry?.rel || toPosix(path.relative(runtimeRef.root, entry?.abs || '')),
-            fileIndex: Number.isFinite(entry?.fileIndex) ? entry.fileIndex : null,
-            shardId: shardMeta?.id || null
-          });
-          if (lifecycle && !Number.isFinite(lifecycle.enqueuedAtMs)) {
-            lifecycle.enqueuedAtMs = Date.now();
-          }
-        }
+        const shardId = shardMeta?.id || null;
+        const {
+          orderedEntries: orderedBatchEntries,
+          metadataByIndex
+        } = buildStage1BatchExecutionPlan({
+          entries: batchEntries,
+          root: runtimeRef.root,
+          shardId,
+          ensureLifecycleRecord
+        });
         /**
          * Publish the active batch tracker so watchdog snapshots can report
          * ordered pending depth against the currently running queue slice.
@@ -749,12 +718,19 @@ export const processFiles = async ({
             runtimeRef.queues.cpu,
             orderedBatchEntries,
             async (entry, ctx) => {
-              const queueIndex = Number.isFinite(ctx?.index) ? ctx.index : null;
-              const orderIndex = resolveEntryOrderIndex(entry, queueIndex);
-              const stableFileIndex = Number.isFinite(entry?.fileIndex)
-                ? entry.fileIndex
-                : (Number.isFinite(queueIndex) ? queueIndex + 1 : null);
-              const rel = entry.rel || toPosix(path.relative(runtimeRef.root, entry.abs));
+              const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
+              const entryMeta = resolveStage1BatchEntryMeta({
+                metadataByIndex,
+                entryIndex,
+                entry,
+                root: runtimeRef.root,
+                shardId
+              });
+              const orderIndex = entryMeta.orderIndex;
+              const stableFileIndex = Number.isFinite(entryMeta.fileIndex)
+                ? entryMeta.fileIndex
+                : null;
+              const rel = entryMeta.rel;
               if (shouldSkipExtractedProseForLowYield({
                 bailout: extractedProseLowYieldBailout,
                 orderIndex
@@ -764,7 +740,7 @@ export const processFiles = async ({
                   orderIndex,
                   file: rel,
                   fileIndex: stableFileIndex,
-                  shardId: shardMeta?.id || null
+                  shardId
                 });
                 if (lifecycle) {
                   lifecycle.dequeuedAtMs = lifecycle.dequeuedAtMs ?? skippedAtMs;
@@ -793,14 +769,14 @@ export const processFiles = async ({
                 mode,
                 fileIndex: stableFileIndex,
                 rel,
-                shardId: shardMeta?.id || null
+                shardId
               });
               let watchdog = null;
               const lifecycle = ensureLifecycleRecord({
                 orderIndex,
                 file: rel,
                 fileIndex: stableFileIndex,
-                shardId: shardMeta?.id || null
+                shardId
               });
               if (lifecycle) {
                 if (!Number.isFinite(lifecycle.dequeuedAtMs)) {
@@ -820,7 +796,7 @@ export const processFiles = async ({
                   orderIndex,
                   file: rel,
                   fileIndex: stableFileIndex,
-                  shardId: shardMeta?.id || null,
+                  shardId,
                   ownershipId: fileSubprocessOwnershipId,
                   startedAt: activeStartAtMs
                 });
@@ -873,7 +849,7 @@ export const processFiles = async ({
                   kind: 'file-progress',
                   mode,
                   stage: 'processing',
-                  shardId: shardMeta?.id || null,
+                  shardId,
                   file: rel,
                   fileIndex: stableFileIndex,
                   total: progress.total,
@@ -886,9 +862,9 @@ export const processFiles = async ({
                 stage: runtimeRef.stage,
                 fileIndex: stableFileIndex,
                 total: progress.total,
-                file: entry.rel,
+                file: rel,
                 size: entry.stat?.size || null,
-                shardId: shardMeta?.id || null
+                shardId
               });
               try {
                 return await runWithTimeout(
@@ -933,7 +909,7 @@ export const processFiles = async ({
                       fileIndex: stableFileIndex,
                       timeoutMs: fileHardTimeoutMs,
                       ownershipId: fileSubprocessOwnershipId,
-                      shardId: shardMeta?.id || null
+                      shardId
                     }
                   );
                   const cleanup = await terminateTrackedSubprocesses({
@@ -975,9 +951,9 @@ export const processFiles = async ({
                   stage: runtimeRef.stage,
                   fileIndex: stableFileIndex,
                   total: progress.total,
-                  file: entry.rel,
+                  file: rel,
                   size: entry.stat?.size || null,
-                  shardId: shardMeta?.id || null,
+                  shardId,
                   message: err?.message || String(err),
                   stack: err?.stack || null
                 });
@@ -1020,18 +996,24 @@ export const processFiles = async ({
               onBeforeDispatch: async (ctx) => {
                 if (typeof orderedAppender.waitForCapacity === 'function') {
                   const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
-                  const entry = orderedBatchEntries[entryIndex];
-                  const orderIndex = resolveEntryOrderIndex(entry, entryIndex);
+                  const entryMeta = resolveStage1BatchEntryMeta({
+                    metadataByIndex,
+                    entryIndex,
+                    entry: orderedBatchEntries[entryIndex],
+                    root: runtimeRef.root,
+                    shardId
+                  });
+                  const orderIndex = entryMeta.orderIndex;
                   const dispatchBypassWindow = Math.max(1, Math.floor(runtimeRef.fileConcurrency || 1));
                   const nextOrderedIndex = typeof orderedAppender.peekNextIndex === 'function'
                     ? orderedAppender.peekNextIndex()
                     : null;
-                  const withinBypassWindow = Number.isFinite(orderIndex)
-                    && Number.isFinite(nextOrderedIndex)
-                    && orderIndex <= (nextOrderedIndex + dispatchBypassWindow);
-                  const shouldProbeCapacity = entryIndex === 0
-                    || (entryIndex % dispatchBypassWindow) === 0;
-                  if (!withinBypassWindow && shouldProbeCapacity) {
+                  if (shouldWaitForOrderedDispatchCapacity({
+                    entryIndex,
+                    orderIndex,
+                    nextOrderedIndex,
+                    bypassWindow: dispatchBypassWindow
+                  })) {
                     await orderedAppender.waitForCapacity({
                       orderIndex,
                       bypassWindow: dispatchBypassWindow
@@ -1042,14 +1024,14 @@ export const processFiles = async ({
               },
               onResult: async (result, ctx) => {
                 const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
-                const entry = orderedBatchEntries[entryIndex];
-                const orderIndex = resolveEntryOrderIndex(entry, entryIndex);
-                observeExtractedProseYieldProfileResult({
-                  observation: extractedProseYieldProfileObservation,
-                  entry,
-                  result,
-                  runtimeRoot: runtimeRef.root
+                const entryMeta = resolveStage1BatchEntryMeta({
+                  metadataByIndex,
+                  entryIndex,
+                  entry: orderedBatchEntries[entryIndex],
+                  root: runtimeRef.root,
+                  shardId
                 });
+                const orderIndex = entryMeta.orderIndex;
                 const bailoutDecision = observeExtractedProseLowYieldSample({
                   bailout: extractedProseLowYieldBailout,
                   orderIndex,
@@ -1073,7 +1055,7 @@ export const processFiles = async ({
                 }
                 markOrderedEntryComplete(orderIndex, shardProgress);
                 if (!result) {
-                  if (entry?.rel) lifecycleByRelKey.delete(entry.rel);
+                  if (entryMeta.rel) lifecycleByRelKey.delete(entryMeta.rel);
                   if (Number.isFinite(orderIndex)) {
                     lifecycleByOrderIndex.delete(Math.floor(orderIndex));
                   }
@@ -1087,9 +1069,9 @@ export const processFiles = async ({
                 }
                 const lifecycle = ensureLifecycleRecord({
                   orderIndex,
-                  file: result?.relKey || entry?.rel || null,
-                  fileIndex: result?.fileIndex ?? entry?.fileIndex ?? null,
-                  shardId: shardMeta?.id || null
+                  file: result?.relKey || entryMeta.rel || null,
+                  fileIndex: result?.fileIndex ?? entryMeta.fileIndex ?? null,
+                  shardId
                 });
                 if (lifecycle && !Number.isFinite(lifecycle.parseEndAtMs)) {
                   lifecycle.parseEndAtMs = Date.now();
@@ -1098,7 +1080,9 @@ export const processFiles = async ({
                 if (fileMetrics && typeof fileMetrics === 'object') {
                   const bytes = Math.max(0, Math.floor(Number(fileMetrics.bytes) || 0));
                   const lines = Math.max(0, Math.floor(Number(fileMetrics.lines) || 0));
-                  const languageId = fileMetrics.languageId || getLanguageForFile(entry?.ext, entry?.rel)?.id || 'unknown';
+                  const languageId = fileMetrics.languageId
+                    || getLanguageForFile(entryMeta.entry?.ext, entryMeta.rel)?.id
+                    || 'unknown';
                   recordStageTimingSample('parseChunk', {
                     languageId,
                     bytes,
@@ -1142,14 +1126,20 @@ export const processFiles = async ({
               },
               onError: async (err, ctx) => {
                 const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
-                const entry = orderedBatchEntries[entryIndex];
-                const orderIndex = resolveEntryOrderIndex(entry, entryIndex);
+                const entryMeta = resolveStage1BatchEntryMeta({
+                  metadataByIndex,
+                  entryIndex,
+                  entry: orderedBatchEntries[entryIndex],
+                  root: runtimeRef.root,
+                  shardId
+                });
+                const orderIndex = entryMeta.orderIndex;
                 observeExtractedProseLowYieldSample({
                   bailout: extractedProseLowYieldBailout,
                   orderIndex,
                   result: null
                 });
-                const rel = entry?.rel || toPosix(path.relative(runtimeRef.root, entry?.abs || ''));
+                const rel = entryMeta.rel;
                 const timeoutText = err?.code === 'FILE_PROCESS_TIMEOUT' && Number.isFinite(err?.meta?.timeoutMs)
                   ? ` timeout=${err.meta.timeoutMs}ms`
                   : '';
@@ -1160,12 +1150,12 @@ export const processFiles = async ({
                     mode,
                     stage: 'processing',
                     file: rel,
-                    fileIndex: entry?.fileIndex || null,
-                    shardId: shardMeta?.id || null
+                    fileIndex: entryMeta.fileIndex || null,
+                    shardId
                   }
                 );
                 markOrderedEntryComplete(orderIndex, shardProgress);
-                if (entry?.rel) lifecycleByRelKey.delete(entry.rel);
+                if (entryMeta.rel) lifecycleByRelKey.delete(entryMeta.rel);
                 if (Number.isFinite(orderIndex)) {
                   lifecycleByOrderIndex.delete(Math.floor(orderIndex));
                 }
