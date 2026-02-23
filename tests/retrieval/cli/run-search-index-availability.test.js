@@ -71,8 +71,45 @@ assert.equal(availability.lmdbAvailability.all, false, 'lmdb prose store missing
 assert.deepEqual(warningLog, ['profile warning']);
 assert.deepEqual(
   calls.pathExists.sort(),
-  ['/sqlite/code', '/sqlite/extracted', '/sqlite/prose'].sort(),
-  'expected sqlite existence probes for each sqlite mode path'
+  ['/sqlite/code', '/sqlite/prose'].sort(),
+  'expected sqlite existence probes only for requested sqlite mode paths'
+);
+
+const selectiveCalls = {
+  pathExists: []
+};
+const codeOnlyAvailability = await resolveRunSearchIndexAvailability({
+  rootDir: process.cwd(),
+  userConfig: {},
+  runCode: true,
+  runProse: false,
+  runExtractedProse: false,
+  runRecords: false,
+  searchMode: 'mixed',
+  asOfContext: { strict: false },
+  dependencies: {
+    ...dependencies,
+    pathExists: async (targetPath) => {
+      selectiveCalls.pathExists.push(targetPath);
+      return true;
+    },
+    resolveRunSearchProfilePolicy: () => ({
+      selectedModes: ['code'],
+      profilePolicyByMode: { code: { source: 'sqlite' } },
+      vectorOnlyModes: [],
+      annEnabledEffective: true,
+      warnings: []
+    })
+  }
+});
+
+assert.equal(codeOnlyAvailability.sqliteAvailability.code, true);
+assert.equal(codeOnlyAvailability.sqliteAvailability.prose, false);
+assert.equal(codeOnlyAvailability.sqliteAvailability.extractedProse, false);
+assert.deepEqual(
+  selectiveCalls.pathExists,
+  ['/sqlite/code'],
+  'expected code-only requests to avoid unnecessary prose/extracted sqlite probes'
 );
 
 const profileError = await resolveRunSearchIndexAvailability({
