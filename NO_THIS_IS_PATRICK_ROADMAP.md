@@ -69,6 +69,10 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T06:32:26.1095508-05:00
+  Refactored SCM git provider internals by splitting `src/index/scm/providers/git.js` and `meta-batch.js` into helper modules (`path-normalization`, `provider-batch`, `meta-batch-planning`, `timeout-policy`) and added targeted helper-contract coverage in `tests/indexing/scm/git-provider-helper-modules.test.js` to preserve timeout/ladder semantics.
+- 2026-02-23T06:31:42.0000000-05:00
+  Extracted JSONL streaming fallback reader `readJsonLinesEach` from `src/shared/artifact-io/json.js` into `src/shared/artifact-io/json/read-json-lines-each.js`, keeping compression-aware fallback logic modular and reducing top-level branching in the main artifact-IO façade.
 - 2026-02-23T06:30:06.5025887-05:00
   Split adaptive-surface controller initialization from `src/shared/concurrency/scheduler-core.js` into `src/shared/concurrency/scheduler-core-adaptive-surfaces.js`, centralizing surface bounds/queue mapping/decision-trace state so scheduler-core keeps runtime orchestration hot paths tighter and less config-heavy.
 - 2026-02-23T06:29:34.0000000-05:00
