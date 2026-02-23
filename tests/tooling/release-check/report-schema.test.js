@@ -1,41 +1,19 @@
 #!/usr/bin/env node
-import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { loadReleaseCheckArtifacts, runReleaseCheckCli } from '../../helpers/release-check-fixture.js';
 
 const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 
-const root = process.cwd();
-const outDir = path.join(root, '.testCache', 'release-check-schema');
-const reportPath = path.join(outDir, 'release_check_report.json');
-const manifestPath = path.join(outDir, 'release-manifest.json');
-
-await fsPromises.rm(outDir, { recursive: true, force: true });
-await fsPromises.mkdir(outDir, { recursive: true });
-
-const run = spawnSync(
-  process.execPath,
-  [
-    path.join(root, 'tools', 'release', 'check.js'),
-    '--dry-run',
-    '--report',
-    reportPath,
-    '--manifest',
-    manifestPath
-  ],
-  {
-    cwd: root,
-    encoding: 'utf8'
-  }
-);
+const { run, root, reportPath, manifestPath } = await runReleaseCheckCli({
+  outDirName: 'release-check-schema'
+});
 
 if (run.status !== 0) {
   console.error('report-schema test failed: release-check returned non-zero');
   process.exit(run.status ?? 1);
 }
 
-const report = JSON.parse(await fsPromises.readFile(reportPath, 'utf8'));
-const manifest = JSON.parse(await fsPromises.readFile(manifestPath, 'utf8'));
+const { report, manifest } = await loadReleaseCheckArtifacts({ reportPath, manifestPath });
 
 if (report.schemaVersion !== 1 || manifest.schemaVersion !== 1) {
   console.error('report-schema test failed: schemaVersion mismatch');
