@@ -5,6 +5,7 @@ import { createError, ERROR_CODES } from '../shared/error-codes.js';
 import { isAbsolutePathAny } from '../shared/files.js';
 import { sha1 } from '../shared/hash.js';
 import { stableStringify } from '../shared/stable-json.js';
+import { isWithinRoot, toRealPathSync } from '../workspace/identity.js';
 
 const VALID_MODES = Object.freeze(['code', 'prose', 'extracted-prose', 'records']);
 const BUILD_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/;
@@ -13,17 +14,6 @@ const TAG_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,63}$/;
 
 const invalidRequest = (message, details = null) => createError(ERROR_CODES.INVALID_REQUEST, message, details);
 const notFound = (message, details = null) => createError(ERROR_CODES.NOT_FOUND, message, details);
-
-const withinRoot = (rootPath, targetPath) => {
-  const root = path.resolve(rootPath);
-  const target = path.resolve(targetPath);
-  if (process.platform === 'win32') {
-    const rootLower = root.toLowerCase();
-    const targetLower = target.toLowerCase();
-    return targetLower === rootLower || targetLower.startsWith(`${rootLower}${path.sep}`);
-  }
-  return target === root || target.startsWith(`${root}${path.sep}`);
-};
 
 const readJsonFile = (filePath, label, { required = false } = {}) => {
   if (!fs.existsSync(filePath)) {
@@ -93,12 +83,20 @@ const resolveCacheScopedPath = (repoCacheRoot, buildsRoot, value, label) => {
     ];
   })();
   let sawScopedCandidate = false;
+  let sawEscapedCandidate = false;
+  const lexicalRepoCacheRoot = path.resolve(repoCacheRoot);
+  const canonicalRepoCacheRoot = toRealPathSync(repoCacheRoot);
   for (const candidate of candidates) {
     const resolved = path.resolve(candidate);
-    if (withinRoot(repoCacheRoot, resolved)) {
-      sawScopedCandidate = true;
-      if (fs.existsSync(resolved)) return resolved;
-    }
+    if (!isWithinRoot(resolved, lexicalRepoCacheRoot)) continue;
+    sawScopedCandidate = true;
+    if (!fs.existsSync(resolved)) continue;
+    const canonicalResolved = toRealPathSync(resolved);
+    if (isWithinRoot(canonicalResolved, canonicalRepoCacheRoot)) return resolved;
+    sawEscapedCandidate = true;
+  }
+  if (sawEscapedCandidate) {
+    throw invalidRequest(`${label} escapes repo cache root: ${trimmed}`);
   }
   if (sawScopedCandidate) return null;
   throw invalidRequest(`${label} escapes repo cache root: ${trimmed}`);

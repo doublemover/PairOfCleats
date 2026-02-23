@@ -3,6 +3,7 @@ import path from 'node:path';
 import ignore from 'ignore';
 import { SKIP_DIRS, SKIP_FILES, SKIP_GLOBS } from '../constants.js';
 import { isAbsolutePathNative, toPosix } from '../../shared/files.js';
+import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
 import {
   buildGeneratedPolicyConfig,
   GENERATED_POLICY_DEFAULT_SKIP_DIRS,
@@ -41,7 +42,7 @@ export async function buildIgnoreMatcher({ root, userConfig, generatedPolicy = n
 
   const ignoreFiles = [];
   const warnings = [];
-  const rootResolved = path.resolve(root);
+  const rootResolved = toRealPathSync(path.resolve(root));
   const normalizeRelative = (value) => toPosix(value);
   const recordWarning = (warning) => {
     if (!warning) return;
@@ -54,10 +55,11 @@ export async function buildIgnoreMatcher({ root, userConfig, generatedPolicy = n
   const resolveIgnorePath = (value) => {
     const raw = typeof value === 'string' ? value.trim() : '';
     if (!raw) return null;
-    const resolved = isAbsolutePathNative(raw)
+    const candidate = isAbsolutePathNative(raw)
       ? path.resolve(raw)
       : path.resolve(root, raw);
-    if (resolved !== rootResolved && !resolved.startsWith(`${rootResolved}${path.sep}`)) {
+    const resolved = toRealPathSync(candidate);
+    if (!isWithinRoot(resolved, rootResolved)) {
       recordWarning({ type: 'outside-root', file: raw });
       return null;
     }

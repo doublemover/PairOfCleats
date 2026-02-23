@@ -154,6 +154,37 @@ try {
   assert.ok(!stableStringify(pathResolved.identity).includes(path.resolve(buildCodeRoot)));
   assert.ok(pathResolved.warnings.some((warning) => warning.includes('Path ref used')));
 
+  const escapeRoot = path.join(tempRoot, 'outside-build');
+  await fs.mkdir(escapeRoot, { recursive: true });
+  await writeJson(path.join(escapeRoot, 'build_state.json'), {
+    schemaVersion: 1,
+    buildId: 'build-escape',
+    configHash: 'cfg-escape',
+    tool: { version: '1.0.0' }
+  });
+  const escapeLinkRoot = path.join(buildsRoot, 'escape-link');
+  let escapeLinkCreated = false;
+  try {
+    await fs.symlink(escapeRoot, escapeLinkRoot, process.platform === 'win32' ? 'junction' : 'dir');
+    escapeLinkCreated = true;
+  } catch {}
+  if (escapeLinkCreated) {
+    await writeJson(path.join(buildsRoot, 'current.json'), {
+      buildRoot: 'builds/escape-link',
+      buildRoots: { code: 'builds/escape-link' }
+    });
+    assert.throws(
+      () => resolveIndexRef({
+        ref: 'latest',
+        repoRoot,
+        userConfig,
+        requestedModes: ['code']
+      }),
+      /escapes repo cache root/,
+      'expected latest resolver to reject symlinked build roots that escape repo cache'
+    );
+  }
+
   console.log('index-ref tests passed');
 } finally {
   restoreEnv();
