@@ -15,6 +15,7 @@ const toFiniteInt = (value) => {
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 const toUtf8ByteLength = (value) => {
+  if (Buffer.isBuffer(value)) return value.length;
   if (typeof value !== 'string' || !value) return 0;
   return Buffer.byteLength(value, 'utf8');
 };
