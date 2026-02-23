@@ -407,10 +407,14 @@ export const drainArtifactWriteQueues = async ({
       dispatchWrites();
     }
     if (fatalWriteError) {
+      if (inFlightWrites.size > 0) {
+        await Promise.allSettled(Array.from(inFlightWrites));
+      }
       throw fatalWriteError;
     }
   } finally {
     writeHeartbeat.stop();
+    activeWrites.clear();
     activeWriteBytes.clear();
     updateWriteInFlightTelemetry();
   }
