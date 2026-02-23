@@ -10,6 +10,7 @@ import { buildIndex } from '../../src/integrations/core/index.js';
 import { isAbsolutePathNative } from '../../src/shared/files.js';
 import { formatDurationMs } from '../../src/shared/time-format.js';
 import { setProgressHandlers } from '../../src/shared/progress.js';
+import { getEnvConfig } from '../../src/shared/env.js';
 import { spawnSubprocess } from '../../src/shared/subprocess.js';
 import { createLifecycleRegistry } from '../../src/shared/lifecycle/registry.js';
 import {
@@ -44,6 +45,7 @@ const argv = createCli({
 const command = argv.command || String(argv._[0] || '');
 const configPath = getServiceConfigPath(argv.config || null);
 const config = loadServiceConfig(configPath);
+const envConfig = getEnvConfig();
 const repoEntries = resolveRepoRegistry(config, configPath);
 const baseDir = config.baseDir
   ? path.resolve(config.baseDir)
@@ -57,7 +59,7 @@ const resolvedQueueName = resolveQueueName(queueName, {
   stage: argv.stage || null,
   mode: argv.mode || null
 });
-const serviceExecutionModeRaw = process.env.PAIROFCLEATS_INDEXER_SERVICE_EXECUTION
+const serviceExecutionModeRaw = envConfig.indexerServiceExecutionMode
   || config?.worker?.executionMode
   || 'subprocess';
 const serviceExecutionMode = String(serviceExecutionModeRaw || '').trim().toLowerCase() === 'daemon'

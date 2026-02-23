@@ -586,18 +586,18 @@ const toPositiveIntOrNull = (value) => {
  * Sampling is opt-in and intended for smoke/benchmark workflows where we need
  * representative model behavior without embedding every file.
  *
- * @param {{embeddingsConfig?:object,env?:NodeJS.ProcessEnv}} [input]
+ * @param {{embeddingsConfig?:object,env?:object}} [input]
  * @returns {{maxFiles:number|null,seed:string}}
  */
-const resolveEmbeddingSamplingConfig = ({ embeddingsConfig, env = process.env } = {}) => {
+const resolveEmbeddingSamplingConfig = ({ embeddingsConfig, env } = {}) => {
   const configRaw = Number(embeddingsConfig?.sampleFiles);
-  const envRaw = Number(env?.PAIROFCLEATS_EMBEDDINGS_SAMPLE_FILES);
+  const envRaw = Number(env?.embeddingsSampleFiles);
   const maxFiles = toPositiveIntOrNull(Number.isFinite(envRaw) ? envRaw : configRaw);
   const configSeed = typeof embeddingsConfig?.sampleSeed === 'string'
     ? embeddingsConfig.sampleSeed.trim()
     : '';
-  const envSeed = typeof env?.PAIROFCLEATS_EMBEDDINGS_SAMPLE_SEED === 'string'
-    ? env.PAIROFCLEATS_EMBEDDINGS_SAMPLE_SEED.trim()
+  const envSeed = typeof env?.embeddingsSampleSeed === 'string'
+    ? env.embeddingsSampleSeed.trim()
     : '';
   const seed = envSeed || configSeed || 'default';
   return { maxFiles, seed };
@@ -937,7 +937,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
   const extractedProseLowYieldBailout = normalizeExtractedProseLowYieldBailoutConfig(
     indexingConfig?.extractedProse?.lowYieldBailout
   );
-  const embeddingSampling = resolveEmbeddingSamplingConfig({ embeddingsConfig, env: process.env });
+  const embeddingSampling = resolveEmbeddingSamplingConfig({ embeddingsConfig, env: configEnv });
   const isVectorLike = (value) => {
     if (Array.isArray(value)) return true;
     return ArrayBuffer.isView(value) && !(value instanceof DataView);

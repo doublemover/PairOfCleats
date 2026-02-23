@@ -654,7 +654,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     : null;
   const daemonEnabled = daemonEnabledFromArg
     || daemonConfig.enabled === true
-    || process.env.PAIROFCLEATS_INDEX_DAEMON === '1';
+    || envConfig.indexDaemon === true;
   const daemonDeterministic = daemonDeterministicArg === null
     ? daemonConfig.deterministic !== false
     : daemonDeterministicArg !== false;
@@ -665,7 +665,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   );
   const daemonSession = acquireRuntimeDaemonSession({
     enabled: daemonEnabled,
-    sessionKey: daemonSessionKeyFromArg || daemonConfig.sessionKey || process.env.PAIROFCLEATS_INDEX_DAEMON_SESSION || null,
+    sessionKey: daemonSessionKeyFromArg || daemonConfig.sessionKey || envConfig.indexDaemonSession || null,
     cacheRoot,
     repoRoot: root,
     deterministic: daemonDeterministic,
