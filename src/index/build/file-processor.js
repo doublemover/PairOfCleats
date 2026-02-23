@@ -5,33 +5,28 @@ import { normalizeCommentConfig } from '../comments.js';
 import { createLruCache, estimateJsonBytes } from '../../shared/cache.js';
 import { fromPosix, toPosix } from '../../shared/files.js';
 import { log, logLine } from '../../shared/progress.js';
-import { getDocumentExtractorTestConfig, getEnvConfig } from '../../shared/env.js';
-import { readTextFileWithHash } from '../../shared/encoding.js';
-import { sha1 } from '../../shared/hash.js';
+import { getEnvConfig } from '../../shared/env.js';
 import { buildPostingsPayloadMetadata } from './postings-payload.js';
 import { createFileScanner } from './file-scan.js';
 import { createTokenizationContext } from './tokenization.js';
 import { reuseCachedBundle } from './file-processor/cached-bundle.js';
 import { processFileCpu } from './file-processor/cpu.js';
 import { loadCachedBundleForFile, writeBundleForFile } from './file-processor/incremental.js';
-import { resolveBinarySkip, resolvePreReadSkip } from './file-processor/skip.js';
+import { resolvePreReadSkip } from './file-processor/skip.js';
 import { createFileTimingTracker } from './file-processor/timings.js';
 import { resolveExt } from './file-processor/read.js';
 import {
-  compactDocsSearchJsonText,
-  isDocsSearchIndexJsonPath
-} from './file-processor/docs-search-json.js';
+  createPreCpuArtifactState,
+  applyCachedResultToArtifacts,
+  buildFileInfoFromArtifacts,
+  writeArtifactsToFileTextCache
+} from './file-processor/pre-cpu-state.js';
+import { resolvePreCpuFileContent } from './file-processor/pre-cpu-content.js';
 import { getLanguageForFile } from '../language-registry.js';
-import { extractPdf, loadPdfExtractorRuntime } from '../extractors/pdf.js';
-import { extractDocx, loadDocxExtractorRuntime } from '../extractors/docx.js';
 import {
-  EXTRACTION_NORMALIZATION_POLICY,
-  normalizeDocumentExtractionPolicy,
-  sha256Hex
+  normalizeDocumentExtractionPolicy
 } from '../extractors/common.js';
 import {
-  buildDocxExtractionText,
-  buildPdfExtractionText,
   isDocumentExt,
   normalizeFallbackLanguageFromExt
 } from './file-processor/extraction.js';
@@ -386,6 +381,9 @@ export function createFileProcessor(options) {
     const ext = typeof fileEntry === 'object' && typeof fileEntry.ext === 'string'
       ? fileEntry.ext
       : resolveExt(abs);
+    const documentSourceType = documentExtractionEnabled && isDocumentExt(ext)
+      ? (ext === '.pdf' ? 'pdf' : 'docx')
+      : null;
     const languageHint = getLanguageForFile(ext, relKey);
     let fileLanguageId = languageHint?.id || null;
     let fileLineCount = 0;
@@ -419,7 +417,7 @@ export function createFileProcessor(options) {
       languageId: fileLanguageId,
       mode,
       maxFileBytes,
-      bypassBinaryMinifiedSkip: documentExtractionEnabled && isDocumentExt(ext),
+      bypassBinaryMinifiedSkip: Boolean(documentSourceType),
       rel: relKey,
       generatedPolicy,
       extractedProseYieldProfile
@@ -434,50 +432,11 @@ export function createFileProcessor(options) {
       return null;
     }
     const knownLines = Number(fileEntry?.lines);
-
-    let cachedBundle = null;
-    let text = null;
-    let fileHash = null;
-    let fileHashAlgo = null;
-    let fileBuffer = null;
-    let fileEncoding = null;
-    let fileEncodingFallback = null;
-    let fileEncodingConfidence = null;
-    let documentExtraction = null;
-    if (fileTextCache?.get && relKey) {
-      const cached = fileTextCache.get(relKey);
-      if (cached && typeof cached === 'object') {
-        if (typeof cached.text === 'string') text = cached.text;
-        if (Buffer.isBuffer(cached.buffer)) fileBuffer = cached.buffer;
-        if (cached.hash) {
-          fileHash = cached.hash;
-          fileHashAlgo = 'sha1';
-        }
-        if (typeof cached.encoding === 'string') fileEncoding = cached.encoding;
-        if (typeof cached.encodingFallback === 'boolean') fileEncodingFallback = cached.encodingFallback;
-        if (Number.isFinite(cached.encodingConfidence)) fileEncodingConfidence = cached.encodingConfidence;
-        if (Number.isFinite(cached.size) && cached.size !== fileStat.size) {
-          text = null;
-          fileBuffer = null;
-          fileHash = null;
-          fileHashAlgo = null;
-          fileEncoding = null;
-          fileEncodingFallback = null;
-          fileEncodingConfidence = null;
-        }
-        if (Number.isFinite(cached.mtimeMs) && cached.mtimeMs !== fileStat.mtimeMs) {
-          text = null;
-          fileBuffer = null;
-          fileHash = null;
-          fileHashAlgo = null;
-          fileEncoding = null;
-          fileEncodingFallback = null;
-          fileEncodingConfidence = null;
-        }
-      } else if (typeof cached === 'string') {
-        text = cached;
-      }
-    }
+    const artifacts = createPreCpuArtifactState({
+      fileTextCache,
+      relKey,
+      fileStat
+    });
     updateCrashStage('pre-cpu:load-cached-bundle:start');
     const cachedResult = await loadCachedBundleForFile({
       runIo,
@@ -492,33 +451,19 @@ export function createFileProcessor(options) {
       hasHash: typeof cachedResult?.fileHash === 'string' && cachedResult.fileHash.length > 0
     });
     throwIfAborted();
-    cachedBundle = cachedResult.cachedBundle;
-    fileHash = cachedResult.fileHash;
-    if (fileHash) fileHashAlgo = 'sha1';
-    fileBuffer = cachedResult.buffer;
-    if (cachedBundle && typeof cachedBundle === 'object') {
-      if (!fileEncoding && typeof cachedBundle.encoding === 'string') {
-        fileEncoding = cachedBundle.encoding;
-      }
-      if (typeof cachedBundle.encodingFallback === 'boolean') {
-        fileEncodingFallback = cachedBundle.encodingFallback;
-      }
-      if (Number.isFinite(cachedBundle.encodingConfidence)) {
-        fileEncodingConfidence = cachedBundle.encodingConfidence;
-      }
-    }
+    applyCachedResultToArtifacts({ artifacts, cachedResult });
 
     const cachedOutcome = reuseCachedBundle({
       abs,
       relKey,
       fileIndex,
       fileStat,
-      fileHash,
-      fileHashAlgo,
+      fileHash: artifacts.fileHash,
+      fileHashAlgo: artifacts.fileHashAlgo,
       ext,
       fileCaps,
       maxFileBytes,
-      cachedBundle,
+      cachedBundle: artifacts.cachedBundle,
       incrementalState,
       fileStructural,
       toolInfo,
@@ -546,223 +491,39 @@ export function createFileProcessor(options) {
       warnEncodingFallback(relKey, cachedOutcome.result.fileInfo);
       return cachedOutcome.result;
     }
-
-    if (!fileBuffer) {
-      throwIfAborted();
-      updateCrashStage('pre-cpu:read-file:start');
-      try {
-        fileBuffer = await runIo(() => fs.readFile(abs));
-        updateCrashStage('pre-cpu:read-file:done', {
-          bytes: Buffer.isBuffer(fileBuffer) ? fileBuffer.length : null
-        });
-      } catch (err) {
-        const code = err?.code || null;
-        updateCrashStage('pre-cpu:read-file:error', formatCrashErrorMeta(err));
-        const reason = (code === 'EACCES' || code === 'EPERM' || code === 'EISDIR')
-          ? 'unreadable'
-          : 'read-failure';
-        recordSkip(abs, reason, {
-          code,
-          message: err?.message || String(err)
-        });
-        return null;
-      }
-    }
-    if (documentExtractionEnabled && isDocumentExt(ext)) {
-      const sourceType = ext === '.pdf' ? 'pdf' : 'docx';
-      let sourceHashBuffer = Buffer.isBuffer(fileBuffer) ? fileBuffer : null;
-      if (!sourceHashBuffer) {
-        try {
-          updateCrashStage('pre-cpu:extract:source-read:start');
-          sourceHashBuffer = await runIo(() => fs.readFile(abs));
-          updateCrashStage('pre-cpu:extract:source-read:done', {
-            bytes: Buffer.isBuffer(sourceHashBuffer) ? sourceHashBuffer.length : null
-          });
-          if (Buffer.isBuffer(sourceHashBuffer)) fileBuffer = sourceHashBuffer;
-        } catch {
-          updateCrashStage('pre-cpu:extract:source-read:error');
-          sourceHashBuffer = null;
-        }
-      }
-      const sourceBytesHash = sourceHashBuffer ? sha256Hex(sourceHashBuffer) : null;
-      const extractorIdentity = await resolveDocumentExtractorIdentity(sourceType);
-      const extractionCacheKey = buildDocumentExtractionCacheKey({
-        sourceBytesHash,
-        extractor: extractorIdentity
-      });
-      const cachedExtraction = loadCachedDocumentExtraction(extractionCacheKey);
-      let extractionCacheHit = false;
-      let extracted = null;
-      let joined = null;
-      if (cachedExtraction?.text) {
-        extractionCacheHit = true;
-        joined = {
-          text: cachedExtraction.text,
-          units: Array.isArray(cachedExtraction.units) ? cachedExtraction.units : [],
-          counts: cachedExtraction.counts || { pages: 0, paragraphs: 0, totalUnits: 0 }
-        };
-        text = joined.text;
-        updateCrashStage('pre-cpu:extract:cache-hit', {
-          sourceType,
-          reasonCode: DOCUMENT_EXTRACTION_CACHE_HIT_REASON_CODE
-        });
-      } else {
-        updateCrashStage('pre-cpu:extract:start', { sourceType });
-        extracted = sourceType === 'pdf'
-          ? await extractPdf({ filePath: abs, buffer: fileBuffer, policy: documentExtractionPolicy })
-          : await extractDocx({ filePath: abs, buffer: fileBuffer, policy: documentExtractionPolicy });
-        updateCrashStage('pre-cpu:extract:done', {
-          ok: extracted?.ok === true,
-          sourceType,
-          reasonCode: DOCUMENT_EXTRACTION_CACHE_MISS_REASON_CODE
-        });
-        if (!extracted?.ok) {
-          updateCrashStage('pre-cpu:skip:extract', {
-            reason: extracted?.reason || 'extract_failed',
-            sourceType
-          });
-          recordSkip(abs, extracted?.reason || 'extract_failed', {
-            stage: 'extract',
-            sourceType,
-            warnings: extracted?.warnings || []
-          });
-          return null;
-        }
-        joined = sourceType === 'pdf'
-          ? buildPdfExtractionText(extracted.pages)
-          : buildDocxExtractionText(extracted.paragraphs);
-        if (!joined.text) {
-          updateCrashStage('pre-cpu:skip:unsupported-scanned', { sourceType });
-          recordSkip(abs, 'unsupported_scanned', {
-            stage: 'extract',
-            sourceType
-          });
-          return null;
-        }
-        text = joined.text;
-        storeCachedDocumentExtraction(extractionCacheKey, {
-          sourceType,
-          extractor: extracted.extractor || extractorIdentity || null,
-          text: joined.text,
-          counts: joined.counts,
-          units: joined.units.map((unit) => ({
-            type: unit.type,
-            ...(Number.isFinite(unit.pageNumber) ? { pageNumber: unit.pageNumber } : {}),
-            ...(Number.isFinite(unit.index) ? { index: unit.index } : {}),
-            ...(unit.style ? { style: unit.style } : {}),
-            start: unit.start,
-            end: unit.end
-          })),
-          normalizationPolicy: EXTRACTION_NORMALIZATION_POLICY,
-          warnings: extracted.warnings || []
-        });
-      }
-      if (!fileHash && sourceHashBuffer) {
-        fileHash = sha1(sourceHashBuffer);
-        fileHashAlgo = 'sha1';
-      }
-      fileEncoding = 'document-extracted';
-      fileEncodingFallback = null;
-      fileEncodingConfidence = null;
-      documentExtraction = {
-        sourceType,
-        status: 'ok',
-        extractor: extractionCacheHit
-          ? (cachedExtraction?.extractor || extractorIdentity || null)
-          : (extracted?.extractor || extractorIdentity || null),
-        sourceBytesHash: sourceBytesHash || null,
-        sourceBytesHashAlgo: 'sha256',
-        counts: joined?.counts || { pages: 0, paragraphs: 0, totalUnits: 0 },
-        units: joined.units.map((unit) => ({
-          type: unit.type,
-          ...(Number.isFinite(unit.pageNumber) ? { pageNumber: unit.pageNumber } : {}),
-          ...(Number.isFinite(unit.index) ? { index: unit.index } : {}),
-          ...(unit.style ? { style: unit.style } : {}),
-          start: unit.start,
-          end: unit.end
-        })),
-        normalizationPolicy: EXTRACTION_NORMALIZATION_POLICY,
-        warnings: extractionCacheHit
-          ? Array.from(new Set([
-            ...(Array.isArray(cachedExtraction?.warnings) ? cachedExtraction.warnings : []),
-            DOCUMENT_EXTRACTION_CACHE_HIT_REASON_CODE
-          ]))
-          : (extracted?.warnings || []),
-        cache: {
-          status: extractionCacheHit ? 'hit' : 'miss',
-          reasonCode: extractionCacheHit
-            ? DOCUMENT_EXTRACTION_CACHE_HIT_REASON_CODE
-            : DOCUMENT_EXTRACTION_CACHE_MISS_REASON_CODE,
-          key: extractionCacheKey || null
-        }
-      };
-    } else {
-      updateCrashStage('pre-cpu:resolve-binary-skip:start');
-      const binarySkip = await resolveBinarySkip({
-        abs,
-        fileBuffer,
-        fileScanner
-      });
-      updateCrashStage('pre-cpu:resolve-binary-skip:done', {
-        skipped: Boolean(binarySkip)
-      });
-      if (binarySkip) {
-        const { reason, ...extra } = binarySkip;
-        updateCrashStage('pre-cpu:skip:binary', { reason: reason || 'binary' });
-        recordSkip(abs, reason || 'binary', extra);
-        return null;
-      }
-      if (!text || !fileHash) {
-        updateCrashStage('pre-cpu:decode:start');
-        const decoded = await readTextFileWithHash(abs, { buffer: fileBuffer, stat: fileStat });
-        updateCrashStage('pre-cpu:decode:done', {
-          bytes: Buffer.isBuffer(fileBuffer) ? fileBuffer.length : null,
-          encoding: decoded?.encoding || null
-        });
-        if (!text) text = decoded.text;
-        if (!fileHash) {
-          fileHash = decoded.hash;
-          fileHashAlgo = 'sha1';
-        }
-        fileEncoding = decoded.encoding || fileEncoding;
-        fileEncodingFallback = decoded.usedFallback;
-        fileEncodingConfidence = decoded.confidence;
-        warnEncodingFallback(relKey, {
-          encoding: fileEncoding,
-          encodingFallback: fileEncodingFallback,
-          encodingConfidence: fileEncodingConfidence
-        });
-      }
-      if (isDocsSearchIndexJsonPath({ mode, ext, relPath: relKey })) {
-        const compacted = compactDocsSearchJsonText(text);
-        if (typeof compacted === 'string' && compacted.length > 0) {
-          text = compacted;
-        }
-      }
+    const preCpuContent = await resolvePreCpuFileContent({
+      abs,
+      relKey,
+      mode,
+      ext,
+      fileStat,
+      fileScanner,
+      runIo,
+      throwIfAborted,
+      updateCrashStage,
+      formatCrashErrorMeta,
+      warnEncodingFallback,
+      documentSourceType,
+      documentExtractionPolicy,
+      artifacts
+    });
+    if (preCpuContent?.skip) {
+      const { reason, ...extra } = preCpuContent.skip;
+      recordSkip(abs, reason || 'oversize', extra);
+      return null;
     }
 
-    const fileInfo = {
-      size: fileStat.size,
-      hash: fileHash,
-      hashAlgo: fileHashAlgo || null,
-      encoding: fileEncoding || null,
-      encodingFallback: typeof fileEncodingFallback === 'boolean' ? fileEncodingFallback : null,
-      encodingConfidence: Number.isFinite(fileEncodingConfidence) ? fileEncodingConfidence : null,
-      ...(documentExtraction ? { extraction: documentExtraction } : {})
-    };
+    const fileInfo = buildFileInfoFromArtifacts({
+      fileStat,
+      artifacts
+    });
     warnEncodingFallback(relKey, fileInfo);
-    if (fileTextCache?.set && relKey && (text || fileBuffer)) {
-      fileTextCache.set(relKey, {
-        text,
-        buffer: fileBuffer,
-        hash: fileHash,
-        size: fileStat.size,
-        mtimeMs: fileStat.mtimeMs,
-        encoding: fileEncoding || null,
-        encodingFallback: typeof fileEncodingFallback === 'boolean' ? fileEncodingFallback : null,
-        encodingConfidence: Number.isFinite(fileEncodingConfidence) ? fileEncodingConfidence : null
-      });
-    }
+    writeArtifactsToFileTextCache({
+      fileTextCache,
+      relKey,
+      fileStat,
+      artifacts
+    });
 
     let languageLines = null;
     let languageSetKey = null;
@@ -777,11 +538,11 @@ export function createFileProcessor(options) {
       ext,
       rel,
       relKey,
-      text,
-      documentExtraction,
+      text: artifacts.text,
+      documentExtraction: artifacts.documentExtraction,
       fileStat,
-      fileHash,
-      fileHashAlgo,
+      fileHash: artifacts.fileHash,
+      fileHashAlgo: artifacts.fileHashAlgo,
       fileCaps,
       fileStructural,
       scmProvider,
@@ -885,13 +646,17 @@ export function createFileProcessor(options) {
       incrementalState,
       relKey,
       fileStat,
-      fileHash,
+      fileHash: artifacts.fileHash,
       fileChunks,
       fileRelations,
       vfsManifestRows,
-      fileEncoding: fileEncoding || null,
-      fileEncodingFallback: typeof fileEncodingFallback === 'boolean' ? fileEncodingFallback : null,
-      fileEncodingConfidence: Number.isFinite(fileEncodingConfidence) ? fileEncodingConfidence : null
+      fileEncoding: artifacts.fileEncoding || null,
+      fileEncodingFallback: typeof artifacts.fileEncodingFallback === 'boolean'
+        ? artifacts.fileEncodingFallback
+        : null,
+      fileEncodingConfidence: Number.isFinite(artifacts.fileEncodingConfidence)
+        ? artifacts.fileEncodingConfidence
+        : null
     });
     updateCrashStage('post-cpu:write-bundle:done', {
       hasManifestEntry: Boolean(manifestEntry)
