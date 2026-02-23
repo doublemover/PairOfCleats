@@ -186,6 +186,8 @@ export const setupSqliteBuildFixture = async ({
 
   return {
     Database,
+    tempRoot,
+    indexDir,
     outPath,
     mode,
     count,
