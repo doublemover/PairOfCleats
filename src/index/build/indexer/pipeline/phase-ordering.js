@@ -87,6 +87,28 @@ export const startOverlappedPostingsBuild = ({
 };
 
 /**
+ * Resolve postings payload at the explicit stage-boundary join.
+ *
+ * Ordering contract:
+ * If postings started during relations overlap, this join must happen before
+ * write to ensure emitted artifacts read finalized postings data.
+ *
+ * @param {{
+ *  postingsPromise:Promise<object>|null,
+ *  runPostingsBuild:()=>Promise<object>
+ * }} input
+ * @returns {Promise<object>}
+ */
+export const resolvePostingsBuildResult = async ({
+  postingsPromise,
+  runPostingsBuild
+}) => (
+  postingsPromise
+    ? await postingsPromise
+    : await runPostingsBuild()
+);
+
+/**
  * Resolve prefetched incremental VFS rows only after relations confirms
  * cross-file inference actually executed.
  *
@@ -106,3 +128,52 @@ export const resolveExistingIncrementalBundleRows = async ({
     ? await incrementalBundleVfsRowsPromise
     : null
 );
+
+/**
+ * Run write-stage artifacts first, then incremental bundle synchronization.
+ *
+ * Sequencing contract:
+ * 1) `writeArtifacts` must complete before incremental bundle updates so
+ *    bundle meta stays aligned with finalized chunk metadata.
+ * 2) Prefetched VFS rows must only be consumed when relations confirmed
+ *    cross-file inference actually ran for this mode.
+ *
+ * @param {{
+ *  writeArtifacts:()=>Promise<void>,
+ *  runtime:object,
+ *  mode:string,
+ *  crossFileEnabled:boolean,
+ *  incrementalBundleVfsRowsPromise:Promise<object|null>|null,
+ *  updateIncrementalBundles:(input:object)=>Promise<void>,
+ *  incrementalState:object,
+ *  state:object,
+ *  log:(message:string)=>void
+ * }} input
+ * @returns {Promise<void>}
+ */
+export const runWriteStageWithIncrementalBundles = async ({
+  writeArtifacts,
+  runtime,
+  mode,
+  crossFileEnabled,
+  incrementalBundleVfsRowsPromise,
+  updateIncrementalBundles,
+  incrementalState,
+  state,
+  log
+}) => {
+  await writeArtifacts();
+  if (runtime?.incrementalEnabled !== true) return;
+  const existingVfsManifestRowsByFile = await resolveExistingIncrementalBundleRows({
+    mode,
+    crossFileEnabled,
+    incrementalBundleVfsRowsPromise
+  });
+  await updateIncrementalBundles({
+    runtime,
+    incrementalState,
+    state,
+    existingVfsManifestRowsByFile,
+    log
+  });
+};

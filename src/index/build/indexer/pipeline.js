@@ -13,7 +13,6 @@ import { createStageCheckpointRecorder } from '../stage-checkpoints.js';
 import { createIndexState } from '../state.js';
 import { enqueueEmbeddingJob } from './embedding-queue.js';
 import { getTreeSitterStats, resetTreeSitterStats } from '../../../lang/tree-sitter.js';
-import { INDEX_PROFILE_VECTOR_ONLY } from '../../../contracts/index-profile.js';
 import { SCHEDULER_QUEUE_NAMES } from '../runtime/scheduler.js';
 import { writeSchedulerAutoTuneProfile } from '../runtime/scheduler-autotune-profile.js';
 import { formatHealthFailure, runIndexingHealthChecks } from '../../../shared/ops-health.js';
@@ -26,14 +25,7 @@ import {
   readIndexArtifactBytes
 } from '../../../shared/ops-resource-visibility.js';
 import {
-  SIGNATURE_VERSION,
-  buildIncrementalSignature,
-  buildIncrementalSignatureSummary,
-  buildTokenizationKey
-} from './signatures.js';
-import {
   buildFeatureSettings,
-  hasVectorEmbeddingBuildCapability,
   resolveAnalysisFlags,
   resolveVectorOnlyShortcutPolicy
 } from './pipeline/features.js';
@@ -58,11 +50,12 @@ import {
   summarizePostingsQueue
 } from './pipeline/summaries.js';
 import { createStageOrchestration } from './pipeline/stage-orchestration.js';
-import { resolvePipelinePolicyContext } from './pipeline/policy-context.js';
+import { initializePipelinePolicyBootstrap } from './pipeline/policy-context.js';
 import {
   createIncrementalBundleVfsRowsPromise,
-  resolveExistingIncrementalBundleRows,
+  resolvePostingsBuildResult,
   resolvePostingsOverlapPolicy,
+  runWriteStageWithIncrementalBundles,
   startOverlappedPostingsBuild
 } from './pipeline/phase-ordering.js';
 import { runDiscovery } from './steps/discover.js';
@@ -229,100 +222,26 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   throwIfAborted(abortSignal);
   const {
     runtimeRef,
-    tinyRepoFastPath,
     tinyRepoFastPathActive,
     tinyRepoFastPathSummary,
-    vectorOnlyShortcuts,
     vectorOnlyShortcutSummary,
     relationsEnabled,
     importGraphEnabled,
-    crossFileInferenceEnabled
-  } = resolvePipelinePolicyContext({ runtime, entries: allEntries });
+    crossFileInferenceEnabled,
+    tokenizationKey,
+    cacheSignature,
+    cacheSignatureSummary,
+    modalitySparsityProfilePath,
+    modalitySparsityProfile,
+    cachedZeroModality
+  } = await initializePipelinePolicyBootstrap({
+    runtime,
+    mode,
+    entries: allEntries,
+    log
+  });
   state.vectorOnlyShortcuts = vectorOnlyShortcutSummary;
   state.tinyRepoFastPath = tinyRepoFastPathSummary;
-  if (vectorOnlyShortcuts.enabled) {
-    log(
-      '[vector_only] analysis shortcuts: '
-      + `disableImportGraph=${vectorOnlyShortcuts.disableImportGraph}, `
-      + `disableCrossFileInference=${vectorOnlyShortcuts.disableCrossFileInference}.`
-    );
-  }
-  if (tinyRepoFastPathActive) {
-    log(
-      `[tiny_repo] fast path active: files=${tinyRepoFastPath.fileCount}, ` +
-      `bytes=${tinyRepoFastPath.totalBytes}, estimatedLines=${tinyRepoFastPath.estimatedLines}, ` +
-      `disableImportGraph=${tinyRepoFastPath.disableImportGraph}, ` +
-      `disableCrossFileInference=${tinyRepoFastPath.disableCrossFileInference}, ` +
-      `minimalArtifacts=${tinyRepoFastPath.minimalArtifacts}.`
-    );
-  }
-  await updateBuildState(runtimeRef.buildRoot, {
-    analysisShortcuts: {
-      [mode]: {
-        profileId: vectorOnlyShortcuts.profileId,
-        disableImportGraph: vectorOnlyShortcuts.disableImportGraph,
-        disableCrossFileInference: vectorOnlyShortcuts.disableCrossFileInference,
-        tinyRepoFastPath: tinyRepoFastPathSummary
-      }
-    }
-  });
-  const vectorOnlyProfile = runtimeRef?.profile?.id === INDEX_PROFILE_VECTOR_ONLY;
-  if (vectorOnlyProfile && !hasVectorEmbeddingBuildCapability(runtimeRef)) {
-    throw new Error(
-      'indexing.profile=vector_only requires embeddings to be available during index build. ' +
-      'Enable inline/stub embeddings or service-mode embedding queueing and rebuild.'
-    );
-  }
-  const tokenizationKey = buildTokenizationKey(runtimeRef, mode);
-  const cacheSignature = buildIncrementalSignature(runtimeRef, mode, tokenizationKey);
-  const cacheSignatureSummary = buildIncrementalSignatureSummary(runtimeRef, mode, tokenizationKey);
-  await updateBuildState(runtimeRef.buildRoot, {
-    signatures: {
-      [mode]: {
-        tokenizationKey,
-        cacheSignature,
-        signatureVersion: SIGNATURE_VERSION
-      }
-    }
-  });
-  const {
-    profilePath: modalitySparsityProfilePath,
-    profile: modalitySparsityProfile
-  } = await readModalitySparsityProfile(runtimeRef);
-  const {
-    profilePath: extractedProseYieldProfilePath,
-    profile: extractedProseYieldProfile
-  } = mode === 'extracted-prose'
-    ? await readExtractedProseYieldProfile(runtimeRef)
-    : { profilePath: null, profile: createEmptyExtractedProseYieldProfile() };
-  const extractedProseYieldProfileSelection = mode === 'extracted-prose'
-    ? selectExtractedProseYieldProfileEntry({
-      profile: extractedProseYieldProfile,
-      mode,
-      cacheSignature
-    })
-    : { key: null, source: null, entry: null };
-  const documentExtractionEnabledForMode = mode === 'extracted-prose'
-    && runtimeRef?.indexingConfig?.documentExtraction?.enabled === true;
-  const {
-    cachePath: documentExtractionCachePath,
-    cache: documentExtractionCache
-  } = documentExtractionEnabledForMode
-    ? await readDocumentExtractionCache(runtimeRef)
-    : { cachePath: null, cache: createEmptyDocumentExtractionCache() };
-  const documentExtractionCacheRuntime = documentExtractionEnabledForMode
-    ? createDocumentExtractionCacheRuntime({
-      runtime: runtimeRef,
-      cachePath: documentExtractionCachePath,
-      cache: documentExtractionCache
-    })
-    : null;
-  const modalitySparsityKey = buildModalitySparsityEntryKey({ mode, cacheSignature });
-  const cachedModalitySparsity = modalitySparsityProfile?.entries?.[modalitySparsityKey] || null;
-  const cachedZeroModality = shouldElideModalityProcessingStage({
-    fileCount: cachedModalitySparsity?.fileCount ?? null,
-    chunkCount: cachedModalitySparsity?.chunkCount ?? null
-  });
   const { incrementalState, reused } = await loadIncrementalPlan({
     runtime: runtimeRef,
     mode,
@@ -596,9 +515,10 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
 
   advanceStage(INDEX_STAGE_PLAN[4]);
   throwIfAborted(abortSignal);
-  const postings = postingsPromise
-    ? await postingsPromise
-    : await runPostingsBuild();
+  const postings = await resolvePostingsBuildResult({
+    postingsPromise,
+    runPostingsBuild
+  });
   recordStageCheckpoint({
     stage: 'stage1',
     step: 'postings',
@@ -617,35 +537,29 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
 
   advanceStage(INDEX_STAGE_PLAN[5]);
   throwIfAborted(abortSignal);
-  await writeIndexArtifactsForMode({
+  await runWriteStageWithIncrementalBundles({
+    writeArtifacts: () => writeIndexArtifactsForMode({
+      runtime: runtimeRef,
+      mode,
+      outDir,
+      state,
+      postings,
+      timing,
+      entries: allEntries,
+      perfProfile,
+      graphRelations,
+      shardSummary,
+      stageCheckpoints
+    }),
     runtime: runtimeRef,
     mode,
-    outDir,
+    crossFileEnabled,
+    incrementalBundleVfsRowsPromise,
+    updateIncrementalBundles,
+    incrementalState,
     state,
-    postings,
-    timing,
-    entries: allEntries,
-    perfProfile,
-    graphRelations,
-    shardSummary,
-    stageCheckpoints
+    log
   });
-  if (runtimeRef.incrementalEnabled === true) {
-    // Write incremental bundles after artifact finalization so bundle metaV2
-    // stays byte-for-byte aligned with emitted chunk_meta.
-    const existingVfsManifestRowsByFile = await resolveExistingIncrementalBundleRows({
-      mode,
-      crossFileEnabled,
-      incrementalBundleVfsRowsPromise
-    });
-    await updateIncrementalBundles({
-      runtime: runtimeRef,
-      incrementalState,
-      state,
-      existingVfsManifestRowsByFile,
-      log
-    });
-  }
   const vfsExtra = summarizeVfsManifestStats(state);
   recordStageCheckpoint({
     stage: 'stage2',
