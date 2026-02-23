@@ -22,6 +22,10 @@ import {
   evaluateWriteBackpressureState
 } from './scheduler-core-write-backpressure.js';
 import { recordQueueWaitTimeSample } from './scheduler-core-wait-samples.js';
+import {
+  buildAdaptiveSurfaceSnapshotByName as buildAdaptiveSurfaceSnapshotByNameImpl,
+  buildAdaptiveSurfaceSnapshots as buildAdaptiveSurfaceSnapshotsImpl
+} from './scheduler-core-adaptive-snapshots.js';
 
 /**
  * Create a build scheduler that coordinates CPU/IO/memory tokens across queues.
@@ -261,75 +265,24 @@ export function createBuildScheduler(input = {}) {
     captureTelemetryIfDue
   } = telemetryCapture;
 
-  const buildAdaptiveSurfaceSnapshotByName = (surfaceName, at = nowMs()) => {
-    const state = adaptiveSurfaceStates.get(surfaceName);
-    if (!state) return null;
-    const snapshot = {
-      surface: surfaceName,
-      pending: 0,
-      pendingBytes: 0,
-      running: 0,
-      inFlightBytes: 0,
-      oldestWaitMs: 0,
-      ioPending: 0,
-      ioPendingBytes: 0,
-      ioWaitP95Ms: 0,
-      queues: []
-    };
-    for (const queue of queueOrder) {
-      if (queue?.surface !== surfaceName) continue;
-      const pending = Math.max(0, queue.pending.length);
-      const pendingBytes = normalizeByteCount(queue.pendingBytes);
-      const running = Math.max(0, queue.running);
-      const inFlightBytes = normalizeByteCount(queue.inFlightBytes);
-      const oldestWaitMs = pending > 0
-        ? Math.max(0, at - Number(queue.pending[0]?.enqueuedAt || at))
-        : 0;
-      const waitP95Ms = Math.max(0, Number(queue?.stats?.waitP95Ms) || 0);
-      snapshot.pending += pending;
-      snapshot.pendingBytes += pendingBytes;
-      snapshot.running += running;
-      snapshot.inFlightBytes += inFlightBytes;
-      snapshot.oldestWaitMs = Math.max(snapshot.oldestWaitMs, oldestWaitMs);
-      if ((pendingBytes > 0) || queue.name.includes('.io') || queue.name.includes('write') || queue.name.includes('sqlite')) {
-        snapshot.ioPending += pending;
-        snapshot.ioPendingBytes += pendingBytes;
-        snapshot.ioWaitP95Ms = Math.max(snapshot.ioWaitP95Ms, waitP95Ms);
-      }
-      snapshot.queues.push({
-        name: queue.name,
-        pending,
-        pendingBytes,
-        running,
-        inFlightBytes,
-        oldestWaitMs,
-        waitP95Ms
-      });
-    }
-    snapshot.backlogPerSlot = snapshot.pending / Math.max(1, state.currentConcurrency);
-    const ioPressureByBytes = snapshot.ioPendingBytes / Math.max(1, 256 * 1024 * 1024);
-    const ioPressureByWait = snapshot.ioWaitP95Ms / 10000;
-    snapshot.ioPressureScore = Math.max(
-      0,
-      Math.min(
-        1.5,
-        Math.max(
-          snapshot.ioPending > 0 ? (snapshot.ioPending / Math.max(1, state.currentConcurrency * 2)) : 0,
-          ioPressureByBytes,
-          ioPressureByWait
-        )
-      )
-    );
-    return snapshot;
-  };
+  const buildAdaptiveSurfaceSnapshotByName = (surfaceName, at = nowMs()) => (
+    buildAdaptiveSurfaceSnapshotByNameImpl({
+      surfaceName,
+      adaptiveSurfaceStates,
+      queueOrder,
+      normalizeByteCount,
+      at
+    })
+  );
 
-  const buildAdaptiveSurfaceSnapshots = (at = nowMs()) => {
-    const out = {};
-    for (const surfaceName of adaptiveSurfaceStates.keys()) {
-      out[surfaceName] = buildAdaptiveSurfaceSnapshotByName(surfaceName, at);
-    }
-    return out;
-  };
+  const buildAdaptiveSurfaceSnapshots = (at = nowMs()) => (
+    buildAdaptiveSurfaceSnapshotsImpl({
+      adaptiveSurfaceStates,
+      queueOrder,
+      normalizeByteCount,
+      at
+    })
+  );
 
   const readSystemSignals = (at = nowMs()) => {
     const cpuTokenUtilization = tokens.cpu.total > 0 ? (tokens.cpu.used / tokens.cpu.total) : 0;

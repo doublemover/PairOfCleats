@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T06:51:17.2002230-05:00
+  Extracted adaptive-surface snapshot builders from `src/shared/concurrency/scheduler-core.js` into `src/shared/concurrency/scheduler-core-adaptive-snapshots.js`, keeping queue-pressure snapshot math reusable while trimming scheduler core orchestration code.
 - 2026-02-23T06:49:15.2714426-05:00
   Extracted queue wait-sample ring-buffer logic from `src/shared/concurrency/scheduler-core.js` into `src/shared/concurrency/scheduler-core-wait-samples.js`, preserving percentile behavior while reducing queue accounting code density in the scheduler core.
 - 2026-02-23T06:47:51.5155732-05:00
