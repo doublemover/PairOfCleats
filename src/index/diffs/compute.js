@@ -76,11 +76,46 @@ const normalizePositiveInt = (value, fallback) => {
   return Math.max(1, Math.floor(Number(value)));
 };
 
+const computeSelectedModeDiffs = async ({
+  selectedModes,
+  resolvedFrom,
+  resolvedTo,
+  options,
+  notFound
+}) => Promise.all(selectedModes.map(async (mode) => {
+  const fromDir = resolvedFrom.indexDirByMode?.[mode];
+  const toDir = resolvedTo.indexDirByMode?.[mode];
+  if (!fromDir || !toDir) {
+    throw notFound(`Missing resolved mode roots for ${mode}.`);
+  }
+  return computeModeDiff({
+    mode,
+    fromDir,
+    toDir,
+    detectRenames: options.detectRenames,
+    includeRelations: options.includeRelations,
+    maxChangedFiles: options.maxChangedFiles,
+    maxChunksPerFile: options.maxChunksPerFile
+  });
+}));
+
 const writeEventsJsonl = async (repoCacheRoot, diffId, events) => {
   const eventsPath = path.join(repoCacheRoot, 'diffs', diffId, 'events.jsonl');
   const payload = events.map((entry) => serializeEvent(entry)).join('\n');
   await atomicWriteText(eventsPath, payload.length ? `${payload}\n` : '', { newline: false });
   return eventsPath;
+};
+
+const readEventsJsonl = (eventsPath) => {
+  if (!fs.existsSync(eventsPath)) return [];
+  const lines = fs.readFileSync(eventsPath, 'utf8').split(/\r?\n/);
+  const events = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    events.push(JSON.parse(trimmed));
+  }
+  return events;
 };
 
 const hasPathRef = (parsed) => parsed?.kind === 'path';
@@ -168,23 +203,13 @@ export const computeIndexDiff = async ({
   const maxEventsLimit = normalizePositiveInt(maxEvents, DEFAULT_MAX_EVENTS);
   const maxBytesLimit = normalizePositiveInt(maxBytes, DEFAULT_MAX_BYTES);
 
-  const modeResults = [];
-  for (const mode of selectedModes) {
-    const fromDir = resolvedFrom.indexDirByMode?.[mode];
-    const toDir = resolvedTo.indexDirByMode?.[mode];
-    if (!fromDir || !toDir) {
-      throw notFound(`Missing resolved mode roots for ${mode}.`);
-    }
-    modeResults.push(await computeModeDiff({
-      mode,
-      fromDir,
-      toDir,
-      detectRenames: options.detectRenames,
-      includeRelations: options.includeRelations,
-      maxChangedFiles: options.maxChangedFiles,
-      maxChunksPerFile: options.maxChunksPerFile
-    }));
-  }
+  const modeResults = await computeSelectedModeDiffs({
+    selectedModes,
+    resolvedFrom,
+    resolvedTo,
+    options,
+    notFound
+  });
 
   const allEventsSorted = sortEvents(modeResults.flatMap((entry) => entry.events));
   const bounded = applyEventBounds(allEventsSorted, {
@@ -339,13 +364,7 @@ export const showDiff = ({
     return { entry, inputs, summary };
   }
   const eventsPath = path.join(repoCacheRoot, 'diffs', diffId, 'events.jsonl');
-  const events = fs.existsSync(eventsPath)
-    ? fs.readFileSync(eventsPath, 'utf8')
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => JSON.parse(line))
-    : [];
+  const events = readEventsJsonl(eventsPath);
   return { entry, inputs, summary, events };
 };
 
