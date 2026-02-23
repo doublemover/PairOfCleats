@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-23T10:24:17.881Z",
+  "generatedAt": "2026-02-23T10:28:11.580Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2165,7 +2165,6 @@
         "tests/tooling/install/setup-index-detection.test.js",
         "tests/tooling/install/setup-json-output.test.js",
         "tests/tooling/install/setup.test.js",
-        "tests/tooling/reports/metrics-dashboard.test.js",
         "tests/tooling/reports/summary/summary-report-helpers.js",
         "tests/tooling/script-coverage/script-coverage.runner.js",
         "tests/tooling/triage/records-index-and-search.test.js",
