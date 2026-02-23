@@ -59,6 +59,7 @@ import { resolveAutoSqliteEligibility } from './auto-thresholds.js';
 import { resolveRunSearchBackendSelection } from './backend-selection.js';
 import { initializeBackendContext } from './backend-context-setup.js';
 import { loadRunSearchIndexesWithTracking } from './index-loading.js';
+import { buildQueryPlanInput } from './plan-input.js';
 
 import {
   resolveAnnActive,
@@ -589,7 +590,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       return branchResult.payload;
     }
 
-    const planInput = {
+    const planInput = buildQueryPlanInput({
       postingsConfig,
       caseTokens,
       fileFilter,
@@ -616,7 +617,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       fieldWeightsConfig,
       denseVectorMode,
       branchFilter
-    };
+    });
     const {
       queryPlan,
       planIndexSignaturePayload

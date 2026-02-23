@@ -69,6 +69,10 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T06:46:05.1520260-05:00
+  Extracted retrieval query-plan payload assembly from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/plan-input.js`, isolating plan-input construction from orchestration/control flow.
+- 2026-02-23T06:44:46.2925815-05:00
+  Split runtime startup initialization seams from `src/index/build/runtime/runtime.js` into `runtime-daemon-init.js`, `runtime-scm-init.js`, and `runtime-dictionary-ignore-init.js`, isolating sequencing-sensitive daemon/scm/dictionary-ignore bootstrap contracts while preserving startup order.
 - 2026-02-23T06:43:42.4865689-05:00
   Extracted staged index-load orchestration from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/index-loading.js`, centralizing stage-checkpoint tracking and post-load abort gating around `loadSearchIndexes`.
 - 2026-02-23T06:41:31.1637748-05:00
