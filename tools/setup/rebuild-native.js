@@ -81,7 +81,13 @@ const verifyPerlScannerPatch = () => {
   return { ok: true, message: null };
 };
 
-const buildNpmEnv = () => {
+/**
+ * Build npm subprocess env with explicit script/source-build policy.
+ *
+ * @param {{buildFromSource?:boolean}} [options]
+ * @returns {NodeJS.ProcessEnv}
+ */
+const buildNpmEnv = ({ buildFromSource = false } = {}) => {
   const env = {};
   for (const [key, value] of Object.entries(process.env)) {
     if (!key) continue;
@@ -93,6 +99,9 @@ const buildNpmEnv = () => {
     env[key] = typeof value === 'string' ? value : String(value);
   }
   env.npm_config_ignore_scripts = 'false';
+  if (buildFromSource) {
+    env.npm_config_build_from_source = 'true';
+  }
   return env;
 };
 
@@ -113,8 +122,7 @@ const rebuildPackage = (pkgName, { buildFromSource = false } = {}) => {
   }
 
   const args = ['rebuild', normalizedPkgName];
-  const env = buildNpmEnv();
-  void buildFromSource;
+  const env = buildNpmEnv({ buildFromSource });
 
   const commandArgs = buildNpmCommandArgs(args);
   let result;
@@ -153,9 +161,8 @@ const runPackageInstallScript = (pkgName, { buildFromSource = false } = {}) => {
     };
   }
 
-  const env = buildNpmEnv();
+  const env = buildNpmEnv({ buildFromSource });
   const args = ['run', 'install', '--if-present'];
-  void buildFromSource;
 
   const commandArgs = buildNpmCommandArgs(args);
   let result;
