@@ -3,6 +3,20 @@ import { coerceUnitFraction } from '../number-coerce.js';
 import { ADAPTIVE_SURFACE_KEYS, DEFAULT_ADAPTIVE_SURFACE_POLICY, DEFAULT_ADAPTIVE_SURFACE_QUEUE_MAP } from './adaptive-surfaces.js';
 import { createSchedulerTelemetryCapture } from './scheduler-core-telemetry-capture.js';
 import {
+  normalizeBacklogRatio,
+  normalizeByteCount,
+  normalizeByteLimit,
+  normalizeCooldownMs,
+  normalizePositiveInt,
+  normalizeQueueName,
+  normalizeRatio,
+  normalizeRequest,
+  normalizeSurfaceName,
+  normalizeTokenPool,
+  resolvePercentile,
+  normalizeNonNegativeInt
+} from './scheduler-core-normalize.js';
+import {
   cloneDecisionEntry,
   cloneQueueDepthEntries,
   cloneTraceEntries,
@@ -22,13 +36,6 @@ export function createBuildScheduler(input = {}) {
     ? Math.max(0, Math.floor(Number(input.starvationMs)))
     : 30000;
   const WAIT_TIME_SAMPLE_LIMIT = 64;
-  const normalizeTokenPool = (value) => {
-    if (value == null) return 1;
-    const parsed = Math.floor(Number(value));
-    if (!Number.isFinite(parsed)) return 1;
-    // Zero-token pools deadlock queued work that requires that resource.
-    return Math.max(1, parsed);
-  };
   let cpuTokens = normalizeTokenPool(input.cpuTokens);
   let ioTokens = normalizeTokenPool(input.ioTokens);
   let memoryTokens = normalizeTokenPool(input.memoryTokens);
@@ -43,55 +50,6 @@ export function createBuildScheduler(input = {}) {
     io: Math.max(baselineLimits.io, normalizeTokenPool(input.maxIoTokens ?? ioTokens)),
     mem: Math.max(baselineLimits.mem, normalizeTokenPool(input.maxMemoryTokens ?? memoryTokens))
   };
-  const normalizeByteLimit = (value) => {
-    const parsed = Math.floor(Number(value));
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-  };
-  const normalizeByteCount = (value) => {
-    const parsed = Math.floor(Number(value));
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-  };
-  const normalizeRequest = (req = {}) => ({
-    cpu: Math.max(0, Math.floor(Number(req?.cpu || 0))),
-    io: Math.max(0, Math.floor(Number(req?.io || 0))),
-    mem: Math.max(0, Math.floor(Number(req?.mem || 0))),
-    bytes: normalizeByteCount(req?.bytes)
-  });
-  const resolvePercentile = (values, ratio) => {
-    if (!Array.isArray(values) || !values.length) return 0;
-    const normalized = values
-      .map((entry) => Number(entry))
-      .filter((entry) => Number.isFinite(entry) && entry >= 0)
-      .sort((a, b) => a - b);
-    if (!normalized.length) return 0;
-    const clamped = Math.max(0, Math.min(1, Number(ratio) || 0));
-    const index = Math.min(normalized.length - 1, Math.max(0, Math.ceil(normalized.length * clamped) - 1));
-    return normalized[index];
-  };
-  const normalizeSurfaceName = (value) => (
-    typeof value === 'string' && value.trim() ? value.trim() : null
-  );
-  const normalizePositiveInt = (value, fallback) => {
-    const parsed = Math.floor(Number(value));
-    if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
-    return parsed;
-  };
-  const normalizeNonNegativeInt = (value, fallback) => {
-    const parsed = Math.floor(Number(value));
-    if (!Number.isFinite(parsed) || parsed < 0) return fallback;
-    return parsed;
-  };
-  const normalizeRatio = (value, fallback, { min = 0, max = Number.POSITIVE_INFINITY } = {}) => {
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed)) return fallback;
-    return Math.max(min, Math.min(max, parsed));
-  };
-  const normalizeCooldownMs = (value, fallback = 0) => (
-    Math.max(0, normalizeNonNegativeInt(value, fallback) ?? fallback)
-  );
-  const normalizeBacklogRatio = (value, fallback, min = 0) => (
-    Math.max(min, normalizeRatio(value, fallback, { min, max: 64 }) ?? fallback)
-  );
   const nowInput = typeof input.now === 'function' ? input.now : null;
   const nowMs = () => {
     if (!nowInput) return Date.now();
@@ -267,9 +225,6 @@ export function createBuildScheduler(input = {}) {
   const queueConfig = input.queues || {};
   const queues = new Map();
   const queueOrder = [];
-  const normalizeQueueName = (value) => (
-    typeof value === 'string' && value.trim() ? value.trim() : null
-  );
   const writeBackpressureInput = input.writeBackpressure
     && typeof input.writeBackpressure === 'object'
     ? input.writeBackpressure
