@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import {
+  buildSchedulerAdaptivePayload,
   buildSchedulerAdaptiveSurfaceStats,
   buildSchedulerQueueStatsSnapshot,
+  buildSchedulerStatsPayload,
   cloneSchedulerSystemSignals,
   resolveSchedulerUtilization
 } from '../../../src/shared/concurrency/scheduler-core-stats.js';
@@ -120,5 +122,53 @@ assert.deepEqual(clonedSignals, {
   memory: { rssMb: 1024 }
 });
 assert.equal(cloneSchedulerSystemSignals(null), null);
+
+const adaptivePayload = buildSchedulerAdaptivePayload({
+  adaptiveEnabled: true,
+  baselineLimits: { cpu: 2, io: 2, mem: 2 },
+  maxLimits: { cpu: 4, io: 4, mem: 4 },
+  adaptiveTargetUtilization: 0.75,
+  adaptiveStep: 1,
+  adaptiveMemoryReserveMb: 512,
+  adaptiveMemoryPerTokenMb: 16,
+  globalMaxInFlightBytes: 1024,
+  adaptiveCurrentIntervalMs: 400,
+  adaptiveMode: 'aggressive',
+  smoothedUtilization: 0.5,
+  smoothedPendingPressure: 0.2,
+  smoothedStarvation: 0.1,
+  adaptiveSurfaceControllersEnabled: true,
+  adaptiveSurfaces: adaptiveStats,
+  adaptiveDecisionTrace: [{ id: 1 }],
+  cloneDecisionEntry: (entry) => ({ ...entry, cloned: true }),
+  lastSystemSignals: { cpu: { load: 0.8 }, memory: { rssMb: 500 } },
+  cloneSchedulerSystemSignals,
+  evaluateWriteBackpressure: () => ({ blocked: false }),
+  writeBackpressure: { producerQueues: new Set(['stage1']) }
+});
+assert.equal(adaptivePayload.enabled, true);
+assert.equal(adaptivePayload.decisionTrace[0].cloned, true);
+assert.deepEqual(adaptivePayload.writeBackpressure.producerQueues, ['stage1']);
+
+const statsPayload = buildSchedulerStatsPayload({
+  queueStats: snapshot.queueStats,
+  activity: snapshot.activity,
+  counters: {
+    scheduled: 5,
+    rejected: 1,
+    rejectedByReason: { maxPending: 1, maxPendingBytes: 0, cleared: 0, shutdown: 0 }
+  },
+  adaptive: adaptivePayload,
+  utilization: { cpu: 0.5, io: 0.25, mem: 0.75 },
+  tokens: {
+    cpu: { total: 4, used: 2 },
+    io: { total: 4, used: 1 },
+    mem: { total: 4, used: 3 }
+  },
+  telemetry: { stage: 'stage1', traceIntervalMs: 1000 }
+});
+assert.equal(statsPayload.utilization.overall, 0.75);
+assert.equal(statsPayload.counters.rejectedByReason.maxPending, 1);
+assert.equal(statsPayload.tokens.mem.used, 3);
 
 console.log('scheduler core stats snapshot test passed');

@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T09:46:53.7891297-05:00
+  Extracted scheduler adaptive/final stats payload assembly from `src/shared/concurrency/scheduler-core.js` into helpers in `src/shared/concurrency/scheduler-core-stats.js` (`buildSchedulerAdaptivePayload`, `buildSchedulerStatsPayload`), preserving diagnostics payload shape while reducing core orchestration density; expanded focused coverage in `tests/shared/concurrency/scheduler-core-stats-snapshot.test.js`.
 - 2026-02-23T09:42:20.8777321-05:00
   Integrated parallel worker follow-up for `tools/build/embeddings/runner.js`: extracted chunk-meta workset orchestration into `tools/build/embeddings/runner/chunk-workset.js` with allocation/ordering-path optimizations (order-check short-circuit, incremental sampled counts, map reuse) and focused coverage in `tests/indexing/embeddings/build/chunk-workset-orchestration.test.js`.
 - 2026-02-23T09:42:14.8275433-05:00

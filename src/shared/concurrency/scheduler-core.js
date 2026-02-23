@@ -29,8 +29,10 @@ import { pickNextSchedulerQueue } from './scheduler-core-queue-selection.js';
 import { clearSchedulerQueuePending } from './scheduler-core-clear-queue.js';
 import { resolveSchedulerScheduleRejection } from './scheduler-core-schedule-guards.js';
 import {
+  buildSchedulerAdaptivePayload,
   buildSchedulerQueueStatsSnapshot,
   buildSchedulerAdaptiveSurfaceStats,
+  buildSchedulerStatsPayload,
   cloneSchedulerSystemSignals,
   resolveSchedulerUtilization
 } from './scheduler-core-stats.js';
@@ -879,47 +881,40 @@ export function createBuildScheduler(input = {}) {
       adaptiveSurfaceStates,
       buildAdaptiveSurfaceSnapshotByName
     });
-    return {
-      queues: queueStats,
-      counters: {
-        ...counters,
-        rejectedByReason: { ...counters.rejectedByReason }
-      },
+    const adaptive = buildSchedulerAdaptivePayload({
+      adaptiveEnabled,
+      baselineLimits,
+      maxLimits,
+      adaptiveTargetUtilization,
+      adaptiveStep,
+      adaptiveMemoryReserveMb,
+      adaptiveMemoryPerTokenMb,
+      globalMaxInFlightBytes,
+      adaptiveCurrentIntervalMs,
+      adaptiveMode,
+      smoothedUtilization,
+      smoothedPendingPressure,
+      smoothedStarvation,
+      adaptiveSurfaceControllersEnabled,
+      adaptiveSurfaces,
+      adaptiveDecisionTrace,
+      cloneDecisionEntry,
+      lastSystemSignals,
+      cloneSchedulerSystemSignals,
+      evaluateWriteBackpressure,
+      writeBackpressure
+    });
+    return buildSchedulerStatsPayload({
+      queueStats,
       activity,
-      adaptive: {
-        enabled: adaptiveEnabled,
-        baseline: baselineLimits,
-        max: maxLimits,
-        targetUtilization: adaptiveTargetUtilization,
-        step: adaptiveStep,
-        memoryReserveMb: adaptiveMemoryReserveMb,
-        memoryPerTokenMb: adaptiveMemoryPerTokenMb,
-        maxInFlightBytes: globalMaxInFlightBytes,
-        intervalMs: adaptiveCurrentIntervalMs,
-        mode: adaptiveMode,
-        smoothedUtilization: smoothedUtilization ?? 0,
-        smoothedPendingPressure: smoothedPendingPressure ?? 0,
-        smoothedStarvation: smoothedStarvation ?? 0,
-        surfaceControllersEnabled: adaptiveSurfaceControllersEnabled,
-        surfaces: adaptiveSurfaces,
-        decisionTrace: adaptiveDecisionTrace.map((entry) => cloneDecisionEntry(entry)),
-        signals: cloneSchedulerSystemSignals(lastSystemSignals),
-        writeBackpressure: {
-          ...evaluateWriteBackpressure(),
-          producerQueues: Array.from(writeBackpressure.producerQueues)
-        }
-      },
+      counters,
+      adaptive,
       utilization: {
         cpu: cpuUtilization,
         io: ioUtilization,
-        mem: memUtilization,
-        overall: Math.max(cpuUtilization, ioUtilization, memUtilization)
+        mem: memUtilization
       },
-      tokens: {
-        cpu: { ...tokens.cpu },
-        io: { ...tokens.io },
-        mem: { ...tokens.mem }
-      },
+      tokens,
       telemetry: {
         stage: telemetryStage,
         traceIntervalMs,
@@ -928,7 +923,7 @@ export function createBuildScheduler(input = {}) {
         schedulingTrace: cloneTraceEntries(telemetryCapture.getSchedulingTrace()),
         queueDepthSnapshots: cloneQueueDepthEntries(telemetryCapture.getQueueDepthSnapshots())
       }
-    };
+    });
   };
 
   const shutdown = () => {

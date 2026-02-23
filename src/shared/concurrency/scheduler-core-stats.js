@@ -114,3 +114,119 @@ export const cloneSchedulerSystemSignals = (signals) => {
       : null
   };
 };
+
+/**
+ * Build adaptive scheduler stats payload.
+ *
+ * @param {object} input
+ * @param {boolean} input.adaptiveEnabled
+ * @param {object} input.baselineLimits
+ * @param {object} input.maxLimits
+ * @param {number} input.adaptiveTargetUtilization
+ * @param {number} input.adaptiveStep
+ * @param {number} input.adaptiveMemoryReserveMb
+ * @param {number} input.adaptiveMemoryPerTokenMb
+ * @param {number} input.globalMaxInFlightBytes
+ * @param {number} input.adaptiveCurrentIntervalMs
+ * @param {string} input.adaptiveMode
+ * @param {number|null} input.smoothedUtilization
+ * @param {number|null} input.smoothedPendingPressure
+ * @param {number|null} input.smoothedStarvation
+ * @param {boolean} input.adaptiveSurfaceControllersEnabled
+ * @param {Record<string,object>} input.adaptiveSurfaces
+ * @param {Array<object>} input.adaptiveDecisionTrace
+ * @param {(entry:object)=>object} input.cloneDecisionEntry
+ * @param {object|null} input.lastSystemSignals
+ * @param {(signals:object|null)=>{cpu:object|null,memory:object|null}|null} input.cloneSchedulerSystemSignals
+ * @param {()=>object} input.evaluateWriteBackpressure
+ * @param {{producerQueues:Set<string>}} input.writeBackpressure
+ * @returns {object}
+ */
+export const buildSchedulerAdaptivePayload = ({
+  adaptiveEnabled,
+  baselineLimits,
+  maxLimits,
+  adaptiveTargetUtilization,
+  adaptiveStep,
+  adaptiveMemoryReserveMb,
+  adaptiveMemoryPerTokenMb,
+  globalMaxInFlightBytes,
+  adaptiveCurrentIntervalMs,
+  adaptiveMode,
+  smoothedUtilization,
+  smoothedPendingPressure,
+  smoothedStarvation,
+  adaptiveSurfaceControllersEnabled,
+  adaptiveSurfaces,
+  adaptiveDecisionTrace,
+  cloneDecisionEntry,
+  lastSystemSignals,
+  cloneSchedulerSystemSignals: cloneSignals,
+  evaluateWriteBackpressure,
+  writeBackpressure
+}) => ({
+  enabled: adaptiveEnabled,
+  baseline: baselineLimits,
+  max: maxLimits,
+  targetUtilization: adaptiveTargetUtilization,
+  step: adaptiveStep,
+  memoryReserveMb: adaptiveMemoryReserveMb,
+  memoryPerTokenMb: adaptiveMemoryPerTokenMb,
+  maxInFlightBytes: globalMaxInFlightBytes,
+  intervalMs: adaptiveCurrentIntervalMs,
+  mode: adaptiveMode,
+  smoothedUtilization: smoothedUtilization ?? 0,
+  smoothedPendingPressure: smoothedPendingPressure ?? 0,
+  smoothedStarvation: smoothedStarvation ?? 0,
+  surfaceControllersEnabled: adaptiveSurfaceControllersEnabled,
+  surfaces: adaptiveSurfaces,
+  decisionTrace: adaptiveDecisionTrace.map((entry) => cloneDecisionEntry(entry)),
+  signals: cloneSignals(lastSystemSignals),
+  writeBackpressure: {
+    ...evaluateWriteBackpressure(),
+    producerQueues: Array.from(writeBackpressure.producerQueues)
+  }
+});
+
+/**
+ * Build final scheduler stats payload.
+ *
+ * @param {object} input
+ * @param {Record<string,object>} input.queueStats
+ * @param {object} input.activity
+ * @param {object} input.counters
+ * @param {object} input.adaptive
+ * @param {{cpu:number,io:number,mem:number}} input.utilization
+ * @param {{cpu:object,io:object,mem:object}} input.tokens
+ * @param {object} input.telemetry
+ * @returns {object}
+ */
+export const buildSchedulerStatsPayload = ({
+  queueStats,
+  activity,
+  counters,
+  adaptive,
+  utilization,
+  tokens,
+  telemetry
+}) => ({
+  queues: queueStats,
+  counters: {
+    ...counters,
+    rejectedByReason: { ...counters.rejectedByReason }
+  },
+  activity,
+  adaptive,
+  utilization: {
+    cpu: utilization.cpu,
+    io: utilization.io,
+    mem: utilization.mem,
+    overall: Math.max(utilization.cpu, utilization.io, utilization.mem)
+  },
+  tokens: {
+    cpu: { ...tokens.cpu },
+    io: { ...tokens.io },
+    mem: { ...tokens.mem }
+  },
+  telemetry
+});
