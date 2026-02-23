@@ -69,6 +69,10 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T09:32:10.7016089-05:00
+  Integrated parallel worker follow-up for `tools/usr/generate-usr-matrix-baselines/datasets.mjs`: extracted language/framework static catalogs into `datasets-language-families.mjs` and `datasets-framework-families.mjs`, removed redundant builder-level sorting in `builders.mjs`, and added parity/order coverage in `datasets-catalogs.test.mjs` plus `builders-parity.test.mjs`.
+- 2026-02-23T09:32:01.0666482-05:00
+  Extracted runtime language-options payload assembly from `src/index/build/runtime/runtime.js` into `src/index/build/runtime/runtime-language-options.js`, preserving scheduler fallback and parser/chunking wiring while reducing startup orchestration density; added focused coverage in `tests/indexing/runtime/runtime-language-options.test.js`.
 - 2026-02-23T09:27:18.1321753-05:00
   Extracted run-search mode/profile availability + ANN-flag synchronization orchestration from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/mode-profile-availability.js`, preserving warning emission and sparse-fallback hook contracts while reducing plan-runner branching density; added focused coverage in `tests/retrieval/cli/run-search-mode-profile-availability.test.js`.
 - 2026-02-23T09:24:01.4847805-05:00

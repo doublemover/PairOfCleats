@@ -80,6 +80,7 @@ import {
   createRuntimeSqlDialectResolver,
   resolveRuntimeLanguageInitConfig
 } from './runtime-language-init.js';
+import { buildRuntimeLanguageOptions } from './runtime-language-options.js';
 import { resolveRuntimeAnalysisConfig } from './runtime-analysis-init.js';
 import { resolveRuntimeStartupPolicyState } from './runtime-startup-policy-init.js';
 
@@ -620,60 +621,47 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   const fileScan = buildFileScanConfig(indexingConfig);
   const shardConfig = buildShardConfig(indexingConfig);
 
-  const languageOptions = {
-    rootDir: root,
+  const languageOptions = buildRuntimeLanguageOptions({
+    root,
     astDataflowEnabled,
     controlFlowEnabled,
     skipUnknownLanguages,
     skipOnParseError,
-    javascript: {
-      parser: parserConfig.javascript,
-      flow: flowConfig.javascript
-    },
-    typescript: {
-      parser: parserConfig.typescript,
-      importsOnly: typescriptImportsOnly
-    },
+    parserConfig,
+    flowConfig,
+    typescriptImportsOnly,
     embeddingBatchMultipliers,
     chunking,
-    tokenization: {
-      fileStream: tokenizationFileStream
-    },
-    pythonAst: pythonAstRuntimeConfig,
-    kotlin: {
-      flowMaxBytes: kotlinFlowMaxBytes,
-      flowMaxLines: kotlinFlowMaxLines,
-      relationsMaxBytes: kotlinRelationsMaxBytes,
-      relationsMaxLines: kotlinRelationsMaxLines
-    },
-    treeSitter: {
-      enabled: treeSitterEnabled,
-      languages: treeSitterLanguages,
-      configChunking: treeSitterConfigChunking,
-      maxBytes: treeSitterMaxBytes,
-      maxLines: treeSitterMaxLines,
-      maxParseMs: treeSitterMaxParseMs,
-      byLanguage: treeSitterByLanguage,
-      preload: treeSitterPreload,
-      preloadConcurrency: treeSitterPreloadConcurrency,
-      batchByLanguage: treeSitterBatchByLanguage,
-      batchEmbeddedLanguages: treeSitterBatchEmbeddedLanguages,
-      languagePasses: treeSitterLanguagePasses,
-      deferMissing: treeSitterDeferMissing,
-      deferMissingMax: treeSitterDeferMissingMax,
-      cachePersistent: treeSitterCachePersistent,
-      cachePersistentDir: resolvedTreeSitterCachePersistentDir,
-      worker: treeSitterWorker,
-      scheduler: treeSitterScheduler || { transport: 'disk', sharedCache: false }
-    },
+    tokenizationFileStream,
+    pythonAstRuntimeConfig,
+    kotlinFlowMaxBytes,
+    kotlinFlowMaxLines,
+    kotlinRelationsMaxBytes,
+    kotlinRelationsMaxLines,
+    treeSitterEnabled,
+    treeSitterLanguages,
+    treeSitterConfigChunking,
+    treeSitterMaxBytes,
+    treeSitterMaxLines,
+    treeSitterMaxParseMs,
+    treeSitterByLanguage,
+    treeSitterPreload,
+    treeSitterPreloadConcurrency,
+    treeSitterBatchByLanguage,
+    treeSitterBatchEmbeddedLanguages,
+    treeSitterLanguagePasses,
+    treeSitterDeferMissing,
+    treeSitterDeferMissingMax,
+    treeSitterCachePersistent,
+    resolvedTreeSitterCachePersistentDir,
+    treeSitterWorker,
+    treeSitterScheduler,
     resolveSqlDialect,
-    yamlChunking: {
-      mode: yamlChunkingMode,
-      maxBytes: yamlTopLevelMaxBytes
-    },
-    lexicon: lexiconConfig,
+    yamlChunkingMode,
+    yamlTopLevelMaxBytes,
+    lexiconConfig,
     log
-  };
+  });
 
   try {
     await fs.mkdir(buildRoot, { recursive: true });
