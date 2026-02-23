@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { performance } from 'node:perf_hooks';
 import { createEmbedder } from '../../../src/index/embedding.js';
+import { createToolDisplay } from '../../shared/cli-display.js';
 import { runBatched } from '../../build/embeddings/embed.js';
 
 const parseArgs = () => {
@@ -22,6 +23,7 @@ const parseArgs = () => {
 };
 
 const args = parseArgs();
+const display = createToolDisplay({ argv: args, stream: process.stderr });
 const providerList = String(args.providers || 'stub')
   .split(',')
   .map((value) => value.trim())
@@ -34,17 +36,81 @@ const textCount = Math.max(1, Math.floor(Number(args.texts || 2000)));
 const dims = Math.max(1, Math.floor(Number(args.dims || 384)));
 
 const texts = Array.from({ length: textCount }, (_, i) => `t${i}`);
+const providerTask = display.task('Providers', {
+  taskId: 'embedding-throughput:providers',
+  total: providerList.length,
+  stage: 'bench'
+});
+let providersCompleted = 0;
+
+const formatElapsed = (startedAtMs) => {
+  const elapsedMs = Math.max(0, Date.now() - startedAtMs);
+  if (elapsedMs < 1000) return `${elapsedMs}ms`;
+  return `${(elapsedMs / 1000).toFixed(1)}s`;
+};
+
+const resolveProviderModel = (value) => {
+  const raw = String(value || '').trim();
+  const normalized = raw.toLowerCase();
+  if (!raw || normalized === 'stub') {
+    return {
+      label: 'stub',
+      provider: 'xenova',
+      modelId: 'stub',
+      useStubEmbeddings: true
+    };
+  }
+  if (raw.startsWith('onnx:')) {
+    return {
+      label: raw,
+      provider: 'onnx',
+      modelId: raw.slice('onnx:'.length).trim() || 'Xenova/bge-small-en-v1.5',
+      useStubEmbeddings: false
+    };
+  }
+  if (raw.startsWith('xenova:')) {
+    return {
+      label: raw,
+      provider: 'xenova',
+      modelId: raw.slice('xenova:'.length).trim() || 'Xenova/bge-small-en-v1.5',
+      useStubEmbeddings: false
+    };
+  }
+  if (normalized === 'onnx') {
+    return {
+      label: 'onnx',
+      provider: 'onnx',
+      modelId: 'Xenova/bge-small-en-v1.5',
+      useStubEmbeddings: false
+    };
+  }
+  if (normalized === 'xenova') {
+    return {
+      label: 'xenova',
+      provider: 'xenova',
+      modelId: 'Xenova/bge-small-en-v1.5',
+      useStubEmbeddings: false
+    };
+  }
+  return {
+    label: raw,
+    provider: 'xenova',
+    modelId: raw,
+    useStubEmbeddings: false
+  };
+};
 
 const runProvider = async (provider) => {
-  const normalized = String(provider).trim().toLowerCase();
-  const useStubEmbeddings = normalized === 'stub';
+  const providerModel = resolveProviderModel(provider);
+  const normalized = providerModel.label.toLowerCase();
+  const useStubEmbeddings = providerModel.useStubEmbeddings === true;
 
   const embedder = createEmbedder({
     rootDir: process.cwd(),
     useStubEmbeddings,
-    modelId: useStubEmbeddings ? 'stub' : (normalized || 'unknown'),
+    modelId: providerModel.modelId,
     dims,
-    provider: normalized === 'onnx' ? 'onnx' : 'openai',
+    provider: providerModel.provider,
     // Provider-specific config is intentionally omitted for benches:
     // - openai requires API token
     // - onnx requires local model files
@@ -54,26 +120,82 @@ const runProvider = async (provider) => {
   });
 
   const embed = embedder.getChunkEmbeddings;
+  const batchTask = display.task(`Batches ${normalized || 'unknown'}`, {
+    taskId: `embedding-throughput:batches:${normalized || 'unknown'}`,
+    total: batchList.length,
+    stage: 'bench',
+    mode: normalized || 'unknown',
+    ephemeral: true
+  });
+  let completedBatches = 0;
 
-  for (const batchSize of batchList) {
-    const start = performance.now();
-    await runBatched({ texts, batchSize, embed });
-    const durationMs = performance.now() - start;
-    const throughput = texts.length ? (texts.length / (durationMs / 1000)) : 0;
-    console.log(
-      `[bench] provider=${normalized} batch=${batchSize} texts=${texts.length} dims=${dims} `
-      + `duration=${durationMs.toFixed(1)}ms throughput=${throughput.toFixed(1)}/s`
-    );
+  const warmupStartAtMs = Date.now();
+  batchTask.set(completedBatches, batchList.length, {
+    message: `warmup (${formatElapsed(warmupStartAtMs)})`
+  });
+  await embed([texts[0] || 'warmup']);
+  display.log(
+    `[bench] provider=${normalized} model=${providerModel.modelId} warmup completed in ${formatElapsed(warmupStartAtMs)}`,
+    { kind: 'status', stage: 'bench' }
+  );
+
+  try {
+    for (const batchSize of batchList) {
+      const phaseStartAtMs = Date.now();
+      batchTask.set(completedBatches, batchList.length, {
+        message: `batch=${batchSize} running (${formatElapsed(phaseStartAtMs)})`
+      });
+      const start = performance.now();
+      let lastInnerUpdate = 0;
+      await runBatched({
+        texts,
+        batchSize,
+        embed,
+        onBatch: ({ completed, total, batchIndex, batchCount }) => {
+          const now = Date.now();
+          if ((now - lastInnerUpdate) < 150) return;
+          lastInnerUpdate = now;
+          batchTask.set(completedBatches, batchList.length, {
+            message: `batch=${batchSize} ${completed}/${total} texts (${batchIndex}/${batchCount})`
+          });
+        }
+      });
+      const durationMs = performance.now() - start;
+      const throughput = texts.length ? (texts.length / (durationMs / 1000)) : 0;
+      completedBatches += 1;
+      batchTask.set(completedBatches, batchList.length, {
+        message: `batch=${batchSize} done ${durationMs.toFixed(1)}ms @ ${throughput.toFixed(1)}/s`
+      });
+      console.log(
+        `[bench] provider=${providerModel.provider} model=${providerModel.modelId} `
+        + `batch=${batchSize} texts=${texts.length} dims=${dims} `
+        + `duration=${durationMs.toFixed(1)}ms throughput=${throughput.toFixed(1)}/s`
+      );
+    }
+  } finally {
+    batchTask.done({ message: 'batch sweep complete' });
   }
 };
 
 for (const provider of providerList) {
   try {
     await runProvider(provider);
+    providersCompleted += 1;
+    providerTask.set(providersCompleted, providerList.length, {
+      message: `${provider} complete`
+    });
   } catch (err) {
     const label = String(provider).trim().toLowerCase() || 'unknown';
     const message = err?.message || String(err);
     console.warn(`[bench] provider=${label} skipped: ${message}`);
+    providersCompleted += 1;
+    providerTask.set(providersCompleted, providerList.length, {
+      message: `${label} skipped`
+    });
   }
 }
+
+providerTask.done({ message: 'throughput sweep complete' });
+display.flush();
+display.close();
 
