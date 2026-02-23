@@ -91,7 +91,7 @@
     "@babel/traverse": "^7.28.5",
     "@derekstride/tree-sitter-sql": "0.3.11",
     "@eagleoutice/tree-sitter-r": "1.1.2",
-    "@es-joy/jsdoccomment": "^0.79.0",
+    "@es-joy/jsdoccomment": "^0.84.0",
     "@ganezdragon/tree-sitter-perl": "1.1.1",
     "@handlebars/parser": "^2.2.2",
     "@lancedb/lancedb": "^0.26.2",
