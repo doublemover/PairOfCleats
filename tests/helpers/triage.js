@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { rmDirRecursive } from './temp.js';
 import { resolveTestCacheDir } from './test-cache.js';
+import { applyTestEnv } from './test-env.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -28,11 +29,13 @@ export const getTriageContext = async ({ name }) => {
   }
   await fsPromises.mkdir(cacheRoot, { recursive: true });
 
-  const env = {
-    ...process.env,
-    PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-    PAIROFCLEATS_EMBEDDINGS: 'stub'
-  };
+  const env = applyTestEnv({
+    cacheRoot,
+    embeddings: 'stub',
+    extraEnv: {
+      PAIROFCLEATS_TRACE_ARTIFACT_IO: traceArtifactIo ? '1' : undefined
+    }
+  });
 
   const writeTestLog = async (fileName, payload) => {
     if (!resolvedTestLogRoot) return;

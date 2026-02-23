@@ -4,7 +4,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import fsPromises from 'node:fs/promises';
 import { spawn, spawnSync } from 'node:child_process';
-import { attachSilentLogging } from '../../helpers/test-env.js';
+import { applyTestEnv, attachSilentLogging } from '../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -17,11 +17,10 @@ const authToken = 'test-token';
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 
-const env = {
-  ...process.env,
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub'
+});
 
 const build = spawnSync(
   process.execPath,
