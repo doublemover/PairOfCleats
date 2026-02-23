@@ -60,6 +60,7 @@ import { resolveRunSearchBackendSelection } from './backend-selection.js';
 import { initializeBackendContext } from './backend-context-setup.js';
 import { loadRunSearchIndexesWithTracking } from './index-loading.js';
 import { buildQueryPlanInput } from './plan-input.js';
+import { buildIndexSignatureInput } from './signature-input.js';
 
 import {
   resolveAnnActive,
@@ -637,22 +638,19 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       queryPlanCache,
       planInput,
       fileChargramN,
-      indexSignatureInput: {
+      indexSignatureInput: buildIndexSignatureInput({
         useSqlite,
         backendLabel,
         sqliteCodePath,
         sqliteProsePath,
         sqliteExtractedProsePath,
         runRecords,
-        runExtractedProse: runExtractedProseRaw,
-        includeExtractedProse: runExtractedProseRaw || joinComments,
-        root: rootDir,
+        runExtractedProseRaw,
+        joinComments,
+        rootDir,
         userConfig,
-        indexDirByMode: asOfContext?.strict ? asOfContext.indexDirByMode : null,
-        indexBaseRootByMode: asOfContext?.strict ? asOfContext.indexBaseRootByMode : null,
-        explicitRef: asOfContext?.strict === true,
         asOfContext
-      }
+      })
     });
 
     let sparseMissingByMode = {};

@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T06:47:51.5155732-05:00
+  Extracted retrieval index-signature payload assembly from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/signature-input.js`, reducing orchestration-path object construction noise around query-plan cache signature generation.
 - 2026-02-23T06:46:05.1520260-05:00
   Extracted retrieval query-plan payload assembly from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/plan-input.js`, isolating plan-input construction from orchestration/control flow.
 - 2026-02-23T06:44:46.2925815-05:00
