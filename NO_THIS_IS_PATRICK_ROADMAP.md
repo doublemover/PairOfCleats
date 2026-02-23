@@ -52,18 +52,18 @@ This roadmap covers modularization and performance hardening for the 49 specifie
 - `tests/ci-lite/ci-lite.order.txt`
 - `tests/fixtures/perf/index/caps-calibration-inputs.json`
 
-## Implementation status (2026-02-23T03:53:13.5445815-05:00)
+## Implementation status (2026-02-23T05:16:00.0000000-05:00)
 Status classification used for this roadmap:
 - Implemented on branch: file appears in diff against `origin/main`.
 - Remaining in scope: file does not yet appear in diff against `origin/main`.
 
 Current snapshot:
 - Scoped files: 49
-- Implemented on branch: 48
-- Remaining in scope: 1
+- Implemented on branch: 49
+- Remaining in scope: 0
 
-Remaining in scope:
-- `tests/fixtures/perf/index/caps-calibration-inputs.json`
+Coverage closeout:
+- `tests/fixtures/perf/index/caps-calibration-inputs.json` and companion results fixture were regenerated from deterministic runtime calibration artifacts and are guarded by `tests/indexing/runtime/caps-calibration-fixture-parity.test.js`.
 
 Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
