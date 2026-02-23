@@ -48,6 +48,7 @@ import { applyRunSearchSparseFallbackPolicy } from './sparse-fallback-orchestrat
 import { enforceSparseFallbackAnnAvailability } from './sparse-fallback-guard.js';
 import { buildRunSearchIndexLoadInput } from './index-load-input.js';
 import { buildRunSearchExecutionInput } from './execution-input.js';
+import { resolveRunSearchPlanCache } from './plan-cache-init.js';
 
 import {
   resolveAnnActive
@@ -145,19 +146,13 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const metricsDir = getMetricsDir(rootDir, userConfig);
     const queryCacheDir = getQueryCacheDir(rootDir, userConfig);
     const policy = await getAutoPolicy(rootDir, userConfig);
-    if (!queryPlanCache) {
-      const queryPlanCachePath = resolveRetrievalCachePath({
-        queryCacheDir,
-        metricsDir,
-        fileName: 'queryPlanCache.json'
-      });
-      if (queryPlanCachePath) {
-        queryPlanCache = createQueryPlanDiskCache({ path: queryPlanCachePath });
-        if (typeof queryPlanCache?.load === 'function') {
-          queryPlanCache.load();
-        }
-      }
-    }
+    queryPlanCache = resolveRunSearchPlanCache({
+      queryPlanCache,
+      queryCacheDir,
+      metricsDir,
+      resolveRetrievalCachePath,
+      createQueryPlanDiskCache
+    });
     let normalized;
     try {
       normalized = normalizeSearchOptions({

@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T08:35:56.5926511-05:00
+  Extracted run-search query-plan cache initialization from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/plan-cache-init.js`, isolating cache path resolution/create+load wiring and adding focused coverage in `tests/retrieval/cli/run-search-plan-cache-init.test.js`.
 - 2026-02-23T08:34:30.2183797-05:00
   Extracted run-search execution payload assembly from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/execution-input.js`, isolating large emit payload wiring from orchestration flow and adding focused helper coverage in `tests/retrieval/cli/run-search-execution-input.test.js`.
 - 2026-02-23T08:32:38.2801780-05:00
