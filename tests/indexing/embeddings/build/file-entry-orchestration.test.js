@@ -84,13 +84,12 @@ const processFileEntry = createFileEntryProcessor({
 
 await processFileEntry(['src/alpha.js', chunkItems]);
 
-assert.equal(lookupCalls.length, 2, 'expected cache lookup before and after content-hash read');
-assert.equal(lookupCalls[0].fileHash, null, 'expected first lookup to use manifest hash (missing)');
-assert.equal(lookupCalls[1].fileHash, 'hash-from-read', 'expected second lookup to use computed content hash');
+assert.equal(lookupCalls.length, 1, 'expected one cache lookup after content-hash read');
+assert.equal(lookupCalls[0].fileHash, 'hash-from-read', 'expected lookup to use computed content hash');
 assert.deepEqual(
   markCalls,
   [{ chunkCount: 1, source: 'cache' }],
-  'expected second cache hit to short-circuit compute'
+  'expected cache hit to short-circuit compute'
 );
 assert.equal(prepareCalls, 0, 'expected no workset prep when cache serves the file');
 assert.equal(computeCalls, 0, 'expected compute to be skipped when cache serves the file');
@@ -100,6 +99,65 @@ assert.deepEqual(
   'expected non-record mode to read from repo-root relative path'
 );
 assert.equal(warnLines.length, 0, 'expected no read warnings for successful fallback path');
+
+const preReadLookupCalls = [];
+const preReadReads = [];
+const processFileEntryWithManifestHash = createFileEntryProcessor({
+  mode: 'code',
+  root: repoRoot,
+  recordsDir: null,
+  manifestFiles: {
+    'src/manifest-hash.js': { hash: 'manifest-hash' }
+  },
+  cacheState: { cacheEligible: true, cacheIndex: {} },
+  cacheRepoId: 'repo-id',
+  cacheIdentityKey: 'identity-key',
+  cacheKeyFlags: ['stub'],
+  configuredDims: 3,
+  cacheCounters: {
+    attempts: 0,
+    hits: 0,
+    misses: 0,
+    rejected: 0,
+    fastRejects: 0
+  },
+  scheduleIo: async (worker) => worker(),
+  assertDims: () => {},
+  codeVectors: [],
+  docVectors: [],
+  mergedVectors: [],
+  addHnswFromQuantized: null,
+  markFileProcessed: async () => {},
+  computeFileEmbeddings: async () => {
+    throw new Error('compute should not run when manifest-hash cache hit succeeds');
+  },
+  prepareFileEmbeddingWorkset: async () => {
+    throw new Error('workset prep should not run when manifest-hash cache hit succeeds');
+  },
+  warn: () => {},
+  buildChunkSignatureImpl: (items) => `sig:${items.length}`,
+  buildCacheKeyImpl: ({ file, hash, signature }) => `${file}|${hash ?? 'none'}|${signature}`,
+  lookupCacheEntryWithStatsImpl: async (input) => {
+    preReadLookupCalls.push({ cacheKey: input.cacheKey, fileHash: input.fileHash });
+    if (input.fileHash === 'manifest-hash') {
+      return { cacheHit: true };
+    }
+    return null;
+  },
+  tryApplyCachedVectorsImpl: ({ cached }) => Boolean(cached?.cacheHit),
+  readTextFileWithHashImpl: async (filePath) => {
+    preReadReads.push(filePath);
+    return { text: 'beta', hash: 'hash-from-read' };
+  }
+});
+
+await processFileEntryWithManifestHash(['src/manifest-hash.js', chunkItems]);
+assert.deepEqual(
+  preReadLookupCalls,
+  [{ cacheKey: 'src/manifest-hash.js|manifest-hash|sig:1', fileHash: 'manifest-hash' }],
+  'expected pre-read cache lookup when manifest hash is available'
+);
+assert.deepEqual(preReadReads, [], 'expected no file read when manifest-hash cache lookup hits');
 
 const triageCandidates = resolveFileReadCandidates({
   mode: 'records',

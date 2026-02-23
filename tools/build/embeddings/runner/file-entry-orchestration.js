@@ -74,12 +74,13 @@ export const readFileTextWithFallback = async ({
  * Create hot-path file entry processor for stage3 embeddings.
  *
  * Sequencing contract:
- * 1. Attempt cache reuse with manifest hash first.
+ * 1. Attempt cache reuse with manifest hash first (when available).
  * 2. Read file text/hash only if needed.
  * 3. Retry cache reuse with computed content hash before scheduling compute.
  *
- * This preserves prior cache hit behavior while avoiding unnecessary embedding
- * work when the manifest lacks a hash but file content still matches cache.
+ * Cache behavior note: when manifest hash is missing we intentionally skip the
+ * initial lookup, because hashless lookups are guaranteed misses and add
+ * avoidable hot-path overhead on repositories with sparse manifests.
  *
  * @param {{
  *   mode:string,
@@ -152,7 +153,7 @@ export const createFileEntryProcessor = ({
     featureFlags: cacheKeyFlags,
     pathPolicy: 'posix'
   });
-  let cacheKey = resolveCacheKey(fileHash);
+  let cacheKey = fileHash ? resolveCacheKey(fileHash) : null;
   const tryServeFromCache = async ({ cacheKeyForFile, fileHashForFile }) => {
     const cached = await lookupCacheEntryWithStatsImpl({
       cacheState,
@@ -188,7 +189,7 @@ export const createFileEntryProcessor = ({
     });
     return true;
   };
-  if (await tryServeFromCache({ cacheKeyForFile: cacheKey, fileHashForFile: fileHash })) {
+  if (fileHash && await tryServeFromCache({ cacheKeyForFile: cacheKey, fileHashForFile: fileHash })) {
     return;
   }
 

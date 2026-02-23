@@ -148,20 +148,22 @@ export const prepareFileEmbeddingWorkset = async ({
     scheduleIo
   });
 
-  const codeTexts = new Array(chunkCount);
-  const docTexts = new Array(chunkCount);
+  const codeTexts = chunkCodeTexts;
+  const docTexts = chunkDocTexts;
   const mapping = new Array(chunkCount);
   const reuseCode = reuse.code;
   const reuseDoc = reuse.doc;
   const reuseMerged = reuse.merged;
   let pendingCount = 0;
+  // Compact unresolved payloads in place. This avoids allocating and copying
+  // second full-size code/doc arrays on every file in the stage3 hot path.
   for (let i = 0; i < chunkCount; i += 1) {
     if (reuseCode[i] && reuseDoc[i] && reuseMerged[i]) {
       continue;
     }
     mapping[pendingCount] = i;
-    codeTexts[pendingCount] = chunkCodeTexts[i];
-    docTexts[pendingCount] = chunkDocTexts[i];
+    codeTexts[pendingCount] = codeTexts[i];
+    docTexts[pendingCount] = docTexts[i];
     pendingCount += 1;
   }
   mapping.length = pendingCount;
