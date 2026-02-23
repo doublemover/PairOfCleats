@@ -5,7 +5,6 @@ import {
   getGitMetaForFile,
   getRepoProvenance
 } from '../../git.js';
-import { toPosix } from '../../../shared/files.js';
 import { findUpwards } from '../../../shared/fs/find-upwards.js';
 import { runScmCommand } from '../runner.js';
 import { toRepoPosixPath } from '../paths.js';
@@ -20,14 +19,27 @@ import {
   readGitMetaPrefetchValue,
   runGitMetaPrefetchTask,
   setGitMetaPrefetchEntry,
-  toUniquePosixFiles,
-  upsertGitMetaPrefetch
+  toUniquePosixFiles
 } from './git/prefetch.js';
 import {
   createBatchDiagnostics,
-  getGitMetaTimeoutState,
-  runGitMetaBatchFetch
+  getGitMetaTimeoutState
 } from './git/meta-batch.js';
+import {
+  appendDiffRefArgs,
+  appendScopedSubdirArg,
+  parseLines,
+  parseNullSeparated,
+  parseProviderFileList
+} from './git/path-normalization.js';
+import {
+  buildFetchedBatchResponse,
+  fetchGitMetaBatch,
+  getPrefetchMissingFiles,
+  normalizeSingleFileMeta,
+  toUnavailableResult,
+  upsertSingleFileMetaPrefetch
+} from './git/provider-batch.js';
 
 const SCM_STRING_COMMAND_OPTIONS = Object.freeze({
   outputMode: 'string',
@@ -35,61 +47,6 @@ const SCM_STRING_COMMAND_OPTIONS = Object.freeze({
   captureStderr: true,
   rejectOnNonZeroExit: false
 });
-
-/**
- * Stable lexical comparator used for deterministic file ordering.
- * @param {string} left
- * @param {string} right
- * @returns {number}
- */
-const compareLexicographically = (left, right) => (
-  left < right ? -1 : left > right ? 1 : 0
-);
-
-/**
- * Parse NUL-delimited `git -z` output.
- * @param {string} value
- * @returns {string[]}
- */
-const parseNullSeparated = (value) => (
-  String(value || '')
-    .split('\0')
-    .filter(Boolean)
-);
-
-/**
- * Parse newline-delimited command output.
- * @param {string} value
- * @returns {string[]}
- */
-const parseLines = (value) => (
-  String(value || '')
-    .split(/\r?\n/)
-    .filter(Boolean)
-);
-
-/**
- * Normalize SCM paths to repo-relative posix and return sorted output.
- * @param {string[]} entries
- * @param {string} repoRoot
- * @returns {string[]}
- */
-const toSortedRepoPosixFiles = (entries, repoRoot) => {
-  const filesPosix = [];
-  for (const entry of Array.isArray(entries) ? entries : []) {
-    const normalized = toRepoPosixPath(toPosix(entry), repoRoot);
-    if (!normalized) continue;
-    filesPosix.push(normalized);
-  }
-  filesPosix.sort(compareLexicographically);
-  return filesPosix;
-};
-
-/**
- * Standard provider unavailable payload.
- * @returns {{ok:false,reason:'unavailable'}}
- */
-const toUnavailableResult = () => ({ ok: false, reason: 'unavailable' });
 
 /**
  * Run a git task with shared timeout/circuit state.
@@ -120,110 +77,6 @@ const buildGitFreshnessGuard = ({ repoRoot, headId = null }) => buildScmFreshnes
   provider: 'git',
   repoRoot,
   repoHeadId: headId
-});
-
-/**
- * Append repo-scoped path filter argument (`-- <subdir>`) when provided.
- * @param {string[]} args
- * @param {{repoRoot:string,subdir?:string|null}} input
- * @returns {string[]}
- */
-const appendScopedSubdirArg = (args, { repoRoot, subdir = null }) => {
-  const scoped = subdir ? toRepoPosixPath(subdir, repoRoot) : null;
-  if (scoped) args.push('--', scoped);
-  return args;
-};
-
-/**
- * Append optional diff ref range arguments.
- * @param {string[]} args
- * @param {{fromRef?:string|null,toRef?:string|null}} input
- * @returns {string[]}
- */
-const appendDiffRefArgs = (args, { fromRef = null, toRef = null }) => {
-  if (fromRef && toRef) {
-    args.push(fromRef, toRef);
-  } else if (fromRef) {
-    args.push(fromRef);
-  } else if (toRef) {
-    args.push(toRef);
-  }
-  return args;
-};
-
-/**
- * Parse command stdout into normalized file list.
- * @param {{stdout:string,repoRoot:string,parser:(value:string)=>string[]}} input
- * @returns {string[]}
- */
-const parseProviderFileList = ({ stdout, repoRoot, parser }) => (
-  toSortedRepoPosixFiles(parser(stdout), repoRoot)
-);
-
-/**
- * Normalize git metadata payload fields to provider contract names.
- * @param {object} meta
- * @returns {object}
- */
-const normalizeSingleFileMeta = (meta) => ({
-  lastCommitId: typeof meta?.last_commit === 'string' ? meta.last_commit : null,
-  lastModifiedAt: meta?.last_modified || null,
-  lastAuthor: meta?.last_author || null,
-  churn: Number.isFinite(meta?.churn) ? meta.churn : null,
-  churnAdded: Number.isFinite(meta?.churn_added) ? meta.churn_added : null,
-  churnDeleted: Number.isFinite(meta?.churn_deleted) ? meta.churn_deleted : null,
-  churnCommits: Number.isFinite(meta?.churn_commits) ? meta.churn_commits : null
-});
-
-/**
- * Upsert one file's metadata into the prefetch cache.
- * @param {object} input
- * @returns {void}
- */
-const upsertSingleFileMetaPrefetch = ({ freshnessGuard, config, filePosix, meta }) => {
-  upsertGitMetaPrefetch({
-    freshnessGuard,
-    config,
-    filesPosix: [filePosix],
-    fileMetaByPath: { [filePosix]: meta }
-  });
-};
-
-/**
- * Determine which files still need hydration from git.
- * @param {object|null} entry
- * @param {string[]} filesPosix
- * @returns {string[]}
- */
-const getPrefetchMissingFiles = (entry, filesPosix) => (
-  entry?.knownFiles
-    ? filesPosix.filter((filePosix) => !entry.knownFiles.has(filePosix))
-    : filesPosix
-);
-
-/**
- * Fetch batched git metadata with timeout-aware task wrapper.
- * @param {object} input
- * @returns {Promise<object|null>}
- */
-const fetchGitMetaBatch = async ({ repoRoot, filesPosix, timeoutMs, config }) => {
-  const fetched = await runGitMetaBatchFetch({
-    repoRoot,
-    filesPosix,
-    timeoutMs,
-    config
-  });
-  return fetched.ok ? fetched : null;
-};
-
-/**
- * Shape successful fetch response to provider return contract.
- * @param {object} fetched
- * @returns {{fileMetaByPath:object,diagnostics:object|null}}
- */
-const buildFetchedBatchResponse = (fetched) => ({
-  fileMetaByPath: fetched.fileMetaByPath,
-  diagnostics: fetched.diagnostics || null
 });
 
 const GIT_METADATA_CAPABILITIES = Object.freeze({
