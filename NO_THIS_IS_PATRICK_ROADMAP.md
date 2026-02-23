@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T06:18:26.8543337-05:00
+  Split `tools/build/embeddings/runner.js` into focused `runner/config.js`, `runner/incremental-refresh.js`, and `runner/cache-orchestration.js`, reducing duplicated cache lookup/reuse/write paths and centralizing cache-index flush coordination/counters to lower hot-loop branching while preserving stage3/stage4 ordering and fallback semantics.
 - 2026-02-23T06:14:17.9887751-05:00
   Refactored `src/shared/artifact-io/json.js` into focused `json/*` helpers (`error-classification`, `fallback-rules`, `read-plan`, `io`, `line-scan-async`), preserving hard-cutover manifest fallback semantics while reducing repeated probe logic and avoiding unnecessary intermediate allocations in async line scanning paths.
 - 2026-02-23T06:13:11.8881660-05:00
