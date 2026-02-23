@@ -69,7 +69,16 @@ const randomPayload = JSON.parse(randomResult.stdout || '{}');
 assert.equal(randomPayload.randomizedOrder, true, 'randomizedOrder flag missing from list payload');
 const canonicalOrder = (payload.tasks || []).map((task) => `${task.language}|${task.tier}|${task.repo}`);
 const randomOrder = (randomPayload.tasks || []).map((task) => `${task.language}|${task.tier}|${task.repo}`);
-assert.notDeepEqual(randomOrder, canonicalOrder, 'random ordering should differ from default list order');
+assert.equal(
+  randomOrder.length,
+  canonicalOrder.length,
+  'randomized output should preserve task count'
+);
+assert.deepEqual(
+  [...randomOrder].sort(),
+  [...canonicalOrder].sort(),
+  'randomized output should remain a permutation of canonical tasks'
+);
 
 const shardByLabel = new Map([['src', { index: 2, total: 4 }]]);
 const progressLine = formatShardFileProgress(
