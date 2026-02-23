@@ -269,7 +269,11 @@ const handleSync = async () => {
     const result = await ensureRepo(entry, baseDir, policy);
     results.push({ id: entry.id || entry.path, ...result });
   }
-  printPayload({ ok: true, results });
+  const failed = results.filter((entry) => !entry?.ok);
+  printPayload({ ok: failed.length === 0, results });
+  if (failed.length > 0) {
+    process.exit(1);
+  }
 };
 
 /**
