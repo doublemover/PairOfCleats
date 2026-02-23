@@ -47,5 +47,19 @@ assert.equal(meta.stats.occurrences, lines.length);
 assert.equal(meta.stats.definitions, 1);
 assert.equal(meta.stats.references, 1);
 
+const missingInputPath = path.join(tempRoot, 'missing-scip.json');
+const missingResult = spawnSync(
+  process.execPath,
+  [cliPath, 'ingest', 'scip', '--repo', repoRoot, '--input', missingInputPath, '--out', path.join(tempRoot, 'missing.jsonl'), '--json'],
+  { encoding: 'utf8' }
+);
+assert.notEqual(missingResult.status, 0, 'expected missing input to fail');
+const missingOutput = `${missingResult.stderr || ''}${missingResult.stdout || ''}`;
+assert.equal(
+  missingOutput.includes("Unhandled 'error' event"),
+  false,
+  'expected missing input failure to avoid unhandled stream error'
+);
+
 console.log('scip ingest test passed');
 

@@ -45,5 +45,19 @@ const metaPath = `${outPath}.meta.json`;
 const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
 assert.equal(meta.stats.entries, lines.length);
 
+const missingInputPath = path.join(tempRoot, 'missing-gtags.txt');
+const missingResult = spawnSync(
+  process.execPath,
+  [cliPath, 'ingest', 'gtags', '--repo', repoRoot, '--input', missingInputPath, '--out', path.join(tempRoot, 'missing.jsonl'), '--json'],
+  { encoding: 'utf8' }
+);
+assert.notEqual(missingResult.status, 0, 'expected missing input to fail');
+const missingOutput = `${missingResult.stderr || ''}${missingResult.stdout || ''}`;
+assert.equal(
+  missingOutput.includes("Unhandled 'error' event"),
+  false,
+  'expected missing input failure to avoid unhandled stream error'
+);
+
 console.log('gtags ingest test passed');
 

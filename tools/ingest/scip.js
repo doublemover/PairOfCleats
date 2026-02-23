@@ -160,18 +160,30 @@ const handlePayload = (payload) => {
 
 const ingestJsonLines = async (stream) => {
   const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
-  for await (const line of rl) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    let parsed = null;
-    try {
-      parsed = JSON.parse(trimmed);
-    } catch {
-      stats.errors += 1;
-      continue;
+  let streamError = null;
+  const onStreamError = (error) => {
+    streamError = error || new Error('Input stream failed.');
+    rl.close();
+  };
+  stream.once('error', onStreamError);
+  try {
+    for await (const line of rl) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      let parsed = null;
+      try {
+        parsed = JSON.parse(trimmed);
+      } catch {
+        stats.errors += 1;
+        continue;
+      }
+      handlePayload(parsed);
     }
-    handlePayload(parsed);
+  } finally {
+    stream.off('error', onStreamError);
+    rl.close();
   }
+  if (streamError) throw streamError;
 };
 
 const ingestJsonFile = async (filePath) => {

@@ -65,24 +65,36 @@ const parseGlobalLine = (line) => {
 
 const ingestTextLines = async (stream) => {
   const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
-  for await (const line of rl) {
-    const parsed = parseGlobalLine(line);
-    if (!parsed) {
-      if (line.trim()) stats.errors += 1;
-      continue;
+  let streamError = null;
+  const onStreamError = (error) => {
+    streamError = error || new Error('Input stream failed.');
+    rl.close();
+  };
+  stream.once('error', onStreamError);
+  try {
+    for await (const line of rl) {
+      const parsed = parseGlobalLine(line);
+      if (!parsed) {
+        if (line.trim()) stats.errors += 1;
+        continue;
+      }
+      stats.entries += 1;
+      const payload = {
+        file: parsed.file,
+        ext: path.extname(parsed.file).toLowerCase(),
+        name: parsed.name,
+        startLine: parsed.line,
+        endLine: parsed.line,
+        role: 'definition',
+        source: 'gtags'
+      };
+      writeStream.write(`${JSON.stringify(payload)}\n`);
     }
-    stats.entries += 1;
-    const payload = {
-      file: parsed.file,
-      ext: path.extname(parsed.file).toLowerCase(),
-      name: parsed.name,
-      startLine: parsed.line,
-      endLine: parsed.line,
-      role: 'definition',
-      source: 'gtags'
-    };
-    writeStream.write(`${JSON.stringify(payload)}\n`);
+  } finally {
+    stream.off('error', onStreamError);
+    rl.close();
   }
+  if (streamError) throw streamError;
 };
 
 const runGlobalCommand = async () => {

@@ -144,19 +144,31 @@ const handleEdge = (edge) => {
 
 const ingestJsonLines = async (stream) => {
   const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
-  for await (const line of rl) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    let parsed = null;
-    try {
-      parsed = JSON.parse(trimmed);
-    } catch {
-      stats.errors += 1;
-      continue;
+  let streamError = null;
+  const onStreamError = (error) => {
+    streamError = error || new Error('Input stream failed.');
+    rl.close();
+  };
+  stream.once('error', onStreamError);
+  try {
+    for await (const line of rl) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      let parsed = null;
+      try {
+        parsed = JSON.parse(trimmed);
+      } catch {
+        stats.errors += 1;
+        continue;
+      }
+      if (parsed && parsed.type === 'vertex') handleVertex(parsed);
+      else if (parsed && parsed.type === 'edge') handleEdge(parsed);
     }
-    if (parsed && parsed.type === 'vertex') handleVertex(parsed);
-    else if (parsed && parsed.type === 'edge') handleEdge(parsed);
+  } finally {
+    stream.off('error', onStreamError);
+    rl.close();
   }
+  if (streamError) throw streamError;
 };
 
 await ensureOutputDir();

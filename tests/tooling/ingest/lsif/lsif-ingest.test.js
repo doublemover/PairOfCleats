@@ -48,5 +48,19 @@ assert.ok(meta.stats.edges >= 2);
 assert.ok(meta.stats.definitions >= 1);
 assert.ok(meta.stats.references >= 1);
 
+const missingInputPath = path.join(tempRoot, 'missing.lsif');
+const missingResult = spawnSync(
+  process.execPath,
+  [cliPath, 'ingest', 'lsif', '--repo', repoRoot, '--input', missingInputPath, '--out', path.join(tempRoot, 'missing.jsonl'), '--json'],
+  { encoding: 'utf8' }
+);
+assert.notEqual(missingResult.status, 0, 'expected missing input to fail');
+const missingOutput = `${missingResult.stderr || ''}${missingResult.stdout || ''}`;
+assert.equal(
+  missingOutput.includes("Unhandled 'error' event"),
+  false,
+  'expected missing input failure to avoid unhandled stream error'
+);
+
 console.log('lsif ingest test passed');
 
