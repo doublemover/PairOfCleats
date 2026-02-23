@@ -29,6 +29,16 @@ const resolvePayloadBytes = (result) => {
   if (!result || typeof result !== 'object') return 0;
   const measureJsonValueBytes = (value) => {
     if (value == null) return 0;
+    if (Array.isArray(value)) {
+      // Stream per-element sizing to avoid allocating one giant serialized
+      // string for large chunk arrays on the hot backpressure path.
+      let total = 2; // '[' + ']'
+      for (let index = 0; index < value.length; index += 1) {
+        if (index > 0) total += 1; // ','
+        total += measureJsonValueBytes(value[index]);
+      }
+      return total;
+    }
     try {
       return Buffer.byteLength(JSON.stringify(value), 'utf8');
     } catch {
@@ -134,7 +144,7 @@ export const createPostingsQueue = ({
   const notifyWaiters = () => {
     if (!waiters.length) return;
     const availableByCount = resolvedMaxPending == null
-      ? 1
+      ? waiters.length
       : Math.max(1, resolvedMaxPending - state.pending);
     const wakeCount = Math.max(1, Math.min(waiters.length, availableByCount));
     for (let index = 0; index < wakeCount; index += 1) {
