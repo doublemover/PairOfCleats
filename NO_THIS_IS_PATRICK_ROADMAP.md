@@ -69,6 +69,10 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T06:23:44.6469391-05:00
+  Split retrieval profile cohort and vector-only fallback policy from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/profile-policy.js`, centralizing mixed-profile/sparse-only guardrails and reducing orchestration-path branching around ANN coercion and warning emission.
+- 2026-02-23T06:22:57.0000000-05:00
+  Refactored artifact write lane dispatch in `src/index/build/artifacts-write.js` into `src/index/build/artifacts/write-dispatch-lanes.js`, isolating queue counting/budget selection/dequeue policy so hot write-loop scheduling is reusable and easier to optimize without touching artifact emission sequencing.
 - 2026-02-23T06:21:08.5062610-05:00
   Extracted retrieval startup index/as-of orchestration from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/startup-index.js`, centralizing strict `--as-of` mode checks and per-mode index-state loading to reduce top-level branch churn and keep mode resolution caching in one place.
 - 2026-02-23T06:18:26.8543337-05:00

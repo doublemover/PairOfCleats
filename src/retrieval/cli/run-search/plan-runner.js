@@ -59,12 +59,10 @@ import {
   loadSearchIndexStates,
   resolveStartupIndexResolution
 } from './startup-index.js';
+import { resolveRunSearchProfilePolicy } from './profile-policy.js';
 
 import {
-  INDEX_PROFILE_VECTOR_ONLY,
   resolveAnnActive,
-  resolveProfileCohortModes,
-  resolveProfileForState,
   resolveSparseFallbackModesWithoutAnn
 } from '../preflight.js';
 
@@ -394,67 +392,30 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       'extracted-prose': sqliteStateExtractedProse,
       records: sqliteStateRecords
     };
-    const selectedModes = resolveProfileCohortModes({
+    const profileResolution = resolveRunSearchProfilePolicy({
       runCode,
       runProse,
       runRecords,
       runExtractedProse: runExtractedProseRaw,
-      requiresExtractedProse
+      requiresExtractedProse,
+      indexStateByMode,
+      allowSparseFallback,
+      allowUnsafeMix,
+      annFlagPresent,
+      annEnabled: annEnabledEffective,
+      scoreMode
     });
-    const profilePolicyByMode = {};
-    const vectorOnlyModes = [];
-    const profileModeDetails = [];
-    const uniqueProfileIds = new Set();
-    for (const mode of selectedModes) {
-      const profileId = resolveProfileForState(indexStateByMode[mode]);
-      const vectorOnly = profileId === INDEX_PROFILE_VECTOR_ONLY;
-      profilePolicyByMode[mode] = {
-        profileId,
-        vectorOnly,
-        allowSparseFallback: allowSparseFallback === true,
-        sparseUnavailableReason: vectorOnly ? 'profile_vector_only' : null
-      };
-      if (vectorOnly) vectorOnlyModes.push(mode);
-      if (!indexStateByMode[mode]) continue;
-      if (typeof profileId !== 'string' || !profileId) continue;
-      uniqueProfileIds.add(profileId);
-      profileModeDetails.push(`${mode}:${profileId}`);
+    if (profileResolution.error) {
+      return bail(profileResolution.error.message, 1, profileResolution.error.code);
     }
-    if (uniqueProfileIds.size > 1) {
-      const details = profileModeDetails.join(', ');
-      if (allowUnsafeMix !== true) {
-        return bail(
-          `[search] retrieval_profile_mismatch: mixed index profiles detected (${details}). ` +
-            'Rebuild indexes to a single profile or pass --allow-unsafe-mix to override.',
-          1,
-          ERROR_CODES.INVALID_REQUEST
-        );
-      }
-      addProfileWarning(
-        `Unsafe mixed-profile cohort override enabled (--allow-unsafe-mix): ${details}.`
-      );
-    }
-    const sparseOnlyRequested = scoreMode === 'sparse' || (annFlagPresent && annEnabled === false);
-    if (vectorOnlyModes.length && sparseOnlyRequested) {
-      if (allowSparseFallback !== true) {
-        const details = vectorOnlyModes.join(', ');
-        return bail(
-          `[search] retrieval_profile_mismatch: sparse-only retrieval cannot run against vector_only index profile (${details}). ` +
-            'Re-run with ANN enabled or pass --allow-sparse-fallback to allow ANN fallback.',
-          1,
-          ERROR_CODES.INVALID_REQUEST
-        );
-      }
-      addProfileWarning(
-        `Sparse-only request overridden for vector_only mode(s): ${vectorOnlyModes.join(', ')}. ANN fallback was used.`
-      );
-      annEnabledEffective = true;
-    }
-    if (vectorOnlyModes.length && annEnabledEffective !== true) {
-      addProfileWarning(
-        `Forcing ANN on for vector_only mode(s): ${vectorOnlyModes.join(', ')}. Sparse providers are unavailable.`
-      );
-      annEnabledEffective = true;
+    const {
+      selectedModes,
+      profilePolicyByMode,
+      vectorOnlyModes
+    } = profileResolution;
+    annEnabledEffective = profileResolution.annEnabledEffective;
+    for (const warning of profileResolution.warnings) {
+      addProfileWarning(warning);
     }
     syncAnnFlags();
     if (emitOutput && profileWarnings.length) {
