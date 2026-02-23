@@ -207,6 +207,17 @@ export function renderSearchOutput({
     if (stageTracker?.stages?.length) {
       payload.stats.pipeline = stageTracker.stages;
     }
+    if (intentInfo && typeof intentInfo === 'object') {
+      payload.stats.intent = {
+        type: intentInfo.type || null,
+        effectiveType: intentInfo.effectiveType || intentInfo.type || null,
+        confidence: Number.isFinite(Number(intentInfo.confidence)) ? Number(intentInfo.confidence) : null,
+        confidenceBucket: intentInfo.confidenceBucket || null,
+        parseStrategy: intentInfo.parseStrategy || null,
+        parseFallbackReason: intentInfo.parseFallbackReason || null,
+        missTaxonomy: intentInfo.missTaxonomy || null
+      };
+    }
   }
 
   if (explain) {
