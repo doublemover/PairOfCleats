@@ -3,19 +3,25 @@ import { readTextFileSync } from '../../shared/encoding.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
 import { getFileTextCache, getSummaryCache } from './cache.js';
 import { buildLocalCacheKey } from '../../shared/cache-key.js';
+import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
 
 export function getBodySummary(rootDir, chunk, maxWords = 80) {
   try {
     const root = path.resolve(rootDir);
+    const canonicalRoot = toRealPathSync(root);
     const absPath = path.resolve(rootDir, chunk.file);
+    const canonicalAbsPath = toRealPathSync(absPath);
     const relative = path.relative(root, absPath);
     if (relative.startsWith('..') || isAbsolutePathNative(relative)) {
+      return '(Could not load summary)';
+    }
+    if (!isWithinRoot(canonicalAbsPath, canonicalRoot)) {
       return '(Could not load summary)';
     }
     const cacheKey = buildLocalCacheKey({
       namespace: 'summary',
       payload: {
-        absPath,
+        absPath: canonicalAbsPath,
         start: chunk.start,
         end: chunk.end,
         maxWords
@@ -25,10 +31,10 @@ export function getBodySummary(rootDir, chunk, maxWords = 80) {
     const fileTextCache = getFileTextCache();
     const cached = summaryCache.get(cacheKey);
     if (cached !== null) return cached;
-    let text = fileTextCache.get(absPath);
+    let text = fileTextCache.get(canonicalAbsPath);
     if (text == null) {
-      ({ text } = readTextFileSync(absPath));
-      fileTextCache.set(absPath, text);
+      ({ text } = readTextFileSync(canonicalAbsPath));
+      fileTextCache.set(canonicalAbsPath, text);
     }
     const rawChunkText = text.slice(chunk.start, chunk.end);
     const cleanedLines = rawChunkText
