@@ -5,6 +5,10 @@ import { throwIfAborted } from '../../../shared/abort.js';
 import { toPosix } from '../../../shared/files.js';
 import { compareStrings } from '../../../shared/sort.js';
 import { runWithConcurrency } from '../../../shared/concurrency.js';
+import {
+  exceedsTreeSitterLimits as exceedsSharedTreeSitterLimits,
+  resolveTreeSitterLimits
+} from '../../../shared/indexing/tree-sitter-limits.js';
 import { writeJsonObjectFile, writeJsonLinesFile } from '../../../shared/json-stream.js';
 import { readTextFileWithHash } from '../../../shared/encoding.js';
 import { getLanguageForFile } from '../../language-registry.js';
@@ -53,40 +57,6 @@ const MIN_ESTIMATED_PARSE_COST = 1;
 const MAX_BUCKET_REBALANCE_ITERATIONS = 4;
 
 /**
- * Count lines with optional early-exit cap for limit checks.
- *
- * @param {string} text
- * @param {number|null} [maxLines]
- * @returns {number}
- */
-const countLines = (text, maxLines = null) => {
-  if (!text) return 0;
-  const capped = Number.isFinite(Number(maxLines)) && Number(maxLines) > 0
-    ? Math.floor(Number(maxLines))
-    : null;
-  let count = 1;
-  for (let i = 0; i < text.length; i += 1) {
-    if (text.charCodeAt(i) === 10) count += 1;
-    if (capped && count > capped) return count;
-  }
-  return count;
-};
-
-/**
- * Resolve per-language parser size limits for scheduler planning.
- *
- * @param {{languageId?:string|null,treeSitterConfig?:object|null}} input
- * @returns {{maxBytes:unknown,maxLines:unknown}}
- */
-const resolveTreeSitterLimits = ({ languageId, treeSitterConfig }) => {
-  const config = treeSitterConfig && typeof treeSitterConfig === 'object' ? treeSitterConfig : {};
-  const perLanguage = (config.byLanguage && languageId && config.byLanguage[languageId]) || {};
-  const maxBytes = perLanguage.maxBytes ?? config.maxBytes;
-  const maxLines = perLanguage.maxLines ?? config.maxLines;
-  return { maxBytes, maxLines };
-};
-
-/**
  * Determine whether a segment exceeds planner-side tree-sitter limits.
  *
  * @param {{
@@ -98,30 +68,25 @@ const resolveTreeSitterLimits = ({ languageId, treeSitterConfig }) => {
  * @returns {boolean}
  */
 const exceedsTreeSitterLimits = ({ text, languageId, treeSitterConfig, recordSkip }) => {
-  const { maxBytes, maxLines } = resolveTreeSitterLimits({ languageId, treeSitterConfig });
-  if (typeof maxBytes === 'number' && maxBytes > 0) {
-    const bytes = Buffer.byteLength(text, 'utf8');
-    if (bytes > maxBytes) {
-      if (recordSkip) {
+  return exceedsSharedTreeSitterLimits({
+    text,
+    languageId,
+    treeSitterConfig,
+    onExceeded: (details = {}) => {
+      if (!recordSkip) return;
+      if (details.reason === 'max-bytes') {
         recordSkip('segment-max-bytes', () => (
-          `[tree-sitter:schedule] skip ${languageId} segment: maxBytes (${bytes} > ${maxBytes})`
+          `[tree-sitter:schedule] skip ${languageId} segment: maxBytes (${details.bytes} > ${details.maxBytes})`
         ));
+        return;
       }
-      return true;
-    }
-  }
-  if (typeof maxLines === 'number' && maxLines > 0) {
-    const lines = countLines(text, maxLines);
-    if (lines > maxLines) {
-      if (recordSkip) {
+      if (details.reason === 'max-lines') {
         recordSkip('segment-max-lines', () => (
-          `[tree-sitter:schedule] skip ${languageId} segment: maxLines (${lines} > ${maxLines})`
+          `[tree-sitter:schedule] skip ${languageId} segment: maxLines (${details.lines} > ${details.maxLines})`
         ));
       }
-      return true;
     }
-  }
-  return false;
+  });
 };
 
 /**

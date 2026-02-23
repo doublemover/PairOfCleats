@@ -23,6 +23,7 @@ import { buildCommentMeta } from './cpu/meta.js';
 import { resolveFileCaps } from './read.js';
 import { shouldPreferDocsProse } from '../mode-routing.js';
 import { buildLineIndex } from '../../../shared/lines.js';
+import { exceedsTreeSitterLimits as exceedsSharedTreeSitterLimits } from '../../../shared/indexing/tree-sitter-limits.js';
 import { formatError } from './meta.js';
 import { processChunks } from './process-chunks.js';
 import { buildVfsVirtualPath } from '../../tooling/vfs.js';
@@ -342,45 +343,13 @@ const mergePlannedSegmentsWithExtras = ({ plannedSegments, extraSegments, relKey
 };
 
 /**
- * Count newline-delimited lines, optionally short-circuiting past `maxLines`.
- *
- * @param {string} text
- * @param {number|null} [maxLines=null]
- * @returns {number}
- */
-const countLines = (text, maxLines = null) => {
-  if (!text) return 0;
-  const capped = Number.isFinite(Number(maxLines)) && Number(maxLines) > 0
-    ? Math.floor(Number(maxLines))
-    : null;
-  let count = 1;
-  for (let i = 0; i < text.length; i += 1) {
-    if (text.charCodeAt(i) === 10) count += 1;
-    if (capped && count > capped) return count;
-  }
-  return count;
-};
-
-/**
  * Check per-language tree-sitter max-bytes/max-lines guardrails.
  *
  * @param {{text:string,languageId:string|null,treeSitterConfig:object|null}} input
  * @returns {boolean}
  */
 const exceedsTreeSitterLimits = ({ text, languageId, treeSitterConfig }) => {
-  const config = treeSitterConfig && typeof treeSitterConfig === 'object' ? treeSitterConfig : {};
-  const perLanguage = (config.byLanguage && languageId && config.byLanguage[languageId]) || {};
-  const maxBytes = perLanguage.maxBytes ?? config.maxBytes;
-  const maxLines = perLanguage.maxLines ?? config.maxLines;
-  if (typeof maxBytes === 'number' && maxBytes > 0) {
-    const bytes = Buffer.byteLength(text, 'utf8');
-    if (bytes > maxBytes) return true;
-  }
-  if (typeof maxLines === 'number' && maxLines > 0) {
-    const lines = countLines(text, maxLines);
-    if (lines > maxLines) return true;
-  }
-  return false;
+  return exceedsSharedTreeSitterLimits({ text, languageId, treeSitterConfig });
 };
 
 export const processFileCpu = async (context) => {
