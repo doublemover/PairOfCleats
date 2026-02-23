@@ -72,6 +72,38 @@ export function buildFilterIndex(chunkMeta = [], options = {}) {
     return 'unknown';
   };
 
+  const resolveVisibilityFromModifiers = (modifiers) => {
+    if (!modifiers) return null;
+    if (Array.isArray(modifiers)) {
+      for (const entry of modifiers) {
+        const token = String(entry || '').trim().toLowerCase();
+        if (!token) continue;
+        if (token.startsWith('visibility:')) {
+          const value = token.split(':').slice(1).join(':').trim();
+          if (value) return value;
+        }
+        if (token === 'public' || token === 'private' || token === 'protected' || token === 'internal') {
+          return token;
+        }
+      }
+      return null;
+    }
+    if (typeof modifiers === 'object') {
+      if (typeof modifiers.visibility === 'string') return modifiers.visibility;
+    }
+    return null;
+  };
+
+  const resolveVisibility = (chunk) => {
+    const docmeta = (chunk?.docmeta && typeof chunk.docmeta === 'object')
+      ? chunk.docmeta
+      : ((chunk?.metaV2 && typeof chunk.metaV2 === 'object') ? chunk.metaV2 : null);
+    if (!docmeta) return null;
+    const directVisibility = typeof docmeta.visibility === 'string' ? docmeta.visibility : null;
+    if (directVisibility) return directVisibility;
+    return resolveVisibilityFromModifiers(docmeta.modifiers);
+  };
+
   const normalizeFilePathKey = (value) => normalizeFilePath(value, { lower: true });
   const addFileChargrams = (fileId, fileValue) => {
     const grams = new Set(tri(fileValue, fileChargramN));
@@ -108,7 +140,7 @@ export function buildFilterIndex(chunkMeta = [], options = {}) {
     add(index.byLang, effectiveLang, id);
     add(index.byKind, chunk.kind, id);
     add(index.byAuthor, chunk.last_author, id);
-    const visibility = chunk.docmeta?.visibility || chunk.docmeta?.modifiers?.visibility || null;
+    const visibility = resolveVisibility(chunk);
     add(index.byVisibility, visibility, id);
     const chunkAuthors = resolveChunkAuthorsForIndex(chunk);
     for (const author of chunkAuthors) add(index.byChunkAuthor, author, id);

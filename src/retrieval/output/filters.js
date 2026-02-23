@@ -20,6 +20,72 @@ import { matchStructural } from './filters/structural.js';
 import { normalizeFilePath } from '../../shared/path-normalize.js';
 import { resolveFileRelations as resolveFileRelationLookup } from '../file-relations-resolver.js';
 
+const asObject = (value) => (value && typeof value === 'object' ? value : null);
+
+const resolveChunkDocmeta = (chunk) => (
+  asObject(chunk?.docmeta) || asObject(chunk?.metaV2) || null
+);
+
+const normalizeModifierToken = (value) => String(value || '').trim().toLowerCase();
+
+const hasModifierFlag = (modifiers, key) => {
+  const needle = normalizeModifierToken(key);
+  if (!needle) return false;
+  if (Array.isArray(modifiers)) {
+    return modifiers.some((entry) => {
+      const token = normalizeModifierToken(entry);
+      return token === needle || token === `${needle}:true`;
+    });
+  }
+  if (!modifiers || typeof modifiers !== 'object') return false;
+  const value = modifiers[key];
+  if (typeof value === 'boolean') return value;
+  if (value == null) return false;
+  const normalized = normalizeModifierToken(value);
+  return normalized === 'true' || normalized === needle;
+};
+
+const resolveVisibilityFromModifiers = (modifiers) => {
+  if (!modifiers) return null;
+  if (modifiers && typeof modifiers === 'object' && !Array.isArray(modifiers)) {
+    if (typeof modifiers.visibility === 'string') return modifiers.visibility;
+    return null;
+  }
+  if (!Array.isArray(modifiers)) return null;
+  for (const entry of modifiers) {
+    const token = normalizeModifierToken(entry);
+    if (!token) continue;
+    if (token.startsWith('visibility:')) {
+      const value = token.split(':').slice(1).join(':').trim();
+      if (value) return value;
+    }
+    if (token === 'public' || token === 'private' || token === 'protected' || token === 'internal') {
+      return token;
+    }
+  }
+  return null;
+};
+
+const resolveDocmetaDecorators = (docmeta) => (
+  Array.isArray(docmeta?.decorators)
+    ? docmeta.decorators
+    : (Array.isArray(docmeta?.annotations) ? docmeta.annotations : null)
+);
+
+const resolveDocmetaThrows = (docmeta) => (
+  Array.isArray(docmeta?.throws) ? docmeta.throws : null
+);
+
+const resolveDocmetaAwaits = (docmeta) => (
+  Array.isArray(docmeta?.awaits) ? docmeta.awaits : null
+);
+
+const resolveDocmetaParents = (docmeta) => (
+  Array.isArray(docmeta?.extends)
+    ? docmeta.extends
+    : (Array.isArray(docmeta?.bases) ? docmeta.bases : [])
+);
+
 /**
  * Compile raw filter config into normalized predicate/search structures.
  *
@@ -289,6 +355,18 @@ const shouldUseBitmapOutput = (state, sourceCount) => {
  */
 const matchChunkFilters = (c, state) => {
   if (!c) return false;
+  const docmeta = resolveChunkDocmeta(c);
+  const docmetaDataflow = asObject(docmeta?.dataflow);
+  const docmetaControlFlow = asObject(docmeta?.controlFlow);
+  const docmetaModifiers = docmeta?.modifiers;
+  const docmetaDecorators = resolveDocmetaDecorators(docmeta);
+  const docmetaThrows = resolveDocmetaThrows(docmeta);
+  const docmetaAwaits = resolveDocmetaAwaits(docmeta);
+  const docmetaVisibility = docmeta?.visibility || resolveVisibilityFromModifiers(docmetaModifiers);
+  const docmetaParents = resolveDocmetaParents(docmeta);
+  const docmetaHasAsync = Boolean(docmeta?.async) || hasModifierFlag(docmetaModifiers, 'async');
+  const docmetaHasGenerator = Boolean(docmeta?.generator) || hasModifierFlag(docmetaModifiers, 'generator');
+  const docmetaHasReturns = Boolean(docmeta?.returns) || hasModifierFlag(docmetaModifiers, 'returns');
   const {
     filters,
     normalize,
@@ -423,16 +501,16 @@ const matchChunkFilters = (c, state) => {
     if (!Array.isArray(usages) || !usages.includes(uses)) return false;
   }
   if (signature) {
-    const sig = c.docmeta?.signature;
+    const sig = docmeta?.signature;
     if (!sig || !sig.includes(signature)) return false;
   }
-  if (decorator && !matchList(c.docmeta?.decorators, decorator, normalize)) return false;
-  if (throws && !matchList(c.docmeta?.throws, throws, normalize)) return false;
-  if (filters.awaits && !matchList(c.docmeta?.awaits, filters.awaits, normalize)) return false;
-  if (reads && !matchList(c.docmeta?.dataflow?.reads, reads, normalize)) return false;
-  if (writes && !matchList(c.docmeta?.dataflow?.writes, writes, normalize)) return false;
-  if (mutates && !matchList(c.docmeta?.dataflow?.mutations, mutates, normalize)) return false;
-  if (alias && !matchList(c.docmeta?.dataflow?.aliases, alias, normalize)) return false;
+  if (decorator && !matchList(docmetaDecorators, decorator, normalize)) return false;
+  if (throws && !matchList(docmetaThrows, throws, normalize)) return false;
+  if (filters.awaits && !matchList(docmetaAwaits, filters.awaits, normalize)) return false;
+  if (reads && !matchList(docmetaDataflow?.reads, reads, normalize)) return false;
+  if (writes && !matchList(docmetaDataflow?.writes, writes, normalize)) return false;
+  if (mutates && !matchList(docmetaDataflow?.mutations, mutates, normalize)) return false;
+  if (alias && !matchList(docmetaDataflow?.aliases, alias, normalize)) return false;
   if (!matchStructural({
     chunk: c,
     structPackNeedles,
@@ -443,42 +521,41 @@ const matchChunkFilters = (c, state) => {
     return false;
   }
   if (branches != null) {
-    const count = c.docmeta?.controlFlow?.branches;
+    const count = docmetaControlFlow?.branches;
     if (!Number.isFinite(count) || count < branches) return false;
   }
   if (loops != null) {
-    const count = c.docmeta?.controlFlow?.loops;
+    const count = docmetaControlFlow?.loops;
     if (!Number.isFinite(count) || count < loops) return false;
   }
   if (breaks != null) {
-    const count = c.docmeta?.controlFlow?.breaks;
+    const count = docmetaControlFlow?.breaks;
     if (!Number.isFinite(count) || count < breaks) return false;
   }
   if (continues != null) {
-    const count = c.docmeta?.controlFlow?.continues;
+    const count = docmetaControlFlow?.continues;
     if (!Number.isFinite(count) || count < continues) return false;
   }
   if (visibility) {
-    const docVisibility = c.docmeta?.visibility || c.docmeta?.modifiers?.visibility || null;
+    const docVisibility = docmetaVisibility || null;
     if (!docVisibility || !normalize(docVisibility).includes(normalize(visibility))) {
       return false;
     }
   }
   if (extendsFilter) {
-    const parents = c.docmeta?.extends || c.docmeta?.bases || [];
-    if (!matchList(parents, extendsFilter, normalize)) return false;
+    if (!matchList(docmetaParents, extendsFilter, normalize)) return false;
   }
   if (truthy(asyncOnly)) {
-    if (!(c.docmeta?.async || c.docmeta?.modifiers?.async)) return false;
+    if (!docmetaHasAsync) return false;
   }
   if (truthy(generatorOnly)) {
-    if (!(c.docmeta?.generator || c.docmeta?.modifiers?.generator)) return false;
+    if (!docmetaHasGenerator) return false;
   }
   if (truthy(returnsOnly)) {
-    if (!(c.docmeta?.returns || c.docmeta?.modifiers?.returns)) return false;
+    if (!docmetaHasReturns) return false;
   }
-  if (filters.awaits && (!Array.isArray(c.docmeta?.awaits) || !c.docmeta.awaits.length)) return false;
-  if (decorator && (!Array.isArray(c.docmeta?.decorators) || !c.docmeta.decorators.length)) return false;
+  if (filters.awaits && (!Array.isArray(docmetaAwaits) || !docmetaAwaits.length)) return false;
+  if (decorator && (!Array.isArray(docmetaDecorators) || !docmetaDecorators.length)) return false;
   return true;
 };
 

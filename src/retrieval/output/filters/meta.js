@@ -1,6 +1,8 @@
 import { collectDeclaredReturnTypes, collectMetaV2ReturnTypes } from '../../../shared/docmeta.js';
 import { defaultNormalize, matchList } from './predicates.js';
 
+const asObject = (value) => (value && typeof value === 'object' ? value : null);
+
 const resolveMetaField = (record, key) => {
   if (!record || typeof record !== 'object' || !key) return undefined;
   if (!key.includes('.')) return record[key];
@@ -39,6 +41,32 @@ const matchInferredType = (inferred, value, normalize = defaultNormalize) => {
   return types.some((entry) => normalize(entry).includes(needle));
 };
 
+const resolveChunkDocmeta = (chunk) => (
+  asObject(chunk?.docmeta) || asObject(chunk?.metaV2) || null
+);
+
+const resolveChunkRecordMeta = (chunk, docmeta) => (
+  asObject(chunk?.docmeta?.record) || asObject(chunk?.metaV2?.record) || asObject(docmeta?.record) || null
+);
+
+const resolveChunkParamList = (chunk, docmeta) => {
+  if (Array.isArray(chunk?.docmeta?.params)) return chunk.docmeta.params;
+  if (Array.isArray(chunk?.metaV2?.params)) return chunk.metaV2.params;
+  if (Array.isArray(docmeta?.params)) return docmeta.params;
+  return null;
+};
+
+const resolveChunkInferredTypes = (chunk, docmeta) => {
+  if (asObject(chunk?.docmeta?.inferredTypes)) return chunk.docmeta.inferredTypes;
+  if (asObject(chunk?.metaV2?.types?.inferred)) return chunk.metaV2.types.inferred;
+  if (asObject(docmeta?.inferredTypes)) return docmeta.inferredTypes;
+  return null;
+};
+
+const resolveChunkRiskMeta = (chunk, docmeta) => (
+  asObject(chunk?.docmeta?.risk) || asObject(chunk?.metaV2?.risk) || asObject(docmeta?.risk) || null
+);
+
 export const matchMetaFilters = ({
   chunk,
   metaFilters,
@@ -59,9 +87,10 @@ export const matchMetaFilters = ({
   const hasInferredType = !!inferredType;
   const hasRiskFilters = !!(risk || riskTag || riskSource || riskSink || riskCategory || riskFlow);
   if (!hasMetaFilters && !hasParam && !hasReturnType && !hasInferredType && !hasRiskFilters) return true;
+  const docmeta = resolveChunkDocmeta(chunk);
 
   if (hasMetaFilters) {
-    const recordMeta = chunk?.docmeta?.record;
+    const recordMeta = resolveChunkRecordMeta(chunk, docmeta);
     if (!recordMeta || typeof recordMeta !== 'object') return false;
     for (const filter of metaFilters) {
       const key = filter?.key;
@@ -86,7 +115,7 @@ export const matchMetaFilters = ({
   }
 
   if (param) {
-    const params = chunk?.docmeta?.params;
+    const params = resolveChunkParamList(chunk, docmeta);
     if (!Array.isArray(params) || !params.includes(param)) return false;
   }
 
@@ -97,12 +126,12 @@ export const matchMetaFilters = ({
     }
   }
 
-  if (inferredType && !matchInferredType(chunk?.docmeta?.inferredTypes, inferredType, normalize)) {
+  if (inferredType && !matchInferredType(resolveChunkInferredTypes(chunk, docmeta), inferredType, normalize)) {
     return false;
   }
 
   if (hasRiskFilters) {
-    const riskMeta = chunk?.docmeta?.risk || null;
+    const riskMeta = resolveChunkRiskMeta(chunk, docmeta);
     const riskTagValue = riskTag || risk;
     if (riskTagValue && !matchList(riskMeta?.tags, riskTagValue, normalize)) return false;
     if (riskSource) {
