@@ -18,15 +18,13 @@ await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(repoRootRaw, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 const repoRoot = toRealPathSync(repoRootRaw);
-applyTestEnv();
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 
 await fsPromises.writeFile(path.join(repoRoot, 'alpha.js'), 'export const alpha = 1;\n');
 
-const env = {
-  ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub'
+});
 
 const buildResult = spawnSync(
   process.execPath,
@@ -58,4 +56,3 @@ assert.equal(compression.keepRaw, false, 'expected compression.keepRaw=false by 
 assert.equal(extraction.enabled, false, 'expected documentExtraction.enabled=false by default');
 
 console.log('index metrics options test passed');
-

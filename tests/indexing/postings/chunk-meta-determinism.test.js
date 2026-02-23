@@ -72,10 +72,10 @@ const runBuild = async ({ label, threads }) => {
   const cacheRoot = path.join(benchRoot, label);
   await safeRm(cacheRoot);
   await fs.mkdir(cacheRoot, { recursive: true });
-  const env = {
-    ...process.env,    PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-    PAIROFCLEATS_EMBEDDINGS: 'stub'
-  };
+  const env = applyTestEnv({
+    cacheRoot,
+    embeddings: 'stub'
+  });
   const args = [
     buildIndexPath,
     '--mode',
@@ -120,4 +120,3 @@ try {
 } finally {
   await safeRm(benchRoot);
 }
-

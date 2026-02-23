@@ -29,10 +29,10 @@ await fsPromises.writeFile(
 );
 
 const buildIndex = (cacheRoot) => {
-  const env = {
-    ...process.env,    PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-    PAIROFCLEATS_EMBEDDINGS: 'stub'
-  };
+  const env = applyTestEnv({
+    cacheRoot,
+    embeddings: 'stub'
+  });
   return spawnSync(
     process.execPath,
     [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot],
@@ -41,9 +41,10 @@ const buildIndex = (cacheRoot) => {
 };
 
 const loadChunkMap = (cacheRoot) => {
-  applyTestEnv();
-  process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-  process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+  applyTestEnv({
+    cacheRoot,
+    embeddings: 'stub'
+  });
   const userConfig = loadUserConfig(repoRoot);
   const codeDir = getIndexDir(repoRoot, 'code', userConfig);
   const chunkMeta = loadJsonArrayArtifactSync(codeDir, 'chunk_meta', {

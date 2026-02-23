@@ -30,10 +30,10 @@ await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });
 await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 
-const env = {
-  ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub'
+});
 
 const run = (args, label) => {
   const result = spawnSync(process.execPath, args, {
@@ -83,4 +83,3 @@ if (fs.existsSync(tempRoot)) {
 }
 
 console.log('tantivy smoke test passed');
-

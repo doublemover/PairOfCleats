@@ -28,11 +28,11 @@ await fsPromises.writeFile(path.join(repoRoot, 'src', 'alpha.js'), 'export const
 await fsPromises.writeFile(path.join(repoRoot, 'lib', 'beta.py'), 'def beta():\n  return 2\n');
 
 const runBuild = (cacheRoot, label, testConfig) => {
-  const env = {
-    ...process.env,    ...(testConfig ? { PAIROFCLEATS_TEST_CONFIG: JSON.stringify(testConfig) } : {}),
-    PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-    PAIROFCLEATS_EMBEDDINGS: 'stub'
-  };
+  const env = applyTestEnv({
+    cacheRoot,
+    embeddings: 'stub',
+    testConfig: testConfig ?? null
+  });
   const result = spawnSync(
     process.execPath,
     [path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--repo', repoRoot],
@@ -46,7 +46,7 @@ const runBuild = (cacheRoot, label, testConfig) => {
 
 const readIndex = async (cacheRoot) => {
   const previousCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
-  process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+  applyTestEnv({ cacheRoot, embeddings: 'stub' });
   const userConfig = loadUserConfig(repoRoot);
   const codeDir = getIndexDir(repoRoot, 'code', userConfig);
   const chunks = await loadChunkMeta(codeDir, { maxBytes: MAX_JSON_BYTES });
@@ -61,7 +61,7 @@ const readIndex = async (cacheRoot) => {
 
 const readManifest = async (cacheRoot) => {
   const previousCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
-  process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+  applyTestEnv({ cacheRoot, embeddings: 'stub' });
   const userConfig = loadUserConfig(repoRoot);
   const codeDir = getIndexDir(repoRoot, 'code', userConfig);
   const manifestPath = path.join(codeDir, 'pieces', 'manifest.json');
@@ -88,7 +88,7 @@ const normalizeChunk = (chunk) => {
 
 const resolveCodeDir = (cacheRoot) => {
   const previousCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
-  process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+  applyTestEnv({ cacheRoot, embeddings: 'stub' });
   const userConfig = loadUserConfig(repoRoot);
   const codeDir = getIndexDir(repoRoot, 'code', userConfig);
   if (previousCacheRoot === undefined) {
@@ -390,4 +390,6 @@ for (const [piecePath, baselineEntry] of baselinePieces.entries()) {
 }
 
 console.log('shard merge test passed');
+
+
 

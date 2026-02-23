@@ -37,7 +37,7 @@ await rmDirRecursive(tempRoot, { retries: 8, delayMs: 150 });
 await fsPromises.mkdir(tempRoot, { recursive: true });
 await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 
-applyTestEnv({
+const env = applyTestEnv({
   cacheRoot,
   embeddings: 'stub',
   extraEnv: {
@@ -45,10 +45,6 @@ applyTestEnv({
     PAIROFCLEATS_MAX_OLD_SPACE_MB: '4096'
   }
 });
-
-const env = {
-  ...process.env
-};
 if (nodeOptions) {
   env.NODE_OPTIONS = nodeOptions;
 } else {

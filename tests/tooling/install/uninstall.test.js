@@ -5,6 +5,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { setupToolingInstallWorkspace } from '../../helpers/tooling-install-fixture.js';
+
 applyTestEnv();
 const {
   root,
@@ -34,11 +35,12 @@ await fsPromises.writeFile(path.join(dictDir, 'dict.txt'), 'dict');
 await fsPromises.writeFile(path.join(modelsDir, 'model.bin'), 'model');
 await fsPromises.writeFile(path.join(extensionsDir, 'vec0.dll'), 'ext');
 
-const env = {
-  ...process.env,
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  LOCALAPPDATA: appDataRoot
-};
+const env = applyTestEnv({
+  cacheRoot,
+  extraEnv: {
+    LOCALAPPDATA: appDataRoot
+  }
+});
 
 const result = spawnSync(
   process.execPath,
@@ -64,4 +66,3 @@ if (failures.length) {
 }
 
 console.log('Uninstall test passed');
-

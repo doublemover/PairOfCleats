@@ -8,7 +8,6 @@ import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
 import { rmDirRecursive } from '../../helpers/temp.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
-applyTestEnv();
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'query-cache');
 const repoRoot = path.join(tempRoot, 'repo');
@@ -20,11 +19,11 @@ await rmDirRecursive(tempRoot, { retries: 6, delayMs: 120 });
 await fsPromises.mkdir(repoRoot, { recursive: true });
 await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 
-const env = {
-  ...process.env,  PAIROFCLEATS_TEST_CONFIG: JSON.stringify({ quality: 'max' }),
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  testConfig: { quality: 'max' }
+});
 
 function run(args, label, cwd, envVars) {
   const result = spawnSync(process.execPath, args, {
@@ -79,4 +78,3 @@ if (!fs.existsSync(queryCachePath)) {
 }
 
 console.log('Query cache test passed');
-

@@ -14,17 +14,14 @@ const buildPath = path.join(root, 'build_index.js');
 const cacheRoot = await makeTempDir('pairofcleats-baseline-');
 const prevCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
 
-// Apply shared test defaults first, then pin this test's temp cache root so
-// spawned builds and in-process index-dir resolution target the same location.
-applyTestEnv();
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-
-const env = {
-  ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub',
-  PAIROFCLEATS_THREADS: '1',
-  PAIROFCLEATS_BUNDLE_THREADS: '1'
-};
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  extraEnv: {
+    PAIROFCLEATS_THREADS: '1',
+    PAIROFCLEATS_BUNDLE_THREADS: '1'
+  }
+});
 
 const runBuild = () => spawnSync(
   process.execPath,

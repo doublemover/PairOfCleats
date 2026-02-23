@@ -6,8 +6,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { startApiServer } from '../../helpers/api-server.js';
 
-applyTestEnv();
-
 const cacheRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-api-no-index-'));
 const defaultRepo = path.join(cacheRoot, 'default');
 const emptyRepo = path.join(cacheRoot, 'empty');
@@ -18,10 +16,10 @@ await fsPromises.writeFile(path.join(defaultRepo, '.pairofcleats.json'), JSON.st
   cache: { root: cacheRoot }
 }, null, 2), 'utf8');
 
-const env = {
-  ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: '0'
-};
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: '0'
+});
 
 const { serverInfo, requestJson, stop } = await startApiServer({
   repoRoot: defaultRepo,

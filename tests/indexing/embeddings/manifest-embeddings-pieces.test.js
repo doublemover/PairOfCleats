@@ -4,21 +4,18 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
-import { applyTestEnv, syncProcessEnv } from '../../helpers/test-env.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 import { loadPiecesManifestPieces, resolvePiecesManifestPath } from '../../helpers/pieces-manifest.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
-
-applyTestEnv();
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const cacheRoot = resolveTestCachePath(root, 'manifest-embeddings-pieces');
 
-const env = {
-  ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
-syncProcessEnv(env);
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub'
+});
 
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });

@@ -5,7 +5,6 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
-applyTestEnv();
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'code-map-guardrails');
 const repoRoot = path.join(tempRoot, 'repo');
@@ -22,11 +21,13 @@ for (let i = 0; i < 120; i += 1) {
 }
 await fsPromises.writeFile(path.join(repoRoot, 'src', 'many.js'), funcs.join('\n'));
 
-const env = {
-  ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub',
-  PAIROFCLEATS_WORKER_POOL: 'off'
-};
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  extraEnv: {
+    PAIROFCLEATS_WORKER_POOL: 'off'
+  }
+});
 
 const buildResult = spawnSync(
   process.execPath,
@@ -70,4 +71,3 @@ if (!dropped.members || dropped.members < 1) {
 }
 
 console.log('code map guardrails tests passed');
-

@@ -43,12 +43,20 @@ const loadPieces = async (codeDir) => {
 
 const buildOnce = async (fixtureRoot) => {
   const cacheRoot = await makeTempDir('pairofcleats-cache-call-sites-none-');
-  const env = {
-    ...process.env,    PAIROFCLEATS_TEST_CONFIG: JSON.stringify(TEST_CONFIG),
-    PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-    PAIROFCLEATS_EMBEDDINGS: 'stub',
-    PAIROFCLEATS_WORKER_POOL: 'off'
+  const prevEnv = {
+    PAIROFCLEATS_TESTING: process.env.PAIROFCLEATS_TESTING,
+    PAIROFCLEATS_TEST_CONFIG: process.env.PAIROFCLEATS_TEST_CONFIG,
+    PAIROFCLEATS_CACHE_ROOT: process.env.PAIROFCLEATS_CACHE_ROOT,
+    PAIROFCLEATS_EMBEDDINGS: process.env.PAIROFCLEATS_EMBEDDINGS
   };
+  const env = applyTestEnv({
+    cacheRoot,
+    embeddings: 'stub',
+    testConfig: TEST_CONFIG,
+    extraEnv: {
+      PAIROFCLEATS_WORKER_POOL: 'off'
+    }
+  });
 
   const result = spawnSync(
     process.execPath,
@@ -62,13 +70,6 @@ const buildOnce = async (fixtureRoot) => {
     assert.fail(`build_index.js failed with status ${result.status}`);
   }
 
-  const prevEnv = {
-    PAIROFCLEATS_TESTING: process.env.PAIROFCLEATS_TESTING,
-    PAIROFCLEATS_TEST_CONFIG: process.env.PAIROFCLEATS_TEST_CONFIG,
-    PAIROFCLEATS_CACHE_ROOT: process.env.PAIROFCLEATS_CACHE_ROOT,
-    PAIROFCLEATS_EMBEDDINGS: process.env.PAIROFCLEATS_EMBEDDINGS
-  };
-  syncProcessEnv(env);
   try {
     const userConfig = loadUserConfig(fixtureRoot);
     const codeDir = resolveCodeDir(fixtureRoot, userConfig, result);
