@@ -36,9 +36,29 @@ const autoscaled = resolveAdaptiveBenchTimeoutMs({
   baseTimeoutMs: 15 * 60 * 1000,
   lineStats,
   buildIndex: true,
-  buildSqlite: true
+  buildSqlite: true,
+  queryCount: 25,
+  backendCount: 2,
+  queryConcurrency: 4,
+  realEmbeddings: true
 });
 assert.ok(autoscaled > (15 * 60 * 1000), 'expected build runs to autoscale timeout floor upward');
+assert.ok(autoscaled >= (45 * 60 * 1000), 'expected large build/query workloads to raise timeout aggressively');
+
+const autoscaledStub = resolveAdaptiveBenchTimeoutMs({
+  baseTimeoutMs: 15 * 60 * 1000,
+  lineStats,
+  buildIndex: true,
+  buildSqlite: true,
+  queryCount: 25,
+  backendCount: 2,
+  queryConcurrency: 4,
+  realEmbeddings: false
+});
+assert.ok(
+  autoscaled > autoscaledStub,
+  'expected real embeddings workloads to budget more timeout than stub embeddings'
+);
 
 const capped = resolveAdaptiveBenchTimeoutMs({
   baseTimeoutMs: 10 * 60 * 1000,
@@ -56,5 +76,26 @@ const disabled = resolveAdaptiveBenchTimeoutMs({
   buildSqlite: true
 });
 assert.equal(disabled, 0, 'expected explicit timeout disable (0) to remain disabled');
+
+const objectLineStats = {
+  totals: lineStats.totals,
+  linesByFile: {
+    code: Object.fromEntries(Array.from({ length: 350 }, (_, i) => [`c${i}`, i + 1])),
+    prose: Object.fromEntries(Array.from({ length: 25 }, (_, i) => [`p${i}`, i + 1])),
+    'extracted-prose': Object.fromEntries(Array.from({ length: 300 }, (_, i) => [`x${i}`, i + 1])),
+    records: {}
+  }
+};
+const objectAutoscaled = resolveAdaptiveBenchTimeoutMs({
+  baseTimeoutMs: 15 * 60 * 1000,
+  lineStats: objectLineStats,
+  buildIndex: true,
+  buildSqlite: false,
+  realEmbeddings: true
+});
+assert.ok(
+  objectAutoscaled > (15 * 60 * 1000),
+  'expected autoscale to count object-shaped linesByFile inputs'
+);
 
 console.log('bench-language timeout autoscale test passed');

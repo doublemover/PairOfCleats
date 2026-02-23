@@ -37,6 +37,7 @@ import { retainCrashArtifacts } from '../../src/index/build/crash-log.js';
 import { removePathWithRetry } from '../../src/shared/io/remove-path-with-retry.js';
 import { createToolDisplay } from '../shared/cli-display.js';
 import { parseCommaList } from '../shared/text-utils.js';
+import { readQueryFileSafe } from '../shared/query-file-utils.js';
 
 const ensureBenchConfig = async (repoPath, cacheRoot) => {
   const configPath = path.join(repoPath, '.pairofcleats.json');
@@ -44,6 +45,24 @@ const ensureBenchConfig = async (repoPath, cacheRoot) => {
   const payload = { cache: { root: cacheRoot } };
   await fsPromises.writeFile(configPath, JSON.stringify(payload, null, 2), 'utf8');
 };
+
+const queryCountCache = new Map();
+
+const resolveBenchQueryCount = async (queriesPath, { limit = 0 } = {}) => {
+  const target = typeof queriesPath === 'string' ? path.resolve(queriesPath) : '';
+  if (!target) return 0;
+  if (!queryCountCache.has(target)) {
+    const loaded = await readQueryFileSafe(target, { allowJson: false });
+    queryCountCache.set(target, Array.isArray(loaded) ? loaded.length : 0);
+  }
+  const total = Math.max(0, Number(queryCountCache.get(target)) || 0);
+  const normalizedLimit = Number.isFinite(Number(limit))
+    ? Math.max(0, Math.floor(Number(limit)))
+    : 0;
+  if (normalizedLimit > 0) return Math.min(total, normalizedLimit);
+  return total;
+};
+
 const USR_GUARDRAIL_BENCHMARKS = Object.freeze([
   {
     item: 35,
@@ -1089,11 +1108,27 @@ for (const task of tasks) {
     updateBenchProgress();
 
     let summary = null;
+    let queryCount = 0;
+    try {
+      queryCount = await resolveBenchQueryCount(task.queriesPath, { limit: argv.limit });
+    } catch (err) {
+      appendLog(`[metrics] query count unavailable: ${err?.message || err}`);
+    }
+    const backendCount = backendList.length || 1;
+    const queryConcurrency = Number.isFinite(Number(argv['query-concurrency']))
+      && Number(argv['query-concurrency']) > 0
+      ? Math.floor(Number(argv['query-concurrency']))
+      : 4;
+    const realEmbeddingsEnabled = argv['stub-embeddings'] !== true;
     const effectiveBenchTimeoutMs = resolveAdaptiveBenchTimeoutMs({
       baseTimeoutMs: benchTimeoutMs,
       lineStats,
       buildIndex: shouldBuildIndex,
-      buildSqlite: Boolean(argv.build || argv['build-sqlite'] || autoBuildSqlite || wantsSqlite)
+      buildSqlite: Boolean(argv.build || argv['build-sqlite'] || autoBuildSqlite || wantsSqlite),
+      queryCount,
+      backendCount,
+      queryConcurrency,
+      realEmbeddings: realEmbeddingsEnabled
     });
     if (effectiveBenchTimeoutMs > benchTimeoutMs) {
       const timeoutMinutes = (effectiveBenchTimeoutMs / (60 * 1000)).toFixed(1);
@@ -1101,7 +1136,8 @@ for (const task of tasks) {
       const summaryStats = summarizeBenchLineStats(lineStats);
       appendLog(
         `[timeout] auto-raised ${repoLabel} timeout ${baseMinutes}m -> ${timeoutMinutes}m `
-          + `(lines=${summaryStats.totalLines.toLocaleString()}, files=${summaryStats.totalFiles.toLocaleString()}).`
+          + `(lines=${summaryStats.totalLines.toLocaleString()}, files=${summaryStats.totalFiles.toLocaleString()}, `
+          + `queries=${queryCount}, backends=${backendCount}, qConcurrency=${queryConcurrency}).`
       );
     }
     if (dryRun) {
