@@ -35,9 +35,7 @@ import {
   createWriteHeartbeatController,
   finalizeArtifactWriteTelemetry
 } from './artifacts/write-telemetry.js';
-import {
-  resolveEagerWriteSchedulerTokens
-} from './artifacts/write-scheduler-tokens.js';
+import { createArtifactWriteQueue } from './artifacts/write-queue.js';
 import { enqueueFileRelationsArtifacts } from './artifacts/writers/file-relations.js';
 import { enqueueCallSitesArtifacts } from './artifacts/writers/call-sites.js';
 import { enqueueRiskInterproceduralArtifacts } from './artifacts/writers/risk-interprocedural.js';
@@ -761,7 +759,6 @@ export async function writeIndexArtifacts(input) {
     };
   }
   const writeStart = Date.now();
-  const writes = [];
   const activeWrites = new Map();
   const activeWriteBytes = new Map();
   const artifactMetrics = new Map();
@@ -821,6 +818,12 @@ export async function writeIndexArtifacts(input) {
     artifactConfig,
     writeFsStrategy
   });
+  const { writes, enqueueWrite } = createArtifactWriteQueue({
+    scheduler,
+    massiveWriteIoTokens,
+    massiveWriteMemTokens,
+    resolveArtifactWriteMemTokens
+  });
   const writeProgress = createArtifactWriteProgressTracker({
     telemetry,
     activeWrites,
@@ -835,7 +838,6 @@ export async function writeIndexArtifacts(input) {
     updateWriteInFlightTelemetry,
     logWriteProgress
   } = writeProgress;
-  let enqueueSeq = 0;
   const {
     pieceEntries,
     formatArtifactLabel,
@@ -857,53 +859,6 @@ export async function writeIndexArtifacts(input) {
     logLine,
     formatBytes
   });
-  /**
-   * Enqueue one artifact write task with optional eager scheduler prefetch.
-   *
-   * @param {string} label
-   * @param {() => Promise<object|void>} job
-   * @param {object} [meta]
-   * @returns {void}
-   */
-  const enqueueWrite = (label, job, meta = {}) => {
-    const parsedPriority = Number(meta?.priority);
-    const priority = Number.isFinite(parsedPriority) ? parsedPriority : 0;
-    const parsedEstimatedBytes = Number(meta?.estimatedBytes);
-    const estimatedBytes = Number.isFinite(parsedEstimatedBytes) && parsedEstimatedBytes >= 0
-      ? parsedEstimatedBytes
-      : null;
-    const laneHint = typeof meta?.laneHint === 'string' ? meta.laneHint : null;
-    const eagerStart = meta?.eagerStart === true;
-    let prefetched = null;
-    let prefetchStartedAt = null;
-    if (eagerStart && typeof job === 'function') {
-      prefetchStartedAt = Date.now();
-      const tokens = resolveEagerWriteSchedulerTokens({
-        estimatedBytes,
-        laneHint,
-        massiveWriteIoTokens,
-        massiveWriteMemTokens,
-        resolveArtifactWriteMemTokens
-      });
-      prefetched = scheduler?.schedule
-        ? scheduler.schedule(SCHEDULER_QUEUE_NAMES.stage2Write, tokens, job)
-        : job();
-      Promise.resolve(prefetched).catch(() => {});
-    }
-    writes.push({
-      label,
-      priority,
-      estimatedBytes,
-      laneHint,
-      eagerStart,
-      prefetched,
-      prefetchStartedAt,
-      seq: enqueueSeq,
-      enqueuedAt: Date.now(),
-      job
-    });
-    enqueueSeq += 1;
-  };
   if (mode === 'extracted-prose' && documentExtractionEnabled && !tinyRepoMinimalArtifacts) {
     const extractionReportPath = path.join(outDir, 'extraction_report.json');
     const extractionReport = buildExtractionReport({
