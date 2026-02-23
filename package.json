@@ -97,7 +97,7 @@
     "@lancedb/lancedb": "^0.26.2",
     "@mdx-js/mdx": "^3.1.1",
     "@sengac/tree-sitter-dart": "1.1.6",
-    "@swc/core": "^1.15.8",
+    "@swc/core": "^1.15.13",
     "@tree-sitter-grammars/tree-sitter-lua": "0.4.1",
     "@tree-sitter-grammars/tree-sitter-markdown": "0.3.2",
     "@tree-sitter-grammars/tree-sitter-toml": "0.7.0",
