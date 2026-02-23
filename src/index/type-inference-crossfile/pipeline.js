@@ -7,6 +7,80 @@ import {
 } from './cache.js';
 import { runCrossFilePropagation } from './propagation.js';
 
+const EMPTY_CROSS_FILE_STATS = Object.freeze({
+  linkedCalls: 0,
+  linkedUsages: 0,
+  inferredReturns: 0,
+  riskFlows: 0
+});
+
+const normalizeConfigInteger = ({ value, fallback, min }) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.floor(parsed));
+};
+
+const withCacheMetadata = ({ stats, crossFileFingerprint, cacheHit }) => ({
+  ...stats,
+  cacheHit,
+  fingerprint: crossFileFingerprint
+});
+
+const resolveToolingPropagationOptions = ({ rootDir, useTooling }) => {
+  if (!useTooling) return {};
+  const toolingConfig = getToolingConfig(rootDir);
+  const toolingLogDir = typeof toolingConfig?.logDir === 'string' && toolingConfig.logDir.trim()
+    ? toolingConfig.logDir.trim()
+    : null;
+  return {
+    toolingConfig,
+    toolingTimeoutMs: normalizeConfigInteger({
+      value: toolingConfig?.timeoutMs,
+      fallback: 15000,
+      min: 1000
+    }),
+    toolingRetries: normalizeConfigInteger({
+      value: toolingConfig?.maxRetries,
+      fallback: 2,
+      min: 0
+    }),
+    toolingBreaker: normalizeConfigInteger({
+      value: toolingConfig?.circuitBreakerThreshold,
+      fallback: 3,
+      min: 1
+    }),
+    toolingLogDir
+  };
+};
+
+const resolveCacheContext = ({
+  cacheRoot,
+  cacheEnabled,
+  rootDir,
+  chunks,
+  enableTypeInference,
+  enableRiskCorrelation,
+  useTooling,
+  fileRelations
+}) => {
+  const { cacheDir, cachePath } = resolveCrossFileCacheLocation({
+    cacheRoot,
+    cacheEnabled,
+    rootDir
+  });
+  return {
+    cacheDir,
+    cachePath,
+    crossFileFingerprint: buildCrossFileFingerprint({
+      chunks,
+      enableTypeInference,
+      enableRiskCorrelation,
+      useTooling,
+      fileRelations
+    })
+  };
+};
+
 export async function applyCrossFileInference({
   rootDir,
   buildRoot,
@@ -23,29 +97,13 @@ export async function applyCrossFileInference({
   inferenceLiteHighSignalOnly = true
 }) {
   if (!enabled) {
-    return { linkedCalls: 0, linkedUsages: 0, inferredReturns: 0, riskFlows: 0 };
+    return { ...EMPTY_CROSS_FILE_STATS };
   }
 
-  const toolingConfig = useTooling ? getToolingConfig(rootDir) : null;
-  const toolingTimeoutMs = Number.isFinite(Number(toolingConfig?.timeoutMs))
-    ? Math.max(1000, Math.floor(Number(toolingConfig.timeoutMs)))
-    : 15000;
-  const toolingRetries = Number.isFinite(Number(toolingConfig?.maxRetries))
-    ? Math.max(0, Math.floor(Number(toolingConfig.maxRetries)))
-    : 2;
-  const toolingBreaker = Number.isFinite(Number(toolingConfig?.circuitBreakerThreshold))
-    ? Math.max(1, Math.floor(Number(toolingConfig.circuitBreakerThreshold)))
-    : 3;
-  const toolingLogDir = typeof toolingConfig?.logDir === 'string' && toolingConfig.logDir.trim()
-    ? toolingConfig.logDir.trim()
-    : null;
-
-  const { cacheDir, cachePath } = resolveCrossFileCacheLocation({
+  const cacheContext = resolveCacheContext({
     cacheRoot,
     cacheEnabled,
-    rootDir
-  });
-  const crossFileFingerprint = buildCrossFileFingerprint({
+    rootDir,
     chunks,
     enableTypeInference,
     enableRiskCorrelation,
@@ -54,19 +112,23 @@ export async function applyCrossFileInference({
   });
 
   const cachedStats = await readCrossFileInferenceCache({
-    cachePath,
+    cachePath: cacheContext.cachePath,
     chunks,
-    crossFileFingerprint,
+    crossFileFingerprint: cacheContext.crossFileFingerprint,
     log
   });
   if (cachedStats) {
-    return {
-      ...cachedStats,
-      cacheHit: true,
-      fingerprint: crossFileFingerprint
-    };
+    return withCacheMetadata({
+      stats: cachedStats,
+      crossFileFingerprint: cacheContext.crossFileFingerprint,
+      cacheHit: true
+    });
   }
 
+  const toolingPropagationOptions = resolveToolingPropagationOptions({
+    rootDir,
+    useTooling
+  });
   const stats = await runCrossFilePropagation({
     rootDir,
     buildRoot,
@@ -78,24 +140,20 @@ export async function applyCrossFileInference({
     fileRelations,
     inferenceLite,
     inferenceLiteHighSignalOnly,
-    toolingConfig,
-    toolingTimeoutMs,
-    toolingRetries,
-    toolingBreaker,
-    toolingLogDir
+    ...toolingPropagationOptions
   });
 
   await writeCrossFileInferenceCache({
-    cacheDir,
-    cachePath,
+    cacheDir: cacheContext.cacheDir,
+    cachePath: cacheContext.cachePath,
     chunks,
-    crossFileFingerprint,
+    crossFileFingerprint: cacheContext.crossFileFingerprint,
     stats
   });
 
-  return {
-    ...stats,
-    cacheHit: false,
-    fingerprint: crossFileFingerprint
-  };
+  return withCacheMetadata({
+    stats,
+    crossFileFingerprint: cacheContext.crossFileFingerprint,
+    cacheHit: false
+  });
 }
