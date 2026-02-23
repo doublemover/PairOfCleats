@@ -88,6 +88,10 @@ import { createEmbeddingsScheduler } from './scheduler.js';
 import { createBoundedWriterQueue } from './writer-queue.js';
 import { updateSqliteDense } from './sqlite-dense.js';
 import {
+  createDeterministicFileStreamSampler,
+  selectDeterministicFileSample
+} from './sampling.js';
+import {
   normalizeEmbeddingsMaintenanceConfig,
   shouldQueueSqliteMaintenance
 } from './maintenance.js';
@@ -737,22 +741,6 @@ const resolveEmbeddingSamplingConfig = ({ embeddingsConfig, env } = {}) => {
     : '';
   const seed = envSeed || configSeed || 'default';
   return { maxFiles, seed };
-};
-
-const selectDeterministicFileSample = ({ fileEntries, mode, maxFiles, seed }) => {
-  if (!Array.isArray(fileEntries) || fileEntries.length <= maxFiles) return fileEntries;
-  const scored = fileEntries.map(([filePath, items]) => {
-    const normalized = toPosix(filePath);
-    const score = sha1(`${seed}:${mode}:${normalized}`);
-    return { filePath, items, normalized, score };
-  });
-  scored.sort((a, b) => (
-    a.score.localeCompare(b.score)
-    || a.normalized.localeCompare(b.normalized)
-  ));
-  const selected = scored.slice(0, maxFiles);
-  selected.sort((a, b) => a.normalized.localeCompare(b.normalized));
-  return selected.map((entry) => [entry.filePath, entry.items]);
 };
 
 /**
@@ -1687,9 +1675,17 @@ export async function runBuildEmbeddingsWithConfig(config) {
         let chunksByFile = new Map();
         let totalChunks = 0;
         let loadedChunkMetaFromArtifacts = false;
+        let streamSamplingSummary = null;
         try {
           await scheduleIo(async () => {
             const fileMetaById = new Map();
+            const streamSampler = embeddingSampling.maxFiles
+              ? createDeterministicFileStreamSampler({
+                mode,
+                maxFiles: embeddingSampling.maxFiles,
+                seed: embeddingSampling.seed
+              })
+              : null;
             let fileMetaLoaded = false;
             let fileMetaLoadFailed = false;
             const ensureFileMetaById = async () => {
@@ -1734,19 +1730,39 @@ export async function runBuildEmbeddingsWithConfig(config) {
                 unresolvedFileRows += 1;
                 continue;
               }
+              const normalizedFilePath = toPosix(filePath);
+              if (!normalizedFilePath) {
+                unresolvedFileRows += 1;
+                continue;
+              }
+              if (streamSampler) {
+                const decision = streamSampler.considerFile(normalizedFilePath);
+                if (decision.evicted) {
+                  chunksByFile.delete(decision.evicted);
+                }
+                if (!decision.selected) {
+                  continue;
+                }
+              }
               const compactChunk = compactChunkForEmbeddings(chunkRow, filePath);
               if (!compactChunk) {
                 unresolvedFileRows += 1;
                 continue;
               }
-              const list = chunksByFile.get(filePath) || [];
+              const list = chunksByFile.get(normalizedFilePath) || [];
               list.push({ index: chunkIndex, chunk: compactChunk });
-              chunksByFile.set(filePath, list);
+              chunksByFile.set(normalizedFilePath, list);
             }
             if (unresolvedFileRows > 0) {
               warn(
                 `[embeddings] ${mode}: skipped ${unresolvedFileRows} chunk_meta rows with unresolved file mapping.`
               );
+            }
+            if (streamSampler) {
+              streamSamplingSummary = {
+                seenFiles: streamSampler.getSeenCount(),
+                selectedFiles: streamSampler.getSelectedCount()
+              };
             }
             totalChunks = nextIndex;
           });
@@ -1791,8 +1807,21 @@ export async function runBuildEmbeddingsWithConfig(config) {
         const fileEntries = Array.from(chunksByFile.entries())
           .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
         let sampledFileEntries = fileEntries;
+        let totalFileCount = fileEntries.length;
         let sampledChunkCount = totalChunks;
-        if (embeddingSampling.maxFiles && embeddingSampling.maxFiles < fileEntries.length) {
+        if (streamSamplingSummary && embeddingSampling.maxFiles) {
+          totalFileCount = Math.max(fileEntries.length, streamSamplingSummary.seenFiles || 0);
+          sampledChunkCount = sampledFileEntries.reduce(
+            (sum, entry) => sum + (Array.isArray(entry?.[1]) ? entry[1].length : 0),
+            0
+          );
+          if (totalFileCount > sampledFileEntries.length) {
+            log(
+              `[embeddings] ${mode}: sampling ${sampledFileEntries.length}/${totalFileCount} files ` +
+              `(${sampledChunkCount}/${totalChunks} chunks, seed=${embeddingSampling.seed}).`
+            );
+          }
+        } else if (embeddingSampling.maxFiles && embeddingSampling.maxFiles < fileEntries.length) {
           sampledFileEntries = selectDeterministicFileSample({
             fileEntries,
             mode,
@@ -1804,7 +1833,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
             0
           );
           log(
-            `[embeddings] ${mode}: sampling ${sampledFileEntries.length}/${fileEntries.length} files ` +
+            `[embeddings] ${mode}: sampling ${sampledFileEntries.length}/${totalFileCount} files ` +
             `(${sampledChunkCount}/${totalChunks} chunks, seed=${embeddingSampling.seed}).`
           );
         }
@@ -1822,8 +1851,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
           step: 'chunks',
           extra: {
             files: sampledFileEntries.length,
-            totalFiles: fileEntries.length,
-            sampledFiles: fileEntries.length - sampledFileEntries.length,
+            totalFiles: totalFileCount,
+            sampledFiles: totalFileCount - sampledFileEntries.length,
             totalChunks,
             sampledChunks: sampledChunkCount
           }
