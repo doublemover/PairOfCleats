@@ -86,12 +86,15 @@ assert.deepEqual(
   extractedEntries,
   [
     'docs/readme.md',
-    'docs/reference/index.html',
-    'docs/reference/search.json',
-    'docs/reference/site.css',
     'src/app.js',
     'src/site/index.html'
   ]
+);
+assert.ok(
+  !extractedEntries.includes('docs/reference/index.html')
+  && !extractedEntries.includes('docs/reference/search.json')
+  && !extractedEntries.includes('docs/reference/site.css'),
+  'non-marked prose docs should be prefiltered out of extracted-prose mode'
 );
 assert.deepEqual(recordEntries, ['logs/app.log']);
 assert.ok(!codeEntries.includes('logs/app.log'), 'records should not appear in code');

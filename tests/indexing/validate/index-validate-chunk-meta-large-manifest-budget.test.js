@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
-import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { writeJsonArrayFile, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -39,7 +39,7 @@ const chunkMetaPayload = [
   }
 ];
 const chunkMetaPath = path.join(indexDir, 'chunk_meta.json');
-await writeJsonObjectFile(chunkMetaPath, { fields: chunkMetaPayload, atomic: true });
+await writeJsonArrayFile(chunkMetaPath, chunkMetaPayload, { atomic: true });
 const chunkMetaStat = await fs.stat(chunkMetaPath);
 
 const tokenPostings = {
@@ -55,9 +55,9 @@ await writeJsonObjectFile(path.join(indexDir, 'index_state.json'), { fields: {
   mode: 'code',
   artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION
 }, atomic: true });
-await writeJsonObjectFile(path.join(indexDir, 'file_meta.json'), { fields: [
+await writeJsonArrayFile(path.join(indexDir, 'file_meta.json'), [
   { id: 0, file: 'src/a.js', ext: '.js' }
-], atomic: true });
+], { atomic: true });
 await writeJsonObjectFile(path.join(indexDir, '.filelists.json'), { fields: {
   generatedAt: new Date().toISOString(),
   scanned: { count: 1, sample: [] },
