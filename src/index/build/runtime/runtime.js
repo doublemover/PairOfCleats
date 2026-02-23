@@ -6,8 +6,6 @@ import {
   getCacheRuntimeConfig,
   getEffectiveConfigHash,
   getBuildsRoot,
-  getCacheRoot,
-  getRepoCacheRoot,
   getToolVersion,
   getToolingConfig,
   getTriageConfig,
@@ -18,16 +16,10 @@ import { normalizeBundleFormat } from '../../../shared/bundle-io.js';
 import { log } from '../../../shared/progress.js';
 import { getEnvConfig, isTestingEnv } from '../../../shared/env.js';
 import { isAbsolutePathNative } from '../../../shared/files.js';
-import { resolveCacheFilesystemProfile } from '../../../shared/cache-roots.js';
-import { buildAutoPolicy } from '../../../shared/auto-policy.js';
 import { normalizePostingsConfig } from '../../../shared/postings-config.js';
-import { mergeConfig } from '../../../shared/config.js';
-import { setXxhashBackend } from '../../../shared/hash.js';
-import { resolveScmConfig } from '../../scm/registry.js';
 import { setScmRuntimeConfig } from '../../scm/runtime.js';
 import { normalizeRecordsConfig } from '../records.js';
 import { buildContentConfigHash } from './hash.js';
-import { normalizeStage, buildStageOverrides } from './stage.js';
 import {
   configureRuntimeLogger,
   logRuntimeFeatureStatus,
@@ -35,10 +27,8 @@ import {
 } from './logging.js';
 import { applyTreeSitterJsCaps, resolveFileCapsAndGuardrails } from './caps.js';
 import {
-  applyAutoPolicyIndexingConfig,
   buildAnalysisPolicy,
-  buildLexiconConfig,
-  resolveBaseEmbeddingPlan
+  buildLexiconConfig
 } from './policy.js';
 import {
   buildFileScanConfig,
@@ -51,7 +41,6 @@ import { resolveTreeSitterRuntime } from './tree-sitter.js';
 import {
   createRuntimeDaemonJobContext
 } from './daemon-session.js';
-import { resolveLearnedAutoProfileSelection } from './learned-auto-profile.js';
 import {
   createRuntimeWorkerPools
 } from './workers.js';
@@ -66,10 +55,8 @@ import {
   runStartupCalibrationProbe
 } from './platform-preset.js';
 import {
-  assertKnownIndexProfileId,
-  buildIndexProfileState
-} from '../../../contracts/index-profile.js';
-import { preloadTreeSitterWithDaemonCache } from './tree-sitter-preload.js';
+  preloadTreeSitterWithDaemonCache
+} from './tree-sitter-preload.js';
 import { createRuntimeInitTracer, startRuntimeEnvelopeInitialization } from './bootstrap.js';
 import {
   createRuntimeSchedulerSetup,
@@ -94,6 +81,7 @@ import {
   resolveRuntimeLanguageInitConfig
 } from './runtime-language-init.js';
 import { resolveRuntimeAnalysisConfig } from './runtime-analysis-init.js';
+import { resolveRuntimeStartupPolicyState } from './runtime-startup-policy-init.js';
 
 export {
   applyLearnedAutoProfileSelection,
@@ -114,88 +102,40 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   const userConfig = await timeInit('load config', () => loadUserConfig(root));
   const envConfig = getEnvConfig();
   const importGraphEnabled = envConfig.importGraph == null ? true : envConfig.importGraph;
-  const rawIndexingConfig = userConfig.indexing || {};
-  let indexingConfig = rawIndexingConfig;
-  const qualityOverride = typeof argv.quality === 'string' ? argv.quality.trim().toLowerCase() : '';
-  const policyConfig = qualityOverride ? { ...userConfig, quality: qualityOverride } : userConfig;
-  const autoPolicy = policy
-    ? policy
-    : await timeInit('auto policy', () => buildAutoPolicy({ repoRoot: root, config: policyConfig }));
-  if (policy) {
+  const startupPolicyState = await resolveRuntimeStartupPolicyState({
+    root,
+    argv,
+    rawArgv,
+    policy,
+    userConfig,
+    envConfig,
+    log,
+    timeInit
+  });
+  if (startupPolicyState.autoPolicyProvided) {
     log('[init] auto policy (provided)');
   }
-  const autoPolicyResolution = applyAutoPolicyIndexingConfig({
-    indexingConfig,
-    autoPolicy
-  });
-  indexingConfig = autoPolicyResolution.indexingConfig;
-  const autoPolicyProfile = autoPolicyResolution.autoPolicyProfile;
-  const hugeRepoProfileEnabled = autoPolicyResolution.hugeRepoProfileEnabled;
-  const { baseEmbeddingsPlanned } = resolveBaseEmbeddingPlan(indexingConfig);
-  const requestedHashBackend = typeof indexingConfig?.hash?.backend === 'string'
-    ? indexingConfig.hash.backend.trim().toLowerCase()
-    : '';
-  if (requestedHashBackend && !envConfig.xxhashBackend) {
-    setXxhashBackend(requestedHashBackend);
-  }
-  const stage = normalizeStage(argv.stage || envConfig.stage);
-  const twoStageConfig = indexingConfig.twoStage || {};
-  const stageOverrides = buildStageOverrides(twoStageConfig, stage);
-  if (stageOverrides) {
-    indexingConfig = mergeConfig(indexingConfig, stageOverrides);
-  }
-  const systemCpuCount = os.cpus().length;
-  const repoCacheRoot = getRepoCacheRoot(root, userConfig);
-  const cacheRootCandidate = (userConfig.cache && userConfig.cache.root) || getCacheRoot();
-  const filesystemProfile = resolveCacheFilesystemProfile(cacheRootCandidate, process.platform);
-  const platformRuntimePreset = resolvePlatformRuntimePreset({
-    platform: process.platform,
-    filesystemProfile,
-    cpuCount: systemCpuCount,
-    indexingConfig
-  });
-  if (platformRuntimePreset?.overrides) {
-    indexingConfig = mergeConfig(indexingConfig, platformRuntimePreset.overrides);
-  }
-  const learnedAutoProfile = await timeInit('learned auto profile', () => resolveLearnedAutoProfileSelection({
-    root,
+  let indexingConfig = startupPolicyState.indexingConfig;
+  const {
+    policyConfig,
+    autoPolicy,
+    autoPolicyProfile,
+    hugeRepoProfileEnabled,
+    baseEmbeddingsPlanned,
+    stage,
+    twoStageConfig,
+    systemCpuCount,
     repoCacheRoot,
-    indexingConfig,
-    log
-  }));
-  indexingConfig = applyLearnedAutoProfileSelection({
-    indexingConfig,
-    learnedAutoProfile
-  });
-  const profileId = assertKnownIndexProfileId(indexingConfig.profile);
-  const profile = buildIndexProfileState(profileId);
-  const indexOptimizationProfile = normalizeIndexOptimizationProfile(
-    indexingConfig.indexOptimizationProfile
-  );
-  indexingConfig = {
-    ...indexingConfig,
-    profile: profile.id,
-    indexOptimizationProfile
-  };
-  const rawArgs = Array.isArray(rawArgv) ? rawArgv : [];
-  const scmAnnotateOverride = rawArgs.includes('--scm-annotate')
-    ? true
-    : (rawArgs.includes('--no-scm-annotate') ? false : null);
-  if (scmAnnotateOverride != null) {
-    indexingConfig = mergeConfig(indexingConfig, {
-      scm: { annotate: { enabled: scmAnnotateOverride } }
-    });
-  }
-  const scmConfig = resolveScmConfig({
-    indexingConfig,
-    analysisPolicy: userConfig.analysisPolicy || null,
-    benchRun: envConfig.benchRun === true
-  });
+    cacheRoot,
+    cacheRootSource,
+    filesystemProfile,
+    platformRuntimePreset,
+    learnedAutoProfile,
+    profile,
+    indexOptimizationProfile,
+    scmConfig
+  } = startupPolicyState;
   setScmRuntimeConfig(scmConfig);
-  const cacheRoot = cacheRootCandidate;
-  const cacheRootSource = userConfig.cache?.root
-    ? 'config'
-    : (envConfig.cacheRoot ? 'env' : 'default');
   log(`[init] cache root (${cacheRootSource}): ${path.resolve(cacheRoot)}`);
   log(`[init] repo cache root: ${path.resolve(repoCacheRoot)}`);
   if (platformRuntimePreset?.enabled !== false) {
