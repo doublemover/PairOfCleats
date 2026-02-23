@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 
 /**
@@ -8,15 +9,29 @@ import path from 'node:path';
  * @param {string} baseDir
  * @param {string} requestPath
  * @param {typeof path} [pathApi]
+ * @param {{realpathSync?:(targetPath:string)=>string}|{realpathSync:{native?:(targetPath:string)=>string}}} [fsApi]
  * @returns {string|null}
  */
-export const safeJoinUnderBase = (baseDir, requestPath, pathApi = path) => {
+export const safeJoinUnderBase = (baseDir, requestPath, pathApi = path, fsApi = fs) => {
   if (!baseDir) return null;
   const resolvedBase = pathApi.resolve(baseDir);
   const resolvedTarget = pathApi.resolve(resolvedBase, requestPath || '');
-  const relative = pathApi.relative(resolvedBase, resolvedTarget);
+  const realpathSync = typeof fsApi?.realpathSync?.native === 'function'
+    ? fsApi.realpathSync.native
+    : (typeof fsApi?.realpathSync === 'function' ? fsApi.realpathSync : null);
+  const canonicalizePath = (targetPath) => {
+    if (!realpathSync) return targetPath;
+    try {
+      return pathApi.resolve(realpathSync(targetPath));
+    } catch {
+      return targetPath;
+    }
+  };
+  const canonicalBase = canonicalizePath(resolvedBase);
+  const canonicalTarget = canonicalizePath(resolvedTarget);
+  const relative = pathApi.relative(canonicalBase, canonicalTarget);
   if (relative.startsWith('..') || pathApi.isAbsolute(relative)) return null;
-  return resolvedTarget;
+  return canonicalTarget;
 };
 
 /**
