@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T07:01:56.8298918-05:00
+  Extracted sparse-fallback backend reinitialization from `src/retrieval/cli/run-search/plan-runner.js` into `src/retrieval/cli/run-search/backend-reinit.js`, isolating reinit sequencing and LMDB-forced validation after preflight ANN coercion.
 - 2026-02-23T06:58:41.8806747-05:00
   Extracted token-flow chunk tokenization/fallback handling from `src/index/build/file-processor/process-chunks/token-flow.js` into `src/index/build/file-processor/process-chunks/token-flow/chunk-tokenizer.js`, and added regression coverage in `tests/indexing/file-processor/tokenization-worker-fallback-retention.test.js`.
 - 2026-02-23T06:57:51.2988469-05:00

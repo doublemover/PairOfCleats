@@ -46,7 +46,6 @@ import {
   parseCliArgsOrThrow,
   runFederatedIfRequested
 } from './options.js';
-import { createBackendContextWithTracking } from './backend-context.js';
 import {
   loadSearchIndexStates,
   resolveStartupIndexResolution
@@ -60,6 +59,7 @@ import { buildQueryPlanInput } from './plan-input.js';
 import { resolveRunSearchSparsePreflight } from './sparse-preflight.js';
 import { runBranchFilterGate } from './branch-gate.js';
 import { resolveRunSearchDictionaryAndPlan } from './query-planning.js';
+import { reinitializeBackendAfterSparseFallback } from './backend-reinit.js';
 
 import {
   resolveAnnActive,
@@ -547,8 +547,6 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       vectorAnnEnabled,
       emitOutput
     });
-    let backendContextMutable = backendContext;
-
     let {
       useSqlite,
       useLmdb,
@@ -558,7 +556,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       vectorAnnUsed,
       sqliteHelpers,
       lmdbHelpers
-    } = backendContextMutable;
+    } = backendContext;
     telemetry.setBackend(backendLabel);
     ensureRetrievalHealth({
       query,
@@ -678,17 +676,19 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
     if (sparseFallbackForcedByPreflight) {
       syncAnnFlags();
-      backendContextMutable = await createBackendContextWithTracking({
+      const backendReinit = await reinitializeBackendAfterSparseFallback({
         stageTracker,
-        contextInput: buildBackendContextInput({
-          backendPolicy,
-          useSqlite: useSqliteSelection,
-          useLmdb: useLmdbSelection,
-          sqliteFtsRequested: sqliteFtsEnabled,
-          vectorAnnEnabled
-        }),
-        stageName: 'startup.backend.reinit'
+        buildBackendContextInput,
+        backendPolicy,
+        useSqliteSelection,
+        useLmdbSelection,
+        sqliteFtsEnabled,
+        vectorAnnEnabled,
+        backendForcedLmdb
       });
+      if (backendReinit.error) {
+        return bail(backendReinit.error.message, 1, backendReinit.error.code);
+      }
       ({
         useSqlite,
         useLmdb,
@@ -698,11 +698,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         vectorAnnUsed,
         sqliteHelpers,
         lmdbHelpers
-      } = backendContextMutable);
+      } = backendReinit);
       telemetry.setBackend(backendLabel);
-      if (backendForcedLmdb && !useLmdb) {
-        return bail('LMDB backend requested but unavailable.', 1, ERROR_CODES.INVALID_REQUEST);
-      }
     }
 
     const annActive = resolveAnnActive({
