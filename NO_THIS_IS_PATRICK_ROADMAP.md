@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T06:12:35.0616619-05:00
+  Further decomposed `src/index/build/indexer/pipeline.js` into `pipeline/stage-orchestration.js` and `pipeline/phase-ordering.js`, isolating scheduler/checkpoint telemetry wiring and overlap/prefetch phase ordering policy to reduce repeated normalization logic and keep top-level pipeline orchestration lean.
 - 2026-02-23T06:12:06.3899446-05:00
   Extracted reusable scheduler normalization/coercion helpers from `src/shared/concurrency/scheduler-core.js` into `src/shared/concurrency/scheduler-core-normalize.js`, preserving scheduling behavior while reducing core-module surface area and centralizing token/ratio/request normalization logic for future adaptive-controller reuse.
 - 2026-02-23T06:08:28.0253007-05:00
