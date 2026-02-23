@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T05:54:07.6235557-05:00
+  Refactored `src/index/build/file-processor/cpu.js` by extracting SCM deadline/snapshot helpers (`cpu/scm.js`), numeric coercion helpers (`cpu/coercion.js`), and skip/diagnostic payload builders (`cpu/results.js`), preserving parse/SCM guardrail semantics while reducing repeated in-function branching and reusing shared limits helpers.
 - 2026-02-23T05:50:50.5174259-05:00
   Refactored `src/index/build/artifacts-write.js` compression-tier policy into `src/index/build/artifacts/compression-tier-policy.js` and added `createArtifactCompressionTierResolver` in `src/shared/artifact-io/compression.js` so hot/cold tier sets are precomputed once per policy instead of rebuilt per artifact resolution, reducing repeated normalization/set-allocation overhead on artifact-write hot paths.
 - 2026-02-23T05:47:43.9847056-05:00

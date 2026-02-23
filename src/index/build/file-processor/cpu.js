@@ -28,18 +28,29 @@ import {
   isPythonGeneratedDataPath,
   isScmFastPath,
   isScmTaskTimeoutError,
-  resolveScmTaskDeadlineMs,
   shouldForceScmTimeoutCaps,
   shouldSkipHeavyRelations
 } from './cpu/guardrails.js';
 import { mergePlannedSegmentsWithExtras } from './cpu/segment-planning.js';
+import {
+  readSnapshotMetaForPath,
+  resolveScmAnnotateLimits,
+  resolveScmMetaTimeoutMs,
+  resolveSnapshotMetaState,
+  runScmTaskWithDeadline,
+  toFileGitMeta
+} from './cpu/scm.js';
+import {
+  buildParseErrorSkipResult,
+  buildSkipResult,
+  createChunkingDiagnostics
+} from './cpu/results.js';
 import { resolveFileCaps } from './read.js';
 import { shouldPreferDocsProse } from '../mode-routing.js';
 import { buildLineIndex } from '../../../shared/lines.js';
 import { formatError } from './meta.js';
 import { processChunks } from './process-chunks.js';
 import { resolveChunkingFileRole } from '../../chunking/limits.js';
-import { createTimeoutError, runWithTimeout } from '../../../shared/promise-timeout.js';
 
 /**
  * Execute CPU-phase analysis for a file, including parse policy resolution,
@@ -172,16 +183,13 @@ export const processFileCpu = async (context) => {
    * @param {object} [extra]
    * @returns {{chunks:Array, fileRelations:null, skip:{reason:string,stage:string,message:string}}}
    */
-  const failFile = (reason, stage, err, extra = {}) => ({
-    chunks: [],
-    fileRelations: null,
-    skip: {
-      reason,
-      stage,
-      message: formatError(err),
-      ...extra
-    }
+  const failFile = (reason, stage, err, extra = {}) => buildSkipResult({
+    reason,
+    stage,
+    message: formatError(err),
+    ...extra
   });
+  const toParseErrorSkip = (stage, err) => buildParseErrorSkipResult(stage, err);
 
   let fileLanguageId = languageHint?.id || null;
   let fileLineCount = 0;
@@ -240,15 +248,7 @@ export const processFileCpu = async (context) => {
       errorCode: err?.code || null
     });
     if (languageOptions?.skipOnParseError) {
-      return {
-        chunks: [],
-        fileRelations: null,
-        skip: {
-          reason: 'parse-error',
-          stage: 'prepare',
-          message: err?.message || String(err)
-        }
-      };
+      return toParseErrorSkip('prepare', err);
     }
     throw err;
   }
@@ -257,20 +257,16 @@ export const processFileCpu = async (context) => {
     || mode === 'extracted-prose'
     || extractedDocumentFile;
   if (!lang && languageOptions?.skipUnknownLanguages && !allowUnknownLanguage) {
-    return {
-      chunks: [],
-      fileRelations: null,
-      skip: {
-        reason: 'unsupported-language',
-        diagnostics: [
-          {
-            code: 'USR-E-CAPABILITY-LOST',
-            reasonCode: 'USR-R-PARSER-UNAVAILABLE',
-            detail: ext || null
-          }
-        ]
-      }
-    };
+    return buildSkipResult({
+      reason: 'unsupported-language',
+      diagnostics: [
+        {
+          code: 'USR-E-CAPABILITY-LOST',
+          reasonCode: 'USR-R-PARSER-UNAVAILABLE',
+          detail: ext || null
+        }
+      ]
+    });
   }
   if (languageContext?.pythonAstMetrics?.durationMs) {
     setPythonAstDuration(languageContext.pythonAstMetrics.durationMs);
@@ -282,17 +278,13 @@ export const processFileCpu = async (context) => {
   fileLineCount = totalLines;
   const capsByLanguage = resolveFileCaps(fileCaps, ext, lang?.id, mode);
   if (capsByLanguage.maxLines && totalLines > capsByLanguage.maxLines) {
-    return {
-      chunks: [],
-      fileRelations: null,
-      skip: {
-        reason: 'oversize',
-        stage: 'cpu',
-        capSource: 'maxLines',
-        lines: totalLines,
-        maxLines: capsByLanguage.maxLines
-      }
-    };
+    return buildSkipResult({
+      reason: 'oversize',
+      stage: 'cpu',
+      capSource: 'maxLines',
+      lines: totalLines,
+      maxLines: capsByLanguage.maxLines
+    });
   }
   const skipHeavyRelations = shouldSkipHeavyRelations({
     mode,
@@ -372,81 +364,73 @@ export const processFileCpu = async (context) => {
     scmConfig?.allowSlowTimeouts !== true
     && annotateConfig?.allowSlowTimeouts !== true
   );
-  const metaTimeoutRaw = Number(scmConfig?.timeoutMs);
-  const hasExplicitMetaTimeout = Number.isFinite(metaTimeoutRaw) && metaTimeoutRaw > 0;
-  let metaTimeoutMs = hasExplicitMetaTimeout
-    ? metaTimeoutRaw
-    : 2000;
-  if (enforceScmTimeoutCaps) {
-    const metaCapMs = scmFastPath || SCM_META_FAST_TIMEOUT_EXTS.has(normalizedExt) ? 250 : 750;
-    metaTimeoutMs = Math.min(metaTimeoutMs, metaCapMs);
-  }
-  const runScmTask = typeof runProc === 'function' ? runProc : (fn) => fn();
-  /**
-   * Run an SCM metadata task under a hard deadline and route it through the
-   * process queue when available.
-   *
-   * @param {{label?:string,timeoutMs?:number,task:(signal:AbortSignal|null)=>Promise<unknown>}} input
-   * @returns {Promise<unknown>}
-   */
-  const runScmTaskWithDeadline = async ({ label, timeoutMs, task }) => {
-    const deadlineMs = resolveScmTaskDeadlineMs(timeoutMs);
-    if (!(Number.isFinite(deadlineMs) && deadlineMs > 0)) {
-      return runScmTask(() => task(null));
-    }
-    return runWithTimeout(
-      (taskSignal) => runScmTask(() => task(taskSignal)),
-      {
-        timeoutMs: deadlineMs,
-        errorFactory: () => createTimeoutError({
-          message: `SCM ${label || 'task'} timed out after ${deadlineMs}ms (${relKey})`,
-          code: 'SCM_TASK_TIMEOUT',
-          retryable: true,
-          meta: {
-            relKey,
-            deadlineMs,
-            timeoutMs: Number.isFinite(Number(timeoutMs)) ? Math.floor(Number(timeoutMs)) : null
-          }
-        })
-      }
-    );
-  };
+  const metaTimeoutMs = resolveScmMetaTimeoutMs({
+    scmConfig,
+    enforceScmTimeoutCaps,
+    scmFastPath,
+    normalizedExt,
+    metaFastTimeoutExts: SCM_META_FAST_TIMEOUT_EXTS
+  });
   let scmMetaUnavailableReason = null;
   if (!skipScmForProseRoute && scmActive && filePosix) {
     const includeChurn = resolvedGitChurnEnabled
       && !scmFastPath
       && fileBytes <= SCM_CHURN_MAX_BYTES;
-    const snapshotMeta = (() => {
-      if (!scmFileMetaByPath) return null;
-      if (typeof scmFileMetaByPath.get === 'function') {
-        return scmFileMetaByPath.get(filePosix) || null;
-      }
-      return scmFileMetaByPath[filePosix] || null;
-    })();
-    const snapshotHasIdentity = Boolean(snapshotMeta && (snapshotMeta.lastModifiedAt || snapshotMeta.lastAuthor));
-    const snapshotMissingRequestedChurn = Boolean(
-      snapshotHasIdentity
-      && includeChurn
-      && !Number.isFinite(snapshotMeta.churn)
-      && !Number.isFinite(snapshotMeta.churnAdded)
-      && !Number.isFinite(snapshotMeta.churnDeleted)
-    );
-    if (snapshotHasIdentity && !snapshotMissingRequestedChurn) {
+    const snapshotMeta = readSnapshotMetaForPath({
+      scmFileMetaByPath,
+      filePosix
+    });
+    const snapshotState = resolveSnapshotMetaState({
+      snapshotMeta,
+      includeChurn
+    });
+    if (snapshotState.canUseSnapshot) {
       fileGitCommitId = typeof snapshotMeta.lastCommitId === 'string'
         ? snapshotMeta.lastCommitId
         : null;
-      fileGitMeta = {
-        last_modified: snapshotMeta.lastModifiedAt ?? null,
-        last_author: snapshotMeta.lastAuthor ?? null,
-        churn: Number.isFinite(snapshotMeta.churn) ? snapshotMeta.churn : null,
-        churn_added: Number.isFinite(snapshotMeta.churnAdded) ? snapshotMeta.churnAdded : null,
-        churn_deleted: Number.isFinite(snapshotMeta.churnDeleted) ? snapshotMeta.churnDeleted : null,
-        churn_commits: Number.isFinite(snapshotMeta.churnCommits) ? snapshotMeta.churnCommits : null
-      };
-    } else if (snapshotMeta && !snapshotHasIdentity) {
-      scmMetaUnavailableReason = 'unavailable';
-    } else if (!snapshotMeta || snapshotMissingRequestedChurn) {
-      applyScmMetaResult(await readCachedOrProviderScmMeta());
+      fileGitMeta = toFileGitMeta(snapshotMeta);
+    } else if (snapshotState.unavailableReason) {
+      scmMetaUnavailableReason = snapshotState.unavailableReason;
+    } else if (
+      typeof scmProviderImpl.getFileMeta === 'function'
+      && (!snapshotMeta || snapshotState.missingRequestedChurn)
+    ) {
+      try {
+        await runScmTaskWithDeadline({
+          runProc,
+          relKey,
+          label: 'file-meta',
+          timeoutMs: metaTimeoutMs,
+          task: async (taskSignal) => {
+            if (taskSignal?.aborted) return;
+            const fileMeta = await Promise.resolve(scmProviderImpl.getFileMeta({
+              repoRoot: scmRepoRoot,
+              filePosix,
+              timeoutMs: Math.max(0, metaTimeoutMs),
+              includeChurn,
+              signal: taskSignal || undefined
+            }));
+            if (taskSignal?.aborted) return;
+            if (fileMeta && fileMeta.ok !== false) {
+              fileGitCommitId = typeof fileMeta.lastCommitId === 'string'
+                ? fileMeta.lastCommitId
+                : null;
+              fileGitMeta = toFileGitMeta(fileMeta);
+              return;
+            }
+            const reason = String(fileMeta?.reason || '').toLowerCase();
+            if (reason === 'timeout' || reason === 'unavailable') {
+              scmMetaUnavailableReason = reason;
+            }
+          }
+        });
+      } catch (error) {
+        if (isScmTaskTimeoutError(error)) {
+          scmMetaUnavailableReason = 'timeout';
+        } else {
+          throw error;
+        }
+      }
     }
     if (
       resolvedGitBlameEnabled
@@ -457,34 +441,30 @@ export const processFileCpu = async (context) => {
       && scmMetaUnavailableReason == null
       && typeof scmProviderImpl.annotate === 'function'
     ) {
-      const maxAnnotateBytesRaw = Number(annotateConfig.maxFileSizeBytes);
-      const defaultAnnotateBytes = scmFastPath ? 128 * 1024 : 256 * 1024;
-      const annotateDefaultBytes = isPythonScmPath
-        ? Math.min(defaultAnnotateBytes, SCM_ANNOTATE_PYTHON_MAX_BYTES)
-        : defaultAnnotateBytes;
-      const maxAnnotateBytes = Number.isFinite(maxAnnotateBytesRaw)
-        ? Math.max(0, maxAnnotateBytesRaw)
-        : annotateDefaultBytes;
-      const annotateTimeoutRaw = Number(annotateConfig.timeoutMs);
-      const defaultTimeoutRaw = Number(scmConfig?.timeoutMs);
-      const hasExplicitAnnotateTimeout = Number.isFinite(annotateTimeoutRaw) && annotateTimeoutRaw > 0;
-      let annotateTimeoutMs = hasExplicitAnnotateTimeout
-        ? annotateTimeoutRaw
-        : (Number.isFinite(defaultTimeoutRaw) && defaultTimeoutRaw > 0 ? defaultTimeoutRaw : 10000);
-      if (enforceScmTimeoutCaps) {
-        const annotateCapMs = isHeavyRelationsPath(relKey)
-          ? SCM_ANNOTATE_HEAVY_PATH_TIMEOUT_MS
-          : (scmFastPath || SCM_ANNOTATE_FAST_TIMEOUT_EXTS.has(normalizedExt)
-            ? SCM_ANNOTATE_FAST_TIMEOUT_MS
-            : SCM_ANNOTATE_DEFAULT_TIMEOUT_CAP_MS);
-        annotateTimeoutMs = Math.min(annotateTimeoutMs, annotateCapMs);
-      }
-      const withinAnnotateCap = maxAnnotateBytes == null
-        || fileBytes <= maxAnnotateBytes;
+      const {
+        timeoutMs,
+        withinAnnotateCap
+      } = resolveScmAnnotateLimits({
+        annotateConfig,
+        scmConfig,
+        enforceScmTimeoutCaps,
+        scmFastPath,
+        normalizedExt,
+        relKey,
+        fileBytes,
+        isPythonScmPath,
+        annotateFastTimeoutExts: SCM_ANNOTATE_FAST_TIMEOUT_EXTS,
+        annotatePythonMaxBytes: SCM_ANNOTATE_PYTHON_MAX_BYTES,
+        annotateFastTimeoutMs: SCM_ANNOTATE_FAST_TIMEOUT_MS,
+        annotateHeavyPathTimeoutMs: SCM_ANNOTATE_HEAVY_PATH_TIMEOUT_MS,
+        annotateDefaultTimeoutCapMs: SCM_ANNOTATE_DEFAULT_TIMEOUT_CAP_MS,
+        isHeavyRelationsPath
+      });
       if (withinAnnotateCap) {
-        const timeoutMs = Math.max(0, annotateTimeoutMs);
         try {
           await runScmTaskWithDeadline({
+            runProc,
+            relKey,
             label: 'annotate',
             timeoutMs,
             task: async (taskSignal) => {
@@ -715,17 +695,10 @@ export const processFileCpu = async (context) => {
     throw new Error(`[tree-sitter:schedule] Tree-sitter enabled but scheduler is missing for ${relKey}.`);
   }
   let sc = [];
-  let chunkingDiagnostics = {
+  let chunkingDiagnostics = createChunkingDiagnostics({
     treeSitterEnabled,
-    schedulerRequired: mustUseTreeSitterScheduler,
-    scheduledSegmentCount: 0,
-    fallbackSegmentCount: 0,
-    codeFallbackSegmentCount: 0,
-    schedulerMissingCount: 0,
-    schedulerDegradedCount: 0,
-    usedHeuristicChunking: false,
-    usedHeuristicCodeChunking: false
-  };
+    schedulerRequired: mustUseTreeSitterScheduler
+  });
   updateCrashStage('chunking');
   try {
     const chunkingResult = await chunkWithScheduler({
@@ -750,15 +723,7 @@ export const processFileCpu = async (context) => {
     chunkingDiagnostics = chunkingResult.chunkingDiagnostics;
   } catch (err) {
     if (languageOptions?.skipOnParseError) {
-      return {
-        chunks: [],
-        fileRelations: null,
-        skip: {
-          reason: 'parse-error',
-          stage: 'chunking',
-          message: err?.message || String(err)
-        }
-      };
+      return toParseErrorSkip('chunking', err);
     }
     throw err;
   }
@@ -767,15 +732,7 @@ export const processFileCpu = async (context) => {
   if (chunkIssue) {
     const error = new Error(chunkIssue);
     if (languageOptions?.skipOnParseError) {
-      return {
-        chunks: [],
-        fileRelations: null,
-        skip: {
-          reason: 'parse-error',
-          stage: 'chunk-bounds',
-          message: error.message
-        }
-      };
+      return toParseErrorSkip('chunk-bounds', error);
     }
     throw error;
   }
