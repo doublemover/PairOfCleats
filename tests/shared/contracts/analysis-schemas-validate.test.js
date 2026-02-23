@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import {
+  validateMetadataV2,
+  validateRiskRulesBundle,
+  validateAnalysisPolicy,
   validateGraphContextPack,
   validateGraphImpact,
   validateCompositeContextPack,
@@ -23,6 +26,16 @@ const graphContextPack = {
   provenance,
   nodes: [],
   edges: []
+};
+
+const graphContextPackWithEnvelopeSeed = {
+  ...graphContextPack,
+  seed: {
+    v: 1,
+    status: 'unresolved',
+    candidates: [],
+    resolved: null
+  }
 };
 
 const graphImpact = {
@@ -74,8 +87,35 @@ const suggestTests = {
   suggestions: []
 };
 
+const metadataV2 = {
+  chunkId: 'chunk-1',
+  file: 'src/app.js'
+};
+
+const riskRulesBundle = {
+  version: '1.0.0',
+  sources: [],
+  sinks: [],
+  sanitizers: []
+};
+
+const analysisPolicy = {
+  metadata: { enabled: true },
+  risk: { enabled: true, crossFile: false },
+  git: { enabled: true, blame: false, churn: true },
+  typeInference: {
+    local: { enabled: true },
+    crossFile: { enabled: false },
+    tooling: { enabled: true }
+  }
+};
+
 const validators = [
+  ['metadata v2', validateMetadataV2, metadataV2],
+  ['risk rules bundle', validateRiskRulesBundle, riskRulesBundle],
+  ['analysis policy', validateAnalysisPolicy, analysisPolicy],
   ['graph context pack', validateGraphContextPack, graphContextPack],
+  ['graph context pack with envelope seed', validateGraphContextPack, graphContextPackWithEnvelopeSeed],
   ['graph impact', validateGraphImpact, graphImpact],
   ['composite context pack', validateCompositeContextPack, compositeContextPack],
   ['api contracts', validateApiContracts, apiContracts],
@@ -87,5 +127,18 @@ for (const [label, validator, payload] of validators) {
   const result = validator(payload);
   assert.equal(result.ok, true, `expected ${label} to validate: ${result.errors.join(', ')}`);
 }
+
+const invalidEnvelopeSeed = {
+  ...graphContextPackWithEnvelopeSeed,
+  seed: {
+    v: 1,
+    status: 'unresolved',
+    candidates: []
+  }
+};
+
+const invalidEnvelopeResult = validateGraphContextPack(invalidEnvelopeSeed);
+assert.equal(invalidEnvelopeResult.ok, false, 'expected envelope seed without resolved to fail');
+assert.ok(invalidEnvelopeResult.errors.length > 0, 'expected schema errors for invalid envelope seed');
 
 console.log('analysis schema validation tests passed');
