@@ -23,16 +23,49 @@ export const assertVectorArrays = (vectors, count, label) => {
   }
 };
 
-export const runBatched = async ({ texts, batchSize, embed }) => {
+/**
+ * Run embedding requests in deterministic batches and optionally report batch
+ * completion telemetry to callers.
+ *
+ * @param {{
+ *   texts:string[],
+ *   batchSize:number,
+ *   embed:(batch:string[])=>Promise<Array<ArrayLike<number>>>,
+ *   onBatch?:(input:{batchIndex:number,batchCount:number,batchSize:number,completed:number,total:number,durationMs:number})=>void
+ * }} input
+ * @returns {Promise<Array<ArrayLike<number>>>}
+ */
+export const runBatched = async ({ texts, batchSize, embed, onBatch = null }) => {
   if (!texts.length) return [];
+  const observer = typeof onBatch === 'function' ? onBatch : null;
   if (!batchSize || texts.length <= batchSize) {
-    return embed(texts);
+    const startedAt = Date.now();
+    const vectors = await embed(texts);
+    observer?.({
+      batchIndex: 1,
+      batchCount: 1,
+      batchSize: texts.length,
+      completed: texts.length,
+      total: texts.length,
+      durationMs: Math.max(0, Date.now() - startedAt)
+    });
+    return vectors;
   }
   const out = [];
-  for (let i = 0; i < texts.length; i += batchSize) {
+  const batchCount = Math.max(1, Math.ceil(texts.length / batchSize));
+  for (let i = 0, batchIndex = 1; i < texts.length; i += batchSize, batchIndex += 1) {
     const slice = texts.slice(i, i + batchSize);
+    const startedAt = Date.now();
     const batch = await embed(slice);
     out.push(...batch);
+    observer?.({
+      batchIndex,
+      batchCount,
+      batchSize: slice.length,
+      completed: Math.min(texts.length, i + slice.length),
+      total: texts.length,
+      durationMs: Math.max(0, Date.now() - startedAt)
+    });
   }
   return out;
 };
