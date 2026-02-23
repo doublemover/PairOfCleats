@@ -947,163 +947,195 @@ function embeddingPolicyFor(languageId, family) {
   return { canHostEmbedded: false, canBeEmbedded: false, embeddedLanguageAllowlist: [] };
 }
 
-function languageProfileRows() {
-  return languageBaselines
-    .map((base) => {
-      const embeddingPolicy = embeddingPolicyFor(base.id, base.family);
-      const languageVersionPolicy = {
-        minVersion: base.minVersion,
-        maxVersion: null,
-        dialects: [...base.dialects].sort(),
-        featureFlags: [...base.featureFlags].sort()
-      };
-      return {
-        id: base.id,
-        parserPreference: base.parserPreference,
-        languageVersionPolicy,
-        embeddingPolicy: {
-          canHostEmbedded: embeddingPolicy.canHostEmbedded,
-          canBeEmbedded: embeddingPolicy.canBeEmbedded,
-          embeddedLanguageAllowlist: [...embeddingPolicy.embeddedLanguageAllowlist].sort()
-        },
-        requiredNodeKinds: [...familyNodeKinds[base.family]].sort(),
-        requiredEdgeKinds: [...familyEdgeKinds[base.family]].sort(),
-        requiredCapabilities: familyCapabilities[base.family],
-        fallbackChain: parserFallbackByPreference[base.parserPreference],
-        frameworkProfiles: [...base.frameworkProfiles].sort(),
-        requiredConformance: [...base.requiredConformance],
-        notes: `Baseline ${base.family} profile.`
-      };
-    })
-    .sort((a, b) => a.id.localeCompare(b.id));
-}
+const HIGH_SIGNAL_RISK_FAMILIES = new Set(['dynamic', 'js-ts', 'managed', 'systems']);
+const BLOCKING_CAPABILITIES = new Set(['ast', 'docmeta', 'symbolGraph']);
+const CAPABILITY_NO_DIAGNOSTICS = [];
+const CAPABILITY_DOWNGRADED_DIAGNOSTICS = ['USR-W-CAPABILITY-DOWNGRADED'];
+const CAPABILITY_LOST_DIAGNOSTICS = ['USR-E-CAPABILITY-LOST'];
+const SORTED_CAPABILITIES = [...CAPABILITIES].sort();
+const RISK_REQUIRED_SANITIZERS = ['allowlist', 'context-escape', 'parameterization'];
+const RISK_OPTIONAL_SOURCES = ['config-input'];
+const RISK_OPTIONAL_SINKS = ['logging-sink'];
+const RISK_OPTIONAL_SANITIZERS = ['encoding-normalization'];
+const RISK_UNSUPPORTED_SANITIZERS = [];
+const RISK_MIN_EVIDENCE_KINDS = ['calls', 'references'];
+const RISK_SEVERITY_LEVELS = ['info', 'low', 'medium', 'high', 'critical'];
+const RISK_SOURCES_HIGH_SIGNAL = ['environment-input', 'external-input'];
+const RISK_SOURCES_LOW_SIGNAL = ['template-input'];
+const RISK_SINKS_HIGH_SIGNAL = ['command-exec', 'filesystem-write', 'network-egress'];
+const RISK_SINKS_LOW_SIGNAL = ['template-render'];
+const RISK_INTERPROCEDURAL_UNSUPPORTED_SOURCES = ['interprocedural-source'];
+const RISK_INTERPROCEDURAL_UNSUPPORTED_SINKS = ['interprocedural-sink'];
 
-function languageVersionPolicyRows() {
-  return languageBaselines
-    .map((base) => ({
-      languageId: base.id,
+function normalizeLanguageBaseline(base) {
+  const embeddingPolicy = embeddingPolicyFor(base.id, base.family);
+  const isHighSignal = HIGH_SIGNAL_RISK_FAMILIES.has(base.family);
+  const riskInterprocedural = isHighSignal ? 'partial' : 'unsupported';
+  return {
+    id: base.id,
+    family: base.family,
+    parserPreference: base.parserPreference,
+    requiredConformance: [...base.requiredConformance],
+    frameworkProfiles: [...base.frameworkProfiles].sort(),
+    languageVersionPolicy: {
       minVersion: base.minVersion,
       maxVersion: null,
       dialects: [...base.dialects].sort(),
       featureFlags: [...base.featureFlags].sort()
-    }))
-    .sort((a, b) => a.languageId.localeCompare(b.languageId));
+    },
+    embeddingPolicy: {
+      canHostEmbedded: embeddingPolicy.canHostEmbedded,
+      canBeEmbedded: embeddingPolicy.canBeEmbedded,
+      embeddedLanguageAllowlist: [...embeddingPolicy.embeddedLanguageAllowlist].sort()
+    },
+    requiredNodeKinds: [...familyNodeKinds[base.family]].sort(),
+    requiredEdgeKinds: [...familyEdgeKinds[base.family]].sort(),
+    requiredCapabilities: familyCapabilities[base.family],
+    fallbackChain: parserFallbackByPreference[base.parserPreference],
+    riskLocal: isHighSignal ? 'supported' : 'partial',
+    riskInterprocedural,
+    requiredRiskSources: isHighSignal ? RISK_SOURCES_HIGH_SIGNAL : RISK_SOURCES_LOW_SIGNAL,
+    requiredRiskSinks: isHighSignal ? RISK_SINKS_HIGH_SIGNAL : RISK_SINKS_LOW_SIGNAL,
+    unsupportedRiskSources: riskInterprocedural === 'unsupported' ? RISK_INTERPROCEDURAL_UNSUPPORTED_SOURCES : CAPABILITY_NO_DIAGNOSTICS,
+    unsupportedRiskSinks: riskInterprocedural === 'unsupported' ? RISK_INTERPROCEDURAL_UNSUPPORTED_SINKS : CAPABILITY_NO_DIAGNOSTICS
+  };
 }
 
-function languageEmbeddingPolicyRows() {
+function normalizeLanguageBaselines() {
   return languageBaselines
-    .map((base) => {
-      const policy = embeddingPolicyFor(base.id, base.family);
-      return {
-        languageId: base.id,
-        canHostEmbedded: policy.canHostEmbedded,
-        canBeEmbedded: policy.canBeEmbedded,
-        embeddedLanguageAllowlist: [...policy.embeddedLanguageAllowlist].sort()
-      };
-    })
-    .sort((a, b) => a.languageId.localeCompare(b.languageId));
+    .map((base) => normalizeLanguageBaseline(base))
+    .sort((a, b) => a.id.localeCompare(b.id));
 }
 
-function capabilityRows(profileRows) {
+function languageProfileRows(normalizedLanguages) {
+  return normalizedLanguages.map((language) => ({
+    id: language.id,
+    parserPreference: language.parserPreference,
+    languageVersionPolicy: language.languageVersionPolicy,
+    embeddingPolicy: language.embeddingPolicy,
+    requiredNodeKinds: language.requiredNodeKinds,
+    requiredEdgeKinds: language.requiredEdgeKinds,
+    requiredCapabilities: language.requiredCapabilities,
+    fallbackChain: language.fallbackChain,
+    frameworkProfiles: language.frameworkProfiles,
+    requiredConformance: language.requiredConformance,
+    notes: `Baseline ${language.family} profile.`
+  }));
+}
+
+function languageVersionPolicyRows(normalizedLanguages) {
+  return normalizedLanguages.map((language) => ({
+    languageId: language.id,
+    minVersion: language.languageVersionPolicy.minVersion,
+    maxVersion: language.languageVersionPolicy.maxVersion,
+    dialects: language.languageVersionPolicy.dialects,
+    featureFlags: language.languageVersionPolicy.featureFlags
+  }));
+}
+
+function languageEmbeddingPolicyRows(normalizedLanguages) {
+  return normalizedLanguages.map((language) => ({
+    languageId: language.id,
+    canHostEmbedded: language.embeddingPolicy.canHostEmbedded,
+    canBeEmbedded: language.embeddingPolicy.canBeEmbedded,
+    embeddedLanguageAllowlist: language.embeddingPolicy.embeddedLanguageAllowlist
+  }));
+}
+
+function capabilityRows(normalizedLanguages) {
   const rows = [];
-  for (const profile of profileRows) {
-    for (const capability of CAPABILITIES) {
-      const state = profile.requiredCapabilities[capability];
+  for (const language of normalizedLanguages) {
+    for (const capability of SORTED_CAPABILITIES) {
+      const state = language.requiredCapabilities[capability];
+      const downgradeDiagnostics = state === 'supported'
+        ? CAPABILITY_NO_DIAGNOSTICS
+        : state === 'partial'
+          ? CAPABILITY_DOWNGRADED_DIAGNOSTICS
+          : CAPABILITY_LOST_DIAGNOSTICS;
       rows.push({
-        languageId: profile.id,
+        languageId: language.id,
         frameworkProfile: null,
         capability,
         state,
-        requiredConformance: [...profile.requiredConformance],
-        downgradeDiagnostics: state === 'supported' ? [] : [state === 'partial' ? 'USR-W-CAPABILITY-DOWNGRADED' : 'USR-E-CAPABILITY-LOST'],
-        blocking: state === 'unsupported' && ['ast', 'docmeta', 'symbolGraph'].includes(capability)
+        requiredConformance: language.requiredConformance,
+        downgradeDiagnostics,
+        blocking: state === 'unsupported' && BLOCKING_CAPABILITIES.has(capability)
       });
     }
   }
-  return rows.sort((a, b) => {
-    if (a.languageId !== b.languageId) return a.languageId.localeCompare(b.languageId);
-    return a.capability.localeCompare(b.capability);
-  });
+  return rows;
 }
 
-function conformanceRows(profileRows) {
-  const languageRows = profileRows.map((profile) => {
+function conformanceRows(normalizedLanguages) {
+  const frameworkRows = [...frameworkProfiles]
+    .sort((a, b) => a.id.localeCompare(b.id))
+    .map((profile) => {
+      const requiredFixtureFamilies = ['framework-overlay', 'embedded-bridge'];
+      if (profile.routeSemantics?.enabled) {
+        requiredFixtureFamilies.push('route-canonicalization');
+      }
+      if (profile.hydrationSemantics?.required) {
+        requiredFixtureFamilies.push('hydration');
+      }
+      return {
+        profileType: 'framework',
+        profileId: profile.id,
+        requiredLevels: ['C4'],
+        blockingLevels: ['C4'],
+        requiredFixtureFamilies
+      };
+    });
+
+  const languageRows = normalizedLanguages.map((language) => {
     const requiredFixtureFamilies = ['golden', 'normalization', 'resolution', 'risk'];
-    if ((profile.frameworkProfiles || []).length > 0) {
+    if (language.frameworkProfiles.length > 0) {
       requiredFixtureFamilies.push('framework-overlay');
     }
     return {
       profileType: 'language',
-      profileId: profile.id,
-      requiredLevels: [...profile.requiredConformance],
-      blockingLevels: [...profile.requiredConformance],
+      profileId: language.id,
+      requiredLevels: language.requiredConformance,
+      blockingLevels: language.requiredConformance,
       requiredFixtureFamilies
     };
   });
 
-  const frameworkRows = frameworkProfiles.map((profile) => {
-    const requiredFixtureFamilies = ['framework-overlay', 'embedded-bridge'];
-    if (profile.routeSemantics?.enabled) {
-      requiredFixtureFamilies.push('route-canonicalization');
-    }
-    if (profile.hydrationSemantics?.required) {
-      requiredFixtureFamilies.push('hydration');
-    }
-    return {
-      profileType: 'framework',
-      profileId: profile.id,
-      requiredLevels: ['C4'],
-      blockingLevels: ['C4'],
-      requiredFixtureFamilies
-    };
-  });
-
-  return [...languageRows, ...frameworkRows].sort((a, b) => {
-    if (a.profileType !== b.profileType) return a.profileType.localeCompare(b.profileType);
-    return a.profileId.localeCompare(b.profileId);
-  });
+  return [...frameworkRows, ...languageRows];
 }
 
-function riskRows() {
-  return languageBaselines
-    .map((base) => {
-      const isHighSignal = ['dynamic', 'js-ts', 'managed', 'systems'].includes(base.family);
-      const local = isHighSignal ? 'supported' : 'partial';
-      const interprocedural = isHighSignal ? 'partial' : 'unsupported';
-      return {
-        languageId: base.id,
-        frameworkProfile: null,
-        required: {
-          sources: isHighSignal ? ['environment-input', 'external-input'] : ['template-input'],
-          sinks: isHighSignal ? ['command-exec', 'filesystem-write', 'network-egress'] : ['template-render'],
-          sanitizers: ['allowlist', 'context-escape', 'parameterization']
-        },
-        optional: {
-          sources: ['config-input'],
-          sinks: ['logging-sink'],
-          sanitizers: ['encoding-normalization']
-        },
-        unsupported: {
-          sources: interprocedural === 'unsupported' ? ['interprocedural-source'] : [],
-          sinks: interprocedural === 'unsupported' ? ['interprocedural-sink'] : [],
-          sanitizers: []
-        },
-        capabilities: {
-          riskLocal: local,
-          riskInterprocedural: interprocedural
-        },
-        interproceduralGating: {
-          enabledByDefault: interprocedural !== 'unsupported',
-          minEvidenceKinds: ['calls', 'references'],
-          requiredCallLinkConfidence: 0.7
-        },
-        severityPolicy: {
-          levels: ['info', 'low', 'medium', 'high', 'critical'],
-          defaultLevel: 'medium'
-        }
-      };
-    })
-    .sort((a, b) => a.languageId.localeCompare(b.languageId));
+function riskRows(normalizedLanguages) {
+  return normalizedLanguages.map((language) => ({
+    languageId: language.id,
+    frameworkProfile: null,
+    required: {
+      sources: language.requiredRiskSources,
+      sinks: language.requiredRiskSinks,
+      sanitizers: RISK_REQUIRED_SANITIZERS
+    },
+    optional: {
+      sources: RISK_OPTIONAL_SOURCES,
+      sinks: RISK_OPTIONAL_SINKS,
+      sanitizers: RISK_OPTIONAL_SANITIZERS
+    },
+    unsupported: {
+      sources: language.unsupportedRiskSources,
+      sinks: language.unsupportedRiskSinks,
+      sanitizers: RISK_UNSUPPORTED_SANITIZERS
+    },
+    capabilities: {
+      riskLocal: language.riskLocal,
+      riskInterprocedural: language.riskInterprocedural
+    },
+    interproceduralGating: {
+      enabledByDefault: language.riskInterprocedural !== 'unsupported',
+      minEvidenceKinds: RISK_MIN_EVIDENCE_KINDS,
+      requiredCallLinkConfidence: 0.7
+    },
+    severityPolicy: {
+      levels: RISK_SEVERITY_LEVELS,
+      defaultLevel: 'medium'
+    }
+  }));
 }
 
 function buildRegistryPayload(registryId, rows) {
@@ -1114,19 +1146,56 @@ function buildRegistryPayload(registryId, rows) {
   };
 }
 
-function writeRegistry(registryId, rows) {
-  const payload = buildRegistryPayload(registryId, rows);
-  const filePath = path.join(matrixDir, `${registryId}.json`);
-  fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+function buildRegistryRecords(normalizedLanguages) {
+  const languageProfiles = languageProfileRows(normalizedLanguages);
+  const registryRows = [
+    ['usr-language-profiles', languageProfiles],
+    ['usr-language-version-policy', languageVersionPolicyRows(normalizedLanguages)],
+    ['usr-language-embedding-policy', languageEmbeddingPolicyRows(normalizedLanguages)],
+    ['usr-framework-profiles', frameworkProfiles],
+    ['usr-node-kind-mapping', nodeKindMappings],
+    ['usr-edge-kind-constraints', edgeKindConstraints],
+    ['usr-capability-matrix', capabilityRows(normalizedLanguages)],
+    ['usr-conformance-levels', conformanceRows(normalizedLanguages)],
+    ['usr-backcompat-matrix', backcompatMatrix],
+    ['usr-framework-edge-cases', frameworkEdgeCases],
+    ['usr-language-risk-profiles', riskRows(normalizedLanguages)],
+    ['usr-embedding-bridge-cases', embeddingBridgeCases],
+    ['usr-generated-provenance-cases', generatedProvenanceCases],
+    ['usr-parser-runtime-lock', parserRuntimeLocks],
+    ['usr-slo-budgets', sloBudgets],
+    ['usr-alert-policies', alertPolicies],
+    ['usr-redaction-rules', redactionRules],
+    ['usr-security-gates', securityGates],
+    ['usr-runtime-config-policy', runtimeConfigPolicy],
+    ['usr-failure-injection-matrix', failureInjectionMatrix],
+    ['usr-fixture-governance', fixtureGovernance],
+    ['usr-benchmark-policy', benchmarkPolicy],
+    ['usr-threat-model-matrix', threatModelMatrix],
+    ['usr-waiver-policy', waiverPolicy],
+    ['usr-quality-gates', qualityGates],
+    ['usr-operational-readiness-policy', operationalReadinessPolicy],
+    ['usr-ownership-matrix', ownershipMatrix],
+    ['usr-escalation-policy', escalationPolicy]
+  ];
+  return registryRows.map(([registryId, rows]) => {
+    const payload = buildRegistryPayload(registryId, rows);
+    return {
+      registryId,
+      filePath: path.join(matrixDir, `${registryId}.json`),
+      serialized: `${JSON.stringify(payload, null, 2)}\n`
+    };
+  });
 }
 
-function assertRegistryMatches(registryId, rows) {
-  const payload = buildRegistryPayload(registryId, rows);
-  const expected = `${JSON.stringify(payload, null, 2)}\n`;
-  const filePath = path.join(matrixDir, `${registryId}.json`);
-  if (!fs.existsSync(filePath)) return `missing file: ${filePath}`;
-  const current = fs.readFileSync(filePath, 'utf8');
-  return equalsIgnoringEol(current, expected) ? null : `drift: ${registryId}`;
+function writeRegistryRecord(record) {
+  fs.writeFileSync(record.filePath, record.serialized, 'utf8');
+}
+
+function assertRegistryMatches(record) {
+  if (!fs.existsSync(record.filePath)) return `missing file: ${record.filePath}`;
+  const current = fs.readFileSync(record.filePath, 'utf8');
+  return equalsIgnoringEol(current, record.serialized) ? null : `drift: ${record.registryId}`;
 }
 
 function ensureDir() {
@@ -1169,41 +1238,12 @@ function assertLanguageFrameworkApplicability() {
 function main() {
   assertLanguageFrameworkApplicability();
   ensureDir();
-  const languageProfiles = languageProfileRows();
-  const registries = [
-    ['usr-language-profiles', languageProfiles],
-    ['usr-language-version-policy', languageVersionPolicyRows()],
-    ['usr-language-embedding-policy', languageEmbeddingPolicyRows()],
-    ['usr-framework-profiles', frameworkProfiles],
-    ['usr-node-kind-mapping', nodeKindMappings],
-    ['usr-edge-kind-constraints', edgeKindConstraints],
-    ['usr-capability-matrix', capabilityRows(languageProfiles)],
-    ['usr-conformance-levels', conformanceRows(languageProfiles)],
-    ['usr-backcompat-matrix', backcompatMatrix],
-    ['usr-framework-edge-cases', frameworkEdgeCases],
-    ['usr-language-risk-profiles', riskRows()],
-    ['usr-embedding-bridge-cases', embeddingBridgeCases],
-    ['usr-generated-provenance-cases', generatedProvenanceCases],
-    ['usr-parser-runtime-lock', parserRuntimeLocks],
-    ['usr-slo-budgets', sloBudgets],
-    ['usr-alert-policies', alertPolicies],
-    ['usr-redaction-rules', redactionRules],
-    ['usr-security-gates', securityGates],
-    ['usr-runtime-config-policy', runtimeConfigPolicy],
-    ['usr-failure-injection-matrix', failureInjectionMatrix],
-    ['usr-fixture-governance', fixtureGovernance],
-    ['usr-benchmark-policy', benchmarkPolicy],
-    ['usr-threat-model-matrix', threatModelMatrix],
-    ['usr-waiver-policy', waiverPolicy],
-    ['usr-quality-gates', qualityGates],
-    ['usr-operational-readiness-policy', operationalReadinessPolicy],
-    ['usr-ownership-matrix', ownershipMatrix],
-    ['usr-escalation-policy', escalationPolicy]
-  ];
+  const normalizedLanguages = normalizeLanguageBaselines();
+  const registries = buildRegistryRecords(normalizedLanguages);
   if (checkMode) {
     const drift = [];
-    for (const [registryId, rows] of registries) {
-      const issue = assertRegistryMatches(registryId, rows);
+    for (const registry of registries) {
+      const issue = assertRegistryMatches(registry);
       if (issue) drift.push(issue);
     }
     if (drift.length > 0) {
@@ -1211,8 +1251,8 @@ function main() {
     }
     return;
   }
-  for (const [registryId, rows] of registries) {
-    writeRegistry(registryId, rows);
+  for (const registry of registries) {
+    writeRegistryRecord(registry);
   }
 }
 
