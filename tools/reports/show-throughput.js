@@ -61,6 +61,30 @@ import {
   formatAstField
 } from './show-throughput/render.js';
 
+/**
+ * Aggregate benchmark throughput JSON results into folder-level and global
+ * throughput/latency/indexing summaries for quick regression triage.
+ */
+
+/**
+ * @typedef {object} ThroughputRunRecord
+ * @property {string} file
+ * @property {object|null} summary
+ * @property {object} throughput
+ * @property {object|null} analysis
+ * @property {object|null} indexingSummary
+ * @property {object|null} throughputLedger
+ * @property {string} repoIdentity
+ * @property {number|null} generatedAtMs
+ */
+
+/**
+ * @typedef {object} AstGraphAggregate
+ * @property {number} repos
+ * @property {object} totals
+ * @property {object} observed
+ */
+
 const {
   resultsRoot,
   refreshJson,
@@ -83,6 +107,10 @@ if (!folders.length) {
   process.exit(0);
 }
 
+/**
+ * Cross-run throughput totals grouped by modality; each bucket stores raw
+ * numerator/denominator values so final rates are weighted by elapsed time.
+ */
 const totalThroughput = {
   code: createRateTotals(),
   prose: createRateTotals(),
@@ -93,9 +121,11 @@ const totalThroughput = {
     prose: createRateTotals()
   }
 };
+/** @type {Map<string, number>} */
 const languageTotals = new Map();
 const modeTotalsGlobal = createModeTotalsMap();
 const reposWithMetrics = new Set();
+/** @type {AstGraphAggregate} */
 const astGraphTotalsGlobal = { repos: 0, totals: createAstGraphTotals(), observed: createAstGraphObserved() };
 const ledgerRegressionsGlobal = [];
 
@@ -111,6 +141,7 @@ for (const dir of folders) {
   const files = fs.readdirSync(folderPath)
     .filter((name) => name.endsWith('.json'))
     .sort((left, right) => left.localeCompare(right));
+  /** @type {ThroughputRunRecord[]} */
   const runs = [];
   const throughputs = [];
   const modeTotalsFolder = createModeTotalsMap();
@@ -228,6 +259,7 @@ for (const dir of folders) {
     }
     return String(left.file).localeCompare(String(right.file));
   });
+  // Diffs are order-sensitive; always compute against chronological run order.
   applyRunThroughputLedgerDiffs(runs);
   const folderLedgerRegressions = collectRunLedgerRegressions(runs);
   if (folderLedgerRegressions.length) {
@@ -496,6 +528,11 @@ const totalLinesPerSec = (aggregateModeTotalsGlobal.durationMs > 0)
   ? (aggregateModeTotalsGlobal.lines / (aggregateModeTotalsGlobal.durationMs / 1000))
   : null;
 
+/**
+ * Pre-rendered per-mode totals row used by both compact and verbose output.
+ * Lines/s is merged from indexing summaries because throughput payloads do not
+ * directly carry line counts.
+ */
 const modeRows = MODE_THROUGHPUT_TOTALS.map(({ label, pick, modeKey }) => {
   const entry = pick(totalThroughput);
   const chunksRate = rateFromTotals(entry, 'chunks');

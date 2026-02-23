@@ -144,17 +144,48 @@ const DEFAULT_EMBEDDINGS_IN_FLIGHT_MAX_ENTRIES = 200000;
 const DEFAULT_EMBEDDINGS_ADAPTIVE_FILE_PARALLELISM_STEP_MS = 500;
 const DEFAULT_EMBEDDINGS_ADAPTIVE_FILE_PARALLELISM_MAX_MULTIPLIER = 2;
 
+/**
+ * @typedef {object} RefreshIncrementalBundlesResult
+ * @property {number} attempted
+ * @property {number} eligible
+ * @property {number} rewritten
+ * @property {number} covered
+ * @property {number} scanned
+ * @property {number} skippedNoMapping
+ * @property {number} skippedNoMappingChunks
+ * @property {{boundaryMismatch:number,missingParent:number,parserOmission:number}} mappingFailureReasons
+ * @property {number} skippedInvalidBundle
+ * @property {number} skippedEmptyBundle
+ * @property {number} lowYieldBailoutSkipped
+ * @property {object|null} lowYieldBailout
+ * @property {boolean} manifestWritten
+ * @property {boolean} completeCoverage
+ */
+
 let Database = null;
 try {
   ({ default: Database } = await import('better-sqlite3'));
 } catch {}
 
+/**
+ * Convert arbitrary numeric-ish values into positive integers.
+ *
+ * @param {unknown} value
+ * @returns {number|null}
+ */
 const toPositiveIntOrNull = (value) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) return null;
   return Math.max(1, Math.floor(numeric));
 };
 
+/**
+ * Resolve max chunk-meta payload size used when loading chunk metadata for
+ * embeddings generation.
+ *
+ * @param {object} indexingConfig
+ * @returns {number}
+ */
 const resolveEmbeddingsChunkMetaMaxBytes = (indexingConfig) => {
   const configured = Number(indexingConfig?.embeddings?.chunkMetaMaxBytes);
   if (Number.isFinite(configured) && configured > 0) {
@@ -163,6 +194,12 @@ const resolveEmbeddingsChunkMetaMaxBytes = (indexingConfig) => {
   return Math.max(MAX_JSON_BYTES, DEFAULT_EMBEDDINGS_CHUNK_META_MAX_BYTES);
 };
 
+/**
+ * Resolve progress heartbeat interval for stage-3 progress reporting.
+ *
+ * @param {object} indexingConfig
+ * @returns {number}
+ */
 const resolveEmbeddingsProgressHeartbeatMs = (indexingConfig) => {
   const configured = Number(indexingConfig?.embeddings?.progressHeartbeatMs);
   if (Number.isFinite(configured) && configured > 0) {
@@ -171,7 +208,16 @@ const resolveEmbeddingsProgressHeartbeatMs = (indexingConfig) => {
   return DEFAULT_EMBEDDINGS_PROGRESS_HEARTBEAT_MS;
 };
 
-export const resolveEmbeddingsFileParallelism = ({
+/**
+ * Resolve per-file embedding compute concurrency.
+ *
+ * HNSW writes are forced single-threaded to preserve deterministic builder
+ * behavior while non-HNSW runs can fan out by config or token budget.
+ *
+ * @param {{indexingConfig:object,computeTokensTotal:number|null,hnswEnabled:boolean}} input
+ * @returns {number}
+ */
+const resolveEmbeddingsFileParallelism = ({
   indexingConfig,
   computeTokensTotal,
   cpuConcurrency,
@@ -531,6 +577,12 @@ const createEmbeddingTextReuseCache = ({ maxEntries, maxTextChars, persistentSto
   };
 };
 
+/**
+ * Detect chunk-meta oversize failures from typed codes or fallback text.
+ *
+ * @param {Error|object|null} err
+ * @returns {boolean}
+ */
 const isChunkMetaTooLargeError = (err) => {
   const code = String(err?.code || '');
   if (code === 'ERR_JSON_TOO_LARGE' || code === 'ERR_ARTIFACT_TOO_LARGE') {
@@ -540,45 +592,13 @@ const isChunkMetaTooLargeError = (err) => {
   return message.includes('exceeds maxbytes');
 };
 
-export const parseChunkMetaTooLargeBytes = (err) => {
-  const message = String(err?.message || '');
-  const match = message.match(/\((\d+)\s*>\s*(\d+)\)/);
-  if (!match) return null;
-  const actualBytes = Number(match[1]);
-  const maxBytes = Number(match[2]);
-  if (!Number.isFinite(actualBytes) || actualBytes <= 0) return null;
-  if (!Number.isFinite(maxBytes) || maxBytes <= 0) return null;
-  return {
-    actualBytes: Math.floor(actualBytes),
-    maxBytes: Math.floor(maxBytes)
-  };
-};
-
-export const resolveChunkMetaRetryMaxBytes = ({
-  err,
-  currentMaxBytes,
-  retryCeilingBytes
-}) => {
-  if (!isChunkMetaTooLargeError(err)) return null;
-  const current = Number.isFinite(Number(currentMaxBytes))
-    ? Math.max(1, Math.floor(Number(currentMaxBytes)))
-    : null;
-  const ceiling = Number.isFinite(Number(retryCeilingBytes))
-    ? Math.max(MAX_JSON_BYTES, Math.floor(Number(retryCeilingBytes)))
-    : null;
-  if (!current || !ceiling || current >= ceiling) return null;
-  const parsed = parseChunkMetaTooLargeBytes(err);
-  const minFromObserved = parsed
-    ? parsed.actualBytes + Math.max(8 * 1024 * 1024, Math.floor(parsed.actualBytes * 0.1))
-    : null;
-  const growthFloor = current + Math.max(8 * 1024 * 1024, Math.floor(current * 0.25));
-  const target = Math.max(growthFloor, minFromObserved || 0);
-  if (!Number.isFinite(target) || target <= current) return null;
-  const bounded = Math.min(ceiling, Math.floor(target));
-  if (bounded <= current) return null;
-  return bounded;
-};
-
+/**
+ * Detect missing artifact errors even when surfaced as generic message text.
+ *
+ * @param {Error|object|null} err
+ * @param {string} artifactBaseName
+ * @returns {boolean}
+ */
 const isMissingArtifactError = (err, artifactBaseName) => {
   const code = String(err?.code || '');
   if (code === 'ERR_MANIFEST_ENTRY_MISSING') return true;
@@ -589,6 +609,13 @@ const isMissingArtifactError = (err, artifactBaseName) => {
     || message.includes(`missing index artifact: ${baseName}.json`);
 };
 
+/**
+ * Strip non-essential `metaV2` fields before writing incremental bundles with
+ * refreshed embedding vectors.
+ *
+ * @param {object|null} metaV2
+ * @returns {object|null}
+ */
 const compactChunkMetaV2ForEmbeddings = (metaV2) => {
   if (!metaV2 || typeof metaV2 !== 'object') return null;
   const out = {};
@@ -615,7 +642,14 @@ const compactChunkMetaV2ForEmbeddings = (metaV2) => {
   return Object.keys(out).length ? out : null;
 };
 
-export const compactChunkForEmbeddings = (chunk, filePath) => {
+/**
+ * Build a minimal chunk payload suitable for embedding artifact persistence.
+ *
+ * @param {object|null} chunk
+ * @param {string|null} filePath
+ * @returns {object|null}
+ */
+const compactChunkForEmbeddings = (chunk, filePath) => {
   if (!chunk || typeof chunk !== 'object') return null;
   const start = Number.isFinite(Number(chunk.start)) ? Number(chunk.start) : 0;
   const endRaw = Number.isFinite(Number(chunk.end)) ? Number(chunk.end) : start;
@@ -661,73 +695,12 @@ export const compactChunkForEmbeddings = (chunk, filePath) => {
   return out;
 };
 
-export const normalizeChunkPayloadText = (value) => {
-  if (typeof value !== 'string') return '';
-  return value.replace(/\r\n?/g, '\n');
-};
-
-export const buildNormalizedChunkPayloadHash = ({ codeText, docText }) => (
-  sha1(`${normalizeChunkPayloadText(codeText)}\n${normalizeChunkPayloadText(docText)}`)
-);
-
-export const buildChunkTextLookupKey = (chunk) => {
-  if (!chunk || typeof chunk !== 'object') return null;
-  const start = Number.isFinite(Number(chunk.start)) ? Math.floor(Number(chunk.start)) : null;
-  const end = Number.isFinite(Number(chunk.end)) ? Math.floor(Number(chunk.end)) : null;
-  if (start == null || end == null) return null;
-  const id = toChunkIndex(chunk.id);
-  const chunkId = typeof chunk.chunkId === 'string' && chunk.chunkId ? chunk.chunkId : '';
-  return `${id == null ? '' : id}|${start}|${end}|${chunkId}`;
-};
-
-export const buildChunkTextLookupMap = (chunks) => {
-  if (!Array.isArray(chunks) || !chunks.length) return null;
-  const map = new Map();
-  for (const chunk of chunks) {
-    if (!chunk || typeof chunk !== 'object') continue;
-    if (typeof chunk.text !== 'string') continue;
-    const key = buildChunkTextLookupKey(chunk);
-    if (!key) continue;
-    map.set(key, chunk.text);
-  }
-  return map.size ? map : null;
-};
-
-export const hydrateMissingChunkTextsFromBundle = ({
-  items,
-  chunkCodeTexts,
-  bundleChunks
-}) => {
-  if (!Array.isArray(items) || !Array.isArray(chunkCodeTexts) || !Array.isArray(bundleChunks)) {
-    return 0;
-  }
-  const unresolvedIndices = [];
-  for (let i = 0; i < items.length; i += 1) {
-    if (typeof chunkCodeTexts[i] === 'string') continue;
-    if (typeof bundleChunks[i]?.text === 'string') {
-      chunkCodeTexts[i] = bundleChunks[i].text;
-      continue;
-    }
-    unresolvedIndices.push(i);
-  }
-  if (!unresolvedIndices.length) return 0;
-  const bundleChunkTextsByKey = buildChunkTextLookupMap(bundleChunks);
-  if (!bundleChunkTextsByKey) return unresolvedIndices.length;
-  let unresolvedCount = 0;
-  for (const i of unresolvedIndices) {
-    if (typeof chunkCodeTexts[i] === 'string') continue;
-    const itemChunk = items[i]?.chunk || null;
-    const lookupKey = buildChunkTextLookupKey(itemChunk);
-    if (lookupKey && bundleChunkTextsByKey.has(lookupKey)) {
-      chunkCodeTexts[i] = bundleChunkTextsByKey.get(lookupKey);
-    }
-    if (typeof chunkCodeTexts[i] !== 'string') {
-      unresolvedCount += 1;
-    }
-  }
-  return unresolvedCount;
-};
-
+/**
+ * Render ETA in compact `XmYYs`/`XhYYm` form.
+ *
+ * @param {number} seconds
+ * @returns {string}
+ */
 const formatEta = (seconds) => {
   if (!Number.isFinite(seconds) || seconds < 0) return 'n/a';
   const whole = Math.max(0, Math.floor(seconds));
@@ -777,6 +750,24 @@ const shouldUseInlineHnswBuilders = ({ enabled, hnswIsolate, samplingActive }) =
   enabled === true && hnswIsolate !== true && samplingActive !== true
 );
 
+/**
+ * Rewrite incremental bundle files with updated `embedding_u8` vectors produced
+ * during stage 3, and stamp manifest metadata when coverage is complete.
+ *
+ * @param {{
+ *   mode:string,
+ *   incremental:{manifest?:object,bundleDir?:string,manifestPath?:string},
+ *   chunksByFile:Map<string,Array<{index?:number,chunk?:object}>>,
+ *   mergedVectors:Array<Uint8Array|number[]|ArrayBufferView|null>,
+ *   embeddingMode:string,
+ *   embeddingIdentityKey:string|null,
+ *   lowYieldBailout:object,
+ *   scheduleIo:(worker:()=>Promise<any>)=>Promise<any>,
+ *   log:(line:string)=>void,
+ *   warn:(line:string)=>void
+ * }} input
+ * @returns {Promise<RefreshIncrementalBundlesResult|{attempted:number,rewritten:number,manifestWritten:boolean,completeCoverage:boolean}>}
+ */
 const refreshIncrementalBundlesWithEmbeddings = async ({
   mode,
   incremental,

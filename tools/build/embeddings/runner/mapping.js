@@ -4,6 +4,61 @@ import {
   resolveChunkSegmentAnchor,
   resolveChunkSegmentUid
 } from '../../../../src/index/chunk-id.js';
+
+/**
+ * @typedef {'boundaryMismatch'|'missingParent'|'parserOmission'} MappingFailureReason
+ */
+
+/**
+ * @typedef {object} MappingEntry
+ * @property {number} index
+ * @property {string} filePath
+ * @property {string} kind
+ * @property {string} name
+ * @property {string} chunkId
+ * @property {string} hintKey
+ * @property {string} hintWithFileKey
+ * @property {string} segmentUid
+ * @property {string} anchor
+ * @property {number|null} start
+ * @property {number|null} end
+ */
+
+/**
+ * @typedef {object} FileChunkMapping
+ * @property {string} filePath
+ * @property {Map<number,number>} chunkMap
+ * @property {Map<string,number>} chunkIdMap
+ * @property {Map<string,number>} hintMap
+ * @property {Map<string,number>} hintWithFileMap
+ * @property {Map<string,MappingEntry[]>} anchorBuckets
+ * @property {Map<string,MappingEntry[]>} segmentBuckets
+ * @property {number[]} fallbackIndices
+ */
+
+/**
+ * @typedef {object} IncrementalChunkMappingIndex
+ * @property {Map<string,FileChunkMapping>} fileMappings
+ * @property {Map<string,FileChunkMapping|null>} fileAliases
+ * @property {Map<string,number>} globalChunkIdMap
+ * @property {Map<string,number>} globalHintMap
+ * @property {Map<string,number>} globalHintWithFileMap
+ * @property {Map<string,MappingEntry[]>} globalAnchorBuckets
+ * @property {Map<string,MappingEntry[]>} globalSegmentBuckets
+ */
+
+/**
+ * @typedef {object} BundleChunkVectorResolution
+ * @property {number|null} vectorIndex
+ * @property {MappingFailureReason|null} reason
+ */
+
+/**
+ * Parse a chunk id-ish value into a non-negative integer index.
+ *
+ * @param {unknown} value
+ * @returns {number|null}
+ */
 export const toChunkIndex = (value) => {
   if (value == null || value === '' || typeof value === 'boolean') return null;
   const numeric = Number(value);
@@ -12,6 +67,13 @@ export const toChunkIndex = (value) => {
   return index >= 0 ? index : null;
 };
 
+/**
+ * Convert vector-like payloads to `Uint8Array` for normalized comparison and
+ * persistence.
+ *
+ * @param {unknown} value
+ * @returns {Uint8Array|null}
+ */
 export const toUint8Vector = (value) => {
   if (!value || typeof value !== 'object') return null;
   if (value instanceof Uint8Array) return value;
@@ -31,11 +93,24 @@ export const toUint8Vector = (value) => {
   return null;
 };
 
+/**
+ * Determine whether a value carries any vector payload.
+ *
+ * @param {unknown} value
+ * @returns {boolean}
+ */
 export const hasVectorPayload = (value) => (
   (Array.isArray(value) && value.length > 0)
   || (ArrayBuffer.isView(value) && !(value instanceof DataView) && value.length > 0)
 );
 
+/**
+ * Compare vector payloads after uint8 normalization.
+ *
+ * @param {unknown} left
+ * @param {unknown} right
+ * @returns {boolean}
+ */
 export const vectorsEqual = (left, right) => {
   const a = toUint8Vector(left);
   const b = toUint8Vector(right);
@@ -53,42 +128,90 @@ const MAPPING_FAILURE_REASON_KEYS = Object.freeze([
   'parserOmission'
 ]);
 
+/**
+ * Create empty mapping-failure reason counters.
+ *
+ * @returns {{boundaryMismatch:number,missingParent:number,parserOmission:number}}
+ */
 export const createMappingFailureReasons = () => ({
   boundaryMismatch: 0,
   missingParent: 0,
   parserOmission: 0
 });
 
+/**
+ * Increment failure reason counters with parser-omission fallback.
+ *
+ * @param {{boundaryMismatch:number,missingParent:number,parserOmission:number}} reasons
+ * @param {string|null|undefined} reason
+ * @returns {MappingFailureReason}
+ */
 export const recordMappingFailureReason = (reasons, reason) => {
   const key = MAPPING_FAILURE_REASON_KEYS.includes(reason) ? reason : 'parserOmission';
   reasons[key] += 1;
   return key;
 };
 
+/**
+ * Serialize reason counters for compact logging.
+ *
+ * @param {{boundaryMismatch?:number,missingParent?:number,parserOmission?:number}|null|undefined} reasons
+ * @returns {string}
+ */
 export const formatMappingFailureReasons = (reasons) => MAPPING_FAILURE_REASON_KEYS
   .map((reason) => `${reason}:${Number(reasons?.[reason] || 0)}`)
   .join('|');
 
+/**
+ * Normalize mapping strings by trimming and falling back to empty.
+ *
+ * @param {unknown} value
+ * @returns {string}
+ */
 const normalizeMappingString = (value) => {
   const text = typeof value === 'string' ? value.trim() : '';
   return text || '';
 };
 
+/**
+ * Resolve stable chunk id string from known chunk payload locations.
+ *
+ * @param {object|null|undefined} chunk
+ * @returns {string}
+ */
 const resolveExplicitChunkId = (chunk) => normalizeMappingString(
   chunk?.metaV2?.chunkId || chunk?.chunkId
 );
 
+/**
+ * Normalize file-like path values for mapping lookups.
+ *
+ * @param {unknown} value
+ * @returns {string}
+ */
 const normalizeMappingPath = (value) => {
   const normalized = toPosix(value);
   return normalizeMappingString(normalized);
 };
 
+/**
+ * Normalize range boundaries to non-negative integer offsets.
+ *
+ * @param {unknown} value
+ * @returns {number|null}
+ */
 const normalizeRangeBoundary = (value) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return null;
   return Math.max(0, Math.floor(numeric));
 };
 
+/**
+ * Build path aliases used for tolerant file mapping lookup.
+ *
+ * @param {unknown} value
+ * @returns {string[]}
+ */
 const buildPathLookupKeys = (value) => {
   const normalized = normalizeMappingPath(value);
   if (!normalized) return [];
@@ -105,6 +228,14 @@ const buildPathLookupKeys = (value) => {
   return Array.from(keys).filter(Boolean);
 };
 
+/**
+ * Append entry into a keyed bucket map.
+ *
+ * @param {Map<string,MappingEntry[]>} bucketMap
+ * @param {string} key
+ * @param {MappingEntry} entry
+ * @returns {void}
+ */
 const pushMappingBucket = (bucketMap, key, entry) => {
   if (!key) return;
   if (!bucketMap.has(key)) {
@@ -113,6 +244,12 @@ const pushMappingBucket = (bucketMap, key, entry) => {
   bucketMap.get(key).push(entry);
 };
 
+/**
+ * Build normalized structural mapping metadata for one chunk.
+ *
+ * @param {{index:number,filePath:string,chunk:object|null}} input
+ * @returns {MappingEntry}
+ */
 const buildMappingEntry = ({ index, filePath, chunk }) => {
   const kind = normalizeMappingString(chunk?.kind || chunk?.metaV2?.kind);
   const name = normalizeMappingString(chunk?.name || chunk?.metaV2?.name);
@@ -136,6 +273,13 @@ const buildMappingEntry = ({ index, filePath, chunk }) => {
   };
 };
 
+/**
+ * Build lookup structures that map incremental bundle chunks back to stage-3
+ * vector indices.
+ *
+ * @param {Map<string,Array<{index?:number,chunk?:object}>>} chunksByFile
+ * @returns {IncrementalChunkMappingIndex}
+ */
 export const createIncrementalChunkMappingIndex = (chunksByFile) => {
   const fileMappings = new Map();
   const fileAliases = new Map();
@@ -229,6 +373,13 @@ export const createIncrementalChunkMappingIndex = (chunksByFile) => {
   };
 };
 
+/**
+ * Resolve file mapping using normalized path aliases.
+ *
+ * @param {IncrementalChunkMappingIndex} mappingIndex
+ * @param {string} filePath
+ * @returns {FileChunkMapping|null}
+ */
 export const resolveChunkFileMapping = (mappingIndex, filePath) => {
   for (const lookupKey of buildPathLookupKeys(filePath)) {
     const mapping = mappingIndex.fileAliases.get(lookupKey);
@@ -237,6 +388,12 @@ export const resolveChunkFileMapping = (mappingIndex, filePath) => {
   return null;
 };
 
+/**
+ * Calculate Manhattan distance between two [start,end] ranges.
+ *
+ * @param {{chunkStart:number|null,chunkEnd:number|null,candidateStart:number|null,candidateEnd:number|null}} input
+ * @returns {number|null}
+ */
 const distanceForRanges = ({ chunkStart, chunkEnd, candidateStart, candidateEnd }) => {
   if (
     chunkStart == null
@@ -249,6 +406,12 @@ const distanceForRanges = ({ chunkStart, chunkEnd, candidateStart, candidateEnd 
   return Math.abs(chunkStart - candidateStart) + Math.abs(chunkEnd - candidateEnd);
 };
 
+/**
+ * Select nearest structural candidate, penalizing kind/name/file mismatches.
+ *
+ * @param {{candidates:MappingEntry[]|undefined,chunk:object|null,normalizedFile:string}} input
+ * @returns {{accepted:boolean,hasCandidates:boolean,vectorIndex:number|null,boundaryDistance?:number|null,boundaryThreshold?:number}}
+ */
 const resolveNearestStructuralCandidate = ({
   candidates,
   chunk,
@@ -343,6 +506,19 @@ const resolveNearestStructuralCandidate = ({
   };
 };
 
+/**
+ * Resolve vector index for an incremental bundle chunk using increasingly loose
+ * matching strategies (id, hints, structural buckets, then fallback cursor).
+ *
+ * @param {{
+ *   chunk:object|null,
+ *   normalizedFile:string,
+ *   fileMapping:FileChunkMapping|null,
+ *   mappingIndex:IncrementalChunkMappingIndex,
+ *   fallbackState:{cursor:number}
+ * }} input
+ * @returns {BundleChunkVectorResolution}
+ */
 export const resolveBundleChunkVectorIndex = ({
   chunk,
   normalizedFile,

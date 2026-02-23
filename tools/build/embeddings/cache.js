@@ -35,10 +35,44 @@ const GLOBAL_CHUNK_CACHE_DIR_NAME = 'global-chunks';
 const CACHE_INDEX_BINARY_MAGIC = 'pairofcleats.embeddings-cache-index';
 const CACHE_INDEX_BINARY_VERSION = 1;
 
+/**
+ * @typedef {object} CacheLockOptions
+ * @property {number} [waitMs]
+ * @property {number} [pollMs]
+ * @property {number} [staleMs]
+ * @property {(line:string)=>void} [log]
+ */
+
+/**
+ * @typedef {object} CacheShardEntry
+ * @property {string} shard
+ * @property {number} offset
+ * @property {number} length
+ * @property {number} sizeBytes
+ */
+
+/**
+ * Resolve on-disk lock file path for a cache directory.
+ *
+ * @param {string|null} cacheDir
+ * @returns {string|null}
+ */
 const resolveCacheLockPath = (cacheDir) => (
   cacheDir ? path.join(cacheDir, 'cache.lock') : null
 );
 
+/**
+ * Run a cache mutation under a cross-process file lock.
+ *
+ * Returns `null` when a lock cannot be acquired within timeout so callers can
+ * choose a non-fatal fallback path.
+ *
+ * @template T
+ * @param {string|null} cacheDir
+ * @param {() => Promise<T>} worker
+ * @param {CacheLockOptions} [options]
+ * @returns {Promise<T|null>}
+ */
 const withCacheLock = async (cacheDir, worker, options = {}) => {
   const lockPath = resolveCacheLockPath(cacheDir);
   if (!lockPath) return null;
@@ -222,6 +256,12 @@ export const encodeCacheEntryPayload = async (payload, options = {}) => (
   encodeEmbeddingsCache(payload, options)
 );
 
+/**
+ * Normalize chunk hash arrays into stable string lists.
+ *
+ * @param {unknown} chunkHashes
+ * @returns {string[]|null}
+ */
 const normalizeChunkHashes = (chunkHashes) => (
   Array.isArray(chunkHashes)
     ? chunkHashes.map((hash) => (typeof hash === 'string' ? hash : ''))
@@ -321,6 +361,13 @@ export const writeCacheIndex = async (cacheDir, index) => {
   await writeJsonObjectFile(indexPath, { fields: index, atomic: true });
 };
 
+/**
+ * Read one encoded payload from a shard index pointer.
+ *
+ * @param {string|null} cacheDir
+ * @param {{shard?:string,offset?:number,length?:number}|null} shardEntry
+ * @returns {Promise<object|null>}
+ */
 const readCacheEntryFromShard = async (cacheDir, shardEntry) => {
   const shardPath = resolveCacheShardPath(cacheDir, shardEntry?.shard);
   if (!shardPath || !fsSync.existsSync(shardPath)) return null;
@@ -380,8 +427,20 @@ export const updateCacheIndexAccess = (cacheIndex, cacheKey) => {
   return entry;
 };
 
+/**
+ * Format monotonically increasing shard filename from shard id.
+ *
+ * @param {number} shardId
+ * @returns {string}
+ */
 const resolveShardName = (shardId) => `shard-${String(shardId).padStart(5, '0')}.bin`;
 
+/**
+ * Allocate and register a new active shard in the cache index.
+ *
+ * @param {object} cacheIndex
+ * @returns {string}
+ */
 const allocateShard = (cacheIndex) => {
   const now = new Date().toISOString();
   const shardId = Number.isFinite(Number(cacheIndex.nextShardId))
@@ -394,6 +453,14 @@ const allocateShard = (cacheIndex) => {
   return shardName;
 };
 
+/**
+ * Pick current shard when space allows, otherwise rotate to a new shard.
+ *
+ * @param {object} cacheIndex
+ * @param {number} payloadBytes
+ * @param {number} [maxShardBytes]
+ * @returns {string}
+ */
 const selectShardForWrite = (cacheIndex, payloadBytes, maxShardBytes) => {
   const resolvedMax = Number.isFinite(Number(maxShardBytes))
     ? Math.max(1, Math.floor(Number(maxShardBytes)))
@@ -410,6 +477,17 @@ const selectShardForWrite = (cacheIndex, payloadBytes, maxShardBytes) => {
   return currentName;
 };
 
+/**
+ * Append an encoded cache payload to the active shard and return index metadata.
+ *
+ * Caller must hold the cache lock while this runs.
+ *
+ * @param {string|null} cacheDir
+ * @param {object} cacheIndex
+ * @param {Buffer} buffer
+ * @param {{maxShardBytes?:number,shardHandlePool?:{get:(shardPath:string)=>Promise<{handle:import('node:fs/promises').FileHandle,size:number}>}}} [options]
+ * @returns {Promise<CacheShardEntry|null>}
+ */
 const appendShardEntryUnlocked = async (cacheDir, cacheIndex, buffer, options = {}) => {
   const shardDir = resolveCacheShardDir(cacheDir);
   if (!shardDir) return null;
@@ -460,6 +538,15 @@ const appendShardEntryUnlocked = async (cacheDir, cacheIndex, buffer, options = 
   }
 };
 
+/**
+ * Append a payload to a shard under lock protection.
+ *
+ * @param {string|null} cacheDir
+ * @param {object} cacheIndex
+ * @param {Buffer} buffer
+ * @param {{lock?:CacheLockOptions,maxShardBytes?:number,shardHandlePool?:{get:(shardPath:string)=>Promise<{handle:import('node:fs/promises').FileHandle,size:number}>}}} [options]
+ * @returns {Promise<CacheShardEntry|null>}
+ */
 const appendShardEntry = async (cacheDir, cacheIndex, buffer, options = {}) => (
   withCacheLock(cacheDir, () => appendShardEntryUnlocked(cacheDir, cacheIndex, buffer, options), options.lock)
 );
@@ -469,7 +556,13 @@ const appendShardEntry = async (cacheDir, cacheIndex, buffer, options = {}) => (
  * @param {string|null} cacheDir
  * @param {string|null} cacheKey
  * @param {object} payload
- * @param {{index?:object,maxShardBytes?:number}} [options]
+ * @param {{
+ *   index?:object,
+ *   maxShardBytes?:number,
+ *   encodedBuffer?:Buffer,
+ *   lock?:CacheLockOptions,
+ *   shardHandlePool?:{get:(shardPath:string)=>Promise<{handle:import('node:fs/promises').FileHandle,size:number}>}
+ * }} [options]
  * @returns {Promise<object|null>}
  */
 export const writeCacheEntry = async (cacheDir, cacheKey, payload, options = {}) => {
@@ -634,7 +727,13 @@ export const pruneCacheIndex = async (cacheDir, cacheIndex, options = {}) => {
  *
  * @param {string|null} cacheDir
  * @param {object|null} cacheIndex
- * @param {{identityKey?:string|null,maxBytes?:number,maxAgeMs?:number,deleteShards?:boolean,lock?:object}} [options]
+ * @param {{
+ *   identityKey?:string|null,
+ *   maxBytes?:number,
+ *   maxAgeMs?:number,
+ *   deleteShards?:boolean,
+ *   lock?:CacheLockOptions
+ * }} [options]
  * @returns {Promise<{removedKeys:string[],removedShards:string[],changed:boolean,locked:boolean}>}
  */
 export const flushCacheIndex = async (cacheDir, cacheIndex, options = {}) => {

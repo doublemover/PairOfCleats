@@ -1,5 +1,41 @@
 export const CACHE_INDEX_VERSION = 1;
 
+/**
+ * @typedef {object} CacheIndexEntry
+ * @property {string|null} [key]
+ * @property {string|null} [file]
+ * @property {string|null} [hash]
+ * @property {string|null} [chunkSignature]
+ * @property {string|null} [shard]
+ * @property {string|null} [path]
+ * @property {number|null} [offset]
+ * @property {number|null} [length]
+ * @property {number|null} [sizeBytes]
+ * @property {number|null} [chunkCount]
+ * @property {string|null} [createdAt]
+ * @property {string|null} [lastAccessAt]
+ * @property {number|null} [hits]
+ */
+
+/**
+ * @typedef {object} CacheIndexState
+ * @property {number} version
+ * @property {string|null} identityKey
+ * @property {string} createdAt
+ * @property {string} updatedAt
+ * @property {number} nextShardId
+ * @property {string|null} currentShard
+ * @property {Record<string,CacheIndexEntry>} entries
+ * @property {Record<string,string>} files
+ * @property {Record<string,{createdAt?:string,sizeBytes?:number}>} shards
+ */
+
+/**
+ * Create an empty cache index state document.
+ *
+ * @param {string|null} identityKey
+ * @returns {CacheIndexState}
+ */
 export const createCacheIndex = (identityKey) => {
   const now = new Date().toISOString();
   return {
@@ -15,6 +51,16 @@ export const createCacheIndex = (identityKey) => {
   };
 };
 
+/**
+ * Normalize parsed on-disk cache index payload to the current schema.
+ *
+ * Invalid versions are reset to a fresh state to avoid carrying mixed
+ * structures across cache format revisions.
+ *
+ * @param {object|null} index
+ * @param {string|null} identityKey
+ * @returns {CacheIndexState}
+ */
 export const normalizeCacheIndex = (index, identityKey) => {
   if (!index || typeof index !== 'object') return createCacheIndex(identityKey);
   if (index.version !== CACHE_INDEX_VERSION) return createCacheIndex(identityKey);
@@ -29,12 +75,25 @@ export const normalizeCacheIndex = (index, identityKey) => {
   return normalized;
 };
 
+/**
+ * Parse an ISO timestamp into epoch milliseconds.
+ *
+ * @param {string|null|undefined} value
+ * @returns {number}
+ */
 const parseIsoMillis = (value) => {
   if (!value) return 0;
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+/**
+ * Resolve latest non-empty ISO timestamp from two candidates.
+ *
+ * @param {string|null|undefined} a
+ * @param {string|null|undefined} b
+ * @returns {string|null}
+ */
 const resolveLatestIso = (a, b) => {
   const aMs = parseIsoMillis(a);
   const bMs = parseIsoMillis(b);
@@ -44,6 +103,13 @@ const resolveLatestIso = (a, b) => {
   return a || b || null;
 };
 
+/**
+ * Resolve earliest non-empty ISO timestamp from two candidates.
+ *
+ * @param {string|null|undefined} a
+ * @param {string|null|undefined} b
+ * @returns {string|null}
+ */
 const resolveEarliestIso = (a, b) => {
   const aMs = parseIsoMillis(a);
   const bMs = parseIsoMillis(b);
@@ -53,6 +119,16 @@ const resolveEarliestIso = (a, b) => {
   return a || b || null;
 };
 
+/**
+ * Merge two cache index entry payloads while preserving pointer invariants.
+ *
+ * Shard-backed and standalone entry pointers are mutually exclusive; incoming
+ * pointer form wins when supplied.
+ *
+ * @param {CacheIndexEntry} [existing]
+ * @param {CacheIndexEntry} [incoming]
+ * @returns {CacheIndexEntry}
+ */
 const mergeCacheIndexEntry = (existing = {}, incoming = {}) => {
   const merged = { ...existing };
   for (const [key, value] of Object.entries(incoming)) {
@@ -99,6 +175,16 @@ const mergeCacheIndexEntry = (existing = {}, incoming = {}) => {
   return merged;
 };
 
+/**
+ * Merge an incoming cache index into a base state document.
+ *
+ * This operation is used when multiple workers flush independent in-memory
+ * indexes into one shared on-disk index.
+ *
+ * @param {CacheIndexState|object} base
+ * @param {CacheIndexState|object} incoming
+ * @returns {CacheIndexState|object}
+ */
 export const mergeCacheIndex = (base, incoming) => {
   if (!base || typeof base !== 'object') return base;
   if (!incoming || typeof incoming !== 'object') return base;

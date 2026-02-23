@@ -39,6 +39,62 @@ import { createToolDisplay } from '../shared/cli-display.js';
 import { parseCommaList } from '../shared/text-utils.js';
 import { readQueryFileSafe } from '../shared/query-file-utils.js';
 
+/**
+ * @typedef {object} BenchTaskDescriptor
+ * @property {string} language
+ * @property {string} label
+ * @property {string} tier
+ * @property {string} repo
+ * @property {string} queriesPath
+ * @property {string} [logSlug]
+ * @property {string} [repoShortName]
+ * @property {boolean} [repoLogNameCollision]
+ */
+
+/**
+ * @typedef {object} BenchExecutionPlan
+ * @property {BenchTaskDescriptor} task
+ * @property {string} repoPath
+ * @property {string} repoLabel
+ * @property {string} tierLabel
+ * @property {string} repoCacheRoot
+ * @property {string} outDir
+ * @property {string} outFile
+ * @property {string} fallbackLogSlug
+ */
+
+/**
+ * @typedef {object} BenchProgressEvent
+ * @property {string} [event]
+ * @property {string} [status]
+ * @property {string} [name]
+ * @property {string} [taskId]
+ * @property {string} [stage]
+ * @property {string} [mode]
+ * @property {number} [current]
+ * @property {number} [total]
+ * @property {string} [message]
+ * @property {number} [etaSeconds]
+ * @property {object} [throughput]
+ * @property {number} [chunksPerSec]
+ * @property {number} [filesPerSec]
+ * @property {object} [cache]
+ * @property {number} [cacheHitRate]
+ * @property {object} [writer]
+ * @property {number} [writerPending]
+ * @property {number} [writerMaxPending]
+ * @property {object} [meta]
+ * @property {boolean} [ephemeral]
+ */
+
+/**
+ * Ensure repository-local benchmark config exists so bench runs inherit the
+ * shared cache root even when a repo has no local settings yet.
+ *
+ * @param {string} repoPath
+ * @param {string} cacheRoot
+ * @returns {Promise<void>}
+ */
 const ensureBenchConfig = async (repoPath, cacheRoot) => {
   const configPath = path.join(repoPath, '.pairofcleats.json');
   if (fs.existsSync(configPath)) return;
@@ -152,6 +208,11 @@ let repoLogStream = null;
 let repoLogPath = null;
 const runDiagnosticsRoot = path.join(resultsRoot, 'logs', 'bench-language', `${runSuffix}-diagnostics`);
 
+/**
+ * Lazily initialize the run-level master log stream.
+ *
+ * @returns {void}
+ */
 const initMasterLog = () => {
   if (masterLogStream) return;
   fs.mkdirSync(path.dirname(masterLogPath), { recursive: true });
@@ -166,6 +227,13 @@ const initMasterLog = () => {
   }
 };
 
+/**
+ * Rotate and initialize per-repo logs so each benchmark target gets an isolated
+ * log file while still forwarding all lines to the run master log.
+ *
+ * @param {{label:string,tier?:string,repoPath:string,slug:string}} input
+ * @returns {string|null}
+ */
 const initRepoLog = ({ label, tier, repoPath: repoDir, slug }) => {
   if (!repoLogsEnabled) return null;
   try {
@@ -187,6 +255,11 @@ const initRepoLog = ({ label, tier, repoPath: repoDir, slug }) => {
   return repoLogPath;
 };
 
+/**
+ * Close and clear the active per-repo log stream.
+ *
+ * @returns {void}
+ */
 const closeRepoLog = () => {
   if (!repoLogStream) return;
   try {
@@ -196,6 +269,12 @@ const closeRepoLog = () => {
   repoLogPath = null;
 };
 
+/**
+ * Write a line to active asynchronous log streams.
+ *
+ * @param {string} line
+ * @returns {void}
+ */
 const writeLog = (line) => {
   if (!masterLogStream) initMasterLog();
   if (masterLogStream) masterLogStream.write(`${line}\n`);
@@ -229,6 +308,15 @@ const isDiskFullMessage = (line) => {
     || text.includes('enospc')
     || text.includes('insufficient free space');
 };
+
+/**
+ * Unified log sink for display + file streams.
+ *
+ * @param {string} line
+ * @param {'info'|'warn'|'error'} [level]
+ * @param {object|null} [meta]
+ * @returns {void}
+ */
 const appendLog = (line, level = 'info', meta = null) => {
   if (!line) return;
   const fileOnlyLine = meta && typeof meta === 'object' && typeof meta.fileOnlyLine === 'string'
@@ -254,18 +342,40 @@ const writeListLine = (line) => {
 };
 let benchInFlightFraction = 0;
 let updateBenchProgress = () => {};
+
+/**
+ * Clamp a bench progress value to [0, 1].
+ *
+ * @param {number} value
+ * @returns {number}
+ */
 const clampBenchFraction = (value) => {
   if (!Number.isFinite(value)) return 0;
   if (value <= 0) return 0;
   if (value >= 1) return 1;
   return value;
 };
+
+/**
+ * Derive fractional completion from progress events.
+ *
+ * @param {BenchProgressEvent|object|null} event
+ * @returns {number|null}
+ */
 const deriveBenchFraction = (event) => {
   const current = Number.isFinite(event?.current) ? Number(event.current) : 0;
   const total = Number.isFinite(event?.total) ? Number(event.total) : 0;
   if (total <= 0) return null;
   return clampBenchFraction(current / total);
 };
+
+/**
+ * Track fractional completion for the currently running repo benchmark.
+ *
+ * @param {number} value
+ * @param {{refresh?:boolean}} [options]
+ * @returns {void}
+ */
 const setBenchInFlightFraction = (value, { refresh = true } = {}) => {
   const next = clampBenchFraction(value);
   if (next === benchInFlightFraction) return;
@@ -273,6 +383,12 @@ const setBenchInFlightFraction = (value, { refresh = true } = {}) => {
   if (refresh) updateBenchProgress();
 };
 
+/**
+ * Render ETA seconds as `XmYYs`.
+ *
+ * @param {number} value
+ * @returns {string|null}
+ */
 const formatEtaSeconds = (value) => {
   const seconds = Number(value);
   if (!Number.isFinite(seconds) || seconds < 0) return null;
@@ -282,6 +398,12 @@ const formatEtaSeconds = (value) => {
   return `${mins}m${String(secs).padStart(2, '0')}s`;
 };
 
+/**
+ * Build a compact status line from structured child task telemetry.
+ *
+ * @param {BenchProgressEvent|object|null} event
+ * @returns {string|null}
+ */
 const formatChildTaskMessage = (event) => {
   if (!event || typeof event !== 'object') return null;
   const explicit = typeof event.message === 'string' ? event.message.trim() : '';
@@ -524,7 +646,22 @@ const runUsrGuardrailBenchmarks = async () => {
 
 const config = loadBenchConfig(configPath, { onLog: appendLog });
 await validateEncodingFixtures(scriptRoot, { onLog: appendLog });
+
+/**
+ * Normalize user selector tokens so language/tier/repo filters can match
+ * across CLI flags and config labels in a case-insensitive way.
+ *
+ * @param {unknown} value
+ * @returns {string}
+ */
 const normalizeSelectorToken = (value) => String(value || '').trim().toLowerCase();
+
+/**
+ * Collect all known tier keys from bench config for positional-argument fallback.
+ *
+ * @param {object} benchConfig
+ * @returns {Set<string>}
+ */
 const collectKnownTiers = (benchConfig) => {
   const tiers = new Set();
   for (const entry of Object.values(benchConfig || {})) {
@@ -534,6 +671,13 @@ const collectKnownTiers = (benchConfig) => {
   }
   return tiers;
 };
+
+/**
+ * Resolve effective tier filter from `--tier` and positional args.
+ *
+ * @param {{argvTier?:string|string[]|null,positionalArgs?:unknown[],knownTiers:Set<string>}} input
+ * @returns {string[]}
+ */
 const resolveTierFilter = ({ argvTier, positionalArgs, knownTiers }) => {
   let resolved = parseCommaList(argvTier)
     .map(normalizeSelectorToken)
@@ -546,6 +690,14 @@ const resolveTierFilter = ({ argvTier, positionalArgs, knownTiers }) => {
   }
   return [...new Set(resolved)];
 };
+
+/**
+ * Collect normalized selector aliases for a language config entry.
+ *
+ * @param {string} language
+ * @param {object} entry
+ * @returns {Set<string>}
+ */
 const collectLanguageSelectors = (language, entry) => {
   const selectors = new Set();
   selectors.add(normalizeSelectorToken(language));
@@ -578,6 +730,14 @@ const repoFilterSet = new Set(
     .filter(Boolean)
 );
 const hasRepoFilter = repoFilterSet.size > 0;
+
+/**
+ * Check whether a config entry matches the selected language tokens.
+ *
+ * @param {string} language
+ * @param {object} entry
+ * @returns {boolean}
+ */
 const matchesLanguageFilter = (language, entry) => {
   if (!hasLanguageFilter) return true;
   const selectors = collectLanguageSelectors(language, entry);
@@ -586,6 +746,13 @@ const matchesLanguageFilter = (language, entry) => {
   }
   return false;
 };
+
+/**
+ * Expand bench config into per-repo execution tasks after applying CLI filters.
+ *
+ * @param {object} benchConfig
+ * @returns {BenchTaskDescriptor[]}
+ */
 const buildTaskCatalog = (benchConfig) => {
   const plannedTasks = [];
   const queryOverridePath = argv.queries ? path.resolve(argv.queries) : null;
@@ -610,6 +777,13 @@ const buildTaskCatalog = (benchConfig) => {
 
 const tasks = buildTaskCatalog(config);
 
+/**
+ * In-place Fisher-Yates shuffle used by `--random` execution mode.
+ *
+ * @template T
+ * @param {T[]} items
+ * @returns {void}
+ */
 const shuffleInPlace = (items) => {
   for (let idx = items.length - 1; idx > 0; idx -= 1) {
     const swapIdx = Math.floor(Math.random() * (idx + 1));
@@ -634,6 +808,12 @@ const getRepoShortName = (repo) => {
   return String(repo).split('/').filter(Boolean).pop() || String(repo);
 };
 
+/**
+ * Count slug collisions.
+ *
+ * @param {string[]} slugs
+ * @returns {Map<string,number>}
+ */
 const countSlugs = (slugs) => {
   const counts = new Map();
   for (const slug of slugs) {
@@ -643,6 +823,13 @@ const countSlugs = (slugs) => {
   return counts;
 };
 
+/**
+ * Assign deterministic per-task log slug metadata while avoiding filename
+ * collisions across repo names, languages, and tiers.
+ *
+ * @param {BenchTaskDescriptor[]} plannedTasks
+ * @returns {void}
+ */
 const assignRepoLogMetadata = (plannedTasks) => {
   if (!repoLogsEnabled || !plannedTasks.length) return;
   const slugPlans = plannedTasks.map((task) => {
@@ -762,11 +949,24 @@ const results = [];
 const startTime = Date.now();
 let completed = 0;
 
+/**
+ * Normalize tier labels for progress header rendering.
+ *
+ * @param {unknown} tier
+ * @returns {string}
+ */
 const formatBenchTierTag = (tier) => {
   if (!tier) return '';
   const label = String(tier).trim().toLowerCase();
   return label || '';
 };
+
+/**
+ * Create a short repo-specific progress task label.
+ *
+ * @param {unknown} repo
+ * @returns {string}
+ */
 const formatBenchRepoLabel = (repo) => {
   if (!repo) return 'Benching';
   const repoName = String(repo).split('/').filter(Boolean).pop() || repo;
@@ -781,6 +981,12 @@ updateBenchProgress = () => {
   const effectiveCompleted = Math.min(tasks.length, completed + benchInFlightFraction);
   benchTask.set(effectiveCompleted, tasks.length, { name: reposLabel });
 };
+
+/**
+ * Mark current repo benchmark as complete and advance top-level progress.
+ *
+ * @returns {void}
+ */
 const completeBenchRepo = () => {
   setBenchInFlightFraction(0, { refresh: false });
   completed += 1;
@@ -838,6 +1044,13 @@ const childProgressMode = argv.progress === 'off' ? 'off' : 'jsonl';
 benchArgsSuffix.push('--progress', childProgressMode);
 if (argv.verbose) benchArgsSuffix.push('--verbose');
 if (argv.quiet || argv.json) benchArgsSuffix.push('--quiet');
+
+/**
+ * Build child bench command args for one repo plan.
+ *
+ * @param {{repoPath:string,queriesPath:string,outFile:string,autoBuildIndex:boolean,autoBuildSqlite:boolean}} input
+ * @returns {string[]}
+ */
 const buildBenchArgs = ({ repoPath, queriesPath, outFile, autoBuildIndex, autoBuildSqlite }) => {
   const args = [
     benchScript,
@@ -900,6 +1113,21 @@ const cleanRepoCache = async ({ repoCacheRoot, repoLabel }) => {
   }
 };
 
+/**
+ * Persist crash diagnostics bundle metadata for a failed repo run.
+ *
+ * @param {{
+ *   task:BenchTaskDescriptor,
+ *   repoLabel:string,
+ *   repoPath:string,
+ *   repoCacheRoot:string,
+ *   outFile:string|null,
+ *   failureReason:string,
+ *   failureCode?:number|null,
+ *   schedulerEvents?:object[]
+ * }} input
+ * @returns {Promise<object|null>}
+ */
 const attachCrashRetention = async ({
   task,
   repoLabel,

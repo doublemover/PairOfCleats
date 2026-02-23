@@ -1,3 +1,10 @@
+/**
+ * Throughput/benchmark metrics contract surface for bench tooling.
+ *
+ * This module intentionally re-exports stable helpers and schema constants so
+ * benchmark runners/reporters can consume a single import path while keeping
+ * implementation files split by concern.
+ */
 export {
   formatDuration,
   formatGb,
@@ -7,6 +14,10 @@ export {
   formatMetricSummary
 } from './metrics/format.js';
 
+/**
+ * Stage timing and throughput ledger schema contracts shared by benchmark
+ * producers and downstream regression analyzers.
+ */
 export {
   STAGE_TIMING_SCHEMA_VERSION,
   STAGE_TIMING_STAGE_KEYS,
@@ -22,6 +33,9 @@ export {
   buildThroughputLedgerForTask
 } from './metrics/stage-ledger.js';
 
+/**
+ * Throughput diff/regression helpers used by report generation.
+ */
 export {
   THROUGHPUT_LEDGER_DIFF_SCHEMA_VERSION,
   getBestHitRate,
@@ -29,6 +43,9 @@ export {
   computeThroughputLedgerRegression
 } from './metrics/regression.js';
 
+/**
+ * Source sizing metrics used for build-rate normalization.
+ */
 export {
   buildLineStats,
   validateEncodingFixtures
