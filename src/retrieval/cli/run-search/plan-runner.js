@@ -20,7 +20,6 @@ import { configureOutputCaches } from '../../output.js';
 import { getMissingFlagMessages } from '../options.js';
 import { hasLmdbStore } from '../index-loader.js';
 import { applyBranchFilter } from '../branch-filter.js';
-import { resolveBackendSelection } from '../policy.js';
 import { normalizeSearchOptions } from '../normalize-options.js';
 import { createRunnerHelpers } from '../runner.js';
 import { resolveRunConfig } from '../resolve-run-config.js';
@@ -60,6 +59,7 @@ import {
 } from './startup-index.js';
 import { resolveRunSearchProfilePolicy } from './profile-policy.js';
 import { resolveAutoSqliteEligibility } from './auto-thresholds.js';
+import { resolveRunSearchBackendSelection } from './backend-selection.js';
 
 import {
   resolveAnnActive,
@@ -459,7 +459,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       resolveSearchIndexDir
     });
 
-    const backendSelection = await resolveBackendSelection({
+    const backendSelection = await resolveRunSearchBackendSelection({
       backendArg,
       sqliteAvailable,
       sqliteCodeAvailable,
@@ -476,60 +476,28 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       needsSqlite,
       needsCode,
       needsProse,
-      needsExtractedProse: requiresExtractedProse,
+      requiresExtractedProse,
       defaultBackend: policy?.retrieval?.backend || 'sqlite',
-      onWarn: console.warn
+      sqliteRootsMixed,
+      lmdbRootsMixed,
+      autoBackendRequested,
+      autoSqliteAllowed,
+      autoSqliteReason,
+      asOfRef: asOfContext?.ref || 'latest',
+      emitOutput
     });
     if (backendSelection.error) {
-      return bail(backendSelection.error.message);
+      return bail(backendSelection.error.message, 1, backendSelection.error.code);
     }
-
     let {
       backendPolicy,
-      useSqlite: useSqliteSelection,
-      useLmdb: useLmdbSelection,
-      sqliteFtsRequested,
+      useSqliteSelection,
+      useLmdbSelection,
+      sqliteFtsEnabled,
       backendForcedSqlite,
       backendForcedLmdb,
       backendForcedTantivy
     } = backendSelection;
-    if (sqliteRootsMixed) {
-      if (backendForcedSqlite) {
-        return bail(
-          `[search] --backend sqlite cannot be used with --as-of ${asOfContext.ref}: code/prose resolve to different index roots.`,
-          1,
-          ERROR_CODES.INVALID_REQUEST
-        );
-      }
-      if (emitOutput && autoBackendRequested) {
-        console.warn('[search] sqlite backend disabled: explicit as-of target resolves code/prose to different roots.');
-      }
-      useSqliteSelection = false;
-    }
-    if (lmdbRootsMixed) {
-      if (backendForcedLmdb) {
-        return bail(
-          `[search] --backend lmdb cannot be used with --as-of ${asOfContext.ref}: code/prose resolve to different index roots.`,
-          1,
-          ERROR_CODES.INVALID_REQUEST
-        );
-      }
-      if (emitOutput && autoBackendRequested) {
-        console.warn('[search] lmdb backend disabled: explicit as-of target resolves code/prose to different roots.');
-      }
-      useLmdbSelection = false;
-    }
-    if (!autoSqliteAllowed && autoBackendRequested && useSqliteSelection && !backendForcedSqlite) {
-      useSqliteSelection = false;
-      useLmdbSelection = false;
-      if (autoSqliteReason) {
-        backendPolicy = backendPolicy ? { ...backendPolicy, reason: autoSqliteReason } : backendPolicy;
-        if (emitOutput) {
-          console.warn(`[search] ${autoSqliteReason}. Falling back to file-backed indexes.`);
-        }
-      }
-    }
-    const sqliteFtsEnabled = sqliteFtsRequested || (autoBackendRequested && useSqliteSelection);
 
     const sqliteStates = {
       code: sqliteStateCode,
