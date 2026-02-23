@@ -84,7 +84,7 @@ const loadCacheIndex = async (rootDir) => {
   return { indexPath, cacheDir, index: JSON.parse(raw) };
 };
 
-runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot]);
+runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
 runNode('build_embeddings', [path.join(root, 'tools', 'build/embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
 
 const { cacheDir, index } = await loadCacheIndex(cacheRoot);

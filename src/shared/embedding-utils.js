@@ -36,6 +36,29 @@ export const isVectorLike = (value) => (
 );
 
 /**
+ * Check whether a value is a non-empty vector payload.
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+export const isNonEmptyVector = (value) => (
+  isVectorLike(value) && value.length > 0
+);
+
+/**
+ * Count non-empty vectors in an array-like collection.
+ * @param {unknown} vectors
+ * @returns {number}
+ */
+export const countNonEmptyVectors = (vectors) => {
+  if (!Array.isArray(vectors)) return 0;
+  let count = 0;
+  for (const vector of vectors) {
+    if (isNonEmptyVector(vector)) count += 1;
+  }
+  return count;
+};
+
+/**
  * Merge code + doc vectors by averaging corresponding dimensions.
  * Throws when lengths differ.
  *

@@ -18,14 +18,18 @@ import {
   MAX_JSON_BYTES
 } from '../../../src/shared/artifact-io.js';
 import { readTextFileWithHash } from '../../../src/shared/encoding.js';
-import { createTempPath, replaceFile, writeJsonLinesSharded, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { replaceFile, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { writeDenseVectorArtifacts } from '../../../src/shared/dense-vector-artifacts.js';
 import { createCrashLogger } from '../../../src/index/build/crash-log.js';
 import { resolveHnswPaths, resolveHnswTarget } from '../../../src/shared/hnsw.js';
 import { normalizeLanceDbConfig, resolveLanceDbPaths, resolveLanceDbTarget } from '../../../src/shared/lancedb.js';
 import { DEFAULT_STUB_DIMS, resolveStubDims } from '../../../src/shared/embedding.js';
 import { sha1 } from '../../../src/shared/hash.js';
 import {
+  countNonEmptyVectors,
   clampQuantizedVectorsInPlace,
+  isNonEmptyVector,
+  isVectorLike,
   normalizeEmbeddingVectorInPlace
 } from '../../../src/shared/embedding-utils.js';
 import { resolveEmbeddingInputFormatting } from '../../../src/shared/embedding-input-format.js';
@@ -36,6 +40,9 @@ import { createLruCache } from '../../../src/shared/cache.js';
 import { normalizeDenseVectorMode } from '../../../src/shared/dense-vector-mode.js';
 import { formatEmbeddingsPerfLine } from '../../../src/shared/embeddings-progress.js';
 import { spawnSubprocess } from '../../../src/shared/subprocess.js';
+import { runWithConcurrency } from '../../../src/shared/concurrency.js';
+import { coercePositiveIntMinOne } from '../../../src/shared/number-coerce.js';
+import { formatEtaSeconds } from '../../../src/shared/perf/eta.js';
 import {
   normalizeBundleFormat,
   readBundleFile,
@@ -168,18 +175,6 @@ try {
 } catch {}
 
 /**
- * Convert arbitrary numeric-ish values into positive integers.
- *
- * @param {unknown} value
- * @returns {number|null}
- */
-const toPositiveIntOrNull = (value) => {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric <= 0) return null;
-  return Math.max(1, Math.floor(numeric));
-};
-
-/**
  * Resolve max chunk-meta payload size used when loading chunk metadata for
  * embeddings generation.
  *
@@ -225,356 +220,10 @@ const resolveEmbeddingsFileParallelism = ({
   hnswEnabled
 }) => {
   if (hnswEnabled) return 1;
-  const configured = toPositiveIntOrNull(indexingConfig?.embeddings?.fileParallelism);
-  const cpuCap = toPositiveIntOrNull(cpuConcurrency);
-  const fdCapRaw = toPositiveIntOrNull(fdConcurrencyCap);
-  if (configured) {
-    const withCpu = cpuCap ? Math.min(cpuCap, configured) : configured;
-    return fdCapRaw ? Math.min(fdCapRaw, withCpu) : withCpu;
-  }
-  const tokenDriven = toPositiveIntOrNull(computeTokensTotal);
-  const resolved = tokenDriven || cpuCap || DEFAULT_EMBEDDINGS_FILE_PARALLELISM;
-  const withCpu = cpuCap ? Math.min(cpuCap, resolved) : resolved;
-  return fdCapRaw ? Math.min(fdCapRaw, withCpu) : withCpu;
-};
-
-export const resolveEmbeddingsAdaptiveFileParallelismCeiling = ({
-  baseFileParallelism,
-  maxMultiplier,
-  computeTokensTotal,
-  cpuConcurrency,
-  fdConcurrencyCap
-}) => {
-  const base = toPositiveIntOrNull(baseFileParallelism) || 1;
-  const multiplierRaw = Number(maxMultiplier);
-  const multiplier = Number.isFinite(multiplierRaw) && multiplierRaw > 1
-    ? Math.max(1, multiplierRaw)
-    : DEFAULT_EMBEDDINGS_ADAPTIVE_FILE_PARALLELISM_MAX_MULTIPLIER;
-  const multiplierCap = Math.max(base, Math.floor(base * multiplier));
-  const hardCaps = [
-    toPositiveIntOrNull(computeTokensTotal),
-    toPositiveIntOrNull(cpuConcurrency),
-    toPositiveIntOrNull(fdConcurrencyCap)
-  ].filter((value) => Number.isFinite(value) && value > 0);
-  if (!hardCaps.length) {
-    return multiplierCap;
-  }
-  const hardCap = Math.max(base, Math.min(...hardCaps));
-  return Math.max(base, Math.min(multiplierCap, hardCap));
-};
-
-export const resolveCrossFileChunkDedupeMaxEntries = (indexingConfig) => {
-  const configured = toPositiveIntOrNull(indexingConfig?.embeddings?.crossFileChunkDedupeMaxEntries);
-  return configured || DEFAULT_CROSS_FILE_CHUNK_DEDUPE_MAX_ENTRIES;
-};
-
-export const resolveEmbeddingsSourceHashCacheMaxEntries = (indexingConfig) => {
-  const configured = toPositiveIntOrNull(indexingConfig?.embeddings?.sourceHashCacheMaxEntries);
-  return configured || DEFAULT_EMBEDDINGS_SOURCE_HASH_CACHE_MAX_ENTRIES;
-};
-
-export const resolveEmbeddingsChunkMetaRetryCeilingBytes = (indexingConfig) => {
-  const configured = Number(indexingConfig?.embeddings?.chunkMetaRetryCeilingBytes);
-  if (Number.isFinite(configured) && configured > 0) {
-    return Math.max(MAX_JSON_BYTES, Math.floor(configured));
-  }
-  return Math.max(MAX_JSON_BYTES, DEFAULT_EMBEDDINGS_CHUNK_META_RETRY_CEILING_BYTES);
-};
-
-export const boundedMapSet = (map, key, value, maxEntries) => {
-  if (!(map instanceof Map) || !key) return;
-  if (map.has(key)) map.delete(key);
-  map.set(key, value);
-  while (map.size > maxEntries) {
-    const oldestKey = map.keys().next().value;
-    if (oldestKey == null) break;
-    map.delete(oldestKey);
-  }
-};
-
-const resolveEmbeddingsTextReuseCacheEntries = (indexingConfig) => {
-  const configured = Number(indexingConfig?.embeddings?.textReuseCacheEntries);
-  if (Number.isFinite(configured)) {
-    return Math.max(0, Math.floor(configured));
-  }
-  return DEFAULT_EMBEDDINGS_TEXT_REUSE_CACHE_ENTRIES;
-};
-
-const resolveEmbeddingsTextReuseMaxTextChars = (indexingConfig) => {
-  const configured = Number(indexingConfig?.embeddings?.textReuseMaxTextChars);
-  if (Number.isFinite(configured) && configured > 0) {
-    return Math.max(64, Math.floor(configured));
-  }
-  return DEFAULT_EMBEDDINGS_TEXT_REUSE_MAX_TEXT_CHARS;
-};
-
-const resolveEmbeddingsPersistentTextCacheEnabled = (indexingConfig) => (
-  indexingConfig?.embeddings?.persistentTextCache !== false
-);
-
-const resolveEmbeddingsPersistentTextCacheMaxEntries = (indexingConfig) => {
-  const configured = Number(indexingConfig?.embeddings?.persistentTextCacheMaxEntries);
-  if (Number.isFinite(configured) && configured > 0) {
-    return Math.max(1, Math.floor(configured));
-  }
-  return DEFAULT_EMBEDDINGS_PERSISTENT_TEXT_CACHE_MAX_ENTRIES;
-};
-
-export const resolveEmbeddingsPersistentTextCacheVectorEncoding = (indexingConfig) => (
-  normalizePersistentTextVectorEncoding(indexingConfig?.embeddings?.persistentTextCacheVectorEncoding)
-);
-
-const resolveEmbeddingsBatchTokenBudget = ({ indexingConfig, embeddingBatchSize }) => {
-  const explicit = Number(indexingConfig?.embeddings?.maxBatchTokens);
-  if (Number.isFinite(explicit) && explicit > 0) {
-    return Math.max(1, Math.floor(explicit));
-  }
-  const multiplierRaw = Number(indexingConfig?.embeddings?.batchTokenMultiplier);
-  const multiplier = Number.isFinite(multiplierRaw) && multiplierRaw > 0
-    ? Math.max(1, Math.floor(multiplierRaw))
-    : DEFAULT_EMBEDDINGS_BATCH_TOKEN_MULTIPLIER;
-  const batchSize = Number.isFinite(Number(embeddingBatchSize)) && Number(embeddingBatchSize) > 0
-    ? Math.max(1, Math.floor(Number(embeddingBatchSize)))
-    : 1;
-  return Math.max(batchSize, batchSize * multiplier);
-};
-
-const resolveEmbeddingsCharsPerToken = (indexingConfig) => {
-  const configured = Number(indexingConfig?.embeddings?.charsPerToken);
-  if (Number.isFinite(configured) && configured > 0) {
-    return Math.max(1, Math.floor(configured));
-  }
-  return DEFAULT_EMBEDDINGS_CHARS_PER_TOKEN;
-};
-
-const resolveEmbeddingsSqliteDenseWriteBatchSize = (indexingConfig) => {
-  const configured = Number(indexingConfig?.embeddings?.sqliteDenseWriteBatchSize);
-  if (Number.isFinite(configured) && configured > 0) {
-    return Math.max(16, Math.floor(configured));
-  }
-  return 256;
-};
-
-const resolveEmbeddingsInFlightMaxEntries = (indexingConfig) => {
-  const configured = Number(indexingConfig?.embeddings?.inFlightCoalesceMaxEntries);
-  if (Number.isFinite(configured) && configured > 0) {
-    return Math.max(1, Math.floor(configured));
-  }
-  return DEFAULT_EMBEDDINGS_IN_FLIGHT_MAX_ENTRIES;
-};
-
-const createEmbeddingInFlightCoalescer = ({ maxEntries }) => {
-  const limit = Number.isFinite(Number(maxEntries)) && Number(maxEntries) > 0
-    ? Math.max(1, Math.floor(Number(maxEntries)))
-    : DEFAULT_EMBEDDINGS_IN_FLIGHT_MAX_ENTRIES;
-  const pending = new Map();
-  const counters = {
-    claims: 0,
-    joins: 0,
-    bypassed: 0,
-    peakSize: 0
-  };
-  return {
-    claim(text) {
-      if (typeof text !== 'string' || !text) return null;
-      const existing = pending.get(text);
-      if (existing) {
-        counters.joins += 1;
-        return { owner: false, promise: existing.promise };
-      }
-      if (pending.size >= limit) {
-        counters.bypassed += 1;
-        return null;
-      }
-      let resolvePromise = null;
-      let rejectPromise = null;
-      const promise = new Promise((resolve, reject) => {
-        resolvePromise = resolve;
-        rejectPromise = reject;
-      });
-      const entry = {
-        promise,
-        resolve: (value) => {
-          if (pending.get(text) === entry) pending.delete(text);
-          resolvePromise(value);
-        },
-        reject: (err) => {
-          if (pending.get(text) === entry) pending.delete(text);
-          rejectPromise(err);
-        }
-      };
-      pending.set(text, entry);
-      counters.claims += 1;
-      if (pending.size > counters.peakSize) counters.peakSize = pending.size;
-      return { owner: true, promise, resolve: entry.resolve, reject: entry.reject };
-    },
-    stats() {
-      return {
-        ...counters,
-        size: pending.size,
-        maxEntries: limit
-      };
-    }
-  };
-};
-
-const runWithAdaptiveConcurrency = async ({
-  items,
-  initialConcurrency,
-  resolveConcurrency,
-  worker
-}) => {
-  const list = Array.isArray(items) ? items : [];
-  const baseConcurrency = Math.max(1, Math.floor(Number(initialConcurrency) || 1));
-  if (list.length <= 1 || baseConcurrency <= 1) {
-    for (const item of list) {
-      await worker(item);
-    }
-    return {
-      peakConcurrency: Math.min(1, list.length || 1),
-      finalConcurrency: 1,
-      adjustments: 0
-    };
-  }
-  let nextIndex = 0;
-  let active = 0;
-  let currentConcurrency = baseConcurrency;
-  let peakConcurrency = 0;
-  let adjustments = 0;
-  let failed = false;
-  const resolveAdaptive = typeof resolveConcurrency === 'function'
-    ? resolveConcurrency
-    : (() => baseConcurrency);
-  return new Promise((resolve, reject) => {
-    const pump = () => {
-      if (failed) return;
-      const proposed = Math.max(1, Math.floor(Number(resolveAdaptive({
-        currentConcurrency,
-        active,
-        remaining: Math.max(0, list.length - nextIndex)
-      })) || currentConcurrency));
-      if (proposed !== currentConcurrency) {
-        currentConcurrency = proposed;
-        adjustments += 1;
-      }
-      while (!failed && active < currentConcurrency && nextIndex < list.length) {
-        const item = list[nextIndex];
-        nextIndex += 1;
-        active += 1;
-        if (active > peakConcurrency) peakConcurrency = active;
-        Promise.resolve(worker(item))
-          .then(() => {
-            active -= 1;
-            if (!failed && nextIndex >= list.length && active === 0) {
-              resolve({
-                peakConcurrency,
-                finalConcurrency: currentConcurrency,
-                adjustments
-              });
-              return;
-            }
-            pump();
-          })
-          .catch((err) => {
-            if (failed) return;
-            failed = true;
-            reject(err);
-          });
-      }
-      if (!failed && nextIndex >= list.length && active === 0) {
-        resolve({
-          peakConcurrency,
-          finalConcurrency: currentConcurrency,
-          adjustments
-        });
-      }
-    };
-    pump();
-  });
-};
-
-export const __createEmbeddingInFlightCoalescerForTests = createEmbeddingInFlightCoalescer;
-export const __runWithAdaptiveConcurrencyForTests = runWithAdaptiveConcurrency;
-
-/**
- * Create a bounded in-memory text->vector reuse cache for stage3 embedding.
- *
- * Cache keys are raw embedding payload strings (bounded by max chars), and
- * values are model output vectors. This is deterministic and only affects
- * throughput: cache hits skip model calls while preserving payload order.
- *
- * @param {{maxEntries:number,maxTextChars:number,persistentStore?:object|null}} input
- * @returns {{
- *   canCache:(text:unknown)=>boolean,
- *   get:(text:unknown)=>ArrayLike<number>|null,
- *   set:(text:unknown,vector:unknown)=>boolean,
- *   size:()=>number,
- *   stats:()=>object
- * }|null}
- */
-const createEmbeddingTextReuseCache = ({ maxEntries, maxTextChars, persistentStore = null }) => {
-  const entries = Number.isFinite(Number(maxEntries))
-    ? Math.max(0, Math.floor(Number(maxEntries)))
-    : 0;
-  const persistent = persistentStore
-    && typeof persistentStore.get === 'function'
-    && typeof persistentStore.set === 'function'
-    ? persistentStore
-    : null;
-  if (!entries && !persistent) return null;
-  const textLimit = Number.isFinite(Number(maxTextChars)) && Number(maxTextChars) > 0
-    ? Math.max(64, Math.floor(Number(maxTextChars)))
-    : DEFAULT_EMBEDDINGS_TEXT_REUSE_MAX_TEXT_CHARS;
-  const cache = createLruCache({
-    name: 'embeddings-text-reuse',
-    maxEntries: entries > 0 ? entries : 1
-  });
-  const isVectorLike = (value) => (
-    Array.isArray(value)
-    || (ArrayBuffer.isView(value) && !(value instanceof DataView))
-  );
-  const canCache = (text) => typeof text === 'string' && text.length <= textLimit;
-  const counters = {
-    persistentHits: 0,
-    persistentMisses: 0,
-    persistentWrites: 0
-  };
-  return {
-    canCache,
-    get(text) {
-      if (!canCache(text)) return null;
-      const local = entries > 0 ? cache.get(text) : null;
-      if (isVectorLike(local) && local.length) return local;
-      if (!persistent) return null;
-      const persisted = persistent.get(text);
-      if (isVectorLike(persisted) && persisted.length) {
-        counters.persistentHits += 1;
-        if (entries > 0) cache.set(text, persisted);
-        return persisted;
-      }
-      counters.persistentMisses += 1;
-      return null;
-    },
-    set(text, vector) {
-      if (!canCache(text)) return false;
-      if (!isVectorLike(vector) || !vector.length) return false;
-      if (entries > 0) {
-        cache.set(text, vector);
-      }
-      if (persistent && persistent.set(text, vector)) {
-        counters.persistentWrites += 1;
-      }
-      return true;
-    },
-    size: () => (entries > 0 ? cache.size() : 0),
-    stats: () => ({
-      ...(entries > 0 ? cache.stats : {}),
-      ...counters,
-      size: entries > 0 ? cache.size() : 0,
-      maxTextChars: textLimit,
-      persistent: persistent?.stats?.() || null
-    })
-  };
+  const configured = coercePositiveIntMinOne(indexingConfig?.embeddings?.fileParallelism);
+  if (configured) return configured;
+  const tokenDriven = coercePositiveIntMinOne(computeTokensTotal);
+  return tokenDriven || DEFAULT_EMBEDDINGS_FILE_PARALLELISM;
 };
 
 /**
@@ -696,25 +345,6 @@ const compactChunkForEmbeddings = (chunk, filePath) => {
 };
 
 /**
- * Render ETA in compact `XmYYs`/`XhYYm` form.
- *
- * @param {number} seconds
- * @returns {string}
- */
-const formatEta = (seconds) => {
-  if (!Number.isFinite(seconds) || seconds < 0) return 'n/a';
-  const whole = Math.max(0, Math.floor(seconds));
-  const mins = Math.floor(whole / 60);
-  const secs = whole % 60;
-  if (mins >= 60) {
-    const hours = Math.floor(mins / 60);
-    const remMins = mins % 60;
-    return `${hours}h${String(remMins).padStart(2, '0')}m`;
-  }
-  return `${mins}m${String(secs).padStart(2, '0')}s`;
-};
-
-/**
  * Resolve deterministic embeddings sampling config.
  *
  * Sampling is opt-in and intended for smoke/benchmark workflows where we need
@@ -726,7 +356,7 @@ const formatEta = (seconds) => {
 const resolveEmbeddingSamplingConfig = ({ embeddingsConfig, env } = {}) => {
   const configRaw = Number(embeddingsConfig?.sampleFiles);
   const envRaw = Number(env?.embeddingsSampleFiles);
-  const maxFiles = toPositiveIntOrNull(Number.isFinite(envRaw) ? envRaw : configRaw);
+  const maxFiles = coercePositiveIntMinOne(Number.isFinite(envRaw) ? envRaw : configRaw);
   const configSeed = typeof embeddingsConfig?.sampleSeed === 'string'
     ? embeddingsConfig.sampleSeed.trim()
     : '';
@@ -867,7 +497,7 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
   for (const [filePath, entry] of manifestEntries) {
     if (lowYieldBailoutTriggered) break;
     processedEntries += 1;
-    const normalizedFile = normalizeMappingPath(filePath);
+    const normalizedFile = toPosix(filePath).trim();
     const chunkMapping = resolveChunkFileMapping(mappingIndex, normalizedFile);
     if (
       lowYieldEnabled
@@ -1111,138 +741,6 @@ export async function runBuildEmbeddingsWithConfig(config) {
     indexingConfig?.extractedProse?.lowYieldBailout
   );
   const embeddingSampling = resolveEmbeddingSamplingConfig({ embeddingsConfig, env: configEnv });
-  /**
-   * Check whether a value is an array-like numeric vector container.
-   *
-   * @param {unknown} value
-   * @returns {boolean}
-   */
-  const isVectorLike = (value) => {
-    if (Array.isArray(value)) return true;
-    return ArrayBuffer.isView(value) && !(value instanceof DataView);
-  };
-  /**
-   * Test whether vector payload is present and non-empty.
-   *
-   * @param {unknown} value
-   * @returns {boolean}
-   */
-  const isNonEmptyVector = (value) => isVectorLike(value) && value.length > 0;
-  /**
-   * Count non-empty vectors in a collection.
-   *
-   * @param {unknown[]} vectors
-   * @returns {number}
-   */
-  const countNonEmptyVectors = (vectors) => {
-    if (!Array.isArray(vectors)) return 0;
-    let count = 0;
-    for (const vec of vectors) {
-      if (vec && typeof vec.length === 'number' && vec.length > 0) count += 1;
-    }
-    return count;
-  };
-  const writeDenseVectorArtifacts = async ({
-    indexDir,
-    baseName,
-    vectorFields,
-    vectors,
-    shardMaxBytes = 8 * 1024 * 1024,
-    writeBinary = false
-  }) => {
-    const jsonPath = path.join(indexDir, `${baseName}.json`);
-    await writeJsonObjectFile(jsonPath, {
-      fields: vectorFields,
-      arrays: { vectors },
-      atomic: true
-    });
-    const rowIterable = {
-      [Symbol.iterator]: function* iterateRows() {
-        for (let i = 0; i < vectors.length; i += 1) {
-          yield { vector: vectors[i] };
-        }
-      }
-    };
-    const sharded = await writeJsonLinesSharded({
-      dir: indexDir,
-      partsDirName: `${baseName}.parts`,
-      partPrefix: `${baseName}.part-`,
-      items: rowIterable,
-      maxBytes: shardMaxBytes,
-      atomic: true,
-      offsets: { suffix: 'offsets.bin' }
-    });
-    const parts = sharded.parts.map((part, index) => ({
-      path: part,
-      records: sharded.counts[index] || 0,
-      bytes: sharded.bytes[index] || 0
-    }));
-    const metaPath = path.join(indexDir, `${baseName}.meta.json`);
-    await writeJsonObjectFile(metaPath, {
-      fields: {
-        schemaVersion: '1.0.0',
-        artifact: baseName,
-        format: 'jsonl-sharded',
-        generatedAt: new Date().toISOString(),
-        compression: 'none',
-        totalRecords: sharded.total,
-        totalBytes: sharded.totalBytes,
-        maxPartRecords: sharded.maxPartRecords,
-        maxPartBytes: sharded.maxPartBytes,
-        targetMaxBytes: sharded.targetMaxBytes,
-        parts,
-        offsets: sharded.offsets || [],
-        ...vectorFields
-      },
-      atomic: true
-    });
-    let binPath = null;
-    let binMetaPath = null;
-    if (writeBinary) {
-      const dims = Number(vectorFields?.dims);
-      const count = Array.isArray(vectors) ? vectors.length : 0;
-      const rowWidth = Number.isFinite(dims) && dims > 0 ? Math.floor(dims) : 0;
-      const totalBytes = rowWidth > 0 ? rowWidth * count : 0;
-      const bytes = Buffer.alloc(totalBytes);
-      for (let docId = 0; docId < count; docId += 1) {
-        const vec = vectors[docId];
-        if (!vec || typeof vec.length !== 'number') continue;
-        const start = docId * rowWidth;
-        const end = start + rowWidth;
-        if (end > bytes.length) break;
-        if (ArrayBuffer.isView(vec) && vec.BYTES_PER_ELEMENT === 1) {
-          bytes.set(vec.subarray(0, rowWidth), start);
-          continue;
-        }
-        for (let i = 0; i < rowWidth; i += 1) {
-          const value = Number(vec[i]);
-          bytes[start + i] = Number.isFinite(value)
-            ? Math.max(0, Math.min(255, Math.floor(value)))
-            : 0;
-        }
-      }
-      binPath = path.join(indexDir, `${baseName}.bin`);
-      const tempBinPath = createTempPath(binPath);
-      await fs.writeFile(tempBinPath, bytes);
-      await replaceFile(tempBinPath, binPath);
-      binMetaPath = path.join(indexDir, `${baseName}.bin.meta.json`);
-      await writeJsonObjectFile(binMetaPath, {
-        fields: {
-          schemaVersion: '1.0.0',
-          artifact: baseName,
-          format: 'uint8-row-major',
-          generatedAt: new Date().toISOString(),
-          path: path.basename(binPath),
-          count,
-          dims: rowWidth,
-          bytes: totalBytes,
-          ...vectorFields
-        },
-        atomic: true
-      });
-    }
-    return { jsonPath, metaPath, binPath, binMetaPath };
-  };
   const lanceConfig = normalizeLanceDbConfig(embeddingsConfig.lancedb || {});
   const binaryDenseVectors = embeddingsConfig.binaryDenseVectors !== false;
   const hnswIsolateOverride = typeof embeddingsConfig?.hnsw?.isolate === 'boolean'
@@ -2708,6 +2206,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           const chunksPerSec = processedChunks / elapsedSec;
           const remainingChunks = Math.max(0, sampledChunkCount - processedChunks);
           const etaSeconds = chunksPerSec > 0 ? (remainingChunks / chunksPerSec) : null;
+          const etaText = formatEtaSeconds(etaSeconds, { fallback: 'n/a' });
           const cacheHitRate = cacheAttempts > 0 ? ((cacheHits / cacheAttempts) * 100) : null;
           const writerStats = writerQueue.stats();
           const writerCompleted = Math.max(
@@ -2829,7 +2328,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
             `${processedChunks}/${sampledChunkCount} chunks`,
             `${filesPerSec.toFixed(1)} files/s`,
             `${chunksPerSec.toFixed(1)} chunks/s`,
-            `eta ${formatEta(etaSeconds)}`,
+            `eta ${etaText}`,
             `cache ${cacheHitRate == null ? 'n/a' : `${cacheHitRate.toFixed(1)}%`}`,
             `fp ${adaptiveFileParallelismCurrent}/${Math.max(embeddingFileConcurrencyPeak, adaptiveFileParallelismCurrent)}`,
             `writer ${writerStats.pending}/${writerStats.currentMaxPending}`,
@@ -2864,7 +2363,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
             }
           });
           chunkTask.set(Math.min(processedChunks, sampledChunkCount), sampledChunkCount, {
-            message: `${processedChunks}/${sampledChunkCount} chunks | ${chunksPerSec.toFixed(1)} chunks/s | eta ${formatEta(etaSeconds)}`,
+            message: `${processedChunks}/${sampledChunkCount} chunks | ${chunksPerSec.toFixed(1)} chunks/s | eta ${etaText}`,
             throughput: {
               chunksPerSec
             },

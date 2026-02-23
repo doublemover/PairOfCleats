@@ -1,6 +1,7 @@
 import { toPosix } from '../../../../src/shared/files.js';
 import {
   buildChunkMappingHintKey,
+  resolveChunkStableFilePath,
   resolveChunkSegmentAnchor,
   resolveChunkSegmentUid
 } from '../../../../src/index/chunk-id.js';
