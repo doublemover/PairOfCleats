@@ -20,6 +20,7 @@ import {
 const SCHEDULER_EXEC_PATH = fileURLToPath(new URL('./subprocess-exec.js', import.meta.url));
 const INDEX_LOAD_RETRY_ATTEMPTS = 8;
 const INDEX_LOAD_RETRY_BASE_DELAY_MS = 25;
+const TRANSIENT_FD_ERROR_CODES = new Set(['EAGAIN', 'EMFILE', 'ENFILE']);
 const TREE_SITTER_RUNTIME_PACKAGE = 'tree-sitter';
 const SUBPROCESS_CRASH_PREFIX = '[tree-sitter:schedule] crash-event ';
 const SUBPROCESS_INJECTED_CRASH_PREFIX = '[tree-sitter:schedule] injected-crash ';
@@ -45,6 +46,8 @@ const packageVersionCache = new Map();
  * @returns {Promise<void>}
  */
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const isTransientFdError = (err) => TRANSIENT_FD_ERROR_CODES.has(String(err?.code || ''));
 
 /**
  * Sanitize a value so it is safe to embed in cross-platform filenames.
@@ -1034,7 +1037,9 @@ const readIndexRowsWithRetry = async ({ indexPath, abortSignal = null }) => {
       return parseIndexRows(text, indexPath);
     } catch (err) {
       lastError = err;
-      const retryable = err?.code === 'ENOENT' || err?.code === 'ERR_TREE_SITTER_INDEX_PARSE';
+      const retryable = err?.code === 'ENOENT'
+        || err?.code === 'ERR_TREE_SITTER_INDEX_PARSE'
+        || isTransientFdError(err);
       if (!retryable || attempt >= INDEX_LOAD_RETRY_ATTEMPTS - 1) {
         throw err;
       }
@@ -1322,10 +1327,20 @@ export const runTreeSitterScheduler = async ({
     paths: planResult.paths,
     abortSignal
   });
+  const lookupConfig = schedulerConfig?.lookup && typeof schedulerConfig.lookup === 'object'
+    ? schedulerConfig.lookup
+    : {};
+  const configuredMaxOpenReaders = Number(
+    lookupConfig.maxOpenReaders
+      ?? schedulerConfig?.maxOpenReaders
+  );
   const lookup = createTreeSitterSchedulerLookup({
     outDir,
     index,
-    log
+    log,
+    maxOpenReaders: Number.isFinite(configuredMaxOpenReaders) && configuredMaxOpenReaders > 0
+      ? Math.floor(configuredMaxOpenReaders)
+      : null
   });
   const plannedSegmentsByContainer = buildPlannedSegmentsByContainer(planResult.groups);
   const scheduledLanguageIds = buildScheduledLanguageSet(planResult.groups);

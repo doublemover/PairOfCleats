@@ -16,11 +16,24 @@ import { resolveTreeSitterSchedulerPaths } from './paths.js';
 const DEFAULT_ROW_CACHE_MAX = 4096;
 const DEFAULT_MISS_CACHE_MAX = 10000;
 const DEFAULT_PAGE_CACHE_MAX = 1024;
+const DEFAULT_MAX_OPEN_READERS = 32;
+const TRANSIENT_FD_ERROR_CODES = new Set(['EAGAIN', 'EMFILE', 'ENFILE']);
+const TRANSIENT_FD_RETRY_ATTEMPTS = 8;
+const TRANSIENT_FD_RETRY_BASE_DELAY_MS = 25;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Create lookup service for scheduler virtual-path row/chunk retrieval.
  *
- * @param {{outDir:string,index?:Map<string,object>,log?:(line:string)=>void,maxCacheEntries?:number|null,maxMissCacheEntries?:number|null}} input
+ * @param {{
+ *  outDir:string,
+ *  index?:Map<string,object>,
+ *  log?:(line:string)=>void,
+ *  maxCacheEntries?:number|null,
+ *  maxMissCacheEntries?:number|null,
+ *  maxOpenReaders?:number|null
+ * }} input
  * @returns {object}
  */
 export const createTreeSitterSchedulerLookup = ({
@@ -28,11 +41,13 @@ export const createTreeSitterSchedulerLookup = ({
   index = new Map(),
   log = null,
   maxCacheEntries = null,
-  maxMissCacheEntries = null
+  maxMissCacheEntries = null,
+  maxOpenReaders = null
 }) => {
   const paths = resolveTreeSitterSchedulerPaths(outDir);
   const cacheMax = coercePositiveIntMinOne(maxCacheEntries) ?? DEFAULT_ROW_CACHE_MAX;
   const missCacheMax = coercePositiveIntMinOne(maxMissCacheEntries) ?? DEFAULT_MISS_CACHE_MAX;
+  const maxReaderCount = coercePositiveIntMinOne(maxOpenReaders) ?? DEFAULT_MAX_OPEN_READERS;
   const rowCache = createLruCache({
     name: 'tree-sitter-scheduler-row',
     maxEntries: cacheMax
@@ -45,11 +60,41 @@ export const createTreeSitterSchedulerLookup = ({
     name: 'tree-sitter-scheduler-page-rows',
     maxEntries: DEFAULT_PAGE_CACHE_MAX
   });
+  const stats = {
+    readerEvictions: 0,
+    transientFdRetries: 0
+  };
   const pageRefCounts = new Map();
   const consumedVirtualPaths = new Set();
   const readersByManifestPath = new Map();
+  let readerUseTick = 0;
   const segmentMetaByGrammarKey = new Map(); // grammarKey -> Promise<Map<number, object>|null>
   const pageIndexByGrammarKey = new Map(); // grammarKey -> Promise<Map<number, object>|null>
+
+  const isTransientFdError = (err) => TRANSIENT_FD_ERROR_CODES.has(String(err?.code || ''));
+
+  const withTransientFdRetry = async (fn, contextLabel = null) => {
+    let lastError = null;
+    for (let attempt = 0; attempt < TRANSIENT_FD_RETRY_ATTEMPTS; attempt += 1) {
+      try {
+        return await fn();
+      } catch (err) {
+        lastError = err;
+        if (!isTransientFdError(err) || attempt >= TRANSIENT_FD_RETRY_ATTEMPTS - 1) {
+          throw err;
+        }
+        stats.transientFdRetries += 1;
+        if (typeof log === 'function' && attempt === 0 && contextLabel) {
+          log(
+            `[tree-sitter:schedule] transient fd pressure during ${contextLabel}; ` +
+            `retrying (${String(err?.code || 'ERR')}).`
+          );
+        }
+        await sleep(TRANSIENT_FD_RETRY_BASE_DELAY_MS * (attempt + 1));
+      }
+    }
+    throw lastError || new Error('Transient fd retry failed.');
+  };
 
   /**
    * Resolve shared page-cache key for a paged-json index entry.
@@ -79,16 +124,44 @@ export const createTreeSitterSchedulerLookup = ({
    * @param {'jsonl'|'binary-v1'} [format='jsonl']
    * @returns {object}
    */
-  const getReaderForManifest = (manifestPath, format = 'jsonl') => {
+  const evictOldestReader = async () => {
+    if (readersByManifestPath.size < maxReaderCount) return;
+    let oldest = null;
+    for (const entry of readersByManifestPath.values()) {
+      if (!oldest || entry.lastUsedTick < oldest.lastUsedTick) {
+        oldest = entry;
+      }
+    }
+    if (!oldest) return;
+    readersByManifestPath.delete(oldest.key);
+    stats.readerEvictions += 1;
+    try {
+      await oldest.reader.close();
+    } catch {}
+  };
+
+  const getReaderForManifest = async (manifestPath, format = 'jsonl') => {
     const key = `${manifestPath}|${format}`;
-    if (readersByManifestPath.has(key)) {
-      return readersByManifestPath.get(key);
+    const existing = readersByManifestPath.get(key);
+    if (existing) {
+      existing.lastUsedTick = ++readerUseTick;
+      return existing.reader;
+    }
+    await evictOldestReader();
+    const secondCheck = readersByManifestPath.get(key);
+    if (secondCheck) {
+      secondCheck.lastUsedTick = ++readerUseTick;
+      return secondCheck.reader;
     }
     const reader = createVfsManifestOffsetReader({
       manifestPath,
       parseRowBuffer: format === 'binary-v1' ? parseBinaryJsonRowBuffer : undefined
     });
-    readersByManifestPath.set(key, reader);
+    readersByManifestPath.set(key, {
+      key,
+      reader,
+      lastUsedTick: ++readerUseTick
+    });
     return reader;
   };
 
@@ -98,7 +171,7 @@ export const createTreeSitterSchedulerLookup = ({
    * @returns {Promise<void>}
    */
   const close = async () => {
-    const readers = Array.from(readersByManifestPath.values());
+    const readers = Array.from(readersByManifestPath.values(), (entry) => entry.reader);
     readersByManifestPath.clear();
     segmentMetaByGrammarKey.clear();
     pageIndexByGrammarKey.clear();
@@ -128,11 +201,13 @@ export const createTreeSitterSchedulerLookup = ({
       if (!metaPath || !fs.existsSync(metaPath)) return null;
       const metaByRef = new Map();
       try {
-        for await (const row of readJsonlRows(metaPath)) {
-          const ref = Number(row?.segmentRef);
-          if (!Number.isFinite(ref) || ref < 0) continue;
-          metaByRef.set(ref, row);
-        }
+        await withTransientFdRetry(async () => {
+          for await (const row of readJsonlRows(metaPath)) {
+            const ref = Number(row?.segmentRef);
+            if (!Number.isFinite(ref) || ref < 0) continue;
+            metaByRef.set(ref, row);
+          }
+        }, `scheduler meta load ${grammarKey}`);
       } catch (err) {
         if (err?.code === 'ENOENT') return null;
         throw err;
@@ -241,7 +316,10 @@ export const createTreeSitterSchedulerLookup = ({
         }
       };
       try {
-        const text = await fsPromises.readFile(pageIndexPath, 'utf8');
+        const text = await withTransientFdRetry(
+          () => fsPromises.readFile(pageIndexPath, 'utf8'),
+          `scheduler page index load ${grammarKey}`
+        );
         parsePageIndexText(text);
       } catch (err) {
         // Atomic swap windows can briefly leave no page-index file. Fall back to
@@ -332,18 +410,21 @@ export const createTreeSitterSchedulerLookup = ({
 
     for (const group of groups.values()) {
       const { manifestPath, format, list } = group;
-      const reader = getReaderForManifest(manifestPath, format);
+      const reader = await getReaderForManifest(manifestPath, format);
       const grammarKey = list[0]?.entry?.grammarKey || null;
       const segmentMeta = grammarKey ? await loadSegmentMeta(grammarKey) : null;
       const requests = list.map(({ entry }) => ({
         offset: entry.offset,
         bytes: entry.bytes
       }));
-      const loadedRows = await readVfsManifestRowsAtOffsets({
-        manifestPath,
-        requests,
-        reader
-      });
+      const loadedRows = await withTransientFdRetry(
+        () => readVfsManifestRowsAtOffsets({
+          manifestPath,
+          requests,
+          reader
+        }),
+        `scheduler row load ${manifestPath}`
+      );
       for (let i = 0; i < list.length; i += 1) {
         const { index: rowIndex, virtualPath, entry } = list[i];
         const rawRow = loadedRows[i] || null;
@@ -370,7 +451,7 @@ export const createTreeSitterSchedulerLookup = ({
       const { grammarKey, manifestPath, list } = pagedGroup;
       const segmentMeta = grammarKey ? await loadSegmentMeta(grammarKey) : null;
       const pageIndex = await loadPageIndex(grammarKey);
-      const reader = getReaderForManifest(manifestPath, 'binary-v1');
+      const reader = await getReaderForManifest(manifestPath, 'binary-v1');
       const byPage = new Map();
       const fallbackPageMetaByPage = new Map();
       for (const item of list) {
@@ -405,11 +486,14 @@ export const createTreeSitterSchedulerLookup = ({
         });
         requestedPages.push({ pageId, pageMeta });
       }
-      const loadedPages = await readVfsManifestRowsAtOffsets({
-        manifestPath,
-        requests: pageRequests,
-        reader
-      });
+      const loadedPages = await withTransientFdRetry(
+        () => readVfsManifestRowsAtOffsets({
+          manifestPath,
+          requests: pageRequests,
+          reader
+        }),
+        `scheduler page load ${manifestPath}`
+      );
       for (let i = 0; i < requestedPages.length; i += 1) {
         const { pageId, pageMeta } = requestedPages[i];
         const cacheKey = `${grammarKey}:${pageId}`;
@@ -546,7 +630,10 @@ export const createTreeSitterSchedulerLookup = ({
     loadChunksBatch,
     close,
     stats: () => ({
+      ...stats,
       indexEntries: index.size,
+      openReaders: readersByManifestPath.size,
+      maxOpenReaders: maxReaderCount,
       cacheEntries: rowCache.size(),
       pageCacheEntries: pageRowsCache.size(),
       missEntries: missCache.size(),

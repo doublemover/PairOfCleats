@@ -1,5 +1,11 @@
 import fsPromises from 'node:fs/promises';
 
+const TRANSIENT_FD_OPEN_ERROR_CODES = new Set(['EAGAIN', 'EMFILE', 'ENFILE']);
+const DEFAULT_OPEN_RETRY_ATTEMPTS = 8;
+const DEFAULT_OPEN_RETRY_BASE_DELAY_MS = 25;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const parseVfsManifestRowBuffer = (buffer, bytesRead) => {
   if (!buffer || !Number.isFinite(bytesRead) || bytesRead <= 0) return null;
   const line = buffer.slice(0, bytesRead).toString('utf8').trim();
@@ -39,10 +45,14 @@ export const createVfsManifestOffsetReader = ({
   manifestPath,
   maxBufferPoolEntries = 64,
   maxCoalesceBytes = 1024 * 1024,
-  parseRowBuffer = parseVfsManifestRowBuffer
+  parseRowBuffer = parseVfsManifestRowBuffer,
+  openRetryAttempts = DEFAULT_OPEN_RETRY_ATTEMPTS,
+  openRetryBaseDelayMs = DEFAULT_OPEN_RETRY_BASE_DELAY_MS
 }) => {
   const poolLimit = coercePositiveInt(maxBufferPoolEntries, 64);
   const coalesceLimit = coercePositiveInt(maxCoalesceBytes, 1024 * 1024);
+  const normalizedOpenRetryAttempts = Math.max(1, coercePositiveInt(openRetryAttempts, DEFAULT_OPEN_RETRY_ATTEMPTS));
+  const normalizedOpenRetryBaseDelayMs = Math.max(1, coercePositiveInt(openRetryBaseDelayMs, DEFAULT_OPEN_RETRY_BASE_DELAY_MS));
   const bufferPool = new Map();
   let pooledBuffers = 0;
   let handlePromise = null;
@@ -54,7 +64,8 @@ export const createVfsManifestOffsetReader = ({
     coalescedReads: 0,
     coalescedBytes: 0,
     bufferAllocations: 0,
-    bufferReuses: 0
+    bufferReuses: 0,
+    handleOpenRetries: 0
   };
 
   const checkoutBuffer = (size) => {
@@ -86,8 +97,29 @@ export const createVfsManifestOffsetReader = ({
       throw err;
     }
     if (!handlePromise) {
-      stats.handleOpens += 1;
-      handlePromise = fsPromises.open(manifestPath, 'r');
+      handlePromise = (async () => {
+        let lastError = null;
+        for (let attempt = 0; attempt < normalizedOpenRetryAttempts; attempt += 1) {
+          try {
+            stats.handleOpens += 1;
+            return await fsPromises.open(manifestPath, 'r');
+          } catch (err) {
+            lastError = err;
+            const code = String(err?.code || '');
+            const retryable = TRANSIENT_FD_OPEN_ERROR_CODES.has(code);
+            if (!retryable || attempt >= normalizedOpenRetryAttempts - 1) {
+              throw err;
+            }
+            stats.handleOpenRetries += 1;
+            await sleep(normalizedOpenRetryBaseDelayMs * (attempt + 1));
+          }
+        }
+        throw lastError || new Error(`Failed to open VFS manifest: ${manifestPath}`);
+      })().catch((err) => {
+        // Allow future reads to reopen after transient failures.
+        handlePromise = null;
+        throw err;
+      });
     }
     return handlePromise;
   };
