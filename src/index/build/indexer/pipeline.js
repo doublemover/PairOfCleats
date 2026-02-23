@@ -835,6 +835,47 @@ export const buildFeatureSettings = (runtime, mode) => {
   };
 };
 
+const VOLATILE_SCHEDULER_QUEUE_FIELDS = new Set([
+  'oldestWaitMs',
+  'lastWaitMs',
+  'waitP95Ms',
+  'waitSampleCount'
+]);
+
+const sanitizeSchedulerQueueForCheckpoint = (queueStats) => {
+  if (!queueStats || typeof queueStats !== 'object') return queueStats || null;
+  const next = { ...queueStats };
+  for (const key of VOLATILE_SCHEDULER_QUEUE_FIELDS) {
+    if (key in next) delete next[key];
+  }
+  return next;
+};
+
+/**
+ * Remove high-churn scheduler wait metrics from persisted stage checkpoints.
+ * Runtime warnings still use the unsanitized snapshot.
+ *
+ * @param {object|null} snapshot
+ * @returns {object|null}
+ */
+export const sanitizeRuntimeSnapshotForCheckpoint = (snapshot) => {
+  if (!snapshot || typeof snapshot !== 'object') return snapshot || null;
+  const sanitized = { ...snapshot };
+  const scheduler = snapshot.scheduler && typeof snapshot.scheduler === 'object'
+    ? { ...snapshot.scheduler }
+    : null;
+  if (scheduler?.queues && typeof scheduler.queues === 'object') {
+    scheduler.queues = Object.fromEntries(
+      Object.entries(scheduler.queues).map(([name, queueStats]) => [
+        name,
+        sanitizeSchedulerQueueForCheckpoint(queueStats)
+      ])
+    );
+  }
+  sanitized.scheduler = scheduler;
+  return sanitized;
+};
+
 const countFieldEntries = (fieldMaps) => {
   if (!fieldMaps || typeof fieldMaps !== 'object') return 0;
   let total = 0;
@@ -1319,13 +1360,14 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   }) => {
     const safeExtra = extra && typeof extra === 'object' ? extra : {};
     const runtimeSnapshot = captureRuntimeSnapshot();
+    const persistedRuntimeSnapshot = sanitizeRuntimeSnapshotForCheckpoint(runtimeSnapshot);
     stageCheckpoints.record({
       stage,
       step,
       label,
       extra: {
         ...safeExtra,
-        runtime: runtimeSnapshot
+        runtime: persistedRuntimeSnapshot
       }
     });
     maybeWarnLowSchedulerUtilization({
@@ -1961,5 +2003,6 @@ export const indexerPipelineInternals = Object.freeze({
   readModalitySparsityProfile,
   writeModalitySparsityEntry,
   shouldElideModalityProcessingStage,
-  resolveTinyRepoFastPath
+  resolveTinyRepoFastPath,
+  sanitizeRuntimeSnapshotForCheckpoint
 });
