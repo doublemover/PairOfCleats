@@ -115,6 +115,7 @@ const DEFAULT_EMBEDDINGS_PROGRESS_HEARTBEAT_MS = 1500;
 const DEFAULT_EMBEDDINGS_FILE_PARALLELISM = 2;
 const DEFAULT_CROSS_FILE_CHUNK_DEDUPE_MAX_ENTRIES = 200000;
 const DEFAULT_EMBEDDINGS_SOURCE_HASH_CACHE_MAX_ENTRIES = 200000;
+const DEFAULT_EMBEDDINGS_CHUNK_META_RETRY_CEILING_BYTES = 1024 * 1024 * 1024;
 
 let Database = null;
 try {
@@ -634,6 +635,14 @@ export const resolveEmbeddingsSourceHashCacheMaxEntries = (indexingConfig) => {
   return configured || DEFAULT_EMBEDDINGS_SOURCE_HASH_CACHE_MAX_ENTRIES;
 };
 
+export const resolveEmbeddingsChunkMetaRetryCeilingBytes = (indexingConfig) => {
+  const configured = Number(indexingConfig?.embeddings?.chunkMetaRetryCeilingBytes);
+  if (Number.isFinite(configured) && configured > 0) {
+    return Math.max(MAX_JSON_BYTES, Math.floor(configured));
+  }
+  return Math.max(MAX_JSON_BYTES, DEFAULT_EMBEDDINGS_CHUNK_META_RETRY_CEILING_BYTES);
+};
+
 export const boundedMapSet = (map, key, value, maxEntries) => {
   if (!(map instanceof Map) || !key) return;
   if (map.has(key)) map.delete(key);
@@ -652,6 +661,45 @@ const isChunkMetaTooLargeError = (err) => {
   }
   const message = String(err?.message || '').toLowerCase();
   return message.includes('exceeds maxbytes');
+};
+
+export const parseChunkMetaTooLargeBytes = (err) => {
+  const message = String(err?.message || '');
+  const match = message.match(/\((\d+)\s*>\s*(\d+)\)/);
+  if (!match) return null;
+  const actualBytes = Number(match[1]);
+  const maxBytes = Number(match[2]);
+  if (!Number.isFinite(actualBytes) || actualBytes <= 0) return null;
+  if (!Number.isFinite(maxBytes) || maxBytes <= 0) return null;
+  return {
+    actualBytes: Math.floor(actualBytes),
+    maxBytes: Math.floor(maxBytes)
+  };
+};
+
+export const resolveChunkMetaRetryMaxBytes = ({
+  err,
+  currentMaxBytes,
+  retryCeilingBytes
+}) => {
+  if (!isChunkMetaTooLargeError(err)) return null;
+  const current = Number.isFinite(Number(currentMaxBytes))
+    ? Math.max(1, Math.floor(Number(currentMaxBytes)))
+    : null;
+  const ceiling = Number.isFinite(Number(retryCeilingBytes))
+    ? Math.max(MAX_JSON_BYTES, Math.floor(Number(retryCeilingBytes)))
+    : null;
+  if (!current || !ceiling || current >= ceiling) return null;
+  const parsed = parseChunkMetaTooLargeBytes(err);
+  const minFromObserved = parsed
+    ? parsed.actualBytes + Math.max(8 * 1024 * 1024, Math.floor(parsed.actualBytes * 0.1))
+    : null;
+  const growthFloor = current + Math.max(8 * 1024 * 1024, Math.floor(current * 0.25));
+  const target = Math.max(growthFloor, minFromObserved || 0);
+  if (!Number.isFinite(target) || target <= current) return null;
+  const bounded = Math.min(ceiling, Math.floor(target));
+  if (bounded <= current) return null;
+  return bounded;
 };
 
 const isMissingArtifactError = (err, artifactBaseName) => {
@@ -1772,107 +1820,130 @@ export async function runBuildEmbeddingsWithConfig(config) {
         let totalChunks = 0;
         let loadedChunkMetaFromArtifacts = false;
         let streamSamplingSummary = null;
-        try {
-          await scheduleIo(async () => {
-            const fileMetaById = new Map();
-            const streamSampler = embeddingSampling.maxFiles
-              ? createDeterministicFileStreamSampler({
-                mode,
-                maxFiles: embeddingSampling.maxFiles,
-                seed: embeddingSampling.seed
-              })
-              : null;
-            let fileMetaLoaded = false;
-            let fileMetaLoadFailed = false;
-            const ensureFileMetaById = async () => {
-              if (fileMetaLoaded || fileMetaLoadFailed) return;
-              try {
-                for await (const row of loadFileMetaRows(indexDir, {
-                  maxBytes: chunkMetaMaxBytes,
-                  strict: false
-                })) {
-                  if (!row || !Number.isFinite(Number(row.id)) || typeof row.file !== 'string') continue;
-                  fileMetaById.set(Number(row.id), row.file);
-                }
-                fileMetaLoaded = true;
-              } catch (err) {
-                fileMetaLoadFailed = true;
-                if (!isMissingArtifactError(err, 'file_meta')) {
-                  warn(`[embeddings] Failed to stream file_meta for ${mode}: ${err?.message || err}`);
-                }
-              }
-            };
-            let unresolvedFileRows = 0;
-            let nextIndex = 0;
-            for await (const chunkRow of loadChunkMetaRows(indexDir, {
-              maxBytes: chunkMetaMaxBytes,
-              strict: false,
-              includeCold: false
-            })) {
-              const chunkIndex = nextIndex;
-              nextIndex += 1;
-              if (!chunkRow || typeof chunkRow !== 'object') continue;
-              const fileId = Number(chunkRow.fileId);
-              let filePath = typeof chunkRow.file === 'string' && chunkRow.file
-                ? chunkRow.file
+        const chunkMetaRetryCeilingBytes = resolveEmbeddingsChunkMetaRetryCeilingBytes(indexingConfig);
+        let chunkMetaLoadError = null;
+        let chunkMetaMaxBytesActive = chunkMetaMaxBytes;
+        for (let attempt = 0; attempt < 2 && !loadedChunkMetaFromArtifacts; attempt += 1) {
+          try {
+            chunksByFile = new Map();
+            streamSamplingSummary = null;
+            await scheduleIo(async () => {
+              const fileMetaById = new Map();
+              const streamSampler = embeddingSampling.maxFiles
+                ? createDeterministicFileStreamSampler({
+                  mode,
+                  maxFiles: embeddingSampling.maxFiles,
+                  seed: embeddingSampling.seed
+                })
                 : null;
-              if (!filePath && Number.isFinite(fileId)) {
-                if (!fileMetaLoaded && !fileMetaLoadFailed) {
-                  await ensureFileMetaById();
+              let fileMetaLoaded = false;
+              let fileMetaLoadFailed = false;
+              const ensureFileMetaById = async () => {
+                if (fileMetaLoaded || fileMetaLoadFailed) return;
+                try {
+                  for await (const row of loadFileMetaRows(indexDir, {
+                    maxBytes: chunkMetaMaxBytesActive,
+                    strict: false
+                  })) {
+                    if (!row || !Number.isFinite(Number(row.id)) || typeof row.file !== 'string') continue;
+                    fileMetaById.set(Number(row.id), row.file);
+                  }
+                  fileMetaLoaded = true;
+                } catch (err) {
+                  fileMetaLoadFailed = true;
+                  if (!isMissingArtifactError(err, 'file_meta')) {
+                    warn(`[embeddings] Failed to stream file_meta for ${mode}: ${err?.message || err}`);
+                  }
                 }
-                filePath = fileMetaById.get(fileId) || null;
-              }
-              if (!filePath) {
-                unresolvedFileRows += 1;
-                continue;
-              }
-              const normalizedFilePath = toPosix(filePath);
-              if (!normalizedFilePath) {
-                unresolvedFileRows += 1;
-                continue;
-              }
-              if (streamSampler) {
-                const decision = streamSampler.considerFile(normalizedFilePath);
-                if (decision.evicted) {
-                  chunksByFile.delete(decision.evicted);
+              };
+              let unresolvedFileRows = 0;
+              let nextIndex = 0;
+              for await (const chunkRow of loadChunkMetaRows(indexDir, {
+                maxBytes: chunkMetaMaxBytesActive,
+                strict: false,
+                includeCold: false
+              })) {
+                const chunkIndex = nextIndex;
+                nextIndex += 1;
+                if (!chunkRow || typeof chunkRow !== 'object') continue;
+                const fileId = Number(chunkRow.fileId);
+                let filePath = typeof chunkRow.file === 'string' && chunkRow.file
+                  ? chunkRow.file
+                  : null;
+                if (!filePath && Number.isFinite(fileId)) {
+                  if (!fileMetaLoaded && !fileMetaLoadFailed) {
+                    await ensureFileMetaById();
+                  }
+                  filePath = fileMetaById.get(fileId) || null;
                 }
-                if (!decision.selected) {
+                if (!filePath) {
+                  unresolvedFileRows += 1;
                   continue;
                 }
+                const normalizedFilePath = toPosix(filePath);
+                if (!normalizedFilePath) {
+                  unresolvedFileRows += 1;
+                  continue;
+                }
+                if (streamSampler) {
+                  const decision = streamSampler.considerFile(normalizedFilePath);
+                  if (decision.evicted) {
+                    chunksByFile.delete(decision.evicted);
+                  }
+                  if (!decision.selected) {
+                    continue;
+                  }
+                }
+                const compactChunk = compactChunkForEmbeddings(chunkRow, filePath);
+                if (!compactChunk) {
+                  unresolvedFileRows += 1;
+                  continue;
+                }
+                const list = chunksByFile.get(normalizedFilePath) || [];
+                list.push({ index: chunkIndex, chunk: compactChunk });
+                chunksByFile.set(normalizedFilePath, list);
               }
-              const compactChunk = compactChunkForEmbeddings(chunkRow, filePath);
-              if (!compactChunk) {
-                unresolvedFileRows += 1;
-                continue;
+              if (unresolvedFileRows > 0) {
+                warn(
+                  `[embeddings] ${mode}: skipped ${unresolvedFileRows} chunk_meta rows with unresolved file mapping.`
+                );
               }
-              const list = chunksByFile.get(normalizedFilePath) || [];
-              list.push({ index: chunkIndex, chunk: compactChunk });
-              chunksByFile.set(normalizedFilePath, list);
-            }
-            if (unresolvedFileRows > 0) {
+              if (streamSampler) {
+                streamSamplingSummary = {
+                  seenFiles: streamSampler.getSeenCount(),
+                  selectedFiles: streamSampler.getSelectedCount()
+                };
+              }
+              totalChunks = nextIndex;
+            });
+            loadedChunkMetaFromArtifacts = true;
+          } catch (err) {
+            chunkMetaLoadError = err;
+            const retryMaxBytes = resolveChunkMetaRetryMaxBytes({
+              err,
+              currentMaxBytes: chunkMetaMaxBytesActive,
+              retryCeilingBytes: chunkMetaRetryCeilingBytes
+            });
+            if (retryMaxBytes && retryMaxBytes > chunkMetaMaxBytesActive) {
               warn(
-                `[embeddings] ${mode}: skipped ${unresolvedFileRows} chunk_meta rows with unresolved file mapping.`
+                `[embeddings] chunk_meta exceeded budget for ${mode} ` +
+                `(${chunkMetaMaxBytesActive} bytes); retrying with ${retryMaxBytes} bytes.`
               );
+              chunkMetaMaxBytesActive = retryMaxBytes;
+              continue;
             }
-            if (streamSampler) {
-              streamSamplingSummary = {
-                seenFiles: streamSampler.getSeenCount(),
-                selectedFiles: streamSampler.getSelectedCount()
-              };
-            }
-            totalChunks = nextIndex;
-          });
-          loadedChunkMetaFromArtifacts = true;
-        } catch (err) {
-          if (isChunkMetaTooLargeError(err)) {
+            break;
+          }
+        }
+        if (!loadedChunkMetaFromArtifacts) {
+          if (isChunkMetaTooLargeError(chunkMetaLoadError)) {
             warn(
               `[embeddings] chunk_meta exceeded budget for ${mode} ` +
-              `(${chunkMetaMaxBytes} bytes); using incremental bundles if available.`
+              `(${chunkMetaMaxBytesActive} bytes); using incremental bundles if available.`
             );
-          } else if (!isMissingArtifactError(err, 'chunk_meta')) {
-            warn(`[embeddings] Failed to load chunk_meta for ${mode}: ${err?.message || err}`);
+          } else if (!isMissingArtifactError(chunkMetaLoadError, 'chunk_meta')) {
+            warn(`[embeddings] Failed to load chunk_meta for ${mode}: ${chunkMetaLoadError?.message || chunkMetaLoadError}`);
           }
-          loadedChunkMetaFromArtifacts = false;
         }
         if (!loadedChunkMetaFromArtifacts) {
           if (!manifestFiles || !Object.keys(manifestFiles).length) {
