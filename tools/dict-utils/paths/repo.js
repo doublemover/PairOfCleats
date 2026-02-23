@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { isAbsolutePathNative } from '../../../src/shared/files.js';
 import { findUpwards } from '../../../src/shared/fs/find-upwards.js';
+import { joinPathSafe } from '../../../src/shared/path-normalize.js';
 import { toRealPathSync } from '../../../src/workspace/identity.js';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
@@ -362,8 +363,8 @@ export function resolveIndexRoot(repoRoot, userConfig = null, options = {}) {
  */
 export function resolvePath(repoRoot, filePath) {
   if (!filePath) return null;
-  if (isAbsolutePathNative(filePath)) return filePath;
-  return path.join(repoRoot, filePath);
+  if (isAbsolutePathNative(filePath)) return path.resolve(filePath);
+  return joinPathSafe(repoRoot, [filePath]);
 }
 
 /**

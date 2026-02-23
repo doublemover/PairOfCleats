@@ -3,6 +3,10 @@ import path from 'node:path';
 import { loadUserConfig } from '../config.js';
 import { getRepoCacheRoot, resolveIndexRoot, resolvePath } from './repo.js';
 
+const resolveRepoOverride = (repoRoot, value, fallback) => (
+  (value ? resolvePath(repoRoot, value) : null) || fallback
+);
+
 /**
  * Resolve LMDB database paths for the repo.
  * @param {string} repoRoot
@@ -14,13 +18,9 @@ export function resolveLmdbPaths(repoRoot, userConfig = null, options = {}) {
   const lmdb = cfg.lmdb || {};
   const indexRoot = resolveIndexRoot(repoRoot, cfg, options);
   const defaultDir = path.join(indexRoot, 'index-lmdb');
-  const dbDir = lmdb.dbDir ? resolvePath(repoRoot, lmdb.dbDir) : defaultDir;
-  const codePath = lmdb.codeDbPath
-    ? resolvePath(repoRoot, lmdb.codeDbPath)
-    : path.join(dbDir, 'index-code');
-  const prosePath = lmdb.proseDbPath
-    ? resolvePath(repoRoot, lmdb.proseDbPath)
-    : path.join(dbDir, 'index-prose');
+  const dbDir = resolveRepoOverride(repoRoot, lmdb.dbDir, defaultDir);
+  const codePath = resolveRepoOverride(repoRoot, lmdb.codeDbPath, path.join(dbDir, 'index-code'));
+  const prosePath = resolveRepoOverride(repoRoot, lmdb.proseDbPath, path.join(dbDir, 'index-prose'));
   return { codePath, prosePath, dbDir };
 }
 
@@ -37,19 +37,15 @@ export function resolveSqlitePaths(repoRoot, userConfig = null, options = {}) {
   const indexRoot = resolveIndexRoot(repoRoot, cfg, options);
   const defaultDir = path.join(indexRoot, 'index-sqlite');
   const legacyPath = path.join(repoCacheRoot, 'index-sqlite', 'index.db');
-  const dbDir = sqlite.dbDir ? resolvePath(repoRoot, sqlite.dbDir) : defaultDir;
-  const codePath = sqlite.codeDbPath
-    ? resolvePath(repoRoot, sqlite.codeDbPath)
-    : path.join(dbDir, 'index-code.db');
-  const prosePath = sqlite.proseDbPath
-    ? resolvePath(repoRoot, sqlite.proseDbPath)
-    : path.join(dbDir, 'index-prose.db');
-  const extractedProsePath = sqlite.extractedProseDbPath
-    ? resolvePath(repoRoot, sqlite.extractedProseDbPath)
-    : path.join(dbDir, 'index-extracted-prose.db');
-  const recordsPath = sqlite.recordsDbPath
-    ? resolvePath(repoRoot, sqlite.recordsDbPath)
-    : path.join(dbDir, 'index-records.db');
+  const dbDir = resolveRepoOverride(repoRoot, sqlite.dbDir, defaultDir);
+  const codePath = resolveRepoOverride(repoRoot, sqlite.codeDbPath, path.join(dbDir, 'index-code.db'));
+  const prosePath = resolveRepoOverride(repoRoot, sqlite.proseDbPath, path.join(dbDir, 'index-prose.db'));
+  const extractedProsePath = resolveRepoOverride(
+    repoRoot,
+    sqlite.extractedProseDbPath,
+    path.join(dbDir, 'index-extracted-prose.db')
+  );
+  const recordsPath = resolveRepoOverride(repoRoot, sqlite.recordsDbPath, path.join(dbDir, 'index-records.db'));
   return {
     codePath,
     prosePath,
