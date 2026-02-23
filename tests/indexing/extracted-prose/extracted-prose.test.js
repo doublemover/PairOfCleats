@@ -48,13 +48,10 @@ await fsPromises.writeFile(
   `# Plain\n\n${mdPlainText}\n`
 );
 
-const env = {
-  ...process.env,  PAIROFCLEATS_CACHE_ROOT: path.join(tempRoot, 'cache'),
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
-applyTestEnv();
-process.env.PAIROFCLEATS_CACHE_ROOT = env.PAIROFCLEATS_CACHE_ROOT;
-process.env.PAIROFCLEATS_EMBEDDINGS = env.PAIROFCLEATS_EMBEDDINGS;
+const env = applyTestEnv({
+  cacheRoot: path.join(tempRoot, 'cache'),
+  embeddings: 'stub'
+});
 
 const buildResult = spawnSync(
   process.execPath,

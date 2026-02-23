@@ -27,13 +27,10 @@ await fsPromises.mkdir(tempRoot, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 
-const env = {
-  ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
-applyTestEnv();
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+const env = applyTestEnv({
+  cacheRoot: cacheRoot,
+  embeddings: 'stub'
+});
 
 const run = (args, label, options = {}) => {
   const result = spawnSync(process.execPath, args, {

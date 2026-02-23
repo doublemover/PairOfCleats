@@ -23,13 +23,10 @@ const source = [
 ].join('\n');
 await fsPromises.writeFile(path.join(srcDir, 'sample.js'), source);
 
-const env = {
-  ...process.env,  PAIROFCLEATS_CACHE_ROOT: path.join(tempRoot, 'cache'),
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
-applyTestEnv();
-process.env.PAIROFCLEATS_CACHE_ROOT = path.join(tempRoot, 'cache');
-process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+const env = applyTestEnv({
+  cacheRoot: path.join(tempRoot, 'cache'),
+  embeddings: 'stub'
+});
 
 const buildResult = spawnSync(
   process.execPath,

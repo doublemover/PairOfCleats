@@ -29,13 +29,10 @@ await fsPromises.mkdir(cacheRoot, { recursive: true });
 await fsPromises.writeFile(path.join(repoRoot, 'alpha.js'), 'const alpha = 1;\n');
 await fsPromises.writeFile(path.join(repoRoot, 'beta.js'), 'const beta = 2;\n');
 
-const env = {
-  ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
-applyTestEnv();
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+const env = applyTestEnv({
+  cacheRoot: cacheRoot,
+  embeddings: 'stub'
+});
 
 const runNode = (label, args) => {
   const result = spawnSync(process.execPath, args, { cwd: repoRoot, env, stdio: 'inherit' });

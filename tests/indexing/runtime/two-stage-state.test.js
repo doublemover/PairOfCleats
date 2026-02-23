@@ -18,12 +18,10 @@ await fsPromises.mkdir(repoRoot, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 await fsPromises.writeFile(path.join(repoRoot, 'alpha.js'), 'const alpha = 1;\n');
 
-const env = {
-  ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
-applyTestEnv();
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+const env = applyTestEnv({
+  cacheRoot: cacheRoot,
+  embeddings: 'stub'
+});
 
 const runBuild = (label, args) => {
   const result = spawnSync(process.execPath, args, { cwd: repoRoot, env, stdio: 'inherit' });
