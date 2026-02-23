@@ -612,11 +612,8 @@ const resolveEmbeddingsFileParallelism = ({
   if (hnswEnabled) return 1;
   const configured = toPositiveIntOrNull(indexingConfig?.embeddings?.fileParallelism);
   if (configured) return configured;
-  const tokenDriven = Math.max(
-    DEFAULT_EMBEDDINGS_FILE_PARALLELISM,
-    Math.min(4, Number.isFinite(Number(computeTokensTotal)) ? Math.floor(Number(computeTokensTotal)) : 1)
-  );
-  return Math.max(1, tokenDriven);
+  const tokenDriven = toPositiveIntOrNull(computeTokensTotal);
+  return tokenDriven || DEFAULT_EMBEDDINGS_FILE_PARALLELISM;
 };
 
 const isChunkMetaTooLargeError = (err) => {
