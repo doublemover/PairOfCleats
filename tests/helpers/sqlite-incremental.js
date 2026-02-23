@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { loadUserConfig, resolveSqlitePaths } from '../../tools/shared/dict-utils.js';
 import { applyTestEnv } from './test-env.js';
 import { rmDirRecursive } from './temp.js';
+import { resolveTestCacheDir } from './test-cache.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const FIXTURE_ROOT = path.join(ROOT, 'tests', 'fixtures', 'sample');
@@ -48,7 +49,8 @@ export const setupIncrementalRepo = async ({ name }) => {
   const scopeHash = createHash('sha1').update(scopedName).digest('hex').slice(0, 8);
   const runToken = `${Date.now().toString(36)}-${process.pid.toString(36)}`;
   const label = compactLabel(name, 18);
-  const tempRoot = path.join(ROOT, '.testCache', 'sqlite-incremental', `${label}-${scopeHash}-${runToken}`);
+  const { dir: incrementalRoot } = resolveTestCacheDir('sqlite-incremental', { root: ROOT });
+  const tempRoot = path.join(incrementalRoot, `${label}-${scopeHash}-${runToken}`);
   const repoRoot = path.join(tempRoot, 'repo');
   const cacheRoot = path.join(tempRoot, 'cache');
 

@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { loadWorkspaceConfig } from '../../src/workspace/config.js';
 import { generateWorkspaceManifest } from '../../src/workspace/manifest.js';
+import { toRealPathSync } from '../../src/workspace/identity.js';
 import {
   createWorkspaceFixture,
   removeWorkspaceFixture,
@@ -145,6 +146,49 @@ const scenarios = [
       assert.equal(codeMode.availabilityReason, 'invalid-pointer');
       assert.equal(codeMode.indexSignatureHash, null, 'invalid pointer should not preserve stale index signatures');
     }
+  },
+  {
+    name: 'buildid-fallback-prefers-builds-root',
+    prefix: 'pairofcleats-workspace-buildid-prefers-builds-root-',
+    setup: async ({ repoCacheRoot }) => {
+      const buildId = 'build-1';
+      const buildsRoot = path.join(repoCacheRoot, 'builds');
+      const canonicalBuildRoot = path.join(buildsRoot, buildId);
+      await writeIndexArtifacts({
+        buildRoot: canonicalBuildRoot,
+        compatibilityKey: 'compat-builds'
+      });
+      const rogueBuildRoot = path.join(repoCacheRoot, buildId);
+      await writeIndexArtifacts({
+        buildRoot: rogueBuildRoot,
+        compatibilityKey: 'compat-rogue'
+      });
+      await fs.mkdir(buildsRoot, { recursive: true });
+      await fs.writeFile(path.join(buildsRoot, 'current.json'), JSON.stringify({
+        buildId,
+        modes: ['code']
+      }), 'utf8');
+    },
+    verify: (manifest, { repoCacheRoot }) => {
+      const repo = manifest.repos[0];
+      const canonicalBuildRoot = path.join(repoCacheRoot, 'builds', 'build-1');
+      const canonicalIndexDir = path.join(canonicalBuildRoot, 'index-code');
+      assert.equal(
+        repo.build.buildRoot,
+        toRealPathSync(canonicalBuildRoot),
+        'buildId fallback should resolve to builds/<buildId>'
+      );
+      assert.equal(
+        repo.indexes.code.indexDir,
+        toRealPathSync(canonicalIndexDir),
+        'index path should come from builds/<buildId>/index-code'
+      );
+      assert.equal(
+        repo.indexes.code.compatibilityKey,
+        'compat-builds',
+        'manifest should read index_state from builds root, not repo-cache sibling path'
+      );
+    }
   }
 ];
 
@@ -153,7 +197,7 @@ for (const scenario of scenarios) {
   try {
     await scenario.setup(fixture);
     const manifest = await readManifest(fixture.workspacePath);
-    scenario.verify(manifest);
+    scenario.verify(manifest, fixture);
   } finally {
     await removeWorkspaceFixture(fixture.tempRoot);
   }

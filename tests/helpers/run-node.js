@@ -5,6 +5,7 @@ export const runNode = (args, label, cwd, env, options = {}) => {
     timeoutMs,
     stdio = 'inherit',
     encoding,
+    allowFailure = false,
     spawnOptions = {},
     onFailure
   } = options;
@@ -19,7 +20,7 @@ export const runNode = (args, label, cwd, env, options = {}) => {
     ...spawnOptions
   });
 
-  if (result.status !== 0) {
+  if (result.status !== 0 && !allowFailure) {
     const details = [];
     if (result.error?.code === 'ETIMEDOUT' && Number.isFinite(timeoutMs)) {
       details.push(`timeout after ${timeoutMs}ms`);

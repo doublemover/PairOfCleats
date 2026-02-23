@@ -3,6 +3,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../helpers/test-env.js';
 import { getIndexDir, resolveRepoConfig } from '../../tools/shared/dict-utils.js';
+import { prepareTestCacheDir } from '../helpers/test-cache.js';
 
 export async function prepareMapBuildFixture({
   tempName,
@@ -15,11 +16,9 @@ export async function prepareMapBuildFixture({
   }
 
   const root = process.cwd();
-  const tempRoot = path.join(root, '.testCache', tempName);
+  const { dir: tempRoot } = await prepareTestCacheDir(tempName);
   const repoRoot = path.join(tempRoot, 'repo');
   const cacheRoot = path.join(tempRoot, 'cache');
-
-  await fsPromises.rm(tempRoot, { recursive: true, force: true });
   await fsPromises.mkdir(repoRoot, { recursive: true });
   await fsPromises.mkdir(cacheRoot, { recursive: true });
   await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });

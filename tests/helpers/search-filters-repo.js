@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { getIndexDir, loadUserConfig } from '../../tools/shared/dict-utils.js';
 import { applyTestEnv } from './test-env.js';
 
+import { resolveTestCachePath } from './test-cache.js';
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const VALID_CACHE_SCOPES = new Set(['isolated', 'shared']);
 
@@ -117,7 +119,7 @@ export const ensureSearchFiltersRepo = async ({ cacheScope = 'shared' } = {}) =>
     return null;
   }
   const normalizedCacheScope = normalizeCacheScope(cacheScope);
-  const tempRoot = path.join(ROOT, '.testCache', 'search-filters');
+  const tempRoot = resolveTestCachePath(ROOT, 'search-filters');
   const runSuffix = `${Date.now()}-${process.pid}-${Math.random().toString(16).slice(2, 8)}`;
   const repoRoot = normalizedCacheScope === 'shared'
     ? path.join(tempRoot, 'repo')

@@ -3,6 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getCurrentBuildInfo, getIndexDir, loadUserConfig } from '../../tools/shared/dict-utils.js';
+import { prepareTestCacheDir } from './test-cache.js';
 
 export const normalizeFixturePath = (value) => String(value || '').replace(/\\/g, '/').toLowerCase();
 
@@ -13,12 +14,11 @@ export const findFixtureEntryBySuffix = (entries, suffix) => {
 };
 
 export const setupExtractedProseFixture = async (name, { root = process.cwd() } = {}) => {
-  const tempRoot = path.join(root, '.testCache', name);
+  const { dir: tempRoot } = await prepareTestCacheDir(name, { root });
   const repoRoot = path.join(tempRoot, 'repo');
   const cacheRoot = path.join(tempRoot, 'cache');
   const docsDir = path.join(repoRoot, 'docs');
 
-  await fsPromises.rm(tempRoot, { recursive: true, force: true });
   await fsPromises.mkdir(docsDir, { recursive: true });
   await fsPromises.mkdir(cacheRoot, { recursive: true });
 
