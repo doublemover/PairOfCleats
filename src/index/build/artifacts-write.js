@@ -79,6 +79,13 @@ import {
   resolveWriteStartTimestampMs
 } from './artifacts/lane-policy.js';
 import {
+  countPendingLaneWrites,
+  hasPendingLaneWrites,
+  pickDispatchLane,
+  resolveDispatchLaneBudgets,
+  takeLaneDispatchEntries
+} from './artifacts/write-dispatch-lanes.js';
+import {
   createAdaptiveWriteConcurrencyController,
   isValidationCriticalArtifact,
   resolveAdaptiveShardCount,
@@ -2436,17 +2443,7 @@ export async function writeIndexArtifacts(input) {
     let forcedTailRescueConcurrency = null;
     let tailRescueActive = false;
     let tailWorkerActive = 0;
-    /**
-     * Count queued write entries across all dispatch lanes.
-     *
-     * @returns {number}
-     */
-    const pendingWriteCount = () => (
-      laneQueues.ultraLight.length
-      + laneQueues.massive.length
-      + laneQueues.light.length
-      + laneQueues.heavy.length
-    );
+    const pendingWriteCount = () => countPendingLaneWrites(laneQueues);
     /**
      * Resolve current effective write concurrency with optional tail-rescue boost.
      *
@@ -2517,95 +2514,15 @@ export async function writeIndexArtifacts(input) {
         rssUtilization: Number(memorySignals?.rssUtilization)
       });
     };
-    /**
-     * Compute per-lane concurrency budgets from work-class policy.
-     *
-     * @returns {{ultraLightConcurrency:number,massiveConcurrency:number,lightConcurrency:number,heavyConcurrency:number,workClass:object}}
-     */
-    const resolveLaneBudgets = () => {
-      const ultraLightWritesTotal = laneQueues.ultraLight.length + laneActive.ultraLight;
-      const lightWritesTotal = laneQueues.light.length + laneActive.light;
-      const mediumWritesTotal = laneQueues.heavy.length + laneActive.heavy;
-      const largeWritesTotal = laneQueues.massive.length + laneActive.massive;
-      const workClass = resolveArtifactWorkClassConcurrency({
-        writeConcurrency: getActiveWriteConcurrency(),
-        smallWrites: ultraLightWritesTotal + lightWritesTotal,
-        mediumWrites: mediumWritesTotal,
-        largeWrites: largeWritesTotal,
-        smallConcurrencyOverride: workClassSmallConcurrencyOverride,
-        mediumConcurrencyOverride: workClassMediumConcurrencyOverride,
-        largeConcurrencyOverride: workClassLargeConcurrencyOverride,
-        hostConcurrency
-      });
-      const smallBudget = Math.max(0, workClass.smallConcurrency);
-      let ultraLightConcurrency = 0;
-      let lightConcurrency = 0;
-      if (smallBudget > 0) {
-        if (ultraLightWritesTotal > 0) {
-          const ultraReserve = Math.max(1, Math.min(2, smallBudget));
-          ultraLightConcurrency = Math.min(ultraLightWritesTotal, ultraReserve);
-        }
-        const remainingAfterUltra = Math.max(0, smallBudget - ultraLightConcurrency);
-        lightConcurrency = Math.min(lightWritesTotal, remainingAfterUltra);
-        let remainingAfterLight = Math.max(0, smallBudget - ultraLightConcurrency - lightConcurrency);
-        if (remainingAfterLight > 0 && lightWritesTotal > lightConcurrency) {
-          const growLight = Math.min(remainingAfterLight, lightWritesTotal - lightConcurrency);
-          lightConcurrency += growLight;
-          remainingAfterLight -= growLight;
-        }
-        if (remainingAfterLight > 0 && ultraLightWritesTotal > ultraLightConcurrency) {
-          ultraLightConcurrency += Math.min(remainingAfterLight, ultraLightWritesTotal - ultraLightConcurrency);
-        }
-      }
-      return {
-        ultraLightConcurrency,
-        massiveConcurrency: workClass.largeConcurrency,
-        lightConcurrency,
-        heavyConcurrency: workClass.mediumConcurrency,
-        workClass
-      };
-    };
-    /**
-     * Select next lane eligible for dispatch under current budgets.
-     *
-     * @param {object} budgets
-     * @returns {'ultraLight'|'massive'|'light'|'heavy'|null}
-     */
-    const pickDispatchLane = (budgets) => {
-      const ultraLightAvailable = laneQueues.ultraLight.length > 0
-        && laneActive.ultraLight < Math.max(0, budgets.ultraLightConcurrency);
-      const massiveAvailable = laneQueues.massive.length > 0
-        && laneActive.massive < Math.max(0, budgets.massiveConcurrency);
-      const lightAvailable = laneQueues.light.length > 0
-        && laneActive.light < Math.max(0, budgets.lightConcurrency);
-      const heavyAvailable = laneQueues.heavy.length > 0
-        && laneActive.heavy < Math.max(0, budgets.heavyConcurrency);
-      if (ultraLightAvailable) return 'ultraLight';
-      if (massiveAvailable) return 'massive';
-      if (heavyAvailable) return 'heavy';
-      if (lightAvailable) return 'light';
-      return null;
-    };
-    /**
-     * Dequeue one dispatch unit from a lane (or micro-batch for ultra-light).
-     *
-     * @param {'ultraLight'|'massive'|'light'|'heavy'} laneName
-     * @returns {object[]}
-     */
-    const takeLaneDispatchEntries = (laneName) => {
-      const queue = Array.isArray(laneQueues?.[laneName]) ? laneQueues[laneName] : null;
-      if (!queue || !queue.length) return [];
-      if (laneName === 'ultraLight' && writeFsStrategy.microCoalescing) {
-        const batch = selectMicroWriteBatch(queue, {
-          maxEntries: writeFsStrategy.microBatchMaxCount,
-          maxBytes: writeFsStrategy.microBatchMaxBytes,
-          maxEntryBytes: ultraLightWriteThresholdBytes
-        });
-        return Array.isArray(batch?.entries) ? batch.entries.filter(Boolean) : [];
-      }
-      const entry = queue.shift();
-      return entry ? [entry] : [];
-    };
+    const resolveLaneBudgets = () => resolveDispatchLaneBudgets({
+      laneQueues,
+      laneActive,
+      writeConcurrency: getActiveWriteConcurrency(),
+      smallConcurrencyOverride: workClassSmallConcurrencyOverride,
+      mediumConcurrencyOverride: workClassMediumConcurrencyOverride,
+      largeConcurrencyOverride: workClassLargeConcurrencyOverride,
+      hostConcurrency
+    });
     /**
      * Schedule a write job through scheduler queue when available.
      *
@@ -2757,8 +2674,19 @@ export async function writeIndexArtifacts(input) {
         if (activeCount >= concurrencyLimit) break;
         const rescueState = resolveTailRescueState();
         const budgets = resolveLaneBudgets();
-        let laneName = pickDispatchLane(budgets);
-        let dispatchEntries = laneName ? takeLaneDispatchEntries(laneName) : [];
+        let laneName = pickDispatchLane({
+          laneQueues,
+          laneActive,
+          budgets
+        });
+        let dispatchEntries = laneName
+          ? takeLaneDispatchEntries({
+            laneQueues,
+            laneName,
+            writeFsStrategy,
+            ultraLightWriteThresholdBytes
+          })
+          : [];
         let usedTailWorker = false;
         if (
           (!laneName || dispatchEntries.length === 0)
@@ -2812,10 +2740,7 @@ export async function writeIndexArtifacts(input) {
       dispatchWrites();
       while (
         inFlightWrites.size > 0
-        || laneQueues.ultraLight.length > 0
-        || laneQueues.massive.length > 0
-        || laneQueues.light.length > 0
-        || laneQueues.heavy.length > 0
+        || hasPendingLaneWrites(laneQueues)
       ) {
         if (fatalWriteError) break;
         if (!inFlightWrites.size) {
