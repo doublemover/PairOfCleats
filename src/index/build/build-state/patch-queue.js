@@ -108,6 +108,25 @@ export const createPatchQueue = ({
       return result;
     } catch (err) {
       rejects.forEach((reject) => reject(err));
+      /**
+       * Preserve pending patch/events on write failure so state updates are not
+       * dropped when the next flush succeeds.
+       */
+      pending.patch = pending.patch ? mergeState(patch, pending.patch) : patch;
+      if (events.length) {
+        pending.events = [...events, ...pending.events];
+      }
+      if (!pending.timer && pending.patch) {
+        const delay = resolveDebounceMs(pending.patch);
+        pending.timer = setTimeout(() => {
+          pending.timer = null;
+          pending.timerCancel = null;
+          void flushPendingState(buildRoot);
+        }, delay);
+        pending.timerCancel = pending.lifecycle.registerTimer(pending.timer, {
+          label: 'build-state-debounce-retry'
+        });
+      }
       recordStateError(buildRoot, err);
       if (!pending.patch && !pending.timer) {
         statePending.delete(key);
