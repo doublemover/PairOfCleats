@@ -85,6 +85,7 @@ retrieval/filters/git-metadata/chunk-author
 cli/general/risk-explain
 indexing/risk/interprocedural/artifacts-written
 retrieval/filters/git-metadata/branch
+retrieval/ann/hnsw-ann
 indexing/validate/index-validate
 indexing/file-caps/file-line-guard
 indexing/file-caps/file-size-guard

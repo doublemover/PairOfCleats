@@ -1,6 +1,5 @@
 indexing/embeddings/embedding-batch-multipliers
 shared/cli/noop-task
-retrieval/ann/hnsw-ann
 retrieval/ann/ann-backend-normalization-parity
 retrieval/pipeline/object-pool-leak
 retrieval/output/explain-color-fallback
@@ -661,7 +660,6 @@ indexing/git/git-meta
 tooling/ingest/lsif/lsif-ingest
 indexing/validate/metav2-rejects-invalid-type-shapes
 indexing/validate/manifest-checks
-indexing/validate/index-validate
 indexing/validate/index-validate-current-build-pointer-case-insensitive
 indexing/validate/index-validate-boilerplate-catalog-manifest-name
 indexing/validate/index-validate-determinism-report-required
