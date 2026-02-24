@@ -2374,7 +2374,39 @@ export const processFiles = async ({
     let stage1StallSoftKickResetCount = 0;
     let stage1StallSoftKickInFlight = false;
     let lastStallSoftKickAt = 0;
+    const orderedCompletionTimeoutMs = resolveOrderedCompletionTimeoutMs({
+      runtime,
+      stallAbortMs: stage1StallAbortMs,
+      stallSoftKickMs: stage1StallSoftKickMs
+    });
+    const orderedCompletionStallPollMs = resolveOrderedCompletionStallPollMs({
+      runtime
+    });
+    const effectiveOrderedCompletionTimeoutMs = orderedCompletionTimeoutMs > 0
+      ? orderedCompletionTimeoutMs
+      : STAGE1_ORDERED_COMPLETION_TIMEOUT_FALLBACK_MS;
+    const orderedCompletionGuardTimeoutMs = Math.max(
+      effectiveOrderedCompletionTimeoutMs + Math.max(1000, orderedCompletionStallPollMs),
+      STAGE1_ORDERED_COMPLETION_TIMEOUT_FALLBACK_MS
+    );
+    const orderedCapacityWaitTimeoutMs = Math.max(
+      1000,
+      Math.min(
+        orderedCompletionGuardTimeoutMs,
+        stage1StallAbortMs > 0 ? stage1StallAbortMs : orderedCompletionGuardTimeoutMs
+      )
+    );
+    /**
+     * Track all ordered flush completions across the entire stage1 mode run.
+     *
+     * Per-subset drain waits can deadlock when a subset with higher order-index
+     * entries waits before the lower-index subset has been dispatched. A single
+     * shared tracker lets each subset enqueue work without blocking on future
+     * subsets; we drain exactly once after all subsets/workers have run.
+     */
+    const orderedCompletionTracker = createOrderedCompletionTracker();
     const activeOrderedCompletionTrackers = new Set();
+    activeOrderedCompletionTrackers.add(orderedCompletionTracker);
     let lastProgressAt = Date.now();
     let lastOrderedCompletionAt = Date.now();
     let lastStallSnapshotAt = 0;
@@ -2996,29 +3028,6 @@ export const processFiles = async ({
        * @returns {Promise<void>}
        */
       const runEntryBatch = async (batchEntries) => {
-        const orderedCompletionTracker = createOrderedCompletionTracker();
-        const orderedCompletionTimeoutMs = resolveOrderedCompletionTimeoutMs({
-          runtime: runtimeRef,
-          stallAbortMs: stage1StallAbortMs,
-          stallSoftKickMs: stage1StallSoftKickMs
-        });
-        const orderedCompletionStallPollMs = resolveOrderedCompletionStallPollMs({
-          runtime: runtimeRef
-        });
-        const effectiveOrderedCompletionTimeoutMs = orderedCompletionTimeoutMs > 0
-          ? orderedCompletionTimeoutMs
-          : STAGE1_ORDERED_COMPLETION_TIMEOUT_FALLBACK_MS;
-        const orderedCompletionGuardTimeoutMs = Math.max(
-          effectiveOrderedCompletionTimeoutMs + Math.max(1000, orderedCompletionStallPollMs),
-          STAGE1_ORDERED_COMPLETION_TIMEOUT_FALLBACK_MS
-        );
-        const orderedCapacityWaitTimeoutMs = Math.max(
-          1000,
-          Math.min(
-            orderedCompletionGuardTimeoutMs,
-            stage1StallAbortMs > 0 ? stage1StallAbortMs : orderedCompletionGuardTimeoutMs
-          )
-        );
         const orderedBatchEntries = sortEntriesByOrderIndex(batchEntries);
         for (let i = 0; i < orderedBatchEntries.length; i += 1) {
           const entry = orderedBatchEntries[i];
@@ -3033,62 +3042,24 @@ export const processFiles = async ({
             lifecycle.enqueuedAtMs = Date.now();
           }
         }
-        activeOrderedCompletionTrackers.add(orderedCompletionTracker);
-        try {
-          await runWithQueue(
-            runtimeRef.queues.cpu,
-            orderedBatchEntries,
-            async (entry, ctx) => {
-              const queueIndex = Number.isFinite(ctx?.index) ? ctx.index : null;
-              const orderIndex = resolveEntryOrderIndex(entry, queueIndex);
-              if (Number.isFinite(orderIndex)) {
-                dispatchedOrderIndices.add(Math.floor(orderIndex));
-              }
-              const stableFileIndex = Number.isFinite(entry?.fileIndex)
-                ? entry.fileIndex
-                : (Number.isFinite(queueIndex) ? queueIndex + 1 : null);
-              const rel = entry.rel || toPosix(path.relative(runtimeRef.root, entry.abs));
-              if (shouldSkipExtractedProseForLowYield({
-                bailout: extractedProseLowYieldBailout,
-                orderIndex
-              })) {
-                const skippedAtMs = Date.now();
-                const lifecycle = ensureLifecycleRecord({
-                  orderIndex,
-                  file: rel,
-                  fileIndex: stableFileIndex,
-                  shardId: shardMeta?.id || null
-                });
-                if (lifecycle) {
-                  lifecycle.dequeuedAtMs = lifecycle.dequeuedAtMs ?? skippedAtMs;
-                  lifecycle.parseStartAtMs = lifecycle.parseStartAtMs ?? skippedAtMs;
-                  lifecycle.parseEndAtMs = skippedAtMs;
-                  lifecycle.writeStartAtMs = skippedAtMs;
-                  lifecycle.writeEndAtMs = skippedAtMs;
-                }
-                if (Array.isArray(stateRef.skippedFiles)) {
-                  stateRef.skippedFiles.push({
-                    file: rel,
-                    reason: EXTRACTED_PROSE_LOW_YIELD_SKIP_REASON,
-                    stage: 'process-files',
-                    mode: 'extracted-prose',
-                    qualityImpact: 'reduced-extracted-prose-recall'
-                  });
-                }
-                extractedProseLowYieldBailout.skippedFiles += 1;
-                return null;
-              }
-              const activeStartAtMs = Date.now();
-              const fileWatchdogMs = resolveFileWatchdogMs(fileWatchdogConfig, entry);
-              const fileHardTimeoutMs = resolveFileHardTimeoutMs(fileWatchdogConfig, entry, fileWatchdogMs);
-              const fileSubprocessOwnershipId = buildStage1FileSubprocessOwnershipId({
-                runtime: runtimeRef,
-                mode,
-                fileIndex: stableFileIndex,
-                rel,
-                shardId: shardMeta?.id || null
-              });
-              let watchdog = null;
+        await runWithQueue(
+          runtimeRef.queues.cpu,
+          orderedBatchEntries,
+          async (entry, ctx) => {
+            const queueIndex = Number.isFinite(ctx?.index) ? ctx.index : null;
+            const orderIndex = resolveEntryOrderIndex(entry, queueIndex);
+            if (Number.isFinite(orderIndex)) {
+              dispatchedOrderIndices.add(Math.floor(orderIndex));
+            }
+            const stableFileIndex = Number.isFinite(entry?.fileIndex)
+              ? entry.fileIndex
+              : (Number.isFinite(queueIndex) ? queueIndex + 1 : null);
+            const rel = entry.rel || toPosix(path.relative(runtimeRef.root, entry.abs));
+            if (shouldSkipExtractedProseForLowYield({
+              bailout: extractedProseLowYieldBailout,
+              orderIndex
+            })) {
+              const skippedAtMs = Date.now();
               const lifecycle = ensureLifecycleRecord({
                 orderIndex,
                 file: rel,
@@ -3096,128 +3067,191 @@ export const processFiles = async ({
                 shardId: shardMeta?.id || null
               });
               if (lifecycle) {
-                if (!Number.isFinite(lifecycle.dequeuedAtMs)) {
-                  lifecycle.dequeuedAtMs = activeStartAtMs;
-                }
-                if (!Number.isFinite(lifecycle.parseStartAtMs)) {
-                  lifecycle.parseStartAtMs = activeStartAtMs;
-                }
-                if (!Number.isFinite(lifecycle.scmProcQueueWaitMs)) {
-                  lifecycle.scmProcQueueWaitMs = 0;
-                }
-                const lifecycleDurations = resolveFileLifecycleDurations(lifecycle);
-                observeQueueDelay(lifecycleDurations.queueDelayMs);
+                lifecycle.dequeuedAtMs = lifecycle.dequeuedAtMs ?? skippedAtMs;
+                lifecycle.parseStartAtMs = lifecycle.parseStartAtMs ?? skippedAtMs;
+                lifecycle.parseEndAtMs = skippedAtMs;
+                lifecycle.writeStartAtMs = skippedAtMs;
+                lifecycle.writeEndAtMs = skippedAtMs;
               }
-              if (Number.isFinite(orderIndex)) {
-                inFlightFiles.set(orderIndex, {
-                  orderIndex,
+              if (Array.isArray(stateRef.skippedFiles)) {
+                stateRef.skippedFiles.push({
                   file: rel,
-                  fileIndex: stableFileIndex,
-                  shardId: shardMeta?.id || null,
-                  ownershipId: fileSubprocessOwnershipId,
-                  startedAt: activeStartAtMs
+                  reason: EXTRACTED_PROSE_LOW_YIELD_SKIP_REASON,
+                  stage: 'process-files',
+                  mode: 'extracted-prose',
+                  qualityImpact: 'reduced-extracted-prose-recall'
                 });
               }
-              if (fileWatchdogMs > 0) {
-                watchdog = setTimeout(() => {
-                  const activeDurationMs = Math.max(0, Date.now() - activeStartAtMs);
-                  const lifecycleDurations = lifecycle
-                    ? resolveFileLifecycleDurations(lifecycle)
-                    : null;
-                  const scmProcQueueWaitMs = lifecycleDurations?.scmProcQueueWaitMs || 0;
-                  const effectiveDurationMs = resolveEffectiveSlowFileDurationMs({
-                    activeDurationMs,
-                    scmProcQueueWaitMs
-                  });
-                  if (!shouldTriggerSlowFileWarning({
-                    activeDurationMs,
-                    thresholdMs: fileWatchdogMs,
-                    scmProcQueueWaitMs
-                  })) {
-                    return;
-                  }
-                  const queueDelayMs = lifecycleDurations?.queueDelayMs || 0;
-                  const lineText = Number.isFinite(entry.lines) ? ` lines ${entry.lines}` : '';
-                  logLine(`[watchdog] slow file ${stableFileIndex ?? '?'} ${rel} (${Math.round(effectiveDurationMs)}ms)${lineText}`, {
-                    kind: 'file-watchdog',
+              extractedProseLowYieldBailout.skippedFiles += 1;
+              return null;
+            }
+            const activeStartAtMs = Date.now();
+            const fileWatchdogMs = resolveFileWatchdogMs(fileWatchdogConfig, entry);
+            const fileHardTimeoutMs = resolveFileHardTimeoutMs(fileWatchdogConfig, entry, fileWatchdogMs);
+            const fileSubprocessOwnershipId = buildStage1FileSubprocessOwnershipId({
+              runtime: runtimeRef,
+              mode,
+              fileIndex: stableFileIndex,
+              rel,
+              shardId: shardMeta?.id || null
+            });
+            let watchdog = null;
+            const lifecycle = ensureLifecycleRecord({
+              orderIndex,
+              file: rel,
+              fileIndex: stableFileIndex,
+              shardId: shardMeta?.id || null
+            });
+            if (lifecycle) {
+              if (!Number.isFinite(lifecycle.dequeuedAtMs)) {
+                lifecycle.dequeuedAtMs = activeStartAtMs;
+              }
+              if (!Number.isFinite(lifecycle.parseStartAtMs)) {
+                lifecycle.parseStartAtMs = activeStartAtMs;
+              }
+              if (!Number.isFinite(lifecycle.scmProcQueueWaitMs)) {
+                lifecycle.scmProcQueueWaitMs = 0;
+              }
+              const lifecycleDurations = resolveFileLifecycleDurations(lifecycle);
+              observeQueueDelay(lifecycleDurations.queueDelayMs);
+            }
+            if (Number.isFinite(orderIndex)) {
+              inFlightFiles.set(orderIndex, {
+                orderIndex,
+                file: rel,
+                fileIndex: stableFileIndex,
+                shardId: shardMeta?.id || null,
+                ownershipId: fileSubprocessOwnershipId,
+                startedAt: activeStartAtMs
+              });
+            }
+            if (fileWatchdogMs > 0) {
+              watchdog = setTimeout(() => {
+                const activeDurationMs = Math.max(0, Date.now() - activeStartAtMs);
+                const lifecycleDurations = lifecycle
+                  ? resolveFileLifecycleDurations(lifecycle)
+                  : null;
+                const scmProcQueueWaitMs = lifecycleDurations?.scmProcQueueWaitMs || 0;
+                const effectiveDurationMs = resolveEffectiveSlowFileDurationMs({
+                  activeDurationMs,
+                  scmProcQueueWaitMs
+                });
+                if (!shouldTriggerSlowFileWarning({
+                  activeDurationMs,
+                  thresholdMs: fileWatchdogMs,
+                  scmProcQueueWaitMs
+                })) {
+                  return;
+                }
+                const queueDelayMs = lifecycleDurations?.queueDelayMs || 0;
+                const lineText = Number.isFinite(entry.lines) ? ` lines ${entry.lines}` : '';
+                logLine(`[watchdog] slow file ${stableFileIndex ?? '?'} ${rel} (${Math.round(effectiveDurationMs)}ms)${lineText}`, {
+                  kind: 'file-watchdog',
+                  mode,
+                  stage: 'processing',
+                  file: rel,
+                  fileIndex: stableFileIndex,
+                  total: progress.total,
+                  lines: entry.lines || null,
+                  durationMs: effectiveDurationMs,
+                  effectiveDurationMs,
+                  activeDurationMs,
+                  scmProcQueueWaitMs,
+                  queueDelayMs,
+                  thresholdMs: fileWatchdogMs
+                });
+              }, fileWatchdogMs);
+              watchdog.unref?.();
+            }
+            if (showFileProgress) {
+              const shardText = shardLabel ? `shard ${shardLabel}` : 'shard';
+              const shardPrefix = `[${shardText}]`;
+              const countText = `${stableFileIndex ?? '?'}/${progress.total}`;
+              const lineText = Number.isFinite(entry.lines) ? `lines ${entry.lines}` : null;
+              const parts = [shardPrefix, countText, lineText, rel].filter(Boolean);
+              logLine(parts.join(' '), {
+                kind: 'file-progress',
+                mode,
+                stage: 'processing',
+                shardId: shardMeta?.id || null,
+                file: rel,
+                fileIndex: stableFileIndex,
+                total: progress.total,
+                lines: entry.lines || null
+              });
+            }
+            crashLogger.updateFile({
+              phase: 'processing',
+              mode,
+              stage: runtimeRef.stage,
+              fileIndex: stableFileIndex,
+              total: progress.total,
+              file: entry.rel,
+              size: entry.stat?.size || null,
+              shardId: shardMeta?.id || null
+            });
+            try {
+              return await runWithTimeout(
+                (signal) => withTrackedSubprocessSignalScope(
+                  signal,
+                  fileSubprocessOwnershipId,
+                  () => processFile(entry, stableFileIndex, {
+                    signal,
+                    onScmProcQueueWait: (queueWaitMs) => {
+                      if (!(Number.isFinite(queueWaitMs) && queueWaitMs > 0)) return;
+                      if (lifecycle) {
+                        lifecycle.scmProcQueueWaitMs = (Number(lifecycle.scmProcQueueWaitMs) || 0) + queueWaitMs;
+                      }
+                    }
+                  })
+                ),
+                {
+                  timeoutMs: fileHardTimeoutMs,
+                  signal: effectiveAbortSignal,
+                  errorFactory: () => createTimeoutError({
+                    message: `File processing timed out after ${fileHardTimeoutMs}ms (${rel})`,
+                    code: 'FILE_PROCESS_TIMEOUT',
+                    retryable: false,
+                    meta: {
+                      file: rel,
+                      fileIndex: stableFileIndex,
+                      timeoutMs: fileHardTimeoutMs,
+                      ownershipId: fileSubprocessOwnershipId
+                    }
+                  })
+                }
+              );
+            } catch (err) {
+              if (err?.code === 'FILE_PROCESS_TIMEOUT') {
+                logLine(
+                  `[watchdog] hard-timeout file ${stableFileIndex ?? '?'} ${rel} (${fileHardTimeoutMs}ms)`,
+                  {
+                    kind: 'warning',
                     mode,
                     stage: 'processing',
                     file: rel,
                     fileIndex: stableFileIndex,
-                    total: progress.total,
-                    lines: entry.lines || null,
-                    durationMs: effectiveDurationMs,
-                    effectiveDurationMs,
-                    activeDurationMs,
-                    scmProcQueueWaitMs,
-                    queueDelayMs,
-                    thresholdMs: fileWatchdogMs
-                  });
-                }, fileWatchdogMs);
-                watchdog.unref?.();
-              }
-              if (showFileProgress) {
-                const shardText = shardLabel ? `shard ${shardLabel}` : 'shard';
-                const shardPrefix = `[${shardText}]`;
-                const countText = `${stableFileIndex ?? '?'}/${progress.total}`;
-                const lineText = Number.isFinite(entry.lines) ? `lines ${entry.lines}` : null;
-                const parts = [shardPrefix, countText, lineText, rel].filter(Boolean);
-                logLine(parts.join(' '), {
-                  kind: 'file-progress',
-                  mode,
-                  stage: 'processing',
-                  shardId: shardMeta?.id || null,
-                  file: rel,
-                  fileIndex: stableFileIndex,
-                  total: progress.total,
-                  lines: entry.lines || null
-                });
-              }
-              crashLogger.updateFile({
-                phase: 'processing',
-                mode,
-                stage: runtimeRef.stage,
-                fileIndex: stableFileIndex,
-                total: progress.total,
-                file: entry.rel,
-                size: entry.stat?.size || null,
-                shardId: shardMeta?.id || null
-              });
-              try {
-                return await runWithTimeout(
-                  (signal) => withTrackedSubprocessSignalScope(
-                    signal,
-                    fileSubprocessOwnershipId,
-                    () => processFile(entry, stableFileIndex, {
-                      signal,
-                      onScmProcQueueWait: (queueWaitMs) => {
-                        if (!(Number.isFinite(queueWaitMs) && queueWaitMs > 0)) return;
-                        if (lifecycle) {
-                          lifecycle.scmProcQueueWaitMs = (Number(lifecycle.scmProcQueueWaitMs) || 0) + queueWaitMs;
-                        }
-                      }
-                    })
-                  ),
-                  {
                     timeoutMs: fileHardTimeoutMs,
-                    signal: effectiveAbortSignal,
-                    errorFactory: () => createTimeoutError({
-                      message: `File processing timed out after ${fileHardTimeoutMs}ms (${rel})`,
-                      code: 'FILE_PROCESS_TIMEOUT',
-                      retryable: false,
-                      meta: {
-                        file: rel,
-                        fileIndex: stableFileIndex,
-                        timeoutMs: fileHardTimeoutMs,
-                        ownershipId: fileSubprocessOwnershipId
-                      }
-                    })
+                    ownershipId: fileSubprocessOwnershipId,
+                    shardId: shardMeta?.id || null
                   }
                 );
-              } catch (err) {
-                if (err?.code === 'FILE_PROCESS_TIMEOUT') {
+                const cleanup = await terminateTrackedSubprocesses({
+                  reason: `stage1_file_timeout:${fileSubprocessOwnershipId}`,
+                  force: false,
+                  ownershipId: fileSubprocessOwnershipId
+                });
+                if (cleanup?.attempted > 0) {
+                  const terminatedPids = Array.isArray(cleanup.terminatedPids)
+                    ? cleanup.terminatedPids
+                    : [];
+                  const terminatedOwnershipIds = Array.isArray(cleanup.terminatedOwnershipIds)
+                    ? cleanup.terminatedOwnershipIds
+                    : [];
                   logLine(
-                    `[watchdog] hard-timeout file ${stableFileIndex ?? '?'} ${rel} (${fileHardTimeoutMs}ms)`,
+                    `[watchdog] cleaned ${cleanup.attempted} tracked subprocess(es) after timeout (scoped) `
+                        + `pids=${terminatedPids.length ? terminatedPids.join(',') : 'none'} `
+                        + `ownership=${terminatedOwnershipIds.length ? terminatedOwnershipIds.join(',') : fileSubprocessOwnershipId}`,
                     {
                       kind: 'warning',
                       mode,
@@ -3225,340 +3259,247 @@ export const processFiles = async ({
                       file: rel,
                       fileIndex: stableFileIndex,
                       timeoutMs: fileHardTimeoutMs,
-                      ownershipId: fileSubprocessOwnershipId,
-                      shardId: shardMeta?.id || null
+                      cleanupScope: fileSubprocessOwnershipId,
+                      cleanupOwnershipId: fileSubprocessOwnershipId,
+                      cleanupTerminatedPids: terminatedPids,
+                      cleanupTerminatedOwnershipIds: terminatedOwnershipIds,
+                      cleanupKillAudit: Array.isArray(cleanup.killAudit) ? cleanup.killAudit : [],
+                      cleanup
                     }
                   );
-                  const cleanup = await terminateTrackedSubprocesses({
-                    reason: `stage1_file_timeout:${fileSubprocessOwnershipId}`,
-                    force: false,
-                    ownershipId: fileSubprocessOwnershipId
-                  });
-                  if (cleanup?.attempted > 0) {
-                    const terminatedPids = Array.isArray(cleanup.terminatedPids)
-                      ? cleanup.terminatedPids
-                      : [];
-                    const terminatedOwnershipIds = Array.isArray(cleanup.terminatedOwnershipIds)
-                      ? cleanup.terminatedOwnershipIds
-                      : [];
-                    logLine(
-                      `[watchdog] cleaned ${cleanup.attempted} tracked subprocess(es) after timeout (scoped) `
-                        + `pids=${terminatedPids.length ? terminatedPids.join(',') : 'none'} `
-                        + `ownership=${terminatedOwnershipIds.length ? terminatedOwnershipIds.join(',') : fileSubprocessOwnershipId}`,
-                      {
-                        kind: 'warning',
-                        mode,
-                        stage: 'processing',
-                        file: rel,
-                        fileIndex: stableFileIndex,
-                        timeoutMs: fileHardTimeoutMs,
-                        cleanupScope: fileSubprocessOwnershipId,
-                        cleanupOwnershipId: fileSubprocessOwnershipId,
-                        cleanupTerminatedPids: terminatedPids,
-                        cleanupTerminatedOwnershipIds: terminatedOwnershipIds,
-                        cleanupKillAudit: Array.isArray(cleanup.killAudit) ? cleanup.killAudit : [],
-                        cleanup
-                      }
-                    );
-                  }
-                }
-                crashLogger.logError({
-                  phase: 'processing',
-                  mode,
-                  stage: runtimeRef.stage,
-                  fileIndex: stableFileIndex,
-                  total: progress.total,
-                  file: entry.rel,
-                  size: entry.stat?.size || null,
-                  shardId: shardMeta?.id || null,
-                  message: err?.message || String(err),
-                  stack: err?.stack || null
-                });
-                throw err;
-              } finally {
-                const activeDurationMs = Math.max(0, Date.now() - activeStartAtMs);
-                const scmProcQueueWaitMs = lifecycle
-                  ? (resolveFileLifecycleDurations(lifecycle).scmProcQueueWaitMs || 0)
-                  : 0;
-                const effectiveDurationMs = resolveEffectiveSlowFileDurationMs({
-                  activeDurationMs,
-                  scmProcQueueWaitMs
-                });
-                const triggeredSlowWarning = shouldTriggerSlowFileWarning({
-                  activeDurationMs,
-                  thresholdMs: fileWatchdogMs,
-                  scmProcQueueWaitMs
-                });
-                observeWatchdogNearThreshold({
-                  activeDurationMs: effectiveDurationMs,
-                  thresholdMs: fileWatchdogMs,
-                  triggeredSlowWarning,
-                  lowerFraction: fileWatchdogConfig?.nearThresholdLowerFraction,
-                  upperFraction: fileWatchdogConfig?.nearThresholdUpperFraction
-                });
-                if (lifecycle) {
-                  lifecycle.parseEndAtMs = Date.now();
-                }
-                if (watchdog) {
-                  clearTimeout(watchdog);
                 }
               }
-            },
-            {
-              collectResults: false,
-              signal: effectiveAbortSignal,
-              onBeforeDispatch: async (ctx) => {
-                if (typeof orderedAppender.waitForCapacity === 'function') {
-                  const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
-                  const entry = orderedBatchEntries[entryIndex];
-                  const orderIndex = resolveEntryOrderIndex(entry, entryIndex);
-                  const dispatchBypassWindow = Math.max(1, Math.floor(runtimeRef.fileConcurrency || 1));
-                  const nextOrderedIndex = typeof orderedAppender.peekNextIndex === 'function'
-                    ? orderedAppender.peekNextIndex()
-                    : null;
-                  const withinBypassWindow = Number.isFinite(orderIndex)
-                    && Number.isFinite(nextOrderedIndex)
-                    && orderIndex <= (nextOrderedIndex + dispatchBypassWindow);
-                  const shouldProbeCapacity = entryIndex === 0
-                    || (entryIndex % dispatchBypassWindow) === 0;
-                  if (!withinBypassWindow && shouldProbeCapacity) {
-                    await orderedAppender.waitForCapacity({
-                      orderIndex,
-                      bypassWindow: dispatchBypassWindow,
-                      signal: effectiveAbortSignal,
-                      timeoutMs: orderedCapacityWaitTimeoutMs,
-                      stallPollMs: orderedCompletionStallPollMs,
-                      onStall: ({ stallCount, elapsedMs, pending, nextIndex, snapshot }) => {
-                        if (stallCount === 1 || (stallCount % 3) === 0) {
-                          logLine(
-                            `[ordered] dispatch capacity wait pending=${pending} elapsed=${Math.round(elapsedMs / 1000)}s`
-                              + ` next=${nextIndex ?? '?'} order=${orderIndex}`,
-                            {
-                              kind: 'warning',
-                              mode,
-                              stage: 'processing',
-                              orderedPending: pending,
-                              idleMs: elapsedMs,
-                              orderedSnapshot: snapshot || null
-                            }
-                          );
-                        }
-                        if (stallCount === 1 || (stallCount % 2) === 0) {
-                          const recovered = attemptOrderedGapRecovery({
-                            snapshot: {
-                              orderedSnapshot: snapshot || null,
-                              inFlight: inFlightFiles.size
-                            },
-                            reason: 'ordered_dispatch_capacity_wait'
-                          });
-                          if (Number(recovered?.recovered) > 0) return;
-                        }
-                        evaluateStalledProcessing('ordered_dispatch_capacity_wait');
-                      }
-                    });
-                  }
-                }
-                orderedCompletionTracker.throwIfFailed();
-              },
-              onResult: async (result, ctx) => {
+              crashLogger.logError({
+                phase: 'processing',
+                mode,
+                stage: runtimeRef.stage,
+                fileIndex: stableFileIndex,
+                total: progress.total,
+                file: entry.rel,
+                size: entry.stat?.size || null,
+                shardId: shardMeta?.id || null,
+                message: err?.message || String(err),
+                stack: err?.stack || null
+              });
+              throw err;
+            } finally {
+              const activeDurationMs = Math.max(0, Date.now() - activeStartAtMs);
+              const scmProcQueueWaitMs = lifecycle
+                ? (resolveFileLifecycleDurations(lifecycle).scmProcQueueWaitMs || 0)
+                : 0;
+              const effectiveDurationMs = resolveEffectiveSlowFileDurationMs({
+                activeDurationMs,
+                scmProcQueueWaitMs
+              });
+              const triggeredSlowWarning = shouldTriggerSlowFileWarning({
+                activeDurationMs,
+                thresholdMs: fileWatchdogMs,
+                scmProcQueueWaitMs
+              });
+              observeWatchdogNearThreshold({
+                activeDurationMs: effectiveDurationMs,
+                thresholdMs: fileWatchdogMs,
+                triggeredSlowWarning,
+                lowerFraction: fileWatchdogConfig?.nearThresholdLowerFraction,
+                upperFraction: fileWatchdogConfig?.nearThresholdUpperFraction
+              });
+              if (lifecycle) {
+                lifecycle.parseEndAtMs = Date.now();
+              }
+              if (watchdog) {
+                clearTimeout(watchdog);
+              }
+            }
+          },
+          {
+            collectResults: false,
+            signal: effectiveAbortSignal,
+            onBeforeDispatch: async (ctx) => {
+              if (typeof orderedAppender.waitForCapacity === 'function') {
                 const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
                 const entry = orderedBatchEntries[entryIndex];
                 const orderIndex = resolveEntryOrderIndex(entry, entryIndex);
-                try {
-                  const bailoutDecision = observeExtractedProseLowYieldSample({
-                    bailout: extractedProseLowYieldBailout,
+                const dispatchBypassWindow = Math.max(1, Math.floor(runtimeRef.fileConcurrency || 1));
+                const nextOrderedIndex = typeof orderedAppender.peekNextIndex === 'function'
+                  ? orderedAppender.peekNextIndex()
+                  : null;
+                const withinBypassWindow = Number.isFinite(orderIndex)
+                    && Number.isFinite(nextOrderedIndex)
+                    && orderIndex <= (nextOrderedIndex + dispatchBypassWindow);
+                const shouldProbeCapacity = entryIndex === 0
+                    || (entryIndex % dispatchBypassWindow) === 0;
+                if (!withinBypassWindow && shouldProbeCapacity) {
+                  await orderedAppender.waitForCapacity({
                     orderIndex,
-                    result
+                    bypassWindow: dispatchBypassWindow,
+                    signal: effectiveAbortSignal,
+                    timeoutMs: orderedCapacityWaitTimeoutMs,
+                    stallPollMs: orderedCompletionStallPollMs,
+                    onStall: ({ stallCount, elapsedMs, pending, nextIndex, snapshot }) => {
+                      if (stallCount === 1 || (stallCount % 3) === 0) {
+                        logLine(
+                          `[ordered] dispatch capacity wait pending=${pending} elapsed=${Math.round(elapsedMs / 1000)}s`
+                              + ` next=${nextIndex ?? '?'} order=${orderIndex}`,
+                          {
+                            kind: 'warning',
+                            mode,
+                            stage: 'processing',
+                            orderedPending: pending,
+                            idleMs: elapsedMs,
+                            orderedSnapshot: snapshot || null
+                          }
+                        );
+                      }
+                      if (stallCount === 1 || (stallCount % 2) === 0) {
+                        const recovered = attemptOrderedGapRecovery({
+                          snapshot: {
+                            orderedSnapshot: snapshot || null,
+                            inFlight: inFlightFiles.size
+                          },
+                          reason: 'ordered_dispatch_capacity_wait'
+                        });
+                        if (Number(recovered?.recovered) > 0) return;
+                      }
+                      evaluateStalledProcessing('ordered_dispatch_capacity_wait');
+                    }
                   });
-                  if (bailoutDecision?.triggered) {
-                    const ratioPct = (bailoutDecision.observedYieldRatio * 100).toFixed(1);
-                    logLine(
-                      `[stage1:extracted-prose] low-yield bailout engaged after `
+                }
+              }
+              orderedCompletionTracker.throwIfFailed();
+            },
+            onResult: async (result, ctx) => {
+              const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
+              const entry = orderedBatchEntries[entryIndex];
+              const orderIndex = resolveEntryOrderIndex(entry, entryIndex);
+              try {
+                const bailoutDecision = observeExtractedProseLowYieldSample({
+                  bailout: extractedProseLowYieldBailout,
+                  orderIndex,
+                  result
+                });
+                if (bailoutDecision?.triggered) {
+                  const ratioPct = (bailoutDecision.observedYieldRatio * 100).toFixed(1);
+                  logLine(
+                    `[stage1:extracted-prose] low-yield bailout engaged after `
                         + `${bailoutDecision.observedSamples} warmup files `
                         + `(yield=${bailoutDecision.yieldedSamples}, ratio=${ratioPct}%, `
                         + `threshold=${Math.round(bailoutDecision.minYieldRatio * 100)}%).`,
-                      {
-                        kind: 'warning',
-                        mode,
-                        stage: 'processing',
-                        qualityImpact: 'reduced-extracted-prose-recall',
-                        extractedProseLowYieldBailout: bailoutDecision
-                      }
-                    );
-                  }
-                  markOrderedEntryComplete(orderIndex, shardProgress);
-                  if (!result) {
-                    if (entry?.rel) lifecycleByRelKey.delete(entry.rel);
-                    if (Number.isFinite(orderIndex)) {
-                      lifecycleByOrderIndex.delete(Math.floor(orderIndex));
-                    }
-                    return orderedAppender.skip(orderIndex);
-                  }
-                  if (Number.isFinite(orderIndex)) {
-                    result.orderIndex = Math.floor(orderIndex);
-                  }
-                  if (result?.relKey && Number.isFinite(orderIndex)) {
-                    lifecycleByRelKey.set(result.relKey, Math.floor(orderIndex));
-                  }
-                  const lifecycle = ensureLifecycleRecord({
-                    orderIndex,
-                    file: result?.relKey || entry?.rel || null,
-                    fileIndex: result?.fileIndex ?? entry?.fileIndex ?? null,
-                    shardId: shardMeta?.id || null
-                  });
-                  if (lifecycle && !Number.isFinite(lifecycle.parseEndAtMs)) {
-                    lifecycle.parseEndAtMs = Date.now();
-                  }
-                  const fileMetrics = result?.fileMetrics;
-                  if (fileMetrics && typeof fileMetrics === 'object') {
-                    const bytes = Math.max(0, Math.floor(Number(fileMetrics.bytes) || 0));
-                    const lines = Math.max(0, Math.floor(Number(fileMetrics.lines) || 0));
-                    const languageId = fileMetrics.languageId || getLanguageForFile(entry?.ext, entry?.rel)?.id || 'unknown';
-                    recordStageTimingSample('parseChunk', {
-                      languageId,
-                      bytes,
-                      lines,
-                      durationMs: clampDurationMs(fileMetrics.parseMs) + clampDurationMs(fileMetrics.tokenizeMs)
-                    });
-                    recordStageTimingSample('inference', {
-                      languageId,
-                      bytes,
-                      lines,
-                      durationMs: clampDurationMs(fileMetrics.enrichMs)
-                    });
-                    recordStageTimingSample('embedding', {
-                      languageId,
-                      bytes,
-                      lines,
-                      durationMs: clampDurationMs(fileMetrics.embeddingMs)
-                    });
-                  }
-                  const completion = orderedAppender.enqueue(orderIndex, result, shardMeta);
-                  orderedCompletionTracker.track(completion, () => {
-                    lastOrderedCompletionAt = Date.now();
-                  });
-                } finally {
-                  clearInFlightFile(orderIndex);
-                }
-              },
-              onError: async (err, ctx) => {
-                const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
-                const entry = orderedBatchEntries[entryIndex];
-                const orderIndex = resolveEntryOrderIndex(entry, entryIndex);
-                try {
-                  observeExtractedProseLowYieldSample({
-                    bailout: extractedProseLowYieldBailout,
-                    orderIndex,
-                    result: null
-                  });
-                  const rel = entry?.rel || toPosix(path.relative(runtimeRef.root, entry?.abs || ''));
-                  const timeoutText = err?.code === 'FILE_PROCESS_TIMEOUT' && Number.isFinite(err?.meta?.timeoutMs)
-                    ? ` timeout=${err.meta.timeoutMs}ms`
-                    : '';
-                  logLine(
-                    `[ordered] skipping failed file ${orderIndex} ${rel}${timeoutText} (${err?.message || err})`,
                     {
                       kind: 'warning',
                       mode,
                       stage: 'processing',
-                      file: rel,
-                      fileIndex: entry?.fileIndex || null,
-                      shardId: shardMeta?.id || null
+                      qualityImpact: 'reduced-extracted-prose-recall',
+                      extractedProseLowYieldBailout: bailoutDecision
                     }
                   );
-                  markOrderedEntryComplete(orderIndex, shardProgress);
+                }
+                markOrderedEntryComplete(orderIndex, shardProgress);
+                if (!result) {
                   if (entry?.rel) lifecycleByRelKey.delete(entry.rel);
                   if (Number.isFinite(orderIndex)) {
                     lifecycleByOrderIndex.delete(Math.floor(orderIndex));
                   }
-                  await orderedAppender.skip(orderIndex);
-                } finally {
-                  clearInFlightFile(orderIndex);
+                  return orderedAppender.skip(orderIndex);
                 }
-              },
-              retries: 2,
-              retryDelayMs: 200,
-              signal: effectiveAbortSignal,
-              requireSignal: true,
-              signalLabel: 'build.stage1.process-files.runWithQueue'
-            }
-          );
-          attemptOrderedGapRecovery({
-            snapshot: {
-              orderedSnapshot: typeof orderedAppender.snapshot === 'function'
-                ? orderedAppender.snapshot()
-                : null,
-              inFlight: inFlightFiles.size
-            },
-            reason: 'queue_drain_pre_wait'
-          });
-          await runWithTimeout(
-            () => orderedCompletionTracker.wait({
-              timeoutMs: effectiveOrderedCompletionTimeoutMs,
-              stallPollMs: orderedCompletionStallPollMs,
-              signal: effectiveAbortSignal,
-              onStall: ({ pending, stallCount, elapsedMs }) => {
-                const orderedSnapshot = typeof orderedAppender.snapshot === 'function'
-                  ? orderedAppender.snapshot()
-                  : null;
-                const flushActive = orderedSnapshot?.flushActive && typeof orderedSnapshot.flushActive === 'object'
-                  ? orderedSnapshot.flushActive
-                  : null;
-                const flushActiveText = flushActive
-                  ? ` flush=${flushActive.orderIndex ?? '?'}@${Math.round((Number(flushActive.elapsedMs) || 0) / 1000)}s`
-                  : '';
-                const seenCount = Number(orderedSnapshot?.seenCount);
-                const expectedCount = Number(orderedSnapshot?.expectedCount);
-                const seenText = Number.isFinite(expectedCount) && expectedCount > 0 && Number.isFinite(seenCount)
-                  ? ` seen=${seenCount}/${expectedCount}`
-                  : '';
-                if (stallCount === 1 || (stallCount % 3) === 0) {
-                  logLine(
-                    `[ordered] completion drain waiting pending=${pending} elapsed=${Math.round(elapsedMs / 1000)}s`
-                      + ` next=${orderedSnapshot?.nextIndex ?? '?'}${seenText}${flushActiveText}`,
-                    {
-                      kind: 'warning',
-                      mode,
-                      stage: 'processing',
-                      orderedPending: pending,
-                      idleMs: elapsedMs,
-                      orderedSnapshot: orderedSnapshot || null
-                    }
-                  );
+                if (Number.isFinite(orderIndex)) {
+                  result.orderIndex = Math.floor(orderIndex);
                 }
-                if (stallCount === 1 || (stallCount % 2) === 0) {
-                  const recovered = attemptOrderedGapRecovery({
-                    snapshot: {
-                      orderedSnapshot,
-                      inFlight: inFlightFiles.size
-                    },
-                    reason: 'ordered_completion_wait'
-                  });
-                  if (Number(recovered?.recovered) > 0) return;
+                if (result?.relKey && Number.isFinite(orderIndex)) {
+                  lifecycleByRelKey.set(result.relKey, Math.floor(orderIndex));
                 }
-                evaluateStalledProcessing('ordered_completion_wait');
-              }
-            }),
-            {
-              timeoutMs: orderedCompletionGuardTimeoutMs,
-              signal: effectiveAbortSignal,
-              errorFactory: () => createTimeoutError({
-                message: `Ordered completion wait guard timed out after ${orderedCompletionGuardTimeoutMs}ms.`,
-                code: 'ORDERED_COMPLETION_WAIT_TIMEOUT',
-                retryable: false,
-                meta: {
-                  timeoutMs: orderedCompletionGuardTimeoutMs,
-                  completionTimeoutMs: effectiveOrderedCompletionTimeoutMs,
-                  stallPollMs: orderedCompletionStallPollMs,
-                  mode,
+                const lifecycle = ensureLifecycleRecord({
+                  orderIndex,
+                  file: result?.relKey || entry?.rel || null,
+                  fileIndex: result?.fileIndex ?? entry?.fileIndex ?? null,
                   shardId: shardMeta?.id || null
+                });
+                if (lifecycle && !Number.isFinite(lifecycle.parseEndAtMs)) {
+                  lifecycle.parseEndAtMs = Date.now();
                 }
-              })
-            }
-          );
-        } finally {
-          activeOrderedCompletionTrackers.delete(orderedCompletionTracker);
-        }
+                const fileMetrics = result?.fileMetrics;
+                if (fileMetrics && typeof fileMetrics === 'object') {
+                  const bytes = Math.max(0, Math.floor(Number(fileMetrics.bytes) || 0));
+                  const lines = Math.max(0, Math.floor(Number(fileMetrics.lines) || 0));
+                  const languageId = fileMetrics.languageId || getLanguageForFile(entry?.ext, entry?.rel)?.id || 'unknown';
+                  recordStageTimingSample('parseChunk', {
+                    languageId,
+                    bytes,
+                    lines,
+                    durationMs: clampDurationMs(fileMetrics.parseMs) + clampDurationMs(fileMetrics.tokenizeMs)
+                  });
+                  recordStageTimingSample('inference', {
+                    languageId,
+                    bytes,
+                    lines,
+                    durationMs: clampDurationMs(fileMetrics.enrichMs)
+                  });
+                  recordStageTimingSample('embedding', {
+                    languageId,
+                    bytes,
+                    lines,
+                    durationMs: clampDurationMs(fileMetrics.embeddingMs)
+                  });
+                }
+                const completion = orderedAppender.enqueue(orderIndex, result, shardMeta);
+                orderedCompletionTracker.track(completion, () => {
+                  lastOrderedCompletionAt = Date.now();
+                });
+              } finally {
+                clearInFlightFile(orderIndex);
+              }
+            },
+            onError: async (err, ctx) => {
+              const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
+              const entry = orderedBatchEntries[entryIndex];
+              const orderIndex = resolveEntryOrderIndex(entry, entryIndex);
+              try {
+                observeExtractedProseLowYieldSample({
+                  bailout: extractedProseLowYieldBailout,
+                  orderIndex,
+                  result: null
+                });
+                const rel = entry?.rel || toPosix(path.relative(runtimeRef.root, entry?.abs || ''));
+                const timeoutText = err?.code === 'FILE_PROCESS_TIMEOUT' && Number.isFinite(err?.meta?.timeoutMs)
+                  ? ` timeout=${err.meta.timeoutMs}ms`
+                  : '';
+                logLine(
+                  `[ordered] skipping failed file ${orderIndex} ${rel}${timeoutText} (${err?.message || err})`,
+                  {
+                    kind: 'warning',
+                    mode,
+                    stage: 'processing',
+                    file: rel,
+                    fileIndex: entry?.fileIndex || null,
+                    shardId: shardMeta?.id || null
+                  }
+                );
+                markOrderedEntryComplete(orderIndex, shardProgress);
+                if (entry?.rel) lifecycleByRelKey.delete(entry.rel);
+                if (Number.isFinite(orderIndex)) {
+                  lifecycleByOrderIndex.delete(Math.floor(orderIndex));
+                }
+                await orderedAppender.skip(orderIndex);
+              } finally {
+                clearInFlightFile(orderIndex);
+              }
+            },
+            retries: 2,
+            retryDelayMs: 200,
+            signal: effectiveAbortSignal,
+            requireSignal: true,
+            signalLabel: 'build.stage1.process-files.runWithQueue'
+          }
+        );
+        attemptOrderedGapRecovery({
+          snapshot: {
+            orderedSnapshot: typeof orderedAppender.snapshot === 'function'
+              ? orderedAppender.snapshot()
+              : null,
+            inFlight: inFlightFiles.size
+          },
+          reason: 'queue_drain_pre_wait'
+        });
+        orderedCompletionTracker.throwIfFailed();
       };
       try {
         await runEntryBatch(shardEntries);
@@ -3572,6 +3513,91 @@ export const processFiles = async ({
         }
         throw err;
       }
+    };
+    /**
+     * Drain all ordered completions once every shard/subset has dispatched work.
+     *
+     * Draining per subset can create a circular wait where a high-order subset
+     * waits on lower indices that belong to a subset not yet scheduled on that
+     * worker. Waiting once at mode tail guarantees those lower indices have had
+     * a chance to run before we enforce full ordered completion.
+     *
+     * @returns {Promise<void>}
+     */
+    const awaitOrderedCompletionDrain = async () => {
+      attemptOrderedGapRecovery({
+        snapshot: {
+          orderedSnapshot: typeof orderedAppender.snapshot === 'function'
+            ? orderedAppender.snapshot()
+            : null,
+          inFlight: inFlightFiles.size
+        },
+        reason: 'queue_drain_pre_wait'
+      });
+      await runWithTimeout(
+        () => orderedCompletionTracker.wait({
+          timeoutMs: effectiveOrderedCompletionTimeoutMs,
+          stallPollMs: orderedCompletionStallPollMs,
+          signal: effectiveAbortSignal,
+          onStall: ({ pending, stallCount, elapsedMs }) => {
+            const orderedSnapshot = typeof orderedAppender.snapshot === 'function'
+              ? orderedAppender.snapshot()
+              : null;
+            const flushActive = orderedSnapshot?.flushActive && typeof orderedSnapshot.flushActive === 'object'
+              ? orderedSnapshot.flushActive
+              : null;
+            const flushActiveText = flushActive
+              ? ` flush=${flushActive.orderIndex ?? '?'}@${Math.round((Number(flushActive.elapsedMs) || 0) / 1000)}s`
+              : '';
+            const seenCount = Number(orderedSnapshot?.seenCount);
+            const expectedCount = Number(orderedSnapshot?.expectedCount);
+            const seenText = Number.isFinite(expectedCount) && expectedCount > 0 && Number.isFinite(seenCount)
+              ? ` seen=${seenCount}/${expectedCount}`
+              : '';
+            if (stallCount === 1 || (stallCount % 3) === 0) {
+              logLine(
+                `[ordered] completion drain waiting pending=${pending} elapsed=${Math.round(elapsedMs / 1000)}s`
+                  + ` next=${orderedSnapshot?.nextIndex ?? '?'}${seenText}${flushActiveText}`,
+                {
+                  kind: 'warning',
+                  mode,
+                  stage: 'processing',
+                  orderedPending: pending,
+                  idleMs: elapsedMs,
+                  orderedSnapshot: orderedSnapshot || null
+                }
+              );
+            }
+            if (stallCount === 1 || (stallCount % 2) === 0) {
+              const recovered = attemptOrderedGapRecovery({
+                snapshot: {
+                  orderedSnapshot,
+                  inFlight: inFlightFiles.size
+                },
+                reason: 'ordered_completion_wait'
+              });
+              if (Number(recovered?.recovered) > 0) return;
+            }
+            evaluateStalledProcessing('ordered_completion_wait');
+          }
+        }),
+        {
+          timeoutMs: orderedCompletionGuardTimeoutMs,
+          signal: effectiveAbortSignal,
+          errorFactory: () => createTimeoutError({
+            message: `Ordered completion wait guard timed out after ${orderedCompletionGuardTimeoutMs}ms.`,
+            code: 'ORDERED_COMPLETION_WAIT_TIMEOUT',
+            retryable: false,
+            meta: {
+              timeoutMs: orderedCompletionGuardTimeoutMs,
+              completionTimeoutMs: effectiveOrderedCompletionTimeoutMs,
+              stallPollMs: orderedCompletionStallPollMs,
+              mode
+            }
+          })
+        }
+      );
+      orderedCompletionTracker.throwIfFailed();
     };
 
     const discoveryLineCounts = discovery?.lineCounts instanceof Map ? discovery.lineCounts : null;
@@ -3977,6 +4003,7 @@ export const processFiles = async ({
         };
       }
     }
+    await awaitOrderedCompletionDrain();
     if (incrementalState?.manifest) {
       const updatedAt = new Date().toISOString();
       incrementalState.manifest.shards = runtime.shards?.enabled
@@ -4098,6 +4125,7 @@ export const processFiles = async ({
       extractedProseLowYieldBailout: extractedProseLowYieldSummary
     };
   } finally {
+    activeOrderedCompletionTrackers.delete(orderedCompletionTracker);
     if (typeof stallSnapshotTimer === 'object' && stallSnapshotTimer) {
       clearInterval(stallSnapshotTimer);
     }
