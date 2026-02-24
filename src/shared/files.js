@@ -41,7 +41,9 @@ export function isPathWithinRoot(candidatePath, rootPath, options = {}) {
   const rootForCompare = platform === 'win32'
     ? normalizedRoot.toLowerCase()
     : normalizedRoot;
-  const boundary = `${rootForCompare}${pathApi.sep}`;
+  const boundary = rootForCompare.endsWith(pathApi.sep)
+    ? rootForCompare
+    : `${rootForCompare}${pathApi.sep}`;
   return candidateForCompare === rootForCompare
     || candidateForCompare.startsWith(boundary);
 }

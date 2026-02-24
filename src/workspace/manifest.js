@@ -102,6 +102,23 @@ const normalizePathBoundaryValue = (value) => {
 };
 
 /**
+ * Check whether `candidate` is equal to or nested under `root`.
+ *
+ * Handles filesystem roots where `path.resolve(root)` may already include a
+ * trailing separator (`/`, `C:\\`), avoiding false negatives from doubled
+ * separators during prefix checks.
+ *
+ * @param {string} candidate
+ * @param {string} root
+ * @returns {boolean}
+ */
+const isWithinBoundary = (candidate, root) => {
+  if (!candidate || !root) return false;
+  const boundary = root.endsWith(path.sep) ? root : `${root}${path.sep}`;
+  return candidate === root || candidate.startsWith(boundary);
+};
+
+/**
  * Resolve a build pointer root only if it remains within the repo cache root.
  *
  * Supports both absolute pointers and relative pointers (resolved against
@@ -127,7 +144,7 @@ const resolvePointerRoot = (value, repoCacheRoot, buildsRoot) => {
   for (const candidate of candidates) {
     const resolvedCandidate = path.resolve(candidate);
     const normalized = normalizePathBoundaryValue(resolvedCandidate);
-    if (normalized === repoCacheResolved || normalized.startsWith(`${repoCacheResolved}${path.sep}`)) {
+    if (isWithinBoundary(normalized, repoCacheResolved)) {
       return resolvedCandidate;
     }
   }
@@ -154,14 +171,8 @@ const resolveBuildIdRoot = (buildId, repoCacheRoot, buildsRoot) => {
   const normalizedCandidate = normalizePathBoundaryValue(candidate);
   const normalizedRepoCacheRoot = normalizePathBoundaryValue(repoCacheRoot);
   const normalizedBuildsRoot = normalizePathBoundaryValue(buildsRoot);
-  const inRepoCache = (
-    normalizedCandidate === normalizedRepoCacheRoot
-    || normalizedCandidate.startsWith(`${normalizedRepoCacheRoot}${path.sep}`)
-  );
-  const inBuildsRoot = (
-    normalizedCandidate === normalizedBuildsRoot
-    || normalizedCandidate.startsWith(`${normalizedBuildsRoot}${path.sep}`)
-  );
+  const inRepoCache = isWithinBoundary(normalizedCandidate, normalizedRepoCacheRoot);
+  const inBuildsRoot = isWithinBoundary(normalizedCandidate, normalizedBuildsRoot);
   if (!inRepoCache || !inBuildsRoot) return null;
   return candidate;
 };
