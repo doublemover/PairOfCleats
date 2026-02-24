@@ -899,11 +899,11 @@
       "small": [
         "ardalis/CleanArchitecture",
         "dotnet-presentations/blazor-workshop",
-        "dotnet/aspnet-api-versioning",
         "dotnet/blazor-samples",
         "jasontaylordev/CleanArchitecture"
       ],
       "medium": [
+        "dotnet/aspnet-api-versioning",
         "MudBlazor/MudBlazor",
         "radzenhq/radzen-blazor"
       ],
