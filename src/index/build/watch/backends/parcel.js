@@ -16,6 +16,8 @@ export async function startParcelWatcher({ root, ignored, onEvent, onError }) {
   if (typeof subscribe !== 'function') {
     throw new Error('Parcel watcher does not expose subscribe().');
   }
+  const ignoredFn = typeof ignored === 'function' ? ignored : null;
+  const ignoreList = Array.isArray(ignored) ? ignored : null;
   const unsubscribe = await subscribe(
     root,
     (err, events) => {
@@ -29,12 +31,11 @@ export async function startParcelWatcher({ root, ignored, onEvent, onError }) {
         if (!mapped) continue;
         const absPath = entry?.path;
         if (!absPath) continue;
+        if (ignoredFn && ignoredFn(absPath)) continue;
         onEvent({ type: mapped, absPath });
       }
     },
-    {
-      ignore: ignored
-    }
+    ignoreList ? { ignore: ignoreList } : {}
   );
   return {
     close: async () => {
