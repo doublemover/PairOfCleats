@@ -2027,6 +2027,45 @@ export const processFiles = async ({
       expectedOrderIndices,
       orderIndexToRel
     } = resolveOrderedEntryProgressPlan(entries);
+    const expectedOrderIndexSet = new Set(expectedOrderIndices);
+    const dispatchedOrderIndices = new Set();
+    /**
+     * Resolve the highest contiguous missing index range that is safe to recover.
+     *
+     * Recovery is safe only when every expected index in `[nextIndex, end]` has
+     * already been dispatched at least once. This prevents skipping future work
+     * from shard workers that have not reached the missing order index yet.
+     *
+     * @param {object|null} orderedSnapshot
+     * @returns {{start:number,end:number}|null}
+     */
+    const resolveRecoverableOrderedGapRange = (orderedSnapshot) => {
+      if (!orderedSnapshot || typeof orderedSnapshot !== 'object') return null;
+      const nextIndex = Number(orderedSnapshot.nextIndex);
+      if (!Number.isFinite(nextIndex)) return null;
+      const pendingHead = Array.isArray(orderedSnapshot.pendingHead)
+        ? orderedSnapshot.pendingHead
+        : [];
+      const minPending = Number(pendingHead[0]);
+      if (!Number.isFinite(minPending) || minPending <= nextIndex) return null;
+      const start = Math.floor(nextIndex);
+      const endExclusive = Math.floor(minPending);
+      let recoverEnd = null;
+      for (let index = start; index < endExclusive; index += 1) {
+        const isExpected = expectedOrderIndexSet.size > 0
+          ? expectedOrderIndexSet.has(index)
+          : true;
+        if (isExpected && !dispatchedOrderIndices.has(index)) {
+          break;
+        }
+        recoverEnd = index;
+      }
+      if (!Number.isFinite(recoverEnd) || recoverEnd < start) return null;
+      return {
+        start,
+        end: recoverEnd
+      };
+    };
     /**
      * Resolve lifecycle timing row from processor result payload.
      *
@@ -2224,6 +2263,17 @@ export const processFiles = async ({
       }
     );
     const inFlightFiles = new Map();
+    /**
+     * Clear one tracked in-flight file lifecycle entry once result handling
+     * (enqueue/skip/error) has fully settled.
+     *
+     * @param {number|null} orderIndex
+     * @returns {void}
+     */
+    const clearInFlightFile = (orderIndex) => {
+      if (!Number.isFinite(orderIndex)) return;
+      inFlightFiles.delete(Math.floor(orderIndex));
+    };
     const stage1HangPolicy = resolveStage1HangPolicy(runtime, stageFileWatchdogConfig);
     const stallSnapshotMs = stage1HangPolicy.stallSnapshotMs;
     const progressHeartbeatMs = stage1HangPolicy.progressHeartbeatMs;
@@ -2261,6 +2311,39 @@ export const processFiles = async ({
       return pendingCount;
     };
     /**
+     * Determine whether ordered backlog has entered head-of-line backpressure.
+     *
+     * In this state, generic file progress is not a reliable liveness signal,
+     * because out-of-order work can continue while the ordered head remains
+     * blocked and dispatch cannot advance.
+     *
+     * @param {number} [orderedPending=0]
+     * @returns {boolean}
+     */
+    const isOrderedHeadOfLineBackpressured = (orderedPending = 0) => {
+      const normalizedPending = Number.isFinite(Number(orderedPending))
+        ? Math.max(0, Math.floor(Number(orderedPending)))
+        : 0;
+      if (normalizedPending <= 0) return false;
+      const configuredLimit = Number(orderedAppenderConfig?.maxPendingBeforeBackpressure);
+      const fallbackLimit = Math.max(1, Math.floor(runtime.fileConcurrency || 1));
+      const backpressureThreshold = Number.isFinite(configuredLimit) && configuredLimit > 0
+        ? Math.max(1, Math.floor(configuredLimit))
+        : fallbackLimit;
+      return normalizedPending >= backpressureThreshold;
+    };
+    /**
+     * Resolve stall-idle anchor timestamp for stage1 watchdog decisions.
+     *
+     * @param {number} [orderedPending=0]
+     * @returns {number}
+     */
+    const resolveStage1LastActivityAt = (orderedPending = 0) => (
+      isOrderedHeadOfLineBackpressured(orderedPending)
+        ? lastOrderedCompletionAt
+        : Math.max(lastProgressAt, lastOrderedCompletionAt)
+    );
+    /**
      * Collect currently stalled in-flight files for watchdog logging.
      *
      * @param {number} [limit=6]
@@ -2273,11 +2356,13 @@ export const processFiles = async ({
       reason = 'stall_snapshot',
       idleMs = null,
       includeStack = false
-    } = {}) => buildStage1ProcessingStallSnapshot({
+    } = {}) => {
+      const orderedPending = getOrderedPendingCount();
+      return buildStage1ProcessingStallSnapshot({
       reason,
       idleMs,
       includeStack,
-      lastProgressAt: Math.max(lastProgressAt, lastOrderedCompletionAt),
+      lastProgressAt: resolveStage1LastActivityAt(orderedPending),
       progress,
       processStart,
       inFlightFiles,
@@ -2287,7 +2372,8 @@ export const processFiles = async ({
       queueDelaySummary,
       stage1OwnershipPrefix: stage1OwnershipPrefix,
       runtime
-    });
+      });
+    };
     /**
      * Format stalled-file rows for heartbeat/abort logs.
      *
@@ -2310,12 +2396,11 @@ export const processFiles = async ({
      */
     const summarizeSoftKickCleanup = (cleanupResults = []) => summarizeStage1SoftKickCleanup(cleanupResults);
     /**
-     * Attempt deterministic ordered-gap recovery when stage1 is stalled with no
-     * active in-flight files but pending ordered results exist.
+     * Attempt deterministic ordered-gap recovery when stage1 appears blocked.
      *
-     * This path is intentionally conservative: it only fast-forwards missing
-     * ranges when there is no active file processing, avoiding accidental skips
-     * while normal parse work is still progressing.
+     * Recovery is limited to a contiguous range that is provably safe:
+     * expected indices must already have been dispatched globally. This keeps
+     * shard workers from skipping future work that has not been scheduled yet.
      *
      * @param {{snapshot?:object|null,reason?:string}} [input]
      * @returns {{recovered:number,start:number|null,end:number|null,nextIndex:number}|null}
@@ -2325,19 +2410,26 @@ export const processFiles = async ({
       reason = 'stage1_stall_recovery'
     } = {}) => {
       if (!orderedAppender || typeof orderedAppender.recoverMissingRange !== 'function') return null;
-      const orderedSnapshot = snapshot?.orderedSnapshot && typeof snapshot.orderedSnapshot === 'object'
+      const liveOrderedSnapshot = typeof orderedAppender.snapshot === 'function'
+        ? orderedAppender.snapshot()
+        : null;
+      const suppliedSnapshot = snapshot?.orderedSnapshot && typeof snapshot.orderedSnapshot === 'object'
         ? snapshot.orderedSnapshot
-        : (typeof orderedAppender.snapshot === 'function' ? orderedAppender.snapshot() : null);
+        : null;
+      const orderedSnapshot = suppliedSnapshot
+        ? { ...(liveOrderedSnapshot || {}), ...suppliedSnapshot }
+        : liveOrderedSnapshot;
       if (!orderedSnapshot || typeof orderedSnapshot !== 'object') return null;
       const pendingCount = Number(orderedSnapshot.pendingCount) || 0;
       const inFlightCount = Number(snapshot?.inFlight ?? inFlightFiles.size) || 0;
-      const expectedCount = Number(orderedSnapshot.expectedCount);
-      const seenCount = Number(orderedSnapshot.seenCount);
       if (inFlightCount > 0 || pendingCount <= 0) return null;
-      if (!(Number.isFinite(expectedCount) && expectedCount > 0 && Number.isFinite(seenCount) && seenCount >= expectedCount)) {
-        return null;
-      }
-      const recovery = orderedAppender.recoverMissingRange({ reason });
+      const recoverRange = resolveRecoverableOrderedGapRange(orderedSnapshot);
+      if (!recoverRange) return null;
+      const recovery = orderedAppender.recoverMissingRange({
+        start: recoverRange.start,
+        end: recoverRange.end,
+        reason
+      });
       if (!recovery || Number(recovery.recovered) <= 0) return recovery || null;
       lastOrderedCompletionAt = Date.now();
       logLine(
@@ -2464,7 +2556,7 @@ export const processFiles = async ({
       const orderedPending = getOrderedPendingCount();
       if (progress.count >= progress.total && inFlightFiles.size === 0 && orderedPending === 0) return;
       const now = Date.now();
-      const lastActivityAt = Math.max(lastProgressAt, lastOrderedCompletionAt);
+      const lastActivityAt = resolveStage1LastActivityAt(orderedPending);
       const idleMs = Math.max(0, now - lastActivityAt);
       const decision = resolveStage1StallAction({
         idleMs,
@@ -2586,7 +2678,7 @@ export const processFiles = async ({
       const orderedPending = getOrderedPendingCount();
       if (progress.count >= progress.total && inFlightFiles.size === 0 && orderedPending === 0) return;
       const now = Date.now();
-      const lastActivityAt = Math.max(lastProgressAt, lastOrderedCompletionAt);
+      const lastActivityAt = resolveStage1LastActivityAt(orderedPending);
       const idleMs = Math.max(0, now - lastActivityAt);
       if (idleMs < stallSnapshotMs) return;
       if (lastStallSnapshotAt > 0 && now - lastStallSnapshotAt < 30000) return;
@@ -2863,6 +2955,9 @@ export const processFiles = async ({
             async (entry, ctx) => {
               const queueIndex = Number.isFinite(ctx?.index) ? ctx.index : null;
               const orderIndex = resolveEntryOrderIndex(entry, queueIndex);
+              if (Number.isFinite(orderIndex)) {
+                dispatchedOrderIndices.add(Math.floor(orderIndex));
+              }
               const stableFileIndex = Number.isFinite(entry?.fileIndex)
                 ? entry.fileIndex
                 : (Number.isFinite(queueIndex) ? queueIndex + 1 : null);
@@ -3121,9 +3216,6 @@ export const processFiles = async ({
                 if (watchdog) {
                   clearTimeout(watchdog);
                 }
-                if (Number.isFinite(orderIndex)) {
-                  inFlightFiles.delete(orderIndex);
-                }
               }
             },
             {
@@ -3186,109 +3278,117 @@ export const processFiles = async ({
                 const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
                 const entry = orderedBatchEntries[entryIndex];
                 const orderIndex = resolveEntryOrderIndex(entry, entryIndex);
-                const bailoutDecision = observeExtractedProseLowYieldSample({
-                  bailout: extractedProseLowYieldBailout,
-                  orderIndex,
-                  result
-                });
-                if (bailoutDecision?.triggered) {
-                  const ratioPct = (bailoutDecision.observedYieldRatio * 100).toFixed(1);
-                  logLine(
-                    `[stage1:extracted-prose] low-yield bailout engaged after `
-                      + `${bailoutDecision.observedSamples} warmup files `
-                      + `(yield=${bailoutDecision.yieldedSamples}, ratio=${ratioPct}%, `
-                      + `threshold=${Math.round(bailoutDecision.minYieldRatio * 100)}%).`,
-                    {
-                      kind: 'warning',
-                      mode,
-                      stage: 'processing',
-                      qualityImpact: 'reduced-extracted-prose-recall',
-                      extractedProseLowYieldBailout: bailoutDecision
-                    }
-                  );
-                }
-                markOrderedEntryComplete(orderIndex, shardProgress);
-                if (!result) {
-                  if (entry?.rel) lifecycleByRelKey.delete(entry.rel);
-                  if (Number.isFinite(orderIndex)) {
-                    lifecycleByOrderIndex.delete(Math.floor(orderIndex));
+                try {
+                  const bailoutDecision = observeExtractedProseLowYieldSample({
+                    bailout: extractedProseLowYieldBailout,
+                    orderIndex,
+                    result
+                  });
+                  if (bailoutDecision?.triggered) {
+                    const ratioPct = (bailoutDecision.observedYieldRatio * 100).toFixed(1);
+                    logLine(
+                      `[stage1:extracted-prose] low-yield bailout engaged after `
+                        + `${bailoutDecision.observedSamples} warmup files `
+                        + `(yield=${bailoutDecision.yieldedSamples}, ratio=${ratioPct}%, `
+                        + `threshold=${Math.round(bailoutDecision.minYieldRatio * 100)}%).`,
+                      {
+                        kind: 'warning',
+                        mode,
+                        stage: 'processing',
+                        qualityImpact: 'reduced-extracted-prose-recall',
+                        extractedProseLowYieldBailout: bailoutDecision
+                      }
+                    );
                   }
-                  return orderedAppender.skip(orderIndex);
-                }
-                if (Number.isFinite(orderIndex)) {
-                  result.orderIndex = Math.floor(orderIndex);
-                }
-                if (result?.relKey && Number.isFinite(orderIndex)) {
-                  lifecycleByRelKey.set(result.relKey, Math.floor(orderIndex));
-                }
-                const lifecycle = ensureLifecycleRecord({
-                  orderIndex,
-                  file: result?.relKey || entry?.rel || null,
-                  fileIndex: result?.fileIndex ?? entry?.fileIndex ?? null,
-                  shardId: shardMeta?.id || null
-                });
-                if (lifecycle && !Number.isFinite(lifecycle.parseEndAtMs)) {
-                  lifecycle.parseEndAtMs = Date.now();
-                }
-                const fileMetrics = result?.fileMetrics;
-                if (fileMetrics && typeof fileMetrics === 'object') {
-                  const bytes = Math.max(0, Math.floor(Number(fileMetrics.bytes) || 0));
-                  const lines = Math.max(0, Math.floor(Number(fileMetrics.lines) || 0));
-                  const languageId = fileMetrics.languageId || getLanguageForFile(entry?.ext, entry?.rel)?.id || 'unknown';
-                  recordStageTimingSample('parseChunk', {
-                    languageId,
-                    bytes,
-                    lines,
-                    durationMs: clampDurationMs(fileMetrics.parseMs) + clampDurationMs(fileMetrics.tokenizeMs)
+                  markOrderedEntryComplete(orderIndex, shardProgress);
+                  if (!result) {
+                    if (entry?.rel) lifecycleByRelKey.delete(entry.rel);
+                    if (Number.isFinite(orderIndex)) {
+                      lifecycleByOrderIndex.delete(Math.floor(orderIndex));
+                    }
+                    return orderedAppender.skip(orderIndex);
+                  }
+                  if (Number.isFinite(orderIndex)) {
+                    result.orderIndex = Math.floor(orderIndex);
+                  }
+                  if (result?.relKey && Number.isFinite(orderIndex)) {
+                    lifecycleByRelKey.set(result.relKey, Math.floor(orderIndex));
+                  }
+                  const lifecycle = ensureLifecycleRecord({
+                    orderIndex,
+                    file: result?.relKey || entry?.rel || null,
+                    fileIndex: result?.fileIndex ?? entry?.fileIndex ?? null,
+                    shardId: shardMeta?.id || null
                   });
-                  recordStageTimingSample('inference', {
-                    languageId,
-                    bytes,
-                    lines,
-                    durationMs: clampDurationMs(fileMetrics.enrichMs)
+                  if (lifecycle && !Number.isFinite(lifecycle.parseEndAtMs)) {
+                    lifecycle.parseEndAtMs = Date.now();
+                  }
+                  const fileMetrics = result?.fileMetrics;
+                  if (fileMetrics && typeof fileMetrics === 'object') {
+                    const bytes = Math.max(0, Math.floor(Number(fileMetrics.bytes) || 0));
+                    const lines = Math.max(0, Math.floor(Number(fileMetrics.lines) || 0));
+                    const languageId = fileMetrics.languageId || getLanguageForFile(entry?.ext, entry?.rel)?.id || 'unknown';
+                    recordStageTimingSample('parseChunk', {
+                      languageId,
+                      bytes,
+                      lines,
+                      durationMs: clampDurationMs(fileMetrics.parseMs) + clampDurationMs(fileMetrics.tokenizeMs)
+                    });
+                    recordStageTimingSample('inference', {
+                      languageId,
+                      bytes,
+                      lines,
+                      durationMs: clampDurationMs(fileMetrics.enrichMs)
+                    });
+                    recordStageTimingSample('embedding', {
+                      languageId,
+                      bytes,
+                      lines,
+                      durationMs: clampDurationMs(fileMetrics.embeddingMs)
+                    });
+                  }
+                  const completion = orderedAppender.enqueue(orderIndex, result, shardMeta);
+                  orderedCompletionTracker.track(completion, () => {
+                    lastOrderedCompletionAt = Date.now();
                   });
-                  recordStageTimingSample('embedding', {
-                    languageId,
-                    bytes,
-                    lines,
-                    durationMs: clampDurationMs(fileMetrics.embeddingMs)
-                  });
+                } finally {
+                  clearInFlightFile(orderIndex);
                 }
-                const completion = orderedAppender.enqueue(orderIndex, result, shardMeta);
-                orderedCompletionTracker.track(completion, () => {
-                  lastOrderedCompletionAt = Date.now();
-                });
               },
               onError: async (err, ctx) => {
                 const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
                 const entry = orderedBatchEntries[entryIndex];
                 const orderIndex = resolveEntryOrderIndex(entry, entryIndex);
-                observeExtractedProseLowYieldSample({
-                  bailout: extractedProseLowYieldBailout,
-                  orderIndex,
-                  result: null
-                });
-                const rel = entry?.rel || toPosix(path.relative(runtimeRef.root, entry?.abs || ''));
-                const timeoutText = err?.code === 'FILE_PROCESS_TIMEOUT' && Number.isFinite(err?.meta?.timeoutMs)
-                  ? ` timeout=${err.meta.timeoutMs}ms`
-                  : '';
-                logLine(
-                  `[ordered] skipping failed file ${orderIndex} ${rel}${timeoutText} (${err?.message || err})`,
-                  {
-                    kind: 'warning',
-                    mode,
-                    stage: 'processing',
-                    file: rel,
-                    fileIndex: entry?.fileIndex || null,
-                    shardId: shardMeta?.id || null
+                try {
+                  observeExtractedProseLowYieldSample({
+                    bailout: extractedProseLowYieldBailout,
+                    orderIndex,
+                    result: null
+                  });
+                  const rel = entry?.rel || toPosix(path.relative(runtimeRef.root, entry?.abs || ''));
+                  const timeoutText = err?.code === 'FILE_PROCESS_TIMEOUT' && Number.isFinite(err?.meta?.timeoutMs)
+                    ? ` timeout=${err.meta.timeoutMs}ms`
+                    : '';
+                  logLine(
+                    `[ordered] skipping failed file ${orderIndex} ${rel}${timeoutText} (${err?.message || err})`,
+                    {
+                      kind: 'warning',
+                      mode,
+                      stage: 'processing',
+                      file: rel,
+                      fileIndex: entry?.fileIndex || null,
+                      shardId: shardMeta?.id || null
+                    }
+                  );
+                  markOrderedEntryComplete(orderIndex, shardProgress);
+                  if (entry?.rel) lifecycleByRelKey.delete(entry.rel);
+                  if (Number.isFinite(orderIndex)) {
+                    lifecycleByOrderIndex.delete(Math.floor(orderIndex));
                   }
-                );
-                markOrderedEntryComplete(orderIndex, shardProgress);
-                if (entry?.rel) lifecycleByRelKey.delete(entry.rel);
-                if (Number.isFinite(orderIndex)) {
-                  lifecycleByOrderIndex.delete(Math.floor(orderIndex));
+                  await orderedAppender.skip(orderIndex);
+                } finally {
+                  clearInFlightFile(orderIndex);
                 }
-                await orderedAppender.skip(orderIndex);
               },
               retries: 2,
               retryDelayMs: 200,
@@ -3297,6 +3397,15 @@ export const processFiles = async ({
               signalLabel: 'build.stage1.process-files.runWithQueue'
             }
           );
+          attemptOrderedGapRecovery({
+            snapshot: {
+              orderedSnapshot: typeof orderedAppender.snapshot === 'function'
+                ? orderedAppender.snapshot()
+                : null,
+              inFlight: inFlightFiles.size
+            },
+            reason: 'queue_drain_pre_wait'
+          });
           await runWithTimeout(
             () => orderedCompletionTracker.wait({
               timeoutMs: effectiveOrderedCompletionTimeoutMs,
@@ -3465,7 +3574,9 @@ export const processFiles = async ({
       checkpoint,
       onTick: () => {
         lastProgressAt = Date.now();
-        if (stage1StallSoftKickAttempts > 0) {
+        const orderedPending = getOrderedPendingCount();
+        const orderedHeadBlocked = isOrderedHeadOfLineBackpressured(orderedPending);
+        if (stage1StallSoftKickAttempts > 0 && !orderedHeadBlocked) {
           stage1StallSoftKickAttempts = 0;
           lastStallSoftKickAt = 0;
           stage1StallSoftKickResetCount += 1;
