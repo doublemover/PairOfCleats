@@ -3,28 +3,25 @@
     "label": "Swift",
     "queries": "benchmarks/queries/swift.txt",
     "repos": {
-      "huge": [
-        "apple/swift",
-        "iina/iina",
-        "airbnb/lottie-ios"
-      ],
-      "large": [
-        "apple/swift-nio"
-      ],
-      "typical": [],
-      "big": [
-        "exelban/stats",
-        "utmapp/UTM",
-        "Alamofire/Alamofire"
+      "small": [
+        "apple/container",
+        "onevcat/Kingfisher",
+        "rxhanson/Rectangle",
+        "twostraws/simple-swiftui"
       ],
       "medium": [
-        "rxhanson/Rectangle",
-        "apple/container",
-        "onevcat/Kingfisher"
+        "Alamofire/Alamofire",
+        "apple/swift-nio",
+        "exelban/stats",
+        "MonitorControl/MonitorControl",
+        "utmapp/UTM"
       ],
-      "small": [
-        "twostraws/simple-swiftui",
-        "MonitorControl/MonitorControl"
+      "large": [
+        "airbnb/lottie-ios",
+        "iina/iina"
+      ],
+      "huge": [
+        "apple/swift"
       ]
     }
   },
@@ -32,69 +29,63 @@
     "label": "C / C++ / Objective-C",
     "queries": "benchmarks/queries/clike.txt",
     "repos": {
-      "huge": [
-        "opencv/opencv",
-        "godotengine/godot",
-        "torvalds/linux",
-        "tensorflow/tensorflow",
-        "facebook/react-native"
-      ],
-      "large": [
-        "llvm/llvm-project",
-        "curl/curl",
-        "redis/redis",
-        "git/git"
-      ],
-      "typical": [
-        "nlohmann/json"
-      ],
-      "big": [
-        "electron/electron",
-        "microsoft/terminal"
-      ],
-      "medium": [
-        "tesseract-ocr/tesseract",
-        "google/googletest",
-        "fmtlib/fmt",
-        "gabime/spdlog",
+      "small": [
         "Genymobile/scrcpy",
         "madler/zlib"
       ],
-      "small": []
+      "medium": [
+        "fmtlib/fmt",
+        "gabime/spdlog",
+        "google/googletest",
+        "tesseract-ocr/tesseract"
+      ],
+      "large": [
+        "curl/curl",
+        "electron/electron",
+        "git/git",
+        "microsoft/terminal",
+        "nlohmann/json",
+        "redis/redis"
+      ],
+      "huge": [
+        "facebook/react-native",
+        "godotengine/godot",
+        "llvm/llvm-project",
+        "opencv/opencv",
+        "tensorflow/tensorflow",
+        "torvalds/linux"
+      ]
     }
   },
   "lua": {
     "label": "Lua",
     "queries": "benchmarks/queries/lua.txt",
     "repos": {
-      "large": [
-        "torch/torch7",
-        "luals/lua-language-server",
-        "openresty/lua-nginx-module"
-      ],
-      "typical": [],
-      "huge": [
-        "Kong/kong",
-        "tarantool/tarantool",
-        "neovim/neovim",
-        "nagadomi/waifu2x",
-        "koreader/koreader"
-      ],
-      "big": [
+      "small": [
+        "folke/lazy.nvim",
+        "hrsh7th/nvim-cmp",
+        "kikito/inspect.lua",
         "LazyVim/LazyVim",
-        "LunarVim/LunarVim",
-        "jgm/pandoc"
+        "lunarmodules/luasocket",
+        "NvChad/NvChad",
+        "nvim-lua/kickstart.nvim",
+        "torch/torch7"
       ],
       "medium": [
-        "NvChad/NvChad",
-        "folke/lazy.nvim",
-        "luarocks/luarocks",
-        "lunarmodules/luasocket"
+        "luals/lua-language-server",
+        "LunarVim/LunarVim",
+        "openresty/lua-nginx-module"
       ],
-      "small": [
-        "nvim-lua/kickstart.nvim",
-        "hrsh7th/nvim-cmp",
-        "kikito/inspect.lua"
+      "large": [
+        "jgm/pandoc",
+        "Kong/kong",
+        "koreader/koreader",
+        "tarantool/tarantool"
+      ],
+      "huge": [
+        "luarocks/luarocks",
+        "nagadomi/waifu2x",
+        "neovim/neovim"
       ]
     }
   },
@@ -102,30 +93,28 @@
     "label": "Perl",
     "queries": "benchmarks/queries/perl.txt",
     "repos": {
+      "small": [
+        "AlDanial/cloc",
+        "brendangregg/FlameGraph",
+        "gugod/App-perlbrew",
+        "ocpi/openscap",
+        "perl-carton/carton",
+        "so-fancy/diff-so-fancy"
+      ],
+      "medium": [
+        "major/MySQLTuner-perl",
+        "metacpan/metacpan-web",
+        "mojolicious/mojo",
+        "Perl-Critic/Perl-Critic"
+      ],
       "large": [
         "bestpractical/rt",
-        "mojolicious/mojo",
-        "ocpi/openscap"
-      ],
-      "typical": [],
-      "huge": [
-        "Perl/perl5",
         "Ensembl/ensembl",
-        "metacpan/metacpan-web",
-        "jlord/git-it-electron",
-        "exiftool/exiftool"
+        "exiftool/exiftool",
+        "jlord/git-it-electron"
       ],
-      "big": [],
-      "medium": [
-        "brendangregg/FlameGraph",
-        "AlDanial/cloc",
-        "Perl-Critic/Perl-Critic",
-        "gugod/App-perlbrew"
-      ],
-      "small": [
-        "so-fancy/diff-so-fancy",
-        "major/MySQLTuner-perl",
-        "perl-carton/carton"
+      "huge": [
+        "Perl/perl5"
       ]
     }
   },
@@ -133,68 +122,58 @@
     "label": "Shell",
     "queries": "benchmarks/queries/shell.txt",
     "repos": {
-      "large": [
-        "Homebrew/brew",
+      "small": [
+        "acmesh-official/acme.sh",
         "asdf-vm/asdf",
-        "pyenv/pyenv"
-      ],
-      "typical": [],
-      "huge": [
-        "ohmyzsh/ohmyzsh",
         "github/gitignore",
         "nvm-sh/nvm",
+        "ohmybash/oh-my-bash",
+        "pi-hole/pi-hole",
+        "pyenv/pyenv",
+        "rupa/z"
+      ],
+      "medium": [
+        "anthropics/claude-code",
+        "bash-it/bash-it",
+        "d3/d3",
+        "ohmyzsh/ohmyzsh"
+      ],
+      "large": [
+        "Homebrew/brew",
         "papers-we-love/papers-we-love",
         "youngyangyang04/leetcode-master"
       ],
-      "big": [
-        "d3/d3",
-        "anthropics/claude-code"
-      ],
-      "medium": [
-        "pi-hole/pi-hole",
-        "ohmybash/oh-my-bash",
-        "bash-it/bash-it",
-        "acmesh-official/acme.sh"
-      ],
-      "small": [
-        "rupa/z"
-      ]
+      "huge": []
     }
   },
   "ruby": {
     "label": "Ruby",
     "queries": "benchmarks/queries/ruby.txt",
     "repos": {
-      "problematic": [
-        "rails/rails"
-      ],
-      "large": [
-        "discourse/discourse",
-        "spree/spree",
-        "chef/chef"
-      ],
-      "typical": [
-        "fastlane/fastlane",
-        "rspec/rspec"
-      ],
-      "huge": [
-        "rubocop/rubocop",
-        "jekyll/jekyll",
-        "huginn/huginn",
-        "mastodon/mastodon",
-        "rapid7/metasploit-framework"
-      ],
-      "big": [
-        "Homebrew/brew",
-        "freeCodeCamp/devdocs"
-      ],
-      "medium": [
-        "heartcombo/devise",
-        "sidekiq/sidekiq"
-      ],
       "small": [
+        "heartcombo/devise",
+        "huginn/huginn",
         "ruby/rake",
         "sinatra/sinatra"
+      ],
+      "medium": [
+        "freeCodeCamp/devdocs",
+        "rspec/rspec",
+        "rubocop/rubocop",
+        "sidekiq/sidekiq"
+      ],
+      "large": [
+        "fastlane/fastlane",
+        "Homebrew/brew",
+        "jekyll/jekyll",
+        "rails/rails",
+        "spree/spree"
+      ],
+      "huge": [
+        "chef/chef",
+        "discourse/discourse",
+        "mastodon/mastodon",
+        "rapid7/metasploit-framework"
       ]
     }
   },
@@ -202,68 +181,61 @@
     "label": "PHP",
     "queries": "benchmarks/queries/php.txt",
     "repos": {
-      "huge": [
-        "symfony/symfony",
-        "magento/magento2",
-        "WordPress/wordpress-develop",
-        "danielmiessler/SecLists",
-        "nextcloud/server"
-      ],
-      "large": [
-        "composer/composer",
-        "woocommerce/woocommerce",
-        "drupal/drupal",
-        "laravel/framework"
-      ],
-      "typical": [
+      "small": [
+        "guzzle/guzzle",
+        "nikic/PHP-Parser",
+        "Seldaek/monolog",
         "slimphp/Slim"
       ],
-      "big": [
+      "medium": [
+        "composer/composer",
         "coollabsio/coolify",
+        "livewire/livewire"
+      ],
+      "large": [
+        "laravel/framework",
         "monicahq/monica"
       ],
-      "medium": [
-        "livewire/livewire",
-        "guzzle/guzzle",
-        "Seldaek/monolog",
-        "nikic/PHP-Parser"
-      ],
-      "small": []
+      "huge": [
+        "danielmiessler/SecLists",
+        "drupal/drupal",
+        "magento/magento2",
+        "nextcloud/server",
+        "symfony/symfony",
+        "woocommerce/woocommerce",
+        "WordPress/wordpress-develop"
+      ]
     }
   },
   "sql": {
     "label": "SQL",
     "queries": "benchmarks/queries/sql.txt",
     "repos": {
-      "huge": [
-        "mysql/mysql-server",
-        "postgres/postgres",
-        "cockroachdb/cockroach",
-        "cahyadsn/wilayah",
-        "basedosdados/sdk"
-      ],
-      "large": [
-        "timescale/timescaledb",
-        "ClickHouse/ClickHouse",
-        "citusdata/citus",
-        "duckdb/duckdb"
-      ],
-      "typical": [
+      "small": [
         "ankane/pghero",
-        "Graphile/graphile-engine"
-      ],
-      "big": [
-        "ClickHouse/NoiSQL",
-        "brunocampos01/banco-de-dados"
+        "dbt-labs/dbt-utils",
+        "dbt-labs/jaffle_shop",
+        "Graphile/graphile-engine",
+        "Velir/dbt-ga4"
       ],
       "medium": [
-        "Velir/dbt-ga4",
-        "supabase/postgres"
-      ],
-      "small": [
+        "basedosdados/sdk",
+        "cahyadsn/wilayah",
+        "ClickHouse/NoiSQL",
         "dbt-labs/jaffle-shop",
-        "dbt-labs/dbt-utils",
-        "dbt-labs/jaffle_shop"
+        "supabase/postgres",
+        "timescale/timescaledb"
+      ],
+      "large": [
+        "brunocampos01/banco-de-dados",
+        "citusdata/citus"
+      ],
+      "huge": [
+        "ClickHouse/ClickHouse",
+        "cockroachdb/cockroach",
+        "duckdb/duckdb",
+        "mysql/mysql-server",
+        "postgres/postgres"
       ]
     }
   },
@@ -271,32 +243,27 @@
     "label": "Python",
     "queries": "benchmarks/queries/python.txt",
     "repos": {
-      "large": [
-        "ansible/ansible",
-        "saltstack/salt",
-        "pandas-dev/pandas"
-      ],
-      "typical": [
-        "pygments/pygments"
-      ],
-      "huge": [
-        "django/django",
-        "scikit-learn/scikit-learn",
-        "python/cpython",
-        "langflow-ai/langflow",
-        "langchain-ai/langchain"
-      ],
-      "big": [
-        "Significant-Gravitas/AutoGPT",
-        "huggingface/transformers"
-      ],
+      "small": [],
       "medium": [
         "fastapi/fastapi",
-        "pydantic/pydantic",
-        "psf/requests"
+        "pallets/flask",
+        "psf/requests",
+        "pygments/pygments"
       ],
-      "small": [
-        "pallets/flask"
+      "large": [
+        "ansible/ansible",
+        "django/django",
+        "scikit-learn/scikit-learn"
+      ],
+      "huge": [
+        "huggingface/transformers",
+        "langchain-ai/langchain",
+        "langflow-ai/langflow",
+        "pandas-dev/pandas",
+        "pydantic/pydantic",
+        "python/cpython",
+        "saltstack/salt",
+        "Significant-Gravitas/AutoGPT"
       ]
     }
   },
@@ -304,32 +271,28 @@
     "label": "Rust",
     "queries": "benchmarks/queries/rust.txt",
     "repos": {
+      "small": [
+        "BurntSushi/ripgrep",
+        "rust-lang/rustlings",
+        "serde-rs/serde",
+        "sharkdp/fd"
+      ],
+      "medium": [
+        "alacritty/alacritty",
+        "tokio-rs/tokio"
+      ],
+      "large": [
+        "astral-sh/uv",
+        "denoland/deno",
+        "nushell/nushell",
+        "rustdesk/rustdesk",
+        "tauri-apps/tauri"
+      ],
       "huge": [
         "rust-lang/rust",
         "servo/servo",
-        "zed-industries/zed",
-        "unionlabs/union"
-      ],
-      "typical": [
-        "sharkdp/fd",
-        "serde-rs/serde"
-      ],
-      "large": [
-        "denoland/deno",
-        "nushell/nushell",
-        "alacritty/alacritty"
-      ],
-      "big": [
-        "tauri-apps/tauri",
-        "astral-sh/uv"
-      ],
-      "medium": [
-        "rustdesk/rustdesk",
-        "tokio-rs/tokio"
-      ],
-      "small": [
-        "BurntSushi/ripgrep",
-        "rust-lang/rustlings"
+        "unionlabs/union",
+        "zed-industries/zed"
       ]
     }
   },
@@ -337,33 +300,29 @@
     "label": "Go",
     "queries": "benchmarks/queries/go.txt",
     "repos": {
-      "huge": [
-        "kubernetes/kubernetes",
-        "moby/moby",
-        "golang/go",
-        "go-gitea/gitea"
+      "small": [
+        "gorilla/mux",
+        "junegunn/fzf",
+        "spf13/cobra"
+      ],
+      "medium": [
+        "caddyserver/caddy",
+        "fatedier/frp",
+        "gin-gonic/gin"
       ],
       "large": [
         "etcd-io/etcd",
-        "hashicorp/terraform",
-        "grafana/grafana",
+        "gohugoio/hugo",
+        "moby/moby",
+        "ollama/ollama",
         "prometheus/prometheus"
       ],
-      "typical": [
-        "spf13/cobra",
-        "gorilla/mux",
-        "caddyserver/caddy"
-      ],
-      "big": [
-        "ollama/ollama",
-        "gohugoio/hugo"
-      ],
-      "medium": [
-        "fatedier/frp",
-        "junegunn/fzf"
-      ],
-      "small": [
-        "gin-gonic/gin"
+      "huge": [
+        "go-gitea/gitea",
+        "golang/go",
+        "grafana/grafana",
+        "hashicorp/terraform",
+        "kubernetes/kubernetes"
       ]
     }
   },
@@ -371,33 +330,28 @@
     "label": "Java",
     "queries": "benchmarks/queries/java.txt",
     "repos": {
-      "huge": [
-        "elastic/elasticsearch",
-        "apache/kafka",
-        "krahets/hello-algo",
-        "MisterBooo/LeetCodeAnimation"
-      ],
-      "large": [
-        "apache/spark",
-        "google/guava",
-        "hibernate/hibernate-orm",
-        "spring-projects/spring-boot"
-      ],
-      "typical": [
-        "mockito/mockito",
-        "junit-team/junit-framework"
-      ],
-      "big": [
-        "Snailclimb/JavaGuide",
-        "GrowingGit/GitHub-Chinese-Top-Charts"
-      ],
+      "small": [],
       "medium": [
         "iluwatar/java-design-patterns",
+        "junit-team/junit-framework",
+        "junit-team/junit5",
+        "mockito/mockito",
+        "spring-projects/spring-petclinic"
+      ],
+      "large": [
+        "apache/kafka",
+        "GrowingGit/GitHub-Chinese-Top-Charts",
+        "Snailclimb/JavaGuide",
+        "spring-projects/spring-boot",
         "square/okhttp"
       ],
-      "small": [
-        "spring-projects/spring-petclinic",
-        "junit-team/junit5"
+      "huge": [
+        "apache/spark",
+        "elastic/elasticsearch",
+        "google/guava",
+        "hibernate/hibernate-orm",
+        "krahets/hello-algo",
+        "MisterBooo/LeetCodeAnimation"
       ]
     }
   },
@@ -405,34 +359,30 @@
     "label": "C#",
     "queries": "benchmarks/queries/csharp.txt",
     "repos": {
-      "huge": [
-        "dotnet/runtime",
-        "dotnet/aspnetcore",
-        "microsoft/PowerToys",
-        "dotnet/maui"
+      "small": [
+        "jbogard/MediatR"
+      ],
+      "medium": [
+        "FluentValidation/FluentValidation",
+        "shadowsocks/shadowsocks-windows"
       ],
       "large": [
         "AutoMapper/AutoMapper",
-        "OrchardCMS/OrchardCore",
-        "dotnet/roslyn"
-      ],
-      "typical": [
-        "jbogard/MediatR",
-        "Serilog/serilog",
-        "FluentValidation/FluentValidation"
-      ],
-      "big": [
-        "PowerShell/PowerShell",
-        "files-community/Files"
-      ],
-      "medium": [
-        "jellyfin/jellyfin",
         "AvaloniaUI/Avalonia",
-        "shadowsocks/shadowsocks-windows",
-        "LuckyPennySoftware/AutoMapper"
+        "dotnet/BenchmarkDotNet",
+        "files-community/Files",
+        "jellyfin/jellyfin",
+        "LuckyPennySoftware/AutoMapper",
+        "OrchardCMS/OrchardCore",
+        "PowerShell/PowerShell",
+        "Serilog/serilog"
       ],
-      "small": [
-        "dotnet/BenchmarkDotNet"
+      "huge": [
+        "dotnet/aspnetcore",
+        "dotnet/maui",
+        "dotnet/roslyn",
+        "dotnet/runtime",
+        "microsoft/PowerToys"
       ]
     }
   },
@@ -440,34 +390,30 @@
     "label": "Kotlin",
     "queries": "benchmarks/queries/kotlin.txt",
     "repos": {
-      "huge": [
-        "JetBrains/kotlin",
-        "android/architecture-samples",
-        "bannedbook/fanqiang",
-        "signalapp/Signal-Android"
-      ],
-      "large": [
-        "ktorio/ktor",
-        "square/okhttp",
-        "airbnb/mavericks"
-      ],
-      "typical": [
-        "square/leakcanary",
-        "InsertKoinIO/koin",
-        "google/accompanist",
+      "small": [
         "Kotlin/kotlinx-datetime"
       ],
-      "big": [
-        "2dust/v2rayNG",
-        "kavishdevar/librepods"
-      ],
       "medium": [
+        "airbnb/mavericks",
+        "android/architecture-samples",
+        "google/accompanist",
+        "InsertKoinIO/koin",
         "Kotlin/kotlinx.coroutines",
+        "Kotlin/kotlinx.serialization",
         "shadowsocks/shadowsocks-android"
       ],
-      "small": [
-        "Kotlin/kotlinx.serialization",
-        "coil-kt/coil"
+      "large": [
+        "2dust/v2rayNG",
+        "coil-kt/coil",
+        "kavishdevar/librepods",
+        "ktorio/ktor",
+        "square/leakcanary",
+        "square/okhttp"
+      ],
+      "huge": [
+        "bannedbook/fanqiang",
+        "JetBrains/kotlin",
+        "signalapp/Signal-Android"
       ]
     }
   },
@@ -475,31 +421,27 @@
     "label": "JavaScript / TypeScript",
     "queries": "benchmarks/queries/javascript.txt",
     "repos": {
-      "large": [
-        "vercel/next.js",
-        "microsoft/vscode",
-        "angular/angular",
-        "nestjs/nest"
-      ],
-      "typical": [
+      "small": [
         "expressjs/express"
       ],
-      "huge": [
-        "nodejs/node",
-        "Chalarangelo/30-seconds-of-code",
-        "mrdoob/three.js"
-      ],
-      "big": [
-        "sveltejs/svelte",
-        "FortAwesome/Font-Awesome"
-      ],
       "medium": [
-        "facebook/react",
+        "axios/axios",
+        "lodash/lodash",
         "vuejs/vue"
       ],
-      "small": [
-        "lodash/lodash",
-        "axios/axios"
+      "large": [
+        "FortAwesome/Font-Awesome",
+        "sveltejs/svelte"
+      ],
+      "huge": [
+        "angular/angular",
+        "Chalarangelo/30-seconds-of-code",
+        "facebook/react",
+        "microsoft/vscode",
+        "mrdoob/three.js",
+        "nestjs/nest",
+        "nodejs/node",
+        "vercel/next.js"
       ]
     }
   },
@@ -507,34 +449,30 @@
     "label": "Dockerfile",
     "queries": "benchmarks/queries/dockerfile.txt",
     "repos": {
-      "typical": [
-        "devcontainers/images",
-        "docker-library/hello-world"
-      ],
-      "huge": [
-        "kubernetes/kubernetes",
-        "moby/moby",
-        "github/actions",
-        "goldbergyoni/nodebestpractices",
-        "Anduin2017/HowToCook"
-      ],
-      "large": [
-        "docker/compose",
-        "hashicorp/terraform",
-        "grafana/grafana",
-        "docker/awesome-compose"
-      ],
-      "big": [
-        "mikeroyal/Self-Hosting-Guide",
-        "laradock/laradock"
-      ],
-      "medium": [
-        "bitnami/containers",
-        "docker-library/official-images"
-      ],
       "small": [
+        "devcontainers/images",
+        "docker-library/hello-world",
+        "docker/awesome-compose",
+        "github/actions",
+        "mikeroyal/Self-Hosting-Guide",
         "nginxinc/docker-nginx",
         "nodejs/docker-node"
+      ],
+      "medium": [
+        "docker-library/official-images",
+        "docker/compose",
+        "laradock/laradock"
+      ],
+      "large": [
+        "goldbergyoni/nodebestpractices",
+        "moby/moby"
+      ],
+      "huge": [
+        "Anduin2017/HowToCook",
+        "bitnami/containers",
+        "grafana/grafana",
+        "hashicorp/terraform",
+        "kubernetes/kubernetes"
       ]
     }
   },
@@ -542,33 +480,29 @@
     "label": "Makefile",
     "queries": "benchmarks/queries/makefile.txt",
     "repos": {
-      "typical": [
-        "madler/zlib",
-        "libexpat/libexpat",
-        "ninja-build/ninja"
-      ],
-      "huge": [
-        "llvm/llvm-project",
-        "kubernetes/kubernetes",
-        "opencv/opencv",
-        "torvalds/linux",
-        "motioneye-project/motioneyeos",
-        "bgreenwell/doxx"
-      ],
-      "large": [
-        "redis/redis"
-      ],
-      "big": [
-        "PostgresApp/PostgresApp",
-        "foostan/crkbd"
-      ],
-      "medium": [
-        "curl/curl",
-        "git/git"
-      ],
       "small": [
         "jqlang/jq",
-        "libcheck/check"
+        "libcheck/check",
+        "madler/zlib",
+        "ninja-build/ninja"
+      ],
+      "medium": [
+        "libexpat/libexpat",
+        "PostgresApp/PostgresApp"
+      ],
+      "large": [
+        "bgreenwell/doxx",
+        "curl/curl",
+        "foostan/crkbd",
+        "git/git",
+        "motioneye-project/motioneyeos",
+        "redis/redis"
+      ],
+      "huge": [
+        "kubernetes/kubernetes",
+        "llvm/llvm-project",
+        "opencv/opencv",
+        "torvalds/linux"
       ]
     }
   },
@@ -576,32 +510,28 @@
     "label": "Protobuf",
     "queries": "benchmarks/queries/protobuf.txt",
     "repos": {
-      "typical": [
-        "bufbuild/buf",
-        "gogo/protobuf",
+      "small": [
         "bufbuild/protovalidate"
       ],
-      "huge": [
-        "kubernetes/kubernetes",
-        "envoyproxy/envoy"
+      "medium": [
+        "apple/swift-protobuf",
+        "bufbuild/buf",
+        "bufbuild/protoc-gen-validate",
+        "gogo/protobuf",
+        "grpc-ecosystem/grpc-gateway",
+        "protocolbuffers/protobuf-go",
+        "stephenh/ts-proto"
       ],
       "large": [
+        "envoyproxy/envoy",
+        "googleapis/googleapis",
         "istio/istio",
         "prometheus/prometheus",
-        "grpc/grpc",
         "protocolbuffers/protobuf"
       ],
-      "big": [
-        "googleapis/googleapis",
-        "apple/swift-protobuf",
-        "protocolbuffers/protobuf-go"
-      ],
-      "medium": [
-        "grpc-ecosystem/grpc-gateway",
-        "bufbuild/protoc-gen-validate"
-      ],
-      "small": [
-        "stephenh/ts-proto"
+      "huge": [
+        "grpc/grpc",
+        "kubernetes/kubernetes"
       ]
     }
   },
@@ -609,30 +539,26 @@
     "label": "GraphQL",
     "queries": "benchmarks/queries/graphql.txt",
     "repos": {
-      "typical": [
-        "graphql-dotnet/graphql-dotnet",
-        "dgraph-io/dgraph",
-        "n1ru4l/graphql-live-query",
+      "small": [
+        "graphql/dataloader",
         "graphql/graphql-spec",
-        "urql-graphql/urql"
-      ],
-      "huge": [
-        "facebook/relay",
-        "hasura/graphql-engine",
-        "prisma/prisma"
-      ],
-      "large": [
-        "graphql-java/graphql-java"
-      ],
-      "big": [
-        "apollographql/apollo-server",
-        "apollographql/apollo-client"
+        "n1ru4l/graphql-live-query"
       ],
       "medium": [
-        "graphql/graphql-js"
+        "graphql-dotnet/graphql-dotnet",
+        "graphql-java/graphql-java",
+        "graphql/graphql-js",
+        "urql-graphql/urql"
       ],
-      "small": [
-        "graphql/dataloader"
+      "large": [
+        "apollographql/apollo-client",
+        "apollographql/apollo-server",
+        "prisma/prisma"
+      ],
+      "huge": [
+        "dgraph-io/dgraph",
+        "facebook/relay",
+        "hasura/graphql-engine"
       ]
     }
   },
@@ -640,35 +566,31 @@
     "label": "CMake",
     "queries": "benchmarks/queries/cmake.txt",
     "repos": {
-      "typical": [
+      "small": [
+        "dreamworksanimation/openmoonray",
+        "TheLartians/ModernCppStarter",
+        "ttroy50/cmake-examples",
+        "ultralight-ux/Ultralight",
+        "wzpan/cmake-demo"
+      ],
+      "medium": [
+        "Akagi201/learning-cmake",
+        "facebook/folly",
         "fmtlib/fmt",
+        "gabime/spdlog",
+        "google/googletest"
+      ],
+      "large": [
+        "Kitware/CMake",
+        "microsoft/vcpkg",
+        "mint-lab/3dv_tutorial",
         "nlohmann/json"
       ],
       "huge": [
+        "godotengine/godot",
         "llvm/llvm-project",
         "opencv/opencv",
-        "godotengine/godot",
-        "Akagi201/learning-cmake",
-        "mint-lab/3dv_tutorial"
-      ],
-      "large": [
-        "microsoft/vcpkg",
-        "tensorflow/tensorflow",
-        "facebook/folly",
-        "Kitware/CMake"
-      ],
-      "big": [
-        "ultralight-ux/Ultralight",
-        "dreamworksanimation/openmoonray"
-      ],
-      "medium": [
-        "ttroy50/cmake-examples",
-        "google/googletest",
-        "gabime/spdlog"
-      ],
-      "small": [
-        "wzpan/cmake-demo",
-        "TheLartians/ModernCppStarter"
+        "tensorflow/tensorflow"
       ]
     }
   },
@@ -676,33 +598,29 @@
     "label": "Bazel / Starlark",
     "queries": "benchmarks/queries/starlark.txt",
     "repos": {
-      "typical": [
-        "bazelbuild/rules_nodejs",
-        "bazelbuild/rules_proto",
+      "small": [
         "bazelbuild/bazel-skylib",
-        "bazelbuild/rules_go"
-      ],
-      "huge": [
-        "tensorflow/tensorflow",
+        "bazelbuild/examples",
+        "bazelbuild/rules_proto",
+        "google/cel-spec",
         "google/tsunami-security-scanner",
-        "googleapis/googleapis",
+        "GoogleContainerTools/distroless"
+      ],
+      "medium": [
+        "bazelbuild/rules_docker",
+        "bazelbuild/rules_go",
+        "bazelbuild/rules_nodejs",
         "bazelbuild/rules_rust"
       ],
       "large": [
-        "grpc/grpc",
         "envoyproxy/envoy",
+        "googleapis/googleapis",
         "protocolbuffers/protobuf"
       ],
-      "big": [
-        "GoogleContainerTools/distroless",
-        "bazelbuild/rules_docker"
-      ],
-      "medium": [
+      "huge": [
         "bazelbuild/bazel",
-        "google/cel-spec"
-      ],
-      "small": [
-        "bazelbuild/examples"
+        "grpc/grpc",
+        "tensorflow/tensorflow"
       ]
     }
   },
@@ -710,35 +628,31 @@
     "label": "Nix",
     "queries": "benchmarks/queries/nix.txt",
     "repos": {
-      "typical": [
-        "Mic92/sops-nix"
-      ],
-      "huge": [
-        "NixOS/nixpkgs",
-        "nixos/nix",
-        "numtide/flake-utils",
-        "ryan4yin/nix-config",
-        "oxalica/rust-overlay"
-      ],
-      "large": [
-        "home-assistant/core",
+      "small": [
         "cachix/cachix",
-        "nix-community/home-manager"
-      ],
-      "big": [
+        "dustinlyons/nixos-config",
+        "hercules-ci/hercules-ci-agent",
+        "Mic92/sops-nix",
+        "Misterio77/nix-starter-configs",
         "nix-darwin/nix-darwin",
-        "dustinlyons/nixos-config"
-      ],
-      "medium": [
         "NixOS/nix.dev",
         "NixOS/nixos-hardware",
-        "hercules-ci/hercules-ci-agent"
-      ],
-      "small": [
-        "Misterio77/nix-starter-configs",
-        "the-nix-way/dev-templates",
+        "numtide/devshell",
+        "numtide/flake-utils",
         "ryantm/agenix",
-        "numtide/devshell"
+        "the-nix-way/dev-templates"
+      ],
+      "medium": [
+        "oxalica/rust-overlay",
+        "ryan4yin/nix-config"
+      ],
+      "large": [
+        "nix-community/home-manager",
+        "nixos/nix"
+      ],
+      "huge": [
+        "home-assistant/core",
+        "NixOS/nixpkgs"
       ]
     }
   },
@@ -746,33 +660,29 @@
     "label": "Dart",
     "queries": "benchmarks/queries/dart.txt",
     "repos": {
-      "typical": [
-        "flutter/packages",
-        "rrousselGit/provider",
+      "small": [
+        "dart-lang/http",
         "google/json_serializable.dart",
-        "dart-lang/http"
-      ],
-      "huge": [
-        "flutter/engine",
-        "KRTirtho/spotube",
-        "ente-io/ente"
-      ],
-      "large": [
-        "firebase/flutterfire",
-        "rrousselGit/riverpod",
-        "dart-lang/sdk"
-      ],
-      "big": [
-        "AppFlowy-IO/AppFlowy",
-        "hiddify/hiddify-app"
+        "rrousselGit/provider"
       ],
       "medium": [
+        "ImranR98/Obtainium",
         "localsend/localsend",
-        "flutter/flutter",
-        "ImranR98/Obtainium"
+        "rrousselGit/riverpod"
       ],
-      "small": [
-        "felangel/bloc"
+      "large": [
+        "AppFlowy-IO/AppFlowy",
+        "felangel/bloc",
+        "firebase/flutterfire",
+        "flutter/packages",
+        "hiddify/hiddify-app",
+        "KRTirtho/spotube"
+      ],
+      "huge": [
+        "dart-lang/sdk",
+        "ente-io/ente",
+        "flutter/engine",
+        "flutter/flutter"
       ]
     }
   },
@@ -780,33 +690,29 @@
     "label": "Scala",
     "queries": "benchmarks/queries/scala.txt",
     "repos": {
-      "typical": [
+      "small": [
+        "rtyley/bfg-repo-cleaner"
+      ],
+      "medium": [
+        "circe/circe",
+        "delta-io/delta",
+        "gitbucket/gitbucket",
+        "sbt/sbt",
         "scalatest/scalatest",
-        "circe/circe"
+        "typelevel/cats"
+      ],
+      "large": [
+        "akka/akka",
+        "akka/akka-core",
+        "playframework/playframework",
+        "scala/scala",
+        "scala/scala3",
+        "scalaz/scalaz",
+        "twitter/finagle"
       ],
       "huge": [
         "apache/spark",
-        "akka/akka",
-        "twitter/finagle",
-        "lichess-org/lila",
-        "scala/scala3"
-      ],
-      "large": [
-        "scalaz/scalaz",
-        "sbt/sbt",
-        "akka/akka-core"
-      ],
-      "big": [
-        "scala/scala",
-        "delta-io/delta"
-      ],
-      "medium": [
-        "gitbucket/gitbucket",
-        "playframework/playframework"
-      ],
-      "small": [
-        "rtyley/bfg-repo-cleaner",
-        "typelevel/cats"
+        "lichess-org/lila"
       ]
     }
   },
@@ -814,31 +720,27 @@
     "label": "Groovy",
     "queries": "benchmarks/queries/groovy.txt",
     "repos": {
-      "typical": [
-        "geb/geb",
-        "CodeNarc/CodeNarc",
+      "small": [
         "google/protobuf-gradle-plugin",
-        "spockframework/spock"
-      ],
-      "huge": [
-        "rundeck/rundeck",
-        "nextflow-io/nextflow"
-      ],
-      "large": [
-        "grails/grails-core",
-        "jenkinsci/pipeline-model-definition-plugin"
-      ],
-      "big": [
-        "HujiangTechnology/gradle_plugin_android_aspectjx",
+        "jenkinsci/pipeline-examples",
+        "jenkinsci/pipeline-model-definition-plugin",
         "kezong/fat-aar-android"
       ],
       "medium": [
-        "jenkinsci/jenkins",
-        "gradle/gradle"
+        "CodeNarc/CodeNarc",
+        "geb/geb",
+        "HujiangTechnology/gradle_plugin_android_aspectjx",
+        "spockframework/spock"
       ],
-      "small": [
-        "jenkinsci/pipeline-examples",
-        "apache/groovy"
+      "large": [
+        "apache/groovy",
+        "jenkinsci/jenkins",
+        "nextflow-io/nextflow",
+        "rundeck/rundeck"
+      ],
+      "huge": [
+        "gradle/gradle",
+        "grails/grails-core"
       ]
     }
   },
@@ -846,32 +748,28 @@
     "label": "R",
     "queries": "benchmarks/queries/r.txt",
     "repos": {
-      "typical": [
-        "r-lib/testthat",
+      "small": [
         "hadley/stringr",
-        "satijalab/seurat"
-      ],
-      "huge": [
-        "rstudio/rstudio",
-        "wch/r-source",
-        "IndrajeetPatil/ggstatsplot",
-        "tylermorganwall/rayshader"
-      ],
-      "large": [
-        "r-lib/devtools",
         "yihui/knitr"
       ],
-      "big": [
-        "rstudio/shiny",
-        "hadley/r4ds"
-      ],
       "medium": [
-        "tidyverse/dplyr",
-        "tidyverse/ggplot2"
-      ],
-      "small": [
+        "r-lib/devtools",
+        "r-lib/testthat",
         "r-lib/usethis",
         "tidyverse/readr"
+      ],
+      "large": [
+        "hadley/r4ds",
+        "rstudio/shiny",
+        "satijalab/seurat",
+        "tidyverse/dplyr"
+      ],
+      "huge": [
+        "IndrajeetPatil/ggstatsplot",
+        "rstudio/rstudio",
+        "tidyverse/ggplot2",
+        "tylermorganwall/rayshader",
+        "wch/r-source"
       ]
     }
   },
@@ -879,34 +777,30 @@
     "label": "Julia",
     "queries": "benchmarks/queries/julia.txt",
     "repos": {
-      "typical": [
-        "JuliaLang/IJulia.jl",
-        "JuliaPlots/Plots.jl",
+      "small": [
+        "FluxML/Zygote.jl",
         "JuliaIO/JSON.jl",
-        "JuliaIO/HDF5.jl"
+        "JuliaLang/IJulia.jl",
+        "JuliaLang/PackageCompiler.jl"
+      ],
+      "medium": [
+        "FluxML/Flux.jl",
+        "GenieFramework/Genie.jl",
+        "JuliaData/DataFrames.jl",
+        "JuliaIO/HDF5.jl",
+        "JuliaPlots/UnicodePlots.jl",
+        "TuringLang/Turing.jl"
+      ],
+      "large": [
+        "JuliaPlots/Plots.jl",
+        "SciML/DifferentialEquations.jl"
       ],
       "huge": [
         "JuliaLang/julia",
-        "SciML/DifferentialEquations.jl",
-        "mitmath/computational-thinking",
-        "jump-dev/JuMP.jl"
-      ],
-      "large": [
-        "MakieOrg/Makie.jl",
+        "jump-dev/JuMP.jl",
         "JuMP-dev/JuMP.jl",
-        "JuliaData/DataFrames.jl"
-      ],
-      "big": [
-        "GenieFramework/Genie.jl",
-        "TuringLang/Turing.jl"
-      ],
-      "medium": [
-        "JuliaPlots/UnicodePlots.jl",
-        "FluxML/Flux.jl"
-      ],
-      "small": [
-        "FluxML/Zygote.jl",
-        "JuliaLang/PackageCompiler.jl"
+        "MakieOrg/Makie.jl",
+        "mitmath/computational-thinking"
       ]
     }
   },
@@ -914,34 +808,30 @@
     "label": "Handlebars",
     "queries": "benchmarks/queries/handlebars.txt",
     "repos": {
-      "typical": [
-        "assemble/assemble",
+      "small": [
+        "assemble/handlebars-helpers",
+        "bestony/EasyWordPressBook",
+        "bigcommerce/paper-handlebars",
+        "express-handlebars/express-handlebars",
+        "ghost/ghost",
+        "handlebars-lang/handlebars.js",
         "metalsmith/metalsmith",
-        "express-handlebars/express-handlebars"
+        "rust-lang/rust-by-example"
       ],
-      "huge": [
-        "microsoft/vscode",
-        "vercel/next.js",
-        "nodejs/node",
-        "wet-boew/wet-boew",
+      "medium": [
+        "assemble/assemble",
         "flatlogic/sing-app"
       ],
       "large": [
+        "emberjs/ember.js",
         "twbs/bootstrap",
-        "ghost/ghost",
-        "emberjs/ember.js"
+        "wet-boew/wet-boew"
       ],
-      "big": [
-        "rust-lang/rust-by-example",
-        "bestony/EasyWordPressBook"
-      ],
-      "medium": [
+      "huge": [
+        "microsoft/vscode",
+        "nodejs/node",
         "TryGhost/Ghost",
-        "assemble/handlebars-helpers"
-      ],
-      "small": [
-        "handlebars-lang/handlebars.js",
-        "bigcommerce/paper-handlebars"
+        "vercel/next.js"
       ]
     }
   },
@@ -949,32 +839,29 @@
     "label": "Mustache",
     "queries": "benchmarks/queries/mustache.txt",
     "repos": {
-      "typical": [],
-      "huge": [
-        "kubernetes/kubernetes",
-        "ansible/ansible",
-        "elastic/elasticsearch",
-        "OpenAPITools/openapi-generator",
-        "argoproj/argo-helm",
-        "sentry-kubernetes/charts"
-      ],
-      "large": [
-        "helm/helm",
-        "hashicorp/terraform",
-        "grafana/grafana",
-        "swagger-api/swagger-codegen"
-      ],
-      "big": [
-        "prometheus-community/helm-charts",
-        "goharbor/harbor-helm"
+      "small": [
+        "janl/mustache.js",
+        "mustache/mustache",
+        "mustache/spec",
+        "spullara/mustache.java"
       ],
       "medium": [
-        "spullara/mustache.java",
-        "mustache/spec"
+        "argoproj/argo-helm",
+        "goharbor/harbor-helm",
+        "helm/helm",
+        "prometheus-community/helm-charts"
       ],
-      "small": [
-        "mustache/mustache",
-        "janl/mustache.js"
+      "large": [
+        "ansible/ansible",
+        "sentry-kubernetes/charts",
+        "swagger-api/swagger-codegen"
+      ],
+      "huge": [
+        "elastic/elasticsearch",
+        "grafana/grafana",
+        "hashicorp/terraform",
+        "kubernetes/kubernetes",
+        "OpenAPITools/openapi-generator"
       ]
     }
   },
@@ -982,29 +869,26 @@
     "label": "Jinja / Django",
     "queries": "benchmarks/queries/jinja.txt",
     "repos": {
-      "typical": [],
-      "huge": [
-        "home-assistant/core",
-        "kubernetes-sigs/kubespray",
-        "easzlab/kubeasz"
-      ],
-      "large": [
-        "django/django",
-        "jupyter/notebook",
-        "apache/superset"
-      ],
-      "big": [
-        "netbootxyz/netboot.xyz",
-        "davestephens/ansible-nas"
-      ],
-      "medium": [
-        "ansible/ansible",
-        "pallets/jinja",
-        "pallets/flask"
-      ],
       "small": [
         "cookiecutter/cookiecutter",
-        "ansible/ansible-examples"
+        "netbootxyz/netboot.xyz",
+        "pallets/jinja"
+      ],
+      "medium": [
+        "ansible/ansible-examples",
+        "davestephens/ansible-nas",
+        "easzlab/kubeasz",
+        "jupyter/notebook",
+        "kubernetes-sigs/kubespray",
+        "pallets/flask"
+      ],
+      "large": [
+        "ansible/ansible",
+        "django/django"
+      ],
+      "huge": [
+        "apache/superset",
+        "home-assistant/core"
       ]
     }
   },
@@ -1012,31 +896,28 @@
     "label": "Razor",
     "queries": "benchmarks/queries/razor.txt",
     "repos": {
-      "typical": [
+      "small": [
         "ardalis/CleanArchitecture",
-        "jasontaylordev/CleanArchitecture",
         "dotnet-presentations/blazor-workshop",
-        "dotnet-architecture/eShopOnWeb",
-        "dotnet/aspnet-api-versioning"
+        "dotnet/aspnet-api-versioning",
+        "dotnet/blazor-samples",
+        "jasontaylordev/CleanArchitecture"
       ],
-      "huge": [
-        "nopSolutions/nopCommerce",
-        "abpframework/abp"
+      "medium": [
+        "MudBlazor/MudBlazor",
+        "radzenhq/radzen-blazor"
       ],
       "large": [
-        "MudBlazor/MudBlazor",
-        "radzenhq/radzen-blazor",
-        "serenity-is/Serenity",
-        "dotnet/blazor-samples",
-        "OrchardCMS/OrchardCore"
+        "aspnetboilerplate/aspnetboilerplate",
+        "dotnet-architecture/eShopOnWeb",
+        "OrchardCMS/OrchardCore",
+        "serenity-is/Serenity"
       ],
-      "big": [
+      "huge": [
+        "abpframework/abp",
+        "dotnet/aspnetcore",
         "dotnet/AspNetCore.Docs",
-        "dotnet/aspnetcore"
-      ],
-      "medium": [],
-      "small": [
-        "aspnetboilerplate/aspnetboilerplate"
+        "nopSolutions/nopCommerce"
       ]
     }
   }

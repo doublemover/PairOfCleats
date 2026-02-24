@@ -41,7 +41,7 @@ The matrix runner is `node tools/bench/language-matrix.js`.
 
 ## Key flags
 - `--config <path>`: repo list (default `benchmarks/repos.json`).
-- `--language <csv>` / `--tier <csv>`: filter targets (tiers are `large`, `typical`, `small`, `tiny`; positional tiers are allowed).
+- `--language <csv>` / `--tier <csv>`: filter targets (tiers are `small`, `medium`, `large`, `huge`; positional tiers are allowed).
 - `--clone` / `--no-clone`: clone missing repos (default on).
 - `--root <path>`: clone destination root (default `benchmarks/repos`).
 - `--cache-root <path>`: cache root for all benchmark runs (default `<shared-cache-root>/bench-language`, where shared cache root resolves via `PAIROFCLEATS_CACHE_ROOT`/`LOCALAPPDATA`).

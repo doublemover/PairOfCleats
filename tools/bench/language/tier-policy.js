@@ -1,8 +1,6 @@
 export const BENCH_TIER_ORDER = Object.freeze([
   'small',
   'medium',
-  'typical',
-  'big',
   'large',
   'huge'
 ]);
@@ -19,20 +17,12 @@ export const BENCH_TIER_SIZE_RANGES = Object.freeze({
     files: Object.freeze([0, 400])
   }),
   medium: Object.freeze({
-    loc: Object.freeze([25_000, 100_000]),
-    files: Object.freeze([400, 1_200])
-  }),
-  typical: Object.freeze({
-    loc: Object.freeze([100_000, 300_000]),
-    files: Object.freeze([1_200, 3_500])
-  }),
-  big: Object.freeze({
-    loc: Object.freeze([300_000, 1_000_000]),
-    files: Object.freeze([3_500, 10_000])
+    loc: Object.freeze([25_000, 300_000]),
+    files: Object.freeze([400, 3_500])
   }),
   large: Object.freeze({
-    loc: Object.freeze([1_000_000, 3_000_000]),
-    files: Object.freeze([10_000, 30_000])
+    loc: Object.freeze([300_000, 3_000_000]),
+    files: Object.freeze([3_500, 30_000])
   }),
   huge: Object.freeze({
     loc: Object.freeze([3_000_000, POSITIVE_INFINITY]),
@@ -53,7 +43,7 @@ const inRange = (value, range) => {
  * Prefers LOC classification when available, then falls back to file count.
  *
  * @param {{loc?:number|null,files?:number|null}} metrics
- * @returns {'small'|'medium'|'typical'|'big'|'large'|'huge'|null}
+ * @returns {'small'|'medium'|'large'|'huge'|null}
  */
 export const classifyBenchTierBySize = (metrics = {}) => {
   const loc = Number(metrics?.loc);
@@ -71,10 +61,7 @@ export const classifyBenchTierBySize = (metrics = {}) => {
   return null;
 };
 
-const SUPPORTED_TIERS = new Set([
-  ...BENCH_TIER_ORDER,
-  'problematic'
-]);
+const SUPPORTED_TIERS = new Set(BENCH_TIER_ORDER);
 
 /**
  * Validate bench repo tier config for duplicate assignment and unknown tier keys.
@@ -124,4 +111,3 @@ export const validateBenchTierConfig = (config = {}) => {
     issues
   };
 };
-
