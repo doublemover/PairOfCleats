@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { createLifecycleRegistry } from '../../../shared/lifecycle/registry.js';
+import { runBuildCleanupWithTimeout } from '../cleanup-timeout.js';
 
 const HEARTBEAT_MIN_INTERVAL_MS = 5000;
 
@@ -25,7 +26,10 @@ export const startHeartbeat = ({
       clearInterval(timer);
       timer = null;
     }
-    void lifecycle.close().catch(() => {});
+    void runBuildCleanupWithTimeout({
+      label: 'build-state.heartbeat.lifecycle.close',
+      cleanup: () => lifecycle.close()
+    }).catch(() => {});
     void flushBuildState(buildRoot);
   };
   const tick = async () => {

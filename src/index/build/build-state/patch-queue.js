@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { estimateJsonBytes } from '../../../shared/cache.js';
 import { createLifecycleRegistry } from '../../../shared/lifecycle/registry.js';
+import { runBuildCleanupWithTimeout } from '../cleanup-timeout.js';
 
 const DEFAULT_DEBOUNCE_MS = 250;
 const LONG_DEBOUNCE_MS = 500;
@@ -58,7 +59,10 @@ export const createPatchQueue = ({
     const lifecycle = statePendingLifecycles.get(key);
     if (!lifecycle) return;
     statePendingLifecycles.delete(key);
-    void lifecycle.close().catch(() => {});
+    void runBuildCleanupWithTimeout({
+      label: 'build-state.patch-queue.lifecycle.close',
+      cleanup: () => lifecycle.close()
+    }).catch(() => {});
   };
 
   const getPendingEntry = (buildRoot) => {
