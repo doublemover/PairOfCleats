@@ -285,7 +285,8 @@ export const runTreeSitterScheduler = async ({
     log,
     maxOpenReaders: Number.isFinite(configuredMaxOpenReaders) && configuredMaxOpenReaders > 0
       ? Math.floor(configuredMaxOpenReaders)
-      : null
+      : null,
+    closeTimeoutMs: lookupConfig.closeTimeoutMs ?? schedulerConfig?.closeTimeoutMs
   });
   const plannedSegmentsByContainer = buildPlannedSegmentsByContainer(planResult.groups);
   const scheduledLanguageIds = buildScheduledLanguageSet(planResult.groups);

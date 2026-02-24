@@ -5,6 +5,7 @@ import * as istextorbinary from 'istextorbinary';
 import { CSS_EXTS, HTML_EXTS, JS_EXTS } from '../constants.js';
 import { normalizePositiveNumber } from '../../shared/limits.js';
 import { MINIFIED_NAME_REGEX } from './watch/shared.js';
+import { runBuildCleanupWithTimeout } from './cleanup-timeout.js';
 
 const MINIFIED_SAMPLE_EXTS = new Set([...JS_EXTS, ...CSS_EXTS, ...HTML_EXTS]);
 const KNOWN_TEXT_EXTS = new Set([
@@ -95,7 +96,11 @@ export const readFileSample = async (absPath, sampleSizeBytes) => {
     const { bytesRead } = await handle.read(buffer, 0, sampleSizeBytes, 0);
     return bytesRead > 0 ? buffer.subarray(0, bytesRead) : null;
   } finally {
-    await handle.close();
+    await runBuildCleanupWithTimeout({
+      label: 'file-scan.read-file-sample.close',
+      cleanup: () => handle.close(),
+      swallowTimeout: false
+    });
   }
 };
 

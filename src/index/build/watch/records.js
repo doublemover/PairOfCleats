@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { runBuildCleanupWithTimeout } from '../cleanup-timeout.js';
 import { normalizeRoot } from './shared.js';
 import { isWithinRoot, toRealPathSync } from '../../../workspace/identity.js';
 
@@ -22,7 +23,11 @@ export const readRecordSample = async (absPath, maxBytes) => {
       const result = await handle.read(buffer, 0, limit, 0);
       return buffer.subarray(0, result.bytesRead || 0).toString('utf8');
     } finally {
-      await handle.close();
+      await runBuildCleanupWithTimeout({
+        label: 'watch.records.read-sample.close',
+        cleanup: () => handle.close(),
+        swallowTimeout: false
+      });
     }
   } catch {
     return '';

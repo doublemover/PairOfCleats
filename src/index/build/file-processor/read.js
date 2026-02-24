@@ -4,6 +4,7 @@ import { resolveSpecialCodeExt } from '../../constants.js';
 import { fileExt } from '../../../shared/files.js';
 import { decodeTextBuffer } from '../../../shared/encoding.js';
 import { pickMinLimit } from '../runtime/limits.js';
+import { runBuildCleanupWithTimeout } from '../cleanup-timeout.js';
 
 export { pickMinLimit };
 
@@ -129,7 +130,11 @@ export const readTextFileWithStreamingCap = async ({
       bytes: total
     };
   } finally {
-    await handle.close();
+    await runBuildCleanupWithTimeout({
+      label: 'file-processor.read.close',
+      cleanup: () => handle.close(),
+      swallowTimeout: false
+    });
   }
 };
 

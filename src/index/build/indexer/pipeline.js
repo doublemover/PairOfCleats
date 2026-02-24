@@ -9,6 +9,7 @@ import { throwIfAborted } from '../../../shared/abort.js';
 import { coerceUnitFraction } from '../../../shared/number-coerce.js';
 import { createCrashLogger } from '../crash-log.js';
 import { recordOrderingSeedInputs, updateBuildState } from '../build-state.js';
+import { runBuildCleanupWithTimeout } from '../cleanup-timeout.js';
 import { estimateContextWindow } from '../context-window.js';
 import { createPerfProfile, loadPerfProfile } from '../perf-profile.js';
 import { createStageCheckpointRecorder } from '../stage-checkpoints.js';
@@ -750,7 +751,12 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       label: 'reused',
       extra: { files: allEntries.length }
     });
-    await stageCheckpoints.flush();
+    await runBuildCleanupWithTimeout({
+      label: `pipeline.${mode}.stage-checkpoints.flush.reused`,
+      cleanup: () => stageCheckpoints.flush(),
+      swallowTimeout: false,
+      log
+    });
     cacheReporter.report();
     return;
   }
@@ -1091,7 +1097,12 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   await enqueueEmbeddingJob({ runtime: runtimeRef, mode, indexDir: outDir, abortSignal });
   crashLogger.updatePhase('done');
   cacheReporter.report();
-  await stageCheckpoints.flush();
+  await runBuildCleanupWithTimeout({
+    label: `pipeline.${mode}.stage-checkpoints.flush.final`,
+    cleanup: () => stageCheckpoints.flush(),
+    swallowTimeout: false,
+    log
+  });
 }
 
 export {

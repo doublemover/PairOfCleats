@@ -1906,7 +1906,13 @@ export const processFiles = async ({
    */
   const closeTreeSitterScheduler = async () => {
     if (!treeSitterScheduler || typeof treeSitterScheduler.close !== 'function') return;
-    await treeSitterScheduler.close();
+    await runCleanupWithTimeout({
+      label: 'tree-sitter-scheduler.close',
+      cleanup: () => treeSitterScheduler.close(),
+      timeoutMs: cleanupTimeoutMs,
+      log,
+      continueOnTimeout: true
+    });
   };
   let stallSnapshotTimer = null;
   let progressHeartbeatTimer = null;
@@ -2809,6 +2815,13 @@ export const processFiles = async ({
         const orderedCompletionStallPollMs = resolveOrderedCompletionStallPollMs({
           runtime: runtimeRef
         });
+        const effectiveOrderedCompletionTimeoutMs = orderedCompletionTimeoutMs > 0
+          ? orderedCompletionTimeoutMs
+          : STAGE1_ORDERED_COMPLETION_TIMEOUT_FALLBACK_MS;
+        const orderedCompletionGuardTimeoutMs = Math.max(
+          effectiveOrderedCompletionTimeoutMs + Math.max(1000, orderedCompletionStallPollMs),
+          STAGE1_ORDERED_COMPLETION_TIMEOUT_FALLBACK_MS
+        );
         const orderedBatchEntries = sortEntriesByOrderIndex(batchEntries);
         for (let i = 0; i < orderedBatchEntries.length; i += 1) {
           const entry = orderedBatchEntries[i];
@@ -3232,52 +3245,70 @@ export const processFiles = async ({
               retryDelayMs: 200
             }
           );
-          await orderedCompletionTracker.wait({
-            timeoutMs: orderedCompletionTimeoutMs,
-            stallPollMs: orderedCompletionStallPollMs,
-            signal: effectiveAbortSignal,
-            onStall: ({ pending, stallCount, elapsedMs }) => {
-              const orderedSnapshot = typeof orderedAppender.snapshot === 'function'
-                ? orderedAppender.snapshot()
-                : null;
-              const flushActive = orderedSnapshot?.flushActive && typeof orderedSnapshot.flushActive === 'object'
-                ? orderedSnapshot.flushActive
-                : null;
-              const flushActiveText = flushActive
-                ? ` flush=${flushActive.orderIndex ?? '?'}@${Math.round((Number(flushActive.elapsedMs) || 0) / 1000)}s`
-                : '';
-              const seenCount = Number(orderedSnapshot?.seenCount);
-              const expectedCount = Number(orderedSnapshot?.expectedCount);
-              const seenText = Number.isFinite(expectedCount) && expectedCount > 0 && Number.isFinite(seenCount)
-                ? ` seen=${seenCount}/${expectedCount}`
-                : '';
-              if (stallCount === 1 || (stallCount % 3) === 0) {
-                logLine(
-                  `[ordered] completion drain waiting pending=${pending} elapsed=${Math.round(elapsedMs / 1000)}s`
-                    + ` next=${orderedSnapshot?.nextIndex ?? '?'}${seenText}${flushActiveText}`,
-                  {
-                    kind: 'warning',
-                    mode,
-                    stage: 'processing',
-                    orderedPending: pending,
-                    idleMs: elapsedMs,
-                    orderedSnapshot: orderedSnapshot || null
-                  }
-                );
+          await runWithTimeout(
+            () => orderedCompletionTracker.wait({
+              timeoutMs: effectiveOrderedCompletionTimeoutMs,
+              stallPollMs: orderedCompletionStallPollMs,
+              signal: effectiveAbortSignal,
+              onStall: ({ pending, stallCount, elapsedMs }) => {
+                const orderedSnapshot = typeof orderedAppender.snapshot === 'function'
+                  ? orderedAppender.snapshot()
+                  : null;
+                const flushActive = orderedSnapshot?.flushActive && typeof orderedSnapshot.flushActive === 'object'
+                  ? orderedSnapshot.flushActive
+                  : null;
+                const flushActiveText = flushActive
+                  ? ` flush=${flushActive.orderIndex ?? '?'}@${Math.round((Number(flushActive.elapsedMs) || 0) / 1000)}s`
+                  : '';
+                const seenCount = Number(orderedSnapshot?.seenCount);
+                const expectedCount = Number(orderedSnapshot?.expectedCount);
+                const seenText = Number.isFinite(expectedCount) && expectedCount > 0 && Number.isFinite(seenCount)
+                  ? ` seen=${seenCount}/${expectedCount}`
+                  : '';
+                if (stallCount === 1 || (stallCount % 3) === 0) {
+                  logLine(
+                    `[ordered] completion drain waiting pending=${pending} elapsed=${Math.round(elapsedMs / 1000)}s`
+                      + ` next=${orderedSnapshot?.nextIndex ?? '?'}${seenText}${flushActiveText}`,
+                    {
+                      kind: 'warning',
+                      mode,
+                      stage: 'processing',
+                      orderedPending: pending,
+                      idleMs: elapsedMs,
+                      orderedSnapshot: orderedSnapshot || null
+                    }
+                  );
+                }
+                if (stallCount === 1 || (stallCount % 2) === 0) {
+                  const recovered = attemptOrderedGapRecovery({
+                    snapshot: {
+                      orderedSnapshot,
+                      inFlight: inFlightFiles.size
+                    },
+                    reason: 'ordered_completion_wait'
+                  });
+                  if (Number(recovered?.recovered) > 0) return;
+                }
+                evaluateStalledProcessing('ordered_completion_wait');
               }
-              if (stallCount === 1 || (stallCount % 2) === 0) {
-                const recovered = attemptOrderedGapRecovery({
-                  snapshot: {
-                    orderedSnapshot,
-                    inFlight: inFlightFiles.size
-                  },
-                  reason: 'ordered_completion_wait'
-                });
-                if (Number(recovered?.recovered) > 0) return;
-              }
-              evaluateStalledProcessing('ordered_completion_wait');
+            }),
+            {
+              timeoutMs: orderedCompletionGuardTimeoutMs,
+              signal: effectiveAbortSignal,
+              errorFactory: () => createTimeoutError({
+                message: `Ordered completion wait guard timed out after ${orderedCompletionGuardTimeoutMs}ms.`,
+                code: 'ORDERED_COMPLETION_WAIT_TIMEOUT',
+                retryable: false,
+                meta: {
+                  timeoutMs: orderedCompletionGuardTimeoutMs,
+                  completionTimeoutMs: effectiveOrderedCompletionTimeoutMs,
+                  stallPollMs: orderedCompletionStallPollMs,
+                  mode,
+                  shardId: shardMeta?.id || null
+                }
+              })
             }
-          });
+          );
         } finally {
           if (activeOrderedCompletionTracker === orderedCompletionTracker) {
             activeOrderedCompletionTracker = null;

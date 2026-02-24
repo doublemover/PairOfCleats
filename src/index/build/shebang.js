@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { runBuildCleanupWithTimeout } from './cleanup-timeout.js';
 const MAX_SHEBANG_READ_BYTES = 256;
 const SHELL_INTERPRETERS = new Set(['sh', 'bash', 'zsh', 'ksh', 'dash']);
 const basenameAny = (value) => String(value || '').split(/[\\/]/).pop() || '';
@@ -45,7 +46,11 @@ const readShebangLine = async (absPath) => {
     const firstNewline = sample.search(/\r?\n/);
     return firstNewline === -1 ? sample : sample.slice(0, firstNewline);
   } finally {
-    await file.close();
+    await runBuildCleanupWithTimeout({
+      label: 'shebang.read.close',
+      cleanup: () => file.close(),
+      swallowTimeout: false
+    });
   }
 };
 

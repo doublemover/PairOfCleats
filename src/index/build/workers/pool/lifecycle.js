@@ -1,3 +1,8 @@
+import {
+  resolveBuildCleanupTimeoutMs,
+  runBuildCleanupWithTimeout
+} from '../../cleanup-timeout.js';
+
 /**
  * Manage worker-pool lifecycle, restart scheduling, and pressure-driven resize.
  *
@@ -20,6 +25,7 @@
  * @param {(input:{rssPressure:number,gcPressure:number,rssThreshold:number,gcThreshold:number})=>boolean} [input.shouldDownscaleWorkersForPressure]
  * @param {()=>number} [input.getActiveTasks]
  * @param {(input:{pool:string})=>void} [input.incWorkerRetries]
+ * @param {number|null} [input.cleanupTimeoutMs]
  * @param {(maxWorkers:number)=>unknown} input.createPool
  * @param {(poolInstance:unknown)=>void} [input.attachPoolListeners]
  * @returns {object}
@@ -44,9 +50,11 @@ export const createWorkerPoolLifecycle = (input = {}) => {
     shouldDownscaleWorkersForPressure = () => false,
     getActiveTasks = () => 0,
     incWorkerRetries = () => {},
+    cleanupTimeoutMs = null,
     createPool,
     attachPoolListeners = () => {}
   } = input;
+  const resolvedCleanupTimeoutMs = resolveBuildCleanupTimeoutMs(cleanupTimeoutMs);
 
   let pool = null;
   let disabled = false;
@@ -65,7 +73,12 @@ export const createWorkerPoolLifecycle = (input = {}) => {
   const shutdownPool = async () => {
     if (!pool) return;
     try {
-      await pool.destroy();
+      await runBuildCleanupWithTimeout({
+        label: `worker-pool.${poolLabel}.destroy`,
+        cleanup: () => pool.destroy(),
+        timeoutMs: resolvedCleanupTimeoutMs,
+        log
+      });
     } catch (err) {
       const detail = summarizeError(err);
       log(`Worker pool shutdown failed: ${detail || 'unknown error'}`);

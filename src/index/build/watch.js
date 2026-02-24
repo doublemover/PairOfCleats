@@ -26,6 +26,7 @@ import { createDebouncedScheduler } from '../../shared/scheduler/debounce.js';
 import { getLanguageForFile } from '../language-registry.js';
 import { createRecordsClassifier, shouldSniffRecordContent } from './records.js';
 import { initBuildState, markBuildPhase, updateBuildState } from './build-state.js';
+import { runBuildCleanupWithTimeout } from './cleanup-timeout.js';
 import { SIGNATURE_VERSION } from './indexer/signatures.js';
 import { buildIgnoredMatcher } from '../../shared/fs/ignore.js';
 import { acquireIndexLockWithBackoff } from './watch/lock.js';
@@ -527,7 +528,11 @@ export async function watchIndex({
     }
     if (shouldExit) {
       try {
-        await lock.release();
+        await runBuildCleanupWithTimeout({
+          label: 'watch.lock.release.shutdown',
+          cleanup: () => lock.release(),
+          log
+        });
       } catch (err) {
         status = 'error';
         log(`[watch] Index lock release failed during shutdown: ${err?.message || err}`);
@@ -656,7 +661,11 @@ export async function watchIndex({
       }
       let releaseError = null;
       try {
-        await lock.release();
+        await runBuildCleanupWithTimeout({
+          label: 'watch.lock.release',
+          cleanup: () => lock.release(),
+          log
+        });
       } catch (err) {
         status = 'error';
         releaseError = err;
@@ -812,13 +821,23 @@ export async function watchIndex({
   if (shouldExit) stop();
   await exitPromise;
 
-  await watcher.close();
+  await runBuildCleanupWithTimeout({
+    label: 'watch.watcher.close',
+    cleanup: () => watcher.close(),
+    log
+  });
 
   if (running) {
     log('[watch] Waiting for active build to finish...');
-    while (running) {
-      await sleep(200);
-    }
+    await runBuildCleanupWithTimeout({
+      label: 'watch.active-build.wait',
+      cleanup: async () => {
+        while (running) {
+          await sleep(200);
+        }
+      },
+      log
+    });
   }
   if (handleSignals) {
     process.off('SIGINT', handleSigint);

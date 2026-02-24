@@ -13,6 +13,7 @@ import { isAbortError, throwIfAborted } from '../../../shared/abort.js';
 import { getEnvConfig, isTestingEnv } from '../../../shared/env.js';
 import { SCHEDULER_QUEUE_NAMES } from '../../../index/build/runtime/scheduler.js';
 import { createFeatureMetrics, writeFeatureMetrics } from '../../../index/build/feature-metrics.js';
+import { runBuildCleanupWithTimeout } from '../../../index/build/cleanup-timeout.js';
 import {
   getCacheRoot,
   getCurrentBuildInfo,
@@ -309,7 +310,11 @@ export const runEmbeddingsStage = async ({
       }
       return recordOk({ modes: embedModes, embeddings: { queued: false, inline: true }, repo: root, stage: 'stage3' });
     } finally {
-      await lock.release();
+      await runBuildCleanupWithTimeout({
+        label: 'stage3.lock.release',
+        cleanup: () => lock.release(),
+        log
+      });
     }
   } catch (err) {
     if (isAbortError(err)) {
@@ -509,7 +514,11 @@ export const runSqliteStage = async ({
       throw err;
     } finally {
       if (lock?.release) {
-        await lock.release();
+        await runBuildCleanupWithTimeout({
+          label: 'stage4.lock.release',
+          cleanup: () => lock.release(),
+          log
+        });
       }
     }
   } catch (err) {
@@ -836,7 +845,15 @@ export const runStage = async (
       let releaseError = null;
       try {
         if (lock?.release) {
-          await lock.release();
+          const releaseResult = await runBuildCleanupWithTimeout({
+            label: `${phaseStage}.lock.release`,
+            cleanup: () => lock.release(),
+            log,
+            swallowTimeout: false
+          });
+          if (releaseResult?.timedOut) {
+            releaseError = releaseResult.error || new Error(`[cleanup] ${phaseStage} lock release timed out.`);
+          }
         }
       } catch (err) {
         releaseError = err;

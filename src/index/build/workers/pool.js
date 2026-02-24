@@ -30,6 +30,10 @@ import { createWorkerPoolQueue } from './pool/queue.js';
 import { createWorkerPoolLifecycle } from './pool/lifecycle.js';
 import { createWorkerProcessCoordinator } from './pool/worker-coordination.js';
 import {
+  resolveBuildCleanupTimeoutMs,
+  runBuildCleanupWithTimeout
+} from '../cleanup-timeout.js';
+import {
   buildQuantizeRunPayload,
   normalizeCodeDictLanguages,
   normalizeStringArray,
@@ -90,6 +94,7 @@ export async function createIndexerWorkerPool(input = {}) {
   const poolConfig = Number.isFinite(memoryCappedMax) && memoryCappedMax > 0
     ? { ...config, maxWorkers: memoryCappedMax }
     : config;
+  const resolvedCleanupTimeoutMs = resolveBuildCleanupTimeoutMs(poolConfig?.cleanupTimeoutMs);
   if (config?.maxWorkers && poolConfig?.maxWorkers && config.maxWorkers !== poolConfig.maxWorkers) {
     log(`Worker pool capped to ${poolConfig.maxWorkers} threads based on host memory.`);
   }
@@ -314,6 +319,7 @@ export async function createIndexerWorkerPool(input = {}) {
       shouldDownscaleWorkersForPressure,
       getActiveTasks: () => activeTasks,
       incWorkerRetries,
+      cleanupTimeoutMs: poolConfig?.cleanupTimeoutMs,
       createPool,
       attachPoolListeners: workerCoordinator.attachPoolListeners
     });
@@ -605,7 +611,12 @@ export async function createIndexerWorkerPool(input = {}) {
       },
       async destroy() {
         queueController.notifyThrottleWaiters();
-        await lifecycle.destroy();
+        await runBuildCleanupWithTimeout({
+          label: `worker-pool.${poolLabel}.lifecycle.destroy`,
+          cleanup: () => lifecycle.destroy(),
+          timeoutMs: resolvedCleanupTimeoutMs,
+          log
+        });
       }
     };
   } catch (err) {
@@ -623,13 +634,21 @@ export async function createIndexerWorkerPool(input = {}) {
  */
 export async function createIndexerWorkerPools(input = {}) {
   const baseConfig = input.config;
+  const cleanupTimeoutMs = resolveBuildCleanupTimeoutMs(baseConfig?.cleanupTimeoutMs);
+  const poolLabel = (label) => `worker-pools.${label}.destroy`;
   if (!baseConfig || baseConfig.enabled === false) {
     return { tokenizePool: null, quantizePool: null, destroy: async () => {} };
   }
   if (!baseConfig.splitByTask) {
     const pool = await createIndexerWorkerPool({ ...input, poolName: 'tokenize' });
     const destroy = async () => {
-      if (pool?.destroy) await pool.destroy();
+      if (pool?.destroy) {
+        await runBuildCleanupWithTimeout({
+          label: poolLabel('tokenize'),
+          cleanup: () => pool.destroy(),
+          timeoutMs: cleanupTimeoutMs
+        });
+      }
     };
     return { tokenizePool: pool, quantizePool: pool, destroy };
   }
@@ -645,7 +664,13 @@ export async function createIndexerWorkerPools(input = {}) {
   if (totalBudget <= 1) {
     const pool = await createIndexerWorkerPool({ ...input, poolName: 'tokenize' });
     const destroy = async () => {
-      if (pool?.destroy) await pool.destroy();
+      if (pool?.destroy) {
+        await runBuildCleanupWithTimeout({
+          label: poolLabel('tokenize'),
+          cleanup: () => pool.destroy(),
+          timeoutMs: cleanupTimeoutMs
+        });
+      }
     };
     return { tokenizePool: pool, quantizePool: pool, destroy };
   }
@@ -670,9 +695,19 @@ export async function createIndexerWorkerPools(input = {}) {
   const finalTokenizePool = tokenizePool || quantizePool;
   const finalQuantizePool = quantizePool || tokenizePool;
   const destroy = async () => {
-    if (finalTokenizePool?.destroy) await finalTokenizePool.destroy();
+    if (finalTokenizePool?.destroy) {
+      await runBuildCleanupWithTimeout({
+        label: poolLabel('tokenize'),
+        cleanup: () => finalTokenizePool.destroy(),
+        timeoutMs: cleanupTimeoutMs
+      });
+    }
     if (finalQuantizePool?.destroy && finalQuantizePool !== finalTokenizePool) {
-      await finalQuantizePool.destroy();
+      await runBuildCleanupWithTimeout({
+        label: poolLabel('quantize'),
+        cleanup: () => finalQuantizePool.destroy(),
+        timeoutMs: cleanupTimeoutMs
+      });
     }
   };
   return {

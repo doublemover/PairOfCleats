@@ -12,6 +12,10 @@ import {
   readVfsManifestRowsAtOffsets
 } from '../../tooling/vfs.js';
 import { resolveTreeSitterSchedulerPaths } from './paths.js';
+import {
+  resolveBuildCleanupTimeoutMs,
+  runBuildCleanupWithTimeout
+} from '../cleanup-timeout.js';
 
 const DEFAULT_ROW_CACHE_MAX = 4096;
 const DEFAULT_MISS_CACHE_MAX = 10000;
@@ -33,7 +37,8 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  *  log?:(line:string)=>void,
  *  maxCacheEntries?:number|null,
  *  maxMissCacheEntries?:number|null,
- *  maxOpenReaders?:number|null
+ *  maxOpenReaders?:number|null,
+ *  closeTimeoutMs?:number|null
  * }} input
  * @returns {object}
  */
@@ -43,12 +48,14 @@ export const createTreeSitterSchedulerLookup = ({
   log = null,
   maxCacheEntries = null,
   maxMissCacheEntries = null,
-  maxOpenReaders = null
+  maxOpenReaders = null,
+  closeTimeoutMs = null
 }) => {
   const paths = resolveTreeSitterSchedulerPaths(outDir);
   const cacheMax = coercePositiveIntMinOne(maxCacheEntries) ?? DEFAULT_ROW_CACHE_MAX;
   const missCacheMax = coercePositiveIntMinOne(maxMissCacheEntries) ?? DEFAULT_MISS_CACHE_MAX;
   const maxReaderCount = coercePositiveIntMinOne(maxOpenReaders) ?? DEFAULT_MAX_OPEN_READERS;
+  const readerCloseTimeoutMs = resolveBuildCleanupTimeoutMs(closeTimeoutMs);
   const rowCache = createLruCache({
     name: 'tree-sitter-scheduler-row',
     maxEntries: cacheMax
@@ -147,7 +154,12 @@ export const createTreeSitterSchedulerLookup = ({
   const closeReaderEntry = async (entry, { recordEviction = false } = {}) => {
     if (!entry || typeof entry !== 'object') return;
     if (entry.closingPromise) {
-      await entry.closingPromise;
+      await runBuildCleanupWithTimeout({
+        label: `tree-sitter-lookup.reader-close.inflight:${entry.key}`,
+        cleanup: () => entry.closingPromise,
+        timeoutMs: readerCloseTimeoutMs,
+        log
+      });
       return;
     }
     if (entry.inUseCount > 0) {
@@ -160,7 +172,12 @@ export const createTreeSitterSchedulerLookup = ({
     const reader = entry.reader;
     entry.closingPromise = (async () => {
       try {
-        await reader.close();
+        await runBuildCleanupWithTimeout({
+          label: `tree-sitter-lookup.reader-close:${entry.key}`,
+          cleanup: () => reader.close(),
+          timeoutMs: readerCloseTimeoutMs,
+          log
+        });
       } catch {}
     })();
     try {
@@ -273,7 +290,12 @@ export const createTreeSitterSchedulerLookup = ({
           readersByManifestPath.clear();
           await Promise.all(pendingEntries.map(async (entry) => {
             try {
-              await entry.reader.close();
+              await runBuildCleanupWithTimeout({
+                label: `tree-sitter-lookup.reader-close.force:${entry.key}`,
+                cleanup: () => entry.reader.close(),
+                timeoutMs: readerCloseTimeoutMs,
+                log
+              });
             } catch {}
           }));
           break;

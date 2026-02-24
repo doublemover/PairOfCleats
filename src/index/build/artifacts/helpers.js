@@ -18,6 +18,7 @@ import {
   TRIM_REASONS,
   addTrimReasons
 } from './trim-policy.js';
+import { runBuildCleanupWithTimeout } from '../cleanup-timeout.js';
 
 const GRAPH_RELATION_GRAPHS = ['callGraph', 'usageGraph', 'importGraph'];
 const GRAPH_RELATION_ORDER = new Map(GRAPH_RELATION_GRAPHS.map((name, index) => [name, index]));
@@ -319,11 +320,20 @@ export const writePerFileVarintIndex = async ({
     if (atomic) {
       await replaceFile(targetPath, dataPath);
     }
-    await offsetsWriter.close();
+    await runBuildCleanupWithTimeout({
+      label: 'artifacts.per-file-varint.offsets.close',
+      cleanup: () => offsetsWriter.close(),
+      swallowTimeout: false
+    });
   } catch (err) {
     try { stream.destroy(err); } catch {}
     try { await once(stream, 'close'); } catch {}
-    try { await offsetsWriter.destroy(err); } catch {}
+    try {
+      await runBuildCleanupWithTimeout({
+        label: 'artifacts.per-file-varint.offsets.destroy',
+        cleanup: () => offsetsWriter.destroy(err)
+      });
+    } catch {}
     if (atomic) {
       try { await fs.promises.rm(targetPath, { force: true }); } catch {}
     }

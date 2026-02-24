@@ -4,6 +4,7 @@ import {
   readLockInfo,
   removeLockFileSyncIfOwned
 } from '../../shared/locks/file-lock.js';
+import { runBuildCleanupWithTimeout } from './cleanup-timeout.js';
 
 const DEFAULT_STALE_MS = 30 * 60 * 1000;
 
@@ -78,7 +79,12 @@ export async function acquireIndexLock({
     lockPath,
     release: async () => {
       if (!released) {
-        await lock.release();
+        await runBuildCleanupWithTimeout({
+          label: 'index-lock.release',
+          cleanup: () => lock.release(),
+          log,
+          swallowTimeout: false
+        });
         released = true;
       }
       detachHandlers();

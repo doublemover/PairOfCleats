@@ -3,6 +3,10 @@ import path from 'node:path';
 import { writeJsonObjectFile } from '../../shared/json-stream.js';
 import { logLine } from '../../shared/progress.js';
 import { updateBuildState } from './build-state.js';
+import {
+  resolveBuildCleanupTimeoutMs,
+  runBuildCleanupWithTimeout
+} from './cleanup-timeout.js';
 
 const STAGE_CHECKPOINT_VERSION = 1;
 
@@ -132,16 +136,22 @@ export const createStageCheckpointRecorder = ({
 
   const flush = async () => {
     const summary = buildSummary();
+    const cleanupTimeoutMs = resolveBuildCleanupTimeoutMs();
     const stageKeys = Object.keys(summary.stages || {});
     const stageKey = stageKeys.length === 1 ? stageKeys[0] : 'multi';
     if (buildRoot) {
       try {
-        await updateBuildState(buildRoot, {
-          stageCheckpoints: {
-            [mode || 'unknown']: {
-              [stageKey]: summary
+        await runBuildCleanupWithTimeout({
+          label: 'stage-checkpoints.update-build-state',
+          cleanup: () => updateBuildState(buildRoot, {
+            stageCheckpoints: {
+              [mode || 'unknown']: {
+                [stageKey]: summary
+              }
             }
-          }
+          }),
+          timeoutMs: cleanupTimeoutMs,
+          log: (line) => logLine(line, { kind: 'warning' })
         });
       } catch (err) {
         logLine(`[metrics] Failed to update build state checkpoints: ${err?.message || err}`, { kind: 'warning' });
@@ -154,8 +164,15 @@ export const createStageCheckpointRecorder = ({
         ? `stage-audit-${safeMode}-${safeStage}.json`
         : `stage-audit-${safeStage}.json`;
       try {
-        await fs.mkdir(metricsDir, { recursive: true });
-        await writeJsonObjectFile(path.join(metricsDir, fileName), { fields: summary, atomic: true });
+        await runBuildCleanupWithTimeout({
+          label: 'stage-checkpoints.write',
+          cleanup: async () => {
+            await fs.mkdir(metricsDir, { recursive: true });
+            await writeJsonObjectFile(path.join(metricsDir, fileName), { fields: summary, atomic: true });
+          },
+          timeoutMs: cleanupTimeoutMs,
+          log: (line) => logLine(line, { kind: 'warning' })
+        });
       } catch (err) {
         logLine(`[metrics] Failed to write stage checkpoints: ${err?.message || err}`, { kind: 'warning' });
       }
