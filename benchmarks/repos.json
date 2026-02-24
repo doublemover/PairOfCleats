@@ -46,7 +46,6 @@
         "git/git"
       ],
       "typical": [
-        "madler/zlib",
         "nlohmann/json"
       ],
       "big": [
@@ -58,7 +57,8 @@
         "google/googletest",
         "fmtlib/fmt",
         "gabime/spdlog",
-        "Genymobile/scrcpy"
+        "Genymobile/scrcpy",
+        "madler/zlib"
       ],
       "small": []
     }
@@ -72,9 +72,7 @@
         "luals/lua-language-server",
         "openresty/lua-nginx-module"
       ],
-      "typical": [
-        "jgm/pandoc"
-      ],
+      "typical": [],
       "huge": [
         "Kong/kong",
         "tarantool/tarantool",
@@ -84,7 +82,8 @@
       ],
       "big": [
         "LazyVim/LazyVim",
-        "LunarVim/LunarVim"
+        "LunarVim/LunarVim",
+        "jgm/pandoc"
       ],
       "medium": [
         "NvChad/NvChad",
@@ -326,11 +325,11 @@
       ],
       "medium": [
         "rustdesk/rustdesk",
-        "tokio-rs/tokio",
-        "rust-lang/rustlings"
+        "tokio-rs/tokio"
       ],
       "small": [
-        "BurntSushi/ripgrep"
+        "BurntSushi/ripgrep",
+        "rust-lang/rustlings"
       ]
     }
   },
@@ -420,8 +419,7 @@
       "typical": [
         "jbogard/MediatR",
         "Serilog/serilog",
-        "FluentValidation/FluentValidation",
-        "LuckyPennySoftware/AutoMapper"
+        "FluentValidation/FluentValidation"
       ],
       "big": [
         "PowerShell/PowerShell",
@@ -430,7 +428,8 @@
       "medium": [
         "jellyfin/jellyfin",
         "AvaloniaUI/Avalonia",
-        "shadowsocks/shadowsocks-windows"
+        "shadowsocks/shadowsocks-windows",
+        "LuckyPennySoftware/AutoMapper"
       ],
       "small": [
         "dotnet/BenchmarkDotNet"
@@ -732,13 +731,13 @@
       ],
       "medium": [
         "NixOS/nix.dev",
-        "NixOS/nixos-hardware"
+        "NixOS/nixos-hardware",
+        "hercules-ci/hercules-ci-agent"
       ],
       "small": [
         "Misterio77/nix-starter-configs",
         "the-nix-way/dev-templates",
         "ryantm/agenix",
-        "hercules-ci/hercules-ci-agent",
         "numtide/devshell"
       ]
     }
@@ -883,7 +882,8 @@
       "typical": [
         "JuliaLang/IJulia.jl",
         "JuliaPlots/Plots.jl",
-        "JuliaIO/JSON.jl"
+        "JuliaIO/JSON.jl",
+        "JuliaIO/HDF5.jl"
       ],
       "huge": [
         "JuliaLang/julia",
@@ -902,8 +902,7 @@
       ],
       "medium": [
         "JuliaPlots/UnicodePlots.jl",
-        "FluxML/Flux.jl",
-        "JuliaIO/HDF5.jl"
+        "FluxML/Flux.jl"
       ],
       "small": [
         "FluxML/Zygote.jl",
