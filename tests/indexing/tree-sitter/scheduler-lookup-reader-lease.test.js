@@ -120,6 +120,9 @@ try {
     maxOpenReaders: 1
   });
   try {
+    const defaults = lookup.stats();
+    assert.equal(defaults.closeTimeoutMs, 30000, 'expected scheduler lookup close timeout to default to 30s');
+    assert.equal(defaults.forceCloseAfterMs, 5000, 'expected scheduler lookup force-close fallback to default to 5s');
     const pendingA = lookup.loadRow(rowA.virtualPath);
     await sleep(10);
     const pendingB = lookup.loadRow(rowB.virtualPath);
@@ -206,6 +209,29 @@ try {
     assert.ok(closeElapsedMs < 1500, `expected lookup close to remain bounded (elapsed=${closeElapsedMs}ms)`);
   } finally {
     await hangingCloseLookup.close();
+  }
+
+  // Regression: non-positive force-close config must still stay bounded.
+  const nonPositiveForceCloseLookup = createTreeSitterSchedulerLookup({
+    outDir,
+    index: new Map([[rowA.virtualPath, entryA]]),
+    closeTimeoutMs: 25,
+    forceCloseAfterMs: 0
+  });
+  try {
+    const loaded = await nonPositiveForceCloseLookup.loadRow(rowA.virtualPath);
+    assert.equal(loaded?.virtualPath, rowA.virtualPath, 'expected lookup row load before force-close fallback check');
+    const statsBeforeClose = nonPositiveForceCloseLookup.stats();
+    assert.ok(
+      statsBeforeClose.forceCloseAfterMs >= 5000,
+      `expected fallback force-close budget for non-positive config (actual=${statsBeforeClose.forceCloseAfterMs})`
+    );
+    const closeStartAtMs = Date.now();
+    await nonPositiveForceCloseLookup.close();
+    const closeElapsedMs = Date.now() - closeStartAtMs;
+    assert.ok(closeElapsedMs < 1500, `expected bounded close for non-positive force-close config (elapsed=${closeElapsedMs}ms)`);
+  } finally {
+    await nonPositiveForceCloseLookup.close();
   }
 } finally {
   fs.open = originalOpen;

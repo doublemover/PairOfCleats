@@ -3,6 +3,11 @@ import { createTimeoutError, runWithTimeout } from '../../shared/promise-timeout
 export const DEFAULT_BUILD_CLEANUP_TIMEOUT_MS = 30_000;
 
 const coerceOptionalNonNegativeInt = (value) => {
+  // Treat nullish/empty/boolean inputs as "unset" so layered defaults can win.
+  // Coercing these to 0 would accidentally disable timeout enforcement.
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'boolean') return null;
+  if (typeof value === 'string' && value.trim() === '') return null;
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 0) return null;
   return Math.floor(parsed);
