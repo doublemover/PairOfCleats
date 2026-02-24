@@ -4,6 +4,7 @@ import { execaSync } from 'execa';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
+import { atomicWriteJsonSync } from '../../shared/io/atomic-write.js';
 
 const CLANGD_BASE_EXTS = ['.c', '.h', '.cc', '.cpp', '.cxx', '.hpp', '.hh'];
 const CLANGD_OBJC_EXTS = ['.m', '.mm'];
@@ -170,8 +171,11 @@ const persistTrackedHeaderDiskCache = (cachePath, repos) => {
     repos
   };
   try {
-    fsSync.mkdirSync(path.dirname(cachePath), { recursive: true });
-    fsSync.writeFileSync(cachePath, JSON.stringify(payload));
+    atomicWriteJsonSync(cachePath, payload, {
+      spaces: 0,
+      newline: false,
+      durable: false
+    });
   } catch {}
 };
 

@@ -3,7 +3,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { getRecentLogEvents } from '../../shared/progress.js';
 import { createTempPath } from '../../shared/json-stream/atomic.js';
-import { atomicWriteJson } from '../../shared/io/atomic-write.js';
+import { atomicWriteJson, atomicWriteJsonSync } from '../../shared/io/atomic-write.js';
 import { sha1 } from '../../shared/hash.js';
 import { normalizeFailureEvent, validateFailureEvent } from './failure-taxonomy.js';
 
@@ -460,27 +460,6 @@ export async function retainCrashArtifacts({
   };
 };
 
-const writeJsonAtomicSync = (filePath, value) => {
-  const tempPath = createTempPath(filePath);
-  try {
-    fsSync.writeFileSync(tempPath, JSON.stringify(value, null, 2));
-    try {
-      fsSync.renameSync(tempPath, filePath);
-    } catch (err) {
-      if (!RENAME_RETRY_CODES.has(err?.code)) throw err;
-      try {
-        fsSync.rmSync(filePath, { force: true });
-      } catch {}
-      fsSync.renameSync(tempPath, filePath);
-    }
-  } catch (err) {
-    try {
-      fsSync.rmSync(tempPath, { force: true });
-    } catch {}
-    throw err;
-  }
-};
-
 /**
  * Create crash logger façade used by indexing runtime for crash diagnostics.
  *
@@ -543,7 +522,7 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
   const writeStateSync = (state) => {
     const payload = { ts: formatTimestamp(), ...state };
     try {
-      writeJsonAtomicSync(statePath, payload);
+      atomicWriteJsonSync(statePath, payload, { spaces: 2, newline: false });
     } catch {}
   };
   const appendLineSync = (message, extra) => {
@@ -641,7 +620,7 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
       writeStateSync({ phase: 'error', error: event || null });
       if (recentEvents.length) {
         try {
-          writeJsonAtomicSync(eventsPath, { ts: formatTimestamp(), events: recentEvents });
+          atomicWriteJsonSync(eventsPath, { ts: formatTimestamp(), events: recentEvents }, { spaces: 2, newline: false });
         } catch {}
       }
     },

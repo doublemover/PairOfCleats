@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildLocalCacheKey } from '../../../shared/cache-key.js';
+import { atomicWriteJsonSync } from '../../../shared/io/atomic-write.js';
 import { treeSitterState } from '../state.js';
 
 const DEFAULT_CHUNK_CACHE_MAX_ENTRIES = 64;
@@ -205,15 +206,16 @@ const writePersistentCachedChunks = (cacheRoot, key, chunks, bumpMetric = null) 
   const filePath = resolvePersistentChunkCachePath(cacheRoot, key);
   if (!filePath) return;
   try {
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    const tempPath = `${filePath}.${process.pid}.tmp`;
     const payload = {
       schemaVersion: CHUNK_CACHE_PERSISTENT_SCHEMA,
       cacheKey: key,
       chunks: cloneChunkList(chunks)
     };
-    fs.writeFileSync(tempPath, JSON.stringify(payload), 'utf8');
-    fs.renameSync(tempPath, filePath);
+    atomicWriteJsonSync(filePath, payload, {
+      spaces: 0,
+      newline: false,
+      durable: false
+    });
     treeSitterState.persistentChunkCacheMemo?.set?.(key, payload.chunks);
     treeSitterState.persistentChunkCacheMisses?.delete?.(key);
     if (typeof bumpMetric === 'function') bumpMetric('chunkCachePersistentWrites', 1);
