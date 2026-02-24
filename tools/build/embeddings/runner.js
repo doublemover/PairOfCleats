@@ -41,6 +41,7 @@ import { formatEmbeddingsPerfLine } from '../../../src/shared/embeddings-progres
 import { spawnSubprocess } from '../../../src/shared/subprocess.js';
 import { runWithConcurrency } from '../../../src/shared/concurrency.js';
 import { coercePositiveIntMinOne } from '../../../src/shared/number-coerce.js';
+import { resolveFdConcurrencyCap } from '../../../src/index/build/workers/config.js';
 import { formatEtaSeconds } from '../../../src/shared/perf/eta.js';
 import {
   normalizeBundleFormat,
@@ -71,6 +72,7 @@ import {
   readCacheEntry,
   resolveCacheDir,
   resolveCacheRoot,
+  resolveGlobalChunkCacheDir,
   shouldFastRejectCacheLookup,
   updateCacheIndexAccess,
   upsertCacheIndexEntry,
@@ -269,6 +271,20 @@ export const resolveEmbeddingsPersistentTextCacheVectorEncoding = (indexingConfi
   if (value === 'float16' || value === 'fp16') return 'float16';
   if (value === 'float32' || value === 'fp32') return 'float32';
   return 'float32';
+};
+
+/**
+ * Resolve approximate characters-per-token ratio used for embedding token estimates.
+ *
+ * @param {object} indexingConfig
+ * @returns {number}
+ */
+export const resolveEmbeddingsCharsPerToken = (indexingConfig) => {
+  const parsed = Number(indexingConfig?.embeddings?.charsPerToken);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return Math.max(1, parsed);
+  }
+  return 4;
 };
 
 /**
@@ -1548,26 +1564,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
   const cacheMaxAgeDays = Number(embeddingsConfig.cache?.maxAgeDays);
   const cacheMaxBytes = Number.isFinite(cacheMaxGb) ? Math.max(0, cacheMaxGb) * 1024 * 1024 * 1024 : 0;
   const cacheMaxAgeMs = Number.isFinite(cacheMaxAgeDays) ? Math.max(0, cacheMaxAgeDays) * 24 * 60 * 60 * 1000 : 0;
-  const persistentTextCacheEnabled = resolveEmbeddingsPersistentTextCacheEnabled(indexingConfig);
-  const persistentTextCacheMaxEntries = resolveEmbeddingsPersistentTextCacheMaxEntries(indexingConfig);
-  const persistentTextCacheVectorEncoding = resolveEmbeddingsPersistentTextCacheVectorEncoding(indexingConfig);
-  const persistentTextCacheStore = persistentTextCacheEnabled
-    ? await createPersistentEmbeddingTextKvStore({
-      Database,
-      cacheRoot,
-      cacheIdentity,
-      cacheIdentityKey,
-      maxEntries: persistentTextCacheMaxEntries,
-      vectorEncoding: persistentTextCacheVectorEncoding,
-      log
-    })
-    : null;
-  if (persistentTextCacheStore) {
-    log(
-      `[embeddings] persistent text cache enabled ` +
-      `(maxEntries=${persistentTextCacheMaxEntries}, encoding=${persistentTextCacheVectorEncoding}).`
-    );
-  }
+  const persistentTextCacheStore = null;
   const maintenanceConfig = normalizeEmbeddingsMaintenanceConfig(embeddingsConfig.maintenance || {});
   const queuedMaintenance = new Set();
   /**
@@ -2384,15 +2381,12 @@ export async function runBuildEmbeddingsWithConfig(config) {
         let lastProgressEmitMs = 0;
         let progressTimer = null;
         /**
-         * Emit combined files/chunks throughput snapshot for current mode.
+         * Build combined files/chunks throughput snapshot for current mode.
          *
-         * @param {{force?:boolean}} [input]
-         * @returns {void}
+         * @param {number} nowMs
+         * @returns {object}
          */
-        const emitProgressSnapshot = ({ force = false } = {}) => {
-          const nowMs = Date.now();
-          if (!force && (nowMs - lastProgressEmitMs) < progressHeartbeatMs) return;
-          lastProgressEmitMs = nowMs;
+        const buildPerfSnapshot = (nowMs) => {
           const elapsedSec = Math.max(0.001, (nowMs - progressStartedAtMs) / 1000);
           const filesPerSec = processedFiles / elapsedSec;
           const chunksPerSec = processedChunks / elapsedSec;
@@ -2467,6 +2461,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
             filesPerSec,
             chunksPerSec,
             etaSeconds,
+            etaText,
             cacheHitRate,
             writerStats,
             writerCompleted,
@@ -2483,6 +2478,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
             perfMetrics
           };
         };
+        let lastPerfStatusLine = '';
         const emitProgressSnapshot = ({ force = false, summary = false } = {}) => {
           const nowMs = Date.now();
           if (!force && (nowMs - lastProgressEmitMs) < progressHeartbeatMs) return;
@@ -2491,6 +2487,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
             filesPerSec,
             chunksPerSec,
             etaSeconds,
+            etaText,
             cacheHitRate,
             writerStats,
             writerCompleted,

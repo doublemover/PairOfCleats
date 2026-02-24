@@ -362,9 +362,6 @@ export const writeCacheIndex = async (cacheDir, index) => {
   const indexBinaryPath = resolveCacheIndexBinaryPath(cacheDir);
   if (!indexPath) return;
   await fs.mkdir(path.dirname(indexPath), { recursive: true });
-  if (binaryPath) {
-    await writeBinaryFileAtomic(binaryPath, encodeCacheIndexBinary(index));
-  }
   await writeJsonObjectFile(indexPath, { fields: index, atomic: true });
   if (!indexBinaryPath) return;
   const tempPath = await createTempPath(indexBinaryPath);
@@ -963,18 +960,6 @@ export const buildGlobalChunkCacheKey = ({
     }
   });
   return `global-chunk-${keyInfo.version}-${keyInfo.digest}`;
-};
-
-/**
- * Validate a mode-agnostic global chunk cache entry.
- *
- * @param {{cached?:object,identityKey?:string,chunkHash?:string}} input
- * @returns {boolean}
- */
-export const isGlobalChunkCacheValid = ({ cached, identityKey, chunkHash }) => {
-  if (!cached || !chunkHash) return false;
-  if (!cached.hash || cached.hash !== chunkHash) return false;
-  return cached.cacheMeta?.identityKey === identityKey;
 };
 
 /**
