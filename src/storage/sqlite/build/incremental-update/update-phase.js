@@ -81,7 +81,7 @@ const allocateIncrementalDocId = ({
  * - Returning `{ ok: false }` means no partial writes escaped both phases.
  *
  * @param {object} input
- * @returns {{ok:true,insertedChunks:number,applyDurationMs:number,validationMs:number,transactionPhases:{deletes:boolean,inserts:boolean},tableRows:Record<string,number>}|{ok:false,skipReason:string}}
+ * @returns {{ok:true,insertedChunks:number,applyDurationMs:number,validationMs:number,transactionPhases:{deletes:boolean,inserts:boolean},tableRows:Record<string,number>}|{ok:false,skipReason:string,mutated:false}}
  */
 export const runIncrementalUpdatePhase = ({
   db,
@@ -457,7 +457,7 @@ export const runIncrementalUpdatePhase = ({
     };
   } catch (err) {
     if (err instanceof IncrementalSkipError) {
-      return { ok: false, skipReason: err.reason };
+      return { ok: false, skipReason: err.reason, mutated: false };
     }
     throw err;
   }

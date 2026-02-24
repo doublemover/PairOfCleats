@@ -400,6 +400,13 @@ export async function incrementalUpdateDatabase({
       vocabGrowthLimits: VOCAB_GROWTH_LIMITS
     });
     if (!updateResult.ok) {
+      /**
+       * Incremental skip must preserve the original DB so callers can safely
+       * fall back to a full rebuild without inheriting partial mutations.
+       */
+      if (updateResult.mutated === true) {
+        throw new Error('[sqlite] Incremental update reported skip after mutating database state.');
+      }
       await finalize();
       return { used: false, reason: updateResult.skipReason, ...changeSummary };
     }
