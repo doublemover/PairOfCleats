@@ -154,31 +154,6 @@ const closeLogs = () => {
   closeMasterLog();
 };
 
-process.on('exit', (code) => {
-  processRunner.logExit('exit', code);
-  closeLogs();
-});
-process.on('SIGINT', () => {
-  writeLogSync('[signal] SIGINT received');
-  const active = processRunner.getActiveChild();
-  if (active) {
-    writeLogSync(`[signal] terminating ${processRunner.getActiveLabel()}`);
-    processRunner.killProcessTree(active.pid);
-  }
-  processRunner.logExit('SIGINT', 130);
-  exitWithDisplay(130);
-});
-process.on('SIGTERM', () => {
-  writeLogSync('[signal] SIGTERM received');
-  const active = processRunner.getActiveChild();
-  if (active) {
-    writeLogSync(`[signal] terminating ${processRunner.getActiveLabel()}`);
-    processRunner.killProcessTree(active.pid);
-  }
-  processRunner.logExit('SIGTERM', 143);
-  exitWithDisplay(143);
-});
-
 const reportFatal = (label, err) => {
   try {
     initMasterLog();
@@ -192,17 +167,93 @@ const reportFatal = (label, err) => {
   } catch {}
 };
 
+const SHUTDOWN_ACTIVE_CHILD_WAIT_MS = 15000;
+let shutdownPromise = null;
+
+/**
+ * Shut down bench-language deterministically and await active child teardown.
+ *
+ * @param {{reason:string,code:number,err?:unknown,fatal?:boolean}} input
+ * @returns {Promise<void>}
+ */
+const gracefulShutdown = ({
+  reason,
+  code,
+  err = null,
+  fatal = false
+}) => {
+  const exitCode = Number.isFinite(Number(code)) ? Number(code) : 1;
+  const normalizedReason = typeof reason === 'string' && reason.trim()
+    ? reason.trim()
+    : 'shutdown';
+  if (shutdownPromise) {
+    if (normalizedReason === 'SIGINT' || normalizedReason === 'SIGTERM') {
+      writeLogSync(`[signal] ${normalizedReason} received during shutdown; forcing exit.`);
+      process.exit(exitCode);
+    }
+    return shutdownPromise;
+  }
+  shutdownPromise = (async () => {
+    if (fatal) {
+      reportFatal(normalizedReason, err);
+      writeLogSync(`[error] ${normalizedReason}: ${err?.stack || err}`);
+    } else if (normalizedReason === 'SIGINT' || normalizedReason === 'SIGTERM') {
+      writeLogSync(`[signal] ${normalizedReason} received`);
+    }
+    const active = processRunner.getActiveChild();
+    const activePid = Number(active?.pid);
+    if (Number.isFinite(activePid)) {
+      const activeLabel = processRunner.getActiveLabel();
+      writeLogSync(`[signal] terminating ${activeLabel || `pid ${activePid}`}`);
+      const termination = await processRunner.terminateActiveChild({
+        timeoutMs: SHUTDOWN_ACTIVE_CHILD_WAIT_MS
+      });
+      if (termination?.timedOut) {
+        writeLogSync(
+          `[signal] timed out waiting ${SHUTDOWN_ACTIVE_CHILD_WAIT_MS}ms for pid ${activePid} to exit`
+        );
+      }
+    }
+    processRunner.logExit(normalizedReason, exitCode);
+    closeLogs();
+    display.close();
+    process.exit(exitCode);
+  })();
+  return shutdownPromise;
+};
+
+process.on('exit', (code) => {
+  processRunner.logExit('exit', code);
+  closeLogs();
+});
+process.on('SIGINT', () => {
+  void gracefulShutdown({
+    reason: 'SIGINT',
+    code: 130
+  });
+});
+process.on('SIGTERM', () => {
+  void gracefulShutdown({
+    reason: 'SIGTERM',
+    code: 143
+  });
+});
+
 process.on('uncaughtException', (err) => {
-  reportFatal('uncaughtException', err);
-  writeLogSync(`[error] uncaughtException: ${err?.stack || err}`);
-  processRunner.logExit('uncaughtException', 1);
-  exitWithDisplay(1);
+  void gracefulShutdown({
+    reason: 'uncaughtException',
+    code: 1,
+    err,
+    fatal: true
+  });
 });
 process.on('unhandledRejection', (err) => {
-  reportFatal('unhandledRejection', err);
-  writeLogSync(`[error] unhandledRejection: ${err?.stack || err}`);
-  processRunner.logExit('unhandledRejection', 1);
-  exitWithDisplay(1);
+  void gracefulShutdown({
+    reason: 'unhandledRejection',
+    code: 1,
+    err,
+    fatal: true
+  });
 });
 
 /**

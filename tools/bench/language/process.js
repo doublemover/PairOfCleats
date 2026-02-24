@@ -233,6 +233,7 @@ export const createProcessRunner = ({
   let activeLabel = '';
   let exitLogged = false;
   const interactiveDiagnostics = new Map();
+  const ACTIVE_CHILD_SHUTDOWN_WAIT_MS = 15000;
 
   const setActiveChild = (child, label) => {
     activeChild = child;
@@ -259,6 +260,106 @@ export const createProcessRunner = ({
       detached: process.platform !== 'win32',
       graceMs: 0
     }).catch(() => {});
+  };
+
+  /**
+   * Await active child process exit with a bounded wait window.
+   *
+   * @param {ChildProcess} child
+   * @param {number} timeoutMs
+   * @returns {Promise<{exited:boolean,timedOut:boolean,exitCode:number|null,signal:string|null}>}
+   */
+  const waitForChildExit = (child, timeoutMs) => {
+    const safeTimeoutMs = Number.isFinite(Number(timeoutMs))
+      ? Math.max(0, Math.floor(Number(timeoutMs)))
+      : 0;
+    if (!child || typeof child !== 'object' || typeof child.once !== 'function') {
+      return Promise.resolve({
+        exited: false,
+        timedOut: false,
+        exitCode: null,
+        signal: null
+      });
+    }
+    const currentExitCode = Number(child.exitCode);
+    const currentSignal = typeof child.signalCode === 'string' && child.signalCode.trim()
+      ? child.signalCode.trim()
+      : null;
+    if (Number.isFinite(currentExitCode) || currentSignal) {
+      return Promise.resolve({
+        exited: true,
+        timedOut: false,
+        exitCode: Number.isFinite(currentExitCode) ? currentExitCode : null,
+        signal: currentSignal
+      });
+    }
+    return new Promise((resolve) => {
+      let settled = false;
+      let timeout = null;
+      const finalize = (payload) => {
+        if (settled) return;
+        settled = true;
+        if (timeout) {
+          try { clearTimeout(timeout); } catch {}
+          timeout = null;
+        }
+        try {
+          child.off?.('exit', onExit);
+        } catch {}
+        resolve(payload);
+      };
+      const onExit = (code, signal) => finalize({
+        exited: true,
+        timedOut: false,
+        exitCode: Number.isFinite(Number(code)) ? Number(code) : null,
+        signal: typeof signal === 'string' && signal.trim() ? signal.trim() : null
+      });
+      child.once('exit', onExit);
+      if (safeTimeoutMs > 0) {
+        timeout = setTimeout(() => finalize({
+          exited: false,
+          timedOut: true,
+          exitCode: Number.isFinite(Number(child.exitCode)) ? Number(child.exitCode) : null,
+          signal: typeof child.signalCode === 'string' && child.signalCode.trim()
+            ? child.signalCode.trim()
+            : null
+        }), safeTimeoutMs);
+        timeout.unref?.();
+      }
+    });
+  };
+
+  /**
+   * Terminate the currently active child process and await exit.
+   *
+   * @param {{timeoutMs?:number}} [input]
+   * @returns {Promise<{attempted:boolean,pid:number|null,label:string,timedOut:boolean,exited:boolean,exitCode:number|null,signal:string|null}>}
+   */
+  const terminateActiveChild = async ({ timeoutMs = ACTIVE_CHILD_SHUTDOWN_WAIT_MS } = {}) => {
+    const child = activeChild;
+    const pid = Number(child?.pid);
+    const label = activeLabel || '';
+    if (!Number.isFinite(pid)) {
+      return {
+        attempted: false,
+        pid: null,
+        label,
+        timedOut: false,
+        exited: false,
+        exitCode: null,
+        signal: null
+      };
+    }
+    const waitPromise = waitForChildExit(child, timeoutMs);
+    killProcessTree(pid);
+    const outcome = await waitPromise;
+    clearActiveChild(pid);
+    return {
+      attempted: true,
+      pid,
+      label,
+      ...outcome
+    };
   };
 
   const logExit = (reason, code) => {
@@ -799,6 +900,7 @@ export const createProcessRunner = ({
   return {
     runProcess,
     killProcessTree,
+    terminateActiveChild,
     logExit,
     getActiveChild: () => activeChild,
     getActiveLabel: () => activeLabel
