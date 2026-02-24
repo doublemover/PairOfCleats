@@ -1,6 +1,7 @@
 import { getToolingConfig } from '../../shared/dict-utils.js';
 import {
   buildCrossFileFingerprint,
+  DEFAULT_CROSS_FILE_CACHE_MAX_BYTES,
   readCrossFileInferenceCache,
   resolveCrossFileCacheLocation,
   writeCrossFileInferenceCache
@@ -125,6 +126,7 @@ const resolveCacheContext = ({
  * @param {boolean} [params.enableTypeInference=true]
  * @param {boolean} [params.enableRiskCorrelation=false]
  * @param {object|null} [params.fileRelations]
+ * @param {number} [params.crossFileCacheMaxBytes=8388608]
  * @param {boolean} [params.inferenceLite=false]
  * @param {boolean} [params.inferenceLiteHighSignalOnly=true]
  * @returns {Promise<object>}
@@ -141,6 +143,7 @@ export async function applyCrossFileInference({
   enableTypeInference = true,
   enableRiskCorrelation = false,
   fileRelations = null,
+  crossFileCacheMaxBytes = DEFAULT_CROSS_FILE_CACHE_MAX_BYTES,
   inferenceLite = false,
   inferenceLiteHighSignalOnly = true
 }) {
@@ -196,7 +199,9 @@ export async function applyCrossFileInference({
     cachePath: cacheContext.cachePath,
     chunks,
     crossFileFingerprint: cacheContext.crossFileFingerprint,
-    stats
+    stats,
+    maxBytes: crossFileCacheMaxBytes,
+    log
   });
 
   return withCacheMetadata({

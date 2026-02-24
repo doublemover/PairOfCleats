@@ -7,10 +7,20 @@ import { writeJsonObjectFile } from '../../shared/json-stream.js';
 
 export const CROSS_FILE_CACHE_SCHEMA_VERSION = 1;
 export const CROSS_FILE_CACHE_DIRNAME = 'cross-file-inference';
+export const DEFAULT_CROSS_FILE_CACHE_MAX_BYTES = 8 * 1024 * 1024;
 
 const compareStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
-const resolveFileRelationStats = (fileRelations) => {
+/**
+ * Normalize fileRelations into deterministic, content-sensitive signatures.
+ *
+ * Counts alone are not sufficient because different relation payloads can share
+ * identical usage totals and would otherwise collide in cache fingerprints.
+ *
+ * @param {object|Map<string,object>|null} fileRelations
+ * @returns {Array<{file:string,usages:number,relationHash:string}>|null}
+ */
+const resolveFileRelationSignatures = (fileRelations) => {
   if (!fileRelations) return null;
   try {
     const entries = typeof fileRelations.entries === 'function'
@@ -19,12 +29,20 @@ const resolveFileRelationStats = (fileRelations) => {
     return entries
       .map(([file, relation]) => ({
         file,
-        usages: Array.isArray(relation?.usages) ? relation.usages.length : 0
+        usages: Array.isArray(relation?.usages) ? relation.usages.length : 0,
+        relationHash: sha1(stableStringify(relation || null))
       }))
       .sort((a, b) => compareStrings(String(a.file || ''), String(b.file || '')));
   } catch {
     return null;
   }
+};
+
+const normalizeCacheMaxBytes = (value) => {
+  if (value === null || value === undefined) return DEFAULT_CROSS_FILE_CACHE_MAX_BYTES;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return DEFAULT_CROSS_FILE_CACHE_MAX_BYTES;
+  return Math.max(0, Math.floor(parsed));
 };
 
 const normalizeCacheStats = (cacheStats) => ({
@@ -109,7 +127,7 @@ export const buildCrossFileFingerprint = ({
   useTooling,
   fileRelations
 }) => {
-  const fileRelationStats = resolveFileRelationStats(fileRelations);
+  const fileRelationSignatures = resolveFileRelationSignatures(fileRelations);
   const chunkSignatures = [];
   for (let index = 0; index < chunks.length; index += 1) {
     const chunk = chunks[index];
@@ -144,7 +162,7 @@ export const buildCrossFileFingerprint = ({
     enableRiskCorrelation: enableRiskCorrelation === true,
     useTooling: useTooling === true,
     chunks: chunkSignatures,
-    fileRelations: fileRelationStats
+    fileRelations: fileRelationSignatures
   }));
 };
 
@@ -182,36 +200,76 @@ export const readCrossFileInferenceCache = async ({
   return null;
 };
 
+/**
+ * Persist cross-file inference output only when the projected JSON payload
+ * remains within the configured byte cap. Oversized payloads are skipped so
+ * this cache cannot grow without bound on large repos.
+ *
+ * @param {{
+ *   cacheDir:string|null,
+ *   cachePath:string|null,
+ *   chunks:Array<object>,
+ *   crossFileFingerprint:string,
+ *   stats:object,
+ *   maxBytes?:number,
+ *   log?:(line:string)=>void
+ * }} input
+ * @returns {Promise<void>}
+ */
 export const writeCrossFileInferenceCache = async ({
   cacheDir,
   cachePath,
   chunks,
   crossFileFingerprint,
-  stats
+  stats,
+  maxBytes = DEFAULT_CROSS_FILE_CACHE_MAX_BYTES,
+  log = () => {}
 }) => {
   if (!cacheDir || !cachePath) return;
   try {
-    const rows = (function *buildRows() {
-      for (let index = 0; index < chunks.length; index += 1) {
-        const chunk = chunks[index];
-        yield {
-          id: resolveChunkIdentity(chunk, index),
-          codeRelations: chunk?.codeRelations && typeof chunk.codeRelations === 'object'
-            ? chunk.codeRelations
-            : null,
-          docmeta: chunk?.docmeta && typeof chunk.docmeta === 'object'
-            ? chunk.docmeta
-            : null
-        };
+    const generatedAt = new Date().toISOString();
+    const normalizedStats = normalizeCacheStats(stats);
+    const cacheMaxBytes = normalizeCacheMaxBytes(maxBytes);
+    let estimatedBytes = Buffer.byteLength(JSON.stringify({
+      schemaVersion: CROSS_FILE_CACHE_SCHEMA_VERSION,
+      generatedAt,
+      fingerprint: crossFileFingerprint,
+      stats: normalizedStats,
+      rows: []
+    }), 'utf8');
+    const rows = [];
+    for (let index = 0; index < chunks.length; index += 1) {
+      const chunk = chunks[index];
+      const row = {
+        id: resolveChunkIdentity(chunk, index),
+        codeRelations: chunk?.codeRelations && typeof chunk.codeRelations === 'object'
+          ? chunk.codeRelations
+          : null,
+        docmeta: chunk?.docmeta && typeof chunk.docmeta === 'object'
+          ? chunk.docmeta
+          : null
+      };
+      const rowJson = JSON.stringify(row);
+      const rowBytes = Buffer.byteLength(rowJson, 'utf8');
+      const rowOverhead = rows.length ? 1 : 0;
+      if (cacheMaxBytes > 0 && (estimatedBytes + rowOverhead + rowBytes) > cacheMaxBytes) {
+        if (typeof log === 'function') {
+          log(
+            `[perf] cross-file cache write skipped: projected size ${estimatedBytes + rowOverhead + rowBytes} bytes exceeds max ${cacheMaxBytes} bytes.`
+          );
+        }
+        return;
       }
-    })();
+      rows.push(row);
+      estimatedBytes += rowOverhead + rowBytes;
+    }
     await writeJsonObjectFile(cachePath, {
       trailingNewline: false,
       fields: {
         schemaVersion: CROSS_FILE_CACHE_SCHEMA_VERSION,
-        generatedAt: new Date().toISOString(),
+        generatedAt,
         fingerprint: crossFileFingerprint,
-        stats: normalizeCacheStats(stats)
+        stats: normalizedStats
       },
       arrays: { rows }
     });

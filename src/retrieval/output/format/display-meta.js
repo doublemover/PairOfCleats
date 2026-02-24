@@ -1,5 +1,6 @@
 import { sha1 } from '../../../shared/hash.js';
 import { buildLocalCacheKey } from '../../../shared/cache-key.js';
+import { stableStringify } from '../../../shared/stable-json.js';
 import { ANSI, boldText, stripAnsi } from './ansi.js';
 
 export const formatInferredEntry = (entry) => {
@@ -71,12 +72,54 @@ export const compareText = (a, b) => {
   return 0;
 };
 
+/**
+ * Compute a deterministic cache-version signature for format-relevant chunk
+ * fields so stale render strings are not reused across chunk updates.
+ *
+ * @param {object} chunk
+ * @returns {string}
+ */
+const resolveFormatChunkVersion = (chunk) => sha1(stableStringify({
+  chunkUid: chunk?.chunkUid || chunk?.metaV2?.chunkUid || null,
+  fileHash: chunk?.fileHash || chunk?.metaV2?.fileHash || null,
+  fileHashAlgo: chunk?.fileHashAlgo || chunk?.metaV2?.fileHashAlgo || null,
+  lastModified: chunk?.last_modified || null,
+  name: chunk?.name || null,
+  kind: chunk?.kind || null,
+  headline: chunk?.headline || null,
+  imports: chunk?.imports || null,
+  exports: chunk?.exports || null,
+  usages: chunk?.usages || null,
+  importLinks: chunk?.importLinks || null,
+  lint: chunk?.lint || null,
+  externalDocs: chunk?.externalDocs || null,
+  docmeta: chunk?.docmeta || null,
+  codeRelations: chunk?.codeRelations || null
+}));
+
+/**
+ * Build a query signature that is collision-safe for token lists containing
+ * delimiters (for example, literal `|` inside a token).
+ *
+ * @param {Array<unknown>} queryTokens
+ * @param {RegExp|null|undefined} rx
+ * @returns {string}
+ */
 export const buildQueryHash = (queryTokens, rx) => {
-  const tokens = Array.isArray(queryTokens) ? queryTokens.join('|') : '';
+  const tokens = Array.isArray(queryTokens)
+    ? queryTokens.map((token) => String(token))
+    : [];
   const rxSig = rx ? `${rx.source}/${rx.flags}` : '';
-  return sha1(`${tokens}:${rxSig}`);
+  return sha1(stableStringify({ tokens, rx: rxSig }));
 };
 
+/**
+ * Construct formatter cache keys that invalidate when any format-visible chunk
+ * content changes.
+ *
+ * @param {object} input
+ * @returns {string}
+ */
 export const buildFormatCacheKey = ({
   chunk,
   index,
@@ -94,7 +137,8 @@ export const buildFormatCacheKey = ({
     end: chunk.end,
     matched: Boolean(matched),
     explain: Boolean(explain),
-    queryHash
+    queryHash,
+    chunkVersion: resolveFormatChunkVersion(chunk)
   }
 }).key;
 
