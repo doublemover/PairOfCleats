@@ -37,6 +37,7 @@ import {
   resolveDocumentUri,
   resolveVfsIoBatching
 } from './lsp/vfs-batching.js';
+import { throwIfAborted } from '../../../shared/abort.js';
 
 /**
  * Parse positive integer configuration with fallback floor of 1.
@@ -116,6 +117,7 @@ export { resolveVfsIoBatching, ensureVirtualFilesBatch };
  * @param {number} [params.hoverCacheMaxEntries=50000]
  * @param {(line:string)=>boolean|null} [params.stderrFilter=null]
  * @param {object|null} [params.initializationOptions=null]
+ * @param {AbortSignal|null} [params.abortSignal=null]
  * @returns {Promise<{byChunkUid:object,diagnosticsByChunkUid:object,enriched:number,diagnosticsCount:number,checks:Array<object>,hoverMetrics:object}>}
  */
 export async function collectLspTypes({
@@ -153,8 +155,13 @@ export async function collectLspTypes({
   hoverConcurrency = DEFAULT_HOVER_CONCURRENCY,
   hoverCacheMaxEntries = DEFAULT_HOVER_CACHE_MAX_ENTRIES,
   stderrFilter = null,
-  initializationOptions = null
+  initializationOptions = null,
+  abortSignal = null
 }) {
+  const toolingAbortSignal = abortSignal && typeof abortSignal.aborted === 'boolean'
+    ? abortSignal
+    : null;
+  throwIfAborted(toolingAbortSignal);
   const resolvePositiveTimeout = (value) => {
     const parsed = Number(value);
     if (!Number.isFinite(parsed) || parsed <= 0) return null;
@@ -191,6 +198,7 @@ export async function collectLspTypes({
   if (!docs.length || !targetList.length) {
     return buildEmptyCollectResult(checks);
   }
+  throwIfAborted(toolingAbortSignal);
 
   const resolvedRoot = vfsRoot || rootDir;
   const resolvedScheme = normalizeUriScheme(uriScheme);
@@ -212,6 +220,7 @@ export async function collectLspTypes({
 
   let coldStartCache = null;
   if (vfsColdStartCache !== false) {
+    throwIfAborted(toolingAbortSignal);
     const resolvedIndexDir = indexDir || resolvedRoot || rootDir;
     const indexSignature = resolvedIndexDir ? await buildIndexSignature(resolvedIndexDir) : null;
     const manifestHash = resolvedIndexDir ? await computeVfsManifestHash({ indexDir: resolvedIndexDir }) : null;
@@ -248,6 +257,15 @@ export async function collectLspTypes({
     stderrFilter,
     onNotification
   });
+  let detachAbortHandler = null;
+  if (toolingAbortSignal && typeof toolingAbortSignal.addEventListener === 'function') {
+    const onAbort = () => {
+      client.kill();
+    };
+    toolingAbortSignal.addEventListener('abort', onAbort, { once: true });
+    detachAbortHandler = () => toolingAbortSignal.removeEventListener('abort', onAbort);
+    if (toolingAbortSignal.aborted) onAbort();
+  }
 
   const guard = createToolingGuard({
     name: cmd,
@@ -258,14 +276,18 @@ export async function collectLspTypes({
   });
 
   const rootUri = pathToFileUri(rootDir);
+  let shouldShutdownClient = false;
   try {
+    throwIfAborted(toolingAbortSignal);
     await guard.run(({ timeoutMs: guardTimeout }) => client.initialize({
       rootUri,
       capabilities: { textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } } },
       initializationOptions,
       timeoutMs: guardTimeout
     }), { label: 'initialize' });
+    shouldShutdownClient = true;
   } catch (err) {
+    throwIfAborted(toolingAbortSignal);
     checkFlags.initializeFailed = true;
     checks.push({
       name: 'tooling_initialize_failed',
@@ -277,128 +299,146 @@ export async function collectLspTypes({
     return buildEmptyCollectResult(checks);
   }
 
-  const byChunkUid = {};
-  let enriched = 0;
-  const signatureParseCache = new Map();
-  const hoverFileStats = new Map();
-  const hoverLatencyMs = [];
-  const hoverMetrics = createEmptyHoverMetricsResult();
-  const hoverControl = { disabledGlobal: false };
-  const hoverLimiter = createConcurrencyLimiter(resolvedHoverConcurrency);
-  const hoverCacheState = await loadHoverCache(cacheRoot);
-  const hoverCacheEntries = hoverCacheState.entries;
-  let hoverCacheDirty = false;
-  const markHoverCacheDirty = () => {
-    hoverCacheDirty = true;
-  };
+  try {
+    const byChunkUid = {};
+    let enriched = 0;
+    const signatureParseCache = new Map();
+    const hoverFileStats = new Map();
+    const hoverLatencyMs = [];
+    const hoverMetrics = createEmptyHoverMetricsResult();
+    const hoverControl = { disabledGlobal: false };
+    const hoverLimiter = createConcurrencyLimiter(resolvedHoverConcurrency);
+    const hoverCacheState = await loadHoverCache(cacheRoot);
+    const hoverCacheEntries = hoverCacheState.entries;
+    let hoverCacheDirty = false;
+    const markHoverCacheDirty = () => {
+      hoverCacheDirty = true;
+    };
 
-  const openDocs = new Map();
-  const diskPathMap = resolvedScheme === 'file'
-    ? await ensureVirtualFilesBatch({
-      rootDir: resolvedRoot,
-      docs: docsToOpen,
-      batching: resolvedBatching,
-      coldStartCache
-    })
-    : null;
+    throwIfAborted(toolingAbortSignal);
+    const openDocs = new Map();
+    const diskPathMap = resolvedScheme === 'file'
+      ? await ensureVirtualFilesBatch({
+        rootDir: resolvedRoot,
+        docs: docsToOpen,
+        batching: resolvedBatching,
+        coldStartCache
+      })
+      : null;
 
-  const processDoc = async (doc) => {
-    const languageId = doc.languageId || languageIdForFileExt(path.extname(doc.virtualPath));
-    const uri = await resolveDocumentUri({
-      rootDir: resolvedRoot,
-      doc,
-      uriScheme: resolvedScheme,
-      tokenMode: vfsTokenMode,
-      diskPathMap,
-      coldStartCache
+    const processDoc = async (doc) => {
+      throwIfAborted(toolingAbortSignal);
+      const languageId = doc.languageId || languageIdForFileExt(path.extname(doc.virtualPath));
+      const uri = await resolveDocumentUri({
+        rootDir: resolvedRoot,
+        doc,
+        uriScheme: resolvedScheme,
+        tokenMode: vfsTokenMode,
+        diskPathMap,
+        coldStartCache
+      });
+      const legacyUri = resolvedScheme === 'poc-vfs' ? buildVfsUri(doc.virtualPath) : null;
+
+      const { enrichedDelta } = await processDocumentTypes({
+        doc,
+        cmd,
+        client,
+        guard,
+        log,
+        strict,
+        parseSignature,
+        lineIndexFactory,
+        uri,
+        legacyUri,
+        languageId,
+        openDocs,
+        targetsByPath,
+        byChunkUid,
+        signatureParseCache,
+        hoverEnabled,
+        hoverRequireMissingReturn,
+        resolvedHoverKinds,
+        resolvedHoverMaxPerFile,
+        resolvedHoverDisableAfterTimeouts,
+        resolvedHoverTimeout,
+        resolvedDocumentSymbolTimeout,
+        hoverLimiter,
+        hoverCacheEntries,
+        markHoverCacheDirty,
+        hoverControl,
+        hoverFileStats,
+        hoverLatencyMs,
+        hoverMetrics,
+        checks,
+        checkFlags,
+        abortSignal: toolingAbortSignal
+      });
+      enriched += enrichedDelta;
+    };
+
+    await runWithConcurrency(docsToOpen, resolvedDocumentSymbolConcurrency, processDoc, {
+      signal: toolingAbortSignal
     });
-    const legacyUri = resolvedScheme === 'poc-vfs' ? buildVfsUri(doc.virtualPath) : null;
+    throwIfAborted(toolingAbortSignal);
 
-    const { enrichedDelta } = await processDocumentTypes({
-      doc,
-      cmd,
-      client,
-      guard,
-      log,
-      strict,
-      parseSignature,
-      lineIndexFactory,
-      uri,
-      legacyUri,
-      languageId,
+    if (hoverCacheDirty) {
+      try {
+        await persistHoverCache({
+          cachePath: hoverCacheState.path,
+          entries: hoverCacheEntries,
+          maxEntries: resolvedHoverCacheMaxEntries
+        });
+      } catch {}
+    }
+    throwIfAborted(toolingAbortSignal);
+
+    const { diagnosticsByChunkUid, diagnosticsCount } = shapeDiagnosticsByChunkUid({
+      captureDiagnostics,
+      diagnosticsByUri,
+      docs,
       openDocs,
       targetsByPath,
-      byChunkUid,
-      signatureParseCache,
-      hoverEnabled,
-      hoverRequireMissingReturn,
-      resolvedHoverKinds,
-      resolvedHoverMaxPerFile,
-      resolvedHoverDisableAfterTimeouts,
-      resolvedHoverTimeout,
-      resolvedDocumentSymbolTimeout,
-      hoverLimiter,
-      hoverCacheEntries,
-      markHoverCacheDirty,
-      hoverControl,
-      hoverFileStats,
-      hoverLatencyMs,
-      hoverMetrics,
+      diskPathMap,
+      resolvedRoot,
+      resolvedScheme,
+      lineIndexFactory,
+      maxDiagnosticsPerChunk: resolvedMaxDiagnosticsPerChunk,
       checks,
-      checkFlags
+      checkFlags,
+      findTargetForOffsets
     });
-    enriched += enrichedDelta;
-  };
 
-  await runWithConcurrency(docsToOpen, resolvedDocumentSymbolConcurrency, processDoc);
-
-  if (hoverCacheDirty) {
-    try {
-      await persistHoverCache({
-        cachePath: hoverCacheState.path,
-        entries: hoverCacheEntries,
-        maxEntries: resolvedHoverCacheMaxEntries
-      });
-    } catch {}
-  }
-
-  const { diagnosticsByChunkUid, diagnosticsCount } = shapeDiagnosticsByChunkUid({
-    captureDiagnostics,
-    diagnosticsByUri,
-    docs,
-    openDocs,
-    targetsByPath,
-    diskPathMap,
-    resolvedRoot,
-    resolvedScheme,
-    lineIndexFactory,
-    maxDiagnosticsPerChunk: resolvedMaxDiagnosticsPerChunk,
-    checks,
-    checkFlags,
-    findTargetForOffsets
-  });
-
-  if (coldStartCache?.flush) {
-    try {
-      await coldStartCache.flush();
-    } catch (err) {
-      log(`[tooling] vfs cold-start cache flush failed: ${err?.message || err}`);
+    if (coldStartCache?.flush) {
+      try {
+        await coldStartCache.flush();
+      } catch (err) {
+        log(`[tooling] vfs cold-start cache flush failed: ${err?.message || err}`);
+      }
     }
+
+    return {
+      byChunkUid,
+      diagnosticsByChunkUid,
+      enriched,
+      diagnosticsCount,
+      checks,
+      hoverMetrics: summarizeHoverMetrics({
+        hoverMetrics,
+        hoverLatencyMs,
+        hoverFileStats
+      })
+    };
+  } finally {
+    if (detachAbortHandler) {
+      try {
+        detachAbortHandler();
+      } catch {}
+    }
+    if (shouldShutdownClient) {
+      try {
+        await client.shutdownAndExit();
+      } catch {}
+    }
+    client.kill();
   }
-
-  await client.shutdownAndExit();
-  client.kill();
-
-  return {
-    byChunkUid,
-    diagnosticsByChunkUid,
-    enriched,
-    diagnosticsCount,
-    checks,
-    hoverMetrics: summarizeHoverMetrics({
-      hoverMetrics,
-      hoverLatencyMs,
-      hoverFileStats
-    })
-  };
 }

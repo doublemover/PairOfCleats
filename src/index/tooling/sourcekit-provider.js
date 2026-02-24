@@ -7,6 +7,7 @@ import { execaSync } from 'execa';
 import { SymbolKind } from 'vscode-languageserver-protocol';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { isTestingEnv } from '../../shared/env.js';
+import { throwIfAborted } from '../../shared/abort.js';
 import { acquireFileLock } from '../../shared/locks/file-lock.js';
 import { spawnSubprocess } from '../../shared/subprocess.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
@@ -157,6 +158,7 @@ const acquireHostSourcekitLock = async ({
   waitMs = SOURCEKIT_HOST_LOCK_WAIT_MS,
   pollMs = SOURCEKIT_HOST_LOCK_POLL_MS,
   staleMs = SOURCEKIT_HOST_LOCK_STALE_MS,
+  signal = null,
   log = () => {}
 }) => {
   const lock = await acquireFileLock({
@@ -164,6 +166,7 @@ const acquireHostSourcekitLock = async ({
     waitMs,
     pollMs,
     staleMs,
+    signal,
     metadata: { scope: 'sourcekit-provider' },
     forceStaleCleanup: true,
     onStale: () => {
@@ -284,7 +287,8 @@ const writeSourcekitPreflightMarker = async ({ markerPath, fingerprint, swiftCmd
 const runSourcekitPackagePreflight = async ({
   repoRoot,
   swiftCmd,
-  timeoutMs
+  timeoutMs,
+  signal = null
 }) => {
   const startedAt = Date.now();
   const resolvedCommand = resolveSpawnCommandForExec(swiftCmd, ['package', 'resolve']);
@@ -303,6 +307,7 @@ const runSourcekitPackagePreflight = async ({
       outputMode: 'string',
       maxOutputBytes: 48 * 1024,
       rejectOnNonZeroExit: false,
+      signal,
       name: 'sourcekit-package-resolve'
     });
     const durationMs = Date.now() - startedAt;
@@ -322,6 +327,7 @@ const runSourcekitPackagePreflight = async ({
       message: summary || `swift package resolve failed with exit code ${result.exitCode ?? 'unknown'}`
     };
   } catch (err) {
+    if (err?.code === 'ABORT_ERR') throw err;
     const durationMs = Date.now() - startedAt;
     const timeout = err?.code === 'SUBPROCESS_TIMEOUT';
     const summary = summarizeSubprocessOutput(
@@ -345,9 +351,11 @@ const runSourcekitPackagePreflight = async ({
  */
 const ensureSourcekitPackageResolutionPreflight = async ({
   repoRoot,
-  log
+  log,
+  signal = null
 }) => {
   try {
+    throwIfAborted(signal);
     const need = await resolveSourcekitPackagePreflightNeed({ repoRoot });
     if (!need.required) {
       return { blockSourcekit: false, check: null };
@@ -381,19 +389,24 @@ const ensureSourcekitPackageResolutionPreflight = async ({
         waitMs: SOURCEKIT_PACKAGE_PREFLIGHT_LOCK_WAIT_MS,
         pollMs: SOURCEKIT_PACKAGE_PREFLIGHT_LOCK_POLL_MS,
         staleMs: SOURCEKIT_PACKAGE_PREFLIGHT_LOCK_STALE_MS,
+        signal,
         log
       });
       if (!preflightLock) {
         log('[tooling] sourcekit package preflight lock wait elapsed; continuing without lock.');
       }
+      throwIfAborted(signal);
       log('[tooling] sourcekit package preflight: running `swift package resolve`.');
       const preflight = await runSourcekitPackagePreflight({
         repoRoot,
         swiftCmd: resolvedSwiftCmd,
-        timeoutMs
+        timeoutMs,
+        signal
       });
+      throwIfAborted(signal);
       if (preflight.ok) {
         try {
+          throwIfAborted(signal);
           await writeSourcekitPreflightMarker({
             markerPath,
             fingerprint: need.fingerprint,
@@ -421,6 +434,7 @@ const ensureSourcekitPackageResolutionPreflight = async ({
       }
     }
   } catch (err) {
+    if (err?.code === 'ABORT_ERR') throw err;
     const message = summarizeSubprocessOutput(err?.message || err, 200) || 'unknown preflight error';
     return {
       blockSourcekit: true,
@@ -555,6 +569,10 @@ export const createSourcekitProvider = () => ({
   },
   async run(ctx, inputs) {
     const log = typeof ctx?.logger === 'function' ? ctx.logger : (() => {});
+    const abortSignal = ctx?.abortSignal && typeof ctx.abortSignal.aborted === 'boolean'
+      ? ctx.abortSignal
+      : null;
+    throwIfAborted(abortSignal);
     const sourcekitConfig = ctx?.toolingConfig?.sourcekit || {};
     const excludePathRegexes = resolveSourcekitExcludePathRegexes(sourcekitConfig);
     const docsAll = Array.isArray(inputs?.documents)
@@ -621,8 +639,10 @@ export const createSourcekitProvider = () => ({
 
     const preflight = await ensureSourcekitPackageResolutionPreflight({
       repoRoot: ctx.repoRoot,
-      log
+      log,
+      signal: abortSignal
     });
+    throwIfAborted(abortSignal);
     if (preflight.check) checks.push(preflight.check);
     if (preflight.blockSourcekit) {
       log('[tooling] sourcekit skipped because package preflight did not complete safely.');
@@ -645,6 +665,7 @@ export const createSourcekitProvider = () => ({
       hostLock = await acquireHostSourcekitLock({
         lockPath: hostLockPath,
         waitMs: hostLockWaitMs,
+        signal: abortSignal,
         log
       });
       if (!hostLock) {
@@ -657,6 +678,7 @@ export const createSourcekitProvider = () => ({
         rootDir: ctx.repoRoot,
         documents: docs,
         targets,
+        abortSignal,
         log,
         cmd: resolvedCmd,
         args: [],

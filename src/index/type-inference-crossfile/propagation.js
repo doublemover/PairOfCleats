@@ -121,7 +121,8 @@ export async function runCrossFilePropagation({
   toolingTimeoutMs = 15000,
   toolingRetries = 2,
   toolingBreaker = 3,
-  toolingLogDir = null
+  toolingLogDir = null,
+  abortSignal = null
 }) {
   const symbolEntries = [];
   const entryByKey = new Map();
@@ -286,7 +287,8 @@ export async function runCrossFilePropagation({
       toolingRetries,
       toolingBreaker,
       toolingLogDir,
-      fileTextByFile: fileTextByRel
+      fileTextByFile: fileTextByRel,
+      abortSignal
     });
     inferredReturns += toolingResult.inferredReturns || 0;
   }

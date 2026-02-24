@@ -184,7 +184,8 @@ export const runToolingPass = async ({
   toolingRetries,
   toolingBreaker,
   toolingLogDir,
-  fileTextByFile
+  fileTextByFile,
+  abortSignal = null
 }) => {
   if (!Array.isArray(chunks) || !chunks.length) return { inferredReturns: 0 };
   registerDefaultToolingProviders();
@@ -247,7 +248,8 @@ export const runToolingPass = async ({
       dir: cacheDir,
       maxBytes: Number.isFinite(cacheConfig.maxBytes) ? cacheConfig.maxBytes : null,
       maxEntries: Number.isFinite(cacheConfig.maxEntries) ? cacheConfig.maxEntries : null
-    }
+    },
+    abortSignal
   };
 
   const doctorCacheEnabled = toolingConfig?.doctorCache !== false;

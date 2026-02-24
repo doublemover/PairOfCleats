@@ -582,6 +582,7 @@ export const createClangdProvider = () => ({
         rootDir: ctx.repoRoot,
         documents: selectedDocs,
         targets,
+        abortSignal: ctx?.abortSignal || null,
         log,
         cmd: resolvedCmd,
         args: clangdArgs,

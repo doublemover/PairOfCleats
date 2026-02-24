@@ -121,6 +121,7 @@ export const createPyrightProvider = () => ({
       rootDir: ctx.repoRoot,
       documents: docs,
       targets,
+      abortSignal: ctx?.abortSignal || null,
       log,
       cmd: resolvedCmd,
       args: ['--stdio'],

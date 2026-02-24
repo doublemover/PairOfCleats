@@ -129,7 +129,8 @@ export const runCrossFileInference = async ({
       enableRiskCorrelation: riskAnalysisEnabled && riskAnalysisCrossFileEnabled,
       fileRelations: inferenceFileRelations,
       inferenceLite: inferenceLiteEnabled,
-      inferenceLiteHighSignalOnly
+      inferenceLiteHighSignalOnly,
+      abortSignal
     });
     const crossFileDurationMs = Date.now() - crossFileStart;
     const roiMetrics = buildCrossFileInferenceRoiMetrics({

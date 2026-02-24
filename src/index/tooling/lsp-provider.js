@@ -114,6 +114,7 @@ const createConfiguredLspProvider = (server) => {
         rootDir: ctx.repoRoot,
         documents: docs,
         targets,
+        abortSignal: ctx?.abortSignal || null,
         log,
         cmd: server.cmd,
         args: server.args || [],

@@ -129,6 +129,7 @@ const resolveCacheContext = ({
  * @param {number} [params.crossFileCacheMaxBytes=8388608]
  * @param {boolean} [params.inferenceLite=false]
  * @param {boolean} [params.inferenceLiteHighSignalOnly=true]
+ * @param {AbortSignal|null} [params.abortSignal=null]
  * @returns {Promise<object>}
  */
 export async function applyCrossFileInference({
@@ -145,7 +146,8 @@ export async function applyCrossFileInference({
   fileRelations = null,
   crossFileCacheMaxBytes = DEFAULT_CROSS_FILE_CACHE_MAX_BYTES,
   inferenceLite = false,
-  inferenceLiteHighSignalOnly = true
+  inferenceLiteHighSignalOnly = true,
+  abortSignal = null
 }) {
   if (!enabled) {
     return { ...EMPTY_CROSS_FILE_STATS };
@@ -191,6 +193,7 @@ export async function applyCrossFileInference({
     fileRelations,
     inferenceLite,
     inferenceLiteHighSignalOnly,
+    abortSignal,
     ...toolingPropagationOptions
   });
 

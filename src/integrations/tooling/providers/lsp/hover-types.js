@@ -3,6 +3,7 @@ import path from 'node:path';
 import { rangeToOffsets } from '../../lsp/positions.js';
 import { flattenSymbols } from '../../lsp/symbols.js';
 import { writeJsonObjectFile } from '../../../../shared/json-stream.js';
+import { throwIfAborted } from '../../../../shared/abort.js';
 
 export const DEFAULT_DOCUMENT_SYMBOL_CONCURRENCY = 4;
 export const DEFAULT_HOVER_CONCURRENCY = 8;
@@ -27,19 +28,26 @@ export const clampIntRange = (value, fallback, { min = 1, max = 64 } = {}) => {
  * @param {Array<any>} items
  * @param {number} concurrency
  * @param {(item:any,index:number)=>Promise<void>} worker
+ * @param {{signal?:AbortSignal|null}} [options]
  * @returns {Promise<void>}
  */
-export const runWithConcurrency = async (items, concurrency, worker) => {
+export const runWithConcurrency = async (items, concurrency, worker, options = {}) => {
   const list = Array.isArray(items) ? items : [];
   if (!list.length) return;
+  const signal = options?.signal && typeof options.signal.aborted === 'boolean'
+    ? options.signal
+    : null;
   const maxWorkers = Math.max(1, Math.min(list.length, clampIntRange(concurrency, 1, { min: 1, max: 128 })));
   let index = 0;
   const runners = Array.from({ length: maxWorkers }, async () => {
     while (true) {
+      throwIfAborted(signal);
       const current = index;
       index += 1;
       if (current >= list.length) break;
+      throwIfAborted(signal);
       await worker(list[current], current);
+      throwIfAborted(signal);
     }
   });
   await Promise.all(runners);
@@ -514,8 +522,10 @@ export const processDocumentTypes = async ({
   hoverLatencyMs,
   hoverMetrics,
   checks,
-  checkFlags
+  checkFlags,
+  abortSignal = null
 }) => {
+  throwIfAborted(abortSignal);
   if (guard.isOpen()) return { enrichedDelta: 0 };
 
   const docTargets = targetsByPath.get(doc.virtualPath) || [];
@@ -554,6 +564,7 @@ export const processDocumentTypes = async ({
   }
 
   try {
+    throwIfAborted(abortSignal);
     let symbols = null;
     try {
       symbols = await guard.run(
@@ -587,6 +598,7 @@ export const processDocumentTypes = async ({
     const symbolRecords = [];
 
     const requestHover = (symbol, position) => {
+      throwIfAborted(abortSignal);
       const key = `${Math.floor(position.line)}:${Math.floor(position.character)}`;
       if (hoverRequestByPosition.has(key)) return hoverRequestByPosition.get(key);
       const hoverCacheKey = buildHoverCacheKey({
@@ -610,6 +622,7 @@ export const processDocumentTypes = async ({
         const hoverStartMs = Date.now();
 
         try {
+          throwIfAborted(abortSignal);
           const hover = await hoverLimiter(() => guard.run(
             ({ timeoutMs: guardTimeout }) => client.request('textDocument/hover', {
               textDocument: { uri },
@@ -630,6 +643,7 @@ export const processDocumentTypes = async ({
           }
           return hoverInfo;
         } catch (err) {
+          if (err?.code === 'ABORT_ERR') throw err;
           const message = String(err?.message || err || '').toLowerCase();
           const isTimeout = message.includes('timeout');
           if (err?.code === 'TOOLING_CIRCUIT_OPEN') {
@@ -664,6 +678,7 @@ export const processDocumentTypes = async ({
     };
 
     for (const symbol of flattened) {
+      throwIfAborted(abortSignal);
       const offsets = rangeToOffsets(lineIndex, symbol.selectionRange || symbol.range);
       const target = findTargetForOffsets(docTargets, offsets, symbol.name);
       if (!target) continue;
@@ -741,6 +756,7 @@ export const processDocumentTypes = async ({
 
     let enrichedDelta = 0;
     for (const record of symbolRecords) {
+      throwIfAborted(abortSignal);
       let info = record.info;
       if (record.hoverPromise) {
         const hoverInfo = await record.hoverPromise;
