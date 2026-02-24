@@ -21,12 +21,12 @@
         "utmapp/UTM"
       ],
       "medium": [
-        "vsouza/awesome-ios",
-        "MonitorControl/MonitorControl"
-      ],
-      "small": [
         "rxhanson/Rectangle",
         "apple/container"
+      ],
+      "small": [
+        "twostraws/simple-swiftui",
+        "MonitorControl/MonitorControl"
       ]
     }
   },
@@ -59,12 +59,12 @@
         "microsoft/terminal"
       ],
       "medium": [
-        "nomic-ai/gpt4all",
-        "tesseract-ocr/tesseract"
+        "tesseract-ocr/tesseract",
+        "google/googletest"
       ],
       "small": [
         "Genymobile/scrcpy",
-        "zhongyang219/TrafficMonitor"
+        "nlohmann/json"
       ]
     }
   },
@@ -131,11 +131,11 @@
       ],
       "medium": [
         "brendangregg/FlameGraph",
-        "sullo/nikto"
+        "AlDanial/cloc"
       ],
       "small": [
         "so-fancy/diff-so-fancy",
-        "Jack000/Expose"
+        "major/MySQLTuner-perl"
       ]
     }
   },
@@ -167,11 +167,11 @@
       ],
       "medium": [
         "pi-hole/pi-hole",
-        "dockur/windows"
+        "ohmybash/oh-my-bash"
       ],
       "small": [
-        "obra/superpowers",
-        "inkonchain/node"
+        "rupa/z",
+        "bash-it/bash-it"
       ]
     }
   },
@@ -206,12 +206,12 @@
         "freeCodeCamp/devdocs"
       ],
       "medium": [
-        "matteocrippa/awesome-swift",
-        "heartcombo/devise"
+        "heartcombo/devise",
+        "sidekiq/sidekiq"
       ],
       "small": [
-        "kilimchoi/engineering-blogs",
-        "bayandin/awesome-awesomeness"
+        "ruby/rake",
+        "sinatra/sinatra"
       ]
     }
   },
@@ -244,11 +244,11 @@
       ],
       "medium": [
         "livewire/livewire",
-        "DesignPatternsPHP/DesignPatternsPHP"
+        "guzzle/guzzle"
       ],
       "small": [
         "Seldaek/monolog",
-        "flarum/flarum"
+        "nikic/PHP-Parser"
       ]
     }
   },
@@ -280,11 +280,11 @@
       ],
       "medium": [
         "Velir/dbt-ga4",
-        "tony-landis/agilebill"
+        "supabase/postgres"
       ],
       "small": [
-        "ben-nour/SQL-tips-and-tricks",
-        "Thomas-George-T/HackerRank-SQL-Challenges-Solutions"
+        "dbt-labs/jaffle-shop",
+        "dbt-labs/dbt-utils"
       ]
     }
   },
@@ -315,12 +315,12 @@
         "huggingface/transformers"
       ],
       "medium": [
-        "EbookFoundation/free-programming-books",
-        "AUTOMATIC1111/stable-diffusion-webui"
+        "fastapi/fastapi",
+        "pydantic/pydantic"
       ],
       "small": [
-        "public-apis/public-apis",
-        "donnemartin/system-design-primer"
+        "psf/requests",
+        "pallets/flask"
       ]
     }
   },
@@ -352,11 +352,11 @@
       ],
       "medium": [
         "rustdesk/rustdesk",
-        "topjohnwu/Magisk"
+        "tokio-rs/tokio"
       ],
       "small": [
         "rust-lang/rustlings",
-        "rust-unofficial/awesome-rust"
+        "BurntSushi/ripgrep"
       ]
     }
   },
@@ -391,8 +391,8 @@
         "caddyserver/caddy"
       ],
       "small": [
-        "avelino/awesome-go",
-        "junegunn/fzf"
+        "junegunn/fzf",
+        "gin-gonic/gin"
       ]
     }
   },
@@ -425,11 +425,11 @@
       ],
       "medium": [
         "iluwatar/java-design-patterns",
-        "macrozheng/mall"
+        "square/okhttp"
       ],
       "small": [
-        "TheAlgorithms/Java",
-        "kdn251/interviews"
+        "spring-projects/spring-petclinic",
+        "junit-team/junit5"
       ]
     }
   },
@@ -461,12 +461,12 @@
         "files-community/Files"
       ],
       "medium": [
-        "2dust/v2rayN",
-        "jellyfin/jellyfin"
+        "jellyfin/jellyfin",
+        "AvaloniaUI/Avalonia"
       ],
       "small": [
         "shadowsocks/shadowsocks-windows",
-        "huiyadanli/RevokeMsgPatcher"
+        "dotnet/BenchmarkDotNet"
       ]
     }
   },
@@ -498,12 +498,12 @@
         "kavishdevar/librepods"
       ],
       "medium": [
-        "gedoor/legado",
+        "Kotlin/kotlinx.coroutines",
         "shadowsocks/shadowsocks-android"
       ],
       "small": [
-        "gkd-kit/gkd",
-        "JunkFood02/Seal"
+        "Kotlin/kotlinx.serialization",
+        "coil-kt/coil"
       ]
     }
   },
@@ -534,12 +534,12 @@
         "FortAwesome/Font-Awesome"
       ],
       "medium": [
-        "trekhleb/javascript-algorithms",
-        "facebook/create-react-app"
+        "facebook/react",
+        "vuejs/vue"
       ],
       "small": [
-        "airbnb/javascript",
-        "ryanmcdermott/clean-code-javascript"
+        "lodash/lodash",
+        "axios/axios"
       ]
     }
   },
@@ -572,12 +572,12 @@
         "laradock/laradock"
       ],
       "medium": [
-        "autowarefoundation/autoware",
-        "nodejs/docker-node"
+        "bitnami/containers",
+        "docker-library/official-images"
       ],
       "small": [
-        "kelseyhightower/nocode",
-        "hiifeng/V2ray-for-Doprax"
+        "nginxinc/docker-nginx",
+        "nodejs/docker-node"
       ]
     }
   },
@@ -608,12 +608,12 @@
         "foostan/crkbd"
       ],
       "medium": [
-        "jobbole/awesome-python-cn",
-        "zh-google-styleguide/zh-google-styleguide"
+        "curl/curl",
+        "git/git"
       ],
       "small": [
-        "golang-standards/project-layout",
-        "uber-go/guide"
+        "jqlang/jq",
+        "libcheck/check"
       ]
     }
   },
@@ -645,11 +645,11 @@
       ],
       "medium": [
         "grpc-ecosystem/grpc-gateway",
-        "stephenh/ts-proto"
+        "protocolbuffers/protobuf-go"
       ],
       "small": [
-        "protocolbuffers/protobuf-go",
-        "bufbuild/protoc-gen-validate"
+        "bufbuild/protoc-gen-validate",
+        "stephenh/ts-proto"
       ]
     }
   },
@@ -680,11 +680,11 @@
         "apollographql/apollo-client"
       ],
       "medium": [
-        "graphql/graphiql",
-        "graphql/graphql-js"
+        "graphql/graphql-js",
+        "urql-graphql/urql"
       ],
       "small": [
-        "urql-graphql/urql"
+        "graphql/dataloader"
       ]
     }
   },
@@ -716,11 +716,11 @@
       ],
       "medium": [
         "ttroy50/cmake-examples",
-        "TheLartians/ModernCppStarter"
+        "google/googletest"
       ],
       "small": [
-        "Polytonic/Glitter",
-        "wzpan/cmake-demo"
+        "wzpan/cmake-demo",
+        "TheLartians/ModernCppStarter"
       ]
     }
   },
@@ -752,12 +752,12 @@
         "bazelbuild/rules_docker"
       ],
       "medium": [
-        "lucperkins/colossus",
-        "bazelbuild/examples"
+        "bazelbuild/rules_go",
+        "bazelbuild/bazel"
       ],
       "small": [
-        "google/cel-spec",
-        "owncloud-docker/server"
+        "bazelbuild/examples",
+        "google/cel-spec"
       ]
     }
   },
@@ -826,11 +826,11 @@
       ],
       "medium": [
         "localsend/localsend",
-        "chen08209/FlClash"
+        "flutter/flutter"
       ],
       "small": [
-        "Solido/awesome-flutter",
-        "ImranR98/Obtainium"
+        "ImranR98/Obtainium",
+        "felangel/bloc"
       ]
     }
   },
@@ -862,11 +862,11 @@
       ],
       "medium": [
         "gitbucket/gitbucket",
-        "snowplow/snowplow"
+        "playframework/playframework"
       ],
       "small": [
-        "twitter/the-algorithm",
-        "rtyley/bfg-repo-cleaner"
+        "rtyley/bfg-repo-cleaner",
+        "typelevel/cats"
       ]
     }
   },
@@ -898,12 +898,12 @@
         "kezong/fat-aar-android"
       ],
       "medium": [
-        "bregman-arie/devops-resources",
-        "sonatype/docker-nexus3"
+        "jenkinsci/jenkins",
+        "gradle/gradle"
       ],
       "small": [
         "jenkinsci/pipeline-examples",
-        "mcxiaoke/gradle-packer-plugin"
+        "apache/groovy"
       ]
     }
   },
@@ -935,12 +935,12 @@
         "hadley/r4ds"
       ],
       "medium": [
-        "swirldev/swirl_courses",
-        "rmcelreath/stat_rethinking_2022"
+        "tidyverse/dplyr",
+        "tidyverse/ggplot2"
       ],
       "small": [
-        "cxli233/FriendsDontLetFriends",
-        "qinwf/awesome-R"
+        "r-lib/usethis",
+        "tidyverse/readr"
       ]
     }
   },
@@ -973,7 +973,7 @@
       ],
       "medium": [
         "JuliaPlots/UnicodePlots.jl",
-        "svaksha/Julia.jl"
+        "FluxML/Flux.jl"
       ],
       "small": [
         "FluxML/Zygote.jl",
@@ -1010,12 +1010,12 @@
         "bestony/EasyWordPressBook"
       ],
       "medium": [
-        "rust-unofficial/patterns",
-        "OpenGenesisLab/beat-ai"
+        "TryGhost/Ghost",
+        "assemble/handlebars-helpers"
       ],
       "small": [
-        "yeun/open-color",
-        "ActiveCampaign/mailmason"
+        "handlebars-lang/handlebars.js",
+        "bigcommerce/paper-handlebars"
       ]
     }
   },
@@ -1047,12 +1047,12 @@
         "goharbor/harbor-helm"
       ],
       "medium": [
-        "amzn/selling-partner-api-models",
-        "inlets/inlets-pro"
+        "spullara/mustache.java",
+        "mustache/spec"
       ],
       "small": [
-        "codecentric/helm-charts",
-        "MoJo2600/pihole-kubernetes"
+        "mustache/mustache",
+        "janl/mustache.js"
       ]
     }
   },
@@ -1084,12 +1084,12 @@
         "davestephens/ansible-nas"
       ],
       "medium": [
-        "dev-sec/ansible-collection-hardening",
-        "timothystewart6/k3s-ansible"
+        "ansible/ansible",
+        "pallets/jinja"
       ],
       "small": [
-        "geerlingguy/internet-pi",
-        "xai-org/grok-prompts"
+        "cookiecutter/cookiecutter",
+        "ansible/ansible-examples"
       ]
     }
   },
@@ -1120,12 +1120,12 @@
         "dotnet/aspnetcore"
       ],
       "medium": [
-        "OrchardCMS/OrchardCore",
-        "aspnetboilerplate/aspnetboilerplate"
+        "dotnet/blazor-samples",
+        "OrchardCMS/OrchardCore"
       ],
       "small": [
         "dotnet/aspnet-api-versioning",
-        "dotnet/blazor-samples"
+        "aspnetboilerplate/aspnetboilerplate"
       ]
     }
   }
