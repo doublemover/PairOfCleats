@@ -11,6 +11,11 @@ const normalizeOptionalString = (value) => {
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
 };
+const normalizeOptionalNonNegativeInt = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) return null;
+  return Math.floor(numeric);
+};
 const normalizeSchedulerTransport = (raw) => {
   if (typeof raw !== 'string') return 'disk';
   const value = raw.trim().toLowerCase();
@@ -98,6 +103,19 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
     && typeof treeSitterConfig.scheduler === 'object'
     ? treeSitterConfig.scheduler
     : {};
+  const treeSitterSchedulerLookupConfig = treeSitterSchedulerConfig.lookup
+    && typeof treeSitterSchedulerConfig.lookup === 'object'
+    ? treeSitterSchedulerConfig.lookup
+    : {};
+  const treeSitterSchedulerMaxOpenReaders = normalizeOptionalLimit(
+    treeSitterSchedulerLookupConfig.maxOpenReaders ?? treeSitterSchedulerConfig.maxOpenReaders
+  );
+  const treeSitterSchedulerCloseTimeoutMs = normalizeOptionalNonNegativeInt(
+    treeSitterSchedulerLookupConfig.closeTimeoutMs ?? treeSitterSchedulerConfig.closeTimeoutMs
+  );
+  const treeSitterSchedulerCloseForceAfterMs = normalizeOptionalNonNegativeInt(
+    treeSitterSchedulerLookupConfig.closeForceAfterMs ?? treeSitterSchedulerConfig.closeForceAfterMs
+  );
   const treeSitterCachePersistent = treeSitterConfig.cachePersistent !== false;
   const treeSitterCachePersistentDir = normalizeOptionalString(treeSitterConfig.cachePersistentDir);
   const treeSitterBatchByLanguage = treeSitterConfig.batchByLanguage !== false;
@@ -142,7 +160,15 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
       format: normalizeSchedulerFormat(treeSitterSchedulerConfig.format),
       store: normalizeSchedulerStore(treeSitterSchedulerConfig.store),
       pageCodec: normalizeSchedulerCodec(treeSitterSchedulerConfig.pageCodec),
-      pageSize: normalizeOptionalLimit(treeSitterSchedulerConfig.pageSize) || 128
+      pageSize: normalizeOptionalLimit(treeSitterSchedulerConfig.pageSize) || 128,
+      maxOpenReaders: treeSitterSchedulerMaxOpenReaders,
+      closeTimeoutMs: treeSitterSchedulerCloseTimeoutMs,
+      closeForceAfterMs: treeSitterSchedulerCloseForceAfterMs,
+      lookup: {
+        maxOpenReaders: treeSitterSchedulerMaxOpenReaders,
+        closeTimeoutMs: treeSitterSchedulerCloseTimeoutMs,
+        closeForceAfterMs: treeSitterSchedulerCloseForceAfterMs
+      }
     },
     treeSitterCachePersistent,
     treeSitterCachePersistentDir

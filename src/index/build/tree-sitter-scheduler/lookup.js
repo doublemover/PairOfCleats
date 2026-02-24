@@ -21,6 +21,7 @@ const DEFAULT_ROW_CACHE_MAX = 4096;
 const DEFAULT_MISS_CACHE_MAX = 10000;
 const DEFAULT_PAGE_CACHE_MAX = 1024;
 const DEFAULT_MAX_OPEN_READERS = process.platform === 'win32' ? 8 : 32;
+const DEFAULT_READER_FORCE_CLOSE_AFTER_MS = 5000;
 const TRANSIENT_FD_ERROR_CODES = new Set(['EAGAIN', 'EMFILE', 'ENFILE', 'EBADF']);
 const TRANSIENT_FD_RETRY_ATTEMPTS = 24;
 const TRANSIENT_FD_RETRY_BASE_DELAY_MS = 50;
@@ -38,7 +39,8 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  *  maxCacheEntries?:number|null,
  *  maxMissCacheEntries?:number|null,
  *  maxOpenReaders?:number|null,
- *  closeTimeoutMs?:number|null
+ *  closeTimeoutMs?:number|null,
+ *  forceCloseAfterMs?:number|null
  * }} input
  * @returns {object}
  */
@@ -49,13 +51,21 @@ export const createTreeSitterSchedulerLookup = ({
   maxCacheEntries = null,
   maxMissCacheEntries = null,
   maxOpenReaders = null,
-  closeTimeoutMs = null
+  closeTimeoutMs = null,
+  forceCloseAfterMs = null
 }) => {
   const paths = resolveTreeSitterSchedulerPaths(outDir);
   const cacheMax = coercePositiveIntMinOne(maxCacheEntries) ?? DEFAULT_ROW_CACHE_MAX;
   const missCacheMax = coercePositiveIntMinOne(maxMissCacheEntries) ?? DEFAULT_MISS_CACHE_MAX;
   const maxReaderCount = coercePositiveIntMinOne(maxOpenReaders) ?? DEFAULT_MAX_OPEN_READERS;
   const readerCloseTimeoutMs = resolveBuildCleanupTimeoutMs(closeTimeoutMs);
+  const defaultForceCloseAfterMs = readerCloseTimeoutMs > 0
+    ? Math.min(DEFAULT_READER_FORCE_CLOSE_AFTER_MS, readerCloseTimeoutMs)
+    : DEFAULT_READER_FORCE_CLOSE_AFTER_MS;
+  const readerForceCloseAfterMs = resolveBuildCleanupTimeoutMs(
+    forceCloseAfterMs,
+    defaultForceCloseAfterMs
+  );
   const rowCache = createLruCache({
     name: 'tree-sitter-scheduler-row',
     maxEntries: cacheMax
@@ -235,7 +245,9 @@ export const createTreeSitterSchedulerLookup = ({
     }
     const reader = createVfsManifestOffsetReader({
       manifestPath,
-      parseRowBuffer: format === 'binary-v1' ? parseBinaryJsonRowBuffer : undefined
+      parseRowBuffer: format === 'binary-v1' ? parseBinaryJsonRowBuffer : undefined,
+      closeTimeoutMs: readerCloseTimeoutMs,
+      log
     });
     const created = {
       key,
@@ -271,6 +283,10 @@ export const createTreeSitterSchedulerLookup = ({
   /**
    * Close readers and clear lookup caches.
    *
+   * This is intentionally two-phase: first request graceful close for active
+   * leases, then force-close remaining readers after `readerForceCloseAfterMs`
+   * so stage teardown cannot deadlock on stuck handles.
+   *
    * @returns {Promise<void>}
    */
   const close = async () => {
@@ -280,7 +296,9 @@ export const createTreeSitterSchedulerLookup = ({
       return;
     }
     closePromise = (async () => {
-      const closeDeadlineMs = Date.now() + 5000;
+      const closeDeadlineMs = Number.isFinite(readerForceCloseAfterMs) && readerForceCloseAfterMs > 0
+        ? Date.now() + readerForceCloseAfterMs
+        : Number.POSITIVE_INFINITY;
       while (readersByManifestPath.size > 0) {
         const entries = Array.from(readersByManifestPath.values());
         await Promise.all(entries.map((entry) => closeReaderEntry(entry)));
@@ -771,6 +789,8 @@ export const createTreeSitterSchedulerLookup = ({
       indexEntries: index.size,
       openReaders: readersByManifestPath.size,
       maxOpenReaders: maxReaderCount,
+      closeTimeoutMs: readerCloseTimeoutMs,
+      forceCloseAfterMs: readerForceCloseAfterMs,
       cacheEntries: rowCache.size(),
       pageCacheEntries: pageRowsCache.size(),
       missEntries: missCache.size(),

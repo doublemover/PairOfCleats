@@ -4,7 +4,10 @@ import { coerceAbortSignal, throwIfAborted } from '../../../shared/abort.js';
 import { runWithConcurrency } from '../../../shared/concurrency.js';
 import { resolveRuntimeEnv } from '../../../shared/runtime-envelope.js';
 import { spawnSubprocess } from '../../../shared/subprocess.js';
-import { runBuildCleanupWithTimeout } from '../cleanup-timeout.js';
+import {
+  resolveBuildCleanupTimeoutMs,
+  runBuildCleanupWithTimeout
+} from '../cleanup-timeout.js';
 import { buildTreeSitterSchedulerPlan } from './plan.js';
 import { createTreeSitterSchedulerLookup } from './lookup.js';
 import {
@@ -286,10 +289,20 @@ export const runTreeSitterScheduler = async ({
   const lookupConfig = schedulerConfig?.lookup && typeof schedulerConfig.lookup === 'object'
     ? schedulerConfig.lookup
     : {};
+  const stage1CleanupTimeoutMs = resolveBuildCleanupTimeoutMs(
+    runtime?.indexingConfig?.stage1?.watchdog?.cleanupTimeoutMs,
+    runtime?.stage1Queues?.watchdog?.cleanupTimeoutMs
+  );
   const configuredMaxOpenReaders = Number(
     lookupConfig.maxOpenReaders
       ?? schedulerConfig?.maxOpenReaders
   );
+  const lookupCloseTimeoutMs = lookupConfig.closeTimeoutMs
+    ?? schedulerConfig?.closeTimeoutMs
+    ?? stage1CleanupTimeoutMs;
+  const lookupForceCloseAfterMs = lookupConfig.closeForceAfterMs
+    ?? schedulerConfig?.closeForceAfterMs
+    ?? null;
   const lookup = createTreeSitterSchedulerLookup({
     outDir,
     index,
@@ -297,7 +310,8 @@ export const runTreeSitterScheduler = async ({
     maxOpenReaders: Number.isFinite(configuredMaxOpenReaders) && configuredMaxOpenReaders > 0
       ? Math.floor(configuredMaxOpenReaders)
       : null,
-    closeTimeoutMs: lookupConfig.closeTimeoutMs ?? schedulerConfig?.closeTimeoutMs
+    closeTimeoutMs: lookupCloseTimeoutMs,
+    forceCloseAfterMs: lookupForceCloseAfterMs
   });
   const plannedSegmentsByContainer = buildPlannedSegmentsByContainer(planResult.groups);
   const scheduledLanguageIds = buildScheduledLanguageSet(planResult.groups);

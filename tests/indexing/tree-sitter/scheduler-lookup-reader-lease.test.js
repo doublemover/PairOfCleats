@@ -175,6 +175,38 @@ try {
     'expected lookup to reject new reads after close()'
   );
   assert.ok(injectedEbadf >= 1, 'expected injected EBADF/file closed path to be exercised');
+
+  // Regression: a wedged reader close should not stall scheduler lookup close.
+  fs.open = async (...args) => {
+    const [targetPath] = args;
+    const handle = await originalOpen(...args);
+    const shouldHangClose = String(targetPath) === String(resultsPathA);
+    return new Proxy(handle, {
+      get(target, prop, receiver) {
+        if (prop === 'close' && shouldHangClose) {
+          return async () => new Promise(() => {});
+        }
+        const value = Reflect.get(target, prop, receiver);
+        return typeof value === 'function' ? value.bind(target) : value;
+      }
+    });
+  };
+  const hangingCloseLookup = createTreeSitterSchedulerLookup({
+    outDir,
+    index: new Map([[rowA.virtualPath, entryA]]),
+    closeTimeoutMs: 25,
+    forceCloseAfterMs: 25
+  });
+  try {
+    const loaded = await hangingCloseLookup.loadRow(rowA.virtualPath);
+    assert.equal(loaded?.virtualPath, rowA.virtualPath, 'expected lookup row load before close-timeout regression check');
+    const closeStartAtMs = Date.now();
+    await hangingCloseLookup.close();
+    const closeElapsedMs = Date.now() - closeStartAtMs;
+    assert.ok(closeElapsedMs < 1500, `expected lookup close to remain bounded (elapsed=${closeElapsedMs}ms)`);
+  } finally {
+    await hangingCloseLookup.close();
+  }
 } finally {
   fs.open = originalOpen;
 }
