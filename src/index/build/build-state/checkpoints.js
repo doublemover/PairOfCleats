@@ -49,6 +49,10 @@ export const mergeStageCheckpoints = (base, patch) => {
   if (!patch) return base || {};
   const next = { ...(base || {}) };
   for (const [mode, value] of Object.entries(patch)) {
+    if (value == null) {
+      delete next[mode];
+      continue;
+    }
     if (value && typeof value === 'object') {
       next[mode] = { ...(next[mode] || {}), ...value };
     } else {
@@ -174,7 +178,23 @@ export const writeCheckpointSlices = async (buildRoot, {
   const modeKeys = Object.keys(modeSource || {}).sort(compareStrings);
   for (const mode of modeKeys) {
     const modePayload = mergedCheckpoints?.[mode];
-    if (!modePayload || typeof modePayload !== 'object') continue;
+    const descriptor = nextIndex.modes?.[mode] || null;
+    const indexedModePath = descriptor?.path
+      ? path.join(buildRoot, descriptor.path)
+      : null;
+    if (!modePayload || typeof modePayload !== 'object') {
+      if (indexedModePath) {
+        await fs.rm(indexedModePath, { force: true }).catch(() => {});
+      }
+      const canonicalModePath = resolveCheckpointModePath(buildRoot, mode);
+      if (!indexedModePath || canonicalModePath !== indexedModePath) {
+        await fs.rm(canonicalModePath, { force: true }).catch(() => {});
+      }
+      if (nextIndex.modes && mode in nextIndex.modes) {
+        delete nextIndex.modes[mode];
+      }
+      continue;
+    }
     const modePath = resolveCheckpointModePath(buildRoot, mode);
     const relPath = path.basename(modePath);
     const jsonString = `${JSON.stringify(modePayload)}\n`;

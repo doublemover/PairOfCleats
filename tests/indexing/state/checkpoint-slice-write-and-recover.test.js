@@ -63,6 +63,8 @@ await updateBuildState(buildRoot, {
 });
 await flushBuildState(buildRoot);
 
+const indexAfterProseWrite = JSON.parse(await fs.readFile(path.join(buildRoot, 'stage_checkpoints.v1.index.json'), 'utf8'));
+const prosePath = path.join(buildRoot, indexAfterProseWrite.modes.prose.path);
 const codeStatAfterProse = await fs.stat(codePath);
 assert.equal(
   codeStatAfterProse.mtimeMs,
@@ -110,6 +112,24 @@ assert.deepEqual(
     }
   },
   'slice sidecars should reconstruct deterministic checkpoint state after reload'
+);
+
+await updateBuildState(buildRoot, {
+  stageCheckpoints: {
+    prose: null
+  }
+});
+await flushBuildState(buildRoot);
+
+const afterDeleteIndex = JSON.parse(await fs.readFile(path.join(buildRoot, 'stage_checkpoints.v1.index.json'), 'utf8'));
+assert.equal(
+  Object.prototype.hasOwnProperty.call(afterDeleteIndex?.modes || {}, 'prose'),
+  false,
+  'expected prose checkpoint mode to be removed from index when patch sets mode=null'
+);
+await assert.rejects(
+  () => fs.stat(prosePath),
+  'expected deleted checkpoint mode sidecar to be removed from disk'
 );
 
 console.log('checkpoint slice write and recover test passed');
