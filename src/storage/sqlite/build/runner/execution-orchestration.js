@@ -374,6 +374,10 @@ export const executeSqliteModeBuilds = async ({
         });
         if (updateResult?.used) {
           sqliteStats.incrementalUsed = true;
+        } else if (updateResult?.mutated === true) {
+          throw new Error(
+            `[sqlite] incremental update for ${mode} reported skip after mutating output DB; refusing fallback rebuild.`
+          );
         } else if (updateResult?.reason) {
           sqliteStats.incrementalSkipReason = updateResult.reason;
           sqliteStats.incrementalSummary = {
