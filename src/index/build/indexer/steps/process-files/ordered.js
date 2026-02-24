@@ -21,6 +21,7 @@
  * @returns {{
  *   enqueue:(orderIndex:number,result:any,shardMeta:any)=>Promise<void>,
  *   skip:(orderIndex:number)=>Promise<void>,
+ *   recoverMissingRange:(input?:{start?:number,end?:number,reason?:string})=>{recovered:number,start:number|null,end:number|null,nextIndex:number},
  *   peekNextIndex:()=>number,
  *   snapshot:()=>object,
  *   waitForCapacity:(input?:number|{orderIndex?:number,bypassWindow?:number})=>Promise<void>,
@@ -644,6 +645,63 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     return flushing;
   };
 
+  /**
+   * Recover unresolved leading index gaps so ordered flush can continue.
+   *
+   * Defaults to recovering from `nextIndex` through the index before the
+   * earliest pending entry. Callers may also pass explicit `start`/`end`.
+   *
+   * @param {{start?:number,end?:number,reason?:string}} [input]
+   * @returns {{recovered:number,start:number|null,end:number|null,nextIndex:number}}
+   */
+  const recoverMissingRange = (input = {}) => {
+    if (aborted) {
+      return { recovered: 0, start: null, end: null, nextIndex };
+    }
+    const reason = typeof input?.reason === 'string' ? input.reason.trim() : '';
+    const explicitStart = Number.isFinite(input?.start) ? Math.floor(Number(input.start)) : null;
+    const explicitEnd = Number.isFinite(input?.end) ? Math.floor(Number(input.end)) : null;
+    let start = explicitStart != null ? explicitStart : nextIndex;
+    if (start < nextIndex) start = nextIndex;
+    let end = explicitEnd;
+    if (end == null) {
+      let minPending = null;
+      for (const key of pending.keys()) {
+        if (!Number.isFinite(key) || key < start) continue;
+        if (minPending == null || key < minPending) minPending = key;
+      }
+      if (Number.isFinite(minPending) && minPending > start) {
+        end = minPending - 1;
+      } else {
+        end = start - 1;
+      }
+    }
+    if (!Number.isFinite(end) || end < start) {
+      return { recovered: 0, start: null, end: null, nextIndex };
+    }
+    let recovered = 0;
+    for (let index = start; index <= end; index += 1) {
+      noteSeen(index);
+      const pendingEntry = pending.get(index);
+      if (pendingEntry) {
+        pending.delete(index);
+        try { pendingEntry.resolve?.(); } catch {}
+      }
+      skipped.add(index);
+      recovered += 1;
+    }
+    if (recovered > 0) {
+      noteActivity();
+      const reasonText = reason ? ` (${reason})` : '';
+      emitLog(`[ordered] recovered missing indices ${start}-${end}${reasonText}`, { kind: 'warning' });
+      scheduleFlush().catch(() => {});
+      scheduleStallCheck();
+      maybeFinalize();
+      resolveCapacityWaiters();
+    }
+    return { recovered, start: recovered > 0 ? start : null, end: recovered > 0 ? end : null, nextIndex };
+  };
+
   return {
     enqueue(orderIndex, result, shardMeta) {
       if (aborted) {
@@ -743,6 +801,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     peekNextIndex() {
       return nextIndex;
     },
+    recoverMissingRange,
     snapshot() {
       const keys = Array.from(pending.keys())
         .filter((value) => Number.isFinite(value))
