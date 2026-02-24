@@ -192,7 +192,7 @@ export const resolveStage1Queues = (indexingConfig = {}) => {
   const postingsMaxHeapFraction = coerceClampedFraction(postings.maxHeapFraction, {
     min: 0,
     max: 1,
-    allowZero: false
+    allowZero: true
   });
   const orderedMaxPending = coercePositiveInt(ordered.maxPending);
   const orderedBucketSize = coercePositiveInt(ordered.bucketSize);

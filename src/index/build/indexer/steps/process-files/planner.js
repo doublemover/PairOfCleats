@@ -57,7 +57,7 @@ export const resolvePostingsQueueConfig = (runtime) => {
     maxPending: baseMaxPending,
     maxPendingRows,
     maxPendingBytes,
-    maxHeapFraction: Number.isFinite(maxHeapFraction) && maxHeapFraction > 0 ? maxHeapFraction : undefined
+    maxHeapFraction: Number.isFinite(maxHeapFraction) && maxHeapFraction >= 0 ? maxHeapFraction : undefined
   };
 };
 

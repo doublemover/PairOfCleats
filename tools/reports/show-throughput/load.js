@@ -46,13 +46,44 @@ const loadFeatureMetrics = (repoRoot) => {
   return loadJson(runPath) || loadJson(mergedPath);
 };
 
+const toCachePathKey = (value) => {
+  if (typeof value !== 'string' || !value.trim()) return '';
+  try {
+    return path.resolve(value).replace(/[\\/]+/g, '/');
+  } catch {
+    return value.replace(/[\\/]+/g, '/');
+  }
+};
+
+const readFileStamp = (filePath) => {
+  try {
+    const stat = fs.statSync(filePath);
+    return `${Math.floor(stat.mtimeMs)}:${Math.floor(stat.size)}`;
+  } catch {
+    return 'missing';
+  }
+};
+
+const buildMetricsSignature = (runPath, mergedPath) => (
+  `${readFileStamp(runPath)}|${readFileStamp(mergedPath)}`
+);
+
 const featureMetricsCache = new Map();
 export const loadFeatureMetricsCached = (repoRoot) => {
   if (!repoRoot) return null;
-  if (featureMetricsCache.has(repoRoot)) return featureMetricsCache.get(repoRoot);
-  const metrics = loadFeatureMetrics(repoRoot);
-  featureMetricsCache.set(repoRoot, metrics || null);
-  return metrics || null;
+  const userConfig = loadUserConfig(repoRoot);
+  const metricsDir = getMetricsDir(repoRoot, userConfig);
+  const runPath = path.join(metricsDir, 'feature-metrics-run.json');
+  const mergedPath = path.join(metricsDir, 'feature-metrics.json');
+  const cacheKey = toCachePathKey(repoRoot);
+  const signature = buildMetricsSignature(runPath, mergedPath);
+  const cached = featureMetricsCache.get(cacheKey);
+  if (cached && cached.signature === signature) {
+    return cached.metrics;
+  }
+  const metrics = loadFeatureMetrics(repoRoot) || null;
+  featureMetricsCache.set(cacheKey, { signature, metrics });
+  return metrics;
 };
 
 const featureMetricsByCacheRoot = new Map();
@@ -62,10 +93,13 @@ export const loadFeatureMetricsForPayload = (payload) => {
   if (repoMetrics) return repoMetrics;
   const cacheRoot = payload?.artifacts?.repo?.cacheRoot;
   if (!cacheRoot || typeof cacheRoot !== 'string') return null;
-  if (featureMetricsByCacheRoot.has(cacheRoot)) return featureMetricsByCacheRoot.get(cacheRoot);
   const runPath = path.join(cacheRoot, 'metrics', 'feature-metrics-run.json');
   const mergedPath = path.join(cacheRoot, 'metrics', 'feature-metrics.json');
+  const cacheKey = toCachePathKey(cacheRoot);
+  const signature = buildMetricsSignature(runPath, mergedPath);
+  const cached = featureMetricsByCacheRoot.get(cacheKey);
+  if (cached && cached.signature === signature) return cached.metrics;
   const metrics = loadJson(runPath) || loadJson(mergedPath) || null;
-  featureMetricsByCacheRoot.set(cacheRoot, metrics);
+  featureMetricsByCacheRoot.set(cacheKey, { signature, metrics });
   return metrics;
 };

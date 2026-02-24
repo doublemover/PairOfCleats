@@ -41,6 +41,24 @@ const KIND_FUNCTION_PATTERNS = [
 ];
 const KIND_IMPORT_PATTERNS = ['import', 'include', 'require'];
 
+const toCachePathKey = (value) => {
+  if (typeof value !== 'string' || !value.trim()) return '';
+  try {
+    return path.resolve(value).replace(/[\\/]+/g, '/');
+  } catch {
+    return value.replace(/[\\/]+/g, '/');
+  }
+};
+
+const readFileStamp = (filePath) => {
+  try {
+    const stat = fs.statSync(filePath);
+    return `${Math.floor(stat.mtimeMs)}:${Math.floor(stat.size)}`;
+  } catch {
+    return 'missing';
+  }
+};
+
 const appendRepoMapKindCounts = (counts, text) => {
   if (!text) return;
   REPO_MAP_KIND_PATTERN.lastIndex = 0;
@@ -54,7 +72,10 @@ const appendRepoMapKindCounts = (counts, text) => {
 
 export const readRepoMapKindCountsSync = (repoMapPath) => {
   if (!repoMapPath || !fs.existsSync(repoMapPath)) return null;
-  if (REPO_MAP_KIND_CACHE.has(repoMapPath)) return REPO_MAP_KIND_CACHE.get(repoMapPath);
+  const cacheKey = toCachePathKey(repoMapPath);
+  const signature = readFileStamp(repoMapPath);
+  const cached = REPO_MAP_KIND_CACHE.get(cacheKey);
+  if (cached && cached.signature === signature) return cached.counts;
   const counts = {};
   let fd = null;
   try {
@@ -71,7 +92,7 @@ export const readRepoMapKindCountsSync = (repoMapPath) => {
     }
     appendRepoMapKindCounts(counts, tail);
   } catch {
-    REPO_MAP_KIND_CACHE.set(repoMapPath, null);
+    REPO_MAP_KIND_CACHE.set(cacheKey, { signature, counts: null });
     if (fd != null) {
       try { fs.closeSync(fd); } catch {}
     }
@@ -80,7 +101,7 @@ export const readRepoMapKindCountsSync = (repoMapPath) => {
   if (fd != null) {
     try { fs.closeSync(fd); } catch {}
   }
-  REPO_MAP_KIND_CACHE.set(repoMapPath, counts);
+  REPO_MAP_KIND_CACHE.set(cacheKey, { signature, counts });
   return counts;
 };
 
@@ -113,8 +134,51 @@ const topKinds = (kindCounts, limit = 8) => {
     .map(([kind, count]) => ({ kind, count: Number(count) }));
 };
 
+const resolveExistingDirectory = (value) => {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const candidate = path.resolve(value.trim());
+  try {
+    if (!fs.existsSync(candidate)) return null;
+    const stat = fs.statSync(candidate);
+    if (!stat.isDirectory()) return null;
+    return candidate;
+  } catch {
+    return null;
+  }
+};
+
+const resolveCurrentBuildRoot = (buildsRoot) => {
+  const currentPath = path.join(buildsRoot, 'current.json');
+  const current = loadJson(currentPath);
+  if (!current || typeof current !== 'object') return null;
+  const candidates = [
+    current?.buildRoot,
+    current?.activeRoot,
+    (typeof current?.buildId === 'string' && current.buildId.trim())
+      ? path.join(buildsRoot, current.buildId.trim())
+      : null
+  ];
+  for (const value of candidates) {
+    const resolved = resolveExistingDirectory(value);
+    if (resolved) return resolved;
+  }
+  return null;
+};
+
 const resolveBuildRootFromArtifactReport = (artifactReport) => {
   const repo = artifactReport?.repo || {};
+
+  const explicitBuildCandidates = [
+    repo?.buildRoot,
+    repo?.build?.root,
+    repo?.build?.buildRoot,
+    repo?.build?.activeRoot
+  ];
+  for (const candidate of explicitBuildCandidates) {
+    const resolved = resolveExistingDirectory(candidate);
+    if (resolved) return resolved;
+  }
+
   const sqlite = repo.sqlite || {};
   const sqliteCandidates = [
     sqlite?.code?.path,
@@ -125,19 +189,35 @@ const resolveBuildRootFromArtifactReport = (artifactReport) => {
   for (const sqlitePath of sqliteCandidates) {
     const sqliteDir = path.dirname(sqlitePath);
     if (path.basename(sqliteDir).toLowerCase() === 'index-sqlite') {
-      const buildRoot = path.dirname(sqliteDir);
-      if (fs.existsSync(buildRoot)) return buildRoot;
+      const buildRoot = resolveExistingDirectory(path.dirname(sqliteDir));
+      if (buildRoot) return buildRoot;
     }
   }
+
   const cacheRoot = typeof repo?.cacheRoot === 'string' ? repo.cacheRoot : '';
   if (!cacheRoot) return null;
   const buildsRoot = path.join(cacheRoot, 'builds');
-  if (!fs.existsSync(buildsRoot)) return null;
-  const buildDirs = fs.readdirSync(buildsRoot, { withFileTypes: true })
+  const resolvedBuildsRoot = resolveExistingDirectory(buildsRoot);
+  if (!resolvedBuildsRoot) return null;
+
+  const currentBuildRoot = resolveCurrentBuildRoot(resolvedBuildsRoot);
+  if (currentBuildRoot) return currentBuildRoot;
+
+  const buildDirs = fs.readdirSync(resolvedBuildsRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
-    .map((entry) => path.join(buildsRoot, entry.name))
-    .sort((a, b) => b.localeCompare(a));
-  return buildDirs[0] || null;
+    .map((entry) => {
+      const buildRoot = path.join(resolvedBuildsRoot, entry.name);
+      let mtimeMs = -1;
+      try {
+        mtimeMs = fs.statSync(buildRoot).mtimeMs;
+      } catch {}
+      return { buildRoot, mtimeMs };
+    })
+    .sort((left, right) => (
+      right.mtimeMs - left.mtimeMs
+    ) || String(right.buildRoot).localeCompare(String(left.buildRoot)));
+
+  return buildDirs[0]?.buildRoot || null;
 };
 
 export const createAstGraphTotals = () => ({
@@ -292,21 +372,26 @@ export const loadOrComputeIndexingSummary = ({
   refreshJson = false
 }) => {
   const existing = payload?.artifacts?.indexing;
-  if (isValidIndexingSummary(existing)) {
-    return { indexingSummary: existing, changed: false, featureMetrics };
-  }
   if (!refreshJson) {
+    if (isValidIndexingSummary(existing)) {
+      return { indexingSummary: existing, changed: false, featureMetrics };
+    }
     return { indexingSummary: null, changed: false, featureMetrics };
   }
+
   const metrics = featureMetrics || loadFeatureMetricsForPayload(payload);
   const computed = buildIndexingSummaryFromFeatureMetrics(metrics)
     || buildIndexingSummaryFromThroughput(payload?.artifacts?.throughput);
   if (!computed) {
+    if (isValidIndexingSummary(existing)) {
+      return { indexingSummary: existing, changed: false, featureMetrics: metrics };
+    }
     return { indexingSummary: null, changed: false, featureMetrics: metrics };
   }
+  const changed = JSON.stringify(existing || null) !== JSON.stringify(computed);
   if (!payload.artifacts || typeof payload.artifacts !== 'object') payload.artifacts = {};
   payload.artifacts.indexing = computed;
-  return { indexingSummary: computed, changed: true, featureMetrics: metrics };
+  return { indexingSummary: computed, changed, featureMetrics: metrics };
 };
 
 export const loadOrComputeBenchAnalysis = ({
@@ -317,25 +402,36 @@ export const loadOrComputeBenchAnalysis = ({
   deepAnalysis = false
 }) => {
   const existing = payload?.artifacts?.analysis;
-  if (existing
-    && typeof existing === 'object'
-    && existing.schemaVersion === ANALYSIS_SCHEMA_VERSION
-    && hasAstGraphValues(existing.totals)
-    && (!deepAnalysis || hasKindBreakdown(existing))) {
-    return { analysis: existing, changed: false };
-  }
   if (!refreshJson) {
+    if (existing
+      && typeof existing === 'object'
+      && existing.schemaVersion === ANALYSIS_SCHEMA_VERSION
+      && hasAstGraphValues(existing.totals)
+      && (!deepAnalysis || hasKindBreakdown(existing))) {
+      return { analysis: existing, changed: false };
+    }
     return { analysis: null, changed: false };
   }
+
   const computed = computeBenchAnalysis(payload, {
     includeKindCounts: deepAnalysis,
     featureMetrics,
     indexingSummary
   });
-  if (!computed) return { analysis: null, changed: false };
+  if (!computed) {
+    if (existing
+      && typeof existing === 'object'
+      && existing.schemaVersion === ANALYSIS_SCHEMA_VERSION
+      && hasAstGraphValues(existing.totals)
+      && (!deepAnalysis || hasKindBreakdown(existing))) {
+      return { analysis: existing, changed: false };
+    }
+    return { analysis: null, changed: false };
+  }
+  const changed = JSON.stringify(existing || null) !== JSON.stringify(computed);
   if (!payload.artifacts || typeof payload.artifacts !== 'object') payload.artifacts = {};
   payload.artifacts.analysis = computed;
-  return { analysis: computed, changed: true };
+  return { analysis: computed, changed };
 };
 
 const GENERIC_PATH_SEGMENTS = new Set([
@@ -355,12 +451,39 @@ const GENERIC_PATH_SEGMENTS = new Set([
   'current'
 ]);
 
+/**
+ * Canonicalize filesystem path-like values so identity/history keys stay
+ * stable across relative segments, separator differences, and symlink aliases.
+ *
+ * @param {string} value
+ * @returns {string}
+ */
+const canonicalizePathLikeValue = (value) => {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) return '';
+  if (!trimmed.includes('/') && !trimmed.includes('\\')) return trimmed;
+  const windowsPosixAbsolute = process.platform === 'win32'
+    && /^\/(?!\/)/.test(trimmed);
+  if (windowsPosixAbsolute) {
+    return trimmed.replace(/[\\/]+/g, '/').replace(/\/+$/g, '') || trimmed;
+  }
+  let resolved = trimmed;
+  try {
+    resolved = path.resolve(trimmed);
+  } catch {}
+  try {
+    resolved = fs.realpathSync.native(resolved);
+  } catch {}
+  const normalized = resolved.replace(/[\\/]+/g, '/').replace(/\/+$/g, '');
+  return normalized || trimmed;
+};
+
 const normalizeRepoIdentityValue = (value, fallback = '') => {
   const candidate = String(value || '').trim();
   const fallbackText = String(fallback || '').trim();
   if (!candidate) return fallbackText;
   if (!candidate.includes('/') && !candidate.includes('\\')) return candidate;
-  const normalized = candidate.replace(/[\\/]+/g, '/').replace(/\/+$/g, '');
+  const normalized = canonicalizePathLikeValue(candidate);
   const segments = normalized.split('/').filter(Boolean);
   for (let i = segments.length - 1; i >= 0; i -= 1) {
     const segment = segments[i];
@@ -377,7 +500,7 @@ const normalizeRepoHistoryKeyValue = (value, fallback = '') => {
   const fallbackText = String(fallback || '').trim();
   if (!candidate) return fallbackText || 'unknown';
   if (!candidate.includes('/') && !candidate.includes('\\')) return candidate;
-  const normalized = candidate.replace(/[\\/]+/g, '/').replace(/\/+$/g, '');
+  const normalized = canonicalizePathLikeValue(candidate);
   return normalized || fallbackText || 'unknown';
 };
 

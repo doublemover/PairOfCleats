@@ -296,7 +296,9 @@ const handleSync = async () => {
       typeof entry?.signal === 'string' && entry.signal.trim().length > 0
     ))?.signal || null;
     if (firstSignal) {
-      exitLikeCommandResult({ status: null, signal: firstSignal });
+      // Preserve signal semantics (for example SIGINT) instead of collapsing
+      // cancellations into generic non-zero exits.
+      return exitLikeCommandResult({ status: null, signal: firstSignal });
     }
     process.exit(1);
   }

@@ -24,22 +24,23 @@
 export const createRowQueue = ({ maxPending = 0, onBackpressure = null, onResume = null } = {}) => {
   const buffer = [];
   const waiters = [];
-  let drainResolver = null;
+  const drainResolvers = [];
   let done = false;
   let error = null;
   let backpressured = false;
   const maxBuffer = Number.isFinite(maxPending) ? Math.max(0, maxPending) : 0;
 
   const resolveDrain = () => {
-    if (!drainResolver) return;
+    if (!drainResolvers.length) return;
     if (maxBuffer && buffer.length >= maxBuffer) return;
-    const resolve = drainResolver;
-    drainResolver = null;
+    const resolvers = drainResolvers.splice(0, drainResolvers.length);
     if (backpressured) {
       backpressured = false;
       if (typeof onResume === 'function') onResume(buffer.length);
     }
-    resolve();
+    for (const resolve of resolvers) {
+      resolve();
+    }
   };
 
   const push = async (value) => {
@@ -56,7 +57,7 @@ export const createRowQueue = ({ maxPending = 0, onBackpressure = null, onResume
         onBackpressure(buffer.length);
       }
       await new Promise((resolve) => {
-        drainResolver = resolve;
+        drainResolvers.push(resolve);
       });
     }
   };
@@ -65,10 +66,11 @@ export const createRowQueue = ({ maxPending = 0, onBackpressure = null, onResume
     if (done) return;
     done = true;
     error = err;
-    if (drainResolver) {
-      const resolve = drainResolver;
-      drainResolver = null;
-      resolve();
+    if (drainResolvers.length) {
+      const resolvers = drainResolvers.splice(0, drainResolvers.length);
+      for (const resolve of resolvers) {
+        resolve();
+      }
     }
     while (waiters.length) {
       const waiter = waiters.shift();

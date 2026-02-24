@@ -98,7 +98,7 @@ export const createPostingsQueue = ({
   const resolvedMaxHeapFraction = coerceClampedFraction(maxHeapFraction, {
     min: 0,
     max: 1,
-    allowZero: false
+    allowZero: true
   }) ?? 0.8;
   const heapLimit = resolveHeapLimit();
 

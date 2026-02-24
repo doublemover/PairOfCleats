@@ -92,13 +92,20 @@ const withTrackedSubprocessSignalScope = async (signal, scope, operation) => {
     return Promise.resolve().then(() => operation());
   }
   const bindSignal = signal && typeof signal === 'object';
+  const previousOwnershipId = bindSignal
+    ? normalizeTrackedOwnershipId(trackedOwnershipIdByAbortSignal.get(signal))
+    : null;
   const runOperation = async () => {
     if (bindSignal) trackedOwnershipIdByAbortSignal.set(signal, ownershipId);
     try {
       return await operation();
     } finally {
-      if (bindSignal && trackedOwnershipIdByAbortSignal.get(signal) === ownershipId) {
-        trackedOwnershipIdByAbortSignal.delete(signal);
+      if (bindSignal) {
+        if (previousOwnershipId) {
+          trackedOwnershipIdByAbortSignal.set(signal, previousOwnershipId);
+        } else {
+          trackedOwnershipIdByAbortSignal.delete(signal);
+        }
       }
     }
   };

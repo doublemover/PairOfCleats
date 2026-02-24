@@ -249,6 +249,7 @@ const resolveUnittestsProjectRootCandidate = ({ rawSpec, importerInfo }) => {
 export const resolvePathLikeImport = ({ spec, importerInfo, lookup }) => {
   const rawSpec = toPosix(String(spec || '')).trim();
   if (!rawSpec) return null;
+  const bazelSourceFile = importerInfo?.extension === '.bzl' || importerInfo?.extension === '.star';
   if (rawSpec.startsWith('//')) {
     const label = rawSpec.slice(2);
     const colon = label.indexOf(':');
@@ -256,10 +257,15 @@ export const resolvePathLikeImport = ({ spec, importerInfo, lookup }) => {
       const pkg = normalizeRelPath(label.slice(0, colon));
       const target = normalizeRelPath(label.slice(colon + 1));
       if (target) {
+        const packageTarget = pkg ? `${pkg}/${target}` : target;
+        const labelCandidates = [packageTarget];
+        if (bazelSourceFile && !path.posix.extname(path.posix.basename(target))) {
+          labelCandidates.push(`${packageTarget}.bzl`);
+        }
         return resolveFromCandidateList(
           expandPathLikeCandidates({
             importerInfo,
-            candidates: [pkg ? `${pkg}/${target}` : target]
+            candidates: labelCandidates
           }),
           lookup
         );
@@ -268,10 +274,28 @@ export const resolvePathLikeImport = ({ spec, importerInfo, lookup }) => {
     }
     const normalizedLabel = normalizeRelPath(label);
     if (!normalizedLabel) return null;
-    const labelCandidates = [normalizedLabel];
+    const labelBaseName = path.posix.basename(normalizedLabel);
+    const labelCandidates = [
+      normalizedLabel,
+      labelBaseName ? `${normalizedLabel}/${labelBaseName}` : null,
+      (bazelSourceFile && labelBaseName) ? `${normalizedLabel}/${labelBaseName}.bzl` : null,
+      bazelSourceFile ? `${normalizedLabel}.bzl` : null
+    ];
     if (label.startsWith('./') || label.startsWith('../')) {
       const importerAnchored = normalizeRelPath(path.posix.join(importerInfo.importerDir, label));
-      if (importerAnchored) labelCandidates.unshift(importerAnchored);
+      const importerAnchoredBaseName = path.posix.basename(importerAnchored || '');
+      if (importerAnchored) {
+        labelCandidates.unshift(importerAnchored);
+      }
+      if (importerAnchored && importerAnchoredBaseName) {
+        labelCandidates.unshift(`${importerAnchored}/${importerAnchoredBaseName}`);
+      }
+      if (importerAnchored && importerAnchoredBaseName && bazelSourceFile) {
+        labelCandidates.unshift(`${importerAnchored}/${importerAnchoredBaseName}.bzl`);
+      }
+      if (importerAnchored && bazelSourceFile) {
+        labelCandidates.unshift(`${importerAnchored}.bzl`);
+      }
     }
     return resolveFromCandidateList(
       expandPathLikeCandidates({ importerInfo, candidates: labelCandidates }),
@@ -281,8 +305,12 @@ export const resolvePathLikeImport = ({ spec, importerInfo, lookup }) => {
   if (rawSpec.startsWith(':')) {
     const target = normalizeRelPath(rawSpec.slice(1));
     if (!target) return null;
+    const localCandidates = [`${importerInfo.importerDir}/${target}`];
+    if (bazelSourceFile && !path.posix.extname(path.posix.basename(target))) {
+      localCandidates.push(`${importerInfo.importerDir}/${target}.bzl`);
+    }
     return resolveFromCandidateList(
-      expandPathLikeCandidates({ importerInfo, candidates: [`${importerInfo.importerDir}/${target}`] }),
+      expandPathLikeCandidates({ importerInfo, candidates: localCandidates }),
       lookup
     );
   }

@@ -90,6 +90,13 @@ const renameTempFile = async (tempPath, targetPath) => {
     if (!RENAME_RETRY_CODES.has(err?.code)) {
       throw err;
     }
+    if (err?.code === 'EXDEV') {
+      // Cross-device rename cannot succeed; copy + remove preserves atomic
+      // write semantics for temp paths that live on fallback volumes.
+      await fs.copyFile(tempPath, targetPath);
+      await fs.rm(tempPath, { force: true });
+      return;
+    }
   }
   try {
     await fs.rm(targetPath, { force: true });
@@ -104,6 +111,11 @@ const renameTempFileSync = (tempPath, targetPath) => {
   } catch (err) {
     if (!RENAME_RETRY_CODES.has(err?.code)) {
       throw err;
+    }
+    if (err?.code === 'EXDEV') {
+      fsSync.copyFileSync(tempPath, targetPath);
+      fsSync.rmSync(tempPath, { force: true });
+      return;
     }
   }
   try {

@@ -19,7 +19,6 @@ import {
 } from './checks.js';
 
 const SQLITE_META_V2_PARITY_SAMPLE = 10;
-const VALIDATION_ARTIFACT_MAX_CAP_BYTES = 1024 * 1024 * 1024; // 1 GiB safety cap
 const VALIDATION_ARTIFACT_HEADROOM_BYTES = 8 * 1024 * 1024; // absorb small metadata drift
 
 export const resolveArtifactValidationMaxBytes = ({
@@ -40,10 +39,7 @@ export const resolveArtifactValidationMaxBytes = ({
     if (!names.has(name)) continue;
     const bytes = Number(piece?.bytes);
     if (!Number.isFinite(bytes) || bytes <= 0) continue;
-    const candidate = Math.min(
-      VALIDATION_ARTIFACT_MAX_CAP_BYTES,
-      Math.max(1, Math.floor(bytes + VALIDATION_ARTIFACT_HEADROOM_BYTES))
-    );
+    const candidate = Math.max(1, Math.floor(bytes + VALIDATION_ARTIFACT_HEADROOM_BYTES));
     if (candidate > resolved) resolved = candidate;
   }
   return resolved;

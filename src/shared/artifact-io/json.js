@@ -87,6 +87,33 @@ const canUseFallbackAfterPrimaryError = (primaryErr, recoveryFallback) => (
 );
 
 /**
+ * Capture the first non-missing fallback error so we can keep probing later
+ * candidates, then throw a deterministic error if all candidates fail.
+ *
+ * @param {unknown} currentErr
+ * @param {unknown} candidateErr
+ * @returns {unknown}
+ */
+const captureFallbackReadError = (currentErr, candidateErr) => {
+  if (currentErr) return currentErr;
+  if (isMissingReadError(candidateErr)) return null;
+  return candidateErr;
+};
+
+/**
+ * Prefer non-missing primary failures (when fallback mode allows probing) and
+ * otherwise surface the first non-missing fallback failure.
+ *
+ * @param {unknown} primaryErr
+ * @param {unknown} fallbackErr
+ * @returns {unknown}
+ */
+const resolvePreferredReadError = (primaryErr, fallbackErr) => {
+  if (primaryErr && !isMissingReadError(primaryErr)) return primaryErr;
+  return fallbackErr || null;
+};
+
+/**
  * Read and parse a JSON artifact with compression and backup fallbacks.
  *
  * Fallback order:
@@ -163,14 +190,16 @@ export const readJsonFile = (
     return tryRead(filePath, { cleanup: true });
   } catch (err) {
     primaryErr = err;
-    if (!canUseFallbackAfterPrimaryError(primaryErr, recoveryFallback)) {
+    const allowFallback = canUseFallbackAfterPrimaryError(primaryErr, recoveryFallback);
+    if (!allowFallback) {
       throw primaryErr;
     }
   }
-  if (filePath.endsWith('.json') && canUseFallbackAfterPrimaryError(primaryErr, recoveryFallback)) {
+  const allowFallback = canUseFallbackAfterPrimaryError(primaryErr, recoveryFallback);
+  let fallbackErr = null;
+  if (filePath.endsWith('.json') && allowFallback) {
     const candidates = collectCompressedCandidates(filePath);
     if (candidates.length) {
-      let lastErr = null;
       for (const candidate of candidates) {
         try {
           return tryRead(candidate.path, {
@@ -178,24 +207,20 @@ export const readJsonFile = (
             cleanup: candidate.cleanup
           });
         } catch (err) {
-          lastErr = err;
+          fallbackErr = captureFallbackReadError(fallbackErr, err);
         }
-      }
-      if (lastErr && (primaryErr == null || isMissingReadError(primaryErr))) {
-        primaryErr = lastErr;
       }
     }
   }
-  if (canUseFallbackAfterPrimaryError(primaryErr, recoveryFallback)) {
+  if (allowFallback) {
     try {
       return tryRead(bakPath);
     } catch (bakErr) {
-      if (!isMissingReadError(bakErr)) throw bakErr;
+      fallbackErr = captureFallbackReadError(fallbackErr, bakErr);
     }
   }
-  if (primaryErr && !isMissingReadError(primaryErr)) {
-    throw primaryErr;
-  }
+  const preferredErr = resolvePreferredReadError(primaryErr, fallbackErr);
+  if (preferredErr) throw preferredErr;
   throw new Error(`Missing JSON artifact: ${filePath}`);
 };
 
@@ -530,36 +555,34 @@ export const readJsonLinesEach = async (
   const primaryAttempt = await attemptTrackedRead(filePath, true);
   if (primaryAttempt.ok) return;
   primaryErr = primaryAttempt.error;
-  if (primaryAttempt.emitted > 0 || !canUseFallbackAfterPrimaryError(primaryErr, recoveryFallback)) {
+  const allowFallback = canUseFallbackAfterPrimaryError(primaryErr, recoveryFallback);
+  if (primaryAttempt.emitted > 0 || !allowFallback) {
     throw primaryErr;
   }
-  if (canUseFallbackAfterPrimaryError(primaryErr, recoveryFallback)) {
+  let fallbackErr = null;
+  if (allowFallback) {
     const bakAttempt = await attemptTrackedRead(bakPath);
     if (bakAttempt.ok) return;
-    if (bakAttempt.emitted > 0 || !isMissingReadError(bakAttempt.error)) {
+    if (bakAttempt.emitted > 0) {
       throw bakAttempt.error;
     }
+    fallbackErr = captureFallbackReadError(fallbackErr, bakAttempt.error);
   }
-  if (filePath.endsWith('.jsonl') && canUseFallbackAfterPrimaryError(primaryErr, recoveryFallback)) {
+  if (filePath.endsWith('.jsonl') && allowFallback) {
     const candidates = collectCompressedJsonlCandidates(filePath);
     if (candidates.length) {
-      let lastErr = null;
       for (const candidate of candidates) {
         const candidateAttempt = await attemptTrackedRead(candidate.path, candidate.cleanup);
         if (candidateAttempt.ok) return;
         if (candidateAttempt.emitted > 0) {
           throw candidateAttempt.error;
         }
-        lastErr = candidateAttempt.error;
-      }
-      if (lastErr && (primaryErr == null || isMissingReadError(primaryErr))) {
-        primaryErr = lastErr;
+        fallbackErr = captureFallbackReadError(fallbackErr, candidateAttempt.error);
       }
     }
   }
-  if (primaryErr && !isMissingReadError(primaryErr)) {
-    throw primaryErr;
-  }
+  const preferredErr = resolvePreferredReadError(primaryErr, fallbackErr);
+  if (preferredErr) throw preferredErr;
   throw new Error(`Missing JSONL artifact: ${filePath}`);
 };
 
@@ -640,6 +663,7 @@ const readJsonLinesIteratorSingle = async function* (
       const sources = [primaryCandidate, ...fallbackCandidates];
       let primaryErr = null;
       let fallbackEnabled = true;
+      let fallbackErr = null;
       let lastErr = null;
       for (let index = 0; index < sources.length; index += 1) {
         const candidate = sources[index];
@@ -770,13 +794,16 @@ const readJsonLinesIteratorSingle = async function* (
             if (!fallbackEnabled) {
               throw primaryErr;
             }
+          } else {
+            fallbackErr = captureFallbackReadError(fallbackErr, err);
           }
           lastErr = err;
           stream = null;
         }
       }
       if (!stream) {
-        throw lastErr || primaryErr || new Error(`Missing JSONL artifact: ${targetPath}`);
+        const preferredErr = resolvePreferredReadError(primaryErr, fallbackErr);
+        throw preferredErr || lastErr || primaryErr || new Error(`Missing JSONL artifact: ${targetPath}`);
       }
       ({ rows, bytes } = await parseJsonlStreamEntries(stream, {
         targetPath: sourcePath,
@@ -1179,33 +1206,35 @@ export const readJsonLinesArray = async (
         return await tryRead(targetPath, true);
       } catch (err) {
         primaryErr = err;
-        if (!canUseFallbackAfterPrimaryError(primaryErr, recoveryFallback)) {
+        const allowFallback = canUseFallbackAfterPrimaryError(primaryErr, recoveryFallback);
+        if (!allowFallback) {
           throw primaryErr;
         }
       }
     }
-    if (canUseFallbackAfterPrimaryError(primaryErr, recoveryFallback) && fs.existsSync(bakPath)) {
-      return await tryRead(bakPath);
+    const allowFallback = canUseFallbackAfterPrimaryError(primaryErr, recoveryFallback);
+    let fallbackErr = null;
+    if (allowFallback && fs.existsSync(bakPath)) {
+      try {
+        return await tryRead(bakPath);
+      } catch (err) {
+        fallbackErr = captureFallbackReadError(fallbackErr, err);
+      }
     }
-    if (targetPath.endsWith('.jsonl') && canUseFallbackAfterPrimaryError(primaryErr, recoveryFallback)) {
+    if (targetPath.endsWith('.jsonl') && allowFallback) {
       const candidates = collectCompressedJsonlCandidates(targetPath);
       if (candidates.length) {
-        let lastErr = null;
         for (const candidate of candidates) {
           try {
             return await tryRead(candidate.path, candidate.cleanup);
           } catch (err) {
-            lastErr = err;
+            fallbackErr = captureFallbackReadError(fallbackErr, err);
           }
-        }
-        if (lastErr && (primaryErr == null || isMissingReadError(primaryErr))) {
-          primaryErr = lastErr;
         }
       }
     }
-    if (primaryErr && !isMissingReadError(primaryErr)) {
-      throw primaryErr;
-    }
+    const preferredErr = resolvePreferredReadError(primaryErr, fallbackErr);
+    if (preferredErr) throw preferredErr;
     throw new Error(`Missing JSONL artifact: ${targetPath}`);
   };
 
@@ -1383,32 +1412,34 @@ export const readJsonLinesArraySync = (
       return tryRead(filePath, true);
     } catch (err) {
       primaryErr = err;
-      if (!canUseFallbackAfterPrimaryError(primaryErr, recoveryFallback)) {
+      const allowFallback = canUseFallbackAfterPrimaryError(primaryErr, recoveryFallback);
+      if (!allowFallback) {
         throw primaryErr;
       }
     }
   }
-  if (canUseFallbackAfterPrimaryError(primaryErr, recoveryFallback) && fs.existsSync(bakPath)) {
-    return tryRead(bakPath);
+  const allowFallback = canUseFallbackAfterPrimaryError(primaryErr, recoveryFallback);
+  let fallbackErr = null;
+  if (allowFallback && fs.existsSync(bakPath)) {
+    try {
+      return tryRead(bakPath);
+    } catch (err) {
+      fallbackErr = captureFallbackReadError(fallbackErr, err);
+    }
   }
-  if (filePath.endsWith('.jsonl') && canUseFallbackAfterPrimaryError(primaryErr, recoveryFallback)) {
+  if (filePath.endsWith('.jsonl') && allowFallback) {
     const candidates = collectCompressedJsonlCandidates(filePath);
     if (candidates.length) {
-      let lastErr = null;
       for (const candidate of candidates) {
         try {
           return tryRead(candidate.path, candidate.cleanup);
         } catch (err) {
-          lastErr = err;
+          fallbackErr = captureFallbackReadError(fallbackErr, err);
         }
-      }
-      if (lastErr && (primaryErr == null || isMissingReadError(primaryErr))) {
-        primaryErr = lastErr;
       }
     }
   }
-  if (primaryErr && !isMissingReadError(primaryErr)) {
-    throw primaryErr;
-  }
+  const preferredErr = resolvePreferredReadError(primaryErr, fallbackErr);
+  if (preferredErr) throw preferredErr;
   throw new Error(`Missing JSONL artifact: ${filePath}`);
 };

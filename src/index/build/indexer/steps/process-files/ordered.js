@@ -680,14 +680,18 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       return { recovered: 0, start: null, end: null, nextIndex };
     }
     let recovered = 0;
+    let recoveredStart = null;
+    let recoveredEnd = null;
     for (let index = start; index <= end; index += 1) {
-      noteSeen(index);
       const pendingEntry = pending.get(index);
       if (pendingEntry) {
-        pending.delete(index);
-        try { pendingEntry.resolve?.(); } catch {}
+        continue;
       }
+      if (completed.has(index)) continue;
+      noteSeen(index);
       skipped.add(index);
+      if (recoveredStart == null) recoveredStart = index;
+      recoveredEnd = index;
       recovered += 1;
     }
     if (recovered > 0) {
@@ -699,7 +703,12 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       maybeFinalize();
       resolveCapacityWaiters();
     }
-    return { recovered, start: recovered > 0 ? start : null, end: recovered > 0 ? end : null, nextIndex };
+    return {
+      recovered,
+      start: recoveredStart,
+      end: recoveredEnd,
+      nextIndex
+    };
   };
 
   return {
