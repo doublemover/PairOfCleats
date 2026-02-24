@@ -157,13 +157,14 @@ export const resolveCacheDir = (cacheRoot, identity, mode) => (
 );
 
 /**
- * Resolve the mode-agnostic content-addressed chunk cache directory.
+ * Resolve the mode-agnostic global chunk cache directory.
+ *
  * @param {string} cacheRoot
  * @param {object} identity
  * @returns {string}
  */
 export const resolveGlobalChunkCacheDir = (cacheRoot, identity) => (
-  path.join(resolveCacheBase(cacheRoot, identity), GLOBAL_CHUNK_CACHE_DIR_NAME)
+  path.join(resolveCacheBase(cacheRoot, identity), 'global-chunks')
 );
 /**
  * Resolve the cache metadata path for a mode.
@@ -927,7 +928,8 @@ export const buildCacheKey = ({
 };
 
 /**
- * Build a stable mode-agnostic key for content-addressed chunk payload cache entries.
+ * Build a mode-agnostic cache key for reusable global chunk payloads.
+ *
  * @param {{chunkHash?:string,identityKey?:string,featureFlags?:string[]|null,pathPolicy?:string}} input
  * @returns {string|null}
  */
@@ -941,7 +943,7 @@ export const buildGlobalChunkCacheKey = ({
   const keyInfo = buildUnifiedCacheKey({
     repoHash: null,
     buildConfigHash: identityKey || null,
-    mode: null,
+    mode: 'global-chunk',
     schemaVersion: GLOBAL_CHUNK_CACHE_KEY_SCHEMA_VERSION,
     featureFlags: featureFlags || null,
     pathPolicy: pathPolicy || 'posix',
@@ -949,7 +951,19 @@ export const buildGlobalChunkCacheKey = ({
       chunkHash
     }
   });
-  return keyInfo.digest;
+  return `global-chunk-${keyInfo.version}-${keyInfo.digest}`;
+};
+
+/**
+ * Validate a mode-agnostic global chunk cache entry.
+ *
+ * @param {{cached?:object,identityKey?:string,chunkHash?:string}} input
+ * @returns {boolean}
+ */
+export const isGlobalChunkCacheValid = ({ cached, identityKey, chunkHash }) => {
+  if (!cached || !chunkHash) return false;
+  if (!cached.hash || cached.hash !== chunkHash) return false;
+  return cached.cacheMeta?.identityKey === identityKey;
 };
 
 /**

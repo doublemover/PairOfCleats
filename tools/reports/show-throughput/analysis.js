@@ -20,6 +20,7 @@ import {
 
 const ANALYSIS_SCHEMA_VERSION = 1;
 const REPO_MAP_KIND_PATTERN = /"kind":"([^"]+)"/g;
+const REPO_MAP_KIND_SCAN_TAIL_BYTES = 256;
 const REPO_MAP_KIND_CACHE = new Map();
 const ANALYSIS_MODE_KEYS = ['code', 'prose', 'extracted-prose', 'records'];
 
@@ -40,7 +41,18 @@ const KIND_FUNCTION_PATTERNS = [
 ];
 const KIND_IMPORT_PATTERNS = ['import', 'include', 'require'];
 
-const readRepoMapKindCountsSync = (repoMapPath) => {
+const appendRepoMapKindCounts = (counts, text) => {
+  if (!text) return;
+  REPO_MAP_KIND_PATTERN.lastIndex = 0;
+  let match = REPO_MAP_KIND_PATTERN.exec(text);
+  while (match) {
+    const kind = String(match[1] || '').trim();
+    if (kind) counts[kind] = (counts[kind] || 0) + 1;
+    match = REPO_MAP_KIND_PATTERN.exec(text);
+  }
+};
+
+export const readRepoMapKindCountsSync = (repoMapPath) => {
   if (!repoMapPath || !fs.existsSync(repoMapPath)) return null;
   if (REPO_MAP_KIND_CACHE.has(repoMapPath)) return REPO_MAP_KIND_CACHE.get(repoMapPath);
   const counts = {};
@@ -53,15 +65,11 @@ const readRepoMapKindCountsSync = (repoMapPath) => {
       const bytesRead = fs.readSync(fd, buffer, 0, buffer.length, null);
       if (!bytesRead) break;
       const chunk = tail + buffer.toString('utf8', 0, bytesRead);
-      REPO_MAP_KIND_PATTERN.lastIndex = 0;
-      let match = REPO_MAP_KIND_PATTERN.exec(chunk);
-      while (match) {
-        const kind = String(match[1] || '').trim();
-        if (kind) counts[kind] = (counts[kind] || 0) + 1;
-        match = REPO_MAP_KIND_PATTERN.exec(chunk);
-      }
-      tail = chunk.slice(Math.max(0, chunk.length - 256));
+      const scanUpto = Math.max(0, chunk.length - REPO_MAP_KIND_SCAN_TAIL_BYTES);
+      appendRepoMapKindCounts(counts, chunk.slice(0, scanUpto));
+      tail = chunk.slice(scanUpto);
     }
+    appendRepoMapKindCounts(counts, tail);
   } catch {
     REPO_MAP_KIND_CACHE.set(repoMapPath, null);
     if (fd != null) {
@@ -364,6 +372,15 @@ const normalizeRepoIdentityValue = (value, fallback = '') => {
   return fallbackText || candidate;
 };
 
+const normalizeRepoHistoryKeyValue = (value, fallback = '') => {
+  const candidate = String(value || '').trim();
+  const fallbackText = String(fallback || '').trim();
+  if (!candidate) return fallbackText || 'unknown';
+  if (!candidate.includes('/') && !candidate.includes('\\')) return candidate;
+  const normalized = candidate.replace(/[\\/]+/g, '/').replace(/\/+$/g, '');
+  return normalized || fallbackText || 'unknown';
+};
+
 export const resolveRepoIdentity = ({ payload, file }) => {
   const fileFallback = String(file || '').replace(/\.json$/i, '').trim();
   const candidate = payload?.repo?.root
@@ -372,6 +389,16 @@ export const resolveRepoIdentity = ({ payload, file }) => {
     || payload?.artifacts?.repo?.cacheRoot
     || '';
   return normalizeRepoIdentityValue(candidate, fileFallback || 'unknown');
+};
+
+export const resolveRepoHistoryKey = ({ payload, file }) => {
+  const fileFallback = String(file || '').replace(/\.json$/i, '').trim();
+  const candidate = payload?.repo?.root
+    || payload?.artifacts?.repo?.root
+    || payload?.artifacts?.repo?.cacheRoot
+    || fileFallback
+    || '';
+  return normalizeRepoHistoryKeyValue(candidate, fileFallback || 'unknown');
 };
 
 export const loadOrComputeThroughputLedger = ({ payload, indexingSummary }) => {
@@ -400,15 +427,15 @@ export const applyRunThroughputLedgerDiffs = (runs) => {
       run.throughputLedgerDiff = null;
       continue;
     }
-    const repoIdentity = run.repoIdentity;
-    const history = historyByRepo.get(repoIdentity) || [];
+    const historyKey = String(run.repoHistoryKey || run.repoIdentity || '');
+    const history = historyByRepo.get(historyKey) || [];
     run.throughputLedgerDiff = computeThroughputLedgerRegression({
       currentLedger: run.throughputLedger,
       baselineLedgers: history.slice(-3),
       metric: 'chunksPerSec'
     });
     history.push(run.throughputLedger);
-    historyByRepo.set(repoIdentity, history);
+    historyByRepo.set(historyKey, history);
   }
 };
 

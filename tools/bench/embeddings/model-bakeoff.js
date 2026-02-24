@@ -10,10 +10,10 @@ import { getEnvConfig } from '../../../src/shared/env.js';
 import { resolveEmbeddingInputFormatting } from '../../../src/shared/embedding-input-format.js';
 import { hasChunkMetaArtifactsSync } from '../../../src/shared/index-artifact-helpers.js';
 import { spawnSubprocess, spawnSubprocessSync } from '../../../src/shared/subprocess.js';
-import { isPathWithinRoot } from '../../shared/path-within-root.js';
 import {
   resolveBakeoffFastPathDefaults,
   resolveBakeoffBuildPlan,
+  resolveBakeoffCurrentBuildRoot,
   resolveBakeoffScriptPaths,
   resolveBakeoffStage4Modes
 } from './model-bakeoff-lib.js';
@@ -22,10 +22,12 @@ import {
   getDictConfig,
   getModelConfig,
   getRepoId,
+  isWithinRoot,
   getRuntimeConfig,
   resolveRepoConfig,
   resolveRuntimeEnv,
-  resolveToolRoot
+  resolveToolRoot,
+  toRealPathSync
 } from '../../shared/dict-utils.js';
 
 const DEFAULT_BAKEOFF_MODELS = ['Xenova/bge-small-en-v1.5', 'Xenova/bge-base-en-v1.5'];
@@ -396,21 +398,13 @@ const resolveModelCurrentBuildRoot = (modelCacheRootPath) => {
   if (!fs.existsSync(currentPath)) return null;
   try {
     const parsed = JSON.parse(fs.readFileSync(currentPath, 'utf8')) || {};
-    const resolveWithinRepoCache = (value) => {
-      if (!value || typeof value !== 'string') return null;
-      const resolved = path.isAbsolute(value) ? value : path.join(repoCacheRoot, value);
-      const normalized = path.resolve(resolved);
-      const normalizedRepo = path.resolve(repoCacheRoot);
-      if (!isPathWithinRoot(normalized, normalizedRepo)) return null;
-      return normalized;
-    };
-    const buildRootFromState = resolveWithinRepoCache(parsed.buildRoot);
-    if (buildRootFromState && fs.existsSync(buildRootFromState)) return buildRootFromState;
-    if (typeof parsed.buildId === 'string' && parsed.buildId.trim()) {
-      const buildIdRoot = path.join(repoCacheRoot, 'builds', parsed.buildId.trim());
-      if (fs.existsSync(buildIdRoot)) return buildIdRoot;
-    }
-    return null;
+    return resolveBakeoffCurrentBuildRoot({
+      repoCacheRoot,
+      currentState: parsed,
+      existsSync: fs.existsSync,
+      toCanonicalPath: toRealPathSync,
+      isWithinRoot
+    });
   } catch {
     return null;
   }

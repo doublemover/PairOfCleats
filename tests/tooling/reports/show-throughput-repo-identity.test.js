@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { resolveRepoIdentity } from '../../../tools/reports/show-throughput/analysis.js';
+import {
+  resolveRepoHistoryKey,
+  resolveRepoIdentity
+} from '../../../tools/reports/show-throughput/analysis.js';
 
 assert.equal(
   resolveRepoIdentity({
@@ -34,6 +37,24 @@ assert.equal(
     file: 'ignored.json'
   }),
   'my-explicit-repo-id'
+);
+
+assert.equal(
+  resolveRepoHistoryKey({
+    payload: { repo: { root: '/usr/local/src/PairOfCleats' } },
+    file: 'ignored.json'
+  }),
+  '/usr/local/src/PairOfCleats',
+  'history key should retain full normalized path to avoid clone-name collisions'
+);
+
+assert.equal(
+  resolveRepoHistoryKey({
+    payload: { repo: { root: '/usr' } },
+    file: 'benchmark-repo.json'
+  }),
+  '/usr',
+  'history key should preserve generic roots when explicitly provided'
 );
 
 console.log('show-throughput repo identity test passed');

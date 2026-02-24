@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { formatProgressEvent } from '../../../src/shared/cli/progress-events.js';
@@ -15,6 +16,35 @@ import {
   SUPERVISOR_PROTOCOL
 } from './constants.js';
 
+const SAFE_RUN_ID_FILENAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+const RUN_ID_MAX_FILENAME_LENGTH = 96;
+
+/**
+ * Resolve a deterministic filename-safe token for event-log file names.
+ *
+ * Logical run IDs are preserved in protocol payloads/metadata, but file names
+ * must be path-safe and collision-resistant across arbitrary run ID input.
+ *
+ * @param {string} runId
+ * @returns {string}
+ */
+const resolveRunIdFilenameToken = (runId) => {
+  const value = String(runId || '').trim();
+  if (SAFE_RUN_ID_FILENAME_PATTERN.test(value)) return value;
+  const normalized = value
+    .replace(/[\\/]+/g, '-')
+    .replace(/[^A-Za-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, RUN_ID_MAX_FILENAME_LENGTH);
+  const base = normalized || 'run';
+  const digest = crypto
+    .createHash('sha1')
+    .update(value || 'run')
+    .digest('hex')
+    .slice(0, 10);
+  return `${base}-${digest}`;
+};
+
 /**
  * Initialize optional JSONL event logging for one supervisor run.
  *
@@ -27,8 +57,9 @@ import {
 export const createEventLogRecorder = ({ requestedDir, runId, supervisorVersion, root }) => {
   if (!requestedDir) return null;
   const logsDir = path.resolve(requestedDir);
-  const eventLogPath = path.join(logsDir, `${runId}.jsonl`);
-  const sessionMetaPath = path.join(logsDir, `${runId}.meta.json`);
+  const runIdFileToken = resolveRunIdFilenameToken(runId);
+  const eventLogPath = path.join(logsDir, `${runIdFileToken}.jsonl`);
+  const sessionMetaPath = path.join(logsDir, `${runIdFileToken}.meta.json`);
   try {
     fs.mkdirSync(logsDir, { recursive: true });
     const meta = {

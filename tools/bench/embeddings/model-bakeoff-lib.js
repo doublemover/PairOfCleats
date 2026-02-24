@@ -160,3 +160,47 @@ export function resolveBakeoffStage4Modes(requestedMode) {
   if (normalized === 'prose') return ['prose', 'extracted-prose'];
   return ['code', 'prose', 'extracted-prose', 'records'];
 }
+
+/**
+ * Resolve a cache build root pointer from a parsed `builds/current.json`.
+ *
+ * Canonical path containment is dependency-injected so callers can enforce
+ * symlink-safe checks using their platform-specific identity helpers.
+ *
+ * @param {{
+ *  repoCacheRoot:string,
+ *  currentState?:{buildRoot?:string,buildId?:string}|null,
+ *  existsSync?:(value:string)=>boolean,
+ *  toCanonicalPath?:(value:string)=>string,
+ *  isWithinRoot?:(candidate:string,root:string)=>boolean
+ * }} input
+ * @returns {string|null}
+ */
+export function resolveBakeoffCurrentBuildRoot({
+  repoCacheRoot,
+  currentState,
+  existsSync = () => false,
+  toCanonicalPath = (value) => path.resolve(value),
+  isWithinRoot = (candidate, root) => {
+    const relative = path.relative(root, candidate);
+    return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+  }
+}) {
+  if (!repoCacheRoot || typeof repoCacheRoot !== 'string') return null;
+  const state = currentState && typeof currentState === 'object' ? currentState : {};
+  const repoCacheCanonical = toCanonicalPath(repoCacheRoot);
+  const resolveWithinRepoCache = (value) => {
+    if (!value || typeof value !== 'string') return null;
+    const resolved = path.isAbsolute(value) ? value : path.join(repoCacheRoot, value);
+    const normalized = toCanonicalPath(resolved);
+    if (!isWithinRoot(normalized, repoCacheCanonical)) return null;
+    return normalized;
+  };
+  const buildRootFromState = resolveWithinRepoCache(state.buildRoot);
+  if (buildRootFromState && existsSync(buildRootFromState)) return buildRootFromState;
+  if (typeof state.buildId === 'string' && state.buildId.trim()) {
+    const buildIdRoot = resolveWithinRepoCache(path.join('builds', state.buildId.trim()));
+    if (buildIdRoot && existsSync(buildIdRoot)) return buildIdRoot;
+  }
+  return null;
+}

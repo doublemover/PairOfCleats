@@ -13,6 +13,8 @@ const root = process.cwd();
 const supervisorPath = path.join(root, 'tools', 'tui', 'supervisor.js');
 const logDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'poc-tui-runid-safe-'));
 const runId = '../escape-run';
+const escapedPath = path.resolve(logDir, '..', 'escape-run.jsonl');
+await fsPromises.rm(escapedPath, { force: true });
 
 const child = spawn(process.execPath, [supervisorPath], {
   cwd: root,
@@ -53,7 +55,6 @@ try {
   child.stdin.write(`${JSON.stringify({ proto: 'poc.tui@1', op: 'shutdown', reason: 'test_complete' })}\n`);
   await new Promise((resolve) => child.once('exit', resolve));
 
-  const escapedPath = path.resolve(logDir, '..', 'escape-run.jsonl');
   assert.equal(fs.existsSync(escapedPath), false, 'runId traversal should not write outside log dir');
 
   const entries = await fsPromises.readdir(logDir);
@@ -75,5 +76,6 @@ try {
   console.log('tui run id path safety test passed');
 } finally {
   try { child.kill('SIGKILL'); } catch {}
+  await fsPromises.rm(escapedPath, { force: true });
   await fsPromises.rm(logDir, { recursive: true, force: true });
 }

@@ -5,6 +5,7 @@ import path from 'node:path';
 import {
   resolveBakeoffFastPathDefaults,
   resolveBakeoffBuildPlan,
+  resolveBakeoffCurrentBuildRoot,
   resolveBakeoffScriptPaths,
   resolveBakeoffStage4Modes
 } from '../../../tools/bench/embeddings/model-bakeoff-lib.js';
@@ -122,5 +123,73 @@ assert.deepEqual(resolveBakeoffStage4Modes('code'), ['code']);
 assert.deepEqual(resolveBakeoffStage4Modes('prose'), ['prose', 'extracted-prose']);
 assert.deepEqual(resolveBakeoffStage4Modes('both'), ['code', 'prose', 'extracted-prose', 'records']);
 assert.deepEqual(resolveBakeoffStage4Modes('all'), ['code', 'prose', 'extracted-prose', 'records']);
+
+const repoCacheRoot = path.resolve(path.join(process.cwd(), '.testCache', 'model-bakeoff-lib'));
+const existingBuildRoot = path.resolve(path.join(repoCacheRoot, 'builds', 'build-001'));
+const escapedLinkPath = path.resolve(path.join(repoCacheRoot, 'builds', 'current-link'));
+const escapedCanonicalPath = path.resolve(path.join(repoCacheRoot, '..', 'outside-build'));
+const buildIdRoot = path.resolve(path.join(repoCacheRoot, 'builds', 'build-002'));
+const canonicalMap = new Map([
+  [escapedLinkPath, escapedCanonicalPath]
+]);
+const existsSet = new Set([
+  existingBuildRoot,
+  escapedCanonicalPath,
+  buildIdRoot
+]);
+const toCanonicalPath = (value) => canonicalMap.get(path.resolve(value)) || path.resolve(value);
+const isWithinRoot = (candidate, root) => {
+  const relative = path.relative(root, candidate);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+};
+const existsSync = (value) => existsSet.has(path.resolve(value));
+
+assert.equal(
+  resolveBakeoffCurrentBuildRoot({
+    repoCacheRoot,
+    currentState: { buildRoot: 'builds/build-001' },
+    existsSync,
+    toCanonicalPath,
+    isWithinRoot
+  }),
+  existingBuildRoot,
+  'expected in-root buildRoot pointer to resolve'
+);
+
+assert.equal(
+  resolveBakeoffCurrentBuildRoot({
+    repoCacheRoot,
+    currentState: { buildRoot: 'builds/current-link' },
+    existsSync,
+    toCanonicalPath,
+    isWithinRoot
+  }),
+  null,
+  'expected canonicalized buildRoot escape to be rejected'
+);
+
+assert.equal(
+  resolveBakeoffCurrentBuildRoot({
+    repoCacheRoot,
+    currentState: { buildId: 'build-002' },
+    existsSync,
+    toCanonicalPath,
+    isWithinRoot
+  }),
+  buildIdRoot,
+  'expected buildId fallback to resolve when contained in repo cache'
+);
+
+assert.equal(
+  resolveBakeoffCurrentBuildRoot({
+    repoCacheRoot,
+    currentState: { buildId: '../../outside' },
+    existsSync,
+    toCanonicalPath,
+    isWithinRoot
+  }),
+  null,
+  'expected escaped buildId fallback to be rejected'
+);
 
 console.log('embedding model bakeoff lib test passed');

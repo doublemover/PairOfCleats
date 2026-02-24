@@ -41,6 +41,7 @@ import {
   loadOrComputeIndexingSummary,
   loadOrComputeBenchAnalysis,
   resolveRepoIdentity,
+  resolveRepoHistoryKey,
   loadOrComputeThroughputLedger,
   applyRunThroughputLedgerDiffs,
   collectRunLedgerRegressions
@@ -75,6 +76,7 @@ import {
  * @property {object|null} indexingSummary
  * @property {object|null} throughputLedger
  * @property {string} repoIdentity
+ * @property {string} repoHistoryKey
  * @property {number|null} generatedAtMs
  */
 
@@ -185,6 +187,7 @@ for (const dir of folders) {
       } catch {}
     }
     const repoIdentity = resolveRepoIdentity({ payload, file });
+    const repoHistoryKey = resolveRepoHistoryKey({ payload, file });
     const generatedAtMs = Date.parse(payload?.generatedAt || payload?.summary?.generatedAt || '');
     runs.push({
       file,
@@ -194,6 +197,7 @@ for (const dir of folders) {
       indexingSummary,
       throughputLedger,
       repoIdentity,
+      repoHistoryKey,
       generatedAtMs: Number.isFinite(generatedAtMs) ? generatedAtMs : null
     });
     throughputs.push(throughput);
