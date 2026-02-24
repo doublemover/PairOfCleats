@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-23T14:58:56.359Z",
+  "generatedAt": "2026-02-24T03:02:35.087Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2147,6 +2147,7 @@
         "tests/shared/encoding/encoding-fallback.test.js",
         "tests/shared/subprocess/subprocess-quoting.test.js",
         "tests/smoke/e2e-smoke.test.js",
+        "tests/storage/lmdb/lmdb-mapsize.test.js",
         "tests/storage/sqlite/sqlite-build-indexes.test.js",
         "tests/storage/sqlite/sqlite-bundle-missing.test.js",
         "tests/storage/sqlite/sqlite-compact.test.js",
@@ -2155,6 +2156,7 @@
         "tests/storage/sqlite/sqlite-sidecar-cleanup.test.js",
         "tests/storage/vector-extension/vector-extension-missing.test.js",
         "tests/tooling/dict-utils/paths-builds-root.test.js",
+        "tests/tooling/dict-utils/repo-current-case-insensitive.test.js",
         "tests/tooling/eval/eval-quality.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
         "tests/tooling/index-stats/index-stats-explicit-repo-path.test.js",
@@ -2188,7 +2190,7 @@
       "files": [
         "src/shared/env.js",
         "tests/indexing/crash-log-announcement.test.js",
-        "tools/bench/language-repos.js",
+        "tools/bench/language-repos/run-loop.js",
         "tools/bench/language/logging.js",
         "tools/config/inventory.js"
       ]
@@ -2288,6 +2290,8 @@
         "tests/shared/encoding/encoding-fallback.test.js",
         "tests/shared/subprocess/subprocess-quoting.test.js",
         "tests/smoke/e2e-smoke.test.js",
+        "tests/storage/lmdb/lmdb-mapsize.test.js",
+        "tests/storage/sqlite/sqlite-build-indexes.test.js",
         "tests/storage/sqlite/sqlite-bundle-missing.test.js",
         "tests/storage/sqlite/sqlite-compact.test.js",
         "tests/storage/sqlite/sqlite-index-state-fail-closed.test.js",
@@ -2345,7 +2349,7 @@
     {
       "name": "PAIROFCLEATS_FORCE_CHUNK_AUTHOR_HYDRATION",
       "files": [
-        "src/retrieval/cli/load-indexes.js",
+        "src/retrieval/cli/chunk-authors.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3382,7 +3386,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 355,
+    "totalFlags": 357,
     "publicFlags": [
       "allow-unauthenticated",
       "allowed-repo-roots",
@@ -3454,7 +3458,6 @@
       "dataset",
       "depth",
       "destination",
-      "detectRenames",
       "diagnostics",
       "dict",
       "dims",
@@ -3521,10 +3524,13 @@
       "include-prose",
       "includeCallersCallees",
       "includeCalls",
+      "includeChunks",
+      "includeDense",
+      "includeFilterIndex",
       "includeGraph",
       "includeImports",
+      "includeMinhash",
       "includePaths",
-      "includeRelations",
       "includeRisk",
       "includeTypes",
       "includeUsages",
@@ -3574,8 +3580,6 @@
       "maxCalls",
       "maxCallsPerSymbol",
       "maxCandidates",
-      "maxChangedFiles",
-      "maxChunksPerFile",
       "maxDepth",
       "maxEdgeBytes",
       "maxEdges",
@@ -3648,6 +3652,7 @@
       "registry",
       "repeats",
       "repo-current",
+      "requestedBatchSize",
       "require",
       "require-dicts",
       "require-index",
@@ -3664,6 +3669,7 @@
       "run",
       "runSize",
       "runs",
+      "runtime",
       "sample",
       "samples",
       "schema",
@@ -3800,15 +3806,6 @@
           "properties",
           "required",
           "type"
-        ]
-      },
-      {
-        "file": "src/index/diffs/compute.js",
-        "flags": [
-          "detectRenames",
-          "includeRelations",
-          "maxChangedFiles",
-          "maxChunksPerFile"
         ]
       },
       {
@@ -3975,6 +3972,13 @@
           "colorize",
           "destination",
           "translateTime"
+        ]
+      },
+      {
+        "file": "src/storage/sqlite/build/runner/build.js",
+        "flags": [
+          "requestedBatchSize",
+          "runtime"
         ]
       },
       {
@@ -4217,6 +4221,15 @@
           "sqlite-backend",
           "top",
           "write-report"
+        ]
+      },
+      {
+        "file": "tests/retrieval/pipeline/extracted-prose-optional-sqlite-fallback.test.js",
+        "flags": [
+          "includeChunks",
+          "includeDense",
+          "includeFilterIndex",
+          "includeMinhash"
         ]
       },
       {
@@ -6924,12 +6937,13 @@
       "src/index/build/file-processor/cpu/analyze.js",
       "src/index/build/file-processor/process-chunks/enrichment.js",
       "src/index/build/tree-sitter-scheduler/executor.js",
-      "src/index/chunking/dispatch.js",
+      "src/index/chunking/dispatch/shared.js",
       "src/index/chunking/formats/ini-toml.js",
       "src/index/chunking/formats/json.js",
       "src/index/chunking/formats/markdown.js",
       "src/index/chunking/formats/xml.js",
       "src/index/chunking/formats/yaml.js",
+      "src/index/diffs/compute.js",
       "src/index/language-registry/registry.js",
       "src/index/segments.js",
       "src/index/tooling/typescript-provider.js",
@@ -6937,13 +6951,14 @@
       "src/lang/workers/tree-sitter-worker.js",
       "src/map/isometric/client/ui.js",
       "src/retrieval/cli-args.js",
-      "src/retrieval/cli/run-search-session.js",
+      "src/retrieval/cli/load-indexes.js",
+      "src/retrieval/cli/run-search-session/mode-expansion.js",
       "src/retrieval/federation/args.js",
       "src/retrieval/federation/coordinator.js",
       "src/retrieval/index-cache.js",
       "src/shared/cli-options.js",
       "src/shared/cli.js",
-      "src/shared/concurrency.js",
+      "src/shared/concurrency/scheduler-core.js",
       "src/shared/dispatch/env.js",
       "tests/indexing/chunking/chunker-options-forwarding.test.js",
       "tests/indexing/tree-sitter/tree-sitter-chunk-cache-reuse.test.js",
@@ -6956,6 +6971,8 @@
       "tools/build/embeddings/cache-flush.js",
       "tools/config/inventory/scan.js",
       "tools/service/indexer-service.js",
+      "tools/service/subprocess-log.js",
+      "tools/shared/search-cli-harness.js",
       "tools/sqlite/vector-extension.js"
     ]
   }

@@ -2,9 +2,12 @@
 import assert from 'node:assert/strict';
 
 import { ensureTestingEnv } from '../../helpers/test-env.js';
+import { createPostingsQueue } from '../../../src/index/build/indexer/steps/process-files/postings-queue.js';
 import {
   buildFileProgressHeartbeatText,
+  resolveStage1OrderingIntegrity,
   resolveStage1HangPolicy,
+  runApplyWithPostingsBackpressure,
   shouldBypassPostingsBackpressure
 } from '../../../src/index/build/indexer/steps/process-files.js';
 
@@ -85,5 +88,58 @@ assert.match(
   /\[watchdog\] progress 5\/5 \(100\.0%\) elapsed=1s rate=5\.00 files\/s eta=0s inFlight=0 trackedSubprocesses=0/,
   'expected heartbeat accounting to clamp count and non-negative telemetry fields'
 );
+
+const orderingOk = resolveStage1OrderingIntegrity({
+  expectedOrderIndices: [0, 1, 2],
+  completedOrderIndices: [0, 1, 2],
+  progressCount: 3,
+  progressTotal: 3
+});
+assert.equal(orderingOk.ok, true, 'expected integrity check to pass for fully-settled order set');
+assert.equal(orderingOk.progressComplete, true, 'expected progress-complete flag for full progress counts');
+
+const orderingMissing = resolveStage1OrderingIntegrity({
+  expectedOrderIndices: [0, 1, 2],
+  completedOrderIndices: [0, 2],
+  progressCount: 2,
+  progressTotal: 3
+});
+assert.equal(orderingMissing.ok, false, 'expected integrity check to fail when an order index is missing');
+assert.deepEqual(orderingMissing.missingIndices, [1], 'expected missing order index details');
+
+const orderingProgressGap = resolveStage1OrderingIntegrity({
+  expectedOrderIndices: [0, 1],
+  completedOrderIndices: [0, 1],
+  progressCount: 1,
+  progressTotal: 2
+});
+assert.equal(orderingProgressGap.ok, false, 'expected integrity check to fail when progress counters are incomplete');
+assert.equal(orderingProgressGap.progressComplete, false, 'expected progress-complete flag to reflect incomplete progress');
+
+const postingsQueue = createPostingsQueue({
+  maxPending: 1,
+  maxPendingRows: 4,
+  maxPendingBytes: 4096,
+  maxHeapFraction: 1
+});
+const blockingReservation = await postingsQueue.reserve({ rows: 1, bytes: 0 });
+let applyRan = false;
+const applyPromise = runApplyWithPostingsBackpressure({
+  sparsePostingsEnabled: true,
+  postingsQueue,
+  result: { chunks: [{ id: 1 }] },
+  runApply: async () => {
+    applyRan = true;
+  }
+});
+const blockedState = await Promise.race([
+  applyPromise.then(() => 'resolved'),
+  new Promise((resolve) => setTimeout(() => resolve('pending'), 20))
+]);
+assert.equal(blockedState, 'pending', 'expected apply reservation to wait while queue is saturated');
+blockingReservation.release();
+await applyPromise;
+assert.equal(applyRan, true, 'expected apply callback to execute once reservation is available');
+assert.equal(postingsQueue.stats().pending.count, 0, 'expected queue reservations to drain after apply');
 
 console.log('process-files refactor helper behavior test passed');

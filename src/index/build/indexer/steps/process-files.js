@@ -102,6 +102,9 @@ const FILE_STALL_SOFT_KICK_COOLDOWN_DEFAULT_MS = 30 * 1000;
 const FILE_STALL_SOFT_KICK_MAX_ATTEMPTS_DEFAULT = 2;
 const STAGE_TIMING_SCHEMA_VERSION = 1;
 const FILE_QUEUE_DELAY_HISTOGRAM_BUCKETS_MS = Object.freeze([50, 100, 250, 500, 1000, 2000, 5000, 10000, 30000, 60000]);
+const NOOP_RESERVATION = Object.freeze({
+  release() {}
+});
 
 /**
  * Coerce optional numeric input to non-negative integer while preserving nullish values.
@@ -959,6 +962,105 @@ export const shouldBypassPostingsBackpressure = ({
   return normalizedOrderIndex <= (normalizedNextIndex + normalizedWindow);
 };
 
+/**
+ * Execute one ordered stage1 apply callback while holding postings queue
+ * reservation only for the write/apply window.
+ *
+ * This avoids blocking `onResult` enqueue on postings backpressure, which can
+ * create a circular wait with ordered flush under head-of-line gaps.
+ *
+ * @param {{
+ *   sparsePostingsEnabled?:boolean,
+ *   postingsQueue?:{reserve?:Function}|null,
+ *   result?:object|null,
+ *   runApply:Function
+ * }} input
+ * @returns {Promise<unknown>}
+ */
+export const runApplyWithPostingsBackpressure = async ({
+  sparsePostingsEnabled = false,
+  postingsQueue = null,
+  result = null,
+  runApply
+} = {}) => {
+  let reservation = NOOP_RESERVATION;
+  if (
+    sparsePostingsEnabled
+    && postingsQueue
+    && typeof postingsQueue.reserve === 'function'
+  ) {
+    reservation = await postingsQueue.reserve(estimatePostingsPayload(result));
+  }
+  try {
+    return await runApply();
+  } finally {
+    try {
+      reservation.release?.();
+    } catch {}
+  }
+};
+
+/**
+ * Resolve stage1 ordering integrity against expected and completed order-index
+ * sets.
+ *
+ * @param {{
+ *   expectedOrderIndices?:number[],
+ *   completedOrderIndices?:Iterable<number>,
+ *   progressCount?:number,
+ *   progressTotal?:number
+ * }} [input]
+ * @returns {{
+ *   ok:boolean,
+ *   expectedCount:number,
+ *   completedCount:number,
+ *   missingIndices:number[],
+ *   missingCount:number,
+ *   progressComplete:boolean,
+ *   progressCount:number,
+ *   progressTotal:number
+ * }}
+ */
+export const resolveStage1OrderingIntegrity = ({
+  expectedOrderIndices = [],
+  completedOrderIndices = [],
+  progressCount = 0,
+  progressTotal = 0
+} = {}) => {
+  const expected = Array.isArray(expectedOrderIndices)
+    ? expectedOrderIndices
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value))
+      .map((value) => Math.floor(value))
+    : [];
+  const expectedSet = new Set(expected);
+  const completedSet = new Set();
+  for (const value of completedOrderIndices || []) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) continue;
+    completedSet.add(Math.floor(parsed));
+  }
+  const missingIndices = [];
+  for (const index of expectedSet) {
+    if (!completedSet.has(index)) missingIndices.push(index);
+  }
+  missingIndices.sort((a, b) => a - b);
+  const normalizedProgressCount = Math.max(0, Math.floor(Number(progressCount) || 0));
+  const normalizedProgressTotal = Math.max(0, Math.floor(Number(progressTotal) || 0));
+  const progressComplete = normalizedProgressTotal === 0
+    || normalizedProgressCount >= normalizedProgressTotal;
+  return {
+    ok: missingIndices.length === 0 && progressComplete,
+    expectedCount: expectedSet.size,
+    completedCount: completedSet.size,
+    missingIndices,
+    missingCount: missingIndices.length,
+    progressComplete,
+    progressCount: normalizedProgressCount,
+    progressTotal: normalizedProgressTotal
+  };
+};
+
 export {
   buildDeterministicShardMergePlan,
   resolveClusterSubsetRetryConfig,
@@ -1000,12 +1102,17 @@ const assignFileIndexes = (entries) => {
  * Build ordered-progress seed data from entry order indexes.
  *
  * @param {object[]} entries
- * @returns {{startOrderIndex:number,expectedOrderIndices:number[]}}
+ * @returns {{
+ *   startOrderIndex:number,
+ *   expectedOrderIndices:number[],
+ *   orderIndexToRel:Map<number,string>
+ * }}
  */
 const resolveOrderedEntryProgressPlan = (entries) => {
   const safeEntries = Array.isArray(entries) ? entries : [];
   let minIndex = null;
   const expected = new Set();
+  const orderIndexToRel = new Map();
   for (let i = 0; i < safeEntries.length; i += 1) {
     const entry = safeEntries[i];
     if (!entry || typeof entry !== 'object') continue;
@@ -1014,11 +1121,21 @@ const resolveOrderedEntryProgressPlan = (entries) => {
       minIndex = minIndex == null ? startValue : Math.min(minIndex, startValue);
     }
     const expectedValue = resolveEntryOrderIndex(entry, i);
-    if (Number.isFinite(expectedValue)) expected.add(Math.floor(expectedValue));
+    if (Number.isFinite(expectedValue)) {
+      const normalizedExpected = Math.floor(expectedValue);
+      expected.add(normalizedExpected);
+      if (!orderIndexToRel.has(normalizedExpected)) {
+        const rel = entry.rel || toPosix(entry.abs || '');
+        if (typeof rel === 'string' && rel) {
+          orderIndexToRel.set(normalizedExpected, rel);
+        }
+      }
+    }
   }
   return {
     startOrderIndex: Number.isFinite(minIndex) ? Math.max(0, Math.floor(minIndex)) : 0,
-    expectedOrderIndices: Array.from(expected).sort((a, b) => a - b)
+    expectedOrderIndices: Array.from(expected).sort((a, b) => a - b),
+    orderIndexToRel
   };
 };
 
@@ -1027,7 +1144,11 @@ const resolveOrderedEntryProgressPlan = (entries) => {
  * progress updates without double-counting.
  *
  * @param {{total?:number,mode?:string,checkpoint?:object,onTick?:Function}} [input]
- * @returns {{progress:{total:number,count:number,tick:Function},markOrderedEntryComplete:Function}}
+ * @returns {{
+ *   progress:{total:number,count:number,tick:Function},
+ *   markOrderedEntryComplete:Function,
+ *   snapshot:Function
+ * }}
  */
 const createStage1ProgressTracker = ({
   total = 0,
@@ -1072,7 +1193,14 @@ const createStage1ProgressTracker = ({
   };
   return {
     progress,
-    markOrderedEntryComplete
+    markOrderedEntryComplete,
+    snapshot() {
+      return {
+        total: progress.total,
+        count: progress.count,
+        completedOrderIndices: Array.from(completedOrderIndexes).sort((a, b) => a - b)
+      };
+    }
   };
 };
 
@@ -1789,9 +1917,15 @@ export const processFiles = async ({
     let checkpoint = null;
     let progress = null;
     let markOrderedEntryComplete = () => false;
+    let getStage1ProgressSnapshot = () => ({
+      total: Number.isFinite(progress?.total) ? progress.total : 0,
+      count: Number.isFinite(progress?.count) ? progress.count : 0,
+      completedOrderIndices: []
+    });
     const {
       startOrderIndex,
-      expectedOrderIndices
+      expectedOrderIndices,
+      orderIndexToRel
     } = resolveOrderedEntryProgressPlan(entries);
     /**
      * Resolve lifecycle timing row from processor result payload.
@@ -1931,8 +2065,23 @@ export const processFiles = async ({
         lifecycleByOrderIndex.delete(lifecycle.orderIndex);
       }
     };
+    /**
+     * Apply one ordered stage1 result while holding postings backpressure
+     * reservation only during the actual write/apply window.
+     *
+     * @param {object} result
+     * @param {object} stateRef
+     * @param {object|null} [shardMeta=null]
+     * @returns {Promise<unknown>}
+     */
+    const applyOrderedResultWithBackpressure = async (result, stateRef, shardMeta = null) => runApplyWithPostingsBackpressure({
+      sparsePostingsEnabled,
+      postingsQueue,
+      result,
+      runApply: () => schedulePostings(() => applyFileResult(result, stateRef, shardMeta))
+    });
     const orderedAppender = buildOrderedAppender(
-      (result, stateRef, shardMeta) => schedulePostings(() => applyFileResult(result, stateRef, shardMeta)),
+      applyOrderedResultWithBackpressure,
       state,
       {
         expectedCount: expectedOrderIndices.length || (Array.isArray(entries) ? entries.length : null),
@@ -1964,6 +2113,7 @@ export const processFiles = async ({
     let lastStallSoftKickAt = 0;
     let activeOrderedCompletionTracker = null;
     let lastProgressAt = Date.now();
+    let lastOrderedCompletionAt = Date.now();
     let lastStallSnapshotAt = 0;
     let watchdogAdaptiveLogged = false;
     /**
@@ -1995,7 +2145,7 @@ export const processFiles = async ({
       reason,
       idleMs,
       includeStack,
-      lastProgressAt,
+      lastProgressAt: Math.max(lastProgressAt, lastOrderedCompletionAt),
       progress,
       processStart,
       inFlightFiles,
@@ -2128,7 +2278,8 @@ export const processFiles = async ({
       const orderedPending = getOrderedPendingCount();
       if (progress.count >= progress.total && inFlightFiles.size === 0 && orderedPending === 0) return;
       const now = Date.now();
-      const idleMs = Math.max(0, now - lastProgressAt);
+      const lastActivityAt = Math.max(lastProgressAt, lastOrderedCompletionAt);
+      const idleMs = Math.max(0, now - lastActivityAt);
       const decision = resolveStage1StallAction({
         idleMs,
         hardAbortMs: stage1StallAbortMs,
@@ -2242,7 +2393,8 @@ export const processFiles = async ({
       const orderedPending = getOrderedPendingCount();
       if (progress.count >= progress.total && inFlightFiles.size === 0 && orderedPending === 0) return;
       const now = Date.now();
-      const idleMs = Math.max(0, now - lastProgressAt);
+      const lastActivityAt = Math.max(lastProgressAt, lastOrderedCompletionAt);
+      const idleMs = Math.max(0, now - lastActivityAt);
       if (idleMs < stallSnapshotMs) return;
       if (lastStallSnapshotAt > 0 && now - lastStallSnapshotAt < 30000) return;
       lastStallSnapshotAt = now;
@@ -2850,26 +3002,9 @@ export const processFiles = async ({
                     durationMs: clampDurationMs(fileMetrics.embeddingMs)
                   });
                 }
-                const reservation = sparsePostingsEnabled && postingsQueue
-                  ? await (() => {
-                    const payload = estimatePostingsPayload(result);
-                    const nextOrderedIndex = typeof orderedAppender.peekNextIndex === 'function'
-                      ? orderedAppender.peekNextIndex()
-                      : null;
-                    const bypassBackpressure = shouldBypassPostingsBackpressure({
-                      orderIndex,
-                      nextOrderedIndex,
-                      bypassWindow: orderedAppenderConfig.maxPendingBeforeBackpressure
-                    });
-                    return postingsQueue.reserve({
-                      ...payload,
-                      bypass: bypassBackpressure
-                    });
-                  })()
-                  : { release: () => {} };
                 const completion = orderedAppender.enqueue(orderIndex, result, shardMeta);
                 orderedCompletionTracker.track(completion, () => {
-                  reservation.release();
+                  lastOrderedCompletionAt = Date.now();
                 });
               },
               onError: async (err, ctx) => {
@@ -3023,6 +3158,7 @@ export const processFiles = async ({
     });
     progress = stage1ProgressTracker.progress;
     markOrderedEntryComplete = stage1ProgressTracker.markOrderedEntryComplete;
+    getStage1ProgressSnapshot = stage1ProgressTracker.snapshot;
     if (stallSnapshotMs > 0) {
       stallSnapshotTimer = setInterval(() => {
         emitProcessingStallSnapshot();
@@ -3401,6 +3537,35 @@ export const processFiles = async ({
       if (parseSkipCount) parts.push(`parse=${parseSkipCount}`);
       if (relationSkipCount) parts.push(`relations=${relationSkipCount}`);
       log(`Warning: skipped ${skipTotal} files due to parse/relations errors (${parts.join(', ')}).`);
+    }
+    const stage1ProgressSnapshot = getStage1ProgressSnapshot();
+    const orderingIntegrity = resolveStage1OrderingIntegrity({
+      expectedOrderIndices,
+      completedOrderIndices: stage1ProgressSnapshot.completedOrderIndices,
+      progressCount: stage1ProgressSnapshot.count,
+      progressTotal: stage1ProgressSnapshot.total
+    });
+    if (!orderingIntegrity.ok) {
+      const missingPreview = orderingIntegrity.missingIndices
+        .slice(0, 12)
+        .map((index) => `${index}:${orderIndexToRel.get(index) || 'unknown'}`);
+      const missingSuffix = orderingIntegrity.missingCount > missingPreview.length
+        ? ` (+${orderingIntegrity.missingCount - missingPreview.length} more)`
+        : '';
+      const err = new Error(
+        `[stage1] ordering integrity violation: missing ${orderingIntegrity.missingCount}/`
+        + `${orderingIntegrity.expectedCount} expected order indices `
+        + `(progress=${orderingIntegrity.progressCount}/${orderingIntegrity.progressTotal}) `
+        + `${missingPreview.join(', ')}${missingSuffix}`
+      );
+      err.code = 'STAGE1_ORDERING_INTEGRITY';
+      err.meta = {
+        orderingIntegrity: {
+          ...orderingIntegrity,
+          missingPreview
+        }
+      };
+      throw err;
     }
 
     const postingsQueueStats = postingsQueue?.stats ? postingsQueue.stats() : null;
