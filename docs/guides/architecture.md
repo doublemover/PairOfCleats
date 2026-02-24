@@ -25,37 +25,41 @@ References:
 - docs/config/hard-cut.md
 - docs/specs/runtime-envelope.md
 
-### 1) Discovery and sharding
+### 1) Discovery and Stage1 sequencing
 
 ```mermaid
 graph TD
   A["Repo root"] --> B["Discovery + ignore rules"]
   B --> C["Mode classification (code/prose/extracted-prose/records)"]
-  C --> D["Shard planner (dir + language)"]
-  D --> E["Shard queue"]
+  C --> D["Global seq assignment (immutable)"]
+  D --> E["Contiguous window planner"]
+  E --> F["Active window set (W0 commit, W1 compute prefetch)"]
 ```
 
 References:
 - docs/contracts/indexing.md
 - docs/guides/triage-records.md
+- docs/specs/stage1-order-contiguous-runtime.md
+- docs/specs/stage1-window-planner.md
 
 ### 2) Foreground build pipeline
 
 ```mermaid
 graph TD
-  E["Shard queue"] --> W["Worker pool"]
-  E --> M["Main thread"]
-  W --> T["Tokenize + import scan + chunk prep"]
-  M --> T
-  T --> C["File cache (hash to reuse tokens/minhash/imports)"]
-  C --> S["Sparse index (tokens + postings + chargrams)"]
-  S --> F["Filter index (path/lang/meta)"]
+  A["Active windows"] --> B["Compute lane (parallel)"]
+  B --> C["Result envelopes by seq"]
+  C --> D["Commit lane (nextCommitSeq only)"]
+  D --> E["Contiguous commit micro-batches"]
+  E --> F["Sparse index (tokens + postings + chargrams)"]
+  F --> G["Filter index (path/lang/meta)"]
 ```
 
 References:
 - docs/contracts/indexing.md
 - docs/language/import-links.md
 - docs/guides/search.md
+- docs/specs/stage1-order-contiguous-runtime.md
+- docs/specs/stage1-backpressure-controller.md
 
 ### 3) Artifacts and SQLite build
 
