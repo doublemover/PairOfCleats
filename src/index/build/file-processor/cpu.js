@@ -42,6 +42,55 @@ import { resolveChunkingFileRole } from '../../chunking/limits.js';
 import { createTimeoutError, runWithTimeout } from '../../../shared/promise-timeout.js';
 
 /**
+ * Build deterministic key for extracted-prose extras cache entries.
+ *
+ * @param {{fileHash?:string|null,fileHashAlgo?:string|null,ext?:string|null,languageId?:string|null}} input
+ * @returns {string|null}
+ */
+const buildExtractedProseExtrasCacheKey = ({
+  fileHash,
+  fileHashAlgo,
+  ext,
+  languageId
+} = {}) => {
+  const normalizedHash = typeof fileHash === 'string' ? fileHash.trim() : '';
+  if (!normalizedHash) return null;
+  const normalizedAlgo = typeof fileHashAlgo === 'string' && fileHashAlgo.trim()
+    ? fileHashAlgo.trim().toLowerCase()
+    : 'unknown';
+  const normalizedExt = typeof ext === 'string' ? ext.trim().toLowerCase() : '';
+  const normalizedLanguage = typeof languageId === 'string' ? languageId.trim().toLowerCase() : '';
+  return `hash:${normalizedAlgo}:${normalizedHash}|ext:${normalizedExt}|lang:${normalizedLanguage}`;
+};
+
+/**
+ * Clone cached extracted-prose extras entry to avoid accidental shared mutation.
+ *
+ * @param {object|null|undefined} entry
+ * @returns {{commentEntries:object[],commentRanges:object[],extraSegments:object[]}}
+ */
+const cloneCachedExtrasEntry = (entry) => {
+  const cloneValue = (value) => {
+    if (!Array.isArray(value) || value.length === 0) return [];
+    if (typeof globalThis.structuredClone === 'function') {
+      try {
+        return globalThis.structuredClone(value);
+      } catch {}
+    }
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch {
+      return [];
+    }
+  };
+  return {
+    commentEntries: cloneValue(entry?.commentEntries),
+    commentRanges: cloneValue(entry?.commentRanges),
+    extraSegments: cloneValue(entry?.extraSegments)
+  };
+};
+
+/**
  * Execute CPU-phase analysis for a file, including parse policy resolution,
  * chunk production, relations/lint/complexity passes, and enrichment payload assembly.
  *
