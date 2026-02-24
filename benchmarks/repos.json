@@ -57,11 +57,10 @@
         "tesseract-ocr/tesseract",
         "google/googletest",
         "fmtlib/fmt",
-        "gabime/spdlog"
-      ],
-      "small": [
+        "gabime/spdlog",
         "Genymobile/scrcpy"
-      ]
+      ],
+      "small": []
     }
   },
   "lua": {
@@ -140,9 +139,7 @@
         "asdf-vm/asdf",
         "pyenv/pyenv"
       ],
-      "typical": [
-        "acmesh-official/acme.sh"
-      ],
+      "typical": [],
       "huge": [
         "ohmyzsh/ohmyzsh",
         "github/gitignore",
@@ -157,7 +154,8 @@
       "medium": [
         "pi-hole/pi-hole",
         "ohmybash/oh-my-bash",
-        "bash-it/bash-it"
+        "bash-it/bash-it",
+        "acmesh-official/acme.sh"
       ],
       "small": [
         "rupa/z"
@@ -228,11 +226,10 @@
       "medium": [
         "livewire/livewire",
         "guzzle/guzzle",
-        "Seldaek/monolog"
-      ],
-      "small": [
+        "Seldaek/monolog",
         "nikic/PHP-Parser"
-      ]
+      ],
+      "small": []
     }
   },
   "sql": {
@@ -581,7 +578,6 @@
     "queries": "benchmarks/queries/protobuf.txt",
     "repos": {
       "typical": [
-        "protocolbuffers/protobuf",
         "bufbuild/buf",
         "gogo/protobuf",
         "bufbuild/protovalidate"
@@ -593,7 +589,8 @@
       "large": [
         "istio/istio",
         "prometheus/prometheus",
-        "grpc/grpc"
+        "grpc/grpc",
+        "protocolbuffers/protobuf"
       ],
       "big": [
         "googleapis/googleapis",
@@ -614,7 +611,6 @@
     "queries": "benchmarks/queries/graphql.txt",
     "repos": {
       "typical": [
-        "graphql-java/graphql-java",
         "graphql-dotnet/graphql-dotnet",
         "dgraph-io/dgraph",
         "n1ru4l/graphql-live-query",
@@ -626,7 +622,9 @@
         "hasura/graphql-engine",
         "prisma/prisma"
       ],
-      "large": [],
+      "large": [
+        "graphql-java/graphql-java"
+      ],
       "big": [
         "apollographql/apollo-server",
         "apollographql/apollo-client"
@@ -682,7 +680,8 @@
       "typical": [
         "bazelbuild/rules_nodejs",
         "bazelbuild/rules_proto",
-        "bazelbuild/bazel-skylib"
+        "bazelbuild/bazel-skylib",
+        "bazelbuild/rules_go"
       ],
       "huge": [
         "tensorflow/tensorflow",
@@ -700,7 +699,6 @@
         "bazelbuild/rules_docker"
       ],
       "medium": [
-        "bazelbuild/rules_go",
         "bazelbuild/bazel",
         "google/cel-spec"
       ],
@@ -985,9 +983,7 @@
     "label": "Jinja / Django",
     "queries": "benchmarks/queries/jinja.txt",
     "repos": {
-      "typical": [
-        "apache/superset"
-      ],
+      "typical": [],
       "huge": [
         "home-assistant/core",
         "kubernetes-sigs/kubespray",
@@ -995,7 +991,8 @@
       ],
       "large": [
         "django/django",
-        "jupyter/notebook"
+        "jupyter/notebook",
+        "apache/superset"
       ],
       "big": [
         "netbootxyz/netboot.xyz",
@@ -1020,7 +1017,8 @@
         "ardalis/CleanArchitecture",
         "jasontaylordev/CleanArchitecture",
         "dotnet-presentations/blazor-workshop",
-        "dotnet-architecture/eShopOnWeb"
+        "dotnet-architecture/eShopOnWeb",
+        "dotnet/aspnet-api-versioning"
       ],
       "huge": [
         "nopSolutions/nopCommerce",
@@ -1029,18 +1027,16 @@
       "large": [
         "MudBlazor/MudBlazor",
         "radzenhq/radzen-blazor",
-        "serenity-is/Serenity"
+        "serenity-is/Serenity",
+        "dotnet/blazor-samples",
+        "OrchardCMS/OrchardCore"
       ],
       "big": [
         "dotnet/AspNetCore.Docs",
         "dotnet/aspnetcore"
       ],
-      "medium": [
-        "dotnet/blazor-samples",
-        "OrchardCMS/OrchardCore"
-      ],
+      "medium": [],
       "small": [
-        "dotnet/aspnet-api-versioning",
         "aspnetboilerplate/aspnetboilerplate"
       ]
     }
