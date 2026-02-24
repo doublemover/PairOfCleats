@@ -6,7 +6,11 @@ import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import { normalizeEmbeddingVectorInPlace } from '../../../src/shared/embedding-utils.js';
 import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
 import { normalizeLanceDbConfig, resolveLanceDbPaths } from '../../../src/shared/lancedb.js';
-import { loadJsonArrayArtifactRows, readJsonFile } from '../../../src/shared/artifact-io.js';
+import {
+  loadJsonArrayArtifactRows,
+  normalizeMetaParts,
+  readJsonFile
+} from '../../../src/shared/artifact-io.js';
 import { getEnvConfig, getLanceDbEnv } from '../../../src/shared/env.js';
 import { runIsolatedNodeScriptSync } from '../../../src/shared/subprocess.js';
 
@@ -27,6 +31,43 @@ const loadLanceDb = async (logger) => {
   return result.mod?.default || result.mod;
 };
 
+/**
+ * Build a minimal in-memory manifest for one sharded dense-vector artifact.
+ *
+ * This keeps LanceDB source loading independent from global manifest naming,
+ * which may expose logical names (`dense_vectors`) instead of shard base names
+ * (`dense_vectors_uint8`).
+ *
+ * @param {string} artifactBase
+ * @param {object|null} meta
+ * @returns {object|null}
+ */
+const buildShardOnlyManifest = (artifactBase, meta) => {
+  const parts = normalizeMetaParts(meta?.parts)
+    .map((entry) => (typeof entry === 'string' ? entry.replace(/\\/g, '/') : ''))
+    .filter(Boolean);
+  if (!parts.length) return null;
+  return {
+    pieces: parts.map((partPath) => ({
+      name: artifactBase,
+      path: partPath,
+      format: 'jsonl'
+    }))
+  };
+};
+
+const resolveShardCount = (meta) => {
+  const totalRecords = Number(meta?.totalRecords);
+  if (Number.isFinite(totalRecords) && totalRecords >= 0) {
+    return Math.max(0, Math.floor(totalRecords));
+  }
+  const count = Number(meta?.count);
+  if (Number.isFinite(count) && count >= 0) {
+    return Math.max(0, Math.floor(count));
+  }
+  return 0;
+};
+
 const resolveVectorsSource = (vectorsPath) => {
   if (!vectorsPath) return null;
   const dir = path.dirname(vectorsPath);
@@ -36,27 +77,22 @@ const resolveVectorsSource = (vectorsPath) => {
   if (hasShardedMeta) {
     try {
       const meta = readJsonFile(metaPath, { maxBytes: Number.POSITIVE_INFINITY });
-      const count = Number.isFinite(Number(meta?.totalRecords))
-        ? Math.max(0, Math.floor(Number(meta.totalRecords)))
-        : 0;
+      const count = resolveShardCount(meta);
+      const shardManifest = buildShardOnlyManifest(base, meta);
+      if (!shardManifest) return null;
       return {
         count,
         vectors: null,
         rows: loadJsonArrayArtifactRows(dir, base, {
           maxBytes: Number.POSITIVE_INFINITY,
+          manifest: shardManifest,
           strict: false,
           materialize: true
         })
       };
     } catch {}
   }
-  const data = readJsonFile(vectorsPath);
-  if (!data) return null;
-  const vectors = Array.isArray(data?.arrays?.vectors)
-    ? data.arrays.vectors
-    : (Array.isArray(data?.vectors) ? data.vectors : null);
-  if (!Array.isArray(vectors) || !vectors.length) return null;
-  return { count: vectors.length, vectors, rows: null };
+  return null;
 };
 
 const shouldIsolateLanceDb = (config, env) => {
@@ -155,7 +191,10 @@ export async function writeLanceDbIndex({
     const exists = fsSync.existsSync(vectorsPath)
       || fsSync.existsSync(`${vectorsPath}.gz`)
       || fsSync.existsSync(`${vectorsPath}.zst`)
-      || fsSync.existsSync(`${vectorsPath}.bak`);
+      || fsSync.existsSync(`${vectorsPath}.bak`)
+      || fsSync.existsSync(`${vectorsPath}.meta.json`)
+      || fsSync.existsSync(`${vectorsPath}.meta.json.bak`)
+      || fsSync.existsSync(`${vectorsPath}.parts`);
     logger.log(`[embeddings] ${label || variant}: vectors source path=${vectorsPath} exists=${exists}`);
   }
   if (!vectorsSource || !Number.isFinite(vectorsSource.count) || vectorsSource.count <= 0) {

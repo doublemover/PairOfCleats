@@ -1580,27 +1580,106 @@ export async function writeIndexArtifacts(input) {
       importGraphPath
     );
   }
+  /**
+   * Emit binary dense-vector payload + metadata sidecar.
+   *
+   * Dense vectors are written as contiguous uint8 row-major bytes so readers can
+   * mmap/read once and serve ANN/dot-product paths without parsing monolithic JSON.
+   */
+  const enqueueDenseBinaryArtifacts = ({
+    artifactName,
+    baseName,
+    vectors,
+    dims
+  }) => {
+    const count = Array.isArray(vectors) ? vectors.length : 0;
+    const rowWidth = Number.isFinite(Number(dims)) ? Math.max(0, Math.floor(Number(dims))) : 0;
+    const totalBytes = rowWidth > 0 ? rowWidth * count : 0;
+    const binFile = `${baseName}.bin`;
+    const binMetaFile = `${baseName}.bin.meta.json`;
+    const binPath = path.join(outDir, binFile);
+    const binMetaPath = path.join(outDir, binMetaFile);
+    enqueueWrite(
+      formatArtifactLabel(binPath),
+      async () => {
+        const bytes = Buffer.alloc(totalBytes);
+        for (let docId = 0; docId < count; docId += 1) {
+          const vec = vectors[docId];
+          if (!vec || typeof vec.length !== 'number') continue;
+          const start = docId * rowWidth;
+          const end = start + rowWidth;
+          if (end > bytes.length) break;
+          if (ArrayBuffer.isView(vec) && vec.BYTES_PER_ELEMENT === 1) {
+            bytes.set(vec.subarray(0, rowWidth), start);
+            continue;
+          }
+          for (let i = 0; i < rowWidth; i += 1) {
+            const value = Number(vec[i]);
+            bytes[start + i] = Number.isFinite(value)
+              ? Math.max(0, Math.min(255, Math.floor(value)))
+              : 0;
+          }
+        }
+        await fs.writeFile(binPath, bytes);
+      }
+    );
+    addPieceFile({
+      type: 'embeddings',
+      name: artifactName,
+      format: 'bin',
+      count,
+      dims: rowWidth
+    }, binPath);
+    enqueueWrite(
+      formatArtifactLabel(binMetaPath),
+      async () => {
+        await writeJsonObjectFile(binMetaPath, {
+          fields: {
+            schemaVersion: '1.0.0',
+            artifact: baseName,
+            format: 'uint8-row-major',
+            generatedAt: new Date().toISOString(),
+            path: binFile,
+            model: modelId || null,
+            dims: rowWidth,
+            count,
+            bytes: totalBytes,
+            scale: denseScale
+          },
+          atomic: true
+        });
+      }
+    );
+    addPieceFile({
+      type: 'embeddings',
+      name: `${artifactName}_binary_meta`,
+      format: 'json',
+      count,
+      dims: rowWidth
+    }, binMetaPath);
+  };
 
   const denseVectorsEnabled = postings.dims > 0 && postings.quantizedVectors.length;
   if (!denseVectorsEnabled) {
     await removeArtifact(path.join(outDir, 'dense_vectors_uint8.json'));
     await removeCompressedArtifact({ outDir, base: 'dense_vectors_uint8', removeArtifact });
+    await removeArtifact(path.join(outDir, 'dense_vectors_uint8.bin'));
+    await removeArtifact(path.join(outDir, 'dense_vectors_uint8.bin.meta.json'));
     await removeArtifact(path.join(outDir, 'dense_vectors_doc_uint8.json'));
     await removeCompressedArtifact({ outDir, base: 'dense_vectors_doc_uint8', removeArtifact });
+    await removeArtifact(path.join(outDir, 'dense_vectors_doc_uint8.bin'));
+    await removeArtifact(path.join(outDir, 'dense_vectors_doc_uint8.bin.meta.json'));
     await removeArtifact(path.join(outDir, 'dense_vectors_code_uint8.json'));
     await removeCompressedArtifact({ outDir, base: 'dense_vectors_code_uint8', removeArtifact });
+    await removeArtifact(path.join(outDir, 'dense_vectors_code_uint8.bin'));
+    await removeArtifact(path.join(outDir, 'dense_vectors_code_uint8.bin.meta.json'));
   }
   if (denseVectorsEnabled) {
-    enqueueJsonObject('dense_vectors_uint8', {
-      fields: { model: modelId, dims: postings.dims, scale: denseScale },
-      arrays: { vectors: postings.quantizedVectors }
-    }, {
-      piece: {
-        type: 'embeddings',
-        name: 'dense_vectors',
-        count: postings.quantizedVectors.length,
-        dims: postings.dims
-      }
+    enqueueDenseBinaryArtifacts({
+      artifactName: 'dense_vectors',
+      baseName: 'dense_vectors_uint8',
+      vectors: postings.quantizedVectors,
+      dims: postings.dims
     });
   }
   const fileMetaEstimatedBytes = estimateJsonBytes(fileMeta);
@@ -1750,27 +1829,17 @@ export async function writeIndexArtifacts(input) {
     }
   }
   if (denseVectorsEnabled) {
-    enqueueJsonObject('dense_vectors_doc_uint8', {
-      fields: { model: modelId, dims: postings.dims, scale: denseScale },
-      arrays: { vectors: postings.quantizedDocVectors }
-    }, {
-      piece: {
-        type: 'embeddings',
-        name: 'dense_vectors_doc',
-        count: postings.quantizedDocVectors.length,
-        dims: postings.dims
-      }
+    enqueueDenseBinaryArtifacts({
+      artifactName: 'dense_vectors_doc',
+      baseName: 'dense_vectors_doc_uint8',
+      vectors: postings.quantizedDocVectors,
+      dims: postings.dims
     });
-    enqueueJsonObject('dense_vectors_code_uint8', {
-      fields: { model: modelId, dims: postings.dims, scale: denseScale },
-      arrays: { vectors: postings.quantizedCodeVectors }
-    }, {
-      piece: {
-        type: 'embeddings',
-        name: 'dense_vectors_code',
-        count: postings.quantizedCodeVectors.length,
-        dims: postings.dims
-      }
+    enqueueDenseBinaryArtifacts({
+      artifactName: 'dense_vectors_code',
+      baseName: 'dense_vectors_code_uint8',
+      vectors: postings.quantizedCodeVectors,
+      dims: postings.dims
     });
   }
   const chunkMetaCompression = resolveShardCompression('chunk_meta');

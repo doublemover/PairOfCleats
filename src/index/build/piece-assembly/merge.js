@@ -5,6 +5,7 @@ import {
   readField,
   validateLengths
 } from './helpers.js';
+import { materializeDenseVectorRows } from '../../../shared/dense-vector-artifacts.js';
 
 export const mergeIndexInput = ({ input, dir, state, mergeState }) => {
   if (Array.isArray(input.fileList) && input.fileList.length) {
@@ -111,9 +112,9 @@ export const mergeIndexInput = ({ input, dir, state, mergeState }) => {
     mergeIdPostings(mergeState.mergedChargramPostings, chargramVocab[i], chargramPosting[i], docOffset);
   }
 
-  const denseVec = readArray(input.denseVec, 'vectors');
-  const denseVecDoc = readArray(input.denseVecDoc, 'vectors');
-  const denseVecCode = readArray(input.denseVecCode, 'vectors');
+  const denseVec = materializeDenseVectorRows(input.denseVec);
+  const denseVecDoc = materializeDenseVectorRows(input.denseVecDoc);
+  const denseVecCode = materializeDenseVectorRows(input.denseVecCode);
   const inputDims = Number(readField(input.denseVec, 'dims')) || 0;
   const inputModel = readField(input.denseVec, 'model');
   const inputScale = readField(input.denseVec, 'scale');

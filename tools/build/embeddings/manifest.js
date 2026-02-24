@@ -93,9 +93,12 @@ export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims })
     retained.push(entry);
   }
   const embeddingPieces = [
-    { type: 'embeddings', name: 'dense_vectors', format: 'json', path: 'dense_vectors_uint8.json', count: totalChunks, dims },
-    { type: 'embeddings', name: 'dense_vectors_doc', format: 'json', path: 'dense_vectors_doc_uint8.json', count: totalChunks, dims },
-    { type: 'embeddings', name: 'dense_vectors_code', format: 'json', path: 'dense_vectors_code_uint8.json', count: totalChunks, dims },
+    { type: 'embeddings', name: 'dense_vectors', format: 'bin', path: 'dense_vectors_uint8.bin', count: totalChunks, dims },
+    { type: 'embeddings', name: 'dense_vectors_doc', format: 'bin', path: 'dense_vectors_doc_uint8.bin', count: totalChunks, dims },
+    { type: 'embeddings', name: 'dense_vectors_code', format: 'bin', path: 'dense_vectors_code_uint8.bin', count: totalChunks, dims },
+    { type: 'embeddings', name: 'dense_vectors_binary_meta', format: 'json', path: 'dense_vectors_uint8.bin.meta.json', count: totalChunks, dims },
+    { type: 'embeddings', name: 'dense_vectors_doc_binary_meta', format: 'json', path: 'dense_vectors_doc_uint8.bin.meta.json', count: totalChunks, dims },
+    { type: 'embeddings', name: 'dense_vectors_code_binary_meta', format: 'json', path: 'dense_vectors_code_uint8.bin.meta.json', count: totalChunks, dims },
     { type: 'embeddings', name: 'dense_vectors_hnsw', format: 'bin', path: 'dense_vectors_hnsw.bin', count: hnswStats.count, dims: hnswStats.dims },
     { type: 'embeddings', name: 'dense_vectors_hnsw_meta', format: 'json', path: 'dense_vectors_hnsw.meta.json', count: hnswStats.count, dims: hnswStats.dims },
     { type: 'embeddings', name: 'dense_vectors_doc_hnsw', format: 'bin', path: 'dense_vectors_doc_hnsw.bin', count: hnswDocStats.count, dims: hnswDocStats.dims },

@@ -127,6 +127,14 @@ export const createArtifactPresenceHelpers = ({
       || fs.existsSync(`${basePath}.gz`)
       || fs.existsSync(`${basePath}.zst`)
     );
+    const hasDenseVectorBinaryOrSharded = (baseName) => {
+      const binMeta = path.join(dir, `${baseName}.bin.meta.json`);
+      const binPayload = path.join(dir, `${baseName}.bin`);
+      if (existsAny(binMeta) && existsAny(binPayload)) return true;
+      const shardedMeta = path.join(dir, `${baseName}.meta.json`);
+      const shardedParts = path.join(dir, `${baseName}.parts`);
+      return existsAny(shardedMeta) && fs.existsSync(shardedParts);
+    };
     if (name === 'chunk_meta') {
       const json = path.join(dir, 'chunk_meta.json');
       const jsonl = path.join(dir, 'chunk_meta.jsonl');
@@ -171,16 +179,13 @@ export const createArtifactPresenceHelpers = ({
         || fs.existsSync(shardsDir);
     }
     if (name === 'dense_vectors') {
-      const json = path.join(dir, 'dense_vectors_uint8.json');
-      return existsAny(json);
+      return hasDenseVectorBinaryOrSharded('dense_vectors_uint8');
     }
     if (name === 'dense_vectors_doc') {
-      const json = path.join(dir, 'dense_vectors_doc_uint8.json');
-      return existsAny(json);
+      return hasDenseVectorBinaryOrSharded('dense_vectors_doc_uint8');
     }
     if (name === 'dense_vectors_code') {
-      const json = path.join(dir, 'dense_vectors_code_uint8.json');
-      return existsAny(json);
+      return hasDenseVectorBinaryOrSharded('dense_vectors_code_uint8');
     }
     if (name === 'index_state') {
       return fs.existsSync(path.join(dir, 'index_state.json'));

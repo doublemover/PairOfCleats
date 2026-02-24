@@ -5,9 +5,10 @@ import {
   resolveBinaryArtifactPath,
   resolveDirArtifactPath
 } from '../../shared/artifact-io.js';
+import { normalizeDenseVectorMeta } from '../../shared/dense-vector-artifacts.js';
+import { joinPathSafe } from '../../shared/path-normalize.js';
 import { resolveLanceDbPaths } from '../../shared/lancedb.js';
 import { addIssue } from './issues.js';
-import { normalizeDenseVectors } from './normalize.js';
 import { validateSchema } from './schema.js';
 
 const hasJsonVariant = (basePath) => (
@@ -33,35 +34,95 @@ export const validateEmbeddingArtifacts = ({
   readJsonArtifact
 }) => {
   const denseTargets = [
-    { label: 'dense_vectors', name: 'dense_vectors', file: 'dense_vectors_uint8.json' },
-    { label: 'dense_vectors_doc', name: 'dense_vectors_doc', file: 'dense_vectors_doc_uint8.json' },
-    { label: 'dense_vectors_code', name: 'dense_vectors_code', file: 'dense_vectors_code_uint8.json' }
+    {
+      label: 'dense_vectors',
+      metaName: 'dense_vectors_binary_meta',
+      binName: 'dense_vectors',
+      baseName: 'dense_vectors_uint8',
+      metaPath: path.join(dir, 'dense_vectors_uint8.bin.meta.json'),
+      binPath: path.join(dir, 'dense_vectors_uint8.bin')
+    },
+    {
+      label: 'dense_vectors_doc',
+      metaName: 'dense_vectors_doc_binary_meta',
+      binName: 'dense_vectors_doc',
+      baseName: 'dense_vectors_doc_uint8',
+      metaPath: path.join(dir, 'dense_vectors_doc_uint8.bin.meta.json'),
+      binPath: path.join(dir, 'dense_vectors_doc_uint8.bin')
+    },
+    {
+      label: 'dense_vectors_code',
+      metaName: 'dense_vectors_code_binary_meta',
+      binName: 'dense_vectors_code',
+      baseName: 'dense_vectors_code_uint8',
+      metaPath: path.join(dir, 'dense_vectors_code_uint8.bin.meta.json'),
+      binPath: path.join(dir, 'dense_vectors_code_uint8.bin')
+    }
   ];
   for (const target of denseTargets) {
-    const denseRaw = strict
-      ? readJsonArtifact(target.name)
-      : (() => {
-        const densePath = path.join(dir, target.file);
-        return readJsonVariant(densePath);
-      })();
-    if (!denseRaw) continue;
-    const dense = normalizeDenseVectors(denseRaw);
-    validateSchema(report, mode, target.name, dense, 'Rebuild embeddings for this mode.', { strictSchema: strict });
-    const vectors = dense.vectors || [];
-    validateManifestCount(target.name, vectors.length, target.label);
-    if (vectors.length && vectors.length !== chunkMeta.length) {
-      const issue = `${target.label} mismatch (${vectors.length} !== ${chunkMeta.length})`;
+    const denseMetaRaw = strict
+      ? readJsonArtifact(target.metaName)
+      : readJsonVariant(target.metaPath);
+    if (!denseMetaRaw) continue;
+    const denseMeta = normalizeDenseVectorMeta(denseMetaRaw) || denseMetaRaw;
+    validateSchema(
+      report,
+      mode,
+      target.metaName,
+      denseMeta,
+      'Rebuild embeddings for this mode.',
+      { strictSchema: strict }
+    );
+    const denseDims = Number.isFinite(Number(denseMeta?.dims))
+      ? Math.max(0, Math.floor(Number(denseMeta.dims)))
+      : 0;
+    const denseCount = Number.isFinite(Number(denseMeta?.count))
+      ? Math.max(0, Math.floor(Number(denseMeta.count)))
+      : chunkMeta.length;
+    validateManifestCount(target.metaName, denseCount, `${target.label} meta`);
+    validateManifestCount(target.binName, denseCount, `${target.label} bin`);
+    if (denseCount !== chunkMeta.length) {
+      const issue = `${target.label} count mismatch (${denseCount} !== ${chunkMeta.length})`;
       modeReport.ok = false;
       modeReport.missing.push(issue);
       report.issues.push(`[${mode}] ${issue}`);
     }
-    if (dense.dims) {
-      for (let i = 0; i < Math.min(vectors.length, 25); i += 1) {
-        if (!Array.isArray(vectors[i]) || vectors[i].length !== dense.dims) {
-          addIssue(report, mode, `${target.label} dims mismatch at ${i}`, 'Rebuild embeddings for this mode.');
-          break;
-        }
+    if (!denseDims) {
+      addIssue(report, mode, `${target.label} dims missing from binary metadata`, 'Rebuild embeddings for this mode.');
+      continue;
+    }
+    const binPathFromMeta = (() => {
+      const relPath = typeof denseMeta?.path === 'string' && denseMeta.path
+        ? denseMeta.path
+        : `${target.baseName}.bin`;
+      return joinPathSafe(dir, [relPath]);
+    })();
+    if (typeof denseMeta?.path === 'string' && denseMeta.path && !binPathFromMeta) {
+      addIssue(report, mode, `${target.label} binary path invalid`, 'Rebuild embeddings for this mode.');
+      continue;
+    }
+    const denseBinPath = binPathFromMeta || resolveBinaryArtifactPath(dir, target.binName, {
+      manifest,
+      strict,
+      fallbackPath: target.binPath
+    });
+    if (!denseBinPath || !fs.existsSync(denseBinPath)) {
+      addIssue(report, mode, `${target.label} binary payload missing`, 'Rebuild embeddings for this mode.');
+      continue;
+    }
+    try {
+      const denseStat = fs.statSync(denseBinPath);
+      const expectedBytes = denseDims * denseCount;
+      if (denseStat.size < expectedBytes) {
+        addIssue(
+          report,
+          mode,
+          `${target.label} binary too small (${denseStat.size} < ${expectedBytes})`,
+          'Rebuild embeddings for this mode.'
+        );
       }
+    } catch {
+      addIssue(report, mode, `${target.label} binary stat failed`, 'Rebuild embeddings for this mode.');
     }
   }
 

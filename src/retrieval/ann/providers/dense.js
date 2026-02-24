@@ -1,10 +1,9 @@
 import { rankDenseVectors } from '../../rankers.js';
 import { ANN_PROVIDER_IDS } from '../types.js';
 import { canRunAnnQuery, isAnnProviderAvailable } from '../utils.js';
+import { isDenseVectorPayloadAvailable } from '../../../shared/dense-vector-artifacts.js';
 
-const hasDenseVectors = (idx) => (
-  Array.isArray(idx?.denseVec?.vectors) && idx.denseVec.vectors.length > 0
-);
+const hasDenseVectors = (idx) => isDenseVectorPayloadAvailable(idx?.denseVec);
 
 export function createDenseAnnProvider() {
   return {

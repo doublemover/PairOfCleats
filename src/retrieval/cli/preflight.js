@@ -1,5 +1,6 @@
 import { INDEX_PROFILE_DEFAULT, INDEX_PROFILE_VECTOR_ONLY } from '../../contracts/index-profile.js';
 import { resolveSparseRequiredTables } from '../sparse/requirements.js';
+import { isDenseVectorPayloadAvailable } from '../../shared/dense-vector-artifacts.js';
 
 const PROFILE_MODES = Object.freeze(['code', 'prose', 'extracted-prose', 'records']);
 
@@ -199,7 +200,7 @@ const tryLoadDenseVectorsForAnnPath = async (idx) => {
   } catch {
     return false;
   }
-  return Array.isArray(idx?.denseVec?.vectors) && idx.denseVec.vectors.length > 0;
+  return isDenseVectorPayloadAvailable(idx?.denseVec);
 };
 
 const hasAnnPathForMode = async ({
@@ -212,7 +213,7 @@ const hasAnnPathForMode = async ({
   const idx = idxByMode?.[mode] || null;
   const hasMinhash = Array.isArray(idx?.minhash?.signatures) && idx.minhash.signatures.length > 0;
   if (hasMinhash) return true;
-  const hasDenseVectors = Array.isArray(idx?.denseVec?.vectors) && idx.denseVec.vectors.length > 0;
+  const hasDenseVectors = isDenseVectorPayloadAvailable(idx?.denseVec);
   if (hasDenseVectors) return true;
   if (vectorAnnState?.[mode]?.available) return true;
   if (hnswAnnState?.[mode]?.available) return true;

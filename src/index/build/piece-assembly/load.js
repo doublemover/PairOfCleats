@@ -2,10 +2,15 @@ import fsSync from 'node:fs';
 import {
   loadChunkMeta,
   loadJsonArrayArtifact,
+  loadJsonObjectArtifact,
   loadPiecesManifest,
   loadTokenPostings,
   readCompatibilityKey
 } from '../../../shared/artifact-io.js';
+import {
+  loadDenseVectorBinaryFromMetaAsync,
+  resolveDenseVectorBinaryArtifact
+} from '../../../shared/dense-vector-artifacts.js';
 import { readJsonOptional } from './helpers.js';
 
 /**
@@ -78,6 +83,33 @@ export const loadIndexArtifacts = async (dir, { strict = true } = {}) => {
     throw new Error(`file_meta artifact required for chunk metadata in ${dir} (missing files: ${missingFileCount})`);
   }
   const tokenPostings = loadTokenPostings(dir, { manifest, strict });
+  /**
+   * Load dense vectors using binary metadata and payload only.
+   *
+   * Piece assembly intentionally materializes row views from binary buffers in
+   * merge-time logic to avoid monolithic dense JSON reads.
+   */
+  const loadDenseVectorArtifact = async (artifactName) => {
+    const descriptor = resolveDenseVectorBinaryArtifact(artifactName);
+    if (!descriptor) return null;
+    let meta = null;
+    try {
+      meta = await loadJsonObjectArtifact(dir, descriptor.metaName, { manifest, strict });
+    } catch {
+      if (strict) return null;
+      meta = readJsonOptional(dir, `${descriptor.baseName}.bin.meta.json`);
+    }
+    return await loadDenseVectorBinaryFromMetaAsync({
+      dir,
+      baseName: descriptor.baseName,
+      meta
+    });
+  };
+  const [denseVec, denseVecDoc, denseVecCode] = await Promise.all([
+    loadDenseVectorArtifact('dense_vectors'),
+    loadDenseVectorArtifact('dense_vectors_doc'),
+    loadDenseVectorArtifact('dense_vectors_code')
+  ]);
   return {
     dir,
     chunkMeta,
@@ -87,9 +119,9 @@ export const loadIndexArtifacts = async (dir, { strict = true } = {}) => {
     minhash: readJsonOptional(dir, 'minhash_signatures.json'),
     phraseNgrams: readJsonOptional(dir, 'phrase_ngrams.json'),
     chargrams: readJsonOptional(dir, 'chargram_postings.json'),
-    denseVec: readJsonOptional(dir, 'dense_vectors_uint8.json'),
-    denseVecDoc: readJsonOptional(dir, 'dense_vectors_doc_uint8.json'),
-    denseVecCode: readJsonOptional(dir, 'dense_vectors_code_uint8.json'),
+    denseVec,
+    denseVecDoc,
+    denseVecCode,
     fileRelations: await loadJsonArrayArtifact(dir, 'file_relations', { manifest, strict }).catch(() => null),
     callSites: await loadJsonArrayArtifact(dir, 'call_sites', { manifest, strict }).catch(() => null),
     riskSummaries: await loadJsonArrayArtifact(dir, 'risk_summaries', { manifest, strict }).catch(() => null),

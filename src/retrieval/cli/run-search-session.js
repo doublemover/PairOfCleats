@@ -19,6 +19,7 @@ import {
   buildCommentLookup
 } from './run-search-session/comment-excerpts.js';
 import { normalizeDenseVectorMode } from '../../shared/dense-vector-mode.js';
+import { isDenseVectorPayloadAvailable } from '../../shared/dense-vector-artifacts.js';
 
 const EMBEDDING_MODE_ORDER = Object.freeze([
   'code',
@@ -175,7 +176,7 @@ function resolveModeAnnMetadata({
     const state = modeState[mode];
     const idx = state.idx;
     state.hasAnn = Boolean(
-      idx?.denseVec?.vectors?.length
+      isDenseVectorPayloadAvailable(idx?.denseVec)
       || typeof idx?.loadDenseVectors === 'function'
       || vectorAnnState?.[mode]?.available
       || hnswAnnState?.[mode]?.available

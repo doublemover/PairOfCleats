@@ -16,6 +16,10 @@ import { clamp } from '../../shared/limits.js';
 import { logLine } from '../../shared/progress.js';
 import { loadOptionalSyncWithFallback } from '../../shared/optional-artifact-fallback.js';
 import {
+  loadDenseVectorBinaryFromMetaSync,
+  normalizeDenseVectorMeta
+} from '../../shared/dense-vector-artifacts.js';
+import {
   hasChunkMetaArtifactsSync,
   loadOptionalWithFallback,
   iterateOptionalWithFallback
@@ -408,40 +412,27 @@ const loadOptionalDenseBinary = (dir, baseName, modelId) => {
   } catch {
     return null;
   }
-  const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
-  const relPath = typeof meta?.path === 'string' && meta.path
-    ? meta.path
-    : `${baseName}.bin`;
-  const binPath = joinPathSafe(dir, [relPath]);
-  if (!binPath) return null;
-  if (!fs.existsSync(binPath)) return null;
-  const dims = Number.isFinite(Number(meta?.dims)) ? Math.max(0, Math.floor(Number(meta.dims))) : 0;
-  const count = Number.isFinite(Number(meta?.count)) ? Math.max(0, Math.floor(Number(meta.count))) : 0;
+  const dense = loadDenseVectorBinaryFromMetaSync({
+    dir,
+    baseName,
+    meta: metaRaw,
+    modelId: modelId || null
+  });
+  if (!dense) return null;
+  const dims = Number.isFinite(Number(dense.dims)) ? Math.max(0, Math.floor(Number(dense.dims))) : 0;
+  const count = Number.isFinite(Number(dense.count)) ? Math.max(0, Math.floor(Number(dense.count))) : 0;
   if (!dims || !count) return null;
-  try {
-    const buffer = fs.readFileSync(binPath);
-    const view = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
-    const expectedBytes = dims * count;
-    if (view.length < expectedBytes) return null;
-    const rows = (async function* iterateRows() {
-      for (let docId = 0; docId < count; docId += 1) {
-        const start = docId * dims;
-        const end = start + dims;
-        yield { docId, vector: view.subarray(start, end) };
-      }
-    })();
-    return {
-      ...meta,
-      model: meta?.model || modelId || null,
-      dims,
-      count,
-      path: relPath,
-      buffer: view,
-      rows
-    };
-  } catch {
-    return null;
-  }
+  const rows = (async function* iterateRows() {
+    for (let docId = 0; docId < count; docId += 1) {
+      const start = docId * dims;
+      const end = start + dims;
+      yield { docId, vector: dense.buffer.subarray(start, end) };
+    }
+  })();
+  return {
+    ...dense,
+    rows
+  };
 };
 
 const normalizeDenseVectorPayload = (denseVec) => {
@@ -469,7 +460,8 @@ const normalizeDenseVectorPayload = (denseVec) => {
 
 const loadDenseVectorArtifact = (dir, baseName, { modelId = null } = {}) => {
   const denseBinary = loadOptionalDenseBinary(dir, baseName, modelId);
-  const denseMeta = denseBinary ? null : loadOptional(dir, `${baseName}.meta.json`);
+  const denseMetaRaw = denseBinary ? null : loadOptional(dir, `${baseName}.meta.json`);
+  const denseMeta = normalizeDenseVectorMeta(denseMetaRaw) || denseMetaRaw;
   let denseVec = denseBinary;
   if (!denseVec) {
     if (denseMeta && typeof denseMeta === 'object') {
@@ -484,9 +476,6 @@ const loadDenseVectorArtifact = (dir, baseName, { modelId = null } = {}) => {
           ? { rows: loadOptionalArrayArtifactRows(dir, baseName, { materialize: true }) }
           : { vectors: [] })
       };
-    } else {
-      denseVec = loadOptional(dir, `${baseName}.json`);
-      if (denseVec && !denseVec.model) denseVec.model = modelId || null;
     }
   }
   return normalizeDenseVectorPayload(denseVec);

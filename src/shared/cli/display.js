@@ -3,6 +3,57 @@ import { normalizeProgressMode, resolveTerminal } from './display/terminal.js';
 import { formatCount } from './display/text.js';
 import { renderDisplay } from './display/render.js';
 import { getProgressContext } from '../env.js';
+import { isClosedStreamWriteError } from '../jsonrpc.js';
+
+const createSafeWritableStream = (target) => {
+  if (!target || typeof target.write !== 'function') {
+    return {
+      stream: target,
+      isWritable: () => false
+    };
+  }
+  let closed = false;
+  const markClosed = () => { closed = true; };
+  const isStreamWritable = () => !closed && target && !target.destroyed && !target.writableEnded;
+  const safeWrite = (...args) => {
+    if (!isStreamWritable()) {
+      markClosed();
+      return false;
+    }
+    try {
+      return target.write.apply(target, args);
+    } catch (err) {
+      if (isClosedStreamWriteError(err)) {
+        markClosed();
+        return false;
+      }
+      throw err;
+    }
+  };
+  const handleError = (err) => {
+    if (isClosedStreamWriteError(err)) {
+      markClosed();
+    }
+  };
+  if (typeof target.once === 'function') {
+    target.once('close', markClosed);
+    target.once('finish', markClosed);
+  }
+  if (typeof target.on === 'function') {
+    target.on('error', handleError);
+  }
+  const proxyHandler = {
+    get(obj, prop, receiver) {
+      if (prop === 'write') return safeWrite;
+      const value = Reflect.get(obj, prop, receiver);
+      return typeof value === 'function' ? value.bind(obj) : value;
+    }
+  };
+  return {
+    stream: new Proxy(target, proxyHandler),
+    isWritable: isStreamWritable
+  };
+};
 
 export function createDisplay(options = {}) {
   const stream = options.stream || process.stderr;

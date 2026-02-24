@@ -129,7 +129,12 @@ export function estimateIndexBytes(indexDir) {
     'token_postings.binary-columnar.lengths.varint',
     'phrase_ngrams.json',
     'chargram_postings.json',
-    'dense_vectors_uint8.json',
+    'dense_vectors_uint8.bin.meta.json',
+    'dense_vectors_uint8.bin',
+    'dense_vectors_doc_uint8.bin.meta.json',
+    'dense_vectors_doc_uint8.bin',
+    'dense_vectors_code_uint8.bin.meta.json',
+    'dense_vectors_code_uint8.bin',
     'filter_index.json'
   ];
   const sumFile = (targetPath) => {

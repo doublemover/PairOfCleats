@@ -9,7 +9,7 @@ const CLOSED_STREAM_WRITE_ERROR_CODES = new Set([
   'EOF'
 ]);
 
-const isClosedStreamWriteError = (err) => {
+export const isClosedStreamWriteError = (err) => {
   const code = String(err?.code || '').toUpperCase();
   if (code && CLOSED_STREAM_WRITE_ERROR_CODES.has(code)) return true;
   const message = String(err?.message || err || '');

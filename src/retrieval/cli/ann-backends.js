@@ -1,4 +1,3 @@
-import path from 'node:path';
 import { pathExists } from '../../shared/files.js';
 import { runWithConcurrency } from '../../shared/concurrency.js';
 import {
@@ -10,6 +9,11 @@ import {
   resolveArtifactPresence,
   resolveDirArtifactPath
 } from '../../shared/artifact-io.js';
+import {
+  isDenseVectorPayloadAvailable,
+  loadDenseVectorBinaryFromMetaAsync,
+  resolveDenseVectorBinaryArtifact
+} from '../../shared/dense-vector-artifacts.js';
 import { resolveLanceDbPaths, resolveLanceDbTarget } from '../../shared/lancedb.js';
 import {
   extractEmbeddingIdentity,
@@ -19,35 +23,11 @@ import {
   normalizeModel,
   numbersEqual
 } from './metadata.js';
-
-const DENSE_ARTIFACT_LEGACY_FILES = Object.freeze({
-  dense_vectors: Object.freeze(['dense_vectors_uint8.json', 'dense_vectors.json']),
-  dense_vectors_doc: Object.freeze(['dense_vectors_doc_uint8.json', 'dense_vectors_doc.json']),
-  dense_vectors_code: Object.freeze(['dense_vectors_code_uint8.json', 'dense_vectors_code.json'])
-});
 const ANN_ATTACH_TASK_CONCURRENCY = 2;
-
-const loadDenseArtifactFromLegacyPath = async (dir, artifactName) => {
-  const candidates = DENSE_ARTIFACT_LEGACY_FILES[artifactName];
-  if (!Array.isArray(candidates) || !candidates.length) return null;
-  for (const relPath of candidates) {
-    const absPath = path.join(dir, relPath);
-    const exists = await pathExists(absPath)
-      || await pathExists(`${absPath}.gz`)
-      || await pathExists(`${absPath}.zst`);
-    if (!exists) continue;
-    try {
-      return readJsonFile(absPath, { maxBytes: MAX_JSON_BYTES });
-    } catch {}
-  }
-  return null;
-};
 
 /**
  * Resolve ordered dense-vector artifact candidates for a mode.
- * Auto mode prefers split vectors by cohort, but legacy indexes may only
- * expose merged vectors, so merged remains a fallback candidate during
- * mixed-version rollouts.
+ * Auto mode prefers split vectors by cohort, with merged vectors as fallback.
  *
  * @param {string} mode
  * @param {string} resolvedDenseVectorMode
@@ -84,7 +64,7 @@ export const attachDenseVectorLoader = ({
   const artifactCandidates = resolveDenseArtifactCandidates(mode, resolvedDenseVectorMode);
   let pendingLoad = null;
   idx.loadDenseVectors = async () => {
-    if (Array.isArray(idx?.denseVec?.vectors) && idx.denseVec.vectors.length > 0) {
+    if (isDenseVectorPayloadAvailable(idx?.denseVec)) {
       return idx.denseVec;
     }
     if (pendingLoad) return pendingLoad;
@@ -98,9 +78,11 @@ export const attachDenseVectorLoader = ({
         }
       }
       for (const artifactName of artifactCandidates) {
-        let loaded = null;
+        const descriptor = resolveDenseVectorBinaryArtifact(artifactName);
+        if (!descriptor) continue;
+        let meta = null;
         try {
-          loaded = await loadJsonObjectArtifact(dir, artifactName, {
+          meta = await loadJsonObjectArtifact(dir, descriptor.metaName, {
             maxBytes: MAX_JSON_BYTES,
             manifest,
             strict
@@ -108,10 +90,13 @@ export const attachDenseVectorLoader = ({
         } catch {
           if (strict) continue;
         }
-        if ((!loaded || !Array.isArray(loaded.vectors) || !loaded.vectors.length) && !strict) {
-          loaded = await loadDenseArtifactFromLegacyPath(dir, artifactName);
-        }
-        if (!loaded || !Array.isArray(loaded.vectors) || !loaded.vectors.length) continue;
+        const loaded = await loadDenseVectorBinaryFromMetaAsync({
+          dir,
+          baseName: descriptor.baseName,
+          meta,
+          modelId: modelIdDefault || null
+        });
+        if (!loaded) continue;
         if (!loaded.model && modelIdDefault) loaded.model = modelIdDefault;
         idx.denseVec = loaded;
         return loaded;

@@ -1,13 +1,14 @@
-import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
-import { pathExists } from '../shared/files.js';
-import { joinPathSafe } from '../shared/path-normalize.js';
 import { getIndexDir } from '../../tools/shared/dict-utils.js';
 import { buildFilterIndex, hydrateFilterIndex } from './filter-index.js';
 import { createError, ERROR_CODES } from '../shared/error-codes.js';
 import { buildIndexSignature } from './index-cache.js';
 import { probeFileSignature } from '../shared/file-signature.js';
+import {
+  loadDenseVectorBinaryFromMetaAsync,
+  resolveDenseVectorBinaryArtifact
+} from '../shared/dense-vector-artifacts.js';
 import {
   MAX_JSON_BYTES,
   loadChunkMeta,
@@ -99,36 +100,17 @@ export async function loadIndex(dir, options) {
       { name: baseName, onTooLarge: warnOptionalTooLarge }
     )
   );
-  const loadOptionalDenseBinary = async (artifactName, baseName) => {
-    const meta = await loadOptionalObject(`${artifactName}_binary_meta`);
+  const loadOptionalDenseBinary = async (artifactName) => {
+    const descriptor = resolveDenseVectorBinaryArtifact(artifactName);
+    if (!descriptor) return null;
+    const meta = await loadOptionalObject(descriptor.metaName);
     if (!meta || typeof meta !== 'object') return null;
-    const relPath = typeof meta.path === 'string' && meta.path
-      ? meta.path
-      : `${baseName}.bin`;
-    const absPath = joinPathSafe(dir, [relPath]);
-    if (!absPath) return null;
-    if (!await pathExists(absPath)) return null;
-    try {
-      const buffer = await fsPromises.readFile(absPath);
-      const view = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
-      const dims = Number.isFinite(Number(meta.dims))
-        ? Math.max(0, Math.floor(Number(meta.dims)))
-        : 0;
-      const count = Number.isFinite(Number(meta.count))
-        ? Math.max(0, Math.floor(Number(meta.count)))
-        : (dims > 0 ? Math.floor(view.length / dims) : 0);
-      if (!dims || !count || view.length < (dims * count)) return null;
-      return {
-        ...meta,
-        model: meta.model || modelIdDefault || null,
-        dims,
-        count,
-        path: relPath,
-        buffer: view
-      };
-    } catch {
-      return null;
-    }
+    return await loadDenseVectorBinaryFromMetaAsync({
+      dir,
+      baseName: descriptor.baseName,
+      meta,
+      modelId: modelIdDefault || null
+    });
   };
   const chunkMeta = await loadChunkMeta(dir, {
     maxBytes: MAX_JSON_BYTES,
@@ -199,22 +181,13 @@ export async function loadIndex(dir, options) {
   const embeddingsState = indexState?.embeddings || null;
   const embeddingsReady = embeddingsState?.ready !== false && embeddingsState?.pending !== true;
   const denseVec = embeddingsReady && includeDense
-    ? (
-      await loadOptionalDenseBinary('dense_vectors', 'dense_vectors_uint8')
-      || await loadOptionalObject('dense_vectors')
-    )
+    ? await loadOptionalDenseBinary('dense_vectors')
     : null;
   const denseVecDoc = embeddingsReady && includeDense
-    ? (
-      await loadOptionalDenseBinary('dense_vectors_doc', 'dense_vectors_doc_uint8')
-      || await loadOptionalObject('dense_vectors_doc')
-    )
+    ? await loadOptionalDenseBinary('dense_vectors_doc')
     : null;
   const denseVecCode = embeddingsReady && includeDense
-    ? (
-      await loadOptionalDenseBinary('dense_vectors_code', 'dense_vectors_code_uint8')
-      || await loadOptionalObject('dense_vectors_code')
-    )
+    ? await loadOptionalDenseBinary('dense_vectors_code')
     : null;
   const sqliteVecMeta = embeddingsReady && includeDense
     ? await loadOptionalObject('dense_vectors_sqlite_vec_meta')

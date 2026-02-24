@@ -83,10 +83,34 @@ const denseVectorsSqliteVecMetaSchema = {
   additionalProperties: true
 };
 
+const denseVectorsBinaryMetaSchema = {
+  type: 'object',
+  required: ['dims', 'count', 'path'],
+  properties: {
+    schemaVersion: nullableString,
+    artifact: nullableString,
+    format: { type: 'string' },
+    generatedAt: nullableString,
+    path: { type: 'string' },
+    model: nullableString,
+    dims: { type: 'integer', minimum: 1 },
+    count: { type: 'integer', minimum: 0 },
+    bytes: { type: 'integer', minimum: 0 },
+    scale: { type: 'number' },
+    minVal: { type: 'number' },
+    maxVal: { type: 'number' },
+    levels: { type: 'integer', minimum: 2 }
+  },
+  additionalProperties: true
+};
+
 export const DENSE_VECTOR_ARTIFACT_SCHEMA_DEFS = {
   dense_vectors: denseVectorsSchema,
   dense_vectors_doc: denseVectorsSchema,
   dense_vectors_code: denseVectorsSchema,
+  dense_vectors_binary_meta: denseVectorsBinaryMetaSchema,
+  dense_vectors_doc_binary_meta: denseVectorsBinaryMetaSchema,
+  dense_vectors_code_binary_meta: denseVectorsBinaryMetaSchema,
   dense_vectors_hnsw_meta: denseVectorsHnswMetaSchema,
   dense_vectors_doc_hnsw_meta: denseVectorsHnswMetaSchema,
   dense_vectors_code_hnsw_meta: denseVectorsHnswMetaSchema,

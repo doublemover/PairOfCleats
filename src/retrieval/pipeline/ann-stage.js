@@ -1,4 +1,5 @@
 import { createError, ERROR_CODES } from '../../shared/error-codes.js';
+import { isDenseVectorPayloadAvailable } from '../../shared/dense-vector-artifacts.js';
 import { ANN_PROVIDER_IDS } from '../ann/types.js';
 import { isEmbeddingReady } from '../ann/utils.js';
 import {
@@ -184,7 +185,7 @@ export const runAnnStage = async ({
   };
 
   const hasVectorArtifacts = Boolean(
-    idx?.denseVec?.vectors?.length
+    isDenseVectorPayloadAvailable(idx?.denseVec)
     || typeof idx?.loadDenseVectors === 'function'
     || vectorAnnState?.[mode]?.available
     || hnswAnnState?.[mode]?.available

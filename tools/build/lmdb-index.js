@@ -8,10 +8,16 @@ import { createToolDisplay } from '../shared/cli-display.js';
 import {
   loadChunkMeta,
   loadJsonArrayArtifactSync,
+  loadJsonObjectArtifact,
+  loadPiecesManifest,
   loadTokenPostings,
   readJsonFile,
   MAX_JSON_BYTES
 } from '../../src/shared/artifact-io.js';
+import {
+  loadDenseVectorBinaryFromMetaAsync,
+  resolveDenseVectorBinaryArtifact
+} from '../../src/shared/dense-vector-artifacts.js';
 import { hasChunkMetaArtifactsSync } from '../../src/shared/index-artifact-helpers.js';
 import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
 import { updateIndexStateManifest } from '../shared/index-state-utils.js';
@@ -271,6 +277,36 @@ const validateRequiredArtifacts = (indexDir, mode) => {
 };
 
 const loadArtifactsForMode = async (indexDir, mode) => {
+  let manifest = null;
+  try {
+    manifest = loadPiecesManifest(indexDir, { maxBytes: MAX_JSON_BYTES, strict: false });
+  } catch {
+    manifest = null;
+  }
+  const loadDenseVectorArtifact = async (artifactName) => {
+    const descriptor = resolveDenseVectorBinaryArtifact(artifactName);
+    if (!descriptor) return null;
+    let meta = null;
+    if (manifest) {
+      try {
+        meta = await loadJsonObjectArtifact(indexDir, descriptor.metaName, {
+          maxBytes: MAX_JSON_BYTES,
+          manifest,
+          strict: false
+        });
+      } catch {
+        meta = null;
+      }
+    }
+    if (!meta) {
+      meta = readJsonOptional(path.join(indexDir, `${descriptor.baseName}.bin.meta.json`));
+    }
+    return await loadDenseVectorBinaryFromMetaAsync({
+      dir: indexDir,
+      baseName: descriptor.baseName,
+      meta
+    });
+  };
   const chunkMeta = await loadChunkMeta(indexDir, { maxBytes: MAX_JSON_BYTES });
   const tokenPostings = loadTokenPostings(indexDir, { maxBytes: MAX_JSON_BYTES });
   const fileMeta = readJsonOptional(path.join(indexDir, 'file_meta.json'));
@@ -294,9 +330,11 @@ const loadArtifactsForMode = async (indexDir, mode) => {
   const phraseNgrams = readJsonOptional(path.join(indexDir, 'phrase_ngrams.json'));
   const chargramPostings = readJsonOptional(path.join(indexDir, 'chargram_postings.json'));
   const minhashSignatures = readJsonOptional(path.join(indexDir, 'minhash_signatures.json'));
-  const denseVectors = readJsonOptional(path.join(indexDir, 'dense_vectors_uint8.json'));
-  const denseVectorsDoc = readJsonOptional(path.join(indexDir, 'dense_vectors_doc_uint8.json'));
-  const denseVectorsCode = readJsonOptional(path.join(indexDir, 'dense_vectors_code_uint8.json'));
+  const [denseVectors, denseVectorsDoc, denseVectorsCode] = await Promise.all([
+    loadDenseVectorArtifact('dense_vectors'),
+    loadDenseVectorArtifact('dense_vectors_doc'),
+    loadDenseVectorArtifact('dense_vectors_code')
+  ]);
   const denseHnswMeta = readJsonOptional(path.join(indexDir, 'dense_vectors_hnsw.meta.json'));
   const indexState = readJsonOptional(path.join(indexDir, 'index_state.json'));
   const artifacts = {

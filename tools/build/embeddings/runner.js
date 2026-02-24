@@ -3787,14 +3787,14 @@ export async function runBuildEmbeddingsWithConfig(config) {
           );
         }
 
-        const mergedVectorsPath = path.join(indexDir, 'dense_vectors_uint8.json');
-        const docVectorsPath = path.join(indexDir, 'dense_vectors_doc_uint8.json');
-        const codeVectorsPath = path.join(indexDir, 'dense_vectors_code_uint8.json');
+        const mergedVectorsBasePath = path.join(indexDir, 'dense_vectors_uint8');
+        const docVectorsBasePath = path.join(indexDir, 'dense_vectors_doc_uint8');
+        const codeVectorsBasePath = path.join(indexDir, 'dense_vectors_code_uint8');
         backendTask.set(0, 5, { message: 'writing dense vector artifacts' });
         if (traceArtifactIo) {
-          log(`[embeddings] ${mode}: writing vectors to ${mergedVectorsPath}`);
-          log(`[embeddings] ${mode}: writing vectors to ${docVectorsPath}`);
-          log(`[embeddings] ${mode}: writing vectors to ${codeVectorsPath}`);
+          log(`[embeddings] ${mode}: writing vectors to ${mergedVectorsBasePath}.meta.json + parts`);
+          log(`[embeddings] ${mode}: writing vectors to ${docVectorsBasePath}.meta.json + parts`);
+          log(`[embeddings] ${mode}: writing vectors to ${codeVectorsBasePath}.meta.json + parts`);
         }
         const vectorFields = {
           model: modelId,
@@ -3828,9 +3828,14 @@ export async function runBuildEmbeddingsWithConfig(config) {
           }))
         ]);
         backendTask.set(1, 5, { message: 'building ANN backends (hnsw/lancedb)' });
-        logArtifactLocation(mode, 'dense_vectors_uint8', mergedVectorsPath);
-        logArtifactLocation(mode, 'dense_vectors_doc_uint8', docVectorsPath);
-        logArtifactLocation(mode, 'dense_vectors_code_uint8', codeVectorsPath);
+        logArtifactLocation(mode, 'dense_vectors_uint8_meta', `${mergedVectorsBasePath}.meta.json`);
+        logArtifactLocation(mode, 'dense_vectors_doc_uint8_meta', `${docVectorsBasePath}.meta.json`);
+        logArtifactLocation(mode, 'dense_vectors_code_uint8_meta', `${codeVectorsBasePath}.meta.json`);
+        if (binaryDenseVectors) {
+          logArtifactLocation(mode, 'dense_vectors_uint8_bin', `${mergedVectorsBasePath}.bin`);
+          logArtifactLocation(mode, 'dense_vectors_doc_uint8_bin', `${docVectorsBasePath}.bin`);
+          logArtifactLocation(mode, 'dense_vectors_code_uint8_bin', `${codeVectorsBasePath}.bin`);
+        }
 
         const backendStageRoot = path.join(modeIndexRoot || indexDir, '.embeddings-backend-staging');
         const backendStageDir = path.join(backendStageRoot, `index-${mode}`);
@@ -3852,7 +3857,11 @@ export async function runBuildEmbeddingsWithConfig(config) {
             hnswBuilders,
             hnswPaths: stagedHnswPaths,
             vectors: { merged: mergedVectors, doc: docVectors, code: codeVectors },
-            vectorsPaths: { merged: mergedVectorsPath, doc: docVectorsPath, code: codeVectorsPath },
+            vectorsPaths: {
+              merged: mergedVectorsBasePath,
+              doc: docVectorsBasePath,
+              code: codeVectorsBasePath
+            },
             modelId,
             dims: finalDims,
             quantization,
@@ -3868,7 +3877,11 @@ export async function runBuildEmbeddingsWithConfig(config) {
             indexDir: backendStageDir,
             lanceConfig,
             vectors: { merged: mergedVectors, doc: docVectors, code: codeVectors },
-            vectorsPaths: { merged: mergedVectorsPath, doc: docVectorsPath, code: codeVectorsPath },
+            vectorsPaths: {
+              merged: mergedVectorsBasePath,
+              doc: docVectorsBasePath,
+              code: codeVectorsBasePath
+            },
             dims: finalDims,
             modelId,
             quantization,
