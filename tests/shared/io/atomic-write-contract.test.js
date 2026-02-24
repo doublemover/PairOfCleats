@@ -3,7 +3,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { atomicWriteJson, atomicWriteText } from '../../../src/shared/io/atomic-write.js';
+import {
+  atomicWriteJson,
+  atomicWriteJsonSync,
+  atomicWriteText,
+  atomicWriteTextSync
+} from '../../../src/shared/io/atomic-write.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -24,11 +29,24 @@ const bufferPath = path.join(tempRoot, 'buffer.txt');
 await atomicWriteText(bufferPath, Buffer.from('gamma', 'utf8'), { newline: true });
 assert.equal(fs.readFileSync(bufferPath, 'utf8'), 'gamma\n');
 
+const textSyncPath = path.join(tempRoot, 'state-sync.txt');
+atomicWriteTextSync(textSyncPath, 'sync-alpha');
+assert.equal(fs.readFileSync(textSyncPath, 'utf8'), 'sync-alpha');
+
+atomicWriteTextSync(textSyncPath, 'sync-beta', { newline: true });
+assert.equal(fs.readFileSync(textSyncPath, 'utf8'), 'sync-beta\n');
+
 const jsonPath = path.join(tempRoot, 'state.json');
 await atomicWriteJson(jsonPath, { ok: true, values: [1, 2, 3] }, { spaces: 2 });
 const jsonRaw = fs.readFileSync(jsonPath, 'utf8');
 assert.equal(jsonRaw.endsWith('\n'), true);
 assert.deepEqual(JSON.parse(jsonRaw), { ok: true, values: [1, 2, 3] });
+
+const jsonSyncPath = path.join(tempRoot, 'state-sync.json');
+atomicWriteJsonSync(jsonSyncPath, { ok: true, sync: true }, { spaces: 0, newline: false });
+const jsonSyncRaw = fs.readFileSync(jsonSyncPath, 'utf8');
+assert.equal(jsonSyncRaw.endsWith('\n'), false);
+assert.deepEqual(JSON.parse(jsonSyncRaw), { ok: true, sync: true });
 
 const retryPath = path.join(tempRoot, 'retry.txt');
 const originalOpen = fsPromises.open;
@@ -60,6 +78,15 @@ try {
 assert.ok(mkdirError, 'expected mkdir=false write to fail for missing directory');
 assert.equal(mkdirError.code, 'ERR_ATOMIC_WRITE');
 
+let mkdirSyncError = null;
+try {
+  atomicWriteTextSync(path.join(tempRoot, 'nested-sync', 'missing.txt'), 'x', { mkdir: false });
+} catch (err) {
+  mkdirSyncError = err;
+}
+assert.ok(mkdirSyncError, 'expected sync mkdir=false write to fail for missing directory');
+assert.equal(mkdirSyncError.code, 'ERR_ATOMIC_WRITE');
+
 const circular = {};
 circular.self = circular;
 let serializeError = null;
@@ -70,6 +97,15 @@ try {
 }
 assert.ok(serializeError, 'expected circular json to fail');
 assert.equal(serializeError.code, 'ERR_ATOMIC_WRITE');
+
+let serializeSyncError = null;
+try {
+  atomicWriteJsonSync(path.join(tempRoot, 'bad-sync.json'), circular);
+} catch (err) {
+  serializeSyncError = err;
+}
+assert.ok(serializeSyncError, 'expected sync circular json to fail');
+assert.equal(serializeSyncError.code, 'ERR_ATOMIC_WRITE');
 
 console.log('atomic write contract ok.');
 
