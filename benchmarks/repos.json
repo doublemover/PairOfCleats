@@ -658,6 +658,7 @@
     "queries": "benchmarks/queries/graphql.txt",
     "repos": {
       "typical": [
+        "graphql-java/graphql-java",
         "graphql-dotnet/graphql-dotnet",
         "dgraph-io/dgraph",
         "n1ru4l/graphql-live-query",
@@ -683,7 +684,6 @@
         "graphql/graphql-js"
       ],
       "small": [
-        "graphql-java/graphql-java",
         "urql-graphql/urql"
       ]
     }
