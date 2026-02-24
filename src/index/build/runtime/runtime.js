@@ -384,6 +384,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   });
   const scheduler = createBuildScheduler({
     enabled: schedulerConfig.enabled,
+    requireSignals: true,
+    requiredSignalQueues: Object.keys(schedulerConfig.queues || {}),
     lowResourceMode: schedulerConfig.lowResourceMode,
     cpuTokens: schedulerConfig.cpuTokens,
     ioTokens: schedulerConfig.ioTokens,

@@ -4,7 +4,7 @@ import { init as initCjsLexer, parse as parseCjsLexer } from 'cjs-module-lexer';
 import { collectLanguageImports } from '../language-registry.js';
 import { isJsLike, isTypeScript } from '../constants.js';
 import { runWithConcurrency, runWithQueue } from '../../shared/concurrency.js';
-import { throwIfAborted } from '../../shared/abort.js';
+import { coerceAbortSignal, throwIfAborted } from '../../shared/abort.js';
 import { readTextFile, readTextFileWithHash } from '../../shared/encoding.js';
 import { fileExt, toPosix } from '../../shared/files.js';
 import { showProgress } from '../../shared/progress.js';
@@ -382,7 +382,8 @@ export async function scanImports({
   readCachedImportsFn = readCachedImports,
   abortSignal = null
 }) {
-  throwIfAborted(abortSignal);
+  const effectiveAbortSignal = coerceAbortSignal(abortSignal);
+  throwIfAborted(effectiveAbortSignal);
   const importsByFile = new Map();
   const moduleSet = new Set();
   const start = Date.now();
@@ -405,8 +406,28 @@ export async function scanImports({
     };
   });
   const runner = queue
-    ? (items, worker, options) => runWithQueue(queue, items, worker, { ...(options || {}), signal: abortSignal })
-    : (items, worker, options) => runWithConcurrency(items, importConcurrency, worker, { ...(options || {}), signal: abortSignal });
+    ? (items, worker, options) => runWithQueue(
+      queue,
+      items,
+      worker,
+      {
+        ...(options || {}),
+        signal: effectiveAbortSignal,
+        requireSignal: true,
+        signalLabel: 'build.imports.runWithQueue'
+      }
+    )
+    : (items, worker, options) => runWithConcurrency(
+      items,
+      importConcurrency,
+      worker,
+      {
+        ...(options || {}),
+        signal: effectiveAbortSignal,
+        requireSignal: true,
+        signalLabel: 'build.imports.runWithConcurrency'
+      }
+    );
 
   const cachedImportsByFile = new Map();
   const cachedImportCounts = new Map();
@@ -414,7 +435,7 @@ export async function scanImports({
     await runner(
       items,
       async (item) => {
-        throwIfAborted(abortSignal);
+        throwIfAborted(effectiveAbortSignal);
         if (!item.stat) return;
         const cachedImports = await readCachedImportsFn({
           enabled: true,
@@ -443,7 +464,7 @@ export async function scanImports({
   await runner(
     items,
     async (item) => {
-      throwIfAborted(abortSignal);
+      throwIfAborted(effectiveAbortSignal);
       const relKey = item.relKey;
       const ext = item.ext || fileExt(relKey);
       const hadPrefetch = cachedImportsByFile.has(relKey);

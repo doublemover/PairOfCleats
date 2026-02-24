@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { throwIfAborted } from '../../../shared/abort.js';
+import { coerceAbortSignal, throwIfAborted } from '../../../shared/abort.js';
 import { toPosix } from '../../../shared/files.js';
 import { compareStrings } from '../../../shared/sort.js';
 import { runWithConcurrency } from '../../../shared/concurrency.js';
@@ -303,6 +303,7 @@ export const buildTreeSitterSchedulerPlan = async ({
   abortSignal = null,
   log = null
 }) => {
+  const effectiveAbortSignal = coerceAbortSignal(abortSignal);
   if (mode !== 'code') return null;
   const treeSitterConfig = runtime?.languageOptions?.treeSitter || null;
   if (!treeSitterConfig || treeSitterConfig.enabled === false) return null;
@@ -350,7 +351,7 @@ export const buildTreeSitterSchedulerPlan = async ({
     plannerIoConcurrency,
     async (sortedEntry) => {
       const entry = sortedEntry?.entry;
-      throwIfAborted(abortSignal);
+      throwIfAborted(effectiveAbortSignal);
       if (!entry) return { jobs: [], requiredLanguages: [] };
       if (entry?.treeSitterDisabled === true) return { jobs: [], requiredLanguages: [] };
       const { abs, relKey } = resolveEntryPaths(entry, runtime.root);
@@ -562,11 +563,15 @@ export const buildTreeSitterSchedulerPlan = async ({
       }
       return { jobs, requiredLanguages: Array.from(requiredLanguages) };
     },
-    { signal: abortSignal }
+    {
+      signal: effectiveAbortSignal,
+      requireSignal: true,
+      signalLabel: 'build.tree-sitter.plan.runWithConcurrency'
+    }
   );
 
   for (const result of entryResults || []) {
-    throwIfAborted(abortSignal);
+    throwIfAborted(effectiveAbortSignal);
     if (!result) continue;
     for (const languageId of result.requiredLanguages || []) {
       requiredNativeLanguages.add(languageId);

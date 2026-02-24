@@ -8,6 +8,74 @@ import { createTempPath, replaceFile } from './atomic.js';
 import { createFflateGzipStream, createZstdStream, normalizeHighWaterMark } from './compress.js';
 import { createAbortError } from './runtime.js';
 
+const JSON_STREAM_WAIT_TIMEOUT_SYMBOL = Symbol.for('pairofcleats.json_stream_wait_timeout_ms');
+const DEFAULT_JSON_STREAM_WAIT_TIMEOUT_MS = 5 * 60 * 1000;
+
+const coerceOptionalNonNegativeInt = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return Math.floor(parsed);
+};
+
+const resolveJsonStreamWaitTimeoutMs = (value = null) => (
+  coerceOptionalNonNegativeInt(value)
+  ?? coerceOptionalNonNegativeInt(process.env.PAIROFCLEATS_JSON_STREAM_WAIT_TIMEOUT_MS)
+  ?? DEFAULT_JSON_STREAM_WAIT_TIMEOUT_MS
+);
+
+const createStreamWaitTimeoutError = ({ event, timeoutMs, label = null } = {}) => {
+  const target = label || event || 'stream-wait';
+  const err = new Error(`[json-stream] ${target} timed out after ${timeoutMs}ms.`);
+  err.code = 'JSON_STREAM_WAIT_TIMEOUT';
+  err.retryable = false;
+  err.meta = { event: event || null, timeoutMs, label: label || null };
+  return err;
+};
+
+const waitForEventWithTimeout = async ({ stream, event, timeoutMs, label = null }) => {
+  const waitPromise = once(stream, event);
+  if (!Number.isFinite(Number(timeoutMs)) || timeoutMs <= 0) {
+    await waitPromise;
+    return;
+  }
+  let timer = null;
+  try {
+    await Promise.race([
+      waitPromise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          reject(createStreamWaitTimeoutError({ event, timeoutMs, label }));
+        }, timeoutMs);
+        if (typeof timer?.unref === 'function') timer.unref();
+      })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+};
+
+/**
+ * Await one stream event with bounded timeout.
+ *
+ * @param {import('node:events').EventEmitter} stream
+ * @param {string} event
+ * @param {{timeoutMs?:number|null,label?:string|null}} [options]
+ * @returns {Promise<void>}
+ */
+export const waitForStreamEvent = async (stream, event, options = {}) => {
+  const timeoutMs = resolveJsonStreamWaitTimeoutMs(
+    options?.timeoutMs ?? stream?.[JSON_STREAM_WAIT_TIMEOUT_SYMBOL]
+  );
+  await waitForEventWithTimeout({
+    stream,
+    event,
+    timeoutMs,
+    label: typeof options?.label === 'string' && options.label.trim()
+      ? options.label.trim()
+      : `stream.${event}`
+  });
+};
+
 /**
  * Write one chunk while honoring writable backpressure.
  *
@@ -17,7 +85,7 @@ import { createAbortError } from './runtime.js';
  */
 export const writeChunk = async (stream, chunk) => {
   if (!stream.write(chunk)) {
-    await once(stream, 'drain');
+    await waitForStreamEvent(stream, 'drain', { label: 'writeChunk.drain' });
   }
 };
 
@@ -28,11 +96,15 @@ export const writeChunk = async (stream, chunk) => {
  * @param {boolean} [requireClose]
  * @returns {Promise<void>}
  */
-const waitForFinish = (stream, requireClose = false) => new Promise((resolve, reject) => {
-  stream.on('error', reject);
+const waitForFinish = async (stream, requireClose = false, timeoutMs = 0, label = null) => {
   const event = requireClose ? 'close' : 'finish';
-  stream.on(event, resolve);
-});
+  await waitForEventWithTimeout({
+    stream,
+    event,
+    timeoutMs,
+    label: label || (requireClose ? 'stream.close' : 'stream.finish')
+  });
+};
 
 /**
  * Await stream close, swallowing close-race errors.
@@ -40,10 +112,15 @@ const waitForFinish = (stream, requireClose = false) => new Promise((resolve, re
  * @param {import('node:stream').Writable|null} stream
  * @returns {Promise<void>}
  */
-const waitForClose = (stream) => {
+const waitForClose = (stream, timeoutMs = 0) => {
   if (!stream) return Promise.resolve();
   if (stream.closed) return Promise.resolve();
-  return once(stream, 'close').then(() => {}).catch(() => {});
+  return waitForEventWithTimeout({
+    stream,
+    event: 'close',
+    timeoutMs,
+    label: 'stream.close'
+  }).catch(() => {});
 };
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -281,8 +358,10 @@ export const createJsonWriteStream = (filePath, options = {}) => {
     signal = null,
     maxBytes = null,
     checksumAlgo = null,
-    preallocateBytes = null
+    preallocateBytes = null,
+    waitTimeoutMs = null
   } = options;
+  const resolvedWaitTimeoutMs = resolveJsonStreamWaitTimeoutMs(waitTimeoutMs);
   const highWaterMark = normalizeHighWaterMark(options.highWaterMark);
   const resolvedPreallocateBytes = compression
     ? 0
@@ -321,7 +400,7 @@ export const createJsonWriteStream = (filePath, options = {}) => {
   const detachAbort = attachAbortHandler();
   const removeTempFile = async () => {
     if (!atomic) return;
-    await waitForClose(fileStream);
+    await waitForClose(fileStream, resolvedWaitTimeoutMs);
     await removePathWithRetry(targetPath, { recursive: false });
     // Last guard: if the specific temp path still exists, keep retrying a bit
     // before letting callers observe stale ".tmp-" files.
@@ -357,6 +436,7 @@ export const createJsonWriteStream = (filePath, options = {}) => {
   if (compression === 'gzip') {
     const gzip = createFflateGzipStream(options);
     writer = gzip;
+    writer[JSON_STREAM_WAIT_TIMEOUT_SYMBOL] = resolvedWaitTimeoutMs;
     gzip.pipe(counter).pipe(fileStream);
     streams.push(gzip, counter, fileStream);
     attachPipelineErrorHandlers();
@@ -366,7 +446,7 @@ export const createJsonWriteStream = (filePath, options = {}) => {
       checksumAlgo: resolvedChecksumAlgo,
       getChecksum,
       done: Promise.all([...new Set(streams)].map((entry) => (
-        waitForFinish(entry, entry === fileStream)
+        waitForFinish(entry, entry === fileStream, resolvedWaitTimeoutMs, `json-stream.${entry === fileStream ? 'close' : 'finish'}`)
       )))
         .then(async () => {
           if (isOverLimit()) {
@@ -395,6 +475,7 @@ export const createJsonWriteStream = (filePath, options = {}) => {
   if (compression === 'zstd') {
     const zstd = createZstdStream(options);
     writer = zstd;
+    writer[JSON_STREAM_WAIT_TIMEOUT_SYMBOL] = resolvedWaitTimeoutMs;
     zstd.pipe(counter).pipe(fileStream);
     streams.push(zstd, counter, fileStream);
     attachPipelineErrorHandlers();
@@ -404,7 +485,7 @@ export const createJsonWriteStream = (filePath, options = {}) => {
       checksumAlgo: resolvedChecksumAlgo,
       getChecksum,
       done: Promise.all([...new Set(streams)].map((entry) => (
-        waitForFinish(entry, entry === fileStream)
+        waitForFinish(entry, entry === fileStream, resolvedWaitTimeoutMs, `json-stream.${entry === fileStream ? 'close' : 'finish'}`)
       )))
         .then(async () => {
           if (isOverLimit()) {
@@ -431,6 +512,7 @@ export const createJsonWriteStream = (filePath, options = {}) => {
     };
   }
   writer = counter;
+  writer[JSON_STREAM_WAIT_TIMEOUT_SYMBOL] = resolvedWaitTimeoutMs;
   counter.pipe(fileStream);
   streams.push(counter, fileStream);
   attachPipelineErrorHandlers();
@@ -440,7 +522,7 @@ export const createJsonWriteStream = (filePath, options = {}) => {
     checksumAlgo: resolvedChecksumAlgo,
     getChecksum,
     done: Promise.all([...new Set(streams)].map((entry) => (
-      waitForFinish(entry, entry === fileStream)
+      waitForFinish(entry, entry === fileStream, resolvedWaitTimeoutMs, `json-stream.${entry === fileStream ? 'close' : 'finish'}`)
     )))
       .then(async () => {
         if (isOverLimit()) {

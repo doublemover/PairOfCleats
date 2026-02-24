@@ -10,6 +10,32 @@ export const isAbortError = (error) => {
   return error.name === 'AbortError' || error.code === 'ABORT_ERR';
 };
 
+export const isAbortSignal = (signal) => (
+  Boolean(signal)
+  && typeof signal.aborted === 'boolean'
+  && typeof signal.addEventListener === 'function'
+  && typeof signal.removeEventListener === 'function'
+);
+
+const INERT_ABORT_SIGNAL = Object.freeze({
+  aborted: false,
+  reason: undefined,
+  addEventListener: () => {},
+  removeEventListener: () => {},
+  dispatchEvent: () => false
+});
+
+let sharedNeverAbortController = null;
+
+export const coerceAbortSignal = (signal) => {
+  if (isAbortSignal(signal)) return signal;
+  if (typeof AbortController !== 'function') return INERT_ABORT_SIGNAL;
+  if (!sharedNeverAbortController) {
+    sharedNeverAbortController = new AbortController();
+  }
+  return sharedNeverAbortController.signal;
+};
+
 export const throwIfAborted = (signal, message) => {
   if (!signal || !signal.aborted) return;
   throw createAbortError(message);

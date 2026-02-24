@@ -1,7 +1,9 @@
+import { isAbortSignal } from '../abort.js';
+
 /**
  * Adapt a build scheduler queue to a PQueue-like interface used by runWithQueue.
  * @param {{scheduler:ReturnType<typeof createBuildScheduler>,queueName:string,tokens?:{cpu?:number,io?:number,mem?:number},maxPending?:number,maxPendingBytes?:number,maxInFlightBytes?:number,concurrency?:number}} input
- * @returns {{add:(fn:()=>Promise<any>,options?:{bytes?:number})=>Promise<any>,onIdle:()=>Promise<void>,clear:()=>void,maxPending?:number,maxPendingBytes?:number,maxInFlightBytes?:number,concurrency?:number}}
+ * @returns {{add:(fn:()=>Promise<any>,options?:{bytes?:number,signal?:AbortSignal|null})=>Promise<any>,onIdle:()=>Promise<void>,clear:()=>void,maxPending?:number,maxPendingBytes?:number,maxInFlightBytes?:number,concurrency?:number}}
  */
 export function createSchedulerQueueAdapter({
   scheduler,
@@ -40,9 +42,13 @@ export function createSchedulerQueueAdapter({
   const add = (fn, options = {}) => {
     const bytesRaw = Number(options?.bytes);
     const bytes = Number.isFinite(bytesRaw) && bytesRaw > 0 ? Math.floor(bytesRaw) : 0;
-    const tokenRequest = bytes > 0
-      ? { ...(tokens || { cpu: 1 }), bytes }
-      : (tokens || { cpu: 1 });
+    const signal = isAbortSignal(options?.signal) ? options.signal : null;
+    const baseTokens = { ...(tokens || { cpu: 1 }) };
+    const tokenRequest = {
+      ...baseTokens,
+      ...(bytes > 0 ? { bytes } : {}),
+      ...(signal ? { signal } : {})
+    };
     const task = scheduler.schedule(queueName, tokenRequest, fn);
     pending.add(task);
     task.finally(() => {

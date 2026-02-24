@@ -22,6 +22,7 @@ import {
 } from '../../shared/metrics.js';
 import { fileExt, isRelativePathEscape, toPosix } from '../../shared/files.js';
 import { runWithConcurrency, runWithQueue } from '../../shared/concurrency.js';
+import { coerceAbortSignal } from '../../shared/abort.js';
 import { createDebouncedScheduler } from '../../shared/scheduler/debounce.js';
 import { getLanguageForFile } from '../language-registry.js';
 import { createRecordsClassifier, shouldSniffRecordContent } from './records.js';
@@ -82,6 +83,7 @@ export async function watchIndex({
     argv: { ...(runtime?.argv || {}), incremental: true },
     incrementalEnabled: true
   };
+  const taskAbortSignal = coerceAbortSignal(abortSignal);
   const root = runtimeRef.root;
   const canonicalRoot = toRealPathSync(root);
   const recordsRoot = resolveRecordsRoot(root, runtimeRef.recordsDir);
@@ -194,7 +196,9 @@ export async function watchIndex({
         : 8;
       await runWithConcurrency(absPaths, fallbackConcurrency, async (absPath) => handleUpdate(absPath), {
         collectResults: false,
-        signal: abortSignal
+        signal: taskAbortSignal,
+        requireSignal: true,
+        signalLabel: 'build.watch.runWithConcurrency'
       });
       return;
     }
@@ -205,7 +209,9 @@ export async function watchIndex({
       {
         collectResults: false,
         bestEffort: true,
-        signal: abortSignal,
+        signal: taskAbortSignal,
+        requireSignal: true,
+        signalLabel: 'build.watch.runWithQueue',
         onError: (err, ctx) => {
           log(`[watch] Update failed for ${ctx?.item || 'file'}: ${err?.message || err}`);
         }

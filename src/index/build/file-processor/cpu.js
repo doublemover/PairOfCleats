@@ -938,6 +938,7 @@ export const processFileCpu = async (context) => {
     getChunkEmbeddings,
     runEmbedding,
     runProc,
+    signal,
     workerPool,
     workerDictOverride,
     workerState,

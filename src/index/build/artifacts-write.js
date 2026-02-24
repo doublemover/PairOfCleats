@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { coerceAbortSignal } from '../../shared/abort.js';
 import { log, logLine, showProgress } from '../../shared/progress.js';
 import { MAX_JSON_BYTES, readJsonFile, loadJsonArrayArtifact } from '../../shared/artifact-io.js';
 import { resolveArtifactCompressionTier } from '../../shared/artifact-io/compression.js';
@@ -201,6 +202,7 @@ const buildBoilerplateCatalog = (chunks) => {
 export async function writeIndexArtifacts(input) {
   const {
     scheduler = null,
+    abortSignal = null,
     outDir,
     buildRoot,
     mode,
@@ -224,6 +226,7 @@ export async function writeIndexArtifacts(input) {
     repoProvenance = null,
     tinyRepoFastPath = null
   } = input;
+  const effectiveAbortSignal = coerceAbortSignal(abortSignal);
   const orderingStage = indexState?.stage || 'stage2';
   /**
    * Persist deterministic ordering hash metadata for one artifact.
@@ -865,7 +868,11 @@ export async function writeIndexArtifacts(input) {
     }
   };
   if (vectorOnlyProfile) {
-    await cleanupVectorOnlySparseArtifacts({ outDir, removeArtifact });
+    await cleanupVectorOnlySparseArtifacts({
+      outDir,
+      removeArtifact,
+      abortSignal: effectiveAbortSignal
+    });
   } else {
     if (tokenPostingsFormat === 'packed') {
       await Promise.all([
@@ -1279,8 +1286,12 @@ export async function writeIndexArtifacts(input) {
         massiveWriteMemTokens,
         resolveArtifactWriteMemTokens
       });
+      const schedulerTokens = {
+        ...tokens,
+        signal: effectiveAbortSignal
+      };
       prefetched = scheduler?.schedule
-        ? scheduler.schedule(SCHEDULER_QUEUE_NAMES.stage2Write, tokens, job)
+        ? scheduler.schedule(SCHEDULER_QUEUE_NAMES.stage2Write, schedulerTokens, job)
         : job();
       Promise.resolve(prefetched).catch(() => {});
     }
@@ -2458,12 +2469,23 @@ export async function writeIndexArtifacts(input) {
   const scheduleRelations = scheduler?.schedule
     ? (fn) => scheduler.schedule(
       SCHEDULER_QUEUE_NAMES.stage2Relations,
-      { cpu: 1, mem: 1 },
+      {
+        cpu: 1,
+        mem: 1,
+        signal: effectiveAbortSignal
+      },
       fn
     )
     : (fn) => fn();
   const scheduleRelationsIo = scheduler?.schedule
-    ? (fn) => scheduler.schedule(SCHEDULER_QUEUE_NAMES.stage2RelationsIo, { io: 1 }, fn)
+    ? (fn) => scheduler.schedule(
+      SCHEDULER_QUEUE_NAMES.stage2RelationsIo,
+      {
+        io: 1,
+        signal: effectiveAbortSignal
+      },
+      fn
+    )
     : (fn) => fn();
   const graphRelationsOrdering = await scheduleRelations(() => enqueueGraphRelationsArtifacts({
     graphRelations,
@@ -2839,9 +2861,13 @@ export async function writeIndexArtifacts(input) {
      */
     const scheduleWriteJob = (fn, tokens) => {
       if (!scheduler?.schedule || typeof fn !== 'function') return fn();
+      const schedulerTokens = {
+        ...tokens,
+        signal: effectiveAbortSignal
+      };
       return scheduler.schedule(
         SCHEDULER_QUEUE_NAMES.stage2Write,
-        tokens,
+        schedulerTokens,
         fn
       );
     };
@@ -3206,7 +3232,8 @@ export async function writeIndexArtifacts(input) {
     pieceEntries,
     outDir,
     mode,
-    indexState
+    indexState,
+    abortSignal: effectiveAbortSignal
   });
   await writeIndexMetrics({
     root,

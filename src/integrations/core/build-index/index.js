@@ -8,7 +8,7 @@ import { log as defaultLog, logError as defaultLogError } from '../../../shared/
 import { observeIndexDuration } from '../../../shared/metrics.js';
 import { buildAutoPolicy } from '../../../shared/auto-policy.js';
 import { resolveRuntimeEnvelope, resolveRuntimeEnv } from '../../../shared/runtime-envelope.js';
-import { isAbortError, throwIfAborted } from '../../../shared/abort.js';
+import { coerceAbortSignal, isAbortError, throwIfAborted } from '../../../shared/abort.js';
 import { spawnSubprocess } from '../../../shared/subprocess.js';
 import { resolveEmbeddingRuntime } from '../embeddings.js';
 import { buildRawArgs, buildStage2Args, normalizeStage } from '../args.js';
@@ -74,7 +74,7 @@ export async function buildIndex(repoRoot, options = {}) {
   const log = typeof options.log === 'function' ? options.log : defaultLog;
   const logError = typeof options.logError === 'function' ? options.logError : defaultLogError;
   const warn = typeof options.warn === 'function' ? options.warn : ((message) => log(`[warn] ${message}`));
-  const abortSignal = options.abortSignal || null;
+  const abortSignal = coerceAbortSignal(options.abortSignal || null);
   const sqliteLogger = { log, warn, error: logError };
   const metricsMode = mode || 'all';
   const recordIndexMetric = (stage, status, start) => {

@@ -9,7 +9,7 @@ import { initBuildState, markBuildPhase, startBuildHeartbeat, updateBuildState }
 import { promoteBuild } from '../../../index/build/promotion.js';
 import { validateIndexArtifacts } from '../../../index/validate.js';
 import { logError as defaultLogError, logLine, showProgress } from '../../../shared/progress.js';
-import { isAbortError, throwIfAborted } from '../../../shared/abort.js';
+import { coerceAbortSignal, isAbortError, throwIfAborted } from '../../../shared/abort.js';
 import { getEnvConfig, isTestingEnv } from '../../../shared/env.js';
 import { SCHEDULER_QUEUE_NAMES } from '../../../index/build/runtime/scheduler.js';
 import { createFeatureMetrics, writeFeatureMetrics } from '../../../index/build/feature-metrics.js';
@@ -117,6 +117,7 @@ export const runEmbeddingsStage = async ({
   recordIndexMetric,
   buildEmbeddingsPath
 }) => {
+  const effectiveAbortSignal = coerceAbortSignal(abortSignal);
   const started = process.hrtime.bigint();
   const fileProgressPattern = /^\[embeddings\]\s+([^:]+):\s+processed\s+(\d+)\/(\d+)\s+files\b/;
   const recordOk = (result) => {
@@ -124,7 +125,7 @@ export const runEmbeddingsStage = async ({
     return result;
   };
   try {
-    throwIfAborted(abortSignal);
+    throwIfAborted(effectiveAbortSignal);
     if (!embeddingRuntime.embeddingEnabled) {
       log('Embeddings disabled; skipping stage3.');
       return recordOk({ modes: embedModes, embeddings: { skipped: true }, repo: root, stage: 'stage3' });
@@ -149,7 +150,7 @@ export const runEmbeddingsStage = async ({
     };
     const lock = await acquireBuildIndexLock({ repoCacheRoot, log });
     try {
-      throwIfAborted(abortSignal);
+      throwIfAborted(effectiveAbortSignal);
       const embedTotal = embedModes.length;
       let embedIndex = 0;
       const advanceEmbeddingsProgress = (modeName) => {
@@ -179,7 +180,7 @@ export const runEmbeddingsStage = async ({
         await ensureQueueDir(queueDir);
         const jobs = [];
         for (const modeItem of embedModes) {
-          throwIfAborted(abortSignal);
+          throwIfAborted(effectiveAbortSignal);
           const modeIndexRoot = resolveModeIndexRoot(modeItem);
           const modeIndexDir = modeIndexRoot
             ? getIndexDir(root, modeItem, userConfig, { indexRoot: modeIndexRoot })
@@ -221,7 +222,7 @@ export const runEmbeddingsStage = async ({
         }
         const embedResult = await runEmbeddingsTool(args, {
           baseEnv: runtimeEnv,
-          signal: abortSignal,
+          signal: effectiveAbortSignal,
           onLine: (line) => {
             if (line.includes('lance::dataset::write::insert')
               || line.includes('No existing dataset at')) {
@@ -283,7 +284,7 @@ export const runEmbeddingsStage = async ({
       });
 
       if (canBatchAllModes) {
-        throwIfAborted(abortSignal);
+        throwIfAborted(effectiveAbortSignal);
         const embedResult = await runInlineEmbeddings({
           modeArg: 'all',
           indexRootArg: batchedRoot,
@@ -295,7 +296,7 @@ export const runEmbeddingsStage = async ({
         }
       } else {
         for (const modeItem of embedModes) {
-          throwIfAborted(abortSignal);
+          throwIfAborted(effectiveAbortSignal);
           const modeIndexRoot = resolveModeIndexRoot(modeItem);
           const embedResult = await runInlineEmbeddings({
             modeArg: modeItem,
@@ -392,6 +393,7 @@ export const runSqliteStage = async ({
   options,
   sqliteLogger
 }) => {
+  const effectiveAbortSignal = coerceAbortSignal(abortSignal);
   const started = process.hrtime.bigint();
   const recordOk = (result) => {
     recordIndexMetric('stage4', 'ok', started);
@@ -399,7 +401,7 @@ export const runSqliteStage = async ({
   };
   let runtime = null;
   try {
-    throwIfAborted(abortSignal);
+    throwIfAborted(effectiveAbortSignal);
     if (!shouldBuildSqlite) {
       log('SQLite disabled; skipping stage4.');
       return recordOk({ modes: sqliteModes, sqlite: { skipped: true }, repo: root, stage: 'stage4' });
@@ -424,7 +426,15 @@ export const runSqliteStage = async ({
       indexRoot: runtimeIndexRoot
     });
     const scheduleSqlite = (fn) => (runtime?.scheduler?.schedule
-      ? runtime.scheduler.schedule(SCHEDULER_QUEUE_NAMES.stage4Sqlite, { cpu: 1, io: 1 }, fn)
+      ? runtime.scheduler.schedule(
+        SCHEDULER_QUEUE_NAMES.stage4Sqlite,
+        {
+          cpu: 1,
+          io: 1,
+          signal: effectiveAbortSignal
+        },
+        fn
+      )
       : fn());
     const resolveSqliteDirs = createSqliteDirResolver({ root, userConfig, getIndexDir });
     let lock = null;
@@ -438,7 +448,7 @@ export const runSqliteStage = async ({
       let sqliteResult = null;
       const sqliteModeList = resolveSqliteModeList(sqliteModes);
       for (const mode of sqliteModeList) {
-        throwIfAborted(abortSignal);
+        throwIfAborted(effectiveAbortSignal);
         const indexRoot = explicitIndexRoot
           || buildInfo?.buildRoots?.[mode]
           || buildInfo?.buildRoot
@@ -582,13 +592,14 @@ export const runStage = async (
     explicitStage,
     twoStageEnabled
   } = context;
+  const effectiveAbortSignal = coerceAbortSignal(abortSignal);
   const started = process.hrtime.bigint();
   const stageArgv = stage ? { ...argv, stage } : argv;
   let phaseStage = stage || 'stage2';
   let runtime = null;
   let result = null;
   try {
-    throwIfAborted(abortSignal);
+    throwIfAborted(effectiveAbortSignal);
     runtime = await createBuildRuntime({ root, argv: stageArgv, rawArgv, policy });
     phaseStage = runtime.stage || phaseStage;
     runtime.featureMetrics = createFeatureMetrics({
@@ -622,7 +633,7 @@ export const runStage = async (
       ? startBuildHeartbeat(runtime.buildRoot, phaseStage)
       : () => {};
     try {
-      throwIfAborted(abortSignal);
+      throwIfAborted(effectiveAbortSignal);
       await initBuildState({
         buildRoot: runtime.buildRoot,
         buildId: runtime.buildId,
@@ -648,7 +659,7 @@ export const runStage = async (
       const preprocessModes = filterPrimaryIndexModes(modes);
       if (preprocessModes.length) {
         await markBuildPhase(runtime.buildRoot, 'preprocessing', 'running');
-        throwIfAborted(abortSignal);
+        throwIfAborted(effectiveAbortSignal);
         const preprocess = await preprocessFiles({
           root: runtime.root,
           modes: preprocessModes,
@@ -668,9 +679,9 @@ export const runStage = async (
           lineCounts: true,
           concurrency: runtime.ioConcurrency,
           log,
-          abortSignal
+          abortSignal: effectiveAbortSignal
         });
-        throwIfAborted(abortSignal);
+        throwIfAborted(effectiveAbortSignal);
         await writePreprocessStats(runtime.repoCacheRoot, preprocess.stats);
         await markBuildPhase(runtime.buildRoot, 'preprocessing', 'done');
         sharedDiscovery = {};
@@ -700,9 +711,14 @@ export const runStage = async (
           log('[stage2] fused prose/extracted-prose mode group active.');
         }
         for (const modeItem of group.modes) {
-          throwIfAborted(abortSignal);
+          throwIfAborted(effectiveAbortSignal);
           const discovery = sharedDiscovery ? sharedDiscovery[modeItem] : null;
-          await buildIndexForMode({ mode: modeItem, runtime, discovery, abortSignal });
+          await buildIndexForMode({
+            mode: modeItem,
+            runtime,
+            discovery,
+            abortSignal: effectiveAbortSignal
+          });
           if (phaseStage === 'stage2' && typeof onStage2ModeCompleted === 'function') {
             const callbackResult = await Promise.resolve(onStage2ModeCompleted({
               mode: modeItem,
@@ -730,9 +746,17 @@ export const runStage = async (
         && (typeof stageArgv.sqlite === 'boolean' ? stageArgv.sqlite : sqliteConfigured);
       const sqliteEnabledForValidation = shouldBuildSqlite && sqliteModes.length > 0;
       if (shouldBuildSqlite && sqliteModes.length) {
-        throwIfAborted(abortSignal);
+        throwIfAborted(effectiveAbortSignal);
         const scheduleSqlite = (fn) => (runtime?.scheduler?.schedule
-          ? runtime.scheduler.schedule(SCHEDULER_QUEUE_NAMES.stage4Sqlite, { cpu: 1, io: 1 }, fn)
+          ? runtime.scheduler.schedule(
+            SCHEDULER_QUEUE_NAMES.stage4Sqlite,
+            {
+              cpu: 1,
+              io: 1,
+              signal: effectiveAbortSignal
+            },
+            fn
+          )
           : fn());
         const resolveSqliteDirs = createSqliteDirResolver({
           root,
@@ -742,7 +766,7 @@ export const runStage = async (
         const sqliteDirs = resolveSqliteDirs(runtime.buildRoot);
         const sqliteModeList = resolveSqliteModeList(sqliteModes);
         for (const mode of sqliteModeList) {
-          throwIfAborted(abortSignal);
+          throwIfAborted(effectiveAbortSignal);
           sqliteResult = await scheduleSqlite(() => buildSqliteIndex(root, {
             mode,
             incremental: stageArgv.incremental === true,
@@ -762,7 +786,7 @@ export const runStage = async (
       }
       await markBuildPhase(runtime.buildRoot, 'validation', 'running');
       validationRunning = true;
-      throwIfAborted(abortSignal);
+      throwIfAborted(effectiveAbortSignal);
       const validation = await validateIndexArtifacts({
         root: runtime.root,
         indexRoot: runtime.buildRoot,
@@ -801,11 +825,11 @@ export const runStage = async (
       }
       await markBuildPhase(runtime.buildRoot, 'validation', 'done');
       validationDone = true;
-      throwIfAborted(abortSignal);
+      throwIfAborted(effectiveAbortSignal);
       lock = await acquireBuildIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log });
       await markBuildPhase(runtime.buildRoot, 'promote', 'running');
       promoteRunning = true;
-      throwIfAborted(abortSignal);
+      throwIfAborted(effectiveAbortSignal);
       await promoteBuild({
         repoRoot: runtime.root,
         userConfig: runtime.userConfig,

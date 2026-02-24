@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises';
-import { throwIfAborted } from '../../../../shared/abort.js';
+import { coerceAbortSignal, throwIfAborted } from '../../../../shared/abort.js';
 import { runWithConcurrency } from '../../../../shared/concurrency.js';
 
 const INDEX_LOAD_RETRY_ATTEMPTS = 8;
@@ -83,9 +83,10 @@ const parseIndexRows = (text, indexPath) => {
  * @returns {Promise<Map<string, object>>}
  */
 const readIndexRowsWithRetry = async ({ indexPath, abortSignal = null }) => {
+  const effectiveAbortSignal = coerceAbortSignal(abortSignal);
   let lastError = null;
   for (let attempt = 0; attempt < INDEX_LOAD_RETRY_ATTEMPTS; attempt += 1) {
-    throwIfAborted(abortSignal);
+    throwIfAborted(effectiveAbortSignal);
     try {
       const text = await fs.readFile(indexPath, 'utf8');
       return parseIndexRows(text, indexPath);
@@ -108,23 +109,28 @@ const readIndexRowsWithRetry = async ({ indexPath, abortSignal = null }) => {
  * @returns {Promise<Map<string, object>>}
  */
 export const loadIndexEntries = async ({ grammarKeys, paths, abortSignal = null }) => {
-  throwIfAborted(abortSignal);
+  const effectiveAbortSignal = coerceAbortSignal(abortSignal);
+  throwIfAborted(effectiveAbortSignal);
   const index = new Map();
   const keys = Array.isArray(grammarKeys) ? grammarKeys : [];
   const rowMaps = await runWithConcurrency(
     keys,
     Math.max(1, Math.min(8, keys.length || 1)),
     async (grammarKey) => {
-      throwIfAborted(abortSignal);
+      throwIfAborted(effectiveAbortSignal);
       const indexPath = paths.resultsIndexPathForGrammarKey(grammarKey);
-      return readIndexRowsWithRetry({ indexPath, abortSignal });
+      return readIndexRowsWithRetry({ indexPath, abortSignal: effectiveAbortSignal });
     },
-    { signal: abortSignal }
+    {
+      signal: effectiveAbortSignal,
+      requireSignal: true,
+      signalLabel: 'build.tree-sitter.index-loader.runWithConcurrency'
+    }
   );
   for (const rows of rowMaps || []) {
     if (!(rows instanceof Map)) continue;
     for (const [virtualPath, row] of rows.entries()) {
-      throwIfAborted(abortSignal);
+      throwIfAborted(effectiveAbortSignal);
       index.set(virtualPath, row);
     }
   }

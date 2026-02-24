@@ -4,7 +4,7 @@ import { getLanguageForFile } from '../language-registry.js';
 import { countLinesForEntries } from '../../shared/file-stats.js';
 import { isRelativePathEscape, toPosix } from '../../shared/files.js';
 import { runWithConcurrency } from '../../shared/concurrency.js';
-import { throwIfAborted } from '../../shared/abort.js';
+import { coerceAbortSignal, throwIfAborted } from '../../shared/abort.js';
 import { createFileScanner, readFileSample } from './file-scan.js';
 import { discoverEntries } from './discover.js';
 import { createRecordsClassifier, shouldSniffRecordContent } from './records.js';
@@ -117,7 +117,8 @@ export async function preprocessFiles({
   log = null,
   abortSignal = null
 }) {
-  throwIfAborted(abortSignal);
+  const effectiveAbortSignal = coerceAbortSignal(abortSignal);
+  throwIfAborted(effectiveAbortSignal);
   const effectiveGeneratedPolicy = generatedPolicy && typeof generatedPolicy === 'object'
     ? generatedPolicy
     : buildGeneratedPolicyConfig({});
@@ -135,7 +136,7 @@ export async function preprocessFiles({
     fileCaps,
     maxDepth,
     maxFiles,
-    abortSignal
+    abortSignal: effectiveAbortSignal
   });
   const fileScanner = createFileScanner(fileScan);
   const recordsClassifier = createRecordsClassifier({ root, config: recordsConfig });
@@ -145,7 +146,7 @@ export async function preprocessFiles({
     entries,
     Math.max(1, Math.floor(concurrency)),
     async (entry) => {
-      throwIfAborted(abortSignal);
+      throwIfAborted(effectiveAbortSignal);
       if (!entry) return;
       const scanResult = await fileScanner.scanFile({
         absPath: entry.abs,
@@ -253,7 +254,12 @@ export async function preprocessFiles({
         });
       }
     },
-    { collectResults: false, signal: abortSignal }
+    {
+      collectResults: false,
+      signal: effectiveAbortSignal,
+      requireSignal: true,
+      signalLabel: 'build.preprocess.runWithConcurrency'
+    }
   );
   if (scanSkips.length) skippedCommon.push(...scanSkips);
 
@@ -264,11 +270,11 @@ export async function preprocessFiles({
       || isSupportedEntry(entry, 'records', { documentExtractionEnabled })));
   let lineCountMap = new Map();
   if (needsLines && supportedEntries.length) {
-    throwIfAborted(abortSignal);
+    throwIfAborted(effectiveAbortSignal);
     lineCountMap = await countLinesForEntries(supportedEntries, {
       concurrency: Math.max(1, Math.floor(concurrency))
     });
-    throwIfAborted(abortSignal);
+    throwIfAborted(effectiveAbortSignal);
     for (const entry of supportedEntries) {
       const lines = lineCountMap.get(toPosix(entry.rel || ''));
       if (Number.isFinite(lines)) entry.lines = lines;

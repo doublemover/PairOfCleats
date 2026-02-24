@@ -3,7 +3,7 @@ import { compareStrings } from '../../../../shared/sort.js';
 import { sha1 } from '../../../../shared/hash.js';
 import { stableStringifyForSignature } from '../../../../shared/stable-json.js';
 import { discoverFiles } from '../../discover.js';
-import { throwIfAborted } from '../../../../shared/abort.js';
+import { coerceAbortSignal, throwIfAborted } from '../../../../shared/abort.js';
 
 const MODE_LABEL_WIDTH = 'Extracted Prose'.length;
 
@@ -31,7 +31,8 @@ export const runDiscovery = async ({
   stageNumber = 1,
   abortSignal = null
 }) => {
-  throwIfAborted(abortSignal);
+  const effectiveAbortSignal = coerceAbortSignal(abortSignal);
+  throwIfAborted(effectiveAbortSignal);
   if (discovery && Array.isArray(discovery.skippedFiles) && state?.skippedFiles) {
     for (const file of discovery.skippedFiles) {
       state.skippedFiles.push(file);
@@ -46,26 +47,29 @@ export const runDiscovery = async ({
     entries = discovery.entries.slice();
     log('→ Reusing shared discovery results.');
   } else {
-    entries = await runtime.queues.io.add(() => discoverFiles({
-      root: runtime.root,
-      mode,
-      documentExtractionConfig: runtime.indexingConfig?.documentExtraction || null,
-      recordsDir: runtime.recordsDir,
-      recordsConfig: runtime.recordsConfig,
-      scmProvider: runtime.scmProvider,
-      scmProviderImpl: runtime.scmProviderImpl,
-      scmRepoRoot: runtime.scmRepoRoot,
-      ignoreMatcher: runtime.ignoreMatcher,
-      generatedPolicy: runtime.generatedPolicy,
-      skippedFiles: state?.skippedFiles || [],
-      maxFileBytes: runtime.maxFileBytes,
-      fileCaps: runtime.fileCaps,
-      maxDepth: runtime.guardrails?.maxDepth ?? null,
-      maxFiles: runtime.guardrails?.maxFiles ?? null,
-      abortSignal
-    }));
+    entries = await runtime.queues.io.add(
+      () => discoverFiles({
+        root: runtime.root,
+        mode,
+        documentExtractionConfig: runtime.indexingConfig?.documentExtraction || null,
+        recordsDir: runtime.recordsDir,
+        recordsConfig: runtime.recordsConfig,
+        scmProvider: runtime.scmProvider,
+        scmProviderImpl: runtime.scmProviderImpl,
+        scmRepoRoot: runtime.scmRepoRoot,
+        ignoreMatcher: runtime.ignoreMatcher,
+        generatedPolicy: runtime.generatedPolicy,
+        skippedFiles: state?.skippedFiles || [],
+        maxFileBytes: runtime.maxFileBytes,
+        fileCaps: runtime.fileCaps,
+        maxDepth: runtime.guardrails?.maxDepth ?? null,
+        maxFiles: runtime.guardrails?.maxFiles ?? null,
+        abortSignal: effectiveAbortSignal
+      }),
+      { signal: effectiveAbortSignal }
+    );
   }
-  throwIfAborted(abortSignal);
+  throwIfAborted(effectiveAbortSignal);
   entries.sort((a, b) => compareStrings(a.rel, b.rel));
   entries = entries.map((entry, index) => ({
     ...entry,

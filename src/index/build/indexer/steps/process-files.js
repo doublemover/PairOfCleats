@@ -10,7 +10,7 @@ import { countLinesForEntries } from '../../../../shared/file-stats.js';
 import { log, logLine, showProgress } from '../../../../shared/progress.js';
 import { createTimeoutError, runWithTimeout } from '../../../../shared/promise-timeout.js';
 import { coerceNonNegativeInt, coercePositiveInt } from '../../../../shared/number-coerce.js';
-import { throwIfAborted } from '../../../../shared/abort.js';
+import { coerceAbortSignal, throwIfAborted } from '../../../../shared/abort.js';
 import { compareStrings } from '../../../../shared/sort.js';
 import {
   snapshotTrackedSubprocesses,
@@ -2008,7 +2008,17 @@ export const processFiles = async ({
     // Avoid deadlocking the scheduler when Stage1 CPU work is already holding
     // the only CPU token (e.g. --threads 1). Postings apply runs on the same
     // JS thread, so account it against memory/backpressure only.
-      ? (fn) => runtime.scheduler.schedule(SCHEDULER_QUEUE_NAMES.stage1Postings, { mem: 1 }, fn)
+      ? (fn, signal = effectiveAbortSignal) => {
+        const schedulerSignal = coerceAbortSignal(signal);
+        return runtime.scheduler.schedule(
+          SCHEDULER_QUEUE_NAMES.stage1Postings,
+          {
+            mem: 1,
+            signal: schedulerSignal
+          },
+          fn
+        );
+      }
       : (fn) => fn();
     let checkpoint = null;
     let progress = null;
@@ -2198,7 +2208,7 @@ export const processFiles = async ({
         throwIfAborted(signal);
         await applyFileResult(result, stateRef, shardMeta, { signal });
         throwIfAborted(signal);
-      })
+      }, signal)
     });
     const orderedFlushTimeoutMs = resolveOrderedFlushTimeoutMs({ runtime });
     const orderedAppender = buildOrderedAppender(
@@ -3242,7 +3252,10 @@ export const processFiles = async ({
                 await orderedAppender.skip(orderIndex);
               },
               retries: 2,
-              retryDelayMs: 200
+              retryDelayMs: 200,
+              signal: effectiveAbortSignal,
+              requireSignal: true,
+              signalLabel: 'build.stage1.process-files.runWithQueue'
             }
           );
           await runWithTimeout(

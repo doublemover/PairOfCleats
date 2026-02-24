@@ -1,9 +1,10 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { throwIfAborted } from '../../../shared/abort.js';
+import { coerceAbortSignal, throwIfAborted } from '../../../shared/abort.js';
 import { runWithConcurrency } from '../../../shared/concurrency.js';
 import { resolveRuntimeEnv } from '../../../shared/runtime-envelope.js';
 import { spawnSubprocess } from '../../../shared/subprocess.js';
+import { runBuildCleanupWithTimeout } from '../cleanup-timeout.js';
 import { buildTreeSitterSchedulerPlan } from './plan.js';
 import { createTreeSitterSchedulerLookup } from './lookup.js';
 import {
@@ -49,7 +50,8 @@ export const runTreeSitterScheduler = async ({
   log = null,
   crashLogger = null
 }) => {
-  throwIfAborted(abortSignal);
+  const effectiveAbortSignal = coerceAbortSignal(abortSignal);
+  throwIfAborted(effectiveAbortSignal);
   const schedulerConfig = runtime?.languageOptions?.treeSitter?.scheduler || {};
   const requestedTransport = typeof schedulerConfig.transport === 'string'
     ? schedulerConfig.transport.trim().toLowerCase()
@@ -70,7 +72,7 @@ export const runTreeSitterScheduler = async ({
     entries,
     outDir,
     fileTextCache,
-    abortSignal,
+    abortSignal: effectiveAbortSignal,
     log
   });
   if (!planResult) return null;
@@ -123,7 +125,7 @@ export const runTreeSitterScheduler = async ({
       warmPoolTasks,
       execConcurrency,
       async (task, ctx) => {
-        throwIfAborted(abortSignal);
+        throwIfAborted(effectiveAbortSignal);
         const now = Date.now();
         if (lastTaskCompletedAt > 0) {
           const idleGapMs = Math.max(0, now - lastTaskCompletedAt);
@@ -174,7 +176,7 @@ export const runTreeSitterScheduler = async ({
               env: runtimeEnv,
               stdio: ['ignore', 'pipe', 'pipe'],
               shell: false,
-              signal: abortSignal,
+              signal: effectiveAbortSignal,
               timeoutMs: taskTimeoutMs,
               killTree: true,
               rejectOnNonZeroExit: true,
@@ -187,7 +189,7 @@ export const runTreeSitterScheduler = async ({
             adaptiveSamples.push(row);
           }
         } catch (err) {
-          if (abortSignal?.aborted) throw err;
+          if (effectiveAbortSignal?.aborted) throw err;
           const subprocessCrashEvents = parseSubprocessCrashEvents(err);
           const exitCode = Number(err?.result?.exitCode);
           const signal = typeof err?.result?.signal === 'string' ? err.result.signal : null;
@@ -233,9 +235,14 @@ export const runTreeSitterScheduler = async ({
           stderrBuffer?.flush();
           lastTaskCompletedAt = Date.now();
         }
-        throwIfAborted(abortSignal);
+        throwIfAborted(effectiveAbortSignal);
       },
-      { collectResults: false, signal: abortSignal }
+      {
+        collectResults: false,
+        signal: effectiveAbortSignal,
+        requireSignal: true,
+        signalLabel: 'build.tree-sitter.runner.runWithConcurrency'
+      }
     );
     if (adaptiveSamples.length) {
       const loaded = await loadTreeSitterSchedulerAdaptiveProfile({
@@ -250,9 +257,13 @@ export const runTreeSitterScheduler = async ({
         log
       });
     }
-    throwIfAborted(abortSignal);
+    throwIfAborted(effectiveAbortSignal);
   }
-  await crashTracker.waitForPersistence();
+  await runBuildCleanupWithTimeout({
+    label: `tree-sitter-scheduler.${mode}.crash-persistence`,
+    cleanup: () => crashTracker.waitForPersistence(),
+    log
+  });
   const crashSummary = crashTracker.summarize();
   const failedGrammarKeySet = new Set(crashSummary.failedGrammarKeys);
   const successfulGrammarKeys = grammarKeys.filter((grammarKey) => !failedGrammarKeySet.has(grammarKey));
@@ -266,11 +277,11 @@ export const runTreeSitterScheduler = async ({
     );
   }
 
-  throwIfAborted(abortSignal);
+  throwIfAborted(effectiveAbortSignal);
   const index = await loadIndexEntries({
     grammarKeys: successfulGrammarKeys,
     paths: planResult.paths,
-    abortSignal
+    abortSignal: effectiveAbortSignal
   });
   const lookupConfig = schedulerConfig?.lookup && typeof schedulerConfig.lookup === 'object'
     ? schedulerConfig.lookup

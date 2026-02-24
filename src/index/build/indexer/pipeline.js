@@ -5,7 +5,7 @@ import { buildRecordsIndexForRepo } from '../../../integrations/triage/index-rec
 import { createCacheReporter, createLruCache, estimateFileTextBytes } from '../../../shared/cache.js';
 import { getEnvConfig } from '../../../shared/env.js';
 import { log, showProgress } from '../../../shared/progress.js';
-import { throwIfAborted } from '../../../shared/abort.js';
+import { coerceAbortSignal, throwIfAborted } from '../../../shared/abort.js';
 import { coerceUnitFraction } from '../../../shared/number-coerce.js';
 import { createCrashLogger } from '../crash-log.js';
 import { recordOrderingSeedInputs, updateBuildState } from '../build-state.js';
@@ -175,9 +175,10 @@ export const sanitizeRuntimeSnapshotForCheckpoint = (snapshot) => {
  * @returns {Promise<void>}
  */
 export async function buildIndexForMode({ mode, runtime, discovery = null, abortSignal = null }) {
-  throwIfAborted(abortSignal);
+  const effectiveAbortSignal = coerceAbortSignal(abortSignal);
+  throwIfAborted(effectiveAbortSignal);
   if (mode === 'records') {
-    await buildRecordsIndexForRepo({ runtime, discovery, abortSignal });
+    await buildRecordsIndexForRepo({ runtime, discovery, abortSignal: effectiveAbortSignal });
     if (runtime?.overallProgress?.advance) {
       runtime.overallProgress.advance({ message: 'records' });
     }
@@ -645,7 +646,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       state,
       timing,
       stageNumber: stageIndex,
-      abortSignal
+      abortSignal: effectiveAbortSignal
     })
   });
   const allEntries = discoveryResult.value;
@@ -665,7 +666,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     fileListHash: state.fileListHash,
     fileCount: allEntries.length
   }, { stage: 'stage1', mode });
-  throwIfAborted(abortSignal);
+  throwIfAborted(effectiveAbortSignal);
   const {
     runtimeRef,
     tinyRepoFastPath,
@@ -771,7 +772,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     timing,
     incrementalState,
     fileTextByFile,
-    abortSignal
+    abortSignal: effectiveAbortSignal
   });
   recordStageCheckpoint({
     stage: 'stage1',
@@ -780,7 +781,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       imports: summarizeImportStats(importResult)
     }
   });
-  throwIfAborted(abortSignal);
+  throwIfAborted(effectiveAbortSignal);
 
   const shouldElideProcessingStage = shouldElideModalityProcessingStage({
     fileCount: allEntries.length,
@@ -839,10 +840,10 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       relationsEnabled,
       shardPerfProfile,
       fileTextCache,
-      abortSignal
+      abortSignal: effectiveAbortSignal
     });
   }
-  throwIfAborted(abortSignal);
+  throwIfAborted(effectiveAbortSignal);
   const { tokenizationStats, shardSummary, postingsQueueStats } = processResult;
   recordStageCheckpoint({
     stage: 'stage1',
@@ -930,7 +931,10 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   const runPostingsBuild = () => (runtimeRef.scheduler?.schedule
     ? runtimeRef.scheduler.schedule(
       SCHEDULER_QUEUE_NAMES.stage1Postings,
-      { cpu: 1 },
+      {
+        cpu: 1,
+        signal: effectiveAbortSignal
+      },
       () => buildIndexPostings({ runtime: runtimeRef, state, incrementalState })
     )
     : buildIndexPostings({ runtime: runtimeRef, state, incrementalState }));
@@ -947,7 +951,11 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     const relationsResult = await (runtimeRef.scheduler?.schedule
       ? runtimeRef.scheduler.schedule(
         SCHEDULER_QUEUE_NAMES.stage2Relations,
-        { cpu: 1, mem: 1 },
+        {
+          cpu: 1,
+          mem: 1,
+          signal: effectiveAbortSignal
+        },
         () => runCrossFileInference({
           runtime: runtimeRef,
           mode,
@@ -956,7 +964,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
           featureMetrics,
           relationsEnabled: importGraphEnabled,
           crossFileInferenceEnabled,
-          abortSignal
+          abortSignal: effectiveAbortSignal
         })
       )
       : runCrossFileInference({
@@ -967,14 +975,14 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
         featureMetrics,
         relationsEnabled: importGraphEnabled,
         crossFileInferenceEnabled,
-        abortSignal
+        abortSignal: effectiveAbortSignal
       }));
     crossFileEnabled = relationsResult?.crossFileEnabled === true;
     graphRelations = relationsResult?.graphRelations || null;
   } else if (tinyRepoFastPathActive) {
     log(`[tiny_repo] skipping relations stage for ${mode} (tiny-repo fast path).`);
   }
-  throwIfAborted(abortSignal);
+  throwIfAborted(effectiveAbortSignal);
   recordStageCheckpoint({
     stage: 'stage2',
     step: 'relations',
@@ -1006,7 +1014,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   log(`   → Indexed ${state.chunks.length} chunks, total tokens: ${state.totalTokens.toLocaleString()}`);
 
   advanceStage(INDEX_STAGE_PLAN[4]);
-  throwIfAborted(abortSignal);
+  throwIfAborted(effectiveAbortSignal);
   const postings = postingsPromise
     ? await postingsPromise
     : await runPostingsBuild();
@@ -1027,10 +1035,11 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   });
 
   advanceStage(INDEX_STAGE_PLAN[5]);
-  throwIfAborted(abortSignal);
+  throwIfAborted(effectiveAbortSignal);
   await writeIndexArtifactsForMode({
     runtime: runtimeRef,
     mode,
+    abortSignal: effectiveAbortSignal,
     outDir,
     state,
     postings,
@@ -1082,7 +1091,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       nextAction: 'Review indexing inputs or profile artifact bloat before release.'
     }));
   }
-  throwIfAborted(abortSignal);
+  throwIfAborted(effectiveAbortSignal);
   if (runtimeRef?.overallProgress?.advance) {
     const finalStage = INDEX_STAGE_PLAN[INDEX_STAGE_PLAN.length - 1];
     runtimeRef.overallProgress.advance({ message: `${mode} ${finalStage.label}` });
@@ -1094,7 +1103,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     buildId: runtimeRef.buildId,
     log
   });
-  await enqueueEmbeddingJob({ runtime: runtimeRef, mode, indexDir: outDir, abortSignal });
+  await enqueueEmbeddingJob({ runtime: runtimeRef, mode, indexDir: outDir, abortSignal: effectiveAbortSignal });
   crashLogger.updatePhase('done');
   cacheReporter.report();
   await runBuildCleanupWithTimeout({

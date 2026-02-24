@@ -1,5 +1,5 @@
 import os from 'node:os';
-import { createAbortError } from '../abort.js';
+import { createAbortError, isAbortSignal } from '../abort.js';
 import { coerceUnitFraction } from '../number-coerce.js';
 import { ADAPTIVE_SURFACE_KEYS, DEFAULT_ADAPTIVE_SURFACE_POLICY, DEFAULT_ADAPTIVE_SURFACE_QUEUE_MAP } from './adaptive-surfaces.js';
 import { createSchedulerTelemetryCapture } from './scheduler-core-telemetry-capture.js';
@@ -13,11 +13,29 @@ import {
 /**
  * Create a build scheduler that coordinates CPU/IO/memory tokens across queues.
  * This is intentionally generic and can be wired into Stage1/2/4 and embeddings.
- * @param {{enabled?:boolean,lowResourceMode?:boolean,cpuTokens?:number,ioTokens?:number,memoryTokens?:number,starvationMs?:number,maxInFlightBytes?:number,queues?:Record<string,{priority?:number,maxPending?:number,maxPendingBytes?:number,maxInFlightBytes?:number}>,traceMaxSamples?:number,queueDepthSnapshotMaxSamples?:number,traceIntervalMs?:number,queueDepthSnapshotIntervalMs?:number,queueDepthSnapshotsEnabled?:boolean,writeBackpressure?:{enabled?:boolean,writeQueue?:string,producerQueues?:string[],pendingThreshold?:number,pendingBytesThreshold?:number,oldestWaitMsThreshold?:number}}} input
+ * @param {{enabled?:boolean,lowResourceMode?:boolean,cpuTokens?:number,ioTokens?:number,memoryTokens?:number,starvationMs?:number,maxInFlightBytes?:number,queues?:Record<string,{priority?:number,maxPending?:number,maxPendingBytes?:number,maxInFlightBytes?:number}>,traceMaxSamples?:number,queueDepthSnapshotMaxSamples?:number,traceIntervalMs?:number,queueDepthSnapshotIntervalMs?:number,queueDepthSnapshotsEnabled?:boolean,writeBackpressure?:{enabled?:boolean,writeQueue?:string,producerQueues?:string[],pendingThreshold?:number,pendingBytesThreshold?:number,oldestWaitMsThreshold?:number},requireSignals?:boolean,requiredSignalQueues?:string[]}} input
  * @returns {{schedule:(queueName:string,tokens?:{cpu?:number,io?:number,mem?:number,bytes?:number,signal?:AbortSignal|null}|AbortSignal|null,fn?:()=>Promise<any>)=>Promise<any>,stats:()=>any,shutdown:()=>void,setLimits:(limits:{cpuTokens?:number,ioTokens?:number,memoryTokens?:number})=>void,setTelemetryOptions:(options:{stage?:string,queueDepthSnapshotsEnabled?:boolean,queueDepthSnapshotIntervalMs?:number,traceIntervalMs?:number})=>void}}
  */
 export function createBuildScheduler(input = {}) {
   const enabled = input.enabled !== false;
+  const requireSignals = input.requireSignals === true;
+  const requiredSignalQueues = new Set(
+    Array.isArray(input.requiredSignalQueues)
+      ? input.requiredSignalQueues
+        .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+        .filter(Boolean)
+      : []
+  );
+  const shouldRequireSignalForQueue = (queueName) => (
+    requireSignals && (requiredSignalQueues.size === 0 || requiredSignalQueues.has(queueName))
+  );
+  const createSignalRequiredError = (queueName) => {
+    const err = new Error(`scheduler queue ${queueName} requires an AbortSignal`);
+    err.code = 'SCHEDULER_SIGNAL_REQUIRED';
+    err.retryable = false;
+    err.meta = { queueName };
+    return err;
+  };
   const lowResourceMode = input.lowResourceMode === true;
   const starvationMs = Number.isFinite(Number(input.starvationMs))
     ? Math.max(0, Math.floor(Number(input.starvationMs)))
@@ -330,7 +348,8 @@ export function createBuildScheduler(input = {}) {
       maxPendingBytes: 0,
       shutdown: 0,
       cleared: 0,
-      abort: 0
+      abort: 0,
+      signalRequired: 0
     }
   };
   let globalInFlightBytes = 0;
@@ -367,7 +386,8 @@ export function createBuildScheduler(input = {}) {
         waitSampleCursor: 0,
         rejectedMaxPending: 0,
         rejectedMaxPendingBytes: 0,
-        rejectedAbort: 0
+        rejectedAbort: 0,
+        rejectedSignalRequired: 0
       }
     };
     queues.set(name, state);
@@ -1268,6 +1288,21 @@ export function createBuildScheduler(input = {}) {
     if (typeof fn !== 'function') {
       return Promise.reject(new Error('schedule requires a function'));
     }
+    const scheduleSignal = isAbortSignal(tokensReq)
+      ? tokensReq
+      : (isAbortSignal(tokensReq?.signal)
+        ? tokensReq.signal
+        : null);
+    if (shouldRequireSignalForQueue(queueName) && !scheduleSignal) {
+      const queue = ensureQueue(queueName);
+      queue.stats.rejected += 1;
+      queue.stats.rejectedSignalRequired += 1;
+      queue.stats.scheduled += 1;
+      counters.scheduled += 1;
+      counters.rejected += 1;
+      counters.rejectedByReason.signalRequired += 1;
+      return Promise.reject(createSignalRequiredError(queueName));
+    }
     if (!enabled) {
       return Promise.resolve().then(fn);
     }
@@ -1276,11 +1311,6 @@ export function createBuildScheduler(input = {}) {
       counters.rejectedByReason.shutdown += 1;
       return Promise.reject(new Error('scheduler is shut down'));
     }
-    const scheduleSignal = tokensReq && typeof tokensReq.aborted === 'boolean'
-      ? tokensReq
-      : (tokensReq?.signal && typeof tokensReq.signal.aborted === 'boolean'
-        ? tokensReq.signal
-        : null);
     if (scheduleSignal?.aborted) {
       counters.rejected += 1;
       counters.rejectedByReason.abort += 1;
@@ -1420,6 +1450,7 @@ export function createBuildScheduler(input = {}) {
         rejectedMaxPending: q.stats.rejectedMaxPending,
         rejectedMaxPendingBytes: q.stats.rejectedMaxPendingBytes,
         rejectedAbort: q.stats.rejectedAbort,
+        rejectedSignalRequired: q.stats.rejectedSignalRequired,
         starvation: q.stats.starvation,
         lastWaitMs: q.stats.lastWaitMs,
         waitP95Ms: q.stats.waitP95Ms,

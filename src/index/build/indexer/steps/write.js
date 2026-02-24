@@ -34,6 +34,7 @@ const hasEmittedDenseVectors = (postings) => (
 export const writeIndexArtifactsForMode = async ({
   runtime,
   mode,
+  abortSignal = null,
   outDir,
   state,
   postings,
@@ -148,6 +149,7 @@ export const writeIndexArtifactsForMode = async ({
   }
   await writeIndexArtifacts({
     scheduler: runtime.scheduler,
+    abortSignal,
     telemetry: runtime.telemetry,
     buildRoot: runtime.buildRoot,
     outDir,

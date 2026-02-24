@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { log } from '../../../shared/progress.js';
 import { runWithConcurrency } from '../../../shared/concurrency.js';
+import { coerceAbortSignal, throwIfAborted } from '../../../shared/abort.js';
 import { checksumFile } from '../../../shared/hash.js';
 import { writeJsonObjectFile } from '../../../shared/json-stream.js';
 import { fromPosix } from '../../../shared/files.js';
@@ -11,9 +12,12 @@ export const writePiecesManifest = async ({
   pieceEntries,
   outDir,
   mode,
-  indexState
+  indexState,
+  abortSignal = null
 }) => {
   if (!pieceEntries.length) return;
+  const effectiveAbortSignal = coerceAbortSignal(abortSignal);
+  throwIfAborted(effectiveAbortSignal);
   const sortedEntries = pieceEntries
     .slice()
     .sort((a, b) => (a.path < b.path ? -1 : (a.path > b.path ? 1 : 0)));
@@ -24,6 +28,7 @@ export const writePiecesManifest = async ({
     sortedEntries,
     Math.min(4, sortedEntries.length),
     async (entry) => {
+      throwIfAborted(effectiveAbortSignal);
       const absPath = path.join(outDir, fromPosix(entry.path));
       let bytes = Number.isFinite(Number(entry?.bytes))
         ? Math.max(0, Number(entry.bytes))
@@ -67,6 +72,11 @@ export const writePiecesManifest = async ({
         statError: statError || null,
         checksumError: checksumError || null
       };
+    },
+    {
+      signal: effectiveAbortSignal,
+      requireSignal: true,
+      signalLabel: 'build.stage2.pieces-manifest.runWithConcurrency'
     }
   );
   await writeJsonObjectFile(manifestPath, {

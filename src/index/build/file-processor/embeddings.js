@@ -1,6 +1,7 @@
 import PQueue from 'p-queue';
 import { normalizeVec, quantizeVecUint8 } from '../../embedding.js';
 import { runWithQueue } from '../../../shared/concurrency.js';
+import { throwIfAborted } from '../../../shared/abort.js';
 import { isVectorLike, mergeEmbeddingVectors } from '../../../shared/embedding-utils.js';
 import { resolveEmbeddingBatchSize } from '../embedding-batch.js';
 
@@ -124,6 +125,7 @@ export async function attachEmbeddings({
   chunks,
   codeTexts,
   docTexts,
+  abortSignal = null,
   embeddingEnabled,
   embeddingNormalize,
   getChunkEmbedding,
@@ -133,6 +135,7 @@ export async function attachEmbeddings({
   fileLanguageId,
   languageOptions
 }) {
+  throwIfAborted(abortSignal);
   if (!embeddingEnabled) {
     for (const chunk of chunks) {
       chunk.embed_code = [];
@@ -156,6 +159,7 @@ export async function attachEmbeddings({
   };
 
   const runBatched = async (texts) => {
+    throwIfAborted(abortSignal);
     if (!texts.length) return [];
     const effectiveBatchSize = resolveEmbeddingBatchSize(
       embeddingBatchSize,
@@ -163,7 +167,7 @@ export async function attachEmbeddings({
       languageOptions?.embeddingBatchMultipliers
     );
     const batchSize = Number.isFinite(effectiveBatchSize) ? effectiveBatchSize : 0;
-    if (typeof getChunkEmbeddings === 'function' && batchSize) {
+    if (typeof getChunkEmbeddings === 'function' && batchSize && !abortSignal) {
       const batcher = getBatcher(getChunkEmbeddings, batchSize);
       if (batcher) {
         return batcher.embed(texts);
@@ -174,6 +178,7 @@ export async function attachEmbeddings({
     }
     const out = [];
     for (let i = 0; i < texts.length; i += batchSize) {
+      throwIfAborted(abortSignal);
       const slice = texts.slice(i, i + batchSize);
       const batch = await embedBatch(slice);
       out.push(...batch);
@@ -203,6 +208,7 @@ export async function attachEmbeddings({
     }
   }
   if (docPayloads.length) {
+    throwIfAborted(abortSignal);
     const embeddedDocs = await runEmbedding(() => runBatched(docPayloads));
     if (!Array.isArray(embeddedDocs) || embeddedDocs.length !== docPayloads.length) {
       throw new Error(
@@ -229,6 +235,7 @@ export async function attachEmbeddings({
 
   const shouldNormalize = embeddingNormalize !== false;
   for (let i = 0; i < chunks.length; i += 1) {
+    throwIfAborted(abortSignal);
     const chunk = chunks[i];
     const embedCode = isVectorLike(codeVectors[i]) ? codeVectors[i] : EMPTY_FLOAT;
     const rawDoc = docVectors[i];

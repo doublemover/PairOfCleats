@@ -620,9 +620,7 @@ export const executeTreeSitterSchedulerPlan = async ({
       indexStream.end();
       metaStream.end();
       if (pageIndexStream) pageIndexStream.end();
-      await Promise.all(
-        [resultsDone, indexDone, metaDone, pageIndexDone].filter(Boolean)
-      );
+      await Promise.all([resultsDone, indexDone, metaDone, pageIndexDone].filter(Boolean));
     } catch (err) {
       try { resultsStream.destroy(err); } catch {}
       try { indexStream.destroy(err); } catch {}

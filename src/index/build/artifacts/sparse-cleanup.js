@@ -2,6 +2,7 @@ import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { runWithConcurrency } from '../../../shared/concurrency.js';
+import { coerceAbortSignal, throwIfAborted } from '../../../shared/abort.js';
 
 export const VECTOR_ONLY_SPARSE_PIECE_DENYLIST = new Set([
   'token_postings',
@@ -83,20 +84,24 @@ const VECTOR_ONLY_SPARSE_RECURSIVE_ALLOWLIST = new Set([
  * The cleanup is allowlist-based to avoid accidental deletion of unrelated
  * files in the artifact directory.
  *
- * @param {{outDir:string,removeArtifact:(targetPath:string,meta?:object)=>Promise<void>,concurrency?:number}} input
+ * @param {{outDir:string,removeArtifact:(targetPath:string,meta?:object)=>Promise<void>,concurrency?:number,abortSignal?:AbortSignal|null}} input
  * @returns {Promise<void>}
  */
 export const cleanupVectorOnlySparseArtifacts = async ({
   outDir,
   removeArtifact,
-  concurrency = 8
+  concurrency = 8,
+  abortSignal = null
 }) => {
+  const effectiveAbortSignal = coerceAbortSignal(abortSignal);
+  throwIfAborted(effectiveAbortSignal);
   const names = Array.from(VECTOR_ONLY_SPARSE_CLEANUP_ALLOWLIST).sort((a, b) => a.localeCompare(b));
   const root = path.resolve(outDir);
   await runWithConcurrency(
     names,
     Math.max(1, Math.min(concurrency, names.length || 1)),
     async (artifactName) => {
+      throwIfAborted(effectiveAbortSignal);
       const targetPath = path.join(outDir, artifactName);
       const resolvedTarget = path.resolve(targetPath);
       if (path.dirname(resolvedTarget) !== root) return;
@@ -110,7 +115,12 @@ export const cleanupVectorOnlySparseArtifacts = async ({
       if (recursive && !VECTOR_ONLY_SPARSE_RECURSIVE_ALLOWLIST.has(artifactName)) return;
       await removeArtifact(targetPath, { recursive, policy: 'vector_only_allowlist' });
     },
-    { collectResults: false }
+    {
+      collectResults: false,
+      signal: effectiveAbortSignal,
+      requireSignal: true,
+      signalLabel: 'build.stage2.vector-only-cleanup.runWithConcurrency'
+    }
   );
 };
 

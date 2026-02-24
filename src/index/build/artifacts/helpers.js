@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { once } from 'node:events';
 import { createTempPath, replaceFile } from '../../../shared/json-stream/atomic.js';
 import { createOffsetsWriter } from '../../../shared/json-stream/offsets.js';
 import { compareStrings } from '../../../shared/sort.js';
@@ -18,6 +17,7 @@ import {
   TRIM_REASONS,
   addTrimReasons
 } from './trim-policy.js';
+import { waitForStreamEvent } from '../../../shared/json-stream/streams.js';
 import { runBuildCleanupWithTimeout } from '../cleanup-timeout.js';
 
 const GRAPH_RELATION_GRAPHS = ['callGraph', 'usageGraph', 'importGraph'];
@@ -285,7 +285,7 @@ export const createRowSpillCollector = ({
 const writeBuffer = async (stream, buffer) => {
   if (!buffer || buffer.length === 0) return;
   if (!stream.write(buffer)) {
-    await once(stream, 'drain');
+    await waitForStreamEvent(stream, 'drain', { label: 'artifacts.per-file-varint.stream.drain' });
   }
 };
 
@@ -316,7 +316,7 @@ export const writePerFileVarintIndex = async ({
     }
     await offsetsWriter.writeOffset(bytesWritten);
     stream.end();
-    await once(stream, 'finish');
+    await waitForStreamEvent(stream, 'finish', { label: 'artifacts.per-file-varint.stream.finish' });
     if (atomic) {
       await replaceFile(targetPath, dataPath);
     }
@@ -327,7 +327,7 @@ export const writePerFileVarintIndex = async ({
     });
   } catch (err) {
     try { stream.destroy(err); } catch {}
-    try { await once(stream, 'close'); } catch {}
+    try { await waitForStreamEvent(stream, 'close', { label: 'artifacts.per-file-varint.stream.close' }); } catch {}
     try {
       await runBuildCleanupWithTimeout({
         label: 'artifacts.per-file-varint.offsets.destroy',

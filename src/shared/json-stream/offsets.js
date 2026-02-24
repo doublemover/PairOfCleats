@@ -1,11 +1,11 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
-import { once } from 'node:events';
 import { createTempPath, replaceFile } from './atomic.js';
+import { waitForStreamEvent } from './streams.js';
 
 const writeBuffer = async (stream, buffer) => {
   if (!stream.write(buffer)) {
-    await once(stream, 'drain');
+    await waitForStreamEvent(stream, 'drain', { label: 'json-stream.offsets.drain' });
   }
 };
 
@@ -26,7 +26,7 @@ export const createOffsetsWriter = (filePath, { atomic = false, highWaterMark = 
     if (closed) return { bytes };
     closed = true;
     stream.end();
-    await once(stream, 'finish');
+    await waitForStreamEvent(stream, 'finish', { label: 'json-stream.offsets.finish' });
     if (atomic) {
       await replaceFile(targetPath, filePath);
     }
@@ -38,7 +38,7 @@ export const createOffsetsWriter = (filePath, { atomic = false, highWaterMark = 
       stream.destroy(err);
     } catch {}
     try {
-      await once(stream, 'close');
+      await waitForStreamEvent(stream, 'close', { label: 'json-stream.offsets.close' });
     } catch {}
     if (atomic) {
       try { await fsPromises.rm(targetPath, { force: true }); } catch {}

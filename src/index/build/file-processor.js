@@ -230,10 +230,6 @@ export function createFileProcessor(options) {
   const vfsManifestConcurrency = cpuQueue
     ? Math.min(4, Math.max(1, Math.floor(cpuQueue.concurrency || 1)))
     : 1;
-  const runIo = ioQueue ? (fn) => ioQueue.add(fn) : (fn) => fn();
-  const runCpu = cpuQueue && useCpuQueue ? (fn) => cpuQueue.add(fn) : (fn) => fn();
-  const runEmbedding = embeddingQueue ? (fn) => embeddingQueue.add(fn) : (fn) => fn();
-  const runProc = procQueue ? (fn) => procQueue.add(fn) : (fn) => fn();
   const showLineProgress = getEnvConfig().verbose === true;
   const encodingWarnings = {
     seen: new Set(),
@@ -377,6 +373,10 @@ export function createFileProcessor(options) {
       err.code = 'FILE_PROCESS_ABORTED';
       throw err;
     };
+    const runIo = ioQueue ? (fn) => ioQueue.add(fn, { signal }) : (fn) => fn();
+    const runCpu = cpuQueue && useCpuQueue ? (fn) => cpuQueue.add(fn, { signal }) : (fn) => fn();
+    const runEmbedding = embeddingQueue ? (fn) => embeddingQueue.add(fn, { signal }) : (fn) => fn();
+    const runProc = procQueue ? (fn) => procQueue.add(fn, { signal }) : (fn) => fn();
     throwIfAborted();
     const abs = typeof fileEntry === 'string' ? fileEntry : fileEntry.abs;      
     const fileStart = Date.now();

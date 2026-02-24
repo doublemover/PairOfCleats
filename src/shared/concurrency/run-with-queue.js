@@ -1,12 +1,12 @@
 import PQueue from 'p-queue';
-import { createAbortError, throwIfAborted } from '../abort.js';
+import { createAbortError, isAbortSignal, throwIfAborted } from '../abort.js';
 
 /**
  * Run async work over items using a shared queue.
  * @param {PQueue} queue
  * @param {Array<any>} items
  * @param {(item:any, ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<any>} worker
- * @param {{collectResults?:boolean,onResult?:(result:any, ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<void>,onError?:(error:any, ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<void>,onProgress?:(state:{done:number,total:number})=>Promise<void>,bestEffort?:boolean,signal?:AbortSignal,abortError?:Error,retries?:number,retryDelayMs?:number,backoffMs?:number,onBeforeDispatch?:(ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<void>,estimateBytes?:(item:any, ctx:{index:number,item:any,signal?:AbortSignal})=>number}} [options]
+ * @param {{collectResults?:boolean,onResult?:(result:any, ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<void>,onError?:(error:any, ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<void>,onProgress?:(state:{done:number,total:number})=>Promise<void>,bestEffort?:boolean,signal?:AbortSignal,requireSignal?:boolean,signalLabel?:string,abortError?:Error,retries?:number,retryDelayMs?:number,backoffMs?:number,onBeforeDispatch?:(ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<void>,estimateBytes?:(item:any, ctx:{index:number,item:any,signal?:AbortSignal})=>number}} [options]
  * @returns {Promise<any[]|null>}
  */
 export async function runWithQueue(queue, items, worker, options = {}) {
@@ -24,7 +24,17 @@ export async function runWithQueue(queue, items, worker, options = {}) {
   const backoffMs = Number.isFinite(Number(options.backoffMs)) ? Math.max(0, Math.floor(Number(options.backoffMs))) : null;
   const delayMs = backoffMs != null ? backoffMs : retryDelayMs;
   const bestEffort = options.bestEffort === true;
-  const signal = options.signal && typeof options.signal.aborted === 'boolean' ? options.signal : null;
+  const signal = isAbortSignal(options.signal) ? options.signal : null;
+  const requireSignal = options.requireSignal === true;
+  const signalLabel = typeof options.signalLabel === 'string' && options.signalLabel.trim()
+    ? options.signalLabel.trim()
+    : 'runWithQueue';
+  if (requireSignal && !signal) {
+    const err = new Error(`${signalLabel} requires an AbortSignal`);
+    err.code = 'RUN_WITH_QUEUE_SIGNAL_REQUIRED';
+    err.retryable = false;
+    throw err;
+  }
   const abortError = options.abortError instanceof Error ? options.abortError : createAbortError();
   const results = collectResults ? new Array(list.length) : null;
   const pendingSignals = new Set();
@@ -172,7 +182,13 @@ export async function runWithQueue(queue, items, worker, options = {}) {
     }
     let task;
     try {
-      task = queue.add(() => runWorker(item, ctx), { bytes: taskBytes });
+      task = queue.add(
+        () => runWorker(item, ctx),
+        {
+          bytes: taskBytes,
+          ...(signal ? { signal } : {})
+        }
+      );
     } catch (err) {
       if (taskBytes > 0) {
         setInflightBytes(readInflightBytes() - taskBytes);
@@ -248,7 +264,7 @@ export async function runWithQueue(queue, items, worker, options = {}) {
  * @param {Array<any>} items
  * @param {number} limit
  * @param {(item:any, ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<any>} worker
- * @param {{collectResults?:boolean,onResult?:(result:any, ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<void>,signal?:AbortSignal}} [options]
+ * @param {{collectResults?:boolean,onResult?:(result:any, ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<void>,signal?:AbortSignal,requireSignal?:boolean,signalLabel?:string}} [options]
  * @returns {Promise<any[]|null>}
  */
 export async function runWithConcurrency(items, limit, worker, options = {}) {
