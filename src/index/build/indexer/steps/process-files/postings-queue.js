@@ -147,8 +147,8 @@ export const createPostingsQueue = ({
       ? waiters.length
       : Math.max(1, resolvedMaxPending - state.pending);
     const wakeCount = Math.max(1, Math.min(waiters.length, availableByCount));
-    for (let index = 0; index < wakeCount; index += 1) {
-      const resolve = waiters.shift();
+    const pending = waiters.splice(0, wakeCount);
+    for (const resolve of pending) {
       if (typeof resolve === 'function') resolve();
     }
   };
