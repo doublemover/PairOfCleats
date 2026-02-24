@@ -39,11 +39,15 @@ export const loadJson = (filePath) => {
 
 const loadFeatureMetrics = (repoRoot) => {
   if (!repoRoot) return null;
-  const userConfig = loadUserConfig(repoRoot);
-  const metricsDir = getMetricsDir(repoRoot, userConfig);
-  const runPath = path.join(metricsDir, 'feature-metrics-run.json');
-  const mergedPath = path.join(metricsDir, 'feature-metrics.json');
-  return loadJson(runPath) || loadJson(mergedPath);
+  try {
+    const userConfig = loadUserConfig(repoRoot);
+    const metricsDir = getMetricsDir(repoRoot, userConfig);
+    const runPath = path.join(metricsDir, 'feature-metrics-run.json');
+    const mergedPath = path.join(metricsDir, 'feature-metrics.json');
+    return loadJson(runPath) || loadJson(mergedPath);
+  } catch {
+    return null;
+  }
 };
 
 const toCachePathKey = (value) => {
@@ -69,14 +73,24 @@ const buildMetricsSignature = (runPath, mergedPath) => (
 );
 
 const featureMetricsCache = new Map();
-export const loadFeatureMetricsCached = (repoRoot) => {
+const resolveFeatureMetricsCacheKey = (repoRoot, cacheRoot = null) => (
+  `${String(repoRoot || '')}|${String(cacheRoot || '')}`
+);
+
+export const loadFeatureMetricsCached = (repoRoot, cacheRoot = null) => {
   if (!repoRoot) return null;
-  const userConfig = loadUserConfig(repoRoot);
-  const metricsDir = getMetricsDir(repoRoot, userConfig);
-  const runPath = path.join(metricsDir, 'feature-metrics-run.json');
-  const mergedPath = path.join(metricsDir, 'feature-metrics.json');
-  const cacheKey = toCachePathKey(repoRoot);
-  const signature = buildMetricsSignature(runPath, mergedPath);
+  const cacheKey = resolveFeatureMetricsCacheKey(
+    toCachePathKey(repoRoot),
+    toCachePathKey(cacheRoot || '')
+  );
+  let signature = 'missing|missing';
+  try {
+    const userConfig = loadUserConfig(repoRoot);
+    const metricsDir = getMetricsDir(repoRoot, userConfig);
+    const runPath = path.join(metricsDir, 'feature-metrics-run.json');
+    const mergedPath = path.join(metricsDir, 'feature-metrics.json');
+    signature = buildMetricsSignature(runPath, mergedPath);
+  } catch {}
   const cached = featureMetricsCache.get(cacheKey);
   if (cached && cached.signature === signature) {
     return cached.metrics;
@@ -87,11 +101,7 @@ export const loadFeatureMetricsCached = (repoRoot) => {
 };
 
 const featureMetricsByCacheRoot = new Map();
-export const loadFeatureMetricsForPayload = (payload) => {
-  const repoRoot = payload?.repo?.root || payload?.artifacts?.repo?.root || null;
-  const repoMetrics = repoRoot ? loadFeatureMetricsCached(repoRoot) : null;
-  if (repoMetrics) return repoMetrics;
-  const cacheRoot = payload?.artifacts?.repo?.cacheRoot;
+const loadFeatureMetricsByCacheRoot = (cacheRoot) => {
   if (!cacheRoot || typeof cacheRoot !== 'string') return null;
   const runPath = path.join(cacheRoot, 'metrics', 'feature-metrics-run.json');
   const mergedPath = path.join(cacheRoot, 'metrics', 'feature-metrics.json');
@@ -102,4 +112,14 @@ export const loadFeatureMetricsForPayload = (payload) => {
   const metrics = loadJson(runPath) || loadJson(mergedPath) || null;
   featureMetricsByCacheRoot.set(cacheKey, { signature, metrics });
   return metrics;
+};
+
+export const loadFeatureMetricsForPayload = (payload) => {
+  const cacheRoot = payload?.artifacts?.repo?.cacheRoot;
+  const cacheMetrics = loadFeatureMetricsByCacheRoot(cacheRoot);
+  if (cacheMetrics) return cacheMetrics;
+  const repoRoot = payload?.repo?.root || payload?.artifacts?.repo?.root || null;
+  const repoMetrics = repoRoot ? loadFeatureMetricsCached(repoRoot, cacheRoot || null) : null;
+  if (repoMetrics) return repoMetrics;
+  return null;
 };
