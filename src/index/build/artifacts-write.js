@@ -187,9 +187,12 @@ const buildBoilerplateCatalog = (chunks) => {
  * @param {number} [input.memoryPressureLowThreshold]
  * @param {number} [input.gcPressureHighThreshold]
  * @param {number} [input.gcPressureLowThreshold]
+ * @param {number} [input.writeQueuePendingThreshold]
+ * @param {number} [input.writeQueueOldestWaitMsThreshold]
+ * @param {number} [input.writeQueueWaitP95MsThreshold]
  * @param {() => number} [input.now]
- * @param {(event:{reason:string,from:number,to:number,pendingWrites:number,activeWrites:number,longestStallSec:number,memoryPressure:number|null,gcPressure:number|null,rssUtilization:number|null}) => void} [input.onChange]
- * @returns {{observe:(snapshot?:{pendingWrites?:number,activeWrites?:number,longestStallSec?:number,memoryPressure?:number|null,gcPressure?:number|null,rssUtilization?:number|null})=>number,getCurrentConcurrency:()=>number,getLimits:()=>{min:number,max:number}}}
+ * @param {(event:{reason:string,from:number,to:number,pendingWrites:number,activeWrites:number,longestStallSec:number,memoryPressure:number|null,gcPressure:number|null,rssUtilization:number|null,schedulerWritePending:number|null,schedulerWriteOldestWaitMs:number|null,schedulerWriteWaitP95Ms:number|null,stallAttribution:string}) => void} [input.onChange]
+ * @returns {{observe:(snapshot?:{pendingWrites?:number,activeWrites?:number,longestStallSec?:number,memoryPressure?:number|null,gcPressure?:number|null,rssUtilization?:number|null,schedulerWritePending?:number|null,schedulerWriteOldestWaitMs?:number|null,schedulerWriteWaitP95Ms?:number|null})=>number,getCurrentConcurrency:()=>number,getLimits:()=>{min:number,max:number}}}
  */
 /**
  * Write index artifacts and metrics.
@@ -1050,6 +1053,26 @@ export async function writeIndexArtifacts(input) {
   )
     ? Math.max(0, Math.floor(Number(artifactConfig.writeAdaptiveScaleDownCooldownMs)))
     : 1200;
+  const adaptiveWriteObserveIntervalMs = Number.isFinite(
+    Number(artifactConfig.writeAdaptiveObserveIntervalMs)
+  )
+    ? Math.max(0, Math.floor(Number(artifactConfig.writeAdaptiveObserveIntervalMs)))
+    : 1000;
+  const adaptiveWriteQueuePendingThreshold = Number.isFinite(
+    Number(artifactConfig.writeAdaptiveQueuePendingThreshold)
+  )
+    ? Math.max(1, Math.floor(Number(artifactConfig.writeAdaptiveQueuePendingThreshold)))
+    : 1;
+  const adaptiveWriteQueueOldestWaitMsThreshold = Number.isFinite(
+    Number(artifactConfig.writeAdaptiveQueueOldestWaitMsThreshold)
+  )
+    ? Math.max(1, Math.floor(Number(artifactConfig.writeAdaptiveQueueOldestWaitMsThreshold)))
+    : 1200;
+  const adaptiveWriteQueueWaitP95MsThreshold = Number.isFinite(
+    Number(artifactConfig.writeAdaptiveQueueWaitP95MsThreshold)
+  )
+    ? Math.max(1, Math.floor(Number(artifactConfig.writeAdaptiveQueueWaitP95MsThreshold)))
+    : 750;
   const writeTailRescueEnabled = artifactConfig.writeTailRescue !== false;
   const writeTailRescueMaxPending = Number.isFinite(Number(artifactConfig.writeTailRescueMaxPending))
     ? Math.max(1, Math.floor(Number(artifactConfig.writeTailRescueMaxPending)))
@@ -2533,6 +2556,9 @@ export async function writeIndexArtifacts(input) {
       stallScaleUpGuardSeconds: adaptiveWriteStallScaleUpGuardSeconds,
       scaleUpCooldownMs: adaptiveWriteScaleUpCooldownMs,
       scaleDownCooldownMs: adaptiveWriteScaleDownCooldownMs,
+      writeQueuePendingThreshold: adaptiveWriteQueuePendingThreshold,
+      writeQueueOldestWaitMsThreshold: adaptiveWriteQueueOldestWaitMsThreshold,
+      writeQueueWaitP95MsThreshold: adaptiveWriteQueueWaitP95MsThreshold,
       onChange: ({
         reason,
         from,
@@ -2541,7 +2567,11 @@ export async function writeIndexArtifacts(input) {
         longestStallSec,
         memoryPressure,
         gcPressure,
-        rssUtilization
+        rssUtilization,
+        schedulerWritePending,
+        schedulerWriteOldestWaitMs,
+        schedulerWriteWaitP95Ms,
+        stallAttribution
       }) => {
         const stallSuffix = longestStallSec > 0 ? `, stall=${longestStallSec}s` : '';
         const memorySuffix = (
@@ -2551,9 +2581,24 @@ export async function writeIndexArtifacts(input) {
             ` gc=${Number.isFinite(gcPressure) ? gcPressure.toFixed(2) : 'n/a'},` +
             ` rss=${Number.isFinite(rssUtilization) ? rssUtilization.toFixed(2) : 'n/a'}`
           : '';
+        const schedulerSuffix = (
+          Number.isFinite(schedulerWritePending)
+          || Number.isFinite(schedulerWriteOldestWaitMs)
+          || Number.isFinite(schedulerWriteWaitP95Ms)
+        )
+          ? `, writeQ={pending=${Number.isFinite(schedulerWritePending) ? schedulerWritePending : 'n/a'},` +
+            ` oldest=${Number.isFinite(schedulerWriteOldestWaitMs) ? schedulerWriteOldestWaitMs : 'n/a'}ms,` +
+            ` p95=${Number.isFinite(schedulerWriteWaitP95Ms) ? schedulerWriteWaitP95Ms : 'n/a'}ms}`
+          : '';
+        const stallAttributionSuffix = (
+          reason === 'stall' || (typeof stallAttribution === 'string' && stallAttribution === 'non-write')
+        )
+          ? `, attribution=${stallAttribution || 'unknown'}`
+          : '';
         logLine(
           `[perf] adaptive artifact write concurrency ${from} -> ${to} ` +
-          `(${reason}, pending=${pendingWrites}${stallSuffix}${memorySuffix})`,
+          `(${reason}, pending=${pendingWrites}${stallSuffix}${memorySuffix}` +
+          `${schedulerSuffix}${stallAttributionSuffix})`,
           { kind: 'status' }
         );
       }
@@ -2579,6 +2624,7 @@ export async function writeIndexArtifacts(input) {
     let forcedTailRescueConcurrency = null;
     let tailRescueActive = false;
     let tailWorkerActive = 0;
+    let lastNonWriteStallLogAt = Number.NEGATIVE_INFINITY;
     /**
      * Count queued write entries across all dispatch lanes.
      *
@@ -2651,13 +2697,48 @@ export async function writeIndexArtifacts(input) {
       if (!adaptiveWriteConcurrencyEnabled) return getActiveWriteConcurrency();
       const schedulerStats = scheduler?.stats ? scheduler.stats() : null;
       const memorySignals = schedulerStats?.adaptive?.signals?.memory || null;
+      const schedulerWriteStats = schedulerStats?.queues?.[SCHEDULER_QUEUE_NAMES.stage2Write] || null;
+      const schedulerWritePending = Number(schedulerWriteStats?.pending);
+      const schedulerWriteOldestWaitMs = Number(schedulerWriteStats?.oldestWaitMs);
+      const schedulerWriteWaitP95Ms = Number(schedulerWriteStats?.waitP95Ms);
+      const queueBackedUp = (
+        Number.isFinite(schedulerWritePending)
+        && schedulerWritePending >= adaptiveWriteQueuePendingThreshold
+        && (
+          (Number.isFinite(schedulerWriteOldestWaitMs)
+            && schedulerWriteOldestWaitMs >= adaptiveWriteQueueOldestWaitMsThreshold)
+          || (Number.isFinite(schedulerWriteWaitP95Ms)
+            && schedulerWriteWaitP95Ms >= adaptiveWriteQueueWaitP95MsThreshold)
+        )
+      );
+      if (
+        rescueState.longestStallSec >= adaptiveWriteStallScaleDownSeconds
+        && !queueBackedUp
+        && Number.isFinite(schedulerWritePending)
+        && Number.isFinite(schedulerWriteOldestWaitMs)
+      ) {
+        const nowMs = Date.now();
+        if ((nowMs - lastNonWriteStallLogAt) >= 10000) {
+          lastNonWriteStallLogAt = nowMs;
+          logLine(
+            `[perf] artifact stall attribution: non-write ` +
+            `(active=${activeCount}, pendingWrites=${pendingWriteCount()}, ` +
+            `writeQ.pending=${schedulerWritePending}, writeQ.oldest=${schedulerWriteOldestWaitMs}ms, ` +
+            `writeQ.p95=${Number.isFinite(schedulerWriteWaitP95Ms) ? schedulerWriteWaitP95Ms : 'n/a'}ms)`,
+            { kind: 'warning' }
+          );
+        }
+      }
       return writeConcurrencyController.observe({
         pendingWrites: pendingWriteCount(),
         activeWrites: activeCount,
         longestStallSec: rescueState.longestStallSec,
         memoryPressure: Number(memorySignals?.pressureScore),
         gcPressure: Number(memorySignals?.gcPressureScore),
-        rssUtilization: Number(memorySignals?.rssUtilization)
+        rssUtilization: Number(memorySignals?.rssUtilization),
+        schedulerWritePending,
+        schedulerWriteOldestWaitMs,
+        schedulerWriteWaitP95Ms
       });
     };
     /**
@@ -2965,7 +3046,32 @@ export async function writeIndexArtifacts(input) {
           dispatchWrites();
           if (!inFlightWrites.size) break;
         }
-        const settled = await Promise.race(inFlightWrites);
+        let settleWatchdogTimer = null;
+        const settleCandidates = Array.from(inFlightWrites);
+        if (adaptiveWriteConcurrencyEnabled && adaptiveWriteObserveIntervalMs > 0) {
+          settleCandidates.push(
+            new Promise((resolve) => {
+              settleWatchdogTimer = setTimeout(
+                () => resolve({ ok: true, tick: true }),
+                adaptiveWriteObserveIntervalMs
+              );
+              if (typeof settleWatchdogTimer?.unref === 'function') {
+                settleWatchdogTimer.unref();
+              }
+            })
+          );
+        }
+        const settled = await Promise.race(settleCandidates)
+          .finally(() => {
+            if (settleWatchdogTimer) {
+              clearTimeout(settleWatchdogTimer);
+              settleWatchdogTimer = null;
+            }
+          });
+        if (settled?.tick) {
+          dispatchWrites();
+          continue;
+        }
         if (!settled?.ok) {
           fatalWriteError = settled?.error || new Error('artifact write failed');
           break;

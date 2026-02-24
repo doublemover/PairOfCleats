@@ -199,9 +199,12 @@ const isMicroCoalescibleWrite = (entry, maxEntryBytes) => {
  * @param {number} [input.memoryPressureLowThreshold]
  * @param {number} [input.gcPressureHighThreshold]
  * @param {number} [input.gcPressureLowThreshold]
+ * @param {number} [input.writeQueuePendingThreshold]
+ * @param {number} [input.writeQueueOldestWaitMsThreshold]
+ * @param {number} [input.writeQueueWaitP95MsThreshold]
  * @param {() => number} [input.now]
- * @param {(event:{reason:string,from:number,to:number,pendingWrites:number,activeWrites:number,longestStallSec:number,memoryPressure:number|null,gcPressure:number|null,rssUtilization:number|null}) => void} [input.onChange]
- * @returns {{observe:(snapshot?:{pendingWrites?:number,activeWrites?:number,longestStallSec?:number,memoryPressure?:number|null,gcPressure?:number|null,rssUtilization?:number|null})=>number,getCurrentConcurrency:()=>number,getLimits:()=>{min:number,max:number}}}
+ * @param {(event:{reason:string,from:number,to:number,pendingWrites:number,activeWrites:number,longestStallSec:number,memoryPressure:number|null,gcPressure:number|null,rssUtilization:number|null,schedulerWritePending:number|null,schedulerWriteOldestWaitMs:number|null,schedulerWriteWaitP95Ms:number|null,stallAttribution:string}) => void} [input.onChange]
+ * @returns {{observe:(snapshot?:{pendingWrites?:number,activeWrites?:number,longestStallSec?:number,memoryPressure?:number|null,gcPressure?:number|null,rssUtilization?:number|null,schedulerWritePending?:number|null,schedulerWriteOldestWaitMs?:number|null,schedulerWriteWaitP95Ms?:number|null})=>number,getCurrentConcurrency:()=>number,getLimits:()=>{min:number,max:number}}}
  */
 export const createAdaptiveWriteConcurrencyController = (input = {}) => {
   const maxConcurrency = clampWriteConcurrency(input.maxConcurrency, 1);
@@ -245,6 +248,15 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
   const gcPressureLowThreshold = Number.isFinite(Number(input.gcPressureLowThreshold))
     ? Math.max(0, Math.min(gcPressureHighThreshold, Number(input.gcPressureLowThreshold)))
     : 0.2;
+  const writeQueuePendingThreshold = Number.isFinite(Number(input.writeQueuePendingThreshold))
+    ? Math.max(1, Math.floor(Number(input.writeQueuePendingThreshold)))
+    : 1;
+  const writeQueueOldestWaitMsThreshold = Number.isFinite(Number(input.writeQueueOldestWaitMsThreshold))
+    ? Math.max(1, Math.floor(Number(input.writeQueueOldestWaitMsThreshold)))
+    : 1200;
+  const writeQueueWaitP95MsThreshold = Number.isFinite(Number(input.writeQueueWaitP95MsThreshold))
+    ? Math.max(1, Math.floor(Number(input.writeQueueWaitP95MsThreshold)))
+    : 750;
   const now = typeof input.now === 'function' ? input.now : () => Date.now();
   const onChange = typeof input.onChange === 'function' ? input.onChange : null;
 
@@ -262,7 +274,11 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
       longestStallSec: snapshot.longestStallSec,
       memoryPressure: snapshot.memoryPressure,
       gcPressure: snapshot.gcPressure,
-      rssUtilization: snapshot.rssUtilization
+      rssUtilization: snapshot.rssUtilization,
+      schedulerWritePending: snapshot.schedulerWritePending,
+      schedulerWriteOldestWaitMs: snapshot.schedulerWriteOldestWaitMs,
+      schedulerWriteWaitP95Ms: snapshot.schedulerWriteWaitP95Ms,
+      stallAttribution: snapshot.stallAttribution
     });
   };
 
@@ -281,6 +297,41 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
     const rssUtilization = Number.isFinite(Number(snapshot.rssUtilization))
       ? Math.max(0, Math.min(1, Number(snapshot.rssUtilization)))
       : null;
+    const schedulerWritePending = Number.isFinite(Number(snapshot.schedulerWritePending))
+      ? Math.max(0, Math.floor(Number(snapshot.schedulerWritePending)))
+      : null;
+    const schedulerWriteOldestWaitMs = Number.isFinite(Number(snapshot.schedulerWriteOldestWaitMs))
+      ? Math.max(0, Math.floor(Number(snapshot.schedulerWriteOldestWaitMs)))
+      : null;
+    const schedulerWriteWaitP95Ms = Number.isFinite(Number(snapshot.schedulerWriteWaitP95Ms))
+      ? Math.max(0, Math.floor(Number(snapshot.schedulerWriteWaitP95Ms)))
+      : null;
+    const hasSchedulerWriteSignals = (
+      schedulerWritePending != null
+      || schedulerWriteOldestWaitMs != null
+      || schedulerWriteWaitP95Ms != null
+    );
+    const attributedToWriteQueue = hasSchedulerWriteSignals
+      ? (
+        (schedulerWritePending != null && schedulerWritePending >= writeQueuePendingThreshold)
+        && (
+          (schedulerWriteOldestWaitMs != null && schedulerWriteOldestWaitMs >= writeQueueOldestWaitMsThreshold)
+          || (schedulerWriteWaitP95Ms != null && schedulerWriteWaitP95Ms >= writeQueueWaitP95MsThreshold)
+        )
+      )
+      : (
+        pendingWrites > 0
+        && activeWrites >= Math.max(1, currentConcurrency - 1)
+      );
+    const stallAttribution = (
+      longestStallSec <= 0
+        ? 'none'
+        : (
+          attributedToWriteQueue
+            ? 'write-queue'
+            : (hasSchedulerWriteSignals ? 'non-write' : 'unknown')
+        )
+    );
     const nowValue = now();
     const timestamp = Number.isFinite(Number(nowValue)) ? Number(nowValue) : Date.now();
     const backlogPerSlot = pendingWrites / Math.max(1, currentConcurrency);
@@ -307,7 +358,11 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
         longestStallSec,
         memoryPressure,
         gcPressure,
-        rssUtilization
+        rssUtilization,
+        schedulerWritePending,
+        schedulerWriteOldestWaitMs,
+        schedulerWriteWaitP95Ms,
+        stallAttribution
       });
       return currentConcurrency;
     }
@@ -315,9 +370,16 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
       canScaleDown
       && pendingWrites > 0
       && longestStallSec >= stallScaleDownSeconds
-      && backlogPerSlot <= Math.max(1, scaleUpBacklogPerSlot)
+      && attributedToWriteQueue
     ) {
-      currentConcurrency -= 1;
+      const severeQueueStall = (
+        schedulerWritePending != null
+        && schedulerWriteOldestWaitMs != null
+        && schedulerWritePending >= Math.max(writeQueuePendingThreshold + 1, Math.ceil(currentConcurrency * 0.75))
+        && schedulerWriteOldestWaitMs >= Math.max(4000, writeQueueOldestWaitMsThreshold * 2)
+      );
+      const scaleDownStep = severeQueueStall ? 2 : 1;
+      currentConcurrency = Math.max(minConcurrency, currentConcurrency - scaleDownStep);
       lastScaleDownAt = timestamp;
       emitChange('stall', from, currentConcurrency, {
         pendingWrites,
@@ -325,7 +387,11 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
         longestStallSec,
         memoryPressure,
         gcPressure,
-        rssUtilization
+        rssUtilization,
+        schedulerWritePending,
+        schedulerWriteOldestWaitMs,
+        schedulerWriteWaitP95Ms,
+        stallAttribution
       });
       return currentConcurrency;
     }
@@ -343,7 +409,11 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
         longestStallSec,
         memoryPressure,
         gcPressure,
-        rssUtilization
+        rssUtilization,
+        schedulerWritePending,
+        schedulerWriteOldestWaitMs,
+        schedulerWriteWaitP95Ms,
+        stallAttribution
       });
       return currentConcurrency;
     }
@@ -364,7 +434,11 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
         longestStallSec,
         memoryPressure,
         gcPressure,
-        rssUtilization
+        rssUtilization,
+        schedulerWritePending,
+        schedulerWriteOldestWaitMs,
+        schedulerWriteWaitP95Ms,
+        stallAttribution
       });
     } else if (
       canScaleUp
@@ -381,7 +455,11 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
         longestStallSec,
         memoryPressure,
         gcPressure,
-        rssUtilization
+        rssUtilization,
+        schedulerWritePending,
+        schedulerWriteOldestWaitMs,
+        schedulerWriteWaitP95Ms,
+        stallAttribution
       });
     }
     return currentConcurrency;

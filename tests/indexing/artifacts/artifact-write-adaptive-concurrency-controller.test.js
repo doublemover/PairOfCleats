@@ -39,21 +39,56 @@ assert.equal(
 
 nowMs += 1;
 assert.equal(
-  controller.observe({ pendingWrites: 3, activeWrites: 4, longestStallSec: 14 }),
-  3,
-  'expected sustained stalls to scale concurrency down'
+  controller.observe({
+    pendingWrites: 3,
+    activeWrites: 4,
+    longestStallSec: 14,
+    schedulerWritePending: 0,
+    schedulerWriteOldestWaitMs: 0,
+    schedulerWriteWaitP95Ms: 0
+  }),
+  4,
+  'expected non-write stalls to avoid write-concurrency scale down'
 );
 
 nowMs += 1;
 assert.equal(
-  controller.observe({ pendingWrites: 2, activeWrites: 3, longestStallSec: 20 }),
+  controller.observe({
+    pendingWrites: 3,
+    activeWrites: 4,
+    longestStallSec: 14,
+    schedulerWritePending: 4,
+    schedulerWriteOldestWaitMs: 2200,
+    schedulerWriteWaitP95Ms: 1200
+  }),
+  3,
+  'expected queue-attributed stalls to scale concurrency down'
+);
+
+nowMs += 1;
+assert.equal(
+  controller.observe({
+    pendingWrites: 2,
+    activeWrites: 3,
+    longestStallSec: 20,
+    schedulerWritePending: 4,
+    schedulerWriteOldestWaitMs: 2600,
+    schedulerWriteWaitP95Ms: 1400
+  }),
   2,
   'expected repeated sustained stalls to continue scaling down'
 );
 
 nowMs += 1;
 assert.equal(
-  controller.observe({ pendingWrites: 2, activeWrites: 2, longestStallSec: 20 }),
+  controller.observe({
+    pendingWrites: 2,
+    activeWrites: 2,
+    longestStallSec: 20,
+    schedulerWritePending: 5,
+    schedulerWriteOldestWaitMs: 4000,
+    schedulerWriteWaitP95Ms: 1800
+  }),
   2,
   'expected minConcurrency floor to hold under continued stall pressure'
 );
