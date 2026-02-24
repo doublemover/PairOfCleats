@@ -35,23 +35,37 @@ export const buildStreamedStage3Result = ({
   streamedEmbeddingsByMode,
   streamedCancelled,
   repo
-}) => ({
-  modes: Array.isArray(embedModes) ? embedModes : [],
-  embeddings: {
-    queued: false,
-    inline: true,
-    streamedFromStage2: true,
-    cancelled: streamedCancelled === true,
-    perMode: Array.isArray(streamedEmbeddingsByMode)
-      ? streamedEmbeddingsByMode.map((entry) => ({
-        mode: entry?.mode || null,
-        embeddings: entry?.result?.embeddings || null
-      }))
-      : []
-  },
-  repo,
-  stage: 'stage3'
-});
+}) => {
+  const perMode = Array.isArray(streamedEmbeddingsByMode)
+    ? streamedEmbeddingsByMode.map((entry) => ({
+      mode: entry?.mode || null,
+      embeddings: entry?.result?.embeddings || null
+    }))
+    : [];
+  /**
+   * Streamed stage3 can mix queue and inline executions per mode (for example
+   * when embeddings mode changes across callback invocations). Summarize top-
+   * level status from per-mode facts instead of hardcoded booleans.
+   */
+  const queuedModeCount = perMode.filter((entry) => entry?.embeddings?.queued === true).length;
+  const inlineModeCount = perMode.filter((entry) => entry?.embeddings?.inline === true).length;
+  const mixedMode = queuedModeCount > 0 && inlineModeCount > 0;
+  return {
+    modes: Array.isArray(embedModes) ? embedModes : [],
+    embeddings: {
+      queued: queuedModeCount > 0 && !mixedMode,
+      inline: inlineModeCount > 0 && !mixedMode,
+      mixed: mixedMode,
+      streamedFromStage2: true,
+      cancelled: streamedCancelled === true,
+      queuedModeCount,
+      inlineModeCount,
+      perMode
+    },
+    repo,
+    stage: 'stage3'
+  };
+};
 
 /**
  * Build file-backed indexes for a repo.

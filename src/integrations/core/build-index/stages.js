@@ -210,7 +210,18 @@ export const runEmbeddingsStage = async ({
           jobs.push(result.job || { id: jobId, mode: modeItem });
           advanceEmbeddingsProgress(modeItem);
         }
-        return recordOk({ modes: embedModes, embeddings: { queued: true, jobs }, repo: root, stage: 'stage3' });
+        const queuedAny = jobs.length > 0;
+        return recordOk({
+          modes: embedModes,
+          embeddings: {
+            queued: queuedAny,
+            inline: false,
+            skipped: !queuedAny,
+            jobs
+          },
+          repo: root,
+          stage: 'stage3'
+        });
       }
       const runInlineEmbeddings = async ({ modeArg, indexRootArg, progressModes }) => {
         const args = [buildEmbeddingsPath, '--repo', root, '--mode', modeArg];
@@ -625,6 +636,8 @@ export const runStage = async (
     let sqliteResult = null;
     let phaseRunning = false;
     let phaseDone = false;
+    let phaseCancelled = false;
+    let phaseCancelledMode = null;
     let validationRunning = false;
     let validationDone = false;
     let promoteRunning = false;
@@ -726,6 +739,8 @@ export const runStage = async (
               discovery
             }));
             if (callbackResult?.cancelled === true) {
+              phaseCancelled = true;
+              phaseCancelledMode = modeItem;
               break executionPlanLoop;
             }
           }
@@ -737,6 +752,31 @@ export const runStage = async (
           metricsDir: getMetricsDir(runtime.root, runtime.userConfig),
           featureMetrics: runtime.featureMetrics
         });
+      }
+      if (phaseCancelled) {
+        /**
+         * Stage2 cancellation is terminal for this run. We intentionally skip
+         * validation/promote to avoid publishing a partial build root.
+         */
+        await markBuildPhase(
+          runtime.buildRoot,
+          phaseStage,
+          'done',
+          `cancelled after mode ${phaseCancelledMode || 'unknown'}; validation/promote skipped`
+        );
+        phaseDone = true;
+        result = {
+          modes,
+          sqlite: null,
+          repo: runtime.root,
+          stage,
+          buildRoot: runtime.buildRoot,
+          repoCacheRoot: runtime.repoCacheRoot,
+          profile: runtime.profile || null,
+          cancelled: true,
+          cancelledMode: phaseCancelledMode || null
+        };
+        return;
       }
       await markBuildPhase(runtime.buildRoot, phaseStage, 'done');
       phaseDone = true;
@@ -838,7 +878,8 @@ export const runStage = async (
         stage: phaseStage,
         modes,
         configHash: runtime.configHash,
-        repoProvenance: runtime.repoProvenance
+        repoProvenance: runtime.repoProvenance,
+        compatibilityKey: runtime.compatibilityKey || null
       });
       await markBuildPhase(runtime.buildRoot, 'promote', 'done');
       promoteDone = true;
