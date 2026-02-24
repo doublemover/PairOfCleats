@@ -626,6 +626,13 @@ const readJsonLinesIteratorSingle = async function* (
   let compression = null;
   let cleanup = null;
   let stream = null;
+  const destroyStream = () => {
+    if (!stream) return;
+    try {
+      stream.destroy();
+    } catch {}
+    stream = null;
+  };
   let sourcePath = targetPath;
   const queue = createRowQueue({
     maxPending: maxInFlight,
@@ -798,7 +805,7 @@ const readJsonLinesIteratorSingle = async function* (
             fallbackErr = captureFallbackReadError(fallbackErr, err);
           }
           lastErr = err;
-          stream = null;
+          destroyStream();
         }
       }
       if (!stream) {
@@ -830,7 +837,7 @@ const readJsonLinesIteratorSingle = async function* (
     } catch (err) {
       queue.finish(err);
     } finally {
-      if (stream) stream.destroy();
+      destroyStream();
     }
   })();
 
@@ -840,7 +847,7 @@ const readJsonLinesIteratorSingle = async function* (
     }
   } finally {
     queue.cancel();
-    if (stream) stream.destroy();
+    destroyStream();
     await producer.catch(() => {});
   }
 };
