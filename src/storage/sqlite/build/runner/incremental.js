@@ -7,6 +7,21 @@ const bundleInventoryCache = new Map();
 const FNV64_OFFSET_BASIS = 0xcbf29ce484222325n;
 const FNV64_PRIME = 0x100000001b3n;
 const FNV64_MASK = 0xffffffffffffffffn;
+const CASE_INSENSITIVE_BUNDLE_NAMES = process.platform === 'win32';
+
+/**
+ * Normalize bundle names for inventory membership checks.
+ *
+ * Windows filesystems are commonly case-insensitive, so membership checks
+ * should not report false missing bundles due to casing differences.
+ *
+ * @param {string} value
+ * @returns {string}
+ */
+const normalizeBundleInventoryName = (value) => {
+  const text = String(value || '');
+  return CASE_INSENSITIVE_BUNDLE_NAMES ? text.toLowerCase() : text;
+};
 
 /**
  * Read a cached directory inventory snapshot.
@@ -95,9 +110,11 @@ const resolveBundleInventorySnapshot = (bundleDir) => {
   if (!bundleDir) return null;
   try {
     const names = [];
-    for (const name of fsSync.readdirSync(bundleDir)) {
+    for (const entry of fsSync.readdirSync(bundleDir, { withFileTypes: true })) {
+      if (!entry?.isFile?.()) continue;
+      const name = entry.name;
       if (typeof name !== 'string' || name.startsWith('.')) continue;
-      names.push(name);
+      names.push(normalizeBundleInventoryName(name));
     }
     const { digest, sorted } = hashInventoryNames(names);
     return {
@@ -148,9 +165,12 @@ export const countMissingBundleFiles = (incrementalData, bundleNames = null) => 
       missing += 1;
       continue;
     }
+    const hasNestedPath = bundleName.includes('/') || bundleName.includes('\\');
     if (useNames) {
-      if (!useNames.has(bundleName)) missing += 1;
-      continue;
+      if (!hasNestedPath) {
+        if (!useNames.has(normalizeBundleInventoryName(bundleName))) missing += 1;
+        continue;
+      }
     }
     const bundlePath = path.join(bundleDir, bundleName);
     if (!fsSync.existsSync(bundlePath)) {

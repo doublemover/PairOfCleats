@@ -63,6 +63,63 @@ try {
     }
   }, secondInventory.names);
   assert.equal(missingBundleCount, 0, 'expected refreshed inventory to prevent false missing-bundle detection');
+
+  const masqueradingDirectory = path.join(bundleDir, 'bundle-dir.json');
+  await fsPromises.mkdir(masqueradingDirectory, { recursive: true });
+  const nestedDir = path.join(bundleDir, 'nested');
+  await fsPromises.mkdir(nestedDir, { recursive: true });
+  await fsPromises.writeFile(path.join(nestedDir, 'bundle-c.json'), '{"bundle":"c"}\n');
+
+  const thirdInventory = listIncrementalBundleFiles(bundleDir);
+  assert.equal(
+    thirdInventory.names.has('bundle-dir.json'),
+    false,
+    'expected directory entries to be excluded from bundle inventory names'
+  );
+
+  const nestedMissingCount = countMissingBundleFiles({
+    bundleDir,
+    manifest: {
+      files: {
+        'src/nested.js': { bundle: 'nested/bundle-c.json' }
+      }
+    }
+  }, thirdInventory.names);
+  assert.equal(
+    nestedMissingCount,
+    0,
+    'expected nested bundle paths to fall back to fs existence checks'
+  );
+
+  const directoryMissingCount = countMissingBundleFiles({
+    bundleDir,
+    manifest: {
+      files: {
+        'src/dir.js': { bundle: 'bundle-dir.json' }
+      }
+    }
+  }, thirdInventory.names);
+  assert.equal(
+    directoryMissingCount,
+    1,
+    'expected directory placeholders not to satisfy bundle-file presence checks'
+  );
+
+  if (process.platform === 'win32') {
+    const caseInsensitiveMissingCount = countMissingBundleFiles({
+      bundleDir,
+      manifest: {
+        files: {
+          'src/case.js': { bundle: 'BUNDLE-B.JSON' }
+        }
+      }
+    }, thirdInventory.names);
+    assert.equal(
+      caseInsensitiveMissingCount,
+      0,
+      'expected Windows bundle inventory checks to ignore case differences'
+    );
+  }
 } finally {
   fs.statSync = originalStatSync;
   await fsPromises.rm(tempRoot, { recursive: true, force: true });
