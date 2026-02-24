@@ -12,7 +12,6 @@
         "apple/swift-nio"
       ],
       "typical": [
-        "twostraws/simple-swiftui",
         "Alamofire/Alamofire",
         "onevcat/Kingfisher"
       ],
@@ -36,7 +35,6 @@
     "repos": {
       "huge": [
         "opencv/opencv",
-        "llvm/llvm-project",
         "godotengine/godot",
         "torvalds/linux",
         "tensorflow/tensorflow",
@@ -49,7 +47,6 @@
         "git/git"
       ],
       "typical": [
-        "nlohmann/json",
         "fmtlib/fmt",
         "gabime/spdlog",
         "madler/zlib"
@@ -125,10 +122,7 @@
         "jlord/git-it-electron",
         "exiftool/exiftool"
       ],
-      "big": [
-        "AlDanial/cloc",
-        "major/MySQLTuner-perl"
-      ],
+      "big": [],
       "medium": [
         "brendangregg/FlameGraph",
         "AlDanial/cloc"
@@ -149,10 +143,7 @@
         "pyenv/pyenv"
       ],
       "typical": [
-        "bash-it/bash-it",
-        "ohmybash/oh-my-bash",
-        "acmesh-official/acme.sh",
-        "rupa/z"
+        "acmesh-official/acme.sh"
       ],
       "huge": [
         "ohmyzsh/ohmyzsh",
@@ -189,15 +180,12 @@
       ],
       "typical": [
         "fastlane/fastlane",
-        "sidekiq/sidekiq",
-        "rspec/rspec",
-        "ruby/rake"
+        "rspec/rspec"
       ],
       "huge": [
         "rubocop/rubocop",
         "jekyll/jekyll",
         "huginn/huginn",
-        "rails/rails",
         "mastodon/mastodon",
         "rapid7/metasploit-framework"
       ],
@@ -221,7 +209,6 @@
     "repos": {
       "huge": [
         "symfony/symfony",
-        "laravel/framework",
         "magento/magento2",
         "WordPress/wordpress-develop",
         "danielmiessler/SecLists",
@@ -234,9 +221,7 @@
         "laravel/framework"
       ],
       "typical": [
-        "slimphp/Slim",
-        "guzzle/guzzle",
-        "nikic/PHP-Parser"
+        "slimphp/Slim"
       ],
       "big": [
         "coollabsio/coolify",
@@ -298,13 +283,10 @@
         "pandas-dev/pandas"
       ],
       "typical": [
-        "psf/requests",
-        "pydantic/pydantic",
         "pygments/pygments"
       ],
       "huge": [
         "django/django",
-        "pallets/flask",
         "scikit-learn/scikit-learn",
         "python/cpython",
         "langflow-ai/langflow",
@@ -331,20 +313,17 @@
       "huge": [
         "rust-lang/rust",
         "servo/servo",
-        "tokio-rs/tokio",
         "zed-industries/zed",
         "unionlabs/union"
       ],
       "typical": [
-        "BurntSushi/ripgrep",
         "sharkdp/fd",
         "serde-rs/serde"
       ],
       "large": [
         "denoland/deno",
         "nushell/nushell",
-        "alacritty/alacritty",
-        "tokio-rs/tokio"
+        "alacritty/alacritty"
       ],
       "big": [
         "tauri-apps/tauri",
@@ -366,7 +345,6 @@
     "repos": {
       "huge": [
         "kubernetes/kubernetes",
-        "prometheus/prometheus",
         "moby/moby",
         "golang/go",
         "go-gitea/gitea"
@@ -378,7 +356,6 @@
         "prometheus/prometheus"
       ],
       "typical": [
-        "gin-gonic/gin",
         "spf13/cobra",
         "gorilla/mux"
       ],
@@ -403,7 +380,6 @@
       "huge": [
         "elastic/elasticsearch",
         "apache/kafka",
-        "spring-projects/spring-boot",
         "krahets/hello-algo",
         "MisterBooo/LeetCodeAnimation"
       ],
@@ -414,8 +390,6 @@
         "spring-projects/spring-boot"
       ],
       "typical": [
-        "junit-team/junit5",
-        "square/okhttp",
         "mockito/mockito",
         "junit-team/junit-framework"
       ],
@@ -439,14 +413,12 @@
     "repos": {
       "huge": [
         "dotnet/runtime",
-        "dotnet/roslyn",
         "dotnet/aspnetcore",
         "microsoft/PowerToys",
         "dotnet/maui"
       ],
       "large": [
         "AutoMapper/AutoMapper",
-        "AvaloniaUI/Avalonia",
         "OrchardCMS/OrchardCore",
         "dotnet/roslyn"
       ],
@@ -477,13 +449,11 @@
       "huge": [
         "JetBrains/kotlin",
         "android/architecture-samples",
-        "Kotlin/kotlinx.coroutines",
         "bannedbook/fanqiang",
         "signalapp/Signal-Android"
       ],
       "large": [
         "ktorio/ktor",
-        "Kotlin/kotlinx.coroutines",
         "square/okhttp",
         "airbnb/mavericks"
       ],
@@ -518,13 +488,9 @@
         "nestjs/nest"
       ],
       "typical": [
-        "expressjs/express",
-        "axios/axios",
-        "lodash/lodash"
+        "expressjs/express"
       ],
       "huge": [
-        "microsoft/vscode",
-        "facebook/react",
         "nodejs/node",
         "Chalarangelo/30-seconds-of-code",
         "mrdoob/three.js"
@@ -548,16 +514,13 @@
     "queries": "benchmarks/queries/dockerfile.txt",
     "repos": {
       "typical": [
-        "docker-library/official-images",
         "devcontainers/images",
-        "nginxinc/docker-nginx",
         "docker-library/hello-world"
       ],
       "huge": [
         "kubernetes/kubernetes",
         "moby/moby",
         "github/actions",
-        "docker-library/official-images",
         "goldbergyoni/nodebestpractices",
         "Anduin2017/HowToCook"
       ],
@@ -599,8 +562,6 @@
         "bgreenwell/doxx"
       ],
       "large": [
-        "git/git",
-        "curl/curl",
         "redis/redis"
       ],
       "big": [
@@ -629,15 +590,12 @@
       ],
       "huge": [
         "kubernetes/kubernetes",
-        "googleapis/googleapis",
-        "envoyproxy/envoy",
-        "grpc/grpc"
+        "envoyproxy/envoy"
       ],
       "large": [
         "istio/istio",
         "prometheus/prometheus",
-        "grpc/grpc",
-        "protocolbuffers/protobuf"
+        "grpc/grpc"
       ],
       "big": [
         "googleapis/googleapis",
@@ -666,15 +624,10 @@
       ],
       "huge": [
         "facebook/relay",
-        "apollographql/apollo-client",
         "hasura/graphql-engine",
         "prisma/prisma"
       ],
-      "large": [
-        "apollographql/apollo-server",
-        "graphql/graphql-js",
-        "urql-graphql/urql"
-      ],
+      "large": [],
       "big": [
         "apollographql/apollo-server",
         "apollographql/apollo-client"
@@ -729,14 +682,12 @@
     "queries": "benchmarks/queries/starlark.txt",
     "repos": {
       "typical": [
-        "bazelbuild/rules_go",
         "bazelbuild/rules_nodejs",
         "bazelbuild/rules_proto",
         "bazelbuild/bazel-skylib"
       ],
       "huge": [
         "tensorflow/tensorflow",
-        "bazelbuild/bazel",
         "google/tsunami-security-scanner",
         "googleapis/googleapis",
         "bazelbuild/rules_rust"
@@ -744,8 +695,7 @@
       "large": [
         "grpc/grpc",
         "envoyproxy/envoy",
-        "protocolbuffers/protobuf",
-        "bazelbuild/bazel"
+        "protocolbuffers/protobuf"
       ],
       "big": [
         "GoogleContainerTools/distroless",
@@ -808,15 +758,12 @@
         "dart-lang/http"
       ],
       "huge": [
-        "flutter/flutter",
-        "dart-lang/sdk",
         "flutter/engine",
         "KRTirtho/spotube",
         "ente-io/ente"
       ],
       "large": [
         "firebase/flutterfire",
-        "dart-lang/http",
         "rrousselGit/riverpod",
         "dart-lang/sdk"
       ],
@@ -839,7 +786,6 @@
     "queries": "benchmarks/queries/scala.txt",
     "repos": {
       "typical": [
-        "typelevel/cats",
         "scalatest/scalatest",
         "circe/circe"
       ],
@@ -852,7 +798,6 @@
       ],
       "large": [
         "scalaz/scalaz",
-        "playframework/playframework",
         "sbt/sbt",
         "akka/akka-core"
       ],
@@ -881,17 +826,12 @@
         "spockframework/spock"
       ],
       "huge": [
-        "jenkinsci/jenkins",
-        "apache/groovy",
-        "gradle/gradle",
         "rundeck/rundeck",
         "nextflow-io/nextflow"
       ],
       "large": [
-        "spockframework/spock",
         "grails/grails-core",
-        "jenkinsci/pipeline-model-definition-plugin",
-        "gradle/gradle"
+        "jenkinsci/pipeline-model-definition-plugin"
       ],
       "big": [
         "HujiangTechnology/gradle_plugin_android_aspectjx",
@@ -918,17 +858,13 @@
       ],
       "huge": [
         "rstudio/rstudio",
-        "tidyverse/ggplot2",
-        "tidyverse/dplyr",
         "wch/r-source",
         "IndrajeetPatil/ggstatsplot",
         "tylermorganwall/rayshader"
       ],
       "large": [
         "r-lib/devtools",
-        "r-lib/usethis",
-        "yihui/knitr",
-        "tidyverse/ggplot2"
+        "yihui/knitr"
       ],
       "big": [
         "rstudio/shiny",
@@ -956,13 +892,11 @@
       ],
       "huge": [
         "JuliaLang/julia",
-        "JuliaData/DataFrames.jl",
         "SciML/DifferentialEquations.jl",
         "mitmath/computational-thinking",
         "jump-dev/JuMP.jl"
       ],
       "large": [
-        "FluxML/Flux.jl",
         "MakieOrg/Makie.jl",
         "JuMP-dev/JuMP.jl",
         "JuliaData/DataFrames.jl"
@@ -986,7 +920,6 @@
     "queries": "benchmarks/queries/handlebars.txt",
     "repos": {
       "typical": [
-        "handlebars-lang/handlebars.js",
         "assemble/assemble",
         "metalsmith/metalsmith",
         "express-handlebars/express-handlebars"
@@ -995,15 +928,13 @@
         "microsoft/vscode",
         "vercel/next.js",
         "nodejs/node",
-        "emberjs/ember.js",
         "wet-boew/wet-boew",
         "flatlogic/sing-app"
       ],
       "large": [
         "twbs/bootstrap",
         "ghost/ghost",
-        "emberjs/ember.js",
-        "TryGhost/Ghost"
+        "emberjs/ember.js"
       ],
       "big": [
         "rust-lang/rust-by-example",
@@ -1023,11 +954,7 @@
     "label": "Mustache",
     "queries": "benchmarks/queries/mustache.txt",
     "repos": {
-      "typical": [
-        "mustache/spec",
-        "janl/mustache.js",
-        "mustache/mustache"
-      ],
+      "typical": [],
       "huge": [
         "kubernetes/kubernetes",
         "ansible/ansible",
@@ -1061,23 +988,17 @@
     "queries": "benchmarks/queries/jinja.txt",
     "repos": {
       "typical": [
-        "pallets/jinja",
-        "cookiecutter/cookiecutter",
         "apache/superset",
         "pallets/flask"
       ],
       "huge": [
-        "ansible/ansible",
         "home-assistant/core",
-        "pallets/flask",
-        "django/django",
         "kubernetes-sigs/kubespray",
         "easzlab/kubeasz"
       ],
       "large": [
         "django/django",
-        "jupyter/notebook",
-        "pallets/jinja"
+        "jupyter/notebook"
       ],
       "big": [
         "netbootxyz/netboot.xyz",
@@ -1104,16 +1025,13 @@
         "dotnet-architecture/eShopOnWeb"
       ],
       "huge": [
-        "dotnet/aspnetcore",
-        "OrchardCMS/OrchardCore",
         "nopSolutions/nopCommerce",
         "abpframework/abp"
       ],
       "large": [
         "MudBlazor/MudBlazor",
         "radzenhq/radzen-blazor",
-        "serenity-is/Serenity",
-        "OrchardCMS/OrchardCore"
+        "serenity-is/Serenity"
       ],
       "big": [
         "dotnet/AspNetCore.Docs",
