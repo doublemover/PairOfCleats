@@ -222,6 +222,7 @@ export const resolveStage1Queues = (indexingConfig = {}) => {
     { min: 0, max: 1, allowZero: false }
   );
   const watchdogNearThresholdMinSamples = coercePositiveInt(watchdog.nearThresholdMinSamples);
+  const watchdogCleanupTimeoutMs = coerceOptionalNonNegativeInt(watchdog.cleanupTimeoutMs);
 
   return {
     tokenize: {
@@ -252,7 +253,8 @@ export const resolveStage1Queues = (indexingConfig = {}) => {
       nearThresholdLowerFraction: watchdogNearThresholdLowerFraction,
       nearThresholdUpperFraction: watchdogNearThresholdUpperFraction,
       nearThresholdAlertFraction: watchdogNearThresholdAlertFraction,
-      nearThresholdMinSamples: watchdogNearThresholdMinSamples
+      nearThresholdMinSamples: watchdogNearThresholdMinSamples,
+      cleanupTimeoutMs: watchdogCleanupTimeoutMs
     }
   };
 };

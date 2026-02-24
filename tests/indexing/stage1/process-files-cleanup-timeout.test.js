@@ -48,6 +48,33 @@ const configuredTimeoutMs = resolveProcessCleanupTimeoutMs({
 });
 assert.equal(configuredTimeoutMs, 4321, 'expected configured process cleanup timeout to be honored');
 
+const indexingConfigTimeoutMs = resolveProcessCleanupTimeoutMs({
+  indexingConfig: {
+    stage1: {
+      watchdog: {
+        cleanupTimeoutMs: 2468
+      }
+    }
+  }
+});
+assert.equal(indexingConfigTimeoutMs, 2468, 'expected indexing stage1 cleanup timeout to be honored');
+
+const stageQueueOverrideTimeoutMs = resolveProcessCleanupTimeoutMs({
+  indexingConfig: {
+    stage1: {
+      watchdog: {
+        cleanupTimeoutMs: 1357
+      }
+    }
+  },
+  stage1Queues: {
+    watchdog: {
+      cleanupTimeoutMs: 9753
+    }
+  }
+});
+assert.equal(stageQueueOverrideTimeoutMs, 9753, 'expected stage1 queue cleanup timeout to take precedence');
+
 const disabledTimeoutMs = resolveProcessCleanupTimeoutMs({
   stage1Queues: {
     watchdog: {
@@ -71,6 +98,20 @@ assert.ok(
   timeoutLogs.some((line) => line.includes('unit-timeout timed out')),
   'expected timeout cleanup log line'
 );
+
+let timeoutHookTriggered = false;
+const timedOutWithHook = await runCleanupWithTimeout({
+  label: 'unit-timeout-hook',
+  timeoutMs: 25,
+  cleanup: () => new Promise((resolve) => {
+    setTimeout(resolve, 500);
+  }),
+  onTimeout: () => {
+    timeoutHookTriggered = true;
+  }
+});
+assert.equal(timedOutWithHook.timedOut, true, 'expected timeout hook path to report timeout');
+assert.equal(timeoutHookTriggered, true, 'expected timeout hook to run for timed-out cleanup');
 
 let fastCleanupCalled = false;
 const completed = await runCleanupWithTimeout({

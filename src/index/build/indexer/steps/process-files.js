@@ -497,14 +497,17 @@ export const resolveFileHardTimeoutMs = (watchdogConfig, entry, softTimeoutMs = 
 /**
  * Resolve cleanup timeout for stage1 subprocess teardown.
  *
+ * Stage1 queue watchdog settings take precedence, then raw indexing config.
  * A configured value of `0` explicitly disables timeout enforcement.
  *
  * @param {object} runtime
  * @returns {number}
  */
 export const resolveProcessCleanupTimeoutMs = (runtime) => {
-  const config = runtime?.stage1Queues?.watchdog || {};
-  const configured = coerceOptionalNonNegativeInt(config.cleanupTimeoutMs);
+  const configured = resolveOptionalNonNegativeIntFromValues(
+    runtime?.stage1Queues?.watchdog?.cleanupTimeoutMs,
+    runtime?.indexingConfig?.stage1?.watchdog?.cleanupTimeoutMs
+  );
   if (configured === 0) return 0;
   return configured ?? FILE_PROCESS_CLEANUP_TIMEOUT_DEFAULT_MS;
 };
@@ -940,6 +943,82 @@ export const runCleanupWithTimeout = async ({
     }
     return { skipped: false, timedOut: true, elapsedMs, error: err };
   }
+};
+
+/**
+ * Run stage1 tail cleanup tasks concurrently and aggregate diagnostics.
+ *
+ * Each task should enforce its own timeout via `runCleanupWithTimeout`. This
+ * coordinator waits for all cleanup legs so one failure does not hide the
+ * status of sibling teardown work.
+ *
+ * @param {{
+ *  tasks?:Array<{label?:string,run?:Function}>,
+ *  logSummary?:(input:{
+ *    outcomes:Array<{label:string,skipped:boolean,timedOut:boolean,elapsedMs:number,error?:unknown}>,
+ *    elapsedMs:number,
+ *    fatalErrors:Array<{label:string,error:unknown}>
+ *  })=>void
+ * }} [input]
+ * @returns {Promise<Array<{label:string,skipped:boolean,timedOut:boolean,elapsedMs:number,error?:unknown}>>}
+ */
+const runStage1TailCleanupTasks = async ({
+  tasks = [],
+  logSummary = null
+} = {}) => {
+  const cleanupTasks = Array.isArray(tasks)
+    ? tasks.filter((task) => typeof task?.run === 'function')
+    : [];
+  if (!cleanupTasks.length) return [];
+  const startedAtMs = Date.now();
+  const settled = await Promise.allSettled(cleanupTasks.map(async (task) => {
+    const result = await task.run();
+    return {
+      label: typeof task.label === 'string' && task.label.trim()
+        ? task.label.trim()
+        : 'cleanup',
+      skipped: result?.skipped === true,
+      timedOut: result?.timedOut === true,
+      elapsedMs: Number.isFinite(result?.elapsedMs)
+        ? Math.max(0, Math.floor(Number(result.elapsedMs)))
+        : 0,
+      error: result?.error
+    };
+  }));
+  const outcomes = [];
+  const fatalErrors = [];
+  settled.forEach((entry, index) => {
+    const task = cleanupTasks[index] || {};
+    const label = typeof task.label === 'string' && task.label.trim()
+      ? task.label.trim()
+      : `cleanup-${index + 1}`;
+    if (entry.status === 'fulfilled') {
+      outcomes.push(entry.value);
+      return;
+    }
+    const error = entry.reason;
+    outcomes.push({
+      label,
+      skipped: false,
+      timedOut: false,
+      elapsedMs: 0,
+      error
+    });
+    fatalErrors.push({ label, error });
+  });
+  if (typeof logSummary === 'function') {
+    try {
+      logSummary({
+        outcomes,
+        elapsedMs: Math.max(0, Date.now() - startedAtMs),
+        fatalErrors
+      });
+    } catch {}
+  }
+  if (fatalErrors.length > 0) {
+    throw fatalErrors[0].error;
+  }
+  return outcomes;
 };
 
 /**
@@ -1892,26 +1971,33 @@ export const processFiles = async ({
       }
     }
   }
+  const cleanupTimeoutMs = resolveProcessCleanupTimeoutMs(runtime);
 
   /**
    * Stop and flush tree-sitter scheduler resources when used by this stage.
    *
-   * @returns {Promise<void>}
+   * @param {{onTimeout?:Function|null}} [input]
+   * @returns {Promise<{skipped:boolean,timedOut:boolean,elapsedMs:number,error?:unknown}>}
    */
-  const closeTreeSitterScheduler = async () => {
-    if (!treeSitterScheduler || typeof treeSitterScheduler.close !== 'function') return;
-    await runCleanupWithTimeout({
+  const closeTreeSitterScheduler = async ({ onTimeout = null } = {}) => {
+    if (!treeSitterScheduler || typeof treeSitterScheduler.close !== 'function') {
+      return { skipped: true, timedOut: false, elapsedMs: 0 };
+    }
+    return runCleanupWithTimeout({
       label: 'tree-sitter-scheduler.close',
       cleanup: () => treeSitterScheduler.close(),
       timeoutMs: cleanupTimeoutMs,
-      log,
-      continueOnTimeout: true
+      log: (line, meta) => logLine(line, {
+        ...(meta || {}),
+        mode,
+        stage: 'processing'
+      }),
+      onTimeout
     });
   };
   let stallSnapshotTimer = null;
   let progressHeartbeatTimer = null;
   let stallAbortTimer = null;
-  const cleanupTimeoutMs = resolveProcessCleanupTimeoutMs(runtime);
 
   try {
     assignFileIndexes(entries);
@@ -2359,19 +2445,19 @@ export const processFiles = async ({
     } = {}) => {
       const orderedPending = getOrderedPendingCount();
       return buildStage1ProcessingStallSnapshot({
-      reason,
-      idleMs,
-      includeStack,
-      lastProgressAt: resolveStage1LastActivityAt(orderedPending),
-      progress,
-      processStart,
-      inFlightFiles,
-      getOrderedPendingCount,
-      orderedAppender,
-      postingsQueue,
-      queueDelaySummary,
-      stage1OwnershipPrefix: stage1OwnershipPrefix,
-      runtime
+        reason,
+        idleMs,
+        includeStack,
+        lastProgressAt: resolveStage1LastActivityAt(orderedPending),
+        progress,
+        processStart,
+        inFlightFiles,
+        getOrderedPendingCount,
+        orderedAppender,
+        postingsQueue,
+        queueDelaySummary,
+        stage1OwnershipPrefix: stage1OwnershipPrefix,
+        runtime
       });
     };
     /**
@@ -4026,39 +4112,74 @@ export const processFiles = async ({
     }
     runtime?.telemetry?.clearInFlightBytes?.('stage1.postings-queue');
     runtime?.telemetry?.clearDurationHistogram?.(queueDelayTelemetryChannel);
-    await runCleanupWithTimeout({
-      label: 'perf-event-logger.close',
-      cleanup: () => perfEventLogger.close(),
-      timeoutMs: cleanupTimeoutMs,
-      log: (line, meta) => logLine(line, {
-        ...(meta || {}),
-        mode,
-        stage: 'processing'
-      })
-    });
-    await runCleanupWithTimeout({
-      label: 'tree-sitter-scheduler.close',
-      cleanup: () => closeTreeSitterScheduler(),
-      timeoutMs: cleanupTimeoutMs,
-      log: (line, meta) => logLine(line, {
-        ...(meta || {}),
-        mode,
-        stage: 'processing'
-      }),
-      onTimeout: async () => {
-        const cleanup = await terminateTrackedSubprocesses({
-          reason: 'tree_sitter_scheduler_close_timeout',
-          force: true
-        });
-        if (cleanup?.attempted > 0) {
+    await runStage1TailCleanupTasks({
+      tasks: [
+        {
+          label: 'perf-event-logger.close',
+          run: () => runCleanupWithTimeout({
+            label: 'perf-event-logger.close',
+            cleanup: () => perfEventLogger.close(),
+            timeoutMs: cleanupTimeoutMs,
+            log: (line, meta) => logLine(line, {
+              ...(meta || {}),
+              mode,
+              stage: 'processing'
+            })
+          })
+        },
+        {
+          label: 'tree-sitter-scheduler.close',
+          run: () => closeTreeSitterScheduler({
+            onTimeout: async () => {
+              const cleanup = await terminateTrackedSubprocesses({
+                reason: 'tree_sitter_scheduler_close_timeout',
+                force: true
+              });
+              if (cleanup?.attempted > 0) {
+                logLine(
+                  `[cleanup] forced termination of ${cleanup.attempted} tracked subprocess(es) after scheduler close timeout.`,
+                  {
+                    kind: 'warning',
+                    mode,
+                    stage: 'processing',
+                    cleanup
+                  }
+                );
+              }
+            }
+          })
+        }
+      ],
+      logSummary: ({ outcomes, elapsedMs, fatalErrors }) => {
+        const timeoutLabels = outcomes.filter((outcome) => outcome.timedOut).map((outcome) => outcome.label);
+        const summaryText = outcomes
+          .map((outcome) => (
+            `${outcome.label}:${outcome.skipped ? 'skipped' : (outcome.timedOut ? 'timeout' : 'ok')}(${outcome.elapsedMs}ms)`
+          ))
+          .join(', ');
+        const baseMeta = {
+          mode,
+          stage: 'processing',
+          cleanup: {
+            elapsedMs,
+            timeoutLabels,
+            fatalLabels: fatalErrors.map((entry) => entry.label)
+          }
+        };
+        if (timeoutLabels.length > 0 || fatalErrors.length > 0) {
           logLine(
-            `[cleanup] forced termination of ${cleanup.attempted} tracked subprocess(es) after scheduler close timeout.`,
+            `[cleanup] stage1 tail cleanup completed with warnings in ${elapsedMs}ms (${summaryText}).`,
             {
               kind: 'warning',
-              mode,
-              stage: 'processing',
-              cleanup
+              ...baseMeta
             }
+          );
+          return;
+        }
+        if (elapsedMs >= 1000) {
+          logLine(
+            `[cleanup] stage1 tail cleanup completed in ${elapsedMs}ms (${summaryText}).`,
+            baseMeta
           );
         }
       }

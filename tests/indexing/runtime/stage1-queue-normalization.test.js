@@ -36,7 +36,8 @@ const stage1Queues = resolveStage1Queues({
       nearThresholdLowerFraction: '0.6',
       nearThresholdUpperFraction: '0.9',
       nearThresholdAlertFraction: '0.95',
-      nearThresholdMinSamples: 5.2
+      nearThresholdMinSamples: 5.2,
+      cleanupTimeoutMs: '1234.8'
     }
   }
 });
@@ -60,6 +61,7 @@ assert.equal(stage1Queues.watchdog.nearThresholdLowerFraction, 0.6, 'expected lo
 assert.equal(stage1Queues.watchdog.nearThresholdUpperFraction, 0.9, 'expected upper threshold fraction');
 assert.equal(stage1Queues.watchdog.nearThresholdAlertFraction, 0.95, 'expected alert threshold fraction');
 assert.equal(stage1Queues.watchdog.nearThresholdMinSamples, 5, 'expected min sample coercion');
+assert.equal(stage1Queues.watchdog.cleanupTimeoutMs, 1234, 'expected cleanup timeout coercion');
 
 const ownershipPrefix = buildStage1SubprocessOwnershipPrefix({ buildId: 'build-123' });
 assert.equal(ownershipPrefix, 'stage1:build-123', 'expected deterministic stage1 ownership prefix');
