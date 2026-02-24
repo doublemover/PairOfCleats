@@ -20,6 +20,35 @@ const normalizeBoolean = (value) => value === true || value === 'true' || value 
 const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
 
 /**
+ * Merge runtime + indexing scheduler surfaces without dropping either source.
+ *
+ * Runtime-level scheduler defaults act as base config and indexing-level
+ * values override them. Nested plain objects are shallow-merged to preserve
+ * partial overrides (for example `queues`/`writeBackpressure` subsets).
+ *
+ * @param {object|null|undefined} runtimeScheduler
+ * @param {object|null|undefined} indexingScheduler
+ * @returns {object}
+ */
+const mergeNestedSchedulerObject = (base, override) => {
+  const merged = isObject(base) ? { ...base } : {};
+  if (!isObject(override)) return merged;
+  for (const [key, value] of Object.entries(override)) {
+    if (isObject(value) && isObject(merged[key])) {
+      merged[key] = mergeNestedSchedulerObject(merged[key], value);
+      continue;
+    }
+    merged[key] = value;
+  }
+  return merged;
+};
+
+const mergeSchedulerSurfaces = (runtimeScheduler, indexingScheduler) => mergeNestedSchedulerObject(
+  runtimeScheduler,
+  indexingScheduler
+);
+
+/**
  * Normalize tri-state boolean inputs where `null` means "unset".
  *
  * @param {unknown} value
@@ -355,9 +384,10 @@ export const resolveSchedulerConfig = ({
   envelope,
   autoTuneProfile = null
 }) => {
-  const schedulerConfig = (indexingConfig && indexingConfig.scheduler)
-    || (runtimeConfig && runtimeConfig.scheduler)
-    || {};
+  const schedulerConfig = mergeSchedulerSurfaces(
+    runtimeConfig?.scheduler,
+    indexingConfig?.scheduler
+  );
   const cliSchedulerPresent = hasCliArg(rawArgv, '--scheduler') || hasCliArg(rawArgv, '--no-scheduler');
   const cliLowResourcePresent = hasCliArg(rawArgv, '--scheduler-low-resource')
     || hasCliArg(rawArgv, '--no-scheduler-low-resource');

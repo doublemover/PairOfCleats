@@ -161,4 +161,49 @@ assert.equal(
   'expected per-surface fd pressure threshold override to be parsed'
 );
 
+const mergedSurfaces = resolveSchedulerConfig({
+  argv: {},
+  rawArgv: ['node', 'script'],
+  envConfig: {},
+  runtimeConfig: {
+    scheduler: {
+      writeBackpressure: {
+        enabled: true,
+        pendingThreshold: 77
+      },
+      queues: {
+        mergedQueue: { priority: 33 }
+      }
+    }
+  },
+  indexingConfig: {
+    scheduler: {
+      queues: {
+        mergedQueue: { maxPending: 12 }
+      }
+    }
+  },
+  envelope: {
+    concurrency: {
+      cpuConcurrency: { value: 4 },
+      ioConcurrency: { value: 4 }
+    }
+  }
+});
+assert.equal(
+  mergedSurfaces.writeBackpressure.pendingThreshold,
+  77,
+  'expected runtime scheduler surface to survive indexing overrides'
+);
+assert.equal(
+  mergedSurfaces.queues.mergedQueue.priority,
+  33,
+  'expected queue priority from runtime scheduler surface'
+);
+assert.equal(
+  mergedSurfaces.queues.mergedQueue.maxPending,
+  12,
+  'expected queue maxPending from indexing scheduler surface'
+);
+
 console.log('scheduler config parse test passed');
