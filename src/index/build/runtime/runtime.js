@@ -743,7 +743,32 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     getChunkEmbeddings
   } = embeddingRuntime;
   const daemonPrewarmEmbeddings = daemonConfig.prewarmEmbeddings !== false;
-  const embeddingWarmKey = `${embeddingProvider || 'unknown'}:${modelId || 'none'}:${modelsDir || 'none'}:${embeddingNormalize !== false}`;
+  const embeddingPrewarmTokenizer = embeddingProvider === 'onnx' && embeddingOnnx?.prewarmTokenizer === true;
+  const embeddingPrewarmModel = embeddingProvider === 'onnx' && embeddingOnnx?.prewarmModel === true;
+  const embeddingPrewarmTexts = Array.isArray(embeddingOnnx?.prewarmTexts)
+    ? embeddingOnnx.prewarmTexts
+    : [];
+  const embeddingWarmModelPath = embeddingProvider === 'onnx'
+    ? (embeddingOnnx?.resolvedModelPath || embeddingOnnx?.modelPath || 'none')
+    : 'none';
+  const embeddingWarmOnnxCacheDir = embeddingProvider === 'onnx'
+    ? (embeddingOnnx?.cacheDir || 'default-cache')
+    : 'none';
+  const embeddingWarmOnnxThreads = embeddingProvider === 'onnx'
+    ? `${embeddingOnnx?.intraOpNumThreads ?? 'd'}:${embeddingOnnx?.interOpNumThreads ?? 'd'}`
+    : 'none';
+  const embeddingWarmKey = [
+    embeddingProvider || 'unknown',
+    modelId || 'none',
+    modelsDir || 'none',
+    embeddingWarmModelPath,
+    embeddingWarmOnnxCacheDir,
+    embeddingWarmOnnxThreads,
+    embeddingNormalize !== false ? 'normalize' : 'raw',
+    embeddingPrewarmTokenizer ? 'tok' : 'no-tok',
+    embeddingPrewarmModel ? 'model' : 'no-model',
+    embeddingPrewarmTexts.join('|')
+  ].join(':');
   const daemonEmbeddingWarmHit = daemonSession
     ? hasDaemonEmbeddingWarmKey(daemonSession, embeddingWarmKey)
     : false;

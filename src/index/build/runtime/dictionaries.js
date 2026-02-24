@@ -222,8 +222,10 @@ export const resolveRuntimeDictionaries = async ({
   const dictStartedAt = Date.now();
   const dictConfig = getDictConfig(root, userConfig);
   const dictDir = dictConfig?.dir || null;
-  const codeDictLanguages = normalizeCodeDictLanguages(DEFAULT_CODE_DICT_LANGUAGES);
-  const codeDictEnabled = codeDictLanguages.size > 0;
+  const requestedCodeDictLanguages = normalizeCodeDictLanguages(
+    userConfig?.indexing?.codeDictLanguages ?? DEFAULT_CODE_DICT_LANGUAGES
+  );
+  const codeDictEnabled = requestedCodeDictLanguages.size > 0;
   const emptyCodeDictPaths = {
     baseDir: path.join(dictDir || '', 'code-dicts'),
     common: [],
@@ -234,9 +236,10 @@ export const resolveRuntimeDictionaries = async ({
   const [dictionaryPaths, codeDictPaths] = await Promise.all([
     getDictionaryPaths(root, dictConfig),
     codeDictEnabled
-      ? getCodeDictionaryPaths(root, dictConfig, { languages: Array.from(codeDictLanguages) })
+      ? getCodeDictionaryPaths(root, dictConfig, { languages: Array.from(requestedCodeDictLanguages) })
       : Promise.resolve(emptyCodeDictPaths)
   ]);
+  const codeDictLanguages = normalizeCodeDictLanguages(Array.from(codeDictPaths.byLanguage.keys()));
 
   const toDictSignaturePath = createDictSignaturePathResolver({ dictDir, repoRoot: root });
   const [baseSignatures, codeSignatures] = await Promise.all([
