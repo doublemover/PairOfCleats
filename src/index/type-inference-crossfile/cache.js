@@ -3,6 +3,7 @@ import path from 'node:path';
 import { getRepoCacheRoot, getRepoRoot } from '../../shared/dict-utils.js';
 import { sha1 } from '../../shared/hash.js';
 import { stableStringify } from '../../shared/stable-json.js';
+import { writeJsonObjectFile } from '../../shared/json-stream.js';
 
 export const CROSS_FILE_CACHE_SCHEMA_VERSION = 1;
 export const CROSS_FILE_CACHE_DIRNAME = 'cross-file-inference';
@@ -190,22 +191,29 @@ export const writeCrossFileInferenceCache = async ({
 }) => {
   if (!cacheDir || !cachePath) return;
   try {
-    const rows = chunks.map((chunk, index) => ({
-      id: resolveChunkIdentity(chunk, index),
-      codeRelations: chunk?.codeRelations && typeof chunk.codeRelations === 'object'
-        ? chunk.codeRelations
-        : null,
-      docmeta: chunk?.docmeta && typeof chunk.docmeta === 'object'
-        ? chunk.docmeta
-        : null
-    }));
-    await fs.mkdir(cacheDir, { recursive: true });
-    await fs.writeFile(cachePath, JSON.stringify({
-      schemaVersion: CROSS_FILE_CACHE_SCHEMA_VERSION,
-      generatedAt: new Date().toISOString(),
-      fingerprint: crossFileFingerprint,
-      stats: normalizeCacheStats(stats),
-      rows
-    }), 'utf8');
+    const rows = (function *buildRows() {
+      for (let index = 0; index < chunks.length; index += 1) {
+        const chunk = chunks[index];
+        yield {
+          id: resolveChunkIdentity(chunk, index),
+          codeRelations: chunk?.codeRelations && typeof chunk.codeRelations === 'object'
+            ? chunk.codeRelations
+            : null,
+          docmeta: chunk?.docmeta && typeof chunk.docmeta === 'object'
+            ? chunk.docmeta
+            : null
+        };
+      }
+    })();
+    await writeJsonObjectFile(cachePath, {
+      trailingNewline: false,
+      fields: {
+        schemaVersion: CROSS_FILE_CACHE_SCHEMA_VERSION,
+        generatedAt: new Date().toISOString(),
+        fingerprint: crossFileFingerprint,
+        stats: normalizeCacheStats(stats)
+      },
+      arrays: { rows }
+    });
   } catch {}
 };

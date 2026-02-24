@@ -9,6 +9,7 @@ import { TOOLING_CONFIDENCE, TOOLING_SOURCE } from './constants.js';
 import { addInferredParam, addInferredReturn } from './apply.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
 import { stableStringify } from '../../shared/stable-json.js';
+import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 
 const TOOLING_DOCTOR_CACHE_VERSION = 1;
 const TOOLING_DOCTOR_CACHE_FILE = '.tooling-doctor-cache.json';
@@ -53,7 +54,10 @@ const writeToolingDoctorCache = async ({ cachePath, key, reportPath }) => {
     reportPath
   };
   try {
-    await fs.writeFile(cachePath, JSON.stringify(payload));
+    await atomicWriteJson(cachePath, payload, {
+      spaces: 0,
+      newline: false
+    });
   } catch {}
 };
 
