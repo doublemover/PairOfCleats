@@ -786,7 +786,10 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
       normalize: embeddingNormalize,
       useStub: false,
       modelId,
-      modelsDir
+      modelsDir,
+      prewarmTokenizer: embeddingPrewarmTokenizer,
+      prewarmModel: embeddingPrewarmModel,
+      prewarmTexts: embeddingPrewarmTexts
     }));
     addDaemonEmbeddingWarmKey(daemonSession, embeddingWarmKey);
   }

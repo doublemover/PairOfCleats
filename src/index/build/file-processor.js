@@ -5,7 +5,7 @@ import { normalizeCommentConfig } from '../comments.js';
 import { createLruCache, estimateJsonBytes } from '../../shared/cache.js';
 import { fromPosix, toPosix } from '../../shared/files.js';
 import { log, logLine } from '../../shared/progress.js';
-import { getEnvConfig } from '../../shared/env.js';
+import { getDocumentExtractorTestConfig, getEnvConfig } from '../../shared/env.js';
 import { buildPostingsPayloadMetadata } from './postings-payload.js';
 import { createFileScanner } from './file-scan.js';
 import { createTokenizationContext } from './tokenization.js';
@@ -360,6 +360,9 @@ export function createFileProcessor(options) {
   async function processFile(fileEntry, fileIndex, options = {}) {
     const signal = options?.signal && typeof options.signal === 'object'
       ? options.signal
+      : null;
+    const onScmProcQueueWait = typeof options?.onScmProcQueueWait === 'function'
+      ? options.onScmProcQueueWait
       : null;
     /**
      * Fail fast when the per-file abort signal has been cancelled.

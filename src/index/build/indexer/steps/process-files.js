@@ -1264,8 +1264,6 @@ export const processFiles = async ({
   relationsEnabled,
   shardPerfProfile,
   fileTextCache,
-  extractedProseYieldProfile = null,
-  documentExtractionCache = null,
   abortSignal = null
 }) => {
   const stageAbortController = typeof AbortController === 'function'
@@ -1355,8 +1353,7 @@ export const processFiles = async ({
   const extractedProseLowYieldBailout = buildExtractedProseLowYieldBailoutState({
     mode,
     runtime,
-    entries,
-    persistedProfile: extractedProseYieldProfile
+    entries
   });
   if (mode === 'extracted-prose' && extractedProseLowYieldBailout?.history?.disabledForYieldHistory) {
     logLine(
@@ -1392,15 +1389,6 @@ export const processFiles = async ({
       }
     );
   }
-  const extractedProseYieldProfilePrefilter = normalizeExtractedProseYieldProfilePrefilterState({
-    mode,
-    runtime,
-    persistedProfile: extractedProseYieldProfile
-  });
-  const extractedProseYieldProfileObservation = createExtractedProseYieldProfileObservationState({
-    mode,
-    runtime
-  });
   const queueDelayHistogram = createDurationHistogram(FILE_QUEUE_DELAY_HISTOGRAM_BUCKETS_MS);
   const queueDelaySummary = { count: 0, totalMs: 0, minMs: null, maxMs: 0 };
   const watchdogNearThreshold = {
@@ -2415,7 +2403,6 @@ export const processFiles = async ({
         scmRepoRoot: runtimeRef.scmRepoRoot,
         scmConfig: runtimeRef.scmConfig,
         scmFileMetaByPath,
-        scmMetaCache: sharedScmMetaCache,
         languageOptions: runtimeRef.languageOptions,
         postingsConfig: runtimeRef.postingsConfig,
         segmentsConfig: runtimeRef.segmentsConfig,
@@ -2440,8 +2427,6 @@ export const processFiles = async ({
         tokenizationStats,
         structuralMatches,
         documentExtractionConfig: runtimeRef.indexingConfig?.documentExtraction || null,
-        documentExtractionCache,
-        extractedProseYieldProfile: extractedProseYieldProfilePrefilter,
         cacheConfig: runtimeRef.cacheConfig,
         cacheReporter,
         queues: runtimeRef.queues,
@@ -2457,8 +2442,6 @@ export const processFiles = async ({
         featureMetrics: runtimeRef.featureMetrics,
         perfEventLogger,
         buildStage: runtimeRef.stage,
-        extractedProseExtrasCache,
-        primeExtractedProseExtrasCache,
         abortSignal: effectiveAbortSignal
       });
       const fileWatchdogConfig = resolveFileWatchdogConfig(runtimeRef, { repoFileCount });
@@ -2924,14 +2907,7 @@ export const processFiles = async ({
               retryDelayMs: 200
             }
           );
-          recoverMissingOrderedGap('queue_drain_pre_wait');
-          await orderedCompletionTracker.wait({
-            stallPollMs: orderedWaitRecoveryPollMs,
-            onStall: ({ stallCount }) => {
-              orderedCompletionTracker.throwIfFailed();
-              recoverMissingOrderedGap('queue_drain_wait', stallCount);
-            }
-          });
+          await orderedCompletionTracker.wait();
         } finally {
           if (activeOrderedCompletionTracker === orderedCompletionTracker) {
             activeOrderedCompletionTracker = null;
@@ -3371,10 +3347,6 @@ export const processFiles = async ({
     timing.processMs = Date.now() - processStart;
     const stageTimingBreakdownPayload = buildStageTimingBreakdownPayload();
     const extractedProseLowYieldSummary = buildExtractedProseLowYieldBailoutSummary(extractedProseLowYieldBailout);
-    const extractedProseYieldProfileSummary = buildExtractedProseYieldProfileObservationSummary({
-      observation: extractedProseYieldProfileObservation,
-      skippedFiles: state?.skippedFiles
-    });
     const watchdogNearThresholdSummary = stageTimingBreakdownPayload?.watchdog?.nearThreshold;
     if (watchdogNearThresholdSummary?.anomaly) {
       const ratioPct = (watchdogNearThresholdSummary.nearThresholdRatio * 100).toFixed(1);
@@ -3401,7 +3373,6 @@ export const processFiles = async ({
     if (timing && typeof timing === 'object') {
       timing.stageTimingBreakdown = stageTimingBreakdownPayload;
       timing.extractedProseLowYieldBailout = extractedProseLowYieldSummary;
-      timing.extractedProseYieldProfile = extractedProseYieldProfileSummary;
       timing.shards = shardExecutionMeta;
       timing.watchdog = {
         ...(timing.watchdog && typeof timing.watchdog === 'object' ? timing.watchdog : {}),
@@ -3420,7 +3391,6 @@ export const processFiles = async ({
     }
     if (state && typeof state === 'object') {
       state.extractedProseLowYieldBailout = extractedProseLowYieldSummary;
-      state.extractedProseYieldProfile = extractedProseYieldProfileSummary;
       state.shardExecution = shardExecutionMeta;
     }
     const parseSkipCount = state.skippedFiles.filter((entry) => entry?.reason === 'parse-error').length;
@@ -3446,8 +3416,7 @@ export const processFiles = async ({
       shardPlan,
       shardExecution: shardExecutionMeta,
       postingsQueueStats,
-      extractedProseLowYieldBailout: extractedProseLowYieldSummary,
-      extractedProseYieldProfile: extractedProseYieldProfileSummary
+      extractedProseLowYieldBailout: extractedProseLowYieldSummary
     };
   } finally {
     if (typeof stallSnapshotTimer === 'object' && stallSnapshotTimer) {

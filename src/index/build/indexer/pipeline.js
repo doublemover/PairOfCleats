@@ -833,8 +833,6 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       relationsEnabled,
       shardPerfProfile,
       fileTextCache,
-      extractedProseYieldProfile: extractedProseYieldProfileSelection?.entry || null,
-      documentExtractionCache: documentExtractionCacheRuntime,
       abortSignal
     });
   }
@@ -881,15 +879,6 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       : 'observed'
   });
   if (mode === 'extracted-prose') {
-    await writeExtractedProseYieldProfileEntry({
-      runtime: runtimeRef,
-      profilePath: extractedProseYieldProfilePath,
-      profile: extractedProseYieldProfile,
-      mode,
-      cacheSignature,
-      observation: extractedProseYieldProfileObservation
-    });
-    await writeDocumentExtractionCacheRuntime(documentExtractionCacheRuntime);
     const extractionSummary = summarizeDocumentExtractionForMode(state);
     if (extractionSummary) {
       await updateBuildState(runtimeRef.buildRoot, {

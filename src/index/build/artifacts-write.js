@@ -15,6 +15,7 @@ import { buildCacheKey } from '../../shared/cache-key.js';
 import { sha1 } from '../../shared/hash.js';
 import { stableStringifyForSignature } from '../../shared/stable-json.js';
 import { coerceIntAtLeast, coerceNumberAtLeast } from '../../shared/number-coerce.js';
+import { removePathWithRetry } from '../../shared/io/remove-path-with-retry.js';
 import { resolveCompressionConfig } from './artifacts/compression.js';
 import { getToolingConfig } from '../../shared/dict-utils.js';
 import { writePiecesManifest } from './artifacts/checksums.js';

@@ -212,9 +212,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     const error = err instanceof Error ? err : new Error(String(err || 'Ordered appender aborted.'));
     for (let i = 0; i < capacityWaiters.length; i += 1) {
       const waiter = capacityWaiters[i];
-      try {
-        waiter.reject(error);
-      } catch {}
+      settleCapacityWaiter(waiter, (entry) => entry.reject(error));
     }
     capacityWaiters.length = 0;
   };
@@ -232,9 +230,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     }
     for (let i = 0; i < capacityWaiters.length; i += 1) {
       const waiter = capacityWaiters[i];
-      try {
-        waiter.resolve();
-      } catch {}
+      settleCapacityWaiter(waiter, (entry) => entry.resolve());
     }
     capacityWaiters.length = 0;
   };
@@ -274,63 +270,6 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     return new Promise((resolve, reject) => {
       capacityWaiters.push({ resolve, reject });
     });
-  };
-
-  /**
-   * Recover a missing ordered gap by synthetically skipping absent indices.
-   *
-   * This is a defensive escape hatch for situations where producers completed
-   * but one or more expected indices never arrived, which would otherwise keep
-   * later completion promises unresolved forever.
-   *
-   * @param {{reason?:string}} [input]
-   * @returns {{recovered:number,start:number|null,end:number|null,nextIndex:number,pendingCount:number}}
-   */
-  const recoverMissingRange = ({ reason = 'recovery' } = {}) => {
-    if (aborted) {
-      return {
-        recovered: 0,
-        start: null,
-        end: null,
-        nextIndex,
-        pendingCount: pending.size
-      };
-    }
-    let minPending = null;
-    for (const key of pending.keys()) {
-      if (!Number.isFinite(key) || key < nextIndex) continue;
-      if (minPending == null || key < minPending) minPending = key;
-    }
-    if (!Number.isFinite(minPending) || minPending <= nextIndex) {
-      return {
-        recovered: 0,
-        start: null,
-        end: null,
-        nextIndex,
-        pendingCount: pending.size
-      };
-    }
-    const start = nextIndex;
-    const end = minPending - 1;
-    for (let index = start; index <= end; index += 1) {
-      skipped.add(index);
-    }
-    noteActivity();
-    emitLog(
-      `[ordered] recovered missing indices ${start}-${end}; advancing to ${minPending} (${reason}).`,
-      { kind: 'warning' }
-    );
-    // Trigger deterministic advancement + waiter release.
-    scheduleFlush().catch(() => {});
-    resolveCapacityWaiters();
-    scheduleStallCheck();
-    return {
-      recovered: Math.max(0, end - start + 1),
-      start,
-      end,
-      nextIndex,
-      pendingCount: pending.size
-    };
   };
 
   /**
@@ -830,7 +769,6 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       };
     },
     waitForCapacity,
-    recoverMissingRange,
     abort
   };
 };
