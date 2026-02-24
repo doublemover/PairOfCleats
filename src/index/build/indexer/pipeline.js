@@ -82,6 +82,85 @@ const INDEX_STAGE_PLAN = Object.freeze([
   Object.freeze({ id: 'write', label: 'write' })
 ]);
 const HEAVY_UTILIZATION_STAGES = new Set(['processing', 'relations', 'postings', 'write']);
+const PROSE_FILE_TEXT_CACHE_MODES = new Set(['prose', 'extracted-prose']);
+const runtimeFileTextCaches = new WeakMap();
+const CHECKPOINT_VOLATILE_QUEUE_FIELDS = new Set([
+  'oldestWaitMs',
+  'lastWaitMs',
+  'waitP95Ms',
+  'waitSampleCount'
+]);
+
+/**
+ * Resolve a mode-scoped file-text cache, sharing one instance between prose and
+ * extracted-prose runs while keeping code isolated.
+ *
+ * @param {{runtime:object,mode:string,cacheReporter?:object|null}} input
+ * @returns {{get:Function,set:Function,delete:Function,clear:Function,size:Function}}
+ */
+export const resolveFileTextCacheForMode = ({ runtime, mode, cacheReporter = null }) => {
+  const group = PROSE_FILE_TEXT_CACHE_MODES.has(mode) ? 'prose' : mode;
+  const config = runtime?.cacheConfig?.fileText || {};
+  if (!runtime || typeof runtime !== 'object') {
+    return createLruCache({
+      name: `fileText:${group}`,
+      maxMb: config.maxMb,
+      ttlMs: config.ttlMs,
+      sizeCalculation: estimateFileTextBytes,
+      reporter: cacheReporter
+    });
+  }
+  let cacheByGroup = runtimeFileTextCaches.get(runtime);
+  if (!cacheByGroup) {
+    cacheByGroup = new Map();
+    runtimeFileTextCaches.set(runtime, cacheByGroup);
+  }
+  const existing = cacheByGroup.get(group);
+  if (existing) return existing;
+  const cache = createLruCache({
+    name: `fileText:${group}`,
+    maxMb: config.maxMb,
+    ttlMs: config.ttlMs,
+    sizeCalculation: estimateFileTextBytes,
+    reporter: cacheReporter
+  });
+  cacheByGroup.set(group, cache);
+  return cache;
+};
+
+/**
+ * Remove volatile scheduler queue timing fields from runtime snapshots so
+ * checkpoint artifacts stay stable and diff-friendly.
+ *
+ * @param {object|null|undefined} snapshot
+ * @returns {object|null}
+ */
+export const sanitizeRuntimeSnapshotForCheckpoint = (snapshot) => {
+  if (!snapshot || typeof snapshot !== 'object') return null;
+  const sanitized = { ...snapshot };
+  const scheduler = snapshot.scheduler && typeof snapshot.scheduler === 'object'
+    ? { ...snapshot.scheduler }
+    : null;
+  if (scheduler && scheduler.queues && typeof scheduler.queues === 'object') {
+    const queues = {};
+    for (const [queueName, queueStats] of Object.entries(scheduler.queues)) {
+      if (!queueStats || typeof queueStats !== 'object') {
+        queues[queueName] = queueStats;
+        continue;
+      }
+      const sanitizedQueue = { ...queueStats };
+      for (const field of CHECKPOINT_VOLATILE_QUEUE_FIELDS) {
+        delete sanitizedQueue[field];
+      }
+      queues[queueName] = sanitizedQueue;
+    }
+    scheduler.queues = queues;
+  }
+  if (scheduler) {
+    sanitized.scheduler = scheduler;
+  }
+  return sanitized;
+};
 
 /**
  * Build indexes for one mode by running discovery/planning/stage pipeline.
@@ -505,13 +584,14 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   }) => {
     const safeExtra = extra && typeof extra === 'object' ? extra : {};
     const runtimeSnapshot = captureRuntimeSnapshot();
+    const sanitizedRuntimeSnapshot = sanitizeRuntimeSnapshotForCheckpoint(runtimeSnapshot);
     stageCheckpoints.record({
       stage,
       step,
       label,
       extra: {
         ...safeExtra,
-        runtime: runtimeSnapshot
+        runtime: sanitizedRuntimeSnapshot
       }
     });
     maybeWarnLowSchedulerUtilization({

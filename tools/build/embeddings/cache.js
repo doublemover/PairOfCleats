@@ -187,12 +187,12 @@ export const resolveCacheIndexPath = (cacheDir) => (
 );
 
 /**
- * Resolve the binary cache index file path.
+ * Resolve binary sidecar path for cache index payload.
  * @param {string|null} cacheDir
  * @returns {string|null}
  */
 export const resolveCacheIndexBinaryPath = (cacheDir) => (
-  cacheDir ? path.join(cacheDir, 'cache.index.v8') : null
+  cacheDir ? path.join(cacheDir, 'cache.index.bin') : null
 );
 
 /**
@@ -316,32 +316,39 @@ export const createShardAppendHandlePool = () => {
 export const readCacheIndex = async (cacheDir, identityKey = null) => {
   const binaryPath = resolveCacheIndexBinaryPath(cacheDir);
   const indexPath = resolveCacheIndexPath(cacheDir);
-  if (binaryPath && fsSync.existsSync(binaryPath)) {
+  const indexBinaryPath = resolveCacheIndexBinaryPath(cacheDir);
+  /**
+   * Parse on-disk cache-index payload and normalize identity.
+   *
+   * @param {string} raw
+   * @returns {object|null}
+   */
+  const parseCacheIndexPayload = (raw) => {
     try {
-      const rawBinary = await fs.readFile(binaryPath);
-      const decodedBinary = decodeCacheIndexBinary(rawBinary);
-      if (decodedBinary) {
-        const parsedBinary = normalizeCacheIndex(decodedBinary, identityKey);
-        if (identityKey && parsedBinary.identityKey && parsedBinary.identityKey !== identityKey) {
-          return createCacheIndex(identityKey);
-        }
-        return parsedBinary;
+      const parsed = normalizeCacheIndex(JSON.parse(raw), identityKey);
+      if (identityKey && parsed.identityKey && parsed.identityKey !== identityKey) {
+        return createCacheIndex(identityKey);
       }
+      return parsed;
     } catch {
-      // Fallback to JSON index.
+      return null;
     }
+  };
+  if (indexBinaryPath && fsSync.existsSync(indexBinaryPath)) {
+    try {
+      const rawBinary = await fs.readFile(indexBinaryPath);
+      const parsedFromBinary = parseCacheIndexPayload(rawBinary.toString('utf8'));
+      if (parsedFromBinary) return parsedFromBinary;
+    } catch {}
   }
-  if (!indexPath || !fsSync.existsSync(indexPath)) return createCacheIndex(identityKey);
-  try {
-    const raw = await fs.readFile(indexPath, 'utf8');
-    const parsed = normalizeCacheIndex(JSON.parse(raw), identityKey);
-    if (identityKey && parsed.identityKey && parsed.identityKey !== identityKey) {
-      return createCacheIndex(identityKey);
-    }
-    return parsed;
-  } catch {
-    return createCacheIndex(identityKey);
+  if (indexPath && fsSync.existsSync(indexPath)) {
+    try {
+      const raw = await fs.readFile(indexPath, 'utf8');
+      const parsedFromJson = parseCacheIndexPayload(raw);
+      if (parsedFromJson) return parsedFromJson;
+    } catch {}
   }
+  return createCacheIndex(identityKey);
 };
 
 /**
@@ -352,13 +359,17 @@ export const readCacheIndex = async (cacheDir, identityKey = null) => {
  */
 export const writeCacheIndex = async (cacheDir, index) => {
   const indexPath = resolveCacheIndexPath(cacheDir);
-  const binaryPath = resolveCacheIndexBinaryPath(cacheDir);
+  const indexBinaryPath = resolveCacheIndexBinaryPath(cacheDir);
   if (!indexPath) return;
   await fs.mkdir(path.dirname(indexPath), { recursive: true });
   if (binaryPath) {
     await writeBinaryFileAtomic(binaryPath, encodeCacheIndexBinary(index));
   }
   await writeJsonObjectFile(indexPath, { fields: index, atomic: true });
+  if (!indexBinaryPath) return;
+  const tempPath = await createTempPath(indexBinaryPath);
+  await fs.writeFile(tempPath, Buffer.from(JSON.stringify(index), 'utf8'));
+  await replaceFile(tempPath, indexBinaryPath);
 };
 
 /**

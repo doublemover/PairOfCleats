@@ -3,6 +3,7 @@ import {
   runWithQueue,
   createOrderedCompletionTracker as createSharedOrderedCompletionTracker
 } from '../../../../shared/concurrency.js';
+import { createLruCache, estimateJsonBytes } from '../../../../shared/cache.js';
 import { getEnvConfig } from '../../../../shared/env.js';
 import { fileExt, toPosix } from '../../../../shared/files.js';
 import { countLinesForEntries } from '../../../../shared/file-stats.js';
@@ -71,6 +72,9 @@ import {
 import { SCHEDULER_QUEUE_NAMES } from '../../runtime/scheduler.js';
 import { INDEX_PROFILE_VECTOR_ONLY } from '../../../../contracts/index-profile.js';
 import { prepareScmFileMetaSnapshot } from '../../../scm/file-meta-snapshot.js';
+
+const extractedProseExtrasCacheByRuntime = new WeakMap();
+const sharedScmMetaCacheByRuntime = new WeakMap();
 
 const FILE_WATCHDOG_DEFAULT_MS = 10000;
 const FILE_WATCHDOG_DEFAULT_MAX_MS = 120000;
@@ -147,10 +151,184 @@ const toIsoTimestamp = (value) => {
 
 export const resolveStageTimingSizeBin = resolveStageTimingSizeBinShared;
 export const createDurationHistogram = createDurationHistogramShared;
-export const resolveFileLifecycleDurations = resolveFileLifecycleDurationsShared;
-export const shouldTriggerSlowFileWarning = shouldTriggerSlowFileWarningShared;
+
+/**
+ * Resolve effective active processing duration used by slow-file watchdog
+ * heuristics after subtracting SCM proc-queue wait.
+ *
+ * @param {{activeDurationMs?:number,scmProcQueueWaitMs?:number}} [input]
+ * @returns {number}
+ */
+export const resolveEffectiveSlowFileDurationMs = ({
+  activeDurationMs = 0,
+  scmProcQueueWaitMs = 0
+} = {}) => Math.max(0, clampDurationMs(activeDurationMs) - clampDurationMs(scmProcQueueWaitMs));
+
+/**
+ * Resolve queue/active/write/total lifecycle durations with SCM wait metadata.
+ *
+ * @param {object} [lifecycle]
+ * @returns {{
+ *   queueDelayMs:number,
+ *   activeDurationMs:number,
+ *   writeDurationMs:number,
+ *   totalDurationMs:number,
+ *   scmProcQueueWaitMs:number,
+ *   activeProcessingDurationMs:number
+ * }}
+ */
+export const resolveFileLifecycleDurations = (lifecycle = {}) => {
+  const base = resolveFileLifecycleDurationsShared(lifecycle);
+  const scmProcQueueWaitMs = clampDurationMs(lifecycle?.scmProcQueueWaitMs);
+  return {
+    ...base,
+    scmProcQueueWaitMs,
+    activeProcessingDurationMs: resolveEffectiveSlowFileDurationMs({
+      activeDurationMs: base.activeDurationMs,
+      scmProcQueueWaitMs
+    })
+  };
+};
+
+/**
+ * Determine whether effective active file processing crossed slow-file warning
+ * threshold after subtracting SCM proc-queue wait.
+ *
+ * @param {{activeDurationMs:number,thresholdMs:number,scmProcQueueWaitMs?:number}} input
+ * @returns {boolean}
+ */
+export const shouldTriggerSlowFileWarning = ({
+  activeDurationMs,
+  thresholdMs,
+  scmProcQueueWaitMs = 0
+}) => shouldTriggerSlowFileWarningShared({
+  activeDurationMs: resolveEffectiveSlowFileDurationMs({
+    activeDurationMs,
+    scmProcQueueWaitMs
+  }),
+  thresholdMs
+});
+
 export const isNearThresholdSlowFileDuration = isNearThresholdSlowFileDurationShared;
 export const buildWatchdogNearThresholdSummary = buildWatchdogNearThresholdSummaryShared;
+
+/**
+ * Resolve shared extracted-prose extras LRU cache.
+ *
+ * @param {object|null} runtime
+ * @param {object|null} [cacheReporter=null]
+ * @returns {{get:Function,set:Function,delete:Function,clear:Function,size:Function}}
+ */
+export const resolveExtractedProseExtrasCache = (runtime, cacheReporter = null) => {
+  if (!runtime || typeof runtime !== 'object') {
+    return createLruCache({
+      name: 'extractedProseExtras',
+      maxEntries: 10000,
+      sizeCalculation: estimateJsonBytes,
+      reporter: cacheReporter
+    });
+  }
+  const existing = extractedProseExtrasCacheByRuntime.get(runtime);
+  if (existing) return existing;
+  const cacheConfig = runtime?.cacheConfig?.extractedProseExtras || {};
+  const cache = createLruCache({
+    name: 'extractedProseExtras',
+    maxEntries: cacheConfig.maxEntries,
+    maxMb: cacheConfig.maxMb,
+    ttlMs: cacheConfig.ttlMs,
+    sizeCalculation: estimateJsonBytes,
+    reporter: cacheReporter
+  });
+  extractedProseExtrasCacheByRuntime.set(runtime, cache);
+  return cache;
+};
+
+/**
+ * Resolve shared SCM metadata cache used across stage1 file processing.
+ *
+ * @param {object|null} runtime
+ * @param {object|null} [cacheReporter=null]
+ * @returns {{get:Function,set:Function,delete:Function,clear:Function,size:Function}}
+ */
+export const resolveSharedScmMetaCache = (runtime, cacheReporter = null) => {
+  if (!runtime || typeof runtime !== 'object') {
+    return createLruCache({
+      name: 'sharedScmMeta',
+      maxEntries: 5000,
+      sizeCalculation: estimateJsonBytes,
+      reporter: cacheReporter
+    });
+  }
+  const existing = sharedScmMetaCacheByRuntime.get(runtime);
+  if (existing) return existing;
+  const cacheConfig = runtime?.cacheConfig?.gitMeta || {};
+  const cache = createLruCache({
+    name: 'sharedScmMeta',
+    maxEntries: cacheConfig.maxEntries,
+    maxMb: cacheConfig.maxMb,
+    ttlMs: cacheConfig.ttlMs,
+    sizeCalculation: estimateJsonBytes,
+    reporter: cacheReporter
+  });
+  sharedScmMetaCacheByRuntime.set(runtime, cache);
+  return cache;
+};
+
+/**
+ * Clamp shard worker concurrency to runtime queue ceilings.
+ *
+ * @param {object} runtime
+ * @param {number} requestedConcurrency
+ * @returns {number}
+ */
+export const clampShardConcurrencyToRuntime = (runtime, requestedConcurrency) => {
+  const requested = coercePositiveInt(requestedConcurrency) ?? 1;
+  const caps = [
+    coercePositiveInt(runtime?.fileConcurrency),
+    coercePositiveInt(runtime?.cpuConcurrency),
+    coercePositiveInt(runtime?.importConcurrency)
+  ].filter((value) => Number.isFinite(value) && value > 0);
+  if (!caps.length) return Math.max(1, requested);
+  return Math.max(1, Math.min(requested, ...caps));
+};
+
+/**
+ * Compare shard work items by deterministic merge order.
+ *
+ * @param {object|null|undefined} left
+ * @param {object|null|undefined} right
+ * @returns {number}
+ */
+const compareShardWorkItemsForDeterministicMerge = (left, right) => {
+  const aOrder = Number.isFinite(left?.firstOrderIndex) ? left.firstOrderIndex : Number.MAX_SAFE_INTEGER;
+  const bOrder = Number.isFinite(right?.firstOrderIndex) ? right.firstOrderIndex : Number.MAX_SAFE_INTEGER;
+  if (aOrder !== bOrder) return aOrder - bOrder;
+  const aMerge = Number.isFinite(left?.mergeIndex) ? left.mergeIndex : Number.MAX_SAFE_INTEGER;
+  const bMerge = Number.isFinite(right?.mergeIndex) ? right.mergeIndex : Number.MAX_SAFE_INTEGER;
+  if (aMerge !== bMerge) return aMerge - bMerge;
+  const aShard = left?.shard?.id || left?.shard?.label || '';
+  const bShard = right?.shard?.id || right?.shard?.label || '';
+  return compareStrings(aShard, bShard);
+};
+
+/**
+ * Sort shard batches and their entries by deterministic merge order.
+ *
+ * @param {Array<Array<object>>} shardBatches
+ * @returns {Array<Array<object>>}
+ */
+export const sortShardBatchesByDeterministicMergeOrder = (shardBatches) => {
+  if (!Array.isArray(shardBatches) || shardBatches.length === 0) return [];
+  const sortedEntries = shardBatches.map((batch) => {
+    const list = Array.isArray(batch) ? [...batch] : [];
+    return list.sort(compareShardWorkItemsForDeterministicMerge);
+  });
+  return sortedEntries.sort((leftBatch, rightBatch) => {
+    const leftHead = leftBatch[0] || null;
+    const rightHead = rightBatch[0] || null;
+    return compareShardWorkItemsForDeterministicMerge(leftHead, rightHead);
+  });
+};
 
 /**
  * Resolve chunk-processing feature gates from runtime profile.
@@ -1016,7 +1194,7 @@ const resolveStage1ShardExecutionQueuePlan = ({
     : (Number.isFinite(runtime.shards.maxWorkers)
       ? Math.max(1, Math.floor(runtime.shards.maxWorkers))
       : defaultShardConcurrency);
-  shardConcurrency = Math.min(shardConcurrency, runtime.fileConcurrency);
+  shardConcurrency = clampShardConcurrencyToRuntime(runtime, shardConcurrency);
   let shardBatches = planShardBatches(shardWorkPlan, shardConcurrency, {
     resolveWeight: (workItem) => Number.isFinite(workItem.predictedCostMs)
       ? workItem.predictedCostMs
@@ -1028,17 +1206,7 @@ const resolveStage1ShardExecutionQueuePlan = ({
     }
   });
   if (shardBatches.length) {
-    shardBatches = shardBatches.map((batch) => [...batch].sort((a, b) => {
-      const aOrder = Number.isFinite(a?.firstOrderIndex) ? a.firstOrderIndex : Number.MAX_SAFE_INTEGER;
-      const bOrder = Number.isFinite(b?.firstOrderIndex) ? b.firstOrderIndex : Number.MAX_SAFE_INTEGER;
-      if (aOrder !== bOrder) return aOrder - bOrder;
-      const aMerge = Number.isFinite(a?.mergeIndex) ? a.mergeIndex : Number.MAX_SAFE_INTEGER;
-      const bMerge = Number.isFinite(b?.mergeIndex) ? b.mergeIndex : Number.MAX_SAFE_INTEGER;
-      if (aMerge !== bMerge) return aMerge - bMerge;
-      const aShard = a?.shard?.id || a?.shard?.label || '';
-      const bShard = b?.shard?.id || b?.shard?.label || '';
-      return compareStrings(aShard, bShard);
-    }));
+    shardBatches = sortShardBatchesByDeterministicMergeOrder(shardBatches);
   }
   if (!shardBatches.length && shardWorkPlan.length) {
     shardBatches = [shardWorkPlan.slice()];

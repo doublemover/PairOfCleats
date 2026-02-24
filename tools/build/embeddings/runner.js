@@ -129,6 +129,11 @@ const DEFAULT_EMBEDDINGS_CHUNK_META_MAX_BYTES = 512 * 1024 * 1024;
 const DEFAULT_EMBEDDINGS_PROGRESS_HEARTBEAT_MS = 1500;
 const DEFAULT_EMBEDDINGS_FILE_PARALLELISM = 2;
 const DEFAULT_EMBEDDINGS_BUNDLE_REFRESH_PARALLELISM = 2;
+const DEFAULT_EMBEDDINGS_CHUNK_META_RETRY_CEILING_BYTES = 1024 * 1024 * 1024;
+const DEFAULT_EMBEDDINGS_CROSS_FILE_CHUNK_DEDUPE_MAX_ENTRIES = 200000;
+const DEFAULT_EMBEDDINGS_SOURCE_HASH_CACHE_MAX_ENTRIES = 200000;
+const DEFAULT_EMBEDDINGS_ADAPTIVE_PARALLELISM_MULTIPLIER = 2;
+const CHUNK_META_TOO_LARGE_BYTES_PATTERN = /\((\d+)\s*>\s*(\d+)\)/;
 
 /**
  * @typedef {object} RefreshIncrementalBundlesResult
@@ -188,19 +193,199 @@ const resolveEmbeddingsProgressHeartbeatMs = (indexingConfig) => {
  * HNSW writes are forced single-threaded to preserve deterministic builder
  * behavior while non-HNSW runs can fan out by config or token budget.
  *
- * @param {{indexingConfig:object,computeTokensTotal:number|null,hnswEnabled:boolean}} input
+ * @param {{
+ *   indexingConfig:object,
+ *   computeTokensTotal:number|null,
+ *   cpuConcurrency?:number|null,
+ *   fdConcurrencyCap?:number|null,
+ *   hnswEnabled:boolean
+ * }} input
  * @returns {number}
  */
-const resolveEmbeddingsFileParallelism = ({
+export const resolveEmbeddingsFileParallelism = ({
   indexingConfig,
   computeTokensTotal,
+  cpuConcurrency = null,
+  fdConcurrencyCap = null,
   hnswEnabled
 }) => {
   if (hnswEnabled) return 1;
+  const cpuCap = coercePositiveIntMinOne(cpuConcurrency);
   const configured = coercePositiveIntMinOne(indexingConfig?.embeddings?.fileParallelism);
-  if (configured) return configured;
   const tokenDriven = coercePositiveIntMinOne(computeTokensTotal);
-  return tokenDriven || DEFAULT_EMBEDDINGS_FILE_PARALLELISM;
+  let resolved = configured || tokenDriven || cpuCap || DEFAULT_EMBEDDINGS_FILE_PARALLELISM;
+  if (cpuCap) resolved = Math.min(resolved, cpuCap);
+  const fileDescriptorCap = coercePositiveIntMinOne(fdConcurrencyCap);
+  if (fileDescriptorCap) resolved = Math.min(resolved, fileDescriptorCap);
+  return Math.max(1, resolved);
+};
+
+/**
+ * Resolve adaptive file-level parallelism ceiling.
+ *
+ * The adaptive loop can increase or decrease instantaneous concurrency but
+ * must never exceed hard scheduler/runtime limits.
+ *
+ * @param {{
+ *   baseFileParallelism:number,
+ *   maxMultiplier?:number,
+ *   computeTokensTotal?:number|null,
+ *   cpuConcurrency?:number|null,
+ *   fdConcurrencyCap?:number|null
+ * }} input
+ * @returns {number}
+ */
+export const resolveEmbeddingsAdaptiveFileParallelismCeiling = ({
+  baseFileParallelism,
+  maxMultiplier = DEFAULT_EMBEDDINGS_ADAPTIVE_PARALLELISM_MULTIPLIER,
+  computeTokensTotal = null,
+  cpuConcurrency = null,
+  fdConcurrencyCap = null
+} = {}) => {
+  const base = coercePositiveIntMinOne(baseFileParallelism) || 1;
+  const multiplier = Number.isFinite(Number(maxMultiplier))
+    ? Math.max(1, Math.floor(Number(maxMultiplier)))
+    : DEFAULT_EMBEDDINGS_ADAPTIVE_PARALLELISM_MULTIPLIER;
+  let ceiling = Math.max(base, base * multiplier);
+  const tokenCap = coercePositiveIntMinOne(computeTokensTotal);
+  if (tokenCap) ceiling = Math.min(ceiling, tokenCap);
+  const cpuCap = coercePositiveIntMinOne(cpuConcurrency);
+  if (cpuCap) ceiling = Math.min(ceiling, cpuCap);
+  const fileDescriptorCap = coercePositiveIntMinOne(fdConcurrencyCap);
+  if (fileDescriptorCap) ceiling = Math.min(ceiling, fileDescriptorCap);
+  return Math.max(base, ceiling);
+};
+
+/**
+ * Resolve persistent embeddings text-cache vector encoding.
+ *
+ * @param {object} indexingConfig
+ * @returns {'float32'|'float16'}
+ */
+export const resolveEmbeddingsPersistentTextCacheVectorEncoding = (indexingConfig) => {
+  const value = typeof indexingConfig?.embeddings?.persistentTextCacheVectorEncoding === 'string'
+    ? indexingConfig.embeddings.persistentTextCacheVectorEncoding.trim().toLowerCase()
+    : '';
+  if (value === 'float16' || value === 'fp16') return 'float16';
+  if (value === 'float32' || value === 'fp32') return 'float32';
+  return 'float32';
+};
+
+/**
+ * Resolve max entries for cross-file chunk dedupe map.
+ *
+ * @param {object} indexingConfig
+ * @returns {number}
+ */
+export const resolveCrossFileChunkDedupeMaxEntries = (indexingConfig) => (
+  coercePositiveIntMinOne(indexingConfig?.embeddings?.crossFileChunkDedupeMaxEntries)
+  || DEFAULT_EMBEDDINGS_CROSS_FILE_CHUNK_DEDUPE_MAX_ENTRIES
+);
+
+/**
+ * Resolve max entries for source-hash cache.
+ *
+ * @param {object} indexingConfig
+ * @returns {number}
+ */
+export const resolveEmbeddingsSourceHashCacheMaxEntries = (indexingConfig) => (
+  coercePositiveIntMinOne(indexingConfig?.embeddings?.sourceHashCacheMaxEntries)
+  || DEFAULT_EMBEDDINGS_SOURCE_HASH_CACHE_MAX_ENTRIES
+);
+
+/**
+ * Set map key/value while enforcing insertion-order LRU cap.
+ *
+ * @template K,V
+ * @param {Map<K,V>} map
+ * @param {K} key
+ * @param {V} value
+ * @param {number} maxEntries
+ * @returns {void}
+ */
+export const boundedMapSet = (map, key, value, maxEntries) => {
+  if (!(map instanceof Map)) return;
+  const limit = coercePositiveIntMinOne(maxEntries);
+  if (map.has(key)) map.delete(key);
+  map.set(key, value);
+  if (!limit) return;
+  while (map.size > limit) {
+    const oldestKey = map.keys().next().value;
+    map.delete(oldestKey);
+  }
+};
+
+/**
+ * Execute work items with adaptive concurrency for test-contract validation.
+ *
+ * @template T
+ * @param {{
+ *   items:T[],
+ *   initialConcurrency?:number,
+ *   resolveConcurrency?:(state:{active:number,remaining:number,concurrency:number})=>number,
+ *   worker:(item:T,index:number)=>Promise<void>|void
+ * }} input
+ * @returns {Promise<{peakConcurrency:number,adjustments:number,finalConcurrency:number}>}
+ */
+export const __runWithAdaptiveConcurrencyForTests = async ({
+  items,
+  initialConcurrency = 1,
+  resolveConcurrency = null,
+  worker
+}) => {
+  const list = Array.isArray(items) ? items : [];
+  const workerFn = typeof worker === 'function' ? worker : (() => {});
+  let concurrency = coercePositiveIntMinOne(initialConcurrency) || 1;
+  const resolveLimit = typeof resolveConcurrency === 'function'
+    ? resolveConcurrency
+    : (() => concurrency);
+  let nextIndex = 0;
+  let active = 0;
+  let peakConcurrency = 0;
+  let adjustments = 0;
+
+  return await new Promise((resolve, reject) => {
+    const pump = () => {
+      const desired = coercePositiveIntMinOne(resolveLimit({
+        active,
+        remaining: list.length - nextIndex,
+        concurrency
+      })) || concurrency;
+      if (desired !== concurrency) {
+        concurrency = desired;
+        adjustments += 1;
+      }
+      while (active < concurrency && nextIndex < list.length) {
+        const itemIndex = nextIndex;
+        const item = list[nextIndex];
+        nextIndex += 1;
+        active += 1;
+        peakConcurrency = Math.max(peakConcurrency, active);
+        Promise.resolve(workerFn(item, itemIndex))
+          .then(() => {
+            active -= 1;
+            if (nextIndex >= list.length && active === 0) {
+              resolve({
+                peakConcurrency,
+                adjustments,
+                finalConcurrency: Math.max(1, concurrency)
+              });
+              return;
+            }
+            pump();
+          })
+          .catch(reject);
+      }
+      if (nextIndex >= list.length && active === 0) {
+        resolve({
+          peakConcurrency,
+          adjustments,
+          finalConcurrency: Math.max(1, concurrency)
+        });
+      }
+    };
+    pump();
+  });
 };
 
 /**
@@ -237,6 +422,75 @@ const isChunkMetaTooLargeError = (err) => {
   }
   const message = String(err?.message || '').toLowerCase();
   return message.includes('exceeds maxbytes');
+};
+
+/**
+ * Parse `(actual > max)` byte counters from chunk-meta max-bytes failures.
+ *
+ * @param {Error|object|string|null} err
+ * @returns {{actualBytes:number,maxBytes:number}|null}
+ */
+export const parseChunkMetaTooLargeBytes = (err) => {
+  const message = String(err?.message || err || '');
+  const match = CHUNK_META_TOO_LARGE_BYTES_PATTERN.exec(message);
+  if (!match) return null;
+  const actualBytes = Number(match[1]);
+  const maxBytes = Number(match[2]);
+  if (!Number.isFinite(actualBytes) || !Number.isFinite(maxBytes)) return null;
+  if (actualBytes <= 0 || maxBytes <= 0) return null;
+  return {
+    actualBytes: Math.floor(actualBytes),
+    maxBytes: Math.floor(maxBytes)
+  };
+};
+
+/**
+ * Resolve the max retry ceiling for chunk-meta streaming fallback.
+ *
+ * @param {object} indexingConfig
+ * @returns {number}
+ */
+export const resolveEmbeddingsChunkMetaRetryCeilingBytes = (indexingConfig) => {
+  const configured = Number(indexingConfig?.embeddings?.chunkMetaRetryCeilingBytes);
+  if (Number.isFinite(configured) && configured > 0) {
+    return Math.max(MAX_JSON_BYTES, Math.floor(configured));
+  }
+  return DEFAULT_EMBEDDINGS_CHUNK_META_RETRY_CEILING_BYTES;
+};
+
+/**
+ * Derive a larger retry max-bytes budget from a max-bytes overflow failure.
+ *
+ * @param {{
+ *   err:Error|object|string|null,
+ *   currentMaxBytes:number,
+ *   retryCeilingBytes:number
+ * }} input
+ * @returns {number|null}
+ */
+export const resolveChunkMetaRetryMaxBytes = ({
+  err,
+  currentMaxBytes,
+  retryCeilingBytes
+}) => {
+  const parsed = parseChunkMetaTooLargeBytes(err);
+  if (!parsed) return null;
+  const current = Number.isFinite(Number(currentMaxBytes))
+    ? Math.max(1, Math.floor(Number(currentMaxBytes)))
+    : MAX_JSON_BYTES;
+  const ceiling = Number.isFinite(Number(retryCeilingBytes))
+    ? Math.max(1, Math.floor(Number(retryCeilingBytes)))
+    : DEFAULT_EMBEDDINGS_CHUNK_META_RETRY_CEILING_BYTES;
+  if (ceiling <= current) return null;
+  const observed = Math.max(parsed.actualBytes, parsed.maxBytes, current + 1);
+  const growth = Math.max(
+    Math.ceil(observed * 1.1),
+    current * 2,
+    observed + (8 * 1024 * 1024)
+  );
+  const next = Math.min(ceiling, growth);
+  if (!Number.isFinite(next) || next <= current) return null;
+  return Math.floor(next);
 };
 
 /**
@@ -296,7 +550,7 @@ const compactChunkMetaV2ForEmbeddings = (metaV2) => {
  * @param {string|null} filePath
  * @returns {object|null}
  */
-const compactChunkForEmbeddings = (chunk, filePath) => {
+export const compactChunkForEmbeddings = (chunk, filePath) => {
   if (!chunk || typeof chunk !== 'object') return null;
   const start = Number.isFinite(Number(chunk.start)) ? Number(chunk.start) : 0;
   const endRaw = Number.isFinite(Number(chunk.end)) ? Number(chunk.end) : start;
@@ -315,6 +569,7 @@ const compactChunkForEmbeddings = (chunk, filePath) => {
   if (typeof chunk.kind === 'string' && chunk.kind) out.kind = chunk.kind;
   if (typeof chunk.name === 'string' && chunk.name) out.name = chunk.name;
   if (typeof chunk.chunkId === 'string' && chunk.chunkId) out.chunkId = chunk.chunkId;
+  if (typeof chunk.text === 'string') out.text = chunk.text;
   const docText = typeof chunk?.docmeta?.doc === 'string' ? chunk.docmeta.doc : '';
   if (docText) {
     out.docmeta = { doc: docText };
@@ -337,6 +592,94 @@ const compactChunkForEmbeddings = (chunk, filePath) => {
     out.metaV2 = compactMetaV2;
   }
   return out;
+};
+
+/**
+ * Build stable lookup key for chunk-text hydration.
+ *
+ * @param {object|null|undefined} chunk
+ * @returns {string}
+ */
+export const buildChunkTextLookupKey = (chunk) => {
+  if (!chunk || typeof chunk !== 'object') return '';
+  const id = toChunkIndex(chunk.id);
+  const start = Number.isFinite(Number(chunk.start)) ? Math.floor(Number(chunk.start)) : '';
+  const end = Number.isFinite(Number(chunk.end)) ? Math.floor(Number(chunk.end)) : '';
+  const chunkId = typeof chunk.chunkId === 'string' ? chunk.chunkId : '';
+  if (id == null && start === '' && end === '' && !chunkId) return '';
+  return `${id ?? ''}:${start}:${end}:${chunkId}`;
+};
+
+/**
+ * Build chunk-text lookup map from bundle chunk rows.
+ *
+ * @param {Array<object>|null|undefined} chunks
+ * @returns {Map<string,string>|null}
+ */
+export const buildChunkTextLookupMap = (chunks) => {
+  if (!Array.isArray(chunks) || !chunks.length) return null;
+  const map = new Map();
+  for (const chunk of chunks) {
+    if (typeof chunk?.text !== 'string') continue;
+    const key = buildChunkTextLookupKey(chunk);
+    if (!key || map.has(key)) continue;
+    map.set(key, chunk.text);
+  }
+  return map.size ? map : null;
+};
+
+/**
+ * Fill missing chunk code text entries from incremental bundle rows.
+ *
+ * @param {{
+ *   items:Array<{chunk?:object}>,
+ *   chunkCodeTexts:string[],
+ *   bundleChunks:Array<object>
+ * }} input
+ * @returns {number}
+ */
+export const hydrateMissingChunkTextsFromBundle = ({
+  items,
+  chunkCodeTexts,
+  bundleChunks
+}) => {
+  const itemList = Array.isArray(items) ? items : [];
+  const texts = Array.isArray(chunkCodeTexts) ? chunkCodeTexts : [];
+  const chunks = Array.isArray(bundleChunks) ? bundleChunks : [];
+  const lookup = buildChunkTextLookupMap(chunks);
+  let unresolved = 0;
+  for (let i = 0; i < itemList.length; i += 1) {
+    if (typeof texts[i] === 'string') continue;
+    const positional = chunks[i];
+    if (typeof positional?.text === 'string') {
+      texts[i] = positional.text;
+      continue;
+    }
+    const key = buildChunkTextLookupKey(itemList[i]?.chunk || itemList[i]);
+    const keyed = key && lookup ? lookup.get(key) : null;
+    if (typeof keyed === 'string') {
+      texts[i] = keyed;
+      continue;
+    }
+    unresolved += 1;
+  }
+  return unresolved;
+};
+
+/**
+ * Build line-ending-stable source payload hash for cache/dedupe checks.
+ *
+ * @param {{codeText?:string,docText?:string}} [input]
+ * @returns {string}
+ */
+export const buildNormalizedChunkPayloadHash = ({ codeText = '', docText = '' } = {}) => {
+  const normalizedCode = typeof codeText === 'string'
+    ? codeText.replace(/\r\n/g, '\n')
+    : '';
+  const normalizedDoc = typeof docText === 'string'
+    ? docText.replace(/\r\n/g, '\n')
+    : '';
+  return sha1(`${normalizedCode}\n${normalizedDoc}`);
 };
 
 /**
