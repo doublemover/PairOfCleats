@@ -1,4 +1,3 @@
-import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import semver from 'semver';
@@ -12,6 +11,7 @@ import { resolveToolRoot } from '../../shared/dict-utils.js';
 import { getScmProviderAndRoot, resolveScmConfig } from '../scm/registry.js';
 import { setScmRuntimeConfig } from '../scm/runtime.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
+import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 
 const MIN_TYPESCRIPT_VERSION = '4.8.0';
 
@@ -90,8 +90,10 @@ const summarizeStatus = (errors, warnings) => {
 };
 
 const writeReport = async (reportPath, report) => {
-  await fs.mkdir(path.dirname(reportPath), { recursive: true });
-  await fs.writeFile(reportPath, JSON.stringify(report, null, 2));
+  await atomicWriteJson(reportPath, report, {
+    spaces: 2,
+    newline: false
+  });
 };
 
 export const runToolingDoctor = async (ctx, providerIds = null, options = {}) => {
