@@ -67,6 +67,7 @@ import {
   createShardAppendHandlePool,
   encodeCacheEntryPayload,
   isCacheValid,
+  isGlobalChunkCacheValid,
   readCacheIndex,
   readCacheMeta,
   readCacheEntry,
@@ -109,6 +110,10 @@ import {
 import { createBuildEmbeddingsContext } from './context.js';
 import { loadIndexState, writeIndexState } from './state.js';
 import {
+  deriveEmbeddingsAutoTuneRecommendation,
+  writeEmbeddingsAutoTuneRecommendation
+} from './autotune-profile.js';
+import {
   normalizeExtractedProseLowYieldBailoutConfig,
   selectDeterministicWarmupSample
 } from '../../../src/index/chunking/formats/document-common.js';
@@ -134,6 +139,10 @@ const DEFAULT_EMBEDDINGS_BUNDLE_REFRESH_PARALLELISM = 2;
 const DEFAULT_EMBEDDINGS_CHUNK_META_RETRY_CEILING_BYTES = 1024 * 1024 * 1024;
 const DEFAULT_EMBEDDINGS_CROSS_FILE_CHUNK_DEDUPE_MAX_ENTRIES = 200000;
 const DEFAULT_EMBEDDINGS_SOURCE_HASH_CACHE_MAX_ENTRIES = 200000;
+const DEFAULT_EMBEDDINGS_TEXT_REUSE_CACHE_ENTRIES = 50000;
+const DEFAULT_EMBEDDINGS_TEXT_REUSE_MAX_TEXT_CHARS = 32768;
+const DEFAULT_EMBEDDINGS_IN_FLIGHT_CLAIMS_MAX_ENTRIES = 200000;
+const DEFAULT_EMBEDDINGS_SQLITE_DENSE_WRITE_BATCH_SIZE = 256;
 const DEFAULT_EMBEDDINGS_ADAPTIVE_PARALLELISM_MULTIPLIER = 2;
 const CHUNK_META_TOO_LARGE_BYTES_PATTERN = /\((\d+)\s*>\s*(\d+)\)/;
 
@@ -288,6 +297,36 @@ export const resolveEmbeddingsCharsPerToken = (indexingConfig) => {
 };
 
 /**
+ * Resolve embedding token budget per batch.
+ *
+ * Precedence:
+ * 1) `indexing.embeddings.maxBatchTokens` when explicitly configured
+ * 2) derived from `embeddingBatchSize * indexing.embeddings.batchTokenMultiplier`
+ * 3) default multiplier of 256 tokens per item
+ *
+ * @param {{indexingConfig?:object,embeddingBatchSize?:number}} [input]
+ * @returns {number}
+ */
+export const resolveEmbeddingsBatchTokenBudget = ({
+  indexingConfig,
+  embeddingBatchSize
+} = {}) => {
+  const explicit = indexingConfig?.embeddings?.maxBatchTokens;
+  if (explicit !== null && explicit !== undefined && String(explicit).trim() !== '') {
+    const parsed = Math.floor(Number(explicit));
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    return 0;
+  }
+  const batchSize = coercePositiveIntMinOne(embeddingBatchSize);
+  if (!batchSize) return 0;
+  const configuredMultiplier = Math.floor(Number(indexingConfig?.embeddings?.batchTokenMultiplier));
+  const multiplier = Number.isFinite(configuredMultiplier) && configuredMultiplier > 0
+    ? configuredMultiplier
+    : 256;
+  return Math.max(1, batchSize * multiplier);
+};
+
+/**
  * Resolve max entries for cross-file chunk dedupe map.
  *
  * @param {object} indexingConfig
@@ -308,6 +347,187 @@ export const resolveEmbeddingsSourceHashCacheMaxEntries = (indexingConfig) => (
   coercePositiveIntMinOne(indexingConfig?.embeddings?.sourceHashCacheMaxEntries)
   || DEFAULT_EMBEDDINGS_SOURCE_HASH_CACHE_MAX_ENTRIES
 );
+
+/**
+ * Resolve in-memory embedding text reuse cache entry cap.
+ *
+ * @param {object} indexingConfig
+ * @returns {number}
+ */
+export const resolveEmbeddingsTextReuseCacheEntries = (indexingConfig) => (
+  coercePositiveIntMinOne(indexingConfig?.embeddings?.textReuseCacheEntries)
+  || DEFAULT_EMBEDDINGS_TEXT_REUSE_CACHE_ENTRIES
+);
+
+/**
+ * Resolve maximum cacheable text length for embedding text reuse.
+ *
+ * @param {object} indexingConfig
+ * @returns {number}
+ */
+export const resolveEmbeddingsTextReuseMaxTextChars = (indexingConfig) => (
+  coercePositiveIntMinOne(indexingConfig?.embeddings?.textReuseMaxTextChars)
+  || DEFAULT_EMBEDDINGS_TEXT_REUSE_MAX_TEXT_CHARS
+);
+
+/**
+ * Resolve sqlite dense-vector write batch size.
+ *
+ * @param {object} indexingConfig
+ * @returns {number}
+ */
+export const resolveEmbeddingsSqliteDenseWriteBatchSize = (indexingConfig) => (
+  coercePositiveIntMinOne(indexingConfig?.embeddings?.sqliteDenseWriteBatchSize)
+  || DEFAULT_EMBEDDINGS_SQLITE_DENSE_WRITE_BATCH_SIZE
+);
+
+/**
+ * Build in-memory text->vector cache used by global micro-batching.
+ *
+ * @param {{maxEntries?:number,maxTextChars?:number,persistentStore?:object|null}} [input]
+ * @returns {{
+ *   get:(text:string)=>ArrayLike<number>|null,
+ *   set:(text:string,vector:ArrayLike<number>)=>void,
+ *   canCache:(text:string)=>boolean,
+ *   size:()=>number,
+ *   clear:()=>void
+ * }}
+ */
+export const createEmbeddingTextReuseCache = ({
+  maxEntries = DEFAULT_EMBEDDINGS_TEXT_REUSE_CACHE_ENTRIES,
+  maxTextChars = DEFAULT_EMBEDDINGS_TEXT_REUSE_MAX_TEXT_CHARS,
+  persistentStore = null
+} = {}) => {
+  const cache = new Map();
+  const cap = Math.max(1, coercePositiveIntMinOne(maxEntries) || DEFAULT_EMBEDDINGS_TEXT_REUSE_CACHE_ENTRIES);
+  const maxChars = Math.max(
+    1,
+    coercePositiveIntMinOne(maxTextChars) || DEFAULT_EMBEDDINGS_TEXT_REUSE_MAX_TEXT_CHARS
+  );
+  const canCache = (text) => typeof text === 'string' && text.length > 0 && text.length <= maxChars;
+  const promote = (text, value) => {
+    cache.delete(text);
+    cache.set(text, value);
+    while (cache.size > cap) {
+      const oldestKey = cache.keys().next().value;
+      if (oldestKey == null) break;
+      cache.delete(oldestKey);
+    }
+  };
+  return {
+    get(text) {
+      if (!canCache(text)) return null;
+      if (cache.has(text)) {
+        const value = cache.get(text) || null;
+        if (value) promote(text, value);
+        return value;
+      }
+      const persistentGet = typeof persistentStore?.get === 'function'
+        ? persistentStore.get.bind(persistentStore)
+        : null;
+      if (!persistentGet) return null;
+      const value = persistentGet(text);
+      if (value) promote(text, value);
+      return value || null;
+    },
+    set(text, vector) {
+      if (!canCache(text)) return;
+      if (!isVectorLike(vector) || vector.length <= 0) return;
+      promote(text, vector);
+      if (typeof persistentStore?.set === 'function') {
+        try {
+          persistentStore.set(text, vector);
+        } catch {}
+      }
+    },
+    canCache,
+    size: () => cache.size,
+    clear() {
+      cache.clear();
+      if (typeof persistentStore?.clear === 'function') {
+        try {
+          persistentStore.clear();
+        } catch {}
+      }
+    }
+  };
+};
+
+/**
+ * Create in-flight claim map so concurrent requests for identical payloads
+ * join one embedding compute call.
+ *
+ * @param {{maxEntries?:number}} [input]
+ * @returns {{
+ *   claim:(text:string)=>{owner:boolean,promise:Promise<ArrayLike<number>>|null,resolve?:(value:ArrayLike<number>)=>void,reject?:(err:unknown)=>void},
+ *   stats:()=>{size:number,joins:number,claims:number,bypassed:number,peakSize:number}
+ * }}
+ */
+export const createEmbeddingInFlightCoalescer = ({
+  maxEntries = DEFAULT_EMBEDDINGS_IN_FLIGHT_CLAIMS_MAX_ENTRIES
+} = {}) => {
+  const cap = Math.max(
+    1,
+    coercePositiveIntMinOne(maxEntries) || DEFAULT_EMBEDDINGS_IN_FLIGHT_CLAIMS_MAX_ENTRIES
+  );
+  const inFlight = new Map();
+  const stats = {
+    joins: 0,
+    claims: 0,
+    bypassed: 0,
+    peakSize: 0
+  };
+  return {
+    claim(text) {
+      if (typeof text !== 'string' || !text.length) {
+        stats.bypassed += 1;
+        return { owner: true, promise: null };
+      }
+      const existing = inFlight.get(text);
+      if (existing) {
+        stats.joins += 1;
+        return { owner: false, promise: existing.promise };
+      }
+      if (inFlight.size >= cap) {
+        stats.bypassed += 1;
+        return { owner: true, promise: null };
+      }
+      let resolveClaim;
+      let rejectClaim;
+      const promise = new Promise((resolve, reject) => {
+        resolveClaim = resolve;
+        rejectClaim = reject;
+      });
+      const finalize = () => {
+        inFlight.delete(text);
+      };
+      inFlight.set(text, { promise });
+      stats.claims += 1;
+      if (inFlight.size > stats.peakSize) stats.peakSize = inFlight.size;
+      return {
+        owner: true,
+        promise,
+        resolve(value) {
+          finalize();
+          resolveClaim?.(value);
+        },
+        reject(err) {
+          finalize();
+          rejectClaim?.(err);
+        }
+      };
+    },
+    stats() {
+      return {
+        size: inFlight.size,
+        joins: stats.joins,
+        claims: stats.claims,
+        bypassed: stats.bypassed,
+        peakSize: stats.peakSize
+      };
+    }
+  };
+};
 
 /**
  * Set map key/value while enforcing insertion-order LRU cap.
@@ -403,6 +623,8 @@ export const __runWithAdaptiveConcurrencyForTests = async ({
     pump();
   });
 };
+
+const runWithAdaptiveConcurrency = __runWithAdaptiveConcurrencyForTests;
 
 /**
  * Resolve per-bundle concurrency used when refreshing incremental stage-3
@@ -2019,7 +2241,15 @@ export async function runBuildEmbeddingsWithConfig(config) {
         const globalChunkCacheMemo = new Map();
         const globalChunkCacheExistingKeys = new Set();
         const globalChunkCachePendingWrites = new Set();
+        let crossFileChunkDedupeHits = 0;
+        let crossFileChunkDedupeStores = 0;
+        let globalChunkCacheAttempts = 0;
+        let globalChunkCacheHits = 0;
+        let globalChunkCacheMisses = 0;
+        let globalChunkCacheRejected = 0;
+        let globalChunkCacheStores = 0;
         const resolveGlobalChunkVectors = async (chunkHash) => {
+          globalChunkCacheAttempts += 1;
           const cacheKey = buildGlobalChunkCacheKey({
             chunkHash,
             identityKey: cacheIdentityKey,
@@ -2033,12 +2263,16 @@ export async function runBuildEmbeddingsWithConfig(config) {
               try {
                 const cachedResult = await scheduleIo(() => readCacheEntry(globalChunkCacheDir, cacheKey));
                 const cached = cachedResult?.entry || null;
-                if (!cached) return { cacheKey, vectors: null, rejected: false };
+                if (!cached) {
+                  globalChunkCacheMisses += 1;
+                  return { cacheKey, vectors: null, rejected: false };
+                }
                 if (!isGlobalChunkCacheValid({
                   cached,
                   identityKey: cacheIdentityKey,
                   chunkHash
                 })) {
+                  globalChunkCacheRejected += 1;
                   return { cacheKey, vectors: null, rejected: true };
                 }
                 const expectedDims = configuredDims || cached.cacheMeta?.identity?.dims || null;
@@ -2049,9 +2283,11 @@ export async function runBuildEmbeddingsWithConfig(config) {
                 const docVec = ensureVectorArrays(cached.docVectors, 1)[0] || [];
                 const mergedVec = ensureVectorArrays(cached.mergedVectors, 1)[0] || [];
                 if (!isNonEmptyVector(codeVec) || !isNonEmptyVector(docVec) || !isNonEmptyVector(mergedVec)) {
+                  globalChunkCacheRejected += 1;
                   return { cacheKey, vectors: null, rejected: true };
                 }
                 globalChunkCacheExistingKeys.add(cacheKey);
+                globalChunkCacheHits += 1;
                 return {
                   cacheKey,
                   vectors: { code: codeVec, doc: docVec, merged: mergedVec },
@@ -2059,6 +2295,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
                 };
               } catch (err) {
                 if (isDimsMismatch(err)) throw err;
+                globalChunkCacheRejected += 1;
                 return { cacheKey, vectors: null, rejected: true };
               }
             })();
@@ -2234,6 +2471,98 @@ export async function runBuildEmbeddingsWithConfig(config) {
           fdConcurrencyCap,
           hnswEnabled
         });
+        const adaptiveFileParallelismEnabled = fileParallelism > 1
+          && indexingConfig?.embeddings?.adaptiveFileParallelism !== false;
+        const adaptiveFileParallelismCeiling = adaptiveFileParallelismEnabled
+          ? resolveEmbeddingsAdaptiveFileParallelismCeiling({
+            baseFileParallelism: fileParallelism,
+            maxMultiplier: indexingConfig?.embeddings?.adaptiveFileParallelismMaxMultiplier,
+            computeTokensTotal,
+            cpuConcurrency: envelopeCpuConcurrency,
+            fdConcurrencyCap
+          })
+          : fileParallelism;
+        const adaptiveFileParallelismStepMs = Number.isFinite(
+          Number(indexingConfig?.embeddings?.adaptiveFileParallelismStepMs)
+        )
+          ? Math.max(100, Math.floor(Number(indexingConfig.embeddings.adaptiveFileParallelismStepMs)))
+          : 500;
+        const adaptiveFileParallelismRssLow = Number.isFinite(
+          Number(indexingConfig?.embeddings?.adaptiveFileParallelismRssLow)
+        )
+          ? Math.max(0, Math.min(1, Number(indexingConfig.embeddings.adaptiveFileParallelismRssLow)))
+          : 0.6;
+        const adaptiveFileParallelismRssHigh = Number.isFinite(
+          Number(indexingConfig?.embeddings?.adaptiveFileParallelismRssHigh)
+        )
+          ? Math.max(
+            adaptiveFileParallelismRssLow,
+            Math.min(1, Number(indexingConfig.embeddings.adaptiveFileParallelismRssHigh))
+          )
+          : 0.88;
+        const adaptiveFileParallelismGcLow = Number.isFinite(
+          Number(indexingConfig?.embeddings?.adaptiveFileParallelismGcLow)
+        )
+          ? Math.max(0, Math.min(1, Number(indexingConfig.embeddings.adaptiveFileParallelismGcLow)))
+          : 0.2;
+        const adaptiveFileParallelismGcHigh = Number.isFinite(
+          Number(indexingConfig?.embeddings?.adaptiveFileParallelismGcHigh)
+        )
+          ? Math.max(
+            adaptiveFileParallelismGcLow,
+            Math.min(1, Number(indexingConfig.embeddings.adaptiveFileParallelismGcHigh))
+          )
+          : 0.45;
+        let adaptiveFileParallelismCurrent = fileParallelism;
+        let adaptiveFileParallelismAdjustments = 0;
+        let adaptiveFileParallelismLastAdjustAt = 0;
+        const resolveAdaptiveFileParallelism = () => {
+          if (!adaptiveFileParallelismEnabled) return fileParallelism;
+          const nowMs = Date.now();
+          if ((nowMs - adaptiveFileParallelismLastAdjustAt) < adaptiveFileParallelismStepMs) {
+            return adaptiveFileParallelismCurrent;
+          }
+          const schedulerStats = scheduler?.stats?.() || null;
+          const computeQueuePending = Number(
+            schedulerStats?.queues?.[SCHEDULER_QUEUE_NAMES.embeddingsCompute]?.pending || 0
+          );
+          const ioQueuePending = Number(
+            schedulerStats?.queues?.[SCHEDULER_QUEUE_NAMES.embeddingsIo]?.pending || 0
+          );
+          const backlog = Math.max(0, computeQueuePending) + Math.max(0, ioQueuePending);
+          const memorySignals = schedulerStats?.adaptive?.signals?.memory || null;
+          const rssUtilization = Number(memorySignals?.rssUtilization);
+          const gcPressure = Number(memorySignals?.gcPressureScore);
+          const dynamicFdCap = resolveCurrentFdConcurrencyCap();
+          const dynamicCeiling = Number.isFinite(Number(dynamicFdCap)) && Number(dynamicFdCap) > 0
+            ? Math.max(
+              fileParallelism,
+              Math.min(adaptiveFileParallelismCeiling, Math.floor(Number(dynamicFdCap)))
+            )
+            : adaptiveFileParallelismCeiling;
+          let next = Math.max(1, Math.min(adaptiveFileParallelismCurrent, dynamicCeiling));
+          const highPressure = (
+            Number.isFinite(rssUtilization) && rssUtilization >= adaptiveFileParallelismRssHigh
+          ) || (
+            Number.isFinite(gcPressure) && gcPressure >= adaptiveFileParallelismGcHigh
+          );
+          const lowPressure = (
+            Number.isFinite(rssUtilization) && rssUtilization <= adaptiveFileParallelismRssLow
+          ) && (
+            Number.isFinite(gcPressure) && gcPressure <= adaptiveFileParallelismGcLow
+          );
+          if (highPressure) {
+            next = Math.max(1, next - 1);
+          } else if (backlog > 0 && lowPressure) {
+            next = Math.min(dynamicCeiling, next + 1);
+          }
+          if (next !== adaptiveFileParallelismCurrent) {
+            adaptiveFileParallelismCurrent = next;
+            adaptiveFileParallelismAdjustments += 1;
+            adaptiveFileParallelismLastAdjustAt = nowMs;
+          }
+          return adaptiveFileParallelismCurrent;
+        };
         const bundleRefreshParallelism = resolveEmbeddingsBundleRefreshParallelism({
           indexingConfig,
           ioTokensTotal
@@ -2279,11 +2608,19 @@ export async function runBuildEmbeddingsWithConfig(config) {
         const estimateEmbeddingTokens = (text) => estimateEmbeddingTokensFallback(text);
         const textReuseCacheEntries = resolveEmbeddingsTextReuseCacheEntries(indexingConfig);
         const textReuseMaxTextChars = resolveEmbeddingsTextReuseMaxTextChars(indexingConfig);
+        const inFlightClaimsMaxEntries = Math.max(
+          textReuseCacheEntries,
+          coercePositiveIntMinOne(indexingConfig?.embeddings?.inFlightTextCoalesceEntries)
+            || DEFAULT_EMBEDDINGS_IN_FLIGHT_CLAIMS_MAX_ENTRIES
+        );
         const sqliteDenseWriteBatchSize = resolveEmbeddingsSqliteDenseWriteBatchSize(indexingConfig);
         const embeddingTextCache = createEmbeddingTextReuseCache({
           maxEntries: textReuseCacheEntries,
           maxTextChars: textReuseMaxTextChars,
           persistentStore: persistentTextCacheStore
+        });
+        const embeddingInFlightCoalescer = createEmbeddingInFlightCoalescer({
+          maxEntries: inFlightClaimsMaxEntries
         });
         if (fileParallelism > 1) {
           log(`[embeddings] ${mode}: file parallelism enabled (${fileParallelism} workers).`);
@@ -2580,7 +2917,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
                 `fill ${embeddingBatchFillPercent.toFixed(1)}%`,
                 `wait ${embeddingBatchAvgWaitMs.toFixed(1)}ms`,
                 `${embeddingTextsPerSec.toFixed(1)} resolved/s`,
-                `eta ${formatEta(embedEtaSeconds)}`,
+                `eta ${formatEtaSeconds(embedEtaSeconds, { fallback: 'n/a' })}`,
                 `compute ${Math.max(0, Math.round(embeddingBatchComputeMs))}ms`,
                 `cache ${embeddingTextCache ? embeddingTextCache.size() : 0}`,
                 `inflight ${Number(inFlightStats.size || 0)}`
@@ -2715,6 +3052,28 @@ export async function runBuildEmbeddingsWithConfig(config) {
             cachedCodeVectors.push(quantized.quantizedCode);
             cachedDocVectors.push(quantized.quantizedDoc);
             cachedMergedVectors.push(quantized.quantizedMerged);
+          }
+
+          if (crossFileChunkDedupeEnabled && crossFileChunkDedupe && Array.isArray(entry.chunkHashes)) {
+            for (let i = 0; i < entry.chunkHashes.length; i += 1) {
+              const chunkHash = entry.chunkHashes[i];
+              if (!chunkHash) continue;
+              const codeVec = cachedCodeVectors[i] || null;
+              const docVec = cachedDocVectors[i] || null;
+              const mergedVec = cachedMergedVectors[i] || null;
+              if (!isNonEmptyVector(codeVec) || !isNonEmptyVector(docVec) || !isNonEmptyVector(mergedVec)) {
+                continue;
+              }
+              if (!crossFileChunkDedupe.has(chunkHash)) {
+                crossFileChunkDedupeStores += 1;
+              }
+              boundedMapSet(
+                crossFileChunkDedupe,
+                chunkHash,
+                { code: codeVec, doc: docVec, merged: mergedVec },
+                crossFileChunkDedupeMaxEntries
+              );
+            }
           }
 
           if (cacheEligible && entry.cacheKey && entry.cacheDir) {
@@ -3262,6 +3621,50 @@ export async function runBuildEmbeddingsWithConfig(config) {
               }
             }
             for (let i = 0; i < items.length; i += 1) {
+              if (
+                !reuse.code[i]
+                && !reuse.doc[i]
+                && !reuse.merged[i]
+                && crossFileChunkDedupeEnabled
+                && crossFileChunkDedupe
+              ) {
+                const chunkHash = chunkHashes[i];
+                const deduped = chunkHash ? crossFileChunkDedupe.get(chunkHash) : null;
+                if (
+                  deduped
+                  && isNonEmptyVector(deduped.code)
+                  && isNonEmptyVector(deduped.doc)
+                  && isNonEmptyVector(deduped.merged)
+                ) {
+                  reuse.code[i] = deduped.code;
+                  reuse.doc[i] = deduped.doc;
+                  reuse.merged[i] = deduped.merged;
+                  crossFileChunkDedupeHits += 1;
+                }
+              }
+              if (
+                !reuse.code[i]
+                && !reuse.doc[i]
+                && !reuse.merged[i]
+                && cacheEligible
+                && Array.isArray(chunkHashes)
+              ) {
+                const chunkHash = chunkHashes[i];
+                if (chunkHash) {
+                  const globalChunkCached = await resolveGlobalChunkVectors(chunkHash);
+                  const vectors = globalChunkCached?.vectors || null;
+                  if (
+                    vectors
+                    && isNonEmptyVector(vectors.code)
+                    && isNonEmptyVector(vectors.doc)
+                    && isNonEmptyVector(vectors.merged)
+                  ) {
+                    reuse.code[i] = vectors.code;
+                    reuse.doc[i] = vectors.doc;
+                    reuse.merged[i] = vectors.merged;
+                  }
+                }
+              }
               if (reuse.code[i] && reuse.doc[i] && reuse.merged[i]) {
                 continue;
               }
