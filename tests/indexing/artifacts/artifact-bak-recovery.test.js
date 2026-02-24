@@ -44,7 +44,8 @@ const corruptBak = `${corruptPath}.bak`;
 await fsPromises.writeFile(corruptPath, '{bad json');
 await fsPromises.writeFile(corruptBak, JSON.stringify({ ok: 'backup' }));
 
-const fallback = readJsonFile(corruptPath);
+expectThrow('strict corrupt primary json fallback', () => readJsonFile(corruptPath));
+const fallback = readJsonFile(corruptPath, { recoveryFallback: true });
 if (fallback?.ok !== 'backup') {
   console.error('artifact bak test failed: fallback did not return backup payload.');
   process.exit(1);
@@ -85,7 +86,8 @@ const jsonlCorruptPath = path.join(tempRoot, 'lines-corrupt.jsonl');
 const jsonlCorruptBak = `${jsonlCorruptPath}.bak`;
 await fsPromises.writeFile(jsonlCorruptPath, '{bad\n');
 await fsPromises.writeFile(jsonlCorruptBak, '{"id":4}\n{"id":5}\n');
-const jsonlFallback = readJsonLinesArraySync(jsonlCorruptPath);
+expectThrow('strict corrupt primary jsonl fallback', () => readJsonLinesArraySync(jsonlCorruptPath));
+const jsonlFallback = readJsonLinesArraySync(jsonlCorruptPath, { recoveryFallback: true });
 if (jsonlFallback.length !== 2) {
   console.error('artifact bak test failed: jsonl backup fallback did not return expected rows.');
   process.exit(1);
@@ -129,7 +131,7 @@ const doubleCorruptPath = path.join(tempRoot, 'double-corrupt.json');
 const doubleCorruptBak = `${doubleCorruptPath}.bak`;
 await fsPromises.writeFile(doubleCorruptPath, '{bad json');
 await fsPromises.writeFile(doubleCorruptBak, '{bad backup');
-expectThrow('corrupt primary and backup', () => readJsonFile(doubleCorruptPath));
+expectThrow('corrupt primary and backup', () => readJsonFile(doubleCorruptPath, { recoveryFallback: true }));
 if (!fs.existsSync(doubleCorruptBak)) {
   console.error('artifact bak test failed: corrupt backup should remain after failed read.');
   process.exit(1);
