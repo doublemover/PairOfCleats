@@ -369,6 +369,28 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     indexingConfig,
     cpuConcurrency: envelope?.concurrency?.cpuConcurrency?.value
   });
+  const preHashWorkerPoolConfig = indexingConfig.workerPool && typeof indexingConfig.workerPool === 'object'
+    ? indexingConfig.workerPool
+    : {};
+  if (
+    preHashWorkerPoolConfig.heapTargetMb == null
+    || preHashWorkerPoolConfig.heapMinMb == null
+    || preHashWorkerPoolConfig.heapMaxMb == null
+  ) {
+    indexingConfig = mergeConfig(indexingConfig, {
+      workerPool: {
+        ...(preHashWorkerPoolConfig.heapTargetMb == null
+          ? { heapTargetMb: preRuntimeMemoryPolicy.workerHeapPolicy.targetPerWorkerMb }
+          : {}),
+        ...(preHashWorkerPoolConfig.heapMinMb == null
+          ? { heapMinMb: preRuntimeMemoryPolicy.workerHeapPolicy.minPerWorkerMb }
+          : {}),
+        ...(preHashWorkerPoolConfig.heapMaxMb == null
+          ? { heapMaxMb: preRuntimeMemoryPolicy.workerHeapPolicy.maxPerWorkerMb }
+          : {})
+      }
+    });
+  }
   const schedulerAutoTuneProfile = await loadSchedulerAutoTuneProfile({
     repoCacheRoot,
     log: (line) => log(line)
@@ -410,8 +432,13 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   const triageConfig = getTriageConfig(root, userConfig);
   const recordsConfig = normalizeRecordsConfig(userConfig.records || {});
   const currentIndexRoot = resolveIndexRoot(root, userConfig);
-  const configHash = getEffectiveConfigHash(root, policyConfig);
-  const contentConfigHash = buildContentConfigHash(policyConfig, envConfig);
+  /**
+   * Hash build identity from the fully merged effective runtime config so
+   * stage/profile/policy/preset overrides resolve to distinct build roots.
+   */
+  const effectiveConfigForHash = mergeConfig(policyConfig, { indexing: indexingConfig });
+  const configHash = getEffectiveConfigHash(root, effectiveConfigForHash);
+  const contentConfigHash = buildContentConfigHash(effectiveConfigForHash, envConfig);
   const scmProviderOverride = typeof argv['scm-provider'] === 'string'
     ? argv['scm-provider']
     : (typeof argv.scmProvider === 'string' ? argv.scmProvider : null);
@@ -695,24 +722,6 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     indexingConfig,
     cpuConcurrency
   });
-  const rawWorkerPoolConfig = indexingConfig.workerPool && typeof indexingConfig.workerPool === 'object'
-    ? indexingConfig.workerPool
-    : {};
-  if (rawWorkerPoolConfig.heapTargetMb == null || rawWorkerPoolConfig.heapMinMb == null || rawWorkerPoolConfig.heapMaxMb == null) {
-    indexingConfig = mergeConfig(indexingConfig, {
-      workerPool: {
-        ...(rawWorkerPoolConfig.heapTargetMb == null
-          ? { heapTargetMb: runtimeMemoryPolicy.workerHeapPolicy.targetPerWorkerMb }
-          : {}),
-        ...(rawWorkerPoolConfig.heapMinMb == null
-          ? { heapMinMb: runtimeMemoryPolicy.workerHeapPolicy.minPerWorkerMb }
-          : {}),
-        ...(rawWorkerPoolConfig.heapMaxMb == null
-          ? { heapMaxMb: runtimeMemoryPolicy.workerHeapPolicy.maxPerWorkerMb }
-          : {})
-      }
-    });
-  }
 
   const embeddingRuntime = await timeInit('embedding runtime', () => resolveEmbeddingRuntime({
     rootDir: root,
