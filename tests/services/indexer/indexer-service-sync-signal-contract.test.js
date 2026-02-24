@@ -14,7 +14,7 @@ assert.match(
 );
 assert.match(
   source,
-  /if\s*\(\s*firstSignal\s*\)\s*\{\s*exitLikeCommandResult\(\{\s*status:\s*null,\s*signal:\s*firstSignal\s*\}\);/s,
+  /if\s*\(\s*firstSignal\s*\)\s*\{[\s\S]*?return\s+exitLikeCommandResult\(\{\s*status:\s*null,\s*signal:\s*firstSignal\s*\}\);/s,
   'expected sync handler to propagate signal-based exits'
 );
 

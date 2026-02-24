@@ -69,6 +69,27 @@ try {
 assert.equal(fs.readFileSync(retryPath, 'utf8'), 'retry-ok');
 assert.equal(emfileAttempts, 2, 'expected EMFILE retry path to be exercised');
 
+const exdevPath = path.join(tempRoot, 'exdev.txt');
+const originalRename = fsPromises.rename;
+let exdevAttempts = 0;
+fsPromises.rename = async (...args) => {
+  const [, targetPath] = args;
+  if (String(targetPath || '').includes('exdev.txt')) {
+    exdevAttempts += 1;
+    const err = new Error('cross-device link not permitted');
+    err.code = 'EXDEV';
+    throw err;
+  }
+  return originalRename(...args);
+};
+try {
+  await atomicWriteText(exdevPath, 'exdev-ok');
+} finally {
+  fsPromises.rename = originalRename;
+}
+assert.equal(fs.readFileSync(exdevPath, 'utf8'), 'exdev-ok');
+assert.ok(exdevAttempts >= 1, 'expected EXDEV rename fallback path to be exercised');
+
 let mkdirError = null;
 try {
   await atomicWriteText(path.join(tempRoot, 'nested', 'missing.txt'), 'x', { mkdir: false });

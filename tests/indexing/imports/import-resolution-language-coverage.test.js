@@ -74,7 +74,18 @@ await write('cmake/sub/main.cmake', 'include(../modules/common.cmake)\n');
 await write('cmake/sub/modules/common.cmake', '# sibling should not win for ../ imports\n');
 
 await write('tools/defs.bzl', 'def macro():\n  pass\n');
-await write('app/rules.bzl', 'load("//tools:defs.bzl", "macro")\nload(":local.bzl", "local_macro")\n');
+await write('tools/pkg/pkg.bzl', 'def pkg_macro():\n  pass\n');
+await write('tools/pkg/defs.bzl', 'def defs_macro():\n  pass\n');
+await write(
+  'app/rules.bzl',
+  [
+    'load("//tools:defs.bzl", "macro")',
+    'load("//tools/pkg", "pkg_macro")',
+    'load("//tools/pkg:defs", "defs_macro")',
+    'load(":local.bzl", "local_macro")',
+    ''
+  ].join('\n')
+);
 await write('app/local.bzl', 'def local_macro():\n  pass\n');
 
 await write('lib/main.dart', "import 'package:benchapp/src/util.dart';\nimport 'src/local.dart';\nimport 'package:flutter/material.dart';\n");
@@ -138,6 +149,8 @@ const entries = [
   'cmake/sub/main.cmake',
   'cmake/sub/modules/common.cmake',
   'tools/defs.bzl',
+  'tools/pkg/pkg.bzl',
+  'tools/pkg/defs.bzl',
   'app/rules.bzl',
   'app/local.bzl',
   'lib/main.dart',
@@ -174,7 +187,7 @@ const importsByFile = {
   'scripts/system.sh': ['/etc/bash_completion', '/usr/local/share/chruby/auto.sh'],
   'cmake/main.cmake': ['modules/common.cmake'],
   'cmake/sub/main.cmake': ['../modules/common.cmake'],
-  'app/rules.bzl': ['//tools:defs.bzl', ':local.bzl'],
+  'app/rules.bzl': ['//tools:defs.bzl', '//tools/pkg', '//tools/pkg:defs', ':local.bzl'],
   'lib/main.dart': ['package:benchapp/src/util.dart', 'src/local.dart', 'package:flutter/material.dart'],
   'src/main/scala/com/acme/ScalaMain.scala': ['com.acme.util.ScalaHelper'],
   'src/main/groovy/com/acme/GMain.groovy': ['com.acme.util.GHelper'],
@@ -240,7 +253,7 @@ assertLinks('scripts/main.sh', ['scripts/lib/helpers.sh']);
 assertExternal('scripts/system.sh', ['/etc/bash_completion', '/usr/local/share/chruby/auto.sh']);
 assertLinks('cmake/main.cmake', ['cmake/modules/common.cmake']);
 assertLinks('cmake/sub/main.cmake', ['cmake/modules/common.cmake']);
-assertLinks('app/rules.bzl', ['app/local.bzl', 'tools/defs.bzl']);
+assertLinksUnordered('app/rules.bzl', ['app/local.bzl', 'tools/defs.bzl', 'tools/pkg/defs.bzl', 'tools/pkg/pkg.bzl']);
 assertLinks('lib/main.dart', ['lib/src/local.dart', 'lib/src/util.dart']);
 assertExternal('lib/main.dart', ['package:flutter/material.dart']);
 assertLinks('src/main/scala/com/acme/ScalaMain.scala', ['src/main/scala/com/acme/util/ScalaHelper.scala']);

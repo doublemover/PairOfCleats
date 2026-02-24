@@ -46,4 +46,38 @@ assert.ok(
 );
 assert.equal(appender.snapshot().nextIndex, 3, 'expected ordered cursor to advance past recovered gap');
 
+const processedExplicit = [];
+const explicitAppender = buildOrderedAppender(
+  async (result) => {
+    processedExplicit.push(result.id);
+  },
+  {},
+  {
+    expectedCount: 3,
+    startIndex: 0,
+    stallMs: 0
+  }
+);
+
+const explicitDone1 = explicitAppender.enqueue(1, { id: 1 });
+const explicitDone2 = explicitAppender.enqueue(2, { id: 2 });
+const explicitRecovery = explicitAppender.recoverMissingRange({
+  start: 0,
+  end: 1,
+  reason: 'explicit_range'
+});
+assert.equal(
+  explicitRecovery.recovered,
+  1,
+  'expected explicit recovery to skip only truly missing indices and preserve pending payloads'
+);
+assert.equal(explicitRecovery.start, 0);
+assert.equal(explicitRecovery.end, 0);
+await Promise.all([explicitDone1, explicitDone2]);
+assert.deepEqual(
+  processedExplicit,
+  [1, 2],
+  'expected pending entries inside explicit recovery range to remain processable'
+);
+
 console.log('ordered appender recover-missing-range test passed');
