@@ -62,10 +62,26 @@ export const createTreeSitterSchedulerLookup = ({
   const defaultForceCloseAfterMs = readerCloseTimeoutMs > 0
     ? Math.min(DEFAULT_READER_FORCE_CLOSE_AFTER_MS, readerCloseTimeoutMs)
     : DEFAULT_READER_FORCE_CLOSE_AFTER_MS;
-  const readerForceCloseAfterMs = resolveBuildCleanupTimeoutMs(
+  const configuredReaderForceCloseAfterMs = resolveBuildCleanupTimeoutMs(
     forceCloseAfterMs,
     defaultForceCloseAfterMs
   );
+  /**
+   * Resolve a finite forced-close budget for lookup teardown.
+   *
+   * A non-positive configured value can leave close-loop deadline unbounded,
+   * which allows one leaked/in-use reader lease to deadlock stage1 teardown.
+   * We always keep a bounded fallback so bench runs cannot hang indefinitely.
+   */
+  const readerForceCloseAfterMs = Number.isFinite(configuredReaderForceCloseAfterMs)
+    && configuredReaderForceCloseAfterMs > 0
+    ? Math.floor(configuredReaderForceCloseAfterMs)
+    : Math.max(
+      DEFAULT_READER_FORCE_CLOSE_AFTER_MS,
+      Number.isFinite(readerCloseTimeoutMs) && readerCloseTimeoutMs > 0
+        ? Math.floor(readerCloseTimeoutMs)
+        : DEFAULT_READER_FORCE_CLOSE_AFTER_MS
+    );
   const rowCache = createLruCache({
     name: 'tree-sitter-scheduler-row',
     maxEntries: cacheMax
@@ -296,9 +312,7 @@ export const createTreeSitterSchedulerLookup = ({
       return;
     }
     closePromise = (async () => {
-      const closeDeadlineMs = Number.isFinite(readerForceCloseAfterMs) && readerForceCloseAfterMs > 0
-        ? Date.now() + readerForceCloseAfterMs
-        : Number.POSITIVE_INFINITY;
+      const closeDeadlineMs = Date.now() + readerForceCloseAfterMs;
       while (readersByManifestPath.size > 0) {
         const entries = Array.from(readersByManifestPath.values());
         await Promise.all(entries.map((entry) => closeReaderEntry(entry)));
