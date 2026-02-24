@@ -587,6 +587,27 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
       options.logger.log(message);
     }
   };
+  /**
+   * Move a file into place and transparently handle cross-device (`EXDEV`)
+   * boundaries by copy+remove fallback.
+   *
+   * `preserveSource` is used by rollback restore paths that should leave the
+   * backup artifact intact when `keepBackup=true`.
+   */
+  const moveFileWithCrossDeviceFallback = async (sourcePath, destinationPath, { preserveSource = false } = {}) => {
+    if (!preserveSource) {
+      try {
+        await fsPromises.rename(sourcePath, destinationPath);
+        return;
+      } catch (err) {
+        if (err?.code !== 'EXDEV') throw err;
+      }
+    }
+    await fsPromises.copyFile(sourcePath, destinationPath);
+    if (!preserveSource) {
+      await fsPromises.rm(sourcePath, { force: true });
+    }
+  };
 
   await removeSqliteSidecars(tempDbPath);
   await removeSqliteSidecars(finalDbPath);
@@ -594,7 +615,7 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
   let backupAvailable = fs.existsSync(backupPath);
   if (finalExists && !backupAvailable) {
     try {
-      await fsPromises.rename(finalDbPath, backupPath);
+      await moveFileWithCrossDeviceFallback(finalDbPath, backupPath);
       backupAvailable = true;
     } catch (err) {
       if (err?.code !== 'ENOENT') {
@@ -606,20 +627,43 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
     }
   }
 
+  const tryRestoreBackup = async () => {
+    if (!backupAvailable) return;
+    if (fs.existsSync(finalDbPath)) return;
+    if (!fs.existsSync(backupPath)) return;
+    emit('[sqlite] Replace failed; restoring previous database from backup.');
+    await moveFileWithCrossDeviceFallback(backupPath, finalDbPath, {
+      preserveSource: keepBackup
+    });
+    if (!keepBackup) {
+      backupAvailable = false;
+    }
+  };
+
   try {
-    await fsPromises.rename(tempDbPath, finalDbPath);
-  } catch (err) {
-    if (err?.code !== 'EEXIST' && err?.code !== 'EPERM' && err?.code !== 'ENOTEMPTY') {
-      throw err;
-    }
-    if (!backupAvailable) {
-      throw err;
-    }
-    emit('[sqlite] Falling back to removing existing db before replace.');
     try {
-      await fsPromises.rm(finalDbPath, { force: true });
-    } catch {}
-    await fsPromises.rename(tempDbPath, finalDbPath);
+      await moveFileWithCrossDeviceFallback(tempDbPath, finalDbPath);
+    } catch (err) {
+      if (err?.code !== 'EEXIST' && err?.code !== 'EPERM' && err?.code !== 'ENOTEMPTY') {
+        throw err;
+      }
+      if (!backupAvailable) {
+        throw err;
+      }
+      emit('[sqlite] Falling back to removing existing db before replace.');
+      try {
+        await fsPromises.rm(finalDbPath, { force: true });
+      } catch {}
+      await moveFileWithCrossDeviceFallback(tempDbPath, finalDbPath);
+    }
+  } catch (err) {
+    try {
+      await tryRestoreBackup();
+    } catch (restoreError) {
+      restoreError.message = `[sqlite] Failed to restore backup after replace failure: ${restoreError.message}`;
+      throw restoreError;
+    }
+    throw err;
   }
 
   if (!keepBackup) {
