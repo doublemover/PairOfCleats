@@ -142,6 +142,46 @@ await applyPromise;
 assert.equal(applyRan, true, 'expected apply callback to execute once reservation is available');
 assert.equal(postingsQueue.stats().pending.count, 0, 'expected queue reservations to drain after apply');
 
+const signalForwardQueue = createPostingsQueue({
+  maxPending: 1,
+  maxPendingRows: 4,
+  maxPendingBytes: 4096,
+  maxHeapFraction: 1
+});
+const signalForwardController = new AbortController();
+let forwardedSignal = null;
+await runApplyWithPostingsBackpressure({
+  sparsePostingsEnabled: true,
+  postingsQueue: signalForwardQueue,
+  signal: signalForwardController.signal,
+  result: { chunks: [{ id: 'forward-signal' }] },
+  runApply: async ({ signal } = {}) => {
+    forwardedSignal = signal || null;
+  }
+});
+assert.equal(
+  forwardedSignal,
+  signalForwardController.signal,
+  'expected runApplyWithPostingsBackpressure to forward reserve signal into apply callback'
+);
+
+const preAbortedController = new AbortController();
+preAbortedController.abort(new Error('pre-aborted helper signal'));
+let preAbortedApplyRan = false;
+await assert.rejects(
+  () => runApplyWithPostingsBackpressure({
+    sparsePostingsEnabled: false,
+    signal: preAbortedController.signal,
+    result: { chunks: [{ id: 'pre-abort' }] },
+    runApply: async () => {
+      preAbortedApplyRan = true;
+    }
+  }),
+  (err) => err?.code === 'ABORT_ERR',
+  'expected runApplyWithPostingsBackpressure to fail fast before apply when signal is already aborted'
+);
+assert.equal(preAbortedApplyRan, false, 'expected apply callback not to run when signal is pre-aborted');
+
 const timeoutQueue = createPostingsQueue({
   maxPending: 1,
   maxPendingRows: 4,

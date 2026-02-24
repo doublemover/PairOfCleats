@@ -101,6 +101,7 @@ const FILE_STALL_SOFT_KICK_MIN_MS = 1000;
 const FILE_STALL_SOFT_KICK_COOLDOWN_DEFAULT_MS = 30 * 1000;
 const FILE_STALL_SOFT_KICK_MAX_ATTEMPTS_DEFAULT = 2;
 const STAGE1_ORDERED_COMPLETION_TIMEOUT_FALLBACK_MS = 2 * 60 * 1000;
+const STAGE1_ORDERED_FLUSH_TIMEOUT_FALLBACK_MS = 90 * 1000;
 const STAGE1_ORDERED_COMPLETION_STALL_POLL_DEFAULT_MS = 5000;
 const STAGE_TIMING_SCHEMA_VERSION = 1;
 const FILE_QUEUE_DELAY_HISTOGRAM_BUCKETS_MS = Object.freeze([50, 100, 250, 500, 1000, 2000, 5000, 10000, 30000, 60000]);
@@ -978,7 +979,7 @@ export const shouldBypassPostingsBackpressure = ({
  *   signal?:AbortSignal|null,
  *   reserveTimeoutMs?:number,
  *   onReserveWait?:(snapshot:object)=>void,
- *   runApply:Function
+ *   runApply:(context?:{signal?:AbortSignal|null})=>Promise<unknown>|unknown
  * }} input
  * @returns {Promise<unknown>}
  */
@@ -1012,7 +1013,10 @@ export const runApplyWithPostingsBackpressure = async ({
     });
   }
   try {
-    return await runApply();
+    throwIfAborted(reserveSignal);
+    const applyResult = await runApply({ signal: reserveSignal });
+    throwIfAborted(reserveSignal);
+    return applyResult;
   } finally {
     try {
       reservation.release?.();
@@ -1065,6 +1069,25 @@ const resolveOrderedCompletionStallPollMs = ({ runtime = null } = {}) => {
   return configured != null
     ? configured
     : STAGE1_ORDERED_COMPLETION_STALL_POLL_DEFAULT_MS;
+};
+
+/**
+ * Resolve timeout budget for one ordered-flush write operation.
+ *
+ * @param {{runtime?:object}} [input]
+ * @returns {number}
+ */
+const resolveOrderedFlushTimeoutMs = ({ runtime = null } = {}) => {
+  const configured = coerceOptionalNonNegativeInt(runtime?.stage1Queues?.ordered?.flushTimeoutMs);
+  if (configured != null) return configured;
+  const completionTimeoutMs = coerceOptionalNonNegativeInt(runtime?.stage1Queues?.ordered?.completionTimeoutMs);
+  if (Number.isFinite(completionTimeoutMs) && completionTimeoutMs > 0) {
+    return Math.max(
+      10000,
+      Math.min(STAGE1_ORDERED_FLUSH_TIMEOUT_FALLBACK_MS, Math.floor(completionTimeoutMs))
+    );
+  }
+  return STAGE1_ORDERED_FLUSH_TIMEOUT_FALLBACK_MS;
 };
 
 /**
@@ -2026,10 +2049,15 @@ export const processFiles = async ({
      * @param {object} result
      * @param {object} stateRef
      * @param {object|null} shardMeta
+     * @param {{signal?:AbortSignal|null}} [context]
      * @returns {Promise<void>}
      */
-    const applyFileResult = async (result, stateRef, shardMeta) => {
+    const applyFileResult = async (result, stateRef, shardMeta, context = {}) => {
       if (!result) return;
+      const applySignal = context?.signal && typeof context.signal.aborted === 'boolean'
+        ? context.signal
+        : null;
+      throwIfAborted(applySignal);
       const lifecycle = resolveResultLifecycleRecord(result, shardMeta);
       if (lifecycle && !Number.isFinite(lifecycle.writeStartAtMs)) {
         lifecycle.writeStartAtMs = Date.now();
@@ -2037,9 +2065,11 @@ export const processFiles = async ({
       if (result.fileMetrics) {
         recordFileMetric(perfProfile, result.fileMetrics);
       }
+      throwIfAborted(applySignal);
       for (const chunk of result.chunks) {
         appendChunkWithRetention(stateRef, chunk, state);
       }
+      throwIfAborted(applySignal);
       if (result.manifestEntry) {
         if (shardMeta?.id) result.manifestEntry.shard = shardMeta.id;
         incrementalState.manifest.files[result.relKey] = result.manifestEntry;
@@ -2098,12 +2128,15 @@ export const processFiles = async ({
           stateRef.vfsManifestRows = null;
           stateRef.vfsManifestStats = stateRef.vfsManifestCollector.stats;
         }
+        throwIfAborted(applySignal);
         await stateRef.vfsManifestCollector.appendRows(result.vfsManifestRows, { log });
+        throwIfAborted(applySignal);
       }
       if (lifecycle) {
         lifecycle.writeEndAtMs = Date.now();
       }
       const lifecycleDurations = lifecycle ? resolveFileLifecycleDurations(lifecycle) : null;
+      throwIfAborted(applySignal);
       stateRef.scannedFilesTimes.push({
         file: result.abs,
         duration_ms: clampDurationMs(result.durationMs),
@@ -2139,16 +2172,29 @@ export const processFiles = async ({
      * @param {object} result
      * @param {object} stateRef
      * @param {object|null} [shardMeta=null]
+     * @param {{signal?:AbortSignal|null}} [context]
      * @returns {Promise<unknown>}
      */
-    const applyOrderedResultWithBackpressure = async (result, stateRef, shardMeta = null) => runApplyWithPostingsBackpressure({
+    const applyOrderedResultWithBackpressure = async (
+      result,
+      stateRef,
+      shardMeta = null,
+      context = null
+    ) => runApplyWithPostingsBackpressure({
       sparsePostingsEnabled,
       postingsQueue,
       result,
-      signal: effectiveAbortSignal,
+      signal: context?.signal && typeof context.signal.aborted === 'boolean'
+        ? context.signal
+        : effectiveAbortSignal,
       reserveTimeoutMs: coerceOptionalNonNegativeInt(postingsQueueConfig?.reserveTimeoutMs),
-      runApply: () => schedulePostings(() => applyFileResult(result, stateRef, shardMeta))
+      runApply: ({ signal } = {}) => schedulePostings(async () => {
+        throwIfAborted(signal);
+        await applyFileResult(result, stateRef, shardMeta, { signal });
+        throwIfAborted(signal);
+      })
     });
+    const orderedFlushTimeoutMs = resolveOrderedFlushTimeoutMs({ runtime });
     const orderedAppender = buildOrderedAppender(
       applyOrderedResultWithBackpressure,
       state,
@@ -2160,6 +2206,8 @@ export const processFiles = async ({
         ?? Math.max(256, runtime.fileConcurrency * 48),
         maxPendingBeforeBackpressure: orderedAppenderConfig.maxPendingBeforeBackpressure,
         maxPendingEmergencyFactor: orderedAppenderConfig.maxPendingEmergencyFactor,
+        flushTimeoutMs: orderedFlushTimeoutMs,
+        signal: effectiveAbortSignal,
         log: (message, meta = {}) => logLine(message, { ...meta, mode, stage: 'processing' }),
         stallMs: debugOrdered ? 5000 : undefined,
         debugOrdered
@@ -2268,7 +2316,12 @@ export const processFiles = async ({
       if (!orderedSnapshot || typeof orderedSnapshot !== 'object') return null;
       const pendingCount = Number(orderedSnapshot.pendingCount) || 0;
       const inFlightCount = Number(snapshot?.inFlight ?? inFlightFiles.size) || 0;
+      const expectedCount = Number(orderedSnapshot.expectedCount);
+      const seenCount = Number(orderedSnapshot.seenCount);
       if (inFlightCount > 0 || pendingCount <= 0) return null;
+      if (!(Number.isFinite(expectedCount) && expectedCount > 0 && Number.isFinite(seenCount) && seenCount >= expectedCount)) {
+        return null;
+      }
       const recovery = orderedAppender.recoverMissingRange({ reason });
       if (!recovery || Number(recovery.recovered) <= 0) return recovery || null;
       lastOrderedCompletionAt = Date.now();
@@ -2528,11 +2581,17 @@ export const processFiles = async ({
         includeStack
       });
       const trackedSubprocesses = Number(snapshot?.trackedSubprocesses?.total) || 0;
+      const flushActive = snapshot?.orderedSnapshot?.flushActive && typeof snapshot.orderedSnapshot.flushActive === 'object'
+        ? snapshot.orderedSnapshot.flushActive
+        : null;
+      const flushText = flushActive
+        ? ` flush=${flushActive.orderIndex ?? '?'}@${Math.round((Number(flushActive.elapsedMs) || 0) / 1000)}s`
+        : '';
       logLine(
         `[watchdog] stall snapshot idle=${Math.round(idleMs / 1000)}s progress=${progress.count}/${progress.total} `
           + `next=${snapshot?.orderedSnapshot?.nextIndex ?? '?'} pending=${snapshot?.orderedSnapshot?.pendingCount ?? '?'} `
           + `orderedPending=${snapshot?.orderedPending ?? 0} inFlight=${inFlightFiles.size} `
-          + `trackedSubprocesses=${trackedSubprocesses}`,
+          + `trackedSubprocesses=${trackedSubprocesses}${flushText}`,
         {
           kind: 'warning',
           mode,
@@ -2622,7 +2681,7 @@ export const processFiles = async ({
     logLine(
       `[watchdog] stage1 hang policy heartbeat=${progressHeartbeatMs}ms snapshot=${stallSnapshotMs}ms `
         + `softKick=${stage1StallSoftKickMs}ms abort=${stage1StallAbortMs}ms `
-        + `softKickMaxAttempts=${stage1StallSoftKickMaxAttempts}`,
+        + `softKickMaxAttempts=${stage1StallSoftKickMaxAttempts} orderedFlushTimeout=${orderedFlushTimeoutMs}ms`,
       {
         kind: 'status',
         mode,
@@ -2633,7 +2692,8 @@ export const processFiles = async ({
           softKickMs: stage1StallSoftKickMs,
           softKickCooldownMs: stage1StallSoftKickCooldownMs,
           softKickMaxAttempts: stage1StallSoftKickMaxAttempts,
-          abortMs: stage1StallAbortMs
+          abortMs: stage1StallAbortMs,
+          orderedFlushTimeoutMs
         }
       }
     );
@@ -3177,17 +3237,43 @@ export const processFiles = async ({
             stallPollMs: orderedCompletionStallPollMs,
             signal: effectiveAbortSignal,
             onStall: ({ pending, stallCount, elapsedMs }) => {
+              const orderedSnapshot = typeof orderedAppender.snapshot === 'function'
+                ? orderedAppender.snapshot()
+                : null;
+              const flushActive = orderedSnapshot?.flushActive && typeof orderedSnapshot.flushActive === 'object'
+                ? orderedSnapshot.flushActive
+                : null;
+              const flushActiveText = flushActive
+                ? ` flush=${flushActive.orderIndex ?? '?'}@${Math.round((Number(flushActive.elapsedMs) || 0) / 1000)}s`
+                : '';
+              const seenCount = Number(orderedSnapshot?.seenCount);
+              const expectedCount = Number(orderedSnapshot?.expectedCount);
+              const seenText = Number.isFinite(expectedCount) && expectedCount > 0 && Number.isFinite(seenCount)
+                ? ` seen=${seenCount}/${expectedCount}`
+                : '';
               if (stallCount === 1 || (stallCount % 3) === 0) {
                 logLine(
-                  `[ordered] completion drain waiting pending=${pending} elapsed=${Math.round(elapsedMs / 1000)}s`,
+                  `[ordered] completion drain waiting pending=${pending} elapsed=${Math.round(elapsedMs / 1000)}s`
+                    + ` next=${orderedSnapshot?.nextIndex ?? '?'}${seenText}${flushActiveText}`,
                   {
                     kind: 'warning',
                     mode,
                     stage: 'processing',
                     orderedPending: pending,
-                    idleMs: elapsedMs
+                    idleMs: elapsedMs,
+                    orderedSnapshot: orderedSnapshot || null
                   }
                 );
+              }
+              if (stallCount === 1 || (stallCount % 2) === 0) {
+                const recovered = attemptOrderedGapRecovery({
+                  snapshot: {
+                    orderedSnapshot,
+                    inFlight: inFlightFiles.size
+                  },
+                  reason: 'ordered_completion_wait'
+                });
+                if (Number(recovered?.recovered) > 0) return;
               }
               evaluateStalledProcessing('ordered_completion_wait');
             }

@@ -1,3 +1,5 @@
+import { createTimeoutError, runWithTimeout } from '../../../../../shared/promise-timeout.js';
+
 // Ordered appender used to ensure deterministic chunk/doc ids regardless of
 // concurrency and shard execution order.
 //
@@ -15,7 +17,7 @@
  * Create an ordered result appender that preserves deterministic output order
  * while supporting concurrent shard/file execution.
  *
- * @param {(result:any,state:any,shardMeta:any)=>Promise<void>} handleFileResult
+ * @param {(result:any,state:any,shardMeta:any,context?:{signal?:AbortSignal|null,orderIndex?:number|null,phase?:string})=>Promise<void>} handleFileResult
  * @param {any} state
  * @param {object} [options]
  * @returns {{
@@ -60,6 +62,12 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
   const skipped = new Set();
   const logFn = typeof options.log === 'function' ? options.log : null;
   const stallMs = Number.isFinite(options.stallMs) ? Math.max(0, options.stallMs) : 30000;
+  const flushTimeoutMs = Number.isFinite(options.flushTimeoutMs)
+    ? Math.max(0, Math.floor(options.flushTimeoutMs))
+    : 0;
+  const flushAbortSignal = options.signal && typeof options.signal.aborted === 'boolean'
+    ? options.signal
+    : null;
   let lastAdvanceAt = Date.now();
   let stallTimer = null;
   const expectedCount = Number.isFinite(options.expectedCount)
@@ -85,6 +93,9 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
   let abortError = null;
   let lastActivityAt = Date.now();
   let emergencyCapacityActive = false;
+  let flushActiveOrderIndex = null;
+  let flushActivePhase = null;
+  let flushActiveStartedAt = 0;
 
   const emitLog = (message, meta) => {
     if (!logFn) return;
@@ -147,6 +158,60 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
 
   const noteActivity = () => {
     lastActivityAt = Date.now();
+  };
+
+  /**
+   * Build a deterministic timeout error for ordered flush writes.
+   *
+   * @param {{orderIndex:number,phase:string,timeoutMs:number}} input
+   * @returns {Error}
+   */
+  const createOrderedFlushTimeoutError = ({ orderIndex, phase, timeoutMs }) => createTimeoutError({
+    message: `Ordered flush timed out while writing index ${orderIndex} (${phase}) after ${timeoutMs}ms.`,
+    code: 'ORDERED_FLUSH_TIMEOUT',
+    retryable: false,
+    meta: {
+      orderIndex,
+      phase,
+      timeoutMs
+    }
+  });
+
+  /**
+   * Apply one ordered result payload with optional timeout guard and flush state.
+   *
+   * @param {any} entry
+   * @param {number} orderIndex
+   * @param {'late'|'ordered'} phase
+   * @returns {Promise<void>}
+   */
+  const applyOrderedResult = async (entry, orderIndex, phase) => {
+    if (!entry?.result) return;
+    flushActiveOrderIndex = Number.isFinite(orderIndex) ? orderIndex : null;
+    flushActivePhase = phase;
+    flushActiveStartedAt = Date.now();
+    try {
+      await runWithTimeout(
+        (signal) => handleFileResult(entry.result, state, entry.shardMeta, {
+          signal,
+          orderIndex: Number.isFinite(orderIndex) ? orderIndex : null,
+          phase
+        }),
+        {
+          timeoutMs: flushTimeoutMs,
+          signal: flushAbortSignal,
+          errorFactory: () => createOrderedFlushTimeoutError({
+            orderIndex: Number.isFinite(orderIndex) ? orderIndex : -1,
+            phase,
+            timeoutMs: flushTimeoutMs
+          })
+        }
+      );
+    } finally {
+      flushActiveOrderIndex = null;
+      flushActivePhase = null;
+      flushActiveStartedAt = 0;
+    }
   };
 
   /**
@@ -503,9 +568,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
           continue;
         }
         try {
-          if (entry?.result) {
-            await handleFileResult(entry.result, state, entry.shardMeta);
-          }
+          await applyOrderedResult(entry, key, 'late');
           completed.add(key);
           entry?.resolve?.();
           noteActivity();
@@ -523,9 +586,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       const entry = pending.get(currentIndex);
       pending.delete(currentIndex);
       try {
-        if (entry?.result) {
-          await handleFileResult(entry.result, state, entry.shardMeta);
-        }
+        await applyOrderedResult(entry, currentIndex, 'ordered');
         entry?.resolve?.();
       } catch (err) {
         try { entry?.reject?.(err); } catch {}
@@ -754,6 +815,14 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       const keys = Array.from(pending.keys())
         .filter((value) => Number.isFinite(value))
         .sort((a, b) => a - b);
+      const flushActive = flushActiveStartedAt > 0
+        ? {
+          orderIndex: flushActiveOrderIndex,
+          phase: flushActivePhase,
+          startedAt: new Date(flushActiveStartedAt).toISOString(),
+          elapsedMs: Math.max(0, Date.now() - flushActiveStartedAt)
+        }
+        : null;
       return {
         nextIndex,
         pendingCount: pending.size,
@@ -765,7 +834,8 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
         maxPendingEmergency,
         emergencyCapacityActive,
         lastAdvanceAt,
-        lastActivityAt
+        lastActivityAt,
+        flushActive
       };
     },
     waitForCapacity,
