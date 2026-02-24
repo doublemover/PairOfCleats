@@ -17,7 +17,7 @@ const DEFAULT_ROW_CACHE_MAX = 4096;
 const DEFAULT_MISS_CACHE_MAX = 10000;
 const DEFAULT_PAGE_CACHE_MAX = 1024;
 const DEFAULT_MAX_OPEN_READERS = process.platform === 'win32' ? 8 : 32;
-const TRANSIENT_FD_ERROR_CODES = new Set(['EAGAIN', 'EMFILE', 'ENFILE']);
+const TRANSIENT_FD_ERROR_CODES = new Set(['EAGAIN', 'EMFILE', 'ENFILE', 'EBADF']);
 const TRANSIENT_FD_RETRY_ATTEMPTS = 24;
 const TRANSIENT_FD_RETRY_BASE_DELAY_MS = 50;
 const TRANSIENT_FD_RETRY_MAX_DELAY_MS = 1000;
@@ -70,10 +70,24 @@ export const createTreeSitterSchedulerLookup = ({
   const consumedVirtualPathFallback = new Set();
   const readersByManifestPath = new Map();
   let readerUseTick = 0;
+  let closed = false;
+  let closePromise = null;
   const segmentMetaByGrammarKey = new Map(); // grammarKey -> Promise<Map<number, object>|null>
   const pageIndexByGrammarKey = new Map(); // grammarKey -> Promise<Map<number, object>|null>
 
-  const isTransientFdError = (err) => TRANSIENT_FD_ERROR_CODES.has(String(err?.code || ''));
+  const throwIfLookupClosing = () => {
+    if (!closed && !closePromise) return;
+    const err = new Error('Tree-sitter scheduler lookup is closed.');
+    err.code = 'ERR_TREE_SITTER_LOOKUP_CLOSED';
+    throw err;
+  };
+
+  const isTransientFdError = (err) => {
+    const code = String(err?.code || '');
+    if (TRANSIENT_FD_ERROR_CODES.has(code)) return true;
+    const message = String(err?.message || '').toLowerCase();
+    return message.includes('file closed');
+  };
 
   const withTransientFdRetry = async (fn, contextLabel = null) => {
     let lastError = null;
@@ -130,45 +144,111 @@ export const createTreeSitterSchedulerLookup = ({
    * @param {'jsonl'|'binary-v1'} [format='jsonl']
    * @returns {object}
    */
-  const evictOldestReader = async () => {
-    if (readersByManifestPath.size < maxReaderCount) return;
-    let oldest = null;
-    for (const entry of readersByManifestPath.values()) {
-      if (!oldest || entry.lastUsedTick < oldest.lastUsedTick) {
-        oldest = entry;
-      }
+  const closeReaderEntry = async (entry, { recordEviction = false } = {}) => {
+    if (!entry || typeof entry !== 'object') return;
+    if (entry.closingPromise) {
+      await entry.closingPromise;
+      return;
     }
-    if (!oldest) return;
-    readersByManifestPath.delete(oldest.key);
-    stats.readerEvictions += 1;
+    if (entry.inUseCount > 0) {
+      entry.closeRequested = true;
+      return;
+    }
+    readersByManifestPath.delete(entry.key);
+    if (recordEviction) stats.readerEvictions += 1;
+    entry.closeRequested = false;
+    const reader = entry.reader;
+    entry.closingPromise = (async () => {
+      try {
+        await reader.close();
+      } catch {}
+    })();
     try {
-      await oldest.reader.close();
-    } catch {}
+      await entry.closingPromise;
+    } finally {
+      entry.closingPromise = null;
+    }
   };
 
-  const getReaderForManifest = async (manifestPath, format = 'jsonl') => {
+  const evictIdleReadersIfNeeded = async () => {
+    if (readersByManifestPath.size < maxReaderCount) return;
+    while (readersByManifestPath.size >= maxReaderCount) {
+      let oldestIdle = null;
+      for (const entry of readersByManifestPath.values()) {
+        if (entry.inUseCount > 0) continue;
+        if (entry.closingPromise) continue;
+        if (!oldestIdle || entry.lastUsedTick < oldestIdle.lastUsedTick) {
+          oldestIdle = entry;
+        }
+      }
+      if (!oldestIdle) break;
+      await closeReaderEntry(oldestIdle, { recordEviction: true });
+    }
+  };
+
+  const markDeferredReaderEviction = (excludeKey = null) => {
+    if (readersByManifestPath.size <= maxReaderCount) return;
+    let oldestActive = null;
+    for (const entry of readersByManifestPath.values()) {
+      if (entry.key === excludeKey) continue;
+      if (entry.closeRequested) continue;
+      if (entry.inUseCount <= 0) continue;
+      if (!oldestActive || entry.lastUsedTick < oldestActive.lastUsedTick) {
+        oldestActive = entry;
+      }
+    }
+    if (oldestActive) {
+      oldestActive.closeRequested = true;
+    }
+  };
+
+  const getReaderEntryForManifest = async (manifestPath, format = 'jsonl') => {
+    throwIfLookupClosing();
     const key = `${manifestPath}|${format}`;
     const existing = readersByManifestPath.get(key);
     if (existing) {
       existing.lastUsedTick = ++readerUseTick;
-      return existing.reader;
+      return existing;
     }
-    await evictOldestReader();
+    await evictIdleReadersIfNeeded();
     const secondCheck = readersByManifestPath.get(key);
     if (secondCheck) {
       secondCheck.lastUsedTick = ++readerUseTick;
-      return secondCheck.reader;
+      return secondCheck;
     }
     const reader = createVfsManifestOffsetReader({
       manifestPath,
       parseRowBuffer: format === 'binary-v1' ? parseBinaryJsonRowBuffer : undefined
     });
-    readersByManifestPath.set(key, {
+    const created = {
       key,
       reader,
-      lastUsedTick: ++readerUseTick
-    });
-    return reader;
+      lastUsedTick: ++readerUseTick,
+      inUseCount: 0,
+      closeRequested: false,
+      closingPromise: null
+    };
+    readersByManifestPath.set(key, created);
+    if (readersByManifestPath.size > maxReaderCount) {
+      markDeferredReaderEviction(key);
+    }
+    return created;
+  };
+
+  const withReaderLease = async (manifestPath, format, fn) => {
+    const entry = await getReaderEntryForManifest(manifestPath, format);
+    entry.inUseCount += 1;
+    entry.lastUsedTick = ++readerUseTick;
+    try {
+      return await fn(entry.reader);
+    } finally {
+      entry.inUseCount = Math.max(0, entry.inUseCount - 1);
+      if (entry.closeRequested && entry.inUseCount === 0) {
+        await closeReaderEntry(entry, { recordEviction: true });
+      } else if (readersByManifestPath.size > maxReaderCount) {
+        await evictIdleReadersIfNeeded();
+      }
+    }
   };
 
   /**
@@ -177,18 +257,43 @@ export const createTreeSitterSchedulerLookup = ({
    * @returns {Promise<void>}
    */
   const close = async () => {
-    const readers = Array.from(readersByManifestPath.values(), (entry) => entry.reader);
-    readersByManifestPath.clear();
-    segmentMetaByGrammarKey.clear();
-    pageIndexByGrammarKey.clear();
-    pageRowsCache.clear();
-    pageRefCounts.clear();
-    consumedVirtualPathFallback.clear();
-    await Promise.all(readers.map(async (reader) => {
-      try {
-        await reader.close();
-      } catch {}
-    }));
+    if (closed) return;
+    if (closePromise) {
+      await closePromise;
+      return;
+    }
+    closePromise = (async () => {
+      const closeDeadlineMs = Date.now() + 5000;
+      while (readersByManifestPath.size > 0) {
+        const entries = Array.from(readersByManifestPath.values());
+        await Promise.all(entries.map((entry) => closeReaderEntry(entry)));
+        if (readersByManifestPath.size <= 0) break;
+        if (Date.now() >= closeDeadlineMs) {
+          const pendingEntries = Array.from(readersByManifestPath.values());
+          readersByManifestPath.clear();
+          await Promise.all(pendingEntries.map(async (entry) => {
+            try {
+              await entry.reader.close();
+            } catch {}
+          }));
+          break;
+        }
+        await sleep(10);
+      }
+      segmentMetaByGrammarKey.clear();
+      pageIndexByGrammarKey.clear();
+      rowCache.clear();
+      missCache.clear();
+      pageRowsCache.clear();
+      pageRefCounts.clear();
+      consumedVirtualPathFallback.clear();
+      closed = true;
+    })();
+    try {
+      await closePromise;
+    } finally {
+      closePromise = null;
+    }
   };
 
   /**
@@ -416,21 +521,20 @@ export const createTreeSitterSchedulerLookup = ({
 
     for (const group of groups.values()) {
       const { manifestPath, format, list } = group;
-      const reader = await getReaderForManifest(manifestPath, format);
       const grammarKey = list[0]?.entry?.grammarKey || null;
       const segmentMeta = grammarKey ? await loadSegmentMeta(grammarKey) : null;
       const requests = list.map(({ entry }) => ({
         offset: entry.offset,
         bytes: entry.bytes
       }));
-      const loadedRows = await withTransientFdRetry(
+      const loadedRows = await withReaderLease(manifestPath, format, async (reader) => withTransientFdRetry(
         () => readVfsManifestRowsAtOffsets({
           manifestPath,
           requests,
           reader
         }),
         `scheduler row load ${manifestPath}`
-      );
+      ));
       for (let i = 0; i < list.length; i += 1) {
         const { index: rowIndex, virtualPath, entry } = list[i];
         const rawRow = loadedRows[i] || null;
@@ -457,7 +561,6 @@ export const createTreeSitterSchedulerLookup = ({
       const { grammarKey, manifestPath, list } = pagedGroup;
       const segmentMeta = grammarKey ? await loadSegmentMeta(grammarKey) : null;
       const pageIndex = await loadPageIndex(grammarKey);
-      const reader = await getReaderForManifest(manifestPath, 'binary-v1');
       const byPage = new Map();
       const fallbackPageMetaByPage = new Map();
       for (const item of list) {
@@ -492,14 +595,14 @@ export const createTreeSitterSchedulerLookup = ({
         });
         requestedPages.push({ pageId, pageMeta });
       }
-      const loadedPages = await withTransientFdRetry(
+      const loadedPages = await withReaderLease(manifestPath, 'binary-v1', async (reader) => withTransientFdRetry(
         () => readVfsManifestRowsAtOffsets({
           manifestPath,
           requests: pageRequests,
           reader
         }),
         `scheduler page load ${manifestPath}`
-      );
+      ));
       for (let i = 0; i < requestedPages.length; i += 1) {
         const { pageId, pageMeta } = requestedPages[i];
         const cacheKey = `${grammarKey}:${pageId}`;
