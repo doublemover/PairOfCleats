@@ -819,5 +819,6 @@ indexing/watch/watch-debounce
 indexing/watch/watch-lock-backoff
 tooling/install/tooling-detect
 indexing/embeddings/embedding-batch-autotune
+embeddings/runner/runner-helper-contracts
 indexing/tokenization/tokenization-file-stream-reuse
 retrieval/cache/index-signature-cache-bounds
