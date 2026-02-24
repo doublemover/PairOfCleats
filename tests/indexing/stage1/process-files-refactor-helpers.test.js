@@ -142,4 +142,46 @@ await applyPromise;
 assert.equal(applyRan, true, 'expected apply callback to execute once reservation is available');
 assert.equal(postingsQueue.stats().pending.count, 0, 'expected queue reservations to drain after apply');
 
+const timeoutQueue = createPostingsQueue({
+  maxPending: 1,
+  maxPendingRows: 4,
+  maxPendingBytes: 4096,
+  maxHeapFraction: 1,
+  reserveTimeoutMs: 25
+});
+const timeoutGuard = await timeoutQueue.reserve({ rows: 1, bytes: 0 });
+await assert.rejects(
+  () => runApplyWithPostingsBackpressure({
+    sparsePostingsEnabled: true,
+    postingsQueue: timeoutQueue,
+    result: { chunks: [{ id: 'timeout' }] },
+    runApply: async () => {}
+  }),
+  (err) => err?.code === 'POSTINGS_BACKPRESSURE_TIMEOUT',
+  'expected runApplyWithPostingsBackpressure to fail fast on reserve timeout'
+);
+timeoutGuard.release();
+
+const abortQueue = createPostingsQueue({
+  maxPending: 1,
+  maxPendingRows: 4,
+  maxPendingBytes: 4096,
+  maxHeapFraction: 1
+});
+const abortGuard = await abortQueue.reserve({ rows: 1, bytes: 0 });
+const reserveAbortController = new AbortController();
+setTimeout(() => reserveAbortController.abort(new Error('abort reserve wait in helper test')), 10);
+await assert.rejects(
+  () => runApplyWithPostingsBackpressure({
+    sparsePostingsEnabled: true,
+    postingsQueue: abortQueue,
+    signal: reserveAbortController.signal,
+    result: { chunks: [{ id: 'abort' }] },
+    runApply: async () => {}
+  }),
+  (err) => (err?.message || '').includes('abort reserve wait in helper test'),
+  'expected runApplyWithPostingsBackpressure to propagate reserve abort reason'
+);
+abortGuard.release();
+
 console.log('process-files refactor helper behavior test passed');

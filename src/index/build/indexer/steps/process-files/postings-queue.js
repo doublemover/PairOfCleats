@@ -79,22 +79,35 @@ export const estimatePostingsPayload = (result) => {
  *   maxPendingRows?:number,
  *   maxPendingBytes?:number,
  *   maxHeapFraction?:number,
+ *   reserveTimeoutMs?:number,
  *   onChange?:(snapshot:{pendingCount:number,pendingRows:number,pendingBytes:number})=>void,
  *   log?:(msg:string)=>void
  * }} [options]
- * @returns {{reserve:(input?:{rows?:number,bytes?:number,bypass?:boolean})=>Promise<{release:()=>void}>,stats:()=>object}}
+ * @returns {{
+ *   reserve:(input?:{
+ *     rows?:number,
+ *     bytes?:number,
+ *     bypass?:boolean,
+ *     signal?:AbortSignal|null,
+ *     timeoutMs?:number|null,
+ *     onWait?:(snapshot:object)=>void
+ *   })=>Promise<{release:()=>void}>,
+ *   stats:()=>object
+ * }}
  */
 export const createPostingsQueue = ({
   maxPending,
   maxPendingRows,
   maxPendingBytes,
   maxHeapFraction,
+  reserveTimeoutMs,
   onChange = null,
   log = null
 } = {}) => {
   const resolvedMaxPending = coercePositiveInt(maxPending);
   const resolvedMaxPendingRows = coercePositiveInt(maxPendingRows);
   const resolvedMaxPendingBytes = coercePositiveInt(maxPendingBytes);
+  const resolvedReserveTimeoutMs = coerceNonNegativeInt(reserveTimeoutMs) ?? 0;
   const resolvedMaxHeapFraction = coerceClampedFraction(maxHeapFraction, {
     min: 0,
     max: 1,
@@ -113,6 +126,8 @@ export const createPostingsQueue = ({
     backpressureByCount: 0,
     backpressureByRows: 0,
     backpressureByBytes: 0,
+    backpressureTimeouts: 0,
+    backpressureAborts: 0,
     reserveBypassCount: 0,
     oversizeRows: 0,
     oversizeBytes: 0,
@@ -141,6 +156,124 @@ export const createPostingsQueue = ({
       });
     } catch {}
   };
+  /**
+   * Remove waiter entry from internal pending waiter queue.
+   *
+   * @param {object|null} waiter
+   * @returns {void}
+   */
+  const removeWaiter = (waiter) => {
+    if (!waiter || !waiters.length) return;
+    const idx = waiters.indexOf(waiter);
+    if (idx >= 0) waiters.splice(idx, 1);
+  };
+
+  /**
+   * Normalize abort signal reason into deterministic queue abort error.
+   *
+   * @param {AbortSignal} signal
+   * @returns {Error}
+   */
+  const createBackpressureAbortError = (signal) => {
+    const reason = signal?.reason;
+    if (reason instanceof Error) return reason;
+    const err = new Error('Postings backpressure wait aborted.');
+    err.code = 'POSTINGS_BACKPRESSURE_ABORTED';
+    err.retryable = false;
+    if (reason !== undefined) {
+      err.meta = { reason };
+    }
+    return err;
+  };
+
+  /**
+   * Build deterministic timeout error for postings reservation waits.
+   *
+   * @param {{timeoutMs:number,reason:string,pending:number,pendingRows:number,pendingBytes:number}} input
+   * @returns {Error}
+   */
+  const createBackpressureTimeoutError = ({
+    timeoutMs,
+    reason,
+    pending,
+    pendingRows,
+    pendingBytes
+  }) => {
+    const err = new Error(
+      `Postings backpressure wait timed out after ${timeoutMs}ms (reason=${reason || 'unknown'}).`
+    );
+    err.code = 'POSTINGS_BACKPRESSURE_TIMEOUT';
+    err.retryable = false;
+    err.meta = {
+      timeoutMs,
+      reason: reason || 'unknown',
+      pending,
+      pendingRows,
+      pendingBytes
+    };
+    return err;
+  };
+
+  /**
+   * Wait for one capacity notification while honoring abort/timeout boundaries.
+   *
+   * @param {{
+   *   signal?:AbortSignal|null,
+   *   timeoutMs?:number,
+   *   reason?:string
+   * }} [input]
+   * @returns {Promise<void>}
+   */
+  const waitForCapacitySignal = ({
+    signal = null,
+    timeoutMs = 0,
+    reason = 'unknown'
+  } = {}) => new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(createBackpressureAbortError(signal));
+      return;
+    }
+    const waiter = { settled: false };
+    let timeoutId = null;
+    let abortHandler = null;
+    const settle = (fn, value) => {
+      if (waiter.settled) return;
+      waiter.settled = true;
+      removeWaiter(waiter);
+      if (timeoutId) {
+        try { clearTimeout(timeoutId); } catch {}
+        timeoutId = null;
+      }
+      if (signal && abortHandler) {
+        try { signal.removeEventListener('abort', abortHandler); } catch {}
+        abortHandler = null;
+      }
+      fn(value);
+    };
+    waiter.resolve = () => settle(resolve);
+    waiter.reject = (err) => settle(reject, err);
+    waiters.push(waiter);
+    if (signal) {
+      abortHandler = () => {
+        state.backpressureAborts += 1;
+        waiter.reject(createBackpressureAbortError(signal));
+      };
+      signal.addEventListener('abort', abortHandler, { once: true });
+    }
+    if (timeoutMs > 0) {
+      timeoutId = setTimeout(() => {
+        state.backpressureTimeouts += 1;
+        waiter.reject(createBackpressureTimeoutError({
+          timeoutMs,
+          reason,
+          pending: state.pending,
+          pendingRows: state.pendingRows,
+          pendingBytes: state.pendingBytes
+        }));
+      }, timeoutMs);
+    }
+  });
+
   const notifyWaiters = () => {
     if (!waiters.length) return;
     const availableByCount = resolvedMaxPending == null
@@ -148,8 +281,10 @@ export const createPostingsQueue = ({
       : Math.max(1, resolvedMaxPending - state.pending);
     const wakeCount = Math.max(1, Math.min(waiters.length, availableByCount));
     const pending = waiters.splice(0, wakeCount);
-    for (const resolve of pending) {
-      if (typeof resolve === 'function') resolve();
+    for (const waiter of pending) {
+      try {
+        waiter?.resolve?.();
+      } catch {}
     }
   };
 
@@ -209,9 +344,23 @@ export const createPostingsQueue = ({
     return null;
   };
 
-  const reserve = async ({ rows = 1, bytes = 0, bypass = false } = {}) => {
+  const reserve = async ({
+    rows = 1,
+    bytes = 0,
+    bypass = false,
+    signal = null,
+    timeoutMs = null,
+    onWait = null
+  } = {}) => {
     const payloadRows = Math.max(1, coerceNonNegativeInt(rows) ?? 1);
     const payloadBytes = Math.max(0, coerceNonNegativeInt(bytes) ?? 0);
+    const waitSignal = signal && typeof signal.aborted === 'boolean' ? signal : null;
+    const resolvedWaitTimeoutMs = timeoutMs !== null
+      && timeoutMs !== undefined
+      && Number.isFinite(Number(timeoutMs))
+      ? Math.max(0, Math.floor(Number(timeoutMs)))
+      : resolvedReserveTimeoutMs;
+    const emitWait = typeof onWait === 'function' ? onWait : null;
     const oversizeRows = resolvedMaxPendingRows != null && payloadRows > resolvedMaxPendingRows;
     const oversizeBytes = resolvedMaxPendingBytes != null && payloadBytes > resolvedMaxPendingBytes;
     if (oversizeRows) state.oversizeRows += 1;
@@ -223,10 +372,12 @@ export const createPostingsQueue = ({
     if (!bypass) {
       let waited = false;
       const waitStart = Date.now();
+      let waitReason = 'unknown';
       while (true) {
         const limits = resolveLimits(payloadRows, payloadBytes, baseLimits);
         const reason = resolveWaitReason(payloadRows, payloadBytes, limits);
         if (!reason) break;
+        waitReason = reason;
         if (!waited) {
           waited = true;
           state.backpressureCount += 1;
@@ -246,13 +397,36 @@ export const createPostingsQueue = ({
             }
           }
         }
-        await new Promise((resolve) => waiters.push(resolve));
+        try {
+          emitWait?.({
+            reason,
+            pending: state.pending,
+            pendingRows: state.pendingRows,
+            pendingBytes: state.pendingBytes
+          });
+        } catch {}
+        await waitForCapacitySignal({
+          signal: waitSignal,
+          timeoutMs: resolvedWaitTimeoutMs,
+          reason
+        });
       }
       if (waited) {
         const waitMs = Math.max(0, Date.now() - waitStart);
         state.backpressureWaitMs += waitMs;
         state.backpressureMaxWaitMs = Math.max(state.backpressureMaxWaitMs, waitMs);
         state.backpressureEvents += 1;
+        if (typeof emitWait === 'function') {
+          try {
+            emitWait({
+              reason: waitReason,
+              pending: state.pending,
+              pendingRows: state.pendingRows,
+              pendingBytes: state.pendingBytes,
+              waitedMs: waitMs
+            });
+          } catch {}
+        }
       }
     } else {
       // Even when bypassing backpressure to avoid head-of-line stalls,
@@ -285,7 +459,8 @@ export const createPostingsQueue = ({
       maxPending: resolvedMaxPending,
       maxPendingRows: resolvedMaxPendingRows,
       maxPendingBytes: resolvedMaxPendingBytes,
-      maxHeapFraction: resolvedMaxHeapFraction
+      maxHeapFraction: resolvedMaxHeapFraction,
+      reserveTimeoutMs: resolvedReserveTimeoutMs
     },
     pending: {
       count: state.pending,
@@ -301,6 +476,8 @@ export const createPostingsQueue = ({
       byCount: state.backpressureByCount,
       byRows: state.backpressureByRows,
       byBytes: state.backpressureByBytes,
+      timeouts: state.backpressureTimeouts,
+      aborts: state.backpressureAborts,
       bypass: state.reserveBypassCount
     },
     payload: {

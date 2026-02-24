@@ -1,12 +1,13 @@
 import path from 'node:path';
 import { fileExt, toPosix } from '../../../../../shared/files.js';
-import { coercePositiveInt } from '../../../../../shared/number-coerce.js';
+import { coerceNonNegativeInt, coercePositiveInt } from '../../../../../shared/number-coerce.js';
 import { getLanguageForFile } from '../../../../language-registry.js';
 import { shouldSkipTreeSitterPlanningForPath } from '../../../tree-sitter-scheduler/policy.js';
 
 const DEFAULT_POSTINGS_ROWS_PER_PENDING = 300;
 const DEFAULT_POSTINGS_BYTES_PER_PENDING = 12 * 1024 * 1024;
 const DEFAULT_POSTINGS_PENDING_SCALE = 4;
+const DEFAULT_POSTINGS_RESERVE_TIMEOUT_MS = 2 * 60 * 1000;
 const LEXICON_FILTER_LOG_LIMIT = 5;
 const MB = 1024 * 1024;
 
@@ -16,7 +17,13 @@ const MB = 1024 * 1024;
  * without starving workers on larger repositories.
  *
  * @param {object} runtime
- * @returns {{maxPending:number,maxPendingRows:number,maxPendingBytes:number,maxHeapFraction:number|undefined}}
+ * @returns {{
+ *   maxPending:number,
+ *   maxPendingRows:number,
+ *   maxPendingBytes:number,
+ *   maxHeapFraction:number|undefined,
+ *   reserveTimeoutMs:number
+ * }}
  */
 export const resolvePostingsQueueConfig = (runtime) => {
   const config = runtime?.stage1Queues?.postings || {};
@@ -53,11 +60,14 @@ export const resolvePostingsQueueConfig = (runtime) => {
   const maxPendingRows = Math.max(DEFAULT_POSTINGS_ROWS_PER_PENDING, Math.floor(basePendingRows * postingsScale));
   const maxPendingBytes = Math.max(DEFAULT_POSTINGS_BYTES_PER_PENDING, Math.floor(basePendingBytes * postingsScale));
   const maxHeapFraction = Number(config.maxHeapFraction);
+  const reserveTimeoutMs = coerceNonNegativeInt(config.reserveTimeoutMs)
+    ?? DEFAULT_POSTINGS_RESERVE_TIMEOUT_MS;
   return {
     maxPending: baseMaxPending,
     maxPendingRows,
     maxPendingBytes,
-    maxHeapFraction: Number.isFinite(maxHeapFraction) && maxHeapFraction >= 0 ? maxHeapFraction : undefined
+    maxHeapFraction: Number.isFinite(maxHeapFraction) && maxHeapFraction >= 0 ? maxHeapFraction : undefined,
+    reserveTimeoutMs
   };
 };
 

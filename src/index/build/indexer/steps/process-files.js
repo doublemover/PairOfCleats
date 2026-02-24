@@ -100,6 +100,8 @@ const FILE_STALL_SOFT_KICK_DEFAULT_MS = 2 * 60 * 1000;
 const FILE_STALL_SOFT_KICK_MIN_MS = 1000;
 const FILE_STALL_SOFT_KICK_COOLDOWN_DEFAULT_MS = 30 * 1000;
 const FILE_STALL_SOFT_KICK_MAX_ATTEMPTS_DEFAULT = 2;
+const STAGE1_ORDERED_COMPLETION_TIMEOUT_FALLBACK_MS = 2 * 60 * 1000;
+const STAGE1_ORDERED_COMPLETION_STALL_POLL_DEFAULT_MS = 5000;
 const STAGE_TIMING_SCHEMA_VERSION = 1;
 const FILE_QUEUE_DELAY_HISTOGRAM_BUCKETS_MS = Object.freeze([50, 100, 250, 500, 1000, 2000, 5000, 10000, 30000, 60000]);
 const NOOP_RESERVATION = Object.freeze({
@@ -973,6 +975,9 @@ export const shouldBypassPostingsBackpressure = ({
  *   sparsePostingsEnabled?:boolean,
  *   postingsQueue?:{reserve?:Function}|null,
  *   result?:object|null,
+ *   signal?:AbortSignal|null,
+ *   reserveTimeoutMs?:number,
+ *   onReserveWait?:(snapshot:object)=>void,
  *   runApply:Function
  * }} input
  * @returns {Promise<unknown>}
@@ -981,15 +986,30 @@ export const runApplyWithPostingsBackpressure = async ({
   sparsePostingsEnabled = false,
   postingsQueue = null,
   result = null,
+  signal = null,
+  reserveTimeoutMs = null,
+  onReserveWait = null,
   runApply
 } = {}) => {
+  const reserveSignal = signal && typeof signal.aborted === 'boolean' ? signal : null;
+  const resolvedReserveTimeoutMs = reserveTimeoutMs !== null
+    && reserveTimeoutMs !== undefined
+    && Number.isFinite(Number(reserveTimeoutMs))
+    ? Math.max(0, Math.floor(Number(reserveTimeoutMs)))
+    : null;
+  const reserveWaitHook = typeof onReserveWait === 'function' ? onReserveWait : null;
   let reservation = NOOP_RESERVATION;
   if (
     sparsePostingsEnabled
     && postingsQueue
     && typeof postingsQueue.reserve === 'function'
   ) {
-    reservation = await postingsQueue.reserve(estimatePostingsPayload(result));
+    reservation = await postingsQueue.reserve({
+      ...estimatePostingsPayload(result),
+      ...(reserveSignal ? { signal: reserveSignal } : {}),
+      ...(resolvedReserveTimeoutMs != null ? { timeoutMs: resolvedReserveTimeoutMs } : {}),
+      ...(reserveWaitHook ? { onWait: reserveWaitHook } : {})
+    });
   }
   try {
     return await runApply();
@@ -998,6 +1018,53 @@ export const runApplyWithPostingsBackpressure = async ({
       reservation.release?.();
     } catch {}
   }
+};
+
+/**
+ * Resolve timeout budget for ordered completion drain waits.
+ *
+ * @param {{
+ *   runtime?:object,
+ *   stallAbortMs?:number,
+ *   stallSoftKickMs?:number
+ * }} [input]
+ * @returns {number}
+ */
+const resolveOrderedCompletionTimeoutMs = ({
+  runtime = null,
+  stallAbortMs = 0,
+  stallSoftKickMs = 0
+} = {}) => {
+  const configured = coerceOptionalNonNegativeInt(runtime?.stage1Queues?.ordered?.completionTimeoutMs);
+  if (configured != null) return configured;
+  const abortBudgetMs = Number(stallAbortMs);
+  if (Number.isFinite(abortBudgetMs) && abortBudgetMs > 0) {
+    return Math.max(
+      STAGE1_ORDERED_COMPLETION_TIMEOUT_FALLBACK_MS,
+      Math.floor(abortBudgetMs)
+    );
+  }
+  const softKickBudgetMs = Number(stallSoftKickMs);
+  if (Number.isFinite(softKickBudgetMs) && softKickBudgetMs > 0) {
+    return Math.max(
+      STAGE1_ORDERED_COMPLETION_TIMEOUT_FALLBACK_MS,
+      Math.floor(softKickBudgetMs * 2)
+    );
+  }
+  return STAGE1_ORDERED_COMPLETION_TIMEOUT_FALLBACK_MS;
+};
+
+/**
+ * Resolve stall-poll cadence used while awaiting ordered completion drain.
+ *
+ * @param {{runtime?:object}} [input]
+ * @returns {number}
+ */
+const resolveOrderedCompletionStallPollMs = ({ runtime = null } = {}) => {
+  const configured = coerceOptionalNonNegativeInt(runtime?.stage1Queues?.ordered?.completionStallPollMs);
+  return configured != null
+    ? configured
+    : STAGE1_ORDERED_COMPLETION_STALL_POLL_DEFAULT_MS;
 };
 
 /**
@@ -2078,6 +2145,8 @@ export const processFiles = async ({
       sparsePostingsEnabled,
       postingsQueue,
       result,
+      signal: effectiveAbortSignal,
+      reserveTimeoutMs: coerceOptionalNonNegativeInt(postingsQueueConfig?.reserveTimeoutMs),
       runApply: () => schedulePostings(() => applyFileResult(result, stateRef, shardMeta))
     });
     const orderedAppender = buildOrderedAppender(
@@ -2177,6 +2246,44 @@ export const processFiles = async ({
      * @returns {{count:number,timedOut:number,errors:number}}
      */
     const summarizeSoftKickCleanup = (cleanupResults = []) => summarizeStage1SoftKickCleanup(cleanupResults);
+    /**
+     * Attempt deterministic ordered-gap recovery when stage1 is stalled with no
+     * active in-flight files but pending ordered results exist.
+     *
+     * This path is intentionally conservative: it only fast-forwards missing
+     * ranges when there is no active file processing, avoiding accidental skips
+     * while normal parse work is still progressing.
+     *
+     * @param {{snapshot?:object|null,reason?:string}} [input]
+     * @returns {{recovered:number,start:number|null,end:number|null,nextIndex:number}|null}
+     */
+    const attemptOrderedGapRecovery = ({
+      snapshot = null,
+      reason = 'stage1_stall_recovery'
+    } = {}) => {
+      if (!orderedAppender || typeof orderedAppender.recoverMissingRange !== 'function') return null;
+      const orderedSnapshot = snapshot?.orderedSnapshot && typeof snapshot.orderedSnapshot === 'object'
+        ? snapshot.orderedSnapshot
+        : (typeof orderedAppender.snapshot === 'function' ? orderedAppender.snapshot() : null);
+      if (!orderedSnapshot || typeof orderedSnapshot !== 'object') return null;
+      const pendingCount = Number(orderedSnapshot.pendingCount) || 0;
+      const inFlightCount = Number(snapshot?.inFlight ?? inFlightFiles.size) || 0;
+      if (inFlightCount > 0 || pendingCount <= 0) return null;
+      const recovery = orderedAppender.recoverMissingRange({ reason });
+      if (!recovery || Number(recovery.recovered) <= 0) return recovery || null;
+      lastOrderedCompletionAt = Date.now();
+      logLine(
+        `[ordered] recovered missing range ${recovery.start}-${recovery.end} (count=${recovery.recovered})`,
+        {
+          kind: 'warning',
+          mode,
+          stage: 'processing',
+          reason,
+          orderedRecovery: recovery
+        }
+      );
+      return recovery;
+    };
     const performStage1SoftKick = async ({
       idleMs = 0,
       source = 'watchdog',
@@ -2195,6 +2302,14 @@ export const processFiles = async ({
       const stalledFiles = Array.isArray(resolvedSnapshot?.stalledFiles)
         ? resolvedSnapshot.stalledFiles
         : collectStalledFiles(6);
+      const recoveredRange = attemptOrderedGapRecovery({
+        snapshot: resolvedSnapshot,
+        reason: `stage1_soft_kick:${attempt}:${source}`
+      });
+      if (Number(recoveredRange?.recovered) > 0) {
+        stage1StallSoftKickSuccessCount += 1;
+        return;
+      }
       const targetedOwnershipIds = Array.from(new Set(
         stalledFiles
           .map((entry) => entry?.ownershipId)
@@ -2303,6 +2418,13 @@ export const processFiles = async ({
           source,
           snapshot
         });
+        return;
+      }
+      const recoveredBeforeAbort = attemptOrderedGapRecovery({
+        snapshot,
+        reason: `stage1_stall_abort:${source}`
+      });
+      if (Number(recoveredBeforeAbort?.recovered) > 0) {
         return;
       }
       stage1StallAbortTriggered = true;
@@ -2619,6 +2741,14 @@ export const processFiles = async ({
        */
       const runEntryBatch = async (batchEntries) => {
         const orderedCompletionTracker = createOrderedCompletionTracker();
+        const orderedCompletionTimeoutMs = resolveOrderedCompletionTimeoutMs({
+          runtime: runtimeRef,
+          stallAbortMs: stage1StallAbortMs,
+          stallSoftKickMs: stage1StallSoftKickMs
+        });
+        const orderedCompletionStallPollMs = resolveOrderedCompletionStallPollMs({
+          runtime: runtimeRef
+        });
         const orderedBatchEntries = sortEntriesByOrderIndex(batchEntries);
         for (let i = 0; i < orderedBatchEntries.length; i += 1) {
           const entry = orderedBatchEntries[i];
@@ -3042,7 +3172,26 @@ export const processFiles = async ({
               retryDelayMs: 200
             }
           );
-          await orderedCompletionTracker.wait();
+          await orderedCompletionTracker.wait({
+            timeoutMs: orderedCompletionTimeoutMs,
+            stallPollMs: orderedCompletionStallPollMs,
+            signal: effectiveAbortSignal,
+            onStall: ({ pending, stallCount, elapsedMs }) => {
+              if (stallCount === 1 || (stallCount % 3) === 0) {
+                logLine(
+                  `[ordered] completion drain waiting pending=${pending} elapsed=${Math.round(elapsedMs / 1000)}s`,
+                  {
+                    kind: 'warning',
+                    mode,
+                    stage: 'processing',
+                    orderedPending: pending,
+                    idleMs: elapsedMs
+                  }
+                );
+              }
+              evaluateStalledProcessing('ordered_completion_wait');
+            }
+          });
         } finally {
           if (activeOrderedCompletionTracker === orderedCompletionTracker) {
             activeOrderedCompletionTracker = null;

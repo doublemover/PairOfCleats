@@ -28,6 +28,11 @@ assert.equal(
   0,
   'expected postings planner config to pass through maxHeapFraction=0'
 );
+assert.equal(
+  postingsConfig.reserveTimeoutMs > 0,
+  true,
+  'expected postings planner config to include finite default reserve timeout'
+);
 
 const queue = createPostingsQueue({
   maxPending: 2,

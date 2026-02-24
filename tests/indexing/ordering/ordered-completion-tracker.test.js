@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { ensureTestingEnv } from '../../helpers/test-env.js';
 import { createOrderedCompletionTracker } from '../../../src/index/build/indexer/steps/process-files.js';
+
+ensureTestingEnv(process.env);
 
 const tracker = createOrderedCompletionTracker();
 tracker.track(Promise.resolve('ok'));
@@ -71,5 +74,23 @@ await stalledTracker.wait({
   }
 });
 assert.ok(stallCallbacks >= 2, 'expected wait to invoke stall callback while blocked');
+
+const timeoutTracker = createOrderedCompletionTracker();
+timeoutTracker.track(new Promise(() => {}));
+await assert.rejects(
+  () => timeoutTracker.wait({ timeoutMs: 25 }),
+  (err) => err?.code === 'ORDERED_COMPLETION_TIMEOUT',
+  'expected wait timeout to produce deterministic timeout error'
+);
+
+const abortTracker = createOrderedCompletionTracker();
+abortTracker.track(new Promise(() => {}));
+const abortController = new AbortController();
+setTimeout(() => abortController.abort(new Error('abort tracker wait')), 10);
+await assert.rejects(
+  () => abortTracker.wait({ signal: abortController.signal }),
+  (err) => (err?.message || '').includes('abort tracker wait'),
+  'expected wait abort signal to reject with abort reason'
+);
 
 console.log('ordered completion tracker test passed');
