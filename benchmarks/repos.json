@@ -11,17 +11,16 @@
       "large": [
         "apple/swift-nio"
       ],
-      "typical": [
-        "Alamofire/Alamofire",
-        "onevcat/Kingfisher"
-      ],
+      "typical": [],
       "big": [
         "exelban/stats",
-        "utmapp/UTM"
+        "utmapp/UTM",
+        "Alamofire/Alamofire"
       ],
       "medium": [
         "rxhanson/Rectangle",
-        "apple/container"
+        "apple/container",
+        "onevcat/Kingfisher"
       ],
       "small": [
         "twostraws/simple-swiftui",
@@ -47,9 +46,8 @@
         "git/git"
       ],
       "typical": [
-        "fmtlib/fmt",
-        "gabime/spdlog",
-        "madler/zlib"
+        "madler/zlib",
+        "nlohmann/json"
       ],
       "big": [
         "electron/electron",
@@ -57,11 +55,12 @@
       ],
       "medium": [
         "tesseract-ocr/tesseract",
-        "google/googletest"
+        "google/googletest",
+        "fmtlib/fmt",
+        "gabime/spdlog"
       ],
       "small": [
-        "Genymobile/scrcpy",
-        "nlohmann/json"
+        "Genymobile/scrcpy"
       ]
     }
   },
@@ -75,10 +74,7 @@
         "openresty/lua-nginx-module"
       ],
       "typical": [
-        "luarocks/luarocks",
-        "lunarmodules/luasocket",
-        "jgm/pandoc",
-        "kikito/inspect.lua"
+        "jgm/pandoc"
       ],
       "huge": [
         "Kong/kong",
@@ -93,11 +89,14 @@
       ],
       "medium": [
         "NvChad/NvChad",
-        "folke/lazy.nvim"
+        "folke/lazy.nvim",
+        "luarocks/luarocks",
+        "lunarmodules/luasocket"
       ],
       "small": [
         "nvim-lua/kickstart.nvim",
-        "hrsh7th/nvim-cmp"
+        "hrsh7th/nvim-cmp",
+        "kikito/inspect.lua"
       ]
     }
   },
@@ -110,11 +109,7 @@
         "mojolicious/mojo",
         "ocpi/openscap"
       ],
-      "typical": [
-        "Perl-Critic/Perl-Critic",
-        "perl-carton/carton",
-        "gugod/App-perlbrew"
-      ],
+      "typical": [],
       "huge": [
         "Perl/perl5",
         "Ensembl/ensembl",
@@ -125,11 +120,14 @@
       "big": [],
       "medium": [
         "brendangregg/FlameGraph",
-        "AlDanial/cloc"
+        "AlDanial/cloc",
+        "Perl-Critic/Perl-Critic",
+        "gugod/App-perlbrew"
       ],
       "small": [
         "so-fancy/diff-so-fancy",
-        "major/MySQLTuner-perl"
+        "major/MySQLTuner-perl",
+        "perl-carton/carton"
       ]
     }
   },
@@ -158,11 +156,11 @@
       ],
       "medium": [
         "pi-hole/pi-hole",
-        "ohmybash/oh-my-bash"
+        "ohmybash/oh-my-bash",
+        "bash-it/bash-it"
       ],
       "small": [
-        "rupa/z",
-        "bash-it/bash-it"
+        "rupa/z"
       ]
     }
   },
@@ -229,10 +227,10 @@
       ],
       "medium": [
         "livewire/livewire",
-        "guzzle/guzzle"
+        "guzzle/guzzle",
+        "Seldaek/monolog"
       ],
       "small": [
-        "Seldaek/monolog",
         "nikic/PHP-Parser"
       ]
     }
@@ -255,7 +253,6 @@
         "duckdb/duckdb"
       ],
       "typical": [
-        "dbt-labs/jaffle_shop",
         "ankane/pghero",
         "Graphile/graphile-engine"
       ],
@@ -269,7 +266,8 @@
       ],
       "small": [
         "dbt-labs/jaffle-shop",
-        "dbt-labs/dbt-utils"
+        "dbt-labs/dbt-utils",
+        "dbt-labs/jaffle_shop"
       ]
     }
   },
@@ -298,10 +296,10 @@
       ],
       "medium": [
         "fastapi/fastapi",
-        "pydantic/pydantic"
+        "pydantic/pydantic",
+        "psf/requests"
       ],
       "small": [
-        "psf/requests",
         "pallets/flask"
       ]
     }
@@ -331,10 +329,10 @@
       ],
       "medium": [
         "rustdesk/rustdesk",
-        "tokio-rs/tokio"
+        "tokio-rs/tokio",
+        "rust-lang/rustlings"
       ],
       "small": [
-        "rust-lang/rustlings",
         "BurntSushi/ripgrep"
       ]
     }
@@ -357,7 +355,8 @@
       ],
       "typical": [
         "spf13/cobra",
-        "gorilla/mux"
+        "gorilla/mux",
+        "caddyserver/caddy"
       ],
       "big": [
         "ollama/ollama",
@@ -365,10 +364,9 @@
       ],
       "medium": [
         "fatedier/frp",
-        "caddyserver/caddy"
+        "junegunn/fzf"
       ],
       "small": [
-        "junegunn/fzf",
         "gin-gonic/gin"
       ]
     }
@@ -434,10 +432,10 @@
       ],
       "medium": [
         "jellyfin/jellyfin",
-        "AvaloniaUI/Avalonia"
+        "AvaloniaUI/Avalonia",
+        "shadowsocks/shadowsocks-windows"
       ],
       "small": [
-        "shadowsocks/shadowsocks-windows",
         "dotnet/BenchmarkDotNet"
       ]
     }
@@ -599,14 +597,14 @@
       ],
       "big": [
         "googleapis/googleapis",
-        "apple/swift-protobuf"
+        "apple/swift-protobuf",
+        "protocolbuffers/protobuf-go"
       ],
       "medium": [
         "grpc-ecosystem/grpc-gateway",
-        "protocolbuffers/protobuf-go"
+        "bufbuild/protoc-gen-validate"
       ],
       "small": [
-        "bufbuild/protoc-gen-validate",
         "stephenh/ts-proto"
       ]
     }
@@ -620,7 +618,8 @@
         "graphql-dotnet/graphql-dotnet",
         "dgraph-io/dgraph",
         "n1ru4l/graphql-live-query",
-        "graphql/graphql-spec"
+        "graphql/graphql-spec",
+        "urql-graphql/urql"
       ],
       "huge": [
         "facebook/relay",
@@ -633,8 +632,7 @@
         "apollographql/apollo-client"
       ],
       "medium": [
-        "graphql/graphql-js",
-        "urql-graphql/urql"
+        "graphql/graphql-js"
       ],
       "small": [
         "graphql/dataloader"
@@ -647,7 +645,6 @@
     "repos": {
       "typical": [
         "fmtlib/fmt",
-        "gabime/spdlog",
         "nlohmann/json"
       ],
       "huge": [
@@ -669,7 +666,8 @@
       ],
       "medium": [
         "ttroy50/cmake-examples",
-        "google/googletest"
+        "google/googletest",
+        "gabime/spdlog"
       ],
       "small": [
         "wzpan/cmake-demo",
@@ -703,11 +701,11 @@
       ],
       "medium": [
         "bazelbuild/rules_go",
-        "bazelbuild/bazel"
+        "bazelbuild/bazel",
+        "google/cel-spec"
       ],
       "small": [
-        "bazelbuild/examples",
-        "google/cel-spec"
+        "bazelbuild/examples"
       ]
     }
   },
@@ -716,10 +714,7 @@
     "queries": "benchmarks/queries/nix.txt",
     "repos": {
       "typical": [
-        "ryantm/agenix",
-        "hercules-ci/hercules-ci-agent",
-        "Mic92/sops-nix",
-        "numtide/devshell"
+        "Mic92/sops-nix"
       ],
       "huge": [
         "NixOS/nixpkgs",
@@ -743,7 +738,10 @@
       ],
       "small": [
         "Misterio77/nix-starter-configs",
-        "the-nix-way/dev-templates"
+        "the-nix-way/dev-templates",
+        "ryantm/agenix",
+        "hercules-ci/hercules-ci-agent",
+        "numtide/devshell"
       ]
     }
   },
@@ -773,10 +771,10 @@
       ],
       "medium": [
         "localsend/localsend",
-        "flutter/flutter"
+        "flutter/flutter",
+        "ImranR98/Obtainium"
       ],
       "small": [
-        "ImranR98/Obtainium",
         "felangel/bloc"
       ]
     }
@@ -887,7 +885,6 @@
       "typical": [
         "JuliaLang/IJulia.jl",
         "JuliaPlots/Plots.jl",
-        "JuliaIO/HDF5.jl",
         "JuliaIO/JSON.jl"
       ],
       "huge": [
@@ -907,7 +904,8 @@
       ],
       "medium": [
         "JuliaPlots/UnicodePlots.jl",
-        "FluxML/Flux.jl"
+        "FluxML/Flux.jl",
+        "JuliaIO/HDF5.jl"
       ],
       "small": [
         "FluxML/Zygote.jl",
@@ -988,8 +986,7 @@
     "queries": "benchmarks/queries/jinja.txt",
     "repos": {
       "typical": [
-        "apache/superset",
-        "pallets/flask"
+        "apache/superset"
       ],
       "huge": [
         "home-assistant/core",
@@ -1006,7 +1003,8 @@
       ],
       "medium": [
         "ansible/ansible",
-        "pallets/jinja"
+        "pallets/jinja",
+        "pallets/flask"
       ],
       "small": [
         "cookiecutter/cookiecutter",
