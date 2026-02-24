@@ -1,7 +1,7 @@
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { sha1 } from '../../../../shared/hash.js';
+import { atomicWriteText } from '../../../../shared/io/atomic-write.js';
 import { NATIVE_GRAMMAR_MODULES } from '../../../../lang/tree-sitter/native-runtime.js';
 import { parseSubprocessCrashEvents, tailLines } from './crash-utils.js';
 
@@ -239,11 +239,10 @@ export const createSchedulerCrashTracker = ({
    */
   const enqueuePersist = (bundle) => {
     persistSerial = persistSerial.then(async () => {
-      await fs.mkdir(path.dirname(localBundlePath), { recursive: true });
-      await fs.writeFile(localBundlePath, JSON.stringify(bundle, null, 2), 'utf8');
+      const serializedBundle = JSON.stringify(bundle);
+      await atomicWriteText(localBundlePath, serializedBundle, { newline: false });
       if (durableBundlePath) {
-        await fs.mkdir(path.dirname(durableBundlePath), { recursive: true });
-        await fs.writeFile(durableBundlePath, JSON.stringify(bundle, null, 2), 'utf8');
+        await atomicWriteText(durableBundlePath, serializedBundle, { newline: false });
       }
       if (typeof crashLogger?.persistForensicBundle === 'function') {
         const bundleSignature = `scheduler-${sha1(JSON.stringify({
