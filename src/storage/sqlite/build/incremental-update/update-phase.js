@@ -74,8 +74,7 @@ const allocateIncrementalDocId = ({
  * Apply incremental delete/insert transactions for sqlite index updates.
  *
  * Transaction invariants:
- * - Deletes (including changed-file replacement deletes) execute in their own
- *   transaction before inserts begin.
+ * - Deletes and inserts execute inside a single transaction.
  * - Inserts validate vocab growth limits before writing postings.
  * - Post-insert validation runs inside the insert transaction to ensure the
  *   committed state is internally consistent.
@@ -144,8 +143,7 @@ export const runIncrementalUpdatePhase = ({
     token_stats: 0
   };
   let validationMs = 0;
-  let deleteApplied = false;
-  let insertApplied = false;
+  let transactionApplied = false;
   let insertedChunks = 0;
   let nextDocId = Number.isFinite(startDocId) ? startDocId : 0;
   // Prefer ids freed by explicit file deletes before overflow ids from changed
@@ -183,7 +181,7 @@ export const runIncrementalUpdatePhase = ({
    * Delete stale rows and apply manifest-only updates before inserts.
    * Any ids released here become available to deterministic doc-id allocation.
    */
-  const applyDeletes = db.transaction(() => {
+  const applyDeletes = () => {
     for (const file of deleted) {
       const normalizedFile = file;
       if (!normalizedFile) continue;
@@ -213,13 +211,13 @@ export const runIncrementalUpdatePhase = ({
         normalizedFile
       );
     }
-  });
+  };
 
   /**
    * Insert all changed bundles and dependent vocab/postings rows.
    * Throws IncrementalSkipError when growth guards require full rebuild.
    */
-  const applyInserts = db.transaction(() => {
+  const applyInserts = () => {
     const tokenVocab = ensureVocabIds(
       db,
       mode,
@@ -428,14 +426,23 @@ export const runIncrementalUpdatePhase = ({
     const validationStart = performance.now();
     validateSqliteDatabase(db, mode, { validateMode, emitOutput, logger, dbPath: outPath });
     validationMs = performance.now() - validationStart;
+  };
+
+  /**
+   * Apply incremental delete+insert phases atomically.
+   *
+   * This intentionally wraps both phases in one transaction so any skip/error
+   * rolls back *all* sqlite mutations, preserving the pre-incremental DB.
+   */
+  const applyAtomicUpdate = db.transaction(() => {
+    applyDeletes();
+    applyInserts();
   });
 
   try {
-    applyDeletes();
-    deleteApplied = true;
     const applyStart = performance.now();
-    applyInserts();
-    insertApplied = true;
+    applyAtomicUpdate();
+    transactionApplied = true;
     const applyDurationMs = performance.now() - applyStart;
     return {
       ok: true,
@@ -443,8 +450,8 @@ export const runIncrementalUpdatePhase = ({
       applyDurationMs,
       validationMs,
       transactionPhases: {
-        deletes: deleteApplied,
-        inserts: insertApplied
+        deletes: transactionApplied,
+        inserts: transactionApplied
       },
       tableRows
     };
