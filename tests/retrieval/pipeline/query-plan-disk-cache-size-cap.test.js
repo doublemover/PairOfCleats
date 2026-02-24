@@ -47,7 +47,7 @@ for (let i = 0; i < 8; i += 1) {
   );
 }
 
-cache.persist();
+await cache.persist();
 
 const stats = fs.statSync(cachePath);
 assert.ok(stats.size <= maxBytes, `expected cache size <= ${maxBytes}, got ${stats.size}`);

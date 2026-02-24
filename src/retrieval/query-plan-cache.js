@@ -1,9 +1,8 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import { createLruCache } from '../shared/cache.js';
 import { incCacheEvent, incCacheEviction, setCacheSize } from '../shared/metrics.js';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
-import { createTempPath } from '../shared/json-stream/atomic.js';
+import { atomicWriteText } from '../shared/io/atomic-write.js';
 import { sortAndTrimEntriesByNewest } from './cache-trim.js';
 import {
   QUERY_PLAN_SCHEMA_VERSION,
@@ -16,7 +15,9 @@ const DEFAULT_QUERY_PLAN_CACHE_MAX_ENTRIES = 128;
 const DEFAULT_QUERY_PLAN_CACHE_TTL_MS = 10 * 60 * 1000;
 const QUERY_PLAN_DISK_CACHE_VERSION = 1;
 const DEFAULT_QUERY_PLAN_DISK_MAX_BYTES = 2 * 1024 * 1024;
-const RENAME_RETRY_CODES = new Set(['EEXIST', 'EPERM', 'ENOTEMPTY', 'EACCES', 'EXDEV']);
+const DISK_CACHE_PREFIX = `{"version":${QUERY_PLAN_DISK_CACHE_VERSION},"entries":[`;
+const DISK_CACHE_SUFFIX = ']}';
+const DISK_CACHE_WRAPPER_BYTES = Buffer.byteLength(`${DISK_CACHE_PREFIX}${DISK_CACHE_SUFFIX}`, 'utf8');
 
 const normalizeDiskLimit = (value, fallback) => {
   if (value === null || value === undefined) return fallback;
@@ -111,28 +112,29 @@ const readDiskCache = (cachePath) => {
   }
 };
 
-const writeDiskCacheAtomic = (cachePath, payload) => {
-  fs.mkdirSync(path.dirname(cachePath), { recursive: true });
-  const tempPath = createTempPath(cachePath);
+const serializeDiskEntry = (entry) => {
+  if (!entry || typeof entry !== 'object') return null;
   try {
-    fs.writeFileSync(tempPath, JSON.stringify(payload, null, 2));
-    try {
-      fs.renameSync(tempPath, cachePath);
-    } catch (err) {
-      if (!RENAME_RETRY_CODES.has(err?.code)) {
-        throw err;
-      }
-      try {
-        fs.rmSync(cachePath, { force: true });
-      } catch {}
-      fs.renameSync(tempPath, cachePath);
-    }
-  } catch (err) {
-    try {
-      fs.rmSync(tempPath, { force: true });
-    } catch {}
-    throw err;
+    const json = JSON.stringify(entry);
+    if (typeof json !== 'string') return null;
+    return {
+      entry,
+      json,
+      bytes: Buffer.byteLength(json, 'utf8')
+    };
+  } catch {
+    return null;
   }
+};
+
+const buildDiskPayloadText = (serializedEntries) => {
+  const parts = [];
+  for (let index = 0; index < serializedEntries.length; index += 1) {
+    const serialized = serializedEntries[index];
+    if (!serialized?.json) continue;
+    parts.push(serialized.json);
+  }
+  return `${DISK_CACHE_PREFIX}${parts.join(',')}${DISK_CACHE_SUFFIX}`;
 };
 
 const prepareDiskEntries = (entries, { maxEntries, ttlMs, now }) => {
@@ -154,17 +156,13 @@ const trimEntriesBySize = (entries, maxBytes) => {
   const limit = normalizeDiskLimit(maxBytes, DEFAULT_QUERY_PLAN_DISK_MAX_BYTES);
   if (!limit) return entries;
   const trimmed = [];
+  let totalBytes = DISK_CACHE_WRAPPER_BYTES;
   for (const entry of entries) {
+    if (!entry?.bytes) continue;
+    const candidateBytes = totalBytes + entry.bytes + (trimmed.length ? 1 : 0);
+    if (candidateBytes > limit) break;
+    totalBytes = candidateBytes;
     trimmed.push(entry);
-    const payload = {
-      version: QUERY_PLAN_DISK_CACHE_VERSION,
-      entries: trimmed
-    };
-    const size = Buffer.byteLength(JSON.stringify(payload), 'utf8');
-    if (size > limit) {
-      trimmed.pop();
-      break;
-    }
   }
   return trimmed;
 };
@@ -172,7 +170,7 @@ const trimEntriesBySize = (entries, maxBytes) => {
 /**
  * Create a disk-backed query plan cache.
  * @param {{path?:string,maxEntries?:number,ttlMs?:number,maxBytes?:number}} [options]
- * @returns {{enabled:boolean,cache:object,size:()=>number,get:(key:string)=>any,set:(key:string,value:any)=>void,resetIfConfigChanged:(sig:string)=>number,load:()=>number,persist:()=>number,isDirty:()=>boolean}}
+ * @returns {{enabled:boolean,cache:object,size:()=>number,get:(key:string)=>any,set:(key:string,value:any)=>void,resetIfConfigChanged:(sig:string)=>number,load:()=>number,persist:()=>Promise<number>,isDirty:()=>boolean}}
  */
 export function createQueryPlanDiskCache({
   path: cachePath = null,
@@ -197,7 +195,7 @@ export function createQueryPlanDiskCache({
     return {
       ...base,
       load: () => 0,
-      persist: () => 0,
+      persist: async () => 0,
       isDirty: () => false
     };
   }
@@ -220,7 +218,7 @@ export function createQueryPlanDiskCache({
     return loaded;
   };
 
-  const persist = () => {
+  const persist = async () => {
     if (!cachePath || !dirty) return 0;
     const entries = [];
     for (const [key, entry] of base.cache.entries()) {
@@ -229,13 +227,16 @@ export function createQueryPlanDiskCache({
       entries.push({ key, entry: serialized });
     }
     const prepared = prepareDiskEntries(entries, { maxEntries, ttlMs });
-    const trimmed = trimEntriesBySize(prepared, maxBytes);
-    const payload = {
-      version: QUERY_PLAN_DISK_CACHE_VERSION,
-      entries: trimmed
-    };
+    const serializedEntries = [];
+    for (let index = 0; index < prepared.length; index += 1) {
+      const serializedEntry = serializeDiskEntry(prepared[index]);
+      if (!serializedEntry) continue;
+      serializedEntries.push(serializedEntry);
+    }
+    const trimmed = trimEntriesBySize(serializedEntries, maxBytes);
+    const payloadText = buildDiskPayloadText(trimmed);
     try {
-      writeDiskCacheAtomic(cachePath, payload);
+      await atomicWriteText(cachePath, payloadText, { newline: false });
       dirty = false;
       return trimmed.length;
     } catch {

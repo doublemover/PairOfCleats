@@ -43,7 +43,7 @@ cache.set(
     keyPayload: keyInfo.payload
   })
 );
-cache.persist();
+await cache.persist();
 
 assert.ok(fs.existsSync(cachePath), 'expected disk cache file to be written');
 
