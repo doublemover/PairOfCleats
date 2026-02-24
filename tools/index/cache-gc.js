@@ -21,6 +21,7 @@ import {
   readActiveCasLeases,
   readCasMetadata
 } from '../../src/shared/cache-cas.js';
+import { isPathWithinRoot } from '../../src/shared/files.js';
 import { getEnvConfig } from '../../src/shared/env.js';
 import { getCacheRoot, resolveRepoConfig } from '../shared/dict-utils.js';
 import { isRootPath } from '../shared/path-utils.js';
@@ -311,7 +312,6 @@ const runCasManifestGc = async ({ cacheRoot, gcConfig }) => {
 
   const casRoot = getCasRoot(cacheRoot);
   const objectsRoot = path.resolve(getCasObjectsRoot(cacheRoot));
-  const objectsRootPrefix = `${objectsRoot}${path.sep}`;
   const manifestPaths = await collectManifestFiles(cacheRoot);
   const reachableHashes = await collectReachableCasHashes(manifestPaths);
   const objectHashes = await listCasObjectHashes(cacheRoot);
@@ -372,7 +372,7 @@ const runCasManifestGc = async ({ cacheRoot, gcConfig }) => {
     await runWithConcurrency(deletionPlan, deleteConcurrency, async (entry) => {
       const objectPathResolved = path.resolve(entry.objectPath);
       const metadataPathResolved = path.resolve(entry.metadataPath);
-      if (!objectPathResolved.startsWith(objectsRootPrefix)) {
+      if (!isPathWithinRoot(objectPathResolved, objectsRoot)) {
         throw new Error(`Refusing to delete object outside CAS root: ${objectPathResolved}`);
       }
       if (isRootPath(objectPathResolved) || isRootPath(metadataPathResolved)) {

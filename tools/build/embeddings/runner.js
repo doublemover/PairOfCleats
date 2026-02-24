@@ -33,7 +33,7 @@ import {
 } from '../../../src/shared/embedding-utils.js';
 import { resolveEmbeddingInputFormatting } from '../../../src/shared/embedding-input-format.js';
 import { resolveOnnxModelPath } from '../../../src/shared/onnx-embeddings.js';
-import { fromPosix, toPosix } from '../../../src/shared/files.js';
+import { fromPosix, isPathWithinRoot, toPosix } from '../../../src/shared/files.js';
 import { getEnvConfig, isTestingEnv } from '../../../src/shared/env.js';
 import { createLruCache } from '../../../src/shared/cache.js';
 import { normalizeDenseVectorMode } from '../../../src/shared/dense-vector-mode.js';
@@ -1049,9 +1049,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
   };
   if (activeIndexRoot && !explicitIndexRoot) {
     const activeRootKey = normalizePath(activeIndexRoot);
-    const underRepoCache = activeRootKey
-      && repoCacheRootKey
-      && (activeRootKey === repoCacheRootKey || activeRootKey.startsWith(`${repoCacheRootKey}${path.sep}`));
+    const underRepoCache = isPathWithinRoot(activeIndexRoot, repoCacheRootResolved);
     const needsCurrentBuildRoot = underRepoCache && (
       activeRootKey === repoCacheRootKey
       || activeRootKey === buildsRootKey
