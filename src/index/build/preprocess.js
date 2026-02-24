@@ -10,6 +10,7 @@ import { discoverEntries } from './discover.js';
 import { createRecordsClassifier, shouldSniffRecordContent } from './records.js';
 import { pickMinLimit } from './runtime/limits.js';
 import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
+import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import {
   buildGeneratedPolicyConfig,
   buildGeneratedPolicyDowngradePayload,
@@ -362,8 +363,7 @@ export async function writePreprocessStats(repoCacheRoot, stats) {
   if (!repoCacheRoot || !stats) return null;
   const output = path.join(repoCacheRoot, 'preprocess.json');
   try {
-    await fs.mkdir(repoCacheRoot, { recursive: true });
-    await fs.writeFile(output, JSON.stringify(stats, null, 2));
+    await atomicWriteJson(output, stats, { spaces: 2, newline: false });
     return output;
   } catch {
     return null;

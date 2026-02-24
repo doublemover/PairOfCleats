@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 
 const SCHEDULER_AUTOTUNE_PROFILE_VERSION = 1;
 const PROFILE_FILE_NAME = 'scheduler-autotune.json';
@@ -196,8 +197,7 @@ export async function writeSchedulerAutoTuneProfile({
   });
   if (!payload) return null;
   try {
-    await fs.mkdir(path.dirname(profilePath), { recursive: true });
-    await fs.writeFile(profilePath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+    await atomicWriteJson(profilePath, payload, { spaces: 2, newline: true });
     return payload;
   } catch (err) {
     if (typeof log === 'function') {

@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { rangeToOffsets } from '../../lsp/positions.js';
 import { flattenSymbols } from '../../lsp/symbols.js';
+import { writeJsonObjectFile } from '../../../../shared/json-stream.js';
 
 export const DEFAULT_DOCUMENT_SYMBOL_CONCURRENCY = 4;
 export const DEFAULT_HOVER_CONCURRENCY = 8;
@@ -119,13 +120,17 @@ export const persistHoverCache = async ({ cachePath, entries, maxEntries }) => {
   }));
   rows.sort((a, b) => Number(b?.value?.at || 0) - Number(a?.value?.at || 0));
   const cap = clampIntRange(maxEntries, DEFAULT_HOVER_CACHE_MAX_ENTRIES, { min: 1000, max: 200000 });
-  const limited = rows.slice(0, cap);
-  await fs.mkdir(path.dirname(cachePath), { recursive: true });
-  await fs.writeFile(cachePath, JSON.stringify({
-    version: 1,
-    generatedAt: new Date().toISOString(),
-    entries: limited
-  }));
+  const limited = rows.length > cap ? rows.slice(0, cap) : rows;
+  await writeJsonObjectFile(cachePath, {
+    trailingNewline: false,
+    fields: {
+      version: 1,
+      generatedAt: new Date().toISOString()
+    },
+    arrays: {
+      entries: limited
+    }
+  });
 };
 
 /**

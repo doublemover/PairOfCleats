@@ -3,8 +3,8 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { once } from 'node:events';
 import { createJsonlBatchWriter } from './json-stream/jsonl-batch.js';
-import { createTempPath, replaceFile } from './json-stream/atomic.js';
 import { writeJsonObjectFile } from './json-stream.js';
+import { atomicWriteJson } from './io/atomic-write.js';
 import { compareStrings } from './sort.js';
 import { compareWithAntisymmetryInvariant } from './invariants.js';
 
@@ -321,9 +321,7 @@ const readCheckpoint = async (checkpointPath) => {
 
 const writeCheckpoint = async (checkpointPath, payload) => {
   if (!checkpointPath) return;
-  const tempPath = createTempPath(checkpointPath);
-  await fsPromises.writeFile(tempPath, JSON.stringify(payload, null, 2));
-  await replaceFile(tempPath, checkpointPath);
+  await atomicWriteJson(checkpointPath, payload, { spaces: 2, newline: false });
 };
 
 /**
@@ -352,10 +350,7 @@ const readPlannerHints = async (plannerHintsPath) => {
  */
 const writePlannerHints = async (plannerHintsPath, payload) => {
   if (!plannerHintsPath || !payload) return;
-  const tempPath = createTempPath(plannerHintsPath);
-  await fsPromises.mkdir(path.dirname(plannerHintsPath), { recursive: true });
-  await fsPromises.writeFile(tempPath, JSON.stringify(payload, null, 2));
-  await replaceFile(tempPath, plannerHintsPath);
+  await atomicWriteJson(plannerHintsPath, payload, { spaces: 2, newline: false });
 };
 
 /**
