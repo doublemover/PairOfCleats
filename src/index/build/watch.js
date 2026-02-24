@@ -121,6 +121,8 @@ export async function watchIndex({
   const trackedFiles = new Set();
   const pendingPaths = new Set();
   const pendingUpdates = new Set();
+  const stabilityRetryCounts = new Map();
+  const stabilityRetryTimers = new Map();
   const burstWindowMs = 1000;
   const burstThreshold = 25;
   let burstStart = 0;
@@ -143,6 +145,11 @@ export async function watchIndex({
     shouldExit = true;
     shutdownSignal = signal;
     scheduler?.cancel?.();
+    for (const timer of stabilityRetryTimers.values()) {
+      clearTimeout(timer);
+    }
+    stabilityRetryTimers.clear();
+    stabilityRetryCounts.clear();
     if (activeBuildAbort && !activeBuildAbort.signal.aborted) {
       activeBuildAbort.abort();
     }
@@ -516,50 +523,36 @@ export async function watchIndex({
     let lock = null;
     let attempt = null;
     let attemptRuntime = null;
+    const queuedPathsAtStart = pendingPaths.size;
     let validationRunning = false;
     let validationDone = false;
     let promoteRunning = false;
     let promoteDone = false;
-    lock = await resolvedDeps.acquireIndexLockWithBackoff({
-      repoCacheRoot: runtimeRef.repoCacheRoot,
-      shouldExit: () => shouldExit,
-      log
-    });
-    if (!lock) {
-      status = 'unknown';
-      running = false;
-      pending = true;
-      if (!shouldExit) scheduleBuild();
-      return;
-    }
-    if (shouldExit) {
-      try {
-        await runBuildCleanupWithTimeout({
-          label: 'watch.lock.release.shutdown',
-          cleanup: () => lock.release(),
-          log
-        });
-      } catch (err) {
-        status = 'error';
-        log(`[watch] Index lock release failed during shutdown: ${err?.message || err}`);
-      }
-      running = false;
-      return;
-    }
-    attempt = await attemptManager.createAttempt();
-    attemptRuntime = {
-      ...runtimeRef,
-      buildId: attempt.buildId,
-      buildRoot: attempt.buildRoot
-    };
-    activeBuildAbort = new AbortController();
-    const batchSize = pendingPaths.size;
-    if (batchSize > 0) {
-      pendingPaths.clear();
-      setWatchBacklog(0);
-      log(`[watch] Rebuilding index for ${batchSize} change(s)...`);
-    }
     try {
+      lock = await resolvedDeps.acquireIndexLockWithBackoff({
+        repoCacheRoot: runtimeRef.repoCacheRoot,
+        shouldExit: () => shouldExit,
+        log
+      });
+      if (!lock) {
+        status = 'unknown';
+        pending = true;
+        return;
+      }
+      if (shouldExit) {
+        status = 'aborted';
+        return;
+      }
+      attempt = await attemptManager.createAttempt();
+      attemptRuntime = {
+        ...runtimeRef,
+        buildId: attempt.buildId,
+        buildRoot: attempt.buildRoot
+      };
+      activeBuildAbort = new AbortController();
+      if (queuedPathsAtStart > 0) {
+        log(`[watch] Rebuilding index for ${queuedPathsAtStart} change(s)...`);
+      }
       await initBuildState({
         buildRoot: attemptRuntime.buildRoot,
         buildId: attemptRuntime.buildId,
@@ -666,27 +659,51 @@ export async function watchIndex({
         }
       }
       let releaseError = null;
-      try {
-        await runBuildCleanupWithTimeout({
-          label: 'watch.lock.release',
-          cleanup: () => lock.release(),
-          log
-        });
-      } catch (err) {
-        status = 'error';
-        releaseError = err;
-        log(`[watch] Index lock release failed: ${err?.message || err}`);
+      if (lock?.release) {
+        try {
+          await runBuildCleanupWithTimeout({
+            label: 'watch.lock.release',
+            cleanup: () => lock.release(),
+            log
+          });
+        } catch (err) {
+          status = 'error';
+          releaseError = err;
+          log(`[watch] Index lock release failed: ${err?.message || err}`);
+        }
       }
+      let outcomeError = null;
       if (attempt) {
-        await attemptManager.recordOutcome(attempt, status === 'ok');
+        try {
+          await attemptManager.recordOutcome(attempt, status === 'ok');
+        } catch (err) {
+          status = 'error';
+          outcomeError = err;
+          log(`[watch] Failed to record attempt outcome: ${err?.message || err}`);
+        }
       }
       running = false;
       observeWatchBuildDuration({
         status,
         seconds: Number(process.hrtime.bigint() - startTime) / 1e9
       });
-      if (releaseError) {
-        return;
+      /**
+       * Clear backlog only after a clean cycle with no queued follow-up.
+       * On failures, preserve pending paths and force a replay so updates are
+       * never forgotten by transient build errors.
+       */
+      if (status === 'ok' && !pending) {
+        pendingPaths.clear();
+        setWatchBacklog(0);
+      } else if (queuedPathsAtStart > 0 && !shouldExit) {
+        pending = true;
+        setWatchBacklog(pendingPaths.size);
+      }
+      /**
+       * Keep replaying queued work even when teardown bookkeeping fails.
+       */
+      if (releaseError || outcomeError) {
+        pending = true;
       }
     }
     if (pending) {
@@ -704,10 +721,50 @@ export async function watchIndex({
     onError: (err) => log(`[watch] Debounced build failed: ${err?.message || err}`)
   });
 
-  const recordAddOrChange = async (absPath) => {
+  const clearStabilityRetry = (absPath) => {
+    stabilityRetryCounts.delete(absPath);
+    const timer = stabilityRetryTimers.get(absPath);
+    if (timer) {
+      clearTimeout(timer);
+      stabilityRetryTimers.delete(absPath);
+    }
+  };
+
+  /**
+   * Requeue unstable write events with exponential backoff instead of dropping
+   * them. This keeps watch mode eventually consistent under long write bursts.
+   *
+   * @param {string} absPath
+   * @returns {void}
+   */
+  const scheduleStabilityRetry = (absPath) => {
+    if (shouldExit || stabilityRetryTimers.has(absPath)) return;
+    const nextAttempt = (stabilityRetryCounts.get(absPath) || 0) + 1;
+    stabilityRetryCounts.set(absPath, nextAttempt);
+    const baseIntervalMs = Number(stabilityGuard?.intervalMs);
+    const baseDelayMs = Number.isFinite(baseIntervalMs) && baseIntervalMs > 0
+      ? Math.floor(baseIntervalMs)
+      : 50;
+    const delayMs = Math.min(5000, baseDelayMs * (2 ** Math.min(nextAttempt - 1, 6)));
+    const timer = setTimeout(() => {
+      stabilityRetryTimers.delete(absPath);
+      void recordAddOrChange(absPath, { fromStabilityRetry: true });
+    }, delayMs);
+    timer.unref?.();
+    stabilityRetryTimers.set(absPath, timer);
+  };
+
+  const recordAddOrChange = async (absPath, { fromStabilityRetry = false } = {}) => {
     if (stabilityGuard?.enabled) {
       const stable = await waitForStableFile(absPath, stabilityGuard);
-      if (!stable) return;
+      if (!stable) {
+        if (!fromStabilityRetry) {
+          log(`[watch] Deferring unstable update: ${absPath}`);
+        }
+        scheduleStabilityRetry(absPath);
+        return;
+      }
+      clearStabilityRetry(absPath);
     }
     pendingPaths.add(absPath);
     setWatchBacklog(pendingPaths.size);
@@ -716,6 +773,7 @@ export async function watchIndex({
   };
 
   const recordRemove = (absPath) => {
+    clearStabilityRetry(absPath);
     pendingPaths.add(absPath);
     setWatchBacklog(pendingPaths.size);
     const before = trackedCounts.get(absPath) || 0;
