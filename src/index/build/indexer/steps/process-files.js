@@ -1043,17 +1043,11 @@ const resolveOrderedCompletionTimeoutMs = ({
   if (configured != null) return configured;
   const abortBudgetMs = Number(stallAbortMs);
   if (Number.isFinite(abortBudgetMs) && abortBudgetMs > 0) {
-    return Math.max(
-      STAGE1_ORDERED_COMPLETION_TIMEOUT_FALLBACK_MS,
-      Math.floor(abortBudgetMs)
-    );
+    return Math.max(1000, Math.floor(abortBudgetMs));
   }
   const softKickBudgetMs = Number(stallSoftKickMs);
   if (Number.isFinite(softKickBudgetMs) && softKickBudgetMs > 0) {
-    return Math.max(
-      STAGE1_ORDERED_COMPLETION_TIMEOUT_FALLBACK_MS,
-      Math.floor(softKickBudgetMs * 2)
-    );
+    return Math.max(1000, Math.floor(softKickBudgetMs * 2));
   }
   return STAGE1_ORDERED_COMPLETION_TIMEOUT_FALLBACK_MS;
 };
@@ -2244,7 +2238,7 @@ export const processFiles = async ({
     let stage1StallSoftKickResetCount = 0;
     let stage1StallSoftKickInFlight = false;
     let lastStallSoftKickAt = 0;
-    let activeOrderedCompletionTracker = null;
+    const activeOrderedCompletionTrackers = new Set();
     let lastProgressAt = Date.now();
     let lastOrderedCompletionAt = Date.now();
     let lastStallSnapshotAt = 0;
@@ -2255,11 +2249,16 @@ export const processFiles = async ({
      * @returns {number}
      */
     const getOrderedPendingCount = () => {
-      if (!activeOrderedCompletionTracker || typeof activeOrderedCompletionTracker.snapshot !== 'function') {
+      if (!activeOrderedCompletionTrackers.size) {
         return 0;
       }
-      const snapshot = activeOrderedCompletionTracker.snapshot();
-      return Number(snapshot?.pending) || 0;
+      let pendingCount = 0;
+      for (const tracker of activeOrderedCompletionTrackers) {
+        if (!tracker || typeof tracker.snapshot !== 'function') continue;
+        const snapshot = tracker.snapshot();
+        pendingCount += Number(snapshot?.pending) || 0;
+      }
+      return pendingCount;
     };
     /**
      * Collect currently stalled in-flight files for watchdog logging.
@@ -2363,91 +2362,94 @@ export const processFiles = async ({
       stage1StallSoftKickAttempts += 1;
       const attempt = stage1StallSoftKickAttempts;
       lastStallSoftKickAt = Date.now();
-      const resolvedSnapshot = snapshot || buildProcessingStallSnapshot({
-        reason: 'stall_soft_kick',
-        idleMs,
-        includeStack: true
-      });
-      const stalledFiles = Array.isArray(resolvedSnapshot?.stalledFiles)
-        ? resolvedSnapshot.stalledFiles
-        : collectStalledFiles(6);
-      const recoveredRange = attemptOrderedGapRecovery({
-        snapshot: resolvedSnapshot,
-        reason: `stage1_soft_kick:${attempt}:${source}`
-      });
-      if (Number(recoveredRange?.recovered) > 0) {
-        stage1StallSoftKickSuccessCount += 1;
-        return;
-      }
-      const targetedOwnershipIds = Array.from(new Set(
-        stalledFiles
-          .map((entry) => entry?.ownershipId)
-          .filter((value) => typeof value === 'string' && value)
-      )).slice(0, 3);
-      logLine(
-        `[watchdog] soft-kick attempt ${attempt}/${stage1StallSoftKickMaxAttempts} `
-          + `idle=${Math.round(clampDurationMs(idleMs) / 1000)}s source=${source} `
-          + `targets=${targetedOwnershipIds.length || 0}`,
-        {
-          kind: 'warning',
-          mode,
-          stage: 'processing',
-          idleMs: clampDurationMs(idleMs),
-          source,
-          softKickAttempt: attempt,
-          softKickMaxAttempts: stage1StallSoftKickMaxAttempts,
-          softKickThresholdMs: stage1StallSoftKickMs,
-          targetedOwnershipIds,
-          watchdogSnapshot: resolvedSnapshot
-        }
-      );
       try {
-        const cleanupResults = [];
-        if (targetedOwnershipIds.length > 0) {
-          for (const ownershipId of targetedOwnershipIds) {
-            cleanupResults.push(await terminateTrackedSubprocesses({
-              reason: `stage1_processing_stall_soft_kick:${attempt}:${ownershipId}`,
-              force: false,
-              ownershipId
-            }));
-          }
-        } else {
-          cleanupResults.push(await terminateTrackedSubprocesses({
-            reason: `stage1_processing_stall_soft_kick:${attempt}:prefix`,
-            force: false,
-            ownershipPrefix: stage1OwnershipPrefix
-          }));
-        }
-        const cleanupSummary = summarizeSoftKickCleanup(cleanupResults);
-        if (cleanupSummary.attempted > 0 && cleanupSummary.failures < cleanupSummary.attempted) {
+        const resolvedSnapshot = snapshot || buildProcessingStallSnapshot({
+          reason: 'stall_soft_kick',
+          idleMs,
+          includeStack: true
+        });
+        const stalledFiles = Array.isArray(resolvedSnapshot?.stalledFiles)
+          ? resolvedSnapshot.stalledFiles
+          : collectStalledFiles(6);
+        const recoveredRange = attemptOrderedGapRecovery({
+          snapshot: resolvedSnapshot,
+          reason: `stage1_soft_kick:${attempt}:${source}`
+        });
+        if (Number(recoveredRange?.recovered) > 0) {
           stage1StallSoftKickSuccessCount += 1;
+          return;
         }
+        const targetedOwnershipIds = Array.from(new Set(
+          stalledFiles
+            .map((entry) => entry?.ownershipId)
+            .filter((value) => typeof value === 'string' && value)
+        )).slice(0, 3);
         logLine(
-          `[watchdog] soft-kick result attempt=${attempt} attempted=${cleanupSummary.attempted} `
-            + `failures=${cleanupSummary.failures} terminatedPids=${cleanupSummary.terminatedPids.length}`,
-          {
-            kind: cleanupSummary.failures > 0 ? 'warning' : 'status',
-            mode,
-            stage: 'processing',
-            idleMs: clampDurationMs(idleMs),
-            source,
-            softKickAttempt: attempt,
-            softKickResult: cleanupSummary
-          }
-        );
-      } catch (error) {
-        logLine(
-          `[watchdog] soft-kick attempt ${attempt} failed: ${error?.message || error}`,
+          `[watchdog] soft-kick attempt ${attempt}/${stage1StallSoftKickMaxAttempts} `
+            + `idle=${Math.round(clampDurationMs(idleMs) / 1000)}s source=${source} `
+            + `targets=${targetedOwnershipIds.length || 0}`,
           {
             kind: 'warning',
             mode,
             stage: 'processing',
             idleMs: clampDurationMs(idleMs),
             source,
-            softKickAttempt: attempt
+            softKickAttempt: attempt,
+            softKickMaxAttempts: stage1StallSoftKickMaxAttempts,
+            softKickThresholdMs: stage1StallSoftKickMs,
+            targetedOwnershipIds,
+            watchdogSnapshot: resolvedSnapshot
           }
         );
+        try {
+          const cleanupResults = [];
+          if (targetedOwnershipIds.length > 0) {
+            for (const ownershipId of targetedOwnershipIds) {
+              cleanupResults.push(await terminateTrackedSubprocesses({
+                reason: `stage1_processing_stall_soft_kick:${attempt}:${ownershipId}`,
+                force: false,
+                ownershipId
+              }));
+            }
+          } else {
+            cleanupResults.push(await terminateTrackedSubprocesses({
+              reason: `stage1_processing_stall_soft_kick:${attempt}:prefix`,
+              force: false,
+              ownershipPrefix: stage1OwnershipPrefix
+            }));
+          }
+          const cleanupSummary = summarizeSoftKickCleanup(cleanupResults);
+          if (cleanupSummary.attempted > 0 && cleanupSummary.failures < cleanupSummary.attempted) {
+            stage1StallSoftKickSuccessCount += 1;
+          }
+          logLine(
+            `[watchdog] soft-kick result attempt=${attempt} attempted=${cleanupSummary.attempted} `
+              + `failures=${cleanupSummary.failures} terminatedPids=${cleanupSummary.terminatedPids.length}`,
+            {
+              kind: cleanupSummary.failures > 0 ? 'warning' : 'status',
+              mode,
+              stage: 'processing',
+              idleMs: clampDurationMs(idleMs),
+              source,
+              softKickAttempt: attempt,
+              softKickResult: cleanupSummary
+            }
+          );
+        } catch (error) {
+          logLine(
+            `[watchdog] soft-kick attempt ${attempt} failed: ${error?.message || error}`,
+            {
+              kind: 'warning',
+              mode,
+              stage: 'processing',
+              idleMs: clampDurationMs(idleMs),
+              source,
+              softKickAttempt: attempt
+            }
+          );
+        }
       } finally {
+        // Reset the latch on *all* exits, including fast recovery returns.
         stage1StallSoftKickInFlight = false;
       }
     };
@@ -2832,6 +2834,13 @@ export const processFiles = async ({
           effectiveOrderedCompletionTimeoutMs + Math.max(1000, orderedCompletionStallPollMs),
           STAGE1_ORDERED_COMPLETION_TIMEOUT_FALLBACK_MS
         );
+        const orderedCapacityWaitTimeoutMs = Math.max(
+          1000,
+          Math.min(
+            orderedCompletionGuardTimeoutMs,
+            stage1StallAbortMs > 0 ? stage1StallAbortMs : orderedCompletionGuardTimeoutMs
+          )
+        );
         const orderedBatchEntries = sortEntriesByOrderIndex(batchEntries);
         for (let i = 0; i < orderedBatchEntries.length; i += 1) {
           const entry = orderedBatchEntries[i];
@@ -2846,7 +2855,7 @@ export const processFiles = async ({
             lifecycle.enqueuedAtMs = Date.now();
           }
         }
-        activeOrderedCompletionTracker = orderedCompletionTracker;
+        activeOrderedCompletionTrackers.add(orderedCompletionTracker);
         try {
           await runWithQueue(
             runtimeRef.queues.cpu,
@@ -3137,7 +3146,37 @@ export const processFiles = async ({
                   if (!withinBypassWindow && shouldProbeCapacity) {
                     await orderedAppender.waitForCapacity({
                       orderIndex,
-                      bypassWindow: dispatchBypassWindow
+                      bypassWindow: dispatchBypassWindow,
+                      signal: effectiveAbortSignal,
+                      timeoutMs: orderedCapacityWaitTimeoutMs,
+                      stallPollMs: orderedCompletionStallPollMs,
+                      onStall: ({ stallCount, elapsedMs, pending, nextIndex, snapshot }) => {
+                        if (stallCount === 1 || (stallCount % 3) === 0) {
+                          logLine(
+                            `[ordered] dispatch capacity wait pending=${pending} elapsed=${Math.round(elapsedMs / 1000)}s`
+                              + ` next=${nextIndex ?? '?'} order=${orderIndex}`,
+                            {
+                              kind: 'warning',
+                              mode,
+                              stage: 'processing',
+                              orderedPending: pending,
+                              idleMs: elapsedMs,
+                              orderedSnapshot: snapshot || null
+                            }
+                          );
+                        }
+                        if (stallCount === 1 || (stallCount % 2) === 0) {
+                          const recovered = attemptOrderedGapRecovery({
+                            snapshot: {
+                              orderedSnapshot: snapshot || null,
+                              inFlight: inFlightFiles.size
+                            },
+                            reason: 'ordered_dispatch_capacity_wait'
+                          });
+                          if (Number(recovered?.recovered) > 0) return;
+                        }
+                        evaluateStalledProcessing('ordered_dispatch_capacity_wait');
+                      }
                     });
                   }
                 }
@@ -3323,9 +3362,7 @@ export const processFiles = async ({
             }
           );
         } finally {
-          if (activeOrderedCompletionTracker === orderedCompletionTracker) {
-            activeOrderedCompletionTracker = null;
-          }
+          activeOrderedCompletionTrackers.delete(orderedCompletionTracker);
         }
       };
       try {
@@ -3439,9 +3476,10 @@ export const processFiles = async ({
     markOrderedEntryComplete = stage1ProgressTracker.markOrderedEntryComplete;
     getStage1ProgressSnapshot = stage1ProgressTracker.snapshot;
     if (stallSnapshotMs > 0) {
+      const stallSnapshotIntervalMs = Math.max(250, Math.floor(stallSnapshotMs / 2));
       stallSnapshotTimer = setInterval(() => {
         emitProcessingStallSnapshot();
-      }, Math.min(30000, Math.max(10000, Math.floor(stallSnapshotMs / 2))));
+      }, stallSnapshotIntervalMs);
       stallSnapshotTimer.unref?.();
     }
     if (progressHeartbeatMs > 0) {

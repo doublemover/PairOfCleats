@@ -26,7 +26,7 @@ import { createTimeoutError, runWithTimeout } from '../../../../../shared/promis
  *   recoverMissingRange:(input?:{start?:number,end?:number,reason?:string})=>{recovered:number,start:number|null,end:number|null,nextIndex:number},
  *   peekNextIndex:()=>number,
  *   snapshot:()=>object,
- *   waitForCapacity:(input?:number|{orderIndex?:number,bypassWindow?:number})=>Promise<void>,
+ *   waitForCapacity:(input?:number|{orderIndex?:number,bypassWindow?:number,signal?:AbortSignal|null,timeoutMs?:number,stallPollMs?:number,onStall?:(snapshot:object)=>void})=>Promise<void>,
  *   abort:(err:any)=>void
  * }}
  */
@@ -267,9 +267,24 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       try { clearTimeout(waiter.timeout); } catch {}
       waiter.timeout = null;
     }
+    if (waiter.stallTimer) {
+      try { clearInterval(waiter.stallTimer); } catch {}
+      waiter.stallTimer = null;
+    }
+    if (waiter.signal && waiter.abortHandler) {
+      try { waiter.signal.removeEventListener('abort', waiter.abortHandler); } catch {}
+      waiter.abortHandler = null;
+    }
     try {
       settle(waiter);
     } catch {}
+  };
+  const removeCapacityWaiter = (waiter) => {
+    if (!waiter || !capacityWaiters.length) return;
+    const idx = capacityWaiters.indexOf(waiter);
+    if (idx >= 0) {
+      capacityWaiters.splice(idx, 1);
+    }
   };
 
   const rejectCapacityWaiters = (err) => {
@@ -289,15 +304,39 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       return;
     }
     const emergencyActive = refreshEmergencyCapacity('capacity-check');
-    if (!emergencyActive) {
-      const maxPendingAllowed = maxPendingBeforeBackpressure;
-      if (maxPendingAllowed > 0 && pending.size > maxPendingAllowed) return;
+    const maxPendingAllowed = maxPendingBeforeBackpressure;
+    const canAdmitByCapacity = emergencyActive
+      || maxPendingAllowed <= 0
+      || pending.size <= maxPendingAllowed;
+    if (!canAdmitByCapacity) {
+      let hasEligibleBypassWaiter = false;
+      for (let i = 0; i < capacityWaiters.length; i += 1) {
+        const waiter = capacityWaiters[i];
+        if (waiter?.settled === true) continue;
+        if (
+          Number.isFinite(waiter?.orderIndex)
+          && waiter.orderIndex <= (nextIndex + (waiter.bypassWindow || 0))
+        ) {
+          hasEligibleBypassWaiter = true;
+          break;
+        }
+      }
+      if (!hasEligibleBypassWaiter) return;
     }
+    const unresolved = [];
     for (let i = 0; i < capacityWaiters.length; i += 1) {
       const waiter = capacityWaiters[i];
-      settleCapacityWaiter(waiter, (entry) => entry.resolve());
+      if (waiter?.settled === true) continue;
+      const withinBypassWindow = Number.isFinite(waiter?.orderIndex)
+        && waiter.orderIndex <= (nextIndex + (waiter.bypassWindow || 0));
+      if (canAdmitByCapacity || withinBypassWindow) {
+        settleCapacityWaiter(waiter, (entry) => entry.resolve());
+        continue;
+      }
+      unresolved.push(waiter);
     }
     capacityWaiters.length = 0;
+    capacityWaiters.push(...unresolved);
   };
 
   /**
@@ -309,6 +348,10 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
   const waitForCapacity = (input = null) => {
     let orderIndex = null;
     let bypassWindow = 0;
+    let signal = null;
+    let timeoutMs = 0;
+    let stallPollMs = 0;
+    let onStall = null;
     if (Number.isFinite(input)) {
       orderIndex = Math.floor(Number(input));
     } else if (input && typeof input === 'object') {
@@ -318,9 +361,33 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       if (Number.isFinite(input.bypassWindow)) {
         bypassWindow = Math.max(0, Math.floor(Number(input.bypassWindow)));
       }
+      if (input.signal && typeof input.signal.aborted === 'boolean') {
+        signal = input.signal;
+      }
+      if (Number.isFinite(Number(input.timeoutMs))) {
+        timeoutMs = Math.max(0, Math.floor(Number(input.timeoutMs)));
+      }
+      if (Number.isFinite(Number(input.stallPollMs))) {
+        stallPollMs = Math.max(0, Math.floor(Number(input.stallPollMs)));
+      }
+      if (typeof input.onStall === 'function') {
+        onStall = input.onStall;
+      }
     }
     if (aborted) {
       return Promise.reject(abortError || new Error('Ordered appender aborted.'));
+    }
+    if (signal?.aborted) {
+      const reason = signal.reason;
+      return Promise.reject(
+        reason instanceof Error
+          ? reason
+          : Object.assign(new Error('Ordered capacity wait aborted.'), {
+            code: 'ORDERED_CAPACITY_WAIT_ABORTED',
+            retryable: false,
+            meta: { reason }
+          })
+      );
     }
     if (Number.isFinite(orderIndex) && orderIndex <= (nextIndex + bypassWindow)) {
       return Promise.resolve();
@@ -333,7 +400,79 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       return Promise.resolve();
     }
     return new Promise((resolve, reject) => {
-      capacityWaiters.push({ resolve, reject });
+      const waiter = {
+        resolve,
+        reject,
+        settled: false,
+        timeout: null,
+        stallTimer: null,
+        signal,
+        abortHandler: null,
+        orderIndex,
+        bypassWindow,
+        startedAtMs: Date.now(),
+        stallCount: 0
+      };
+      if (timeoutMs > 0) {
+        waiter.timeout = setTimeout(() => {
+          const err = new Error(
+            `Ordered capacity wait timed out after ${timeoutMs}ms (pending=${pending.size}, nextIndex=${nextIndex}).`
+          );
+          err.code = 'ORDERED_CAPACITY_WAIT_TIMEOUT';
+          err.retryable = false;
+          err.meta = {
+            timeoutMs,
+            pending: pending.size,
+            nextIndex,
+            orderIndex,
+            bypassWindow
+          };
+          removeCapacityWaiter(waiter);
+          settleCapacityWaiter(waiter, (entry) => entry.reject(err));
+        }, timeoutMs);
+      }
+      if (signal) {
+        waiter.abortHandler = () => {
+          const reason = signal.reason;
+          const err = reason instanceof Error
+            ? reason
+            : Object.assign(new Error('Ordered capacity wait aborted.'), {
+              code: 'ORDERED_CAPACITY_WAIT_ABORTED',
+              retryable: false,
+              meta: { reason }
+            });
+          removeCapacityWaiter(waiter);
+          settleCapacityWaiter(waiter, (entry) => entry.reject(err));
+        };
+        signal.addEventListener('abort', waiter.abortHandler, { once: true });
+      }
+      if (stallPollMs > 0 && onStall) {
+        waiter.stallTimer = setInterval(() => {
+          if (waiter.settled) return;
+          waiter.stallCount += 1;
+          try {
+            onStall({
+              stallCount: waiter.stallCount,
+              elapsedMs: Math.max(0, Date.now() - waiter.startedAtMs),
+              pending: pending.size,
+              nextIndex,
+              orderIndex,
+              bypassWindow,
+              snapshot: {
+                nextIndex,
+                pendingCount: pending.size,
+                seenCount,
+                expectedCount,
+                maxPendingBeforeBackpressure,
+                maxPendingEmergency,
+                emergencyCapacityActive
+              }
+            });
+          } catch {}
+        }, stallPollMs);
+        waiter.stallTimer.unref?.();
+      }
+      capacityWaiters.push(waiter);
     });
   };
 

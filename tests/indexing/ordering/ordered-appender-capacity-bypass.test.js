@@ -56,4 +56,65 @@ await Promise.race([
   })
 ]);
 
+const deferredBypassAppender = buildOrderedAppender(
+  async () => {},
+  {},
+  {
+    expectedCount: 32,
+    startIndex: 0,
+    maxPendingBeforeBackpressure: 1,
+    stallMs: 0
+  }
+);
+void deferredBypassAppender.enqueue(10, { id: 10 }).catch(() => {});
+void deferredBypassAppender.enqueue(11, { id: 11 }).catch(() => {});
+void deferredBypassAppender.enqueue(12, { id: 12 }).catch(() => {});
+const deferredGate = deferredBypassAppender.waitForCapacity({
+  orderIndex: 5,
+  bypassWindow: 0,
+  timeoutMs: 500
+});
+const deferredInitialState = await Promise.race([
+  deferredGate.then(() => 'resolved'),
+  sleep(20).then(() => 'pending')
+]);
+assert.equal(
+  deferredInitialState,
+  'pending',
+  'expected deferred gate to block while order index is still far from next index'
+);
+for (let index = 0; index < 5; index += 1) {
+  await deferredBypassAppender.enqueue(index, { id: index });
+}
+await Promise.race([
+  deferredGate,
+  sleep(200).then(() => {
+    throw new Error('expected deferred gate to resolve once next index enters bypass window');
+  })
+]);
+deferredBypassAppender.abort(new Error('test cleanup'));
+
+const timeoutAppender = buildOrderedAppender(
+  async () => {},
+  {},
+  {
+    expectedCount: 32,
+    startIndex: 0,
+    maxPendingBeforeBackpressure: 1,
+    stallMs: 0
+  }
+);
+void timeoutAppender.enqueue(10, { id: 10 }).catch(() => {});
+void timeoutAppender.enqueue(11, { id: 11 }).catch(() => {});
+await assert.rejects(
+  timeoutAppender.waitForCapacity({
+    orderIndex: 20,
+    bypassWindow: 0,
+    timeoutMs: 30
+  }),
+  (error) => error?.code === 'ORDERED_CAPACITY_WAIT_TIMEOUT',
+  'expected capacity wait timeout when backpressure cannot clear'
+);
+timeoutAppender.abort(new Error('test cleanup'));
+
 console.log('ordered appender capacity bypass test passed');
