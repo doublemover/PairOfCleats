@@ -160,7 +160,7 @@ const trimEntriesBySize = (entries, maxBytes) => {
   for (const entry of entries) {
     if (!entry?.bytes) continue;
     const candidateBytes = totalBytes + entry.bytes + (trimmed.length ? 1 : 0);
-    if (candidateBytes > limit) break;
+    if (candidateBytes > limit) continue;
     totalBytes = candidateBytes;
     trimmed.push(entry);
   }
@@ -207,14 +207,18 @@ export function createQueryPlanDiskCache({
       return 0;
     }
     const prepared = prepareDiskEntries(data.entries, { maxEntries, ttlMs });
+    let droppedEntries = prepared.length !== data.entries.length;
     let loaded = 0;
     for (const entry of prepared) {
       const hydrated = hydrateQueryPlanEntry(entry.entry);
-      if (!hydrated) continue;
+      if (!hydrated) {
+        droppedEntries = true;
+        continue;
+      }
       base.set(entry.key, hydrated);
       loaded += 1;
     }
-    dirty = false;
+    dirty = droppedEntries;
     return loaded;
   };
 
