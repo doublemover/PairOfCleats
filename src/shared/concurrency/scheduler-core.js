@@ -1,4 +1,5 @@
 import os from 'node:os';
+import { createAbortError } from '../abort.js';
 import { coerceUnitFraction } from '../number-coerce.js';
 import { ADAPTIVE_SURFACE_KEYS, DEFAULT_ADAPTIVE_SURFACE_POLICY, DEFAULT_ADAPTIVE_SURFACE_QUEUE_MAP } from './adaptive-surfaces.js';
 import { createSchedulerTelemetryCapture } from './scheduler-core-telemetry-capture.js';
@@ -13,7 +14,7 @@ import {
  * Create a build scheduler that coordinates CPU/IO/memory tokens across queues.
  * This is intentionally generic and can be wired into Stage1/2/4 and embeddings.
  * @param {{enabled?:boolean,lowResourceMode?:boolean,cpuTokens?:number,ioTokens?:number,memoryTokens?:number,starvationMs?:number,maxInFlightBytes?:number,queues?:Record<string,{priority?:number,maxPending?:number,maxPendingBytes?:number,maxInFlightBytes?:number}>,traceMaxSamples?:number,queueDepthSnapshotMaxSamples?:number,traceIntervalMs?:number,queueDepthSnapshotIntervalMs?:number,queueDepthSnapshotsEnabled?:boolean,writeBackpressure?:{enabled?:boolean,writeQueue?:string,producerQueues?:string[],pendingThreshold?:number,pendingBytesThreshold?:number,oldestWaitMsThreshold?:number}}} input
- * @returns {{schedule:(queueName:string,tokens?:{cpu?:number,io?:number,mem?:number,bytes?:number},fn?:()=>Promise<any>)=>Promise<any>,stats:()=>any,shutdown:()=>void,setLimits:(limits:{cpuTokens?:number,ioTokens?:number,memoryTokens?:number})=>void,setTelemetryOptions:(options:{stage?:string,queueDepthSnapshotsEnabled?:boolean,queueDepthSnapshotIntervalMs?:number,traceIntervalMs?:number})=>void}}
+ * @returns {{schedule:(queueName:string,tokens?:{cpu?:number,io?:number,mem?:number,bytes?:number,signal?:AbortSignal|null}|AbortSignal|null,fn?:()=>Promise<any>)=>Promise<any>,stats:()=>any,shutdown:()=>void,setLimits:(limits:{cpuTokens?:number,ioTokens?:number,memoryTokens?:number})=>void,setTelemetryOptions:(options:{stage?:string,queueDepthSnapshotsEnabled?:boolean,queueDepthSnapshotIntervalMs?:number,traceIntervalMs?:number})=>void}}
  */
 export function createBuildScheduler(input = {}) {
   const enabled = input.enabled !== false;
@@ -328,7 +329,8 @@ export function createBuildScheduler(input = {}) {
       maxPending: 0,
       maxPendingBytes: 0,
       shutdown: 0,
-      cleared: 0
+      cleared: 0,
+      abort: 0
     }
   };
   let globalInFlightBytes = 0;
@@ -364,7 +366,8 @@ export function createBuildScheduler(input = {}) {
         waitSamples: [],
         waitSampleCursor: 0,
         rejectedMaxPending: 0,
-        rejectedMaxPendingBytes: 0
+        rejectedMaxPendingBytes: 0,
+        rejectedAbort: 0
       }
     };
     queues.set(name, state);
@@ -1218,6 +1221,11 @@ export function createBuildScheduler(input = {}) {
       if (!next || !canStart(queue, next.tokens, backpressureState)) return;
       queue.pending.splice(index, 1);
       queue.pendingBytes = Math.max(0, normalizeByteCount(queue.pendingBytes) - normalizeByteCount(next.bytes));
+      if (typeof next.detachAbort === 'function') {
+        try {
+          next.detachAbort();
+        } catch {}
+      }
       queue.running += 1;
       bumpSurfaceRunning(queue.surface, 1);
       queue.stats.started += 1;
@@ -1268,6 +1276,16 @@ export function createBuildScheduler(input = {}) {
       counters.rejectedByReason.shutdown += 1;
       return Promise.reject(new Error('scheduler is shut down'));
     }
+    const scheduleSignal = tokensReq && typeof tokensReq.aborted === 'boolean'
+      ? tokensReq
+      : (tokensReq?.signal && typeof tokensReq.signal.aborted === 'boolean'
+        ? tokensReq.signal
+        : null);
+    if (scheduleSignal?.aborted) {
+      counters.rejected += 1;
+      counters.rejectedByReason.abort += 1;
+      return Promise.reject(createAbortError());
+    }
     const normalizedReq = normalizeRequest(tokensReq || {});
     const queue = ensureQueue(queueName);
     if (queue.maxPending && queue.pending.length >= queue.maxPending) {
@@ -1294,14 +1312,45 @@ export function createBuildScheduler(input = {}) {
       }
     }
     return new Promise((resolve, reject) => {
-      queue.pending.push({
+      const pendingEntry = {
         tokens: normalizedReq,
         bytes: normalizedReq.bytes,
         fn,
         resolve,
         reject,
-        enqueuedAt: nowMs()
-      });
+        enqueuedAt: nowMs(),
+        detachAbort: null
+      };
+      if (scheduleSignal) {
+        const onAbort = () => {
+          const pendingIndex = queue.pending.indexOf(pendingEntry);
+          if (pendingIndex < 0) return;
+          queue.pending.splice(pendingIndex, 1);
+          queue.pendingBytes = Math.max(
+            0,
+            normalizeByteCount(queue.pendingBytes) - normalizeByteCount(pendingEntry.bytes)
+          );
+          queue.stats.rejected += 1;
+          queue.stats.rejectedAbort += 1;
+          counters.rejected += 1;
+          counters.rejectedByReason.abort += 1;
+          captureTelemetryIfDue('abort');
+          reject(createAbortError());
+          pump();
+        };
+        scheduleSignal.addEventListener('abort', onAbort, { once: true });
+        pendingEntry.detachAbort = () => scheduleSignal.removeEventListener('abort', onAbort);
+        if (scheduleSignal.aborted) {
+          pendingEntry.detachAbort();
+          queue.stats.rejected += 1;
+          queue.stats.rejectedAbort += 1;
+          counters.rejected += 1;
+          counters.rejectedByReason.abort += 1;
+          reject(createAbortError());
+          return;
+        }
+      }
+      queue.pending.push(pendingEntry);
       queue.pendingBytes = normalizeByteCount(queue.pendingBytes) + normalizedReq.bytes;
       maybeAdaptTokens();
       queue.stats.scheduled += 1;
@@ -1318,6 +1367,11 @@ export function createBuildScheduler(input = {}) {
     const cleared = queue.pending.splice(0, queue.pending.length);
     let clearedBytes = 0;
     for (const item of cleared) {
+      if (typeof item?.detachAbort === 'function') {
+        try {
+          item.detachAbort();
+        } catch {}
+      }
       clearedBytes += normalizeByteCount(item?.bytes);
       queue.stats.rejected += 1;
       counters.rejected += 1;
@@ -1365,6 +1419,7 @@ export function createBuildScheduler(input = {}) {
         rejected: q.stats.rejected,
         rejectedMaxPending: q.stats.rejectedMaxPending,
         rejectedMaxPendingBytes: q.stats.rejectedMaxPendingBytes,
+        rejectedAbort: q.stats.rejectedAbort,
         starvation: q.stats.starvation,
         lastWaitMs: q.stats.lastWaitMs,
         waitP95Ms: q.stats.waitP95Ms,

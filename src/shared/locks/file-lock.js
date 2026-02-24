@@ -3,12 +3,29 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { createAbortError } from '../abort.js';
 
 export const DEFAULT_FILE_LOCK_WAIT_MS = 0;
 export const DEFAULT_FILE_LOCK_POLL_MS = 100;
 export const DEFAULT_FILE_LOCK_STALE_MS = 30 * 60 * 1000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleepWithAbort = (ms, signal = null) => {
+  if (!signal || typeof signal.aborted !== 'boolean') return sleep(ms);
+  if (signal.aborted) return Promise.reject(createAbortError());
+  return new Promise((resolve, reject) => {
+    const timerId = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timerId);
+      signal.removeEventListener('abort', onAbort);
+      reject(createAbortError());
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+};
 
 const toNonNegativeNumber = (value, fallback) => {
   const parsed = Number(value);
@@ -143,6 +160,7 @@ const removeLockFileIfOwned = async (lockPath, owner, { force = false } = {}) =>
  *  forceStaleCleanup?:boolean,
  *  timeoutBehavior?:'null'|'throw',
  *  timeoutMessage?:string,
+ *  signal?:AbortSignal|null,
  *  onStale?:(info:{lockPath:string,info:object|null,pid:number|null,reason:'stale'|'dead-pid'})=>void,
  *  onBusy?:(info:{lockPath:string,info:object|null,pid:number|null})=>void
  * }} input
@@ -157,6 +175,7 @@ export const acquireFileLock = async ({
   forceStaleCleanup = false,
   timeoutBehavior = 'null',
   timeoutMessage = 'Lock timeout.',
+  signal = null,
   onStale = null,
   onBusy = null
 } = {}) => {
@@ -164,10 +183,13 @@ export const acquireFileLock = async ({
   const resolvedWaitMs = toNonNegativeNumber(waitMs, DEFAULT_FILE_LOCK_WAIT_MS);
   const resolvedPollMs = Math.max(1, toPositiveNumber(pollMs, DEFAULT_FILE_LOCK_POLL_MS));
   const resolvedStaleMs = toPositiveNumber(staleMs, DEFAULT_FILE_LOCK_STALE_MS);
+  const lockSignal = signal && typeof signal.aborted === 'boolean' ? signal : null;
+  if (lockSignal?.aborted) throw createAbortError();
   await fs.mkdir(path.dirname(lockPath), { recursive: true });
   const deadline = resolvedWaitMs > 0 ? Date.now() + resolvedWaitMs : null;
 
   while (true) {
+    if (lockSignal?.aborted) throw createAbortError();
     const payload = {
       pid: process.pid,
       lockId: createLockId(),
@@ -208,7 +230,7 @@ export const acquireFileLock = async ({
         } catch {}
       }
       if (deadline != null && Date.now() < deadline) {
-        await sleep(resolvedPollMs);
+        await sleepWithAbort(resolvedPollMs, lockSignal);
         continue;
       }
       if (typeof onBusy === 'function') onBusy({ lockPath, info, pid });

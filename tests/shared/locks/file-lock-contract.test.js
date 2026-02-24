@@ -54,4 +54,24 @@ try {
 assert.equal(threwTimeout, true, 'expected timeoutBehavior=throw to throw');
 
 await fsPromises.rm(lockPath, { force: true });
+const heldLock = await acquireFileLock({ lockPath });
+assert.ok(heldLock, 'expected held lock before abort wait test');
+const lockAbortController = new AbortController();
+setTimeout(() => lockAbortController.abort(new Error('abort file lock wait')), 20);
+const abortStartedAt = Date.now();
+await assert.rejects(
+  () => acquireFileLock({
+    lockPath,
+    waitMs: 5000,
+    pollMs: 50,
+    signal: lockAbortController.signal
+  }),
+  (err) => err?.code === 'ABORT_ERR',
+  'expected lock wait to reject with abort error when signal is aborted'
+);
+const abortElapsedMs = Date.now() - abortStartedAt;
+assert.ok(abortElapsedMs < 500, `expected lock wait abort to short-circuit quickly (elapsed=${abortElapsedMs}ms)`);
+await heldLock.release();
+
+await fsPromises.rm(lockPath, { force: true });
 console.log('file-lock contract ok.');
