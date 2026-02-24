@@ -632,6 +632,7 @@ export function createFileProcessor(options) {
       getChunkEmbeddings,
       runEmbedding,
       runProc,
+      signal,
       runTreeSitterSerial,
       runIo,
       log,

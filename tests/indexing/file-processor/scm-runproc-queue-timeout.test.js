@@ -38,7 +38,8 @@ const createContext = ({
   fileHash,
   scmConfig = { allowSlowTimeouts: true, timeoutMs: 25, annotate: { timeoutMs: 20 } },
   runProc = (fn) => fn(),
-  onScmProcQueueWait = null
+  onScmProcQueueWait = null,
+  signal = null
 }) => ({
   abs,
   root,
@@ -95,6 +96,7 @@ const createContext = ({
   getChunkEmbeddings: null,
   runEmbedding: (fn) => fn(),
   runProc,
+  signal,
   onScmProcQueueWait,
   runTreeSitterSerial: (fn) => fn(),
   runIo: (fn) => fn(),
@@ -263,6 +265,47 @@ assert.equal(
   scmQueueWaitSamples.every((waitMs) => Number.isFinite(waitMs) && waitMs > 0),
   true,
   'expected SCM queue wait callback samples to be positive finite durations'
+);
+
+let abortAwareMetaCalls = 0;
+const abortAwareScmProvider = {
+  async getFileMeta({ signal: taskSignal } = {}) {
+    abortAwareMetaCalls += 1;
+    if (taskSignal?.aborted) return { ok: false, reason: 'timeout' };
+    await new Promise((resolve) => {
+      if (!taskSignal || typeof taskSignal.addEventListener !== 'function') {
+        resolve();
+        return;
+      }
+      taskSignal.addEventListener('abort', resolve, { once: true });
+    });
+    return { ok: false, reason: 'timeout' };
+  },
+  async annotate() {
+    return { ok: false, reason: 'timeout' };
+  }
+};
+const abortController = new AbortController();
+setTimeout(() => abortController.abort(new Error('abort scm task from outer signal')), 10);
+const abortAwareStart = Date.now();
+await processFileCpu(createContext({
+  abs: fixtureAbs,
+  ext: '.yml',
+  rel: fixtureRel,
+  relKey: fixtureRelKey,
+  text: fixtureText,
+  fileStat: fixtureStat,
+  languageHint: fixtureLanguageHint,
+  scmProviderImpl: abortAwareScmProvider,
+  fileHash: 'scm-runproc-queue-timeout-abort',
+  signal: abortController.signal,
+  scmConfig: { allowSlowTimeouts: true, timeoutMs: 1000, annotate: { timeoutMs: 1000 } }
+}));
+const abortAwareElapsedMs = Date.now() - abortAwareStart;
+assert.equal(abortAwareMetaCalls, 1, 'expected metadata task to start before abort signal');
+assert.ok(
+  abortAwareElapsedMs < 300,
+  `expected outer signal to cancel SCM metadata wait promptly (elapsed=${abortAwareElapsedMs}ms)`
 );
 
 console.log('scm runProc queue timeout test passed');

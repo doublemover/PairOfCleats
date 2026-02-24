@@ -152,6 +152,7 @@ export const processFileCpu = async (context) => {
     getChunkEmbeddings,
     runEmbedding,
     runProc,
+    signal = null,
     runTreeSitterSerial,
     runIo,
     log,
@@ -443,6 +444,9 @@ export const processFileCpu = async (context) => {
       return fn();
     });
   };
+  const scmTaskSignal = signal && typeof signal.aborted === 'boolean'
+    ? signal
+    : null;
   /**
    * Run an SCM metadata task under a hard deadline and route it through the
    * process queue when available.
@@ -453,12 +457,13 @@ export const processFileCpu = async (context) => {
   const runScmTaskWithDeadline = async ({ label, timeoutMs, task }) => {
     const deadlineMs = resolveScmTaskDeadlineMs(timeoutMs);
     if (!(Number.isFinite(deadlineMs) && deadlineMs > 0)) {
-      return runScmTask(() => task(null));
+      return runScmTask(() => task(scmTaskSignal));
     }
     return runWithTimeout(
       (taskSignal) => runScmTask(() => task(taskSignal)),
       {
         timeoutMs: deadlineMs,
+        signal: scmTaskSignal,
         errorFactory: () => createTimeoutError({
           message: `SCM ${label || 'task'} timed out after ${deadlineMs}ms (${relKey})`,
           code: 'SCM_TASK_TIMEOUT',
