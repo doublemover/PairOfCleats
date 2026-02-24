@@ -1,8 +1,10 @@
 import fsPromises from 'node:fs/promises';
+import { createTimeoutError, runWithTimeout } from '../../../shared/promise-timeout.js';
 
 const TRANSIENT_FD_OPEN_ERROR_CODES = new Set(['EAGAIN', 'EMFILE', 'ENFILE']);
 const DEFAULT_OPEN_RETRY_ATTEMPTS = 8;
 const DEFAULT_OPEN_RETRY_BASE_DELAY_MS = 25;
+const DEFAULT_CLOSE_TIMEOUT_MS = 30_000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -34,11 +36,23 @@ const coercePositiveInt = (value, fallback) => {
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return Math.max(1, Math.floor(parsed));
 };
+const coerceOptionalNonNegativeInt = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return Math.floor(parsed);
+};
 
 /**
  * Create a reusable VFS manifest offset reader that keeps a single file handle
  * open and reuses buffers across reads.
- * @param {{manifestPath:string,maxBufferPoolEntries?:number,maxCoalesceBytes?:number,parseRowBuffer?:(buffer:Buffer,bytesRead:number)=>object|null}} input
+ * @param {{
+ *   manifestPath:string,
+ *   maxBufferPoolEntries?:number,
+ *   maxCoalesceBytes?:number,
+ *   parseRowBuffer?:(buffer:Buffer,bytesRead:number)=>object|null,
+ *   closeTimeoutMs?:number|null,
+ *   log?:(line:string)=>void
+ * }} input
  * @returns {{readAtOffset:(input:{offset:number,bytes:number})=>Promise<object|null>,readRows:(input:{requests:Array<{offset:number,bytes:number}>})=>Promise<Array<object|null>>,stats:()=>object,close:()=>Promise<void>}}
  */
 export const createVfsManifestOffsetReader = ({
@@ -47,12 +61,15 @@ export const createVfsManifestOffsetReader = ({
   maxCoalesceBytes = 1024 * 1024,
   parseRowBuffer = parseVfsManifestRowBuffer,
   openRetryAttempts = DEFAULT_OPEN_RETRY_ATTEMPTS,
-  openRetryBaseDelayMs = DEFAULT_OPEN_RETRY_BASE_DELAY_MS
+  openRetryBaseDelayMs = DEFAULT_OPEN_RETRY_BASE_DELAY_MS,
+  closeTimeoutMs = DEFAULT_CLOSE_TIMEOUT_MS,
+  log = null
 }) => {
   const poolLimit = coercePositiveInt(maxBufferPoolEntries, 64);
   const coalesceLimit = coercePositiveInt(maxCoalesceBytes, 1024 * 1024);
   const normalizedOpenRetryAttempts = Math.max(1, coercePositiveInt(openRetryAttempts, DEFAULT_OPEN_RETRY_ATTEMPTS));
   const normalizedOpenRetryBaseDelayMs = Math.max(1, coercePositiveInt(openRetryBaseDelayMs, DEFAULT_OPEN_RETRY_BASE_DELAY_MS));
+  const resolvedCloseTimeoutMs = coerceOptionalNonNegativeInt(closeTimeoutMs) ?? DEFAULT_CLOSE_TIMEOUT_MS;
   const bufferPool = new Map();
   let pooledBuffers = 0;
   let handlePromise = null;
@@ -212,7 +229,38 @@ export const createVfsManifestOffsetReader = ({
     handlePromise = null;
     if (!pending) return;
     const handle = await pending;
-    await handle.close();
+    // Handle close is timeout-bounded so scheduler teardown can fail-open even
+    // when the underlying filesystem never resolves `FileHandle.close()`.
+    if (!Number.isFinite(resolvedCloseTimeoutMs) || resolvedCloseTimeoutMs <= 0) {
+      await handle.close();
+      return;
+    }
+    try {
+      await runWithTimeout(
+        () => handle.close(),
+        {
+          timeoutMs: resolvedCloseTimeoutMs,
+          errorFactory: () => createTimeoutError({
+            message: `[cleanup] vfs-offset-reader.close timed out after ${resolvedCloseTimeoutMs}ms for ${manifestPath}`,
+            code: 'ERR_VFS_OFFSET_READER_CLOSE_TIMEOUT',
+            retryable: false,
+            meta: {
+              manifestPath,
+              timeoutMs: resolvedCloseTimeoutMs
+            }
+          })
+        }
+      );
+    } catch (err) {
+      if (err?.code !== 'ERR_VFS_OFFSET_READER_CLOSE_TIMEOUT') throw err;
+      if (typeof log === 'function') {
+        try {
+          log(
+            `[cleanup] vfs-offset-reader.close timed out after ${resolvedCloseTimeoutMs}ms for ${manifestPath}; continuing.`
+          );
+        } catch {}
+      }
+    }
   };
 
   return {
@@ -220,6 +268,7 @@ export const createVfsManifestOffsetReader = ({
     readRows,
     stats: () => ({
       ...stats,
+      closeTimeoutMs: resolvedCloseTimeoutMs,
       pooledBuffers
     }),
     close
