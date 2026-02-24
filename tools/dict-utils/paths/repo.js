@@ -7,7 +7,6 @@ import { isWithinRoot, normalizeIdentityPath, toRealPathSync } from '../../../sr
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { getCacheRoot, loadUserConfig } from '../config.js';
-import { isPathWithinRoot } from '../../shared/path-within-root.js';
 
 export function getRepoId(repoRoot) {
   const resolved = toRealPathSync(path.resolve(repoRoot));
@@ -181,8 +180,8 @@ export function getCurrentBuildInfo(repoRoot, userConfig = null, options = {}) {
           path.join(buildsRoot, trimmed)
         ];
       for (const candidate of candidates) {
-        const normalized = path.resolve(candidate);
-        if (isPathWithinRoot(normalized, repoCacheResolved)) {
+        const normalized = toRealPathSync(candidate);
+        if (isWithinRoot(normalized, repoCacheResolved)) {
           return normalized;
         }
       }
@@ -290,8 +289,8 @@ export function resolveIndexRoot(repoRoot, userConfig = null, options = {}) {
             path.join(buildsRoot, trimmed)
           ];
         for (const candidate of candidates) {
-          const normalized = path.resolve(candidate);
-          if (isPathWithinRoot(normalized, repoCacheResolved)) {
+          const normalized = toRealPathSync(candidate);
+          if (isWithinRoot(normalized, repoCacheResolved)) {
             return normalized;
           }
         }

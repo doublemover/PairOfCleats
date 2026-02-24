@@ -16,7 +16,6 @@ import { readQueryFileSafe, resolveTopNAndLimit, selectQueriesByLimit } from '..
 import { runSearchCliWithSubprocessSync } from '../shared/search-cli-harness.js';
 import { mean, meanNullable } from '../shared/stats-utils.js';
 import { exitLikeCommandResult, runSubprocessOrExit } from '../shared/cli-utils.js';
-import { isPathWithinRoot } from '../shared/path-within-root.js';
 import {
   DEFAULT_MODEL_ID,
   bootstrapRuntime,
@@ -186,9 +185,8 @@ function resolveModelIndexRoot(modelCacheRoot, mode) {
       const resolveRoot = (value) => {
         if (!value) return null;
         const resolved = isAbsolutePathNative(value) ? value : path.join(repoCacheRoot, value);
-        const normalized = path.resolve(resolved);
-        const rootResolved = path.resolve(repoCacheRoot);
-        if (!isPathWithinRoot(normalized, rootResolved)) return null;
+        const normalized = toRealPathSync(resolved);
+        if (!isWithinRoot(normalized, repoCacheCanonical)) return null;
         return normalized;
       };
       const buildId = typeof data.buildId === 'string' ? data.buildId : null;

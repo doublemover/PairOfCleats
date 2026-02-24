@@ -5,7 +5,8 @@ import {
   MANIFEST_ONLY_ARTIFACT_NAMES,
   validateArtifact
 } from '../../shared/artifact-schemas.js';
-import { fromPosix, isPathWithinRoot } from '../../shared/files.js';
+import { fromPosix } from '../../shared/files.js';
+import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
 import { addIssue } from './issues.js';
 import { isManifestPathSafe, normalizeManifestPath } from './paths.js';
 
@@ -44,7 +45,7 @@ export const validateManifestEntries = (report, mode, dir, manifest, { strictSch
       seenPaths.add(normalized);
     }
     const resolved = path.resolve(dir, fromPosix(normalized));
-    if (!isPathWithinRoot(resolved, root)) {
+    if (!isWithinRoot(toRealPathSync(resolved), rootCanonical)) {
       addIssue(report, mode, `manifest path escapes index root: ${relPath}`);
       continue;
     }

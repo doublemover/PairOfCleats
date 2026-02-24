@@ -9,7 +9,7 @@ import { createCli } from '../../src/shared/cli.js';
 import selfsigned from 'selfsigned';
 import { getRuntimeConfig, resolveRepoConfig, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
 import { exitLikeCommandResult } from '../shared/cli-utils.js';
-import { isPathWithinRoot } from '../shared/path-within-root.js';
+import { decodePathnameSafe, safeJoinUnderBase } from './map-iso-safe-join.js';
 
 const argv = createCli({
   scriptName: 'map-iso',
@@ -87,13 +87,6 @@ const contentTypeFor = (filePath) => {
   if (ext === '.png') return 'image/png';
   if (ext === '.hdr') return 'application/octet-stream';
   return 'application/octet-stream';
-};
-
-const safeJoin = (baseDir, requestPath) => {
-  const normalizedBase = path.resolve(baseDir);
-  const safePath = path.resolve(path.join(normalizedBase, requestPath));
-  if (!isPathWithinRoot(safePath, normalizedBase)) return null;
-  return safePath;
 };
 
 const openBrowser = (url) => {

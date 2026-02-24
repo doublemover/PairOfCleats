@@ -11,7 +11,7 @@ import {
   loadJsonArrayArtifact,
   readJsonFile
 } from '../shared/artifact-io.js';
-import { isAbsolutePathNative, isPathWithinRoot } from '../shared/files.js';
+import { isAbsolutePathNative } from '../shared/files.js';
 import { ARTIFACT_SURFACE_VERSION, isSupportedVersion } from '../contracts/versioning.js';
 import { isWithinRoot, toRealPathSync } from '../workspace/identity.js';
 import { resolveIndexDir } from './validate/paths.js';
@@ -489,7 +489,12 @@ export async function validateIndexArtifacts(input = {}) {
             if (!value) return;
             const resolved = isAbsolutePathNative(value) ? value : path.join(repoCacheRoot, value);
             const normalized = path.resolve(resolved);
-            if (!isPathWithinRoot(normalized, repoCacheRoot)) {
+            if (!isWithinRoot(normalized, repoCacheRoot)) {
+              addIssue(report, null, `current.json ${label} escapes repo cache root`);
+              return;
+            }
+            const canonicalResolved = toRealPathSync(normalized);
+            if (!isWithinRoot(canonicalResolved, canonicalRepoCacheRoot)) {
               addIssue(report, null, `current.json ${label} escapes repo cache root`);
             }
           };
