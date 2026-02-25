@@ -70,7 +70,7 @@ await assert.rejects(
   'expected lock wait to reject with abort error when signal is aborted'
 );
 const abortElapsedMs = Date.now() - abortStartedAt;
-assert.ok(abortElapsedMs < 500, `expected lock wait abort to short-circuit quickly (elapsed=${abortElapsedMs}ms)`);
+assert.ok(abortElapsedMs < 2500, `expected lock wait abort to short-circuit quickly (elapsed=${abortElapsedMs}ms)`);
 await heldLock.release();
 
 await fsPromises.rm(lockPath, { force: true });

@@ -38,11 +38,15 @@ const resolveStagePaths = () => {
   return {
     codeDir,
     statePath: path.join(codeDir, 'index_state.json'),
-    relationsPath: path.join(codeDir, 'file_relations.json'),
-    densePath: path.join(codeDir, 'dense_vectors_uint8.json')
+    relationsPath: path.join(codeDir, 'file_relations.json')
   };
 };
-let { codeDir, statePath, relationsPath, densePath } = resolveStagePaths();
+const resolveDenseArtifacts = (codeDir) => ([
+  path.join(codeDir, 'dense_vectors_uint8.bin'),
+  path.join(codeDir, 'dense_vectors_uint8.json'),
+  path.join(codeDir, 'dense_vectors.lancedb.meta.json')
+]);
+let { codeDir, statePath, relationsPath } = resolveStagePaths();
 if (!fs.existsSync(statePath)) {
   console.error('Missing index_state.json after stage1');
   process.exit(1);
@@ -67,7 +71,7 @@ if (enrichmentStage1.status !== 'pending') {
 
 runBuild('stage2', [path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--stage', 'stage2', '--repo', repoRoot]);
 
-({ codeDir, statePath, relationsPath, densePath } = resolveStagePaths());
+({ codeDir, statePath, relationsPath } = resolveStagePaths());
 const stateStage2 = JSON.parse(await fsPromises.readFile(statePath, 'utf8'));
 if (stateStage2.stage !== 'stage2' || stateStage2.enrichment?.pending === true) {
   console.error('Expected stage2 index_state to clear pending enrichment');
@@ -85,14 +89,15 @@ if (enrichmentStage2.status !== 'done') {
 
 runBuild('stage3', [path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--stage', 'stage3', '--repo', repoRoot]);
 
-({ codeDir, statePath, relationsPath, densePath } = resolveStagePaths());
+({ codeDir, statePath, relationsPath } = resolveStagePaths());
 const stateStage3 = JSON.parse(await fsPromises.readFile(statePath, 'utf8'));
 if (stateStage3.embeddings?.ready !== true) {
   console.error('Expected stage3 to mark embeddings ready');
   process.exit(1);
 }
-if (!fs.existsSync(densePath)) {
-  console.error('Expected dense_vectors_uint8.json after stage3');
+const denseArtifacts = resolveDenseArtifacts(codeDir);
+if (!denseArtifacts.some((artifactPath) => fs.existsSync(artifactPath))) {
+  console.error('Expected stage3 dense vector artifact after stage3');
   process.exit(1);
 }
 

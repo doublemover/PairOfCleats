@@ -106,7 +106,15 @@ const resolveTreeSitterBatchInfo = (entry, treeSitterOptions) => {
  * @param {{allowReorder?:boolean}} [options]
  * @returns {void}
  */
-export const applyTreeSitterBatching = (entries, treeSitterOptions, envConfig, { allowReorder = true } = {}) => {
+export const applyTreeSitterBatching = (
+  entries,
+  treeSitterOptions,
+  envConfig,
+  {
+    allowReorder = true,
+    windowRanges = null
+  } = {}
+) => {
   if (!treeSitterOptions || treeSitterOptions.enabled === false) return;
   if (treeSitterOptions.batchByLanguage === false) return;
   if (!Array.isArray(entries) || entries.length < 2) return;
@@ -121,13 +129,55 @@ export const applyTreeSitterBatching = (entries, treeSitterOptions, envConfig, {
   }
 
   if (allowReorder) {
-    entries.sort((a, b) => {
-      const keyA = a.treeSitterBatchKey || 'none';
-      const keyB = b.treeSitterBatchKey || 'none';
-      const keyDelta = compareStrings(keyA, keyB);
-      if (keyDelta !== 0) return keyDelta;
-      return compareStrings(a.rel || '', b.rel || '');
-    });
+    const sortBatchSlice = (slice) => {
+      slice.sort((a, b) => {
+        const keyA = a.treeSitterBatchKey || 'none';
+        const keyB = b.treeSitterBatchKey || 'none';
+        const keyDelta = compareStrings(keyA, keyB);
+        if (keyDelta !== 0) return keyDelta;
+        return compareStrings(a.rel || '', b.rel || '');
+      });
+      return slice;
+    };
+    const windows = Array.isArray(windowRanges)
+      ? windowRanges
+        .filter((window) => Number.isFinite(window?.startSeq) && Number.isFinite(window?.endSeq))
+        .map((window) => ({
+          startSeq: Math.floor(window.startSeq),
+          endSeq: Math.floor(window.endSeq)
+        }))
+        .sort((left, right) => left.startSeq - right.startSeq)
+      : [];
+    if (windows.length === 0) {
+      sortBatchSlice(entries);
+    } else {
+      const grouped = windows.map((window) => ({ window, entries: [] }));
+      const overflow = [];
+      for (const entry of entries) {
+        const orderIndex = Number.isFinite(entry?.orderIndex)
+          ? Math.floor(entry.orderIndex)
+          : null;
+        if (!Number.isFinite(orderIndex)) {
+          overflow.push(entry);
+          continue;
+        }
+        const group = grouped.find(({ window }) => orderIndex >= window.startSeq && orderIndex <= window.endSeq);
+        if (group) group.entries.push(entry);
+        else overflow.push(entry);
+      }
+      const reordered = [];
+      for (const group of grouped) {
+        sortBatchSlice(group.entries);
+        reordered.push(...group.entries);
+      }
+      if (overflow.length) {
+        sortBatchSlice(overflow);
+        reordered.push(...overflow);
+      }
+      for (let i = 0; i < reordered.length; i += 1) {
+        entries[i] = reordered[i];
+      }
+    }
     entries.forEach((entry, index) => {
       entry.processingOrderIndex = index;
     });

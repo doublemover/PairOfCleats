@@ -31,10 +31,13 @@ import { createPostingsQueue, estimatePostingsPayload } from './process-files/po
 import { buildOrderedAppender } from './process-files/ordered.js';
 import { createShardRuntime, resolveCheckpointBatchSize } from './process-files/runtime.js';
 import {
+  buildContiguousSeqWindows,
   buildDeterministicShardMergePlan,
+  resolveActiveSeqWindows,
   normalizeOwnershipSegment,
   resolveClusterSubsetRetryConfig,
   resolveEntryOrderIndex,
+  resolveStage1WindowPlannerConfig,
   resolveShardSubsetId,
   resolveShardSubsetMinOrderIndex,
   resolveShardWorkItemMinOrderIndex,
@@ -1171,12 +1174,18 @@ const resolveOrderedFlushTimeoutMs = ({ runtime = null } = {}) => {
  *   expectedOrderIndices?:number[],
  *   completedOrderIndices?:Iterable<number>,
  *   progressCount?:number,
- *   progressTotal?:number
+ *   progressTotal?:number,
+ *   terminalCount?:number|null,
+ *   committedCount?:number|null,
+ *   totalSeqCount?:number|null
  * }} [input]
  * @returns {{
  *   ok:boolean,
  *   expectedCount:number,
  *   completedCount:number,
+ *   terminalCount:number|null,
+ *   committedCount:number|null,
+ *   totalSeqCount:number|null,
  *   missingIndices:number[],
  *   missingCount:number,
  *   progressComplete:boolean,
@@ -1188,7 +1197,10 @@ export const resolveStage1OrderingIntegrity = ({
   expectedOrderIndices = [],
   completedOrderIndices = [],
   progressCount = 0,
-  progressTotal = 0
+  progressTotal = 0,
+  terminalCount = null,
+  committedCount = null,
+  totalSeqCount = null
 } = {}) => {
   const expected = Array.isArray(expectedOrderIndices)
     ? expectedOrderIndices
@@ -1212,10 +1224,26 @@ export const resolveStage1OrderingIntegrity = ({
   const normalizedProgressTotal = Math.max(0, Math.floor(Number(progressTotal) || 0));
   const progressComplete = normalizedProgressTotal === 0
     || normalizedProgressCount >= normalizedProgressTotal;
+  const normalizedTerminalCount = Number.isFinite(Number(terminalCount))
+    ? Math.max(0, Math.floor(Number(terminalCount)))
+    : null;
+  const normalizedCommittedCount = Number.isFinite(Number(committedCount))
+    ? Math.max(0, Math.floor(Number(committedCount)))
+    : null;
+  const normalizedTotalSeqCount = Number.isFinite(Number(totalSeqCount))
+    ? Math.max(0, Math.floor(Number(totalSeqCount)))
+    : null;
+  const terminalComplete = normalizedTotalSeqCount == null
+    || (normalizedTerminalCount != null && normalizedTerminalCount === normalizedTotalSeqCount);
+  const commitComplete = normalizedTotalSeqCount == null
+    || (normalizedCommittedCount != null && normalizedCommittedCount === normalizedTotalSeqCount);
   return {
-    ok: missingIndices.length === 0 && progressComplete,
+    ok: missingIndices.length === 0 && progressComplete && terminalComplete && commitComplete,
     expectedCount: expectedSet.size,
     completedCount: completedSet.size,
+    terminalCount: normalizedTerminalCount,
+    committedCount: normalizedCommittedCount,
+    totalSeqCount: normalizedTotalSeqCount,
     missingIndices,
     missingCount: missingIndices.length,
     progressComplete,
@@ -1256,6 +1284,30 @@ const assignFileIndexes = (entries) => {
 };
 
 /**
+ * Resolve one stable order index for one entry across shard subsets/retries.
+ *
+ * We must never fall back to a subset-local index because that can remap the
+ * same file to different order slots and deadlock ordered commit cursor drain.
+ *
+ * @param {object} entry
+ * @param {number|null} [fallbackIndex=null]
+ * @returns {number|null}
+ */
+const resolveStableEntryOrderIndex = (entry, fallbackIndex = null) => {
+  const explicitOrderIndex = resolveEntryOrderIndex(entry, null);
+  if (Number.isFinite(explicitOrderIndex)) {
+    return Math.floor(explicitOrderIndex);
+  }
+  if (Number.isFinite(entry?.fileIndex)) {
+    return Math.max(0, Math.floor(entry.fileIndex) - 1);
+  }
+  if (Number.isFinite(fallbackIndex)) {
+    return Math.max(0, Math.floor(fallbackIndex));
+  }
+  return null;
+};
+
+/**
  * Build ordered progress metadata from entry order-index values.
  *
  * @param {Array<object>} entries
@@ -1279,11 +1331,11 @@ const resolveOrderedEntryProgressPlan = (entries) => {
   for (let i = 0; i < safeEntries.length; i += 1) {
     const entry = safeEntries[i];
     if (!entry || typeof entry !== 'object') continue;
-    const startValue = resolveEntryOrderIndex(entry, null);
+    const startValue = resolveStableEntryOrderIndex(entry, null);
     if (Number.isFinite(startValue)) {
       minIndex = minIndex == null ? startValue : Math.min(minIndex, startValue);
     }
-    const expectedValue = resolveEntryOrderIndex(entry, i);
+    const expectedValue = resolveStableEntryOrderIndex(entry, i);
     if (Number.isFinite(expectedValue)) {
       const normalizedExpected = Math.floor(expectedValue);
       expected.add(normalizedExpected);
@@ -1998,6 +2050,8 @@ export const processFiles = async ({
   let stallSnapshotTimer = null;
   let progressHeartbeatTimer = null;
   let stallAbortTimer = null;
+  let orderedCompletionTracker = null;
+  const activeOrderedCompletionTrackers = new Set();
 
   try {
     assignFileIndexes(entries);
@@ -2113,45 +2167,13 @@ export const processFiles = async ({
       expectedOrderIndices,
       orderIndexToRel
     } = resolveOrderedEntryProgressPlan(entries);
-    const expectedOrderIndexSet = new Set(expectedOrderIndices);
-    const dispatchedOrderIndices = new Set();
-    /**
-     * Resolve the highest contiguous missing index range that is safe to recover.
-     *
-     * Recovery is safe only when every expected index in `[nextIndex, end]` has
-     * already been dispatched at least once. This prevents skipping future work
-     * from shard workers that have not reached the missing order index yet.
-     *
-     * @param {object|null} orderedSnapshot
-     * @returns {{start:number,end:number}|null}
-     */
-    const resolveRecoverableOrderedGapRange = (orderedSnapshot) => {
-      if (!orderedSnapshot || typeof orderedSnapshot !== 'object') return null;
-      const nextIndex = Number(orderedSnapshot.nextIndex);
-      if (!Number.isFinite(nextIndex)) return null;
-      const pendingHead = Array.isArray(orderedSnapshot.pendingHead)
-        ? orderedSnapshot.pendingHead
-        : [];
-      const minPending = Number(pendingHead[0]);
-      if (!Number.isFinite(minPending) || minPending <= nextIndex) return null;
-      const start = Math.floor(nextIndex);
-      const endExclusive = Math.floor(minPending);
-      let recoverEnd = null;
-      for (let index = start; index < endExclusive; index += 1) {
-        const isExpected = expectedOrderIndexSet.size > 0
-          ? expectedOrderIndexSet.has(index)
-          : true;
-        if (isExpected && !dispatchedOrderIndices.has(index)) {
-          break;
-        }
-        recoverEnd = index;
-      }
-      if (!Number.isFinite(recoverEnd) || recoverEnd < start) return null;
-      return {
-        start,
-        end: recoverEnd
-      };
-    };
+    const stage1WindowPlannerConfig = resolveStage1WindowPlannerConfig(runtime);
+    const stage1SeqWindows = buildContiguousSeqWindows(entries, {
+      config: stage1WindowPlannerConfig
+    });
+    let stage1ActiveWindows = resolveActiveSeqWindows(stage1SeqWindows, startOrderIndex, {
+      maxActiveWindows: stage1WindowPlannerConfig.maxActiveWindows
+    });
     /**
      * Resolve lifecycle timing row from processor result payload.
      *
@@ -2340,7 +2362,11 @@ export const processFiles = async ({
         bucketSize: coercePositiveInt(runtime?.stage1Queues?.ordered?.bucketSize)
         ?? Math.max(256, runtime.fileConcurrency * 48),
         maxPendingBeforeBackpressure: orderedAppenderConfig.maxPendingBeforeBackpressure,
-        maxPendingEmergencyFactor: orderedAppenderConfig.maxPendingEmergencyFactor,
+        maxPendingBytes: orderedAppenderConfig.maxPendingBytes,
+        commitLagHard: orderedAppenderConfig.commitLagHard,
+        resumeHysteresisRatio: orderedAppenderConfig.resumeHysteresisRatio,
+        leaseTimeoutMs: runtime?.stage1Queues?.window?.leaseTimeoutMs,
+        runId: runtime?.buildId || null,
         flushTimeoutMs: orderedFlushTimeoutMs,
         signal: effectiveAbortSignal,
         log: (message, meta = {}) => logLine(message, { ...meta, mode, stage: 'processing' }),
@@ -2404,8 +2430,7 @@ export const processFiles = async ({
      * shared tracker lets each subset enqueue work without blocking on future
      * subsets; we drain exactly once after all subsets/workers have run.
      */
-    const orderedCompletionTracker = createOrderedCompletionTracker();
-    const activeOrderedCompletionTrackers = new Set();
+    orderedCompletionTracker = createOrderedCompletionTracker();
     activeOrderedCompletionTrackers.add(orderedCompletionTracker);
     let lastProgressAt = Date.now();
     let lastOrderedCompletionAt = Date.now();
@@ -2427,6 +2452,99 @@ export const processFiles = async ({
         pendingCount += Number(snapshot?.pending) || 0;
       }
       return pendingCount;
+    };
+    const refreshStage1ActiveWindows = () => {
+      const nextCommitSeq = typeof orderedAppender.peekNextIndex === 'function'
+        ? orderedAppender.peekNextIndex()
+        : startOrderIndex;
+      stage1ActiveWindows = resolveActiveSeqWindows(stage1SeqWindows, nextCommitSeq, {
+        maxActiveWindows: stage1WindowPlannerConfig.maxActiveWindows
+      });
+      return stage1ActiveWindows;
+    };
+    const resolveStage1WindowSnapshot = () => {
+      const active = refreshStage1ActiveWindows();
+      return {
+        windowCount: stage1SeqWindows.length,
+        activeWindowCount: active.length,
+        activeWindows: active.map((window) => ({
+          windowId: window.windowId,
+          startSeq: window.startSeq,
+          endSeq: window.endSeq,
+          entryCount: window.entryCount,
+          predictedCost: window.predictedCost,
+          predictedBytes: window.predictedBytes
+        }))
+      };
+    };
+    const isOrderIndexInStage1ActiveWindow = (orderIndex, snapshot = null) => {
+      if (!Number.isFinite(orderIndex)) return true;
+      const normalizedOrderIndex = Math.floor(orderIndex);
+      const activeWindowSnapshot = snapshot || resolveStage1WindowSnapshot();
+      return activeWindowSnapshot.activeWindows.some(
+        (window) => normalizedOrderIndex >= window.startSeq && normalizedOrderIndex <= window.endSeq
+      );
+    };
+    const waitForStage1ActiveWindow = async (orderIndex, { signal = null } = {}) => {
+      if (!Number.isFinite(orderIndex)) {
+        return resolveStage1WindowSnapshot();
+      }
+      const normalizedOrderIndex = Math.floor(orderIndex);
+      const pollMs = Math.max(10, Math.min(250, orderedCompletionStallPollMs));
+      const timeoutMs = Math.max(1000, orderedCapacityWaitTimeoutMs);
+      const startedAtMs = Date.now();
+      let stallCount = 0;
+      while (true) {
+        throwIfAborted(signal);
+        const activeWindowSnapshot = resolveStage1WindowSnapshot();
+        if (isOrderIndexInStage1ActiveWindow(normalizedOrderIndex, activeWindowSnapshot)) {
+          return activeWindowSnapshot;
+        }
+        stallCount += 1;
+        const elapsedMs = Math.max(0, Date.now() - startedAtMs);
+        if (stallCount === 1 || (stallCount % 3) === 0) {
+          logLine(
+            `[ordered] dispatch waiting for active window seq=${normalizedOrderIndex}`
+              + ` next=${orderedAppender.peekNextIndex?.() ?? '?'} elapsed=${Math.round(elapsedMs / 1000)}s`,
+            {
+              kind: 'warning',
+              mode,
+              stage: 'processing',
+              stage1Windows: activeWindowSnapshot
+            }
+          );
+        }
+        if (elapsedMs >= timeoutMs) {
+          throw createTimeoutError({
+            message: `Ordered dispatch active-window wait timed out for seq ${normalizedOrderIndex} after ${timeoutMs}ms.`,
+            code: 'ORDERED_ACTIVE_WINDOW_WAIT_TIMEOUT',
+            retryable: false,
+            meta: {
+              orderIndex: normalizedOrderIndex,
+              timeoutMs,
+              elapsedMs,
+              stage1Windows: activeWindowSnapshot,
+              nextCommitSeq: orderedAppender.peekNextIndex?.() ?? null
+            }
+          });
+        }
+        if (stallCount === 1 || (stallCount % 2) === 0) {
+          const recovered = attemptOrderedGapRecovery({
+            snapshot: {
+              orderedSnapshot: typeof orderedAppender.snapshot === 'function'
+                ? orderedAppender.snapshot()
+                : null,
+              inFlight: inFlightFiles.size
+            },
+            reason: 'ordered_dispatch_active_window_wait'
+          });
+          if (Number(recovered?.recovered) > 0) {
+            continue;
+          }
+        }
+        evaluateStalledProcessing('ordered_dispatch_active_window_wait');
+        await new Promise((resolve) => setTimeout(resolve, pollMs));
+      }
     };
     /**
      * Determine whether ordered backlog has entered head-of-line backpressure.
@@ -2488,6 +2606,7 @@ export const processFiles = async ({
         orderedAppender,
         postingsQueue,
         queueDelaySummary,
+        stage1WindowSnapshot: resolveStage1WindowSnapshot(),
         stage1OwnershipPrefix: stage1OwnershipPrefix,
         runtime
       });
@@ -2514,49 +2633,36 @@ export const processFiles = async ({
      */
     const summarizeSoftKickCleanup = (cleanupResults = []) => summarizeStage1SoftKickCleanup(cleanupResults);
     /**
-     * Attempt deterministic ordered-gap recovery when stage1 appears blocked.
+     * Stage1 hard-cutover note:
+     * legacy ordered gap recovery is removed. Progress depends on contiguous
+     * seq terminalization only. During stalls we only reclaim expired leases.
      *
-     * Recovery is limited to a contiguous range that is provably safe:
-     * expected indices must already have been dispatched globally. This keeps
-     * shard workers from skipping future work that has not been scheduled yet.
-     *
-     * @param {{snapshot?:object|null,reason?:string}} [input]
      * @returns {{recovered:number,start:number|null,end:number|null,nextIndex:number}|null}
      */
     const attemptOrderedGapRecovery = ({
       snapshot = null,
       reason = 'stage1_stall_recovery'
     } = {}) => {
-      if (!orderedAppender || typeof orderedAppender.recoverMissingRange !== 'function') return null;
-      const liveOrderedSnapshot = typeof orderedAppender.snapshot === 'function'
-        ? orderedAppender.snapshot()
-        : null;
-      const suppliedSnapshot = snapshot?.orderedSnapshot && typeof snapshot.orderedSnapshot === 'object'
-        ? snapshot.orderedSnapshot
-        : null;
-      const orderedSnapshot = suppliedSnapshot
-        ? { ...(liveOrderedSnapshot || {}), ...suppliedSnapshot }
-        : liveOrderedSnapshot;
-      if (!orderedSnapshot || typeof orderedSnapshot !== 'object') return null;
-      const pendingCount = Number(orderedSnapshot.pendingCount) || 0;
-      const inFlightCount = Number(snapshot?.inFlight ?? inFlightFiles.size) || 0;
-      if (inFlightCount > 0 || pendingCount <= 0) return null;
-      const recoverRange = resolveRecoverableOrderedGapRange(orderedSnapshot);
-      if (!recoverRange) return null;
-      const recovery = orderedAppender.recoverMissingRange({
-        start: recoverRange.start,
-        end: recoverRange.end,
-        reason
-      });
-      if (!recovery || Number(recovery.recovered) <= 0) return recovery || null;
+      void snapshot;
+      void reason;
+      if (!orderedAppender || typeof orderedAppender.reclaimExpiredLeases !== 'function') return null;
+      const reclaimedSeqs = orderedAppender.reclaimExpiredLeases();
+      if (!Array.isArray(reclaimedSeqs) || reclaimedSeqs.length === 0) return null;
       lastOrderedCompletionAt = Date.now();
+      const recovery = {
+        recovered: reclaimedSeqs.length,
+        start: reclaimedSeqs[0],
+        end: reclaimedSeqs[reclaimedSeqs.length - 1],
+        nextIndex: typeof orderedAppender.peekNextIndex === 'function'
+          ? orderedAppender.peekNextIndex()
+          : null
+      };
       logLine(
-        `[ordered] recovered missing range ${recovery.start}-${recovery.end} (count=${recovery.recovered})`,
+        `[ordered] reclaimed ${recovery.recovered} expired in-flight seq lease(s) ${recovery.start}-${recovery.end}.`,
         {
           kind: 'warning',
           mode,
           stage: 'processing',
-          reason,
           orderedRecovery: recovery
         }
       );
@@ -3031,7 +3137,7 @@ export const processFiles = async ({
         const orderedBatchEntries = sortEntriesByOrderIndex(batchEntries);
         for (let i = 0; i < orderedBatchEntries.length; i += 1) {
           const entry = orderedBatchEntries[i];
-          const orderIndex = resolveEntryOrderIndex(entry, i);
+          const orderIndex = resolveStableEntryOrderIndex(entry, i);
           const lifecycle = ensureLifecycleRecord({
             orderIndex,
             file: entry?.rel || toPosix(path.relative(runtimeRef.root, entry?.abs || '')),
@@ -3047,9 +3153,9 @@ export const processFiles = async ({
           orderedBatchEntries,
           async (entry, ctx) => {
             const queueIndex = Number.isFinite(ctx?.index) ? ctx.index : null;
-            const orderIndex = resolveEntryOrderIndex(entry, queueIndex);
-            if (Number.isFinite(orderIndex)) {
-              dispatchedOrderIndices.add(Math.floor(orderIndex));
+            const orderIndex = resolveStableEntryOrderIndex(entry, queueIndex);
+            if (Number.isFinite(orderIndex) && typeof orderedAppender.noteInFlight === 'function') {
+              orderedAppender.noteInFlight(Math.floor(orderIndex), Number(entry?.fileIndex) || 0);
             }
             const stableFileIndex = Number.isFinite(entry?.fileIndex)
               ? entry.fileIndex
@@ -3318,7 +3424,13 @@ export const processFiles = async ({
               if (typeof orderedAppender.waitForCapacity === 'function') {
                 const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
                 const entry = orderedBatchEntries[entryIndex];
-                const orderIndex = resolveEntryOrderIndex(entry, entryIndex);
+                const orderIndex = resolveStableEntryOrderIndex(entry, entryIndex);
+                await waitForStage1ActiveWindow(orderIndex, {
+                  signal: effectiveAbortSignal
+                });
+                if (Number.isFinite(orderIndex) && typeof orderedAppender.noteDispatched === 'function') {
+                  orderedAppender.noteDispatched(Math.floor(orderIndex), Number(entry?.fileIndex) || 0);
+                }
                 const dispatchBypassWindow = Math.max(1, Math.floor(runtimeRef.fileConcurrency || 1));
                 const nextOrderedIndex = typeof orderedAppender.peekNextIndex === 'function'
                   ? orderedAppender.peekNextIndex()
@@ -3370,7 +3482,7 @@ export const processFiles = async ({
             onResult: async (result, ctx) => {
               const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
               const entry = orderedBatchEntries[entryIndex];
-              const orderIndex = resolveEntryOrderIndex(entry, entryIndex);
+              const orderIndex = resolveStableEntryOrderIndex(entry, entryIndex);
               try {
                 const bailoutDecision = observeExtractedProseLowYieldSample({
                   bailout: extractedProseLowYieldBailout,
@@ -3399,7 +3511,10 @@ export const processFiles = async ({
                   if (Number.isFinite(orderIndex)) {
                     lifecycleByOrderIndex.delete(Math.floor(orderIndex));
                   }
-                  return orderedAppender.skip(orderIndex);
+                  await orderedAppender.skip(orderIndex);
+                  lastOrderedCompletionAt = Date.now();
+                  refreshStage1ActiveWindows();
+                  return;
                 }
                 if (Number.isFinite(orderIndex)) {
                   result.orderIndex = Math.floor(orderIndex);
@@ -3443,6 +3558,7 @@ export const processFiles = async ({
                 const completion = orderedAppender.enqueue(orderIndex, result, shardMeta);
                 orderedCompletionTracker.track(completion, () => {
                   lastOrderedCompletionAt = Date.now();
+                  refreshStage1ActiveWindows();
                 });
               } finally {
                 clearInFlightFile(orderIndex);
@@ -3451,7 +3567,7 @@ export const processFiles = async ({
             onError: async (err, ctx) => {
               const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
               const entry = orderedBatchEntries[entryIndex];
-              const orderIndex = resolveEntryOrderIndex(entry, entryIndex);
+              const orderIndex = resolveStableEntryOrderIndex(entry, entryIndex);
               try {
                 observeExtractedProseLowYieldSample({
                   bailout: extractedProseLowYieldBailout,
@@ -3479,6 +3595,8 @@ export const processFiles = async ({
                   lifecycleByOrderIndex.delete(Math.floor(orderIndex));
                 }
                 await orderedAppender.skip(orderIndex);
+                lastOrderedCompletionAt = Date.now();
+                refreshStage1ActiveWindows();
               } finally {
                 clearInFlightFile(orderIndex);
               }
@@ -3534,6 +3652,9 @@ export const processFiles = async ({
         },
         reason: 'queue_drain_pre_wait'
       });
+      if (typeof orderedAppender.drain === 'function') {
+        orderedAppender.drain().catch(() => {});
+      }
       await runWithTimeout(
         () => orderedCompletionTracker.wait({
           timeoutMs: effectiveOrderedCompletionTimeoutMs,
@@ -3554,10 +3675,31 @@ export const processFiles = async ({
             const seenText = Number.isFinite(expectedCount) && expectedCount > 0 && Number.isFinite(seenCount)
               ? ` seen=${seenCount}/${expectedCount}`
               : '';
+            const committedCount = Number(orderedSnapshot?.committedCount);
+            const commitText = Number.isFinite(expectedCount) && expectedCount > 0 && Number.isFinite(committedCount)
+              ? ` committed=${committedCount}/${expectedCount}`
+              : '';
+            const drainRunCount = Number(orderedSnapshot?.drainRunCount);
+            const drainCommitCount = Number(orderedSnapshot?.drainCommitCount);
+            const drainText = Number.isFinite(drainRunCount) || Number.isFinite(drainCommitCount)
+              ? ` drain=${Number.isFinite(drainRunCount) ? drainRunCount : '?'}:${Number.isFinite(drainCommitCount) ? drainCommitCount : '?'}`
+              : '';
+            const drainErrorCode = typeof orderedSnapshot?.drainLastErrorCode === 'string' && orderedSnapshot.drainLastErrorCode
+              ? ` drainErr=${orderedSnapshot.drainLastErrorCode}`
+              : '';
+            const drainPhase = typeof orderedSnapshot?.drainPhase === 'string' && orderedSnapshot.drainPhase
+              ? ` phase=${orderedSnapshot.drainPhase}`
+              : '';
+            const headState = Number(orderedSnapshot?.headState);
+            const headTerminalState = Number(orderedSnapshot?.headTerminalState);
+            const headStateText = Number.isFinite(headState)
+              ? ` head=${headState}${Number.isFinite(headTerminalState) ? `/${headTerminalState}` : ''}`
+              : '';
+            const abortedText = orderedSnapshot?.aborted === true ? ' aborted=1' : '';
             if (stallCount === 1 || (stallCount % 3) === 0) {
               logLine(
                 `[ordered] completion drain waiting pending=${pending} elapsed=${Math.round(elapsedMs / 1000)}s`
-                  + ` next=${orderedSnapshot?.nextIndex ?? '?'}${seenText}${flushActiveText}`,
+                  + ` next=${orderedSnapshot?.nextIndex ?? '?'}${seenText}${commitText}${headStateText}${abortedText}${drainText}${drainErrorCode}${drainPhase}${flushActiveText}`,
                 {
                   kind: 'warning',
                   mode,
@@ -3569,6 +3711,9 @@ export const processFiles = async ({
               );
             }
             if (stallCount === 1 || (stallCount % 2) === 0) {
+              if (typeof orderedAppender.drain === 'function') {
+                orderedAppender.drain().catch(() => {});
+              }
               const recovered = attemptOrderedGapRecovery({
                 snapshot: {
                   orderedSnapshot,
@@ -3598,6 +3743,9 @@ export const processFiles = async ({
         }
       );
       orderedCompletionTracker.throwIfFailed();
+      if (typeof orderedAppender.assertCompletion === 'function') {
+        orderedAppender.assertCompletion();
+      }
     };
 
     const discoveryLineCounts = discovery?.lineCounts instanceof Map ? discovery.lineCounts : null;
@@ -4051,6 +4199,18 @@ export const processFiles = async ({
       timing.stageTimingBreakdown = stageTimingBreakdownPayload;
       timing.extractedProseLowYieldBailout = extractedProseLowYieldSummary;
       timing.shards = shardExecutionMeta;
+      timing.stage1Windows = {
+        config: stage1WindowPlannerConfig,
+        windows: stage1SeqWindows.map((window) => ({
+          windowId: window.windowId,
+          startSeq: window.startSeq,
+          endSeq: window.endSeq,
+          entryCount: window.entryCount,
+          predictedCost: window.predictedCost,
+          predictedBytes: window.predictedBytes
+        })),
+        active: resolveStage1WindowSnapshot().activeWindows
+      };
       timing.watchdog = {
         ...(timing.watchdog && typeof timing.watchdog === 'object' ? timing.watchdog : {}),
         queueDelayMs: stageTimingBreakdownPayload?.watchdog?.queueDelayMs || null,
@@ -4069,6 +4229,18 @@ export const processFiles = async ({
     if (state && typeof state === 'object') {
       state.extractedProseLowYieldBailout = extractedProseLowYieldSummary;
       state.shardExecution = shardExecutionMeta;
+      state.stage1Windows = {
+        config: stage1WindowPlannerConfig,
+        windows: stage1SeqWindows.map((window) => ({
+          windowId: window.windowId,
+          startSeq: window.startSeq,
+          endSeq: window.endSeq,
+          entryCount: window.entryCount,
+          predictedCost: window.predictedCost,
+          predictedBytes: window.predictedBytes
+        })),
+        active: resolveStage1WindowSnapshot().activeWindows
+      };
     }
     const parseSkipCount = state.skippedFiles.filter((entry) => entry?.reason === 'parse-error').length;
     const relationSkipCount = state.skippedFiles.filter((entry) => entry?.reason === 'relation-error').length;
@@ -4080,11 +4252,17 @@ export const processFiles = async ({
       log(`Warning: skipped ${skipTotal} files due to parse/relations errors (${parts.join(', ')}).`);
     }
     const stage1ProgressSnapshot = getStage1ProgressSnapshot();
+    const orderedFinalSnapshot = typeof orderedAppender.snapshot === 'function'
+      ? orderedAppender.snapshot()
+      : null;
     const orderingIntegrity = resolveStage1OrderingIntegrity({
       expectedOrderIndices,
       completedOrderIndices: stage1ProgressSnapshot.completedOrderIndices,
       progressCount: stage1ProgressSnapshot.count,
-      progressTotal: stage1ProgressSnapshot.total
+      progressTotal: stage1ProgressSnapshot.total,
+      terminalCount: orderedFinalSnapshot?.terminalCount,
+      committedCount: orderedFinalSnapshot?.committedCount,
+      totalSeqCount: orderedFinalSnapshot?.totalSeqCount
     });
     if (!orderingIntegrity.ok) {
       const missingPreview = orderingIntegrity.missingIndices
@@ -4108,6 +4286,25 @@ export const processFiles = async ({
       };
       throw err;
     }
+    if (orderedFinalSnapshot) {
+      const nextCommitSeq = Number(orderedFinalSnapshot.nextCommitSeq);
+      const expectedTerminal = Number(orderedFinalSnapshot.totalSeqCount) || 0;
+      const expectedNextCommitSeq = Number.isFinite(startOrderIndex)
+        ? (startOrderIndex + expectedTerminal)
+        : nextCommitSeq;
+      if (!Number.isFinite(nextCommitSeq) || nextCommitSeq < startOrderIndex || nextCommitSeq > expectedNextCommitSeq) {
+        const err = new Error(
+          `[stage1] commit cursor invariant violation: nextCommitSeq=${nextCommitSeq} expected<=${expectedNextCommitSeq}`
+        );
+        err.code = 'STAGE1_COMMIT_CURSOR_INVARIANT';
+        err.meta = {
+          orderedSnapshot: orderedFinalSnapshot,
+          startOrderIndex,
+          expectedOrderCount: expectedOrderIndices.length
+        };
+        throw err;
+      }
+    }
 
     const postingsQueueStats = postingsQueue?.stats ? postingsQueue.stats() : null;
     if (postingsQueueStats) {
@@ -4125,7 +4322,9 @@ export const processFiles = async ({
       extractedProseLowYieldBailout: extractedProseLowYieldSummary
     };
   } finally {
-    activeOrderedCompletionTrackers.delete(orderedCompletionTracker);
+    if (orderedCompletionTracker) {
+      activeOrderedCompletionTrackers.delete(orderedCompletionTracker);
+    }
     if (typeof stallSnapshotTimer === 'object' && stallSnapshotTimer) {
       clearInterval(stallSnapshotTimer);
     }

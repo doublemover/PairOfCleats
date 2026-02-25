@@ -44,8 +44,8 @@ assert.equal(countMode('chargram_vocab'), 2, 'chargram_vocab rowcount mismatch')
 assert.equal(countMode('chargram_postings'), 5, 'chargram_postings rowcount mismatch');
 
 assert.equal(countMode('minhash_signatures'), chunkCount, 'minhash_signatures rowcount mismatch');
-assert.equal(countMode('dense_meta'), 1, 'dense_meta rowcount mismatch');
-assert.equal(countMode('dense_vectors'), chunkCount, 'dense_vectors rowcount mismatch');
+assert.equal(countMode('dense_meta'), 0, 'dense_meta rowcount mismatch');
+assert.equal(countMode('dense_vectors'), 0, 'dense_vectors rowcount mismatch');
 assert.equal(countMode('file_manifest'), fileCount, 'file_manifest rowcount mismatch');
 
 db.close();

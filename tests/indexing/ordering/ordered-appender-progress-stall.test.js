@@ -1,82 +1,45 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 
+import { ensureTestingEnv } from '../../helpers/test-env.js';
 import { buildOrderedAppender } from '../../../src/index/build/indexer/steps/process-files/ordered.js';
+
+ensureTestingEnv(process.env);
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const processed = [];
-const capacityAppender = buildOrderedAppender(
-  async (result) => {
-    processed.push(result.id);
-  },
+const appender = buildOrderedAppender(
+  async () => {},
   {},
   {
     expectedCount: 4,
     startIndex: 0,
-    maxPendingBeforeBackpressure: 2,
-    stallMs: 0
+    maxPendingBeforeBackpressure: 2
   }
 );
-const done1 = capacityAppender.enqueue(1, { id: 1 });
-const done2 = capacityAppender.enqueue(2, { id: 2 });
-const done3 = capacityAppender.enqueue(3, { id: 3 });
-const capacityGate = capacityAppender.waitForCapacity();
+
+const done1 = appender.enqueue(1, { id: 1 }).catch(() => {});
+const done2 = appender.enqueue(2, { id: 2 }).catch(() => {});
+const done3 = appender.enqueue(3, { id: 3 }).catch(() => {});
+
+const capacityGate = appender.waitForCapacity();
 const capacityState = await Promise.race([
   capacityGate.then(() => 'resolved'),
   sleep(20).then(() => 'pending')
 ]);
-assert.equal(capacityState, 'pending', 'expected capacity gate to wait when pending buffer exceeds limit');
-await capacityAppender.enqueue(0, { id: 0 });
-await capacityGate;
+assert.equal(capacityState, 'pending', 'expected capacity gate to block while head seq is missing');
+
+const snapshot = appender.snapshot();
+assert.equal(snapshot.nextCommitSeq, 0, 'expected commit cursor to remain pinned at leading gap');
+assert.equal(snapshot.pendingCount, 3, 'expected buffered envelope count for out-of-order terminals');
+assert.ok(snapshot.commitLag >= 3, 'expected commit lag to reflect buffered head-of-line gap');
+
+appender.abort(new Error('test cleanup'));
+await assert.rejects(
+  capacityGate,
+  (error) => (error?.message || '').includes('test cleanup'),
+  'expected pending capacity wait to reject on appender abort'
+);
 await Promise.all([done1, done2, done3]);
-assert.deepEqual(processed, [0, 1, 2, 3], 'expected deterministic flush order with buffered progress');
 
-const waitingLogs = [];
-const waitingAppender = buildOrderedAppender(
-  async () => {},
-  {},
-  {
-    expectedCount: 6,
-    startIndex: 0,
-    stallMs: 25,
-    log: (message) => waitingLogs.push(String(message || ''))
-  }
-);
-void waitingAppender.enqueue(2, { id: 2 }).catch(() => {});
-void waitingAppender.enqueue(3, { id: 3 }).catch(() => {});
-await sleep(60);
-assert.ok(
-  waitingLogs.some((message) => message.includes('[ordered] waiting on index 0')),
-  'expected waiting log while unseen work remains'
-);
-assert.ok(
-  waitingLogs.some((message) => message.includes('unseen=4')),
-  'expected waiting log to include unseen count'
-);
-assert.ok(
-  !waitingLogs.some((message) => message.includes('[ordered] stalled at index')),
-  'did not expect stalled log while unseen work remains'
-);
-waitingAppender.abort(new Error('test cleanup'));
-
-const stalledLogs = [];
-const stalledAppender = buildOrderedAppender(
-  async () => {},
-  {},
-  {
-    expectedCount: 1,
-    startIndex: 0,
-    stallMs: 25,
-    log: (message) => stalledLogs.push(String(message || ''))
-  }
-);
-void stalledAppender.enqueue(2, { id: 2 }).catch(() => {});
-await sleep(60);
-assert.ok(
-  stalledLogs.some((message) => message.includes('[ordered] stalled at index 0')),
-  'expected stalled log when all expected indices are seen and ordering cannot advance'
-);
-stalledAppender.abort(new Error('test cleanup'));
-
-console.log('ordered appender progress/stall test passed');
+console.log('ordered appender progress/stall snapshot test passed');

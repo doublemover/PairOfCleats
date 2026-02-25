@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-24T03:02:35.087Z",
+  "generatedAt": "2026-02-24T22:42:34.198Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2411,6 +2411,12 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_JSON_STREAM_WAIT_TIMEOUT_MS",
+      "files": [
+        "src/shared/json-stream/streams.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_LANCEDB_CHILD",
       "files": [
         "src/shared/env.js",
@@ -3384,7 +3390,9 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [],
+  "envVarsUnknown": [
+    "PAIROFCLEATS_JSON_STREAM_WAIT_TIMEOUT_MS"
+  ],
   "cliFlags": {
     "totalFlags": 357,
     "publicFlags": [

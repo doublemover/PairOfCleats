@@ -29,14 +29,8 @@ const completion = appender.enqueue(0, { id: 0 });
 await sleep(10);
 const activeSnapshot = appender.snapshot();
 assert.equal(activeSnapshot.flushActive?.orderIndex, 0, 'expected active flush order index to be tracked');
-assert.equal(activeSnapshot.flushActive?.phase, 'ordered', 'expected active flush phase to be tracked');
 assert.equal(callbackContext?.orderIndex, 0, 'expected callback context to include ordered index');
-assert.equal(callbackContext?.phase, 'ordered', 'expected callback context to include ordered phase');
-assert.equal(
-  typeof callbackContext?.signal?.aborted,
-  'boolean',
-  'expected callback context to include timeout/abort signal'
-);
+assert.equal(callbackContext?.phase, 'ordered_commit', 'expected callback context to include ordered commit phase');
 assert.ok(
   Number.isFinite(Number(activeSnapshot.flushActive?.elapsedMs)),
   'expected active flush elapsedMs telemetry'
@@ -48,7 +42,6 @@ await assert.rejects(
     error
     && error.code === 'ORDERED_FLUSH_TIMEOUT'
     && error.meta?.orderIndex === 0
-    && error.meta?.phase === 'ordered'
     && Number(error.meta?.timeoutMs) === 35
   ),
   'expected ordered flush timeout error metadata'

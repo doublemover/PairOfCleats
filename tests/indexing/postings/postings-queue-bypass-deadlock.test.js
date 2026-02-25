@@ -40,14 +40,22 @@ const headDone = appender
   .enqueue(105, { id: 105, chunks: Array.from({ length: 10 }, () => ({})) })
   .finally(() => headReservation.release());
 
-await Promise.race([
-  Promise.all([headDone, tailDone]),
-  sleep(500).then(() => {
-    throw new Error('expected head-of-line reserve bypass to prevent reserve deadlock');
-  })
+const completionState = await Promise.race([
+  Promise.all([headDone, tailDone]).then(() => 'resolved', () => 'rejected'),
+  sleep(300).then(() => 'pending')
 ]);
+assert.equal(
+  completionState,
+  'resolved',
+  'expected head-of-line reserve bypass to prevent reserve deadlock'
+);
 
-assert.deepEqual(flushed, [105, 106], 'expected ordered flush to progress once head index bypasses reserve backpressure');
+await Promise.all([headDone, tailDone]);
+assert.deepEqual(
+  flushed,
+  [105, 106],
+  'expected ordered flush to commit head before tail after bypass unlocks head reservation'
+);
 const stats = queue.stats();
 assert.ok(stats.backpressure.bypass >= 1, 'expected reserve bypass telemetry to increment');
 assert.equal(stats.pending.count, 0, 'expected pending reservation count to drain');

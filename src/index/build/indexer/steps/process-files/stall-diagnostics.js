@@ -237,6 +237,7 @@ export const formatStage1SchedulerStallSummary = (snapshot) => {
  *   orderedAppender?:object|null,
  *   postingsQueue?:object|null,
  *   queueDelaySummary?:object|null,
+ *   stage1WindowSnapshot?:object|null,
  *   stage1OwnershipPrefix?:string,
  *   runtime?:object|null
  * }} [input]
@@ -255,6 +256,7 @@ export const buildStage1ProcessingStallSnapshot = ({
   orderedAppender = null,
   postingsQueue = null,
   queueDelaySummary = null,
+  stage1WindowSnapshot = null,
   stage1OwnershipPrefix = '',
   runtime = null
 } = {}) => {
@@ -274,6 +276,13 @@ export const buildStage1ProcessingStallSnapshot = ({
     limit: 8
   });
   const schedulerSnapshot = buildStage1SchedulerStallSnapshot(runtime);
+  const commitLag = Math.max(
+    0,
+    (Number(orderedSnapshot?.maxSeenSeq) || 0) - (Number(orderedSnapshot?.nextCommitSeq) || 0)
+  );
+  const totalSeqCount = Number(orderedSnapshot?.totalSeqCount) || 0;
+  const terminalCount = Number(orderedSnapshot?.terminalCount) || 0;
+  const terminalLag = Math.max(0, totalSeqCount - terminalCount);
   return {
     reason,
     generatedAt: new Date(nowMs).toISOString(),
@@ -286,7 +295,12 @@ export const buildStage1ProcessingStallSnapshot = ({
     inFlight: inFlightFiles?.size || 0,
     orderedPending,
     orderedSnapshot,
+    commitLag,
+    terminalLag,
     postingsSnapshot,
+    stage1WindowSnapshot: stage1WindowSnapshot && typeof stage1WindowSnapshot === 'object'
+      ? stage1WindowSnapshot
+      : null,
     queueDelayMs: summarizeStage1QueueDelay(queueDelaySummary),
     stalledFiles,
     trackedSubprocesses,

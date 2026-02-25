@@ -8,10 +8,10 @@ ensureTestingEnv(process.env);
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const processed = [];
+const committed = [];
 const appender = buildOrderedAppender(
   async (_result, _state, _shardMeta, context = {}) => {
-    processed.push(context.orderIndex);
+    committed.push(context.orderIndex);
   },
   {},
   {
@@ -23,23 +23,19 @@ const appender = buildOrderedAppender(
 assert.equal(
   typeof appender.recoverMissingRange,
   'undefined',
-  'expected legacy recoverMissingRange API to be removed from ordered appender'
+  'expected no recover-missing-range correctness branch on hard-cutover appender'
 );
 
-const done1 = appender.enqueue(1, { id: 1 }).catch(() => {});
-const done2 = appender.enqueue(2, { id: 2 }).catch(() => {});
-const preHeadState = await Promise.race([
+const done1 = appender.enqueue(1, { id: 1 }, null).catch(() => {});
+const done2 = appender.enqueue(2, { id: 2 }, null).catch(() => {});
+const blockedState = await Promise.race([
   Promise.all([done1, done2]).then(() => 'settled'),
   sleep(20).then(() => 'pending')
 ]);
-assert.equal(
-  preHeadState,
-  'pending',
-  'expected higher seq envelopes to remain blocked until lower contiguous seq is terminal'
-);
+assert.equal(blockedState, 'pending', 'expected higher seq values to remain blocked while seq 0 is missing');
 
 appender.abort(new Error('test cleanup'));
 await Promise.all([done1, done2]);
-assert.deepEqual(processed, [], 'expected no commit progress without head seq terminalization');
+assert.deepEqual(committed, [], 'expected no commits while head seq remains non-terminal');
 
-console.log('ordered appender no-gap-recovery behavior test passed');
+console.log('stage1 no-gap-recovery correctness test passed');

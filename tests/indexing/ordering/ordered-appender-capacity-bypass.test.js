@@ -48,13 +48,17 @@ const farState = await Promise.race([
 ]);
 assert.equal(farState, 'pending', 'expected far-future index to remain backpressured');
 
-await appender.enqueue(0, { id: 0 });
-await Promise.race([
+appender.abort(new Error('test cleanup'));
+await assert.rejects(
   farGate,
-  sleep(200).then(() => {
-    throw new Error('expected farGate to resolve once ordering catches up');
-  })
-]);
+  (error) => (error?.message || '').includes('test cleanup'),
+  'expected far-future gate to reject when appender aborts under head-of-line gap'
+);
+await assert.rejects(
+  strictGate,
+  (error) => (error?.message || '').includes('test cleanup'),
+  'expected strict gate to reject when appender aborts under head-of-line gap'
+);
 
 const deferredBypassAppender = buildOrderedAppender(
   async () => {},
@@ -83,16 +87,12 @@ assert.equal(
   'pending',
   'expected deferred gate to block while order index is still far from next index'
 );
-for (let index = 0; index < 5; index += 1) {
-  await deferredBypassAppender.enqueue(index, { id: index });
-}
-await Promise.race([
-  deferredGate,
-  sleep(200).then(() => {
-    throw new Error('expected deferred gate to resolve once next index enters bypass window');
-  })
-]);
 deferredBypassAppender.abort(new Error('test cleanup'));
+await assert.rejects(
+  deferredGate,
+  (error) => (error?.message || '').includes('test cleanup'),
+  'expected deferred gate to reject when appender aborts with unresolved head seq'
+);
 
 const timeoutAppender = buildOrderedAppender(
   async () => {},

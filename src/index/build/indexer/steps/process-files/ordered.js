@@ -1,103 +1,200 @@
 import { createTimeoutError, runWithTimeout } from '../../../../../shared/promise-timeout.js';
+import { createSeqLedger, STAGE1_SEQ_STATE } from './ordering.js';
 
-// Ordered appender used to ensure deterministic chunk/doc ids regardless of
-// concurrency and shard execution order.
-//
-// IMPORTANT: The original implementation returned the *flush attempt* promise.
-// When an earlier file was slow, results from later files accumulated in
-// `pending` until `nextIndex` advanced, creating unbounded buffering and
-// eventual V8 OOMs that were highly timing-sensitive (e.g., "--inspect" would
-// often avoid the crash).
-//
-// This version returns a promise that resolves only once the specific
-// `orderIndex` has been flushed (i.e., processed in order). That creates
-// backpressure via `runWithQueue`'s awaited `onResult`, bounding in-flight
-// buffered results to queue concurrency.
-/**
- * Create an ordered result appender that preserves deterministic output order
- * while supporting concurrent shard/file execution.
- *
- * @param {(result:any,state:any,shardMeta:any,context?:{signal?:AbortSignal|null,orderIndex?:number|null,phase?:string})=>Promise<void>} handleFileResult
- * @param {any} state
- * @param {object} [options]
- * @returns {{
- *   enqueue:(orderIndex:number,result:any,shardMeta:any)=>Promise<void>,
- *   skip:(orderIndex:number)=>Promise<void>,
- *   recoverMissingRange:(input?:{start?:number,end?:number,reason?:string})=>{recovered:number,start:number|null,end:number|null,nextIndex:number},
- *   peekNextIndex:()=>number,
- *   snapshot:()=>object,
- *   waitForCapacity:(input?:number|{orderIndex?:number,bypassWindow?:number,signal?:AbortSignal|null,timeoutMs?:number,stallPollMs?:number,onStall?:(snapshot:object)=>void})=>Promise<void>,
- *   abort:(err:any)=>void
- * }}
- */
-export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
-  const debugOrdered = options.debugOrdered === true;
-  const bucketSize = Number.isFinite(options.bucketSize)
-    ? Math.max(0, Math.floor(options.bucketSize))
-    : 0;
-  const maxPendingBeforeBackpressure = Number.isFinite(options.maxPendingBeforeBackpressure)
-    ? Math.max(1, Math.floor(options.maxPendingBeforeBackpressure))
-    : 0;
-  const maxPendingEmergencyFactor = Number.isFinite(Number(options.maxPendingEmergencyFactor))
-    ? Math.max(1.25, Number(options.maxPendingEmergencyFactor))
-    : 4;
-  const maxPendingEmergency = maxPendingBeforeBackpressure > 0
-    ? Math.max(
-      maxPendingBeforeBackpressure + 1,
-      Math.min(
-        4096,
-        Math.floor(maxPendingBeforeBackpressure * maxPendingEmergencyFactor)
-      )
-    )
-    : 0;
-  const pending = new Map();
-  const completed = new Set();
-  const startIndex = Number.isFinite(options.startIndex)
-    ? Math.max(0, Math.floor(options.startIndex))
-    : 0;
-  let nextIndex = startIndex;
-  let flushing = null;
-  let aborted = false;
-  let flushRequested = false;
-  const skipped = new Set();
-  const logFn = typeof options.log === 'function' ? options.log : null;
-  const stallMs = Number.isFinite(options.stallMs) ? Math.max(0, options.stallMs) : 30000;
-  const flushTimeoutMs = Number.isFinite(options.flushTimeoutMs)
-    ? Math.max(0, Math.floor(options.flushTimeoutMs))
-    : 0;
-  const flushAbortSignal = options.signal && typeof options.signal.aborted === 'boolean'
-    ? options.signal
-    : null;
-  let lastAdvanceAt = Date.now();
-  let stallTimer = null;
-  const expectedCount = Number.isFinite(options.expectedCount)
-    ? Math.max(0, Math.floor(options.expectedCount))
-    : null;
-  const expectedOrder = Array.isArray(options.expectedIndices)
-    ? Array.from(
+const TERMINAL_SUCCESS = STAGE1_SEQ_STATE.TERMINAL_SUCCESS;
+const TERMINAL_SKIP = STAGE1_SEQ_STATE.TERMINAL_SKIP;
+const TERMINAL_FAIL = STAGE1_SEQ_STATE.TERMINAL_FAIL;
+const TERMINAL_CANCEL = STAGE1_SEQ_STATE.TERMINAL_CANCEL;
+const COMMITTED = STAGE1_SEQ_STATE.COMMITTED;
+
+const TERMINAL_SET = new Set([
+  TERMINAL_SUCCESS,
+  TERMINAL_SKIP,
+  TERMINAL_FAIL,
+  TERMINAL_CANCEL
+]);
+
+const estimateEnvelopeBytes = (result) => {
+  if (!result || typeof result !== 'object') return 0;
+  const metadata = result.postingsPayload;
+  if (metadata && typeof metadata === 'object') {
+    const bytes = Number(metadata.bytes);
+    if (Number.isFinite(bytes) && bytes >= 0) {
+      return Math.max(0, Math.floor(bytes));
+    }
+  }
+  try {
+    return Buffer.byteLength(JSON.stringify(result), 'utf8');
+  } catch {
+    return 0;
+  }
+};
+
+const ensureExpectedSeqs = (options = {}) => {
+  if (Array.isArray(options.expectedIndices) && options.expectedIndices.length) {
+    return Array.from(
       new Set(
         options.expectedIndices
           .map((value) => Number(value))
           .filter((value) => Number.isFinite(value))
           .map((value) => Math.floor(value))
       )
-    ).sort((a, b) => a - b)
-    : [];
-  let expectedCursor = 0;
-  while (expectedCursor < expectedOrder.length && expectedOrder[expectedCursor] < nextIndex) {
-    expectedCursor += 1;
+    ).sort((a, b) => a - b);
   }
-  const seen = expectedCount != null ? new Set() : null;
-  let seenCount = 0;
-  const capacityWaiters = [];
-  let abortError = null;
-  let lastActivityAt = Date.now();
-  let emergencyCapacityActive = false;
-  let flushActiveOrderIndex = null;
-  let flushActivePhase = null;
-  let flushActiveStartedAt = 0;
+  const expectedCount = Number.isFinite(options.expectedCount)
+    ? Math.max(0, Math.floor(options.expectedCount))
+    : 0;
+  const startIndex = Number.isFinite(options.startIndex)
+    ? Math.floor(options.startIndex)
+    : 0;
+  const expectedSeqs = [];
+  for (let i = 0; i < expectedCount; i += 1) {
+    expectedSeqs.push(startIndex + i);
+  }
+  return expectedSeqs;
+};
 
-  const emitLog = (message, meta) => {
+const createStage1IllegalTransitionError = ({ seq, message, cause }) => {
+  const err = new Error(`Stage1 commit cursor transition failed for seq=${seq}: ${message}`);
+  err.code = 'STAGE1_COMMIT_CURSOR_TRANSITION';
+  err.retryable = false;
+  err.meta = {
+    seq,
+    message,
+    cause: cause?.message || String(cause || '')
+  };
+  return err;
+};
+
+const coercePositiveIntOr = (value, fallback) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return Math.max(1, Math.floor(fallback));
+  return Math.max(1, Math.floor(parsed));
+};
+
+const coerceNonNegativeIntOr = (value, fallback) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return Math.max(0, Math.floor(fallback));
+  return Math.max(0, Math.floor(parsed));
+};
+
+/**
+ * Replay commit journal records into deterministic cursor state.
+ *
+ * @param {{seq:number,recordType:string,terminalOutcome?:string}[]} records
+ * @param {{expectedSeqs?:number[]}} [input]
+ * @returns {{nextCommitSeq:number,committedSeqs:number[],terminalOutcomes:Record<string,string>}}
+ */
+export const replayCommitJournal = (records = [], { expectedSeqs = [] } = {}) => {
+  const ordered = Array.isArray(records)
+    ? records
+      .filter((record) => record && typeof record === 'object' && Number.isFinite(record.seq))
+      .map((record) => ({
+        seq: Math.floor(record.seq),
+        recordType: String(record.recordType || ''),
+        terminalOutcome: typeof record.terminalOutcome === 'string' ? record.terminalOutcome : null
+      }))
+    : [];
+
+  const committed = new Set();
+  const terminalBySeq = new Map();
+  for (const record of ordered) {
+    if (record.recordType === 'terminal') {
+      const prior = terminalBySeq.get(record.seq);
+      if (prior && prior !== record.terminalOutcome) {
+        const err = new Error(`Conflicting terminal outcomes for seq=${record.seq}.`);
+        err.code = 'STAGE1_COMMIT_JOURNAL_CONFLICT';
+        throw err;
+      }
+      terminalBySeq.set(record.seq, record.terminalOutcome || 'unknown');
+      continue;
+    }
+    if (record.recordType === 'commit') {
+      committed.add(record.seq);
+    }
+  }
+
+  const expected = Array.isArray(expectedSeqs) && expectedSeqs.length
+    ? expectedSeqs.slice().sort((a, b) => a - b)
+    : Array.from(committed).sort((a, b) => a - b);
+  const first = expected.length ? expected[0] : 0;
+  let nextCommitSeq = first;
+  while (committed.has(nextCommitSeq)) {
+    nextCommitSeq += 1;
+  }
+
+  return {
+    nextCommitSeq,
+    committedSeqs: Array.from(committed).sort((a, b) => a - b),
+    terminalOutcomes: Object.fromEntries(
+      Array.from(terminalBySeq.entries()).map(([seq, outcome]) => [String(seq), outcome])
+    )
+  };
+};
+
+/**
+ * Create hard-cutover Stage1 commit-cursor appender.
+ *
+ * Gap recovery is intentionally removed. Progress is legal only when the
+ * contiguous terminal run at `nextCommitSeq` exists.
+ *
+ * @param {(result:any,state:any,shardMeta:any,context?:{signal?:AbortSignal|null,orderIndex?:number|null,phase?:string})=>Promise<void>} handleFileResult
+ * @param {any} state
+ * @param {object} [options]
+ * @returns {{
+ *   enqueue:(orderIndex:number,result:any,shardMeta:any)=>Promise<void>,
+ *   skip:(orderIndex:number,reasonCode?:number)=>Promise<void>,
+ *   fail:(orderIndex:number,reasonCode?:number)=>Promise<void>,
+ *   cancel:(orderIndex:number,reasonCode?:number)=>Promise<void>,
+ *   noteDispatched:(orderIndex:number,ownerId?:number)=>void,
+ *   noteInFlight:(orderIndex:number,ownerId?:number)=>void,
+ *   heartbeat:(orderIndex:number,ownerId:number)=>boolean,
+ *   reclaimExpiredLeases:()=>number[],
+ *   peekNextIndex:()=>number,
+ *   snapshot:()=>object,
+ *   waitForCapacity:(input?:number|{orderIndex?:number,bypassWindow?:number,signal?:AbortSignal|null,timeoutMs?:number,stallPollMs?:number,onStall?:(snapshot:object)=>void})=>Promise<void>,
+ *   abort:(err:any)=>void,
+ *   drain:()=>Promise<void>,
+ *   assertCompletion:()=>void,
+ *   journal:()=>object[]
+ * }}
+ */
+export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
+  const logFn = typeof options.log === 'function' ? options.log : null;
+  const onJournalRecord = typeof options.onJournalRecord === 'function' ? options.onJournalRecord : null;
+  const flushTimeoutMs = coerceNonNegativeIntOr(options.flushTimeoutMs, 0);
+  const maxPendingBeforeBackpressure = coercePositiveIntOr(options.maxPendingBeforeBackpressure, 256);
+  const maxPendingBytes = coercePositiveIntOr(options.maxPendingBytes, 256 * 1024 * 1024);
+  const commitLagHard = coercePositiveIntOr(options.commitLagHard, Math.max(16, maxPendingBeforeBackpressure * 2));
+  const resumeHysteresisRatio = Math.max(0.1, Math.min(0.95, Number(options.resumeHysteresisRatio) || 0.7));
+  const flushAbortSignal = options.signal && typeof options.signal.aborted === 'boolean'
+    ? options.signal
+    : null;
+
+  const expectedSeqs = ensureExpectedSeqs(options);
+  const seqLedger = createSeqLedger({
+    expectedSeqs,
+    leaseTimeoutMs: coercePositiveIntOr(options.leaseTimeoutMs, 60000)
+  });
+
+  const envelopeBySeq = new Map();
+  const commitJournal = [];
+  const capacityWaiters = [];
+
+  let aborted = false;
+  let abortError = null;
+  let flushing = null;
+  let flushRequested = false;
+  let bufferedBytes = 0;
+  let maxSeenSeq = expectedSeqs.length ? expectedSeqs[0] - 1 : -1;
+  let flushActiveSeq = null;
+  let flushActiveStartedAt = 0;
+  let drainRunCount = 0;
+  let drainCommitCount = 0;
+  let drainLastErrorCode = null;
+  let drainPhase = 'idle';
+
+  const emitLog = (message, meta = null) => {
     if (!logFn) return;
     try {
       if (logFn.length >= 2) logFn(message, meta);
@@ -105,163 +202,49 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     } catch {}
   };
 
-  const debugLog = (message, details = null) => {
-    if (!debugOrdered) return;
-    let suffix = '';
-    if (details && typeof details === 'object') {
+  const appendJournal = (record) => {
+    const normalized = {
+      runId: options.runId || null,
+      timestampMs: Date.now(),
+      ...record
+    };
+    commitJournal.push(normalized);
+    if (onJournalRecord) {
       try {
-        suffix = ` ${JSON.stringify(details)}`;
-      } catch {
-        suffix = ' [details=unserializable]';
-      }
-    }
-    emitLog(`${message}${suffix}`, { kind: 'debug' });
-  };
-
-  const hasUnseenExpectedWork = () => (
-    expectedCount != null
-    && seenCount < expectedCount
-  );
-
-  const shouldEnableEmergencyCapacity = () => {
-    if (maxPendingBeforeBackpressure <= 0) return false;
-    if (maxPendingEmergency <= maxPendingBeforeBackpressure) return false;
-    if (!hasUnseenExpectedWork()) return false;
-    if (pending.size <= maxPendingBeforeBackpressure) return false;
-    if (emergencyCapacityActive) return true;
-    if (stallMs <= 0) return false;
-    return (Date.now() - lastActivityAt) >= stallMs;
-  };
-
-  const setEmergencyCapacityActive = (active, reason = null) => {
-    if (emergencyCapacityActive === active) return;
-    emergencyCapacityActive = active;
-    const action = active ? 'enabled' : 'disabled';
-    const reasonText = reason ? ` (${reason})` : '';
-    emitLog(
-      `[ordered] emergency capacity ${action}${reasonText}; pending=${pending.size}; limit=${maxPendingBeforeBackpressure}; emergencyLimit=${maxPendingEmergency}`,
-      { kind: active ? 'warning' : 'status' }
-    );
-  };
-
-  const refreshEmergencyCapacity = (reason = null) => {
-    setEmergencyCapacityActive(shouldEnableEmergencyCapacity(), reason);
-    return emergencyCapacityActive;
-  };
-
-  const noteAdvance = () => {
-    const now = Date.now();
-    lastAdvanceAt = now;
-    lastActivityAt = now;
-    setEmergencyCapacityActive(false, 'progress');
-  };
-
-  const noteActivity = () => {
-    lastActivityAt = Date.now();
-  };
-
-  /**
-   * Build a deterministic timeout error for ordered flush writes.
-   *
-   * @param {{orderIndex:number,phase:string,timeoutMs:number}} input
-   * @returns {Error}
-   */
-  const createOrderedFlushTimeoutError = ({ orderIndex, phase, timeoutMs }) => createTimeoutError({
-    message: `Ordered flush timed out while writing index ${orderIndex} (${phase}) after ${timeoutMs}ms.`,
-    code: 'ORDERED_FLUSH_TIMEOUT',
-    retryable: false,
-    meta: {
-      orderIndex,
-      phase,
-      timeoutMs
-    }
-  });
-
-  /**
-   * Apply one ordered result payload with optional timeout guard and flush state.
-   *
-   * @param {any} entry
-   * @param {number} orderIndex
-   * @param {'late'|'ordered'} phase
-   * @returns {Promise<void>}
-   */
-  const applyOrderedResult = async (entry, orderIndex, phase) => {
-    if (!entry?.result) return;
-    flushActiveOrderIndex = Number.isFinite(orderIndex) ? orderIndex : null;
-    flushActivePhase = phase;
-    flushActiveStartedAt = Date.now();
-    try {
-      await runWithTimeout(
-        (signal) => handleFileResult(entry.result, state, entry.shardMeta, {
-          signal,
-          orderIndex: Number.isFinite(orderIndex) ? orderIndex : null,
-          phase
-        }),
-        {
-          timeoutMs: flushTimeoutMs,
-          signal: flushAbortSignal,
-          errorFactory: () => createOrderedFlushTimeoutError({
-            orderIndex: Number.isFinite(orderIndex) ? orderIndex : -1,
-            phase,
-            timeoutMs: flushTimeoutMs
-          })
-        }
-      );
-    } finally {
-      flushActiveOrderIndex = null;
-      flushActivePhase = null;
-      flushActiveStartedAt = 0;
+        onJournalRecord(normalized);
+      } catch {}
     }
   };
 
-  /**
-   * Summarize smallest/largest pending indices without full-map sorting.
-   *
-   * @param {number} [limit=5]
-   * @returns {{head:number[],tail:number[]}}
-   */
-  const collectPendingKeyWindow = (limit = 5) => {
-    const size = Math.max(1, Math.floor(Number(limit) || 5));
-    const minKeys = [];
-    const maxKeys = [];
-    const insertAsc = (arr, value) => {
-      let inserted = false;
-      for (let i = 0; i < arr.length; i += 1) {
-        if (value < arr[i]) {
-          arr.splice(i, 0, value);
-          inserted = true;
-          break;
-        }
-      }
-      if (!inserted) arr.push(value);
-      if (arr.length > size) arr.pop();
+  const ensureEnvelope = (seq) => {
+    const normalizedSeq = Math.floor(Number(seq));
+    let envelope = envelopeBySeq.get(normalizedSeq);
+    if (envelope) return envelope;
+    let resolve;
+    let reject;
+    const done = new Promise((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    envelope = {
+      seq: normalizedSeq,
+      terminalState: null,
+      reasonCode: 0,
+      result: null,
+      shardMeta: null,
+      bytes: 0,
+      resolved: false,
+      resolve,
+      reject,
+      done,
+      createdAt: Date.now()
     };
-    const insertDesc = (arr, value) => {
-      let inserted = false;
-      for (let i = 0; i < arr.length; i += 1) {
-        if (value > arr[i]) {
-          arr.splice(i, 0, value);
-          inserted = true;
-          break;
-        }
-      }
-      if (!inserted) arr.push(value);
-      if (arr.length > size) arr.pop();
-    };
-    for (const key of pending.keys()) {
-      if (!Number.isFinite(key)) continue;
-      insertAsc(minKeys, key);
-      insertDesc(maxKeys, key);
-    }
-    return {
-      head: minKeys,
-      tail: maxKeys.slice().reverse()
-    };
+    envelopeBySeq.set(normalizedSeq, envelope);
+    return envelope;
   };
 
-  const settleCapacityWaiter = (waiter, settle) => {
-    if (!waiter || typeof waiter !== 'object') return;
-    if (waiter.settled === true) return;
+  const settleWaiter = (waiter, settleFn) => {
+    if (!waiter || waiter.settled) return;
     waiter.settled = true;
     if (waiter.timeout) {
       try { clearTimeout(waiter.timeout); } catch {}
@@ -276,107 +259,130 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       waiter.abortHandler = null;
     }
     try {
-      settle(waiter);
+      settleFn(waiter);
     } catch {}
   };
-  const removeCapacityWaiter = (waiter) => {
-    if (!waiter || !capacityWaiters.length) return;
-    const idx = capacityWaiters.indexOf(waiter);
-    if (idx >= 0) {
-      capacityWaiters.splice(idx, 1);
-    }
+
+  const removeWaiter = (waiter) => {
+    const index = capacityWaiters.indexOf(waiter);
+    if (index >= 0) capacityWaiters.splice(index, 1);
   };
 
-  const rejectCapacityWaiters = (err) => {
-    if (!capacityWaiters.length) return;
-    const error = err instanceof Error ? err : new Error(String(err || 'Ordered appender aborted.'));
-    for (let i = 0; i < capacityWaiters.length; i += 1) {
-      const waiter = capacityWaiters[i];
-      settleCapacityWaiter(waiter, (entry) => entry.reject(error));
-    }
-    capacityWaiters.length = 0;
+  const snapshot = () => {
+    const ledger = seqLedger.snapshot();
+    const pendingCount = envelopeBySeq.size;
+    const nextCommitSeq = ledger.nextCommitSeq;
+    const headState = Number.isFinite(nextCommitSeq)
+      ? seqLedger.getState(nextCommitSeq)
+      : STAGE1_SEQ_STATE.UNUSED;
+    const headEnvelope = Number.isFinite(nextCommitSeq)
+      ? (envelopeBySeq.get(nextCommitSeq) || null)
+      : null;
+    const commitLag = Number.isFinite(maxSeenSeq) && Number.isFinite(nextCommitSeq)
+      ? Math.max(0, maxSeenSeq - nextCommitSeq)
+      : 0;
+    return {
+      aborted,
+      drainRunCount,
+      drainCommitCount,
+      drainLastErrorCode,
+      drainPhase,
+      flushingActive: Boolean(flushing),
+      nextIndex: nextCommitSeq,
+      nextCommitSeq,
+      headState,
+      headTerminalState: headEnvelope?.terminalState ?? null,
+      maxSeenSeq,
+      commitLag,
+      seenCount: ledger.terminalCount,
+      expectedCount: ledger.totalSeqCount,
+      terminalCount: ledger.terminalCount,
+      committedCount: ledger.committedCount,
+      totalSeqCount: ledger.totalSeqCount,
+      inFlightCount: ledger.inFlightCount,
+      dispatchedCount: ledger.dispatchedCount,
+      pendingCount,
+      pendingBytes: bufferedBytes,
+      maxPendingBeforeBackpressure,
+      maxPendingBytes,
+      commitLagHard,
+      flushActive: flushActiveStartedAt > 0
+        ? {
+          orderIndex: flushActiveSeq,
+          startedAt: new Date(flushActiveStartedAt).toISOString(),
+          elapsedMs: Math.max(0, Date.now() - flushActiveStartedAt)
+        }
+        : null
+    };
+  };
+
+  const releaseEnvelope = (seq) => {
+    const envelope = envelopeBySeq.get(seq);
+    if (!envelope) return null;
+    envelopeBySeq.delete(seq);
+    bufferedBytes = Math.max(0, bufferedBytes - (Number(envelope.bytes) || 0));
+    return envelope;
   };
 
   const resolveCapacityWaiters = () => {
     if (!capacityWaiters.length) return;
     if (aborted) {
-      rejectCapacityWaiters(abortError || new Error('Ordered appender aborted.'));
+      const error = abortError || new Error('Ordered appender aborted.');
+      while (capacityWaiters.length) {
+        settleWaiter(capacityWaiters.shift(), (entry) => entry.reject(error));
+      }
       return;
     }
-    const emergencyActive = refreshEmergencyCapacity('capacity-check');
-    const maxPendingAllowed = maxPendingBeforeBackpressure;
-    const canAdmitByCapacity = emergencyActive
-      || maxPendingAllowed <= 0
-      || pending.size <= maxPendingAllowed;
-    if (!canAdmitByCapacity) {
-      let hasEligibleBypassWaiter = false;
-      for (let i = 0; i < capacityWaiters.length; i += 1) {
-        const waiter = capacityWaiters[i];
-        if (waiter?.settled === true) continue;
-        if (
-          Number.isFinite(waiter?.orderIndex)
-          && waiter.orderIndex <= (nextIndex + (waiter.bypassWindow || 0))
-        ) {
-          hasEligibleBypassWaiter = true;
-          break;
-        }
-      }
-      if (!hasEligibleBypassWaiter) return;
-    }
+    const stateSnapshot = snapshot();
+    const commitLagRelease = Math.max(1, Math.floor(commitLagHard * resumeHysteresisRatio));
+    const countRelease = Math.max(1, Math.floor(maxPendingBeforeBackpressure * resumeHysteresisRatio));
+    const bytesRelease = Math.max(1, Math.floor(maxPendingBytes * resumeHysteresisRatio));
+
+    const canResolveGlobal = (
+      stateSnapshot.pendingCount <= countRelease
+      && stateSnapshot.pendingBytes <= bytesRelease
+      && stateSnapshot.commitLag <= commitLagRelease
+    );
+
     const unresolved = [];
-    for (let i = 0; i < capacityWaiters.length; i += 1) {
-      const waiter = capacityWaiters[i];
-      if (waiter?.settled === true) continue;
-      const withinBypassWindow = Number.isFinite(waiter?.orderIndex)
-        && waiter.orderIndex <= (nextIndex + (waiter.bypassWindow || 0));
-      if (canAdmitByCapacity || withinBypassWindow) {
-        settleCapacityWaiter(waiter, (entry) => entry.resolve());
-        continue;
+    for (const waiter of capacityWaiters) {
+      if (!waiter || waiter.settled) continue;
+      const bypass = Number.isFinite(waiter.orderIndex)
+        && Number.isFinite(stateSnapshot.nextCommitSeq)
+        && waiter.orderIndex <= (stateSnapshot.nextCommitSeq + (waiter.bypassWindow || 0));
+      if (canResolveGlobal || bypass) {
+        settleWaiter(waiter, (entry) => entry.resolve());
+      } else {
+        unresolved.push(waiter);
       }
-      unresolved.push(waiter);
     }
     capacityWaiters.length = 0;
     capacityWaiters.push(...unresolved);
   };
 
-  /**
-   * Await pending-buffer capacity before admitting more out-of-order results.
-   *
-   * @param {number|{orderIndex?:number,bypassWindow?:number}|null} [input]
-   * @returns {Promise<void>}
-   */
   const waitForCapacity = (input = null) => {
+    if (aborted) {
+      return Promise.reject(abortError || new Error('Ordered appender aborted.'));
+    }
+
     let orderIndex = null;
     let bypassWindow = 0;
     let signal = null;
     let timeoutMs = 0;
     let stallPollMs = 0;
     let onStall = null;
+
     if (Number.isFinite(input)) {
       orderIndex = Math.floor(Number(input));
     } else if (input && typeof input === 'object') {
-      if (Number.isFinite(input.orderIndex)) {
-        orderIndex = Math.floor(Number(input.orderIndex));
-      }
-      if (Number.isFinite(input.bypassWindow)) {
-        bypassWindow = Math.max(0, Math.floor(Number(input.bypassWindow)));
-      }
-      if (input.signal && typeof input.signal.aborted === 'boolean') {
-        signal = input.signal;
-      }
-      if (Number.isFinite(Number(input.timeoutMs))) {
-        timeoutMs = Math.max(0, Math.floor(Number(input.timeoutMs)));
-      }
-      if (Number.isFinite(Number(input.stallPollMs))) {
-        stallPollMs = Math.max(0, Math.floor(Number(input.stallPollMs)));
-      }
-      if (typeof input.onStall === 'function') {
-        onStall = input.onStall;
-      }
+      if (Number.isFinite(input.orderIndex)) orderIndex = Math.floor(Number(input.orderIndex));
+      if (Number.isFinite(input.bypassWindow)) bypassWindow = Math.max(0, Math.floor(Number(input.bypassWindow)));
+      if (input.signal && typeof input.signal.aborted === 'boolean') signal = input.signal;
+      if (Number.isFinite(Number(input.timeoutMs))) timeoutMs = Math.max(0, Math.floor(Number(input.timeoutMs)));
+      if (Number.isFinite(Number(input.stallPollMs))) stallPollMs = Math.max(0, Math.floor(Number(input.stallPollMs)));
+      if (typeof input.onStall === 'function') onStall = input.onStall;
     }
-    if (aborted) {
-      return Promise.reject(abortError || new Error('Ordered appender aborted.'));
-    }
+
     if (signal?.aborted) {
       const reason = signal.reason;
       return Promise.reject(
@@ -389,48 +395,51 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
           })
       );
     }
-    if (Number.isFinite(orderIndex) && orderIndex <= (nextIndex + bypassWindow)) {
+
+    const stateSnapshot = snapshot();
+    const withinBypassWindow = Number.isFinite(orderIndex)
+      && Number.isFinite(stateSnapshot.nextCommitSeq)
+      && orderIndex <= (stateSnapshot.nextCommitSeq + bypassWindow);
+    const blockedByCount = stateSnapshot.pendingCount > maxPendingBeforeBackpressure;
+    const blockedByBytes = stateSnapshot.pendingBytes > maxPendingBytes;
+    const blockedByLag = stateSnapshot.commitLag > commitLagHard;
+    if (withinBypassWindow || (!blockedByCount && !blockedByBytes && !blockedByLag)) {
       return Promise.resolve();
     }
-    const emergencyActive = refreshEmergencyCapacity('wait');
-    if (emergencyActive) {
-      return Promise.resolve();
-    }
-    if (maxPendingBeforeBackpressure <= 0 || pending.size <= maxPendingBeforeBackpressure) {
-      return Promise.resolve();
-    }
+
     return new Promise((resolve, reject) => {
       const waiter = {
         resolve,
         reject,
         settled: false,
+        orderIndex,
+        bypassWindow,
+        startedAt: Date.now(),
         timeout: null,
         stallTimer: null,
         signal,
         abortHandler: null,
-        orderIndex,
-        bypassWindow,
-        startedAtMs: Date.now(),
         stallCount: 0
       };
+
       if (timeoutMs > 0) {
         waiter.timeout = setTimeout(() => {
           const err = new Error(
-            `Ordered capacity wait timed out after ${timeoutMs}ms (pending=${pending.size}, nextIndex=${nextIndex}).`
+            `Ordered capacity wait timed out after ${timeoutMs}ms (pending=${snapshot().pendingCount}, bytes=${snapshot().pendingBytes}).`
           );
           err.code = 'ORDERED_CAPACITY_WAIT_TIMEOUT';
           err.retryable = false;
           err.meta = {
             timeoutMs,
-            pending: pending.size,
-            nextIndex,
             orderIndex,
-            bypassWindow
+            bypassWindow,
+            snapshot: snapshot()
           };
-          removeCapacityWaiter(waiter);
-          settleCapacityWaiter(waiter, (entry) => entry.reject(err));
+          removeWaiter(waiter);
+          settleWaiter(waiter, (entry) => entry.reject(err));
         }, timeoutMs);
       }
+
       if (signal) {
         waiter.abortHandler = () => {
           const reason = signal.reason;
@@ -441,11 +450,12 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
               retryable: false,
               meta: { reason }
             });
-          removeCapacityWaiter(waiter);
-          settleCapacityWaiter(waiter, (entry) => entry.reject(err));
+          removeWaiter(waiter);
+          settleWaiter(waiter, (entry) => entry.reject(err));
         };
         signal.addEventListener('abort', waiter.abortHandler, { once: true });
       }
+
       if (stallPollMs > 0 && onStall) {
         waiter.stallTimer = setInterval(() => {
           if (waiter.settled) return;
@@ -453,531 +463,344 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
           try {
             onStall({
               stallCount: waiter.stallCount,
-              elapsedMs: Math.max(0, Date.now() - waiter.startedAtMs),
-              pending: pending.size,
-              nextIndex,
-              orderIndex,
-              bypassWindow,
-              snapshot: {
-                nextIndex,
-                pendingCount: pending.size,
-                seenCount,
-                expectedCount,
-                maxPendingBeforeBackpressure,
-                maxPendingEmergency,
-                emergencyCapacityActive
-              }
+              elapsedMs: Math.max(0, Date.now() - waiter.startedAt),
+              pending: snapshot().pendingCount,
+              nextIndex: snapshot().nextCommitSeq,
+              snapshot: snapshot()
             });
           } catch {}
         }, stallPollMs);
         waiter.stallTimer.unref?.();
       }
+
       capacityWaiters.push(waiter);
     });
   };
 
-  /**
-   * Emit periodic stall diagnostics when ordered progress cannot advance.
-   *
-   * @returns {void}
-   */
-  const scheduleStallCheck = () => {
-    if (stallMs <= 0) return;
-    if (stallTimer) return;
-    stallTimer = setTimeout(() => {
-      stallTimer = null;
-      if (!pending.size) {
-        setEmergencyCapacityActive(false, 'drained');
-        return;
+  const transitionToTerminal = (seq, terminalState, { ownerId = 0, reasonCode = 0 } = {}) => {
+    const current = seqLedger.getState(seq);
+    try {
+      if (current === STAGE1_SEQ_STATE.UNSEEN) {
+        seqLedger.transition(seq, STAGE1_SEQ_STATE.DISPATCHED, { ownerId });
       }
-      refreshEmergencyCapacity('stall');
-      resolveCapacityWaiters();
-      if (!logFn) {
-        scheduleStallCheck();
-        return;
+      const afterDispatch = seqLedger.getState(seq);
+      if (afterDispatch === STAGE1_SEQ_STATE.DISPATCHED) {
+        seqLedger.transition(seq, STAGE1_SEQ_STATE.IN_FLIGHT, { ownerId });
       }
-      if (!pending.size) return;
-      if (pending.has(nextIndex)) {
-        scheduleStallCheck();
+      const inFlightState = seqLedger.getState(seq);
+      if (inFlightState === STAGE1_SEQ_STATE.IN_FLIGHT || inFlightState === STAGE1_SEQ_STATE.DISPATCHED) {
+        seqLedger.transition(seq, terminalState, { ownerId, reasonCode });
+      } else if (TERMINAL_SET.has(inFlightState)) {
+        // Retry path may have already terminalized this seq in rare races.
+      } else if (inFlightState === COMMITTED) {
         return;
-      }
-      const idleMs = Date.now() - lastActivityAt;
-      if (idleMs < stallMs) {
-        scheduleStallCheck();
-        return;
-      }
-      const window = collectPendingKeyWindow(5);
-      const head = window.head.join(', ');
-      const tail = pending.size > window.head.length ? window.tail.join(', ') : '';
-      const tailText = tail ? ` … ${tail}` : '';
-      const idleSeconds = Math.round(idleMs / 1000);
-      const seenRemaining = expectedCount != null ? Math.max(0, expectedCount - seenCount) : null;
-      const completedCount = completed.size;
-      const orderedRemaining = expectedCount != null ? Math.max(0, expectedCount - completedCount) : null;
-      if (expectedCount != null && seenRemaining > 0) {
-        emitLog(
-          `[ordered] waiting on index ${nextIndex}; idle=${idleSeconds}s; pending=${pending.size}; ` +
-          `unseen=${seenRemaining}; remaining=${orderedRemaining}; keys=${head}${tailText}`,
-          { kind: 'status' }
-        );
       } else {
-        const remainingText = orderedRemaining != null ? `; remaining=${orderedRemaining}` : '';
-        emitLog(
-          `[ordered] stalled at index ${nextIndex} for ${idleSeconds}s; pending=${pending.size}${remainingText}; keys=${head}${tailText}`,
-          { kind: 'warning' }
-        );
+        throw createStage1IllegalTransitionError({
+          seq,
+          message: `state=${inFlightState} terminal=${terminalState}`
+        });
       }
-      scheduleStallCheck();
-    }, stallMs);
-    stallTimer.unref?.();
-  };
-
-  /**
-   * Advance `nextIndex` across explicit skips and expected-order gaps.
-   *
-   * @returns {void}
-   */
-  const advancePastSkipped = () => {
-    while (true) {
-      let advanced = false;
-      while (skipped.has(nextIndex)) {
-        skipped.delete(nextIndex);
-        completed.add(nextIndex);
-        nextIndex += 1;
-        noteAdvance();
-        advanced = true;
+    } catch (error) {
+      if (error?.code === 'STAGE1_SEQ_ILLEGAL_TRANSITION') {
+        throw createStage1IllegalTransitionError({ seq, message: 'illegal transition', cause: error });
       }
-      while (expectedCursor < expectedOrder.length && expectedOrder[expectedCursor] < nextIndex) {
-        expectedCursor += 1;
-      }
-      if (expectedOrder.length) {
-        const nextExpected = expectedOrder[expectedCursor];
-        if (Number.isFinite(nextExpected) && nextExpected > nextIndex) {
-          let minPending = null;
-          if (pending.size) {
-            for (const key of pending.keys()) {
-              if (!Number.isFinite(key) || key < nextIndex) continue;
-              if (minPending == null || key < minPending) minPending = key;
-            }
-          }
-          if (Number.isFinite(minPending) && minPending < nextExpected) {
-            if (minPending > nextIndex) {
-              debugLog('[ordered] advancing to earliest pending index before expected gap', {
-                from: nextIndex,
-                to: minPending,
-                nextExpected
-              });
-              nextIndex = minPending;
-              noteAdvance();
-              advanced = true;
-              continue;
-            }
-            if (minPending === nextIndex) break;
-          }
-          debugLog('[ordered] implicit gap skip', {
-            from: nextIndex,
-            to: nextExpected
-          });
-          nextIndex = nextExpected;
-          noteAdvance();
-          advanced = true;
-          continue;
-        }
-      }
-      if (!advanced) break;
+      throw error;
     }
   };
 
-  /**
-   * Fast-forward when all expected indices are seen but an index gap remains.
-   *
-   * @returns {void}
-   */
-  const maybeFinalize = () => {
-    advancePastSkipped();
-    if (expectedCount == null) return;
-    if (seenCount < expectedCount) return;
-    if (!pending.size) return;
-    if (pending.has(nextIndex)) return;
-    if (flushing) {
-      flushRequested = true;
+  const resolveTerminalStateForDrain = (seq, envelope = null) => {
+    let stateCode = seqLedger.getState(seq);
+    if (TERMINAL_SET.has(stateCode) || stateCode === COMMITTED) {
+      return stateCode;
+    }
+    const terminalState = envelope?.terminalState;
+    if (!TERMINAL_SET.has(terminalState)) {
+      return stateCode;
+    }
+    transitionToTerminal(seq, terminalState, {
+      ownerId: 0,
+      reasonCode: Number.isFinite(Number(envelope?.reasonCode))
+        ? Math.floor(Number(envelope.reasonCode))
+        : 0
+    });
+    stateCode = seqLedger.getState(seq);
+    return stateCode;
+  };
+
+  const applyEnvelope = async (envelope, phase = 'ordered_commit') => {
+    if (!envelope || envelope.terminalState !== TERMINAL_SUCCESS || !envelope.result) return;
+    const orderIndex = envelope.seq;
+    const apply = () => handleFileResult(envelope.result, state, envelope.shardMeta, {
+      signal: flushAbortSignal,
+      orderIndex,
+      phase
+    });
+    if (flushTimeoutMs > 0) {
+      await runWithTimeout(
+        () => apply(),
+        {
+          timeoutMs: flushTimeoutMs,
+          signal: flushAbortSignal,
+          errorFactory: () => createTimeoutError({
+            message: `Ordered commit timed out while writing seq ${orderIndex}.`,
+            code: 'ORDERED_FLUSH_TIMEOUT',
+            retryable: false,
+            meta: {
+              orderIndex,
+              timeoutMs: flushTimeoutMs
+            }
+          })
+        }
+      );
       return;
     }
-    debugLog('[ordered] finalize reached expected count but nextIndex missing', {
-      nextIndex,
-      pending: pending.size,
-      expectedCount,
-      seenCount
-    });
-    let minPending = null;
-    for (const key of pending.keys()) {
-      if (!Number.isFinite(key) || key < nextIndex) continue;
-      if (minPending == null || key < minPending) minPending = key;
-    }
-    if (!Number.isFinite(minPending) || minPending <= nextIndex) return;
-    let expectedMissing = true;
-    if (expectedOrder.length) {
-      expectedMissing = false;
-      for (let i = expectedCursor; i < expectedOrder.length; i += 1) {
-        const candidate = expectedOrder[i];
-        if (candidate < nextIndex) continue;
-        if (candidate >= minPending) break;
-        if (seen?.has(candidate) || skipped.has(candidate) || pending.has(candidate)) continue;
-        expectedMissing = true;
-        break;
-      }
-    }
-    if (expectedMissing) {
-      emitLog(
-        `[ordered] missing indices ${nextIndex}-${minPending - 1}; fast-forwarding to ${minPending}`,
-        { kind: 'warning' }
-      );
-    } else {
-      debugLog('[ordered] fast-forward across implicit index gap', {
-        from: nextIndex,
-        to: minPending
-      });
-    }
-    nextIndex = minPending;
-    noteAdvance();
-    scheduleFlush().catch(() => {});
+    await apply();
   };
 
-  const noteSeen = (index) => {
-    if (!seen) return;
-    if (!Number.isFinite(index)) return;
-    if (seen.has(index)) return;
-    seen.add(index);
-    seenCount += 1;
-  };
-
-  /**
-   * Abort ordered processing and reject all pending completions.
-   *
-   * @param {any} err
-   * @returns {void}
-   */
-  const abort = (err) => {
-    if (aborted) return;
-    aborted = true;
-    setEmergencyCapacityActive(false, 'abort');
-    abortError = err instanceof Error ? err : new Error(String(err || 'Ordered appender aborted.'));
-    if (stallTimer) {
-      clearTimeout(stallTimer);
-      stallTimer = null;
-    }
-    rejectCapacityWaiters(abortError);
-    for (const entry of pending.values()) {
-      try {
-        entry?.reject?.(abortError);
-      } catch {}
-    }
-    pending.clear();
-  };
-
-  /**
-   * Flush any now-orderable pending results in deterministic index order.
-   *
-   * @returns {Promise<void>}
-   */
-  const flush = async () => {
-    debugLog('[ordered] flush start', {
-      nextIndex,
-      pending: pending.size,
-      expectedCount,
-      seenCount
-    });
-    advancePastSkipped();
-    if (pending.size) {
-      const outOfOrder = Array.from(pending.keys())
-        .filter((key) => Number.isFinite(key) && key < nextIndex)
-        .sort((a, b) => a - b);
-      if (outOfOrder.length) {
-        emitLog(
-          `[ordered] flushing ${outOfOrder.length} late index(es) < ${nextIndex}: ${outOfOrder.slice(0, 5).join(', ')}${outOfOrder.length > 5 ? ' …' : ''}`,
-          { kind: 'warning' }
-        );
-      }
-      for (const key of outOfOrder) {
-        const entry = pending.get(key);
-        pending.delete(key);
-        if (completed.has(key)) {
-          emitLog(`[ordered] dropping duplicate late result index ${key}`, { kind: 'warning' });
-          entry?.resolve?.();
-          continue;
-        }
-        try {
-          await applyOrderedResult(entry, key, 'late');
-          completed.add(key);
-          entry?.resolve?.();
-          noteActivity();
-        } catch (err) {
-          try { entry?.reject?.(err); } catch {}
-          throw err;
-        }
-      }
-    }
-    const bucketUpperBound = bucketSize > 0
-      ? (Math.floor(nextIndex / bucketSize) + 1) * bucketSize
-      : Number.POSITIVE_INFINITY;
-    while (pending.has(nextIndex) && nextIndex < bucketUpperBound) {
-      const currentIndex = nextIndex;
-      const entry = pending.get(currentIndex);
-      pending.delete(currentIndex);
-      try {
-        await applyOrderedResult(entry, currentIndex, 'ordered');
-        entry?.resolve?.();
-      } catch (err) {
-        try { entry?.reject?.(err); } catch {}
-        throw err;
-      } finally {
-        completed.add(currentIndex);
-        nextIndex = Math.max(nextIndex, currentIndex + 1);
-        noteAdvance();
-        advancePastSkipped();
-        resolveCapacityWaiters();
-      }
-    }
-    if (bucketSize > 0 && pending.has(nextIndex)) {
-      debugLog('[ordered] bucket watermark yield', {
-        nextIndex,
-        bucketUpperBound,
-        pending: pending.size
-      });
-      flushRequested = true;
-    }
-    debugLog('[ordered] flush complete', {
-      nextIndex,
-      pending: pending.size,
-      expectedCount,
-      seenCount,
-      bucketSize
-    });
-    resolveCapacityWaiters();
-  };
-
-  /**
-   * Serialize flush execution and coalesce concurrent flush requests.
-   *
-   * @returns {Promise<void>}
-   */
-  const scheduleFlush = async () => {
+  const drain = () => {
     if (flushing) {
       flushRequested = true;
       return flushing;
     }
-    flushing = (async () => {
+    const drainPromise = (async () => {
+      drainRunCount += 1;
+      drainPhase = 'scan';
       try {
-        await flush();
+        while (!aborted) {
+          drainPhase = 'scan';
+          const ledger = seqLedger.snapshot();
+          if (ledger.committedCount >= ledger.totalSeqCount) break;
+          const nextSeq = ledger.nextCommitSeq;
+          const nextState = resolveTerminalStateForDrain(nextSeq, envelopeBySeq.get(nextSeq) || null);
+          if (!TERMINAL_SET.has(nextState)) break;
+
+          const batch = [];
+          let cursor = nextSeq;
+          drainPhase = `batch:${nextSeq}`;
+          while (!aborted) {
+            const existingEnvelope = envelopeBySeq.get(cursor) || null;
+            const stateCode = resolveTerminalStateForDrain(cursor, existingEnvelope);
+            if (!TERMINAL_SET.has(stateCode)) break;
+            const envelope = existingEnvelope || ensureEnvelope(cursor);
+            envelope.terminalState = envelope.terminalState || stateCode;
+            batch.push({ seq: cursor, stateCode, envelope });
+            cursor += 1;
+          }
+
+          if (!batch.length) break;
+
+          for (const item of batch) {
+            drainPhase = `commit:${item.seq}`;
+            flushActiveSeq = item.seq;
+            flushActiveStartedAt = Date.now();
+            if (item.stateCode === TERMINAL_SUCCESS) {
+              drainPhase = `apply:${item.seq}`;
+              await applyEnvelope(item.envelope, 'ordered_commit');
+            }
+            drainPhase = `journal:${item.seq}`;
+            appendJournal({
+              seq: item.seq,
+              recordType: 'commit',
+              terminalOutcome: item.stateCode === TERMINAL_SUCCESS
+                ? 'success'
+                : item.stateCode === TERMINAL_SKIP
+                  ? 'skip'
+                  : item.stateCode === TERMINAL_CANCEL
+                    ? 'cancel'
+                    : 'fail'
+            });
+            seqLedger.transition(item.seq, COMMITTED);
+            drainCommitCount += 1;
+            const settled = releaseEnvelope(item.seq) || item.envelope;
+            if (!settled.resolved) {
+              settled.resolved = true;
+              settled.resolve();
+            }
+            drainPhase = `committed:${item.seq}`;
+            flushActiveSeq = null;
+            flushActiveStartedAt = 0;
+          }
+          resolveCapacityWaiters();
+        }
       } catch (err) {
+        drainLastErrorCode = typeof err?.code === 'string' ? err.code : (err?.name || 'ERROR');
         abort(err);
         throw err;
-      } finally {
-        flushing = null;
-        if (flushRequested && !aborted) {
-          flushRequested = false;
-          // Schedule another pass for entries queued while we were flushing.
-          scheduleFlush().catch(() => {});
-        }
       }
     })();
-    return flushing;
+    flushing = drainPromise;
+    drainPromise
+      .finally(() => {
+        drainPhase = 'idle';
+        if (flushing === drainPromise) {
+          flushing = null;
+        }
+        flushActiveSeq = null;
+        flushActiveStartedAt = 0;
+        if (flushRequested && !aborted) {
+          flushRequested = false;
+          drain().catch(() => {});
+        }
+      })
+      .catch(() => {});
+    return drainPromise;
   };
 
-  /**
-   * Recover unresolved leading index gaps so ordered flush can continue.
-   *
-   * Defaults to recovering from `nextIndex` through the index before the
-   * earliest pending entry. Callers may also pass explicit `start`/`end`.
-   *
-   * @param {{start?:number,end?:number,reason?:string}} [input]
-   * @returns {{recovered:number,start:number|null,end:number|null,nextIndex:number}}
-   */
-  const recoverMissingRange = (input = {}) => {
-    if (aborted) {
-      return { recovered: 0, start: null, end: null, nextIndex };
+  const setTerminalEnvelope = (seq, terminalState, { result = null, shardMeta = null, reasonCode = 0 } = {}) => {
+    if (!Number.isFinite(seq)) {
+      return Promise.reject(new Error(`Invalid ordered seq value: ${seq}`));
     }
-    const reason = typeof input?.reason === 'string' ? input.reason.trim() : '';
-    const explicitStart = Number.isFinite(input?.start) ? Math.floor(Number(input.start)) : null;
-    const explicitEnd = Number.isFinite(input?.end) ? Math.floor(Number(input.end)) : null;
-    let start = explicitStart != null ? explicitStart : nextIndex;
-    if (start < nextIndex) start = nextIndex;
-    let end = explicitEnd;
-    if (end == null) {
-      let minPending = null;
-      for (const key of pending.keys()) {
-        if (!Number.isFinite(key) || key < start) continue;
-        if (minPending == null || key < minPending) minPending = key;
+    const normalizedSeq = Math.floor(seq);
+    if (normalizedSeq > maxSeenSeq) maxSeenSeq = normalizedSeq;
+
+    const envelope = ensureEnvelope(normalizedSeq);
+    if (envelope.terminalState != null && envelope.terminalState !== terminalState) {
+      return Promise.reject(
+        createStage1IllegalTransitionError({
+          seq: normalizedSeq,
+          message: `duplicate terminal state prior=${envelope.terminalState} next=${terminalState}`
+        })
+      );
+    }
+
+    if (result && terminalState === TERMINAL_SUCCESS) {
+      const bytes = estimateEnvelopeBytes(result);
+      bufferedBytes = Math.max(0, bufferedBytes - envelope.bytes) + bytes;
+      envelope.bytes = bytes;
+      envelope.result = result;
+      envelope.shardMeta = shardMeta;
+    }
+    envelope.terminalState = terminalState;
+    envelope.reasonCode = Math.floor(Number(reasonCode) || 0);
+
+    transitionToTerminal(normalizedSeq, terminalState, {
+      ownerId: 0,
+      reasonCode
+    });
+
+    appendJournal({
+      seq: normalizedSeq,
+      recordType: 'terminal',
+      terminalOutcome: terminalState === TERMINAL_SUCCESS
+        ? 'success'
+        : terminalState === TERMINAL_SKIP
+          ? 'skip'
+          : terminalState === TERMINAL_CANCEL
+            ? 'cancel'
+            : 'fail'
+    });
+
+    resolveCapacityWaiters();
+    drain().catch(() => {});
+    return envelope.done;
+  };
+
+  const noteDispatched = (orderIndex, ownerId = 0) => {
+    const seq = Math.floor(Number(orderIndex));
+    if (!Number.isFinite(seq)) return;
+    const stateCode = seqLedger.getState(seq);
+    if (stateCode === STAGE1_SEQ_STATE.UNSEEN || stateCode === TERMINAL_FAIL) {
+      seqLedger.transition(seq, STAGE1_SEQ_STATE.DISPATCHED, { ownerId, nowMs: Date.now() });
+    }
+  };
+
+  const noteInFlight = (orderIndex, ownerId = 0) => {
+    const seq = Math.floor(Number(orderIndex));
+    if (!Number.isFinite(seq)) return;
+    const stateCode = seqLedger.getState(seq);
+    if (stateCode === STAGE1_SEQ_STATE.UNSEEN) {
+      seqLedger.transition(seq, STAGE1_SEQ_STATE.DISPATCHED, { ownerId, nowMs: Date.now() });
+    }
+    if (seqLedger.getState(seq) === STAGE1_SEQ_STATE.DISPATCHED) {
+      seqLedger.transition(seq, STAGE1_SEQ_STATE.IN_FLIGHT, { ownerId, nowMs: Date.now() });
+    }
+  };
+
+  const heartbeat = (orderIndex, ownerId) => seqLedger.heartbeat(Math.floor(Number(orderIndex)), ownerId, Date.now());
+
+  const reclaimExpiredLeases = () => {
+    const reclaimed = seqLedger.reclaimExpiredLeases(Date.now());
+    if (reclaimed.length) {
+      for (const seq of reclaimed) {
+        appendJournal({
+          seq,
+          recordType: 'terminal',
+          terminalOutcome: 'fail',
+          reasonCode: 910
+        });
       }
-      if (Number.isFinite(minPending) && minPending > start) {
-        end = minPending - 1;
-      } else {
-        end = start - 1;
-      }
+      drain().catch(() => {});
     }
-    if (!Number.isFinite(end) || end < start) {
-      return { recovered: 0, start: null, end: null, nextIndex };
+    return reclaimed;
+  };
+
+  const abort = (err) => {
+    if (aborted) return;
+    aborted = true;
+    abortError = err instanceof Error ? err : new Error(String(err || 'Ordered appender aborted.'));
+    while (capacityWaiters.length) {
+      settleWaiter(capacityWaiters.shift(), (entry) => entry.reject(abortError));
     }
-    let recovered = 0;
-    let recoveredStart = null;
-    let recoveredEnd = null;
-    for (let index = start; index <= end; index += 1) {
-      const pendingEntry = pending.get(index);
-      if (pendingEntry) {
-        continue;
-      }
-      if (completed.has(index)) continue;
-      noteSeen(index);
-      skipped.add(index);
-      if (recoveredStart == null) recoveredStart = index;
-      recoveredEnd = index;
-      recovered += 1;
+    for (const envelope of envelopeBySeq.values()) {
+      if (envelope.resolved) continue;
+      envelope.resolved = true;
+      try { envelope.reject(abortError); } catch {}
     }
-    if (recovered > 0) {
-      noteActivity();
-      const reasonText = reason ? ` (${reason})` : '';
-      emitLog(`[ordered] recovered missing indices ${start}-${end}${reasonText}`, { kind: 'warning' });
-      scheduleFlush().catch(() => {});
-      scheduleStallCheck();
-      maybeFinalize();
-      resolveCapacityWaiters();
+    envelopeBySeq.clear();
+    bufferedBytes = 0;
+  };
+
+  const assertCompletion = () => {
+    seqLedger.assertCompletion();
+    const stateSnapshot = snapshot();
+    if (stateSnapshot.pendingCount !== 0) {
+      const err = new Error(
+        `Stage1 ordered appender invariant failed: pending=${stateSnapshot.pendingCount}.`
+      );
+      err.code = 'STAGE1_ORDERED_PENDING_INVARIANT';
+      err.retryable = false;
+      err.meta = stateSnapshot;
+      throw err;
     }
-    return {
-      recovered,
-      start: recoveredStart,
-      end: recoveredEnd,
-      nextIndex
-    };
   };
 
   return {
     enqueue(orderIndex, result, shardMeta) {
-      if (aborted) {
-        return Promise.reject(new Error('Ordered appender aborted.'));
-      }
-      const index = Number.isFinite(orderIndex) ? orderIndex : nextIndex;
-      if (skipped.has(index)) {
-        skipped.delete(index);
-      }
-      if (Number.isFinite(orderIndex) && orderIndex < nextIndex) {
-        noteSeen(orderIndex);
-        if (completed.has(orderIndex)) {
-          emitLog(`[ordered] dropping duplicate stale result index ${orderIndex}`, { kind: 'warning' });
-          return Promise.resolve();
-        }
-        debugLog('[ordered] enqueue late', {
-          orderIndex,
-          nextIndex,
-          pending: pending.size,
-          expectedCount,
-          seenCount
-        });
-      }
-      noteSeen(index);
-      if (pending.has(index)) {
-        const existing = pending.get(index);
-        if (result && !existing.result) existing.result = result;
-        if (result && existing.result && existing.result !== result) existing.result = result;
-        if (!existing.shardMeta && shardMeta) existing.shardMeta = shardMeta;
-        noteActivity();
-        debugLog('[ordered] enqueue merge', {
-          orderIndex,
-          index,
-          nextIndex,
-          pending: pending.size,
-          expectedCount,
-          seenCount
-        });
-        scheduleFlush().catch(() => {});
-        scheduleStallCheck();
-        maybeFinalize();
-        return existing.done;
-      }
-      let resolve;
-      let reject;
-      const done = new Promise((res, rej) => {
-        resolve = res;
-        reject = rej;
+      return setTerminalEnvelope(orderIndex, TERMINAL_SUCCESS, {
+        result,
+        shardMeta,
+        reasonCode: 0
       });
-      pending.set(index, { result, shardMeta, resolve, reject, done });
-      noteActivity();
-      debugLog('[ordered] enqueue new', {
-        orderIndex,
-        index,
-        nextIndex,
-        pending: pending.size,
-        expectedCount,
-        seenCount
-      });
-      // Ensure rejections from the flush loop don't surface as unhandled.
-      scheduleFlush().catch(() => {});
-      scheduleStallCheck();
-      maybeFinalize();
-      return done;
     },
-    skip(orderIndex) {
-      if (aborted) return Promise.reject(new Error('Ordered appender aborted.'));
-      const index = Number.isFinite(orderIndex) ? orderIndex : nextIndex;
-      if (index < nextIndex) {
-        completed.add(index);
-        return Promise.resolve();
-      }
-      noteSeen(index);
-      noteActivity();
-      debugLog('[ordered] skip', {
-        orderIndex,
-        index,
-        nextIndex,
-        pending: pending.size,
-        expectedCount,
-        seenCount
+    skip(orderIndex, reasonCode = 0) {
+      return setTerminalEnvelope(orderIndex, TERMINAL_SKIP, {
+        reasonCode
       });
-      if (pending.has(index)) {
-        const entry = pending.get(index);
-        pending.delete(index);
-        try { entry?.resolve?.(); } catch {}
-        completed.add(index);
-        resolveCapacityWaiters();
-      }
-      skipped.add(index);
-      // Ensure we advance if the skipped index is next up.
-      scheduleFlush().catch(() => {});
-      scheduleStallCheck();
-      maybeFinalize();
-      return Promise.resolve();
     },
+    fail(orderIndex, reasonCode = 1) {
+      return setTerminalEnvelope(orderIndex, TERMINAL_FAIL, {
+        reasonCode
+      });
+    },
+    cancel(orderIndex, reasonCode = 2) {
+      return setTerminalEnvelope(orderIndex, TERMINAL_CANCEL, {
+        reasonCode
+      });
+    },
+    noteDispatched,
+    noteInFlight,
+    heartbeat,
+    reclaimExpiredLeases,
     peekNextIndex() {
-      return nextIndex;
+      return snapshot().nextCommitSeq;
     },
-    recoverMissingRange,
-    snapshot() {
-      const keys = Array.from(pending.keys())
-        .filter((value) => Number.isFinite(value))
-        .sort((a, b) => a - b);
-      const flushActive = flushActiveStartedAt > 0
-        ? {
-          orderIndex: flushActiveOrderIndex,
-          phase: flushActivePhase,
-          startedAt: new Date(flushActiveStartedAt).toISOString(),
-          elapsedMs: Math.max(0, Date.now() - flushActiveStartedAt)
-        }
-        : null;
-      return {
-        nextIndex,
-        pendingCount: pending.size,
-        pendingHead: keys.slice(0, 8),
-        seenCount,
-        expectedCount,
-        completedCount: completed.size,
-        maxPendingBeforeBackpressure,
-        maxPendingEmergency,
-        emergencyCapacityActive,
-        lastAdvanceAt,
-        lastActivityAt,
-        flushActive
-      };
-    },
+    snapshot,
     waitForCapacity,
-    abort
+    abort,
+    drain,
+    assertCompletion,
+    journal() {
+      return commitJournal.slice();
+    }
   };
 };

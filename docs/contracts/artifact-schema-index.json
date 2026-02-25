@@ -1,5 +1,5 @@
 {
-  "schemaHash": "2bf3c9b438c8c2b94f0fe2970b897e25ba4e9c64",
+  "schemaHash": "af96b7e0686e5b9aadc0aad3e97463292b06038d",
   "artifacts": [
     {
       "artifact": "api_contracts",
@@ -243,6 +243,32 @@
       ]
     },
     {
+      "artifact": "dense_vectors_binary_meta",
+      "schemaVersion": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "requiredFields": [
+        "count",
+        "dims",
+        "path"
+      ],
+      "optionalFields": [
+        "artifact",
+        "bytes",
+        "format",
+        "generatedAt",
+        "levels",
+        "maxVal",
+        "minVal",
+        "model",
+        "scale",
+        "schemaVersion"
+      ]
+    },
+    {
       "artifact": "dense_vectors_code",
       "schemaVersion": null,
       "requiredFields": [
@@ -255,6 +281,32 @@
         "minVal",
         "model",
         "scale"
+      ]
+    },
+    {
+      "artifact": "dense_vectors_code_binary_meta",
+      "schemaVersion": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "requiredFields": [
+        "count",
+        "dims",
+        "path"
+      ],
+      "optionalFields": [
+        "artifact",
+        "bytes",
+        "format",
+        "generatedAt",
+        "levels",
+        "maxVal",
+        "minVal",
+        "model",
+        "scale",
+        "schemaVersion"
       ]
     },
     {
@@ -312,6 +364,32 @@
         "minVal",
         "model",
         "scale"
+      ]
+    },
+    {
+      "artifact": "dense_vectors_doc_binary_meta",
+      "schemaVersion": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "requiredFields": [
+        "count",
+        "dims",
+        "path"
+      ],
+      "optionalFields": [
+        "artifact",
+        "bytes",
+        "format",
+        "generatedAt",
+        "levels",
+        "maxVal",
+        "minVal",
+        "model",
+        "scale",
+        "schemaVersion"
       ]
     },
     {

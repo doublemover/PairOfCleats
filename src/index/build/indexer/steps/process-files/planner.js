@@ -8,6 +8,10 @@ const DEFAULT_POSTINGS_ROWS_PER_PENDING = 300;
 const DEFAULT_POSTINGS_BYTES_PER_PENDING = 12 * 1024 * 1024;
 const DEFAULT_POSTINGS_PENDING_SCALE = 4;
 const DEFAULT_POSTINGS_RESERVE_TIMEOUT_MS = 2 * 60 * 1000;
+const DEFAULT_WINDOW_TARGET_COST = 500;
+const DEFAULT_WINDOW_MAX_COST = 1000;
+const DEFAULT_WINDOW_MAX_BYTES = 64 * 1024 * 1024;
+const DEFAULT_WINDOW_MAX_SEQ_SPAN = 256;
 const LEXICON_FILTER_LOG_LIMIT = 5;
 const MB = 1024 * 1024;
 
@@ -83,6 +87,7 @@ export const resolvePostingsQueueConfig = (runtime) => {
  */
 export const resolveOrderedAppenderConfig = (runtime) => {
   const config = runtime?.stage1Queues?.ordered || {};
+  const windowConfig = runtime?.stage1Queues?.window || {};
   const cpuPending = Number.isFinite(runtime?.queues?.cpu?.maxPending)
     ? runtime.queues.cpu.maxPending
     : null;
@@ -93,11 +98,74 @@ export const resolveOrderedAppenderConfig = (runtime) => {
     ?? cpuPending
     ?? Math.max(128, fileConcurrency * 20);
   const maxPendingEmergencyFactor = Number(config.maxPendingEmergencyFactor);
+  const maxPendingBytes = coercePositiveInt(config.maxPendingBytes)
+    ?? coercePositiveInt(windowConfig.maxWindowBytes)
+    ?? DEFAULT_WINDOW_MAX_BYTES;
+  const commitLagHard = coercePositiveInt(config.commitLagHard)
+    ?? coercePositiveInt(windowConfig.maxInFlightSeqSpan)
+    ?? DEFAULT_WINDOW_MAX_SEQ_SPAN;
+  const resumeHysteresisRatioRaw = Number(config.resumeHysteresisRatio);
   return {
     maxPendingBeforeBackpressure,
+    maxPendingBytes,
+    commitLagHard,
+    resumeHysteresisRatio: Number.isFinite(resumeHysteresisRatioRaw)
+      ? Math.max(0.1, Math.min(0.95, resumeHysteresisRatioRaw))
+      : 0.7,
     maxPendingEmergencyFactor: Number.isFinite(maxPendingEmergencyFactor) && maxPendingEmergencyFactor > 1
       ? maxPendingEmergencyFactor
       : undefined
+  };
+};
+
+/**
+ * Resolve contiguous seq-window planner settings from runtime config.
+ *
+ * @param {object} runtime
+ * @returns {{
+ *   targetWindowCost:number,
+ *   maxWindowCost:number,
+ *   maxWindowBytes:number,
+ *   maxInFlightSeqSpan:number,
+ *   minWindowEntries:number,
+ *   maxWindowEntries:number,
+ *   maxActiveWindows:number
+ * }}
+ */
+export const resolveWindowPlannerConfig = (runtime) => {
+  const config = runtime?.stage1Queues?.window && typeof runtime.stage1Queues.window === 'object'
+    ? runtime.stage1Queues.window
+    : {};
+  const fileConcurrency = Number.isFinite(runtime?.fileConcurrency)
+    ? Math.max(1, Math.floor(runtime.fileConcurrency))
+    : 1;
+  const targetWindowCost = coercePositiveInt(config.targetWindowCost)
+    ?? Math.max(DEFAULT_WINDOW_TARGET_COST, fileConcurrency * DEFAULT_WINDOW_TARGET_COST);
+  const maxWindowCost = coercePositiveInt(config.maxWindowCost)
+    ?? Math.max(DEFAULT_WINDOW_MAX_COST, Math.floor(targetWindowCost * 2));
+  const maxWindowBytes = coercePositiveInt(config.maxWindowBytes)
+    ?? DEFAULT_WINDOW_MAX_BYTES;
+  const maxInFlightSeqSpan = coercePositiveInt(config.maxInFlightSeqSpan)
+    ?? Math.max(DEFAULT_WINDOW_MAX_SEQ_SPAN, fileConcurrency * 32);
+  const minWindowEntries = coercePositiveInt(config.minWindowEntries)
+    ?? Math.max(1, Math.min(16, fileConcurrency));
+  const maxWindowEntries = Math.max(
+    minWindowEntries,
+    coercePositiveInt(config.maxWindowEntries)
+    ?? Math.max(minWindowEntries, fileConcurrency * 64)
+  );
+  const maxActiveWindows = Math.max(
+    1,
+    Math.min(2, coercePositiveInt(config.maxActiveWindows) ?? 2)
+  );
+  return {
+    targetWindowCost,
+    maxWindowCost,
+    maxWindowBytes,
+    maxInFlightSeqSpan,
+    minWindowEntries,
+    maxWindowEntries,
+    maxActiveWindows
   };
 };
 

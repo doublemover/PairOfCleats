@@ -162,7 +162,7 @@ export const createRuntimeTelemetry = () => {
  * numeric overrides into safe integer/fraction values.
  *
  * @param {object} [indexingConfig]
- * @returns {{tokenize:object,postings:object,ordered:object,watchdog:object}}
+ * @returns {{tokenize:object,postings:object,ordered:object,window:object,watchdog:object}}
  */
 export const resolveStage1Queues = (indexingConfig = {}) => {
   const stage1 = indexingConfig?.stage1 && typeof indexingConfig.stage1 === 'object'
@@ -176,6 +176,9 @@ export const resolveStage1Queues = (indexingConfig = {}) => {
     : {};
   const ordered = stage1?.ordered && typeof stage1.ordered === 'object'
     ? stage1.ordered
+    : {};
+  const window = stage1?.window && typeof stage1.window === 'object'
+    ? stage1.window
     : {};
   const watchdog = stage1?.watchdog && typeof stage1.watchdog === 'object'
     ? stage1.watchdog
@@ -197,6 +200,30 @@ export const resolveStage1Queues = (indexingConfig = {}) => {
   const orderedMaxPending = coercePositiveInt(ordered.maxPending);
   const orderedBucketSize = coercePositiveInt(ordered.bucketSize);
   const orderedMaxPendingEmergencyFactor = Number(ordered.maxPendingEmergencyFactor);
+  const orderedMaxPendingBytes = coercePositiveInt(ordered.maxPendingBytes);
+  const orderedCommitLagHard = coercePositiveInt(ordered.commitLagHard);
+  const orderedResumeHysteresisRatio = coerceClampedFraction(ordered.resumeHysteresisRatio, {
+    min: 0.1,
+    max: 0.95,
+    allowZero: false
+  });
+  const windowTargetWindowCost = coercePositiveInt(window.targetWindowCost);
+  const windowMaxWindowCost = coercePositiveInt(window.maxWindowCost);
+  const windowMaxWindowBytes = coercePositiveInt(window.maxWindowBytes);
+  const windowMaxInFlightSeqSpan = coercePositiveInt(window.maxInFlightSeqSpan);
+  const windowMinWindowEntries = coercePositiveInt(window.minWindowEntries);
+  const windowMaxWindowEntries = coercePositiveInt(window.maxWindowEntries);
+  const windowMaxActiveWindows = coercePositiveInt(window.maxActiveWindows);
+  const windowAdaptive = window.adaptive === false ? false : true;
+  const windowAdaptiveShrinkFactor = coerceClampedFraction(window.adaptiveShrinkFactor, {
+    min: 0.1,
+    max: 1,
+    allowZero: false
+  });
+  const windowAdaptiveGrowFactor = Number(window.adaptiveGrowFactor);
+  const windowCommitLagSoft = coerceNonNegativeInt(window.commitLagSoft);
+  const windowBufferedBytesSoft = coercePositiveInt(window.bufferedBytesSoft);
+  const windowLeaseTimeoutMs = coercePositiveInt(window.leaseTimeoutMs);
   const watchdogSlowFileMs = coerceOptionalNonNegativeInt(
     watchdog.slowFileMs ?? stage1.fileWatchdogMs
   );
@@ -238,10 +265,30 @@ export const resolveStage1Queues = (indexingConfig = {}) => {
     ordered: {
       maxPending: orderedMaxPending,
       bucketSize: orderedBucketSize,
+      maxPendingBytes: orderedMaxPendingBytes,
+      commitLagHard: orderedCommitLagHard,
+      resumeHysteresisRatio: orderedResumeHysteresisRatio,
       maxPendingEmergencyFactor: Number.isFinite(orderedMaxPendingEmergencyFactor)
         && orderedMaxPendingEmergencyFactor > 1
         ? orderedMaxPendingEmergencyFactor
         : null
+    },
+    window: {
+      targetWindowCost: windowTargetWindowCost,
+      maxWindowCost: windowMaxWindowCost,
+      maxWindowBytes: windowMaxWindowBytes,
+      maxInFlightSeqSpan: windowMaxInFlightSeqSpan,
+      minWindowEntries: windowMinWindowEntries,
+      maxWindowEntries: windowMaxWindowEntries,
+      maxActiveWindows: windowMaxActiveWindows,
+      adaptive: windowAdaptive,
+      adaptiveShrinkFactor: windowAdaptiveShrinkFactor,
+      adaptiveGrowFactor: Number.isFinite(windowAdaptiveGrowFactor) && windowAdaptiveGrowFactor > 0
+        ? windowAdaptiveGrowFactor
+        : null,
+      commitLagSoft: windowCommitLagSoft,
+      bufferedBytesSoft: windowBufferedBytesSoft,
+      leaseTimeoutMs: windowLeaseTimeoutMs
     },
     watchdog: {
       slowFileMs: watchdogSlowFileMs,

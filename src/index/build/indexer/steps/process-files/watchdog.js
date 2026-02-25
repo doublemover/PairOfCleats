@@ -48,6 +48,22 @@ const clampDurationMs = (value) => {
 };
 
 /**
+ * Resolve commit-cursor lag from highest seen seq and next commit seq.
+ *
+ * @param {{maxSeenSeq?:number,nextCommitSeq?:number}} [input]
+ * @returns {number}
+ */
+export const resolveCommitLag = ({
+  maxSeenSeq = 0,
+  nextCommitSeq = 0
+} = {}) => {
+  const maxSeen = Number(maxSeenSeq);
+  const nextCommit = Number(nextCommitSeq);
+  if (!Number.isFinite(maxSeen) || !Number.isFinite(nextCommit)) return 0;
+  return Math.max(0, Math.floor(maxSeen) - Math.floor(nextCommit));
+};
+
+/**
  * Classify file size into stable stage-timing telemetry bins.
  *
  * @param {number} bytes
