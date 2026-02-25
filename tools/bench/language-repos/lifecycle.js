@@ -24,7 +24,7 @@ export const ensureBenchConfig = async (repoPath, cacheRoot) => {
  * @typedef {object} RepoLifecycle
  * @property {(repoPath:string) => boolean} hasRepoPath
  * @property {(input:{task:object,repoPath:string,repoLabel:string}) => Promise<{ok:boolean,failureCode?:number|null,schedulerEvents?:object[]}>} ensureRepoPresent
- * @property {(input:{repoPath:string}) => Promise<void>} prepareRepoWorkspace
+ * @property {(input:{repoPath:string}) => Promise<{ok:boolean,failureReason?:string,failureCode?:number|null}>} prepareRepoWorkspace
  * @property {(input:{repoCacheRoot:string,repoLabel:string}) => Promise<void>} cleanRepoCache
  * @property {(input:{
  *   task:object,
@@ -156,19 +156,30 @@ export const createRepoLifecycle = ({
    * Run repo-local preflight and ensure repo-scoped bench config once.
    *
    * @param {{repoPath:string}} input
-   * @returns {Promise<void>}
+   * @returns {Promise<{ok:boolean,failureReason?:string,failureCode?:number|null}>}
    */
   const prepareRepoWorkspace = async ({ repoPath }) => {
     if (!dryRun) {
-      ensureRepoBenchmarkReady({
+      const preflightSummary = ensureRepoBenchmarkReady({
         repoPath,
         onLog: appendLog
       });
+      if (preflightSummary?.ok === false) {
+        const repoName = path.basename(repoPath);
+        const detail = preflightSummary.failureDetail || preflightSummary.failureReason || 'unknown';
+        appendLog(`[error] repo preflight failed (${repoName}): ${detail}`, 'error');
+        return {
+          ok: false,
+          failureReason: preflightSummary.failureReason || 'preflight',
+          failureCode: preflightSummary.failureCode ?? null
+        };
+      }
     }
     if (!ensuredBenchConfig.has(repoPath)) {
       await ensureBenchConfig(repoPath, cacheRoot);
       ensuredBenchConfig.add(repoPath);
     }
+    return { ok: true };
   };
 
   /**

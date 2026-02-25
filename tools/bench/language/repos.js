@@ -105,6 +105,30 @@ const firstOutputLine = (result) => {
   return text || 'no output';
 };
 
+const collectOutputLines = (value) => (
+  String(value || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+);
+
+const summarizeFailureTail = (result, { maxLines = 4 } = {}) => {
+  const stderrLines = collectOutputLines(result?.stderr);
+  const stdoutLines = collectOutputLines(result?.stdout);
+  const merged = [...stderrLines, ...stdoutLines];
+  if (merged.length === 0) return 'no output';
+  const selected = merged.slice(-Math.max(1, Math.floor(maxLines)));
+  const status = normalizeStatusCode(result?.status);
+  const prefix = [
+    Number.isFinite(status) ? `status=${status}` : null,
+    result?.timedOut === true ? 'timedOut=1' : null
+  ].filter(Boolean);
+  return [
+    prefix.length > 0 ? `${prefix.join(' ')}` : null,
+    selected.join(' | ')
+  ].filter(Boolean).join(' ');
+};
+
 const runGit = (args, { timeoutMs = DEFAULT_PREFLIGHT_TIMEOUT_MS } = {}) => {
   return runGitCommand(args, { timeoutMs });
 };
@@ -310,18 +334,39 @@ export const ensureRepoBenchmarkReady = ({
     onLog(message, level);
   };
   const summary = {
+    ok: true,
+    failureReason: null,
+    failureCode: null,
+    failureDetail: null,
     gitRepo: false,
     submodules: {
       detected: 0,
+      initialMissing: 0,
+      initialDirty: 0,
       missing: 0,
       dirty: 0,
-      updated: false
+      updated: false,
+      rewriteGithubSshToHttps: false
     },
     lfs: {
       supported: false,
       tracked: 0,
       pulled: false
     }
+  };
+  const markFailure = ({
+    reason,
+    code = null,
+    detail = null
+  }) => {
+    summary.ok = false;
+    summary.failureReason = typeof reason === 'string' && reason.trim()
+      ? reason.trim()
+      : 'preflight';
+    summary.failureCode = normalizeStatusCode(code);
+    summary.failureDetail = typeof detail === 'string' && detail.trim()
+      ? detail.trim()
+      : null;
   };
   if (!repoPath || !fs.existsSync(repoPath)) return summary;
   if (!canRun('git', ['--version'])) return summary;
@@ -341,34 +386,94 @@ export const ensureRepoBenchmarkReady = ({
       timeoutMs: preflightTimeoutMs
     });
     if (!statusResult.ok) {
+      const detail = summarizeFailureTail(statusResult);
       log(
-        `[repo-preflight] submodule status check failed (${repoName}): ${firstOutputLine(statusResult)}`,
+        `[repo-preflight] submodule status check failed (${repoName}): ${detail}`,
         'warn'
       );
+      markFailure({
+        reason: 'preflight-submodule-status',
+        code: statusResult.status,
+        detail
+      });
+      return summary;
     } else {
       const entries = parseSubmoduleStatusLines(statusResult.stdout);
       summary.submodules.detected = entries.length;
-      summary.submodules.missing = entries.filter((entry) => entry.missing).length;
-      summary.submodules.dirty = entries.filter((entry) => entry.dirty).length;
-      if (summary.submodules.missing > 0 || summary.submodules.dirty > 0) {
+      const initialMissing = entries.filter((entry) => entry.missing).length;
+      const initialDirty = entries.filter((entry) => entry.dirty).length;
+      summary.submodules.initialMissing = initialMissing;
+      summary.submodules.initialDirty = initialDirty;
+      summary.submodules.missing = initialMissing;
+      summary.submodules.dirty = initialDirty;
+      if (initialMissing > 0 || initialDirty > 0) {
         runGitInRepo(repoPath, ['submodule', 'sync', '--recursive'], {
           timeoutMs: Math.min(preflightTimeoutMs, 45000)
         });
+        let updateArgs = ['submodule', 'update', '--init', '--recursive', '--jobs', '8'];
+        try {
+          const gitmodulesRaw = fs.readFileSync(gitmodulesPath, 'utf8');
+          if (/git@github\.com:/i.test(gitmodulesRaw)) {
+            summary.submodules.rewriteGithubSshToHttps = true;
+            updateArgs = [
+              '-c',
+              'url.https://github.com/.insteadOf=git@github.com:',
+              ...updateArgs
+            ];
+            log(`[repo-preflight] rewriting GitHub SSH submodule URLs to HTTPS (${repoName}).`);
+          }
+        } catch {}
         const updateResult = runGitInRepo(
           repoPath,
-          ['submodule', 'update', '--init', '--recursive', '--jobs', '8'],
+          updateArgs,
           { timeoutMs: preflightTimeoutMs }
         );
         if (!updateResult.ok) {
+          const detail = summarizeFailureTail(updateResult);
           log(
-            `[repo-preflight] submodule init failed (${repoName}): ${firstOutputLine(updateResult)}`,
+            `[repo-preflight] submodule init failed (${repoName}): ${detail}`,
             'warn'
           );
+          markFailure({
+            reason: 'preflight-submodule-init',
+            code: updateResult.status,
+            detail
+          });
+          return summary;
         } else {
+          const verifyResult = runGitInRepo(repoPath, ['submodule', 'status', '--recursive'], {
+            timeoutMs: preflightTimeoutMs
+          });
+          if (!verifyResult.ok) {
+            const detail = summarizeFailureTail(verifyResult);
+            log(
+              `[repo-preflight] submodule verification failed (${repoName}): ${detail}`,
+              'warn'
+            );
+            markFailure({
+              reason: 'preflight-submodule-verify',
+              code: verifyResult.status,
+              detail
+            });
+            return summary;
+          }
+          const verifiedEntries = parseSubmoduleStatusLines(verifyResult.stdout);
+          summary.submodules.missing = verifiedEntries.filter((entry) => entry.missing).length;
+          summary.submodules.dirty = verifiedEntries.filter((entry) => entry.dirty).length;
+          if (summary.submodules.missing > 0 || summary.submodules.dirty > 0) {
+            const detail = `remaining missing=${summary.submodules.missing}, dirty=${summary.submodules.dirty}`;
+            log(`[repo-preflight] submodule initialization incomplete (${repoName}): ${detail}.`, 'warn');
+            markFailure({
+              reason: 'preflight-submodule-incomplete',
+              code: null,
+              detail
+            });
+            return summary;
+          }
           summary.submodules.updated = true;
           log(
             `[repo-preflight] submodules ready (${repoName}) ` +
-            `(missing=${summary.submodules.missing}, dirty=${summary.submodules.dirty}).`
+            `(missing=${summary.submodules.initialMissing}, dirty=${summary.submodules.initialDirty}).`
           );
         }
       }

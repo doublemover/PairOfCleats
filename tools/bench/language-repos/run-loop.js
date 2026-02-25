@@ -508,7 +508,35 @@ export const runBenchExecutionLoop = async ({
         continue;
       }
 
-      await lifecycle.prepareRepoWorkspace({ repoPath });
+      const preflightState = await lifecycle.prepareRepoWorkspace({ repoPath });
+      if (!preflightState?.ok) {
+        appendLog(`[error] preflight failed for ${repoLabel}; continuing.`, 'error');
+        const crashRetention = await lifecycle.attachCrashRetention({
+          task,
+          repoLabel,
+          repoPath,
+          repoCacheRoot,
+          outFile: null,
+          failureReason: preflightState.failureReason || 'preflight',
+          failureCode: preflightState.failureCode ?? null,
+          schedulerEvents: []
+        });
+        progressRuntime.completeRepo();
+        appendLog('[metrics] failed (preflight)');
+        results.push({
+          ...task,
+          repoPath,
+          outFile: null,
+          summary: null,
+          failed: true,
+          failureReason: preflightState.failureReason || 'preflight',
+          failureCode: preflightState.failureCode ?? null,
+          ...(crashRetention
+            ? { diagnostics: { crashRetention } }
+            : {})
+        });
+        continue;
+      }
 
       const { repoUserConfig, repoRuntimeConfig } = loadRepoRuntime(repoPath);
       const hasHeapFlag = baseNodeOptionsHasHeapFlag;
