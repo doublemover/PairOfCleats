@@ -65,4 +65,24 @@ assert.equal(
   'dense binary loader should reject traversal paths in .bin.meta.json'
 );
 
+await fs.writeFile(metaPath, JSON.stringify({
+  fields: {
+    schemaVersion: '1.0.0',
+    artifact: baseName,
+    format: 'uint8-row-major',
+    path: `${baseName}.bin`,
+    dims: 3,
+    model: 'demo-model'
+  }
+}), 'utf8');
+
+assert.throws(
+  () => loadSqliteIndexOptionalArtifacts(tempDir, { modelId: 'fallback-model' }),
+  (error) => (
+    error?.code === 'ERR_SQLITE_DENSE_BINARY_META_INVALID'
+    && /missing required positive count/.test(String(error?.message || ''))
+  ),
+  'dense binary loader should hard-fail when .bin.meta.json omits count'
+);
+
 console.log('sqlite utils dense binary load test passed');

@@ -449,13 +449,25 @@ const loadOptionalDenseBinary = (dir, baseName, modelId) => {
     : `${baseName}.bin`;
   const binPath = joinPathSafe(dir, [relPath]);
   if (!binPath || !fs.existsSync(binPath)) return null;
+  const failDenseBinaryMeta = (reason) => {
+    const error = new Error(`[sqlite] dense binary meta invalid for ${baseName}: ${reason}`);
+    error.code = 'ERR_SQLITE_DENSE_BINARY_META_INVALID';
+    throw error;
+  };
   const dims = Number.isFinite(Number(meta.dims)) ? Math.max(0, Math.floor(Number(meta.dims))) : 0;
+  if (!dims) {
+    failDenseBinaryMeta('missing required positive dims in .bin.meta.json');
+  }
   const count = Number.isFinite(Number(meta.count)) ? Math.max(0, Math.floor(Number(meta.count))) : 0;
-  if (!dims || !count) return null;
+  if (!count) {
+    failDenseBinaryMeta('missing required positive count in .bin.meta.json');
+  }
   const expectedBytes = dims * count;
   try {
     const fileBytes = Number(fs.statSync(binPath).size) || 0;
-    if (fileBytes < expectedBytes) return null;
+    if (fileBytes < expectedBytes) {
+      failDenseBinaryMeta(`binary payload too small (expected >= ${expectedBytes} bytes, found ${fileBytes})`);
+    }
   } catch {
     return null;
   }
@@ -478,7 +490,9 @@ const loadOptionalDenseBinary = (dir, baseName, modelId) => {
     meta: metaRaw,
     modelId: modelId || null
   });
-  if (!dense) return null;
+  if (!dense) {
+    failDenseBinaryMeta('failed to materialize dense vectors from .bin.meta.json');
+  }
   const rows = (async function* iterateRows() {
     for (let docId = 0; docId < count; docId += 1) {
       const start = docId * dims;
