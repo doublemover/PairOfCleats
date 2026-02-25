@@ -3519,9 +3519,11 @@ export const processFiles = async ({
                   if (Number.isFinite(orderIndex)) {
                     lifecycleByOrderIndex.delete(Math.floor(orderIndex));
                   }
-                  await orderedAppender.skip(orderIndex);
-                  lastOrderedCompletionAt = Date.now();
-                  refreshStage1ActiveWindows();
+                  const completion = orderedAppender.skip(orderIndex);
+                  orderedCompletionTracker.track(completion, () => {
+                    lastOrderedCompletionAt = Date.now();
+                    refreshStage1ActiveWindows();
+                  });
                   return;
                 }
                 if (Number.isFinite(orderIndex)) {
@@ -3602,9 +3604,11 @@ export const processFiles = async ({
                 if (Number.isFinite(orderIndex)) {
                   lifecycleByOrderIndex.delete(Math.floor(orderIndex));
                 }
-                await orderedAppender.skip(orderIndex);
-                lastOrderedCompletionAt = Date.now();
-                refreshStage1ActiveWindows();
+                const completion = orderedAppender.skip(orderIndex);
+                orderedCompletionTracker.track(completion, () => {
+                  lastOrderedCompletionAt = Date.now();
+                  refreshStage1ActiveWindows();
+                });
               } finally {
                 clearInFlightFile(orderIndex);
               }
