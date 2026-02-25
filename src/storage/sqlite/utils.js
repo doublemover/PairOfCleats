@@ -24,6 +24,7 @@ import {
   loadOptionalWithFallback,
   iterateOptionalWithFallback
 } from '../../shared/index-artifact-helpers.js';
+import { getEnvConfig } from '../../shared/env.js';
 
 /**
  * Split an array into fixed-size chunks.
@@ -52,7 +53,8 @@ const SQLITE_TX_ROWS_MAX = 250000;
 const DEFAULT_DENSE_BINARY_MAX_INLINE_MB = 512;
 
 const resolveDenseBinaryMaxInlineBytes = () => {
-  const fromMb = Number(process.env.PAIROFCLEATS_DENSE_BINARY_MAX_INLINE_MB);
+  const envConfig = getEnvConfig();
+  const fromMb = Number(envConfig?.denseBinaryMaxInlineMb);
   if (Number.isFinite(fromMb) && fromMb > 0) {
     return Math.floor(fromMb * BYTES_PER_MB);
   }
@@ -458,18 +460,33 @@ const loadOptionalDenseBinary = (dir, baseName, modelId) => {
   if (!dims) {
     failDenseBinaryMeta('missing required positive dims in .bin.meta.json');
   }
-  const count = Number.isFinite(Number(meta.count)) ? Math.max(0, Math.floor(Number(meta.count))) : 0;
-  if (!count) {
-    failDenseBinaryMeta('missing required positive count in .bin.meta.json');
+  const rawCount = Number(meta.count);
+  if (!Number.isFinite(rawCount) || rawCount < 0) {
+    failDenseBinaryMeta('missing required non-negative count in .bin.meta.json');
   }
+  const count = Math.floor(rawCount);
   const expectedBytes = dims * count;
+  let fileBytes = 0;
   try {
-    const fileBytes = Number(fs.statSync(binPath).size) || 0;
-    if (fileBytes < expectedBytes) {
-      failDenseBinaryMeta(`binary payload too small (expected >= ${expectedBytes} bytes, found ${fileBytes})`);
-    }
+    fileBytes = Number(fs.statSync(binPath).size) || 0;
   } catch {
     return null;
+  }
+  if (fileBytes < expectedBytes) {
+    failDenseBinaryMeta(`binary payload too small (expected >= ${expectedBytes} bytes, found ${fileBytes})`);
+  }
+  if (count === 0) {
+    const rows = (async function* iterateRows() {})();
+    return {
+      ...meta,
+      model: meta.model || modelId || null,
+      dims,
+      count: 0,
+      path: relPath,
+      buffer: new Uint8Array(0),
+      rows,
+      streamed: false
+    };
   }
   const maxInlineBytes = resolveDenseBinaryMaxInlineBytes();
   if (expectedBytes > maxInlineBytes) {

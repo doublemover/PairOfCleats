@@ -72,7 +72,7 @@ const resolveExtractedProsePathFamily = (value) => {
   const firstSegment = bounded.replace(/^\/+/, '').split('/')[0];
   return firstSegment || EXTRACTED_PROSE_YIELD_PROFILE_PATH_FAMILY_DEFAULT;
 };
-const buildExtractedProseYieldProfileFamily = ({ relPath = null, absPath = null, ext = null } = {}) => {
+export const buildExtractedProseYieldProfileFamily = ({ relPath = null, absPath = null, ext = null } = {}) => {
   const normalizedPath = normalizeProseProbePath(relPath || absPath || '');
   const normalizedExt = normalizeProseProbeExt(ext);
   const pathFamily = resolveExtractedProsePathFamily(normalizedPath);

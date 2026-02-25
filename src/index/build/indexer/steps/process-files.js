@@ -1,3 +1,4 @@
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
   runWithQueue,
@@ -12,6 +13,7 @@ import { createTimeoutError, runWithTimeout } from '../../../../shared/promise-t
 import { coerceNonNegativeInt, coercePositiveInt } from '../../../../shared/number-coerce.js';
 import { coerceAbortSignal, throwIfAborted } from '../../../../shared/abort.js';
 import { compareStrings } from '../../../../shared/sort.js';
+import { atomicWriteJson } from '../../../../shared/io/atomic-write.js';
 import {
   snapshotTrackedSubprocesses,
   terminateTrackedSubprocesses,
@@ -31,6 +33,8 @@ import { createTokenRetentionState } from './postings.js';
 import { createPostingsQueue, estimatePostingsPayload } from './process-files/postings-queue.js';
 import { buildOrderedAppender } from './process-files/ordered.js';
 import { createShardRuntime, resolveCheckpointBatchSize } from './process-files/runtime.js';
+import { normalizeExtractedProseYieldProfilePrefilterConfig } from '../../../chunking/formats/document-common.js';
+import { buildExtractedProseYieldProfileFamily } from '../../file-processor/skip.js';
 import {
   buildContiguousSeqWindows,
   buildDeterministicShardMergePlan,
@@ -109,9 +113,181 @@ const STAGE1_ORDERED_FLUSH_TIMEOUT_FALLBACK_MS = 90 * 1000;
 const STAGE1_ORDERED_COMPLETION_STALL_POLL_DEFAULT_MS = 5000;
 const STAGE_TIMING_SCHEMA_VERSION = 1;
 const FILE_QUEUE_DELAY_HISTOGRAM_BUCKETS_MS = Object.freeze([50, 100, 250, 500, 1000, 2000, 5000, 10000, 30000, 60000]);
+const EXTRACTED_PROSE_RUNTIME_STATE_DIR = 'runtime';
+const EXTRACTED_PROSE_YIELD_PROFILE_FILE = 'extracted-prose-yield-profile.json';
+const EXTRACTED_PROSE_YIELD_PROFILE_VERSION = 1;
+const DOCUMENT_EXTRACTION_CACHE_FILE = 'document-extraction-cache.json';
+const DOCUMENT_EXTRACTION_CACHE_VERSION = 1;
 const NOOP_RESERVATION = Object.freeze({
   release() {}
 });
+
+const isPlainObject = (value) => (
+  value && typeof value === 'object' && !Array.isArray(value)
+);
+
+const toSafeNonNegativeInt = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return 0;
+  return Math.floor(parsed);
+};
+
+const normalizeYieldProfileFamilyStats = (value) => {
+  const observedFiles = toSafeNonNegativeInt(value?.observedFiles);
+  const yieldedFiles = Math.min(observedFiles, toSafeNonNegativeInt(value?.yieldedFiles));
+  const chunkCount = toSafeNonNegativeInt(value?.chunkCount);
+  return {
+    observedFiles,
+    yieldedFiles,
+    chunkCount,
+    yieldRatio: observedFiles > 0 ? yieldedFiles / observedFiles : 0
+  };
+};
+
+const normalizeYieldProfileEntry = (value, configFallback = null) => {
+  const entry = isPlainObject(value) ? value : {};
+  const families = isPlainObject(entry.families) ? entry.families : {};
+  const normalizedFamilies = {};
+  for (const [familyKey, familyStats] of Object.entries(families)) {
+    if (!familyKey) continue;
+    normalizedFamilies[familyKey] = normalizeYieldProfileFamilyStats(familyStats);
+  }
+  const totals = normalizeYieldProfileFamilyStats(entry.totals || {});
+  return {
+    config: normalizeExtractedProseYieldProfilePrefilterConfig(entry.config || configFallback || null),
+    builds: toSafeNonNegativeInt(entry.builds),
+    totals,
+    families: normalizedFamilies
+  };
+};
+
+const normalizeYieldProfileState = (value, configFallback = null) => {
+  const payload = isPlainObject(value) ? value : {};
+  const entries = isPlainObject(payload.entries) ? payload.entries : {};
+  return {
+    version: EXTRACTED_PROSE_YIELD_PROFILE_VERSION,
+    entries: {
+      'extracted-prose': normalizeYieldProfileEntry(entries['extracted-prose'], configFallback)
+    }
+  };
+};
+
+const resolveRuntimeStatePath = (runtime, fileName) => {
+  const repoCacheRoot = typeof runtime?.repoCacheRoot === 'string'
+    ? runtime.repoCacheRoot.trim()
+    : '';
+  if (!repoCacheRoot) return null;
+  return path.join(repoCacheRoot, EXTRACTED_PROSE_RUNTIME_STATE_DIR, fileName);
+};
+
+const readJsonIfExists = async (filePath) => {
+  if (!filePath) return null;
+  try {
+    const raw = await fs.readFile(filePath, 'utf8');
+    return JSON.parse(raw);
+  } catch (err) {
+    if (err?.code === 'ENOENT') return null;
+    throw err;
+  }
+};
+
+const loadExtractedProseYieldProfileState = async ({ runtime, log: logger = null }) => {
+  const config = normalizeExtractedProseYieldProfilePrefilterConfig(
+    runtime?.indexingConfig?.extractedProse?.prefilter?.yieldProfile || null
+  );
+  const profilePath = resolveRuntimeStatePath(runtime, EXTRACTED_PROSE_YIELD_PROFILE_FILE);
+  if (!profilePath) {
+    return normalizeYieldProfileState(null, config);
+  }
+  try {
+    const loaded = await readJsonIfExists(profilePath);
+    return normalizeYieldProfileState(loaded, config);
+  } catch (err) {
+    if (typeof logger === 'function') {
+      logger(`[stage1:extracted-prose] failed to load yield profile: ${err?.message || err}`);
+    }
+    return normalizeYieldProfileState(null, config);
+  }
+};
+
+const persistExtractedProseYieldProfileState = async ({ runtime, state, log: logger = null }) => {
+  const profilePath = resolveRuntimeStatePath(runtime, EXTRACTED_PROSE_YIELD_PROFILE_FILE);
+  if (!profilePath) return;
+  try {
+    await atomicWriteJson(profilePath, state, { spaces: 2, newline: true });
+  } catch (err) {
+    if (typeof logger === 'function') {
+      logger(`[stage1:extracted-prose] failed to persist yield profile: ${err?.message || err}`);
+    }
+  }
+};
+
+const normalizeDocumentExtractionCacheState = (value) => {
+  const payload = isPlainObject(value) ? value : {};
+  const entries = isPlainObject(payload.entries) ? payload.entries : {};
+  const normalizedEntries = {};
+  for (const [cacheKey, record] of Object.entries(entries)) {
+    if (!cacheKey || !isPlainObject(record)) continue;
+    normalizedEntries[cacheKey] = record;
+  }
+  return {
+    version: DOCUMENT_EXTRACTION_CACHE_VERSION,
+    entries: normalizedEntries
+  };
+};
+
+const loadDocumentExtractionCacheState = async ({ runtime, log: logger = null }) => {
+  const cachePath = resolveRuntimeStatePath(runtime, DOCUMENT_EXTRACTION_CACHE_FILE);
+  if (!cachePath) return normalizeDocumentExtractionCacheState(null);
+  try {
+    const loaded = await readJsonIfExists(cachePath);
+    return normalizeDocumentExtractionCacheState(loaded);
+  } catch (err) {
+    if (typeof logger === 'function') {
+      logger(`[stage1:extracted-prose] failed to load document extraction cache: ${err?.message || err}`);
+    }
+    return normalizeDocumentExtractionCacheState(null);
+  }
+};
+
+const createMutableKeyValueStore = (entries = null) => {
+  const map = new Map();
+  if (isPlainObject(entries)) {
+    for (const [key, value] of Object.entries(entries)) {
+      if (!key) continue;
+      map.set(key, value);
+    }
+  }
+  return {
+    get(key) {
+      if (!key || !map.has(key)) return null;
+      return map.get(key);
+    },
+    set(key, value) {
+      if (!key) return;
+      map.set(key, value);
+    },
+    snapshot() {
+      return Object.fromEntries(map.entries());
+    }
+  };
+};
+
+const persistDocumentExtractionCacheState = async ({ runtime, cacheStore, log: logger = null }) => {
+  const cachePath = resolveRuntimeStatePath(runtime, DOCUMENT_EXTRACTION_CACHE_FILE);
+  if (!cachePath || !cacheStore || typeof cacheStore.snapshot !== 'function') return;
+  const payload = {
+    version: DOCUMENT_EXTRACTION_CACHE_VERSION,
+    entries: cacheStore.snapshot()
+  };
+  try {
+    await atomicWriteJson(cachePath, payload, { spaces: 2, newline: true });
+  } catch (err) {
+    if (typeof logger === 'function') {
+      logger(`[stage1:extracted-prose] failed to persist document extraction cache: ${err?.message || err}`);
+    }
+  }
+};
 
 /**
  * Coerce optional numeric input to non-negative integer while preserving nullish values.
@@ -1693,6 +1869,36 @@ export const processFiles = async ({
     };
   }
   const processStart = Date.now();
+  const extractedProseYieldProfileState = mode === 'extracted-prose'
+    ? await loadExtractedProseYieldProfileState({ runtime, log })
+    : null;
+  const extractedProseYieldProfile = mode === 'extracted-prose'
+    ? normalizeYieldProfileEntry(extractedProseYieldProfileState?.entries?.['extracted-prose'])
+    : null;
+  const extractedProseLowYieldHistory = extractedProseYieldProfile
+    ? {
+      builds: extractedProseYieldProfile.builds,
+      observedFiles: extractedProseYieldProfile.totals?.observedFiles || 0,
+      yieldedFiles: extractedProseYieldProfile.totals?.yieldedFiles || 0,
+      chunkCount: extractedProseYieldProfile.totals?.chunkCount || 0
+    }
+    : null;
+  const documentExtractionCacheState = mode === 'extracted-prose'
+    ? await loadDocumentExtractionCacheState({ runtime, log })
+    : null;
+  const documentExtractionCacheStore = mode === 'extracted-prose'
+    ? createMutableKeyValueStore(documentExtractionCacheState?.entries || {})
+    : null;
+  const sharedScmMetaCache = resolveSharedScmMetaCache(runtime, cacheReporter);
+  const extractedProseExtrasCache = resolveExtractedProseExtrasCache(runtime, cacheReporter);
+  const primeExtractedProseExtrasCache = mode === 'prose';
+  const extractedProseYieldRunStats = {
+    observedFiles: 0,
+    yieldedFiles: 0,
+    chunkCount: 0,
+    families: new Map()
+  };
+  const lowYieldBypassOrderIndices = new Set();
   const stageFileWatchdogConfig = resolveFileWatchdogConfig(runtime, { repoFileCount: stageFileCount });
   const stageTimingBreakdown = {
     parseChunk: { totalMs: 0, byLanguage: new Map(), bySizeBin: new Map() },
@@ -1702,7 +1908,8 @@ export const processFiles = async ({
   const extractedProseLowYieldBailout = buildExtractedProseLowYieldBailoutState({
     mode,
     runtime,
-    entries
+    entries,
+    history: extractedProseLowYieldHistory
   });
   if (mode === 'extracted-prose' && extractedProseLowYieldBailout?.history?.disabledForYieldHistory) {
     logLine(
@@ -1782,6 +1989,34 @@ export const processFiles = async ({
     };
     lifecycleByOrderIndex.set(normalizedOrderIndex, created);
     return created;
+  };
+  const recordExtractedProseYieldObservation = ({ entry = null, result = null } = {}) => {
+    if (mode !== 'extracted-prose') return;
+    const relPath = entry?.rel
+      || (entry?.abs ? toPosix(path.relative(runtime.root, entry.abs)) : null);
+    const ext = entry?.ext || fileExt(relPath || entry?.abs || '');
+    const family = buildExtractedProseYieldProfileFamily({
+      relPath,
+      absPath: entry?.abs || null,
+      ext
+    });
+    const chunkCount = Math.max(0, Math.floor(Number(result?.chunks?.length) || 0));
+    extractedProseYieldRunStats.observedFiles += 1;
+    if (chunkCount > 0) {
+      extractedProseYieldRunStats.yieldedFiles += 1;
+    }
+    extractedProseYieldRunStats.chunkCount += chunkCount;
+    const familyStats = extractedProseYieldRunStats.families.get(family.key) || {
+      observedFiles: 0,
+      yieldedFiles: 0,
+      chunkCount: 0
+    };
+    familyStats.observedFiles += 1;
+    if (chunkCount > 0) {
+      familyStats.yieldedFiles += 1;
+    }
+    familyStats.chunkCount += chunkCount;
+    extractedProseYieldRunStats.families.set(family.key, familyStats);
   };
   /**
    * Update one timing aggregation bucket with normalized sample values.
@@ -3221,6 +3456,7 @@ export const processFiles = async ({
         scmRepoRoot: runtimeRef.scmRepoRoot,
         scmConfig: runtimeRef.scmConfig,
         scmFileMetaByPath,
+        scmMetaCache: sharedScmMetaCache,
         languageOptions: runtimeRef.languageOptions,
         postingsConfig: runtimeRef.postingsConfig,
         segmentsConfig: runtimeRef.segmentsConfig,
@@ -3245,6 +3481,8 @@ export const processFiles = async ({
         tokenizationStats,
         structuralMatches,
         documentExtractionConfig: runtimeRef.indexingConfig?.documentExtraction || null,
+        documentExtractionCache: documentExtractionCacheStore,
+        extractedProseYieldProfile,
         cacheConfig: runtimeRef.cacheConfig,
         cacheReporter,
         queues: runtimeRef.queues,
@@ -3260,6 +3498,8 @@ export const processFiles = async ({
         featureMetrics: runtimeRef.featureMetrics,
         perfEventLogger,
         buildStage: runtimeRef.stage,
+        extractedProseExtrasCache,
+        primeExtractedProseExtrasCache,
         abortSignal: effectiveAbortSignal
       });
       const fileWatchdogConfig = resolveFileWatchdogConfig(runtimeRef, { repoFileCount });
@@ -3339,6 +3579,10 @@ export const processFiles = async ({
                 });
               }
               extractedProseLowYieldBailout.skippedFiles += 1;
+              recordExtractedProseYieldObservation({ entry, result: null });
+              if (Number.isFinite(orderIndex)) {
+                lowYieldBypassOrderIndices.add(Math.floor(orderIndex));
+              }
               return null;
             }
             const activeStartAtMs = Date.now();
@@ -3634,26 +3878,32 @@ export const processFiles = async ({
               const entry = orderedBatchEntries[entryIndex];
               const orderIndex = resolveStableEntryOrderIndex(entry, entryIndex);
               try {
-                const bailoutDecision = observeExtractedProseLowYieldSample({
-                  bailout: extractedProseLowYieldBailout,
-                  orderIndex,
-                  result
-                });
-                if (bailoutDecision?.triggered) {
-                  const ratioPct = (bailoutDecision.observedYieldRatio * 100).toFixed(1);
-                  logLine(
-                    `[stage1:extracted-prose] low-yield bailout engaged after `
-                        + `${bailoutDecision.observedSamples} warmup files `
-                        + `(yield=${bailoutDecision.yieldedSamples}, ratio=${ratioPct}%, `
-                        + `threshold=${Math.round(bailoutDecision.minYieldRatio * 100)}%).`,
-                    {
-                      kind: 'warning',
-                      mode,
-                      stage: 'processing',
-                      qualityImpact: 'reduced-extracted-prose-recall',
-                      extractedProseLowYieldBailout: bailoutDecision
-                    }
-                  );
+                const bypassedForLowYield = Number.isFinite(orderIndex)
+                  ? lowYieldBypassOrderIndices.delete(Math.floor(orderIndex))
+                  : false;
+                if (!bypassedForLowYield) {
+                  const bailoutDecision = observeExtractedProseLowYieldSample({
+                    bailout: extractedProseLowYieldBailout,
+                    orderIndex,
+                    result
+                  });
+                  if (bailoutDecision?.triggered) {
+                    const ratioPct = (bailoutDecision.observedYieldRatio * 100).toFixed(1);
+                    logLine(
+                      `[stage1:extracted-prose] low-yield bailout engaged after `
+                          + `${bailoutDecision.observedSamples} warmup files `
+                          + `(yield=${bailoutDecision.yieldedSamples}, ratio=${ratioPct}%, `
+                          + `threshold=${Math.round(bailoutDecision.minYieldRatio * 100)}%).`,
+                      {
+                        kind: 'warning',
+                        mode,
+                        stage: 'processing',
+                        qualityImpact: 'reduced-extracted-prose-recall',
+                        extractedProseLowYieldBailout: bailoutDecision
+                      }
+                    );
+                  }
+                  recordExtractedProseYieldObservation({ entry, result });
                 }
                 markOrderedEntryComplete(
                   orderIndex,
@@ -3730,6 +3980,7 @@ export const processFiles = async ({
                   orderIndex,
                   result: null
                 });
+                recordExtractedProseYieldObservation({ entry, result: null });
                 const rel = entry?.rel || toPosix(path.relative(runtimeRef.root, entry?.abs || ''));
                 const timeoutText = err?.code === 'FILE_PROCESS_TIMEOUT' && Number.isFinite(err?.meta?.timeoutMs)
                   ? ` timeout=${err.meta.timeoutMs}ms`
@@ -4417,6 +4668,54 @@ export const processFiles = async ({
         })),
         active: resolveStage1WindowSnapshot().activeWindows
       };
+    }
+    if (mode === 'extracted-prose') {
+      const profileConfig = normalizeExtractedProseYieldProfilePrefilterConfig(
+        runtime?.indexingConfig?.extractedProse?.prefilter?.yieldProfile || null
+      );
+      const existingProfileEntry = normalizeYieldProfileEntry(
+        extractedProseYieldProfileState?.entries?.['extracted-prose'],
+        profileConfig
+      );
+      const mergedFamilies = { ...(existingProfileEntry.families || {}) };
+      for (const [familyKey, familyStats] of extractedProseYieldRunStats.families.entries()) {
+        const current = normalizeYieldProfileFamilyStats(mergedFamilies[familyKey] || null);
+        mergedFamilies[familyKey] = normalizeYieldProfileFamilyStats({
+          observedFiles: current.observedFiles + toSafeNonNegativeInt(familyStats?.observedFiles),
+          yieldedFiles: current.yieldedFiles + toSafeNonNegativeInt(familyStats?.yieldedFiles),
+          chunkCount: current.chunkCount + toSafeNonNegativeInt(familyStats?.chunkCount)
+        });
+      }
+      const mergedTotals = normalizeYieldProfileFamilyStats({
+        observedFiles: toSafeNonNegativeInt(existingProfileEntry.totals?.observedFiles)
+          + extractedProseYieldRunStats.observedFiles,
+        yieldedFiles: toSafeNonNegativeInt(existingProfileEntry.totals?.yieldedFiles)
+          + extractedProseYieldRunStats.yieldedFiles,
+        chunkCount: toSafeNonNegativeInt(existingProfileEntry.totals?.chunkCount)
+          + extractedProseYieldRunStats.chunkCount
+      });
+      const mergedProfileEntry = {
+        config: profileConfig,
+        builds: toSafeNonNegativeInt(existingProfileEntry.builds) + 1,
+        totals: mergedTotals,
+        families: mergedFamilies
+      };
+      const mergedYieldProfileState = {
+        version: EXTRACTED_PROSE_YIELD_PROFILE_VERSION,
+        entries: {
+          'extracted-prose': mergedProfileEntry
+        }
+      };
+      await persistExtractedProseYieldProfileState({
+        runtime,
+        state: mergedYieldProfileState,
+        log
+      });
+      await persistDocumentExtractionCacheState({
+        runtime,
+        cacheStore: documentExtractionCacheStore,
+        log
+      });
     }
     const parseSkipCount = state.skippedFiles.filter((entry) => entry?.reason === 'parse-error').length;
     const relationSkipCount = state.skippedFiles.filter((entry) => entry?.reason === 'relation-error').length;

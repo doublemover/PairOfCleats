@@ -23,19 +23,105 @@ const resolveExtractedProseLowYieldBailoutConfig = (runtime) => {
   return normalizeExtractedProseLowYieldBailoutConfig(extractedProseConfig.lowYieldBailout);
 };
 
-export const buildExtractedProseLowYieldBailoutState = ({ mode, runtime, entries }) => {
+const normalizeLowYieldHistory = (value) => {
+  if (!value || typeof value !== 'object') return null;
+  return {
+    builds: Math.max(0, Math.floor(Number(value.builds) || 0)),
+    observedFiles: Math.max(0, Math.floor(Number(value.observedFiles) || 0)),
+    yieldedFiles: Math.max(0, Math.floor(Number(value.yieldedFiles) || 0)),
+    chunkCount: Math.max(0, Math.floor(Number(value.chunkCount) || 0))
+  };
+};
+
+export const buildExtractedProseLowYieldBailoutState = ({
+  mode,
+  runtime,
+  entries,
+  history = null
+}) => {
   if (mode !== 'extracted-prose') return null;
   const config = resolveExtractedProseLowYieldBailoutConfig(runtime);
+  const normalizedHistory = normalizeLowYieldHistory(history);
   const sortedEntries = sortEntriesByOrderIndex(entries);
+  const historyMinObservedFiles = Math.max(
+    1,
+    Math.min(
+      Math.floor(config.historyMinObservedFiles),
+      Math.max(1, sortedEntries.length)
+    )
+  );
+  const historyEligible = Boolean(
+    normalizedHistory
+    && config.enabled !== false
+    && normalizedHistory.builds >= Math.max(1, Math.floor(config.historyMinBuilds))
+    && normalizedHistory.observedFiles >= historyMinObservedFiles
+  );
+  const disableForYieldHistory = Boolean(
+    historyEligible
+    && config.disableWhenHistoryHasYield !== false
+    && normalizedHistory.yieldedFiles > 0
+  );
+  if (disableForYieldHistory) {
+    return {
+      enabled: false,
+      config,
+      warmupWindowSize: 0,
+      warmupSampleSize: 0,
+      sampledOrderIndices: new Set(),
+      observedOrderIndices: new Set(),
+      observedSamples: 0,
+      yieldedSamples: 0,
+      sampledChunkCount: 0,
+      decisionMade: true,
+      triggered: false,
+      decisionAtOrderIndex: null,
+      decisionAtMs: null,
+      skippedFiles: 0,
+      history: {
+        disabledForYieldHistory: true,
+        yieldedFiles: normalizedHistory.yieldedFiles,
+        observedFiles: normalizedHistory.observedFiles,
+        builds: normalizedHistory.builds
+      }
+    };
+  }
+  const baseWarmupSampleSize = Math.max(
+    1,
+    Math.min(sortedEntries.length, Math.floor(config.warmupSampleSize))
+  );
+  let warmupSampleSize = baseWarmupSampleSize;
+  let historySummary = null;
+  const shouldReduceWarmupForHistory = Boolean(
+    historyEligible
+    && normalizedHistory
+    && normalizedHistory.yieldedFiles === 0
+  );
+  if (shouldReduceWarmupForHistory) {
+    const scaledSample = Math.max(1, Math.floor(baseWarmupSampleSize * config.historyWarmupSampleScale));
+    const reducedSample = Math.max(
+      1,
+      Math.max(Math.floor(config.historyWarmupSampleFloor), scaledSample)
+    );
+    warmupSampleSize = Math.min(baseWarmupSampleSize, reducedSample);
+    if (warmupSampleSize < baseWarmupSampleSize) {
+      historySummary = {
+        reducedWarmup: true,
+        baseWarmupSampleSize,
+        observedFiles: normalizedHistory.observedFiles,
+        yieldedFiles: normalizedHistory.yieldedFiles,
+        builds: normalizedHistory.builds
+      };
+    }
+  }
   const warmupWindowSize = Math.max(
     1,
-    Math.min(sortedEntries.length, Math.floor(config.warmupWindowSize))
+    Math.min(
+      sortedEntries.length,
+      Math.max(warmupSampleSize, Math.floor(warmupSampleSize * config.warmupWindowMultiplier))
+    )
   );
   const warmupWindowEntries = sortedEntries.slice(0, warmupWindowSize);
-  const warmupSampleSize = Math.max(
-    0,
-    Math.min(warmupWindowEntries.length, Math.floor(config.warmupSampleSize))
-  );
+  warmupSampleSize = Math.max(0, Math.min(warmupWindowEntries.length, warmupSampleSize));
   const sampledEntries = selectDeterministicWarmupSample({
     values: warmupWindowEntries,
     sampleSize: warmupSampleSize,
@@ -69,7 +155,8 @@ export const buildExtractedProseLowYieldBailoutState = ({ mode, runtime, entries
     triggered: false,
     decisionAtOrderIndex: null,
     decisionAtMs: null,
-    skippedFiles: 0
+    skippedFiles: 0,
+    history: historySummary
   };
 };
 

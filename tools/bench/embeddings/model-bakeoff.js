@@ -29,6 +29,7 @@ import {
   resolveToolRoot,
   toRealPathSync
 } from '../../shared/dict-utils.js';
+import { createToolDisplay } from '../../shared/cli-display.js';
 
 const DEFAULT_BAKEOFF_MODELS = ['Xenova/bge-small-en-v1.5', 'Xenova/bge-base-en-v1.5'];
 const DEFAULT_BAKEOFF_BASELINE = 'Xenova/bge-base-en-v1.5';
@@ -113,6 +114,7 @@ const dictConfig = getDictConfig(root, userConfig);
 const sharedModelsDir = envConfig.modelsDir || modelConfig.dir;
 const sharedDictDir = envConfig.dictDir || dictConfig.dir;
 const repoId = getRepoId(root);
+const display = createToolDisplay({ argv, stream: process.stderr });
 
 const parseModelList = (value) => String(value || '')
   .split(',')

@@ -5,6 +5,7 @@ import { createPackedChecksumValidator } from '../checksum.js';
 import { resolveManifestPieceByPath } from '../manifest.js';
 import { loadBinaryColumnarRowPayloads } from './binary-columnar.js';
 import { createLoaderError } from './shared.js';
+import { joinPathSafe } from '../../path-normalize.js';
 import {
   resolveBinaryColumnarDefaultPaths,
   resolveReadableArtifactPath,
@@ -147,6 +148,7 @@ const assertBinaryPartWithinMaxBytes = (targetPath, maxBytes, label) => {
  * @param {object|null} input.manifest
  * @param {number} input.maxBytes
  * @param {boolean} input.strict
+ * @param {boolean} [input.enforceDataBudget]
  * @returns {any[]}
  */
 const loadBinaryColumnarJsonRows = ({
@@ -155,7 +157,8 @@ const loadBinaryColumnarJsonRows = ({
   sources,
   manifest,
   maxBytes,
-  strict
+  strict,
+  enforceDataBudget = true
 }) => {
   const sourcePath = sources.paths[0];
   const sidecars = sources.binaryColumnar || null;
@@ -194,13 +197,33 @@ const loadBinaryColumnarJsonRows = ({
     maxBytes,
     baseName
   });
-  const dataPathFromMeta = typeof fields?.data === 'string' ? path.join(dir, fields.data) : dataPath;
-  const offsetsPathFromMeta = typeof fields?.offsets === 'string' ? path.join(dir, fields.offsets) : resolvedOffsetsPath;
-  const lengthsPathFromMeta = typeof fields?.lengths === 'string' ? path.join(dir, fields.lengths) : resolvedLengthsPath;
-  const resolvedDataPath = resolveReadableArtifactPath(dataPathFromMeta);
-  const resolvedOffsetsPathFromMeta = resolveReadableArtifactPath(offsetsPathFromMeta);
-  const resolvedLengthsPathFromMeta = resolveReadableArtifactPath(lengthsPathFromMeta);
-  assertBinaryPartWithinMaxBytes(resolvedDataPath, maxBytes, `${baseName} binary-columnar data`);
+  const resolveMetaSidecarPath = (candidate, fallbackPath, label) => {
+    if (typeof candidate !== 'string' || !candidate.trim()) {
+      return resolveReadableArtifactPath(fallbackPath);
+    }
+    const safePath = joinPathSafe(dir, [candidate]);
+    if (!safePath) {
+      throw createLoaderError(
+        'ERR_ARTIFACT_INVALID',
+        `Invalid ${label} path for ${baseName}`
+      );
+    }
+    return resolveReadableArtifactPath(safePath);
+  };
+  const resolvedDataPath = resolveMetaSidecarPath(fields?.data, dataPath, 'binary-columnar data');
+  const resolvedOffsetsPathFromMeta = resolveMetaSidecarPath(
+    fields?.offsets,
+    resolvedOffsetsPath,
+    'binary-columnar offsets'
+  );
+  const resolvedLengthsPathFromMeta = resolveMetaSidecarPath(
+    fields?.lengths,
+    resolvedLengthsPath,
+    'binary-columnar lengths'
+  );
+  if (enforceDataBudget) {
+    assertBinaryPartWithinMaxBytes(resolvedDataPath, maxBytes, `${baseName} binary-columnar data`);
+  }
   assertBinaryPartWithinMaxBytes(resolvedOffsetsPathFromMeta, maxBytes, `${baseName} binary-columnar offsets`);
   assertBinaryPartWithinMaxBytes(resolvedLengthsPathFromMeta, maxBytes, `${baseName} binary-columnar lengths`);
   const dataBuffer = fs.readFileSync(resolvedDataPath);
@@ -250,7 +273,8 @@ const loadBinaryColumnarJsonRows = ({
     dataBuffer,
     offsetsBuffer,
     lengthsBuffer,
-    maxBytes
+    maxBytes,
+    enforceDataBudget
   });
   if (!payloads) {
     throw createLoaderError(

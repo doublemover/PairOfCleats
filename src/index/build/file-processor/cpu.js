@@ -482,13 +482,39 @@ export const processFileCpu = async (context) => {
     const includeChurn = resolvedGitChurnEnabled
       && !scmFastPath
       && fileBytes <= SCM_CHURN_MAX_BYTES;
-    const snapshotMeta = (() => {
+    const loadCachedScmMeta = () => {
+      if (!scmMetaCache || !filePosix) return null;
+      if (typeof scmMetaCache.get === 'function') {
+        return scmMetaCache.get(filePosix) || null;
+      }
+      return scmMetaCache[filePosix] || null;
+    };
+    const storeCachedScmMeta = (fileMeta) => {
+      if (!fileMeta || !scmMetaCache || !filePosix) return;
+      const payload = {
+        lastCommitId: typeof fileMeta.lastCommitId === 'string' ? fileMeta.lastCommitId : null,
+        lastModifiedAt: fileMeta.lastModifiedAt ?? null,
+        lastAuthor: fileMeta.lastAuthor ?? null,
+        churn: Number.isFinite(fileMeta.churn) ? fileMeta.churn : null,
+        churnAdded: Number.isFinite(fileMeta.churnAdded) ? fileMeta.churnAdded : null,
+        churnDeleted: Number.isFinite(fileMeta.churnDeleted) ? fileMeta.churnDeleted : null,
+        churnCommits: Number.isFinite(fileMeta.churnCommits) ? fileMeta.churnCommits : null
+      };
+      if (typeof scmMetaCache.set === 'function') {
+        scmMetaCache.set(filePosix, payload);
+        return;
+      }
+      scmMetaCache[filePosix] = payload;
+    };
+    const sourceSnapshotMeta = (() => {
       if (!scmFileMetaByPath) return null;
       if (typeof scmFileMetaByPath.get === 'function') {
         return scmFileMetaByPath.get(filePosix) || null;
       }
       return scmFileMetaByPath[filePosix] || null;
     })();
+    const cachedMeta = loadCachedScmMeta();
+    const snapshotMeta = sourceSnapshotMeta || cachedMeta;
     const snapshotHasIdentity = Boolean(snapshotMeta && (snapshotMeta.lastModifiedAt || snapshotMeta.lastAuthor));
     const snapshotMissingRequestedChurn = Boolean(
       snapshotHasIdentity
@@ -530,6 +556,7 @@ export const processFileCpu = async (context) => {
             }));
             if (taskSignal?.aborted) return;
             if (fileMeta && fileMeta.ok !== false) {
+              storeCachedScmMeta(fileMeta);
               fileGitCommitId = typeof fileMeta.lastCommitId === 'string'
                 ? fileMeta.lastCommitId
                 : null;

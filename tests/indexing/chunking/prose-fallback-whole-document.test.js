@@ -12,9 +12,16 @@ const proseChunks = smartChunk({
   context: {}
 });
 
-assert.equal(proseChunks.length, 1, 'expected prose html fallback to keep a whole-document chunk');
+assert.ok(
+  proseChunks.length > 1,
+  'expected prose html fallback to honor default chunking guardrails'
+);
 assert.equal(proseChunks[0].start, 0, 'expected prose html chunk to start at file start');
-assert.equal(proseChunks[0].end, text.length, 'expected prose html chunk to span the full file');
+assert.equal(
+  proseChunks[proseChunks.length - 1].end,
+  text.length,
+  'expected prose html chunks to span the full file'
+);
 
 const byteLimitedChunks = smartChunk({
   text,

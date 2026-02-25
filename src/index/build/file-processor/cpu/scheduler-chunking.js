@@ -216,9 +216,32 @@ export const chunkWithScheduler = async ({
     && typeof treeSitterScheduler.isDegradedVirtualPath === 'function'
     ? treeSitterScheduler.isDegradedVirtualPath.bind(treeSitterScheduler)
     : () => false;
+  const schedulerCrashSummary = treeSitterScheduler
+    && typeof treeSitterScheduler.getCrashSummary === 'function'
+    ? treeSitterScheduler.getCrashSummary()
+    : null;
+  const degradedVirtualPaths = Array.isArray(schedulerCrashSummary?.degradedVirtualPaths)
+    ? schedulerCrashSummary.degradedVirtualPaths
+    : [];
+  const isDegradedInCrashSummary = (virtualPath) => degradedVirtualPaths.some((candidate) => (
+    typeof candidate === 'string'
+    && (
+      candidate === virtualPath
+      || candidate.startsWith(`${virtualPath}#seg:`)
+      || virtualPath.startsWith(candidate)
+      || (relKey && candidate.includes(relKey))
+    )
+  ));
+  const containerVirtualPath = buildVfsVirtualPath({ containerPath: relKey });
+  const containerDegraded = schedulerDegradedCheck(containerVirtualPath)
+    || isDegradedInCrashSummary(containerVirtualPath);
   const schedulerLookupItems = [];
   for (const item of scheduled) {
-    if (schedulerDegradedCheck(item.virtualPath)) {
+    if (
+      containerDegraded
+      || schedulerDegradedCheck(item.virtualPath)
+      || isDegradedInCrashSummary(item.virtualPath)
+    ) {
       fallbackSegments.push(item.segment);
       counters.schedulerDegradedCount += 1;
       counters.codeFallbackSegmentCount += 1;

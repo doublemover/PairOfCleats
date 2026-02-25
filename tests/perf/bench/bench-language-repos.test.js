@@ -1,28 +1,25 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
+import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
-
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
-const tempRoot = resolveTestCachePath(root, 'bench-language-lock');
+const tempRoot = resolveTestCachePath(root, 'bench-language-repos');
 const reposRoot = path.join(tempRoot, 'repos');
 const cacheRoot = path.join(tempRoot, 'cache');
 const resultsRoot = path.join(tempRoot, 'results');
 const configPath = path.join(tempRoot, 'repos.json');
 const queriesPath = path.join(root, 'tests', 'fixtures', 'sample', 'queries.txt');
-const repoId = 'test/lock-repo';
+const repoId = 'test/repos-smoke';
 const repoPath = path.join(reposRoot, 'javascript', repoId.replace('/', '__'));
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(repoPath, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 await fsPromises.mkdir(resultsRoot, { recursive: true });
-
-await fsPromises.writeFile(path.join(repoPath, 'README.md'), 'bench lock test');
+await fsPromises.writeFile(path.join(repoPath, 'README.md'), 'bench repos smoke');
 
 const config = {
   javascript: {
@@ -35,15 +32,7 @@ const config = {
 };
 await fsPromises.writeFile(configPath, JSON.stringify(config, null, 2));
 
-const repoCacheRoot = getRepoCacheRoot(repoPath, { cache: { root: cacheRoot } });
-const lockDir = path.join(repoCacheRoot, 'locks');
-await fsPromises.mkdir(lockDir, { recursive: true });
-await fsPromises.writeFile(
-  path.join(lockDir, 'index.lock'),
-  JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() })
-);
-
-const scriptPath = path.join(root, 'tools', 'bench/language-repos.js');
+const scriptPath = path.join(root, 'tools', 'bench', 'language-repos.js');
 const result = spawnSync(
   process.execPath,
   [
@@ -58,28 +47,19 @@ const result = spawnSync(
     resultsRoot,
     '--no-clone',
     '--dry-run',
-    '--lock-mode',
-    'fail-fast',
     '--json'
   ],
   { encoding: 'utf8' }
 );
 
 if (result.status !== 0) {
-  console.error(result.stderr || 'bench-language-lock test failed');
+  console.error(result.stderr || 'bench-language-repos test failed');
   process.exit(result.status ?? 1);
 }
 
 const payload = JSON.parse(result.stdout || '{}');
-const task = Array.isArray(payload.tasks) ? payload.tasks[0] : null;
-if (!task || !task.skipped) {
-  console.error('Expected bench task to be skipped due to lock.');
-  process.exit(1);
-}
-if (task.skipReason !== 'lock') {
-  console.error(`Expected skipReason=lock, got ${task.skipReason}`);
-  process.exit(1);
-}
+assert.ok(Array.isArray(payload.tasks), 'expected tasks array in bench payload');
+assert.equal(payload.tasks.length, 1, 'expected exactly one scheduled bench task');
+assert.equal(payload.tasks[0]?.repo, repoId, 'expected synthetic repo task in bench payload');
 
-console.log('bench-language lock test passed');
-
+console.log('bench-language repos test passed');

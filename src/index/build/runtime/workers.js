@@ -61,7 +61,7 @@ const resolvePerWorkerCacheAndWriteBudget = ({
   const hotSymbolMapMb = coerceRuntimeBudgetMb(memoryConfig?.hotSymbolMapMb, 1)
     || DEFAULT_HOT_SYMBOL_MAP_MB;
   const cacheHotsetTargetMb = hotDictionaryMb + hotSymbolMapMb;
-  const defaultCacheMb = Math.max(192, Math.min(1024, Math.floor(effectiveWorkerHeapMb * 0.5)));
+  const defaultCacheMb = Math.max(128, Math.min(1024, Math.floor(effectiveWorkerHeapMb * 0.5)));
   const defaultWriteBufferMb = Math.max(128, Math.min(640, Math.floor(effectiveWorkerHeapMb * 0.35)));
 
   const rssHeadroomMb = Number.isFinite(maxGlobalRssMb) && maxGlobalRssMb > 0
@@ -78,13 +78,13 @@ const resolvePerWorkerCacheAndWriteBudget = ({
     : null;
 
   let perWorkerCacheMb = explicitCacheMb ?? Math.max(defaultCacheMb, cacheHotsetTargetMb);
-  if (Number.isFinite(nonHeapBudgetMb)) {
+  if (explicitCacheMb == null && Number.isFinite(nonHeapBudgetMb)) {
     const cacheCeiling = Math.max(128, Math.floor(nonHeapBudgetMb * 0.8));
     perWorkerCacheMb = Math.max(MIN_RUNTIME_CACHE_MB, Math.min(perWorkerCacheMb, cacheCeiling));
   }
 
   let perWorkerWriteBufferMb = explicitWriteBufferMb ?? defaultWriteBufferMb;
-  if (Number.isFinite(nonHeapBudgetMb)) {
+  if (explicitWriteBufferMb == null && Number.isFinite(nonHeapBudgetMb)) {
     const remaining = Math.max(
       MIN_RUNTIME_WRITE_BUFFER_MB,
       Math.floor(nonHeapBudgetMb - perWorkerCacheMb)
@@ -230,6 +230,7 @@ export const resolveRuntimeMemoryPolicy = ({ indexingConfig, cpuConcurrency }) =
   const highMemoryPostingsScale = Number.isFinite(Number(highMemoryProfileConfig.postingsScale))
     ? Math.max(1, Number(highMemoryProfileConfig.postingsScale))
     : 1.15;
+  const highMemoryWorkerBudgetBoostEnabled = highMemoryProfileConfig.boostWorkerBudgets === true;
   const workerHeapPolicy = resolveWorkerHeapBudgetPolicy({
     targetPerWorkerMb: memoryConfig.workerHeapTargetMb,
     minPerWorkerMb: memoryConfig.workerHeapMinMb,
@@ -258,7 +259,11 @@ export const resolveRuntimeMemoryPolicy = ({ indexingConfig, cpuConcurrency }) =
   let perWorkerCacheMb = budgetSplit.perWorkerCacheMb;
   let perWorkerWriteBufferMb = budgetSplit.perWorkerWriteBufferMb;
   let highMemoryProfileApplied = false;
-  if (highMemoryProfileEnabled && Number.isFinite(budgetSplit.rssHeadroomMb)) {
+  if (
+    highMemoryProfileEnabled
+    && highMemoryWorkerBudgetBoostEnabled
+    && Number.isFinite(budgetSplit.rssHeadroomMb)
+  ) {
     const perWorkerRssHeadroomMb = Math.max(0, Math.floor(budgetSplit.rssHeadroomMb / Math.max(1, workerCount)));
     const projectedBasePerWorkerMb = effectiveWorkerHeapMb + perWorkerCacheMb + perWorkerWriteBufferMb;
     const sparePerWorkerMb = Math.max(0, perWorkerRssHeadroomMb - projectedBasePerWorkerMb);
@@ -309,6 +314,7 @@ export const resolveRuntimeMemoryPolicy = ({ indexingConfig, cpuConcurrency }) =
       enabled: highMemoryProfileEnabled,
       autoEnabled: highMemoryAutoEnabled,
       applied: highMemoryProfileApplied,
+      boostWorkerBudgets: highMemoryWorkerBudgetBoostEnabled,
       thresholdMb: highMemoryThresholdMb,
       cacheScale: highMemoryCacheScale,
       writeBufferScale: highMemoryWriteBufferScale,

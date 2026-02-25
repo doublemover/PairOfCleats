@@ -641,6 +641,15 @@ export function createBuildScheduler(input = {}) {
     const cpuTokenUtilization = tokens.cpu.total > 0 ? (tokens.cpu.used / tokens.cpu.total) : 0;
     const ioTokenUtilization = tokens.io.total > 0 ? (tokens.io.used / tokens.io.total) : 0;
     const memTokenUtilization = tokens.mem.total > 0 ? (tokens.mem.used / tokens.mem.total) : 0;
+    const defaultFdSignals = {
+      softLimit: normalizeNonNegativeInt(fdPressureRoot?.softLimit, 0),
+      reserveDescriptors: normalizeNonNegativeInt(fdPressureRoot?.reserveDescriptors, 0),
+      descriptorsPerToken: Math.max(1, normalizePositiveInt(fdPressureRoot?.descriptorsPerToken, 8) || 8),
+      minTokenCap: Math.max(1, normalizePositiveInt(fdPressureRoot?.minTokenCap, 1) || 1),
+      maxTokenCap: Math.max(1, normalizePositiveInt(fdPressureRoot?.maxTokenCap, maxLimits.io) || maxLimits.io),
+      tokenCap: Math.max(1, Math.floor(tokens.io.total || 1)),
+      pressureScore: 0
+    };
     const defaultSignals = {
       cpu: {
         tokenUtilization: Math.max(cpuTokenUtilization, ioTokenUtilization),
@@ -657,7 +666,8 @@ export function createBuildScheduler(input = {}) {
         freeRatio: null,
         pressureScore: Math.max(memTokenUtilization, 0),
         gcPressureScore: 0
-      }
+      },
+      fd: defaultFdSignals
     };
     if (typeof input.adaptiveSignalSampler === 'function') {
       try {
@@ -699,6 +709,37 @@ export function createBuildScheduler(input = {}) {
             rssUtilization: normalizeRatio(sampled?.memory?.rssUtilization, defaultSignals.memory.rssUtilization, { min: 0, max: 1 }),
             heapUtilization: normalizeRatio(sampled?.memory?.heapUtilization, defaultSignals.memory.heapUtilization, { min: 0, max: 1 }),
             freeRatio: normalizeRatio(sampled?.memory?.freeRatio, defaultSignals.memory.freeRatio, { min: 0, max: 1 })
+          };
+          const sampledFdTokenCap = normalizePositiveInt(
+            sampled?.fd?.tokenCap,
+            defaultSignals.fd.tokenCap
+          );
+          const sampledFdMaxTokenCap = Math.max(
+            defaultSignals.fd.minTokenCap,
+            normalizePositiveInt(sampled?.fd?.maxTokenCap, defaultSignals.fd.maxTokenCap) || defaultSignals.fd.maxTokenCap
+          );
+          defaultSignals.fd = {
+            softLimit: normalizeNonNegativeInt(sampled?.fd?.softLimit, defaultSignals.fd.softLimit),
+            reserveDescriptors: normalizeNonNegativeInt(sampled?.fd?.reserveDescriptors, defaultSignals.fd.reserveDescriptors),
+            descriptorsPerToken: Math.max(
+              1,
+              normalizePositiveInt(sampled?.fd?.descriptorsPerToken, defaultSignals.fd.descriptorsPerToken)
+                || defaultSignals.fd.descriptorsPerToken
+            ),
+            minTokenCap: Math.max(
+              1,
+              normalizePositiveInt(sampled?.fd?.minTokenCap, defaultSignals.fd.minTokenCap) || defaultSignals.fd.minTokenCap
+            ),
+            maxTokenCap: sampledFdMaxTokenCap,
+            tokenCap: Math.max(
+              1,
+              Math.min(sampledFdMaxTokenCap, sampledFdTokenCap || defaultSignals.fd.tokenCap)
+            ),
+            pressureScore: normalizeRatio(
+              sampled?.fd?.pressureScore,
+              defaultSignals.fd.pressureScore,
+              { min: 0, max: 2 }
+            )
           };
           return defaultSignals;
         }
@@ -757,7 +798,8 @@ export function createBuildScheduler(input = {}) {
         freeRatio,
         pressureScore: memoryPressureScore,
         gcPressureScore
-      }
+      },
+      fd: defaultFdSignals
     };
   };
 
@@ -821,7 +863,12 @@ export function createBuildScheduler(input = {}) {
       );
       const backlogPerSlot = Math.max(0, Number(snapshot.backlogPerSlot) || 0);
       const oldestWaitMs = Math.max(0, Number(snapshot.oldestWaitMs) || 0);
-      const ioPressureScore = Math.max(0, Number(snapshot.ioPressureScore) || 0);
+      const fdPressureScore = Math.max(0, Number(signals?.fd?.pressureScore) || 0);
+      const ioPressureScore = Math.max(
+        0,
+        Number(snapshot.ioPressureScore) || 0,
+        fdPressureScore
+      );
       const cpuUtilization = Math.max(
         0,
         Number(signals?.cpu?.tokenUtilization) || 0,
@@ -940,7 +987,8 @@ export function createBuildScheduler(input = {}) {
         },
         signals: {
           cpu: signals?.cpu && typeof signals.cpu === 'object' ? { ...signals.cpu } : null,
-          memory: signals?.memory && typeof signals.memory === 'object' ? { ...signals.memory } : null
+          memory: signals?.memory && typeof signals.memory === 'object' ? { ...signals.memory } : null,
+          fd: signals?.fd && typeof signals.fd === 'object' ? { ...signals.fd } : null
         }
       });
     }
@@ -952,6 +1000,13 @@ export function createBuildScheduler(input = {}) {
     if ((now - lastAdaptiveAt) < adaptiveCurrentIntervalMs) return;
     lastAdaptiveAt = now;
     maybeAdaptSurfaceControllers(now);
+    const fdTokenCapSignal = Number(lastSystemSignals?.fd?.tokenCap);
+    const fdTokenCap = Number.isFinite(fdTokenCapSignal) && fdTokenCapSignal > 0
+      ? Math.max(1, Math.floor(fdTokenCapSignal))
+      : null;
+    if (fdTokenCap != null) {
+      tokens.io.total = Math.max(tokens.io.used, Math.min(tokens.io.total, fdTokenCap));
+    }
     let totalPending = 0;
     let totalPendingBytes = 0;
     let totalRunning = 0;
@@ -976,7 +1031,10 @@ export function createBuildScheduler(input = {}) {
       floorMem = Math.max(floorMem, Number(q.floorMem) || 0);
     }
     const cpuFloor = Math.max(baselineLimits.cpu, floorCpu);
-    const ioFloor = Math.max(baselineLimits.io, floorIo);
+    const ioBaselineFloor = Math.max(baselineLimits.io, floorIo);
+    const ioFloor = fdTokenCap == null
+      ? ioBaselineFloor
+      : Math.max(1, Math.min(ioBaselineFloor, fdTokenCap));
     const memFloor = Math.max(baselineLimits.mem, floorMem);
     const tokenBudget = Math.max(1, tokens.cpu.total + tokens.io.total);
     const memoryTokenBudgetBytes = Math.max(1, tokens.mem.total) * adaptiveMemoryPerTokenMb * 1024 * 1024;
@@ -1079,7 +1137,8 @@ export function createBuildScheduler(input = {}) {
         : ((pressureScale || queueStarvation) ? adaptiveStep + 1 : adaptiveStep);
       const effectiveScaleStep = burstMode ? (scaleStep + 1) : scaleStep;
       const nextCpu = Math.min(maxLimits.cpu, tokens.cpu.total + effectiveScaleStep);
-      const nextIo = Math.min(maxLimits.io, tokens.io.total + effectiveScaleStep);
+      const ioCeiling = fdTokenCap == null ? maxLimits.io : Math.min(maxLimits.io, fdTokenCap);
+      const nextIo = Math.min(ioCeiling, tokens.io.total + effectiveScaleStep);
       const nextMem = Math.min(maxLimits.mem, memoryTokenHeadroomCap, tokens.mem.total + adaptiveStep);
       tokens.cpu.total = nextCpu;
       tokens.io.total = nextIo;
@@ -1118,6 +1177,9 @@ export function createBuildScheduler(input = {}) {
       tokens.cpu.total = Math.max(cpuFloor, tokens.cpu.used, tokens.cpu.total - adaptiveStep);
       tokens.io.total = Math.max(ioFloor, tokens.io.used, tokens.io.total - adaptiveStep);
       tokens.mem.total = Math.max(memFloor, tokens.mem.used, tokens.mem.total - adaptiveStep);
+    }
+    if (fdTokenCap != null) {
+      tokens.io.total = Math.max(tokens.io.used, Math.min(tokens.io.total, fdTokenCap));
     }
   };
 
@@ -1518,6 +1580,9 @@ export function createBuildScheduler(input = {}) {
         surfaceControllersEnabled: adaptiveSurfaceControllersEnabled,
         surfaces: adaptiveSurfaces,
         decisionTrace: adaptiveDecisionTrace.map((entry) => cloneDecisionEntry(entry)),
+        fd: lastSystemSignals?.fd && typeof lastSystemSignals.fd === 'object'
+          ? { ...lastSystemSignals.fd }
+          : null,
         signals: lastSystemSignals && typeof lastSystemSignals === 'object'
           ? {
             cpu: lastSystemSignals.cpu && typeof lastSystemSignals.cpu === 'object'
@@ -1525,6 +1590,9 @@ export function createBuildScheduler(input = {}) {
               : null,
             memory: lastSystemSignals.memory && typeof lastSystemSignals.memory === 'object'
               ? { ...lastSystemSignals.memory }
+              : null,
+            fd: lastSystemSignals.fd && typeof lastSystemSignals.fd === 'object'
+              ? { ...lastSystemSignals.fd }
               : null
           }
           : null,

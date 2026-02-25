@@ -1,5 +1,5 @@
 import { buildSqliteIndex } from '../../src/integrations/core/index.js';
-import { getCurrentBuildInfo, loadUserConfig } from '../../tools/shared/dict-utils.js';
+import { getCurrentBuildInfo, loadUserConfig, resolveIndexRoot } from '../../tools/shared/dict-utils.js';
 
 const withTemporaryEnv = async (overrides, callback) => {
   if (!overrides || typeof overrides !== 'object') {
@@ -33,11 +33,18 @@ const withTemporaryEnv = async (overrides, callback) => {
 export const resolveSqliteIndexRoot = (repoRoot, mode = null, explicitIndexRoot = null) => {
   if (explicitIndexRoot) return explicitIndexRoot;
   const userConfig = loadUserConfig(repoRoot);
-  const buildInfo = getCurrentBuildInfo(repoRoot, userConfig, { mode: mode || undefined });
-  if (!buildInfo?.activeRoot) {
-    throw new Error('Missing index root for sqlite build. Ensure build_index has completed first.');
+  const modeHint = typeof mode === 'string' && mode.trim().toLowerCase() === 'all'
+    ? undefined
+    : (mode || undefined);
+  const buildInfo = getCurrentBuildInfo(repoRoot, userConfig, { mode: modeHint });
+  if (buildInfo?.activeRoot) {
+    return buildInfo.activeRoot;
   }
-  return buildInfo.activeRoot;
+  try {
+    const fallbackRoot = resolveIndexRoot(repoRoot, userConfig);
+    if (fallbackRoot) return fallbackRoot;
+  } catch {}
+  throw new Error('Missing index root for sqlite build. Ensure build_index has completed first.');
 };
 
 export const runSqliteBuild = async (repoRoot, options = {}) => {
