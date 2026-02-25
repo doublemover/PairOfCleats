@@ -2572,8 +2572,8 @@ export const processFiles = async ({
       const backpressureThreshold = Number.isFinite(liveOrderedThreshold) && liveOrderedThreshold > 0
         ? Math.max(1, Math.floor(liveOrderedThreshold))
         : Number.isFinite(configuredLimit) && configuredLimit > 0
-        ? Math.max(1, Math.floor(configuredLimit))
-        : fallbackLimit;
+          ? Math.max(1, Math.floor(configuredLimit))
+          : fallbackLimit;
       return normalizedPending >= backpressureThreshold;
     };
     /**
