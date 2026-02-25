@@ -9,7 +9,8 @@ const createSafeWritableStream = (target) => {
   if (!target || typeof target.write !== 'function') {
     return {
       stream: target,
-      isWritable: () => false
+      isWritable: () => false,
+      close: () => {}
     };
   }
   let closed = false;
@@ -35,11 +36,14 @@ const createSafeWritableStream = (target) => {
       markClosed();
     }
   };
-  if (typeof target.once === 'function') {
-    target.once('close', markClosed);
-    target.once('finish', markClosed);
-  }
+  const removeListener = typeof target.off === 'function'
+    ? (event, handler) => target.off(event, handler)
+    : (typeof target.removeListener === 'function'
+      ? (event, handler) => target.removeListener(event, handler)
+      : null);
   if (typeof target.on === 'function') {
+    target.on('close', markClosed);
+    target.on('finish', markClosed);
     target.on('error', handleError);
   }
   const proxyHandler = {
@@ -49,14 +53,23 @@ const createSafeWritableStream = (target) => {
       return typeof value === 'function' ? value.bind(obj) : value;
     }
   };
+  const close = () => {
+    markClosed();
+    if (!removeListener) return;
+    removeListener('close', markClosed);
+    removeListener('finish', markClosed);
+    removeListener('error', handleError);
+  };
   return {
     stream: new Proxy(target, proxyHandler),
-    isWritable: isStreamWritable
+    isWritable: isStreamWritable,
+    close
   };
 };
 
 export function createDisplay(options = {}) {
-  const stream = options.stream || process.stderr;
+  const safeStream = createSafeWritableStream(options.stream || process.stderr);
+  const stream = safeStream.stream;
   const isTTY = options.isTTY !== undefined ? options.isTTY : !!stream.isTTY;
   const verbose = options.verbose === true;
   const quiet = options.quiet === true;
@@ -368,6 +381,7 @@ export function createDisplay(options = {}) {
   };
 
   const close = () => {
+    safeStream.close?.();
     if (!interactive || !term) return;
     if (typeof term.showCursor === 'function') term.showCursor();
     if (canRender) {

@@ -206,4 +206,28 @@ assert.equal(
   'expected queue maxPending from indexing scheduler surface'
 );
 
+const zeroMaxPending = resolveSchedulerConfig({
+  argv: {},
+  rawArgv: ['node', 'script'],
+  envConfig: {},
+  indexingConfig: {
+    scheduler: {
+      queues: {
+        uncappedQueue: { maxPending: 0 }
+      }
+    }
+  },
+  envelope: {
+    concurrency: {
+      cpuConcurrency: { value: 4 },
+      ioConcurrency: { value: 4 }
+    }
+  }
+});
+assert.equal(
+  zeroMaxPending.queues.uncappedQueue.maxPending,
+  0,
+  'expected queue maxPending=0 to be preserved so scheduler caps can be cleared'
+);
+
 console.log('scheduler config parse test passed');

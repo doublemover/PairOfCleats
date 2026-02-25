@@ -133,7 +133,7 @@ const resolveQueueConfig = (value) => {
   for (const [name, config] of Object.entries(value)) {
     if (!isObject(config)) continue;
     const priority = coerceNonNegativeInt(config.priority);
-    const maxPending = coercePositiveInt(config.maxPending);
+    const maxPending = coerceNonNegativeInt(config.maxPending);
     const weight = coercePositiveInt(config.weight);
     const floorCpu = coerceNonNegativeInt(config.floorCpu);
     const floorIo = coerceNonNegativeInt(config.floorIo);

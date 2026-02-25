@@ -77,7 +77,42 @@ const runRestoreBackupCase = async () => {
   assert.equal(await fsPromises.readFile(tempPath, 'utf8'), 'after');
 };
 
+const runStaleBackupNoRestoreCase = async () => {
+  const finalPath = path.join(outDir, 'stale-backup.sqlite');
+  const tempPath = path.join(outDir, 'stale-backup.sqlite.tmp');
+  const backupPath = `${finalPath}.bak`;
+
+  await fsPromises.writeFile(backupPath, 'stale', 'utf8');
+  await fsPromises.writeFile(tempPath, 'after', 'utf8');
+
+  const originalRename = fsPromises.rename;
+  fsPromises.rename = async (from, to) => {
+    if (from === tempPath && to === finalPath) {
+      const err = new Error('ENOENT');
+      err.code = 'ENOENT';
+      throw err;
+    }
+    return originalRename(from, to);
+  };
+
+  let failed = null;
+  try {
+    await replaceSqliteDatabase(tempPath, finalPath);
+  } catch (err) {
+    failed = err;
+  } finally {
+    fsPromises.rename = originalRename;
+  }
+
+  assert.ok(failed, 'expected sqlite replace to fail when temp promote cannot complete');
+  assert.ok(!fs.existsSync(finalPath), 'expected stale backup to remain un-restored when final db did not exist');
+  assert.ok(fs.existsSync(backupPath), 'expected stale backup to remain untouched on failure');
+  assert.equal(await fsPromises.readFile(backupPath, 'utf8'), 'stale');
+  assert.equal(await fsPromises.readFile(tempPath, 'utf8'), 'after');
+};
+
 await runCrossDeviceFallbackCase();
 await runRestoreBackupCase();
+await runStaleBackupNoRestoreCase();
 
 console.log('sqlite replace database fallback tests passed');

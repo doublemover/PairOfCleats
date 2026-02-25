@@ -602,22 +602,32 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
   await removeSqliteSidecars(finalDbPath);
 
   let backupAvailable = fs.existsSync(backupPath);
-  if (finalExists && !backupAvailable) {
-    try {
-      await moveFileWithCrossDeviceFallback(finalDbPath, backupPath);
-      backupAvailable = true;
-    } catch (err) {
-      if (err?.code !== 'ENOENT') {
-        backupAvailable = fs.existsSync(backupPath);
-      }
-      if (!backupAvailable) {
-        emit(`[sqlite] Failed to move existing db to backup (${err?.message || err}).`);
+  let backupFromCurrentFinal = false;
+  if (finalExists) {
+    if (backupAvailable) {
+      try {
+        await fsPromises.rm(backupPath, { force: true });
+      } catch {}
+      backupAvailable = fs.existsSync(backupPath);
+    }
+    if (!backupAvailable) {
+      try {
+        await moveFileWithCrossDeviceFallback(finalDbPath, backupPath);
+        backupAvailable = true;
+        backupFromCurrentFinal = true;
+      } catch (err) {
+        if (err?.code !== 'ENOENT') {
+          backupAvailable = fs.existsSync(backupPath);
+        }
+        if (!backupAvailable) {
+          emit(`[sqlite] Failed to move existing db to backup (${err?.message || err}).`);
+        }
       }
     }
   }
 
   const tryRestoreBackup = async () => {
-    if (!backupAvailable) return;
+    if (!backupAvailable || !backupFromCurrentFinal) return;
     if (fs.existsSync(finalDbPath)) return;
     if (!fs.existsSync(backupPath)) return;
     emit('[sqlite] Replace failed; restoring previous database from backup.');
@@ -626,6 +636,7 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
     });
     if (!keepBackup) {
       backupAvailable = false;
+      backupFromCurrentFinal = false;
     }
   };
 
@@ -636,7 +647,7 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
       if (err?.code !== 'EEXIST' && err?.code !== 'EPERM' && err?.code !== 'ENOTEMPTY') {
         throw err;
       }
-      if (!backupAvailable) {
+      if (!backupFromCurrentFinal) {
         throw err;
       }
       emit('[sqlite] Falling back to removing existing db before replace.');
