@@ -323,6 +323,10 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
         pendingWrites > 0
         && activeWrites >= Math.max(1, currentConcurrency - 1)
       );
+    const writeQueueIdleWithSignals = hasSchedulerWriteSignals
+      && (schedulerWritePending == null || schedulerWritePending <= 0)
+      && (schedulerWriteOldestWaitMs == null || schedulerWriteOldestWaitMs <= 0)
+      && (schedulerWriteWaitP95Ms == null || schedulerWriteWaitP95Ms <= 1);
     const stallAttribution = (
       longestStallSec <= 0
         ? 'none'
@@ -400,6 +404,7 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
       && pendingWrites <= 1
       && activeWrites < currentConcurrency
       && backlogPerSlot <= scaleDownBacklogPerSlot
+      && !writeQueueIdleWithSignals
     ) {
       currentConcurrency -= 1;
       lastScaleDownAt = timestamp;

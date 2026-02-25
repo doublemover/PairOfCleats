@@ -31,7 +31,7 @@ If paused at threshold `T`, release threshold is `T * resumeHysteresisRatio` whe
 ## Window Awareness
 1. Over-budget `W1` throttles only compute prefetch first.
 2. Over-budget `W0` may block new dispatch while commit continues draining.
-3. Controller MUST preserve two-window contract.
+3. Controller MUST preserve deterministic active-window ordering (N..N+k), with default overlap scaling by concurrency and optional override via `maxActiveWindows` (up to 16) for throughput.
 
 ## Metrics
 Controller emits:

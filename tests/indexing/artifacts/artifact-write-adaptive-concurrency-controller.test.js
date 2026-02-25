@@ -168,6 +168,31 @@ assert.equal(
 );
 assert.equal(memoryEvents.at(-1)?.reason, 'memory-headroom', 'expected memory-headroom event reason');
 
+let drainNowMs = 0;
+const drainController = createAdaptiveWriteConcurrencyController({
+  maxConcurrency: 6,
+  minConcurrency: 2,
+  initialConcurrency: 4,
+  scaleUpBacklogPerSlot: 1.2,
+  scaleDownBacklogPerSlot: 0.5,
+  scaleUpCooldownMs: 0,
+  scaleDownCooldownMs: 0,
+  now: () => drainNowMs
+});
+drainNowMs += 1;
+assert.equal(
+  drainController.observe({
+    pendingWrites: 1,
+    activeWrites: 2,
+    longestStallSec: 0,
+    schedulerWritePending: 0,
+    schedulerWriteOldestWaitMs: 0,
+    schedulerWriteWaitP95Ms: 0
+  }),
+  4,
+  'expected idle write-queue scheduler signals to suppress drain scale-down'
+);
+
 const ntfsStrategy = resolveArtifactWriteFsStrategy({
   platform: 'win32',
   artifactConfig: {

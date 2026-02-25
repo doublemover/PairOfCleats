@@ -2,12 +2,15 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { getCapabilities } from './capabilities.js';
+import { buildIgnoreMatcher } from '../index/build/ignore.js';
 
 const QUALITY_LEVELS = ['fast', 'balanced', 'max'];
 const DEFAULT_SCAN_LIMITS = {
   maxFiles: 250000,
   maxBytes: 5 * 1024 * 1024 * 1024
 };
+const DEFAULT_SCAN_STAT_CONCURRENCY = 32;
+const DEFAULT_SCAN_PROGRESS_INTERVAL_MS = 1000;
 const IGNORE_DIRS = new Set([
   '.git',
   'node_modules',
@@ -100,50 +103,141 @@ const summarizeResources = () => {
   return { cpuCount, memoryGb };
 };
 
-const scanRepoStats = async (repoRoot, limits = {}) => {
+const formatBytes = (bytes) => {
+  const total = Number(bytes);
+  if (!Number.isFinite(total) || total <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let value = total;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  const precision = value >= 100 ? 0 : value >= 10 ? 1 : 2;
+  return `${value.toFixed(precision)} ${units[unitIndex]}`;
+};
+
+const normalizePositiveInt = (value, fallback, min = 1, max = Number.MAX_SAFE_INTEGER) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return fallback;
+  return Math.min(max, Math.max(min, Math.floor(numeric)));
+};
+
+const scanRepoStats = async (repoRoot, limits = {}, options = {}) => {
   const maxFiles = Number.isFinite(limits.maxFiles) ? limits.maxFiles : DEFAULT_SCAN_LIMITS.maxFiles;
   const maxBytes = Number.isFinite(limits.maxBytes) ? limits.maxBytes : DEFAULT_SCAN_LIMITS.maxBytes;
+  const statConcurrency = normalizePositiveInt(
+    limits.statConcurrency,
+    DEFAULT_SCAN_STAT_CONCURRENCY,
+    1,
+    128
+  );
+  const progressIntervalMs = normalizePositiveInt(
+    options.progressIntervalMs,
+    DEFAULT_SCAN_PROGRESS_INTERVAL_MS,
+    100,
+    60_000
+  );
+  const logger = typeof options.logger === 'function' ? options.logger : null;
+  const ignoreMatcher = options.ignoreMatcher && typeof options.ignoreMatcher.ignores === 'function'
+    ? options.ignoreMatcher
+    : null;
   let fileCount = 0;
   let totalBytes = 0;
   let truncated = false;
+  let dirsScanned = 0;
+  const startedAt = Date.now();
+  let lastProgressAt = startedAt;
 
+  const logScan = (message) => {
+    if (!logger) return;
+    logger(`[init] auto policy scan: ${message}`);
+  };
+  const logProgress = (force = false) => {
+    if (!logger) return;
+    const now = Date.now();
+    if (!force && now - lastProgressAt < progressIntervalMs) return;
+    lastProgressAt = now;
+    logScan(
+      `${fileCount.toLocaleString()} files, ${formatBytes(totalBytes)} ` +
+      `across ${dirsScanned.toLocaleString()} directories`
+    );
+  };
+
+  logScan(
+    `starting (maxFiles=${maxFiles.toLocaleString()}, maxBytes=${formatBytes(maxBytes)}, ` +
+    `statConcurrency=${statConcurrency})`
+  );
+  const toRelPosix = (targetPath) => (
+    path.relative(repoRoot, targetPath).replaceAll(path.sep, '/')
+  );
+  const shouldIgnore = (targetPath, isDir) => {
+    if (!ignoreMatcher) return false;
+    const relPosix = toRelPosix(targetPath);
+    if (!relPosix || relPosix === '.' || relPosix.startsWith('..')) return false;
+    const lookup = isDir ? `${relPosix}/` : relPosix;
+    return ignoreMatcher.ignores(lookup);
+  };
   const stack = [repoRoot];
   while (stack.length) {
     const current = stack.pop();
-    let dir;
+    let entries;
     try {
-      dir = await fs.opendir(current);
+      entries = await fs.readdir(current, { withFileTypes: true });
     } catch {
       continue;
     }
-    for await (const entry of dir) {
+    dirsScanned += 1;
+    const filesToStat = [];
+    for (const entry of entries) {
       const entryPath = path.join(current, entry.name);
       if (entry.isDirectory()) {
-        if (IGNORE_DIRS.has(entry.name)) continue;
+        if ((!ignoreMatcher && IGNORE_DIRS.has(entry.name)) || shouldIgnore(entryPath, true)) continue;
         stack.push(entryPath);
         continue;
       }
       if (!entry.isFile()) continue;
-      fileCount += 1;
+      if (shouldIgnore(entryPath, false)) continue;
+      filesToStat.push(entryPath);
+    }
+    if (filesToStat.length) {
+      fileCount += filesToStat.length;
       if (fileCount > maxFiles) {
         truncated = true;
-        break;
-      }
-      try {
-        const stats = await fs.stat(entryPath);
-        totalBytes += stats.size || 0;
-        if (totalBytes > maxBytes) {
-          truncated = true;
-          break;
-        }
-      } catch {
-        continue;
+      } else {
+        let nextIndex = 0;
+        const workerCount = Math.max(1, Math.min(statConcurrency, filesToStat.length));
+        const runStatWorker = async () => {
+          while (!truncated) {
+            const index = nextIndex;
+            nextIndex += 1;
+            if (index >= filesToStat.length) return;
+            try {
+              const stats = await fs.stat(filesToStat[index]);
+              totalBytes += stats.size || 0;
+              if (totalBytes > maxBytes) {
+                truncated = true;
+                return;
+              }
+            } catch {}
+          }
+        };
+        await Promise.all(Array.from({ length: workerCount }, () => runStatWorker()));
       }
     }
-    if (truncated) break;
+    logProgress();
+    if (truncated) {
+      break;
+    }
   }
 
   const huge = fileCount >= 200000 || totalBytes >= 5 * 1024 * 1024 * 1024;
+  logProgress(true);
+  logScan(
+    `done in ${Math.max(0, Date.now() - startedAt)}ms ` +
+    `(files=${fileCount.toLocaleString()}, bytes=${formatBytes(totalBytes)}, ` +
+    `truncated=${truncated ? 'yes' : 'no'}, huge=${huge ? 'yes' : 'no'})`
+  );
   return {
     fileCount,
     totalBytes,
@@ -216,6 +310,7 @@ const resolveHugeRepoProfile = ({ config = {}, repo = null }) => {
  * @param {object} [input.scanLimits] Scan limits forwarded to repo stats.
  * @param {object} [input.resources] Optional precomputed host resource summary.
  * @param {object} [input.repo] Optional precomputed repo stats summary.
+ * @param {(line:string)=>void} [input.logger] Optional logger for scan/status lines.
  * @returns {Promise<object>} Resolved policy envelope for indexing/retrieval/runtime.
  */
 export async function buildAutoPolicy({
@@ -223,10 +318,25 @@ export async function buildAutoPolicy({
   config = {},
   scanLimits,
   resources: resourcesOverride,
-  repo: repoOverride
+  repo: repoOverride,
+  logger = null
 } = {}) {
   const resources = resourcesOverride || summarizeResources();
-  const repo = repoOverride || (repoRoot ? await scanRepoStats(repoRoot, scanLimits) : {
+  let ignoreMatcher = null;
+  if (!repoOverride && repoRoot) {
+    try {
+      const ignore = await buildIgnoreMatcher({ root: repoRoot, userConfig: config });
+      ignoreMatcher = ignore.ignoreMatcher || null;
+      if (typeof logger === 'function' && Array.isArray(ignore.ignoreFiles) && ignore.ignoreFiles.length) {
+        logger(`[init] auto policy scan: loaded ignore files (${ignore.ignoreFiles.join(', ')})`);
+      }
+    } catch (err) {
+      if (typeof logger === 'function') {
+        logger(`[warn] auto policy scan ignore setup failed: ${err?.message || err}`);
+      }
+    }
+  }
+  const repo = repoOverride || (repoRoot ? await scanRepoStats(repoRoot, scanLimits, { logger, ignoreMatcher }) : {
     fileCount: 0,
     totalBytes: 0,
     truncated: false,
@@ -238,6 +348,13 @@ export async function buildAutoPolicy({
   const capabilities = getCapabilities();
   const concurrency = resolveConcurrency(quality.value, resources, repo);
   const workerPool = resolveWorkerPool(quality.value, resources, repo);
+  if (typeof logger === 'function') {
+    logger(
+      `[init] auto policy resolved: quality=${quality.value} (${quality.source}), ` +
+      `repoHuge=${repo.huge === true ? 'yes' : 'no'}, files=${repo.fileCount.toLocaleString()}, ` +
+      `bytes=${formatBytes(repo.totalBytes)}`
+    );
+  }
 
   return {
     profile: {

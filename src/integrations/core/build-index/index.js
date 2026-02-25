@@ -102,7 +102,7 @@ export async function buildIndex(repoRoot, options = {}) {
   const userConfig = loadUserConfig(root);
   const qualityOverride = typeof argv.quality === 'string' ? argv.quality.trim().toLowerCase() : '';
   const policyConfig = qualityOverride ? { ...userConfig, quality: qualityOverride } : userConfig;
-  const policy = await buildAutoPolicy({ repoRoot: root, config: policyConfig });
+  const policy = await buildAutoPolicy({ repoRoot: root, config: policyConfig, logger: log });
   const envelope = resolveRuntimeEnvelope({
     argv,
     rawArgv,

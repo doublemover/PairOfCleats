@@ -21,8 +21,8 @@ assert.equal(winPreset.enabled, true, 'expected platform preset enabled by defau
 assert.equal(winPreset.presetId, 'win32:ntfs', 'expected win32 preset id');
 assert.equal(
   winPreset.subprocessFanout.maxParallelismHint,
-  6,
-  'expected win32 subprocess fanout preset to reserve startup headroom'
+  8,
+  'expected win32 subprocess fanout preset to use full cpu fanout up to the ntfs cap'
 );
 assert.equal(
   winPreset.overrides?.artifacts?.writeFsStrategy,
@@ -31,7 +31,7 @@ assert.equal(
 );
 assert.equal(
   winPreset.overrides?.scm?.maxConcurrentProcesses,
-  6,
+  8,
   'expected scm fanout override to follow subprocess preset'
 );
 

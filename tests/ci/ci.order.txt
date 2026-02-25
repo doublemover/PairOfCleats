@@ -114,3 +114,10 @@ cli/search/search-windows-path-filter
 indexing/postings/postings-real-bench-contract
 storage/sqlite/sqlite-build-indexes
 indexing/scm/no-scm-build-id
+retrieval/filters/file-and-token/file-selector-case
+tooling/reports/summary/summary-report-compare-memory
+tooling/reports/summary/summary-report-compare-sqlite
+indexing/extracted-prose/extracted-prose
+indexing/imports/prose-skip-imports
+indexing/determinism/symbol-artifact-determinism
+indexing/embeddings/embeddings-validate
