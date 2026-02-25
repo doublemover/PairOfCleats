@@ -82,6 +82,9 @@ export const createTreeSitterSchedulerLookup = ({
         ? Math.floor(readerCloseTimeoutMs)
         : DEFAULT_READER_FORCE_CLOSE_AFTER_MS
     );
+  const readerCloseStepTimeoutMs = Number.isFinite(readerCloseTimeoutMs) && readerCloseTimeoutMs > 0
+    ? Math.floor(readerCloseTimeoutMs)
+    : Math.max(1, Math.floor(readerForceCloseAfterMs));
   const rowCache = createLruCache({
     name: 'tree-sitter-scheduler-row',
     maxEntries: cacheMax
@@ -183,7 +186,7 @@ export const createTreeSitterSchedulerLookup = ({
       await runBuildCleanupWithTimeout({
         label: `tree-sitter-lookup.reader-close.inflight:${entry.key}`,
         cleanup: () => entry.closingPromise,
-        timeoutMs: readerCloseTimeoutMs,
+        timeoutMs: readerCloseStepTimeoutMs,
         log
       });
       return;
@@ -201,7 +204,7 @@ export const createTreeSitterSchedulerLookup = ({
         await runBuildCleanupWithTimeout({
           label: `tree-sitter-lookup.reader-close:${entry.key}`,
           cleanup: () => reader.close(),
-          timeoutMs: readerCloseTimeoutMs,
+          timeoutMs: readerCloseStepTimeoutMs,
           log
         });
       } catch {}
@@ -325,7 +328,7 @@ export const createTreeSitterSchedulerLookup = ({
               await runBuildCleanupWithTimeout({
                 label: `tree-sitter-lookup.reader-close.force:${entry.key}`,
                 cleanup: () => entry.reader.close(),
-                timeoutMs: readerCloseTimeoutMs,
+                timeoutMs: readerCloseStepTimeoutMs,
                 log
               });
             } catch {}

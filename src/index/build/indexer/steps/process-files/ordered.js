@@ -163,7 +163,17 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
   const logFn = typeof options.log === 'function' ? options.log : null;
   const onJournalRecord = typeof options.onJournalRecord === 'function' ? options.onJournalRecord : null;
   const flushTimeoutMs = coerceNonNegativeIntOr(options.flushTimeoutMs, 0);
-  const maxPendingBeforeBackpressure = coercePositiveIntOr(options.maxPendingBeforeBackpressure, 256);
+  const maxPendingBeforeBackpressureBase = coercePositiveIntOr(options.maxPendingBeforeBackpressure, 256);
+  const maxPendingEmergencyFactor = Number.isFinite(Number(options.maxPendingEmergencyFactor))
+    && Number(options.maxPendingEmergencyFactor) > 1
+    ? Math.max(1.01, Number(options.maxPendingEmergencyFactor))
+    : null;
+  const maxPendingBeforeBackpressure = maxPendingEmergencyFactor
+    ? Math.max(
+      maxPendingBeforeBackpressureBase,
+      Math.floor(maxPendingBeforeBackpressureBase * maxPendingEmergencyFactor)
+    )
+    : maxPendingBeforeBackpressureBase;
   const maxPendingBytes = coercePositiveIntOr(options.maxPendingBytes, 256 * 1024 * 1024);
   const commitLagHard = coercePositiveIntOr(options.commitLagHard, Math.max(16, maxPendingBeforeBackpressure * 2));
   const resumeHysteresisRatio = Math.max(0.1, Math.min(0.95, Number(options.resumeHysteresisRatio) || 0.7));
@@ -304,6 +314,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       pendingCount,
       pendingBytes: bufferedBytes,
       maxPendingBeforeBackpressure,
+      maxPendingEmergencyFactor,
       maxPendingBytes,
       commitLagHard,
       flushActive: flushActiveStartedAt > 0

@@ -92,6 +92,14 @@ const resolveVectorsSource = (vectorsPath) => {
       };
     } catch {}
   }
+  try {
+    const data = readJsonFile(vectorsPath, { maxBytes: Number.POSITIVE_INFINITY });
+    const vectors = Array.isArray(data?.arrays?.vectors)
+      ? data.arrays.vectors
+      : (Array.isArray(data?.vectors) ? data.vectors : null);
+    if (!Array.isArray(vectors) || !vectors.length) return null;
+    return { count: vectors.length, vectors, rows: null };
+  } catch {}
   return null;
 };
 

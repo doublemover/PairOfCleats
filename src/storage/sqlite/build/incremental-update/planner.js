@@ -1,6 +1,6 @@
 import fsSync from 'node:fs';
-import path from 'node:path';
 import { readBundleFile } from '../../../../shared/bundle-io.js';
+import { joinPathSafe } from '../../../../shared/path-normalize.js';
 import {
   diffFileManifests,
   getFileManifest,
@@ -124,7 +124,10 @@ export const loadBundlesAndCollectState = async ({ changed, bundleDir }) => {
     if (!bundleName) {
       return { ok: false, reason: `missing bundle for ${fileKey}` };
     }
-    const bundlePath = path.join(bundleDir, bundleName);
+    const bundlePath = joinPathSafe(bundleDir, [bundleName]);
+    if (!bundlePath) {
+      return { ok: false, reason: `invalid bundle path for ${fileKey}` };
+    }
     if (!fsSync.existsSync(bundlePath)) {
       return { ok: false, reason: `bundle missing for ${fileKey}` };
     }

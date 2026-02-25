@@ -2362,6 +2362,7 @@ export const processFiles = async ({
         bucketSize: coercePositiveInt(runtime?.stage1Queues?.ordered?.bucketSize)
         ?? Math.max(256, runtime.fileConcurrency * 48),
         maxPendingBeforeBackpressure: orderedAppenderConfig.maxPendingBeforeBackpressure,
+        maxPendingEmergencyFactor: orderedAppenderConfig.maxPendingEmergencyFactor,
         maxPendingBytes: orderedAppenderConfig.maxPendingBytes,
         commitLagHard: orderedAppenderConfig.commitLagHard,
         resumeHysteresisRatio: orderedAppenderConfig.resumeHysteresisRatio,
@@ -2561,9 +2562,16 @@ export const processFiles = async ({
         ? Math.max(0, Math.floor(Number(orderedPending)))
         : 0;
       if (normalizedPending <= 0) return false;
+      const liveOrderedThreshold = Number(
+        typeof orderedAppender?.snapshot === 'function'
+          ? orderedAppender.snapshot()?.maxPendingBeforeBackpressure
+          : null
+      );
       const configuredLimit = Number(orderedAppenderConfig?.maxPendingBeforeBackpressure);
       const fallbackLimit = Math.max(1, Math.floor(runtime.fileConcurrency || 1));
-      const backpressureThreshold = Number.isFinite(configuredLimit) && configuredLimit > 0
+      const backpressureThreshold = Number.isFinite(liveOrderedThreshold) && liveOrderedThreshold > 0
+        ? Math.max(1, Math.floor(liveOrderedThreshold))
+        : Number.isFinite(configuredLimit) && configuredLimit > 0
         ? Math.max(1, Math.floor(configuredLimit))
         : fallbackLimit;
       return normalizedPending >= backpressureThreshold;

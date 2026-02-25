@@ -31,6 +31,9 @@ const canonicalizeIndexDir = async (dir) => {
 const INDEX_FILES = [
   'phrase_ngrams.json',
   'chargram_postings.json',
+  'dense_vectors_uint8.json',
+  'dense_vectors_doc_uint8.json',
+  'dense_vectors_code_uint8.json',
   'dense_vectors_uint8.bin.meta.json',
   'dense_vectors_uint8.bin',
   'dense_vectors_doc_uint8.bin.meta.json',
@@ -253,9 +256,7 @@ export async function buildIndexSignature(dir) {
   if (!canonicalDir) return null;
   const stateInfo = await indexStateSignature(canonicalDir);
   if (stateInfo?.signature) {
-    const cacheKey = stateInfo.buildId
-      ? `${canonicalDir}|build:${stateInfo.buildId}`
-      : `${canonicalDir}|state:${stateInfo.signature}`;
+    const cacheKey = `${canonicalDir}|state:${stateInfo.signature}`;
     const cached = getCachedSignature(cacheKey);
     if (cached) return cached;
     const signature = `index_state:${stateInfo.signature}`;

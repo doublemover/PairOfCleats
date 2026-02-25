@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { pathExists } from '../../shared/files.js';
 import { runWithConcurrency } from '../../shared/concurrency.js';
 import {
@@ -100,6 +101,51 @@ export const attachDenseVectorLoader = ({
         if (!loaded.model && modelIdDefault) loaded.model = modelIdDefault;
         idx.denseVec = loaded;
         return loaded;
+      }
+      for (const artifactName of artifactCandidates) {
+        const descriptor = resolveDenseVectorBinaryArtifact(artifactName);
+        try {
+          const legacy = await loadJsonObjectArtifact(dir, artifactName, {
+            maxBytes: MAX_JSON_BYTES,
+            manifest,
+            strict
+          });
+          const vectors = Array.isArray(legacy?.arrays?.vectors)
+            ? legacy.arrays.vectors
+            : (Array.isArray(legacy?.vectors) ? legacy.vectors : null);
+          if (!Array.isArray(vectors) || !vectors.length) continue;
+          const payload = {
+            ...legacy,
+            vectors
+          };
+          if (!payload.model && modelIdDefault) payload.model = modelIdDefault;
+          idx.denseVec = payload;
+          return payload;
+        } catch {
+          if (strict || !descriptor) continue;
+        }
+        if (!strict && descriptor) {
+          const fallbackPaths = [
+            path.join(dir, `${descriptor.baseName}.json`),
+            path.join(dir, `${artifactName}.json`)
+          ];
+          for (const fallbackPath of fallbackPaths) {
+            try {
+              const legacy = readJsonFile(fallbackPath, { maxBytes: MAX_JSON_BYTES });
+              const vectors = Array.isArray(legacy?.arrays?.vectors)
+                ? legacy.arrays.vectors
+                : (Array.isArray(legacy?.vectors) ? legacy.vectors : null);
+              if (!Array.isArray(vectors) || !vectors.length) continue;
+              const payload = {
+                ...legacy,
+                vectors
+              };
+              if (!payload.model && modelIdDefault) payload.model = modelIdDefault;
+              idx.denseVec = payload;
+              return payload;
+            } catch {}
+          }
+        }
       }
       idx.loadDenseVectors = null;
       return null;

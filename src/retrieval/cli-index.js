@@ -180,14 +180,19 @@ export async function loadIndex(dir, options) {
   const indexState = await loadOptionalObject('index_state');
   const embeddingsState = indexState?.embeddings || null;
   const embeddingsReady = embeddingsState?.ready !== false && embeddingsState?.pending !== true;
+  const loadDenseWithFallback = async (artifactName) => {
+    const binaryPayload = await loadOptionalDenseBinary(artifactName);
+    if (binaryPayload) return binaryPayload;
+    return await loadOptionalObject(artifactName);
+  };
   const denseVec = embeddingsReady && includeDense
-    ? await loadOptionalDenseBinary('dense_vectors')
+    ? await loadDenseWithFallback('dense_vectors')
     : null;
   const denseVecDoc = embeddingsReady && includeDense
-    ? await loadOptionalDenseBinary('dense_vectors_doc')
+    ? await loadDenseWithFallback('dense_vectors_doc')
     : null;
   const denseVecCode = embeddingsReady && includeDense
-    ? await loadOptionalDenseBinary('dense_vectors_code')
+    ? await loadDenseWithFallback('dense_vectors_code')
     : null;
   const sqliteVecMeta = embeddingsReady && includeDense
     ? await loadOptionalObject('dense_vectors_sqlite_vec_meta')

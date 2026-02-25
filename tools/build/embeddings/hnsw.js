@@ -109,6 +109,7 @@ const resolveVectorsSource = (vectorsPath) => {
   if (!vectorsPath) return null;
   const dir = path.dirname(vectorsPath);
   const base = path.basename(vectorsPath, path.extname(vectorsPath));
+  const ext = path.extname(vectorsPath) || '.json';
   const baseCandidates = resolveArtifactBaseCandidates(base);
   let manifest = null;
   try {
@@ -152,6 +153,25 @@ const resolveVectorsSource = (vectorsPath) => {
       };
     } catch {}
   }
+  for (const artifactBase of baseCandidates) {
+    const candidatePath = path.join(dir, `${artifactBase}${ext}`);
+    try {
+      const data = readJsonFile(candidatePath, { maxBytes: Number.POSITIVE_INFINITY });
+      const vectors = Array.isArray(data?.arrays?.vectors)
+        ? data.arrays.vectors
+        : (Array.isArray(data?.vectors) ? data.vectors : null);
+      if (!Array.isArray(vectors) || !vectors.length) continue;
+      return { count: vectors.length, vectors, rows: null };
+    } catch {}
+  }
+  try {
+    const data = readJsonFile(vectorsPath, { maxBytes: Number.POSITIVE_INFINITY });
+    const vectors = Array.isArray(data?.arrays?.vectors)
+      ? data.arrays.vectors
+      : (Array.isArray(data?.vectors) ? data.vectors : null);
+    if (!Array.isArray(vectors) || !vectors.length) return null;
+    return { count: vectors.length, vectors, rows: null };
+  } catch {}
   return null;
 };
 
