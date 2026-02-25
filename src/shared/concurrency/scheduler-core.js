@@ -66,6 +66,10 @@ export function createBuildScheduler(input = {}) {
     const parsed = Math.floor(Number(value));
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
   };
+  const normalizeMaxPending = (value) => {
+    const parsed = Math.floor(Number(value));
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  };
   const normalizeByteCount = (value) => {
     const parsed = Math.floor(Number(value));
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
@@ -366,7 +370,7 @@ export function createBuildScheduler(input = {}) {
       floorCpu: Number.isFinite(Number(cfg.floorCpu)) ? Math.max(0, Math.floor(Number(cfg.floorCpu))) : 0,
       floorIo: Number.isFinite(Number(cfg.floorIo)) ? Math.max(0, Math.floor(Number(cfg.floorIo))) : 0,
       floorMem: Number.isFinite(Number(cfg.floorMem)) ? Math.max(0, Math.floor(Number(cfg.floorMem))) : 0,
-      maxPending: Number.isFinite(Number(cfg.maxPending)) ? Math.max(1, Math.floor(Number(cfg.maxPending))) : null,
+      maxPending: normalizeMaxPending(cfg.maxPending),
       maxPendingBytes: normalizeByteLimit(cfg.maxPendingBytes),
       maxInFlightBytes: normalizeByteLimit(cfg.maxInFlightBytes),
       pending: [],
@@ -403,8 +407,8 @@ export function createBuildScheduler(input = {}) {
     if (Number.isFinite(Number(config.priority))) {
       queue.priority = Number(config.priority);
     }
-    if (Number.isFinite(Number(config.maxPending))) {
-      queue.maxPending = Math.max(1, Math.floor(Number(config.maxPending)));
+    if (Object.prototype.hasOwnProperty.call(config, 'maxPending')) {
+      queue.maxPending = normalizeMaxPending(config.maxPending);
     }
     if (config.maxPendingBytes != null) {
       queue.maxPendingBytes = normalizeByteLimit(config.maxPendingBytes);
