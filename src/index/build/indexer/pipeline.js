@@ -646,6 +646,9 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     meta = null,
     run
   }) => {
+    if (hangProbeConfig?.enabled !== true) {
+      return run();
+    }
     let timeoutWarnTimer = null;
     let timeoutWarned = false;
     const startedAtMs = Date.now();
@@ -759,6 +762,9 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     }
     if (settled?.status === 'rejected') {
       throw settled.error;
+    }
+    if (hangProbeConfig?.enabled !== true) {
+      return null;
     }
     const elapsedMs = Math.max(0, Date.now() - startedAtMs);
     logLine(

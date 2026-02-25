@@ -21,7 +21,7 @@ export const resolveHangProbeConfig = (envConfig = null) => {
     ? envConfig
     : getEnvConfig();
   return {
-    enabled: config?.debugHangProbes !== false,
+    enabled: config?.debugHangProbes === true,
     warnMs: normalizePositiveInt(config?.debugHangProbeWarnMs, HANG_PROBE_WARN_DEFAULT_MS),
     heartbeatMs: normalizePositiveInt(
       config?.debugHangProbeHeartbeatMs,
