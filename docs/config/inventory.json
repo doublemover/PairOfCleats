@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-25T16:38:52.150Z",
+  "generatedAt": "2026-02-25T19:02:58.948Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2260,6 +2260,12 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_DENSE_BINARY_MAX_INLINE_MB",
+      "files": [
+        "src/storage/sqlite/utils.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_DICT_DIR",
       "files": [
         "src/shared/env.js",
@@ -3416,7 +3422,9 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [],
+  "envVarsUnknown": [
+    "PAIROFCLEATS_DENSE_BINARY_MAX_INLINE_MB"
+  ],
   "cliFlags": {
     "totalFlags": 357,
     "publicFlags": [
