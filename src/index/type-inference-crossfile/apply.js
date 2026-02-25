@@ -5,6 +5,16 @@ const ensureInferred = (docmeta) => {
   return docmeta.inferredTypes;
 };
 
+const ensureParamMap = (value) => {
+  if (!value || typeof value !== 'object') return Object.create(null);
+  if (Object.getPrototypeOf(value) === null) return value;
+  const next = Object.create(null);
+  for (const [name, entries] of Object.entries(value)) {
+    next[name] = Array.isArray(entries) ? entries : [];
+  }
+  return next;
+};
+
 export const addInferredReturn = (docmeta, type, source, confidence) => {
   if (!type) return false;
   const inferred = ensureInferred(docmeta);
@@ -21,8 +31,10 @@ export const addInferredReturn = (docmeta, type, source, confidence) => {
 export const addInferredParam = (docmeta, name, type, source, confidence, maxCandidates = null) => {
   if (!name || !type) return false;
   const inferred = ensureInferred(docmeta);
-  if (!inferred.params || typeof inferred.params !== 'object') inferred.params = {};
-  const list = inferred.params[name] || [];
+  inferred.params = ensureParamMap(inferred.params);
+  const list = Object.hasOwn(inferred.params, name) && Array.isArray(inferred.params[name])
+    ? inferred.params[name]
+    : [];
   if (Number.isFinite(maxCandidates) && maxCandidates > 0) {
     const hasType = list.some((entry) => entry.type === type);
     if (!hasType && list.length >= maxCandidates) return false;

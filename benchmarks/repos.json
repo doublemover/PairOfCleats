@@ -97,7 +97,7 @@
         "AlDanial/cloc",
         "brendangregg/FlameGraph",
         "gugod/App-perlbrew",
-        "ocpi/openscap",
+        "OpenSCAP/openscap",
         "perl-carton/carton",
         "so-fancy/diff-so-fancy"
       ],
@@ -453,7 +453,7 @@
         "devcontainers/images",
         "docker-library/hello-world",
         "docker/awesome-compose",
-        "github/actions",
+        "actions/runner-images",
         "mikeroyal/Self-Hosting-Guide",
         "nginxinc/docker-nginx",
         "nodejs/docker-node"
@@ -813,7 +813,7 @@
         "bestony/EasyWordPressBook",
         "bigcommerce/paper-handlebars",
         "express-handlebars/express-handlebars",
-        "ghost/ghost",
+        "TryGhost/Ghost",
         "handlebars-lang/handlebars.js",
         "metalsmith/metalsmith",
         "rust-lang/rust-by-example"
