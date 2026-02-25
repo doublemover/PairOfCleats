@@ -96,30 +96,57 @@ if (!('hnsw' in backends) || !('lancedb' in backends) || !('sqliteVec' in backen
   process.exit(1);
 }
 
-const denseJsonFiles = [
-  path.join(codeDir, 'dense_vectors_uint8.json'),
-  path.join(codeDir, 'dense_vectors_doc_uint8.json'),
-  path.join(codeDir, 'dense_vectors_code_uint8.json')
+const denseBinaryArtifacts = [
+  {
+    binPath: path.join(codeDir, 'dense_vectors_uint8.bin'),
+    metaPath: path.join(codeDir, 'dense_vectors_uint8.bin.meta.json')
+  },
+  {
+    binPath: path.join(codeDir, 'dense_vectors_doc_uint8.bin'),
+    metaPath: path.join(codeDir, 'dense_vectors_doc_uint8.bin.meta.json')
+  },
+  {
+    binPath: path.join(codeDir, 'dense_vectors_code_uint8.bin'),
+    metaPath: path.join(codeDir, 'dense_vectors_code_uint8.bin.meta.json')
+  }
 ];
-for (const densePath of denseJsonFiles) {
-  let densePayload;
+for (const { binPath, metaPath } of denseBinaryArtifacts) {
+  let denseMetaPayload;
   try {
-    densePayload = JSON.parse(await fsPromises.readFile(densePath, 'utf8'));
+    denseMetaPayload = JSON.parse(await fsPromises.readFile(metaPath, 'utf8'));
   } catch {
-    console.error(`Failed to read ${densePath}.`);
+    console.error(`Failed to read ${metaPath}.`);
     process.exit(1);
   }
-  const fields = densePayload?.fields || densePayload || {};
+  const fields = denseMetaPayload?.fields || denseMetaPayload || {};
   if (!Number.isFinite(fields.minVal)) {
-    console.error(`dense vectors missing minVal in ${densePath}.`);
+    console.error(`dense vectors missing minVal in ${metaPath}.`);
     process.exit(1);
   }
   if (!Number.isFinite(fields.maxVal)) {
-    console.error(`dense vectors missing maxVal in ${densePath}.`);
+    console.error(`dense vectors missing maxVal in ${metaPath}.`);
     process.exit(1);
   }
   if (!Number.isFinite(fields.levels)) {
-    console.error(`dense vectors missing levels in ${densePath}.`);
+    console.error(`dense vectors missing levels in ${metaPath}.`);
+    process.exit(1);
+  }
+  const dims = Number(fields.dims);
+  const count = Number(fields.count);
+  if (!Number.isFinite(dims) || dims <= 0 || !Number.isFinite(count) || count < 0) {
+    console.error(`dense vectors missing dims/count in ${metaPath}.`);
+    process.exit(1);
+  }
+  let binStat;
+  try {
+    binStat = await fsPromises.stat(binPath);
+  } catch {
+    console.error(`Failed to stat ${binPath}.`);
+    process.exit(1);
+  }
+  const expectedBytes = Math.floor(dims) * Math.floor(count);
+  if (binStat.size < expectedBytes) {
+    console.error(`dense vectors payload too small in ${binPath} (${binStat.size} < ${expectedBytes}).`);
     process.exit(1);
   }
 }
