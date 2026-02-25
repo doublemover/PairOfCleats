@@ -85,6 +85,8 @@ const INDEX_STAGE_PLAN = Object.freeze([
 ]);
 const HEAVY_UTILIZATION_STAGES = new Set(['processing', 'relations', 'postings', 'write']);
 const PROSE_FILE_TEXT_CACHE_MODES = new Set(['prose', 'extracted-prose']);
+const STATE_WRITE_TIMEOUT_WARNING_DEFAULT_MS = 10000;
+const STATE_WRITE_CONTINUE_DEFAULT_MS = 5000;
 const runtimeFileTextCaches = new WeakMap();
 const CHECKPOINT_VOLATILE_QUEUE_FIELDS = new Set([
   'oldestWaitMs',
@@ -265,6 +267,15 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
 
   const stageTotal = INDEX_STAGE_PLAN.length;
   let stageIndex = 0;
+  const stateWriteWarnMs = Math.max(
+    STATE_WRITE_TIMEOUT_WARNING_DEFAULT_MS,
+    Number.isFinite(Number(hangProbeConfig?.warnMs))
+      ? Math.floor(Number(hangProbeConfig.warnMs))
+      : STATE_WRITE_TIMEOUT_WARNING_DEFAULT_MS
+  );
+  const stateWriteContinueMs = Number.isFinite(Number(runtime?.indexingConfig?.stateWriteContinueMs))
+    ? Math.max(500, Math.floor(Number(runtime.indexingConfig.stateWriteContinueMs)))
+    : STATE_WRITE_CONTINUE_DEFAULT_MS;
   /**
    * Read scheduler stats when scheduler telemetry is available.
    *
@@ -616,6 +627,196 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     });
   };
   /**
+   * Instrument build-state writes and sparsity profile updates with explicit
+   * timeout warnings so post-stage hangs are easier to localize.
+   *
+   * @param {{
+   *  label:string,
+   *  stage?:string,
+   *  step?:string,
+   *  meta?:object|null,
+   *  run:()=>Promise<unknown>
+   * }} input
+   * @returns {Promise<unknown>}
+   */
+  const runStateWriteProbe = async ({
+    label,
+    stage = 'processing',
+    step = 'state-write',
+    meta = null,
+    run
+  }) => {
+    let timeoutWarnTimer = null;
+    let timeoutWarned = false;
+    const startedAtMs = Date.now();
+    const safeMeta = meta && typeof meta === 'object' ? meta : null;
+    return runWithHangProbe({
+      ...hangProbeConfig,
+      warnMs: stateWriteWarnMs,
+      label,
+      mode,
+      stage,
+      step,
+      log: logLine,
+      meta: safeMeta,
+      run: async () => {
+        timeoutWarnTimer = setTimeout(() => {
+          timeoutWarned = true;
+          const elapsedMs = Math.max(0, Date.now() - startedAtMs);
+          logLine(
+            `[hang-probe] timeout-warning ${label} exceeded ${stateWriteWarnMs}ms (elapsed=${elapsedMs}ms).`,
+            {
+              kind: 'warning',
+              mode,
+              stage,
+              step,
+              ...(safeMeta || {}),
+              hangProbe: {
+                event: 'timeout-warning',
+                label,
+                elapsedMs,
+                warnMs: stateWriteWarnMs
+              }
+            }
+          );
+        }, stateWriteWarnMs);
+        if (typeof timeoutWarnTimer?.unref === 'function') timeoutWarnTimer.unref();
+        try {
+          return await run();
+        } finally {
+          if (timeoutWarnTimer) clearTimeout(timeoutWarnTimer);
+          if (timeoutWarned) {
+            const elapsedMs = Math.max(0, Date.now() - startedAtMs);
+            logLine(
+              `[hang-probe] timeout-warning cleared ${label} completed after ${elapsedMs}ms.`,
+              {
+                kind: 'warning',
+                mode,
+                stage,
+                step,
+                ...(safeMeta || {}),
+                hangProbe: {
+                  event: 'timeout-warning-cleared',
+                  label,
+                  elapsedMs,
+                  warnMs: stateWriteWarnMs
+                }
+              }
+            );
+          }
+        }
+      }
+    });
+  };
+  /**
+   * Keep pipeline hot path moving when non-critical state writes stall by
+   * continuing after a bounded wait while logging the eventual outcome.
+   *
+   * @param {{
+   *  label:string,
+   *  stage?:string,
+   *  step?:string,
+   *  meta?:object|null,
+   *  run:()=>Promise<unknown>
+   * }} input
+   * @returns {Promise<unknown>}
+   */
+  const runStateWriteBestEffort = async ({
+    label,
+    stage = 'processing',
+    step = 'state-write',
+    meta = null,
+    run
+  }) => {
+    const startedAtMs = Date.now();
+    const safeMeta = meta && typeof meta === 'object' ? meta : null;
+    const stateWritePromise = runStateWriteProbe({
+      label,
+      stage,
+      step,
+      meta: safeMeta,
+      run
+    }).then(
+      (value) => ({ status: 'resolved', value }),
+      (error) => ({ status: 'rejected', error })
+    );
+    if (!Number.isFinite(stateWriteContinueMs) || stateWriteContinueMs <= 0) {
+      const settled = await stateWritePromise;
+      if (settled.status === 'rejected') throw settled.error;
+      return settled.value;
+    }
+    let timeoutHandle = null;
+    const timeoutPromise = new Promise((resolve) => {
+      timeoutHandle = setTimeout(() => {
+        resolve({ status: 'timed-out' });
+      }, stateWriteContinueMs);
+      if (typeof timeoutHandle?.unref === 'function') timeoutHandle.unref();
+    });
+    const settled = await Promise.race([stateWritePromise, timeoutPromise]);
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+    if (settled?.status === 'resolved') {
+      return settled.value;
+    }
+    if (settled?.status === 'rejected') {
+      throw settled.error;
+    }
+    const elapsedMs = Math.max(0, Date.now() - startedAtMs);
+    logLine(
+      `[hang-probe] non-blocking-continue ${label} exceeded ${stateWriteContinueMs}ms (elapsed=${elapsedMs}ms); continuing pipeline while write settles.`,
+      {
+        kind: 'warning',
+        mode,
+        stage,
+        step,
+        ...(safeMeta || {}),
+        hangProbe: {
+          event: 'non-blocking-continue',
+          label,
+          elapsedMs,
+          continueAfterMs: stateWriteContinueMs
+        }
+      }
+    );
+    void stateWritePromise.then((backgroundSettled) => {
+      const settledElapsedMs = Math.max(0, Date.now() - startedAtMs);
+      if (backgroundSettled?.status === 'resolved') {
+        logLine(
+          `[hang-probe] background-settled ${label} completed after ${settledElapsedMs}ms.`,
+          {
+            kind: 'warning',
+            mode,
+            stage,
+            step,
+            ...(safeMeta || {}),
+            hangProbe: {
+              event: 'background-settled',
+              label,
+              elapsedMs: settledElapsedMs
+            }
+          }
+        );
+        return;
+      }
+      const errorMessage = backgroundSettled?.error?.message || String(backgroundSettled?.error || 'unknown error');
+      logLine(
+        `[hang-probe] background-failed ${label} after ${settledElapsedMs}ms: ${errorMessage}`,
+        {
+          kind: 'warning',
+          mode,
+          stage,
+          step,
+          ...(safeMeta || {}),
+          hangProbe: {
+            event: 'background-failed',
+            label,
+            elapsedMs: settledElapsedMs
+          }
+        }
+      );
+    });
+    return null;
+  };
+  /**
    * Advance visible stage progress and retag scheduler telemetry.
    *
    * @param {{id:string,label:string}} stage
@@ -875,35 +1076,56 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       sparsityCacheHit: processResult?.stageElided === true && cachedZeroModality === true
     }
   });
-  await updateBuildState(runtimeRef.buildRoot, {
-    counts: {
-      [mode]: {
-        files: allEntries.length,
-        chunks: state.chunks?.length || 0,
-        skipped: state.skippedFiles?.length || 0
+  await runStateWriteBestEffort({
+    label: 'pipeline.update-build-state.counts',
+    meta: {
+      fileCount: allEntries.length,
+      chunkCount: state.chunks?.length || 0
+    },
+    run: () => updateBuildState(runtimeRef.buildRoot, {
+      counts: {
+        [mode]: {
+          files: allEntries.length,
+          chunks: state.chunks?.length || 0,
+          skipped: state.skippedFiles?.length || 0
+        }
       }
-    }
+    })
   });
-  await writeModalitySparsityEntry({
-    runtime: runtimeRef,
-    profilePath: modalitySparsityProfilePath,
-    profile: modalitySparsityProfile,
-    mode,
-    cacheSignature,
-    fileCount: allEntries.length,
-    chunkCount: state.chunks?.length || 0,
-    elided: processResult?.stageElided === true,
-    source: processResult?.stageElided === true
-      ? (cachedZeroModality ? 'sparsity-cache-hit' : 'discovery')
-      : 'observed'
+  await runStateWriteBestEffort({
+    label: 'pipeline.write-modality-sparsity',
+    meta: {
+      fileCount: allEntries.length,
+      chunkCount: state.chunks?.length || 0,
+      stageElided: processResult?.stageElided === true
+    },
+    run: () => writeModalitySparsityEntry({
+      runtime: runtimeRef,
+      profilePath: modalitySparsityProfilePath,
+      profile: modalitySparsityProfile,
+      mode,
+      cacheSignature,
+      fileCount: allEntries.length,
+      chunkCount: state.chunks?.length || 0,
+      elided: processResult?.stageElided === true,
+      source: processResult?.stageElided === true
+        ? (cachedZeroModality ? 'sparsity-cache-hit' : 'discovery')
+        : 'observed'
+    })
   });
   if (mode === 'extracted-prose') {
     const extractionSummary = summarizeDocumentExtractionForMode(state);
     if (extractionSummary) {
-      await updateBuildState(runtimeRef.buildRoot, {
-        documentExtraction: {
-          [mode]: extractionSummary
-        }
+      await runStateWriteBestEffort({
+        label: 'pipeline.update-build-state.document-extraction',
+        meta: {
+          mode
+        },
+        run: () => updateBuildState(runtimeRef.buildRoot, {
+          documentExtraction: {
+            [mode]: extractionSummary
+          }
+        })
       });
     }
   }

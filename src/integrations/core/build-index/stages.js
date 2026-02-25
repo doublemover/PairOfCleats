@@ -5,7 +5,13 @@ import { preprocessFiles, writePreprocessStats } from '../../../index/build/prep
 import { buildIndexForMode } from '../../../index/build/indexer.js';
 import { SIGNATURE_VERSION } from '../../../index/build/indexer/signatures.js';
 import { createBuildRuntime } from '../../../index/build/runtime.js';
-import { initBuildState, markBuildPhase, startBuildHeartbeat, updateBuildState } from '../../../index/build/build-state.js';
+import {
+  flushBuildState,
+  initBuildState,
+  markBuildPhase,
+  startBuildHeartbeat,
+  updateBuildState
+} from '../../../index/build/build-state.js';
 import { promoteBuild } from '../../../index/build/promotion.js';
 import { validateIndexArtifacts } from '../../../index/validate.js';
 import { logError as defaultLogError, logLine, showProgress } from '../../../shared/progress.js';
@@ -907,6 +913,17 @@ export const runStage = async (
       throw err;
     } finally {
       stopHeartbeat();
+      try {
+        await runBuildCleanupWithTimeout({
+          label: `${phaseStage}.build-state.flush`,
+          cleanup: () => flushBuildState(runtime?.buildRoot),
+          log
+        });
+      } catch (err) {
+        logLine(`[build_state] ${phaseStage} final flush failed: ${err?.message || String(err)}`, {
+          kind: 'warning'
+        });
+      }
       let releaseError = null;
       try {
         if (lock?.release) {

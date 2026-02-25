@@ -1,12 +1,14 @@
 import path from 'node:path';
 import { estimateJsonBytes } from '../../../shared/cache.js';
 import { createLifecycleRegistry } from '../../../shared/lifecycle/registry.js';
+import { logLine } from '../../../shared/progress.js';
 import { runBuildCleanupWithTimeout } from '../cleanup-timeout.js';
 
 const DEFAULT_DEBOUNCE_MS = 250;
 const LONG_DEBOUNCE_MS = 500;
 const VERY_LONG_DEBOUNCE_MS = 1000;
 const LARGE_PATCH_BYTES = 64 * 1024;
+const PATCH_WAITER_TIMEOUT_MS = 30000;
 
 const resolveDebounceMs = (patch) => {
   if (!patch || typeof patch !== 'object') return DEFAULT_DEBOUNCE_MS;
@@ -25,6 +27,66 @@ export const createPatchQueue = ({
   const stateQueues = new Map();
   const statePending = new Map();
   const statePendingLifecycles = new Map();
+
+  const settleWaiter = (pending, waiter, method, value) => {
+    if (!waiter || waiter.settled) return;
+    waiter.settled = true;
+    if (waiter.timerCancel) {
+      waiter.timerCancel();
+      waiter.timerCancel = null;
+      waiter.timer = null;
+    } else if (waiter.timer) {
+      clearTimeout(waiter.timer);
+      waiter.timer = null;
+    }
+    if (pending?.waiters?.length) {
+      pending.waiters = pending.waiters.filter((candidate) => candidate !== waiter);
+    }
+    if (method === 'reject') {
+      waiter.reject(value);
+      return;
+    }
+    waiter.resolve(value);
+  };
+
+  const createWaiter = (buildRoot, pending) => {
+    const key = path.resolve(buildRoot);
+    const createdAtMs = Date.now();
+    let resolvePromise = null;
+    let rejectPromise = null;
+    const promise = new Promise((resolve, reject) => {
+      resolvePromise = resolve;
+      rejectPromise = reject;
+    });
+    const waiter = {
+      settled: false,
+      timer: null,
+      timerCancel: null,
+      resolve: resolvePromise,
+      reject: rejectPromise
+    };
+    waiter.timer = setTimeout(() => {
+      const elapsedMs = Math.max(0, Date.now() - createdAtMs);
+      settleWaiter(pending, waiter, 'resolve', null);
+      logLine(
+        `[build_state] patch queue waiter timed out after ${PATCH_WAITER_TIMEOUT_MS}ms for ${key}; continuing without waiting for flush completion.`,
+        {
+          kind: 'warning',
+          buildState: {
+            event: 'patch-waiter-timeout',
+            buildRoot: key,
+            timeoutMs: PATCH_WAITER_TIMEOUT_MS,
+            elapsedMs
+          }
+        }
+      );
+    }, PATCH_WAITER_TIMEOUT_MS);
+    if (typeof waiter.timer?.unref === 'function') waiter.timer.unref();
+    waiter.timerCancel = pending.lifecycle.registerTimer(waiter.timer, {
+      label: 'build-state-waiter-timeout'
+    });
+    return { waiter, promise };
+  };
 
   const isActiveStateKey = (key) => (
     stateQueues.has(key)
@@ -74,8 +136,7 @@ export const createPatchQueue = ({
         timer: null,
         timerCancel: null,
         lifecycle: getPendingLifecycle(buildRoot),
-        resolves: [],
-        rejects: []
+        waiters: []
       });
     }
     return statePending.get(key);
@@ -92,22 +153,20 @@ export const createPatchQueue = ({
     }
     const patch = pending.patch;
     const events = pending.events;
-    const resolves = pending.resolves;
-    const rejects = pending.rejects;
+    const waiters = pending.waiters;
     pending.patch = null;
     pending.events = [];
-    pending.resolves = [];
-    pending.rejects = [];
+    pending.waiters = [];
     try {
       const result = await enqueueStateUpdate(buildRoot, () => applyStatePatch(buildRoot, patch, events));
-      resolves.forEach((resolve) => resolve(result));
-      if (!pending.patch && !pending.timer) {
+      waiters.forEach((waiter) => settleWaiter(pending, waiter, 'resolve', result));
+      if (!pending.patch && !pending.timer && pending.waiters.length === 0) {
         statePending.delete(key);
         releasePendingLifecycle(buildRoot);
       }
       return result;
     } catch (err) {
-      rejects.forEach((reject) => reject(err));
+      waiters.forEach((waiter) => settleWaiter(pending, waiter, 'reject', err));
       /**
        * Preserve pending patch/events on write failure so state updates are not
        * dropped when the next flush succeeds.
@@ -128,7 +187,7 @@ export const createPatchQueue = ({
         });
       }
       recordStateError(buildRoot, err);
-      if (!pending.patch && !pending.timer) {
+      if (!pending.patch && !pending.timer && pending.waiters.length === 0) {
         statePending.delete(key);
         releasePendingLifecycle(buildRoot);
       }
@@ -141,10 +200,8 @@ export const createPatchQueue = ({
     const pending = getPendingEntry(buildRoot);
     pending.patch = pending.patch ? mergeState(pending.patch, patch) : patch;
     if (events.length) pending.events.push(...events);
-    const promise = new Promise((resolve, reject) => {
-      pending.resolves.push(resolve);
-      pending.rejects.push(reject);
-    });
+    const { waiter, promise } = createWaiter(buildRoot, pending);
+    pending.waiters.push(waiter);
     if (pending.timerCancel) {
       pending.timerCancel();
       pending.timerCancel = null;
@@ -183,7 +240,7 @@ export const createPatchQueue = ({
       pending.timer = null;
     }
     const result = await flushPendingState(buildRoot);
-    if (pending && !pending.patch && !pending.timer) {
+    if (pending && !pending.patch && !pending.timer && pending.waiters.length === 0) {
       statePending.delete(key);
       releasePendingLifecycle(buildRoot);
     }
