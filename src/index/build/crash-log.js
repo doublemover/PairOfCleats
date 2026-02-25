@@ -335,11 +335,13 @@ const selectCrashArtifacts = async ({ repoCacheRoot }) => {
     const repoToken = sanitizePathToken(path.basename(resolvedRepoCacheRoot), 'repo');
     const durableFiles = await listFilesRecursive(durableDir, {
       maxFiles: CRASH_RETENTION_DURABLE_SCAN_MAX_FILES,
-      includeFile: (filePath) => path.basename(filePath).endsWith('crash-forensics.json')
+      includeFile: (filePath) => {
+        const base = path.basename(filePath);
+        return base.startsWith(`${repoToken}-`) && base.endsWith('crash-forensics.json');
+      }
     });
     for (const sourcePath of durableFiles) {
       const base = path.basename(sourcePath);
-      if (!base.startsWith(`${repoToken}-`)) continue;
       selected.push({
         sourcePath,
         relativePath: path.join('external', '_crash-forensics', base)

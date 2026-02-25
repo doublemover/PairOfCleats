@@ -95,7 +95,7 @@ await fsPromises.writeFile(
   'utf8'
 );
 
-const output = buildReportOutput({
+const output = await buildReportOutput({
   configPath: '/tmp/repos.json',
   cacheRoot: '/tmp/cache',
   resultsRoot: tempRoot,
