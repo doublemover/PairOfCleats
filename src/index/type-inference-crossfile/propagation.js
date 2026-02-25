@@ -3,7 +3,14 @@ import { uniqueTypes } from '../../integrations/tooling/providers/shared.js';
 import { readTextFile } from '../../shared/encoding.js';
 import { FLOW_CONFIDENCE, FLOW_SOURCE } from './constants.js';
 import { addInferredParam, addInferredReturn } from './apply.js';
-import { extractParamTypes, extractReturnCalls, extractReturnTypes, inferArgType } from './extract.js';
+import {
+  ensureParamTypeMap,
+  extractParamTypes,
+  extractReturnCalls,
+  extractReturnTypes,
+  getParamTypeList,
+  inferArgType
+} from './extract.js';
 import { isTypeDeclaration } from './symbols.js';
 import { runToolingPass } from './tooling.js';
 import { buildSymbolIndex, resolveSymbolRef } from './resolver.js';
@@ -167,7 +174,7 @@ export async function runCrossFilePropagation({
       returnTypes: extractReturnTypes(chunk),
       typeDeclaration: isTypeDeclaration(chunk.kind),
       paramNames,
-      paramTypes
+      paramTypes: ensureParamTypeMap(paramTypes)
     };
     symbolEntries.push(entry);
     entryByKey.set(`${chunk.file}::${chunk.name}`, entry);
@@ -675,9 +682,9 @@ export async function runCrossFilePropagation({
               if (addInferredParam(calleeChunk.docmeta, name, type, FLOW_SOURCE, confidence, paramTypeLimit)) {
                 const entry = resolvedUid ? entryByUid.get(resolvedUid) : null;
                 if (entry) {
-                  const existing = entry.paramTypes?.[name] || [];
-                  entry.paramTypes = entry.paramTypes || {};
-                  entry.paramTypes[name] = uniqueTypes([...(existing || []), type]);
+                  entry.paramTypes = ensureParamTypeMap(entry.paramTypes);
+                  const existing = getParamTypeList(entry.paramTypes, name);
+                  entry.paramTypes[name] = uniqueTypes([...existing, type]);
                 }
               }
             }

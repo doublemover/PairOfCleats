@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-25T00:24:06.903Z",
+  "generatedAt": "2026-02-25T16:38:52.150Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -60,6 +60,9 @@
       "PAIROFCLEATS_CROSSFILE_PROPAGATION_PARALLEL",
       "PAIROFCLEATS_CROSSFILE_PROPAGATION_PARALLEL_MIN_BUNDLE",
       "PAIROFCLEATS_DEBUG_CRASH",
+      "PAIROFCLEATS_DEBUG_HANG_PROBES",
+      "PAIROFCLEATS_DEBUG_HANG_PROBE_HEARTBEAT_MS",
+      "PAIROFCLEATS_DEBUG_HANG_PROBE_WARN_MS",
       "PAIROFCLEATS_DEBUG_ORDERED",
       "PAIROFCLEATS_DEBUG_PERF_EVENTS",
       "PAIROFCLEATS_DICT_DIR",
@@ -2217,6 +2220,27 @@
       "files": [
         "src/shared/env.js",
         "tests/shared/env-boolean-case-insensitive.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_DEBUG_HANG_PROBE_HEARTBEAT_MS",
+      "files": [
+        "src/shared/env.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_DEBUG_HANG_PROBE_WARN_MS",
+      "files": [
+        "src/shared/env.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_DEBUG_HANG_PROBES",
+      "files": [
+        "src/shared/env.js",
         "tools/config/inventory.js"
       ]
     },

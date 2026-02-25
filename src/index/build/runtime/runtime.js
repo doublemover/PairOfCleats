@@ -146,7 +146,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   const policyConfig = qualityOverride ? { ...userConfig, quality: qualityOverride } : userConfig;
   const autoPolicy = policy
     ? policy
-    : await timeInit('auto policy', () => buildAutoPolicy({ repoRoot: root, config: policyConfig }));
+    : await timeInit('auto policy', () => buildAutoPolicy({ repoRoot: root, config: policyConfig, logger: log }));
   if (policy) {
     log('[init] auto policy (provided)');
   }

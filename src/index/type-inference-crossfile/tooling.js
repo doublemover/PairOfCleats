@@ -1,12 +1,14 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { uniqueTypes } from '../../integrations/tooling/providers/shared.js';
 import { buildToolingVirtualDocuments } from '../tooling/vfs.js';
 import { runToolingProviders } from '../tooling/orchestrator.js';
 import { registerDefaultToolingProviders } from '../tooling/providers/index.js';
 import { runToolingDoctor } from '../tooling/doctor.js';
 import { TOOLING_CONFIDENCE, TOOLING_SOURCE } from './constants.js';
 import { addInferredParam, addInferredReturn } from './apply.js';
+import { ensureParamTypeMap, getParamTypeList } from './extract.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
 import { stableStringify } from '../../shared/stable-json.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
@@ -124,15 +126,13 @@ const applyToolingTypes = ({ byChunkUid, chunkByUid, entryByUid }) => {
       }
     }
     if (payload.paramTypes && typeof payload.paramTypes === 'object') {
-      if (!chunk.docmeta.paramTypes || typeof chunk.docmeta.paramTypes !== 'object') {
-        chunk.docmeta.paramTypes = {};
-      }
+      chunk.docmeta.paramTypes = ensureParamTypeMap(chunk.docmeta.paramTypes);
       for (const [name, entries] of Object.entries(payload.paramTypes)) {
         if (!name || !Array.isArray(entries)) continue;
         for (const entry of entries) {
           const type = entry?.type || null;
           if (!type) continue;
-          if (!chunk.docmeta.paramTypes[name]) chunk.docmeta.paramTypes[name] = type;
+          if (!Object.hasOwn(chunk.docmeta.paramTypes, name)) chunk.docmeta.paramTypes[name] = type;
           addInferredParam(
             chunk.docmeta,
             name,
@@ -142,9 +142,9 @@ const applyToolingTypes = ({ byChunkUid, chunkByUid, entryByUid }) => {
           );
           const symbolEntry = entryByUid?.get(chunkUid) || null;
           if (symbolEntry) {
-            const existing = symbolEntry.paramTypes?.[name] || [];
-            symbolEntry.paramTypes = symbolEntry.paramTypes || {};
-            symbolEntry.paramTypes[name] = Array.from(new Set([...(existing || []), type]));
+            symbolEntry.paramTypes = ensureParamTypeMap(symbolEntry.paramTypes);
+            const existing = getParamTypeList(symbolEntry.paramTypes, name);
+            symbolEntry.paramTypes[name] = uniqueTypes([...existing, type]);
           }
           touched = true;
         }

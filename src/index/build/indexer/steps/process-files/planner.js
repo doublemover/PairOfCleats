@@ -94,9 +94,9 @@ export const resolveOrderedAppenderConfig = (runtime) => {
   const fileConcurrency = Number.isFinite(runtime?.fileConcurrency)
     ? Math.max(1, Math.floor(runtime.fileConcurrency))
     : 1;
+  const defaultOrderedPendingLimit = Math.max(128, fileConcurrency * 20);
   const maxPendingBeforeBackpressure = coercePositiveInt(config.maxPending)
-    ?? cpuPending
-    ?? Math.max(128, fileConcurrency * 20);
+    ?? Math.max(defaultOrderedPendingLimit, Number.isFinite(cpuPending) ? Math.floor(cpuPending) : 0);
   const maxPendingEmergencyFactor = Number(config.maxPendingEmergencyFactor);
   const maxPendingBytes = coercePositiveInt(config.maxPendingBytes)
     ?? coercePositiveInt(windowConfig.maxWindowBytes)
@@ -154,9 +154,10 @@ export const resolveWindowPlannerConfig = (runtime) => {
     coercePositiveInt(config.maxWindowEntries)
     ?? Math.max(minWindowEntries, fileConcurrency * 64)
   );
+  const defaultMaxActiveWindows = Math.max(4, Math.min(16, Math.ceil(fileConcurrency / 2)));
   const maxActiveWindows = Math.max(
     1,
-    Math.min(2, coercePositiveInt(config.maxActiveWindows) ?? 2)
+    Math.min(16, coercePositiveInt(config.maxActiveWindows) ?? defaultMaxActiveWindows)
   );
   return {
     targetWindowCost,

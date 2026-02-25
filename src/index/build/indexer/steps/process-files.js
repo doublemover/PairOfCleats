@@ -2175,12 +2175,31 @@ export const processFiles = async ({
       orderIndexToRel
     } = resolveOrderedEntryProgressPlan(entries);
     const stage1WindowPlannerConfig = resolveStage1WindowPlannerConfig(runtime);
-    const stage1SeqWindows = buildContiguousSeqWindows(entries, {
+    const stage1WindowPlannerEntries = sortEntriesByOrderIndex(entries);
+    let stage1SeqWindows = buildContiguousSeqWindows(stage1WindowPlannerEntries, {
+      presorted: true,
       config: stage1WindowPlannerConfig
     });
     let stage1ActiveWindows = resolveActiveSeqWindows(stage1SeqWindows, startOrderIndex, {
       maxActiveWindows: stage1WindowPlannerConfig.maxActiveWindows
     });
+    const stage1WindowReplanIntervalMs = Math.max(
+      250,
+      coerceNonNegativeInt(runtime?.stage1Queues?.window?.replanIntervalMs)
+      ?? 2000
+    );
+    const stage1WindowReplanMinSeqAdvance = Math.max(
+      1,
+      coercePositiveInt(runtime?.stage1Queues?.window?.replanMinSeqAdvance)
+      ?? Math.max(4, Math.floor(runtime.fileConcurrency || 1))
+    );
+    let stage1WindowReplanAttemptCount = 0;
+    let stage1WindowReplanChangedCount = 0;
+    let stage1LastWindowReplanAtMs = 0;
+    let stage1LastWindowReplanCommitSeq = Number.isFinite(startOrderIndex)
+      ? Math.floor(startOrderIndex)
+      : 0;
+    let stage1LastWindowTelemetry = null;
     /**
      * Resolve lifecycle timing row from processor result payload.
      *
@@ -2461,10 +2480,126 @@ export const processFiles = async ({
       }
       return pendingCount;
     };
+    const hasStage1WindowLayoutChanged = (before, after) => {
+      const beforeWindows = Array.isArray(before) ? before : [];
+      const afterWindows = Array.isArray(after) ? after : [];
+      if (beforeWindows.length !== afterWindows.length) return true;
+      for (let i = 0; i < beforeWindows.length; i += 1) {
+        const left = beforeWindows[i];
+        const right = afterWindows[i];
+        if (!left || !right) return true;
+        if (left.startSeq !== right.startSeq || left.endSeq !== right.endSeq) return true;
+        if (left.entryCount !== right.entryCount) return true;
+      }
+      return false;
+    };
+    const resolveStage1ComputeUtilization = () => {
+      if (!runtime?.scheduler || typeof runtime.scheduler.stats !== 'function') return null;
+      try {
+        const schedulerStats = runtime.scheduler.stats();
+        const utilization = Number(schedulerStats?.utilization?.overall);
+        return Number.isFinite(utilization) ? utilization : null;
+      } catch {
+        return null;
+      }
+    };
+    const resolveStage1WindowTelemetrySnapshot = (nextCommitSeq = null) => {
+      const orderedSnapshot = typeof orderedAppender.snapshot === 'function'
+        ? orderedAppender.snapshot()
+        : null;
+      const resolvedNextCommitSeq = Number.isFinite(nextCommitSeq)
+        ? Math.floor(nextCommitSeq)
+        : Number.isFinite(orderedSnapshot?.nextCommitSeq)
+          ? Math.floor(orderedSnapshot.nextCommitSeq)
+          : (Number.isFinite(startOrderIndex) ? Math.floor(startOrderIndex) : 0);
+      const commitLag = Number(orderedSnapshot?.commitLag);
+      const bufferedBytes = Number(orderedSnapshot?.pendingBytes);
+      return {
+        commitLag: Number.isFinite(commitLag) ? Math.max(0, Math.floor(commitLag)) : 0,
+        bufferedBytes: Number.isFinite(bufferedBytes) ? Math.max(0, Math.floor(bufferedBytes)) : 0,
+        computeUtilization: resolveStage1ComputeUtilization(),
+        nextCommitSeq: resolvedNextCommitSeq
+      };
+    };
+    const maybeReplanStage1Windows = ({
+      reason = 'cursor_refresh',
+      force = false,
+      nextCommitSeq = null
+    } = {}) => {
+      if (!stage1WindowPlannerConfig.adaptive) {
+        return false;
+      }
+      const resolvedNextCommitSeq = Number.isFinite(nextCommitSeq)
+        ? Math.floor(nextCommitSeq)
+        : (typeof orderedAppender.peekNextIndex === 'function'
+          ? orderedAppender.peekNextIndex()
+          : startOrderIndex);
+      const nowMs = Date.now();
+      const elapsedSinceLastMs = Math.max(0, nowMs - stage1LastWindowReplanAtMs);
+      const seqAdvance = Math.max(
+        0,
+        Math.abs((Number.isFinite(resolvedNextCommitSeq) ? resolvedNextCommitSeq : 0) - stage1LastWindowReplanCommitSeq)
+      );
+      if (!force && stage1LastWindowReplanAtMs > 0) {
+        if (elapsedSinceLastMs < stage1WindowReplanIntervalMs) {
+          return false;
+        }
+        const forcedIdleReplanMs = stage1WindowReplanIntervalMs * 4;
+        if (seqAdvance < stage1WindowReplanMinSeqAdvance && elapsedSinceLastMs < forcedIdleReplanMs) {
+          return false;
+        }
+      }
+      stage1LastWindowReplanAtMs = nowMs;
+      if (Number.isFinite(resolvedNextCommitSeq)) {
+        stage1LastWindowReplanCommitSeq = Math.floor(resolvedNextCommitSeq);
+      }
+      stage1WindowReplanAttemptCount += 1;
+      const telemetrySnapshot = resolveStage1WindowTelemetrySnapshot(resolvedNextCommitSeq);
+      stage1LastWindowTelemetry = telemetrySnapshot;
+      const nextWindows = buildContiguousSeqWindows(stage1WindowPlannerEntries, {
+        presorted: true,
+        config: stage1WindowPlannerConfig,
+        telemetrySnapshot
+      });
+      if (!Array.isArray(nextWindows) || !nextWindows.length) {
+        return false;
+      }
+      const changed = hasStage1WindowLayoutChanged(stage1SeqWindows, nextWindows);
+      if (!changed) {
+        return false;
+      }
+      stage1SeqWindows = nextWindows;
+      stage1WindowReplanChangedCount += 1;
+      const utilizationText = Number.isFinite(telemetrySnapshot.computeUtilization)
+        ? telemetrySnapshot.computeUtilization.toFixed(2)
+        : 'n/a';
+      logLine(
+        `[stage1-window] replanned windows reason=${reason} count=${nextWindows.length}`
+          + ` next=${telemetrySnapshot.nextCommitSeq} commitLag=${telemetrySnapshot.commitLag}`
+          + ` pendingBytes=${telemetrySnapshot.bufferedBytes} util=${utilizationText}`,
+        {
+          kind: 'status',
+          mode,
+          stage: 'processing',
+          stage1Windows: {
+            reason,
+            attempts: stage1WindowReplanAttemptCount,
+            changed: stage1WindowReplanChangedCount,
+            telemetry: telemetrySnapshot,
+            windowCount: nextWindows.length
+          }
+        }
+      );
+      return true;
+    };
     const refreshStage1ActiveWindows = () => {
       const nextCommitSeq = typeof orderedAppender.peekNextIndex === 'function'
         ? orderedAppender.peekNextIndex()
         : startOrderIndex;
+      maybeReplanStage1Windows({
+        reason: 'cursor_refresh',
+        nextCommitSeq
+      });
       stage1ActiveWindows = resolveActiveSeqWindows(stage1SeqWindows, nextCommitSeq, {
         maxActiveWindows: stage1WindowPlannerConfig.maxActiveWindows
       });
@@ -4228,6 +4363,13 @@ export const processFiles = async ({
       timing.shards = shardExecutionMeta;
       timing.stage1Windows = {
         config: stage1WindowPlannerConfig,
+        replan: {
+          intervalMs: stage1WindowReplanIntervalMs,
+          minSeqAdvance: stage1WindowReplanMinSeqAdvance,
+          attempts: stage1WindowReplanAttemptCount,
+          changed: stage1WindowReplanChangedCount,
+          lastTelemetry: stage1LastWindowTelemetry
+        },
         windows: stage1SeqWindows.map((window) => ({
           windowId: window.windowId,
           startSeq: window.startSeq,
@@ -4258,6 +4400,13 @@ export const processFiles = async ({
       state.shardExecution = shardExecutionMeta;
       state.stage1Windows = {
         config: stage1WindowPlannerConfig,
+        replan: {
+          intervalMs: stage1WindowReplanIntervalMs,
+          minSeqAdvance: stage1WindowReplanMinSeqAdvance,
+          attempts: stage1WindowReplanAttemptCount,
+          changed: stage1WindowReplanChangedCount,
+          lastTelemetry: stage1LastWindowTelemetry
+        },
         windows: stage1SeqWindows.map((window) => ({
           windowId: window.windowId,
           startSeq: window.startSeq,

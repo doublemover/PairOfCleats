@@ -110,9 +110,10 @@ export const resolveStage1WindowPlannerConfig = (runtime = null) => {
     minWindowEntries,
     clampPositiveIntOr(windowConfig.maxWindowEntries, Math.max(minWindowEntries, fileConcurrency * 64))
   );
+  const defaultMaxActiveWindows = Math.max(4, Math.min(16, Math.ceil(fileConcurrency / 2)));
   const maxActiveWindows = Math.min(
-    2,
-    Math.max(1, clampPositiveIntOr(windowConfig.maxActiveWindows, 2))
+    16,
+    Math.max(1, clampPositiveIntOr(windowConfig.maxActiveWindows, defaultMaxActiveWindows))
   );
   const adaptive = windowConfig.adaptive !== false;
   const adaptiveShrinkFactor = clampPositiveNumberOr(windowConfig.adaptiveShrinkFactor, 0.75);
@@ -141,6 +142,7 @@ export const resolveStage1WindowPlannerConfig = (runtime = null) => {
  * @param {object[]} entries
  * @param {{
  *   config?:object,
+ *   presorted?:boolean,
  *   telemetrySnapshot?:{commitLag?:number,bufferedBytes?:number,computeUtilization?:number}
  * }} [input]
  * @returns {Array<{
@@ -158,10 +160,13 @@ export const buildContiguousSeqWindows = (
   entries,
   {
     config = {},
+    presorted = false,
     telemetrySnapshot = null
   } = {}
 ) => {
-  const sortedEntries = sortEntriesByOrderIndex(entries);
+  const sortedEntries = presorted
+    ? (Array.isArray(entries) ? entries : [])
+    : sortEntriesByOrderIndex(entries);
   if (!sortedEntries.length) return [];
 
   const baseConfig = {
@@ -282,12 +287,12 @@ export const buildContiguousSeqWindows = (
 export const resolveActiveSeqWindows = (
   windows,
   nextCommitSeq,
-  { maxActiveWindows = 2 } = {}
+  { maxActiveWindows = 8 } = {}
 ) => {
   const list = Array.isArray(windows) ? windows : [];
   if (!list.length) return [];
   const cursor = Number.isFinite(nextCommitSeq) ? Math.floor(nextCommitSeq) : list[0].startSeq;
-  const activeLimit = Math.min(2, Math.max(1, clampPositiveIntOr(maxActiveWindows, 2)));
+  const activeLimit = Math.min(16, Math.max(1, clampPositiveIntOr(maxActiveWindows, 8)));
   let baseIndex = 0;
   for (let i = 0; i < list.length; i += 1) {
     const window = list[i];

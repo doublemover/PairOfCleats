@@ -8,6 +8,7 @@ const PROCESS_SNAPSHOT_DEFAULT_FRAME_LIMIT = 12;
 const PROCESS_SNAPSHOT_MAX_FRAME_LIMIT = 64;
 const PROCESS_SNAPSHOT_DEFAULT_HANDLE_TYPE_LIMIT = 8;
 const PROCESS_SNAPSHOT_MAX_HANDLE_TYPE_LIMIT = 64;
+const WIN32_NTFS_MAX_PARALLELISM_HINT = 16;
 
 const SHELL_MODE_DISABLED_ERROR = (
   'spawnSubprocess shell mode is disabled for security; pass an executable and args with shell=false.'
@@ -38,7 +39,7 @@ const resolveSubprocessFanoutPreset = (input = {}) => {
     : 1;
   if (platform === 'win32' || filesystemProfile === 'ntfs') {
     return {
-      maxParallelismHint: Math.max(1, Math.min(cpuCount, Math.ceil(cpuCount * 0.75))),
+      maxParallelismHint: Math.max(1, Math.min(cpuCount, WIN32_NTFS_MAX_PARALLELISM_HINT)),
       reason: 'win32-ntfs-startup-cost'
     };
   }
