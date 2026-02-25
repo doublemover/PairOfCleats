@@ -20,13 +20,21 @@ export function createSchedulerQueueAdapter({
   if (!queueName) {
     throw new Error('Scheduler queue adapter requires a queue name.');
   }
+  const toPositiveInt = (value) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) return null;
+    return Math.floor(parsed);
+  };
+  const resolvedMaxPending = toPositiveInt(maxPending);
+  const resolvedMaxPendingBytes = toPositiveInt(maxPendingBytes);
+  const resolvedMaxInFlightBytes = toPositiveInt(maxInFlightBytes);
   scheduler.registerQueue?.(queueName, {
-    ...(Number.isFinite(Number(maxPending)) ? { maxPending: Math.max(1, Math.floor(Number(maxPending))) } : {}),
-    ...(Number.isFinite(Number(maxPendingBytes))
-      ? { maxPendingBytes: Math.max(1, Math.floor(Number(maxPendingBytes))) }
+    ...(resolvedMaxPending != null ? { maxPending: resolvedMaxPending } : {}),
+    ...(resolvedMaxPendingBytes != null
+      ? { maxPendingBytes: resolvedMaxPendingBytes }
       : {}),
-    ...(Number.isFinite(Number(maxInFlightBytes))
-      ? { maxInFlightBytes: Math.max(1, Math.floor(Number(maxInFlightBytes))) }
+    ...(resolvedMaxInFlightBytes != null
+      ? { maxInFlightBytes: resolvedMaxInFlightBytes }
       : {})
   });
   const pending = new Set();

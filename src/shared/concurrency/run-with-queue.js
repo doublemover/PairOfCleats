@@ -38,9 +38,13 @@ export async function runWithQueue(queue, items, worker, options = {}) {
   const abortError = options.abortError instanceof Error ? options.abortError : createAbortError();
   const results = collectResults ? new Array(list.length) : null;
   const pendingSignals = new Set();
-  const maxPending = Number.isFinite(queue?.maxPending) ? queue.maxPending : null;
-  const maxPendingBytes = Number.isFinite(queue?.maxPendingBytes)
-    ? Math.max(1, Math.floor(Number(queue.maxPendingBytes)))
+  const parsedMaxPending = Number(queue?.maxPending);
+  const maxPending = Number.isFinite(parsedMaxPending) && parsedMaxPending > 0
+    ? Math.floor(parsedMaxPending)
+    : null;
+  const parsedMaxPendingBytes = Number(queue?.maxPendingBytes);
+  const maxPendingBytes = Number.isFinite(parsedMaxPendingBytes) && parsedMaxPendingBytes > 0
+    ? Math.floor(parsedMaxPendingBytes)
     : null;
   const estimateBytes = typeof options.estimateBytes === 'function'
     ? options.estimateBytes
