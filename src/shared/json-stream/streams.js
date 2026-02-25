@@ -7,6 +7,7 @@ import { Transform } from 'node:stream';
 import { createTempPath, replaceFile } from './atomic.js';
 import { createFflateGzipStream, createZstdStream, normalizeHighWaterMark } from './compress.js';
 import { createAbortError } from './runtime.js';
+import { getEnvConfig } from '../env.js';
 
 const JSON_STREAM_WAIT_TIMEOUT_SYMBOL = Symbol.for('pairofcleats.json_stream_wait_timeout_ms');
 const DEFAULT_JSON_STREAM_WAIT_TIMEOUT_MS = 5 * 60 * 1000;
@@ -19,7 +20,7 @@ const coerceOptionalNonNegativeInt = (value) => {
 
 const resolveJsonStreamWaitTimeoutMs = (value = null) => (
   coerceOptionalNonNegativeInt(value)
-  ?? coerceOptionalNonNegativeInt(process.env.PAIROFCLEATS_JSON_STREAM_WAIT_TIMEOUT_MS)
+  ?? coerceOptionalNonNegativeInt(getEnvConfig().jsonStreamWaitTimeoutMs)
   ?? DEFAULT_JSON_STREAM_WAIT_TIMEOUT_MS
 );
 

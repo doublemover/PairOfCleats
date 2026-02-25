@@ -148,6 +148,7 @@ export function getEnvConfig(env = process.env) {
     sqliteFtsOverfetchRowCap: normalizeNumber(env.PAIROFCLEATS_SQLITE_FTS_OVERFETCH_ROW_CAP),
     sqliteFtsOverfetchTimeBudgetMs: normalizeNumber(env.PAIROFCLEATS_SQLITE_FTS_OVERFETCH_TIME_BUDGET_MS),
     sqliteFtsOverfetchChunkSize: normalizeNumber(env.PAIROFCLEATS_SQLITE_FTS_OVERFETCH_CHUNK_SIZE),
+    jsonStreamWaitTimeoutMs: normalizeNumber(env.PAIROFCLEATS_JSON_STREAM_WAIT_TIMEOUT_MS),
     preferMemoryBackendOnCacheHit: normalizeOptionalBoolean(env.PAIROFCLEATS_PREFER_MEMORY_BACKEND_ON_CACHE_HIT),
     modelsDir: normalizeString(env.PAIROFCLEATS_MODELS_DIR),
     dictDir: normalizeString(env.PAIROFCLEATS_DICT_DIR),

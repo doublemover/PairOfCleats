@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-24T22:42:34.198Z",
+  "generatedAt": "2026-02-25T00:24:06.903Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -79,6 +79,7 @@
       "PAIROFCLEATS_INDEX_DAEMON",
       "PAIROFCLEATS_INDEX_DAEMON_SESSION",
       "PAIROFCLEATS_IO_OVERSUBSCRIBE",
+      "PAIROFCLEATS_JSON_STREAM_WAIT_TIMEOUT_MS",
       "PAIROFCLEATS_LANCEDB_CHILD",
       "PAIROFCLEATS_LANCEDB_ISOLATE",
       "PAIROFCLEATS_LANCEDB_PAYLOAD",
@@ -2413,7 +2414,8 @@
     {
       "name": "PAIROFCLEATS_JSON_STREAM_WAIT_TIMEOUT_MS",
       "files": [
-        "src/shared/json-stream/streams.js"
+        "src/shared/env.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -3390,9 +3392,7 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [
-    "PAIROFCLEATS_JSON_STREAM_WAIT_TIMEOUT_MS"
-  ],
+  "envVarsUnknown": [],
   "cliFlags": {
     "totalFlags": 357,
     "publicFlags": [
