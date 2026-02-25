@@ -80,9 +80,9 @@ ensureEntry('dense_vectors');
 ensureEntry('dense_vectors_doc');
 ensureEntry('dense_vectors_code');
 
-assertPathMatch('dense_vectors', 'dense_vectors_uint8.json', 'file');
-assertPathMatch('dense_vectors_doc', 'dense_vectors_doc_uint8.json', 'file');
-assertPathMatch('dense_vectors_code', 'dense_vectors_code_uint8.json', 'file');
+assertPathMatch('dense_vectors', 'dense_vectors_uint8.bin', 'file');
+assertPathMatch('dense_vectors_doc', 'dense_vectors_doc_uint8.bin', 'file');
+assertPathMatch('dense_vectors_code', 'dense_vectors_code_uint8.bin', 'file');
 
 assertPathMatch('dense_vectors_hnsw', 'dense_vectors_hnsw.bin', 'file');
 assertPathMatch('dense_vectors_hnsw_meta', 'dense_vectors_hnsw.meta.json', 'file');
