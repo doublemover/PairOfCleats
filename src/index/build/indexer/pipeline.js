@@ -4,7 +4,7 @@ import { getIndexDir, getMetricsDir } from '../../../shared/dict-utils.js';
 import { buildRecordsIndexForRepo } from '../../../integrations/triage/index-records.js';
 import { createCacheReporter, createLruCache, estimateFileTextBytes } from '../../../shared/cache.js';
 import { getEnvConfig } from '../../../shared/env.js';
-import { log, showProgress } from '../../../shared/progress.js';
+import { log, logLine, showProgress } from '../../../shared/progress.js';
 import { coerceAbortSignal, throwIfAborted } from '../../../shared/abort.js';
 import { coerceUnitFraction } from '../../../shared/number-coerce.js';
 import { createCrashLogger } from '../crash-log.js';
@@ -72,6 +72,7 @@ import { buildIndexPostings } from './steps/postings.js';
 import { processFiles } from './steps/process-files.js';
 import { postScanImports, preScanImports, runCrossFileInference } from './steps/relations.js';
 import { writeIndexArtifactsForMode } from './steps/write.js';
+import { resolveHangProbeConfig, runWithHangProbe } from './hang-probe.js';
 
 const HOST_CPU_COUNT = Array.isArray(os.cpus()) ? os.cpus().length : null;
 const INDEX_STAGE_PLAN = Object.freeze([
@@ -177,6 +178,8 @@ export const sanitizeRuntimeSnapshotForCheckpoint = (snapshot) => {
 export async function buildIndexForMode({ mode, runtime, discovery = null, abortSignal = null }) {
   const effectiveAbortSignal = coerceAbortSignal(abortSignal);
   throwIfAborted(effectiveAbortSignal);
+  const envConfig = getEnvConfig();
+  const hangProbeConfig = resolveHangProbeConfig(envConfig);
   if (mode === 'records') {
     await buildRecordsIndexForRepo({ runtime, discovery, abortSignal: effectiveAbortSignal });
     if (runtime?.overallProgress?.advance) {
@@ -823,24 +826,33 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     log(`Auto-selected context window: ${contextWin} lines`);
 
     advanceStage(INDEX_STAGE_PLAN[2]);
-    processResult = await processFiles({
+    processResult = await runWithHangProbe({
+      ...hangProbeConfig,
+      label: 'pipeline.process-files',
       mode,
-      runtime: runtimeRef,
-      discovery,
-      outDir,
-      entries: allEntries,
-      contextWin,
-      timing,
-      crashLogger,
-      state,
-      perfProfile,
-      cacheReporter,
-      seenFiles,
-      incrementalState,
-      relationsEnabled,
-      shardPerfProfile,
-      fileTextCache,
-      abortSignal: effectiveAbortSignal
+      stage: 'processing',
+      step: 'stage1',
+      log: logLine,
+      meta: { fileCount: allEntries.length },
+      run: () => processFiles({
+        mode,
+        runtime: runtimeRef,
+        discovery,
+        outDir,
+        entries: allEntries,
+        contextWin,
+        timing,
+        crashLogger,
+        state,
+        perfProfile,
+        cacheReporter,
+        seenFiles,
+        incrementalState,
+        relationsEnabled,
+        shardPerfProfile,
+        fileTextCache,
+        abortSignal: effectiveAbortSignal
+      })
     });
   }
   throwIfAborted(effectiveAbortSignal);
@@ -896,17 +908,27 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     }
   }
 
-  const postImportResult = await postScanImports({
+  const postImportResult = await runWithHangProbe({
+    ...hangProbeConfig,
+    label: 'pipeline.post-scan-imports',
     mode,
-    relationsEnabled: importGraphEnabled,
-    scanPlan,
-    state,
-    timing,
-    runtime: runtimeRef,
-    entries: allEntries,
-    importResult,
-    incrementalState,
-    fileTextByFile
+    stage: 'imports',
+    step: 'post-scan',
+    log: logLine,
+    meta: { fileCount: allEntries.length },
+    run: () => postScanImports({
+      mode,
+      relationsEnabled: importGraphEnabled,
+      scanPlan,
+      state,
+      timing,
+      runtime: runtimeRef,
+      entries: allEntries,
+      importResult,
+      incrementalState,
+      fileTextByFile,
+      hangProbeConfig
+    })
   });
   if (postImportResult) importResult = postImportResult;
 
@@ -998,7 +1020,6 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       }
     }
   });
-  const envConfig = getEnvConfig();
   if (envConfig.verbose === true && tokenizationStats.chunks) {
     const avgTokens = (tokenizationStats.tokens / tokenizationStats.chunks).toFixed(1);
     const avgChargrams = (tokenizationStats.chargrams / tokenizationStats.chunks).toFixed(1);

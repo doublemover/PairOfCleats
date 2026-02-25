@@ -26,6 +26,7 @@ import { loadStructuralMatches } from '../../../structural.js';
 import { planShardBatches, planShards } from '../../shards.js';
 import { recordFileMetric } from '../../perf-profile.js';
 import { createVfsManifestCollector } from '../../vfs-manifest-collector.js';
+import { resolveHangProbeConfig, runWithHangProbe } from '../hang-probe.js';
 import { createTokenRetentionState } from './postings.js';
 import { createPostingsQueue, estimatePostingsPayload } from './process-files/postings-queue.js';
 import { buildOrderedAppender } from './process-files/ordered.js';
@@ -1958,6 +1959,7 @@ export const processFiles = async ({
   const envConfig = getEnvConfig();
   const showFileProgress = envConfig.verbose === true || runtime?.argv?.verbose === true;
   const debugOrdered = envConfig.debugOrdered === true;
+  const hangProbeConfig = resolveHangProbeConfig(envConfig);
   const enablePerfEvents = envConfig.debugPerfEvents === true;
   const perfEventBaseLogger = await createPerfEventLogger({
     buildRoot: runtime.buildRoot || runtime.root,
@@ -4351,77 +4353,86 @@ export const processFiles = async ({
     }
     runtime?.telemetry?.clearInFlightBytes?.('stage1.postings-queue');
     runtime?.telemetry?.clearDurationHistogram?.(queueDelayTelemetryChannel);
-    await runStage1TailCleanupTasks({
-      tasks: [
-        {
-          label: 'perf-event-logger.close',
-          run: () => runCleanupWithTimeout({
+    await runWithHangProbe({
+      ...hangProbeConfig,
+      label: 'stage1.tail-cleanup',
+      mode,
+      stage: 'processing',
+      step: 'cleanup',
+      log: logLine,
+      meta: { cleanupTimeoutMs },
+      run: () => runStage1TailCleanupTasks({
+        tasks: [
+          {
             label: 'perf-event-logger.close',
-            cleanup: () => perfEventLogger.close(),
-            timeoutMs: cleanupTimeoutMs,
-            log: (line, meta) => logLine(line, {
-              ...(meta || {}),
-              mode,
-              stage: 'processing'
+            run: () => runCleanupWithTimeout({
+              label: 'perf-event-logger.close',
+              cleanup: () => perfEventLogger.close(),
+              timeoutMs: cleanupTimeoutMs,
+              log: (line, meta) => logLine(line, {
+                ...(meta || {}),
+                mode,
+                stage: 'processing'
+              })
             })
-          })
-        },
-        {
-          label: 'tree-sitter-scheduler.close',
-          run: () => closeTreeSitterScheduler({
-            onTimeout: async () => {
-              const cleanup = await terminateTrackedSubprocesses({
-                reason: 'tree_sitter_scheduler_close_timeout',
-                force: true
-              });
-              if (cleanup?.attempted > 0) {
-                logLine(
-                  `[cleanup] forced termination of ${cleanup.attempted} tracked subprocess(es) after scheduler close timeout.`,
-                  {
-                    kind: 'warning',
-                    mode,
-                    stage: 'processing',
-                    cleanup
-                  }
-                );
+          },
+          {
+            label: 'tree-sitter-scheduler.close',
+            run: () => closeTreeSitterScheduler({
+              onTimeout: async () => {
+                const cleanup = await terminateTrackedSubprocesses({
+                  reason: 'tree_sitter_scheduler_close_timeout',
+                  force: true
+                });
+                if (cleanup?.attempted > 0) {
+                  logLine(
+                    `[cleanup] forced termination of ${cleanup.attempted} tracked subprocess(es) after scheduler close timeout.`,
+                    {
+                      kind: 'warning',
+                      mode,
+                      stage: 'processing',
+                      cleanup
+                    }
+                  );
+                }
               }
-            }
-          })
-        }
-      ],
-      logSummary: ({ outcomes, elapsedMs, fatalErrors }) => {
-        const timeoutLabels = outcomes.filter((outcome) => outcome.timedOut).map((outcome) => outcome.label);
-        const summaryText = outcomes
-          .map((outcome) => (
-            `${outcome.label}:${outcome.skipped ? 'skipped' : (outcome.timedOut ? 'timeout' : 'ok')}(${outcome.elapsedMs}ms)`
-          ))
-          .join(', ');
-        const baseMeta = {
-          mode,
-          stage: 'processing',
-          cleanup: {
-            elapsedMs,
-            timeoutLabels,
-            fatalLabels: fatalErrors.map((entry) => entry.label)
+            })
           }
-        };
-        if (timeoutLabels.length > 0 || fatalErrors.length > 0) {
-          logLine(
-            `[cleanup] stage1 tail cleanup completed with warnings in ${elapsedMs}ms (${summaryText}).`,
-            {
-              kind: 'warning',
-              ...baseMeta
+        ],
+        logSummary: ({ outcomes, elapsedMs, fatalErrors }) => {
+          const timeoutLabels = outcomes.filter((outcome) => outcome.timedOut).map((outcome) => outcome.label);
+          const summaryText = outcomes
+            .map((outcome) => (
+              `${outcome.label}:${outcome.skipped ? 'skipped' : (outcome.timedOut ? 'timeout' : 'ok')}(${outcome.elapsedMs}ms)`
+            ))
+            .join(', ');
+          const baseMeta = {
+            mode,
+            stage: 'processing',
+            cleanup: {
+              elapsedMs,
+              timeoutLabels,
+              fatalLabels: fatalErrors.map((entry) => entry.label)
             }
-          );
-          return;
+          };
+          if (timeoutLabels.length > 0 || fatalErrors.length > 0) {
+            logLine(
+              `[cleanup] stage1 tail cleanup completed with warnings in ${elapsedMs}ms (${summaryText}).`,
+              {
+                kind: 'warning',
+                ...baseMeta
+              }
+            );
+            return;
+          }
+          if (elapsedMs >= 1000) {
+            logLine(
+              `[cleanup] stage1 tail cleanup completed in ${elapsedMs}ms (${summaryText}).`,
+              baseMeta
+            );
+          }
         }
-        if (elapsedMs >= 1000) {
-          logLine(
-            `[cleanup] stage1 tail cleanup completed in ${elapsedMs}ms (${summaryText}).`,
-            baseMeta
-          );
-        }
-      }
+      })
     });
   }
 };

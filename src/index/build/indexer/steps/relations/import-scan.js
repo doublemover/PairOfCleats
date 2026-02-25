@@ -1,4 +1,4 @@
-import { log } from '../../../../../shared/progress.js';
+import { log, logLine } from '../../../../../shared/progress.js';
 import { throwIfAborted } from '../../../../../shared/abort.js';
 import {
   enrichUnresolvedImportSamples,
@@ -12,6 +12,7 @@ import {
   saveImportResolutionCache,
   updateImportResolutionDiagnosticsCache
 } from '../../../import-resolution-cache.js';
+import { resolveHangProbeConfig, runWithHangProbe } from '../../hang-probe.js';
 
 const MAX_UNRESOLVED_IMPORT_LOG_LINES = 50;
 
@@ -179,10 +180,12 @@ export const postScanImports = async ({
   entries,
   importResult,
   incrementalState,
-  fileTextByFile
+  fileTextByFile,
+  hangProbeConfig = null
 }) => {
   if (!scanPlan?.shouldScan) return null;
   if (!mode || mode !== 'code' || !relationsEnabled || !scanPlan.enableImportLinks) return null;
+  const probeConfig = resolveHangProbeConfig(hangProbeConfig);
   const importStart = Date.now();
   let importsByFile = importResult?.importsByFile;
   if (!importsByFile || Object.keys(importsByFile).length === 0) {
@@ -197,10 +200,22 @@ export const postScanImports = async ({
   let cachePath = null;
   let fileHashes = null;
   let cacheStats = null;
-  const fsMeta = await prepareImportResolutionFsMeta({
-    root: runtime.root,
-    entries,
-    importsByFile
+  const fsMeta = await runWithHangProbe({
+    ...probeConfig,
+    label: 'imports.prepare-fs-meta',
+    mode,
+    stage: 'imports',
+    step: 'fs-meta',
+    log: logLine,
+    meta: {
+      entryCount: Array.isArray(entries) ? entries.length : 0,
+      importerFiles: Object.keys(importsByFile).length
+    },
+    run: () => prepareImportResolutionFsMeta({
+      root: runtime.root,
+      entries,
+      importsByFile
+    })
   });
   if (cacheEnabled) {
     ({ cache, cachePath } = await loadImportResolutionCache({ incrementalState, log }));
@@ -243,23 +258,35 @@ export const postScanImports = async ({
     }
   }
   const resolverPlugins = resolveImportResolverPlugins(runtime);
-  const resolution = resolveImportLinks({
-    root: runtime.root,
-    entries,
-    importsByFile,
-    fileRelations: state.fileRelations,
-    log,
+  const resolution = await runWithHangProbe({
+    ...probeConfig,
+    label: 'imports.resolve-links',
     mode,
-    enableGraph: scanPlan.importGraphEnabled,
-    graphMeta: {
-      toolVersion: runtime.toolInfo?.version || null,
-      importScanMode: scanPlan.importScanMode || null
+    stage: 'imports',
+    step: 'resolve-links',
+    log: logLine,
+    meta: {
+      importerFiles: Object.keys(importsByFile).length,
+      cacheEnabled
     },
-    cache,
-    fileHashes,
-    cacheStats,
-    fsMeta,
-    resolverPlugins
+    run: () => resolveImportLinks({
+      root: runtime.root,
+      entries,
+      importsByFile,
+      fileRelations: state.fileRelations,
+      log,
+      mode,
+      enableGraph: scanPlan.importGraphEnabled,
+      graphMeta: {
+        toolVersion: runtime.toolInfo?.version || null,
+        importScanMode: scanPlan.importScanMode || null
+      },
+      cache,
+      fileHashes,
+      cacheStats,
+      fsMeta,
+      resolverPlugins
+    })
   });
   const unresolvedSamples = normalizeUnresolvedSamples(resolution?.unresolvedSamples);
   const unresolvedTaxonomy = summarizeUnresolvedImportTaxonomy(unresolvedSamples);
