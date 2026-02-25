@@ -117,7 +117,7 @@ const loadJsonLines = async (filePath) => {
       return parseJsonLines(text, filePath);
     } catch (err) {
       lastError = err;
-      const retryable = err?.code === 'ENOENT' || err?.code === 'ERR_TREE_SITTER_JSONL_PARSE';
+      const retryable = err?.code === 'ENOENT' || err?.code === 'EAGAIN' || err?.code === 'EBUSY';
       if (!retryable || attempt >= JSONL_LOAD_RETRY_ATTEMPTS - 1) {
         throw err;
       }

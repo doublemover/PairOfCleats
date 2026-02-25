@@ -19,6 +19,9 @@ const CRASH_RETENTION_BUNDLE_FILE = 'retained-crash-bundle.json';
 const CRASH_RETENTION_MARKER_FILE = 'retained-crash-bundle.consistency.json';
 const CRASH_RETENTION_LOG_TAIL_LIMIT = 100;
 const CRASH_RETENTION_SCHEDULER_EVENT_LIMIT = 40;
+const CRASH_RETENTION_SCAN_MAX_DEPTH = 12;
+const CRASH_RETENTION_FORENSIC_SCAN_MAX_FILES = 1200;
+const CRASH_RETENTION_DURABLE_SCAN_MAX_FILES = 600;
 const RETAINED_CRASH_LOG_BASENAMES = new Set([
   'index-crash.log',
   'index-crash-state.json',
@@ -243,11 +246,27 @@ const copyFileAtomic = async (sourcePath, targetPath) => {
  * Recursively list files under one root directory.
  *
  * @param {string} rootDir
+ * @param {{maxFiles?:number,maxDepth?:number,includeFile?:(filePath:string)=>boolean}} [options]
  * @returns {Promise<string[]>}
  */
-const listFilesRecursive = async (rootDir) => {
+const listFilesRecursive = async (
+  rootDir,
+  {
+    maxFiles = Number.POSITIVE_INFINITY,
+    maxDepth = CRASH_RETENTION_SCAN_MAX_DEPTH,
+    includeFile = null
+  } = {}
+) => {
   const out = [];
-  const walk = async (dirPath) => {
+  const boundedMaxFiles = Number.isFinite(maxFiles) && maxFiles > 0
+    ? Math.max(1, Math.floor(maxFiles))
+    : Number.POSITIVE_INFINITY;
+  const boundedMaxDepth = Number.isFinite(maxDepth) && maxDepth >= 0
+    ? Math.floor(maxDepth)
+    : CRASH_RETENTION_SCAN_MAX_DEPTH;
+  const walk = async (dirPath, depth) => {
+    if (out.length >= boundedMaxFiles) return;
+    if (depth > boundedMaxDepth) return;
     let rows = [];
     try {
       rows = await fs.readdir(dirPath, { withFileTypes: true });
@@ -255,16 +274,18 @@ const listFilesRecursive = async (rootDir) => {
       return;
     }
     for (const row of rows) {
+      if (out.length >= boundedMaxFiles) break;
       const next = path.join(dirPath, row.name);
       if (row.isDirectory()) {
-        await walk(next);
+        await walk(next, depth + 1);
         continue;
       }
       if (!row.isFile()) continue;
+      if (typeof includeFile === 'function' && !includeFile(next)) continue;
       out.push(next);
     }
   };
-  await walk(rootDir);
+  await walk(rootDir, 0);
   return out;
 };
 
@@ -277,20 +298,31 @@ const listFilesRecursive = async (rootDir) => {
 const selectCrashArtifacts = async ({ repoCacheRoot }) => {
   const resolvedRepoCacheRoot = path.resolve(String(repoCacheRoot || ''));
   const logsDir = path.join(resolvedRepoCacheRoot, 'logs');
+  const pathExists = async (targetPath) => {
+    if (!targetPath) return false;
+    try {
+      await fs.access(targetPath);
+      return true;
+    } catch {
+      return false;
+    }
+  };
   const selected = [];
   for (const basename of RETAINED_CRASH_LOG_BASENAMES) {
     const sourcePath = path.join(logsDir, basename);
-    if (!fsSync.existsSync(sourcePath)) continue;
+    if (!(await pathExists(sourcePath))) continue;
     selected.push({
       sourcePath,
       relativePath: path.join('logs', basename)
     });
   }
   const forensicsDir = path.join(logsDir, 'forensics');
-  if (fsSync.existsSync(forensicsDir)) {
-    const files = await listFilesRecursive(forensicsDir);
+  if (await pathExists(forensicsDir)) {
+    const files = await listFilesRecursive(forensicsDir, {
+      maxFiles: CRASH_RETENTION_FORENSIC_SCAN_MAX_FILES,
+      includeFile: (filePath) => filePath.endsWith('.json')
+    });
     for (const sourcePath of files) {
-      if (!sourcePath.endsWith('.json')) continue;
       const relativeForensics = path.relative(logsDir, sourcePath);
       selected.push({
         sourcePath,
@@ -299,12 +331,14 @@ const selectCrashArtifacts = async ({ repoCacheRoot }) => {
     }
   }
   const durableDir = path.join(path.dirname(resolvedRepoCacheRoot), '_crash-forensics');
-  if (fsSync.existsSync(durableDir)) {
+  if (await pathExists(durableDir)) {
     const repoToken = sanitizePathToken(path.basename(resolvedRepoCacheRoot), 'repo');
-    const durableFiles = await listFilesRecursive(durableDir);
+    const durableFiles = await listFilesRecursive(durableDir, {
+      maxFiles: CRASH_RETENTION_DURABLE_SCAN_MAX_FILES,
+      includeFile: (filePath) => path.basename(filePath).endsWith('crash-forensics.json')
+    });
     for (const sourcePath of durableFiles) {
       const base = path.basename(sourcePath);
-      if (!base.endsWith('crash-forensics.json')) continue;
       if (!base.startsWith(`${repoToken}-`)) continue;
       selected.push({
         sourcePath,
@@ -486,19 +520,32 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
   const forensicsIndexPath = path.join(logsDir, 'index-crash-forensics-index.json');
   const forensicSignatures = new Set();
   const forensicBundleIndex = new Map();
+  const ioWarnings = new Set();
   let currentPhase = null;
   let currentFile = null;
+  const warnIo = (action, err) => {
+    const message = err?.message || String(err);
+    const code = err?.code || 'ERR_IO';
+    const key = `${action}:${code}:${message}`;
+    if (ioWarnings.has(key)) return;
+    ioWarnings.add(key);
+    console.warn(`[crash-log] ${action} failed (${code}): ${message}`);
+  };
   try {
     await fs.mkdir(logsDir, { recursive: true });
     await fs.appendFile(logPath, '');
     await fs.appendFile(tracePath, '');
-  } catch {}
+  } catch (err) {
+    warnIo('initialize crash log files', err);
+  }
 
   const writeState = async (state) => {
     const payload = { ts: formatTimestamp(), ...state };
     try {
       await atomicWriteJson(statePath, payload, { spaces: 2 });
-    } catch {}
+    } catch (err) {
+      warnIo('write crash state', err);
+    }
   };
 
   const appendLine = async (message, extra) => {
@@ -506,7 +553,9 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
     const line = `[${formatTimestamp()}] ${message}${suffix}\n`;
     try {
       await fs.appendFile(logPath, line);
-    } catch {}
+    } catch (err) {
+      warnIo('append crash log', err);
+    }
   };
   const appendTrace = async (event) => {
     if (!event || typeof event !== 'object') return;
@@ -517,20 +566,26 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
     };
     try {
       await fs.appendFile(tracePath, `${safeStringify(payload)}\n`);
-    } catch {}
+    } catch (err) {
+      warnIo('append crash trace', err);
+    }
   };
   const writeStateSync = (state) => {
     const payload = { ts: formatTimestamp(), ...state };
     try {
       atomicWriteJsonSync(statePath, payload, { spaces: 2, newline: false });
-    } catch {}
+    } catch (err) {
+      warnIo('write crash state sync', err);
+    }
   };
   const appendLineSync = (message, extra) => {
     const suffix = extra ? ` ${safeStringify(extra)}` : '';
     const line = `[${formatTimestamp()}] ${message}${suffix}\n`;
     try {
       fsSync.appendFileSync(logPath, line);
-    } catch {}
+    } catch (err) {
+      warnIo('append crash log sync', err);
+    }
   };
 
   const persistForensicBundle = async ({
@@ -583,26 +638,27 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
         path: filePath
       });
       return filePath;
-    } catch {
+    } catch (err) {
+      warnIo('persist forensic bundle', err);
       return null;
     }
   };
 
-  void appendLine('crash-logger initialized', { path: logPath }).catch(() => {});
+  void appendLine('crash-logger initialized', { path: logPath });
 
   return {
     enabled: true,
     updatePhase(phase) {
       currentPhase = phase || null;
-      void writeState({ phase }).catch(() => {});
-      void appendLine(`phase ${phase}`).catch(() => {});
+      void writeState({ phase });
+      void appendLine(`phase ${phase}`);
     },
     updateFile(entry) {
       currentFile = entry || null;
-      void writeState({ phase: entry?.phase || 'file', file: entry || null }).catch(() => {});
+      void writeState({ phase: entry?.phase || 'file', file: entry || null });
     },
     traceFileStage(entry) {
-      void appendTrace(entry).catch(() => {});
+      void appendTrace(entry);
     },
     logError(error) {
       const baseEvent = normalizeFailureEvent({
@@ -621,7 +677,9 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
       if (recentEvents.length) {
         try {
           atomicWriteJsonSync(eventsPath, { ts: formatTimestamp(), events: recentEvents }, { spaces: 2, newline: false });
-        } catch {}
+        } catch (err) {
+          warnIo('write crash events snapshot', err);
+        }
       }
     },
     persistForensicBundle

@@ -1,5 +1,4 @@
 import fs from 'node:fs/promises';
-import fsSync from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createEmbedder } from '../../../src/index/embedding.js';
@@ -13,7 +12,6 @@ import { resolveQuantizationParams } from '../../../src/storage/sqlite/quantizat
 import {
   loadChunkMetaRows,
   loadFileMetaRows,
-  readJsonFile,
   MAX_JSON_BYTES
 } from '../../../src/shared/artifact-io.js';
 import { readTextFileWithHash } from '../../../src/shared/encoding.js';
@@ -1339,40 +1337,50 @@ export async function runBuildEmbeddingsWithConfig(config) {
    * Best-effort JSON reader returning `null` when file is absent/invalid.
    *
    * @param {string} filePath
-   * @returns {object|null}
+   * @returns {Promise<object|null>}
    */
-  const readJsonOptional = (filePath) => {
-    if (!filePath || !fsSync.existsSync(filePath)) return null;
-    try {
-      return readJsonFile(filePath, { maxBytes: MAX_JSON_BYTES });
-    } catch {
-      return null;
+  const readJsonOptional = async (filePath) => {
+    if (!filePath) return null;
+    const candidates = [filePath, `${filePath}.bak`];
+    for (const candidate of candidates) {
+      try {
+        const stats = await fs.stat(candidate);
+        if (!stats?.isFile?.()) continue;
+        if (Number.isFinite(Number(stats.size)) && Number(stats.size) > MAX_JSON_BYTES) continue;
+        return JSON.parse(await fs.readFile(candidate, 'utf8'));
+      } catch {}
     }
+    return null;
   };
   const traceArtifactIo = (configEnv || getEnvConfig()).traceArtifactIo === true;
   /**
    * Check whether artifact file exists in raw/compressed/backup forms.
    *
    * @param {string} filePath
-   * @returns {boolean}
+   * @returns {Promise<boolean>}
    */
-  const hasArtifactFile = (filePath) => (
-    fsSync.existsSync(filePath)
-    || fsSync.existsSync(`${filePath}.gz`)
-    || fsSync.existsSync(`${filePath}.zst`)
-    || fsSync.existsSync(`${filePath}.bak`)
-  );
+  const hasArtifactFile = async (filePath) => {
+    if (!filePath) return false;
+    const variants = [filePath, `${filePath}.gz`, `${filePath}.zst`, `${filePath}.bak`];
+    for (const candidate of variants) {
+      try {
+        await fs.access(candidate);
+        return true;
+      } catch {}
+    }
+    return false;
+  };
   /**
    * Emit trace-level artifact existence line when IO tracing is enabled.
    *
    * @param {string} mode
    * @param {string} label
    * @param {string} filePath
-   * @returns {void}
+   * @returns {Promise<void>}
    */
-  const logArtifactLocation = (mode, label, filePath) => {
+  const logArtifactLocation = async (mode, label, filePath) => {
     if (!traceArtifactIo) return;
-    const exists = hasArtifactFile(filePath);
+    const exists = await hasArtifactFile(filePath);
     log(`[embeddings] ${mode}: artifact ${label} path=${filePath} exists=${exists}`);
   };
   /**
@@ -1400,7 +1408,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
     ];
     log(`[embeddings] ${mode}: expected artifact snapshot (${stageLabel})`);
     for (const entry of expected) {
-      logArtifactLocation(mode, `${stageLabel}:${entry.label}`, entry.path);
+      void logArtifactLocation(mode, `${stageLabel}:${entry.label}`, entry.path);
     }
   };
   const BACKEND_ARTIFACT_RELATIVE_PATHS = [
@@ -1428,11 +1436,10 @@ export async function runBuildEmbeddingsWithConfig(config) {
   const promoteBackendArtifacts = async ({ stageDir, indexDir }) => {
     for (const relPath of BACKEND_ARTIFACT_RELATIVE_PATHS) {
       const sourcePath = path.join(stageDir, relPath);
-      if (!fsSync.existsSync(sourcePath)) continue;
-      const targetPath = path.join(indexDir, relPath);
-      await fs.mkdir(path.dirname(targetPath), { recursive: true });
       const stat = await fs.lstat(sourcePath).catch(() => null);
       if (!stat) continue;
+      const targetPath = path.join(indexDir, relPath);
+      await fs.mkdir(path.dirname(targetPath), { recursive: true });
       if (stat.isDirectory()) {
         await fs.rm(targetPath, { recursive: true, force: true });
         try {
@@ -1548,37 +1555,46 @@ export async function runBuildEmbeddingsWithConfig(config) {
   };
   const repoCacheRootKey = normalizePath(repoCacheRootResolved);
   const buildsRootKey = normalizePath(path.join(repoCacheRootResolved, 'builds'));
+  const pathExists = async (targetPath) => {
+    if (!targetPath) return false;
+    try {
+      await fs.access(targetPath);
+      return true;
+    } catch {
+      return false;
+    }
+  };
   /**
    * Detect whether an index root contains stage2 artifacts for a mode.
    *
    * @param {string} candidateRoot
    * @param {string|null} [mode]
-   * @returns {boolean}
+   * @returns {Promise<boolean>}
    */
-  const hasModeArtifacts = (candidateRoot, mode = null) => {
-    if (!candidateRoot || !fsSync.existsSync(candidateRoot)) return false;
+  const hasModeArtifacts = async (candidateRoot, mode = null) => {
+    if (!candidateRoot || !(await pathExists(candidateRoot))) return false;
     const candidateModes = mode
       ? [mode]
       : (Array.isArray(modes) && modes.length ? modes : ['code', 'prose', 'extracted-prose', 'records']);
+    const chunkMetaCandidates = [
+      'chunk_meta.json',
+      'chunk_meta.json.gz',
+      'chunk_meta.json.zst',
+      'chunk_meta.jsonl',
+      'chunk_meta.jsonl.gz',
+      'chunk_meta.jsonl.zst',
+      'chunk_meta.meta.json',
+      'chunk_meta.parts',
+      'chunk_meta.columnar.json',
+      'chunk_meta.binary-columnar.meta.json'
+    ];
     for (const modeName of candidateModes) {
       if (typeof modeName !== 'string' || !modeName) continue;
       const indexDir = path.join(candidateRoot, `index-${modeName}`);
-      if (!fsSync.existsSync(indexDir)) continue;
-      const hasPiecesManifest = fsSync.existsSync(path.join(indexDir, 'pieces', 'manifest.json'));
-      const hasChunkMeta = (
-        fsSync.existsSync(path.join(indexDir, 'chunk_meta.json'))
-        || fsSync.existsSync(path.join(indexDir, 'chunk_meta.json.gz'))
-        || fsSync.existsSync(path.join(indexDir, 'chunk_meta.json.zst'))
-        || fsSync.existsSync(path.join(indexDir, 'chunk_meta.jsonl'))
-        || fsSync.existsSync(path.join(indexDir, 'chunk_meta.jsonl.gz'))
-        || fsSync.existsSync(path.join(indexDir, 'chunk_meta.jsonl.zst'))
-        || fsSync.existsSync(path.join(indexDir, 'chunk_meta.meta.json'))
-        || fsSync.existsSync(path.join(indexDir, 'chunk_meta.parts'))
-        || fsSync.existsSync(path.join(indexDir, 'chunk_meta.columnar.json'))
-        || fsSync.existsSync(path.join(indexDir, 'chunk_meta.binary-columnar.meta.json'))
-      );
-      if (hasPiecesManifest || hasChunkMeta) {
-        return true;
+      if (!(await pathExists(indexDir))) continue;
+      if (await pathExists(path.join(indexDir, 'pieces', 'manifest.json'))) return true;
+      for (const relPath of chunkMetaCandidates) {
+        if (await pathExists(path.join(indexDir, relPath))) return true;
       }
     }
     return false;
@@ -1588,14 +1604,14 @@ export async function runBuildEmbeddingsWithConfig(config) {
    * Resolve newest build root containing artifacts for requested mode.
    *
    * @param {string|null} [mode]
-   * @returns {string|null}
+   * @returns {Promise<string|null>}
    */
-  const findLatestModeRoot = (mode = primaryMode) => {
+  const findLatestModeRoot = async (mode = primaryMode) => {
     const buildsRoot = path.join(repoCacheRootResolved, 'builds');
-    if (!fsSync.existsSync(buildsRoot)) return null;
+    if (!(await pathExists(buildsRoot))) return null;
     let entries = [];
     try {
-      entries = fsSync.readdirSync(buildsRoot, { withFileTypes: true });
+      entries = await fs.readdir(buildsRoot, { withFileTypes: true });
     } catch {
       return null;
     }
@@ -1603,10 +1619,10 @@ export async function runBuildEmbeddingsWithConfig(config) {
     for (const entry of entries) {
       if (!entry?.isDirectory?.()) continue;
       const candidateRoot = path.join(buildsRoot, entry.name);
-      if (!hasModeArtifacts(candidateRoot, mode)) continue;
+      if (!(await hasModeArtifacts(candidateRoot, mode))) continue;
       let mtimeMs = 0;
       try {
-        mtimeMs = Number(fsSync.statSync(candidateRoot).mtimeMs) || 0;
+        mtimeMs = Number((await fs.stat(candidateRoot)).mtimeMs) || 0;
       } catch {}
       candidates.push({ root: candidateRoot, mtimeMs });
     }
@@ -1618,15 +1634,15 @@ export async function runBuildEmbeddingsWithConfig(config) {
    * build/latest build; explicit --index-root always stays pinned to caller root.
    *
    * @param {string} mode
-   * @returns {string|null}
+   * @returns {Promise<string|null>}
    */
-  const resolveModeIndexRoot = (mode) => {
-    if (hasModeArtifacts(activeIndexRoot, mode)) return activeIndexRoot;
+  const resolveModeIndexRoot = async (mode) => {
+    if (await hasModeArtifacts(activeIndexRoot, mode)) return activeIndexRoot;
     if (explicitIndexRoot) return activeIndexRoot;
     const currentBuild = getCurrentBuildInfo(root, userConfig, { mode });
     const currentRoot = currentBuild?.activeRoot || currentBuild?.buildRoot || null;
-    if (currentRoot && hasModeArtifacts(currentRoot, mode)) return currentRoot;
-    return findLatestModeRoot(mode) || activeIndexRoot;
+    if (currentRoot && await hasModeArtifacts(currentRoot, mode)) return currentRoot;
+    return (await findLatestModeRoot(mode)) || activeIndexRoot;
   };
   if (activeIndexRoot && !explicitIndexRoot) {
     const activeRootKey = normalizePath(activeIndexRoot);
@@ -1634,15 +1650,15 @@ export async function runBuildEmbeddingsWithConfig(config) {
     const needsCurrentBuildRoot = underRepoCache && (
       activeRootKey === repoCacheRootKey
       || activeRootKey === buildsRootKey
-      || !hasModeArtifacts(activeIndexRoot, primaryMode)
+      || !(await hasModeArtifacts(activeIndexRoot, primaryMode))
     );
     if (needsCurrentBuildRoot) {
       const currentBuild = getCurrentBuildInfo(root, userConfig, { mode: modes[0] || null });
       const buildRootCandidate = currentBuild?.buildRoot || null;
       const activeRootCandidate = currentBuild?.activeRoot || null;
-      const promotedRoot = hasModeArtifacts(buildRootCandidate, primaryMode)
+      const promotedRoot = await hasModeArtifacts(buildRootCandidate, primaryMode)
         ? buildRootCandidate
-        : (hasModeArtifacts(activeRootCandidate, primaryMode) ? activeRootCandidate : null);
+        : (await hasModeArtifacts(activeRootCandidate, primaryMode) ? activeRootCandidate : null);
       const promotedRootKey = normalizePath(promotedRoot);
       if (promotedRoot && promotedRootKey && promotedRootKey !== activeRootKey) {
         activeIndexRoot = promotedRoot;
@@ -1650,14 +1666,14 @@ export async function runBuildEmbeddingsWithConfig(config) {
       }
     }
   }
-  if (!explicitIndexRoot && activeIndexRoot && !hasModeArtifacts(activeIndexRoot, primaryMode)) {
+  if (!explicitIndexRoot && activeIndexRoot && !(await hasModeArtifacts(activeIndexRoot, primaryMode))) {
     const activeRootKey = normalizePath(activeIndexRoot);
     const allowLatestFallback = !activeRootKey
-      || !fsSync.existsSync(activeIndexRoot)
+      || !(await pathExists(activeIndexRoot))
       || activeRootKey === repoCacheRootKey
       || activeRootKey === buildsRootKey;
     if (allowLatestFallback) {
-      const fallbackRoot = findLatestModeRoot(primaryMode);
+      const fallbackRoot = await findLatestModeRoot(primaryMode);
       if (fallbackRoot && normalizePath(fallbackRoot) !== normalizePath(activeIndexRoot)) {
         activeIndexRoot = fallbackRoot;
         log(`[embeddings] index root lacked mode artifacts; using latest build root: ${activeIndexRoot}`);
@@ -1744,19 +1760,19 @@ export async function runBuildEmbeddingsWithConfig(config) {
    * stage3 so mixed-root mode runs emit accurate heartbeat/phase markers.
    *
    * @param {string|null} buildRoot
-   * @returns {{
+   * @returns {Promise<{
    *   root:string,
    *   hasBuildState:boolean,
    *   runningMarked:boolean,
    *   stopHeartbeat:() => void
-   * }|null}
+   * }|null>}
    */
-  const ensureBuildStateTracker = (buildRoot) => {
+  const ensureBuildStateTracker = async (buildRoot) => {
     const key = normalizePath(buildRoot);
     if (!buildRoot || !key) return null;
     if (buildStateTrackers.has(key)) return buildStateTrackers.get(key);
     const buildStatePath = resolveBuildStatePath(buildRoot);
-    const hasBuildState = Boolean(buildStatePath && fsSync.existsSync(buildStatePath));
+    const hasBuildState = Boolean(buildStatePath && await pathExists(buildStatePath));
     const tracker = {
       root: buildRoot,
       hasBuildState,
@@ -1799,18 +1815,26 @@ export async function runBuildEmbeddingsWithConfig(config) {
    *   modeIndexRoot:string|null,
    *   sqlitePathsForMode?:{codePath?:string|null,prosePath?:string|null}|null
    * }} input
-   * @returns {void}
+   * @returns {Promise<void>}
    */
-  const queueBackgroundSqliteMaintenance = ({ mode, denseCount, modeIndexRoot, sqlitePathsForMode }) => {
+  const queueBackgroundSqliteMaintenance = async ({ mode, denseCount, modeIndexRoot, sqlitePathsForMode }) => {
     if (maintenanceConfig.background !== true || isTestingEnv()) return;
     if (mode !== 'code' && mode !== 'prose') return;
+    const safeStatSize = async (targetPath) => {
+      if (!targetPath) return null;
+      try {
+        const stats = await fs.stat(targetPath);
+        if (!stats?.isFile?.()) return null;
+        return Number(stats.size) || 0;
+      } catch {
+        return null;
+      }
+    };
     const dbPath = mode === 'code' ? sqlitePathsForMode?.codePath : sqlitePathsForMode?.prosePath;
-    if (!dbPath || !fsSync.existsSync(dbPath)) return;
+    const dbBytes = await safeStatSize(dbPath);
+    if (!Number.isFinite(dbBytes)) return;
     const walPath = `${dbPath}-wal`;
-    const dbBytes = Number(fsSync.statSync(dbPath).size) || 0;
-    const walBytes = fsSync.existsSync(walPath)
-      ? (Number(fsSync.statSync(walPath).size) || 0)
-      : 0;
+    const walBytes = (await safeStatSize(walPath)) || 0;
     const decision = shouldQueueSqliteMaintenance({
       config: maintenanceConfig,
       dbBytes,
@@ -1848,6 +1872,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
 
   const modeTask = display.task('Embeddings', { total: modes.length, stage: 'embeddings' });
   let completedModes = 0;
+  const validModes = new Set(['code', 'prose', 'extracted-prose', 'records']);
   const writerStatsByMode = {};
   const crossFileChunkDedupeEnabled = embeddingsConfig?.crossFileChunkDedupe !== false;
   const crossFileChunkDedupeMaxEntries = resolveCrossFileChunkDedupeMaxEntries(indexingConfig);
@@ -1861,7 +1886,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
 
   try {
     for (const mode of modes) {
-      if (!['code', 'prose', 'extracted-prose', 'records'].includes(mode)) {
+      if (!validModes.has(mode)) {
         fail(`Invalid mode: ${mode}`);
       }
       let stageCheckpoints = null;
@@ -1882,13 +1907,13 @@ export async function runBuildEmbeddingsWithConfig(config) {
       let cacheRejected = 0;
       let cacheFastRejects = 0;
       const chunkMetaMaxBytes = resolveEmbeddingsChunkMetaMaxBytes(indexingConfig);
-      const modeIndexRoot = resolveModeIndexRoot(mode);
-      const modeTracker = ensureBuildStateTracker(modeIndexRoot);
+      const modeIndexRoot = await resolveModeIndexRoot(mode);
+      const modeTracker = await ensureBuildStateTracker(modeIndexRoot);
       if (modeTracker?.hasBuildState && !modeTracker.runningMarked) {
         await markBuildPhase(modeIndexRoot, 'stage3', 'running');
         modeTracker.runningMarked = true;
       }
-      if (explicitIndexRoot && !hasModeArtifacts(modeIndexRoot, mode)) {
+      if (explicitIndexRoot && !(await hasModeArtifacts(modeIndexRoot, mode))) {
         fail(
           `Missing index artifacts for mode "${mode}" under explicit --index-root: ${modeIndexRoot}. ` +
           'Run stage2 for that root/mode or choose the correct --index-root.'
@@ -3174,11 +3199,13 @@ export async function runBuildEmbeddingsWithConfig(config) {
               }
               if (writes.length) {
                 try {
-                  const encodedWrites = await Promise.all(
-                    writes.map(async (write) => ({
+                  const encodedWrites = await runWithConcurrency(
+                    writes,
+                    Math.max(1, Math.min(8, writes.length)),
+                    async (write) => ({
                       ...write,
                       encodedPayload: await encodeCacheEntryPayload(write.payload)
-                    }))
+                    })
                   );
                   await writerQueue.enqueue(async () => {
                     for (const write of encodedWrites) {
@@ -3804,29 +3831,22 @@ export async function runBuildEmbeddingsWithConfig(config) {
           maxVal: quantization.maxVal,
           levels: quantization.levels
         };
-        await Promise.all([
-          scheduleIo(() => writeDenseVectorArtifacts({
+        await runWithConcurrency(
+          [
+            { baseName: 'dense_vectors_uint8', vectors: mergedVectors },
+            { baseName: 'dense_vectors_doc_uint8', vectors: docVectors },
+            { baseName: 'dense_vectors_code_uint8', vectors: codeVectors }
+          ],
+          2,
+          async ({ baseName, vectors }) => scheduleIo(() => writeDenseVectorArtifacts({
             indexDir,
-            baseName: 'dense_vectors_uint8',
+            baseName,
             vectorFields,
-            vectors: mergedVectors,
+            vectors,
             writeBinary: binaryDenseVectors
           })),
-          scheduleIo(() => writeDenseVectorArtifacts({
-            indexDir,
-            baseName: 'dense_vectors_doc_uint8',
-            vectorFields,
-            vectors: docVectors,
-            writeBinary: binaryDenseVectors
-          })),
-          scheduleIo(() => writeDenseVectorArtifacts({
-            indexDir,
-            baseName: 'dense_vectors_code_uint8',
-            vectorFields,
-            vectors: codeVectors,
-            writeBinary: binaryDenseVectors
-          }))
-        ]);
+          { collectResults: false }
+        );
         backendTask.set(1, 5, { message: 'building ANN backends (hnsw/lancedb)' });
         logArtifactLocation(mode, 'dense_vectors_uint8_meta', `${mergedVectorsBasePath}.meta.json`);
         logArtifactLocation(mode, 'dense_vectors_doc_uint8_meta', `${docVectorsBasePath}.meta.json`);
@@ -3959,10 +3979,10 @@ export async function runBuildEmbeddingsWithConfig(config) {
                 log(`[embeddings] ${mode}: deleting optional sqlite vec meta ${sqliteMetaPath}`);
               }
               await scheduleIo(() => fs.rm(sqliteMetaPath, { force: true }));
-              logArtifactLocation(mode, 'dense_vectors_sqlite_vec_meta', sqliteMetaPath);
+              void logArtifactLocation(mode, 'dense_vectors_sqlite_vec_meta', sqliteMetaPath);
             } catch {}
           }
-          queueBackgroundSqliteMaintenance({
+          void queueBackgroundSqliteMaintenance({
             mode,
             denseCount: Number.isFinite(sqliteResult?.count) ? Number(sqliteResult.count) : totalChunks,
             modeIndexRoot,
@@ -3974,8 +3994,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
         const hnswTarget = resolveHnswTarget(mode, denseVectorMode);
         const hnswTargetPaths = resolveHnswPaths(indexDir, hnswTarget);
         const hnswMeta = await scheduleIo(() => readJsonOptional(hnswTargetPaths.metaPath));
-        const hnswIndexExists = fsSync.existsSync(hnswTargetPaths.indexPath)
-        || fsSync.existsSync(`${hnswTargetPaths.indexPath}.bak`);
+        const hnswIndexExists = await pathExists(hnswTargetPaths.indexPath)
+        || await pathExists(`${hnswTargetPaths.indexPath}.bak`);
         const hnswAvailable = Boolean(hnswMeta) && hnswIndexExists;
         const hnswState = {
           enabled: hnswConfig.enabled !== false,
@@ -3993,7 +4013,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
         const lanceMeta = await scheduleIo(() => readJsonOptional(targetPaths.metaPath));
         const lanceAvailable = Boolean(lanceMeta)
         && Boolean(targetPaths.dir)
-        && fsSync.existsSync(targetPaths.dir);
+        && await pathExists(targetPaths.dir);
         const lancedbState = {
           enabled: lanceConfig.enabled !== false,
           available: lanceAvailable,
@@ -4063,7 +4083,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
 
         try {
           await scheduleIo(() => updatePieceManifest({ indexDir, mode, totalChunks, dims: finalDims }));
-          logArtifactLocation(mode, 'pieces_manifest', path.join(indexDir, 'pieces', 'manifest.json'));
+          void logArtifactLocation(mode, 'pieces_manifest', path.join(indexDir, 'pieces', 'manifest.json'));
         } catch {
         // Ignore piece manifest write failures.
         }

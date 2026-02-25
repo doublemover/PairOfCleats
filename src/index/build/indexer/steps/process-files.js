@@ -1372,6 +1372,7 @@ const createStage1ProgressTracker = ({
   onTick = null
 } = {}) => {
   const completedOrderIndexes = new Set();
+  const completedFallbackKeys = new Set();
   const safeTotal = Number.isFinite(Number(total))
     ? Math.max(0, Math.floor(Number(total)))
     : 0;
@@ -1392,12 +1393,15 @@ const createStage1ProgressTracker = ({
    * @param {{count:number,total:number,meta:object}|null} [shardProgress]
    * @returns {boolean}
    */
-  const markOrderedEntryComplete = (orderIndex, shardProgress = null) => {
+  const markOrderedEntryComplete = (orderIndex, shardProgress = null, dedupeKey = null) => {
     if (!progress || typeof progress.tick !== 'function') return false;
     if (Number.isFinite(orderIndex)) {
       const normalizedOrderIndex = Math.floor(orderIndex);
       if (completedOrderIndexes.has(normalizedOrderIndex)) return false;
       completedOrderIndexes.add(normalizedOrderIndex);
+    } else if (typeof dedupeKey === 'string' && dedupeKey) {
+      if (completedFallbackKeys.has(dedupeKey)) return false;
+      completedFallbackKeys.add(dedupeKey);
     }
     progress.tick();
     if (shardProgress) {
@@ -1413,7 +1417,8 @@ const createStage1ProgressTracker = ({
       return {
         total: progress.total,
         count: progress.count,
-        completedOrderIndices: Array.from(completedOrderIndexes).sort((a, b) => a - b)
+        completedOrderIndices: Array.from(completedOrderIndexes).sort((a, b) => a - b),
+        completedFallbackKeys: Array.from(completedFallbackKeys).sort((a, b) => compareStrings(a, b))
       };
     }
   };
@@ -3513,7 +3518,11 @@ export const processFiles = async ({
                     }
                   );
                 }
-                markOrderedEntryComplete(orderIndex, shardProgress);
+                markOrderedEntryComplete(
+                  orderIndex,
+                  shardProgress,
+                  entry?.rel || (entry?.abs ? toPosix(path.relative(runtimeRef.root, entry.abs)) : null)
+                );
                 if (!result) {
                   if (entry?.rel) lifecycleByRelKey.delete(entry.rel);
                   if (Number.isFinite(orderIndex)) {
@@ -3599,7 +3608,11 @@ export const processFiles = async ({
                     shardId: shardMeta?.id || null
                   }
                 );
-                markOrderedEntryComplete(orderIndex, shardProgress);
+                markOrderedEntryComplete(
+                  orderIndex,
+                  shardProgress,
+                  entry?.rel || (entry?.abs ? toPosix(path.relative(runtimeRef.root, entry.abs)) : null)
+                );
                 if (entry?.rel) lifecycleByRelKey.delete(entry.rel);
                 if (Number.isFinite(orderIndex)) {
                   lifecycleByOrderIndex.delete(Math.floor(orderIndex));

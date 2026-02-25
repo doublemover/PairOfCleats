@@ -526,6 +526,11 @@ export async function scanImports({
           buffer = null;
           hash = null;
         }
+      } else if (cachedText && typeof cachedText === 'object' && !item.stat) {
+        // Without stat metadata we cannot validate freshness; force a re-read.
+        text = null;
+        buffer = null;
+        hash = null;
       }
       try {
         if (typeof text !== 'string') {
