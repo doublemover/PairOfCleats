@@ -63,9 +63,9 @@ runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', 
 const userConfig = loadUserConfig(repoRoot);
 const codeDir = getIndexDir(repoRoot, 'code', userConfig);
 const denseFiles = [
-  path.join(codeDir, 'dense_vectors_uint8.json'),
-  path.join(codeDir, 'dense_vectors_doc_uint8.json'),
-  path.join(codeDir, 'dense_vectors_code_uint8.json')
+  path.join(codeDir, 'dense_vectors_uint8.bin'),
+  path.join(codeDir, 'dense_vectors_doc_uint8.bin'),
+  path.join(codeDir, 'dense_vectors_code_uint8.bin')
 ];
 
 const readEmbeddingPieces = async () => {
@@ -80,7 +80,11 @@ const readEmbeddingPieces = async () => {
       count: entry.count,
       dims: entry.dims,
       bytes: entry.bytes ?? null,
-      checksum: entry.checksum ?? null
+      // Binary meta artifacts currently include generation timestamps, so
+      // their manifest checksum is expected to vary between runs.
+      checksum: /_binary_meta$/i.test(String(entry.name || ''))
+        ? null
+        : (entry.checksum ?? null)
     }));
 };
 
