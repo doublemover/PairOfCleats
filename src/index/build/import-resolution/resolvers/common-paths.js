@@ -61,7 +61,10 @@ export const PATH_LIKE_IMPORTER_EXTS = new Set([
   '.bzl',
   '.star',
   '.dart',
-  '.toml'
+  '.toml',
+  '.bazel',
+  '.html',
+  '.htm'
 ]);
 
 const PATH_LIKE_SPEC_EXTS = new Set([
@@ -276,7 +279,10 @@ const resolveUnittestsProjectRootCandidate = ({ rawSpec, importerInfo }) => {
 export const resolvePathLikeImport = ({ spec, importerInfo, lookup }) => {
   const rawSpec = toPosix(String(spec || '')).trim();
   if (!rawSpec) return null;
-  const bazelSourceFile = importerInfo?.extension === '.bzl' || importerInfo?.extension === '.star';
+  const bazelSourceFile = importerInfo?.extension === '.bzl'
+    || importerInfo?.extension === '.star'
+    || importerInfo?.extension === '.bazel';
+  const htmlSourceFile = importerInfo?.extension === '.html' || importerInfo?.extension === '.htm';
   if (rawSpec.startsWith('//')) {
     const label = rawSpec.slice(2);
     const colon = label.indexOf(':');
@@ -344,8 +350,15 @@ export const resolvePathLikeImport = ({ spec, importerInfo, lookup }) => {
   if (rawSpec.startsWith('/')) {
     const normalizedSpec = normalizeRelPath(rawSpec);
     if (!normalizedSpec) return null;
+    const absoluteTarget = normalizedSpec.slice(1);
+    const importerAnchoredAbsolute = htmlSourceFile
+      ? normalizeRelPath(path.posix.join(importerInfo.importerDir, absoluteTarget))
+      : null;
     return resolveFromCandidateList(
-      expandPathLikeCandidates({ importerInfo, candidates: [normalizedSpec.slice(1)] }),
+      expandPathLikeCandidates({
+        importerInfo,
+        candidates: [importerAnchoredAbsolute, absoluteTarget]
+      }),
       lookup
     );
   }

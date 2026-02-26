@@ -67,6 +67,10 @@ await write('src/util/parser.rs', 'pub fn parse() {}\n');
 await write('scripts/main.sh', 'source lib/helpers.sh\n');
 await write('scripts/lib/helpers.sh', 'echo ok\n');
 await write('scripts/system.sh', 'source /etc/bash_completion\nsource /usr/local/share/chruby/auto.sh\n');
+await write('index.html', '<!doctype html><img src="/logo/logo-clear.png"/>\n');
+await write('logo/logo-clear.png', 'not-a-real-png-but-exists\n');
+await write('web/frpc/index.html', '<!doctype html><script type="module" src="/src/main.ts"></script>\n');
+await write('web/frpc/src/main.ts', 'console.log("frpc");\n');
 
 await write('cmake/main.cmake', 'include(modules/common.cmake)\n');
 await write('cmake/modules/common.cmake', '# helper\n');
@@ -91,6 +95,15 @@ await write(
   ].join('\n')
 );
 await write('app/local.bzl', 'def local_macro():\n  pass\n');
+await write('MODULE.bazel', 'load("//go:extensions.bzl", "go_deps")\n');
+await write('go/extensions.bzl', 'def go_deps():\n  pass\n');
+await write('Makefile', 'include ./Dockerfile-kubernetes\n');
+await write('Dockerfile-kubernetes', 'FROM scratch\n');
+await write(
+  'src/AspNet/OData/src/Asp.Versioning.WebApi.OData.ApiExplorer/Asp.Versioning.WebApi.OData.ApiExplorer.csproj',
+  '<Project><Import Project="..\\\\..\\\\..\\\\..\\\\Common\\\\src\\\\Common.OData.ApiExplorer\\\\Common.OData.ApiExplorer.projitems"/></Project>\n'
+);
+await write('src/Common/src/Common.OData.ApiExplorer/Common.OData.ApiExplorer.projitems', '<Project></Project>\n');
 
 await write('lib/main.dart', "import 'package:benchapp/src/util.dart';\nimport 'src/local.dart';\nimport 'package:flutter/material.dart';\n");
 await write('lib/src/util.dart', 'class Util {}\n');
@@ -152,6 +165,9 @@ const entries = [
   'scripts/main.sh',
   'scripts/system.sh',
   'scripts/lib/helpers.sh',
+  'index.html',
+  'web/frpc/index.html',
+  'web/frpc/src/main.ts',
   'cmake/main.cmake',
   'cmake/modules/common.cmake',
   'cmake/sub/main.cmake',
@@ -165,6 +181,12 @@ const entries = [
   'tools/pkg/defs.bzl',
   'app/rules.bzl',
   'app/local.bzl',
+  'MODULE.bazel',
+  'go/extensions.bzl',
+  'Makefile',
+  'Dockerfile-kubernetes',
+  'src/AspNet/OData/src/Asp.Versioning.WebApi.OData.ApiExplorer/Asp.Versioning.WebApi.OData.ApiExplorer.csproj',
+  'src/Common/src/Common.OData.ApiExplorer/Common.OData.ApiExplorer.projitems',
   'lib/main.dart',
   'lib/src/util.dart',
   'lib/src/local.dart',
@@ -201,10 +223,17 @@ const importsByFile = {
   'src/lib.rs': ['crate::util::parser'],
   'scripts/main.sh': ['lib/helpers.sh', './lib/missing.sh'],
   'scripts/system.sh': ['/etc/bash_completion', '/usr/local/share/chruby/auto.sh'],
+  'index.html': ['/logo/logo-clear.png'],
+  'web/frpc/index.html': ['/src/main.ts'],
   'cmake/main.cmake': ['modules/common.cmake'],
   'cmake/sub/main.cmake': ['../modules/common.cmake'],
   'nix/flake.nix': ['./modules', './pkgs/tool', './git-hooks.nix'],
   'app/rules.bzl': ['//tools:defs.bzl', '//tools/pkg', '//tools/pkg:defs', ':local.bzl'],
+  'MODULE.bazel': ['//go:extensions.bzl'],
+  Makefile: ['./Dockerfile-kubernetes'],
+  'src/AspNet/OData/src/Asp.Versioning.WebApi.OData.ApiExplorer/Asp.Versioning.WebApi.OData.ApiExplorer.csproj': [
+    '..\\..\\..\\..\\Common\\src\\Common.OData.ApiExplorer\\Common.OData.ApiExplorer.projitems'
+  ],
   'lib/main.dart': ['package:benchapp/src/util.dart', 'src/local.dart', 'package:flutter/material.dart'],
   'src/main/scala/com/acme/ScalaMain.scala': ['com.acme.util.ScalaHelper'],
   'src/main/groovy/com/acme/GMain.groovy': ['com.acme.util.GHelper'],
@@ -270,10 +299,18 @@ assertLinks('Sources/Core/Main.swift', ['Sources/CoreNetworking/Client.swift']);
 assertLinks('src/lib.rs', ['src/util/parser.rs']);
 assertLinks('scripts/main.sh', ['scripts/lib/helpers.sh']);
 assertExternal('scripts/system.sh', ['/etc/bash_completion', '/usr/local/share/chruby/auto.sh']);
+assertExternal('index.html', ['/logo/logo-clear.png']);
+assertLinks('web/frpc/index.html', ['web/frpc/src/main.ts']);
 assertLinks('cmake/main.cmake', ['cmake/modules/common.cmake']);
 assertLinks('cmake/sub/main.cmake', ['cmake/modules/common.cmake']);
 assertLinks('nix/flake.nix', ['nix/git-hooks.nix', 'nix/modules/default.nix', 'nix/pkgs/tool/default.nix']);
 assertLinksUnordered('app/rules.bzl', ['app/local.bzl', 'tools/defs.bzl', 'tools/pkg/defs.bzl', 'tools/pkg/pkg.bzl']);
+assertLinks('MODULE.bazel', ['go/extensions.bzl']);
+assertLinks('Makefile', ['Dockerfile-kubernetes']);
+assertLinks(
+  'src/AspNet/OData/src/Asp.Versioning.WebApi.OData.ApiExplorer/Asp.Versioning.WebApi.OData.ApiExplorer.csproj',
+  ['src/Common/src/Common.OData.ApiExplorer/Common.OData.ApiExplorer.projitems']
+);
 assertLinks('lib/main.dart', ['lib/src/local.dart', 'lib/src/util.dart']);
 assertExternal('lib/main.dart', ['package:flutter/material.dart']);
 assertLinks('src/main/scala/com/acme/ScalaMain.scala', ['src/main/scala/com/acme/util/ScalaHelper.scala']);
@@ -298,6 +335,7 @@ const taxonomySamples = enrichUnresolvedImportSamples([
   ...realUnresolvedSamples,
   { importer: 'tests/__fixtures__/case.test.js', specifier: './missing-fixture.js', reason: 'unresolved' },
   { importer: 'src/main.js', specifier: 'fsevents', reason: 'optional dependency not installed' },
+  { importer: 'MODULE.bazel', specifier: '//go:missing.bzl', reason: 'unresolved' },
   { importer: 'src/main.js', specifier: '.\\windows\\path\\module.js', reason: 'unresolved' },
   { importer: 'src/main.js', specifier: './utlis.jss', reason: 'unresolved' }
 ]);
@@ -307,16 +345,17 @@ const taxonomyBySpecifier = Object.fromEntries(
 );
 assert.equal(taxonomyBySpecifier['./missing-fixture.js'], 'fixture');
 assert.equal(taxonomyBySpecifier.fsevents, 'optional_dependency');
+assert.equal(taxonomyBySpecifier['//go:missing.bzl'], 'missing_file');
 assert.equal(taxonomyBySpecifier['.\\windows\\path\\module.js'], 'path_normalization');
 assert.equal(taxonomyBySpecifier['./utlis.jss'], 'typo');
 assert.equal(taxonomyBySpecifier['./lib/missing.sh'], 'missing_file');
 assert.equal(taxonomy.liveSuppressed, 2);
-assert.equal(taxonomy.actionable, 3);
+assert.equal(taxonomy.actionable, 4);
 assert.deepEqual(
   Object.fromEntries(Object.entries(taxonomy.categories)),
   {
     fixture: 1,
-    missing_file: 1,
+    missing_file: 2,
     optional_dependency: 1,
     path_normalization: 1,
     typo: 1

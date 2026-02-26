@@ -117,6 +117,10 @@ const hasPathNormalizationHint = (specifier) => {
   const raw = typeof specifier === 'string' ? specifier : '';
   const normalized = normalizeForClassifier(specifier);
   if (!normalized) return false;
+  const looksLikeBazelLabel = normalized.startsWith('//')
+    && !/^\/\/[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:[/:]|$)/.test(normalized)
+    && /^\/\/[A-Za-z0-9_@.+~/-]*(?::[A-Za-z0-9_@.+~/-]+)?$/.test(normalized);
+  if (looksLikeBazelLabel) return false;
   if (/[A-Za-z]:[\\/]/.test(raw)) return true;
   if (raw.includes('\\')) return true;
   if (normalized.includes('/./') || normalized.endsWith('/.') || normalized.includes('/../')) return true;

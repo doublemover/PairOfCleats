@@ -2,12 +2,14 @@ import path from 'node:path';
 import { buildCacheKey } from '../../../shared/cache-key.js';
 import { sha1 } from '../../../shared/hash.js';
 import {
+  DEFAULT_IMPORT_EXTS,
   MAX_GRAPH_EDGES,
   MAX_GRAPH_NODES,
   MAX_IMPORT_WARNINGS,
   MAX_RESOLUTION_CACHE_ENTRIES,
   NEGATIVE_CACHE_TTL_MS
 } from './constants.js';
+import { resolveRelativeImportCandidates } from '../../shared/import-candidates.js';
 import { createFsMemo } from './fs-meta.js';
 import { addGraphNode, buildEdgeSortKey, buildWarningSortKey } from './graph.js';
 import {
@@ -304,6 +306,51 @@ export function resolveImportLinks({
     return importerInfo.isShell === true;
   };
 
+  const isFileStat = (value) => {
+    if (!value) return false;
+    if (typeof value.isFile === 'function') return value.isFile();
+    return value.isFile === true;
+  };
+
+  const resolveExistingNonIndexedRelativeImport = ({ spec, importerInfo, importerRel }) => {
+    if (!spec || typeof spec !== 'string' || !importerRel) return null;
+    if (!(spec.startsWith('.') || spec.startsWith('/'))) return null;
+    if (spec === '.' || spec === '..') return null;
+    const baseCandidates = [];
+    if (spec.startsWith('/')) {
+      const absoluteTarget = normalizeRelPath(spec.slice(1));
+      if (absoluteTarget) {
+        baseCandidates.push(absoluteTarget);
+        const htmlSourceFile = importerInfo?.extension === '.html' || importerInfo?.extension === '.htm';
+        if (htmlSourceFile) {
+          const importerAnchored = normalizeRelPath(path.posix.join(importerInfo.importerDir, absoluteTarget));
+          if (importerAnchored) baseCandidates.unshift(importerAnchored);
+        }
+      }
+    } else {
+      const importerDir = path.posix.dirname(importerRel);
+      const joined = normalizeRelPath(path.posix.join(importerDir, spec));
+      if (joined) baseCandidates.push(joined);
+    }
+    if (!baseCandidates.length) return null;
+    const seenBases = new Set();
+    for (const base of baseCandidates) {
+      if (!base || seenBases.has(base)) continue;
+      seenBases.add(base);
+      const pathExt = path.posix.extname(base);
+      const candidates = pathExt
+        ? [base]
+        : resolveRelativeImportCandidates(base, DEFAULT_IMPORT_EXTS);
+      for (const candidate of candidates) {
+        if (!candidate) continue;
+        const candidateAbs = path.resolve(resolvedLookup.rootAbs, candidate);
+        const candidateStat = fsMemo.statSync(candidateAbs);
+        if (isFileStat(candidateStat)) return candidate;
+      }
+    }
+    return null;
+  };
+
   const resolveFileHash = (relPath) => {
     if (!fileHashes || !relPath) return null;
     if (typeof fileHashes.get === 'function') return fileHashes.get(relPath) || null;
@@ -487,7 +534,12 @@ export function resolveImportLinks({
             if (absoluteExternal) {
               resolvedType = 'external';
             } else {
-              resolvedType = 'unresolved';
+              const nonIndexedLocal = resolveExistingNonIndexedRelativeImport({
+                spec,
+                importerInfo,
+                importerRel: relNormalized
+              });
+              resolvedType = nonIndexedLocal ? 'external' : 'unresolved';
             }
           }
         } else {

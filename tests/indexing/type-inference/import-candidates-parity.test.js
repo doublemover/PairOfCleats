@@ -12,7 +12,7 @@ applyTestEnv();
 const extensions = ['.ts', '.js'];
 assert.deepEqual(
   resolveRelativeImportCandidates('src/lib/util', extensions),
-  ['src/lib/util.ts', 'src/lib/util/index.ts', 'src/lib/util.js', 'src/lib/util/index.js']
+  ['src/lib/util', 'src/lib/util.ts', 'src/lib/util/index.ts', 'src/lib/util.js', 'src/lib/util/index.js']
 );
 assert.deepEqual(
   resolveRelativeImportCandidates('src/lib/util/', extensions),
