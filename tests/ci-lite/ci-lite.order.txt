@@ -72,6 +72,7 @@ map/map-filter-api-contract
 indexing/embeddings/embeddings-dims-validation
 indexing/risk/interprocedural/local-pointer-hash
 tooling/signature-parse/shared-splitter
+tooling/signature-parse/go-rust-signatures
 retrieval/pipeline/topk-equivalence
 indexing/type-inference/crossfile/extract
 map/map-viewer-lod-switch
@@ -599,6 +600,7 @@ tooling/index-stats/index-stats-aggregate
 shared/artifact-io/packed-postings-windowed-read
 tooling/providers/provider-registry-merges-deterministically
 tooling/lsp/lsp-restart-generation-safety
+tooling/lsp/lsp-configured-provider-go-rust-signature-parsing
 storage/sqlite/reader-schema-mismatch
 indexing/build/promotion-timing-contract
 storage/sqlite/sqlite-build-rowcount-contract
@@ -619,6 +621,10 @@ retrieval/ann/lancedb-candidate-filtering
 shared/runtime/uv-threadpool-no-override
 retrieval/providers/provider-unnamed-state-isolation-contract
 tooling/lsp/lsp-shutdown
+tooling/lsp/lsp-protocol-fragmented-frames
+tooling/lsp/lsp-protocol-malformed-initialize-fail-open
+tooling/lsp/lsp-protocol-disconnect-document-symbol-fail-open
+tooling/lsp/lsp-protocol-stall-initialize-timeout
 tooling/download/shared-fetch-contract
 storage/sqlite/sqlite-jsonl-streaming-zstd
 tooling/sublime/sublime-pycompile
@@ -747,6 +753,9 @@ embeddings/runner/runner-helper-contracts
 indexing/embeddings/build/explicit-index-root-missing-mode-fails-fast
 indexing/determinism/chunk-meta-ordering-drift
 tooling/doctor/doctor-gating-reasons
+tooling/doctor/doctor-command-profile-jdtls
+tooling/doctor/doctor-runtime-requirements-dedicated
+tooling/doctor/doctor-workspace-model-detection
 indexing/imports/import-resolver-relative
 indexing/validate/ledger-validation
 lang/javascript/javascript-paramnames
