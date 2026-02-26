@@ -81,6 +81,14 @@ const TOOL_DOCS = {
   sqls: 'https://github.com/lighttiger2505/sqls'
 };
 
+const PREFERRED_TOOL_BY_LANGUAGE = {
+  typescript: 'tsserver',
+  csharp: 'csharp-ls',
+  ruby: 'solargraph',
+  php: 'phpactor',
+  kotlin: 'kotlin-lsp'
+};
+
 function canRun(cmd, args = ['--version']) {
   return canRunCommand(cmd, args);
 }
@@ -570,9 +578,21 @@ function filterToolsByConfig(tools, toolingConfig) {
 }
 
 export function resolveToolsForLanguages(languages, toolingRoot, repoRoot, toolingConfig = null) {
-  const languageSet = new Set(languages);
   const registry = getToolingRegistry(toolingRoot, repoRoot);
-  const matched = registry.filter((tool) => tool.languages.some((lang) => languageSet.has(lang)));
+  const selected = new Set();
+  const normalizedLanguages = Array.isArray(languages)
+    ? languages.map((entry) => String(entry || '').trim().toLowerCase()).filter(Boolean)
+    : [];
+  for (const language of normalizedLanguages) {
+    const candidates = registry.filter((tool) => tool.languages.some((lang) => String(lang || '').toLowerCase() === language));
+    if (!candidates.length) continue;
+    const preferredToolId = PREFERRED_TOOL_BY_LANGUAGE[language] || '';
+    const preferred = preferredToolId
+      ? candidates.find((tool) => tool.id === preferredToolId)
+      : null;
+    selected.add((preferred || candidates[0]).id);
+  }
+  const matched = registry.filter((tool) => selected.has(tool.id));
   return filterToolsByConfig(matched, toolingConfig);
 }
 
