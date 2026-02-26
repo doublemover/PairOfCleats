@@ -318,6 +318,10 @@ const handleRequest = (message) => {
       process.exit(1);
       return;
     }
+    if (mode === 'malformed-document-symbol') {
+      sendMalformedFrame('{"jsonrpc":"2.0","id":2,"result":');
+      return;
+    }
     const uri = params?.textDocument?.uri;
     const text = documents.get(uri) || '';
     const symbol = buildSymbol(text);

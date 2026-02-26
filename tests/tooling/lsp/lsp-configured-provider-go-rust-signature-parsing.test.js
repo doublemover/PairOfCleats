@@ -91,6 +91,13 @@ const runSingleLanguageCase = async ({
   const hit = result.byChunkUid.get(chunkUid);
   assert.ok(hit, `expected LSP hit for ${languageId}`);
   assert.equal(hit.payload?.returnType, returnType, `unexpected returnType for ${languageId}`);
+  assert.equal(result.metrics?.providersExecuted, 1, `expected one executed provider for ${languageId}`);
+  assert.equal(
+    Number(result.metrics?.providerRuntime?.['lsp-test']?.requests?.requests || 0) > 0,
+    true,
+    `expected request metrics for ${languageId}`
+  );
+  assert.equal(result.metrics?.providerRuntime?.['lsp-test']?.degraded?.active, false, `unexpected degraded mode for ${languageId}`);
   for (const [name, expectedType] of Object.entries(paramTypes)) {
     assert.equal(
       hit.payload?.paramTypes?.[name]?.[0]?.type,

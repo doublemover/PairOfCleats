@@ -630,6 +630,7 @@ retrieval/providers/provider-unnamed-state-isolation-contract
 tooling/lsp/lsp-shutdown
 tooling/lsp/lsp-protocol-fragmented-frames
 tooling/lsp/lsp-protocol-malformed-initialize-fail-open
+tooling/lsp/lsp-protocol-malformed-document-symbol-fail-open
 tooling/lsp/lsp-protocol-disconnect-document-symbol-fail-open
 tooling/lsp/lsp-protocol-stall-initialize-timeout
 tooling/download/shared-fetch-contract
@@ -801,6 +802,7 @@ tooling/lsp/dedicated-providers-multifile-session-reuse
 tooling/lsp/dart-provider-bootstrap
 tooling/lsp/dart-provider-workspace-guard
 tooling/lsp/dart-provider-command-fallback
+tooling/lsp/lsp-provider-metrics-envelope-aggregate
 tooling/lsp/dart-provider-process-reuse
 tooling/doctor/doctor-runtime-requirements-dart-dedicated
 tooling/doctor/doctor-workspace-model-dart-detection
@@ -841,6 +843,8 @@ indexing/segments/segment-uid-derived
 cli/general/cli
 tooling/install/setup
 tooling/type-inference/crossfile-stats.unit
+tooling/type-inference/crossfile-cache-degraded-stats-normalization
+tooling/type-inference/crossfile-tooling-runtime-stats-fail-open
 tooling/triage/ingest-sources.smoke
 indexing/segments/effective-identity-md-fence
 tooling/lsp/typescript/typescript-ambiguous-fallback-does-not-guess

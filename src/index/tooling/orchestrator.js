@@ -270,6 +270,131 @@ const summarizeDegradedProviders = ({ providerDiagnostics, sourcesByChunkUid, ob
   return degradedProviders;
 };
 
+const toFiniteNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const summarizeProviderRuntime = (runtime) => ({
+  capabilities: runtime?.capabilities && typeof runtime.capabilities === 'object'
+    ? { ...runtime.capabilities }
+    : null,
+  requests: {
+    requests: toFiniteNumber(runtime?.requests?.requests),
+    succeeded: toFiniteNumber(runtime?.requests?.succeeded),
+    failed: toFiniteNumber(runtime?.requests?.failed),
+    timedOut: toFiniteNumber(runtime?.requests?.timedOut),
+    latencyMs: {
+      count: toFiniteNumber(runtime?.requests?.latencyMs?.count),
+      p50: toFiniteNumber(runtime?.requests?.latencyMs?.p50),
+      p95: toFiniteNumber(runtime?.requests?.latencyMs?.p95)
+    }
+  },
+  lifecycle: {
+    startsInWindow: toFiniteNumber(runtime?.lifecycle?.startsInWindow),
+    crashesInWindow: toFiniteNumber(runtime?.lifecycle?.crashesInWindow),
+    crashLoopTrips: toFiniteNumber(runtime?.lifecycle?.crashLoopTrips),
+    crashLoopQuarantined: runtime?.lifecycle?.crashLoopQuarantined === true,
+    fdPressureEvents: toFiniteNumber(runtime?.lifecycle?.fdPressureEvents),
+    fdPressureBackoffActive: runtime?.lifecycle?.fdPressureBackoffActive === true
+  },
+  guard: {
+    breakerThreshold: toFiniteNumber(runtime?.guard?.breakerThreshold),
+    consecutiveFailures: toFiniteNumber(runtime?.guard?.consecutiveFailures),
+    tripCount: toFiniteNumber(runtime?.guard?.tripCount)
+  }
+});
+
+/**
+ * Build machine-readable provider metrics for observability and CI assertions.
+ *
+ * Counts intentionally distinguish planned providers, executed providers
+ * (diagnostics emitted), and providers that contributed symbols.
+ *
+ * @param {{
+ *   providerPlans:Array<object>,
+ *   providerDiagnostics:object,
+ *   sourcesByChunkUid:Map<string,Set<string>>,
+ *   degradedProviders:Array<object>
+ * }} input
+ * @returns {object}
+ */
+const summarizeToolingMetrics = ({
+  providerPlans,
+  providerDiagnostics,
+  sourcesByChunkUid,
+  degradedProviders
+}) => {
+  const uniquePlannedProviderIds = new Set();
+  for (const plan of providerPlans || []) {
+    const id = normalizeProviderId(plan?.provider?.id);
+    if (id) uniquePlannedProviderIds.add(id);
+  }
+  const providerContributionById = new Map();
+  for (const sourceSet of sourcesByChunkUid.values()) {
+    if (!sourceSet || typeof sourceSet[Symbol.iterator] !== 'function') continue;
+    for (const providerId of sourceSet) {
+      const normalized = normalizeProviderId(providerId);
+      if (!normalized) continue;
+      providerContributionById.set(normalized, (providerContributionById.get(normalized) || 0) + 1);
+    }
+  }
+  const executedProviderIds = Object.keys(providerDiagnostics || {})
+    .map((providerId) => normalizeProviderId(providerId))
+    .filter(Boolean);
+  let degradedWarningChecks = 0;
+  let degradedErrorChecks = 0;
+  const degradedReasonCodes = new Set();
+  const degradedByProviderId = new Map();
+  for (const entry of degradedProviders || []) {
+    const providerId = normalizeProviderId(entry?.providerId);
+    if (providerId) degradedByProviderId.set(providerId, entry);
+    degradedWarningChecks += Number(entry?.warningCount) || 0;
+    degradedErrorChecks += Number(entry?.errorCount) || 0;
+    for (const code of Array.isArray(entry?.reasonCodes) ? entry.reasonCodes : []) {
+      const normalized = String(code || '').trim();
+      if (normalized) degradedReasonCodes.add(normalized);
+    }
+  }
+  const requestTotals = {
+    requests: 0,
+    succeeded: 0,
+    failed: 0,
+    timedOut: 0
+  };
+  const providerRuntime = Object.create(null);
+  const sortedExecutedProviderIds = Array.from(new Set(executedProviderIds)).sort((a, b) => a.localeCompare(b));
+  for (const providerId of sortedExecutedProviderIds) {
+    const diagnostics = providerDiagnostics?.[providerId] || null;
+    const runtime = summarizeProviderRuntime(diagnostics?.runtime || null);
+    const degraded = degradedByProviderId.get(providerId) || null;
+    providerRuntime[providerId] = {
+      ...runtime,
+      degraded: {
+        active: Boolean(degraded),
+        warningCount: Number(degraded?.warningCount) || 0,
+        errorCount: Number(degraded?.errorCount) || 0,
+        reasonCodes: Array.isArray(degraded?.reasonCodes) ? degraded.reasonCodes.slice() : []
+      }
+    };
+    requestTotals.requests += runtime.requests.requests;
+    requestTotals.succeeded += runtime.requests.succeeded;
+    requestTotals.failed += runtime.requests.failed;
+    requestTotals.timedOut += runtime.requests.timedOut;
+  }
+  return {
+    providersPlanned: uniquePlannedProviderIds.size,
+    providersExecuted: sortedExecutedProviderIds.length,
+    providersContributed: providerContributionById.size,
+    degradedProviderCount: Array.isArray(degradedProviders) ? degradedProviders.length : 0,
+    degradedWarningChecks,
+    degradedErrorChecks,
+    degradedReasonCodeCount: degradedReasonCodes.size,
+    requests: requestTotals,
+    providerRuntime
+  };
+};
+
 export async function runToolingProviders(ctx, inputs, providerIds = null) {
   const strict = ctx?.strict !== false;
   const documents = Array.isArray(inputs?.documents) ? inputs.documents : [];
@@ -415,12 +540,19 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
     sourcesByChunkUid,
     observations
   });
+  const metrics = summarizeToolingMetrics({
+    providerPlans,
+    providerDiagnostics,
+    sourcesByChunkUid,
+    degradedProviders
+  });
 
   return {
     byChunkUid: merged,
     sourcesByChunkUid,
     diagnostics: providerDiagnostics,
     observations,
-    degradedProviders
+    degradedProviders,
+    metrics
   };
 }

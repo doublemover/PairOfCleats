@@ -74,5 +74,10 @@ assert.equal(
   true,
   'expected degraded mode observation for dart'
 );
+assert.equal(result.metrics?.degradedProviderCount, 1, 'expected degraded provider metrics count');
+assert.equal(result.metrics?.degradedWarningChecks >= 1, true, 'expected degraded warning metrics');
+assert.equal(result.metrics?.providersContributed, 0, 'expected no chunk contribution in degraded fail-open mode');
+assert.equal(result.metrics?.providerRuntime?.dart?.degraded?.active, true, 'expected per-provider degraded runtime flag');
+assert.equal(result.metrics?.requests?.requests, 0, 'expected no LSP requests when command probe fails early');
 
 console.log('dart provider command fallback test passed');
