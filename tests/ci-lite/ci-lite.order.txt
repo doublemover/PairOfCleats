@@ -785,6 +785,7 @@ tooling/lsp/dart-provider-workspace-guard
 tooling/lsp/dart-provider-command-fallback
 tooling/doctor/doctor-runtime-requirements-dart-dedicated
 tooling/doctor/doctor-workspace-model-dart-detection
+tooling/doctor/doctor-dedicated-provider-handshake-fixtures
 indexing/imports/import-resolver-relative
 indexing/validate/ledger-validation
 lang/javascript/javascript-paramnames
