@@ -601,6 +601,7 @@ shared/artifact-io/packed-postings-windowed-read
 tooling/providers/provider-registry-merges-deterministically
 tooling/lsp/lsp-restart-generation-safety
 tooling/lsp/lsp-configured-provider-go-rust-signature-parsing
+tooling/lsp/lsp-configured-provider-gopls-workspace-diagnostics
 tooling/lsp/lsp-configured-provider-lua-workspace-library
 tooling/lsp/lsp-configured-provider-rust-proc-macro-diagnostic-suppression
 storage/sqlite/reader-schema-mismatch

@@ -12,6 +12,7 @@ import { parseRubySignature } from './signature-parse/ruby.js';
 import { parseRustSignature } from './signature-parse/rust.js';
 import { parseSwiftSignature } from './signature-parse/swift.js';
 import { parseZigSignature } from './signature-parse/zig.js';
+import { hasWorkspaceMarker } from './workspace-model.js';
 
 const normalizeList = (value) => {
   if (Array.isArray(value)) return value.map((entry) => String(entry).trim()).filter(Boolean);
@@ -146,6 +147,9 @@ const normalizeServerConfig = (server, index) => {
   const documentSymbolConcurrency = Number(merged.documentSymbolConcurrency);
   const hoverConcurrency = Number(merged.hoverConcurrency);
   const hoverCacheMaxEntries = Number(merged.hoverCacheMaxEntries);
+  const requireWorkspaceModel = typeof merged.requireWorkspaceModel === 'boolean'
+    ? merged.requireWorkspaceModel
+    : null;
   const presetName = String(merged.preset || '').trim().toLowerCase();
   const usesLuaPreset = presetName === 'lua'
     || presetName === 'lua_ls'
@@ -179,6 +183,7 @@ const normalizeServerConfig = (server, index) => {
       ? Math.max(1000, Math.floor(hoverCacheMaxEntries))
       : null,
     rustSuppressProcMacroDiagnostics,
+    requireWorkspaceModel,
     initializationOptions,
     priority: Number.isFinite(priority) ? priority : null,
     label: typeof merged.label === 'string' ? merged.label : null,
@@ -210,13 +215,34 @@ const createConfiguredLspProvider = (server) => {
     },
     async run(ctx, inputs) {
       const log = typeof ctx?.logger === 'function' ? ctx.logger : (() => {});
+      const preChecks = [];
       if (ctx?.toolingConfig?.lsp?.enabled === false) {
-        return { provider: { id: providerId, version: this.version, configHash: this.getConfigHash(ctx) }, byChunkUid: {} };
+        return {
+          provider: { id: providerId, version: this.version, configHash: this.getConfigHash(ctx) },
+          byChunkUid: {},
+          diagnostics: appendDiagnosticChecks(null, preChecks)
+        };
       }
       const docs = Array.isArray(inputs?.documents) ? inputs.documents : [];
       const targets = Array.isArray(inputs?.targets) ? inputs.targets : [];
       if (!docs.length || !targets.length) {
-        return { provider: { id: providerId, version: this.version, configHash: this.getConfigHash(ctx) }, byChunkUid: {} };
+        return {
+          provider: { id: providerId, version: this.version, configHash: this.getConfigHash(ctx) },
+          byChunkUid: {},
+          diagnostics: appendDiagnosticChecks(null, preChecks)
+        };
+      }
+      if (server.id === 'gopls' && server.requireWorkspaceModel !== false) {
+        const markerFound = hasWorkspaceMarker(ctx?.repoRoot || process.cwd(), {
+          exactNames: ['go.mod', 'go.work']
+        });
+        if (!markerFound) {
+          preChecks.push({
+            name: 'gopls_workspace_model_missing',
+            status: 'warn',
+            message: 'gopls workspace markers (go.mod/go.work) not found near repo root.'
+          });
+        }
       }
       const commandProfile = resolveToolingCommandProfile({
         providerId: server.id || providerId,
@@ -229,11 +255,14 @@ const createConfiguredLspProvider = (server) => {
         return {
           provider: { id: providerId, version: this.version, configHash: this.getConfigHash(ctx) },
           byChunkUid: {},
-          diagnostics: appendDiagnosticChecks(null, [{
-            name: 'lsp_command_unavailable',
-            status: 'warn',
-            message: `${server.cmd} command not available for ${providerId}.`
-          }])
+          diagnostics: appendDiagnosticChecks(null, [
+            ...preChecks,
+            {
+              name: 'lsp_command_unavailable',
+              status: 'warn',
+              message: `${server.cmd} command not available for ${providerId}.`
+            }
+          ])
         };
       }
       const result = await collectLspTypes({
@@ -264,13 +293,13 @@ const createConfiguredLspProvider = (server) => {
       });
       let diagnosticsByChunkUid = result.diagnosticsByChunkUid;
       let diagnosticsCount = result.diagnosticsCount;
-      const checks = Array.isArray(result.checks) ? result.checks.slice() : [];
+      const resultChecks = Array.isArray(result.checks) ? result.checks.slice() : [];
       if (server.rustSuppressProcMacroDiagnostics) {
         const suppression = applyRustProcMacroSuppression(diagnosticsByChunkUid);
         diagnosticsByChunkUid = suppression.diagnosticsByChunkUid;
         diagnosticsCount = suppression.diagnosticsCount;
         if (suppression.suppressedCount > 0) {
-          checks.push({
+          resultChecks.push({
             name: 'tooling_rust_proc_macro_diagnostics_suppressed',
             status: 'info',
             message: `suppressed ${suppression.suppressedCount} non-fatal rust proc-macro diagnostic(s).`,
@@ -282,7 +311,7 @@ const createConfiguredLspProvider = (server) => {
         diagnosticsCount
           ? { diagnosticsCount, diagnosticsByChunkUid }
           : null,
-        checks
+        [...preChecks, ...resultChecks]
       );
       return {
         provider: { id: providerId, version: this.version, configHash: this.getConfigHash(ctx) },
