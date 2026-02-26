@@ -160,11 +160,50 @@ export const runCrossFileInference = async ({
       const usageLinks = Number.isFinite(crossFileStats.linkedUsages) ? crossFileStats.linkedUsages : 0;
       const returns = Number.isFinite(crossFileStats.inferredReturns) ? crossFileStats.inferredReturns : 0;
       const riskFlows = Number.isFinite(crossFileStats.riskFlows) ? crossFileStats.riskFlows : 0;
+      const toolingDegradedProviders = Number.isFinite(crossFileStats.toolingDegradedProviders)
+        ? crossFileStats.toolingDegradedProviders
+        : 0;
+      const toolingDegradedWarnings = Number.isFinite(crossFileStats.toolingDegradedWarnings)
+        ? crossFileStats.toolingDegradedWarnings
+        : 0;
+      const toolingDegradedErrors = Number.isFinite(crossFileStats.toolingDegradedErrors)
+        ? crossFileStats.toolingDegradedErrors
+        : 0;
+      const toolingProvidersExecuted = Number.isFinite(crossFileStats.toolingProvidersExecuted)
+        ? crossFileStats.toolingProvidersExecuted
+        : 0;
+      const toolingProvidersContributed = Number.isFinite(crossFileStats.toolingProvidersContributed)
+        ? crossFileStats.toolingProvidersContributed
+        : 0;
+      const toolingRequests = Number.isFinite(crossFileStats.toolingRequests)
+        ? crossFileStats.toolingRequests
+        : 0;
+      const toolingRequestFailures = Number.isFinite(crossFileStats.toolingRequestFailures)
+        ? crossFileStats.toolingRequestFailures
+        : 0;
+      const toolingRequestTimeouts = Number.isFinite(crossFileStats.toolingRequestTimeouts)
+        ? crossFileStats.toolingRequestTimeouts
+        : 0;
       log(
         `Cross-File Inference: ${formatCount(callLinks)} Call Links, ` +
         `${formatCount(usageLinks)} Usage Links, ${formatCount(returns)} Returns, ` +
         `${formatCount(riskFlows)} Risk Flows`
       );
+      if (toolingProvidersExecuted > 0 || toolingRequests > 0) {
+        log(
+          `[tooling] cross-file runtime providers=${formatCount(toolingProvidersExecuted)} ` +
+          `(contributed=${formatCount(toolingProvidersContributed)}), ` +
+          `requests=${formatCount(toolingRequests)}, ` +
+          `failed=${formatCount(toolingRequestFailures)}, ` +
+          `timedOut=${formatCount(toolingRequestTimeouts)}.`
+        );
+      }
+      if (toolingDegradedProviders > 0) {
+        log(
+          `[tooling] cross-file degraded providers=${formatCount(toolingDegradedProviders)} ` +
+          `(warnings=${formatCount(toolingDegradedWarnings)}, errors=${formatCount(toolingDegradedErrors)}).`
+        );
+      }
       if (crossFileStats.cacheHit) {
         log('[perf] cross-file output cache reused.');
       }

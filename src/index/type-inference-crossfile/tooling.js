@@ -16,6 +16,17 @@ import { createQueuedAppendWriter } from '../../shared/io/append-writer.js';
 
 const TOOLING_DOCTOR_CACHE_VERSION = 1;
 const TOOLING_DOCTOR_CACHE_FILE = '.tooling-doctor-cache.json';
+const EMPTY_TOOLING_PASS_STATS = Object.freeze({
+  inferredReturns: 0,
+  toolingDegradedProviders: 0,
+  toolingDegradedWarnings: 0,
+  toolingDegradedErrors: 0,
+  toolingProvidersExecuted: 0,
+  toolingProvidersContributed: 0,
+  toolingRequests: 0,
+  toolingRequestFailures: 0,
+  toolingRequestTimeouts: 0
+});
 
 const buildToolingDoctorCacheKey = ({ rootDir, buildRoot, strict, toolingConfig, toolingTimeoutMs, toolingRetries, toolingBreaker }) => {
   const payload = {
@@ -174,6 +185,35 @@ const applyToolingDiagnostics = ({ diagnosticsByChunkUid, chunkByUid }) => {
   return { enriched };
 };
 
+const summarizeDegradedProviderCounts = (degradedProviders) => {
+  if (!Array.isArray(degradedProviders) || !degradedProviders.length) {
+    return {
+      toolingDegradedProviders: 0,
+      toolingDegradedWarnings: 0,
+      toolingDegradedErrors: 0
+    };
+  }
+  let toolingDegradedWarnings = 0;
+  let toolingDegradedErrors = 0;
+  for (const entry of degradedProviders) {
+    toolingDegradedWarnings += Number(entry?.warningCount) || 0;
+    toolingDegradedErrors += Number(entry?.errorCount) || 0;
+  }
+  return {
+    toolingDegradedProviders: degradedProviders.length,
+    toolingDegradedWarnings,
+    toolingDegradedErrors
+  };
+};
+
+const summarizeToolingRuntimeCounts = (metrics) => ({
+  toolingProvidersExecuted: Number(metrics?.providersExecuted) || 0,
+  toolingProvidersContributed: Number(metrics?.providersContributed) || 0,
+  toolingRequests: Number(metrics?.requests?.requests) || 0,
+  toolingRequestFailures: Number(metrics?.requests?.failed) || 0,
+  toolingRequestTimeouts: Number(metrics?.requests?.timedOut) || 0
+});
+
 export const runToolingPass = async ({
   rootDir,
   buildRoot,
@@ -188,7 +228,7 @@ export const runToolingPass = async ({
   fileTextByFile,
   abortSignal = null
 }) => {
-  if (!Array.isArray(chunks) || !chunks.length) return { inferredReturns: 0 };
+  if (!Array.isArray(chunks) || !chunks.length) return { ...EMPTY_TOOLING_PASS_STATS };
   registerDefaultToolingProviders();
   const strict = toolingConfig?.strict !== false;
   const vfsConfig = toolingConfig?.vfs && typeof toolingConfig.vfs === 'object'
@@ -218,7 +258,7 @@ export const runToolingPass = async ({
     coalesceSegments,
     log
   });
-  if (!documents.length || !targets.length) return { inferredReturns: 0 };
+  if (!documents.length || !targets.length) return { ...EMPTY_TOOLING_PASS_STATS };
 
   const chunkByUid = new Map();
   for (const chunk of chunks) {
@@ -286,6 +326,8 @@ export const runToolingPass = async ({
 
   const providerLog = createToolingLogger(rootDir, toolingLogDir, 'tooling', log);
   const result = await runToolingProviders(ctx, { documents, targets, kinds: ['types'] });
+  const degradedStats = summarizeDegradedProviderCounts(result?.degradedProviders);
+  const runtimeStats = summarizeToolingRuntimeCounts(result?.metrics);
   if (Array.isArray(result?.degradedProviders) && result.degradedProviders.length) {
     const summary = result.degradedProviders
       .map((entry) => `${entry.providerId}${entry.errorCount > 0 ? `:error=${entry.errorCount}` : ''}${entry.warningCount > 0 ? `:warn=${entry.warningCount}` : ''}`)
@@ -328,5 +370,9 @@ export const runToolingPass = async ({
     log(`[index] tooling enriched ${applyResult.enriched} symbol(s).`);
   }
 
-  return { inferredReturns: applyResult.inferredReturns || 0 };
+  return {
+    inferredReturns: applyResult.inferredReturns || 0,
+    ...degradedStats,
+    ...runtimeStats
+  };
 };

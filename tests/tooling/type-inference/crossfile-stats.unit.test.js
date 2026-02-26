@@ -65,7 +65,15 @@ const runStatsScenario = async (name, {
     ['linkedCalls', stats.linkedCalls, expect.linkedCalls],
     ['linkedUsages', stats.linkedUsages, expect.linkedUsages],
     ['inferredReturns', stats.inferredReturns, expect.inferredReturns],
-    ['riskFlows', stats.riskFlows, expect.riskFlows]
+    ['riskFlows', stats.riskFlows, expect.riskFlows],
+    ['toolingDegradedProviders', stats.toolingDegradedProviders, expect.toolingDegradedProviders ?? 0],
+    ['toolingDegradedWarnings', stats.toolingDegradedWarnings, expect.toolingDegradedWarnings ?? 0],
+    ['toolingDegradedErrors', stats.toolingDegradedErrors, expect.toolingDegradedErrors ?? 0],
+    ['toolingProvidersExecuted', stats.toolingProvidersExecuted, expect.toolingProvidersExecuted ?? 0],
+    ['toolingProvidersContributed', stats.toolingProvidersContributed, expect.toolingProvidersContributed ?? 0],
+    ['toolingRequests', stats.toolingRequests, expect.toolingRequests ?? 0],
+    ['toolingRequestFailures', stats.toolingRequestFailures, expect.toolingRequestFailures ?? 0],
+    ['toolingRequestTimeouts', stats.toolingRequestTimeouts, expect.toolingRequestTimeouts ?? 0]
   ];
   for (const [label, actual, expected] of entries) {
     if (actual !== expected) {

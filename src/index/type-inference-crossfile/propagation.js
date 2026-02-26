@@ -253,6 +253,14 @@ export async function runCrossFilePropagation({
   let linkedUsages = 0;
   let inferredReturns = 0;
   let riskFlows = 0;
+  let toolingDegradedProviders = 0;
+  let toolingDegradedWarnings = 0;
+  let toolingDegradedErrors = 0;
+  let toolingProvidersExecuted = 0;
+  let toolingProvidersContributed = 0;
+  let toolingRequests = 0;
+  let toolingRequestFailures = 0;
+  let toolingRequestTimeouts = 0;
   let droppedCallLinks = 0;
   let droppedCallSummaries = 0;
   let droppedUsageLinks = 0;
@@ -306,6 +314,14 @@ export async function runCrossFilePropagation({
       abortSignal
     });
     inferredReturns += toolingResult.inferredReturns || 0;
+    toolingDegradedProviders += toolingResult.toolingDegradedProviders || 0;
+    toolingDegradedWarnings += toolingResult.toolingDegradedWarnings || 0;
+    toolingDegradedErrors += toolingResult.toolingDegradedErrors || 0;
+    toolingProvidersExecuted += toolingResult.toolingProvidersExecuted || 0;
+    toolingProvidersContributed += toolingResult.toolingProvidersContributed || 0;
+    toolingRequests += toolingResult.toolingRequests || 0;
+    toolingRequestFailures += toolingResult.toolingRequestFailures || 0;
+    toolingRequestTimeouts += toolingResult.toolingRequestTimeouts || 0;
   }
 
   const getChunkText = async (chunk) => {
@@ -846,6 +862,14 @@ export async function runCrossFilePropagation({
     linkedUsages,
     inferredReturns,
     riskFlows,
+    toolingDegradedProviders,
+    toolingDegradedWarnings,
+    toolingDegradedErrors,
+    toolingProvidersExecuted,
+    toolingProvidersContributed,
+    toolingRequests,
+    toolingRequestFailures,
+    toolingRequestTimeouts,
     droppedCallLinks,
     droppedCallSummaries,
     droppedUsageLinks,
