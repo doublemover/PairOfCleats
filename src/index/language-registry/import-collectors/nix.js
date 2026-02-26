@@ -1,6 +1,8 @@
 import { normalizeImportToken } from '../simple-relations.js';
 import { lineHasAny, shouldScanLine } from './utils.js';
 
+const NIX_IMPORT_CALL_RX = /\b(?:import|callPackage)\s+("([^"\\]|\\.)+"|'([^'\\]|\\.)+'|[^\s;(){}\]]+)/g;
+
 export const collectNixImports = (text) => {
   const imports = new Set();
   const lines = String(text || '').split('\n');
@@ -18,8 +20,10 @@ export const collectNixImports = (text) => {
   };
   for (const line of lines) {
     if (!shouldScanLine(line, precheck)) continue;
-    const importMatch = line.match(/\b(import|callPackage)\s+([^\s;]+)/);
-    if (importMatch?.[2]) addImport(importMatch[2]);
+    const importMatches = line.matchAll(NIX_IMPORT_CALL_RX);
+    for (const match of importMatches) {
+      if (match?.[1]) addImport(match[1]);
+    }
     const getFlakeMatch = line.match(/\bbuiltins\.getFlake\s+([^\s;]+)/);
     if (getFlakeMatch?.[1]) addImport(getFlakeMatch[1]);
     const flakeInputMatch = line.match(/\binputs\.[A-Za-z_][A-Za-z0-9_-]*\.(?:url|path|follows)\s*=\s*([^\s;]+)/);

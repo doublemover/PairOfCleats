@@ -74,6 +74,7 @@ export const classifyImporter = (importerRel) => {
     || baseName === 'cmakelists.txt'
     || baseName === 'makefile'
     || baseName === 'dockerfile'
+    || baseName === 'pipfile'
     || baseName.endsWith('.mk');
 
   return {
