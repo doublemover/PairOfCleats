@@ -3,6 +3,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { getRecentLogEvents } from '../../shared/progress.js';
 import { createTempPath } from '../../shared/json-stream/atomic.js';
+import { createQueuedAppendWriter } from '../../shared/io/append-writer.js';
 import { atomicWriteJson, atomicWriteJsonSync } from '../../shared/io/atomic-write.js';
 import { sha1 } from '../../shared/hash.js';
 import { normalizeFailureEvent, validateFailureEvent } from './failure-taxonomy.js';
@@ -42,82 +43,6 @@ const safeStringify = (value) => {
   } catch {
     return '"[unserializable]"';
   }
-};
-
-/**
- * Create a serialized append writer backed by one open file descriptor.
- *
- * Each append is queued so high-frequency emitters (file-stage traces) do not
- * fan out into many concurrent open/write/close operations.
- *
- * @param {{filePath:string,warnIo:(action:string,err:unknown)=>void,warnAction:string}} input
- * @returns {{enqueue:(line:string)=>Promise<void>,flush:()=>Promise<void>,close:()=>Promise<void>}}
- */
-const createAppendWriter = ({ filePath, warnIo, warnAction }) => {
-  const handlePromise = fs.open(filePath, 'a')
-    .catch((err) => {
-      warnIo(`initialize ${warnAction}`, err);
-      return null;
-    });
-  let writeChain = Promise.resolve();
-  let acceptingWrites = true;
-  let closePromise = null;
-
-  const enqueue = (line) => {
-    if (!acceptingWrites || typeof line !== 'string' || !line) return Promise.resolve();
-    writeChain = writeChain.then(async () => {
-      const handle = await handlePromise;
-      if (!handle) return;
-      try {
-        await handle.write(line);
-      } catch (err) {
-        warnIo(warnAction, err);
-      }
-    });
-    return writeChain;
-  };
-
-  const flushCore = async (allowClosing = false) => {
-    await writeChain;
-    if (closePromise && !allowClosing) return;
-    const handle = await handlePromise;
-    if (!handle) return;
-    try {
-      await handle.sync();
-    } catch (err) {
-      warnIo(`${warnAction} flush`, err);
-    }
-  };
-
-  const flush = async () => {
-    if (closePromise) {
-      await closePromise;
-      return;
-    }
-    await flushCore(false);
-  };
-
-  const close = async () => {
-    if (closePromise) return closePromise;
-    acceptingWrites = false;
-    closePromise = (async () => {
-      await flushCore(true);
-      const handle = await handlePromise;
-      if (!handle) return;
-      try {
-        await handle.close();
-      } catch (err) {
-        warnIo(`${warnAction} close`, err);
-      }
-    })();
-    await closePromise;
-  };
-
-  return {
-    enqueue,
-    flush,
-    close
-  };
 };
 
 /**
@@ -630,16 +555,18 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
   } catch (err) {
     warnIo('initialize crash log directories', err);
   }
-  const logWriter = createAppendWriter({
-    filePath: logPath,
-    warnIo,
-    warnAction: 'append crash log'
+  const createCrashAppendWriter = (filePath, warnAction) => createQueuedAppendWriter({
+    filePath,
+    syncOnFlush: true,
+    onError(stage, err) {
+      if (stage === 'open') warnIo(`initialize ${warnAction}`, err);
+      else if (stage === 'flush') warnIo(`${warnAction} flush`, err);
+      else if (stage === 'close') warnIo(`${warnAction} close`, err);
+      else warnIo(warnAction, err);
+    }
   });
-  const traceWriter = createAppendWriter({
-    filePath: tracePath,
-    warnIo,
-    warnAction: 'append crash trace'
-  });
+  const logWriter = createCrashAppendWriter(logPath, 'append crash log');
+  const traceWriter = createCrashAppendWriter(tracePath, 'append crash trace');
 
   const flushStateWrites = async () => {
     if (stateWriteInFlight) return stateWriteInFlight;
