@@ -628,6 +628,7 @@ retrieval/ann/lancedb-candidate-filtering
 shared/runtime/uv-threadpool-no-override
 retrieval/providers/provider-unnamed-state-isolation-contract
 tooling/lsp/lsp-shutdown
+tooling/lsp/lsp-collect-shutdown-race-clean
 tooling/lsp/lsp-protocol-fragmented-frames
 tooling/lsp/lsp-protocol-malformed-initialize-fail-open
 tooling/lsp/lsp-protocol-malformed-document-symbol-fail-open
