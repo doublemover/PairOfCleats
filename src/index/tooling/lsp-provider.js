@@ -1,6 +1,7 @@
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { appendDiagnosticChecks, hashProviderConfig, normalizeProviderId } from './provider-contract.js';
 import { resolveToolingCommandProfile } from './command-resolver.js';
+import { resolveLspServerPreset } from './lsp-presets.js';
 import { parseClikeSignature } from './signature-parse/clike.js';
 import { parsePythonSignature } from './signature-parse/python.js';
 import { parseSwiftSignature } from './signature-parse/swift.js';
@@ -44,18 +45,25 @@ const parseGenericSignature = (detail, languageId, symbolName) => {
 
 const normalizeServerConfig = (server, index) => {
   if (!server || typeof server !== 'object') return null;
-  const id = normalizeServerId(server.id, `lsp-${index + 1}`);
-  const cmd = String(server.cmd || '').trim();
+  const preset = resolveLspServerPreset(server);
+  const merged = preset
+    ? {
+      ...preset,
+      ...server
+    }
+    : server;
+  const id = normalizeServerId(merged.id, `lsp-${index + 1}`);
+  const cmd = String(merged.cmd || '').trim();
   if (!cmd) return null;
-  const args = normalizeArgs(server.args);
-  const languages = normalizeLanguageList(server.languages);
-  const uriScheme = server.uriScheme === 'poc-vfs' ? 'poc-vfs' : 'file';
-  const timeoutMs = Number(server.timeoutMs);
-  const retries = Number(server.retries);
-  const priority = Number(server.priority);
-  const documentSymbolConcurrency = Number(server.documentSymbolConcurrency);
-  const hoverConcurrency = Number(server.hoverConcurrency);
-  const hoverCacheMaxEntries = Number(server.hoverCacheMaxEntries);
+  const args = normalizeArgs(merged.args);
+  const languages = normalizeLanguageList(merged.languages);
+  const uriScheme = merged.uriScheme === 'poc-vfs' ? 'poc-vfs' : 'file';
+  const timeoutMs = Number(merged.timeoutMs);
+  const retries = Number(merged.retries);
+  const priority = Number(merged.priority);
+  const documentSymbolConcurrency = Number(merged.documentSymbolConcurrency);
+  const hoverConcurrency = Number(merged.hoverConcurrency);
+  const hoverCacheMaxEntries = Number(merged.hoverCacheMaxEntries);
   return {
     id,
     cmd,
@@ -74,8 +82,8 @@ const normalizeServerConfig = (server, index) => {
       ? Math.max(1000, Math.floor(hoverCacheMaxEntries))
       : null,
     priority: Number.isFinite(priority) ? priority : null,
-    label: typeof server.label === 'string' ? server.label : null,
-    version: typeof server.version === 'string' ? server.version : null
+    label: typeof merged.label === 'string' ? merged.label : null,
+    version: typeof merged.version === 'string' ? merged.version : null
   };
 };
 
