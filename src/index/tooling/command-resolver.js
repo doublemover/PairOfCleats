@@ -11,6 +11,8 @@ const WINDOWS_EXEC_EXTS = ['.exe', '.cmd', '.bat'];
 const DEFAULT_PROBE_ARGS = [['--version'], ['--help']];
 const COMMAND_PROBE_CACHE = new Map();
 const GOPLS_SERVE_CACHE = new Map();
+const COMMAND_PROBE_CACHE_MAX_ENTRIES = 256;
+const COMMAND_PROBE_FAILURE_TTL_MS = 10_000;
 
 const shouldUseShell = (cmd) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(String(cmd || ''));
 
@@ -49,6 +51,16 @@ const summarizeProbeText = (value, maxChars = 400) => {
   if (!text) return '';
   if (text.length <= maxChars) return text;
   return `${text.slice(0, Math.max(0, maxChars - 1)).trimEnd()}...`;
+};
+
+const setBoundedCacheEntry = (map, key, value, maxEntries) => {
+  if (map.has(key)) map.delete(key);
+  map.set(key, value);
+  while (map.size > maxEntries) {
+    const oldestKey = map.keys().next().value;
+    if (oldestKey == null) break;
+    map.delete(oldestKey);
+  }
 };
 
 const resolveWindowsCommand = (cmd) => {
@@ -162,13 +174,17 @@ const resolveBaseCommand = ({ providerId, requestedCmd, repoRoot, toolingConfig 
 
 const probeBinary = ({ command, probeArgs }) => {
   const cacheKey = `${String(command || '').trim()}\u0000${JSON.stringify(probeArgs || [])}`;
+  const now = Date.now();
   const cached = COMMAND_PROBE_CACHE.get(cacheKey) || null;
-  if (cached) {
+  if (cached && now <= Number(cached.expiresAt || 0)) {
     return {
-      ok: true,
+      ok: cached.ok === true,
       attempted: Array.isArray(cached.attempted) ? cached.attempted : [],
       cached: true
     };
+  }
+  if (cached) {
+    COMMAND_PROBE_CACHE.delete(cacheKey);
   }
   const attempted = [];
   for (const args of probeArgs) {
@@ -181,9 +197,16 @@ const probeBinary = ({ command, probeArgs }) => {
         stdout: summarizeProbeText(result.stdout)
       });
       if (result.exitCode === 0) {
-        COMMAND_PROBE_CACHE.set(cacheKey, {
-          attempted
-        });
+        setBoundedCacheEntry(
+          COMMAND_PROBE_CACHE,
+          cacheKey,
+          {
+            ok: true,
+            attempted,
+            expiresAt: Number.POSITIVE_INFINITY
+          },
+          COMMAND_PROBE_CACHE_MAX_ENTRIES
+        );
         return {
           ok: true,
           attempted,
@@ -200,6 +223,16 @@ const probeBinary = ({ command, probeArgs }) => {
       });
     }
   }
+  setBoundedCacheEntry(
+    COMMAND_PROBE_CACHE,
+    cacheKey,
+    {
+      ok: false,
+      attempted,
+      expiresAt: now + COMMAND_PROBE_FAILURE_TTL_MS
+    },
+    COMMAND_PROBE_CACHE_MAX_ENTRIES
+  );
   return {
     ok: false,
     attempted,
