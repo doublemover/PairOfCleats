@@ -48,6 +48,19 @@ const deepCloneValue = (value) => {
   return value;
 };
 
+const deepMergeObjects = (base, override) => {
+  const output = isPlainObject(base) ? deepCloneValue(base) : {};
+  if (!isPlainObject(override)) return output;
+  for (const [key, entry] of Object.entries(override)) {
+    if (isPlainObject(entry) && isPlainObject(output[key])) {
+      output[key] = deepMergeObjects(output[key], entry);
+    } else {
+      output[key] = deepCloneValue(entry);
+    }
+  }
+  return output;
+};
+
 const withLuaWorkspaceLibrary = (initializationOptions, luaWorkspaceLibrary) => {
   const libraries = normalizeList(luaWorkspaceLibrary);
   if (!libraries.length) return initializationOptions;
@@ -131,11 +144,11 @@ const normalizeServerConfig = (server, index) => {
   if (!server || typeof server !== 'object') return null;
   const preset = resolveLspServerPreset(server);
   const merged = preset
-    ? {
-      ...preset,
-      ...server
-    }
+    ? { ...preset, ...server }
     : server;
+  if (preset && isPlainObject(preset.initializationOptions) && isPlainObject(server.initializationOptions)) {
+    merged.initializationOptions = deepMergeObjects(preset.initializationOptions, server.initializationOptions);
+  }
   const id = normalizeServerId(merged.id, `lsp-${index + 1}`);
   const cmd = String(merged.cmd || '').trim();
   if (!cmd) return null;

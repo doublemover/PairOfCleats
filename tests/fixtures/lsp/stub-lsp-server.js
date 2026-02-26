@@ -147,6 +147,19 @@ const resolveInitializeCapabilities = (initializeParams = null) => {
       hoverProvider: true
     };
   }
+  if (mode === 'yaml-requires-schemastore-and-schema-map') {
+    const yamlSettings = initializeParams?.initializationOptions?.settings?.yaml;
+    const schemaStoreEnabled = yamlSettings?.schemaStore?.enable;
+    const schemas = yamlSettings?.schemas;
+    const hasSchemaMap = schemas && typeof schemas === 'object' && Object.keys(schemas).length > 0;
+    if (schemaStoreEnabled !== false || !hasSchemaMap) {
+      return {};
+    }
+    return {
+      documentSymbolProvider: true,
+      hoverProvider: true
+    };
+  }
   if (mode === 'lua-requires-workspace-library') {
     const library = initializeParams?.initializationOptions?.settings?.Lua?.workspace?.library;
     if (!Array.isArray(library) || library.length === 0) {
