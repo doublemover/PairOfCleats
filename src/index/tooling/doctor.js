@@ -43,6 +43,78 @@ const summarizeStatus = (errors, warnings) => {
   return 'ok';
 };
 
+const resolveRuntimeRequirementsForCommand = (commandName) => {
+  const command = String(commandName || '').trim().toLowerCase();
+  if (!command) return [];
+  if (command === 'jdtls') {
+    return [{
+      id: 'java',
+      cmd: 'java',
+      args: ['--version'],
+      label: 'Java runtime'
+    }];
+  }
+  if (command === 'csharp-ls' || command === 'omnisharp') {
+    return [{
+      id: 'dotnet',
+      cmd: 'dotnet',
+      args: ['--version'],
+      label: '.NET runtime'
+    }];
+  }
+  if (command === 'elixir-ls' || command === 'elixir-ls-language-server') {
+    return [{
+      id: 'elixir',
+      cmd: 'elixir',
+      args: ['--version'],
+      label: 'Elixir runtime'
+    }, {
+      id: 'erl',
+      cmd: 'erl',
+      args: ['-version'],
+      label: 'Erlang runtime'
+    }];
+  }
+  if (command === 'haskell-language-server') {
+    return [{
+      id: 'ghc',
+      cmd: 'ghc',
+      args: ['--version'],
+      label: 'GHC compiler'
+    }];
+  }
+  if (command === 'phpactor') {
+    return [{
+      id: 'php',
+      cmd: 'php',
+      args: ['--version'],
+      label: 'PHP runtime'
+    }];
+  }
+  if (command === 'solargraph') {
+    return [{
+      id: 'ruby',
+      cmd: 'ruby',
+      args: ['--version'],
+      label: 'Ruby runtime'
+    }, {
+      id: 'gem',
+      cmd: 'gem',
+      args: ['--version'],
+      label: 'RubyGems'
+    }];
+  }
+  if (command === 'dart') {
+    return [{
+      id: 'dart-sdk',
+      cmd: 'dart',
+      args: ['--version'],
+      label: 'Dart SDK'
+    }];
+  }
+  return [];
+};
+
 const writeReport = async (reportPath, report) => {
   await atomicWriteJson(reportPath, report, {
     spaces: 2,
@@ -56,6 +128,9 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
   const toolingConfig = ctx?.toolingConfig || {};
   const strict = ctx?.strict !== false;
   const log = typeof options?.log === 'function' ? options.log : (() => {});
+  const resolveCommandProfile = typeof options?.resolveCommandProfile === 'function'
+    ? options.resolveCommandProfile
+    : resolveToolingCommandProfile;
   const scmConfig = ctx?.scmConfig || resolveScmConfig({
     indexingConfig: ctx?.indexingConfig || {},
     analysisPolicy: ctx?.analysisPolicy || null
@@ -301,7 +376,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
       }
       if (requestedCmd) {
         const requestedCmdLower = String(requestedCmd).toLowerCase();
-        const commandProfile = resolveToolingCommandProfile({
+        const commandProfile = resolveCommandProfile({
           providerId,
           cmd: requestedCmd,
           args: requestedArgs,
@@ -350,9 +425,40 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
               });
             }
           }
+          const runtimeRequirements = resolveRuntimeRequirementsForCommand(requestedCmdLower);
+          if (runtimeRequirements.length) {
+            providerReport.runtimeRequirements = [];
+            for (const requirement of runtimeRequirements) {
+              const requirementProfile = resolveCommandProfile({
+                providerId: `${providerId}-${requirement.id}`,
+                cmd: requirement.cmd,
+                args: requirement.args || ['--version'],
+                repoRoot,
+                toolingConfig
+              });
+              providerReport.runtimeRequirements.push({
+                id: requirement.id,
+                command: requirement.cmd,
+                profile: requirementProfile
+              });
+              if (!requirementProfile.probe.ok) {
+                addCheck({
+                  name: `${providerId}-runtime-${requirement.id}`,
+                  status: missingBinaryStatus,
+                  message: `${requirement.label} not available for ${requestedCmd}.`
+                });
+              } else {
+                addCheck({
+                  name: `${providerId}-runtime-${requirement.id}`,
+                  status: 'ok',
+                  message: `${requirement.label} detected (${requirementProfile.resolved.cmd}).`
+                });
+              }
+            }
+          }
         }
         if (requestedCmdLower === 'zls' && commandProfile.probe.ok) {
-          const zigProfile = resolveToolingCommandProfile({
+          const zigProfile = resolveCommandProfile({
             providerId: 'zig',
             cmd: 'zig',
             args: ['version'],
