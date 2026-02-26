@@ -759,6 +759,8 @@ indexing/embeddings/build/explicit-index-root-missing-mode-fails-fast
 indexing/determinism/chunk-meta-ordering-drift
 tooling/doctor/doctor-gating-reasons
 tooling/doctor/doctor-command-profile-jdtls
+tooling/doctor/doctor-command-profile-gopls
+tooling/doctor/doctor-command-profile-probe-cache
 tooling/doctor/doctor-provider-requires-args
 tooling/doctor/doctor-runtime-requirements-dedicated
 tooling/doctor/doctor-workspace-model-detection

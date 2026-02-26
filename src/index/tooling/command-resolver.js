@@ -9,6 +9,8 @@ import { normalizeProviderId } from './provider-contract.js';
 
 const WINDOWS_EXEC_EXTS = ['.exe', '.cmd', '.bat'];
 const DEFAULT_PROBE_ARGS = [['--version'], ['--help']];
+const COMMAND_PROBE_CACHE = new Map();
+const GOPLS_SERVE_CACHE = new Map();
 
 const shouldUseShell = (cmd) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(String(cmd || ''));
 
@@ -132,6 +134,15 @@ const resolveBaseCommand = ({ providerId, requestedCmd, repoRoot, toolingConfig 
 };
 
 const probeBinary = ({ command, probeArgs }) => {
+  const cacheKey = `${String(command || '').trim()}\u0000${JSON.stringify(probeArgs || [])}`;
+  const cached = COMMAND_PROBE_CACHE.get(cacheKey) || null;
+  if (cached) {
+    return {
+      ok: true,
+      attempted: Array.isArray(cached.attempted) ? cached.attempted : [],
+      cached: true
+    };
+  }
   const attempted = [];
   for (const args of probeArgs) {
     try {
@@ -143,9 +154,13 @@ const probeBinary = ({ command, probeArgs }) => {
         stdout: summarizeProbeText(result.stdout)
       });
       if (result.exitCode === 0) {
+        COMMAND_PROBE_CACHE.set(cacheKey, {
+          attempted
+        });
         return {
           ok: true,
-          attempted
+          attempted,
+          cached: false
         };
       }
     } catch (err) {
@@ -160,18 +175,35 @@ const probeBinary = ({ command, probeArgs }) => {
   }
   return {
     ok: false,
-    attempted
+    attempted,
+    cached: false
   };
 };
 
 const probeGoplsServeSupport = (command) => {
+  const cacheKey = String(command || '').trim();
+  if (GOPLS_SERVE_CACHE.has(cacheKey)) {
+    return GOPLS_SERVE_CACHE.get(cacheKey) === true;
+  }
   try {
     const result = runProbeCommand(command, ['help', 'serve']);
-    return result.exitCode === 0;
+    const supported = result.exitCode === 0;
+    if (supported) GOPLS_SERVE_CACHE.set(cacheKey, true);
+    return supported;
   } catch {
     return false;
   }
 };
+
+export const __resetToolingCommandProbeCacheForTests = () => {
+  COMMAND_PROBE_CACHE.clear();
+  GOPLS_SERVE_CACHE.clear();
+};
+
+export const __getToolingCommandProbeCacheStatsForTests = () => ({
+  commandProbeEntries: COMMAND_PROBE_CACHE.size,
+  goplsServeEntries: GOPLS_SERVE_CACHE.size
+});
 
 /**
  * Resolve command path + launch args for tooling providers using profile rules.
