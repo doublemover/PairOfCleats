@@ -3,7 +3,9 @@ import { appendDiagnosticChecks, hashProviderConfig, normalizeProviderId } from 
 import { resolveToolingCommandProfile } from './command-resolver.js';
 import { resolveLspServerPreset } from './lsp-presets.js';
 import { parseClikeSignature } from './signature-parse/clike.js';
+import { parseGoSignature } from './signature-parse/go.js';
 import { parsePythonSignature } from './signature-parse/python.js';
+import { parseRustSignature } from './signature-parse/rust.js';
 import { parseSwiftSignature } from './signature-parse/swift.js';
 
 const normalizeList = (value) => {
@@ -31,11 +33,13 @@ const parseGenericSignature = (detail, languageId, symbolName) => {
   const lang = String(languageId || '').toLowerCase();
   if (lang === 'python' || lang === 'py' || lang === 'pyi') return parsePythonSignature(detail);
   if (lang === 'swift') return parseSwiftSignature(detail);
+  if (lang === 'go') return parseGoSignature(detail);
+  if (lang === 'rust') return parseRustSignature(detail);
   if ([
     'c', 'cpp', 'objective-c', 'objective-cpp',
     'java', 'kotlin', 'csharp',
     'javascript', 'jsx', 'typescript', 'tsx',
-    'go', 'rust', 'php'
+    'php'
   ].includes(lang)) {
     return parseClikeSignature(detail, symbolName);
   }
