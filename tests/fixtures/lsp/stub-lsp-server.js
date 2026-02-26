@@ -298,6 +298,9 @@ const handleRequest = (message) => {
       sendMalformedFrame('{"jsonrpc":"2.0","id":1,"result":');
       return;
     }
+    if (mode === 'emit-fd-pressure-warning') {
+      process.stderr.write('EMFILE: too many open files while probing toolchain\n');
+    }
     respond(id, {
       capabilities: resolveInitializeCapabilities(params || null)
     });

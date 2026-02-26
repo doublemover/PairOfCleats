@@ -601,6 +601,7 @@ shared/artifact-io/packed-postings-windowed-read
 tooling/providers/provider-registry-merges-deterministically
 tooling/lsp/lsp-restart-generation-safety
 tooling/lsp/lsp-latency-microbench-contract
+tooling/lsp/lsp-fd-pressure-backoff-contract
 tooling/lsp/lsp-runtime-config-resolution
 tooling/lsp/lsp-configured-provider-go-rust-signature-parsing
 tooling/lsp/lsp-configured-provider-yaml-schema-override-merge
