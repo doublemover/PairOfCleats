@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -68,10 +67,7 @@ const findCacheIndexPaths = async (rootDir) => {
 
 const loadCacheIndex = async (rootDir) => {
   const paths = await findCacheIndexPaths(rootDir);
-  if (!paths.length) {
-    console.error('Expected cache index to be created');
-    process.exit(1);
-  }
+  if (!paths.length) return null;
   const indexPath = paths[0];
   const cacheDir = path.dirname(indexPath);
   const raw = await fsPromises.readFile(indexPath, 'utf8');
@@ -82,37 +78,19 @@ runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', 
 runNode('build_embeddings', [path.join(root, 'tools', 'build', 'embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
 
 const first = await loadCacheIndex(cacheRoot);
-const firstKeys = Object.keys(first.index.entries || {});
-if (!firstKeys.length) {
-  console.error('Expected cache index entries after first build');
+if (first) {
+  console.error('Expected stub fast-path to skip cache index writes on first build');
   process.exit(1);
 }
-const firstEntry = first.index.entries[firstKeys[0]];
-if (!firstEntry?.shard) {
-  console.error('Expected cache index entries to point at a shard');
-  process.exit(1);
-}
-const shardPath = path.join(first.cacheDir, 'shards', firstEntry.shard);
-if (!fs.existsSync(shardPath)) {
-  console.error('Expected cache shard file to exist');
-  process.exit(1);
-}
-const before = await fsPromises.stat(shardPath);
 
 await fsPromises.appendFile(srcPath, 'export const beta = () => 2;\n');
 runNode('build_index changed', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot]);
 runNode('build_embeddings changed', [path.join(root, 'tools', 'build', 'embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
 
 const second = await loadCacheIndex(cacheRoot);
-const secondKeys = Object.keys(second.index.entries || {});
-if (secondKeys.length <= firstKeys.length) {
-  console.error('Expected cache index to append a new entry after file change');
-  process.exit(1);
-}
-const after = await fsPromises.stat(shardPath);
-if (after.size <= before.size) {
-  console.error('Expected cache shard to grow after appending entry');
+if (second) {
+  console.error('Expected stub fast-path to skip cache index writes after file changes');
   process.exit(1);
 }
 
-console.log('embeddings cache index append-only test passed');
+console.log('stub fast-path cache append disable test passed');

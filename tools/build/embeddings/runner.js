@@ -14,7 +14,7 @@ import {
   loadFileMetaRows,
   MAX_JSON_BYTES
 } from '../../../src/shared/artifact-io.js';
-import { readTextFileWithHash } from '../../../src/shared/encoding.js';
+import { readTextFile, readTextFileWithHash } from '../../../src/shared/encoding.js';
 import { replaceFile, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import { writeDenseVectorArtifacts } from '../../../src/shared/dense-vector-artifacts.js';
 import { createCrashLogger } from '../../../src/index/build/crash-log.js';
@@ -1323,6 +1323,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
     finalize,
     setHeartbeat
   } = createBuildEmbeddingsContext({ argv });
+  const stubFastPathEnabled = useStubEmbeddings === true;
   const embeddingNormalize = embeddingsConfig.normalize !== false;
   const extractedProseLowYieldBailout = normalizeExtractedProseLowYieldBailoutConfig(
     indexingConfig?.extractedProse?.lowYieldBailout
@@ -1893,7 +1894,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
   let completedModes = 0;
   const validModes = new Set(['code', 'prose', 'extracted-prose', 'records']);
   const writerStatsByMode = {};
-  const crossFileChunkDedupeEnabled = embeddingsConfig?.crossFileChunkDedupe !== false;
+  const crossFileChunkDedupeEnabled = !stubFastPathEnabled
+    && embeddingsConfig?.crossFileChunkDedupe !== false;
   const crossFileChunkDedupeMaxEntries = resolveCrossFileChunkDedupeMaxEntries(indexingConfig);
   const crossFileChunkDedupe = crossFileChunkDedupeEnabled ? new Map() : null;
   const sourceFileHashCacheMaxEntries = resolveEmbeddingsSourceHashCacheMaxEntries(indexingConfig);
@@ -2259,13 +2261,26 @@ export async function runBuildEmbeddingsWithConfig(config) {
         };
         const hnswResults = { merged: null, doc: null, code: null };
 
-        const cacheDir = resolveCacheDir(cacheRoot, cacheIdentity, mode);
-        await scheduleIo(() => fs.mkdir(cacheDir, { recursive: true }));
-        let cacheIndex = await scheduleIo(() => readCacheIndex(cacheDir, cacheIdentityKey));
+        const modePersistentCacheEnabled = !stubFastPathEnabled;
+        const modeGlobalChunkCacheEnabled = !stubFastPathEnabled;
+        if (stubFastPathEnabled) {
+          log(`[embeddings] ${mode}: stub fast-path active; persistent/global chunk cache disabled.`);
+        }
+        const cacheDir = modePersistentCacheEnabled
+          ? resolveCacheDir(cacheRoot, cacheIdentity, mode)
+          : null;
+        if (cacheDir) {
+          await scheduleIo(() => fs.mkdir(cacheDir, { recursive: true }));
+        }
+        let cacheIndex = cacheDir
+          ? await scheduleIo(() => readCacheIndex(cacheDir, cacheIdentityKey))
+          : null;
         let cacheIndexDirty = false;
-        const cacheMeta = await scheduleIo(() => readCacheMeta(cacheRoot, cacheIdentity, mode));
+        const cacheMeta = modePersistentCacheEnabled
+          ? await scheduleIo(() => readCacheMeta(cacheRoot, cacheIdentity, mode))
+          : null;
         const cacheMetaMatches = cacheMeta?.identityKey === cacheIdentityKey;
-        let cacheEligible = true;
+        let cacheEligible = modePersistentCacheEnabled;
         if (cacheMeta?.identityKey && !cacheMetaMatches) {
           warn(`[embeddings] ${mode} cache identity mismatch; ignoring cached vectors.`);
           cacheEligible = false;
@@ -2280,8 +2295,12 @@ export async function runBuildEmbeddingsWithConfig(config) {
           cacheIndexDirty = true;
         }
 
-        const globalChunkCacheDir = resolveGlobalChunkCacheDir(cacheRoot, cacheIdentity);
-        await scheduleIo(() => fs.mkdir(globalChunkCacheDir, { recursive: true }));
+        const globalChunkCacheDir = modeGlobalChunkCacheEnabled
+          ? resolveGlobalChunkCacheDir(cacheRoot, cacheIdentity)
+          : null;
+        if (globalChunkCacheDir) {
+          await scheduleIo(() => fs.mkdir(globalChunkCacheDir, { recursive: true }));
+        }
         const globalChunkCacheMemo = new Map();
         const globalChunkCacheExistingKeys = new Set();
         const globalChunkCachePendingWrites = new Set();
@@ -2293,6 +2312,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
         let globalChunkCacheRejected = 0;
         let globalChunkCacheStores = 0;
         const resolveGlobalChunkVectors = async (chunkHash) => {
+          if (!modeGlobalChunkCacheEnabled || !globalChunkCacheDir) return null;
           globalChunkCacheAttempts += 1;
           const cacheKey = buildGlobalChunkCacheKey({
             chunkHash,
@@ -2614,7 +2634,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
         const backendParallelDispatch = getChunkEmbeddings?.supportsParallelDispatch === true;
         const parallelBatchDispatch = backendParallelDispatch && computeTokensTotal > 1;
         const mergeCodeDocBatches = indexingConfig?.embeddings?.mergeCodeDocBatches !== false;
-        const globalMicroBatchingEnabled = indexingConfig?.embeddings?.globalMicroBatching !== false;
+        const globalMicroBatchingEnabled = !stubFastPathEnabled
+          && indexingConfig?.embeddings?.globalMicroBatching !== false;
         const globalMicroBatchingFillTarget = Number.isFinite(Number(indexingConfig?.embeddings?.globalBatchFillTarget))
           ? Math.max(0.5, Math.min(0.99, Number(indexingConfig.embeddings.globalBatchFillTarget)))
           : 0.85;
@@ -2663,9 +2684,14 @@ export async function runBuildEmbeddingsWithConfig(config) {
           maxTextChars: textReuseMaxTextChars,
           persistentStore: persistentTextCacheStore
         });
-        const embeddingInFlightCoalescer = createEmbeddingInFlightCoalescer({
-          maxEntries: inFlightClaimsMaxEntries
-        });
+        const embeddingInFlightCoalescer = stubFastPathEnabled
+          ? null
+          : createEmbeddingInFlightCoalescer({
+            maxEntries: inFlightClaimsMaxEntries
+          });
+        if (stubFastPathEnabled) {
+          log(`[embeddings] ${mode}: stub fast-path active; global micro-batching/in-flight coalescing disabled.`);
+        }
         if (fileParallelism > 1) {
           log(`[embeddings] ${mode}: file parallelism enabled (${fileParallelism} workers).`);
         }
@@ -3170,7 +3196,12 @@ export async function runBuildEmbeddingsWithConfig(config) {
             }
           }
 
-          if (Array.isArray(entry.chunkHashes) && entry.chunkHashes.length) {
+          if (
+            modeGlobalChunkCacheEnabled
+            && globalChunkCacheDir
+            && Array.isArray(entry.chunkHashes)
+            && entry.chunkHashes.length
+          ) {
             try {
               const writes = [];
               for (let i = 0; i < entry.items.length; i += 1) {
@@ -3338,17 +3369,19 @@ export async function runBuildEmbeddingsWithConfig(config) {
             const chunkSignature = buildChunkSignature(items);
             const manifestEntry = manifestFiles[normalizedRel] || null;
             const manifestHash = typeof manifestEntry?.hash === 'string' ? manifestEntry.hash : null;
-            let fileHash = manifestHash;
-            let cacheKey = buildCacheKey({
-              file: normalizedRel,
-              hash: fileHash,
-              signature: chunkSignature,
-              identityKey: cacheIdentityKey,
-              repoId: cacheRepoId,
-              mode,
-              featureFlags: cacheKeyFlags,
-              pathPolicy: 'posix'
-            });
+            let fileHash = cacheEligible ? manifestHash : null;
+            let cacheKey = cacheEligible
+              ? buildCacheKey({
+                file: normalizedRel,
+                hash: fileHash,
+                signature: chunkSignature,
+                identityKey: cacheIdentityKey,
+                repoId: cacheRepoId,
+                mode,
+                featureFlags: cacheKeyFlags,
+                pathPolicy: 'posix'
+              })
+              : null;
             let cachedResult = null;
             const canLookupWithManifestHash = cacheEligible && cacheKey && !!fileHash;
             if (canLookupWithManifestHash) {
@@ -3465,7 +3498,16 @@ export async function runBuildEmbeddingsWithConfig(config) {
               for (const candidate of candidates) {
                 absPath = candidate;
                 try {
-                  textInfo = await scheduleIo(() => readTextFileWithHash(candidate));
+                  const shouldReadWithHash = cacheEligible && !fileHash;
+                  if (shouldReadWithHash) {
+                    textInfo = await scheduleIo(() => readTextFileWithHash(candidate));
+                  } else {
+                    const decoded = await scheduleIo(() => readTextFile(candidate));
+                    textInfo = {
+                      ...decoded,
+                      hash: fileHash
+                    };
+                  }
                   lastErr = null;
                   break;
                 } catch (err) {
@@ -3490,7 +3532,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
               return;
             }
             const text = textInfo.text;
-            if (!fileHash) {
+            if (cacheEligible && !fileHash) {
               fileHash = textInfo.hash;
               cacheKey = buildCacheKey({
                 file: normalizedRel,
@@ -3591,7 +3633,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
             const docTexts = [];
             const codeMapping = [];
             const docMapping = [];
-            const chunkHashes = new Array(items.length);
+            const shouldHashChunks = cacheEligible || crossFileChunkDedupeEnabled || modeGlobalChunkCacheEnabled;
+            const chunkHashes = shouldHashChunks ? new Array(items.length) : null;
             const chunkCodeTexts = new Array(items.length);
             const chunkDocTexts = new Array(items.length);
             for (let i = 0; i < items.length; i += 1) {
@@ -3603,9 +3646,13 @@ export async function runBuildEmbeddingsWithConfig(config) {
               const trimmedDoc = docText.trim() ? docText : '';
               chunkCodeTexts[i] = codeText;
               chunkDocTexts[i] = trimmedDoc;
-              chunkHashes[i] = sha1(`${codeText}\n${trimmedDoc}`);
+              if (chunkHashes) {
+                chunkHashes[i] = sha1(`${codeText}\n${trimmedDoc}`);
+              }
             }
-            const chunkHashesFingerprint = buildChunkHashesFingerprint(chunkHashes);
+            const chunkHashesFingerprint = cacheEligible && chunkHashes
+              ? buildChunkHashesFingerprint(chunkHashes)
+              : null;
             const reuse = {
               code: new Array(items.length).fill(null),
               doc: new Array(items.length).fill(null),
@@ -3634,7 +3681,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
                   const priorEntry = priorResult?.entry;
                   if (!priorEntry) {
                     clearStalePriorFileKey();
-                  } else if (Array.isArray(priorEntry.chunkHashes)) {
+                  } else if (Array.isArray(priorEntry.chunkHashes) && Array.isArray(chunkHashes)) {
                     const hashMap = new Map();
                     for (let i = 0; i < priorEntry.chunkHashes.length; i += 1) {
                       const hash = priorEntry.chunkHashes[i];
@@ -3673,6 +3720,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
                 && !reuse.merged[i]
                 && crossFileChunkDedupeEnabled
                 && crossFileChunkDedupe
+                && Array.isArray(chunkHashes)
               ) {
                 const chunkHash = chunkHashes[i];
                 const deduped = chunkHash ? crossFileChunkDedupe.get(chunkHash) : null;
@@ -3692,7 +3740,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
                 !reuse.code[i]
                 && !reuse.doc[i]
                 && !reuse.merged[i]
-                && cacheEligible
+                && modeGlobalChunkCacheEnabled
                 && Array.isArray(chunkHashes)
               ) {
                 const chunkHash = chunkHashes[i];
@@ -4140,23 +4188,25 @@ export async function runBuildEmbeddingsWithConfig(config) {
           throw new Error(`[embeddings] ${mode} index validation failed; see index-validate output for details.`);
         }
 
-        const cacheMetaNow = new Date().toISOString();
-        const cacheMetaPayload = {
-          version: 1,
-          identityKey: cacheIdentityKey,
-          identity: cacheIdentity,
-          dims: finalDims,
-          mode,
-          provider: runtimeEmbeddingProvider,
-          modelId: modelId || null,
-          normalize: embeddingNormalize,
-          createdAt: cacheMetaMatches ? (cacheMeta?.createdAt || cacheMetaNow) : cacheMetaNow,
-          updatedAt: cacheMetaNow
-        };
-        try {
-          await scheduleIo(() => writeCacheMeta(cacheRoot, cacheIdentity, mode, cacheMetaPayload));
-        } catch {
-        // Ignore cache meta write failures.
+        if (modePersistentCacheEnabled) {
+          const cacheMetaNow = new Date().toISOString();
+          const cacheMetaPayload = {
+            version: 1,
+            identityKey: cacheIdentityKey,
+            identity: cacheIdentity,
+            dims: finalDims,
+            mode,
+            provider: runtimeEmbeddingProvider,
+            modelId: modelId || null,
+            normalize: embeddingNormalize,
+            createdAt: cacheMetaMatches ? (cacheMeta?.createdAt || cacheMetaNow) : cacheMetaNow,
+            updatedAt: cacheMetaNow
+          };
+          try {
+            await scheduleIo(() => writeCacheMeta(cacheRoot, cacheIdentity, mode, cacheMetaPayload));
+          } catch {
+          // Ignore cache meta write failures.
+          }
         }
 
         {

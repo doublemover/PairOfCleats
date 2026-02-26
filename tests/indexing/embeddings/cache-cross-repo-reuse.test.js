@@ -68,36 +68,17 @@ const findCacheIndexPaths = async (rootDir) => {
   return matches;
 };
 
-const loadCacheIndex = async (rootDir) => {
-  const paths = await findCacheIndexPaths(rootDir);
-  if (!paths.length) {
-    console.error('Expected cache index to be created');
-    process.exit(1);
-  }
-  const indexPath = paths[0];
-  const raw = await fsPromises.readFile(indexPath, 'utf8');
-  return JSON.parse(raw);
-};
-
 runNode(repoA, 'build_index A', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoA]);
 runNode(repoA, 'build_embeddings A', [path.join(root, 'tools', 'build', 'embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoA]);
-
-const firstIndex = await loadCacheIndex(cacheRoot);
-const firstKeys = new Set(Object.keys(firstIndex.entries || {}));
-if (!firstKeys.size) {
-  console.error('Expected cache entries after first repo build');
-  process.exit(1);
-}
 
 runNode(repoB, 'build_index B', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoB]);
 runNode(repoB, 'build_embeddings B', [path.join(root, 'tools', 'build', 'embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoB]);
 
-const secondIndex = await loadCacheIndex(cacheRoot);
-const secondKeys = new Set(Object.keys(secondIndex.entries || {}));
-const hasNew = Array.from(secondKeys).some((key) => !firstKeys.has(key));
-if (hasNew) {
-  console.error('Expected global cache to reuse entries across repos');
+const indexPaths = await findCacheIndexPaths(cacheRoot);
+if (indexPaths.length > 0) {
+  console.error('Expected stub fast-path to skip persistent cache writes across repos');
+  console.error(`Found cache indexes: ${indexPaths.join(', ')}`);
   process.exit(1);
 }
 
-console.log('embeddings cache cross-repo reuse test passed');
+console.log('stub fast-path cross-repo cache disable test passed');

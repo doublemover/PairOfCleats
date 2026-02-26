@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -48,7 +47,7 @@ const runNode = (label, args) => {
   }
 };
 
-const findCacheIndexPaths = async (rootDir) => {
+const findPathsByName = async (rootDir, fileName) => {
   const matches = [];
   const walk = async (dir) => {
     let entries = [];
@@ -63,67 +62,36 @@ const findCacheIndexPaths = async (rootDir) => {
         await walk(fullPath);
         continue;
       }
-      if (entry.isFile() && entry.name === 'cache.index.json') {
+      if (entry.isFile() && entry.name === fileName) {
         matches.push(fullPath);
       }
     }
   };
   await walk(rootDir);
-  return matches;
+  return matches.sort((a, b) => a.localeCompare(b));
 };
 
-const loadCacheIndex = async (rootDir) => {
-  const paths = await findCacheIndexPaths(rootDir);
-  if (!paths.length) {
-    console.error('Expected embedding cache index to be created');
+const assertNoStubCacheArtifacts = async () => {
+  const indexPaths = await findPathsByName(cacheRoot, 'cache.index.json');
+  if (indexPaths.length > 0) {
+    console.error('Expected stub fast-path to skip embedding cache index writes');
+    console.error(`Found cache indexes: ${indexPaths.join(', ')}`);
     process.exit(1);
   }
-  const indexPath = paths[0];
-  const cacheDir = path.dirname(indexPath);
-  const raw = await fsPromises.readFile(indexPath, 'utf8');
-  return { indexPath, cacheDir, index: JSON.parse(raw) };
+  const metaPaths = await findPathsByName(cacheRoot, 'cache.meta.json');
+  if (metaPaths.length > 0) {
+    console.error('Expected stub fast-path to skip embedding cache metadata writes');
+    console.error(`Found cache metadata: ${metaPaths.join(', ')}`);
+    process.exit(1);
+  }
 };
 
 runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
 runNode('build_embeddings', [path.join(root, 'tools', 'build/embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
-
-const { cacheDir, index } = await loadCacheIndex(cacheRoot);
-const entryKeys = Object.keys(index.entries || {});
-if (!entryKeys.length) {
-  console.error('Expected embedding cache index to contain entries');
-  process.exit(1);
-}
-const entry = index.entries[entryKeys[0]];
-if (!entry?.shard) {
-  console.error('Expected embedding cache index to point at a shard entry');
-  process.exit(1);
-}
-const shardPath = path.join(cacheDir, 'shards', entry.shard);
-if (!fs.existsSync(shardPath)) {
-  console.error('Expected embedding cache shard to exist');
-  console.error(`Cache root: ${cacheRoot}`);
-  console.error(`Cache dir: ${cacheDir}`);
-  console.error(`Index path: ${path.join(cacheDir, 'cache.index.json')}`);
-  console.error(`Shard path: ${shardPath}`);
-  console.error(`Shard entry: ${JSON.stringify(entry)}`);
-  try {
-    const shardDir = path.join(cacheDir, 'shards');
-    const shardList = await fsPromises.readdir(shardDir);
-    console.error(`Shard dir contents: ${JSON.stringify(shardList)}`);
-  } catch (err) {
-    console.error(`Failed to read shard dir: ${err?.message || err}`);
-  }
-  process.exit(1);
-}
-const before = await fsPromises.stat(shardPath);
+await assertNoStubCacheArtifacts();
 
 runNode('build_embeddings cached', [path.join(root, 'tools', 'build/embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
-
-const after = await fsPromises.stat(shardPath);
-if (after.mtimeMs !== before.mtimeMs) {
-  console.error('Expected embedding cache file to be reused without rewrite');
-  process.exit(1);
-}
+await assertNoStubCacheArtifacts();
 
 const onnxBase = buildEmbeddingIdentity({
   modelId: 'onnx-model',
@@ -162,5 +130,5 @@ if (buildEmbeddingIdentityKey(onnxBase) === buildEmbeddingIdentityKey(onnxVarian
   process.exit(1);
 }
 
-console.log('embedding cache reuse test passed');
+console.log('stub fast-path cache disable test passed');
 

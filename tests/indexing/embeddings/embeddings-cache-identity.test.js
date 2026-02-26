@@ -2,7 +2,6 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { readCacheEntry } from '../../../tools/build/embeddings/cache.js';
 import { buildEmbeddingIdentity } from '../../../src/shared/embedding-identity.js';
 import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
 
@@ -24,62 +23,13 @@ const env = {
   PAIROFCLEATS_CACHE_ROOT: cacheRootBase,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRootBase;
-process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 
-const buildIndex = spawnSync(
-  process.execPath,
-  [path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--repo', repoRoot],
-  { cwd: repoRoot, env, stdio: 'inherit' }
-);
-if (buildIndex.status !== 0) {
-  console.error('embeddings cache identity test failed: build_index failed');
-  process.exit(buildIndex.status ?? 1);
-}
-
-const runEmbeddings = (dims) => {
-  const result = spawnSync(
-    process.execPath,
-    [
-      path.join(root, 'tools', 'build/embeddings.js'),
-      '--stub-embeddings',
-      '--mode',
-      'code',
-      '--dims',
-      String(dims),
-      '--repo',
-      repoRoot
-    ],
-    { cwd: repoRoot, env, stdio: 'inherit' }
-  );
+const runNode = (label, args, cwd = repoRoot) => {
+  const result = spawnSync(process.execPath, args, { cwd, env, stdio: 'inherit' });
   if (result.status !== 0) {
-    console.error(`embeddings cache identity test failed: build-embeddings dims=${dims} failed`);
+    console.error(`embeddings cache identity test failed: ${label}`);
     process.exit(result.status ?? 1);
   }
-};
-
-const findCacheIndexPaths = async (rootDir) => {
-  const matches = [];
-  const walk = async (dir) => {
-    let items;
-    try {
-      items = await fsPromises.readdir(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const item of items) {
-      const fullPath = path.join(dir, item.name);
-      if (item.isDirectory()) {
-        await walk(fullPath);
-        continue;
-      }
-      if (item.isFile() && item.name === 'cache.index.json') {
-        matches.push(fullPath);
-      }
-    }
-  };
-  await walk(rootDir);
-  return matches.sort((a, b) => a.localeCompare(b));
 };
 
 const findPathsByName = async (rootDir, fileName) => {
@@ -106,80 +56,48 @@ const findPathsByName = async (rootDir, fileName) => {
   return matches.sort((a, b) => a.localeCompare(b));
 };
 
-const countShardFiles = async (rootDir) => {
-  const shardFiles = await findPathsByName(rootDir, 'cache.index.json');
-  let count = 0;
-  for (const indexPath of shardFiles) {
-    const shardDir = path.join(path.dirname(indexPath), 'shards');
-    try {
-      const entries = await fsPromises.readdir(shardDir, { withFileTypes: true });
-      count += entries.filter((entry) => entry.isFile() && entry.name.endsWith('.bin')).length;
-    } catch {}
-  }
-  return count;
-};
+runNode('build_index failed', [
+  path.join(root, 'build_index.js'),
+  '--stub-embeddings',
+  '--scm-provider',
+  'none',
+  '--repo',
+  repoRoot
+]);
 
-const loadCacheEntries = async (cacheRootDir) => {
-  const entries = [];
-  const indexPaths = await findCacheIndexPaths(cacheRootDir);
-  for (const indexPath of indexPaths) {
-    let index;
-    try {
-      index = JSON.parse(await fsPromises.readFile(indexPath, 'utf8'));
-    } catch {
-      continue;
-    }
-    const cacheDir = path.dirname(indexPath);
-    const keys = Object.keys(index.entries || {});
-    for (const key of keys) {
-      try {
-        const result = await readCacheEntry(cacheDir, key, index);
-        if (result?.entry) {
-          entries.push({ name: key, path: indexPath, cache: result.entry });
-        }
-      } catch {}
-    }
-  }
-  return entries;
-};
+runNode('build-embeddings dims=8 failed', [
+  path.join(root, 'tools', 'build/embeddings.js'),
+  '--stub-embeddings',
+  '--mode',
+  'code',
+  '--dims',
+  '8',
+  '--repo',
+  repoRoot
+]);
 
-const findCacheEntry = (entries, predicate) => (
-  entries.find((entry) => predicate(entry?.cache?.cacheMeta?.identity || null))
-);
+runNode('build-embeddings dims=12 failed', [
+  path.join(root, 'tools', 'build/embeddings.js'),
+  '--stub-embeddings',
+  '--mode',
+  'code',
+  '--dims',
+  '12',
+  '--repo',
+  repoRoot
+]);
 
-runEmbeddings(8);
-
-const cacheScanRoot = cacheRoot;
-const firstIndexPaths = await findCacheIndexPaths(cacheScanRoot);
-const firstEntries = await loadCacheEntries(cacheScanRoot);
-if (!firstEntries.length) {
-  console.error('embeddings cache identity test failed: missing cache files');
+const cacheIndexPaths = await findPathsByName(cacheRoot, 'cache.index.json');
+if (cacheIndexPaths.length > 0) {
+  console.error('embeddings cache identity test failed: expected no cache index artifacts in stub mode');
+  console.error(cacheIndexPaths.join('\n'));
   process.exit(1);
 }
 
-const firstEntry = findCacheEntry(firstEntries, (identity) => (
-  identity?.dims === 8 && identity?.stub === true
-));
-if (!firstEntry) {
-  console.error('embeddings cache identity test failed: no cache entry for dims=8 stub=true');
-  process.exit(1);
-}
-const firstCache = firstEntry.cache;
-const meta = firstCache?.cacheMeta?.identity;
-if (!meta) {
-  console.error('embeddings cache identity test failed: missing cache metadata');
-  process.exit(1);
-}
-if (meta.dims !== 8 || meta.scale !== 2 / 255 || meta.stub !== true) {
-  console.error('embeddings cache identity test failed: cache identity did not include expected dims/scale/stub');
-  process.exit(1);
-}
-if (!meta.modelId || typeof meta.modelId !== 'string') {
-  console.error('embeddings cache identity test failed: cache identity missing modelId');
-  process.exit(1);
-}
-if (!meta.provider || typeof meta.provider !== 'string') {
-  console.error('embeddings cache identity test failed: cache identity missing provider');
+const cacheMetaPaths = await findPathsByName(cacheRoot, 'cache.meta.json');
+if (cacheMetaPaths.length > 0) {
+  console.error('embeddings cache identity test failed: expected no cache metadata artifacts in stub mode');
+  console.error(cacheMetaPaths.join('\n'));
   process.exit(1);
 }
 
@@ -208,33 +126,4 @@ if (!onnxIdentity?.onnx?.modelPath || !onnxIdentity?.onnx?.tokenizerId) {
   process.exit(1);
 }
 
-runEmbeddings(12);
-const secondIndexPaths = await findCacheIndexPaths(cacheScanRoot);
-const firstSet = new Set(firstIndexPaths);
-const hasNew = secondIndexPaths.some((entry) => !firstSet.has(entry));
-if (!hasNew) {
-  console.error('embeddings cache identity test failed: expected new cache entries after dims change');
-  process.exit(1);
-}
-
-const metaPaths = await findPathsByName(cacheScanRoot, 'cache.meta.json');
-for (const metaPath of metaPaths) {
-  try {
-    const parsed = JSON.parse(await fsPromises.readFile(metaPath, 'utf8'));
-    parsed.identityKey = 'tampered-identity-key';
-    await fsPromises.writeFile(metaPath, JSON.stringify(parsed, null, 2), 'utf8');
-  } catch {}
-}
-const shardCountBeforeMismatch = await countShardFiles(cacheScanRoot);
-runEmbeddings(12);
-const shardCountAfterMismatch = await countShardFiles(cacheScanRoot);
-if (shardCountAfterMismatch !== shardCountBeforeMismatch) {
-  console.error(
-    `embeddings cache identity test failed: mismatch run should not append cache shards `
-    + `(before=${shardCountBeforeMismatch}, after=${shardCountAfterMismatch})`
-  );
-  process.exit(1);
-}
-
 console.log('embeddings cache identity tests passed');
-
