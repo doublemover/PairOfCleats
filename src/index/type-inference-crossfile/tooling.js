@@ -12,6 +12,7 @@ import { ensureParamTypeMap, getParamTypeList } from './extract.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
 import { stableStringify } from '../../shared/stable-json.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
+import { createQueuedAppendWriter } from '../../shared/io/append-writer.js';
 
 const TOOLING_DOCTOR_CACHE_VERSION = 1;
 const TOOLING_DOCTOR_CACHE_FILE = '.tooling-doctor-cache.json';
@@ -67,23 +68,17 @@ const createToolingLogger = (rootDir, logDir, provider, baseLog) => {
   if (!logDir || !provider) return baseLog;
   const absDir = isAbsolutePathNative(logDir) ? logDir : path.join(rootDir, logDir);
   const logFile = path.join(absDir, `${provider}.log`);
-  let ensured = false;
-  const ensureDir = async () => {
-    if (ensured) return;
-    ensured = true;
-    try {
-      await fs.mkdir(absDir, { recursive: true });
-    } catch {}
-  };
-  return (message) => {
+  const writer = createQueuedAppendWriter({
+    filePath: logFile,
+    onError: () => {}
+  });
+  const logger = (message) => {
     baseLog(message);
-    void (async () => {
-      await ensureDir();
-      try {
-        await fs.appendFile(logFile, `[${new Date().toISOString()}] ${message}\n`);
-      } catch {}
-    })();
+    void writer.enqueue(`[${new Date().toISOString()}] ${message}\n`);
   };
+  logger.flush = () => writer.flush();
+  logger.close = () => writer.close();
+  return logger;
 };
 
 const toProvenanceList = (value) => {
@@ -303,6 +298,7 @@ export const runToolingPass = async ({
       providerLog(`[tooling] ${observation.message}`);
     }
   }
+  await providerLog?.close?.();
 
   const applyResult = applyToolingTypes({
     byChunkUid: result.byChunkUid,
