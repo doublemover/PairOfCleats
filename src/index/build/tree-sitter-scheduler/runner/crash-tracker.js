@@ -2,6 +2,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { sha1 } from '../../../../shared/hash.js';
 import { atomicWriteText } from '../../../../shared/io/atomic-write.js';
+import { toArray } from '../../../../shared/iterables.js';
 import { NATIVE_GRAMMAR_MODULES } from '../../../../lang/tree-sitter/native-runtime.js';
 import { parseSubprocessCrashEvents, tailLines } from './crash-utils.js';
 
@@ -358,7 +359,7 @@ export const createSchedulerCrashTracker = ({
     if (existing) {
       existing.occurrences += 1;
       existing.lastSeenAt = new Date().toISOString();
-      if (taskId) existing.taskIds = Array.from(new Set([...(existing.taskIds || []), taskId]));
+      if (taskId) existing.taskIds = Array.from(new Set([...toArray(existing.taskIds), taskId]));
     } else {
       const event = {
         schemaVersion: CRASH_BUNDLE_SCHEMA_VERSION,

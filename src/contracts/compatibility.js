@@ -1,5 +1,6 @@
 import { sha1 } from '../shared/hash.js';
 import { stableStringify } from '../shared/stable-json.js';
+import { toStringArray } from '../shared/iterables.js';
 import { ARTIFACT_SCHEMA_HASH } from './registry.js';
 import { SCHEMA_VERSION as SQLITE_SCHEMA_VERSION } from '../storage/sqlite/schema.js';
 import { ARTIFACT_SURFACE_VERSION, parseSemver } from './versioning.js';
@@ -9,7 +10,7 @@ import {
   normalizeIndexProfileId
 } from './index-profile.js';
 
-const normalizeModes = (modes) => Array.from(new Set(modes || [])).sort();
+const normalizeModes = (modes) => Array.from(new Set(toStringArray(modes))).sort();
 
 export const CHUNK_ID_ALGO_VERSION = 2;
 

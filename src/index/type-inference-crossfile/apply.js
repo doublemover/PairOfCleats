@@ -53,7 +53,8 @@ export const mergeDiagnostics = (target, incoming) => {
   if (!incoming || !incoming.size) return target;
   for (const [key, list] of incoming.entries()) {
     if (!Array.isArray(list) || !list.length) continue;
-    const existing = target.get(key) || [];
+    const existingRaw = target.get(key);
+    const existing = Array.isArray(existingRaw) ? existingRaw : [];
     target.set(key, [...existing, ...list]);
   }
   return target;

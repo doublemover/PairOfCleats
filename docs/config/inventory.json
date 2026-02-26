@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-25T19:57:40.245Z",
+  "generatedAt": "2026-02-25T22:18:31.468Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2265,6 +2265,7 @@
       "files": [
         "src/shared/env.js",
         "tests/shared/env-boolean-case-insensitive.test.js",
+        "tests/storage/sqlite/sqlite-utils-dense-binary-load.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3427,7 +3428,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 357,
+    "totalFlags": 358,
     "publicFlags": [
       "allow-unauthenticated",
       "allowed-repo-roots",
@@ -3648,6 +3649,7 @@
       "min-rank-corr",
       "minBytes",
       "minConfidence",
+      "minFileBytes",
       "missing-rate",
       "missingDocHashRate",
       "model",
@@ -4111,6 +4113,17 @@
         "file": "tests/indexing/tree-sitter/tree-sitter-xml-runtime.test.js",
         "flags": [
           "treeSitter"
+        ]
+      },
+      {
+        "file": "tests/indexing/vfs/vfs-cdc-min-file-bytes.test.js",
+        "flags": [
+          "avgBytes",
+          "maskBits",
+          "maxBytes",
+          "minBytes",
+          "minFileBytes",
+          "windowBytes"
         ]
       },
       {
@@ -6417,6 +6430,15 @@
         ]
       },
       {
+        "flag": "maxBytes",
+        "count": 3,
+        "files": [
+          "src/integrations/tooling/context-pack.js",
+          "tests/indexing/vfs/vfs-cdc-min-file-bytes.test.js",
+          "tests/indexing/vfs/vfs-cdc-segmentation-contract.test.js"
+        ]
+      },
+      {
         "flag": "maxFanoutPerNode",
         "count": 3,
         "files": [
@@ -6503,6 +6525,14 @@
         "files": [
           "tools/download/extensions.js",
           "tools/sqlite/verify-extensions.js"
+        ]
+      },
+      {
+        "flag": "avgBytes",
+        "count": 2,
+        "files": [
+          "tests/indexing/vfs/vfs-cdc-min-file-bytes.test.js",
+          "tests/indexing/vfs/vfs-cdc-segmentation-contract.test.js"
         ]
       },
       {
@@ -6730,10 +6760,10 @@
         ]
       },
       {
-        "flag": "maxBytes",
+        "flag": "maskBits",
         "count": 2,
         "files": [
-          "src/integrations/tooling/context-pack.js",
+          "tests/indexing/vfs/vfs-cdc-min-file-bytes.test.js",
           "tests/indexing/vfs/vfs-cdc-segmentation-contract.test.js"
         ]
       },
@@ -6743,6 +6773,14 @@
         "files": [
           "tools/triage/decision.js",
           "tools/triage/ingest.js"
+        ]
+      },
+      {
+        "flag": "minBytes",
+        "count": 2,
+        "files": [
+          "tests/indexing/vfs/vfs-cdc-min-file-bytes.test.js",
+          "tests/indexing/vfs/vfs-cdc-segmentation-contract.test.js"
         ]
       },
       {
@@ -6951,6 +6989,14 @@
         "files": [
           "bin/pairofcleats.js",
           "tools/docs/script-inventory.js"
+        ]
+      },
+      {
+        "flag": "windowBytes",
+        "count": 2,
+        "files": [
+          "tests/indexing/vfs/vfs-cdc-min-file-bytes.test.js",
+          "tests/indexing/vfs/vfs-cdc-segmentation-contract.test.js"
         ]
       },
       {

@@ -40,4 +40,12 @@ const diffUpgrade = diffFileManifests(manifestUpgrade, dbUpgrade);
 assert.equal(diffUpgrade.changed.length, 0, 'expected hash-only upgrade to avoid full rebuild');
 assert.equal(diffUpgrade.manifestUpdates.length, 1, 'expected manifest update to fill missing hash');
 
+const malformedDiff = diffFileManifests({ bad: true }, dbUpgrade);
+assert.deepEqual(malformedDiff.changed, [], 'expected malformed manifestEntries payload to fail closed');
+assert.deepEqual(
+  malformedDiff.deleted,
+  ['src/upgrade.js'],
+  'expected malformed manifestEntries payload to treat existing db rows as deleted'
+);
+
 console.log('sqlite build manifest test passed');

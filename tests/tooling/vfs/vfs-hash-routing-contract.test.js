@@ -1,25 +1,9 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { checksumString } from '../../../src/shared/hash.js';
-
-const loadModule = async () => {
-  try {
-    return await import('../../../src/index/tooling/vfs-hash-routing.js');
-  } catch (err) {
-    if (err?.code === 'ERR_MODULE_NOT_FOUND' || String(err?.message || '').includes('Cannot find module')) {
-      console.log('Skipping VFS hash routing contract (TODO: implement src/index/tooling/vfs-hash-routing.js).');
-      process.exit(0);
-    }
-    throw err;
-  }
-};
-
-const mod = await loadModule();
+import * as mod from '../../../src/index/tooling/vfs-hash-routing.js';
 const buildVfsRoutingToken = mod.buildVfsRoutingToken || mod.resolveVfsRoutingToken;
-if (typeof buildVfsRoutingToken !== 'function') {
-  console.log('Skipping VFS hash routing contract (TODO: export buildVfsRoutingToken).');
-  process.exit(0);
-}
+assert.equal(typeof buildVfsRoutingToken, 'function', 'Expected buildVfsRoutingToken export.');
 
 assert.equal(
   mod.VFS_HASH_ROUTING_SCHEMA_VERSION,

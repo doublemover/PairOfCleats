@@ -1,24 +1,8 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-
-const loadModule = async () => {
-  try {
-    return await import('../../../src/index/tooling/vfs-index.js');
-  } catch (err) {
-    if (err?.code === 'ERR_MODULE_NOT_FOUND' || String(err?.message || '').includes('Cannot find module')) {
-      console.log('Skipping VFS index contract (TODO: implement src/index/tooling/vfs-index.js).');
-      process.exit(0);
-    }
-    throw err;
-  }
-};
-
-const mod = await loadModule();
+import * as mod from '../../../src/index/tooling/vfs-index.js';
 const buildVfsIndexRow = mod.buildVfsIndexRow || mod.buildVfsIndexRows;
-if (typeof buildVfsIndexRow !== 'function') {
-  console.log('Skipping VFS index contract (TODO: export buildVfsIndexRow/buildVfsIndexRows).');
-  process.exit(0);
-}
+assert.equal(typeof buildVfsIndexRow, 'function', 'Expected buildVfsIndexRow export.');
 
 assert.equal(mod.VFS_INDEX_SCHEMA_VERSION, '1.0.0', 'Expected VFS index schema version 1.0.0.');
 

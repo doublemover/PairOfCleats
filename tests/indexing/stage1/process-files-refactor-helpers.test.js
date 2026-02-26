@@ -116,6 +116,31 @@ const orderingProgressGap = resolveStage1OrderingIntegrity({
 assert.equal(orderingProgressGap.ok, false, 'expected integrity check to fail when progress counters are incomplete');
 assert.equal(orderingProgressGap.progressComplete, false, 'expected progress-complete flag to reflect incomplete progress');
 
+const orderingFromSet = resolveStage1OrderingIntegrity({
+  expectedOrderIndices: [0, 1, 2],
+  completedOrderIndices: new Set([0, 1, 2]),
+  progressCount: 3,
+  progressTotal: 3
+});
+assert.equal(orderingFromSet.ok, true, 'expected integrity check to accept iterable completed-order sets');
+
+const orderingFromInvalidCompletedShape = resolveStage1OrderingIntegrity({
+  expectedOrderIndices: [0, 1],
+  completedOrderIndices: { 0: 0, 1: 1 },
+  progressCount: 2,
+  progressTotal: 2
+});
+assert.equal(
+  orderingFromInvalidCompletedShape.ok,
+  false,
+  'expected integrity check to fail closed for non-iterable completed-order payloads'
+);
+assert.deepEqual(
+  orderingFromInvalidCompletedShape.missingIndices,
+  [0, 1],
+  'expected non-iterable completed-order payloads to report all expected indices as missing'
+);
+
 const postingsQueue = createPostingsQueue({
   maxPending: 1,
   maxPendingRows: 4,

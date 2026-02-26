@@ -17,6 +17,7 @@ export const buildVfsSegmentHashCacheKey = ({
   containerPath,
   languageId,
   effectiveExt,
+  segmentUid,
   segmentStart,
   segmentEnd
 } = {}) => {
@@ -25,6 +26,7 @@ export const buildVfsSegmentHashCacheKey = ({
   const path = normalizeField(containerPath);
   const lang = normalizeField(languageId, 'unknown');
   const ext = normalizeField(effectiveExt);
+  const uid = normalizeField(segmentUid);
   const range = `${Number.isFinite(Number(segmentStart)) ? Number(segmentStart) : 0}-${Number.isFinite(Number(segmentEnd)) ? Number(segmentEnd) : 0}`;
   const keyInfo = buildCacheKey({
     repoHash: `${algo}:${fileHash}`,
@@ -35,7 +37,8 @@ export const buildVfsSegmentHashCacheKey = ({
     pathPolicy: 'posix',
     extra: {
       containerPath: path,
-      range
+      range,
+      segmentUid: uid
     }
   });
   return keyInfo.key;

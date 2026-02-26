@@ -1,24 +1,8 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-
-const loadModule = async () => {
-  try {
-    return await import('../../../src/index/build/vfs-segment-hash-cache.js');
-  } catch (err) {
-    if (err?.code === 'ERR_MODULE_NOT_FOUND' || String(err?.message || '').includes('Cannot find module')) {
-      console.log('Skipping VFS segment hash cache contract (TODO: implement src/index/build/vfs-segment-hash-cache.js).');
-      process.exit(0);
-    }
-    throw err;
-  }
-};
-
-const mod = await loadModule();
+import * as mod from '../../../src/index/build/vfs-segment-hash-cache.js';
 const buildKey = mod.buildVfsSegmentHashCacheKey || mod.buildDocHashCacheKey;
-if (typeof buildKey !== 'function') {
-  console.log('Skipping VFS segment hash cache contract (TODO: export buildVfsSegmentHashCacheKey).');
-  process.exit(0);
-}
+assert.equal(typeof buildKey, 'function', 'Expected buildVfsSegmentHashCacheKey export.');
 
 assert.equal(
   mod.VFS_SEGMENT_HASH_CACHE_SCHEMA_VERSION,

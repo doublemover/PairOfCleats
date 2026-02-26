@@ -1,9 +1,11 @@
 import fs from 'node:fs/promises';
 import { coerceAbortSignal, throwIfAborted } from '../../../../shared/abort.js';
 import { runWithConcurrency } from '../../../../shared/concurrency.js';
+import { toArray } from '../../../../shared/iterables.js';
 
 const INDEX_LOAD_RETRY_ATTEMPTS = 8;
 const INDEX_LOAD_RETRY_BASE_DELAY_MS = 25;
+const INDEX_LOAD_PARALLELISM_CAP = 16;
 
 /**
  * Sleep helper used for bounded retry backoff while polling scheduler indexes.
@@ -112,10 +114,10 @@ export const loadIndexEntries = async ({ grammarKeys, paths, abortSignal = null 
   const effectiveAbortSignal = coerceAbortSignal(abortSignal);
   throwIfAborted(effectiveAbortSignal);
   const index = new Map();
-  const keys = Array.isArray(grammarKeys) ? grammarKeys : [];
+  const keys = toArray(grammarKeys).filter((grammarKey) => typeof grammarKey === 'string' && grammarKey);
   const rowMaps = await runWithConcurrency(
     keys,
-    Math.max(1, Math.min(8, keys.length || 1)),
+    Math.max(1, Math.min(INDEX_LOAD_PARALLELISM_CAP, keys.length || 1)),
     async (grammarKey) => {
       throwIfAborted(effectiveAbortSignal);
       const indexPath = paths.resultsIndexPathForGrammarKey(grammarKey);
@@ -127,7 +129,7 @@ export const loadIndexEntries = async ({ grammarKeys, paths, abortSignal = null 
       signalLabel: 'build.tree-sitter.index-loader.runWithConcurrency'
     }
   );
-  for (const rows of rowMaps || []) {
+  for (const rows of toArray(rowMaps)) {
     if (!(rows instanceof Map)) continue;
     for (const [virtualPath, row] of rows.entries()) {
       throwIfAborted(effectiveAbortSignal);

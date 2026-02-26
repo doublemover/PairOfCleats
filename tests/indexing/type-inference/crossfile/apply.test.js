@@ -45,4 +45,11 @@ if (target.get('a')?.length !== 2 || target.get('b')?.length !== 1) {
   fail('mergeDiagnostics should append incoming diagnostics.');
 }
 
+const malformedTarget = new Map([['c', { message: 'bad-shape' }]]);
+const malformedIncoming = new Map([['c', [{ message: 'recovered' }]]]);
+mergeDiagnostics(malformedTarget, malformedIncoming);
+if (!Array.isArray(malformedTarget.get('c')) || malformedTarget.get('c').length !== 1) {
+  fail('mergeDiagnostics should recover from malformed existing diagnostics shape.');
+}
+
 console.log('type-inference-crossfile apply tests passed');

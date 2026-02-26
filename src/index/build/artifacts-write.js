@@ -838,6 +838,16 @@ export async function writeIndexArtifacts(input) {
     });
   }
   const cleanupActions = [];
+  /**
+   * Execute cleanup callbacks in bounded parallel batches.
+   *
+   * This keeps artifact cleanup from spawning an unbounded delete storm on
+   * large rewrites while still allowing moderate parallelism.
+   *
+   * @param {Array<(() => Promise<unknown>)|null|undefined>} operations
+   * @param {{concurrency?:number}} [options]
+   * @returns {Promise<void>}
+   */
   const runCleanupBatch = async (operations, { concurrency = 3 } = {}) => {
     const tasks = Array.isArray(operations) ? operations.filter((op) => typeof op === 'function') : [];
     const batchSize = Number.isFinite(Number(concurrency))
@@ -2959,6 +2969,21 @@ export async function writeIndexArtifacts(input) {
         fn
       );
     };
+    /**
+     * Execute one artifact write and record per-artifact telemetry.
+     *
+     * @param {{
+     *   label?:string,
+     *   job:() => Promise<{bytes?:number,serializationMs?:number,diskMs?:number,directFdStreaming?:boolean,checksum?:string,checksumAlgo?:string,checksumHash?:string}|void>,
+     *   estimatedBytes?:number|null,
+     *   enqueuedAt?:number|null,
+     *   prefetched?:Promise<unknown>|null,
+     *   prefetchStartedAt?:number|null
+     * }} entry
+     * @param {'ultraLight'|'massive'|'light'|'heavy'|string} laneName
+     * @param {{rescueBoost?:boolean,tailWorker?:boolean,batchSize?:number,batchIndex?:number}} [options]
+     * @returns {Promise<void>}
+     */
     const runSingleWrite = async (
       { label, job, estimatedBytes, enqueuedAt, prefetched, prefetchStartedAt },
       laneName,

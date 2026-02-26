@@ -1,11 +1,38 @@
-export const uniqueTypes = (values) => Array.from(new Set((values || []).filter(Boolean)));
+const hasIterable = (value) => value != null && typeof value[Symbol.iterator] === 'function';
+
+const toEntryList = (value) => {
+  if (Array.isArray(value)) return value;
+  if (value == null) return [];
+  if (typeof value === 'string') return [value];
+  if (value instanceof Set) return Array.from(value);
+  if (value instanceof Map) return Array.from(value.values());
+  if (hasIterable(value)) return Array.from(value);
+  if (value && typeof value === 'object' && Object.hasOwn(value, 'type')) return [value];
+  return [];
+};
+
+export const uniqueTypes = (values) => {
+  const out = [];
+  const seen = new Set();
+  for (const entry of toEntryList(values)) {
+    const normalized = typeof entry === 'string' ? entry.trim() : String(entry?.type || '').trim();
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(normalized);
+  }
+  return out;
+};
 
 const DEFAULT_MAX_RETURN_CANDIDATES = 5;
 const DEFAULT_MAX_PARAM_CANDIDATES = 5;
 
 const normalizeEntry = (entry) => {
   if (!entry) return null;
-  if (typeof entry === 'string') return { type: entry, source: null, confidence: null };
+  if (typeof entry === 'string') {
+    const type = entry.trim();
+    if (!type) return null;
+    return { type, source: null, confidence: null };
+  }
   if (!entry.type) return null;
   return {
     type: entry.type,
@@ -29,8 +56,8 @@ const mergeEntries = (existing, incoming, cap) => {
     const nextConfidence = Number.isFinite(normalized.confidence) ? normalized.confidence : 0;
     if (nextConfidence > priorConfidence) map.set(key, normalized);
   };
-  for (const entry of existing || []) add(entry);
-  for (const entry of incoming || []) add(entry);
+  for (const entry of toEntryList(existing)) add(entry);
+  for (const entry of toEntryList(incoming)) add(entry);
   const list = Array.from(map.values());
   list.sort((a, b) => {
     const typeCmp = String(a.type).localeCompare(String(b.type));
@@ -67,27 +94,35 @@ export const mergeToolingEntry = (target, incoming, options = {}) => {
   if (incoming.params && typeof incoming.params === 'object') {
     if (!target.params || typeof target.params !== 'object') target.params = {};
     for (const [name, types] of Object.entries(incoming.params)) {
-      if (!name || !Array.isArray(types)) continue;
+      if (!name) continue;
+      const incomingTypes = toEntryList(types);
+      if (!incomingTypes.length) continue;
       const cap = Number.isFinite(options.maxParamCandidates)
         ? options.maxParamCandidates
         : DEFAULT_MAX_PARAM_CANDIDATES;
-      target.params[name] = mergeEntries(target.params[name] || [], types, cap).map((entry) => entry.type);
+      target.params[name] = mergeEntries(target.params[name] || [], incomingTypes, cap).map((entry) => entry.type);
     }
   }
   return target;
 };
 
 export const mergeToolingMaps = (base, incoming) => {
-  for (const [key, value] of incoming || []) {
-    if (!base.has(key)) {
+  const target = base instanceof Map ? base : new Map();
+  const pairs = incoming instanceof Map
+    ? incoming.entries()
+    : Array.isArray(incoming)
+      ? incoming
+      : Object.entries(incoming && typeof incoming === 'object' ? incoming : {});
+  for (const [key, value] of pairs) {
+    if (!target.has(key)) {
       const entry = createToolingEntry();
       mergeToolingEntry(entry, value);
-      base.set(key, entry);
+      target.set(key, entry);
       continue;
     }
-    mergeToolingEntry(base.get(key), value);
+    mergeToolingEntry(target.get(key), value);
   }
-  return base;
+  return target;
 };
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

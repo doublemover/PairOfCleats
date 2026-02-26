@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 
 import { decodeVarint64List, encodeVarint64List } from './varint.js';
+import { toArray } from '../iterables.js';
 
 const OFFSET_BYTES = 8;
 const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
@@ -113,7 +114,7 @@ export const encodeBinaryRowFrames = (rowBuffers) => {
 const toAsyncIterable = (rows) => {
   if (rows && typeof rows[Symbol.asyncIterator] === 'function') return rows;
   return (async function* rowIterator() {
-    for (const row of rows || []) {
+    for (const row of toArray(rows)) {
       yield row;
     }
   })();

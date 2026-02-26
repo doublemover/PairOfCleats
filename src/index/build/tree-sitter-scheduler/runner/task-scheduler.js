@@ -1,6 +1,8 @@
 import os from 'node:os';
+import { toArray } from '../../../../shared/iterables.js';
 
 const DEFAULT_WARM_POOL_MIN_KEYS_FOR_SPLIT = 8;
+const DEFAULT_EXEC_CONCURRENCY_AUTO_CAP = 16;
 const DEFAULT_SCHEDULER_TASK_TIMEOUT_MS = 120000;
 const DEFAULT_SCHEDULER_TASK_TIMEOUT_BASE_MS = 30000;
 const DEFAULT_SCHEDULER_TASK_TIMEOUT_PER_WAVE_MS = 15000;
@@ -27,7 +29,7 @@ export const resolveExecConcurrency = ({ schedulerConfig, grammarCount }) => {
   const available = typeof os.availableParallelism === 'function'
     ? os.availableParallelism()
     : 4;
-  const auto = Math.max(1, Math.min(8, Math.floor((available || 1) / 2)));
+  const auto = Math.max(1, Math.min(DEFAULT_EXEC_CONCURRENCY_AUTO_CAP, Math.floor((available || 1) / 2)));
   return Math.max(1, Math.min(grammarCount, auto));
 };
 
@@ -42,13 +44,11 @@ export const resolveExecConcurrency = ({ schedulerConfig, grammarCount }) => {
  * @returns {string[]}
  */
 export const resolveExecutionOrder = (plan = {}) => {
-  const executionOrder = Array.isArray(plan?.executionOrder) ? plan.executionOrder : [];
+  const executionOrder = toArray(plan?.executionOrder).filter((key) => typeof key === 'string' && key);
   if (executionOrder.length) {
     return executionOrder.slice();
   }
-  const grammarKeys = Array.isArray(plan?.grammarKeys)
-    ? plan.grammarKeys.filter((key) => typeof key === 'string' && key)
-    : [];
+  const grammarKeys = toArray(plan?.grammarKeys).filter((key) => typeof key === 'string' && key);
   const plannedJobsRaw = Number(plan?.jobs);
   const hasPlannedJobs = Number.isFinite(plannedJobsRaw) ? plannedJobsRaw > 0 : false;
   if (!grammarKeys.length && !hasPlannedJobs) {
@@ -188,7 +188,7 @@ export const resolveSchedulerTaskTimeoutMs = ({
     if (!Number.isFinite(jobs) || jobs <= 0) return 0;
     return Math.floor(jobs);
   };
-  const grammarKeysForTask = Array.isArray(task?.grammarKeys) ? task.grammarKeys : [];
+  const grammarKeysForTask = toArray(task?.grammarKeys).filter((key) => typeof key === 'string' && key);
   const waveCount = grammarKeysForTask.length;
   let jobCount = 0;
   for (const grammarKey of grammarKeysForTask) {
@@ -212,7 +212,7 @@ export const buildWarmPoolTasks = ({
   execConcurrency
 }) => {
   const byBaseGrammar = new Map();
-  const order = Array.isArray(executionOrder) ? executionOrder : [];
+  const order = toArray(executionOrder);
   for (let i = 0; i < order.length; i += 1) {
     const grammarKey = order[i];
     if (typeof grammarKey !== 'string' || !grammarKey) continue;

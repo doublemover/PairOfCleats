@@ -1,5 +1,6 @@
 import { state } from './state.js';
 import { numberValue } from './utils.js';
+import { toArray } from '../../../shared/iterables.js';
 
 export const initScene = async () => {
   const { THREE, dom, RGBELoader, assets, visuals } = state;
@@ -187,11 +188,11 @@ export const applyRendererSettings = () => {
       inner.receiveShadow = enableShadows;
     }
   };
-  for (const mesh of state.fileMeshes || []) toggleShadow(mesh);
-  for (const mesh of state.fileInstancedMeshes || []) toggleShadow(mesh);
-  for (const mesh of state.fileInstancedInnerMeshes || []) toggleShadow(mesh);
-  for (const mesh of state.memberMeshes || []) toggleShadow(mesh);
-  for (const mesh of state.memberInstancedMeshes || []) toggleShadow(mesh);
-  for (const mesh of state.chunkMeshes || []) toggleShadow(mesh);
+  for (const mesh of toArray(state.fileMeshes)) toggleShadow(mesh);
+  for (const mesh of toArray(state.fileInstancedMeshes)) toggleShadow(mesh);
+  for (const mesh of toArray(state.fileInstancedInnerMeshes)) toggleShadow(mesh);
+  for (const mesh of toArray(state.memberMeshes)) toggleShadow(mesh);
+  for (const mesh of toArray(state.memberInstancedMeshes)) toggleShadow(mesh);
+  for (const mesh of toArray(state.chunkMeshes)) toggleShadow(mesh);
   if (state.grid) state.grid.receiveShadow = enableShadows;
 };

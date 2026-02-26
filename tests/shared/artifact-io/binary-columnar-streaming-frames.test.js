@@ -63,4 +63,16 @@ assert.deepEqual(
   'length sidecar mismatch'
 );
 
+const malformedDataPath = path.join(tempRoot, 'chunk_meta-malformed.binary-columnar.bin');
+const malformedOffsetsPath = path.join(tempRoot, 'chunk_meta-malformed.binary-columnar.offsets.bin');
+const malformedLengthsPath = path.join(tempRoot, 'chunk_meta-malformed.binary-columnar.lengths.varint');
+const malformedWritten = await writeBinaryRowFrames({
+  rowBuffers: { not: 'iterable' },
+  dataPath: malformedDataPath,
+  offsetsPath: malformedOffsetsPath,
+  lengthsPath: malformedLengthsPath
+});
+assert.equal(malformedWritten.count, 0, 'expected malformed sync rowBuffers payload to fail closed');
+assert.equal(malformedWritten.totalBytes, 0, 'expected malformed sync rowBuffers payload to produce no bytes');
+
 console.log('binary columnar streaming frames test passed');

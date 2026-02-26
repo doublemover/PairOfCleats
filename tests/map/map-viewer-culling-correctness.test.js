@@ -31,4 +31,15 @@ const visibleCheck = new THREE.Matrix4();
 mesh.getMatrixAt(0, visibleCheck);
 assert.ok(visibleCheck.equals(baseMatrix), 'expected instance to be restored');
 
+const malformedBucket = {
+  mesh,
+  instances: { broken: true },
+  sphere: new THREE.Sphere(new THREE.Vector3(0, 0, 0), 1),
+  visible: true
+};
+assert.doesNotThrow(
+  () => applyBucketCulling({ frustum: frustumHide, buckets: [malformedBucket], hiddenMatrix }),
+  'expected culling to fail closed when bucket instances are malformed'
+);
+
 console.log('map viewer culling correctness test passed');

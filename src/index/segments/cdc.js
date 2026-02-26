@@ -68,6 +68,27 @@ export const buildCdcSegments = ({ text, languageId = null, options = {} }) => {
   const input = typeof text === 'string' ? text : '';
   if (!input) return [];
   const cfg = normalizeCdcOptions(options);
+  if (cfg.minFileBytes > 0 && input.length < cfg.minFileBytes) {
+    return [{
+      type: 'cdc',
+      languageId,
+      start: 0,
+      end: input.length,
+      parentSegmentId: null,
+      meta: {
+        algorithm: 'cdc',
+        cdc: {
+          minBytes: cfg.minBytes,
+          avgBytes: cfg.avgBytes,
+          maxBytes: cfg.maxBytes,
+          windowBytes: cfg.windowBytes,
+          maskBits: cfg.maskBits,
+          minFileBytes: cfg.minFileBytes,
+          bypassedByMinFileBytes: true
+        }
+      }
+    }];
+  }
   const minBytes = cfg.minBytes;
   const maxBytes = cfg.maxBytes;
   const windowBytes = cfg.windowBytes;
@@ -97,7 +118,8 @@ export const buildCdcSegments = ({ text, languageId = null, options = {} }) => {
           avgBytes: cfg.avgBytes,
           maxBytes: cfg.maxBytes,
           windowBytes: cfg.windowBytes,
-          maskBits: cfg.maskBits
+          maskBits: cfg.maskBits,
+          minFileBytes: cfg.minFileBytes
         }
       }
     });
@@ -119,7 +141,8 @@ export const buildCdcSegments = ({ text, languageId = null, options = {} }) => {
           avgBytes: cfg.avgBytes,
           maxBytes: cfg.maxBytes,
           windowBytes: cfg.windowBytes,
-          maskBits: cfg.maskBits
+          maskBits: cfg.maskBits,
+          minFileBytes: cfg.minFileBytes
         }
       }
     });
@@ -133,10 +156,11 @@ export const buildCdcSegments = ({ text, languageId = null, options = {} }) => {
  * @returns {Promise<Array<object>>}
  */
 export const segmentWithCdc = async ({ text, languageId = null, options = {} }) => {
-  const segments = buildCdcSegments({ text, languageId, options });
+  const input = typeof text === 'string' ? text : '';
+  const segments = buildCdcSegments({ text: input, languageId, options });
   if (!segments.length) return segments;
   for (const segment of segments) {
-    const segmentText = String(text || '').slice(segment.start, segment.end);
+    const segmentText = input.slice(segment.start, segment.end);
     const uid = await computeSegmentUid({
       segmentText,
       segmentType: segment.type || 'cdc',

@@ -113,6 +113,14 @@ const buildLargeRepoBudget = ({ chunkCount, fileCount }) => (
 
 const confidenceForHop = (hops) => Math.max(0.2, FLOW_CONFIDENCE * (0.85 ** hops));
 
+const toTypeNameList = (value) => {
+  if (Array.isArray(value)) return value;
+  if (value == null) return [];
+  if (typeof value === 'string') return [value];
+  if (value && typeof value[Symbol.iterator] === 'function') return Array.from(value);
+  return [];
+};
+
 export async function runCrossFilePropagation({
   rootDir,
   buildRoot,
@@ -355,7 +363,7 @@ export async function runCrossFilePropagation({
           ? entryByUid.get(chunk.chunkUid)
           : entryByKey.get(`${chunk.file}::${chunk.name}`);
         if (entry) {
-          entry.returnTypes = uniqueTypes([...(entry.returnTypes || []), typeName]);
+          entry.returnTypes = uniqueTypes([...toTypeNameList(entry.returnTypes), typeName]);
         }
       }
     }
@@ -730,7 +738,7 @@ export async function runCrossFilePropagation({
           });
           if (!symbolRef?.resolved?.chunkUid) continue;
           const entry = entryByUid.get(symbolRef.resolved.chunkUid);
-          const returnTypes = entry?.returnTypes || [];
+          const returnTypes = toTypeNameList(entry?.returnTypes);
           if (!returnTypes.length) continue;
           const hopCount = entry?.file !== chunk.file ? 1 : 0;
           const confidence = confidenceForHop(hopCount);

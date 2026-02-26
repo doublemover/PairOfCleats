@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import { toPosix } from '../../../shared/files.js';
 import { sha1 } from '../../../shared/hash.js';
+import { toArray } from '../../../shared/iterables.js';
 import { resolveRelativeImportCandidate } from '../../shared/import-candidates.js';
 import { DEFAULT_IMPORT_EXTS, IMPORT_LOOKUP_CACHE_SCHEMA_VERSION } from './constants.js';
 import { createFsMemo } from './fs-meta.js';
@@ -59,7 +60,7 @@ const deserializePathTrie = (raw) => {
 
 const buildDirIndexFromFileSet = (fileSet) => {
   const dirIndex = new Map();
-  for (const relPath of fileSet || []) {
+  for (const relPath of toArray(fileSet)) {
     const normalized = normalizeRelPath(relPath);
     if (!normalized) continue;
     const dir = path.posix.dirname(normalized);
@@ -147,7 +148,7 @@ export const createLookupFromSnapshot = ({ root, snapshot }) => {
 export const collectEntryFileSet = ({ entries, root }) => {
   const rootAbs = path.resolve(root);
   const fileSet = new Set();
-  for (const entry of entries || []) {
+  for (const entry of toArray(entries)) {
     const abs = typeof entry === 'string' ? entry : entry?.abs;
     if (!abs) continue;
     const rel = typeof entry === 'object' && entry.rel
@@ -168,7 +169,7 @@ export const createFileLookup = ({ entries, root, fsMemo = null }) => {
   const pathTrie = createPathTrie();
   const dirIndex = new Map();
   let hasTsconfig = false;
-  for (const entry of entries) {
+  for (const entry of toArray(entries)) {
     const abs = typeof entry === 'string' ? entry : entry.abs;
     if (!abs) continue;
     const rel = typeof entry === 'object' && entry.rel

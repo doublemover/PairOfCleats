@@ -1,4 +1,5 @@
 import { normalizeCapNullOnZero } from '../shared/limits.js';
+import { toArray } from '../shared/iterables.js';
 import { normalizeRiskRules } from './risk-rules.js';
 import { containsIdentifier, matchRulePatterns, SEVERITY_RANK } from './risk/shared.js';
 
@@ -285,7 +286,7 @@ export function detectRiskSignals({ text, chunk, config, languageId } = {}) {
       const rhsTainted = [];
       for (const [name, info] of taint.entries()) {
         if (lineContainsVar(assignment.rhs, name)) {
-          rhsTainted.push(...(info.sources || []));
+          rhsTainted.push(...toArray(info?.sources));
         }
       }
       const { sources: newSources, ruleIds } = combineSourceEvidence(sourceMatches, rhsTainted);
@@ -310,7 +311,7 @@ export function detectRiskSignals({ text, chunk, config, languageId } = {}) {
       const taintedSources = [];
       for (const [name, info] of taint.entries()) {
         if (lineContainsVar(line, name)) {
-          taintedSources.push(...(info.sources || []));
+          taintedSources.push(...toArray(info?.sources));
         }
       }
       const { sources: lineSources } = combineSourceEvidence(sourceMatches, taintedSources);

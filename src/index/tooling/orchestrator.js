@@ -7,6 +7,19 @@ import { normalizeProviderId } from './provider-contract.js';
 
 const mapFromRecord = (record) => {
   if (record instanceof Map) return record;
+  if (Array.isArray(record)) {
+    return new Map(
+      record.filter((entry) => (
+        Array.isArray(entry)
+        && entry.length >= 2
+      )).map((entry) => [entry[0], entry[1]])
+    );
+  }
+  if (record && typeof record !== 'string' && typeof record[Symbol.iterator] === 'function') {
+    try {
+      return new Map(Array.from(record));
+    } catch {}
+  }
   const output = new Map();
   for (const [key, value] of Object.entries(record || {})) {
     output.set(key, value);
@@ -90,12 +103,33 @@ const pruneToolingCacheDir = async (cacheDir, { maxBytes, maxEntries } = {}) => 
 
 // Cap param-type growth deterministically to avoid unbounded merges.
 const MAX_PARAM_CANDIDATES = 5;
+const hasIterable = (value) => value != null && typeof value[Symbol.iterator] === 'function';
+
+const toTypeEntryCollection = (value) => {
+  if (Array.isArray(value)) return value;
+  if (value == null) return [];
+  if (typeof value === 'string') return [value];
+  if (value instanceof Set) return Array.from(value);
+  if (value instanceof Map) return Array.from(value.values());
+  if (hasIterable(value)) return Array.from(value);
+  if (value && typeof value === 'object' && Object.hasOwn(value, 'type')) return [value];
+  return [];
+};
 
 const normalizeTypeEntry = (entry) => {
+  if (typeof entry === 'string') {
+    const type = entry.trim();
+    if (!type) return null;
+    return {
+      type,
+      source: null,
+      confidence: null
+    };
+  }
   if (!entry || typeof entry !== 'object') return null;
   if (!entry.type) return null;
   return {
-    type: String(entry.type),
+    type: String(entry.type).trim(),
     source: entry.source || null,
     confidence: Number.isFinite(entry.confidence) ? entry.confidence : null
   };
@@ -116,8 +150,8 @@ const mergeTypeEntries = (existing, incoming, cap) => {
     const nextConfidence = Number.isFinite(normalized.confidence) ? normalized.confidence : 0;
     if (nextConfidence > priorConfidence) map.set(key, normalized);
   };
-  for (const entry of existing || []) addEntry(entry);
-  for (const entry of incoming || []) addEntry(entry);
+  for (const entry of toTypeEntryCollection(existing)) addEntry(entry);
+  for (const entry of toTypeEntryCollection(incoming)) addEntry(entry);
   const list = Array.from(map.values());
   list.sort((a, b) => {
     const typeCmp = a.type.localeCompare(b.type);
@@ -192,13 +226,17 @@ const mergePayload = (target, incoming, { observations, chunkUid } = {}) => {
   const next = incoming.payload || {};
   if (next.returnType && !payload.returnType) payload.returnType = next.returnType;
   if (next.signature && !payload.signature) payload.signature = next.signature;
-  if (next.paramTypes && typeof next.paramTypes === 'object') {
-    payload.paramTypes = payload.paramTypes || {};
+  if (next.paramTypes && typeof next.paramTypes === 'object' && !Array.isArray(next.paramTypes)) {
+    const targetParamTypes = payload.paramTypes && typeof payload.paramTypes === 'object' && !Array.isArray(payload.paramTypes)
+      ? payload.paramTypes
+      : {};
+    payload.paramTypes = targetParamTypes;
     for (const [name, types] of Object.entries(next.paramTypes)) {
-      if (!Array.isArray(types)) continue;
-      const existing = payload.paramTypes[name] || [];
-      const { list, truncated } = mergeTypeEntries(existing, types, MAX_PARAM_CANDIDATES);
-      payload.paramTypes[name] = list;
+      const incomingEntries = toTypeEntryCollection(types);
+      if (!incomingEntries.length) continue;
+      const existingEntries = toTypeEntryCollection(targetParamTypes[name]);
+      const { list, truncated } = mergeTypeEntries(existingEntries, incomingEntries, MAX_PARAM_CANDIDATES);
+      targetParamTypes[name] = list;
       if (truncated && observations && chunkUid) {
         observations.push({
           level: 'warn',
@@ -211,6 +249,29 @@ const mergePayload = (target, incoming, { observations, chunkUid } = {}) => {
   }
   target.payload = payload;
   return target;
+};
+
+const normalizeProvenanceList = (value, { providerId, providerVersion }) => {
+  const raw = Array.isArray(value)
+    ? value
+    : (value && typeof value === 'object' ? [value] : []);
+  const normalized = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue;
+    const provider = entry.provider ? String(entry.provider) : '';
+    const version = entry.version ? String(entry.version) : '';
+    normalized.push({
+      provider: provider || providerId,
+      version: version || providerVersion,
+      collectedAt: entry.collectedAt || new Date().toISOString()
+    });
+  }
+  if (normalized.length) return normalized;
+  return [{
+    provider: providerId,
+    version: providerVersion,
+    collectedAt: new Date().toISOString()
+  }];
 };
 
 export async function runToolingProviders(ctx, inputs, providerIds = null) {
@@ -330,14 +391,13 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
       if (entry?.symbolRef && !existing.symbolRef) {
         existing.symbolRef = entry.symbolRef;
       }
-      const provenanceEntry = entry?.provenance || {
-        provider: providerId,
-        version: provider.version,
-        collectedAt: new Date().toISOString()
-      };
+      const provenanceEntries = normalizeProvenanceList(entry?.provenance, {
+        providerId,
+        providerVersion: provider.version
+      });
       existing.provenance = Array.isArray(existing.provenance)
-        ? [...existing.provenance, provenanceEntry]
-        : [provenanceEntry];
+        ? [...existing.provenance, ...provenanceEntries]
+        : provenanceEntries;
       merged.set(chunkUid, existing);
       const sources = sourcesByChunkUid.get(chunkUid) || new Set();
       sources.add(providerId);

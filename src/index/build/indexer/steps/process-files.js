@@ -13,6 +13,7 @@ import { createTimeoutError, runWithTimeout } from '../../../../shared/promise-t
 import { coerceNonNegativeInt, coercePositiveInt } from '../../../../shared/number-coerce.js';
 import { coerceAbortSignal, throwIfAborted } from '../../../../shared/abort.js';
 import { compareStrings } from '../../../../shared/sort.js';
+import { toArray } from '../../../../shared/iterables.js';
 import { atomicWriteJson } from '../../../../shared/io/atomic-write.js';
 import {
   snapshotTrackedSubprocesses,
@@ -516,12 +517,6 @@ export const sortShardBatchesByDeterministicMergeOrder = (shardBatches) => {
   });
 };
 
-/**
- * Resolve chunk-processing feature gates from runtime profile.
- *
- * @param {object} runtime
- * @returns {{tokenizeEnabled:boolean,sparsePostingsEnabled:boolean}}
- */
 /**
  * Resolve stage1 feature gates for tokenization and sparse postings.
  *
@@ -1387,7 +1382,7 @@ export const resolveStage1OrderingIntegrity = ({
     : [];
   const expectedSet = new Set(expected);
   const completedSet = new Set();
-  for (const value of completedOrderIndices || []) {
+  for (const value of toArray(completedOrderIndices)) {
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) continue;
     completedSet.add(Math.floor(parsed));
@@ -1440,12 +1435,6 @@ export {
 };
 
 /**
- * Assign stable 1-based file indexes to entry records.
- *
- * @param {Array<object>} entries
- * @returns {void}
- */
-/**
  * Assign deterministic 1-based file indices used in logs and ownership ids.
  *
  * @param {object[]} entries
@@ -1484,12 +1473,6 @@ const resolveStableEntryOrderIndex = (entry, fallbackIndex = null) => {
   return null;
 };
 
-/**
- * Build ordered progress metadata from entry order-index values.
- *
- * @param {Array<object>} entries
- * @returns {{startOrderIndex:number,expectedOrderIndices:number[]}}
- */
 /**
  * Build ordered-progress seed data from entry order indexes.
  *
@@ -4464,10 +4447,10 @@ export const processFiles = async ({
               );
             }
           });
-          for (const subsetId of retryResult.retriedSubsetIds || []) {
+          for (const subsetId of toArray(retryResult.retriedSubsetIds)) {
             retryStats.retriedSubsetIds.add(subsetId);
           }
-          for (const subsetId of retryResult.recoveredSubsetIds || []) {
+          for (const subsetId of toArray(retryResult.recoveredSubsetIds)) {
             retryStats.recoveredSubsetIds.add(subsetId);
           }
           logLine(

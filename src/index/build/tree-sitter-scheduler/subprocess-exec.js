@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { warmupNativeTreeSitterParsers } from '../../../lang/tree-sitter/native-runtime.js';
+import { toStringArray } from '../../../shared/iterables.js';
 import { getTreeSitterSchedulerCrashInjectionTokens } from '../../../shared/env.js';
 import { resolveTreeSitterSchedulerPaths } from './paths.js';
 import { executeTreeSitterSchedulerPlan } from './executor.js';
@@ -164,10 +165,8 @@ const main = async () => {
   for (const grammarKey of selectedKeys) {
     const jobPath = paths.jobPathForGrammarKey(grammarKey);
     const jobs = await loadJsonLines(jobPath);
-    const configuredLanguages = Array.isArray(groupMetaByGrammarKey?.[grammarKey]?.languages)
-      ? groupMetaByGrammarKey[grammarKey].languages
-      : null;
-    const languages = new Set(configuredLanguages || []);
+    const configuredLanguages = groupMetaByGrammarKey?.[grammarKey]?.languages;
+    const languages = new Set(toStringArray(configuredLanguages));
     if (!languages.size) {
       for (const job of jobs) {
         if (job?.languageId) languages.add(job.languageId);

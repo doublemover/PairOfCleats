@@ -80,9 +80,60 @@ assert.throws(
   () => loadSqliteIndexOptionalArtifacts(tempDir, { modelId: 'fallback-model' }),
   (error) => (
     error?.code === 'ERR_SQLITE_DENSE_BINARY_META_INVALID'
-    && /missing required positive count/.test(String(error?.message || ''))
+    && /missing required non-negative count/.test(String(error?.message || ''))
   ),
   'dense binary loader should hard-fail when .bin.meta.json omits count'
 );
+await fs.rm(metaPath, { force: true });
+
+const largeBaseName = 'dense_vectors_code_uint8';
+const largeBinPath = path.join(tempDir, `${largeBaseName}.bin`);
+const largeMetaPath = path.join(tempDir, `${largeBaseName}.bin.meta.json`);
+const largeDims = 256;
+const largeCount = 20000; // 5.12MB payload -> exceeds 4MB streaming read window.
+const largeVectors = Buffer.allocUnsafe(largeDims * largeCount);
+for (let row = 0; row < largeCount; row += 1) {
+  const offset = row * largeDims;
+  largeVectors[offset] = row % 251;
+  largeVectors[offset + 1] = (row * 3) % 251;
+}
+await fs.writeFile(largeBinPath, largeVectors);
+await fs.writeFile(largeMetaPath, JSON.stringify({
+  fields: {
+    schemaVersion: '1.0.0',
+    artifact: largeBaseName,
+    format: 'uint8-row-major',
+    path: `${largeBaseName}.bin`,
+    dims: largeDims,
+    count: largeCount,
+    model: 'demo-model'
+  }
+}), 'utf8');
+
+const previousInlineMaxMb = process.env.PAIROFCLEATS_DENSE_BINARY_MAX_INLINE_MB;
+process.env.PAIROFCLEATS_DENSE_BINARY_MAX_INLINE_MB = '1';
+try {
+  const streamedOptional = loadSqliteIndexOptionalArtifacts(tempDir, { modelId: 'fallback-model' });
+  assert.equal(streamedOptional?.denseVec?.streamed, true, 'expected dense binary payload to stream when inline budget is low');
+  assert.equal(streamedOptional?.denseVec?.buffer, null, 'expected streamed dense payload to avoid materializing inline buffer');
+  let seen = 0;
+  let firstVector = null;
+  let lastVector = null;
+  for await (const entry of streamedOptional.denseVec.rows) {
+    if (seen === 0) firstVector = Array.from(entry.vector.slice(0, 2));
+    lastVector = Array.from(entry.vector.slice(0, 2));
+    seen += 1;
+  }
+  assert.equal(seen, largeCount, 'expected streamed dense iterator to emit every row');
+  assert.deepEqual(firstVector, [0, 0], 'expected first streamed row payload');
+  assert.deepEqual(
+    lastVector,
+    [(largeCount - 1) % 251, ((largeCount - 1) * 3) % 251],
+    'expected final streamed row payload'
+  );
+} finally {
+  if (previousInlineMaxMb == null) delete process.env.PAIROFCLEATS_DENSE_BINARY_MAX_INLINE_MB;
+  else process.env.PAIROFCLEATS_DENSE_BINARY_MAX_INLINE_MB = previousInlineMaxMb;
+}
 
 console.log('sqlite utils dense binary load test passed');

@@ -1,5 +1,6 @@
 import fsSync from 'node:fs';
 import { readBundleFile } from '../../../../shared/bundle-io.js';
+import { toArray } from '../../../../shared/iterables.js';
 import { joinPathSafe } from '../../../../shared/path-normalize.js';
 import {
   diffFileManifests,
@@ -16,8 +17,9 @@ import {
  * @returns {void}
  */
 const addArrayValues = (target, values) => {
-  if (!Array.isArray(values) || values.length === 0) return;
-  for (const value of values) {
+  const list = toArray(values);
+  if (!list.length) return;
+  for (const value of list) {
     target.add(value);
   }
 };
@@ -137,7 +139,7 @@ export const loadBundlesAndCollectState = async ({ changed, bundleDir }) => {
     }
     const bundle = result.bundle;
     bundles.set(normalizedFile, { bundle, entry, fileKey, normalizedFile });
-    for (const chunk of bundle?.chunks || []) {
+    for (const chunk of toArray(bundle?.chunks)) {
       addArrayValues(tokenValues, chunk?.tokens);
       addArrayValues(phraseValues, chunk?.ngrams);
       addArrayValues(chargramValues, chunk?.chargrams);

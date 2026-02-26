@@ -33,9 +33,14 @@ import { getEnvConfig } from '../../shared/env.js';
  * @returns {Array<Array<any>>}
  */
 export function chunkArray(items, size = 900) {
+  if (!Array.isArray(items) || items.length === 0) return [];
+  const parsedSize = Number(size);
+  const chunkSize = Number.isFinite(parsedSize) && parsedSize > 0
+    ? Math.floor(parsedSize)
+    : 900;
   const chunks = [];
-  for (let i = 0; i < items.length; i += size) {
-    chunks.push(items.slice(i, i + size));
+  for (let i = 0; i < items.length; i += chunkSize) {
+    chunks.push(items.slice(i, i + chunkSize));
   }
   return chunks;
 }
@@ -51,6 +56,7 @@ const SQLITE_WAL_HIGH_BYTES = 96 * BYTES_PER_MB;
 const SQLITE_TX_ROWS_MIN = 2000;
 const SQLITE_TX_ROWS_MAX = 250000;
 const DEFAULT_DENSE_BINARY_MAX_INLINE_MB = 512;
+const DENSE_BINARY_STREAM_READ_TARGET_BYTES = 4 * BYTES_PER_MB;
 
 const resolveDenseBinaryMaxInlineBytes = () => {
   const envConfig = getEnvConfig();
@@ -64,14 +70,31 @@ const resolveDenseBinaryMaxInlineBytes = () => {
 const createDenseBinaryRowIterator = (binPath, dims, count) => (
   async function* iterateRows() {
     let handle = null;
-    const rowBuffer = Buffer.allocUnsafe(dims);
+    const rowsPerRead = Math.max(
+      1,
+      Math.floor(DENSE_BINARY_STREAM_READ_TARGET_BYTES / Math.max(1, dims))
+    );
+    const readBytes = Math.max(dims, rowsPerRead * dims);
+    const readBuffer = Buffer.allocUnsafe(readBytes);
     try {
       handle = await fsPromises.open(binPath, 'r');
-      for (let docId = 0; docId < count; docId += 1) {
+      for (let docId = 0; docId < count;) {
+        const remaining = count - docId;
+        const rowsThisRead = Math.min(rowsPerRead, remaining);
+        const bytesThisRead = rowsThisRead * dims;
         const offset = docId * dims;
-        const { bytesRead } = await handle.read(rowBuffer, 0, dims, offset);
-        if (bytesRead < dims) break;
-        yield { docId, vector: Uint8Array.from(rowBuffer.subarray(0, dims)) };
+        const { bytesRead } = await handle.read(readBuffer, 0, bytesThisRead, offset);
+        const rowsRead = Math.floor(bytesRead / dims);
+        if (rowsRead <= 0) break;
+        for (let rowIndex = 0; rowIndex < rowsRead; rowIndex += 1) {
+          const start = rowIndex * dims;
+          yield {
+            docId: docId + rowIndex,
+            vector: Uint8Array.from(readBuffer.subarray(start, start + dims))
+          };
+        }
+        docId += rowsRead;
+        if (rowsRead < rowsThisRead) break;
       }
     } finally {
       if (handle) {

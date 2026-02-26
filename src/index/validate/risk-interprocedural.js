@@ -1,4 +1,5 @@
 import { loadJsonArrayArtifact } from '../../shared/artifact-io.js';
+import { toArray } from '../../shared/iterables.js';
 import { addIssue } from './issues.js';
 import { validateSchema } from './schema.js';
 
@@ -151,7 +152,7 @@ export const validateRiskInterproceduralArtifacts = async ({
         }
         if (callSiteIds) {
           for (const step of steps) {
-            for (const callSiteId of step || []) {
+            for (const callSiteId of toArray(step)) {
               if (callSiteId) {
                 referencedCallSites.add(callSiteId);
                 if (!callSiteIds.has(callSiteId)) {

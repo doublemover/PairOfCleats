@@ -10,6 +10,7 @@ import {
   resolveTreeSitterLimits
 } from '../../../shared/indexing/tree-sitter-limits.js';
 import { writeJsonObjectFile, writeJsonLinesFile } from '../../../shared/json-stream.js';
+import { toArray } from '../../../shared/iterables.js';
 import { readTextFileWithHash } from '../../../shared/encoding.js';
 import { getLanguageForFile } from '../../language-registry.js';
 import { assignSegmentUids, discoverSegments } from '../../segments.js';
@@ -332,13 +333,11 @@ export const buildTreeSitterSchedulerPlan = async ({
     return resolved?.relKey ? toPosix(resolved.relKey) : '';
   };
 
-  const sortedEntriesWithKeys = Array.isArray(entries)
-    ? entries.map((entry, stableIndex) => ({
-      entry,
-      stableIndex,
-      sortKey: resolveEntrySortKey(entry)
-    }))
-    : [];
+  const sortedEntriesWithKeys = toArray(entries).map((entry, stableIndex) => ({
+    entry,
+    stableIndex,
+    sortKey: resolveEntrySortKey(entry)
+  }));
   sortedEntriesWithKeys.sort((a, b) => {
     const sortDelta = compareStrings(a.sortKey, b.sortKey);
     if (sortDelta !== 0) return sortDelta;
@@ -494,7 +493,7 @@ export const buildTreeSitterSchedulerPlan = async ({
 
       const jobs = [];
       const requiredLanguages = new Set();
-      for (const segment of segments || []) {
+      for (const segment of toArray(segments)) {
         if (!segment) continue;
         const tokenMode = resolveSegmentTokenMode(segment);
         if (tokenMode !== 'code') continue;
@@ -570,13 +569,13 @@ export const buildTreeSitterSchedulerPlan = async ({
     }
   );
 
-  for (const result of entryResults || []) {
+  for (const result of toArray(entryResults)) {
     throwIfAborted(effectiveAbortSignal);
     if (!result) continue;
-    for (const languageId of result.requiredLanguages || []) {
+    for (const languageId of toArray(result.requiredLanguages)) {
       requiredNativeLanguages.add(languageId);
     }
-    for (const job of result.jobs || []) {
+    for (const job of toArray(result.jobs)) {
       const grammarKey = job.grammarKey;
       if (!groups.has(grammarKey)) {
         groups.set(grammarKey, { grammarKey, languages: new Set(), jobs: [] });
@@ -590,7 +589,7 @@ export const buildTreeSitterSchedulerPlan = async ({
   const requiredNative = Array.from(requiredNativeLanguages).sort(compareStrings);
   const preflight = preflightNativeTreeSitterGrammars(requiredNative, { log });
   if (!preflight.ok) {
-    const blocked = Array.from(new Set([...(preflight.missing || []), ...(preflight.unavailable || [])]));
+    const blocked = Array.from(new Set([...toArray(preflight.missing), ...toArray(preflight.unavailable)]));
     if (strict) {
       const details = [
         preflight.missing?.length ? `missing=${preflight.missing.join(',')}` : null,

@@ -7,9 +7,19 @@ import {
   getTreeSitterStats,
   getTreeSitterCacheSnapshot
 } from '../../../src/lang/tree-sitter.js';
-import { warmupNativeTreeSitterParsers } from '../../../src/lang/tree-sitter/native-runtime.js';
+import {
+  preflightNativeTreeSitterGrammars,
+  warmupNativeTreeSitterParsers
+} from '../../../src/lang/tree-sitter/native-runtime.js';
 
 const run = async () => {
+  const malformedPreflight = preflightNativeTreeSitterGrammars({ javascript: true });
+  assert.equal(malformedPreflight.ok, true, 'malformed preflight inputs should not throw');
+  assert.deepEqual(malformedPreflight.missing, []);
+  assert.deepEqual(malformedPreflight.unavailable, []);
+  const malformedWarmup = warmupNativeTreeSitterParsers({ javascript: true });
+  assert.deepEqual(malformedWarmup, { warmed: [], failed: [] }, 'malformed warmup inputs should not throw');
+
   const ok = await initTreeSitterRuntime({ log: () => {} });
   if (!ok) {
     console.log('tree-sitter runtime unavailable; skipping runtime path cache test.');

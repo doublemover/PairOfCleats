@@ -134,6 +134,7 @@ const DEFAULT_EMBEDDINGS_CHUNK_META_MAX_BYTES = 512 * 1024 * 1024;
 const DEFAULT_EMBEDDINGS_PROGRESS_HEARTBEAT_MS = 1500;
 const DEFAULT_EMBEDDINGS_FILE_PARALLELISM = 2;
 const DEFAULT_EMBEDDINGS_BUNDLE_REFRESH_PARALLELISM = 2;
+const DEFAULT_EMBEDDINGS_BUNDLE_REFRESH_MAX_PARALLELISM = 16;
 const DEFAULT_EMBEDDINGS_CHUNK_META_RETRY_CEILING_BYTES = 1024 * 1024 * 1024;
 const DEFAULT_EMBEDDINGS_CROSS_FILE_CHUNK_DEDUPE_MAX_ENTRIES = 200000;
 const DEFAULT_EMBEDDINGS_SOURCE_HASH_CACHE_MAX_ENTRIES = 200000;
@@ -640,7 +641,7 @@ const resolveEmbeddingsBundleRefreshParallelism = ({
   const tokenDriven = coercePositiveIntMinOne(ioTokensTotal);
   // Keep the default fanout when scheduler reports only one IO token.
   if (tokenDriven && tokenDriven > 1) {
-    return Math.max(1, Math.min(8, tokenDriven));
+    return Math.max(1, Math.min(DEFAULT_EMBEDDINGS_BUNDLE_REFRESH_MAX_PARALLELISM, tokenDriven));
   }
   return DEFAULT_EMBEDDINGS_BUNDLE_REFRESH_PARALLELISM;
 };
@@ -1555,6 +1556,15 @@ export async function runBuildEmbeddingsWithConfig(config) {
   };
   const repoCacheRootKey = normalizePath(repoCacheRootResolved);
   const buildsRootKey = normalizePath(path.join(repoCacheRootResolved, 'builds'));
+  /**
+   * Best-effort existence check that never throws.
+   *
+   * Returns `false` for missing paths, denied access, and invalid/falsy inputs
+   * so callers can use it in fallback probes without try/catch noise.
+   *
+   * @param {string|null|undefined} targetPath
+   * @returns {Promise<boolean>}
+   */
   const pathExists = async (targetPath) => {
     if (!targetPath) return false;
     try {
@@ -1820,6 +1830,15 @@ export async function runBuildEmbeddingsWithConfig(config) {
   const queueBackgroundSqliteMaintenance = async ({ mode, denseCount, modeIndexRoot, sqlitePathsForMode }) => {
     if (maintenanceConfig.background !== true || isTestingEnv()) return;
     if (mode !== 'code' && mode !== 'prose') return;
+    /**
+     * Return file size in bytes when target is a regular file.
+     *
+     * Missing/non-file/unreadable paths resolve to `null` so maintenance
+     * eligibility checks stay fail-closed without surfacing transient errors.
+     *
+     * @param {string|null|undefined} targetPath
+     * @returns {Promise<number|null>}
+     */
     const safeStatSize = async (targetPath) => {
       if (!targetPath) return null;
       try {

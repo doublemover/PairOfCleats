@@ -86,6 +86,12 @@ const createToolingLogger = (rootDir, logDir, provider, baseLog) => {
   };
 };
 
+const toProvenanceList = (value) => {
+  if (Array.isArray(value)) return value;
+  if (!value || typeof value !== 'object') return [];
+  return [value];
+};
+
 const mergeToolingSources = (chunk, provenanceList) => {
   if (!chunk?.docmeta || typeof chunk.docmeta !== 'object') chunk.docmeta = {};
   const toolingMeta = chunk.docmeta.tooling && typeof chunk.docmeta.tooling === 'object'
@@ -94,7 +100,7 @@ const mergeToolingSources = (chunk, provenanceList) => {
   const existing = Array.isArray(toolingMeta.sources) ? toolingMeta.sources : [];
   const next = [];
   const seen = new Set();
-  for (const entry of [...existing, ...(provenanceList || [])]) {
+  for (const entry of [...existing, ...toProvenanceList(provenanceList)]) {
     if (!entry?.provider) continue;
     if (seen.has(entry.provider)) continue;
     seen.add(entry.provider);
