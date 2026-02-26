@@ -117,8 +117,12 @@ const FILE_QUEUE_DELAY_HISTOGRAM_BUCKETS_MS = Object.freeze([50, 100, 250, 500, 
 const EXTRACTED_PROSE_RUNTIME_STATE_DIR = 'runtime';
 const EXTRACTED_PROSE_YIELD_PROFILE_FILE = 'extracted-prose-yield-profile.json';
 const EXTRACTED_PROSE_YIELD_PROFILE_VERSION = 1;
-const DOCUMENT_EXTRACTION_CACHE_FILE = 'document-extraction-cache.json';
+export const DOCUMENT_EXTRACTION_CACHE_FILE = 'document-extraction-cache.json';
 const DOCUMENT_EXTRACTION_CACHE_VERSION = 1;
+export const DOCUMENT_EXTRACTION_CACHE_MAX_LOAD_BYTES = 16 * 1024 * 1024;
+export const DOCUMENT_EXTRACTION_CACHE_MAX_ENTRIES = 2048;
+export const DOCUMENT_EXTRACTION_CACHE_MAX_TOTAL_ENTRY_BYTES = 8 * 1024 * 1024;
+export const DOCUMENT_EXTRACTION_CACHE_MAX_ENTRY_TEXT_BYTES = 512 * 1024;
 const NOOP_RESERVATION = Object.freeze({
   release() {}
 });
@@ -181,9 +185,22 @@ const resolveRuntimeStatePath = (runtime, fileName) => {
   return path.join(repoCacheRoot, EXTRACTED_PROSE_RUNTIME_STATE_DIR, fileName);
 };
 
-const readJsonIfExists = async (filePath) => {
+const readJsonIfExists = async (filePath, { maxBytes = null, label = 'json' } = {}) => {
   if (!filePath) return null;
   try {
+    if (Number.isFinite(Number(maxBytes)) && Number(maxBytes) > 0) {
+      const fileStat = await fs.stat(filePath);
+      const cappedMaxBytes = Math.floor(Number(maxBytes));
+      if (Number(fileStat?.size || 0) > cappedMaxBytes) {
+        const err = new Error(
+          `[stage1:extracted-prose] ${label} exceeds load limit `
+          + `(${fileStat.size} > ${cappedMaxBytes} bytes)`
+        );
+        err.code = 'ERR_JSON_FILE_TOO_LARGE';
+        err.meta = { filePath, label, bytes: fileStat.size, maxBytes: cappedMaxBytes };
+        throw err;
+      }
+    }
     const raw = await fs.readFile(filePath, 'utf8');
     return JSON.parse(raw);
   } catch (err) {
@@ -237,12 +254,102 @@ const normalizeDocumentExtractionCacheState = (value) => {
   };
 };
 
-const loadDocumentExtractionCacheState = async ({ runtime, log: logger = null }) => {
+const resolveDocumentExtractionCachePersistencePolicy = () => ({
+  maxLoadBytes: DOCUMENT_EXTRACTION_CACHE_MAX_LOAD_BYTES,
+  maxEntries: DOCUMENT_EXTRACTION_CACHE_MAX_ENTRIES,
+  maxTotalEntryBytes: DOCUMENT_EXTRACTION_CACHE_MAX_TOTAL_ENTRY_BYTES,
+  maxEntryTextBytes: DOCUMENT_EXTRACTION_CACHE_MAX_ENTRY_TEXT_BYTES
+});
+
+/**
+ * Keep the most recently touched extraction-cache entries while enforcing
+ * payload caps so startup JSON load is predictably bounded.
+ *
+ * @param {object} entries
+ * @param {{maxEntries:number,maxTotalEntryBytes:number,maxEntryTextBytes:number}} [policy]
+ * @returns {{entries:object,stats:{inputEntries:number,keptEntries:number,droppedEntries:number,droppedForEntryTextBytes:number,droppedForTotalBytes:number,droppedForMaxEntries:number,totalEntryBytes:number,maxEntries:number,maxTotalEntryBytes:number,maxEntryTextBytes:number}}}
+ */
+export const compactDocumentExtractionCacheEntries = (entries, policy = resolveDocumentExtractionCachePersistencePolicy()) => {
+  const sourceEntries = isPlainObject(entries) ? entries : {};
+  const maxEntries = Math.max(1, Math.floor(Number(policy?.maxEntries) || DOCUMENT_EXTRACTION_CACHE_MAX_ENTRIES));
+  const maxTotalEntryBytes = Math.max(
+    1,
+    Math.floor(Number(policy?.maxTotalEntryBytes) || DOCUMENT_EXTRACTION_CACHE_MAX_TOTAL_ENTRY_BYTES)
+  );
+  const maxEntryTextBytes = Math.max(
+    1,
+    Math.floor(Number(policy?.maxEntryTextBytes) || DOCUMENT_EXTRACTION_CACHE_MAX_ENTRY_TEXT_BYTES)
+  );
+  const orderedEntries = Object.entries(sourceEntries);
+  const keptNewestFirst = [];
+  let totalEntryBytes = 0;
+  let droppedForEntryTextBytes = 0;
+  let droppedForTotalBytes = 0;
+  let droppedForMaxEntries = 0;
+  for (let i = orderedEntries.length - 1; i >= 0; i -= 1) {
+    const [cacheKey, record] = orderedEntries[i];
+    if (!cacheKey || !isPlainObject(record)) continue;
+    if (keptNewestFirst.length >= maxEntries) {
+      droppedForMaxEntries += 1;
+      continue;
+    }
+    const text = typeof record.text === 'string' ? record.text : '';
+    const textBytes = Buffer.byteLength(text, 'utf8');
+    if (textBytes > maxEntryTextBytes) {
+      droppedForEntryTextBytes += 1;
+      continue;
+    }
+    const entryBytes = Math.max(1, Math.floor(estimateJsonBytes(record)));
+    if (totalEntryBytes + entryBytes > maxTotalEntryBytes) {
+      droppedForTotalBytes += 1;
+      continue;
+    }
+    totalEntryBytes += entryBytes;
+    keptNewestFirst.push([cacheKey, record]);
+  }
+  keptNewestFirst.reverse();
+  const compactedEntries = Object.fromEntries(keptNewestFirst);
+  return {
+    entries: compactedEntries,
+    stats: {
+      inputEntries: orderedEntries.length,
+      keptEntries: keptNewestFirst.length,
+      droppedEntries: Math.max(0, orderedEntries.length - keptNewestFirst.length),
+      droppedForEntryTextBytes,
+      droppedForTotalBytes,
+      droppedForMaxEntries,
+      totalEntryBytes,
+      maxEntries,
+      maxTotalEntryBytes,
+      maxEntryTextBytes
+    }
+  };
+};
+
+export const loadDocumentExtractionCacheState = async ({ runtime, log: logger = null }) => {
   const cachePath = resolveRuntimeStatePath(runtime, DOCUMENT_EXTRACTION_CACHE_FILE);
   if (!cachePath) return normalizeDocumentExtractionCacheState(null);
+  const policy = resolveDocumentExtractionCachePersistencePolicy();
   try {
-    const loaded = await readJsonIfExists(cachePath);
-    return normalizeDocumentExtractionCacheState(loaded);
+    const loaded = await readJsonIfExists(cachePath, {
+      maxBytes: policy.maxLoadBytes,
+      label: DOCUMENT_EXTRACTION_CACHE_FILE
+    });
+    const normalized = normalizeDocumentExtractionCacheState(loaded);
+    const compacted = compactDocumentExtractionCacheEntries(normalized.entries, policy);
+    if (typeof logger === 'function' && compacted.stats.droppedEntries > 0) {
+      logger(
+        `[stage1:extracted-prose] compacted document extraction cache `
+        + `(${compacted.stats.inputEntries} -> ${compacted.stats.keptEntries}; `
+        + `dropMaxEntries=${compacted.stats.droppedForMaxEntries}, `
+        + `dropTotalBytes=${compacted.stats.droppedForTotalBytes}, `
+        + `dropEntryTextBytes=${compacted.stats.droppedForEntryTextBytes}).`
+      );
+    }
+    return {
+      version: DOCUMENT_EXTRACTION_CACHE_VERSION,
+      entries: compacted.entries
+    };
   } catch (err) {
     if (typeof logger === 'function') {
       logger(`[stage1:extracted-prose] failed to load document extraction cache: ${err?.message || err}`);
@@ -262,10 +369,16 @@ const createMutableKeyValueStore = (entries = null) => {
   return {
     get(key) {
       if (!key || !map.has(key)) return null;
-      return map.get(key);
+      const value = map.get(key);
+      map.delete(key);
+      map.set(key, value);
+      return value;
     },
     set(key, value) {
       if (!key) return;
+      if (map.has(key)) {
+        map.delete(key);
+      }
       map.set(key, value);
     },
     snapshot() {
@@ -277,9 +390,20 @@ const createMutableKeyValueStore = (entries = null) => {
 const persistDocumentExtractionCacheState = async ({ runtime, cacheStore, log: logger = null }) => {
   const cachePath = resolveRuntimeStatePath(runtime, DOCUMENT_EXTRACTION_CACHE_FILE);
   if (!cachePath || !cacheStore || typeof cacheStore.snapshot !== 'function') return;
+  const policy = resolveDocumentExtractionCachePersistencePolicy();
+  const compacted = compactDocumentExtractionCacheEntries(cacheStore.snapshot(), policy);
+  if (typeof logger === 'function' && compacted.stats.droppedEntries > 0) {
+    logger(
+      `[stage1:extracted-prose] persisted compacted document extraction cache `
+      + `(${compacted.stats.inputEntries} -> ${compacted.stats.keptEntries}; `
+      + `dropMaxEntries=${compacted.stats.droppedForMaxEntries}, `
+      + `dropTotalBytes=${compacted.stats.droppedForTotalBytes}, `
+      + `dropEntryTextBytes=${compacted.stats.droppedForEntryTextBytes}).`
+    );
+  }
   const payload = {
     version: DOCUMENT_EXTRACTION_CACHE_VERSION,
-    entries: cacheStore.snapshot()
+    entries: compacted.entries
   };
   try {
     await atomicWriteJson(cachePath, payload, { spaces: 2, newline: true });

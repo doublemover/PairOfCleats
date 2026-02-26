@@ -145,6 +145,12 @@ export function createFileProcessor(options) {
   const documentExtractionEnabled = mode === 'extracted-prose'
     && resolvedDocumentExtraction.enabled === true;
   const documentExtractionPolicy = normalizeDocumentExtractionPolicy(resolvedDocumentExtraction);
+  const documentExtractionPolicyCacheKey = [
+    documentExtractionPolicy.maxBytesPerFile,
+    documentExtractionPolicy.maxPages,
+    documentExtractionPolicy.extractTimeoutMs,
+    EXTRACTION_NORMALIZATION_POLICY
+  ].join('|');
   const supportsDocumentExtractionCache = Boolean(
     documentExtractionCache
     && typeof documentExtractionCache.get === 'function'
@@ -216,7 +222,8 @@ export function createFileProcessor(options) {
       bytesHash,
       extractor?.name || 'unknown',
       extractor?.version || 'unknown',
-      extractor?.target || ''
+      extractor?.target || '',
+      documentExtractionPolicyCacheKey
     ].join('|'));
   };
   const loadCachedDocumentExtraction = (cacheKey) => {
