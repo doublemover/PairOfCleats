@@ -1,11 +1,9 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { execaSync } from 'execa';
-import { isTestingEnv } from '../../shared/env.js';
-import { resolveToolRoot } from '../../shared/dict-utils.js';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
-import { findBinaryInDirs } from './binary-utils.js';
+import { resolveToolingCommandProfile } from './command-resolver.js';
 import { parsePythonSignature } from './signature-parse/python.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
 
@@ -42,28 +40,6 @@ const canRunPyright = (cmd) => {
 
 export const __canRunPyrightForTests = (cmd) => canRunPyright(cmd);
 
-const resolveCommand = (cmd, rootDir, toolingConfig) => {
-  if (!cmd) return cmd;
-  if (isAbsolutePathNative(cmd) || cmd.includes(path.sep)) return cmd;
-  const testing = isTestingEnv();
-  if (testing) {
-    const pathEntries = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
-    const pathFound = findBinaryInDirs(cmd, pathEntries);
-    if (pathFound) return pathFound;
-  }
-  const toolRoot = resolveToolRoot();
-  const repoBin = path.join(rootDir, 'node_modules', '.bin');
-  const toolBin = toolRoot ? path.join(toolRoot, 'node_modules', '.bin') : null;
-  const toolingBin = toolingConfig?.dir
-    ? path.join(toolingConfig.dir, 'node', 'node_modules', '.bin')
-    : null;
-  const found = findBinaryInDirs(cmd, [repoBin, toolBin, toolingBin].filter(Boolean));
-  if (found) return found;
-  const pathEntries = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
-  const pathFound = findBinaryInDirs(cmd, pathEntries);
-  return pathFound || cmd;
-};
-
 export const createPyrightProvider = () => ({
   id: 'pyright',
   version: '2.0.0',
@@ -98,7 +74,14 @@ export const createPyrightProvider = () => ({
         diagnostics: appendDiagnosticChecks(null, duplicateChecks)
       };
     }
-    const resolvedCmd = resolveCommand('pyright-langserver', ctx.repoRoot, ctx.toolingConfig);
+    const commandProfile = resolveToolingCommandProfile({
+      providerId: 'pyright',
+      cmd: 'pyright-langserver',
+      args: ['--stdio'],
+      repoRoot: ctx?.repoRoot || process.cwd(),
+      toolingConfig: ctx?.toolingConfig || {}
+    });
+    const resolvedCmd = commandProfile.resolved.cmd;
     if (!canRunPyright(resolvedCmd)) {
       log('[index] pyright-langserver not detected; skipping tooling-based types.');
       return {
@@ -124,7 +107,7 @@ export const createPyrightProvider = () => ({
       abortSignal: ctx?.abortSignal || null,
       log,
       cmd: resolvedCmd,
-      args: ['--stdio'],
+      args: commandProfile.resolved.args || ['--stdio'],
       timeoutMs,
       retries,
       breakerThreshold,

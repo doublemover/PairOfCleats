@@ -1,40 +1,22 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
 import semver from 'semver';
-import { execaSync } from 'execa';
 import { getXxhashBackend } from '../../shared/hash.js';
 import { listToolingProviders } from './provider-registry.js';
 import { normalizeProviderId } from './provider-contract.js';
-import { findBinaryInDirs } from './binary-utils.js';
 import { loadTypeScript } from './typescript/load.js';
-import { resolveToolRoot } from '../../shared/dict-utils.js';
 import { getScmProviderAndRoot, resolveScmConfig } from '../scm/registry.js';
 import { setScmRuntimeConfig } from '../scm/runtime.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
+import {
+  probeLspInitializeHandshake,
+  resolveToolingCommandProfile
+} from './command-resolver.js';
 
 const MIN_TYPESCRIPT_VERSION = '4.8.0';
-
-const canRunBinary = (cmd, argsList) => {
-  if (!cmd) return false;
-  for (const args of argsList) {
-    try {
-      const result = execaSync(cmd, args, {
-        stdio: 'ignore',
-        reject: false
-      });
-      if (typeof result.exitCode === 'number' && result.exitCode === 0) return true;
-    } catch {}
-  }
-  return false;
-};
-
-const commandExists = (cmd) => {
-  if (!cmd) return false;
-  if (isAbsolutePathNative(cmd) || cmd.includes(path.sep)) return fsSync.existsSync(cmd);
-  const pathEntries = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
-  return Boolean(findBinaryInDirs(cmd, pathEntries));
-};
+const TOOLING_DOCTOR_REPORT_SCHEMA_VERSION = 2;
+const TOOLING_DOCTOR_REPORT_FILENAME = 'tooling_doctor_report.json';
 
 const resolveCompileCommandsDir = (rootDir, clangdConfig) => {
   const candidates = [];
@@ -53,34 +35,6 @@ const resolveCompileCommandsDir = (rootDir, clangdConfig) => {
     if (fsSync.existsSync(candidate)) return dir;
   }
   return null;
-};
-
-const resolvePyrightCommand = (repoRoot, toolingConfig) => {
-  const cmd = 'pyright-langserver';
-  const toolRoot = resolveToolRoot();
-  const repoBin = path.join(repoRoot, 'node_modules', '.bin');
-  const toolBin = toolRoot ? path.join(toolRoot, 'node_modules', '.bin') : null;
-  const toolingBin = toolingConfig?.dir
-    ? path.join(toolingConfig.dir, 'node', 'node_modules', '.bin')
-    : null;
-  const found = findBinaryInDirs(cmd, [repoBin, toolBin, toolingBin].filter(Boolean));
-  if (found) return found;
-  const pathEntries = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
-  return findBinaryInDirs(cmd, pathEntries) || cmd;
-};
-
-const resolveCommand = (cmd) => {
-  if (process.platform !== 'win32') return cmd;
-  const lowered = String(cmd || '').toLowerCase();
-  if (lowered.endsWith('.exe') || lowered.endsWith('.cmd') || lowered.endsWith('.bat')) return cmd;
-  const pathEntries = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
-  for (const ext of ['.exe', '.cmd', '.bat']) {
-    for (const dir of pathEntries) {
-      const candidate = path.join(dir, `${cmd}${ext}`);
-      if (fsSync.existsSync(candidate)) return candidate;
-    }
-  }
-  return cmd;
 };
 
 const summarizeStatus = (errors, warnings) => {
@@ -109,9 +63,11 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
   setScmRuntimeConfig(scmConfig);
 
   const report = {
+    schemaVersion: TOOLING_DOCTOR_REPORT_SCHEMA_VERSION,
     generatedAt: new Date().toISOString(),
     repoRoot,
     buildRoot,
+    reportFile: TOOLING_DOCTOR_REPORT_FILENAME,
     config: {
       enabledTools: [],
       disabledTools: []
@@ -330,44 +286,70 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
           });
         }
       }
-      const resolvedCmd = resolveCommand('clangd');
-      if (!canRunBinary(resolvedCmd, [['--version'], ['--help']])) {
-        providerAvailable = false;
-        addCheck({
-          name: 'clangd',
-          status: missingBinaryStatus,
-          message: 'clangd binary not available.'
-        });
+    }
+
+    if (providerReport.enabled && providerId !== 'typescript') {
+      let requestedCmd = provider?.requires?.cmd || null;
+      let requestedArgs = [];
+      if (providerId === 'pyright') {
+        requestedCmd = 'pyright-langserver';
+        requestedArgs = ['--stdio'];
+      } else if (providerId === 'clangd') {
+        requestedCmd = 'clangd';
+      } else if (providerId === 'sourcekit') {
+        requestedCmd = 'sourcekit-lsp';
       }
-    } else if (providerId === 'pyright') {
-      const resolvedCmd = resolvePyrightCommand(repoRoot, toolingConfig);
-      if (!commandExists(resolvedCmd)) {
-        providerAvailable = false;
-        addCheck({
-          name: 'pyright-langserver',
-          status: missingBinaryStatus,
-          message: 'pyright-langserver binary not available.'
+      if (requestedCmd) {
+        const commandProfile = resolveToolingCommandProfile({
+          providerId,
+          cmd: requestedCmd,
+          args: requestedArgs,
+          repoRoot,
+          toolingConfig
         });
-      }
-    } else if (providerId === 'sourcekit') {
-      const resolvedCmd = resolveCommand('sourcekit-lsp');
-      if (!canRunBinary(resolvedCmd, [['--help'], ['--version']])) {
-        providerAvailable = false;
-        addCheck({
-          name: 'sourcekit-lsp',
-          status: missingBinaryStatus,
-          message: 'sourcekit-lsp binary not available.'
-        });
-      }
-    } else if (provider?.requires?.cmd) {
-      const resolvedCmd = resolveCommand(provider.requires.cmd);
-      if (!canRunBinary(resolvedCmd, [['--version'], ['--help']])) {
-        providerAvailable = false;
-        addCheck({
-          name: provider.requires.cmd,
-          status: 'warn',
-          message: `${provider.requires.cmd} binary not available.`
-        });
+        providerReport.command = commandProfile;
+        if (!commandProfile.probe.ok) {
+          providerAvailable = false;
+          addCheck({
+            name: `${providerId}-command`,
+            status: missingBinaryStatus,
+            message: `${requestedCmd} binary not available.`
+          });
+        } else {
+          addCheck({
+            name: `${providerId}-command`,
+            status: 'ok',
+            message: `resolved ${requestedCmd} -> ${commandProfile.resolved.cmd} (${commandProfile.resolved.mode})`
+          });
+          const isLspProvider = providerId === 'clangd'
+            || providerId === 'pyright'
+            || providerId === 'sourcekit'
+            || providerId.startsWith('lsp-');
+          if (isLspProvider && options?.probeHandshake !== false) {
+            const handshake = await probeLspInitializeHandshake({
+              cmd: commandProfile.resolved.cmd,
+              args: commandProfile.resolved.args || [],
+              cwd: repoRoot,
+              timeoutMs: Number.isFinite(Number(options?.handshakeTimeoutMs))
+                ? Math.max(750, Math.floor(Number(options.handshakeTimeoutMs)))
+                : 4000
+            });
+            providerReport.handshake = handshake;
+            if (!handshake.ok) {
+              addCheck({
+                name: `${providerId}-initialize`,
+                status: 'warn',
+                message: `initialize handshake failed: ${handshake.errorMessage || 'unknown error'}`
+              });
+            } else {
+              addCheck({
+                name: `${providerId}-initialize`,
+                status: 'ok',
+                message: `initialize handshake succeeded (${handshake.latencyMs}ms).`
+              });
+            }
+          }
+        }
       }
     }
 
@@ -379,8 +361,9 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
   report.summary.status = summarizeStatus(report.summary.errors, report.summary.warnings);
   report.providers.sort((a, b) => String(a.id).localeCompare(String(b.id)));
 
-  const reportPath = path.join(buildRoot, 'tooling_report.json');
+  const reportPath = path.join(buildRoot, TOOLING_DOCTOR_REPORT_FILENAME);
   await writeReport(reportPath, report);
+  report.reportPath = reportPath;
   if (report.summary.status === 'error') {
     log(`[tooling] doctor: ${report.summary.errors} error(s), ${report.summary.warnings} warning(s).`);
   } else if (report.summary.status === 'warn') {

@@ -20,7 +20,7 @@ const report = await runToolingDoctor({
   strict: false
 }, null, { log: () => {} });
 
-const reportPath = path.join(tempRoot, 'tooling_report.json');
+const reportPath = path.join(tempRoot, 'tooling_doctor_report.json');
 const raw = await fs.readFile(reportPath, 'utf8');
 const parsed = JSON.parse(raw);
 

@@ -1,5 +1,6 @@
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { appendDiagnosticChecks, hashProviderConfig, normalizeProviderId } from './provider-contract.js';
+import { resolveToolingCommandProfile } from './command-resolver.js';
 import { parseClikeSignature } from './signature-parse/clike.js';
 import { parsePythonSignature } from './signature-parse/python.js';
 import { parseSwiftSignature } from './signature-parse/swift.js';
@@ -110,14 +111,32 @@ const createConfiguredLspProvider = (server) => {
       if (!docs.length || !targets.length) {
         return { provider: { id: providerId, version: this.version, configHash: this.getConfigHash(ctx) }, byChunkUid: {} };
       }
+      const commandProfile = resolveToolingCommandProfile({
+        providerId: server.id || providerId,
+        cmd: server.cmd,
+        args: server.args || [],
+        repoRoot: ctx?.repoRoot || process.cwd(),
+        toolingConfig: ctx?.toolingConfig || {}
+      });
+      if (!commandProfile.probe.ok) {
+        return {
+          provider: { id: providerId, version: this.version, configHash: this.getConfigHash(ctx) },
+          byChunkUid: {},
+          diagnostics: appendDiagnosticChecks(null, [{
+            name: 'lsp_command_unavailable',
+            status: 'warn',
+            message: `${server.cmd} command not available for ${providerId}.`
+          }])
+        };
+      }
       const result = await collectLspTypes({
         rootDir: ctx.repoRoot,
         documents: docs,
         targets,
         abortSignal: ctx?.abortSignal || null,
         log,
-        cmd: server.cmd,
-        args: server.args || [],
+        cmd: commandProfile.resolved.cmd,
+        args: commandProfile.resolved.args || [],
         timeoutMs: server.timeoutMs || ctx?.toolingConfig?.timeoutMs || 15000,
         retries: server.retries ?? ctx?.toolingConfig?.maxRetries ?? 2,
         breakerThreshold: ctx?.toolingConfig?.circuitBreakerThreshold ?? 3,

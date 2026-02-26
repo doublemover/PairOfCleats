@@ -11,6 +11,7 @@ import { throwIfAborted } from '../../shared/abort.js';
 import { acquireFileLock } from '../../shared/locks/file-lock.js';
 import { spawnSubprocess } from '../../shared/subprocess.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
+import { resolveToolingCommandProfile } from './command-resolver.js';
 import { parseSwiftSignature } from './signature-parse/swift.js';
 
 export const SWIFT_EXTS = ['.swift'];
@@ -595,7 +596,14 @@ export const createSourcekitProvider = () => ({
       };
     }
 
-    const resolvedCmd = resolveCommand('sourcekit-lsp');
+    const commandProfile = resolveToolingCommandProfile({
+      providerId: 'sourcekit',
+      cmd: 'sourcekit-lsp',
+      args: [],
+      repoRoot: ctx?.repoRoot || process.cwd(),
+      toolingConfig: ctx?.toolingConfig || {}
+    });
+    const resolvedCmd = commandProfile.resolved.cmd;
     if (!canRunSourcekit(resolvedCmd)) {
       log('[index] sourcekit-lsp not detected; skipping tooling-based types.');
       return {

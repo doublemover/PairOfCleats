@@ -5,6 +5,7 @@ import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
 import { atomicWriteJsonSync } from '../../shared/io/atomic-write.js';
+import { resolveToolingCommandProfile } from './command-resolver.js';
 
 const CLANGD_BASE_EXTS = ['.c', '.h', '.cc', '.cpp', '.cxx', '.hpp', '.hh'];
 const CLANGD_OBJC_EXTS = ['.m', '.mm'];
@@ -51,20 +52,6 @@ const canRunClangd = (cmd) => {
   } catch {
     return false;
   }
-};
-
-const resolveCommand = (cmd) => {
-  if (process.platform !== 'win32') return cmd;
-  const lowered = String(cmd || '').toLowerCase();
-  if (lowered.endsWith('.exe') || lowered.endsWith('.cmd') || lowered.endsWith('.bat')) return cmd;
-  const pathEntries = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
-  for (const ext of ['.exe', '.cmd', '.bat']) {
-    for (const dir of pathEntries) {
-      const candidate = path.join(dir, `${cmd}${ext}`);
-      if (fsSync.existsSync(candidate)) return candidate;
-    }
-  }
-  return cmd;
 };
 
 const resolveCompileCommandsDir = (rootDir, clangdConfig) => {
@@ -493,7 +480,20 @@ export const createClangdProvider = () => ({
         diagnostics: appendDiagnosticChecks(null, duplicateChecks)
       };
     }
-    const resolvedCmd = resolveCommand('clangd');
+    const clangdArgs = [];
+    // clangd is very chatty at info-level (e.g. missing compilation DB).
+    // Keep stdout/stderr noise down during indexing runs.
+    clangdArgs.push('--log=error');
+    clangdArgs.push('--background-index=false');
+    if (compileCommandsDir) clangdArgs.push(`--compile-commands-dir=${compileCommandsDir}`);
+    const commandProfile = resolveToolingCommandProfile({
+      providerId: 'clangd',
+      cmd: 'clangd',
+      args: clangdArgs,
+      repoRoot: ctx?.repoRoot || process.cwd(),
+      toolingConfig: ctx?.toolingConfig || {}
+    });
+    const resolvedCmd = commandProfile.resolved.cmd;
     if (!canRunClangd(resolvedCmd)) {
       log('[index] clangd not detected; skipping tooling-based types.');
       return {
@@ -502,12 +502,6 @@ export const createClangdProvider = () => ({
         diagnostics: appendDiagnosticChecks(null, duplicateChecks)
       };
     }
-    const clangdArgs = [];
-    // clangd is very chatty at info-level (e.g. missing compilation DB).
-    // Keep stdout/stderr noise down during indexing runs.
-    clangdArgs.push('--log=error');
-    clangdArgs.push('--background-index=false');
-    if (compileCommandsDir) clangdArgs.push(`--compile-commands-dir=${compileCommandsDir}`);
     const configuredFallbackFlags = Array.isArray(clangdConfig.fallbackFlags)
       ? clangdConfig.fallbackFlags
         .map((entry) => String(entry || '').trim())
@@ -585,7 +579,7 @@ export const createClangdProvider = () => ({
         abortSignal: ctx?.abortSignal || null,
         log,
         cmd: resolvedCmd,
-        args: clangdArgs,
+        args: commandProfile.resolved.args || clangdArgs,
         timeoutMs,
         retries,
         breakerThreshold,

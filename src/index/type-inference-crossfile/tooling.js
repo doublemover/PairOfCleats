@@ -255,7 +255,7 @@ export const runToolingPass = async ({
 
   const doctorCacheEnabled = toolingConfig?.doctorCache !== false;
   const doctorCachePath = path.join(buildRoot || rootDir, TOOLING_DOCTOR_CACHE_FILE);
-  const doctorReportPath = path.join(buildRoot || rootDir, 'tooling_report.json');
+  const doctorReportPath = path.join(buildRoot || rootDir, 'tooling_doctor_report.json');
   const doctorCacheKey = buildToolingDoctorCacheKey({
     rootDir,
     buildRoot: buildRoot || rootDir,
