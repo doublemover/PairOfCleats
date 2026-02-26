@@ -56,6 +56,11 @@ const symbolsByMode = {
     detail: 'string Greet(string name)',
     kind: 12
   },
+  'csharp-overload': {
+    name: 'Greet',
+    detail: 'string Greet(string name, int count = 1)',
+    kind: 12
+  },
   ruby: {
     name: 'greet',
     detail: 'greet(name : String, title = nil) -> String',

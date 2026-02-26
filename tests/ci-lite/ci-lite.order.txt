@@ -768,6 +768,7 @@ tooling/lsp/jdtls-provider-bootstrap
 tooling/lsp/jdtls-provider-workspace-guard
 tooling/lsp/csharp-provider-bootstrap
 tooling/lsp/csharp-provider-workspace-guard
+tooling/lsp/csharp-provider-overload-signature
 tooling/lsp/solargraph-provider-bootstrap
 tooling/lsp/solargraph-provider-workspace-guard
 tooling/lsp/solargraph-provider-command-fallback
