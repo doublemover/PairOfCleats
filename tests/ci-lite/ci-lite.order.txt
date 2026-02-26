@@ -632,6 +632,7 @@ tooling/lsp/lsp-collect-shutdown-race-clean
 tooling/lsp/lsp-protocol-fragmented-frames
 tooling/lsp/lsp-protocol-malformed-initialize-fail-open
 tooling/lsp/lsp-protocol-malformed-document-symbol-fail-open
+tooling/lsp/lsp-protocol-malformed-hover-fail-open
 tooling/lsp/lsp-protocol-disconnect-document-symbol-fail-open
 tooling/lsp/lsp-protocol-stall-initialize-timeout
 tooling/download/shared-fetch-contract

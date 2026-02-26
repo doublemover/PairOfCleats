@@ -333,6 +333,10 @@ const handleRequest = (message) => {
     return;
   }
   if (method === 'textDocument/hover') {
+    if (mode === 'malformed-hover') {
+      sendMalformedFrame('{"jsonrpc":"2.0","id":3,"result":');
+      return;
+    }
     respond(id, {
       contents: { kind: 'plaintext', value: config.detail }
     });
