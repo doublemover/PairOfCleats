@@ -786,6 +786,7 @@ tooling/lsp/haskell-provider-workspace-guard
 tooling/lsp/haskell-provider-command-fallback
 tooling/doctor/doctor-runtime-requirements-haskell-dedicated
 tooling/doctor/doctor-workspace-model-haskell-detection
+tooling/lsp/dedicated-providers-multifile-session-reuse
 tooling/lsp/dart-provider-bootstrap
 tooling/lsp/dart-provider-workspace-guard
 tooling/lsp/dart-provider-command-fallback
