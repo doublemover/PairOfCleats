@@ -33,6 +33,30 @@ const stdoutGuard = createStdoutGuard({
 });
 const languageOverride = normalizeLanguageList(argv.languages);
 const toolOverride = normalizeLanguageList(argv.tools);
+const WINDOWS_COMMAND_WRAPPERS = new Set(['npm', 'npx', 'pnpm', 'yarn', 'corepack']);
+const shouldUseCmdShell = (command) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(command);
+const quoteWindowsCmdArg = (value) => {
+  const text = String(value ?? '');
+  if (!text) return '""';
+  if (!/[\s"&|<>^();]/u.test(text)) return text;
+  return `"${text.replaceAll('"', '""')}"`;
+};
+
+const resolveSpawnCommand = (cmd) => {
+  const value = String(cmd || '').trim();
+  if (!value || process.platform !== 'win32') return value;
+  if (path.extname(value) || value.includes(path.sep) || value.includes('/')) return value;
+  return WINDOWS_COMMAND_WRAPPERS.has(value.toLowerCase()) ? `${value}.cmd` : value;
+};
+
+const spawnToolCommand = (command, args, options) => {
+  if (!shouldUseCmdShell(command)) {
+    return spawnSync(command, args, options);
+  }
+  const commandLine = [command, ...args].map(quoteWindowsCmdArg).join(' ');
+  const shellExe = process.env.ComSpec || 'cmd.exe';
+  return spawnSync(shellExe, ['/d', '/s', '/c', commandLine], options);
+};
 
 const report = toolOverride.length
   ? { languages: {}, formats: {} }
@@ -58,7 +82,7 @@ for (const tool of tools) {
   }
   const { cmd, args, env, requires } = selection.plan;
   if (requires) {
-    const requireCheck = spawnSync(requires, ['--version'], {
+    const requireCheck = spawnToolCommand(resolveSpawnCommand(requires), ['--version'], {
       encoding: 'utf8',
       stdio: 'ignore',
       windowsHide: true
@@ -90,6 +114,7 @@ if (argv['dry-run']) {
 for (const action of actions) {
   console.error(`[tooling-install] Installing ${action.id} (${action.scope})...`);
   const env = action.env ? { ...process.env, ...action.env } : process.env;
+  const command = resolveSpawnCommand(action.cmd);
   const spawnOpts = {
     env,
     // Keep JSON mode machine-parseable: suppress child stdout and stream
@@ -97,7 +122,7 @@ for (const action of actions) {
     stdio: argv.json ? ['inherit', 'ignore', 'inherit'] : 'inherit',
     windowsHide: true
   };
-  const result = spawnSync(action.cmd, action.args, spawnOpts);
+  const result = spawnToolCommand(command, action.args, spawnOpts);
   if (typeof result.signal === 'string' && result.signal.trim()) {
     exitLikeCommandResult({ status: null, signal: result.signal });
   }
