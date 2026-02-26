@@ -73,6 +73,8 @@ export function createLspClient(options) {
     log = () => {},
     onNotification,
     onRequest,
+    onLifecycleEvent,
+    onStderrLine,
     stderrFilter,
     maxBufferBytes,
     maxHeaderBytes,
@@ -95,6 +97,23 @@ export function createLspClient(options) {
   let nextStartAt = 0;
   // Ensure every LSP request is bounded unless explicitly disabled.
   const DEFAULT_REQUEST_TIMEOUT_MS = 15000;
+
+  const emitLifecycleEvent = (event) => {
+    if (typeof onLifecycleEvent !== 'function') return;
+    try {
+      onLifecycleEvent({
+        at: Date.now(),
+        ...(event && typeof event === 'object' ? event : {})
+      });
+    } catch {}
+  };
+
+  const emitStderrLine = (line) => {
+    if (typeof onStderrLine !== 'function') return;
+    try {
+      onStderrLine(String(line || ''));
+    } catch {}
+  };
 
   const rejectPending = (err) => {
     for (const entry of pending.values()) {
@@ -210,6 +229,12 @@ export function createLspClient(options) {
       ? spawn(spawnCmd, spawnOptions)
       : spawn(spawnCmd, spawnArgs, spawnOptions);
     proc = child;
+    emitLifecycleEvent({
+      kind: 'start',
+      pid: Number.isFinite(Number(child?.pid)) ? Number(child.pid) : null,
+      cmd,
+      args
+    });
     unregisterChildProcess = registerChildProcessForCleanup(child, {
       killTree: true,
       detached: false
@@ -266,6 +291,7 @@ export function createLspClient(options) {
             if (!nextLine) continue;
           } catch {}
         }
+        emitStderrLine(nextLine);
         log(`[lsp] ${nextLine}`);
       }
     });
@@ -281,6 +307,12 @@ export function createLspClient(options) {
       if (child?.stdin) closeJsonRpcWriter(child.stdin);
       backoffMs = backoffMs ? Math.min(backoffMs * 2, 5000) : 250;
       nextStartAt = Date.now() + backoffMs;
+      emitLifecycleEvent({
+        kind: 'error',
+        code: err?.code || null,
+        message: err?.message || String(err),
+        backoffMs
+      });
     });
     child.on('exit', (code, signal) => {
       if (proc !== child || childGen !== generation) return;
@@ -294,6 +326,12 @@ export function createLspClient(options) {
       if (child?.stdin) closeJsonRpcWriter(child.stdin);
       backoffMs = backoffMs ? Math.min(backoffMs * 2, 5000) : 250;
       nextStartAt = Date.now() + backoffMs;
+      emitLifecycleEvent({
+        kind: 'exit',
+        code: code ?? null,
+        signal: signal ?? null,
+        backoffMs
+      });
     });
     return child;
   };
@@ -380,6 +418,10 @@ export function createLspClient(options) {
     writerClosed = true;
     backoffMs = 0;
     nextStartAt = 0;
+    emitLifecycleEvent({
+      kind: 'kill',
+      pid: Number.isFinite(Number(current?.pid)) ? Number(current.pid) : null
+    });
   };
 
   return {

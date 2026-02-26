@@ -477,6 +477,19 @@ const recordCircuitOpenCheck = ({ cmd, guard, checks, checkFlags }) => {
   });
 };
 
+const recordCrashLoopCheck = ({ cmd, checks, checkFlags, detail }) => {
+  if (checkFlags.crashLoopQuarantined) return;
+  checkFlags.crashLoopQuarantined = true;
+  const remainingMs = Number.isFinite(Number(detail?.crashLoopBackoffRemainingMs))
+    ? Math.max(0, Math.floor(Number(detail.crashLoopBackoffRemainingMs)))
+    : null;
+  checks.push({
+    name: 'tooling_crash_loop_quarantined',
+    status: 'warn',
+    message: `${cmd} crash-loop quarantine active${remainingMs != null ? ` (${remainingMs}ms remaining)` : ''}.`
+  });
+};
+
 /**
  * Enrich chunk payloads for one document using symbol + hover information.
  *
@@ -496,6 +509,7 @@ export const processDocumentTypes = async ({
   cmd,
   client,
   guard,
+  guardRun,
   log,
   strict,
   parseSignature,
@@ -527,6 +541,9 @@ export const processDocumentTypes = async ({
 }) => {
   throwIfAborted(abortSignal);
   if (guard.isOpen()) return { enrichedDelta: 0 };
+  const runGuarded = typeof guardRun === 'function'
+    ? guardRun
+    : ((fn, options) => guard.run(fn, options));
 
   const docTargets = targetsByPath.get(doc.virtualPath) || [];
   const fileHoverStats = hoverFileStats.get(doc.virtualPath) || createHoverFileStats();
@@ -567,7 +584,7 @@ export const processDocumentTypes = async ({
     throwIfAborted(abortSignal);
     let symbols = null;
     try {
-      symbols = await guard.run(
+      symbols = await runGuarded(
         ({ timeoutMs: guardTimeout }) => client.request(
           'textDocument/documentSymbol',
           { textDocument: { uri } },
@@ -582,6 +599,8 @@ export const processDocumentTypes = async ({
       log(`[index] ${cmd} documentSymbol failed (${doc.virtualPath}): ${err?.message || err}`);
       if (err?.code === 'TOOLING_CIRCUIT_OPEN') {
         recordCircuitOpenCheck({ cmd, guard, checks, checkFlags });
+      } else if (err?.code === 'TOOLING_CRASH_LOOP') {
+        recordCrashLoopCheck({ cmd, checks, checkFlags, detail: err?.detail || null });
       }
       return { enrichedDelta: 0 };
     }
@@ -623,7 +642,7 @@ export const processDocumentTypes = async ({
 
         try {
           throwIfAborted(abortSignal);
-          const hover = await hoverLimiter(() => guard.run(
+          const hover = await hoverLimiter(() => runGuarded(
             ({ timeoutMs: guardTimeout }) => client.request('textDocument/hover', {
               textDocument: { uri },
               position
@@ -648,6 +667,8 @@ export const processDocumentTypes = async ({
           const isTimeout = message.includes('timeout');
           if (err?.code === 'TOOLING_CIRCUIT_OPEN') {
             recordCircuitOpenCheck({ cmd, guard, checks, checkFlags });
+          } else if (err?.code === 'TOOLING_CRASH_LOOP') {
+            recordCrashLoopCheck({ cmd, checks, checkFlags, detail: err?.detail || null });
           }
           if (isTimeout) {
             fileHoverStats.timedOut += 1;

@@ -135,15 +135,18 @@ const createConfiguredLspProvider = (server) => {
         hoverCacheMaxEntries: server.hoverCacheMaxEntries,
         captureDiagnostics: true
       });
+      const diagnostics = appendDiagnosticChecks(
+        result.diagnosticsCount
+          ? { diagnosticsCount: result.diagnosticsCount, diagnosticsByChunkUid: result.diagnosticsByChunkUid }
+          : null,
+        Array.isArray(result.checks) ? result.checks : []
+      );
       return {
         provider: { id: providerId, version: this.version, configHash: this.getConfigHash(ctx) },
         byChunkUid: result.byChunkUid,
-        diagnostics: appendDiagnosticChecks(
-          result.diagnosticsCount
-            ? { diagnosticsCount: result.diagnosticsCount, diagnosticsByChunkUid: result.diagnosticsByChunkUid }
-            : null,
-          Array.isArray(result.checks) ? result.checks : []
-        )
+        diagnostics: result.runtime
+          ? { ...(diagnostics || {}), runtime: result.runtime }
+          : diagnostics
       };
     }
   };

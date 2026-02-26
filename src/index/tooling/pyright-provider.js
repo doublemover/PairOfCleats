@@ -137,15 +137,18 @@ export const createPyrightProvider = () => ({
       indexDir: ctx?.buildRoot || null,
       captureDiagnostics: true
     });
+    const diagnostics = appendDiagnosticChecks(
+      result.diagnosticsCount
+        ? { diagnosticsCount: result.diagnosticsCount, diagnosticsByChunkUid: result.diagnosticsByChunkUid }
+        : null,
+      [...duplicateChecks, ...(Array.isArray(result.checks) ? result.checks : [])]
+    );
     return {
       provider: { id: 'pyright', version: '2.0.0', configHash: this.getConfigHash(ctx) },
       byChunkUid: result.byChunkUid,
-      diagnostics: appendDiagnosticChecks(
-        result.diagnosticsCount
-          ? { diagnosticsCount: result.diagnosticsCount, diagnosticsByChunkUid: result.diagnosticsByChunkUid }
-          : null,
-        [...duplicateChecks, ...(Array.isArray(result.checks) ? result.checks : [])]
-      )
+      diagnostics: result.runtime
+        ? { ...(diagnostics || {}), runtime: result.runtime }
+        : diagnostics
     };
   }
 });

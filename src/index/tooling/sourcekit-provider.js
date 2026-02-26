@@ -701,13 +701,16 @@ export const createSourcekitProvider = () => ({
       });
 
       logHoverMetrics(log, result.hoverMetrics);
+      const diagnostics = appendDiagnosticChecks(
+        result.diagnosticsCount ? { diagnosticsCount: result.diagnosticsCount } : null,
+        [...checks, ...(Array.isArray(result.checks) ? result.checks : [])]
+      );
       return {
         provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: result.byChunkUid,
-        diagnostics: appendDiagnosticChecks(
-          result.diagnosticsCount ? { diagnosticsCount: result.diagnosticsCount } : null,
-          [...checks, ...(Array.isArray(result.checks) ? result.checks : [])]
-        )
+        diagnostics: result.runtime
+          ? { ...(diagnostics || {}), runtime: result.runtime }
+          : diagnostics
       };
     } finally {
       if (hostLock?.release) {

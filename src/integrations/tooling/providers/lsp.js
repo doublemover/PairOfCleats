@@ -2,7 +2,7 @@ import path from 'node:path';
 import { buildLineIndex } from '../../../shared/lines.js';
 import { createLspClient, languageIdForFileExt, pathToFileUri } from '../lsp/client.js';
 import { buildVfsUri } from '../lsp/uris.js';
-import { createToolingGuard } from './shared.js';
+import { createToolingGuard, createToolingLifecycleHealth } from './shared.js';
 import { buildIndexSignature } from '../../../retrieval/index-cache.js';
 import {
   computeVfsManifestHash,
@@ -37,6 +37,7 @@ import {
   resolveDocumentUri,
   resolveVfsIoBatching
 } from './lsp/vfs-batching.js';
+import { probeLspCapabilities } from './lsp/capabilities.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 
 /**
@@ -51,18 +52,22 @@ const clampPositiveInt = (value, fallback) => {
   return Math.max(1, Math.floor(parsed));
 };
 
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 /**
  * Create the canonical empty LSP collection payload.
  * @param {Array<object>} checks
- * @returns {{byChunkUid:object,diagnosticsByChunkUid:object,enriched:number,diagnosticsCount:number,checks:Array<object>,hoverMetrics:object}}
+ * @param {object|null} [runtime]
+ * @returns {{byChunkUid:object,diagnosticsByChunkUid:object,enriched:number,diagnosticsCount:number,checks:Array<object>,hoverMetrics:object,runtime:object|null}}
  */
-const buildEmptyCollectResult = (checks) => ({
+const buildEmptyCollectResult = (checks, runtime = null) => ({
   byChunkUid: {},
   diagnosticsByChunkUid: {},
   enriched: 0,
   diagnosticsCount: 0,
   checks,
-  hoverMetrics: createEmptyHoverMetricsResult()
+  hoverMetrics: createEmptyHoverMetricsResult(),
+  runtime
 });
 
 export { resolveVfsIoBatching, ensureVirtualFilesBatch };
@@ -117,8 +122,11 @@ export { resolveVfsIoBatching, ensureVirtualFilesBatch };
  * @param {number} [params.hoverCacheMaxEntries=50000]
  * @param {(line:string)=>boolean|null} [params.stderrFilter=null]
  * @param {object|null} [params.initializationOptions=null]
+ * @param {number|null} [params.lifecycleRestartWindowMs=null]
+ * @param {number|null} [params.lifecycleMaxRestartsPerWindow=null]
+ * @param {number|null} [params.lifecycleFdPressureBackoffMs=null]
  * @param {AbortSignal|null} [params.abortSignal=null]
- * @returns {Promise<{byChunkUid:object,diagnosticsByChunkUid:object,enriched:number,diagnosticsCount:number,checks:Array<object>,hoverMetrics:object}>}
+ * @returns {Promise<{byChunkUid:object,diagnosticsByChunkUid:object,enriched:number,diagnosticsCount:number,checks:Array<object>,hoverMetrics:object,runtime:object|null}>}
  */
 export async function collectLspTypes({
   rootDir,
@@ -156,6 +164,9 @@ export async function collectLspTypes({
   hoverCacheMaxEntries = DEFAULT_HOVER_CACHE_MAX_ENTRIES,
   stderrFilter = null,
   initializationOptions = null,
+  lifecycleRestartWindowMs = null,
+  lifecycleMaxRestartsPerWindow = null,
+  lifecycleFdPressureBackoffMs = null,
   abortSignal = null
 }) {
   const toolingAbortSignal = abortSignal && typeof abortSignal.aborted === 'boolean'
@@ -193,10 +204,15 @@ export async function collectLspTypes({
   );
 
   const checks = [];
+  const runtime = {
+    command: String(cmd || ''),
+    capabilities: null,
+    lifecycle: null
+  };
   const docs = Array.isArray(documents) ? documents : [];
   const targetList = Array.isArray(targets) ? targets : [];
   if (!docs.length || !targetList.length) {
-    return buildEmptyCollectResult(checks);
+    return buildEmptyCollectResult(checks, runtime);
   }
   throwIfAborted(toolingAbortSignal);
 
@@ -215,7 +231,7 @@ export async function collectLspTypes({
 
   const docsToOpen = docs.filter((doc) => (targetsByPath.get(doc.virtualPath) || []).length);
   if (!docsToOpen.length) {
-    return buildEmptyCollectResult(checks);
+    return buildEmptyCollectResult(checks, runtime);
   }
 
   let coldStartCache = null;
@@ -238,7 +254,9 @@ export async function collectLspTypes({
     diagnosticsPerChunkTrimmed: false,
     hoverTimedOut: false,
     circuitOpened: false,
-    initializeFailed: false
+    initializeFailed: false,
+    fdPressureBackoff: false,
+    crashLoopQuarantined: false
   };
 
   const { diagnosticsByUri, onNotification } = createDiagnosticsCollector({
@@ -249,13 +267,23 @@ export async function collectLspTypes({
     maxDiagnosticsPerUri: resolvedMaxDiagnosticsPerUri
   });
 
+  const lifecycleHealth = createToolingLifecycleHealth({
+    name: cmd,
+    restartWindowMs: lifecycleRestartWindowMs,
+    maxRestartsPerWindow: lifecycleMaxRestartsPerWindow,
+    fdPressureBackoffMs: lifecycleFdPressureBackoffMs,
+    log
+  });
+
   const client = createLspClient({
     cmd,
     args,
     cwd: rootDir,
     log,
     stderrFilter,
-    onNotification
+    onNotification,
+    onLifecycleEvent: lifecycleHealth.onLifecycleEvent,
+    onStderrLine: lifecycleHealth.noteStderrLine
   });
   let detachAbortHandler = null;
   if (toolingAbortSignal && typeof toolingAbortSignal.addEventListener === 'function') {
@@ -275,20 +303,81 @@ export async function collectLspTypes({
     log
   });
 
+  const runWithHealthGuard = async (fn, options = {}) => {
+    const state = lifecycleHealth.getState();
+    runtime.lifecycle = state;
+    if (state.crashLoopQuarantined) {
+      const err = new Error(`${cmd} crash-loop quarantine active.`);
+      err.code = 'TOOLING_CRASH_LOOP';
+      err.detail = state;
+      throw err;
+    }
+    if (state.fdPressureBackoffActive) {
+      if (!checkFlags.fdPressureBackoff) {
+        checkFlags.fdPressureBackoff = true;
+        checks.push({
+          name: 'tooling_fd_pressure_backoff',
+          status: 'warn',
+          message: `${cmd} observed fd pressure; delaying LSP requests by ${state.fdPressureBackoffRemainingMs}ms.`,
+          count: state.fdPressureEvents
+        });
+      }
+      await wait(Math.min(1000, Math.max(25, state.fdPressureBackoffRemainingMs)));
+    }
+    return guard.run(fn, options);
+  };
+
   const rootUri = pathToFileUri(rootDir);
   let shouldShutdownClient = false;
+  let capabilityMask = null;
+  let effectiveHoverEnabled = hoverEnabled !== false;
+  let skipSymbolCollection = false;
   try {
     throwIfAborted(toolingAbortSignal);
-    await guard.run(({ timeoutMs: guardTimeout }) => client.initialize({
+    const initializeResult = await runWithHealthGuard(({ timeoutMs: guardTimeout }) => client.initialize({
       rootUri,
       capabilities: { textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } } },
       initializationOptions,
       timeoutMs: guardTimeout
     }), { label: 'initialize' });
+    capabilityMask = probeLspCapabilities(initializeResult);
+    runtime.capabilities = capabilityMask;
+    effectiveHoverEnabled = effectiveHoverEnabled && capabilityMask.hover;
+    if (!capabilityMask.documentSymbol) {
+      checks.push({
+        name: 'tooling_capability_missing_document_symbol',
+        status: 'warn',
+        message: `${cmd} does not advertise textDocument/documentSymbol; skipping LSP enrichment.`
+      });
+      skipSymbolCollection = true;
+      shouldShutdownClient = true;
+    }
+    if (hoverEnabled !== false && !capabilityMask.hover) {
+      checks.push({
+        name: 'tooling_capability_missing_hover',
+        status: 'warn',
+        message: `${cmd} does not advertise textDocument/hover; hover enrichment disabled.`
+      });
+    }
+    if (!capabilityMask.signatureHelp) {
+      checks.push({
+        name: 'tooling_capability_missing_signature_help',
+        status: 'info',
+        message: `${cmd} does not advertise textDocument/signatureHelp.`
+      });
+    }
     shouldShutdownClient = true;
   } catch (err) {
     throwIfAborted(toolingAbortSignal);
     checkFlags.initializeFailed = true;
+    if (err?.code === 'TOOLING_CRASH_LOOP' && !checkFlags.crashLoopQuarantined) {
+      checkFlags.crashLoopQuarantined = true;
+      checks.push({
+        name: 'tooling_crash_loop_quarantined',
+        status: 'warn',
+        message: `${cmd} crash-loop quarantine active; skipping provider work.`
+      });
+    }
     checks.push({
       name: 'tooling_initialize_failed',
       status: 'warn',
@@ -296,10 +385,17 @@ export async function collectLspTypes({
     });
     log(`[index] ${cmd} initialize failed: ${err?.message || err}`);
     client.kill();
-    return buildEmptyCollectResult(checks);
+    return buildEmptyCollectResult(checks, {
+      ...runtime,
+      lifecycle: lifecycleHealth.getState()
+    });
   }
 
   try {
+    if (skipSymbolCollection) {
+      runtime.lifecycle = lifecycleHealth.getState();
+      return buildEmptyCollectResult(checks, runtime);
+    }
     const byChunkUid = {};
     let enriched = 0;
     const signatureParseCache = new Map();
@@ -344,6 +440,7 @@ export async function collectLspTypes({
         cmd,
         client,
         guard,
+        guardRun: runWithHealthGuard,
         log,
         strict,
         parseSignature,
@@ -355,7 +452,7 @@ export async function collectLspTypes({
         targetsByPath,
         byChunkUid,
         signatureParseCache,
-        hoverEnabled,
+        hoverEnabled: effectiveHoverEnabled,
         hoverRequireMissingReturn,
         resolvedHoverKinds,
         resolvedHoverMaxPerFile,
@@ -416,12 +513,25 @@ export async function collectLspTypes({
       }
     }
 
+    const lifecycleState = lifecycleHealth.getState();
+    runtime.lifecycle = lifecycleState;
+    if (lifecycleState.crashLoopTrips > 0 && !checkFlags.crashLoopQuarantined) {
+      checkFlags.crashLoopQuarantined = true;
+      checks.push({
+        name: 'tooling_crash_loop_detected',
+        status: 'warn',
+        message: `${cmd} observed crash-loop pressure (${lifecycleState.crashLoopTrips} trip${lifecycleState.crashLoopTrips === 1 ? '' : 's'}).`,
+        count: lifecycleState.crashLoopTrips
+      });
+    }
+
     return {
       byChunkUid,
       diagnosticsByChunkUid,
       enriched,
       diagnosticsCount,
       checks,
+      runtime,
       hoverMetrics: summarizeHoverMetrics({
         hoverMetrics,
         hoverLatencyMs,

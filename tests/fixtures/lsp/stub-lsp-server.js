@@ -62,6 +62,30 @@ const pyrightDiagnostic = {
 };
 const documents = new Map();
 
+const resolveInitializeCapabilities = () => {
+  if (mode === 'no-document-symbol') {
+    return {
+      hoverProvider: true
+    };
+  }
+  if (mode === 'no-hover') {
+    return {
+      documentSymbolProvider: true
+    };
+  }
+  if (mode === 'signature-help') {
+    return {
+      documentSymbolProvider: true,
+      hoverProvider: true,
+      signatureHelpProvider: true
+    };
+  }
+  return {
+    documentSymbolProvider: true,
+    hoverProvider: true
+  };
+};
+
 const send = (payload) => {
   const pending = writeFramedJsonRpc(process.stdout, payload);
   if (pending && typeof pending.catch === 'function') {
@@ -119,10 +143,7 @@ const handleRequest = (message) => {
   const { id, method, params } = message;
   if (method === 'initialize') {
     respond(id, {
-      capabilities: {
-        documentSymbolProvider: true,
-        hoverProvider: true
-      }
+      capabilities: resolveInitializeCapabilities()
     });
     return;
   }
