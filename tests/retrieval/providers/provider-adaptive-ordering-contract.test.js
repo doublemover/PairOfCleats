@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { createSearchPipeline } from '../../../src/retrieval/pipeline.js';
 import { ANN_PROVIDER_IDS } from '../../../src/retrieval/ann/types.js';
+import { INDEX_PROFILE_VECTOR_ONLY } from '../../../src/contracts/index-profile.js';
 import { buildAnnPipelineFixture } from '../pipeline/helpers/ann-scenarios.js';
 
 let primaryCalls = 0;
@@ -34,6 +35,7 @@ const { context, idx } = buildAnnPipelineFixture({
     [ANN_PROVIDER_IDS.SQLITE_VECTOR, fallbackProvider]
   ])
 });
+idx.state = { profile: { id: INDEX_PROFILE_VECTOR_ONLY } };
 context.annBackend = 'auto';
 context.annAdaptiveProviders = true;
 
