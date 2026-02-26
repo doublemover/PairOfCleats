@@ -300,6 +300,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
         requestedCmd = 'sourcekit-lsp';
       }
       if (requestedCmd) {
+        const requestedCmdLower = String(requestedCmd).toLowerCase();
         const commandProfile = resolveToolingCommandProfile({
           providerId,
           cmd: requestedCmd,
@@ -348,6 +349,28 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
                 message: `initialize handshake succeeded (${handshake.latencyMs}ms).`
               });
             }
+          }
+        }
+        if (requestedCmdLower === 'zls' && commandProfile.probe.ok) {
+          const zigProfile = resolveToolingCommandProfile({
+            providerId: 'zig',
+            cmd: 'zig',
+            args: ['version'],
+            repoRoot,
+            toolingConfig
+          });
+          if (!zigProfile.probe.ok) {
+            addCheck({
+              name: 'zls-zig-compatibility',
+              status: 'warn',
+              message: 'zls detected but zig toolchain command not available.'
+            });
+          } else {
+            addCheck({
+              name: 'zls-zig-compatibility',
+              status: 'ok',
+              message: 'zls and zig commands detected.'
+            });
           }
         }
       }
