@@ -67,6 +67,26 @@ assert.equal(
   'expected per-method initialize request metric'
 );
 assert.equal(
+  Number(result.runtime.requests.latencyMs?.count || 0) >= 1,
+  true,
+  'expected global request latency sample count'
+);
+assert.equal(
+  Number.isFinite(Number(result.runtime.requests.latencyMs?.p95)),
+  true,
+  'expected global p95 latency metric'
+);
+assert.equal(
+  Number(result.runtime.requests.byMethod?.initialize?.latencyMs?.count || 0) >= 1,
+  true,
+  'expected initialize latency sample count'
+);
+assert.equal(
+  Number.isFinite(Number(result.runtime.requests.byMethod?.initialize?.latencyMs?.p50)),
+  true,
+  'expected initialize p50 latency metric'
+);
+assert.equal(
   Number.isFinite(Number(result.runtime.lifecycle.startsInWindow)),
   true,
   'expected lifecycle starts count'

@@ -59,6 +59,33 @@ const buildWindowsShellCommand = (cmd, args) => (
   [cmd, ...(Array.isArray(args) ? args : [])].map(quoteWindowsCmdArg).join(' ')
 );
 
+const LATENCY_SAMPLE_CAP = 4096;
+
+const pushLatencySample = (samples, value, cap = LATENCY_SAMPLE_CAP) => {
+  if (!Array.isArray(samples)) return;
+  samples.push(value);
+  if (samples.length > cap) {
+    samples.splice(0, samples.length - cap);
+  }
+};
+
+const percentile = (samples, q) => {
+  if (!Array.isArray(samples) || !samples.length) return 0;
+  const sorted = samples.slice().sort((a, b) => a - b);
+  const idx = Math.max(0, Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * q)));
+  return sorted[idx];
+};
+
+const summarizeLatencies = (samples, totalMs, maxMs) => ({
+  count: Array.isArray(samples) ? samples.length : 0,
+  avg: Number.isFinite(totalMs) && Array.isArray(samples) && samples.length
+    ? totalMs / samples.length
+    : 0,
+  max: Number.isFinite(maxMs) ? maxMs : 0,
+  p50: percentile(samples, 0.5),
+  p95: percentile(samples, 0.95)
+});
+
 /**
  * Create a minimal JSON-RPC client for LSP servers.
  * @param {{cmd:string,args?:string[],cwd?:string,env?:object,log?:(msg:string)=>void,onNotification?:(msg:object)=>void,onRequest?:(msg:object)=>Promise<any>}} options
@@ -102,6 +129,9 @@ export function createLspClient(options) {
     succeeded: 0,
     failed: 0,
     timedOut: 0,
+    latencySamplesMs: [],
+    latencyTotalMs: 0,
+    latencyMaxMs: 0,
     byMethod: Object.create(null)
   };
 
@@ -112,10 +142,25 @@ export function createLspClient(options) {
         requests: 0,
         succeeded: 0,
         failed: 0,
-        timedOut: 0
+        timedOut: 0,
+        latencySamplesMs: [],
+        latencyTotalMs: 0,
+        latencyMaxMs: 0
       };
     }
     return requestMetrics.byMethod[key];
+  };
+
+  const recordRequestLatency = (method, latencyMs) => {
+    const value = Number(latencyMs);
+    if (!Number.isFinite(value) || value < 0) return;
+    pushLatencySample(requestMetrics.latencySamplesMs, value);
+    requestMetrics.latencyTotalMs += value;
+    requestMetrics.latencyMaxMs = Math.max(requestMetrics.latencyMaxMs, value);
+    const methodMetric = ensureMethodMetric(method);
+    pushLatencySample(methodMetric.latencySamplesMs, value);
+    methodMetric.latencyTotalMs += value;
+    methodMetric.latencyMaxMs = Math.max(methodMetric.latencyMaxMs, value);
   };
 
   const emitLifecycleEvent = (event) => {
@@ -136,11 +181,13 @@ export function createLspClient(options) {
   };
 
   const rejectPending = (err) => {
+    const now = Date.now();
     for (const entry of pending.values()) {
       if (entry.timeout) clearTimeout(entry.timeout);
       requestMetrics.failed += 1;
       const methodMetric = ensureMethodMetric(entry.method);
       methodMetric.failed += 1;
+      recordRequestLatency(entry.method, now - Number(entry.startedAt || now));
       entry.reject(err);
     }
     pending.clear();
@@ -181,6 +228,8 @@ export function createLspClient(options) {
     if (!entry) return;
     pending.delete(message.id);
     if (entry.timeout) clearTimeout(entry.timeout);
+    const latencyMs = Date.now() - Number(entry.startedAt || Date.now());
+    recordRequestLatency(entry.method, latencyMs);
     const methodMetric = ensureMethodMetric(entry.method);
     if (message.error) {
       requestMetrics.failed += 1;
@@ -375,8 +424,9 @@ export function createLspClient(options) {
     const methodMetric = ensureMethodMetric(method);
     methodMetric.requests += 1;
     const resolvedTimeout = Number.isFinite(timeoutMs) ? timeoutMs : DEFAULT_REQUEST_TIMEOUT_MS;
+    const startedAt = Date.now();
     return new Promise((resolve, reject) => {
-      const entry = { resolve, reject, method, timeout: null };
+      const entry = { resolve, reject, method, timeout: null, startedAt };
       if (Number.isFinite(resolvedTimeout) && resolvedTimeout > 0) {
         entry.timeout = setTimeout(() => {
           pending.delete(id);
@@ -384,6 +434,7 @@ export function createLspClient(options) {
           requestMetrics.failed += 1;
           methodMetric.timedOut += 1;
           methodMetric.failed += 1;
+          recordRequestLatency(method, Date.now() - startedAt);
           const err = new Error(`LSP request timeout (${method}).`);
           err.code = 'ERR_LSP_REQUEST_TIMEOUT';
           reject(err);
@@ -395,6 +446,7 @@ export function createLspClient(options) {
         if (entry.timeout) clearTimeout(entry.timeout);
         requestMetrics.failed += 1;
         methodMetric.failed += 1;
+        recordRequestLatency(method, Date.now() - startedAt);
         entry.reject(new Error(`LSP writer unavailable (${method}).`));
       }
     });
@@ -473,6 +525,11 @@ export function createLspClient(options) {
       succeeded: requestMetrics.succeeded,
       failed: requestMetrics.failed,
       timedOut: requestMetrics.timedOut,
+      latencyMs: summarizeLatencies(
+        requestMetrics.latencySamplesMs,
+        requestMetrics.latencyTotalMs,
+        requestMetrics.latencyMaxMs
+      ),
       byMethod: Object.fromEntries(
         Object.entries(requestMetrics.byMethod).map(([method, stats]) => [
           method,
@@ -480,7 +537,12 @@ export function createLspClient(options) {
             requests: Number(stats?.requests || 0),
             succeeded: Number(stats?.succeeded || 0),
             failed: Number(stats?.failed || 0),
-            timedOut: Number(stats?.timedOut || 0)
+            timedOut: Number(stats?.timedOut || 0),
+            latencyMs: summarizeLatencies(
+              stats?.latencySamplesMs,
+              stats?.latencyTotalMs,
+              stats?.latencyMaxMs
+            )
           }
         ])
       )
