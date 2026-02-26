@@ -362,6 +362,21 @@ const summarizeToolingMetrics = ({
     failed: 0,
     timedOut: 0
   };
+  const healthTotals = {
+    crashLoopTrips: 0,
+    crashLoopQuarantinedProviders: 0,
+    fdPressureEvents: 0,
+    providersWithFdPressure: 0,
+    breakerTripCount: 0,
+    providersWithBreakerTrips: 0,
+    maxConsecutiveFailures: 0
+  };
+  const capabilityTotals = {
+    providersWithCapabilitiesMask: 0,
+    documentSymbol: 0,
+    hover: 0,
+    signatureHelp: 0
+  };
   const providerRuntime = Object.create(null);
   const sortedExecutedProviderIds = Array.from(new Set(executedProviderIds)).sort((a, b) => a.localeCompare(b));
   for (const providerId of sortedExecutedProviderIds) {
@@ -381,6 +396,24 @@ const summarizeToolingMetrics = ({
     requestTotals.succeeded += runtime.requests.succeeded;
     requestTotals.failed += runtime.requests.failed;
     requestTotals.timedOut += runtime.requests.timedOut;
+    healthTotals.crashLoopTrips += runtime.lifecycle.crashLoopTrips;
+    if (runtime.lifecycle.crashLoopQuarantined) healthTotals.crashLoopQuarantinedProviders += 1;
+    healthTotals.fdPressureEvents += runtime.lifecycle.fdPressureEvents;
+    if (runtime.lifecycle.fdPressureEvents > 0 || runtime.lifecycle.fdPressureBackoffActive) {
+      healthTotals.providersWithFdPressure += 1;
+    }
+    healthTotals.breakerTripCount += runtime.guard.tripCount;
+    if (runtime.guard.tripCount > 0) healthTotals.providersWithBreakerTrips += 1;
+    healthTotals.maxConsecutiveFailures = Math.max(
+      healthTotals.maxConsecutiveFailures,
+      runtime.guard.consecutiveFailures
+    );
+    if (runtime.capabilities && typeof runtime.capabilities === 'object') {
+      capabilityTotals.providersWithCapabilitiesMask += 1;
+      if (runtime.capabilities.documentSymbol === true) capabilityTotals.documentSymbol += 1;
+      if (runtime.capabilities.hover === true) capabilityTotals.hover += 1;
+      if (runtime.capabilities.signatureHelp === true) capabilityTotals.signatureHelp += 1;
+    }
   }
   return {
     providersPlanned: uniquePlannedProviderIds.size,
@@ -391,6 +424,8 @@ const summarizeToolingMetrics = ({
     degradedErrorChecks,
     degradedReasonCodeCount: degradedReasonCodes.size,
     requests: requestTotals,
+    health: healthTotals,
+    capabilities: capabilityTotals,
     providerRuntime
   };
 };

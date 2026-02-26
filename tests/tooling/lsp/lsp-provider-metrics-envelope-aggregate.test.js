@@ -27,7 +27,7 @@ const result = await runToolingProviders({
       servers: [{
         id: 'test',
         cmd: process.execPath,
-        args: [serverPath, '--mode', 'clangd'],
+        args: [serverPath, '--mode', 'emit-fd-pressure-warning'],
         languages: ['cpp'],
         uriScheme: 'poc-vfs'
       }]
@@ -93,6 +93,11 @@ assert.equal(result.metrics?.providersContributed, 1, 'expected one contributing
 assert.equal(result.metrics?.degradedProviderCount, 1, 'expected one degraded provider');
 assert.equal(Number(result.metrics?.degradedWarningChecks || 0) >= 1, true, 'expected degraded warning count');
 assert.equal(Number(result.metrics?.requests?.requests || 0) >= 1, true, 'expected request count from active provider');
+assert.equal(Number(result.metrics?.health?.fdPressureEvents || 0) >= 1, true, 'expected fd-pressure event rollup');
+assert.equal(Number(result.metrics?.health?.providersWithFdPressure || 0) >= 1, true, 'expected fd-pressure provider rollup');
+assert.equal(result.metrics?.capabilities?.providersWithCapabilitiesMask, 1, 'expected one provider capability mask');
+assert.equal(result.metrics?.capabilities?.documentSymbol, 1, 'expected documentSymbol capability rollup');
+assert.equal(result.metrics?.capabilities?.hover, 1, 'expected hover capability rollup');
 
 const runtimeKeys = Object.keys(result.metrics?.providerRuntime || {});
 assert.deepEqual(runtimeKeys, ['dart', 'lsp-test'], 'expected deterministic per-provider metrics keys');
