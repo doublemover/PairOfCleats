@@ -225,6 +225,51 @@ const normalizeProvenanceList = (value, { providerId, providerVersion }) => {
   }];
 };
 
+const summarizeDegradedProviders = ({ providerDiagnostics, sourcesByChunkUid, observations }) => {
+  const providerChunkContributions = new Map();
+  for (const sourceSet of sourcesByChunkUid.values()) {
+    if (!sourceSet || typeof sourceSet[Symbol.iterator] !== 'function') continue;
+    for (const providerId of sourceSet) {
+      const normalized = normalizeProviderId(providerId);
+      if (!normalized) continue;
+      providerChunkContributions.set(normalized, (providerChunkContributions.get(normalized) || 0) + 1);
+    }
+  }
+  const degradedProviders = [];
+  for (const [providerIdRaw, diag] of Object.entries(providerDiagnostics || {})) {
+    const providerId = normalizeProviderId(providerIdRaw);
+    if (!providerId) continue;
+    const checks = Array.isArray(diag?.checks) ? diag.checks : [];
+    const failingChecks = checks.filter((check) => check?.status === 'warn' || check?.status === 'error');
+    if (!failingChecks.length) continue;
+    const contributedChunks = providerChunkContributions.get(providerId) || 0;
+    if (contributedChunks > 0) continue;
+    const warningCount = failingChecks.filter((check) => check?.status === 'warn').length;
+    const errorCount = failingChecks.filter((check) => check?.status === 'error').length;
+    const reasonCodes = Array.from(new Set(
+      failingChecks
+        .map((check) => String(check?.name || '').trim())
+        .filter(Boolean)
+    ));
+    const entry = {
+      providerId,
+      warningCount,
+      errorCount,
+      reasonCodes,
+      contributedChunks
+    };
+    degradedProviders.push(entry);
+    observations.push({
+      level: errorCount > 0 ? 'error' : 'warn',
+      code: 'tooling_provider_degraded_mode',
+      message: `[tooling] ${providerId} degraded mode active (fail-open).`,
+      context: entry
+    });
+  }
+  degradedProviders.sort((a, b) => a.providerId.localeCompare(b.providerId));
+  return degradedProviders;
+};
+
 export async function runToolingProviders(ctx, inputs, providerIds = null) {
   const strict = ctx?.strict !== false;
   const documents = Array.isArray(inputs?.documents) ? inputs.documents : [];
@@ -365,10 +410,17 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
     });
   }
 
+  const degradedProviders = summarizeDegradedProviders({
+    providerDiagnostics,
+    sourcesByChunkUid,
+    observations
+  });
+
   return {
     byChunkUid: merged,
     sourcesByChunkUid,
     diagnostics: providerDiagnostics,
-    observations
+    observations,
+    degradedProviders
   };
 }

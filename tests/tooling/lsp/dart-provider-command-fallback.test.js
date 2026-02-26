@@ -62,5 +62,17 @@ assert.equal(
   true,
   'expected command unavailable warning'
 );
+assert.equal(
+  Array.isArray(result.degradedProviders)
+  && result.degradedProviders.some((entry) => entry?.providerId === 'dart'),
+  true,
+  'expected degraded provider summary entry for dart'
+);
+assert.equal(
+  Array.isArray(result.observations)
+  && result.observations.some((entry) => entry?.code === 'tooling_provider_degraded_mode' && entry?.context?.providerId === 'dart'),
+  true,
+  'expected degraded mode observation for dart'
+);
 
 console.log('dart provider command fallback test passed');
