@@ -20,6 +20,10 @@ const args = process.argv.slice(2);
 const modeIdx = args.indexOf('--mode');
 const mode = modeIdx !== -1 && args[modeIdx + 1] ? args[modeIdx + 1] : 'clangd';
 const exitOnShutdown = args.includes('--exit-on-shutdown');
+const fragmentSizeIdx = args.indexOf('--fragment-size');
+const fragmentSize = fragmentSizeIdx !== -1 && Number.isFinite(Number(args[fragmentSizeIdx + 1]))
+  ? Math.max(1, Math.floor(Number(args[fragmentSizeIdx + 1])))
+  : 8;
 
 const symbolsByMode = {
   clangd: {
@@ -40,6 +44,16 @@ const symbolsByMode = {
   pyright: {
     name: 'greet',
     detail: 'def greet(name: str) -> str',
+    kind: 12
+  },
+  go: {
+    name: 'Add',
+    detail: 'func Add(a int, b int) int',
+    kind: 12
+  },
+  rust: {
+    name: 'add',
+    detail: 'fn add(a: i32, b: i32) -> i32',
     kind: 12
   },
   'clangd-duplicate-symbols': {
@@ -96,7 +110,29 @@ const resolveInitializeCapabilities = (initializeParams = null) => {
   };
 };
 
+const writeRawFrame = (bodyBuffer) => {
+  const header = Buffer.from(`Content-Length: ${bodyBuffer.length}\r\n\r\n`, 'utf8');
+  const frame = Buffer.concat([header, bodyBuffer]);
+  if (mode === 'fragmented-responses') {
+    for (let i = 0; i < frame.length; i += fragmentSize) {
+      process.stdout.write(frame.subarray(i, i + fragmentSize));
+    }
+    return null;
+  }
+  return process.stdout.write(frame);
+};
+
+const sendMalformedFrame = (bodyText) => {
+  writeRawFrame(Buffer.from(String(bodyText || ''), 'utf8'));
+};
+
 const send = (payload) => {
+  if (mode === 'fragmented-responses') {
+    try {
+      writeRawFrame(Buffer.from(JSON.stringify(payload), 'utf8'));
+      return;
+    } catch {}
+  }
   const pending = writeFramedJsonRpc(process.stdout, payload);
   if (pending && typeof pending.catch === 'function') {
     pending.catch(() => {});
@@ -152,6 +188,13 @@ const handleRequest = (message) => {
   recordEvent('request', message);
   const { id, method, params } = message;
   if (method === 'initialize') {
+    if (mode === 'stall-initialize') {
+      return;
+    }
+    if (mode === 'malformed-initialize') {
+      sendMalformedFrame('{"jsonrpc":"2.0","id":1,"result":');
+      return;
+    }
     respond(id, {
       capabilities: resolveInitializeCapabilities(params || null)
     });
@@ -165,6 +208,10 @@ const handleRequest = (message) => {
     return;
   }
   if (method === 'textDocument/documentSymbol') {
+    if (mode === 'disconnect-on-document-symbol') {
+      process.exit(1);
+      return;
+    }
     const uri = params?.textDocument?.uri;
     const text = documents.get(uri) || '';
     const symbol = buildSymbol(text);

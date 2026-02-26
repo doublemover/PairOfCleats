@@ -490,6 +490,27 @@ const recordCrashLoopCheck = ({ cmd, checks, checkFlags, detail }) => {
   });
 };
 
+const recordDocumentSymbolFailureCheck = ({ cmd, checks, checkFlags, err }) => {
+  if (checkFlags.documentSymbolFailed) return;
+  checkFlags.documentSymbolFailed = true;
+  const message = String(err?.message || err || '');
+  const lower = message.toLowerCase();
+  const category = lower.includes('timeout')
+    ? 'timeout'
+    : (
+      err?.code === 'ERR_LSP_TRANSPORT_CLOSED'
+          || lower.includes('transport closed')
+          || lower.includes('writer unavailable')
+    )
+      ? 'transport'
+      : 'request';
+  checks.push({
+    name: 'tooling_document_symbol_failed',
+    status: 'warn',
+    message: `${cmd} documentSymbol requests failed; running in degraded mode (${category}).`
+  });
+};
+
 /**
  * Enrich chunk payloads for one document using symbol + hover information.
  *
@@ -601,6 +622,8 @@ export const processDocumentTypes = async ({
         recordCircuitOpenCheck({ cmd, guard, checks, checkFlags });
       } else if (err?.code === 'TOOLING_CRASH_LOOP') {
         recordCrashLoopCheck({ cmd, checks, checkFlags, detail: err?.detail || null });
+      } else {
+        recordDocumentSymbolFailureCheck({ cmd, checks, checkFlags, err });
       }
       return { enrichedDelta: 0 };
     }

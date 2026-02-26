@@ -97,6 +97,26 @@ export function createLspClient(options) {
   let nextStartAt = 0;
   // Ensure every LSP request is bounded unless explicitly disabled.
   const DEFAULT_REQUEST_TIMEOUT_MS = 15000;
+  const requestMetrics = {
+    requests: 0,
+    succeeded: 0,
+    failed: 0,
+    timedOut: 0,
+    byMethod: Object.create(null)
+  };
+
+  const ensureMethodMetric = (method) => {
+    const key = String(method || 'unknown');
+    if (!requestMetrics.byMethod[key]) {
+      requestMetrics.byMethod[key] = {
+        requests: 0,
+        succeeded: 0,
+        failed: 0,
+        timedOut: 0
+      };
+    }
+    return requestMetrics.byMethod[key];
+  };
 
   const emitLifecycleEvent = (event) => {
     if (typeof onLifecycleEvent !== 'function') return;
@@ -118,6 +138,9 @@ export function createLspClient(options) {
   const rejectPending = (err) => {
     for (const entry of pending.values()) {
       if (entry.timeout) clearTimeout(entry.timeout);
+      requestMetrics.failed += 1;
+      const methodMetric = ensureMethodMetric(entry.method);
+      methodMetric.failed += 1;
       entry.reject(err);
     }
     pending.clear();
@@ -158,12 +181,17 @@ export function createLspClient(options) {
     if (!entry) return;
     pending.delete(message.id);
     if (entry.timeout) clearTimeout(entry.timeout);
+    const methodMetric = ensureMethodMetric(entry.method);
     if (message.error) {
+      requestMetrics.failed += 1;
+      methodMetric.failed += 1;
       const err = new Error(message.error.message || 'LSP request failed.');
       err.code = message.error.code;
       entry.reject(err);
       return;
     }
+    requestMetrics.succeeded += 1;
+    methodMetric.succeeded += 1;
     entry.resolve(message.result);
   };
 
@@ -343,19 +371,30 @@ export function createLspClient(options) {
       return Promise.reject(err);
     }
     const id = nextId++;
+    requestMetrics.requests += 1;
+    const methodMetric = ensureMethodMetric(method);
+    methodMetric.requests += 1;
     const resolvedTimeout = Number.isFinite(timeoutMs) ? timeoutMs : DEFAULT_REQUEST_TIMEOUT_MS;
     return new Promise((resolve, reject) => {
       const entry = { resolve, reject, method, timeout: null };
       if (Number.isFinite(resolvedTimeout) && resolvedTimeout > 0) {
         entry.timeout = setTimeout(() => {
           pending.delete(id);
-          reject(new Error(`LSP request timeout (${method}).`));
+          requestMetrics.timedOut += 1;
+          requestMetrics.failed += 1;
+          methodMetric.timedOut += 1;
+          methodMetric.failed += 1;
+          const err = new Error(`LSP request timeout (${method}).`);
+          err.code = 'ERR_LSP_REQUEST_TIMEOUT';
+          reject(err);
         }, resolvedTimeout);
       }
       pending.set(id, entry);
       if (!send({ jsonrpc: '2.0', id, method, params })) {
         pending.delete(id);
         if (entry.timeout) clearTimeout(entry.timeout);
+        requestMetrics.failed += 1;
+        methodMetric.failed += 1;
         entry.reject(new Error(`LSP writer unavailable (${method}).`));
       }
     });
@@ -429,6 +468,23 @@ export function createLspClient(options) {
     initialize,
     notify,
     request,
+    getMetrics: () => ({
+      requests: requestMetrics.requests,
+      succeeded: requestMetrics.succeeded,
+      failed: requestMetrics.failed,
+      timedOut: requestMetrics.timedOut,
+      byMethod: Object.fromEntries(
+        Object.entries(requestMetrics.byMethod).map(([method, stats]) => [
+          method,
+          {
+            requests: Number(stats?.requests || 0),
+            succeeded: Number(stats?.succeeded || 0),
+            failed: Number(stats?.failed || 0),
+            timedOut: Number(stats?.timedOut || 0)
+          }
+        ])
+      )
+    }),
     shutdownAndExit,
     kill
   };

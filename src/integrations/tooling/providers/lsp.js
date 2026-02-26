@@ -207,7 +207,9 @@ export async function collectLspTypes({
   const runtime = {
     command: String(cmd || ''),
     capabilities: null,
-    lifecycle: null
+    lifecycle: null,
+    guard: null,
+    requests: null
   };
   const docs = Array.isArray(documents) ? documents : [];
   const targetList = Array.isArray(targets) ? targets : [];
@@ -253,6 +255,7 @@ export async function collectLspTypes({
     diagnosticsUriBufferTrimmed: false,
     diagnosticsPerChunkTrimmed: false,
     hoverTimedOut: false,
+    documentSymbolFailed: false,
     circuitOpened: false,
     initializeFailed: false,
     fdPressureBackoff: false,
@@ -303,6 +306,12 @@ export async function collectLspTypes({
     log
   });
 
+  const refreshRuntimeState = () => {
+    runtime.lifecycle = lifecycleHealth.getState();
+    runtime.guard = guard.getState ? guard.getState() : null;
+    runtime.requests = typeof client.getMetrics === 'function' ? client.getMetrics() : null;
+  };
+
   const runWithHealthGuard = async (fn, options = {}) => {
     const state = lifecycleHealth.getState();
     runtime.lifecycle = state;
@@ -324,7 +333,9 @@ export async function collectLspTypes({
       }
       await wait(Math.min(1000, Math.max(25, state.fdPressureBackoffRemainingMs)));
     }
-    return guard.run(fn, options);
+    const out = await guard.run(fn, options);
+    refreshRuntimeState();
+    return out;
   };
 
   const rootUri = pathToFileUri(rootDir);
@@ -385,6 +396,7 @@ export async function collectLspTypes({
     });
     log(`[index] ${cmd} initialize failed: ${err?.message || err}`);
     client.kill();
+    refreshRuntimeState();
     return buildEmptyCollectResult(checks, {
       ...runtime,
       lifecycle: lifecycleHealth.getState()
@@ -394,6 +406,8 @@ export async function collectLspTypes({
   try {
     if (skipSymbolCollection) {
       runtime.lifecycle = lifecycleHealth.getState();
+      runtime.guard = guard.getState ? guard.getState() : null;
+      runtime.requests = typeof client.getMetrics === 'function' ? client.getMetrics() : null;
       return buildEmptyCollectResult(checks, runtime);
     }
     const byChunkUid = {};
@@ -515,6 +529,8 @@ export async function collectLspTypes({
 
     const lifecycleState = lifecycleHealth.getState();
     runtime.lifecycle = lifecycleState;
+    runtime.guard = guard.getState ? guard.getState() : null;
+    runtime.requests = typeof client.getMetrics === 'function' ? client.getMetrics() : null;
     if (lifecycleState.crashLoopTrips > 0 && !checkFlags.crashLoopQuarantined) {
       checkFlags.crashLoopQuarantined = true;
       checks.push({

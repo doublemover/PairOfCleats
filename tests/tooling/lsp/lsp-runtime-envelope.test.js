@@ -54,6 +54,18 @@ assert.ok(result.runtime.capabilities && typeof result.runtime.capabilities === 
 assert.equal(result.runtime.capabilities.documentSymbol, true, 'expected documentSymbol capability flag');
 assert.equal(result.runtime.capabilities.hover, true, 'expected hover capability flag');
 assert.ok(result.runtime.lifecycle && typeof result.runtime.lifecycle === 'object', 'expected lifecycle metrics');
+assert.ok(result.runtime.guard && typeof result.runtime.guard === 'object', 'expected guard metrics');
+assert.ok(result.runtime.requests && typeof result.runtime.requests === 'object', 'expected request metrics');
+assert.equal(
+  Number.isFinite(Number(result.runtime.requests.requests)),
+  true,
+  'expected request count metric'
+);
+assert.equal(
+  Number.isFinite(Number(result.runtime.requests.byMethod?.initialize?.requests)),
+  true,
+  'expected per-method initialize request metric'
+);
 assert.equal(
   Number.isFinite(Number(result.runtime.lifecycle.startsInWindow)),
   true,
