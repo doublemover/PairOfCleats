@@ -220,6 +220,20 @@ export const runCrossFileInference = async ({
         `retentionRate=${formatRatio(roiMetrics.linkRetentionRate)}, ` +
         `contributionPerLink=${(roiMetrics.contributionPerAddedLink || 0).toFixed(4)}`
       );
+      const tooling = roiMetrics.tooling || null;
+      if (tooling && (
+        Number(tooling.providersExecuted) > 0
+        || Number(tooling.requests) > 0
+        || Number(tooling.degradedProviders) > 0
+      )) {
+        log(
+          `[perf] cross-file roi tooling providers=${formatCount(tooling.providersExecuted)} ` +
+          `(contributed=${formatCount(tooling.providersContributed)}, degraded=${formatCount(tooling.degradedProviders)}), ` +
+          `requests=${formatCount(tooling.requests)}, ` +
+          `failureRate=${formatRatio(tooling.requestFailureRate)}, ` +
+          `timeoutRate=${formatRatio(tooling.requestTimeoutRate)}`
+        );
+      }
     }
   }
 
