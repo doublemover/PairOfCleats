@@ -6,6 +6,7 @@ import { resolveToolingCommandProfile } from './command-resolver.js';
 import { parseClikeSignature } from './signature-parse/clike.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
 import { hasWorkspaceMarker } from './workspace-model.js';
+import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 
 const JAVA_EXTS = ['.java'];
 
@@ -29,11 +30,6 @@ const ensureWorkspaceDataArg = (args, workspaceDataDir) => {
     if (normalizedArgs[i + 1]) return normalizedArgs;
   }
   return [...normalizedArgs, '-data', workspaceDataDir];
-};
-
-const asFiniteNumber = (value) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
 };
 
 const isPlainObject = (value) => value != null && typeof value === 'object' && !Array.isArray(value);
@@ -129,20 +125,21 @@ export const createJdtlsProvider = () => ({
     } catch {}
     const resolvedArgs = ensureWorkspaceDataArg(commandProfile.resolved.args || requestedArgs, workspaceDataDir);
 
-    const globalTimeoutMs = asFiniteNumber(ctx?.toolingConfig?.timeoutMs);
-    const providerTimeoutMs = asFiniteNumber(config.timeoutMs);
-    const timeoutMs = Math.max(30000, Math.floor(providerTimeoutMs ?? globalTimeoutMs ?? 60000));
-    const retries = Number.isFinite(Number(config.maxRetries))
-      ? Math.max(0, Math.floor(Number(config.maxRetries)))
-      : (ctx?.toolingConfig?.maxRetries ?? 1);
-    const breakerThreshold = Number.isFinite(Number(config.circuitBreakerThreshold))
-      ? Math.max(1, Math.floor(Number(config.circuitBreakerThreshold)))
-      : (ctx?.toolingConfig?.circuitBreakerThreshold ?? 4);
+    const runtimeConfig = resolveLspRuntimeConfig({
+      providerConfig: config,
+      globalConfigs: [ctx?.toolingConfig || null],
+      defaults: {
+        timeoutMs: 60000,
+        retries: 1,
+        breakerThreshold: 4
+      }
+    });
     const initializationOptions = isPlainObject(config.initializationOptions)
       ? config.initializationOptions
       : null;
 
     const result = await collectLspTypes({
+      ...runtimeConfig,
       rootDir: ctx.repoRoot,
       documents: docs,
       targets,
@@ -150,9 +147,6 @@ export const createJdtlsProvider = () => ({
       log,
       cmd: commandProfile.resolved.cmd,
       args: resolvedArgs,
-      timeoutMs,
-      retries,
-      breakerThreshold,
       parseSignature: (detail, _lang, symbolName) => parseClikeSignature(detail, symbolName),
       strict: ctx?.strict !== false,
       vfsRoot: ctx?.buildRoot || ctx.repoRoot,

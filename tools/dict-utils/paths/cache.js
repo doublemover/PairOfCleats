@@ -77,6 +77,14 @@ export function getToolingConfig(repoRoot, userConfig = null) {
   const clangd = tooling.clangd || {};
   const pyright = tooling.pyright && typeof tooling.pyright === 'object' ? tooling.pyright : {};
   const sourcekit = tooling.sourcekit && typeof tooling.sourcekit === 'object' ? tooling.sourcekit : {};
+  const jdtls = tooling.jdtls && typeof tooling.jdtls === 'object' ? tooling.jdtls : {};
+  const csharp = tooling.csharp && typeof tooling.csharp === 'object' ? tooling.csharp : {};
+  const solargraph = tooling.solargraph && typeof tooling.solargraph === 'object' ? tooling.solargraph : {};
+  const elixir = tooling.elixir && typeof tooling.elixir === 'object' ? tooling.elixir : {};
+  const phpactor = tooling.phpactor && typeof tooling.phpactor === 'object' ? tooling.phpactor : {};
+  const haskell = tooling.haskell && typeof tooling.haskell === 'object' ? tooling.haskell : {};
+  const dart = tooling.dart && typeof tooling.dart === 'object' ? tooling.dart : {};
+  const lifecycle = tooling.lifecycle && typeof tooling.lifecycle === 'object' ? tooling.lifecycle : null;
   const toolingCache = tooling.cache || {};
   const timeoutMs = Number(tooling.timeoutMs);
   const maxRetries = Number(tooling.maxRetries);
@@ -93,6 +101,9 @@ export function getToolingConfig(repoRoot, userConfig = null) {
   const providerOrder = normalizeOrder(tooling.providerOrder) || [];
   const vfsConfig = tooling.vfs && typeof tooling.vfs === 'object' ? tooling.vfs : {};
   const lspConfig = tooling.lsp && typeof tooling.lsp === 'object' ? tooling.lsp : {};
+  const lspLifecycle = lspConfig.lifecycle && typeof lspConfig.lifecycle === 'object'
+    ? lspConfig.lifecycle
+    : null;
   const normalizeServerList = (value) => (Array.isArray(value) ? value : []);
   const vfsStrict = typeof vfsConfig.strict === 'boolean' ? vfsConfig.strict : undefined;
   const vfsMaxBytesRaw = Number(vfsConfig.maxVirtualFileBytes);
@@ -148,6 +159,7 @@ export function getToolingConfig(repoRoot, userConfig = null) {
     enabledTools,
     disabledTools,
     providerOrder,
+    ...(lifecycle ? { lifecycle } : {}),
     vfs: {
       ...(typeof vfsStrict === 'boolean' ? { strict: vfsStrict } : {}),
       ...(Number.isFinite(vfsMaxBytes) ? { maxVirtualFileBytes: vfsMaxBytes } : {}),
@@ -157,8 +169,10 @@ export function getToolingConfig(repoRoot, userConfig = null) {
       ...(vfsIoBatching ? { ioBatching: vfsIoBatching } : {})
     },
     lsp: {
+      ...lspConfig,
       enabled: lspConfig.enabled !== false,
-      servers: normalizeServerList(lspConfig.servers)
+      servers: normalizeServerList(lspConfig.servers),
+      ...(lspLifecycle ? { lifecycle: lspLifecycle } : {})
     },
     typescript: {
       enabled: typescript.enabled !== false,
@@ -173,11 +187,19 @@ export function getToolingConfig(repoRoot, userConfig = null) {
       maxProgramFiles: Number.isFinite(maxProgramFiles) ? Math.max(0, Math.floor(maxProgramFiles)) : null
     },
     clangd: {
+      ...clangd,
       requireCompilationDatabase: clangd.requireCompilationDatabase === true,
       compileCommandsDir: typeof clangd.compileCommandsDir === 'string' ? clangd.compileCommandsDir : ''
     },
     pyright,
-    sourcekit
+    sourcekit,
+    jdtls,
+    csharp,
+    solargraph,
+    elixir,
+    phpactor,
+    haskell,
+    dart
   };
 }
 

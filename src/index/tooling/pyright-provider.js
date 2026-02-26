@@ -6,6 +6,7 @@ import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfi
 import { resolveToolingCommandProfile } from './command-resolver.js';
 import { parsePythonSignature } from './signature-parse/python.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
+import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 
 export const PYTHON_EXTS = ['.py', '.pyi'];
 
@@ -20,11 +21,6 @@ const isPyrightLangserverCmd = (cmd) => (
     .toLowerCase()
     .replace(/\.(cmd|exe|bat)$/, '') === 'pyright-langserver'
 );
-const asFiniteNumber = (value) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-};
-
 const canRunPyright = (cmd) => {
   if (!cmd) return false;
   if (isAbsolutePathNative(cmd) && !fsSync.existsSync(cmd)) return false;
@@ -91,16 +87,17 @@ export const createPyrightProvider = () => ({
       };
     }
     const pyrightConfig = ctx?.toolingConfig?.pyright || {};
-    const globalTimeoutMs = asFiniteNumber(ctx?.toolingConfig?.timeoutMs);
-    const providerTimeoutMs = asFiniteNumber(pyrightConfig.timeoutMs);
-    const timeoutMs = Math.max(30000, providerTimeoutMs ?? globalTimeoutMs ?? 45000);
-    const retries = Number.isFinite(Number(pyrightConfig.maxRetries))
-      ? Math.max(0, Math.floor(Number(pyrightConfig.maxRetries)))
-      : (ctx?.toolingConfig?.maxRetries ?? 2);
-    const breakerThreshold = Number.isFinite(Number(pyrightConfig.circuitBreakerThreshold))
-      ? Math.max(1, Math.floor(Number(pyrightConfig.circuitBreakerThreshold)))
-      : (ctx?.toolingConfig?.circuitBreakerThreshold ?? 5);
+    const runtimeConfig = resolveLspRuntimeConfig({
+      providerConfig: pyrightConfig,
+      globalConfigs: [ctx?.toolingConfig || null],
+      defaults: {
+        timeoutMs: 45000,
+        retries: 2,
+        breakerThreshold: 5
+      }
+    });
     const result = await collectLspTypes({
+      ...runtimeConfig,
       rootDir: ctx.repoRoot,
       documents: docs,
       targets,
@@ -108,9 +105,6 @@ export const createPyrightProvider = () => ({
       log,
       cmd: resolvedCmd,
       args: commandProfile.resolved.args || ['--stdio'],
-      timeoutMs,
-      retries,
-      breakerThreshold,
       parseSignature: (detail) => parsePythonSignature(detail),
       strict: ctx?.strict !== false,
       vfsRoot: ctx?.buildRoot || ctx.repoRoot,

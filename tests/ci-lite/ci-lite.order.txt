@@ -601,6 +601,7 @@ shared/artifact-io/packed-postings-windowed-read
 tooling/providers/provider-registry-merges-deterministically
 tooling/lsp/lsp-restart-generation-safety
 tooling/lsp/lsp-latency-microbench-contract
+tooling/lsp/lsp-runtime-config-resolution
 tooling/lsp/lsp-configured-provider-go-rust-signature-parsing
 tooling/lsp/lsp-configured-provider-gopls-workspace-diagnostics
 tooling/lsp/lsp-configured-provider-lua-workspace-library
@@ -813,6 +814,7 @@ services/index-diff
 tooling/vfs/vfs-invalid-virtual-range-regression
 tooling/doctor/doctor-detects-missing-typescript
 tooling/config/config-dump
+tooling/config/tooling-config-lsp-lifecycle-and-dedicated-passthrough
 tooling/triage/decision
 tooling/doctor/doctor-scm-none-annotate-disabled
 services/snapshots/concurrent-registry-writers

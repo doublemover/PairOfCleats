@@ -26,8 +26,16 @@ try {
     buildRoot: tempRoot,
     toolingConfig: {
       enabledTools: ['jdtls'],
+      lifecycle: {
+        lifecycleRestartWindowMs: 60000
+      },
       jdtls: {
-        enabled: true
+        enabled: true,
+        lifecycle: {
+          restartWindowMs: 2100,
+          maxRestartsPerWindow: 5,
+          fdPressureBackoffMs: 250
+        }
       }
     },
     cache: {
@@ -62,6 +70,9 @@ try {
   assert.equal(result.byChunkUid.has(chunkUid), true, 'expected jdtls provider to enrich Java symbol');
   const providerDiag = result.diagnostics?.jdtls || null;
   assert.ok(providerDiag && providerDiag.runtime, 'expected runtime diagnostics for jdtls provider');
+  assert.equal(providerDiag.runtime?.lifecycle?.restartWindowMs, 2100, 'expected provider lifecycle override');
+  assert.equal(providerDiag.runtime?.lifecycle?.maxRestartsPerWindow, 5, 'expected provider max restarts');
+  assert.equal(providerDiag.runtime?.lifecycle?.fdPressureBackoffMs, 250, 'expected provider fd backoff');
   const checks = Array.isArray(providerDiag?.checks) ? providerDiag.checks : [];
   assert.equal(
     checks.some((check) => check?.name === 'jdtls_workspace_model_missing'),

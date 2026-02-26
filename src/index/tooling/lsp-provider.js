@@ -13,6 +13,7 @@ import { parseRustSignature } from './signature-parse/rust.js';
 import { parseSwiftSignature } from './signature-parse/swift.js';
 import { parseZigSignature } from './signature-parse/zig.js';
 import { hasWorkspaceMarker } from './workspace-model.js';
+import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 
 const normalizeList = (value) => {
   if (Array.isArray(value)) return value.map((entry) => String(entry).trim()).filter(Boolean);
@@ -147,6 +148,7 @@ const normalizeServerConfig = (server, index) => {
   const documentSymbolConcurrency = Number(merged.documentSymbolConcurrency);
   const hoverConcurrency = Number(merged.hoverConcurrency);
   const hoverCacheMaxEntries = Number(merged.hoverCacheMaxEntries);
+  const breakerThreshold = Number(merged.circuitBreakerThreshold);
   const requireWorkspaceModel = typeof merged.requireWorkspaceModel === 'boolean'
     ? merged.requireWorkspaceModel
     : null;
@@ -162,6 +164,9 @@ const normalizeServerConfig = (server, index) => {
     baseInitializationOptions,
     usesLuaPreset ? merged.luaWorkspaceLibrary : null
   );
+  const lifecycle = isPlainObject(merged.lifecycle)
+    ? deepCloneValue(merged.lifecycle)
+    : null;
   const rustSuppressProcMacroDiagnostics = id === 'rust-analyzer'
     ? merged.rustSuppressProcMacroDiagnostics !== false
     : false;
@@ -173,6 +178,9 @@ const normalizeServerConfig = (server, index) => {
     uriScheme,
     timeoutMs: Number.isFinite(timeoutMs) ? Math.max(1000, Math.floor(timeoutMs)) : null,
     retries: Number.isFinite(retries) ? Math.max(0, Math.floor(retries)) : null,
+    circuitBreakerThreshold: Number.isFinite(breakerThreshold)
+      ? Math.max(1, Math.floor(breakerThreshold))
+      : null,
     documentSymbolConcurrency: Number.isFinite(documentSymbolConcurrency)
       ? Math.max(1, Math.floor(documentSymbolConcurrency))
       : null,
@@ -184,6 +192,10 @@ const normalizeServerConfig = (server, index) => {
       : null,
     rustSuppressProcMacroDiagnostics,
     requireWorkspaceModel,
+    lifecycle,
+    lifecycleRestartWindowMs: merged.lifecycleRestartWindowMs,
+    lifecycleMaxRestartsPerWindow: merged.lifecycleMaxRestartsPerWindow,
+    lifecycleFdPressureBackoffMs: merged.lifecycleFdPressureBackoffMs,
     initializationOptions,
     priority: Number.isFinite(priority) ? priority : null,
     label: typeof merged.label === 'string' ? merged.label : null,
@@ -266,6 +278,15 @@ const createConfiguredLspProvider = (server) => {
         };
       }
       const result = await collectLspTypes({
+        ...resolveLspRuntimeConfig({
+          providerConfig: server,
+          globalConfigs: [ctx?.toolingConfig?.lsp || null, ctx?.toolingConfig || null],
+          defaults: {
+            timeoutMs: 15000,
+            retries: 2,
+            breakerThreshold: 3
+          }
+        }),
         rootDir: ctx.repoRoot,
         documents: docs,
         targets,
@@ -273,9 +294,6 @@ const createConfiguredLspProvider = (server) => {
         log,
         cmd: commandProfile.resolved.cmd,
         args: commandProfile.resolved.args || [],
-        timeoutMs: server.timeoutMs || ctx?.toolingConfig?.timeoutMs || 15000,
-        retries: server.retries ?? ctx?.toolingConfig?.maxRetries ?? 2,
-        breakerThreshold: ctx?.toolingConfig?.circuitBreakerThreshold ?? 3,
         parseSignature: parseGenericSignature,
         strict: ctx?.strict !== false,
         vfsRoot: ctx?.buildRoot || ctx.repoRoot,

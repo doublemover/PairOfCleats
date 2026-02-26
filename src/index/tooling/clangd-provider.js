@@ -6,6 +6,7 @@ import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfi
 import { isAbsolutePathNative } from '../../shared/files.js';
 import { atomicWriteJsonSync } from '../../shared/io/atomic-write.js';
 import { resolveToolingCommandProfile } from './command-resolver.js';
+import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 
 const CLANGD_BASE_EXTS = ['.c', '.h', '.cc', '.cpp', '.cxx', '.hpp', '.hh'];
 const CLANGD_OBJC_EXTS = ['.m', '.mm'];
@@ -546,15 +547,16 @@ export const createClangdProvider = () => ({
         `${inferredIncludeRoots.slice(0, 5).join(', ')}${inferredIncludeRoots.length > 5 ? ' ...' : ''}`
       );
     }
-    const globalTimeoutMs = asFiniteNumber(ctx?.toolingConfig?.timeoutMs);
-    const providerTimeoutMs = asFiniteNumber(clangdConfig.timeoutMs);
-    const timeoutMs = Math.max(30000, Math.floor(providerTimeoutMs ?? globalTimeoutMs ?? 45000));
-    const retries = Number.isFinite(Number(clangdConfig.maxRetries))
-      ? Math.max(0, Math.floor(Number(clangdConfig.maxRetries)))
-      : (ctx?.toolingConfig?.maxRetries ?? 1);
-    const breakerThreshold = Number.isFinite(Number(clangdConfig.circuitBreakerThreshold))
-      ? Math.max(1, Math.floor(Number(clangdConfig.circuitBreakerThreshold)))
-      : (ctx?.toolingConfig?.circuitBreakerThreshold ?? 8);
+    const runtimeConfig = resolveLspRuntimeConfig({
+      providerConfig: clangdConfig,
+      globalConfigs: [ctx?.toolingConfig || null],
+      defaults: {
+        timeoutMs: 45000,
+        retries: 1,
+        breakerThreshold: 8
+      }
+    });
+    const timeoutMs = Number(runtimeConfig.timeoutMs);
     const configuredDocSymbolTimeout = asFiniteNumber(clangdConfig.documentSymbolTimeoutMs);
     const documentSymbolTimeoutMs = Math.max(
       timeoutMs,
@@ -573,6 +575,7 @@ export const createClangdProvider = () => ({
     let result;
     try {
       result = await collectLspTypes({
+        ...runtimeConfig,
         rootDir: ctx.repoRoot,
         documents: selectedDocs,
         targets,
@@ -580,9 +583,6 @@ export const createClangdProvider = () => ({
         log,
         cmd: resolvedCmd,
         args: commandProfile.resolved.args || clangdArgs,
-        timeoutMs,
-        retries,
-        breakerThreshold,
         documentSymbolTimeoutMs,
         documentSymbolConcurrency: clangdConfig.documentSymbolConcurrency,
         hoverEnabled,

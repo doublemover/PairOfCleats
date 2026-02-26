@@ -4,13 +4,9 @@ import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfi
 import { resolveToolingCommandProfile } from './command-resolver.js';
 import { parseElixirSignature } from './signature-parse/elixir.js';
 import { hasWorkspaceMarker } from './workspace-model.js';
+import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 
 const ELIXIR_EXTS = ['.ex', '.exs'];
-
-const asFiniteNumber = (value) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-};
 
 const isPlainObject = (value) => value != null && typeof value === 'object' && !Array.isArray(value);
 
@@ -105,20 +101,21 @@ export const createElixirProvider = () => ({
       };
     }
 
-    const globalTimeoutMs = asFiniteNumber(ctx?.toolingConfig?.timeoutMs);
-    const providerTimeoutMs = asFiniteNumber(config.timeoutMs);
-    const timeoutMs = Math.max(30000, Math.floor(providerTimeoutMs ?? globalTimeoutMs ?? 60000));
-    const retries = Number.isFinite(Number(config.maxRetries))
-      ? Math.max(0, Math.floor(Number(config.maxRetries)))
-      : (ctx?.toolingConfig?.maxRetries ?? 1);
-    const breakerThreshold = Number.isFinite(Number(config.circuitBreakerThreshold))
-      ? Math.max(1, Math.floor(Number(config.circuitBreakerThreshold)))
-      : (ctx?.toolingConfig?.circuitBreakerThreshold ?? 4);
+    const runtimeConfig = resolveLspRuntimeConfig({
+      providerConfig: config,
+      globalConfigs: [ctx?.toolingConfig || null],
+      defaults: {
+        timeoutMs: 60000,
+        retries: 1,
+        breakerThreshold: 4
+      }
+    });
     const initializationOptions = isPlainObject(config.initializationOptions)
       ? config.initializationOptions
       : null;
 
     const result = await collectLspTypes({
+      ...runtimeConfig,
       rootDir: ctx.repoRoot,
       documents: docs,
       targets,
@@ -126,9 +123,6 @@ export const createElixirProvider = () => ({
       log,
       cmd: commandProfile.resolved.cmd,
       args: commandProfile.resolved.args || requestedArgs,
-      timeoutMs,
-      retries,
-      breakerThreshold,
       parseSignature: parseElixirSignature,
       strict: ctx?.strict !== false,
       vfsRoot: ctx?.buildRoot || ctx.repoRoot,

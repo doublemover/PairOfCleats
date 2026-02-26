@@ -24,8 +24,18 @@ try {
     repoRoot: tempRoot,
     buildRoot: tempRoot,
     toolingConfig: {
+      timeoutMs: 47000,
+      maxRetries: 4,
+      circuitBreakerThreshold: 6,
+      lifecycle: {
+        lifecycleRestartWindowMs: 65000
+      },
       lsp: {
         enabled: true,
+        lifecycle: {
+          lifecycleMaxRestartsPerWindow: 7,
+          lifecycleFdPressureBackoffMs: 900
+        },
         servers: [{
           id: 'gopls',
           cmd: 'gopls',
@@ -68,6 +78,10 @@ try {
   assert.equal(result.byChunkUid.has(chunkUid), true, 'expected configured gopls provider to enrich target');
   const providerDiag = result.diagnostics?.['lsp-gopls'] || null;
   assert.ok(providerDiag && providerDiag.runtime, 'expected runtime diagnostics for configured gopls provider');
+  assert.equal(providerDiag.runtime?.guard?.breakerThreshold, 6, 'expected global breaker threshold');
+  assert.equal(providerDiag.runtime?.lifecycle?.restartWindowMs, 65000, 'expected top-level lifecycle restart window');
+  assert.equal(providerDiag.runtime?.lifecycle?.maxRestartsPerWindow, 7, 'expected lsp-scope lifecycle max restarts');
+  assert.equal(providerDiag.runtime?.lifecycle?.fdPressureBackoffMs, 900, 'expected lsp-scope fd backoff');
 
   console.log('configured LSP gopls profile test passed');
 } finally {

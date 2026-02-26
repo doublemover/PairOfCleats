@@ -13,6 +13,7 @@ import { spawnSubprocess } from '../../shared/subprocess.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
 import { resolveToolingCommandProfile } from './command-resolver.js';
 import { parseSwiftSignature } from './signature-parse/swift.js';
+import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 
 export const SWIFT_EXTS = ['.swift'];
 
@@ -613,15 +614,16 @@ export const createSourcekitProvider = () => ({
       };
     }
 
-    const globalTimeoutMs = asFiniteNumber(ctx?.toolingConfig?.timeoutMs);
-    const providerTimeoutMs = asFiniteNumber(sourcekitConfig.timeoutMs);
-    const timeoutMs = Math.max(30000, providerTimeoutMs ?? globalTimeoutMs ?? 45000);
-    const retries = Number.isFinite(Number(sourcekitConfig.maxRetries))
-      ? Math.max(0, Math.floor(Number(sourcekitConfig.maxRetries)))
-      : (ctx?.toolingConfig?.maxRetries ?? 2);
-    const breakerThreshold = Number.isFinite(Number(sourcekitConfig.circuitBreakerThreshold))
-      ? Math.max(1, Math.floor(Number(sourcekitConfig.circuitBreakerThreshold)))
-      : (ctx?.toolingConfig?.circuitBreakerThreshold ?? 3);
+    const runtimeConfig = resolveLspRuntimeConfig({
+      providerConfig: sourcekitConfig,
+      globalConfigs: [ctx?.toolingConfig || null],
+      defaults: {
+        timeoutMs: 45000,
+        retries: 2,
+        breakerThreshold: 3
+      }
+    });
+    const timeoutMs = Number(runtimeConfig.timeoutMs);
     const hoverTimeoutMs = Math.max(
       750,
       Math.floor(
@@ -683,6 +685,7 @@ export const createSourcekitProvider = () => ({
 
     try {
       const result = await collectLspTypes({
+        ...runtimeConfig,
         rootDir: ctx.repoRoot,
         documents: docs,
         targets,
@@ -690,9 +693,6 @@ export const createSourcekitProvider = () => ({
         log,
         cmd: resolvedCmd,
         args: [],
-        timeoutMs,
-        retries,
-        breakerThreshold,
         hoverTimeoutMs,
         hoverEnabled: sourcekitConfig.hover !== false,
         hoverRequireMissingReturn,
