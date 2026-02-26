@@ -4,6 +4,13 @@ import { buildLocalCacheKey } from '../../shared/cache-key.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { selectToolingProviders } from './provider-registry.js';
 import { normalizeProviderId } from './provider-contract.js';
+import {
+  MAX_PARAM_CANDIDATES,
+  ensureParamTypeMap,
+  mergeTypeEntries,
+  normalizeProviderPayload,
+  toTypeEntryCollection
+} from './provider-output-contract.js';
 
 const mapFromRecord = (record) => {
   if (record instanceof Map) return record;
@@ -101,91 +108,14 @@ const pruneToolingCacheDir = async (cacheDir, { maxBytes, maxEntries } = {}) => 
   return { removed: toRemove.size, remainingBytes: Math.max(0, remainingBytes) };
 };
 
-// Cap param-type growth deterministically to avoid unbounded merges.
-const MAX_PARAM_CANDIDATES = 5;
-const hasIterable = (value) => value != null && typeof value[Symbol.iterator] === 'function';
-const createParamTypeMap = () => Object.create(null);
-
-const ensureParamTypeMap = (value) => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return createParamTypeMap();
-  if (Object.getPrototypeOf(value) === null) return value;
-  const next = createParamTypeMap();
-  for (const [name, types] of Object.entries(value)) {
-    if (!name) continue;
-    next[name] = types;
-  }
-  return next;
-};
-
-const toTypeEntryCollection = (value) => {
-  if (Array.isArray(value)) return value;
-  if (value == null) return [];
-  if (typeof value === 'string') return [value];
-  if (value instanceof Set) return Array.from(value);
-  if (value instanceof Map) return Array.from(value.values());
-  if (hasIterable(value)) return Array.from(value);
-  if (value && typeof value === 'object' && Object.hasOwn(value, 'type')) return [value];
-  return [];
-};
-
-const normalizeTypeEntry = (entry) => {
-  if (typeof entry === 'string') {
-    const type = entry.trim();
-    if (!type) return null;
-    return {
-      type,
-      source: null,
-      confidence: null
-    };
-  }
-  if (!entry || typeof entry !== 'object') return null;
-  if (!entry.type) return null;
-  return {
-    type: String(entry.type).trim(),
-    source: entry.source || null,
-    confidence: Number.isFinite(entry.confidence) ? entry.confidence : null
-  };
-};
-
-const mergeTypeEntries = (existing, incoming, cap) => {
-  const map = new Map();
-  const addEntry = (entry) => {
-    const normalized = normalizeTypeEntry(entry);
-    if (!normalized) return;
-    const key = `${normalized.type}:${normalized.source || ''}`;
-    const prior = map.get(key);
-    if (!prior) {
-      map.set(key, normalized);
-      return;
-    }
-    const priorConfidence = Number.isFinite(prior.confidence) ? prior.confidence : 0;
-    const nextConfidence = Number.isFinite(normalized.confidence) ? normalized.confidence : 0;
-    if (nextConfidence > priorConfidence) map.set(key, normalized);
-  };
-  for (const entry of toTypeEntryCollection(existing)) addEntry(entry);
-  for (const entry of toTypeEntryCollection(incoming)) addEntry(entry);
-  const list = Array.from(map.values());
-  list.sort((a, b) => {
-    const typeCmp = a.type.localeCompare(b.type);
-    if (typeCmp) return typeCmp;
-    const sourceCmp = String(a.source || '').localeCompare(String(b.source || ''));
-    if (sourceCmp) return sourceCmp;
-    const confA = Number.isFinite(a.confidence) ? a.confidence : 0;
-    const confB = Number.isFinite(b.confidence) ? b.confidence : 0;
-    return confB - confA;
-  });
-  if (cap && list.length > cap) {
-    return { list: list.slice(0, cap), truncated: true };
-  }
-  return { list, truncated: false };
-};
-
 const normalizeProviderOutputs = ({
   output,
   targetByChunkUid,
   chunkUidByChunkId,
   chunkUidByLegacyKey,
-  strict
+  strict,
+  observations,
+  providerId
 }) => {
   if (!output) return new Map();
   const byChunkUid = new Map();
@@ -196,6 +126,12 @@ const normalizeProviderOutputs = ({
     }
     const target = targetByChunkUid.get(chunkUid);
     const normalized = entry && typeof entry === 'object' ? { ...entry } : {};
+    normalized.payload = normalizeProviderPayload(normalized.payload, {
+      observations,
+      providerId,
+      chunkUid,
+      maxParamCandidates: MAX_PARAM_CANDIDATES
+    });
     if (!normalized.chunk && target?.chunkRef) {
       normalized.chunk = target.chunkRef;
     }
@@ -235,7 +171,12 @@ const normalizeProviderOutputs = ({
 const mergePayload = (target, incoming, { observations, chunkUid } = {}) => {
   if (!incoming) return target;
   const payload = target.payload || {};
-  const next = incoming.payload || {};
+  const next = normalizeProviderPayload(incoming.payload, {
+    observations,
+    providerId: 'tooling-provider',
+    chunkUid,
+    maxParamCandidates: MAX_PARAM_CANDIDATES
+  });
   if (next.returnType && !payload.returnType) payload.returnType = next.returnType;
   if (next.signature && !payload.signature) payload.signature = next.signature;
   if (next.paramTypes && typeof next.paramTypes === 'object' && !Array.isArray(next.paramTypes)) {
@@ -389,7 +330,9 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
       targetByChunkUid,
       chunkUidByChunkId,
       chunkUidByLegacyKey,
-      strict
+      strict,
+      observations,
+      providerId
     });
     for (const [chunkUid, entry] of normalized.entries()) {
       const existing = merged.get(chunkUid) || {
