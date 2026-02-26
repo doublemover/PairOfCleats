@@ -115,6 +115,113 @@ const resolveRuntimeRequirementsForCommand = (commandName) => {
   return [];
 };
 
+const listDirSafe = (dir) => {
+  try {
+    return fsSync.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+};
+
+const hasWorkspaceMarker = (repoRoot, options = {}) => {
+  const {
+    exactNames = [],
+    extensionNames = []
+  } = options;
+  const exact = new Set(exactNames.map((value) => String(value || '').trim().toLowerCase()).filter(Boolean));
+  const exts = new Set(extensionNames.map((value) => String(value || '').trim().toLowerCase()).filter(Boolean));
+  const scanDirEntries = (entries) => {
+    for (const entry of entries) {
+      if (!entry?.isFile?.()) continue;
+      const name = String(entry.name || '').toLowerCase();
+      if (!name) continue;
+      if (exact.has(name)) return true;
+      for (const ext of exts) {
+        if (name.endsWith(ext)) return true;
+      }
+    }
+    return false;
+  };
+  const rootEntries = listDirSafe(repoRoot);
+  if (scanDirEntries(rootEntries)) return true;
+  for (const entry of rootEntries) {
+    if (!entry?.isDirectory?.()) continue;
+    const childEntries = listDirSafe(path.join(repoRoot, entry.name));
+    if (scanDirEntries(childEntries)) return true;
+  }
+  return false;
+};
+
+const resolveWorkspaceModelCheckForCommand = (commandName) => {
+  const command = String(commandName || '').trim().toLowerCase();
+  if (!command) return null;
+  if (command === 'jdtls') {
+    return {
+      id: 'workspace-model',
+      label: 'Java build model',
+      markers: {
+        exactNames: ['pom.xml', 'build.gradle', 'build.gradle.kts', 'settings.gradle', 'settings.gradle.kts']
+      }
+    };
+  }
+  if (command === 'csharp-ls' || command === 'omnisharp') {
+    return {
+      id: 'workspace-model',
+      label: 'C# project model',
+      markers: {
+        extensionNames: ['.sln', '.csproj']
+      }
+    };
+  }
+  if (command === 'elixir-ls' || command === 'elixir-ls-language-server') {
+    return {
+      id: 'workspace-model',
+      label: 'Elixir project model',
+      markers: {
+        exactNames: ['mix.exs']
+      }
+    };
+  }
+  if (command === 'haskell-language-server') {
+    return {
+      id: 'workspace-model',
+      label: 'Haskell project model',
+      markers: {
+        exactNames: ['stack.yaml', 'cabal.project'],
+        extensionNames: ['.cabal']
+      }
+    };
+  }
+  if (command === 'phpactor') {
+    return {
+      id: 'workspace-model',
+      label: 'PHP project model',
+      markers: {
+        exactNames: ['composer.json']
+      }
+    };
+  }
+  if (command === 'solargraph') {
+    return {
+      id: 'workspace-model',
+      label: 'Ruby project model',
+      markers: {
+        exactNames: ['gemfile']
+      }
+    };
+  }
+  if (command === 'dart') {
+    return {
+      id: 'workspace-model',
+      label: 'Dart project model',
+      markers: {
+        exactNames: ['pubspec.yaml']
+      }
+    };
+  }
+  return null;
+};
+
 const writeReport = async (reportPath, report) => {
   await atomicWriteJson(reportPath, report, {
     spaces: 2,
@@ -454,6 +561,23 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
                   message: `${requirement.label} detected (${requirementProfile.resolved.cmd}).`
                 });
               }
+            }
+          }
+          const workspaceModelCheck = resolveWorkspaceModelCheckForCommand(requestedCmdLower);
+          if (workspaceModelCheck) {
+            const markerFound = hasWorkspaceMarker(repoRoot, workspaceModelCheck.markers);
+            if (!markerFound) {
+              addCheck({
+                name: `${providerId}-${workspaceModelCheck.id}`,
+                status: 'warn',
+                message: `${workspaceModelCheck.label} markers not found near repo root; startup may fail or degrade.`
+              });
+            } else {
+              addCheck({
+                name: `${providerId}-${workspaceModelCheck.id}`,
+                status: 'ok',
+                message: `${workspaceModelCheck.label} markers detected.`
+              });
             }
           }
         }
