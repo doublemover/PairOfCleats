@@ -17,6 +17,16 @@ const cases = [
     detail: 'mkPair :: a -> b -> (a, b)',
     expectedReturn: '(a, b)',
     expectedParams: { arg1: 'a', arg2: 'b' }
+  },
+  {
+    detail: 'mapMaybe :: (a -> Maybe b) -> [a] -> [b]',
+    expectedReturn: '[b]',
+    expectedParams: { arg1: '(a -> Maybe b)', arg2: '[a]' }
+  },
+  {
+    detail: 'liftM :: Monad m => (a -> b) -> m a -> m b',
+    expectedReturn: 'm b',
+    expectedParams: { arg1: '(a -> b)', arg2: 'm a' }
   }
 ];
 
