@@ -9,7 +9,7 @@ import { resolveTestCachePath } from '../../helpers/test-cache.js';
 ensureTestingEnv(process.env);
 
 const now = new Date().toISOString();
-const output = buildReportOutput({
+const output = await buildReportOutput({
   configPath: path.join(process.cwd(), 'benchmarks', 'repos.json'),
   cacheRoot: resolveTestCachePath(process.cwd(), 'bench-lang-remediation-cache'),
   resultsRoot: resolveTestCachePath(process.cwd(), 'bench-lang-remediation-results'),

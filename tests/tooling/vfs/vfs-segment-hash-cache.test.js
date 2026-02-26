@@ -26,6 +26,27 @@ const keyRange = buildVfsSegmentHashCacheKey({
   segmentEnd: 11
 });
 assert.notEqual(key, keyRange, 'Expected key to change when segment range changes.');
+const keyUid = buildVfsSegmentHashCacheKey({
+  fileHash: 'abc123',
+  fileHashAlgo: 'sha1',
+  containerPath: 'src/app.js',
+  languageId: 'javascript',
+  effectiveExt: '.js',
+  segmentUid: 'segu:v1:one',
+  segmentStart: 0,
+  segmentEnd: 10
+});
+const keyUidChanged = buildVfsSegmentHashCacheKey({
+  fileHash: 'abc123',
+  fileHashAlgo: 'sha1',
+  containerPath: 'src/app.js',
+  languageId: 'javascript',
+  effectiveExt: '.js',
+  segmentUid: 'segu:v1:two',
+  segmentStart: 0,
+  segmentEnd: 10
+});
+assert.notEqual(keyUid, keyUidChanged, 'Expected key to change when segmentUid changes.');
 
 const cache = createVfsSegmentHashCache({ maxEntries: 2 });
 cache.set('k1', 'v1');

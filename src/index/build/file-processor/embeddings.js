@@ -135,7 +135,6 @@ export async function attachEmbeddings({
   fileLanguageId,
   languageOptions
 }) {
-  throwIfAborted(abortSignal);
   if (!embeddingEnabled) {
     for (const chunk of chunks) {
       chunk.embed_code = [];
@@ -144,6 +143,7 @@ export async function attachEmbeddings({
     }
     return { embeddingMs: 0 };
   }
+  throwIfAborted(abortSignal);
 
   const embedStart = Date.now();
   const embedBatch = async (texts) => {

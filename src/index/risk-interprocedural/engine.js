@@ -1,4 +1,5 @@
 import { sha1 } from '../../shared/hash.js';
+import { toArray } from '../../shared/iterables.js';
 import { edgeKey, sampleCallSitesForEdge } from './edges.js';
 import { containsIdentifier, matchRulePatterns, SEVERITY_RANK } from '../risk/shared.js';
 
@@ -8,7 +9,7 @@ const MAX_FLOW_ROW_BYTES = 32 * 1024;
 const sortByKey = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
 const buildFlowId = ({ sourceChunkUid, sourceRuleId, sinkChunkUid, sinkRuleId, pathChunkUids }) => {
-  const key = `${sourceChunkUid}|${sourceRuleId}|${sinkChunkUid}|${sinkRuleId}|${(pathChunkUids || []).join('>')}`;
+  const key = `${sourceChunkUid}|${sourceRuleId}|${sinkChunkUid}|${sinkRuleId}|${toArray(pathChunkUids).join('>')}`;
   return `sha1:${sha1(key)}`;
 };
 
@@ -29,7 +30,7 @@ const buildSummaryMap = (summaries) => {
 
 const buildChunkMap = (chunks) => {
   const map = new Map();
-  for (const chunk of chunks || []) {
+  for (const chunk of toArray(chunks)) {
     const uid = chunk?.chunkUid || chunk?.metaV2?.chunkUid || null;
     if (uid) map.set(uid, chunk);
   }
@@ -38,7 +39,7 @@ const buildChunkMap = (chunks) => {
 
 const buildParamNamesMap = (chunks) => {
   const map = new Map();
-  for (const chunk of chunks || []) {
+  for (const chunk of toArray(chunks)) {
     const callerUid = chunk?.chunkUid || chunk?.metaV2?.chunkUid || null;
     if (!callerUid) continue;
     const summaries = Array.isArray(chunk?.codeRelations?.callSummaries)
@@ -59,7 +60,7 @@ const buildCallDetailsMap = (chunks) => {
   const detailsByCaller = new Map();
   const calleesByCaller = new Map();
   const edgeKeys = new Set();
-  for (const chunk of chunks || []) {
+  for (const chunk of toArray(chunks)) {
     const callerUid = chunk?.chunkUid || chunk?.metaV2?.chunkUid || null;
     if (!callerUid) continue;
     const details = Array.isArray(chunk?.codeRelations?.callDetails)
@@ -101,10 +102,10 @@ const sortSinks = (sinks) => {
 const isArgTainted = (argText, taintedIdentifiers, sourceRules) => {
   const text = String(argText || '').trim();
   if (!text) return false;
-  for (const name of taintedIdentifiers || []) {
+  for (const name of toArray(taintedIdentifiers)) {
     if (containsIdentifier(text, name)) return true;
   }
-  for (const rule of sourceRules || []) {
+  for (const rule of toArray(sourceRules)) {
     if (matchRulePatterns(text, rule)) return true;
   }
   return false;
@@ -143,12 +144,12 @@ const measureRowBytes = (row) => Buffer.byteLength(JSON.stringify(row), 'utf8');
 const trimFlowRow = (row) => {
   if (measureRowBytes(row) <= MAX_FLOW_ROW_BYTES) return row;
   const trimmed = { ...row, path: { ...row.path } };
-  trimmed.path.callSiteIdsByStep = (trimmed.path.callSiteIdsByStep || []).map((list) => {
+  trimmed.path.callSiteIdsByStep = toArray(trimmed.path.callSiteIdsByStep).map((list) => {
     if (!Array.isArray(list) || !list.length) return [];
     return [list[0]];
   });
   if (measureRowBytes(trimmed) <= MAX_FLOW_ROW_BYTES) return trimmed;
-  trimmed.path.callSiteIdsByStep = (trimmed.path.callSiteIdsByStep || []).map(() => []);
+  trimmed.path.callSiteIdsByStep = toArray(trimmed.path.callSiteIdsByStep).map(() => []);
   if (measureRowBytes(trimmed) <= MAX_FLOW_ROW_BYTES) return trimmed;
   return null;
 };
@@ -180,9 +181,9 @@ export const computeInterproceduralRisk = ({
   const summaryMap = buildSummaryMap(summaries);
   const summaryRows = Array.from(summaryMap.values());
   const summaryByUid = summaryMap;
-  const chunkByUid = buildChunkMap(chunks || []);
-  const paramNamesByEdge = buildParamNamesMap(chunks || []);
-  const { detailsByCaller, calleesByCaller, edgeKeys } = buildCallDetailsMap(chunks || []);
+  const chunkByUid = buildChunkMap(chunks);
+  const paramNamesByEdge = buildParamNamesMap(chunks);
+  const { detailsByCaller, calleesByCaller, edgeKeys } = buildCallDetailsMap(chunks);
 
   const resolvedMode = mode || 'code';
   const maxCallSitesPerEdge = Number.isFinite(caps.maxCallSitesPerEdge)
@@ -413,8 +414,8 @@ export const computeInterproceduralRisk = ({
           continue;
         }
         flowRows.push(trimmed);
-        for (const step of trimmed.path.callSiteIdsByStep || []) {
-          for (const callSiteId of step || []) {
+        for (const step of toArray(trimmed.path.callSiteIdsByStep)) {
+          for (const callSiteId of toArray(step)) {
             if (callSiteId) callSiteIdsReferenced.add(callSiteId);
           }
         }

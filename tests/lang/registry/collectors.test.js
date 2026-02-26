@@ -203,6 +203,7 @@ const cases = [
     text: [
       'import ./module.nix',
       'callPackage ../pkg.nix {}',
+      'inherit ((import ./git-hooks.nix).pre-commit) hooks;',
       'imports = [ ./hosts/default.nix ../shared/infra.nix ];',
       'inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";',
       'inputs.local.path = ../local-override;'
@@ -210,6 +211,7 @@ const cases = [
     expected: [
       './module.nix',
       '../pkg.nix',
+      './git-hooks.nix',
       './hosts/default.nix',
       '../shared/infra.nix',
       'github:NixOS/nixpkgs/nixos-24.11',

@@ -1,24 +1,8 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-
-const loadModule = async () => {
-  try {
-    return await import('../../../src/index/segments/cdc.js');
-  } catch (err) {
-    if (err?.code === 'ERR_MODULE_NOT_FOUND' || String(err?.message || '').includes('Cannot find module')) {
-      console.log('Skipping VFS CDC segmentation contract (TODO: implement src/index/segments/cdc.js).');
-      process.exit(0);
-    }
-    throw err;
-  }
-};
-
-const mod = await loadModule();
+import * as mod from '../../../src/index/segments/cdc.js';
 const segmentWithCdc = mod.segmentWithCdc || mod.buildCdcSegments;
-if (typeof segmentWithCdc !== 'function') {
-  console.log('Skipping VFS CDC segmentation contract (TODO: export segmentWithCdc).');
-  process.exit(0);
-}
+assert.equal(typeof segmentWithCdc, 'function', 'Expected segmentWithCdc export.');
 
 assert.equal(mod.CDC_SEGMENTATION_VERSION, '1.0.0', 'Expected CDC segmentation version 1.0.0.');
 

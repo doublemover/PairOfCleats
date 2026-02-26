@@ -148,6 +148,7 @@ export function getEnvConfig(env = process.env) {
     queryCachePrewarmMaxEntries: normalizeNumber(env.PAIROFCLEATS_QUERY_CACHE_PREWARM_MAX_ENTRIES),
     queryCacheMemoryFreshMs: normalizeNumber(env.PAIROFCLEATS_QUERY_CACHE_MEMORY_FRESH_MS),
     sqliteTailLatencyTuning: normalizeOptionalBoolean(env.PAIROFCLEATS_SQLITE_TAIL_LATENCY_TUNING),
+    denseBinaryMaxInlineMb: normalizeNumber(env.PAIROFCLEATS_DENSE_BINARY_MAX_INLINE_MB),
     sqliteFtsOverfetchRowCap: normalizeNumber(env.PAIROFCLEATS_SQLITE_FTS_OVERFETCH_ROW_CAP),
     sqliteFtsOverfetchTimeBudgetMs: normalizeNumber(env.PAIROFCLEATS_SQLITE_FTS_OVERFETCH_TIME_BUDGET_MS),
     sqliteFtsOverfetchChunkSize: normalizeNumber(env.PAIROFCLEATS_SQLITE_FTS_OVERFETCH_CHUNK_SIZE),

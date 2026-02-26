@@ -1,5 +1,6 @@
 import { state } from './state.js';
 import { clamp } from './utils.js';
+import { toArray } from '../../../shared/iterables.js';
 import { configureWireMaterial } from './materials.js';
 
 const formatPrimitive = (value) => {
@@ -341,7 +342,7 @@ const resetFileInstanceHighlights = () => {
 };
 
 const resetObjectHighlights = () => {
-  for (const mesh of [...(state.fileMeshes || []), ...(state.memberMeshes || []), ...(state.chunkMeshes || [])]) {
+  for (const mesh of [...toArray(state.fileMeshes), ...toArray(state.memberMeshes), ...toArray(state.chunkMeshes)]) {
     if (!mesh) continue;
     resetMaterialHighlight(mesh.material);
     const inner = mesh.userData?.shellInner;

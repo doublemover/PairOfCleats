@@ -29,7 +29,7 @@ const config = {
     label: 'JavaScript',
     queries: queriesPath,
     repos: {
-      typical: [repoId]
+      small: [repoId]
     }
   }
 };

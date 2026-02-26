@@ -227,6 +227,7 @@ export const filterRawRelationsWithLexicon = (rawRelations, {
       const normalizedCallee = normalizeToken(String(callee ?? ''));
       const base = normalizeToken(extractSymbolBaseName(callee));
       if (!base) continue;
+      const tokenCategory = classifyToken(base, resolvedLexicon);
       // Preserve qualified member lookups (for example `obj.default`) so
       // keyword-like member names do not get dropped as bare-language tokens.
       const qualifiedMemberCall = normalizedCallee.includes('.')
@@ -234,9 +235,10 @@ export const filterRawRelationsWithLexicon = (rawRelations, {
         || normalizedCallee.includes('->')
         || normalizedCallee.includes('#')
         || normalizedCallee.includes('/');
-      if (dropSet.has(base) && !qualifiedMemberCall) {
+      const preserveQualifiedKeywordMember = qualifiedMemberCall && tokenCategory === 'keywords';
+      if (dropSet.has(base) && !preserveQualifiedKeywordMember) {
         stats.droppedCalls += 1;
-        bumpCategory(stats.droppedCallsByCategory, classifyToken(base, resolvedLexicon));
+        bumpCategory(stats.droppedCallsByCategory, tokenCategory);
         continue;
       }
       if (stableDedupe) {

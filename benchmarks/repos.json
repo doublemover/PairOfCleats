@@ -813,7 +813,6 @@
         "bestony/EasyWordPressBook",
         "bigcommerce/paper-handlebars",
         "express-handlebars/express-handlebars",
-        "TryGhost/Ghost",
         "handlebars-lang/handlebars.js",
         "metalsmith/metalsmith",
         "rust-lang/rust-by-example"
@@ -830,7 +829,6 @@
       "huge": [
         "microsoft/vscode",
         "nodejs/node",
-        "TryGhost/Ghost",
         "vercel/next.js"
       ]
     }

@@ -60,7 +60,8 @@ export const PATH_LIKE_IMPORTER_EXTS = new Set([
   '.j2',
   '.bzl',
   '.star',
-  '.dart'
+  '.dart',
+  '.toml'
 ]);
 
 const PATH_LIKE_SPEC_EXTS = new Set([
@@ -199,8 +200,17 @@ const isCmakeImporter = (importerInfo) => {
   return importerInfo.baseName === 'cmakelists.txt';
 };
 
+const isNixImporter = (importerInfo) => importerInfo?.extension === '.nix';
+
+const isTomlImporter = (importerInfo) => {
+  if (importerInfo?.extension === '.toml') return true;
+  return importerInfo?.baseName === 'pipfile';
+};
+
 const expandPathLikeCandidates = ({ importerInfo, candidates }) => {
   const cmakeImporter = isCmakeImporter(importerInfo);
+  const nixImporter = isNixImporter(importerInfo);
+  const tomlImporter = isTomlImporter(importerInfo);
   const out = [];
   const seen = new Set();
   const pushCandidate = (candidate) => {
@@ -213,12 +223,29 @@ const expandPathLikeCandidates = ({ importerInfo, candidates }) => {
     if (candidate === null || candidate === undefined) continue;
     const normalized = normalizeRelPath(candidate);
     if (normalized) pushCandidate(normalized);
-    if (!cmakeImporter) continue;
+    if (!cmakeImporter && !nixImporter && !tomlImporter) continue;
     const base = normalized || '';
     const hasExtension = Boolean(path.posix.extname(path.posix.basename(base)));
     if (hasExtension) continue;
-    const cmakeListsPath = base ? `${base}/CMakeLists.txt` : 'CMakeLists.txt';
-    pushCandidate(cmakeListsPath);
+    // Directory-style imports map to conventional entry files per ecosystem.
+    if (cmakeImporter) {
+      const cmakeListsPath = base ? `${base}/CMakeLists.txt` : 'CMakeLists.txt';
+      pushCandidate(cmakeListsPath);
+    }
+    if (nixImporter) {
+      const defaultNixPath = base ? `${base}/default.nix` : 'default.nix';
+      const flakeNixPath = base ? `${base}/flake.nix` : 'flake.nix';
+      pushCandidate(defaultNixPath);
+      pushCandidate(flakeNixPath);
+    }
+    if (tomlImporter) {
+      const cargoTomlPath = base ? `${base}/Cargo.toml` : 'Cargo.toml';
+      const pyprojectTomlPath = base ? `${base}/pyproject.toml` : 'pyproject.toml';
+      const projectTomlPath = base ? `${base}/Project.toml` : 'Project.toml';
+      pushCandidate(cargoTomlPath);
+      pushCandidate(pyprojectTomlPath);
+      pushCandidate(projectTomlPath);
+    }
   }
   return out;
 };

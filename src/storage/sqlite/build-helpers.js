@@ -1,4 +1,5 @@
 import { resolveChunkId } from '../../index/chunk-id.js';
+import { toArray } from '../../shared/iterables.js';
 import { normalizeFilePath } from './utils.js';
 
 const SAFE_IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -171,7 +172,7 @@ export function buildChunkRow(chunk, mode, id) {
  */
 export function createFileCountMap(entries, initialValue = 0) {
   const map = new Map();
-  for (const record of entries || []) {
+  for (const record of toArray(entries)) {
     const normalizedFile = normalizeFilePath(record?.normalized || record?.file || null);
     if (!normalizedFile) continue;
     map.set(normalizedFile, initialValue);

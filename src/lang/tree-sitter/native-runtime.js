@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module';
 import { LANGUAGE_GRAMMAR_KEYS } from './config.js';
+import { toStringArray } from '../../shared/iterables.js';
 
 const require = createRequire(import.meta.url);
 
@@ -271,7 +272,7 @@ export function loadNativeTreeSitterGrammar(languageId, { log } = {}) {
 }
 
 export function preflightNativeTreeSitterGrammars(languageIds = [], { log } = {}) {
-  const unique = Array.from(new Set((languageIds || []).filter((id) => typeof id === 'string' && id)));
+  const unique = Array.from(new Set(toStringArray(languageIds)));
   const missing = [];
   const unavailable = [];
   if (!unique.length) return { ok: true, missing, unavailable };
@@ -355,7 +356,7 @@ export function getNativeTreeSitterParser(languageId, options = {}) {
 }
 
 export function warmupNativeTreeSitterParsers(languageIds = [], options = {}) {
-  const unique = Array.from(new Set((languageIds || []).filter((id) => typeof id === 'string' && id)));
+  const unique = Array.from(new Set(toStringArray(languageIds)));
   if (!unique.length) {
     return { warmed: [], failed: [] };
   }

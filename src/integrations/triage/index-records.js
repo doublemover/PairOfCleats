@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { getIndexDir, getTriageConfig } from '../../../tools/shared/dict-utils.js';
+import { getIndexDir, getRepoCacheRoot, getTriageConfig } from '../../../tools/shared/dict-utils.js';
 import { SimpleMinHash } from '../../index/minhash.js';
 import { getHeadline } from '../../index/headline.js';
 import { STOP, SYN } from '../../index/constants.js';
@@ -79,8 +79,9 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
   const timing = { start: Date.now() };
 
   const state = createIndexState({ postingsConfig });
+  const resolvedRepoCacheRoot = runtime.repoCacheRoot || getRepoCacheRoot(runtime.root, runtime.userConfig);
   const incrementalState = await loadIncrementalState({
-    repoCacheRoot: runtime.repoCacheRoot,
+    repoCacheRoot: resolvedRepoCacheRoot,
     mode: 'records',
     enabled: runtime.incrementalEnabled === true,
     bundleFormat: runtime.incrementalBundleFormat,

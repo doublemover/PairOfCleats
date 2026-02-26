@@ -194,6 +194,14 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     enabled: runtime.debugCrash === true,
     log
   });
+  const closeCrashLogger = async (label) => {
+    await runBuildCleanupWithTimeout({
+      label: `pipeline.${mode}.crash-logger.close.${label}`,
+      cleanup: () => Promise.resolve(crashLogger.close?.()),
+      swallowTimeout: true,
+      log
+    });
+  };
   const outDir = getIndexDir(runtime.root, mode, runtime.userConfig, { indexRoot: runtime.buildRoot });
   const indexSizeBaselineBytes = await readIndexArtifactBytes(outDir);
   await fs.mkdir(outDir, { recursive: true });
@@ -969,6 +977,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       log
     });
     cacheReporter.report();
+    await closeCrashLogger('reused');
     return;
   }
 
@@ -1361,6 +1370,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     swallowTimeout: false,
     log
   });
+  await closeCrashLogger('final');
 }
 
 export {

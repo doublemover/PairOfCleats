@@ -425,6 +425,21 @@ export const expandChunkMetaParts = (metaFields, baseDir) => (
   expandMetaPartPaths(metaFields?.parts, baseDir)
 );
 
+const isStrictShardFileName = (name, prefix, allowedExtensions) => {
+  if (typeof name !== 'string' || typeof prefix !== 'string' || !prefix) return false;
+  if (!name.startsWith(prefix)) return false;
+  const matchedExt = allowedExtensions.find((ext) => name.endsWith(ext));
+  if (!matchedExt) return false;
+  const stem = name.slice(0, name.length - matchedExt.length);
+  const suffix = stem.slice(prefix.length);
+  if (!suffix) return false;
+  for (let i = 0; i < suffix.length; i += 1) {
+    const code = suffix.charCodeAt(i);
+    if (code < 48 || code > 57) return false;
+  }
+  return true;
+};
+
 export const listShardFiles = (dir, prefix, extensions = ['.json', '.jsonl']) => {
   if (!dir || typeof dir !== 'string' || !fs.existsSync(dir)) return [];
   const allowed = Array.isArray(extensions) && extensions.length
@@ -432,7 +447,7 @@ export const listShardFiles = (dir, prefix, extensions = ['.json', '.jsonl']) =>
     : ['.json', '.jsonl'];
   return fs
     .readdirSync(dir)
-    .filter((name) => name.startsWith(prefix) && allowed.some((ext) => name.endsWith(ext)))
+    .filter((name) => isStrictShardFileName(name, prefix, allowed))
     .sort()
     .map((name) => path.join(dir, name));
 };

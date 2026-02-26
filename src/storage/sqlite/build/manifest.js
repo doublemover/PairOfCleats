@@ -1,4 +1,5 @@
 import { normalizeFilePath } from '../utils.js';
+import { toArray } from '../../../shared/iterables.js';
 
 export function getFileManifest(db, mode) {
   const rows = db.prepare('SELECT file, hash, mtimeMs, size FROM file_manifest WHERE mode = ?')
@@ -60,7 +61,7 @@ export function diffFileManifests(manifestEntries, dbFiles) {
   const manifestUpdates = [];
   const manifestSet = new Set();
 
-  for (const record of manifestEntries || []) {
+  for (const record of toArray(manifestEntries)) {
     if (!record?.normalized) continue;
     manifestSet.add(record.normalized);
     const dbEntry = dbFiles.get(record.normalized);

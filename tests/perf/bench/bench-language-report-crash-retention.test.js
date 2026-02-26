@@ -5,7 +5,7 @@ import { buildReportOutput } from '../../../tools/bench/language/report.js';
 
 ensureTestingEnv(process.env);
 
-const output = buildReportOutput({
+const output = await buildReportOutput({
   configPath: '/tmp/repos.json',
   cacheRoot: '/tmp/cache',
   resultsRoot: '/tmp/results',

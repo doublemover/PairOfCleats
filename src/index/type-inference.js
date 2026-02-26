@@ -39,7 +39,14 @@ const JS_TYPES = {
 };
 
 const normalizeText = (value) => String(value || '').trim();
-const unique = (values) => Array.from(new Set((values || []).filter(Boolean)));
+const toTypeList = (values) => {
+  if (Array.isArray(values)) return values;
+  if (values == null) return [];
+  if (typeof values === 'string') return [values];
+  if (values && typeof values[Symbol.iterator] === 'function') return Array.from(values);
+  return [];
+};
+const unique = (values) => Array.from(new Set(toTypeList(values).filter(Boolean)));
 
 const normalizeTypeName = (value, languageId) => {
   const normalized = normalizeText(value);
@@ -325,8 +332,9 @@ const mergeTypeEntry = (existing, entry) => {
   if (!existing || !entry) return;
   existing.confidence = Math.max(existing.confidence || 0, entry.confidence || 0);
   if (entry.shape && !existing.shape) existing.shape = entry.shape;
-  if (Array.isArray(entry.elements) && entry.elements.length) {
-    existing.elements = unique([...(existing.elements || []), ...entry.elements]);
+  const incomingElements = toTypeList(entry.elements);
+  if (incomingElements.length) {
+    existing.elements = unique([...toTypeList(existing.elements), ...incomingElements]);
   }
   if (entry.evidence && !existing.evidence) existing.evidence = entry.evidence;
 };

@@ -1,6 +1,7 @@
 import { performance } from 'node:perf_hooks';
 import { buildChunkRow, buildTokenFrequency, prepareVectorAnnInsert } from '../../build-helpers.js';
 import { ensureVocabIds } from '../../vocab.js';
+import { toArray } from '../../../../shared/iterables.js';
 import {
   isVectorEncodingCompatible,
   packUint32,
@@ -276,7 +277,7 @@ export const runIncrementalUpdatePhase = ({
       const bundle = bundleEntry?.bundle;
       let chunkCount = 0;
       const isNewFile = reuseIds.length === 0;
-      for (const chunk of bundle?.chunks || []) {
+      for (const chunk of toArray(bundle?.chunks)) {
         const allocation = allocateIncrementalDocId({
           reuseIds,
           reuseIndex,

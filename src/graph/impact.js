@@ -1,6 +1,7 @@
 import { compareStrings } from '../shared/sort.js';
 import { normalizeDepth } from '../shared/limits.js';
 import { resolveProvenance } from '../shared/provenance.js';
+import { toArray } from '../shared/iterables.js';
 import { createTruncationRecorder } from '../shared/truncation.js';
 import { compareGraphNodes, compareWitnessPaths, nodeKey } from './ordering.js';
 import { buildGraphNeighborhood } from './neighborhood.js';
@@ -15,7 +16,10 @@ const normalizeDirection = (value) => {
 
 const normalizePaths = (paths) => {
   if (!paths) return [];
-  const list = Array.isArray(paths) ? paths : [paths];
+  const iterableList = toArray(paths);
+  const list = Array.isArray(paths)
+    ? paths
+    : (iterableList.length ? iterableList : [paths]);
   const unique = Array.from(new Set(list.map((entry) => String(entry || '').trim()).filter(Boolean)));
   unique.sort(compareStrings);
   return unique;
@@ -93,7 +97,7 @@ const resolveSeeds = ({ seed, changed, caps, recordTruncation }) => {
 };
 
 const mergeWarnings = (target, warnings) => {
-  for (const warning of warnings || []) {
+  for (const warning of toArray(warnings)) {
     if (!warning?.code || !warning?.message) continue;
     const key = `${warning.code}:${warning.message}`;
     if (target.seen.has(key)) continue;
@@ -103,7 +107,7 @@ const mergeWarnings = (target, warnings) => {
 };
 
 const mergeTruncation = (target, truncation) => {
-  for (const record of truncation || []) {
+  for (const record of toArray(truncation)) {
     if (!record?.cap || !record?.scope) continue;
     const key = `${record.scope}:${record.cap}`;
     if (target.seen.has(key)) continue;

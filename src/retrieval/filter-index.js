@@ -1,5 +1,6 @@
 import { tri } from '../shared/tokenize.js';
 import { normalizeFilePath } from '../shared/path-normalize.js';
+import { toArray } from '../shared/iterables.js';
 import { buildBitmapIndex } from './bitmap.js';
 
 /**
@@ -39,20 +40,22 @@ export function buildFilterIndex(chunkMeta = [], options = {}) {
   };
 
   const add = (map, value, id) => {
-    if (!value) return;
-    if (Array.isArray(value)) {
-      for (const entry of value) addOne(map, entry, id);
+    if (value == null) return;
+    const list = toArray(value);
+    if (list.length) {
+      for (const entry of list) addOne(map, entry, id);
       return;
     }
     addOne(map, value, id);
   };
   const resolveChunkAuthorsForIndex = (chunk) => {
-    const chunkAuthors = Array.isArray(chunk?.chunk_authors)
-      ? chunk.chunk_authors
-      : (Array.isArray(chunk?.chunkAuthors) ? chunk.chunkAuthors : null);
-    if (Array.isArray(chunkAuthors) && chunkAuthors.length) return chunkAuthors;
+    const chunkAuthors = toArray(chunk?.chunk_authors);
+    if (chunkAuthors.length) return chunkAuthors;
+    const chunkAuthorsLegacy = toArray(chunk?.chunkAuthors);
+    if (chunkAuthorsLegacy.length) return chunkAuthorsLegacy;
     const lastAuthor = chunk?.last_author;
-    if (Array.isArray(lastAuthor) && lastAuthor.length) return lastAuthor;
+    const lastAuthorList = toArray(lastAuthor);
+    if (lastAuthorList.length) return lastAuthorList;
     if (lastAuthor) return [lastAuthor];
     return [];
   };
@@ -132,7 +135,7 @@ export function buildFilterIndex(chunkMeta = [], options = {}) {
     index.fileChunksById[fileId].add(chunkId);
   };
 
-  for (const chunk of chunkMeta) {
+  for (const chunk of toArray(chunkMeta)) {
     if (!chunk) continue;
     const id = chunk.id;
     if (!Number.isFinite(id)) continue;
@@ -158,7 +161,7 @@ const serializeMap = (map) => {
   const out = {};
   if (!map || typeof map.entries !== 'function') return out;
   for (const [key, value] of map.entries()) {
-    out[key] = Array.from(value || []);
+    out[key] = toArray(value);
   }
   return out;
 };
@@ -201,7 +204,7 @@ export function serializeFilterIndex(index) {
     // Must be a copy because buildSerializedFilterIndex releases index memory after serialization.
     fileById: Array.isArray(index.fileById) ? index.fileById.slice() : [],
     fileChunksById: Array.isArray(index.fileChunksById)
-      ? index.fileChunksById.map((set) => Array.from(set || []))
+      ? index.fileChunksById.map((set) => toArray(set))
       : [],
     fileChargrams: serializeMap(index.fileChargrams)
   };
@@ -241,7 +244,7 @@ export function hydrateFilterIndex(raw) {
     fileById,
     fileIdByPath,
     fileChunksById: Array.isArray(raw.fileChunksById)
-      ? raw.fileChunksById.map((list) => new Set(Array.isArray(list) ? list : []))
+      ? raw.fileChunksById.map((list) => new Set(toArray(list)))
       : [],
     fileChargrams: hydrateMap(raw.fileChargrams)
   };

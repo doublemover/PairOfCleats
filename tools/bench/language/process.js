@@ -179,7 +179,12 @@ const appendJsonLineQueued = (queueByPath, filePath, payload) => {
 
 const flushQueuedJsonLines = async (queueByPath) => {
   if (!(queueByPath instanceof Map) || queueByPath.size === 0) return;
-  await Promise.all(Array.from(queueByPath.values()).map((pending) => pending.catch(() => {})));
+  const pendingWrites = Array.from(queueByPath.values());
+  const flushBatchSize = 32;
+  for (let i = 0; i < pendingWrites.length; i += flushBatchSize) {
+    const batch = pendingWrites.slice(i, i + flushBatchSize);
+    await Promise.all(batch.map((pending) => pending.catch(() => {})));
+  }
 };
 
 const matchesAnyPattern = (text, patterns) => patterns.some((pattern) => pattern.test(text));

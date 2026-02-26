@@ -4,6 +4,7 @@ import { createError, ERROR_CODES } from '../../shared/error-codes.js';
 import { isAbortError } from '../../shared/abort.js';
 import { normalizeOptionalInt } from '../../shared/limits.js';
 import { stableStringify } from '../../shared/stable-json.js';
+import { toArray } from '../../shared/iterables.js';
 import { createIndexCache } from '../index-cache.js';
 import { createSqliteDbCache } from '../sqlite-cache.js';
 import { loadWorkspaceConfig } from '../../workspace/config.js';
@@ -298,7 +299,11 @@ export const mergeFederatedResultsByMode = ({
     records: []
   };
   for (const [mode, payloadKey] of Object.entries(MODE_PAYLOAD_KEYS)) {
-    const selectedRepoIds = new Set((selectedReposByMode[mode] || []).map((repo) => repo.repoId));
+    const selectedRepoIds = new Set(
+      toArray(selectedReposByMode?.[mode])
+        .map((repo) => repo?.repoId)
+        .filter(Boolean)
+    );
     if (!selectedRepoIds.size) {
       mergedByMode[payloadKey] = [];
       continue;
@@ -402,7 +407,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
   const selectedByMode = cohortResult.selectedReposByMode || {};
   const repoEligibleModesById = new Map();
   for (const mode of requestedModes) {
-    for (const repo of selectedByMode[mode] || []) {
+    for (const repo of toArray(selectedByMode?.[mode])) {
       if (!repo?.repoId) continue;
       if (!repoEligibleModesById.has(repo.repoId)) {
         repoEligibleModesById.set(repo.repoId, new Set());
@@ -411,7 +416,9 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     }
   }
   const activeRepoIds = Array.from(new Set(
-    requestedModes.flatMap((mode) => (selectedByMode[mode] || []).map((repo) => repo.repoId))
+    requestedModes.flatMap((mode) => (
+      toArray(selectedByMode?.[mode]).map((repo) => repo?.repoId).filter(Boolean)
+    ))
   )).sort((a, b) => a.localeCompare(b));
 
   const topN = coerceNumber(request.search?.top ?? request.top, 10, 0, MAX_FEDERATED_TOP);
@@ -580,7 +587,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
       extractedProse: [],
       records: [],
       repos: [],
-      warnings: [...selection.warnings, ...(cohortResult.warnings || [])]
+      warnings: [...toArray(selection.warnings), ...toArray(cohortResult?.warnings)]
     };
     const stable = toStableResponse(emptyResponse, includePaths);
     await persistCachedResult(stable);
@@ -774,7 +781,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     extractedProse: merged.extractedProse,
     records: merged.records,
     repos: sortDiagnostics(diagnostics),
-    warnings: [...selection.warnings, ...(cohortResult.warnings || [])]
+    warnings: [...toArray(selection.warnings), ...toArray(cohortResult?.warnings)]
   };
 
   const stable = toStableResponse(response, includePaths);

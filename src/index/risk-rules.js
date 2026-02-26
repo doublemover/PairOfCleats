@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { compileSafeRegex, normalizeSafeRegexConfig } from '../shared/safe-regex.js';
 import { isAbsolutePathNative } from '../shared/files.js';
+import { toArray } from '../shared/iterables.js';
 
 const DEFAULT_RULES = {
   version: '1.0.0',
@@ -221,7 +222,7 @@ const normalizeRule = (rule, fallbackType) => {
 
 const normalizeRuleList = (list, type) => {
   const normalized = [];
-  for (const entry of list || []) {
+  for (const entry of toArray(list)) {
     const rule = normalizeRule(entry, type);
     if (rule) normalized.push(rule);
   }
@@ -334,15 +335,15 @@ export const normalizeRiskRules = (input = {}, { rootDir, regexConfig } = {}) =>
 
   const sources = mergeRules(
     normalizeRuleList(base.sources, 'source'),
-    normalizeRuleList([...(overrideBundle?.sources || []), ...(inlineRules.sources || [])], 'source')
+    normalizeRuleList([...toArray(overrideBundle?.sources), ...toArray(inlineRules.sources)], 'source')
   );
   const sinks = mergeRules(
     normalizeRuleList(base.sinks, 'sink'),
-    normalizeRuleList([...(overrideBundle?.sinks || []), ...(inlineRules.sinks || [])], 'sink')
+    normalizeRuleList([...toArray(overrideBundle?.sinks), ...toArray(inlineRules.sinks)], 'sink')
   );
   const sanitizers = mergeRules(
     normalizeRuleList(base.sanitizers, 'sanitizer'),
-    normalizeRuleList([...(overrideBundle?.sanitizers || []), ...(inlineRules.sanitizers || [])], 'sanitizer')
+    normalizeRuleList([...toArray(overrideBundle?.sanitizers), ...toArray(inlineRules.sanitizers)], 'sanitizer')
   );
 
   const bundle = {

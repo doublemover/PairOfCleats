@@ -18,6 +18,7 @@ import { matchMetaFilters, resolveReturnTypes } from './filters/meta.js';
 import { normalizeList, normalizePhraseList, matchList, truthy } from './filters/predicates.js';
 import { matchStructural } from './filters/structural.js';
 import { normalizeFilePath } from '../../shared/path-normalize.js';
+import { toArray } from '../../shared/iterables.js';
 import { resolveFileRelations as resolveFileRelationLookup } from '../file-relations-resolver.js';
 
 const asObject = (value) => (value && typeof value === 'object' ? value : null);
@@ -472,7 +473,7 @@ const matchChunkFilters = (c, state) => {
       ngrams = extractNgrams(tokens, derivedPhraseRange.min, derivedPhraseRange.max);
     }
     const tokenSet = new Set(tokens.map(normalizeToken));
-    const ngramSet = new Set((ngrams || []).map(normalizeToken));
+    const ngramSet = new Set(toArray(ngrams).map(normalizeToken));
     const tokenMatch = excludeNeedles.some((needle) => tokenSet.has(needle) || ngramSet.has(needle));
     if (tokenMatch) return false;
     if (excludePhraseNeedles.some((needle) => ngramSet.has(needle))) return false;

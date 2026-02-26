@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-25T16:38:52.150Z",
+  "generatedAt": "2026-02-26T12:19:18.173Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -65,6 +65,7 @@
       "PAIROFCLEATS_DEBUG_HANG_PROBE_WARN_MS",
       "PAIROFCLEATS_DEBUG_ORDERED",
       "PAIROFCLEATS_DEBUG_PERF_EVENTS",
+      "PAIROFCLEATS_DENSE_BINARY_MAX_INLINE_MB",
       "PAIROFCLEATS_DICT_DIR",
       "PAIROFCLEATS_DISCOVERY_STAT_CONCURRENCY",
       "PAIROFCLEATS_DOC_EXTRACT",
@@ -2260,6 +2261,15 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_DENSE_BINARY_MAX_INLINE_MB",
+      "files": [
+        "src/shared/env.js",
+        "tests/shared/env-boolean-case-insensitive.test.js",
+        "tests/storage/sqlite/sqlite-utils-dense-binary-load.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_DICT_DIR",
       "files": [
         "src/shared/env.js",
@@ -3120,6 +3130,7 @@
         "tests/indexing/extracted-prose/document-bytes-hash-stable.test.js",
         "tests/indexing/extracted-prose/document-chunk-id-no-collision.test.js",
         "tests/indexing/extracted-prose/document-extraction-cache-hit-reason.test.js",
+        "tests/indexing/extracted-prose/document-extraction-cache-policy-key.test.js",
         "tests/indexing/extracted-prose/document-extraction-checksums-and-counts.test.js",
         "tests/indexing/extracted-prose/document-extraction-outcomes-recorded.test.js",
         "tests/indexing/extracted-prose/document-extractor-version-recorded.test.js",
@@ -3342,6 +3353,7 @@
         "tests/indexing/extracted-prose/document-bytes-hash-stable.test.js",
         "tests/indexing/extracted-prose/document-chunk-id-no-collision.test.js",
         "tests/indexing/extracted-prose/document-extraction-cache-hit-reason.test.js",
+        "tests/indexing/extracted-prose/document-extraction-cache-policy-key.test.js",
         "tests/indexing/extracted-prose/document-extraction-checksums-and-counts.test.js",
         "tests/indexing/extracted-prose/document-extraction-outcomes-recorded.test.js",
         "tests/indexing/extracted-prose/document-extractor-version-recorded.test.js",
@@ -3418,7 +3430,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 357,
+    "totalFlags": 358,
     "publicFlags": [
       "allow-unauthenticated",
       "allowed-repo-roots",
@@ -3639,6 +3651,7 @@
       "min-rank-corr",
       "minBytes",
       "minConfidence",
+      "minFileBytes",
       "missing-rate",
       "missingDocHashRate",
       "model",
@@ -4102,6 +4115,17 @@
         "file": "tests/indexing/tree-sitter/tree-sitter-xml-runtime.test.js",
         "flags": [
           "treeSitter"
+        ]
+      },
+      {
+        "file": "tests/indexing/vfs/vfs-cdc-min-file-bytes.test.js",
+        "flags": [
+          "avgBytes",
+          "maskBits",
+          "maxBytes",
+          "minBytes",
+          "minFileBytes",
+          "windowBytes"
         ]
       },
       {
@@ -6408,6 +6432,15 @@
         ]
       },
       {
+        "flag": "maxBytes",
+        "count": 3,
+        "files": [
+          "src/integrations/tooling/context-pack.js",
+          "tests/indexing/vfs/vfs-cdc-min-file-bytes.test.js",
+          "tests/indexing/vfs/vfs-cdc-segmentation-contract.test.js"
+        ]
+      },
+      {
         "flag": "maxFanoutPerNode",
         "count": 3,
         "files": [
@@ -6494,6 +6527,14 @@
         "files": [
           "tools/download/extensions.js",
           "tools/sqlite/verify-extensions.js"
+        ]
+      },
+      {
+        "flag": "avgBytes",
+        "count": 2,
+        "files": [
+          "tests/indexing/vfs/vfs-cdc-min-file-bytes.test.js",
+          "tests/indexing/vfs/vfs-cdc-segmentation-contract.test.js"
         ]
       },
       {
@@ -6721,10 +6762,10 @@
         ]
       },
       {
-        "flag": "maxBytes",
+        "flag": "maskBits",
         "count": 2,
         "files": [
-          "src/integrations/tooling/context-pack.js",
+          "tests/indexing/vfs/vfs-cdc-min-file-bytes.test.js",
           "tests/indexing/vfs/vfs-cdc-segmentation-contract.test.js"
         ]
       },
@@ -6734,6 +6775,14 @@
         "files": [
           "tools/triage/decision.js",
           "tools/triage/ingest.js"
+        ]
+      },
+      {
+        "flag": "minBytes",
+        "count": 2,
+        "files": [
+          "tests/indexing/vfs/vfs-cdc-min-file-bytes.test.js",
+          "tests/indexing/vfs/vfs-cdc-segmentation-contract.test.js"
         ]
       },
       {
@@ -6942,6 +6991,14 @@
         "files": [
           "bin/pairofcleats.js",
           "tools/docs/script-inventory.js"
+        ]
+      },
+      {
+        "flag": "windowBytes",
+        "count": 2,
+        "files": [
+          "tests/indexing/vfs/vfs-cdc-min-file-bytes.test.js",
+          "tests/indexing/vfs/vfs-cdc-segmentation-contract.test.js"
         ]
       },
       {

@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { log } from '../../../src/shared/progress.js';
 import {
@@ -58,26 +58,84 @@ const buildCrashRetentionSummary = (results) => {
 const DIAGNOSTIC_STREAM_FILE_SUFFIX = '.diagnostics.jsonl';
 const PROGRESS_CONFIDENCE_STREAM_FILE_SUFFIX = '.progress-confidence.jsonl';
 
-const loadJsonFileSync = (filePath) => {
+const loadJsonFile = async (filePath) => {
   try {
-    if (!filePath || !fs.existsSync(filePath)) return null;
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    if (!filePath) return null;
+    return JSON.parse(await fsPromises.readFile(filePath, 'utf8'));
   } catch {
     return null;
   }
 };
 
-const listBenchStreamFiles = (resultsRoot, suffix) => {
+const forEachNonEmptyLine = (raw, onLine) => {
+  if (typeof raw !== 'string' || !raw) return;
+  if (typeof onLine !== 'function') return;
+  let start = 0;
+  const length = raw.length;
+  while (start <= length) {
+    let end = raw.indexOf('\n', start);
+    if (end === -1) end = length;
+    let line = raw.slice(start, end);
+    if (line.endsWith('\r')) line = line.slice(0, -1);
+    const trimmed = line.trim();
+    if (trimmed) onLine(trimmed);
+    if (end >= length) break;
+    start = end + 1;
+  }
+};
+
+const pushTopNOrdered = (rows, entry, limit, compare) => {
+  if (!Array.isArray(rows) || typeof compare !== 'function') return;
+  const cap = Number.isFinite(Number(limit)) ? Math.max(1, Math.floor(Number(limit))) : 1;
+  let insertAt = rows.length;
+  while (insertAt > 0 && compare(entry, rows[insertAt - 1]) < 0) {
+    insertAt -= 1;
+  }
+  if (rows.length < cap) {
+    rows.splice(insertAt, 0, entry);
+    return;
+  }
+  if (insertAt >= cap) return;
+  rows.splice(insertAt, 0, entry);
+  rows.length = cap;
+};
+
+const mapWithConcurrency = async (values, worker, { concurrency = 8 } = {}) => {
+  const input = Array.isArray(values) ? values : [];
+  if (!input.length) return [];
+  if (typeof worker !== 'function') return input.slice();
+  const limit = Number.isFinite(Number(concurrency))
+    ? Math.max(1, Math.floor(Number(concurrency)))
+    : 1;
+  const out = new Array(input.length);
+  let cursor = 0;
+  const nextIndex = () => {
+    if (cursor >= input.length) return null;
+    const index = cursor;
+    cursor += 1;
+    return index;
+  };
+  const workers = new Array(Math.min(limit, input.length)).fill(null).map(async () => {
+    while (true) {
+      const index = nextIndex();
+      if (index == null) return;
+      out[index] = await worker(input[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return out;
+};
+
+const listBenchStreamFiles = async (resultsRoot, suffix) => {
   if (!resultsRoot) return [];
   const root = path.join(resultsRoot, 'logs', 'bench-language');
-  if (!fs.existsSync(root)) return [];
   const files = [];
   const queue = [root];
   while (queue.length) {
     const current = queue.pop();
     let entries = [];
     try {
-      entries = fs.readdirSync(current, { withFileTypes: true });
+      entries = await fsPromises.readdir(current, { withFileTypes: true });
     } catch {
       continue;
     }
@@ -95,7 +153,7 @@ const listBenchStreamFiles = (resultsRoot, suffix) => {
   return files.sort((left, right) => left.localeCompare(right));
 };
 
-const listDiagnosticsStreamFiles = (resultsRoot) => (
+const listDiagnosticsStreamFiles = async (resultsRoot) => (
   listBenchStreamFiles(resultsRoot, DIAGNOSTIC_STREAM_FILE_SUFFIX)
 );
 
@@ -131,8 +189,8 @@ const parseDiagnosticEventLine = (line) => {
   };
 };
 
-const buildDiagnosticsStreamSummary = (resultsRoot) => {
-  const files = listDiagnosticsStreamFiles(resultsRoot);
+const buildDiagnosticsStreamSummary = async (resultsRoot) => {
+  const files = await listDiagnosticsStreamFiles(resultsRoot);
   const countsByType = new Map();
   const uniqueEventIds = new Set();
   const knownTypes = new Set(BENCH_DIAGNOSTIC_EVENT_TYPES);
@@ -143,28 +201,28 @@ const buildDiagnosticsStreamSummary = (resultsRoot) => {
   for (const filePath of files) {
     let raw = '';
     try {
-      raw = fs.readFileSync(filePath, 'utf8');
+      raw = await fsPromises.readFile(filePath, 'utf8');
     } catch {
       continue;
     }
     const fileCounts = new Map();
-    const lines = raw.split(/\r?\n/);
-    for (const line of lines) {
-      if (!line || !line.trim()) continue;
+    let fileEventCount = 0;
+    forEachNonEmptyLine(raw, (line) => {
       const parsed = parseDiagnosticEventLine(line);
       if (!parsed) {
         malformedLines += 1;
-        continue;
+        return;
       }
-      if (!parsed.eventType) continue;
+      if (!parsed.eventType) return;
       eventCount += 1;
+      fileEventCount += 1;
       uniqueEventIds.add(parsed.eventId);
       countsByType.set(parsed.eventType, (countsByType.get(parsed.eventType) || 0) + 1);
       fileCounts.set(parsed.eventType, (fileCounts.get(parsed.eventType) || 0) + 1);
-    }
+    });
     perFile.push({
       path: filePath,
-      eventCount: Array.from(fileCounts.values()).reduce((sum, count) => sum + count, 0),
+      eventCount: fileEventCount,
       countsByType: Object.fromEntries(
         Array.from(fileCounts.entries()).sort(([left], [right]) => left.localeCompare(right))
       )
@@ -174,9 +232,11 @@ const buildDiagnosticsStreamSummary = (resultsRoot) => {
   const required = Object.fromEntries(
     BENCH_DIAGNOSTIC_EVENT_TYPES.map((type) => [type, countsByType.get(type) || 0])
   );
-  const unknownTypeCount = Array.from(countsByType.entries())
-    .filter(([type]) => !knownTypes.has(type))
-    .reduce((sum, [, count]) => sum + count, 0);
+  let unknownTypeCount = 0;
+  for (const [type, count] of countsByType.entries()) {
+    if (knownTypes.has(type)) continue;
+    unknownTypeCount += count;
+  }
 
   return {
     schemaVersion: BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION,
@@ -220,48 +280,60 @@ const parseProgressConfidenceLine = (line) => {
   };
 };
 
-const buildProgressConfidenceSummary = (resultsRoot) => {
-  const files = listBenchStreamFiles(resultsRoot, PROGRESS_CONFIDENCE_STREAM_FILE_SUFFIX);
+const buildProgressConfidenceSummary = async (resultsRoot) => {
+  const files = await listBenchStreamFiles(resultsRoot, PROGRESS_CONFIDENCE_STREAM_FILE_SUFFIX);
   const bucketCounts = new Map();
   const perFile = [];
-  const allScores = [];
-  const lowConfidenceEvents = [];
+  const lowConfidenceEventsTop = [];
   const latestByLabel = new Map();
   let eventCount = 0;
   let malformedLines = 0;
+  let totalScore = 0;
+  let totalScoreCount = 0;
+  let minScoreGlobal = Number.POSITIVE_INFINITY;
+  let maxScoreGlobal = Number.NEGATIVE_INFINITY;
 
   for (const filePath of files) {
     let raw = '';
     try {
-      raw = fs.readFileSync(filePath, 'utf8');
+      raw = await fsPromises.readFile(filePath, 'utf8');
     } catch {
       continue;
     }
     const fileBucketCounts = new Map();
-    const fileScores = [];
-    const lines = raw.split(/\r?\n/);
-    for (const line of lines) {
-      if (!line || !line.trim()) continue;
+    let fileScoreSum = 0;
+    let fileScoreCount = 0;
+    let fileMinScore = Number.POSITIVE_INFINITY;
+    let fileEventCount = 0;
+    forEachNonEmptyLine(raw, (line) => {
       const parsed = parseProgressConfidenceLine(line);
       if (!parsed) {
         malformedLines += 1;
-        continue;
+        return;
       }
       eventCount += 1;
+      fileEventCount += 1;
       const bucket = parsed.bucket || 'unknown';
       bucketCounts.set(bucket, (bucketCounts.get(bucket) || 0) + 1);
       fileBucketCounts.set(bucket, (fileBucketCounts.get(bucket) || 0) + 1);
       if (Number.isFinite(parsed.score)) {
-        allScores.push(parsed.score);
-        fileScores.push(parsed.score);
-        lowConfidenceEvents.push({
+        fileScoreSum += parsed.score;
+        fileScoreCount += 1;
+        totalScore += parsed.score;
+        totalScoreCount += 1;
+        if (parsed.score < fileMinScore) fileMinScore = parsed.score;
+        if (parsed.score < minScoreGlobal) minScoreGlobal = parsed.score;
+        if (parsed.score > maxScoreGlobal) maxScoreGlobal = parsed.score;
+        pushTopNOrdered(lowConfidenceEventsTop, {
           path: filePath,
           label: parsed.label,
           score: parsed.score,
           bucket: parsed.bucket,
           reason: parsed.reason || null,
           ts: parsed.ts || null
-        });
+        }, 20, (left, right) => (
+          Number(left.score) - Number(right.score)
+        ) || String(left.label || '').localeCompare(String(right.label || '')));
       }
       if (parsed.label) {
         const prior = latestByLabel.get(parsed.label);
@@ -277,26 +349,22 @@ const buildProgressConfidenceSummary = (resultsRoot) => {
           });
         }
       }
-    }
+    });
     perFile.push({
       path: filePath,
-      eventCount: Array.from(fileBucketCounts.values()).reduce((sum, count) => sum + count, 0),
-      avgScore: fileScores.length
-        ? fileScores.reduce((sum, value) => sum + value, 0) / fileScores.length
+      eventCount: fileEventCount,
+      avgScore: fileScoreCount
+        ? fileScoreSum / fileScoreCount
         : null,
-      minScore: fileScores.length ? Math.min(...fileScores) : null,
+      minScore: Number.isFinite(fileMinScore) ? fileMinScore : null,
       countsByBucket: Object.fromEntries(
         Array.from(fileBucketCounts.entries()).sort(([left], [right]) => left.localeCompare(right))
       )
     });
   }
 
-  lowConfidenceEvents.sort((left, right) => (
-    Number(left.score) - Number(right.score)
-  ) || String(left.label || '').localeCompare(String(right.label || '')));
-
-  const avgScore = allScores.length
-    ? allScores.reduce((sum, score) => sum + score, 0) / allScores.length
+  const avgScore = totalScoreCount
+    ? totalScore / totalScoreCount
     : null;
 
   return {
@@ -305,12 +373,12 @@ const buildProgressConfidenceSummary = (resultsRoot) => {
     files: perFile,
     eventCount,
     avgScore,
-    minScore: allScores.length ? Math.min(...allScores) : null,
-    maxScore: allScores.length ? Math.max(...allScores) : null,
+    minScore: Number.isFinite(minScoreGlobal) ? minScoreGlobal : null,
+    maxScore: Number.isFinite(maxScoreGlobal) ? maxScoreGlobal : null,
     countsByBucket: Object.fromEntries(
       Array.from(bucketCounts.entries()).sort(([left], [right]) => left.localeCompare(right))
     ),
-    lowConfidenceEvents: lowConfidenceEvents.slice(0, 20),
+    lowConfidenceEvents: lowConfidenceEventsTop,
     latestByLabel: Array.from(latestByLabel.values())
       .sort((left, right) => String(left.label).localeCompare(String(right.label))),
     malformedLines
@@ -457,10 +525,17 @@ const resolveTopMissTaxonomyLabels = (summary, maxLabels = 6) => {
   };
   appendCounts(source.lowHitByBackend);
   appendCounts(source.byBackend);
-  return Array.from(counts.entries())
-    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
-    .slice(0, Math.max(1, Math.floor(Number(maxLabels) || 6)))
-    .map(([label, count]) => ({ label, count }));
+  const limit = Math.max(1, Math.floor(Number(maxLabels) || 6));
+  const top = [];
+  for (const entry of counts.entries()) {
+    pushTopNOrdered(
+      top,
+      entry,
+      limit,
+      (left, right) => (right[1] - left[1]) || left[0].localeCompare(right[0])
+    );
+  }
+  return top.map(([label, count]) => ({ label, count }));
 };
 
 const buildRemediationSummary = (tasks) => {
@@ -482,13 +557,13 @@ const buildRemediationSummary = (tasks) => {
           component: suggestion.component,
           uses: 0,
           scoreTotal: 0,
-          repos: []
+          repos: new Set()
         });
       }
       const bucket = aggregateSuggestions.get(suggestion.suggestionId);
       bucket.uses += 1;
       bucket.scoreTotal += Number(suggestion.score) || 0;
-      bucket.repos.push(`${entry.language}/${entry.repo}`);
+      bucket.repos.add(`${entry.language}/${entry.repo}`);
     }
     remediationRows.push({
       language: entry.language,
@@ -517,7 +592,7 @@ const buildRemediationSummary = (tasks) => {
       component: entry.component,
       uses: entry.uses,
       avgScore: roundValue(entry.uses > 0 ? (entry.scoreTotal / entry.uses) : 0, 3),
-      repos: entry.repos.sort((left, right) => left.localeCompare(right))
+      repos: Array.from(entry.repos).sort((left, right) => left.localeCompare(right))
     }))
     .sort((left, right) => (Number(right.avgScore || 0) - Number(left.avgScore || 0))
       || (Number(right.uses || 0) - Number(left.uses || 0))
@@ -633,9 +708,9 @@ export const printSummary = (
   }
 };
 
-const resolveTaskPayload = (entry) => {
+const resolveTaskPayload = async (entry) => {
   if (!entry?.outFile) return null;
-  return loadJsonFileSync(entry.outFile);
+  return loadJsonFile(entry.outFile);
 };
 
 const resolveTaskRepoIdentity = (entry, payload) => (
@@ -665,7 +740,7 @@ const applyThroughputLedgerDiffs = (tasks) => {
     const throughputLedgerDiff = isValidThroughputLedger(task.throughputLedger)
       ? computeThroughputLedgerRegression({
         currentLedger: task.throughputLedger,
-        baselineLedgers: baseline.slice(-3),
+        baselineLedgers: baseline,
         metric: 'chunksPerSec'
       })
       : null;
@@ -675,18 +750,23 @@ const applyThroughputLedgerDiffs = (tasks) => {
     };
     out.push(nextTask);
     if (isValidThroughputLedger(task.throughputLedger)) {
-      historyByRepo.set(repoIdentity, [...baseline, task.throughputLedger]);
+      if (historyByRepo.has(repoIdentity)) {
+        baseline.push(task.throughputLedger);
+        while (baseline.length > 3) baseline.shift();
+      } else {
+        historyByRepo.set(repoIdentity, [task.throughputLedger]);
+      }
     }
   }
   return out;
 };
 
 const buildThroughputLedgerSummary = (tasks) => {
-  const rows = [];
+  const topRegressions = [];
   for (const entry of tasks) {
     const regressions = entry?.throughputLedgerDiff?.regressions || [];
     for (const regression of regressions.slice(0, 3)) {
-      rows.push({
+      pushTopNOrdered(topRegressions, {
         language: entry.language,
         tier: entry.tier,
         repo: entry.repo,
@@ -699,25 +779,25 @@ const buildThroughputLedgerSummary = (tasks) => {
         deltaRate: regression.deltaRate,
         deltaPct: regression.deltaPct,
         baselineSamples: regression.baselineSamples
-      });
+      }, 20, (left, right) => (
+        Number(left.deltaPct) - Number(right.deltaPct)
+      ) || String(left.repoIdentity).localeCompare(String(right.repoIdentity)));
     }
   }
-  rows.sort((left, right) => (
-    Number(left.deltaPct) - Number(right.deltaPct)
-  ) || String(left.repoIdentity).localeCompare(String(right.repoIdentity)));
   return {
     schemaVersion: THROUGHPUT_LEDGER_SCHEMA_VERSION,
     diffSchemaVersion: THROUGHPUT_LEDGER_DIFF_SCHEMA_VERSION,
     taskCount: tasks.length,
     ledgerTaskCount: tasks.filter((entry) => isValidThroughputLedger(entry?.throughputLedger)).length,
     diffTaskCount: tasks.filter((entry) => entry?.throughputLedgerDiff?.baselineCount > 0).length,
-    topRegressions: rows.slice(0, 20)
+    topRegressions
   };
 };
 
-export const buildReportOutput = ({ configPath, cacheRoot, resultsRoot, results, config }) => {
-  const tasksWithTelemetry = results.map((entry) => {
-    const payload = resolveTaskPayload(entry);
+export const buildReportOutput = async ({ configPath, cacheRoot, resultsRoot, results, config }) => {
+  const taskInputs = Array.isArray(results) ? results : [];
+  const tasksWithTelemetry = await mapWithConcurrency(taskInputs, async (entry) => {
+    const payload = await resolveTaskPayload(entry);
     const throughputLedger = resolveTaskThroughputLedger({ entry, payload });
     return {
       ...entry,
@@ -730,7 +810,7 @@ export const buildReportOutput = ({ configPath, cacheRoot, resultsRoot, results,
         : null,
       throughputLedger
     };
-  });
+  }, { concurrency: 8 });
   const tasks = applyThroughputLedgerDiffs(tasksWithTelemetry);
   const groupedResults = new Map();
   for (const entry of tasks) {
@@ -747,8 +827,8 @@ export const buildReportOutput = ({ configPath, cacheRoot, resultsRoot, results,
   }
   const overallSummary = summarizeResults(tasks);
   const crashRetention = buildCrashRetentionSummary(tasks);
-  const diagnosticsStream = buildDiagnosticsStreamSummary(resultsRoot);
-  const progressConfidence = buildProgressConfidenceSummary(resultsRoot);
+  const diagnosticsStream = await buildDiagnosticsStreamSummary(resultsRoot);
+  const progressConfidence = await buildProgressConfidenceSummary(resultsRoot);
   const throughputLedger = buildThroughputLedgerSummary(tasks);
   const stageTimingTasks = tasks
     .filter((entry) => entry?.stageTimingProfile)

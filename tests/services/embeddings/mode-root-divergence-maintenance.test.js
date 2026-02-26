@@ -12,7 +12,7 @@ const source = await fs.readFile(runnerPath, 'utf8');
 
 assert.match(
   source,
-  /queueBackgroundSqliteMaintenance\s*=\s*\(\{\s*mode,\s*denseCount,\s*modeIndexRoot,\s*sqlitePathsForMode/m,
+  /queueBackgroundSqliteMaintenance\s*=\s*(?:async\s*)?\(\{\s*mode,\s*denseCount,\s*modeIndexRoot,\s*sqlitePathsForMode/m,
   'maintenance queue helper must accept modeIndexRoot + mode-scoped sqlite paths'
 );
 assert.match(
@@ -22,7 +22,7 @@ assert.match(
 );
 assert.match(
   source,
-  /const modeTracker = ensureBuildStateTracker\(modeIndexRoot\);/m,
+  /const modeTracker = (?:await\s+)?ensureBuildStateTracker\(modeIndexRoot\);/m,
   'build-state tracking should follow mode-specific roots'
 );
 assert.match(

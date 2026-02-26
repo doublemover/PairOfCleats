@@ -130,6 +130,7 @@ const reposWithMetrics = new Set();
 /** @type {AstGraphAggregate} */
 const astGraphTotalsGlobal = { repos: 0, totals: createAstGraphTotals(), observed: createAstGraphObserved() };
 const ledgerRegressionsGlobal = [];
+const refreshWriteFailures = [];
 
 console.error(color.bold(color.cyan('Benchmark Performance Overview')));
 console.error(color.gray(`Root: ${resultsRoot}`));
@@ -184,7 +185,13 @@ for (const dir of folders) {
     if (dirty && refreshJson) {
       try {
         fs.writeFileSync(resultPath, JSON.stringify(payload, null, 2));
-      } catch {}
+      } catch (err) {
+        refreshWriteFailures.push({
+          path: resultPath,
+          message: err?.message || String(err)
+        });
+        console.error(color.yellow(`[warn] Failed to refresh benchmark JSON: ${resultPath} (${err?.message || err})`));
+      }
     }
     const repoIdentity = resolveRepoIdentity({ payload, file });
     const repoHistoryKey = resolveRepoHistoryKey({ payload, file });
@@ -712,5 +719,13 @@ if (languageTotals.size) {
     for (const [language, lines] of displayed) {
       console.error(`  ${language.padStart(languageWidth)}: ${formatCount(lines).padStart(countWidth)} `);
     }
+  }
+}
+if (refreshWriteFailures.length) {
+  process.exitCode = 1;
+  console.error('');
+  console.error(color.bold(color.yellow(`Refresh JSON write failures: ${refreshWriteFailures.length}`)));
+  for (const entry of refreshWriteFailures.slice(0, 12)) {
+    console.error(`  ${entry.path} :: ${entry.message}`);
   }
 }

@@ -8,8 +8,9 @@ const normalizeScore = (value) => {
 };
 
 const normalizeIdValue = (value) => {
-  const num = Number(value);
-  if (Number.isFinite(num)) return { type: 'number', value: num };
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return { type: 'number', value };
+  }
   return { type: 'string', value: value == null ? '' : String(value) };
 };
 

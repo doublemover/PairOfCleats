@@ -46,7 +46,8 @@ const iterateBinaryColumnarRows = function* ({
   sources,
   manifest,
   maxBytes,
-  strict
+  strict,
+  enforceBinaryDataBudget = true
 }) {
   for (let index = 0; index < sources.paths.length; index += 1) {
     const rows = loadBinaryColumnarJsonRows({
@@ -55,7 +56,8 @@ const iterateBinaryColumnarRows = function* ({
       sources: resolveBinaryColumnarSourcePart(sources, index),
       manifest,
       maxBytes,
-      strict
+      strict,
+      enforceDataBudget: enforceBinaryDataBudget
     });
     for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
       yield rows[rowIndex];
@@ -192,7 +194,8 @@ const loadArrayPayloadFromSources = async (
       sources,
       manifest,
       maxBytes,
-      strict
+      strict,
+      enforceBinaryDataBudget
     })) {
       out.push(row);
     }
@@ -257,7 +260,8 @@ const loadArrayPayloadFromSourcesSync = (
       sources,
       manifest,
       maxBytes,
-      strict
+      strict,
+      enforceBinaryDataBudget
     })) {
       out.push(row);
     }
@@ -411,7 +415,8 @@ export const loadJsonArrayArtifactRows = async function* (
       sources,
       manifest: resolvedManifest,
       maxBytes,
-      strict
+      strict,
+      enforceBinaryDataBudget
     })) {
       yield row;
     }
@@ -526,7 +531,8 @@ export const loadFileMetaRows = async function* (
       sources,
       manifest: resolvedManifest,
       maxBytes,
-      strict
+      strict,
+      enforceBinaryDataBudget
     })) {
       yield validateFileMetaRow(row, 'file_meta');
     }

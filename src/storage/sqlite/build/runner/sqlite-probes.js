@@ -1,3 +1,5 @@
+import { toArray } from '../../../../shared/iterables.js';
+
 /**
  * Read grouped row counts by mode from existing sqlite db.
  * @param {{Database:any,dbPath:string}} input
@@ -9,7 +11,7 @@ export const readSqliteCounts = ({ Database, dbPath }) => {
   try {
     db = new Database(dbPath, { readonly: true });
     const rows = db.prepare('SELECT mode, COUNT(*) AS total FROM chunks GROUP BY mode').all();
-    for (const row of rows || []) {
+    for (const row of toArray(rows)) {
       if (!row?.mode) continue;
       counts[row.mode] = Number.isFinite(row.total) ? row.total : 0;
     }

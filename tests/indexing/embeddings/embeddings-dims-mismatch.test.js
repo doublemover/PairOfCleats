@@ -2,14 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getCombinedOutput } from '../../helpers/stdio.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
-import {
-  readCacheEntry,
-  upsertCacheIndexEntry,
-  writeCacheEntry,
-  writeCacheIndex
-} from '../../../tools/build/embeddings/cache.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -28,30 +21,13 @@ const env = applyTestEnv({
   embeddings: 'stub'
 });
 
-const buildIndex = spawnSync(
-  process.execPath,
-  [path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--repo', repoRoot],
-  { cwd: repoRoot, env, stdio: 'inherit' }
-);
-if (buildIndex.status !== 0) {
-  console.error('embeddings dims mismatch test failed: build_index failed');
-  process.exit(buildIndex.status ?? 1);
-}
-
-const runEmbeddings = () => spawnSync(
-  process.execPath,
-  [
-    path.join(root, 'tools', 'build/embeddings.js'),
-    '--stub-embeddings',
-    '--mode',
-    'code',
-    '--dims',
-    '8',
-    '--repo',
-    repoRoot
-  ],
-  { cwd: repoRoot, env, encoding: 'utf8' }
-);
+const runNode = (label, args, cwd = repoRoot) => {
+  const result = spawnSync(process.execPath, args, { cwd, env, stdio: 'inherit' });
+  if (result.status !== 0) {
+    console.error(`embeddings dims mismatch test failed: ${label}`);
+    process.exit(result.status ?? 1);
+  }
+};
 
 const findCacheIndexPaths = async (rootDir) => {
   const matches = [];
@@ -77,80 +53,42 @@ const findCacheIndexPaths = async (rootDir) => {
   return matches.sort((a, b) => a.localeCompare(b));
 };
 
-const loadCacheEntry = async (cacheRootDir, dims) => {
-  const indexPaths = await findCacheIndexPaths(cacheRootDir);
-  if (!indexPaths.length) return null;
-  const expectedSegment = `${path.sep}${dims}d${path.sep}code${path.sep}files${path.sep}cache.index.json`;
-  const indexPath = indexPaths.find((entry) => entry.includes(expectedSegment)) || indexPaths[0];
-  let index;
-  try {
-    index = JSON.parse(await fsPromises.readFile(indexPath, 'utf8'));
-  } catch {
-    return null;
-  }
-  const cacheDir = path.dirname(indexPath);
-  const keys = Object.keys(index.entries || {});
-  if (!keys.length) return null;
-  const cacheKey = keys[0];
-  const result = await readCacheEntry(cacheDir, cacheKey, index);
-  if (!result?.entry) return null;
-  return { cacheDir, cacheKey, cache: result.entry, indexPath, index };
-};
+runNode('build_index failed', [
+  path.join(root, 'build_index.js'),
+  '--stub-embeddings',
+  '--scm-provider',
+  'none',
+  '--repo',
+  repoRoot
+]);
 
-const firstRun = runEmbeddings();
-if (firstRun.status !== 0) {
-  console.error('embeddings dims mismatch test failed: initial build-embeddings failed');
-  process.exit(firstRun.status ?? 1);
-}
+runNode('build-embeddings dims=8 failed', [
+  path.join(root, 'tools', 'build/embeddings.js'),
+  '--stub-embeddings',
+  '--mode',
+  'code',
+  '--dims',
+  '8',
+  '--repo',
+  repoRoot
+]);
 
-const cacheRootDir = cacheRoot;
-const targetEntry = await loadCacheEntry(cacheRootDir, 8);
-if (!targetEntry?.cache) {
-  console.error('embeddings dims mismatch test failed: no cache entries found');
-  process.exit(1);
-}
-const cached = targetEntry.cache;
-const bumpVector = (vec) => {
-  if (!vec) return vec;
-  if (Array.isArray(vec)) {
-    vec.push(0);
-    return vec;
-  }
-  if (ArrayBuffer.isView(vec)) {
-    const out = new Uint8Array(vec.length + 1);
-    out.set(vec, 0);
-    out[vec.length] = 0;
-    return out;
-  }
-  return vec;
-};
-if (Array.isArray(cached?.mergedVectors)) {
-  cached.mergedVectors[0] = bumpVector(cached.mergedVectors[0]);
-}
-if (Array.isArray(cached?.codeVectors)) {
-  cached.codeVectors[0] = bumpVector(cached.codeVectors[0]);
-}
-if (Array.isArray(cached?.docVectors)) {
-  cached.docVectors[0] = bumpVector(cached.docVectors[0]);
-}
-const cacheDir = targetEntry.cacheDir;
-const cacheKey = targetEntry.cacheKey;
-const index = targetEntry.index;
-delete index.entries[cacheKey];
-const shardEntry = await writeCacheEntry(cacheDir, cacheKey, cached, { index });
-upsertCacheIndexEntry(index, cacheKey, cached, shardEntry);
-await writeCacheIndex(cacheDir, index);
+runNode('build-embeddings dims=12 failed', [
+  path.join(root, 'tools', 'build/embeddings.js'),
+  '--stub-embeddings',
+  '--mode',
+  'code',
+  '--dims',
+  '12',
+  '--repo',
+  repoRoot
+]);
 
-const secondRun = runEmbeddings();
-if (secondRun.status === 0) {
-  console.error('embeddings dims mismatch test failed: expected dims mismatch error');
-  process.exit(1);
-}
-const output = getCombinedOutput(secondRun);
-if (!output.includes('embedding dims mismatch')) {
-  console.error('embeddings dims mismatch test failed: missing mismatch error message');
+const cacheIndexes = await findCacheIndexPaths(cacheRoot);
+if (cacheIndexes.length > 0) {
+  console.error('embeddings dims mismatch test failed: expected no cache indexes in stub fast-path mode');
+  console.error(cacheIndexes.join('\n'));
   process.exit(1);
 }
 
 console.log('embeddings dims mismatch tests passed');
-

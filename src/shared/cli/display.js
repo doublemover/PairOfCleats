@@ -3,6 +3,7 @@ import { normalizeProgressMode, resolveTerminal } from './display/terminal.js';
 import { formatCount } from './display/text.js';
 import { renderDisplay } from './display/render.js';
 import { getProgressContext } from '../env.js';
+import { toArray } from '../iterables.js';
 import { isClosedStreamWriteError } from '../jsonrpc.js';
 
 const createSafeWritableStream = (target) => {
@@ -268,11 +269,11 @@ export function createDisplay(options = {}) {
 
   const resetTasks = ({ preserveStages = [], preserveIds = [] } = {}) => {
     const stageSet = new Set(
-      (preserveStages || [])
+      toArray(preserveStages)
         .map((stage) => String(stage).trim().toLowerCase())
         .filter(Boolean)
     );
-    const idSet = new Set((preserveIds || []).map((id) => String(id)));
+    const idSet = new Set(toArray(preserveIds).map((id) => String(id)));
     const preserved = [];
     for (const id of state.taskOrder) {
       const task = state.tasks.get(id);

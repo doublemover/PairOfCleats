@@ -136,7 +136,7 @@ const resultEntries = [
   }
 ];
 
-const output = buildReportOutput({
+const output = await buildReportOutput({
   configPath: path.join(tempRoot, 'repos.json'),
   cacheRoot: path.join(tempRoot, 'cache'),
   resultsRoot: tempRoot,

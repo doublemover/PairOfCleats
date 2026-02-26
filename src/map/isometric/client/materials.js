@@ -1,5 +1,6 @@
 import { state } from './state.js';
 import { clamp, numberValue } from './utils.js';
+import { toArray } from '../../../shared/iterables.js';
 
 export const initMaterials = () => {
   const { THREE, assets, visuals } = state;
@@ -338,13 +339,13 @@ export const updateFileOpacity = () => {
       if (inner.material.userData) inner.material.userData.baseOpacity = innerOpacity;
     }
   }
-  for (const mesh of fileInstancedMeshes || []) {
+  for (const mesh of toArray(fileInstancedMeshes)) {
     if (mesh?.material) {
       mesh.material.opacity = opacity;
       if (mesh.material.userData) mesh.material.userData.baseOpacity = opacity;
     }
   }
-  for (const mesh of fileInstancedInnerMeshes || []) {
+  for (const mesh of toArray(fileInstancedInnerMeshes)) {
     if (mesh?.material) {
       const innerOpacity = clamp(opacity * 0.9, 0.05, 1);
       mesh.material.opacity = innerOpacity;
@@ -372,7 +373,7 @@ export const updateMemberOpacity = () => {
   }
 
   // Legacy (non-instanced) meshes still get updated for compatibility.
-  for (const mesh of [...(memberMeshes || []), ...(chunkMeshes || [])]) {
+  for (const mesh of [...toArray(memberMeshes), ...toArray(chunkMeshes)]) {
     if (!mesh) continue;
     if (mesh.material) {
       mesh.material.opacity = opacity;

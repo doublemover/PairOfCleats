@@ -1,5 +1,6 @@
 import path from 'node:path';
 import * as linguistLanguages from 'linguist-languages';
+import { toArray } from '../../shared/iterables.js';
 import { LANGUAGE_REGISTRY } from './registry-data.js';
 import { LANGUAGE_ROUTE_DESCRIPTORS } from './descriptors.js';
 const LANGUAGE_BY_ID = new Map(LANGUAGE_REGISTRY.map((lang) => [lang.id, lang]));
@@ -55,7 +56,7 @@ const LINGUIST_NAME_TO_ID = new Map([
 ]);
 
 const resolveLinguistId = (name, entry) => {
-  const candidates = [name, ...(entry?.aliases || [])];
+  const candidates = [name, ...toArray(entry?.aliases)];
   for (const candidate of candidates) {
     const normalized = normalizeLinguistName(candidate);
     if (LINGUIST_NAME_TO_ID.has(normalized)) return LINGUIST_NAME_TO_ID.get(normalized);
@@ -72,19 +73,19 @@ const DESCRIPTOR_PREFIX_MAP = [];
 for (const descriptor of LANGUAGE_ROUTE_DESCRIPTORS) {
   const languageId = descriptor?.id;
   if (!languageId || !LANGUAGE_BY_ID.has(languageId)) continue;
-  for (const ext of descriptor?.extensions || []) {
+  for (const ext of toArray(descriptor?.extensions)) {
     const key = String(ext || '').toLowerCase();
     if (key && !DESCRIPTOR_EXTENSION_MAP.has(key)) {
       DESCRIPTOR_EXTENSION_MAP.set(key, languageId);
     }
   }
-  for (const filename of descriptor?.specialFilenames || []) {
+  for (const filename of toArray(descriptor?.specialFilenames)) {
     const key = String(filename || '').toLowerCase();
     if (key && !DESCRIPTOR_FILENAME_MAP.has(key)) {
       DESCRIPTOR_FILENAME_MAP.set(key, languageId);
     }
   }
-  for (const prefix of descriptor?.specialPrefixes || []) {
+  for (const prefix of toArray(descriptor?.specialPrefixes)) {
     const key = String(prefix || '').toLowerCase();
     if (key) {
       DESCRIPTOR_PREFIX_MAP.push({ prefix: key, languageId });
@@ -95,13 +96,13 @@ for (const descriptor of LANGUAGE_ROUTE_DESCRIPTORS) {
 for (const [name, entry] of Object.entries(linguistLanguages || {})) {
   const languageId = resolveLinguistId(name, entry);
   if (!languageId || !LANGUAGE_BY_ID.has(languageId)) continue;
-  for (const ext of entry?.extensions || []) {
+  for (const ext of toArray(entry?.extensions)) {
     const key = String(ext || '').toLowerCase();
     if (key && !LINGUIST_EXTENSION_MAP.has(key)) {
       LINGUIST_EXTENSION_MAP.set(key, languageId);
     }
   }
-  for (const filename of entry?.filenames || []) {
+  for (const filename of toArray(entry?.filenames)) {
     const key = String(filename || '').toLowerCase();
     if (key && !LINGUIST_FILENAME_MAP.has(key)) {
       LINGUIST_FILENAME_MAP.set(key, languageId);

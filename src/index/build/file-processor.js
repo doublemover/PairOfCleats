@@ -24,12 +24,17 @@ import {
 import { resolvePreCpuFileContent } from './file-processor/pre-cpu-content.js';
 import { getLanguageForFile } from '../language-registry.js';
 import {
+  EXTRACTION_NORMALIZATION_POLICY,
+  sha256Hex,
   normalizeDocumentExtractionPolicy
 } from '../extractors/common.js';
+import { loadPdfExtractorRuntime } from '../extractors/pdf.js';
+import { loadDocxExtractorRuntime } from '../extractors/docx.js';
 import {
   isDocumentExt,
   normalizeFallbackLanguageFromExt
 } from './file-processor/extraction.js';
+import { sha1 } from '../../shared/hash.js';
 
 let warnedNoWorkerPool = false;
 /**
@@ -140,6 +145,12 @@ export function createFileProcessor(options) {
   const documentExtractionEnabled = mode === 'extracted-prose'
     && resolvedDocumentExtraction.enabled === true;
   const documentExtractionPolicy = normalizeDocumentExtractionPolicy(resolvedDocumentExtraction);
+  const documentExtractionPolicyCacheKey = [
+    documentExtractionPolicy.maxBytesPerFile,
+    documentExtractionPolicy.maxPages,
+    documentExtractionPolicy.extractTimeoutMs,
+    EXTRACTION_NORMALIZATION_POLICY
+  ].join('|');
   const supportsDocumentExtractionCache = Boolean(
     documentExtractionCache
     && typeof documentExtractionCache.get === 'function'
@@ -211,7 +222,8 @@ export function createFileProcessor(options) {
       bytesHash,
       extractor?.name || 'unknown',
       extractor?.version || 'unknown',
-      extractor?.target || ''
+      extractor?.target || '',
+      documentExtractionPolicyCacheKey
     ].join('|'));
   };
   const loadCachedDocumentExtraction = (cacheKey) => {
@@ -542,26 +554,111 @@ export function createFileProcessor(options) {
       warnEncodingFallback(relKey, cachedOutcome.result.fileInfo);
       return cachedOutcome.result;
     }
-    const preCpuContent = await resolvePreCpuFileContent({
-      abs,
-      relKey,
-      mode,
-      ext,
-      fileStat,
-      fileScanner,
-      runIo,
-      throwIfAborted,
-      updateCrashStage,
-      formatCrashErrorMeta,
-      warnEncodingFallback,
-      documentSourceType,
-      documentExtractionPolicy,
-      artifacts
-    });
+    let usedDocumentExtractionCacheHit = false;
+    let documentExtractionCacheKey = null;
+    let documentExtractionIdentity = null;
+    if (documentSourceType && supportsDocumentExtractionCache) {
+      if (!artifacts.fileBuffer) {
+        throwIfAborted();
+        updateCrashStage('pre-cpu:extract:cache-read:start', { sourceType: documentSourceType });
+        try {
+          artifacts.fileBuffer = await runIo(() => fs.readFile(abs));
+          updateCrashStage('pre-cpu:extract:cache-read:done', {
+            bytes: Buffer.isBuffer(artifacts.fileBuffer) ? artifacts.fileBuffer.length : null,
+            sourceType: documentSourceType
+          });
+        } catch {
+          updateCrashStage('pre-cpu:extract:cache-read:error', { sourceType: documentSourceType });
+          artifacts.fileBuffer = null;
+        }
+      }
+      if (Buffer.isBuffer(artifacts.fileBuffer)) {
+        const sourceBytesHash = sha256Hex(artifacts.fileBuffer);
+        documentExtractionIdentity = await resolveDocumentExtractorIdentity(documentSourceType);
+        documentExtractionCacheKey = buildDocumentExtractionCacheKey({
+          sourceBytesHash,
+          extractor: documentExtractionIdentity
+        });
+        const cachedExtraction = loadCachedDocumentExtraction(documentExtractionCacheKey);
+        if (cachedExtraction?.text) {
+          usedDocumentExtractionCacheHit = true;
+          const warnings = Array.isArray(cachedExtraction.warnings)
+            ? cachedExtraction.warnings.slice(0, 32)
+            : [];
+          if (!warnings.includes('document-extraction-cache-hit')) {
+            warnings.push('document-extraction-cache-hit');
+          }
+          artifacts.text = cachedExtraction.text;
+          if (!artifacts.fileHash) {
+            artifacts.fileHash = sha1(artifacts.fileBuffer);
+            artifacts.fileHashAlgo = 'sha1';
+          }
+          artifacts.fileEncoding = 'document-extracted';
+          artifacts.fileEncodingFallback = null;
+          artifacts.fileEncodingConfidence = null;
+          artifacts.documentExtraction = {
+            sourceType: documentSourceType,
+            status: 'ok',
+            extractor: cachedExtraction.extractor || documentExtractionIdentity,
+            sourceBytesHash,
+            sourceBytesHashAlgo: 'sha256',
+            counts: cachedExtraction.counts || { pages: 0, paragraphs: 0, totalUnits: 0 },
+            units: Array.isArray(cachedExtraction.units) ? cachedExtraction.units : [],
+            normalizationPolicy: cachedExtraction.normalizationPolicy || EXTRACTION_NORMALIZATION_POLICY,
+            warnings
+          };
+          updateCrashStage('pre-cpu:extract:cache-hit', {
+            sourceType: documentSourceType
+          });
+        }
+      }
+    }
+
+    const preCpuContent = usedDocumentExtractionCacheHit
+      ? { skip: null }
+      : await resolvePreCpuFileContent({
+        abs,
+        relKey,
+        mode,
+        ext,
+        fileStat,
+        fileScanner,
+        runIo,
+        throwIfAborted,
+        updateCrashStage,
+        formatCrashErrorMeta,
+        warnEncodingFallback,
+        documentSourceType,
+        documentExtractionPolicy,
+        artifacts
+      });
     if (preCpuContent?.skip) {
       const { reason, ...extra } = preCpuContent.skip;
       recordSkip(abs, reason || 'oversize', extra);
       return null;
+    }
+    if (
+      documentSourceType
+      && documentExtractionCacheKey
+      && artifacts.documentExtraction?.status === 'ok'
+      && typeof artifacts.text === 'string'
+      && artifacts.text.length > 0
+      && !usedDocumentExtractionCacheHit
+    ) {
+      const cacheWarnings = Array.isArray(artifacts.documentExtraction.warnings)
+        ? artifacts.documentExtraction.warnings
+          .filter((item) => item && item !== 'document-extraction-cache-hit')
+          .slice(0, 32)
+        : [];
+      storeCachedDocumentExtraction(documentExtractionCacheKey, {
+        sourceType: documentSourceType,
+        extractor: artifacts.documentExtraction.extractor || documentExtractionIdentity,
+        text: artifacts.text,
+        counts: artifacts.documentExtraction.counts || { pages: 0, paragraphs: 0, totalUnits: 0 },
+        units: Array.isArray(artifacts.documentExtraction.units) ? artifacts.documentExtraction.units : [],
+        normalizationPolicy: artifacts.documentExtraction.normalizationPolicy || EXTRACTION_NORMALIZATION_POLICY,
+        warnings: cacheWarnings
+      });
     }
 
     const fileInfo = buildFileInfoFromArtifacts({

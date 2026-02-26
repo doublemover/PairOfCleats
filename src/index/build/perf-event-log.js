@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { createQueuedAppendWriter } from '../../shared/io/append-writer.js';
 
 const DEFAULT_FLUSH_ROWS = 128;
 const DEFAULT_FLUSH_BYTES = 256 * 1024;
@@ -185,26 +186,25 @@ export const createPerfEventLogger = async ({
 
   try {
     await fs.mkdir(perfDir, { recursive: true });
-    await fs.appendFile(filePath, '');
   } catch {
     return createNoopPerfEventLogger();
   }
 
   let buffer = [];
   let bufferedBytes = 0;
-  let writeChain = Promise.resolve();
+  const writer = createQueuedAppendWriter({
+    filePath,
+    onError: () => {}
+  });
 
   const flush = async () => {
-    if (!buffer.length) return writeChain;
-    const payload = buffer.join('');
-    buffer = [];
-    bufferedBytes = 0;
-    writeChain = writeChain.then(async () => {
-      try {
-        await fs.appendFile(filePath, payload, 'utf8');
-      } catch {}
-    });
-    return writeChain;
+    if (buffer.length) {
+      const payload = buffer.join('');
+      buffer = [];
+      bufferedBytes = 0;
+      await writer.enqueue(payload);
+    }
+    await writer.flush();
   };
 
   const emit = (event, payload = {}) => {
@@ -225,7 +225,7 @@ export const createPerfEventLogger = async ({
 
   const close = async () => {
     await flush();
-    await writeChain;
+    await writer.close();
   };
 
   return {

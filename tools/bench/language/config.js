@@ -9,22 +9,30 @@ export const loadBenchConfig = (configPath, { onLog = null } = {}) => {
       throw new Error('Bench config must be a JSON object.');
     }
     const validation = validateBenchTierConfig(config);
-    if (!validation.ok) {
+    if (validation.issues.length > 0) {
       const sample = validation.issues.slice(0, 12);
       for (const issue of sample) {
+        const level = issue.level === 'warn' ? 'warn' : 'error';
         emitBenchLog(
           onLog,
           `[bench-config] ${issue.language}: ${issue.message}`,
-          'error'
+          level
         );
       }
       if (validation.issues.length > sample.length) {
+        const remainingFatal = validation.issues
+          .slice(sample.length)
+          .filter((issue) => issue.level !== 'warn')
+          .length;
+        const level = remainingFatal > 0 ? 'error' : 'warn';
         emitBenchLog(
           onLog,
           `[bench-config] ... ${validation.issues.length - sample.length} more issue(s)`,
-          'error'
+          level
         );
       }
+    }
+    if (!validation.ok) {
       process.exit(1);
     }
     return config;

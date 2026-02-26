@@ -223,13 +223,13 @@ const resolveAdaptiveRoute = ({
       reason: ANN_ADAPTIVE_ROUTE_REASONS.NO_PROVIDERS
     };
   }
-  if (docCount > 0 && docCount <= 64 && providerCount <= 1) {
+  if (docCount > 0 && docCount <= 64) {
     return {
       route: ANN_ADAPTIVE_ROUTE.SPARSE,
       reason: ANN_ADAPTIVE_ROUTE_REASONS.SMALL_INDEX_BYPASS
     };
   }
-  if (candidateSize > 0 && candidateSize <= 16 && providerCount <= 1) {
+  if (candidateSize > 0 && candidateSize <= 16) {
     return {
       route: ANN_ADAPTIVE_ROUTE.SPARSE,
       reason: ANN_ADAPTIVE_ROUTE_REASONS.LOW_CANDIDATE_BYPASS

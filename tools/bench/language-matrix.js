@@ -15,7 +15,7 @@ import { parseCommaList } from '../shared/text-utils.js';
 const benchOptions = mergeCliOptions(
   BENCH_OPTIONS,
   {
-    tier: { type: 'string', default: 'typical' },
+    tier: { type: 'string', default: 'small' },
     backend: { type: 'string' },
     backends: { type: 'string' },
     'ann-modes': { type: 'string' },
@@ -106,7 +106,7 @@ const appendArgs = (args, flag, value) => {
 
 const configToArgs = (config, outFile, logFile) => {
   const args = [benchScript];
-  const tierArg = argv.tier || 'typical';
+  const tierArg = argv.tier || 'small';
   appendArgs(args, '--tier', tierArg);
   appendArgs(args, '--backend', config.backend);
   appendArgs(args, '--out', outFile);

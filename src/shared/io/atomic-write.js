@@ -9,6 +9,9 @@ const DIR_SYNC_UNSUPPORTED_CODES = new Set(['EINVAL', 'ENOTSUP', 'EPERM', 'EISDI
 const OPEN_RETRY_CODES = new Set(['EMFILE', 'ENFILE']);
 const OPEN_RETRY_ATTEMPTS = 10;
 const OPEN_RETRY_BASE_DELAY_MS = 10;
+const RENAME_RETRY_ATTEMPTS = 12;
+const RENAME_RETRY_BASE_DELAY_MS = 8;
+const RENAME_RETRY_MAX_DELAY_MS = 250;
 
 const toNonNegativeInt = (value, fallback) => {
   const parsed = Number(value);
@@ -43,6 +46,7 @@ const removeTempPathSync = (tempPath) => {
 };
 
 const sleep = (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs));
+const shouldRetryRenameWithTargetRemoval = (code) => code === 'EEXIST' || code === 'ENOTEMPTY';
 
 /**
  * Retry transient descriptor exhaustion (EMFILE/ENFILE) when creating temp files.
@@ -83,45 +87,82 @@ const syncParentDirectory = async (targetPath) => {
 };
 
 const renameTempFile = async (tempPath, targetPath) => {
-  try {
-    await fs.rename(tempPath, targetPath);
-    return;
-  } catch (err) {
-    if (!RENAME_RETRY_CODES.has(err?.code)) {
-      throw err;
-    }
-    if (err?.code === 'EXDEV') {
-      // Cross-device rename cannot succeed; copy + remove preserves atomic
-      // write semantics for temp paths that live on fallback volumes.
-      await fs.copyFile(tempPath, targetPath);
-      await fs.rm(tempPath, { force: true });
+  let lastError = null;
+  for (let attempt = 0; attempt < RENAME_RETRY_ATTEMPTS; attempt += 1) {
+    try {
+      await fs.rename(tempPath, targetPath);
       return;
+    } catch (err) {
+      lastError = err;
+      if (!RENAME_RETRY_CODES.has(err?.code)) {
+        throw err;
+      }
+      if (err?.code === 'EXDEV') {
+        // Cross-device rename cannot succeed; copy + remove preserves atomic
+        // write semantics for temp paths that live on fallback volumes.
+        await fs.copyFile(tempPath, targetPath);
+        await fs.rm(tempPath, { force: true });
+        return;
+      }
+      if (shouldRetryRenameWithTargetRemoval(err?.code)) {
+        try {
+          await fs.rm(targetPath, { force: true });
+        } catch {}
+      }
+      if (attempt >= RENAME_RETRY_ATTEMPTS - 1) break;
+      const delayMs = Math.min(
+        RENAME_RETRY_MAX_DELAY_MS,
+        RENAME_RETRY_BASE_DELAY_MS * (2 ** attempt)
+      );
+      await sleep(delayMs);
     }
   }
-  try {
-    await fs.rm(targetPath, { force: true });
-  } catch {}
-  await fs.rename(tempPath, targetPath);
+  if (lastError && RENAME_RETRY_CODES.has(lastError?.code)) {
+    if (!shouldRetryRenameWithTargetRemoval(lastError?.code)) {
+      try {
+        await fs.rm(targetPath, { force: true });
+      } catch {}
+    }
+    await fs.rename(tempPath, targetPath);
+    return;
+  }
+  throw lastError;
 };
 
 const renameTempFileSync = (tempPath, targetPath) => {
-  try {
-    fsSync.renameSync(tempPath, targetPath);
-    return;
-  } catch (err) {
-    if (!RENAME_RETRY_CODES.has(err?.code)) {
-      throw err;
-    }
-    if (err?.code === 'EXDEV') {
-      fsSync.copyFileSync(tempPath, targetPath);
-      fsSync.rmSync(tempPath, { force: true });
+  let lastError = null;
+  for (let attempt = 0; attempt < RENAME_RETRY_ATTEMPTS; attempt += 1) {
+    try {
+      fsSync.renameSync(tempPath, targetPath);
       return;
+    } catch (err) {
+      lastError = err;
+      if (!RENAME_RETRY_CODES.has(err?.code)) {
+        throw err;
+      }
+      if (err?.code === 'EXDEV') {
+        fsSync.copyFileSync(tempPath, targetPath);
+        fsSync.rmSync(tempPath, { force: true });
+        return;
+      }
+      if (shouldRetryRenameWithTargetRemoval(err?.code)) {
+        try {
+          fsSync.rmSync(targetPath, { force: true });
+        } catch {}
+      }
+      if (attempt >= RENAME_RETRY_ATTEMPTS - 1) break;
     }
   }
-  try {
-    fsSync.rmSync(targetPath, { force: true });
-  } catch {}
-  fsSync.renameSync(tempPath, targetPath);
+  if (lastError && RENAME_RETRY_CODES.has(lastError?.code)) {
+    if (!shouldRetryRenameWithTargetRemoval(lastError?.code)) {
+      try {
+        fsSync.rmSync(targetPath, { force: true });
+      } catch {}
+    }
+    fsSync.renameSync(tempPath, targetPath);
+    return;
+  }
+  throw lastError;
 };
 
 /**

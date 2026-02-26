@@ -1,5 +1,4 @@
 import fs from 'node:fs/promises';
-import fsSync from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { coerceAbortSignal } from '../../shared/abort.js';
@@ -583,6 +582,15 @@ export async function writeIndexArtifacts(input) {
   const fileMetaShardedMaxBytes = Number.isFinite(Number(artifactConfig.fileMetaShardedMaxBytes))
     ? Math.max(0, Math.floor(Number(artifactConfig.fileMetaShardedMaxBytes)))
     : Math.min(fileMetaMaxBytes, 8 * 1024 * 1024);
+  const pathExists = async (targetPath) => {
+    if (!targetPath) return false;
+    try {
+      await fs.access(targetPath);
+      return true;
+    } catch {
+      return false;
+    }
+  };
   const toolingConfig = getToolingConfig(root, userConfig);
   const vfsHashRouting = toolingConfig?.vfs?.hashRouting === true;
   // Keep file_meta fingerprint source deterministic: prefer discovery order when
@@ -594,7 +602,7 @@ export async function writeIndexArtifacts(input) {
    */
   const resolveFileMetaFiles = () => {
     if (Array.isArray(state?.discoveredFiles) && state.discoveredFiles.length) {
-      return state.discoveredFiles.slice();
+      return state.discoveredFiles;
     }
     if (state?.fileInfoByPath && typeof state.fileInfoByPath.keys === 'function') {
       return Array.from(state.fileInfoByPath.keys()).sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
@@ -627,7 +635,7 @@ export async function writeIndexArtifacts(input) {
   if (incrementalEnabled && fileMetaFingerprint) {
     const metaPath = path.join(outDir, 'file_meta.meta.json');
     try {
-      if (fsSync.existsSync(metaPath)) {
+      if (await pathExists(metaPath)) {
         const metaRaw = readJsonFile(metaPath, { maxBytes: fileMetaMaxBytes });
         const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
         const cachedFingerprint = meta?.fingerprint ?? meta?.extensions?.fingerprint ?? null;
@@ -831,6 +839,25 @@ export async function writeIndexArtifacts(input) {
   }
   const cleanupActions = [];
   /**
+   * Execute cleanup callbacks in bounded parallel batches.
+   *
+   * This keeps artifact cleanup from spawning an unbounded delete storm on
+   * large rewrites while still allowing moderate parallelism.
+   *
+   * @param {Array<(() => Promise<unknown>)|null|undefined>} operations
+   * @param {{concurrency?:number}} [options]
+   * @returns {Promise<void>}
+   */
+  const runCleanupBatch = async (operations, { concurrency = 3 } = {}) => {
+    const tasks = Array.isArray(operations) ? operations.filter((op) => typeof op === 'function') : [];
+    const batchSize = Number.isFinite(Number(concurrency))
+      ? Math.max(1, Math.floor(Number(concurrency)))
+      : 3;
+    for (let i = 0; i < tasks.length; i += batchSize) {
+      await Promise.all(tasks.slice(i, i + batchSize).map((task) => task()));
+    }
+  };
+  /**
    * Record artifact cleanup action for manifest/debug reporting.
    *
    * @param {{targetPath:string,recursive?:boolean,policy?:string}} input
@@ -854,7 +881,7 @@ export async function writeIndexArtifacts(input) {
   const removeArtifact = async (targetPath, options = {}) => {
     const { recursive = true, policy = 'legacy' } = options;
     try {
-      const exists = fsSync.existsSync(targetPath);
+      const exists = await pathExists(targetPath);
       if (exists) {
         logLine(`[artifact-cleanup] remove ${targetPath}`, { kind: 'status' });
         recordCleanupAction({ targetPath, recursive, policy });
@@ -875,11 +902,11 @@ export async function writeIndexArtifacts(input) {
     });
   } else {
     if (tokenPostingsFormat === 'packed') {
-      await Promise.all([
-        removeArtifact(path.join(outDir, 'token_postings.json'), { policy: 'format_cleanup' }),
-        removeCompressedArtifact({ outDir, base: 'token_postings', removeArtifact }),
-        removeArtifact(path.join(outDir, 'token_postings.meta.json'), { policy: 'format_cleanup' }),
-        removeArtifact(path.join(outDir, 'token_postings.shards'), {
+      await runCleanupBatch([
+        () => removeArtifact(path.join(outDir, 'token_postings.json'), { policy: 'format_cleanup' }),
+        () => removeCompressedArtifact({ outDir, base: 'token_postings', removeArtifact }),
+        () => removeArtifact(path.join(outDir, 'token_postings.meta.json'), { policy: 'format_cleanup' }),
+        () => removeArtifact(path.join(outDir, 'token_postings.shards'), {
           recursive: true,
           policy: 'format_cleanup'
         })
@@ -888,18 +915,18 @@ export async function writeIndexArtifacts(input) {
       await removePackedPostings({ outDir, removeArtifact });
     }
     if (tokenPostingsUseShards) {
-      await Promise.all([
-        removeArtifact(path.join(outDir, 'token_postings.json'), { policy: 'format_cleanup' }),
-        removeCompressedArtifact({ outDir, base: 'token_postings', removeArtifact }),
-        removeArtifact(path.join(outDir, 'token_postings.shards'), {
+      await runCleanupBatch([
+        () => removeArtifact(path.join(outDir, 'token_postings.json'), { policy: 'format_cleanup' }),
+        () => removeCompressedArtifact({ outDir, base: 'token_postings', removeArtifact }),
+        () => removeArtifact(path.join(outDir, 'token_postings.shards'), {
           recursive: true,
           policy: 'format_cleanup'
         })
       ]);
     } else {
-      await Promise.all([
-        removeArtifact(path.join(outDir, 'token_postings.meta.json'), { policy: 'format_cleanup' }),
-        removeArtifact(path.join(outDir, 'token_postings.shards'), {
+      await runCleanupBatch([
+        () => removeArtifact(path.join(outDir, 'token_postings.meta.json'), { policy: 'format_cleanup' }),
+        () => removeArtifact(path.join(outDir, 'token_postings.shards'), {
           recursive: true,
           policy: 'format_cleanup'
         })
@@ -929,27 +956,29 @@ export async function writeIndexArtifacts(input) {
   const artifactQueueDelaySamples = new Map();
   const writeLogIntervalMs = 1000;
   const writeProgressMeta = { stage: 'write', mode, taskId: `write:${mode}:artifacts` };
-  const configuredWriteStallThresholds = Array.isArray(artifactConfig.writeStallThresholdsSeconds)
-    ? artifactConfig.writeStallThresholdsSeconds
-      .map((entry) => Number(entry))
-      .filter((entry) => Number.isFinite(entry) && entry > 0)
-      .map((entry) => Math.floor(entry))
-      .sort((a, b) => a - b)
-    : [];
+  const configuredWriteStallThresholds = [];
+  if (Array.isArray(artifactConfig.writeStallThresholdsSeconds)) {
+    for (const entry of artifactConfig.writeStallThresholdsSeconds) {
+      const numeric = Math.floor(Number(entry));
+      if (Number.isFinite(numeric) && numeric > 0) {
+        configuredWriteStallThresholds.push(numeric);
+      }
+    }
+  }
   const legacyWarnThreshold = coerceIntAtLeast(artifactConfig.writeStallWarnSeconds, 1);
   const legacyCriticalThreshold = coerceIntAtLeast(artifactConfig.writeStallCriticalSeconds, 1);
-  const writeStallThresholdsSeconds = Array.from(new Set(
+  const writeStallThresholdsSet = new Set(
     configuredWriteStallThresholds.length
       ? configuredWriteStallThresholds
       : [10, 30, 60]
-  ));
+  );
   if (!configuredWriteStallThresholds.length && legacyWarnThreshold != null) {
-    writeStallThresholdsSeconds.push(legacyWarnThreshold);
+    writeStallThresholdsSet.add(legacyWarnThreshold);
   }
   if (!configuredWriteStallThresholds.length && legacyCriticalThreshold != null) {
-    writeStallThresholdsSeconds.push(legacyCriticalThreshold);
+    writeStallThresholdsSet.add(legacyCriticalThreshold);
   }
-  const normalizedWriteStallThresholds = Array.from(new Set(writeStallThresholdsSeconds)).sort((a, b) => a - b);
+  const normalizedWriteStallThresholds = Array.from(writeStallThresholdsSet).sort((a, b) => a - b);
   const heavyWriteThresholdBytes = coerceIntAtLeast(
     artifactConfig.writeHeavyThresholdBytes,
     1024 * 1024
@@ -1461,7 +1490,7 @@ export async function writeIndexArtifacts(input) {
     });
     let canSkipIndexState = false;
     try {
-      if (fsSync.existsSync(indexStateMetaPath) && fsSync.existsSync(indexStatePath)) {
+      if (await pathExists(indexStateMetaPath) && await pathExists(indexStatePath)) {
         const metaRaw = readJsonFile(indexStateMetaPath, { maxBytes: maxJsonBytes });
         const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
         if (meta?.stableHash === stableHash) {
@@ -1823,7 +1852,7 @@ export async function writeIndexArtifacts(input) {
       addPieceFile({ type: 'chunks', name: 'file_meta_meta', format: 'json' }, fileMetaMetaPath);
     } else {
       addPieceFile({ type: 'chunks', name: 'file_meta', format: 'json', count: fileMeta.length }, path.join(outDir, 'file_meta.json'));
-      if (fsSync.existsSync(fileMetaMetaPath)) {
+      if (await pathExists(fileMetaMetaPath)) {
         addPieceFile({ type: 'chunks', name: 'file_meta_meta', format: 'json' }, fileMetaMetaPath);
       }
     }
@@ -1992,12 +2021,12 @@ export async function writeIndexArtifacts(input) {
     );
   }
   if (skipMinhashJsonForLarge) {
-    await Promise.all([
-      removeArtifact(path.join(outDir, 'minhash_signatures.json'), { policy: 'format_cleanup' }),
-      removeArtifact(path.join(outDir, 'minhash_signatures.json.gz'), { policy: 'format_cleanup' }),
-      removeArtifact(path.join(outDir, 'minhash_signatures.json.zst'), { policy: 'format_cleanup' }),
-      removeArtifact(path.join(outDir, 'minhash_signatures.meta.json'), { policy: 'format_cleanup' }),
-      removeArtifact(path.join(outDir, 'minhash_signatures.parts'), {
+    await runCleanupBatch([
+      () => removeArtifact(path.join(outDir, 'minhash_signatures.json'), { policy: 'format_cleanup' }),
+      () => removeArtifact(path.join(outDir, 'minhash_signatures.json.gz'), { policy: 'format_cleanup' }),
+      () => removeArtifact(path.join(outDir, 'minhash_signatures.json.zst'), { policy: 'format_cleanup' }),
+      () => removeArtifact(path.join(outDir, 'minhash_signatures.meta.json'), { policy: 'format_cleanup' }),
+      () => removeArtifact(path.join(outDir, 'minhash_signatures.parts'), {
         recursive: true,
         policy: 'format_cleanup'
       })
@@ -2373,11 +2402,11 @@ export async function writeIndexArtifacts(input) {
         format: 'json'
       }, fieldPostingsBinaryMetaPath);
     } else {
-      await Promise.all([
-        removeArtifact(fieldPostingsBinaryDataPath, { policy: 'format_cleanup' }),
-        removeArtifact(fieldPostingsBinaryOffsetsPath, { policy: 'format_cleanup' }),
-        removeArtifact(fieldPostingsBinaryLengthsPath, { policy: 'format_cleanup' }),
-        removeArtifact(fieldPostingsBinaryMetaPath, { policy: 'format_cleanup' })
+      await runCleanupBatch([
+        () => removeArtifact(fieldPostingsBinaryDataPath, { policy: 'format_cleanup' }),
+        () => removeArtifact(fieldPostingsBinaryOffsetsPath, { policy: 'format_cleanup' }),
+        () => removeArtifact(fieldPostingsBinaryLengthsPath, { policy: 'format_cleanup' }),
+        () => removeArtifact(fieldPostingsBinaryMetaPath, { policy: 'format_cleanup' })
       ]);
     }
   }
@@ -2940,6 +2969,21 @@ export async function writeIndexArtifacts(input) {
         fn
       );
     };
+    /**
+     * Execute one artifact write and record per-artifact telemetry.
+     *
+     * @param {{
+     *   label?:string,
+     *   job:() => Promise<{bytes?:number,serializationMs?:number,diskMs?:number,directFdStreaming?:boolean,checksum?:string,checksumAlgo?:string,checksumHash?:string}|void>,
+     *   estimatedBytes?:number|null,
+     *   enqueuedAt?:number|null,
+     *   prefetched?:Promise<unknown>|null,
+     *   prefetchStartedAt?:number|null
+     * }} entry
+     * @param {'ultraLight'|'massive'|'light'|'heavy'|string} laneName
+     * @param {{rescueBoost?:boolean,tailWorker?:boolean,batchSize?:number,batchIndex?:number}} [options]
+     * @returns {Promise<void>}
+     */
     const runSingleWrite = async (
       { label, job, estimatedBytes, enqueuedAt, prefetched, prefetchStartedAt },
       laneName,
@@ -3245,9 +3289,11 @@ export async function writeIndexArtifacts(input) {
     if (Number.isFinite(entry.dims)) metric.dims = entry.dims;
     if (entry.compression) metric.compression = entry.compression;
     if (Number.isFinite(entry.bytes) && entry.bytes >= 0) metric.bytes = entry.bytes;
-    if (typeof entry.checksum === 'string' && entry.checksum.includes(':')) {
-      const [checksumAlgo, checksum] = entry.checksum.split(':');
-      if (checksumAlgo && checksum) {
+    if (typeof entry.checksum === 'string') {
+      const separator = entry.checksum.indexOf(':');
+      if (separator > 0 && separator < entry.checksum.length - 1) {
+        const checksumAlgo = entry.checksum.slice(0, separator);
+        const checksum = entry.checksum.slice(separator + 1);
         metric.checksumAlgo = checksumAlgo;
         metric.checksum = checksum;
       }

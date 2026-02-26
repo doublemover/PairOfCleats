@@ -72,6 +72,10 @@ await write('cmake/main.cmake', 'include(modules/common.cmake)\n');
 await write('cmake/modules/common.cmake', '# helper\n');
 await write('cmake/sub/main.cmake', 'include(../modules/common.cmake)\n');
 await write('cmake/sub/modules/common.cmake', '# sibling should not win for ../ imports\n');
+await write('nix/flake.nix', 'imports = [ ./modules ];\n');
+await write('nix/modules/default.nix', '{ }:\n{ }\n');
+await write('nix/pkgs/tool/default.nix', '{ }:\n{ }\n');
+await write('nix/git-hooks.nix', '{ }:\n{ }\n');
 
 await write('tools/defs.bzl', 'def macro():\n  pass\n');
 await write('tools/pkg/pkg.bzl', 'def pkg_macro():\n  pass\n');
@@ -105,6 +109,10 @@ await write('src/Util/Core.jl', 'module Core\nend\n');
 
 await write('src/main.cpp', '#include "myproj/foo.hpp"\n#include <vector>\n');
 await write('include/myproj/foo.hpp', '#pragma once\n');
+await write('rust/Cargo.toml', '[dependencies]\nutil = { path = "crates/util" }\n');
+await write('rust/crates/util/Cargo.toml', '[package]\nname = "util"\nversion = "0.1.0"\n');
+await write('serde/Cargo.toml', '[dependencies]\nserde_core = { path = "../serde_core" }\n');
+await write('serde_core/Cargo.toml', '[package]\nname = "serde_core"\nversion = "0.1.0"\n');
 await write(
   'unittests/runtime/CompatibilityOverrideRuntime.cpp',
   '#include "../../stdlib/public/CompatibilityOverride/CompatibilityOverrideRuntime.def"\n'
@@ -148,6 +156,10 @@ const entries = [
   'cmake/modules/common.cmake',
   'cmake/sub/main.cmake',
   'cmake/sub/modules/common.cmake',
+  'nix/flake.nix',
+  'nix/modules/default.nix',
+  'nix/pkgs/tool/default.nix',
+  'nix/git-hooks.nix',
   'tools/defs.bzl',
   'tools/pkg/pkg.bzl',
   'tools/pkg/defs.bzl',
@@ -166,6 +178,10 @@ const entries = [
   'src/Util/Core.jl',
   'src/main.cpp',
   'include/myproj/foo.hpp',
+  'rust/Cargo.toml',
+  'rust/crates/util/Cargo.toml',
+  'serde/Cargo.toml',
+  'serde_core/Cargo.toml',
   'unittests/runtime/CompatibilityOverrideRuntime.cpp',
   'stdlib/public/CompatibilityOverride/CompatibilityOverrideRuntime.def'
 ].map((rel) => ({ abs: path.join(tempRoot, rel), rel }));
@@ -187,6 +203,7 @@ const importsByFile = {
   'scripts/system.sh': ['/etc/bash_completion', '/usr/local/share/chruby/auto.sh'],
   'cmake/main.cmake': ['modules/common.cmake'],
   'cmake/sub/main.cmake': ['../modules/common.cmake'],
+  'nix/flake.nix': ['./modules', './pkgs/tool', './git-hooks.nix'],
   'app/rules.bzl': ['//tools:defs.bzl', '//tools/pkg', '//tools/pkg:defs', ':local.bzl'],
   'lib/main.dart': ['package:benchapp/src/util.dart', 'src/local.dart', 'package:flutter/material.dart'],
   'src/main/scala/com/acme/ScalaMain.scala': ['com.acme.util.ScalaHelper'],
@@ -194,6 +211,8 @@ const importsByFile = {
   'src/plugin/main.js': ['@repo/dep.js'],
   'src/Main.jl': ['Util.Core'],
   'src/main.cpp': ['myproj/foo.hpp', 'vector'],
+  'rust/Cargo.toml': ['crates/util'],
+  'serde/Cargo.toml': ['../serde_core'],
   'unittests/runtime/CompatibilityOverrideRuntime.cpp': [
     '../../stdlib/public/CompatibilityOverride/CompatibilityOverrideRuntime.def'
   ]
@@ -253,6 +272,7 @@ assertLinks('scripts/main.sh', ['scripts/lib/helpers.sh']);
 assertExternal('scripts/system.sh', ['/etc/bash_completion', '/usr/local/share/chruby/auto.sh']);
 assertLinks('cmake/main.cmake', ['cmake/modules/common.cmake']);
 assertLinks('cmake/sub/main.cmake', ['cmake/modules/common.cmake']);
+assertLinks('nix/flake.nix', ['nix/git-hooks.nix', 'nix/modules/default.nix', 'nix/pkgs/tool/default.nix']);
 assertLinksUnordered('app/rules.bzl', ['app/local.bzl', 'tools/defs.bzl', 'tools/pkg/defs.bzl', 'tools/pkg/pkg.bzl']);
 assertLinks('lib/main.dart', ['lib/src/local.dart', 'lib/src/util.dart']);
 assertExternal('lib/main.dart', ['package:flutter/material.dart']);
@@ -262,6 +282,8 @@ assertLinks('src/plugin/main.js', ['src/repo_alias/dep.js']);
 assertLinks('src/Main.jl', ['src/Util/Core.jl']);
 assertLinks('src/main.cpp', ['include/myproj/foo.hpp']);
 assertExternal('src/main.cpp', ['vector']);
+assertLinks('rust/Cargo.toml', ['rust/crates/util/Cargo.toml']);
+assertLinks('serde/Cargo.toml', ['serde_core/Cargo.toml']);
 assertLinks(
   'unittests/runtime/CompatibilityOverrideRuntime.cpp',
   ['stdlib/public/CompatibilityOverride/CompatibilityOverrideRuntime.def']

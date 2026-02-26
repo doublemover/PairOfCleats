@@ -86,7 +86,7 @@ const summary = {
   buildMs: { index: 111, sqlite: 44 }
 };
 
-const output = buildReportOutput({
+const output = await buildReportOutput({
   configPath: path.join(tempRoot, 'repos.json'),
   cacheRoot,
   resultsRoot: tempRoot,

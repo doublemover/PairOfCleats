@@ -143,7 +143,7 @@ export const executeSqliteModeBuilds = async ({
           mode
         })
         : 0;
-      if (existingRows === 0) {
+      if (outputExists && existingRows === 0) {
         const zeroStateManifestPath = await writeSqliteZeroStateManifest({
           modeIndexDir,
           mode,

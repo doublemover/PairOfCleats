@@ -474,7 +474,7 @@ const results = await runBenchExecutionLoop({
   lockStaleMs
 });
 
-const output = buildReportOutput({
+const output = await buildReportOutput({
   configPath,
   cacheRoot,
   resultsRoot,

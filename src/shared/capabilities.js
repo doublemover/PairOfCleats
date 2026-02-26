@@ -1,5 +1,6 @@
 import { tryRequire } from './optional-deps.js';
 import { getNativeAccelCapabilities } from './native-accel.js';
+import { toArray } from './iterables.js';
 
 let cached = null;
 
@@ -54,7 +55,8 @@ const checkCandidates = (candidates, options, {
   allowEsm = false,
   validate = null
 } = {}) => {
-  for (const name of candidates || []) {
+  for (const name of toArray(candidates)) {
+    if (typeof name !== 'string' || !name.trim()) continue;
     const result = tryRequire(name, options);
     if (result.ok) {
       if (typeof validate === 'function') {

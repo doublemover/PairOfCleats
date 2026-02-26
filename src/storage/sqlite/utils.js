@@ -24,6 +24,7 @@ import {
   loadOptionalWithFallback,
   iterateOptionalWithFallback
 } from '../../shared/index-artifact-helpers.js';
+import { getEnvConfig } from '../../shared/env.js';
 
 /**
  * Split an array into fixed-size chunks.
@@ -32,9 +33,14 @@ import {
  * @returns {Array<Array<any>>}
  */
 export function chunkArray(items, size = 900) {
+  if (!Array.isArray(items) || items.length === 0) return [];
+  const parsedSize = Number(size);
+  const chunkSize = Number.isFinite(parsedSize) && parsedSize > 0
+    ? Math.floor(parsedSize)
+    : 900;
   const chunks = [];
-  for (let i = 0; i < items.length; i += size) {
-    chunks.push(items.slice(i, i + size));
+  for (let i = 0; i < items.length; i += chunkSize) {
+    chunks.push(items.slice(i, i + chunkSize));
   }
   return chunks;
 }
@@ -49,6 +55,55 @@ const SQLITE_WAL_MEDIUM_BYTES = 24 * BYTES_PER_MB;
 const SQLITE_WAL_HIGH_BYTES = 96 * BYTES_PER_MB;
 const SQLITE_TX_ROWS_MIN = 2000;
 const SQLITE_TX_ROWS_MAX = 250000;
+const DEFAULT_DENSE_BINARY_MAX_INLINE_MB = 512;
+const DENSE_BINARY_STREAM_READ_TARGET_BYTES = 4 * BYTES_PER_MB;
+
+const resolveDenseBinaryMaxInlineBytes = () => {
+  const envConfig = getEnvConfig();
+  const fromMb = Number(envConfig?.denseBinaryMaxInlineMb);
+  if (Number.isFinite(fromMb) && fromMb > 0) {
+    return Math.floor(fromMb * BYTES_PER_MB);
+  }
+  return DEFAULT_DENSE_BINARY_MAX_INLINE_MB * BYTES_PER_MB;
+};
+
+const createDenseBinaryRowIterator = (binPath, dims, count) => (
+  async function* iterateRows() {
+    let handle = null;
+    const rowsPerRead = Math.max(
+      1,
+      Math.floor(DENSE_BINARY_STREAM_READ_TARGET_BYTES / Math.max(1, dims))
+    );
+    const readBytes = Math.max(dims, rowsPerRead * dims);
+    const readBuffer = Buffer.allocUnsafe(readBytes);
+    try {
+      handle = await fsPromises.open(binPath, 'r');
+      for (let docId = 0; docId < count;) {
+        const remaining = count - docId;
+        const rowsThisRead = Math.min(rowsPerRead, remaining);
+        const bytesThisRead = rowsThisRead * dims;
+        const offset = docId * dims;
+        const { bytesRead } = await handle.read(readBuffer, 0, bytesThisRead, offset);
+        const rowsRead = Math.floor(bytesRead / dims);
+        if (rowsRead <= 0) break;
+        for (let rowIndex = 0; rowIndex < rowsRead; rowIndex += 1) {
+          const start = rowIndex * dims;
+          yield {
+            docId: docId + rowIndex,
+            vector: Uint8Array.from(readBuffer.subarray(start, start + dims))
+          };
+        }
+        docId += rowsRead;
+        if (rowsRead < rowsThisRead) break;
+      }
+    } finally {
+      if (handle) {
+        await handle.close().catch(() => {});
+      }
+    }
+  }
+)();
+
 const toPositiveFinite = (value) => {
   const numeric = Number(value);
   return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
@@ -412,16 +467,72 @@ const loadOptionalDenseBinary = (dir, baseName, modelId) => {
   } catch {
     return null;
   }
+  const meta = normalizeDenseVectorMeta(metaRaw);
+  if (!meta) return null;
+  const relPath = typeof meta.path === 'string' && meta.path
+    ? meta.path
+    : `${baseName}.bin`;
+  const binPath = joinPathSafe(dir, [relPath]);
+  if (!binPath || !fs.existsSync(binPath)) return null;
+  const failDenseBinaryMeta = (reason) => {
+    const error = new Error(`[sqlite] dense binary meta invalid for ${baseName}: ${reason}`);
+    error.code = 'ERR_SQLITE_DENSE_BINARY_META_INVALID';
+    throw error;
+  };
+  const dims = Number.isFinite(Number(meta.dims)) ? Math.max(0, Math.floor(Number(meta.dims))) : 0;
+  if (!dims) {
+    failDenseBinaryMeta('missing required positive dims in .bin.meta.json');
+  }
+  const rawCount = Number(meta.count);
+  if (!Number.isFinite(rawCount) || rawCount < 0) {
+    failDenseBinaryMeta('missing required non-negative count in .bin.meta.json');
+  }
+  const count = Math.floor(rawCount);
+  const expectedBytes = dims * count;
+  let fileBytes = 0;
+  try {
+    fileBytes = Number(fs.statSync(binPath).size) || 0;
+  } catch {
+    return null;
+  }
+  if (fileBytes < expectedBytes) {
+    failDenseBinaryMeta(`binary payload too small (expected >= ${expectedBytes} bytes, found ${fileBytes})`);
+  }
+  if (count === 0) {
+    const rows = (async function* iterateRows() {})();
+    return {
+      ...meta,
+      model: meta.model || modelId || null,
+      dims,
+      count: 0,
+      path: relPath,
+      buffer: new Uint8Array(0),
+      rows,
+      streamed: false
+    };
+  }
+  const maxInlineBytes = resolveDenseBinaryMaxInlineBytes();
+  if (expectedBytes > maxInlineBytes) {
+    return {
+      ...meta,
+      model: meta.model || modelId || null,
+      dims,
+      count,
+      path: relPath,
+      buffer: null,
+      rows: createDenseBinaryRowIterator(binPath, dims, count),
+      streamed: true
+    };
+  }
   const dense = loadDenseVectorBinaryFromMetaSync({
     dir,
     baseName,
     meta: metaRaw,
     modelId: modelId || null
   });
-  if (!dense) return null;
-  const dims = Number.isFinite(Number(dense.dims)) ? Math.max(0, Math.floor(Number(dense.dims))) : 0;
-  const count = Number.isFinite(Number(dense.count)) ? Math.max(0, Math.floor(Number(dense.count))) : 0;
-  if (!dims || !count) return null;
+  if (!dense) {
+    failDenseBinaryMeta('failed to materialize dense vectors from .bin.meta.json');
+  }
   const rows = (async function* iterateRows() {
     for (let docId = 0; docId < count; docId += 1) {
       const start = docId * dims;

@@ -44,7 +44,7 @@ await runSqliteBuild(repoRoot, {
   }
 });
 const normalizedOutput = getCombinedOutput({ stdout: normalizedLogs.join('\n'), stderr: '' });
-if (!normalizedOutput.includes('SQLite Indexes Updated') && !normalizedOutput.includes('SQLite Index Updated')) {
+if (!normalizedOutput.includes('[sqlite] indexes updated.') && !normalizedOutput.includes('[sqlite] index updated.')) {
   console.error('Expected incremental sqlite update with normalized manifest.');
   process.exit(1);
 }

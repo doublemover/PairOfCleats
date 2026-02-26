@@ -1,5 +1,6 @@
 import { state } from './state.js';
 import { clamp, numberValue } from './utils.js';
+import { toArray } from '../../../shared/iterables.js';
 import { applyHighlights, setSelection, openSelection } from './selection.js';
 import { applyBucketCulling, applyEdgeCulling, forceBucketVisible } from './culling.js';
 import { resolveLodTier, applyLodTier } from './lod.js';
@@ -35,17 +36,17 @@ export const initControls = () => {
     const memberVisible = state.memberGroup?.visible !== false;
 
     if (fileVisible) {
-      targets.push(...(state.fileInstancedMeshes || []));
-      targets.push(...(state.fileMeshes || []));
+      targets.push(...toArray(state.fileInstancedMeshes));
+      targets.push(...toArray(state.fileMeshes));
     }
 
     if (memberVisible) {
-      for (const mesh of state.memberInstancedMeshes || []) {
+      for (const mesh of toArray(state.memberInstancedMeshes)) {
         // Cluster culling toggles parent visibility.
         if (mesh?.parent?.visible !== false) targets.push(mesh);
       }
       // Legacy (non-instanced) members.
-      targets.push(...(state.memberMeshes || []));
+      targets.push(...toArray(state.memberMeshes));
     }
 
     return targets;
@@ -95,7 +96,7 @@ export const initControls = () => {
   };
 
   const updateEdgeCulling = () => {
-    const targets = state.edgeCullingTargets || [];
+    const targets = toArray(state.edgeCullingTargets);
     if (!targets.length) return;
     cullMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     cullFrustum.setFromProjectionMatrix(cullMatrix);

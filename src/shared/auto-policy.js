@@ -132,6 +132,12 @@ const scanRepoStats = async (repoRoot, limits = {}, options = {}) => {
     1,
     128
   );
+  const dirConcurrency = normalizePositiveInt(
+    limits.dirConcurrency,
+    Math.max(2, Math.min(16, Math.ceil(statConcurrency / 4))),
+    1,
+    64
+  );
   const progressIntervalMs = normalizePositiveInt(
     options.progressIntervalMs,
     DEFAULT_SCAN_PROGRESS_INTERVAL_MS,
@@ -166,7 +172,7 @@ const scanRepoStats = async (repoRoot, limits = {}, options = {}) => {
 
   logScan(
     `starting (maxFiles=${maxFiles.toLocaleString()}, maxBytes=${formatBytes(maxBytes)}, ` +
-    `statConcurrency=${statConcurrency})`
+    `statConcurrency=${statConcurrency}, dirConcurrency=${dirConcurrency})`
   );
   const toRelPosix = (targetPath) => (
     path.relative(repoRoot, targetPath).replaceAll(path.sep, '/')
@@ -179,56 +185,58 @@ const scanRepoStats = async (repoRoot, limits = {}, options = {}) => {
     return ignoreMatcher.ignores(lookup);
   };
   const stack = [repoRoot];
-  while (stack.length) {
-    const current = stack.pop();
-    let entries;
-    try {
-      entries = await fs.readdir(current, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    dirsScanned += 1;
-    const filesToStat = [];
-    for (const entry of entries) {
-      const entryPath = path.join(current, entry.name);
-      if (entry.isDirectory()) {
-        if ((!ignoreMatcher && IGNORE_DIRS.has(entry.name)) || shouldIgnore(entryPath, true)) continue;
-        stack.push(entryPath);
-        continue;
+  while (stack.length && !truncated) {
+    const batch = stack.splice(-Math.min(dirConcurrency, stack.length));
+    const discoveredDirs = [];
+    await Promise.all(batch.map(async (current) => {
+      if (truncated) return;
+      let entries;
+      try {
+        entries = await fs.readdir(current, { withFileTypes: true });
+      } catch {
+        return;
       }
-      if (!entry.isFile()) continue;
-      if (shouldIgnore(entryPath, false)) continue;
-      filesToStat.push(entryPath);
-    }
-    if (filesToStat.length) {
+      dirsScanned += 1;
+      const filesToStat = [];
+      for (const entry of entries) {
+        if (truncated) break;
+        const entryPath = path.join(current, entry.name);
+        if (entry.isDirectory()) {
+          if ((!ignoreMatcher && IGNORE_DIRS.has(entry.name)) || shouldIgnore(entryPath, true)) continue;
+          discoveredDirs.push(entryPath);
+          continue;
+        }
+        if (!entry.isFile()) continue;
+        if (shouldIgnore(entryPath, false)) continue;
+        filesToStat.push(entryPath);
+      }
+      if (!filesToStat.length || truncated) return;
       fileCount += filesToStat.length;
       if (fileCount > maxFiles) {
         truncated = true;
-      } else {
-        let nextIndex = 0;
-        const workerCount = Math.max(1, Math.min(statConcurrency, filesToStat.length));
-        const runStatWorker = async () => {
-          while (!truncated) {
-            const index = nextIndex;
-            nextIndex += 1;
-            if (index >= filesToStat.length) return;
-            try {
-              const stats = await fs.stat(filesToStat[index]);
-              totalBytes += stats.size || 0;
-              if (totalBytes > maxBytes) {
-                truncated = true;
-                return;
-              }
-            } catch {}
-          }
-        };
-        await Promise.all(Array.from({ length: workerCount }, () => runStatWorker()));
+        return;
       }
-    }
+      let nextIndex = 0;
+      const workerCount = Math.max(1, Math.min(statConcurrency, filesToStat.length));
+      const runStatWorker = async () => {
+        while (!truncated) {
+          const index = nextIndex;
+          nextIndex += 1;
+          if (index >= filesToStat.length) return;
+          try {
+            const stats = await fs.stat(filesToStat[index]);
+            totalBytes += stats.size || 0;
+            if (totalBytes > maxBytes) {
+              truncated = true;
+              return;
+            }
+          } catch {}
+        }
+      };
+      await Promise.all(Array.from({ length: workerCount }, () => runStatWorker()));
+    }));
+    if (discoveredDirs.length) stack.push(...discoveredDirs);
     logProgress();
-    if (truncated) {
-      break;
-    }
   }
 
   const huge = fileCount >= 200000 || totalBytes >= 5 * 1024 * 1024 * 1024;

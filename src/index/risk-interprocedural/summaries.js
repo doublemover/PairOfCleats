@@ -1,5 +1,6 @@
 import { sha1 } from '../../shared/hash.js';
 import { toPosix } from '../../shared/files.js';
+import { toArray } from '../../shared/iterables.js';
 
 const ROW_SCHEMA_VERSION = 1;
 const MAX_ROW_BYTES = 32 * 1024;
@@ -161,7 +162,7 @@ const buildSummaryTotals = (risk) => ({
 const maxSeverity = (entries) => {
   let best = null;
   let bestRank = 0;
-  for (const entry of entries || []) {
+  for (const entry of toArray(entries)) {
     const rank = SEVERITY_RANK[entry?.severity] || 0;
     if (rank > bestRank) {
       bestRank = rank;
@@ -183,7 +184,7 @@ const pickTopEntries = (counts, limit) => {
 };
 
 const updateSummaryCounts = (counts, values) => {
-  for (const value of values || []) {
+  for (const value of toArray(values)) {
     if (!value) continue;
     counts.set(value, (counts.get(value) || 0) + 1);
   }
@@ -200,7 +201,7 @@ const buildCompactSummary = ({ risk, interprocedural }) => {
   const categoryCounts = new Map();
   const tagCounts = new Map();
   const collectFrom = (entries) => {
-    for (const entry of entries || []) {
+    for (const entry of toArray(entries)) {
       if (entry?.category) updateSummaryCounts(categoryCounts, [entry.category]);
       if (Array.isArray(entry?.tags)) updateSummaryCounts(tagCounts, entry.tags);
     }
@@ -243,7 +244,7 @@ const clampSignals = (list, max) => {
 
 const clampEvidence = (signals) => {
   let truncatedEvidence = false;
-  for (const signal of signals || []) {
+  for (const signal of toArray(signals)) {
     if (!signal?.evidence) continue;
     if (signal.evidence.length > CAPS.maxEvidencePerSignal) {
       signal.evidence = signal.evidence.slice(0, CAPS.maxEvidencePerSignal);
@@ -319,7 +320,7 @@ const measureRowBytes = (row) => Buffer.byteLength(JSON.stringify(row), 'utf8');
 
 const stripTags = (signals) => {
   for (const list of Object.values(signals || {})) {
-    for (const entry of list || []) {
+    for (const entry of toArray(list)) {
       if (entry && Array.isArray(entry.tags)) entry.tags = [];
     }
   }
@@ -328,7 +329,7 @@ const stripTags = (signals) => {
 const shrinkEvidence = (signals, maxPerSignal) => {
   let truncatedEvidence = false;
   for (const list of Object.values(signals || {})) {
-    for (const entry of list || []) {
+    for (const entry of toArray(list)) {
       if (!entry?.evidence) continue;
       if (maxPerSignal === 0 && entry.evidence.length) {
         entry.evidence = [];
@@ -378,7 +379,7 @@ export const buildRiskSummaries = ({ chunks, runtime = null, mode = null, log = 
     summariesDroppedBySize: 0
   };
   const interprocedural = resolveInterproceduralSummaryState({ runtime, mode });
-  for (const chunk of chunks || []) {
+  for (const chunk of toArray(chunks)) {
     const built = buildRiskSummaryRow({ chunk, interprocedural });
     if (!built) continue;
     stats.candidates += 1;

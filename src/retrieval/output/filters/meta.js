@@ -46,6 +46,14 @@ const resolveMetaField = (record, key) => {
     .reduce((acc, part) => (acc && typeof acc === 'object' ? acc[part] : undefined), record);
 };
 
+const normalizeObjectForMatch = (value, normalize) => {
+  try {
+    return normalize(JSON.stringify(value));
+  } catch {
+    return normalize('[unserializable]');
+  }
+};
+
 export const resolveReturnTypes = (chunk) => {
   const declared = collectDeclaredReturnTypes(chunk?.docmeta);
   const metaDeclared = collectMetaV2ReturnTypes(chunk?.metaV2);
@@ -157,7 +165,7 @@ export const matchMetaFilters = ({
       if (Array.isArray(field)) {
         if (!field.some((entry) => normalize(entry).includes(needle))) return false;
       } else if (field && typeof field === 'object') {
-        if (!normalize(JSON.stringify(field)).includes(needle)) return false;
+        if (!normalizeObjectForMatch(field, normalize).includes(needle)) return false;
       } else if (!normalize(field).includes(needle)) {
         return false;
       }

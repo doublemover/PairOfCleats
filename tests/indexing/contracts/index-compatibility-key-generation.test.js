@@ -37,6 +37,22 @@ const keyD = buildCompatibilityKey({
 });
 assert.notEqual(keyA, keyD, 'compatibilityKey should include the enabled mode set');
 
+const keyNoModes = buildCompatibilityKey({
+  runtime,
+  modes: [],
+  tokenizationKeys
+});
+const keyMalformedModes = buildCompatibilityKey({
+  runtime,
+  modes: { code: true, prose: true },
+  tokenizationKeys
+});
+assert.equal(
+  keyMalformedModes,
+  keyNoModes,
+  'compatibilityKey should treat malformed mode payloads as an empty mode set'
+);
+
 const keyE = buildCompatibilityKey({
   runtime: {
     ...runtime,

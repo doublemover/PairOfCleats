@@ -9,7 +9,7 @@ import {
   isTreeSitterSchedulerLanguage,
   resolveTreeSitterLanguageForSegment
 } from '../tree-sitter.js';
-import { TREE_SITTER_LANGUAGE_IDS } from '../../../../lang/tree-sitter/config.js';
+import { LANGUAGE_GRAMMAR_KEYS, TREE_SITTER_LANGUAGE_IDS } from '../../../../lang/tree-sitter/config.js';
 import { isTreeSitterEnabled } from '../../../../lang/tree-sitter/options.js';
 import { exceedsTreeSitterLimits } from './guardrails.js';
 
@@ -91,6 +91,29 @@ const handleMissingScheduledChunks = ({
   throw new Error(`[tree-sitter:schedule] Missing scheduled chunks for ${relKey}: ${item.label}`);
 };
 
+/**
+ * Chunk a file using scheduler output when available, with deterministic
+ * fallback to local heuristic chunking for unsupported/degraded segments.
+ *
+ * @param {object} input
+ * @param {Array<object>} input.segments
+ * @param {'code'|'prose'|'records'|'extracted-prose'} input.tokenMode
+ * @param {boolean} input.mustUseTreeSitterScheduler
+ * @param {boolean} input.treeSitterEnabled
+ * @param {object|null} input.treeSitterScheduler
+ * @param {object|null} input.treeSitterConfigForMode
+ * @param {boolean} input.treeSitterStrict
+ * @param {string} input.text
+ * @param {string} input.ext
+ * @param {string} input.relKey
+ * @param {string} input.mode
+ * @param {{id?:string}|null} input.lang
+ * @param {object|null} input.segmentContext
+ * @param {object|null} input.lineIndex
+ * @param {(line:string,meta?:object)=>void|null} input.logLine
+ * @param {(stage:string,meta?:object)=>void} input.updateCrashStage
+ * @returns {Promise<{chunks:Array<object>,chunkingDiagnostics:object}>}
+ */
 export const chunkWithScheduler = async ({
   segments,
   tokenMode,
@@ -194,6 +217,7 @@ export const chunkWithScheduler = async ({
     });
     scheduled.push({
       virtualPath,
+      grammarKey: LANGUAGE_GRAMMAR_KEYS?.[resolvedLang] || null,
       label: `${resolvedLang}:${segment.start}-${segment.end}`,
       segment
     });
@@ -216,9 +240,48 @@ export const chunkWithScheduler = async ({
     && typeof treeSitterScheduler.isDegradedVirtualPath === 'function'
     ? treeSitterScheduler.isDegradedVirtualPath.bind(treeSitterScheduler)
     : () => false;
+  const schedulerCrashSummary = treeSitterScheduler
+    && typeof treeSitterScheduler.getCrashSummary === 'function'
+    ? treeSitterScheduler.getCrashSummary()
+    : null;
+  const degradedVirtualPaths = Array.isArray(schedulerCrashSummary?.degradedVirtualPaths)
+    ? schedulerCrashSummary.degradedVirtualPaths
+    : [];
+  const failedGrammarKeys = new Set(
+    Array.isArray(schedulerCrashSummary?.failedGrammarKeys)
+      ? schedulerCrashSummary.failedGrammarKeys.filter((value) => typeof value === 'string' && value)
+      : []
+  );
+  /**
+   * Match current virtual-path requests against degraded crash-summary paths.
+   *
+   * Crash summaries may contain container-only entries, segment-qualified
+   * entries, or historical path variants. We treat prefix/suffix relationships
+   * as degraded so scheduler lookups safely fall back to heuristic chunking.
+   *
+   * @param {string} virtualPath
+   * @returns {boolean}
+   */
+  const isDegradedInCrashSummary = (virtualPath) => degradedVirtualPaths.some((candidate) => (
+    typeof candidate === 'string'
+    && (
+      candidate === virtualPath
+      || candidate.startsWith(`${virtualPath}#seg:`)
+      || virtualPath.startsWith(candidate)
+      || (relKey && candidate.includes(relKey))
+    )
+  ));
+  const containerVirtualPath = buildVfsVirtualPath({ containerPath: relKey });
+  const containerDegraded = schedulerDegradedCheck(containerVirtualPath)
+    || isDegradedInCrashSummary(containerVirtualPath);
   const schedulerLookupItems = [];
   for (const item of scheduled) {
-    if (schedulerDegradedCheck(item.virtualPath)) {
+    if (
+      containerDegraded
+      || (item.grammarKey && failedGrammarKeys.has(item.grammarKey))
+      || schedulerDegradedCheck(item.virtualPath)
+      || isDegradedInCrashSummary(item.virtualPath)
+    ) {
       fallbackSegments.push(item.segment);
       counters.schedulerDegradedCount += 1;
       counters.codeFallbackSegmentCount += 1;

@@ -90,6 +90,27 @@ try {
 assert.equal(fs.readFileSync(exdevPath, 'utf8'), 'exdev-ok');
 assert.ok(exdevAttempts >= 1, 'expected EXDEV rename fallback path to be exercised');
 
+const epermPath = path.join(tempRoot, 'eperm.txt');
+const originalRenameEperm = fsPromises.rename;
+let epermAttempts = 0;
+fsPromises.rename = async (...args) => {
+  const [, targetPath] = args;
+  if (String(targetPath || '').includes('eperm.txt') && epermAttempts < 5) {
+    epermAttempts += 1;
+    const err = new Error('operation not permitted');
+    err.code = 'EPERM';
+    throw err;
+  }
+  return originalRenameEperm(...args);
+};
+try {
+  await atomicWriteText(epermPath, 'eperm-ok');
+} finally {
+  fsPromises.rename = originalRenameEperm;
+}
+assert.equal(fs.readFileSync(epermPath, 'utf8'), 'eperm-ok');
+assert.equal(epermAttempts, 5, 'expected EPERM rename retries to be exercised');
+
 let mkdirError = null;
 try {
   await atomicWriteText(path.join(tempRoot, 'nested', 'missing.txt'), 'x', { mkdir: false });
