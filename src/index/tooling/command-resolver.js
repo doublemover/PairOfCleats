@@ -89,6 +89,22 @@ const resolveGoToolCommand = (cmd, toolingConfig) => {
   return findBinaryOnPath(cmd) || cmd;
 };
 
+const resolveScopedCommand = ({ cmd, repoRoot, toolingConfig }) => {
+  const requested = String(cmd || '').trim();
+  if (!requested) return '';
+  if (isAbsolutePathNative(requested) || requested.includes(path.sep)) return requested;
+  const repoBin = path.join(repoRoot, 'node_modules', '.bin');
+  const toolBin = toolingConfig?.dir
+    ? path.join(toolingConfig.dir, 'bin')
+    : null;
+  const toolingNodeBin = toolingConfig?.dir
+    ? path.join(toolingConfig.dir, 'node', 'node_modules', '.bin')
+    : null;
+  const scopedMatch = findBinaryInDirs(requested, [repoBin, toolBin, toolingNodeBin].filter(Boolean));
+  if (scopedMatch) return scopedMatch;
+  return resolveWindowsCommand(findBinaryOnPath(requested) || requested);
+};
+
 const getProbeArgCandidates = (providerId, requestedCmd) => {
   const cmdName = String(requestedCmd || '').toLowerCase();
   if (providerId === 'gopls' || cmdName === 'gopls') {
@@ -121,14 +137,25 @@ const resolveBaseCommand = ({ providerId, requestedCmd, repoRoot, toolingConfig 
     return resolveGoToolCommand('gopls', toolingConfig);
   }
   if (normalizedProviderId === 'clangd') {
-    return resolveWindowsCommand(requestedCmd || 'clangd');
+    return resolveScopedCommand({
+      cmd: requestedCmd || 'clangd',
+      repoRoot,
+      toolingConfig
+    });
   }
   if (normalizedProviderId === 'sourcekit' || requestedCmd === 'sourcekit-lsp') {
-    return resolveWindowsCommand(requestedCmd || 'sourcekit-lsp');
+    return resolveScopedCommand({
+      cmd: requestedCmd || 'sourcekit-lsp',
+      repoRoot,
+      toolingConfig
+    });
   }
   if (requestedCmd) {
-    if (isAbsolutePathNative(requestedCmd) || requestedCmd.includes(path.sep)) return requestedCmd;
-    return resolveWindowsCommand(findBinaryOnPath(requestedCmd) || requestedCmd);
+    return resolveScopedCommand({
+      cmd: requestedCmd,
+      repoRoot,
+      toolingConfig
+    });
   }
   return '';
 };

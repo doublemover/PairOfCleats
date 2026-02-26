@@ -761,6 +761,7 @@ tooling/doctor/doctor-gating-reasons
 tooling/doctor/doctor-command-profile-jdtls
 tooling/doctor/doctor-command-profile-gopls
 tooling/doctor/doctor-command-profile-probe-cache
+tooling/doctor/doctor-command-profile-tooling-dir-precedence
 tooling/doctor/doctor-provider-requires-args
 tooling/doctor/doctor-runtime-requirements-dedicated
 tooling/doctor/doctor-workspace-model-detection
