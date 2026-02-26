@@ -760,6 +760,9 @@ tooling/doctor/doctor-command-profile-jdtls
 tooling/doctor/doctor-provider-requires-args
 tooling/doctor/doctor-runtime-requirements-dedicated
 tooling/doctor/doctor-workspace-model-detection
+tooling/doctor/doctor-runtime-requirements-jdtls-dedicated
+tooling/doctor/doctor-runtime-requirements-csharp-dedicated
+tooling/doctor/doctor-workspace-model-csharp-detection
 tooling/lsp/ruby-signature-parse
 tooling/lsp/jdtls-provider-bootstrap
 tooling/lsp/jdtls-provider-workspace-guard
