@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import fs from 'node:fs';
 import { createCli } from '../../src/shared/cli.js';
 import { createStdoutGuard } from '../../src/shared/cli/stdout-guard.js';
 import path from 'node:path';
@@ -33,8 +34,8 @@ const stdoutGuard = createStdoutGuard({
 });
 const languageOverride = normalizeLanguageList(argv.languages);
 const toolOverride = normalizeLanguageList(argv.tools);
-const WINDOWS_COMMAND_WRAPPERS = new Set(['npm', 'npx', 'pnpm', 'yarn', 'corepack']);
 const shouldUseCmdShell = (command) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(command);
+const WINDOWS_EXEC_EXTS = ['.exe', '.cmd', '.bat', '.com'];
 const quoteWindowsCmdArg = (value) => {
   const text = String(value ?? '');
   if (!text) return '""';
@@ -46,7 +47,16 @@ const resolveSpawnCommand = (cmd) => {
   const value = String(cmd || '').trim();
   if (!value || process.platform !== 'win32') return value;
   if (path.extname(value) || value.includes(path.sep) || value.includes('/')) return value;
-  return WINDOWS_COMMAND_WRAPPERS.has(value.toLowerCase()) ? `${value}.cmd` : value;
+  const pathEntries = (process.env.PATH || process.env.Path || '')
+    .split(path.delimiter)
+    .filter(Boolean);
+  for (const ext of WINDOWS_EXEC_EXTS) {
+    for (const dir of pathEntries) {
+      const candidate = path.join(dir, `${value}${ext}`);
+      if (fs.existsSync(candidate)) return candidate;
+    }
+  }
+  return value;
 };
 
 const spawnToolCommand = (command, args, options) => {
@@ -56,6 +66,12 @@ const spawnToolCommand = (command, args, options) => {
   const commandLine = [command, ...args].map(quoteWindowsCmdArg).join(' ');
   const shellExe = process.env.ComSpec || 'cmd.exe';
   return spawnSync(shellExe, ['/d', '/s', '/c', commandLine], options);
+};
+
+const resolveRequirementCheckArgs = (commandName) => {
+  const normalized = String(commandName || '').trim().toLowerCase();
+  if (normalized === 'go') return ['version'];
+  return ['--version'];
 };
 
 const report = toolOverride.length
@@ -82,7 +98,7 @@ for (const tool of tools) {
   }
   const { cmd, args, env, requires } = selection.plan;
   if (requires) {
-    const requireCheck = spawnToolCommand(resolveSpawnCommand(requires), ['--version'], {
+    const requireCheck = spawnToolCommand(resolveSpawnCommand(requires), resolveRequirementCheckArgs(requires), {
       encoding: 'utf8',
       stdio: 'ignore',
       windowsHide: true
