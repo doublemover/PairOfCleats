@@ -507,6 +507,8 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
           const isLspProvider = providerId === 'clangd'
             || providerId === 'pyright'
             || providerId === 'sourcekit'
+            || providerId === 'jdtls'
+            || providerId === 'csharp-ls'
             || providerId.startsWith('lsp-');
           if (isLspProvider && options?.probeHandshake !== false) {
             const handshake = await probeLspInitializeHandshake({

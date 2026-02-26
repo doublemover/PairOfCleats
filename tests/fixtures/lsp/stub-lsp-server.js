@@ -46,6 +46,16 @@ const symbolsByMode = {
     detail: 'def greet(name: str) -> str',
     kind: 12
   },
+  java: {
+    name: 'add',
+    detail: 'int add(int a, int b)',
+    kind: 12
+  },
+  csharp: {
+    name: 'Greet',
+    detail: 'string Greet(string name)',
+    kind: 12
+  },
   go: {
     name: 'Add',
     detail: 'func Add(a int, b int) int',
