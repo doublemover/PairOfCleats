@@ -771,6 +771,9 @@ tooling/lsp/elixir-provider-workspace-guard
 tooling/lsp/elixir-provider-command-fallback
 tooling/doctor/doctor-runtime-requirements-elixir-dedicated
 tooling/doctor/doctor-workspace-model-elixir-detection
+tooling/lsp/phpactor-provider-bootstrap
+tooling/lsp/phpactor-provider-workspace-guard
+tooling/lsp/phpactor-provider-command-fallback
 indexing/imports/import-resolver-relative
 indexing/validate/ledger-validation
 lang/javascript/javascript-paramnames

@@ -66,6 +66,11 @@ const symbolsByMode = {
     detail: 'greet(name :: String.t()) :: String.t()',
     kind: 12
   },
+  php: {
+    name: 'greet',
+    detail: 'string greet(string name)',
+    kind: 12
+  },
   go: {
     name: 'Add',
     detail: 'func Add(a int, b int) int',

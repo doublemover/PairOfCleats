@@ -7,6 +7,7 @@ import { createJdtlsProvider } from '../jdtls-provider.js';
 import { createCsharpProvider } from '../csharp-provider.js';
 import { createSolargraphProvider } from '../solargraph-provider.js';
 import { createElixirProvider } from '../elixir-provider.js';
+import { createPhpactorProvider } from '../phpactor-provider.js';
 
 let registered = false;
 
@@ -21,4 +22,5 @@ export const registerDefaultToolingProviders = () => {
   registerToolingProvider(createCsharpProvider());
   registerToolingProvider(createSolargraphProvider());
   registerToolingProvider(createElixirProvider());
+  registerToolingProvider(createPhpactorProvider());
 };

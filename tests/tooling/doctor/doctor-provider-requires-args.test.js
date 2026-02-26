@@ -26,10 +26,10 @@ await runToolingDoctor({
   repoRoot: tempRoot,
   buildRoot: tempRoot,
   toolingConfig: {
-    enabledTools: ['solargraph']
+    enabledTools: ['solargraph', 'phpactor']
   },
   strict: false
-}, ['solargraph'], {
+}, ['solargraph', 'phpactor'], {
   log: () => {},
   probeHandshake: false,
   resolveCommandProfile
@@ -41,6 +41,13 @@ assert.equal(
   solargraphCalls.some((entry) => entry.args.length === 1 && entry.args[0] === 'stdio'),
   true,
   'expected doctor to pass provider requires.args to command profile resolver'
+);
+const phpactorCalls = calls.filter((entry) => entry.cmd === 'phpactor');
+assert.ok(phpactorCalls.length > 0, 'expected phpactor command probe');
+assert.equal(
+  phpactorCalls.some((entry) => entry.args.length === 1 && entry.args[0] === 'language-server'),
+  true,
+  'expected doctor to pass phpactor requires.args to command profile resolver'
 );
 
 console.log('tooling doctor provider requires args test passed');
