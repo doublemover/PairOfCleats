@@ -104,6 +104,18 @@ const pruneToolingCacheDir = async (cacheDir, { maxBytes, maxEntries } = {}) => 
 // Cap param-type growth deterministically to avoid unbounded merges.
 const MAX_PARAM_CANDIDATES = 5;
 const hasIterable = (value) => value != null && typeof value[Symbol.iterator] === 'function';
+const createParamTypeMap = () => Object.create(null);
+
+const ensureParamTypeMap = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return createParamTypeMap();
+  if (Object.getPrototypeOf(value) === null) return value;
+  const next = createParamTypeMap();
+  for (const [name, types] of Object.entries(value)) {
+    if (!name) continue;
+    next[name] = types;
+  }
+  return next;
+};
 
 const toTypeEntryCollection = (value) => {
   if (Array.isArray(value)) return value;
@@ -227,9 +239,7 @@ const mergePayload = (target, incoming, { observations, chunkUid } = {}) => {
   if (next.returnType && !payload.returnType) payload.returnType = next.returnType;
   if (next.signature && !payload.signature) payload.signature = next.signature;
   if (next.paramTypes && typeof next.paramTypes === 'object' && !Array.isArray(next.paramTypes)) {
-    const targetParamTypes = payload.paramTypes && typeof payload.paramTypes === 'object' && !Array.isArray(payload.paramTypes)
-      ? payload.paramTypes
-      : {};
+    const targetParamTypes = ensureParamTypeMap(payload.paramTypes);
     payload.paramTypes = targetParamTypes;
     for (const [name, types] of Object.entries(next.paramTypes)) {
       const incomingEntries = toTypeEntryCollection(types);
