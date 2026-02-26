@@ -9,6 +9,7 @@ import { createSolargraphProvider } from '../solargraph-provider.js';
 import { createElixirProvider } from '../elixir-provider.js';
 import { createPhpactorProvider } from '../phpactor-provider.js';
 import { createHaskellProvider } from '../haskell-provider.js';
+import { createDartProvider } from '../dart-provider.js';
 
 let registered = false;
 
@@ -25,4 +26,5 @@ export const registerDefaultToolingProviders = () => {
   registerToolingProvider(createElixirProvider());
   registerToolingProvider(createPhpactorProvider());
   registerToolingProvider(createHaskellProvider());
+  registerToolingProvider(createDartProvider());
 };

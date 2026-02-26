@@ -76,6 +76,11 @@ const symbolsByMode = {
     detail: 'greet :: Text -> Text',
     kind: 12
   },
+  dart: {
+    name: 'greet',
+    detail: 'String greet(String name)',
+    kind: 12
+  },
   go: {
     name: 'Add',
     detail: 'func Add(a int, b int) int',
