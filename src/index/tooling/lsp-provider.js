@@ -5,6 +5,7 @@ import { resolveLspServerPreset } from './lsp-presets.js';
 import { parseClikeSignature } from './signature-parse/clike.js';
 import { parseElixirSignature } from './signature-parse/elixir.js';
 import { parseGoSignature } from './signature-parse/go.js';
+import { parseHaskellSignature } from './signature-parse/haskell.js';
 import { parseLuaSignature } from './signature-parse/lua.js';
 import { parsePythonSignature } from './signature-parse/python.js';
 import { parseRubySignature } from './signature-parse/ruby.js';
@@ -38,6 +39,7 @@ const parseGenericSignature = (detail, languageId, symbolName) => {
   if (lang === 'python' || lang === 'py' || lang === 'pyi') return parsePythonSignature(detail);
   if (lang === 'swift') return parseSwiftSignature(detail);
   if (lang === 'go') return parseGoSignature(detail);
+  if (lang === 'haskell' || lang === 'hs') return parseHaskellSignature(detail);
   if (lang === 'rust') return parseRustSignature(detail);
   if (lang === 'elixir' || lang === 'ex' || lang === 'exs') return parseElixirSignature(detail);
   if (lang === 'lua') return parseLuaSignature(detail);
@@ -54,6 +56,7 @@ const parseGenericSignature = (detail, languageId, symbolName) => {
   return parseClikeSignature(detail, symbolName)
     || parsePythonSignature(detail)
     || parseSwiftSignature(detail)
+    || parseHaskellSignature(detail)
     || parseElixirSignature(detail)
     || parseRubySignature(detail);
 };

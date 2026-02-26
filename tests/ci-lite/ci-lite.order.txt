@@ -774,6 +774,12 @@ tooling/doctor/doctor-workspace-model-elixir-detection
 tooling/lsp/phpactor-provider-bootstrap
 tooling/lsp/phpactor-provider-workspace-guard
 tooling/lsp/phpactor-provider-command-fallback
+tooling/lsp/haskell-signature-parse
+tooling/lsp/haskell-provider-bootstrap
+tooling/lsp/haskell-provider-workspace-guard
+tooling/lsp/haskell-provider-command-fallback
+tooling/doctor/doctor-runtime-requirements-haskell-dedicated
+tooling/doctor/doctor-workspace-model-haskell-detection
 indexing/imports/import-resolver-relative
 indexing/validate/ledger-validation
 lang/javascript/javascript-paramnames

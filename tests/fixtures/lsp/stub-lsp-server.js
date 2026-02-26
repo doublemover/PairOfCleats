@@ -71,6 +71,11 @@ const symbolsByMode = {
     detail: 'string greet(string name)',
     kind: 12
   },
+  haskell: {
+    name: 'greet',
+    detail: 'greet :: Text -> Text',
+    kind: 12
+  },
   go: {
     name: 'Add',
     detail: 'func Add(a int, b int) int',
