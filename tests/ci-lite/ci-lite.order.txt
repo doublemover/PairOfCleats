@@ -602,6 +602,7 @@ tooling/providers/provider-registry-merges-deterministically
 tooling/lsp/lsp-restart-generation-safety
 tooling/lsp/lsp-configured-provider-go-rust-signature-parsing
 tooling/lsp/lsp-configured-provider-lua-workspace-library
+tooling/lsp/lsp-configured-provider-rust-proc-macro-diagnostic-suppression
 storage/sqlite/reader-schema-mismatch
 indexing/build/promotion-timing-contract
 storage/sqlite/sqlite-build-rowcount-contract

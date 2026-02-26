@@ -91,6 +91,11 @@ const symbolsByMode = {
     detail: 'fn add(a: i32, b: i32) -> i32',
     kind: 12
   },
+  'rust-diagnostics-proc-macro': {
+    name: 'add',
+    detail: 'fn add(a: i32, b: i32) -> i32',
+    kind: 12
+  },
   lua: {
     name: 'greet',
     detail: 'function greet(name: string): string',
@@ -168,6 +173,26 @@ const resolveInitializeCapabilities = (initializeParams = null) => {
     documentSymbolProvider: true,
     hoverProvider: true
   };
+};
+const rustProcMacroWarningDiagnostic = {
+  message: 'proc-macro expansion is unavailable',
+  severity: 2,
+  code: 'proc-macro',
+  source: 'rust-analyzer',
+  range: {
+    start: { line: 0, character: 0 },
+    end: { line: 0, character: 1 }
+  }
+};
+const rustErrorDiagnostic = {
+  message: 'cannot find function `missing` in this scope',
+  severity: 1,
+  code: 'E0425',
+  source: 'rust-analyzer',
+  range: {
+    start: { line: 0, character: 0 },
+    end: { line: 0, character: 1 }
+  }
 };
 
 const writeRawFrame = (bodyBuffer) => {
@@ -303,6 +328,12 @@ const handleNotification = (message) => {
         jsonrpc: '2.0',
         method: 'textDocument/publishDiagnostics',
         params: { uri, diagnostics: [pyrightDiagnostic] }
+      });
+    } else if (uri && mode === 'rust-diagnostics-proc-macro') {
+      send({
+        jsonrpc: '2.0',
+        method: 'textDocument/publishDiagnostics',
+        params: { uri, diagnostics: [rustProcMacroWarningDiagnostic, rustErrorDiagnostic] }
       });
     }
   } else if (message.method === 'textDocument/didClose') {

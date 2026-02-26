@@ -89,6 +89,42 @@ const parseGenericSignature = (detail, languageId, symbolName) => {
     || parseRubySignature(detail);
 };
 
+const shouldSuppressRustProcMacroDiagnostic = (diag) => {
+  if (!diag || typeof diag !== 'object') return false;
+  const severity = Number(diag.severity);
+  if (severity === 1) return false;
+  const text = `${diag.message || ''} ${diag.code || ''}`.toLowerCase();
+  return text.includes('proc-macro') || text.includes('procedural macro');
+};
+
+const applyRustProcMacroSuppression = (diagnosticsByChunkUid) => {
+  if (!diagnosticsByChunkUid || typeof diagnosticsByChunkUid !== 'object') {
+    return { diagnosticsByChunkUid: {}, diagnosticsCount: 0, suppressedCount: 0 };
+  }
+  const next = {};
+  let diagnosticsCount = 0;
+  let suppressedCount = 0;
+  for (const [chunkUid, diagnostics] of Object.entries(diagnosticsByChunkUid)) {
+    if (!Array.isArray(diagnostics) || !diagnostics.length) continue;
+    const kept = [];
+    for (const diag of diagnostics) {
+      if (shouldSuppressRustProcMacroDiagnostic(diag)) {
+        suppressedCount += 1;
+        continue;
+      }
+      kept.push(diag);
+    }
+    if (!kept.length) continue;
+    next[chunkUid] = kept;
+    diagnosticsCount += kept.length;
+  }
+  return {
+    diagnosticsByChunkUid: next,
+    diagnosticsCount,
+    suppressedCount
+  };
+};
+
 const normalizeServerConfig = (server, index) => {
   if (!server || typeof server !== 'object') return null;
   const preset = resolveLspServerPreset(server);
@@ -122,6 +158,9 @@ const normalizeServerConfig = (server, index) => {
     baseInitializationOptions,
     usesLuaPreset ? merged.luaWorkspaceLibrary : null
   );
+  const rustSuppressProcMacroDiagnostics = id === 'rust-analyzer'
+    ? merged.rustSuppressProcMacroDiagnostics !== false
+    : false;
   return {
     id,
     cmd,
@@ -139,6 +178,7 @@ const normalizeServerConfig = (server, index) => {
     hoverCacheMaxEntries: Number.isFinite(hoverCacheMaxEntries)
       ? Math.max(1000, Math.floor(hoverCacheMaxEntries))
       : null,
+    rustSuppressProcMacroDiagnostics,
     initializationOptions,
     priority: Number.isFinite(priority) ? priority : null,
     label: typeof merged.label === 'string' ? merged.label : null,
@@ -222,11 +262,27 @@ const createConfiguredLspProvider = (server) => {
         initializationOptions: server.initializationOptions,
         captureDiagnostics: true
       });
+      let diagnosticsByChunkUid = result.diagnosticsByChunkUid;
+      let diagnosticsCount = result.diagnosticsCount;
+      const checks = Array.isArray(result.checks) ? result.checks.slice() : [];
+      if (server.rustSuppressProcMacroDiagnostics) {
+        const suppression = applyRustProcMacroSuppression(diagnosticsByChunkUid);
+        diagnosticsByChunkUid = suppression.diagnosticsByChunkUid;
+        diagnosticsCount = suppression.diagnosticsCount;
+        if (suppression.suppressedCount > 0) {
+          checks.push({
+            name: 'tooling_rust_proc_macro_diagnostics_suppressed',
+            status: 'info',
+            message: `suppressed ${suppression.suppressedCount} non-fatal rust proc-macro diagnostic(s).`,
+            count: suppression.suppressedCount
+          });
+        }
+      }
       const diagnostics = appendDiagnosticChecks(
-        result.diagnosticsCount
-          ? { diagnosticsCount: result.diagnosticsCount, diagnosticsByChunkUid: result.diagnosticsByChunkUid }
+        diagnosticsCount
+          ? { diagnosticsCount, diagnosticsByChunkUid }
           : null,
-        Array.isArray(result.checks) ? result.checks : []
+        checks
       );
       return {
         provider: { id: providerId, version: this.version, configHash: this.getConfigHash(ctx) },
