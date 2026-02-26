@@ -56,6 +56,11 @@ const symbolsByMode = {
     detail: 'string Greet(string name)',
     kind: 12
   },
+  ruby: {
+    name: 'greet',
+    detail: 'greet(name : String, title = nil) -> String',
+    kind: 12
+  },
   go: {
     name: 'Add',
     detail: 'func Add(a int, b int) int',

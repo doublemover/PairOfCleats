@@ -1,35 +1,11 @@
-import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
 import { resolveToolingCommandProfile } from './command-resolver.js';
-import { parseClikeSignature } from './signature-parse/clike.js';
-import { isAbsolutePathNative } from '../../shared/files.js';
+import { parseRubySignature } from './signature-parse/ruby.js';
 import { hasWorkspaceMarker } from './workspace-model.js';
 
-const JAVA_EXTS = ['.java'];
-
-const resolveWorkspaceDataDir = (ctx, config) => {
-  const configured = typeof config?.workspaceDataDir === 'string'
-    ? config.workspaceDataDir.trim()
-    : '';
-  if (configured) {
-    return isAbsolutePathNative(configured)
-      ? configured
-      : path.resolve(ctx?.repoRoot || process.cwd(), configured);
-  }
-  const baseRoot = ctx?.cache?.dir || ctx?.buildRoot || ctx?.repoRoot || process.cwd();
-  return path.join(baseRoot, 'tooling', 'lsp-workspaces', 'jdtls');
-};
-
-const ensureWorkspaceDataArg = (args, workspaceDataDir) => {
-  const normalizedArgs = Array.isArray(args) ? args.map((entry) => String(entry)) : [];
-  for (let i = 0; i < normalizedArgs.length; i += 1) {
-    if (normalizedArgs[i] !== '-data') continue;
-    if (normalizedArgs[i + 1]) return normalizedArgs;
-  }
-  return [...normalizedArgs, '-data', workspaceDataDir];
-};
+const RUBY_EXTS = ['.rb', '.rake', '.gemspec'];
 
 const asFiniteNumber = (value) => {
   const parsed = Number(value);
@@ -38,14 +14,26 @@ const asFiniteNumber = (value) => {
 
 const isPlainObject = (value) => value != null && typeof value === 'object' && !Array.isArray(value);
 
-export const createJdtlsProvider = () => ({
-  id: 'jdtls',
+const normalizeArgs = (value) => (
+  Array.isArray(value)
+    ? value.map((entry) => String(entry)).filter((entry) => entry.length > 0)
+    : []
+);
+
+const ensureStdioArg = (args) => {
+  const normalized = normalizeArgs(args);
+  const hasStdio = normalized.some((entry) => entry.toLowerCase() === 'stdio');
+  return hasStdio ? normalized : [...normalized, 'stdio'];
+};
+
+export const createSolargraphProvider = () => ({
+  id: 'solargraph',
   version: '1.0.0',
-  label: 'jdtls (dedicated)',
-  priority: 82,
-  languages: ['java'],
+  label: 'solargraph (dedicated)',
+  priority: 84,
+  languages: ['ruby'],
   kinds: ['types', 'diagnostics'],
-  requires: { cmd: 'jdtls' },
+  requires: { cmd: 'solargraph', args: ['stdio'] },
   capabilities: {
     supportsVirtualDocuments: true,
     supportsSegmentRouting: true,
@@ -54,28 +42,28 @@ export const createJdtlsProvider = () => ({
     supportsSymbolRef: false
   },
   getConfigHash(ctx) {
-    return hashProviderConfig({ jdtls: ctx?.toolingConfig?.jdtls || {} });
+    return hashProviderConfig({ solargraph: ctx?.toolingConfig?.solargraph || {} });
   },
   async run(ctx, inputs) {
     const log = typeof ctx?.logger === 'function' ? ctx.logger : (() => {});
-    const config = ctx?.toolingConfig?.jdtls || {};
+    const config = ctx?.toolingConfig?.solargraph || {};
     const docs = Array.isArray(inputs?.documents)
-      ? inputs.documents.filter((doc) => JAVA_EXTS.includes(path.extname(doc.virtualPath).toLowerCase()))
+      ? inputs.documents.filter((doc) => RUBY_EXTS.includes(path.extname(doc.virtualPath).toLowerCase()))
       : [];
     const targets = Array.isArray(inputs?.targets)
       ? inputs.targets.filter((target) => docs.some((doc) => doc.virtualPath === target.virtualPath))
       : [];
-    const duplicateChecks = buildDuplicateChunkUidChecks(targets, { label: 'jdtls' });
+    const duplicateChecks = buildDuplicateChunkUidChecks(targets, { label: 'solargraph' });
     if (!docs.length || !targets.length) {
       return {
-        provider: { id: 'jdtls', version: '1.0.0', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'solargraph', version: '1.0.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(null, duplicateChecks)
       };
     }
     if (config.enabled !== true) {
       return {
-        provider: { id: 'jdtls', version: '1.0.0', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'solargraph', version: '1.0.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(null, duplicateChecks)
       };
@@ -85,26 +73,26 @@ export const createJdtlsProvider = () => ({
     const requiresWorkspaceModel = config.requireWorkspaceModel !== false;
     if (requiresWorkspaceModel) {
       const markerFound = hasWorkspaceMarker(ctx?.repoRoot || process.cwd(), {
-        exactNames: ['pom.xml', 'build.gradle', 'build.gradle.kts', 'settings.gradle', 'settings.gradle.kts']
+        exactNames: ['gemfile']
       });
       if (!markerFound) {
         checks.push({
-          name: 'jdtls_workspace_model_missing',
+          name: 'solargraph_workspace_model_missing',
           status: 'warn',
-          message: 'jdtls workspace model markers not found; skipping dedicated provider.'
+          message: 'solargraph workspace markers not found; skipping dedicated provider.'
         });
         return {
-          provider: { id: 'jdtls', version: '1.0.0', configHash: this.getConfigHash(ctx) },
+          provider: { id: 'solargraph', version: '1.0.0', configHash: this.getConfigHash(ctx) },
           byChunkUid: {},
           diagnostics: appendDiagnosticChecks(null, checks)
         };
       }
     }
 
-    const requestedCmd = typeof config.cmd === 'string' && config.cmd.trim() ? config.cmd.trim() : 'jdtls';
-    const requestedArgs = Array.isArray(config.args) ? config.args : [];
+    const requestedCmd = typeof config.cmd === 'string' && config.cmd.trim() ? config.cmd.trim() : 'solargraph';
+    const requestedArgs = ensureStdioArg(config.args);
     const commandProfile = resolveToolingCommandProfile({
-      providerId: 'jdtls',
+      providerId: 'solargraph',
       cmd: requestedCmd,
       args: requestedArgs,
       repoRoot: ctx?.repoRoot || process.cwd(),
@@ -112,22 +100,16 @@ export const createJdtlsProvider = () => ({
     });
     if (!commandProfile.probe.ok) {
       checks.push({
-        name: 'jdtls_command_unavailable',
+        name: 'solargraph_command_unavailable',
         status: 'warn',
-        message: `${requestedCmd} command not available for jdtls.`
+        message: `${requestedCmd} command not available for solargraph.`
       });
       return {
-        provider: { id: 'jdtls', version: '1.0.0', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'solargraph', version: '1.0.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(null, checks)
       };
     }
-
-    const workspaceDataDir = resolveWorkspaceDataDir(ctx, config);
-    try {
-      await fsPromises.mkdir(workspaceDataDir, { recursive: true });
-    } catch {}
-    const resolvedArgs = ensureWorkspaceDataArg(commandProfile.resolved.args || requestedArgs, workspaceDataDir);
 
     const globalTimeoutMs = asFiniteNumber(ctx?.toolingConfig?.timeoutMs);
     const providerTimeoutMs = asFiniteNumber(config.timeoutMs);
@@ -149,11 +131,11 @@ export const createJdtlsProvider = () => ({
       abortSignal: ctx?.abortSignal || null,
       log,
       cmd: commandProfile.resolved.cmd,
-      args: resolvedArgs,
+      args: ensureStdioArg(commandProfile.resolved.args || requestedArgs),
       timeoutMs,
       retries,
       breakerThreshold,
-      parseSignature: (detail, _lang, symbolName) => parseClikeSignature(detail, symbolName),
+      parseSignature: parseRubySignature,
       strict: ctx?.strict !== false,
       vfsRoot: ctx?.buildRoot || ctx.repoRoot,
       vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode,
@@ -172,7 +154,7 @@ export const createJdtlsProvider = () => ({
       [...checks, ...(Array.isArray(result.checks) ? result.checks : [])]
     );
     return {
-      provider: { id: 'jdtls', version: '1.0.0', configHash: this.getConfigHash(ctx) },
+      provider: { id: 'solargraph', version: '1.0.0', configHash: this.getConfigHash(ctx) },
       byChunkUid: result.byChunkUid,
       diagnostics: result.runtime
         ? { ...(diagnostics || {}), runtime: result.runtime }

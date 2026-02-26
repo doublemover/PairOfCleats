@@ -754,8 +754,17 @@ indexing/embeddings/build/explicit-index-root-missing-mode-fails-fast
 indexing/determinism/chunk-meta-ordering-drift
 tooling/doctor/doctor-gating-reasons
 tooling/doctor/doctor-command-profile-jdtls
+tooling/doctor/doctor-provider-requires-args
 tooling/doctor/doctor-runtime-requirements-dedicated
 tooling/doctor/doctor-workspace-model-detection
+tooling/lsp/ruby-signature-parse
+tooling/lsp/jdtls-provider-bootstrap
+tooling/lsp/jdtls-provider-workspace-guard
+tooling/lsp/csharp-provider-bootstrap
+tooling/lsp/csharp-provider-workspace-guard
+tooling/lsp/solargraph-provider-bootstrap
+tooling/lsp/solargraph-provider-workspace-guard
+tooling/lsp/solargraph-provider-command-fallback
 indexing/imports/import-resolver-relative
 indexing/validate/ledger-validation
 lang/javascript/javascript-paramnames

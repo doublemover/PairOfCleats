@@ -1,40 +1,11 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
 import { resolveToolingCommandProfile } from './command-resolver.js';
 import { parseClikeSignature } from './signature-parse/clike.js';
+import { hasWorkspaceMarker } from './workspace-model.js';
 
 const CSHARP_EXTS = ['.cs'];
-
-const hasWorkspaceMarker = (repoRoot, { extensionNames = [] } = {}) => {
-  const exts = new Set(extensionNames.map((value) => String(value || '').trim().toLowerCase()).filter(Boolean));
-  const checkEntries = (entries) => {
-    for (const entry of entries || []) {
-      if (!entry?.isFile?.()) continue;
-      const name = String(entry.name || '').toLowerCase();
-      if (!name) continue;
-      for (const ext of exts) {
-        if (name.endsWith(ext)) return true;
-      }
-    }
-    return false;
-  };
-  const listDir = (dir) => {
-    try {
-      return fs.readdirSync(dir, { withFileTypes: true });
-    } catch {
-      return [];
-    }
-  };
-  const rootEntries = listDir(repoRoot);
-  if (checkEntries(rootEntries)) return true;
-  for (const entry of rootEntries) {
-    if (!entry?.isDirectory?.()) continue;
-    if (checkEntries(listDir(path.join(repoRoot, entry.name)))) return true;
-  }
-  return false;
-};
 
 const asFiniteNumber = (value) => {
   const parsed = Number(value);

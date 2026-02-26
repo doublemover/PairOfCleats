@@ -6,6 +6,7 @@ import { parseClikeSignature } from './signature-parse/clike.js';
 import { parseGoSignature } from './signature-parse/go.js';
 import { parseLuaSignature } from './signature-parse/lua.js';
 import { parsePythonSignature } from './signature-parse/python.js';
+import { parseRubySignature } from './signature-parse/ruby.js';
 import { parseRustSignature } from './signature-parse/rust.js';
 import { parseSwiftSignature } from './signature-parse/swift.js';
 import { parseZigSignature } from './signature-parse/zig.js';
@@ -38,6 +39,7 @@ const parseGenericSignature = (detail, languageId, symbolName) => {
   if (lang === 'go') return parseGoSignature(detail);
   if (lang === 'rust') return parseRustSignature(detail);
   if (lang === 'lua') return parseLuaSignature(detail);
+  if (lang === 'ruby' || lang === 'rb') return parseRubySignature(detail);
   if (lang === 'zig') return parseZigSignature(detail);
   if ([
     'c', 'cpp', 'objective-c', 'objective-cpp',
@@ -49,7 +51,8 @@ const parseGenericSignature = (detail, languageId, symbolName) => {
   }
   return parseClikeSignature(detail, symbolName)
     || parsePythonSignature(detail)
-    || parseSwiftSignature(detail);
+    || parseSwiftSignature(detail)
+    || parseRubySignature(detail);
 };
 
 const normalizeServerConfig = (server, index) => {
