@@ -625,26 +625,34 @@ export const createRuntimeWorkerPools = async ({
     enabled: debugCrash,
     log: null
   });
+  const closeWorkerCrashLogger = async () => {
+    await workerCrashLogger.close?.();
+  };
 
-  let workerPools = { tokenizePool: null, quantizePool: null, destroy: async () => {} };
+  let workerPools = { tokenizePool: null, quantizePool: null, destroy: closeWorkerCrashLogger };
   let workerPool = null;
   let quantizePool = null;
   if (workerPoolConfig.enabled !== false) {
-    workerPools = await createIndexerWorkerPools({
-      config: workerPoolConfig,
-      dictWords,
-      dictSharedPayload,
-      dictConfig,
-      codeDictWords,
-      codeDictWordsByLanguage,
-      codeDictLanguages,
-      postingsConfig,
-      treeSitterConfig,
-      memoryPolicy,
-      stage,
-      crashLogger: workerCrashLogger,
-      log
-    });
+    try {
+      workerPools = await createIndexerWorkerPools({
+        config: workerPoolConfig,
+        dictWords,
+        dictSharedPayload,
+        dictConfig,
+        codeDictWords,
+        codeDictWordsByLanguage,
+        codeDictLanguages,
+        postingsConfig,
+        treeSitterConfig,
+        memoryPolicy,
+        stage,
+        crashLogger: workerCrashLogger,
+        log
+      });
+    } catch (err) {
+      await closeWorkerCrashLogger();
+      throw err;
+    }
     workerPool = workerPools.tokenizePool;
     quantizePool = workerPools.quantizePool;
     if (workerPool) {
@@ -667,6 +675,26 @@ export const createRuntimeWorkerPools = async ({
       log('Worker pool disabled (fallback to main thread).');
     }
   }
+  const destroyWorkerPools = typeof workerPools?.destroy === 'function'
+    ? workerPools.destroy.bind(workerPools)
+    : async () => {};
+  workerPools = {
+    ...workerPools,
+    async destroy() {
+      let firstError = null;
+      try {
+        await destroyWorkerPools();
+      } catch (err) {
+        firstError = err;
+      }
+      try {
+        await closeWorkerCrashLogger();
+      } catch (err) {
+        if (!firstError) firstError = err;
+      }
+      if (firstError) throw firstError;
+    }
+  };
 
   return { workerPools, workerPool, quantizePool };
 };

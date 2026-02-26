@@ -45,6 +45,82 @@ const safeStringify = (value) => {
 };
 
 /**
+ * Create a serialized append writer backed by one open file descriptor.
+ *
+ * Each append is queued so high-frequency emitters (file-stage traces) do not
+ * fan out into many concurrent open/write/close operations.
+ *
+ * @param {{filePath:string,warnIo:(action:string,err:unknown)=>void,warnAction:string}} input
+ * @returns {{enqueue:(line:string)=>Promise<void>,flush:()=>Promise<void>,close:()=>Promise<void>}}
+ */
+const createAppendWriter = ({ filePath, warnIo, warnAction }) => {
+  const handlePromise = fs.open(filePath, 'a')
+    .catch((err) => {
+      warnIo(`initialize ${warnAction}`, err);
+      return null;
+    });
+  let writeChain = Promise.resolve();
+  let acceptingWrites = true;
+  let closePromise = null;
+
+  const enqueue = (line) => {
+    if (!acceptingWrites || typeof line !== 'string' || !line) return Promise.resolve();
+    writeChain = writeChain.then(async () => {
+      const handle = await handlePromise;
+      if (!handle) return;
+      try {
+        await handle.write(line);
+      } catch (err) {
+        warnIo(warnAction, err);
+      }
+    });
+    return writeChain;
+  };
+
+  const flushCore = async (allowClosing = false) => {
+    await writeChain;
+    if (closePromise && !allowClosing) return;
+    const handle = await handlePromise;
+    if (!handle) return;
+    try {
+      await handle.sync();
+    } catch (err) {
+      warnIo(`${warnAction} flush`, err);
+    }
+  };
+
+  const flush = async () => {
+    if (closePromise) {
+      await closePromise;
+      return;
+    }
+    await flushCore(false);
+  };
+
+  const close = async () => {
+    if (closePromise) return closePromise;
+    acceptingWrites = false;
+    closePromise = (async () => {
+      await flushCore(true);
+      const handle = await handlePromise;
+      if (!handle) return;
+      try {
+        await handle.close();
+      } catch (err) {
+        warnIo(`${warnAction} close`, err);
+      }
+    })();
+    await closePromise;
+  };
+
+  return {
+    enqueue,
+    flush,
+    close
+  };
+};
+
+/**
  * Convert arbitrary values to filesystem-safe path token fragments.
  *
  * @param {unknown} value
@@ -510,7 +586,9 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
       updateFile: () => {},
       traceFileStage: () => {},
       logError: () => {},
-      persistForensicBundle: async () => null
+      persistForensicBundle: async () => null,
+      flush: async () => {},
+      close: async () => {}
     };
   }
   const logsDir = path.join(repoCacheRoot, 'logs');
@@ -549,11 +627,19 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
   };
   try {
     await fs.mkdir(logsDir, { recursive: true });
-    await fs.appendFile(logPath, '');
-    await fs.appendFile(tracePath, '');
   } catch (err) {
-    warnIo('initialize crash log files', err);
+    warnIo('initialize crash log directories', err);
   }
+  const logWriter = createAppendWriter({
+    filePath: logPath,
+    warnIo,
+    warnAction: 'append crash log'
+  });
+  const traceWriter = createAppendWriter({
+    filePath: tracePath,
+    warnIo,
+    warnAction: 'append crash trace'
+  });
 
   const flushStateWrites = async () => {
     if (stateWriteInFlight) return stateWriteInFlight;
@@ -586,11 +672,7 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
   const appendLine = async (message, extra) => {
     const suffix = extra ? ` ${safeStringify(extra)}` : '';
     const line = `[${formatTimestamp()}] ${message}${suffix}\n`;
-    try {
-      await fs.appendFile(logPath, line);
-    } catch (err) {
-      warnIo('append crash log', err);
-    }
+    await logWriter.enqueue(line);
   };
   const appendTrace = async (event) => {
     if (!event || typeof event !== 'object') return;
@@ -599,11 +681,7 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
       phase: event.phase || currentPhase || null,
       ...event
     };
-    try {
-      await fs.appendFile(tracePath, `${safeStringify(payload)}\n`);
-    } catch (err) {
-      warnIo('append crash trace', err);
-    }
+    await traceWriter.enqueue(`${safeStringify(payload)}\n`);
   };
   const writeStateSync = (state) => {
     const payload = { ts: formatTimestamp(), ...state };
@@ -688,6 +766,22 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
     }
   };
 
+  const flush = async () => {
+    await flushStateWrites();
+    await Promise.all([
+      logWriter.flush(),
+      traceWriter.flush()
+    ]);
+  };
+
+  const close = async () => {
+    await flush();
+    await Promise.all([
+      logWriter.close(),
+      traceWriter.close()
+    ]);
+  };
+
   void appendLine('crash-logger initialized', { path: logPath });
 
   return {
@@ -726,6 +820,8 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
         }
       }
     },
-    persistForensicBundle
+    persistForensicBundle,
+    flush,
+    close
   };
 }
