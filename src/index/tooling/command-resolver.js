@@ -92,6 +92,15 @@ const getProbeArgCandidates = (providerId, requestedCmd) => {
   if (providerId === 'gopls' || cmdName === 'gopls') {
     return [['version'], ['help'], ['--help']];
   }
+  if (providerId === 'jdtls' || cmdName === 'jdtls') {
+    return [['-version'], ['--version'], ['-help'], ['--help']];
+  }
+  if (providerId === 'elixir-ls' || cmdName === 'elixir-ls' || cmdName.includes('elixir-ls')) {
+    return [['--version'], ['-version'], ['--help']];
+  }
+  if (providerId === 'haskell-language-server' || cmdName === 'haskell-language-server') {
+    return [['--version'], ['version'], ['--help']];
+  }
   if (providerId === 'sourcekit' || cmdName.includes('sourcekit')) {
     return [['--help'], ['--version']];
   }
