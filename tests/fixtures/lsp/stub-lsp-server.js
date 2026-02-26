@@ -61,6 +61,11 @@ const symbolsByMode = {
     detail: 'greet(name : String, title = nil) -> String',
     kind: 12
   },
+  elixir: {
+    name: 'greet',
+    detail: 'greet(name :: String.t()) :: String.t()',
+    kind: 12
+  },
   go: {
     name: 'Add',
     detail: 'func Add(a int, b int) int',

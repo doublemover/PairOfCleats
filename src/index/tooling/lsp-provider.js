@@ -3,6 +3,7 @@ import { appendDiagnosticChecks, hashProviderConfig, normalizeProviderId } from 
 import { resolveToolingCommandProfile } from './command-resolver.js';
 import { resolveLspServerPreset } from './lsp-presets.js';
 import { parseClikeSignature } from './signature-parse/clike.js';
+import { parseElixirSignature } from './signature-parse/elixir.js';
 import { parseGoSignature } from './signature-parse/go.js';
 import { parseLuaSignature } from './signature-parse/lua.js';
 import { parsePythonSignature } from './signature-parse/python.js';
@@ -38,6 +39,7 @@ const parseGenericSignature = (detail, languageId, symbolName) => {
   if (lang === 'swift') return parseSwiftSignature(detail);
   if (lang === 'go') return parseGoSignature(detail);
   if (lang === 'rust') return parseRustSignature(detail);
+  if (lang === 'elixir' || lang === 'ex' || lang === 'exs') return parseElixirSignature(detail);
   if (lang === 'lua') return parseLuaSignature(detail);
   if (lang === 'ruby' || lang === 'rb') return parseRubySignature(detail);
   if (lang === 'zig') return parseZigSignature(detail);
@@ -52,6 +54,7 @@ const parseGenericSignature = (detail, languageId, symbolName) => {
   return parseClikeSignature(detail, symbolName)
     || parsePythonSignature(detail)
     || parseSwiftSignature(detail)
+    || parseElixirSignature(detail)
     || parseRubySignature(detail);
 };
 
