@@ -775,6 +775,7 @@ tooling/lsp/elixir-signature-parse
 tooling/lsp/elixir-provider-bootstrap
 tooling/lsp/elixir-provider-workspace-guard
 tooling/lsp/elixir-provider-command-fallback
+tooling/lsp/elixir-provider-initialize-stall-fail-open
 tooling/doctor/doctor-runtime-requirements-elixir-dedicated
 tooling/doctor/doctor-workspace-model-elixir-detection
 tooling/lsp/phpactor-provider-bootstrap
@@ -784,6 +785,7 @@ tooling/lsp/haskell-signature-parse
 tooling/lsp/haskell-provider-bootstrap
 tooling/lsp/haskell-provider-workspace-guard
 tooling/lsp/haskell-provider-command-fallback
+tooling/lsp/zig-signature-parse
 tooling/doctor/doctor-runtime-requirements-haskell-dedicated
 tooling/doctor/doctor-workspace-model-haskell-detection
 tooling/lsp/dedicated-providers-multifile-session-reuse
