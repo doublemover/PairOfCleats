@@ -12,6 +12,24 @@ await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 
 const serverPath = path.join(root, 'tests', 'fixtures', 'lsp', 'stub-lsp-server.js');
+const docsByLanguage = {
+  go: {
+    ext: '.go',
+    text: 'package main\nfunc Add(a int, b int) int { return a + b }\n'
+  },
+  rust: {
+    ext: '.rs',
+    text: 'fn add(a: i32, b: i32) -> i32 { a + b }\n'
+  },
+  lua: {
+    ext: '.lua',
+    text: 'function greet(name: string): string\n  return name\nend\n'
+  },
+  zig: {
+    ext: '.zig',
+    text: 'fn add(a: i32, b: i32) i32 { return a + b; }\n'
+  }
+};
 
 const runSingleLanguageCase = async ({
   languageId,
@@ -22,9 +40,9 @@ const runSingleLanguageCase = async ({
   chunkUid
 }) => {
   const virtualPath = `.poc-vfs/src/sample.${languageId}#seg:${mode}.txt`;
-  const docText = languageId === 'go'
-    ? 'package main\nfunc Add(a int, b int) int { return a + b }\n'
-    : 'fn add(a: i32, b: i32) -> i32 { a + b }\n';
+  const docConfig = docsByLanguage[languageId];
+  if (!docConfig) throw new Error(`missing test doc config for ${languageId}`);
+  const docText = docConfig.text;
   const result = await runToolingProviders({
     strict: true,
     repoRoot: tempRoot,
@@ -50,7 +68,7 @@ const runSingleLanguageCase = async ({
       virtualPath,
       text: docText,
       languageId,
-      effectiveExt: languageId === 'go' ? '.go' : '.rs',
+      effectiveExt: docConfig.ext,
       docHash: `hash-${mode}`
     }],
     targets: [{
@@ -100,4 +118,22 @@ await runSingleLanguageCase({
   chunkUid: 'ck64:v1:test:src/sample.rs:rust-signature'
 });
 
-console.log('configured LSP go/rust signature parsing test passed');
+await runSingleLanguageCase({
+  languageId: 'lua',
+  mode: 'lua',
+  symbolName: 'greet',
+  returnType: 'string',
+  paramTypes: { name: 'string' },
+  chunkUid: 'ck64:v1:test:src/sample.lua:lua-signature'
+});
+
+await runSingleLanguageCase({
+  languageId: 'zig',
+  mode: 'zig',
+  symbolName: 'add',
+  returnType: 'i32',
+  paramTypes: { a: 'i32', b: 'i32' },
+  chunkUid: 'ck64:v1:test:src/sample.zig:zig-signature'
+});
+
+console.log('configured LSP go/rust/lua/zig signature parsing test passed');

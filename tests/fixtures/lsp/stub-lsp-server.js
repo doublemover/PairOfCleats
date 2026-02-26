@@ -56,6 +56,16 @@ const symbolsByMode = {
     detail: 'fn add(a: i32, b: i32) -> i32',
     kind: 12
   },
+  lua: {
+    name: 'greet',
+    detail: 'function greet(name: string): string',
+    kind: 12
+  },
+  zig: {
+    name: 'add',
+    detail: 'fn add(a: i32, b: i32) i32',
+    kind: 12
+  },
   'clangd-duplicate-symbols': {
     name: 'add',
     detail: 'add',

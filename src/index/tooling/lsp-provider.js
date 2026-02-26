@@ -4,9 +4,11 @@ import { resolveToolingCommandProfile } from './command-resolver.js';
 import { resolveLspServerPreset } from './lsp-presets.js';
 import { parseClikeSignature } from './signature-parse/clike.js';
 import { parseGoSignature } from './signature-parse/go.js';
+import { parseLuaSignature } from './signature-parse/lua.js';
 import { parsePythonSignature } from './signature-parse/python.js';
 import { parseRustSignature } from './signature-parse/rust.js';
 import { parseSwiftSignature } from './signature-parse/swift.js';
+import { parseZigSignature } from './signature-parse/zig.js';
 
 const normalizeList = (value) => {
   if (Array.isArray(value)) return value.map((entry) => String(entry).trim()).filter(Boolean);
@@ -35,6 +37,8 @@ const parseGenericSignature = (detail, languageId, symbolName) => {
   if (lang === 'swift') return parseSwiftSignature(detail);
   if (lang === 'go') return parseGoSignature(detail);
   if (lang === 'rust') return parseRustSignature(detail);
+  if (lang === 'lua') return parseLuaSignature(detail);
+  if (lang === 'zig') return parseZigSignature(detail);
   if ([
     'c', 'cpp', 'objective-c', 'objective-cpp',
     'java', 'kotlin', 'csharp',

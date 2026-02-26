@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { parseGoSignature } from '../../../src/index/tooling/signature-parse/go.js';
+import { parseLuaSignature } from '../../../src/index/tooling/signature-parse/lua.js';
 import { parseRustSignature } from '../../../src/index/tooling/signature-parse/rust.js';
+import { parseZigSignature } from '../../../src/index/tooling/signature-parse/zig.js';
 
 const goSimple = parseGoSignature('func Add(a int, b int) int');
 assert.equal(goSimple?.returnType, 'int');
@@ -36,4 +38,23 @@ const rustWhere = parseRustSignature('fn map<T>(input: Vec<T>) -> Vec<T> where T
 assert.equal(rustWhere?.returnType, 'Vec<T>');
 assert.deepEqual(rustWhere?.paramNames, ['input']);
 
-console.log('signature parse go/rust test passed');
+const luaSimple = parseLuaSignature('function greet(name: string): string');
+assert.equal(luaSimple?.returnType, 'string');
+assert.deepEqual(luaSimple?.paramNames, ['name']);
+assert.equal(luaSimple?.paramTypes?.name, 'string');
+
+const luaLocal = parseLuaSignature('local function module.run(path: string, opts: table): boolean');
+assert.equal(luaLocal?.returnType, 'boolean');
+assert.deepEqual(luaLocal?.paramNames, ['path', 'opts']);
+
+const zigSimple = parseZigSignature('fn add(a: i32, b: i32) i32');
+assert.equal(zigSimple?.returnType, 'i32');
+assert.deepEqual(zigSimple?.paramNames, ['a', 'b']);
+assert.equal(zigSimple?.paramTypes?.a, 'i32');
+assert.equal(zigSimple?.paramTypes?.b, 'i32');
+
+const zigErrorUnion = parseZigSignature('pub fn run(self: *Self, input: []const u8) !void');
+assert.equal(zigErrorUnion?.returnType, '!void');
+assert.deepEqual(zigErrorUnion?.paramNames, ['self', 'input']);
+
+console.log('signature parse go/rust/lua/zig test passed');
