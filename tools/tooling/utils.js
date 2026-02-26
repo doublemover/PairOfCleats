@@ -24,6 +24,8 @@ const LANGUAGE_EXTENSIONS = {
   ruby: ['.rb'],
   php: ['.php', '.phtml'],
   lua: ['.lua'],
+  yaml: ['.yaml', '.yml'],
+  zig: ['.zig'],
   sql: ['.sql', '.psql', '.pgsql', '.mysql', '.sqlite']
 };
 
@@ -68,6 +70,8 @@ const TOOL_DOCS = {
   intelephense: 'https://github.com/bmewburn/intelephense-docs',
   'bash-language-server': 'https://github.com/bash-lsp/bash-language-server',
   'lua-language-server': 'https://github.com/LuaLS/lua-language-server',
+  'yaml-language-server': 'https://github.com/redhat-developer/yaml-language-server',
+  zls: 'https://github.com/zigtools/zls',
   sqls: 'https://github.com/lighttiger2505/sqls'
 };
 
@@ -347,6 +351,27 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
         manual: true
       },
       docs: TOOL_DOCS['lua-language-server']
+    },
+    {
+      id: 'yaml-language-server',
+      label: 'yaml-language-server',
+      languages: ['yaml'],
+      detect: { cmd: 'yaml-language-server', args: ['--version'], binDirs: [repoNodeBin, nodeBin] },
+      install: {
+        cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, 'yaml-language-server'] },
+        user: { cmd: 'npm', args: ['install', '-g', 'yaml-language-server'] }
+      },
+      docs: TOOL_DOCS['yaml-language-server']
+    },
+    {
+      id: 'zls',
+      label: 'zls',
+      languages: ['zig'],
+      detect: { cmd: 'zls', args: ['--version'], binDirs: [] },
+      install: {
+        manual: true
+      },
+      docs: TOOL_DOCS.zls
     },
     {
       id: 'bash-language-server',
