@@ -32,7 +32,8 @@
         "^indexing/policy/",
         "^indexing/contracts/",
         "^tooling/api-contracts/",
-        "^ci/capability-gate\\.smoke$"
+        "^ci/capability-gate\\.smoke$",
+        "^ci/tooling-doctor-gate\\.smoke$"
       ]
     },
     { "lane": "ci-lite", "match": ["^ci-lite/"] },

@@ -23,7 +23,8 @@ const required = [
   /npm(?:\.cmd)? run config:budget/,
   /npm(?:\.cmd)? run env:check/,
   /tests[\\/]run\.js --lane ci-lite/,
-  /tools[\\/]ci[\\/]capability-gate\.js --mode ci/
+  /tools[\\/]ci[\\/]capability-gate\.js --mode ci/,
+  /tools[\\/]ci[\\/]tooling-doctor-gate\.js --mode ci/
 ];
 
 const missing = required.filter((regex) => !regex.test(output));

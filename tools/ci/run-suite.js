@@ -123,6 +123,7 @@ const main = async () => {
     env.PAIROFCLEATS_TEST_LOG_DIR = logDir;
   }
   const capabilityJson = path.join(diagnosticsDir, 'capabilities.json');
+  const toolingDoctorJson = path.join(diagnosticsDir, 'tooling-doctor-gate.json');
   validateUsrGuardrailGates();
 
   if (!argv['dry-run']) {
@@ -161,6 +162,11 @@ const main = async () => {
       label: 'Capability gate',
       command: process.execPath,
       args: ['tools/ci/capability-gate.js', '--mode', mode, '--json', capabilityJson]
+    },
+    {
+      label: 'Tooling doctor gate',
+      command: process.execPath,
+      args: ['tools/ci/tooling-doctor-gate.js', '--mode', mode, '--json', toolingDoctorJson]
     },
     ...buildUsrGateSteps(diagnosticsDir),
     {
