@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-25T22:18:31.468Z",
+  "generatedAt": "2026-02-26T12:19:18.173Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3130,6 +3130,7 @@
         "tests/indexing/extracted-prose/document-bytes-hash-stable.test.js",
         "tests/indexing/extracted-prose/document-chunk-id-no-collision.test.js",
         "tests/indexing/extracted-prose/document-extraction-cache-hit-reason.test.js",
+        "tests/indexing/extracted-prose/document-extraction-cache-policy-key.test.js",
         "tests/indexing/extracted-prose/document-extraction-checksums-and-counts.test.js",
         "tests/indexing/extracted-prose/document-extraction-outcomes-recorded.test.js",
         "tests/indexing/extracted-prose/document-extractor-version-recorded.test.js",
@@ -3352,6 +3353,7 @@
         "tests/indexing/extracted-prose/document-bytes-hash-stable.test.js",
         "tests/indexing/extracted-prose/document-chunk-id-no-collision.test.js",
         "tests/indexing/extracted-prose/document-extraction-cache-hit-reason.test.js",
+        "tests/indexing/extracted-prose/document-extraction-cache-policy-key.test.js",
         "tests/indexing/extracted-prose/document-extraction-checksums-and-counts.test.js",
         "tests/indexing/extracted-prose/document-extraction-outcomes-recorded.test.js",
         "tests/indexing/extracted-prose/document-extractor-version-recorded.test.js",
