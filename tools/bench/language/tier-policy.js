@@ -67,14 +67,30 @@ const SUPPORTED_TIERS = new Set(BENCH_TIER_ORDER);
  * Validate bench repo tier config for duplicate assignment and unknown tier keys.
  *
  * @param {object} config
- * @returns {{ok:boolean,issues:Array<{language:string,repo?:string,tier?:string,message:string}>}}
+ * @returns {{
+ *   ok:boolean,
+ *   issues:Array<{
+ *     language:string,
+ *     repo?:string,
+ *     tier?:string,
+ *     code:'unknown-tier'|'duplicate-tier-repo',
+ *     level:'error'|'warn',
+ *     message:string
+ *   }>
+ * }}
  */
 export const validateBenchTierConfig = (config = {}) => {
   const issues = [];
+  let fatalIssueCount = 0;
   if (!config || typeof config !== 'object') {
     return {
       ok: false,
-      issues: [{ language: '(root)', message: 'Bench config must be an object.' }]
+      issues: [{
+        language: '(root)',
+        code: 'unknown-tier',
+        level: 'error',
+        message: 'Bench config must be an object.'
+      }]
     };
   }
   for (const [languageId, languageEntry] of Object.entries(config)) {
@@ -86,8 +102,11 @@ export const validateBenchTierConfig = (config = {}) => {
         issues.push({
           language: languageId,
           tier,
+          code: 'unknown-tier',
+          level: 'error',
           message: `Unknown tier key "${tier}".`
         });
+        fatalIssueCount += 1;
       }
       if (!Array.isArray(list)) continue;
       for (const repo of list) {
@@ -98,6 +117,8 @@ export const validateBenchTierConfig = (config = {}) => {
             language: languageId,
             repo: normalized,
             tier,
+            code: 'duplicate-tier-repo',
+            level: 'warn',
             message: `Repo "${normalized}" appears in multiple tiers (${seenTierByRepo.get(normalized)} and ${tier}).`
           });
         } else {
@@ -107,7 +128,7 @@ export const validateBenchTierConfig = (config = {}) => {
     }
   }
   return {
-    ok: issues.length === 0,
+    ok: fatalIssueCount === 0,
     issues
   };
 };
