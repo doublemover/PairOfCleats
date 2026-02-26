@@ -68,10 +68,13 @@ const spawnToolCommand = (command, args, options) => {
   return spawnSync(shellExe, ['/d', '/s', '/c', commandLine], options);
 };
 
-const resolveRequirementCheckArgs = (commandName) => {
+const resolveRequirementCheckArgCandidates = (commandName) => {
   const normalized = String(commandName || '').trim().toLowerCase();
-  if (normalized === 'go') return ['version'];
-  return ['--version'];
+  if (normalized === 'go') return [['version'], ['--version']];
+  if (normalized === 'dotnet') return [['--info'], ['--version']];
+  if (normalized === 'composer') return [['--version'], ['--help']];
+  if (normalized === 'gem') return [['--version'], ['--help']];
+  return [['--version'], ['--help']];
 };
 
 const report = toolOverride.length
@@ -98,15 +101,24 @@ for (const tool of tools) {
   }
   const { cmd, args, env, requires } = selection.plan;
   if (requires) {
-    const requireCheck = spawnToolCommand(resolveSpawnCommand(requires), resolveRequirementCheckArgs(requires), {
-      encoding: 'utf8',
-      stdio: 'ignore',
-      windowsHide: true
-    });
-    if (typeof requireCheck.signal === 'string' && requireCheck.signal.trim()) {
-      exitLikeCommandResult({ status: null, signal: requireCheck.signal });
+    const requirementCommand = resolveSpawnCommand(requires);
+    const requirementArgCandidates = resolveRequirementCheckArgCandidates(requires);
+    let requirementSatisfied = false;
+    for (const requirementArgs of requirementArgCandidates) {
+      const requireCheck = spawnToolCommand(requirementCommand, requirementArgs, {
+        encoding: 'utf8',
+        stdio: 'ignore',
+        windowsHide: true
+      });
+      if (typeof requireCheck.signal === 'string' && requireCheck.signal.trim()) {
+        exitLikeCommandResult({ status: null, signal: requireCheck.signal });
+      }
+      if (requireCheck.status === 0) {
+        requirementSatisfied = true;
+        break;
+      }
     }
-    if (requireCheck.status !== 0) {
+    if (!requirementSatisfied) {
       results.push({ id: tool.id, status: 'missing-requirement', requires, docs: tool.docs || null });
       continue;
     }

@@ -17,7 +17,10 @@ const LANGUAGE_EXTENSIONS = {
   rust: ['.rs'],
   go: ['.go'],
   java: ['.java'],
+  dart: ['.dart'],
   swift: ['.swift'],
+  elixir: ['.ex', '.exs'],
+  haskell: ['.hs', '.lhs'],
   shell: ['.sh', '.bash', '.zsh', '.ksh'],
   csharp: ['.cs'],
   kotlin: ['.kt', '.kts'],
@@ -58,6 +61,9 @@ const TOOL_DOCS = {
   'rust-analyzer': 'https://rust-analyzer.github.io/',
   gopls: 'https://pkg.go.dev/golang.org/x/tools/gopls',
   jdtls: 'https://github.com/eclipse-jdtls/eclipse.jdt.ls',
+  'elixir-ls': 'https://github.com/elixir-lsp/elixir-ls',
+  'haskell-language-server': 'https://haskell-language-server.readthedocs.io/',
+  dart: 'https://dart.dev/tools/dart-tool',
   'sourcekit-lsp': 'https://www.swift.org/download/',
   'kotlin-language-server': 'https://github.com/fwcd/kotlin-language-server',
   'kotlin-lsp': 'https://kotlinlang.org/docs/',
@@ -77,6 +83,114 @@ const TOOL_DOCS = {
 
 function canRun(cmd, args = ['--version']) {
   return canRunCommand(cmd, args);
+}
+
+function dedupePaths(paths = []) {
+  const seen = new Set();
+  const normalized = [];
+  for (const entry of paths) {
+    const value = String(entry || '').trim();
+    if (!value) continue;
+    const key = process.platform === 'win32' ? value.toLowerCase() : value;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    normalized.push(value);
+  }
+  return normalized;
+}
+
+function resolveHomeDir() {
+  const home = process.platform === 'win32'
+    ? (process.env.USERPROFILE || process.env.HOME || '')
+    : (process.env.HOME || process.env.USERPROFILE || '');
+  return String(home || '').trim();
+}
+
+function expandRubyVersionBinDirs(baseDir) {
+  const root = path.join(baseDir, 'ruby');
+  let entries = [];
+  try {
+    entries = fs.readdirSync(root, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(root, entry.name, 'bin'));
+}
+
+function resolveGlobalDotnetBinDirs() {
+  const home = resolveHomeDir();
+  if (!home) return [];
+  return [path.join(home, '.dotnet', 'tools')];
+}
+
+function resolveGlobalComposerBinDirs() {
+  const home = resolveHomeDir();
+  const appData = String(process.env.APPDATA || '').trim();
+  const xdgConfigHome = String(process.env.XDG_CONFIG_HOME || '').trim();
+  return dedupePaths([
+    appData ? path.join(appData, 'Composer', 'vendor', 'bin') : '',
+    xdgConfigHome ? path.join(xdgConfigHome, 'composer', 'vendor', 'bin') : '',
+    home ? path.join(home, '.config', 'composer', 'vendor', 'bin') : '',
+    home ? path.join(home, '.composer', 'vendor', 'bin') : ''
+  ]);
+}
+
+function resolveGlobalPhpactorBinDirs() {
+  const home = resolveHomeDir();
+  const localAppData = String(process.env.LOCALAPPDATA || '').trim();
+  return dedupePaths([
+    localAppData ? path.join(localAppData, 'Programs', 'phpactor') : '',
+    home ? path.join(home, '.local', 'bin') : ''
+  ]);
+}
+
+function resolveGlobalGemBinDirs() {
+  const home = resolveHomeDir();
+  const localAppData = String(process.env.LOCALAPPDATA || '').trim();
+  const gemHome = String(process.env.GEM_HOME || '').trim();
+  const gemPathEntries = String(process.env.GEM_PATH || '')
+    .split(path.delimiter)
+    .map((entry) => String(entry || '').trim())
+    .filter(Boolean);
+  const userGemRoots = [
+    home ? path.join(home, '.local', 'share', 'gem') : '',
+    home ? path.join(home, '.gem') : ''
+  ].filter(Boolean);
+  const versionedGemBins = userGemRoots.flatMap((root) => expandRubyVersionBinDirs(root));
+  return dedupePaths([
+    localAppData ? path.join(localAppData, 'Microsoft', 'WindowsApps') : '',
+    gemHome ? path.join(gemHome, 'bin') : '',
+    ...gemPathEntries.map((entry) => path.join(entry, 'bin')),
+    ...versionedGemBins
+  ]);
+}
+
+function resolveDetectArgCandidates(tool) {
+  const candidates = [];
+  const seen = new Set();
+  const addCandidate = (args) => {
+    if (!Array.isArray(args) || !args.length) return;
+    const normalizedArgs = args.map((arg) => String(arg));
+    const key = JSON.stringify(normalizedArgs);
+    if (seen.has(key)) return;
+    seen.add(key);
+    candidates.push(normalizedArgs);
+  };
+  addCandidate(tool?.detect?.args || ['--version']);
+  addCandidate(['--version']);
+  addCandidate(['version']);
+  addCandidate(['--help']);
+  addCandidate(['-h']);
+  return candidates;
+}
+
+function canRunWithArgCandidates(cmd, argCandidates) {
+  for (const args of argCandidates) {
+    if (canRun(cmd, args)) return true;
+  }
+  return false;
 }
 
 async function scanRepo(root) {
@@ -170,6 +284,10 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
   const gemsDir = path.join(toolingRoot, 'gems');
   const composerDir = path.join(toolingRoot, 'composer');
   const composerBin = path.join(composerDir, 'vendor', 'bin');
+  const globalDotnetBins = resolveGlobalDotnetBinDirs();
+  const globalGemBins = resolveGlobalGemBinDirs();
+  const globalComposerBins = resolveGlobalComposerBinDirs();
+  const globalPhpactorBins = resolveGlobalPhpactorBinDirs();
 
   return [
     {
@@ -257,6 +375,36 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       docs: TOOL_DOCS.jdtls
     },
     {
+      id: 'elixir-ls',
+      label: 'elixir-ls',
+      languages: ['elixir'],
+      detect: { cmd: 'elixir-ls', args: ['--help'], binDirs: [] },
+      install: {
+        manual: true
+      },
+      docs: TOOL_DOCS['elixir-ls']
+    },
+    {
+      id: 'haskell-language-server',
+      label: 'haskell-language-server',
+      languages: ['haskell'],
+      detect: { cmd: 'haskell-language-server', args: ['--version'], binDirs: [] },
+      install: {
+        manual: true
+      },
+      docs: TOOL_DOCS['haskell-language-server']
+    },
+    {
+      id: 'dart',
+      label: 'Dart SDK language server',
+      languages: ['dart'],
+      detect: { cmd: 'dart', args: ['--version'], binDirs: [] },
+      install: {
+        manual: true
+      },
+      docs: TOOL_DOCS.dart
+    },
+    {
       id: 'kotlin-language-server',
       label: 'kotlin-language-server',
       languages: ['kotlin'],
@@ -280,7 +428,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'omnisharp',
       label: 'OmniSharp',
       languages: ['csharp'],
-      detect: { cmd: 'omnisharp', args: ['--version'], binDirs: [dotnetDir] },
+      detect: { cmd: 'omnisharp', args: ['--version'], binDirs: [dotnetDir, ...globalDotnetBins] },
       install: {
         cache: { cmd: 'dotnet', args: ['tool', 'install', '--tool-path', dotnetDir, 'omnisharp'], requires: 'dotnet' },
         user: { cmd: 'dotnet', args: ['tool', 'install', '-g', 'omnisharp'], requires: 'dotnet' }
@@ -291,7 +439,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'csharp-ls',
       label: 'C# LSP (Roslyn)',
       languages: ['csharp'],
-      detect: { cmd: 'csharp-ls', args: ['--version'], binDirs: [dotnetDir] },
+      detect: { cmd: 'csharp-ls', args: ['--version'], binDirs: [dotnetDir, ...globalDotnetBins] },
       install: {
         cache: { cmd: 'dotnet', args: ['tool', 'install', '--tool-path', dotnetDir, 'csharp-ls'], requires: 'dotnet' },
         user: { cmd: 'dotnet', args: ['tool', 'install', '-g', 'csharp-ls'], requires: 'dotnet' }
@@ -302,7 +450,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'ruby-lsp',
       label: 'Ruby LSP',
       languages: ['ruby'],
-      detect: { cmd: 'ruby-lsp', args: ['--version'], binDirs: [binDir] },
+      detect: { cmd: 'ruby-lsp', args: ['--version'], binDirs: [binDir, ...globalGemBins] },
       install: {
         cache: { cmd: 'gem', args: ['install', '-i', gemsDir, '-n', binDir, 'ruby-lsp'], requires: 'gem' },
         user: { cmd: 'gem', args: ['install', 'ruby-lsp'], requires: 'gem' }
@@ -313,7 +461,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'solargraph',
       label: 'Solargraph',
       languages: ['ruby'],
-      detect: { cmd: 'solargraph', args: ['--version'], binDirs: [binDir] },
+      detect: { cmd: 'solargraph', args: ['--version'], binDirs: [binDir, ...globalGemBins] },
       install: {
         cache: { cmd: 'gem', args: ['install', '-i', gemsDir, '-n', binDir, 'solargraph'], requires: 'gem' },
         user: { cmd: 'gem', args: ['install', 'solargraph'], requires: 'gem' }
@@ -324,10 +472,18 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'phpactor',
       label: 'phpactor',
       languages: ['php'],
-      detect: { cmd: 'phpactor', args: ['--version'], binDirs: [composerBin] },
+      detect: { cmd: 'phpactor', args: ['--version'], binDirs: [binDir, composerBin, ...globalComposerBins, ...globalPhpactorBins] },
       install: {
-        cache: { cmd: 'composer', args: ['global', 'require', 'phpactor/phpactor'], env: { COMPOSER_HOME: composerDir }, requires: 'composer' },
-        user: { cmd: 'composer', args: ['global', 'require', 'phpactor/phpactor'], requires: 'composer' }
+        cache: {
+          cmd: process.execPath,
+          args: [path.join(repoRoot, 'tools', 'tooling', 'install-phpactor-phar.js'), '--scope', 'cache', '--tooling-root', toolingRoot],
+          requires: 'php'
+        },
+        user: {
+          cmd: process.execPath,
+          args: [path.join(repoRoot, 'tools', 'tooling', 'install-phpactor-phar.js'), '--scope', 'user'],
+          requires: 'php'
+        }
       },
       docs: TOOL_DOCS.phpactor
     },
@@ -430,15 +586,16 @@ export function resolveToolsById(ids, toolingRoot, repoRoot, toolingConfig = nul
 export function detectTool(tool) {
   const detectCmd = String(tool?.detect?.cmd || '');
   const isPyrightLangserver = detectCmd.toLowerCase() === 'pyright-langserver';
+  const detectArgCandidates = resolveDetectArgCandidates(tool);
   const binDirs = tool.detect?.binDirs || [];
   const binPath = binDirs.length ? findBinaryInDirs(tool.detect.cmd, binDirs) : null;
   if (binPath) {
-    const ok = canRun(binPath, tool.detect.args || ['--version']);
+    const ok = canRunWithArgCandidates(binPath, detectArgCandidates);
     if (ok || (isPyrightLangserver && fs.existsSync(binPath))) {
       return { found: true, path: binPath, source: 'cache' };
     }
   }
-  const ok = canRun(tool.detect.cmd, tool.detect.args || ['--version']);
+  const ok = canRunWithArgCandidates(tool.detect.cmd, detectArgCandidates);
   if (ok) return { found: true, path: tool.detect.cmd, source: 'path' };
   if (isPyrightLangserver) {
     const pathEntries = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
