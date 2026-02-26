@@ -25,6 +25,7 @@ const normalizeServerId = (value, fallback) => {
 };
 
 const normalizeLanguageList = (value) => normalizeList(value).map((entry) => entry.toLowerCase());
+const isPlainObject = (value) => value != null && typeof value === 'object' && !Array.isArray(value);
 
 const parseGenericSignature = (detail, languageId, symbolName) => {
   const lang = String(languageId || '').toLowerCase();
@@ -64,6 +65,9 @@ const normalizeServerConfig = (server, index) => {
   const documentSymbolConcurrency = Number(merged.documentSymbolConcurrency);
   const hoverConcurrency = Number(merged.hoverConcurrency);
   const hoverCacheMaxEntries = Number(merged.hoverCacheMaxEntries);
+  const initializationOptions = isPlainObject(merged.initializationOptions)
+    ? merged.initializationOptions
+    : null;
   return {
     id,
     cmd,
@@ -81,6 +85,7 @@ const normalizeServerConfig = (server, index) => {
     hoverCacheMaxEntries: Number.isFinite(hoverCacheMaxEntries)
       ? Math.max(1000, Math.floor(hoverCacheMaxEntries))
       : null,
+    initializationOptions,
     priority: Number.isFinite(priority) ? priority : null,
     label: typeof merged.label === 'string' ? merged.label : null,
     version: typeof merged.version === 'string' ? merged.version : null
@@ -160,6 +165,7 @@ const createConfiguredLspProvider = (server) => {
         documentSymbolConcurrency: server.documentSymbolConcurrency,
         hoverConcurrency: server.hoverConcurrency,
         hoverCacheMaxEntries: server.hoverCacheMaxEntries,
+        initializationOptions: server.initializationOptions,
         captureDiagnostics: true
       });
       const diagnostics = appendDiagnosticChecks(

@@ -23,7 +23,16 @@ const PRESET_DEFINITIONS = Object.freeze({
     args: ['--stdio'],
     languages: ['yaml', 'yml'],
     label: 'YAML (yaml-language-server)',
-    priority: 80
+    priority: 80,
+    initializationOptions: Object.freeze({
+      settings: Object.freeze({
+        yaml: Object.freeze({
+          schemaStore: Object.freeze({
+            enable: false
+          })
+        })
+      })
+    })
   }),
   'lua-language-server': Object.freeze({
     id: 'lua-language-server',
@@ -86,4 +95,3 @@ export const resolveLspServerPreset = (server) => {
   if (!implicitPreset) return null;
   return clonePreset(PRESET_DEFINITIONS[implicitPreset]);
 };
-

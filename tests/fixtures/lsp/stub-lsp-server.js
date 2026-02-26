@@ -62,7 +62,17 @@ const pyrightDiagnostic = {
 };
 const documents = new Map();
 
-const resolveInitializeCapabilities = () => {
+const resolveInitializeCapabilities = (initializeParams = null) => {
+  if (mode === 'yaml-requires-schemastore-off') {
+    const schemaStoreEnabled = initializeParams?.initializationOptions?.settings?.yaml?.schemaStore?.enable;
+    if (schemaStoreEnabled !== false) {
+      return {};
+    }
+    return {
+      documentSymbolProvider: true,
+      hoverProvider: true
+    };
+  }
   if (mode === 'no-document-symbol') {
     return {
       hoverProvider: true
@@ -143,7 +153,7 @@ const handleRequest = (message) => {
   const { id, method, params } = message;
   if (method === 'initialize') {
     respond(id, {
-      capabilities: resolveInitializeCapabilities()
+      capabilities: resolveInitializeCapabilities(params || null)
     });
     return;
   }
