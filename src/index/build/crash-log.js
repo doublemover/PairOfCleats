@@ -523,12 +523,26 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
   const forensicSignatures = new Set();
   const forensicBundleIndex = new Map();
   const ioWarnings = new Set();
+  let queuedState = null;
+  let stateWriteInFlight = null;
   let currentPhase = null;
   let currentFile = null;
+  /**
+   * Emit one crash-log IO warning per unique failure signature.
+   *
+   * Repeated write failures are common during lock contention; deduping by
+   * action/code/message keeps logs readable while still surfacing the issue.
+   *
+   * @param {string} action
+   * @param {unknown} err
+   * @returns {void}
+   */
   const warnIo = (action, err) => {
     const message = err?.message || String(err);
     const code = err?.code || 'ERR_IO';
-    const key = `${action}:${code}:${message}`;
+    const causeCode = err?.causeCode || err?.cause?.code || '';
+    const targetPath = typeof err?.path === 'string' ? err.path : '';
+    const key = `${action}:${code}:${causeCode}:${targetPath}`;
     if (ioWarnings.has(key)) return;
     ioWarnings.add(key);
     console.warn(`[crash-log] ${action} failed (${code}): ${message}`);
@@ -541,13 +555,32 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
     warnIo('initialize crash log files', err);
   }
 
-  const writeState = async (state) => {
-    const payload = { ts: formatTimestamp(), ...state };
+  const flushStateWrites = async () => {
+    if (stateWriteInFlight) return stateWriteInFlight;
+    stateWriteInFlight = (async () => {
+      while (queuedState) {
+        const nextState = queuedState;
+        queuedState = null;
+        const payload = { ts: formatTimestamp(), ...nextState };
+        try {
+          await atomicWriteJson(statePath, payload, { spaces: 2 });
+        } catch (err) {
+          warnIo('write crash state', err);
+        }
+      }
+    })();
     try {
-      await atomicWriteJson(statePath, payload, { spaces: 2 });
-    } catch (err) {
-      warnIo('write crash state', err);
+      await stateWriteInFlight;
+    } finally {
+      stateWriteInFlight = null;
+      if (queuedState) void flushStateWrites();
     }
+    return stateWriteInFlight;
+  };
+
+  const writeState = (state) => {
+    queuedState = state && typeof state === 'object' ? { ...state } : {};
+    void flushStateWrites();
   };
 
   const appendLine = async (message, extra) => {
@@ -590,6 +623,15 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
     }
   };
 
+  /**
+   * Persist one forensic bundle to disk with signature-level dedupe.
+   *
+   * Returns the existing path when a signature was already written in this
+   * process, otherwise writes payload + index entries and returns new path.
+   *
+   * @param {{kind?:string,signature?:string|null,bundle?:object|null,meta?:object|null}} [input]
+   * @returns {Promise<string|null>}
+   */
   const persistForensicBundle = async ({
     kind = 'forensic',
     signature = null,
