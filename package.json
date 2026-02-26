@@ -217,7 +217,7 @@
   },
   "devDependencies": {
     "c8": "^9.1.0",
-    "eslint": "9.39.2",
+    "eslint": "10.0.1",
     "patch-package": "^8.0.1"
   }
 }
