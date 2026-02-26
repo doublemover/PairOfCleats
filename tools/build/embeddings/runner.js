@@ -2917,7 +2917,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           });
           if (force || perfStatusLine !== lastPerfStatusLine) {
             lastPerfStatusLine = perfStatusLine;
-            log(perfStatusLine);
+            log(perfStatusLine, { kind: 'status', stage: 'embeddings', mode });
           }
           const filesMessage = [
             `${processedFiles}/${sampledFileEntries.length} files`,
@@ -4211,11 +4211,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
 
         {
           const vectorSummary = `[embeddings] ${mode}: wrote ${totalChunks} vectors (dims=${finalDims}).`;
-          if (typeof display?.logLine === 'function') {
-            display.logLine(vectorSummary, { kind: 'status' });
-          } else {
-            log(vectorSummary);
-          }
+          log(vectorSummary, { kind: 'status', stage: 'embeddings', mode });
         }
         if (crossFileChunkDedupeEnabled) {
           log(

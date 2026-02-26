@@ -261,10 +261,6 @@ export const runEmbeddingsStage = async ({
               logLine(line, { kind: 'status' });
               return;
             }
-            if (line.startsWith('[embeddings]') || line.includes('embeddings]')) {
-              logLine(line, { kind: 'status' });
-              return;
-            }
             logLine(line);
           }
         });
