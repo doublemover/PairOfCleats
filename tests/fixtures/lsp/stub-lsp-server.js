@@ -96,6 +96,11 @@ const symbolsByMode = {
     detail: 'function greet(name: string): string',
     kind: 12
   },
+  'lua-requires-workspace-library': {
+    name: 'greet',
+    detail: 'function greet(name: string): string',
+    kind: 12
+  },
   zig: {
     name: 'add',
     detail: 'fn add(a: i32, b: i32) i32',
@@ -125,6 +130,16 @@ const resolveInitializeCapabilities = (initializeParams = null) => {
   if (mode === 'yaml-requires-schemastore-off') {
     const schemaStoreEnabled = initializeParams?.initializationOptions?.settings?.yaml?.schemaStore?.enable;
     if (schemaStoreEnabled !== false) {
+      return {};
+    }
+    return {
+      documentSymbolProvider: true,
+      hoverProvider: true
+    };
+  }
+  if (mode === 'lua-requires-workspace-library') {
+    const library = initializeParams?.initializationOptions?.settings?.Lua?.workspace?.library;
+    if (!Array.isArray(library) || library.length === 0) {
       return {};
     }
     return {

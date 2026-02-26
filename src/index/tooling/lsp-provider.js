@@ -34,6 +34,34 @@ const normalizeServerId = (value, fallback) => {
 const normalizeLanguageList = (value) => normalizeList(value).map((entry) => entry.toLowerCase());
 const isPlainObject = (value) => value != null && typeof value === 'object' && !Array.isArray(value);
 
+const deepCloneValue = (value) => {
+  if (Array.isArray(value)) return value.map((entry) => deepCloneValue(entry));
+  if (isPlainObject(value)) {
+    const out = {};
+    for (const [key, entry] of Object.entries(value)) {
+      out[key] = deepCloneValue(entry);
+    }
+    return out;
+  }
+  return value;
+};
+
+const withLuaWorkspaceLibrary = (initializationOptions, luaWorkspaceLibrary) => {
+  const libraries = normalizeList(luaWorkspaceLibrary);
+  if (!libraries.length) return initializationOptions;
+  const next = isPlainObject(initializationOptions)
+    ? deepCloneValue(initializationOptions)
+    : {};
+  const settings = isPlainObject(next.settings) ? next.settings : {};
+  const luaSettings = isPlainObject(settings.Lua) ? settings.Lua : {};
+  const workspace = isPlainObject(luaSettings.workspace) ? luaSettings.workspace : {};
+  workspace.library = libraries;
+  luaSettings.workspace = workspace;
+  settings.Lua = luaSettings;
+  next.settings = settings;
+  return next;
+};
+
 const parseGenericSignature = (detail, languageId, symbolName) => {
   const lang = String(languageId || '').toLowerCase();
   if (lang === 'python' || lang === 'py' || lang === 'pyi') return parsePythonSignature(detail);
@@ -82,9 +110,18 @@ const normalizeServerConfig = (server, index) => {
   const documentSymbolConcurrency = Number(merged.documentSymbolConcurrency);
   const hoverConcurrency = Number(merged.hoverConcurrency);
   const hoverCacheMaxEntries = Number(merged.hoverCacheMaxEntries);
-  const initializationOptions = isPlainObject(merged.initializationOptions)
+  const presetName = String(merged.preset || '').trim().toLowerCase();
+  const usesLuaPreset = presetName === 'lua'
+    || presetName === 'lua_ls'
+    || presetName === 'lua-language-server'
+    || id === 'lua-language-server';
+  const baseInitializationOptions = isPlainObject(merged.initializationOptions)
     ? merged.initializationOptions
     : null;
+  const initializationOptions = withLuaWorkspaceLibrary(
+    baseInitializationOptions,
+    usesLuaPreset ? merged.luaWorkspaceLibrary : null
+  );
   return {
     id,
     cmd,
