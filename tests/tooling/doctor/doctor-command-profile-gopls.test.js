@@ -17,8 +17,22 @@ try {
     toolingConfig: {}
   });
   assert.equal(profile.probe.ok, true, 'expected gopls probe to succeed with fixture binary');
-  assert.equal(profile.resolved.mode, 'gopls-serve', 'expected gopls serve mode when supported');
-  assert.deepEqual(profile.resolved.args, ['serve'], 'expected gopls serve args by default');
+  assert.equal(profile.resolved.mode, 'gopls-direct', 'expected gopls direct mode by default');
+  assert.deepEqual(profile.resolved.args, [], 'expected gopls direct args by default');
+
+  const serveOptInProfile = resolveToolingCommandProfile({
+    providerId: 'gopls',
+    cmd: 'gopls',
+    args: [],
+    repoRoot: root,
+    toolingConfig: {
+      gopls: {
+        useServe: true
+      }
+    }
+  });
+  assert.equal(serveOptInProfile.resolved.mode, 'gopls-serve-opt-in', 'expected serve mode when explicitly enabled');
+  assert.deepEqual(serveOptInProfile.resolved.args, ['serve'], 'expected gopls serve args for opt-in mode');
 
   const explicitProfile = resolveToolingCommandProfile({
     providerId: 'gopls',

@@ -76,6 +76,7 @@ export function getToolingConfig(repoRoot, userConfig = null) {
   const typescript = tooling.typescript || {};
   const clangd = tooling.clangd || {};
   const pyright = tooling.pyright && typeof tooling.pyright === 'object' ? tooling.pyright : {};
+  const gopls = tooling.gopls && typeof tooling.gopls === 'object' ? tooling.gopls : {};
   const sourcekit = tooling.sourcekit && typeof tooling.sourcekit === 'object' ? tooling.sourcekit : {};
   const jdtls = tooling.jdtls && typeof tooling.jdtls === 'object' ? tooling.jdtls : {};
   const csharp = tooling.csharp && typeof tooling.csharp === 'object' ? tooling.csharp : {};
@@ -192,6 +193,7 @@ export function getToolingConfig(repoRoot, userConfig = null) {
       compileCommandsDir: typeof clangd.compileCommandsDir === 'string' ? clangd.compileCommandsDir : ''
     },
     pyright,
+    gopls,
     sourcekit,
     jdtls,
     csharp,

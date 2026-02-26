@@ -198,6 +198,9 @@ export const resolveToolingCommandProfile = (input) => {
     : [];
   const repoRoot = input?.repoRoot || process.cwd();
   const toolingConfig = input?.toolingConfig || {};
+  const goplsConfig = toolingConfig?.gopls && typeof toolingConfig.gopls === 'object'
+    ? toolingConfig.gopls
+    : {};
 
   const resolvedCmd = resolveBaseCommand({
     providerId,
@@ -219,17 +222,31 @@ export const resolveToolingCommandProfile = (input) => {
   };
 
   if (providerId === 'gopls' && probe.ok) {
-    const serveSupported = probeGoplsServeSupport(resolved.cmd);
-    if (!requestedArgs.length && serveSupported) {
-      resolved.args = ['serve'];
-      resolved.mode = 'gopls-serve';
-      resolved.reason = 'serve-supported-and-no-explicit-args';
-    } else if (!requestedArgs.length) {
-      resolved.mode = 'gopls-direct';
-      resolved.reason = 'serve-not-supported';
+    if (!requestedArgs.length) {
+      const useServe = goplsConfig.useServe === true || goplsConfig.preferServe === true;
+      if (useServe) {
+        const serveSupported = probeGoplsServeSupport(resolved.cmd);
+        if (serveSupported) {
+          resolved.args = ['serve'];
+          resolved.mode = 'gopls-serve-opt-in';
+          resolved.reason = 'serve-opt-in-supported';
+        } else {
+          resolved.mode = 'gopls-direct';
+          resolved.reason = 'serve-opt-in-not-supported';
+        }
+      } else {
+        resolved.mode = 'gopls-direct';
+        resolved.reason = 'prefer-direct-default';
+      }
     } else {
       resolved.mode = 'gopls-explicit-args';
       resolved.reason = 'explicit-args-preserved';
+    }
+  } else if (providerId === 'gopls' && !requestedArgs.length) {
+    const useServe = goplsConfig.useServe === true || goplsConfig.preferServe === true;
+    if (!useServe) {
+      resolved.mode = 'gopls-direct';
+      resolved.reason = 'probe-failed-prefer-direct';
     }
   }
 

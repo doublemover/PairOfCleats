@@ -20,6 +20,9 @@ const userConfig = {
       maxRetries: 7,
       disableHoverWithoutCompileCommands: false
     },
+    gopls: {
+      useServe: true
+    },
     jdtls: {
       enabled: true
     },
@@ -48,6 +51,7 @@ assert.equal(
 assert.equal(tooling.lsp?.servers?.length, 1, 'expected normalized lsp server list');
 assert.equal(tooling.clangd?.maxRetries, 7, 'expected clangd passthrough settings');
 assert.equal(tooling.clangd?.disableHoverWithoutCompileCommands, false, 'expected clangd passthrough boolean');
+assert.equal(tooling.gopls?.useServe, true, 'expected gopls passthrough settings');
 assert.equal(tooling.jdtls?.enabled, true, 'expected jdtls config passthrough');
 assert.equal(tooling.csharp?.enabled, true, 'expected csharp config passthrough');
 assert.equal(tooling.csharp?.lifecycle?.fdPressureBackoffMs, 500, 'expected dedicated lifecycle passthrough');
