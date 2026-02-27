@@ -4,6 +4,7 @@ tooling/lsp/pyright-provider-command-override
 tooling/lsp/clangd-provider-command-override
 tooling/lsp/sourcekit-provider-command-override
 tooling/lsp/configured-provider-gopls-workspace-diagnostics
+tooling/lsp/configured-provider-probe-fallback
 tooling/doctor/emits-report
 tooling/doctor/reports-xxhash-backend
 tooling/config-inventory/schema-scan

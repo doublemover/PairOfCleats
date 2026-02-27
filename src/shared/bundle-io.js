@@ -346,10 +346,16 @@ export function resolveBundleShardFilename(relKey, format, shardIndex = 0) {
 
 export function resolveManifestBundleNames(entry) {
   if (!entry || typeof entry !== 'object') return [];
-  if (!Array.isArray(entry.bundles) || !entry.bundles.length) return [];
+  const legacyBundle = typeof entry.bundle === 'string'
+    ? entry.bundle.trim()
+    : '';
+  const rawBundleNames = Array.isArray(entry.bundles) && entry.bundles.length
+    ? entry.bundles
+    : (legacyBundle ? [legacyBundle] : []);
+  if (!rawBundleNames.length) return [];
   const names = [];
   const seen = new Set();
-  for (const value of entry.bundles) {
+  for (const value of rawBundleNames) {
     if (typeof value !== 'string') return [];
     const name = value.trim();
     if (!name) return [];

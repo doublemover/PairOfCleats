@@ -394,11 +394,12 @@ export const createClangdProvider = () => ({
       }
     }
     const duplicateChecks = buildDuplicateChunkUidChecks(targets, { label: 'clangd' });
+    const checks = [...duplicateChecks];
     if (!selectedDocs.length || !targets.length) {
       return {
         provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
-        diagnostics: appendDiagnosticChecks(null, duplicateChecks)
+        diagnostics: appendDiagnosticChecks(null, checks)
       };
     }
     if (!compileCommandsDir && clangdConfig.requireCompilationDatabase === true) {
@@ -406,7 +407,7 @@ export const createClangdProvider = () => ({
       return {
         provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
-        diagnostics: appendDiagnosticChecks(null, duplicateChecks)
+        diagnostics: appendDiagnosticChecks(null, checks)
       };
     }
     const clangdArgs = [];
@@ -429,12 +430,12 @@ export const createClangdProvider = () => ({
       toolingConfig: ctx?.toolingConfig || {}
     });
     if (!commandProfile.probe.ok) {
-      log('[index] clangd not detected; skipping tooling-based types.');
-      return {
-        provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },
-        byChunkUid: {},
-        diagnostics: appendDiagnosticChecks(null, duplicateChecks)
-      };
+      log('[index] clangd command probe failed; attempting stdio initialization.');
+      checks.push({
+        name: 'clangd_command_unavailable',
+        status: 'warn',
+        message: 'clangd command probe failed; attempting stdio initialization anyway.'
+      });
     }
     const configuredFallbackFlags = Array.isArray(clangdConfig.fallbackFlags)
       ? clangdConfig.fallbackFlags
@@ -546,7 +547,7 @@ export const createClangdProvider = () => ({
     }
     const diagnostics = appendDiagnosticChecks(
       result.diagnosticsCount ? { diagnosticsCount: result.diagnosticsCount } : null,
-      [...duplicateChecks, ...(Array.isArray(result.checks) ? result.checks : [])]
+      [...checks, ...(Array.isArray(result.checks) ? result.checks : [])]
     );
     return {
       provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },
@@ -557,3 +558,4 @@ export const createClangdProvider = () => ({
     };
   }
 });
+

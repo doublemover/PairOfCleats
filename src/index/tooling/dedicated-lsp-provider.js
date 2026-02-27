@@ -80,7 +80,7 @@ const buildCommandUnavailableCheck = (descriptor, requestedCmd) => {
     ? check.message(requestedCmd)
     : (typeof check.message === 'string' && check.message.trim()
       ? check.message
-      : `${requestedCmd} command not available for ${descriptor.label}.`);
+      : `${requestedCmd} command probe failed for ${descriptor.label}; attempting stdio initialization anyway.`);
   return { name, status: 'warn', message };
 };
 
@@ -98,9 +98,9 @@ const maybeBuildWorkspaceMissingCheck = (descriptor) => {
 /**
  * Build a dedicated single-server provider with shared lifecycle/diagnostic behavior.
  *
- * This wrapper is intentionally strict: all dedicated providers follow the same
- * document filtering, workspace gating, command probing, runtime config merge, and
- * fail-open diagnostics shape.
+ * This wrapper is intentionally consistent: all dedicated providers follow the same
+ * document filtering, workspace gating, probe-warning + stdio-attempt behavior,
+ * runtime config merge, and fail-open diagnostics shape.
  *
  * @param {{
  *   id: string,
@@ -194,7 +194,6 @@ export const createDedicatedLspProvider = (descriptor) => ({
     });
     if (!commandProfile.probe.ok) {
       checks.push(buildCommandUnavailableCheck(descriptor, requested.cmd));
-      return buildBaseResult(providerRef, checks);
     }
 
     let resolvedArgs = commandProfile.resolved.args || requested.args;

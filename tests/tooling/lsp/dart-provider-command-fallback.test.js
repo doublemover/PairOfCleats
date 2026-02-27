@@ -58,7 +58,12 @@ await withLspTestPath({ repoRoot: root }, async () => {
   assert.equal(result.metrics?.degradedWarningChecks >= 1, true, 'expected degraded warning metrics');
   assert.equal(result.metrics?.providersContributed, 0, 'expected no chunk contribution in degraded fail-open mode');
   assert.equal(result.metrics?.providerRuntime?.dart?.degraded?.active, true, 'expected per-provider degraded runtime flag');
-  assert.equal(result.metrics?.requests?.requests, 0, 'expected no LSP requests when command probe fails early');
+  assert.equal(
+    checks.some((check) => check?.name === 'tooling_initialize_failed'),
+    true,
+    'expected initialize failure after command probe warning when command truly cannot launch'
+  );
+  assert.equal(result.metrics?.requests?.requests >= 1, true, 'expected runtime initialization attempt after probe warning');
 });
 
 console.log('dart provider command fallback test passed');

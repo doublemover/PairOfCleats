@@ -619,12 +619,12 @@ export const createSourcekitProvider = () => ({
       toolingConfig: ctx?.toolingConfig || {}
     });
     if (!commandProfile.probe.ok) {
-      log('[index] sourcekit-lsp not detected; skipping tooling-based types.');
-      return {
-        provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) },
-        byChunkUid: {},
-        diagnostics: appendDiagnosticChecks(null, checks)
-      };
+      log('[index] sourcekit-lsp command probe failed; attempting stdio initialization.');
+      checks.push({
+        name: 'sourcekit_command_unavailable',
+        status: 'warn',
+        message: 'sourcekit-lsp command probe failed; attempting stdio initialization anyway.'
+      });
     }
 
     const runtimeConfig = resolveLspRuntimeConfig({

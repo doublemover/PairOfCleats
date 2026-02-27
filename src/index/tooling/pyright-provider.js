@@ -51,11 +51,12 @@ export const createPyrightProvider = () => ({
       : [];
     const targets = filterTargetsForDocuments(inputs?.targets, docs);
     const duplicateChecks = buildDuplicateChunkUidChecks(targets, { label: 'pyright' });
+    const checks = [...duplicateChecks];
     if (!docs.length || !targets.length) {
       return {
         provider: { id: 'pyright', version: '2.0.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
-        diagnostics: appendDiagnosticChecks(null, duplicateChecks)
+        diagnostics: appendDiagnosticChecks(null, checks)
       };
     }
     const pyrightConfig = ctx?.toolingConfig?.pyright || {};
@@ -74,12 +75,12 @@ export const createPyrightProvider = () => ({
       toolingConfig: ctx?.toolingConfig || {}
     });
     if (!commandProfile.probe.ok) {
-      log('[index] pyright-langserver not detected; skipping tooling-based types.');
-      return {
-        provider: { id: 'pyright', version: '2.0.0', configHash: this.getConfigHash(ctx) },
-        byChunkUid: {},
-        diagnostics: appendDiagnosticChecks(null, duplicateChecks)
-      };
+      log('[index] pyright-langserver command probe failed; attempting stdio initialization.');
+      checks.push({
+        name: 'pyright_command_unavailable',
+        status: 'warn',
+        message: 'pyright-langserver command probe failed; attempting stdio initialization anyway.'
+      });
     }
     const runtimeConfig = resolveLspRuntimeConfig({
       providerConfig: pyrightConfig,
@@ -113,7 +114,7 @@ export const createPyrightProvider = () => ({
       result.diagnosticsCount
         ? { diagnosticsCount: result.diagnosticsCount, diagnosticsByChunkUid: result.diagnosticsByChunkUid }
         : null,
-      [...duplicateChecks, ...(Array.isArray(result.checks) ? result.checks : [])]
+      [...checks, ...(Array.isArray(result.checks) ? result.checks : [])]
     );
     return {
       provider: { id: 'pyright', version: '2.0.0', configHash: this.getConfigHash(ctx) },

@@ -1,0 +1,17 @@
+#!/usr/bin/env node
+import { spawn } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const args = process.argv.slice(2);
+const first = String(args[0] || '').trim().toLowerCase();
+if (first === '--version' || first === 'version' || first === '--help' || first === 'help' || first === '-h') {
+  process.stderr.write('probe-fail-lsp: probe args intentionally unsupported\n');
+  process.exit(2);
+}
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const serverScript = path.join(__dirname, '..', 'stub-lsp-server.js');
+const child = spawn(process.execPath, [serverScript, ...args], { stdio: 'inherit' });
+child.on('exit', (code) => process.exit(code ?? 0));

@@ -389,18 +389,11 @@ const createConfiguredLspProvider = (server) => {
         toolingConfig: ctx?.toolingConfig || {}
       });
       if (!commandProfile.probe.ok) {
-        return {
-          provider: { id: providerId, version: this.version, configHash: this.getConfigHash(ctx) },
-          byChunkUid: {},
-          diagnostics: appendDiagnosticChecks(null, [
-            ...preChecks,
-            {
-              name: 'lsp_command_unavailable',
-              status: 'warn',
-              message: `${server.cmd} command not available for ${providerId}.`
-            }
-          ])
-        };
+        preChecks.push({
+          name: 'lsp_command_unavailable',
+          status: 'warn',
+          message: `${server.cmd} command probe failed for ${providerId}; attempting stdio initialization anyway.`
+        });
       }
       const result = await collectLspTypes({
         ...resolveLspRuntimeConfig({

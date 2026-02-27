@@ -502,6 +502,7 @@ indexing/watch/promotion/safety
 shared/artifact-io/varint-safe-bounds
 storage/sqlite/bundle-dims-mismatch
 storage/sqlite/bundle-shard-splitting
+storage/sqlite/manifest-legacy-bundle-key
 storage/sqlite/chunk-meta-meta-fallback
 indexing/artifacts/sharded-meta/manifest-consistency
 lang/typescript/imports-only
