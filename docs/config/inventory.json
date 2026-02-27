@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-26T12:19:18.173Z",
+  "generatedAt": "2026-02-27T01:08:16.898Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -382,12 +382,22 @@
       "tooling.circuitBreakerThreshold",
       "tooling.clangd.compileCommandsDir",
       "tooling.clangd.requireCompilationDatabase",
+      "tooling.csharp",
+      "tooling.dart",
       "tooling.dir",
       "tooling.disabledTools",
+      "tooling.elixir",
       "tooling.enabledTools",
+      "tooling.gopls",
+      "tooling.haskell",
       "tooling.installScope",
+      "tooling.jdtls",
+      "tooling.lifecycle",
       "tooling.logDir",
+      "tooling.lsp.circuitBreakerThreshold",
       "tooling.lsp.enabled",
+      "tooling.lsp.lifecycle",
+      "tooling.lsp.maxRetries",
       "tooling.lsp.servers",
       "tooling.lsp.servers[].args",
       "tooling.lsp.servers[].cmd",
@@ -399,9 +409,12 @@
       "tooling.lsp.servers[].timeoutMs",
       "tooling.lsp.servers[].uriScheme",
       "tooling.lsp.servers[].version",
+      "tooling.lsp.timeoutMs",
       "tooling.maxRetries",
+      "tooling.phpactor",
       "tooling.providerOrder",
       "tooling.pyright",
+      "tooling.solargraph",
       "tooling.sourcekit",
       "tooling.strict",
       "tooling.timeoutMs",
@@ -434,8 +447,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 295,
-    "leafKeys": 237,
+    "totalKeys": 308,
+    "leafKeys": 250,
     "topLevel": [
       {
         "key": "cache",
@@ -471,7 +484,7 @@
       },
       {
         "key": "tooling",
-        "count": 67
+        "count": 80
       }
     ]
   },
@@ -1728,6 +1741,16 @@
       "enum": null
     },
     {
+      "path": "tooling.csharp",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "tooling.dart",
+      "type": "object",
+      "enum": null
+    },
+    {
       "path": "tooling.dir",
       "type": "string",
       "enum": null
@@ -1738,13 +1761,38 @@
       "enum": null
     },
     {
+      "path": "tooling.elixir",
+      "type": "object",
+      "enum": null
+    },
+    {
       "path": "tooling.enabledTools",
       "type": null,
       "enum": null
     },
     {
+      "path": "tooling.gopls",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "tooling.haskell",
+      "type": "object",
+      "enum": null
+    },
+    {
       "path": "tooling.installScope",
       "type": "string",
+      "enum": null
+    },
+    {
+      "path": "tooling.jdtls",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "tooling.lifecycle",
+      "type": "object",
       "enum": null
     },
     {
@@ -1758,8 +1806,23 @@
       "enum": null
     },
     {
+      "path": "tooling.lsp.circuitBreakerThreshold",
+      "type": "number",
+      "enum": null
+    },
+    {
       "path": "tooling.lsp.enabled",
       "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.lifecycle",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.maxRetries",
+      "type": "number",
       "enum": null
     },
     {
@@ -1826,8 +1889,18 @@
       "enum": null
     },
     {
+      "path": "tooling.lsp.timeoutMs",
+      "type": "number",
+      "enum": null
+    },
+    {
       "path": "tooling.maxRetries",
       "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.phpactor",
+      "type": "object",
       "enum": null
     },
     {
@@ -1837,6 +1910,11 @@
     },
     {
       "path": "tooling.pyright",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "tooling.solargraph",
       "type": "object",
       "enum": null
     },
@@ -2396,6 +2474,7 @@
         "tests/services/mcp/mcp-robustness.test.js",
         "tests/services/mcp/mcp-schema.test.js",
         "tests/services/mcp/sdk-mode.test.js",
+        "tests/shared/cache/cache-root-versioning.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3195,6 +3274,8 @@
       "files": [
         "src/shared/env.js",
         "src/shared/ops-failure-injection.js",
+        "tests/ci/tooling-lsp-default-enable-gate.smoke.test.js",
+        "tests/ci/tooling-lsp-slo-gate.smoke.test.js",
         "tests/helpers/fixture-index.js",
         "tests/helpers/test-env-sync-option.test.js",
         "tests/helpers/test-env.js",
@@ -3205,6 +3286,7 @@
         "tests/indexing/tree-sitter/perl-native-reset-regression.test.js",
         "tests/ops/failure-injection/retrieval-hotpath.test.js",
         "tests/perf/bench/bench-language-regression-gate.test.js",
+        "tests/perf/bench/bench-language-tooling-lsp-guardrail.test.js",
         "tests/retrieval/parity/parity.test.js",
         "tests/services/mcp/repo-path-resolution.test.js",
         "tools/bench/ab-sweep.js",
@@ -3430,7 +3512,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 358,
+    "totalFlags": 375,
     "publicFlags": [
       "allow-unauthenticated",
       "allowed-repo-roots",
@@ -3477,6 +3559,7 @@
       "baseline",
       "batch",
       "bench",
+      "bin-dir",
       "bits",
       "build",
       "build-index",
@@ -3512,6 +3595,7 @@
       "display-members",
       "docBytes",
       "docs",
+      "doctor",
       "dp-max",
       "draw-edges",
       "draw-files",
@@ -3539,6 +3623,7 @@
       "failOnViolation",
       "failOnWarn",
       "fanout",
+      "fatal-failure-rate-max",
       "fields",
       "fileSizeBytes",
       "files",
@@ -3559,6 +3644,7 @@
       "graphFixture",
       "graphs",
       "groups",
+      "handshake-timeout-ms",
       "hashes",
       "heap-mb",
       "hops",
@@ -3614,12 +3700,15 @@
       "max",
       "max-age-days",
       "max-bytes",
+      "max-crash-retention",
       "max-deletes",
       "max-delta",
       "max-edges",
       "max-files",
       "max-gb",
       "max-members-per-file",
+      "max-p95-ms",
+      "max-top-regressions",
       "maxBytes",
       "maxCalls",
       "maxCallsPerSymbol",
@@ -3646,9 +3735,12 @@
       "meta",
       "min",
       "min-count",
+      "min-enrichment-coverage",
       "min-overlap",
       "min-overlap-single",
+      "min-provider-samples",
       "min-rank-corr",
+      "min-summary-coverage",
       "minBytes",
       "minConfidence",
       "minFileBytes",
@@ -3682,7 +3774,9 @@
       "perf",
       "phase-spec-dir",
       "platform",
+      "policy",
       "pretty",
+      "probe-handshake",
       "progress",
       "properties",
       "provider",
@@ -3697,10 +3791,12 @@
       "registry",
       "repeats",
       "repo-current",
+      "report",
       "requestedBatchSize",
       "require",
       "require-dicts",
       "require-index",
+      "require-provider",
       "require-sqlite",
       "required",
       "results",
@@ -3746,6 +3842,7 @@
       "skip-tooling",
       "skip-validate",
       "skipPrepare",
+      "slo",
       "snapshot",
       "sort",
       "source",
@@ -3763,9 +3860,11 @@
       "threads",
       "three-url",
       "timeout-ms",
+      "timeout-ratio-max",
       "token-postings-size",
       "tokenSize",
       "tokens",
+      "tooling-root",
       "tooling-scope",
       "tools",
       "top-k-by-degree",
@@ -4509,6 +4608,16 @@
         ]
       },
       {
+        "file": "tools/bench/language/tooling-lsp-guardrail.js",
+        "flags": [
+          "json",
+          "max-crash-retention",
+          "max-top-regressions",
+          "min-summary-coverage",
+          "report"
+        ]
+      },
+      {
         "file": "tools/bench/map/build-map-memory.js",
         "flags": [
           "collapse",
@@ -4914,6 +5023,40 @@
           "log-dir",
           "mode",
           "skip-prechecks"
+        ]
+      },
+      {
+        "file": "tools/ci/tooling-doctor-gate.js",
+        "flags": [
+          "handshake-timeout-ms",
+          "json",
+          "mode",
+          "probe-handshake",
+          "repo",
+          "require-provider"
+        ]
+      },
+      {
+        "file": "tools/ci/tooling-lsp-default-enable-gate.js",
+        "flags": [
+          "doctor",
+          "json",
+          "policy",
+          "slo"
+        ]
+      },
+      {
+        "file": "tools/ci/tooling-lsp-slo-gate.js",
+        "flags": [
+          "doctor",
+          "fatal-failure-rate-max",
+          "json",
+          "max-p95-ms",
+          "min-enrichment-coverage",
+          "min-provider-samples",
+          "mode",
+          "repo",
+          "timeout-ratio-max"
         ]
       },
       {
@@ -5382,6 +5525,14 @@
         ]
       },
       {
+        "file": "tools/tooling/install-phpactor-phar.js",
+        "flags": [
+          "bin-dir",
+          "scope",
+          "tooling-root"
+        ]
+      },
+      {
         "file": "tools/tooling/install.js",
         "flags": [
           "dry-run",
@@ -5472,8 +5623,78 @@
     ],
     "duplicated": [
       {
+        "flag": "json",
+        "count": 64,
+        "files": [
+          "bin/pairofcleats.js",
+          "src/integrations/tooling/api-contracts.js",
+          "src/integrations/tooling/architecture-check.js",
+          "src/integrations/tooling/context-pack.js",
+          "src/integrations/tooling/graph-context.js",
+          "src/integrations/tooling/impact.js",
+          "src/integrations/tooling/suggest-tests.js",
+          "tests/tooling/fixtures/fixture-eval.test.js",
+          "tools/analysis/explain-risk.js",
+          "tools/analysis/structural-search.js",
+          "tools/bench/dict-seg.js",
+          "tools/bench/embeddings/model-bakeoff.js",
+          "tools/bench/index/tree-sitter-load.js",
+          "tools/bench/language/tooling-lsp-guardrail.js",
+          "tools/bench/map/build-map-memory.js",
+          "tools/bench/map/build-map-streaming.js",
+          "tools/bench/micro/hash.js",
+          "tools/bench/micro/run.js",
+          "tools/bench/query-generator.js",
+          "tools/bench/symbol-resolution-bench.js",
+          "tools/bench/vfs/bloom-negative-lookup.js",
+          "tools/bench/vfs/cdc-segmentation.js",
+          "tools/bench/vfs/coalesce-docs.js",
+          "tools/bench/vfs/cold-start-cache.js",
+          "tools/bench/vfs/hash-routing-lookup.js",
+          "tools/bench/vfs/io-batching.js",
+          "tools/bench/vfs/merge-runs-heap.js",
+          "tools/bench/vfs/parallel-manifest-build.js",
+          "tools/bench/vfs/partial-lsp-open.js",
+          "tools/bench/vfs/segment-hash-cache.js",
+          "tools/bench/vfs/token-uri-encode.js",
+          "tools/bench/vfs/vfsidx-lookup.js",
+          "tools/ci/capability-gate.js",
+          "tools/ci/tooling-doctor-gate.js",
+          "tools/ci/tooling-lsp-default-enable-gate.js",
+          "tools/ci/tooling-lsp-slo-gate.js",
+          "tools/config/dump.js",
+          "tools/config/reset.js",
+          "tools/config/validate.js",
+          "tools/dispatch/manifest.js",
+          "tools/docs/repo-inventory.js",
+          "tools/docs/script-inventory.js",
+          "tools/index/cache-gc.js",
+          "tools/index/report-artifacts.js",
+          "tools/index/stats.js",
+          "tools/index/validate.js",
+          "tools/ingest/ctags.js",
+          "tools/ingest/gtags.js",
+          "tools/ingest/lsif.js",
+          "tools/ingest/scip.js",
+          "tools/reports/combined-summary.js",
+          "tools/reports/compare-models.js",
+          "tools/reports/metrics-dashboard.js",
+          "tools/reports/report-code-map.js",
+          "tools/setup/bootstrap.js",
+          "tools/setup/setup.js",
+          "tools/sqlite/verify-extensions.js",
+          "tools/tooling/detect.js",
+          "tools/tooling/doctor.js",
+          "tools/tooling/install.js",
+          "tools/tui/install.js",
+          "tools/workspace/catalog.js",
+          "tools/workspace/manifest.js",
+          "tools/workspace/status.js"
+        ]
+      },
+      {
         "flag": "repo",
-        "count": 61,
+        "count": 63,
         "files": [
           "bin/pairofcleats.js",
           "src/integrations/tooling/api-contracts.js",
@@ -5500,6 +5721,8 @@
           "tools/build/tantivy-index.js",
           "tools/ci/build-artifacts.js",
           "tools/ci/restore-artifacts.js",
+          "tools/ci/tooling-doctor-gate.js",
+          "tools/ci/tooling-lsp-slo-gate.js",
           "tools/config/dump.js",
           "tools/config/reset.js",
           "tools/config/validate.js",
@@ -5536,72 +5759,6 @@
           "tools/triage/context-pack.js",
           "tools/triage/decision.js",
           "tools/triage/ingest.js"
-        ]
-      },
-      {
-        "flag": "json",
-        "count": 60,
-        "files": [
-          "bin/pairofcleats.js",
-          "src/integrations/tooling/api-contracts.js",
-          "src/integrations/tooling/architecture-check.js",
-          "src/integrations/tooling/context-pack.js",
-          "src/integrations/tooling/graph-context.js",
-          "src/integrations/tooling/impact.js",
-          "src/integrations/tooling/suggest-tests.js",
-          "tests/tooling/fixtures/fixture-eval.test.js",
-          "tools/analysis/explain-risk.js",
-          "tools/analysis/structural-search.js",
-          "tools/bench/dict-seg.js",
-          "tools/bench/embeddings/model-bakeoff.js",
-          "tools/bench/index/tree-sitter-load.js",
-          "tools/bench/map/build-map-memory.js",
-          "tools/bench/map/build-map-streaming.js",
-          "tools/bench/micro/hash.js",
-          "tools/bench/micro/run.js",
-          "tools/bench/query-generator.js",
-          "tools/bench/symbol-resolution-bench.js",
-          "tools/bench/vfs/bloom-negative-lookup.js",
-          "tools/bench/vfs/cdc-segmentation.js",
-          "tools/bench/vfs/coalesce-docs.js",
-          "tools/bench/vfs/cold-start-cache.js",
-          "tools/bench/vfs/hash-routing-lookup.js",
-          "tools/bench/vfs/io-batching.js",
-          "tools/bench/vfs/merge-runs-heap.js",
-          "tools/bench/vfs/parallel-manifest-build.js",
-          "tools/bench/vfs/partial-lsp-open.js",
-          "tools/bench/vfs/segment-hash-cache.js",
-          "tools/bench/vfs/token-uri-encode.js",
-          "tools/bench/vfs/vfsidx-lookup.js",
-          "tools/ci/capability-gate.js",
-          "tools/config/dump.js",
-          "tools/config/reset.js",
-          "tools/config/validate.js",
-          "tools/dispatch/manifest.js",
-          "tools/docs/repo-inventory.js",
-          "tools/docs/script-inventory.js",
-          "tools/index/cache-gc.js",
-          "tools/index/report-artifacts.js",
-          "tools/index/stats.js",
-          "tools/index/validate.js",
-          "tools/ingest/ctags.js",
-          "tools/ingest/gtags.js",
-          "tools/ingest/lsif.js",
-          "tools/ingest/scip.js",
-          "tools/reports/combined-summary.js",
-          "tools/reports/compare-models.js",
-          "tools/reports/metrics-dashboard.js",
-          "tools/reports/report-code-map.js",
-          "tools/setup/bootstrap.js",
-          "tools/setup/setup.js",
-          "tools/sqlite/verify-extensions.js",
-          "tools/tooling/detect.js",
-          "tools/tooling/doctor.js",
-          "tools/tooling/install.js",
-          "tools/tui/install.js",
-          "tools/workspace/catalog.js",
-          "tools/workspace/manifest.js",
-          "tools/workspace/status.js"
         ]
       },
       {
@@ -5654,7 +5811,7 @@
       },
       {
         "flag": "mode",
-        "count": 35,
+        "count": 37,
         "files": [
           "bin/pairofcleats.js",
           "tests/map/map-build-determinism.test.js",
@@ -5683,6 +5840,8 @@
           "tools/build/tantivy-index.js",
           "tools/ci/capability-gate.js",
           "tools/ci/run-suite.js",
+          "tools/ci/tooling-doctor-gate.js",
+          "tools/ci/tooling-lsp-slo-gate.js",
           "tools/docs/script-inventory.js",
           "tools/index/assemble-pieces.js",
           "tools/index/compact-pieces.js",
@@ -5881,6 +6040,20 @@
         ]
       },
       {
+        "flag": "scope",
+        "count": 8,
+        "files": [
+          "tests/shared/cache/cache-reuse-determinism.test.js",
+          "tools/bench/map/build-map-memory.js",
+          "tools/bench/map/build-map-streaming.js",
+          "tools/bench/map/viewer-fps.js",
+          "tools/bench/map/viewer-lod-stress.js",
+          "tools/reports/report-code-map.js",
+          "tools/tooling/install-phpactor-phar.js",
+          "tools/tooling/install.js"
+        ]
+      },
+      {
         "flag": "verbose",
         "count": 8,
         "files": [
@@ -5943,19 +6116,6 @@
           "tools/docs/repo-inventory.js",
           "tools/setup/setup.js",
           "tools/tooling/detect.js",
-          "tools/tooling/install.js"
-        ]
-      },
-      {
-        "flag": "scope",
-        "count": 7,
-        "files": [
-          "tests/shared/cache/cache-reuse-determinism.test.js",
-          "tools/bench/map/build-map-memory.js",
-          "tools/bench/map/build-map-streaming.js",
-          "tools/bench/map/viewer-fps.js",
-          "tools/bench/map/viewer-lod-stress.js",
-          "tools/reports/report-code-map.js",
           "tools/tooling/install.js"
         ]
       },
@@ -6663,6 +6823,14 @@
         "files": [
           "tools/bench/map/viewer-fps.js",
           "tools/bench/map/viewer-lod-stress.js"
+        ]
+      },
+      {
+        "flag": "doctor",
+        "count": 2,
+        "files": [
+          "tools/ci/tooling-lsp-default-enable-gate.js",
+          "tools/ci/tooling-lsp-slo-gate.js"
         ]
       },
       {
