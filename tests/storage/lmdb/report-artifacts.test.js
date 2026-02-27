@@ -39,6 +39,7 @@ const run = (args, label, options = {}) => {
   const result = spawnSync(process.execPath, args, {
     cwd: repoRoot,
     env,
+    encoding: 'utf8',
     ...options
   });
   if (result.status !== 0) {

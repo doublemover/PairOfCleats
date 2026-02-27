@@ -7,14 +7,14 @@ import { spawnSync } from 'node:child_process';
  * @param {string} label
  * @param {string} cwd
  * @param {object} env
- * @param {{timeoutMs?:number,stdio?:any,encoding?:BufferEncoding,spawnOptions?:object,onFailure?:(result:import('node:child_process').SpawnSyncReturns<string|Buffer>)=>void}} [options]
+ * @param {{timeoutMs?:number,stdio?:any,encoding?:BufferEncoding|'buffer',spawnOptions?:object,onFailure?:(result:import('node:child_process').SpawnSyncReturns<string|Buffer>)=>void}} [options]
  * @returns {import('node:child_process').SpawnSyncReturns<string|Buffer>}
  */
 export const runNode = (args, label, cwd, env, options = {}) => {
   const {
     timeoutMs,
     stdio = 'inherit',
-    encoding,
+    encoding = 'utf8',
     allowFailure = false,
     spawnOptions = {},
     onFailure
@@ -41,6 +41,19 @@ export const runNode = (args, label, cwd, env, options = {}) => {
     }
     const suffix = details.length ? ` (${details.join(', ')})` : '';
     console.error(`Failed: ${label}${suffix}`);
+    console.error(`Command: ${process.execPath} ${Array.isArray(args) ? args.join(' ') : ''}`);
+    if (result.stdout) {
+      const stdoutText = Buffer.isBuffer(result.stdout)
+        ? result.stdout.toString('utf8')
+        : String(result.stdout);
+      if (stdoutText.trim()) console.error(stdoutText.trim());
+    }
+    if (result.stderr) {
+      const stderrText = Buffer.isBuffer(result.stderr)
+        ? result.stderr.toString('utf8')
+        : String(result.stderr);
+      if (stderrText.trim()) console.error(stderrText.trim());
+    }
     if (typeof onFailure === 'function') onFailure(result);
     process.exit(result.status ?? 1);
   }

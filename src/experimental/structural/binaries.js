@@ -56,16 +56,19 @@ const runCommand = (resolved, args, options = {}) => {
   const command = resolved?.command || resolved;
   const argsPrefix = resolved?.argsPrefix || [];
   const effectiveArgs = [...argsPrefix, ...args];
+  const hasExplicitEncoding = Object.prototype.hasOwnProperty.call(options, 'encoding');
+  const encoding = hasExplicitEncoding ? options.encoding : 'utf8';
   if (isWindows && /\.(cmd|bat)$/i.test(command)) {
     const cmdLine = buildCmdLine(command, effectiveArgs);
     const wrapped = `"${cmdLine}"`;
     return spawnSync('cmd.exe', ['/d', '/s', '/c', wrapped], {
       ...options,
+      encoding,
       shell: false,
       windowsVerbatimArguments: true
     });
   }
-  return spawnSync(command, effectiveArgs, { ...options, shell: false });
+  return spawnSync(command, effectiveArgs, { ...options, encoding, shell: false });
 };
 
 const findOnPath = (candidate) => {

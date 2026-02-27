@@ -29,11 +29,12 @@ process.stdout.write(JSON.stringify(result));
         ...process.env,        PAIROFCLEATS_TEST_STUB_PDF_EXTRACT: '1',
         PAIROFCLEATS_TEST_STUB_PDF_EXTRACT_DELAY_MS: String(delayMs)
       },
-      stdio: ['ignore', 'pipe', 'inherit']
+      stdio: ['ignore', 'pipe', 'inherit'],
+      encoding: 'utf8'
     }
   );
   assert.equal(child.status, 0, 'expected subprocess extraction to succeed');
-  return JSON.parse(String(child.stdout || '{}'));
+  return JSON.parse(child.stdout || '{}');
 };
 
 const oversizePdf = await extractPdf({
