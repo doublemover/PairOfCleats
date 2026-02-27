@@ -7,6 +7,7 @@ import { isAbsolutePathNative, toPosix } from '../../shared/files.js';
 import { atomicWriteJsonSync } from '../../shared/io/atomic-write.js';
 import { resolveToolingCommandProfile } from './command-resolver.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
+import { resolveProviderRequestedCommand } from './provider-command-override.js';
 import { filterTargetsForDocuments } from './provider-utils.js';
 import { parseClikeSignature } from './signature-parse/clike.js';
 
@@ -414,10 +415,16 @@ export const createClangdProvider = () => ({
     clangdArgs.push('--log=error');
     clangdArgs.push('--background-index=false');
     if (compileCommandsDir) clangdArgs.push(`--compile-commands-dir=${compileCommandsDir}`);
+    const requestedCommand = resolveProviderRequestedCommand({
+      providerId: 'clangd',
+      toolingConfig: ctx?.toolingConfig || {},
+      defaultCmd: 'clangd',
+      defaultArgs: clangdArgs
+    });
     const commandProfile = resolveToolingCommandProfile({
       providerId: 'clangd',
-      cmd: 'clangd',
-      args: clangdArgs,
+      cmd: requestedCommand.cmd,
+      args: requestedCommand.args,
       repoRoot: ctx?.repoRoot || process.cwd(),
       toolingConfig: ctx?.toolingConfig || {}
     });
@@ -515,7 +522,7 @@ export const createClangdProvider = () => ({
         log,
         providerId: 'clangd',
         cmd: commandProfile.resolved.cmd,
-        args: commandProfile.resolved.args || clangdArgs,
+        args: commandProfile.resolved.args || requestedCommand.args,
         documentSymbolTimeoutMs,
         documentSymbolConcurrency: clangdConfig.documentSymbolConcurrency,
         hoverEnabled,

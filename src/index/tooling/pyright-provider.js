@@ -4,6 +4,7 @@ import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfi
 import { resolveToolingCommandProfile } from './command-resolver.js';
 import { parsePythonSignature } from './signature-parse/python.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
+import { resolveProviderRequestedCommand } from './provider-command-override.js';
 import { filterTargetsForDocuments } from './provider-utils.js';
 
 export const PYTHON_EXTS = ['.py', '.pyi'];
@@ -58,19 +59,17 @@ export const createPyrightProvider = () => ({
       };
     }
     const pyrightConfig = ctx?.toolingConfig?.pyright || {};
-    const configuredCmd = typeof pyrightConfig.command === 'string'
-      ? pyrightConfig.command.trim()
-      : '';
-    const configuredArgs = Array.isArray(pyrightConfig.args)
-      ? pyrightConfig.args.map((entry) => String(entry))
-      : null;
-    const requestedCmd = configuredCmd || 'pyright-langserver';
-    const requestedArgs = configuredArgs || ['--stdio'];
+    const requestedCommand = resolveProviderRequestedCommand({
+      providerId: 'pyright',
+      toolingConfig: ctx?.toolingConfig || {},
+      defaultCmd: 'pyright-langserver',
+      defaultArgs: ['--stdio']
+    });
 
     const commandProfile = resolveToolingCommandProfile({
       providerId: 'pyright',
-      cmd: requestedCmd,
-      args: requestedArgs,
+      cmd: requestedCommand.cmd,
+      args: requestedCommand.args,
       repoRoot: ctx?.repoRoot || process.cwd(),
       toolingConfig: ctx?.toolingConfig || {}
     });
@@ -100,7 +99,7 @@ export const createPyrightProvider = () => ({
       log,
       providerId: 'pyright',
       cmd: commandProfile.resolved.cmd,
-      args: commandProfile.resolved.args || ['--stdio'],
+      args: commandProfile.resolved.args || requestedCommand.args,
       parseSignature: (detail) => parsePythonSignature(detail),
       strict: ctx?.strict !== false,
       vfsRoot: ctx?.buildRoot || ctx.repoRoot,

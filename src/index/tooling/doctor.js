@@ -4,6 +4,7 @@ import semver from 'semver';
 import { getXxhashBackend } from '../../shared/hash.js';
 import { listToolingProviders } from './provider-registry.js';
 import { normalizeProviderId } from './provider-contract.js';
+import { resolveProviderCommandOverride } from './provider-command-override.js';
 import { loadTypeScript } from './typescript/load.js';
 import { getScmProviderAndRoot, resolveScmConfig } from '../scm/registry.js';
 import { setScmRuntimeConfig } from '../scm/runtime.js';
@@ -63,46 +64,6 @@ const normalizeCommandToken = (value) => {
   if (!raw) return '';
   const base = path.basename(raw).trim().toLowerCase();
   return base.endsWith('.exe') ? base.slice(0, -4) : base;
-};
-
-const PROVIDER_CONFIG_KEY_BY_ID = Object.freeze({
-  clangd: 'clangd',
-  'csharp-ls': 'csharp',
-  dart: 'dart',
-  'elixir-ls': 'elixir',
-  'haskell-language-server': 'haskell',
-  jdtls: 'jdtls',
-  phpactor: 'phpactor',
-  pyright: 'pyright',
-  solargraph: 'solargraph',
-  sourcekit: 'sourcekit'
-});
-
-const resolveProviderCommandOverride = ({ providerId, toolingConfig }) => {
-  const configKey = PROVIDER_CONFIG_KEY_BY_ID[normalizeProviderId(providerId)] || null;
-  if (!configKey) return { cmd: null, args: null };
-  const config = toolingConfig?.[configKey];
-  if (!config || typeof config !== 'object') return { cmd: null, args: null };
-
-  const configuredCmd = providerId === 'pyright'
-    ? (
-      typeof config.command === 'string' && config.command.trim()
-        ? config.command.trim()
-        : (typeof config.cmd === 'string' && config.cmd.trim() ? config.cmd.trim() : null)
-    )
-    : (
-      typeof config.cmd === 'string' && config.cmd.trim()
-        ? config.cmd.trim()
-        : (typeof config.command === 'string' && config.command.trim() ? config.command.trim() : null)
-    );
-  const configuredArgs = Array.isArray(config.args)
-    ? config.args.map((entry) => String(entry))
-    : null;
-
-  return {
-    cmd: configuredCmd || null,
-    args: configuredArgs
-  };
 };
 
 const shouldProbeLspHandshake = ({

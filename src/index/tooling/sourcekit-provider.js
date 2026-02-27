@@ -17,6 +17,7 @@ import { resolveToolingCommandProfile } from './command-resolver.js';
 import { splitPathEntries } from './binary-utils.js';
 import { parseSwiftSignature } from './signature-parse/swift.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
+import { resolveProviderRequestedCommand } from './provider-command-override.js';
 import { filterTargetsForDocuments } from './provider-utils.js';
 
 export const SWIFT_EXTS = ['.swift'];
@@ -604,10 +605,16 @@ export const createSourcekitProvider = () => ({
       };
     }
 
+    const requestedCommand = resolveProviderRequestedCommand({
+      providerId: 'sourcekit',
+      toolingConfig: ctx?.toolingConfig || {},
+      defaultCmd: 'sourcekit-lsp',
+      defaultArgs: []
+    });
     const commandProfile = resolveToolingCommandProfile({
       providerId: 'sourcekit',
-      cmd: 'sourcekit-lsp',
-      args: [],
+      cmd: requestedCommand.cmd,
+      args: requestedCommand.args,
       repoRoot: ctx?.repoRoot || process.cwd(),
       toolingConfig: ctx?.toolingConfig || {}
     });
@@ -716,7 +723,7 @@ export const createSourcekitProvider = () => ({
         log,
         providerId: 'sourcekit',
         cmd: commandProfile.resolved.cmd,
-        args: [],
+        args: commandProfile.resolved.args || requestedCommand.args,
         hoverTimeoutMs,
         signatureHelpTimeoutMs,
         hoverEnabled,

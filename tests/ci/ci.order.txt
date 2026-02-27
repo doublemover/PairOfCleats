@@ -1,5 +1,7 @@
 tooling/lsp/pyright-provider-output-shape
 tooling/lsp/pyright-provider-command-override
+tooling/lsp/clangd-provider-command-override
+tooling/lsp/sourcekit-provider-command-override
 tooling/lsp/lsp-configured-provider-gopls-workspace-diagnostics
 tooling/doctor/emits-report
 tooling/config-inventory/schema-scan
