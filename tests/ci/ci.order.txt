@@ -1,4 +1,5 @@
 tooling/lsp/pyright-provider-output-shape
+tooling/lsp/pyright-provider-command-override
 tooling/lsp/lsp-configured-provider-gopls-workspace-diagnostics
 tooling/config-inventory/schema-scan
 indexing/watch/watch-filter

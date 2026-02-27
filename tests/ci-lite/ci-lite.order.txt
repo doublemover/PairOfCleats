@@ -41,6 +41,7 @@ indexing/embeddings/embedding-batch-multipliers
 retrieval/ann/ann-candidate-set-contract
 indexing/runtime/stage-overrides
 tooling/lsp/swift-signature-parse
+tooling/lsp/python-signature-parse
 retrieval/ann/embedding-dims-normalization
 indexing/embeddings/cache-layout-provider-model
 tooling/docs/embeddings-cache-docs-sync

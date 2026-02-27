@@ -52,7 +52,14 @@ export const createPyrightProvider = () => ({
     supportsSymbolRef: false
   },
   getConfigHash(ctx) {
-    return hashProviderConfig({ pyright: ctx?.toolingConfig?.pyright || {} });
+    const pyright = ctx?.toolingConfig?.pyright || {};
+    return hashProviderConfig({
+      pyright: {
+        ...pyright,
+        command: typeof pyright?.command === 'string' ? pyright.command : null,
+        args: Array.isArray(pyright?.args) ? pyright.args.map((entry) => String(entry)) : null
+      }
+    });
   },
   async run(ctx, inputs) {
     const log = typeof ctx?.logger === 'function' ? ctx.logger : (() => {});
@@ -70,10 +77,20 @@ export const createPyrightProvider = () => ({
         diagnostics: appendDiagnosticChecks(null, duplicateChecks)
       };
     }
+    const pyrightConfig = ctx?.toolingConfig?.pyright || {};
+    const configuredCmd = typeof pyrightConfig.command === 'string'
+      ? pyrightConfig.command.trim()
+      : '';
+    const configuredArgs = Array.isArray(pyrightConfig.args)
+      ? pyrightConfig.args.map((entry) => String(entry))
+      : null;
+    const requestedCmd = configuredCmd || 'pyright-langserver';
+    const requestedArgs = configuredArgs || ['--stdio'];
+
     const commandProfile = resolveToolingCommandProfile({
       providerId: 'pyright',
-      cmd: 'pyright-langserver',
-      args: ['--stdio'],
+      cmd: requestedCmd,
+      args: requestedArgs,
       repoRoot: ctx?.repoRoot || process.cwd(),
       toolingConfig: ctx?.toolingConfig || {}
     });
@@ -86,7 +103,6 @@ export const createPyrightProvider = () => ({
         diagnostics: appendDiagnosticChecks(null, duplicateChecks)
       };
     }
-    const pyrightConfig = ctx?.toolingConfig?.pyright || {};
     const runtimeConfig = resolveLspRuntimeConfig({
       providerConfig: pyrightConfig,
       globalConfigs: [ctx?.toolingConfig || null],
