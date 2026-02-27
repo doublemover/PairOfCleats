@@ -774,10 +774,12 @@ indexing/determinism/chunk-meta-ordering-drift
 tooling/doctor/gating-reasons
 tooling/doctor/command-profile-jdtls
 tooling/doctor/command-profile-gopls
+tooling/doctor/command-profile-pyright-override
 tooling/doctor/command-profile-probe-cache
 tooling/doctor/command-profile-probe-cache-negative
 tooling/doctor/command-profile-tooling-dir-precedence
 tooling/doctor/provider-requires-args
+tooling/doctor/command-resolution-provider-overrides
 tooling/doctor/runtime-requirements-dedicated
 tooling/doctor/workspace-model-detection
 tooling/doctor/runtime-requirements-jdtls-dedicated

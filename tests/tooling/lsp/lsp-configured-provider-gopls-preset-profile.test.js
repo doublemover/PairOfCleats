@@ -18,6 +18,14 @@ try {
   const virtualPath = '.poc-vfs/src/sample.cpp#seg:stub.cpp';
   const docText = 'int add(int a, int b) { return a + b; }\n';
   const chunkUid = 'ck64:v1:test:src/sample.cpp:gopls-preset-profile';
+  const fixtureGoplsCmd = path.join(
+    root,
+    'tests',
+    'fixtures',
+    'lsp',
+    'bin',
+    process.platform === 'win32' ? 'gopls.cmd' : 'gopls'
+  );
   const result = await runToolingProviders({
     strict: true,
     repoRoot: tempRoot,
@@ -27,6 +35,7 @@ try {
         enabled: true,
         servers: [{
           preset: 'gopls',
+          cmd: fixtureGoplsCmd,
           languages: ['cpp'],
           uriScheme: 'poc-vfs'
         }]

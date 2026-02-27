@@ -37,6 +37,34 @@ try {
     'expected explicit gopls args to remain unchanged'
   );
 
+  const fixtureCmd = path.join(
+    root,
+    'tests',
+    'fixtures',
+    'lsp',
+    'bin',
+    process.platform === 'win32' ? 'gopls.cmd' : 'gopls'
+  );
+  const originalPath = process.env.PATH || '';
+  process.env.PATH = '';
+  try {
+    const overrideProfile = resolveToolingCommandProfile({
+      providerId: 'gopls',
+      cmd: fixtureCmd,
+      args: [],
+      repoRoot: root,
+      toolingConfig: {}
+    });
+    assert.equal(overrideProfile.probe.ok, true, 'expected explicit gopls command path probe to succeed');
+    assert.equal(
+      path.resolve(overrideProfile.resolved.cmd),
+      path.resolve(fixtureCmd),
+      'expected explicit gopls command path to be preserved'
+    );
+  } finally {
+    process.env.PATH = originalPath;
+  }
+
   console.log('tooling doctor gopls command profile test passed');
 } finally {
   restorePath();

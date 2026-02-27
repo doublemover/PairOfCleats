@@ -76,6 +76,15 @@ const resolveWindowsCommand = (cmd) => {
   return cmd;
 };
 
+const hasPathSeparator = (value) => /[\\/]/u.test(String(value || ''));
+
+const normalizeCommandToken = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const base = path.basename(raw).trim().toLowerCase();
+  return base.endsWith('.exe') ? base.slice(0, -4) : base;
+};
+
 const resolvePyrightCommand = (repoRoot, toolingConfig) => {
   const cmd = 'pyright-langserver';
   const toolRoot = resolveToolRoot();
@@ -103,7 +112,7 @@ const resolveGoToolCommand = (cmd, toolingConfig) => {
 const resolveScopedCommand = ({ cmd, repoRoot, toolingConfig }) => {
   const requested = String(cmd || '').trim();
   if (!requested) return '';
-  if (isAbsolutePathNative(requested) || requested.includes(path.sep)) return requested;
+  if (isAbsolutePathNative(requested) || hasPathSeparator(requested)) return requested;
   const repoBin = path.join(repoRoot, 'node_modules', '.bin');
   const toolBin = toolingConfig?.dir
     ? path.join(toolingConfig.dir, 'bin')
@@ -117,7 +126,7 @@ const resolveScopedCommand = ({ cmd, repoRoot, toolingConfig }) => {
 };
 
 const getProbeArgCandidates = (providerId, requestedCmd) => {
-  const cmdName = String(requestedCmd || '').toLowerCase();
+  const cmdName = normalizeCommandToken(requestedCmd);
   if (providerId === 'gopls' || cmdName === 'gopls') {
     return [['version'], ['help'], ['--help']];
   }
@@ -141,11 +150,27 @@ const getProbeArgCandidates = (providerId, requestedCmd) => {
 
 const resolveBaseCommand = ({ providerId, requestedCmd, repoRoot, toolingConfig }) => {
   const normalizedProviderId = normalizeProviderId(providerId);
-  if (normalizedProviderId === 'pyright' || requestedCmd === 'pyright-langserver') {
-    return resolvePyrightCommand(repoRoot, toolingConfig);
+  const normalizedRequested = String(requestedCmd || '').trim();
+  const requestedToken = normalizeCommandToken(normalizedRequested);
+  if (normalizedProviderId === 'pyright') {
+    if (!normalizedRequested || requestedToken === 'pyright-langserver') {
+      return resolvePyrightCommand(repoRoot, toolingConfig);
+    }
+    return resolveScopedCommand({
+      cmd: normalizedRequested,
+      repoRoot,
+      toolingConfig
+    });
   }
-  if (normalizedProviderId === 'gopls' || requestedCmd === 'gopls') {
-    return resolveGoToolCommand('gopls', toolingConfig);
+  if (normalizedProviderId === 'gopls') {
+    if (!normalizedRequested || requestedToken === 'gopls') {
+      return resolveGoToolCommand('gopls', toolingConfig);
+    }
+    return resolveScopedCommand({
+      cmd: normalizedRequested,
+      repoRoot,
+      toolingConfig
+    });
   }
   if (normalizedProviderId === 'clangd') {
     return resolveScopedCommand({

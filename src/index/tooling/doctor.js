@@ -65,6 +65,46 @@ const normalizeCommandToken = (value) => {
   return base.endsWith('.exe') ? base.slice(0, -4) : base;
 };
 
+const PROVIDER_CONFIG_KEY_BY_ID = Object.freeze({
+  clangd: 'clangd',
+  'csharp-ls': 'csharp',
+  dart: 'dart',
+  'elixir-ls': 'elixir',
+  'haskell-language-server': 'haskell',
+  jdtls: 'jdtls',
+  phpactor: 'phpactor',
+  pyright: 'pyright',
+  solargraph: 'solargraph',
+  sourcekit: 'sourcekit'
+});
+
+const resolveProviderCommandOverride = ({ providerId, toolingConfig }) => {
+  const configKey = PROVIDER_CONFIG_KEY_BY_ID[normalizeProviderId(providerId)] || null;
+  if (!configKey) return { cmd: null, args: null };
+  const config = toolingConfig?.[configKey];
+  if (!config || typeof config !== 'object') return { cmd: null, args: null };
+
+  const configuredCmd = providerId === 'pyright'
+    ? (
+      typeof config.command === 'string' && config.command.trim()
+        ? config.command.trim()
+        : (typeof config.cmd === 'string' && config.cmd.trim() ? config.cmd.trim() : null)
+    )
+    : (
+      typeof config.cmd === 'string' && config.cmd.trim()
+        ? config.cmd.trim()
+        : (typeof config.command === 'string' && config.command.trim() ? config.command.trim() : null)
+    );
+  const configuredArgs = Array.isArray(config.args)
+    ? config.args.map((entry) => String(entry))
+    : null;
+
+  return {
+    cmd: configuredCmd || null,
+    args: configuredArgs
+  };
+};
+
 const shouldProbeLspHandshake = ({
   providerId,
   requestedCmd,
@@ -436,16 +476,26 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
       let requestedArgs = Array.isArray(provider?.requires?.args)
         ? provider.requires.args.map((entry) => String(entry))
         : [];
-      if (providerId === 'pyright') {
+      const override = resolveProviderCommandOverride({ providerId, toolingConfig });
+      if (override.cmd) {
+        requestedCmd = override.cmd;
+      }
+      if (Array.isArray(override.args)) {
+        requestedArgs = override.args;
+      }
+      if (!requestedCmd && providerId === 'pyright') {
         requestedCmd = 'pyright-langserver';
-        requestedArgs = ['--stdio'];
-      } else if (providerId === 'clangd') {
+      }
+      if (!requestedCmd && providerId === 'clangd') {
         requestedCmd = 'clangd';
-      } else if (providerId === 'sourcekit') {
+      }
+      if (!requestedCmd && providerId === 'sourcekit') {
         requestedCmd = 'sourcekit-lsp';
       }
+      if (providerId === 'pyright' && !Array.isArray(override.args) && !requestedArgs.length) {
+        requestedArgs = ['--stdio'];
+      }
       if (requestedCmd) {
-        const requestedCmdLower = String(requestedCmd).toLowerCase();
         const commandProfile = resolveCommandProfile({
           providerId,
           cmd: requestedCmd,
@@ -462,6 +512,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
             message: `${requestedCmd} binary not available.`
           });
         } else {
+          const commandToken = normalizeCommandToken(commandProfile.resolved?.cmd || requestedCmd);
           addCheck({
             name: `${providerId}-command`,
             status: 'ok',
@@ -496,7 +547,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
               });
             }
           }
-          const runtimeRequirements = resolveRuntimeRequirementsForCommand(requestedCmdLower);
+          const runtimeRequirements = resolveRuntimeRequirementsForCommand(commandToken);
           if (runtimeRequirements.length) {
             providerReport.runtimeRequirements = [];
             for (const requirement of runtimeRequirements) {
@@ -527,7 +578,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
               }
             }
           }
-          const workspaceModelCheck = resolveWorkspaceModelCheckForCommand(requestedCmdLower);
+          const workspaceModelCheck = resolveWorkspaceModelCheckForCommand(commandToken);
           if (workspaceModelCheck) {
             const markerFound = hasWorkspaceMarker(repoRoot, workspaceModelCheck.markers);
             if (!markerFound) {
@@ -545,7 +596,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
             }
           }
         }
-        if (requestedCmdLower === 'zls' && commandProfile.probe.ok) {
+        if (normalizeCommandToken(commandProfile.resolved?.cmd || requestedCmd) === 'zls' && commandProfile.probe.ok) {
           const zigProfile = resolveCommandProfile({
             providerId: 'zig',
             cmd: 'zig',
