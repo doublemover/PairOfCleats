@@ -29,8 +29,9 @@ const inputs = buildSingleSymbolInputs({
 await withLspTestPath({ repoRoot: root }, async () => {
   requireLspCommandOrSkip({
     providerId: 'solargraph',
+    cmd: fixtureSolargraphCmd,
     repoRoot: tempRoot,
-    reason: 'Skipping solargraph bootstrap test; solargraph command probe failed.'
+    reason: 'Skipping solargraph bootstrap test; fixture solargraph command probe failed.'
   });
 
   const result = await runDedicatedProviderFixture({
