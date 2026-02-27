@@ -7,7 +7,8 @@ import { execaSync } from 'execa';
 import { SymbolKind } from 'vscode-languageserver-protocol';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { isTestingEnv } from '../../shared/env.js';
-import { toPosix } from '../../shared/files.js';
+import { readJsonFileSafe, toPosix } from '../../shared/files.js';
+import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { acquireFileLock } from '../../shared/locks/file-lock.js';
 import { spawnSubprocess } from '../../shared/subprocess.js';
@@ -16,6 +17,7 @@ import { resolveToolingCommandProfile } from './command-resolver.js';
 import { splitPathEntries } from './binary-utils.js';
 import { parseSwiftSignature } from './signature-parse/swift.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
+import { filterTargetsForDocuments } from './provider-utils.js';
 
 export const SWIFT_EXTS = ['.swift'];
 
@@ -257,16 +259,13 @@ const summarizeSubprocessOutput = (value, maxChars = 240) => {
 };
 
 const readSourcekitPreflightMarker = async (markerPath) => {
-  const raw = await readUtf8IfExists(markerPath);
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return null;
-    if (parsed.schemaVersion !== SOURCEKIT_PACKAGE_PREFLIGHT_SCHEMA_VERSION) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
+  const parsed = await readJsonFileSafe(markerPath, {
+    fallback: null,
+    maxBytes: 64 * 1024
+  });
+  if (!parsed || typeof parsed !== 'object') return null;
+  if (parsed.schemaVersion !== SOURCEKIT_PACKAGE_PREFLIGHT_SCHEMA_VERSION) return null;
+  return parsed;
 };
 
 const writeSourcekitPreflightMarker = async ({ markerPath, fingerprint, swiftCmd, durationMs }) => {
@@ -278,7 +277,11 @@ const writeSourcekitPreflightMarker = async ({ markerPath, fingerprint, swiftCmd
     durationMs: Number.isFinite(Number(durationMs)) ? Math.max(0, Math.round(Number(durationMs))) : null
   };
   await fs.mkdir(path.dirname(markerPath), { recursive: true });
-  await fs.writeFile(markerPath, JSON.stringify(payload), 'utf8');
+  await atomicWriteJson(markerPath, payload, {
+    spaces: 0,
+    newline: false,
+    durable: false
+  });
 };
 
 /**
@@ -477,8 +480,8 @@ const resolveCommandCandidates = (cmd) => {
       add(path.join(dir, cmd));
     }
   } else if (process.platform === 'win32') {
-    for (const ext of ['.exe', '.cmd', '.bat']) {
-      for (const dir of pathEntries) {
+    for (const dir of pathEntries) {
+      for (const ext of ['.exe', '.cmd', '.bat']) {
         add(path.join(dir, `${cmd}${ext}`));
       }
     }
@@ -501,14 +504,19 @@ const sourcekitCandidateScore = (candidate) => {
 };
 
 const resolveCommand = (cmd) => {
+  const prioritizeSourcekitCandidates = String(cmd || '').toLowerCase().includes('sourcekit');
   const candidates = resolveCommandCandidates(cmd)
     .filter((candidate) => candidate !== cmd && fsSync.existsSync(candidate))
+    .map((candidate, index) => ({
+      candidate,
+      index,
+      score: prioritizeSourcekitCandidates ? sourcekitCandidateScore(candidate) : 0
+    }))
     .sort((a, b) => {
-      const scoreA = sourcekitCandidateScore(a);
-      const scoreB = sourcekitCandidateScore(b);
-      if (scoreA !== scoreB) return scoreB - scoreA;
-      return String(a).localeCompare(String(b));
-    });
+      if (a.score !== b.score) return b.score - a.score;
+      return a.index - b.index;
+    })
+    .map((entry) => entry.candidate);
   for (const candidate of candidates) {
     if (canRunSourcekit(candidate)) return candidate;
   }
@@ -586,10 +594,7 @@ export const createSourcekitProvider = () => ({
     if (docs.length < docsAll.length) {
       log(`[tooling] sourcekit skipped ${docsAll.length - docs.length} document(s) by path filter.`);
     }
-    const docPaths = new Set(docs.map((doc) => doc.virtualPath));
-    const targets = Array.isArray(inputs?.targets)
-      ? inputs.targets.filter((target) => docPaths.has(target.virtualPath))
-      : [];
+    const targets = filterTargetsForDocuments(inputs?.targets, docs);
     const checks = buildDuplicateChunkUidChecks(targets, { label: 'sourcekit' });
     if (!docs.length || !targets.length) {
       return {
@@ -606,8 +611,7 @@ export const createSourcekitProvider = () => ({
       repoRoot: ctx?.repoRoot || process.cwd(),
       toolingConfig: ctx?.toolingConfig || {}
     });
-    const resolvedCmd = commandProfile.resolved.cmd;
-    if (!canRunSourcekit(resolvedCmd)) {
+    if (!commandProfile.probe.ok) {
       log('[index] sourcekit-lsp not detected; skipping tooling-based types.');
       return {
         provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) },
@@ -711,7 +715,7 @@ export const createSourcekitProvider = () => ({
         abortSignal,
         log,
         providerId: 'sourcekit',
-        cmd: resolvedCmd,
+        cmd: commandProfile.resolved.cmd,
         args: [],
         hoverTimeoutMs,
         signatureHelpTimeoutMs,

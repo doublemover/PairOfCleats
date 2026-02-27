@@ -8,6 +8,7 @@ import { atomicWriteJsonSync } from '../../shared/io/atomic-write.js';
 import { resolveToolingCommandProfile } from './command-resolver.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 import { filterTargetsForDocuments } from './provider-utils.js';
+import { parseClikeSignature } from './signature-parse/clike.js';
 
 const CLANGD_BASE_EXTS = ['.c', '.h', '.cc', '.cpp', '.cxx', '.hpp', '.hh'];
 const CLANGD_OBJC_EXTS = ['.m', '.mm'];
@@ -15,45 +16,10 @@ export const CLIKE_EXTS = process.platform === 'darwin'
   ? [...CLANGD_BASE_EXTS, ...CLANGD_OBJC_EXTS]
   : CLANGD_BASE_EXTS;
 
-const shouldUseShell = (cmd) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd);
-
-const quoteWindowsCmdArg = (value) => {
-  const text = String(value ?? '');
-  if (!text) return '""';
-  if (!/[\s"&|<>^();]/u.test(text)) return text;
-  return `"${text.replaceAll('"', '""')}"`;
-};
-
-const runProbeCommand = (cmd, args) => {
-  if (!shouldUseShell(cmd)) {
-    return execaSync(cmd, args, {
-      stdio: 'ignore',
-      reject: false
-    });
-  }
-  const commandLine = [cmd, ...(Array.isArray(args) ? args : [])]
-    .map(quoteWindowsCmdArg)
-    .join(' ');
-  const shellExe = process.env.ComSpec || 'cmd.exe';
-  return execaSync(shellExe, ['/d', '/s', '/c', commandLine], {
-    stdio: 'ignore',
-    reject: false
-  });
-};
-
 const asFiniteNumber = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return null;
   return parsed;
-};
-
-const canRunClangd = (cmd) => {
-  try {
-    const result = runProbeCommand(cmd, ['--version']);
-    return result.exitCode === 0;
-  } catch {
-    return false;
-  }
 };
 
 const resolveCompileCommandsDir = (rootDir, clangdConfig) => {
@@ -334,43 +300,6 @@ const parseObjcSignature = (detail) => {
   return { signature, returnType, paramTypes, paramNames };
 };
 
-const parseClikeSignature = (detail, symbolName) => {
-  if (!detail || typeof detail !== 'string') return null;
-  const open = detail.indexOf('(');
-  const close = detail.lastIndexOf(')');
-  if (open === -1 || close === -1 || close < open) return null;
-  const signature = detail.trim();
-  const before = detail.slice(0, open).trim();
-  const paramsText = detail.slice(open + 1, close).trim();
-  let returnType = null;
-  if (before) {
-    let idx = -1;
-    if (symbolName) {
-      idx = before.lastIndexOf(symbolName);
-      if (idx === -1) idx = before.lastIndexOf(`::${symbolName}`);
-      if (idx !== -1 && before[idx] === ':' && before[idx - 1] === ':') idx -= 1;
-    }
-    returnType = idx > 0 ? before.slice(0, idx).trim() : before;
-    returnType = returnType.replace(/\b(static|inline|constexpr|virtual|extern|friend)\b/g, '').trim();
-  }
-  const paramTypes = {};
-  const paramNames = [];
-  const parts = paramsText.split(',');
-  for (const part of parts) {
-    const cleaned = part.trim();
-    if (!cleaned || cleaned === 'void' || cleaned === '...') continue;
-    const noDefault = cleaned.split('=').shift().trim();
-    const nameMatch = noDefault.match(/([A-Za-z_][\w]*)\s*(?:\[[^\]]*\])?$/);
-    if (!nameMatch) continue;
-    const name = nameMatch[1];
-    const type = noDefault.slice(0, nameMatch.index).trim();
-    if (!name || !type) continue;
-    paramNames.push(name);
-    paramTypes[name] = type;
-  }
-  return { signature, returnType, paramTypes, paramNames };
-};
-
 const parseSignature = (detail, languageId, symbolName) => {
   if (!detail || typeof detail !== 'string') return null;
   const trimmed = detail.trim();
@@ -492,8 +421,7 @@ export const createClangdProvider = () => ({
       repoRoot: ctx?.repoRoot || process.cwd(),
       toolingConfig: ctx?.toolingConfig || {}
     });
-    const resolvedCmd = commandProfile.resolved.cmd;
-    if (!canRunClangd(resolvedCmd)) {
+    if (!commandProfile.probe.ok) {
       log('[index] clangd not detected; skipping tooling-based types.');
       return {
         provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },
@@ -586,7 +514,7 @@ export const createClangdProvider = () => ({
         abortSignal: ctx?.abortSignal || null,
         log,
         providerId: 'clangd',
-        cmd: resolvedCmd,
+        cmd: commandProfile.resolved.cmd,
         args: commandProfile.resolved.args || clangdArgs,
         documentSymbolTimeoutMs,
         documentSymbolConcurrency: clangdConfig.documentSymbolConcurrency,

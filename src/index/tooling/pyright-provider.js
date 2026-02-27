@@ -1,41 +1,22 @@
-import fsSync from 'node:fs';
 import path from 'node:path';
-import { execaSync } from 'execa';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
 import { resolveToolingCommandProfile } from './command-resolver.js';
 import { parsePythonSignature } from './signature-parse/python.js';
-import { isAbsolutePathNative } from '../../shared/files.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 import { filterTargetsForDocuments } from './provider-utils.js';
 
 export const PYTHON_EXTS = ['.py', '.pyi'];
 
-const runProbeCommand = (cmd, args) => {
-  return execaSync(cmd, args, {
-    stdio: 'ignore',
-    reject: false
-  });
-};
-const isPyrightLangserverCmd = (cmd) => (
-  String(path.basename(String(cmd || '')))
-    .toLowerCase()
-    .replace(/\.(cmd|exe|bat)$/, '') === 'pyright-langserver'
+export const __canRunPyrightForTests = (cmd) => (
+  resolveToolingCommandProfile({
+    providerId: 'pyright',
+    cmd,
+    args: [],
+    repoRoot: process.cwd(),
+    toolingConfig: {}
+  })?.probe?.ok === true
 );
-const canRunPyright = (cmd) => {
-  if (!cmd) return false;
-  if (isAbsolutePathNative(cmd) && !fsSync.existsSync(cmd)) return false;
-  for (const args of [['--version'], ['--help']]) {
-    try {
-      const result = runProbeCommand(cmd, args);
-      if (result.exitCode === 0) return true;
-      if (isPyrightLangserverCmd(cmd)) return true;
-    } catch {}
-  }
-  return false;
-};
-
-export const __canRunPyrightForTests = (cmd) => canRunPyright(cmd);
 
 export const createPyrightProvider = () => ({
   id: 'pyright',
@@ -93,8 +74,7 @@ export const createPyrightProvider = () => ({
       repoRoot: ctx?.repoRoot || process.cwd(),
       toolingConfig: ctx?.toolingConfig || {}
     });
-    const resolvedCmd = commandProfile.resolved.cmd;
-    if (!canRunPyright(resolvedCmd)) {
+    if (!commandProfile.probe.ok) {
       log('[index] pyright-langserver not detected; skipping tooling-based types.');
       return {
         provider: { id: 'pyright', version: '2.0.0', configHash: this.getConfigHash(ctx) },
@@ -119,7 +99,7 @@ export const createPyrightProvider = () => ({
       abortSignal: ctx?.abortSignal || null,
       log,
       providerId: 'pyright',
-      cmd: resolvedCmd,
+      cmd: commandProfile.resolved.cmd,
       args: commandProfile.resolved.args || ['--stdio'],
       parseSignature: (detail) => parsePythonSignature(detail),
       strict: ctx?.strict !== false,
