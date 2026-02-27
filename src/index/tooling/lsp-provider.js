@@ -27,6 +27,15 @@ const normalizeArgs = (value) => {
   return [];
 };
 
+const normalizeHoverSymbolKinds = (value) => {
+  const source = Array.isArray(value) ? value : [value];
+  const normalized = source
+    .map((entry) => Number(entry))
+    .filter((entry) => Number.isFinite(entry))
+    .map((entry) => Math.floor(entry));
+  return normalized.length ? normalized : null;
+};
+
 const normalizeServerId = (value, fallback) => {
   const base = normalizeProviderId(value || fallback || 'lsp');
   const safe = base.replace(/[^a-z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
@@ -159,11 +168,26 @@ const normalizeServerConfig = (server, index) => {
   const languages = normalizeLanguageList(merged.languages);
   const uriScheme = merged.uriScheme === 'poc-vfs' ? 'poc-vfs' : 'file';
   const timeoutMs = Number(merged.timeoutMs);
+  const documentSymbolTimeoutMs = Number(merged.documentSymbolTimeoutMs);
+  const hoverTimeoutMs = Number(merged.hoverTimeoutMs);
+  const signatureHelpTimeoutMs = Number(merged.signatureHelpTimeoutMs);
   const retries = Number(merged.retries);
   const priority = Number(merged.priority);
   const documentSymbolConcurrency = Number(merged.documentSymbolConcurrency);
   const hoverConcurrency = Number(merged.hoverConcurrency);
   const hoverCacheMaxEntries = Number(merged.hoverCacheMaxEntries);
+  const hoverMaxPerFile = Number(merged.hoverMaxPerFile);
+  const hoverDisableAfterTimeouts = Number(merged.hoverDisableAfterTimeouts);
+  const hoverEnabled = typeof merged.hoverEnabled === 'boolean'
+    ? merged.hoverEnabled
+    : (typeof merged.hover === 'boolean' ? merged.hover : null);
+  const signatureHelpEnabled = typeof merged.signatureHelpEnabled === 'boolean'
+    ? merged.signatureHelpEnabled
+    : (typeof merged.signatureHelp === 'boolean' ? merged.signatureHelp : null);
+  const hoverRequireMissingReturn = typeof merged.hoverRequireMissingReturn === 'boolean'
+    ? merged.hoverRequireMissingReturn
+    : null;
+  const hoverSymbolKinds = normalizeHoverSymbolKinds(merged.hoverSymbolKinds);
   const breakerThreshold = Number(merged.circuitBreakerThreshold);
   const requireWorkspaceModel = typeof merged.requireWorkspaceModel === 'boolean'
     ? merged.requireWorkspaceModel
@@ -194,6 +218,15 @@ const normalizeServerConfig = (server, index) => {
     languages,
     uriScheme,
     timeoutMs: Number.isFinite(timeoutMs) ? Math.max(1000, Math.floor(timeoutMs)) : null,
+    documentSymbolTimeoutMs: Number.isFinite(documentSymbolTimeoutMs)
+      ? Math.max(1000, Math.floor(documentSymbolTimeoutMs))
+      : null,
+    hoverTimeoutMs: Number.isFinite(hoverTimeoutMs)
+      ? Math.max(1000, Math.floor(hoverTimeoutMs))
+      : null,
+    signatureHelpTimeoutMs: Number.isFinite(signatureHelpTimeoutMs)
+      ? Math.max(1000, Math.floor(signatureHelpTimeoutMs))
+      : null,
     retries: Number.isFinite(retries) ? Math.max(0, Math.floor(retries)) : null,
     circuitBreakerThreshold: Number.isFinite(breakerThreshold)
       ? Math.max(1, Math.floor(breakerThreshold))
@@ -207,6 +240,16 @@ const normalizeServerConfig = (server, index) => {
     hoverCacheMaxEntries: Number.isFinite(hoverCacheMaxEntries)
       ? Math.max(1000, Math.floor(hoverCacheMaxEntries))
       : null,
+    hoverMaxPerFile: Number.isFinite(hoverMaxPerFile)
+      ? Math.max(0, Math.floor(hoverMaxPerFile))
+      : null,
+    hoverDisableAfterTimeouts: Number.isFinite(hoverDisableAfterTimeouts)
+      ? Math.max(1, Math.floor(hoverDisableAfterTimeouts))
+      : null,
+    hoverEnabled,
+    signatureHelpEnabled,
+    hoverRequireMissingReturn,
+    hoverSymbolKinds,
     rustSuppressProcMacroDiagnostics,
     requireWorkspaceModel,
     lifecycle,
@@ -350,6 +393,9 @@ const createConfiguredLspProvider = (server) => {
         documentSymbolConcurrency: server.documentSymbolConcurrency,
         hoverConcurrency: server.hoverConcurrency,
         hoverCacheMaxEntries: server.hoverCacheMaxEntries,
+        ...(Array.isArray(server.hoverSymbolKinds) && server.hoverSymbolKinds.length
+          ? { hoverSymbolKinds: server.hoverSymbolKinds }
+          : {}),
         initializationOptions: server.initializationOptions,
         captureDiagnostics: true
       });

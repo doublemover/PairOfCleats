@@ -630,8 +630,16 @@ export const createSourcekitProvider = () => ({
       750,
       Math.floor(
         asFiniteNumber(sourcekitConfig.hoverTimeoutMs)
-          ?? asFiniteNumber(ctx?.toolingConfig?.hoverTimeoutMs)
+          ?? asFiniteNumber(runtimeConfig.hoverTimeoutMs)
           ?? SOURCEKIT_DEFAULT_HOVER_TIMEOUT_MS
+      )
+    );
+    const signatureHelpTimeoutMs = Math.max(
+      750,
+      Math.floor(
+        asFiniteNumber(sourcekitConfig.signatureHelpTimeoutMs)
+          ?? asFiniteNumber(runtimeConfig.signatureHelpTimeoutMs)
+          ?? hoverTimeoutMs
       )
     );
     const hoverMaxPerFile = Math.max(
@@ -643,7 +651,16 @@ export const createSourcekitProvider = () => ({
       asFiniteInteger(sourcekitConfig.hoverDisableAfterTimeouts)
         ?? SOURCEKIT_DEFAULT_HOVER_DISABLE_AFTER_TIMEOUTS
     );
-    const hoverRequireMissingReturn = sourcekitConfig.hoverRequireMissingReturn !== false;
+    const hoverRequireMissingReturn = sourcekitConfig.hoverRequireMissingReturn === false
+      ? false
+      : runtimeConfig.hoverRequireMissingReturn !== false;
+    const hoverEnabled = sourcekitConfig.hoverEnabled === false || sourcekitConfig.hover === false
+      ? false
+      : runtimeConfig.hoverEnabled !== false;
+    const signatureHelpEnabled = sourcekitConfig.signatureHelpEnabled === false
+      || sourcekitConfig.signatureHelp === false
+      ? false
+      : runtimeConfig.signatureHelpEnabled !== false;
     const hoverSymbolKinds = Array.isArray(sourcekitConfig.hoverSymbolKinds)
       && sourcekitConfig.hoverSymbolKinds.length
       ? sourcekitConfig.hoverSymbolKinds
@@ -697,7 +714,9 @@ export const createSourcekitProvider = () => ({
         cmd: resolvedCmd,
         args: [],
         hoverTimeoutMs,
-        hoverEnabled: sourcekitConfig.hover !== false,
+        signatureHelpTimeoutMs,
+        hoverEnabled,
+        signatureHelpEnabled,
         hoverRequireMissingReturn,
         hoverSymbolKinds,
         hoverMaxPerFile,

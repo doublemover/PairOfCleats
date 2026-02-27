@@ -6,6 +6,12 @@ const resolved = resolveLspRuntimeConfig({
   providerConfig: {
     timeoutMs: 1500,
     maxRetries: 3,
+    hoverEnabled: false,
+    signatureHelpEnabled: false,
+    hoverRequireMissingReturn: false,
+    hoverMaxPerFile: 7,
+    hoverDisableAfterTimeouts: 2,
+    documentSymbolTimeoutMs: 2400,
     lifecycle: {
       restartWindowMs: 2100,
       maxRestartsPerWindow: 4,
@@ -16,6 +22,10 @@ const resolved = resolveLspRuntimeConfig({
     timeoutMs: 31000,
     maxRetries: 9,
     circuitBreakerThreshold: 11,
+    hoverTimeoutMs: 3600,
+    signatureHelpTimeoutMs: 5100,
+    hoverEnabled: true,
+    signatureHelpEnabled: true,
     lifecycle: {
       lifecycleRestartWindowMs: 9000,
       lifecycleMaxRestartsPerWindow: 8,
@@ -33,6 +43,14 @@ const resolved = resolveLspRuntimeConfig({
 assert.equal(resolved.timeoutMs, 1500, 'expected provider timeout override');
 assert.equal(resolved.retries, 3, 'expected provider retries override');
 assert.equal(resolved.breakerThreshold, 11, 'expected global breaker threshold fallback');
+assert.equal(resolved.documentSymbolTimeoutMs, 2400, 'expected provider documentSymbol timeout');
+assert.equal(resolved.hoverTimeoutMs, 3600, 'expected global hover timeout fallback');
+assert.equal(resolved.signatureHelpTimeoutMs, 5100, 'expected global signatureHelp timeout fallback');
+assert.equal(resolved.hoverMaxPerFile, 7, 'expected provider hover max-per-file');
+assert.equal(resolved.hoverDisableAfterTimeouts, 2, 'expected provider hover timeout-disable threshold');
+assert.equal(resolved.hoverEnabled, false, 'expected provider hover enabled override');
+assert.equal(resolved.signatureHelpEnabled, false, 'expected provider signatureHelp enabled override');
+assert.equal(resolved.hoverRequireMissingReturn, false, 'expected provider hover completeness override');
 assert.equal(resolved.lifecycleRestartWindowMs, 2100, 'expected provider lifecycle restart window alias');
 assert.equal(resolved.lifecycleMaxRestartsPerWindow, 4, 'expected provider lifecycle max restarts alias');
 assert.equal(resolved.lifecycleFdPressureBackoffMs, 700, 'expected global lifecycle fd backoff fallback');
@@ -52,6 +70,14 @@ const defaultsOnly = resolveLspRuntimeConfig({
 assert.equal(defaultsOnly.timeoutMs, 12000, 'expected timeout default');
 assert.equal(defaultsOnly.retries, 1, 'expected retries default');
 assert.equal(defaultsOnly.breakerThreshold, 3, 'expected breaker default');
+assert.equal(defaultsOnly.documentSymbolTimeoutMs, null, 'expected documentSymbol timeout to remain unset');
+assert.equal(defaultsOnly.hoverTimeoutMs, null, 'expected hover timeout to remain unset');
+assert.equal(defaultsOnly.signatureHelpTimeoutMs, null, 'expected signatureHelp timeout to remain unset');
+assert.equal(defaultsOnly.hoverMaxPerFile, null, 'expected hover max-per-file to remain unset');
+assert.equal(defaultsOnly.hoverDisableAfterTimeouts, null, 'expected hover timeout-disable threshold to remain unset');
+assert.equal(defaultsOnly.hoverEnabled, null, 'expected hover enabled to remain unset');
+assert.equal(defaultsOnly.signatureHelpEnabled, null, 'expected signatureHelp enabled to remain unset');
+assert.equal(defaultsOnly.hoverRequireMissingReturn, null, 'expected hover completeness toggle to remain unset');
 assert.equal(defaultsOnly.lifecycleRestartWindowMs, null, 'expected lifecycle restart window to remain unset');
 assert.equal(defaultsOnly.lifecycleMaxRestartsPerWindow, null, 'expected lifecycle max restarts to remain unset');
 assert.equal(defaultsOnly.lifecycleFdPressureBackoffMs, null, 'expected lifecycle fd backoff to remain unset');

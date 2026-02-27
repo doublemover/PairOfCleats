@@ -564,6 +564,12 @@ export const createClangdProvider = () => ({
     const hoverEnabled = clangdConfig.hoverEnabled === false
       ? false
       : (compileCommandsDir ? true : clangdConfig.disableHoverWithoutCompileCommands === false);
+    const signatureHelpEnabled = clangdConfig.signatureHelpEnabled === false
+      || clangdConfig.signatureHelp === false
+      ? false
+      : runtimeConfig.signatureHelpEnabled !== false;
+    const signatureHelpTimeoutMs = asFiniteNumber(clangdConfig.signatureHelpTimeoutMs)
+      ?? asFiniteNumber(runtimeConfig.signatureHelpTimeoutMs);
     const hoverMaxPerFile = Number.isFinite(Number(clangdConfig.hoverMaxPerFile))
       ? Math.max(0, Math.floor(Number(clangdConfig.hoverMaxPerFile)))
       : (compileCommandsDir ? null : 8);
@@ -586,6 +592,8 @@ export const createClangdProvider = () => ({
         documentSymbolTimeoutMs,
         documentSymbolConcurrency: clangdConfig.documentSymbolConcurrency,
         hoverEnabled,
+        signatureHelpEnabled,
+        ...(Number.isFinite(signatureHelpTimeoutMs) ? { signatureHelpTimeoutMs } : {}),
         hoverMaxPerFile,
         hoverConcurrency: clangdConfig.hoverConcurrency,
         cacheRoot: ctx?.cache?.dir || null,

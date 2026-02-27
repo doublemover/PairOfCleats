@@ -8,6 +8,8 @@ const toNormalizedInt = (value, min) => {
   return Math.max(min, Math.floor(parsed));
 };
 
+const toNormalizedBoolean = (value) => (typeof value === 'boolean' ? value : null);
+
 const firstDefined = (values) => {
   for (const value of values) {
     if (value != null) return value;
@@ -38,6 +40,19 @@ const resolveIntegerSetting = ({ providerConfig, globalConfigs, keys, min, fallb
   return null;
 };
 
+const resolveBooleanSetting = ({ providerConfig, globalConfigs, keys, fallback = null }) => {
+  const providerValue = resolveValueFromConfig(providerConfig, keys);
+  const globalValues = Array.isArray(globalConfigs)
+    ? globalConfigs.map((config) => resolveValueFromConfig(config, keys))
+    : [];
+  const candidates = [providerValue, ...globalValues, fallback];
+  for (const candidate of candidates) {
+    const normalized = toNormalizedBoolean(candidate);
+    if (normalized != null) return normalized;
+  }
+  return null;
+};
+
 /**
  * Resolve common timeout/retry/breaker and lifecycle controls for LSP providers.
  *
@@ -59,6 +74,14 @@ const resolveIntegerSetting = ({ providerConfig, globalConfigs, keys, min, fallb
  *   timeoutMs:number|null,
  *   retries:number|null,
  *   breakerThreshold:number|null,
+ *   documentSymbolTimeoutMs:number|null,
+ *   hoverTimeoutMs:number|null,
+ *   signatureHelpTimeoutMs:number|null,
+ *   hoverMaxPerFile:number|null,
+ *   hoverDisableAfterTimeouts:number|null,
+ *   hoverEnabled:boolean|null,
+ *   signatureHelpEnabled:boolean|null,
+ *   hoverRequireMissingReturn:boolean|null,
  *   lifecycleRestartWindowMs:number|null,
  *   lifecycleMaxRestartsPerWindow:number|null,
  *   lifecycleFdPressureBackoffMs:number|null,
@@ -94,6 +117,59 @@ export const resolveLspRuntimeConfig = (input = {}) => {
       keys: ['circuitBreakerThreshold', 'breakerThreshold'],
       min: 1,
       fallback: defaults.breakerThreshold ?? null
+    }),
+    documentSymbolTimeoutMs: resolveIntegerSetting({
+      providerConfig,
+      globalConfigs,
+      keys: ['documentSymbolTimeoutMs'],
+      min: 1000,
+      fallback: null
+    }),
+    hoverTimeoutMs: resolveIntegerSetting({
+      providerConfig,
+      globalConfigs,
+      keys: ['hoverTimeoutMs'],
+      min: 1000,
+      fallback: null
+    }),
+    signatureHelpTimeoutMs: resolveIntegerSetting({
+      providerConfig,
+      globalConfigs,
+      keys: ['signatureHelpTimeoutMs'],
+      min: 1000,
+      fallback: null
+    }),
+    hoverMaxPerFile: resolveIntegerSetting({
+      providerConfig,
+      globalConfigs,
+      keys: ['hoverMaxPerFile'],
+      min: 0,
+      fallback: null
+    }),
+    hoverDisableAfterTimeouts: resolveIntegerSetting({
+      providerConfig,
+      globalConfigs,
+      keys: ['hoverDisableAfterTimeouts'],
+      min: 1,
+      fallback: null
+    }),
+    hoverEnabled: resolveBooleanSetting({
+      providerConfig,
+      globalConfigs,
+      keys: ['hoverEnabled', 'hover'],
+      fallback: null
+    }),
+    signatureHelpEnabled: resolveBooleanSetting({
+      providerConfig,
+      globalConfigs,
+      keys: ['signatureHelpEnabled', 'signatureHelp'],
+      fallback: null
+    }),
+    hoverRequireMissingReturn: resolveBooleanSetting({
+      providerConfig,
+      globalConfigs,
+      keys: ['hoverRequireMissingReturn'],
+      fallback: null
     }),
     lifecycleRestartWindowMs: resolveIntegerSetting({
       providerConfig,
