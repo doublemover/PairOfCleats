@@ -8,7 +8,7 @@ const lifecycle = await createSearchLifecycle({
   cacheScope: 'shared',
   cacheName: 'search-topn-filters'
 });
-const { repoRoot, runSearchPayload, buildIndex } = lifecycle;
+const { repoRoot, runSearchPayload, buildIndex, env } = lifecycle;
 
 const allowedFiles = ['allowed-1.txt', 'allowed-2.txt'];
 const blockedCount = 12;
@@ -23,7 +23,7 @@ for (let i = 0; i < blockedCount; i += 1) {
 }
 
 buildIndex();
-await runSqliteBuild(repoRoot);
+await runSqliteBuild(repoRoot, { env });
 
 function runBackendSearch(backend) {
   const payload = runSearchPayload('alpha', {

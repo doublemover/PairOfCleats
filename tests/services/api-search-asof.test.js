@@ -145,13 +145,26 @@ try {
 
   const responseB = await requestJson(
     'GET',
-    `/search?q=phase14alpha&mode=code&top=50&asOf=${encodeURIComponent(`snap:${snapshotB}`)}`,
+    `/search?q=phase14beta&mode=code&top=50&asOf=${encodeURIComponent(`snap:${snapshotB}`)}`,
     null,
     serverInfo
   );
   assert.equal(responseB.status, 200);
   assert.equal(responseB.body?.ok, true);
   assert.equal(responseB.body?.result?.asOf?.ref, `snap:${snapshotB}`);
+
+  const responseBAlpha = await requestJson(
+    'GET',
+    `/search?q=phase14alpha&mode=code&top=50&asOf=${encodeURIComponent(`snap:${snapshotB}`)}`,
+    null,
+    serverInfo
+  );
+  assert.equal(responseBAlpha.status, 200);
+  assert.equal(responseBAlpha.body?.ok, true);
+  const staleHitB = Array.isArray(responseBAlpha.body?.result?.code)
+    ? responseBAlpha.body.result.code.find((hit) => String(hit.file || '').includes('phase14-api-asof.js'))
+    : null;
+  assert.ok(!staleHitB, 'snapshot B should not match stale alpha marker text');
 
   const hitB = Array.isArray(responseB.body?.result?.code)
     ? responseB.body.result.code.find((hit) => String(hit.file || '').includes('phase14-api-asof.js'))
