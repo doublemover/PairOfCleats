@@ -61,6 +61,7 @@ assert.ok(result.runtime.lifecycle && typeof result.runtime.lifecycle === 'objec
 assert.ok(result.runtime.guard && typeof result.runtime.guard === 'object', 'expected guard metrics');
 assert.ok(result.runtime.requests && typeof result.runtime.requests === 'object', 'expected request metrics');
 assert.ok(result.runtime.pooling && typeof result.runtime.pooling === 'object', 'expected pooling metrics');
+assert.ok(result.runtime.hoverMetrics && typeof result.runtime.hoverMetrics === 'object', 'expected hover metrics');
 assert.equal(result.runtime.pooling.enabled, true, 'expected pooling enabled by default');
 assert.equal(
   Number.isFinite(Number(result.runtime.requests.requests)),

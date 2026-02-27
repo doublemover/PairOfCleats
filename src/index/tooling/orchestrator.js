@@ -293,6 +293,27 @@ const summarizeProviderRuntime = (runtime) => ({
     sessionKeyPresent: Boolean(runtime?.pooling?.sessionKey),
     recycleCount: coerceFiniteNumber(runtime?.pooling?.recycleCount, 0) ?? 0,
     ageMs: coerceFiniteNumber(runtime?.pooling?.ageMs, 0) ?? 0
+  },
+  hover: {
+    requested: coerceFiniteNumber(runtime?.hoverMetrics?.requested, 0) ?? 0,
+    succeeded: coerceFiniteNumber(runtime?.hoverMetrics?.succeeded, 0) ?? 0,
+    timedOut: coerceFiniteNumber(runtime?.hoverMetrics?.timedOut, 0) ?? 0,
+    hoverTimedOut: coerceFiniteNumber(runtime?.hoverMetrics?.hoverTimedOut, 0) ?? 0,
+    signatureHelpRequested: coerceFiniteNumber(runtime?.hoverMetrics?.signatureHelpRequested, 0) ?? 0,
+    signatureHelpSucceeded: coerceFiniteNumber(runtime?.hoverMetrics?.signatureHelpSucceeded, 0) ?? 0,
+    signatureHelpTimedOut: coerceFiniteNumber(runtime?.hoverMetrics?.signatureHelpTimedOut, 0) ?? 0,
+    definitionRequested: coerceFiniteNumber(runtime?.hoverMetrics?.definitionRequested, 0) ?? 0,
+    definitionSucceeded: coerceFiniteNumber(runtime?.hoverMetrics?.definitionSucceeded, 0) ?? 0,
+    definitionTimedOut: coerceFiniteNumber(runtime?.hoverMetrics?.definitionTimedOut, 0) ?? 0,
+    typeDefinitionRequested: coerceFiniteNumber(runtime?.hoverMetrics?.typeDefinitionRequested, 0) ?? 0,
+    typeDefinitionSucceeded: coerceFiniteNumber(runtime?.hoverMetrics?.typeDefinitionSucceeded, 0) ?? 0,
+    typeDefinitionTimedOut: coerceFiniteNumber(runtime?.hoverMetrics?.typeDefinitionTimedOut, 0) ?? 0,
+    referencesRequested: coerceFiniteNumber(runtime?.hoverMetrics?.referencesRequested, 0) ?? 0,
+    referencesSucceeded: coerceFiniteNumber(runtime?.hoverMetrics?.referencesSucceeded, 0) ?? 0,
+    referencesTimedOut: coerceFiniteNumber(runtime?.hoverMetrics?.referencesTimedOut, 0) ?? 0,
+    incompleteSymbols: coerceFiniteNumber(runtime?.hoverMetrics?.incompleteSymbols, 0) ?? 0,
+    hoverTriggeredByIncomplete: coerceFiniteNumber(runtime?.hoverMetrics?.hoverTriggeredByIncomplete, 0) ?? 0,
+    fallbackUsed: coerceFiniteNumber(runtime?.hoverMetrics?.fallbackUsed, 0) ?? 0
   }
 });
 
@@ -373,6 +394,28 @@ const summarizeToolingMetrics = ({
     typeDefinition: 0,
     references: 0
   };
+  const hoverTotals = {
+    requested: 0,
+    succeeded: 0,
+    timedOut: 0,
+    hoverTimedOut: 0,
+    signatureHelpRequested: 0,
+    signatureHelpSucceeded: 0,
+    signatureHelpTimedOut: 0,
+    definitionRequested: 0,
+    definitionSucceeded: 0,
+    definitionTimedOut: 0,
+    typeDefinitionRequested: 0,
+    typeDefinitionSucceeded: 0,
+    typeDefinitionTimedOut: 0,
+    referencesRequested: 0,
+    referencesSucceeded: 0,
+    referencesTimedOut: 0,
+    incompleteSymbols: 0,
+    hoverTriggeredByIncomplete: 0,
+    fallbackUsed: 0,
+    providersWithActivity: 0
+  };
   const providerRuntime = Object.create(null);
   const sortedExecutedProviderIds = Array.from(new Set(executedProviderIds)).sort((a, b) => a.localeCompare(b));
   for (const providerId of sortedExecutedProviderIds) {
@@ -406,6 +449,36 @@ const summarizeToolingMetrics = ({
     );
     if (runtime.pooling.enabled) healthTotals.pooledProviders += 1;
     if (runtime.pooling.reused) healthTotals.reusedSessionProviders += 1;
+    hoverTotals.requested += runtime.hover.requested;
+    hoverTotals.succeeded += runtime.hover.succeeded;
+    hoverTotals.timedOut += runtime.hover.timedOut;
+    hoverTotals.hoverTimedOut += runtime.hover.hoverTimedOut;
+    hoverTotals.signatureHelpRequested += runtime.hover.signatureHelpRequested;
+    hoverTotals.signatureHelpSucceeded += runtime.hover.signatureHelpSucceeded;
+    hoverTotals.signatureHelpTimedOut += runtime.hover.signatureHelpTimedOut;
+    hoverTotals.definitionRequested += runtime.hover.definitionRequested;
+    hoverTotals.definitionSucceeded += runtime.hover.definitionSucceeded;
+    hoverTotals.definitionTimedOut += runtime.hover.definitionTimedOut;
+    hoverTotals.typeDefinitionRequested += runtime.hover.typeDefinitionRequested;
+    hoverTotals.typeDefinitionSucceeded += runtime.hover.typeDefinitionSucceeded;
+    hoverTotals.typeDefinitionTimedOut += runtime.hover.typeDefinitionTimedOut;
+    hoverTotals.referencesRequested += runtime.hover.referencesRequested;
+    hoverTotals.referencesSucceeded += runtime.hover.referencesSucceeded;
+    hoverTotals.referencesTimedOut += runtime.hover.referencesTimedOut;
+    hoverTotals.incompleteSymbols += runtime.hover.incompleteSymbols;
+    hoverTotals.hoverTriggeredByIncomplete += runtime.hover.hoverTriggeredByIncomplete;
+    hoverTotals.fallbackUsed += runtime.hover.fallbackUsed;
+    if (
+      runtime.hover.requested > 0
+      || runtime.hover.timedOut > 0
+      || runtime.hover.fallbackUsed > 0
+      || runtime.hover.signatureHelpRequested > 0
+      || runtime.hover.definitionRequested > 0
+      || runtime.hover.typeDefinitionRequested > 0
+      || runtime.hover.referencesRequested > 0
+    ) {
+      hoverTotals.providersWithActivity += 1;
+    }
     if (runtime.capabilities && typeof runtime.capabilities === 'object') {
       capabilityTotals.providersWithCapabilitiesMask += 1;
       if (runtime.capabilities.documentSymbol === true) capabilityTotals.documentSymbol += 1;
@@ -426,6 +499,7 @@ const summarizeToolingMetrics = ({
     degradedReasonCodeCount: degradedReasonCodes.size,
     requests: requestTotals,
     health: healthTotals,
+    hover: hoverTotals,
     capabilities: capabilityTotals,
     providerRuntime
   };

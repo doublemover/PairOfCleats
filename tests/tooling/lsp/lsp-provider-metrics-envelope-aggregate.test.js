@@ -103,6 +103,17 @@ assert.equal(result.metrics?.capabilities?.signatureHelp, 0, 'expected signature
 assert.equal(result.metrics?.capabilities?.definition, 0, 'expected definition capability rollup');
 assert.equal(result.metrics?.capabilities?.typeDefinition, 0, 'expected typeDefinition capability rollup');
 assert.equal(result.metrics?.capabilities?.references, 0, 'expected references capability rollup');
+assert.ok(result.metrics?.hover && typeof result.metrics.hover === 'object', 'expected hover rollup envelope');
+assert.equal(
+  Number.isFinite(Number(result.metrics?.hover?.requested)),
+  true,
+  'expected hover requested rollup metric'
+);
+assert.equal(
+  Number.isFinite(Number(result.metrics?.hover?.signatureHelpTimedOut)),
+  true,
+  'expected signatureHelp timeout rollup metric'
+);
 
 const runtimeKeys = Object.keys(result.metrics?.providerRuntime || {});
 assert.deepEqual(runtimeKeys, ['dart', 'lsp-test'], 'expected deterministic per-provider metrics keys');
@@ -110,6 +121,11 @@ assert.equal(result.metrics?.providerRuntime?.dart?.degraded?.active, true, 'exp
 assert.equal(result.metrics?.providerRuntime?.['lsp-test']?.degraded?.active, false, 'expected active lsp-test runtime entry');
 assert.equal(result.metrics?.providerRuntime?.['lsp-test']?.pooling?.enabled, true, 'expected pooling state in runtime entry');
 assert.equal(result.metrics?.providerRuntime?.['lsp-test']?.pooling?.sessionKeyPresent, true, 'expected pooled session key');
+assert.ok(
+  result.metrics?.providerRuntime?.['lsp-test']?.hover
+    && typeof result.metrics.providerRuntime['lsp-test'].hover === 'object',
+  'expected per-provider hover runtime entry'
+);
 assert.equal(
   result.metrics?.providerRuntime?.['lsp-test']?.capabilities?.documentSymbol,
   true,

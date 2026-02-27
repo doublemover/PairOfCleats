@@ -67,7 +67,14 @@ const buildEmptyCollectResult = (checks, runtime = null) => ({
   diagnosticsCount: 0,
   checks,
   hoverMetrics: createEmptyHoverMetricsResult(),
-  runtime
+  runtime: runtime && typeof runtime === 'object'
+    ? {
+      ...runtime,
+      hoverMetrics: runtime.hoverMetrics && typeof runtime.hoverMetrics === 'object'
+        ? runtime.hoverMetrics
+        : createEmptyHoverMetricsResult()
+    }
+    : runtime
 });
 
 export { resolveVfsIoBatching, ensureVirtualFilesBatch };
@@ -654,6 +661,7 @@ export async function collectLspTypes({
         hoverLatencyMs,
         hoverFileStats
       });
+      runtime.hoverMetrics = summarizedHoverMetrics;
       const fallbackCount = Number(summarizedHoverMetrics.fallbackUsed || 0);
       const incompleteCount = Number(summarizedHoverMetrics.incompleteSymbols || 0);
       const fallbackRatio = incompleteCount > 0 ? (fallbackCount / incompleteCount) : 0;

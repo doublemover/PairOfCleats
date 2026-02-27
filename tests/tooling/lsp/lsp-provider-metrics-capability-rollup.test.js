@@ -73,5 +73,10 @@ const providerCapabilities = result.metrics?.providerRuntime?.['lsp-test']?.capa
 assert.equal(providerCapabilities?.definition, true, 'expected provider definition capability');
 assert.equal(providerCapabilities?.typeDefinition, true, 'expected provider typeDefinition capability');
 assert.equal(providerCapabilities?.references, true, 'expected provider references capability');
+assert.equal(
+  Number.isFinite(Number(result.metrics?.providerRuntime?.['lsp-test']?.hover?.requested)),
+  true,
+  'expected provider hover runtime metrics'
+);
 
 console.log('LSP provider metrics capability rollup test passed');
