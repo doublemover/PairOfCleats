@@ -92,6 +92,11 @@ const resolveWindowsCommand = (cmd) => {
 };
 
 const hasPathSeparator = (value) => /[\\/]/u.test(String(value || ''));
+const isExplicitCommandPath = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return false;
+  return isAbsolutePathNative(raw) || hasPathSeparator(raw);
+};
 
 const normalizeCommandToken = (value) => {
   const raw = String(value || '').trim();
@@ -127,7 +132,7 @@ const resolveGoToolCommand = (cmd, toolingConfig) => {
 const resolveScopedCommand = ({ cmd, repoRoot, toolingConfig }) => {
   const requested = String(cmd || '').trim();
   if (!requested) return '';
-  if (isAbsolutePathNative(requested) || hasPathSeparator(requested)) return requested;
+  if (isExplicitCommandPath(requested)) return requested;
   const repoBin = path.join(repoRoot, 'node_modules', '.bin');
   const toolBin = toolingConfig?.dir
     ? path.join(toolingConfig.dir, 'bin')
@@ -168,6 +173,9 @@ const resolveBaseCommand = ({ providerId, requestedCmd, repoRoot, toolingConfig 
   const normalizedRequested = String(requestedCmd || '').trim();
   const requestedToken = normalizeCommandToken(normalizedRequested);
   if (normalizedProviderId === 'pyright') {
+    if (isExplicitCommandPath(normalizedRequested)) {
+      return normalizedRequested;
+    }
     if (!normalizedRequested || requestedToken === 'pyright-langserver') {
       return resolvePyrightCommand(repoRoot, toolingConfig);
     }
@@ -178,6 +186,9 @@ const resolveBaseCommand = ({ providerId, requestedCmd, repoRoot, toolingConfig 
     });
   }
   if (normalizedProviderId === 'gopls') {
+    if (isExplicitCommandPath(normalizedRequested)) {
+      return normalizedRequested;
+    }
     if (!normalizedRequested || requestedToken === 'gopls') {
       return resolveGoToolCommand('gopls', toolingConfig);
     }

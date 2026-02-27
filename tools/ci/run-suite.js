@@ -12,6 +12,7 @@ const DEFAULT_DIAGNOSTICS = path.join(ROOT, '.diagnostics');
 const DEFAULT_LOG_DIR = path.join(ROOT, '.testLogs');
 const DEFAULT_JUNIT = path.join(DEFAULT_LOG_DIR, 'junit.xml');
 const DEFAULT_CACHE_ROOT = path.join(ROOT, '.ci-cache', 'pairofcleats');
+const DEFAULT_HOME_ROOT = path.join(ROOT, '.ci-home', 'pairofcleats');
 const LSP_FIXTURE_BIN = path.join(ROOT, 'tests', 'fixtures', 'lsp', 'bin');
 
 const npmCommand = process.platform === 'win32' ? 'cmd' : 'npm';
@@ -58,6 +59,9 @@ const buildSuiteEnv = (mode) => {
 
   if (!env.PAIROFCLEATS_CACHE_ROOT && isCi()) {
     env.PAIROFCLEATS_CACHE_ROOT = DEFAULT_CACHE_ROOT;
+  }
+  if (!env.PAIROFCLEATS_HOME && isCi()) {
+    env.PAIROFCLEATS_HOME = DEFAULT_HOME_ROOT;
   }
 
   env.PAIROFCLEATS_SUITE_MODE = mode;
