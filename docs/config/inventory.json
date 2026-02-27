@@ -3287,7 +3287,7 @@
         "tools/bench/ab-sweep.js",
         "tools/bench/index/scheduler-store-format.js",
         "tools/bench/language/logging.js",
-        "tools/ci/run-phase22-gates.js",
+        "tools/ci/run-lsp-embeddings-gates.js",
         "tools/ci/run-suite.js",
         "tools/config/contract-doc.js",
         "tools/config/inventory.js",

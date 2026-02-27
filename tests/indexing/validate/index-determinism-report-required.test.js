@@ -26,7 +26,7 @@ const makeDeterminismPayload = (mode = 'code') => ({
       path: 'generatedAt',
       category: 'time',
       reason: 'test',
-      source: 'tests/indexing/validate/index-validate-determinism-report-required.test.js'
+      source: 'tests/indexing/validate/index-determinism-report-required.test.js'
     }
   ],
   normalizedStateHash: 'abc123abc123abc123'

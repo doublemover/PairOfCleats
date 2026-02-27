@@ -11,12 +11,12 @@ export const buildStorageActions = ({ root, runNode, skipSqliteIncremental }) =>
     });
     actions.push({
       label: 'sqlite-incremental-no-change-test',
-      run: () => runNode('sqlite-incremental-no-change-test', path.join(root, 'tests', 'storage', 'sqlite', 'sqlite-incremental-no-change.test.js')),
+      run: () => runNode('sqlite-incremental-no-change-test', path.join(root, 'tests', 'storage', 'sqlite', 'incremental-no-change.test.js')),
       covers: ['sqlite-incremental-no-change-test']
     });
     actions.push({
       label: 'sqlite-bundle-missing-test',
-      run: () => runNode('sqlite-bundle-missing-test', path.join(root, 'tests', 'storage', 'sqlite', 'sqlite-bundle-missing.test.js')),
+      run: () => runNode('sqlite-bundle-missing-test', path.join(root, 'tests', 'storage', 'sqlite', 'bundle-missing.test.js')),
       covers: ['sqlite-bundle-missing-test']
     });
   }
@@ -34,12 +34,12 @@ export const buildStorageActions = ({ root, runNode, skipSqliteIncremental }) =>
     },
     {
       label: 'sqlite-sidecar-cleanup-test',
-      run: () => runNode('sqlite-sidecar-cleanup-test', path.join(root, 'tests', 'storage', 'sqlite', 'sqlite-sidecar-cleanup.test.js')),
+      run: () => runNode('sqlite-sidecar-cleanup-test', path.join(root, 'tests', 'storage', 'sqlite', 'sidecar-cleanup.test.js')),
       covers: ['sqlite-sidecar-cleanup-test']
     },
     {
       label: 'sqlite-ann-extension-test',
-      run: () => runNode('sqlite-ann-extension-test', path.join(root, 'tests', 'storage', 'sqlite', 'ann', 'sqlite-ann-extension.test.js')),
+      run: () => runNode('sqlite-ann-extension-test', path.join(root, 'tests', 'storage', 'sqlite', 'ann', 'sqlite-extension.test.js')),
       covers: ['sqlite-ann-extension-test']
     },
     {
@@ -49,32 +49,32 @@ export const buildStorageActions = ({ root, runNode, skipSqliteIncremental }) =>
     },
     {
       label: 'sqlite-build-manifest-test',
-      run: () => runNode('sqlite-build-manifest-test', path.join(root, 'tests', 'storage', 'sqlite', 'sqlite-build-manifest.test.js')),
+      run: () => runNode('sqlite-build-manifest-test', path.join(root, 'tests', 'storage', 'sqlite', 'build-manifest.test.js')),
       covers: ['sqlite-build-manifest-test']
     },
     {
       label: 'sqlite-build-vocab-test',
-      run: () => runNode('sqlite-build-vocab-test', path.join(root, 'tests', 'storage', 'sqlite', 'sqlite-build-vocab.test.js')),
+      run: () => runNode('sqlite-build-vocab-test', path.join(root, 'tests', 'storage', 'sqlite', 'build-vocab.test.js')),
       covers: ['sqlite-build-vocab-test']
     },
     {
       label: 'sqlite-build-delete-test',
-      run: () => runNode('sqlite-build-delete-test', path.join(root, 'tests', 'storage', 'sqlite', 'sqlite-build-delete.test.js')),
+      run: () => runNode('sqlite-build-delete-test', path.join(root, 'tests', 'storage', 'sqlite', 'build-delete.test.js')),
       covers: ['sqlite-build-delete-test']
     },
     {
       label: 'hnsw-ann-test',
-      run: () => runNode('hnsw-ann-test', path.join(root, 'tests', 'retrieval', 'ann', 'hnsw-ann.test.js')),
+      run: () => runNode('hnsw-ann-test', path.join(root, 'tests', 'retrieval', 'ann', 'hnsw.test.js')),
       covers: ['hnsw-ann-test']
     },
     {
       label: 'lancedb-ann-test',
-      run: () => runNode('lancedb-ann-test', path.join(root, 'tests', 'retrieval', 'ann', 'lancedb-ann.test.js')),
+      run: () => runNode('lancedb-ann-test', path.join(root, 'tests', 'retrieval', 'ann', 'lancedb.test.js')),
       covers: ['lancedb-ann-test']
     },
     {
       label: 'tantivy-smoke-test',
-      run: () => runNode('tantivy-smoke-test', path.join(root, 'tests', 'smoke', 'tantivy-smoke.test.js')),
+      run: () => runNode('tantivy-smoke-test', path.join(root, 'tests', 'smoke', 'tantivy.test.js')),
       covers: ['tantivy-smoke-test']
     },
     {
@@ -94,37 +94,37 @@ export const buildStorageActions = ({ root, runNode, skipSqliteIncremental }) =>
     },
     {
       label: 'sqlite-chunk-id-test',
-      run: () => runNode('sqlite-chunk-id-test', path.join(root, 'tests', 'storage', 'sqlite', 'sqlite-chunk-id.test.js')),
+      run: () => runNode('sqlite-chunk-id-test', path.join(root, 'tests', 'storage', 'sqlite', 'chunk-id.test.js')),
       covers: ['sqlite-chunk-id-test']
     },
     {
       label: 'sqlite-auto-backend-test',
-      run: () => runNode('sqlite-auto-backend-test', path.join(root, 'tests', 'storage', 'sqlite', 'sqlite-auto-backend.test.js')),
+      run: () => runNode('sqlite-auto-backend-test', path.join(root, 'tests', 'storage', 'sqlite', 'auto-backend.test.js')),
       covers: ['sqlite-auto-backend-test']
     },
     {
       label: 'sqlite-missing-dep-test',
-      run: () => runNode('sqlite-missing-dep-test', path.join(root, 'tests', 'storage', 'sqlite', 'sqlite-missing-dep.test.js')),
+      run: () => runNode('sqlite-missing-dep-test', path.join(root, 'tests', 'storage', 'sqlite', 'missing-dep.test.js')),
       covers: ['sqlite-missing-dep-test']
     },
     {
       label: 'sqlite-cache-test',
-      run: () => runNode('sqlite-cache-test', path.join(root, 'tests', 'storage', 'sqlite', 'sqlite-cache.test.js')),
+      run: () => runNode('sqlite-cache-test', path.join(root, 'tests', 'storage', 'sqlite', 'cache.test.js')),
       covers: ['sqlite-cache-test']
     },
     {
       label: 'sqlite-build-indexes-test',
-      run: () => runNode('sqlite-build-indexes-test', path.join(root, 'tests', 'storage', 'sqlite', 'sqlite-build-indexes.test.js')),
+      run: () => runNode('sqlite-build-indexes-test', path.join(root, 'tests', 'storage', 'sqlite', 'build-indexes.test.js')),
       covers: []
     },
     {
       label: 'sqlite-chunk-meta-streaming-test',
-      run: () => runNode('sqlite-chunk-meta-streaming-test', path.join(root, 'tests', 'storage', 'sqlite', 'sqlite-chunk-meta-streaming.test.js')),
+      run: () => runNode('sqlite-chunk-meta-streaming-test', path.join(root, 'tests', 'storage', 'sqlite', 'chunk-meta-streaming.test.js')),
       covers: ['sqlite-chunk-meta-streaming-test']
     },
     {
       label: 'lmdb-backend-test',
-      run: () => runNode('lmdb-backend-test', path.join(root, 'tests', 'storage', 'lmdb', 'lmdb-backend.test.js')),
+      run: () => runNode('lmdb-backend-test', path.join(root, 'tests', 'storage', 'lmdb', 'backend.test.js')),
       covers: ['build-lmdb-index', 'lmdb-backend-test'],
       coversTierB: ['build-lmdb-index']
     },

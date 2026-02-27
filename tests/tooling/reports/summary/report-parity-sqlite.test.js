@@ -21,7 +21,7 @@ const env = applyTestEnv({
 const result = spawnSync(
   process.execPath,
   [
-    path.join(root, 'tests', 'retrieval', 'parity', 'parity.test.js'),
+    path.join(root, 'tests', 'retrieval', 'parity', 'equivalence.test.js'),
     '--search',
     path.join(root, 'search.js'),
     '--sqlite-backend',

@@ -3,7 +3,7 @@ import path from 'node:path';
 export const buildFixtureActions = ({ root, runNode }) => [
   {
     label: 'verify',
-    run: () => runNode('verify', path.join(root, 'tests', 'smoke', 'smoke.test.js')),
+    run: () => runNode('verify', path.join(root, 'tests', 'smoke', 'baseline.test.js')),
     covers: ['verify']
   },
   {
@@ -29,7 +29,7 @@ export const buildFixtureActions = ({ root, runNode }) => [
   },
   {
     label: 'eval-quality-test',
-    run: () => runNode('eval-quality-test', path.join(root, 'tests', 'tooling', 'eval', 'eval-quality.test.js')),
+    run: () => runNode('eval-quality-test', path.join(root, 'tests', 'tooling', 'eval', 'quality.test.js')),
     covers: ['eval-quality-test']
   }
 ];

@@ -309,7 +309,7 @@ const runSourcekitPackagePreflight = async ({
       },
       timeoutMs,
       killTree: true,
-      detached: false,
+      detached: process.platform !== 'win32',
       captureStdout: true,
       captureStderr: true,
       outputMode: 'string',

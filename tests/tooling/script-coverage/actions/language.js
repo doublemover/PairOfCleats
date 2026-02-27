@@ -8,29 +8,29 @@ export const buildLanguageActions = ({ root, runNode }) => [
   },
   {
     label: 'kotlin-perf-guard-test',
-    run: () => runNode('kotlin-perf-guard-test', path.join(root, 'tests', 'lang', 'kotlin', 'kotlin-perf-guard.test.js')),
+    run: () => runNode('kotlin-perf-guard-test', path.join(root, 'tests', 'lang', 'kotlin', 'perf-guard.test.js')),
     covers: ['kotlin-perf-guard-test']
   },
   {
     label: 'tree-sitter-chunks-test',
-    run: () => runNode('tree-sitter-chunks-test', path.join(root, 'tests', 'indexing', 'tree-sitter', 'tree-sitter-chunks.test.js')),
+    run: () => runNode('tree-sitter-chunks-test', path.join(root, 'tests', 'indexing', 'tree-sitter', 'chunks.test.js')),
     covers: ['tree-sitter-chunks-test']
   },
   {
     label: 'js-tree-sitter-maxbytes-test',
-    run: () => runNode('js-tree-sitter-maxbytes-test', path.join(root, 'tests', 'indexing', 'tree-sitter', 'js-tree-sitter-maxbytes.test.js')),
+    run: () => runNode('js-tree-sitter-maxbytes-test', path.join(root, 'tests', 'indexing', 'tree-sitter', 'js-maxbytes.test.js')),
     covers: ['js-tree-sitter-maxbytes-test']
   },
   {
     label: 'type-inference-crossfile-go',
-    run: () => runNode('type-inference-crossfile-go', path.join(root, 'tests', 'indexing', 'type-inference', 'crossfile', 'type-inference-crossfile-go.test.js')),
+    run: () => runNode('type-inference-crossfile-go', path.join(root, 'tests', 'indexing', 'type-inference', 'crossfile', 'type-inference-go.test.js')),
     covers: ['type-inference-crossfile-go']
   },
   {
     label: 'type-inference-crossfile-test',
     run: () => runNode(
       'type-inference-crossfile-test',
-      path.join(root, 'tests', 'indexing', 'type-inference', 'crossfile', 'crossfile-output.integration.test.js')
+      path.join(root, 'tests', 'indexing', 'type-inference', 'crossfile', 'output.integration.test.js')
     ),
     covers: ['type-inference-crossfile-test']
   },
@@ -61,37 +61,37 @@ export const buildLanguageActions = ({ root, runNode }) => [
   },
   {
     label: 'chunking-yaml-test',
-    run: () => runNode('chunking-yaml-test', path.join(root, 'tests', 'indexing', 'chunking', 'chunking-yaml.test.js')),
+    run: () => runNode('chunking-yaml-test', path.join(root, 'tests', 'indexing', 'chunking', 'yaml.test.js')),
     covers: ['chunking-yaml-test']
   },
   {
     label: 'chunking-sql-lua-test',
-    run: () => runNode('chunking-sql-lua-test', path.join(root, 'tests', 'indexing', 'chunking', 'chunking-sql-lua.test.js')),
+    run: () => runNode('chunking-sql-lua-test', path.join(root, 'tests', 'indexing', 'chunking', 'sql-lua.test.js')),
     covers: ['chunking-sql-lua-test']
   },
   {
     label: 'clike-doc-comments-test',
-    run: () => runNode('clike-doc-comments-test', path.join(root, 'tests', 'lang', 'clike', 'clike-doc-comments.test.js')),
+    run: () => runNode('clike-doc-comments-test', path.join(root, 'tests', 'lang', 'clike', 'doc-comments.test.js')),
     covers: ['clike-doc-comments-test']
   },
   {
     label: 'ruby-end-comment-test',
-    run: () => runNode('ruby-end-comment-test', path.join(root, 'tests', 'lang', 'ruby', 'ruby-end-comment.test.js')),
+    run: () => runNode('ruby-end-comment-test', path.join(root, 'tests', 'lang', 'ruby', 'end-comment.test.js')),
     covers: ['ruby-end-comment-test']
   },
   {
     label: 'php-methods-unique-test',
-    run: () => runNode('php-methods-unique-test', path.join(root, 'tests', 'lang', 'php', 'php-methods-unique.test.js')),
+    run: () => runNode('php-methods-unique-test', path.join(root, 'tests', 'lang', 'php', 'methods-unique.test.js')),
     covers: ['php-methods-unique-test']
   },
   {
     label: 'tooling-lsp-test',
-    run: () => runNode('tooling-lsp-test', path.join(root, 'tests', 'tooling', 'lsp', 'tooling-lsp.test.js')),
+    run: () => runNode('tooling-lsp-test', path.join(root, 'tests', 'tooling', 'lsp', 'tooling.test.js')),
     covers: ['tooling-lsp-test']
   },
   {
     label: 'lsp-shutdown-test',
-    run: () => runNode('lsp-shutdown-test', path.join(root, 'tests', 'tooling', 'lsp', 'lsp-shutdown.test.js')),
+    run: () => runNode('lsp-shutdown-test', path.join(root, 'tests', 'tooling', 'lsp', 'shutdown.test.js')),
     covers: ['lsp-shutdown-test']
   },
   {
@@ -103,7 +103,7 @@ export const buildLanguageActions = ({ root, runNode }) => [
     label: 'python-heuristic-chunking-test',
     run: () => runNode(
       'python-heuristic-chunking-test',
-      path.join(root, 'tests', 'lang', 'python', 'python-heuristic-chunking.test.js')
+      path.join(root, 'tests', 'lang', 'python', 'heuristic-chunking.test.js')
     ),
     covers: []
   },
@@ -111,7 +111,7 @@ export const buildLanguageActions = ({ root, runNode }) => [
     label: 'python-imports-test',
     run: () => runNode(
       'python-imports-test',
-      path.join(root, 'tests', 'lang', 'python', 'python-imports.test.js')
+      path.join(root, 'tests', 'lang', 'python', 'imports.test.js')
     ),
     covers: []
   },
@@ -119,7 +119,7 @@ export const buildLanguageActions = ({ root, runNode }) => [
     label: 'python-pool-test',
     run: () => runNode(
       'python-pool-test',
-      path.join(root, 'tests', 'lang', 'python', 'python-pool.test.js')
+      path.join(root, 'tests', 'lang', 'python', 'pool.test.js')
     ),
     covers: []
   },
@@ -140,7 +140,7 @@ export const buildLanguageActions = ({ root, runNode }) => [
   },
   {
     label: 'typescript-imports-only-test',
-    run: () => runNode('typescript-imports-only-test', path.join(root, 'tests', 'lang', 'typescript', 'typescript-imports-only.test.js')),
+    run: () => runNode('typescript-imports-only-test', path.join(root, 'tests', 'lang', 'typescript', 'imports-only.test.js')),
     covers: ['typescript-imports-only-test']
   },
   {
@@ -150,7 +150,7 @@ export const buildLanguageActions = ({ root, runNode }) => [
   },
   {
     label: 'ignore-overrides-test',
-    run: () => runNode('ignore-overrides-test', path.join(root, 'tests', 'indexing', 'ignore', 'ignore-overrides.test.js')),
+    run: () => runNode('ignore-overrides-test', path.join(root, 'tests', 'indexing', 'ignore', 'overrides.test.js')),
     covers: ['ignore-overrides-test']
   },
   {
@@ -171,17 +171,17 @@ export const buildLanguageActions = ({ root, runNode }) => [
   },
   {
     label: 'python-fallback-test',
-    run: () => runNode('python-fallback-test', path.join(root, 'tests', 'lang', 'python', 'python-fallback.test.js')),
+    run: () => runNode('python-fallback-test', path.join(root, 'tests', 'lang', 'python', 'fallback.test.js')),
     covers: ['python-fallback-test']
   },
   {
     label: 'python-ast-worker-test',
-    run: () => runNode('python-ast-worker-test', path.join(root, 'tests', 'lang', 'python', 'python-ast-worker.test.js')),
+    run: () => runNode('python-ast-worker-test', path.join(root, 'tests', 'lang', 'python', 'ast-worker.test.js')),
     covers: []
   },
   {
     label: 'typescript-parser-selection-test',
-    run: () => runNode('typescript-parser-selection-test', path.join(root, 'tests', 'lang', 'typescript', 'typescript-parser-selection.test.js')),
+    run: () => runNode('typescript-parser-selection-test', path.join(root, 'tests', 'lang', 'typescript', 'parser-selection.test.js')),
     covers: ['typescript-parser-selection-test']
   }
 ];

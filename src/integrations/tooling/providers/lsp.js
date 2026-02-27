@@ -495,6 +495,12 @@ export async function collectLspTypes({
       });
       log(`[index] ${cmd} initialize failed: ${err?.message || err}`);
       client.kill();
+      if (detachAbortHandler) {
+        try {
+          detachAbortHandler();
+        } catch {}
+        detachAbortHandler = null;
+      }
       refreshRuntimeState();
       return buildEmptyCollectResult(checks, {
         ...runtime,

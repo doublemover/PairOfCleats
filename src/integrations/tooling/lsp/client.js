@@ -119,6 +119,7 @@ export function createLspClient(options) {
   const useShell = typeof shell === 'boolean'
     ? shell
     : (process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd));
+  const killTreeDetached = process.platform !== 'win32';
 
   let proc = null;
   let parser = null;
@@ -317,7 +318,13 @@ export function createLspClient(options) {
     const childGen = generation;
     const spawnCmd = useShell ? buildWindowsShellCommand(cmd, args) : cmd;
     const spawnArgs = useShell ? [] : args;
-    const spawnOptions = { stdio: ['pipe', 'pipe', 'pipe'], cwd, env, shell: useShell };
+    const spawnOptions = {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      cwd,
+      env,
+      shell: useShell,
+      detached: killTreeDetached
+    };
     const child = useShell
       ? spawn(spawnCmd, spawnOptions)
       : spawn(spawnCmd, spawnArgs, spawnOptions);
@@ -330,7 +337,7 @@ export function createLspClient(options) {
     });
     unregisterChildProcess = registerChildProcessForCleanup(child, {
       killTree: true,
-      detached: false
+      detached: killTreeDetached
     });
     const childParser = createFramedJsonRpcParser({
       onMessage: handleMessage,
@@ -534,7 +541,7 @@ export function createLspClient(options) {
     } catch {}
     killChildProcessTree(current, {
       killTree: true,
-      detached: false,
+      detached: killTreeDetached,
       awaitGrace: false
     }).catch(() => {});
     try {
