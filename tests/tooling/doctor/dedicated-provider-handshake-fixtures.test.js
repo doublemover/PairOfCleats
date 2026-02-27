@@ -45,9 +45,9 @@ try {
     const provider = (report.providers || []).find((entry) => entry.id === providerId);
     assert.ok(provider, `expected provider report for ${providerId}`);
     assert.ok(provider.command, `expected command profile for ${providerId}`);
-    assert.ok(provider.handshake, `expected handshake probe result for ${providerId}`);
     if (provider.command?.probe?.ok === true) {
       probeSuccessCount += 1;
+      assert.ok(provider.handshake, `expected handshake probe result for ${providerId}`);
       assert.equal(
         typeof provider.handshake?.ok,
         'boolean',
@@ -62,6 +62,12 @@ try {
           `expected handshake error code for ${providerId} when handshake is not ok`
         );
       }
+    } else {
+      assert.equal(
+        provider.handshake == null,
+        true,
+        `expected no handshake probe result for ${providerId} when command probe fails`
+      );
     }
   }
   if (probeSuccessCount === 0) {
