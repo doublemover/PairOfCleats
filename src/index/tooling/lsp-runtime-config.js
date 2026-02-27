@@ -79,6 +79,7 @@ const resolveBooleanSetting = ({ providerConfig, globalConfigs, keys, fallback =
  *   signatureHelpTimeoutMs:number|null,
  *   hoverMaxPerFile:number|null,
  *   hoverDisableAfterTimeouts:number|null,
+ *   signatureHelpConcurrency:number|null,
  *   hoverEnabled:boolean|null,
  *   signatureHelpEnabled:boolean|null,
  *   hoverRequireMissingReturn:boolean|null,
@@ -150,6 +151,13 @@ export const resolveLspRuntimeConfig = (input = {}) => {
       providerConfig,
       globalConfigs,
       keys: ['hoverDisableAfterTimeouts'],
+      min: 1,
+      fallback: null
+    }),
+    signatureHelpConcurrency: resolveIntegerSetting({
+      providerConfig,
+      globalConfigs,
+      keys: ['signatureHelpConcurrency'],
       min: 1,
       fallback: null
     }),

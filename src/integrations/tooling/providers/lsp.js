@@ -121,6 +121,7 @@ export { resolveVfsIoBatching, ensureVirtualFilesBatch };
  * @param {number|null} [params.documentSymbolTimeoutMs=null]
  * @param {number} [params.documentSymbolConcurrency=4]
  * @param {number} [params.hoverConcurrency=8]
+ * @param {number} [params.signatureHelpConcurrency=8]
  * @param {number} [params.hoverCacheMaxEntries=50000]
  * @param {(line:string)=>boolean|null} [params.stderrFilter=null]
  * @param {object|null} [params.initializationOptions=null]
@@ -169,6 +170,7 @@ export async function collectLspTypes({
   documentSymbolTimeoutMs = null,
   documentSymbolConcurrency = DEFAULT_DOCUMENT_SYMBOL_CONCURRENCY,
   hoverConcurrency = DEFAULT_HOVER_CONCURRENCY,
+  signatureHelpConcurrency = DEFAULT_HOVER_CONCURRENCY,
   hoverCacheMaxEntries = DEFAULT_HOVER_CACHE_MAX_ENTRIES,
   stderrFilter = null,
   initializationOptions = null,
@@ -207,6 +209,11 @@ export async function collectLspTypes({
   );
   const resolvedHoverConcurrency = clampIntRange(
     hoverConcurrency,
+    DEFAULT_HOVER_CONCURRENCY,
+    { min: 1, max: 64 }
+  );
+  const resolvedSignatureHelpConcurrency = clampIntRange(
+    signatureHelpConcurrency,
     DEFAULT_HOVER_CONCURRENCY,
     { min: 1, max: 64 }
   );
@@ -440,6 +447,7 @@ export async function collectLspTypes({
       const hoverMetrics = createEmptyHoverMetricsResult();
       const hoverControl = { disabledGlobal: false };
       const hoverLimiter = createConcurrencyLimiter(resolvedHoverConcurrency);
+      const signatureHelpLimiter = createConcurrencyLimiter(resolvedSignatureHelpConcurrency);
       const hoverCacheState = await loadHoverCache(cacheRoot);
       const hoverCacheEntries = hoverCacheState.entries;
       let hoverCacheDirty = false;
@@ -498,6 +506,7 @@ export async function collectLspTypes({
           resolvedSignatureHelpTimeout,
           resolvedDocumentSymbolTimeout,
           hoverLimiter,
+          signatureHelpLimiter,
           hoverCacheEntries,
           markHoverCacheDirty,
           hoverControl,

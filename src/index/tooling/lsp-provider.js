@@ -175,6 +175,7 @@ const normalizeServerConfig = (server, index) => {
   const priority = Number(merged.priority);
   const documentSymbolConcurrency = Number(merged.documentSymbolConcurrency);
   const hoverConcurrency = Number(merged.hoverConcurrency);
+  const signatureHelpConcurrency = Number(merged.signatureHelpConcurrency);
   const hoverCacheMaxEntries = Number(merged.hoverCacheMaxEntries);
   const hoverMaxPerFile = Number(merged.hoverMaxPerFile);
   const hoverDisableAfterTimeouts = Number(merged.hoverDisableAfterTimeouts);
@@ -236,6 +237,9 @@ const normalizeServerConfig = (server, index) => {
       : null,
     hoverConcurrency: Number.isFinite(hoverConcurrency)
       ? Math.max(1, Math.floor(hoverConcurrency))
+      : null,
+    signatureHelpConcurrency: Number.isFinite(signatureHelpConcurrency)
+      ? Math.max(1, Math.floor(signatureHelpConcurrency))
       : null,
     hoverCacheMaxEntries: Number.isFinite(hoverCacheMaxEntries)
       ? Math.max(1000, Math.floor(hoverCacheMaxEntries))

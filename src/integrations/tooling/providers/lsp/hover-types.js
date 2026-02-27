@@ -784,6 +784,7 @@ export const processDocumentTypes = async ({
   resolvedSignatureHelpTimeout,
   resolvedDocumentSymbolTimeout,
   hoverLimiter,
+  signatureHelpLimiter,
   hoverCacheEntries,
   markHoverCacheDirty,
   hoverControl,
@@ -960,6 +961,9 @@ export const processDocumentTypes = async ({
       throwIfAborted(abortSignal);
       const key = `${Math.floor(position.line)}:${Math.floor(position.character)}`;
       if (signatureHelpRequestByPosition.has(key)) return signatureHelpRequestByPosition.get(key);
+      const runSignatureHelp = typeof signatureHelpLimiter === 'function'
+        ? signatureHelpLimiter
+        : hoverLimiter;
       const promise = (async () => {
         const timeoutOverride = Number.isFinite(resolvedSignatureHelpTimeout)
           ? resolvedSignatureHelpTimeout
@@ -968,7 +972,7 @@ export const processDocumentTypes = async ({
         hoverMetrics.signatureHelpRequested += 1;
         try {
           throwIfAborted(abortSignal);
-          const signatureHelp = await hoverLimiter(() => runGuarded(
+          const signatureHelp = await runSignatureHelp(() => runGuarded(
             ({ timeoutMs: guardTimeout }) => client.request('textDocument/signatureHelp', {
               textDocument: { uri },
               position,
