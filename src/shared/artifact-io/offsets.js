@@ -9,6 +9,7 @@ export const OFFSETS_COMPRESSION = 'none';
 
 const OFFSET_BYTES = 8;
 const MAX_OFFSETS_SPAN_BYTES = 4 * 1024 * 1024;
+const JSONL_ROWS_AT_MAX_BATCH_BYTES = 8 * 1024 * 1024;
 const OFFSETS_VALIDATION_CACHE = new Map();
 const OFFSETS_VALIDATION_CACHE_MAX = 256;
 
@@ -297,9 +298,13 @@ export const readJsonlRowsAt = async (
       offsetsHandle.stat(),
       jsonlHandle.stat()
     ]);
+    if (offsetsStat.size % OFFSET_BYTES !== 0) {
+      throw createOffsetsInvalidError(`Offsets sidecar misaligned: ${offsetsPath}`);
+    }
     const offsetCount = Math.floor(offsetsStat.size / OFFSET_BYTES);
     const offsetValues = await readOffsetsAtWithHandle(offsetsHandle, [...uniqueNeeded]);
     const rowByIndex = new Map();
+    const rowSpecs = [];
     for (const index of uniqueIndexes) {
       if (index >= offsetCount) {
         rowByIndex.set(index, null);
@@ -327,17 +332,55 @@ export const readJsonlRowsAt = async (
       if (length > resolvedMaxBytes) {
         throw toJsonTooLargeError(jsonlPath, length);
       }
-      const buffer = Buffer.allocUnsafe(length);
-      const { bytesRead } = await jsonlHandle.read(buffer, 0, length, start);
-      if (bytesRead !== length) {
-        throw createOffsetsInvalidError(`JSONL row short read at index ${index} for ${jsonlPath}`);
+      rowSpecs.push({ index, start, end });
+    }
+    const ranges = [];
+    let currentRange = null;
+    for (const spec of rowSpecs) {
+      if (!currentRange) {
+        currentRange = {
+          start: spec.start,
+          end: spec.end,
+          rows: [spec]
+        };
+        continue;
       }
-      const line = buffer.slice(0, bytesRead).toString('utf8');
+      const contiguous = spec.start === currentRange.end;
+      const mergedBytes = spec.end - currentRange.start;
+      if (contiguous && mergedBytes <= JSONL_ROWS_AT_MAX_BATCH_BYTES) {
+        currentRange.end = spec.end;
+        currentRange.rows.push(spec);
+        continue;
+      }
+      ranges.push(currentRange);
+      currentRange = {
+        start: spec.start,
+        end: spec.end,
+        rows: [spec]
+      };
+    }
+    if (currentRange) ranges.push(currentRange);
+    for (const range of ranges) {
+      const length = range.end - range.start;
+      if (length <= 0) continue;
+      const buffer = Buffer.allocUnsafe(length);
+      const { bytesRead } = await jsonlHandle.read(buffer, 0, length, range.start);
+      if (bytesRead !== length) {
+        throw createOffsetsInvalidError(`JSONL row short read for ${jsonlPath}`);
+      }
       if (metrics && typeof metrics === 'object') {
         const currentRead = Number.isFinite(metrics.bytesRead) ? metrics.bytesRead : 0;
         metrics.bytesRead = currentRead + bytesRead;
       }
-      rowByIndex.set(index, parseJsonlLine(line, jsonlPath, index + 1, resolvedMaxBytes, requiredKeys));
+      for (const spec of range.rows) {
+        const start = spec.start - range.start;
+        const end = spec.end - range.start;
+        const line = buffer.slice(start, end).toString('utf8');
+        rowByIndex.set(
+          spec.index,
+          parseJsonlLine(line, jsonlPath, spec.index + 1, resolvedMaxBytes, requiredKeys)
+        );
+      }
     }
     if (metrics && typeof metrics === 'object') {
       const currentRows = Number.isFinite(metrics.rowsRead) ? metrics.rowsRead : 0;

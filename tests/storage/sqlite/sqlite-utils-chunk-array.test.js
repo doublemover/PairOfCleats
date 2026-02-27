@@ -25,4 +25,10 @@ assert.deepEqual(
   'expected invalid chunk size to fall back to default sizing'
 );
 
+assert.deepEqual(
+  chunkArray([1, 2, 3], 0.5),
+  [[1], [2], [3]],
+  'expected fractional chunk sizes below one to clamp to one and avoid infinite loops'
+);
+
 console.log('sqlite utils chunk array test passed');

@@ -192,12 +192,22 @@ export const resolveTokenPostingsSources = (dir) => {
   const shardsDir = path.join(dir, TOKEN_POSTINGS_SHARDS_DIR);
   if (!fsSync.existsSync(metaPath) && !fsSync.existsSync(shardsDir)) return null;
   let parts = [];
+  let metaError = null;
   if (fsSync.existsSync(metaPath)) {
     try {
       const metaRaw = readJson(metaPath);
       const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
+      const declaredPartsCount = Array.isArray(meta?.parts) ? meta.parts.length : 0;
       parts = expandMetaPartPaths(meta?.parts, dir);
-    } catch {}
+      if (declaredPartsCount > 0 && parts.length !== declaredPartsCount) {
+        throw new Error('[sqlite] token_postings.meta.json contains invalid shard paths');
+      }
+    } catch (err) {
+      metaError = err;
+    }
+  }
+  if (metaError) {
+    throw metaError;
   }
   if (!parts.length) {
     parts = listShardFiles(shardsDir, TOKEN_POSTINGS_PART_PREFIX, TOKEN_POSTINGS_PART_EXTENSIONS);

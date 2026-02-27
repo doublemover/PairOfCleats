@@ -36,7 +36,7 @@ export function chunkArray(items, size = 900) {
   if (!Array.isArray(items) || items.length === 0) return [];
   const parsedSize = Number(size);
   const chunkSize = Number.isFinite(parsedSize) && parsedSize > 0
-    ? Math.floor(parsedSize)
+    ? Math.max(1, Math.floor(parsedSize))
     : 900;
   const chunks = [];
   for (let i = 0; i < items.length; i += chunkSize) {

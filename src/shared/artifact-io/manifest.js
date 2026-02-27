@@ -419,7 +419,9 @@ export const expandMetaPartPaths = (parts, baseDir) => {
   if (!baseDir || typeof baseDir !== 'string') return [];
   const entries = normalizeMetaParts(parts);
   if (!entries.length) return [];
-  return entries.map((part) => joinPathSafe(baseDir, [fromPosix(part)]));
+  return entries
+    .map((part) => joinPathSafe(baseDir, [fromPosix(part)]))
+    .filter(Boolean);
 };
 
 export const expandChunkMetaParts = (metaFields, baseDir) => (
