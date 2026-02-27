@@ -14,7 +14,9 @@ const fixtureCmd = path.join(
   process.platform === 'win32' ? 'pyright-langserver.cmd' : 'pyright-langserver'
 );
 
-await withTemporaryEnv({ PATH: '' }, async () => {
+const nodeBin = path.dirname(process.execPath);
+
+await withTemporaryEnv({ PATH: nodeBin, Path: nodeBin }, async () => {
   const profile = resolveToolingCommandProfile({
     providerId: 'pyright',
     cmd: fixtureCmd,
@@ -30,7 +32,7 @@ await withTemporaryEnv({ PATH: '' }, async () => {
   );
 });
 
-await withTemporaryEnv({ PATH: path.dirname(process.execPath) }, async () => {
+await withTemporaryEnv({ PATH: nodeBin, Path: nodeBin }, async () => {
   const profile = resolveToolingCommandProfile({
     providerId: 'pyright',
     cmd: 'pyright-langserver',

@@ -22,7 +22,7 @@ if (process.platform === 'win32') {
   const goPath = path.join(binDir, 'go');
   await fs.writeFile(
     goPath,
-    '#!/usr/bin/env sh\nif [ "$1" = "version" ]; then exit 0; fi\nif [ "$1" = "install" ]; then exit 0; fi\nexit 1\n',
+    '#!/bin/sh\nif [ "$1" = "version" ]; then exit 0; fi\nif [ "$1" = "install" ]; then exit 0; fi\nexit 1\n',
     'utf8'
   );
   await fs.chmod(goPath, 0o755);

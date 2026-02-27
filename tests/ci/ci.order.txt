@@ -4,6 +4,7 @@ tooling/lsp/clangd-provider-command-override
 tooling/lsp/sourcekit-provider-command-override
 tooling/lsp/lsp-configured-provider-gopls-workspace-diagnostics
 tooling/doctor/emits-report
+tooling/doctor/reports-xxhash-backend
 tooling/config-inventory/schema-scan
 indexing/watch/watch-filter
 indexing/watch/watch-backend-selection

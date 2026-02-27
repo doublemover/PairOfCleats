@@ -97,18 +97,15 @@
         "(^|/)parity$",
         "(^|/)fixture-parity$",
         "(^|/)fixture-eval$",
-        "(^|/)incremental-tokenization-cache$",
         "(^|/)summary-report-parity-sqlite$",
         "(^|/)summary-report-parity-sqlite-fts$",
         "(^|/)ann-parity$",
-        "(^|/)piece-assembly$",
         "^tooling/script-coverage/script-coverage-(core|storage|indexing|language|benchmarks|search|embeddings|services|fixtures|tools)$"
       ]
     },
     {
       "tag": "long",
       "match": [
-        "^tooling/triage/context-pack$",
         "^services/mcp/tool-search-defaults-and-filters$"
       ]
     },

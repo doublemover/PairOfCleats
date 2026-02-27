@@ -42,17 +42,17 @@ if (process.platform === 'win32') {
   const solargraphPath = path.join(gemGlobalBin, 'solargraph');
   await fs.writeFile(
     csharpPath,
-    '#!/usr/bin/env sh\nif [ "$1" = "--version" ]; then exit 1; fi\nif [ "$1" = "--help" ]; then exit 0; fi\nexit 0\n',
+    '#!/bin/sh\nif [ "$1" = "--version" ]; then exit 1; fi\nif [ "$1" = "--help" ]; then exit 0; fi\nexit 0\n',
     'utf8'
   );
   await fs.writeFile(
     phpactorPath,
-    '#!/usr/bin/env sh\nif [ "$1" = "--version" ]; then exit 0; fi\nif [ "$1" = "--help" ]; then exit 0; fi\nexit 0\n',
+    '#!/bin/sh\nif [ "$1" = "--version" ]; then exit 0; fi\nif [ "$1" = "--help" ]; then exit 0; fi\nexit 0\n',
     'utf8'
   );
   await fs.writeFile(
     solargraphPath,
-    '#!/usr/bin/env sh\nif [ "$1" = "--version" ]; then exit 0; fi\nif [ "$1" = "--help" ]; then exit 0; fi\nexit 0\n',
+    '#!/bin/sh\nif [ "$1" = "--version" ]; then exit 0; fi\nif [ "$1" = "--help" ]; then exit 0; fi\nexit 0\n',
     'utf8'
   );
   await fs.chmod(csharpPath, 0o755);

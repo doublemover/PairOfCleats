@@ -22,7 +22,7 @@ if (process.platform === 'win32') {
   const dotnetPath = path.join(binDir, 'dotnet');
   await fs.writeFile(
     dotnetPath,
-    '#!/usr/bin/env sh\nif [ \"$1\" = \"--info\" ]; then exit 0; fi\nif [ \"$1\" = \"--version\" ]; then exit 1; fi\nif [ \"$1\" = \"tool\" ]; then exit 0; fi\nexit 1\n',
+    '#!/bin/sh\nif [ \"$1\" = \"--info\" ]; then exit 0; fi\nif [ \"$1\" = \"--version\" ]; then exit 1; fi\nif [ \"$1\" = \"tool\" ]; then exit 0; fi\nexit 1\n',
     'utf8'
   );
   await fs.chmod(dotnetPath, 0o755);

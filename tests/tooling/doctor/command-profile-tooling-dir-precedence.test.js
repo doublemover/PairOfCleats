@@ -7,7 +7,8 @@ import { withTemporaryEnv } from '../../helpers/test-env.js';
 const root = process.cwd();
 const toolingDir = path.join(root, 'tests', 'fixtures', 'lsp');
 const expectedBinDir = path.join(toolingDir, 'bin');
-await withTemporaryEnv({ PATH: '' }, async () => {
+const nodeBin = path.dirname(process.execPath);
+await withTemporaryEnv({ PATH: nodeBin, Path: nodeBin }, async () => {
   const profile = resolveToolingCommandProfile({
     providerId: 'jdtls',
     cmd: 'jdtls',

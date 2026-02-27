@@ -46,7 +46,8 @@ try {
     'bin',
     process.platform === 'win32' ? 'gopls.cmd' : 'gopls'
   );
-  await withTemporaryEnv({ PATH: '' }, async () => {
+  const nodeBin = path.dirname(process.execPath);
+  await withTemporaryEnv({ PATH: nodeBin, Path: nodeBin }, async () => {
     const overrideProfile = resolveToolingCommandProfile({
       providerId: 'gopls',
       cmd: fixtureCmd,

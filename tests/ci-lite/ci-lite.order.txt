@@ -860,7 +860,6 @@ indexing/segments/tsx-jsx-hint-preserved
 tooling/lsp/typescript/typescript-vfs-segment-vue
 services/snapshot-freeze
 indexing/discovery/discover
-tooling/doctor/reports-xxhash-backend
 smoke/smoke
 tooling/lsp/typescript/typescript-destructured-param-names
 tooling/doctor/json-stable
