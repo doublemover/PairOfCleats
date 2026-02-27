@@ -161,7 +161,7 @@ const getProbeArgCandidates = (providerId, requestedCmd) => {
     return [['--help'], ['-help'], ['--version'], ['-version']];
   }
   if (providerId === 'elixir-ls' || cmdName === 'elixir-ls' || cmdName.includes('elixir-ls')) {
-    return [['--version'], ['-version'], ['--help']];
+    return [['--help'], ['--version'], ['-version']];
   }
   if (providerId === 'haskell-language-server' || cmdName === 'haskell-language-server') {
     return [['--version'], ['version'], ['--help']];
