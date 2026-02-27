@@ -1,3 +1,4 @@
+tooling/fixtures/prewarm-shared-indexes
 retrieval/pipeline/ann-lazy-import
 indexing/artifacts/chunk-meta-trim-strict
 retrieval/pipeline/index-loader-lazy
@@ -52,7 +53,7 @@ indexing/shards/shard-merge
 retrieval/ranking/fielded-bm25
 services/api/server-stream
 indexing/embeddings/cache-index-append-only
-smoke/section1
+smoke/api-core-health
 smoke/e2e
 indexing/embeddings/cache-cross-repo-reuse
 indexing/embeddings/cache-partial-reuse

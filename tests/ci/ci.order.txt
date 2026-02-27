@@ -1,3 +1,4 @@
+tooling/fixtures/prewarm-shared-indexes
 tooling/lsp/pyright-provider-output-shape
 tooling/lsp/pyright-provider-command-override
 tooling/lsp/clangd-provider-command-override
@@ -29,6 +30,7 @@ retrieval/federation/non-strict-propagates-hard-failure
 retrieval/federation/select-object-only-no-cache-fragmentation
 tooling/install/setup-index-detection
 tooling/install/tooling-detect
+tooling/install/tooling-detect-generic-lsp-tools
 indexing/watch/shutdown
 tooling/config-inventory/report-format
 retrieval/federation/workspace-config-snapshot

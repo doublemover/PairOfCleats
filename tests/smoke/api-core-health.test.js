@@ -23,5 +23,5 @@ await cleanup(cacheRoots);
 if (failure) {
   process.exit(failure.exitCode ?? 1);
 }
-console.log('smoke section1 passed');
+console.log('smoke api-core-health passed');
 

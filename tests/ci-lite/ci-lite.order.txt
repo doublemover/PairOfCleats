@@ -1,3 +1,4 @@
+tooling/fixtures/prewarm-shared-indexes
 indexing/embeddings/maintenance-thresholds
 indexing/postings/token-id-parse-resilience
 retrieval/ann/backend-selection
@@ -911,13 +912,10 @@ runner/harness/skip-semantics
 indexing/tree-sitter/scheduler-native-smoke
 indexing/watch/debounce
 indexing/watch/lock-backoff
-indexing/language-fixture/chunk-meta-exists
-lang/contracts/go
-lang/contracts/javascript
+lang/contracts/language-fixture-contracts
 lang/contracts/misc-buildfiles
 indexing/language-fixture/postings-integrity
 lang/contracts/sql
-tooling/install/tooling-detect-generic-lsp-tools
 tooling/install/tooling-detect-dedicated-lsp-tools
 tooling/install/tooling-detect-global-bin-fallbacks
 tooling/install/tooling-dotnet-requirement-probe

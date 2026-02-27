@@ -107,6 +107,9 @@ const getLegacyPrefixedRepoId = (repoRoot) => {
 };
 
 const DEFAULT_TEST_CONFIG = {
+  sqlite: {
+    use: false
+  },
   indexing: {
     embeddings: {
       enabled: false,
