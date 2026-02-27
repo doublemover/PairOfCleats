@@ -1516,6 +1516,15 @@ export const processDocumentTypes = async ({
 
     let enrichedDelta = 0;
     const isAdaptiveSuppressed = () => hoverControl.disabledGlobal || fileHoverStats.disabledAdaptive;
+    const recordAdaptiveSkip = () => {
+      if (hoverControl.disabledGlobal) {
+        fileHoverStats.skippedByGlobalDisable += 1;
+        hoverMetrics.skippedByGlobalDisable += 1;
+      } else if (fileHoverStats.disabledAdaptive) {
+        fileHoverStats.skippedByAdaptiveDisable += 1;
+        hoverMetrics.skippedByAdaptiveDisable += 1;
+      }
+    };
     for (const record of symbolRecords) {
       throwIfAborted(abortSignal);
       let info = record.info;
@@ -1539,46 +1548,62 @@ export const processDocumentTypes = async ({
       const incompleteAfterHover = isIncompleteTypePayload(info, {
         symbolKind: record?.symbol?.kind
       });
-      if (incompleteAfterHover.incomplete && record.signatureHelpEligible && !isAdaptiveSuppressed()) {
-        signatureHelpRequested = true;
-        const signatureHelpInfo = await requestSignatureHelp(record.symbol, record.position);
-        if (signatureHelpInfo) {
-          signatureHelpSucceeded = true;
-          info = mergeSignatureInfo(info, signatureHelpInfo, { symbolKind: record?.symbol?.kind });
+      if (incompleteAfterHover.incomplete && record.signatureHelpEligible) {
+        if (isAdaptiveSuppressed()) {
+          recordAdaptiveSkip();
+        } else {
+          signatureHelpRequested = true;
+          const signatureHelpInfo = await requestSignatureHelp(record.symbol, record.position);
+          if (signatureHelpInfo) {
+            signatureHelpSucceeded = true;
+            info = mergeSignatureInfo(info, signatureHelpInfo, { symbolKind: record?.symbol?.kind });
+          }
         }
       }
 
       const incompleteAfterSignatureHelp = isIncompleteTypePayload(info, {
         symbolKind: record?.symbol?.kind
       });
-      if (incompleteAfterSignatureHelp.incomplete && record.definitionEligible && !isAdaptiveSuppressed()) {
-        definitionRequested = true;
-        const definitionInfo = await requestDefinition(record.symbol, record.position);
-        if (definitionInfo) {
-          definitionSucceeded = true;
-          info = mergeSignatureInfo(info, definitionInfo, { symbolKind: record?.symbol?.kind });
+      if (incompleteAfterSignatureHelp.incomplete && record.definitionEligible) {
+        if (isAdaptiveSuppressed()) {
+          recordAdaptiveSkip();
+        } else {
+          definitionRequested = true;
+          const definitionInfo = await requestDefinition(record.symbol, record.position);
+          if (definitionInfo) {
+            definitionSucceeded = true;
+            info = mergeSignatureInfo(info, definitionInfo, { symbolKind: record?.symbol?.kind });
+          }
         }
       }
       const incompleteAfterDefinition = isIncompleteTypePayload(info, {
         symbolKind: record?.symbol?.kind
       });
-      if (incompleteAfterDefinition.incomplete && record.typeDefinitionEligible && !isAdaptiveSuppressed()) {
-        typeDefinitionRequested = true;
-        const typeDefinitionInfo = await requestTypeDefinition(record.symbol, record.position);
-        if (typeDefinitionInfo) {
-          typeDefinitionSucceeded = true;
-          info = mergeSignatureInfo(info, typeDefinitionInfo, { symbolKind: record?.symbol?.kind });
+      if (incompleteAfterDefinition.incomplete && record.typeDefinitionEligible) {
+        if (isAdaptiveSuppressed()) {
+          recordAdaptiveSkip();
+        } else {
+          typeDefinitionRequested = true;
+          const typeDefinitionInfo = await requestTypeDefinition(record.symbol, record.position);
+          if (typeDefinitionInfo) {
+            typeDefinitionSucceeded = true;
+            info = mergeSignatureInfo(info, typeDefinitionInfo, { symbolKind: record?.symbol?.kind });
+          }
         }
       }
       const incompleteAfterTypeDefinition = isIncompleteTypePayload(info, {
         symbolKind: record?.symbol?.kind
       });
-      if (incompleteAfterTypeDefinition.incomplete && record.referencesEligible && !isAdaptiveSuppressed()) {
-        referencesRequested = true;
-        const referencesInfo = await requestReferences(record.symbol, record.position);
-        if (referencesInfo) {
-          referencesSucceeded = true;
-          info = mergeSignatureInfo(info, referencesInfo, { symbolKind: record?.symbol?.kind });
+      if (incompleteAfterTypeDefinition.incomplete && record.referencesEligible) {
+        if (isAdaptiveSuppressed()) {
+          recordAdaptiveSkip();
+        } else {
+          referencesRequested = true;
+          const referencesInfo = await requestReferences(record.symbol, record.position);
+          if (referencesInfo) {
+            referencesSucceeded = true;
+            info = mergeSignatureInfo(info, referencesInfo, { symbolKind: record?.symbol?.kind });
+          }
         }
       }
       const incompleteAfterReferences = isIncompleteTypePayload(info, {

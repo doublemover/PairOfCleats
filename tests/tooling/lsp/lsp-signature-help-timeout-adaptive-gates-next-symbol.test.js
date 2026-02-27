@@ -106,5 +106,11 @@ assert.equal(
   true,
   'expected timeout metric increment'
 );
+assert.equal(
+  Number(result?.hoverMetrics?.skippedByGlobalDisable || 0) >= 1
+    || Number(result?.hoverMetrics?.skippedByAdaptiveDisable || 0) >= 1,
+  true,
+  'expected adaptive suppression skip metrics for subsequent symbols'
+);
 
 console.log('LSP signatureHelp adaptive gating test passed');
