@@ -13,9 +13,8 @@ await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 
 const runScenario = async ({ baseName, rebuild }) => {
-  const baseRoot = path.join(tempRoot, baseName);
+  const baseRoot = path.join(tempRoot, baseName, 'cache-root');
   const resolvedRoot = resolveVersionedCacheRoot(baseRoot);
-  await fs.mkdir(baseRoot, { recursive: true });
   await fs.mkdir(resolvedRoot, { recursive: true });
   const legacyPath = path.join(resolvedRoot, 'legacy.txt');
   const sentinelPath = path.join(resolvedRoot, 'sentinel.txt');

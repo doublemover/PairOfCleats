@@ -2,7 +2,7 @@ import path from 'node:path';
 import { DEFAULT_CACHE_MB, DEFAULT_CACHE_TTL_MS } from '../../../src/shared/cache.js';
 import { getEnvConfig, isTestingEnv } from '../../../src/shared/env.js';
 import { getCacheRoot, loadUserConfig } from '../config.js';
-import { getDefaultCacheRoot } from '../cache.js';
+import { getCacheRootBase, getDefaultCacheRoot } from '../cache.js';
 import { getRepoCacheRoot } from './repo.js';
 
 /**
@@ -59,9 +59,10 @@ export function getModelsDir(repoRoot, userConfig = null) {
  */
 export function getToolingDir(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
-  const cacheRoot = (cfg.cache && cfg.cache.root) || getCacheRoot();
+  const envConfig = getEnvConfig();
+  const homeRoot = envConfig.homeRoot || getCacheRootBase();
   const tooling = cfg.tooling || {};
-  return tooling.dir || path.join(cacheRoot, 'tooling');
+  return tooling.dir || path.join(homeRoot, 'tooling');
 }
 
 /**
