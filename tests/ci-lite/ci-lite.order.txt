@@ -940,4 +940,3 @@ indexing/config/index-config-dump
 tooling/service/subprocess-cancellation-contract
 indexing/tokenization/tokenization-file-stream-reuse
 shared/runtime/runtime-records-config
-retrieval/contracts/compact-json

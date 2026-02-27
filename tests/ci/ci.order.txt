@@ -45,6 +45,7 @@ retrieval/filters/file-and-token/punctuation-tokenization
 retrieval/federation/search-determinism
 runner/harness/timeout-kills-tree
 retrieval/filters/query-syntax/phrases-and-scorebreakdown
+retrieval/contracts/compact-json
 services/api/federated-search-redacts-paths
 services/api/federated-search-per-repo-top-zero
 cli/general/risk-explain
