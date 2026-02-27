@@ -52,6 +52,21 @@ const summarizeProbeText = (value, maxChars = 400) => {
   return `${text.slice(0, Math.max(0, maxChars - 1)).trimEnd()}...`;
 };
 
+const isPyrightProbeUsageError = (text) => {
+  const normalized = String(text || '').toLowerCase();
+  return normalized.includes('connection input stream is not set')
+    && normalized.includes('createconnection');
+};
+
+const isNonZeroProbeSuccess = ({ providerId, command, stderr, stdout }) => {
+  const normalizedProviderId = normalizeProviderId(providerId);
+  const commandName = normalizeCommandToken(command);
+  if (normalizedProviderId === 'pyright' || commandName.includes('pyright-langserver')) {
+    return isPyrightProbeUsageError(stderr) || isPyrightProbeUsageError(stdout);
+  }
+  return false;
+};
+
 const setBoundedCacheEntry = (map, key, value, maxEntries) => {
   if (map.has(key)) map.delete(key);
   map.set(key, value);
@@ -196,8 +211,8 @@ const resolveBaseCommand = ({ providerId, requestedCmd, repoRoot, toolingConfig 
   return '';
 };
 
-const probeBinary = ({ command, probeArgs }) => {
-  const cacheKey = `${String(command || '').trim()}\u0000${JSON.stringify(probeArgs || [])}`;
+const probeBinary = ({ providerId, command, probeArgs }) => {
+  const cacheKey = `${normalizeProviderId(providerId) || ''}\u0000${String(command || '').trim()}\u0000${JSON.stringify(probeArgs || [])}`;
   const now = Date.now();
   const cached = COMMAND_PROBE_CACHE.get(cacheKey) || null;
   if (cached && now <= Number(cached.expiresAt || 0)) {
@@ -220,7 +235,15 @@ const probeBinary = ({ command, probeArgs }) => {
         stderr: summarizeProbeText(result.stderr),
         stdout: summarizeProbeText(result.stdout)
       });
-      if (result.exitCode === 0) {
+      if (
+        result.exitCode === 0
+        || isNonZeroProbeSuccess({
+          providerId,
+          command,
+          stderr: result.stderr,
+          stdout: result.stdout
+        })
+      ) {
         setBoundedCacheEntry(
           COMMAND_PROBE_CACHE,
           cacheKey,
@@ -305,6 +328,7 @@ export const resolveToolingCommandProfile = (input) => {
   });
   const probeArgs = getProbeArgCandidates(providerId, requestedCmd || resolvedCmd);
   const probe = probeBinary({
+    providerId,
     command: resolvedCmd || requestedCmd,
     probeArgs
   });

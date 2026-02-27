@@ -65,6 +65,7 @@ jobs:
             .testLogs/**
             .diagnostics/**
           if-no-files-found: ignore
+          include-hidden-files: true
           compression-level: 0
 
   ubuntu:
@@ -139,6 +140,7 @@ jobs:
             .testLogs/**
             .diagnostics/**
           if-no-files-found: ignore
+          include-hidden-files: true
           compression-level: 0
 
   windows:
@@ -205,6 +207,7 @@ jobs:
             .testLogs/**
             .diagnostics/**
           if-no-files-found: ignore
+          include-hidden-files: true
           compression-level: 0
 
   macos:
@@ -269,4 +272,5 @@ jobs:
             .testLogs/**
             .diagnostics/**
           if-no-files-found: ignore
+          include-hidden-files: true
           compression-level: 0

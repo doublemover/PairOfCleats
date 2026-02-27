@@ -30,4 +30,19 @@ await withTemporaryEnv({ PATH: '' }, async () => {
   );
 });
 
+await withTemporaryEnv({ PATH: path.dirname(process.execPath) }, async () => {
+  const profile = resolveToolingCommandProfile({
+    providerId: 'pyright',
+    cmd: 'pyright-langserver',
+    args: ['--stdio'],
+    repoRoot: root,
+    toolingConfig: {}
+  });
+  assert.equal(
+    profile.probe.ok,
+    true,
+    'expected default pyright command probe to tolerate stdio usage error output'
+  );
+});
+
 console.log('tooling doctor pyright command override profile test passed');

@@ -48,16 +48,6 @@ const prependPathEntry = (env, entry) => {
   }
 };
 
-const appendPathEntry = (env, entry) => {
-  const value = String(entry || '').trim();
-  if (!value) return;
-  if (env.PATH) {
-    env.PATH = `${env.PATH}${path.delimiter}${value}`;
-  } else {
-    env.PATH = value;
-  }
-};
-
 const buildSuiteEnv = (mode) => {
   const env = { ...process.env };
   withDefaults(env, 'PAIROFCLEATS_TESTING', '1');
@@ -135,7 +125,8 @@ const main = async () => {
   const baseEnv = buildSuiteEnv(mode);
   const userConfig = loadUserConfig(ROOT);
   prependPathEntry(baseEnv, path.join(getToolingDir(ROOT, userConfig), 'bin'));
-  appendPathEntry(baseEnv, LSP_FIXTURE_BIN);
+  // Keep CI gate behavior deterministic across runners by preferring fixture servers.
+  prependPathEntry(baseEnv, LSP_FIXTURE_BIN);
   const runtimeConfig = getRuntimeConfig(ROOT, userConfig);
   const env = resolveRuntimeEnv(runtimeConfig, baseEnv);
 
