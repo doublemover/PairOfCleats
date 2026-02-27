@@ -2,7 +2,7 @@ import fsSync from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import Piscina from 'piscina';
-import { readBundleFile } from '../../../shared/bundle-io.js';
+import { readBundleFile, resolveManifestBundleNames } from '../../../shared/bundle-io.js';
 
 const buildWorkerExecArgv = () => process.execArgv.filter((arg) => (
   typeof arg === 'string'
@@ -64,31 +64,38 @@ export const createBundleLoader = ({ bundleThreads, workerPath }) => {
   };
 
   const loadBundle = async ({ bundleDir, entry, file }) => {
-    const bundleName = entry?.bundle;
-    if (!bundleName) {
-      return { file, ok: false, reason: 'missing bundle entry' };
+    const bundleNames = resolveManifestBundleNames(entry);
+    if (!bundleNames.length) {
+      return { file, ok: false, reason: 'missing bundle entries' };
     }
-    const bundlePath = path.join(bundleDir, bundleName);
-    if (!fsSync.existsSync(bundlePath)) {
-      return { file, ok: false, reason: `bundle file missing (${bundlePath})` };
-    }
-    try {
-      if (pool && workerAvailable) {
-        try {
-          const result = await pool.run({ bundlePath });
-          if (!result?.ok) {
-            const reason = result?.reason || 'invalid bundle';
-            return { file, ok: false, reason: `bundle read failed (${bundlePath}): ${reason}` };
-          }
-          return { file, ok: true, bundle: result.bundle };
-        } catch {
-          workerAvailable = false;
-        }
+    const loadedShards = [];
+    for (let shardIndex = 0; shardIndex < bundleNames.length; shardIndex += 1) {
+      const bundlePath = path.join(bundleDir, bundleNames[shardIndex]);
+      if (!fsSync.existsSync(bundlePath)) {
+        return { file, ok: false, reason: `bundle file missing (${bundlePath})` };
       }
-      return await loadBundleDirect(bundlePath, file);
-    } catch (err) {
-      return { file, ok: false, reason: `bundle read failed (${bundlePath}): ${err?.message || err}` };
+      try {
+        if (pool && workerAvailable) {
+          try {
+            const result = await pool.run({ bundlePath });
+            if (!result?.ok) {
+              const reason = result?.reason || 'invalid bundle';
+              return { file, ok: false, reason: `bundle read failed (${bundlePath}): ${reason}` };
+            }
+            loadedShards.push(result.bundle);
+            continue;
+          } catch {
+            workerAvailable = false;
+          }
+        }
+        const loaded = await loadBundleDirect(bundlePath, file);
+        if (!loaded.ok) return loaded;
+        loadedShards.push(loaded.bundle);
+      } catch (err) {
+        return { file, ok: false, reason: `bundle read failed (${bundlePath}): ${err?.message || err}` };
+      }
     }
+    return { file, ok: true, bundleShards: loadedShards };
   };
 
   const close = async () => {

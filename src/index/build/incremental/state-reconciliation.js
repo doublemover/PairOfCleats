@@ -6,7 +6,7 @@ import {
   pathExists,
   readBundleOrNull,
   resolveBundleImports,
-  resolveBundleRecord
+  resolveBundleRecords
 } from './shared.js';
 
 /**
@@ -154,14 +154,19 @@ export async function readCachedBundle({
   const matchesStat = entryStatsMatch(cachedEntry, fileStat);
   if (!matchesStat && !cachedEntry.hash) return { cachedBundle, fileHash, buffer };
 
-  const bundleRecord = resolveBundleRecord({
+  const bundleRecords = resolveBundleRecords({
     relKey,
     entry: cachedEntry,
     bundleDir,
     fallbackFormat: resolvedBundleFormat
   });
-  if (!bundleRecord || !(await pathExists(bundleRecord.bundlePath))) {
+  if (!bundleRecords?.length) {
     return { cachedBundle, fileHash, buffer };
+  }
+  for (const record of bundleRecords) {
+    if (!(await pathExists(record.bundlePath))) {
+      return { cachedBundle, fileHash, buffer };
+    }
   }
 
   if (matchesStat) {
@@ -180,7 +185,7 @@ export async function readCachedBundle({
           return { cachedBundle, fileHash, buffer };
         }
       }
-      cachedBundle = await readBundleOrNull(bundleRecord);
+      cachedBundle = await readBundleOrNull({ bundleRecords });
     } catch {
       cachedBundle = null;
     }
@@ -198,7 +203,7 @@ export async function readCachedBundle({
     buffer = sharedRead.buffer;
     fileHash = sharedRead.hash;
     if (fileHash === cachedEntry.hash) {
-      cachedBundle = await readBundleOrNull(bundleRecord);
+      cachedBundle = await readBundleOrNull({ bundleRecords });
     }
   } catch {
     cachedBundle = null;
@@ -228,16 +233,18 @@ export async function readCachedImports({
   if (!cachedEntry) return null;
   const matchesStat = entryStatsMatch(cachedEntry, fileStat);
   if (!matchesStat && !cachedEntry.hash) return null;
-  const bundleRecord = resolveBundleRecord({
+  const bundleRecords = resolveBundleRecords({
     relKey,
     entry: cachedEntry,
     bundleDir,
     fallbackFormat: resolvedBundleFormat
   });
-  if (!bundleRecord) return null;
+  if (!bundleRecords?.length) return null;
 
   if (!matchesStat) {
-    if (!(await pathExists(bundleRecord.bundlePath))) return null;
+    for (const record of bundleRecords) {
+      if (!(await pathExists(record.bundlePath))) return null;
+    }
     try {
       const sharedRead = await readFileBufferAndHash({
         absPath,
@@ -248,7 +255,7 @@ export async function readCachedImports({
       });
       const fileHash = sharedRead.hash;
       if (fileHash !== cachedEntry.hash) return null;
-      return resolveBundleImports(await readBundleOrNull(bundleRecord));
+      return resolveBundleImports(await readBundleOrNull({ bundleRecords }));
     } catch {
       return null;
     }
@@ -268,6 +275,8 @@ export async function readCachedImports({
       return null;
     }
   }
-  if (!(await pathExists(bundleRecord.bundlePath))) return null;
-  return resolveBundleImports(await readBundleOrNull(bundleRecord));
+  for (const record of bundleRecords) {
+    if (!(await pathExists(record.bundlePath))) return null;
+  }
+  return resolveBundleImports(await readBundleOrNull({ bundleRecords }));
 }

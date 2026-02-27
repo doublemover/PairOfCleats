@@ -43,7 +43,7 @@ const manifest = {
       size: stat.size,
       mtimeMs: stat.mtimeMs,
       hash: 'deadbeef',
-      bundle: 'bundle.json'
+      bundles: ['bundle.json']
     }
   }
 };

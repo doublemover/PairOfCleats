@@ -28,7 +28,7 @@ assert.equal(
 const manifestFiles = {};
 for (let i = 0; i < 48; i += 1) {
   const bundleName = `bundle-${i}.json`;
-  manifestFiles[`src/file-${i}.js`] = { bundle: bundleName };
+  manifestFiles[`src/file-${i}.js`] = { bundles: [bundleName] };
   await fs.writeFile(path.join(bundleDir, bundleName), 'x'.repeat(1024), 'utf8');
 }
 
@@ -69,8 +69,8 @@ assert.equal(explicit.reason, 'explicit-env', 'expected explicit env override re
 assert.equal(explicit.threads, 3, 'expected explicit bundle thread count to apply');
 
 const lowCountManifest = {
-  'src/a.js': { bundle: 'a.json' },
-  'src/b.js': { bundle: 'b.json' }
+  'src/a.js': { bundles: ['a.json'] },
+  'src/b.js': { bundles: ['b.json'] }
 };
 await fs.writeFile(path.join(bundleDir, 'a.json'), 'x'.repeat(256), 'utf8');
 await fs.writeFile(path.join(bundleDir, 'b.json'), 'x'.repeat(256), 'utf8');

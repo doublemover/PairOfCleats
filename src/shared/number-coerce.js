@@ -1,4 +1,19 @@
 /**
+ * Coerce a value to a finite number.
+ *
+ * @param {unknown} value
+ * @param {number|null} [fallback=null]
+ * @returns {number|null}
+ */
+export const coerceFiniteNumber = (value, fallback = null) => {
+  const parsed = Number(value);
+  if (Number.isFinite(parsed)) return parsed;
+  if (fallback == null) return null;
+  const fallbackParsed = Number(fallback);
+  return Number.isFinite(fallbackParsed) ? fallbackParsed : null;
+};
+
+/**
  * Coerce a value to a positive integer.
  *
  * @param {unknown} value
@@ -31,8 +46,8 @@ export const coercePositiveIntMinOne = (value) => {
  * @returns {number|null}
  */
 export const coerceNumberAtLeast = (value, min = 0) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return null;
+  const parsed = coerceFiniteNumber(value);
+  if (parsed == null) return null;
   const floor = Number.isFinite(Number(min)) ? Number(min) : 0;
   return Math.max(floor, parsed);
 };

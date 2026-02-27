@@ -70,7 +70,7 @@ if (!manifestFiles.length) {
   console.error('Incremental manifest contains no files.');
   process.exit(1);
 }
-const bundleName = manifestFiles[0]?.bundle;
+const bundleName = manifestFiles[0]?.bundles?.[0];
 if (!bundleName) {
   console.error('Manifest entry missing bundle name.');
   process.exit(1);

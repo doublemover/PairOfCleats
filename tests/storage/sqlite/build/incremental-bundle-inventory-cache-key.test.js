@@ -58,7 +58,7 @@ try {
     bundleDir,
     manifest: {
       files: {
-        'src/main.js': { bundle: 'bundle-b.json' }
+        'src/main.js': { bundles: ['bundle-b.json'] }
       }
     }
   }, secondInventory.names);
@@ -81,21 +81,21 @@ try {
     bundleDir,
     manifest: {
       files: {
-        'src/nested.js': { bundle: 'nested/bundle-c.json' }
+        'src/nested.js': { bundles: ['nested/bundle-c.json'] }
       }
     }
   }, thirdInventory.names);
   assert.equal(
     nestedMissingCount,
-    0,
-    'expected nested bundle paths to fall back to fs existence checks'
+    1,
+    'expected nested bundle paths to be rejected by strict bundle-name validation'
   );
 
   const directoryMissingCount = countMissingBundleFiles({
     bundleDir,
     manifest: {
       files: {
-        'src/dir.js': { bundle: 'bundle-dir.json' }
+        'src/dir.js': { bundles: ['bundle-dir.json'] }
       }
     }
   }, thirdInventory.names);
@@ -110,7 +110,7 @@ try {
       bundleDir,
       manifest: {
         files: {
-          'src/case.js': { bundle: 'BUNDLE-B.JSON' }
+          'src/case.js': { bundles: ['BUNDLE-B.JSON'] }
         }
       }
     }, thirdInventory.names);

@@ -45,10 +45,10 @@ const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 const firstManifestFile = Object.keys(manifest.files || {})[0];
 assert.ok(firstManifestFile, 'expected at least one manifest file');
 const firstEntry = manifest.files[firstManifestFile];
-assert.ok(firstEntry?.bundle, 'expected manifest bundle entry');
+assert.ok(Array.isArray(firstEntry?.bundles) && firstEntry.bundles.length, 'expected manifest bundle entry');
 
 const bundleFormat = normalizeBundleFormat(manifest.bundleFormat);
-const sourceBundleName = firstEntry.bundle;
+const sourceBundleName = firstEntry.bundles[0];
 const sourceBundlePath = path.join(bundleDir, sourceBundleName);
 const sourceRead = await readBundleFile(sourceBundlePath, {
   format: resolveBundleFormatFromName(sourceBundleName, bundleFormat)
@@ -85,7 +85,7 @@ await writeBundleFile({
 
 manifest.files['phantom/no-parent.js'] = {
   ...firstEntry,
-  bundle: brokenBundleName
+  bundles: [brokenBundleName]
 };
 fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 
@@ -107,11 +107,10 @@ const stage3Result = runCapture(
 );
 
 const output = `${stage3Result.stdout || ''}\n${stage3Result.stderr || ''}`;
-assert.match(output, /noMappingReasons=/, 'expected noMappingReasons summary in embeddings logs');
 assert.match(
   output,
-  /noMappingReasons=.*missingParent:[1-9]/,
-  'expected missingParent reason count to be reported'
+  /embedding coverage .*skipped invalid=1\)/i,
+  'expected embedding refresh to report one invalid incremental bundle mapping'
 );
 
 console.log('incremental bundle mapping reasons test passed');

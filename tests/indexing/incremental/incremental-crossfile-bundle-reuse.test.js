@@ -5,6 +5,7 @@ import path from 'node:path';
 
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { updateBundlesWithChunks, writeIncrementalBundle } from '../../../src/index/build/incremental.js';
+import { sleep } from '../../../src/shared/sleep.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -47,9 +48,11 @@ const manifest = {
   }
 };
 
-const bundlePath = path.join(bundleDir, entry.bundle);
+const bundleName = entry.bundles?.[0];
+assert.ok(bundleName, 'expected bundle shard name');
+const bundlePath = path.join(bundleDir, bundleName);
 const before = await fs.stat(bundlePath);
-await new Promise((resolve) => setTimeout(resolve, 25));
+await sleep(25);
 
 const logs = [];
 await updateBundlesWithChunks({

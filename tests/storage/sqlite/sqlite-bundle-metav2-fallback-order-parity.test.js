@@ -84,8 +84,8 @@ await writeBundleFile({
 
 const manifest = {
   files: {
-    [firstFile]: { bundle: firstBundleName, mtimeMs: 10, size: 10, hash: 'hash-z' },
-    [secondFile]: { bundle: secondBundleName, mtimeMs: 20, size: 20, hash: 'hash-a' }
+    [firstFile]: { bundles: [firstBundleName], mtimeMs: 10, size: 10, hash: 'hash-z' },
+    [secondFile]: { bundles: [secondBundleName], mtimeMs: 20, size: 20, hash: 'hash-a' }
   }
 };
 

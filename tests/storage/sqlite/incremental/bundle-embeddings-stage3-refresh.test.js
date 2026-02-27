@@ -51,7 +51,7 @@ manifestStage2.files['phantom/missing.js'] = {
   ...manifestStage2.files[firstManifestFile],
   // Keep bundle metadata intentionally valid while forcing a file key that
   // will not appear in stage3 chunk mappings.
-  bundle: manifestStage2.files[firstManifestFile]?.bundle
+  bundles: manifestStage2.files[firstManifestFile]?.bundles || []
 };
 fs.writeFileSync(manifestPath, JSON.stringify(manifestStage2, null, 2));
 

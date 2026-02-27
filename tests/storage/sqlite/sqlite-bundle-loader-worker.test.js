@@ -91,10 +91,11 @@ try {
   const loaded = await loader.loadBundle({
     bundleDir,
     file: relFile,
-    entry: { bundle: bundleName }
+    entry: { bundles: [bundleName] }
   });
   assert.equal(loaded.ok, true, `expected bundle loader success, got: ${loaded.reason || 'unknown'}`);
-  const targetChunkId = loaded.bundle?.chunks?.[0]?.metaV2?.relations?.calls?.[0]?.targetChunkId || null;
+  const firstShard = Array.isArray(loaded.bundleShards) ? loaded.bundleShards[0] : null;
+  const targetChunkId = firstShard?.chunks?.[0]?.metaV2?.relations?.calls?.[0]?.targetChunkId || null;
   assert.equal(targetChunkId, 'new', 'expected worker loader to apply bundle patch sidecar');
 } finally {
   await loader.close();

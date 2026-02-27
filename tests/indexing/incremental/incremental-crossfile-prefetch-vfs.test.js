@@ -81,9 +81,11 @@ await updateBundlesWithChunks({
 });
 
 for (const [relKey, entry] of Object.entries(manifest.files)) {
-  const bundlePath = path.join(bundleDir, entry.bundle);
+  const bundleName = entry.bundles?.[0];
+  assert.ok(bundleName, `expected bundle name for ${relKey}`);
+  const bundlePath = path.join(bundleDir, bundleName);
   const loaded = await readBundleFile(bundlePath, {
-    format: resolveBundleFormatFromName(entry.bundle, 'json')
+    format: resolveBundleFormatFromName(bundleName, 'json')
   });
   assert.ok(loaded?.ok, `expected updated bundle for ${relKey}`);
   assert.deepEqual(
@@ -119,9 +121,11 @@ await updateBundlesWithChunks({
 });
 
 for (const [relKey, entry] of Object.entries(manifest.files)) {
-  const bundlePath = path.join(bundleDir, entry.bundle);
+  const bundleName = entry.bundles?.[0];
+  assert.ok(bundleName, `expected bundle name for ${relKey}`);
+  const bundlePath = path.join(bundleDir, bundleName);
   const loaded = await readBundleFile(bundlePath, {
-    format: resolveBundleFormatFromName(entry.bundle, 'json')
+    format: resolveBundleFormatFromName(bundleName, 'json')
   });
   assert.ok(loaded?.ok, `expected partially-prefetched bundle for ${relKey}`);
   assert.deepEqual(

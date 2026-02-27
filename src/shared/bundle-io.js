@@ -334,6 +334,33 @@ export function resolveBundleFilename(relKey, format) {
   return `${sha1(relKey)}.${ext}`;
 }
 
+export function resolveBundleShardFilename(relKey, format, shardIndex = 0) {
+  const baseName = resolveBundleFilename(relKey, format);
+  const index = Number.isFinite(Number(shardIndex))
+    ? Math.max(0, Math.floor(Number(shardIndex)))
+    : 0;
+  if (index <= 0) return baseName;
+  const parsed = path.parse(baseName);
+  return `${parsed.name}.part${String(index).padStart(4, '0')}${parsed.ext}`;
+}
+
+export function resolveManifestBundleNames(entry) {
+  if (!entry || typeof entry !== 'object') return [];
+  if (!Array.isArray(entry.bundles) || !entry.bundles.length) return [];
+  const names = [];
+  const seen = new Set();
+  for (const value of entry.bundles) {
+    if (typeof value !== 'string') return [];
+    const name = value.trim();
+    if (!name) return [];
+    if (name.includes('/') || name.includes('\\')) return [];
+    if (seen.has(name)) continue;
+    seen.add(name);
+    names.push(name);
+  }
+  return names;
+}
+
 export function resolveBundleFormatFromName(bundleName, fallback = 'json') {
   if (typeof bundleName !== 'string' || !bundleName) return fallback;
   const ext = path.extname(bundleName).toLowerCase();

@@ -95,8 +95,10 @@ assert.ok(
   'did not expect bundle reuse when metaV2 changed'
 );
 
-const loaded = await readBundleFile(path.join(bundleDir, entry.bundle), {
-  format: resolveBundleFormatFromName(entry.bundle, 'json')
+const bundleName = entry.bundles?.[0];
+assert.ok(bundleName, 'expected rewritten shard name');
+const loaded = await readBundleFile(path.join(bundleDir, bundleName), {
+  format: resolveBundleFormatFromName(bundleName, 'json')
 });
 assert.equal(loaded?.ok, true, 'expected rewritten bundle to load');
 const relations = loaded?.bundle?.chunks?.[0]?.metaV2?.relations;

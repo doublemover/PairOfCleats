@@ -58,7 +58,7 @@ for (let i = 0; i < files.length; i += 1) {
     hash: `hash-${i}`,
     mtimeMs: 1000 + i,
     size: 10 + i,
-    bundle: bundleName
+    bundles: [bundleName]
   };
 }
 
@@ -94,7 +94,7 @@ updatedManifest.files[changedFile] = {
   ...updatedManifest.files[changedFile],
   hash: 'hash-changed',
   mtimeMs: 9999,
-  bundle: changedBundleName
+  bundles: [changedBundleName]
 };
 
 const stats = {};

@@ -15,7 +15,7 @@ try {
       {
         file: 'src/a.js',
         normalized: 'src/a.js',
-        entry: { bundle: '../escape.bundle.json' }
+        entry: { bundles: ['../escape.bundle.json'] }
       }
     ],
     bundleDir
@@ -24,8 +24,8 @@ try {
   assert.equal(result?.ok, false, 'expected traversal bundle path to be rejected');
   assert.match(
     String(result?.reason || ''),
-    /invalid bundle path/i,
-    'expected explicit invalid bundle path reason for traversal entry'
+    /(invalid bundle path|missing bundle)/i,
+    'expected traversal bundle entry to be rejected'
   );
 
   console.log('sqlite incremental bundle path guard test passed');

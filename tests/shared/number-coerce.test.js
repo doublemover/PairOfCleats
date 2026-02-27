@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import {
   coerceClampedFraction,
+  coerceFiniteNumber,
   coerceIntAtLeast,
   coerceNonNegativeInt,
   coerceNumberAtLeast,
@@ -16,6 +17,10 @@ assert.equal(coercePositiveIntMinOne('0.4'), 1);
 assert.equal(coercePositiveIntMinOne('1.9'), 1);
 assert.equal(coerceNonNegativeInt('0.9'), 0);
 assert.equal(coerceNonNegativeInt('-2'), null);
+
+assert.equal(coerceFiniteNumber('2.5'), 2.5);
+assert.equal(coerceFiniteNumber('bad', 7), 7);
+assert.equal(coerceFiniteNumber('bad'), null);
 
 assert.equal(coerceNumberAtLeast('2.5', 1), 2.5);
 assert.equal(coerceNumberAtLeast('-5', 1), 1);

@@ -10,9 +10,9 @@ import {
 } from '../../../src/index/build/incremental.js';
 import {
   readBundleFile,
-  resolveBundleFormatFromName,
-  resolveBundlePatchPath
+  resolveBundleFormatFromName
 } from '../../../src/shared/bundle-io.js';
+import { sleep } from '../../../src/shared/sleep.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -65,9 +65,11 @@ const manifest = {
   }
 };
 
-const bundlePath = path.join(bundleDir, entry.bundle);
+const bundleName = entry.bundles?.[0];
+assert.ok(bundleName, 'expected bundle shard name');
+const bundlePath = path.join(bundleDir, bundleName);
 const before = await fs.stat(bundlePath);
-await new Promise((resolve) => setTimeout(resolve, 25));
+await sleep(25);
 
 await updateBundlesWithChunks({
   enabled: true,
@@ -84,20 +86,10 @@ await updateBundlesWithChunks({
 });
 
 const after = await fs.stat(bundlePath);
-assert.equal(
-  after.mtimeMs,
-  before.mtimeMs,
-  'expected JSON bundle base file to remain unchanged when patch write succeeds'
-);
-
-const patchPath = resolveBundlePatchPath(bundlePath);
-assert.equal(await pathExists(patchPath), true, 'expected patch sidecar to be created');
-const patchRaw = await fs.readFile(patchPath, 'utf8');
-const patchLines = patchRaw.split(/\r?\n/).filter((line) => line.trim().length > 0);
-assert.ok(patchLines.length >= 1, 'expected at least one patch operation');
+assert.ok(after.mtimeMs > before.mtimeMs, 'expected bundle rewrite to update mtime');
 
 const loaded = await readBundleFile(bundlePath, {
-  format: resolveBundleFormatFromName(entry.bundle, 'json')
+  format: resolveBundleFormatFromName(bundleName, 'json')
 });
 assert.equal(loaded?.ok, true, 'expected patched bundle to load');
 assert.equal(loaded.bundle?.chunks?.[0]?.text, 'updated-a', 'expected patched first chunk text');
@@ -107,13 +99,11 @@ assert.deepEqual(
   { imports: ['./dep-b.js'] },
   'expected patched bundle file relations'
 );
-
-await fs.appendFile(patchPath, '{"format":"broken"}\n', 'utf8');
-const invalid = await readBundleFile(bundlePath, {
-  format: resolveBundleFormatFromName(entry.bundle, 'json')
-});
-assert.equal(invalid?.ok, false, 'expected invalid patch sidecar to fail strict bundle reads');
-assert.equal(invalid?.reason, 'invalid bundle patch', 'expected strict patch validation failure reason');
+assert.equal(
+  await pathExists(`${bundlePath}.patch.jsonl`),
+  false,
+  'expected shard rewrite path to avoid json patch sidecars'
+);
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 

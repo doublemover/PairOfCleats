@@ -30,19 +30,19 @@ const manifest = {
       hash: 'hash:cold',
       mtimeMs: now - (45 * 60 * 1000),
       size: 10,
-      bundle: 'cold.json'
+      bundles: ['cold.json']
     },
     'src/hot-older.js': {
       hash: 'hash:hot-older',
       mtimeMs: now - (2 * 60 * 1000),
       size: 11,
-      bundle: 'hot-older.json'
+      bundles: ['hot-older.json']
     },
     'src/hot-newer.js': {
       hash: 'hash:hot-newer',
       mtimeMs: now - 30_000,
       size: 12,
-      bundle: 'hot-newer.json'
+      bundles: ['hot-newer.json']
     }
   }
 };
@@ -82,7 +82,9 @@ assert.deepEqual(
 );
 
 for (const [file, entry] of Object.entries(manifest.files)) {
-  const bundlePath = path.join(bundleDir, entry.bundle);
+  const bundleName = entry.bundles?.[0];
+  assert.ok(bundleName, `expected bundle name for ${file}`);
+  const bundlePath = path.join(bundleDir, bundleName);
   const rawBundle = JSON.parse(await fs.readFile(bundlePath, 'utf8'));
   assert.equal(rawBundle.file, file, `expected written bundle for ${file}`);
 }

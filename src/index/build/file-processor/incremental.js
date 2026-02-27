@@ -42,6 +42,7 @@ export async function writeBundleForFile({
     fileRelations,
     vfsManifestRows,
     bundleFormat: incrementalState.bundleFormat,
+    previousManifestEntry: incrementalState.manifest?.files?.[relKey] || null,
     fileEncoding,
     fileEncodingFallback,
     fileEncodingConfidence

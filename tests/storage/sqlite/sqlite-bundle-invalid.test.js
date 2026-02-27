@@ -34,7 +34,7 @@ const result = await buildDatabaseFromBundles({
     bundleDir,
     manifest: {
       files: {
-        'src/bad.js': { bundle: bundleName, mtimeMs: 1, size: 0 }
+        'src/bad.js': { bundles: [bundleName], mtimeMs: 1, size: 0 }
       }
     }
   },
