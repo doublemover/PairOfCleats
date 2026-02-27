@@ -313,7 +313,12 @@ const summarizeProviderRuntime = (runtime) => ({
     referencesTimedOut: coerceFiniteNumber(runtime?.hoverMetrics?.referencesTimedOut, 0) ?? 0,
     incompleteSymbols: coerceFiniteNumber(runtime?.hoverMetrics?.incompleteSymbols, 0) ?? 0,
     hoverTriggeredByIncomplete: coerceFiniteNumber(runtime?.hoverMetrics?.hoverTriggeredByIncomplete, 0) ?? 0,
-    fallbackUsed: coerceFiniteNumber(runtime?.hoverMetrics?.fallbackUsed, 0) ?? 0
+    fallbackUsed: coerceFiniteNumber(runtime?.hoverMetrics?.fallbackUsed, 0) ?? 0,
+    skippedByBudget: coerceFiniteNumber(runtime?.hoverMetrics?.skippedByBudget, 0) ?? 0,
+    skippedByKind: coerceFiniteNumber(runtime?.hoverMetrics?.skippedByKind, 0) ?? 0,
+    skippedByReturnSufficient: coerceFiniteNumber(runtime?.hoverMetrics?.skippedByReturnSufficient, 0) ?? 0,
+    skippedByAdaptiveDisable: coerceFiniteNumber(runtime?.hoverMetrics?.skippedByAdaptiveDisable, 0) ?? 0,
+    skippedByGlobalDisable: coerceFiniteNumber(runtime?.hoverMetrics?.skippedByGlobalDisable, 0) ?? 0
   }
 });
 
@@ -414,6 +419,11 @@ const summarizeToolingMetrics = ({
     incompleteSymbols: 0,
     hoverTriggeredByIncomplete: 0,
     fallbackUsed: 0,
+    skippedByBudget: 0,
+    skippedByKind: 0,
+    skippedByReturnSufficient: 0,
+    skippedByAdaptiveDisable: 0,
+    skippedByGlobalDisable: 0,
     providersWithActivity: 0
   };
   const providerRuntime = Object.create(null);
@@ -468,6 +478,11 @@ const summarizeToolingMetrics = ({
     hoverTotals.incompleteSymbols += runtime.hover.incompleteSymbols;
     hoverTotals.hoverTriggeredByIncomplete += runtime.hover.hoverTriggeredByIncomplete;
     hoverTotals.fallbackUsed += runtime.hover.fallbackUsed;
+    hoverTotals.skippedByBudget += runtime.hover.skippedByBudget;
+    hoverTotals.skippedByKind += runtime.hover.skippedByKind;
+    hoverTotals.skippedByReturnSufficient += runtime.hover.skippedByReturnSufficient;
+    hoverTotals.skippedByAdaptiveDisable += runtime.hover.skippedByAdaptiveDisable;
+    hoverTotals.skippedByGlobalDisable += runtime.hover.skippedByGlobalDisable;
     if (
       runtime.hover.requested > 0
       || runtime.hover.timedOut > 0

@@ -114,6 +114,11 @@ assert.equal(
   true,
   'expected signatureHelp timeout rollup metric'
 );
+assert.equal(
+  Number.isFinite(Number(result.metrics?.hover?.skippedByGlobalDisable)),
+  true,
+  'expected adaptive global skip rollup metric'
+);
 
 const runtimeKeys = Object.keys(result.metrics?.providerRuntime || {});
 assert.deepEqual(runtimeKeys, ['dart', 'lsp-test'], 'expected deterministic per-provider metrics keys');

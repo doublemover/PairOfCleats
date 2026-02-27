@@ -12,7 +12,9 @@ await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
 
 const serverPath = path.join(root, 'tests', 'fixtures', 'lsp', 'stub-lsp-server.js');
-const cppText = 'const sentinel = 1;\n';
+const cppText = 'int add(int a, int b) { return a + b; }\nint sub(int a, int b) { return a - b; }\n';
+const addStart = cppText.indexOf('add');
+const subStart = cppText.indexOf('sub');
 
 registerDefaultToolingProviders();
 const result = await runToolingProviders({
@@ -26,7 +28,7 @@ const result = await runToolingProviders({
       servers: [{
         id: 'test',
         cmd: process.execPath,
-        args: [serverPath, '--mode', 'stall-signature-help'],
+        args: [serverPath, '--mode', 'stall-signature-help-two-symbols'],
         languages: ['cpp'],
         uriScheme: 'poc-vfs',
         signatureHelpTimeoutMs: 1000,
@@ -56,11 +58,25 @@ const result = await runToolingProviders({
       file: 'src/sample.cpp',
       segmentUid: null,
       segmentId: null,
-      range: { start: 0, end: cppText.length }
+      range: { start: addStart, end: addStart + 3 }
     },
     virtualPath: '.poc-vfs/src/sample.cpp#seg:hover-timeout-rollup.cpp',
-    virtualRange: { start: 0, end: cppText.length },
+    virtualRange: { start: addStart, end: addStart + 3 },
     symbolHint: { name: 'add', kind: 'function' },
+    languageId: 'cpp'
+  }, {
+    chunkRef: {
+      docId: 0,
+      chunkUid: 'ck64:v1:test:src/sample.cpp:hover-timeout-rollup:sub',
+      chunkId: 'chunk_metrics_cpp_timeout_sub',
+      file: 'src/sample.cpp',
+      segmentUid: null,
+      segmentId: null,
+      range: { start: subStart, end: subStart + 3 }
+    },
+    virtualPath: '.poc-vfs/src/sample.cpp#seg:hover-timeout-rollup.cpp',
+    virtualRange: { start: subStart, end: subStart + 3 },
+    symbolHint: { name: 'sub', kind: 'function' },
     languageId: 'cpp'
   }],
   kinds: ['types']
@@ -82,9 +98,21 @@ assert.equal(
   'expected hover rollup provider activity count'
 );
 assert.equal(
+  Number(result.metrics?.hover?.skippedByGlobalDisable || 0) >= 1
+    || Number(result.metrics?.hover?.skippedByAdaptiveDisable || 0) >= 1,
+  true,
+  'expected hover rollup adaptive skip counters'
+);
+assert.equal(
   Number(result.metrics?.providerRuntime?.['lsp-test']?.hover?.signatureHelpTimedOut || 0) >= 1,
   true,
   'expected per-provider hover signatureHelp timeout count'
+);
+assert.equal(
+  Number(result.metrics?.providerRuntime?.['lsp-test']?.hover?.skippedByGlobalDisable || 0) >= 1
+    || Number(result.metrics?.providerRuntime?.['lsp-test']?.hover?.skippedByAdaptiveDisable || 0) >= 1,
+  true,
+  'expected per-provider hover adaptive skip counters'
 );
 
 console.log('LSP provider metrics hover timeout rollup test passed');
