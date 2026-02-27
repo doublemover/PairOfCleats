@@ -153,6 +153,13 @@ const symbolsByMode = {
     signatureHelpDetail: 'add',
     kind: 12
   },
+  'stall-definition': {
+    name: 'add',
+    detail: 'add',
+    hoverDetail: 'add',
+    signatureHelpDetail: 'add',
+    kind: 12
+  },
   'type-definition-richer': {
     name: 'add',
     detail: 'add',
@@ -160,7 +167,21 @@ const symbolsByMode = {
     signatureHelpDetail: 'add',
     kind: 12
   },
+  'stall-type-definition': {
+    name: 'add',
+    detail: 'add',
+    hoverDetail: 'add',
+    signatureHelpDetail: 'add',
+    kind: 12
+  },
   'references-richer': {
+    name: 'add',
+    detail: 'add',
+    hoverDetail: 'add',
+    signatureHelpDetail: 'add',
+    kind: 12
+  },
+  'stall-references': {
     name: 'add',
     detail: 'add',
     hoverDetail: 'add',
@@ -248,7 +269,23 @@ const resolveInitializeCapabilities = (initializeParams = null) => {
       definitionProvider: true
     };
   }
+  if (mode === 'stall-definition') {
+    return {
+      documentSymbolProvider: true,
+      hoverProvider: true,
+      signatureHelpProvider: true,
+      definitionProvider: true
+    };
+  }
   if (mode === 'type-definition-richer') {
+    return {
+      documentSymbolProvider: true,
+      hoverProvider: true,
+      signatureHelpProvider: true,
+      typeDefinitionProvider: true
+    };
+  }
+  if (mode === 'stall-type-definition') {
     return {
       documentSymbolProvider: true,
       hoverProvider: true,
@@ -267,6 +304,14 @@ const resolveInitializeCapabilities = (initializeParams = null) => {
     };
   }
   if (mode === 'references-richer') {
+    return {
+      documentSymbolProvider: true,
+      hoverProvider: true,
+      signatureHelpProvider: true,
+      referencesProvider: true
+    };
+  }
+  if (mode === 'stall-references') {
     return {
       documentSymbolProvider: true,
       hoverProvider: true,
@@ -462,6 +507,9 @@ const handleRequest = (message) => {
     return;
   }
   if (method === 'textDocument/definition') {
+    if (mode === 'stall-definition') {
+      return;
+    }
     const uri = params?.textDocument?.uri || null;
     const text = uri ? (documents.get(uri) || '') : '';
     const lines = text.split(/\r?\n/u);
@@ -478,6 +526,9 @@ const handleRequest = (message) => {
     return;
   }
   if (method === 'textDocument/typeDefinition') {
+    if (mode === 'stall-type-definition') {
+      return;
+    }
     const uri = params?.textDocument?.uri || null;
     const text = uri ? (documents.get(uri) || '') : '';
     const lines = text.split(/\r?\n/u);
@@ -494,6 +545,9 @@ const handleRequest = (message) => {
     return;
   }
   if (method === 'textDocument/references') {
+    if (mode === 'stall-references') {
+      return;
+    }
     const uri = params?.textDocument?.uri || null;
     const text = uri ? (documents.get(uri) || '') : '';
     const lines = text.split(/\r?\n/u);
