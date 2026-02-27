@@ -147,6 +147,13 @@ const symbolsByMode = {
     hoverDetail: 'add',
     signatureHelpDetail: 'add',
     kind: 12
+  },
+  'references-richer': {
+    name: 'add',
+    detail: 'add',
+    hoverDetail: 'add',
+    signatureHelpDetail: 'add',
+    kind: 12
   }
 };
 
@@ -237,6 +244,14 @@ const resolveInitializeCapabilities = (initializeParams = null) => {
       signatureHelpProvider: true,
       definitionProvider: true,
       typeDefinitionProvider: true,
+      referencesProvider: true
+    };
+  }
+  if (mode === 'references-richer') {
+    return {
+      documentSymbolProvider: true,
+      hoverProvider: true,
+      signatureHelpProvider: true,
       referencesProvider: true
     };
   }
@@ -421,6 +436,22 @@ const handleRequest = (message) => {
     return;
   }
   if (method === 'textDocument/typeDefinition') {
+    const uri = params?.textDocument?.uri || null;
+    const text = uri ? (documents.get(uri) || '') : '';
+    const lines = text.split(/\r?\n/u);
+    const lineText = lines[0] || '';
+    respond(id, uri
+      ? [{
+        uri,
+        range: {
+          start: { line: 0, character: 0 },
+          end: { line: 0, character: Math.max(0, lineText.length) }
+        }
+      }]
+      : []);
+    return;
+  }
+  if (method === 'textDocument/references') {
     const uri = params?.textDocument?.uri || null;
     const text = uri ? (documents.get(uri) || '') : '';
     const lines = text.split(/\r?\n/u);

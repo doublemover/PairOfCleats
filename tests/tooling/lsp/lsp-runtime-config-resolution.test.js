@@ -11,8 +11,10 @@ const resolved = resolveLspRuntimeConfig({
     hoverRequireMissingReturn: false,
     definitionEnabled: false,
     typeDefinitionEnabled: false,
+    referencesEnabled: false,
     definitionTimeoutMs: 3900,
     typeDefinitionTimeoutMs: 4100,
+    referencesTimeoutMs: 4300,
     hoverMaxPerFile: 7,
     hoverDisableAfterTimeouts: 2,
     signatureHelpConcurrency: 6,
@@ -31,6 +33,7 @@ const resolved = resolveLspRuntimeConfig({
     signatureHelpTimeoutMs: 5100,
     definitionConcurrency: 5,
     typeDefinitionConcurrency: 4,
+    referencesConcurrency: 3,
     hoverEnabled: true,
     signatureHelpEnabled: true,
     lifecycle: {
@@ -55,6 +58,7 @@ assert.equal(resolved.hoverTimeoutMs, 3600, 'expected global hover timeout fallb
 assert.equal(resolved.signatureHelpTimeoutMs, 5100, 'expected global signatureHelp timeout fallback');
 assert.equal(resolved.definitionTimeoutMs, 3900, 'expected provider definition timeout');
 assert.equal(resolved.typeDefinitionTimeoutMs, 4100, 'expected provider typeDefinition timeout');
+assert.equal(resolved.referencesTimeoutMs, 4300, 'expected provider references timeout');
 assert.equal(resolved.hoverMaxPerFile, 7, 'expected provider hover max-per-file');
 assert.equal(resolved.hoverDisableAfterTimeouts, 2, 'expected provider hover timeout-disable threshold');
 assert.equal(resolved.signatureHelpConcurrency, 6, 'expected provider signatureHelp concurrency');
@@ -64,6 +68,8 @@ assert.equal(resolved.definitionEnabled, false, 'expected provider definition en
 assert.equal(resolved.definitionConcurrency, 5, 'expected global definition concurrency fallback');
 assert.equal(resolved.typeDefinitionEnabled, false, 'expected provider typeDefinition enabled override');
 assert.equal(resolved.typeDefinitionConcurrency, 4, 'expected global typeDefinition concurrency fallback');
+assert.equal(resolved.referencesEnabled, false, 'expected provider references enabled override');
+assert.equal(resolved.referencesConcurrency, 3, 'expected global references concurrency fallback');
 assert.equal(resolved.hoverRequireMissingReturn, false, 'expected provider hover completeness override');
 assert.equal(resolved.lifecycleRestartWindowMs, 2100, 'expected provider lifecycle restart window alias');
 assert.equal(resolved.lifecycleMaxRestartsPerWindow, 4, 'expected provider lifecycle max restarts alias');
@@ -89,6 +95,7 @@ assert.equal(defaultsOnly.hoverTimeoutMs, null, 'expected hover timeout to remai
 assert.equal(defaultsOnly.signatureHelpTimeoutMs, null, 'expected signatureHelp timeout to remain unset');
 assert.equal(defaultsOnly.definitionTimeoutMs, null, 'expected definition timeout to remain unset');
 assert.equal(defaultsOnly.typeDefinitionTimeoutMs, null, 'expected typeDefinition timeout to remain unset');
+assert.equal(defaultsOnly.referencesTimeoutMs, null, 'expected references timeout to remain unset');
 assert.equal(defaultsOnly.hoverMaxPerFile, null, 'expected hover max-per-file to remain unset');
 assert.equal(defaultsOnly.hoverDisableAfterTimeouts, null, 'expected hover timeout-disable threshold to remain unset');
 assert.equal(defaultsOnly.signatureHelpConcurrency, null, 'expected signatureHelp concurrency to remain unset');
@@ -98,6 +105,8 @@ assert.equal(defaultsOnly.definitionEnabled, null, 'expected definition enabled 
 assert.equal(defaultsOnly.definitionConcurrency, null, 'expected definition concurrency to remain unset');
 assert.equal(defaultsOnly.typeDefinitionEnabled, null, 'expected typeDefinition enabled to remain unset');
 assert.equal(defaultsOnly.typeDefinitionConcurrency, null, 'expected typeDefinition concurrency to remain unset');
+assert.equal(defaultsOnly.referencesEnabled, null, 'expected references enabled to remain unset');
+assert.equal(defaultsOnly.referencesConcurrency, null, 'expected references concurrency to remain unset');
 assert.equal(defaultsOnly.hoverRequireMissingReturn, null, 'expected hover completeness toggle to remain unset');
 assert.equal(defaultsOnly.lifecycleRestartWindowMs, null, 'expected lifecycle restart window to remain unset');
 assert.equal(defaultsOnly.lifecycleMaxRestartsPerWindow, null, 'expected lifecycle max restarts to remain unset');

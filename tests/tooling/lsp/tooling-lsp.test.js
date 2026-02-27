@@ -97,6 +97,8 @@ const docSymbols = [
 const flattenedDoc = flattenSymbols(docSymbols);
 assert.equal(flattenedDoc.length, 2);
 assert.equal(flattenedDoc[1].fullName, 'Widget.render');
+assert.equal(flattenedDoc[0].kind, 5);
+assert.equal(flattenedDoc[1].kind, 6);
 
 const infoSymbols = [
   {
@@ -113,6 +115,7 @@ const infoSymbols = [
 const flattenedInfo = flattenSymbols(infoSymbols);
 assert.equal(flattenedInfo.length, 1);
 assert.equal(flattenedInfo[0].fullName, 'Factory.makeWidget');
+assert.equal(flattenedInfo[0].kind, 12);
 
 const text = 'alpha\nbeta\ngamma';
 const lineIndex = buildLineIndex(text);

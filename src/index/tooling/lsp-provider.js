@@ -173,6 +173,7 @@ const normalizeServerConfig = (server, index) => {
   const signatureHelpTimeoutMs = Number(merged.signatureHelpTimeoutMs);
   const definitionTimeoutMs = Number(merged.definitionTimeoutMs);
   const typeDefinitionTimeoutMs = Number(merged.typeDefinitionTimeoutMs);
+  const referencesTimeoutMs = Number(merged.referencesTimeoutMs);
   const retries = Number(merged.retries);
   const priority = Number(merged.priority);
   const documentSymbolConcurrency = Number(merged.documentSymbolConcurrency);
@@ -180,6 +181,7 @@ const normalizeServerConfig = (server, index) => {
   const signatureHelpConcurrency = Number(merged.signatureHelpConcurrency);
   const definitionConcurrency = Number(merged.definitionConcurrency);
   const typeDefinitionConcurrency = Number(merged.typeDefinitionConcurrency);
+  const referencesConcurrency = Number(merged.referencesConcurrency);
   const hoverCacheMaxEntries = Number(merged.hoverCacheMaxEntries);
   const hoverMaxPerFile = Number(merged.hoverMaxPerFile);
   const hoverDisableAfterTimeouts = Number(merged.hoverDisableAfterTimeouts);
@@ -195,6 +197,9 @@ const normalizeServerConfig = (server, index) => {
   const typeDefinitionEnabled = typeof merged.typeDefinitionEnabled === 'boolean'
     ? merged.typeDefinitionEnabled
     : (typeof merged.typeDefinition === 'boolean' ? merged.typeDefinition : null);
+  const referencesEnabled = typeof merged.referencesEnabled === 'boolean'
+    ? merged.referencesEnabled
+    : (typeof merged.references === 'boolean' ? merged.references : null);
   const hoverRequireMissingReturn = typeof merged.hoverRequireMissingReturn === 'boolean'
     ? merged.hoverRequireMissingReturn
     : null;
@@ -244,6 +249,9 @@ const normalizeServerConfig = (server, index) => {
     typeDefinitionTimeoutMs: Number.isFinite(typeDefinitionTimeoutMs)
       ? Math.max(1000, Math.floor(typeDefinitionTimeoutMs))
       : null,
+    referencesTimeoutMs: Number.isFinite(referencesTimeoutMs)
+      ? Math.max(1000, Math.floor(referencesTimeoutMs))
+      : null,
     retries: Number.isFinite(retries) ? Math.max(0, Math.floor(retries)) : null,
     circuitBreakerThreshold: Number.isFinite(breakerThreshold)
       ? Math.max(1, Math.floor(breakerThreshold))
@@ -263,6 +271,9 @@ const normalizeServerConfig = (server, index) => {
     typeDefinitionConcurrency: Number.isFinite(typeDefinitionConcurrency)
       ? Math.max(1, Math.floor(typeDefinitionConcurrency))
       : null,
+    referencesConcurrency: Number.isFinite(referencesConcurrency)
+      ? Math.max(1, Math.floor(referencesConcurrency))
+      : null,
     hoverCacheMaxEntries: Number.isFinite(hoverCacheMaxEntries)
       ? Math.max(1000, Math.floor(hoverCacheMaxEntries))
       : null,
@@ -276,6 +287,7 @@ const normalizeServerConfig = (server, index) => {
     signatureHelpEnabled,
     definitionEnabled,
     typeDefinitionEnabled,
+    referencesEnabled,
     hoverRequireMissingReturn,
     hoverSymbolKinds,
     rustSuppressProcMacroDiagnostics,

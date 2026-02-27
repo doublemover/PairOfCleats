@@ -264,6 +264,8 @@ const createHoverFileStats = () => ({
   definitionSucceeded: 0,
   typeDefinitionRequested: 0,
   typeDefinitionSucceeded: 0,
+  referencesRequested: 0,
+  referencesSucceeded: 0,
   timedOut: 0,
   skippedByBudget: 0,
   skippedByKind: 0,
@@ -630,6 +632,8 @@ export const createEmptyHoverMetricsResult = () => ({
   definitionSucceeded: 0,
   typeDefinitionRequested: 0,
   typeDefinitionSucceeded: 0,
+  referencesRequested: 0,
+  referencesSucceeded: 0,
   timedOut: 0,
   incompleteSymbols: 0,
   hoverTriggeredByIncomplete: 0,
@@ -663,6 +667,8 @@ export const summarizeHoverMetrics = ({ hoverMetrics, hoverLatencyMs, hoverFileS
       definitionSucceeded: stats.definitionSucceeded,
       typeDefinitionRequested: stats.typeDefinitionRequested,
       typeDefinitionSucceeded: stats.typeDefinitionSucceeded,
+      referencesRequested: stats.referencesRequested,
+      referencesSucceeded: stats.referencesSucceeded,
       timedOut: stats.timedOut,
       skippedByBudget: stats.skippedByBudget,
       skippedByKind: stats.skippedByKind,
@@ -690,6 +696,8 @@ export const summarizeHoverMetrics = ({ hoverMetrics, hoverLatencyMs, hoverFileS
     definitionSucceeded: hoverMetrics.definitionSucceeded,
     typeDefinitionRequested: hoverMetrics.typeDefinitionRequested,
     typeDefinitionSucceeded: hoverMetrics.typeDefinitionSucceeded,
+    referencesRequested: hoverMetrics.referencesRequested,
+    referencesSucceeded: hoverMetrics.referencesSucceeded,
     timedOut: hoverMetrics.timedOut,
     incompleteSymbols: hoverMetrics.incompleteSymbols,
     hoverTriggeredByIncomplete: hoverMetrics.hoverTriggeredByIncomplete,
@@ -779,7 +787,9 @@ const buildFallbackReasonCodes = ({
   definitionRequested,
   definitionSucceeded,
   typeDefinitionRequested,
-  typeDefinitionSucceeded
+  typeDefinitionSucceeded,
+  referencesRequested,
+  referencesSucceeded
 }) => {
   const reasons = [];
   if (incompleteState?.missingReturn) reasons.push('missing_return_type');
@@ -796,6 +806,9 @@ const buildFallbackReasonCodes = ({
   if (!typeDefinitionRequested) reasons.push('type_definition_not_requested');
   else if (!typeDefinitionSucceeded) reasons.push('type_definition_unavailable_or_failed');
   else reasons.push('post_type_definition_still_incomplete');
+  if (!referencesRequested) reasons.push('references_not_requested');
+  else if (!referencesSucceeded) reasons.push('references_unavailable_or_failed');
+  else reasons.push('post_references_still_incomplete');
   return reasons;
 };
 
@@ -804,12 +817,12 @@ const buildFallbackReasonCodes = ({
  *
  * Fallback semantics:
  * 1. documentSymbol errors are soft-failed per document.
- * 2. hover/signatureHelp/definition/typeDefinition requests are deduped by
+ * 2. hover/signatureHelp/definition/typeDefinition/references requests are deduped by
  *    position and can be suppressed by:
  *    return-type sufficiency, kind filters, per-file budget, adaptive timeout,
  *    or global timeout circuit.
  * 3. source-signature fallback runs only after hover/signatureHelp/definition/
- *    typeDefinition attempts still leave the payload incomplete.
+ *    typeDefinition/references attempts still leave the payload incomplete.
  * 4. strict mode throws only when resolved symbol data cannot be mapped to a
  *    chunk uid.
  *
@@ -837,6 +850,7 @@ export const processDocumentTypes = async ({
   signatureHelpEnabled,
   definitionEnabled,
   typeDefinitionEnabled,
+  referencesEnabled,
   hoverRequireMissingReturn,
   resolvedHoverKinds,
   resolvedHoverMaxPerFile,
@@ -845,11 +859,13 @@ export const processDocumentTypes = async ({
   resolvedSignatureHelpTimeout,
   resolvedDefinitionTimeout,
   resolvedTypeDefinitionTimeout,
+  resolvedReferencesTimeout,
   resolvedDocumentSymbolTimeout,
   hoverLimiter,
   signatureHelpLimiter,
   definitionLimiter,
   typeDefinitionLimiter,
+  referencesLimiter,
   hoverCacheEntries,
   markHoverCacheDirty,
   hoverControl,
@@ -940,6 +956,7 @@ export const processDocumentTypes = async ({
     const signatureHelpRequestByPosition = new Map();
     const definitionRequestByPosition = new Map();
     const typeDefinitionRequestByPosition = new Map();
+    const referencesRequestByPosition = new Map();
     const symbolRecords = [];
 
     const requestHover = (symbol, position) => {
@@ -1187,6 +1204,66 @@ export const processDocumentTypes = async ({
       return promise;
     };
 
+    const requestReferences = (symbol, position) => {
+      throwIfAborted(abortSignal);
+      const key = `${Math.floor(position.line)}:${Math.floor(position.character)}`;
+      if (referencesRequestByPosition.has(key)) return referencesRequestByPosition.get(key);
+      const runReferences = typeof referencesLimiter === 'function'
+        ? referencesLimiter
+        : hoverLimiter;
+      const promise = (async () => {
+        const timeoutOverride = Number.isFinite(resolvedReferencesTimeout)
+          ? resolvedReferencesTimeout
+          : null;
+        fileHoverStats.referencesRequested += 1;
+        hoverMetrics.referencesRequested += 1;
+        try {
+          throwIfAborted(abortSignal);
+          const payload = await runReferences(() => runGuarded(
+            ({ timeoutMs: guardTimeout }) => client.request('textDocument/references', {
+              textDocument: { uri },
+              position,
+              context: { includeDeclaration: true }
+            }, { timeoutMs: guardTimeout }),
+            { label: 'references', ...(timeoutOverride ? { timeoutOverride } : {}) }
+          ));
+          const locations = extractDefinitionLocations(payload);
+          if (!locations.length) return null;
+          const referenceUris = new Set([String(uri || '')]);
+          if (legacyUri) referenceUris.add(String(legacyUri));
+          for (const location of locations) {
+            if (!referenceUris.has(String(location?.uri || ''))) continue;
+            const locationOffsets = rangeToOffsets(lineIndex, location?.range || null);
+            let candidate = buildSourceSignatureCandidate(
+              openEntry?.text || doc.text || '',
+              locationOffsets
+            );
+            if (!candidate) {
+              const fallbackLine = Number(location?.range?.start?.line);
+              candidate = buildLineSignatureCandidate(openEntry?.text || doc.text || '', fallbackLine);
+            }
+            const info = parseSignatureCached(candidate, symbol?.name);
+            if (info) {
+              fileHoverStats.referencesSucceeded += 1;
+              hoverMetrics.referencesSucceeded += 1;
+              return info;
+            }
+          }
+          return null;
+        } catch (err) {
+          if (err?.code === 'ABORT_ERR') throw err;
+          if (err?.code === 'TOOLING_CIRCUIT_OPEN') {
+            recordCircuitOpenCheck({ cmd, guard, checks, checkFlags });
+          } else if (err?.code === 'TOOLING_CRASH_LOOP') {
+            recordCrashLoopCheck({ cmd, checks, checkFlags, detail: err?.detail || null });
+          }
+          return null;
+        }
+      })();
+      referencesRequestByPosition.set(key, promise);
+      return promise;
+    };
+
     for (const symbol of flattened) {
       throwIfAborted(abortSignal);
       const offsets = rangeToOffsets(lineIndex, symbol.selectionRange || symbol.range);
@@ -1220,7 +1297,8 @@ export const processDocumentTypes = async ({
       const requestBudgetCount = Number(fileHoverStats.requested || 0)
         + Number(fileHoverStats.signatureHelpRequested || 0)
         + Number(fileHoverStats.definitionRequested || 0)
-        + Number(fileHoverStats.typeDefinitionRequested || 0);
+        + Number(fileHoverStats.typeDefinitionRequested || 0)
+        + Number(fileHoverStats.referencesRequested || 0);
       const fileOverBudget = Number.isFinite(resolvedHoverMaxPerFile)
         && resolvedHoverMaxPerFile >= 0
         && requestBudgetCount >= resolvedHoverMaxPerFile;
@@ -1288,6 +1366,16 @@ export const processDocumentTypes = async ({
           && !adaptiveDisabled
           && position != null
           && !sourceSignature
+        ),
+        referencesEligible: (
+          referencesEnabled
+          && FUNCTION_LIKE_SYMBOL_KINDS.has(Number(symbol?.kind))
+          && needsHover
+          && symbolKindAllowed
+          && !fileOverBudget
+          && !adaptiveDisabled
+          && position != null
+          && !sourceSignature
         )
       });
     }
@@ -1303,6 +1391,8 @@ export const processDocumentTypes = async ({
       let definitionRequested = false;
       let typeDefinitionSucceeded = false;
       let typeDefinitionRequested = false;
+      let referencesSucceeded = false;
+      let referencesRequested = false;
       if (record.hoverPromise) {
         const hoverInfo = await record.hoverPromise;
         if (hoverInfo) {
@@ -1348,11 +1438,22 @@ export const processDocumentTypes = async ({
       const incompleteAfterTypeDefinition = isIncompleteTypePayload(info, {
         symbolKind: record?.symbol?.kind
       });
-      if (incompleteAfterTypeDefinition.incomplete && record.sourceSignature) {
+      if (incompleteAfterTypeDefinition.incomplete && record.referencesEligible) {
+        referencesRequested = true;
+        const referencesInfo = await requestReferences(record.symbol, record.position);
+        if (referencesInfo) {
+          referencesSucceeded = true;
+          info = mergeSignatureInfo(info, referencesInfo, { symbolKind: record?.symbol?.kind });
+        }
+      }
+      const incompleteAfterReferences = isIncompleteTypePayload(info, {
+        symbolKind: record?.symbol?.kind
+      });
+      if (incompleteAfterReferences.incomplete && record.sourceSignature) {
         const sourceInfo = parseSignatureCached(record.sourceSignature, record?.symbol?.name);
         if (sourceInfo) {
           const fallbackReasons = buildFallbackReasonCodes({
-            incompleteState: incompleteAfterTypeDefinition,
+            incompleteState: incompleteAfterReferences,
             hoverRequested: record.hoverRequested === true,
             hoverSucceeded,
             signatureHelpRequested,
@@ -1360,7 +1461,9 @@ export const processDocumentTypes = async ({
             definitionRequested,
             definitionSucceeded,
             typeDefinitionRequested,
-            typeDefinitionSucceeded
+            typeDefinitionSucceeded,
+            referencesRequested,
+            referencesSucceeded
           });
           recordFallbackReasons(hoverMetrics, fallbackReasons);
           info = mergeSignatureInfo(info, sourceInfo, { symbolKind: record?.symbol?.kind });
