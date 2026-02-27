@@ -606,6 +606,12 @@ export async function collectLspTypes({
         signal: toolingAbortSignal
       });
       throwIfAborted(toolingAbortSignal);
+      if (captureDiagnostics) {
+        // PublishDiagnostics notifications can trail didOpen/documentSymbol by a few
+        // milliseconds; give the session a brief drain window before shaping.
+        await sleep(15);
+        throwIfAborted(toolingAbortSignal);
+      }
 
       if (hoverCacheDirty) {
         try {

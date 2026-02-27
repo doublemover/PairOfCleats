@@ -121,10 +121,13 @@ const applyRustProcMacroSuppression = (diagnosticsByChunkUid) => {
   if (!diagnosticsByChunkUid || typeof diagnosticsByChunkUid !== 'object') {
     return { diagnosticsByChunkUid: {}, diagnosticsCount: 0, suppressedCount: 0 };
   }
+  const entries = diagnosticsByChunkUid instanceof Map
+    ? Array.from(diagnosticsByChunkUid.entries())
+    : Object.entries(diagnosticsByChunkUid);
   const next = {};
   let diagnosticsCount = 0;
   let suppressedCount = 0;
-  for (const [chunkUid, diagnostics] of Object.entries(diagnosticsByChunkUid)) {
+  for (const [chunkUid, diagnostics] of entries) {
     if (!Array.isArray(diagnostics) || !diagnostics.length) continue;
     const kept = [];
     for (const diag of diagnostics) {
