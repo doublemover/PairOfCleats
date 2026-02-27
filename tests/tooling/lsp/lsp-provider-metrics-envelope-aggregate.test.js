@@ -99,6 +99,10 @@ assert.equal(Number(result.metrics?.health?.pooledProviders || 0) >= 1, true, 'e
 assert.equal(result.metrics?.capabilities?.providersWithCapabilitiesMask, 1, 'expected one provider capability mask');
 assert.equal(result.metrics?.capabilities?.documentSymbol, 1, 'expected documentSymbol capability rollup');
 assert.equal(result.metrics?.capabilities?.hover, 1, 'expected hover capability rollup');
+assert.equal(result.metrics?.capabilities?.signatureHelp, 0, 'expected signatureHelp capability rollup');
+assert.equal(result.metrics?.capabilities?.definition, 0, 'expected definition capability rollup');
+assert.equal(result.metrics?.capabilities?.typeDefinition, 0, 'expected typeDefinition capability rollup');
+assert.equal(result.metrics?.capabilities?.references, 0, 'expected references capability rollup');
 
 const runtimeKeys = Object.keys(result.metrics?.providerRuntime || {});
 assert.deepEqual(runtimeKeys, ['dart', 'lsp-test'], 'expected deterministic per-provider metrics keys');

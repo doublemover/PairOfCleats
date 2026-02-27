@@ -368,7 +368,10 @@ const summarizeToolingMetrics = ({
     providersWithCapabilitiesMask: 0,
     documentSymbol: 0,
     hover: 0,
-    signatureHelp: 0
+    signatureHelp: 0,
+    definition: 0,
+    typeDefinition: 0,
+    references: 0
   };
   const providerRuntime = Object.create(null);
   const sortedExecutedProviderIds = Array.from(new Set(executedProviderIds)).sort((a, b) => a.localeCompare(b));
@@ -408,6 +411,9 @@ const summarizeToolingMetrics = ({
       if (runtime.capabilities.documentSymbol === true) capabilityTotals.documentSymbol += 1;
       if (runtime.capabilities.hover === true) capabilityTotals.hover += 1;
       if (runtime.capabilities.signatureHelp === true) capabilityTotals.signatureHelp += 1;
+      if (runtime.capabilities.definition === true) capabilityTotals.definition += 1;
+      if (runtime.capabilities.typeDefinition === true) capabilityTotals.typeDefinition += 1;
+      if (runtime.capabilities.references === true) capabilityTotals.references += 1;
     }
   }
   return {

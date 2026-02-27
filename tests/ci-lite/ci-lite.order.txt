@@ -816,6 +816,7 @@ tooling/lsp/dart-provider-bootstrap
 tooling/lsp/dart-provider-workspace-guard
 tooling/lsp/dart-provider-command-fallback
 tooling/lsp/lsp-provider-metrics-envelope-aggregate
+tooling/lsp/lsp-provider-metrics-capability-rollup
 tooling/lsp/dart-provider-process-reuse
 tooling/lsp/lsp-session-pool-reuse
 tooling/lsp/lsp-session-pool-max-lifetime-recycle

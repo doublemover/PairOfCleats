@@ -230,6 +230,16 @@ const resolveInitializeCapabilities = (initializeParams = null) => {
       typeDefinitionProvider: true
     };
   }
+  if (mode === 'all-capabilities') {
+    return {
+      documentSymbolProvider: true,
+      hoverProvider: true,
+      signatureHelpProvider: true,
+      definitionProvider: true,
+      typeDefinitionProvider: true,
+      referencesProvider: true
+    };
+  }
   return {
     documentSymbolProvider: true,
     hoverProvider: true
