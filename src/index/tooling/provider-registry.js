@@ -116,7 +116,8 @@ export function selectToolingProviders({
     if (provider.enabled === false) continue;
 
     const providerKinds = normalizeKindSet(provider.kinds || []);
-    if (kindFilter.size && providerKinds.size) {
+    if (kindFilter.size) {
+      if (!providerKinds.size) continue;
       let matches = false;
       for (const kind of kindFilter) {
         if (providerKinds.has(kind)) {

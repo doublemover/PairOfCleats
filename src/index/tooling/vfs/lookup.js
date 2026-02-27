@@ -91,13 +91,24 @@ export const loadVfsManifestRowByPath = async ({
         bytes: entry.bytes,
         reader
       });
-      emitVfsLookupTelemetry(telemetry, {
-        path: 'vfsidx',
-        outcome: row ? 'hit' : 'miss',
-        virtualPath
-      });
-      if (row) return row;
-      if (!allowScan) return null;
+      const rowVirtualPath = String(row?.virtualPath || '');
+      if (row && rowVirtualPath && rowVirtualPath !== virtualPath) {
+        emitVfsLookupTelemetry(telemetry, {
+          path: 'vfsidx',
+          outcome: 'mismatch',
+          virtualPath,
+          rowVirtualPath
+        });
+        if (!allowScan) return null;
+      } else {
+        emitVfsLookupTelemetry(telemetry, {
+          path: 'vfsidx',
+          outcome: row ? 'hit' : 'miss',
+          virtualPath
+        });
+        if (row) return row;
+        if (!allowScan) return null;
+      }
     }
   }
   if (!allowScan) {

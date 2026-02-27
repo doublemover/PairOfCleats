@@ -127,6 +127,25 @@ try {
   );
 
   telemetry.length = 0;
+  const mismatchSource = rows[1];
+  const mismatchEntry = index.get(mismatchSource.virtualPath);
+  assert.ok(mismatchEntry, 'expected index entry for mismatch source row');
+  const mismatchIndex = new Map([[expectedRow.virtualPath, mismatchEntry]]);
+  const mismatchRecovered = await loadVfsManifestRowByPath({
+    manifestPath,
+    index: mismatchIndex,
+    virtualPath: expectedRow.virtualPath,
+    allowScan: true,
+    telemetry
+  });
+  assert.deepEqual(mismatchRecovered, expectedRow, 'expected scan fallback to recover from index row mismatch');
+  assert.deepEqual(
+    telemetry.map((event) => `${event.path}:${event.outcome}`),
+    ['vfsidx:mismatch', 'scan:hit'],
+    'expected vfsidx mismatch telemetry before scan recovery'
+  );
+
+  telemetry.length = 0;
   const staleIndexHit = await loadVfsManifestRowByPath({
     manifestPath,
     index: new Map(),

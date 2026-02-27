@@ -654,6 +654,22 @@ export async function buildDatabaseFromBundles({
       };
     }
 
+    if (bundleFailures.length > 0) {
+      const reason = bundleFailures[0] || 'bundle read failures encountered';
+      if (emitOutput) {
+        warn(`[sqlite] Bundle build failed for ${mode}: ${reason}; using artifacts.`);
+      }
+      rollbackSqliteBuildTransaction(db, batchStats);
+      emitDenseClampSummary();
+      return {
+        count: 0,
+        denseCount: 0,
+        reason,
+        embedStats,
+        vectorAnn: vectorAnnState
+      };
+    }
+
     if (successfulFiles <= 0) {
       if (emitOutput) {
         warn(`[sqlite] Bundle build failed for ${mode}: no readable bundles.`);

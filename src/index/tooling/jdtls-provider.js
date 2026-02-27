@@ -3,7 +3,7 @@ import path from 'node:path';
 import { parseClikeSignature } from './signature-parse/clike.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
 import { createDedicatedLspProvider } from './dedicated-lsp-provider.js';
-import { normalizeCommandArgs } from './provider-utils.js';
+import { ensureCommandArgPair, normalizeCommandArgs } from './provider-utils.js';
 
 const JAVA_EXTS = ['.java'];
 
@@ -21,12 +21,7 @@ const resolveWorkspaceDataDir = (ctx, config) => {
 };
 
 const ensureWorkspaceDataArg = (args, workspaceDataDir) => {
-  const normalizedArgs = normalizeCommandArgs(args);
-  for (let i = 0; i < normalizedArgs.length; i += 1) {
-    if (normalizedArgs[i] !== '-data') continue;
-    if (normalizedArgs[i + 1]) return normalizedArgs;
-  }
-  return [...normalizedArgs, '-data', workspaceDataDir];
+  return ensureCommandArgPair(normalizeCommandArgs(args), '-data', workspaceDataDir);
 };
 
 export const createJdtlsProvider = () => createDedicatedLspProvider({

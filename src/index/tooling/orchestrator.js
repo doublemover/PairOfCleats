@@ -607,18 +607,39 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
         documents: planDocuments,
         targets: planTargets
       };
-      output = await provider.run(ctx, providerInputs);
-      if (output) {
-        output.provider = {
-          id: providerId,
-          version: provider.version,
-          configHash
+      try {
+        output = await provider.run(ctx, providerInputs);
+        if (output) {
+          output.provider = {
+            id: providerId,
+            version: provider.version,
+            configHash
+          };
+        }
+        if (cachePath && output) {
+          try {
+            await atomicWriteJson(cachePath, output, { spaces: 2 });
+          } catch {}
+        }
+      } catch (err) {
+        const errorMessage = String(err?.message || err || 'unknown provider failure');
+        providerDiagnostics[providerId] = {
+          checks: [{
+            name: `${providerId}_provider_execution_failed`,
+            status: 'error',
+            message: `${providerId} provider execution failed: ${errorMessage}`
+          }]
         };
-      }
-      if (cachePath && output) {
-        try {
-          await atomicWriteJson(cachePath, output, { spaces: 2 });
-        } catch {}
+        observations.push({
+          level: 'error',
+          code: 'tooling_provider_execution_failed',
+          message: `[tooling] ${providerId} provider execution failed; continuing in fail-open mode.`,
+          context: {
+            providerId,
+            error: errorMessage
+          }
+        });
+        continue;
       }
     }
     if (!output) continue;
