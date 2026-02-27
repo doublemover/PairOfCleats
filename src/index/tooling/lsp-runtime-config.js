@@ -1,4 +1,4 @@
-const isPlainObject = (value) => value != null && typeof value === 'object' && !Array.isArray(value);
+import { isPlainObject } from '../../shared/config.js';
 
 const toNormalizedInt = (value, min) => {
   if (value == null) return null;

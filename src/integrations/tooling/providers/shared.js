@@ -1,23 +1,16 @@
 import { sleep } from '../../../shared/sleep.js';
-
-const hasIterable = (value) => value != null && typeof value[Symbol.iterator] === 'function';
-
-const toEntryList = (value) => {
-  if (Array.isArray(value)) return value;
-  if (value == null) return [];
-  if (typeof value === 'string') return [value];
-  if (value instanceof Set) return Array.from(value);
-  if (value instanceof Map) return Array.from(value.values());
-  if (hasIterable(value)) return Array.from(value);
-  if (value && typeof value === 'object' && Object.hasOwn(value, 'type')) return [value];
-  return [];
-};
+import {
+  mergeTypeEntries,
+  normalizeTypeEntry,
+  toTypeEntryCollection
+} from '../../../shared/type-entry-utils.js';
 
 export const uniqueTypes = (values) => {
   const out = [];
   const seen = new Set();
-  for (const entry of toEntryList(values)) {
-    const normalized = typeof entry === 'string' ? entry.trim() : String(entry?.type || '').trim();
+  for (const entry of toTypeEntryCollection(values)) {
+    const normalizedEntry = normalizeTypeEntry(entry);
+    const normalized = String(normalizedEntry?.type || '').trim();
     if (!normalized || seen.has(normalized)) continue;
     seen.add(normalized);
     out.push(normalized);
@@ -28,51 +21,9 @@ export const uniqueTypes = (values) => {
 const DEFAULT_MAX_RETURN_CANDIDATES = 5;
 const DEFAULT_MAX_PARAM_CANDIDATES = 5;
 
-const normalizeEntry = (entry) => {
-  if (!entry) return null;
-  if (typeof entry === 'string') {
-    const type = entry.trim();
-    if (!type) return null;
-    return { type, source: null, confidence: null };
-  }
-  if (!entry.type) return null;
-  return {
-    type: entry.type,
-    source: entry.source || null,
-    confidence: Number.isFinite(entry.confidence) ? entry.confidence : null
-  };
-};
-
-const mergeEntries = (existing, incoming, cap) => {
-  const map = new Map();
-  const add = (entry) => {
-    const normalized = normalizeEntry(entry);
-    if (!normalized || !normalized.type) return;
-    const key = `${normalized.type}:${normalized.source || ''}`;
-    const prior = map.get(key);
-    if (!prior) {
-      map.set(key, normalized);
-      return;
-    }
-    const priorConfidence = Number.isFinite(prior.confidence) ? prior.confidence : 0;
-    const nextConfidence = Number.isFinite(normalized.confidence) ? normalized.confidence : 0;
-    if (nextConfidence > priorConfidence) map.set(key, normalized);
-  };
-  for (const entry of toEntryList(existing)) add(entry);
-  for (const entry of toEntryList(incoming)) add(entry);
-  const list = Array.from(map.values());
-  list.sort((a, b) => {
-    const typeCmp = String(a.type).localeCompare(String(b.type));
-    if (typeCmp) return typeCmp;
-    const sourceCmp = String(a.source || '').localeCompare(String(b.source || ''));
-    if (sourceCmp) return sourceCmp;
-    const confA = Number.isFinite(a.confidence) ? a.confidence : 0;
-    const confB = Number.isFinite(b.confidence) ? b.confidence : 0;
-    return confB - confA;
-  });
-  if (cap && list.length > cap) return list.slice(0, cap);
-  return list;
-};
+const mergeEntries = (existing, incoming, cap) => (
+  mergeTypeEntries(existing, incoming, { cap }).list
+);
 
 export const createToolingEntry = () => ({
   returns: [],
@@ -97,7 +48,7 @@ export const mergeToolingEntry = (target, incoming, options = {}) => {
     if (!target.params || typeof target.params !== 'object') target.params = {};
     for (const [name, types] of Object.entries(incoming.params)) {
       if (!name) continue;
-      const incomingTypes = toEntryList(types);
+      const incomingTypes = toTypeEntryCollection(types);
       if (!incomingTypes.length) continue;
       const cap = Number.isFinite(options.maxParamCandidates)
         ? options.maxParamCandidates

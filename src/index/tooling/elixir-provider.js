@@ -5,16 +5,9 @@ import { resolveToolingCommandProfile } from './command-resolver.js';
 import { parseElixirSignature } from './signature-parse/elixir.js';
 import { hasWorkspaceMarker } from './workspace-model.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
+import { isPlainObject, normalizeCommandArgs, filterTargetsForDocuments } from './provider-utils.js';
 
 const ELIXIR_EXTS = ['.ex', '.exs'];
-
-const isPlainObject = (value) => value != null && typeof value === 'object' && !Array.isArray(value);
-
-const normalizeArgs = (value) => (
-  Array.isArray(value)
-    ? value.map((entry) => String(entry)).filter((entry) => entry.length > 0)
-    : []
-);
 
 export const createElixirProvider = () => ({
   id: 'elixir-ls',
@@ -40,9 +33,7 @@ export const createElixirProvider = () => ({
     const docs = Array.isArray(inputs?.documents)
       ? inputs.documents.filter((doc) => ELIXIR_EXTS.includes(path.extname(doc.virtualPath).toLowerCase()))
       : [];
-    const targets = Array.isArray(inputs?.targets)
-      ? inputs.targets.filter((target) => docs.some((doc) => doc.virtualPath === target.virtualPath))
-      : [];
+    const targets = filterTargetsForDocuments(inputs?.targets, docs);
     const duplicateChecks = buildDuplicateChunkUidChecks(targets, { label: 'elixir-ls' });
     if (!docs.length || !targets.length) {
       return {
@@ -80,7 +71,7 @@ export const createElixirProvider = () => ({
     }
 
     const requestedCmd = typeof config.cmd === 'string' && config.cmd.trim() ? config.cmd.trim() : 'elixir-ls';
-    const requestedArgs = normalizeArgs(config.args);
+    const requestedArgs = normalizeCommandArgs(config.args);
     const commandProfile = resolveToolingCommandProfile({
       providerId: 'elixir-ls',
       cmd: requestedCmd,

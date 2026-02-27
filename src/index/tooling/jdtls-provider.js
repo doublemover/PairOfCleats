@@ -7,6 +7,7 @@ import { parseClikeSignature } from './signature-parse/clike.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
 import { hasWorkspaceMarker } from './workspace-model.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
+import { isPlainObject, normalizeCommandArgs, filterTargetsForDocuments } from './provider-utils.js';
 
 const JAVA_EXTS = ['.java'];
 
@@ -24,15 +25,13 @@ const resolveWorkspaceDataDir = (ctx, config) => {
 };
 
 const ensureWorkspaceDataArg = (args, workspaceDataDir) => {
-  const normalizedArgs = Array.isArray(args) ? args.map((entry) => String(entry)) : [];
+  const normalizedArgs = normalizeCommandArgs(args);
   for (let i = 0; i < normalizedArgs.length; i += 1) {
     if (normalizedArgs[i] !== '-data') continue;
     if (normalizedArgs[i + 1]) return normalizedArgs;
   }
   return [...normalizedArgs, '-data', workspaceDataDir];
 };
-
-const isPlainObject = (value) => value != null && typeof value === 'object' && !Array.isArray(value);
 
 export const createJdtlsProvider = () => ({
   id: 'jdtls',
@@ -58,9 +57,7 @@ export const createJdtlsProvider = () => ({
     const docs = Array.isArray(inputs?.documents)
       ? inputs.documents.filter((doc) => JAVA_EXTS.includes(path.extname(doc.virtualPath).toLowerCase()))
       : [];
-    const targets = Array.isArray(inputs?.targets)
-      ? inputs.targets.filter((target) => docs.some((doc) => doc.virtualPath === target.virtualPath))
-      : [];
+    const targets = filterTargetsForDocuments(inputs?.targets, docs);
     const duplicateChecks = buildDuplicateChunkUidChecks(targets, { label: 'jdtls' });
     if (!docs.length || !targets.length) {
       return {
@@ -98,7 +95,7 @@ export const createJdtlsProvider = () => ({
     }
 
     const requestedCmd = typeof config.cmd === 'string' && config.cmd.trim() ? config.cmd.trim() : 'jdtls';
-    const requestedArgs = Array.isArray(config.args) ? config.args : [];
+    const requestedArgs = normalizeCommandArgs(config.args);
     const commandProfile = resolveToolingCommandProfile({
       providerId: 'jdtls',
       cmd: requestedCmd,

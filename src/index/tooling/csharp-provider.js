@@ -5,10 +5,9 @@ import { resolveToolingCommandProfile } from './command-resolver.js';
 import { parseClikeSignature } from './signature-parse/clike.js';
 import { hasWorkspaceMarker } from './workspace-model.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
+import { isPlainObject, filterTargetsForDocuments } from './provider-utils.js';
 
 const CSHARP_EXTS = ['.cs'];
-
-const isPlainObject = (value) => value != null && typeof value === 'object' && !Array.isArray(value);
 
 export const createCsharpProvider = () => ({
   id: 'csharp-ls',
@@ -34,9 +33,7 @@ export const createCsharpProvider = () => ({
     const docs = Array.isArray(inputs?.documents)
       ? inputs.documents.filter((doc) => CSHARP_EXTS.includes(path.extname(doc.virtualPath).toLowerCase()))
       : [];
-    const targets = Array.isArray(inputs?.targets)
-      ? inputs.targets.filter((target) => docs.some((doc) => doc.virtualPath === target.virtualPath))
-      : [];
+    const targets = filterTargetsForDocuments(inputs?.targets, docs);
     const duplicateChecks = buildDuplicateChunkUidChecks(targets, { label: 'csharp-ls' });
     if (!docs.length || !targets.length) {
       return {

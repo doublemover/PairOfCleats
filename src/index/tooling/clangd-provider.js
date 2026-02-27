@@ -7,6 +7,7 @@ import { isAbsolutePathNative, toPosix } from '../../shared/files.js';
 import { atomicWriteJsonSync } from '../../shared/io/atomic-write.js';
 import { resolveToolingCommandProfile } from './command-resolver.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
+import { filterTargetsForDocuments } from './provider-utils.js';
 
 const CLANGD_BASE_EXTS = ['.c', '.h', '.cc', '.cpp', '.cxx', '.hpp', '.hh'];
 const CLANGD_OBJC_EXTS = ['.m', '.mm'];
@@ -436,9 +437,7 @@ export const createClangdProvider = () => ({
     const docs = Array.isArray(inputs?.documents)
       ? inputs.documents.filter((doc) => CLIKE_EXTS.includes(path.extname(doc.virtualPath).toLowerCase()))
       : [];
-    let targets = Array.isArray(inputs?.targets)
-      ? inputs.targets.filter((target) => docs.some((doc) => doc.virtualPath === target.virtualPath))
-      : [];
+    let targets = filterTargetsForDocuments(inputs?.targets, docs);
     const clangdConfig = ctx?.toolingConfig?.clangd || {};
     const compileCommandsDir = resolveCompileCommandsDir(ctx.repoRoot, clangdConfig);
     let selectedDocs = docs;

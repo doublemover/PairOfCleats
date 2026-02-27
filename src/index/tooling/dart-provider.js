@@ -5,23 +5,13 @@ import { resolveToolingCommandProfile } from './command-resolver.js';
 import { parseClikeSignature } from './signature-parse/clike.js';
 import { hasWorkspaceMarker } from './workspace-model.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
+import { ensureCommandArgToken, isPlainObject, normalizeCommandArgs, filterTargetsForDocuments } from './provider-utils.js';
 
 const DART_EXTS = ['.dart'];
 
-const isPlainObject = (value) => value != null && typeof value === 'object' && !Array.isArray(value);
-
-const normalizeArgs = (value) => (
-  Array.isArray(value)
-    ? value.map((entry) => String(entry)).filter((entry) => entry.length > 0)
-    : []
-);
-
 const ensureLanguageServerArgs = (args) => {
-  const normalized = normalizeArgs(args);
-  const hasLanguageServer = normalized.some((entry) => entry.toLowerCase() === 'language-server');
-  const hasProtocol = normalized.some((entry) => entry.toLowerCase() === '--protocol=lsp');
-  const merged = hasLanguageServer ? normalized : ['language-server', ...normalized];
-  return hasProtocol ? merged : [...merged, '--protocol=lsp'];
+  const withLanguageServer = ensureCommandArgToken(args, 'language-server', { position: 'prepend' });
+  return ensureCommandArgToken(withLanguageServer, '--protocol=lsp');
 };
 
 export const createDartProvider = () => ({
@@ -48,9 +38,7 @@ export const createDartProvider = () => ({
     const docs = Array.isArray(inputs?.documents)
       ? inputs.documents.filter((doc) => DART_EXTS.includes(path.extname(doc.virtualPath).toLowerCase()))
       : [];
-    const targets = Array.isArray(inputs?.targets)
-      ? inputs.targets.filter((target) => docs.some((doc) => doc.virtualPath === target.virtualPath))
-      : [];
+    const targets = filterTargetsForDocuments(inputs?.targets, docs);
     const duplicateChecks = buildDuplicateChunkUidChecks(targets, { label: 'dart' });
     if (!docs.length || !targets.length) {
       return {
@@ -88,7 +76,7 @@ export const createDartProvider = () => ({
     }
 
     const requestedCmd = typeof config.cmd === 'string' && config.cmd.trim() ? config.cmd.trim() : 'dart';
-    const requestedArgs = ensureLanguageServerArgs(config.args);
+    const requestedArgs = ensureLanguageServerArgs(normalizeCommandArgs(config.args));
     const commandProfile = resolveToolingCommandProfile({
       providerId: 'dart',
       cmd: requestedCmd,

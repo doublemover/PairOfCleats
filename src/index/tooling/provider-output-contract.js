@@ -1,4 +1,8 @@
-const hasIterable = (value) => value != null && typeof value[Symbol.iterator] === 'function';
+import {
+  mergeTypeEntries as mergeSharedTypeEntries,
+  normalizeTypeEntry as normalizeSharedTypeEntry,
+  toTypeEntryCollection as toSharedTypeEntryCollection
+} from '../../shared/type-entry-utils.js';
 
 export const MAX_PARAM_CANDIDATES = 5;
 
@@ -15,69 +19,12 @@ export const ensureParamTypeMap = (value) => {
   return next;
 };
 
-export const toTypeEntryCollection = (value) => {
-  if (Array.isArray(value)) return value;
-  if (value == null) return [];
-  if (typeof value === 'string') return [value];
-  if (value instanceof Set) return Array.from(value);
-  if (value instanceof Map) return Array.from(value.values());
-  if (hasIterable(value)) return Array.from(value);
-  if (value && typeof value === 'object' && Object.hasOwn(value, 'type')) return [value];
-  return [];
-};
+export const toTypeEntryCollection = (value) => toSharedTypeEntryCollection(value);
 
-export const normalizeTypeEntry = (entry) => {
-  if (typeof entry === 'string') {
-    const type = entry.trim();
-    if (!type) return null;
-    return {
-      type,
-      source: null,
-      confidence: null
-    };
-  }
-  if (!entry || typeof entry !== 'object') return null;
-  if (!entry.type) return null;
-  const type = String(entry.type).trim();
-  if (!type) return null;
-  return {
-    type,
-    source: entry.source || null,
-    confidence: Number.isFinite(entry.confidence) ? entry.confidence : null
-  };
-};
+export const normalizeTypeEntry = (entry) => normalizeSharedTypeEntry(entry);
 
 export const mergeTypeEntries = (existing, incoming, cap = MAX_PARAM_CANDIDATES) => {
-  const map = new Map();
-  const addEntry = (entry) => {
-    const normalized = normalizeTypeEntry(entry);
-    if (!normalized) return;
-    const key = `${normalized.type}:${normalized.source || ''}`;
-    const prior = map.get(key);
-    if (!prior) {
-      map.set(key, normalized);
-      return;
-    }
-    const priorConfidence = Number.isFinite(prior.confidence) ? prior.confidence : 0;
-    const nextConfidence = Number.isFinite(normalized.confidence) ? normalized.confidence : 0;
-    if (nextConfidence > priorConfidence) map.set(key, normalized);
-  };
-  for (const entry of toTypeEntryCollection(existing)) addEntry(entry);
-  for (const entry of toTypeEntryCollection(incoming)) addEntry(entry);
-  const list = Array.from(map.values());
-  list.sort((a, b) => {
-    const typeCmp = a.type.localeCompare(b.type);
-    if (typeCmp) return typeCmp;
-    const sourceCmp = String(a.source || '').localeCompare(String(b.source || ''));
-    if (sourceCmp) return sourceCmp;
-    const confA = Number.isFinite(a.confidence) ? a.confidence : 0;
-    const confB = Number.isFinite(b.confidence) ? b.confidence : 0;
-    return confB - confA;
-  });
-  if (cap && list.length > cap) {
-    return { list: list.slice(0, cap), truncated: true };
-  }
-  return { list, truncated: false };
+  return mergeSharedTypeEntries(existing, incoming, { cap });
 };
 
 const normalizePayloadTextField = (value) => {

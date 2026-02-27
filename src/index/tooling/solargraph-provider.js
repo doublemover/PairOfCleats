@@ -5,21 +5,12 @@ import { resolveToolingCommandProfile } from './command-resolver.js';
 import { parseRubySignature } from './signature-parse/ruby.js';
 import { hasWorkspaceMarker } from './workspace-model.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
+import { ensureCommandArgToken, isPlainObject, normalizeCommandArgs, filterTargetsForDocuments } from './provider-utils.js';
 
 const RUBY_EXTS = ['.rb', '.rake', '.gemspec'];
 
-const isPlainObject = (value) => value != null && typeof value === 'object' && !Array.isArray(value);
-
-const normalizeArgs = (value) => (
-  Array.isArray(value)
-    ? value.map((entry) => String(entry)).filter((entry) => entry.length > 0)
-    : []
-);
-
 const ensureStdioArg = (args) => {
-  const normalized = normalizeArgs(args);
-  const hasStdio = normalized.some((entry) => entry.toLowerCase() === 'stdio');
-  return hasStdio ? normalized : [...normalized, 'stdio'];
+  return ensureCommandArgToken(args, 'stdio');
 };
 
 export const createSolargraphProvider = () => ({
@@ -46,9 +37,7 @@ export const createSolargraphProvider = () => ({
     const docs = Array.isArray(inputs?.documents)
       ? inputs.documents.filter((doc) => RUBY_EXTS.includes(path.extname(doc.virtualPath).toLowerCase()))
       : [];
-    const targets = Array.isArray(inputs?.targets)
-      ? inputs.targets.filter((target) => docs.some((doc) => doc.virtualPath === target.virtualPath))
-      : [];
+    const targets = filterTargetsForDocuments(inputs?.targets, docs);
     const duplicateChecks = buildDuplicateChunkUidChecks(targets, { label: 'solargraph' });
     if (!docs.length || !targets.length) {
       return {
@@ -86,7 +75,7 @@ export const createSolargraphProvider = () => ({
     }
 
     const requestedCmd = typeof config.cmd === 'string' && config.cmd.trim() ? config.cmd.trim() : 'solargraph';
-    const requestedArgs = ensureStdioArg(config.args);
+    const requestedArgs = ensureStdioArg(normalizeCommandArgs(config.args));
     const commandProfile = resolveToolingCommandProfile({
       providerId: 'solargraph',
       cmd: requestedCmd,

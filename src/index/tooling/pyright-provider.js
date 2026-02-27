@@ -7,6 +7,7 @@ import { resolveToolingCommandProfile } from './command-resolver.js';
 import { parsePythonSignature } from './signature-parse/python.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
+import { filterTargetsForDocuments } from './provider-utils.js';
 
 export const PYTHON_EXTS = ['.py', '.pyi'];
 
@@ -66,9 +67,7 @@ export const createPyrightProvider = () => ({
     const docs = Array.isArray(inputs?.documents)
       ? inputs.documents.filter((doc) => PYTHON_EXTS.includes(path.extname(doc.virtualPath).toLowerCase()))
       : [];
-    const targets = Array.isArray(inputs?.targets)
-      ? inputs.targets.filter((target) => docs.some((doc) => doc.virtualPath === target.virtualPath))
-      : [];
+    const targets = filterTargetsForDocuments(inputs?.targets, docs);
     const duplicateChecks = buildDuplicateChunkUidChecks(targets, { label: 'pyright' });
     if (!docs.length || !targets.length) {
       return {

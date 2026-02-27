@@ -5,16 +5,9 @@ import { resolveToolingCommandProfile } from './command-resolver.js';
 import { parseHaskellSignature } from './signature-parse/haskell.js';
 import { hasWorkspaceMarker } from './workspace-model.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
+import { isPlainObject, normalizeCommandArgs, filterTargetsForDocuments } from './provider-utils.js';
 
 const HASKELL_EXTS = ['.hs', '.lhs', '.cabal'];
-
-const isPlainObject = (value) => value != null && typeof value === 'object' && !Array.isArray(value);
-
-const normalizeArgs = (value) => (
-  Array.isArray(value)
-    ? value.map((entry) => String(entry)).filter((entry) => entry.length > 0)
-    : []
-);
 
 export const createHaskellProvider = () => ({
   id: 'haskell-language-server',
@@ -40,9 +33,7 @@ export const createHaskellProvider = () => ({
     const docs = Array.isArray(inputs?.documents)
       ? inputs.documents.filter((doc) => HASKELL_EXTS.includes(path.extname(doc.virtualPath).toLowerCase()))
       : [];
-    const targets = Array.isArray(inputs?.targets)
-      ? inputs.targets.filter((target) => docs.some((doc) => doc.virtualPath === target.virtualPath))
-      : [];
+    const targets = filterTargetsForDocuments(inputs?.targets, docs);
     const duplicateChecks = buildDuplicateChunkUidChecks(targets, { label: 'haskell-language-server' });
     if (!docs.length || !targets.length) {
       return {
@@ -81,7 +72,7 @@ export const createHaskellProvider = () => ({
     }
 
     const requestedCmd = typeof config.cmd === 'string' && config.cmd.trim() ? config.cmd.trim() : 'haskell-language-server';
-    const requestedArgs = normalizeArgs(config.args);
+    const requestedArgs = normalizeCommandArgs(config.args);
     const commandProfile = resolveToolingCommandProfile({
       providerId: 'haskell-language-server',
       cmd: requestedCmd,

@@ -5,21 +5,12 @@ import { resolveToolingCommandProfile } from './command-resolver.js';
 import { parseClikeSignature } from './signature-parse/clike.js';
 import { hasWorkspaceMarker } from './workspace-model.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
+import { ensureCommandArgToken, isPlainObject, normalizeCommandArgs, filterTargetsForDocuments } from './provider-utils.js';
 
 const PHP_EXTS = ['.php', '.phtml'];
 
-const isPlainObject = (value) => value != null && typeof value === 'object' && !Array.isArray(value);
-
-const normalizeArgs = (value) => (
-  Array.isArray(value)
-    ? value.map((entry) => String(entry)).filter((entry) => entry.length > 0)
-    : []
-);
-
 const ensureLanguageServerArg = (args) => {
-  const normalized = normalizeArgs(args);
-  const hasModeArg = normalized.some((entry) => entry.toLowerCase() === 'language-server');
-  return hasModeArg ? normalized : ['language-server', ...normalized];
+  return ensureCommandArgToken(args, 'language-server', { position: 'prepend' });
 };
 
 export const createPhpactorProvider = () => ({
@@ -46,9 +37,7 @@ export const createPhpactorProvider = () => ({
     const docs = Array.isArray(inputs?.documents)
       ? inputs.documents.filter((doc) => PHP_EXTS.includes(path.extname(doc.virtualPath).toLowerCase()))
       : [];
-    const targets = Array.isArray(inputs?.targets)
-      ? inputs.targets.filter((target) => docs.some((doc) => doc.virtualPath === target.virtualPath))
-      : [];
+    const targets = filterTargetsForDocuments(inputs?.targets, docs);
     const duplicateChecks = buildDuplicateChunkUidChecks(targets, { label: 'phpactor' });
     if (!docs.length || !targets.length) {
       return {
@@ -86,7 +75,7 @@ export const createPhpactorProvider = () => ({
     }
 
     const requestedCmd = typeof config.cmd === 'string' && config.cmd.trim() ? config.cmd.trim() : 'phpactor';
-    const requestedArgs = ensureLanguageServerArg(config.args);
+    const requestedArgs = ensureLanguageServerArg(normalizeCommandArgs(config.args));
     const commandProfile = resolveToolingCommandProfile({
       providerId: 'phpactor',
       cmd: requestedCmd,

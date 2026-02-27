@@ -14,6 +14,7 @@ import { parseSwiftSignature } from './signature-parse/swift.js';
 import { parseZigSignature } from './signature-parse/zig.js';
 import { hasWorkspaceMarker } from './workspace-model.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
+import { isPlainObject, normalizeCommandArgs } from './provider-utils.js';
 
 const normalizeList = (value) => {
   if (Array.isArray(value)) return value.map((entry) => String(entry).trim()).filter(Boolean);
@@ -21,11 +22,7 @@ const normalizeList = (value) => {
   return [];
 };
 
-const normalizeArgs = (value) => {
-  if (Array.isArray(value)) return value.map((entry) => String(entry));
-  if (typeof value === 'string' && value.trim()) return [value.trim()];
-  return [];
-};
+const normalizeArgs = (value) => normalizeCommandArgs(value);
 
 const normalizeHoverSymbolKinds = (value) => {
   const source = Array.isArray(value) ? value : [value];
@@ -43,7 +40,6 @@ const normalizeServerId = (value, fallback) => {
 };
 
 const normalizeLanguageList = (value) => normalizeList(value).map((entry) => entry.toLowerCase());
-const isPlainObject = (value) => value != null && typeof value === 'object' && !Array.isArray(value);
 
 const deepCloneValue = (value) => {
   if (Array.isArray(value)) return value.map((entry) => deepCloneValue(entry));
