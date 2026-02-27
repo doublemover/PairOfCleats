@@ -171,11 +171,13 @@ const normalizeServerConfig = (server, index) => {
   const documentSymbolTimeoutMs = Number(merged.documentSymbolTimeoutMs);
   const hoverTimeoutMs = Number(merged.hoverTimeoutMs);
   const signatureHelpTimeoutMs = Number(merged.signatureHelpTimeoutMs);
+  const definitionTimeoutMs = Number(merged.definitionTimeoutMs);
   const retries = Number(merged.retries);
   const priority = Number(merged.priority);
   const documentSymbolConcurrency = Number(merged.documentSymbolConcurrency);
   const hoverConcurrency = Number(merged.hoverConcurrency);
   const signatureHelpConcurrency = Number(merged.signatureHelpConcurrency);
+  const definitionConcurrency = Number(merged.definitionConcurrency);
   const hoverCacheMaxEntries = Number(merged.hoverCacheMaxEntries);
   const hoverMaxPerFile = Number(merged.hoverMaxPerFile);
   const hoverDisableAfterTimeouts = Number(merged.hoverDisableAfterTimeouts);
@@ -185,6 +187,9 @@ const normalizeServerConfig = (server, index) => {
   const signatureHelpEnabled = typeof merged.signatureHelpEnabled === 'boolean'
     ? merged.signatureHelpEnabled
     : (typeof merged.signatureHelp === 'boolean' ? merged.signatureHelp : null);
+  const definitionEnabled = typeof merged.definitionEnabled === 'boolean'
+    ? merged.definitionEnabled
+    : (typeof merged.definition === 'boolean' ? merged.definition : null);
   const hoverRequireMissingReturn = typeof merged.hoverRequireMissingReturn === 'boolean'
     ? merged.hoverRequireMissingReturn
     : null;
@@ -228,6 +233,9 @@ const normalizeServerConfig = (server, index) => {
     signatureHelpTimeoutMs: Number.isFinite(signatureHelpTimeoutMs)
       ? Math.max(1000, Math.floor(signatureHelpTimeoutMs))
       : null,
+    definitionTimeoutMs: Number.isFinite(definitionTimeoutMs)
+      ? Math.max(1000, Math.floor(definitionTimeoutMs))
+      : null,
     retries: Number.isFinite(retries) ? Math.max(0, Math.floor(retries)) : null,
     circuitBreakerThreshold: Number.isFinite(breakerThreshold)
       ? Math.max(1, Math.floor(breakerThreshold))
@@ -241,6 +249,9 @@ const normalizeServerConfig = (server, index) => {
     signatureHelpConcurrency: Number.isFinite(signatureHelpConcurrency)
       ? Math.max(1, Math.floor(signatureHelpConcurrency))
       : null,
+    definitionConcurrency: Number.isFinite(definitionConcurrency)
+      ? Math.max(1, Math.floor(definitionConcurrency))
+      : null,
     hoverCacheMaxEntries: Number.isFinite(hoverCacheMaxEntries)
       ? Math.max(1000, Math.floor(hoverCacheMaxEntries))
       : null,
@@ -252,6 +263,7 @@ const normalizeServerConfig = (server, index) => {
       : null,
     hoverEnabled,
     signatureHelpEnabled,
+    definitionEnabled,
     hoverRequireMissingReturn,
     hoverSymbolKinds,
     rustSuppressProcMacroDiagnostics,

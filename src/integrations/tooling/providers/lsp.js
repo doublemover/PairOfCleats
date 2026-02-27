@@ -109,8 +109,10 @@ export { resolveVfsIoBatching, ensureVirtualFilesBatch };
  * @param {string|null} [params.cacheRoot=null]
  * @param {number|null} [params.hoverTimeoutMs=null]
  * @param {number|null} [params.signatureHelpTimeoutMs=null]
+ * @param {number|null} [params.definitionTimeoutMs=null]
  * @param {boolean} [params.hoverEnabled=true]
  * @param {boolean} [params.signatureHelpEnabled=true]
+ * @param {boolean} [params.definitionEnabled=true]
  * @param {boolean} [params.hoverRequireMissingReturn=true]
  * @param {number[]|number|null} [params.hoverSymbolKinds=null]
  * @param {number|null} [params.hoverMaxPerFile=null]
@@ -122,6 +124,7 @@ export { resolveVfsIoBatching, ensureVirtualFilesBatch };
  * @param {number} [params.documentSymbolConcurrency=4]
  * @param {number} [params.hoverConcurrency=8]
  * @param {number} [params.signatureHelpConcurrency=8]
+ * @param {number} [params.definitionConcurrency=8]
  * @param {number} [params.hoverCacheMaxEntries=50000]
  * @param {(line:string)=>boolean|null} [params.stderrFilter=null]
  * @param {object|null} [params.initializationOptions=null]
@@ -158,8 +161,10 @@ export async function collectLspTypes({
   cacheRoot = null,
   hoverTimeoutMs = null,
   signatureHelpTimeoutMs = null,
+  definitionTimeoutMs = null,
   hoverEnabled = true,
   signatureHelpEnabled = true,
+  definitionEnabled = true,
   hoverRequireMissingReturn = true,
   hoverSymbolKinds = null,
   hoverMaxPerFile = null,
@@ -171,6 +176,7 @@ export async function collectLspTypes({
   documentSymbolConcurrency = DEFAULT_DOCUMENT_SYMBOL_CONCURRENCY,
   hoverConcurrency = DEFAULT_HOVER_CONCURRENCY,
   signatureHelpConcurrency = DEFAULT_HOVER_CONCURRENCY,
+  definitionConcurrency = DEFAULT_HOVER_CONCURRENCY,
   hoverCacheMaxEntries = DEFAULT_HOVER_CACHE_MAX_ENTRIES,
   stderrFilter = null,
   initializationOptions = null,
@@ -195,6 +201,7 @@ export async function collectLspTypes({
 
   const resolvedHoverTimeout = resolvePositiveTimeout(hoverTimeoutMs);
   const resolvedSignatureHelpTimeout = resolvePositiveTimeout(signatureHelpTimeoutMs) ?? resolvedHoverTimeout;
+  const resolvedDefinitionTimeout = resolvePositiveTimeout(definitionTimeoutMs) ?? resolvedHoverTimeout;
   const resolvedDocumentSymbolTimeout = resolvePositiveTimeout(documentSymbolTimeoutMs);
   const resolvedHoverMaxPerFile = toFiniteInt(hoverMaxPerFile, 0);
   const resolvedHoverDisableAfterTimeouts = toFiniteInt(hoverDisableAfterTimeouts, 1);
@@ -214,6 +221,11 @@ export async function collectLspTypes({
   );
   const resolvedSignatureHelpConcurrency = clampIntRange(
     signatureHelpConcurrency,
+    DEFAULT_HOVER_CONCURRENCY,
+    { min: 1, max: 64 }
+  );
+  const resolvedDefinitionConcurrency = clampIntRange(
+    definitionConcurrency,
     DEFAULT_HOVER_CONCURRENCY,
     { min: 1, max: 64 }
   );
@@ -370,6 +382,7 @@ export async function collectLspTypes({
     let capabilityMask = null;
     let effectiveHoverEnabled = hoverEnabled !== false;
     let effectiveSignatureHelpEnabled = signatureHelpEnabled !== false;
+    let effectiveDefinitionEnabled = definitionEnabled !== false;
     let skipSymbolCollection = false;
     try {
       throwIfAborted(toolingAbortSignal);
@@ -383,6 +396,7 @@ export async function collectLspTypes({
       runtime.capabilities = capabilityMask;
       effectiveHoverEnabled = effectiveHoverEnabled && capabilityMask.hover;
       effectiveSignatureHelpEnabled = effectiveSignatureHelpEnabled && capabilityMask.signatureHelp;
+      effectiveDefinitionEnabled = effectiveDefinitionEnabled && capabilityMask.definition;
       if (!capabilityMask.documentSymbol) {
         checks.push({
           name: 'tooling_capability_missing_document_symbol',
@@ -404,6 +418,13 @@ export async function collectLspTypes({
           name: 'tooling_capability_missing_signature_help',
           status: 'info',
           message: `${cmd} does not advertise textDocument/signatureHelp.`
+        });
+      }
+      if (definitionEnabled !== false && !capabilityMask.definition) {
+        checks.push({
+          name: 'tooling_capability_missing_definition',
+          status: 'info',
+          message: `${cmd} does not advertise textDocument/definition.`
         });
       }
       shouldShutdownClient = lease.pooled !== true;
@@ -448,6 +469,7 @@ export async function collectLspTypes({
       const hoverControl = { disabledGlobal: false };
       const hoverLimiter = createConcurrencyLimiter(resolvedHoverConcurrency);
       const signatureHelpLimiter = createConcurrencyLimiter(resolvedSignatureHelpConcurrency);
+      const definitionLimiter = createConcurrencyLimiter(resolvedDefinitionConcurrency);
       const hoverCacheState = await loadHoverCache(cacheRoot);
       const hoverCacheEntries = hoverCacheState.entries;
       let hoverCacheDirty = false;
@@ -498,15 +520,18 @@ export async function collectLspTypes({
           signatureParseCache,
           hoverEnabled: effectiveHoverEnabled,
           signatureHelpEnabled: effectiveSignatureHelpEnabled,
+          definitionEnabled: effectiveDefinitionEnabled,
           hoverRequireMissingReturn,
           resolvedHoverKinds,
           resolvedHoverMaxPerFile,
           resolvedHoverDisableAfterTimeouts,
           resolvedHoverTimeout,
           resolvedSignatureHelpTimeout,
+          resolvedDefinitionTimeout,
           resolvedDocumentSymbolTimeout,
           hoverLimiter,
           signatureHelpLimiter,
+          definitionLimiter,
           hoverCacheEntries,
           markHoverCacheDirty,
           hoverControl,

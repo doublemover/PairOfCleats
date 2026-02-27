@@ -77,11 +77,14 @@ const resolveBooleanSetting = ({ providerConfig, globalConfigs, keys, fallback =
  *   documentSymbolTimeoutMs:number|null,
  *   hoverTimeoutMs:number|null,
  *   signatureHelpTimeoutMs:number|null,
+ *   definitionTimeoutMs:number|null,
  *   hoverMaxPerFile:number|null,
  *   hoverDisableAfterTimeouts:number|null,
  *   signatureHelpConcurrency:number|null,
+ *   definitionConcurrency:number|null,
  *   hoverEnabled:boolean|null,
  *   signatureHelpEnabled:boolean|null,
+ *   definitionEnabled:boolean|null,
  *   hoverRequireMissingReturn:boolean|null,
  *   lifecycleRestartWindowMs:number|null,
  *   lifecycleMaxRestartsPerWindow:number|null,
@@ -140,6 +143,13 @@ export const resolveLspRuntimeConfig = (input = {}) => {
       min: 1000,
       fallback: null
     }),
+    definitionTimeoutMs: resolveIntegerSetting({
+      providerConfig,
+      globalConfigs,
+      keys: ['definitionTimeoutMs'],
+      min: 1000,
+      fallback: null
+    }),
     hoverMaxPerFile: resolveIntegerSetting({
       providerConfig,
       globalConfigs,
@@ -161,6 +171,13 @@ export const resolveLspRuntimeConfig = (input = {}) => {
       min: 1,
       fallback: null
     }),
+    definitionConcurrency: resolveIntegerSetting({
+      providerConfig,
+      globalConfigs,
+      keys: ['definitionConcurrency'],
+      min: 1,
+      fallback: null
+    }),
     hoverEnabled: resolveBooleanSetting({
       providerConfig,
       globalConfigs,
@@ -171,6 +188,12 @@ export const resolveLspRuntimeConfig = (input = {}) => {
       providerConfig,
       globalConfigs,
       keys: ['signatureHelpEnabled', 'signatureHelp'],
+      fallback: null
+    }),
+    definitionEnabled: resolveBooleanSetting({
+      providerConfig,
+      globalConfigs,
+      keys: ['definitionEnabled', 'definition'],
       fallback: null
     }),
     hoverRequireMissingReturn: resolveBooleanSetting({

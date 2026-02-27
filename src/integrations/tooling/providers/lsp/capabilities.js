@@ -10,7 +10,10 @@ const hasProviderCapability = (value) => {
  * @returns {{
  *   documentSymbol:boolean,
  *   hover:boolean,
- *   signatureHelp:boolean
+ *   signatureHelp:boolean,
+ *   definition:boolean,
+ *   typeDefinition:boolean,
+ *   references:boolean
  * }}
  */
 export const probeLspCapabilities = (initializeResult) => {
@@ -26,6 +29,12 @@ export const probeLspCapabilities = (initializeResult) => {
     hover: hasProviderCapability(capabilities?.hoverProvider)
       || hasProviderCapability(textDocument?.hover),
     signatureHelp: hasProviderCapability(capabilities?.signatureHelpProvider)
-      || hasProviderCapability(textDocument?.signatureHelp)
+      || hasProviderCapability(textDocument?.signatureHelp),
+    definition: hasProviderCapability(capabilities?.definitionProvider)
+      || hasProviderCapability(textDocument?.definition),
+    typeDefinition: hasProviderCapability(capabilities?.typeDefinitionProvider)
+      || hasProviderCapability(textDocument?.typeDefinition),
+    references: hasProviderCapability(capabilities?.referencesProvider)
+      || hasProviderCapability(textDocument?.references)
   };
 };

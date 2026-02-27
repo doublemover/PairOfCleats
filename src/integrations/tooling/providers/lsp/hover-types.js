@@ -188,6 +188,23 @@ const extractSignatureHelpText = (payload) => {
   return String(activeSignature.label || '').trim();
 };
 
+const extractDefinitionLocations = (payload) => {
+  const source = Array.isArray(payload) ? payload : [payload];
+  const out = [];
+  for (const entry of source) {
+    if (!entry || typeof entry !== 'object') continue;
+    const uri = typeof entry.uri === 'string'
+      ? entry.uri
+      : (typeof entry.targetUri === 'string' ? entry.targetUri : null);
+    const range = entry.range && typeof entry.range === 'object'
+      ? entry.range
+      : (entry.targetRange && typeof entry.targetRange === 'object' ? entry.targetRange : null);
+    if (!uri || !range) continue;
+    out.push({ uri, range });
+  }
+  return out;
+};
+
 /**
  * Normalize signature/type strings to compact one-line text.
  * @param {unknown} value
@@ -243,6 +260,8 @@ const createHoverFileStats = () => ({
   succeeded: 0,
   signatureHelpRequested: 0,
   signatureHelpSucceeded: 0,
+  definitionRequested: 0,
+  definitionSucceeded: 0,
   timedOut: 0,
   skippedByBudget: 0,
   skippedByKind: 0,
@@ -435,6 +454,21 @@ const buildSourceSignatureCandidate = (text, virtualRange) => {
   return normalizeSignatureCacheText(candidate.slice(0, cut));
 };
 
+const buildLineSignatureCandidate = (text, lineNumber) => {
+  if (typeof text !== 'string' || !text) return null;
+  const line = Number(lineNumber);
+  if (!Number.isFinite(line) || line < 0) return null;
+  const lines = text.split(/\r?\n/u);
+  if (line >= lines.length) return null;
+  let candidate = String(lines[line] || '');
+  if (!candidate.includes('(') || !candidate.includes(')')) return null;
+  const terminators = [candidate.indexOf('{'), candidate.indexOf(';')].filter((idx) => idx >= 0);
+  if (terminators.length) {
+    candidate = candidate.slice(0, Math.min(...terminators));
+  }
+  return normalizeSignatureCacheText(candidate);
+};
+
 /**
  * Resolve best chunk target for a symbol/diagnostic offset range.
  *
@@ -590,6 +624,8 @@ export const createEmptyHoverMetricsResult = () => ({
   succeeded: 0,
   signatureHelpRequested: 0,
   signatureHelpSucceeded: 0,
+  definitionRequested: 0,
+  definitionSucceeded: 0,
   timedOut: 0,
   incompleteSymbols: 0,
   hoverTriggeredByIncomplete: 0,
@@ -619,6 +655,8 @@ export const summarizeHoverMetrics = ({ hoverMetrics, hoverLatencyMs, hoverFileS
       succeeded: stats.succeeded,
       signatureHelpRequested: stats.signatureHelpRequested,
       signatureHelpSucceeded: stats.signatureHelpSucceeded,
+      definitionRequested: stats.definitionRequested,
+      definitionSucceeded: stats.definitionSucceeded,
       timedOut: stats.timedOut,
       skippedByBudget: stats.skippedByBudget,
       skippedByKind: stats.skippedByKind,
@@ -642,6 +680,8 @@ export const summarizeHoverMetrics = ({ hoverMetrics, hoverLatencyMs, hoverFileS
     succeeded: hoverMetrics.succeeded,
     signatureHelpRequested: hoverMetrics.signatureHelpRequested,
     signatureHelpSucceeded: hoverMetrics.signatureHelpSucceeded,
+    definitionRequested: hoverMetrics.definitionRequested,
+    definitionSucceeded: hoverMetrics.definitionSucceeded,
     timedOut: hoverMetrics.timedOut,
     incompleteSymbols: hoverMetrics.incompleteSymbols,
     hoverTriggeredByIncomplete: hoverMetrics.hoverTriggeredByIncomplete,
@@ -727,7 +767,9 @@ const buildFallbackReasonCodes = ({
   hoverRequested,
   hoverSucceeded,
   signatureHelpRequested,
-  signatureHelpSucceeded
+  signatureHelpSucceeded,
+  definitionRequested,
+  definitionSucceeded
 }) => {
   const reasons = [];
   if (incompleteState?.missingReturn) reasons.push('missing_return_type');
@@ -738,6 +780,9 @@ const buildFallbackReasonCodes = ({
   if (!signatureHelpRequested) reasons.push('signature_help_not_requested');
   else if (!signatureHelpSucceeded) reasons.push('signature_help_unavailable_or_failed');
   else reasons.push('post_signature_help_still_incomplete');
+  if (!definitionRequested) reasons.push('definition_not_requested');
+  else if (!definitionSucceeded) reasons.push('definition_unavailable_or_failed');
+  else reasons.push('post_definition_still_incomplete');
   return reasons;
 };
 
@@ -746,10 +791,11 @@ const buildFallbackReasonCodes = ({
  *
  * Fallback semantics:
  * 1. documentSymbol errors are soft-failed per document.
- * 2. hover/signatureHelp requests are deduped by position and can be suppressed by:
+ * 2. hover/signatureHelp/definition requests are deduped by position and can be suppressed by:
  *    return-type sufficiency, kind filters, per-file budget, adaptive timeout,
  *    or global timeout circuit.
- * 3. source-signature fallback runs only after hover/signatureHelp attempts
+ * 3. source-signature fallback runs only after hover/signatureHelp/definition
+ *    attempts
  *    still leave the payload incomplete.
  * 4. strict mode throws only when resolved symbol data cannot be mapped to a
  *    chunk uid.
@@ -776,15 +822,18 @@ export const processDocumentTypes = async ({
   signatureParseCache,
   hoverEnabled,
   signatureHelpEnabled,
+  definitionEnabled,
   hoverRequireMissingReturn,
   resolvedHoverKinds,
   resolvedHoverMaxPerFile,
   resolvedHoverDisableAfterTimeouts,
   resolvedHoverTimeout,
   resolvedSignatureHelpTimeout,
+  resolvedDefinitionTimeout,
   resolvedDocumentSymbolTimeout,
   hoverLimiter,
   signatureHelpLimiter,
+  definitionLimiter,
   hoverCacheEntries,
   markHoverCacheDirty,
   hoverControl,
@@ -873,6 +922,7 @@ export const processDocumentTypes = async ({
     if (openEntry && !openEntry.lineIndex) openEntry.lineIndex = lineIndex;
     const hoverRequestByPosition = new Map();
     const signatureHelpRequestByPosition = new Map();
+    const definitionRequestByPosition = new Map();
     const symbolRecords = [];
 
     const requestHover = (symbol, position) => {
@@ -1002,6 +1052,65 @@ export const processDocumentTypes = async ({
       return promise;
     };
 
+    const requestDefinition = (symbol, position) => {
+      throwIfAborted(abortSignal);
+      const key = `${Math.floor(position.line)}:${Math.floor(position.character)}`;
+      if (definitionRequestByPosition.has(key)) return definitionRequestByPosition.get(key);
+      const runDefinition = typeof definitionLimiter === 'function'
+        ? definitionLimiter
+        : hoverLimiter;
+      const promise = (async () => {
+        const timeoutOverride = Number.isFinite(resolvedDefinitionTimeout)
+          ? resolvedDefinitionTimeout
+          : null;
+        fileHoverStats.definitionRequested += 1;
+        hoverMetrics.definitionRequested += 1;
+        try {
+          throwIfAborted(abortSignal);
+          const payload = await runDefinition(() => runGuarded(
+            ({ timeoutMs: guardTimeout }) => client.request('textDocument/definition', {
+              textDocument: { uri },
+              position
+            }, { timeoutMs: guardTimeout }),
+            { label: 'definition', ...(timeoutOverride ? { timeoutOverride } : {}) }
+          ));
+          const locations = extractDefinitionLocations(payload);
+          if (!locations.length) return null;
+          const definitionUris = new Set([String(uri || '')]);
+          if (legacyUri) definitionUris.add(String(legacyUri));
+          for (const location of locations) {
+            if (!definitionUris.has(String(location?.uri || ''))) continue;
+            const locationOffsets = rangeToOffsets(lineIndex, location?.range || null);
+            let candidate = buildSourceSignatureCandidate(
+              openEntry?.text || doc.text || '',
+              locationOffsets
+            );
+            if (!candidate) {
+              const fallbackLine = Number(location?.range?.start?.line);
+              candidate = buildLineSignatureCandidate(openEntry?.text || doc.text || '', fallbackLine);
+            }
+            const info = parseSignatureCached(candidate, symbol?.name);
+            if (info) {
+              fileHoverStats.definitionSucceeded += 1;
+              hoverMetrics.definitionSucceeded += 1;
+              return info;
+            }
+          }
+          return null;
+        } catch (err) {
+          if (err?.code === 'ABORT_ERR') throw err;
+          if (err?.code === 'TOOLING_CIRCUIT_OPEN') {
+            recordCircuitOpenCheck({ cmd, guard, checks, checkFlags });
+          } else if (err?.code === 'TOOLING_CRASH_LOOP') {
+            recordCrashLoopCheck({ cmd, checks, checkFlags, detail: err?.detail || null });
+          }
+          return null;
+        }
+      })();
+      definitionRequestByPosition.set(key, promise);
+      return promise;
+    };
+
     for (const symbol of flattened) {
       throwIfAborted(abortSignal);
       const offsets = rangeToOffsets(lineIndex, symbol.selectionRange || symbol.range);
@@ -1032,7 +1141,9 @@ export const processDocumentTypes = async ({
         hoverMetrics.skippedByKind += 1;
       }
 
-      const requestBudgetCount = Number(fileHoverStats.requested || 0) + Number(fileHoverStats.signatureHelpRequested || 0);
+      const requestBudgetCount = Number(fileHoverStats.requested || 0)
+        + Number(fileHoverStats.signatureHelpRequested || 0)
+        + Number(fileHoverStats.definitionRequested || 0);
       const fileOverBudget = Number.isFinite(resolvedHoverMaxPerFile)
         && resolvedHoverMaxPerFile >= 0
         && requestBudgetCount >= resolvedHoverMaxPerFile;
@@ -1082,6 +1193,15 @@ export const processDocumentTypes = async ({
           && !fileOverBudget
           && !adaptiveDisabled
           && position != null
+        ),
+        definitionEligible: (
+          definitionEnabled
+          && needsHover
+          && symbolKindAllowed
+          && !fileOverBudget
+          && !adaptiveDisabled
+          && position != null
+          && !sourceSignature
         )
       });
     }
@@ -1093,6 +1213,8 @@ export const processDocumentTypes = async ({
       let hoverSucceeded = false;
       let signatureHelpSucceeded = false;
       let signatureHelpRequested = false;
+      let definitionSucceeded = false;
+      let definitionRequested = false;
       if (record.hoverPromise) {
         const hoverInfo = await record.hoverPromise;
         if (hoverInfo) {
@@ -1116,15 +1238,28 @@ export const processDocumentTypes = async ({
       const incompleteAfterSignatureHelp = isIncompleteTypePayload(info, {
         symbolKind: record?.symbol?.kind
       });
-      if (incompleteAfterSignatureHelp.incomplete && record.sourceSignature) {
+      if (incompleteAfterSignatureHelp.incomplete && record.definitionEligible) {
+        definitionRequested = true;
+        const definitionInfo = await requestDefinition(record.symbol, record.position);
+        if (definitionInfo) {
+          definitionSucceeded = true;
+          info = mergeSignatureInfo(info, definitionInfo, { symbolKind: record?.symbol?.kind });
+        }
+      }
+      const incompleteAfterDefinition = isIncompleteTypePayload(info, {
+        symbolKind: record?.symbol?.kind
+      });
+      if (incompleteAfterDefinition.incomplete && record.sourceSignature) {
         const sourceInfo = parseSignatureCached(record.sourceSignature, record?.symbol?.name);
         if (sourceInfo) {
           const fallbackReasons = buildFallbackReasonCodes({
-            incompleteState: incompleteAfterSignatureHelp,
+            incompleteState: incompleteAfterDefinition,
             hoverRequested: record.hoverRequested === true,
             hoverSucceeded,
             signatureHelpRequested,
-            signatureHelpSucceeded
+            signatureHelpSucceeded,
+            definitionRequested,
+            definitionSucceeded
           });
           recordFallbackReasons(hoverMetrics, fallbackReasons);
           info = mergeSignatureInfo(info, sourceInfo, { symbolKind: record?.symbol?.kind });

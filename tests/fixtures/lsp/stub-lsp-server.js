@@ -133,6 +133,13 @@ const symbolsByMode = {
     hoverDetail: 'add',
     signatureHelpDetail: 'int add(int a, int b)',
     kind: 12
+  },
+  'definition-richer': {
+    name: 'add',
+    detail: 'add',
+    hoverDetail: 'add',
+    signatureHelpDetail: 'add',
+    kind: 12
   }
 };
 
@@ -198,6 +205,14 @@ const resolveInitializeCapabilities = (initializeParams = null) => {
       documentSymbolProvider: true,
       hoverProvider: true,
       signatureHelpProvider: true
+    };
+  }
+  if (mode === 'definition-richer') {
+    return {
+      documentSymbolProvider: true,
+      hoverProvider: true,
+      signatureHelpProvider: true,
+      definitionProvider: true
     };
   }
   return {
@@ -362,6 +377,22 @@ const handleRequest = (message) => {
       activeSignature: 0,
       activeParameter: 0
     });
+    return;
+  }
+  if (method === 'textDocument/definition') {
+    const uri = params?.textDocument?.uri || null;
+    const text = uri ? (documents.get(uri) || '') : '';
+    const lines = text.split(/\r?\n/u);
+    const lineText = lines[0] || '';
+    respond(id, uri
+      ? [{
+        uri,
+        range: {
+          start: { line: 0, character: 0 },
+          end: { line: 0, character: Math.max(0, lineText.length) }
+        }
+      }]
+      : []);
     return;
   }
   respondError(id, `Method not supported: ${method}`);
