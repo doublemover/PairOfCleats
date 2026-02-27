@@ -5,7 +5,7 @@ import { repoRoot } from '../../helpers/root.js';
 
 const ROOT = repoRoot();
 const testsDir = path.join(ROOT, 'tests');
-const target = path.join(ROOT, 'tests', 'tooling', 'config', 'config-validate.test.js');
+const target = path.join(ROOT, 'tests', 'tooling', 'config', 'validate.test.js');
 
 const result = spawnSync(process.execPath, [target], {
   cwd: testsDir,
