@@ -27,7 +27,6 @@
       "match": [
         "^contracts/",
         "^benchmarks/regressions/",
-        "^backcompat/",
         "^diagnostics/diagnostics-transition-validation$",
         "^indexing/policy/",
         "^indexing/contracts/",

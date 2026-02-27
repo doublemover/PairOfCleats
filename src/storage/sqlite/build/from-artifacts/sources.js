@@ -16,6 +16,7 @@ import {
   expandMetaPartPaths,
   listShardFiles,
   locateChunkMetaShards,
+  loadChunkMetaRows,
   loadTokenPostings,
   readJsonLinesEachAwait,
   resolveArtifactPresence,
@@ -117,8 +118,15 @@ export const resolveChunkMetaSources = (dir) => {
   }
   if (Array.isArray(presence?.paths) && presence.paths.length) {
     return {
-      format: presence.format === 'json' || presence.format === 'columnar' ? presence.format : 'jsonl',
+      format: (
+        presence.format === 'json'
+        || presence.format === 'columnar'
+        || presence.format === 'binary-columnar'
+      )
+        ? presence.format
+        : 'jsonl',
       paths: presence.paths,
+      dir,
       metaPath: presence.metaPath || null,
       meta: presence.meta || null
     };
@@ -138,6 +146,7 @@ export const resolveChunkMetaSources = (dir) => {
       return {
         format: 'jsonl',
         paths: located.parts,
+        dir,
         metaPath: located.metaPath || null,
         meta: located.meta || null
       };
@@ -146,11 +155,11 @@ export const resolveChunkMetaSources = (dir) => {
 
   const jsonlResolved = resolveFirstExistingPath(path.join(dir, 'chunk_meta.jsonl'));
   if (jsonlResolved) {
-    return { format: 'jsonl', paths: [jsonlResolved], metaPath: null, meta: null };
+    return { format: 'jsonl', paths: [jsonlResolved], dir, metaPath: null, meta: null };
   }
   const jsonResolved = resolveFirstExistingPath(path.join(dir, 'chunk_meta.json'));
   if (jsonResolved) {
-    return { format: 'json', paths: [jsonResolved], metaPath: null, meta: null };
+    return { format: 'json', paths: [jsonResolved], dir, metaPath: null, meta: null };
   }
   return null;
 };
@@ -228,7 +237,11 @@ export const normalizeTfPostingRows = (posting) => {
 };
 
 export const resolveChunkMetaSourceKind = (format) => (
-  format === 'jsonl' ? 'jsonl' : (format === 'columnar' ? 'columnar' : 'json')
+  format === 'jsonl'
+    ? 'jsonl'
+    : (format === 'columnar'
+      ? 'columnar'
+      : (format === 'binary-columnar' ? 'binary-columnar' : 'json'))
 );
 
 export const CHUNK_META_REQUIRED_KEYS = resolveJsonlRequiredKeys('chunk_meta');
@@ -290,6 +303,26 @@ export const iterateChunkMetaSources = async (
           await emitEntry(row);
         }
       }
+    }
+    return { sourceKind, sourceFiles, count };
+  }
+  if (sourceKind === 'binary-columnar') {
+    for (const sourcePath of paths) {
+      await emitSourceFile(sourcePath);
+    }
+    const sourceDir = typeof sources?.dir === 'string' && sources.dir
+      ? sources.dir
+      : (paths.length ? path.dirname(paths[0]) : null);
+    if (!sourceDir) return { sourceKind, sourceFiles, count };
+    for await (const row of loadChunkMetaRows(sourceDir, {
+      maxBytes: MAX_JSON_BYTES,
+      strict: false,
+      includeCold: false,
+      materializeTokenIds: false,
+      preferBinaryColumnar: true,
+      enforceBinaryDataBudget: false
+    })) {
+      await emitEntry(row);
     }
     return { sourceKind, sourceFiles, count };
   }

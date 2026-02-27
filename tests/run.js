@@ -231,7 +231,7 @@ const main = async () => {
     const lane = normalized[0];
     return ORDERED_LANES.has(lane) ? lane : '';
   })();
-  if (requestedLanes.includes('ci-long') && !tagInclude.includes('long')) {
+  if (requestedLanes.includes('ci-long') && !orderedLane && !tagInclude.includes('long')) {
     tagInclude.push('long');
   }
 

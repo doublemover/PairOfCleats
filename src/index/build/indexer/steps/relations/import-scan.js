@@ -181,8 +181,10 @@ export const postScanImports = async ({
   importResult,
   incrementalState,
   fileTextByFile,
-  hangProbeConfig = null
+  hangProbeConfig = null,
+  abortSignal = null
 }) => {
+  throwIfAborted(abortSignal);
   if (!scanPlan?.shouldScan) return null;
   if (!mode || mode !== 'code' || !relationsEnabled || !scanPlan.enableImportLinks) return null;
   const probeConfig = resolveHangProbeConfig(hangProbeConfig);
@@ -211,12 +213,16 @@ export const postScanImports = async ({
       entryCount: Array.isArray(entries) ? entries.length : 0,
       importerFiles: Object.keys(importsByFile).length
     },
-    run: () => prepareImportResolutionFsMeta({
-      root: runtime.root,
-      entries,
-      importsByFile
-    })
+    run: () => {
+      throwIfAborted(abortSignal);
+      return prepareImportResolutionFsMeta({
+        root: runtime.root,
+        entries,
+        importsByFile
+      });
+    }
   });
+  throwIfAborted(abortSignal);
   if (cacheEnabled) {
     ({ cache, cachePath } = await loadImportResolutionCache({ incrementalState, log }));
     cacheStats = {
@@ -269,25 +275,29 @@ export const postScanImports = async ({
       importerFiles: Object.keys(importsByFile).length,
       cacheEnabled
     },
-    run: () => resolveImportLinks({
-      root: runtime.root,
-      entries,
-      importsByFile,
-      fileRelations: state.fileRelations,
-      log,
-      mode,
-      enableGraph: scanPlan.importGraphEnabled,
-      graphMeta: {
-        toolVersion: runtime.toolInfo?.version || null,
-        importScanMode: scanPlan.importScanMode || null
-      },
-      cache,
-      fileHashes,
-      cacheStats,
-      fsMeta,
-      resolverPlugins
-    })
+    run: () => {
+      throwIfAborted(abortSignal);
+      return resolveImportLinks({
+        root: runtime.root,
+        entries,
+        importsByFile,
+        fileRelations: state.fileRelations,
+        log,
+        mode,
+        enableGraph: scanPlan.importGraphEnabled,
+        graphMeta: {
+          toolVersion: runtime.toolInfo?.version || null,
+          importScanMode: scanPlan.importScanMode || null
+        },
+        cache,
+        fileHashes,
+        cacheStats,
+        fsMeta,
+        resolverPlugins
+      });
+    }
   });
+  throwIfAborted(abortSignal);
   const unresolvedSamples = normalizeUnresolvedSamples(resolution?.unresolvedSamples);
   const unresolvedTaxonomy = summarizeUnresolvedImportTaxonomy(unresolvedSamples);
   if (resolution?.graph && Array.isArray(resolution.graph.warnings)) {

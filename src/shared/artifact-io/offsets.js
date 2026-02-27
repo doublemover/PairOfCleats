@@ -8,6 +8,7 @@ export const OFFSETS_FORMAT = 'u64-le';
 export const OFFSETS_COMPRESSION = 'none';
 
 const OFFSET_BYTES = 8;
+const MAX_OFFSETS_SPAN_BYTES = 4 * 1024 * 1024;
 const OFFSETS_VALIDATION_CACHE = new Map();
 const OFFSETS_VALIDATION_CACHE_MAX = 256;
 
@@ -54,6 +55,12 @@ const readOffsetValue = (buffer, index) => {
   return Number(value);
 };
 
+const createOffsetsInvalidError = (message) => {
+  const err = new Error(message);
+  err.code = 'ERR_OFFSETS_INVALID';
+  return err;
+};
+
 /**
  * Read an entire offsets sidecar into memory.
  * @param {string} offsetsPath
@@ -61,12 +68,25 @@ const readOffsetValue = (buffer, index) => {
  */
 export const readOffsetsFile = async (offsetsPath) => {
   const data = await fs.readFile(offsetsPath);
+  if (data.length % OFFSET_BYTES !== 0) {
+    throw createOffsetsInvalidError(`Offsets sidecar misaligned: ${offsetsPath}`);
+  }
   const count = Math.floor(data.length / OFFSET_BYTES);
   const offsets = new Array(count);
   for (let i = 0; i < count; i += 1) {
     offsets[i] = readOffsetValue(data, i);
   }
   return offsets;
+};
+
+const readSingleOffsetAtWithHandle = async (handle, index) => {
+  const buffer = Buffer.allocUnsafe(OFFSET_BYTES);
+  const { bytesRead } = await handle.read(buffer, 0, OFFSET_BYTES, index * OFFSET_BYTES);
+  if (bytesRead === 0) return null;
+  if (bytesRead !== OFFSET_BYTES) {
+    throw createOffsetsInvalidError(`Offsets sidecar truncated at index ${index}`);
+  }
+  return readOffsetValue(buffer, 0);
 };
 
 const readOffsetsAtWithHandle = async (handle, indexes) => {
@@ -78,6 +98,12 @@ const readOffsetsAtWithHandle = async (handle, indexes) => {
   const maxIndex = sorted[sorted.length - 1];
   const spanCount = maxIndex - minIndex + 1;
   const spanBytes = spanCount * OFFSET_BYTES;
+  if (spanBytes > MAX_OFFSETS_SPAN_BYTES) {
+    for (const index of sorted) {
+      out.set(index, await readSingleOffsetAtWithHandle(handle, index));
+    }
+    return out;
+  }
   const spanBuffer = Buffer.allocUnsafe(spanBytes);
   const { bytesRead } = await handle.read(spanBuffer, 0, spanBytes, minIndex * OFFSET_BYTES);
   for (const index of sorted) {
@@ -144,9 +170,15 @@ export const resolveOffsetsCount = async (
 ) => {
   if (handle) {
     const { size } = await handle.stat();
+    if (size % OFFSET_BYTES !== 0) {
+      throw createOffsetsInvalidError(`Offsets sidecar misaligned: ${offsetsPath}`);
+    }
     return Math.floor(size / OFFSET_BYTES);
   }
   const { size } = await fs.stat(offsetsPath);
+  if (size % OFFSET_BYTES !== 0) {
+    throw createOffsetsInvalidError(`Offsets sidecar misaligned: ${offsetsPath}`);
+  }
   return Math.floor(size / OFFSET_BYTES);
 };
 
@@ -204,6 +236,9 @@ export const readJsonlRowAt = async (
     }
     const buffer = Buffer.allocUnsafe(length);
     const { bytesRead } = await jsonlHandle.read(buffer, 0, length, start);
+    if (bytesRead !== length) {
+      throw createOffsetsInvalidError(`JSONL row short read at index ${index} for ${jsonlPath}`);
+    }
     const line = buffer.slice(0, bytesRead).toString('utf8');
     if (metrics && typeof metrics === 'object') {
       const currentRead = Number.isFinite(metrics.bytesRead) ? metrics.bytesRead : 0;
@@ -294,6 +329,9 @@ export const readJsonlRowsAt = async (
       }
       const buffer = Buffer.allocUnsafe(length);
       const { bytesRead } = await jsonlHandle.read(buffer, 0, length, start);
+      if (bytesRead !== length) {
+        throw createOffsetsInvalidError(`JSONL row short read at index ${index} for ${jsonlPath}`);
+      }
       const line = buffer.slice(0, bytesRead).toString('utf8');
       if (metrics && typeof metrics === 'object') {
         const currentRead = Number.isFinite(metrics.bytesRead) ? metrics.bytesRead : 0;

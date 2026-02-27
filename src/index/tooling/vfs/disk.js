@@ -5,6 +5,18 @@ import { isAbsolutePathAny, toPosix } from '../../../shared/files.js';
 import { isPathUnderDir } from '../../../shared/path-normalize.js';
 
 const VFS_DISK_CACHE = new Map();
+const VFS_DISK_CACHE_MAX_ENTRIES = 50_000;
+
+const setVfsDiskCacheEntry = (key, value) => {
+  if (!key) return;
+  if (VFS_DISK_CACHE.has(key)) VFS_DISK_CACHE.delete(key);
+  VFS_DISK_CACHE.set(key, value);
+  while (VFS_DISK_CACHE.size > VFS_DISK_CACHE_MAX_ENTRIES) {
+    const oldestKey = VFS_DISK_CACHE.keys().next().value;
+    if (oldestKey == null) break;
+    VFS_DISK_CACHE.delete(oldestKey);
+  }
+};
 
 const buildVfsDiskCacheKey = ({ baseDir, virtualPath }) => buildCacheKey({
   repoHash: baseDir || '',
@@ -73,7 +85,7 @@ export const ensureVfsDiskDocument = async ({
     ? coldStartCache.get({ virtualPath, docHash })
     : null;
   if (cachedPath) {
-    VFS_DISK_CACHE.set(cacheKey, { path: cachedPath, docHash });
+    setVfsDiskCacheEntry(cacheKey, { path: cachedPath, docHash });
     if (coldStartCache?.set) {
       const sizeBytes = Buffer.byteLength(text || '', 'utf8');
       coldStartCache.set({
@@ -106,7 +118,7 @@ export const ensureVfsDiskDocument = async ({
 
   await fsPromises.mkdir(path.dirname(absPath), { recursive: true });
   await fsPromises.writeFile(absPath, text || '', 'utf8');
-  VFS_DISK_CACHE.set(cacheKey, { path: absPath, docHash });
+  setVfsDiskCacheEntry(cacheKey, { path: absPath, docHash });
   if (coldStartCache?.set) {
     const sizeBytes = Buffer.byteLength(text || '', 'utf8');
     coldStartCache.set({

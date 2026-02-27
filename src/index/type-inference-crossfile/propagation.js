@@ -19,6 +19,7 @@ import {
   resolvePropagationParallelOptions,
   updateBundleSizing
 } from './bundler.js';
+import { throwIfAborted } from '../../shared/abort.js';
 
 const LARGE_REPO_CHUNK_THRESHOLD = 3000;
 const LARGE_REPO_FILE_THRESHOLD = 500;
@@ -139,6 +140,7 @@ export async function runCrossFilePropagation({
   toolingLogDir = null,
   abortSignal = null
 }) {
+  throwIfAborted(abortSignal);
   const symbolEntries = [];
   const entryByKey = new Map();
   const entryByUid = new Map();
@@ -167,6 +169,7 @@ export async function runCrossFilePropagation({
   };
 
   for (const chunk of chunks) {
+    throwIfAborted(abortSignal);
     if (!chunk?.name) continue;
     if (chunk?.file) fileSet.add(chunk.file);
     const chunkUid = chunk.chunkUid || chunk.metaV2?.chunkUid || null;
@@ -297,6 +300,7 @@ export async function runCrossFilePropagation({
       if (chunk?.file) filesToLoad.add(chunk.file);
     }
     for (const file of filesToLoad) {
+      throwIfAborted(abortSignal);
       await getFileText(file);
     }
     const toolingResult = await runToolingPass({
@@ -450,6 +454,7 @@ export async function runCrossFilePropagation({
   let propagationParallelLogged = false;
   let chunkCursor = 0;
   while (chunkCursor < chunks.length) {
+    throwIfAborted(abortSignal);
     const bundleStart = chunkCursor;
     const bundleEnd = Math.min(chunks.length, bundleStart + currentBundleSize);
     const bundle = chunks.slice(bundleStart, bundleEnd);
@@ -469,6 +474,7 @@ export async function runCrossFilePropagation({
     }
 
     for (const chunk of bundle) {
+      throwIfAborted(abortSignal);
       if (!chunk) continue;
       const relations = chunk.codeRelations || {};
       const fromChunkUid = chunk.chunkUid || chunk.metaV2?.chunkUid || null;

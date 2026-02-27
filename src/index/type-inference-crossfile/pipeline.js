@@ -94,7 +94,9 @@ const resolveCacheContext = ({
   enableTypeInference,
   enableRiskCorrelation,
   useTooling,
-  fileRelations
+  fileRelations,
+  inferenceLite,
+  inferenceLiteHighSignalOnly
 }) => {
   const { cacheDir, cachePath } = resolveCrossFileCacheLocation({
     cacheRoot,
@@ -109,7 +111,9 @@ const resolveCacheContext = ({
       enableTypeInference,
       enableRiskCorrelation,
       useTooling,
-      fileRelations
+      fileRelations,
+      inferenceLite,
+      inferenceLiteHighSignalOnly
     })
   };
 };
@@ -169,7 +173,9 @@ export async function applyCrossFileInference({
     enableTypeInference,
     enableRiskCorrelation,
     useTooling,
-    fileRelations
+    fileRelations,
+    inferenceLite,
+    inferenceLiteHighSignalOnly
   });
 
   const cachedStats = await readCrossFileInferenceCache({

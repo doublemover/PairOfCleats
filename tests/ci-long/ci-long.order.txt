@@ -75,3 +75,4 @@ smoke/smoke-sqlite
 tooling/triage/context-pack
 smoke/smoke-embeddings
 indexing/incremental/incremental-tokenization-cache
+indexing/contracts/golden-surface-suite

@@ -63,10 +63,13 @@ export const loadMinhashSignatures = async (
     checksumValidator?.update(buffer);
     checksumValidator?.verify();
     const total = dims * count;
-    const view = new Uint32Array(buffer.buffer, buffer.byteOffset, Math.floor(buffer.byteLength / 4));
-    if (view.length < total) {
-      throw new Error('Packed minhash signatures truncated');
+    if (buffer.byteLength % 4 !== 0) {
+      throw new Error('Packed minhash signatures invalid byte alignment');
     }
+    if (buffer.byteLength !== total * 4) {
+      throw new Error('Packed minhash signatures size mismatch');
+    }
+    const view = new Uint32Array(buffer.buffer, buffer.byteOffset, Math.floor(buffer.byteLength / 4));
     const signatures = new Array(count);
     for (let i = 0; i < count; i += 1) {
       const start = i * dims;
@@ -150,8 +153,11 @@ export const loadMinhashSignatureRows = async function* (
     const bytesPerSig = dims * 4;
     const totalBytes = bytesPerSig * count;
     const stat = await fsPromises.stat(resolvedPackedPath);
-    if (stat.size < totalBytes) {
-      throw new Error('Packed minhash signatures truncated');
+    if (stat.size % 4 !== 0) {
+      throw new Error('Packed minhash signatures invalid byte alignment');
+    }
+    if (stat.size !== totalBytes) {
+      throw new Error('Packed minhash signatures size mismatch');
     }
     const handle = await fsPromises.open(resolvedPackedPath, 'r');
     const resolvedBatchSize = Math.max(1, Math.floor(Number(batchSize)) || 2048);

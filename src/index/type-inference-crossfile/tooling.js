@@ -325,28 +325,32 @@ export const runToolingPass = async ({
   }
 
   const providerLog = createToolingLogger(rootDir, toolingLogDir, 'tooling', log);
-  const result = await runToolingProviders(ctx, { documents, targets, kinds: ['types'] });
+  let result;
+  try {
+    result = await runToolingProviders(ctx, { documents, targets, kinds: ['types'] });
+    if (Array.isArray(result?.degradedProviders) && result.degradedProviders.length) {
+      const summary = result.degradedProviders
+        .map((entry) => `${entry.providerId}${entry.errorCount > 0 ? `:error=${entry.errorCount}` : ''}${entry.warningCount > 0 ? `:warn=${entry.warningCount}` : ''}`)
+        .join(', ');
+      log(`[tooling] degraded mode active for ${result.degradedProviders.length} provider(s): ${summary}`);
+    }
+    if (providerLog && result?.diagnostics) {
+      for (const [providerId, diag] of Object.entries(result.diagnostics || {})) {
+        if (!diag) continue;
+        providerLog(`[tooling] ${providerId} diagnostics captured.`);
+      }
+    }
+    if (providerLog && Array.isArray(result?.observations)) {
+      for (const observation of result.observations) {
+        if (!observation?.message) continue;
+        providerLog(`[tooling] ${observation.message}`);
+      }
+    }
+  } finally {
+    await providerLog?.close?.();
+  }
   const degradedStats = summarizeDegradedProviderCounts(result?.degradedProviders);
   const runtimeStats = summarizeToolingRuntimeCounts(result?.metrics);
-  if (Array.isArray(result?.degradedProviders) && result.degradedProviders.length) {
-    const summary = result.degradedProviders
-      .map((entry) => `${entry.providerId}${entry.errorCount > 0 ? `:error=${entry.errorCount}` : ''}${entry.warningCount > 0 ? `:warn=${entry.warningCount}` : ''}`)
-      .join(', ');
-    log(`[tooling] degraded mode active for ${result.degradedProviders.length} provider(s): ${summary}`);
-  }
-  if (providerLog && result?.diagnostics) {
-    for (const [providerId, diag] of Object.entries(result.diagnostics || {})) {
-      if (!diag) continue;
-      providerLog(`[tooling] ${providerId} diagnostics captured.`);
-    }
-  }
-  if (providerLog && Array.isArray(result?.observations)) {
-    for (const observation of result.observations) {
-      if (!observation?.message) continue;
-      providerLog(`[tooling] ${observation.message}`);
-    }
-  }
-  await providerLog?.close?.();
 
   const applyResult = applyToolingTypes({
     byChunkUid: result.byChunkUid,

@@ -133,7 +133,9 @@ export const buildCrossFileFingerprint = ({
   enableTypeInference,
   enableRiskCorrelation,
   useTooling,
-  fileRelations
+  fileRelations,
+  inferenceLite = false,
+  inferenceLiteHighSignalOnly = true
 }) => {
   const fileRelationSignatures = resolveFileRelationSignatures(fileRelations);
   const chunkSignatures = [];
@@ -169,6 +171,8 @@ export const buildCrossFileFingerprint = ({
     enableTypeInference: enableTypeInference === true,
     enableRiskCorrelation: enableRiskCorrelation === true,
     useTooling: useTooling === true,
+    inferenceLite: inferenceLite === true,
+    inferenceLiteHighSignalOnly: inferenceLiteHighSignalOnly !== false,
     chunks: chunkSignatures,
     fileRelations: fileRelationSignatures
   }));

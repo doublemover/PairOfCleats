@@ -62,7 +62,19 @@ export const loadVfsManifestRowByPath = async ({
       virtualPath
     });
   }
-  const resolvedIndex = index || (indexPath ? await loadVfsManifestIndex({ indexPath }) : null);
+  let resolvedIndex = index || null;
+  if (!resolvedIndex && indexPath) {
+    try {
+      resolvedIndex = await loadVfsManifestIndex({ indexPath });
+    } catch {
+      emitVfsLookupTelemetry(telemetry, {
+        path: 'vfsidx',
+        outcome: 'load_error',
+        virtualPath
+      });
+      if (!allowScan) return null;
+    }
+  }
   if (resolvedIndex) {
     const entry = resolvedIndex.get(virtualPath);
     if (!entry) {

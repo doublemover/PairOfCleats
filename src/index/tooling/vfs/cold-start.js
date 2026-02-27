@@ -124,12 +124,16 @@ export const createVfsColdStartCache = async ({
   const { baseDir, metaPath, dataPath } = resolveVfsColdStartPaths(resolvedCacheRoot);
   let entries = [];
   if (fs.existsSync(metaPath) && fs.existsSync(dataPath)) {
-    const meta = readJsonFile(metaPath);
-    if (meta?.indexSignature === indexSignature && meta?.manifestHash === manifestHash) {
-      for await (const row of readJsonlRows(dataPath)) {
-        const normalized = normalizeColdStartEntry(row);
-        if (normalized) entries.push(normalized);
+    try {
+      const meta = readJsonFile(metaPath);
+      if (meta?.indexSignature === indexSignature && meta?.manifestHash === manifestHash) {
+        for await (const row of readJsonlRows(dataPath)) {
+          const normalized = normalizeColdStartEntry(row);
+          if (normalized) entries.push(normalized);
+        }
       }
+    } catch {
+      entries = [];
     }
   }
 

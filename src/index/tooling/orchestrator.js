@@ -41,15 +41,25 @@ const computeDocumentsKey = (documents) => {
   return parts.join(',');
 };
 
-const computeCacheKey = ({ providerId, providerVersion, configHash, documents }) => {
+const computeTargetsKey = (targets) => {
+  const parts = (Array.isArray(targets) ? targets : [])
+    .map((target) => String(target?.chunkRef?.chunkUid || target?.chunk?.chunkUid || ''))
+    .filter(Boolean);
+  parts.sort();
+  return parts.join(',');
+};
+
+const computeCacheKey = ({ providerId, providerVersion, configHash, documents, targets }) => {
   const docKey = computeDocumentsKey(documents || []);
+  const targetKey = computeTargetsKey(targets || []);
   return buildLocalCacheKey({
     namespace: 'tooling-provider',
     payload: {
       providerId,
       providerVersion,
       configHash,
-      documents: docKey
+      documents: docKey,
+      targets: targetKey
     }
   }).key;
 };
@@ -125,6 +135,10 @@ const normalizeProviderOutputs = ({
       return;
     }
     const target = targetByChunkUid.get(chunkUid);
+    if (!target) {
+      if (strict) throw new Error(`Provider output chunkUid unresolved (${chunkUid}).`);
+      return;
+    }
     const normalized = entry && typeof entry === 'object' ? { ...entry } : {};
     normalized.payload = normalizeProviderPayload(normalized.payload, {
       observations,
@@ -572,7 +586,8 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
       providerId,
       providerVersion: provider.version,
       configHash,
-      documents: planDocuments
+      documents: planDocuments,
+      targets: planTargets
     });
     const cachePath = cacheDir ? path.join(cacheDir, `${providerId}-${cacheKey}.json`) : null;
     let output = null;

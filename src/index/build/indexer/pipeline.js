@@ -1164,7 +1164,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       importResult,
       incrementalState,
       fileTextByFile,
-      hangProbeConfig
+      hangProbeConfig,
+      abortSignal: effectiveAbortSignal
     })
   });
   if (postImportResult) importResult = postImportResult;

@@ -11,6 +11,7 @@ import { readCache, writeCache } from './cache.js';
 import { getTestEnvConfig } from '../env.js';
 import { fromPosix, isAbsolutePathNative, isRelativePathEscape, toPosix } from '../files.js';
 import { logLine } from '../progress.js';
+import { joinPathSafe } from '../path-normalize.js';
 
 const MIN_MANIFEST_BYTES = 64 * 1024;
 const warnedMissingCompat = new Set();
@@ -418,7 +419,7 @@ export const expandMetaPartPaths = (parts, baseDir) => {
   if (!baseDir || typeof baseDir !== 'string') return [];
   const entries = normalizeMetaParts(parts);
   if (!entries.length) return [];
-  return entries.map((part) => path.join(baseDir, fromPosix(part)));
+  return entries.map((part) => joinPathSafe(baseDir, [fromPosix(part)]));
 };
 
 export const expandChunkMetaParts = (metaFields, baseDir) => (
