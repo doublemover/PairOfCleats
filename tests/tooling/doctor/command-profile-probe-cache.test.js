@@ -10,6 +10,14 @@ import {
 
 const root = process.cwd();
 const restorePath = prependLspTestPath({ repoRoot: root });
+const fixtureCmd = path.join(
+  root,
+  'tests',
+  'fixtures',
+  'lsp',
+  'bin',
+  process.platform === 'win32' ? 'gopls.cmd' : 'gopls'
+);
 
 try {
   __resetToolingCommandProbeCacheForTests();
@@ -18,7 +26,7 @@ try {
 
   const first = resolveToolingCommandProfile({
     providerId: 'gopls',
-    cmd: 'gopls',
+    cmd: fixtureCmd,
     args: [],
     repoRoot: root,
     toolingConfig: {}
@@ -32,7 +40,7 @@ try {
 
   const second = resolveToolingCommandProfile({
     providerId: 'gopls',
-    cmd: 'gopls',
+    cmd: fixtureCmd,
     args: [],
     repoRoot: root,
     toolingConfig: {}

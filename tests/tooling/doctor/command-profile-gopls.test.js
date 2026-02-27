@@ -7,11 +7,19 @@ import { withTemporaryEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const restorePath = prependLspTestPath({ repoRoot: root });
+const fixtureCmd = path.join(
+  root,
+  'tests',
+  'fixtures',
+  'lsp',
+  'bin',
+  process.platform === 'win32' ? 'gopls.cmd' : 'gopls'
+);
 
 try {
   const profile = resolveToolingCommandProfile({
     providerId: 'gopls',
-    cmd: 'gopls',
+    cmd: fixtureCmd,
     args: [],
     repoRoot: root,
     toolingConfig: {}
@@ -22,7 +30,7 @@ try {
 
   const explicitProfile = resolveToolingCommandProfile({
     providerId: 'gopls',
-    cmd: 'gopls',
+    cmd: fixtureCmd,
     args: ['-rpc.trace'],
     repoRoot: root,
     toolingConfig: {}
@@ -38,14 +46,6 @@ try {
     'expected explicit gopls args to remain unchanged'
   );
 
-  const fixtureCmd = path.join(
-    root,
-    'tests',
-    'fixtures',
-    'lsp',
-    'bin',
-    process.platform === 'win32' ? 'gopls.cmd' : 'gopls'
-  );
   const nodeBin = path.dirname(process.execPath);
   await withTemporaryEnv({ PATH: nodeBin, Path: nodeBin }, async () => {
     const overrideProfile = resolveToolingCommandProfile({
