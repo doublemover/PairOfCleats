@@ -1,4 +1,4 @@
-import { applyTestEnv } from './test-env.js';
+import { applyTestEnv, withTemporaryEnv } from './test-env.js';
 
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
@@ -23,11 +23,11 @@ import {
 } from '../../src/shared/artifact-io.js';
 import { runSearchCli } from '../../src/retrieval/cli.js';
 import { buildSearchCliArgs } from '../../tools/shared/search-cli-harness.js';
-import { acquireFileLock } from '../../src/shared/locks/file-lock.js';
 
 import { rmDirRecursive } from './temp.js';
 import { isPlainObject, mergeConfig } from '../../src/shared/config.js';
 import { runSqliteBuild } from './sqlite-builder.js';
+import { withDirectoryLock } from './directory-lock.js';
 
 import { resolveTestCachePath } from './test-cache.js';
 
@@ -100,44 +100,6 @@ const resolveBuildMode = (requiredModes) => {
     return 'prose';
   }
   return null;
-};
-
-/**
- * Execute callback under directory-based cooperative lock.
- *
- * @template T
- * @param {string} lockDir
- * @param {() => Promise<T>} callback
- * @param {{pollMs?:number,staleMs?:number,maxWaitMs?:number}} [options]
- * @returns {Promise<T>}
- */
-const withDirectoryLock = async (
-  lockDir,
-  callback,
-  {
-    pollMs = 120,
-    staleMs = 15 * 60 * 1000,
-    maxWaitMs = 20 * 60 * 1000
-  } = {}
-) => {
-  const lockPath = `${lockDir}.json`;
-  const lock = await acquireFileLock({
-    lockPath,
-    waitMs: maxWaitMs,
-    pollMs,
-    staleMs,
-    timeoutBehavior: 'throw',
-    timeoutMessage: `Timed out waiting for fixture lock at ${lockDir}`,
-    forceStaleCleanup: false
-  });
-  if (!lock) {
-    throw new Error(`Timed out waiting for fixture lock at ${lockDir}`);
-  }
-  try {
-    return await callback();
-  } finally {
-    await lock.release({ force: false });
-  }
 };
 
 const normalizeRepoSlug = (repoRoot) => String(path.basename(path.resolve(repoRoot)) || 'repo')
@@ -603,44 +565,6 @@ export const loadFixtureIndexMeta = (fixtureRoot, userConfig) => {
 
 export const loadFixtureMetricsDir = (fixtureRoot, userConfig) =>
   getMetricsDir(fixtureRoot, userConfig);
-
-/**
- * Temporarily apply env overrides while executing async callback.
- *
- * @param {Record<string, string|number|boolean|undefined>|null} targetEnv
- * @param {() => Promise<unknown>} callback
- * @returns {Promise<unknown>}
- */
-const withTemporaryEnv = async (targetEnv, callback) => {
-  const restore = [];
-  if (targetEnv && typeof targetEnv === 'object') {
-    for (const [key, rawValue] of Object.entries(targetEnv)) {
-      const hadKey = Object.prototype.hasOwnProperty.call(process.env, key);
-      const previousValue = hadKey ? process.env[key] : undefined;
-      const nextValue = rawValue === undefined ? undefined : String(rawValue);
-      if (nextValue === undefined && previousValue === undefined) continue;
-      if (nextValue !== undefined && previousValue === nextValue) continue;
-      restore.push([key, previousValue]);
-      if (nextValue === undefined) {
-        delete process.env[key];
-      } else {
-        process.env[key] = nextValue;
-      }
-    }
-  }
-  try {
-    return await callback();
-  } finally {
-    for (let i = restore.length - 1; i >= 0; i -= 1) {
-      const [key, previousValue] = restore[i];
-      if (previousValue === undefined) {
-        delete process.env[key];
-      } else {
-        process.env[key] = previousValue;
-      }
-    }
-  }
-};
 
 export const fixtureIndexInternals = {
   withTemporaryEnv

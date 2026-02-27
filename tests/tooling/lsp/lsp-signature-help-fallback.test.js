@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { collectLspTypes } from '../../../src/integrations/tooling/providers/lsp.js';
+import { parseCppTwoIntParamSignature, parseJsonLinesFile } from '../../helpers/lsp-signature-fixtures.js';
+import { withTemporaryEnv } from '../../helpers/test-env.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
@@ -16,35 +18,13 @@ const docText = 'const sentinel = 1;\n';
 const virtualPath = '.poc-vfs/src/sample.cpp#seg:signature-help.cpp';
 const chunkUid = 'ck64:v1:test:src/sample.cpp:signature-help';
 
-const parseSignature = (detailText) => {
-  const detail = String(detailText || '').trim();
-  if (!detail) return null;
-  if (detail === 'add') {
-    return {
-      signature: detail,
-      returnType: 'unknown',
-      paramTypes: {},
-      paramNames: ['a', 'b']
-    };
-  }
-  const match = detail.match(/^int\s+add\s*\(\s*int\s+([A-Za-z_]\w*)\s*,\s*int\s+([A-Za-z_]\w*)\s*\)$/);
-  if (!match) return null;
-  return {
-    signature: detail,
-    returnType: 'int',
-    paramTypes: {
-      [match[1]]: 'int',
-      [match[2]]: 'int'
-    },
-    paramNames: [match[1], match[2]]
-  };
-};
-
-const originalTracePath = process.env.POC_LSP_TRACE;
-process.env.POC_LSP_TRACE = tracePath;
+const parseSignature = (detailText) => parseCppTwoIntParamSignature(detailText, {
+  bareNames: ['add'],
+  bareReturnType: 'unknown'
+});
 
 let result = null;
-try {
+await withTemporaryEnv({ POC_LSP_TRACE: tracePath }, async () => {
   result = await collectLspTypes({
     rootDir: tempRoot,
     vfsRoot: tempRoot,
@@ -72,10 +52,7 @@ try {
     args: [serverPath, '--mode', 'signature-help'],
     parseSignature
   });
-} finally {
-  if (originalTracePath == null) delete process.env.POC_LSP_TRACE;
-  else process.env.POC_LSP_TRACE = originalTracePath;
-}
+});
 
 const payload = result.byChunkUid?.[chunkUid]?.payload || null;
 assert.ok(payload, 'expected payload for chunk');
@@ -98,11 +75,7 @@ assert.equal(
   'expected source fallback to remain unused when signatureHelp completes payload'
 );
 
-const traceLines = (await fs.readFile(tracePath, 'utf8'))
-  .split(/\r?\n/)
-  .map((line) => line.trim())
-  .filter(Boolean)
-  .map((line) => JSON.parse(line));
+const traceLines = await parseJsonLinesFile(tracePath);
 const signatureHelpCalls = traceLines.filter(
   (entry) => entry.kind === 'request' && entry.method === 'textDocument/signatureHelp'
 ).length;

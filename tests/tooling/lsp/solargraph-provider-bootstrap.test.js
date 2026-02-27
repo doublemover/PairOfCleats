@@ -13,6 +13,14 @@ const tempRoot = resolveTestCachePath(root, `solargraph-provider-bootstrap-${pro
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'lib'), { recursive: true });
 await fs.writeFile(path.join(tempRoot, 'Gemfile'), "source 'https://rubygems.org'\n", 'utf8');
+const fixtureSolargraphCmd = path.join(
+  root,
+  'tests',
+  'fixtures',
+  'lsp',
+  'bin',
+  process.platform === 'win32' ? 'solargraph.cmd' : 'solargraph'
+);
 
 const restorePath = prependLspTestPath({ repoRoot: root });
 
@@ -32,7 +40,8 @@ try {
     toolingConfig: {
       enabledTools: ['solargraph'],
       solargraph: {
-        enabled: true
+        enabled: true,
+        cmd: fixtureSolargraphCmd
       }
     },
     cache: {

@@ -2,14 +2,12 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { resolveToolingCommandProfile } from '../../../src/index/tooling/command-resolver.js';
+import { withTemporaryEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const toolingDir = path.join(root, 'tests', 'fixtures', 'lsp');
 const expectedBinDir = path.join(toolingDir, 'bin');
-const originalPath = process.env.PATH || '';
-process.env.PATH = '';
-
-try {
+await withTemporaryEnv({ PATH: '' }, async () => {
   const profile = resolveToolingCommandProfile({
     providerId: 'jdtls',
     cmd: 'jdtls',
@@ -24,6 +22,4 @@ try {
   assert.equal(/^jdtls(\.cmd|\.exe|\.bat)?$/i.test(path.basename(profile.resolved.cmd)), true, 'expected jdtls binary');
 
   console.log('tooling doctor command profile tooling dir precedence test passed');
-} finally {
-  process.env.PATH = originalPath;
-}
+});

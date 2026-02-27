@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { resolveToolingCommandProfile } from '../../../src/index/tooling/command-resolver.js';
+import { withTemporaryEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const fixtureCmd = path.join(
@@ -13,10 +14,7 @@ const fixtureCmd = path.join(
   process.platform === 'win32' ? 'pyright-langserver.cmd' : 'pyright-langserver'
 );
 
-const originalPath = process.env.PATH || '';
-process.env.PATH = '';
-
-try {
+await withTemporaryEnv({ PATH: '' }, async () => {
   const profile = resolveToolingCommandProfile({
     providerId: 'pyright',
     cmd: fixtureCmd,
@@ -30,8 +28,6 @@ try {
     path.resolve(fixtureCmd),
     'expected explicit pyright command path to be preserved'
   );
-} finally {
-  process.env.PATH = originalPath;
-}
+});
 
 console.log('tooling doctor pyright command override profile test passed');

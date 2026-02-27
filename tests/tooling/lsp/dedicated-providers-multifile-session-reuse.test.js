@@ -5,9 +5,11 @@ import path from 'node:path';
 import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
 import { registerDefaultToolingProviders } from '../../../src/index/tooling/providers/index.js';
 
+import { countNonEmptyLines } from '../../helpers/lsp-signature-fixtures.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { skip } from '../../helpers/skip.js';
 import { prependLspTestPath, probeLspCommandForTest } from '../../helpers/lsp-runtime.js';
+import { withTemporaryEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, `dedicated-providers-multifile-reuse-${process.pid}-${Date.now()}`);
@@ -15,7 +17,6 @@ await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 
 const restorePath = prependLspTestPath({ repoRoot: root });
-const originalCounter = process.env.POC_LSP_COUNTER;
 const fixturePathMarker = path.join('tests', 'fixtures', 'lsp', 'bin').toLowerCase();
 
 const providerCases = [
@@ -113,7 +114,6 @@ const runCase = async (providerCase) => {
   await fs.mkdir(path.join(caseRoot, 'src'), { recursive: true });
   await fs.writeFile(path.join(caseRoot, providerCase.markerPath), providerCase.markerContent, 'utf8');
   const counterPath = path.join(caseRoot, 'spawn.counter');
-  process.env.POC_LSP_COUNTER = counterPath;
 
   const virtualPathOne = `src/one${providerCase.ext}`;
   const virtualPathTwo = `src/two${providerCase.ext}`;
@@ -126,7 +126,7 @@ const runCase = async (providerCase) => {
     }
   };
 
-  const result = await runToolingProviders({
+  const result = await withTemporaryEnv({ POC_LSP_COUNTER: counterPath }, async () => runToolingProviders({
     strict: true,
     repoRoot: caseRoot,
     buildRoot: caseRoot,
@@ -178,7 +178,7 @@ const runCase = async (providerCase) => {
       languageId: providerCase.languageId
     }],
     kinds: ['types']
-  });
+  }));
 
   const firstHit = result.byChunkUid.has(chunkUidOne);
   const secondHit = result.byChunkUid.has(chunkUidTwo);
@@ -187,8 +187,7 @@ const runCase = async (providerCase) => {
   if (usesFixtureRuntime) {
     assert.equal(firstHit, true, `expected ${providerCase.providerId} hit for first file`);
     assert.equal(secondHit, true, `expected ${providerCase.providerId} hit for second file`);
-    const counterRaw = await fs.readFile(counterPath, 'utf8');
-    const spawnCount = counterRaw.trim().split(/\r?\n/).filter(Boolean).length;
+    const spawnCount = await countNonEmptyLines(counterPath);
     assert.equal(spawnCount, 1, `expected one LSP spawn for ${providerCase.providerId} multi-file run`);
     return { skipped: false, validated: true };
   }
@@ -212,11 +211,6 @@ try {
   }
 } finally {
   restorePath();
-  if (originalCounter == null) {
-    delete process.env.POC_LSP_COUNTER;
-  } else {
-    process.env.POC_LSP_COUNTER = originalCounter;
-  }
 }
 
 console.log('dedicated providers multifile session reuse test passed');

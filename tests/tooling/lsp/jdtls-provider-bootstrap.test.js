@@ -13,6 +13,14 @@ const tempRoot = resolveTestCachePath(root, `jdtls-provider-bootstrap-${process.
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
 await fs.writeFile(path.join(tempRoot, 'pom.xml'), '<project/>', 'utf8');
+const fixtureJdtlsCmd = path.join(
+  root,
+  'tests',
+  'fixtures',
+  'lsp',
+  'bin',
+  process.platform === 'win32' ? 'jdtls.cmd' : 'jdtls'
+);
 
 const restorePath = prependLspTestPath({ repoRoot: root });
 
@@ -31,6 +39,7 @@ try {
       },
       jdtls: {
         enabled: true,
+        cmd: fixtureJdtlsCmd,
         lifecycle: {
           restartWindowMs: 2100,
           maxRestartsPerWindow: 5,

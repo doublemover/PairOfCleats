@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { ensureTestingEnv } from './test-env.js';
+import { terminateChild } from './process-lifecycle.js';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 const encodeFramedMessage = (payload) => {
@@ -200,8 +201,10 @@ export const startMcpServer = async ({
 
   const shutdown = async () => {
     if (timeout) clearTimeout(timeout);
-    server.stdin.end();
-    server.kill('SIGTERM');
+    try {
+      server.stdin.end();
+    } catch {}
+    await terminateChild(server, { graceMs: 5000 });
   };
 
   return { server, send, readMessage, readAnyMessage, notifications, shutdown };

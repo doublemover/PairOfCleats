@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { collectLspTypes } from '../../../src/integrations/tooling/providers/lsp.js';
+import { parseCppTwoIntParamSignature, parseJsonLinesFile } from '../../helpers/lsp-signature-fixtures.js';
+import { withTemporaryEnv } from '../../helpers/test-env.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
@@ -17,35 +19,13 @@ const virtualPath = '.poc-vfs/src/sample.cpp#seg:definition-fallback.cpp';
 const chunkUid = 'ck64:v1:test:src/sample.cpp:definition-fallback';
 const symbolStart = docText.indexOf('add');
 
-const parseSignature = (detailText) => {
-  const detail = String(detailText || '').trim();
-  if (!detail) return null;
-  if (detail === 'add') {
-    return {
-      signature: detail,
-      returnType: 'unknown',
-      paramTypes: {},
-      paramNames: ['a', 'b']
-    };
-  }
-  const match = detail.match(/^int\s+add\s*\(\s*int\s+([A-Za-z_]\w*)\s*,\s*int\s+([A-Za-z_]\w*)\s*\)$/);
-  if (!match) return null;
-  return {
-    signature: detail,
-    returnType: 'int',
-    paramTypes: {
-      [match[1]]: 'int',
-      [match[2]]: 'int'
-    },
-    paramNames: [match[1], match[2]]
-  };
-};
-
-const previousTracePath = process.env.POC_LSP_TRACE;
-process.env.POC_LSP_TRACE = tracePath;
+const parseSignature = (detailText) => parseCppTwoIntParamSignature(detailText, {
+  bareNames: ['add'],
+  bareReturnType: 'unknown'
+});
 
 let result = null;
-try {
+await withTemporaryEnv({ POC_LSP_TRACE: tracePath }, async () => {
   result = await collectLspTypes({
     rootDir: tempRoot,
     vfsRoot: tempRoot,
@@ -73,10 +53,7 @@ try {
     args: [serverPath, '--mode', 'definition-richer'],
     parseSignature
   });
-} finally {
-  if (previousTracePath == null) delete process.env.POC_LSP_TRACE;
-  else process.env.POC_LSP_TRACE = previousTracePath;
-}
+});
 
 const payload = result.byChunkUid?.[chunkUid]?.payload || null;
 assert.ok(payload, 'expected payload for chunk');
@@ -99,11 +76,7 @@ assert.equal(
   'expected source fallback not used when definition resolves payload'
 );
 
-const traceLines = (await fs.readFile(tracePath, 'utf8'))
-  .split(/\r?\n/u)
-  .map((line) => line.trim())
-  .filter(Boolean)
-  .map((line) => JSON.parse(line));
+const traceLines = await parseJsonLinesFile(tracePath);
 const definitionCalls = traceLines.filter(
   (entry) => entry.kind === 'request' && entry.method === 'textDocument/definition'
 ).length;

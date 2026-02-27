@@ -13,6 +13,14 @@ const tempRoot = resolveTestCachePath(root, `elixir-provider-bootstrap-${process
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'lib'), { recursive: true });
 await fs.writeFile(path.join(tempRoot, 'mix.exs'), 'defmodule Sample.MixProject do\nend\n', 'utf8');
+const fixtureElixirCmd = path.join(
+  root,
+  'tests',
+  'fixtures',
+  'lsp',
+  'bin',
+  process.platform === 'win32' ? 'elixir-ls.cmd' : 'elixir-ls'
+);
 
 const restorePath = prependLspTestPath({ repoRoot: root });
 
@@ -27,7 +35,8 @@ try {
     toolingConfig: {
       enabledTools: ['elixir-ls'],
       elixir: {
-        enabled: true
+        enabled: true,
+        cmd: fixtureElixirCmd
       }
     },
     cache: {

@@ -5,6 +5,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createLspClient } from '../../../src/integrations/tooling/lsp/client.js';
 import { sleep } from '../../../src/shared/sleep.js';
+import { countNonEmptyLines } from '../../helpers/lsp-signature-fixtures.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -16,14 +17,7 @@ await fs.mkdir(tempRoot, { recursive: true });
 const counterPath = path.join(tempRoot, 'spawn-counter.txt');
 const serverPath = path.join(root, 'tests', 'fixtures', 'lsp', 'stub-lsp-server.js');
 
-const countSpawns = async () => {
-  try {
-    const counterRaw = await fs.readFile(counterPath, 'utf8');
-    return counterRaw.trim().split(/\r?\n/).filter(Boolean).length;
-  } catch {
-    return 0;
-  }
-};
+const countSpawns = async () => countNonEmptyLines(counterPath);
 
 const waitForSpawns = async (expected, timeoutMs = 2000) => {
   const start = Date.now();

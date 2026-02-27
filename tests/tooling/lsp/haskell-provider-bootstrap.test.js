@@ -13,6 +13,14 @@ const tempRoot = resolveTestCachePath(root, `haskell-provider-bootstrap-${proces
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
 await fs.writeFile(path.join(tempRoot, 'stack.yaml'), 'resolver: lts-22.0\n', 'utf8');
+const fixtureHaskellCmd = path.join(
+  root,
+  'tests',
+  'fixtures',
+  'lsp',
+  'bin',
+  process.platform === 'win32' ? 'haskell-language-server.cmd' : 'haskell-language-server'
+);
 
 const restorePath = prependLspTestPath({ repoRoot: root });
 
@@ -27,7 +35,8 @@ try {
     toolingConfig: {
       enabledTools: ['haskell-language-server'],
       haskell: {
-        enabled: true
+        enabled: true,
+        cmd: fixtureHaskellCmd
       }
     },
     cache: {

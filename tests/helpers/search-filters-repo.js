@@ -4,13 +4,25 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { getIndexDir, loadUserConfig } from '../../tools/shared/dict-utils.js';
-import { acquireFileLock } from '../../src/shared/locks/file-lock.js';
 import { applyTestEnv } from './test-env.js';
+import { withDirectoryLock } from './directory-lock.js';
 
 import { resolveTestCachePath } from './test-cache.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const VALID_CACHE_SCOPES = new Set(['isolated', 'shared']);
+const FIXTURE_FILES = Object.freeze([
+  'alpha.txt',
+  'beta.txt',
+  'CaseFile.TXT',
+  'sample.js'
+]);
+const FIXTURE_COMMIT_MESSAGES = Object.freeze([
+  'add sample.js',
+  'add case file',
+  'add beta',
+  'add alpha'
+]);
 
 /**
  * Run git command for fixture setup and fail fast on non-zero exit.
@@ -76,42 +88,24 @@ const normalizeCacheScope = (cacheScope) => {
   return normalized;
 };
 
-/**
- * Execute callback under directory lock with stale-lock eviction.
- *
- * @template T
- * @param {string} lockDir
- * @param {() => Promise<T>} callback
- * @param {{pollMs?:number,staleMs?:number,maxWaitMs?:number}} [options]
- * @returns {Promise<T>}
- */
-const withDirectoryLock = async (
-  lockDir,
-  callback,
-  {
-    pollMs = 120,
-    staleMs = 10 * 60 * 1000,
-    maxWaitMs = 15 * 60 * 1000
-  } = {}
-) => {
-  const lockPath = `${lockDir}.json`;
-  const lock = await acquireFileLock({
-    lockPath,
-    waitMs: maxWaitMs,
-    pollMs,
-    staleMs,
-    timeoutBehavior: 'throw',
-    timeoutMessage: `Timed out waiting for search-filters lock at ${lockDir}`,
-    forceStaleCleanup: false
-  });
-  if (!lock) {
-    throw new Error(`Timed out waiting for search-filters lock at ${lockDir}`);
+const hasExpectedFixtureHistory = (repoRoot) => {
+  const requiredFilesPresent = FIXTURE_FILES.every((filename) => fs.existsSync(path.join(repoRoot, filename)));
+  if (!requiredFilesPresent) return false;
+  const history = spawnSync(
+    'git',
+    ['log', '--format=%s', `--max-count=${FIXTURE_COMMIT_MESSAGES.length}`],
+    { cwd: repoRoot, encoding: 'utf8' }
+  );
+  if (history.status !== 0) return false;
+  const lines = String(history.stdout || '')
+    .split(/\r?\n/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  if (lines.length < FIXTURE_COMMIT_MESSAGES.length) return false;
+  for (let i = 0; i < FIXTURE_COMMIT_MESSAGES.length; i += 1) {
+    if (lines[i] !== FIXTURE_COMMIT_MESSAGES[i]) return false;
   }
-  try {
-    return await callback();
-  } finally {
-    await lock.release({ force: false });
-  }
+  return true;
 };
 
 /**
@@ -142,17 +136,15 @@ export const ensureSearchFiltersRepo = async ({ cacheScope = 'shared' } = {}) =>
     await fsPromises.mkdir(repoRoot, { recursive: true });
     await fsPromises.mkdir(cacheRoot, { recursive: true });
 
-    const requiredFiles = [
-      'alpha.txt',
-      'beta.txt',
-      'CaseFile.TXT',
-      'sample.js'
-    ];
     const gitDir = path.join(repoRoot, '.git');
     const needsBootstrap = !fs.existsSync(gitDir)
-      || requiredFiles.some((filename) => !fs.existsSync(path.join(repoRoot, filename)));
+      || !hasExpectedFixtureHistory(repoRoot);
 
     if (needsBootstrap) {
+      if (fs.existsSync(repoRoot)) {
+        await fsPromises.rm(repoRoot, { recursive: true, force: true });
+      }
+      await fsPromises.mkdir(repoRoot, { recursive: true });
       if (!fs.existsSync(gitDir)) {
         runGit(['init'], 'git init', repoRoot);
       }
@@ -172,9 +164,7 @@ export const ensureSearchFiltersRepo = async ({ cacheScope = 'shared' } = {}) =>
         message,
         label
       }) => {
-        const filePath = path.join(repoRoot, filename);
-        if (fs.existsSync(filePath)) return;
-        await fsPromises.writeFile(filePath, content);
+        await fsPromises.writeFile(path.join(repoRoot, filename), content);
         runGit(['add', filename], `git add ${label}`, repoRoot);
         runGit(
           ['commit', '-m', message, '--author', author, '--date', date],
@@ -248,6 +238,11 @@ export const ensureSearchFiltersRepo = async ({ cacheScope = 'shared' } = {}) =>
     const branchName = branchResult.status === 0 ? branchResult.stdout.trim() : null;
 
     return { root: ROOT, repoRoot, cacheRoot, env, branchName };
+  }, {
+    pollMs: 120,
+    staleMs: 10 * 60 * 1000,
+    maxWaitMs: 15 * 60 * 1000,
+    timeoutMessage: `Timed out waiting for search-filters lock at ${lockDir}`
   });
 };
 

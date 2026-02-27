@@ -13,6 +13,14 @@ const tempRoot = resolveTestCachePath(root, `csharp-provider-bootstrap-${process
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
 await fs.writeFile(path.join(tempRoot, 'App.csproj'), '<Project/>', 'utf8');
+const fixtureCsharpCmd = path.join(
+  root,
+  'tests',
+  'fixtures',
+  'lsp',
+  'bin',
+  process.platform === 'win32' ? 'csharp-ls.cmd' : 'csharp-ls'
+);
 
 const restorePath = prependLspTestPath({ repoRoot: root });
 
@@ -27,7 +35,8 @@ try {
     toolingConfig: {
       enabledTools: ['csharp-ls'],
       csharp: {
-        enabled: true
+        enabled: true,
+        cmd: fixtureCsharpCmd
       }
     },
     cache: {

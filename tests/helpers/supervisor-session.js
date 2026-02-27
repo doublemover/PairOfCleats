@@ -29,6 +29,15 @@ export const createSupervisorSession = ({
     stdio: ['pipe', 'pipe', 'pipe']
   });
   child.stderr.on('data', () => {});
+  let exitCode = null;
+  let exitSignal = null;
+  const exitPromise = new Promise((resolve) => {
+    child.once('exit', (code, signal) => {
+      exitCode = code;
+      exitSignal = signal;
+      resolve(code ?? null);
+    });
+  });
 
   const events = [];
   let carry = '';
@@ -48,6 +57,11 @@ export const createSupervisorSession = ({
     while (Date.now() - started < waitTimeoutMs) {
       const found = events.find(predicate);
       if (found) return found;
+      if (child.exitCode !== null) {
+        throw new Error(
+          `supervisor exited before expected event (code=${child.exitCode}, signal=${exitSignal || 'null'})`
+        );
+      }
       await new Promise((resolve) => setTimeout(resolve, DEFAULT_POLL_MS));
     }
     throw new Error('timeout waiting for supervisor event');
@@ -57,10 +71,17 @@ export const createSupervisorSession = ({
     child.stdin.write(`${JSON.stringify({ proto: 'poc.tui@1', ...payload })}\n`);
   };
 
-  const waitForExit = () => new Promise((resolve) => child.once('exit', (code) => resolve(code)));
+  const waitForExit = () => {
+    if (child.exitCode !== null) {
+      return Promise.resolve(child.exitCode ?? exitCode ?? null);
+    }
+    return exitPromise;
+  };
 
   const shutdown = async (reason = 'test_complete') => {
-    send({ op: 'shutdown', reason });
+    try {
+      send({ op: 'shutdown', reason });
+    } catch {}
     return waitForExit();
   };
 

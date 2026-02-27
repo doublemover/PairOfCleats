@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { collectLspTypes } from '../../../src/integrations/tooling/providers/lsp.js';
+import { parseCppTwoIntParamSignature } from '../../helpers/lsp-signature-fixtures.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -37,29 +38,10 @@ const targets = [{
   symbolHint: { name: 'add', kind: 'function' }
 }];
 
-const parseSignature = (detailText) => {
-  const detail = String(detailText || '').trim();
-  if (!detail) return null;
-  if (detail === 'int (int, int)') {
-    return {
-      signature: detail,
-      returnType: 'int',
-      paramTypes: {},
-      paramNames: ['a', 'b']
-    };
-  }
-  const named = detail.match(/^int\s+add\s*\(\s*int\s+([A-Za-z_]\w*)\s*,\s*int\s+([A-Za-z_]\w*)\s*\)$/);
-  if (!named) return null;
-  return {
-    signature: detail,
-    returnType: 'int',
-    paramTypes: {
-      [named[1]]: 'int',
-      [named[2]]: 'int'
-    },
-    paramNames: [named[1], named[2]]
-  };
-};
+const parseSignature = (detailText) => parseCppTwoIntParamSignature(detailText, {
+  bareNames: [],
+  allowUnnamedPrototype: true
+});
 
 const result = await collectLspTypes({
   rootDir: tempRoot,

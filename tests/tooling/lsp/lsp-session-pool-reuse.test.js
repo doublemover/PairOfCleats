@@ -5,7 +5,9 @@ import path from 'node:path';
 import { collectLspTypes } from '../../../src/integrations/tooling/providers/lsp.js';
 import { __testLspSessionPool } from '../../../src/integrations/tooling/providers/lsp/session-pool.js';
 import { removePathWithRetry } from '../../../src/shared/io/remove-path-with-retry.js';
+import { countNonEmptyLines } from '../../helpers/lsp-signature-fixtures.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { withTemporaryEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, `lsp-session-pool-reuse-${process.pid}-${Date.now()}`);
@@ -14,8 +16,6 @@ await fs.mkdir(tempRoot, { recursive: true });
 
 const serverPath = path.join(root, 'tests', 'fixtures', 'lsp', 'stub-lsp-server.js');
 const counterPath = path.join(tempRoot, 'lsp-session-pool.counter');
-const originalCounter = process.env.POC_LSP_COUNTER;
-process.env.POC_LSP_COUNTER = counterPath;
 
 const docText = 'int add(int a, int b) { return a + b; }\n';
 const virtualPath = '.poc-vfs/src/sample.cpp#seg:stub.cpp';
@@ -56,24 +56,20 @@ const runCollect = async (chunkSuffix) => collectLspTypes({
 });
 
 try {
-  const first = await runCollect('one');
-  const second = await runCollect('two');
-  const counterRaw = await fs.readFile(counterPath, 'utf8');
-  const spawnCount = counterRaw.trim().split(/\r?\n/).filter(Boolean).length;
+  await withTemporaryEnv({ POC_LSP_COUNTER: counterPath }, async () => {
+    const first = await runCollect('one');
+    const second = await runCollect('two');
+    const spawnCount = await countNonEmptyLines(counterPath);
 
-  assert.equal(spawnCount, 1, 'expected one spawned LSP process for pooled reuse');
-  assert.equal(first.runtime?.pooling?.enabled, true, 'expected pooling metadata on first collect');
-  assert.equal(first.runtime?.pooling?.reused, false, 'expected first collect to create a fresh session');
-  assert.equal(second.runtime?.pooling?.reused, true, 'expected second collect to reuse pooled session');
-  assert.equal(second.enriched >= 1, true, 'expected pooled session reuse to enrich symbols');
+    assert.equal(spawnCount, 1, 'expected one spawned LSP process for pooled reuse');
+    assert.equal(first.runtime?.pooling?.enabled, true, 'expected pooling metadata on first collect');
+    assert.equal(first.runtime?.pooling?.reused, false, 'expected first collect to create a fresh session');
+    assert.equal(second.runtime?.pooling?.reused, true, 'expected second collect to reuse pooled session');
+    assert.equal(second.enriched >= 1, true, 'expected pooled session reuse to enrich symbols');
+  });
 
   console.log('LSP session pool reuse test passed');
 } finally {
-  if (originalCounter == null) {
-    delete process.env.POC_LSP_COUNTER;
-  } else {
-    process.env.POC_LSP_COUNTER = originalCounter;
-  }
   await __testLspSessionPool.reset();
   const cleanup = await removePathWithRetry(tempRoot, {
     attempts: 6,

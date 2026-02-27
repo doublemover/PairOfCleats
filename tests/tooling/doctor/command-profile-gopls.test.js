@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { resolveToolingCommandProfile } from '../../../src/index/tooling/command-resolver.js';
 import { prependLspTestPath } from '../../helpers/lsp-runtime.js';
+import { withTemporaryEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const restorePath = prependLspTestPath({ repoRoot: root });
@@ -45,9 +46,7 @@ try {
     'bin',
     process.platform === 'win32' ? 'gopls.cmd' : 'gopls'
   );
-  const originalPath = process.env.PATH || '';
-  process.env.PATH = '';
-  try {
+  await withTemporaryEnv({ PATH: '' }, async () => {
     const overrideProfile = resolveToolingCommandProfile({
       providerId: 'gopls',
       cmd: fixtureCmd,
@@ -61,9 +60,7 @@ try {
       path.resolve(fixtureCmd),
       'expected explicit gopls command path to be preserved'
     );
-  } finally {
-    process.env.PATH = originalPath;
-  }
+  });
 
   console.log('tooling doctor gopls command profile test passed');
 } finally {

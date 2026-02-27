@@ -4,7 +4,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { collectLspTypes } from '../../../src/integrations/tooling/providers/lsp.js';
-import { applyTestEnv } from '../../helpers/test-env.js';
+import { parseJsonLinesFile } from '../../helpers/lsp-signature-fixtures.js';
+import { applyTestEnv, withTemporaryEnv } from '../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -44,10 +45,8 @@ const targets = [{
   symbolHint: { name: 'add', kind: 'function' }
 }];
 
-const originalTrace = process.env.POC_LSP_TRACE;
-process.env.POC_LSP_TRACE = tracePath;
 let result = null;
-try {
+await withTemporaryEnv({ POC_LSP_TRACE: tracePath }, async () => {
   result = await collectLspTypes({
     rootDir: tempRoot,
     vfsRoot: tempRoot,
@@ -64,12 +63,9 @@ try {
       paramNames: ['a', 'b']
     })
   });
-} finally {
-  process.env.POC_LSP_TRACE = originalTrace;
-}
+});
 
-const traceRaw = await fs.readFile(tracePath, 'utf8');
-const events = traceRaw.trim().split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
+const events = await parseJsonLinesFile(tracePath);
 const hoverCount = events.filter((evt) => evt.kind === 'request' && evt.method === 'textDocument/hover').length;
 
 assert.equal(hoverCount, 1, 'expected duplicate symbol hover requests to be deduped');

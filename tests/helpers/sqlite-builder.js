@@ -1,34 +1,6 @@
 import { buildSqliteIndex } from '../../src/integrations/core/index.js';
 import { getCurrentBuildInfo, loadUserConfig, resolveIndexRoot } from '../../tools/shared/dict-utils.js';
-
-const withTemporaryEnv = async (overrides, callback) => {
-  if (!overrides || typeof overrides !== 'object') {
-    return callback();
-  }
-  const previous = new Map();
-  for (const [key, value] of Object.entries(overrides)) {
-    previous.set(
-      key,
-      Object.prototype.hasOwnProperty.call(process.env, key) ? process.env[key] : undefined
-    );
-    if (value === undefined || value === null) {
-      delete process.env[key];
-    } else {
-      process.env[key] = String(value);
-    }
-  }
-  try {
-    return await callback();
-  } finally {
-    for (const [key, value] of previous.entries()) {
-      if (value === undefined) {
-        delete process.env[key];
-      } else {
-        process.env[key] = value;
-      }
-    }
-  }
-};
+import { withTemporaryEnv } from './test-env.js';
 
 export const resolveSqliteIndexRoot = (repoRoot, mode = null, explicitIndexRoot = null) => {
   if (explicitIndexRoot) return explicitIndexRoot;

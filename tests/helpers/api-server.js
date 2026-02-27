@@ -4,6 +4,7 @@ import readline from 'node:readline';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { attachSilentLogging } from './test-env.js';
+import { terminateChild } from './process-lifecycle.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -224,17 +225,9 @@ export const startApiServer = async ({
     throw new Error('api-server did not report a listening port');
   }
 
-  const stop = async () => await new Promise((resolve) => {
-    const timeout = setTimeout(() => {
-      server.kill('SIGKILL');
-      resolve();
-    }, 5000);
-    server.once('exit', () => {
-      clearTimeout(timeout);
-      resolve();
-    });
-    server.kill('SIGTERM');
-  });
+  const stop = async () => {
+    await terminateChild(server, { graceMs: 5000 });
+  };
 
   return { server, serverInfo, requestJson, requestRaw, stop };
 };

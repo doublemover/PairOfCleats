@@ -13,6 +13,14 @@ const tempRoot = resolveTestCachePath(root, `dart-provider-bootstrap-${process.p
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'lib'), { recursive: true });
 await fs.writeFile(path.join(tempRoot, 'pubspec.yaml'), 'name: dart_fixture\n', 'utf8');
+const fixtureDartCmd = path.join(
+  root,
+  'tests',
+  'fixtures',
+  'lsp',
+  'bin',
+  process.platform === 'win32' ? 'dart.cmd' : 'dart'
+);
 
 const restorePath = prependLspTestPath({ repoRoot: root });
 
@@ -27,7 +35,8 @@ try {
     toolingConfig: {
       enabledTools: ['dart'],
       dart: {
-        enabled: true
+        enabled: true,
+        cmd: fixtureDartCmd
       }
     },
     cache: {

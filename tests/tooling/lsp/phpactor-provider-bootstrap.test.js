@@ -13,6 +13,14 @@ const tempRoot = resolveTestCachePath(root, `phpactor-provider-bootstrap-${proce
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
 await fs.writeFile(path.join(tempRoot, 'composer.json'), '{"name":"fixture/php"}\n', 'utf8');
+const fixturePhpactorCmd = path.join(
+  root,
+  'tests',
+  'fixtures',
+  'lsp',
+  'bin',
+  process.platform === 'win32' ? 'phpactor.cmd' : 'phpactor'
+);
 
 const restorePath = prependLspTestPath({ repoRoot: root });
 
@@ -27,7 +35,8 @@ try {
     toolingConfig: {
       enabledTools: ['phpactor'],
       phpactor: {
-        enabled: true
+        enabled: true,
+        cmd: fixturePhpactorCmd
       }
     },
     cache: {

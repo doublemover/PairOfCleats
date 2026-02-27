@@ -6,7 +6,9 @@ import { collectLspTypes } from '../../../src/integrations/tooling/providers/lsp
 import { __testLspSessionPool } from '../../../src/integrations/tooling/providers/lsp/session-pool.js';
 import { removePathWithRetry } from '../../../src/shared/io/remove-path-with-retry.js';
 import { sleep } from '../../../src/shared/sleep.js';
+import { countNonEmptyLines } from '../../helpers/lsp-signature-fixtures.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { withTemporaryEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, `lsp-session-pool-lifetime-${process.pid}-${Date.now()}`);
@@ -15,8 +17,6 @@ await fs.mkdir(tempRoot, { recursive: true });
 
 const serverPath = path.join(root, 'tests', 'fixtures', 'lsp', 'stub-lsp-server.js');
 const counterPath = path.join(tempRoot, 'lsp-session-lifetime.counter');
-const originalCounter = process.env.POC_LSP_COUNTER;
-process.env.POC_LSP_COUNTER = counterPath;
 
 const docText = 'int add(int a, int b) { return a + b; }\n';
 const virtualPath = '.poc-vfs/src/sample.cpp#seg:stub.cpp';
@@ -57,24 +57,20 @@ const runCollect = async (chunkSuffix) => collectLspTypes({
 });
 
 try {
-  const first = await runCollect('one');
-  await sleep(1_200);
-  const second = await runCollect('two');
-  const counterRaw = await fs.readFile(counterPath, 'utf8');
-  const spawnCount = counterRaw.trim().split(/\r?\n/).filter(Boolean).length;
+  await withTemporaryEnv({ POC_LSP_COUNTER: counterPath }, async () => {
+    const first = await runCollect('one');
+    await sleep(1_200);
+    const second = await runCollect('two');
+    const spawnCount = await countNonEmptyLines(counterPath);
 
-  assert.equal(spawnCount, 2, 'expected max-lifetime recycle to spawn a fresh LSP process');
-  assert.equal(first.runtime?.pooling?.reused, false, 'expected first collect to create session');
-  assert.equal(second.runtime?.pooling?.reused, false, 'expected second collect after expiry to avoid reuse');
-  assert.equal(second.runtime?.pooling?.recycleCount >= 0, true, 'expected pooling recycle metadata');
+    assert.equal(spawnCount, 2, 'expected max-lifetime recycle to spawn a fresh LSP process');
+    assert.equal(first.runtime?.pooling?.reused, false, 'expected first collect to create session');
+    assert.equal(second.runtime?.pooling?.reused, false, 'expected second collect after expiry to avoid reuse');
+    assert.equal(second.runtime?.pooling?.recycleCount >= 0, true, 'expected pooling recycle metadata');
+  });
 
   console.log('LSP session pool max lifetime recycle test passed');
 } finally {
-  if (originalCounter == null) {
-    delete process.env.POC_LSP_COUNTER;
-  } else {
-    process.env.POC_LSP_COUNTER = originalCounter;
-  }
   await __testLspSessionPool.reset();
   const cleanup = await removePathWithRetry(tempRoot, {
     attempts: 6,
