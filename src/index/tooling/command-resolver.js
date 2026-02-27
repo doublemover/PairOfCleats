@@ -1,8 +1,8 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { execaSync } from 'execa';
 import { resolveToolRoot } from '../../shared/dict-utils.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
+import { spawnSubprocessSync } from '../../shared/subprocess.js';
 import { createLspClient, pathToFileUri } from '../../integrations/tooling/lsp/client.js';
 import { findBinaryInDirs, findBinaryOnPath, splitPathEntries } from './binary-utils.js';
 import { normalizeProviderId } from './provider-contract.js';
@@ -23,23 +23,30 @@ const quoteWindowsCmdArg = (value) => {
 };
 
 const runProbeCommand = (cmd, args = [], options = {}) => {
+  const maxOutputBytes = options.maxBuffer || (2 * 1024 * 1024);
   if (!shouldUseShell(cmd)) {
-    return execaSync(cmd, args, {
-      reject: false,
-      stdio: 'pipe',
-      encoding: 'utf8',
-      maxBuffer: options.maxBuffer || (2 * 1024 * 1024)
+    return spawnSubprocessSync(cmd, args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      rejectOnNonZeroExit: false,
+      captureStdout: true,
+      captureStderr: true,
+      outputMode: 'string',
+      outputEncoding: 'utf8',
+      maxOutputBytes
     });
   }
   const commandLine = [cmd, ...(Array.isArray(args) ? args : [])]
     .map(quoteWindowsCmdArg)
     .join(' ');
   const shellExe = process.env.ComSpec || 'cmd.exe';
-  return execaSync(shellExe, ['/d', '/s', '/c', commandLine], {
-    reject: false,
-    stdio: 'pipe',
-    encoding: 'utf8',
-    maxBuffer: options.maxBuffer || (2 * 1024 * 1024)
+  return spawnSubprocessSync(shellExe, ['/d', '/s', '/c', commandLine], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    rejectOnNonZeroExit: false,
+    captureStdout: true,
+    captureStderr: true,
+    outputMode: 'string',
+    outputEncoding: 'utf8',
+    maxOutputBytes
   });
 };
 
@@ -151,7 +158,7 @@ const getProbeArgCandidates = (providerId, requestedCmd) => {
     return [['version'], ['help'], ['--help']];
   }
   if (providerId === 'jdtls' || cmdName === 'jdtls') {
-    return [['-version'], ['--version'], ['-help'], ['--help']];
+    return [['--help'], ['-help'], ['--version'], ['-version']];
   }
   if (providerId === 'elixir-ls' || cmdName === 'elixir-ls' || cmdName.includes('elixir-ls')) {
     return [['--version'], ['-version'], ['--help']];
@@ -272,11 +279,18 @@ const probeBinary = ({ providerId, command, probeArgs }) => {
         };
       }
     } catch (err) {
+      const result = err?.result && typeof err.result === 'object' ? err.result : null;
       attempted.push({
         args,
         exitCode: null,
-        stderr: summarizeProbeText(err?.stderr || err?.shortMessage || err?.message || err),
-        stdout: summarizeProbeText(err?.stdout || ''),
+        stderr: summarizeProbeText(
+          result?.stderr
+            || err?.stderr
+            || err?.shortMessage
+            || err?.message
+            || err
+        ),
+        stdout: summarizeProbeText(result?.stdout || err?.stdout || ''),
         errorCode: err?.code || null
       });
     }

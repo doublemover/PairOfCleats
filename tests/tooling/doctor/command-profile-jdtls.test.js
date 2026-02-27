@@ -16,11 +16,11 @@ try {
     toolingConfig: {}
   });
 
-  assert.equal(profile.probe.ok, true, 'expected jdtls probe to succeed via -version');
+  assert.equal(profile.probe.ok, true, 'expected jdtls probe to succeed via --help');
   assert.equal(
     profile.probe.attempted?.[0]?.args?.[0],
-    '-version',
-    'expected jdtls probe to prefer -version first'
+    '--help',
+    'expected jdtls probe to prefer --help first'
   );
   assert.equal(profile.resolved.mode, 'direct', 'expected direct launch mode for jdtls');
 } finally {

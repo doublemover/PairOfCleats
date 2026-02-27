@@ -8,6 +8,7 @@ import {
   isClosedStreamWriteError
 } from '../../../shared/jsonrpc.js';
 import { registerChildProcessForCleanup } from '../../../shared/subprocess.js';
+import { killChildProcessTree } from '../../../shared/kill-tree.js';
 
 /**
  * Convert a local path to a file:// URI.
@@ -531,6 +532,11 @@ export function createLspClient(options) {
     try {
       current.kill();
     } catch {}
+    killChildProcessTree(current, {
+      killTree: true,
+      detached: false,
+      awaitGrace: false
+    }).catch(() => {});
     try {
       current.unref?.();
     } catch {}

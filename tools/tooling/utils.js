@@ -373,7 +373,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'jdtls',
       label: 'jdtls',
       languages: ['java'],
-      detect: { cmd: 'jdtls', args: ['-version'], binDirs: [binDir] },
+      detect: { cmd: 'jdtls', args: ['--help'], binDirs: [binDir] },
       install: {
         manual: true
       },
