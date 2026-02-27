@@ -115,7 +115,7 @@ const normalizeCommandToken = (value) => {
   const raw = String(value || '').trim();
   if (!raw) return '';
   const base = path.basename(raw).trim().toLowerCase();
-  return base.endsWith('.exe') ? base.slice(0, -4) : base;
+  return base.replace(/\.(exe|cmd|bat)$/iu, '');
 };
 
 const PROBE_CANDIDATES_BY_PROVIDER_ID = Object.freeze({
