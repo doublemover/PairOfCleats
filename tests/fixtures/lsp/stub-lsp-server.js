@@ -120,6 +120,12 @@ const symbolsByMode = {
     name: 'add',
     detail: 'add',
     kind: 12
+  },
+  'clangd-hover-richer': {
+    name: 'add',
+    detail: 'add',
+    hoverDetail: 'int add(int a, int b)',
+    kind: 12
   }
 };
 
@@ -338,7 +344,7 @@ const handleRequest = (message) => {
       return;
     }
     respond(id, {
-      contents: { kind: 'plaintext', value: config.detail }
+      contents: { kind: 'plaintext', value: config.hoverDetail || config.detail }
     });
     return;
   }

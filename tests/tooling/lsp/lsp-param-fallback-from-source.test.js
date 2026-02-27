@@ -44,7 +44,8 @@ const parseSignature = (detailText) => {
     return {
       signature: detail,
       returnType: 'int',
-      paramTypes: {}
+      paramTypes: {},
+      paramNames: ['a', 'b']
     };
   }
   const named = detail.match(/^int\s+add\s*\(\s*int\s+([A-Za-z_]\w*)\s*,\s*int\s+([A-Za-z_]\w*)\s*\)$/);
@@ -55,7 +56,8 @@ const parseSignature = (detailText) => {
     paramTypes: {
       [named[1]]: 'int',
       [named[2]]: 'int'
-    }
+    },
+    paramNames: [named[1], named[2]]
   };
 };
 
@@ -74,5 +76,15 @@ assert.ok(payload, 'expected payload for chunkUid');
 assert.equal(payload.returnType, 'int');
 assert.deepEqual(payload.paramTypes?.a?.map((entry) => entry.type), ['int']);
 assert.deepEqual(payload.paramTypes?.b?.map((entry) => entry.type), ['int']);
+assert.equal(
+  Number(result?.hoverMetrics?.fallbackUsed || 0) >= 1,
+  true,
+  'expected source fallback usage metric to increment'
+);
+assert.equal(
+  Number(result?.hoverMetrics?.fallbackReasonCounts?.missing_param_types || 0) >= 1,
+  true,
+  'expected missing_param_types fallback reason to be counted'
+);
 
 console.log('LSP source fallback param recovery test passed');

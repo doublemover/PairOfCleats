@@ -298,6 +298,98 @@ const hasParamTypes = (paramTypes) => {
   return false;
 };
 
+const FUNCTION_LIKE_SYMBOL_KINDS = new Set([6, 9, 12]);
+
+const normalizeParamNames = (value) => {
+  if (!Array.isArray(value)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const entry of value) {
+    const name = String(entry || '').trim();
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    out.push(name);
+  }
+  return out;
+};
+
+const signatureDeclaresParameters = (signature) => {
+  const text = normalizeTypeText(signature);
+  if (!text) return false;
+  const open = text.indexOf('(');
+  const close = text.lastIndexOf(')');
+  if (open < 0 || close < 0 || close <= open) return false;
+  const inside = text.slice(open + 1, close).trim();
+  if (!inside) return false;
+  return !/^(void|\(\s*\))$/i.test(inside);
+};
+
+const hasTypedParamEntry = (value) => {
+  if (Array.isArray(value)) {
+    return value.some((entry) => normalizeTypeText(typeof entry === 'string' ? entry : entry?.type));
+  }
+  return normalizeTypeText(value) != null;
+};
+
+const hasTypedParamName = (paramTypes, name) => {
+  if (!paramTypes || typeof paramTypes !== 'object') return false;
+  if (!name) return false;
+  return hasTypedParamEntry(paramTypes[name]);
+};
+
+const isAmbiguousReturnType = (info) => {
+  const signatureText = normalizeTypeText(info?.signature);
+  const hasSignatureArrow = typeof signatureText === 'string' && signatureText.includes('->');
+  const normalizedReturnType = normalizeTypeText(info?.returnType);
+  const treatVoidAsMissing = normalizedReturnType === 'Void' && hasSignatureArrow;
+  return !normalizedReturnType
+    || /^unknown$/i.test(normalizedReturnType)
+    || /^any\b/i.test(normalizedReturnType)
+    || treatVoidAsMissing;
+};
+
+/**
+ * Determine whether a parsed signature payload is incomplete for enrichment.
+ *
+ * @param {object|null} info
+ * @param {{symbolKind?:number|null}} [options]
+ * @returns {{incomplete:boolean,missingReturn:boolean,missingParamTypes:boolean,paramCoverage:number}}
+ */
+export const isIncompleteTypePayload = (info, options = {}) => {
+  if (!info || typeof info !== 'object') {
+    return {
+      incomplete: true,
+      missingReturn: true,
+      missingParamTypes: true,
+      paramCoverage: 0
+    };
+  }
+  const symbolKind = Number.isInteger(options?.symbolKind) ? options.symbolKind : null;
+  const functionLike = symbolKind == null || FUNCTION_LIKE_SYMBOL_KINDS.has(symbolKind);
+  const missingReturn = functionLike ? isAmbiguousReturnType(info) : false;
+  const paramNames = normalizeParamNames(info?.paramNames);
+  const declaredParams = paramNames.length > 0 || signatureDeclaresParameters(info?.signature);
+  let paramCoverage = 1;
+  let missingParamTypes = false;
+  if (functionLike && declaredParams) {
+    if (paramNames.length) {
+      const typedCount = paramNames.filter((name) => hasTypedParamName(info?.paramTypes, name)).length;
+      paramCoverage = typedCount / paramNames.length;
+      missingParamTypes = typedCount < paramNames.length;
+    } else {
+      const hasAnyTypedParam = hasParamTypes(info?.paramTypes);
+      paramCoverage = hasAnyTypedParam ? 1 : 0;
+      missingParamTypes = !hasAnyTypedParam;
+    }
+  }
+  return {
+    incomplete: missingReturn || missingParamTypes,
+    missingReturn,
+    missingParamTypes,
+    paramCoverage
+  };
+};
+
 /**
  * Extract a source-level signature candidate from target byte range.
  * @param {string} text
@@ -364,41 +456,113 @@ export const findTargetForOffsets = (targets, offsets, nameHint = null) => {
 };
 
 /**
- * Merge signature candidates, preferring stronger return/signature evidence and
- * preserving existing high-confidence param metadata.
+ * Compute deterministic quality score for one signature candidate.
+ *
+ * @param {object|null} info
+ * @param {{symbolKind?:number|null}} [options]
+ * @returns {{total:number,returnScore:number,paramScore:number,signatureScore:number,evidenceScore:number,incomplete:boolean}}
+ */
+export const scoreSignatureInfo = (info, options = {}) => {
+  if (!info || typeof info !== 'object') {
+    return {
+      total: 0,
+      returnScore: 0,
+      paramScore: 0,
+      signatureScore: 0,
+      evidenceScore: 0,
+      incomplete: true
+    };
+  }
+  const completeness = isIncompleteTypePayload(info, options);
+  const returnScore = completeness.missingReturn ? 0 : 4;
+  const paramScore = Math.round(Math.max(0, Math.min(1, completeness.paramCoverage || 0)) * 4);
+  const signatureScore = normalizeTypeText(info.signature) ? 1 : 0;
+  const evidenceScore = hasParamTypes(info.paramTypes) ? 1 : 0;
+  return {
+    total: returnScore + paramScore + signatureScore + evidenceScore,
+    returnScore,
+    paramScore,
+    signatureScore,
+    evidenceScore,
+    incomplete: completeness.incomplete
+  };
+};
+
+const choosePreferredSignatureInfo = (base, next, options = {}) => {
+  const baseScore = scoreSignatureInfo(base, options);
+  const nextScore = scoreSignatureInfo(next, options);
+  if (nextScore.total > baseScore.total) return { preferred: next, alternate: base };
+  if (nextScore.total < baseScore.total) return { preferred: base, alternate: next };
+  const baseSignature = normalizeTypeText(base?.signature) || '';
+  const nextSignature = normalizeTypeText(next?.signature) || '';
+  if (nextSignature.length > baseSignature.length) {
+    return { preferred: next, alternate: base };
+  }
+  return { preferred: base, alternate: next };
+};
+
+const mergeParamTypesByQuality = (preferred, alternate, paramNames) => {
+  const preferredParamTypes = preferred?.paramTypes && typeof preferred.paramTypes === 'object'
+    ? preferred.paramTypes
+    : null;
+  const alternateParamTypes = alternate?.paramTypes && typeof alternate.paramTypes === 'object'
+    ? alternate.paramTypes
+    : null;
+  if (!preferredParamTypes && !alternateParamTypes) return null;
+  const names = Array.from(new Set([
+    ...paramNames,
+    ...Object.keys(preferredParamTypes || {}),
+    ...Object.keys(alternateParamTypes || {})
+  ])).filter(Boolean);
+  const out = {};
+  for (const name of names) {
+    const preferredBucket = preferredParamTypes?.[name];
+    const alternateBucket = alternateParamTypes?.[name];
+    if (hasTypedParamEntry(preferredBucket)) {
+      out[name] = preferredBucket;
+      continue;
+    }
+    if (hasTypedParamEntry(alternateBucket)) {
+      out[name] = alternateBucket;
+      continue;
+    }
+    if (preferredBucket != null) out[name] = preferredBucket;
+    else if (alternateBucket != null) out[name] = alternateBucket;
+  }
+  return Object.keys(out).length ? out : null;
+};
+
+/**
+ * Merge signature candidates, preferring higher-quality metadata while
+ * preserving deterministic tie-break behavior.
  *
  * @param {object|null} base
  * @param {object|null} next
+ * @param {{symbolKind?:number|null}} [options]
  * @returns {object|null}
  */
-const mergeSignatureInfo = (base, next) => {
+const mergeSignatureInfo = (base, next, options = {}) => {
   if (!next) return base;
   if (!base) return next;
-  const merged = { ...base };
-  if ((!merged.returnType || merged.returnType === 'Void')
-    && next.returnType
-    && next.returnType !== 'Void') {
-    merged.returnType = next.returnType;
+  const { preferred, alternate } = choosePreferredSignatureInfo(base, next, options);
+  const merged = { ...preferred };
+  const preferredReturnAmbiguous = isAmbiguousReturnType(preferred);
+  const alternateReturnAmbiguous = isAmbiguousReturnType(alternate);
+  if (preferredReturnAmbiguous && !alternateReturnAmbiguous) {
+    merged.returnType = alternate.returnType;
   }
-  if (!merged.signature
-    || (!merged.signature.includes('->') && next.signature?.includes('->'))) {
-    if (next.signature) merged.signature = next.signature;
+  const preferredSignature = normalizeTypeText(preferred?.signature);
+  const alternateSignature = normalizeTypeText(alternate?.signature);
+  if (!preferredSignature && alternateSignature) {
+    merged.signature = alternate.signature;
   }
-  const baseParamTypes = merged.paramTypes && typeof merged.paramTypes === 'object'
-    ? merged.paramTypes
-    : null;
-  const nextParamTypes = next.paramTypes && typeof next.paramTypes === 'object'
-    ? next.paramTypes
-    : null;
-  if (nextParamTypes) {
-    merged.paramTypes = {
-      ...nextParamTypes,
-      ...(baseParamTypes || {})
-    };
-  }
-  if ((!merged.paramNames || !merged.paramNames.length) && next.paramNames?.length) {
-    merged.paramNames = next.paramNames;
-  }
+  const paramNames = Array.from(new Set([
+    ...normalizeParamNames(preferred?.paramNames),
+    ...normalizeParamNames(alternate?.paramNames)
+  ]));
+  if (paramNames.length) merged.paramNames = paramNames;
+  const mergedParamTypes = mergeParamTypesByQuality(preferred, alternate, paramNames);
+  if (mergedParamTypes) merged.paramTypes = mergedParamTypes;
   return merged;
 };
 
@@ -410,6 +574,10 @@ export const createEmptyHoverMetricsResult = () => ({
   requested: 0,
   succeeded: 0,
   timedOut: 0,
+  incompleteSymbols: 0,
+  hoverTriggeredByIncomplete: 0,
+  fallbackUsed: 0,
+  fallbackReasonCounts: Object.create(null),
   skippedByBudget: 0,
   skippedByKind: 0,
   skippedByReturnSufficient: 0,
@@ -454,6 +622,10 @@ export const summarizeHoverMetrics = ({ hoverMetrics, hoverLatencyMs, hoverFileS
     requested: hoverMetrics.requested,
     succeeded: hoverMetrics.succeeded,
     timedOut: hoverMetrics.timedOut,
+    incompleteSymbols: hoverMetrics.incompleteSymbols,
+    hoverTriggeredByIncomplete: hoverMetrics.hoverTriggeredByIncomplete,
+    fallbackUsed: hoverMetrics.fallbackUsed,
+    fallbackReasonCounts: { ...(hoverMetrics.fallbackReasonCounts || {}) },
     skippedByBudget: hoverMetrics.skippedByBudget,
     skippedByKind: hoverMetrics.skippedByKind,
     skippedByReturnSufficient: hoverMetrics.skippedByReturnSufficient,
@@ -514,6 +686,33 @@ const recordDocumentSymbolFailureCheck = ({ cmd, checks, checkFlags, err }) => {
     status: 'warn',
     message: `${cmd} documentSymbol requests failed; running in degraded mode (${category}).`
   });
+};
+
+const recordFallbackReasons = (hoverMetrics, reasons) => {
+  if (!hoverMetrics || !Array.isArray(reasons) || !reasons.length) return;
+  hoverMetrics.fallbackUsed += 1;
+  if (!hoverMetrics.fallbackReasonCounts || typeof hoverMetrics.fallbackReasonCounts !== 'object') {
+    hoverMetrics.fallbackReasonCounts = Object.create(null);
+  }
+  for (const rawReason of reasons) {
+    const reason = String(rawReason || '').trim();
+    if (!reason) continue;
+    hoverMetrics.fallbackReasonCounts[reason] = Number(hoverMetrics.fallbackReasonCounts[reason] || 0) + 1;
+  }
+};
+
+const buildFallbackReasonCodes = ({
+  incompleteState,
+  hoverRequested,
+  hoverSucceeded
+}) => {
+  const reasons = [];
+  if (incompleteState?.missingReturn) reasons.push('missing_return_type');
+  if (incompleteState?.missingParamTypes) reasons.push('missing_param_types');
+  if (!hoverRequested) reasons.push('hover_not_requested');
+  else if (!hoverSucceeded) reasons.push('hover_unavailable_or_failed');
+  else reasons.push('post_hover_still_incomplete');
+  return reasons;
 };
 
 /**
@@ -734,30 +933,16 @@ export const processDocumentTypes = async ({
 
       const detailText = symbol.detail || symbol.name;
       let info = parseSignatureCached(detailText, symbol.name);
-      if (!hasParamTypes(info?.paramTypes)) {
-        const sourceSignature = buildSourceSignatureCandidate(
-          openEntry?.text || doc.text || '',
-          target?.virtualRange
-        );
-        if (sourceSignature) {
-          const sourceInfo = parseSignatureCached(sourceSignature, symbol.name);
-          if (hasParamTypes(sourceInfo?.paramTypes)) {
-            info = mergeSignatureInfo(info, sourceInfo);
-          }
-        }
+      const incompleteState = isIncompleteTypePayload(info, { symbolKind: symbol?.kind });
+      if (incompleteState.incomplete) {
+        hoverMetrics.incompleteSymbols += 1;
       }
-
-      const hasExplicitArrow = typeof detailText === 'string' && detailText.includes('->');
-      const hasSignatureArrow = typeof info?.signature === 'string' && info.signature.includes('->');
-      const normalizedReturnType = normalizeTypeText(info?.returnType);
-      const treatVoidAsMissing = normalizedReturnType === 'Void' && (hasExplicitArrow || hasSignatureArrow);
-      const ambiguousReturn = !normalizedReturnType
-        || /^unknown$/i.test(normalizedReturnType)
-        || /^any\b/i.test(normalizedReturnType)
-        || treatVoidAsMissing;
-      const needsHover = hoverRequireMissingReturn === true
-        ? ambiguousReturn
-        : (!info || !info.returnType || ambiguousReturn);
+      const needsHover = hoverRequireMissingReturn === false
+        ? incompleteState.incomplete === true
+        : (incompleteState.missingReturn || incompleteState.missingParamTypes);
+      if (needsHover) {
+        hoverMetrics.hoverTriggeredByIncomplete += 1;
+      }
       if (!needsHover) {
         fileHoverStats.skippedByReturnSufficient += 1;
         hoverMetrics.skippedByReturnSufficient += 1;
@@ -790,6 +975,10 @@ export const processDocumentTypes = async ({
       }
 
       const position = symbol.selectionRange?.start || symbol.range?.start || null;
+      const sourceSignature = buildSourceSignatureCandidate(
+        openEntry?.text || doc.text || '',
+        target?.virtualRange
+      );
       const hoverPromise = (
         hoverEnabled
         && needsHover
@@ -800,16 +989,43 @@ export const processDocumentTypes = async ({
       )
         ? requestHover(symbol, position)
         : null;
-      symbolRecords.push({ symbol, target, info, hoverPromise });
+      symbolRecords.push({
+        symbol,
+        target,
+        info,
+        hoverPromise,
+        sourceSignature,
+        hoverRequested: hoverPromise != null
+      });
     }
 
     let enrichedDelta = 0;
     for (const record of symbolRecords) {
       throwIfAborted(abortSignal);
       let info = record.info;
+      let hoverSucceeded = false;
       if (record.hoverPromise) {
         const hoverInfo = await record.hoverPromise;
-        if (hoverInfo) info = mergeSignatureInfo(info, hoverInfo);
+        if (hoverInfo) {
+          hoverSucceeded = true;
+          info = mergeSignatureInfo(info, hoverInfo, { symbolKind: record?.symbol?.kind });
+        }
+      }
+
+      const incompleteAfterHover = isIncompleteTypePayload(info, {
+        symbolKind: record?.symbol?.kind
+      });
+      if (incompleteAfterHover.incomplete && record.sourceSignature) {
+        const sourceInfo = parseSignatureCached(record.sourceSignature, record?.symbol?.name);
+        if (sourceInfo) {
+          const fallbackReasons = buildFallbackReasonCodes({
+            incompleteState: incompleteAfterHover,
+            hoverRequested: record.hoverRequested === true,
+            hoverSucceeded
+          });
+          recordFallbackReasons(hoverMetrics, fallbackReasons);
+          info = mergeSignatureInfo(info, sourceInfo, { symbolKind: record?.symbol?.kind });
+        }
       }
       if (!info) continue;
 

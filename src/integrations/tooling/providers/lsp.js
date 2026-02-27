@@ -556,6 +556,20 @@ export async function collectLspTypes({
         });
       }
 
+      const summarizedHoverMetrics = summarizeHoverMetrics({
+        hoverMetrics,
+        hoverLatencyMs,
+        hoverFileStats
+      });
+      const fallbackCount = Number(summarizedHoverMetrics.fallbackUsed || 0);
+      const incompleteCount = Number(summarizedHoverMetrics.incompleteSymbols || 0);
+      const fallbackRatio = incompleteCount > 0 ? (fallbackCount / incompleteCount) : 0;
+      if (fallbackCount >= 10 || fallbackRatio >= 0.25) {
+        log(
+          `[tooling] ${cmd} fallback summary: used=${fallbackCount} incomplete=${incompleteCount} ratio=${fallbackRatio.toFixed(2)} reasons=${JSON.stringify(summarizedHoverMetrics.fallbackReasonCounts || {})}`
+        );
+      }
+
       return {
         byChunkUid,
         diagnosticsByChunkUid,
@@ -563,11 +577,7 @@ export async function collectLspTypes({
         diagnosticsCount,
         checks,
         runtime,
-        hoverMetrics: summarizeHoverMetrics({
-          hoverMetrics,
-          hoverLatencyMs,
-          hoverFileStats
-        })
+        hoverMetrics: summarizedHoverMetrics
       };
     } finally {
       if (detachAbortHandler) {

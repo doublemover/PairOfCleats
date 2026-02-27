@@ -46,8 +46,9 @@ const targets = [{
 
 const originalTrace = process.env.POC_LSP_TRACE;
 process.env.POC_LSP_TRACE = tracePath;
+let result = null;
 try {
-  await collectLspTypes({
+  result = await collectLspTypes({
     rootDir: tempRoot,
     vfsRoot: tempRoot,
     cacheRoot: path.join(tempRoot, 'cache'),
@@ -57,9 +58,10 @@ try {
     args: [serverPath, '--mode', 'clangd-duplicate-symbols'],
     hoverConcurrency: 8,
     parseSignature: () => ({
-      signature: 'add',
-      returnType: null,
-      paramTypes: {}
+      signature: 'int add(int a, int b)',
+      returnType: 'int',
+      paramTypes: {},
+      paramNames: ['a', 'b']
     })
   });
 } finally {
@@ -71,5 +73,15 @@ const events = traceRaw.trim().split(/\r?\n/).filter(Boolean).map((line) => JSON
 const hoverCount = events.filter((evt) => evt.kind === 'request' && evt.method === 'textDocument/hover').length;
 
 assert.equal(hoverCount, 1, 'expected duplicate symbol hover requests to be deduped');
+assert.equal(
+  Number(result?.hoverMetrics?.incompleteSymbols || 0) >= 2,
+  true,
+  'expected incomplete symbol tracking for duplicate symbols'
+);
+assert.equal(
+  Number(result?.hoverMetrics?.hoverTriggeredByIncomplete || 0) >= 2,
+  true,
+  'expected hover trigger tracking to include incomplete symbols'
+);
 
 console.log('LSP hover dedupe test passed');
