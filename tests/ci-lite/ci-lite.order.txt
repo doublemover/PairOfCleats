@@ -401,6 +401,7 @@ shared/merge/merge-cleanup-regression
 shared/json-stream/jsonl-gzip
 retrieval/pipeline/filter-compiled-reuse
 tooling/vfs/vfs-bloom-negative-lookup
+tooling/vfs/vfs-bloom-load-error-fallback
 tooling/test-selection/suggest-tests-basic
 shared/merge/spill-merge-contract
 indexing/vfs/virtual-path-stability

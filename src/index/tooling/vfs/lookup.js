@@ -46,7 +46,28 @@ export const loadVfsManifestRowByPath = async ({
   telemetry = null
 }) => {
   if (!virtualPath) return null;
-  const resolvedBloom = bloom || (bloomPath ? await loadVfsManifestBloomFilter({ bloomPath }) : null);
+  let resolvedBloom = bloom || null;
+  if (!resolvedBloom && bloomPath) {
+    try {
+      resolvedBloom = await loadVfsManifestBloomFilter({ bloomPath });
+    } catch {
+      emitVfsLookupTelemetry(telemetry, {
+        path: 'bloom',
+        outcome: 'load_error',
+        virtualPath
+      });
+      resolvedBloom = null;
+    }
+  }
+  const bloomHasFn = resolvedBloom && typeof resolvedBloom.has === 'function';
+  if (resolvedBloom && !bloomHasFn) {
+    emitVfsLookupTelemetry(telemetry, {
+      path: 'bloom',
+      outcome: 'load_error',
+      virtualPath
+    });
+    resolvedBloom = null;
+  }
   if (resolvedBloom && !resolvedBloom.has(virtualPath)) {
     emitVfsLookupTelemetry(telemetry, {
       path: 'bloom',

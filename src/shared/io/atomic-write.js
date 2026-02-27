@@ -48,6 +48,79 @@ const removeTempPathSync = (tempPath) => {
 const sleep = (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs));
 const shouldRetryRenameWithTargetRemoval = (code) => code === 'EEXIST' || code === 'ENOTEMPTY';
 
+const pathExists = async (targetPath) => {
+  try {
+    await fs.access(targetPath);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const renameWithBackupSwap = async (tempPath, targetPath) => {
+  const backupPath = createTempPath(`${targetPath}.bak`, { preferFallback: true });
+  let movedExistingTarget = false;
+  try {
+    await fs.rename(targetPath, backupPath);
+    movedExistingTarget = true;
+  } catch (err) {
+    if (err?.code !== 'ENOENT') {
+      throw err;
+    }
+  }
+  try {
+    await fs.rename(tempPath, targetPath);
+  } catch (err) {
+    if (movedExistingTarget) {
+      try {
+        if (!(await pathExists(targetPath))) {
+          await fs.rename(backupPath, targetPath);
+        } else {
+          await fs.rm(backupPath, { force: true });
+        }
+      } catch {}
+    }
+    throw err;
+  }
+  if (movedExistingTarget) {
+    try {
+      await fs.rm(backupPath, { force: true });
+    } catch {}
+  }
+};
+
+const renameWithBackupSwapSync = (tempPath, targetPath) => {
+  const backupPath = createTempPath(`${targetPath}.bak`, { preferFallback: true });
+  let movedExistingTarget = false;
+  try {
+    fsSync.renameSync(targetPath, backupPath);
+    movedExistingTarget = true;
+  } catch (err) {
+    if (err?.code !== 'ENOENT') {
+      throw err;
+    }
+  }
+  try {
+    fsSync.renameSync(tempPath, targetPath);
+  } catch (err) {
+    if (movedExistingTarget) {
+      try {
+        if (!fsSync.existsSync(targetPath)) {
+          fsSync.renameSync(backupPath, targetPath);
+        } else {
+          fsSync.rmSync(backupPath, { force: true });
+        }
+      } catch {}
+    }
+    throw err;
+  }
+  if (movedExistingTarget) {
+    try {
+      fsSync.rmSync(backupPath, { force: true });
+    } catch {}
+  }
+};
+
 /**
  * Retry transient descriptor exhaustion (EMFILE/ENFILE) when creating temp files.
  * This keeps atomic writes resilient under short-lived FD pressure spikes.
@@ -106,8 +179,11 @@ const renameTempFile = async (tempPath, targetPath) => {
       }
       if (shouldRetryRenameWithTargetRemoval(err?.code)) {
         try {
-          await fs.rm(targetPath, { force: true });
-        } catch {}
+          await renameWithBackupSwap(tempPath, targetPath);
+          return;
+        } catch (swapErr) {
+          lastError = swapErr;
+        }
       }
       if (attempt >= RENAME_RETRY_ATTEMPTS - 1) break;
       const delayMs = Math.min(
@@ -117,15 +193,7 @@ const renameTempFile = async (tempPath, targetPath) => {
       await sleep(delayMs);
     }
   }
-  if (lastError && RENAME_RETRY_CODES.has(lastError?.code)) {
-    if (!shouldRetryRenameWithTargetRemoval(lastError?.code)) {
-      try {
-        await fs.rm(targetPath, { force: true });
-      } catch {}
-    }
-    await fs.rename(tempPath, targetPath);
-    return;
-  }
+  if (lastError && RENAME_RETRY_CODES.has(lastError?.code)) throw lastError;
   throw lastError;
 };
 
@@ -147,21 +215,16 @@ const renameTempFileSync = (tempPath, targetPath) => {
       }
       if (shouldRetryRenameWithTargetRemoval(err?.code)) {
         try {
-          fsSync.rmSync(targetPath, { force: true });
-        } catch {}
+          renameWithBackupSwapSync(tempPath, targetPath);
+          return;
+        } catch (swapErr) {
+          lastError = swapErr;
+        }
       }
       if (attempt >= RENAME_RETRY_ATTEMPTS - 1) break;
     }
   }
-  if (lastError && RENAME_RETRY_CODES.has(lastError?.code)) {
-    if (!shouldRetryRenameWithTargetRemoval(lastError?.code)) {
-      try {
-        fsSync.rmSync(targetPath, { force: true });
-      } catch {}
-    }
-    fsSync.renameSync(tempPath, targetPath);
-    return;
-  }
+  if (lastError && RENAME_RETRY_CODES.has(lastError?.code)) throw lastError;
   throw lastError;
 };
 

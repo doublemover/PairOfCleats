@@ -111,6 +111,36 @@ try {
 assert.equal(fs.readFileSync(epermPath, 'utf8'), 'eperm-ok');
 assert.equal(epermAttempts, 5, 'expected EPERM rename retries to be exercised');
 
+const preservePath = path.join(tempRoot, 'preserve-existing-on-rename-failure.txt');
+await fsPromises.writeFile(preservePath, 'original', 'utf8');
+const originalRenamePreserve = fsPromises.rename;
+let preserveRenameCalls = 0;
+fsPromises.rename = async (...args) => {
+  const [fromPath, targetPath] = args;
+  const from = String(fromPath || '');
+  if (String(targetPath || '') === preservePath && from.startsWith(`${preservePath}.tmp-`)) {
+    preserveRenameCalls += 1;
+    const err = new Error(preserveRenameCalls === 1 ? 'already exists' : 'invalid rename state');
+    err.code = preserveRenameCalls === 1 ? 'EEXIST' : 'EINVAL';
+    throw err;
+  }
+  return originalRenamePreserve(...args);
+};
+let preserveError = null;
+try {
+  await atomicWriteText(preservePath, 'new-content');
+} catch (err) {
+  preserveError = err;
+} finally {
+  fsPromises.rename = originalRenamePreserve;
+}
+assert.ok(preserveError, 'expected rename failure path to propagate error');
+assert.equal(
+  fs.readFileSync(preservePath, 'utf8'),
+  'original',
+  'expected existing target content to be restored when replacement fails'
+);
+
 let mkdirError = null;
 try {
   await atomicWriteText(path.join(tempRoot, 'nested', 'missing.txt'), 'x', { mkdir: false });

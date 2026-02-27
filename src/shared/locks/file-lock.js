@@ -50,6 +50,17 @@ const resolveLockPid = (info) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 };
 
+const buildOwnerFromLockInfo = (info) => {
+  if (!info || typeof info !== 'object') return null;
+  const owner = {};
+  if (typeof info.lockId === 'string' && info.lockId.trim()) {
+    owner.lockId = info.lockId.trim();
+  }
+  const pid = resolveLockPid(info);
+  if (pid) owner.pid = pid;
+  return Object.keys(owner).length ? owner : null;
+};
+
 export const readLockInfoSync = (lockPath) => {
   try {
     const raw = fsSync.readFileSync(lockPath, 'utf8');
@@ -217,7 +228,21 @@ export const acquireFileLock = async ({
       const staleCleanup = stale && (forceStaleCleanup || !pid || (pid && !alive));
       if ((pid && !alive) || staleCleanup) {
         try {
-          await fs.rm(lockPath, { force: true });
+          const staleOwner = buildOwnerFromLockInfo(info);
+          const removed = staleOwner
+            ? await removeLockFileIfOwned(lockPath, staleOwner)
+            : false;
+          if (!removed) {
+            if (deadline != null && Date.now() < deadline) {
+              await sleepWithAbort(resolvedPollMs, lockSignal);
+              continue;
+            }
+            if (typeof onBusy === 'function') onBusy({ lockPath, info, pid });
+            if (timeoutBehavior === 'throw') {
+              throw new Error(timeoutMessage || 'Lock timeout.');
+            }
+            return null;
+          }
           if (typeof onStale === 'function') {
             onStale({
               lockPath,
