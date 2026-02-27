@@ -39,13 +39,33 @@ const withDefaults = (env, key, value) => {
   if (env[key] === undefined || env[key] === '') env[key] = value;
 };
 
+const resolvePathEnvKey = (env) => {
+  const keys = Object.keys(env || {});
+  const matches = keys.filter((key) => key.toLowerCase() === 'path');
+  if (!matches.length) return 'PATH';
+  if (matches.includes('Path')) return 'Path';
+  if (matches.includes('PATH')) return 'PATH';
+  return matches[0];
+};
+
+const readPathEnv = (env) => {
+  const key = resolvePathEnvKey(env);
+  const value = env?.[key];
+  return typeof value === 'string' ? value : '';
+};
+
 const prependPathEntry = (env, entry) => {
   const value = String(entry || '').trim();
   if (!value) return;
-  if (env.PATH) {
-    env.PATH = `${value}${path.delimiter}${env.PATH}`;
-  } else {
-    env.PATH = value;
+  const pathKey = resolvePathEnvKey(env);
+  const current = readPathEnv(env);
+  env[pathKey] = current
+    ? `${value}${path.delimiter}${current}`
+    : value;
+  for (const key of Object.keys(env)) {
+    if (key === pathKey) continue;
+    if (key.toLowerCase() !== 'path') continue;
+    delete env[key];
   }
 };
 
