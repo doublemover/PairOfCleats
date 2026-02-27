@@ -1,42 +1,22 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { runToolingDoctor } from '../../../src/index/tooling/doctor.js';
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import {
+  createDoctorCommandResolver,
+  createToolingDoctorTempRoot,
+  runToolingDoctorFixture
+} from '../../helpers/tooling-doctor-fixture.js';
 
-const root = process.cwd();
-const tempRoot = resolveTestCachePath(root, `tooling-doctor-runtime-reqs-${process.pid}-${Date.now()}`);
-await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(tempRoot, { recursive: true });
-
-const shouldResolve = new Set(['jdtls', 'csharp-ls', 'phpactor']);
-const missingDependencies = new Set(['java', 'dotnet', 'php']);
-const resolveCommandProfile = ({ cmd, args = [] }) => {
-  const normalized = String(cmd || '').trim().toLowerCase();
-  const ok = shouldResolve.has(normalized) || !missingDependencies.has(normalized);
-  return {
-    requested: { cmd, args },
-    resolved: {
-      cmd,
-      args,
-      mode: 'direct',
-      source: 'mock'
-    },
-    probe: {
-      ok,
-      attempted: [{ cmd, args }],
-      resolvedPath: ok ? String(cmd) : null
-    }
-  };
-};
+const tempRoot = await createToolingDoctorTempRoot('tooling-doctor-runtime-reqs');
+const resolveCommandProfile = createDoctorCommandResolver({
+  available: ['jdtls', 'csharp-ls', 'phpactor'],
+  missing: ['java', 'dotnet', 'php']
+});
 
 const providerIds = ['lsp-java-dedicated', 'lsp-csharp-dedicated', 'lsp-php-dedicated'];
-const report = await runToolingDoctor({
-  repoRoot: tempRoot,
-  buildRoot: tempRoot,
+const report = await runToolingDoctorFixture({
+  tempRoot,
+  enabledTools: providerIds,
   toolingConfig: {
-    enabledTools: providerIds,
     lsp: {
       enabled: true,
       servers: [
@@ -46,10 +26,6 @@ const report = await runToolingDoctor({
       ]
     }
   },
-  strict: false
-}, providerIds, {
-  log: () => {},
-  probeHandshake: false,
   resolveCommandProfile
 });
 

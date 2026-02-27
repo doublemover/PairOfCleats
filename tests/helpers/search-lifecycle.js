@@ -4,21 +4,12 @@ import { applyTestEnv } from './test-env.js';
 import { makeTempDir } from './temp.js';
 import { runNode } from './run-node.js';
 import { runSearchCliWithSpawnSync } from '../../tools/shared/search-cli-harness.js';
-import { resolveTestCacheDir } from './test-cache.js';
+import { normalizeTestCacheScope, resolveTestCacheDir } from './test-cache.js';
 
 const DEFAULT_SEARCH_TEST_CONFIG = {
   indexing: {
     scm: { provider: 'none' }
   }
-};
-const VALID_CACHE_SCOPES = new Set(['isolated', 'shared']);
-
-const normalizeCacheScope = (cacheScope) => {
-  const normalized = String(cacheScope || 'isolated').trim().toLowerCase();
-  if (!VALID_CACHE_SCOPES.has(normalized)) {
-    throw new Error(`Unsupported cacheScope: ${cacheScope}`);
-  }
-  return normalized;
 };
 
 /**
@@ -50,7 +41,7 @@ export const createSearchLifecycle = async ({
   testConfig = DEFAULT_SEARCH_TEST_CONFIG,
   extraEnv
 } = {}) => {
-  const normalizedCacheScope = normalizeCacheScope(cacheScope);
+  const normalizedCacheScope = normalizeTestCacheScope(cacheScope, { defaultScope: 'isolated' });
   const { dir: sharedWorkspaceRoot } = resolveTestCacheDir(
     path.join('search-lifecycle', String(cacheName || 'search').trim() || 'search'),
     { root }

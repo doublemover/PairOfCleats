@@ -1,4 +1,4 @@
-import { acquireFileLock } from '../../src/shared/locks/file-lock.js';
+import { withFileLock } from '../../src/shared/locks/file-lock.js';
 
 /**
  * Execute callback under a cooperative lock file derived from a directory key.
@@ -25,7 +25,7 @@ export const withDirectoryLock = async (
   } = {}
 ) => {
   const lockPath = `${lockDir}.json`;
-  const lock = await acquireFileLock({
+  return withFileLock({
     lockPath,
     waitMs: maxWaitMs,
     pollMs,
@@ -33,13 +33,5 @@ export const withDirectoryLock = async (
     timeoutBehavior: 'throw',
     timeoutMessage,
     forceStaleCleanup: false
-  });
-  if (!lock) {
-    throw new Error(timeoutMessage);
-  }
-  try {
-    return await callback();
-  } finally {
-    await lock.release({ force: false });
-  }
+  }, async () => callback());
 };

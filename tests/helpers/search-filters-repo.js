@@ -7,10 +7,9 @@ import { getIndexDir, loadUserConfig } from '../../tools/shared/dict-utils.js';
 import { applyTestEnv } from './test-env.js';
 import { withDirectoryLock } from './directory-lock.js';
 
-import { resolveTestCachePath } from './test-cache.js';
+import { normalizeTestCacheScope, resolveTestCachePath } from './test-cache.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const VALID_CACHE_SCOPES = new Set(['isolated', 'shared']);
 const FIXTURE_FILES = Object.freeze([
   'alpha.txt',
   'beta.txt',
@@ -80,13 +79,6 @@ const buildIndex = (repoRoot, env) => {
   }
 };
 
-const normalizeCacheScope = (cacheScope) => {
-  const normalized = String(cacheScope || 'shared').trim().toLowerCase();
-  if (!VALID_CACHE_SCOPES.has(normalized)) {
-    throw new Error(`Unsupported cacheScope: ${cacheScope}`);
-  }
-  return normalized;
-};
 
 const hasExpectedFixtureHistory = (repoRoot) => {
   const requiredFilesPresent = FIXTURE_FILES.every((filename) => fs.existsSync(path.join(repoRoot, filename)));
@@ -119,7 +111,7 @@ export const ensureSearchFiltersRepo = async ({ cacheScope = 'shared' } = {}) =>
     console.log('[skip] git not available');
     return null;
   }
-  const normalizedCacheScope = normalizeCacheScope(cacheScope);
+  const normalizedCacheScope = normalizeTestCacheScope(cacheScope, { defaultScope: 'shared' });
   const tempRoot = resolveTestCachePath(ROOT, 'search-filters');
   const runSuffix = `${Date.now()}-${process.pid}-${Math.random().toString(16).slice(2, 8)}`;
   const repoRoot = normalizedCacheScope === 'shared'

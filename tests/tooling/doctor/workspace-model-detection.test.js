@@ -1,27 +1,22 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { runToolingDoctor } from '../../../src/index/tooling/doctor.js';
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import {
+  createDoctorCommandResolver,
+  createDoctorRunner,
+  createToolingDoctorTempRoot,
+  writeDoctorWorkspaceMarker
+} from '../../helpers/tooling-doctor-fixture.js';
 
-const root = process.cwd();
-const tempRoot = resolveTestCachePath(root, `tooling-doctor-workspace-model-${process.pid}-${Date.now()}`);
-await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(tempRoot, { recursive: true });
-
+const tempRoot = await createToolingDoctorTempRoot('tooling-doctor-workspace-model');
 const providerId = 'lsp-java-dedicated';
-const resolveCommandProfile = ({ cmd, args = [] }) => ({
-  requested: { cmd, args },
-  resolved: { cmd, args, mode: 'direct', source: 'mock' },
-  probe: { ok: true, attempted: [{ cmd, args }], resolvedPath: String(cmd) }
+const resolveCommandProfile = createDoctorCommandResolver({
+  available: ['jdtls']
 });
 
-const runDoctor = async () => runToolingDoctor({
-  repoRoot: tempRoot,
-  buildRoot: tempRoot,
+const { runDoctor } = createDoctorRunner({
+  tempRoot,
+  enabledTools: [providerId],
   toolingConfig: {
-    enabledTools: [providerId],
     lsp: {
       enabled: true,
       servers: [
@@ -29,10 +24,6 @@ const runDoctor = async () => runToolingDoctor({
       ]
     }
   },
-  strict: false
-}, [providerId], {
-  log: () => {},
-  probeHandshake: false,
   resolveCommandProfile
 });
 
@@ -42,7 +33,7 @@ const missingCheck = (javaMissing?.checks || []).find((check) => check.name === 
 assert.ok(missingCheck, 'expected workspace-model check for jdtls');
 assert.equal(missingCheck.status, 'warn', 'expected warn when Java workspace markers are missing');
 
-await fs.writeFile(path.join(tempRoot, 'pom.xml'), '<project/>', 'utf8');
+await writeDoctorWorkspaceMarker(tempRoot, providerId);
 const reportWithMarkers = await runDoctor();
 const javaPresent = (reportWithMarkers.providers || []).find((entry) => entry.id === providerId);
 const presentCheck = (javaPresent?.checks || []).find((check) => check.name === `${providerId}-workspace-model`);

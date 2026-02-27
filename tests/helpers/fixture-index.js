@@ -29,7 +29,7 @@ import { isPlainObject, mergeConfig } from '../../src/shared/config.js';
 import { runSqliteBuild } from './sqlite-builder.js';
 import { withDirectoryLock } from './directory-lock.js';
 
-import { resolveTestCachePath } from './test-cache.js';
+import { normalizeTestCacheScope, resolveTestCachePath } from './test-cache.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -39,16 +39,7 @@ const ensureDir = async (dir) => {
 
 const FIXTURE_MODES = new Set(['code', 'prose', 'extracted-prose', 'records']);
 const DEFAULT_REQUIRED_MODES = Object.freeze(['code', 'prose', 'extracted-prose']);
-const VALID_CACHE_SCOPES = new Set(['isolated', 'shared']);
 const FIXTURE_HEALTH_VERSION = 2;
-
-const normalizeCacheScope = (cacheScope) => {
-  const normalized = String(cacheScope || 'isolated').trim().toLowerCase();
-  if (!VALID_CACHE_SCOPES.has(normalized)) {
-    throw new Error(`Unsupported cacheScope: ${cacheScope}`);
-  }
-  return normalized;
-};
 
 const resolveCacheName = (baseName, { cacheScope = 'isolated' } = {}) => {
   const MAX_CACHE_NAME_LENGTH = 64;
@@ -370,7 +361,7 @@ export const ensureFixtureIndex = async ({
   requiredModes
 } = {}) => {
   if (!fixtureName) throw new Error('fixtureName is required');
-  const normalizedCacheScope = normalizeCacheScope(cacheScope);
+  const normalizedCacheScope = normalizeTestCacheScope(cacheScope, { defaultScope: 'isolated' });
   const normalizedRequiredModes = normalizeRequiredModes(requiredModes);
   const fixtureRootRaw = path.join(ROOT, 'tests', 'fixtures', fixtureName);
   const fixtureRoot = toRealPathSync(fixtureRootRaw);
