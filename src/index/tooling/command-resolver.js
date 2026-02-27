@@ -9,6 +9,7 @@ import { normalizeProviderId } from './provider-contract.js';
 
 const WINDOWS_EXEC_EXTS = ['.exe', '.cmd', '.bat'];
 const DEFAULT_PROBE_ARGS = [['--version'], ['--help']];
+const DEFAULT_PROBE_TIMEOUT_MS = 2_000;
 const COMMAND_PROBE_CACHE = new Map();
 const COMMAND_PROBE_CACHE_MAX_ENTRIES = 256;
 const COMMAND_PROBE_FAILURE_TTL_MS = 10_000;
@@ -24,6 +25,9 @@ const quoteWindowsCmdArg = (value) => {
 
 const runProbeCommand = (cmd, args = [], options = {}) => {
   const maxOutputBytes = options.maxBuffer || (2 * 1024 * 1024);
+  const timeoutMs = Number.isFinite(Number(options.timeoutMs))
+    ? Math.max(100, Math.floor(Number(options.timeoutMs)))
+    : DEFAULT_PROBE_TIMEOUT_MS;
   if (!shouldUseShell(cmd)) {
     return spawnSubprocessSync(cmd, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -32,7 +36,8 @@ const runProbeCommand = (cmd, args = [], options = {}) => {
       captureStderr: true,
       outputMode: 'string',
       outputEncoding: 'utf8',
-      maxOutputBytes
+      maxOutputBytes,
+      timeoutMs
     });
   }
   const commandLine = [cmd, ...(Array.isArray(args) ? args : [])]
@@ -46,7 +51,8 @@ const runProbeCommand = (cmd, args = [], options = {}) => {
     captureStderr: true,
     outputMode: 'string',
     outputEncoding: 'utf8',
-    maxOutputBytes
+    maxOutputBytes,
+    timeoutMs
   });
 };
 
@@ -112,6 +118,59 @@ const normalizeCommandToken = (value) => {
   return base.endsWith('.exe') ? base.slice(0, -4) : base;
 };
 
+const PROBE_CANDIDATES_BY_PROVIDER_ID = Object.freeze({
+  gopls: Object.freeze([['version'], ['help'], ['--help']]),
+  jdtls: Object.freeze([['--help'], ['-help'], ['--version'], ['-version']]),
+  'elixir-ls': Object.freeze([['--help'], ['--version'], ['-version']]),
+  'haskell-language-server': Object.freeze([['--version'], ['version'], ['--help']]),
+  sourcekit: Object.freeze([['--help'], ['--version']]),
+  pyright: Object.freeze([['--version'], ['--help']])
+});
+
+const PROBE_CANDIDATES_BY_COMMAND = Object.freeze({
+  gopls: Object.freeze([['version'], ['help'], ['--help']]),
+  jdtls: Object.freeze([['--help'], ['-help'], ['--version'], ['-version']]),
+  'elixir-ls': Object.freeze([['--help'], ['--version'], ['-version']]),
+  'haskell-language-server': Object.freeze([['--version'], ['version'], ['--help']]),
+  'sourcekit-lsp': Object.freeze([['--help'], ['--version']]),
+  'pyright-langserver': Object.freeze([['--version'], ['--help']]),
+  zig: Object.freeze([['version'], ['--version'], ['help']]),
+  go: Object.freeze([['version'], ['help']]),
+  erl: Object.freeze([['-version']])
+});
+
+const PROBE_ALLOWED_LEADING_ARGS = new Set([
+  '--version',
+  '-version',
+  'version',
+  '--help',
+  '-help',
+  'help',
+  '-h'
+]);
+
+const isSafeProbeArgList = (args) => {
+  if (!Array.isArray(args) || !args.length) return false;
+  const first = String(args[0] || '').trim().toLowerCase();
+  return PROBE_ALLOWED_LEADING_ARGS.has(first);
+};
+
+const dedupeProbeArgCandidates = (candidates) => {
+  const seen = new Set();
+  const deduped = [];
+  for (const candidate of Array.isArray(candidates) ? candidates : []) {
+    const args = Array.isArray(candidate)
+      ? candidate.map((entry) => String(entry))
+      : [];
+    if (!args.length) continue;
+    const key = JSON.stringify(args);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(args);
+  }
+  return deduped.length ? deduped : DEFAULT_PROBE_ARGS;
+};
+
 const resolvePyrightCommand = (repoRoot, toolingConfig) => {
   const cmd = 'pyright-langserver';
   const toolRoot = resolveToolRoot();
@@ -152,27 +211,31 @@ const resolveScopedCommand = ({ cmd, repoRoot, toolingConfig }) => {
   return resolveWindowsCommand(findBinaryOnPath(requested) || requested);
 };
 
-const getProbeArgCandidates = (providerId, requestedCmd) => {
+const getProbeArgCandidates = (providerId, requestedCmd, requestedArgs = []) => {
+  const candidates = [];
+  if (isSafeProbeArgList(requestedArgs)) {
+    candidates.push(requestedArgs.map((entry) => String(entry)));
+  }
   const cmdName = normalizeCommandToken(requestedCmd);
-  if (providerId === 'gopls' || cmdName === 'gopls') {
-    return [['version'], ['help'], ['--help']];
+  const providerCandidates = PROBE_CANDIDATES_BY_PROVIDER_ID[providerId];
+  if (Array.isArray(providerCandidates)) {
+    candidates.push(...providerCandidates);
   }
-  if (providerId === 'jdtls' || cmdName === 'jdtls') {
-    return [['--help'], ['-help'], ['--version'], ['-version']];
+  const commandCandidates = PROBE_CANDIDATES_BY_COMMAND[cmdName];
+  if (Array.isArray(commandCandidates)) {
+    candidates.push(...commandCandidates);
   }
-  if (providerId === 'elixir-ls' || cmdName === 'elixir-ls' || cmdName.includes('elixir-ls')) {
-    return [['--help'], ['--version'], ['-version']];
+  if (cmdName.includes('elixir-ls')) {
+    candidates.push(['--help'], ['--version'], ['-version']);
   }
-  if (providerId === 'haskell-language-server' || cmdName === 'haskell-language-server') {
-    return [['--version'], ['version'], ['--help']];
+  if (cmdName.includes('sourcekit')) {
+    candidates.push(['--help'], ['--version']);
   }
-  if (providerId === 'sourcekit' || cmdName.includes('sourcekit')) {
-    return [['--help'], ['--version']];
+  if (cmdName.includes('pyright-langserver')) {
+    candidates.push(['--version'], ['--help']);
   }
-  if (providerId === 'pyright' || cmdName.includes('pyright-langserver')) {
-    return [['--version'], ['--help']];
-  }
-  return DEFAULT_PROBE_ARGS;
+  candidates.push(...DEFAULT_PROBE_ARGS);
+  return dedupeProbeArgCandidates(candidates);
 };
 
 const resolveBaseCommand = ({ providerId, requestedCmd, repoRoot, toolingConfig }) => {
@@ -229,8 +292,8 @@ const resolveBaseCommand = ({ providerId, requestedCmd, repoRoot, toolingConfig 
   return '';
 };
 
-const probeBinary = ({ providerId, command, probeArgs }) => {
-  const cacheKey = `${normalizeProviderId(providerId) || ''}\u0000${String(command || '').trim()}\u0000${JSON.stringify(probeArgs || [])}`;
+const probeBinary = ({ providerId, command, probeArgs, timeoutMs }) => {
+  const cacheKey = `${normalizeProviderId(providerId) || ''}\u0000${String(command || '').trim()}\u0000${JSON.stringify(probeArgs || [])}\u0000${Math.max(100, Math.floor(Number(timeoutMs) || DEFAULT_PROBE_TIMEOUT_MS))}`;
   const now = Date.now();
   const cached = COMMAND_PROBE_CACHE.get(cacheKey) || null;
   if (cached && now <= Number(cached.expiresAt || 0)) {
@@ -246,7 +309,7 @@ const probeBinary = ({ providerId, command, probeArgs }) => {
   const attempted = [];
   for (const args of probeArgs) {
     try {
-      const result = runProbeCommand(command, args);
+      const result = runProbeCommand(command, args, { timeoutMs });
       attempted.push({
         args,
         exitCode: result.exitCode ?? null,
@@ -327,6 +390,7 @@ export const __getToolingCommandProbeCacheStatsForTests = () => ({
  *   providerId?:string,
  *   cmd:string,
  *   args?:string[],
+ *   probeTimeoutMs?:number,
  *   repoRoot?:string,
  *   toolingConfig?:object
  * }} input
@@ -345,17 +409,21 @@ export const resolveToolingCommandProfile = (input) => {
     : [];
   const repoRoot = input?.repoRoot || process.cwd();
   const toolingConfig = input?.toolingConfig || {};
+  const probeTimeoutMs = Number.isFinite(Number(input?.probeTimeoutMs))
+    ? Math.max(100, Math.floor(Number(input.probeTimeoutMs)))
+    : DEFAULT_PROBE_TIMEOUT_MS;
   const resolvedCmd = resolveBaseCommand({
     providerId,
     requestedCmd,
     repoRoot,
     toolingConfig
   });
-  const probeArgs = getProbeArgCandidates(providerId, requestedCmd || resolvedCmd);
+  const probeArgs = getProbeArgCandidates(providerId, requestedCmd || resolvedCmd, requestedArgs);
   const probe = probeBinary({
     providerId,
     command: resolvedCmd || requestedCmd,
-    probeArgs
+    probeArgs,
+    timeoutMs: probeTimeoutMs
   });
 
   const resolved = {

@@ -785,6 +785,8 @@ tooling/doctor/command-profile-gopls
 tooling/doctor/command-profile-pyright-override
 tooling/doctor/command-profile-probe-cache
 tooling/doctor/command-profile-probe-cache-negative
+tooling/doctor/command-profile-probe-timeout
+tooling/doctor/command-profile-runtime-probe-args
 tooling/doctor/command-profile-tooling-dir-precedence
 tooling/doctor/provider-requires-args
 tooling/doctor/command-resolution-provider-overrides

@@ -270,6 +270,8 @@ function spawnSubprocessSync(command, args, options = {}) {
   const captureStderr = shouldCapture(stdio, options.captureStderr, 2);
   const rejectOnNonZeroExit = options.rejectOnNonZeroExit !== false;
   const expectedExitCodes = resolveExpectedExitCodes(options.expectedExitCodes);
+  const resolvedTimeoutMs = toNumber(options.timeoutMs);
+  const killSignal = options.killSignal || 'SIGTERM';
   if (options.shell === true) {
     const normalized = buildResult({
       pid: null,
@@ -287,6 +289,10 @@ function spawnSubprocessSync(command, args, options = {}) {
     stdio,
     shell: false,
     input: options.input,
+    timeout: Number.isFinite(resolvedTimeoutMs) && resolvedTimeoutMs > 0
+      ? Math.max(1, Math.floor(resolvedTimeoutMs))
+      : undefined,
+    killSignal,
     maxBuffer: maxBufferBytes,
     encoding: captureStdout || captureStderr ? 'buffer' : undefined
   });
@@ -305,6 +311,9 @@ function spawnSubprocessSync(command, args, options = {}) {
     stderr
   });
   if (result.error) {
+    if (result.error?.code === 'ETIMEDOUT') {
+      throw new SubprocessTimeoutError('Subprocess timeout', normalized);
+    }
     const name = options.name ? `${options.name} ` : '';
     throw new SubprocessError(
       `${name}failed to spawn: ${result.error.message || result.error}`,
