@@ -666,6 +666,7 @@ tooling/lsp/lsp-param-fallback-from-source
 tooling/lsp/lsp-hover-merge-quality
 tooling/lsp/lsp-signature-help-fallback
 tooling/lsp/lsp-signature-help-timeout-adaptive
+tooling/lsp/lsp-signature-help-timeout-adaptive-gates-next-symbol
 tooling/lsp/lsp-definition-fallback
 tooling/lsp/lsp-definition-timeout-adaptive
 tooling/lsp/lsp-type-definition-fallback

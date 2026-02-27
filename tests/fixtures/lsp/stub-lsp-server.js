@@ -146,6 +146,13 @@ const symbolsByMode = {
     signatureHelpDetail: 'int add(int a, int b)',
     kind: 12
   },
+  'stall-signature-help-two-symbols': {
+    name: 'add',
+    detail: 'add',
+    hoverDetail: 'add',
+    signatureHelpDetail: 'int add(int a, int b)',
+    kind: 12
+  },
   'definition-richer': {
     name: 'add',
     detail: 'add',
@@ -255,6 +262,13 @@ const resolveInitializeCapabilities = (initializeParams = null) => {
     };
   }
   if (mode === 'stall-signature-help') {
+    return {
+      documentSymbolProvider: true,
+      hoverProvider: true,
+      signatureHelpProvider: true
+    };
+  }
+  if (mode === 'stall-signature-help-two-symbols') {
     return {
       documentSymbolProvider: true,
       hoverProvider: true,
@@ -457,6 +471,36 @@ const handleRequest = (message) => {
     const uri = params?.textDocument?.uri;
     const text = documents.get(uri) || '';
     const symbol = buildSymbol(text);
+    if (mode === 'stall-signature-help-two-symbols') {
+      const firstName = 'add';
+      const secondName = 'sub';
+      const firstIndex = text.indexOf(firstName);
+      const secondIndex = text.indexOf(secondName);
+      const firstStart = lineColForIndex(text || '', firstIndex >= 0 ? firstIndex : 0);
+      const firstEnd = lineColForIndex(
+        text || '',
+        firstIndex >= 0 ? firstIndex + firstName.length : firstName.length
+      );
+      const secondStart = lineColForIndex(text || '', secondIndex >= 0 ? secondIndex : 0);
+      const secondEnd = lineColForIndex(
+        text || '',
+        secondIndex >= 0 ? secondIndex + secondName.length : secondName.length
+      );
+      respond(id, [{
+        name: firstName,
+        kind: 12,
+        detail: 'add',
+        range: { start: firstStart, end: firstEnd },
+        selectionRange: { start: firstStart, end: firstEnd }
+      }, {
+        name: secondName,
+        kind: 12,
+        detail: 'sub',
+        range: { start: secondStart, end: secondEnd },
+        selectionRange: { start: secondStart, end: secondEnd }
+      }]);
+      return;
+    }
     if (mode === 'pyright-parameter-shadow' && symbol) {
       const parameterName = 'name';
       const parameterIndex = text.indexOf(parameterName);
@@ -495,7 +539,7 @@ const handleRequest = (message) => {
     return;
   }
   if (method === 'textDocument/signatureHelp') {
-    if (mode === 'stall-signature-help') {
+    if (mode === 'stall-signature-help' || mode === 'stall-signature-help-two-symbols') {
       return;
     }
     const label = String(config.signatureHelpDetail || config.hoverDetail || config.detail || '').trim();

@@ -1515,6 +1515,7 @@ export const processDocumentTypes = async ({
     }
 
     let enrichedDelta = 0;
+    const isAdaptiveSuppressed = () => hoverControl.disabledGlobal || fileHoverStats.disabledAdaptive;
     for (const record of symbolRecords) {
       throwIfAborted(abortSignal);
       let info = record.info;
@@ -1538,7 +1539,7 @@ export const processDocumentTypes = async ({
       const incompleteAfterHover = isIncompleteTypePayload(info, {
         symbolKind: record?.symbol?.kind
       });
-      if (incompleteAfterHover.incomplete && record.signatureHelpEligible) {
+      if (incompleteAfterHover.incomplete && record.signatureHelpEligible && !isAdaptiveSuppressed()) {
         signatureHelpRequested = true;
         const signatureHelpInfo = await requestSignatureHelp(record.symbol, record.position);
         if (signatureHelpInfo) {
@@ -1550,7 +1551,7 @@ export const processDocumentTypes = async ({
       const incompleteAfterSignatureHelp = isIncompleteTypePayload(info, {
         symbolKind: record?.symbol?.kind
       });
-      if (incompleteAfterSignatureHelp.incomplete && record.definitionEligible) {
+      if (incompleteAfterSignatureHelp.incomplete && record.definitionEligible && !isAdaptiveSuppressed()) {
         definitionRequested = true;
         const definitionInfo = await requestDefinition(record.symbol, record.position);
         if (definitionInfo) {
@@ -1561,7 +1562,7 @@ export const processDocumentTypes = async ({
       const incompleteAfterDefinition = isIncompleteTypePayload(info, {
         symbolKind: record?.symbol?.kind
       });
-      if (incompleteAfterDefinition.incomplete && record.typeDefinitionEligible) {
+      if (incompleteAfterDefinition.incomplete && record.typeDefinitionEligible && !isAdaptiveSuppressed()) {
         typeDefinitionRequested = true;
         const typeDefinitionInfo = await requestTypeDefinition(record.symbol, record.position);
         if (typeDefinitionInfo) {
@@ -1572,7 +1573,7 @@ export const processDocumentTypes = async ({
       const incompleteAfterTypeDefinition = isIncompleteTypePayload(info, {
         symbolKind: record?.symbol?.kind
       });
-      if (incompleteAfterTypeDefinition.incomplete && record.referencesEligible) {
+      if (incompleteAfterTypeDefinition.incomplete && record.referencesEligible && !isAdaptiveSuppressed()) {
         referencesRequested = true;
         const referencesInfo = await requestReferences(record.symbol, record.position);
         if (referencesInfo) {
