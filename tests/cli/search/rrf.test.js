@@ -4,6 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'search-rrf');
@@ -13,15 +14,19 @@ const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 
-const env = {
-  ...process.env,
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  testConfig: {
+    tooling: {
+      autoEnableOnDetect: false
+    }
+  }
+});
 
 const buildResult = spawnSync(
   process.execPath,
-  [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot],
+  [path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--repo', fixtureRoot],
   { env, stdio: 'inherit' }
 );
 if (buildResult.status !== 0) {
@@ -36,7 +41,11 @@ const result = spawnSync(
     'greet',
     '--mode',
     'code',
+    '--backend',
+    'memory',
     '--ann',
+    '--ann-backend',
+    'hnsw',
     '--json',
     '--stats',
     '--explain',
@@ -48,6 +57,8 @@ const result = spawnSync(
 
 if (result.status !== 0) {
   console.error('search rrf test failed: search returned error');
+  if (result.error) console.error(result.error);
+  if (result.stdout) console.error(result.stdout.trim());
   if (result.stderr) console.error(result.stderr.trim());
   process.exit(result.status ?? 1);
 }

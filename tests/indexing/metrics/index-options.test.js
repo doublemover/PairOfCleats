@@ -29,10 +29,15 @@ const env = applyTestEnv({
 const buildResult = spawnSync(
   process.execPath,
   [path.join(root, 'build_index.js'), '--mode', 'code', '--stub-embeddings', '--repo', repoRoot],
-  { cwd: repoRoot, env, stdio: 'inherit' }
+  { cwd: repoRoot, env, encoding: 'utf8' }
 );
 if (buildResult.status !== 0) {
   console.error('Failed: build index for metrics options test');
+  console.error(`Command: ${process.execPath} ${path.join(root, 'build_index.js')} --mode code --stub-embeddings --repo ${repoRoot}`);
+  console.error(`Exit status: ${buildResult.status ?? 'null'} signal: ${buildResult.signal ?? 'null'}`);
+  if (buildResult.error) console.error(buildResult.error);
+  if (buildResult.stdout) console.error(buildResult.stdout.trim());
+  if (buildResult.stderr) console.error(buildResult.stderr.trim());
   process.exit(buildResult.status ?? 1);
 }
 
