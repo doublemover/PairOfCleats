@@ -794,6 +794,75 @@ const recordDocumentSymbolFailureCheck = ({ cmd, checks, checkFlags, err }) => {
   });
 };
 
+const isTimeoutError = (err) => (
+  String(err?.message || err || '').toLowerCase().includes('timeout')
+);
+
+const recordAdaptiveTimeout = ({
+  cmd,
+  stageKey,
+  checks,
+  checkFlags,
+  fileHoverStats,
+  hoverMetrics,
+  hoverControl,
+  resolvedHoverDisableAfterTimeouts
+}) => {
+  fileHoverStats.timedOut += 1;
+  hoverMetrics.timedOut += 1;
+  const timeoutFlag = `${stageKey}TimedOut`;
+  if (!checkFlags[timeoutFlag]) {
+    checkFlags[timeoutFlag] = true;
+    checks.push({
+      name: `tooling_${stageKey}_timeout`,
+      status: 'warn',
+      message: `${cmd} ${stageKey} requests timed out; adaptive suppression may be enabled.`
+    });
+  }
+  if (Number.isFinite(resolvedHoverDisableAfterTimeouts)
+    && fileHoverStats.timedOut >= resolvedHoverDisableAfterTimeouts
+    && !fileHoverStats.disabledAdaptive) {
+    fileHoverStats.disabledAdaptive = true;
+  }
+  if (Number.isFinite(resolvedHoverDisableAfterTimeouts)
+    && hoverMetrics.timedOut >= resolvedHoverDisableAfterTimeouts) {
+    hoverControl.disabledGlobal = true;
+  }
+};
+
+const handleStageRequestError = ({
+  err,
+  cmd,
+  stageKey,
+  guard,
+  checks,
+  checkFlags,
+  fileHoverStats,
+  hoverMetrics,
+  hoverControl,
+  resolvedHoverDisableAfterTimeouts
+}) => {
+  if (err?.code === 'ABORT_ERR') throw err;
+  if (err?.code === 'TOOLING_CIRCUIT_OPEN') {
+    recordCircuitOpenCheck({ cmd, guard, checks, checkFlags });
+  } else if (err?.code === 'TOOLING_CRASH_LOOP') {
+    recordCrashLoopCheck({ cmd, checks, checkFlags, detail: err?.detail || null });
+  }
+  if (isTimeoutError(err)) {
+    recordAdaptiveTimeout({
+      cmd,
+      stageKey,
+      checks,
+      checkFlags,
+      fileHoverStats,
+      hoverMetrics,
+      hoverControl,
+      resolvedHoverDisableAfterTimeouts
+    });
+  }
+  return null;
+};
+
 const recordFallbackReasons = (hoverMetrics, reasons) => {
   if (!hoverMetrics || !Array.isArray(reasons) || !reasons.length) return;
   hoverMetrics.fallbackUsed += 1;
@@ -1035,36 +1104,18 @@ export const processDocumentTypes = async ({
           }
           return hoverInfo;
         } catch (err) {
-          if (err?.code === 'ABORT_ERR') throw err;
-          const message = String(err?.message || err || '').toLowerCase();
-          const isTimeout = message.includes('timeout');
-          if (err?.code === 'TOOLING_CIRCUIT_OPEN') {
-            recordCircuitOpenCheck({ cmd, guard, checks, checkFlags });
-          } else if (err?.code === 'TOOLING_CRASH_LOOP') {
-            recordCrashLoopCheck({ cmd, checks, checkFlags, detail: err?.detail || null });
-          }
-          if (isTimeout) {
-            fileHoverStats.timedOut += 1;
-            hoverMetrics.timedOut += 1;
-            if (!checkFlags.hoverTimedOut) {
-              checkFlags.hoverTimedOut = true;
-              checks.push({
-                name: 'tooling_hover_timeout',
-                status: 'warn',
-                message: `${cmd} hover requests timed out; adaptive suppression may be enabled.`
-              });
-            }
-            if (Number.isFinite(resolvedHoverDisableAfterTimeouts)
-              && fileHoverStats.timedOut >= resolvedHoverDisableAfterTimeouts
-              && !fileHoverStats.disabledAdaptive) {
-              fileHoverStats.disabledAdaptive = true;
-            }
-            if (Number.isFinite(resolvedHoverDisableAfterTimeouts)
-              && hoverMetrics.timedOut >= resolvedHoverDisableAfterTimeouts) {
-              hoverControl.disabledGlobal = true;
-            }
-          }
-          return null;
+          return handleStageRequestError({
+            err,
+            cmd,
+            stageKey: 'hover',
+            guard,
+            checks,
+            checkFlags,
+            fileHoverStats,
+            hoverMetrics,
+            hoverControl,
+            resolvedHoverDisableAfterTimeouts
+          });
         }
       })();
       hoverRequestByPosition.set(key, promise);
@@ -1103,13 +1154,18 @@ export const processDocumentTypes = async ({
           const signatureText = extractSignatureHelpText(signatureHelp);
           return parseSignatureCached(signatureText, symbol?.name);
         } catch (err) {
-          if (err?.code === 'ABORT_ERR') throw err;
-          if (err?.code === 'TOOLING_CIRCUIT_OPEN') {
-            recordCircuitOpenCheck({ cmd, guard, checks, checkFlags });
-          } else if (err?.code === 'TOOLING_CRASH_LOOP') {
-            recordCrashLoopCheck({ cmd, checks, checkFlags, detail: err?.detail || null });
-          }
-          return null;
+          return handleStageRequestError({
+            err,
+            cmd,
+            stageKey: 'signature_help',
+            guard,
+            checks,
+            checkFlags,
+            fileHoverStats,
+            hoverMetrics,
+            hoverControl,
+            resolvedHoverDisableAfterTimeouts
+          });
         }
       })();
       signatureHelpRequestByPosition.set(key, promise);
@@ -1162,13 +1218,18 @@ export const processDocumentTypes = async ({
           }
           return null;
         } catch (err) {
-          if (err?.code === 'ABORT_ERR') throw err;
-          if (err?.code === 'TOOLING_CIRCUIT_OPEN') {
-            recordCircuitOpenCheck({ cmd, guard, checks, checkFlags });
-          } else if (err?.code === 'TOOLING_CRASH_LOOP') {
-            recordCrashLoopCheck({ cmd, checks, checkFlags, detail: err?.detail || null });
-          }
-          return null;
+          return handleStageRequestError({
+            err,
+            cmd,
+            stageKey: 'definition',
+            guard,
+            checks,
+            checkFlags,
+            fileHoverStats,
+            hoverMetrics,
+            hoverControl,
+            resolvedHoverDisableAfterTimeouts
+          });
         }
       })();
       definitionRequestByPosition.set(key, promise);
@@ -1221,13 +1282,18 @@ export const processDocumentTypes = async ({
           }
           return null;
         } catch (err) {
-          if (err?.code === 'ABORT_ERR') throw err;
-          if (err?.code === 'TOOLING_CIRCUIT_OPEN') {
-            recordCircuitOpenCheck({ cmd, guard, checks, checkFlags });
-          } else if (err?.code === 'TOOLING_CRASH_LOOP') {
-            recordCrashLoopCheck({ cmd, checks, checkFlags, detail: err?.detail || null });
-          }
-          return null;
+          return handleStageRequestError({
+            err,
+            cmd,
+            stageKey: 'type_definition',
+            guard,
+            checks,
+            checkFlags,
+            fileHoverStats,
+            hoverMetrics,
+            hoverControl,
+            resolvedHoverDisableAfterTimeouts
+          });
         }
       })();
       typeDefinitionRequestByPosition.set(key, promise);
@@ -1281,13 +1347,18 @@ export const processDocumentTypes = async ({
           }
           return null;
         } catch (err) {
-          if (err?.code === 'ABORT_ERR') throw err;
-          if (err?.code === 'TOOLING_CIRCUIT_OPEN') {
-            recordCircuitOpenCheck({ cmd, guard, checks, checkFlags });
-          } else if (err?.code === 'TOOLING_CRASH_LOOP') {
-            recordCrashLoopCheck({ cmd, checks, checkFlags, detail: err?.detail || null });
-          }
-          return null;
+          return handleStageRequestError({
+            err,
+            cmd,
+            stageKey: 'references',
+            guard,
+            checks,
+            checkFlags,
+            fileHoverStats,
+            hoverMetrics,
+            hoverControl,
+            resolvedHoverDisableAfterTimeouts
+          });
         }
       })();
       referencesRequestByPosition.set(key, promise);

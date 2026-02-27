@@ -139,6 +139,13 @@ const symbolsByMode = {
     signatureHelpDetail: 'int add(int a, int b)',
     kind: 12
   },
+  'stall-signature-help': {
+    name: 'add',
+    detail: 'add',
+    hoverDetail: 'add',
+    signatureHelpDetail: 'int add(int a, int b)',
+    kind: 12
+  },
   'definition-richer': {
     name: 'add',
     detail: 'add',
@@ -220,6 +227,13 @@ const resolveInitializeCapabilities = (initializeParams = null) => {
     };
   }
   if (mode === 'signature-help') {
+    return {
+      documentSymbolProvider: true,
+      hoverProvider: true,
+      signatureHelpProvider: true
+    };
+  }
+  if (mode === 'stall-signature-help') {
     return {
       documentSymbolProvider: true,
       hoverProvider: true,
@@ -436,6 +450,9 @@ const handleRequest = (message) => {
     return;
   }
   if (method === 'textDocument/signatureHelp') {
+    if (mode === 'stall-signature-help') {
+      return;
+    }
     const label = String(config.signatureHelpDetail || config.hoverDetail || config.detail || '').trim();
     respond(id, {
       signatures: label ? [{ label }] : [],
