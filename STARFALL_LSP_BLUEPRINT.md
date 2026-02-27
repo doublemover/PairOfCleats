@@ -297,6 +297,349 @@ Add weekly benchmark report for tooling-enabled languages with regression diff.
 5. Bench subset passes within guardrails.
 6. SLO gates met for default enablement.
 
+## New Workstream: Contract-Driven Enrichment Completeness
+
+### Objective
+Guarantee baseline function-signature enrichment quality (return type + typed params when available) with minimal latency overhead, while preserving fail-open behavior.
+
+### Design Principles
+1. `documentSymbol.detail` is a hint, not an authoritative type payload.
+2. Enrichment quality is evaluated against an explicit completeness contract.
+3. Source-signature fallback is last-resort after LSP attempts.
+4. Merge logic is quality-scored, not first-wins.
+5. Annotation and tooling evidence are both retained with explicit provenance.
+
+### Phase A: Completeness Contract + Hover Trigger Policy
+1. Add `isIncompleteTypePayload(...)` in `src/integrations/tooling/providers/lsp/hover-types.js`.
+2. Mark function/method symbols incomplete when return type is missing/ambiguous.
+3. Mark function/method symbols incomplete when typed params are missing for declared params.
+4. Trigger hover on incompleteness, not only ambiguous return type.
+5. Keep existing hover dedupe, timeout suppression, and per-file budget controls active.
+
+### Phase B: Quality-Scored Merge
+1. Introduce `scoreSignatureInfo(...)` in `src/integrations/tooling/providers/lsp/hover-types.js`.
+2. Update `mergeSignatureInfo(...)` to choose higher-quality fields deterministically.
+3. Prefer richer hover payloads over weaker symbol-detail payloads when scores differ.
+4. Keep deterministic tie-break behavior for reproducibility.
+
+### Phase C: Source Fallback Discipline
+1. Keep source extraction fallback only when post-hover payload is still incomplete.
+2. Preserve same-line return annotation text when deriving source signature candidates.
+3. Add explicit fallback reason codes for each fallback path.
+
+### Phase D: Parser Hardening (Python First)
+1. Expand Python signature parsing in `src/index/tooling/signature-parse/python.js` for hover markdown/code-fence variants.
+2. Normalize additional pyright formatting variants without widening false positives.
+3. Add strict parser fixtures for multiline and decorated signatures.
+
+### Phase E: Telemetry + Operator Visibility
+1. Add counters in `src/integrations/tooling/providers/lsp.js`:
+2. `incompleteSymbols`.
+3. `hoverTriggeredByIncomplete`.
+4. `fallbackUsed`.
+5. `fallbackReasonCounts`.
+6. Emit one concise summary log line when fallback use crosses threshold in a run.
+
+### Phase F: Command Resolution Determinism for Tests
+1. Ensure LSP integration tests can pin exact provider command paths when required.
+2. Update pyright-sensitive tests to avoid implicit command-resolution ambiguity.
+3. Keep production command resolution behavior unchanged unless explicitly configured.
+
+### Testing Tasks (Mandatory)
+1. Add protocol test: documentSymbol missing params, hover fills params+return, tooling provenance retained.
+2. Add protocol test: documentSymbol missing return, hover fills return deterministically.
+3. Add protocol test: hover timeout, fallback applies with reason code and no fatal failure.
+4. Add parser test matrix for Python hover payload variants.
+5. Add merge-quality tests to ensure richer payload supersedes weaker payload.
+6. Add command-resolution determinism tests for pyright fixture runs.
+7. Keep existing `tests/indexing/type-inference/providers/type-inference-lsp-enrichment.test.js` as baseline regression coverage.
+
+### Performance Guardrails
+1. Added hover requests per file must remain bounded by existing budget controls.
+2. No regression in timeout ratio beyond agreed SLO threshold.
+3. No regression in bench-lang wall-time beyond agreed SLO threshold.
+4. No increase in breaker-open incidence for LSP providers.
+
+### Acceptance Criteria
+1. Python enrichment consistently produces tooling-origin return and param entries on fixture corpus.
+2. Fallback reason metrics are visible and non-zero only under incomplete payload conditions.
+3. CI contract, protocol, and parser suites pass with no new flake signatures.
+4. Bench-lang subset validates no material throughput regression.
+
+## New Workstream: LSP Max-Performance + Max-Fidelity Program (All Supported Providers)
+
+### Scope and Supported Providers
+This workstream applies to every currently supported LSP-backed provider and command profile:
+1. `clangd`
+2. `pyright`
+3. `sourcekit-lsp`
+4. `gopls`
+5. `rust-analyzer`
+6. `yaml-language-server`
+7. `lua-language-server`
+8. `zls`
+9. `jdtls`
+10. `csharp-ls`
+11. `elixir-ls`
+12. `haskell-language-server`
+13. `phpactor`
+14. `solargraph`
+15. `dart language-server`
+
+### Program Goal
+Build a multi-stage, capability-aware, high-throughput enrichment system that:
+1. Maximizes type/symbol accuracy.
+2. Preserves deterministic performance and bounded overhead.
+3. Survives provider instability without indexing failure.
+4. Produces explicit quality and reliability telemetry suitable for CI gating and operator triage.
+
+### Workstream A: Multi-Stage Enrichment Pipeline (Contract-Driven)
+1. Implement unified stage sequencing for symbol/type extraction:
+2. Stage 1: `documentSymbol` primary pass.
+3. Stage 2: targeted `hover` for incomplete symbol payloads.
+4. Stage 3: targeted `signatureHelp` for unresolved signature shape.
+5. Stage 4: bounded source-signature fallback with reason codes.
+6. Add completeness contracts per symbol kind:
+7. Function/method: return + typed params contract.
+8. Constructor/init: parameter contract, optional return contract.
+9. Variable/property/function-typed field: type contract.
+10. Add deterministic merge scoring:
+11. Rank by provider capability confidence and payload richness.
+12. Prefer richer typed payload over partial payload.
+13. Preserve multi-source provenance and confidence in final artifacts.
+
+### Workstream B: Symbol Resolution Expansion (`definition`, `typeDefinition`, `references`)
+1. Add optional targeted `textDocument/definition` requests for unresolved symbols.
+2. Add optional targeted `textDocument/typeDefinition` requests for unresolved type references.
+3. Add optional `textDocument/references` for high-value symbols only:
+4. Public functions/methods.
+5. Exported symbols.
+6. Symbols participating in unresolved import diagnostics.
+7. Integrate resolved locations into existing cross-file relation graph.
+8. Add confidence tiers for location-derived links:
+9. exact location hit.
+10. same-file narrowed candidate.
+11. cross-file heuristic candidate.
+12. Add strict caps per file/workspace for these requests.
+
+### Workstream C: Provider-Adaptive Request Budgeting + Throughput Control
+1. Add separate adaptive budgets for each request class:
+2. `documentSymbol` concurrency budget.
+3. `hover` request budget.
+4. `signatureHelp` request budget.
+5. `definition/typeDefinition/references` request budget.
+6. Adapt budgets by live provider health metrics:
+7. timeout rate.
+8. failed request rate.
+9. median and tail latency.
+10. breaker/quarantine state.
+11. Add weighted fairness scheduler across providers to prevent one slow server from stalling global tooling progress.
+12. Add workspace-level cost ceilings to bound absolute latency overhead.
+
+### Workstream D: LSP Cache Architecture (Deterministic + High Hit Rate)
+1. Introduce per-request normalized cache keys:
+2. `(providerId, providerVersion, workspaceKey, docHash, position, requestKind, policyVersion)`.
+3. Add cache tiers:
+4. in-memory hot cache per run.
+5. persisted cache with bounded size and LRU trimming.
+6. Add strict invalidation triggers:
+7. doc hash change.
+8. provider binary/version/config hash change.
+9. workspace model hash change.
+10. request-policy version change.
+11. Add negative caching for known unsupported capabilities with short TTL.
+12. Add cache hit/miss telemetry split by request kind and provider.
+
+### Workstream E: Semantic Tokens + Inlay Hints Ingestion
+1. Add capability-gated ingestion of semantic tokens for symbol/category precision.
+2. Add low-confidence ingestion of inlay/inline type hints where available.
+3. Normalize semantic token categories into index-internal type classes.
+4. Prevent noisy or unstable token streams from overriding higher-confidence signature data.
+5. Add provider-specific token mapping tables and tests.
+
+### Workstream F: Type Normalization and Canonicalization Layer
+1. Build shared type normalization module with per-language adapters:
+2. nullability normalization.
+3. generic syntax normalization.
+4. namespace/module prefix normalization.
+5. alias/canonical type mapping.
+6. Add stable string canonical forms for index/retrieval.
+7. Preserve original source type text alongside canonical form for debugging and display.
+8. Add per-language fixtures for tricky forms:
+9. nested generics.
+10. union/intersection or equivalent.
+11. type aliases.
+12. optional/default parameter variants.
+
+### Workstream G: Provider Quality Scoring + Confidence Calibration
+1. Add provider quality model producing per-run and rolling quality scores:
+2. completeness ratio.
+3. conflict rate with parser/annotation data.
+4. unresolved symbol rate.
+5. timeout/error rate.
+6. Add confidence calibration pipeline:
+7. map request/source kind to base confidence.
+8. decay confidence when instability indicators rise.
+9. raise confidence for validated definition/typeDefinition matches.
+10. Use quality score to weight merge decisions and downstream retrieval metadata.
+
+### Workstream H: Workspace Modeling for Monorepos and Multi-Root
+1. Add workspace discovery model per provider:
+2. root marker scan.
+3. nested workspace detection.
+4. multi-root partitioning.
+5. route files to provider session by workspace partition key.
+6. Add per-provider workspace bootstrap checks:
+7. `go.mod/go.work` for Go.
+8. Cargo workspace markers for Rust.
+9. Gradle/Maven markers for Java.
+10. solution/project markers for C#.
+11. OTP/project markers for Elixir.
+12. Cradle/GHC markers for Haskell.
+13. Composer markers for PHP.
+14. Gem/Bundler markers for Ruby.
+15. SDK/project markers for Dart.
+16. emit deterministic workspace-model diagnostics when model incomplete.
+
+### Workstream I: Reliability Hardening (Crash-Loop, Quarantine, Auto-Recovery)
+1. Expand lifecycle health tracker to include:
+2. startup failure streak.
+3. handshake failure streak.
+4. protocol parse failure rate.
+5. FD-pressure event density.
+6. Add two-level quarantine:
+7. short quarantine for transient instability.
+8. extended quarantine for repeated crash loops.
+9. Add controlled auto-recovery probes after quarantine cooldown.
+10. Add per-provider fail-open policies with explicit degraded-mode reason codes.
+11. Ensure non-fatal degraded provider paths never block index completion.
+
+### Workstream J: Observability and Operator Tooling
+1. Expand structured runtime envelope per provider:
+2. capability mask.
+3. request counts/success/fail/timeout by request kind.
+4. p50/p95/p99 latency by request kind.
+5. cache hit/miss rates.
+6. completeness and fallback reason metrics.
+7. breaker/quarantine transitions.
+8. Add concise end-of-run provider summary lines in benchmark/index logs.
+9. Add machine-readable diagnostics artifacts for CI and triage.
+10. Add regression diff reports between runs for quality and latency metrics.
+
+### Workstream K: Test Harness and Fault Injection Expansion
+1. Extend fake-LSP harness to support:
+2. method-specific malformed payloads.
+3. delayed partial responses.
+4. inconsistent cross-method metadata.
+5. capability drift mid-session.
+6. forced disconnects on specific methods.
+7. Add replay harness for real JSON-RPC traces:
+8. capture from live providers.
+9. deterministic replay in CI.
+10. Add exhaustive contract tests for every request stage and fallback path.
+11. Add per-provider compatibility suites under `ci` and stability/perf suites under `ci-long`.
+
+### Workstream L: Bench + CI Guardrails (Hard Gates)
+1. Add CI gates for:
+2. enrichment completeness minimums.
+3. request timeout ratio maximums.
+4. breaker/quarantine incidence maximums.
+5. end-to-end wall-time overhead budgets.
+6. cache effectiveness minimums.
+7. Add bench-lang subset validation across all supported providers.
+8. Fail CI when guardrails regress beyond configured thresholds.
+
+### Workstream M: Per-Provider Detailed Delta Tasks
+
+#### `clangd`
+1. Improve overload and template signature normalization.
+2. Add targeted definition/typeDefinition for unresolved C/C++ references.
+3. Harden fallback for header/source split symbols.
+
+#### `pyright`
+1. Expand parser coverage for hover markdown variants.
+2. Add signatureHelp fallback for incomplete parameter lists.
+3. Improve workspace-root behavior for nested Python projects.
+
+#### `sourcekit-lsp`
+1. Improve Swift generic and protocol-conformance signature normalization.
+2. Add targeted definition for unresolved framework symbols.
+3. Add stability tuning for workspace indexing warmup spikes.
+
+#### `gopls`
+1. Prefer workspace-mode correctness in monorepos with nested modules.
+2. Add definition/typeDefinition for interface and method sets.
+3. Add request-budget tuning for large module graphs.
+
+#### `rust-analyzer`
+1. Integrate richer typeDefinition paths for trait and generic contexts.
+2. Keep proc-macro warning suppression strict and non-fatal.
+3. Add aggressive timeout safeguards for heavy macro workspaces.
+
+#### `yaml-language-server`
+1. Preserve deterministic no-network baseline behavior.
+2. Improve schema-driven hover/type extraction.
+3. Add schema-map aware confidence adjustments.
+
+#### `lua-language-server`
+1. Improve workspace library-aware type extraction paths.
+2. Add module `require` resolution enrichment.
+3. Add fallback precision tests for dynamic table types.
+
+#### `zls`
+1. Improve error-union and optional type normalization.
+2. Add targeted definition for unresolved Zig symbols.
+3. Add compatibility checks for Zig/ZLS version mismatches.
+
+#### `jdtls`
+1. Improve workspace bootstrap and classpath diagnostics.
+2. Add definition/typeDefinition for Java generics and overloads.
+3. Add startup resilience for heavy project model initialization.
+
+#### `csharp-ls`
+1. Improve solution/project model routing.
+2. Add overload and nullable reference type normalization.
+3. Add reliability gates for SDK/runtime mismatch scenarios.
+
+#### `elixir-ls`
+1. Improve OTP-aware workspace checks.
+2. Add richer type extraction from specs/docs when available.
+3. Add resilience for slower handshake/project bootstrap phases.
+
+#### `haskell-language-server`
+1. Improve cradle-aware fallback reasoning and diagnostics.
+2. Add typeclass-heavy signature normalization fixtures.
+3. Add conservative request budget defaults for large projects.
+
+#### `phpactor`
+1. Improve namespace and classmap-driven type normalization.
+2. Add definition-based recovery for unresolved namespaced symbols.
+3. Add composer/project-readiness diagnostics and confidence effects.
+
+#### `solargraph`
+1. Improve module/class method signature handling.
+2. Add definition recovery for unresolved Ruby constants.
+3. Add runtime environment diagnostics integration.
+
+#### `dart language-server`
+1. Improve null-safety and generic signature normalization.
+2. Add targeted definition/typeDefinition for unresolved framework symbols.
+3. Add workspace SDK/model readiness gating.
+
+### Workstream N: Documentation, Contracts, and Operator Playbooks
+1. Update provider contract docs with stage semantics and completeness rules.
+2. Document fallback reason codes and reliability states.
+3. Document performance tuning knobs and recommended defaults.
+4. Add operator playbook for degraded-mode triage and provider quarantine events.
+
+### Master Acceptance Criteria
+1. All supported providers run through the multi-stage contract pipeline.
+2. All supported providers emit standardized runtime/quality telemetry.
+3. No provider can block indexing completion due to tooling failures.
+4. Bench and CI guardrails pass with no unacceptable throughput regression.
+5. Accuracy/completeness improves measurably on fixture and benchmark corpora.
+6. Replay/fault-injection suites validate reliability under adversarial protocol conditions.
+
 ## Immediate Next Actions
 1. Implement shared payload validator + capability probe + lifecycle health primitives.
 2. Migrate existing providers to new shared primitives.
