@@ -8,11 +8,11 @@ import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js
 import { normalizeHnswConfig, rankHnswIndex } from '../../../src/shared/hnsw.js';
 import { requireHnswLib } from '../../helpers/optional-deps.js';
 
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = resolveTestCachePath(root, 'hnsw-ann');
+const { dir: tempRoot } = await prepareIsolatedTestCacheDir('hnsw-ann', { root });
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -45,13 +45,16 @@ if (fakeHits.length !== 2 || fakeHits[0].idx !== 1 || fakeHits[1].idx !== 2) {
 
 requireHnswLib({ reason: 'hnswlib-node not available; skipping hnsw-ann test.' });
 
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
-await fsPromises.mkdir(tempRoot, { recursive: true });
 await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 
 const env = applyTestEnv({
   cacheRoot,
   embeddings: 'stub',
+  testConfig: {
+    tooling: {
+      autoEnableOnDetect: false
+    }
+  },
   extraEnv: {
     PAIROFCLEATS_WORKER_POOL: 'off'
   }

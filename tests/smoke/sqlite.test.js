@@ -15,6 +15,11 @@ let failure = null;
 try {
   await cleanup(cacheRoots);
   const env = applyTestEnv({
+    testConfig: {
+      tooling: {
+        autoEnableOnDetect: false
+      }
+    },
     extraEnv: {
       PAIROFCLEATS_TEST_CACHE_SUFFIX: cacheSuffix
     }
@@ -27,7 +32,7 @@ try {
   );
   runNode(
     'sqlite-ann-fallback',
-    path.join(root, 'tests', 'storage', 'sqlite', 'ann', 'sqlite-ann-fallback.test.js'),
+    path.join(root, 'tests', 'storage', 'sqlite', 'ann', 'sqlite-fallback.test.js'),
     [],
     { env }
   );

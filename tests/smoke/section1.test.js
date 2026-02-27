@@ -12,7 +12,7 @@ const cacheRoots = [
 let failure = null;
 try {
   await cleanup(cacheRoots);
-  runNode('core-api', path.join(root, 'tests', 'services', 'api', 'core-api.test.js'));
+  runNode('core-api', path.join(root, 'tests', 'services', 'api', 'core.test.js'));
   runNode('api-health-status', path.join(root, 'tests', 'services', 'api', 'health-and-status.test.js'));
 } catch (err) {
   console.error(err?.message || err);

@@ -13,11 +13,11 @@ const cacheRoots = [
 let failure = null;
 try {
   await cleanup(cacheRoots);
-  runNode('embeddings-cache', path.join(root, 'tests', 'indexing', 'embeddings', 'build', 'build-embeddings-cache.test.js'));
+  runNode('embeddings-cache', path.join(root, 'tests', 'indexing', 'embeddings', 'build', 'embeddings-cache.test.js'));
   runNode('onnx-session-queue', path.join(root, 'tests', 'indexing', 'embeddings', 'onnx-session-queue.test.js'));
-  runNode('embeddings-cache-identity', path.join(root, 'tests', 'indexing', 'embeddings', 'embeddings-cache-identity.test.js'));
-  runNode('embeddings-cache-invalidation', path.join(root, 'tests', 'indexing', 'embeddings', 'embeddings-cache-invalidation.test.js'));
-  runNode('embeddings-dims-mismatch', path.join(root, 'tests', 'indexing', 'embeddings', 'embeddings-dims-mismatch.test.js'));
+  runNode('embeddings-cache-identity', path.join(root, 'tests', 'indexing', 'embeddings', 'cache-identity.test.js'));
+  runNode('embeddings-cache-invalidation', path.join(root, 'tests', 'indexing', 'embeddings', 'cache-invalidation.test.js'));
+  runNode('embeddings-dims-mismatch', path.join(root, 'tests', 'indexing', 'embeddings', 'dims-mismatch.test.js'));
 } catch (err) {
   console.error(err?.message || err);
   failure = err;

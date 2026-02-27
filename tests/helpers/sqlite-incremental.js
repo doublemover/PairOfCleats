@@ -40,7 +40,7 @@ const run = (args, label, options) => {
   return result;
 };
 
-export const setupIncrementalRepo = async ({ name }) => {
+export const setupIncrementalRepo = async ({ name, testConfig = null }) => {
   if (!name) throw new Error('name is required');
   const suffixRaw = typeof process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX === 'string'
     ? process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX.trim()
@@ -59,10 +59,17 @@ export const setupIncrementalRepo = async ({ name }) => {
   await fsPromises.cp(FIXTURE_ROOT, repoRoot, { recursive: true });
 
   const nodeOptions = stripMaxOldSpaceFlag(process.env.NODE_OPTIONS || '');
+  const effectiveTestConfig =
+    testConfig ?? {
+      tooling: {
+        autoEnableOnDetect: false
+      }
+    };
   const env = applyTestEnv({
     testing: '1',
     cacheRoot,
     embeddings: 'stub',
+    testConfig: effectiveTestConfig,
     extraEnv: {
       PAIROFCLEATS_WORKER_POOL: 'off',
       PAIROFCLEATS_MAX_OLD_SPACE_MB: '8192',
