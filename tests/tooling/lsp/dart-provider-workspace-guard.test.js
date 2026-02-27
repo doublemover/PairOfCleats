@@ -1,64 +1,37 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
-import { registerDefaultToolingProviders } from '../../../src/index/tooling/providers/index.js';
-
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
-import { prependLspTestPath } from '../../helpers/lsp-runtime.js';
+import {
+  buildSingleSymbolInputs,
+  createLspProviderTempRepo,
+  runDedicatedProviderFixture
+} from '../../helpers/lsp-provider-fixture.js';
+import { withLspTestPath } from '../../helpers/lsp-runtime.js';
 
 const root = process.cwd();
-const tempRoot = resolveTestCachePath(root, `dart-provider-guard-${process.pid}-${Date.now()}`);
-await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(path.join(tempRoot, 'lib'), { recursive: true });
+const tempRoot = await createLspProviderTempRepo({
+  repoRoot: root,
+  name: 'dart-provider-guard',
+  directories: ['lib']
+});
+const docText = 'String greet(String name) { return name; }\n';
+const inputs = buildSingleSymbolInputs({
+  scenarioName: 'dart-guard',
+  virtualPath: 'lib/app.dart',
+  text: docText,
+  languageId: 'dart',
+  effectiveExt: '.dart',
+  symbolName: 'greet'
+});
 
-const restorePath = prependLspTestPath({ repoRoot: root });
-
-try {
-  registerDefaultToolingProviders();
-  const docText = 'String greet(String name) { return name; }\n';
-  const chunkUid = 'ck64:v1:test:lib/app.dart:dart-guard';
-  const result = await runToolingProviders({
-    strict: true,
-    repoRoot: tempRoot,
-    buildRoot: tempRoot,
-    toolingConfig: {
-      enabledTools: ['dart'],
-      dart: {
-        enabled: true
-      }
-    },
-    cache: {
-      enabled: false
-    }
-  }, {
-    documents: [{
-      virtualPath: 'lib/app.dart',
-      text: docText,
-      languageId: 'dart',
-      effectiveExt: '.dart',
-      docHash: 'hash-dart-guard'
-    }],
-    targets: [{
-      chunkRef: {
-        docId: 0,
-        chunkUid,
-        chunkId: 'chunk_dart_guard',
-        file: 'lib/app.dart',
-        segmentUid: null,
-        segmentId: null,
-        range: { start: 0, end: docText.length }
-      },
-      virtualPath: 'lib/app.dart',
-      virtualRange: { start: 0, end: docText.length },
-      symbolHint: { name: 'greet', kind: 'function' },
-      languageId: 'dart'
-    }],
-    kinds: ['types']
+await withLspTestPath({ repoRoot: root }, async () => {
+  const result = await runDedicatedProviderFixture({
+    tempRoot,
+    providerId: 'dart',
+    providerConfigKey: 'dart',
+    inputs
   });
 
-  assert.equal(result.byChunkUid.has(chunkUid), false, 'expected guard to skip dart provider without pubspec.yaml');
+  assert.equal(result.byChunkUid.has(inputs.chunkUid), false, 'expected guard to skip dart provider without pubspec.yaml');
   const checks = result.diagnostics?.dart?.checks || [];
   assert.equal(
     checks.some((check) => check?.name === 'dart_workspace_model_missing'),
@@ -67,6 +40,4 @@ try {
   );
 
   console.log('dart provider workspace guard test passed');
-} finally {
-  restorePath();
-}
+});

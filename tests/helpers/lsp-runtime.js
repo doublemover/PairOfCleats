@@ -62,6 +62,27 @@ export function prependLspTestPath(options = {}) {
 }
 
 /**
+ * Run a callback with PATH configured for LSP tests and always restore state.
+ *
+ * @template T
+ * @param {{
+ *   repoRoot?: string,
+ *   includeFixtures?: boolean,
+ *   extraPrepend?: string[]
+ * }} options
+ * @param {() => Promise<T> | T} fn
+ * @returns {Promise<T>}
+ */
+export async function withLspTestPath(options, fn) {
+  const restorePath = prependLspTestPath(options);
+  try {
+    return await fn();
+  } finally {
+    restorePath();
+  }
+}
+
+/**
  * Resolve and probe an LSP provider command in the current test environment.
  *
  * @param {{

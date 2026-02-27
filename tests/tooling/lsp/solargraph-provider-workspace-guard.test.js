@@ -1,72 +1,43 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
-import { registerDefaultToolingProviders } from '../../../src/index/tooling/providers/index.js';
-
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
-import { prependLspTestPath } from '../../helpers/lsp-runtime.js';
+import {
+  buildSingleSymbolInputs,
+  createLspProviderTempRepo,
+  runDedicatedProviderFixture
+} from '../../helpers/lsp-provider-fixture.js';
+import { withLspTestPath } from '../../helpers/lsp-runtime.js';
 
 const root = process.cwd();
-const tempRoot = resolveTestCachePath(root, `solargraph-provider-guard-${process.pid}-${Date.now()}`);
-await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(path.join(tempRoot, 'lib'), { recursive: true });
+const tempRoot = await createLspProviderTempRepo({
+  repoRoot: root,
+  name: 'solargraph-provider-guard',
+  directories: ['lib']
+});
+const docText = 'def greet(name)\n  name\nend\n';
+const inputs = buildSingleSymbolInputs({
+  scenarioName: 'solargraph-guard',
+  virtualPath: 'lib/app.rb',
+  text: docText,
+  languageId: 'ruby',
+  effectiveExt: '.rb',
+  symbolName: 'greet'
+});
 
-const restorePath = prependLspTestPath({ repoRoot: root });
-
-try {
-  registerDefaultToolingProviders();
-  const docText = 'def greet(name)\n  name\nend\n';
-  const chunkUid = 'ck64:v1:test:lib/app.rb:solargraph-guard';
-  const result = await runToolingProviders({
-    strict: true,
-    repoRoot: tempRoot,
-    buildRoot: tempRoot,
-    toolingConfig: {
-      enabledTools: ['solargraph'],
-      solargraph: {
-        enabled: true
-      }
-    },
-    cache: {
-      enabled: false
-    }
-  }, {
-    documents: [{
-      virtualPath: 'lib/app.rb',
-      text: docText,
-      languageId: 'ruby',
-      effectiveExt: '.rb',
-      docHash: 'hash-solargraph-guard'
-    }],
-    targets: [{
-      chunkRef: {
-        docId: 0,
-        chunkUid,
-        chunkId: 'chunk_solargraph_guard',
-        file: 'lib/app.rb',
-        segmentUid: null,
-        segmentId: null,
-        range: { start: 0, end: docText.length }
-      },
-      virtualPath: 'lib/app.rb',
-      virtualRange: { start: 0, end: docText.length },
-      symbolHint: { name: 'greet', kind: 'function' },
-      languageId: 'ruby'
-    }],
-    kinds: ['types']
+await withLspTestPath({ repoRoot: root }, async () => {
+  const result = await runDedicatedProviderFixture({
+    tempRoot,
+    providerId: 'solargraph',
+    providerConfigKey: 'solargraph',
+    inputs
   });
 
-  assert.equal(result.byChunkUid.has(chunkUid), false, 'expected guard to skip solargraph without Gemfile');
+  assert.equal(result.byChunkUid.has(inputs.chunkUid), false, 'expected guard to skip solargraph without Gemfile');
   const checks = result.diagnostics?.solargraph?.checks || [];
   assert.equal(
     checks.some((check) => check?.name === 'solargraph_workspace_model_missing'),
     true,
     'expected workspace model missing warning'
   );
+});
 
-  console.log('solargraph provider workspace guard test passed');
-} finally {
-  restorePath();
-}
+console.log('solargraph provider workspace guard test passed');

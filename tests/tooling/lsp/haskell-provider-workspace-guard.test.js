@@ -1,72 +1,43 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
-import { registerDefaultToolingProviders } from '../../../src/index/tooling/providers/index.js';
-
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
-import { prependLspTestPath } from '../../helpers/lsp-runtime.js';
+import {
+  buildSingleSymbolInputs,
+  createLspProviderTempRepo,
+  runDedicatedProviderFixture
+} from '../../helpers/lsp-provider-fixture.js';
+import { withLspTestPath } from '../../helpers/lsp-runtime.js';
 
 const root = process.cwd();
-const tempRoot = resolveTestCachePath(root, `haskell-provider-guard-${process.pid}-${Date.now()}`);
-await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
+const tempRoot = await createLspProviderTempRepo({
+  repoRoot: root,
+  name: 'haskell-provider-guard',
+  directories: ['src']
+});
+const docText = 'greet :: Text -> Text\ngreet name = name\n';
+const inputs = buildSingleSymbolInputs({
+  scenarioName: 'haskell-guard',
+  virtualPath: 'src/Main.hs',
+  text: docText,
+  languageId: 'haskell',
+  effectiveExt: '.hs',
+  symbolName: 'greet'
+});
 
-const restorePath = prependLspTestPath({ repoRoot: root });
-
-try {
-  registerDefaultToolingProviders();
-  const docText = 'greet :: Text -> Text\ngreet name = name\n';
-  const chunkUid = 'ck64:v1:test:src/Main.hs:haskell-guard';
-  const result = await runToolingProviders({
-    strict: true,
-    repoRoot: tempRoot,
-    buildRoot: tempRoot,
-    toolingConfig: {
-      enabledTools: ['haskell-language-server'],
-      haskell: {
-        enabled: true
-      }
-    },
-    cache: {
-      enabled: false
-    }
-  }, {
-    documents: [{
-      virtualPath: 'src/Main.hs',
-      text: docText,
-      languageId: 'haskell',
-      effectiveExt: '.hs',
-      docHash: 'hash-haskell-guard'
-    }],
-    targets: [{
-      chunkRef: {
-        docId: 0,
-        chunkUid,
-        chunkId: 'chunk_haskell_guard',
-        file: 'src/Main.hs',
-        segmentUid: null,
-        segmentId: null,
-        range: { start: 0, end: docText.length }
-      },
-      virtualPath: 'src/Main.hs',
-      virtualRange: { start: 0, end: docText.length },
-      symbolHint: { name: 'greet', kind: 'function' },
-      languageId: 'haskell'
-    }],
-    kinds: ['types']
+await withLspTestPath({ repoRoot: root }, async () => {
+  const result = await runDedicatedProviderFixture({
+    tempRoot,
+    providerId: 'haskell-language-server',
+    providerConfigKey: 'haskell',
+    inputs
   });
 
-  assert.equal(result.byChunkUid.has(chunkUid), false, 'expected guard to skip haskell provider without workspace markers');
+  assert.equal(result.byChunkUid.has(inputs.chunkUid), false, 'expected guard to skip haskell provider without workspace model');
   const checks = result.diagnostics?.['haskell-language-server']?.checks || [];
   assert.equal(
     checks.some((check) => check?.name === 'haskell_workspace_model_missing'),
     true,
     'expected workspace model missing warning'
   );
+});
 
-  console.log('haskell provider workspace guard test passed');
-} finally {
-  restorePath();
-}
+console.log('haskell provider workspace guard test passed');

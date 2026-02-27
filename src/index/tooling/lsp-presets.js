@@ -1,4 +1,6 @@
-const normalizePresetKey = (value) => String(value || '').trim().toLowerCase();
+import { normalizeProviderId } from './provider-contract.js';
+
+const normalizePresetKey = (value) => normalizeProviderId(value);
 
 const PRESET_DEFINITIONS = Object.freeze({
   gopls: Object.freeze({

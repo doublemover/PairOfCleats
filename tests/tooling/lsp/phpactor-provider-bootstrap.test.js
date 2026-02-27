@@ -1,81 +1,48 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
-import { registerDefaultToolingProviders } from '../../../src/index/tooling/providers/index.js';
-
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
-import { prependLspTestPath } from '../../helpers/lsp-runtime.js';
+import {
+  buildSingleSymbolInputs,
+  createLspProviderTempRepo,
+  resolveLspFixtureCommand,
+  runDedicatedProviderFixture
+} from '../../helpers/lsp-provider-fixture.js';
+import { withLspTestPath } from '../../helpers/lsp-runtime.js';
 
 const root = process.cwd();
-const tempRoot = resolveTestCachePath(root, `phpactor-provider-bootstrap-${process.pid}-${Date.now()}`);
-await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
-await fs.writeFile(path.join(tempRoot, 'composer.json'), '{"name":"fixture/php"}\n', 'utf8');
-const fixturePhpactorCmd = path.join(
-  root,
-  'tests',
-  'fixtures',
-  'lsp',
-  'bin',
-  process.platform === 'win32' ? 'phpactor.cmd' : 'phpactor'
-);
+const tempRoot = await createLspProviderTempRepo({
+  repoRoot: root,
+  name: 'phpactor-provider-bootstrap',
+  directories: ['src'],
+  files: [{ path: 'composer.json', content: '{"name":"fixture/php"}\n' }]
+});
+const fixturePhpactorCmd = resolveLspFixtureCommand('phpactor', { repoRoot: root });
+const docText = '<?php\nfunction greet(string $name): string { return $name; }\n';
+const inputs = buildSingleSymbolInputs({
+  scenarioName: 'phpactor-bootstrap',
+  virtualPath: 'src/app.php',
+  text: docText,
+  languageId: 'php',
+  effectiveExt: '.php',
+  symbolName: 'greet'
+});
 
-const restorePath = prependLspTestPath({ repoRoot: root });
-
-try {
-  registerDefaultToolingProviders();
-  const docText = '<?php\nfunction greet(string $name): string { return $name; }\n';
-  const chunkUid = 'ck64:v1:test:src/app.php:phpactor-bootstrap';
-  const result = await runToolingProviders({
-    strict: true,
-    repoRoot: tempRoot,
-    buildRoot: tempRoot,
-    toolingConfig: {
-      enabledTools: ['phpactor'],
-      phpactor: {
-        enabled: true,
-        cmd: fixturePhpactorCmd
-      }
+await withLspTestPath({ repoRoot: root }, async () => {
+  const result = await runDedicatedProviderFixture({
+    tempRoot,
+    providerId: 'phpactor',
+    providerConfigKey: 'phpactor',
+    providerConfig: {
+      cmd: fixturePhpactorCmd
     },
-    cache: {
-      enabled: false
-    }
-  }, {
-    documents: [{
-      virtualPath: 'src/app.php',
-      text: docText,
-      languageId: 'php',
-      effectiveExt: '.php',
-      docHash: 'hash-phpactor-bootstrap'
-    }],
-    targets: [{
-      chunkRef: {
-        docId: 0,
-        chunkUid,
-        chunkId: 'chunk_phpactor_bootstrap',
-        file: 'src/app.php',
-        segmentUid: null,
-        segmentId: null,
-        range: { start: 0, end: docText.length }
-      },
-      virtualPath: 'src/app.php',
-      virtualRange: { start: 0, end: docText.length },
-      symbolHint: { name: 'greet', kind: 'function' },
-      languageId: 'php'
-    }],
-    kinds: ['types']
+    inputs
   });
 
-  assert.equal(result.byChunkUid.has(chunkUid), true, 'expected phpactor provider to enrich PHP symbol');
-  const hit = result.byChunkUid.get(chunkUid);
+  assert.equal(result.byChunkUid.has(inputs.chunkUid), true, 'expected phpactor provider to enrich PHP symbol');
+  const hit = result.byChunkUid.get(inputs.chunkUid);
   assert.equal(hit.payload?.returnType, 'string', 'expected parsed PHP return type');
   assert.equal(hit.payload?.paramTypes?.name?.[0]?.type, 'string', 'expected parsed PHP param type');
   const providerDiag = result.diagnostics?.phpactor || null;
   assert.ok(providerDiag && providerDiag.runtime, 'expected runtime diagnostics for phpactor provider');
+});
 
-  console.log('phpactor provider bootstrap test passed');
-} finally {
-  restorePath();
-}
+console.log('phpactor provider bootstrap test passed');
