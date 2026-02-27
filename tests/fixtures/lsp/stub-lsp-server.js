@@ -46,6 +46,11 @@ const symbolsByMode = {
     detail: 'def greet(name: str) -> str',
     kind: 12
   },
+  'pyright-parameter-shadow': {
+    name: 'greet',
+    detail: 'def greet(name: str) -> str',
+    kind: 12
+  },
   java: {
     name: 'add',
     detail: 'int add(int a, int b)',
@@ -393,6 +398,26 @@ const handleRequest = (message) => {
     const uri = params?.textDocument?.uri;
     const text = documents.get(uri) || '';
     const symbol = buildSymbol(text);
+    if (mode === 'pyright-parameter-shadow' && symbol) {
+      const parameterName = 'name';
+      const parameterIndex = text.indexOf(parameterName);
+      const parameterStart = lineColForIndex(text || '', parameterIndex >= 0 ? parameterIndex : 0);
+      const parameterEnd = lineColForIndex(
+        text || '',
+        parameterIndex >= 0 ? parameterIndex + parameterName.length : parameterName.length
+      );
+      respond(id, [{
+        ...symbol,
+        children: [{
+          name: parameterName,
+          kind: 13,
+          detail: '(parameter) name: str',
+          range: { start: parameterStart, end: parameterEnd },
+          selectionRange: { start: parameterStart, end: parameterEnd }
+        }]
+      }]);
+      return;
+    }
     if (mode === 'clangd-duplicate-symbols' && symbol) {
       respond(id, [symbol, { ...symbol }]);
       return;

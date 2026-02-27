@@ -619,6 +619,35 @@ const mergeSignatureInfo = (base, next, options = {}) => {
   return merged;
 };
 
+const isFunctionLikeTargetHint = (value) => {
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return normalized === 'function'
+      || normalized === 'method'
+      || normalized === 'constructor';
+  }
+  return FUNCTION_LIKE_SYMBOL_KINDS.has(Number(value));
+};
+
+const scoreChunkPayloadCandidate = ({ info, symbol, target }) => {
+  const detailScore = scoreSignatureInfo(info, { symbolKind: symbol?.kind });
+  let total = detailScore.total;
+  const hintName = typeof target?.symbolHint?.name === 'string'
+    ? target.symbolHint.name.trim()
+    : '';
+  const symbolName = typeof symbol?.name === 'string' ? symbol.name.trim() : '';
+  if (hintName) {
+    if (hintName === symbolName) total += 100;
+    else if (symbolName) total -= 40;
+  }
+  const hintIsFunctionLike = isFunctionLikeTargetHint(target?.symbolHint?.kind);
+  const symbolIsFunctionLike = FUNCTION_LIKE_SYMBOL_KINDS.has(Number(symbol?.kind));
+  if (hintIsFunctionLike && symbolIsFunctionLike) total += 20;
+  else if (hintIsFunctionLike && !symbolIsFunctionLike) total -= 20;
+  if (!detailScore.incomplete) total += 30;
+  return total;
+};
+
 /**
  * Create default hover metrics envelope.
  * @returns {object}
@@ -957,6 +986,7 @@ export const processDocumentTypes = async ({
     const definitionRequestByPosition = new Map();
     const typeDefinitionRequestByPosition = new Map();
     const referencesRequestByPosition = new Map();
+    const bestCandidateScoreByChunkUid = new Map();
     const symbolRecords = [];
 
     const requestHover = (symbol, position) => {
@@ -1487,13 +1517,32 @@ export const processDocumentTypes = async ({
         }
       }
 
+      const payload = {
+        returnType: normalizedReturn,
+        paramTypes: normalizeParamTypes(info.paramTypes),
+        signature: normalizedSignature
+      };
+      const candidateScore = scoreChunkPayloadCandidate({
+        info,
+        symbol: record.symbol,
+        target: record.target
+      });
+      const existingScore = bestCandidateScoreByChunkUid.get(chunkUid);
+      if (Number.isFinite(existingScore) && existingScore > candidateScore) {
+        continue;
+      }
+      if (Number.isFinite(existingScore) && existingScore === candidateScore) {
+        const existingSignatureLength = String(byChunkUid[chunkUid]?.payload?.signature || '').length;
+        const candidateSignatureLength = String(payload.signature || '').length;
+        if (existingSignatureLength >= candidateSignatureLength) {
+          continue;
+        }
+      }
+
+      bestCandidateScoreByChunkUid.set(chunkUid, candidateScore);
       byChunkUid[chunkUid] = {
         chunk: record.target.chunkRef,
-        payload: {
-          returnType: normalizedReturn,
-          paramTypes: normalizeParamTypes(info.paramTypes),
-          signature: normalizedSignature
-        },
+        payload,
         provenance: {
           provider: cmd,
           version: '1.0.0',
