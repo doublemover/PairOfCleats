@@ -5,6 +5,7 @@ import { createStdoutGuard } from '../../src/shared/cli/stdout-guard.js';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { buildToolingReport, detectTool, normalizeLanguageList, resolveToolsById, resolveToolsForLanguages, selectInstallPlan } from './utils.js';
+import { splitPathEntries } from '../../src/index/tooling/binary-utils.js';
 import { getToolingConfig, resolveRepoRootArg } from '../shared/dict-utils.js';
 import { exitLikeCommandResult } from '../shared/cli-utils.js';
 
@@ -47,9 +48,7 @@ const resolveSpawnCommand = (cmd) => {
   const value = String(cmd || '').trim();
   if (!value || process.platform !== 'win32') return value;
   if (path.extname(value) || value.includes(path.sep) || value.includes('/')) return value;
-  const pathEntries = (process.env.PATH || process.env.Path || '')
-    .split(path.delimiter)
-    .filter(Boolean);
+  const pathEntries = splitPathEntries(process.env.PATH || process.env.Path || '');
   for (const ext of WINDOWS_EXEC_EXTS) {
     for (const dir of pathEntries) {
       const candidate = path.join(dir, `${value}${ext}`);

@@ -3,7 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { canRunCommand } from '../shared/cli-utils.js';
 import { LOCK_FILES, MANIFEST_FILES, SKIP_DIRS, SKIP_FILES } from '../../src/index/constants.js';
-import { findBinaryInDirs } from '../../src/index/tooling/binary-utils.js';
+import { findBinaryInDirs, splitPathEntries } from '../../src/index/tooling/binary-utils.js';
 import { toPosix } from '../../src/shared/files.js';
 import { getToolingConfig } from '../shared/dict-utils.js';
 
@@ -158,10 +158,7 @@ function resolveGlobalGemBinDirs() {
   const home = resolveHomeDir();
   const localAppData = String(process.env.LOCALAPPDATA || '').trim();
   const gemHome = String(process.env.GEM_HOME || '').trim();
-  const gemPathEntries = String(process.env.GEM_PATH || '')
-    .split(path.delimiter)
-    .map((entry) => String(entry || '').trim())
-    .filter(Boolean);
+  const gemPathEntries = splitPathEntries(process.env.GEM_PATH || '');
   const userGemRoots = [
     home ? path.join(home, '.local', 'share', 'gem') : '',
     home ? path.join(home, '.gem') : ''
@@ -376,7 +373,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'jdtls',
       label: 'jdtls',
       languages: ['java'],
-      detect: { cmd: 'jdtls', args: ['-version'], binDirs: [] },
+      detect: { cmd: 'jdtls', args: ['-version'], binDirs: [binDir] },
       install: {
         manual: true
       },
@@ -386,7 +383,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'elixir-ls',
       label: 'elixir-ls',
       languages: ['elixir'],
-      detect: { cmd: 'elixir-ls', args: ['--help'], binDirs: [] },
+      detect: { cmd: 'elixir-ls', args: ['--help'], binDirs: [binDir] },
       install: {
         manual: true
       },
@@ -396,7 +393,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'haskell-language-server',
       label: 'haskell-language-server',
       languages: ['haskell'],
-      detect: { cmd: 'haskell-language-server', args: ['--version'], binDirs: [] },
+      detect: { cmd: 'haskell-language-server', args: ['--version'], binDirs: [binDir] },
       install: {
         manual: true
       },
@@ -406,7 +403,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'dart',
       label: 'Dart SDK language server',
       languages: ['dart'],
-      detect: { cmd: 'dart', args: ['--version'], binDirs: [] },
+      detect: { cmd: 'dart', args: ['--version'], binDirs: [binDir] },
       install: {
         manual: true
       },
@@ -416,7 +413,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'kotlin-language-server',
       label: 'kotlin-language-server',
       languages: ['kotlin'],
-      detect: { cmd: 'kotlin-language-server', args: ['--version'], binDirs: [] },
+      detect: { cmd: 'kotlin-language-server', args: ['--version'], binDirs: [binDir] },
       install: {
         manual: true
       },
@@ -426,7 +423,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'kotlin-lsp',
       label: 'Kotlin LSP',
       languages: ['kotlin'],
-      detect: { cmd: 'kotlin-lsp', args: ['--version'], binDirs: [] },
+      detect: { cmd: 'kotlin-lsp', args: ['--version'], binDirs: [binDir] },
       install: {
         manual: true
       },
@@ -510,7 +507,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'lua-language-server',
       label: 'lua-language-server',
       languages: ['lua'],
-      detect: { cmd: 'lua-language-server', args: ['-v'], binDirs: [] },
+      detect: { cmd: 'lua-language-server', args: ['-v'], binDirs: [binDir] },
       install: {
         manual: true
       },
@@ -531,7 +528,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'zls',
       label: 'zls',
       languages: ['zig'],
-      detect: { cmd: 'zls', args: ['--version'], binDirs: [] },
+      detect: { cmd: 'zls', args: ['--version'], binDirs: [binDir] },
       install: {
         manual: true
       },
@@ -618,7 +615,7 @@ export function detectTool(tool) {
   const ok = canRunWithArgCandidates(tool.detect.cmd, detectArgCandidates);
   if (ok) return { found: true, path: tool.detect.cmd, source: 'path' };
   if (isPyrightLangserver) {
-    const pathEntries = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
+    const pathEntries = splitPathEntries(process.env.PATH || '');
     const pathFound = findBinaryInDirs(tool.detect.cmd, pathEntries);
     if (pathFound && fs.existsSync(pathFound)) return { found: true, path: pathFound, source: 'path' };
   }
