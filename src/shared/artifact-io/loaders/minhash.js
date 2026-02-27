@@ -2,11 +2,47 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { MAX_JSON_BYTES } from '../constants.js';
-import { existsOrBak, resolvePathOrBak } from '../fs.js';
+import { coerceNonNegativeInt } from '../../number-coerce.js';
 import { createPackedChecksumValidator } from '../checksum.js';
 import { loadPiecesManifest, resolveManifestArtifactSources } from '../manifest.js';
 import { readJsonFileCached, warnMaterializeFallback } from './shared.js';
 import { loadJsonObjectArtifact } from './core.js';
+import { resolveReadableArtifactPathState } from './core-source-resolution.js';
+
+const resolvePackedMinhashArtifacts = ({
+  dir,
+  sources,
+  maxBytes
+}) => {
+  if (!sources?.paths?.length || sources.format !== 'packed') return null;
+  if (sources.paths.length > 1) {
+    throw new Error('Ambiguous packed sources for minhash_signatures');
+  }
+  const packedPath = sources.paths[0];
+  const metaPath = sources.metaPath || path.join(dir, 'minhash_signatures.packed.meta.json');
+  const packedState = resolveReadableArtifactPathState(packedPath);
+  const metaState = resolveReadableArtifactPathState(metaPath);
+  if (!packedState.exists || !metaState.exists) {
+    throw new Error('Missing packed minhash signature artifacts');
+  }
+  const resolvedPackedPath = packedState.path;
+  const resolvedMetaPath = metaState.path;
+  const metaRaw = readJsonFileCached(resolvedMetaPath, { maxBytes });
+  const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
+  const dims = coerceNonNegativeInt(meta?.dims) ?? 0;
+  const count = coerceNonNegativeInt(meta?.count) ?? 0;
+  if (!dims || !count) {
+    throw new Error('Invalid packed minhash meta');
+  }
+  return {
+    dims,
+    count,
+    resolvedPackedPath,
+    checksumValidator: createPackedChecksumValidator(meta, {
+      label: 'Packed minhash signatures'
+    })
+  };
+};
 
 /**
  * Load minhash signatures, preferring packed binary representation when available.
@@ -39,29 +75,12 @@ export const loadMinhashSignatures = async (
   });
   if (!sources?.paths?.length) return null;
   if (sources.format === 'packed') {
-    if (sources.paths.length > 1) {
-      throw new Error('Ambiguous packed sources for minhash_signatures');
-    }
-    const packedPath = sources.paths[0];
-    const metaPath = sources.metaPath || path.join(dir, 'minhash_signatures.packed.meta.json');
-    if (!existsOrBak(packedPath) || !existsOrBak(metaPath)) {
-      throw new Error('Missing packed minhash signature artifacts');
-    }
-    const resolvedPackedPath = resolvePathOrBak(packedPath);
-    const resolvedMetaPath = resolvePathOrBak(metaPath);
-    const metaRaw = readJsonFileCached(resolvedMetaPath, { maxBytes });
-    const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
-    const dims = Number.isFinite(Number(meta?.dims)) ? Math.max(0, Math.floor(Number(meta.dims))) : 0;
-    const count = Number.isFinite(Number(meta?.count)) ? Math.max(0, Math.floor(Number(meta.count))) : 0;
-    if (!dims || !count) {
-      throw new Error('Invalid packed minhash meta');
-    }
-    const checksumValidator = createPackedChecksumValidator(meta, {
-      label: 'Packed minhash signatures'
-    });
-    const buffer = fs.readFileSync(resolvedPackedPath);
-    checksumValidator?.update(buffer);
-    checksumValidator?.verify();
+    const packed = resolvePackedMinhashArtifacts({ dir, sources, maxBytes });
+    const dims = packed.dims;
+    const count = packed.count;
+    const buffer = fs.readFileSync(packed.resolvedPackedPath);
+    packed.checksumValidator?.update(buffer);
+    packed.checksumValidator?.verify();
     const total = dims * count;
     if (buffer.byteLength % 4 !== 0) {
       throw new Error('Packed minhash signatures invalid byte alignment');
@@ -130,36 +149,19 @@ export const loadMinhashSignatureRows = async function* (
   });
   if (!sources?.paths?.length) return;
   if (sources.format === 'packed') {
-    if (sources.paths.length > 1) {
-      throw new Error('Ambiguous packed sources for minhash_signatures');
-    }
-    const packedPath = sources.paths[0];
-    const metaPath = sources.metaPath || path.join(dir, 'minhash_signatures.packed.meta.json');
-    if (!existsOrBak(packedPath) || !existsOrBak(metaPath)) {
-      throw new Error('Missing packed minhash signature artifacts');
-    }
-    const resolvedPackedPath = resolvePathOrBak(packedPath);
-    const resolvedMetaPath = resolvePathOrBak(metaPath);
-    const metaRaw = readJsonFileCached(resolvedMetaPath, { maxBytes });
-    const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
-    const dims = Number.isFinite(Number(meta?.dims)) ? Math.max(0, Math.floor(Number(meta.dims))) : 0;
-    const count = Number.isFinite(Number(meta?.count)) ? Math.max(0, Math.floor(Number(meta.count))) : 0;
-    if (!dims || !count) {
-      throw new Error('Invalid packed minhash meta');
-    }
-    const checksumValidator = createPackedChecksumValidator(meta, {
-      label: 'Packed minhash signatures'
-    });
+    const packed = resolvePackedMinhashArtifacts({ dir, sources, maxBytes });
+    const dims = packed.dims;
+    const count = packed.count;
     const bytesPerSig = dims * 4;
     const totalBytes = bytesPerSig * count;
-    const stat = await fsPromises.stat(resolvedPackedPath);
+    const stat = await fsPromises.stat(packed.resolvedPackedPath);
     if (stat.size % 4 !== 0) {
       throw new Error('Packed minhash signatures invalid byte alignment');
     }
     if (stat.size !== totalBytes) {
       throw new Error('Packed minhash signatures size mismatch');
     }
-    const handle = await fsPromises.open(resolvedPackedPath, 'r');
+    const handle = await fsPromises.open(packed.resolvedPackedPath, 'r');
     const resolvedBatchSize = Math.max(1, Math.floor(Number(batchSize)) || 2048);
     const buffer = Buffer.allocUnsafe(resolvedBatchSize * bytesPerSig);
     try {
@@ -172,7 +174,7 @@ export const loadMinhashSignatureRows = async function* (
         if (bytesRead < bytesToRead) {
           throw new Error('Packed minhash signatures truncated');
         }
-        checksumValidator?.update(buffer, 0, bytesRead);
+        packed.checksumValidator?.update(buffer, 0, bytesRead);
         const view = new Uint32Array(buffer.buffer, buffer.byteOffset, bytesRead / 4);
         for (let i = 0; i < batchCount; i += 1) {
           const start = i * dims;
@@ -184,7 +186,7 @@ export const loadMinhashSignatureRows = async function* (
         }
         docId += batchCount;
       }
-      checksumValidator?.verify();
+      packed.checksumValidator?.verify();
     } finally {
       await handle.close();
     }
