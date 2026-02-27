@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode as runNodeSync } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { rmDirRecursive } from '../../helpers/temp.js';
+
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -12,7 +14,7 @@ const tempRoot = resolveTestCachePath(root, 'embeddings-dims-mismatch');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
+await rmDirRecursive(tempRoot, { retries: 8, delayMs: 150 });
 await fsPromises.mkdir(tempRoot, { recursive: true });
 await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 
@@ -21,13 +23,7 @@ const env = applyTestEnv({
   embeddings: 'stub'
 });
 
-const runNode = (label, args, cwd = repoRoot) => {
-  const result = spawnSync(process.execPath, args, { cwd, env, stdio: 'inherit' });
-  if (result.status !== 0) {
-    console.error(`embeddings dims mismatch test failed: ${label}`);
-    process.exit(result.status ?? 1);
-  }
-};
+const runNode = (label, args, cwd = repoRoot) => runNodeSync(args, label, cwd, env, { stdio: 'pipe' });
 
 const findCacheIndexPaths = async (rootDir) => {
   const matches = [];

@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { buildEmbeddingIdentity } from '../../../src/shared/embedding-identity.js';
 import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode as runNodeSync } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { rmDirRecursive } from '../../helpers/temp.js';
+
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -14,23 +17,16 @@ const repoRoot = path.join(tempRoot, 'repo');
 const cacheRootBase = path.join(tempRoot, 'cache');
 const cacheRoot = resolveVersionedCacheRoot(cacheRootBase);
 
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
+await rmDirRecursive(tempRoot, { retries: 8, delayMs: 150 });
 await fsPromises.mkdir(tempRoot, { recursive: true });
 await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 
-const env = {
-  ...process.env,
-  PAIROFCLEATS_CACHE_ROOT: cacheRootBase,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
+const env = applyTestEnv({
+  cacheRoot: cacheRootBase,
+  embeddings: 'stub'
+});
 
-const runNode = (label, args, cwd = repoRoot) => {
-  const result = spawnSync(process.execPath, args, { cwd, env, stdio: 'inherit' });
-  if (result.status !== 0) {
-    console.error(`embeddings cache identity test failed: ${label}`);
-    process.exit(result.status ?? 1);
-  }
-};
+const runNode = (label, args, cwd = repoRoot) => runNodeSync(args, label, cwd, env, { stdio: 'pipe' });
 
 const findPathsByName = async (rootDir, fileName) => {
   const matches = [];

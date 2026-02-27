@@ -8,6 +8,8 @@ import {
   writeCacheEntry
 } from '../../../tools/build/embeddings/cache.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { rmDirRecursive } from '../../helpers/temp.js';
+
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'embeddings-cache-shard-id-allocation');
@@ -15,7 +17,7 @@ const cacheDir = path.join(tempRoot, 'files');
 const now = new Date().toISOString();
 const cacheKey = 'cache-shard-id-key';
 
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
+await rmDirRecursive(tempRoot, { retries: 8, delayMs: 150 });
 await fsPromises.mkdir(cacheDir, { recursive: true });
 
 const index = {

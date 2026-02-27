@@ -1,15 +1,17 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import { spawnSync } from 'node:child_process';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { getCacheRoot } from '../../../src/shared/cache-roots.js';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { loadPiecesManifestPieces } from '../../helpers/pieces-manifest.js';
+import { runNode as runNodeSync } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { rmDirRecursive } from '../../helpers/temp.js';
+
 
 const sha256File = async (filePath) => crypto
   .createHash('sha256')
@@ -20,7 +22,7 @@ const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'embeddings-determinism');
 const repoRoot = path.join(tempRoot, 'repo');
 
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
+await rmDirRecursive(tempRoot, { retries: 8, delayMs: 150 });
 await fsPromises.mkdir(repoRoot, { recursive: true });
 
 await fsPromises.writeFile(path.join(repoRoot, 'alpha.js'), 'export const alpha = 1;\n');
@@ -49,7 +51,10 @@ const env = applyTestEnv({
 });
 
 const runNode = (label, args) => {
-  const result = spawnSync(process.execPath, args, { cwd: repoRoot, env, stdio: 'inherit' });
+  const result = runNodeSync(args, label, repoRoot, env, {
+    stdio: 'pipe',
+    allowFailure: true
+  });
   assert.equal(result.status, 0, `expected ${label} to succeed`);
 };
 
