@@ -258,14 +258,19 @@ const summarizeLatencies = (values) => {
 const createHoverFileStats = () => ({
   requested: 0,
   succeeded: 0,
+  hoverTimedOut: 0,
   signatureHelpRequested: 0,
   signatureHelpSucceeded: 0,
+  signatureHelpTimedOut: 0,
   definitionRequested: 0,
   definitionSucceeded: 0,
+  definitionTimedOut: 0,
   typeDefinitionRequested: 0,
   typeDefinitionSucceeded: 0,
+  typeDefinitionTimedOut: 0,
   referencesRequested: 0,
   referencesSucceeded: 0,
+  referencesTimedOut: 0,
   timedOut: 0,
   skippedByBudget: 0,
   skippedByKind: 0,
@@ -655,14 +660,19 @@ const scoreChunkPayloadCandidate = ({ info, symbol, target }) => {
 export const createEmptyHoverMetricsResult = () => ({
   requested: 0,
   succeeded: 0,
+  hoverTimedOut: 0,
   signatureHelpRequested: 0,
   signatureHelpSucceeded: 0,
+  signatureHelpTimedOut: 0,
   definitionRequested: 0,
   definitionSucceeded: 0,
+  definitionTimedOut: 0,
   typeDefinitionRequested: 0,
   typeDefinitionSucceeded: 0,
+  typeDefinitionTimedOut: 0,
   referencesRequested: 0,
   referencesSucceeded: 0,
+  referencesTimedOut: 0,
   timedOut: 0,
   incompleteSymbols: 0,
   hoverTriggeredByIncomplete: 0,
@@ -690,14 +700,19 @@ export const summarizeHoverMetrics = ({ hoverMetrics, hoverLatencyMs, hoverFileS
       virtualPath,
       requested: stats.requested,
       succeeded: stats.succeeded,
+      hoverTimedOut: stats.hoverTimedOut,
       signatureHelpRequested: stats.signatureHelpRequested,
       signatureHelpSucceeded: stats.signatureHelpSucceeded,
+      signatureHelpTimedOut: stats.signatureHelpTimedOut,
       definitionRequested: stats.definitionRequested,
       definitionSucceeded: stats.definitionSucceeded,
+      definitionTimedOut: stats.definitionTimedOut,
       typeDefinitionRequested: stats.typeDefinitionRequested,
       typeDefinitionSucceeded: stats.typeDefinitionSucceeded,
+      typeDefinitionTimedOut: stats.typeDefinitionTimedOut,
       referencesRequested: stats.referencesRequested,
       referencesSucceeded: stats.referencesSucceeded,
+      referencesTimedOut: stats.referencesTimedOut,
       timedOut: stats.timedOut,
       skippedByBudget: stats.skippedByBudget,
       skippedByKind: stats.skippedByKind,
@@ -719,14 +734,19 @@ export const summarizeHoverMetrics = ({ hoverMetrics, hoverLatencyMs, hoverFileS
   return {
     requested: hoverMetrics.requested,
     succeeded: hoverMetrics.succeeded,
+    hoverTimedOut: hoverMetrics.hoverTimedOut,
     signatureHelpRequested: hoverMetrics.signatureHelpRequested,
     signatureHelpSucceeded: hoverMetrics.signatureHelpSucceeded,
+    signatureHelpTimedOut: hoverMetrics.signatureHelpTimedOut,
     definitionRequested: hoverMetrics.definitionRequested,
     definitionSucceeded: hoverMetrics.definitionSucceeded,
+    definitionTimedOut: hoverMetrics.definitionTimedOut,
     typeDefinitionRequested: hoverMetrics.typeDefinitionRequested,
     typeDefinitionSucceeded: hoverMetrics.typeDefinitionSucceeded,
+    typeDefinitionTimedOut: hoverMetrics.typeDefinitionTimedOut,
     referencesRequested: hoverMetrics.referencesRequested,
     referencesSucceeded: hoverMetrics.referencesSucceeded,
+    referencesTimedOut: hoverMetrics.referencesTimedOut,
     timedOut: hoverMetrics.timedOut,
     incompleteSymbols: hoverMetrics.incompleteSymbols,
     hoverTriggeredByIncomplete: hoverMetrics.hoverTriggeredByIncomplete,
@@ -798,6 +818,14 @@ const isTimeoutError = (err) => (
   String(err?.message || err || '').toLowerCase().includes('timeout')
 );
 
+const TIMEOUT_METRIC_KEY_BY_STAGE = Object.freeze({
+  hover: 'hoverTimedOut',
+  signature_help: 'signatureHelpTimedOut',
+  definition: 'definitionTimedOut',
+  type_definition: 'typeDefinitionTimedOut',
+  references: 'referencesTimedOut'
+});
+
 const recordAdaptiveTimeout = ({
   cmd,
   stageKey,
@@ -810,6 +838,11 @@ const recordAdaptiveTimeout = ({
 }) => {
   fileHoverStats.timedOut += 1;
   hoverMetrics.timedOut += 1;
+  const timeoutMetricKey = TIMEOUT_METRIC_KEY_BY_STAGE[stageKey] || null;
+  if (timeoutMetricKey) {
+    fileHoverStats[timeoutMetricKey] = Number(fileHoverStats[timeoutMetricKey] || 0) + 1;
+    hoverMetrics[timeoutMetricKey] = Number(hoverMetrics[timeoutMetricKey] || 0) + 1;
+  }
   const timeoutFlag = `${stageKey}TimedOut`;
   if (!checkFlags[timeoutFlag]) {
     checkFlags[timeoutFlag] = true;

@@ -88,6 +88,11 @@ assert.equal(
   'expected timeout metric increment'
 );
 assert.equal(
+  Number(result?.hoverMetrics?.signatureHelpTimedOut || 0) >= 1,
+  true,
+  'expected signatureHelp timeout metric increment'
+);
+assert.equal(
   Array.isArray(result?.checks) && result.checks.some((entry) => entry?.name === 'tooling_signature_help_timeout'),
   true,
   'expected signature-help timeout check'
