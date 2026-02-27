@@ -24,6 +24,11 @@ try {
   const content = await fs.readFile(absPath, 'utf8');
   assert.equal(content, 'SENTINEL', 'expected docHash cache to skip rewrite');
 
+  await fs.writeFile(absPath, 'STALE_WITHOUT_HASH', 'utf8');
+  await ensureVfsDiskDocument({ baseDir: tempRoot, virtualPath, text, docHash: null });
+  const rewritten = await fs.readFile(absPath, 'utf8');
+  assert.equal(rewritten, text, 'expected missing docHash to force rewrite and prevent stale cache hits');
+
   console.log('VFS doc hash skip rewrite test passed');
 } finally {
   await rmDirRecursive(tempRoot);

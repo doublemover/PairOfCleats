@@ -506,7 +506,7 @@ const resolveCommand = (cmd) => {
     .sort((a, b) => {
       const scoreA = sourcekitCandidateScore(a);
       const scoreB = sourcekitCandidateScore(b);
-      if (scoreA !== scoreB) return scoreA - scoreB;
+      if (scoreA !== scoreB) return scoreB - scoreA;
       return String(a).localeCompare(String(b));
     });
   for (const candidate of candidates) {

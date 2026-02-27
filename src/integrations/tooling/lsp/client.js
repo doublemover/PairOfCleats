@@ -62,11 +62,18 @@ const buildWindowsShellCommand = (cmd, args) => (
 const LATENCY_SAMPLE_CAP = 4096;
 
 const pushLatencySample = (samples, value, cap = LATENCY_SAMPLE_CAP) => {
-  if (!Array.isArray(samples)) return;
+  if (!Array.isArray(samples)) return 0;
   samples.push(value);
+  let removedTotal = 0;
   if (samples.length > cap) {
-    samples.splice(0, samples.length - cap);
+    const removed = samples.splice(0, samples.length - cap);
+    for (const sample of removed) {
+      if (Number.isFinite(sample) && sample >= 0) {
+        removedTotal += sample;
+      }
+    }
   }
+  return removedTotal;
 };
 
 const percentile = (samples, q) => {
@@ -154,12 +161,12 @@ export function createLspClient(options) {
   const recordRequestLatency = (method, latencyMs) => {
     const value = Number(latencyMs);
     if (!Number.isFinite(value) || value < 0) return;
-    pushLatencySample(requestMetrics.latencySamplesMs, value);
-    requestMetrics.latencyTotalMs += value;
+    const removedRequestTotal = pushLatencySample(requestMetrics.latencySamplesMs, value);
+    requestMetrics.latencyTotalMs += value - removedRequestTotal;
     requestMetrics.latencyMaxMs = Math.max(requestMetrics.latencyMaxMs, value);
     const methodMetric = ensureMethodMetric(method);
-    pushLatencySample(methodMetric.latencySamplesMs, value);
-    methodMetric.latencyTotalMs += value;
+    const removedMethodTotal = pushLatencySample(methodMetric.latencySamplesMs, value);
+    methodMetric.latencyTotalMs += value - removedMethodTotal;
     methodMetric.latencyMaxMs = Math.max(methodMetric.latencyMaxMs, value);
   };
 
@@ -206,6 +213,14 @@ export function createLspClient(options) {
     } catch {}
     unregisterChildProcess = null;
   };
+
+  const isTransportRunning = () => Boolean(
+    proc
+    && proc.exitCode === null
+    && !proc.killed
+    && writer
+    && !writerClosed
+  );
 
   const send = (payload) => {
     if (!writer || writerClosed) return false;
@@ -453,17 +468,22 @@ export function createLspClient(options) {
     });
   };
 
-  const notify = (method, params) => {
+  const notify = (method, params, { startIfNeeded = true } = {}) => {
     try {
-      start();
-      send({ jsonrpc: '2.0', method, params });
+      if (startIfNeeded) {
+        start();
+      } else if (!isTransportRunning()) {
+        return false;
+      }
+      return send({ jsonrpc: '2.0', method, params });
     } catch (err) {
       if (isClosedStreamWriteError(err)) {
         rejectPendingTransportClosed();
         writerClosed = true;
-        return;
+        return false;
       }
       log(`[lsp] notify failed: ${err?.message || err}`);
+      return false;
     }
   };
 
@@ -487,7 +507,7 @@ export function createLspClient(options) {
       await request('shutdown', null, { timeoutMs: 5000 });
     } catch {}
     if (!writerClosed) {
-      notify('exit', null);
+      notify('exit', null, { startIfNeeded: false });
     }
     const current = proc;
     const currentGen = generation;

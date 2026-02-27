@@ -61,11 +61,25 @@ export const runWithConcurrency = async (items, concurrency, worker, options = {
 export const createConcurrencyLimiter = (concurrency) => {
   const maxWorkers = Math.max(1, clampIntRange(concurrency, 1, { min: 1, max: 256 }));
   let active = 0;
-  const queue = [];
+  let queue = [];
+  let queueHead = 0;
+
+  const dequeue = () => {
+    if (queueHead >= queue.length) return null;
+    const task = queue[queueHead];
+    queueHead += 1;
+    // Keep dequeue O(1) and compact periodically.
+    if (queueHead >= 1024 && queueHead * 2 >= queue.length) {
+      queue = queue.slice(queueHead);
+      queueHead = 0;
+    }
+    return task;
+  };
 
   const pump = () => {
-    while (active < maxWorkers && queue.length) {
-      const task = queue.shift();
+    while (active < maxWorkers) {
+      const task = dequeue();
+      if (!task) break;
       active += 1;
       Promise.resolve()
         .then(task.fn)
@@ -1009,6 +1023,7 @@ export const processDocumentTypes = async ({
 }) => {
   throwIfAborted(abortSignal);
   if (guard.isOpen()) return { enrichedDelta: 0 };
+  let openedHere = false;
   const runGuarded = typeof guardRun === 'function'
     ? guardRun
     : ((fn, options) => guard.run(fn, options));
@@ -1046,6 +1061,7 @@ export const processDocumentTypes = async ({
       lineIndex: null,
       text: doc.text || ''
     });
+    openedHere = true;
   }
 
   try {
@@ -1684,6 +1700,9 @@ export const processDocumentTypes = async ({
 
     return { enrichedDelta };
   } finally {
-    client.notify('textDocument/didClose', { textDocument: { uri } });
+    if (openedHere) {
+      openDocs.delete(doc.virtualPath);
+      client.notify('textDocument/didClose', { textDocument: { uri } }, { startIfNeeded: false });
+    }
   }
 };

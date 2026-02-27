@@ -8,6 +8,10 @@ const runGit = (args, cwd) => spawnSync('git', args, { cwd, encoding: 'utf8' });
 const normalizeSignal = (value) => (
   typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
 );
+const normalizeResolvedRepoPath = (value) => {
+  const resolved = path.resolve(String(value || ''));
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+};
 
 /**
  * Build a stable failure message for git subprocess results.
@@ -47,7 +51,12 @@ export function resolveRepoPath(entry, baseDir) {
 export function resolveRepoEntry(repoArg, repoEntries, baseDir) {
   if (!repoArg) return null;
   const resolved = path.resolve(repoArg);
-  return repoEntries.find((entry) => resolveRepoPath(entry, baseDir) === resolved)
+  const normalizedResolved = normalizeResolvedRepoPath(resolved);
+  return repoEntries.find((entry) => {
+    const candidatePath = resolveRepoPath(entry, baseDir);
+    if (!candidatePath) return false;
+    return normalizeResolvedRepoPath(candidatePath) === normalizedResolved;
+  })
     || repoEntries.find((entry) => entry.id === repoArg)
     || { id: repoArg, path: resolved, syncPolicy: 'none' };
 }

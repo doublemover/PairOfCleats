@@ -80,17 +80,20 @@ export const ensureVfsDiskDocument = async ({
   docHash = null,
   coldStartCache = null
 }) => {
+  const resolvedDocHash = typeof docHash === 'string' && docHash.trim().length > 0
+    ? docHash.trim()
+    : null;
   const cacheKey = buildVfsDiskCacheKey({ baseDir, virtualPath });
-  const cachedPath = coldStartCache?.get
-    ? coldStartCache.get({ virtualPath, docHash })
+  const cachedPath = resolvedDocHash && coldStartCache?.get
+    ? coldStartCache.get({ virtualPath, docHash: resolvedDocHash })
     : null;
   if (cachedPath) {
-    setVfsDiskCacheEntry(cacheKey, { path: cachedPath, docHash });
+    setVfsDiskCacheEntry(cacheKey, { path: cachedPath, docHash: resolvedDocHash });
     if (coldStartCache?.set) {
       const sizeBytes = Buffer.byteLength(text || '', 'utf8');
       coldStartCache.set({
         virtualPath,
-        docHash,
+        docHash: resolvedDocHash,
         diskPath: cachedPath,
         sizeBytes
       });
@@ -100,14 +103,14 @@ export const ensureVfsDiskDocument = async ({
 
   const absPath = resolveVfsDiskPath({ baseDir, virtualPath });
   const cached = VFS_DISK_CACHE.get(cacheKey);
-  if (cached && cached.docHash === docHash) {
+  if (resolvedDocHash && cached && cached.docHash === resolvedDocHash) {
     try {
       await fsPromises.access(absPath);
       if (coldStartCache?.set) {
         const sizeBytes = Buffer.byteLength(text || '', 'utf8');
         coldStartCache.set({
           virtualPath,
-          docHash,
+          docHash: resolvedDocHash,
           diskPath: absPath,
           sizeBytes
         });
@@ -118,12 +121,12 @@ export const ensureVfsDiskDocument = async ({
 
   await fsPromises.mkdir(path.dirname(absPath), { recursive: true });
   await fsPromises.writeFile(absPath, text || '', 'utf8');
-  setVfsDiskCacheEntry(cacheKey, { path: absPath, docHash });
-  if (coldStartCache?.set) {
+  setVfsDiskCacheEntry(cacheKey, { path: absPath, docHash: resolvedDocHash });
+  if (resolvedDocHash && coldStartCache?.set) {
     const sizeBytes = Buffer.byteLength(text || '', 'utf8');
     coldStartCache.set({
       virtualPath,
-      docHash,
+      docHash: resolvedDocHash,
       diskPath: absPath,
       sizeBytes
     });
