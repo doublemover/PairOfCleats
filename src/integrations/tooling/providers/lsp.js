@@ -108,7 +108,9 @@ export { resolveVfsIoBatching, ensureVirtualFilesBatch };
  * @param {object|boolean|null} [params.vfsColdStartCache=null]
  * @param {string|null} [params.cacheRoot=null]
  * @param {number|null} [params.hoverTimeoutMs=null]
+ * @param {number|null} [params.signatureHelpTimeoutMs=null]
  * @param {boolean} [params.hoverEnabled=true]
+ * @param {boolean} [params.signatureHelpEnabled=true]
  * @param {boolean} [params.hoverRequireMissingReturn=true]
  * @param {number[]|number|null} [params.hoverSymbolKinds=null]
  * @param {number|null} [params.hoverMaxPerFile=null]
@@ -154,7 +156,9 @@ export async function collectLspTypes({
   vfsColdStartCache = null,
   cacheRoot = null,
   hoverTimeoutMs = null,
+  signatureHelpTimeoutMs = null,
   hoverEnabled = true,
+  signatureHelpEnabled = true,
   hoverRequireMissingReturn = true,
   hoverSymbolKinds = null,
   hoverMaxPerFile = null,
@@ -188,6 +192,7 @@ export async function collectLspTypes({
   };
 
   const resolvedHoverTimeout = resolvePositiveTimeout(hoverTimeoutMs);
+  const resolvedSignatureHelpTimeout = resolvePositiveTimeout(signatureHelpTimeoutMs) ?? resolvedHoverTimeout;
   const resolvedDocumentSymbolTimeout = resolvePositiveTimeout(documentSymbolTimeoutMs);
   const resolvedHoverMaxPerFile = toFiniteInt(hoverMaxPerFile, 0);
   const resolvedHoverDisableAfterTimeouts = toFiniteInt(hoverDisableAfterTimeouts, 1);
@@ -357,6 +362,7 @@ export async function collectLspTypes({
     let shouldShutdownClient = false;
     let capabilityMask = null;
     let effectiveHoverEnabled = hoverEnabled !== false;
+    let effectiveSignatureHelpEnabled = signatureHelpEnabled !== false;
     let skipSymbolCollection = false;
     try {
       throwIfAborted(toolingAbortSignal);
@@ -369,6 +375,7 @@ export async function collectLspTypes({
       capabilityMask = probeLspCapabilities(initializeResult);
       runtime.capabilities = capabilityMask;
       effectiveHoverEnabled = effectiveHoverEnabled && capabilityMask.hover;
+      effectiveSignatureHelpEnabled = effectiveSignatureHelpEnabled && capabilityMask.signatureHelp;
       if (!capabilityMask.documentSymbol) {
         checks.push({
           name: 'tooling_capability_missing_document_symbol',
@@ -385,7 +392,7 @@ export async function collectLspTypes({
           message: `${cmd} does not advertise textDocument/hover; hover enrichment disabled.`
         });
       }
-      if (!capabilityMask.signatureHelp) {
+      if (signatureHelpEnabled !== false && !capabilityMask.signatureHelp) {
         checks.push({
           name: 'tooling_capability_missing_signature_help',
           status: 'info',
@@ -482,11 +489,13 @@ export async function collectLspTypes({
           byChunkUid,
           signatureParseCache,
           hoverEnabled: effectiveHoverEnabled,
+          signatureHelpEnabled: effectiveSignatureHelpEnabled,
           hoverRequireMissingReturn,
           resolvedHoverKinds,
           resolvedHoverMaxPerFile,
           resolvedHoverDisableAfterTimeouts,
           resolvedHoverTimeout,
+          resolvedSignatureHelpTimeout,
           resolvedDocumentSymbolTimeout,
           hoverLimiter,
           hoverCacheEntries,

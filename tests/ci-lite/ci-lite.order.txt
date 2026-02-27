@@ -664,6 +664,7 @@ indexing/type-inference/providers/type-inference-sourcekit-provider-no-sourcekit
 workspace/alias-uniqueness-and-tags-normalization
 tooling/lsp/lsp-param-fallback-from-source
 tooling/lsp/lsp-hover-merge-quality
+tooling/lsp/lsp-signature-help-fallback
 tooling/lsp/lsp-signature-quality-score
 indexing/chunking/json
 tooling/reports/capabilities-report

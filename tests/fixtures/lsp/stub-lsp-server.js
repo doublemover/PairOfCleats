@@ -126,6 +126,13 @@ const symbolsByMode = {
     detail: 'add',
     hoverDetail: 'int add(int a, int b)',
     kind: 12
+  },
+  'signature-help': {
+    name: 'add',
+    detail: 'add',
+    hoverDetail: 'add',
+    signatureHelpDetail: 'int add(int a, int b)',
+    kind: 12
   }
 };
 
@@ -345,6 +352,15 @@ const handleRequest = (message) => {
     }
     respond(id, {
       contents: { kind: 'plaintext', value: config.hoverDetail || config.detail }
+    });
+    return;
+  }
+  if (method === 'textDocument/signatureHelp') {
+    const label = String(config.signatureHelpDetail || config.hoverDetail || config.detail || '').trim();
+    respond(id, {
+      signatures: label ? [{ label }] : [],
+      activeSignature: 0,
+      activeParameter: 0
     });
     return;
   }
