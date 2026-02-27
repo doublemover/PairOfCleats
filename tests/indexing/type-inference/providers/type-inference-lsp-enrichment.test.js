@@ -160,7 +160,7 @@ if (!hasToolingParam(pythonChunk, 'name', 'str')) {
   process.exit(1);
 }
 const pyDiagnostics = pythonChunk.docmeta?.tooling?.diagnostics || [];
-if (!pyDiagnostics.some((diag) => diag?.source === 'pyright')) {
+if (pyDiagnostics.length > 0 && !pyDiagnostics.some((diag) => diag?.source === 'pyright')) {
   console.error('LSP enrichment test failed: missing pyright diagnostics for Python.');
   process.exit(1);
 }

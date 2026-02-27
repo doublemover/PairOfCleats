@@ -1,3 +1,5 @@
+import { sleep } from '../../../shared/sleep.js';
+
 const hasIterable = (value) => value != null && typeof value[Symbol.iterator] === 'function';
 
 const toEntryList = (value) => {
@@ -124,8 +126,6 @@ export const mergeToolingMaps = (base, incoming) => {
   }
   return target;
 };
-
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const FD_PRESSURE_PATTERN = /\b(emfile|enfile|too many open files)\b/i;
 
@@ -303,7 +303,7 @@ export const createToolingGuard = ({
           throw err;
         }
         const delay = attempt === 1 ? 250 : 1000;
-        await wait(delay);
+        await sleep(delay);
       }
     }
     return null;

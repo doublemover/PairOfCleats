@@ -1,8 +1,7 @@
 import path from 'node:path';
 import { buildLineIndex } from '../../../shared/lines.js';
-import { createLspClient, languageIdForFileExt, pathToFileUri } from '../lsp/client.js';
+import { languageIdForFileExt, pathToFileUri } from '../lsp/client.js';
 import { buildVfsUri } from '../lsp/uris.js';
-import { createToolingGuard, createToolingLifecycleHealth } from './shared.js';
 import { buildIndexSignature } from '../../../retrieval/index-cache.js';
 import {
   computeVfsManifestHash,
@@ -38,7 +37,10 @@ import {
   resolveVfsIoBatching
 } from './lsp/vfs-batching.js';
 import { probeLspCapabilities } from './lsp/capabilities.js';
+import { withLspSession } from './lsp/session-pool.js';
 import { throwIfAborted } from '../../../shared/abort.js';
+import { coercePositiveInt } from '../../../shared/number-coerce.js';
+import { sleep } from '../../../shared/sleep.js';
 
 /**
  * Parse positive integer configuration with fallback floor of 1.
@@ -47,12 +49,10 @@ import { throwIfAborted } from '../../../shared/abort.js';
  * @returns {number}
  */
 const clampPositiveInt = (value, fallback) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
-  return Math.max(1, Math.floor(parsed));
+  const parsed = coercePositiveInt(value);
+  if (parsed == null) return fallback;
+  return Math.max(1, parsed);
 };
-
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Create the canonical empty LSP collection payload.
@@ -122,9 +122,13 @@ export { resolveVfsIoBatching, ensureVirtualFilesBatch };
  * @param {number} [params.hoverCacheMaxEntries=50000]
  * @param {(line:string)=>boolean|null} [params.stderrFilter=null]
  * @param {object|null} [params.initializationOptions=null]
+ * @param {string|null} [params.providerId=null]
+ * @param {string|null} [params.workspaceKey=null]
  * @param {number|null} [params.lifecycleRestartWindowMs=null]
  * @param {number|null} [params.lifecycleMaxRestartsPerWindow=null]
  * @param {number|null} [params.lifecycleFdPressureBackoffMs=null]
+ * @param {number|null} [params.sessionIdleTimeoutMs=null]
+ * @param {number|null} [params.sessionMaxLifetimeMs=null]
  * @param {AbortSignal|null} [params.abortSignal=null]
  * @returns {Promise<{byChunkUid:object,diagnosticsByChunkUid:object,enriched:number,diagnosticsCount:number,checks:Array<object>,hoverMetrics:object,runtime:object|null}>}
  */
@@ -164,9 +168,13 @@ export async function collectLspTypes({
   hoverCacheMaxEntries = DEFAULT_HOVER_CACHE_MAX_ENTRIES,
   stderrFilter = null,
   initializationOptions = null,
+  providerId = null,
+  workspaceKey = null,
   lifecycleRestartWindowMs = null,
   lifecycleMaxRestartsPerWindow = null,
   lifecycleFdPressureBackoffMs = null,
+  sessionIdleTimeoutMs = null,
+  sessionMaxLifetimeMs = null,
   abortSignal = null
 }) {
   const toolingAbortSignal = abortSignal && typeof abortSignal.aborted === 'boolean'
@@ -270,301 +278,311 @@ export async function collectLspTypes({
     maxDiagnosticsPerUri: resolvedMaxDiagnosticsPerUri
   });
 
-  const lifecycleHealth = createToolingLifecycleHealth({
-    name: cmd,
-    restartWindowMs: lifecycleRestartWindowMs,
-    maxRestartsPerWindow: lifecycleMaxRestartsPerWindow,
-    fdPressureBackoffMs: lifecycleFdPressureBackoffMs,
-    log
-  });
-
-  const client = createLspClient({
+  return withLspSession({
+    enabled: true,
+    repoRoot: rootDir,
+    providerId: String(providerId || cmd || 'lsp'),
+    workspaceKey: workspaceKey || rootDir,
     cmd,
     args,
     cwd: rootDir,
     log,
     stderrFilter,
     onNotification,
-    onLifecycleEvent: lifecycleHealth.onLifecycleEvent,
-    onStderrLine: lifecycleHealth.noteStderrLine
-  });
-  let detachAbortHandler = null;
-  if (toolingAbortSignal && typeof toolingAbortSignal.addEventListener === 'function') {
-    const onAbort = () => {
-      client.kill();
-    };
-    toolingAbortSignal.addEventListener('abort', onAbort, { once: true });
-    detachAbortHandler = () => toolingAbortSignal.removeEventListener('abort', onAbort);
-    if (toolingAbortSignal.aborted) onAbort();
-  }
-
-  const guard = createToolingGuard({
-    name: cmd,
     timeoutMs,
     retries,
     breakerThreshold,
-    log
-  });
+    lifecycleName: String(providerId || cmd || 'lsp'),
+    lifecycleRestartWindowMs,
+    lifecycleMaxRestartsPerWindow,
+    lifecycleFdPressureBackoffMs,
+    sessionIdleTimeoutMs,
+    sessionMaxLifetimeMs,
+    initializationOptions
+  }, async (lease) => {
+    const client = lease.client;
+    const guard = lease.guard;
+    const lifecycleHealth = lease.lifecycleHealth;
+    runtime.pooling = {
+      enabled: lease.pooled,
+      sessionKey: lease.sessionKey,
+      reused: lease.reused,
+      recycleCount: lease.recycleCount,
+      ageMs: lease.ageMs
+    };
 
-  const refreshRuntimeState = () => {
-    runtime.lifecycle = lifecycleHealth.getState();
-    runtime.guard = guard.getState ? guard.getState() : null;
-    runtime.requests = typeof client.getMetrics === 'function' ? client.getMetrics() : null;
-  };
+    let detachAbortHandler = null;
+    if (toolingAbortSignal && typeof toolingAbortSignal.addEventListener === 'function') {
+      const onAbort = () => {
+        client.kill();
+      };
+      toolingAbortSignal.addEventListener('abort', onAbort, { once: true });
+      detachAbortHandler = () => toolingAbortSignal.removeEventListener('abort', onAbort);
+      if (toolingAbortSignal.aborted) onAbort();
+    }
 
-  const runWithHealthGuard = async (fn, options = {}) => {
-    const state = lifecycleHealth.getState();
-    runtime.lifecycle = state;
-    if (state.crashLoopQuarantined) {
-      const err = new Error(`${cmd} crash-loop quarantine active.`);
-      err.code = 'TOOLING_CRASH_LOOP';
-      err.detail = state;
-      throw err;
-    }
-    if (state.fdPressureBackoffActive) {
-      if (!checkFlags.fdPressureBackoff) {
-        checkFlags.fdPressureBackoff = true;
-        checks.push({
-          name: 'tooling_fd_pressure_backoff',
-          status: 'warn',
-          message: `${cmd} observed fd pressure; delaying LSP requests by ${state.fdPressureBackoffRemainingMs}ms.`,
-          count: state.fdPressureEvents
-        });
-      }
-      await wait(Math.min(1000, Math.max(25, state.fdPressureBackoffRemainingMs)));
-    }
-    const out = await guard.run(fn, options);
-    refreshRuntimeState();
-    return out;
-  };
-
-  const rootUri = pathToFileUri(rootDir);
-  let shouldShutdownClient = false;
-  let capabilityMask = null;
-  let effectiveHoverEnabled = hoverEnabled !== false;
-  let skipSymbolCollection = false;
-  try {
-    throwIfAborted(toolingAbortSignal);
-    const initializeResult = await runWithHealthGuard(({ timeoutMs: guardTimeout }) => client.initialize({
-      rootUri,
-      capabilities: { textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } } },
-      initializationOptions,
-      timeoutMs: guardTimeout
-    }), { label: 'initialize' });
-    capabilityMask = probeLspCapabilities(initializeResult);
-    runtime.capabilities = capabilityMask;
-    effectiveHoverEnabled = effectiveHoverEnabled && capabilityMask.hover;
-    if (!capabilityMask.documentSymbol) {
-      checks.push({
-        name: 'tooling_capability_missing_document_symbol',
-        status: 'warn',
-        message: `${cmd} does not advertise textDocument/documentSymbol; skipping LSP enrichment.`
-      });
-      skipSymbolCollection = true;
-      shouldShutdownClient = true;
-    }
-    if (hoverEnabled !== false && !capabilityMask.hover) {
-      checks.push({
-        name: 'tooling_capability_missing_hover',
-        status: 'warn',
-        message: `${cmd} does not advertise textDocument/hover; hover enrichment disabled.`
-      });
-    }
-    if (!capabilityMask.signatureHelp) {
-      checks.push({
-        name: 'tooling_capability_missing_signature_help',
-        status: 'info',
-        message: `${cmd} does not advertise textDocument/signatureHelp.`
-      });
-    }
-    shouldShutdownClient = true;
-  } catch (err) {
-    throwIfAborted(toolingAbortSignal);
-    checkFlags.initializeFailed = true;
-    if (err?.code === 'TOOLING_CRASH_LOOP' && !checkFlags.crashLoopQuarantined) {
-      checkFlags.crashLoopQuarantined = true;
-      checks.push({
-        name: 'tooling_crash_loop_quarantined',
-        status: 'warn',
-        message: `${cmd} crash-loop quarantine active; skipping provider work.`
-      });
-    }
-    checks.push({
-      name: 'tooling_initialize_failed',
-      status: 'warn',
-      message: `${cmd} initialize failed: ${err?.message || err}`
-    });
-    log(`[index] ${cmd} initialize failed: ${err?.message || err}`);
-    client.kill();
-    refreshRuntimeState();
-    return buildEmptyCollectResult(checks, {
-      ...runtime,
-      lifecycle: lifecycleHealth.getState()
-    });
-  }
-
-  try {
-    if (skipSymbolCollection) {
+    const refreshRuntimeState = () => {
       runtime.lifecycle = lifecycleHealth.getState();
       runtime.guard = guard.getState ? guard.getState() : null;
       runtime.requests = typeof client.getMetrics === 'function' ? client.getMetrics() : null;
-      return buildEmptyCollectResult(checks, runtime);
-    }
-    const byChunkUid = {};
-    let enriched = 0;
-    const signatureParseCache = new Map();
-    const hoverFileStats = new Map();
-    const hoverLatencyMs = [];
-    const hoverMetrics = createEmptyHoverMetricsResult();
-    const hoverControl = { disabledGlobal: false };
-    const hoverLimiter = createConcurrencyLimiter(resolvedHoverConcurrency);
-    const hoverCacheState = await loadHoverCache(cacheRoot);
-    const hoverCacheEntries = hoverCacheState.entries;
-    let hoverCacheDirty = false;
-    const markHoverCacheDirty = () => {
-      hoverCacheDirty = true;
     };
 
-    throwIfAborted(toolingAbortSignal);
-    const openDocs = new Map();
-    const diskPathMap = resolvedScheme === 'file'
-      ? await ensureVirtualFilesBatch({
-        rootDir: resolvedRoot,
-        docs: docsToOpen,
-        batching: resolvedBatching,
-        coldStartCache
-      })
-      : null;
+    const runWithHealthGuard = async (fn, options = {}) => {
+      const state = lifecycleHealth.getState();
+      runtime.lifecycle = state;
+      if (state.crashLoopQuarantined) {
+        const err = new Error(`${cmd} crash-loop quarantine active.`);
+        err.code = 'TOOLING_CRASH_LOOP';
+        err.detail = state;
+        throw err;
+      }
+      if (state.fdPressureBackoffActive) {
+        if (!checkFlags.fdPressureBackoff) {
+          checkFlags.fdPressureBackoff = true;
+          checks.push({
+            name: 'tooling_fd_pressure_backoff',
+            status: 'warn',
+            message: `${cmd} observed fd pressure; delaying LSP requests by ${state.fdPressureBackoffRemainingMs}ms.`,
+            count: state.fdPressureEvents
+          });
+        }
+        await sleep(Math.min(1000, Math.max(25, state.fdPressureBackoffRemainingMs)));
+      }
+      const out = await guard.run(fn, options);
+      refreshRuntimeState();
+      return out;
+    };
 
-    const processDoc = async (doc) => {
+    const rootUri = pathToFileUri(rootDir);
+    let shouldShutdownClient = false;
+    let capabilityMask = null;
+    let effectiveHoverEnabled = hoverEnabled !== false;
+    let skipSymbolCollection = false;
+    try {
       throwIfAborted(toolingAbortSignal);
-      const languageId = doc.languageId || languageIdForFileExt(path.extname(doc.virtualPath));
-      const uri = await resolveDocumentUri({
-        rootDir: resolvedRoot,
-        doc,
-        uriScheme: resolvedScheme,
-        tokenMode: vfsTokenMode,
-        diskPathMap,
-        coldStartCache
+      const initializeResult = await runWithHealthGuard(({ timeoutMs: guardTimeout }) => client.initialize({
+        rootUri,
+        capabilities: { textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } } },
+        initializationOptions,
+        timeoutMs: guardTimeout
+      }), { label: 'initialize' });
+      capabilityMask = probeLspCapabilities(initializeResult);
+      runtime.capabilities = capabilityMask;
+      effectiveHoverEnabled = effectiveHoverEnabled && capabilityMask.hover;
+      if (!capabilityMask.documentSymbol) {
+        checks.push({
+          name: 'tooling_capability_missing_document_symbol',
+          status: 'warn',
+          message: `${cmd} does not advertise textDocument/documentSymbol; skipping LSP enrichment.`
+        });
+        skipSymbolCollection = true;
+        shouldShutdownClient = lease.pooled !== true;
+      }
+      if (hoverEnabled !== false && !capabilityMask.hover) {
+        checks.push({
+          name: 'tooling_capability_missing_hover',
+          status: 'warn',
+          message: `${cmd} does not advertise textDocument/hover; hover enrichment disabled.`
+        });
+      }
+      if (!capabilityMask.signatureHelp) {
+        checks.push({
+          name: 'tooling_capability_missing_signature_help',
+          status: 'info',
+          message: `${cmd} does not advertise textDocument/signatureHelp.`
+        });
+      }
+      shouldShutdownClient = lease.pooled !== true;
+    } catch (err) {
+      throwIfAborted(toolingAbortSignal);
+      checkFlags.initializeFailed = true;
+      if (err?.code === 'TOOLING_CRASH_LOOP' && !checkFlags.crashLoopQuarantined) {
+        checkFlags.crashLoopQuarantined = true;
+        checks.push({
+          name: 'tooling_crash_loop_quarantined',
+          status: 'warn',
+          message: `${cmd} crash-loop quarantine active; skipping provider work.`
+        });
+      }
+      checks.push({
+        name: 'tooling_initialize_failed',
+        status: 'warn',
+        message: `${cmd} initialize failed: ${err?.message || err}`
       });
-      const legacyUri = resolvedScheme === 'poc-vfs' ? buildVfsUri(doc.virtualPath) : null;
+      log(`[index] ${cmd} initialize failed: ${err?.message || err}`);
+      client.kill();
+      refreshRuntimeState();
+      return buildEmptyCollectResult(checks, {
+        ...runtime,
+        lifecycle: lifecycleHealth.getState()
+      });
+    }
 
-      const { enrichedDelta } = await processDocumentTypes({
-        doc,
-        cmd,
-        client,
-        guard,
-        guardRun: runWithHealthGuard,
-        log,
-        strict,
-        parseSignature,
-        lineIndexFactory,
-        uri,
-        legacyUri,
-        languageId,
+    try {
+      if (skipSymbolCollection) {
+        runtime.lifecycle = lifecycleHealth.getState();
+        runtime.guard = guard.getState ? guard.getState() : null;
+        runtime.requests = typeof client.getMetrics === 'function' ? client.getMetrics() : null;
+        return buildEmptyCollectResult(checks, runtime);
+      }
+      const byChunkUid = {};
+      let enriched = 0;
+      const signatureParseCache = new Map();
+      const hoverFileStats = new Map();
+      const hoverLatencyMs = [];
+      const hoverMetrics = createEmptyHoverMetricsResult();
+      const hoverControl = { disabledGlobal: false };
+      const hoverLimiter = createConcurrencyLimiter(resolvedHoverConcurrency);
+      const hoverCacheState = await loadHoverCache(cacheRoot);
+      const hoverCacheEntries = hoverCacheState.entries;
+      let hoverCacheDirty = false;
+      const markHoverCacheDirty = () => {
+        hoverCacheDirty = true;
+      };
+
+      throwIfAborted(toolingAbortSignal);
+      const openDocs = new Map();
+      const diskPathMap = resolvedScheme === 'file'
+        ? await ensureVirtualFilesBatch({
+          rootDir: resolvedRoot,
+          docs: docsToOpen,
+          batching: resolvedBatching,
+          coldStartCache
+        })
+        : null;
+
+      const processDoc = async (doc) => {
+        throwIfAborted(toolingAbortSignal);
+        const languageId = doc.languageId || languageIdForFileExt(path.extname(doc.virtualPath));
+        const uri = await resolveDocumentUri({
+          rootDir: resolvedRoot,
+          doc,
+          uriScheme: resolvedScheme,
+          tokenMode: vfsTokenMode,
+          diskPathMap,
+          coldStartCache
+        });
+        const legacyUri = resolvedScheme === 'poc-vfs' ? buildVfsUri(doc.virtualPath) : null;
+
+        const { enrichedDelta } = await processDocumentTypes({
+          doc,
+          cmd,
+          client,
+          guard,
+          guardRun: runWithHealthGuard,
+          log,
+          strict,
+          parseSignature,
+          lineIndexFactory,
+          uri,
+          legacyUri,
+          languageId,
+          openDocs,
+          targetsByPath,
+          byChunkUid,
+          signatureParseCache,
+          hoverEnabled: effectiveHoverEnabled,
+          hoverRequireMissingReturn,
+          resolvedHoverKinds,
+          resolvedHoverMaxPerFile,
+          resolvedHoverDisableAfterTimeouts,
+          resolvedHoverTimeout,
+          resolvedDocumentSymbolTimeout,
+          hoverLimiter,
+          hoverCacheEntries,
+          markHoverCacheDirty,
+          hoverControl,
+          hoverFileStats,
+          hoverLatencyMs,
+          hoverMetrics,
+          checks,
+          checkFlags,
+          abortSignal: toolingAbortSignal
+        });
+        enriched += enrichedDelta;
+      };
+
+      await runWithConcurrency(docsToOpen, resolvedDocumentSymbolConcurrency, processDoc, {
+        signal: toolingAbortSignal
+      });
+      throwIfAborted(toolingAbortSignal);
+
+      if (hoverCacheDirty) {
+        try {
+          await persistHoverCache({
+            cachePath: hoverCacheState.path,
+            entries: hoverCacheEntries,
+            maxEntries: resolvedHoverCacheMaxEntries
+          });
+        } catch {}
+      }
+      throwIfAborted(toolingAbortSignal);
+
+      const { diagnosticsByChunkUid, diagnosticsCount } = shapeDiagnosticsByChunkUid({
+        captureDiagnostics,
+        diagnosticsByUri,
+        docs,
         openDocs,
         targetsByPath,
-        byChunkUid,
-        signatureParseCache,
-        hoverEnabled: effectiveHoverEnabled,
-        hoverRequireMissingReturn,
-        resolvedHoverKinds,
-        resolvedHoverMaxPerFile,
-        resolvedHoverDisableAfterTimeouts,
-        resolvedHoverTimeout,
-        resolvedDocumentSymbolTimeout,
-        hoverLimiter,
-        hoverCacheEntries,
-        markHoverCacheDirty,
-        hoverControl,
-        hoverFileStats,
-        hoverLatencyMs,
-        hoverMetrics,
+        diskPathMap,
+        resolvedRoot,
+        resolvedScheme,
+        lineIndexFactory,
+        maxDiagnosticsPerChunk: resolvedMaxDiagnosticsPerChunk,
         checks,
         checkFlags,
-        abortSignal: toolingAbortSignal
+        findTargetForOffsets
       });
-      enriched += enrichedDelta;
-    };
 
-    await runWithConcurrency(docsToOpen, resolvedDocumentSymbolConcurrency, processDoc, {
-      signal: toolingAbortSignal
-    });
-    throwIfAborted(toolingAbortSignal);
+      if (coldStartCache?.flush) {
+        try {
+          await coldStartCache.flush();
+        } catch (err) {
+          log(`[tooling] vfs cold-start cache flush failed: ${err?.message || err}`);
+        }
+      }
 
-    if (hoverCacheDirty) {
-      try {
-        await persistHoverCache({
-          cachePath: hoverCacheState.path,
-          entries: hoverCacheEntries,
-          maxEntries: resolvedHoverCacheMaxEntries
+      const lifecycleState = lifecycleHealth.getState();
+      runtime.lifecycle = lifecycleState;
+      runtime.guard = guard.getState ? guard.getState() : null;
+      runtime.requests = typeof client.getMetrics === 'function' ? client.getMetrics() : null;
+      if (lifecycleState.crashLoopTrips > 0 && !checkFlags.crashLoopQuarantined) {
+        checkFlags.crashLoopQuarantined = true;
+        checks.push({
+          name: 'tooling_crash_loop_detected',
+          status: 'warn',
+          message: `${cmd} observed crash-loop pressure (${lifecycleState.crashLoopTrips} trip${lifecycleState.crashLoopTrips === 1 ? '' : 's'}).`,
+          count: lifecycleState.crashLoopTrips
         });
-      } catch {}
-    }
-    throwIfAborted(toolingAbortSignal);
+      }
 
-    const { diagnosticsByChunkUid, diagnosticsCount } = shapeDiagnosticsByChunkUid({
-      captureDiagnostics,
-      diagnosticsByUri,
-      docs,
-      openDocs,
-      targetsByPath,
-      diskPathMap,
-      resolvedRoot,
-      resolvedScheme,
-      lineIndexFactory,
-      maxDiagnosticsPerChunk: resolvedMaxDiagnosticsPerChunk,
-      checks,
-      checkFlags,
-      findTargetForOffsets
-    });
-
-    if (coldStartCache?.flush) {
-      try {
-        await coldStartCache.flush();
-      } catch (err) {
-        log(`[tooling] vfs cold-start cache flush failed: ${err?.message || err}`);
+      return {
+        byChunkUid,
+        diagnosticsByChunkUid,
+        enriched,
+        diagnosticsCount,
+        checks,
+        runtime,
+        hoverMetrics: summarizeHoverMetrics({
+          hoverMetrics,
+          hoverLatencyMs,
+          hoverFileStats
+        })
+      };
+    } finally {
+      if (detachAbortHandler) {
+        try {
+          detachAbortHandler();
+        } catch {}
+      }
+      if (shouldShutdownClient) {
+        try {
+          await client.shutdownAndExit();
+        } catch {}
+      }
+      if (lease.pooled !== true) {
+        client.kill();
       }
     }
-
-    const lifecycleState = lifecycleHealth.getState();
-    runtime.lifecycle = lifecycleState;
-    runtime.guard = guard.getState ? guard.getState() : null;
-    runtime.requests = typeof client.getMetrics === 'function' ? client.getMetrics() : null;
-    if (lifecycleState.crashLoopTrips > 0 && !checkFlags.crashLoopQuarantined) {
-      checkFlags.crashLoopQuarantined = true;
-      checks.push({
-        name: 'tooling_crash_loop_detected',
-        status: 'warn',
-        message: `${cmd} observed crash-loop pressure (${lifecycleState.crashLoopTrips} trip${lifecycleState.crashLoopTrips === 1 ? '' : 's'}).`,
-        count: lifecycleState.crashLoopTrips
-      });
-    }
-
-    return {
-      byChunkUid,
-      diagnosticsByChunkUid,
-      enriched,
-      diagnosticsCount,
-      checks,
-      runtime,
-      hoverMetrics: summarizeHoverMetrics({
-        hoverMetrics,
-        hoverLatencyMs,
-        hoverFileStats
-      })
-    };
-  } finally {
-    if (detachAbortHandler) {
-      try {
-        detachAbortHandler();
-      } catch {}
-    }
-    if (shouldShutdownClient) {
-      try {
-        await client.shutdownAndExit();
-      } catch {}
-    }
-    client.kill();
-  }
+  });
 }

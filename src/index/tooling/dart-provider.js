@@ -129,6 +129,7 @@ export const createDartProvider = () => ({
       targets,
       abortSignal: ctx?.abortSignal || null,
       log,
+      providerId: 'dart',
       cmd: commandProfile.resolved.cmd,
       args: ensureLanguageServerArgs(commandProfile.resolved.args || requestedArgs),
       parseSignature: (detail, _lang, symbolName) => parseClikeSignature(detail, symbolName),

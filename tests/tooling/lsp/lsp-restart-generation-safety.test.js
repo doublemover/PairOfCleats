@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createLspClient } from '../../../src/integrations/tooling/lsp/client.js';
+import { sleep } from '../../../src/shared/sleep.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -28,7 +29,7 @@ const waitForSpawns = async (expected, timeoutMs = 2000) => {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     if (await countSpawns() >= expected) return;
-    await new Promise((resolve) => setTimeout(resolve, 25));
+    await sleep(25);
   }
   throw new Error(`Timed out waiting for ${expected} LSP spawn(s).`);
 };
@@ -40,16 +41,19 @@ const client = createLspClient({
   log: () => {}
 });
 
-client.start();
-await waitForSpawns(1);
-client.kill();
-client.start();
-await waitForSpawns(2);
+try {
+  client.start();
+  await waitForSpawns(1);
+  client.kill();
+  client.start();
+  await waitForSpawns(2);
 
-await client.initialize({ rootUri: pathToFileURL(tempRoot).href });
-await client.shutdownAndExit();
-await new Promise((resolve) => setTimeout(resolve, 100));
-client.kill();
+  await client.initialize({ rootUri: pathToFileURL(tempRoot).href });
+  await client.shutdownAndExit();
+  await sleep(100);
+} finally {
+  client.kill();
+}
 
 const spawns = await countSpawns();
 assert.equal(spawns, 2, 'expected only two LSP spawns after restart');

@@ -103,6 +103,7 @@ export const createPyrightProvider = () => ({
       targets,
       abortSignal: ctx?.abortSignal || null,
       log,
+      providerId: 'pyright',
       cmd: resolvedCmd,
       args: commandProfile.resolved.args || ['--stdio'],
       parseSignature: (detail) => parsePythonSignature(detail),

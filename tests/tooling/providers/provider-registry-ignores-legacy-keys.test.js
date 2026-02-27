@@ -47,6 +47,6 @@ const result = await runToolingProviders({
 }, inputs, ['legacy-stub']);
 
 assert.ok(result.byChunkUid instanceof Map, 'expected byChunkUid to be a Map');
-assert.ok(result.byChunkUid.has(chunkUid), 'expected legacy key to normalize to chunkUid');
+assert.equal(result.byChunkUid.has(chunkUid), false, 'expected legacy key payloads to be ignored after hard cutover');
 
-console.log('tooling provider legacy key normalization test passed');
+console.log('tooling provider legacy key compatibility removal test passed');

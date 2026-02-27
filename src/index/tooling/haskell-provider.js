@@ -122,6 +122,7 @@ export const createHaskellProvider = () => ({
       targets,
       abortSignal: ctx?.abortSignal || null,
       log,
+      providerId: 'haskell-language-server',
       cmd: commandProfile.resolved.cmd,
       args: commandProfile.resolved.args || requestedArgs,
       parseSignature: parseHaskellSignature,

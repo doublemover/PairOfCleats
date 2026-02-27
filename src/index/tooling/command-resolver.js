@@ -4,13 +4,12 @@ import { execaSync } from 'execa';
 import { resolveToolRoot } from '../../shared/dict-utils.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
 import { createLspClient, pathToFileUri } from '../../integrations/tooling/lsp/client.js';
-import { findBinaryInDirs, findBinaryOnPath } from './binary-utils.js';
+import { findBinaryInDirs, findBinaryOnPath, splitPathEntries } from './binary-utils.js';
 import { normalizeProviderId } from './provider-contract.js';
 
 const WINDOWS_EXEC_EXTS = ['.exe', '.cmd', '.bat'];
 const DEFAULT_PROBE_ARGS = [['--version'], ['--help']];
 const COMMAND_PROBE_CACHE = new Map();
-const GOPLS_SERVE_CACHE = new Map();
 const COMMAND_PROBE_CACHE_MAX_ENTRIES = 256;
 const COMMAND_PROBE_FAILURE_TTL_MS = 10_000;
 
@@ -67,7 +66,7 @@ const resolveWindowsCommand = (cmd) => {
   if (process.platform !== 'win32') return cmd;
   const lowered = String(cmd || '').toLowerCase();
   if (WINDOWS_EXEC_EXTS.some((ext) => lowered.endsWith(ext))) return cmd;
-  const pathEntries = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
+  const pathEntries = splitPathEntries(process.env.PATH || '');
   for (const ext of WINDOWS_EXEC_EXTS) {
     for (const dir of pathEntries) {
       const candidate = path.join(dir, `${cmd}${ext}`);
@@ -240,29 +239,12 @@ const probeBinary = ({ command, probeArgs }) => {
   };
 };
 
-const probeGoplsServeSupport = (command) => {
-  const cacheKey = String(command || '').trim();
-  if (GOPLS_SERVE_CACHE.has(cacheKey)) {
-    return GOPLS_SERVE_CACHE.get(cacheKey) === true;
-  }
-  try {
-    const result = runProbeCommand(command, ['help', 'serve']);
-    const supported = result.exitCode === 0;
-    if (supported) GOPLS_SERVE_CACHE.set(cacheKey, true);
-    return supported;
-  } catch {
-    return false;
-  }
-};
-
 export const __resetToolingCommandProbeCacheForTests = () => {
   COMMAND_PROBE_CACHE.clear();
-  GOPLS_SERVE_CACHE.clear();
 };
 
 export const __getToolingCommandProbeCacheStatsForTests = () => ({
-  commandProbeEntries: COMMAND_PROBE_CACHE.size,
-  goplsServeEntries: GOPLS_SERVE_CACHE.size
+  commandProbeEntries: COMMAND_PROBE_CACHE.size
 });
 
 /**
@@ -290,10 +272,6 @@ export const resolveToolingCommandProfile = (input) => {
     : [];
   const repoRoot = input?.repoRoot || process.cwd();
   const toolingConfig = input?.toolingConfig || {};
-  const goplsConfig = toolingConfig?.gopls && typeof toolingConfig.gopls === 'object'
-    ? toolingConfig.gopls
-    : {};
-
   const resolvedCmd = resolveBaseCommand({
     providerId,
     requestedCmd,
@@ -315,31 +293,15 @@ export const resolveToolingCommandProfile = (input) => {
 
   if (providerId === 'gopls' && probe.ok) {
     if (!requestedArgs.length) {
-      const useServe = goplsConfig.useServe === true || goplsConfig.preferServe === true;
-      if (useServe) {
-        const serveSupported = probeGoplsServeSupport(resolved.cmd);
-        if (serveSupported) {
-          resolved.args = ['serve'];
-          resolved.mode = 'gopls-serve-opt-in';
-          resolved.reason = 'serve-opt-in-supported';
-        } else {
-          resolved.mode = 'gopls-direct';
-          resolved.reason = 'serve-opt-in-not-supported';
-        }
-      } else {
-        resolved.mode = 'gopls-direct';
-        resolved.reason = 'prefer-direct-default';
-      }
+      resolved.mode = 'gopls-direct';
+      resolved.reason = 'direct-default';
     } else {
       resolved.mode = 'gopls-explicit-args';
       resolved.reason = 'explicit-args-preserved';
     }
   } else if (providerId === 'gopls' && !requestedArgs.length) {
-    const useServe = goplsConfig.useServe === true || goplsConfig.preferServe === true;
-    if (!useServe) {
-      resolved.mode = 'gopls-direct';
-      resolved.reason = 'probe-failed-prefer-direct';
-    }
+    resolved.mode = 'gopls-direct';
+    resolved.reason = 'probe-failed-direct';
   }
 
   return {

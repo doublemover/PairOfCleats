@@ -80,18 +80,22 @@ const resolvePresetKey = (value) => {
   return PRESET_ALIAS_TO_KEY[normalized] || '';
 };
 
+export const listLspServerPresets = () => Object.values(PRESET_DEFINITIONS).map((preset) => clonePreset(preset));
+
+export const resolveLspServerPresetByKey = (value) => {
+  const key = resolvePresetKey(value);
+  if (!key) return null;
+  return clonePreset(PRESET_DEFINITIONS[key]);
+};
+
 export const resolveLspServerPreset = (server) => {
   if (!server || typeof server !== 'object') return null;
 
-  const explicitPreset = resolvePresetKey(server.preset);
-  if (explicitPreset) {
-    return clonePreset(PRESET_DEFINITIONS[explicitPreset]);
-  }
+  const explicitPreset = resolveLspServerPresetByKey(server.preset);
+  if (explicitPreset) return explicitPreset;
 
   const hasCmd = typeof server.cmd === 'string' && server.cmd.trim();
   if (hasCmd) return null;
 
-  const implicitPreset = resolvePresetKey(server.id);
-  if (!implicitPreset) return null;
-  return clonePreset(PRESET_DEFINITIONS[implicitPreset]);
+  return resolveLspServerPresetByKey(server.id);
 };

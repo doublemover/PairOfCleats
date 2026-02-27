@@ -145,6 +145,7 @@ export const createJdtlsProvider = () => ({
       targets,
       abortSignal: ctx?.abortSignal || null,
       log,
+      providerId: 'jdtls',
       cmd: commandProfile.resolved.cmd,
       args: resolvedArgs,
       parseSignature: (detail, _lang, symbolName) => parseClikeSignature(detail, symbolName),

@@ -4,7 +4,9 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
 import { registerDefaultToolingProviders } from '../../../src/index/tooling/providers/index.js';
+
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { prependLspTestPath } from '../../helpers/lsp-runtime.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, `dart-provider-process-reuse-${process.pid}-${Date.now()}`);
@@ -13,10 +15,8 @@ await fs.mkdir(path.join(tempRoot, 'lib'), { recursive: true });
 await fs.writeFile(path.join(tempRoot, 'pubspec.yaml'), 'name: dart_fixture\n', 'utf8');
 
 const counterPath = path.join(tempRoot, 'dart-lsp.counter');
-const fixturesBin = path.join(root, 'tests', 'fixtures', 'lsp', 'bin');
-const originalPath = process.env.PATH || '';
+const restorePath = prependLspTestPath({ repoRoot: root });
 const originalCounter = process.env.POC_LSP_COUNTER;
-process.env.PATH = `${fixturesBin}${path.delimiter}${originalPath}`;
 process.env.POC_LSP_COUNTER = counterPath;
 
 try {
@@ -94,7 +94,7 @@ try {
 
   console.log('dart provider process reuse test passed');
 } finally {
-  process.env.PATH = originalPath;
+  restorePath();
   if (originalCounter == null) {
     delete process.env.POC_LSP_COUNTER;
   } else {

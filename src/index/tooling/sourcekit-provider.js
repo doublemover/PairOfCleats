@@ -7,11 +7,13 @@ import { execaSync } from 'execa';
 import { SymbolKind } from 'vscode-languageserver-protocol';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { isTestingEnv } from '../../shared/env.js';
+import { toPosix } from '../../shared/files.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { acquireFileLock } from '../../shared/locks/file-lock.js';
 import { spawnSubprocess } from '../../shared/subprocess.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
 import { resolveToolingCommandProfile } from './command-resolver.js';
+import { splitPathEntries } from './binary-utils.js';
 import { parseSwiftSignature } from './signature-parse/swift.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 
@@ -70,7 +72,7 @@ const resolveSourcekitExcludePathRegexes = (sourcekitConfig) => {
 };
 
 const shouldSkipSourcekitPath = (virtualPath, excludePathRegexes) => {
-  const normalized = String(virtualPath || '').replace(/\\/g, '/');
+  const normalized = toPosix(String(virtualPath || ''));
   if (!normalized) return false;
   for (const pattern of excludePathRegexes || []) {
     if (!(pattern instanceof RegExp)) continue;
@@ -459,7 +461,7 @@ const resolveCommandCandidates = (cmd) => {
     output.push(normalized);
   };
 
-  const pathEntries = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
+  const pathEntries = splitPathEntries(process.env.PATH || '');
   const lowered = String(cmd || '').toLowerCase();
   const hasExt = /\.(exe|cmd|bat)$/i.test(lowered);
 
@@ -691,6 +693,7 @@ export const createSourcekitProvider = () => ({
         targets,
         abortSignal,
         log,
+        providerId: 'sourcekit',
         cmd: resolvedCmd,
         args: [],
         hoverTimeoutMs,

@@ -1,7 +1,7 @@
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { appendDiagnosticChecks, hashProviderConfig, normalizeProviderId } from './provider-contract.js';
 import { resolveToolingCommandProfile } from './command-resolver.js';
-import { resolveLspServerPreset } from './lsp-presets.js';
+import { listLspServerPresets, resolveLspServerPreset } from './lsp-presets.js';
 import { parseClikeSignature } from './signature-parse/clike.js';
 import { parseElixirSignature } from './signature-parse/elixir.js';
 import { parseGoSignature } from './signature-parse/go.js';
@@ -150,6 +150,9 @@ const normalizeServerConfig = (server, index) => {
     merged.initializationOptions = deepMergeObjects(preset.initializationOptions, server.initializationOptions);
   }
   const id = normalizeServerId(merged.id, `lsp-${index + 1}`);
+  const providerId = merged.providerId
+    ? normalizeServerId(merged.providerId, id)
+    : null;
   const cmd = String(merged.cmd || '').trim();
   if (!cmd) return null;
   const args = normalizeArgs(merged.args);
@@ -185,6 +188,7 @@ const normalizeServerConfig = (server, index) => {
     : false;
   return {
     id,
+    providerId,
     cmd,
     args,
     languages,
@@ -216,8 +220,34 @@ const normalizeServerConfig = (server, index) => {
   };
 };
 
+const collectAutoPresetServers = (toolingConfig, configuredServerIds) => {
+  if (toolingConfig?.autoEnableOnDetect !== true) return [];
+  const lspConfig = toolingConfig?.lsp && typeof toolingConfig.lsp === 'object'
+    ? toolingConfig.lsp
+    : {};
+  if (lspConfig.autoPresets === false) return [];
+  const disabledTools = new Set(normalizeList(toolingConfig?.disabledTools).map((entry) => entry.toLowerCase()));
+  const enabledTools = normalizeList(toolingConfig?.enabledTools).map((entry) => entry.toLowerCase());
+  const hasEnabledAllowlist = enabledTools.length > 0;
+  const enabledSet = hasEnabledAllowlist ? new Set(enabledTools) : null;
+  const autoServers = [];
+  for (const preset of listLspServerPresets()) {
+    const serverId = normalizeServerId(preset.id, preset.id);
+    if (!serverId) continue;
+    if (configuredServerIds.has(serverId)) continue;
+    if (disabledTools.has(serverId)) continue;
+    if (hasEnabledAllowlist && !enabledSet.has(serverId)) continue;
+    autoServers.push({
+      ...preset,
+      id: serverId,
+      providerId: serverId
+    });
+  }
+  return autoServers;
+};
+
 const createConfiguredLspProvider = (server) => {
-  const providerId = `lsp-${server.id}`;
+  const providerId = normalizeServerId(server.providerId, `lsp-${server.id}`);
   return {
     id: providerId,
     label: server.label || `LSP ${server.id}`,
@@ -305,6 +335,7 @@ const createConfiguredLspProvider = (server) => {
         targets,
         abortSignal: ctx?.abortSignal || null,
         log,
+        providerId,
         cmd: commandProfile.resolved.cmd,
         args: commandProfile.resolved.args || [],
         parseSignature: parseGenericSignature,
@@ -360,10 +391,22 @@ export const createConfiguredLspProviders = (toolingConfig) => {
   if (!lsp || lsp.enabled === false) return [];
   const servers = Array.isArray(lsp.servers) ? lsp.servers : [];
   const providers = [];
+  const normalizedServers = [];
+  const configuredServerIds = new Set();
   for (let i = 0; i < servers.length; i += 1) {
     const normalized = normalizeServerConfig(servers[i], i);
     if (!normalized) continue;
-    providers.push(createConfiguredLspProvider(normalized));
+    configuredServerIds.add(normalized.id);
+    normalizedServers.push(normalized);
+  }
+  const autoServers = collectAutoPresetServers(toolingConfig, configuredServerIds);
+  for (let i = 0; i < autoServers.length; i += 1) {
+    const normalized = normalizeServerConfig(autoServers[i], servers.length + i);
+    if (!normalized) continue;
+    normalizedServers.push(normalized);
+  }
+  for (const server of normalizedServers) {
+    providers.push(createConfiguredLspProvider(server));
   }
   return providers;
 };

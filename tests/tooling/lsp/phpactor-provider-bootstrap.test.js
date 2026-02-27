@@ -4,7 +4,9 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
 import { registerDefaultToolingProviders } from '../../../src/index/tooling/providers/index.js';
+
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { prependLspTestPath } from '../../helpers/lsp-runtime.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, `phpactor-provider-bootstrap-${process.pid}-${Date.now()}`);
@@ -12,9 +14,7 @@ await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
 await fs.writeFile(path.join(tempRoot, 'composer.json'), '{"name":"fixture/php"}\n', 'utf8');
 
-const fixturesBin = path.join(root, 'tests', 'fixtures', 'lsp', 'bin');
-const originalPath = process.env.PATH || '';
-process.env.PATH = `${fixturesBin}${path.delimiter}${originalPath}`;
+const restorePath = prependLspTestPath({ repoRoot: root });
 
 try {
   registerDefaultToolingProviders();
@@ -68,5 +68,5 @@ try {
 
   console.log('phpactor provider bootstrap test passed');
 } finally {
-  process.env.PATH = originalPath;
+  restorePath();
 }

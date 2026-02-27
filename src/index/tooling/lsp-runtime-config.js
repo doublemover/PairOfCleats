@@ -61,7 +61,9 @@ const resolveIntegerSetting = ({ providerConfig, globalConfigs, keys, min, fallb
  *   breakerThreshold:number|null,
  *   lifecycleRestartWindowMs:number|null,
  *   lifecycleMaxRestartsPerWindow:number|null,
- *   lifecycleFdPressureBackoffMs:number|null
+ *   lifecycleFdPressureBackoffMs:number|null,
+ *   sessionIdleTimeoutMs:number|null,
+ *   sessionMaxLifetimeMs:number|null
  * }}
  */
 export const resolveLspRuntimeConfig = (input = {}) => {
@@ -112,6 +114,20 @@ export const resolveLspRuntimeConfig = (input = {}) => {
       globalConfigs,
       keys: ['lifecycleFdPressureBackoffMs', 'fdPressureBackoffMs'],
       min: 50,
+      fallback: null
+    }),
+    sessionIdleTimeoutMs: resolveIntegerSetting({
+      providerConfig,
+      globalConfigs,
+      keys: ['sessionIdleTimeoutMs', 'lifecycleSessionIdleTimeoutMs', 'idleTimeoutMs'],
+      min: 1000,
+      fallback: null
+    }),
+    sessionMaxLifetimeMs: resolveIntegerSetting({
+      providerConfig,
+      globalConfigs,
+      keys: ['sessionMaxLifetimeMs', 'lifecycleSessionMaxLifetimeMs', 'maxLifetimeMs'],
+      min: 1000,
       fallback: null
     })
   };

@@ -439,6 +439,7 @@ export function createLspClient(options) {
           err.code = 'ERR_LSP_REQUEST_TIMEOUT';
           reject(err);
         }, resolvedTimeout);
+        entry.timeout.unref?.();
       }
       pending.set(id, entry);
       if (!send({ jsonrpc: '2.0', id, method, params })) {
@@ -498,11 +499,28 @@ export function createLspClient(options) {
   const kill = () => {
     if (!proc) return;
     const current = proc;
+    rejectPendingTransportClosed();
     if (current.stdin) closeJsonRpcWriter(current.stdin);
+    try {
+      current.stdout?.destroy();
+    } catch {}
+    try {
+      current.stderr?.destroy();
+    } catch {}
     parser?.dispose();
     try {
       current.kill();
     } catch {}
+    try {
+      current.unref?.();
+    } catch {}
+    setTimeout(() => {
+      if (current.exitCode === null) {
+        try {
+          current.kill('SIGKILL');
+        } catch {}
+      }
+    }, 200).unref?.();
     proc = null;
     clearTrackedChild();
     writer = null;

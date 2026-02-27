@@ -5,16 +5,16 @@ import path from 'node:path';
 import { registerDefaultToolingProviders } from '../../../src/index/tooling/providers/index.js';
 import { runToolingDoctor } from '../../../src/index/tooling/doctor.js';
 
+
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { prependLspTestPath } from '../../helpers/lsp-runtime.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'tooling-doctor-command-resolution');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 
-const fixturesBin = path.join(root, 'tests', 'fixtures', 'lsp', 'bin');
-const originalPath = process.env.PATH || '';
-process.env.PATH = `${fixturesBin}${path.delimiter}${originalPath}`;
+const restorePath = prependLspTestPath({ repoRoot: root });
 
 try {
   registerDefaultToolingProviders();
@@ -46,7 +46,7 @@ try {
   );
   assert.ok(clangd.handshake && typeof clangd.handshake === 'object', 'expected handshake probe details');
 } finally {
-  process.env.PATH = originalPath;
+  restorePath();
 }
 
 console.log('tooling doctor command resolution report test passed');

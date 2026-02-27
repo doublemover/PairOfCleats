@@ -115,6 +115,7 @@ export const createCsharpProvider = () => ({
       targets,
       abortSignal: ctx?.abortSignal || null,
       log,
+      providerId: 'csharp-ls',
       cmd: commandProfile.resolved.cmd,
       args: commandProfile.resolved.args || requestedArgs,
       parseSignature: (detail, _lang, symbolName) => parseClikeSignature(detail, symbolName),

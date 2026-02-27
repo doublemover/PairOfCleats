@@ -127,6 +127,7 @@ export const createSolargraphProvider = () => ({
       targets,
       abortSignal: ctx?.abortSignal || null,
       log,
+      providerId: 'solargraph',
       cmd: commandProfile.resolved.cmd,
       args: ensureStdioArg(commandProfile.resolved.args || requestedArgs),
       parseSignature: parseRubySignature,

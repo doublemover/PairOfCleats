@@ -121,6 +121,7 @@ export const createElixirProvider = () => ({
       targets,
       abortSignal: ctx?.abortSignal || null,
       log,
+      providerId: 'elixir-ls',
       cmd: commandProfile.resolved.cmd,
       args: commandProfile.resolved.args || requestedArgs,
       parseSignature: parseElixirSignature,

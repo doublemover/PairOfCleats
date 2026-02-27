@@ -2,11 +2,10 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { resolveToolingCommandProfile } from '../../../src/index/tooling/command-resolver.js';
+import { prependLspTestPath } from '../../helpers/lsp-runtime.js';
 
 const root = process.cwd();
-const fixturesBin = path.join(root, 'tests', 'fixtures', 'lsp', 'bin');
-const originalPath = process.env.PATH || '';
-process.env.PATH = `${fixturesBin}${path.delimiter}${originalPath}`;
+const restorePath = prependLspTestPath({ repoRoot: root });
 
 try {
   const profile = resolveToolingCommandProfile({
@@ -25,7 +24,7 @@ try {
   );
   assert.equal(profile.resolved.mode, 'direct', 'expected direct launch mode for jdtls');
 } finally {
-  process.env.PATH = originalPath;
+  restorePath();
 }
 
 console.log('tooling doctor jdtls command profile test passed');

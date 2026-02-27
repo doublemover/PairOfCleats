@@ -30,4 +30,16 @@ assert.ok(rust, 'expected implicit rust preset provider');
 assert.equal(rust.requires?.cmd, 'rust-analyzer', 'expected rust-analyzer command default');
 assert.deepEqual(rust.languages, ['rust'], 'expected rust language default');
 
+const autoProviders = createConfiguredLspProviders({
+  autoEnableOnDetect: true,
+  lsp: {
+    enabled: true,
+    servers: []
+  }
+});
+const autoIds = new Set(autoProviders.map((provider) => provider.id));
+for (const providerId of ['gopls', 'rust-analyzer', 'yaml-language-server', 'lua-language-server', 'zls']) {
+  assert.equal(autoIds.has(providerId), true, `expected auto preset provider ${providerId}`);
+}
+
 console.log('configured LSP preset provider test passed');

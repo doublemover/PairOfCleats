@@ -127,6 +127,7 @@ export const createPhpactorProvider = () => ({
       targets,
       abortSignal: ctx?.abortSignal || null,
       log,
+      providerId: 'phpactor',
       cmd: commandProfile.resolved.cmd,
       args: ensureLanguageServerArg(commandProfile.resolved.args || requestedArgs),
       parseSignature: (detail, _lang, symbolName) => parseClikeSignature(detail, symbolName),

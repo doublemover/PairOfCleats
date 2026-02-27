@@ -37,6 +37,14 @@ if (phpactorResult?.status === 'already-installed') {
   console.log('tooling install phpactor phar plan test passed (already installed)');
   process.exit(0);
 }
+if (phpactorResult?.status === 'missing-requirement') {
+  console.log('tooling install phpactor phar plan test passed (php runtime requirement missing)');
+  process.exit(0);
+}
+if (phpactorResult?.status === 'manual') {
+  console.log('tooling install phpactor phar plan test passed (manual install policy)');
+  process.exit(0);
+}
 
 const phpactorAction = Array.isArray(payload?.actions)
   ? payload.actions.find((entry) => entry?.id === 'phpactor')

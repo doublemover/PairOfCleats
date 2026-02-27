@@ -3,7 +3,7 @@ import path from 'node:path';
 import { execaSync } from 'execa';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
-import { isAbsolutePathNative } from '../../shared/files.js';
+import { isAbsolutePathNative, toPosix } from '../../shared/files.js';
 import { atomicWriteJsonSync } from '../../shared/io/atomic-write.js';
 import { resolveToolingCommandProfile } from './command-resolver.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
@@ -89,8 +89,7 @@ const TRACKED_HEADER_PATHS_CACHE = new Map();
 const TRACKED_HEADER_DISK_CACHE = new Map();
 const TRACKED_HEADER_CACHE_FILE = 'clangd-tracked-headers-v1.json';
 
-const normalizeRepoPosixPath = (value) => String(value || '')
-  .replace(/\\/g, '/')
+const normalizeRepoPosixPath = (value) => toPosix(String(value || ''))
   .replace(/^\.\/+/, '')
   .trim();
 
@@ -581,6 +580,7 @@ export const createClangdProvider = () => ({
         targets,
         abortSignal: ctx?.abortSignal || null,
         log,
+        providerId: 'clangd',
         cmd: resolvedCmd,
         args: commandProfile.resolved.args || clangdArgs,
         documentSymbolTimeoutMs,

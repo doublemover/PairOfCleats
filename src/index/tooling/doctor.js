@@ -10,6 +10,7 @@ import { setScmRuntimeConfig } from '../scm/runtime.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { hasWorkspaceMarker, resolveWorkspaceModelCheckForCommand } from './workspace-model.js';
+import { listLspServerPresets } from './lsp-presets.js';
 import {
   probeLspInitializeHandshake,
   resolveToolingCommandProfile
@@ -18,6 +19,72 @@ import {
 const MIN_TYPESCRIPT_VERSION = '4.8.0';
 const TOOLING_DOCTOR_REPORT_SCHEMA_VERSION = 2;
 const TOOLING_DOCTOR_REPORT_FILENAME = 'tooling_doctor_report.json';
+
+const DEDICATED_LSP_PROVIDER_IDS = new Set([
+  'clangd',
+  'csharp-ls',
+  'dart',
+  'elixir-ls',
+  'haskell-language-server',
+  'jdtls',
+  'phpactor',
+  'pyright',
+  'solargraph',
+  'sourcekit'
+]);
+
+const DEDICATED_LSP_COMMANDS = new Set([
+  'clangd',
+  'csharp-ls',
+  'dart',
+  'elixir-ls',
+  'haskell-language-server',
+  'jdtls',
+  'phpactor',
+  'pyright-langserver',
+  'solargraph',
+  'sourcekit-lsp'
+]);
+
+const PRESET_LSP_IDS = new Set(
+  listLspServerPresets()
+    .map((preset) => normalizeProviderId(preset?.id))
+    .filter(Boolean)
+);
+
+const PRESET_LSP_COMMANDS = new Set(
+  listLspServerPresets()
+    .map((preset) => String(preset?.cmd || '').trim().toLowerCase())
+    .filter(Boolean)
+);
+
+const normalizeCommandToken = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const base = path.basename(raw).trim().toLowerCase();
+  return base.endsWith('.exe') ? base.slice(0, -4) : base;
+};
+
+const shouldProbeLspHandshake = ({
+  providerId,
+  requestedCmd,
+  resolvedCmd
+}) => {
+  const id = normalizeProviderId(providerId);
+  if (!id) return false;
+  if (id.startsWith('lsp-')) return true;
+  if (DEDICATED_LSP_PROVIDER_IDS.has(id)) return true;
+  if (PRESET_LSP_IDS.has(id)) return true;
+  const requestedToken = normalizeCommandToken(requestedCmd);
+  const resolvedToken = normalizeCommandToken(resolvedCmd);
+  if (DEDICATED_LSP_COMMANDS.has(requestedToken) || DEDICATED_LSP_COMMANDS.has(resolvedToken)) {
+    return true;
+  }
+  if (PRESET_LSP_COMMANDS.has(requestedToken) || PRESET_LSP_COMMANDS.has(resolvedToken)) {
+    return true;
+  }
+  return false;
+};
 
 const resolveCompileCommandsDir = (rootDir, clangdConfig) => {
   const candidates = [];
@@ -400,18 +467,12 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
             status: 'ok',
             message: `resolved ${requestedCmd} -> ${commandProfile.resolved.cmd} (${commandProfile.resolved.mode})`
           });
-          const isLspProvider = providerId === 'clangd'
-            || providerId === 'pyright'
-            || providerId === 'sourcekit'
-            || providerId === 'jdtls'
-            || providerId === 'csharp-ls'
-            || providerId === 'solargraph'
-            || providerId === 'elixir-ls'
-            || providerId === 'haskell-language-server'
-            || providerId === 'phpactor'
-            || providerId === 'dart'
-            || providerId.startsWith('lsp-');
-          if (isLspProvider && options?.probeHandshake !== false) {
+          const probeLsp = shouldProbeLspHandshake({
+            providerId,
+            requestedCmd,
+            resolvedCmd: commandProfile.resolved?.cmd || ''
+          });
+          if (probeLsp && options?.probeHandshake !== false) {
             const handshake = await probeLspInitializeHandshake({
               cmd: commandProfile.resolved.cmd,
               args: commandProfile.resolved.args || [],

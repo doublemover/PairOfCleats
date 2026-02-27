@@ -4,16 +4,16 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
 
+
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { prependLspTestPath } from '../../helpers/lsp-runtime.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'configured-lsp-gopls-profile');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 
-const fixturesBin = path.join(root, 'tests', 'fixtures', 'lsp', 'bin');
-const originalPath = process.env.PATH || '';
-process.env.PATH = `${fixturesBin}${path.delimiter}${originalPath}`;
+const restorePath = prependLspTestPath({ repoRoot: root });
 
 try {
   const virtualPath = '.poc-vfs/src/sample.cpp#seg:stub.cpp';
@@ -85,5 +85,5 @@ try {
 
   console.log('configured LSP gopls profile test passed');
 } finally {
-  process.env.PATH = originalPath;
+  restorePath();
 }

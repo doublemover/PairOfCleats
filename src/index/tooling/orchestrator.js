@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { buildLocalCacheKey } from '../../shared/cache-key.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
+import { coerceFiniteNumber } from '../../shared/number-coerce.js';
 import { selectToolingProviders } from './provider-registry.js';
 import { normalizeProviderId } from './provider-contract.js';
 import {
@@ -112,7 +113,6 @@ const normalizeProviderOutputs = ({
   output,
   targetByChunkUid,
   chunkUidByChunkId,
-  chunkUidByLegacyKey,
   strict,
   observations,
   providerId
@@ -149,17 +149,6 @@ const normalizeProviderOutputs = ({
       const chunkUid = chunkUidByChunkId.get(chunkId);
       if (!chunkUid) {
         if (strict) throw new Error(`Provider output chunkId unresolved (${chunkId}).`);
-        continue;
-      }
-      consume(chunkUid, entry);
-    }
-  }
-  if (output.byLegacyKey) {
-    const mapped = mapFromRecord(output.byLegacyKey);
-    for (const [legacyKey, entry] of mapped.entries()) {
-      const chunkUid = chunkUidByLegacyKey.get(legacyKey);
-      if (!chunkUid) {
-        if (strict) throw new Error(`Provider output legacy key unresolved (${legacyKey}).`);
         continue;
       }
       consume(chunkUid, entry);
@@ -270,38 +259,40 @@ const summarizeDegradedProviders = ({ providerDiagnostics, sourcesByChunkUid, ob
   return degradedProviders;
 };
 
-const toFiniteNumber = (value) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-};
-
 const summarizeProviderRuntime = (runtime) => ({
   capabilities: runtime?.capabilities && typeof runtime.capabilities === 'object'
     ? { ...runtime.capabilities }
     : null,
   requests: {
-    requests: toFiniteNumber(runtime?.requests?.requests),
-    succeeded: toFiniteNumber(runtime?.requests?.succeeded),
-    failed: toFiniteNumber(runtime?.requests?.failed),
-    timedOut: toFiniteNumber(runtime?.requests?.timedOut),
+    requests: coerceFiniteNumber(runtime?.requests?.requests, 0) ?? 0,
+    succeeded: coerceFiniteNumber(runtime?.requests?.succeeded, 0) ?? 0,
+    failed: coerceFiniteNumber(runtime?.requests?.failed, 0) ?? 0,
+    timedOut: coerceFiniteNumber(runtime?.requests?.timedOut, 0) ?? 0,
     latencyMs: {
-      count: toFiniteNumber(runtime?.requests?.latencyMs?.count),
-      p50: toFiniteNumber(runtime?.requests?.latencyMs?.p50),
-      p95: toFiniteNumber(runtime?.requests?.latencyMs?.p95)
+      count: coerceFiniteNumber(runtime?.requests?.latencyMs?.count, 0) ?? 0,
+      p50: coerceFiniteNumber(runtime?.requests?.latencyMs?.p50, 0) ?? 0,
+      p95: coerceFiniteNumber(runtime?.requests?.latencyMs?.p95, 0) ?? 0
     }
   },
   lifecycle: {
-    startsInWindow: toFiniteNumber(runtime?.lifecycle?.startsInWindow),
-    crashesInWindow: toFiniteNumber(runtime?.lifecycle?.crashesInWindow),
-    crashLoopTrips: toFiniteNumber(runtime?.lifecycle?.crashLoopTrips),
+    startsInWindow: coerceFiniteNumber(runtime?.lifecycle?.startsInWindow, 0) ?? 0,
+    crashesInWindow: coerceFiniteNumber(runtime?.lifecycle?.crashesInWindow, 0) ?? 0,
+    crashLoopTrips: coerceFiniteNumber(runtime?.lifecycle?.crashLoopTrips, 0) ?? 0,
     crashLoopQuarantined: runtime?.lifecycle?.crashLoopQuarantined === true,
-    fdPressureEvents: toFiniteNumber(runtime?.lifecycle?.fdPressureEvents),
+    fdPressureEvents: coerceFiniteNumber(runtime?.lifecycle?.fdPressureEvents, 0) ?? 0,
     fdPressureBackoffActive: runtime?.lifecycle?.fdPressureBackoffActive === true
   },
   guard: {
-    breakerThreshold: toFiniteNumber(runtime?.guard?.breakerThreshold),
-    consecutiveFailures: toFiniteNumber(runtime?.guard?.consecutiveFailures),
-    tripCount: toFiniteNumber(runtime?.guard?.tripCount)
+    breakerThreshold: coerceFiniteNumber(runtime?.guard?.breakerThreshold, 0) ?? 0,
+    consecutiveFailures: coerceFiniteNumber(runtime?.guard?.consecutiveFailures, 0) ?? 0,
+    tripCount: coerceFiniteNumber(runtime?.guard?.tripCount, 0) ?? 0
+  },
+  pooling: {
+    enabled: runtime?.pooling?.enabled === true,
+    reused: runtime?.pooling?.reused === true,
+    sessionKeyPresent: Boolean(runtime?.pooling?.sessionKey),
+    recycleCount: coerceFiniteNumber(runtime?.pooling?.recycleCount, 0) ?? 0,
+    ageMs: coerceFiniteNumber(runtime?.pooling?.ageMs, 0) ?? 0
   }
 });
 
@@ -369,7 +360,9 @@ const summarizeToolingMetrics = ({
     providersWithFdPressure: 0,
     breakerTripCount: 0,
     providersWithBreakerTrips: 0,
-    maxConsecutiveFailures: 0
+    maxConsecutiveFailures: 0,
+    pooledProviders: 0,
+    reusedSessionProviders: 0
   };
   const capabilityTotals = {
     providersWithCapabilitiesMask: 0,
@@ -408,6 +401,8 @@ const summarizeToolingMetrics = ({
       healthTotals.maxConsecutiveFailures,
       runtime.guard.consecutiveFailures
     );
+    if (runtime.pooling.enabled) healthTotals.pooledProviders += 1;
+    if (runtime.pooling.reused) healthTotals.reusedSessionProviders += 1;
     if (runtime.capabilities && typeof runtime.capabilities === 'object') {
       capabilityTotals.providersWithCapabilitiesMask += 1;
       if (runtime.capabilities.documentSymbol === true) capabilityTotals.documentSymbol += 1;
@@ -436,7 +431,6 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
   const targets = Array.isArray(inputs?.targets) ? inputs.targets : [];
   const targetByChunkUid = new Map();
   const chunkUidByChunkId = new Map();
-  const chunkUidByLegacyKey = new Map();
 
   const registerChunkId = (chunkId, chunkUid) => {
     if (!chunkId || !chunkUid) return;
@@ -448,13 +442,6 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
     chunkUidByChunkId.set(chunkId, chunkUid);
   };
 
-  const registerLegacyKey = (legacyKey, chunkUid) => {
-    if (!legacyKey || !chunkUid) return;
-    const existing = chunkUidByLegacyKey.get(legacyKey);
-    if (existing && existing !== chunkUid) return;
-    chunkUidByLegacyKey.set(legacyKey, chunkUid);
-  };
-
   for (const target of targets) {
     const chunkRef = target?.chunkRef || target?.chunk || null;
     if (!chunkRef || !chunkRef.chunkUid) {
@@ -463,10 +450,6 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
     }
     targetByChunkUid.set(chunkRef.chunkUid, target);
     registerChunkId(chunkRef.chunkId, chunkRef.chunkUid);
-    const legacyName = target?.symbolHint?.name || target?.name || null;
-    if (chunkRef.file && legacyName) {
-      registerLegacyKey(`${chunkRef.file}::${legacyName}`, chunkRef.chunkUid);
-    }
   }
 
   const providerPlans = selectToolingProviders({
@@ -534,7 +517,6 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
       output,
       targetByChunkUid,
       chunkUidByChunkId,
-      chunkUidByLegacyKey,
       strict,
       observations,
       providerId

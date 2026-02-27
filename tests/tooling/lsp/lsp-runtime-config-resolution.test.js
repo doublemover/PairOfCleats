@@ -8,7 +8,8 @@ const resolved = resolveLspRuntimeConfig({
     maxRetries: 3,
     lifecycle: {
       restartWindowMs: 2100,
-      maxRestartsPerWindow: 4
+      maxRestartsPerWindow: 4,
+      sessionIdleTimeoutMs: 2500
     }
   },
   globalConfigs: [{
@@ -18,7 +19,8 @@ const resolved = resolveLspRuntimeConfig({
     lifecycle: {
       lifecycleRestartWindowMs: 9000,
       lifecycleMaxRestartsPerWindow: 8,
-      lifecycleFdPressureBackoffMs: 700
+      lifecycleFdPressureBackoffMs: 700,
+      lifecycleSessionMaxLifetimeMs: 600000
     }
   }],
   defaults: {
@@ -34,6 +36,8 @@ assert.equal(resolved.breakerThreshold, 11, 'expected global breaker threshold f
 assert.equal(resolved.lifecycleRestartWindowMs, 2100, 'expected provider lifecycle restart window alias');
 assert.equal(resolved.lifecycleMaxRestartsPerWindow, 4, 'expected provider lifecycle max restarts alias');
 assert.equal(resolved.lifecycleFdPressureBackoffMs, 700, 'expected global lifecycle fd backoff fallback');
+assert.equal(resolved.sessionIdleTimeoutMs, 2500, 'expected provider session idle timeout alias');
+assert.equal(resolved.sessionMaxLifetimeMs, 600000, 'expected global session max lifetime alias');
 
 const defaultsOnly = resolveLspRuntimeConfig({
   providerConfig: null,
@@ -51,5 +55,7 @@ assert.equal(defaultsOnly.breakerThreshold, 3, 'expected breaker default');
 assert.equal(defaultsOnly.lifecycleRestartWindowMs, null, 'expected lifecycle restart window to remain unset');
 assert.equal(defaultsOnly.lifecycleMaxRestartsPerWindow, null, 'expected lifecycle max restarts to remain unset');
 assert.equal(defaultsOnly.lifecycleFdPressureBackoffMs, null, 'expected lifecycle fd backoff to remain unset');
+assert.equal(defaultsOnly.sessionIdleTimeoutMs, null, 'expected session idle timeout to remain unset');
+assert.equal(defaultsOnly.sessionMaxLifetimeMs, null, 'expected session max lifetime to remain unset');
 
 console.log('LSP runtime config resolution test passed');

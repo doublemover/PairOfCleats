@@ -6,10 +6,10 @@ import { fileURLToPath } from 'node:url';
 import { registerDefaultToolingProviders } from '../../../src/index/tooling/providers/index.js';
 import { getToolingProvider } from '../../../src/index/tooling/provider-registry.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { prependLspTestPath } from '../../helpers/lsp-runtime.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const tempRoot = resolveTestCachePath(root, 'sourcekit-package-preflight-cache');
-const fixtureBinDir = path.join(root, 'tests', 'fixtures', 'lsp', 'bin');
 const markerPath = path.join(tempRoot, '.build', 'pairofcleats', 'sourcekit-package-preflight.json');
 const counterPath = path.join(tempRoot, 'swift-preflight.counter');
 const binDir = path.join(tempRoot, 'bin');
@@ -86,11 +86,13 @@ try {
   await fs.chmod(swiftPosixPath, 0o755);
 } catch {}
 
-const originalPath = process.env.PATH;
 const originalCounter = process.env.POC_SWIFT_PREFLIGHT_COUNTER;
 const logs = [];
 
-process.env.PATH = [binDir, fixtureBinDir, path.dirname(process.execPath)].filter(Boolean).join(path.delimiter);
+const restorePath = prependLspTestPath({
+  repoRoot: root,
+  extraPrepend: [binDir, path.dirname(process.execPath)]
+});
 process.env.POC_SWIFT_PREFLIGHT_COUNTER = counterPath;
 
 try {
@@ -168,11 +170,7 @@ try {
     'expected cache-hit log after repeated run'
   );
 } finally {
-  if (originalPath == null) {
-    delete process.env.PATH;
-  } else {
-    process.env.PATH = originalPath;
-  }
+  restorePath();
   if (originalCounter == null) {
     delete process.env.POC_SWIFT_PREFLIGHT_COUNTER;
   } else {

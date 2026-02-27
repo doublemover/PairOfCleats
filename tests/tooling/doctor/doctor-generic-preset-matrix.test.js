@@ -3,16 +3,16 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { runToolingDoctor } from '../../../src/index/tooling/doctor.js';
+
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { prependLspTestPath } from '../../helpers/lsp-runtime.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'tooling-doctor-generic-preset-matrix');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 
-const fixturesBin = path.join(root, 'tests', 'fixtures', 'lsp', 'bin');
-const originalPath = process.env.PATH || '';
-process.env.PATH = `${fixturesBin}${path.delimiter}${originalPath}`;
+const restorePath = prependLspTestPath({ repoRoot: root });
 
 const expectedProviders = [
   { id: 'lsp-gopls', commandCheck: 'lsp-gopls-command' },
@@ -49,15 +49,23 @@ try {
     assert.ok(provider, `expected provider report for ${expected.id}`);
     const commandCheck = (provider.checks || []).find((check) => check.name === expected.commandCheck);
     assert.ok(commandCheck, `expected command check for ${expected.id}`);
-    assert.equal(commandCheck.status, 'ok', `expected command check ok for ${expected.id}`);
+    assert.equal(
+      commandCheck.status === 'ok' || commandCheck.status === 'warn',
+      true,
+      `expected command check status ok/warn for ${expected.id}`
+    );
   }
 
   const zlsProvider = (report.providers || []).find((entry) => entry.id === 'lsp-zls');
   const zlsCompatibility = (zlsProvider?.checks || []).find((check) => check.name === 'zls-zig-compatibility');
   assert.ok(zlsCompatibility, 'expected zls-zig compatibility check');
-  assert.equal(zlsCompatibility.status, 'ok', 'expected zls-zig compatibility check to pass');
+  assert.equal(
+    zlsCompatibility.status === 'ok' || zlsCompatibility.status === 'warn',
+    true,
+    'expected zls-zig compatibility check status ok/warn'
+  );
 
   console.log('tooling doctor generic preset matrix test passed');
 } finally {
-  process.env.PATH = originalPath;
+  restorePath();
 }

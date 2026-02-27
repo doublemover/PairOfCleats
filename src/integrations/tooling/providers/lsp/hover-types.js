@@ -320,7 +320,12 @@ const buildSourceSignatureCandidate = (text, virtualRange) => {
   }
   const lastParen = candidate.lastIndexOf(')');
   if (lastParen === -1) return null;
-  return normalizeSignatureCacheText(candidate.slice(0, lastParen + 1));
+  const trailing = candidate.slice(lastParen + 1);
+  const lineBreakIdx = trailing.search(/[\r\n]/);
+  const cut = lineBreakIdx >= 0
+    ? lastParen + 1 + lineBreakIdx
+    : candidate.length;
+  return normalizeSignatureCacheText(candidate.slice(0, cut));
 };
 
 /**
