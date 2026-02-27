@@ -7,11 +7,8 @@ import {
   coerceNumberAtLeast,
   coercePositiveInt
 } from '../../src/shared/number-coerce.js';
-import {
-  readJsonFileResolved,
-  writeJsonFileResolved
-} from '../shared/json-utils.js';
 import { resolveRepoConfig } from '../shared/dict-utils.js';
+import { emitGateResult, normalizeProviderId, resolveDoctorReportInput } from '../shared/tooling-gate-utils.js';
 
 const parseArgs = () => createCli({
   scriptName: 'pairofcleats tooling-lsp-slo-gate',
@@ -62,7 +59,7 @@ const buildProviderSamples = (doctorReport) => {
     if (!handshake) continue;
     const latencyMs = coerceNumberAtLeast(handshake.latencyMs, 0);
     rows.push({
-      providerId: String(provider.id || '').trim().toLowerCase(),
+      providerId: normalizeProviderId(provider.id),
       languages: Array.isArray(provider.languages) ? provider.languages.slice() : [],
       status: handshake.ok === true ? 'ok' : 'error',
       available: provider.available !== false,
@@ -73,38 +70,6 @@ const buildProviderSamples = (doctorReport) => {
     });
   }
   return rows;
-};
-
-const resolveDoctorReportInput = async (doctorPath) => {
-  const inputPath = path.resolve(String(doctorPath || ''));
-  const payload = await readJsonFileResolved(inputPath);
-  if (payload && Array.isArray(payload.providers)) {
-    return {
-      report: payload,
-      reportPath: inputPath,
-      inputPath
-    };
-  }
-  const reportPathRaw = String(payload?.reportPath || '').trim();
-  if (!reportPathRaw) {
-    throw new Error(
-      `doctor input missing providers/reportPath: ${inputPath}`
-    );
-  }
-  const reportPath = path.isAbsolute(reportPathRaw)
-    ? reportPathRaw
-    : path.resolve(path.dirname(inputPath), reportPathRaw);
-  const report = await readJsonFileResolved(reportPath);
-  if (!report || !Array.isArray(report.providers)) {
-    throw new Error(
-      `resolved doctor report missing providers: ${reportPath}`
-    );
-  }
-  return {
-    report,
-    reportPath: path.resolve(reportPath),
-    inputPath
-  };
 };
 
 const main = async () => {
@@ -182,18 +147,20 @@ const main = async () => {
     failures
   };
 
-  await writeJsonFileResolved(argv.json, payload, { trailingNewline: true });
-  console.error(`Tooling LSP SLO gate (${argv.mode})`);
-  console.error(`- status: ${payload.status}`);
-  console.error(`- providerSamples: ${requests}`);
-  console.error(`- timeoutRatio: ${timeoutRatio.toFixed(4)} (max ${thresholds.timeoutRatioMax.toFixed(4)})`);
-  console.error(`- fatalFailureRate: ${fatalFailureRate.toFixed(4)} (max ${thresholds.fatalFailureRateMax.toFixed(4)})`);
-  console.error(`- enrichmentCoverage: ${enrichmentCoverage.toFixed(4)} (min ${thresholds.minEnrichmentCoverage.toFixed(4)})`);
-  console.error(`- maxP95Ms: ${maxP95MsObserved.toFixed(2)} (max ${thresholds.maxP95Ms.toFixed(2)})`);
-  if (failures.length) {
-    for (const failure of failures) console.error(`  - ${failure}`);
-    process.exit(3);
-  }
+  await emitGateResult({
+    jsonPath: argv.json,
+    payload,
+    heading: `Tooling LSP SLO gate (${argv.mode})`,
+    summaryLines: [
+      `- status: ${payload.status}`,
+      `- providerSamples: ${requests}`,
+      `- timeoutRatio: ${timeoutRatio.toFixed(4)} (max ${thresholds.timeoutRatioMax.toFixed(4)})`,
+      `- fatalFailureRate: ${fatalFailureRate.toFixed(4)} (max ${thresholds.fatalFailureRateMax.toFixed(4)})`,
+      `- enrichmentCoverage: ${enrichmentCoverage.toFixed(4)} (min ${thresholds.minEnrichmentCoverage.toFixed(4)})`,
+      `- maxP95Ms: ${maxP95MsObserved.toFixed(2)} (max ${thresholds.maxP95Ms.toFixed(2)})`
+    ],
+    failures
+  });
 };
 
 main().catch((error) => {

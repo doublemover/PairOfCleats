@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../../src/shared/cli.js';
 import {
   coerceClampedFraction,
   coerceNonNegativeInt
 } from '../../../src/shared/number-coerce.js';
-import { writeJsonFileResolved } from '../../shared/json-utils.js';
+import { readJsonFileResolved } from '../../shared/json-utils.js';
+import { emitGateResult } from '../../shared/tooling-gate-utils.js';
 
 const parseArgs = () => createCli({
   scriptName: 'pairofcleats bench-language-tooling-lsp-guardrail',
@@ -63,8 +63,7 @@ const main = async () => {
     throw new Error('--report is required');
   }
   const reportPath = path.resolve(argv.report);
-  const raw = await fsPromises.readFile(reportPath, 'utf8');
-  const report = JSON.parse(raw);
+  const report = await readJsonFileResolved(reportPath);
   const reportMetrics = extractGuardrailMetrics(report);
   const summaryCoverage = reportMetrics.summaryCoverage;
   const crashRetentionCount = reportMetrics.crashRetentionCount;
@@ -110,16 +109,18 @@ const main = async () => {
     failures
   };
 
-  await writeJsonFileResolved(argv.json, payload, { trailingNewline: true });
-  console.error('bench-language tooling LSP guardrail');
-  console.error(`- status: ${payload.status}`);
-  console.error(`- summaryCoverage: ${summaryCoverage.toFixed(4)} (min ${thresholds.minSummaryCoverage.toFixed(4)})`);
-  console.error(`- crashRetentionCount: ${crashRetentionCount} (max ${thresholds.maxCrashRetention})`);
-  console.error(`- topRegressionCount: ${topRegressionCount} (max ${thresholds.maxTopRegressions})`);
-  if (failures.length) {
-    for (const failure of failures) console.error(`  - ${failure}`);
-    process.exit(3);
-  }
+  await emitGateResult({
+    jsonPath: argv.json,
+    payload,
+    heading: 'bench-language tooling LSP guardrail',
+    summaryLines: [
+      `- status: ${payload.status}`,
+      `- summaryCoverage: ${summaryCoverage.toFixed(4)} (min ${thresholds.minSummaryCoverage.toFixed(4)})`,
+      `- crashRetentionCount: ${crashRetentionCount} (max ${thresholds.maxCrashRetention})`,
+      `- topRegressionCount: ${topRegressionCount} (max ${thresholds.maxTopRegressions})`
+    ],
+    failures
+  });
 };
 
 main().catch((error) => {

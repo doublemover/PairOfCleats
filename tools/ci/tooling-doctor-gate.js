@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { getToolingConfig, resolveRepoConfig } from '../shared/dict-utils.js';
 import { registerDefaultToolingProviders } from '../../src/index/tooling/providers/index.js';
 import { runToolingDoctor } from '../../src/index/tooling/doctor.js';
 import { resolveScmConfig } from '../../src/index/scm/registry.js';
-import { writeJsonFileResolved } from '../shared/json-utils.js';
+import { readJsonFileResolvedSafe } from '../shared/json-utils.js';
+import { emitGateResult, mapProvidersById, normalizeProviderId } from '../shared/tooling-gate-utils.js';
 
 const TOOLING_DOCTOR_REPORT_FILENAME = 'tooling_doctor_report.json';
 
@@ -23,8 +23,6 @@ const parseArgs = () => createCli({
 })
   .strictOptions()
   .parse();
-
-const normalizeProviderId = (value) => String(value || '').trim().toLowerCase();
 
 /**
  * Collect deterministic gate failures from a tooling doctor report.
@@ -81,7 +79,7 @@ const collectGateFailures = (report, options = {}) => {
   }
 
   const providers = Array.isArray(report.providers) ? report.providers : [];
-  const providersById = new Map(providers.map((provider) => [normalizeProviderId(provider?.id), provider]));
+  const providersById = mapProvidersById(providers);
 
   for (const provider of providers) {
     if (!provider?.enabled) continue;
@@ -137,24 +135,6 @@ const collectGateFailures = (report, options = {}) => {
   return failures;
 };
 
-const renderSummary = (report, reportPath, failures, mode) => {
-  console.error(`Tooling doctor gate (${mode})`);
-  console.error(`- report: ${reportPath}`);
-  console.error(
-    `- summary: ${report?.summary?.status || 'unknown'} `
-    + `(errors=${Number(report?.summary?.errors) || 0}, warnings=${Number(report?.summary?.warnings) || 0})`
-  );
-  if (!failures.length) {
-    console.error('- gate: ok');
-    return;
-  }
-  console.error(`- gate: failed (${failures.length})`);
-  for (const failure of failures) {
-    const providerLabel = failure.provider ? ` [${failure.provider}]` : '';
-    console.error(`  - ${failure.code}${providerLabel}: ${failure.message}`);
-  }
-};
-
 const main = async () => {
   const argv = parseArgs();
   const mode = argv.mode;
@@ -182,11 +162,7 @@ const main = async () => {
   });
 
   const reportPath = path.join(repoRoot, TOOLING_DOCTOR_REPORT_FILENAME);
-  let report = null;
-  try {
-    const reportRaw = await fsPromises.readFile(reportPath, 'utf8');
-    report = JSON.parse(reportRaw);
-  } catch {}
+  const report = await readJsonFileResolvedSafe(reportPath, null);
   const failures = collectGateFailures(report, { requiredProviders, reportPath });
   const gatePayload = {
     mode,
@@ -202,9 +178,22 @@ const main = async () => {
     failures
   };
 
-  await writeJsonFileResolved(argv.json, gatePayload, { trailingNewline: true });
-  renderSummary(report, reportPath, failures, mode);
-  if (failures.length) process.exit(3);
+  await emitGateResult({
+    jsonPath: argv.json,
+    payload: gatePayload,
+    heading: `Tooling doctor gate (${mode})`,
+    summaryLines: [
+      `- report: ${reportPath}`,
+      `- summary: ${report?.summary?.status || 'unknown'} `
+        + `(errors=${Number(report?.summary?.errors) || 0}, warnings=${Number(report?.summary?.warnings) || 0})`,
+      `- gate: ${failures.length ? `failed (${failures.length})` : 'ok'}`
+    ],
+    failures,
+    renderFailure: (failure) => {
+      const providerLabel = failure?.provider ? ` [${failure.provider}]` : '';
+      return `${failure?.code || 'UNKNOWN'}${providerLabel}: ${failure?.message || ''}`;
+    }
+  });
 };
 
 main().catch((error) => {

@@ -1,7 +1,13 @@
 #!/usr/bin/env node
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { readJsonFileResolvedSafe, writeJsonFileResolved } from '../shared/json-utils.js';
+import { readJsonFileResolvedSafe } from '../shared/json-utils.js';
+import {
+  emitGateResult,
+  mapProvidersById,
+  normalizeProviderId,
+  resolveDoctorReportInput
+} from '../shared/tooling-gate-utils.js';
 
 const DEFAULT_POLICY_PATH = path.join('docs', 'tooling', 'lsp-default-enable-policy.json');
 
@@ -17,15 +23,22 @@ const parseArgs = () => createCli({
   .strictOptions()
   .parse();
 
-const normalizeProviderId = (value) => String(value || '').trim().toLowerCase();
-
 const main = async () => {
   const argv = parseArgs();
   const policyPath = path.resolve(argv.policy || DEFAULT_POLICY_PATH);
   const doctorPath = argv.doctor ? path.resolve(argv.doctor) : '';
   const sloPath = argv.slo ? path.resolve(argv.slo) : '';
   const policy = await readJsonFileResolvedSafe(policyPath, null);
-  const doctor = await readJsonFileResolvedSafe(doctorPath, null);
+  let doctor = null;
+  let doctorInputError = '';
+  if (doctorPath) {
+    try {
+      const doctorInput = await resolveDoctorReportInput(doctorPath);
+      doctor = doctorInput.report;
+    } catch (error) {
+      doctorInputError = String(error?.message || error);
+    }
+  }
   const slo = await readJsonFileResolvedSafe(sloPath, null);
 
   const failures = [];
@@ -33,7 +46,7 @@ const main = async () => {
     failures.push('policy file is missing or invalid');
   }
   if (!doctor || typeof doctor !== 'object') {
-    failures.push('doctor gate payload is missing or invalid');
+    failures.push(doctorInputError || 'doctor gate payload is missing or invalid');
   }
   if (!slo || typeof slo !== 'object') {
     failures.push('slo gate payload is missing or invalid');
@@ -42,11 +55,7 @@ const main = async () => {
     failures.push(`slo gate status is ${String(slo.status)}`);
   }
 
-  const doctorProviders = new Map(
-    (Array.isArray(doctor?.providers) ? doctor.providers : [])
-      .map((provider) => [normalizeProviderId(provider?.id), provider])
-      .filter(([id]) => Boolean(id))
-  );
+  const doctorProviders = mapProvidersById(doctor?.providers);
 
   const defaultEnabledProviders = [];
   const checkedProviders = [];
@@ -88,14 +97,16 @@ const main = async () => {
     failures
   };
 
-  await writeJsonFileResolved(argv.json, payload, { trailingNewline: true });
-  console.error('Tooling LSP default-enable gate');
-  console.error(`- status: ${payload.status}`);
-  console.error(`- default-enabled providers: ${payload.defaultEnabledProviderCount}`);
-  if (failures.length) {
-    for (const failure of failures) console.error(`  - ${failure}`);
-    process.exit(3);
-  }
+  await emitGateResult({
+    jsonPath: argv.json,
+    payload,
+    heading: 'Tooling LSP default-enable gate',
+    summaryLines: [
+      `- status: ${payload.status}`,
+      `- default-enabled providers: ${payload.defaultEnabledProviderCount}`
+    ],
+    failures
+  });
 };
 
 main().catch((error) => {
