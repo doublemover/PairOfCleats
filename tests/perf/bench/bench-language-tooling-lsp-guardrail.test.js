@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-bench-tooling-guardrail-'));
@@ -27,7 +28,7 @@ const scriptPath = path.join(root, 'tools', 'bench', 'language', 'tooling-lsp-gu
 const result = spawnSync(
   process.execPath,
   [scriptPath, '--report', reportPath, '--json', jsonPath],
-  { cwd: root, env: { ...process.env, PAIROFCLEATS_TESTING: '1' }, encoding: 'utf8' }
+  { cwd: root, env: applyTestEnv({ syncProcess: false }), encoding: 'utf8' }
 );
 
 if (result.status !== 0) {

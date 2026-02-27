@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-perf-budget-'));
@@ -23,7 +24,7 @@ const result = spawnSync(
   [runPath, '--lane', 'all', '--match', 'runner/harness/copy-fixture', '--json', '--perf-budget-file', budgetPath],
   {
     cwd: root,
-    env: { ...process.env, PAIROFCLEATS_TESTING: '1' },
+    env: applyTestEnv({ syncProcess: false }),
     encoding: 'utf8'
   }
 );

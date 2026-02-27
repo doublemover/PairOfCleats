@@ -31,6 +31,49 @@ export const ensureTestingEnv = (env) => {
   return env;
 };
 
+/**
+ * Temporarily apply environment overrides for the current process while running a callback.
+ *
+ * @template T
+ * @param {Record<string, string|number|boolean|undefined|null>|null} overrides
+ * @param {() => Promise<T>|T} callback
+ * @returns {Promise<T>}
+ */
+export const withTemporaryEnv = async (overrides, callback) => {
+  if (typeof callback !== 'function') {
+    throw new TypeError('withTemporaryEnv callback must be a function');
+  }
+  if (!overrides || typeof overrides !== 'object') {
+    return await callback();
+  }
+  const restore = [];
+  for (const [key, value] of Object.entries(overrides)) {
+    const hadKey = Object.prototype.hasOwnProperty.call(process.env, key);
+    const previousValue = hadKey ? process.env[key] : undefined;
+    const nextValue = value === undefined || value === null ? undefined : String(value);
+    if (nextValue === undefined && previousValue === undefined) continue;
+    if (nextValue !== undefined && previousValue === nextValue) continue;
+    restore.push([key, previousValue]);
+    if (nextValue === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = nextValue;
+    }
+  }
+  try {
+    return await callback();
+  } finally {
+    for (let i = restore.length - 1; i >= 0; i -= 1) {
+      const [key, previousValue] = restore[i];
+      if (previousValue === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = previousValue;
+      }
+    }
+  }
+};
+
 export const applyTestEnv = ({
   cacheRoot,
   embeddings,

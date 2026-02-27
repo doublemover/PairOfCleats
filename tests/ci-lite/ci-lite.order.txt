@@ -874,7 +874,6 @@ tooling/triage/ingest-sources.smoke
 indexing/segments/effective-identity-md-fence
 tooling/lsp/typescript/typescript-ambiguous-fallback-does-not-guess
 indexing/relations/segment-language-fidelity
-tooling/doctor/emits-report
 shared/runtime/thread-limits
 indexing/risk/interprocedural/summary-only-status
 indexing/tree-sitter/tree-sitter-plan-stale-file-resilience

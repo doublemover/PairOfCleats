@@ -75,13 +75,47 @@ const buildProviderSamples = (doctorReport) => {
   return rows;
 };
 
+const resolveDoctorReportInput = async (doctorPath) => {
+  const inputPath = path.resolve(String(doctorPath || ''));
+  const payload = await readJsonFileResolved(inputPath);
+  if (payload && Array.isArray(payload.providers)) {
+    return {
+      report: payload,
+      reportPath: inputPath,
+      inputPath
+    };
+  }
+  const reportPathRaw = String(payload?.reportPath || '').trim();
+  if (!reportPathRaw) {
+    throw new Error(
+      `doctor input missing providers/reportPath: ${inputPath}`
+    );
+  }
+  const reportPath = path.isAbsolute(reportPathRaw)
+    ? reportPathRaw
+    : path.resolve(path.dirname(inputPath), reportPathRaw);
+  const report = await readJsonFileResolved(reportPath);
+  if (!report || !Array.isArray(report.providers)) {
+    throw new Error(
+      `resolved doctor report missing providers: ${reportPath}`
+    );
+  }
+  return {
+    report,
+    reportPath: path.resolve(reportPath),
+    inputPath
+  };
+};
+
 const main = async () => {
   const argv = parseArgs();
   const { repoRoot } = resolveRepoConfig(argv.repo || null);
-  const doctorPath = argv.doctor
+  const doctorInputPath = argv.doctor
     ? path.resolve(argv.doctor)
     : path.join(repoRoot, 'tooling_doctor_report.json');
-  const doctorReport = await readJsonFileResolved(doctorPath);
+  const doctorInput = await resolveDoctorReportInput(doctorInputPath);
+  const doctorReport = doctorInput.report;
+  const doctorPath = doctorInput.reportPath;
   const samples = buildProviderSamples(doctorReport);
 
   const thresholds = {
@@ -130,6 +164,7 @@ const main = async () => {
     mode: argv.mode,
     generatedAt: new Date().toISOString(),
     status: failures.length ? 'error' : 'ok',
+    doctorInputPath: doctorInput.inputPath,
     doctorPath,
     sampleCount: requests,
     thresholds,

@@ -2,15 +2,17 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const script = path.join(root, 'tools', 'bench', 'index', 'postings-real.js');
 const MAX_RUNTIME_MS = 30_000;
-const env = {
-  ...process.env,
-  PAIROFCLEATS_WORKER_POOL: 'off',
-  PAIROFCLEATS_TESTING: '1'
-};
+const env = applyTestEnv({
+  syncProcess: false,
+  extraEnv: {
+    PAIROFCLEATS_WORKER_POOL: 'off'
+  }
+});
 const result = spawnSync(
   process.execPath,
   [script, '--count', '1', '--seed', 'postings-real-contract', '--mode', 'baseline', '--threads-baseline', '1'],

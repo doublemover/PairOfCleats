@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { applyTestEnv } from '../helpers/test-env.js';
 
 const ROOT = process.cwd();
 const gatePath = path.join(ROOT, 'tools', 'ci', 'tooling-lsp-default-enable-gate.js');
@@ -38,7 +39,7 @@ try {
     ],
     {
       cwd: ROOT,
-      env: { ...process.env, PAIROFCLEATS_TESTING: '1' },
+      env: applyTestEnv({ syncProcess: false }),
       encoding: 'utf8'
     }
   );

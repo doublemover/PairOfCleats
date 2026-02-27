@@ -10,6 +10,7 @@ import {
   getCacheRoot,
   resolveVersionedCacheRoot
 } from '../../../src/shared/cache-roots.js';
+import { withTemporaryEnv } from '../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -18,17 +19,10 @@ const tempRoot = resolveTestCachePath(root, 'cache-root-versioning');
 await fsp.rm(tempRoot, { recursive: true, force: true });
 await fsp.mkdir(tempRoot, { recursive: true });
 
-const savedEnv = { ...process.env };
-const restoreEnv = () => {
-  for (const key of Object.keys(process.env)) {
-    if (!(key in savedEnv)) delete process.env[key];
-  }
-  for (const [key, value] of Object.entries(savedEnv)) {
-    process.env[key] = value;
-  }
-};
-
-try {
+await withTemporaryEnv({
+  PAIROFCLEATS_CACHE_ROOT: '',
+  PAIROFCLEATS_HOME: path.join(tempRoot, 'pairofcleats-home')
+}, async () => {
   const baseRoot = path.join(tempRoot, 'pairofcleats-home');
   const cacheRoot = resolveVersionedCacheRoot(baseRoot);
   assert.ok(
@@ -53,8 +47,6 @@ try {
   await fsp.writeFile(legacySentinel, 'legacy');
   await fsp.writeFile(legacyCacheSentinel, 'legacy-cache');
 
-  process.env.PAIROFCLEATS_CACHE_ROOT = '';
-  process.env.PAIROFCLEATS_HOME = baseRoot;
   const resolved = getCacheRoot();
   assert.equal(path.resolve(resolved), path.resolve(cacheRoot), 'getCacheRoot should resolve stable cache root');
 
@@ -71,8 +63,6 @@ try {
   assert.equal(fs.existsSync(cacheRoot), false, 'cache root should be removed when includeLegacy=true');
   assert.equal(fs.existsSync(legacyRoot), false, 'legacy cache root should be removed when includeLegacy=true');
   assert.equal(fs.existsSync(baseRoot), true, 'base home root should remain after cache clear');
-} finally {
-  restoreEnv();
-}
+});
 
 console.log('cache root versioning test passed');
