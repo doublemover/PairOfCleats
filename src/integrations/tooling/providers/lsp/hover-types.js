@@ -262,6 +262,8 @@ const createHoverFileStats = () => ({
   signatureHelpSucceeded: 0,
   definitionRequested: 0,
   definitionSucceeded: 0,
+  typeDefinitionRequested: 0,
+  typeDefinitionSucceeded: 0,
   timedOut: 0,
   skippedByBudget: 0,
   skippedByKind: 0,
@@ -626,6 +628,8 @@ export const createEmptyHoverMetricsResult = () => ({
   signatureHelpSucceeded: 0,
   definitionRequested: 0,
   definitionSucceeded: 0,
+  typeDefinitionRequested: 0,
+  typeDefinitionSucceeded: 0,
   timedOut: 0,
   incompleteSymbols: 0,
   hoverTriggeredByIncomplete: 0,
@@ -657,6 +661,8 @@ export const summarizeHoverMetrics = ({ hoverMetrics, hoverLatencyMs, hoverFileS
       signatureHelpSucceeded: stats.signatureHelpSucceeded,
       definitionRequested: stats.definitionRequested,
       definitionSucceeded: stats.definitionSucceeded,
+      typeDefinitionRequested: stats.typeDefinitionRequested,
+      typeDefinitionSucceeded: stats.typeDefinitionSucceeded,
       timedOut: stats.timedOut,
       skippedByBudget: stats.skippedByBudget,
       skippedByKind: stats.skippedByKind,
@@ -682,6 +688,8 @@ export const summarizeHoverMetrics = ({ hoverMetrics, hoverLatencyMs, hoverFileS
     signatureHelpSucceeded: hoverMetrics.signatureHelpSucceeded,
     definitionRequested: hoverMetrics.definitionRequested,
     definitionSucceeded: hoverMetrics.definitionSucceeded,
+    typeDefinitionRequested: hoverMetrics.typeDefinitionRequested,
+    typeDefinitionSucceeded: hoverMetrics.typeDefinitionSucceeded,
     timedOut: hoverMetrics.timedOut,
     incompleteSymbols: hoverMetrics.incompleteSymbols,
     hoverTriggeredByIncomplete: hoverMetrics.hoverTriggeredByIncomplete,
@@ -769,7 +777,9 @@ const buildFallbackReasonCodes = ({
   signatureHelpRequested,
   signatureHelpSucceeded,
   definitionRequested,
-  definitionSucceeded
+  definitionSucceeded,
+  typeDefinitionRequested,
+  typeDefinitionSucceeded
 }) => {
   const reasons = [];
   if (incompleteState?.missingReturn) reasons.push('missing_return_type');
@@ -783,6 +793,9 @@ const buildFallbackReasonCodes = ({
   if (!definitionRequested) reasons.push('definition_not_requested');
   else if (!definitionSucceeded) reasons.push('definition_unavailable_or_failed');
   else reasons.push('post_definition_still_incomplete');
+  if (!typeDefinitionRequested) reasons.push('type_definition_not_requested');
+  else if (!typeDefinitionSucceeded) reasons.push('type_definition_unavailable_or_failed');
+  else reasons.push('post_type_definition_still_incomplete');
   return reasons;
 };
 
@@ -791,12 +804,12 @@ const buildFallbackReasonCodes = ({
  *
  * Fallback semantics:
  * 1. documentSymbol errors are soft-failed per document.
- * 2. hover/signatureHelp/definition requests are deduped by position and can be suppressed by:
+ * 2. hover/signatureHelp/definition/typeDefinition requests are deduped by
+ *    position and can be suppressed by:
  *    return-type sufficiency, kind filters, per-file budget, adaptive timeout,
  *    or global timeout circuit.
- * 3. source-signature fallback runs only after hover/signatureHelp/definition
- *    attempts
- *    still leave the payload incomplete.
+ * 3. source-signature fallback runs only after hover/signatureHelp/definition/
+ *    typeDefinition attempts still leave the payload incomplete.
  * 4. strict mode throws only when resolved symbol data cannot be mapped to a
  *    chunk uid.
  *
@@ -823,6 +836,7 @@ export const processDocumentTypes = async ({
   hoverEnabled,
   signatureHelpEnabled,
   definitionEnabled,
+  typeDefinitionEnabled,
   hoverRequireMissingReturn,
   resolvedHoverKinds,
   resolvedHoverMaxPerFile,
@@ -830,10 +844,12 @@ export const processDocumentTypes = async ({
   resolvedHoverTimeout,
   resolvedSignatureHelpTimeout,
   resolvedDefinitionTimeout,
+  resolvedTypeDefinitionTimeout,
   resolvedDocumentSymbolTimeout,
   hoverLimiter,
   signatureHelpLimiter,
   definitionLimiter,
+  typeDefinitionLimiter,
   hoverCacheEntries,
   markHoverCacheDirty,
   hoverControl,
@@ -923,6 +939,7 @@ export const processDocumentTypes = async ({
     const hoverRequestByPosition = new Map();
     const signatureHelpRequestByPosition = new Map();
     const definitionRequestByPosition = new Map();
+    const typeDefinitionRequestByPosition = new Map();
     const symbolRecords = [];
 
     const requestHover = (symbol, position) => {
@@ -1111,6 +1128,65 @@ export const processDocumentTypes = async ({
       return promise;
     };
 
+    const requestTypeDefinition = (symbol, position) => {
+      throwIfAborted(abortSignal);
+      const key = `${Math.floor(position.line)}:${Math.floor(position.character)}`;
+      if (typeDefinitionRequestByPosition.has(key)) return typeDefinitionRequestByPosition.get(key);
+      const runTypeDefinition = typeof typeDefinitionLimiter === 'function'
+        ? typeDefinitionLimiter
+        : hoverLimiter;
+      const promise = (async () => {
+        const timeoutOverride = Number.isFinite(resolvedTypeDefinitionTimeout)
+          ? resolvedTypeDefinitionTimeout
+          : null;
+        fileHoverStats.typeDefinitionRequested += 1;
+        hoverMetrics.typeDefinitionRequested += 1;
+        try {
+          throwIfAborted(abortSignal);
+          const payload = await runTypeDefinition(() => runGuarded(
+            ({ timeoutMs: guardTimeout }) => client.request('textDocument/typeDefinition', {
+              textDocument: { uri },
+              position
+            }, { timeoutMs: guardTimeout }),
+            { label: 'typeDefinition', ...(timeoutOverride ? { timeoutOverride } : {}) }
+          ));
+          const locations = extractDefinitionLocations(payload);
+          if (!locations.length) return null;
+          const definitionUris = new Set([String(uri || '')]);
+          if (legacyUri) definitionUris.add(String(legacyUri));
+          for (const location of locations) {
+            if (!definitionUris.has(String(location?.uri || ''))) continue;
+            const locationOffsets = rangeToOffsets(lineIndex, location?.range || null);
+            let candidate = buildSourceSignatureCandidate(
+              openEntry?.text || doc.text || '',
+              locationOffsets
+            );
+            if (!candidate) {
+              const fallbackLine = Number(location?.range?.start?.line);
+              candidate = buildLineSignatureCandidate(openEntry?.text || doc.text || '', fallbackLine);
+            }
+            const info = parseSignatureCached(candidate, symbol?.name);
+            if (info) {
+              fileHoverStats.typeDefinitionSucceeded += 1;
+              hoverMetrics.typeDefinitionSucceeded += 1;
+              return info;
+            }
+          }
+          return null;
+        } catch (err) {
+          if (err?.code === 'ABORT_ERR') throw err;
+          if (err?.code === 'TOOLING_CIRCUIT_OPEN') {
+            recordCircuitOpenCheck({ cmd, guard, checks, checkFlags });
+          } else if (err?.code === 'TOOLING_CRASH_LOOP') {
+            recordCrashLoopCheck({ cmd, checks, checkFlags, detail: err?.detail || null });
+          }
+          return null;
+        }
+      })();
+      typeDefinitionRequestByPosition.set(key, promise);
+      return promise;
+    };
+
     for (const symbol of flattened) {
       throwIfAborted(abortSignal);
       const offsets = rangeToOffsets(lineIndex, symbol.selectionRange || symbol.range);
@@ -1143,7 +1219,8 @@ export const processDocumentTypes = async ({
 
       const requestBudgetCount = Number(fileHoverStats.requested || 0)
         + Number(fileHoverStats.signatureHelpRequested || 0)
-        + Number(fileHoverStats.definitionRequested || 0);
+        + Number(fileHoverStats.definitionRequested || 0)
+        + Number(fileHoverStats.typeDefinitionRequested || 0);
       const fileOverBudget = Number.isFinite(resolvedHoverMaxPerFile)
         && resolvedHoverMaxPerFile >= 0
         && requestBudgetCount >= resolvedHoverMaxPerFile;
@@ -1202,6 +1279,15 @@ export const processDocumentTypes = async ({
           && !adaptiveDisabled
           && position != null
           && !sourceSignature
+        ),
+        typeDefinitionEligible: (
+          typeDefinitionEnabled
+          && needsHover
+          && symbolKindAllowed
+          && !fileOverBudget
+          && !adaptiveDisabled
+          && position != null
+          && !sourceSignature
         )
       });
     }
@@ -1215,6 +1301,8 @@ export const processDocumentTypes = async ({
       let signatureHelpRequested = false;
       let definitionSucceeded = false;
       let definitionRequested = false;
+      let typeDefinitionSucceeded = false;
+      let typeDefinitionRequested = false;
       if (record.hoverPromise) {
         const hoverInfo = await record.hoverPromise;
         if (hoverInfo) {
@@ -1249,17 +1337,30 @@ export const processDocumentTypes = async ({
       const incompleteAfterDefinition = isIncompleteTypePayload(info, {
         symbolKind: record?.symbol?.kind
       });
-      if (incompleteAfterDefinition.incomplete && record.sourceSignature) {
+      if (incompleteAfterDefinition.incomplete && record.typeDefinitionEligible) {
+        typeDefinitionRequested = true;
+        const typeDefinitionInfo = await requestTypeDefinition(record.symbol, record.position);
+        if (typeDefinitionInfo) {
+          typeDefinitionSucceeded = true;
+          info = mergeSignatureInfo(info, typeDefinitionInfo, { symbolKind: record?.symbol?.kind });
+        }
+      }
+      const incompleteAfterTypeDefinition = isIncompleteTypePayload(info, {
+        symbolKind: record?.symbol?.kind
+      });
+      if (incompleteAfterTypeDefinition.incomplete && record.sourceSignature) {
         const sourceInfo = parseSignatureCached(record.sourceSignature, record?.symbol?.name);
         if (sourceInfo) {
           const fallbackReasons = buildFallbackReasonCodes({
-            incompleteState: incompleteAfterDefinition,
+            incompleteState: incompleteAfterTypeDefinition,
             hoverRequested: record.hoverRequested === true,
             hoverSucceeded,
             signatureHelpRequested,
             signatureHelpSucceeded,
             definitionRequested,
-            definitionSucceeded
+            definitionSucceeded,
+            typeDefinitionRequested,
+            typeDefinitionSucceeded
           });
           recordFallbackReasons(hoverMetrics, fallbackReasons);
           info = mergeSignatureInfo(info, sourceInfo, { symbolKind: record?.symbol?.kind });

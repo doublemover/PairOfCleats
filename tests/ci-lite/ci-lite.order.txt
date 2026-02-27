@@ -666,6 +666,7 @@ tooling/lsp/lsp-param-fallback-from-source
 tooling/lsp/lsp-hover-merge-quality
 tooling/lsp/lsp-signature-help-fallback
 tooling/lsp/lsp-definition-fallback
+tooling/lsp/lsp-type-definition-fallback
 tooling/lsp/lsp-signature-quality-score
 indexing/chunking/json
 tooling/reports/capabilities-report
