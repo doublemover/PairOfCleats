@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
 import { spawnSubprocess } from '../../src/shared/subprocess.js';
-import { getRuntimeConfig, loadUserConfig, resolveRuntimeEnv } from '../shared/dict-utils.js';
+import { getRuntimeConfig, getToolingDir, loadUserConfig, resolveRuntimeEnv } from '../shared/dict-utils.js';
 import { USR_GUARDRAIL_GATES, validateUsrGuardrailGates } from './usr/guardrails.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -12,6 +12,7 @@ const DEFAULT_DIAGNOSTICS = path.join(ROOT, '.diagnostics');
 const DEFAULT_LOG_DIR = path.join(ROOT, '.testLogs');
 const DEFAULT_JUNIT = path.join(DEFAULT_LOG_DIR, 'junit.xml');
 const DEFAULT_CACHE_ROOT = path.join(ROOT, '.ci-cache', 'pairofcleats');
+const LSP_FIXTURE_BIN = path.join(ROOT, 'tests', 'fixtures', 'lsp', 'bin');
 
 const npmCommand = process.platform === 'win32' ? 'cmd' : 'npm';
 const npmPrefix = process.platform === 'win32' ? ['/c', 'npm'] : [];
@@ -35,6 +36,26 @@ const isCi = () => Boolean(process.env.CI || process.env.GITHUB_ACTIONS);
 
 const withDefaults = (env, key, value) => {
   if (env[key] === undefined || env[key] === '') env[key] = value;
+};
+
+const prependPathEntry = (env, entry) => {
+  const value = String(entry || '').trim();
+  if (!value) return;
+  if (env.PATH) {
+    env.PATH = `${value}${path.delimiter}${env.PATH}`;
+  } else {
+    env.PATH = value;
+  }
+};
+
+const appendPathEntry = (env, entry) => {
+  const value = String(entry || '').trim();
+  if (!value) return;
+  if (env.PATH) {
+    env.PATH = `${env.PATH}${path.delimiter}${value}`;
+  } else {
+    env.PATH = value;
+  }
 };
 
 const buildSuiteEnv = (mode) => {
@@ -113,6 +134,8 @@ const main = async () => {
   const baseLane = argv.lane || (mode === 'nightly' ? 'ci' : 'ci-lite');
   const baseEnv = buildSuiteEnv(mode);
   const userConfig = loadUserConfig(ROOT);
+  prependPathEntry(baseEnv, path.join(getToolingDir(ROOT, userConfig), 'bin'));
+  appendPathEntry(baseEnv, LSP_FIXTURE_BIN);
   const runtimeConfig = getRuntimeConfig(ROOT, userConfig);
   const env = resolveRuntimeEnv(runtimeConfig, baseEnv);
 
@@ -124,6 +147,9 @@ const main = async () => {
   }
   const capabilityJson = path.join(diagnosticsDir, 'capabilities.json');
   const toolingDoctorJson = path.join(diagnosticsDir, 'tooling-doctor-gate.json');
+  const toolingLspSloJson = path.join(diagnosticsDir, 'tooling-lsp-slo-gate.json');
+  const toolingLspDefaultEnableJson = path.join(diagnosticsDir, 'tooling-lsp-default-enable-gate.json');
+  const toolingLspGuardrailJson = path.join(diagnosticsDir, 'tooling-lsp-guardrail.json');
   validateUsrGuardrailGates();
 
   if (!argv['dry-run']) {
@@ -167,6 +193,43 @@ const main = async () => {
       label: 'Tooling doctor gate',
       command: process.execPath,
       args: ['tools/ci/tooling-doctor-gate.js', '--mode', mode, '--json', toolingDoctorJson]
+    },
+    {
+      label: 'Tooling LSP SLO gate',
+      command: process.execPath,
+      args: [
+        'tools/ci/tooling-lsp-slo-gate.js',
+        '--mode',
+        mode,
+        '--doctor',
+        toolingDoctorJson,
+        '--json',
+        toolingLspSloJson
+      ]
+    },
+    {
+      label: 'Tooling LSP default-enable gate',
+      command: process.execPath,
+      args: [
+        'tools/ci/tooling-lsp-default-enable-gate.js',
+        '--json',
+        toolingLspDefaultEnableJson,
+        '--doctor',
+        toolingDoctorJson,
+        '--slo',
+        toolingLspSloJson
+      ]
+    },
+    {
+      label: 'Tooling LSP bench guardrail',
+      command: process.execPath,
+      args: [
+        'tools/bench/language/tooling-lsp-guardrail.js',
+        '--report',
+        toolingLspSloJson,
+        '--json',
+        toolingLspGuardrailJson
+      ]
     },
     ...buildUsrGateSteps(diagnosticsDir),
     {

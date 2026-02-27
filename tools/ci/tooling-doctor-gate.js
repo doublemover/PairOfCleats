@@ -6,6 +6,7 @@ import { getToolingConfig, resolveRepoConfig } from '../shared/dict-utils.js';
 import { registerDefaultToolingProviders } from '../../src/index/tooling/providers/index.js';
 import { runToolingDoctor } from '../../src/index/tooling/doctor.js';
 import { resolveScmConfig } from '../../src/index/scm/registry.js';
+import { writeJsonFileResolved } from '../shared/json-utils.js';
 
 const TOOLING_DOCTOR_REPORT_FILENAME = 'tooling_doctor_report.json';
 
@@ -154,13 +155,6 @@ const renderSummary = (report, reportPath, failures, mode) => {
   }
 };
 
-const writeGateJson = async (jsonPath, payload) => {
-  if (!jsonPath) return;
-  const resolved = path.resolve(jsonPath);
-  await fsPromises.mkdir(path.dirname(resolved), { recursive: true });
-  await fsPromises.writeFile(resolved, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
-};
-
 const main = async () => {
   const argv = parseArgs();
   const mode = argv.mode;
@@ -208,7 +202,7 @@ const main = async () => {
     failures
   };
 
-  await writeGateJson(argv.json, gatePayload);
+  await writeJsonFileResolved(argv.json, gatePayload, { trailingNewline: true });
   renderSummary(report, reportPath, failures, mode);
   if (failures.length) process.exit(3);
 };

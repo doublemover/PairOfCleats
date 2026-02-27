@@ -498,6 +498,7 @@ indexing/vfs/vfs-manifest-streaming
 indexing/watch/promotion/promotion-safety
 shared/artifact-io/varint-safe-bounds
 storage/sqlite/bundle-dims-mismatch
+storage/sqlite/sqlite-bundle-shard-splitting
 storage/sqlite/sqlite-chunk-meta-meta-fallback
 indexing/artifacts/sharded-meta/sharded-meta-manifest-consistency
 lang/typescript/typescript-imports-only
@@ -578,7 +579,7 @@ storage/sqlite/sqlite-fts-contentless-schema
 indexing/artifacts/minhash-packed-bench-contract
 indexing/postings/chargram-rolling-hash
 shared/artifact-io/broken-offsets-fallback
-tooling/providers/provider-registry-normalizes-legacy-keys
+tooling/providers/provider-registry-ignores-legacy-keys
 retrieval/ann/hnsw-insert-failures
 tooling/providers/provider-registry-ordering
 indexing/artifacts/manifest/report-artifacts-manifest-driven
@@ -605,7 +606,6 @@ tooling/lsp/lsp-fd-pressure-backoff-contract
 tooling/lsp/lsp-runtime-config-resolution
 tooling/lsp/lsp-configured-provider-go-rust-signature-parsing
 tooling/lsp/lsp-configured-provider-yaml-schema-override-merge
-tooling/lsp/lsp-configured-provider-gopls-workspace-diagnostics
 tooling/lsp/lsp-configured-provider-lua-workspace-library
 tooling/lsp/lsp-configured-provider-rust-proc-macro-diagnostic-suppression
 storage/sqlite/reader-schema-mismatch
@@ -653,6 +653,9 @@ workspace/windows-path-canonicalization-contract
 shared/artifact-io/jsonl-fuzz
 tooling/paths/explicit-repo-root-arg
 ci/suite-runner.smoke
+ci/tooling-lsp-slo-gate.smoke
+ci/tooling-lsp-default-enable-gate.smoke
+perf/bench/bench-language-tooling-lsp-guardrail
 tooling/vfs/vfs-partial-lsp-open
 retrieval/cache/query-cache-signature-sharded-chunk-meta
 storage/sqlite/sqlite-jsonl-streaming-gzip
@@ -806,6 +809,8 @@ tooling/lsp/dart-provider-workspace-guard
 tooling/lsp/dart-provider-command-fallback
 tooling/lsp/lsp-provider-metrics-envelope-aggregate
 tooling/lsp/dart-provider-process-reuse
+tooling/lsp/lsp-session-pool-reuse
+tooling/lsp/lsp-session-pool-max-lifetime-recycle
 tooling/doctor/doctor-runtime-requirements-dart-dedicated
 tooling/doctor/doctor-workspace-model-dart-detection
 tooling/doctor/doctor-dedicated-provider-handshake-fixtures
@@ -825,6 +830,7 @@ tooling/vfs/vfs-invalid-virtual-range-regression
 tooling/doctor/doctor-detects-missing-typescript
 tooling/config/config-dump
 tooling/config/tooling-config-lsp-lifecycle-and-dedicated-passthrough
+tooling/config/tooling-config-load-preserves-lsp-and-dedicated
 tooling/triage/decision
 tooling/doctor/doctor-scm-none-annotate-disabled
 services/snapshots/concurrent-registry-writers
@@ -891,10 +897,14 @@ indexing/language-fixture/chunk-meta-exists
 lang/contracts/go
 lang/contracts/javascript
 lang/contracts/misc-buildfiles
-tooling/reports/summary/summary-report
 indexing/language-fixture/postings-integrity
 lang/contracts/sql
-tooling/install/tooling-detect
+tooling/install/tooling-detect-generic-lsp-tools
+tooling/install/tooling-detect-dedicated-lsp-tools
+tooling/install/tooling-detect-global-bin-fallbacks
+tooling/install/tooling-install-dotnet-requirement-probe
+tooling/install/tooling-install-go-requirement-probe
+tooling/install/tooling-install-phpactor-phar-plan
 lang/contracts/python
 lang/contracts/typescript
 retrieval/contracts/result-shape

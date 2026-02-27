@@ -1,4 +1,5 @@
 tooling/lsp/pyright-provider-output-shape
+tooling/lsp/lsp-configured-provider-gopls-workspace-diagnostics
 tooling/config-inventory/schema-scan
 indexing/watch/watch-filter
 indexing/watch/watch-backend-selection
@@ -22,6 +23,7 @@ retrieval/federation/path-redaction-diagnostic-message
 retrieval/federation/non-strict-propagates-hard-failure
 retrieval/federation/select-object-only-no-cache-fragmentation
 tooling/install/setup-index-detection
+tooling/install/tooling-detect
 indexing/watch/watch-shutdown
 tooling/config-inventory/report-format
 retrieval/federation/workspace-config-snapshot
@@ -103,8 +105,7 @@ lang/rust/prose-rust-exclusion
 services/api/core-api
 indexing/embeddings/build/build-embeddings-cache
 shared/encoding/unicode-offset
-tooling/reports/summary/summary-report-compare-memory
-tooling/reports/summary/summary-report-compare-sqlite
+tooling/reports/summary/summary-report
 cli/search/search-windows-path-filter
 indexer/call-sites/call-sites-determinism
 indexing/tree-sitter/js-tree-sitter-maxbytes

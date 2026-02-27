@@ -10,6 +10,8 @@ indexing/map/code-map-performance
 storage/sqlite/sqlite-incremental-no-change
 indexing/incremental/incremental-cache-signature
 indexing/chunking/formats/format-fidelity
+tooling/reports/summary/summary-report-compare-memory
+tooling/reports/summary/summary-report-compare-sqlite
 storage/sqlite/sqlite-auto-backend
 storage/sqlite/ann/sqlite-ann-fallback
 indexing/runtime/two-stage-state
