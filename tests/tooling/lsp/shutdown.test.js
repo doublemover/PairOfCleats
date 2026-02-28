@@ -18,7 +18,7 @@ try {
   await client.shutdownAndExit();
   await sleep(200);
 } finally {
-  client.kill();
+  await Promise.resolve(client.kill());
 }
 
 if (logs.some((line) => line.includes('ERR_STREAM_DESTROYED'))) {

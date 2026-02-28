@@ -244,6 +244,12 @@ export function createLspClient(options) {
   const reapStaleChildProcess = (child, reason = 'stale_child') => {
     if (!child || reapedChildren.has(child) || !isChildRunning(child)) return;
     reapedChildren.add(child);
+    killChildProcessTree(child, {
+      killTree: true,
+      detached: killTreeDetached,
+      graceMs: 0,
+      awaitGrace: true
+    }).catch(() => {});
     try {
       if (child.stdin) closeJsonRpcWriter(child.stdin);
     } catch {}
@@ -253,15 +259,6 @@ export function createLspClient(options) {
     try {
       child.stderr?.destroy();
     } catch {}
-    try {
-      child.kill();
-    } catch {}
-    killChildProcessTree(child, {
-      killTree: true,
-      detached: killTreeDetached,
-      graceMs: 0,
-      awaitGrace: true
-    }).catch(() => {});
     setTimeout(() => {
       if (isChildRunning(child)) {
         try {
@@ -433,12 +430,15 @@ export function createLspClient(options) {
     parser = childParser;
     writer = getJsonRpcWriter(child.stdin);
     writerClosed = false;
-    const markWriterClosed = () => {
+    const markTransportClosed = (reason = 'transport_closed') => {
       if (proc !== child || childGen !== generation) return;
       if (!writerClosed) rejectPendingTransportClosed();
       writerClosed = true;
       if (child?.stdin) closeJsonRpcWriter(child.stdin);
-      reapStaleChildProcess(child, 'writer_closed');
+      reapStaleChildProcess(child, reason);
+    };
+    const markWriterClosed = () => {
+      markTransportClosed('writer_closed');
     };
     child.stdin?.on('close', markWriterClosed);
     child.stdin?.on('error', markWriterClosed);
@@ -449,11 +449,12 @@ export function createLspClient(options) {
     child.stdout?.on('close', () => {
       if (proc !== child || childGen !== generation) return;
       log('[lsp] reader closed');
-      rejectPendingTransportClosed();
+      markTransportClosed('reader_closed');
     });
     child.stdout?.on('error', (err) => {
       if (proc !== child || childGen !== generation) return;
       log(`[lsp] stdout error: ${err?.message || err}`);
+      markTransportClosed('reader_error');
     });
     child.stderr.on('data', (chunk) => {
       if (proc !== child || childGen !== generation) return;
@@ -498,6 +499,12 @@ export function createLspClient(options) {
     });
     child.on('exit', (code, signal) => {
       if (proc !== child || childGen !== generation) return;
+      killChildProcessTree(child, {
+        killTree: true,
+        detached: killTreeDetached,
+        graceMs: 0,
+        awaitGrace: false
+      }).catch(() => {});
       rejectPending(new Error(`LSP exited (${code ?? 'null'}, ${signal ?? 'null'}).`));
       proc = null;
       childParser?.dispose();
@@ -518,9 +525,18 @@ export function createLspClient(options) {
     return child;
   };
 
-  const request = (method, params, { timeoutMs } = {}) => {
+  const request = (method, params, {
+    timeoutMs,
+    startIfNeeded = true
+  } = {}) => {
     try {
-      start();
+      if (startIfNeeded) {
+        start();
+      } else if (!isTransportRunning()) {
+        const transportError = new Error(`LSP transport unavailable (${method}).`);
+        transportError.code = 'ERR_LSP_TRANSPORT_CLOSED';
+        return Promise.reject(transportError);
+      }
     } catch (err) {
       return Promise.reject(err);
     }
@@ -596,22 +612,30 @@ export function createLspClient(options) {
 
   const shutdownAndExit = async () => {
     if (!proc) return;
-    try {
-      await request('shutdown', null, { timeoutMs: 5000 });
-    } catch {}
-    if (!writerClosed) {
-      notify('exit', null, { startIfNeeded: false });
+    if (isTransportRunning()) {
+      try {
+        await request('shutdown', null, { timeoutMs: 5000, startIfNeeded: false });
+      } catch {}
+      if (!writerClosed) {
+        notify('exit', null, { startIfNeeded: false });
+      }
     }
     const current = proc;
     const currentGen = generation;
     setTimeout(() => {
-      if (proc === current && generation === currentGen) kill();
+      if (proc === current && generation === currentGen) void Promise.resolve(kill());
     }, 2500).unref?.();
   };
 
   const kill = () => {
     if (!proc) return;
     const current = proc;
+    const terminatePromise = killChildProcessTree(current, {
+      killTree: true,
+      detached: killTreeDetached,
+      graceMs: 0,
+      awaitGrace: true
+    }).catch(() => {});
     rejectPendingTransportClosed();
     if (current.stdin) closeJsonRpcWriter(current.stdin);
     try {
@@ -621,15 +645,6 @@ export function createLspClient(options) {
       current.stderr?.destroy();
     } catch {}
     parser?.dispose();
-    try {
-      current.kill();
-    } catch {}
-    killChildProcessTree(current, {
-      killTree: true,
-      detached: killTreeDetached,
-      graceMs: 0,
-      awaitGrace: true
-    }).catch(() => {});
     try {
       current.unref?.();
     } catch {}
@@ -650,6 +665,7 @@ export function createLspClient(options) {
       kind: 'kill',
       pid: Number.isFinite(Number(current?.pid)) ? Number(current.pid) : null
     });
+    return terminatePromise;
   };
 
   return {

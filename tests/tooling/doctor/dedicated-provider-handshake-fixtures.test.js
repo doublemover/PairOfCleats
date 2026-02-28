@@ -15,6 +15,7 @@ await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 
 const restorePath = prependLspTestPath({ repoRoot: root });
+let skipReason = null;
 
 try {
   registerDefaultToolingProviders();
@@ -71,13 +72,16 @@ try {
     }
   }
   if (probeSuccessCount === 0) {
-    skip('Skipping dedicated provider handshake test; no provider command probes succeeded.');
-  }
-  if (handshakeSuccessCount === 0) {
-    skip('Skipping dedicated provider handshake test; no provider completed initialize handshake.');
+    skipReason = 'Skipping dedicated provider handshake test; no provider command probes succeeded.';
+  } else if (handshakeSuccessCount === 0) {
+    skipReason = 'Skipping dedicated provider handshake test; no provider completed initialize handshake.';
   }
 } finally {
   await restorePath();
+}
+
+if (skipReason) {
+  skip(skipReason);
 }
 
 console.log('tooling doctor dedicated provider handshake fixtures test passed');

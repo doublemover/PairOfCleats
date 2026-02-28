@@ -13,6 +13,7 @@ import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { hasWorkspaceMarker, resolveWorkspaceModelCheckForCommand } from './workspace-model.js';
 import { listLspServerPresets } from './lsp-presets.js';
 import {
+  isProbeCommandDefinitelyMissing,
   probeLspInitializeHandshake,
   resolveToolingCommandProfile
 } from './command-resolver.js';
@@ -465,7 +466,10 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
           toolingConfig
         });
         providerReport.command = commandProfile;
-        if (!commandProfile.probe.ok) {
+        const probeOk = commandProfile.probe?.ok === true;
+        const commandDefinitelyMissing = !probeOk
+          && isProbeCommandDefinitelyMissing(commandProfile.probe);
+        if (!probeOk && commandDefinitelyMissing) {
           providerAvailable = false;
           addCheck({
             name: `${providerId}-command`,
@@ -473,12 +477,21 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
             message: `${requestedCmd} binary not available.`
           });
         } else {
+          if (!probeOk) {
+            addCheck({
+              name: `${providerId}-command`,
+              status: 'warn',
+              message: `${requestedCmd} command probe inconclusive; runtime handshake will still be attempted.`
+            });
+          }
           const commandToken = normalizeCommandToken(commandProfile.resolved?.cmd || requestedCmd);
-          addCheck({
-            name: `${providerId}-command`,
-            status: 'ok',
-            message: `resolved ${requestedCmd} -> ${commandProfile.resolved.cmd} (${commandProfile.resolved.mode})`
-          });
+          if (probeOk) {
+            addCheck({
+              name: `${providerId}-command`,
+              status: 'ok',
+              message: `resolved ${requestedCmd} -> ${commandProfile.resolved.cmd} (${commandProfile.resolved.mode})`
+            });
+          }
           const probeLsp = shouldProbeLspHandshake({
             providerId,
             requestedCmd,
@@ -525,11 +538,20 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
                 command: requirement.cmd,
                 profile: requirementProfile
               });
-              if (!requirementProfile.probe.ok) {
+              const requirementProbeOk = requirementProfile.probe?.ok === true;
+              const requirementMissing = !requirementProbeOk
+                && isProbeCommandDefinitelyMissing(requirementProfile.probe);
+              if (!requirementProbeOk && requirementMissing) {
                 addCheck({
                   name: `${providerId}-runtime-${requirement.id}`,
                   status: missingBinaryStatus,
                   message: `${requirement.label} not available for ${requestedCmd}.`
+                });
+              } else if (!requirementProbeOk) {
+                addCheck({
+                  name: `${providerId}-runtime-${requirement.id}`,
+                  status: 'warn',
+                  message: `${requirement.label} probe inconclusive for ${requestedCmd}.`
                 });
               } else {
                 addCheck({

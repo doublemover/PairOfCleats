@@ -69,16 +69,41 @@ export function prependLspTestPath(options = {}) {
  * @param {{reason?:string}} [options]
  * @returns {Promise<void>}
  */
-export async function cleanupLspTestRuntime({ reason = 'lsp_test_cleanup' } = {}) {
+export async function cleanupLspTestRuntime({ reason = 'lsp_test_cleanup', strict = false } = {}) {
+  const summary = {
+    poolResetOk: true,
+    poolResetError: null,
+    trackedCleanup: null,
+    trackedCleanupError: null
+  };
   try {
-    __testLspSessionPool.killAllNow();
-  } catch {}
+    if (typeof __testLspSessionPool.reset === 'function') {
+      await __testLspSessionPool.reset();
+    } else {
+      __testLspSessionPool.killAllNow();
+    }
+  } catch (error) {
+    summary.poolResetOk = false;
+    summary.poolResetError = error;
+  }
   try {
-    await terminateTrackedSubprocesses({
+    summary.trackedCleanup = await terminateTrackedSubprocesses({
       reason,
       force: true
     });
-  } catch {}
+  } catch (error) {
+    summary.trackedCleanupError = error;
+  }
+  if (strict && (!summary.poolResetOk || summary.trackedCleanupError)) {
+    const details = [
+      !summary.poolResetOk ? `poolReset=${summary.poolResetError?.message || summary.poolResetError}` : null,
+      summary.trackedCleanupError
+        ? `trackedCleanup=${summary.trackedCleanupError?.message || summary.trackedCleanupError}`
+        : null
+    ].filter(Boolean).join(', ');
+    throw new Error(`LSP test runtime cleanup failed (${details || 'unknown reason'})`);
+  }
+  return summary;
 }
 
 /**

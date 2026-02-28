@@ -546,6 +546,13 @@ export const __resolveToolingProbeTimeoutMsForTests = (input = {}) => resolvePro
  * @returns {boolean}
  */
 export const isProbeCommandDefinitelyMissing = (probe) => {
+  if (
+    probe
+    && Object.prototype.hasOwnProperty.call(probe, 'resolvedPath')
+    && !probe.resolvedPath
+  ) {
+    return true;
+  }
   const attempts = Array.isArray(probe?.attempted) ? probe.attempted : [];
   if (!attempts.length) return false;
   let sawMissingSignal = false;
@@ -708,6 +715,6 @@ export const probeLspInitializeHandshake = async (input) => {
       errorMessage: summarizeProbeText(err?.message || err, 240) || 'initialize handshake failed'
     };
   } finally {
-    client.kill();
+    await Promise.resolve(client.kill());
   }
 };

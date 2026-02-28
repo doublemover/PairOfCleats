@@ -65,18 +65,18 @@ try {
   assert.equal(spawnedChildren.length, 1, 'expected initial fake child spawn');
 
   const firstChild = spawnedChildren[0];
-  firstChild.stdin.emit('close');
+  firstChild.stdout.emit('close');
   await sleep(25);
 
   await startWithBackoffRetry();
-  assert.equal(spawnedChildren.length, 2, 'expected replacement child spawn after stale writer close');
+  assert.equal(spawnedChildren.length, 2, 'expected replacement child spawn after stale reader close');
 
   const reapEvent = lifecycleEvents.find(
-    (event) => event.kind === 'reap' && String(event.reason || '').startsWith('writer_closed')
+    (event) => event.kind === 'reap' && String(event.reason || '').startsWith('reader_closed')
   );
-  assert.ok(reapEvent, 'expected writer-closed reap lifecycle event');
+  assert.ok(reapEvent, 'expected reader-closed reap lifecycle event');
 } finally {
   await Promise.resolve(client.kill());
 }
 
-console.log('LSP writer-closed restart stale-process reap test passed');
+console.log('LSP reader-closed restart stale-process reap test passed');

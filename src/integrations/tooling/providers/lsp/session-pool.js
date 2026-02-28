@@ -93,7 +93,7 @@ const killSessionClient = (session) => {
   if (!session || typeof session !== 'object') return;
   try {
     if (session.client && typeof session.client.kill === 'function') {
-      session.client.kill();
+      return session.client.kill();
     }
   } catch {}
 };
@@ -116,7 +116,7 @@ const disposeSessionClient = async (session) => {
         await session.client.shutdownAndExit();
       }
     } catch {}
-    killSessionClient(session);
+    await Promise.resolve(killSessionClient(session));
   };
   session.disposePromise = runDispose();
   session.disposed = true;
@@ -325,7 +325,7 @@ const killAllSessionsNow = () => {
   disposalBarriers.clear();
   clearCleanupTimer();
   for (const session of live) {
-    killSessionClient(session);
+    Promise.resolve(killSessionClient(session)).catch(() => {});
   }
 };
 
@@ -339,15 +339,17 @@ const runCleanupPass = async () => {
     if (!session || session.activeCount > 0) continue;
     refreshSessionState(session);
     if (session.state === SESSION_STATE.POISONED) {
+      if (session.activeCount > 0 || sessions.get(key) !== session) continue;
       sessions.delete(key);
-      await enqueueSessionDisposal(session);
+      await enqueueSessionDisposal(session, { killFirst: true });
       continue;
     }
     const idleMs = now - Number(session.lastUsedAt || now);
     const idleTimeoutMs = toPositiveInt(session.idleTimeoutMs, DEFAULT_IDLE_TIMEOUT_MS, 1000);
     if (idleMs < idleTimeoutMs) continue;
+    if (session.activeCount > 0 || sessions.get(key) !== session) continue;
     sessions.delete(key);
-    await enqueueSessionDisposal(session);
+    await enqueueSessionDisposal(session, { killFirst: true });
   }
 };
 
@@ -531,12 +533,11 @@ export const withLspSession = async (options, fn) => {
     if (session.state === SESSION_STATE.POISONED && session.activeCount === 0) {
       session.recycleCount += 1;
       sessions.delete(session.key);
-      await disposeSessionClient(session);
-    }
-    if (shouldExpireForLifetime(session) && session.activeCount === 0) {
+      await enqueueSessionDisposal(session, { killFirst: true });
+    } else if (shouldExpireForLifetime(session) && session.activeCount === 0) {
       session.recycleCount += 1;
       sessions.delete(session.key);
-      await disposeSessionClient(session);
+      await enqueueSessionDisposal(session, { killFirst: true });
     }
     barrier.resolve();
   }

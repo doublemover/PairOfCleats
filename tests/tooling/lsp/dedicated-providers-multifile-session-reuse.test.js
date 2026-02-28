@@ -18,6 +18,7 @@ await fs.mkdir(tempRoot, { recursive: true });
 
 const restorePath = prependLspTestPath({ repoRoot: root });
 const fixturePathMarker = path.join('tests', 'fixtures', 'lsp', 'bin').toLowerCase();
+let skipReason = null;
 
 const providerCases = [
   {
@@ -207,10 +208,14 @@ try {
     if (outcome?.validated) validatedCases += 1;
   }
   if (validatedCases === 0) {
-    skip('Skipping dedicated providers multifile session reuse test; no provider yielded a verifiable runtime.');
+    skipReason = 'Skipping dedicated providers multifile session reuse test; no provider yielded a verifiable runtime.';
   }
 } finally {
   await restorePath();
+}
+
+if (skipReason) {
+  skip(skipReason);
 }
 
 console.log('dedicated providers multifile session reuse test passed');

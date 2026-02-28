@@ -73,5 +73,5 @@ try {
 
   console.log('LSP request timeout sends cancel test passed');
 } finally {
-  client.kill();
+  await Promise.resolve(client.kill());
 }

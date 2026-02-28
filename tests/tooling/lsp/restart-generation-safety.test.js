@@ -39,7 +39,7 @@ const client = createLspClient({
 try {
   client.start();
   await waitForSpawns(1);
-  client.kill();
+  await Promise.resolve(client.kill());
   client.start();
   await waitForSpawns(2);
 
@@ -47,7 +47,7 @@ try {
   await client.shutdownAndExit();
   await sleep(100);
 } finally {
-  client.kill();
+  await Promise.resolve(client.kill());
 }
 
 await sleep(200);
