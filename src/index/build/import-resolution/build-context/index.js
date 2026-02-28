@@ -4,6 +4,7 @@ import { createExpectedArtifactsIndex } from '../expected-artifacts-index.js';
 import { createBazelLabelPlugin } from './plugins/bazel-label.js';
 import { createGeneratedArtifactsPlugin } from './plugins/generated-artifacts.js';
 import { createNixFlakePlugin } from './plugins/nix-flake.js';
+import { createTypeScriptEmitPlugin } from './plugins/typescript-emit.js';
 
 const normalizePluginConfig = (resolverPlugins) => (
   resolverPlugins && typeof resolverPlugins === 'object'
@@ -37,7 +38,12 @@ const resolveGeneratedMatchForResult = (result) => {
 /**
  * Build deterministic per-repo build-context classification plugins.
  */
-export const createImportBuildContext = ({ entries = [], resolverPlugins = null } = {}) => {
+export const createImportBuildContext = ({
+  entries = [],
+  resolverPlugins = null,
+  rootAbs = '',
+  fsMemo = null
+} = {}) => {
   const normalizedConfig = normalizePluginConfig(resolverPlugins);
   const buildContextConfig = normalizedConfig.buildContext
     && typeof normalizedConfig.buildContext === 'object'
@@ -52,6 +58,14 @@ export const createImportBuildContext = ({ entries = [], resolverPlugins = null 
 
   if (isEnabled(buildContextConfig?.nixFlakeReferences, true)) {
     plugins.push(createNixFlakePlugin());
+  }
+
+  if (isEnabled(buildContextConfig?.typescriptEmit, true)) {
+    plugins.push(createTypeScriptEmitPlugin({
+      entries,
+      rootAbs,
+      fsMemo
+    }));
   }
 
   if (isEnabled(buildContextConfig?.generatedArtifacts, true)) {

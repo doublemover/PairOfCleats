@@ -18,6 +18,7 @@ assert.deepEqual(
   [
     { id: 'bazel-label', priority: 10 },
     { id: 'nix-flake', priority: 15 },
+    { id: 'typescript-emit', priority: 18 },
     { id: 'generated-artifacts', priority: 20 }
   ],
   'expected deterministic plugin priority ordering'
@@ -30,6 +31,22 @@ const bazelResult = buildContext.classifyUnresolved({
 });
 assert.equal(bazelResult?.reasonCode, 'IMP_U_RESOLVER_GAP');
 assert.equal(bazelResult?.pluginId, 'bazel-label');
+
+const bazelLocalResult = buildContext.classifyUnresolved({
+  importerRel: 'app/rules.bzl',
+  spec: ':missing_local.bzl',
+  rawSpec: ':missing_local.bzl'
+});
+assert.equal(bazelLocalResult?.reasonCode, 'IMP_U_RESOLVER_GAP');
+assert.equal(bazelLocalResult?.pluginId, 'bazel-label');
+
+const bazelExternalResult = buildContext.classifyUnresolved({
+  importerRel: 'app/rules.bzl',
+  spec: '@repo_tools//defs:missing.bzl',
+  rawSpec: '@repo_tools//defs:missing.bzl'
+});
+assert.equal(bazelExternalResult?.reasonCode, 'IMP_U_RESOLVER_GAP');
+assert.equal(bazelExternalResult?.pluginId, 'bazel-label');
 
 const generatedFromIndex = buildContext.classifyUnresolved({
   importerRel: 'src/main.ts',

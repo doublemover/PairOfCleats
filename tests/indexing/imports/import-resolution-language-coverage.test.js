@@ -94,6 +94,8 @@ await write(
     'load("//tools/pkg", "pkg_macro")',
     'load("//tools/pkg:defs", "defs_macro")',
     'load(":local.bzl", "local_macro")',
+    'load(":missing_local.bzl", "missing_local_macro")',
+    'load("@repo_tools//defs:missing.bzl", "missing_external_macro")',
     ''
   ].join('\n')
 );
@@ -241,7 +243,14 @@ const importsByFile = {
   'cmake/main.cmake': ['modules/common.cmake'],
   'cmake/sub/main.cmake': ['../modules/common.cmake'],
   'nix/flake.nix': ['./modules', './pkgs/tool', './git-hooks.nix'],
-  'app/rules.bzl': ['//tools:defs.bzl', '//tools/pkg', '//tools/pkg:defs', ':local.bzl'],
+  'app/rules.bzl': [
+    '//tools:defs.bzl',
+    '//tools/pkg',
+    '//tools/pkg:defs',
+    ':local.bzl',
+    ':missing_local.bzl',
+    '@repo_tools//defs:missing.bzl'
+  ],
   'MODULE.bazel': ['//go:extensions.bzl', '//go:missing_extension.bzl'],
   Makefile: ['./Dockerfile-kubernetes'],
   'src/AspNet/OData/src/Asp.Versioning.WebApi.OData.ApiExplorer/Asp.Versioning.WebApi.OData.ApiExplorer.csproj': [
@@ -346,7 +355,7 @@ assertLinks(
 );
 
 const realUnresolvedSamples = enrichUnresolvedImportSamples(resolution.unresolvedSamples || []);
-assert.equal(realUnresolvedSamples.length, 5, 'expected unresolved samples from shell, bazel label, and generated coverage');
+assert.equal(realUnresolvedSamples.length, 7, 'expected unresolved samples from shell, bazel label, and generated coverage');
 const realBySpecifier = Object.fromEntries(realUnresolvedSamples.map((entry) => [entry.specifier, entry]));
 assert.equal(realBySpecifier['./lib/missing.sh']?.reasonCode, 'IMP_U_MISSING_FILE_RELATIVE');
 assert.equal(realBySpecifier['./lib/missing.sh']?.failureCause, 'missing_file');
@@ -356,6 +365,14 @@ assert.equal(realBySpecifier['//go:missing_extension.bzl']?.reasonCode, 'IMP_U_R
 assert.equal(realBySpecifier['//go:missing_extension.bzl']?.failureCause, 'resolver_gap');
 assert.equal(realBySpecifier['//go:missing_extension.bzl']?.disposition, 'suppress_gate');
 assert.equal(realBySpecifier['//go:missing_extension.bzl']?.resolverStage, 'language_resolver');
+assert.equal(realBySpecifier[':missing_local.bzl']?.reasonCode, 'IMP_U_RESOLVER_GAP');
+assert.equal(realBySpecifier[':missing_local.bzl']?.failureCause, 'resolver_gap');
+assert.equal(realBySpecifier[':missing_local.bzl']?.disposition, 'suppress_gate');
+assert.equal(realBySpecifier[':missing_local.bzl']?.resolverStage, 'language_resolver');
+assert.equal(realBySpecifier['@repo_tools//defs:missing.bzl']?.reasonCode, 'IMP_U_RESOLVER_GAP');
+assert.equal(realBySpecifier['@repo_tools//defs:missing.bzl']?.failureCause, 'resolver_gap');
+assert.equal(realBySpecifier['@repo_tools//defs:missing.bzl']?.disposition, 'suppress_gate');
+assert.equal(realBySpecifier['@repo_tools//defs:missing.bzl']?.resolverStage, 'language_resolver');
 assert.equal(realBySpecifier['./generated/client.pb.ts']?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
 assert.equal(realBySpecifier['./generated/client.pb.ts']?.failureCause, 'generated_expected_missing');
 assert.equal(realBySpecifier['./generated/client.pb.ts']?.disposition, 'suppress_gate');
@@ -399,7 +416,7 @@ const taxonomySamples = enrichUnresolvedImportSamples([
 ]);
 const taxonomy = summarizeUnresolvedImportTaxonomy(taxonomySamples);
 assert.equal(taxonomy.liveSuppressed, 2);
-assert.equal(taxonomy.gateSuppressed, 5);
+assert.equal(taxonomy.gateSuppressed, 7);
 assert.equal(taxonomy.actionable, 3);
 assert.equal(Object.keys(taxonomy.reasonCodes).length > 0, true, 'expected reason-code aggregation');
 assert.deepEqual(
@@ -408,7 +425,7 @@ assert.deepEqual(
     build_system_resolver: 3,
     classify: 3,
     filesystem_probe: 1,
-    language_resolver: 2,
+    language_resolver: 4,
     normalize: 1
   },
   'expected resolver stage aggregation in taxonomy'
@@ -428,14 +445,14 @@ assert.deepEqual(
 );
 assert.equal(Number.isFinite(Number(taxonomy.actionableRate)), true, 'expected actionable rate in taxonomy');
 assert.equal(taxonomy.actionableUnresolvedRate, taxonomy.actionableRate, 'expected actionable rate alias');
-assert.equal(taxonomy.parserArtifactRate, 1 / 10, 'expected parser artifact rate in taxonomy');
-assert.equal(taxonomy.resolverGapRate, 3 / 10, 'expected resolver-gap rate in taxonomy');
+assert.equal(taxonomy.parserArtifactRate, 1 / 12, 'expected parser artifact rate in taxonomy');
+assert.equal(taxonomy.resolverGapRate, 5 / 12, 'expected resolver-gap rate in taxonomy');
 assert.deepEqual(Object.fromEntries(Object.entries(taxonomy.failureCauses)), {
   generated_expected_missing: 3,
   missing_dependency: 1,
   missing_file: 1,
   parser_artifact: 1,
-  resolver_gap: 3,
+  resolver_gap: 5,
   unknown: 1
 });
 

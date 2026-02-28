@@ -35,6 +35,7 @@ import {
   createImportResolutionSpecifierBudgetState
 } from './budgets.js';
 import {
+  isBazelLabelSpecifier,
   matchGeneratedExpectationSpecifier
 } from './specifier-hints.js';
 import { normalizeImportSpecifier, normalizeRelPath, resolveWithinRoot, sortStrings } from './path-utils.js';
@@ -313,7 +314,9 @@ export function resolveImportLinks({
   const dartPackageName = resolveDartPackageName(resolvedLookup.rootAbs, fsMemo);
   const buildContext = createImportBuildContext({
     entries: Array.from(resolvedLookup.fileSet || []),
-    resolverPlugins
+    resolverPlugins,
+    rootAbs: resolvedLookup.rootAbs,
+    fsMemo
   });
   const budgetPolicy = createImportResolutionBudgetPolicy({
     resolverPlugins,
@@ -871,8 +874,17 @@ export function resolveImportLinks({
                 resolvedPath = languageResolved.resolvedPath;
               } else {
                 stageTracker.markMiss(IMPORT_RESOLVER_STAGES.LANGUAGE_RESOLVER);
-                resolvedType = 'external';
-                packageName = parsePackageName(spec);
+                const bazelLabelLike = isBazelLabelSpecifier(spec)
+                  && (importerInfo?.extension === '.bzl'
+                    || importerInfo?.extension === '.star'
+                    || importerInfo?.extension === '.bazel');
+                if (bazelLabelLike) {
+                  resolvedType = 'unresolved';
+                  unresolvedReasonCodeHint = IMPORT_REASON_CODES.RESOLVER_GAP;
+                } else {
+                  resolvedType = 'external';
+                  packageName = parsePackageName(spec);
+                }
               }
             }
           }

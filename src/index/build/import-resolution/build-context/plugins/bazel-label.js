@@ -1,18 +1,21 @@
-import { isBazelLabelSpecifier } from '../../specifier-hints.js';
+import { parseBazelLabelSpecifier } from '../../specifier-hints.js';
 import { normalizeImportSpecifier } from '../../path-utils.js';
 import { IMPORT_REASON_CODES } from '../../reason-codes.js';
 
 export const createBazelLabelPlugin = () => {
-  const classify = ({ spec = '', rawSpec = '' } = {}) => {
+  const classify = ({ spec = '', rawSpec = '', importerRel = '' } = {}) => {
     const targetSpecifier = normalizeImportSpecifier(spec || rawSpec);
-    if (!isBazelLabelSpecifier(targetSpecifier) && !isBazelLabelSpecifier(rawSpec)) return null;
+    const parsed = parseBazelLabelSpecifier(targetSpecifier, { importerRel })
+      || parseBazelLabelSpecifier(rawSpec, { importerRel });
+    if (!parsed) return null;
     return {
       reasonCode: IMPORT_REASON_CODES.RESOLVER_GAP,
       pluginId: 'bazel-label',
       match: {
         matched: true,
         source: 'plugin',
-        matchType: 'bazel_label'
+        matchType: parsed.kind === 'external' ? 'bazel_external_label' : 'bazel_label',
+        repo: parsed.repo || null
       }
     };
   };

@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { sha1 } from '../../../shared/hash.js';
-import { normalizeImportSpecifier, normalizeRelPath, sortStrings } from './path-utils.js';
+import { normalizeRelPath, sortStrings } from './path-utils.js';
+import { toSpecifierCandidatePaths } from './candidate-paths.js';
 
 const GENERATED_DIR_SEGMENT_RX = /\/(?:__generated__|generated|gen)\//i;
 const GENERATED_DIR_HINTS = Object.freeze([
@@ -35,7 +36,13 @@ const GRAPHQL_GENERATED_SUFFIXES = Object.freeze([
   '.generated.js',
   '.generated.tsx',
   '.generated.jsx',
-  '.generated.d.ts'
+  '.generated.d.ts',
+  '.gen.ts',
+  '.gen.js',
+  '.types.ts',
+  '.types.js',
+  '-generated.ts',
+  '-generated.js'
 ]);
 const OPENAPI_GENERATED_SUFFIXES = Object.freeze([
   '.gen.ts',
@@ -70,29 +77,6 @@ const toEntryRelPath = (entry) => {
     return normalizePathToken(entry.rel);
   }
   return '';
-};
-
-const isRelativeOrRootSpecifier = (specifier) => (
-  specifier.startsWith('.') || specifier.startsWith('/')
-);
-
-const toSpecifierCandidatePaths = ({ importer = '', specifier = '' } = {}) => {
-  const normalizedSpecifier = normalizeImportSpecifier(specifier);
-  if (!normalizedSpecifier || !isRelativeOrRootSpecifier(normalizedSpecifier)) return [];
-  const importerRel = normalizePathToken(importer);
-  const candidates = [];
-  if (normalizedSpecifier.startsWith('/')) {
-    const rooted = normalizePathToken(normalizedSpecifier.slice(1));
-    if (rooted) candidates.push(rooted);
-  } else if (importerRel) {
-    const importerDir = path.posix.dirname(importerRel);
-    const joined = normalizePathToken(path.posix.join(importerDir, normalizedSpecifier));
-    if (joined) candidates.push(joined);
-  } else {
-    const fallback = normalizePathToken(normalizedSpecifier);
-    if (fallback) candidates.push(fallback);
-  }
-  return Array.from(new Set(candidates));
 };
 
 const addIfSetMissing = (target, value) => {

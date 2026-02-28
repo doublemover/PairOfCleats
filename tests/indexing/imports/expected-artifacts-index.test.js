@@ -43,6 +43,13 @@ const graphqlMatch = index.match({
 assert.equal(graphqlMatch.matched, true);
 assert.equal(graphqlMatch.source, 'index');
 
+const graphqlTypesMatch = index.match({
+  importer: 'src/main.js',
+  specifier: '../graphql/schema.types.ts'
+});
+assert.equal(graphqlTypesMatch.matched, true);
+assert.equal(graphqlTypesMatch.source, 'index');
+
 const dartMatch = index.match({
   importer: 'lib/main.dart',
   specifier: './src/model.g.dart'
