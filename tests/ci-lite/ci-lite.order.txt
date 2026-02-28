@@ -953,7 +953,6 @@ lang/contracts/language-fixture-contracts
 lang/contracts/misc-buildfiles
 indexing/language-fixture/postings-integrity
 lang/contracts/sql
-tooling/install/tooling-detect-dedicated-lsp-tools
 tooling/install/tooling-detect-global-bin-fallbacks
 tooling/install/tooling-dotnet-requirement-probe
 tooling/install/tooling-go-requirement-probe

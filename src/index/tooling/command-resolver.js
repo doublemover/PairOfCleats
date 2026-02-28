@@ -182,7 +182,7 @@ const normalizeCommandToken = (value) => {
 const PROBE_CANDIDATES_BY_PROVIDER_ID = Object.freeze({
   gopls: Object.freeze([['version'], ['help'], ['--help']]),
   jdtls: Object.freeze([['--help'], ['-help'], ['--version'], ['-version']]),
-  'elixir-ls': Object.freeze([['--help'], ['--version'], ['-version']]),
+  'elixir-ls': Object.freeze([['--version'], ['-version'], ['--help']]),
   'haskell-language-server': Object.freeze([['--version'], ['version'], ['--help']]),
   sourcekit: Object.freeze([['--help'], ['--version']]),
   pyright: Object.freeze([['--version'], ['--help']])
@@ -191,7 +191,7 @@ const PROBE_CANDIDATES_BY_PROVIDER_ID = Object.freeze({
 const PROBE_CANDIDATES_BY_COMMAND = Object.freeze({
   gopls: Object.freeze([['version'], ['help'], ['--help']]),
   jdtls: Object.freeze([['--help'], ['-help'], ['--version'], ['-version']]),
-  'elixir-ls': Object.freeze([['--help'], ['--version'], ['-version']]),
+  'elixir-ls': Object.freeze([['--version'], ['-version'], ['--help']]),
   'haskell-language-server': Object.freeze([['--version'], ['version'], ['--help']]),
   'sourcekit-lsp': Object.freeze([['--help'], ['--version']]),
   'pyright-langserver': Object.freeze([['--version'], ['--help']]),
@@ -360,7 +360,7 @@ const getProbeArgCandidates = (providerId, requestedCmd, requestedArgs = []) => 
     candidates.push(...commandCandidates);
   }
   if (cmdName.includes('elixir-ls')) {
-    candidates.push(['--help'], ['--version'], ['-version']);
+    candidates.push(['--version'], ['-version'], ['--help']);
   }
   if (cmdName.includes('sourcekit')) {
     candidates.push(['--help'], ['--version']);
@@ -461,13 +461,14 @@ const probeBinary = ({ providerId, command, probeArgs, timeoutMs }) => {
           stdout: result.stdout
         })
       ) {
+        const cachedAt = Date.now();
         setBoundedCacheEntry(
           COMMAND_PROBE_CACHE,
           cacheKey,
           {
             ok: true,
             attempted,
-            expiresAt: now + resolveCommandProbeSuccessTtlMs(),
+            expiresAt: cachedAt + resolveCommandProbeSuccessTtlMs(),
             providerId: normalizedProviderId,
             commandKey
           },
@@ -502,7 +503,7 @@ const probeBinary = ({ providerId, command, probeArgs, timeoutMs }) => {
     {
       ok: false,
       attempted,
-      expiresAt: now + COMMAND_PROBE_FAILURE_TTL_MS,
+      expiresAt: Date.now() + COMMAND_PROBE_FAILURE_TTL_MS,
       providerId: normalizedProviderId,
       commandKey
     },

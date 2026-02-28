@@ -115,6 +115,7 @@ retrieval/cache/query-extracted-prose
 shared/runtime/envelope-spawn-env
 indexing/records/exclusion
 tooling/install/tool-root
+tooling/install/tooling-detect-dedicated-lsp-tools
 indexing/map/code-dot
 storage/sqlite/bundle-missing
 cli/search/explain-symbol

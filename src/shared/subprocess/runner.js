@@ -1,5 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { killChildProcessTree } from '../kill-tree.js';
+import { isSyncCommandTimedOut, killTimedOutSyncProcessTree } from './sync-command.js';
 import {
   DEFAULT_MAX_OUTPUT_BYTES,
   SHELL_MODE_DISABLED_ERROR,
@@ -342,6 +343,9 @@ function spawnSubprocessSync(command, args, options = {}) {
     stderr
   });
   if (result.error) {
+    if (isSyncCommandTimedOut(result)) {
+      killTimedOutSyncProcessTree(result?.pid, resolvedTimeoutMs);
+    }
     if (result.error?.code === 'ETIMEDOUT') {
       throw new SubprocessTimeoutError('Subprocess timeout', normalized);
     }

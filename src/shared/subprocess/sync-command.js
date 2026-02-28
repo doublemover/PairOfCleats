@@ -2,6 +2,32 @@ import { spawnSync } from 'node:child_process';
 
 export const DEFAULT_SYNC_COMMAND_TIMEOUT_MS = 2_000;
 
+const isPositivePid = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0;
+};
+
+export const killTimedOutSyncProcessTree = (pid, timeoutMs = DEFAULT_SYNC_COMMAND_TIMEOUT_MS) => {
+  if (!isPositivePid(pid)) return false;
+  const numericPid = Math.floor(Number(pid));
+  const boundedTimeoutMs = resolveSyncCommandTimeoutMs(timeoutMs, DEFAULT_SYNC_COMMAND_TIMEOUT_MS);
+  try {
+    if (process.platform === 'win32') {
+      const taskkillResult = spawnSync('taskkill', ['/PID', String(numericPid), '/T', '/F'], {
+        stdio: 'ignore',
+        timeout: boundedTimeoutMs
+      });
+      return taskkillResult?.status === 0;
+    }
+    process.kill(numericPid, 'SIGTERM');
+  } catch {}
+  try {
+    process.kill(numericPid, 'SIGKILL');
+    return true;
+  } catch {}
+  return false;
+};
+
 export const resolveSyncCommandTimeoutMs = (value, fallback = DEFAULT_SYNC_COMMAND_TIMEOUT_MS) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 0) {
@@ -13,7 +39,7 @@ export const resolveSyncCommandTimeoutMs = (value, fallback = DEFAULT_SYNC_COMMA
 export const runSyncCommandWithTimeout = (command, args = [], options = {}) => {
   const timeoutMs = resolveSyncCommandTimeoutMs(options.timeoutMs, DEFAULT_SYNC_COMMAND_TIMEOUT_MS);
   try {
-    return spawnSync(command, Array.isArray(args) ? args : [], {
+    const result = spawnSync(command, Array.isArray(args) ? args : [], {
       cwd: options.cwd,
       env: options.env,
       stdio: options.stdio,
@@ -23,6 +49,10 @@ export const runSyncCommandWithTimeout = (command, args = [], options = {}) => {
       encoding: options.encoding,
       timeout: timeoutMs
     });
+    if (isSyncCommandTimedOut(result)) {
+      killTimedOutSyncProcessTree(result?.pid, timeoutMs);
+    }
+    return result;
   } catch (error) {
     return {
       pid: null,

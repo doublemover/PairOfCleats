@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-28T10:16:39.696Z",
+  "generatedAt": "2026-02-28T17:56:10.073Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -147,6 +147,7 @@
       "PAIROFCLEATS_SUMMARY_CACHE_MAX",
       "PAIROFCLEATS_TESTING",
       "PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY",
+      "PAIROFCLEATS_TEST_ALLOW_TIMEOUT_PASS_SIGNAL_TARGET",
       "PAIROFCLEATS_TEST_ALLOW_TIMEOUT_TARGET",
       "PAIROFCLEATS_TEST_API_STARTUP_TIMEOUT_MS",
       "PAIROFCLEATS_TEST_CACHE_SUFFIX",
@@ -3008,7 +3009,8 @@
       "files": [
         "tests/run.js",
         "tests/runner/harness/timeout-pass-signal-classification.test.js",
-        "tests/runner/harness/timeout-pass-signal-target.test.js"
+        "tests/runner/harness/timeout-pass-signal-target.test.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -3507,11 +3509,9 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [
-    "PAIROFCLEATS_TEST_ALLOW_TIMEOUT_PASS_SIGNAL_TARGET"
-  ],
+  "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 391,
+    "totalFlags": 393,
     "publicFlags": [
       "allow-unauthenticated",
       "allowed-repo-roots",
@@ -3577,6 +3577,8 @@
       "clean",
       "code",
       "collapse",
+      "collectorDiagnostics",
+      "collectorScanBudgets",
       "colorize",
       "column",
       "components",
@@ -4291,6 +4293,13 @@
         "flags": [
           "astDataflowEnabled",
           "controlFlowEnabled"
+        ]
+      },
+      {
+        "file": "tests/lang/registry/collector-scan-budget-diagnostics.test.js",
+        "flags": [
+          "collectorDiagnostics",
+          "collectorScanBudgets"
         ]
       },
       {
@@ -7295,6 +7304,7 @@
       "src/index/language-registry/registry.js",
       "src/index/segments.js",
       "src/index/tooling/typescript-provider.js",
+      "src/integrations/tooling/lsp/client.js",
       "src/lang/tree-sitter/chunking.js",
       "src/lang/workers/tree-sitter-worker.js",
       "src/map/isometric/client/ui.js",

@@ -314,6 +314,17 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
     throw err;
   }
   const finalExists = fsSync.existsSync(finalPath);
+  if (finalExists) {
+    let finalStat = null;
+    try {
+      finalStat = await fs.lstat(finalPath);
+    } catch {}
+    if (finalStat?.isDirectory?.()) {
+      const err = new Error(`Final path is a directory; file replace requires a file target: ${finalPath}`);
+      err.code = 'EISDIR';
+      throw err;
+    }
+  }
   const isFreshFinal = async () => {
     const stat = await safeStat(finalPath);
     return Boolean(stat && stat.mtimeMs >= startedAt - 2000);
@@ -446,6 +457,17 @@ export const replaceFileSync = (tempPath, finalPath, options = {}) => {
     throw err;
   }
   const finalExists = fsSync.existsSync(finalPath);
+  if (finalExists) {
+    let finalStat = null;
+    try {
+      finalStat = fsSync.lstatSync(finalPath);
+    } catch {}
+    if (finalStat?.isDirectory?.()) {
+      const err = new Error(`Final path is a directory; file replace requires a file target: ${finalPath}`);
+      err.code = 'EISDIR';
+      throw err;
+    }
+  }
   let backupAvailable = fsSync.existsSync(bakPath);
   const restoreBackup = () => {
     if (!backupAvailable) return false;
@@ -631,4 +653,3 @@ export const replaceDir = async (tempPath, finalPath, options = {}) => {
     }
   }
 };
-
