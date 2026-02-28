@@ -204,9 +204,11 @@ indexing/imports/expected-artifacts-index
 indexing/imports/import-build-context-plugins
 indexing/imports/import-resolution-stage-pipeline
 indexing/imports/import-resolution-build-context-cache-key
+indexing/imports/import-scan-budget-runtime-signals
 indexing/imports/import-resolution-budget-exhaustion
 indexing/imports/import-graph-budget-diagnostics
 indexing/imports/import-resolution-fallback-depth-budget
+indexing/imports/import-resolution-budget-policy-adaptive
 indexing/embeddings/cache-invalidation
 retrieval/cli/options-smoke
 indexing/tree-sitter/runtime-cache

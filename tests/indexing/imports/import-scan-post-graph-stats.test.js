@@ -73,6 +73,11 @@ assert.deepEqual(
 assert.equal(result?.stats?.unresolvedActionableRate, 1);
 assert.equal(result?.stats?.unresolvedParserArtifactRate, 0);
 assert.equal(result?.stats?.unresolvedResolverGapRate, 0);
+assert.equal(result?.stats?.resolverBudgetPolicy?.adaptiveEnabled, true);
+assert.equal(result?.stats?.resolverBudgetPolicy?.adaptiveProfile, 'normal');
+assert.equal(result?.stats?.resolverBudgetPolicy?.maxFilesystemProbesPerSpecifier, 32);
+assert.equal(result?.stats?.resolverBudgetPolicy?.maxFallbackCandidatesPerSpecifier, 48);
+assert.equal(result?.stats?.resolverBudgetPolicy?.maxFallbackDepth, 16);
 assert.deepEqual(
   Object.fromEntries(Object.entries(stageState?.importResolutionGraph?.stats?.unresolvedByResolverStage || {})),
   { filesystem_probe: 1 }
@@ -84,5 +89,10 @@ assert.deepEqual(
 assert.equal(stageState?.importResolutionGraph?.stats?.unresolvedActionableRate, 1);
 assert.equal(stageState?.importResolutionGraph?.stats?.unresolvedParserArtifactRate, 0);
 assert.equal(stageState?.importResolutionGraph?.stats?.unresolvedResolverGapRate, 0);
+assert.equal(stageState?.importResolutionGraph?.stats?.resolverBudgetPolicy?.adaptiveEnabled, true);
+assert.equal(stageState?.importResolutionGraph?.stats?.resolverBudgetPolicy?.adaptiveProfile, 'normal');
+assert.equal(stageState?.importResolutionGraph?.stats?.resolverBudgetPolicy?.maxFilesystemProbesPerSpecifier, 32);
+assert.equal(stageState?.importResolutionGraph?.stats?.resolverBudgetPolicy?.maxFallbackCandidatesPerSpecifier, 48);
+assert.equal(stageState?.importResolutionGraph?.stats?.resolverBudgetPolicy?.maxFallbackDepth, 16);
 
 console.log('import scan post graph stats test passed');
