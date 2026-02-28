@@ -57,10 +57,30 @@ assert.deepEqual(
   Object.fromEntries(Object.entries(result?.stats?.unresolvedBudgetExhaustedByType || {})),
   { filesystem_probe: 2 }
 );
+assert.equal(
+  result?.stats?.resolverPipelineStages?.filesystem_probe?.budgetExhausted || 0,
+  2,
+  'expected stage pipeline budget-exhausted counter for filesystem_probe'
+);
+assert.equal(
+  result?.stats?.resolverPipelineStages?.filesystem_probe?.degraded || 0,
+  2,
+  'expected stage pipeline degraded counter for suppress-gate filesystem_probe unresolved samples'
+);
 assert.equal(result?.graph?.stats?.unresolvedBudgetExhausted, 2);
 assert.deepEqual(
   Object.fromEntries(Object.entries(result?.graph?.stats?.unresolvedBudgetExhaustedByType || {})),
   { filesystem_probe: 2 }
+);
+assert.equal(
+  result?.graph?.stats?.resolverPipelineStages?.filesystem_probe?.budgetExhausted || 0,
+  2,
+  'expected graph stage pipeline budget-exhausted counter for filesystem_probe'
+);
+assert.equal(
+  result?.graph?.stats?.resolverPipelineStages?.filesystem_probe?.degraded || 0,
+  2,
+  'expected graph stage pipeline degraded counter for suppress-gate filesystem_probe unresolved samples'
 );
 
 console.log('import resolution budget exhaustion tests passed');
