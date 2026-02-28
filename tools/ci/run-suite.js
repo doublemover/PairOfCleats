@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
@@ -294,9 +295,20 @@ const main = async () => {
 };
 
 const isDirectExecution = () => {
+  const normalizeForCompare = (value) => {
+    if (!value) return null;
+    let canonical = null;
+    try {
+      canonical = fsSync.realpathSync.native(value);
+    } catch {
+      canonical = path.resolve(value);
+    }
+    if (!canonical) return null;
+    return process.platform === 'win32' ? canonical.toLowerCase() : canonical;
+  };
   const entry = process.argv[1];
   if (!entry) return false;
-  return path.resolve(entry) === path.resolve(fileURLToPath(import.meta.url));
+  return normalizeForCompare(entry) === normalizeForCompare(fileURLToPath(import.meta.url));
 };
 
 if (isDirectExecution()) {

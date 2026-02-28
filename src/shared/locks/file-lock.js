@@ -325,13 +325,24 @@ export const acquireFileLock = async ({
       if (err?.code === 'ENOENT') {
         parentMissingRetries += 1;
         lockRuntimeMetrics.parentMissingRetries += 1;
+        let parentReady = false;
         try {
           await fs.mkdir(path.dirname(lockPath), { recursive: true });
-        } catch {}
+          parentReady = true;
+        } catch (mkdirErr) {
+          // Retry only for transient parent races; surface everything else.
+          if (mkdirErr?.code !== 'ENOENT' && mkdirErr?.code !== 'ENOTDIR') {
+            throw err;
+          }
+        }
+        if (!parentReady && resolvedWaitMs <= 0) {
+          throw err;
+        }
         if (deadline != null && Date.now() < deadline) {
           await sleepWithAbort(resolvedPollMs, lockSignal);
           continue;
         }
+        if (resolvedWaitMs <= 0) throw err;
         safeInvokeHook(onBusy, {
           lockPath,
           info: null,

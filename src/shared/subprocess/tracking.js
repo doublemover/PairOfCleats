@@ -3,6 +3,7 @@ import { killChildProcessTree, killChildProcessTreeSync } from '../kill-tree.js'
 import {
   TRACKED_SUBPROCESS_FORCE_GRACE_MS,
   TRACKED_SUBPROCESS_EVENT_DEFAULT_LIMIT,
+  TRACKED_SUBPROCESS_EVENT_MAX_LIMIT,
   resolveKillGraceMs,
   resolveEventLimit,
   toNumber,
@@ -33,7 +34,7 @@ const appendTrackedSubprocessEvent = (event) => {
     forced: next.forced === true,
     error: next.error == null ? null : String(next.error)
   });
-  const limit = resolveEventLimit(TRACKED_SUBPROCESS_EVENT_DEFAULT_LIMIT);
+  const limit = resolveEventLimit(TRACKED_SUBPROCESS_EVENT_MAX_LIMIT);
   if (trackedSubprocessEvents.length > limit) {
     trackedSubprocessEvents.splice(0, trackedSubprocessEvents.length - limit);
   }

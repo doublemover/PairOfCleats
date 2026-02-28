@@ -47,6 +47,29 @@ try {
     'expected process_spawned event in tracked subprocess ledger'
   );
 
+  for (let index = 0; index < 130; index += 1) {
+    const fakePid = 900000 + index;
+    const fakeChild = {
+      pid: fakePid,
+      once: () => {},
+      off: () => {}
+    };
+    const unregisterFake = registerChildProcessForCleanup(fakeChild, {
+      scope: ownershipId,
+      ownershipId,
+      command: 'fake-child',
+      args: [],
+      name: 'tracked-event-ledger-fake'
+    });
+    unregisterFake();
+  }
+  const highLimitSnapshot = snapshotTrackedSubprocessEvents({ ownershipId, limit: 256 });
+  assert.equal(
+    highLimitSnapshot.total >= 260,
+    true,
+    'expected tracked event ledger to retain more than default 64 events'
+  );
+
   const summary = await terminateTrackedSubprocesses({
     reason: 'tracked-event-ledger-test',
     force: true,
