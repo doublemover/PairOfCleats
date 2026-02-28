@@ -136,3 +136,4 @@ retrieval/filters/filter-index-artifact
 tooling/structural/filters
 map/edge-aggregate-stability
 retrieval/ann/hnsw
+ci/import-resolution-slo-gate.smoke

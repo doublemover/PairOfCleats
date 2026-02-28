@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-28T04:29:23.814Z",
+  "generatedAt": "2026-02-28T10:16:39.696Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3511,7 +3511,7 @@
     "PAIROFCLEATS_TEST_ALLOW_TIMEOUT_PASS_SIGNAL_TARGET"
   ],
   "cliFlags": {
-    "totalFlags": 382,
+    "totalFlags": 391,
     "publicFlags": [
       "allow-unauthenticated",
       "allowed-repo-roots",
@@ -3538,6 +3538,7 @@
       "watch"
     ],
     "internalFlags": [
+      "actionable-unresolved-rate-max",
       "additionalProperties",
       "adversarial-ratio",
       "all",
@@ -3556,6 +3557,7 @@
       "backends",
       "backup",
       "baseline",
+      "baseline-json",
       "batch",
       "bench",
       "bin-dir",
@@ -3744,6 +3746,7 @@
       "min-provider-samples",
       "min-rank-corr",
       "min-summary-coverage",
+      "min-unresolved-samples",
       "minBytes",
       "minConfidence",
       "minFileBytes",
@@ -3773,6 +3776,8 @@
       "out-md",
       "outDir",
       "pack",
+      "parser-artifact-rate-drift-warn-max",
+      "parser-artifact-rate-warn-max",
       "path",
       "perf",
       "phase-spec-dir",
@@ -3802,6 +3807,10 @@
       "require-provider",
       "require-sqlite",
       "required",
+      "resolver-gap-rate-drift-warn-max",
+      "resolver-gap-rate-warn-max",
+      "resolver-stage-p95-drift-warn-ms-max",
+      "resolver-stage-p99-drift-warn-ms-max",
       "results",
       "resume",
       "retries",
@@ -5015,6 +5024,24 @@
         ]
       },
       {
+        "file": "tools/ci/import-resolution-slo-gate.js",
+        "flags": [
+          "actionable-unresolved-rate-max",
+          "baseline-json",
+          "json",
+          "min-unresolved-samples",
+          "mode",
+          "parser-artifact-rate-drift-warn-max",
+          "parser-artifact-rate-warn-max",
+          "repo",
+          "report",
+          "resolver-gap-rate-drift-warn-max",
+          "resolver-gap-rate-warn-max",
+          "resolver-stage-p95-drift-warn-ms-max",
+          "resolver-stage-p99-drift-warn-ms-max"
+        ]
+      },
+      {
         "file": "tools/ci/restore-artifacts.js",
         "flags": [
           "force",
@@ -5649,7 +5676,7 @@
     "duplicated": [
       {
         "flag": "json",
-        "count": 64,
+        "count": 65,
         "files": [
           "bin/pairofcleats.js",
           "src/integrations/tooling/api-contracts.js",
@@ -5684,6 +5711,7 @@
           "tools/bench/vfs/token-uri-encode.js",
           "tools/bench/vfs/vfsidx-lookup.js",
           "tools/ci/capability-gate.js",
+          "tools/ci/import-resolution-slo-gate.js",
           "tools/ci/tooling-doctor-gate.js",
           "tools/ci/tooling-lsp-default-enable-gate.js",
           "tools/ci/tooling-lsp-slo-gate.js",
@@ -5719,7 +5747,7 @@
       },
       {
         "flag": "repo",
-        "count": 63,
+        "count": 64,
         "files": [
           "bin/pairofcleats.js",
           "src/integrations/tooling/api-contracts.js",
@@ -5745,6 +5773,7 @@
           "tools/build/lmdb-index.js",
           "tools/build/tantivy-index.js",
           "tools/ci/build-artifacts.js",
+          "tools/ci/import-resolution-slo-gate.js",
           "tools/ci/restore-artifacts.js",
           "tools/ci/tooling-doctor-gate.js",
           "tools/ci/tooling-lsp-slo-gate.js",
@@ -5836,7 +5865,7 @@
       },
       {
         "flag": "mode",
-        "count": 37,
+        "count": 38,
         "files": [
           "bin/pairofcleats.js",
           "tests/map/build-determinism.test.js",
@@ -5864,6 +5893,7 @@
           "tools/build/lmdb-index.js",
           "tools/build/tantivy-index.js",
           "tools/ci/capability-gate.js",
+          "tools/ci/import-resolution-slo-gate.js",
           "tools/ci/run-suite.js",
           "tools/ci/tooling-doctor-gate.js",
           "tools/ci/tooling-lsp-slo-gate.js",
@@ -6662,6 +6692,15 @@
         ]
       },
       {
+        "flag": "report",
+        "count": 3,
+        "files": [
+          "tools/bench/language/tooling-lsp-guardrail.js",
+          "tools/ci/import-resolution-slo-gate.js",
+          "tools/tooling/install-phpactor-phar.js"
+        ]
+      },
+      {
         "flag": "retries",
         "count": 3,
         "files": [
@@ -7110,14 +7149,6 @@
         ]
       },
       {
-        "flag": "report",
-        "count": 2,
-        "files": [
-          "tools/bench/language/tooling-lsp-guardrail.js",
-          "tools/tooling/install-phpactor-phar.js"
-        ]
-      },
-      {
         "flag": "search",
         "count": 2,
         "files": [
@@ -7280,6 +7311,7 @@
       "tests/indexing/chunking/chunker-options-forwarding.test.js",
       "tests/indexing/tree-sitter/chunk-cache-reuse.test.js",
       "tests/indexing/tree-sitter/memory-plateau.test.js",
+      "tests/lang/registry/import-entries.test.js",
       "tests/perf/bench/run.test.js",
       "tests/tooling/signature-parse/shared-splitter.test.js",
       "tools/api/server.js",

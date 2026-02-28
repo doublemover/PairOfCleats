@@ -1,3 +1,6 @@
+import path from 'node:path';
+import { logLine } from '../../../shared/progress.js';
+
 /**
  * Create batched progress checkpoint writer for long-running stage processing.
  *
@@ -10,9 +13,9 @@ export const createBuildCheckpointTracker = ({
   totalFiles,
   batchSize = 1000,
   intervalMs = 120000,
-  updateBuildState
+  updateBuildStateOutcome
 } = {}) => {
-  if (!buildRoot || !mode || typeof updateBuildState !== 'function') {
+  if (!buildRoot || !mode || typeof updateBuildStateOutcome !== 'function') {
     return { tick() {}, finish() {} };
   }
 
@@ -32,7 +35,7 @@ export const createBuildCheckpointTracker = ({
   const flush = ({ force = false } = {}) => {
     if (!force && lastFlushedProcessed === processed) return;
     const now = new Date().toISOString();
-    void updateBuildState(buildRoot, {
+    void updateBuildStateOutcome(buildRoot, {
       progress: {
         [mode]: {
           processedFiles: processed,
@@ -40,6 +43,23 @@ export const createBuildCheckpointTracker = ({
           updatedAt: now
         }
       }
+    }).then((outcome) => {
+      if (outcome?.status !== 'timed_out') return;
+      logLine(
+        `[build_state] progress write timed out for ${path.resolve(buildRoot)} (${mode}); checkpoint write remains best-effort.`,
+        {
+          kind: 'warning',
+          buildState: {
+            event: 'progress-write-timeout',
+            buildRoot: path.resolve(buildRoot),
+            mode,
+            timeoutMs: outcome?.timeoutMs ?? null,
+            elapsedMs: outcome?.elapsedMs ?? null,
+            processedFiles: processed,
+            totalFiles: Number.isFinite(totalFiles) ? totalFiles : null
+          }
+        }
+      );
     }).catch(() => {});
     lastAt = Date.now();
     lastFlushedProcessed = processed;

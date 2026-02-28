@@ -57,7 +57,7 @@ import {
 } from './artifacts/writers/chunk-meta.js';
 import { enqueueChunkUidMapArtifacts } from './artifacts/writers/chunk-uid-map.js';
 import { enqueueVfsManifestArtifacts } from './artifacts/writers/vfs-manifest.js';
-import { recordOrderingHash, updateBuildState } from './build-state.js';
+import { recordOrderingHash, updateBuildState, updateBuildStateOutcome } from './build-state.js';
 import { applyByteBudget, resolveByteBudgetMap } from './byte-budget.js';
 import { CHARGRAM_HASH_META } from '../../shared/chargram-hash.js';
 import { createOrderingHasher } from '../../shared/order.js';
@@ -543,7 +543,21 @@ export async function writeIndexArtifacts(input) {
     policies: byteBudgetPolicies
   };
   if (buildRoot) {
-    await updateBuildState(buildRoot, { byteBudgets: byteBudgetSnapshot });
+    const outcome = await updateBuildStateOutcome(buildRoot, { byteBudgets: byteBudgetSnapshot });
+    if (outcome?.status === 'timed_out') {
+      logLine(
+        `[build_state] byte budget state write timed out for ${buildRoot}; continuing artifact writes.`,
+        {
+          kind: 'warning',
+          buildState: {
+            event: 'byte-budget-write-timeout',
+            buildRoot,
+            timeoutMs: outcome?.timeoutMs ?? null,
+            elapsedMs: outcome?.elapsedMs ?? null
+          }
+        }
+      );
+    }
   }
   const maxJsonBytesSoft = maxJsonBytes * 0.9;
   const shardTargetBytes = maxJsonBytes * 0.75;

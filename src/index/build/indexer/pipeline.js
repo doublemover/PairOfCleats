@@ -749,7 +749,9 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       run
     }).then(
       (value) => ({ status: 'resolved', value }),
-      (error) => ({ status: 'rejected', error })
+      (error) => (error?.code === 'ERR_BUILD_STATE_PATCH_TIMEOUT'
+        ? { status: 'timed-out', error }
+        : { status: 'rejected', error })
     );
     if (!Number.isFinite(stateWriteContinueMs) || stateWriteContinueMs <= 0) {
       const settled = await stateWritePromise;
@@ -804,6 +806,24 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
             ...(safeMeta || {}),
             hangProbe: {
               event: 'background-settled',
+              label,
+              elapsedMs: settledElapsedMs
+            }
+          }
+        );
+        return;
+      }
+      if (backgroundSettled?.status === 'timed-out') {
+        logLine(
+          `[hang-probe] background-timeout ${label} after ${settledElapsedMs}ms: ${backgroundSettled?.error?.message || 'build-state patch timeout'}`,
+          {
+            kind: 'warning',
+            mode,
+            stage,
+            step,
+            ...(safeMeta || {}),
+            hangProbe: {
+              event: 'background-timeout',
               label,
               elapsedMs: settledElapsedMs
             }

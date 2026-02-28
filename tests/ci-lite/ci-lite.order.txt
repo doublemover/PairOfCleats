@@ -680,7 +680,6 @@ tooling/paths/explicit-repo-root-arg
 ci/suite-runner.smoke
 ci/tooling-lsp-slo-gate.smoke
 ci/tooling-lsp-default-enable-gate.smoke
-ci/import-resolution-slo-gate.smoke
 perf/bench/language-tooling-lsp-guardrail
 tooling/vfs/partial-lsp-open
 retrieval/cache/query-signature-sharded-chunk-meta

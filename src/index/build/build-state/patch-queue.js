@@ -8,7 +8,12 @@ const DEFAULT_DEBOUNCE_MS = 250;
 const LONG_DEBOUNCE_MS = 500;
 const VERY_LONG_DEBOUNCE_MS = 1000;
 const LARGE_PATCH_BYTES = 64 * 1024;
-const PATCH_WAITER_TIMEOUT_MS = 30000;
+const PATCH_WAITER_TIMEOUT_MS_DEFAULT = 30000;
+
+export const PATCH_QUEUE_WAIT_STATUS = Object.freeze({
+  FLUSHED: 'flushed',
+  TIMED_OUT: 'timed_out'
+});
 
 const resolveDebounceMs = (patch) => {
   if (!patch || typeof patch !== 'object') return DEFAULT_DEBOUNCE_MS;
@@ -22,11 +27,27 @@ const resolveDebounceMs = (patch) => {
 export const createPatchQueue = ({
   mergeState,
   applyStatePatch,
-  recordStateError
+  recordStateError,
+  waiterTimeoutMs = PATCH_WAITER_TIMEOUT_MS_DEFAULT
 } = {}) => {
+  const resolvedWaiterTimeoutMs = Number.isFinite(Number(waiterTimeoutMs))
+    ? Math.max(0, Math.floor(Number(waiterTimeoutMs)))
+    : PATCH_WAITER_TIMEOUT_MS_DEFAULT;
   const stateQueues = new Map();
   const statePending = new Map();
   const statePendingLifecycles = new Map();
+
+  const createFlushedOutcome = (value) => ({
+    status: PATCH_QUEUE_WAIT_STATUS.FLUSHED,
+    value: value ?? null
+  });
+  const createTimedOutOutcome = (buildRoot, elapsedMs) => ({
+    status: PATCH_QUEUE_WAIT_STATUS.TIMED_OUT,
+    value: null,
+    buildRoot,
+    timeoutMs: resolvedWaiterTimeoutMs,
+    elapsedMs
+  });
 
   const settleWaiter = (pending, waiter, method, value) => {
     if (!waiter || waiter.settled) return;
@@ -65,26 +86,28 @@ export const createPatchQueue = ({
       resolve: resolvePromise,
       reject: rejectPromise
     };
-    waiter.timer = setTimeout(() => {
-      const elapsedMs = Math.max(0, Date.now() - createdAtMs);
-      settleWaiter(pending, waiter, 'resolve', null);
-      logLine(
-        `[build_state] patch queue waiter timed out after ${PATCH_WAITER_TIMEOUT_MS}ms for ${key}; continuing without waiting for flush completion.`,
-        {
-          kind: 'warning',
-          buildState: {
-            event: 'patch-waiter-timeout',
-            buildRoot: key,
-            timeoutMs: PATCH_WAITER_TIMEOUT_MS,
-            elapsedMs
+    if (resolvedWaiterTimeoutMs > 0) {
+      waiter.timer = setTimeout(() => {
+        const elapsedMs = Math.max(0, Date.now() - createdAtMs);
+        settleWaiter(pending, waiter, 'resolve', createTimedOutOutcome(key, elapsedMs));
+        logLine(
+          `[build_state] patch queue waiter timed out after ${resolvedWaiterTimeoutMs}ms for ${key}; continuing without waiting for flush completion.`,
+          {
+            kind: 'warning',
+            buildState: {
+              event: 'patch-waiter-timeout',
+              buildRoot: key,
+              timeoutMs: resolvedWaiterTimeoutMs,
+              elapsedMs
+            }
           }
-        }
-      );
-    }, PATCH_WAITER_TIMEOUT_MS);
-    if (typeof waiter.timer?.unref === 'function') waiter.timer.unref();
-    waiter.timerCancel = pending.lifecycle.registerTimer(waiter.timer, {
-      label: 'build-state-waiter-timeout'
-    });
+        );
+      }, resolvedWaiterTimeoutMs);
+      if (typeof waiter.timer?.unref === 'function') waiter.timer.unref();
+      waiter.timerCancel = pending.lifecycle.registerTimer(waiter.timer, {
+        label: 'build-state-waiter-timeout'
+      });
+    }
     return { waiter, promise };
   };
 
@@ -159,7 +182,7 @@ export const createPatchQueue = ({
     pending.waiters = [];
     try {
       const result = await enqueueStateUpdate(buildRoot, () => applyStatePatch(buildRoot, patch, events));
-      waiters.forEach((waiter) => settleWaiter(pending, waiter, 'resolve', result));
+      waiters.forEach((waiter) => settleWaiter(pending, waiter, 'resolve', createFlushedOutcome(result)));
       if (!pending.patch && !pending.timer && pending.waiters.length === 0) {
         statePending.delete(key);
         releasePendingLifecycle(buildRoot);
@@ -196,7 +219,7 @@ export const createPatchQueue = ({
   };
 
   const queueStatePatch = (buildRoot, patch, events = [], { flushNow = false } = {}) => {
-    if (!buildRoot || !patch) return Promise.resolve(null);
+    if (!buildRoot || !patch) return Promise.resolve(createFlushedOutcome(null));
     const pending = getPendingEntry(buildRoot);
     pending.patch = pending.patch ? mergeState(pending.patch, patch) : patch;
     if (events.length) pending.events.push(...events);
@@ -228,7 +251,7 @@ export const createPatchQueue = ({
   };
 
   const flushBuildState = async (buildRoot) => {
-    if (!buildRoot) return null;
+    if (!buildRoot) return createFlushedOutcome(null);
     const key = path.resolve(buildRoot);
     const pending = statePending.get(key);
     if (pending?.timerCancel) {
@@ -244,7 +267,7 @@ export const createPatchQueue = ({
       statePending.delete(key);
       releasePendingLifecycle(buildRoot);
     }
-    return result;
+    return createFlushedOutcome(result);
   };
 
   return {

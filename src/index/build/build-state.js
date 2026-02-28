@@ -8,7 +8,7 @@ import {
 } from '../../contracts/index-profile.js';
 import { collectCheckpointEvents } from './build-state/checkpoints.js';
 import { startHeartbeat } from './build-state/heartbeat.js';
-import { createPatchQueue } from './build-state/patch-queue.js';
+import { createPatchQueue, PATCH_QUEUE_WAIT_STATUS } from './build-state/patch-queue.js';
 import {
   ORDERING_LEDGER_SCHEMA_VERSION,
   normalizeOrderingLedger,
@@ -37,6 +37,44 @@ const patchQueue = createPatchQueue({
 setActiveStateKeyResolver(patchQueue.isActiveStateKey);
 
 export { ORDERING_LEDGER_SCHEMA_VERSION };
+
+export const BUILD_STATE_WRITE_STATUS = Object.freeze({
+  FLUSHED: PATCH_QUEUE_WAIT_STATUS.FLUSHED,
+  TIMED_OUT: PATCH_QUEUE_WAIT_STATUS.TIMED_OUT
+});
+
+const isPatchQueueOutcome = (value) => (
+  !!value
+  && typeof value === 'object'
+  && typeof value.status === 'string'
+  && (value.status === BUILD_STATE_WRITE_STATUS.FLUSHED
+    || value.status === BUILD_STATE_WRITE_STATUS.TIMED_OUT)
+);
+
+const normalizeWriteOutcome = (value) => {
+  if (isPatchQueueOutcome(value)) return value;
+  return {
+    status: BUILD_STATE_WRITE_STATUS.FLUSHED,
+    value: value ?? null
+  };
+};
+
+const buildStateTimeoutError = (buildRoot, outcome) => {
+  const timeoutMs = Number.isFinite(Number(outcome?.timeoutMs))
+    ? Math.floor(Number(outcome.timeoutMs))
+    : null;
+  const elapsedMs = Number.isFinite(Number(outcome?.elapsedMs))
+    ? Math.floor(Number(outcome.elapsedMs))
+    : null;
+  const err = new Error(
+    `[build_state] patch wait timed out${timeoutMs != null ? ` after ${timeoutMs}ms` : ''} for ${path.resolve(buildRoot)}.`
+  );
+  err.code = 'ERR_BUILD_STATE_PATCH_TIMEOUT';
+  err.buildState = normalizeWriteOutcome(outcome);
+  if (timeoutMs != null) err.timeoutMs = timeoutMs;
+  if (elapsedMs != null) err.elapsedMs = elapsedMs;
+  return err;
+};
 
 /**
  * Initialize build-state metadata file for a build root.
@@ -97,12 +135,32 @@ export async function initBuildState({
  *
  * @param {string} buildRoot
  * @param {object} patch
+ * @returns {Promise<{status:'flushed'|'timed_out',value:object|null}>}
+ */
+export async function updateBuildStateOutcome(buildRoot, patch) {
+  if (!buildRoot || !patch) {
+    return {
+      status: BUILD_STATE_WRITE_STATUS.FLUSHED,
+      value: null
+    };
+  }
+  const events = collectCheckpointEvents(patch.stageCheckpoints);
+  return normalizeWriteOutcome(await patchQueue.queueStatePatch(buildRoot, patch, events));
+}
+
+/**
+ * Queue a state patch and emit derived checkpoint events.
+ *
+ * @param {string} buildRoot
+ * @param {object} patch
  * @returns {Promise<object|null>}
  */
 export async function updateBuildState(buildRoot, patch) {
-  if (!buildRoot || !patch) return null;
-  const events = collectCheckpointEvents(patch.stageCheckpoints);
-  return patchQueue.queueStatePatch(buildRoot, patch, events);
+  const outcome = await updateBuildStateOutcome(buildRoot, patch);
+  if (outcome.status === BUILD_STATE_WRITE_STATUS.TIMED_OUT) {
+    throw buildStateTimeoutError(buildRoot, outcome);
+  }
+  return outcome.value ?? null;
 }
 
 /**
@@ -221,7 +279,11 @@ export async function exportOrderingLedger(buildRoot, outputPath = null) {
  * @returns {Promise<object|null>}
  */
 export async function flushBuildState(buildRoot) {
-  return patchQueue.flushBuildState(buildRoot);
+  const outcome = normalizeWriteOutcome(await patchQueue.flushBuildState(buildRoot));
+  if (outcome.status === BUILD_STATE_WRITE_STATUS.TIMED_OUT) {
+    throw buildStateTimeoutError(buildRoot, outcome);
+  }
+  return outcome.value ?? null;
 }
 
 /**
@@ -234,6 +296,13 @@ export async function flushBuildState(buildRoot) {
  * @returns {Promise<object|null>}
  */
 export async function markBuildPhase(buildRoot, phase, status, detail = null) {
+  const queueStatePatch = async (targetBuildRoot, patch, events = []) => {
+    const outcome = normalizeWriteOutcome(await patchQueue.queueStatePatch(targetBuildRoot, patch, events));
+    if (outcome.status === BUILD_STATE_WRITE_STATUS.TIMED_OUT) {
+      throw buildStateTimeoutError(targetBuildRoot, outcome);
+    }
+    return outcome.value ?? null;
+  };
   return markBuildPhaseState({
     buildRoot,
     phase,
@@ -242,7 +311,7 @@ export async function markBuildPhase(buildRoot, phase, status, detail = null) {
     buildRootExists,
     loadBuildState,
     ensureStateVersions,
-    queueStatePatch: patchQueue.queueStatePatch
+    queueStatePatch
   });
 }
 
@@ -259,7 +328,7 @@ export function startBuildHeartbeat(buildRoot, stage, intervalMs = 30000) {
     buildRoot,
     stage,
     intervalMs,
-    updateBuildState,
+    updateBuildStateOutcome,
     flushBuildState,
     buildRootExists
   });
@@ -284,7 +353,7 @@ export function createBuildCheckpoint({
     totalFiles,
     batchSize,
     intervalMs,
-    updateBuildState
+    updateBuildStateOutcome
   });
 }
 

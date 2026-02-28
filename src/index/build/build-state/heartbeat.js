@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { logLine } from '../../../shared/progress.js';
 import { createLifecycleRegistry } from '../../../shared/lifecycle/registry.js';
 import { runBuildCleanupWithTimeout } from '../cleanup-timeout.js';
 
@@ -8,7 +9,7 @@ export const startHeartbeat = ({
   buildRoot,
   stage,
   intervalMs = 30000,
-  updateBuildState,
+  updateBuildStateOutcome,
   flushBuildState,
   buildRootExists
 } = {}) => {
@@ -42,11 +43,26 @@ export const startHeartbeat = ({
     if (nowMs - lastWrite < HEARTBEAT_MIN_INTERVAL_MS) return;
     lastWrite = nowMs;
     const now = new Date().toISOString();
-    const writeTask = updateBuildState(buildRoot, {
+    const writeTask = updateBuildStateOutcome(buildRoot, {
       heartbeat: {
         stage: stage || null,
         lastHeartbeatAt: now
       }
+    }).then((outcome) => {
+      if (outcome?.status !== 'timed_out') return;
+      logLine(
+        `[build_state] heartbeat write timed out for ${path.resolve(buildRoot)}; heartbeat remains best-effort.`,
+        {
+          kind: 'warning',
+          buildState: {
+            event: 'heartbeat-write-timeout',
+            buildRoot: path.resolve(buildRoot),
+            stage: stage || null,
+            timeoutMs: outcome?.timeoutMs ?? null,
+            elapsedMs: outcome?.elapsedMs ?? null
+          }
+        }
+      );
     }).catch(() => {});
     lifecycle.registerPromise(writeTask, { label: 'build-state-heartbeat-write' });
   };
