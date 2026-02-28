@@ -50,6 +50,32 @@ class SubprocessAbortError extends Error {
   }
 }
 
+const DEFAULT_TIMEOUT_ABORT_REAP_WAIT_MS = 500;
+
+const resolveTimeoutAbortReapWaitMs = (value) => {
+  const parsed = toNumber(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_TIMEOUT_ABORT_REAP_WAIT_MS;
+  return Math.max(0, Math.floor(parsed));
+};
+
+const waitMs = (ms) => new Promise((resolve) => {
+  const timer = setTimeout(resolve, Math.max(1, Math.floor(ms)));
+  timer.unref?.();
+});
+
+const awaitBoundedReap = async (promise, waitTimeoutMs) => {
+  if (!promise || typeof promise.then !== 'function') return;
+  const boundedMs = resolveTimeoutAbortReapWaitMs(waitTimeoutMs);
+  if (boundedMs <= 0) {
+    await promise.catch(() => {});
+    return;
+  }
+  await Promise.race([
+    promise.catch(() => {}),
+    waitMs(boundedMs)
+  ]);
+};
+
 function spawnSubprocess(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     const startedAt = Date.now();
@@ -68,6 +94,7 @@ function spawnSubprocess(command, args, options = {}) {
     const killSignal = options.killSignal || 'SIGTERM';
     const killGraceMs = resolveKillGraceMs(options.killGraceMs);
     const timeoutAbortKillGraceMs = options.killGraceMs == null ? 0 : killGraceMs;
+    const timeoutAbortReapWaitMs = resolveTimeoutAbortReapWaitMs(options.timeoutAbortReapWaitMs);
     const cleanupOnParentExit = typeof options.cleanupOnParentExit === 'boolean'
       ? options.cleanupOnParentExit
       : !(options.unref === true && detached === true);
@@ -140,24 +167,8 @@ function spawnSubprocess(command, args, options = {}) {
     let abortHandler = null;
     const onStdout = typeof options.onStdout === 'function' ? options.onStdout : null;
     const onStderr = typeof options.onStderr === 'function' ? options.onStderr : null;
-    const handleOutput = (collector, handler) => (chunk) => {
-      collector.push(chunk);
-      if (handler) {
-        handler(Buffer.isBuffer(chunk) ? chunk.toString(encoding) : String(chunk));
-      }
-    };
-    const onStdoutData = captureStdout || onStdout
-      ? handleOutput(stdoutCollector, onStdout)
-      : null;
-    const onStderrData = captureStderr || onStderr
-      ? handleOutput(stderrCollector, onStderr)
-      : null;
-    if (onStdoutData && child.stdout) {
-      child.stdout.on('data', onStdoutData);
-    }
-    if (onStderrData && child.stderr) {
-      child.stderr.on('data', onStderrData);
-    }
+    let onStdoutData = null;
+    let onStderrData = null;
     const cleanup = ({ keepTrackedRegistration = false } = {}) => {
       if (timeoutId) clearTimeout(timeoutId);
       if (abortHandler && abortSignal) {
@@ -185,47 +196,19 @@ function spawnSubprocess(command, args, options = {}) {
       const name = options.name ? `${options.name} ` : '';
       reject(new SubprocessError(`${name}exited with code ${exitCode ?? 'unknown'}`, result));
     };
-    const resolvedTimeoutMs = toNumber(options.timeoutMs);
-    if (Number.isFinite(resolvedTimeoutMs) && resolvedTimeoutMs > 0) {
-      timeoutId = setTimeout(() => {
-        if (settled) return;
-        settled = true;
-        try {
-          if (typeof child.unref === 'function') child.unref();
-        } catch {}
-        killChildProcessTree(child, {
-          killTree,
-          killSignal,
-          graceMs: timeoutAbortKillGraceMs,
-          detached,
-          awaitGrace: false
-        }).catch(() => {});
-        cleanup({ keepTrackedRegistration: true });
-        const result = buildResult({
-          pid: child.pid,
-          exitCode: null,
-          signal: null,
-          startedAt,
-          stdout: stdoutCollector.toOutput(outputMode),
-          stderr: stderrCollector.toOutput(outputMode)
-        });
-        reject(new SubprocessTimeoutError('Subprocess timeout', result));
-      }, Math.max(1, resolvedTimeoutMs));
-    }
-    abortHandler = () => {
-      if (settled) return;
-      settled = true;
+    const terminateAndReject = async (createError) => {
       try {
         if (typeof child.unref === 'function') child.unref();
       } catch {}
-      killChildProcessTree(child, {
+      const killPromise = killChildProcessTree(child, {
         killTree,
         killSignal,
         graceMs: timeoutAbortKillGraceMs,
         detached,
-        awaitGrace: false
-      }).catch(() => {});
+        awaitGrace: true
+      });
       cleanup({ keepTrackedRegistration: true });
+      await awaitBoundedReap(killPromise, timeoutAbortReapWaitMs);
       const result = buildResult({
         pid: child.pid,
         exitCode: null,
@@ -234,7 +217,52 @@ function spawnSubprocess(command, args, options = {}) {
         stdout: stdoutCollector.toOutput(outputMode),
         stderr: stderrCollector.toOutput(outputMode)
       });
-      reject(new SubprocessAbortError('Operation aborted', result));
+      reject(createError(result));
+    };
+    const onOutputHandlerError = (streamName, error) => {
+      if (settled) return;
+      settled = true;
+      void terminateAndReject((result) => new SubprocessError(
+        `Subprocess ${streamName} callback failed`,
+        result,
+        error
+      ));
+    };
+    const handleOutput = (collector, handler, streamName) => (chunk) => {
+      if (settled) return;
+      collector.push(chunk);
+      if (!handler) return;
+      const text = Buffer.isBuffer(chunk) ? chunk.toString(encoding) : String(chunk);
+      try {
+        handler(text);
+      } catch (error) {
+        onOutputHandlerError(streamName, error);
+      }
+    };
+    onStdoutData = captureStdout || onStdout
+      ? handleOutput(stdoutCollector, onStdout, 'stdout')
+      : null;
+    onStderrData = captureStderr || onStderr
+      ? handleOutput(stderrCollector, onStderr, 'stderr')
+      : null;
+    if (onStdoutData && child.stdout) {
+      child.stdout.on('data', onStdoutData);
+    }
+    if (onStderrData && child.stderr) {
+      child.stderr.on('data', onStderrData);
+    }
+    const resolvedTimeoutMs = toNumber(options.timeoutMs);
+    if (Number.isFinite(resolvedTimeoutMs) && resolvedTimeoutMs > 0) {
+      timeoutId = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        void terminateAndReject((result) => new SubprocessTimeoutError('Subprocess timeout', result));
+      }, Math.max(1, resolvedTimeoutMs));
+    }
+    abortHandler = () => {
+      if (settled) return;
+      settled = true;
+      void terminateAndReject((result) => new SubprocessAbortError('Operation aborted', result));
     };
     if (abortSignal) {
       abortSignal.addEventListener('abort', abortHandler, { once: true });

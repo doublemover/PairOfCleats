@@ -1,7 +1,8 @@
-import { spawnSync } from 'node:child_process';
+import { runSyncCommandWithTimeout, toSyncCommandExitCode } from './subprocess/sync-command.js';
 
 const DEFAULT_GRACE_MS = 5000;
 const DEFAULT_SIGNAL = 'SIGTERM';
+const DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS = 2000;
 
 const wait = (ms) => new Promise((resolve) => {
   const timer = setTimeout(resolve, ms);
@@ -134,8 +135,11 @@ const killWindowsTree = async (pid, { graceMs, awaitGrace = true }) => {
   let terminated = false;
   let forced = false;
   try {
-    const graceful = spawnSync('taskkill', baseArgs, { stdio: 'ignore' });
-    if (graceful.status === 0) {
+    const graceful = runSyncCommandWithTimeout('taskkill', baseArgs, {
+      stdio: 'ignore',
+      timeoutMs: DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS
+    });
+    if (toSyncCommandExitCode(graceful) === 0) {
       terminated = true;
       if (graceMs > 0 && awaitGrace) await wait(graceMs);
     }
@@ -143,13 +147,19 @@ const killWindowsTree = async (pid, { graceMs, awaitGrace = true }) => {
   if (!awaitGrace) {
     if (graceMs > 0) {
       scheduleUnrefTimer(graceMs, () => {
-        spawnSync('taskkill', [...baseArgs, '/F'], { stdio: 'ignore' });
+        runSyncCommandWithTimeout('taskkill', [...baseArgs, '/F'], {
+          stdio: 'ignore',
+          timeoutMs: DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS
+        });
       });
       return { terminated, forced: false };
     }
     try {
-      const forcedKill = spawnSync('taskkill', [...baseArgs, '/F'], { stdio: 'ignore' });
-      if (forcedKill.status === 0) {
+      const forcedKill = runSyncCommandWithTimeout('taskkill', [...baseArgs, '/F'], {
+        stdio: 'ignore',
+        timeoutMs: DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS
+      });
+      if (toSyncCommandExitCode(forcedKill) === 0) {
         terminated = true;
         forced = true;
       }
@@ -157,8 +167,11 @@ const killWindowsTree = async (pid, { graceMs, awaitGrace = true }) => {
     return { terminated, forced };
   }
   try {
-    const forcedKill = spawnSync('taskkill', [...baseArgs, '/F'], { stdio: 'ignore' });
-    if (forcedKill.status === 0) {
+    const forcedKill = runSyncCommandWithTimeout('taskkill', [...baseArgs, '/F'], {
+      stdio: 'ignore',
+      timeoutMs: DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS
+    });
+    if (toSyncCommandExitCode(forcedKill) === 0) {
       terminated = true;
       forced = true;
     }
@@ -171,14 +184,20 @@ const killWindowsTreeSync = (pid) => {
   let terminated = false;
   let forced = false;
   try {
-    const graceful = spawnSync('taskkill', baseArgs, { stdio: 'ignore' });
-    if (graceful.status === 0) {
+    const graceful = runSyncCommandWithTimeout('taskkill', baseArgs, {
+      stdio: 'ignore',
+      timeoutMs: DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS
+    });
+    if (toSyncCommandExitCode(graceful) === 0) {
       terminated = true;
     }
   } catch {}
   try {
-    const forcedKill = spawnSync('taskkill', [...baseArgs, '/F'], { stdio: 'ignore' });
-    if (forcedKill.status === 0) {
+    const forcedKill = runSyncCommandWithTimeout('taskkill', [...baseArgs, '/F'], {
+      stdio: 'ignore',
+      timeoutMs: DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS
+    });
+    if (toSyncCommandExitCode(forcedKill) === 0) {
       terminated = true;
       forced = true;
     }

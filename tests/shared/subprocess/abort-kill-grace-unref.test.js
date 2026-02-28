@@ -4,13 +4,15 @@ import { spawnSync } from 'node:child_process';
 
 const script = `
 import { spawnSubprocess } from './src/shared/subprocess.js';
+const controller = new AbortController();
+setTimeout(() => controller.abort(), 25);
 const startedAt = Date.now();
 try {
   await spawnSubprocess(
     process.execPath,
     ['-e', 'setInterval(() => {}, 1000);'],
     {
-      timeoutMs: 75,
+      signal: controller.signal,
       killGraceMs: 2500,
       timeoutAbortReapWaitMs: 200,
       stdio: ['ignore', 'ignore', 'ignore'],
@@ -40,8 +42,8 @@ try {
 
 const innerDurationMs = Number(payload.durationMs);
 assert.ok(Number.isFinite(innerDurationMs), `expected numeric inner duration, got: ${String(payload.durationMs)}`);
-assert.ok(innerDurationMs >= 200, `expected timeout path to await bounded reap before reject; got ${innerDurationMs}ms`);
-assert.ok(innerDurationMs < 2000, `expected timeout path to return before grace wait; got ${innerDurationMs}ms`);
+assert.ok(innerDurationMs >= 200, `expected abort path to await bounded reap before reject; got ${innerDurationMs}ms`);
+assert.ok(innerDurationMs < 2000, `expected abort path to return before full grace wait; got ${innerDurationMs}ms`);
 assert.ok(wallClockMs < 3000, `expected process to exit without waiting full grace timer; got ${wallClockMs}ms`);
 
-console.log('subprocess timeout kill grace unref test passed');
+console.log('subprocess abort kill grace unref test passed');

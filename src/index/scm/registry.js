@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { runSyncCommandWithTimeout, toSyncCommandExitCode } from '../../shared/subprocess.js';
 import { assertScmProvider, normalizeProviderName } from './provider.js';
 import { SCM_PROVIDER_NAMES } from './types.js';
 import { gitProvider } from './providers/git.js';
@@ -14,8 +14,11 @@ const PROVIDER_REGISTRY = Object.freeze({
 
 const canRun = (cmd, args = ['--version']) => {
   try {
-    const result = spawnSync(cmd, args, { encoding: 'utf8' });
-    return result.status === 0;
+    const result = runSyncCommandWithTimeout(cmd, args, {
+      encoding: 'utf8',
+      timeoutMs: 1_500
+    });
+    return toSyncCommandExitCode(result) === 0;
   } catch {
     return false;
   }
