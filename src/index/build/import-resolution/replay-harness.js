@@ -269,6 +269,240 @@ export const loadImportResolutionGraphReports = async (
   return reports;
 };
 
+const createAggregateState = () => ({
+  totals: {
+    reportCount: 0,
+    observedUnresolved: 0,
+    observedActionable: 0,
+    unresolved: 0,
+    actionable: 0,
+    gateEligibleUnresolved: 0,
+    gateEligibleActionable: 0,
+    parserArtifact: 0,
+    resolverGap: 0,
+    resolverBudgetExhausted: 0,
+    resolverBudgetAdaptiveReports: 0,
+    actionableHotspotCounts: Object.create(null),
+    actionableRepoCounts: Object.create(null),
+    actionableLanguageCounts: Object.create(null),
+    resolverStageCounts: Object.create(null),
+    resolverPipelineStages: Object.create(null),
+    resolverPipelineStageElapsedSamples: Object.create(null),
+    resolverBudgetPolicyProfiles: Object.create(null)
+  },
+  reasonCodeCounts: Object.create(null),
+  invalidReports: []
+});
+
+const accumulateGraphReport = (
+  state,
+  report,
+  { excludedImporterSegments = DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS } = {}
+) => {
+  const reportPath = typeof report?.reportPath === 'string' ? report.reportPath : '<unknown>';
+  const payload = report?.payload;
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    state.invalidReports.push(reportPath);
+    return;
+  }
+  const stats = payload?.stats && typeof payload.stats === 'object' ? payload.stats : {};
+  const rawWarnings = Array.isArray(payload.warnings) ? payload.warnings : [];
+  const warnings = enrichUnresolvedImportSamples(rawWarnings);
+
+  const warningReasonCodes = Object.create(null);
+  for (const warning of warnings) {
+    if (typeof warning?.reasonCode !== 'string' || !warning.reasonCode) continue;
+    bumpCount(warningReasonCodes, warning.reasonCode);
+  }
+
+  const eligibleWarnings = filterGateEligibleImportWarnings(warnings, { excludedImporterSegments });
+  const eligibleSummary = summarizeGateEligibleImportWarnings(warnings, { excludedImporterSegments });
+  const eligibleUnresolved = eligibleSummary.unresolved;
+  const eligibleActionable = eligibleSummary.actionable;
+  const eligibleParserArtifact = eligibleSummary.parserArtifact;
+  const eligibleResolverGap = eligibleSummary.resolverGap;
+
+  const statsUnresolved = toNonNegativeIntOrNull(stats.unresolved);
+  const statsActionable = toNonNegativeIntOrNull(
+    stats.unresolvedActionable
+    ?? stats?.unresolvedByDisposition?.actionable
+  );
+  const statsGateEligibleUnresolved = toNonNegativeIntOrNull(
+    stats.unresolvedGateEligible
+    ?? stats.unresolvedEligible
+  );
+  const statsGateEligibleActionable = toNonNegativeIntOrNull(
+    stats.unresolvedActionableGateEligible
+    ?? stats.unresolvedGateEligibleActionable
+    ?? stats.unresolvedActionableEligible
+    ?? stats.unresolvedEligibleActionable
+  );
+  const hasStatsGateEligibleTotals = (
+    statsGateEligibleUnresolved != null
+    && statsGateEligibleActionable != null
+  );
+  const hasStatsGateTotals = statsUnresolved != null && statsActionable != null;
+  const unresolvedRaw = hasStatsGateEligibleTotals
+    ? statsGateEligibleUnresolved
+    : (hasStatsGateTotals ? statsUnresolved : eligibleUnresolved);
+  const actionableRaw = hasStatsGateEligibleTotals
+    ? statsGateEligibleActionable
+    : (hasStatsGateTotals ? statsActionable : eligibleActionable);
+  const gateEligibleUnresolvedRaw = hasStatsGateEligibleTotals
+    ? statsGateEligibleUnresolved
+    : eligibleUnresolved;
+  const gateEligibleActionableRaw = hasStatsGateEligibleTotals
+    ? statsGateEligibleActionable
+    : eligibleActionable;
+  const { unresolved, actionable } = clampActionableCount({
+    unresolved: unresolvedRaw,
+    actionable: actionableRaw
+  });
+  const {
+    unresolved: gateEligibleUnresolved,
+    actionable: gateEligibleActionable
+  } = clampActionableCount({
+    unresolved: gateEligibleUnresolvedRaw,
+    actionable: gateEligibleActionableRaw
+  });
+
+  const observedUnresolved = statsUnresolved ?? warnings.length;
+  const statsObservedUnresolved = toNonNegativeIntOrNull(
+    stats.unresolvedObserved
+    ?? stats.unresolvedObservedTotal
+  );
+  const observedActionable = toNonNegativeIntOrNull(
+    stats.unresolvedObservedActionable
+    ?? stats.unresolvedObservedActionableTotal
+  ) ?? statsActionable
+    ?? warnings.filter((entry) => isActionableImportWarning(entry)).length;
+  const effectiveObservedUnresolved = statsObservedUnresolved ?? observedUnresolved;
+
+  const statsFailureCauseCounts = toCountMap(stats.unresolvedByFailureCause);
+  const statsGateFailureCauseCounts = toCountMap(
+    stats.unresolvedGateEligibleByFailureCause
+    ?? stats.unresolvedByFailureCauseGateEligible
+    ?? stats.unresolvedFailureCauseGateEligible
+  );
+  const parserArtifactSource = hasStatsGateEligibleTotals
+    ? statsGateFailureCauseCounts
+    : statsFailureCauseCounts;
+  const parserArtifact = (
+    toNonNegativeIntOrNull(parserArtifactSource?.parser_artifact)
+    ?? eligibleParserArtifact
+  );
+  const resolverGapSource = hasStatsGateEligibleTotals
+    ? statsGateFailureCauseCounts
+    : statsFailureCauseCounts;
+  const resolverGap = (
+    toNonNegativeIntOrNull(resolverGapSource?.resolver_gap)
+    ?? eligibleResolverGap
+  );
+
+  const statsReasonCodes = toCountMap(stats.unresolvedByReasonCode);
+  const effectiveReasonCodes = statsReasonCodes || warningReasonCodes;
+  const resolverBudgetExhausted = (
+    toNonNegativeIntOrNull(stats.unresolvedBudgetExhausted)
+    ?? toNonNegativeIntOrNull(effectiveReasonCodes?.IMP_U_RESOLVER_BUDGET_EXHAUSTED)
+    ?? 0
+  );
+
+  const statsResolverStages = toResolverStageCounts(stats.unresolvedByResolverStage);
+  const statsResolverPipelineStages = toStagePipelineMap(stats.resolverPipelineStages);
+  const statsBudgetPolicy = toBudgetPolicy(stats.resolverBudgetPolicy);
+  const statsActionableByLanguage = toCountMap(stats.unresolvedActionableByLanguage);
+
+  const warningResolverStages = Object.create(null);
+  for (const warning of warnings) {
+    const stage = typeof warning?.resolverStage === 'string' ? warning.resolverStage.trim() : '';
+    if (!isKnownResolverStage(stage)) continue;
+    if (!stage) continue;
+    bumpCount(warningResolverStages, stage);
+  }
+  const effectiveResolverStages = statsResolverStages || warningResolverStages;
+
+  const statsHotspots = toHotspotCounts(stats.unresolvedActionableHotspots);
+  const effectiveHotspotCounts = statsHotspots || Object.create(null);
+  const repoLabel = resolveRepoLabelFromReportPath(reportPath);
+  bumpCount(state.totals.actionableRepoCounts, repoLabel, actionable);
+  if (statsActionableByLanguage) {
+    for (const [language, count] of Object.entries(statsActionableByLanguage)) {
+      bumpCount(state.totals.actionableLanguageCounts, language, count);
+    }
+  } else {
+    for (const entry of eligibleWarnings) {
+      if (!isActionableImportWarning(entry)) continue;
+      const importer = typeof entry?.importer === 'string' ? entry.importer.trim() : '';
+      if (!importer) continue;
+      bumpCount(state.totals.actionableLanguageCounts, resolveLanguageLabelFromImporter(importer), 1);
+    }
+  }
+  if (!statsHotspots) {
+    for (const entry of eligibleWarnings) {
+      if (!isActionableImportWarning(entry)) continue;
+      const importer = typeof entry?.importer === 'string' ? entry.importer.trim() : '';
+      if (!importer) continue;
+      bumpCount(effectiveHotspotCounts, importer);
+    }
+  }
+
+  state.totals.reportCount += 1;
+  state.totals.observedUnresolved += effectiveObservedUnresolved;
+  state.totals.observedActionable += observedActionable;
+  state.totals.unresolved += unresolved;
+  state.totals.actionable += actionable;
+  state.totals.gateEligibleUnresolved += gateEligibleUnresolved;
+  state.totals.gateEligibleActionable += gateEligibleActionable;
+  state.totals.parserArtifact += parserArtifact;
+  state.totals.resolverGap += resolverGap;
+  state.totals.resolverBudgetExhausted += resolverBudgetExhausted;
+  if (statsBudgetPolicy?.adaptiveEnabled === true) {
+    state.totals.resolverBudgetAdaptiveReports += 1;
+  }
+  bumpCount(state.totals.resolverBudgetPolicyProfiles, statsBudgetPolicy?.adaptiveProfile || 'normal', 1);
+  for (const [importer, count] of Object.entries(effectiveHotspotCounts)) {
+    bumpCount(state.totals.actionableHotspotCounts, importer, count);
+  }
+  for (const [reasonCode, count] of Object.entries(effectiveReasonCodes)) {
+    bumpCount(state.reasonCodeCounts, reasonCode, count);
+  }
+  for (const [resolverStage, count] of Object.entries(effectiveResolverStages)) {
+    bumpCount(state.totals.resolverStageCounts, resolverStage, count);
+  }
+  mergeStagePipelineMaps(state.totals.resolverPipelineStages, statsResolverPipelineStages);
+  collectStageElapsedSamples(state.totals.resolverPipelineStageElapsedSamples, statsResolverPipelineStages);
+};
+
+const finalizeAggregateState = (state) => ({
+  totals: state.totals,
+  reasonCodeCounts: toSortedObject(state.reasonCodeCounts),
+  actionableByRepo: toSortedObject(state.totals.actionableRepoCounts),
+  actionableByLanguage: toSortedObject(state.totals.actionableLanguageCounts),
+  resolverStages: toSortedObject(state.totals.resolverStageCounts),
+  resolverPipelineStages: toSortedStagePipeline(state.totals.resolverPipelineStages),
+  resolverPipelineStagePercentiles: summarizeResolverPipelineStageElapsedPercentiles(
+    state.totals.resolverPipelineStageElapsedSamples
+  ),
+  resolverBudgetPolicyProfiles: toSortedObject(state.totals.resolverBudgetPolicyProfiles),
+  actionableHotspots: toSortedHotspots(state.totals.actionableHotspotCounts),
+  invalidReports: state.invalidReports
+});
+
+export const aggregateImportResolutionGraphReportPaths = async (
+  reportPaths,
+  {
+    excludedImporterSegments = DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS,
+    readFile = fs.readFile
+  } = {}
+) => {
+  const state = createAggregateState();
+  for (const reportPath of Array.isArray(reportPaths) ? reportPaths : []) {
+    const payload = await safeReadJson(reportPath, readFile);
+    accumulateGraphReport(state, { reportPath, payload }, { excludedImporterSegments });
+  }
+  return finalizeAggregateState(state);
+};
+
 /**
  * Replay and aggregate unresolved-import diagnostics from import resolution graph payloads.
  *
@@ -289,216 +523,9 @@ export const aggregateImportResolutionGraphPayloads = (
   graphReports,
   { excludedImporterSegments = DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS } = {}
 ) => {
-  const totals = {
-    reportCount: 0,
-    observedUnresolved: 0,
-    observedActionable: 0,
-    unresolved: 0,
-    actionable: 0,
-    gateEligibleUnresolved: 0,
-    gateEligibleActionable: 0,
-    parserArtifact: 0,
-    resolverGap: 0,
-    resolverBudgetExhausted: 0,
-    resolverBudgetAdaptiveReports: 0,
-    actionableHotspotCounts: Object.create(null),
-    actionableRepoCounts: Object.create(null),
-    actionableLanguageCounts: Object.create(null),
-    resolverStageCounts: Object.create(null),
-    resolverPipelineStages: Object.create(null),
-    resolverPipelineStageElapsedSamples: Object.create(null),
-    resolverBudgetPolicyProfiles: Object.create(null)
-  };
-  const reasonCodeCounts = Object.create(null);
-  const invalidReports = [];
-
+  const state = createAggregateState();
   for (const report of Array.isArray(graphReports) ? graphReports : []) {
-    const reportPath = typeof report?.reportPath === 'string' ? report.reportPath : '<unknown>';
-    const payload = report?.payload;
-    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-      invalidReports.push(reportPath);
-      continue;
-    }
-    const stats = payload?.stats && typeof payload.stats === 'object' ? payload.stats : {};
-    const rawWarnings = Array.isArray(payload.warnings) ? payload.warnings : [];
-    const warnings = enrichUnresolvedImportSamples(rawWarnings);
-
-    const warningReasonCodes = Object.create(null);
-    for (const warning of warnings) {
-      if (typeof warning?.reasonCode !== 'string' || !warning.reasonCode) continue;
-      bumpCount(warningReasonCodes, warning.reasonCode);
-    }
-
-    const eligibleWarnings = filterGateEligibleImportWarnings(warnings, { excludedImporterSegments });
-    const eligibleSummary = summarizeGateEligibleImportWarnings(warnings, { excludedImporterSegments });
-    const eligibleUnresolved = eligibleSummary.unresolved;
-    const eligibleActionable = eligibleSummary.actionable;
-    const eligibleParserArtifact = eligibleSummary.parserArtifact;
-    const eligibleResolverGap = eligibleSummary.resolverGap;
-
-    const statsUnresolved = toNonNegativeIntOrNull(stats.unresolved);
-    const statsActionable = toNonNegativeIntOrNull(
-      stats.unresolvedActionable
-      ?? stats?.unresolvedByDisposition?.actionable
-    );
-    const statsGateEligibleUnresolved = toNonNegativeIntOrNull(
-      stats.unresolvedGateEligible
-      ?? stats.unresolvedEligible
-    );
-    const statsGateEligibleActionable = toNonNegativeIntOrNull(
-      stats.unresolvedActionableGateEligible
-      ?? stats.unresolvedGateEligibleActionable
-      ?? stats.unresolvedActionableEligible
-      ?? stats.unresolvedEligibleActionable
-    );
-    const hasStatsGateEligibleTotals = (
-      statsGateEligibleUnresolved != null
-      && statsGateEligibleActionable != null
-    );
-    const hasStatsGateTotals = statsUnresolved != null && statsActionable != null;
-    const unresolvedRaw = hasStatsGateEligibleTotals
-      ? statsGateEligibleUnresolved
-      : (hasStatsGateTotals ? statsUnresolved : eligibleUnresolved);
-    const actionableRaw = hasStatsGateEligibleTotals
-      ? statsGateEligibleActionable
-      : (hasStatsGateTotals ? statsActionable : eligibleActionable);
-    const gateEligibleUnresolvedRaw = hasStatsGateEligibleTotals
-      ? statsGateEligibleUnresolved
-      : eligibleUnresolved;
-    const gateEligibleActionableRaw = hasStatsGateEligibleTotals
-      ? statsGateEligibleActionable
-      : eligibleActionable;
-    const { unresolved, actionable } = clampActionableCount({
-      unresolved: unresolvedRaw,
-      actionable: actionableRaw
-    });
-    const {
-      unresolved: gateEligibleUnresolved,
-      actionable: gateEligibleActionable
-    } = clampActionableCount({
-      unresolved: gateEligibleUnresolvedRaw,
-      actionable: gateEligibleActionableRaw
-    });
-
-    const observedUnresolved = statsUnresolved ?? warnings.length;
-    const statsObservedUnresolved = toNonNegativeIntOrNull(
-      stats.unresolvedObserved
-      ?? stats.unresolvedObservedTotal
-    );
-    const observedActionable = toNonNegativeIntOrNull(
-      stats.unresolvedObservedActionable
-      ?? stats.unresolvedObservedActionableTotal
-    ) ?? statsActionable
-      ?? warnings.filter((entry) => isActionableImportWarning(entry)).length;
-    const effectiveObservedUnresolved = statsObservedUnresolved ?? observedUnresolved;
-
-    const statsFailureCauseCounts = toCountMap(stats.unresolvedByFailureCause);
-    const statsGateFailureCauseCounts = toCountMap(
-      stats.unresolvedGateEligibleByFailureCause
-      ?? stats.unresolvedByFailureCauseGateEligible
-      ?? stats.unresolvedFailureCauseGateEligible
-    );
-    const parserArtifactSource = hasStatsGateEligibleTotals
-      ? statsGateFailureCauseCounts
-      : statsFailureCauseCounts;
-    const parserArtifact = (
-      toNonNegativeIntOrNull(parserArtifactSource?.parser_artifact)
-      ?? eligibleParserArtifact
-    );
-    const resolverGapSource = hasStatsGateEligibleTotals
-      ? statsGateFailureCauseCounts
-      : statsFailureCauseCounts;
-    const resolverGap = (
-      toNonNegativeIntOrNull(resolverGapSource?.resolver_gap)
-      ?? eligibleResolverGap
-    );
-
-    const statsReasonCodes = toCountMap(stats.unresolvedByReasonCode);
-    const effectiveReasonCodes = statsReasonCodes || warningReasonCodes;
-    const resolverBudgetExhausted = (
-      toNonNegativeIntOrNull(stats.unresolvedBudgetExhausted)
-      ?? toNonNegativeIntOrNull(effectiveReasonCodes?.IMP_U_RESOLVER_BUDGET_EXHAUSTED)
-      ?? 0
-    );
-
-    const statsResolverStages = toResolverStageCounts(stats.unresolvedByResolverStage);
-    const statsResolverPipelineStages = toStagePipelineMap(stats.resolverPipelineStages);
-    const statsBudgetPolicy = toBudgetPolicy(stats.resolverBudgetPolicy);
-    const statsActionableByLanguage = toCountMap(stats.unresolvedActionableByLanguage);
-
-    const warningResolverStages = Object.create(null);
-    for (const warning of warnings) {
-      const stage = typeof warning?.resolverStage === 'string' ? warning.resolverStage.trim() : '';
-      if (!isKnownResolverStage(stage)) continue;
-      if (!stage) continue;
-      bumpCount(warningResolverStages, stage);
-    }
-    const effectiveResolverStages = statsResolverStages || warningResolverStages;
-
-    const statsHotspots = toHotspotCounts(stats.unresolvedActionableHotspots);
-    const effectiveHotspotCounts = statsHotspots || Object.create(null);
-    const repoLabel = resolveRepoLabelFromReportPath(reportPath);
-    bumpCount(totals.actionableRepoCounts, repoLabel, actionable);
-    if (statsActionableByLanguage) {
-      for (const [language, count] of Object.entries(statsActionableByLanguage)) {
-        bumpCount(totals.actionableLanguageCounts, language, count);
-      }
-    } else {
-      for (const entry of eligibleWarnings) {
-        if (!isActionableImportWarning(entry)) continue;
-        const importer = typeof entry?.importer === 'string' ? entry.importer.trim() : '';
-        if (!importer) continue;
-        bumpCount(totals.actionableLanguageCounts, resolveLanguageLabelFromImporter(importer), 1);
-      }
-    }
-    if (!statsHotspots) {
-      for (const entry of eligibleWarnings) {
-        if (!isActionableImportWarning(entry)) continue;
-        const importer = typeof entry?.importer === 'string' ? entry.importer.trim() : '';
-        if (!importer) continue;
-        bumpCount(effectiveHotspotCounts, importer);
-      }
-    }
-
-    totals.reportCount += 1;
-    totals.observedUnresolved += effectiveObservedUnresolved;
-    totals.observedActionable += observedActionable;
-    totals.unresolved += unresolved;
-    totals.actionable += actionable;
-    totals.gateEligibleUnresolved += gateEligibleUnresolved;
-    totals.gateEligibleActionable += gateEligibleActionable;
-    totals.parserArtifact += parserArtifact;
-    totals.resolverGap += resolverGap;
-    totals.resolverBudgetExhausted += resolverBudgetExhausted;
-    if (statsBudgetPolicy?.adaptiveEnabled === true) {
-      totals.resolverBudgetAdaptiveReports += 1;
-    }
-    bumpCount(totals.resolverBudgetPolicyProfiles, statsBudgetPolicy?.adaptiveProfile || 'normal', 1);
-    for (const [importer, count] of Object.entries(effectiveHotspotCounts)) {
-      bumpCount(totals.actionableHotspotCounts, importer, count);
-    }
-    for (const [reasonCode, count] of Object.entries(effectiveReasonCodes)) {
-      bumpCount(reasonCodeCounts, reasonCode, count);
-    }
-    for (const [resolverStage, count] of Object.entries(effectiveResolverStages)) {
-      bumpCount(totals.resolverStageCounts, resolverStage, count);
-    }
-    mergeStagePipelineMaps(totals.resolverPipelineStages, statsResolverPipelineStages);
-    collectStageElapsedSamples(totals.resolverPipelineStageElapsedSamples, statsResolverPipelineStages);
+    accumulateGraphReport(state, report, { excludedImporterSegments });
   }
-
-  return {
-    totals,
-    reasonCodeCounts: toSortedObject(reasonCodeCounts),
-    actionableByRepo: toSortedObject(totals.actionableRepoCounts),
-    actionableByLanguage: toSortedObject(totals.actionableLanguageCounts),
-    resolverStages: toSortedObject(totals.resolverStageCounts),
-    resolverPipelineStages: toSortedStagePipeline(totals.resolverPipelineStages),
-    resolverPipelineStagePercentiles: summarizeResolverPipelineStageElapsedPercentiles(
-      totals.resolverPipelineStageElapsedSamples
-    ),
-    resolverBudgetPolicyProfiles: toSortedObject(totals.resolverBudgetPolicyProfiles),
-    actionableHotspots: toSortedHotspots(totals.actionableHotspotCounts),
-    invalidReports
-  };
+  return finalizeAggregateState(state);
 };

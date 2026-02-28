@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   aggregateImportResolutionGraphPayloads,
+  aggregateImportResolutionGraphReportPaths,
   DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS,
   discoverImportResolutionGraphReports,
   loadImportResolutionGraphReports
@@ -202,6 +203,18 @@ try {
     loaded.filter((entry) => entry.payload == null).length,
     1,
     'expected one invalid replay report payload'
+  );
+
+  const streamedAggregated = await aggregateImportResolutionGraphReportPaths(discovered, {
+    excludedImporterSegments: DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS
+  });
+  const loadedAggregated = aggregateImportResolutionGraphPayloads(loaded, {
+    excludedImporterSegments: DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS
+  });
+  assert.deepEqual(
+    streamedAggregated,
+    loadedAggregated,
+    'expected streaming replay aggregation to match loaded-report aggregation'
   );
 } finally {
   await fs.rm(replayRoot, { recursive: true, force: true });

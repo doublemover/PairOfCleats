@@ -47,6 +47,7 @@ export {
 export { matchGeneratedExpectationSpecifier } from './import-resolution/specifier-hints.js';
 export {
   aggregateImportResolutionGraphPayloads,
+  aggregateImportResolutionGraphReportPaths,
   DEFAULT_REPLAY_MAX_REPORTS,
   DEFAULT_REPLAY_SCAN_ROOTS,
   discoverImportResolutionGraphReports,

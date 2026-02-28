@@ -4,11 +4,10 @@ import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { coerceNumberAtLeast } from '../../src/shared/number-coerce.js';
 import {
-  aggregateImportResolutionGraphPayloads,
+  aggregateImportResolutionGraphReportPaths,
   DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS,
   DEFAULT_REPLAY_MAX_REPORTS,
   discoverImportResolutionGraphReports,
-  loadImportResolutionGraphReports,
   resolveResolverPipelineStageHighlights
 } from '../../src/index/build/import-resolution.js';
 import { resolveRepoConfig } from '../shared/dict-utils.js';
@@ -155,7 +154,6 @@ const main = async () => {
     return;
   }
 
-  const graphReports = await loadImportResolutionGraphReports(graphPaths);
   const {
     totals,
     reasonCodeCounts,
@@ -167,7 +165,7 @@ const main = async () => {
     resolverBudgetPolicyProfiles,
     actionableHotspots,
     invalidReports
-  } = aggregateImportResolutionGraphPayloads(graphReports, {
+  } = await aggregateImportResolutionGraphReportPaths(graphPaths, {
     excludedImporterSegments: DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS
   });
 
