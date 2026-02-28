@@ -15,13 +15,8 @@ assert.equal(isResolverGapImportWarning({ failureCause: 'resolver_gap' }), true)
 
 assert.equal(
   isParserArtifactImportWarning({ category: 'parser_artifact' }),
-  true,
-  'category fallback should support replay payloads missing failureCause'
-);
-assert.equal(
-  isParserArtifactImportWarning({ category: 'parser_artifact' }, { allowCategoryFallback: false }),
   false,
-  'category fallback should be opt-out for strict callsites'
+  'category-only payloads should not count in hard-cut failure-cause accounting'
 );
 
 const summary = summarizeImportWarningDispositions([
@@ -34,7 +29,7 @@ const summary = summarizeImportWarningDispositions([
 assert.deepEqual(summary, {
   actionable: 2,
   parserArtifact: 1,
-  resolverGap: 2
+  resolverGap: 1
 });
 
 console.log('import warning disposition helpers test passed');

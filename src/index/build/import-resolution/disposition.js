@@ -8,11 +8,10 @@ const normalizeToken = (value) => (
   typeof value === 'string' ? value.trim() : ''
 );
 
-const matchesFailureCause = (entry, expectedFailureCause, { allowCategoryFallback = true } = {}) => {
+const matchesFailureCause = (entry, expectedFailureCause) => {
   const failureCause = normalizeToken(entry?.failureCause);
   if (failureCause === expectedFailureCause) return true;
-  if (!allowCategoryFallback) return false;
-  return normalizeToken(entry?.category) === expectedFailureCause;
+  return false;
 };
 
 export const isActionableImportWarning = (entry) => (
@@ -20,24 +19,20 @@ export const isActionableImportWarning = (entry) => (
 );
 
 export const isParserArtifactImportWarning = (
-  entry,
-  { allowCategoryFallback = true } = {}
+  entry
 ) => (
   matchesFailureCause(
     entry,
-    IMPORT_FAILURE_CAUSES.PARSER_ARTIFACT,
-    { allowCategoryFallback }
+    IMPORT_FAILURE_CAUSES.PARSER_ARTIFACT
   )
 );
 
 export const isResolverGapImportWarning = (
-  entry,
-  { allowCategoryFallback = true } = {}
+  entry
 ) => (
   matchesFailureCause(
     entry,
-    IMPORT_FAILURE_CAUSES.RESOLVER_GAP,
-    { allowCategoryFallback }
+    IMPORT_FAILURE_CAUSES.RESOLVER_GAP
   )
 );
 
@@ -51,18 +46,11 @@ export const countWarningsByPredicate = (warnings, predicate) => {
 };
 
 export const summarizeImportWarningDispositions = (
-  warnings,
-  { allowCategoryFallback = true } = {}
+  warnings
 ) => ({
   actionable: countWarningsByPredicate(warnings, isActionableImportWarning),
-  parserArtifact: countWarningsByPredicate(
-    warnings,
-    (entry) => isParserArtifactImportWarning(entry, { allowCategoryFallback })
-  ),
-  resolverGap: countWarningsByPredicate(
-    warnings,
-    (entry) => isResolverGapImportWarning(entry, { allowCategoryFallback })
-  )
+  parserArtifact: countWarningsByPredicate(warnings, isParserArtifactImportWarning),
+  resolverGap: countWarningsByPredicate(warnings, isResolverGapImportWarning)
 });
 
 export { IMPORT_DISPOSITIONS };

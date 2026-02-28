@@ -353,15 +353,12 @@ export const aggregateImportResolutionGraphPayloads = (
       ?? warnings.filter((entry) => isActionableImportWarning(entry)).length;
 
     const statsFailureCauseCounts = toCountMap(stats.unresolvedByFailureCause);
-    const statsCategoryCounts = toCountMap(stats.unresolvedByCategory);
     const parserArtifact = (
       toNonNegativeIntOrNull(statsFailureCauseCounts?.parser_artifact)
-      ?? toNonNegativeIntOrNull(statsCategoryCounts?.parser_artifact)
       ?? eligibleParserArtifact
     );
     const resolverGap = (
       toNonNegativeIntOrNull(statsFailureCauseCounts?.resolver_gap)
-      ?? toNonNegativeIntOrNull(statsCategoryCounts?.resolver_gap)
       ?? eligibleResolverGap
     );
 
