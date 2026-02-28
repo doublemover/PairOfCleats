@@ -1,5 +1,23 @@
 import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
 
+const shouldUseCmdShell = (command) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(String(command || ''));
+
+const quoteWindowsCmdArg = (value) => {
+  const text = String(value ?? '');
+  if (!text) return '""';
+  if (!/[\s"&|<>^();]/u.test(text)) return text;
+  return `"${text.replaceAll('"', '""')}"`;
+};
+
+const resolveWindowsCmdInvocation = (command, args = []) => {
+  const shellExe = process.env.ComSpec || 'cmd.exe';
+  const commandLine = [command, ...args].map(quoteWindowsCmdArg).join(' ');
+  return {
+    command: shellExe,
+    args: ['/d', '/s', '/c', commandLine]
+  };
+};
+
 /**
  * Exit current process using child-command exit semantics.
  *
@@ -35,13 +53,17 @@ export function exitLikeCommandResult(result, proc = process) {
  * @returns {{ok:boolean,status:number|null,signal:string|null,stdout?:string,stderr?:string}}
  */
 export function runCommand(cmd, args, options = {}) {
+  const resolvedArgs = Array.isArray(args) ? args : [];
+  const invocation = shouldUseCmdShell(cmd)
+    ? resolveWindowsCmdInvocation(cmd, resolvedArgs)
+    : { command: cmd, args: resolvedArgs };
   const maxOutputBytes = Number.isFinite(Number(options.maxOutputBytes))
     ? Number(options.maxOutputBytes)
     : (Number.isFinite(Number(options.maxBuffer)) ? Number(options.maxBuffer) : undefined);
   const timeoutMs = Number.isFinite(Number(options.timeoutMs))
     ? Math.max(100, Math.floor(Number(options.timeoutMs)))
     : null;
-  const result = spawnSubprocessSync(cmd, Array.isArray(args) ? args : [], {
+  const result = spawnSubprocessSync(invocation.command, invocation.args, {
     cwd: options.cwd,
     env: options.env,
     stdio: options.stdio,
