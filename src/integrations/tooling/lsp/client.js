@@ -249,6 +249,18 @@ export function createLspClient(options) {
       detached: killTreeDetached,
       graceMs: 0,
       awaitGrace: true
+    }).then((outcome) => {
+      if (!outcome || typeof outcome !== 'object') return;
+      if (outcome.terminated === true && !outcome.fallbackAttempted) return;
+      emitLifecycleEvent({
+        kind: 'kill_diagnostics',
+        reason,
+        pid: Number.isFinite(Number(child?.pid)) ? Number(child.pid) : null,
+        terminated: outcome.terminated === true,
+        forced: outcome.forced === true,
+        fallbackAttempted: outcome.fallbackAttempted === true,
+        fallbackTerminated: Number(outcome.fallbackTerminated || 0)
+      });
     }).catch(() => {});
     try {
       if (child.stdin) closeJsonRpcWriter(child.stdin);
@@ -504,6 +516,18 @@ export function createLspClient(options) {
         detached: killTreeDetached,
         graceMs: 0,
         awaitGrace: false
+      }).then((outcome) => {
+        if (!outcome || typeof outcome !== 'object') return;
+        if (outcome.terminated === true && !outcome.fallbackAttempted) return;
+        emitLifecycleEvent({
+          kind: 'kill_diagnostics',
+          reason: 'exit_handler',
+          pid: Number.isFinite(Number(child?.pid)) ? Number(child.pid) : null,
+          terminated: outcome.terminated === true,
+          forced: outcome.forced === true,
+          fallbackAttempted: outcome.fallbackAttempted === true,
+          fallbackTerminated: Number(outcome.fallbackTerminated || 0)
+        });
       }).catch(() => {});
       rejectPending(new Error(`LSP exited (${code ?? 'null'}, ${signal ?? 'null'}).`));
       proc = null;
@@ -635,6 +659,19 @@ export function createLspClient(options) {
       detached: killTreeDetached,
       graceMs: 0,
       awaitGrace: true
+    }).then((outcome) => {
+      if (!outcome || typeof outcome !== 'object') return outcome;
+      if (outcome.terminated === true && !outcome.fallbackAttempted) return outcome;
+      emitLifecycleEvent({
+        kind: 'kill_diagnostics',
+        reason: 'explicit_kill',
+        pid: Number.isFinite(Number(current?.pid)) ? Number(current.pid) : null,
+        terminated: outcome.terminated === true,
+        forced: outcome.forced === true,
+        fallbackAttempted: outcome.fallbackAttempted === true,
+        fallbackTerminated: Number(outcome.fallbackTerminated || 0)
+      });
+      return outcome;
     }).catch(() => {});
     rejectPendingTransportClosed();
     if (current.stdin) closeJsonRpcWriter(current.stdin);

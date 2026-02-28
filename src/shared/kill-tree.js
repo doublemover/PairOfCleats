@@ -3,6 +3,8 @@ import { runSyncCommandWithTimeout, toSyncCommandExitCode } from './subprocess/s
 const DEFAULT_GRACE_MS = 5000;
 const DEFAULT_SIGNAL = 'SIGTERM';
 const DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS = 2000;
+const WINDOWS_DESCENDANT_DISCOVERY_TIMEOUT_MS = 2000;
+const WINDOWS_DESCENDANT_KILL_LIMIT = 256;
 
 const wait = (ms) => new Promise((resolve) => {
   const timer = setTimeout(resolve, ms);
@@ -134,6 +136,8 @@ const killWindowsTree = async (pid, { graceMs, awaitGrace = true }) => {
   const baseArgs = ['/PID', String(pid), '/T'];
   let terminated = false;
   let forced = false;
+  let fallbackAttempted = false;
+  let fallbackTerminated = 0;
   try {
     const graceful = runSyncCommandWithTimeout('taskkill', baseArgs, {
       stdio: 'ignore',
@@ -152,7 +156,7 @@ const killWindowsTree = async (pid, { graceMs, awaitGrace = true }) => {
           timeoutMs: DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS
         });
       });
-      return { terminated, forced: false };
+      return { terminated, forced: false, fallbackAttempted, fallbackTerminated };
     }
     try {
       const forcedKill = runSyncCommandWithTimeout('taskkill', [...baseArgs, '/F'], {
@@ -164,7 +168,7 @@ const killWindowsTree = async (pid, { graceMs, awaitGrace = true }) => {
         forced = true;
       }
     } catch {}
-    return { terminated, forced };
+    return { terminated, forced, fallbackAttempted, fallbackTerminated };
   }
   try {
     const forcedKill = runSyncCommandWithTimeout('taskkill', [...baseArgs, '/F'], {
@@ -176,13 +180,24 @@ const killWindowsTree = async (pid, { graceMs, awaitGrace = true }) => {
       forced = true;
     }
   } catch {}
-  return { terminated, forced };
+  if (!terminated) {
+    const fallback = killWindowsOrphanDescendantsSync(pid);
+    fallbackAttempted = fallback.attempted;
+    fallbackTerminated = fallback.terminatedCount;
+    if (fallback.terminatedCount > 0) {
+      terminated = true;
+      forced = true;
+    }
+  }
+  return { terminated, forced, fallbackAttempted, fallbackTerminated };
 };
 
 const killWindowsTreeSync = (pid) => {
   const baseArgs = ['/PID', String(pid), '/T'];
   let terminated = false;
   let forced = false;
+  let fallbackAttempted = false;
+  let fallbackTerminated = 0;
   try {
     const graceful = runSyncCommandWithTimeout('taskkill', baseArgs, {
       stdio: 'ignore',
@@ -202,7 +217,103 @@ const killWindowsTreeSync = (pid) => {
       forced = true;
     }
   } catch {}
-  return { terminated, forced };
+  if (!terminated) {
+    const fallback = killWindowsOrphanDescendantsSync(pid);
+    fallbackAttempted = fallback.attempted;
+    fallbackTerminated = fallback.terminatedCount;
+    if (fallback.terminatedCount > 0) {
+      terminated = true;
+      forced = true;
+    }
+  }
+  return { terminated, forced, fallbackAttempted, fallbackTerminated };
+};
+
+const parseWindowsPidList = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    const list = Array.isArray(parsed) ? parsed : [parsed];
+    return list
+      .map((entry) => Number(entry))
+      .filter((entry) => Number.isFinite(entry) && entry > 0)
+      .map((entry) => Math.floor(entry));
+  } catch {
+    return [];
+  }
+};
+
+const discoverWindowsDescendantPidsSync = (rootPid) => {
+  const script = [
+    '$ErrorActionPreference = "Stop"',
+    '$rootPid = [int]$env:POC_ROOT_PID',
+    '$children = @{}',
+    '$procs = Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId',
+    'foreach ($p in $procs) {',
+    '  $pp = [int]$p.ParentProcessId',
+    '  if (-not $children.ContainsKey($pp)) { $children[$pp] = New-Object System.Collections.Generic.List[int] }',
+    '  [void]$children[$pp].Add([int]$p.ProcessId)',
+    '}',
+    '$queue = New-Object System.Collections.Generic.Queue[int]',
+    '$seen = New-Object System.Collections.Generic.HashSet[int]',
+    '$out = New-Object System.Collections.Generic.List[int]',
+    '$queue.Enqueue($rootPid)',
+    '[void]$seen.Add($rootPid)',
+    'while ($queue.Count -gt 0) {',
+    '  $current = $queue.Dequeue()',
+    '  if (-not $children.ContainsKey($current)) { continue }',
+    '  foreach ($childPid in $children[$current]) {',
+    '    if ($childPid -le 0) { continue }',
+    '    if (-not $seen.Add($childPid)) { continue }',
+    '    [void]$out.Add($childPid)',
+    '    $queue.Enqueue($childPid)',
+    '  }',
+    '}',
+    '$out | ConvertTo-Json -Compress'
+  ].join('; ');
+  const result = runSyncCommandWithTimeout(
+    'powershell.exe',
+    ['-NoProfile', '-NonInteractive', '-Command', script],
+    {
+      stdio: ['ignore', 'pipe', 'ignore'],
+      encoding: 'utf8',
+      timeoutMs: WINDOWS_DESCENDANT_DISCOVERY_TIMEOUT_MS,
+      env: {
+        ...process.env,
+        POC_ROOT_PID: String(rootPid)
+      }
+    }
+  );
+  if (toSyncCommandExitCode(result) !== 0) return [];
+  return parseWindowsPidList(result.stdout);
+};
+
+const killWindowsOrphanDescendantsSync = (rootPid) => {
+  if (process.platform !== 'win32') {
+    return { attempted: false, terminatedCount: 0 };
+  }
+  const descendants = discoverWindowsDescendantPidsSync(rootPid).slice(0, WINDOWS_DESCENDANT_KILL_LIMIT);
+  if (!descendants.length) {
+    return { attempted: false, terminatedCount: 0 };
+  }
+  let terminatedCount = 0;
+  for (const pid of descendants) {
+    if (!Number.isFinite(pid) || pid <= 0 || pid === rootPid) continue;
+    try {
+      const result = runSyncCommandWithTimeout('taskkill', ['/PID', String(pid), '/T', '/F'], {
+        stdio: 'ignore',
+        timeoutMs: DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS
+      });
+      if (toSyncCommandExitCode(result) === 0) {
+        terminatedCount += 1;
+      }
+    } catch {}
+  }
+  return {
+    attempted: true,
+    terminatedCount
+  };
 };
 
 export const killProcessTree = async (
