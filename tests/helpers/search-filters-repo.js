@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { getIndexDir, loadUserConfig } from '../../tools/shared/dict-utils.js';
 import { applyTestEnv } from './test-env.js';
 import { withDirectoryLock } from './directory-lock.js';
+import { formatCommandFailure } from './command-failure.js';
 
 import { normalizeTestCacheScope, resolveTestCachePath } from './test-cache.js';
 
@@ -39,8 +40,13 @@ const runGit = (args, label, cwd, envOverride = {}) => {
     env: { ...process.env, ...envOverride }
   });
   if (result.status !== 0) {
-    console.error(`Failed: ${label}`);
-    if (result.stderr) console.error(result.stderr.trim());
+    const command = ['git', ...args].join(' ');
+    console.error(formatCommandFailure({
+      label,
+      command,
+      cwd,
+      result
+    }));
     process.exit(result.status ?? 1);
   }
 };
@@ -72,9 +78,21 @@ const buildIndex = (repoRoot, env) => {
     { cwd: repoRoot, env, stdio: 'inherit' }
   );
   if (result.status !== 0) {
-    const exitLabel = result.status ?? 'unknown';
-    console.error(`Failed: build_index (exit ${exitLabel})`);
-    if (result.error) console.error(result.error.message || result.error);
+    const command = [
+      process.execPath,
+      path.join(ROOT, 'build_index.js'),
+      '--stub-embeddings',
+      '--stage',
+      'stage2',
+      '--repo',
+      repoRoot
+    ].join(' ');
+    console.error(formatCommandFailure({
+      label: 'build_index',
+      command,
+      cwd: repoRoot,
+      result
+    }));
     process.exit(result.status ?? 1);
   }
 };
@@ -278,8 +296,25 @@ export const runFilterSearch = ({
     { cwd: repoRoot, env, encoding: 'utf8' }
   );
   if (result.status !== 0) {
-    console.error('Failed: search');
-    if (result.stderr) console.error(result.stderr.trim());
+    const command = [
+      process.execPath,
+      path.join(root, 'search.js'),
+      query,
+      '--mode',
+      mode,
+      '--json',
+      '--no-ann',
+      '--repo',
+      repoRoot,
+      ...(backend ? ['--backend', backend] : []),
+      ...args
+    ].join(' ');
+    console.error(formatCommandFailure({
+      label: 'search',
+      command,
+      cwd: repoRoot,
+      result
+    }));
     process.exit(result.status ?? 1);
   }
   try {

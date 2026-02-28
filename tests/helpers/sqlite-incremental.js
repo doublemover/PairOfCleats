@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { loadUserConfig, resolveSqlitePaths } from '../../tools/shared/dict-utils.js';
 import { applyTestEnv } from './test-env.js';
+import { formatCommandFailure } from './command-failure.js';
 import { rmDirRecursive } from './temp.js';
 import { resolveTestCacheDir } from './test-cache.js';
 
@@ -34,7 +35,13 @@ const compactLabel = (value, maxLen = 32) => {
 const run = (args, label, options) => {
   const result = spawnSync(process.execPath, args, options);
   if (result.status !== 0) {
-    console.error(`Failed: ${label}`);
+    const command = [process.execPath, ...(Array.isArray(args) ? args : [])].join(' ');
+    console.error(formatCommandFailure({
+      label,
+      command,
+      cwd: options?.cwd || process.cwd(),
+      result
+    }));
     process.exit(result.status ?? 1);
   }
   return result;

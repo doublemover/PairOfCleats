@@ -4,6 +4,7 @@ import { applyTestEnv } from './test-env.js';
 import { makeTempDir } from './temp.js';
 import { runNode } from './run-node.js';
 import { runSearchCliWithSpawnSync } from '../../tools/shared/search-cli-harness.js';
+import { formatErroredCommandFailure } from './command-failure.js';
 import { normalizeTestCacheScope, resolveTestCacheDir } from './test-cache.js';
 
 const DEFAULT_SEARCH_TEST_CONFIG = {
@@ -103,9 +104,16 @@ export const createSearchLifecycle = async ({
         ...options
       });
     } catch (error) {
-      console.error(`Failed: ${label}`);
-      const stderr = typeof error?.stderr === 'string' ? error.stderr.trim() : '';
-      if (stderr) console.error(stderr);
+      const command = [
+        process.execPath,
+        ...(Array.isArray(error?.args) ? error.args : [path.join(root, 'search.js'), query])
+      ].join(' ');
+      console.error(formatErroredCommandFailure({
+        label,
+        command,
+        cwd: repoRoot,
+        error: error || {}
+      }));
       process.exit(1);
     }
   };

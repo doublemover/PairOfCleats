@@ -23,6 +23,7 @@ import {
 } from '../../src/shared/artifact-io.js';
 import { runSearchCli } from '../../src/retrieval/cli.js';
 import { buildSearchCliArgs } from '../../tools/shared/search-cli-harness.js';
+import { formatCommandFailure, formatErroredCommandFailure } from './command-failure.js';
 
 import { rmDirRecursive } from './temp.js';
 import { isPlainObject, mergeConfig } from '../../src/shared/config.js';
@@ -335,7 +336,13 @@ const canUseFixtureHealthStamp = (
 const run = (args, label, options) => {
   const result = spawnSync(process.execPath, args, options);
   if (result.status !== 0) {
-    console.error(`Failed: ${label}`);
+    const command = [process.execPath, ...(Array.isArray(args) ? args : [])].join(' ');
+    console.error(formatCommandFailure({
+      label,
+      command,
+      cwd: options?.cwd || process.cwd(),
+      result
+    }));
     process.exit(result.status ?? 1);
   }
 };
@@ -615,8 +622,13 @@ export const createInProcessSearchRunner = ({
       }
       return await withTemporaryEnv(env, async () => runSearchCli(rawArgs, runOptions));
     } catch (err) {
-      console.error('Failed: search');
-      if (err?.message) console.error(err.message);
+      const command = [path.join(root || ROOT, 'search.js'), ...rawArgs].join(' ');
+      console.error(formatErroredCommandFailure({
+        label: 'search',
+        command,
+        cwd: fixtureRoot,
+        error: err || {}
+      }));
       process.exit(1);
     }
   };
@@ -642,8 +654,24 @@ export const runSearch = ({
     { cwd: fixtureRoot, env, encoding: 'utf8' }
   );
   if (result.status !== 0) {
-    console.error('Failed: search');
-    if (result.stderr) console.error(result.stderr.trim());
+    const command = [
+      process.execPath,
+      path.join(root, 'search.js'),
+      query,
+      '--mode',
+      mode,
+      '--json',
+      '--no-ann',
+      '--repo',
+      fixtureRoot,
+      ...args
+    ].join(' ');
+    console.error(formatCommandFailure({
+      label: 'search',
+      command,
+      cwd: fixtureRoot,
+      result
+    }));
     process.exit(result.status ?? 1);
   }
   try {

@@ -70,3 +70,45 @@ export const formatCommandFailure = ({
   return lines.join('\n');
 };
 
+/**
+ * Format failure output from helpers that throw normalized command metadata
+ * instead of returning SpawnSync result objects.
+ *
+ * @param {{
+ *   label:string,
+ *   command?:string,
+ *   cwd?:string,
+ *   error: {
+ *     exitCode?: number|null,
+ *     signal?: string|null,
+ *     spawnError?: Error|null,
+ *     stdout?: string,
+ *     stderr?: string
+ *   },
+ *   maxLines?: number
+ * }} input
+ * @returns {string}
+ */
+export const formatErroredCommandFailure = ({
+  label,
+  command = '',
+  cwd = '',
+  error,
+  maxLines = 80
+}) => {
+  const normalizedResult = {
+    status: Number.isFinite(Number(error?.exitCode)) ? Number(error.exitCode) : null,
+    signal: typeof error?.signal === 'string' ? error.signal : null,
+    error: error?.spawnError || null,
+    stdout: toText(error?.stdout),
+    stderr: toText(error?.stderr)
+  };
+  return formatCommandFailure({
+    label,
+    command,
+    cwd,
+    result: normalizedResult,
+    maxLines
+  });
+};
+
