@@ -22,6 +22,13 @@ import {
   resolveArtifactPresence,
   resolveJsonlRequiredKeys
 } from '../../../../shared/artifact-io.js';
+import {
+  INTEGER_COERCE_MODE_STRICT,
+  INTEGER_COERCE_MODE_TRUNCATE,
+  coerceNonNegativeInt
+} from '../../../../shared/number-coerce.js';
+
+const SQLITE_TOKEN_CARDINALITY_ERROR_CODE = 'ERR_SQLITE_TOKEN_CARDINALITY';
 
 const resolveFirstExistingPath = (basePath) => {
   const candidates = [basePath, `${basePath}.gz`, `${basePath}.zst`];
@@ -215,30 +222,73 @@ export const resolveTokenPostingsSources = (dir) => {
   return parts.length ? { metaPath, parts } : null;
 };
 
-export const normalizeTfPostingRows = (posting) => {
+export const normalizeTfPostingRows = (
+  posting,
+  {
+    mode = INTEGER_COERCE_MODE_TRUNCATE,
+    rejectInvalid = false,
+    contextLabel = 'token_postings posting row'
+  } = {}
+) => {
   if (!Array.isArray(posting) || posting.length <= 1) return Array.isArray(posting) ? posting : [];
+  const coerceValue = (value) => coerceNonNegativeInt(value, { mode });
   let previousDocId = -1;
   let alreadySortedUnique = true;
   for (const entry of posting) {
     if (!Array.isArray(entry) || entry.length < 2) continue;
-    const docIdRaw = Number(entry[0]);
-    if (!Number.isFinite(docIdRaw)) continue;
-    const docId = Math.max(0, Math.floor(docIdRaw));
+    const docId = coerceValue(entry[0]);
+    if (docId == null) {
+      if (rejectInvalid) {
+        const error = new Error(
+          `[sqlite] ${contextLabel} cardinality invariant failed: ` +
+          `non-integer docId (${String(entry[0])}) is not allowed in strict mode.`
+        );
+        error.code = SQLITE_TOKEN_CARDINALITY_ERROR_CODE;
+        throw error;
+      }
+      continue;
+    }
     if (docId <= previousDocId) {
       alreadySortedUnique = false;
       break;
     }
     previousDocId = docId;
   }
+  if (alreadySortedUnique && mode === INTEGER_COERCE_MODE_STRICT) {
+    for (const entry of posting) {
+      if (!Array.isArray(entry) || entry.length < 2) continue;
+      const tf = coerceValue(entry[1]);
+      if (tf == null) {
+        if (rejectInvalid) {
+          const error = new Error(
+            `[sqlite] ${contextLabel} cardinality invariant failed: ` +
+            `non-integer tf (${String(entry[1])}) is not allowed in strict mode.`
+          );
+          error.code = SQLITE_TOKEN_CARDINALITY_ERROR_CODE;
+          throw error;
+        }
+        alreadySortedUnique = false;
+        break;
+      }
+    }
+  }
   if (alreadySortedUnique) return posting;
   const merged = new Map();
   for (const entry of posting) {
     if (!Array.isArray(entry) || entry.length < 2) continue;
-    const docIdRaw = Number(entry[0]);
-    const tfRaw = Number(entry[1]);
-    if (!Number.isFinite(docIdRaw) || !Number.isFinite(tfRaw)) continue;
-    const docId = Math.max(0, Math.floor(docIdRaw));
-    const tf = Math.max(0, Math.floor(tfRaw));
+    const docId = coerceValue(entry[0]);
+    const tf = coerceValue(entry[1]);
+    if (docId == null || tf == null) {
+      if (rejectInvalid) {
+        const error = new Error(
+          `[sqlite] ${contextLabel} cardinality invariant failed: must contain non-negative integer [docId, tf] pairs; ` +
+          `received [${String(entry[0])}, ${String(entry[1])}].`
+        );
+        error.code = SQLITE_TOKEN_CARDINALITY_ERROR_CODE;
+        throw error;
+      }
+      continue;
+    }
     if (!tf) continue;
     merged.set(docId, (merged.get(docId) || 0) + tf);
   }

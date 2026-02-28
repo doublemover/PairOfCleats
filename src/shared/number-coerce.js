@@ -13,15 +13,38 @@ export const coerceFiniteNumber = (value, fallback = null) => {
   return Number.isFinite(fallbackParsed) ? fallbackParsed : null;
 };
 
+export const INTEGER_COERCE_MODE_TRUNCATE = 'truncate';
+export const INTEGER_COERCE_MODE_STRICT = 'strict';
+
+const resolveIntegerCoerceMode = (options = {}) => (
+  options?.mode === INTEGER_COERCE_MODE_STRICT
+    ? INTEGER_COERCE_MODE_STRICT
+    : INTEGER_COERCE_MODE_TRUNCATE
+);
+
+const coerceIntegerWithMode = (value, minimum, options = {}) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  const mode = resolveIntegerCoerceMode(options);
+  if (mode === INTEGER_COERCE_MODE_STRICT && !Number.isInteger(parsed)) return null;
+  const integer = mode === INTEGER_COERCE_MODE_STRICT ? parsed : Math.floor(parsed);
+  return integer >= minimum ? integer : null;
+};
+
 /**
  * Coerce a value to a positive integer.
  *
  * @param {unknown} value
+ * @param {{mode?:'truncate'|'strict'}} [options]
  * @returns {number|null}
  */
-export const coercePositiveInt = (value) => {
+export const coercePositiveInt = (value, options = {}) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  const mode = resolveIntegerCoerceMode(options);
+  if (mode === INTEGER_COERCE_MODE_STRICT) {
+    return Number.isInteger(parsed) ? parsed : null;
+  }
   return Math.floor(parsed);
 };
 
@@ -30,10 +53,11 @@ export const coercePositiveInt = (value) => {
  * to at least `1`.
  *
  * @param {unknown} value
+ * @param {{mode?:'truncate'|'strict'}} [options]
  * @returns {number|null}
  */
-export const coercePositiveIntMinOne = (value) => {
-  const coerced = coercePositiveInt(value);
+export const coercePositiveIntMinOne = (value, options = {}) => {
+  const coerced = coercePositiveInt(value, options);
   if (coerced == null) return null;
   return Math.max(1, coerced);
 };
@@ -57,11 +81,16 @@ export const coerceNumberAtLeast = (value, min = 0) => {
  *
  * @param {unknown} value
  * @param {number} [min=0]
+ * @param {{mode?:'truncate'|'strict'}} [options]
  * @returns {number|null}
  */
-export const coerceIntAtLeast = (value, min = 0) => {
+export const coerceIntAtLeast = (value, min = 0, options = {}) => {
   const coerced = coerceNumberAtLeast(value, min);
   if (coerced == null) return null;
+  const mode = resolveIntegerCoerceMode(options);
+  if (mode === INTEGER_COERCE_MODE_STRICT) {
+    return Number.isInteger(coerced) ? coerced : null;
+  }
   return Math.floor(coerced);
 };
 
@@ -69,13 +98,10 @@ export const coerceIntAtLeast = (value, min = 0) => {
  * Coerce a value to a non-negative integer.
  *
  * @param {unknown} value
+ * @param {{mode?:'truncate'|'strict'}} [options]
  * @returns {number|null}
  */
-export const coerceNonNegativeInt = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) return null;
-  return Math.floor(parsed);
-};
+export const coerceNonNegativeInt = (value, options = {}) => coerceIntegerWithMode(value, 0, options);
 
 /**
  * Coerce and clamp a numeric fraction to a bounded range.

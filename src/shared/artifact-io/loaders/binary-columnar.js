@@ -5,10 +5,27 @@ import { existsOrBak, resolvePathOrBak } from '../fs.js';
 import { decodeBinaryRowFrameLengths, decodeU64Offsets } from '../binary-columnar.js';
 import { decodeVarint64List } from '../varint.js';
 import { joinPathSafe } from '../../path-normalize.js';
+import {
+  INTEGER_COERCE_MODE_STRICT,
+  coerceNonNegativeInt
+} from '../../number-coerce.js';
 import { readJsonFileCached } from './shared.js';
 
 const SUPPORTED_BINARY_COLUMNAR_FORMAT = 'binary-columnar-v1';
 const SUPPORTED_BINARY_BYTE_ORDER = new Set(['le', 'little', 'little-endian']);
+
+const coerceStrictNonNegativeSafeInt = (value) => {
+  const parsed = coerceNonNegativeInt(value, { mode: INTEGER_COERCE_MODE_STRICT });
+  return Number.isSafeInteger(parsed) ? parsed : null;
+};
+
+const resolveStrictNonNegativeSafeInt = (value, label) => {
+  const parsed = coerceStrictNonNegativeSafeInt(value);
+  if (parsed == null) {
+    throw new Error(`Invalid ${label}: ${String(value)}`);
+  }
+  return parsed;
+};
 
 const toPositiveFinite = (value) => {
   const numeric = Number(value);
@@ -78,13 +95,14 @@ const resolveBinaryColumnarFrameMetadata = ({
   assertWithinMaxBytes(resolvedLengthsBuffer.length, maxBytes, 'Binary-columnar lengths');
   const offsets = decodeU64Offsets(resolvedOffsetsBuffer);
   const lengths = decodeBinaryRowFrameLengths(resolvedLengthsBuffer);
-  if (!Number.isFinite(count) || count < 0) return null;
-  if (offsets.length < count || lengths.length < count) {
+  const resolvedCount = resolveStrictNonNegativeSafeInt(count, 'binary-columnar row count');
+  if (offsets.length < resolvedCount || lengths.length < resolvedCount) {
     throw new Error('Binary-columnar frame metadata count mismatch');
   }
   return {
     offsets,
-    lengths
+    lengths,
+    count: resolvedCount
   };
 };
 
@@ -121,6 +139,7 @@ const loadBinaryColumnarRowPayloads = ({
   maxBytes = null,
   enforceDataBudget = true
 }) => {
+  const resolvedCount = resolveStrictNonNegativeSafeInt(count, 'binary-columnar row count');
   const hasDataBuffer = Buffer.isBuffer(dataBuffer) || dataBuffer instanceof Uint8Array;
   if (!hasDataBuffer && !existsOrBak(dataPath)) {
     return null;
@@ -132,18 +151,18 @@ const loadBinaryColumnarRowPayloads = ({
   const metadata = resolveBinaryColumnarFrameMetadata({
     offsetsPath,
     lengthsPath,
-    count,
+    count: resolvedCount,
     offsetsBuffer,
     lengthsBuffer,
     maxBytes
   });
   if (!metadata) return null;
-  const { offsets, lengths } = metadata;
+  const { offsets, lengths, count: metadataCount } = metadata;
   if (enforceDataBudget) {
     assertWithinMaxBytes(resolvedDataBuffer.length, maxBytes, 'Binary-columnar data');
   }
-  const rows = new Array(count);
-  for (let i = 0; i < count; i += 1) {
+  const rows = new Array(metadataCount);
+  for (let i = 0; i < metadataCount; i += 1) {
     const start = offsets[i];
     const length = lengths[i];
     if (!Number.isSafeInteger(start) || start < 0) {
@@ -186,17 +205,18 @@ const iterateBinaryColumnarRowPayloads = ({
   maxBytes = null,
   enforceDataBudget = false
 }) => {
+  const resolvedCount = resolveStrictNonNegativeSafeInt(count, 'binary-columnar row count');
   if (!existsOrBak(dataPath)) return null;
   const metadata = resolveBinaryColumnarFrameMetadata({
     offsetsPath,
     lengthsPath,
-    count,
+    count: resolvedCount,
     offsetsBuffer,
     lengthsBuffer,
     maxBytes
   });
   if (!metadata) return null;
-  const { offsets, lengths } = metadata;
+  const { offsets, lengths, count: metadataCount } = metadata;
   const resolvedDataPath = resolvePathOrBak(dataPath);
   const max = toPositiveFinite(maxBytes);
   return (function* () {
@@ -206,7 +226,7 @@ const iterateBinaryColumnarRowPayloads = ({
       if (enforceDataBudget) {
         assertWithinMaxBytes(dataSize, maxBytes, 'Binary-columnar data');
       }
-      for (let i = 0; i < count; i += 1) {
+      for (let i = 0; i < metadataCount; i += 1) {
         const start = offsets[i];
         const length = lengths[i];
         if (!Number.isSafeInteger(start) || start < 0) {
@@ -251,7 +271,9 @@ const resolveChunkMetaBinaryColumnarLayout = (dir, { maxBytes = MAX_JSON_BYTES }
   }
   const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
   const fileTable = Array.isArray(metaRaw?.arrays?.fileTable) ? metaRaw.arrays.fileTable : [];
-  const count = Number.isFinite(Number(meta?.count)) ? Math.max(0, Math.floor(Number(meta.count))) : 0;
+  const count = meta?.count == null
+    ? 0
+    : resolveStrictNonNegativeSafeInt(meta.count, 'chunk_meta binary-columnar count');
   const dataPath = resolveSafeLayoutPath(
     dir,
     meta?.data,
@@ -345,16 +367,50 @@ const tryLoadChunkMetaBinaryColumnar = (dir, { maxBytes = MAX_JSON_BYTES } = {})
  */
 const decodePostingPairsVarint = (payload) => {
   const values = decodeVarint64List(payload);
+  if (values.length % 2 !== 0) {
+    throw new Error('Invalid token_postings binary-columnar payload: odd varint pair count');
+  }
   const postings = [];
   let docId = 0;
-  for (let i = 0; i + 1 < values.length; i += 2) {
-    const delta = Number(values[i]);
-    const tf = Number(values[i + 1]);
-    if (!Number.isFinite(delta) || !Number.isFinite(tf)) continue;
-    docId += Math.max(0, Math.floor(delta));
-    postings.push([docId, Math.max(0, Math.floor(tf))]);
+  for (let i = 0; i < values.length; i += 2) {
+    const delta = coerceStrictNonNegativeSafeInt(values[i]);
+    const tf = coerceStrictNonNegativeSafeInt(values[i + 1]);
+    if (delta == null || tf == null) {
+      throw new Error('Invalid token_postings binary-columnar payload: non-integer delta/tf');
+    }
+    docId = resolveStrictNonNegativeSafeInt(docId + delta, 'token_postings decoded docId');
+    postings.push([docId, tf]);
   }
   return postings;
+};
+
+const assertTokenPostingsCardinalityInvariant = ({
+  count,
+  vocab,
+  postings,
+  vocabIds,
+  contextLabel
+}) => {
+  const diagnostics = [];
+  const vocabCount = Array.isArray(vocab) ? vocab.length : 0;
+  const postingsCount = Array.isArray(postings) ? postings.length : 0;
+  const vocabIdsCount = Array.isArray(vocabIds) ? vocabIds.length : 0;
+  if (count !== vocabCount) {
+    diagnostics.push(`count=${count} does not match vocab=${vocabCount}`);
+  }
+  if (postingsCount !== vocabCount) {
+    diagnostics.push(`postings=${postingsCount} does not match vocab=${vocabCount}`);
+  }
+  if (vocabIdsCount > 0 && vocabIdsCount !== vocabCount) {
+    diagnostics.push(`vocabIds=${vocabIdsCount} does not match vocab=${vocabCount}`);
+  }
+  if (!diagnostics.length) return;
+  const error = new Error(
+    `[artifact-io] ${contextLabel} cardinality invariant failed: ${diagnostics.join('; ')}`
+  );
+  error.code = 'ERR_ARTIFACT_INVALID';
+  error.diagnostics = diagnostics;
+  throw error;
 };
 
 /**
@@ -382,11 +438,11 @@ const tryLoadTokenPostingsBinaryColumnar = (
   }
   const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
   const arrays = metaRaw?.arrays && typeof metaRaw.arrays === 'object' ? metaRaw.arrays : {};
-  const count = Number.isFinite(Number(meta?.count)) ? Math.max(0, Math.floor(Number(meta.count))) : 0;
   const vocab = Array.isArray(arrays.vocab) ? arrays.vocab : [];
+  const count = meta?.count == null
+    ? vocab.length
+    : resolveStrictNonNegativeSafeInt(meta.count, 'token_postings binary-columnar count');
   const vocabIds = Array.isArray(arrays.vocabIds) ? arrays.vocabIds : [];
-  if (count > 0 && vocab.length === 0) return null;
-  if (vocabIds.length > 0 && vocabIds.length !== vocab.length) return null;
   const dataPath = resolveSafeLayoutPath(
     dir,
     meta?.data,
@@ -418,6 +474,13 @@ const tryLoadTokenPostingsBinaryColumnar = (
   for (let i = 0; i < payloads.length; i += 1) {
     postings[i] = decodePostingPairsVarint(payloads[i]);
   }
+  assertTokenPostingsCardinalityInvariant({
+    count,
+    vocab,
+    postings,
+    vocabIds,
+    contextLabel: 'token_postings binary-columnar'
+  });
   const docLengths = Array.isArray(arrays.docLengths) ? arrays.docLengths : [];
   return {
     ...meta,
