@@ -67,5 +67,6 @@ try {
 
   console.log('tooling doctor generic preset matrix test passed');
 } finally {
-  restorePath();
+  await restorePath();
 }
+

@@ -93,5 +93,6 @@ try {
 
   console.log('configured LSP gopls profile test passed');
 } finally {
-  restorePath();
+  await restorePath();
 }
+

@@ -304,6 +304,9 @@ const ensureCleanupTimer = () => {
   cleanupTimer.unref?.();
   if (!exitCleanupInstalled) {
     exitCleanupInstalled = true;
+    process.once('beforeExit', () => {
+      killAllSessionsNow();
+    });
     process.once('exit', () => {
       killAllSessionsNow();
     });

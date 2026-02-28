@@ -135,7 +135,8 @@ try {
     clearTimeout(abortTimer);
   }
 } finally {
-  restorePath();
+  await restorePath();
 }
 
 console.log('sourcekit package preflight abort test passed');
+

@@ -46,7 +46,8 @@ try {
   );
   assert.ok(clangd.handshake && typeof clangd.handshake === 'object', 'expected handshake probe details');
 } finally {
-  restorePath();
+  await restorePath();
 }
 
 console.log('tooling doctor command resolution report test passed');
+

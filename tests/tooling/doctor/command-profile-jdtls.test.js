@@ -24,7 +24,8 @@ try {
   );
   assert.equal(profile.resolved.mode, 'direct', 'expected direct launch mode for jdtls');
 } finally {
-  restorePath();
+  await restorePath();
 }
 
 console.log('tooling doctor jdtls command profile test passed');
+

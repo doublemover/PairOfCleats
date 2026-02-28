@@ -51,11 +51,14 @@ const installTrackedSubprocessHooks = (terminateTrackedSubprocesses) => {
   }
   if (trackedSubprocessHooksInstalled) return;
   trackedSubprocessHooksInstalled = true;
+  process.once('beforeExit', () => {
+    void triggerTrackedSubprocessShutdown('process_before_exit');
+  });
   process.once('exit', () => {
-    triggerTrackedSubprocessShutdown('process_exit');
+    void triggerTrackedSubprocessShutdown('process_exit');
   });
   process.on('uncaughtExceptionMonitor', () => {
-    triggerTrackedSubprocessShutdown('uncaught_exception');
+    void triggerTrackedSubprocessShutdown('uncaught_exception');
   });
   for (const signal of TRACKED_SUBPROCESS_TERMINATION_SIGNALS) {
     try {

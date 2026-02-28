@@ -65,5 +65,6 @@ try {
 
   console.log('tooling doctor gopls command profile test passed');
 } finally {
-  restorePath();
+  await restorePath();
 }
+

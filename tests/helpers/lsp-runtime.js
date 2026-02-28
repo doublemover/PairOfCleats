@@ -2,6 +2,7 @@ import path from 'node:path';
 import { getToolingDir } from '../../src/shared/dict-utils.js';
 import { resolveToolingCommandProfile } from '../../src/index/tooling/command-resolver.js';
 import { __testLspSessionPool } from '../../src/integrations/tooling/providers/lsp/session-pool.js';
+import { terminateTrackedSubprocesses } from '../../src/shared/subprocess.js';
 import { skip } from './skip.js';
 
 const normalizePathKey = (value) => (
@@ -34,7 +35,7 @@ const dedupePathEntries = (entries) => {
  *   includeFixtures?: boolean,
  *   extraPrepend?: string[]
  * }} [options]
- * @returns {() => void}
+ * @returns {() => Promise<void>}
  */
 export function prependLspTestPath(options = {}) {
   const repoRoot = options.repoRoot || process.cwd();
@@ -53,12 +54,31 @@ export function prependLspTestPath(options = {}) {
     includeFixtures ? fixturesBin : ''
   ]);
   process.env.PATH = merged.join(path.delimiter);
-  return () => {
+  return async () => {
     try {
-      __testLspSessionPool.killAllNow();
-    } catch {}
-    process.env.PATH = originalPath;
+      await cleanupLspTestRuntime({ reason: 'lsp_test_path_restore' });
+    } finally {
+      process.env.PATH = originalPath;
+    }
   };
+}
+
+/**
+ * Best-effort cleanup for pooled LSP sessions and tracked subprocesses in tests.
+ *
+ * @param {{reason?:string}} [options]
+ * @returns {Promise<void>}
+ */
+export async function cleanupLspTestRuntime({ reason = 'lsp_test_cleanup' } = {}) {
+  try {
+    __testLspSessionPool.killAllNow();
+  } catch {}
+  try {
+    await terminateTrackedSubprocesses({
+      reason,
+      force: true
+    });
+  } catch {}
 }
 
 /**
@@ -78,7 +98,7 @@ export async function withLspTestPath(options, fn) {
   try {
     return await fn();
   } finally {
-    restorePath();
+    await restorePath();
   }
 }
 

@@ -77,5 +77,6 @@ try {
 
   console.log('configured LSP gopls preset profile test passed');
 } finally {
-  restorePath();
+  await restorePath();
 }
+

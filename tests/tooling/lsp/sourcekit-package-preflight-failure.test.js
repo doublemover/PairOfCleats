@@ -41,7 +41,8 @@ try {
     assert.equal(count, 1, 'expected one preflight resolve attempt');
   });
 } finally {
-  fixture.restorePath();
+  await fixture.restorePath();
 }
 
 console.log('sourcekit package preflight failure test passed');
+

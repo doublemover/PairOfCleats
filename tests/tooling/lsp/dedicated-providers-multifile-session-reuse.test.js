@@ -210,7 +210,8 @@ try {
     skip('Skipping dedicated providers multifile session reuse test; no provider yielded a verifiable runtime.');
   }
 } finally {
-  restorePath();
+  await restorePath();
 }
 
 console.log('dedicated providers multifile session reuse test passed');
+

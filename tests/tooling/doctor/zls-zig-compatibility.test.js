@@ -41,5 +41,6 @@ try {
 
   console.log('tooling doctor zls zig compatibility test passed');
 } finally {
-  restorePath();
+  await restorePath();
 }
+

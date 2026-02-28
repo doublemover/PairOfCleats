@@ -104,5 +104,6 @@ try {
     console.log('dart provider process reuse test passed');
   });
 } finally {
-  restorePath();
+  await restorePath();
 }
+

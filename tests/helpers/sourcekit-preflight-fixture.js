@@ -89,7 +89,7 @@ const buildSwiftPosix = ({ resolveExitCode = 0, resolveStderr = '' }) => {
  *   binDir:string,
  *   markerPath:string,
  *   counterPath:string,
- *   restorePath:()=>void,
+ *   restorePath:()=>Promise<void>,
  *   writePackage:(options?:{dependencyVersion?:string,includeDependencies?:boolean})=>Promise<void>,
  *   contextFor:(logs:string[])=>{ctx:object,document:object,target:object}
  * }>}

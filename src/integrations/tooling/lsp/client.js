@@ -542,7 +542,8 @@ export function createLspClient(options) {
     killChildProcessTree(current, {
       killTree: true,
       detached: killTreeDetached,
-      awaitGrace: false
+      graceMs: 0,
+      awaitGrace: true
     }).catch(() => {});
     try {
       current.unref?.();

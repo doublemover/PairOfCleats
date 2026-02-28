@@ -117,5 +117,6 @@ try {
 
   console.log('configured LSP generic presets matrix test passed');
 } finally {
-  restorePath();
+  await restorePath();
 }
+

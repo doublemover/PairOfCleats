@@ -41,7 +41,8 @@ try {
     );
   });
 } finally {
-  fixture.restorePath();
+  await fixture.restorePath();
 }
 
 console.log('sourcekit package preflight not-needed test passed');
+

@@ -77,7 +77,8 @@ try {
     skip('Skipping dedicated provider handshake test; no provider completed initialize handshake.');
   }
 } finally {
-  restorePath();
+  await restorePath();
 }
 
 console.log('tooling doctor dedicated provider handshake fixtures test passed');
+

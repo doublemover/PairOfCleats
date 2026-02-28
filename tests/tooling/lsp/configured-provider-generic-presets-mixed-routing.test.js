@@ -127,5 +127,6 @@ try {
 
   console.log('configured LSP generic presets mixed routing test passed');
 } finally {
-  restorePath();
+  await restorePath();
 }
+

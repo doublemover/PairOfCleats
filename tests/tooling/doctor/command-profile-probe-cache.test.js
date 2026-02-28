@@ -59,5 +59,6 @@ try {
   console.log('tooling doctor command profile probe cache test passed');
 } finally {
   __resetToolingCommandProbeCacheForTests();
-  restorePath();
+  await restorePath();
 }
+

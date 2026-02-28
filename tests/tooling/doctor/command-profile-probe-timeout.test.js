@@ -42,5 +42,6 @@ try {
   console.log('tooling doctor command profile probe timeout test passed');
 } finally {
   __resetToolingCommandProbeCacheForTests();
-  restorePath();
+  await restorePath();
 }
+

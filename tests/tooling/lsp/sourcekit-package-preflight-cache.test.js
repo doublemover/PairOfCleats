@@ -51,7 +51,8 @@ try {
     );
   });
 } finally {
-  fixture.restorePath();
+  await fixture.restorePath();
 }
 
 console.log('sourcekit package preflight cache test passed');
+
