@@ -2,6 +2,7 @@ import { sortStrings } from './path-utils.js';
 
 const DEFAULT_MAX_FILESYSTEM_PROBES_PER_SPECIFIER = 32;
 const DEFAULT_MAX_FALLBACK_CANDIDATES_PER_SPECIFIER = 48;
+const DEFAULT_MAX_FALLBACK_DEPTH = 16;
 const MAX_BUDGET_VALUE = 4096;
 
 const coerceBudget = (value, fallback) => {
@@ -43,6 +44,10 @@ export const createImportResolutionBudgetPolicy = ({ resolverPlugins = null } = 
     maxFallbackCandidatesPerSpecifier: coerceBudget(
       config.maxFallbackCandidatesPerSpecifier ?? config.maxRelativeCandidatesPerSpecifier,
       DEFAULT_MAX_FALLBACK_CANDIDATES_PER_SPECIFIER
+    ),
+    maxFallbackDepth: coerceBudget(
+      config.maxFallbackDepth,
+      DEFAULT_MAX_FALLBACK_DEPTH
     )
   };
   return Object.freeze({
@@ -59,6 +64,10 @@ export const createImportResolutionSpecifierBudgetState = (policy) => {
   const maxFallbackCandidatesPerSpecifier = coerceBudget(
     policy?.maxFallbackCandidatesPerSpecifier,
     DEFAULT_MAX_FALLBACK_CANDIDATES_PER_SPECIFIER
+  );
+  const maxFallbackDepth = coerceBudget(
+    policy?.maxFallbackDepth,
+    DEFAULT_MAX_FALLBACK_DEPTH
   );
   let filesystemProbesRemaining = maxFilesystemProbesPerSpecifier;
   let fallbackCandidatesRemaining = maxFallbackCandidatesPerSpecifier;
@@ -82,9 +91,17 @@ export const createImportResolutionSpecifierBudgetState = (policy) => {
     return true;
   };
 
+  const allowFallbackDepth = (depth) => {
+    const normalizedDepth = Math.max(0, Math.floor(Number(depth) || 0));
+    if (normalizedDepth <= maxFallbackDepth) return true;
+    exhaustedTypes.add('fallback_depth');
+    return false;
+  };
+
   return Object.freeze({
     consumeFilesystemProbe,
     consumeFallbackCandidate,
+    allowFallbackDepth,
     isExhausted: () => exhaustedTypes.size > 0,
     exhaustedTypes: () => Array.from(exhaustedTypes.values()).sort(sortStrings)
   });

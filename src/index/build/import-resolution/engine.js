@@ -409,6 +409,13 @@ export function resolveImportLinks({
     if (!spec || typeof spec !== 'string' || !importerRel) return null;
     if (!(spec.startsWith('.') || spec.startsWith('/'))) return null;
     if (spec === '.' || spec === '..') return null;
+    if (specBudget && !spec.startsWith('/')) {
+      const traversalDepth = spec
+        .replace(/\\/g, '/')
+        .split('/')
+        .reduce((count, segment) => count + (segment === '..' ? 1 : 0), 0);
+      if (!specBudget.allowFallbackDepth(traversalDepth)) return null;
+    }
     const baseCandidates = [];
     if (spec.startsWith('/')) {
       const absoluteTarget = normalizeRelPath(spec.slice(1));
