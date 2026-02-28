@@ -13,7 +13,7 @@ import { throwIfAborted } from '../../shared/abort.js';
 import { acquireFileLock } from '../../shared/locks/file-lock.js';
 import { spawnSubprocess } from '../../shared/subprocess.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
-import { resolveToolingCommandProfile } from './command-resolver.js';
+import { isProbeCommandDefinitelyMissing, resolveToolingCommandProfile } from './command-resolver.js';
 import { splitPathEntries } from './binary-utils.js';
 import { parseSwiftSignature } from './signature-parse/swift.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
@@ -619,6 +619,19 @@ export const createSourcekitProvider = () => ({
       toolingConfig: ctx?.toolingConfig || {}
     });
     if (!commandProfile.probe.ok) {
+      if (isProbeCommandDefinitelyMissing(commandProfile.probe)) {
+        log('[index] sourcekit-lsp not detected; skipping.');
+        checks.push({
+          name: 'sourcekit_command_unavailable',
+          status: 'warn',
+          message: 'sourcekit-lsp not detected; skipping.'
+        });
+        return {
+          provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+          byChunkUid: {},
+          diagnostics: appendDiagnosticChecks(null, checks)
+        };
+      }
       log('[index] sourcekit-lsp command probe failed; attempting stdio initialization.');
       checks.push({
         name: 'sourcekit_command_unavailable',

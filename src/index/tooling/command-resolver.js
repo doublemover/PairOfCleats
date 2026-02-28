@@ -384,6 +384,41 @@ export const __getToolingCommandProbeCacheStatsForTests = () => ({
 });
 
 /**
+ * Return true when probe attempts indicate the binary is definitely missing.
+ *
+ * We only return true when every attempted probe either failed with a known
+ * missing-command signal (ENOENT-style) or shell "not found" text. Any other
+ * probe failure is treated as inconclusive so callers can still attempt stdio.
+ *
+ * @param {{attempted?: Array<{errorCode?: string|null, exitCode?: number|null, stderr?: string, stdout?: string}>}|null} probe
+ * @returns {boolean}
+ */
+export const isProbeCommandDefinitelyMissing = (probe) => {
+  const attempts = Array.isArray(probe?.attempted) ? probe.attempted : [];
+  if (!attempts.length) return false;
+  let sawMissingSignal = false;
+  for (const attempt of attempts) {
+    const errorCode = String(attempt?.errorCode || '').trim().toUpperCase();
+    if (errorCode === 'ENOENT') {
+      sawMissingSignal = true;
+      continue;
+    }
+    const output = `${String(attempt?.stderr || '')} ${String(attempt?.stdout || '')}`.toLowerCase();
+    const missingByText = output.includes('command not found')
+      || output.includes('is not recognized as an internal or external command')
+      || output.includes('no such file or directory')
+      || output.includes('enoent')
+      || output.includes('cannot find the file');
+    if (missingByText) {
+      sawMissingSignal = true;
+      continue;
+    }
+    return false;
+  }
+  return sawMissingSignal;
+};
+
+/**
  * Resolve command path + launch args for tooling providers using profile rules.
  *
  * @param {{
