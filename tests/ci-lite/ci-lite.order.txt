@@ -313,7 +313,9 @@ storage/lmdb/utils-contract
 shared/merge/contract
 graph/import-missing-file-warning
 indexing/imports/cache-invalidation
+indexing/imports/cache-hard-cutover
 indexing/imports/import-resolution
+indexing/contracts/import-resolution-graph-decision-model
 tooling/logging/output-byte-accounting
 shared/order/deterministic-ordering-contract
 retrieval/backend/retrieval-auto-sqlite-thresholds
