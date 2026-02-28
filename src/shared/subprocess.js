@@ -3,7 +3,9 @@ export {
   withTrackedSubprocessSignalScope,
   terminateTrackedSubprocesses,
   registerChildProcessForCleanup,
-  getTrackedSubprocessCount
+  getTrackedSubprocessCount,
+  snapshotTrackedSubprocessEvents,
+  resetTrackedSubprocessEvents
 } from './subprocess/tracking.js';
 export { snapshotTrackedSubprocesses, captureProcessSnapshot } from './subprocess/snapshot.js';
 export {

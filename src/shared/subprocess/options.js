@@ -3,6 +3,8 @@ const DEFAULT_KILL_GRACE_MS = 5000;
 const TRACKED_SUBPROCESS_FORCE_GRACE_MS = 0;
 const TRACKED_SUBPROCESS_SNAPSHOT_DEFAULT_LIMIT = 8;
 const TRACKED_SUBPROCESS_SNAPSHOT_MAX_LIMIT = 256;
+const TRACKED_SUBPROCESS_EVENT_DEFAULT_LIMIT = 64;
+const TRACKED_SUBPROCESS_EVENT_MAX_LIMIT = 4096;
 const TRACKED_SUBPROCESS_ARGS_PREVIEW_MAX = 4;
 const PROCESS_SNAPSHOT_DEFAULT_FRAME_LIMIT = 12;
 const PROCESS_SNAPSHOT_MAX_FRAME_LIMIT = 64;
@@ -81,6 +83,12 @@ const resolveSnapshotLimit = (value, fallback = TRACKED_SUBPROCESS_SNAPSHOT_DEFA
   const parsed = toNumber(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return Math.max(1, Math.min(TRACKED_SUBPROCESS_SNAPSHOT_MAX_LIMIT, Math.floor(parsed)));
+};
+
+const resolveEventLimit = (value, fallback = TRACKED_SUBPROCESS_EVENT_DEFAULT_LIMIT) => {
+  const parsed = toNumber(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.max(1, Math.min(TRACKED_SUBPROCESS_EVENT_MAX_LIMIT, Math.floor(parsed)));
 };
 
 const resolveFrameLimit = (value) => {
@@ -202,6 +210,8 @@ export {
   TRACKED_SUBPROCESS_FORCE_GRACE_MS,
   TRACKED_SUBPROCESS_SNAPSHOT_DEFAULT_LIMIT,
   TRACKED_SUBPROCESS_SNAPSHOT_MAX_LIMIT,
+  TRACKED_SUBPROCESS_EVENT_DEFAULT_LIMIT,
+  TRACKED_SUBPROCESS_EVENT_MAX_LIMIT,
   TRACKED_SUBPROCESS_ARGS_PREVIEW_MAX,
   PROCESS_SNAPSHOT_DEFAULT_FRAME_LIMIT,
   PROCESS_SNAPSHOT_MAX_FRAME_LIMIT,
@@ -214,6 +224,7 @@ export {
   resolveKillGraceMs,
   resolveExpectedExitCodes,
   resolveSnapshotLimit,
+  resolveEventLimit,
   resolveFrameLimit,
   resolveHandleTypeLimit,
   toIsoTimestamp,
