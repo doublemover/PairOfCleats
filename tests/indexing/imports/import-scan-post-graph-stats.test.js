@@ -74,6 +74,30 @@ assert.deepEqual(
   Object.fromEntries(Object.entries(result?.stats?.unresolvedByReasonCode || {})),
   { IMP_U_MISSING_FILE_RELATIVE: 1 }
 );
+assert.deepEqual(
+  Object.fromEntries(Object.entries(result?.stats?.unresolvedByCategory || {})),
+  { missing_file: 1 }
+);
+assert.deepEqual(
+  Object.fromEntries(Object.entries(result?.stats?.unresolvedByFailureCause || {})),
+  { missing_file: 1 }
+);
+assert.deepEqual(
+  Object.fromEntries(Object.entries(result?.stats?.unresolvedByDisposition || {})),
+  { actionable: 1 }
+);
+assert.deepEqual(
+  Object.fromEntries(Object.entries(result?.stats?.unresolvedByResolverStage || {})),
+  { filesystem_probe: 1 }
+);
+assert.deepEqual(
+  result?.stats?.unresolvedActionableHotspots || [],
+  [{ importer: 'src/main.js', count: 1 }]
+);
+assert.deepEqual(
+  Object.fromEntries(Object.entries(result?.stats?.unresolvedActionableByLanguage || {})),
+  { js: 1 }
+);
 assert.equal(result?.stats?.unresolvedActionableRate, 1);
 assert.equal(result?.stats?.unresolvedParserArtifactRate, 0);
 assert.equal(result?.stats?.unresolvedResolverGapRate, 0);

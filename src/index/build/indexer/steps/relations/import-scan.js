@@ -494,7 +494,18 @@ export const postScanImports = async ({
     ? { ...resolution.stats }
     : null;
   if (resolvedStats) {
+    resolvedStats.unresolved = unresolvedTaxonomy.total;
+    resolvedStats.unresolvedActionable = unresolvedTaxonomy.actionable;
+    resolvedStats.unresolvedLiveSuppressed = unresolvedTaxonomy.liveSuppressed;
+    resolvedStats.unresolvedGateSuppressed = unresolvedTaxonomy.gateSuppressed || 0;
+    resolvedStats.unresolvedByCategory = unresolvedTaxonomy.categories;
     resolvedStats.unresolvedActionableRate = unresolvedTaxonomy.actionableUnresolvedRate;
+    resolvedStats.unresolvedByFailureCause = unresolvedTaxonomy.failureCauses;
+    resolvedStats.unresolvedByDisposition = unresolvedTaxonomy.dispositions;
+    resolvedStats.unresolvedByResolverStage = unresolvedTaxonomy.resolverStages;
+    resolvedStats.unresolvedActionableHotspots = unresolvedTaxonomy.actionableHotspots;
+    resolvedStats.unresolvedActionableByLanguage = unresolvedTaxonomy.actionableByLanguage;
+    resolvedStats.unresolvedLiveSuppressedCategories = unresolvedTaxonomy.liveSuppressedCategories;
     resolvedStats.unresolvedParserArtifactRate = unresolvedTaxonomy.parserArtifactRate;
     resolvedStats.unresolvedResolverGapRate = unresolvedTaxonomy.resolverGapRate;
     resolvedStats.unresolvedBudgetExhausted = resolverBudgetExhausted;
