@@ -413,26 +413,47 @@ export const validateOffsetsAgainstFile = async (jsonlPath, offsetsPath) => {
   if (getCachedOffsetsValidation(cacheKey, jsonlStat, offsetsStat)) {
     return true;
   }
+  const fileSize = Number(jsonlStat.size) || 0;
+  if (offsets.length && offsets[0] !== 0) {
+    throw createOffsetsInvalidError(`Offsets must start at zero for ${offsetsPath}`);
+  }
   let last = -1;
-  for (const offset of offsets) {
+  const boundaryPositions = [];
+  for (let i = 0; i < offsets.length; i += 1) {
+    const offset = offsets[i];
     if (!Number.isFinite(offset) || offset < 0) {
-      throw new Error(`Invalid offset value: ${offset}`);
+      throw createOffsetsInvalidError(`Invalid offset value: ${offset}`);
     }
     if (offset <= last) {
-      throw new Error(`Offsets not monotonic for ${offsetsPath}`);
+      throw createOffsetsInvalidError(`Offsets not monotonic for ${offsetsPath}`);
+    }
+    if (offset >= fileSize) {
+      throw createOffsetsInvalidError(`Offset exceeds file size for ${jsonlPath}`);
+    }
+    if (i > 0) {
+      boundaryPositions.push(offset - 1);
     }
     last = offset;
   }
-  if (offsets.length) {
-    if (last >= jsonlStat.size) {
-      throw new Error(`Offset exceeds file size for ${jsonlPath}`);
-    }
+  if (offsets.length && fileSize > 0) {
+    boundaryPositions.push(fileSize - 1);
     const handle = await fs.open(jsonlPath, 'r');
     try {
       const buffer = Buffer.allocUnsafe(1);
-      const { bytesRead } = await handle.read(buffer, 0, 1, jsonlStat.size - 1);
-      if (bytesRead === 1 && buffer[0] !== 0x0a) {
-        throw new Error(`JSONL missing trailing newline for ${jsonlPath}`);
+      for (let i = 0; i < boundaryPositions.length; i += 1) {
+        const position = boundaryPositions[i];
+        const { bytesRead } = await handle.read(buffer, 0, 1, position);
+        if (bytesRead !== 1) {
+          throw createOffsetsInvalidError(`JSONL boundary read failed for ${jsonlPath}`);
+        }
+        if (buffer[0] !== 0x0a) {
+          if (i === boundaryPositions.length - 1) {
+            throw createOffsetsInvalidError(`JSONL missing trailing newline for ${jsonlPath}`);
+          }
+          throw createOffsetsInvalidError(
+            `Offset boundary missing newline at byte ${position} for ${jsonlPath}`
+          );
+        }
       }
     } finally {
       await handle.close();
