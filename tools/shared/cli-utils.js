@@ -72,19 +72,82 @@ export function runCommand(cmd, args, options = {}) {
  * @returns {boolean}
  */
 export function canRunCommand(cmd, args = ['--version'], options = {}) {
+  return probeCommand(cmd, args, options).ok === true;
+}
+
+const isMissingCommandText = (stderr = '', stdout = '') => {
+  const output = `${String(stderr || '')} ${String(stdout || '')}`.toLowerCase();
+  if (!output.trim()) return false;
+  return output.includes('command not found')
+    || output.includes('is not recognized as an internal or external command')
+    || output.includes('no such file or directory')
+    || output.includes('enoent')
+    || output.includes('cannot find the file');
+};
+
+const pickProbeOutcomeFromExit = ({ status, signal, stderr, stdout }) => {
+  if (typeof signal === 'string' && signal.trim()) return 'terminated';
+  if (Number.isInteger(status) && status === 0) return 'ok';
+  if (Number.isInteger(status) && status === 127) return 'missing';
+  if (isMissingCommandText(stderr, stdout)) return 'missing';
+  if (Number.isInteger(status)) return 'nonzero';
+  return 'inconclusive';
+};
+
+/**
+ * Run a command probe and return structured outcome metadata.
+ *
+ * @param {string} cmd
+ * @param {string[]} [args]
+ * @param {object} [options]
+ * @returns {{
+ *   ok:boolean,
+ *   outcome:'ok'|'missing'|'timeout'|'terminated'|'nonzero'|'spawn_error'|'inconclusive',
+ *   status:number|null,
+ *   signal:string|null,
+ *   errorCode:string|null,
+ *   stderr?:string,
+ *   stdout?:string
+ * }}
+ */
+export function probeCommand(cmd, args = ['--version'], options = {}) {
+  const timeoutMs = Number.isFinite(Number(options.timeoutMs))
+    ? Math.max(100, Math.floor(Number(options.timeoutMs)))
+    : 4000;
   try {
-    const timeoutMs = Number.isFinite(Number(options.timeoutMs))
-      ? Math.max(100, Math.floor(Number(options.timeoutMs)))
-      : 4000;
     const result = runCommand(cmd, args, {
       encoding: 'utf8',
       stdio: 'ignore',
       ...options,
       timeoutMs
     });
-    return result.ok;
-  } catch {
-    return false;
+    const outcome = pickProbeOutcomeFromExit(result);
+    return {
+      ok: outcome === 'ok',
+      outcome,
+      status: Number.isInteger(result?.status) ? Number(result.status) : null,
+      signal: typeof result?.signal === 'string' ? result.signal : null,
+      errorCode: null,
+      stdout: typeof result?.stdout === 'string' ? result.stdout : '',
+      stderr: typeof result?.stderr === 'string' ? result.stderr : ''
+    };
+  } catch (error) {
+    const result = error?.result || null;
+    const errorCode = typeof error?.code === 'string'
+      ? error.code
+      : (typeof result?.errorCode === 'string' ? result.errorCode : null);
+    const outcome = error?.name === 'SubprocessTimeoutError' || errorCode === 'ETIMEDOUT'
+      ? 'timeout'
+      : (errorCode === 'ENOENT' ? 'missing' : 'spawn_error');
+    return {
+      ok: false,
+      outcome,
+      status: Number.isInteger(result?.status) ? Number(result.status) : null,
+      signal: typeof result?.signal === 'string' ? result.signal : null,
+      errorCode,
+      stdout: typeof result?.stdout === 'string' ? result.stdout : '',
+      stderr: typeof result?.stderr === 'string' ? result.stderr : ''
+    };
   }
 }
 

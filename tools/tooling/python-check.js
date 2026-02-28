@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
+import { probeCommand } from '../shared/cli-utils.js';
 
 const args = process.argv.slice(2);
 const json = args.includes('--json');
@@ -12,19 +12,17 @@ candidates.push(process.platform === 'win32' ? 'python' : 'python3');
 if (!candidates.includes('python')) candidates.push('python');
 if (!candidates.includes('python3')) candidates.push('python3');
 
-const probe = (binary) => spawnSync(binary, ['--version'], { encoding: 'utf8' });
-
 let selected = null;
 let version = null;
 let lastError = '';
 for (const candidate of candidates) {
-  const result = probe(candidate);
-  if (result.status === 0) {
+  const result = probeCommand(candidate, ['--version'], { timeoutMs: 4000 });
+  if (result.ok) {
     selected = candidate;
     version = String(result.stdout || result.stderr || '').trim();
     break;
   }
-  const detail = String(result.stderr || result.stdout || result.error?.message || '').trim();
+  const detail = String(result.stderr || result.stdout || result.errorCode || result.outcome || '').trim();
   if (detail) lastError = detail;
 }
 

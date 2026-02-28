@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { canRunCommand } from '../shared/cli-utils.js';
+import { canRunCommand, probeCommand } from '../shared/cli-utils.js';
 import { LOCK_FILES, MANIFEST_FILES, SKIP_DIRS, SKIP_FILES } from '../../src/index/constants.js';
 import { findBinaryInDirs, splitPathEntries } from '../../src/index/tooling/binary-utils.js';
 import { toPosix } from '../../src/shared/files.js';
@@ -235,11 +235,35 @@ function resolveDetectArgCandidates(tool) {
   return candidates;
 }
 
-function canRunWithArgCandidates(cmd, argCandidates) {
+function probeWithArgCandidates(cmd, argCandidates) {
+  const attempts = [];
   for (const args of argCandidates) {
-    if (canRun(cmd, args)) return true;
+    const probe = probeCommand(cmd, args, { timeoutMs: 4000 });
+    attempts.push({
+      args,
+      outcome: probe.outcome,
+      status: probe.status,
+      signal: probe.signal,
+      errorCode: probe.errorCode
+    });
+    if (probe.ok) {
+      return {
+        ok: true,
+        outcome: 'ok',
+        attempts
+      };
+    }
   }
-  return false;
+  const preferred = attempts.find((entry) => entry.outcome === 'missing')
+    ? 'missing'
+    : (attempts.find((entry) => entry.outcome === 'timeout')
+      ? 'timeout'
+      : (attempts[0]?.outcome || 'inconclusive'));
+  return {
+    ok: false,
+    outcome: preferred,
+    attempts
+  };
 }
 
 async function scanRepo(root) {
@@ -651,19 +675,26 @@ export function detectTool(tool) {
   const binDirs = tool.detect?.binDirs || [];
   const binPath = binDirs.length ? findBinaryInDirs(tool.detect.cmd, binDirs) : null;
   if (binPath) {
-    const ok = canRunWithArgCandidates(binPath, detectArgCandidates);
+    const probe = probeWithArgCandidates(binPath, detectArgCandidates);
+    const ok = probe.ok === true;
     if (ok || (isPyrightLangserver && fs.existsSync(binPath))) {
-      return { found: true, path: binPath, source: 'cache' };
+      return { found: true, path: binPath, source: 'cache', probe };
+    }
+    if (!ok && isPyrightLangserver && fs.existsSync(binPath)) {
+      return { found: true, path: binPath, source: 'cache', probe };
     }
   }
-  const ok = canRunWithArgCandidates(tool.detect.cmd, detectArgCandidates);
-  if (ok) return { found: true, path: tool.detect.cmd, source: 'path' };
+  const probe = probeWithArgCandidates(tool.detect.cmd, detectArgCandidates);
+  const ok = probe.ok === true;
+  if (ok) return { found: true, path: tool.detect.cmd, source: 'path', probe };
   if (isPyrightLangserver) {
     const pathEntries = splitPathEntries(resolveEnvPath(process.env));
     const pathFound = findBinaryInDirs(tool.detect.cmd, pathEntries);
-    if (pathFound && fs.existsSync(pathFound)) return { found: true, path: pathFound, source: 'path' };
+    if (pathFound && fs.existsSync(pathFound)) {
+      return { found: true, path: pathFound, source: 'path', probe };
+    }
   }
-  return { found: false, path: null, source: null };
+  return { found: false, path: null, source: null, probe };
 }
 
 export function selectInstallPlan(tool, scope, allowFallback) {
@@ -707,6 +738,7 @@ export async function buildToolingReport(root, languageOverride = null, options 
       found: status.found,
       source: status.source,
       path: status.path,
+      probe: status.probe || null,
       install: tool.install || {}
     };
   });

@@ -107,6 +107,24 @@ const resolveRequirementCheckArgCandidates = (commandName) => {
   return [['--version'], ['version']];
 };
 
+const classifyProbeResult = (result) => {
+  if (result?.status === 0) return 'ok';
+  if (typeof result?.signal === 'string' && result.signal.trim()) return 'terminated';
+  const errorCode = String(result?.error?.code || '').trim().toUpperCase();
+  if (errorCode === 'ETIMEDOUT') return 'timeout';
+  const output = `${String(result?.stderr || '')} ${String(result?.stdout || '')}`.toLowerCase();
+  if (
+    output.includes('command not found')
+    || output.includes('is not recognized as an internal or external command')
+    || output.includes('no such file or directory')
+    || output.includes('enoent')
+    || output.includes('cannot find the file')
+  ) {
+    return 'missing';
+  }
+  return 'nonzero';
+};
+
 const report = toolOverride.length
   ? { languages: {}, formats: {} }
   : await buildToolingReport(root, languageOverride, { skipScan: languageOverride.length > 0 });
@@ -121,12 +139,22 @@ const results = [];
 for (const tool of tools) {
   const status = detectTool(tool);
   if (status.found) {
-    results.push({ id: tool.id, status: 'already-installed', path: status.path });
+    results.push({
+      id: tool.id,
+      status: 'already-installed',
+      path: status.path,
+      probe: status.probe || null
+    });
     continue;
   }
   const selection = selectInstallPlan(tool, scope, allowFallback);
   if (!selection.plan) {
-    results.push({ id: tool.id, status: 'manual', docs: tool.docs || null });
+    results.push({
+      id: tool.id,
+      status: 'manual',
+      docs: tool.docs || null,
+      probe: status.probe || null
+    });
     continue;
   }
   const { cmd, args, env, requires } = selection.plan;
@@ -134,17 +162,20 @@ for (const tool of tools) {
     const requirementCommand = resolveSpawnCommand(requires);
     const requirementArgCandidates = resolveRequirementCheckArgCandidates(requires);
     let requirementSatisfied = false;
-    let requirementTerminated = false;
+    const requirementChecks = [];
     for (const requirementArgs of requirementArgCandidates) {
       const requireCheck = spawnToolCommand(requirementCommand, requirementArgs, {
         encoding: 'utf8',
         stdio: 'ignore',
         timeoutMs: 4000
       });
-      if (typeof requireCheck.signal === 'string' && requireCheck.signal.trim()) {
-        requirementTerminated = true;
-        continue;
-      }
+      requirementChecks.push({
+        args: requirementArgs,
+        outcome: classifyProbeResult(requireCheck),
+        status: Number.isInteger(requireCheck?.status) ? Number(requireCheck.status) : null,
+        signal: typeof requireCheck?.signal === 'string' ? requireCheck.signal : null,
+        errorCode: typeof requireCheck?.error?.code === 'string' ? requireCheck.error.code : null
+      });
       if (requireCheck.status === 0) {
         requirementSatisfied = true;
         break;
@@ -155,8 +186,9 @@ for (const tool of tools) {
         id: tool.id,
         status: 'missing-requirement',
         requires,
-        ...(requirementTerminated ? { error: `${requires} probe timed out or terminated.` } : {}),
-        docs: tool.docs || null
+        requirementChecks,
+        docs: tool.docs || null,
+        probe: status.probe || null
       });
       continue;
     }
