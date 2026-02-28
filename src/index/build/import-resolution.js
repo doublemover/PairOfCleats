@@ -1,5 +1,6 @@
 export { prepareImportResolutionFsMeta } from './import-resolution/fs-meta.js';
 export { resolveImportLinks } from './import-resolution/engine.js';
+export { createExpectedArtifactsIndex } from './import-resolution/expected-artifacts-index.js';
 export {
   assertUnresolvedDecision,
   createUnresolvedDecision,
@@ -12,3 +13,4 @@ export {
   resolveDecisionFromReasonCode,
   validateResolutionDecision
 } from './import-resolution/reason-codes.js';
+export { matchGeneratedExpectationSpecifier } from './import-resolution/specifier-hints.js';

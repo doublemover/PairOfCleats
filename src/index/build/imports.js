@@ -16,7 +16,7 @@ import {
   IMPORT_RESOLUTION_STATES,
   normalizeUnresolvedDecision
 } from './import-resolution/reason-codes.js';
-import { isBazelLabelSpecifier, isGeneratedExpectationSpecifier } from './import-resolution/specifier-hints.js';
+import { isBazelLabelSpecifier, matchGeneratedExpectationSpecifier } from './import-resolution/specifier-hints.js';
 
 let esModuleInitPromise = null;
 let cjsInitPromise = null;
@@ -235,7 +235,7 @@ const classifyCategory = ({ importer, specifier, reason }) => {
       suggestedRemediation: 'Enable build-system label resolution for Bazel workspace imports.'
     };
   }
-  if (isGeneratedExpectationSpecifier({ importer, specifier: normalizedSpecifier })) {
+  if (matchGeneratedExpectationSpecifier({ importer, specifier: normalizedSpecifier }).matched) {
     return {
       category: UNRESOLVED_IMPORT_CATEGORIES.GENERATED_EXPECTED_MISSING,
       confidence: 0.86,

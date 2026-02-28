@@ -28,12 +28,50 @@ export const isBazelLabelSpecifier = (value) => {
   return BAZEL_LABEL_RX.test(normalized);
 };
 
-export const isGeneratedExpectationSpecifier = ({ importer = '', specifier = '' } = {}) => {
+export const matchGeneratedExpectationSpecifier = ({
+  importer = '',
+  specifier = '',
+  expectedArtifactsIndex = null
+} = {}) => {
+  const indexMatch = expectedArtifactsIndex && typeof expectedArtifactsIndex.match === 'function'
+    ? expectedArtifactsIndex.match({ importer, specifier })
+    : null;
+  if (indexMatch?.matched) return indexMatch;
   const normalizedImporter = normalizeHint(importer).toLowerCase();
   const normalizedSpecifier = normalizeHint(specifier).toLowerCase();
-  if (!normalizedImporter && !normalizedSpecifier) return false;
+  if (!normalizedImporter && !normalizedSpecifier) {
+    return {
+      matched: false,
+      source: 'none',
+      matchType: null
+    };
+  }
   const importerHit = GENERATED_SEGMENT_HINTS.some((hint) => normalizedImporter.includes(hint));
   const specifierSegmentHit = GENERATED_SEGMENT_HINTS.some((hint) => normalizedSpecifier.includes(hint));
   const specifierTokenHit = GENERATED_TOKEN_HINTS.some((hint) => normalizedSpecifier.includes(hint));
-  return importerHit || specifierSegmentHit || specifierTokenHit;
+  if (importerHit || specifierSegmentHit || specifierTokenHit) {
+    return {
+      matched: true,
+      source: 'heuristic',
+      matchType: 'token_hint'
+    };
+  }
+  return {
+    matched: false,
+    source: 'none',
+    matchType: null
+  };
+};
+
+export const isGeneratedExpectationSpecifier = ({
+  importer = '',
+  specifier = '',
+  expectedArtifactsIndex = null
+} = {}) => {
+  const match = matchGeneratedExpectationSpecifier({
+    importer,
+    specifier,
+    expectedArtifactsIndex
+  });
+  return match.matched === true;
 };

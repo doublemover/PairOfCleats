@@ -32,6 +32,8 @@ await write('python/pkg/main.py', 'import helpers\nfrom .utils import parse\nimp
 await write('python/pkg/helpers.py', 'VALUE = 1\n');
 await write('python/pkg/stubs.pyi', 'from .helpers import VALUE\n');
 await write('python/pkg/utils/__init__.py', 'def parse():\n  return True\n');
+await write('python/service/main.py', 'from .proto import client_pb2\n');
+await write('python/service/proto/client.proto', 'syntax = "proto3";\nmessage Client {}\n');
 await write('python/pydantic_core/__init__.py', 'from ._pydantic_core import __version__\n');
 await write('python/pydantic_core/_pydantic_core.pyi', '__version__: str\n');
 
@@ -144,6 +146,8 @@ const entries = [
   'python/pkg/helpers.py',
   'python/pkg/stubs.pyi',
   'python/pkg/utils/__init__.py',
+  'python/service/main.py',
+  'python/service/proto/client.proto',
   'python/pydantic_core/__init__.py',
   'python/pydantic_core/_pydantic_core.pyi',
   'lib/App/Main.pm',
@@ -216,6 +220,7 @@ const entries = [
 const importsByFile = {
   'python/pkg/main.py': ['helpers', '.utils', 'requests'],
   'python/pkg/stubs.pyi': ['.helpers'],
+  'python/service/main.py': ['./proto/client_pb2.py'],
   'python/pydantic_core/__init__.py': ['._pydantic_core'],
   'lib/App/Main.pm': ['App::Util'],
   'lua/app/main.lua': ['app.util'],
@@ -333,7 +338,7 @@ assertLinks(
 );
 
 const realUnresolvedSamples = enrichUnresolvedImportSamples(resolution.unresolvedSamples || []);
-assert.equal(realUnresolvedSamples.length, 3, 'expected unresolved samples from shell, bazel label, and generated coverage');
+assert.equal(realUnresolvedSamples.length, 4, 'expected unresolved samples from shell, bazel label, and generated coverage');
 const realBySpecifier = Object.fromEntries(realUnresolvedSamples.map((entry) => [entry.specifier, entry]));
 assert.equal(realBySpecifier['./lib/missing.sh']?.category, 'missing_file');
 assert.equal(realBySpecifier['./lib/missing.sh']?.reasonCode, 'IMP_U_MISSING_FILE_RELATIVE');
@@ -350,6 +355,11 @@ assert.equal(realBySpecifier['./generated/client.pb.ts']?.reasonCode, 'IMP_U_GEN
 assert.equal(realBySpecifier['./generated/client.pb.ts']?.failureCause, 'generated_expected_missing');
 assert.equal(realBySpecifier['./generated/client.pb.ts']?.disposition, 'suppress_gate');
 assert.equal(realBySpecifier['./generated/client.pb.ts']?.resolverStage, 'build_system_resolver');
+assert.equal(realBySpecifier['./proto/client_pb2.py']?.category, 'generated_expected_missing');
+assert.equal(realBySpecifier['./proto/client_pb2.py']?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
+assert.equal(realBySpecifier['./proto/client_pb2.py']?.failureCause, 'generated_expected_missing');
+assert.equal(realBySpecifier['./proto/client_pb2.py']?.disposition, 'suppress_gate');
+assert.equal(realBySpecifier['./proto/client_pb2.py']?.resolverStage, 'build_system_resolver');
 
 const taxonomySamples = enrichUnresolvedImportSamples([
   ...realUnresolvedSamples,
@@ -371,13 +381,13 @@ assert.equal(taxonomyBySpecifier['./utlis.jss'], 'typo');
 assert.equal(taxonomyBySpecifier['./lib/missing.sh'], 'missing_file');
 assert.equal(taxonomyBySpecifier['./generated/client.pb.ts'], 'generated_expected_missing');
 assert.equal(taxonomy.liveSuppressed, 2);
-assert.equal(taxonomy.gateSuppressed, 3);
+assert.equal(taxonomy.gateSuppressed, 4);
 assert.equal(taxonomy.actionable, 3);
 assert.equal(Object.keys(taxonomy.reasonCodes).length > 0, true, 'expected reason-code aggregation');
 assert.deepEqual(
   Object.fromEntries(Object.entries(taxonomy.resolverStages)),
   {
-    build_system_resolver: 1,
+    build_system_resolver: 2,
     classify: 3,
     filesystem_probe: 1,
     language_resolver: 2,
@@ -398,7 +408,7 @@ assert.deepEqual(
   Object.fromEntries(Object.entries(taxonomy.categories)),
   {
     fixture: 1,
-    generated_expected_missing: 1,
+    generated_expected_missing: 2,
     missing_file: 1,
     optional_dependency: 1,
     path_normalization: 1,

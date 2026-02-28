@@ -200,6 +200,7 @@ indexer/signatures/core
 indexing/embeddings/writer-backpressure
 retrieval/graph/impact-analysis-changed-set
 lang/python/imports
+indexing/imports/expected-artifacts-index
 indexing/embeddings/cache-invalidation
 retrieval/cli/options-smoke
 indexing/tree-sitter/runtime-cache

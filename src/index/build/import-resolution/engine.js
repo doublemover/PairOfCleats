@@ -29,7 +29,11 @@ import {
 } from './language-resolvers.js';
 import { createPackageDirectoryResolver, parsePackageName } from './package-entry.js';
 import { resolveDartPackageName, resolveGoModulePath, resolvePackageFingerprint } from './repo-metadata.js';
-import { isBazelLabelSpecifier, isGeneratedExpectationSpecifier } from './specifier-hints.js';
+import { createExpectedArtifactsIndex } from './expected-artifacts-index.js';
+import {
+  isBazelLabelSpecifier,
+  matchGeneratedExpectationSpecifier
+} from './specifier-hints.js';
 import { normalizeImportSpecifier, normalizeRelPath, resolveWithinRoot, sortStrings } from './path-utils.js';
 import {
   IMPORT_REASON_CODES,
@@ -188,14 +192,22 @@ const toSortedCountObject = (counts) => {
   return output;
 };
 
-const resolveUnresolvedReasonCode = ({ importerRel, spec, rawSpec }) => {
+const resolveUnresolvedReasonCode = ({
+  importerRel,
+  spec,
+  rawSpec,
+  generatedExpectationMatch = null,
+  expectedArtifactsIndex = null
+}) => {
   if (isBazelLabelSpecifier(spec) || isBazelLabelSpecifier(rawSpec)) {
     return IMPORT_REASON_CODES.RESOLVER_GAP;
   }
-  if (isGeneratedExpectationSpecifier({
+  const resolvedGeneratedMatch = generatedExpectationMatch || matchGeneratedExpectationSpecifier({
     importer: importerRel,
-    specifier: spec || rawSpec
-  })) {
+    specifier: spec || rawSpec,
+    expectedArtifactsIndex
+  });
+  if (resolvedGeneratedMatch?.matched) {
     return IMPORT_REASON_CODES.GENERATED_EXPECTED_MISSING;
   }
   return IMPORT_REASON_CODES.MISSING_FILE_RELATIVE;
@@ -266,6 +278,9 @@ export function resolveImportLinks({
   });
   const goModulePath = resolveGoModulePath(resolvedLookup.rootAbs, fsMemo);
   const dartPackageName = resolveDartPackageName(resolvedLookup.rootAbs, fsMemo);
+  const expectedArtifactsIndex = createExpectedArtifactsIndex({
+    entries: Array.from(resolvedLookup.fileSet || [])
+  });
   if (cacheMetrics && canReuseLookup && lookup) {
     cacheMetrics.lookupReused = true;
   }
@@ -282,10 +297,11 @@ export function resolveImportLinks({
       repoHash,
       buildConfigHash: packageFingerprint || null,
       mode,
-      schemaVersion: 'import-resolution-cache-v4',
+      schemaVersion: 'import-resolution-cache-v5',
       featureFlags: [
         ...(graphMeta?.importScanMode ? [`scan:${graphMeta.importScanMode}`] : []),
-        ...(aliasRulesFingerprint ? [`resolverAlias:${aliasRulesFingerprint}`] : [])
+        ...(aliasRulesFingerprint ? [`resolverAlias:${aliasRulesFingerprint}`] : []),
+        ...(expectedArtifactsIndex?.fingerprint ? [`expectedArtifacts:${expectedArtifactsIndex.fingerprint}`] : [])
       ],
       pathPolicy: 'posix',
       extra: { fileSetFingerprint }
@@ -542,6 +558,17 @@ export function resolveImportLinks({
       let unresolvedFailureCause = null;
       let unresolvedDisposition = null;
       let unresolvedResolverStage = null;
+      let generatedExpectationMatch = null;
+      const resolveGeneratedExpectationMatch = () => {
+        if (!generatedExpectationMatch) {
+          generatedExpectationMatch = matchGeneratedExpectationSpecifier({
+            importer: relNormalized,
+            specifier: spec || rawSpec,
+            expectedArtifactsIndex
+          });
+        }
+        return generatedExpectationMatch;
+      };
       const nowMs = Date.now();
 
       if (cacheMetrics) cacheMetrics.specs += 1;
@@ -619,22 +646,29 @@ export function resolveImportLinks({
             resolvedType = 'relative';
             resolvedPath = candidate;
           } else {
-            const absoluteExternal = shouldTreatAbsoluteSpecifierAsExternal({
-              spec,
-              importerInfo
-            });
-            if (absoluteExternal) {
-              resolvedType = 'external';
+            const generatedMatch = resolveGeneratedExpectationMatch();
+            const skipFallbackProbe = generatedMatch?.matched
+              && generatedMatch.source === 'index';
+            if (skipFallbackProbe) {
+              resolvedType = 'unresolved';
             } else {
-              const nonIndexedLocal = resolveExistingNonIndexedRelativeImport({
+              const absoluteExternal = shouldTreatAbsoluteSpecifierAsExternal({
                 spec,
-                importerInfo,
-                importerRel: relNormalized
+                importerInfo
               });
-              resolvedType = nonIndexedLocal ? 'external' : 'unresolved';
-              if (nonIndexedLocal) {
-                cacheClass = 'ephemeral_external';
-                fallbackPath = nonIndexedLocal;
+              if (absoluteExternal) {
+                resolvedType = 'external';
+              } else {
+                const nonIndexedLocal = resolveExistingNonIndexedRelativeImport({
+                  spec,
+                  importerInfo,
+                  importerRel: relNormalized
+                });
+                resolvedType = nonIndexedLocal ? 'external' : 'unresolved';
+                if (nonIndexedLocal) {
+                  cacheClass = 'ephemeral_external';
+                  fallbackPath = nonIndexedLocal;
+                }
               }
             }
           }
@@ -734,7 +768,9 @@ export function resolveImportLinks({
             : createUnresolvedDecision(resolveUnresolvedReasonCode({
               importerRel: relNormalized,
               spec,
-              rawSpec
+              rawSpec,
+              generatedExpectationMatch: resolveGeneratedExpectationMatch(),
+              expectedArtifactsIndex
             })),
           {
             context: `imports.resolve:${relNormalized}->${spec}`
