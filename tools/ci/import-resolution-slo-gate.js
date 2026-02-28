@@ -20,7 +20,9 @@ const parseArgs = () => createCli({
     report: { type: 'string', default: '' },
     json: { type: 'string', default: '' },
     'actionable-unresolved-rate-max': { type: 'number', default: 0.6 },
-    'min-unresolved-samples': { type: 'number', default: 1 }
+    'min-unresolved-samples': { type: 'number', default: 1 },
+    'parser-artifact-rate-warn-max': { type: 'number', default: 0.35 },
+    'resolver-gap-rate-warn-max': { type: 'number', default: 0.35 }
   }
 })
   .strictOptions()
@@ -48,6 +50,8 @@ const main = async () => {
     });
   const actionableRateMax = coerceNumberAtLeast(argv['actionable-unresolved-rate-max'], 0) ?? 0.6;
   const minUnresolvedSamples = Math.max(0, Math.floor(coerceNumberAtLeast(argv['min-unresolved-samples'], 0) ?? 1));
+  const parserArtifactRateWarnMax = coerceNumberAtLeast(argv['parser-artifact-rate-warn-max'], 0) ?? 0.35;
+  const resolverGapRateWarnMax = coerceNumberAtLeast(argv['resolver-gap-rate-warn-max'], 0) ?? 0.35;
 
   if (graphPaths.length === 0) {
     const payload = {
@@ -152,6 +156,7 @@ const main = async () => {
     ))[0] || null;
 
   const failures = [];
+  const advisories = [];
   if (invalidReports.length > 0) {
     failures.push(`invalid graph payloads: ${invalidReports.length}`);
   }
@@ -159,6 +164,18 @@ const main = async () => {
     failures.push(
       `actionable unresolved rate ${actionableRate.toFixed(4)} exceeded max ${actionableRateMax.toFixed(4)} ` +
       `(actionable=${actionable}, unresolved=${unresolved})`
+    );
+  }
+  if (unresolved >= minUnresolvedSamples && parserArtifactRate > parserArtifactRateWarnMax) {
+    advisories.push(
+      `parser artifact rate ${parserArtifactRate.toFixed(4)} exceeded advisory max ` +
+      `${parserArtifactRateWarnMax.toFixed(4)} (parser_artifact=${totals.parserArtifact}, unresolved=${unresolved})`
+    );
+  }
+  if (unresolved >= minUnresolvedSamples && resolverGapRate > resolverGapRateWarnMax) {
+    advisories.push(
+      `resolver gap rate ${resolverGapRate.toFixed(4)} exceeded advisory max ` +
+      `${resolverGapRateWarnMax.toFixed(4)} (resolver_gap=${totals.resolverGap}, unresolved=${unresolved})`
     );
   }
 
@@ -172,7 +189,9 @@ const main = async () => {
     invalidReports,
     thresholds: {
       actionableUnresolvedRateMax: actionableRateMax,
-      minUnresolvedSamples
+      minUnresolvedSamples,
+      parserArtifactRateWarnMax,
+      resolverGapRateWarnMax
     },
     metrics: {
       unresolved,
@@ -197,6 +216,7 @@ const main = async () => {
     resolverPipelineStages,
     resolverBudgetPolicyProfiles,
     actionableHotspots,
+    advisories,
     failures
   };
 
@@ -224,7 +244,8 @@ const main = async () => {
       `- topLanguageHotspot: ${topLanguageHotspot ? `${topLanguageHotspot.language}=${topLanguageHotspot.count}` : 'none'}`,
       `- topReasonCode: ${topReasonCode ? `${topReasonCode.reasonCode}=${topReasonCode.count}` : 'none'}`,
       `- topResolverBudgetProfile: ${topBudgetProfile ? `${topBudgetProfile.profile}=${topBudgetProfile.count}` : 'none'}`,
-      `- topResolverStageByElapsed: ${topStageByElapsed ? `${topStageByElapsed.stage}=${topStageByElapsed.elapsedMs.toFixed(3)}ms` : 'none'}`
+      `- topResolverStageByElapsed: ${topStageByElapsed ? `${topStageByElapsed.stage}=${topStageByElapsed.elapsedMs.toFixed(3)}ms` : 'none'}`,
+      `- advisories: ${advisories.length}`
     ],
     failures
   });
