@@ -45,6 +45,7 @@ const createFileRelationsResolver = (fileRelations) => {
 
 const INCREMENTAL_BUNDLE_SHARD_TARGET_BYTES = 16 * 1024 * 1024;
 const INCREMENTAL_BUNDLE_SHARD_HARD_TARGET_BYTES = 32 * 1024 * 1024;
+const MANIFEST_PENDING_BUNDLE_GC = Symbol('incrementalManifestPendingBundleGc');
 
 const estimateBundleBytes = (value) => {
   const estimated = estimateJsonBytes(value);
@@ -112,12 +113,89 @@ const removeManifestBundleFiles = async ({ bundleDir, entry, keep = null }) => {
   }
 };
 
+const resolveManifestPendingBundleGc = (manifest) => {
+  if (!manifest || typeof manifest !== 'object') return null;
+  if (manifest[MANIFEST_PENDING_BUNDLE_GC] instanceof Set) {
+    return manifest[MANIFEST_PENDING_BUNDLE_GC];
+  }
+  const pending = new Set();
+  Object.defineProperty(manifest, MANIFEST_PENDING_BUNDLE_GC, {
+    value: pending,
+    enumerable: false,
+    configurable: false,
+    writable: false
+  });
+  return pending;
+};
+
+const queueManifestBundleGc = ({ manifest, entry, keep = null }) => {
+  const pending = resolveManifestPendingBundleGc(manifest);
+  if (!pending) return;
+  const keepSet = keep instanceof Set ? keep : null;
+  const names = resolveManifestBundleNames(entry);
+  for (const name of names) {
+    if (keepSet && keepSet.has(name)) continue;
+    pending.add(name);
+  }
+};
+
+const collectManifestActiveBundleNames = (manifest) => {
+  const active = new Set();
+  const files = manifest?.files && typeof manifest.files === 'object'
+    ? manifest.files
+    : {};
+  for (const entry of Object.values(files)) {
+    for (const name of resolveManifestBundleNames(entry)) {
+      active.add(name);
+    }
+  }
+  return active;
+};
+
+const drainManifestBundleGc = async ({ manifest, bundleDir }) => {
+  if (!bundleDir) return 0;
+  const pending = resolveManifestPendingBundleGc(manifest);
+  if (!pending || pending.size === 0) return 0;
+  const active = collectManifestActiveBundleNames(manifest);
+  let removed = 0;
+  for (const name of Array.from(pending)) {
+    if (!name) {
+      pending.delete(name);
+      continue;
+    }
+    if (active.has(name)) {
+      pending.delete(name);
+      continue;
+    }
+    try {
+      await fs.rm(path.join(bundleDir, name), { force: true });
+      pending.delete(name);
+      removed += 1;
+    } catch {
+      // Keep failures queued for the next successful manifest commit.
+    }
+  }
+  return removed;
+};
+
+const persistManifestAndDrainGc = async ({ manifest, manifestPath, bundleDir }) => {
+  if (!manifestPath || !manifest || typeof manifest !== 'object') return false;
+  try {
+    await atomicWriteJson(manifestPath, manifest, { spaces: 2 });
+  } catch {
+    return false;
+  }
+  await drainManifestBundleGc({ manifest, bundleDir });
+  return true;
+};
+
 /**
  * Write bundle shard(s) and return manifest entry.
  *
  * @param {{
  *   enabled:boolean,
  *   bundleDir:string,
+ *   manifest?:object|null,
  *   relKey:string,
  *   fileStat:import('node:fs').Stats,
  *   fileHash:string,
@@ -135,6 +213,7 @@ const removeManifestBundleFiles = async ({ bundleDir, entry, keep = null }) => {
 export async function writeIncrementalBundle({
   enabled,
   bundleDir,
+  manifest = null,
   relKey,
   fileStat,
   fileHash,
@@ -186,11 +265,19 @@ export async function writeIncrementalBundle({
       }
     }
     const keepSet = new Set(bundleNames);
-    await removeManifestBundleFiles({
-      bundleDir,
-      entry: previousManifestEntry,
-      keep: keepSet
-    });
+    if (manifest && typeof manifest === 'object') {
+      queueManifestBundleGc({
+        manifest,
+        entry: previousManifestEntry,
+        keep: keepSet
+      });
+    } else {
+      await removeManifestBundleFiles({
+        bundleDir,
+        entry: previousManifestEntry,
+        keep: keepSet
+      });
+    }
     const bundleChecksum = checksum && checksumAlgo
       ? `${checksumAlgo}:${checksum}`
       : (checksum || null);
@@ -226,12 +313,10 @@ export async function pruneIncrementalManifest({ enabled, manifest, manifestPath
     const normalizedRelKey = normalizeIncrementalRelPath(relKey);
     if (seenNormalized.has(normalizedRelKey)) continue;
     const entry = manifest.files[relKey];
-    await removeManifestBundleFiles({ bundleDir, entry });
+    queueManifestBundleGc({ manifest, entry });
     delete manifest.files[relKey];
   }
-  try {
-    await atomicWriteJson(manifestPath, manifest, { spaces: 2 });
-  } catch {}
+  await persistManifestAndDrainGc({ manifest, manifestPath, bundleDir });
 }
 
 /**
@@ -306,6 +391,7 @@ export async function preloadIncrementalBundleVfsRows({
  * @param {{
  *   enabled:boolean,
  *   manifest:object,
+ *   manifestPath?:string|null,
  *   bundleDir:string,
  *   chunks:object[],
  *   fileRelations:Map<string,object>|object|null,
@@ -317,6 +403,7 @@ export async function preloadIncrementalBundleVfsRows({
 export async function updateBundlesWithChunks({
   enabled,
   manifest,
+  manifestPath = null,
   bundleDir,
   chunks,
   fileRelations,
@@ -472,11 +559,19 @@ export async function updateBundlesWithChunks({
           }
         }
         const keepSet = new Set(bundleNames);
-        await removeManifestBundleFiles({
-          bundleDir,
-          entry,
-          keep: keepSet
-        });
+        if (manifest && typeof manifest === 'object') {
+          queueManifestBundleGc({
+            manifest,
+            entry,
+            keep: keepSet
+          });
+        } else {
+          await removeManifestBundleFiles({
+            bundleDir,
+            entry,
+            keep: keepSet
+          });
+        }
         entry.bundles = bundleNames;
         if (checksum && checksumAlgo) {
           entry.bundleChecksum = `${checksumAlgo}:${checksum}`;
@@ -496,6 +591,13 @@ export async function updateBundlesWithChunks({
     }
   });
   await Promise.all(workers);
+  const hasPendingGc = (resolveManifestPendingBundleGc(manifest)?.size || 0) > 0;
+  if ((bundleUpdates > 0 || hasPendingGc) && manifestPath) {
+    const persisted = await persistManifestAndDrainGc({ manifest, manifestPath, bundleDir });
+    if (!persisted && typeof log === 'function') {
+      log('[incremental] manifest write failed; deferred shard GC to preserve durability.');
+    }
+  }
   if (bundleUpdates || bundleSkipped || bundleFailures) {
     const durationMs = Math.max(0, Date.now() - startedAt);
     const failureText = bundleFailures > 0 ? `, failed ${bundleFailures}` : '';

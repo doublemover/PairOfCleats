@@ -234,6 +234,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     const manifestEntry = await writeIncrementalBundle({
       enabled: incrementalState.enabled,
       bundleDir: incrementalState.bundleDir,
+      manifest: incrementalState.manifest,
       relKey: recordFile,
       fileStat,
       fileHash: sha1(text),

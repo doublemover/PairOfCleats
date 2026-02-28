@@ -35,6 +35,7 @@ export async function writeBundleForFile({
   return runIo(() => writeIncrementalBundle({
     enabled: incrementalState.enabled,
     bundleDir: incrementalState.bundleDir,
+    manifest: incrementalState.manifest,
     relKey,
     fileStat,
     fileHash,

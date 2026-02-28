@@ -123,6 +123,7 @@ export const updateIncrementalBundles = async ({
   await updateBundlesWithChunks({
     enabled: runtime.incrementalEnabled,
     manifest: incrementalState.manifest,
+    manifestPath: incrementalState.manifestPath,
     bundleDir: incrementalState.bundleDir,
     bundleFormat: incrementalState.bundleFormat,
     chunks: state.chunks,
