@@ -146,7 +146,9 @@ try {
       baselineGeneratedAt: null,
       actionableRateDelta: null,
       parserArtifactRateDelta: null,
-      resolverGapRateDelta: null
+      resolverGapRateDelta: null,
+      resolverStageP95DriftByStage: {},
+      resolverStageP99DriftByStage: {}
     }
   );
 
@@ -420,6 +422,98 @@ try {
   assert.equal(driftPayload?.drift?.baselineJsonPath, driftBaselineJsonPath);
   assert.equal(Math.abs(Number(driftPayload?.drift?.parserArtifactRateDelta) - 0.5) < 1e-9, true);
   assert.equal(Math.abs(Number(driftPayload?.drift?.resolverGapRateDelta) - 0.3) < 1e-9, true);
+
+  const stageDriftGraphPath = path.join(tempRoot, 'import_resolution_graph.stage-drift.json');
+  const stageDriftJsonPath = path.join(tempRoot, 'import-resolution-slo-gate.stage-drift.json');
+  await writeGraph(stageDriftGraphPath, {
+    generatedAt: new Date().toISOString(),
+    stats: {
+      unresolved: 1,
+      unresolvedActionable: 1,
+      unresolvedByFailureCause: {
+        missing_file: 1
+      },
+      resolverPipelineStages: {
+        normalize: {
+          attempts: 1,
+          hits: 1,
+          misses: 0,
+          elapsedMs: 50,
+          budgetExhausted: 0,
+          degraded: 0
+        }
+      }
+    },
+    warnings: []
+  });
+  const stageDriftBaselineJsonPath = path.join(tempRoot, 'import-resolution-slo-gate.stage-drift.baseline.json');
+  await fs.writeFile(stageDriftBaselineJsonPath, JSON.stringify({
+    generatedAt: new Date().toISOString(),
+    metrics: {
+      actionableRate: 1,
+      parserArtifactRate: 0,
+      resolverGapRate: 0,
+      resolverPipelineStagePercentiles: {
+        normalize: {
+          p95: 10,
+          p99: 12
+        }
+      }
+    }
+  }, null, 2), 'utf8');
+  const stageDriftResult = spawnSync(
+    process.execPath,
+    [
+      gatePath,
+      '--mode',
+      'ci',
+      '--report',
+      stageDriftGraphPath,
+      '--json',
+      stageDriftJsonPath,
+      '--baseline-json',
+      stageDriftBaselineJsonPath,
+      '--actionable-unresolved-rate-max',
+      '1',
+      '--parser-artifact-rate-warn-max',
+      '1',
+      '--resolver-gap-rate-warn-max',
+      '1',
+      '--parser-artifact-rate-drift-warn-max',
+      '1',
+      '--resolver-gap-rate-drift-warn-max',
+      '1',
+      '--resolver-stage-p95-drift-warn-ms-max',
+      '20',
+      '--resolver-stage-p99-drift-warn-ms-max',
+      '20'
+    ],
+    {
+      cwd: ROOT,
+      env: process.env,
+      encoding: 'utf8'
+    }
+  );
+  assert.equal(stageDriftResult.status, 0, `expected stage drift gate status=0, received ${stageDriftResult.status}`);
+  const stageDriftPayload = JSON.parse(await fs.readFile(stageDriftJsonPath, 'utf8'));
+  assert.equal(Array.isArray(stageDriftPayload?.advisories), true);
+  assert.equal(stageDriftPayload.advisories.length, 2);
+  assert.ok(
+    stageDriftPayload.advisories.some((entry) => String(entry).includes('resolver stage p95 drift')),
+    'expected resolver stage p95 drift advisory message'
+  );
+  assert.ok(
+    stageDriftPayload.advisories.some((entry) => String(entry).includes('resolver stage p99 drift')),
+    'expected resolver stage p99 drift advisory message'
+  );
+  assert.deepEqual(
+    stageDriftPayload?.drift?.resolverStageP95DriftByStage,
+    { normalize: 40 }
+  );
+  assert.deepEqual(
+    stageDriftPayload?.drift?.resolverStageP99DriftByStage,
+    { normalize: 38 }
+  );
 
   const gateEligibleStatsGraphPath = path.join(tempRoot, 'import_resolution_graph.gate-eligible-stats.json');
   const gateEligibleStatsJsonPath = path.join(tempRoot, 'import-resolution-slo-gate.gate-eligible-stats.json');

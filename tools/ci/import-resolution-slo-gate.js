@@ -27,7 +27,9 @@ const parseArgs = () => createCli({
     'parser-artifact-rate-warn-max': { type: 'number', default: 0.35 },
     'resolver-gap-rate-warn-max': { type: 'number', default: 0.35 },
     'parser-artifact-rate-drift-warn-max': { type: 'number', default: 0.08 },
-    'resolver-gap-rate-drift-warn-max': { type: 'number', default: 0.08 }
+    'resolver-gap-rate-drift-warn-max': { type: 'number', default: 0.08 },
+    'resolver-stage-p95-drift-warn-ms-max': { type: 'number', default: 15 },
+    'resolver-stage-p99-drift-warn-ms-max': { type: 'number', default: 20 }
   }
 })
   .strictOptions()
@@ -40,6 +42,44 @@ const toRatio = (numerator, denominator) => (
 );
 
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
+
+const toStagePercentileMap = (value, percentileKey) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return Object.create(null);
+  const output = Object.create(null);
+  for (const [stage, metrics] of Object.entries(value)) {
+    if (typeof stage !== 'string' || !stage) continue;
+    const numeric = Number(metrics?.[percentileKey]);
+    if (!Number.isFinite(numeric) || numeric < 0) continue;
+    output[stage] = numeric;
+  }
+  return output;
+};
+
+const computeStagePercentileDrift = ({ current, baseline, percentileKey }) => {
+  const currentMap = toStagePercentileMap(current, percentileKey);
+  const baselineMap = toStagePercentileMap(baseline, percentileKey);
+  const output = Object.create(null);
+  for (const [stage, currentValue] of Object.entries(currentMap)) {
+    const baselineValue = Number(baselineMap[stage]);
+    if (!Number.isFinite(baselineValue)) continue;
+    output[stage] = Number((currentValue - baselineValue).toFixed(3));
+  }
+  return output;
+};
+
+const findMaxStageDelta = (deltas) => (
+  Object.entries(deltas || {})
+    .filter(([stage, delta]) => stage && Number.isFinite(Number(delta)))
+    .map(([stage, delta]) => ({
+      stage,
+      delta: Number(delta)
+    }))
+    .sort((a, b) => (
+      b.delta !== a.delta
+        ? b.delta - a.delta
+        : sortStrings(a.stage, b.stage)
+    ))[0] || null
+);
 
 const loadBaselineMetrics = async (baselinePath) => {
   if (typeof baselinePath !== 'string' || !baselinePath.trim()) {
@@ -87,6 +127,8 @@ const main = async () => {
   const resolverGapRateWarnMax = coerceNumberAtLeast(argv['resolver-gap-rate-warn-max'], 0) ?? 0.35;
   const parserArtifactRateDriftWarnMax = coerceNumberAtLeast(argv['parser-artifact-rate-drift-warn-max'], 0) ?? 0.08;
   const resolverGapRateDriftWarnMax = coerceNumberAtLeast(argv['resolver-gap-rate-drift-warn-max'], 0) ?? 0.08;
+  const resolverStageP95DriftWarnMsMax = coerceNumberAtLeast(argv['resolver-stage-p95-drift-warn-ms-max'], 0) ?? 15;
+  const resolverStageP99DriftWarnMsMax = coerceNumberAtLeast(argv['resolver-stage-p99-drift-warn-ms-max'], 0) ?? 20;
   const baseline = await loadBaselineMetrics(argv['baseline-json']);
 
   if (graphPaths.length === 0) {
@@ -138,6 +180,19 @@ const main = async () => {
   const baselineActionableRate = Number(baseline.metrics?.actionableRate);
   const baselineParserArtifactRate = Number(baseline.metrics?.parserArtifactRate);
   const baselineResolverGapRate = Number(baseline.metrics?.resolverGapRate);
+  const baselineStagePercentiles = baseline.metrics?.resolverPipelineStagePercentiles;
+  const resolverStageP95DriftByStage = computeStagePercentileDrift({
+    current: resolverPipelineStagePercentiles,
+    baseline: baselineStagePercentiles,
+    percentileKey: 'p95'
+  });
+  const resolverStageP99DriftByStage = computeStagePercentileDrift({
+    current: resolverPipelineStagePercentiles,
+    baseline: baselineStagePercentiles,
+    percentileKey: 'p99'
+  });
+  const maxResolverStageP95Drift = findMaxStageDelta(resolverStageP95DriftByStage);
+  const maxResolverStageP99Drift = findMaxStageDelta(resolverStageP99DriftByStage);
   const actionableRateDelta = Number.isFinite(baselineActionableRate)
     ? actionableRate - baselineActionableRate
     : null;
@@ -245,6 +300,26 @@ const main = async () => {
       `current=${resolverGapRate.toFixed(4)})`
     );
   }
+  if (
+    maxResolverStageP95Drift
+    && Number.isFinite(maxResolverStageP95Drift.delta)
+    && maxResolverStageP95Drift.delta > resolverStageP95DriftWarnMsMax
+  ) {
+    advisories.push(
+      `resolver stage p95 drift ${maxResolverStageP95Drift.delta.toFixed(3)}ms exceeded advisory max ` +
+      `${resolverStageP95DriftWarnMsMax.toFixed(3)}ms (stage=${maxResolverStageP95Drift.stage})`
+    );
+  }
+  if (
+    maxResolverStageP99Drift
+    && Number.isFinite(maxResolverStageP99Drift.delta)
+    && maxResolverStageP99Drift.delta > resolverStageP99DriftWarnMsMax
+  ) {
+    advisories.push(
+      `resolver stage p99 drift ${maxResolverStageP99Drift.delta.toFixed(3)}ms exceeded advisory max ` +
+      `${resolverStageP99DriftWarnMsMax.toFixed(3)}ms (stage=${maxResolverStageP99Drift.stage})`
+    );
+  }
   if (baseline.path && baseline.loadError) {
     advisories.push(`baseline metrics unavailable (${baseline.path}): ${baseline.loadError}`);
   }
@@ -263,7 +338,9 @@ const main = async () => {
       parserArtifactRateWarnMax,
       resolverGapRateWarnMax,
       parserArtifactRateDriftWarnMax,
-      resolverGapRateDriftWarnMax
+      resolverGapRateDriftWarnMax,
+      resolverStageP95DriftWarnMsMax,
+      resolverStageP99DriftWarnMsMax
     },
     metrics: {
       unresolved,
@@ -286,7 +363,9 @@ const main = async () => {
       baselineGeneratedAt: baseline.generatedAt,
       actionableRateDelta,
       parserArtifactRateDelta,
-      resolverGapRateDelta
+      resolverGapRateDelta,
+      resolverStageP95DriftByStage,
+      resolverStageP99DriftByStage
     },
     reasonCodes: reasonCodeCounts,
     actionableByRepo,
@@ -315,6 +394,8 @@ const main = async () => {
       `- resolverGapRate: ${resolverGapRate.toFixed(4)}`,
       `- parserArtifactRateDelta: ${Number.isFinite(parserArtifactRateDelta) ? parserArtifactRateDelta.toFixed(4) : 'n/a'}`,
       `- resolverGapRateDelta: ${Number.isFinite(resolverGapRateDelta) ? resolverGapRateDelta.toFixed(4) : 'n/a'}`,
+      `- resolverStageP95DriftMax: ${maxResolverStageP95Drift ? `${maxResolverStageP95Drift.stage}=${maxResolverStageP95Drift.delta.toFixed(3)}ms` : 'n/a'}`,
+      `- resolverStageP99DriftMax: ${maxResolverStageP99Drift ? `${maxResolverStageP99Drift.stage}=${maxResolverStageP99Drift.delta.toFixed(3)}ms` : 'n/a'}`,
       `- resolverBudgetExhaustedRate: ${resolverBudgetExhaustedRate.toFixed(4)}`,
       `- resolverBudgetAdaptiveReports: ${totals.resolverBudgetAdaptiveReports}`,
       `- resolverBudgetProfiles: ${Object.keys(resolverBudgetPolicyProfiles || {}).length}`,
