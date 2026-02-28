@@ -145,9 +145,13 @@ const addCounterpartCandidates = (candidateRel, targetSet) => {
       .replace(/(?:[-_.](?:generated|gen))$/i, '')
       .replace(/(?:[-_.](?:client|types?|schemas?|api))$/i, '')
   );
+  let hasOpenApiHints = false;
   for (const openApiBase of openApiBases) {
     const normalizedBase = normalizePathToken(openApiBase);
     if (!normalizedBase) continue;
+    if (looksLikeOpenApiBase(normalizedBase)) {
+      hasOpenApiHints = true;
+    }
     for (const suffix of OPENAPI_SOURCE_SUFFIXES) {
       addIfSetMissing(targetSet, `${normalizedBase}${suffix}`);
     }
@@ -158,7 +162,7 @@ const addCounterpartCandidates = (candidateRel, targetSet) => {
     }
   }
   const dir = path.posix.dirname(normalized);
-  if (dir && dir !== '.') {
+  if (hasOpenApiHints && dir && dir !== '.') {
     for (const basenameHint of OPENAPI_BASENAME_HINTS) {
       for (const ext of ['.yaml', '.yml', '.json']) {
         addIfSetMissing(targetSet, normalizePathToken(path.posix.join(dir, `${basenameHint}${ext}`)));

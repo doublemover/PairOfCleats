@@ -74,6 +74,16 @@ assert.equal(openApiCounterpartMatch.source, 'index');
 assert.equal(openApiCounterpartMatch.matchType, 'source_counterpart');
 assert.equal(openApiCounterpartMatch.sourcePath, 'api/openapi.yaml');
 
+const unrelatedGeneratedImport = index.match({
+  importer: 'api/main.ts',
+  specifier: './generated/non-openapi-helper.ts'
+});
+assert.equal(
+  unrelatedGeneratedImport.matched,
+  false,
+  'expected unrelated generated specifier to avoid openapi counterpart false positives'
+);
+
 const nonMatch = index.match({
   importer: 'src/main.js',
   specifier: './local/util.js'
