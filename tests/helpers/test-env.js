@@ -160,17 +160,25 @@ export const resolveSilentStdio = (defaultStdio = 'ignore') => (
 
 let trackedCleanupTriggered = false;
 
+const markTrackedCleanupLeak = (summary, reason, { sync = false } = {}) => {
+  const attempted = Number(summary?.attempted || 0);
+  if (!Number.isFinite(attempted) || attempted <= 0) return;
+  const prefix = sync ? '[test-cleanup][leak-sync]' : '[test-cleanup][leak]';
+  process.stderr.write(
+    `${prefix} reaped ${attempted} tracked subprocess(es) during ${reason}; failing test process.\n`
+  );
+  if (!Number.isInteger(process.exitCode) || process.exitCode === 0) {
+    process.exitCode = 1;
+  }
+};
+
 const runTrackedSubprocessCleanup = async (reason) => {
   if (trackedCleanupTriggered) return;
   if (getTrackedSubprocessCount() <= 0) return;
   trackedCleanupTriggered = true;
   try {
     const summary = await terminateTrackedSubprocesses({ reason, force: true });
-    if (Number(summary?.attempted || 0) > 0) {
-      process.stderr.write(
-        `[test-cleanup] reaped ${summary.attempted} tracked subprocess(es) during ${reason}.\n`
-      );
-    }
+    markTrackedCleanupLeak(summary, reason);
   } catch {}
 };
 
@@ -180,11 +188,7 @@ const runTrackedSubprocessCleanupSync = (reason) => {
   trackedCleanupTriggered = true;
   try {
     const summary = terminateTrackedSubprocessesSync({ reason, force: true });
-    if (Number(summary?.attempted || 0) > 0) {
-      process.stderr.write(
-        `[test-cleanup] synchronously reaped ${summary.attempted} tracked subprocess(es) during ${reason}.\n`
-      );
-    }
+    markTrackedCleanupLeak(summary, reason, { sync: true });
   } catch {}
 };
 

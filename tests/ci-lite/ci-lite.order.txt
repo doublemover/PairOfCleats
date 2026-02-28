@@ -753,6 +753,7 @@ storage/sqlite/chunk-meta-streaming
 shared/locks/file-lock-contract
 shared/subprocess/timeout-kills-child
 shared/subprocess/process-exit-cleanup
+shared/subprocess/tracked-leak-fails-process
 tooling/lsp/vfs-didopen
 indexing/watch/build-state
 services/indexing/compressed-artifact-presence
