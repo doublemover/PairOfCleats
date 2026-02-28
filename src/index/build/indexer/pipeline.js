@@ -8,7 +8,12 @@ import { log, logLine, showProgress } from '../../../shared/progress.js';
 import { coerceAbortSignal, throwIfAborted } from '../../../shared/abort.js';
 import { coerceUnitFraction } from '../../../shared/number-coerce.js';
 import { createCrashLogger } from '../crash-log.js';
-import { recordOrderingSeedInputs, updateBuildState } from '../build-state.js';
+import {
+  BUILD_STATE_DURABILITY_CLASS,
+  recordOrderingSeedInputs,
+  updateBuildState,
+  updateBuildStateOutcome
+} from '../build-state.js';
 import { runBuildCleanupWithTimeout } from '../cleanup-timeout.js';
 import { estimateContextWindow } from '../context-window.js';
 import { createPerfProfile, loadPerfProfile } from '../perf-profile.js';
@@ -850,6 +855,24 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     });
     return null;
   };
+  const updateBuildStateBestEffort = async (patch) => {
+    const outcome = await updateBuildStateOutcome(runtimeRef.buildRoot, patch, {
+      durabilityClass: BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT
+    });
+    if (outcome?.status !== 'timed_out') return outcome?.value ?? null;
+    const timeoutMs = Number.isFinite(Number(outcome?.timeoutMs)) ? Math.floor(Number(outcome.timeoutMs)) : null;
+    const err = new Error(
+      `[build_state] patch wait timed out${timeoutMs != null ? ` after ${timeoutMs}ms` : ''} `
+      + `for ${runtimeRef.buildRoot}.`
+    );
+    err.code = 'ERR_BUILD_STATE_PATCH_TIMEOUT';
+    err.buildState = outcome;
+    if (timeoutMs != null) err.timeoutMs = timeoutMs;
+    if (Number.isFinite(Number(outcome?.elapsedMs))) {
+      err.elapsedMs = Math.floor(Number(outcome.elapsedMs));
+    }
+    throw err;
+  };
   /**
    * Advance visible stage progress and retag scheduler telemetry.
    *
@@ -1117,7 +1140,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       fileCount: allEntries.length,
       chunkCount: state.chunks?.length || 0
     },
-    run: () => updateBuildState(runtimeRef.buildRoot, {
+    run: () => updateBuildStateBestEffort({
       counts: {
         [mode]: {
           files: allEntries.length,
@@ -1156,7 +1179,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
         meta: {
           mode
         },
-        run: () => updateBuildState(runtimeRef.buildRoot, {
+        run: () => updateBuildStateBestEffort({
           documentExtraction: {
             [mode]: extractionSummary
           }

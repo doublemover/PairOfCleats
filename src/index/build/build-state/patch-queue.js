@@ -3,6 +3,11 @@ import { estimateJsonBytes } from '../../../shared/cache.js';
 import { createLifecycleRegistry } from '../../../shared/lifecycle/registry.js';
 import { logLine } from '../../../shared/progress.js';
 import { runBuildCleanupWithTimeout } from '../cleanup-timeout.js';
+import {
+  BUILD_STATE_DURABILITY_CLASS,
+  isRequiredBuildStateDurability,
+  resolveBuildStateDurabilityClass
+} from './durability.js';
 
 const DEFAULT_DEBOUNCE_MS = 250;
 const LONG_DEBOUNCE_MS = 500;
@@ -70,7 +75,7 @@ export const createPatchQueue = ({
     waiter.resolve(value);
   };
 
-  const createWaiter = (buildRoot, pending) => {
+  const createWaiter = (buildRoot, pending, durabilityClass = BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT) => {
     const key = path.resolve(buildRoot);
     const createdAtMs = Date.now();
     let resolvePromise = null;
@@ -86,7 +91,7 @@ export const createPatchQueue = ({
       resolve: resolvePromise,
       reject: rejectPromise
     };
-    if (resolvedWaiterTimeoutMs > 0) {
+    if (!isRequiredBuildStateDurability(durabilityClass) && resolvedWaiterTimeoutMs > 0) {
       waiter.timer = setTimeout(() => {
         const elapsedMs = Math.max(0, Date.now() - createdAtMs);
         settleWaiter(pending, waiter, 'resolve', createTimedOutOutcome(key, elapsedMs));
@@ -159,6 +164,7 @@ export const createPatchQueue = ({
         timer: null,
         timerCancel: null,
         lifecycle: getPendingLifecycle(buildRoot),
+        durabilityClass: BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT,
         waiters: []
       });
     }
@@ -176,12 +182,20 @@ export const createPatchQueue = ({
     }
     const patch = pending.patch;
     const events = pending.events;
+    const durabilityClass = resolveBuildStateDurabilityClass(
+      pending.durabilityClass,
+      BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT
+    );
     const waiters = pending.waiters;
     pending.patch = null;
     pending.events = [];
+    pending.durabilityClass = BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT;
     pending.waiters = [];
     try {
-      const result = await enqueueStateUpdate(buildRoot, () => applyStatePatch(buildRoot, patch, events));
+      const result = await enqueueStateUpdate(
+        buildRoot,
+        () => applyStatePatch(buildRoot, patch, events, { durabilityClass })
+      );
       waiters.forEach((waiter) => settleWaiter(pending, waiter, 'resolve', createFlushedOutcome(result)));
       if (!pending.patch && !pending.timer && pending.waiters.length === 0) {
         statePending.delete(key);
@@ -195,6 +209,7 @@ export const createPatchQueue = ({
        * dropped when the next flush succeeds.
        */
       pending.patch = pending.patch ? mergeState(patch, pending.patch) : patch;
+      pending.durabilityClass = durabilityClass;
       if (events.length) {
         pending.events = [...events, ...pending.events];
       }
@@ -218,12 +233,25 @@ export const createPatchQueue = ({
     }
   };
 
-  const queueStatePatch = (buildRoot, patch, events = [], { flushNow = false } = {}) => {
+  const queueStatePatch = (
+    buildRoot,
+    patch,
+    events = [],
+    {
+      flushNow = false,
+      durabilityClass = BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT
+    } = {}
+  ) => {
     if (!buildRoot || !patch) return Promise.resolve(createFlushedOutcome(null));
     const pending = getPendingEntry(buildRoot);
+    const resolvedDurabilityClass = resolveBuildStateDurabilityClass(durabilityClass);
     pending.patch = pending.patch ? mergeState(pending.patch, patch) : patch;
     if (events.length) pending.events.push(...events);
-    const { waiter, promise } = createWaiter(buildRoot, pending);
+    pending.durabilityClass = isRequiredBuildStateDurability(resolvedDurabilityClass)
+      || isRequiredBuildStateDurability(pending.durabilityClass)
+      ? BUILD_STATE_DURABILITY_CLASS.REQUIRED
+      : BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT;
+    const { waiter, promise } = createWaiter(buildRoot, pending, resolvedDurabilityClass);
     pending.waiters.push(waiter);
     if (pending.timerCancel) {
       pending.timerCancel();
@@ -234,7 +262,7 @@ export const createPatchQueue = ({
     if (pending.timer) {
       pending.timer = null;
     }
-    if (flushNow) {
+    if (flushNow || isRequiredBuildStateDurability(resolvedDurabilityClass)) {
       void flushPendingState(buildRoot);
     } else {
       const delay = resolveDebounceMs(pending.patch);

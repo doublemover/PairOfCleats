@@ -10,6 +10,11 @@ import { collectCheckpointEvents } from './build-state/checkpoints.js';
 import { startHeartbeat } from './build-state/heartbeat.js';
 import { createPatchQueue, PATCH_QUEUE_WAIT_STATUS } from './build-state/patch-queue.js';
 import {
+  BUILD_STATE_DURABILITY_CLASS,
+  isRequiredBuildStateDurability,
+  resolveBuildStateDurabilityClass
+} from './build-state/durability.js';
+import {
   ORDERING_LEDGER_SCHEMA_VERSION,
   normalizeOrderingLedger,
   normalizeSeedInputs,
@@ -37,6 +42,7 @@ const patchQueue = createPatchQueue({
 setActiveStateKeyResolver(patchQueue.isActiveStateKey);
 
 export { ORDERING_LEDGER_SCHEMA_VERSION };
+export { BUILD_STATE_DURABILITY_CLASS };
 
 export const BUILD_STATE_WRITE_STATUS = Object.freeze({
   FLUSHED: PATCH_QUEUE_WAIT_STATUS.FLUSHED,
@@ -135,17 +141,31 @@ export async function initBuildState({
  *
  * @param {string} buildRoot
  * @param {object} patch
+ * @param {{durabilityClass?:'required'|'best_effort'}} [options]
  * @returns {Promise<{status:'flushed'|'timed_out',value:object|null}>}
  */
-export async function updateBuildStateOutcome(buildRoot, patch) {
+export async function updateBuildStateOutcome(
+  buildRoot,
+  patch,
+  { durabilityClass = BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT } = {}
+) {
   if (!buildRoot || !patch) {
     return {
       status: BUILD_STATE_WRITE_STATUS.FLUSHED,
       value: null
     };
   }
+  const resolvedDurabilityClass = resolveBuildStateDurabilityClass(durabilityClass);
   const events = collectCheckpointEvents(patch.stageCheckpoints);
-  return normalizeWriteOutcome(await patchQueue.queueStatePatch(buildRoot, patch, events));
+  return normalizeWriteOutcome(await patchQueue.queueStatePatch(
+    buildRoot,
+    patch,
+    events,
+    {
+      durabilityClass: resolvedDurabilityClass,
+      flushNow: isRequiredBuildStateDurability(resolvedDurabilityClass)
+    }
+  ));
 }
 
 /**
@@ -156,7 +176,9 @@ export async function updateBuildStateOutcome(buildRoot, patch) {
  * @returns {Promise<object|null>}
  */
 export async function updateBuildState(buildRoot, patch) {
-  const outcome = await updateBuildStateOutcome(buildRoot, patch);
+  const outcome = await updateBuildStateOutcome(buildRoot, patch, {
+    durabilityClass: BUILD_STATE_DURABILITY_CLASS.REQUIRED
+  });
   if (outcome.status === BUILD_STATE_WRITE_STATUS.TIMED_OUT) {
     throw buildStateTimeoutError(buildRoot, outcome);
   }
@@ -297,7 +319,15 @@ export async function flushBuildState(buildRoot) {
  */
 export async function markBuildPhase(buildRoot, phase, status, detail = null) {
   const queueStatePatch = async (targetBuildRoot, patch, events = []) => {
-    const outcome = normalizeWriteOutcome(await patchQueue.queueStatePatch(targetBuildRoot, patch, events));
+    const outcome = normalizeWriteOutcome(await patchQueue.queueStatePatch(
+      targetBuildRoot,
+      patch,
+      events,
+      {
+        durabilityClass: BUILD_STATE_DURABILITY_CLASS.REQUIRED,
+        flushNow: true
+      }
+    ));
     if (outcome.status === BUILD_STATE_WRITE_STATUS.TIMED_OUT) {
       throw buildStateTimeoutError(targetBuildRoot, outcome);
     }
@@ -329,6 +359,7 @@ export function startBuildHeartbeat(buildRoot, stage, intervalMs = 30000) {
     stage,
     intervalMs,
     updateBuildStateOutcome,
+    durabilityClass: BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT,
     flushBuildState,
     buildRootExists
   });
@@ -353,7 +384,8 @@ export function createBuildCheckpoint({
     totalFiles,
     batchSize,
     intervalMs,
-    updateBuildStateOutcome
+    updateBuildStateOutcome,
+    durabilityClass: BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT
   });
 }
 

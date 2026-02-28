@@ -6,6 +6,11 @@ import { atomicWriteJson, atomicWriteText } from '../../../shared/io/atomic-writ
 import { sha1 } from '../../../shared/hash.js';
 import { logLine } from '../../../shared/progress.js';
 import { loadCheckpointSlices, mergeStageCheckpoints, resolveCheckpointIndexPath, writeCheckpointSlices } from './checkpoints.js';
+import {
+  BUILD_STATE_DURABILITY_CLASS,
+  isRequiredBuildStateDurability,
+  resolveBuildStateDurabilityClass
+} from './durability.js';
 import { mergeOrderingLedger, normalizeOrderingLedger } from './order-ledger.js';
 
 const STATE_FILE = 'build_state.json';
@@ -28,6 +33,26 @@ let activeStateKeyResolver = null;
 
 export const setActiveStateKeyResolver = (resolver) => {
   activeStateKeyResolver = typeof resolver === 'function' ? resolver : null;
+};
+
+const createBuildStateWriteFailureError = ({
+  buildRoot,
+  target,
+  phase,
+  cause
+}) => {
+  const resolvedBuildRoot = buildRoot ? path.resolve(buildRoot) : null;
+  const code = String(cause?.code || cause?.name || 'UNKNOWN');
+  const err = new Error(
+    `[build_state] ${target} write failed (${code})${resolvedBuildRoot ? ` for ${resolvedBuildRoot}` : ''}.`,
+    { cause }
+  );
+  err.code = 'ERR_BUILD_STATE_WRITE_FAILED';
+  err.target = target;
+  err.phase = phase;
+  err.buildRoot = resolvedBuildRoot;
+  err.causeCode = String(cause?.code || '');
+  return err;
 };
 
 const isActiveStateKey = (key) => {
@@ -251,9 +276,14 @@ const compressRotatedLog = async (filePath) => {
   } catch {}
 };
 
-const appendEventLog = async (buildRoot, events) => {
+const appendEventLog = async (
+  buildRoot,
+  events,
+  { durabilityClass = BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT } = {}
+) => {
   if (!buildRoot || !events || !events.length) return;
   const filePath = resolveEventsPath(buildRoot);
+  const resolvedDurabilityClass = resolveBuildStateDurabilityClass(durabilityClass);
   try {
     const stat = fsSync.existsSync(filePath) ? fsSync.statSync(filePath) : null;
     if (stat && stat.size >= EVENT_LOG_MAX_BYTES) {
@@ -264,6 +294,14 @@ const appendEventLog = async (buildRoot, events) => {
     const lines = events.map((event) => JSON.stringify(event)).join('\n') + '\n';
     await fs.appendFile(filePath, lines, 'utf8');
   } catch (err) {
+    if (isRequiredBuildStateDurability(resolvedDurabilityClass)) {
+      throw createBuildStateWriteFailureError({
+        buildRoot,
+        target: 'events',
+        phase: 'append',
+        cause: err
+      });
+    }
     recordStateError(buildRoot, err);
   }
 };
@@ -292,9 +330,15 @@ const buildDeltaEntries = ({ main, progress, checkpoints, ts }) => {
   return entries;
 };
 
-const appendDeltaLog = async (buildRoot, deltas, snapshot = null) => {
+const appendDeltaLog = async (
+  buildRoot,
+  deltas,
+  snapshot = null,
+  { durabilityClass = BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT } = {}
+) => {
   if (!buildRoot || !deltas || !deltas.length) return;
   const filePath = resolveDeltasPath(buildRoot);
+  const resolvedDurabilityClass = resolveBuildStateDurabilityClass(durabilityClass);
   try {
     const stat = fsSync.existsSync(filePath) ? fsSync.statSync(filePath) : null;
     if (stat && stat.size >= DELTA_LOG_MAX_BYTES) {
@@ -312,6 +356,14 @@ const appendDeltaLog = async (buildRoot, deltas, snapshot = null) => {
     const lines = deltas.map((entry) => JSON.stringify(entry)).join('\n') + '\n';
     await fs.appendFile(filePath, lines, 'utf8');
   } catch (err) {
+    if (isRequiredBuildStateDurability(resolvedDurabilityClass)) {
+      throw createBuildStateWriteFailureError({
+        buildRoot,
+        target: 'deltas',
+        phase: 'append',
+        cause: err
+      });
+    }
     recordStateError(buildRoot, err);
   }
 };
@@ -375,9 +427,18 @@ export const ensureStateVersions = (state, buildRoot, loaded) => {
   };
 };
 
-const writeStateFile = async (buildRoot, state, cache, { comparableHash = null } = {}) => {
+const writeStateFile = async (
+  buildRoot,
+  state,
+  cache,
+  {
+    comparableHash = null,
+    durabilityClass = BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT
+  } = {}
+) => {
   if (!buildRoot || !state) return null;
   const statePath = resolveStatePath(buildRoot);
+  const resolvedDurabilityClass = resolveBuildStateDurabilityClass(durabilityClass);
   const fullHash = hashJson(state);
   if (fullHash && cache.lastHash === fullHash) {
     cache.state = state;
@@ -394,18 +455,34 @@ const writeStateFile = async (buildRoot, state, cache, { comparableHash = null }
     return state;
   } catch (err) {
     if (err?.code === 'ENOENT' && !(await buildRootExists(buildRoot))) return null;
+    if (isRequiredBuildStateDurability(resolvedDurabilityClass)) {
+      throw createBuildStateWriteFailureError({
+        buildRoot,
+        target: 'state',
+        phase: 'write',
+        cause: err
+      });
+    }
     recordStateError(buildRoot, err);
     return null;
   }
 };
 
-const writeSidecarFile = async (buildRoot, type, payload, cache) => {
+const writeSidecarFile = async (
+  buildRoot,
+  type,
+  payload,
+  cache,
+  { durabilityClass = BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT } = {}
+) => {
   if (!buildRoot || !payload) return null;
+  const resolvedDurabilityClass = resolveBuildStateDurabilityClass(durabilityClass);
   if (type === 'checkpoints') {
     return writeCheckpointSlices(buildRoot, {
       checkpointPatch: payload.patch,
       mergedCheckpoints: payload.merged,
-      cache
+      cache,
+      durabilityClass: resolvedDurabilityClass
     });
   }
   const filePath = resolveProgressPath(buildRoot);
@@ -427,14 +504,28 @@ const writeSidecarFile = async (buildRoot, type, payload, cache) => {
     return payload;
   } catch (err) {
     if (err?.code === 'ENOENT' && !(await buildRootExists(buildRoot))) return null;
+    if (isRequiredBuildStateDurability(resolvedDurabilityClass)) {
+      throw createBuildStateWriteFailureError({
+        buildRoot,
+        target: type,
+        phase: 'write',
+        cause: err
+      });
+    }
     recordStateError(buildRoot, err);
     return null;
   }
 };
 
-export const applyStatePatch = async (buildRoot, patch, events = []) => {
+export const applyStatePatch = async (
+  buildRoot,
+  patch,
+  events = [],
+  { durabilityClass = BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT } = {}
+) => {
   if (!buildRoot || !patch) return null;
   if (!(await buildRootExists(buildRoot))) return null;
+  const resolvedDurabilityClass = resolveBuildStateDurabilityClass(durabilityClass);
   const { main, progress, checkpoints } = splitPatch(patch);
   const cache = getCacheEntry(buildRoot);
   const loadedState = await loadBuildState(buildRoot);
@@ -455,12 +546,22 @@ export const applyStatePatch = async (buildRoot, patch, events = []) => {
   }
 
   const writes = [];
-  if (progress) writes.push(writeSidecarFile(buildRoot, 'progress', nextProgress, cache));
+  if (progress) {
+    writes.push(writeSidecarFile(buildRoot, 'progress', nextProgress, cache, {
+      durabilityClass: resolvedDurabilityClass
+    }));
+  }
   if (checkpoints) {
-    writes.push(writeSidecarFile(buildRoot, 'checkpoints', {
-      patch: checkpoints,
-      merged: nextCheckpoints
-    }, cache));
+    writes.push(writeSidecarFile(
+      buildRoot,
+      'checkpoints',
+      {
+        patch: checkpoints,
+        merged: nextCheckpoints
+      },
+      cache,
+      { durabilityClass: resolvedDurabilityClass }
+    ));
   }
 
   let merged = state;
@@ -471,7 +572,10 @@ export const applyStatePatch = async (buildRoot, patch, events = []) => {
     const shouldWrite = comparableHash && comparableHash !== cache.lastComparableHash;
     if (shouldWrite) {
       merged.updatedAt = new Date().toISOString();
-      writes.push(writeStateFile(buildRoot, merged, cache, { comparableHash }));
+      writes.push(writeStateFile(buildRoot, merged, cache, {
+        comparableHash,
+        durabilityClass: resolvedDurabilityClass
+      }));
     } else {
       if (comparableHash) cache.lastComparableHash = comparableHash;
       cache.state = merged;
@@ -482,10 +586,20 @@ export const applyStatePatch = async (buildRoot, patch, events = []) => {
     await Promise.all(writes);
   }
   if (events?.length) {
-    await appendEventLog(buildRoot, events);
+    await appendEventLog(buildRoot, events, {
+      durabilityClass: resolvedDurabilityClass
+    });
   }
   if (deltaEntries.length) {
-    void appendDeltaLog(buildRoot, deltaEntries, merged);
+    if (isRequiredBuildStateDurability(resolvedDurabilityClass)) {
+      await appendDeltaLog(buildRoot, deltaEntries, merged, {
+        durabilityClass: resolvedDurabilityClass
+      });
+    } else {
+      void appendDeltaLog(buildRoot, deltaEntries, merged, {
+        durabilityClass: resolvedDurabilityClass
+      });
+    }
   }
   return merged;
 };
