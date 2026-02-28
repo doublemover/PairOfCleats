@@ -766,6 +766,8 @@ indexing/imports/require-regex-fallback-on-lexer-failure
 indexing/build/stage-progression-contract
 indexing/imports/proto-safe-module-keys
 indexing/imports/esmodule-lexer-init
+indexing/imports/decision-metamorphic
+indexing/imports/replay-harness
 indexing/preprocess/files
 tooling/index-stats/json
 indexing/imports/import-priority
