@@ -130,6 +130,8 @@ const main = async () => {
   const {
     totals,
     reasonCodeCounts,
+    actionableByRepo,
+    actionableByLanguage,
     resolverStages,
     resolverPipelineStages,
     resolverBudgetPolicyProfiles,
@@ -157,6 +159,28 @@ const main = async () => {
   const topHotspot = Array.isArray(actionableHotspots) && actionableHotspots.length > 0
     ? actionableHotspots[0]
     : null;
+  const topRepoHotspot = Object.entries(actionableByRepo || {})
+    .map(([repo, count]) => ({
+      repo,
+      count: Math.floor(Number(count) || 0)
+    }))
+    .filter((entry) => entry.repo && entry.count > 0)
+    .sort((a, b) => (
+      b.count !== a.count
+        ? b.count - a.count
+        : sortStrings(a.repo, b.repo)
+    ))[0] || null;
+  const topLanguageHotspot = Object.entries(actionableByLanguage || {})
+    .map(([language, count]) => ({
+      language,
+      count: Math.floor(Number(count) || 0)
+    }))
+    .filter((entry) => entry.language && entry.count > 0)
+    .sort((a, b) => (
+      b.count !== a.count
+        ? b.count - a.count
+        : sortStrings(a.language, b.language)
+    ))[0] || null;
   const topStageByElapsed = Object.entries(resolverPipelineStages || {})
     .map(([stage, entry]) => ({
       stage,
@@ -220,6 +244,8 @@ const main = async () => {
       resolverBudgetAdaptiveReports: totals.resolverBudgetAdaptiveReports
     },
     reasonCodes: reasonCodeCounts,
+    actionableByRepo,
+    actionableByLanguage,
     resolverStages,
     resolverPipelineStages,
     resolverBudgetPolicyProfiles,
@@ -244,7 +270,11 @@ const main = async () => {
       `- resolverBudgetProfiles: ${Object.keys(resolverBudgetPolicyProfiles || {}).length}`,
       `- resolverPipelineStages: ${Object.keys(resolverPipelineStages || {}).length}`,
       `- actionableHotspots: ${actionableHotspots.length}`,
+      `- actionableRepoHotspots: ${Object.keys(actionableByRepo || {}).length}`,
+      `- actionableLanguageHotspots: ${Object.keys(actionableByLanguage || {}).length}`,
       `- topHotspot: ${topHotspot ? `${topHotspot.importer}=${topHotspot.count}` : 'none'}`,
+      `- topRepoHotspot: ${topRepoHotspot ? `${topRepoHotspot.repo}=${topRepoHotspot.count}` : 'none'}`,
+      `- topLanguageHotspot: ${topLanguageHotspot ? `${topLanguageHotspot.language}=${topLanguageHotspot.count}` : 'none'}`,
       `- topReasonCode: ${topReasonCode ? `${topReasonCode.reasonCode}=${topReasonCode.count}` : 'none'}`,
       `- topResolverBudgetProfile: ${topBudgetProfile ? `${topBudgetProfile.profile}=${topBudgetProfile.count}` : 'none'}`,
       `- topResolverStageByElapsed: ${topStageByElapsed ? `${topStageByElapsed.stage}=${topStageByElapsed.elapsedMs.toFixed(3)}ms` : 'none'}`

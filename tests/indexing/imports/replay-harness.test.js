@@ -74,6 +74,16 @@ assert.equal(aggregated.totals.resolverGap, 1, 'expected resolver gap count to b
 assert.equal(aggregated.reasonCodeCounts.IMP_U_MISSING_FILE_RELATIVE, 2, 'expected reason code counts to include excluded warning');
 assert.equal(aggregated.resolverStages.filesystem_probe, 2, 'expected stage counts to include all observed warnings');
 assert.deepEqual(
+  aggregated.actionableByRepo,
+  { 'repo-a': 1 },
+  'expected actionable repo hotspot rollup'
+);
+assert.deepEqual(
+  aggregated.actionableByLanguage,
+  { js: 1 },
+  'expected actionable language hotspot rollup'
+);
+assert.deepEqual(
   aggregated.actionableHotspots,
   [{ importer: 'src/main.js', count: 1 }],
   'expected actionable hotspot importer path normalization during replay'

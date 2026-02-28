@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { enrichUnresolvedImportSamples } from '../imports.js';
 
 export const DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS = Object.freeze([
@@ -12,6 +13,21 @@ export const DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS = Object.freeze([
 ]);
 
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
+
+const resolveRepoLabelFromReportPath = (reportPath) => {
+  const normalized = String(reportPath || '').replace(/\\/g, '/');
+  if (!normalized) return '<unknown>';
+  const parent = path.posix.basename(path.posix.dirname(normalized));
+  return parent || '<unknown>';
+};
+
+const resolveLanguageLabelFromImporter = (importer) => {
+  const normalized = String(importer || '').replace(/\\/g, '/');
+  if (!normalized) return 'unknown';
+  const ext = path.posix.extname(normalized).toLowerCase();
+  if (!ext) return 'unknown';
+  return ext.slice(1) || 'unknown';
+};
 
 const toNonNegativeIntOrNull = (value) => {
   const numeric = Number(value);
@@ -196,6 +212,8 @@ export const aggregateImportResolutionGraphPayloads = (
     resolverBudgetExhausted: 0,
     resolverBudgetAdaptiveReports: 0,
     actionableHotspotCounts: Object.create(null),
+    actionableRepoCounts: Object.create(null),
+    actionableLanguageCounts: Object.create(null),
     resolverStageCounts: Object.create(null),
     resolverPipelineStages: Object.create(null),
     resolverBudgetPolicyProfiles: Object.create(null)
@@ -282,6 +300,14 @@ export const aggregateImportResolutionGraphPayloads = (
 
     const statsHotspots = toHotspotCounts(stats.unresolvedActionableHotspots);
     const effectiveHotspotCounts = statsHotspots || Object.create(null);
+    const repoLabel = resolveRepoLabelFromReportPath(reportPath);
+    for (const entry of eligibleWarnings) {
+      if (entry?.disposition !== 'actionable') continue;
+      const importer = typeof entry?.importer === 'string' ? entry.importer.trim() : '';
+      if (!importer) continue;
+      bumpCount(totals.actionableRepoCounts, repoLabel, 1);
+      bumpCount(totals.actionableLanguageCounts, resolveLanguageLabelFromImporter(importer), 1);
+    }
     if (!statsHotspots) {
       for (const entry of eligibleWarnings) {
         if (entry?.disposition !== 'actionable') continue;
@@ -320,6 +346,8 @@ export const aggregateImportResolutionGraphPayloads = (
   return {
     totals,
     reasonCodeCounts: toSortedObject(reasonCodeCounts),
+    actionableByRepo: toSortedObject(totals.actionableRepoCounts),
+    actionableByLanguage: toSortedObject(totals.actionableLanguageCounts),
     resolverStages: toSortedObject(totals.resolverStageCounts),
     resolverPipelineStages: toSortedStagePipeline(totals.resolverPipelineStages),
     resolverBudgetPolicyProfiles: toSortedObject(totals.resolverBudgetPolicyProfiles),
