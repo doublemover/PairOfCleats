@@ -10,6 +10,7 @@ indexing/incremental/manifest
 indexing/map/code-performance
 storage/sqlite/incremental-no-change
 indexing/incremental/cache-signature
+indexing/imports/replay-perf-budget
 indexing/chunking/formats/format-fidelity
 tooling/reports/summary/report-compare-memory
 tooling/reports/summary/report-compare-sqlite
