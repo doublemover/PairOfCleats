@@ -50,7 +50,53 @@ const baseGraph = {
     unresolvedByReasonCode: { IMP_U_MISSING_FILE_RELATIVE: 1 },
     unresolvedByFailureCause: { missing_file: 1 },
     unresolvedByDisposition: { actionable: 1 },
-    unresolvedByResolverStage: { filesystem_probe: 1 }
+    unresolvedByResolverStage: { filesystem_probe: 1 },
+    unresolvedActionableByLanguage: { js: 1 },
+    unresolvedGateEligible: 1,
+    unresolvedActionableGateEligible: 1,
+    unresolvedGateEligibleActionableRate: 1,
+    unresolvedActionableRate: 1,
+    unresolvedParserArtifactRate: 0,
+    unresolvedResolverGapRate: 0,
+    unresolvedBudgetExhausted: 0,
+    unresolvedBudgetExhaustedByType: {},
+    resolverFsExistsIndex: {
+      enabled: true,
+      complete: true,
+      indexedCount: 2,
+      fileCount: 2,
+      truncated: false,
+      bloomBits: 4096,
+      exactHits: 1,
+      negativeSkips: 0,
+      unknownFallbacks: 0
+    },
+    resolverBudgetPolicy: {
+      maxFilesystemProbesPerSpecifier: 32,
+      maxFallbackCandidatesPerSpecifier: 48,
+      maxFallbackDepth: 16,
+      adaptiveEnabled: true,
+      adaptiveProfile: 'normal',
+      adaptiveScale: 1
+    },
+    resolverPipelineStages: {
+      normalize: {
+        attempts: 2,
+        hits: 2,
+        misses: 0,
+        elapsedMs: 1.5,
+        budgetExhausted: 0,
+        degraded: 0
+      },
+      filesystem_probe: {
+        attempts: 1,
+        hits: 0,
+        misses: 1,
+        elapsedMs: 0.5,
+        budgetExhausted: 0,
+        degraded: 0
+      }
+    }
   }
 };
 
@@ -101,5 +147,41 @@ const invalidWarning = validateArtifact('import_resolution_graph', {
   ]
 });
 assert.equal(invalidWarning.ok, false, 'warning entries must use known decision-model enums');
+
+const invalidResolverStagePipelineKey = validateArtifact('import_resolution_graph', {
+  ...baseGraph,
+  stats: {
+    ...baseGraph.stats,
+    resolverPipelineStages: {
+      not_a_real_stage: {
+        attempts: 1,
+        hits: 0,
+        misses: 1,
+        elapsedMs: 0.5,
+        budgetExhausted: 0,
+        degraded: 0
+      }
+    }
+  }
+});
+assert.equal(invalidResolverStagePipelineKey.ok, false, 'resolverPipelineStages must use known stage keys');
+
+const invalidResolverStagePipelineCounters = validateArtifact('import_resolution_graph', {
+  ...baseGraph,
+  stats: {
+    ...baseGraph.stats,
+    resolverPipelineStages: {
+      filesystem_probe: {
+        attempts: -1,
+        hits: 0,
+        misses: 1,
+        elapsedMs: 0.5,
+        budgetExhausted: 0,
+        degraded: 0
+      }
+    }
+  }
+});
+assert.equal(invalidResolverStagePipelineCounters.ok, false, 'resolverPipelineStages counters must be non-negative');
 
 console.log('import-resolution graph decision model schema test passed');

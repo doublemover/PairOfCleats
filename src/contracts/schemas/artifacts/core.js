@@ -109,6 +109,70 @@ const idPostingList = {
   items: { type: 'array', items: intId }
 };
 
+const unitIntervalNumber = { type: 'number', minimum: 0, maximum: 1 };
+
+const importResolverPipelineStageSchema = {
+  type: 'object',
+  required: ['attempts', 'hits', 'misses', 'elapsedMs', 'budgetExhausted', 'degraded'],
+  additionalProperties: false,
+  properties: {
+    attempts: intId,
+    hits: intId,
+    misses: intId,
+    elapsedMs: { type: 'number', minimum: 0 },
+    budgetExhausted: intId,
+    degraded: intId
+  }
+};
+
+const importResolverFsExistsIndexSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'enabled',
+    'complete',
+    'indexedCount',
+    'fileCount',
+    'truncated',
+    'bloomBits',
+    'exactHits',
+    'negativeSkips',
+    'unknownFallbacks'
+  ],
+  properties: {
+    enabled: { type: 'boolean' },
+    complete: { type: 'boolean' },
+    indexedCount: intId,
+    fileCount: intId,
+    truncated: { type: 'boolean' },
+    bloomBits: intId,
+    exactHits: intId,
+    negativeSkips: intId,
+    unknownFallbacks: intId
+  }
+};
+
+const importResolverBudgetPolicySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'maxFilesystemProbesPerSpecifier',
+    'maxFallbackCandidatesPerSpecifier',
+    'maxFallbackDepth',
+    'adaptiveEnabled',
+    'adaptiveProfile',
+    'adaptiveScale'
+  ],
+  properties: {
+    maxFilesystemProbesPerSpecifier: intId,
+    maxFallbackCandidatesPerSpecifier: intId,
+    maxFallbackDepth: intId,
+    adaptiveEnabled: { type: 'boolean' },
+    adaptiveProfile: { type: 'string' },
+    adaptiveScale: { type: 'number', minimum: 0 }
+  }
+};
+
 const importResolutionGraphSchema = {
   type: 'object',
   required: ['generatedAt', 'nodes', 'edges', 'stats'],
@@ -150,6 +214,10 @@ const importResolutionGraphSchema = {
           propertyNames: { enum: importResolverStageEnum },
           additionalProperties: intId
         },
+        unresolvedActionableByLanguage: { type: 'object', additionalProperties: intId },
+        unresolvedGateEligible: intId,
+        unresolvedActionableGateEligible: intId,
+        unresolvedGateEligibleActionableRate: unitIntervalNumber,
         unresolvedActionableHotspots: {
           type: 'array',
           items: {
@@ -164,6 +232,18 @@ const importResolutionGraphSchema = {
         },
         unresolvedLiveSuppressed: intId,
         unresolvedGateSuppressed: intId,
+        unresolvedActionableRate: unitIntervalNumber,
+        unresolvedParserArtifactRate: unitIntervalNumber,
+        unresolvedResolverGapRate: unitIntervalNumber,
+        unresolvedBudgetExhausted: intId,
+        unresolvedBudgetExhaustedByType: { type: 'object', additionalProperties: intId },
+        resolverFsExistsIndex: importResolverFsExistsIndexSchema,
+        resolverBudgetPolicy: importResolverBudgetPolicySchema,
+        resolverPipelineStages: {
+          type: 'object',
+          propertyNames: { enum: importResolverStageEnum },
+          additionalProperties: importResolverPipelineStageSchema
+        },
         unresolvedLiveSuppressedCategories: { type: 'array', items: { type: 'string' } },
         truncatedEdges: intId,
         truncatedNodes: intId,
