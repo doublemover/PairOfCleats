@@ -97,6 +97,10 @@ assert.deepEqual(
   first.cacheDiagnostics?.unresolvedTrend?.current?.actionableHotspots || [],
   [{ importer: 'src/main.js', count: 1 }]
 );
+assert.deepEqual(
+  Object.fromEntries(Object.entries(first.cacheDiagnostics?.unresolvedTrend?.current?.actionableByLanguage || {})),
+  { js: 1 }
+);
 
 await writeFile('src/missing.js', 'export const ok = true;\n');
 const entriesUpdated = [
@@ -123,8 +127,16 @@ assert.deepEqual(
   { filesystem_probe: -1 }
 );
 assert.deepEqual(
+  Object.fromEntries(Object.entries(second.cacheDiagnostics?.unresolvedTrend?.deltaByActionableLanguage || {})),
+  { js: -1 }
+);
+assert.deepEqual(
   second.cacheDiagnostics?.unresolvedTrend?.current?.actionableHotspots || [],
   []
+);
+assert.deepEqual(
+  Object.fromEntries(Object.entries(second.cacheDiagnostics?.unresolvedTrend?.current?.actionableByLanguage || {})),
+  {}
 );
 
 const { cache: persistedCache } = await loadImportResolutionCache({ incrementalState });

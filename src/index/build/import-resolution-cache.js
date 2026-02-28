@@ -189,6 +189,7 @@ const normalizeUnresolvedSnapshot = (
     resolverBudgetExhausted,
     resolverBudgetExhaustedByType,
     actionableHotspots: normalizeActionableHotspots(raw.actionableHotspots),
+    actionableByLanguage: normalizeCategoryCounts(raw.actionableByLanguage),
     actionableRate,
     liveSuppressedCategories: normalizeStringList(raw.liveSuppressedCategories)
   };
@@ -498,6 +499,7 @@ const buildSnapshotFromTaxonomy = ({ unresolvedTaxonomy, unresolvedTotal }) => {
     resolverBudgetExhausted,
     resolverBudgetExhaustedByType,
     actionableHotspots: normalizeActionableHotspots(taxonomy.actionableHotspots),
+    actionableByLanguage: normalizeCategoryCounts(taxonomy.actionableByLanguage),
     actionableRate,
     liveSuppressedCategories: normalizeStringList(taxonomy.liveSuppressedCategories)
   };
@@ -789,6 +791,10 @@ export const updateImportResolutionDiagnosticsCache = ({
       deltaByFailureCause: buildCategoryDelta(previousCurrent?.failureCauses || {}, current.failureCauses),
       deltaByDisposition: buildCategoryDelta(previousCurrent?.dispositions || {}, current.dispositions),
       deltaByResolverStage: buildCategoryDelta(previousCurrent?.resolverStages || {}, current.resolverStages),
+      deltaByActionableLanguage: buildCategoryDelta(
+        previousCurrent?.actionableByLanguage || {},
+        current.actionableByLanguage
+      ),
       deltaResolverBudgetExhausted: current.resolverBudgetExhausted - (previousCurrent?.resolverBudgetExhausted || 0),
       deltaResolverBudgetExhaustedByType: buildCategoryDelta(
         previousCurrent?.resolverBudgetExhaustedByType || {},
