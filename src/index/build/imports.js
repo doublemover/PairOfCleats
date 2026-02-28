@@ -16,6 +16,7 @@ import {
   IMPORT_RESOLUTION_STATES,
   resolveDecisionFromReasonCode
 } from './import-resolution/reason-codes.js';
+import { isBazelLabelSpecifier } from './import-resolution/specifier-hints.js';
 
 let esModuleInitPromise = null;
 let cjsInitPromise = null;
@@ -121,10 +122,7 @@ const hasPathNormalizationHint = (specifier) => {
   const raw = typeof specifier === 'string' ? specifier : '';
   const normalized = normalizeForClassifier(specifier);
   if (!normalized) return false;
-  const looksLikeBazelLabel = normalized.startsWith('//')
-    && !/^\/\/[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:[/:]|$)/.test(normalized)
-    && /^\/\/[A-Za-z0-9_@.+~/-]*(?::[A-Za-z0-9_@.+~/-]+)?$/.test(normalized);
-  if (looksLikeBazelLabel) return false;
+  if (isBazelLabelSpecifier(normalized)) return false;
   if (/[A-Za-z]:[\\/]/.test(raw)) return true;
   if (raw.includes('\\')) return true;
   if (normalized.includes('/./') || normalized.endsWith('/.') || normalized.includes('/../')) return true;
@@ -210,6 +208,13 @@ const classifyCategory = ({ importer, specifier, reason }) => {
       category: UNRESOLVED_IMPORT_CATEGORIES.TYPO,
       confidence: 0.75,
       suggestedRemediation: 'Check for spelling mistakes in the import path or module name.'
+    };
+  }
+  if (isBazelLabelSpecifier(normalizedSpecifier)) {
+    return {
+      category: UNRESOLVED_IMPORT_CATEGORIES.RESOLVER_GAP,
+      confidence: 0.88,
+      suggestedRemediation: 'Enable build-system label resolution for Bazel workspace imports.'
     };
   }
   if (isRelative) {

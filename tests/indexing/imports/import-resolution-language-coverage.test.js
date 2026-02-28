@@ -95,7 +95,10 @@ await write(
   ].join('\n')
 );
 await write('app/local.bzl', 'def local_macro():\n  pass\n');
-await write('MODULE.bazel', 'load("//go:extensions.bzl", "go_deps")\n');
+await write(
+  'MODULE.bazel',
+  'load("//go:extensions.bzl", "go_deps")\nload("//go:missing_extension.bzl", "go_missing")\n'
+);
 await write('go/extensions.bzl', 'def go_deps():\n  pass\n');
 await write('Makefile', 'include ./Dockerfile-kubernetes\n');
 await write('Dockerfile-kubernetes', 'FROM scratch\n');
@@ -229,7 +232,7 @@ const importsByFile = {
   'cmake/sub/main.cmake': ['../modules/common.cmake'],
   'nix/flake.nix': ['./modules', './pkgs/tool', './git-hooks.nix'],
   'app/rules.bzl': ['//tools:defs.bzl', '//tools/pkg', '//tools/pkg:defs', ':local.bzl'],
-  'MODULE.bazel': ['//go:extensions.bzl'],
+  'MODULE.bazel': ['//go:extensions.bzl', '//go:missing_extension.bzl'],
   Makefile: ['./Dockerfile-kubernetes'],
   'src/AspNet/OData/src/Asp.Versioning.WebApi.OData.ApiExplorer/Asp.Versioning.WebApi.OData.ApiExplorer.csproj': [
     '..\\..\\..\\..\\Common\\src\\Common.OData.ApiExplorer\\Common.OData.ApiExplorer.projitems'
@@ -327,13 +330,18 @@ assertLinks(
 );
 
 const realUnresolvedSamples = enrichUnresolvedImportSamples(resolution.unresolvedSamples || []);
-assert.equal(realUnresolvedSamples.length, 1, 'expected one unresolved sample from shell include coverage');
-assert.equal(realUnresolvedSamples[0].specifier, './lib/missing.sh');
-assert.equal(realUnresolvedSamples[0].category, 'missing_file');
-assert.equal(realUnresolvedSamples[0].reasonCode, 'IMP_U_MISSING_FILE_RELATIVE');
-assert.equal(realUnresolvedSamples[0].failureCause, 'missing_file');
-assert.equal(realUnresolvedSamples[0].disposition, 'actionable');
-assert.equal(realUnresolvedSamples[0].resolverStage, 'filesystem_probe');
+assert.equal(realUnresolvedSamples.length, 2, 'expected unresolved samples from shell and bazel label coverage');
+const realBySpecifier = Object.fromEntries(realUnresolvedSamples.map((entry) => [entry.specifier, entry]));
+assert.equal(realBySpecifier['./lib/missing.sh']?.category, 'missing_file');
+assert.equal(realBySpecifier['./lib/missing.sh']?.reasonCode, 'IMP_U_MISSING_FILE_RELATIVE');
+assert.equal(realBySpecifier['./lib/missing.sh']?.failureCause, 'missing_file');
+assert.equal(realBySpecifier['./lib/missing.sh']?.disposition, 'actionable');
+assert.equal(realBySpecifier['./lib/missing.sh']?.resolverStage, 'filesystem_probe');
+assert.equal(realBySpecifier['//go:missing_extension.bzl']?.category, 'resolver_gap');
+assert.equal(realBySpecifier['//go:missing_extension.bzl']?.reasonCode, 'IMP_U_RESOLVER_GAP');
+assert.equal(realBySpecifier['//go:missing_extension.bzl']?.failureCause, 'resolver_gap');
+assert.equal(realBySpecifier['//go:missing_extension.bzl']?.disposition, 'suppress_gate');
+assert.equal(realBySpecifier['//go:missing_extension.bzl']?.resolverStage, 'language_resolver');
 
 const taxonomySamples = enrichUnresolvedImportSamples([
   ...realUnresolvedSamples,
@@ -349,21 +357,23 @@ const taxonomyBySpecifier = Object.fromEntries(
 );
 assert.equal(taxonomyBySpecifier['./missing-fixture.js'], 'fixture');
 assert.equal(taxonomyBySpecifier.fsevents, 'optional_dependency');
-assert.equal(taxonomyBySpecifier['//go:missing.bzl'], 'missing_file');
+assert.equal(taxonomyBySpecifier['//go:missing.bzl'], 'resolver_gap');
 assert.equal(taxonomyBySpecifier['.\\windows\\path\\module.js'], 'path_normalization');
 assert.equal(taxonomyBySpecifier['./utlis.jss'], 'typo');
 assert.equal(taxonomyBySpecifier['./lib/missing.sh'], 'missing_file');
 assert.equal(taxonomy.liveSuppressed, 2);
-assert.equal(taxonomy.actionable, 4);
+assert.equal(taxonomy.gateSuppressed, 2);
+assert.equal(taxonomy.actionable, 3);
 assert.equal(Object.keys(taxonomy.reasonCodes).length > 0, true, 'expected reason-code aggregation');
 assert.equal(Number.isFinite(Number(taxonomy.actionableRate)), true, 'expected actionable rate in taxonomy');
 assert.deepEqual(
   Object.fromEntries(Object.entries(taxonomy.categories)),
   {
     fixture: 1,
-    missing_file: 2,
+    missing_file: 1,
     optional_dependency: 1,
     path_normalization: 1,
+    resolver_gap: 2,
     typo: 1
   }
 );

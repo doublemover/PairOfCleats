@@ -29,6 +29,7 @@ import {
 } from './language-resolvers.js';
 import { createPackageDirectoryResolver, parsePackageName } from './package-entry.js';
 import { resolveDartPackageName, resolveGoModulePath, resolvePackageFingerprint } from './repo-metadata.js';
+import { isBazelLabelSpecifier } from './specifier-hints.js';
 import { normalizeImportSpecifier, normalizeRelPath, resolveWithinRoot, sortStrings } from './path-utils.js';
 import {
   IMPORT_REASON_CODES,
@@ -185,6 +186,13 @@ const toSortedCountObject = (counts) => {
     output[key] = Math.floor(Number(value));
   }
   return output;
+};
+
+const resolveUnresolvedReasonCode = ({ spec, rawSpec }) => {
+  if (isBazelLabelSpecifier(spec) || isBazelLabelSpecifier(rawSpec)) {
+    return IMPORT_REASON_CODES.RESOLVER_GAP;
+  }
+  return IMPORT_REASON_CODES.MISSING_FILE_RELATIVE;
 };
 
 export function resolveImportLinks({
@@ -717,7 +725,7 @@ export function resolveImportLinks({
         const unresolvedDecision = assertUnresolvedDecision(
           ignoredUnresolved
             ? createUnresolvedDecision(IMPORT_REASON_CODES.PARSER_NOISE_SUPPRESSED)
-            : createUnresolvedDecision(IMPORT_REASON_CODES.MISSING_FILE_RELATIVE),
+            : createUnresolvedDecision(resolveUnresolvedReasonCode({ spec, rawSpec })),
           {
             context: `imports.resolve:${relNormalized}->${spec}`
           }
