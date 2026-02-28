@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import {
-  addCollectorImport,
   createCommentAwareLineStripper,
   stripInlineCommentAware
-} from '../../../src/index/language-registry/import-collectors/utils.js';
+} from '../../../src/index/language-registry/import-collectors/comment-aware.js';
+import { addCollectorImport } from '../../../src/index/language-registry/import-collectors/utils.js';
 
 const hashStripper = createCommentAwareLineStripper({
   markers: ['#'],
