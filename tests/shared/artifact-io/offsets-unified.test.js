@@ -33,6 +33,11 @@ const count = await resolveOffsetsCount(offsetsPath);
 assert.equal(count, rows.length);
 const middle = await readJsonlRowAt(jsonlPath, offsetsPath, 1, { maxBytes: 1024 });
 assert.equal(middle.id, 2);
+await assert.rejects(
+  () => readJsonlRowAt(jsonlPath, offsetsPath, 1, { maxBytes: 0.5 }),
+  (err) => err?.code === 'ERR_INVALID_MAX_BYTES',
+  'expected fractional maxBytes to be rejected in strict integer mode'
+);
 const batch = await readJsonlRowsAt(jsonlPath, offsetsPath, [2, 0, 1], { maxBytes: 1024 });
 assert.deepEqual(batch.map((entry) => entry?.id ?? null), [3, 1, 2]);
 await validateOffsetsAgainstFile(jsonlPath, offsetsPath);

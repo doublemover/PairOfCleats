@@ -6,7 +6,7 @@ import {
   iterateBinaryColumnarRowPayloads,
   loadBinaryColumnarRowPayloads
 } from './binary-columnar.js';
-import { createLoaderError } from './shared.js';
+import { createLoaderError, resolveArtifactMetaEnvelope } from './shared.js';
 import { joinPathSafe } from '../../path-normalize.js';
 import {
   resolveBinaryColumnarDefaultPaths,
@@ -124,9 +124,7 @@ const parseBinaryColumnarMeta = ({
   baseName
 }) => {
   const raw = readJsonFile(metaPath, { maxBytes });
-  const fields = raw?.fields && typeof raw.fields === 'object'
-    ? raw.fields
-    : raw;
+  const { fields } = resolveArtifactMetaEnvelope(raw);
   const format = typeof fields?.format === 'string'
     ? fields.format.trim().toLowerCase()
     : '';

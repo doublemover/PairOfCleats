@@ -9,7 +9,7 @@ import {
   INTEGER_COERCE_MODE_STRICT,
   coerceNonNegativeInt
 } from '../../number-coerce.js';
-import { readJsonFileCached } from './shared.js';
+import { readJsonFileCached, resolveArtifactMetaEnvelope } from './shared.js';
 
 const SUPPORTED_BINARY_COLUMNAR_FORMAT = 'binary-columnar-v1';
 const SUPPORTED_BINARY_BYTE_ORDER = new Set(['le', 'little', 'little-endian']);
@@ -50,9 +50,7 @@ const shouldDegradeUnsupportedMeta = (error) => {
 };
 
 const assertSupportedBinaryColumnarMeta = (metaRaw, label) => {
-  const fields = metaRaw?.fields && typeof metaRaw.fields === 'object'
-    ? metaRaw.fields
-    : metaRaw;
+  const { fields } = resolveArtifactMetaEnvelope(metaRaw);
   const format = typeof fields?.format === 'string' ? fields.format.trim().toLowerCase() : '';
   if (format && format !== SUPPORTED_BINARY_COLUMNAR_FORMAT) {
     throw new Error(
@@ -269,8 +267,8 @@ const resolveChunkMetaBinaryColumnarLayout = (dir, { maxBytes = MAX_JSON_BYTES }
     if (shouldDegradeUnsupportedMeta(error)) return null;
     throw error;
   }
-  const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
-  const fileTable = Array.isArray(metaRaw?.arrays?.fileTable) ? metaRaw.arrays.fileTable : [];
+  const { fields: meta, arrays } = resolveArtifactMetaEnvelope(metaRaw);
+  const fileTable = Array.isArray(arrays?.fileTable) ? arrays.fileTable : [];
   const count = meta?.count == null
     ? 0
     : resolveStrictNonNegativeSafeInt(meta.count, 'chunk_meta binary-columnar count');
@@ -436,8 +434,7 @@ const tryLoadTokenPostingsBinaryColumnar = (
     if (shouldDegradeUnsupportedMeta(error)) return null;
     throw error;
   }
-  const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
-  const arrays = metaRaw?.arrays && typeof metaRaw.arrays === 'object' ? metaRaw.arrays : {};
+  const { fields: meta, arrays } = resolveArtifactMetaEnvelope(metaRaw);
   const vocab = Array.isArray(arrays.vocab) ? arrays.vocab : [];
   const count = meta?.count == null
     ? vocab.length

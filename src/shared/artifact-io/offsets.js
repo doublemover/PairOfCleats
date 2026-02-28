@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import { parseJsonlLine } from './jsonl.js';
 import { MAX_JSON_BYTES } from './constants.js';
 import { toJsonTooLargeError } from './limits.js';
-import { coercePositiveInt } from '../number-coerce.js';
+import { INTEGER_COERCE_MODE_STRICT, coercePositiveInt } from '../number-coerce.js';
 
 export const OFFSETS_FORMAT_VERSION = 1;
 export const OFFSETS_FORMAT = 'u64-le';
@@ -86,7 +86,7 @@ const resolveValidatedMaxBytes = (maxBytes, apiName) => {
     err.code = 'ERR_INVALID_MAX_BYTES';
     throw err;
   }
-  const resolved = coercePositiveInt(maxBytes);
+  const resolved = coercePositiveInt(maxBytes, { mode: INTEGER_COERCE_MODE_STRICT });
   if (resolved != null) return resolved;
   const err = new Error(`${apiName} maxBytes must be a finite positive number.`);
   err.code = 'ERR_INVALID_MAX_BYTES';
