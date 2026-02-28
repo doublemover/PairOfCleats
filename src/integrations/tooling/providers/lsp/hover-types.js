@@ -8,6 +8,8 @@ import { throwIfAborted } from '../../../../shared/abort.js';
 export const DEFAULT_DOCUMENT_SYMBOL_CONCURRENCY = 4;
 export const DEFAULT_HOVER_CONCURRENCY = 8;
 export const DEFAULT_HOVER_CACHE_MAX_ENTRIES = 50000;
+const HOVER_CACHE_SCHEMA_VERSION = 2;
+const HOVER_CACHE_KEY_VERSION = 'v2';
 
 /**
  * Clamp numeric values to an integer range with fallback.
@@ -99,7 +101,7 @@ export const createConcurrencyLimiter = (concurrency) => {
 
 const resolveHoverCachePath = (cacheRoot) => {
   if (!cacheRoot) return null;
-  return path.join(cacheRoot, 'lsp', 'hover-cache-v1.json');
+  return path.join(cacheRoot, 'lsp', `hover-cache-v${HOVER_CACHE_SCHEMA_VERSION}.json`);
 };
 
 /**
@@ -115,6 +117,10 @@ export const loadHoverCache = async (cacheRoot) => {
   try {
     const raw = await fs.readFile(cachePath, 'utf8');
     const parsed = JSON.parse(raw);
+    const version = Number(parsed?.version);
+    if (Number.isFinite(version) && version !== HOVER_CACHE_SCHEMA_VERSION) {
+      return { path: cachePath, entries: new Map() };
+    }
     const rows = Array.isArray(parsed?.entries) ? parsed.entries : [];
     const entries = new Map();
     for (const row of rows) {
@@ -146,7 +152,7 @@ export const persistHoverCache = async ({ cachePath, entries, maxEntries }) => {
   await writeJsonObjectFile(cachePath, {
     trailingNewline: false,
     fields: {
-      version: 1,
+      version: HOVER_CACHE_SCHEMA_VERSION,
       generatedAt: new Date().toISOString()
     },
     arrays: {
@@ -156,18 +162,41 @@ export const persistHoverCache = async ({ cachePath, entries, maxEntries }) => {
 };
 
 /**
- * Build deterministic cache key for one hover request tuple.
- * @param {{cmd:string,docHash:string,languageId:string,symbolName:string,position:{line:number,character:number}}} input
+ * Build symbol-sensitive position key for hover-stage request dedupe.
+ * @param {{position:{line:number,character:number},symbolName?:string,symbolKind?:string|number|null}} input
  * @returns {string|null}
  */
-const buildHoverCacheKey = ({ cmd, docHash, languageId, symbolName, position }) => {
-  if (!docHash || !position || !Number.isFinite(position.line) || !Number.isFinite(position.character)) return null;
+export const buildSymbolPositionCacheKey = ({ position, symbolName, symbolKind }) => {
+  if (!position || !Number.isFinite(position.line) || !Number.isFinite(position.character)) return null;
   return [
-    String(cmd || ''),
+    `${Math.floor(position.line)}:${Math.floor(position.character)}`,
+    String(symbolName || '').trim(),
+    String(symbolKind ?? '').trim()
+  ].join('|');
+};
+
+/**
+ * Build deterministic cache key for one hover request tuple.
+ * @param {{cmd:string,docHash:string,languageId:string,symbolName:string,symbolKind?:string|number|null,position:{line:number,character:number}}} input
+ * @returns {string|null}
+ */
+export const buildHoverCacheKey = ({
+  cmd,
+  docHash,
+  languageId,
+  symbolName,
+  symbolKind = null,
+  position
+}) => {
+  if (!docHash) return null;
+  const symbolPositionKey = buildSymbolPositionCacheKey({ position, symbolName, symbolKind });
+  if (!symbolPositionKey) return null;
+  return [
+    HOVER_CACHE_KEY_VERSION,
+    String(cmd || '').trim(),
     String(languageId || ''),
     String(docHash),
-    String(symbolName || ''),
-    `${Math.floor(position.line)}:${Math.floor(position.character)}`
+    symbolPositionKey
   ].join('|');
 };
 
@@ -1109,13 +1138,19 @@ export const processDocumentTypes = async ({
 
     const requestHover = (symbol, position) => {
       throwIfAborted(abortSignal);
-      const key = `${Math.floor(position.line)}:${Math.floor(position.character)}`;
+      const key = buildSymbolPositionCacheKey({
+        position,
+        symbolName: symbol?.name,
+        symbolKind: symbol?.kind
+      });
+      if (!key) return Promise.resolve(null);
       if (hoverRequestByPosition.has(key)) return hoverRequestByPosition.get(key);
       const hoverCacheKey = buildHoverCacheKey({
         cmd,
         docHash: doc.docHash || null,
         languageId,
         symbolName: symbol?.name,
+        symbolKind: symbol?.kind,
         position
       });
       const cachedHoverInfo = hoverCacheKey ? hoverCacheEntries.get(hoverCacheKey) : null;
@@ -1173,7 +1208,12 @@ export const processDocumentTypes = async ({
 
     const requestSignatureHelp = (symbol, position) => {
       throwIfAborted(abortSignal);
-      const key = `${Math.floor(position.line)}:${Math.floor(position.character)}`;
+      const key = buildSymbolPositionCacheKey({
+        position,
+        symbolName: symbol?.name,
+        symbolKind: symbol?.kind
+      });
+      if (!key) return Promise.resolve(null);
       if (signatureHelpRequestByPosition.has(key)) return signatureHelpRequestByPosition.get(key);
       const runSignatureHelp = typeof signatureHelpLimiter === 'function'
         ? signatureHelpLimiter
@@ -1223,7 +1263,12 @@ export const processDocumentTypes = async ({
 
     const requestDefinition = (symbol, position) => {
       throwIfAborted(abortSignal);
-      const key = `${Math.floor(position.line)}:${Math.floor(position.character)}`;
+      const key = buildSymbolPositionCacheKey({
+        position,
+        symbolName: symbol?.name,
+        symbolKind: symbol?.kind
+      });
+      if (!key) return Promise.resolve(null);
       if (definitionRequestByPosition.has(key)) return definitionRequestByPosition.get(key);
       const runDefinition = typeof definitionLimiter === 'function'
         ? definitionLimiter
@@ -1287,7 +1332,12 @@ export const processDocumentTypes = async ({
 
     const requestTypeDefinition = (symbol, position) => {
       throwIfAborted(abortSignal);
-      const key = `${Math.floor(position.line)}:${Math.floor(position.character)}`;
+      const key = buildSymbolPositionCacheKey({
+        position,
+        symbolName: symbol?.name,
+        symbolKind: symbol?.kind
+      });
+      if (!key) return Promise.resolve(null);
       if (typeDefinitionRequestByPosition.has(key)) return typeDefinitionRequestByPosition.get(key);
       const runTypeDefinition = typeof typeDefinitionLimiter === 'function'
         ? typeDefinitionLimiter
@@ -1351,7 +1401,12 @@ export const processDocumentTypes = async ({
 
     const requestReferences = (symbol, position) => {
       throwIfAborted(abortSignal);
-      const key = `${Math.floor(position.line)}:${Math.floor(position.character)}`;
+      const key = buildSymbolPositionCacheKey({
+        position,
+        symbolName: symbol?.name,
+        symbolKind: symbol?.kind
+      });
+      if (!key) return Promise.resolve(null);
       if (referencesRequestByPosition.has(key)) return referencesRequestByPosition.get(key);
       const runReferences = typeof referencesLimiter === 'function'
         ? referencesLimiter

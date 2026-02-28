@@ -13,6 +13,9 @@ import {
   toTypeEntryCollection
 } from './provider-output-contract.js';
 
+const TOOLING_PROVIDER_CACHE_KEY_VERSION = 'lk2';
+const TOOLING_PROVIDER_CACHE_SCHEMA_VERSION = 2;
+
 const mapFromRecord = (record) => {
   if (record instanceof Map) return record;
   if (Array.isArray(record)) {
@@ -41,9 +44,52 @@ const computeDocumentsKey = (documents) => {
   return parts.join(',');
 };
 
+const toCacheInt = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return '';
+  return String(Math.floor(parsed));
+};
+
+const resolveTargetSymbolIdentity = (target) => {
+  const symbolHint = target?.symbolHint && typeof target.symbolHint === 'object'
+    ? target.symbolHint
+    : null;
+  const symbolRef = target?.symbolRef && typeof target.symbolRef === 'object'
+    ? target.symbolRef
+    : null;
+  const symbolName = String(
+    symbolHint?.name
+      || symbolRef?.name
+      || target?.name
+      || ''
+  ).trim();
+  const symbolKind = String(
+    symbolHint?.kind
+      ?? symbolRef?.kind
+      ?? ''
+  ).trim();
+  return `${symbolName}:${symbolKind}`;
+};
+
+const resolveTargetRangeIdentity = (target, chunkRef) => {
+  const range = target?.virtualRange && typeof target.virtualRange === 'object'
+    ? target.virtualRange
+    : (chunkRef?.range && typeof chunkRef.range === 'object' ? chunkRef.range : null);
+  return `${toCacheInt(range?.start)}:${toCacheInt(range?.end)}`;
+};
+
 const computeTargetsKey = (targets) => {
   const parts = (Array.isArray(targets) ? targets : [])
-    .map((target) => String(target?.chunkRef?.chunkUid || target?.chunk?.chunkUid || ''))
+    .map((target) => {
+      const chunkRef = target?.chunkRef || target?.chunk || null;
+      const chunkUid = String(chunkRef?.chunkUid || '');
+      if (!chunkUid) return '';
+      const chunkId = String(chunkRef?.chunkId || '');
+      const virtualPath = String(target?.virtualPath || chunkRef?.file || '');
+      const rangeIdentity = resolveTargetRangeIdentity(target, chunkRef);
+      const symbolIdentity = resolveTargetSymbolIdentity(target);
+      return `${chunkUid}:${chunkId}:${virtualPath}:${rangeIdentity}:${symbolIdentity}`;
+    })
     .filter(Boolean);
   parts.sort();
   return parts.join(',');
@@ -54,7 +100,9 @@ const computeCacheKey = ({ providerId, providerVersion, configHash, documents, t
   const targetKey = computeTargetsKey(targets || []);
   return buildLocalCacheKey({
     namespace: 'tooling-provider',
+    version: TOOLING_PROVIDER_CACHE_KEY_VERSION,
     payload: {
+      schemaVersion: TOOLING_PROVIDER_CACHE_SCHEMA_VERSION,
       providerId,
       providerVersion,
       configHash,
@@ -62,6 +110,12 @@ const computeCacheKey = ({ providerId, providerVersion, configHash, documents, t
       targets: targetKey
     }
   }).key;
+};
+
+const buildCacheFileName = ({ providerId, cacheKey }) => {
+  const safeProviderId = String(providerId || 'provider').replace(/[<>:"/\\|?*]+/g, '_');
+  const safeKey = String(cacheKey || '').replace(/[<>:"/\\|?*]+/g, '_');
+  return `${safeProviderId}-${safeKey}.json`;
 };
 
 const ensureCacheDir = async (dir) => {
@@ -117,6 +171,40 @@ const pruneToolingCacheDir = async (cacheDir, { maxBytes, maxEntries } = {}) => 
     } catch {}
   }
   return { removed: toRemove.size, remainingBytes: Math.max(0, remainingBytes) };
+};
+
+const buildCachedDiagnosticsEnvelope = (diagnostics) => {
+  if (!diagnostics || typeof diagnostics !== 'object') return null;
+  const payload = { ...diagnostics };
+  delete payload.runtime;
+  return Object.keys(payload).length ? payload : null;
+};
+
+const buildDeterministicCachePayload = ({
+  output,
+  providerId,
+  providerVersion,
+  configHash
+}) => {
+  if (!output || typeof output !== 'object') return null;
+  return {
+    provider: {
+      id: providerId,
+      version: providerVersion,
+      configHash
+    },
+    byChunkUid: output.byChunkUid || {},
+    byChunkId: output.byChunkId || {},
+    diagnostics: buildCachedDiagnosticsEnvelope(output.diagnostics || null)
+  };
+};
+
+const normalizeCachedProviderOutput = (cached) => {
+  if (!cached || typeof cached !== 'object') return null;
+  return {
+    ...cached,
+    diagnostics: buildCachedDiagnosticsEnvelope(cached.diagnostics || null)
+  };
 };
 
 const normalizeProviderOutputs = ({
@@ -589,7 +677,9 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
       documents: planDocuments,
       targets: planTargets
     });
-    const cachePath = cacheDir ? path.join(cacheDir, `${providerId}-${cacheKey}.json`) : null;
+    const cachePath = cacheDir
+      ? path.join(cacheDir, buildCacheFileName({ providerId, cacheKey }))
+      : null;
     let output = null;
     if (cachePath) {
       try {
@@ -597,7 +687,7 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
         if (cached?.provider?.id === providerId
           && cached?.provider?.version === provider.version
           && cached?.provider?.configHash === configHash) {
-          output = cached;
+          output = normalizeCachedProviderOutput(cached);
         }
       } catch {}
     }
@@ -618,7 +708,15 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
         }
         if (cachePath && output) {
           try {
-            await atomicWriteJson(cachePath, output, { spaces: 2 });
+            const deterministicPayload = buildDeterministicCachePayload({
+              output,
+              providerId,
+              providerVersion: provider.version,
+              configHash
+            });
+            if (deterministicPayload) {
+              await atomicWriteJson(cachePath, deterministicPayload, { spaces: 2 });
+            }
           } catch {}
         }
       } catch (err) {

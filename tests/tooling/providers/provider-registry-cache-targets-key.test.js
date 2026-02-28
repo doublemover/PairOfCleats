@@ -44,6 +44,7 @@ TOOLING_PROVIDERS.clear();
 registerToolingProvider({
   id: 'stub',
   version: '1.0.0',
+  kinds: ['types'],
   capabilities: { supportsVirtualDocuments: true, supportsSegmentRouting: true },
   getConfigHash: () => 'cfg-v1',
   async run(_ctx, inputs) {

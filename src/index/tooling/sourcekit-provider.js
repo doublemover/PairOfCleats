@@ -496,12 +496,35 @@ const resolveCommandCandidates = (cmd) => {
   return output;
 };
 
-const sourcekitCandidateScore = (candidate) => {
+export const scoreSourcekitCandidate = (candidate) => {
   const lowered = String(candidate || '').toLowerCase();
   let score = 0;
   if (lowered.includes('+asserts')) score += 100;
   if (lowered.includes('preview')) score += 10;
   return score;
+};
+
+const normalizeSourcekitCandidateSortKey = (candidate) => (
+  String(candidate || '')
+    .trim()
+    .replace(/\\/g, '/')
+    .toLowerCase()
+);
+
+export const compareSourcekitCandidatePriority = (left, right) => {
+  const scoreDelta = (Number(right?.score) || 0) - (Number(left?.score) || 0);
+  if (scoreDelta !== 0) return scoreDelta;
+  const leftNormalized = normalizeSourcekitCandidateSortKey(left?.candidate);
+  const rightNormalized = normalizeSourcekitCandidateSortKey(right?.candidate);
+  if (leftNormalized !== rightNormalized) {
+    return leftNormalized.localeCompare(rightNormalized);
+  }
+  const leftRaw = String(left?.candidate || '').trim();
+  const rightRaw = String(right?.candidate || '').trim();
+  if (leftRaw !== rightRaw) {
+    return leftRaw.localeCompare(rightRaw);
+  }
+  return (Number(left?.index) || 0) - (Number(right?.index) || 0);
 };
 
 const resolveCommand = (cmd) => {
@@ -511,12 +534,9 @@ const resolveCommand = (cmd) => {
     .map((candidate, index) => ({
       candidate,
       index,
-      score: prioritizeSourcekitCandidates ? sourcekitCandidateScore(candidate) : 0
+      score: prioritizeSourcekitCandidates ? scoreSourcekitCandidate(candidate) : 0
     }))
-    .sort((a, b) => {
-      if (a.score !== b.score) return b.score - a.score;
-      return a.index - b.index;
-    })
+    .sort(compareSourcekitCandidatePriority)
     .map((entry) => entry.candidate);
   for (const candidate of candidates) {
     if (canRunSourcekit(candidate)) return candidate;
