@@ -804,6 +804,7 @@ indexing/artifacts/sharded-meta/schema
 shared/subprocess/abort-kills-child
 indexing/artifacts/symbols/symbol-links-by-chunkuid
 indexing/imports/import-scan
+indexing/imports/import-scan-collector-hints
 indexing/imports/import-scan-non-js-end-to-end
 indexing/imports/decision-model-contract
 indexing/imports/collector-hints
