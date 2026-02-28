@@ -179,6 +179,7 @@ indexing/tokenization/tokenize-dictionary
 shared/cache/lru
 shared/truncation/contract
 lang/registry/collectors
+lang/registry/import-entries
 lang/registry/collector-utils-comment-aware
 lang/registry/collector-metamorphic-comment-placement
 indexing/chunk-meta/id-alignment
@@ -805,6 +806,7 @@ indexing/artifacts/symbols/symbol-links-by-chunkuid
 indexing/imports/import-scan
 indexing/imports/import-scan-non-js-end-to-end
 indexing/imports/decision-model-contract
+indexing/imports/collector-hints
 indexing/imports/warning-dispositions
 indexing/imports/import-scan-post-graph-stats
 embeddings/runner/helper-contracts
