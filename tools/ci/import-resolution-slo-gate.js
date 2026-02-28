@@ -1,16 +1,16 @@
 #!/usr/bin/env node
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { coerceNumberAtLeast } from '../../src/shared/number-coerce.js';
 import {
   aggregateImportResolutionGraphPayloads,
-  DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS
+  DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS,
+  DEFAULT_REPLAY_MAX_REPORTS,
+  discoverImportResolutionGraphReports,
+  loadImportResolutionGraphReports
 } from '../../src/index/build/import-resolution.js';
 import { resolveRepoConfig } from '../shared/dict-utils.js';
 import { emitGateResult } from '../shared/tooling-gate-utils.js';
-
-const MAX_REPORTS = 256;
 
 const parseArgs = () => createCli({
   scriptName: 'pairofcleats import-resolution-slo-gate',
@@ -34,62 +34,6 @@ const toRatio = (numerator, denominator) => (
 
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
-const safeReadJson = async (targetPath) => {
-  try {
-    const raw = await fs.readFile(targetPath, 'utf8');
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-};
-
-const discoverImportGraphs = async (rootDir) => {
-  const roots = ['.testCache', '.benchCache']
-    .map((entry) => path.join(rootDir, entry));
-  const discovered = [];
-  for (const scanRoot of roots) {
-    let dirEntries;
-    try {
-      dirEntries = await fs.readdir(scanRoot, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    const stack = dirEntries.map((entry) => ({ dir: scanRoot, entry }));
-    while (stack.length > 0 && discovered.length < MAX_REPORTS) {
-      const { dir, entry } = stack.pop();
-      const fullPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        let children = [];
-        try {
-          children = await fs.readdir(fullPath, { withFileTypes: true });
-        } catch {
-          children = [];
-        }
-        for (const child of children) {
-          stack.push({ dir: fullPath, entry: child });
-        }
-        continue;
-      }
-      if (!entry.isFile()) continue;
-      if (entry.name !== 'import_resolution_graph.json') continue;
-      discovered.push(fullPath);
-    }
-  }
-  discovered.sort(sortStrings);
-  return discovered;
-};
-
-const loadGraphReports = async (graphPaths) => {
-  const reports = [];
-  for (const reportPath of graphPaths) {
-    reports.push({
-      reportPath,
-      payload: await safeReadJson(reportPath)
-    });
-  }
-  return reports;
-};
-
 const main = async () => {
   const argv = parseArgs();
   const { repoRoot } = resolveRepoConfig(argv.repo || null);
@@ -98,7 +42,10 @@ const main = async () => {
     : '';
   const graphPaths = explicitReport
     ? [explicitReport]
-    : await discoverImportGraphs(repoRoot);
+    : await discoverImportResolutionGraphReports({
+      rootDir: repoRoot,
+      maxReports: DEFAULT_REPLAY_MAX_REPORTS
+    });
   const actionableRateMax = coerceNumberAtLeast(argv['actionable-unresolved-rate-max'], 0) ?? 0.6;
   const minUnresolvedSamples = Math.max(0, Math.floor(coerceNumberAtLeast(argv['min-unresolved-samples'], 0) ?? 1));
 
@@ -126,7 +73,7 @@ const main = async () => {
     return;
   }
 
-  const graphReports = await loadGraphReports(graphPaths);
+  const graphReports = await loadImportResolutionGraphReports(graphPaths);
   const {
     totals,
     reasonCodeCounts,

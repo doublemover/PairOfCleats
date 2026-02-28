@@ -1,3 +1,4 @@
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { enrichUnresolvedImportSamples } from '../imports.js';
 
@@ -11,6 +12,8 @@ export const DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS = Object.freeze([
   '/spec/',
   '/specs/'
 ]);
+export const DEFAULT_REPLAY_SCAN_ROOTS = Object.freeze(['.testCache', '.benchCache']);
+export const DEFAULT_REPLAY_MAX_REPORTS = 256;
 
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
@@ -152,6 +155,74 @@ const toSortedStagePipeline = (stages) => {
     };
   }
   return output;
+};
+
+const safeReadJson = async (targetPath, readFile) => {
+  try {
+    const raw = await readFile(targetPath, 'utf8');
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+};
+
+export const discoverImportResolutionGraphReports = async ({
+  rootDir,
+  maxReports = DEFAULT_REPLAY_MAX_REPORTS,
+  scanRoots = DEFAULT_REPLAY_SCAN_ROOTS,
+  readdir = fs.readdir
+} = {}) => {
+  const limit = Math.max(0, Math.floor(Number(maxReports) || 0));
+  if (!rootDir || limit <= 0) return [];
+  const roots = (Array.isArray(scanRoots) ? scanRoots : DEFAULT_REPLAY_SCAN_ROOTS)
+    .map((entry) => String(entry || '').trim())
+    .filter(Boolean)
+    .map((entry) => path.join(rootDir, entry));
+  const discovered = [];
+  for (const scanRoot of roots) {
+    let dirEntries;
+    try {
+      dirEntries = await readdir(scanRoot, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    const stack = dirEntries.map((entry) => ({ dir: scanRoot, entry }));
+    while (stack.length > 0 && discovered.length < limit) {
+      const { dir, entry } = stack.pop();
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        let children = [];
+        try {
+          children = await readdir(fullPath, { withFileTypes: true });
+        } catch {
+          children = [];
+        }
+        for (const child of children) {
+          stack.push({ dir: fullPath, entry: child });
+        }
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      if (entry.name !== 'import_resolution_graph.json') continue;
+      discovered.push(fullPath);
+    }
+  }
+  discovered.sort(sortStrings);
+  return discovered;
+};
+
+export const loadImportResolutionGraphReports = async (
+  reportPaths,
+  { readFile = fs.readFile } = {}
+) => {
+  const reports = [];
+  for (const reportPath of Array.isArray(reportPaths) ? reportPaths : []) {
+    reports.push({
+      reportPath,
+      payload: await safeReadJson(reportPath, readFile)
+    });
+  }
+  return reports;
 };
 
 const normalizeExcludedImporterSegment = (segment) => {

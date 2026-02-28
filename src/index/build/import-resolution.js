@@ -23,5 +23,9 @@ export {
 export { matchGeneratedExpectationSpecifier } from './import-resolution/specifier-hints.js';
 export {
   aggregateImportResolutionGraphPayloads,
-  DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS
+  DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS,
+  DEFAULT_REPLAY_MAX_REPORTS,
+  DEFAULT_REPLAY_SCAN_ROOTS,
+  discoverImportResolutionGraphReports,
+  loadImportResolutionGraphReports
 } from './import-resolution/replay-harness.js';
