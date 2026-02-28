@@ -11,6 +11,7 @@ import {
   formatResolverPipelineStageSummary,
   isActionableImportWarning,
   prepareImportResolutionFsMeta,
+  resolveImportResolutionBudgetConfig,
   resolveImportLinks,
   resolveResolverPipelineStageHighlights,
   summarizeGateEligibleImportWarnings
@@ -152,6 +153,15 @@ const resolveImportBudgetRuntimeSignals = (runtime) => {
     scheduler,
     envelope
   };
+};
+
+const resolveImportCacheStaleEdgeBudget = (resolverPlugins) => {
+  const budgetConfig = resolveImportResolutionBudgetConfig(resolverPlugins);
+  const budgetRaw = budgetConfig.maxStaleEdgeChecks ?? budgetConfig.maxCacheStaleEdgeChecks;
+  const budget = Number(budgetRaw);
+  if (!Number.isFinite(budget)) return null;
+  if (budget <= 0) return 0;
+  return Math.floor(budget);
 };
 
 const logUnresolvedImportSamples = ({
@@ -339,6 +349,7 @@ export const postScanImports = async ({
   let cacheStats = null;
   const resolverPlugins = resolveImportResolverPlugins(runtime);
   const budgetRuntimeSignals = resolveImportBudgetRuntimeSignals(runtime);
+  const maxStaleEdgeChecks = resolveImportCacheStaleEdgeBudget(resolverPlugins);
   const fsMeta = await runWithHangProbe({
     ...probeConfig,
     label: 'imports.prepare-fs-meta',
@@ -397,11 +408,14 @@ export const postScanImports = async ({
       invalidationReasons: Object.create(null),
       fileSetDelta: { added: 0, removed: 0 },
       filesNeighborhoodInvalidated: 0,
-      staleEdgeInvalidated: 0
+      staleEdgeInvalidated: 0,
+      staleEdgeChecks: 0,
+      staleEdgeBudgetExhausted: false
     };
     applyImportResolutionCacheFileSetDiffInvalidation({
       cache,
       entries,
+      maxStaleEdgeChecks,
       cacheStats,
       log
     });

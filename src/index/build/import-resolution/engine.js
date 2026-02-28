@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { buildCacheKey } from '../../../shared/cache-key.js';
 import { sha1 } from '../../../shared/hash.js';
+import { stableStringify } from '../../../shared/stable-json.js';
 import {
   DEFAULT_IMPORT_EXTS,
   EPHEMERAL_EXTERNAL_CACHE_TTL_MS,
@@ -336,12 +337,17 @@ export function resolveImportLinks({
       : 1
   };
   const expectedArtifactsIndex = buildContext.expectedArtifactsIndex;
-  const resolverScopeFingerprint = sha1(JSON.stringify({
+  const resolverPluginsFingerprint = sha1(stableStringify(resolverPlugins || {}));
+  const resolverStaticScopeFingerprint = sha1(JSON.stringify({
     resolverVersion: IMPORT_RESOLVER_VERSION,
+    resolverPluginsFingerprint,
+    budgetPolicyFingerprint: budgetPolicy?.fingerprint || 'none',
+    aliasRulesFingerprint: aliasRulesFingerprint || 'none'
+  }));
+  const resolverRuntimeScopeFingerprint = sha1(JSON.stringify({
+    resolverStaticScopeFingerprint,
     workspaceFingerprint: lookupCompatibilityFingerprint || fileSetFingerprint || 'none',
     buildContextFingerprint: buildContext?.fingerprint || 'none',
-    budgetPolicyFingerprint: budgetPolicy?.fingerprint || 'none',
-    aliasRulesFingerprint: aliasRulesFingerprint || 'none',
     expectedArtifactsFingerprint: expectedArtifactsIndex?.fingerprint || 'none'
   }));
   const fsExistsIndexStats = {
@@ -555,7 +561,7 @@ export function resolveImportLinks({
   const resolutionCache = new Map();
   const cacheKeyFor = (importerRel, spec, tsconfig) => {
     const tsKey = tsconfig?.fingerprint || tsconfig?.tsconfigPath || 'none';
-    return `${resolverScopeFingerprint}\u0000${importerRel || ''}\u0000${spec || ''}\u0000${tsKey}`;
+    return `${resolverRuntimeScopeFingerprint}\u0000${importerRel || ''}\u0000${spec || ''}\u0000${tsKey}`;
   };
   let suppressedWarnings = 0;
   let unresolvedCount = 0;
@@ -630,7 +636,7 @@ export function resolveImportLinks({
     const canReuseCache = !!(fileCache
       && fileHash
       && fileCache.hash === fileHash
-      && (fileCache.resolverScopeFingerprint || '') === resolverScopeFingerprint
+      && (fileCache.resolverScopeFingerprint || '') === resolverStaticScopeFingerprint
       && (fileCache.tsconfigFingerprint || null) === tsconfigFingerprint);
     if (cacheMetrics) {
       cacheMetrics.files += 1;
@@ -1085,7 +1091,7 @@ export function resolveImportLinks({
     if (nextSpecCache && fileHash && cacheState) {
       cacheState.files[relNormalized] = {
         hash: fileHash,
-        resolverScopeFingerprint,
+        resolverScopeFingerprint: resolverStaticScopeFingerprint,
         tsconfigFingerprint,
         specs: nextSpecCache
       };

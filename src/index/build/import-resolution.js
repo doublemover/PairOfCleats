@@ -5,7 +5,8 @@ export { createExpectedArtifactsIndex } from './import-resolution/expected-artif
 export { createImportBuildContext } from './import-resolution/build-context/index.js';
 export {
   createImportResolutionBudgetPolicy,
-  createImportResolutionSpecifierBudgetState
+  createImportResolutionSpecifierBudgetState,
+  resolveImportResolutionBudgetConfig
 } from './import-resolution/budgets.js';
 export { createImportResolutionStageTracker } from './import-resolution/stage-pipeline.js';
 export {

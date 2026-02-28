@@ -26,7 +26,9 @@ const makeStats = () => ({
   invalidationReasons: Object.create(null),
   fileSetDelta: { added: 0, removed: 0 },
   filesNeighborhoodInvalidated: 0,
-  staleEdgeInvalidated: 0
+  staleEdgeInvalidated: 0,
+  staleEdgeChecks: 0,
+  staleEdgeBudgetExhausted: false
 });
 
 await fs.rm(tempRoot, { recursive: true, force: true });
@@ -64,12 +66,14 @@ const runResolution = ({
   cache,
   entries,
   importsByFile,
-  fileRelations
+  fileRelations,
+  maxStaleEdgeChecks = null
 }) => {
   const cacheStats = makeStats();
   applyImportResolutionCacheFileSetDiffInvalidation({
     cache,
     entries,
+    maxStaleEdgeChecks,
     cacheStats
   });
   const result = resolveImportLinks({
@@ -169,6 +173,55 @@ const runResolution = ({
     (second.cacheStats.staleEdgeInvalidated || 0) >= 1,
     'expected stale-edge detector to invalidate unresolved relative importer'
   );
+}
+
+{
+  const cache = {};
+  fileHashes.set('src/cap-one.js', 'hash-cap-one');
+  fileHashes.set('src/cap-two.js', 'hash-cap-two');
+  await fs.writeFile(path.join(srcRoot, 'cap-one.js'), "import './cap-target.js';\n");
+  await fs.writeFile(path.join(srcRoot, 'cap-two.js'), "import './cap-target.js';\n");
+  const importsByFile = {
+    'src/cap-one.js': ['./cap-target.js'],
+    'src/cap-two.js': ['./cap-target.js']
+  };
+  const firstRelations = new Map([
+    ['src/cap-one.js', { imports: ['./cap-target.js'] }],
+    ['src/cap-two.js', { imports: ['./cap-target.js'] }]
+  ]);
+  runResolution({
+    cache,
+    entries: [
+      { abs: path.join(srcRoot, 'cap-one.js'), rel: 'src/cap-one.js' },
+      { abs: path.join(srcRoot, 'cap-two.js'), rel: 'src/cap-two.js' }
+    ],
+    importsByFile,
+    fileRelations: firstRelations
+  });
+
+  await fs.writeFile(path.join(srcRoot, 'cap-target.js'), 'export const cap = true;\n');
+  const secondRelations = new Map([
+    ['src/cap-one.js', { imports: ['./cap-target.js'] }],
+    ['src/cap-two.js', { imports: ['./cap-target.js'] }]
+  ]);
+  const second = runResolution({
+    cache,
+    entries: [
+      { abs: path.join(srcRoot, 'cap-one.js'), rel: 'src/cap-one.js' },
+      { abs: path.join(srcRoot, 'cap-two.js'), rel: 'src/cap-two.js' },
+      { abs: path.join(srcRoot, 'cap-target.js'), rel: 'src/cap-target.js' }
+    ],
+    importsByFile,
+    fileRelations: secondRelations,
+    maxStaleEdgeChecks: 1
+  });
+  const capResolvedLinks = (
+    (secondRelations.get('src/cap-one.js')?.importLinks?.length || 0)
+    + (secondRelations.get('src/cap-two.js')?.importLinks?.length || 0)
+  );
+  assert.equal(capResolvedLinks, 1, 'expected stale-edge cap to limit invalidation to one unresolved importer');
+  assert.equal(second.cacheStats.staleEdgeChecks, 1, 'expected stale-edge check counter to honor configured cap');
+  assert.equal(second.cacheStats.staleEdgeBudgetExhausted, true, 'expected stale-edge cap exhaustion telemetry');
 }
 
 console.log('import cache neighborhood invalidation test passed');

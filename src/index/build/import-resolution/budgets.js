@@ -17,7 +17,7 @@ const coerceBudget = (value, fallback) => {
   return Math.min(MAX_BUDGET_VALUE, rounded);
 };
 
-const normalizeBudgetConfig = (resolverPlugins) => {
+export const resolveImportResolutionBudgetConfig = (resolverPlugins) => {
   if (!resolverPlugins || typeof resolverPlugins !== 'object') return {};
   const direct = resolverPlugins.budgets;
   if (direct && typeof direct === 'object' && !Array.isArray(direct)) return direct;
@@ -168,7 +168,7 @@ export const createImportResolutionBudgetPolicy = ({
   resolverPlugins = null,
   runtimeSignals = null
 } = {}) => {
-  const config = normalizeBudgetConfig(resolverPlugins);
+  const config = resolveImportResolutionBudgetConfig(resolverPlugins);
   const adaptiveEnabled = config.adaptive !== false;
   const adaptive = adaptiveEnabled
     ? resolveAdaptiveBudgetProfile(runtimeSignals)

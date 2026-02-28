@@ -13,6 +13,7 @@ import {
 const CACHE_VERSION = 6;
 const CACHE_FILE = 'import-resolution-cache.json';
 const CACHE_DIAGNOSTICS_VERSION = 5;
+const DEFAULT_MAX_STALE_EDGE_CHECKS = 20000;
 const IMPORT_SPEC_CANDIDATE_EXTENSIONS = Object.freeze([
   '.js',
   '.jsx',
@@ -64,6 +65,14 @@ const normalizeRateDelta = (value) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return null;
   return Math.max(-1, Math.min(1, numeric));
+};
+
+const normalizeMaxStaleEdgeChecks = (value) => {
+  if (value == null || value === '') return DEFAULT_MAX_STALE_EDGE_CHECKS;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return DEFAULT_MAX_STALE_EDGE_CHECKS;
+  if (numeric <= 0) return 0;
+  return Math.min(200000, Math.floor(numeric));
 };
 
 const normalizeCategoryCounts = (
@@ -630,6 +639,7 @@ export const saveImportResolutionCache = async ({ cache, cachePath } = {}) => {
  *   cache?:object|null,
  *   entries?:Array<object|string>|null,
  *   cacheStats?:object|null,
+ *   maxStaleEdgeChecks?:number|null,
  *   log?:(message:string)=>void
  * }} [input]
  * @returns {{
@@ -638,6 +648,8 @@ export const saveImportResolutionCache = async ({ cache, cachePath } = {}) => {
  *   removed:number,
  *   invalidated:number,
  *   staleEdgeInvalidated:number,
+ *   staleEdgeChecks:number,
+ *   staleEdgeBudgetExhausted:boolean,
  *   usedFallbackGlobal:boolean
  * }|null}
  */
@@ -645,6 +657,7 @@ export const applyImportResolutionCacheFileSetDiffInvalidation = ({
   cache,
   entries,
   cacheStats = null,
+  maxStaleEdgeChecks = null,
   log = null
 } = {}) => {
   if (!isObject(cache)) return null;
@@ -679,6 +692,8 @@ export const applyImportResolutionCacheFileSetDiffInvalidation = ({
   const fileSetChanged = seededFingerprint || hasDiffByLookup || hasDiffByFingerprint;
   let invalidated = 0;
   let staleEdgeInvalidated = 0;
+  let staleEdgeChecks = 0;
+  let staleEdgeBudgetExhausted = false;
   let usedFallbackGlobal = false;
   let neighborhoodInvalidated = 0;
 
@@ -707,11 +722,24 @@ export const applyImportResolutionCacheFileSetDiffInvalidation = ({
         }
       }
     }
-    if (addedFiles.size > 0) {
+    const staleEdgeCheckBudget = normalizeMaxStaleEdgeChecks(maxStaleEdgeChecks);
+    if (addedFiles.size > 0 && staleEdgeCheckBudget === 0 && unresolvedRelativeSpecs.size > 0) {
+      staleEdgeBudgetExhausted = true;
+    }
+    if (addedFiles.size > 0 && staleEdgeCheckBudget > 0) {
       for (const [importer, unresolvedSpecs] of unresolvedRelativeSpecs.entries()) {
+        if (staleEdgeChecks >= staleEdgeCheckBudget) {
+          staleEdgeBudgetExhausted = true;
+          break;
+        }
         if (invalidationSet.has(importer)) continue;
         let stale = false;
         for (const unresolvedSpec of unresolvedSpecs.values()) {
+          if (staleEdgeChecks >= staleEdgeCheckBudget) {
+            staleEdgeBudgetExhausted = true;
+            break;
+          }
+          staleEdgeChecks += 1;
           const candidates = resolveRelativeImportCandidates(importer, unresolvedSpec);
           if (!candidates.some((candidate) => addedFiles.has(candidate))) continue;
           stale = true;
@@ -720,6 +748,7 @@ export const applyImportResolutionCacheFileSetDiffInvalidation = ({
         if (stale && markInvalidated(importer)) {
           staleEdgeInvalidated += 1;
         }
+        if (staleEdgeBudgetExhausted) break;
       }
     }
     // Compatibility fallback: if lookup-set diff is unavailable but file-set hash
@@ -753,6 +782,8 @@ export const applyImportResolutionCacheFileSetDiffInvalidation = ({
     };
     cacheStats.filesNeighborhoodInvalidated = Number(cacheStats.filesNeighborhoodInvalidated || 0) + neighborhoodInvalidated;
     cacheStats.staleEdgeInvalidated = Number(cacheStats.staleEdgeInvalidated || 0) + staleEdgeInvalidated;
+    cacheStats.staleEdgeChecks = Number(cacheStats.staleEdgeChecks || 0) + staleEdgeChecks;
+    cacheStats.staleEdgeBudgetExhausted = staleEdgeBudgetExhausted;
     if (!isObject(cacheStats.invalidationReasons)) {
       cacheStats.invalidationReasons = Object.create(null);
     }
@@ -760,13 +791,15 @@ export const applyImportResolutionCacheFileSetDiffInvalidation = ({
     if (hasDiffByLookup || hasDiffByFingerprint) addReasonCount(cacheStats.invalidationReasons, 'file_set_diff', 1);
     if (neighborhoodInvalidated > 0) addReasonCount(cacheStats.invalidationReasons, 'dependency_neighborhood', neighborhoodInvalidated);
     if (staleEdgeInvalidated > 0) addReasonCount(cacheStats.invalidationReasons, 'stale_unresolved_edge', staleEdgeInvalidated);
+    if (staleEdgeBudgetExhausted) addReasonCount(cacheStats.invalidationReasons, 'stale_edge_budget_exhausted', 1);
     if (usedFallbackGlobal) addReasonCount(cacheStats.invalidationReasons, 'fallback_global_reset', 1);
   }
 
   if (fileSetChanged && typeof log === 'function') {
     log(
       `[imports] cache file-set diff: added=${addedFiles.size}, removed=${removedFiles.size}, ` +
-      `invalidated=${invalidated} (neighborhood=${neighborhoodInvalidated}, stale-edge=${staleEdgeInvalidated}).`
+      `invalidated=${invalidated} (neighborhood=${neighborhoodInvalidated}, stale-edge=${staleEdgeInvalidated}, ` +
+      `stale-edge-checks=${staleEdgeChecks}, stale-edge-budget-exhausted=${staleEdgeBudgetExhausted ? 'yes' : 'no'}).`
     );
     if (usedFallbackGlobal) {
       log('[imports] cache file-set diff fallback: full importer cache reset (lookup diff unavailable).');
@@ -779,6 +812,8 @@ export const applyImportResolutionCacheFileSetDiffInvalidation = ({
     removed: removedFiles.size,
     invalidated,
     staleEdgeInvalidated,
+    staleEdgeChecks,
+    staleEdgeBudgetExhausted,
     usedFallbackGlobal
   };
 };
