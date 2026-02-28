@@ -265,6 +265,56 @@ try {
     { normal: 1 }
   );
 
+  const advisoryGraphPath = path.join(tempRoot, 'import_resolution_graph.advisory.json');
+  const advisoryJsonPath = path.join(tempRoot, 'import-resolution-slo-gate.advisory.json');
+  await writeGraph(advisoryGraphPath, {
+    generatedAt: new Date().toISOString(),
+    stats: {
+      unresolved: 10,
+      unresolvedActionable: 1,
+      unresolvedByFailureCause: {
+        parser_artifact: 6,
+        resolver_gap: 4
+      }
+    },
+    warnings: []
+  });
+  const advisoryResult = spawnSync(
+    process.execPath,
+    [
+      gatePath,
+      '--mode',
+      'ci',
+      '--report',
+      advisoryGraphPath,
+      '--json',
+      advisoryJsonPath,
+      '--actionable-unresolved-rate-max',
+      '0.5',
+      '--parser-artifact-rate-warn-max',
+      '0.5',
+      '--resolver-gap-rate-warn-max',
+      '0.3'
+    ],
+    {
+      cwd: ROOT,
+      env: process.env,
+      encoding: 'utf8'
+    }
+  );
+  assert.equal(advisoryResult.status, 0, `expected advisory gate status=0, received ${advisoryResult.status}`);
+  const advisoryPayload = JSON.parse(await fs.readFile(advisoryJsonPath, 'utf8'));
+  assert.equal(Array.isArray(advisoryPayload?.advisories), true);
+  assert.equal(advisoryPayload.advisories.length, 2);
+  assert.ok(
+    advisoryPayload.advisories.some((entry) => String(entry).includes('parser artifact rate')),
+    'expected parser artifact advisory message'
+  );
+  assert.ok(
+    advisoryPayload.advisories.some((entry) => String(entry).includes('resolver gap rate')),
+    'expected resolver gap advisory message'
+  );
+
   console.log('import resolution slo gate smoke test passed');
 } finally {
   await fs.rm(tempRoot, { recursive: true, force: true });
