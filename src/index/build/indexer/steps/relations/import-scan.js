@@ -26,6 +26,14 @@ import { resolveHangProbeConfig, runWithHangProbe } from '../../hang-probe.js';
 
 const MAX_UNRESOLVED_IMPORT_LOG_LINES = 50;
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
+const toSortedCountObject = (counts) => {
+  const entries = Object.entries(
+    counts && typeof counts === 'object' && !Array.isArray(counts) ? counts : {}
+  )
+    .filter(([key, value]) => key && Number.isFinite(Number(value)) && Number(value) > 0)
+    .sort((a, b) => sortStrings(a[0], b[0]));
+  return Object.fromEntries(entries.map(([key, value]) => [key, Math.floor(Number(value))]));
+};
 
 const normalizeUnresolvedSamples = (samples) => enrichUnresolvedImportSamples(samples);
 
@@ -472,27 +480,122 @@ export const postScanImports = async ({
   });
   throwIfAborted(abortSignal);
   const unresolvedSamples = normalizeUnresolvedSamples(resolution?.unresolvedSamples);
-  const unresolvedTaxonomyBase = summarizeUnresolvedImportTaxonomy(unresolvedSamples);
+  const unresolvedTaxonomySample = summarizeUnresolvedImportTaxonomy(unresolvedSamples);
   const unresolvedGateEligible = summarizeGateEligibleImportWarnings(unresolvedSamples, {
     excludedImporterSegments: DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS
   });
-  const resolverBudgetExhausted = Number(resolution?.stats?.unresolvedBudgetExhausted) || 0;
-  const resolverBudgetExhaustedByType = resolution?.stats?.unresolvedBudgetExhaustedByType || {};
+  const resolutionStatsSource = resolution?.stats && typeof resolution.stats === 'object'
+    ? resolution.stats
+    : {};
+  const graphStatsSource = resolution?.graph?.stats && typeof resolution.graph.stats === 'object'
+    ? resolution.graph.stats
+    : {};
+  const canonicalStatsSource = Object.keys(graphStatsSource).length > 0
+    ? graphStatsSource
+    : resolutionStatsSource;
+  const unresolvedTotal = Number(canonicalStatsSource.unresolved);
+  const unresolvedActionable = Number(canonicalStatsSource.unresolvedActionable);
+  const unresolvedLiveSuppressed = Number(canonicalStatsSource.unresolvedLiveSuppressed);
+  const unresolvedGateSuppressed = Number(canonicalStatsSource.unresolvedGateSuppressed);
+  const unresolvedResolverSuppressed = Number(
+    canonicalStatsSource.unresolvedResolverSuppressed ?? canonicalStatsSource.unresolvedSuppressed
+  );
+  const unresolvedReasonCodes = toSortedCountObject(
+    canonicalStatsSource.unresolvedByReasonCode || unresolvedTaxonomySample.reasonCodes
+  );
+  const unresolvedFailureCauses = toSortedCountObject(
+    canonicalStatsSource.unresolvedByFailureCause || unresolvedTaxonomySample.failureCauses
+  );
+  const unresolvedDispositions = toSortedCountObject(
+    canonicalStatsSource.unresolvedByDisposition || unresolvedTaxonomySample.dispositions
+  );
+  const unresolvedResolverStages = toSortedCountObject(
+    canonicalStatsSource.unresolvedByResolverStage || unresolvedTaxonomySample.resolverStages
+  );
+  const unresolvedActionableByLanguage = toSortedCountObject(
+    canonicalStatsSource.unresolvedActionableByLanguage || unresolvedTaxonomySample.actionableByLanguage
+  );
+  const unresolvedActionableHotspots = Array.isArray(canonicalStatsSource.unresolvedActionableHotspots)
+    ? canonicalStatsSource.unresolvedActionableHotspots
+      .filter((entry) => entry && typeof entry === 'object')
+      .map((entry) => ({
+        importer: typeof entry.importer === 'string' ? entry.importer : '',
+        count: Math.floor(Number(entry.count) || 0)
+      }))
+      .filter((entry) => entry.importer && entry.count > 0)
+      .sort((left, right) => (
+        right.count !== left.count
+          ? right.count - left.count
+          : sortStrings(left.importer, right.importer)
+      ))
+      .slice(0, 20)
+    : unresolvedTaxonomySample.actionableHotspots;
+  const resolvedUnresolvedTotal = Number.isFinite(unresolvedTotal) && unresolvedTotal >= 0
+    ? Math.floor(unresolvedTotal)
+    : unresolvedTaxonomySample.total;
+  const resolvedUnresolvedActionable = Number.isFinite(unresolvedActionable) && unresolvedActionable >= 0
+    ? Math.floor(Math.min(unresolvedActionable, resolvedUnresolvedTotal))
+    : unresolvedTaxonomySample.actionable;
+  const resolvedUnresolvedLiveSuppressed = Number.isFinite(unresolvedLiveSuppressed) && unresolvedLiveSuppressed >= 0
+    ? Math.floor(Math.min(unresolvedLiveSuppressed, resolvedUnresolvedTotal))
+    : unresolvedTaxonomySample.liveSuppressed;
+  const resolvedUnresolvedGateSuppressed = Number.isFinite(unresolvedGateSuppressed) && unresolvedGateSuppressed >= 0
+    ? Math.floor(Math.min(unresolvedGateSuppressed, resolvedUnresolvedTotal))
+    : (unresolvedTaxonomySample.gateSuppressed || 0);
+  const resolvedUnresolvedResolverSuppressed = Number.isFinite(unresolvedResolverSuppressed)
+    && unresolvedResolverSuppressed >= 0
+    ? Math.floor(unresolvedResolverSuppressed)
+    : (Number(resolution?.unresolvedSuppressed) || 0);
+  const unresolvedObserved = Number(canonicalStatsSource.unresolvedObserved);
+  const resolvedUnresolvedObserved = Number.isFinite(unresolvedObserved) && unresolvedObserved >= 0
+    ? Math.floor(unresolvedObserved)
+    : resolvedUnresolvedTotal;
+  const parserArtifactCount = Number(unresolvedFailureCauses.parser_artifact) || 0;
+  const resolverGapCount = Number(unresolvedFailureCauses.resolver_gap) || 0;
+  const unresolvedActionableRate = resolvedUnresolvedTotal > 0
+    ? resolvedUnresolvedActionable / resolvedUnresolvedTotal
+    : 0;
+  const unresolvedParserArtifactRate = resolvedUnresolvedTotal > 0
+    ? parserArtifactCount / resolvedUnresolvedTotal
+    : 0;
+  const unresolvedResolverGapRate = resolvedUnresolvedTotal > 0
+    ? resolverGapCount / resolvedUnresolvedTotal
+    : 0;
+  const resolverBudgetExhausted = Number(
+    canonicalStatsSource.unresolvedBudgetExhausted ?? resolution?.stats?.unresolvedBudgetExhausted
+  );
+  const resolvedResolverBudgetExhausted = Number.isFinite(resolverBudgetExhausted) && resolverBudgetExhausted >= 0
+    ? Math.floor(resolverBudgetExhausted)
+    : 0;
+  const resolverBudgetExhaustedByType = toSortedCountObject(
+    canonicalStatsSource.unresolvedBudgetExhaustedByType || resolution?.stats?.unresolvedBudgetExhaustedByType || {}
+  );
   const unresolvedTaxonomy = {
-    ...unresolvedTaxonomyBase,
-    resolverBudgetExhausted,
+    total: resolvedUnresolvedTotal,
+    actionable: resolvedUnresolvedActionable,
+    liveSuppressed: resolvedUnresolvedLiveSuppressed,
+    gateSuppressed: resolvedUnresolvedGateSuppressed,
+    reasonCodes: unresolvedReasonCodes,
+    failureCauses: unresolvedFailureCauses,
+    dispositions: unresolvedDispositions,
+    resolverStages: unresolvedResolverStages,
+    actionableHotspots: unresolvedActionableHotspots,
+    actionableByLanguage: unresolvedActionableByLanguage,
+    actionableRate: unresolvedActionableRate,
+    actionableUnresolvedRate: unresolvedActionableRate,
+    parserArtifactRate: unresolvedParserArtifactRate,
+    resolverGapRate: unresolvedResolverGapRate,
+    resolverBudgetExhausted: resolvedResolverBudgetExhausted,
     resolverBudgetExhaustedByType
   };
   if (resolution?.graph && Array.isArray(resolution.graph.warnings)) {
     resolution.graph.warnings = unresolvedSamples.map((sample) => ({ ...sample }));
     if (resolution.graph.stats && typeof resolution.graph.stats === 'object') {
-      const unresolvedObserved = Number(resolution.graph.stats.unresolved) || 0;
-      const resolverSuppressed = Number(resolution.graph.stats.unresolvedSuppressed) || 0;
-      resolution.graph.stats.unresolvedObserved = unresolvedObserved;
-      resolution.graph.stats.unresolved = unresolvedTaxonomy.total;
-      resolution.graph.stats.unresolvedActionable = unresolvedTaxonomy.actionable;
-      resolution.graph.stats.unresolvedLiveSuppressed = unresolvedTaxonomy.liveSuppressed;
-      resolution.graph.stats.unresolvedGateSuppressed = unresolvedTaxonomy.gateSuppressed || 0;
+      resolution.graph.stats.unresolvedObserved = resolvedUnresolvedObserved;
+      resolution.graph.stats.unresolved = resolvedUnresolvedTotal;
+      resolution.graph.stats.unresolvedActionable = resolvedUnresolvedActionable;
+      resolution.graph.stats.unresolvedLiveSuppressed = resolvedUnresolvedLiveSuppressed;
+      resolution.graph.stats.unresolvedGateSuppressed = resolvedUnresolvedGateSuppressed;
       resolution.graph.stats.unresolvedByReasonCode = unresolvedTaxonomy.reasonCodes;
       resolution.graph.stats.unresolvedByFailureCause = unresolvedTaxonomy.failureCauses;
       resolution.graph.stats.unresolvedByDisposition = unresolvedTaxonomy.dispositions;
@@ -504,19 +607,19 @@ export const postScanImports = async ({
       resolution.graph.stats.unresolvedGateEligibleActionableRate = unresolvedGateEligible.unresolved > 0
         ? unresolvedGateEligible.actionable / unresolvedGateEligible.unresolved
         : 0;
-      resolution.graph.stats.unresolvedActionableRate = unresolvedTaxonomy.actionableUnresolvedRate;
+      resolution.graph.stats.unresolvedActionableRate = unresolvedTaxonomy.actionableRate;
       resolution.graph.stats.unresolvedParserArtifactRate = unresolvedTaxonomy.parserArtifactRate;
       resolution.graph.stats.unresolvedResolverGapRate = unresolvedTaxonomy.resolverGapRate;
-      resolution.graph.stats.unresolvedBudgetExhausted = resolverBudgetExhausted;
+      resolution.graph.stats.unresolvedBudgetExhausted = resolvedResolverBudgetExhausted;
       resolution.graph.stats.unresolvedBudgetExhaustedByType = resolverBudgetExhaustedByType;
-      resolution.graph.stats.unresolvedResolverSuppressed = resolverSuppressed;
+      resolution.graph.stats.unresolvedResolverSuppressed = resolvedUnresolvedResolverSuppressed;
     }
   }
   const cacheDiagnostics = cacheEnabled
     ? updateImportResolutionDiagnosticsCache({
       cache,
       unresolvedTaxonomy,
-      unresolvedTotal: unresolvedTaxonomy.total
+      unresolvedTotal: resolvedUnresolvedTotal
     })
     : null;
   if (resolution?.graph) {
@@ -529,11 +632,12 @@ export const postScanImports = async ({
     ? { ...resolution.stats }
     : null;
   if (resolvedStats) {
-    resolvedStats.unresolved = unresolvedTaxonomy.total;
-    resolvedStats.unresolvedActionable = unresolvedTaxonomy.actionable;
-    resolvedStats.unresolvedLiveSuppressed = unresolvedTaxonomy.liveSuppressed;
-    resolvedStats.unresolvedGateSuppressed = unresolvedTaxonomy.gateSuppressed || 0;
-    resolvedStats.unresolvedActionableRate = unresolvedTaxonomy.actionableUnresolvedRate;
+    resolvedStats.unresolvedObserved = resolvedUnresolvedObserved;
+    resolvedStats.unresolved = resolvedUnresolvedTotal;
+    resolvedStats.unresolvedActionable = resolvedUnresolvedActionable;
+    resolvedStats.unresolvedLiveSuppressed = resolvedUnresolvedLiveSuppressed;
+    resolvedStats.unresolvedGateSuppressed = resolvedUnresolvedGateSuppressed;
+    resolvedStats.unresolvedActionableRate = unresolvedTaxonomy.actionableRate;
     resolvedStats.unresolvedByFailureCause = unresolvedTaxonomy.failureCauses;
     resolvedStats.unresolvedByDisposition = unresolvedTaxonomy.dispositions;
     resolvedStats.unresolvedByResolverStage = unresolvedTaxonomy.resolverStages;
@@ -546,7 +650,7 @@ export const postScanImports = async ({
       : 0;
     resolvedStats.unresolvedParserArtifactRate = unresolvedTaxonomy.parserArtifactRate;
     resolvedStats.unresolvedResolverGapRate = unresolvedTaxonomy.resolverGapRate;
-    resolvedStats.unresolvedBudgetExhausted = resolverBudgetExhausted;
+    resolvedStats.unresolvedBudgetExhausted = resolvedResolverBudgetExhausted;
     resolvedStats.unresolvedBudgetExhaustedByType = resolverBudgetExhaustedByType;
   }
   const resolvedResult = {
@@ -555,7 +659,7 @@ export const postScanImports = async ({
     unresolvedSamples,
     unresolvedSuppressed: resolution?.unresolvedSuppressed || 0,
     unresolvedTaxonomy,
-    resolverBudgetExhausted,
+    resolverBudgetExhausted: resolvedResolverBudgetExhausted,
     resolverBudgetExhaustedByType,
     cacheDiagnostics: cacheDiagnostics || null,
     cacheStats: resolution?.cacheStats || cacheStats || null,

@@ -381,16 +381,35 @@ export const aggregateImportResolutionGraphPayloads = (
     });
 
     const observedUnresolved = statsUnresolved ?? warnings.length;
-    const observedActionable = statsActionable
+    const statsObservedUnresolved = toNonNegativeIntOrNull(
+      stats.unresolvedObserved
+      ?? stats.unresolvedObservedTotal
+    );
+    const observedActionable = toNonNegativeIntOrNull(
+      stats.unresolvedObservedActionable
+      ?? stats.unresolvedObservedActionableTotal
+    ) ?? statsActionable
       ?? warnings.filter((entry) => isActionableImportWarning(entry)).length;
+    const effectiveObservedUnresolved = statsObservedUnresolved ?? observedUnresolved;
 
     const statsFailureCauseCounts = toCountMap(stats.unresolvedByFailureCause);
+    const statsGateFailureCauseCounts = toCountMap(
+      stats.unresolvedGateEligibleByFailureCause
+      ?? stats.unresolvedByFailureCauseGateEligible
+      ?? stats.unresolvedFailureCauseGateEligible
+    );
+    const parserArtifactSource = hasStatsGateEligibleTotals
+      ? statsGateFailureCauseCounts
+      : statsFailureCauseCounts;
     const parserArtifact = (
-      toNonNegativeIntOrNull(statsFailureCauseCounts?.parser_artifact)
+      toNonNegativeIntOrNull(parserArtifactSource?.parser_artifact)
       ?? eligibleParserArtifact
     );
+    const resolverGapSource = hasStatsGateEligibleTotals
+      ? statsGateFailureCauseCounts
+      : statsFailureCauseCounts;
     const resolverGap = (
-      toNonNegativeIntOrNull(statsFailureCauseCounts?.resolver_gap)
+      toNonNegativeIntOrNull(resolverGapSource?.resolver_gap)
       ?? eligibleResolverGap
     );
 
@@ -442,7 +461,7 @@ export const aggregateImportResolutionGraphPayloads = (
     }
 
     totals.reportCount += 1;
-    totals.observedUnresolved += observedUnresolved;
+    totals.observedUnresolved += effectiveObservedUnresolved;
     totals.observedActionable += observedActionable;
     totals.unresolved += unresolved;
     totals.actionable += actionable;

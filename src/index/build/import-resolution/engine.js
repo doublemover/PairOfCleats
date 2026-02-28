@@ -13,7 +13,9 @@ import {
 } from './constants.js';
 import { resolveRelativeImportCandidates } from '../../shared/import-candidates.js';
 import { createFsMemo } from './fs-meta.js';
+import { resolveFsExistsIndexCacheFingerprint } from './fs-exists-index.js';
 import { addGraphNode, buildEdgeSortKey, buildWarningSortKey } from './graph.js';
+import { resolveLanguageLabelFromImporter } from './labels.js';
 import {
   buildLookupCompatibilityFingerprint,
   collectEntryFileSet,
@@ -220,6 +222,21 @@ const toSortedCountObject = (counts) => {
   return output;
 };
 
+const toSortedHotspotEntries = (counts, { maxEntries = 20 } = {}) => (
+  Object.entries(counts || {})
+    .filter(([importer, value]) => importer && Number.isFinite(Number(value)) && Number(value) > 0)
+    .map(([importer, value]) => ({
+      importer,
+      count: Math.floor(Number(value))
+    }))
+    .sort((a, b) => (
+      b.count !== a.count
+        ? b.count - a.count
+        : sortStrings(a.importer, b.importer)
+    ))
+    .slice(0, Math.max(0, Math.floor(Number(maxEntries) || 0)))
+);
+
 const resolveUnresolvedReasonCode = ({
   importerRel,
   spec,
@@ -320,6 +337,7 @@ export function resolveImportLinks({
     rootAbs: resolvedLookup.rootAbs,
     fsMemo
   });
+  const fsExistsIndexFingerprint = resolveFsExistsIndexCacheFingerprint(resolverPlugins);
   const budgetPolicy = createImportResolutionBudgetPolicy({
     resolverPlugins,
     runtimeSignals: budgetRuntimeSignals
@@ -377,11 +395,12 @@ export function resolveImportLinks({
       repoHash,
       buildConfigHash: packageFingerprint || null,
       mode,
-      schemaVersion: 'import-resolution-cache-v8',
+      schemaVersion: 'import-resolution-cache-v9',
       featureFlags: [
         ...(graphMeta?.importScanMode ? [`scan:${graphMeta.importScanMode}`] : []),
         ...(aliasRulesFingerprint ? [`resolverAlias:${aliasRulesFingerprint}`] : []),
         ...(buildContext?.fingerprint ? [`buildContext:${buildContext.fingerprint}`] : []),
+        ...(fsExistsIndexFingerprint ? [`fsExistsIndex:${fsExistsIndexFingerprint}`] : []),
         ...(budgetPolicy?.fingerprint ? [`resolverBudgets:${budgetPolicy.fingerprint}`] : []),
         ...(expectedArtifactsIndex?.fingerprint ? [`expectedArtifacts:${expectedArtifactsIndex.fingerprint}`] : [])
       ],
@@ -575,6 +594,11 @@ export function resolveImportLinks({
   const truncatedByKind = { import: 0 };
   const unresolvedSamples = [];
   const unresolvedReasonCounts = Object.create(null);
+  const unresolvedFailureCauseCounts = Object.create(null);
+  const unresolvedDispositionCounts = Object.create(null);
+  const unresolvedResolverStageCounts = Object.create(null);
+  const unresolvedActionableHotspotCounts = Object.create(null);
+  const unresolvedActionableLanguageCounts = Object.create(null);
   const unresolvedBudgetExhaustedByType = Object.create(null);
 
   const warningList = unresolvedSamples;
@@ -1021,8 +1045,17 @@ export function resolveImportLinks({
         }
         if (isActionableDisposition(unresolvedDisposition)) {
           unresolvedActionable += 1;
+          bumpCount(unresolvedActionableHotspotCounts, relNormalized, 1);
+          bumpCount(
+            unresolvedActionableLanguageCounts,
+            resolveLanguageLabelFromImporter(relNormalized),
+            1
+          );
         }
         bumpCount(unresolvedReasonCounts, unresolvedReasonCode);
+        bumpCount(unresolvedFailureCauseCounts, unresolvedFailureCause);
+        bumpCount(unresolvedDispositionCounts, unresolvedDisposition);
+        bumpCount(unresolvedResolverStageCounts, unresolvedResolverStage);
         if (specCacheKeyUsed && resolutionCache.has(specCacheKeyUsed)) {
           const cachedEntry = resolutionCache.get(specCacheKeyUsed);
           if (cachedEntry && typeof cachedEntry === 'object') {
@@ -1136,6 +1169,11 @@ export function resolveImportLinks({
       unresolvedActionable: unresolvedActionable,
       unresolvedSuppressed: suppressedWarnings,
       unresolvedByReasonCode: toSortedCountObject(unresolvedReasonCounts),
+      unresolvedByFailureCause: toSortedCountObject(unresolvedFailureCauseCounts),
+      unresolvedByDisposition: toSortedCountObject(unresolvedDispositionCounts),
+      unresolvedByResolverStage: toSortedCountObject(unresolvedResolverStageCounts),
+      unresolvedActionableHotspots: toSortedHotspotEntries(unresolvedActionableHotspotCounts),
+      unresolvedActionableByLanguage: toSortedCountObject(unresolvedActionableLanguageCounts),
       unresolvedBudgetExhausted,
       unresolvedBudgetExhaustedByType: toSortedCountObject(unresolvedBudgetExhaustedByType),
       truncatedEdges,
@@ -1164,6 +1202,11 @@ export function resolveImportLinks({
       unresolvedActionable: unresolvedActionable,
       unresolvedSuppressed: suppressedWarnings,
       unresolvedByReasonCode: toSortedCountObject(unresolvedReasonCounts),
+      unresolvedByFailureCause: toSortedCountObject(unresolvedFailureCauseCounts),
+      unresolvedByDisposition: toSortedCountObject(unresolvedDispositionCounts),
+      unresolvedByResolverStage: toSortedCountObject(unresolvedResolverStageCounts),
+      unresolvedActionableHotspots: toSortedHotspotEntries(unresolvedActionableHotspotCounts),
+      unresolvedActionableByLanguage: toSortedCountObject(unresolvedActionableLanguageCounts),
       unresolvedBudgetExhausted,
       unresolvedBudgetExhaustedByType: toSortedCountObject(unresolvedBudgetExhaustedByType),
       truncatedEdges,

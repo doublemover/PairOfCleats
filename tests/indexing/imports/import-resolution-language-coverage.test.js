@@ -446,14 +446,14 @@ assert.deepEqual(
 assert.equal(Number.isFinite(Number(taxonomy.actionableRate)), true, 'expected actionable rate in taxonomy');
 assert.equal(taxonomy.actionableUnresolvedRate, taxonomy.actionableRate, 'expected actionable rate alias');
 assert.equal(taxonomy.parserArtifactRate, 1 / 12, 'expected parser artifact rate in taxonomy');
-assert.equal(taxonomy.resolverGapRate, 5 / 12, 'expected resolver-gap rate in taxonomy');
+assert.equal(taxonomy.resolverGapRate, 4 / 12, 'expected resolver-gap rate in taxonomy');
 assert.deepEqual(Object.fromEntries(Object.entries(taxonomy.failureCauses)), {
   generated_expected_missing: 3,
   missing_dependency: 1,
   missing_file: 1,
   parser_artifact: 1,
-  resolver_gap: 5,
-  unknown: 1
+  resolver_gap: 4,
+  unknown: 2
 });
 
 const parseErrorCategory = classifyUnresolvedImportSample({

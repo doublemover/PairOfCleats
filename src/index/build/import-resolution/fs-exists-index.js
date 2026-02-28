@@ -19,6 +19,7 @@ const DEFAULT_IGNORE_DIRS = new Set([
   'out',
   'coverage'
 ]);
+const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
 const normalizePositiveInt = (value, fallback, { min = 1, max = Number.MAX_SAFE_INTEGER } = {}) => {
   const numeric = Number(value);
@@ -129,6 +130,56 @@ const shouldIgnoreDirectory = (entryName, fullPath, rootAbs, ignoreDirs) => {
   return ignoreDirs.has(topLevel);
 };
 
+const isRelPathInIgnoredDirectory = (relPath, ignoreDirs) => {
+  const normalized = normalizeRelPath(relPath);
+  if (!normalized) return false;
+  const segments = normalized.split('/').filter(Boolean);
+  if (!segments.length) return false;
+  const topLevel = segments[0];
+  if (ignoreDirs.has(topLevel)) return true;
+  return segments.some((segment) => ignoreDirs.has(segment));
+};
+
+const resolveNormalizedFsExistsIndexConfig = (resolverPlugins) => {
+  const config = normalizeFsExistsIndexConfig(resolverPlugins);
+  const enabled = config.enabled !== false;
+  const maxScanFiles = normalizePositiveInt(
+    config.maxScanFiles,
+    DEFAULT_MAX_SCAN_FILES,
+    { min: 1, max: MAX_MAX_SCAN_FILES }
+  );
+  const dirConcurrency = normalizePositiveInt(
+    config.dirConcurrency,
+    DEFAULT_SCAN_DIR_CONCURRENCY,
+    { min: 1, max: MAX_SCAN_DIR_CONCURRENCY }
+  );
+  const ignoreDirs = new Set([
+    ...DEFAULT_IGNORE_DIRS,
+    ...(Array.isArray(config.ignoreDirs)
+      ? config.ignoreDirs
+        .filter((entry) => typeof entry === 'string' && entry.trim())
+        .map((entry) => entry.trim())
+      : [])
+  ]);
+  return {
+    enabled,
+    maxScanFiles,
+    dirConcurrency,
+    ignoreDirs
+  };
+};
+
+export const resolveFsExistsIndexCacheFingerprint = (resolverPlugins = null) => {
+  const normalized = resolveNormalizedFsExistsIndexConfig(resolverPlugins);
+  if (!normalized.enabled) return 'disabled';
+  return JSON.stringify({
+    enabled: true,
+    maxScanFiles: normalized.maxScanFiles,
+    dirConcurrency: normalized.dirConcurrency,
+    ignoreDirs: Array.from(normalized.ignoreDirs.values()).sort(sortStrings)
+  });
+};
+
 /**
  * Build a repo-local filesystem existence accelerator for import resolution.
  *
@@ -161,8 +212,8 @@ export const createFsExistsIndex = async ({
 } = {}) => {
   if (!root) return null;
   const rootAbs = path.resolve(root);
-  const config = normalizeFsExistsIndexConfig(resolverPlugins);
-  if (config.enabled === false) {
+  const normalizedConfig = resolveNormalizedFsExistsIndexConfig(resolverPlugins);
+  if (!normalizedConfig.enabled) {
     return {
       enabled: false,
       complete: false,
@@ -173,24 +224,9 @@ export const createFsExistsIndex = async ({
       lookup: () => 'unknown'
     };
   }
-  const maxScanFiles = normalizePositiveInt(
-    config.maxScanFiles,
-    DEFAULT_MAX_SCAN_FILES,
-    { min: 1, max: MAX_MAX_SCAN_FILES }
-  );
-  const dirConcurrency = normalizePositiveInt(
-    config.dirConcurrency,
-    DEFAULT_SCAN_DIR_CONCURRENCY,
-    { min: 1, max: MAX_SCAN_DIR_CONCURRENCY }
-  );
-  const ignoreDirs = new Set([
-    ...DEFAULT_IGNORE_DIRS,
-    ...(Array.isArray(config.ignoreDirs)
-      ? config.ignoreDirs
-        .filter((entry) => typeof entry === 'string' && entry.trim())
-        .map((entry) => entry.trim())
-      : [])
-  ]);
+  const maxScanFiles = normalizedConfig.maxScanFiles;
+  const dirConcurrency = normalizedConfig.dirConcurrency;
+  const ignoreDirs = normalizedConfig.ignoreDirs;
 
   const relPaths = new Set();
   for (const entry of Array.isArray(entries) ? entries : []) {
@@ -202,37 +238,49 @@ export const createFsExistsIndex = async ({
   const pendingDirs = [rootAbs];
   let scannedFiles = 0;
   let truncated = false;
+  let hadReadErrors = false;
+  let activeWorkers = 0;
 
   const workers = Array.from(
-    { length: Math.max(1, Math.min(dirConcurrency, pendingDirs.length || dirConcurrency)) },
+    { length: Math.max(1, dirConcurrency) },
     async () => {
       for (;;) {
         if (truncated) return;
         const current = pendingDirs.pop();
-        if (!current) return;
+        if (!current) {
+          if (activeWorkers === 0) return;
+          await new Promise((resolve) => setTimeout(resolve, 1));
+          continue;
+        }
+        activeWorkers += 1;
         let entriesInDir;
         try {
           entriesInDir = await fsPromises.readdir(current, { withFileTypes: true });
         } catch {
-          continue;
+          hadReadErrors = true;
+          entriesInDir = null;
         }
-        for (const entry of entriesInDir) {
-          if (truncated) break;
-          const fullPath = path.join(current, entry.name);
-          if (entry.isDirectory()) {
-            if (shouldIgnoreDirectory(entry.name, fullPath, rootAbs, ignoreDirs)) continue;
-            pendingDirs.push(fullPath);
-            continue;
+        try {
+          for (const entry of entriesInDir || []) {
+            if (truncated) break;
+            const fullPath = path.join(current, entry.name);
+            if (entry.isDirectory()) {
+              if (shouldIgnoreDirectory(entry.name, fullPath, rootAbs, ignoreDirs)) continue;
+              pendingDirs.push(fullPath);
+              continue;
+            }
+            if (!entry.isFile()) continue;
+            const rel = normalizeRelPath(path.relative(rootAbs, fullPath));
+            if (!rel) continue;
+            relPaths.add(rel);
+            scannedFiles += 1;
+            if (scannedFiles >= maxScanFiles) {
+              truncated = true;
+              break;
+            }
           }
-          if (!entry.isFile()) continue;
-          const rel = normalizeRelPath(path.relative(rootAbs, fullPath));
-          if (!rel) continue;
-          relPaths.add(rel);
-          scannedFiles += 1;
-          if (scannedFiles >= maxScanFiles) {
-            truncated = true;
-            break;
-          }
+        } finally {
+          activeWorkers = Math.max(0, activeWorkers - 1);
         }
       }
     }
@@ -245,7 +293,7 @@ export const createFsExistsIndex = async ({
     bloom.add(rel);
     addExactEntry(exactByHash, rel);
   }
-  const complete = truncated !== true;
+  const complete = truncated !== true && hadReadErrors !== true;
 
   return {
     enabled: true,
@@ -257,6 +305,7 @@ export const createFsExistsIndex = async ({
     lookup: (relPath) => {
       const normalized = normalizeRelPath(relPath);
       if (!normalized) return 'unknown';
+      if (isRelPathInIgnoredDirectory(normalized, ignoreDirs)) return 'unknown';
       if (!bloom.mightContain(normalized)) return complete ? 'absent' : 'unknown';
       if (hasExactEntry(exactByHash, normalized)) return 'present';
       return complete ? 'absent' : 'unknown';

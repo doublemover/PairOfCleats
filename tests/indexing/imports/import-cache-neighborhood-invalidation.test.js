@@ -224,4 +224,50 @@ const runResolution = ({
   assert.equal(second.cacheStats.staleEdgeBudgetExhausted, true, 'expected stale-edge cap exhaustion telemetry');
 }
 
+{
+  const cache = {};
+  const pyRoot = path.join(tempRoot, 'python', 'service');
+  await fs.mkdir(path.join(pyRoot, 'proto'), { recursive: true });
+  await fs.writeFile(path.join(pyRoot, 'main.py'), 'from .proto import client_pb2\n');
+  fileHashes.set('python/service/main.py', 'hash-python-main');
+  const importsByFile = {
+    'python/service/main.py': ['./proto/client_pb2.py']
+  };
+  const firstRelations = new Map([
+    ['python/service/main.py', { imports: ['./proto/client_pb2.py'] }]
+  ]);
+  const first = runResolution({
+    cache,
+    entries: [
+      { abs: path.join(pyRoot, 'main.py'), rel: 'python/service/main.py' }
+    ],
+    importsByFile,
+    fileRelations: firstRelations
+  });
+  assert.equal(first.result?.unresolvedSamples?.[0]?.reasonCode, 'IMP_U_MISSING_FILE_RELATIVE');
+
+  await fs.writeFile(path.join(pyRoot, 'proto', 'client.proto'), 'syntax = "proto3";\n');
+  const secondRelations = new Map([
+    ['python/service/main.py', { imports: ['./proto/client_pb2.py'] }]
+  ]);
+  const second = runResolution({
+    cache,
+    entries: [
+      { abs: path.join(pyRoot, 'main.py'), rel: 'python/service/main.py' },
+      { abs: path.join(pyRoot, 'proto', 'client.proto'), rel: 'python/service/proto/client.proto' }
+    ],
+    importsByFile,
+    fileRelations: secondRelations
+  });
+  assert.equal(
+    second.result?.unresolvedSamples?.[0]?.reasonCode,
+    'IMP_U_GENERATED_EXPECTED_MISSING',
+    'expected unresolved reason to reclassify after generated counterpart source appears'
+  );
+  assert.ok(
+    (second.cacheStats.staleEdgeInvalidated || 0) >= 1,
+    'expected generated counterpart stale-edge invalidation'
+  );
+}
+
 console.log('import cache neighborhood invalidation test passed');

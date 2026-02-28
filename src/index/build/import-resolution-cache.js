@@ -12,7 +12,7 @@ import {
 
 const CACHE_VERSION = 6;
 const CACHE_FILE = 'import-resolution-cache.json';
-const CACHE_DIAGNOSTICS_VERSION = 5;
+const CACHE_DIAGNOSTICS_VERSION = 6;
 const DEFAULT_MAX_STALE_EDGE_CHECKS = 20000;
 const IMPORT_SPEC_CANDIDATE_EXTENSIONS = Object.freeze([
   '.js',
@@ -25,6 +25,17 @@ const IMPORT_SPEC_CANDIDATE_EXTENSIONS = Object.freeze([
   '.node',
   '.d.ts'
 ]);
+const GENERATED_DIR_SEGMENT_RX = /\/(?:__generated__|generated|gen)\//i;
+const OPENAPI_SOURCE_SUFFIXES = Object.freeze([
+  '.openapi.yaml',
+  '.openapi.yml',
+  '.openapi.json',
+  '.swagger.yaml',
+  '.swagger.yml',
+  '.swagger.json'
+]);
+const OPENAPI_SOURCE_DIRECT_EXTENSIONS = Object.freeze(['.yaml', '.yml', '.json']);
+const OPENAPI_BASENAME_HINTS = new Set(['openapi', 'swagger']);
 
 const isObject = (value) => (
   value && typeof value === 'object' && !Array.isArray(value)
@@ -233,6 +244,7 @@ const normalizeDiagnostics = (
   const unknownDeltaFailureCauses = [];
   const unknownDeltaDispositions = [];
   const unknownDeltaResolverStages = [];
+  const unknownDeltaActionableLanguages = [];
   const unresolvedTrend = {
     previous: normalizeUnresolvedSnapshot(unresolvedTrendRaw.previous, {
       cachePath,
@@ -264,6 +276,10 @@ const normalizeDiagnostics = (
       allowNegative: true,
       allowedKeys: KNOWN_RESOLVER_STAGES,
       unknownKeysOut: unknownDeltaResolverStages
+    }),
+    deltaByActionableLanguage: normalizeCategoryCounts(unresolvedTrendRaw.deltaByActionableLanguage, {
+      allowNegative: true,
+      unknownKeysOut: unknownDeltaActionableLanguages
     }),
     deltaResolverBudgetExhausted: Number.isFinite(Number(unresolvedTrendRaw.deltaResolverBudgetExhausted))
       ? Math.trunc(Number(unresolvedTrendRaw.deltaResolverBudgetExhausted))
@@ -297,6 +313,12 @@ const normalizeDiagnostics = (
   throwIfUnknownCategoryKeys({
     unknownKeys: unknownDeltaResolverStages,
     fieldName: 'delta resolverStage',
+    cachePath,
+    cacheVersion
+  });
+  throwIfUnknownCategoryKeys({
+    unknownKeys: unknownDeltaActionableLanguages,
+    fieldName: 'delta actionableLanguage',
     cachePath,
     cacheVersion
   });
@@ -363,6 +385,97 @@ const normalizeRelPath = (value) => {
   const compact = path.posix.normalize(trimmed);
   if (!compact || compact === '.' || compact.startsWith('../') || compact === '..') return null;
   return compact;
+};
+
+const looksLikeOpenApiBase = (baseRel) => {
+  const normalized = normalizeRelPath(baseRel);
+  if (!normalized) return false;
+  const base = path.posix.basename(normalized).toLowerCase();
+  return OPENAPI_BASENAME_HINTS.has(base) || base.endsWith('.openapi') || base.endsWith('.swagger');
+};
+
+const resolveGeneratedCounterpartCandidatesForPath = (candidatePath) => {
+  const normalized = normalizeRelPath(candidatePath);
+  if (!normalized) return [];
+  const counterpartCandidates = new Set();
+  const addCandidate = (value) => {
+    const rel = normalizeRelPath(value);
+    if (rel) counterpartCandidates.add(rel);
+  };
+
+  const pb2Base = normalized.replace(/_pb2(?:_grpc)?\.(?:py|pyi)$/i, '');
+  if (pb2Base !== normalized) {
+    addCandidate(`${pb2Base}.proto`);
+  }
+
+  const grpcPbBase = normalized.replace(/\.grpc\.pb(?:\.[^/]+)+$/i, '');
+  if (grpcPbBase !== normalized) {
+    addCandidate(`${grpcPbBase}.proto`);
+  }
+
+  const pbBase = normalized.replace(/\.pb(?:\.[^/]+)+$/i, '');
+  if (pbBase !== normalized) {
+    addCandidate(`${pbBase}.proto`);
+  }
+
+  const dartBase = normalized.replace(/\.g\.dart$/i, '');
+  if (dartBase !== normalized) {
+    addCandidate(`${dartBase}.dart`);
+  }
+
+  const generatedGraph = normalized.replace(/\.generated(?=\.[^./]+(?:\.[^./]+)?$)/i, '');
+  if (generatedGraph !== normalized) {
+    const graphStem = generatedGraph.replace(/\.[^./]+(?:\.[^./]+)?$/i, '');
+    if (graphStem) {
+      addCandidate(`${graphStem}.graphql`);
+      addCandidate(`${graphStem}.gql`);
+    }
+  }
+
+  if (GENERATED_DIR_SEGMENT_RX.test(normalized.toLowerCase())) {
+    const collapsed = normalized.replace(/\/(?:__generated__|generated|gen)\//i, '/');
+    addCandidate(collapsed);
+    if (collapsed !== normalized) {
+      for (const nested of resolveGeneratedCounterpartCandidatesForPath(collapsed)) {
+        addCandidate(nested);
+      }
+    }
+  }
+
+  const candidateExt = path.posix.extname(normalized);
+  const candidateBase = candidateExt
+    ? normalized.slice(0, -candidateExt.length)
+    : normalized;
+  const openApiBases = new Set([candidateBase]);
+  openApiBases.add(candidateBase.replace(/(?:[-_.](?:generated|gen))$/i, ''));
+  openApiBases.add(candidateBase.replace(/(?:[-_.](?:client|types?|schemas?|api))$/i, ''));
+  openApiBases.add(
+    candidateBase
+      .replace(/(?:[-_.](?:generated|gen))$/i, '')
+      .replace(/(?:[-_.](?:client|types?|schemas?|api))$/i, '')
+  );
+  for (const openApiBase of openApiBases.values()) {
+    const normalizedBase = normalizeRelPath(openApiBase);
+    if (!normalizedBase) continue;
+    for (const suffix of OPENAPI_SOURCE_SUFFIXES) {
+      addCandidate(`${normalizedBase}${suffix}`);
+    }
+    if (looksLikeOpenApiBase(normalizedBase)) {
+      for (const extension of OPENAPI_SOURCE_DIRECT_EXTENSIONS) {
+        addCandidate(`${normalizedBase}${extension}`);
+      }
+    }
+  }
+  const dir = path.posix.dirname(normalized);
+  if (dir && dir !== '.') {
+    for (const basenameHint of OPENAPI_BASENAME_HINTS.values()) {
+      for (const extension of OPENAPI_SOURCE_DIRECT_EXTENSIONS) {
+        addCandidate(path.posix.join(dir, `${basenameHint}${extension}`));
+      }
+    }
+  }
+
+  return Array.from(counterpartCandidates.values());
 };
 
 const collectCurrentFileSetFromEntries = (entries) => {
@@ -442,6 +555,16 @@ const resolveRelativeImportCandidates = (importer, specifier) => {
     for (const ext of IMPORT_SPEC_CANDIDATE_EXTENSIONS) {
       candidates.add(`${base}${ext}`);
       candidates.add(path.posix.join(base, `index${ext}`));
+    }
+  }
+  return Array.from(candidates.values());
+};
+
+const resolveRelativeImportAndGeneratedCounterparts = (importer, specifier) => {
+  const candidates = new Set(resolveRelativeImportCandidates(importer, specifier));
+  for (const candidate of Array.from(candidates.values())) {
+    for (const counterpart of resolveGeneratedCounterpartCandidatesForPath(candidate)) {
+      candidates.add(counterpart);
     }
   }
   return Array.from(candidates.values());
@@ -740,7 +863,7 @@ export const applyImportResolutionCacheFileSetDiffInvalidation = ({
             break;
           }
           staleEdgeChecks += 1;
-          const candidates = resolveRelativeImportCandidates(importer, unresolvedSpec);
+          const candidates = resolveRelativeImportAndGeneratedCounterparts(importer, unresolvedSpec);
           if (!candidates.some((candidate) => addedFiles.has(candidate))) continue;
           stale = true;
           break;

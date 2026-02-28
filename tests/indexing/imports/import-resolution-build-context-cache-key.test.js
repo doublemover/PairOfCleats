@@ -84,6 +84,23 @@ const second = await runWithPlugins(generatedPluginConfig);
 assert.equal((second?.cacheStats?.filesReused || 0) > 0, true, 'expected cache reuse with unchanged build-context config');
 assert.equal(second?.unresolvedSamples?.[0]?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
 
+const fsExistsTuned = await runWithPlugins({
+  ...generatedPluginConfig,
+  fsExistsIndex: {
+    dirConcurrency: 1
+  }
+});
+assert.equal(
+  fsExistsTuned?.cacheStats?.filesReused || 0,
+  0,
+  'expected cache invalidation when fs-exists-index resolver config changes'
+);
+assert.equal(
+  fsExistsTuned?.logLines?.some((line) => line.includes('cache invalidated: cache key changed')) || false,
+  true,
+  'expected cache-key invalidation log when fs-exists-index resolver config changes'
+);
+
 const staleScopeReuse = await runWithPlugins(generatedPluginConfig, {
   mutateCache: (cache) => {
     if (!cache?.files?.['src/main.ts']) return;

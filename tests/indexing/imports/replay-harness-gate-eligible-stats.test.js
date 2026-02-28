@@ -9,9 +9,14 @@ const aggregated = aggregateImportResolutionGraphPayloads([
       generatedAt: new Date().toISOString(),
       stats: {
         unresolved: 100,
+        unresolvedObserved: 120,
         unresolvedActionable: 40,
         unresolvedGateEligible: 4,
-        unresolvedActionableGateEligible: 1
+        unresolvedActionableGateEligible: 1,
+        unresolvedByFailureCause: {
+          parser_artifact: 90,
+          resolver_gap: 30
+        }
       },
       warnings: []
     }
@@ -21,8 +26,11 @@ const aggregated = aggregateImportResolutionGraphPayloads([
 assert.equal(aggregated.totals.reportCount, 1, 'expected one replay report');
 assert.equal(aggregated.totals.unresolved, 4, 'expected gate-eligible unresolved stats precedence');
 assert.equal(aggregated.totals.actionable, 1, 'expected gate-eligible actionable stats precedence');
+assert.equal(aggregated.totals.observedUnresolved, 120, 'expected observed unresolved totals to honor unresolvedObserved');
 assert.equal(aggregated.totals.gateEligibleUnresolved, 4, 'expected gate-eligible unresolved totals');
 assert.equal(aggregated.totals.gateEligibleActionable, 1, 'expected gate-eligible actionable totals');
+assert.equal(aggregated.totals.parserArtifact, 0, 'expected parser artifact totals to stay gate-domain aligned');
+assert.equal(aggregated.totals.resolverGap, 0, 'expected resolver gap totals to stay gate-domain aligned');
 assert.deepEqual(
   aggregated.actionableByRepo,
   { 'repo-gamma': 1 },

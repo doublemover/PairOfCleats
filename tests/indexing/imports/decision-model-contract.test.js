@@ -23,6 +23,16 @@ assert.equal(fallbackDecision.reasonCode, IMPORT_REASON_CODES.UNKNOWN);
 assert.equal(fallbackDecision.failureCause, 'unknown');
 assert.equal(fallbackDecision.disposition, 'actionable');
 
+for (const reasonCode of Object.values(IMPORT_REASON_CODES)) {
+  const decision = createUnresolvedDecision(reasonCode);
+  const validation = validateResolutionDecision(decision);
+  assert.equal(
+    validation.ok,
+    true,
+    `expected reason code ${reasonCode} to create a valid unresolved decision`
+  );
+}
+
 const generatedDecision = createUnresolvedDecision(IMPORT_REASON_CODES.GENERATED_EXPECTED_MISSING);
 assert.equal(generatedDecision.failureCause, 'generated_expected_missing');
 assert.equal(generatedDecision.disposition, 'suppress_gate');
