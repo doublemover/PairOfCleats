@@ -4,8 +4,7 @@ import {
   createCollectorImportEntryStore,
   createCommentAwareLineStripper,
   finalizeCollectorImportEntries,
-  lineHasAny,
-  shouldScanLine
+  lineHasAny
 } from './utils.js';
 
 const resolveStarlarkCollectorHint = (specifier) => {
@@ -23,7 +22,8 @@ const resolveStarlarkCollectorHint = (specifier) => {
 
 export const collectStarlarkImportEntries = (text) => {
   const imports = createCollectorImportEntryStore();
-  const lines = String(text || '').split('\n');
+  const source = String(text || '');
+  const lines = source.split('\n');
   const stripComments = createCommentAwareLineStripper({
     markers: ['#']
   });
@@ -33,33 +33,41 @@ export const collectStarlarkImportEntries = (text) => {
     'use_extension',
     'local_path_override'
   ]);
-  for (const rawLine of lines) {
-    if (!shouldScanLine(rawLine, precheck)) continue;
-    const line = stripComments(rawLine);
-    if (!line.trim()) continue;
-    if (line.trim().startsWith('#')) continue;
-    const loadMatch = line.match(/^\s*load\s*(?:\(\s*)?['"]([^'"]+)['"]/);
-    if (loadMatch?.[1]) {
-      const specifier = loadMatch[1];
-      addCollectorImportEntry(imports, specifier, {
-        collectorHint: resolveStarlarkCollectorHint(specifier)
-      });
-    }
-    const moduleDep = line.match(/\bbazel_dep\s*\([^)]*\bname\s*=\s*['"]([^'"]+)['"]/);
-    if (moduleDep?.[1]) {
-      const specifier = `@${moduleDep[1]}`;
-      addCollectorImportEntry(imports, specifier, {
-        collectorHint: resolveStarlarkCollectorHint(specifier)
-      });
-    }
-    const useExtension = line.match(/\buse_extension\s*\(\s*['"]([^'"]+)['"]/);
-    if (useExtension?.[1]) {
-      const specifier = useExtension[1];
-      addCollectorImportEntry(imports, specifier, {
-        collectorHint: resolveStarlarkCollectorHint(specifier)
-      });
-    }
-    const pathOverride = line.match(/\blocal_path_override\s*\([^)]*\bpath\s*=\s*['"]([^'"]+)['"]/);
+  if (!precheck(source)) return [];
+  const strippedSource = lines.map((line) => stripComments(line)).join('\n');
+
+  const loadMatches = strippedSource.matchAll(/\bload\s*(?:\(\s*)?['"]([^'"]+)['"]/g);
+  for (const loadMatch of loadMatches) {
+    if (!loadMatch?.[1]) continue;
+    const specifier = loadMatch[1];
+    addCollectorImportEntry(imports, specifier, {
+      collectorHint: resolveStarlarkCollectorHint(specifier)
+    });
+  }
+
+  const bazelDepCalls = strippedSource.matchAll(/\bbazel_dep\s*\(([\s\S]*?)\)/g);
+  for (const bazelDepCall of bazelDepCalls) {
+    const moduleDep = String(bazelDepCall?.[1] || '').match(/\bname\s*=\s*['"]([^'"]+)['"]/);
+    if (!moduleDep?.[1]) continue;
+    const specifier = `@${moduleDep[1]}`;
+    addCollectorImportEntry(imports, specifier, {
+      collectorHint: resolveStarlarkCollectorHint(specifier)
+    });
+  }
+
+  const useExtensionCalls = strippedSource.matchAll(/\buse_extension\s*\(([\s\S]*?)\)/g);
+  for (const useExtensionCall of useExtensionCalls) {
+    const useExtension = String(useExtensionCall?.[1] || '').match(/^\s*['"]([^'"]+)['"]/);
+    if (!useExtension?.[1]) continue;
+    const specifier = useExtension[1];
+    addCollectorImportEntry(imports, specifier, {
+      collectorHint: resolveStarlarkCollectorHint(specifier)
+    });
+  }
+
+  const pathOverrideCalls = strippedSource.matchAll(/\blocal_path_override\s*\(([\s\S]*?)\)/g);
+  for (const pathOverrideCall of pathOverrideCalls) {
+    const pathOverride = String(pathOverrideCall?.[1] || '').match(/\bpath\s*=\s*['"]([^'"]+)['"]/);
     if (pathOverride?.[1]) addCollectorImportEntry(imports, pathOverride[1]);
   }
   return finalizeCollectorImportEntries(imports);

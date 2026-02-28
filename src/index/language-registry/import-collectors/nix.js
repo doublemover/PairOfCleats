@@ -5,8 +5,7 @@ import {
   createCollectorImportEntryStore,
   createCommentAwareLineStripper,
   finalizeCollectorImportEntries,
-  lineHasAny,
-  shouldScanLine
+  lineHasAny
 } from './utils.js';
 
 const NIX_IMPORT_CALL_RX = /\b(?:import|callPackage)\s+("([^"\\]|\\.)+"|'([^'\\]|\\.)+'|[^\s;(){}\]]+)/g;
@@ -32,7 +31,8 @@ const resolveNixCollectorHint = (specifier, { source = null } = {}) => {
 
 export const collectNixImportEntries = (text) => {
   const imports = createCollectorImportEntryStore();
-  const lines = String(text || '').split('\n');
+  const source = String(text || '');
+  const lines = source.split('\n');
   const stripComments = createCommentAwareLineStripper({
     markers: ['#']
   });
@@ -44,38 +44,43 @@ export const collectNixImportEntries = (text) => {
     'getFlake',
     '.nix'
   ]);
+  if (!precheck(source)) return [];
   const addImport = (value) => {
     const cleaned = normalizeImportToken(value);
     addCollectorImportEntry(imports, cleaned);
   };
-  for (const rawLine of lines) {
-    if (!shouldScanLine(rawLine, precheck)) continue;
-    const line = stripComments(rawLine);
-    if (!line.trim()) continue;
-    const importMatches = line.matchAll(NIX_IMPORT_CALL_RX);
-    for (const match of importMatches) {
-      if (match?.[1]) addImport(match[1]);
-    }
-    const getFlakeMatch = line.match(/\bbuiltins\.getFlake\s+([^\s;]+)/);
-    if (getFlakeMatch?.[1]) {
-      const cleaned = normalizeImportToken(getFlakeMatch[1]);
-      addCollectorImportEntry(imports, cleaned, {
-        collectorHint: resolveNixCollectorHint(cleaned, { source: 'getFlake' })
-      });
-    }
-    const flakeInputMatch = line.match(/\binputs\.[A-Za-z_][A-Za-z0-9_-]*\.(?:url|path|follows)\s*=\s*([^\s;]+)/);
-    if (flakeInputMatch?.[1]) {
-      const cleaned = normalizeImportToken(flakeInputMatch[1]);
-      addCollectorImportEntry(imports, cleaned, {
-        collectorHint: resolveNixCollectorHint(cleaned, { source: 'flakeInput' })
-      });
-    }
-    const importsArrayMatch = line.match(/\bimports\s*=\s*\[([^\]]+)\]/);
-    if (importsArrayMatch?.[1]) {
-      const pathMatches = importsArrayMatch[1].matchAll(NIX_IMPORTS_BLOCK_REL_PATH_RX);
-      for (const pathMatch of pathMatches) {
-        if (pathMatch?.[1]) addCollectorImportEntry(imports, pathMatch[1]);
-      }
+  const strippedSource = lines.map((line) => stripComments(line)).join('\n');
+  const importMatches = strippedSource.matchAll(NIX_IMPORT_CALL_RX);
+  for (const match of importMatches) {
+    if (match?.[1]) addImport(match[1]);
+  }
+
+  const getFlakeMatches = strippedSource.matchAll(/\bbuiltins\.getFlake\s+([^\s;]+)/g);
+  for (const getFlakeMatch of getFlakeMatches) {
+    if (!getFlakeMatch?.[1]) continue;
+    const cleaned = normalizeImportToken(getFlakeMatch[1]);
+    addCollectorImportEntry(imports, cleaned, {
+      collectorHint: resolveNixCollectorHint(cleaned, { source: 'getFlake' })
+    });
+  }
+
+  const flakeInputMatches = strippedSource.matchAll(
+    /\binputs\.[A-Za-z_][A-Za-z0-9_-]*\.(?:url|path|follows)\s*=\s*([^\s;]+)/g
+  );
+  for (const flakeInputMatch of flakeInputMatches) {
+    if (!flakeInputMatch?.[1]) continue;
+    const cleaned = normalizeImportToken(flakeInputMatch[1]);
+    addCollectorImportEntry(imports, cleaned, {
+      collectorHint: resolveNixCollectorHint(cleaned, { source: 'flakeInput' })
+    });
+  }
+
+  const importsArrayMatches = strippedSource.matchAll(/\bimports\s*=\s*\[([\s\S]*?)\]/g);
+  for (const importsArrayMatch of importsArrayMatches) {
+    if (!importsArrayMatch?.[1]) continue;
+    const pathMatches = importsArrayMatch[1].matchAll(NIX_IMPORTS_BLOCK_REL_PATH_RX);
+    for (const pathMatch of pathMatches) {
+      if (pathMatch?.[1]) addCollectorImportEntry(imports, pathMatch[1]);
     }
   }
   return finalizeCollectorImportEntries(imports);

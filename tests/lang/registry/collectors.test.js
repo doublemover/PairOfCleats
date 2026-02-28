@@ -224,6 +224,21 @@ const cases = [
     expected: ['//path:target']
   },
   {
+    label: 'starlark-multiline-calls',
+    fn: collectStarlarkImports,
+    text: [
+      'bazel_dep(',
+      '  name = "rules_go",',
+      '  version = "0.48.0",',
+      ')',
+      'use_extension(',
+      '  "//tools:deps.bzl",',
+      '  "deps"',
+      ')'
+    ].join('\n'),
+    expected: ['@rules_go', '//tools:deps.bzl']
+  },
+  {
     label: 'nix',
     fn: collectNixImports,
     text: [
@@ -243,6 +258,17 @@ const cases = [
       'github:NixOS/nixpkgs/nixos-24.11',
       '../local-override'
     ]
+  },
+  {
+    label: 'nix-multiline-imports-array',
+    fn: collectNixImports,
+    text: [
+      'imports = [',
+      '  ./hosts/default.nix',
+      '  ../shared/infra.nix',
+      '];'
+    ].join('\n'),
+    expected: ['./hosts/default.nix', '../shared/infra.nix']
   },
   {
     label: 'nix-ignores-commented-imports',
