@@ -230,12 +230,23 @@ export const normalizeTfPostingRows = (
     contextLabel = 'token_postings posting row'
   } = {}
 ) => {
-  if (!Array.isArray(posting) || posting.length <= 1) return Array.isArray(posting) ? posting : [];
+  if (!Array.isArray(posting) || posting.length === 0) return Array.isArray(posting) ? posting : [];
   const coerceValue = (value) => coerceNonNegativeInt(value, { mode });
   let previousDocId = -1;
   let alreadySortedUnique = true;
   for (const entry of posting) {
-    if (!Array.isArray(entry) || entry.length < 2) continue;
+    if (!Array.isArray(entry) || entry.length < 2) {
+      if (rejectInvalid) {
+        const error = new Error(
+          `[sqlite] ${contextLabel} cardinality invariant failed: ` +
+          `must contain non-negative integer [docId, tf] pairs; got ${JSON.stringify(entry)}`
+        );
+        error.code = SQLITE_TOKEN_CARDINALITY_ERROR_CODE;
+        throw error;
+      }
+      alreadySortedUnique = false;
+      continue;
+    }
     const docId = coerceValue(entry[0]);
     if (docId == null) {
       if (rejectInvalid) {
