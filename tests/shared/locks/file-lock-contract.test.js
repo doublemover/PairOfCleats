@@ -27,10 +27,54 @@ assert.equal(Number(ownedInfo?.pid), process.pid);
 assert.ok(await lock.release(), 'expected lock release to succeed');
 assert.equal(fs.existsSync(lockPath), false);
 
+const reservedMetadataLock = await acquireFileLock({
+  lockPath,
+  metadata: {
+    pid: 123,
+    lockId: 'spoofed-lock-id',
+    startedAt: '1970-01-01T00:00:00.000Z',
+    scope: 'metadata-preserved'
+  }
+});
+assert.ok(reservedMetadataLock, 'expected lock acquisition with metadata');
+assert.equal(Number(reservedMetadataLock.payload?.pid), process.pid, 'metadata pid must not override lock owner pid');
+assert.notEqual(
+  String(reservedMetadataLock.payload?.lockId || ''),
+  'spoofed-lock-id',
+  'metadata lockId must not override generated lock id'
+);
+assert.notEqual(
+  String(reservedMetadataLock.payload?.startedAt || ''),
+  '1970-01-01T00:00:00.000Z',
+  'metadata startedAt must not override generated startedAt'
+);
+assert.equal(reservedMetadataLock.payload?.scope, 'metadata-preserved', 'non-reserved metadata should be preserved');
+const reservedMetadataInfo = await readLockInfo(lockPath);
+assert.equal(Number(reservedMetadataInfo?.pid), process.pid, 'lockfile pid must remain process pid');
+assert.equal(reservedMetadataInfo?.scope, 'metadata-preserved', 'expected non-reserved metadata persisted to lockfile');
+await reservedMetadataLock.release();
+
 await fsPromises.writeFile(
   lockPath,
   JSON.stringify({ pid: 999999, startedAt: new Date().toISOString() }),
   'utf8'
+);
+await assert.rejects(
+  () => acquireFileLock({
+    lockPath,
+    staleMs: 24 * 60 * 60 * 1000,
+    staleRemovalImpl: async () => {
+      const error = new Error('mock stale lock removal denied');
+      error.code = 'EACCES';
+      throw error;
+    }
+  }),
+  (error) => (
+    error?.code === 'ERR_FILE_LOCK_STALE_REMOVE_FAILED'
+    && error?.causeCode === 'EACCES'
+    && String(error?.message || '').includes('stale lock cleanup failed')
+  ),
+  'expected stale lock cleanup failures to propagate with structured metadata'
 );
 const deadPidLock = await acquireFileLock({ lockPath, staleMs: 24 * 60 * 60 * 1000 });
 assert.ok(deadPidLock, 'expected dead-pid lock to be replaced');
