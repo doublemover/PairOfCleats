@@ -45,6 +45,7 @@ import {
   assertUnresolvedDecision,
   createUnresolvedDecision,
   isActionableDisposition,
+  isKnownReasonCode,
 } from './reason-codes.js';
 import { createImportResolutionStageTracker } from './stage-pipeline.js';
 import { createTsConfigLoader, resolveTsPaths } from './tsconfig-resolution.js';
@@ -179,6 +180,26 @@ const insertResolutionCache = (cache, key, value) => {
   cache.set(key, value);
 };
 
+const normalizeCollectorHint = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const reasonCode = typeof value.reasonCode === 'string' && isKnownReasonCode(value.reasonCode)
+    ? value.reasonCode.trim()
+    : '';
+  if (!reasonCode) return null;
+  const confidenceRaw = Number(value.confidence);
+  const confidence = Number.isFinite(confidenceRaw)
+    ? Math.max(0, Math.min(1, confidenceRaw))
+    : null;
+  const detail = typeof value.detail === 'string' && value.detail.trim()
+    ? value.detail.trim()
+    : null;
+  return {
+    reasonCode,
+    confidence,
+    detail
+  };
+};
+
 const bumpCount = (target, key, amount = 1) => {
   if (!target || typeof target !== 'object') return;
   if (!key) return;
@@ -227,6 +248,7 @@ export function resolveImportLinks({
   root,
   entries,
   importsByFile,
+  importHintsByFile = null,
   fileRelations,
   log,
   mode = null,
@@ -585,6 +607,9 @@ export function resolveImportLinks({
 
     const rawSpecs = Array.from(new Set(rawImports.filter((spec) => typeof spec === 'string' && spec)));
     rawSpecs.sort(sortStrings);
+    const importHintsForFile = importHintsByFile && typeof importHintsByFile === 'object'
+      ? (importHintsByFile[relNormalized] || importHintsByFile[importerRel] || null)
+      : null;
     const hasNonRelative = rawSpecs.some((rawSpec) => {
       const spec = normalizeImportSpecifier(rawSpec);
       return spec && !(spec.startsWith('.') || spec.startsWith('/'));
@@ -630,6 +655,12 @@ export function resolveImportLinks({
       let tsconfigPath = null;
       let packageName = null;
       let unresolvedReasonCodeHint = null;
+      const collectorHint = normalizeCollectorHint(
+        importHintsForFile && typeof importHintsForFile === 'object'
+          ? importHintsForFile[rawSpec]
+          : null
+      );
+      const collectorHintReasonCode = collectorHint?.reasonCode || null;
       let unresolvedBudgetExhaustedTypesHint = [];
       let cacheClass = null;
       let fallbackPath = null;
@@ -892,6 +923,10 @@ export function resolveImportLinks({
         };
       }
 
+      if (!unresolvedReasonCodeHint && collectorHintReasonCode) {
+        unresolvedReasonCodeHint = collectorHintReasonCode;
+      }
+
       if (resolvedType !== 'external' && resolvedType !== 'unresolved') {
         importLinks.add(resolvedPath);
         resolvedCount += 1;
@@ -987,7 +1022,8 @@ export function resolveImportLinks({
               resolutionState,
               failureCause: unresolvedFailureCause,
               disposition: unresolvedDisposition,
-              resolverStage: unresolvedResolverStage
+              resolverStage: unresolvedResolverStage,
+              collectorHint: collectorHint || null
             });
           } else {
             suppressedWarnings += 1;

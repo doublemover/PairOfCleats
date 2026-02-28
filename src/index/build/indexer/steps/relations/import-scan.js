@@ -314,6 +314,10 @@ export const postScanImports = async ({
   const probeConfig = resolveHangProbeConfig(hangProbeConfig);
   const importStart = Date.now();
   let importsByFile = importResult?.importsByFile;
+  const importHintsByFile = importResult?.importHintsByFile
+    && typeof importResult.importHintsByFile === 'object'
+    ? importResult.importHintsByFile
+    : null;
   if (!importsByFile || Object.keys(importsByFile).length === 0) {
     importsByFile = Object.create(null);
     for (const [file, relations] of state.fileRelations.entries()) {
@@ -426,6 +430,7 @@ export const postScanImports = async ({
         root: runtime.root,
         entries,
         importsByFile,
+        importHintsByFile,
         fileRelations: state.fileRelations,
         log,
         mode,

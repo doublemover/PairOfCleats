@@ -36,6 +36,92 @@ export const addCollectorImport = (imports, value, sanitizeOptions = undefined) 
   return true;
 };
 
+const clampUnit = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return null;
+  return Math.max(0, Math.min(1, numeric));
+};
+
+export const normalizeCollectorHint = (collectorHint) => {
+  if (!collectorHint || typeof collectorHint !== 'object' || Array.isArray(collectorHint)) return null;
+  const reasonCode = typeof collectorHint.reasonCode === 'string'
+    ? collectorHint.reasonCode.trim()
+    : '';
+  if (!reasonCode) return null;
+  const confidence = clampUnit(collectorHint.confidence);
+  const detail = typeof collectorHint.detail === 'string' && collectorHint.detail.trim()
+    ? collectorHint.detail.trim()
+    : null;
+  return {
+    reasonCode,
+    confidence,
+    detail
+  };
+};
+
+const readCollectorImportSpecifier = (value) => {
+  if (typeof value === 'string') return value;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return '';
+  if (typeof value.specifier === 'string') return value.specifier;
+  if (typeof value.import === 'string') return value.import;
+  return '';
+};
+
+export const createCollectorImportEntryStore = () => new Map();
+
+export const addCollectorImportEntry = (
+  store,
+  value,
+  { collectorHint = null, sanitizeOptions = undefined } = {}
+) => {
+  if (!(store instanceof Map)) return false;
+  const rawSpecifier = readCollectorImportSpecifier(value);
+  const specifier = sanitizeImportSpecifier(rawSpecifier, sanitizeOptions);
+  if (!specifier) return false;
+  const normalizedHint = normalizeCollectorHint(
+    collectorHint || (value && typeof value === 'object' ? value.collectorHint : null)
+  );
+  const existing = store.get(specifier);
+  if (!existing) {
+    store.set(specifier, {
+      specifier,
+      collectorHint: normalizedHint
+    });
+    return true;
+  }
+  if (!normalizedHint) return true;
+  const existingConfidence = Number(existing?.collectorHint?.confidence);
+  const nextConfidence = Number(normalizedHint?.confidence);
+  const replaceHint = (
+    !existing?.collectorHint
+    || (
+      Number.isFinite(nextConfidence)
+      && (!Number.isFinite(existingConfidence) || nextConfidence > existingConfidence)
+    )
+  );
+  if (replaceHint) existing.collectorHint = normalizedHint;
+  return true;
+};
+
+export const collectorImportEntriesToSpecifiers = (entries) => (
+  Array.isArray(entries)
+    ? entries
+      .map((entry) => sanitizeImportSpecifier(readCollectorImportSpecifier(entry)))
+      .filter(Boolean)
+    : []
+);
+
+export const finalizeCollectorImportEntries = (store) => {
+  if (!(store instanceof Map)) return [];
+  return Array.from(store.values())
+    .sort((a, b) => (a.specifier < b.specifier ? -1 : (a.specifier > b.specifier ? 1 : 0)))
+    .map((entry) => (
+      entry?.collectorHint
+        ? { specifier: entry.specifier, collectorHint: entry.collectorHint }
+        : { specifier: entry.specifier }
+    ));
+};
+
 const normalizeLineMarkers = (markers = []) => Array.from(
   new Set(
     markers

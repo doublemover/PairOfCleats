@@ -1,7 +1,10 @@
 import path from 'node:path';
 import { init as initEsModuleLexer, parse as parseEsModuleLexer } from 'es-module-lexer';
 import { init as initCjsLexer, parse as parseCjsLexer } from 'cjs-module-lexer';
-import { collectLanguageImports } from '../language-registry.js';
+import {
+  collectLanguageImportEntries,
+  collectLanguageImports
+} from '../language-registry.js';
 import { isJsLike, isTypeScript } from '../constants.js';
 import { normalizeImportSpecifiers, sanitizeImportSpecifier } from '../shared/import-specifier.js';
 import { runWithConcurrency, runWithQueue } from '../../shared/concurrency.js';
@@ -26,6 +29,23 @@ let esModuleInitPromise = null;
 let cjsInitPromise = null;
 
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
+const normalizeCollectorHint = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const reasonCode = typeof value.reasonCode === 'string' ? value.reasonCode.trim() : '';
+  if (!reasonCode) return null;
+  const confidenceRaw = Number(value.confidence);
+  const confidence = Number.isFinite(confidenceRaw)
+    ? Math.max(0, Math.min(1, confidenceRaw))
+    : null;
+  const detail = typeof value.detail === 'string' && value.detail.trim()
+    ? value.detail.trim()
+    : null;
+  return {
+    reasonCode,
+    confidence,
+    detail
+  };
+};
 
 export const UNRESOLVED_IMPORT_CATEGORIES = Object.freeze({
   FIXTURE: 'fixture',
@@ -386,7 +406,7 @@ export function sortImportScanItems(items, cachedImportCounts) {
 /**
  * Scan files for imports to build cross-link map.
  * @param {{files:Array<string|{abs:string,rel?:string,stat?:import('node:fs').Stats,ext?:string}>,root:string,mode:'code'|'prose',languageOptions:object,importConcurrency:number,queue?:object,incrementalState?:object,fileTextByFile?:Map<string,string>,readCachedImportsFn?:Function}} input
- * @returns {Promise<{importsByFile:Record<string,string[]>,durationMs:number,stats:{modules:number,edges:number,files:number,scanned:number}}>}
+ * @returns {Promise<{importsByFile:Record<string,string[]>,importHintsByFile:Record<string,Record<string,object>>,durationMs:number,stats:{modules:number,edges:number,files:number,scanned:number}}>}
  */
 export async function scanImports({
   files,
@@ -403,6 +423,7 @@ export async function scanImports({
   const effectiveAbortSignal = coerceAbortSignal(abortSignal);
   throwIfAborted(effectiveAbortSignal);
   const importsByFile = new Map();
+  const importHintsByFile = new Map();
   const moduleSet = new Set();
   const start = Date.now();
   let processed = 0;
@@ -493,6 +514,30 @@ export async function scanImports({
         edgeCount += imports.length;
         for (const mod of imports) moduleSet.add(mod);
       };
+      const recordImportEntries = (entries) => {
+        if (!Array.isArray(entries)) return false;
+        const imports = [];
+        const hints = Object.create(null);
+        for (const entry of entries) {
+          const specifier = typeof entry?.specifier === 'string' ? entry.specifier.trim() : '';
+          if (!specifier) continue;
+          imports.push(specifier);
+          const hint = normalizeCollectorHint(entry?.collectorHint);
+          if (hint) hints[specifier] = hint;
+        }
+        const normalizedImports = normalizeImports(imports);
+        recordImports(normalizedImports);
+        if (Object.keys(hints).length > 0) {
+          const filteredHints = Object.create(null);
+          for (const specifier of normalizedImports) {
+            if (hints[specifier]) filteredHints[specifier] = hints[specifier];
+          }
+          if (Object.keys(filteredHints).length > 0) {
+            importHintsByFile.set(relKey, filteredHints);
+          }
+        }
+        return normalizedImports.length > 0;
+      };
       if (hadPrefetch) {
         const cachedImports = cachedImportsByFile.get(relKey);
         cachedImportsByFile.delete(relKey);
@@ -579,9 +624,11 @@ export async function scanImports({
       }
       const fastImports = await collectModuleImportsFast({ text, ext });
       const options = languageOptions && typeof languageOptions === 'object' ? languageOptions : {};
-      const imports = normalizeImports(Array.isArray(fastImports)
-        ? fastImports
-        : collectLanguageImports({
+      if (Array.isArray(fastImports)) {
+        const imports = normalizeImports(fastImports);
+        recordImports(imports);
+      } else {
+        const importEntries = collectLanguageImportEntries({
           ext,
           relPath: relKey,
           text,
@@ -589,8 +636,19 @@ export async function scanImports({
           options,
           root,
           filePath: item.absPath
-        }));
-      recordImports(imports);
+        });
+        if (!recordImportEntries(importEntries)) {
+          recordImports(collectLanguageImports({
+            ext,
+            relPath: relKey,
+            text,
+            mode,
+            options,
+            root,
+            filePath: item.absPath
+          }));
+        }
+      }
       processed += 1;
       showProgress('Imports', processed, items.length, progressMeta);
     },
@@ -603,8 +661,14 @@ export async function scanImports({
   for (const file of fileKeys) {
     dedupedImportsByFile[file] = importsByFile.get(file) || [];
   }
+  const dedupedImportHintsByFile = Object.create(null);
+  const hintKeys = Array.from(importHintsByFile.keys()).sort(sortStrings);
+  for (const file of hintKeys) {
+    dedupedImportHintsByFile[file] = importHintsByFile.get(file) || Object.create(null);
+  }
   return {
     importsByFile: dedupedImportsByFile,
+    importHintsByFile: dedupedImportHintsByFile,
     durationMs: Date.now() - start,
     stats: {
       modules: moduleSet.size,

@@ -1,15 +1,37 @@
 import { normalizeImportToken } from '../simple-relations.js';
 import {
-  addCollectorImport,
+  addCollectorImportEntry,
+  collectorImportEntriesToSpecifiers,
+  createCollectorImportEntryStore,
   createCommentAwareLineStripper,
+  finalizeCollectorImportEntries,
   lineHasAny,
   shouldScanLine
 } from './utils.js';
 
 const NIX_IMPORT_CALL_RX = /\b(?:import|callPackage)\s+("([^"\\]|\\.)+"|'([^'\\]|\\.)+'|[^\s;(){}\]]+)/g;
+const NIX_IMPORTS_BLOCK_REL_PATH_RX = /(?:^|[\s(])(\.\.?\/[A-Za-z0-9_.\/-]+(?:\.nix)?)(?=$|[\s)])/g;
 
-export const collectNixImports = (text) => {
-  const imports = new Set();
+const resolveNixCollectorHint = (specifier, { source = null } = {}) => {
+  const token = String(specifier || '').trim();
+  if (!token) return null;
+  const isFlakeInputRef = token.startsWith('github:')
+    || token.startsWith('git+')
+    || token.startsWith('path:')
+    || token.startsWith('flake:')
+    || token.startsWith('<');
+  if (source === 'getFlake' || source === 'flakeInput' || isFlakeInputRef) {
+    return {
+      reasonCode: 'IMP_U_RESOLVER_GAP',
+      confidence: 0.86,
+      detail: source || 'nix-flake-ref'
+    };
+  }
+  return null;
+};
+
+export const collectNixImportEntries = (text) => {
+  const imports = createCollectorImportEntryStore();
   const lines = String(text || '').split('\n');
   const stripComments = createCommentAwareLineStripper({
     markers: ['#']
@@ -24,7 +46,7 @@ export const collectNixImports = (text) => {
   ]);
   const addImport = (value) => {
     const cleaned = normalizeImportToken(value);
-    addCollectorImport(imports, cleaned);
+    addCollectorImportEntry(imports, cleaned);
   };
   for (const rawLine of lines) {
     if (!shouldScanLine(rawLine, precheck)) continue;
@@ -35,11 +57,30 @@ export const collectNixImports = (text) => {
       if (match?.[1]) addImport(match[1]);
     }
     const getFlakeMatch = line.match(/\bbuiltins\.getFlake\s+([^\s;]+)/);
-    if (getFlakeMatch?.[1]) addImport(getFlakeMatch[1]);
+    if (getFlakeMatch?.[1]) {
+      const cleaned = normalizeImportToken(getFlakeMatch[1]);
+      addCollectorImportEntry(imports, cleaned, {
+        collectorHint: resolveNixCollectorHint(cleaned, { source: 'getFlake' })
+      });
+    }
     const flakeInputMatch = line.match(/\binputs\.[A-Za-z_][A-Za-z0-9_-]*\.(?:url|path|follows)\s*=\s*([^\s;]+)/);
-    if (flakeInputMatch?.[1]) addImport(flakeInputMatch[1]);
-    const pathMatches = line.match(/\.\.?\/[A-Za-z0-9_.\/-]+(?:\.nix)?\b/g);
-    for (const entry of pathMatches || []) addImport(entry);
+    if (flakeInputMatch?.[1]) {
+      const cleaned = normalizeImportToken(flakeInputMatch[1]);
+      addCollectorImportEntry(imports, cleaned, {
+        collectorHint: resolveNixCollectorHint(cleaned, { source: 'flakeInput' })
+      });
+    }
+    const importsArrayMatch = line.match(/\bimports\s*=\s*\[([^\]]+)\]/);
+    if (importsArrayMatch?.[1]) {
+      const pathMatches = importsArrayMatch[1].matchAll(NIX_IMPORTS_BLOCK_REL_PATH_RX);
+      for (const pathMatch of pathMatches) {
+        if (pathMatch?.[1]) addCollectorImportEntry(imports, pathMatch[1]);
+      }
+    }
   }
-  return Array.from(imports);
+  return finalizeCollectorImportEntries(imports);
 };
+
+export const collectNixImports = (text) => (
+  collectorImportEntriesToSpecifiers(collectNixImportEntries(text))
+);

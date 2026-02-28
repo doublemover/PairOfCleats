@@ -63,6 +63,7 @@ export const createManagedAdapter = ({
   id,
   match,
   collectImports,
+  collectImportEntries = null,
   prepare,
   buildRelations,
   extractDocMeta,
@@ -76,6 +77,9 @@ export const createManagedAdapter = ({
     match,
     collectImports: (text, options) => collectImports(text, options)
   };
+  if (typeof collectImportEntries === 'function') {
+    adapter.collectImportEntries = (text, options) => collectImportEntries(text, options);
+  }
   if (typeof prepare === 'function') adapter.prepare = prepare;
   adapter.buildRelations = buildRelations;
   adapter.extractDocMeta = extractDocMeta;

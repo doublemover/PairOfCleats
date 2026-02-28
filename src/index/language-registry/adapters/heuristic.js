@@ -26,12 +26,13 @@ import { collectJinjaImports } from '../import-collectors/jinja.js';
 import { collectJuliaImports } from '../import-collectors/julia.js';
 import { collectMakefileImports } from '../import-collectors/makefile.js';
 import { collectMustacheImports } from '../import-collectors/mustache.js';
-import { collectNixImports } from '../import-collectors/nix.js';
+import { collectNixImportEntries, collectNixImports } from '../import-collectors/nix.js';
 import { collectProtoImports } from '../import-collectors/proto.js';
 import { collectRazorImports } from '../import-collectors/razor.js';
 import { collectRImports } from '../import-collectors/r.js';
 import { collectScalaImports } from '../import-collectors/scala.js';
-import { collectStarlarkImports } from '../import-collectors/starlark.js';
+import { collectStarlarkImportEntries, collectStarlarkImports } from '../import-collectors/starlark.js';
+import { collectorImportEntriesToSpecifiers } from '../import-collectors/utils.js';
 import { flowOptions, normalizeRelPath } from './managed.js';
 
 const createExtensionMatcher = (extensions) => (ext) => extensions.has(ext);
@@ -435,19 +436,26 @@ export const createHeuristicManagedAdapter = ({
   id,
   match,
   collectImports,
+  collectImportEntries = null,
   symbolPatterns,
   usageCollector = null,
   capabilityProfile = null
 }) => {
+  const normalizeImports = (text, options) => {
+    if (typeof collectImportEntries === 'function') {
+      return collectorImportEntriesToSpecifiers(collectImportEntries(text, options));
+    }
+    return collectImports(text, options);
+  };
   const adapter = {
     id,
     match,
-    collectImports: (text, options) => collectImports(text, options),
+    collectImports: (text, options) => normalizeImports(text, options),
     prepare: async () => ({}),
     buildRelations: ({ text, options }) => buildHeuristicManagedRelations({
       text,
       options,
-      collectImports,
+      collectImports: normalizeImports,
       symbolPatterns,
       usageCollector
     }),
@@ -455,6 +463,9 @@ export const createHeuristicManagedAdapter = ({
     flow: ({ text, chunk, options }) => buildHeuristicManagedFlow(text, chunk, flowOptions(options)),
     attachName: true
   };
+  if (typeof collectImportEntries === 'function') {
+    adapter.collectImportEntries = (text, options) => collectImportEntries(text, options);
+  }
   if (capabilityProfile) adapter.capabilityProfile = capabilityProfile;
   return adapter;
 };
@@ -494,6 +505,7 @@ export const buildHeuristicAdapters = () => [
     id: 'starlark',
     match: matchByExtension.starlark,
     collectImports: collectStarlarkImports,
+    collectImportEntries: collectStarlarkImportEntries,
     symbolPatterns: STARLARK_SYMBOL_PATTERNS,
     usageCollector: collectBuildDslUsages,
     capabilityProfile: IMPORT_COLLECTOR_CAPABILITY_PROFILE
@@ -502,6 +514,7 @@ export const buildHeuristicAdapters = () => [
     id: 'nix',
     match: matchByExtension.nix,
     collectImports: collectNixImports,
+    collectImportEntries: collectNixImportEntries,
     symbolPatterns: NIX_SYMBOL_PATTERNS,
     usageCollector: collectBuildDslUsages,
     capabilityProfile: IMPORT_COLLECTOR_CAPABILITY_PROFILE
