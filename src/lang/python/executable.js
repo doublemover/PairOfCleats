@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { registerChildProcessForCleanup } from '../../shared/subprocess.js';
+import { killChildProcessTree } from '../../shared/kill-tree.js';
 
 const PYTHON_CANDIDATES = ['python', 'python3'];
 
@@ -26,9 +27,12 @@ async function checkPythonCandidate(candidate) {
       resolve(ok);
     };
     const timeout = setTimeout(() => {
-      try {
-        proc.kill();
-      } catch {}
+      killChildProcessTree(proc, {
+        killTree: true,
+        detached: false,
+        graceMs: 0,
+        awaitGrace: false
+      }).catch(() => {});
       finish(false);
     }, 3000);
     proc.stdout.on('data', (chunk) => {

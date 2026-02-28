@@ -1,13 +1,14 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { createAbortError } from '../abort.js';
+import { runSyncCommandWithTimeout, toSyncCommandExitCode } from '../subprocess/sync-command.js';
 
 export const DEFAULT_FILE_LOCK_WAIT_MS = 0;
 export const DEFAULT_FILE_LOCK_POLL_MS = 100;
 export const DEFAULT_FILE_LOCK_STALE_MS = 30 * 60 * 1000;
+const DEFAULT_WINDOWS_TASKLIST_TIMEOUT_MS = 2000;
 const lockRuntimeMetrics = {
   hookFailures: 0,
   parentMissingRetries: 0,
@@ -189,12 +190,16 @@ export const isProcessAlive = (pid) => {
   }
   if (process.platform !== 'win32') return true;
   try {
-    const result = spawnSync(
+    const result = runSyncCommandWithTimeout(
       'tasklist',
       ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'],
-      { encoding: 'utf8', windowsHide: true }
+      {
+        encoding: 'utf8',
+        windowsHide: true,
+        timeoutMs: DEFAULT_WINDOWS_TASKLIST_TIMEOUT_MS
+      }
     );
-    if (result.error) return true;
+    if (toSyncCommandExitCode(result) == null && result?.error) return true;
     const output = String(result.stdout || '').trim();
     if (!output || /INFO:\s+No tasks are running/i.test(output)) return false;
     const line = output.split(/\r?\n/)[0] || '';

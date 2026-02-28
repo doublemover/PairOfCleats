@@ -2,7 +2,7 @@ import path from 'node:path';
 import { getToolingDir } from '../../src/shared/dict-utils.js';
 import { resolveToolingCommandProfile } from '../../src/index/tooling/command-resolver.js';
 import { __testLspSessionPool } from '../../src/integrations/tooling/providers/lsp/session-pool.js';
-import { terminateTrackedSubprocesses } from '../../src/shared/subprocess.js';
+import { getTrackedSubprocessCount, terminateTrackedSubprocesses } from '../../src/shared/subprocess.js';
 import { skip } from './skip.js';
 
 const normalizePathKey = (value) => (
@@ -56,7 +56,7 @@ export function prependLspTestPath(options = {}) {
   process.env.PATH = merged.join(path.delimiter);
   return async () => {
     try {
-      await cleanupLspTestRuntime({ reason: 'lsp_test_path_restore' });
+      await cleanupLspTestRuntime({ reason: 'lsp_test_path_restore', strict: true });
     } finally {
       process.env.PATH = originalPath;
     }
@@ -74,7 +74,8 @@ export async function cleanupLspTestRuntime({ reason = 'lsp_test_cleanup', stric
     poolResetOk: true,
     poolResetError: null,
     trackedCleanup: null,
-    trackedCleanupError: null
+    trackedCleanupError: null,
+    trackedRemaining: null
   };
   try {
     if (typeof __testLspSessionPool.reset === 'function') {
@@ -94,12 +95,27 @@ export async function cleanupLspTestRuntime({ reason = 'lsp_test_cleanup', stric
   } catch (error) {
     summary.trackedCleanupError = error;
   }
-  if (strict && (!summary.poolResetOk || summary.trackedCleanupError)) {
+  let trackedRemaining = Number(getTrackedSubprocessCount()) || 0;
+  for (let attempt = 0; attempt < 3 && trackedRemaining > 0; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    try {
+      summary.trackedCleanup = await terminateTrackedSubprocesses({
+        reason: `${reason}_retry_${attempt + 1}`,
+        force: true
+      });
+    } catch (error) {
+      summary.trackedCleanupError = error;
+    }
+    trackedRemaining = Number(getTrackedSubprocessCount()) || 0;
+  }
+  summary.trackedRemaining = trackedRemaining;
+  if (strict && (!summary.poolResetOk || summary.trackedCleanupError || summary.trackedRemaining > 0)) {
     const details = [
       !summary.poolResetOk ? `poolReset=${summary.poolResetError?.message || summary.poolResetError}` : null,
       summary.trackedCleanupError
         ? `trackedCleanup=${summary.trackedCleanupError?.message || summary.trackedCleanupError}`
-        : null
+        : null,
+      summary.trackedRemaining > 0 ? `trackedRemaining=${summary.trackedRemaining}` : null
     ].filter(Boolean).join(', ');
     throw new Error(`LSP test runtime cleanup failed (${details || 'unknown reason'})`);
   }
