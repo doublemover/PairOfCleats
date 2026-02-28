@@ -330,6 +330,10 @@ const realUnresolvedSamples = enrichUnresolvedImportSamples(resolution.unresolve
 assert.equal(realUnresolvedSamples.length, 1, 'expected one unresolved sample from shell include coverage');
 assert.equal(realUnresolvedSamples[0].specifier, './lib/missing.sh');
 assert.equal(realUnresolvedSamples[0].category, 'missing_file');
+assert.equal(realUnresolvedSamples[0].reasonCode, 'IMP_U_MISSING_FILE_RELATIVE');
+assert.equal(realUnresolvedSamples[0].failureCause, 'missing_file');
+assert.equal(realUnresolvedSamples[0].disposition, 'actionable');
+assert.equal(realUnresolvedSamples[0].resolverStage, 'filesystem_probe');
 
 const taxonomySamples = enrichUnresolvedImportSamples([
   ...realUnresolvedSamples,
@@ -351,6 +355,8 @@ assert.equal(taxonomyBySpecifier['./utlis.jss'], 'typo');
 assert.equal(taxonomyBySpecifier['./lib/missing.sh'], 'missing_file');
 assert.equal(taxonomy.liveSuppressed, 2);
 assert.equal(taxonomy.actionable, 4);
+assert.equal(Object.keys(taxonomy.reasonCodes).length > 0, true, 'expected reason-code aggregation');
+assert.equal(Number.isFinite(Number(taxonomy.actionableRate)), true, 'expected actionable rate in taxonomy');
 assert.deepEqual(
   Object.fromEntries(Object.entries(taxonomy.categories)),
   {
@@ -369,5 +375,8 @@ const parseErrorCategory = classifyUnresolvedImportSample({
 });
 assert.equal(parseErrorCategory.category, 'parse_error');
 assert.equal(parseErrorCategory.suppressLive, false);
+assert.equal(parseErrorCategory.reasonCode, 'IMP_U_PARSE_ERROR');
+assert.equal(parseErrorCategory.failureCause, 'parse_error');
+assert.equal(parseErrorCategory.resolutionState, 'unresolved');
 
 console.log('import resolution language coverage tests passed');

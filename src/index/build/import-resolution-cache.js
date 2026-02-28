@@ -4,9 +4,9 @@ import path from 'node:path';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { sha1 } from '../../shared/hash.js';
 
-const CACHE_VERSION = 3;
+const CACHE_VERSION = 4;
 const CACHE_FILE = 'import-resolution-cache.json';
-const CACHE_DIAGNOSTICS_VERSION = 1;
+const CACHE_DIAGNOSTICS_VERSION = 2;
 const IMPORT_SPEC_CANDIDATE_EXTENSIONS = Object.freeze([
   '.js',
   '.jsx',
@@ -59,6 +59,9 @@ const normalizeCategoryCounts = (counts, { allowNegative = false } = {}) => {
 const normalizeUnresolvedSnapshot = (raw) => {
   if (!isObject(raw)) return null;
   const categories = normalizeCategoryCounts(raw.categories);
+  const reasonCodes = normalizeCategoryCounts(raw.reasonCodes);
+  const failureCauses = normalizeCategoryCounts(raw.failureCauses);
+  const dispositions = normalizeCategoryCounts(raw.dispositions);
   const categoriesTotal = Object.values(categories).reduce((sum, value) => sum + value, 0);
   const rawTotal = Number(raw.total);
   const total = Number.isFinite(rawTotal) && rawTotal >= 0
@@ -68,15 +71,28 @@ const normalizeUnresolvedSnapshot = (raw) => {
   const liveSuppressed = Number.isFinite(liveSuppressedRaw) && liveSuppressedRaw >= 0
     ? Math.min(total, Math.trunc(liveSuppressedRaw))
     : 0;
+  const gateSuppressedRaw = Number(raw.gateSuppressed);
+  const gateSuppressed = Number.isFinite(gateSuppressedRaw) && gateSuppressedRaw >= 0
+    ? Math.min(Math.max(0, total - liveSuppressed), Math.trunc(gateSuppressedRaw))
+    : 0;
   const actionableRaw = Number(raw.actionable);
   const actionable = Number.isFinite(actionableRaw) && actionableRaw >= 0
-    ? Math.min(total, Math.trunc(actionableRaw))
-    : Math.max(0, total - liveSuppressed);
+    ? Math.min(Math.max(0, total - liveSuppressed), Math.trunc(actionableRaw))
+    : Math.max(0, total - liveSuppressed - gateSuppressed);
+  const actionableRateRaw = Number(raw.actionableRate);
+  const actionableRate = Number.isFinite(actionableRateRaw)
+    ? Math.max(0, Math.min(1, actionableRateRaw))
+    : (total > 0 ? actionable / total : 0);
   return {
     total,
     actionable,
     liveSuppressed,
+    gateSuppressed,
     categories,
+    reasonCodes,
+    failureCauses,
+    dispositions,
+    actionableRate,
     liveSuppressedCategories: normalizeStringList(raw.liveSuppressedCategories)
   };
 };
@@ -97,7 +113,10 @@ const normalizeDiagnostics = (raw) => {
     deltaTotal: Number.isFinite(Number(unresolvedTrendRaw.deltaTotal))
       ? Math.trunc(Number(unresolvedTrendRaw.deltaTotal))
       : null,
-    deltaByCategory: normalizeCategoryCounts(unresolvedTrendRaw.deltaByCategory, { allowNegative: true })
+    deltaByCategory: normalizeCategoryCounts(unresolvedTrendRaw.deltaByCategory, { allowNegative: true }),
+    deltaByReasonCode: normalizeCategoryCounts(unresolvedTrendRaw.deltaByReasonCode, { allowNegative: true }),
+    deltaByFailureCause: normalizeCategoryCounts(unresolvedTrendRaw.deltaByFailureCause, { allowNegative: true }),
+    deltaByDisposition: normalizeCategoryCounts(unresolvedTrendRaw.deltaByDisposition, { allowNegative: true })
   };
   return {
     version: CACHE_DIAGNOSTICS_VERSION,
@@ -235,6 +254,9 @@ const buildCategoryDelta = (previous, current) => {
 const buildSnapshotFromTaxonomy = ({ unresolvedTaxonomy, unresolvedTotal }) => {
   const taxonomy = isObject(unresolvedTaxonomy) ? unresolvedTaxonomy : {};
   const categories = normalizeCategoryCounts(taxonomy.categories);
+  const reasonCodes = normalizeCategoryCounts(taxonomy.reasonCodes);
+  const failureCauses = normalizeCategoryCounts(taxonomy.failureCauses);
+  const dispositions = normalizeCategoryCounts(taxonomy.dispositions);
   const categoriesTotal = Object.values(categories).reduce((sum, value) => sum + value, 0);
   const candidateTotal = Number(unresolvedTotal);
   const taxonomyTotal = Number(taxonomy.total);
@@ -249,15 +271,28 @@ const buildSnapshotFromTaxonomy = ({ unresolvedTaxonomy, unresolvedTotal }) => {
   const liveSuppressed = Number.isFinite(liveSuppressedRaw) && liveSuppressedRaw >= 0
     ? Math.min(total, Math.trunc(liveSuppressedRaw))
     : 0;
+  const gateSuppressedRaw = Number(taxonomy.gateSuppressed);
+  const gateSuppressed = Number.isFinite(gateSuppressedRaw) && gateSuppressedRaw >= 0
+    ? Math.min(Math.max(0, total - liveSuppressed), Math.trunc(gateSuppressedRaw))
+    : 0;
   const actionableRaw = Number(taxonomy.actionable);
   const actionable = Number.isFinite(actionableRaw) && actionableRaw >= 0
-    ? Math.min(total, Math.trunc(actionableRaw))
-    : Math.max(0, total - liveSuppressed);
+    ? Math.min(Math.max(0, total - liveSuppressed), Math.trunc(actionableRaw))
+    : Math.max(0, total - liveSuppressed - gateSuppressed);
+  const actionableRateRaw = Number(taxonomy.actionableRate);
+  const actionableRate = Number.isFinite(actionableRateRaw)
+    ? Math.max(0, Math.min(1, actionableRateRaw))
+    : (total > 0 ? actionable / total : 0);
   return {
     total,
     actionable,
     liveSuppressed,
+    gateSuppressed,
     categories,
+    reasonCodes,
+    failureCauses,
+    dispositions,
+    actionableRate,
     liveSuppressedCategories: normalizeStringList(taxonomy.liveSuppressedCategories)
   };
 };
@@ -529,7 +564,10 @@ export const updateImportResolutionDiagnosticsCache = ({
       previous: previousCurrent,
       current,
       deltaTotal: previousCurrent ? (current.total - previousCurrent.total) : null,
-      deltaByCategory: buildCategoryDelta(previousCurrent?.categories || {}, current.categories)
+      deltaByCategory: buildCategoryDelta(previousCurrent?.categories || {}, current.categories),
+      deltaByReasonCode: buildCategoryDelta(previousCurrent?.reasonCodes || {}, current.reasonCodes),
+      deltaByFailureCause: buildCategoryDelta(previousCurrent?.failureCauses || {}, current.failureCauses),
+      deltaByDisposition: buildCategoryDelta(previousCurrent?.dispositions || {}, current.dispositions)
     }
   };
   cache.diagnostics = diagnostics;

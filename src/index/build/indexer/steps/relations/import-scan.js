@@ -26,6 +26,14 @@ const formatUnresolvedCategoryCounts = (categories) => {
   return entries.map(([category, count]) => `${category}=${Number(count)}`).join(', ');
 };
 
+const formatUnresolvedReasonCodeCounts = (reasonCodes) => {
+  const entries = Object.entries(reasonCodes || {})
+    .filter(([reasonCode, count]) => reasonCode && Number.isFinite(Number(count)) && Number(count) > 0)
+    .sort((a, b) => a[0].localeCompare(b[0]));
+  if (entries.length === 0) return 'none';
+  return entries.map(([reasonCode, count]) => `${reasonCode}=${Number(count)}`).join(', ');
+};
+
 const formatUnresolvedCategoryDelta = (categories) => {
   const entries = Object.entries(categories || {})
     .filter(([category, count]) => category && Number.isFinite(Number(count)) && Number(count) !== 0)
@@ -66,7 +74,7 @@ const logUnresolvedImportSamples = ({
     }
     return;
   }
-  const actionable = normalized.filter((entry) => entry?.suppressLive !== true);
+  const actionable = normalized.filter((entry) => entry?.disposition === 'actionable');
   const visible = actionable.slice(0, MAX_UNRESOLVED_IMPORT_LOG_LINES);
   const total = Number.isFinite(unresolvedTotal) ? unresolvedTotal : normalized.length;
   const actionableTotal = Number.isFinite(summary?.actionable) ? summary.actionable : actionable.length;
@@ -75,13 +83,18 @@ const logUnresolvedImportSamples = ({
     `[imports] unresolved taxonomy: ${formatUnresolvedCategoryCounts(summary?.categories)} ` +
     `(actionable=${actionableTotal}, live-suppressed=${policySuppressed})`
   );
+  log(`[imports] unresolved reason codes: ${formatUnresolvedReasonCodeCounts(summary?.reasonCodes)}`);
   log(`[imports] unresolved import samples (${visible.length} live of ${total}):`);
   for (const entry of visible) {
     const from = entry.importer || '<unknown-importer>';
     const specifier = entry.specifier || '<empty-specifier>';
     const category = entry.category || 'unknown';
+    const reasonCode = entry.reasonCode || 'IMP_U_UNKNOWN';
     const confidence = Number.isFinite(entry.confidence) ? entry.confidence.toFixed(2) : 'n/a';
-    log(`[imports] unresolved: ${from} -> ${specifier} [category=${category}, confidence=${confidence}]`);
+    log(
+      `[imports] unresolved: ${from} -> ${specifier} ` +
+      `[category=${category}, reasonCode=${reasonCode}, confidence=${confidence}]`
+    );
   }
   if (visible.length === 0 && policySuppressed > 0) {
     log(`[imports] all captured unresolved samples were suppressed by live policy (${policySuppressed}).`);
@@ -303,17 +316,26 @@ export const postScanImports = async ({
   if (resolution?.graph && Array.isArray(resolution.graph.warnings)) {
     resolution.graph.warnings = unresolvedSamples.map((sample) => ({ ...sample }));
     if (resolution.graph.stats && typeof resolution.graph.stats === 'object') {
+      const unresolvedObserved = Number(resolution.graph.stats.unresolved) || 0;
+      const resolverSuppressed = Number(resolution.graph.stats.unresolvedSuppressed) || 0;
+      resolution.graph.stats.unresolvedObserved = unresolvedObserved;
+      resolution.graph.stats.unresolved = unresolvedTaxonomy.total;
       resolution.graph.stats.unresolvedByCategory = unresolvedTaxonomy.categories;
       resolution.graph.stats.unresolvedActionable = unresolvedTaxonomy.actionable;
       resolution.graph.stats.unresolvedLiveSuppressed = unresolvedTaxonomy.liveSuppressed;
+      resolution.graph.stats.unresolvedGateSuppressed = unresolvedTaxonomy.gateSuppressed || 0;
+      resolution.graph.stats.unresolvedByReasonCode = unresolvedTaxonomy.reasonCodes;
+      resolution.graph.stats.unresolvedByFailureCause = unresolvedTaxonomy.failureCauses;
+      resolution.graph.stats.unresolvedByDisposition = unresolvedTaxonomy.dispositions;
       resolution.graph.stats.unresolvedLiveSuppressedCategories = unresolvedTaxonomy.liveSuppressedCategories;
+      resolution.graph.stats.unresolvedResolverSuppressed = resolverSuppressed;
     }
   }
   const cacheDiagnostics = cacheEnabled
     ? updateImportResolutionDiagnosticsCache({
       cache,
       unresolvedTaxonomy,
-      unresolvedTotal: resolution?.stats?.unresolved
+      unresolvedTotal: unresolvedTaxonomy.total
     })
     : null;
   if (resolution?.graph) {

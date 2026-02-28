@@ -101,13 +101,27 @@ const importResolutionGraphSchema = {
       type: 'object',
       properties: {
         files: intId,
+        nodes: intId,
         edges: intId,
         resolved: intId,
         external: intId,
         unresolved: intId,
-        truncatedEdges: { type: 'boolean' },
-        truncatedNodes: { type: 'boolean' },
-        warningSuppressed: intId
+        unresolvedObserved: intId,
+        unresolvedActionable: intId,
+        unresolvedSuppressed: intId,
+        unresolvedResolverSuppressed: intId,
+        unresolvedByCategory: { type: 'object', additionalProperties: intId },
+        unresolvedByReasonCode: { type: 'object', additionalProperties: intId },
+        unresolvedByFailureCause: { type: 'object', additionalProperties: intId },
+        unresolvedByDisposition: { type: 'object', additionalProperties: intId },
+        unresolvedLiveSuppressed: intId,
+        unresolvedGateSuppressed: intId,
+        unresolvedLiveSuppressedCategories: { type: 'array', items: { type: 'string' } },
+        truncatedEdges: intId,
+        truncatedNodes: intId,
+        warningSuppressed: intId,
+        maxEdges: intId,
+        maxNodes: intId
       },
       additionalProperties: true
     },
@@ -133,11 +147,16 @@ const importResolutionGraphSchema = {
           to: { type: ['string', 'null'] },
           rawSpecifier: { type: 'string' },
           kind: { type: 'string' },
+          resolutionState: nullableString,
           resolvedType: { type: 'string' },
           resolvedPath: nullableString,
           packageName: nullableString,
           tsconfigPath: nullableString,
-          tsPathPattern: nullableString
+          tsPathPattern: nullableString,
+          reasonCode: nullableString,
+          failureCause: nullableString,
+          disposition: nullableString,
+          resolverStage: nullableString
         },
         additionalProperties: true
       }
@@ -149,7 +168,14 @@ const importResolutionGraphSchema = {
         properties: {
           importer: nullableString,
           specifier: nullableString,
-          reason: nullableString
+          reason: nullableString,
+          reasonCode: nullableString,
+          resolutionState: nullableString,
+          failureCause: nullableString,
+          disposition: nullableString,
+          resolverStage: nullableString,
+          category: nullableString,
+          confidence: { type: ['number', 'null'] }
         },
         additionalProperties: true
       }

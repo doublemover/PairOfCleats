@@ -30,6 +30,13 @@ import {
 import { createPackageDirectoryResolver, parsePackageName } from './package-entry.js';
 import { resolveDartPackageName, resolveGoModulePath, resolvePackageFingerprint } from './repo-metadata.js';
 import { normalizeImportSpecifier, normalizeRelPath, resolveWithinRoot, sortStrings } from './path-utils.js';
+import {
+  IMPORT_REASON_CODES,
+  IMPORT_RESOLUTION_STATES,
+  IMPORT_RESOLVER_STAGES,
+  isActionableDisposition,
+  resolveDecisionFromReasonCode
+} from './reason-codes.js';
 import { createTsConfigLoader, resolveTsPaths } from './tsconfig-resolution.js';
 
 const ABSOLUTE_SYSTEM_PATH_PREFIX_RX = /^\/(?:etc|usr|opt|var|bin|sbin|lib|lib64|dev|proc|sys|run|tmp|home|root)(?:\/|$)/i;
@@ -148,7 +155,7 @@ const buildAliasRulesFingerprint = (aliasRules) => {
   if (!Array.isArray(aliasRules) || aliasRules.length === 0) return null;
   const payload = aliasRules
     .map((rule) => `${rule.match}->${rule.replace}`)
-    .sort((a, b) => a.localeCompare(b))
+    .sort(sortStrings)
     .join('|');
   return payload ? sha1(payload) : null;
 };
@@ -160,6 +167,24 @@ const insertResolutionCache = (cache, key, value) => {
     if (oldestKey !== undefined) cache.delete(oldestKey);
   }
   cache.set(key, value);
+};
+
+const bumpCount = (target, key, amount = 1) => {
+  if (!target || typeof target !== 'object') return;
+  if (!key) return;
+  const next = Number(target[key]) || 0;
+  target[key] = next + Math.max(0, Math.floor(Number(amount) || 0));
+};
+
+const toSortedCountObject = (counts) => {
+  const entries = Object.entries(counts || {})
+    .filter(([key, value]) => key && Number.isFinite(Number(value)) && Number(value) > 0)
+    .sort((a, b) => sortStrings(a[0], b[0]));
+  const output = Object.create(null);
+  for (const [key, value] of entries) {
+    output[key] = Math.floor(Number(value));
+  }
+  return output;
 };
 
 export function resolveImportLinks({
@@ -243,7 +268,7 @@ export function resolveImportLinks({
       repoHash,
       buildConfigHash: packageFingerprint || null,
       mode,
-      schemaVersion: 'import-resolution-cache-v3',
+      schemaVersion: 'import-resolution-cache-v4',
       featureFlags: [
         ...(graphMeta?.importScanMode ? [`scan:${graphMeta.importScanMode}`] : []),
         ...(aliasRulesFingerprint ? [`resolverAlias:${aliasRulesFingerprint}`] : [])
@@ -400,6 +425,7 @@ export function resolveImportLinks({
   };
   let suppressedWarnings = 0;
   let unresolvedCount = 0;
+  let unresolvedActionable = 0;
   let externalCount = 0;
   let resolvedCount = 0;
   let edgeTotal = 0;
@@ -407,6 +433,7 @@ export function resolveImportLinks({
   const capStats = enableGraph ? { truncatedNodes: 0 } : null;
   const truncatedByKind = { import: 0 };
   const unresolvedSamples = [];
+  const unresolvedReasonCounts = Object.create(null);
 
   const warningList = unresolvedSamples;
   const unresolvedDedup = new Set();
@@ -496,6 +523,11 @@ export function resolveImportLinks({
       let fallbackPath = null;
       let expiresAt = null;
       let edgeTarget = null;
+      let resolutionState = IMPORT_RESOLUTION_STATES.RESOLVED;
+      let unresolvedReasonCode = null;
+      let unresolvedFailureCause = null;
+      let unresolvedDisposition = null;
+      let unresolvedResolverStage = null;
       const nowMs = Date.now();
 
       if (cacheMetrics) cacheMetrics.specs += 1;
@@ -674,6 +706,7 @@ export function resolveImportLinks({
         edgeTarget = `ext:${spec}`;
         if (enableGraph) addGraphNode(graphNodes, edgeTarget, 'external', capStats);
       } else {
+        resolutionState = IMPORT_RESOLUTION_STATES.UNRESOLVED;
         unresolvedCount += 1;
         const unresolvedKey = `${relNormalized}\u0001${spec}`;
         const ignoredUnresolved = shouldIgnoreUnresolvedImport({
@@ -681,6 +714,27 @@ export function resolveImportLinks({
           rawSpec,
           importerInfo
         });
+        if (ignoredUnresolved) {
+          const decision = resolveDecisionFromReasonCode(IMPORT_REASON_CODES.PARSER_NOISE_SUPPRESSED, {
+            fallbackStage: IMPORT_RESOLVER_STAGES.CLASSIFY
+          });
+          unresolvedReasonCode = decision.reasonCode;
+          unresolvedFailureCause = decision.failureCause;
+          unresolvedDisposition = decision.disposition;
+          unresolvedResolverStage = decision.resolverStage;
+        } else {
+          const decision = resolveDecisionFromReasonCode(IMPORT_REASON_CODES.MISSING_FILE_RELATIVE, {
+            fallbackStage: IMPORT_RESOLVER_STAGES.FILESYSTEM_PROBE
+          });
+          unresolvedReasonCode = decision.reasonCode;
+          unresolvedFailureCause = decision.failureCause;
+          unresolvedDisposition = decision.disposition;
+          unresolvedResolverStage = decision.resolverStage;
+        }
+        if (isActionableDisposition(unresolvedDisposition)) {
+          unresolvedActionable += 1;
+        }
+        bumpCount(unresolvedReasonCounts, unresolvedReasonCode);
         if (ignoredUnresolved || unresolvedDedup.has(unresolvedKey)) {
           suppressedWarnings += 1;
           includeGraphEdge = false;
@@ -690,7 +744,12 @@ export function resolveImportLinks({
             warningList.push({
               importer: relNormalized,
               specifier: rawSpec,
-              reason: 'unresolved'
+              reason: 'unresolved',
+              reasonCode: unresolvedReasonCode,
+              resolutionState,
+              failureCause: unresolvedFailureCause,
+              disposition: unresolvedDisposition,
+              resolverStage: unresolvedResolverStage
             });
           } else {
             suppressedWarnings += 1;
@@ -711,11 +770,16 @@ export function resolveImportLinks({
             to: edgeTarget,
             rawSpecifier: rawSpec,
             kind: 'import',
+            resolutionState,
             resolvedType,
             resolvedPath: resolvedPath || null,
             packageName: packageName || null,
             tsconfigPath: tsconfigRel ? normalizeRelPath(tsconfigRel) : null,
-            tsPathPattern: tsPathPattern || null
+            tsPathPattern: tsPathPattern || null,
+            reasonCode: unresolvedReasonCode,
+            failureCause: unresolvedFailureCause,
+            disposition: unresolvedDisposition,
+            resolverStage: unresolvedResolverStage
           });
         } else {
           truncatedEdges += 1;
@@ -768,6 +832,9 @@ export function resolveImportLinks({
       resolved: resolvedCount,
       external: externalCount,
       unresolved: unresolvedCount,
+      unresolvedActionable: unresolvedActionable,
+      unresolvedSuppressed: suppressedWarnings,
+      unresolvedByReasonCode: toSortedCountObject(unresolvedReasonCounts),
       truncatedEdges,
       truncatedEdgesByKind: truncatedByKind,
       truncatedNodes: capStats?.truncatedNodes ?? 0,
@@ -788,6 +855,9 @@ export function resolveImportLinks({
       resolved: resolvedCount,
       external: externalCount,
       unresolved: unresolvedCount,
+      unresolvedActionable: unresolvedActionable,
+      unresolvedSuppressed: suppressedWarnings,
+      unresolvedByReasonCode: toSortedCountObject(unresolvedReasonCounts),
       truncatedEdges,
       truncatedNodes: capStats?.truncatedNodes ?? 0,
       warningSuppressed: suppressedWarnings

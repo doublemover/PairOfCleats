@@ -3,12 +3,19 @@ import { init as initEsModuleLexer, parse as parseEsModuleLexer } from 'es-modul
 import { init as initCjsLexer, parse as parseCjsLexer } from 'cjs-module-lexer';
 import { collectLanguageImports } from '../language-registry.js';
 import { isJsLike, isTypeScript } from '../constants.js';
+import { normalizeImportSpecifiers, sanitizeImportSpecifier } from '../shared/import-specifier.js';
 import { runWithConcurrency, runWithQueue } from '../../shared/concurrency.js';
 import { coerceAbortSignal, throwIfAborted } from '../../shared/abort.js';
 import { readTextFile, readTextFileWithHash } from '../../shared/encoding.js';
 import { fileExt, toPosix } from '../../shared/files.js';
 import { showProgress } from '../../shared/progress.js';
 import { readCachedImports } from './incremental.js';
+import {
+  IMPORT_DISPOSITIONS,
+  IMPORT_REASON_CODES,
+  IMPORT_RESOLUTION_STATES,
+  resolveDecisionFromReasonCode
+} from './import-resolution/reason-codes.js';
 
 let esModuleInitPromise = null;
 let cjsInitPromise = null;
@@ -20,18 +27,15 @@ export const UNRESOLVED_IMPORT_CATEGORIES = Object.freeze({
   OPTIONAL_DEPENDENCY: 'optional_dependency',
   TYPO: 'typo',
   PATH_NORMALIZATION: 'path_normalization',
+  PARSER_ARTIFACT: 'parser_artifact',
+  RESOLVER_GAP: 'resolver_gap',
+  GENERATED_EXPECTED_MISSING: 'generated_expected_missing',
   MISSING_FILE: 'missing_file',
   MISSING_DEPENDENCY: 'missing_dependency',
   PARSE_ERROR: 'parse_error',
   UNKNOWN: 'unknown'
 });
 
-export const LIVE_UNRESOLVED_IMPORT_SUPPRESSED_CATEGORIES = Object.freeze([
-  UNRESOLVED_IMPORT_CATEGORIES.FIXTURE,
-  UNRESOLVED_IMPORT_CATEGORIES.OPTIONAL_DEPENDENCY
-]);
-
-const LIVE_UNRESOLVED_IMPORT_SUPPRESSED_SET = new Set(LIVE_UNRESOLVED_IMPORT_SUPPRESSED_CATEGORIES);
 const FIXTURE_HINT_SEGMENTS = [
   '/fixture/',
   '/fixtures/',
@@ -153,6 +157,20 @@ const toSortedCategoryCounts = (counts) => {
   return output;
 };
 
+const toSortedCountObject = (counts) => {
+  const entries = counts instanceof Map
+    ? Array.from(counts.entries())
+    : Object.entries(counts || {});
+  entries.sort((a, b) => sortStrings(a[0], b[0]));
+  const output = Object.create(null);
+  for (const [key, count] of entries) {
+    if (!key) continue;
+    const numeric = Number(count);
+    output[key] = Number.isFinite(numeric) && numeric > 0 ? Math.floor(numeric) : 0;
+  }
+  return output;
+};
+
 const classifyCategory = ({ importer, specifier, reason }) => {
   const normalizedSpecifier = normalizeForClassifier(specifier);
   const normalizedReason = normalizeForClassifier(reason);
@@ -215,25 +233,133 @@ const classifyCategory = ({ importer, specifier, reason }) => {
   };
 };
 
+const mapReasonCodeToCategory = (reasonCode) => {
+  switch (reasonCode) {
+    case IMPORT_REASON_CODES.PARSE_ERROR:
+      return UNRESOLVED_IMPORT_CATEGORIES.PARSE_ERROR;
+    case IMPORT_REASON_CODES.FIXTURE_REFERENCE:
+      return UNRESOLVED_IMPORT_CATEGORIES.FIXTURE;
+    case IMPORT_REASON_CODES.OPTIONAL_DEPENDENCY:
+      return UNRESOLVED_IMPORT_CATEGORIES.OPTIONAL_DEPENDENCY;
+    case IMPORT_REASON_CODES.PARSER_NOISE_SUPPRESSED:
+      return UNRESOLVED_IMPORT_CATEGORIES.PARSER_ARTIFACT;
+    case IMPORT_REASON_CODES.PATH_NORMALIZATION:
+      return UNRESOLVED_IMPORT_CATEGORIES.PATH_NORMALIZATION;
+    case IMPORT_REASON_CODES.TYPO:
+      return UNRESOLVED_IMPORT_CATEGORIES.TYPO;
+    case IMPORT_REASON_CODES.MISSING_FILE_RELATIVE:
+      return UNRESOLVED_IMPORT_CATEGORIES.MISSING_FILE;
+    case IMPORT_REASON_CODES.MISSING_DEPENDENCY_PACKAGE:
+      return UNRESOLVED_IMPORT_CATEGORIES.MISSING_DEPENDENCY;
+    case IMPORT_REASON_CODES.RESOLVER_GAP:
+      return UNRESOLVED_IMPORT_CATEGORIES.RESOLVER_GAP;
+    default:
+      return UNRESOLVED_IMPORT_CATEGORIES.UNKNOWN;
+  }
+};
+
+const mapCategoryToReasonCode = (category) => {
+  switch (category) {
+    case UNRESOLVED_IMPORT_CATEGORIES.PARSE_ERROR:
+      return IMPORT_REASON_CODES.PARSE_ERROR;
+    case UNRESOLVED_IMPORT_CATEGORIES.FIXTURE:
+      return IMPORT_REASON_CODES.FIXTURE_REFERENCE;
+    case UNRESOLVED_IMPORT_CATEGORIES.OPTIONAL_DEPENDENCY:
+      return IMPORT_REASON_CODES.OPTIONAL_DEPENDENCY;
+    case UNRESOLVED_IMPORT_CATEGORIES.PATH_NORMALIZATION:
+      return IMPORT_REASON_CODES.PATH_NORMALIZATION;
+    case UNRESOLVED_IMPORT_CATEGORIES.TYPO:
+      return IMPORT_REASON_CODES.TYPO;
+    case UNRESOLVED_IMPORT_CATEGORIES.MISSING_FILE:
+      return IMPORT_REASON_CODES.MISSING_FILE_RELATIVE;
+    case UNRESOLVED_IMPORT_CATEGORIES.MISSING_DEPENDENCY:
+      return IMPORT_REASON_CODES.MISSING_DEPENDENCY_PACKAGE;
+    case UNRESOLVED_IMPORT_CATEGORIES.RESOLVER_GAP:
+      return IMPORT_REASON_CODES.RESOLVER_GAP;
+    case UNRESOLVED_IMPORT_CATEGORIES.PARSER_ARTIFACT:
+      return IMPORT_REASON_CODES.PARSER_NOISE_SUPPRESSED;
+    default:
+      return IMPORT_REASON_CODES.UNKNOWN;
+  }
+};
+
+const mapFailureCauseToCategory = (failureCause) => {
+  switch (failureCause) {
+    case 'missing_file':
+      return UNRESOLVED_IMPORT_CATEGORIES.MISSING_FILE;
+    case 'missing_dependency':
+      return UNRESOLVED_IMPORT_CATEGORIES.MISSING_DEPENDENCY;
+    case 'generated_expected_missing':
+      return UNRESOLVED_IMPORT_CATEGORIES.GENERATED_EXPECTED_MISSING;
+    case 'parser_artifact':
+      return UNRESOLVED_IMPORT_CATEGORIES.PARSER_ARTIFACT;
+    case 'resolver_gap':
+      return UNRESOLVED_IMPORT_CATEGORIES.RESOLVER_GAP;
+    case 'parse_error':
+      return UNRESOLVED_IMPORT_CATEGORIES.PARSE_ERROR;
+    default:
+      return null;
+  }
+};
+
 const unresolvedSortKey = (sample) => (
-  `${sample.importer || ''}|${sample.specifier || ''}|${sample.reason || ''}|${sample.category || ''}`
+  [
+    sample.importer || '',
+    sample.specifier || '',
+    sample.reason || '',
+    sample.reasonCode || '',
+    sample.category || ''
+  ].join('|')
 );
 
 export const classifyUnresolvedImportSample = (sample) => {
   const importer = typeof sample?.importer === 'string' ? normalizeForClassifier(sample.importer) : '';
-  const specifier = typeof sample?.specifier === 'string' ? sample.specifier.trim() : '';
+  const specifier = sanitizeImportSpecifier(sample?.specifier, { stripTrailingPunctuation: false });
   const reason = typeof sample?.reason === 'string' && sample.reason.trim()
     ? sample.reason.trim()
     : 'unresolved';
-  const classified = classifyCategory({ importer, specifier, reason });
+  const incomingReasonCode = typeof sample?.reasonCode === 'string' ? sample.reasonCode.trim() : '';
+  const incomingFailureCause = typeof sample?.failureCause === 'string' ? sample.failureCause.trim() : '';
+  const categoryFromFailureCause = mapFailureCauseToCategory(incomingFailureCause);
+  const classificationFromCode = incomingReasonCode
+    ? mapReasonCodeToCategory(incomingReasonCode)
+    : categoryFromFailureCause;
+  const classified = classificationFromCode
+    ? {
+      category: classificationFromCode,
+      confidence: 0.95,
+      suggestedRemediation: 'Review unresolved diagnostic metadata for precise cause/remediation.'
+    }
+    : classifyCategory({ importer, specifier, reason });
+  const reasonCode = incomingReasonCode || mapCategoryToReasonCode(classified.category);
+  const decision = resolveDecisionFromReasonCode(reasonCode);
+  const disposition = typeof sample?.disposition === 'string' && sample.disposition.trim()
+    ? sample.disposition.trim()
+    : decision.disposition;
+  const resolverStage = typeof sample?.resolverStage === 'string' && sample.resolverStage.trim()
+    ? sample.resolverStage.trim()
+    : decision.resolverStage;
+  const failureCause = typeof sample?.failureCause === 'string' && sample.failureCause.trim()
+    ? sample.failureCause.trim()
+    : decision.failureCause;
+  const resolutionState = sample?.resolutionState === IMPORT_RESOLUTION_STATES.RESOLVED
+    ? IMPORT_RESOLUTION_STATES.RESOLVED
+    : IMPORT_RESOLUTION_STATES.UNRESOLVED;
+  const suppressLive = disposition !== IMPORT_DISPOSITIONS.ACTIONABLE;
   return {
     importer,
     specifier,
     reason,
+    reasonCode,
+    resolutionState,
+    failureCause,
+    disposition,
+    resolverStage,
     category: classified.category,
     confidence: classified.confidence,
     suggestedRemediation: classified.suggestedRemediation,
-    suppressLive: LIVE_UNRESOLVED_IMPORT_SUPPRESSED_SET.has(classified.category)
+    suppressLive,
+    actionable: disposition === IMPORT_DISPOSITIONS.ACTIONABLE
   };
 };
 
@@ -251,17 +377,44 @@ export const enrichUnresolvedImportSamples = (samples) => {
 export const summarizeUnresolvedImportTaxonomy = (samples) => {
   const normalized = enrichUnresolvedImportSamples(samples);
   const categoryCounts = new Map();
+  const reasonCodeCounts = new Map();
+  const failureCauseCounts = new Map();
+  const dispositionCounts = new Map();
+  const suppressedCategories = new Set();
   let liveSuppressed = 0;
+  let gateSuppressed = 0;
+  let actionable = 0;
   for (const sample of normalized) {
     categoryCounts.set(sample.category, (categoryCounts.get(sample.category) || 0) + 1);
-    if (sample.suppressLive) liveSuppressed += 1;
+    if (sample.reasonCode) {
+      reasonCodeCounts.set(sample.reasonCode, (reasonCodeCounts.get(sample.reasonCode) || 0) + 1);
+    }
+    if (sample.failureCause) {
+      failureCauseCounts.set(sample.failureCause, (failureCauseCounts.get(sample.failureCause) || 0) + 1);
+    }
+    if (sample.disposition) {
+      dispositionCounts.set(sample.disposition, (dispositionCounts.get(sample.disposition) || 0) + 1);
+    }
+    if (sample.disposition === IMPORT_DISPOSITIONS.SUPPRESS_LIVE) {
+      liveSuppressed += 1;
+      if (sample.category) suppressedCategories.add(sample.category);
+    } else if (sample.disposition === IMPORT_DISPOSITIONS.SUPPRESS_GATE) {
+      gateSuppressed += 1;
+    } else {
+      actionable += 1;
+    }
   }
   return {
     total: normalized.length,
-    actionable: Math.max(0, normalized.length - liveSuppressed),
+    actionable,
     liveSuppressed,
+    gateSuppressed,
     categories: toSortedCategoryCounts(categoryCounts),
-    liveSuppressedCategories: LIVE_UNRESOLVED_IMPORT_SUPPRESSED_CATEGORIES.slice()
+    reasonCodes: toSortedCountObject(reasonCodeCounts),
+    failureCauses: toSortedCountObject(failureCauseCounts),
+    dispositions: toSortedCountObject(dispositionCounts),
+    liveSuppressedCategories: Array.from(suppressedCategories.values()).sort(sortStrings),
+    actionableRate: normalized.length > 0 ? actionable / normalized.length : 0
   };
 };
 
@@ -290,15 +443,7 @@ const ensureCjsLexer = async () => {
  * @returns {string[]}
  */
 const normalizeImports = (list) => {
-  const set = new Set();
-  if (Array.isArray(list)) {
-    for (const entry of list) {
-      if (typeof entry === 'string' && entry) set.add(entry);
-    }
-  }
-  const output = Array.from(set);
-  output.sort(sortStrings);
-  return output;
+  return normalizeImportSpecifiers(Array.isArray(list) ? list : []);
 };
 
 /**
