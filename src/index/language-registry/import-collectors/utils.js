@@ -1,5 +1,6 @@
+import { sanitizeImportSpecifier } from '../../shared/import-specifier.js';
+
 export const MAX_REGEX_LINE = 8192;
-const PSEUDO_TOKEN_RE = /^(?:anchor|alias|dependency|namespace):/i;
 
 export const shouldScanLine = (line, precheck) => {
   if (!line) return false;
@@ -23,7 +24,9 @@ export const lineHasAnyInsensitive = (line, tokens) => {
   return false;
 };
 
-export const isPseudoImportToken = (value) => PSEUDO_TOKEN_RE.test(String(value || '').trim());
+export const isPseudoImportToken = (value) => !sanitizeImportSpecifier(value);
+
+export const sanitizeCollectorImportToken = (value) => sanitizeImportSpecifier(value);
 
 /**
  * Strip inline comments while respecting quoted strings.
@@ -153,8 +156,8 @@ export const collectTemplatePartialImports = (text, { lineTokens = ['{{>'] } = {
     if (!shouldScanLine(line, precheck)) continue;
     const matches = line.matchAll(/\{\{>\s*(?:"([^"]+)"|'([^']+)'|([A-Za-z0-9_./-]+))/g);
     for (const match of matches) {
-      const token = String(match[1] || match[2] || match[3] || '').trim();
-      if (!token || isPseudoImportToken(token)) continue;
+      const token = sanitizeCollectorImportToken(match[1] || match[2] || match[3]);
+      if (!token) continue;
       imports.push(token);
     }
   }

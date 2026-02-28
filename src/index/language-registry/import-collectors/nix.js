@@ -28,7 +28,7 @@ export const collectNixImports = (text) => {
     if (getFlakeMatch?.[1]) addImport(getFlakeMatch[1]);
     const flakeInputMatch = line.match(/\binputs\.[A-Za-z_][A-Za-z0-9_-]*\.(?:url|path|follows)\s*=\s*([^\s;]+)/);
     if (flakeInputMatch?.[1]) addImport(flakeInputMatch[1]);
-    const pathMatches = line.match(/\.\.?\/[A-Za-z0-9_.\/-]+\.nix\b/g);
+    const pathMatches = line.match(/\.\.?\/[A-Za-z0-9_.\/-]+(?:\.nix)?\b/g);
     for (const entry of pathMatches || []) addImport(entry);
   }
   return Array.from(imports);

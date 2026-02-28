@@ -1,6 +1,7 @@
 import path from 'node:path';
 import * as linguistLanguages from 'linguist-languages';
 import { toArray } from '../../shared/iterables.js';
+import { normalizeImportSpecifiers } from '../shared/import-specifier.js';
 import { LANGUAGE_REGISTRY } from './registry-data.js';
 import { LANGUAGE_ROUTE_DESCRIPTORS } from './descriptors.js';
 const LANGUAGE_BY_ID = new Map(LANGUAGE_REGISTRY.map((lang) => [lang.id, lang]));
@@ -173,7 +174,7 @@ export function collectLanguageImports(input = {}) {
   if (root) merged.root = root;
   if (filePath) merged.filePath = filePath;
   const imports = lang.collectImports(text, merged);
-  return Array.isArray(imports) ? imports : [];
+  return normalizeImportSpecifiers(Array.isArray(imports) ? imports : []);
 }
 
 export async function buildLanguageContext({ ext, relPath, mode, text, options }) {

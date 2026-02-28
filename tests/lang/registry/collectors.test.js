@@ -175,6 +175,17 @@ const cases = [
     expected: ['common.graphql', 'shared.graphql', 'https://specs.apollo.dev/federation/v2.6']
   },
   {
+    label: 'graphql-multiline-link',
+    fn: collectGraphqlImports,
+    text: [
+      'extend schema @link(',
+      '  url: "https://specs.apollo.dev/federation/v2.7",',
+      '  import: ["@key"]',
+      ')'
+    ].join('\n'),
+    expected: ['https://specs.apollo.dev/federation/v2.7']
+  },
+  {
     label: 'cmake',
     fn: collectCmakeImports,
     text: [
@@ -292,10 +303,22 @@ const cases = [
     expected: ['base.html']
   },
   {
+    label: 'jinja-multiline-include',
+    fn: collectJinjaImports,
+    text: '{% include\n  \"partials/footer.html\"\n%}',
+    expected: ['partials/footer.html']
+  },
+  {
     label: 'razor',
     fn: collectRazorImports,
     text: '@using System.Text',
     expected: ['System.Text']
+  },
+  {
+    label: 'collector-long-line-budget',
+    fn: collectGraphqlImports,
+    text: `#import "${'a'.repeat(8193)}.graphql"`,
+    expected: []
   }
 ];
 

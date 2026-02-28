@@ -1,11 +1,12 @@
-import { lineHasAnyInsensitive, shouldScanLine } from './utils.js';
+import { lineHasAnyInsensitive, sanitizeCollectorImportToken, shouldScanLine } from './utils.js';
 
 export const collectGraphqlImports = (text) => {
   const imports = new Set();
-  const lines = String(text || '').split('\n');
+  const source = String(text || '');
+  const lines = source.split('\n');
   const precheck = (value) => lineHasAnyInsensitive(value, ['#import', '@link', 'import']);
   const addImport = (value) => {
-    const token = String(value || '').trim();
+    const token = sanitizeCollectorImportToken(value);
     if (!token) return;
     imports.add(token);
   };
@@ -15,10 +16,10 @@ export const collectGraphqlImports = (text) => {
     for (const match of importMatches) {
       if (match?.[1]) addImport(match[1]);
     }
-    const linkUrls = line.matchAll(/@link\s*\([^)]*\burl\s*:\s*["']([^"']+)["']/gi);
-    for (const match of linkUrls) {
-      if (match?.[1]) addImport(match[1]);
-    }
+  }
+  const linkUrls = source.matchAll(/@link\s*\([\s\S]*?\burl\s*:\s*["']([^"']+)["'][\s\S]*?\)/gi);
+  for (const match of linkUrls) {
+    if (match?.[1]) addImport(match[1]);
   }
   return Array.from(imports);
 };
