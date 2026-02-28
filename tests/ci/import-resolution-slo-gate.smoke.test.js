@@ -22,6 +22,14 @@ try {
       unresolved: 10,
       unresolvedActionable: 2,
       unresolvedBudgetExhausted: 1,
+      resolverBudgetPolicy: {
+        maxFilesystemProbesPerSpecifier: 24,
+        maxFallbackCandidatesPerSpecifier: 36,
+        maxFallbackDepth: 12,
+        adaptiveEnabled: true,
+        adaptiveProfile: 'queue_backlog',
+        adaptiveScale: 0.75
+      },
       unresolvedByResolverStage: {
         filesystem_probe: 2
       },
@@ -88,6 +96,7 @@ try {
   assert.equal(passPayload?.metrics?.actionable, 2);
   assert.equal(passPayload?.metrics?.resolverBudgetExhausted, 1);
   assert.equal(passPayload?.metrics?.resolverBudgetExhaustedRate, 0.1);
+  assert.equal(passPayload?.metrics?.resolverBudgetAdaptiveReports, 1);
   assert.equal(passPayload?.metrics?.gateEligibleUnresolved, 1);
   assert.equal(passPayload?.metrics?.gateEligibleActionable, 1);
   assert.deepEqual(
@@ -108,6 +117,10 @@ try {
       language_resolver: { attempts: 2, hits: 1, misses: 1, elapsedMs: 2.5 },
       normalize: { attempts: 4, hits: 4, misses: 0, elapsedMs: 3.25 }
     }
+  );
+  assert.deepEqual(
+    passPayload?.resolverBudgetPolicyProfiles,
+    { queue_backlog: 1 }
   );
 
   const failGraphPath = path.join(tempRoot, 'import_resolution_graph.fail.json');
@@ -167,6 +180,10 @@ try {
   assert.deepEqual(
     failPayload?.resolverPipelineStages,
     {}
+  );
+  assert.deepEqual(
+    failPayload?.resolverBudgetPolicyProfiles,
+    { normal: 1 }
   );
 
   const fallbackGraphPath = path.join(tempRoot, 'import_resolution_graph.fallback.json');
@@ -242,6 +259,10 @@ try {
   assert.deepEqual(
     fallbackPayload?.resolverPipelineStages,
     {}
+  );
+  assert.deepEqual(
+    fallbackPayload?.resolverBudgetPolicyProfiles,
+    { normal: 1 }
   );
 
   console.log('import resolution slo gate smoke test passed');

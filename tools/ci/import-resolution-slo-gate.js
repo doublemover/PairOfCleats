@@ -105,6 +105,18 @@ const toHotspotCounts = (value) => {
   return output;
 };
 
+const toBudgetPolicy = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const profile = typeof value.adaptiveProfile === 'string' && value.adaptiveProfile.trim()
+    ? value.adaptiveProfile.trim()
+    : 'normal';
+  const adaptiveEnabled = value.adaptiveEnabled === true;
+  return {
+    adaptiveEnabled,
+    adaptiveProfile: profile
+  };
+};
+
 const toStagePipelineMap = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const output = Object.create(null);
@@ -211,9 +223,11 @@ const aggregateFromGraphs = async (graphPaths) => {
     parserArtifact: 0,
     resolverGap: 0,
     resolverBudgetExhausted: 0,
+    resolverBudgetAdaptiveReports: 0,
     actionableHotspotCounts: Object.create(null),
     resolverStageCounts: Object.create(null),
-    resolverPipelineStages: Object.create(null)
+    resolverPipelineStages: Object.create(null),
+    resolverBudgetPolicyProfiles: Object.create(null)
   };
   const reasonCodeCounts = Object.create(null);
   const invalidReports = [];
@@ -283,6 +297,7 @@ const aggregateFromGraphs = async (graphPaths) => {
     );
     const statsResolverStages = toCountMap(stats.unresolvedByResolverStage);
     const statsResolverPipelineStages = toStagePipelineMap(stats.resolverPipelineStages);
+    const statsBudgetPolicy = toBudgetPolicy(stats.resolverBudgetPolicy);
     const warningResolverStages = Object.create(null);
     for (const warning of warnings) {
       const stage = typeof warning?.resolverStage === 'string' ? warning.resolverStage.trim() : '';
@@ -311,6 +326,10 @@ const aggregateFromGraphs = async (graphPaths) => {
     totals.parserArtifact += parserArtifact;
     totals.resolverGap += resolverGap;
     totals.resolverBudgetExhausted += resolverBudgetExhausted;
+    if (statsBudgetPolicy?.adaptiveEnabled === true) {
+      totals.resolverBudgetAdaptiveReports += 1;
+    }
+    bumpCount(totals.resolverBudgetPolicyProfiles, statsBudgetPolicy?.adaptiveProfile || 'normal', 1);
     for (const [importer, count] of Object.entries(effectiveHotspotCounts)) {
       bumpCount(totals.actionableHotspotCounts, importer, count);
     }
@@ -329,6 +348,7 @@ const aggregateFromGraphs = async (graphPaths) => {
     reasonCodeCounts: toSortedObject(reasonCodeCounts),
     resolverStages: toSortedObject(totals.resolverStageCounts),
     resolverPipelineStages: toSortedStagePipeline(totals.resolverPipelineStages),
+    resolverBudgetPolicyProfiles: toSortedObject(totals.resolverBudgetPolicyProfiles),
     actionableHotspots: toSortedHotspots(totals.actionableHotspotCounts),
     invalidReports
   };
@@ -375,6 +395,7 @@ const main = async () => {
     reasonCodeCounts,
     resolverStages,
     resolverPipelineStages,
+    resolverBudgetPolicyProfiles,
     actionableHotspots,
     invalidReports
   } = await aggregateFromGraphs(graphPaths);
@@ -405,6 +426,17 @@ const main = async () => {
       b.elapsedMs !== a.elapsedMs
         ? b.elapsedMs - a.elapsedMs
         : sortStrings(a.stage, b.stage)
+    ))[0] || null;
+  const topBudgetProfile = Object.entries(resolverBudgetPolicyProfiles || {})
+    .map(([profile, count]) => ({
+      profile,
+      count: Math.floor(Number(count) || 0)
+    }))
+    .filter((entry) => entry.profile && entry.count > 0)
+    .sort((a, b) => (
+      b.count !== a.count
+        ? b.count - a.count
+        : sortStrings(a.profile, b.profile)
     ))[0] || null;
   const failures = [];
 
@@ -443,11 +475,13 @@ const main = async () => {
       resolverGap: totals.resolverGap,
       resolverGapRate,
       resolverBudgetExhausted: totals.resolverBudgetExhausted,
-      resolverBudgetExhaustedRate
+      resolverBudgetExhaustedRate,
+      resolverBudgetAdaptiveReports: totals.resolverBudgetAdaptiveReports
     },
     reasonCodes: reasonCodeCounts,
     resolverStages,
     resolverPipelineStages,
+    resolverBudgetPolicyProfiles,
     actionableHotspots,
     failures
   };
@@ -465,10 +499,13 @@ const main = async () => {
       `- parserArtifactRate: ${parserArtifactRate.toFixed(4)}`,
       `- resolverGapRate: ${resolverGapRate.toFixed(4)}`,
       `- resolverBudgetExhaustedRate: ${resolverBudgetExhaustedRate.toFixed(4)}`,
+      `- resolverBudgetAdaptiveReports: ${totals.resolverBudgetAdaptiveReports}`,
+      `- resolverBudgetProfiles: ${Object.keys(resolverBudgetPolicyProfiles || {}).length}`,
       `- resolverPipelineStages: ${Object.keys(resolverPipelineStages || {}).length}`,
       `- actionableHotspots: ${actionableHotspots.length}`,
       `- topHotspot: ${topHotspot ? `${topHotspot.importer}=${topHotspot.count}` : 'none'}`,
       `- topReasonCode: ${topReasonCode ? `${topReasonCode.reasonCode}=${topReasonCode.count}` : 'none'}`,
+      `- topResolverBudgetProfile: ${topBudgetProfile ? `${topBudgetProfile.profile}=${topBudgetProfile.count}` : 'none'}`,
       `- topResolverStageByElapsed: ${topStageByElapsed ? `${topStageByElapsed.stage}=${topStageByElapsed.elapsedMs.toFixed(3)}ms` : 'none'}`
     ],
     failures
