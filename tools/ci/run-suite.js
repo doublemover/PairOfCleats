@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
 import { spawnSubprocess } from '../../src/shared/subprocess.js';
 import { getRuntimeConfig, getToolingDir, loadUserConfig, resolveRuntimeEnv } from '../shared/dict-utils.js';
+import { buildTestRuntimeEnv, normalizeEnvPathKeys, prependPathEntries } from '../tooling/utils.js';
 import { USR_GUARDRAIL_GATES, validateUsrGuardrailGates } from './usr/guardrails.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -39,39 +40,8 @@ const withDefaults = (env, key, value) => {
   if (env[key] === undefined || env[key] === '') env[key] = value;
 };
 
-const resolvePathEnvKey = (env) => {
-  const keys = Object.keys(env || {});
-  const matches = keys.filter((key) => key.toLowerCase() === 'path');
-  if (!matches.length) return 'PATH';
-  if (matches.includes('Path')) return 'Path';
-  if (matches.includes('PATH')) return 'PATH';
-  return matches[0];
-};
-
-const readPathEnv = (env) => {
-  const key = resolvePathEnvKey(env);
-  const value = env?.[key];
-  return typeof value === 'string' ? value : '';
-};
-
-const prependPathEntry = (env, entry) => {
-  const value = String(entry || '').trim();
-  if (!value) return;
-  const pathKey = resolvePathEnvKey(env);
-  const current = readPathEnv(env);
-  env[pathKey] = current
-    ? `${value}${path.delimiter}${current}`
-    : value;
-  for (const key of Object.keys(env)) {
-    if (key === pathKey) continue;
-    if (key.toLowerCase() !== 'path') continue;
-    delete env[key];
-  }
-};
-
-const buildSuiteEnv = (mode) => {
-  const env = { ...process.env };
-  withDefaults(env, 'PAIROFCLEATS_TESTING', '1');
+const buildSuiteEnv = (mode, baseEnv = process.env) => {
+  const env = buildTestRuntimeEnv(baseEnv);
   withDefaults(env, 'PAIROFCLEATS_EMBEDDINGS', 'stub');
   withDefaults(env, 'PAIROFCLEATS_WORKER_POOL', 'off');
   withDefaults(env, 'PAIROFCLEATS_THREADS', '1');
@@ -85,8 +55,11 @@ const buildSuiteEnv = (mode) => {
   }
 
   env.PAIROFCLEATS_SUITE_MODE = mode;
+  normalizeEnvPathKeys(env);
   return env;
 };
+
+export const __buildSuiteEnvForTests = buildSuiteEnv;
 
 const renderCommand = (command, args) => [command, ...args].join(' ');
 const SCRIPT_COVERAGE_GROUPS = Object.freeze([
@@ -148,11 +121,12 @@ const main = async () => {
   const baseLane = argv.lane || (mode === 'nightly' ? 'ci' : 'ci-lite');
   const baseEnv = buildSuiteEnv(mode);
   const userConfig = loadUserConfig(ROOT);
-  prependPathEntry(baseEnv, path.join(getToolingDir(ROOT, userConfig), 'bin'));
+  prependPathEntries(baseEnv, path.join(getToolingDir(ROOT, userConfig), 'bin'));
   // Keep CI gate behavior deterministic across runners by preferring fixture servers.
-  prependPathEntry(baseEnv, LSP_FIXTURE_BIN);
+  prependPathEntries(baseEnv, LSP_FIXTURE_BIN);
   const runtimeConfig = getRuntimeConfig(ROOT, userConfig);
   const env = resolveRuntimeEnv(runtimeConfig, baseEnv);
+  normalizeEnvPathKeys(env);
 
   const diagnosticsDir = path.resolve(argv.diagnostics);
   const junitPath = path.resolve(argv.junit);
@@ -301,7 +275,15 @@ const main = async () => {
   }
 };
 
-main().catch((err) => {
-  console.error(err?.message || err);
-  process.exit(1);
-});
+const isDirectExecution = () => {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  return path.resolve(entry) === path.resolve(fileURLToPath(import.meta.url));
+};
+
+if (isDirectExecution()) {
+  main().catch((err) => {
+    console.error(err?.message || err);
+    process.exit(1);
+  });
+}

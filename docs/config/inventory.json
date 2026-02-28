@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-27T22:33:08.477Z",
+  "generatedAt": "2026-02-28T02:11:40.928Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2227,7 +2227,6 @@
         "tests/shared/cache/root-versioning.test.js",
         "tests/shared/encoding/fallback.test.js",
         "tests/shared/subprocess/quoting.test.js",
-        "tests/smoke/e2e.test.js",
         "tests/storage/lmdb/mapsize.test.js",
         "tests/storage/sqlite/build-indexes.test.js",
         "tests/storage/sqlite/bundle-missing.test.js",
@@ -2238,7 +2237,6 @@
         "tests/storage/vector-extension/missing.test.js",
         "tests/tooling/dict-utils/paths-builds-root.test.js",
         "tests/tooling/dict-utils/repo-current-case-insensitive.test.js",
-        "tests/tooling/eval/quality.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
         "tests/tooling/index-stats/explicit-repo-path.test.js",
         "tests/tooling/install/bootstrap-json-output.test.js",
@@ -2397,15 +2395,12 @@
         "tests/retrieval/parity/equivalence.test.js",
         "tests/services/api/core.test.js",
         "tests/shared/encoding/fallback.test.js",
-        "tests/shared/subprocess/quoting.test.js",
-        "tests/smoke/e2e.test.js",
         "tests/storage/lmdb/mapsize.test.js",
         "tests/storage/sqlite/bundle-missing.test.js",
         "tests/storage/sqlite/compact.test.js",
         "tests/storage/sqlite/index-state-fail-closed.test.js",
         "tests/storage/sqlite/missing-dep.test.js",
         "tests/storage/sqlite/sidecar-cleanup.test.js",
-        "tests/tooling/eval/quality.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
         "tests/tooling/reports/summary/summary-report-helpers.js",
         "tests/tooling/script-coverage/script-coverage.runner.js",
@@ -2489,6 +2484,7 @@
         "tests/indexing/incremental/crossfile-bundle-patch-write.test.js",
         "tests/indexing/incremental/crossfile-bundle-reuse.test.js",
         "tests/indexing/incremental/crossfile-hot-cold-priority.test.js",
+        "tests/indexing/incremental/writeback-manifest-durability.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3023,7 +3019,6 @@
         "tests/helpers/api-server.js",
         "tests/helpers/test-env.js",
         "tests/run.js",
-        "tests/services/api/server-stream.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3280,14 +3275,15 @@
         "tests/retrieval/parity/equivalence.test.js",
         "tests/services/mcp/repo-path-resolution.test.js",
         "tests/storage/sqlite/build-indexes.test.js",
+        "tests/tooling/ci/lsp-embeddings-gates-testing-env.test.js",
+        "tests/tooling/ci/run-suite-path-normalization.test.js",
         "tools/bench/ab-sweep.js",
         "tools/bench/index/scheduler-store-format.js",
         "tools/bench/language/logging.js",
-        "tools/ci/run-lsp-embeddings-gates.js",
-        "tools/ci/run-suite.js",
         "tools/config/contract-doc.js",
         "tools/config/inventory.js",
-        "tools/release/check.js"
+        "tools/release/check.js",
+        "tools/tooling/utils.js"
       ]
     },
     {
@@ -3504,7 +3500,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 375,
+    "totalFlags": 382,
     "publicFlags": [
       "allow-unauthenticated",
       "allowed-repo-roots",
@@ -3575,6 +3571,7 @@
       "count",
       "ctags",
       "dataset",
+      "default-timeout-ms",
       "depth",
       "destination",
       "diagnostics",
@@ -3700,6 +3697,9 @@
       "max-gb",
       "max-members-per-file",
       "max-p95-ms",
+      "max-timeout-absolute-cap",
+      "max-timeout-absolute-min",
+      "max-timeout-ratio",
       "max-top-regressions",
       "maxBytes",
       "maxCalls",
@@ -3794,6 +3794,8 @@
       "results",
       "resume",
       "retries",
+      "retry-base-ms",
+      "retry-jitter-ms",
       "reviewer",
       "root",
       "rows",
@@ -3849,6 +3851,7 @@
       "target",
       "targets",
       "testPattern",
+      "tests-json",
       "threads",
       "three-url",
       "timeout-ms",
@@ -4604,6 +4607,9 @@
         "flags": [
           "json",
           "max-crash-retention",
+          "max-timeout-absolute-cap",
+          "max-timeout-absolute-min",
+          "max-timeout-ratio",
           "max-top-regressions",
           "min-summary-coverage",
           "report"
@@ -5003,6 +5009,15 @@
           "force",
           "from",
           "repo"
+        ]
+      },
+      {
+        "file": "tools/ci/run-lsp-embeddings-gates.js",
+        "flags": [
+          "default-timeout-ms",
+          "diagnostics",
+          "junit",
+          "tests-json"
         ]
       },
       {
@@ -5520,8 +5535,15 @@
         "file": "tools/tooling/install-phpactor-phar.js",
         "flags": [
           "bin-dir",
+          "report",
+          "retries",
+          "retry-base-ms",
+          "retry-jitter-ms",
           "scope",
-          "tooling-root"
+          "sha256",
+          "timeout-ms",
+          "tooling-root",
+          "url"
         ]
       },
       {
@@ -6629,6 +6651,15 @@
         ]
       },
       {
+        "flag": "retries",
+        "count": 3,
+        "files": [
+          "tests/runner/all.js",
+          "tests/tooling/script-coverage/script-coverage.runner.js",
+          "tools/tooling/install-phpactor-phar.js"
+        ]
+      },
+      {
         "flag": "run",
         "count": 3,
         "files": [
@@ -6647,12 +6678,30 @@
         ]
       },
       {
+        "flag": "sha256",
+        "count": 3,
+        "files": [
+          "tools/download/dicts.js",
+          "tools/download/extensions.js",
+          "tools/tooling/install-phpactor-phar.js"
+        ]
+      },
+      {
         "flag": "stage",
         "count": 3,
         "files": [
           "bin/pairofcleats.js",
           "tools/docs/script-inventory.js",
           "tools/index/assemble-pieces.js"
+        ]
+      },
+      {
+        "flag": "url",
+        "count": 3,
+        "files": [
+          "tools/download/dicts.js",
+          "tools/download/extensions.js",
+          "tools/tooling/install-phpactor-phar.js"
         ]
       },
       {
@@ -6786,6 +6835,14 @@
         ]
       },
       {
+        "flag": "diagnostics",
+        "count": 2,
+        "files": [
+          "tools/ci/run-lsp-embeddings-gates.js",
+          "tools/ci/run-suite.js"
+        ]
+      },
+      {
         "flag": "direction",
         "count": 2,
         "files": [
@@ -6914,6 +6971,14 @@
         ]
       },
       {
+        "flag": "junit",
+        "count": 2,
+        "files": [
+          "tools/ci/run-lsp-embeddings-gates.js",
+          "tools/ci/run-suite.js"
+        ]
+      },
+      {
         "flag": "keep",
         "count": 2,
         "files": [
@@ -7034,11 +7099,11 @@
         ]
       },
       {
-        "flag": "retries",
+        "flag": "report",
         "count": 2,
         "files": [
-          "tests/runner/all.js",
-          "tests/tooling/script-coverage/script-coverage.runner.js"
+          "tools/bench/language/tooling-lsp-guardrail.js",
+          "tools/tooling/install-phpactor-phar.js"
         ]
       },
       {
@@ -7047,14 +7112,6 @@
         "files": [
           "tests/retrieval/parity/equivalence.test.js",
           "tools/reports/parity-matrix.js"
-        ]
-      },
-      {
-        "flag": "sha256",
-        "count": 2,
-        "files": [
-          "tools/download/dicts.js",
-          "tools/download/extensions.js"
         ]
       },
       {
@@ -7114,6 +7171,14 @@
         ]
       },
       {
+        "flag": "timeout-ms",
+        "count": 2,
+        "files": [
+          "tests/tooling/fixtures/fixture-parity.test.js",
+          "tools/tooling/install-phpactor-phar.js"
+        ]
+      },
+      {
         "flag": "type",
         "count": 2,
         "files": [
@@ -7123,14 +7188,6 @@
       },
       {
         "flag": "update",
-        "count": 2,
-        "files": [
-          "tools/download/dicts.js",
-          "tools/download/extensions.js"
-        ]
-      },
-      {
-        "flag": "url",
         "count": 2,
         "files": [
           "tools/download/dicts.js",

@@ -15,7 +15,10 @@ const parseArgs = () => createCli({
     json: { type: 'string', default: '' },
     'min-summary-coverage': { type: 'number', default: 0.9 },
     'max-crash-retention': { type: 'number', default: 25 },
-    'max-top-regressions': { type: 'number', default: 20 }
+    'max-top-regressions': { type: 'number', default: 20 },
+    'max-timeout-ratio': { type: 'number', default: 0.2 },
+    'max-timeout-absolute-min': { type: 'number', default: 2 },
+    'max-timeout-absolute-cap': { type: 'number', default: 200 }
   }
 })
   .strictOptions()
@@ -57,6 +60,14 @@ const extractGuardrailMetrics = (report) => {
   };
 };
 
+const computeTimedOutRatio = (timedOutCount, totalTasks) => {
+  const total = Number(totalTasks);
+  const timedOut = Number(timedOutCount);
+  if (!Number.isFinite(total) || total <= 0) return timedOut > 0 ? 1 : 0;
+  if (!Number.isFinite(timedOut) || timedOut <= 0) return 0;
+  return timedOut / total;
+};
+
 const main = async () => {
   const argv = parseArgs();
   if (!argv.report) {
@@ -68,6 +79,7 @@ const main = async () => {
   const summaryCoverage = reportMetrics.summaryCoverage;
   const crashRetentionCount = reportMetrics.crashRetentionCount;
   const topRegressionCount = reportMetrics.topRegressionCount;
+  const timedOutRatio = computeTimedOutRatio(topRegressionCount, reportMetrics.totalTasks);
 
   const thresholds = {
     minSummaryCoverage: coerceClampedFraction(argv['min-summary-coverage'], {
@@ -76,8 +88,22 @@ const main = async () => {
       allowZero: true
     }) ?? 0.9,
     maxCrashRetention: coerceNonNegativeInt(argv['max-crash-retention']) ?? 25,
-    maxTopRegressions: coerceNonNegativeInt(argv['max-top-regressions']) ?? 20
+    maxTopRegressions: coerceNonNegativeInt(argv['max-top-regressions']) ?? 20,
+    maxTimeoutRatio: coerceClampedFraction(argv['max-timeout-ratio'], {
+      min: 0,
+      max: 1,
+      allowZero: true
+    }) ?? 0.2,
+    maxTimeoutAbsoluteMin: coerceNonNegativeInt(argv['max-timeout-absolute-min']) ?? 2,
+    maxTimeoutAbsoluteCap: coerceNonNegativeInt(argv['max-timeout-absolute-cap']) ?? 200
   };
+  const timeoutAbsoluteScaledMax = Math.min(
+    thresholds.maxTimeoutAbsoluteCap,
+    Math.max(
+      thresholds.maxTimeoutAbsoluteMin,
+      Math.ceil(Math.max(0, reportMetrics.totalTasks) * thresholds.maxTimeoutRatio)
+    )
+  );
 
   const failures = [];
   if (summaryCoverage < thresholds.minSummaryCoverage) {
@@ -88,7 +114,16 @@ const main = async () => {
   if (crashRetentionCount > thresholds.maxCrashRetention) {
     failures.push(`crash retention count ${crashRetentionCount} exceeded max ${thresholds.maxCrashRetention}`);
   }
-  if (topRegressionCount > thresholds.maxTopRegressions) {
+  if (reportMetrics.sourceType === 'slo-gate') {
+    if (timedOutRatio > thresholds.maxTimeoutRatio) {
+      failures.push(
+        `timed out ratio ${timedOutRatio.toFixed(4)} exceeded max ${thresholds.maxTimeoutRatio.toFixed(4)}`
+      );
+    }
+    if (topRegressionCount > timeoutAbsoluteScaledMax) {
+      failures.push(`timed out count ${topRegressionCount} exceeded scaled max ${timeoutAbsoluteScaledMax}`);
+    }
+  } else if (topRegressionCount > thresholds.maxTopRegressions) {
     failures.push(`top regression count ${topRegressionCount} exceeded max ${thresholds.maxTopRegressions}`);
   }
 
@@ -104,7 +139,9 @@ const main = async () => {
       tasksWithSummary: reportMetrics.tasksWithSummary,
       summaryCoverage,
       crashRetentionCount,
-      topRegressionCount
+      topRegressionCount,
+      timedOutRatio,
+      timeoutAbsoluteScaledMax: reportMetrics.sourceType === 'slo-gate' ? timeoutAbsoluteScaledMax : null
     },
     failures
   };
@@ -117,7 +154,9 @@ const main = async () => {
       `- status: ${payload.status}`,
       `- summaryCoverage: ${summaryCoverage.toFixed(4)} (min ${thresholds.minSummaryCoverage.toFixed(4)})`,
       `- crashRetentionCount: ${crashRetentionCount} (max ${thresholds.maxCrashRetention})`,
-      `- topRegressionCount: ${topRegressionCount} (max ${thresholds.maxTopRegressions})`
+      reportMetrics.sourceType === 'slo-gate'
+        ? `- timedOut: ${topRegressionCount} (ratio ${timedOutRatio.toFixed(4)}, max-ratio ${thresholds.maxTimeoutRatio.toFixed(4)}, scaled-max ${timeoutAbsoluteScaledMax})`
+        : `- topRegressionCount: ${topRegressionCount} (max ${thresholds.maxTopRegressions})`
     ],
     failures
   });

@@ -107,6 +107,82 @@ function dedupePaths(paths = []) {
   return normalized;
 }
 
+export function resolvePathEnvKey(env, { preferredKey = '' } = {}) {
+  const keys = Object.keys(env || {});
+  const pathKeys = keys.filter((key) => String(key || '').toLowerCase() === 'path');
+  const preferred = String(preferredKey || '').trim();
+  if (preferred && pathKeys.includes(preferred)) return preferred;
+  if (process.platform === 'win32') {
+    if (pathKeys.includes('Path')) return 'Path';
+    if (pathKeys.includes('PATH')) return 'PATH';
+  } else if (pathKeys.includes('PATH')) {
+    return 'PATH';
+  }
+  if (pathKeys.length) return pathKeys[0];
+  if (preferred) return preferred;
+  return process.platform === 'win32' ? 'Path' : 'PATH';
+}
+
+export function resolveEnvPath(env) {
+  const pathKeys = Object.keys(env || {}).filter((key) => String(key || '').toLowerCase() === 'path');
+  if (!pathKeys.length) return '';
+  const entries = [];
+  for (const key of pathKeys) {
+    const raw = env?.[key];
+    if (typeof raw !== 'string' || !raw.trim()) continue;
+    entries.push(...splitPathEntries(raw));
+  }
+  return dedupePaths(entries).join(path.delimiter);
+}
+
+export function normalizeEnvPathKeys(env, options = {}) {
+  if (!env || typeof env !== 'object') {
+    return { key: resolvePathEnvKey({}, options), value: '' };
+  }
+  const key = resolvePathEnvKey(env, options);
+  const value = resolveEnvPath(env);
+  if (value) {
+    env[key] = value;
+  } else if (env[key] === undefined) {
+    env[key] = '';
+  }
+  for (const candidate of Object.keys(env)) {
+    if (candidate === key) continue;
+    if (String(candidate || '').toLowerCase() !== 'path') continue;
+    delete env[candidate];
+  }
+  return { key, value: String(env[key] || '') };
+}
+
+export function prependPathEntries(env, entries, options = {}) {
+  if (!env || typeof env !== 'object') return '';
+  const nextEntries = Array.isArray(entries)
+    ? entries
+    : [entries];
+  const normalizedEntries = dedupePaths(nextEntries.map((entry) => String(entry || '').trim()).filter(Boolean));
+  const normalizedPathState = normalizeEnvPathKeys(env, options);
+  const currentEntries = splitPathEntries(normalizedPathState.value);
+  const mergedEntries = dedupePaths([...normalizedEntries, ...currentEntries]);
+  env[normalizedPathState.key] = mergedEntries.join(path.delimiter);
+  return env[normalizedPathState.key];
+}
+
+export function buildTestRuntimeEnv(baseEnv = process.env, overrides = null) {
+  const env = { ...(baseEnv && typeof baseEnv === 'object' ? baseEnv : {}) };
+  if (overrides && typeof overrides === 'object') {
+    for (const [key, value] of Object.entries(overrides)) {
+      if (value === undefined || value === null) {
+        delete env[key];
+      } else {
+        env[key] = String(value);
+      }
+    }
+  }
+  env.PAIROFCLEATS_TESTING = '1';
+  normalizeEnvPathKeys(env);
+  return env;
+}
+
 function resolveHomeDir() {
   const home = process.platform === 'win32'
     ? (process.env.USERPROFILE || process.env.HOME || '')
@@ -615,7 +691,7 @@ export function detectTool(tool) {
   const ok = canRunWithArgCandidates(tool.detect.cmd, detectArgCandidates);
   if (ok) return { found: true, path: tool.detect.cmd, source: 'path' };
   if (isPyrightLangserver) {
-    const pathEntries = splitPathEntries(process.env.PATH || '');
+    const pathEntries = splitPathEntries(resolveEnvPath(process.env));
     const pathFound = findBinaryInDirs(tool.detect.cmd, pathEntries);
     if (pathFound && fs.existsSync(pathFound)) return { found: true, path: pathFound, source: 'path' };
   }
