@@ -33,9 +33,9 @@ import { normalizeImportSpecifier, normalizeRelPath, resolveWithinRoot, sortStri
 import {
   IMPORT_REASON_CODES,
   IMPORT_RESOLUTION_STATES,
-  IMPORT_RESOLVER_STAGES,
+  assertUnresolvedDecision,
+  createUnresolvedDecision,
   isActionableDisposition,
-  resolveDecisionFromReasonCode
 } from './reason-codes.js';
 import { createTsConfigLoader, resolveTsPaths } from './tsconfig-resolution.js';
 
@@ -714,23 +714,18 @@ export function resolveImportLinks({
           rawSpec,
           importerInfo
         });
-        if (ignoredUnresolved) {
-          const decision = resolveDecisionFromReasonCode(IMPORT_REASON_CODES.PARSER_NOISE_SUPPRESSED, {
-            fallbackStage: IMPORT_RESOLVER_STAGES.CLASSIFY
-          });
-          unresolvedReasonCode = decision.reasonCode;
-          unresolvedFailureCause = decision.failureCause;
-          unresolvedDisposition = decision.disposition;
-          unresolvedResolverStage = decision.resolverStage;
-        } else {
-          const decision = resolveDecisionFromReasonCode(IMPORT_REASON_CODES.MISSING_FILE_RELATIVE, {
-            fallbackStage: IMPORT_RESOLVER_STAGES.FILESYSTEM_PROBE
-          });
-          unresolvedReasonCode = decision.reasonCode;
-          unresolvedFailureCause = decision.failureCause;
-          unresolvedDisposition = decision.disposition;
-          unresolvedResolverStage = decision.resolverStage;
-        }
+        const unresolvedDecision = assertUnresolvedDecision(
+          ignoredUnresolved
+            ? createUnresolvedDecision(IMPORT_REASON_CODES.PARSER_NOISE_SUPPRESSED)
+            : createUnresolvedDecision(IMPORT_REASON_CODES.MISSING_FILE_RELATIVE),
+          {
+            context: `imports.resolve:${relNormalized}->${spec}`
+          }
+        );
+        unresolvedReasonCode = unresolvedDecision.reasonCode;
+        unresolvedFailureCause = unresolvedDecision.failureCause;
+        unresolvedDisposition = unresolvedDecision.disposition;
+        unresolvedResolverStage = unresolvedDecision.resolverStage;
         if (isActionableDisposition(unresolvedDisposition)) {
           unresolvedActionable += 1;
         }

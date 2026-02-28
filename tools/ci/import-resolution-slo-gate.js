@@ -45,6 +45,8 @@ const toNonNegativeIntOrNull = (value) => {
   return Math.floor(numeric);
 };
 
+const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
+
 const bumpCount = (target, key, amount = 1) => {
   if (!key) return;
   const current = Number(target[key]) || 0;
@@ -54,7 +56,7 @@ const bumpCount = (target, key, amount = 1) => {
 const toSortedObject = (counts) => Object.fromEntries(
   Object.entries(counts || {})
     .filter(([key, value]) => key && Number.isFinite(Number(value)) && Number(value) > 0)
-    .sort((a, b) => a[0].localeCompare(b[0]))
+    .sort((a, b) => sortStrings(a[0], b[0]))
     .map(([key, value]) => [key, Math.floor(Number(value))])
 );
 
@@ -111,7 +113,7 @@ const discoverImportGraphs = async (rootDir) => {
       discovered.push(fullPath);
     }
   }
-  discovered.sort((a, b) => a.localeCompare(b));
+  discovered.sort(sortStrings);
   return discovered;
 };
 

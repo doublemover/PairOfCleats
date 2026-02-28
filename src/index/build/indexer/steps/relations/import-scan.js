@@ -15,13 +15,14 @@ import {
 import { resolveHangProbeConfig, runWithHangProbe } from '../../hang-probe.js';
 
 const MAX_UNRESOLVED_IMPORT_LOG_LINES = 50;
+const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
 const normalizeUnresolvedSamples = (samples) => enrichUnresolvedImportSamples(samples);
 
 const formatUnresolvedCategoryCounts = (categories) => {
   const entries = Object.entries(categories || {})
     .filter(([category, count]) => category && Number.isFinite(Number(count)) && Number(count) > 0)
-    .sort((a, b) => a[0].localeCompare(b[0]));
+    .sort((a, b) => sortStrings(a[0], b[0]));
   if (entries.length === 0) return 'none';
   return entries.map(([category, count]) => `${category}=${Number(count)}`).join(', ');
 };
@@ -29,7 +30,7 @@ const formatUnresolvedCategoryCounts = (categories) => {
 const formatUnresolvedReasonCodeCounts = (reasonCodes) => {
   const entries = Object.entries(reasonCodes || {})
     .filter(([reasonCode, count]) => reasonCode && Number.isFinite(Number(count)) && Number(count) > 0)
-    .sort((a, b) => a[0].localeCompare(b[0]));
+    .sort((a, b) => sortStrings(a[0], b[0]));
   if (entries.length === 0) return 'none';
   return entries.map(([reasonCode, count]) => `${reasonCode}=${Number(count)}`).join(', ');
 };
@@ -37,7 +38,7 @@ const formatUnresolvedReasonCodeCounts = (reasonCodes) => {
 const formatUnresolvedCategoryDelta = (categories) => {
   const entries = Object.entries(categories || {})
     .filter(([category, count]) => category && Number.isFinite(Number(count)) && Number(count) !== 0)
-    .sort((a, b) => a[0].localeCompare(b[0]));
+    .sort((a, b) => sortStrings(a[0], b[0]));
   if (entries.length === 0) return 'none';
   return entries
     .map(([category, count]) => {

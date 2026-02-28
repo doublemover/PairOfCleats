@@ -23,6 +23,8 @@ const isObject = (value) => (
   value && typeof value === 'object' && !Array.isArray(value)
 );
 
+const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
+
 const normalizeStringList = (value) => {
   if (!Array.isArray(value)) return [];
   const deduped = new Set();
@@ -32,7 +34,7 @@ const normalizeStringList = (value) => {
     if (!trimmed) continue;
     deduped.add(trimmed);
   }
-  return Array.from(deduped.values()).sort((a, b) => a.localeCompare(b));
+  return Array.from(deduped.values()).sort(sortStrings);
 };
 
 const normalizeCount = (value, { allowNegative = false } = {}) => {
@@ -47,7 +49,7 @@ const normalizeCategoryCounts = (counts, { allowNegative = false } = {}) => {
   const entries = Object.entries(counts)
     .filter(([category]) => typeof category === 'string' && category.trim())
     .map(([category, value]) => [category.trim(), normalizeCount(value, { allowNegative })])
-    .sort((a, b) => a[0].localeCompare(b[0]));
+    .sort((a, b) => sortStrings(a[0], b[0]));
   const output = Object.create(null);
   for (const [category, count] of entries) {
     if (!allowNegative && count < 0) continue;
@@ -165,7 +167,7 @@ const collectCurrentFileSetFromEntries = (entries) => {
 
 const computeFileSetFingerprintFromSet = (fileSet) => {
   if (!(fileSet instanceof Set) || fileSet.size === 0) return null;
-  const ordered = Array.from(fileSet.values()).sort((a, b) => a.localeCompare(b));
+  const ordered = Array.from(fileSet.values()).sort(sortStrings);
   return sha1(ordered.map((entry) => `${entry}\n`).join(''));
 };
 
@@ -241,7 +243,7 @@ const buildCategoryDelta = (previous, current) => {
     ...Object.keys(previousCounts),
     ...Object.keys(currentCounts)
   ]);
-  const orderedKeys = Array.from(keys.values()).sort((a, b) => a.localeCompare(b));
+  const orderedKeys = Array.from(keys.values()).sort(sortStrings);
   const delta = Object.create(null);
   for (const key of orderedKeys) {
     const prev = previousCounts[key] || 0;

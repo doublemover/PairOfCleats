@@ -96,6 +96,14 @@ export const IMPORT_REASON_DECISIONS = Object.freeze({
 
 export const isActionableDisposition = (value) => value === IMPORT_DISPOSITIONS.ACTIONABLE;
 
+const NON_ACTIONABLE_FAILURE_CAUSES = new Set([
+  IMPORT_FAILURE_CAUSES.PARSER_ARTIFACT,
+  IMPORT_FAILURE_CAUSES.RESOLVER_GAP,
+  IMPORT_FAILURE_CAUSES.GENERATED_EXPECTED_MISSING
+]);
+
+const hasText = (value) => typeof value === 'string' && value.trim().length > 0;
+
 export const resolveDecisionFromReasonCode = (reasonCode, {
   fallbackStage = IMPORT_RESOLVER_STAGES.CLASSIFY
 } = {}) => {
@@ -117,3 +125,56 @@ export const resolveDecisionFromReasonCode = (reasonCode, {
   };
 };
 
+export const createUnresolvedDecision = (reasonCode, options = {}) => {
+  const decision = resolveDecisionFromReasonCode(reasonCode, options);
+  return {
+    resolutionState: IMPORT_RESOLUTION_STATES.UNRESOLVED,
+    reasonCode: decision.reasonCode,
+    failureCause: decision.failureCause,
+    disposition: decision.disposition,
+    resolverStage: decision.resolverStage
+  };
+};
+
+export const validateResolutionDecision = (decision) => {
+  const state = decision?.resolutionState;
+  const errors = [];
+
+  if (state !== IMPORT_RESOLUTION_STATES.RESOLVED && state !== IMPORT_RESOLUTION_STATES.UNRESOLVED) {
+    errors.push(`invalid resolutionState: ${String(state)}`);
+    return { ok: false, errors };
+  }
+
+  if (state === IMPORT_RESOLUTION_STATES.RESOLVED) {
+    if (hasText(decision?.reasonCode)) errors.push('resolved decision must not include reasonCode');
+    if (hasText(decision?.failureCause)) errors.push('resolved decision must not include failureCause');
+    if (hasText(decision?.disposition)) errors.push('resolved decision must not include disposition');
+    if (hasText(decision?.resolverStage)) errors.push('resolved decision must not include resolverStage');
+    return { ok: errors.length === 0, errors };
+  }
+
+  if (!hasText(decision?.reasonCode)) errors.push('unresolved decision requires reasonCode');
+  if (!hasText(decision?.failureCause)) errors.push('unresolved decision requires failureCause');
+  if (!hasText(decision?.disposition)) errors.push('unresolved decision requires disposition');
+  if (!hasText(decision?.resolverStage)) errors.push('unresolved decision requires resolverStage');
+
+  if (decision?.disposition === IMPORT_DISPOSITIONS.ACTIONABLE
+    && NON_ACTIONABLE_FAILURE_CAUSES.has(decision?.failureCause)) {
+    errors.push(
+      `disposition=actionable not allowed for failureCause=${String(decision?.failureCause)}`
+    );
+  }
+
+  return { ok: errors.length === 0, errors };
+};
+
+export const assertUnresolvedDecision = (decision, { context = 'import-resolution' } = {}) => {
+  if (decision?.resolutionState !== IMPORT_RESOLUTION_STATES.UNRESOLVED) {
+    throw new Error(`[${context}] expected unresolved decision state`);
+  }
+  const validation = validateResolutionDecision(decision);
+  if (validation.ok) return decision;
+  throw new Error(
+    `[${context}] invalid unresolved decision: ${validation.errors.join('; ')}`
+  );
+};
