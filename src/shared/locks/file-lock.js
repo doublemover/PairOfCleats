@@ -8,6 +8,11 @@ import { createAbortError } from '../abort.js';
 export const DEFAULT_FILE_LOCK_WAIT_MS = 0;
 export const DEFAULT_FILE_LOCK_POLL_MS = 100;
 export const DEFAULT_FILE_LOCK_STALE_MS = 30 * 60 * 1000;
+const lockRuntimeMetrics = {
+  hookFailures: 0,
+  parentMissingRetries: 0,
+  staleRemoveOwnerFailedForceSucceeded: 0
+};
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const sleepWithAbort = (ms, signal = null) => {
@@ -92,6 +97,7 @@ const safeInvokeHook = (hook, payload, { code = 'LOCK_HOOK_ERROR' } = {}) => {
   try {
     hook(payload);
   } catch (err) {
+    lockRuntimeMetrics.hookFailures += 1;
     const message = err?.message || String(err || 'unknown lock hook failure');
     try {
       process.emitWarning(`[file-lock] hook failed: ${message}`, { code });
@@ -243,6 +249,9 @@ const removeStaleLockFile = async ({
     };
   }
   const forceRemoved = await removeLockFileIfOwned(lockPath, null, { force: true });
+  if (forceRemoved) {
+    lockRuntimeMetrics.staleRemoveOwnerFailedForceSucceeded += 1;
+  }
   return {
     removed: forceRemoved,
     removalMode: forceRemoved ? 'owner-fallback-force' : 'owner'
@@ -315,6 +324,7 @@ export const acquireFileLock = async ({
     } catch (err) {
       if (err?.code === 'ENOENT') {
         parentMissingRetries += 1;
+        lockRuntimeMetrics.parentMissingRetries += 1;
         try {
           await fs.mkdir(path.dirname(lockPath), { recursive: true });
         } catch {}
@@ -395,4 +405,16 @@ export const withFileLock = async (options, worker) => {
   } finally {
     await lock.release();
   }
+};
+
+export const getFileLockRuntimeMetrics = () => ({
+  hookFailures: Number(lockRuntimeMetrics.hookFailures) || 0,
+  parentMissingRetries: Number(lockRuntimeMetrics.parentMissingRetries) || 0,
+  staleRemoveOwnerFailedForceSucceeded: Number(lockRuntimeMetrics.staleRemoveOwnerFailedForceSucceeded) || 0
+});
+
+export const resetFileLockRuntimeMetricsForTests = () => {
+  lockRuntimeMetrics.hookFailures = 0;
+  lockRuntimeMetrics.parentMissingRetries = 0;
+  lockRuntimeMetrics.staleRemoveOwnerFailedForceSucceeded = 0;
 };

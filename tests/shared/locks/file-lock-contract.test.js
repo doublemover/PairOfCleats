@@ -3,7 +3,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { acquireFileLock, readLockInfo } from '../../../src/shared/locks/file-lock.js';
+import {
+  acquireFileLock,
+  getFileLockRuntimeMetrics,
+  readLockInfo,
+  resetFileLockRuntimeMetricsForTests
+} from '../../../src/shared/locks/file-lock.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -13,6 +18,7 @@ const lockPath = path.join(tempRoot, 'contract.lock');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });
+resetFileLockRuntimeMetricsForTests();
 
 const lock = await acquireFileLock({ lockPath });
 assert.ok(lock, 'expected lock to be acquired');
@@ -151,6 +157,10 @@ assert.equal(
   observedParentMissingRetry,
   true,
   'expected at least one parent-missing retry during lock acquisition race'
+);
+assert.ok(
+  getFileLockRuntimeMetrics().parentMissingRetries > 0,
+  'expected runtime metrics to record lock parent-missing retries'
 );
 
 await fsPromises.rm(lockPath, { force: true });
