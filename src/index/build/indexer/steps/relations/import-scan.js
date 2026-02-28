@@ -35,6 +35,14 @@ const formatUnresolvedReasonCodeCounts = (reasonCodes) => {
   return entries.map(([reasonCode, count]) => `${reasonCode}=${Number(count)}`).join(', ');
 };
 
+const formatUnresolvedResolverStageCounts = (resolverStages) => {
+  const entries = Object.entries(resolverStages || {})
+    .filter(([stage, count]) => stage && Number.isFinite(Number(count)) && Number(count) > 0)
+    .sort((a, b) => sortStrings(a[0], b[0]));
+  if (entries.length === 0) return 'none';
+  return entries.map(([stage, count]) => `${stage}=${Number(count)}`).join(', ');
+};
+
 const formatUnresolvedActionableHotspots = (hotspots, maxEntries = 3) => {
   const normalized = Array.isArray(hotspots)
     ? hotspots
@@ -102,6 +110,7 @@ const logUnresolvedImportSamples = ({
     `(actionable=${actionableTotal}, live-suppressed=${policySuppressed})`
   );
   log(`[imports] unresolved reason codes: ${formatUnresolvedReasonCodeCounts(summary?.reasonCodes)}`);
+  log(`[imports] unresolved resolver stages: ${formatUnresolvedResolverStageCounts(summary?.resolverStages)}`);
   log(`[imports] unresolved actionable hotspots: ${formatUnresolvedActionableHotspots(summary?.actionableHotspots)}`);
   log(`[imports] unresolved import samples (${visible.length} live of ${total}):`);
   for (const entry of visible) {

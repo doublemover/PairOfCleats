@@ -310,6 +310,17 @@ const main = async () => {
   const actionableRate = toRatio(actionable, unresolved);
   const parserArtifactRate = toRatio(totals.parserArtifact, unresolved);
   const resolverGapRate = toRatio(totals.resolverGap, unresolved);
+  const topReasonCode = Object.entries(reasonCodeCounts || {})
+    .map(([reasonCode, count]) => ({ reasonCode, count: Math.floor(Number(count) || 0) }))
+    .filter((entry) => entry.reasonCode && entry.count > 0)
+    .sort((a, b) => (
+      b.count !== a.count
+        ? b.count - a.count
+        : sortStrings(a.reasonCode, b.reasonCode)
+    ))[0] || null;
+  const topHotspot = Array.isArray(actionableHotspots) && actionableHotspots.length > 0
+    ? actionableHotspots[0]
+    : null;
   const failures = [];
 
   if (invalidReports.length > 0) {
@@ -365,7 +376,9 @@ const main = async () => {
       `- actionableRate: ${actionableRate.toFixed(4)} (max ${actionableRateMax.toFixed(4)})`,
       `- parserArtifactRate: ${parserArtifactRate.toFixed(4)}`,
       `- resolverGapRate: ${resolverGapRate.toFixed(4)}`,
-      `- actionableHotspots: ${actionableHotspots.length}`
+      `- actionableHotspots: ${actionableHotspots.length}`,
+      `- topHotspot: ${topHotspot ? `${topHotspot.importer}=${topHotspot.count}` : 'none'}`,
+      `- topReasonCode: ${topReasonCode ? `${topReasonCode.reasonCode}=${topReasonCode.count}` : 'none'}`
     ],
     failures
   });
