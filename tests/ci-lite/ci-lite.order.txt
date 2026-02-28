@@ -770,6 +770,7 @@ indexing/imports/proto-safe-module-keys
 indexing/imports/esmodule-lexer-init
 indexing/imports/decision-metamorphic
 indexing/imports/replay-harness
+indexing/imports/replay-harness-gate-eligible-stats
 indexing/imports/stage-cache-hit-miss
 indexing/preprocess/files
 tooling/index-stats/json

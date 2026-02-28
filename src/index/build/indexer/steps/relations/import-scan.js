@@ -6,11 +6,13 @@ import {
   summarizeUnresolvedImportTaxonomy
 } from '../../../imports.js';
 import {
+  DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS,
   createFsExistsIndex,
   formatResolverPipelineStageSummary,
   prepareImportResolutionFsMeta,
   resolveImportLinks,
-  resolveResolverPipelineStageHighlights
+  resolveResolverPipelineStageHighlights,
+  summarizeGateEligibleImportWarnings
 } from '../../../import-resolution.js';
 import {
   applyImportResolutionCacheFileSetDiffInvalidation,
@@ -444,6 +446,9 @@ export const postScanImports = async ({
   throwIfAborted(abortSignal);
   const unresolvedSamples = normalizeUnresolvedSamples(resolution?.unresolvedSamples);
   const unresolvedTaxonomyBase = summarizeUnresolvedImportTaxonomy(unresolvedSamples);
+  const unresolvedGateEligible = summarizeGateEligibleImportWarnings(unresolvedSamples, {
+    excludedImporterSegments: DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS
+  });
   const resolverBudgetExhausted = Number(resolution?.stats?.unresolvedBudgetExhausted) || 0;
   const resolverBudgetExhaustedByType = resolution?.stats?.unresolvedBudgetExhaustedByType || {};
   const unresolvedTaxonomy = {
@@ -468,6 +473,11 @@ export const postScanImports = async ({
       resolution.graph.stats.unresolvedByResolverStage = unresolvedTaxonomy.resolverStages;
       resolution.graph.stats.unresolvedActionableHotspots = unresolvedTaxonomy.actionableHotspots;
       resolution.graph.stats.unresolvedActionableByLanguage = unresolvedTaxonomy.actionableByLanguage;
+      resolution.graph.stats.unresolvedGateEligible = unresolvedGateEligible.unresolved;
+      resolution.graph.stats.unresolvedActionableGateEligible = unresolvedGateEligible.actionable;
+      resolution.graph.stats.unresolvedGateEligibleActionableRate = unresolvedGateEligible.unresolved > 0
+        ? unresolvedGateEligible.actionable / unresolvedGateEligible.unresolved
+        : 0;
       resolution.graph.stats.unresolvedLiveSuppressedCategories = unresolvedTaxonomy.liveSuppressedCategories;
       resolution.graph.stats.unresolvedActionableRate = unresolvedTaxonomy.actionableUnresolvedRate;
       resolution.graph.stats.unresolvedParserArtifactRate = unresolvedTaxonomy.parserArtifactRate;
@@ -505,6 +515,11 @@ export const postScanImports = async ({
     resolvedStats.unresolvedByResolverStage = unresolvedTaxonomy.resolverStages;
     resolvedStats.unresolvedActionableHotspots = unresolvedTaxonomy.actionableHotspots;
     resolvedStats.unresolvedActionableByLanguage = unresolvedTaxonomy.actionableByLanguage;
+    resolvedStats.unresolvedGateEligible = unresolvedGateEligible.unresolved;
+    resolvedStats.unresolvedActionableGateEligible = unresolvedGateEligible.actionable;
+    resolvedStats.unresolvedGateEligibleActionableRate = unresolvedGateEligible.unresolved > 0
+      ? unresolvedGateEligible.actionable / unresolvedGateEligible.unresolved
+      : 0;
     resolvedStats.unresolvedLiveSuppressedCategories = unresolvedTaxonomy.liveSuppressedCategories;
     resolvedStats.unresolvedParserArtifactRate = unresolvedTaxonomy.parserArtifactRate;
     resolvedStats.unresolvedResolverGapRate = unresolvedTaxonomy.resolverGapRate;

@@ -339,6 +339,44 @@ try {
     'expected resolver gap advisory message'
   );
 
+  const gateEligibleStatsGraphPath = path.join(tempRoot, 'import_resolution_graph.gate-eligible-stats.json');
+  const gateEligibleStatsJsonPath = path.join(tempRoot, 'import-resolution-slo-gate.gate-eligible-stats.json');
+  await writeGraph(gateEligibleStatsGraphPath, {
+    generatedAt: new Date().toISOString(),
+    stats: {
+      unresolved: 100,
+      unresolvedActionable: 40,
+      unresolvedGateEligible: 4,
+      unresolvedActionableGateEligible: 1
+    },
+    warnings: []
+  });
+  const gateEligibleStatsResult = spawnSync(
+    process.execPath,
+    [
+      gatePath,
+      '--mode',
+      'ci',
+      '--report',
+      gateEligibleStatsGraphPath,
+      '--json',
+      gateEligibleStatsJsonPath,
+      '--actionable-unresolved-rate-max',
+      '0.3'
+    ],
+    {
+      cwd: ROOT,
+      env: process.env,
+      encoding: 'utf8'
+    }
+  );
+  assert.equal(gateEligibleStatsResult.status, 0, `expected gate-eligible stats status=0, received ${gateEligibleStatsResult.status}`);
+  const gateEligibleStatsPayload = JSON.parse(await fs.readFile(gateEligibleStatsJsonPath, 'utf8'));
+  assert.equal(gateEligibleStatsPayload?.metrics?.unresolved, 4);
+  assert.equal(gateEligibleStatsPayload?.metrics?.actionable, 1);
+  assert.equal(gateEligibleStatsPayload?.metrics?.gateEligibleUnresolved, 4);
+  assert.equal(gateEligibleStatsPayload?.metrics?.gateEligibleActionable, 1);
+
   console.log('import resolution slo gate smoke test passed');
 } finally {
   await fs.rm(tempRoot, { recursive: true, force: true });

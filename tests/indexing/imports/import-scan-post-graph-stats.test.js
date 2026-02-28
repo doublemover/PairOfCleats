@@ -98,6 +98,9 @@ assert.deepEqual(
   Object.fromEntries(Object.entries(result?.stats?.unresolvedActionableByLanguage || {})),
   { js: 1 }
 );
+assert.equal(result?.stats?.unresolvedGateEligible, 1);
+assert.equal(result?.stats?.unresolvedActionableGateEligible, 1);
+assert.equal(result?.stats?.unresolvedGateEligibleActionableRate, 1);
 assert.equal(result?.stats?.unresolvedActionableRate, 1);
 assert.equal(result?.stats?.unresolvedParserArtifactRate, 0);
 assert.equal(result?.stats?.unresolvedResolverGapRate, 0);
@@ -118,6 +121,9 @@ assert.deepEqual(
   Object.fromEntries(Object.entries(stageState?.importResolutionGraph?.stats?.unresolvedActionableByLanguage || {})),
   { js: 1 }
 );
+assert.equal(stageState?.importResolutionGraph?.stats?.unresolvedGateEligible, 1);
+assert.equal(stageState?.importResolutionGraph?.stats?.unresolvedActionableGateEligible, 1);
+assert.equal(stageState?.importResolutionGraph?.stats?.unresolvedGateEligibleActionableRate, 1);
 assert.equal(stageState?.importResolutionGraph?.stats?.unresolvedActionableRate, 1);
 assert.equal(stageState?.importResolutionGraph?.stats?.unresolvedParserArtifactRate, 0);
 assert.equal(stageState?.importResolutionGraph?.stats?.unresolvedResolverGapRate, 0);

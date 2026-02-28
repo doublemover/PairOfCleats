@@ -1,18 +1,13 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { enrichUnresolvedImportSamples } from '../imports.js';
+import {
+  DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS,
+  filterGateEligibleImportWarnings,
+  summarizeGateEligibleImportWarnings
+} from './gate-eligibility.js';
 import { resolveLanguageLabelFromImporter, resolveRepoLabelFromReportPath } from './labels.js';
 
-export const DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS = Object.freeze([
-  '/test/',
-  '/tests/',
-  '/__tests__/',
-  '/fixture/',
-  '/fixtures/',
-  '/__fixtures__/',
-  '/spec/',
-  '/specs/'
-]);
 export const DEFAULT_REPLAY_SCAN_ROOTS = Object.freeze(['.testCache', '.benchCache']);
 export const DEFAULT_REPLAY_MAX_REPORTS = 256;
 
@@ -219,27 +214,6 @@ export const loadImportResolutionGraphReports = async (
   return reports;
 };
 
-const normalizeExcludedImporterSegment = (segment) => {
-  const normalized = String(segment || '').trim().replace(/\\/g, '/').toLowerCase();
-  if (!normalized) return '';
-  const withLeadingSlash = normalized.startsWith('/') ? normalized : `/${normalized}`;
-  return withLeadingSlash.endsWith('/') ? withLeadingSlash : `${withLeadingSlash}/`;
-};
-
-const normalizeImporterForSegmentChecks = (importer) => {
-  const normalized = String(importer || '').trim().replace(/\\/g, '/').toLowerCase();
-  if (!normalized) return '';
-  const trimmedLeading = normalized.replace(/^\/+/, '');
-  const trimmed = trimmedLeading.replace(/\/+$/, '');
-  return trimmed ? `/${trimmed}/` : '/';
-};
-
-const isGateEligibleWarning = (entry, normalizedExcludedImporterSegments) => {
-  const importer = normalizeImporterForSegmentChecks(entry?.importer);
-  if (!importer) return true;
-  return !normalizedExcludedImporterSegments.some((segment) => importer.includes(segment));
-};
-
 /**
  * Replay and aggregate unresolved-import diagnostics from import resolution graph payloads.
  *
@@ -259,11 +233,6 @@ export const aggregateImportResolutionGraphPayloads = (
   graphReports,
   { excludedImporterSegments = DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS } = {}
 ) => {
-  const normalizedExcludedImporterSegments = Array.isArray(excludedImporterSegments)
-    ? excludedImporterSegments
-      .map((segment) => normalizeExcludedImporterSegment(segment))
-      .filter(Boolean)
-    : [];
   const totals = {
     reportCount: 0,
     observedUnresolved: 0,
@@ -303,28 +272,45 @@ export const aggregateImportResolutionGraphPayloads = (
       bumpCount(warningReasonCodes, warning.reasonCode);
     }
 
-    const eligibleWarnings = warnings.filter((entry) => (
-      isGateEligibleWarning(entry, normalizedExcludedImporterSegments)
-    ));
-    const eligibleUnresolved = eligibleWarnings.length;
-    const eligibleActionable = eligibleWarnings.filter((entry) => entry?.disposition === 'actionable').length;
-    const eligibleParserArtifact = eligibleWarnings.filter((entry) => (
-      entry?.failureCause === 'parser_artifact'
-      || entry?.category === 'parser_artifact'
-    )).length;
-    const eligibleResolverGap = eligibleWarnings.filter((entry) => (
-      entry?.failureCause === 'resolver_gap'
-      || entry?.category === 'resolver_gap'
-    )).length;
+    const eligibleWarnings = filterGateEligibleImportWarnings(warnings, { excludedImporterSegments });
+    const eligibleSummary = summarizeGateEligibleImportWarnings(warnings, { excludedImporterSegments });
+    const eligibleUnresolved = eligibleSummary.unresolved;
+    const eligibleActionable = eligibleSummary.actionable;
+    const eligibleParserArtifact = eligibleSummary.parserArtifact;
+    const eligibleResolverGap = eligibleSummary.resolverGap;
 
     const statsUnresolved = toNonNegativeIntOrNull(stats.unresolved);
     const statsActionable = toNonNegativeIntOrNull(
       stats.unresolvedActionable
       ?? stats?.unresolvedByDisposition?.actionable
     );
+    const statsGateEligibleUnresolved = toNonNegativeIntOrNull(
+      stats.unresolvedGateEligible
+      ?? stats.unresolvedEligible
+    );
+    const statsGateEligibleActionable = toNonNegativeIntOrNull(
+      stats.unresolvedActionableGateEligible
+      ?? stats.unresolvedGateEligibleActionable
+      ?? stats.unresolvedActionableEligible
+      ?? stats.unresolvedEligibleActionable
+    );
+    const hasStatsGateEligibleTotals = (
+      statsGateEligibleUnresolved != null
+      && statsGateEligibleActionable != null
+    );
     const hasStatsGateTotals = statsUnresolved != null && statsActionable != null;
-    const unresolved = hasStatsGateTotals ? statsUnresolved : eligibleUnresolved;
-    const actionable = hasStatsGateTotals ? statsActionable : eligibleActionable;
+    const unresolved = hasStatsGateEligibleTotals
+      ? statsGateEligibleUnresolved
+      : (hasStatsGateTotals ? statsUnresolved : eligibleUnresolved);
+    const actionable = hasStatsGateEligibleTotals
+      ? statsGateEligibleActionable
+      : (hasStatsGateTotals ? statsActionable : eligibleActionable);
+    const gateEligibleUnresolved = hasStatsGateEligibleTotals
+      ? statsGateEligibleUnresolved
+      : eligibleUnresolved;
+    const gateEligibleActionable = hasStatsGateEligibleTotals
+      ? statsGateEligibleActionable
+      : eligibleActionable;
 
     const observedUnresolved = statsUnresolved ?? warnings.length;
     const observedActionable = statsActionable
@@ -394,8 +380,8 @@ export const aggregateImportResolutionGraphPayloads = (
     totals.observedActionable += observedActionable;
     totals.unresolved += unresolved;
     totals.actionable += actionable;
-    totals.gateEligibleUnresolved += eligibleUnresolved;
-    totals.gateEligibleActionable += eligibleActionable;
+    totals.gateEligibleUnresolved += gateEligibleUnresolved;
+    totals.gateEligibleActionable += gateEligibleActionable;
     totals.parserArtifact += parserArtifact;
     totals.resolverGap += resolverGap;
     totals.resolverBudgetExhausted += resolverBudgetExhausted;

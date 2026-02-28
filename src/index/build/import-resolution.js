@@ -13,6 +13,13 @@ export {
   resolveResolverPipelineStageHighlights
 } from './import-resolution/stage-pipeline-metrics.js';
 export {
+  DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS,
+  filterGateEligibleImportWarnings,
+  isGateEligibleImportWarning,
+  normalizeExcludedImporterSegments,
+  summarizeGateEligibleImportWarnings
+} from './import-resolution/gate-eligibility.js';
+export {
   resolveLanguageLabelFromImporter,
   resolveRepoLabelFromReportPath
 } from './import-resolution/labels.js';
@@ -31,7 +38,6 @@ export {
 export { matchGeneratedExpectationSpecifier } from './import-resolution/specifier-hints.js';
 export {
   aggregateImportResolutionGraphPayloads,
-  DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS,
   DEFAULT_REPLAY_MAX_REPORTS,
   DEFAULT_REPLAY_SCAN_ROOTS,
   discoverImportResolutionGraphReports,
