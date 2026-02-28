@@ -31,6 +31,10 @@ import { createPackageDirectoryResolver, parsePackageName } from './package-entr
 import { resolveDartPackageName, resolveGoModulePath, resolvePackageFingerprint } from './repo-metadata.js';
 import { createImportBuildContext } from './build-context/index.js';
 import {
+  createImportResolutionBudgetPolicy,
+  createImportResolutionSpecifierBudgetState
+} from './budgets.js';
+import {
   matchGeneratedExpectationSpecifier
 } from './specifier-hints.js';
 import { normalizeImportSpecifier, normalizeRelPath, resolveWithinRoot, sortStrings } from './path-utils.js';
@@ -198,6 +202,7 @@ const resolveUnresolvedReasonCode = ({
   spec,
   rawSpec,
   buildContextClassification = null,
+  budgetExhausted = false,
   generatedExpectationMatch = null,
   expectedArtifactsIndex = null
 }) => {
@@ -211,6 +216,9 @@ const resolveUnresolvedReasonCode = ({
   });
   if (resolvedGeneratedMatch?.matched) {
     return IMPORT_REASON_CODES.GENERATED_EXPECTED_MISSING;
+  }
+  if (budgetExhausted) {
+    return IMPORT_REASON_CODES.RESOLVER_BUDGET_EXHAUSTED;
   }
   return IMPORT_REASON_CODES.MISSING_FILE_RELATIVE;
 };
@@ -284,6 +292,7 @@ export function resolveImportLinks({
     entries: Array.from(resolvedLookup.fileSet || []),
     resolverPlugins
   });
+  const budgetPolicy = createImportResolutionBudgetPolicy({ resolverPlugins });
   const expectedArtifactsIndex = buildContext.expectedArtifactsIndex;
   if (cacheMetrics && canReuseLookup && lookup) {
     cacheMetrics.lookupReused = true;
@@ -306,6 +315,7 @@ export function resolveImportLinks({
         ...(graphMeta?.importScanMode ? [`scan:${graphMeta.importScanMode}`] : []),
         ...(aliasRulesFingerprint ? [`resolverAlias:${aliasRulesFingerprint}`] : []),
         ...(buildContext?.fingerprint ? [`buildContext:${buildContext.fingerprint}`] : []),
+        ...(budgetPolicy?.fingerprint ? [`resolverBudgets:${budgetPolicy.fingerprint}`] : []),
         ...(expectedArtifactsIndex?.fingerprint ? [`expectedArtifacts:${expectedArtifactsIndex.fingerprint}`] : [])
       ],
       pathPolicy: 'posix',
@@ -390,7 +400,12 @@ export function resolveImportLinks({
     return isFileStat(fallbackStat);
   };
 
-  const resolveExistingNonIndexedRelativeImport = ({ spec, importerInfo, importerRel }) => {
+  const resolveExistingNonIndexedRelativeImport = ({
+    spec,
+    importerInfo,
+    importerRel,
+    specBudget
+  }) => {
     if (!spec || typeof spec !== 'string' || !importerRel) return null;
     if (!(spec.startsWith('.') || spec.startsWith('/'))) return null;
     if (spec === '.' || spec === '..') return null;
@@ -421,9 +436,11 @@ export function resolveImportLinks({
         : resolveRelativeImportCandidates(base, DEFAULT_IMPORT_EXTS);
       for (const candidate of candidates) {
         if (!candidate) continue;
+        if (specBudget && !specBudget.consumeFallbackCandidate()) return null;
         const candidateAbs = path.resolve(resolvedLookup.rootAbs, candidate);
         const candidateRel = resolveWithinRoot(resolvedLookup.rootAbs, candidateAbs);
         if (!candidateRel) continue;
+        if (specBudget && !specBudget.consumeFilesystemProbe()) return null;
         const candidateStat = fsMemo.statSync(candidateAbs);
         if (isFileStat(candidateStat)) return candidateRel;
       }
@@ -462,6 +479,7 @@ export function resolveImportLinks({
   let suppressedWarnings = 0;
   let unresolvedCount = 0;
   let unresolvedActionable = 0;
+  let unresolvedBudgetExhausted = 0;
   let externalCount = 0;
   let resolvedCount = 0;
   let edgeTotal = 0;
@@ -470,6 +488,7 @@ export function resolveImportLinks({
   const truncatedByKind = { import: 0 };
   const unresolvedSamples = [];
   const unresolvedReasonCounts = Object.create(null);
+  const unresolvedBudgetExhaustedByType = Object.create(null);
 
   const warningList = unresolvedSamples;
   const unresolvedDedup = new Set();
@@ -571,6 +590,7 @@ export function resolveImportLinks({
       let unresolvedFailureCause = null;
       let unresolvedDisposition = null;
       let unresolvedResolverStage = null;
+      const specBudget = createImportResolutionSpecifierBudgetState(budgetPolicy);
       let buildContextClassification = null;
       const resolveBuildContextClassification = () => {
         if (!buildContextClassification) {
@@ -714,7 +734,8 @@ export function resolveImportLinks({
                   const nonIndexedLocal = resolveExistingNonIndexedRelativeImport({
                     spec,
                     importerInfo,
-                    importerRel: relNormalized
+                    importerRel: relNormalized,
+                    specBudget
                   });
                   return {
                     resolvedType: nonIndexedLocal ? 'external' : 'unresolved',
@@ -839,6 +860,7 @@ export function resolveImportLinks({
                 spec,
                 rawSpec,
                 buildContextClassification: resolveBuildContextClassification(),
+                budgetExhausted: specBudget.isExhausted(),
                 generatedExpectationMatch: resolveGeneratedExpectationMatch(),
                 expectedArtifactsIndex
               })),
@@ -852,6 +874,12 @@ export function resolveImportLinks({
         unresolvedFailureCause = unresolvedDecision.failureCause;
         unresolvedDisposition = unresolvedDecision.disposition;
         unresolvedResolverStage = unresolvedDecision.resolverStage;
+        if (unresolvedReasonCode === IMPORT_REASON_CODES.RESOLVER_BUDGET_EXHAUSTED) {
+          unresolvedBudgetExhausted += 1;
+          for (const exhaustedType of specBudget.exhaustedTypes()) {
+            bumpCount(unresolvedBudgetExhaustedByType, exhaustedType, 1);
+          }
+        }
         if (isActionableDisposition(unresolvedDisposition)) {
           unresolvedActionable += 1;
         }
@@ -956,6 +984,8 @@ export function resolveImportLinks({
       unresolvedActionable: unresolvedActionable,
       unresolvedSuppressed: suppressedWarnings,
       unresolvedByReasonCode: toSortedCountObject(unresolvedReasonCounts),
+      unresolvedBudgetExhausted,
+      unresolvedBudgetExhaustedByType: toSortedCountObject(unresolvedBudgetExhaustedByType),
       truncatedEdges,
       truncatedEdgesByKind: truncatedByKind,
       truncatedNodes: capStats?.truncatedNodes ?? 0,
@@ -980,6 +1010,8 @@ export function resolveImportLinks({
       unresolvedActionable: unresolvedActionable,
       unresolvedSuppressed: suppressedWarnings,
       unresolvedByReasonCode: toSortedCountObject(unresolvedReasonCounts),
+      unresolvedBudgetExhausted,
+      unresolvedBudgetExhaustedByType: toSortedCountObject(unresolvedBudgetExhaustedByType),
       truncatedEdges,
       truncatedNodes: capStats?.truncatedNodes ?? 0,
       warningSuppressed: suppressedWarnings,
