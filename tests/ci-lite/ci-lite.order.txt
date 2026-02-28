@@ -206,6 +206,7 @@ indexing/imports/import-resolution-stage-pipeline
 indexing/imports/import-resolution-build-context-cache-key
 indexing/imports/import-resolution-budget-exhaustion
 indexing/imports/import-graph-budget-diagnostics
+indexing/imports/import-resolution-fallback-depth-budget
 indexing/embeddings/cache-invalidation
 retrieval/cli/options-smoke
 indexing/tree-sitter/runtime-cache
