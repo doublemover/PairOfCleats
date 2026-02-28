@@ -9,12 +9,13 @@ const entries = [
   'python/service/main.py',
   'python/service/proto/client.proto',
   'graphql/schema.graphql',
+  'api/openapi.yaml',
   'lib/src/model.dart',
   'src/main.js'
 ];
 
 const index = createExpectedArtifactsIndex({ entries });
-assert.equal(index.version, 'expected-artifacts-index-v1');
+assert.equal(index.version, 'expected-artifacts-index-v2');
 assert.equal(typeof index.fingerprint, 'string');
 assert.equal(index.indexedFileCount, entries.length);
 assert.equal(index.expectedPathCount > 0, true, 'expected generated path predictions');
@@ -48,6 +49,23 @@ const dartMatch = index.match({
 });
 assert.equal(dartMatch.matched, true);
 assert.equal(dartMatch.source, 'index');
+
+const openApiGeneratedMatch = index.match({
+  importer: 'api/main.ts',
+  specifier: './openapi.client.ts'
+});
+assert.equal(openApiGeneratedMatch.matched, true);
+assert.equal(openApiGeneratedMatch.source, 'index');
+assert.equal(openApiGeneratedMatch.matchType, 'expected_output_path');
+
+const openApiCounterpartMatch = index.match({
+  importer: 'api/main.ts',
+  specifier: './generated/openapi-client.ts'
+});
+assert.equal(openApiCounterpartMatch.matched, true);
+assert.equal(openApiCounterpartMatch.source, 'index');
+assert.equal(openApiCounterpartMatch.matchType, 'source_counterpart');
+assert.equal(openApiCounterpartMatch.sourcePath, 'api/openapi.yaml');
 
 const nonMatch = index.match({
   importer: 'src/main.js',

@@ -37,6 +37,25 @@ const GRAPHQL_GENERATED_SUFFIXES = Object.freeze([
   '.generated.jsx',
   '.generated.d.ts'
 ]);
+const OPENAPI_GENERATED_SUFFIXES = Object.freeze([
+  '.gen.ts',
+  '.generated.ts',
+  '.client.ts',
+  '.client.js',
+  '.types.ts',
+  '.schemas.ts',
+  '.api.ts'
+]);
+const OPENAPI_SOURCE_SUFFIXES = Object.freeze([
+  '.openapi.yaml',
+  '.openapi.yml',
+  '.openapi.json',
+  '.swagger.yaml',
+  '.swagger.yml',
+  '.swagger.json'
+]);
+const OPENAPI_SOURCE_DIRECT_EXTENSIONS = Object.freeze(['.yaml', '.yml', '.json']);
+const OPENAPI_BASENAME_HINTS = new Set(['openapi', 'swagger']);
 const GENERATED_SUBDIRS = Object.freeze(['generated', '__generated__', 'gen']);
 
 const normalizePathToken = (value) => (
@@ -78,6 +97,13 @@ const toSpecifierCandidatePaths = ({ importer = '', specifier = '' } = {}) => {
 
 const addIfSetMissing = (target, value) => {
   if (value) target.add(value);
+};
+
+const looksLikeOpenApiBase = (baseRel) => {
+  const normalized = normalizePathToken(baseRel);
+  if (!normalized) return false;
+  const base = path.posix.basename(normalized).toLowerCase();
+  return OPENAPI_BASENAME_HINTS.has(base) || base.endsWith('.openapi') || base.endsWith('.swagger');
 };
 
 const addCounterpartCandidates = (candidateRel, targetSet) => {
@@ -122,9 +148,42 @@ const addCounterpartCandidates = (candidateRel, targetSet) => {
       addCounterpartCandidates(collapsed, targetSet);
     }
   }
+
+  const candidateExt = path.posix.extname(normalized);
+  const candidateBase = candidateExt
+    ? normalized.slice(0, -candidateExt.length)
+    : normalized;
+  const openApiBases = new Set([candidateBase]);
+  openApiBases.add(candidateBase.replace(/(?:[-_.](?:generated|gen))$/i, ''));
+  openApiBases.add(candidateBase.replace(/(?:[-_.](?:client|types?|schemas?|api))$/i, ''));
+  openApiBases.add(
+    candidateBase
+      .replace(/(?:[-_.](?:generated|gen))$/i, '')
+      .replace(/(?:[-_.](?:client|types?|schemas?|api))$/i, '')
+  );
+  for (const openApiBase of openApiBases) {
+    const normalizedBase = normalizePathToken(openApiBase);
+    if (!normalizedBase) continue;
+    for (const suffix of OPENAPI_SOURCE_SUFFIXES) {
+      addIfSetMissing(targetSet, `${normalizedBase}${suffix}`);
+    }
+    if (looksLikeOpenApiBase(normalizedBase)) {
+      for (const ext of OPENAPI_SOURCE_DIRECT_EXTENSIONS) {
+        addIfSetMissing(targetSet, `${normalizedBase}${ext}`);
+      }
+    }
+  }
+  const dir = path.posix.dirname(normalized);
+  if (dir && dir !== '.') {
+    for (const basenameHint of OPENAPI_BASENAME_HINTS) {
+      for (const ext of ['.yaml', '.yml', '.json']) {
+        addIfSetMissing(targetSet, normalizePathToken(path.posix.join(dir, `${basenameHint}${ext}`)));
+      }
+    }
+  }
 };
 
-const buildExpectedArtifactPaths = (protoStems, graphqlStems, dartStems) => {
+const buildExpectedArtifactPaths = (protoStems, graphqlStems, dartStems, openApiStems) => {
   const expectedPaths = new Set();
   for (const protoStem of protoStems) {
     for (const suffix of PROTO_GENERATED_SUFFIXES) {
@@ -152,6 +211,39 @@ const buildExpectedArtifactPaths = (protoStems, graphqlStems, dartStems) => {
   for (const dartStem of dartStems) {
     expectedPaths.add(`${dartStem}.g.dart`);
   }
+  for (const openApiStem of openApiStems) {
+    for (const suffix of OPENAPI_GENERATED_SUFFIXES) {
+      expectedPaths.add(`${openApiStem}${suffix}`);
+    }
+    const dir = path.posix.dirname(openApiStem);
+    const base = path.posix.basename(openApiStem);
+    const normalizedBase = base
+      .replace(/(?:\.openapi|\.swagger)$/i, '');
+    if (normalizedBase && normalizedBase !== base) {
+      for (const suffix of OPENAPI_GENERATED_SUFFIXES) {
+        expectedPaths.add(normalizePathToken(path.posix.join(dir, `${normalizedBase}${suffix}`)));
+      }
+      expectedPaths.add(normalizePathToken(path.posix.join(dir, `${normalizedBase}-client.ts`)));
+      expectedPaths.add(normalizePathToken(path.posix.join(dir, `${normalizedBase}-types.ts`)));
+    }
+    if (OPENAPI_BASENAME_HINTS.has(base.toLowerCase())) {
+      expectedPaths.add(normalizePathToken(path.posix.join(dir, 'client.ts')));
+      expectedPaths.add(normalizePathToken(path.posix.join(dir, 'types.ts')));
+      expectedPaths.add(normalizePathToken(path.posix.join(dir, 'schemas.ts')));
+      expectedPaths.add(normalizePathToken(path.posix.join(dir, 'api.ts')));
+    }
+    for (const subdir of GENERATED_SUBDIRS) {
+      for (const suffix of OPENAPI_GENERATED_SUFFIXES) {
+        expectedPaths.add(normalizePathToken(path.posix.join(dir, subdir, `${base}${suffix}`)));
+      }
+      if (OPENAPI_BASENAME_HINTS.has(base.toLowerCase())) {
+        expectedPaths.add(normalizePathToken(path.posix.join(dir, subdir, 'client.ts')));
+        expectedPaths.add(normalizePathToken(path.posix.join(dir, subdir, 'types.ts')));
+        expectedPaths.add(normalizePathToken(path.posix.join(dir, subdir, 'schemas.ts')));
+        expectedPaths.add(normalizePathToken(path.posix.join(dir, subdir, 'api.ts')));
+      }
+    }
+  }
   expectedPaths.delete('');
   return expectedPaths;
 };
@@ -159,7 +251,7 @@ const buildExpectedArtifactPaths = (protoStems, graphqlStems, dartStems) => {
 const buildIndexFingerprint = ({ expectedPaths, indexedFiles }) => {
   const expectedSerialized = Array.from(expectedPaths).sort(sortStrings).join('|');
   const indexedSerialized = Array.from(indexedFiles).sort(sortStrings).join('|');
-  return sha1(`expected-artifacts-index-v1|${expectedSerialized}|${indexedSerialized}`);
+  return sha1(`expected-artifacts-index-v2|${expectedSerialized}|${indexedSerialized}`);
 };
 
 const hasHeuristicGeneratedHints = ({ importer = '', specifier = '' } = {}) => {
@@ -181,6 +273,7 @@ export const createExpectedArtifactsIndex = ({ entries = [] } = {}) => {
   const protoStems = new Set();
   const graphqlStems = new Set();
   const dartStems = new Set();
+  const openApiStems = new Set();
   for (const entry of entries || []) {
     const rel = toEntryRelPath(entry);
     if (!rel) continue;
@@ -195,10 +288,19 @@ export const createExpectedArtifactsIndex = ({ entries = [] } = {}) => {
       graphqlStems.add(stem);
     } else if (ext === '.dart') {
       dartStems.add(stem);
+    } else if (ext === '.yaml' || ext === '.yml' || ext === '.json') {
+      const base = path.posix.basename(stem).toLowerCase();
+      if (
+        OPENAPI_BASENAME_HINTS.has(base)
+        || base.endsWith('.openapi')
+        || base.endsWith('.swagger')
+      ) {
+        openApiStems.add(stem);
+      }
     }
   }
 
-  const expectedPaths = buildExpectedArtifactPaths(protoStems, graphqlStems, dartStems);
+  const expectedPaths = buildExpectedArtifactPaths(protoStems, graphqlStems, dartStems, openApiStems);
   const fingerprint = buildIndexFingerprint({ expectedPaths, indexedFiles });
 
   const match = ({ importer = '', specifier = '' } = {}) => {
@@ -241,7 +343,7 @@ export const createExpectedArtifactsIndex = ({ entries = [] } = {}) => {
   };
 
   return Object.freeze({
-    version: 'expected-artifacts-index-v1',
+    version: 'expected-artifacts-index-v2',
     fingerprint,
     indexedFileCount: indexedFiles.size,
     expectedPathCount: expectedPaths.size,

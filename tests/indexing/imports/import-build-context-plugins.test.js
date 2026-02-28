@@ -5,7 +5,8 @@ import { createImportBuildContext } from '../../../src/index/build/import-resolu
 const entries = [
   { rel: 'src/main.ts' },
   { rel: 'src/proto/client.proto' },
-  { rel: 'schema/api.graphql' }
+  { rel: 'schema/api.graphql' },
+  { rel: 'api/openapi.yaml' }
 ];
 
 const buildContext = createImportBuildContext({ entries });
@@ -38,6 +39,15 @@ const generatedFromIndex = buildContext.classifyUnresolved({
 assert.equal(generatedFromIndex?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
 assert.equal(generatedFromIndex?.pluginId, 'generated-artifacts');
 assert.equal(generatedFromIndex?.generatedMatch?.source, 'index');
+
+const generatedOpenApi = buildContext.classifyUnresolved({
+  importerRel: 'api/main.ts',
+  spec: './generated/openapi-client.ts',
+  rawSpec: './generated/openapi-client.ts'
+});
+assert.equal(generatedOpenApi?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
+assert.equal(generatedOpenApi?.pluginId, 'generated-artifacts');
+assert.equal(generatedOpenApi?.generatedMatch?.source, 'index');
 
 const nixResult = buildContext.classifyUnresolved({
   importerRel: 'nix/flake.nix',
