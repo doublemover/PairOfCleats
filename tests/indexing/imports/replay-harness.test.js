@@ -1,8 +1,13 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import {
   aggregateImportResolutionGraphPayloads,
-  DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS
+  DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS,
+  discoverImportResolutionGraphReports,
+  loadImportResolutionGraphReports
 } from '../../../src/index/build/import-resolution.js';
 
 const reports = [
@@ -88,5 +93,42 @@ assert.deepEqual(
   [{ importer: 'src/main.js', count: 1 }],
   'expected actionable hotspot importer path normalization during replay'
 );
+
+const replayRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-import-replay-harness-'));
+try {
+  const reportPathA = path.join(replayRoot, '.benchCache', 'repo-c', 'import_resolution_graph.json');
+  const reportPathB = path.join(replayRoot, '.testCache', 'repo-d', 'import_resolution_graph.json');
+  const reportPathIgnored = path.join(replayRoot, '.testCache', 'repo-d', 'not_import_graph.json');
+  await fs.mkdir(path.dirname(reportPathA), { recursive: true });
+  await fs.mkdir(path.dirname(reportPathB), { recursive: true });
+  await fs.writeFile(reportPathA, JSON.stringify({ generatedAt: new Date().toISOString() }, null, 2));
+  await fs.writeFile(reportPathB, '{');
+  await fs.writeFile(reportPathIgnored, 'noop');
+
+  const discovered = await discoverImportResolutionGraphReports({
+    rootDir: replayRoot,
+    maxReports: 8
+  });
+  assert.deepEqual(
+    discovered.map((entry) => entry.replace(/\\/g, '/')),
+    [reportPathA, reportPathB].map((entry) => entry.replace(/\\/g, '/')).sort(),
+    'expected replay report discovery to only include import_resolution_graph.json files'
+  );
+
+  const loaded = await loadImportResolutionGraphReports(discovered);
+  assert.equal(loaded.length, 2, 'expected two loaded replay reports');
+  assert.equal(
+    loaded.filter((entry) => entry.payload && typeof entry.payload === 'object').length,
+    1,
+    'expected one valid replay report payload'
+  );
+  assert.equal(
+    loaded.filter((entry) => entry.payload == null).length,
+    1,
+    'expected one invalid replay report payload'
+  );
+} finally {
+  await fs.rm(replayRoot, { recursive: true, force: true });
+}
 
 console.log('import-resolution replay harness test passed');
