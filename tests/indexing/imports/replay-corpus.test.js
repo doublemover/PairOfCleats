@@ -35,7 +35,7 @@ assert.deepEqual(
   aggregated.actionableByRepo,
   {
     'repo-alpha': 1,
-    'repo-beta': 1
+    'repo-beta': 2
   },
   'expected actionable repo hotspot counts'
 );

@@ -119,7 +119,7 @@ assert.deepEqual(
 );
 assert.deepEqual(
   aggregated.actionableByRepo,
-  { 'repo-a': 1 },
+  { 'repo-a': 1, 'repo-c': 3 },
   'expected actionable repo hotspot rollup'
 );
 assert.deepEqual(

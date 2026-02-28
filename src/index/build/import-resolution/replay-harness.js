@@ -367,12 +367,7 @@ export const aggregateImportResolutionGraphPayloads = (
     const statsHotspots = toHotspotCounts(stats.unresolvedActionableHotspots);
     const effectiveHotspotCounts = statsHotspots || Object.create(null);
     const repoLabel = resolveRepoLabelFromReportPath(reportPath);
-    for (const entry of eligibleWarnings) {
-      if (entry?.disposition !== 'actionable') continue;
-      const importer = typeof entry?.importer === 'string' ? entry.importer.trim() : '';
-      if (!importer) continue;
-      bumpCount(totals.actionableRepoCounts, repoLabel, 1);
-    }
+    bumpCount(totals.actionableRepoCounts, repoLabel, actionable);
     if (statsActionableByLanguage) {
       for (const [language, count] of Object.entries(statsActionableByLanguage)) {
         bumpCount(totals.actionableLanguageCounts, language, count);
