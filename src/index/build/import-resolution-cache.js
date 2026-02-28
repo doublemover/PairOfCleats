@@ -888,7 +888,6 @@ export const applyImportResolutionCacheFileSetDiffInvalidation = ({
       invalidated += 1;
     }
     cache.lookup = null;
-    cache.cacheKey = null;
   }
 
   if (currentFingerprint) {
