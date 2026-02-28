@@ -22,6 +22,11 @@ assert.equal(fallbackDecision.reasonCode, IMPORT_REASON_CODES.UNKNOWN);
 assert.equal(fallbackDecision.failureCause, 'unknown');
 assert.equal(fallbackDecision.disposition, 'actionable');
 
+const generatedDecision = createUnresolvedDecision(IMPORT_REASON_CODES.GENERATED_EXPECTED_MISSING);
+assert.equal(generatedDecision.failureCause, 'generated_expected_missing');
+assert.equal(generatedDecision.disposition, 'suppress_gate');
+assert.equal(generatedDecision.resolverStage, 'build_system_resolver');
+
 const invalidResolved = validateResolutionDecision({
   resolutionState: IMPORT_RESOLUTION_STATES.RESOLVED,
   reasonCode: IMPORT_REASON_CODES.UNKNOWN

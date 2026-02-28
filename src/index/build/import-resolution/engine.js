@@ -29,7 +29,7 @@ import {
 } from './language-resolvers.js';
 import { createPackageDirectoryResolver, parsePackageName } from './package-entry.js';
 import { resolveDartPackageName, resolveGoModulePath, resolvePackageFingerprint } from './repo-metadata.js';
-import { isBazelLabelSpecifier } from './specifier-hints.js';
+import { isBazelLabelSpecifier, isGeneratedExpectationSpecifier } from './specifier-hints.js';
 import { normalizeImportSpecifier, normalizeRelPath, resolveWithinRoot, sortStrings } from './path-utils.js';
 import {
   IMPORT_REASON_CODES,
@@ -188,9 +188,15 @@ const toSortedCountObject = (counts) => {
   return output;
 };
 
-const resolveUnresolvedReasonCode = ({ spec, rawSpec }) => {
+const resolveUnresolvedReasonCode = ({ importerRel, spec, rawSpec }) => {
   if (isBazelLabelSpecifier(spec) || isBazelLabelSpecifier(rawSpec)) {
     return IMPORT_REASON_CODES.RESOLVER_GAP;
+  }
+  if (isGeneratedExpectationSpecifier({
+    importer: importerRel,
+    specifier: spec || rawSpec
+  })) {
+    return IMPORT_REASON_CODES.GENERATED_EXPECTED_MISSING;
   }
   return IMPORT_REASON_CODES.MISSING_FILE_RELATIVE;
 };
@@ -725,7 +731,11 @@ export function resolveImportLinks({
         const unresolvedDecision = assertUnresolvedDecision(
           ignoredUnresolved
             ? createUnresolvedDecision(IMPORT_REASON_CODES.PARSER_NOISE_SUPPRESSED)
-            : createUnresolvedDecision(resolveUnresolvedReasonCode({ spec, rawSpec })),
+            : createUnresolvedDecision(resolveUnresolvedReasonCode({
+              importerRel: relNormalized,
+              spec,
+              rawSpec
+            })),
           {
             context: `imports.resolve:${relNormalized}->${spec}`
           }

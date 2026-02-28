@@ -16,7 +16,7 @@ import {
   IMPORT_RESOLUTION_STATES,
   resolveDecisionFromReasonCode
 } from './import-resolution/reason-codes.js';
-import { isBazelLabelSpecifier } from './import-resolution/specifier-hints.js';
+import { isBazelLabelSpecifier, isGeneratedExpectationSpecifier } from './import-resolution/specifier-hints.js';
 
 let esModuleInitPromise = null;
 let cjsInitPromise = null;
@@ -235,6 +235,13 @@ const classifyCategory = ({ importer, specifier, reason }) => {
       suggestedRemediation: 'Enable build-system label resolution for Bazel workspace imports.'
     };
   }
+  if (isGeneratedExpectationSpecifier({ importer, specifier: normalizedSpecifier })) {
+    return {
+      category: UNRESOLVED_IMPORT_CATEGORIES.GENERATED_EXPECTED_MISSING,
+      confidence: 0.86,
+      suggestedRemediation: 'Build or materialize generated artifacts before indexing this import surface.'
+    };
+  }
   if (isRelative) {
     return {
       category: UNRESOLVED_IMPORT_CATEGORIES.MISSING_FILE,
@@ -274,6 +281,8 @@ const mapReasonCodeToCategory = (reasonCode) => {
       return UNRESOLVED_IMPORT_CATEGORIES.MISSING_FILE;
     case IMPORT_REASON_CODES.MISSING_DEPENDENCY_PACKAGE:
       return UNRESOLVED_IMPORT_CATEGORIES.MISSING_DEPENDENCY;
+    case IMPORT_REASON_CODES.GENERATED_EXPECTED_MISSING:
+      return UNRESOLVED_IMPORT_CATEGORIES.GENERATED_EXPECTED_MISSING;
     case IMPORT_REASON_CODES.RESOLVER_GAP:
       return UNRESOLVED_IMPORT_CATEGORIES.RESOLVER_GAP;
     default:
@@ -297,6 +306,8 @@ const mapCategoryToReasonCode = (category) => {
       return IMPORT_REASON_CODES.MISSING_FILE_RELATIVE;
     case UNRESOLVED_IMPORT_CATEGORIES.MISSING_DEPENDENCY:
       return IMPORT_REASON_CODES.MISSING_DEPENDENCY_PACKAGE;
+    case UNRESOLVED_IMPORT_CATEGORIES.GENERATED_EXPECTED_MISSING:
+      return IMPORT_REASON_CODES.GENERATED_EXPECTED_MISSING;
     case UNRESOLVED_IMPORT_CATEGORIES.RESOLVER_GAP:
       return IMPORT_REASON_CODES.RESOLVER_GAP;
     case UNRESOLVED_IMPORT_CATEGORIES.PARSER_ARTIFACT:

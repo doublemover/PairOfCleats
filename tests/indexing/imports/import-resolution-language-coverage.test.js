@@ -67,6 +67,7 @@ await write('src/util/parser.rs', 'pub fn parse() {}\n');
 await write('scripts/main.sh', 'source lib/helpers.sh\n');
 await write('scripts/lib/helpers.sh', 'echo ok\n');
 await write('scripts/system.sh', 'source /etc/bash_completion\nsource /usr/local/share/chruby/auto.sh\n');
+await write('src/gen/consumer.ts', "import './generated/client.pb.ts';\n");
 await write('index.html', '<!doctype html><img src="/logo/logo-clear.png"/>\n');
 await write('logo/logo-clear.png', 'not-a-real-png-but-exists\n');
 await write('web/frpc/index.html', '<!doctype html><script type="module" src="/src/main.ts"></script>\n');
@@ -167,6 +168,7 @@ const entries = [
   'src/util/parser.rs',
   'scripts/main.sh',
   'scripts/system.sh',
+  'src/gen/consumer.ts',
   'scripts/lib/helpers.sh',
   'index.html',
   'web/frpc/index.html',
@@ -226,6 +228,7 @@ const importsByFile = {
   'src/lib.rs': ['crate::util::parser'],
   'scripts/main.sh': ['lib/helpers.sh', './lib/missing.sh'],
   'scripts/system.sh': ['/etc/bash_completion', '/usr/local/share/chruby/auto.sh'],
+  'src/gen/consumer.ts': ['./generated/client.pb.ts'],
   'index.html': ['/logo/logo-clear.png'],
   'web/frpc/index.html': ['/src/main.ts'],
   'cmake/main.cmake': ['modules/common.cmake'],
@@ -330,7 +333,7 @@ assertLinks(
 );
 
 const realUnresolvedSamples = enrichUnresolvedImportSamples(resolution.unresolvedSamples || []);
-assert.equal(realUnresolvedSamples.length, 2, 'expected unresolved samples from shell and bazel label coverage');
+assert.equal(realUnresolvedSamples.length, 3, 'expected unresolved samples from shell, bazel label, and generated coverage');
 const realBySpecifier = Object.fromEntries(realUnresolvedSamples.map((entry) => [entry.specifier, entry]));
 assert.equal(realBySpecifier['./lib/missing.sh']?.category, 'missing_file');
 assert.equal(realBySpecifier['./lib/missing.sh']?.reasonCode, 'IMP_U_MISSING_FILE_RELATIVE');
@@ -342,6 +345,11 @@ assert.equal(realBySpecifier['//go:missing_extension.bzl']?.reasonCode, 'IMP_U_R
 assert.equal(realBySpecifier['//go:missing_extension.bzl']?.failureCause, 'resolver_gap');
 assert.equal(realBySpecifier['//go:missing_extension.bzl']?.disposition, 'suppress_gate');
 assert.equal(realBySpecifier['//go:missing_extension.bzl']?.resolverStage, 'language_resolver');
+assert.equal(realBySpecifier['./generated/client.pb.ts']?.category, 'generated_expected_missing');
+assert.equal(realBySpecifier['./generated/client.pb.ts']?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
+assert.equal(realBySpecifier['./generated/client.pb.ts']?.failureCause, 'generated_expected_missing');
+assert.equal(realBySpecifier['./generated/client.pb.ts']?.disposition, 'suppress_gate');
+assert.equal(realBySpecifier['./generated/client.pb.ts']?.resolverStage, 'build_system_resolver');
 
 const taxonomySamples = enrichUnresolvedImportSamples([
   ...realUnresolvedSamples,
@@ -361,13 +369,15 @@ assert.equal(taxonomyBySpecifier['//go:missing.bzl'], 'resolver_gap');
 assert.equal(taxonomyBySpecifier['.\\windows\\path\\module.js'], 'path_normalization');
 assert.equal(taxonomyBySpecifier['./utlis.jss'], 'typo');
 assert.equal(taxonomyBySpecifier['./lib/missing.sh'], 'missing_file');
+assert.equal(taxonomyBySpecifier['./generated/client.pb.ts'], 'generated_expected_missing');
 assert.equal(taxonomy.liveSuppressed, 2);
-assert.equal(taxonomy.gateSuppressed, 2);
+assert.equal(taxonomy.gateSuppressed, 3);
 assert.equal(taxonomy.actionable, 3);
 assert.equal(Object.keys(taxonomy.reasonCodes).length > 0, true, 'expected reason-code aggregation');
 assert.deepEqual(
   Object.fromEntries(Object.entries(taxonomy.resolverStages)),
   {
+    build_system_resolver: 1,
     classify: 3,
     filesystem_probe: 1,
     language_resolver: 2,
@@ -388,6 +398,7 @@ assert.deepEqual(
   Object.fromEntries(Object.entries(taxonomy.categories)),
   {
     fixture: 1,
+    generated_expected_missing: 1,
     missing_file: 1,
     optional_dependency: 1,
     path_normalization: 1,
