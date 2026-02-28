@@ -82,6 +82,10 @@ export const summarizeImportGraphStats = (state) => {
     unresolvedByReasonCode: stats.unresolvedByReasonCode || null,
     unresolvedByFailureCause: stats.unresolvedByFailureCause || null,
     unresolvedByDisposition: stats.unresolvedByDisposition || null,
+    unresolvedByResolverStage: stats.unresolvedByResolverStage || null,
+    unresolvedActionableHotspots: Array.isArray(stats.unresolvedActionableHotspots)
+      ? stats.unresolvedActionableHotspots
+      : null,
     truncatedEdges: Number(stats.truncatedEdges) || 0,
     truncatedNodes: Number(stats.truncatedNodes) || 0,
     warningSuppressed: Number(stats.warningSuppressed) || 0

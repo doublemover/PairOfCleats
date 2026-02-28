@@ -169,6 +169,24 @@ const toSortedCountObject = (counts) => {
   return output;
 };
 
+const toSortedHotspotEntries = (counts, { maxEntries = 20 } = {}) => {
+  const entries = counts instanceof Map
+    ? Array.from(counts.entries())
+    : Object.entries(counts || {});
+  return entries
+    .filter(([importer, count]) => importer && Number.isFinite(Number(count)) && Number(count) > 0)
+    .map(([importer, count]) => ({
+      importer,
+      count: Math.floor(Number(count))
+    }))
+    .sort((a, b) => (
+      b.count !== a.count
+        ? b.count - a.count
+        : sortStrings(a.importer, b.importer)
+    ))
+    .slice(0, Math.max(0, Math.floor(Number(maxEntries) || 0)));
+};
+
 const classifyCategory = ({ importer, specifier, reason }) => {
   const normalizedSpecifier = normalizeForClassifier(specifier);
   const normalizedReason = normalizeForClassifier(reason);
@@ -385,6 +403,8 @@ export const summarizeUnresolvedImportTaxonomy = (samples) => {
   const reasonCodeCounts = new Map();
   const failureCauseCounts = new Map();
   const dispositionCounts = new Map();
+  const resolverStageCounts = new Map();
+  const actionableImporterCounts = new Map();
   const suppressedCategories = new Set();
   let liveSuppressed = 0;
   let gateSuppressed = 0;
@@ -400,6 +420,9 @@ export const summarizeUnresolvedImportTaxonomy = (samples) => {
     if (sample.disposition) {
       dispositionCounts.set(sample.disposition, (dispositionCounts.get(sample.disposition) || 0) + 1);
     }
+    if (sample.resolverStage) {
+      resolverStageCounts.set(sample.resolverStage, (resolverStageCounts.get(sample.resolverStage) || 0) + 1);
+    }
     if (sample.disposition === IMPORT_DISPOSITIONS.SUPPRESS_LIVE) {
       liveSuppressed += 1;
       if (sample.category) suppressedCategories.add(sample.category);
@@ -407,6 +430,12 @@ export const summarizeUnresolvedImportTaxonomy = (samples) => {
       gateSuppressed += 1;
     } else {
       actionable += 1;
+      if (sample.importer) {
+        actionableImporterCounts.set(
+          sample.importer,
+          (actionableImporterCounts.get(sample.importer) || 0) + 1
+        );
+      }
     }
   }
   return {
@@ -418,6 +447,8 @@ export const summarizeUnresolvedImportTaxonomy = (samples) => {
     reasonCodes: toSortedCountObject(reasonCodeCounts),
     failureCauses: toSortedCountObject(failureCauseCounts),
     dispositions: toSortedCountObject(dispositionCounts),
+    resolverStages: toSortedCountObject(resolverStageCounts),
+    actionableHotspots: toSortedHotspotEntries(actionableImporterCounts),
     liveSuppressedCategories: Array.from(suppressedCategories.values()).sort(sortStrings),
     actionableRate: normalized.length > 0 ? actionable / normalized.length : 0
   };

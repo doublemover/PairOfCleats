@@ -35,6 +35,23 @@ const formatUnresolvedReasonCodeCounts = (reasonCodes) => {
   return entries.map(([reasonCode, count]) => `${reasonCode}=${Number(count)}`).join(', ');
 };
 
+const formatUnresolvedActionableHotspots = (hotspots, maxEntries = 3) => {
+  const normalized = Array.isArray(hotspots)
+    ? hotspots
+      .filter((entry) => entry && typeof entry === 'object')
+      .map((entry) => ({
+        importer: typeof entry.importer === 'string' ? entry.importer : '',
+        count: Math.floor(Number(entry.count) || 0)
+      }))
+      .filter((entry) => entry.importer && entry.count > 0)
+    : [];
+  if (!normalized.length) return 'none';
+  return normalized
+    .slice(0, Math.max(0, Math.floor(Number(maxEntries) || 0)))
+    .map((entry) => `${entry.importer}=${entry.count}`)
+    .join(', ');
+};
+
 const formatUnresolvedCategoryDelta = (categories) => {
   const entries = Object.entries(categories || {})
     .filter(([category, count]) => category && Number.isFinite(Number(count)) && Number(count) !== 0)
@@ -85,6 +102,7 @@ const logUnresolvedImportSamples = ({
     `(actionable=${actionableTotal}, live-suppressed=${policySuppressed})`
   );
   log(`[imports] unresolved reason codes: ${formatUnresolvedReasonCodeCounts(summary?.reasonCodes)}`);
+  log(`[imports] unresolved actionable hotspots: ${formatUnresolvedActionableHotspots(summary?.actionableHotspots)}`);
   log(`[imports] unresolved import samples (${visible.length} live of ${total}):`);
   for (const entry of visible) {
     const from = entry.importer || '<unknown-importer>';
@@ -328,6 +346,8 @@ export const postScanImports = async ({
       resolution.graph.stats.unresolvedByReasonCode = unresolvedTaxonomy.reasonCodes;
       resolution.graph.stats.unresolvedByFailureCause = unresolvedTaxonomy.failureCauses;
       resolution.graph.stats.unresolvedByDisposition = unresolvedTaxonomy.dispositions;
+      resolution.graph.stats.unresolvedByResolverStage = unresolvedTaxonomy.resolverStages;
+      resolution.graph.stats.unresolvedActionableHotspots = unresolvedTaxonomy.actionableHotspots;
       resolution.graph.stats.unresolvedLiveSuppressedCategories = unresolvedTaxonomy.liveSuppressedCategories;
       resolution.graph.stats.unresolvedResolverSuppressed = resolverSuppressed;
     }

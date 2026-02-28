@@ -58,12 +58,29 @@ const normalizeCategoryCounts = (counts, { allowNegative = false } = {}) => {
   return output;
 };
 
+const normalizeActionableHotspots = (hotspots) => {
+  if (!Array.isArray(hotspots)) return [];
+  return hotspots
+    .map((entry) => ({
+      importer: typeof entry?.importer === 'string' ? entry.importer.trim() : '',
+      count: normalizeCount(entry?.count)
+    }))
+    .filter((entry) => entry.importer && entry.count > 0)
+    .sort((a, b) => (
+      b.count !== a.count
+        ? b.count - a.count
+        : sortStrings(a.importer, b.importer)
+    ))
+    .slice(0, 20);
+};
+
 const normalizeUnresolvedSnapshot = (raw) => {
   if (!isObject(raw)) return null;
   const categories = normalizeCategoryCounts(raw.categories);
   const reasonCodes = normalizeCategoryCounts(raw.reasonCodes);
   const failureCauses = normalizeCategoryCounts(raw.failureCauses);
   const dispositions = normalizeCategoryCounts(raw.dispositions);
+  const resolverStages = normalizeCategoryCounts(raw.resolverStages);
   const categoriesTotal = Object.values(categories).reduce((sum, value) => sum + value, 0);
   const rawTotal = Number(raw.total);
   const total = Number.isFinite(rawTotal) && rawTotal >= 0
@@ -94,6 +111,8 @@ const normalizeUnresolvedSnapshot = (raw) => {
     reasonCodes,
     failureCauses,
     dispositions,
+    resolverStages,
+    actionableHotspots: normalizeActionableHotspots(raw.actionableHotspots),
     actionableRate,
     liveSuppressedCategories: normalizeStringList(raw.liveSuppressedCategories)
   };
@@ -118,7 +137,8 @@ const normalizeDiagnostics = (raw) => {
     deltaByCategory: normalizeCategoryCounts(unresolvedTrendRaw.deltaByCategory, { allowNegative: true }),
     deltaByReasonCode: normalizeCategoryCounts(unresolvedTrendRaw.deltaByReasonCode, { allowNegative: true }),
     deltaByFailureCause: normalizeCategoryCounts(unresolvedTrendRaw.deltaByFailureCause, { allowNegative: true }),
-    deltaByDisposition: normalizeCategoryCounts(unresolvedTrendRaw.deltaByDisposition, { allowNegative: true })
+    deltaByDisposition: normalizeCategoryCounts(unresolvedTrendRaw.deltaByDisposition, { allowNegative: true }),
+    deltaByResolverStage: normalizeCategoryCounts(unresolvedTrendRaw.deltaByResolverStage, { allowNegative: true })
   };
   return {
     version: CACHE_DIAGNOSTICS_VERSION,
@@ -259,6 +279,7 @@ const buildSnapshotFromTaxonomy = ({ unresolvedTaxonomy, unresolvedTotal }) => {
   const reasonCodes = normalizeCategoryCounts(taxonomy.reasonCodes);
   const failureCauses = normalizeCategoryCounts(taxonomy.failureCauses);
   const dispositions = normalizeCategoryCounts(taxonomy.dispositions);
+  const resolverStages = normalizeCategoryCounts(taxonomy.resolverStages);
   const categoriesTotal = Object.values(categories).reduce((sum, value) => sum + value, 0);
   const candidateTotal = Number(unresolvedTotal);
   const taxonomyTotal = Number(taxonomy.total);
@@ -294,6 +315,8 @@ const buildSnapshotFromTaxonomy = ({ unresolvedTaxonomy, unresolvedTotal }) => {
     reasonCodes,
     failureCauses,
     dispositions,
+    resolverStages,
+    actionableHotspots: normalizeActionableHotspots(taxonomy.actionableHotspots),
     actionableRate,
     liveSuppressedCategories: normalizeStringList(taxonomy.liveSuppressedCategories)
   };
@@ -569,7 +592,8 @@ export const updateImportResolutionDiagnosticsCache = ({
       deltaByCategory: buildCategoryDelta(previousCurrent?.categories || {}, current.categories),
       deltaByReasonCode: buildCategoryDelta(previousCurrent?.reasonCodes || {}, current.reasonCodes),
       deltaByFailureCause: buildCategoryDelta(previousCurrent?.failureCauses || {}, current.failureCauses),
-      deltaByDisposition: buildCategoryDelta(previousCurrent?.dispositions || {}, current.dispositions)
+      deltaByDisposition: buildCategoryDelta(previousCurrent?.dispositions || {}, current.dispositions),
+      deltaByResolverStage: buildCategoryDelta(previousCurrent?.resolverStages || {}, current.resolverStages)
     }
   };
   cache.diagnostics = diagnostics;

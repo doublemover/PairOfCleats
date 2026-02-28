@@ -75,6 +75,17 @@ try {
   assert.equal(passPayload?.metrics?.actionable, 2);
   assert.equal(passPayload?.metrics?.gateEligibleUnresolved, 1);
   assert.equal(passPayload?.metrics?.gateEligibleActionable, 1);
+  assert.deepEqual(
+    passPayload?.actionableHotspots,
+    [{ importer: 'src/main.ts', count: 1 }]
+  );
+  assert.deepEqual(
+    passPayload?.resolverStages,
+    {
+      classify: 1,
+      filesystem_probe: 1
+    }
+  );
 
   const failGraphPath = path.join(tempRoot, 'import_resolution_graph.fail.json');
   const failJsonPath = path.join(tempRoot, 'import-resolution-slo-gate.fail.json');
@@ -121,6 +132,14 @@ try {
   assert.ok(
     Array.isArray(failPayload?.failures) && failPayload.failures.some((entry) => String(entry).includes('actionable unresolved rate')),
     'expected actionable unresolved rate failure'
+  );
+  assert.deepEqual(
+    failPayload?.actionableHotspots,
+    [{ importer: 'src/main.ts', count: 1 }]
+  );
+  assert.deepEqual(
+    failPayload?.resolverStages,
+    { filesystem_probe: 1 }
   );
 
   const fallbackGraphPath = path.join(tempRoot, 'import_resolution_graph.fallback.json');
@@ -171,6 +190,17 @@ try {
   const fallbackPayload = JSON.parse(await fs.readFile(fallbackJsonPath, 'utf8'));
   assert.equal(fallbackPayload?.metrics?.unresolved, 1);
   assert.equal(fallbackPayload?.metrics?.actionable, 1);
+  assert.deepEqual(
+    fallbackPayload?.actionableHotspots,
+    [{ importer: 'src/main.ts', count: 1 }]
+  );
+  assert.deepEqual(
+    fallbackPayload?.resolverStages,
+    {
+      classify: 1,
+      filesystem_probe: 1
+    }
+  );
 
   console.log('import resolution slo gate smoke test passed');
 } finally {

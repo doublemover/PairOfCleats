@@ -60,6 +60,21 @@ const toSortedObject = (counts) => Object.fromEntries(
     .map(([key, value]) => [key, Math.floor(Number(value))])
 );
 
+const toSortedHotspots = (counts, { maxEntries = 20 } = {}) => (
+  Object.entries(counts || {})
+    .filter(([importer, value]) => importer && Number.isFinite(Number(value)) && Number(value) > 0)
+    .map(([importer, value]) => ({
+      importer,
+      count: Math.floor(Number(value))
+    }))
+    .sort((a, b) => (
+      b.count !== a.count
+        ? b.count - a.count
+        : sortStrings(a.importer, b.importer)
+    ))
+    .slice(0, Math.max(0, Math.floor(Number(maxEntries) || 0)))
+);
+
 const toCountMap = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const output = Object.create(null);
@@ -68,6 +83,18 @@ const toCountMap = (value) => {
     const count = toNonNegativeIntOrNull(raw);
     if (count == null || count <= 0) continue;
     output[key] = count;
+  }
+  return output;
+};
+
+const toHotspotCounts = (value) => {
+  if (!Array.isArray(value)) return null;
+  const output = Object.create(null);
+  for (const entry of value) {
+    const importer = typeof entry?.importer === 'string' ? entry.importer.trim() : '';
+    const count = toNonNegativeIntOrNull(entry?.count);
+    if (!importer || count == null || count <= 0) continue;
+    bumpCount(output, importer, count);
   }
   return output;
 };
@@ -127,7 +154,9 @@ const aggregateFromGraphs = async (graphPaths) => {
     gateEligibleUnresolved: 0,
     gateEligibleActionable: 0,
     parserArtifact: 0,
-    resolverGap: 0
+    resolverGap: 0,
+    actionableHotspotCounts: Object.create(null),
+    resolverStageCounts: Object.create(null)
   };
   const reasonCodeCounts = Object.create(null);
   const invalidReports = [];
@@ -190,6 +219,24 @@ const aggregateFromGraphs = async (graphPaths) => {
     );
     const statsReasonCodes = toCountMap(stats.unresolvedByReasonCode);
     const effectiveReasonCodes = statsReasonCodes || warningReasonCodes;
+    const statsResolverStages = toCountMap(stats.unresolvedByResolverStage);
+    const warningResolverStages = Object.create(null);
+    for (const warning of warnings) {
+      const stage = typeof warning?.resolverStage === 'string' ? warning.resolverStage.trim() : '';
+      if (!stage) continue;
+      bumpCount(warningResolverStages, stage);
+    }
+    const effectiveResolverStages = statsResolverStages || warningResolverStages;
+    const statsHotspots = toHotspotCounts(stats.unresolvedActionableHotspots);
+    const effectiveHotspotCounts = statsHotspots || Object.create(null);
+    if (!statsHotspots) {
+      for (const entry of eligibleWarnings) {
+        if (entry?.disposition !== 'actionable') continue;
+        const importer = typeof entry?.importer === 'string' ? entry.importer.trim() : '';
+        if (!importer) continue;
+        bumpCount(effectiveHotspotCounts, importer);
+      }
+    }
 
     totals.reportCount += 1;
     totals.observedUnresolved += observedUnresolved;
@@ -200,15 +247,23 @@ const aggregateFromGraphs = async (graphPaths) => {
     totals.gateEligibleActionable += eligibleActionable;
     totals.parserArtifact += parserArtifact;
     totals.resolverGap += resolverGap;
+    for (const [importer, count] of Object.entries(effectiveHotspotCounts)) {
+      bumpCount(totals.actionableHotspotCounts, importer, count);
+    }
 
     for (const [reasonCode, count] of Object.entries(effectiveReasonCodes)) {
       bumpCount(reasonCodeCounts, reasonCode, count);
+    }
+    for (const [resolverStage, count] of Object.entries(effectiveResolverStages)) {
+      bumpCount(totals.resolverStageCounts, resolverStage, count);
     }
   }
 
   return {
     totals,
     reasonCodeCounts: toSortedObject(reasonCodeCounts),
+    resolverStages: toSortedObject(totals.resolverStageCounts),
+    actionableHotspots: toSortedHotspots(totals.actionableHotspotCounts),
     invalidReports
   };
 };
@@ -249,7 +304,7 @@ const main = async () => {
     return;
   }
 
-  const { totals, reasonCodeCounts, invalidReports } = await aggregateFromGraphs(graphPaths);
+  const { totals, reasonCodeCounts, resolverStages, actionableHotspots, invalidReports } = await aggregateFromGraphs(graphPaths);
   const unresolved = totals.unresolved;
   const actionable = totals.actionable;
   const actionableRate = toRatio(actionable, unresolved);
@@ -293,6 +348,8 @@ const main = async () => {
       resolverGapRate
     },
     reasonCodes: reasonCodeCounts,
+    resolverStages,
+    actionableHotspots,
     failures
   };
 
@@ -307,7 +364,8 @@ const main = async () => {
       `- actionable: ${actionable}`,
       `- actionableRate: ${actionableRate.toFixed(4)} (max ${actionableRateMax.toFixed(4)})`,
       `- parserArtifactRate: ${parserArtifactRate.toFixed(4)}`,
-      `- resolverGapRate: ${resolverGapRate.toFixed(4)}`
+      `- resolverGapRate: ${resolverGapRate.toFixed(4)}`,
+      `- actionableHotspots: ${actionableHotspots.length}`
     ],
     failures
   });

@@ -365,6 +365,24 @@ assert.equal(taxonomy.liveSuppressed, 2);
 assert.equal(taxonomy.gateSuppressed, 2);
 assert.equal(taxonomy.actionable, 3);
 assert.equal(Object.keys(taxonomy.reasonCodes).length > 0, true, 'expected reason-code aggregation');
+assert.deepEqual(
+  Object.fromEntries(Object.entries(taxonomy.resolverStages)),
+  {
+    classify: 3,
+    filesystem_probe: 1,
+    language_resolver: 2,
+    normalize: 1
+  },
+  'expected resolver stage aggregation in taxonomy'
+);
+assert.deepEqual(
+  taxonomy.actionableHotspots,
+  [
+    { importer: 'src/main.js', count: 2 },
+    { importer: 'scripts/main.sh', count: 1 }
+  ],
+  'expected actionable unresolved importer hotspots'
+);
 assert.equal(Number.isFinite(Number(taxonomy.actionableRate)), true, 'expected actionable rate in taxonomy');
 assert.deepEqual(
   Object.fromEntries(Object.entries(taxonomy.categories)),

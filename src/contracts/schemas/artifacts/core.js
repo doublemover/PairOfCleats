@@ -114,6 +114,19 @@ const importResolutionGraphSchema = {
         unresolvedByReasonCode: { type: 'object', additionalProperties: intId },
         unresolvedByFailureCause: { type: 'object', additionalProperties: intId },
         unresolvedByDisposition: { type: 'object', additionalProperties: intId },
+        unresolvedByResolverStage: { type: 'object', additionalProperties: intId },
+        unresolvedActionableHotspots: {
+          type: 'array',
+          items: {
+            type: 'object',
+            required: ['importer', 'count'],
+            properties: {
+              importer: { type: 'string' },
+              count: intId
+            },
+            additionalProperties: false
+          }
+        },
         unresolvedLiveSuppressed: intId,
         unresolvedGateSuppressed: intId,
         unresolvedLiveSuppressedCategories: { type: 'array', items: { type: 'string' } },
