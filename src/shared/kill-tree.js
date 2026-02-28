@@ -76,8 +76,45 @@ const killPosixGroup = async (pid, {
           if (error?.code !== 'ESRCH') throw error;
         }
       });
+      return { terminated, forced: false };
     }
-    return { terminated, forced: false };
+    const aliveNow = useProcessGroup ? isAlivePosix(pid) : isAliveSinglePosix(pid);
+    if (aliveNow) {
+      forced = true;
+      try {
+        process.kill(target, 'SIGKILL');
+        terminated = true;
+      } catch (error) {
+        if (error?.code !== 'ESRCH') throw error;
+      }
+    }
+    return { terminated, forced };
+  }
+  const alive = useProcessGroup ? isAlivePosix(pid) : isAliveSinglePosix(pid);
+  if (alive) {
+    forced = true;
+    try {
+      process.kill(target, 'SIGKILL');
+      terminated = true;
+    } catch (error) {
+      if (error?.code !== 'ESRCH') throw error;
+    }
+  }
+  return { terminated, forced };
+};
+
+const killPosixGroupSync = (pid, {
+  signal,
+  useProcessGroup
+}) => {
+  const target = useProcessGroup ? -pid : pid;
+  let terminated = false;
+  let forced = false;
+  try {
+    process.kill(target, signal || DEFAULT_SIGNAL);
+    terminated = true;
+  } catch (error) {
+    if (error?.code !== 'ESRCH') throw error;
   }
   const alive = useProcessGroup ? isAlivePosix(pid) : isAliveSinglePosix(pid);
   if (alive) {
@@ -108,9 +145,37 @@ const killWindowsTree = async (pid, { graceMs, awaitGrace = true }) => {
       scheduleUnrefTimer(graceMs, () => {
         spawnSync('taskkill', [...baseArgs, '/F'], { stdio: 'ignore' });
       });
+      return { terminated, forced: false };
     }
-    return { terminated, forced: false };
+    try {
+      const forcedKill = spawnSync('taskkill', [...baseArgs, '/F'], { stdio: 'ignore' });
+      if (forcedKill.status === 0) {
+        terminated = true;
+        forced = true;
+      }
+    } catch {}
+    return { terminated, forced };
   }
+  try {
+    const forcedKill = spawnSync('taskkill', [...baseArgs, '/F'], { stdio: 'ignore' });
+    if (forcedKill.status === 0) {
+      terminated = true;
+      forced = true;
+    }
+  } catch {}
+  return { terminated, forced };
+};
+
+const killWindowsTreeSync = (pid) => {
+  const baseArgs = ['/PID', String(pid), '/T'];
+  let terminated = false;
+  let forced = false;
+  try {
+    const graceful = spawnSync('taskkill', baseArgs, { stdio: 'ignore' });
+    if (graceful.status === 0) {
+      terminated = true;
+    }
+  } catch {}
   try {
     const forcedKill = spawnSync('taskkill', [...baseArgs, '/F'], { stdio: 'ignore' });
     if (forcedKill.status === 0) {
@@ -156,6 +221,36 @@ export const killProcessTree = async (
   });
 };
 
+export const killProcessTreeSync = (
+  pid,
+  {
+    killTree = true,
+    killSignal = DEFAULT_SIGNAL,
+    detached = true
+  } = {}
+) => {
+  const numericPid = Number(pid);
+  if (!Number.isFinite(numericPid) || numericPid <= 0) {
+    return { terminated: false, forced: false };
+  }
+  if (process.platform === 'win32') {
+    if (!killTree) {
+      try {
+        process.kill(numericPid);
+        return { terminated: true, forced: false };
+      } catch {
+        return { terminated: false, forced: false };
+      }
+    }
+    return killWindowsTreeSync(numericPid);
+  }
+  const useProcessGroup = killTree !== false && detached === true;
+  return killPosixGroupSync(numericPid, {
+    signal: killSignal,
+    useProcessGroup
+  });
+};
+
 export const killChildProcessTree = async (child, options = {}) => {
   if (!child || !child.pid) return { terminated: false, forced: false };
   return killProcessTree(child.pid, {
@@ -164,5 +259,14 @@ export const killChildProcessTree = async (child, options = {}) => {
     killSignal: options.killSignal,
     graceMs: options.graceMs,
     awaitGrace: options.awaitGrace
+  });
+};
+
+export const killChildProcessTreeSync = (child, options = {}) => {
+  if (!child || !child.pid) return { terminated: false, forced: false };
+  return killProcessTreeSync(child.pid, {
+    detached: options.detached,
+    killTree: options.killTree,
+    killSignal: options.killSignal
   });
 };

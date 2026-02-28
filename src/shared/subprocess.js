@@ -2,6 +2,7 @@ export { resolveSubprocessFanoutPreset } from './subprocess/options.js';
 export {
   withTrackedSubprocessSignalScope,
   terminateTrackedSubprocesses,
+  terminateTrackedSubprocessesSync,
   registerChildProcessForCleanup,
   getTrackedSubprocessCount,
   snapshotTrackedSubprocessEvents,

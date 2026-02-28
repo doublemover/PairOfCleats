@@ -5,6 +5,7 @@ let trackedSubprocessShutdownTriggered = false;
 let trackedSubprocessShutdownPromise = null;
 const signalForwardInFlight = new Set();
 let terminateTrackedSubprocessesRef = null;
+let terminateTrackedSubprocessesSyncRef = null;
 
 /**
  * Trigger one-time tracked-child shutdown for process teardown paths.
@@ -22,6 +23,16 @@ const triggerTrackedSubprocessShutdown = (reason) => {
       : Promise.resolve(null)
   ).catch(() => null);
   return trackedSubprocessShutdownPromise;
+};
+
+const triggerTrackedSubprocessShutdownSync = (reason) => {
+  const terminateSync = terminateTrackedSubprocessesSyncRef;
+  if (typeof terminateSync !== 'function') return null;
+  try {
+    return terminateSync({ reason, force: true });
+  } catch {
+    return null;
+  }
 };
 
 const forwardSignalToDefault = (signal) => {
@@ -43,11 +54,15 @@ const forwardSignalToDefault = (signal) => {
  * child cleanup even when Node would otherwise terminate by default handling.
  *
  * @param {(input:{reason?:string,force?:boolean}) => Promise<unknown>} terminateTrackedSubprocesses
+ * @param {(input:{reason?:string,force?:boolean}) => unknown} [terminateTrackedSubprocessesSync]
  * @returns {void}
  */
-const installTrackedSubprocessHooks = (terminateTrackedSubprocesses) => {
+const installTrackedSubprocessHooks = (terminateTrackedSubprocesses, terminateTrackedSubprocessesSync = null) => {
   if (typeof terminateTrackedSubprocesses === 'function') {
     terminateTrackedSubprocessesRef = terminateTrackedSubprocesses;
+  }
+  if (typeof terminateTrackedSubprocessesSync === 'function') {
+    terminateTrackedSubprocessesSyncRef = terminateTrackedSubprocessesSync;
   }
   if (trackedSubprocessHooksInstalled) return;
   trackedSubprocessHooksInstalled = true;
@@ -55,9 +70,10 @@ const installTrackedSubprocessHooks = (terminateTrackedSubprocesses) => {
     void triggerTrackedSubprocessShutdown('process_before_exit');
   });
   process.once('exit', () => {
-    void triggerTrackedSubprocessShutdown('process_exit');
+    triggerTrackedSubprocessShutdownSync('process_exit');
   });
   process.on('uncaughtExceptionMonitor', () => {
+    triggerTrackedSubprocessShutdownSync('uncaught_exception');
     void triggerTrackedSubprocessShutdown('uncaught_exception');
   });
   for (const signal of TRACKED_SUBPROCESS_TERMINATION_SIGNALS) {

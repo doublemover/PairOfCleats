@@ -126,6 +126,7 @@ export function createLspClient(options) {
   let writer = null;
   let writerClosed = false;
   let unregisterChildProcess = null;
+  let trackedChildProcess = null;
   let nextId = 1;
   const pending = new Map();
   let generation = 0;
@@ -208,12 +209,19 @@ export function createLspClient(options) {
     rejectPending(err);
   };
 
-  const clearTrackedChild = () => {
+  const clearTrackedChild = ({ force = false, child = null } = {}) => {
     if (!unregisterChildProcess) return;
+    const targetChild = child || trackedChildProcess;
+    const stillRunning = Boolean(
+      targetChild
+      && targetChild.exitCode === null
+    );
+    if (!force && stillRunning) return;
     try {
       unregisterChildProcess();
     } catch {}
     unregisterChildProcess = null;
+    trackedChildProcess = null;
   };
 
   const isTransportRunning = () => Boolean(
@@ -339,6 +347,7 @@ export function createLspClient(options) {
       killTree: true,
       detached: killTreeDetached
     });
+    trackedChildProcess = child;
     const childParser = createFramedJsonRpcParser({
       onMessage: handleMessage,
       onError: (err) => {
@@ -403,7 +412,7 @@ export function createLspClient(options) {
       parser = null;
       writer = null;
       writerClosed = true;
-      clearTrackedChild();
+      clearTrackedChild({ force: true, child });
       if (child?.stdin) closeJsonRpcWriter(child.stdin);
       backoffMs = backoffMs ? Math.min(backoffMs * 2, 5000) : 250;
       nextStartAt = Date.now() + backoffMs;
@@ -422,7 +431,7 @@ export function createLspClient(options) {
       parser = null;
       writer = null;
       writerClosed = true;
-      clearTrackedChild();
+      clearTrackedChild({ force: true, child });
       if (child?.stdin) closeJsonRpcWriter(child.stdin);
       backoffMs = backoffMs ? Math.min(backoffMs * 2, 5000) : 250;
       nextStartAt = Date.now() + backoffMs;

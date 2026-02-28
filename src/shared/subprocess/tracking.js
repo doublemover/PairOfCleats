@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { killChildProcessTree } from '../kill-tree.js';
+import { killChildProcessTree, killChildProcessTreeSync } from '../kill-tree.js';
 import {
   TRACKED_SUBPROCESS_FORCE_GRACE_MS,
   TRACKED_SUBPROCESS_EVENT_DEFAULT_LIMIT,
@@ -310,11 +310,135 @@ const terminateTrackedSubprocesses = async ({
   };
 };
 
+const terminateTrackedSubprocessesSync = ({
+  reason = 'shutdown_sync',
+  force = true,
+  scope = null,
+  ownershipId = null,
+  ownershipPrefix = null
+} = {}) => {
+  const normalizedScope = normalizeTrackedScope(scope);
+  const normalizedOwnershipId = normalizeTrackedOwnershipId(ownershipId) || normalizedScope;
+  const normalizedOwnershipPrefix = normalizeTrackedOwnershipPrefix(ownershipPrefix);
+  const entries = [];
+  for (const [entryKey, entry] of trackedSubprocesses.entries()) {
+    if (!entryMatchesTrackedFilters(entry, {
+      ownershipId: normalizedOwnershipId,
+      ownershipPrefix: normalizedOwnershipPrefix
+    })) continue;
+    const removed = removeTrackedSubprocess(entryKey, 'terminate_sync');
+    if (removed) entries.push(removed);
+  }
+  if (!entries.length) {
+    return {
+      reason,
+      tracked: 0,
+      attempted: 0,
+      failures: 0,
+      scope: normalizedScope,
+      ownershipId: normalizedOwnershipId,
+      ownershipPrefix: normalizedOwnershipPrefix,
+      targetedPids: [],
+      terminatedPids: [],
+      ownershipIds: [],
+      terminatedOwnershipIds: [],
+      killAudit: []
+    };
+  }
+
+  const killAudit = entries
+    .map((entry) => {
+      const pid = Number.isFinite(Number(entry?.child?.pid)) ? Number(entry.child.pid) : null;
+      const entryScope = normalizeTrackedScope(entry?.scope);
+      const entryOwnershipId = resolveEntryOwnershipId(entry);
+      try {
+        const result = killChildProcessTreeSync(entry.child, {
+          killTree: entry.killTree,
+          killSignal: entry.killSignal,
+          detached: entry.detached,
+          graceMs: force ? TRACKED_SUBPROCESS_FORCE_GRACE_MS : entry.killGraceMs
+        });
+        return {
+          pid,
+          scope: entryScope,
+          ownershipId: entryOwnershipId,
+          terminated: result?.terminated === true,
+          forced: result?.forced === true,
+          error: null
+        };
+      } catch (error) {
+        return {
+          pid,
+          scope: entryScope,
+          ownershipId: entryOwnershipId,
+          terminated: false,
+          forced: false,
+          error: error?.message || String(error || 'unknown_kill_error')
+        };
+      }
+    })
+    .sort((left, right) => {
+      const leftPid = Number.isFinite(left?.pid) ? left.pid : Number.MAX_SAFE_INTEGER;
+      const rightPid = Number.isFinite(right?.pid) ? right.pid : Number.MAX_SAFE_INTEGER;
+      if (leftPid !== rightPid) return leftPid - rightPid;
+      const leftOwnership = String(left?.ownershipId || '');
+      const rightOwnership = String(right?.ownershipId || '');
+      return leftOwnership.localeCompare(rightOwnership);
+    });
+
+  for (const audit of killAudit) {
+    appendTrackedSubprocessEvent({
+      kind: 'process_reaped',
+      pid: audit.pid,
+      scope: audit.scope,
+      ownershipId: audit.ownershipId,
+      reason,
+      terminated: audit.terminated === true,
+      forced: audit.forced === true,
+      error: audit.error
+    });
+  }
+
+  const failures = killAudit.filter((entry) => entry.error).length;
+  const targetedPids = killAudit
+    .map((entry) => entry.pid)
+    .filter((pid) => Number.isFinite(pid));
+  const terminatedPids = killAudit
+    .filter((entry) => entry.terminated === true && Number.isFinite(entry.pid))
+    .map((entry) => entry.pid);
+  const ownershipIds = [...new Set(
+    killAudit
+      .map((entry) => entry.ownershipId)
+      .filter((value) => typeof value === 'string' && value.length > 0)
+  )].sort((left, right) => left.localeCompare(right));
+  const terminatedOwnershipIds = [...new Set(
+    killAudit
+      .filter((entry) => entry.terminated === true)
+      .map((entry) => entry.ownershipId)
+      .filter((value) => typeof value === 'string' && value.length > 0)
+  )].sort((left, right) => left.localeCompare(right));
+
+  return {
+    reason,
+    tracked: entries.length,
+    attempted: entries.length,
+    failures,
+    scope: normalizedScope,
+    ownershipId: normalizedOwnershipId,
+    ownershipPrefix: normalizedOwnershipPrefix,
+    targetedPids,
+    terminatedPids,
+    ownershipIds,
+    terminatedOwnershipIds,
+    killAudit
+  };
+};
+
 const registerChildProcessForCleanup = (child, options = {}) => {
   if (!child || !child.pid) {
     return () => {};
   }
-  installTrackedSubprocessHooks(terminateTrackedSubprocesses);
+  installTrackedSubprocessHooks(terminateTrackedSubprocesses, terminateTrackedSubprocessesSync);
   const entryKey = Symbol(`tracked-subprocess:${child.pid}`);
   const trackedScopeContext = trackedSubprocessScopeContext.getStore() || null;
   const abortSignal = options.signal && typeof options.signal === 'object'
@@ -413,6 +537,7 @@ export {
   entryMatchesTrackedFilters,
   withTrackedSubprocessSignalScope,
   terminateTrackedSubprocesses,
+  terminateTrackedSubprocessesSync,
   registerChildProcessForCleanup,
   getTrackedSubprocessCount,
   snapshotTrackedSubprocessEvents,

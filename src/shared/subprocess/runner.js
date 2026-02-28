@@ -157,12 +157,14 @@ function spawnSubprocess(command, args, options = {}) {
     if (onStderrData && child.stderr) {
       child.stderr.on('data', onStderrData);
     }
-    const cleanup = () => {
+    const cleanup = ({ keepTrackedRegistration = false } = {}) => {
       if (timeoutId) clearTimeout(timeoutId);
       if (abortHandler && abortSignal) {
         abortSignal.removeEventListener('abort', abortHandler);
       }
-      unregisterTrackedChild();
+      if (!keepTrackedRegistration) {
+        unregisterTrackedChild();
+      }
       if (onStdoutData && child.stdout) child.stdout.off('data', onStdoutData);
       if (onStderrData && child.stderr) child.stderr.off('data', onStderrData);
     };
@@ -193,11 +195,11 @@ function spawnSubprocess(command, args, options = {}) {
         killChildProcessTree(child, {
           killTree,
           killSignal,
-          graceMs: killGraceMs,
+          graceMs: 0,
           detached,
           awaitGrace: false
         }).catch(() => {});
-        cleanup();
+        cleanup({ keepTrackedRegistration: true });
         const result = buildResult({
           pid: child.pid,
           exitCode: null,
@@ -218,11 +220,11 @@ function spawnSubprocess(command, args, options = {}) {
       killChildProcessTree(child, {
         killTree,
         killSignal,
-        graceMs: killGraceMs,
+        graceMs: 0,
         detached,
         awaitGrace: false
       }).catch(() => {});
-      cleanup();
+      cleanup({ keepTrackedRegistration: true });
       const result = buildResult({
         pid: child.pid,
         exitCode: null,

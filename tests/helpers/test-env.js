@@ -1,4 +1,9 @@
 import { splitNormalizedLines } from '../../src/shared/eol.js';
+import {
+  getTrackedSubprocessCount,
+  terminateTrackedSubprocesses,
+  terminateTrackedSubprocessesSync
+} from '../../src/shared/subprocess.js';
 
 export const DEFAULT_TEST_ENV_KEYS = [
   'PAIROFCLEATS_TESTING',
@@ -152,6 +157,46 @@ export const shouldLogSilent = () => {
 export const resolveSilentStdio = (defaultStdio = 'ignore') => (
   shouldLogSilent() ? 'inherit' : defaultStdio
 );
+
+let trackedCleanupTriggered = false;
+
+const runTrackedSubprocessCleanup = async (reason) => {
+  if (trackedCleanupTriggered) return;
+  if (getTrackedSubprocessCount() <= 0) return;
+  trackedCleanupTriggered = true;
+  try {
+    const summary = await terminateTrackedSubprocesses({ reason, force: true });
+    if (Number(summary?.attempted || 0) > 0) {
+      process.stderr.write(
+        `[test-cleanup] reaped ${summary.attempted} tracked subprocess(es) during ${reason}.\n`
+      );
+    }
+  } catch {}
+};
+
+const runTrackedSubprocessCleanupSync = (reason) => {
+  if (trackedCleanupTriggered) return;
+  if (getTrackedSubprocessCount() <= 0) return;
+  trackedCleanupTriggered = true;
+  try {
+    const summary = terminateTrackedSubprocessesSync({ reason, force: true });
+    if (Number(summary?.attempted || 0) > 0) {
+      process.stderr.write(
+        `[test-cleanup] synchronously reaped ${summary.attempted} tracked subprocess(es) during ${reason}.\n`
+      );
+    }
+  } catch {}
+};
+
+process.once('beforeExit', () => {
+  void runTrackedSubprocessCleanup('test_process_before_exit');
+});
+process.once('exit', () => {
+  runTrackedSubprocessCleanupSync('test_process_exit');
+});
+process.on('uncaughtExceptionMonitor', () => {
+  runTrackedSubprocessCleanupSync('test_uncaught_exception');
+});
 
 export const attachSilentLogging = (child, label = null) => {
   if (!shouldLogSilent() || !child) return;

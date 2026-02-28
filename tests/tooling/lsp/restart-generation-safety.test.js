@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createLspClient } from '../../../src/integrations/tooling/lsp/client.js';
+import { getTrackedSubprocessCount } from '../../../src/shared/subprocess.js';
 import { sleep } from '../../../src/shared/sleep.js';
 import { countNonEmptyLines } from '../../helpers/lsp-signature-fixtures.js';
 
@@ -48,6 +49,13 @@ try {
 } finally {
   client.kill();
 }
+
+await sleep(200);
+assert.equal(
+  getTrackedSubprocessCount(),
+  0,
+  'expected tracked subprocess registry to be empty after restart/kill sequence'
+);
 
 const spawns = await countSpawns();
 assert.equal(spawns, 2, 'expected only two LSP spawns after restart');
