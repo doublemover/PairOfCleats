@@ -316,8 +316,14 @@ const registerChildProcessForCleanup = (child, options = {}) => {
   }
   installTrackedSubprocessHooks(terminateTrackedSubprocesses);
   const entryKey = Symbol(`tracked-subprocess:${child.pid}`);
-  const scope = resolveTrackedScope(options);
-  const ownershipId = resolveTrackedOwnershipId(options) || scope;
+  const trackedScopeContext = trackedSubprocessScopeContext.getStore() || null;
+  const abortSignal = options.signal && typeof options.signal === 'object'
+    ? options.signal
+    : null;
+  const inheritedOwnershipId = normalizeTrackedOwnershipId(trackedOwnershipIdByAbortSignal.get(abortSignal))
+    || normalizeTrackedOwnershipId(trackedScopeContext?.ownershipId ?? trackedScopeContext?.scope);
+  const ownershipId = resolveTrackedOwnershipId(options) || inheritedOwnershipId || null;
+  const scope = resolveTrackedScope(options) || ownershipId;
   const entry = {
     child,
     killTree: options.killTree !== false,

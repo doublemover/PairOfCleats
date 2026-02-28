@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import {
   getTrackedSubprocessCount,
+  registerChildProcessForCleanup,
   spawnSubprocess,
   terminateTrackedSubprocesses,
   withTrackedSubprocessSignalScope
@@ -28,11 +30,23 @@ const pending = withTrackedSubprocessSignalScope(controller.signal, scope, () =>
     detached: process.platform !== 'win32'
   }
 ));
+let unregisterRawChild = () => {};
+await withTrackedSubprocessSignalScope(controller.signal, scope, () => {
+  const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 60000);'], {
+    stdio: 'ignore',
+    detached: process.platform !== 'win32'
+  });
+  unregisterRawChild = registerChildProcessForCleanup(child, {
+    killTree: true,
+    detached: process.platform !== 'win32'
+  });
+  return child;
+});
 
 const tracked = await waitFor(() => getTrackedSubprocessCount(scope) > 0, 5000);
 assert.equal(tracked, true, 'expected subprocess to inherit tracked scope from bound signal');
 const scopedTrackedCount = getTrackedSubprocessCount(scope);
-assert.ok(scopedTrackedCount > 0, 'expected at least one subprocess in bound scope');
+assert.ok(scopedTrackedCount >= 2, 'expected both shared-runner and raw-registered subprocesses in bound scope');
 
 const scopedSummary = await terminateTrackedSubprocesses({
   reason: 'signal-scope-test',
@@ -55,6 +69,7 @@ assert.ok(
 );
 
 await pending;
+unregisterRawChild();
 assert.equal(getTrackedSubprocessCount(scope), 0, 'expected scope registry to be empty after terminate');
 
 console.log('tracked subprocess signal scope binding test passed');
