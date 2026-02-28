@@ -24,11 +24,11 @@ const sorted = candidates
   .sort(compareSourcekitCandidatePriority)
   .map((entry) => entry.candidate);
 assert.deepEqual(sorted, [
-  '/opt/toolchains/sourcekit-lsp+asserts',
-  '/opt/toolchains/sourcekit-lsp-preview',
   '/a/toolchains/sourcekit-lsp',
-  '/z/toolchains/sourcekit-lsp'
-], 'expected deterministic score-first then lexical candidate ordering');
+  '/z/toolchains/sourcekit-lsp',
+  '/opt/toolchains/sourcekit-lsp-preview',
+  '/opt/toolchains/sourcekit-lsp+asserts'
+], 'expected deterministic stable-first then lexical candidate ordering');
 
 const alternateInputOrder = [
   candidates[3],

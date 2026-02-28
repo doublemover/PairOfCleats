@@ -499,6 +499,7 @@ const resolveCommandCandidates = (cmd) => {
 export const scoreSourcekitCandidate = (candidate) => {
   const lowered = String(candidate || '').toLowerCase();
   let score = 0;
+  // Higher score means lower priority (penalties); comparator sorts ascending.
   if (lowered.includes('+asserts')) score += 100;
   if (lowered.includes('preview')) score += 10;
   return score;
@@ -512,7 +513,7 @@ const normalizeSourcekitCandidateSortKey = (candidate) => (
 );
 
 export const compareSourcekitCandidatePriority = (left, right) => {
-  const scoreDelta = (Number(right?.score) || 0) - (Number(left?.score) || 0);
+  const scoreDelta = (Number(left?.score) || 0) - (Number(right?.score) || 0);
   if (scoreDelta !== 0) return scoreDelta;
   const leftNormalized = normalizeSourcekitCandidateSortKey(left?.candidate);
   const rightNormalized = normalizeSourcekitCandidateSortKey(right?.candidate);
