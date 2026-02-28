@@ -2,6 +2,7 @@
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { ensureFixtureIndex } from '../../helpers/fixture-index.js';
+import { formatCommandFailure } from '../../helpers/command-failure.js';
 
 const { root, fixtureRoot, env } = await ensureFixtureIndex({
   fixtureName: 'sample',
@@ -26,7 +27,12 @@ const result = spawnSync(
 );
 
 if (result.status !== 0) {
-  console.error('Fixture compact JSON failed: search error.');
+  console.error(formatCommandFailure({
+    label: 'Fixture compact JSON failed: search error.',
+    command: `${process.execPath} ${path.join(root, 'search.js')} message --json --compact --backend memory --no-ann --repo ${fixtureRoot}`,
+    cwd: fixtureRoot,
+    result
+  }));
   process.exit(result.status ?? 1);
 }
 

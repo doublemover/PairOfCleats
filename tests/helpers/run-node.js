@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { formatCommandFailure } from './command-failure.js';
 
 /**
  * Run Node script via `spawnSync` with standard failure handling.
@@ -31,29 +32,16 @@ export const runNode = (args, label, cwd, env, options = {}) => {
   });
 
   if (result.status !== 0 && !allowFailure) {
-    const details = [];
-    if (result.error?.code === 'ETIMEDOUT' && Number.isFinite(timeoutMs)) {
-      details.push(`timeout after ${timeoutMs}ms`);
-    }
-    if (result.signal) details.push(`signal ${result.signal}`);
-    if (result.error && result.error.code !== 'ETIMEDOUT') {
-      details.push(result.error.message || String(result.error));
-    }
-    const suffix = details.length ? ` (${details.join(', ')})` : '';
-    console.error(`Failed: ${label}${suffix}`);
-    console.error(`Command: ${process.execPath} ${Array.isArray(args) ? args.join(' ') : ''}`);
-    if (result.stdout) {
-      const stdoutText = Buffer.isBuffer(result.stdout)
-        ? result.stdout.toString('utf8')
-        : String(result.stdout);
-      if (stdoutText.trim()) console.error(stdoutText.trim());
-    }
-    if (result.stderr) {
-      const stderrText = Buffer.isBuffer(result.stderr)
-        ? result.stderr.toString('utf8')
-        : String(result.stderr);
-      if (stderrText.trim()) console.error(stderrText.trim());
-    }
+    const timeoutHint = result.error?.code === 'ETIMEDOUT' && Number.isFinite(timeoutMs)
+      ? `timeout after ${timeoutMs}ms`
+      : '';
+    const resolvedLabel = timeoutHint ? `${label} (${timeoutHint})` : label;
+    console.error(formatCommandFailure({
+      label: resolvedLabel,
+      command: `${process.execPath} ${Array.isArray(args) ? args.join(' ') : ''}`.trim(),
+      cwd,
+      result
+    }));
     if (typeof onFailure === 'function') onFailure(result);
     process.exit(result.status ?? 1);
   }
