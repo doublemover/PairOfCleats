@@ -201,9 +201,11 @@ indexing/embeddings/writer-backpressure
 retrieval/graph/impact-analysis-changed-set
 lang/python/imports
 indexing/imports/expected-artifacts-index
+indexing/imports/fs-exists-index
 indexing/imports/import-build-context-plugins
 indexing/imports/import-resolution-stage-pipeline
 indexing/imports/import-resolution-build-context-cache-key
+indexing/imports/import-resolution-fs-exists-index-budget-shortcircuit
 indexing/imports/import-scan-budget-runtime-signals
 indexing/imports/import-resolution-budget-exhaustion
 indexing/imports/import-graph-budget-diagnostics
