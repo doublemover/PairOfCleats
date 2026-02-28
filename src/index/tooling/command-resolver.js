@@ -10,10 +10,17 @@ import { normalizeProviderId } from './provider-contract.js';
 
 const WINDOWS_EXEC_EXTS = ['.exe', '.cmd', '.bat'];
 const DEFAULT_PROBE_ARGS = [['--version'], ['--help']];
-const DEFAULT_PROBE_TIMEOUT_MS = 2_000;
+const DEFAULT_PROBE_TIMEOUT_MS = 4_000;
+const PROBE_TIMEOUT_TIER_MS = Object.freeze({
+  fast: 2_000,
+  balanced: 4_000,
+  heavy: 8_000
+});
 const COMMAND_PROBE_CACHE = new Map();
 const COMMAND_PROBE_CACHE_MAX_ENTRIES = 256;
 const COMMAND_PROBE_FAILURE_TTL_MS = 10_000;
+const DEFAULT_COMMAND_PROBE_SUCCESS_TTL_MS = 5 * 60_000;
+let commandProbeSuccessTtlMs = DEFAULT_COMMAND_PROBE_SUCCESS_TTL_MS;
 
 const shouldUseShell = (cmd) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(String(cmd || ''));
 
@@ -91,6 +98,59 @@ const setBoundedCacheEntry = (map, key, value, maxEntries) => {
   }
 };
 
+const normalizeCommandCacheKey = (command) => {
+  const raw = String(command || '').trim();
+  if (!raw) return '';
+  return process.platform === 'win32' ? raw.toLowerCase() : raw;
+};
+
+const resolveCommandProbeSuccessTtlMs = () => {
+  const parsed = Number(commandProbeSuccessTtlMs);
+  if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_COMMAND_PROBE_SUCCESS_TTL_MS;
+  return Math.max(0, Math.floor(parsed));
+};
+
+const parseCommandProbeCacheKey = (key) => {
+  const [providerIdRaw = '', commandRaw = ''] = String(key || '').split('\u0000');
+  return {
+    providerId: normalizeProviderId(providerIdRaw),
+    commandKey: normalizeCommandCacheKey(commandRaw)
+  };
+};
+
+const cacheEntryMatchesInvalidation = (key, entry, {
+  providerId,
+  commandKey
+}) => {
+  const parsed = parseCommandProbeCacheKey(key);
+  const entryProvider = normalizeProviderId(entry?.providerId || parsed.providerId || '');
+  const entryCommandKey = normalizeCommandCacheKey(entry?.commandKey || parsed.commandKey || '');
+  if (providerId && entryProvider !== providerId) return false;
+  if (commandKey && entryCommandKey !== commandKey) return false;
+  return true;
+};
+
+export const invalidateToolingCommandProbeCache = ({
+  providerId = null,
+  command = null,
+  successOnly = false
+} = {}) => {
+  const normalizedProviderId = normalizeProviderId(providerId || '');
+  const commandKey = normalizeCommandCacheKey(command);
+  if (!normalizedProviderId && !commandKey) return 0;
+  let removed = 0;
+  for (const [key, entry] of COMMAND_PROBE_CACHE.entries()) {
+    if (successOnly && entry?.ok !== true) continue;
+    if (!cacheEntryMatchesInvalidation(key, entry, {
+      providerId: normalizedProviderId,
+      commandKey
+    })) continue;
+    COMMAND_PROBE_CACHE.delete(key);
+    removed += 1;
+  }
+  return removed;
+};
+
 const resolveWindowsCommand = (cmd) => {
   if (process.platform !== 'win32') return cmd;
   const lowered = String(cmd || '').toLowerCase();
@@ -140,6 +200,46 @@ const PROBE_CANDIDATES_BY_COMMAND = Object.freeze({
   erl: Object.freeze([['-version']])
 });
 
+const HEAVY_PROBE_PROVIDER_IDS = new Set([
+  'jdtls',
+  'sourcekit',
+  'elixir-ls',
+  'haskell-language-server',
+  'dart',
+  'csharp-ls'
+]);
+
+const FAST_PROBE_PROVIDER_IDS = new Set([
+  'gopls',
+  'pyright',
+  'clangd',
+  'rust-analyzer',
+  'lua-language-server',
+  'zls',
+  'solargraph',
+  'phpactor'
+]);
+
+const HEAVY_PROBE_COMMAND_TOKENS = new Set([
+  'jdtls',
+  'sourcekit-lsp',
+  'elixir-ls',
+  'haskell-language-server',
+  'dart',
+  'csharp-ls'
+]);
+
+const FAST_PROBE_COMMAND_TOKENS = new Set([
+  'gopls',
+  'pyright-langserver',
+  'clangd',
+  'rust-analyzer',
+  'lua-language-server',
+  'zls',
+  'solargraph',
+  'phpactor'
+]);
+
 const PROBE_ALLOWED_LEADING_ARGS = new Set([
   '--version',
   '-version',
@@ -170,6 +270,39 @@ const dedupeProbeArgCandidates = (candidates) => {
     deduped.push(args);
   }
   return deduped.length ? deduped : DEFAULT_PROBE_ARGS;
+};
+
+const coerceExplicitProbeTimeoutMs = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.max(100, Math.floor(parsed));
+};
+
+const resolveProbeTimeoutTier = ({ providerId, commandToken }) => {
+  if (HEAVY_PROBE_PROVIDER_IDS.has(providerId) || HEAVY_PROBE_COMMAND_TOKENS.has(commandToken)) {
+    return 'heavy';
+  }
+  if (FAST_PROBE_PROVIDER_IDS.has(providerId) || FAST_PROBE_COMMAND_TOKENS.has(commandToken)) {
+    return 'fast';
+  }
+  return 'balanced';
+};
+
+const resolveProbeTimeoutMs = ({
+  providerId,
+  requestedCmd,
+  resolvedCmd,
+  explicitTimeoutMs
+}) => {
+  const explicit = coerceExplicitProbeTimeoutMs(explicitTimeoutMs);
+  if (explicit != null) return explicit;
+  const normalizedProviderId = normalizeProviderId(providerId || requestedCmd || resolvedCmd || '');
+  const commandToken = normalizeCommandToken(resolvedCmd || requestedCmd || '');
+  const tier = resolveProbeTimeoutTier({
+    providerId: normalizedProviderId,
+    commandToken
+  });
+  return PROBE_TIMEOUT_TIER_MS[tier] || DEFAULT_PROBE_TIMEOUT_MS;
 };
 
 const resolvePyrightCommand = (repoRoot, toolingConfig) => {
@@ -296,6 +429,8 @@ const resolveBaseCommand = ({ providerId, requestedCmd, repoRoot, toolingConfig 
 const probeBinary = ({ providerId, command, probeArgs, timeoutMs }) => {
   const cacheKey = `${normalizeProviderId(providerId) || ''}\u0000${String(command || '').trim()}\u0000${JSON.stringify(probeArgs || [])}\u0000${Math.max(100, Math.floor(Number(timeoutMs) || DEFAULT_PROBE_TIMEOUT_MS))}`;
   const now = Date.now();
+  const normalizedProviderId = normalizeProviderId(providerId);
+  const commandKey = normalizeCommandCacheKey(command);
   const cached = COMMAND_PROBE_CACHE.get(cacheKey) || null;
   if (cached && now <= Number(cached.expiresAt || 0)) {
     return {
@@ -332,7 +467,9 @@ const probeBinary = ({ providerId, command, probeArgs, timeoutMs }) => {
           {
             ok: true,
             attempted,
-            expiresAt: Number.POSITIVE_INFINITY
+            expiresAt: now + resolveCommandProbeSuccessTtlMs(),
+            providerId: normalizedProviderId,
+            commandKey
           },
           COMMAND_PROBE_CACHE_MAX_ENTRIES
         );
@@ -365,7 +502,9 @@ const probeBinary = ({ providerId, command, probeArgs, timeoutMs }) => {
     {
       ok: false,
       attempted,
-      expiresAt: now + COMMAND_PROBE_FAILURE_TTL_MS
+      expiresAt: now + COMMAND_PROBE_FAILURE_TTL_MS,
+      providerId: normalizedProviderId,
+      commandKey
     },
     COMMAND_PROBE_CACHE_MAX_ENTRIES
   );
@@ -378,11 +517,22 @@ const probeBinary = ({ providerId, command, probeArgs, timeoutMs }) => {
 
 export const __resetToolingCommandProbeCacheForTests = () => {
   COMMAND_PROBE_CACHE.clear();
+  commandProbeSuccessTtlMs = DEFAULT_COMMAND_PROBE_SUCCESS_TTL_MS;
 };
 
 export const __getToolingCommandProbeCacheStatsForTests = () => ({
-  commandProbeEntries: COMMAND_PROBE_CACHE.size
+  commandProbeEntries: COMMAND_PROBE_CACHE.size,
+  successTtlMs: resolveCommandProbeSuccessTtlMs()
 });
+
+export const __setToolingCommandProbeSuccessTtlMsForTests = (value) => {
+  const parsed = Number(value);
+  commandProbeSuccessTtlMs = Number.isFinite(parsed)
+    ? Math.max(0, Math.floor(parsed))
+    : DEFAULT_COMMAND_PROBE_SUCCESS_TTL_MS;
+};
+
+export const __resolveToolingProbeTimeoutMsForTests = (input = {}) => resolveProbeTimeoutMs(input);
 
 /**
  * Return true when probe attempts indicate the binary is definitely missing.
@@ -445,14 +595,17 @@ export const resolveToolingCommandProfile = (input) => {
     : [];
   const repoRoot = input?.repoRoot || process.cwd();
   const toolingConfig = input?.toolingConfig || {};
-  const probeTimeoutMs = Number.isFinite(Number(input?.probeTimeoutMs))
-    ? Math.max(100, Math.floor(Number(input.probeTimeoutMs)))
-    : DEFAULT_PROBE_TIMEOUT_MS;
   const resolvedCmd = resolveBaseCommand({
     providerId,
     requestedCmd,
     repoRoot,
     toolingConfig
+  });
+  const probeTimeoutMs = resolveProbeTimeoutMs({
+    providerId,
+    requestedCmd,
+    resolvedCmd,
+    explicitTimeoutMs: input?.probeTimeoutMs
   });
   const probeArgs = getProbeArgCandidates(providerId, requestedCmd || resolvedCmd, requestedArgs);
   const probe = probeBinary({
@@ -498,6 +651,7 @@ export const resolveToolingCommandProfile = (input) => {
  * Returns machine-readable diagnostics for doctor reports.
  *
  * @param {{
+ *   providerId?:string,
  *   cmd:string,
  *   args?:string[],
  *   cwd?:string,
@@ -541,6 +695,11 @@ export const probeLspInitializeHandshake = async (input) => {
       errorMessage: null
     };
   } catch (err) {
+    invalidateToolingCommandProbeCache({
+      providerId: input?.providerId || null,
+      command: cmd,
+      successOnly: true
+    });
     return {
       ok: false,
       latencyMs: Date.now() - startedAt,

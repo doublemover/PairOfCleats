@@ -3,7 +3,6 @@ import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { execaSync } from 'execa';
 import { SymbolKind } from 'vscode-languageserver-protocol';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { isTestingEnv } from '../../shared/env.js';
@@ -12,9 +11,13 @@ import { readJsonFileSafe, toPosix } from '../../shared/files.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { acquireFileLock } from '../../shared/locks/file-lock.js';
-import { spawnSubprocess } from '../../shared/subprocess.js';
+import { runSyncCommandWithTimeout, spawnSubprocess, toSyncCommandExitCode } from '../../shared/subprocess.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
-import { isProbeCommandDefinitelyMissing, resolveToolingCommandProfile } from './command-resolver.js';
+import {
+  invalidateToolingCommandProbeCache,
+  isProbeCommandDefinitelyMissing,
+  resolveToolingCommandProfile
+} from './command-resolver.js';
 import { splitPathEntries } from './binary-utils.js';
 import { parseSwiftSignature } from './signature-parse/swift.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
@@ -95,19 +98,27 @@ const quoteWindowsCmdArg = (value) => {
 };
 const runProbeCommand = (cmd, args) => {
   if (!shouldUseShell(cmd)) {
-    return execaSync(cmd, args, {
+    const result = runSyncCommandWithTimeout(cmd, args, {
       stdio: 'ignore',
-      reject: false
+      encoding: 'utf8',
+      timeoutMs: 2_000
     });
+    return {
+      exitCode: toSyncCommandExitCode(result)
+    };
   }
   const commandLine = [cmd, ...(Array.isArray(args) ? args : [])]
     .map(quoteWindowsCmdArg)
     .join(' ');
   const shellExe = process.env.ComSpec || 'cmd.exe';
-  return execaSync(shellExe, ['/d', '/s', '/c', commandLine], {
+  const result = runSyncCommandWithTimeout(shellExe, ['/d', '/s', '/c', commandLine], {
     stdio: 'ignore',
-    reject: false
+    encoding: 'utf8',
+    timeoutMs: 2_000
   });
+  return {
+    exitCode: toSyncCommandExitCode(result)
+  };
 };
 
 /**
@@ -355,13 +366,18 @@ const runSourcekitPackagePreflight = async ({
  * Ensure SwiftPM dependency resolution side effects are completed before
  * sourcekit begins LSP work for Swift repos.
  *
- * @param {{repoRoot:string,log:(line:string)=>void}} input
+ * @param {{
+ *   repoRoot:string,
+ *   log:(line:string)=>void,
+ *   sourcekitConfig?:Record<string,unknown>
+ * }} input
  * @returns {Promise<{blockSourcekit:boolean,check:object|null}>}
  */
 const ensureSourcekitPackageResolutionPreflight = async ({
   repoRoot,
   log,
-  signal = null
+  signal = null,
+  sourcekitConfig = {}
 }) => {
   try {
     throwIfAborted(signal);
@@ -391,18 +407,42 @@ const ensureSourcekitPackageResolutionPreflight = async ({
 
     const preflightLockPath = path.join(os.tmpdir(), 'pairofcleats', 'locks', 'sourcekit-package-preflight.lock');
     const timeoutMs = SOURCEKIT_PACKAGE_PREFLIGHT_TIMEOUT_MS;
+    const preflightLockWaitMs = Math.max(
+      0,
+      asFiniteInteger(sourcekitConfig.preflightLockWaitMs) ?? SOURCEKIT_PACKAGE_PREFLIGHT_LOCK_WAIT_MS
+    );
+    const preflightLockPollMs = Math.max(
+      10,
+      asFiniteInteger(sourcekitConfig.preflightLockPollMs) ?? SOURCEKIT_PACKAGE_PREFLIGHT_LOCK_POLL_MS
+    );
+    const preflightLockStaleMs = Math.max(
+      1000,
+      asFiniteInteger(sourcekitConfig.preflightLockStaleMs) ?? SOURCEKIT_PACKAGE_PREFLIGHT_LOCK_STALE_MS
+    );
     let preflightLock = null;
     try {
       preflightLock = await acquireHostSourcekitLock({
         lockPath: preflightLockPath,
-        waitMs: SOURCEKIT_PACKAGE_PREFLIGHT_LOCK_WAIT_MS,
-        pollMs: SOURCEKIT_PACKAGE_PREFLIGHT_LOCK_POLL_MS,
-        staleMs: SOURCEKIT_PACKAGE_PREFLIGHT_LOCK_STALE_MS,
+        waitMs: preflightLockWaitMs,
+        pollMs: preflightLockPollMs,
+        staleMs: preflightLockStaleMs,
         signal,
         log
       });
       if (!preflightLock) {
-        log('[tooling] sourcekit package preflight lock wait elapsed; continuing without lock.');
+        const message = (
+          `sourcekit package preflight skipped because lock acquisition timed out `
+          + `(${preflightLockWaitMs}ms).`
+        );
+        log(`[tooling] ${message}`);
+        return {
+          blockSourcekit: true,
+          check: {
+            name: 'sourcekit_package_preflight_lock_unavailable',
+            status: 'warn',
+            message
+          }
+        };
       }
       throwIfAborted(signal);
       log('[tooling] sourcekit package preflight: running `swift package resolve`.');
@@ -717,7 +757,8 @@ export const createSourcekitProvider = () => ({
     const preflight = await ensureSourcekitPackageResolutionPreflight({
       repoRoot: ctx.repoRoot,
       log,
-      signal: abortSignal
+      signal: abortSignal,
+      sourcekitConfig
     });
     throwIfAborted(abortSignal);
     if (preflight.check) checks.push(preflight.check);
@@ -777,6 +818,13 @@ export const createSourcekitProvider = () => ({
         vfsColdStartCache: ctx?.toolingConfig?.vfs?.coldStartCache,
         indexDir: ctx?.buildRoot || null
       });
+      if (Array.isArray(result?.checks) && result.checks.some((check) => check?.name === 'tooling_initialize_failed')) {
+        invalidateToolingCommandProbeCache({
+          providerId: 'sourcekit',
+          command: commandProfile.resolved.cmd,
+          successOnly: true
+        });
+      }
 
       logHoverMetrics(log, result.hoverMetrics);
       const diagnostics = appendDiagnosticChecks(

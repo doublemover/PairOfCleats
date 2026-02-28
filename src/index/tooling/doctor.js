@@ -486,6 +486,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
           });
           if (probeLsp && options?.probeHandshake !== false) {
             const handshake = await probeLspInitializeHandshake({
+              providerId,
               cmd: commandProfile.resolved.cmd,
               args: commandProfile.resolved.args || [],
               cwd: repoRoot,

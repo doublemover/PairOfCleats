@@ -1,6 +1,6 @@
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { appendDiagnosticChecks, hashProviderConfig, normalizeProviderId } from './provider-contract.js';
-import { resolveToolingCommandProfile } from './command-resolver.js';
+import { invalidateToolingCommandProbeCache, resolveToolingCommandProfile } from './command-resolver.js';
 import { listLspServerPresets, resolveLspServerPreset } from './lsp-presets.js';
 import { parseClikeSignature } from './signature-parse/clike.js';
 import { parseElixirSignature } from './signature-parse/elixir.js';
@@ -434,6 +434,13 @@ const createConfiguredLspProvider = (server) => {
       let diagnosticsByChunkUid = result.diagnosticsByChunkUid;
       let diagnosticsCount = result.diagnosticsCount;
       const resultChecks = Array.isArray(result.checks) ? result.checks.slice() : [];
+      if (resultChecks.some((check) => check?.name === 'tooling_initialize_failed')) {
+        invalidateToolingCommandProbeCache({
+          providerId: server.id || providerId,
+          command: commandProfile.resolved.cmd,
+          successOnly: true
+        });
+      }
       if (server.rustSuppressProcMacroDiagnostics) {
         const suppression = applyRustProcMacroSuppression(diagnosticsByChunkUid);
         diagnosticsByChunkUid = suppression.diagnosticsByChunkUid;
