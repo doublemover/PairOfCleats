@@ -180,6 +180,17 @@ const buildCachedDiagnosticsEnvelope = (diagnostics) => {
   return Object.keys(payload).length ? payload : null;
 };
 
+const withDiagnosticsSource = (diagnostics, {
+  source = 'live',
+  stripRuntime = false
+} = {}) => {
+  if (!diagnostics || typeof diagnostics !== 'object') return null;
+  const payload = { ...diagnostics };
+  if (stripRuntime) delete payload.runtime;
+  payload.diagnosticsSource = source;
+  return payload;
+};
+
 const buildDeterministicCachePayload = ({
   output,
   providerId,
@@ -203,7 +214,10 @@ const normalizeCachedProviderOutput = (cached) => {
   if (!cached || typeof cached !== 'object') return null;
   return {
     ...cached,
-    diagnostics: buildCachedDiagnosticsEnvelope(cached.diagnostics || null)
+    diagnostics: withDiagnosticsSource(
+      buildCachedDiagnosticsEnvelope(cached.diagnostics || null),
+      { source: 'cache-suppressed', stripRuntime: true }
+    )
   };
 };
 
@@ -681,6 +695,7 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
       ? path.join(cacheDir, buildCacheFileName({ providerId, cacheKey }))
       : null;
     let output = null;
+    let outputFromCache = false;
     if (cachePath) {
       try {
         const cached = JSON.parse(await fs.readFile(cachePath, 'utf8'));
@@ -688,6 +703,7 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
           && cached?.provider?.version === provider.version
           && cached?.provider?.configHash === configHash) {
           output = normalizeCachedProviderOutput(cached);
+          outputFromCache = Boolean(output);
         }
       } catch {}
     }
@@ -706,6 +722,7 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
             configHash
           };
         }
+        outputFromCache = false;
         if (cachePath && output) {
           try {
             const deterministicPayload = buildDeterministicCachePayload({
@@ -741,7 +758,10 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
       }
     }
     if (!output) continue;
-    providerDiagnostics[providerId] = output.diagnostics || null;
+    providerDiagnostics[providerId] = withDiagnosticsSource(output.diagnostics || null, {
+      source: outputFromCache ? 'cache-suppressed' : 'live',
+      stripRuntime: outputFromCache
+    });
     const normalized = normalizeProviderOutputs({
       output,
       targetByChunkUid,

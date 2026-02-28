@@ -90,6 +90,11 @@ try {
     'stub-runtime-1',
     'expected live runtime envelope on first run'
   );
+  assert.equal(
+    first.diagnostics?.stub?.diagnosticsSource,
+    'live',
+    'expected live diagnostics source marker on first run'
+  );
 
   const second = await runToolingProviders(baseCtx, {
     documents,
@@ -106,6 +111,11 @@ try {
     second.diagnostics?.stub?.checks?.[0]?.name,
     'stub_deterministic_check',
     'expected deterministic checks to remain available on cache hits'
+  );
+  assert.equal(
+    second.diagnostics?.stub?.diagnosticsSource,
+    'cache-suppressed',
+    'expected cache-hit diagnostics source marker'
   );
 
   console.log('tooling provider cache runtime envelope split test passed');
