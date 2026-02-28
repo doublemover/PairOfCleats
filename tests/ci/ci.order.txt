@@ -99,6 +99,7 @@ indexer/metav2/finalization-after-inference
 indexing/type-inference/providers/type-inference-lsp-enrichment
 storage/sqlite/build-indexes
 indexing/imports/import-links
+indexing/imports/replay-corpus
 indexing/scm/index-build-no
 indexing/validate/index
 cli/search/contract
