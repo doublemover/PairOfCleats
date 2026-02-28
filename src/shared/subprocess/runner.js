@@ -67,6 +67,7 @@ function spawnSubprocess(command, args, options = {}) {
     const killTree = options.killTree !== false;
     const killSignal = options.killSignal || 'SIGTERM';
     const killGraceMs = resolveKillGraceMs(options.killGraceMs);
+    const timeoutAbortKillGraceMs = options.killGraceMs == null ? 0 : killGraceMs;
     const cleanupOnParentExit = typeof options.cleanupOnParentExit === 'boolean'
       ? options.cleanupOnParentExit
       : !(options.unref === true && detached === true);
@@ -195,7 +196,7 @@ function spawnSubprocess(command, args, options = {}) {
         killChildProcessTree(child, {
           killTree,
           killSignal,
-          graceMs: 0,
+          graceMs: timeoutAbortKillGraceMs,
           detached,
           awaitGrace: false
         }).catch(() => {});
@@ -220,7 +221,7 @@ function spawnSubprocess(command, args, options = {}) {
       killChildProcessTree(child, {
         killTree,
         killSignal,
-        graceMs: 0,
+        graceMs: timeoutAbortKillGraceMs,
         detached,
         awaitGrace: false
       }).catch(() => {});
