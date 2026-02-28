@@ -179,6 +179,7 @@ indexing/tokenization/tokenize-dictionary
 shared/cache/lru
 shared/truncation/contract
 lang/registry/collectors
+lang/registry/collector-utils-comment-aware
 indexing/chunk-meta/id-alignment
 indexing/tree-sitter/missing-grammar-fallback
 indexing/ordering/ordered-appender-stale-drop

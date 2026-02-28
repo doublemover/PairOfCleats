@@ -165,6 +165,12 @@ const cases = [
     expected: ['foo.proto', 'bar.proto', 'baz.proto']
   },
   {
+    label: 'proto-inline-block-comment-import',
+    fn: collectProtoImports,
+    text: '/* c */ import "real.proto";',
+    expected: ['real.proto']
+  },
+  {
     label: 'graphql',
     fn: collectGraphqlImports,
     text: [
@@ -209,6 +215,15 @@ const cases = [
     expected: ['//path:target', '@rules_cc', '//tools:deps.bzl', '../third_party/custom']
   },
   {
+    label: 'starlark-ignores-inline-comment-noise',
+    fn: collectStarlarkImports,
+    text: [
+      '# bazel_dep(name = "rules_cc")',
+      'load("//path:target", "x") # bazel_dep(name = "rules_java")'
+    ].join('\n'),
+    expected: ['//path:target']
+  },
+  {
     label: 'nix',
     fn: collectNixImports,
     text: [
@@ -228,6 +243,16 @@ const cases = [
       'github:NixOS/nixpkgs/nixos-24.11',
       '../local-override'
     ]
+  },
+  {
+    label: 'nix-ignores-commented-imports',
+    fn: collectNixImports,
+    text: [
+      '# import ./ignored.nix',
+      '# callPackage ../nope.nix {}',
+      'import ./real.nix'
+    ].join('\n'),
+    expected: ['./real.nix']
   },
   {
     label: 'dart',
@@ -311,7 +336,7 @@ const cases = [
   {
     label: 'razor',
     fn: collectRazorImports,
-    text: '@using System.Text',
+    text: '@using System.Text // note',
     expected: ['System.Text']
   },
   {
