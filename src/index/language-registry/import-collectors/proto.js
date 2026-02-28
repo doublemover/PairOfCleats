@@ -15,8 +15,8 @@ export const collectProtoImports = (text) => {
   });
   const precheck = (value) => lineHasAny(value, ['import']);
   for (const rawLine of lines) {
-    if (!shouldScanLine(rawLine, precheck)) continue;
     const line = stripComments(rawLine);
+    if (!shouldScanLine(line, precheck)) continue;
     if (!line.trim()) continue;
     const importMatch = line.match(/^\s*import\s+(?:public\s+|weak\s+)?\"([^\"]+)\"/);
     if (importMatch?.[1]) addCollectorImport(imports, importMatch[1]);

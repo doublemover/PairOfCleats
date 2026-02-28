@@ -63,4 +63,19 @@ expectEquivalent(
   ].join('\n')
 );
 
+expectEquivalent(
+  'proto-block-comment-closure',
+  collectProtoImports,
+  [
+    'import "foo.proto";',
+    'import "bar.proto";'
+  ].join('\n'),
+  [
+    '/* opens block comment',
+    'still comment */',
+    'import "foo.proto";',
+    'import "bar.proto";'
+  ].join('\n')
+);
+
 console.log('collector metamorphic comment placement test passed');
