@@ -37,10 +37,12 @@ import { normalizeImportSpecifier, normalizeRelPath, resolveWithinRoot, sortStri
 import {
   IMPORT_REASON_CODES,
   IMPORT_RESOLUTION_STATES,
+  IMPORT_RESOLVER_STAGES,
   assertUnresolvedDecision,
   createUnresolvedDecision,
   isActionableDisposition,
 } from './reason-codes.js';
+import { createImportResolutionStageTracker } from './stage-pipeline.js';
 import { createTsConfigLoader, resolveTsPaths } from './tsconfig-resolution.js';
 
 const ABSOLUTE_SYSTEM_PATH_PREFIX_RX = /^\/(?:etc|usr|opt|var|bin|sbin|lib|lib64|dev|proc|sys|run|tmp|home|root)(?:\/|$)/i;
@@ -451,6 +453,7 @@ export function resolveImportLinks({
     lookup: resolvedLookup,
     rootAbs: resolvedLookup.rootAbs
   });
+  const stageTracker = createImportResolutionStageTracker();
   const resolutionCache = new Map();
   const cacheKeyFor = (importerRel, spec, tsconfig) => {
     const tsKey = tsconfig?.fingerprint || tsconfig?.tsconfigPath || 'none';
@@ -539,8 +542,15 @@ export function resolveImportLinks({
     const nextSpecCache = cacheState && fileHash ? {} : null;
 
     for (const rawSpec of rawSpecs) {
-      const spec = normalizeImportSpecifier(rawSpec);
-      if (!spec) continue;
+      const spec = stageTracker.withStage(
+        IMPORT_RESOLVER_STAGES.NORMALIZE,
+        () => normalizeImportSpecifier(rawSpec)
+      );
+      if (!spec) {
+        stageTracker.markMiss(IMPORT_RESOLVER_STAGES.NORMALIZE);
+        continue;
+      }
+      stageTracker.markHit(IMPORT_RESOLVER_STAGES.NORMALIZE);
       let includeGraphEdge = true;
       const isRelative = spec.startsWith('.') || spec.startsWith('/');
       if (!isRelative && !tsconfigResolved) {
@@ -564,11 +574,19 @@ export function resolveImportLinks({
       let buildContextClassification = null;
       const resolveBuildContextClassification = () => {
         if (!buildContextClassification) {
-          buildContextClassification = buildContext.classifyUnresolved({
-            importerRel: relNormalized,
-            spec,
-            rawSpec
-          });
+          buildContextClassification = stageTracker.withStage(
+            IMPORT_RESOLVER_STAGES.BUILD_SYSTEM_RESOLVER,
+            () => buildContext.classifyUnresolved({
+              importerRel: relNormalized,
+              spec,
+              rawSpec
+            })
+          );
+          if (buildContextClassification?.reasonCode) {
+            stageTracker.markHit(IMPORT_RESOLVER_STAGES.BUILD_SYSTEM_RESOLVER);
+          } else {
+            stageTracker.markMiss(IMPORT_RESOLVER_STAGES.BUILD_SYSTEM_RESOLVER);
+          }
         }
         return buildContextClassification;
       };
@@ -576,10 +594,7 @@ export function resolveImportLinks({
       const resolveGeneratedExpectationMatch = () => {
         if (!generatedExpectationMatch) {
           const classified = resolveBuildContextClassification();
-          generatedExpectationMatch = classified?.generatedMatch || buildContext.resolveGeneratedExpectation({
-            importer: relNormalized,
-            specifier: spec || rawSpec
-          });
+          generatedExpectationMatch = classified?.generatedMatch || null;
           if (!generatedExpectationMatch) {
             generatedExpectationMatch = matchGeneratedExpectationSpecifier({
               importer: relNormalized,
@@ -653,12 +668,20 @@ export function resolveImportLinks({
           const base = spec.startsWith('/')
             ? normalizeRelPath(spec.slice(1))
             : normalizeRelPath(path.posix.join(path.posix.dirname(relNormalized), spec));
-          const languageRelativeResolved = resolveLanguageRelativeImport({
-            spec,
-            base,
-            importerInfo,
-            lookup: resolvedLookup
-          });
+          const languageRelativeResolved = stageTracker.withStage(
+            IMPORT_RESOLVER_STAGES.LANGUAGE_RESOLVER,
+            () => resolveLanguageRelativeImport({
+              spec,
+              base,
+              importerInfo,
+              lookup: resolvedLookup
+            })
+          );
+          if (languageRelativeResolved) {
+            stageTracker.markHit(IMPORT_RESOLVER_STAGES.LANGUAGE_RESOLVER);
+          } else {
+            stageTracker.markMiss(IMPORT_RESOLVER_STAGES.LANGUAGE_RESOLVER);
+          }
           const hasExtension = Boolean(path.posix.extname(base));
           const candidate = languageRelativeResolved
             || resolveCandidate(base, resolvedLookup)
@@ -673,23 +696,41 @@ export function resolveImportLinks({
             if (skipFallbackProbe) {
               resolvedType = 'unresolved';
             } else {
-              const absoluteExternal = shouldTreatAbsoluteSpecifierAsExternal({
-                spec,
-                importerInfo
-              });
-              if (absoluteExternal) {
-                resolvedType = 'external';
-              } else {
-                const nonIndexedLocal = resolveExistingNonIndexedRelativeImport({
-                  spec,
-                  importerInfo,
-                  importerRel: relNormalized
-                });
-                resolvedType = nonIndexedLocal ? 'external' : 'unresolved';
-                if (nonIndexedLocal) {
-                  cacheClass = 'ephemeral_external';
-                  fallbackPath = nonIndexedLocal;
+              const fallbackResult = stageTracker.withStage(
+                IMPORT_RESOLVER_STAGES.FILESYSTEM_PROBE,
+                () => {
+                  const absoluteExternal = shouldTreatAbsoluteSpecifierAsExternal({
+                    spec,
+                    importerInfo
+                  });
+                  if (absoluteExternal) {
+                    return {
+                      resolvedType: 'external',
+                      hit: false,
+                      cacheClass: null,
+                      fallbackPath: null
+                    };
+                  }
+                  const nonIndexedLocal = resolveExistingNonIndexedRelativeImport({
+                    spec,
+                    importerInfo,
+                    importerRel: relNormalized
+                  });
+                  return {
+                    resolvedType: nonIndexedLocal ? 'external' : 'unresolved',
+                    hit: Boolean(nonIndexedLocal),
+                    cacheClass: nonIndexedLocal ? 'ephemeral_external' : null,
+                    fallbackPath: nonIndexedLocal || null
+                  };
                 }
+              );
+              resolvedType = fallbackResult.resolvedType;
+              if (fallbackResult.cacheClass) cacheClass = fallbackResult.cacheClass;
+              if (fallbackResult.fallbackPath) fallbackPath = fallbackResult.fallbackPath;
+              if (fallbackResult.hit) {
+                stageTracker.markHit(IMPORT_RESOLVER_STAGES.FILESYSTEM_PROBE);
+              } else {
+                stageTracker.markMiss(IMPORT_RESOLVER_STAGES.FILESYSTEM_PROBE);
               }
             }
           }
@@ -711,17 +752,22 @@ export function resolveImportLinks({
               resolvedType = 'plugin-alias';
               resolvedPath = aliasResolvedPath;
             } else {
-              const languageResolved = resolveLanguageNonRelativeImport({
-                importerInfo,
-                spec,
-                lookup: resolvedLookup,
-                goModulePath,
-                dartPackageName
-              });
+              const languageResolved = stageTracker.withStage(
+                IMPORT_RESOLVER_STAGES.LANGUAGE_RESOLVER,
+                () => resolveLanguageNonRelativeImport({
+                  importerInfo,
+                  spec,
+                  lookup: resolvedLookup,
+                  goModulePath,
+                  dartPackageName
+                })
+              );
               if (languageResolved) {
+                stageTracker.markHit(IMPORT_RESOLVER_STAGES.LANGUAGE_RESOLVER);
                 resolvedType = languageResolved.resolvedType;
                 resolvedPath = languageResolved.resolvedPath;
               } else {
+                stageTracker.markMiss(IMPORT_RESOLVER_STAGES.LANGUAGE_RESOLVER);
                 resolvedType = 'external';
                 packageName = parsePackageName(spec);
               }
@@ -783,21 +829,25 @@ export function resolveImportLinks({
           rawSpec,
           importerInfo
         });
-        const unresolvedDecision = assertUnresolvedDecision(
-          ignoredUnresolved
-            ? createUnresolvedDecision(IMPORT_REASON_CODES.PARSER_NOISE_SUPPRESSED)
-            : createUnresolvedDecision(resolveUnresolvedReasonCode({
-              importerRel: relNormalized,
-              spec,
-              rawSpec,
-              buildContextClassification: resolveBuildContextClassification(),
-              generatedExpectationMatch: resolveGeneratedExpectationMatch(),
-              expectedArtifactsIndex
-            })),
-          {
-            context: `imports.resolve:${relNormalized}->${spec}`
-          }
+        const unresolvedDecision = stageTracker.withStage(
+          IMPORT_RESOLVER_STAGES.CLASSIFY,
+          () => assertUnresolvedDecision(
+            ignoredUnresolved
+              ? createUnresolvedDecision(IMPORT_REASON_CODES.PARSER_NOISE_SUPPRESSED)
+              : createUnresolvedDecision(resolveUnresolvedReasonCode({
+                importerRel: relNormalized,
+                spec,
+                rawSpec,
+                buildContextClassification: resolveBuildContextClassification(),
+                generatedExpectationMatch: resolveGeneratedExpectationMatch(),
+                expectedArtifactsIndex
+              })),
+            {
+              context: `imports.resolve:${relNormalized}->${spec}`
+            }
+          )
         );
+        stageTracker.markHit(IMPORT_RESOLVER_STAGES.CLASSIFY);
         unresolvedReasonCode = unresolvedDecision.reasonCode;
         unresolvedFailureCause = unresolvedDecision.failureCause;
         unresolvedDisposition = unresolvedDecision.disposition;
@@ -911,7 +961,8 @@ export function resolveImportLinks({
       truncatedNodes: capStats?.truncatedNodes ?? 0,
       maxEdges: MAX_GRAPH_EDGES,
       maxNodes: MAX_GRAPH_NODES,
-      warningSuppressed: suppressedWarnings
+      warningSuppressed: suppressedWarnings,
+      resolverPipelineStages: stageTracker.snapshot()
     };
     if (suppressedWarnings > 0 && log) {
       log(`[imports] suppressed ${suppressedWarnings} import resolution warnings.`);
@@ -931,7 +982,8 @@ export function resolveImportLinks({
       unresolvedByReasonCode: toSortedCountObject(unresolvedReasonCounts),
       truncatedEdges,
       truncatedNodes: capStats?.truncatedNodes ?? 0,
-      warningSuppressed: suppressedWarnings
+      warningSuppressed: suppressedWarnings,
+      resolverPipelineStages: stageTracker.snapshot()
     },
     graph,
     unresolvedSamples: graph?.warnings || warningList,
