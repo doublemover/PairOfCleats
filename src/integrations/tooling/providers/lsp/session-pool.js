@@ -6,6 +6,13 @@ import { stableStringify } from '../../../../shared/stable-json.js';
 const DEFAULT_IDLE_TIMEOUT_MS = 1_500;
 const DEFAULT_MAX_LIFETIME_MS = 10 * 60_000;
 const DEFAULT_CLEANUP_INTERVAL_MS = 500;
+const SESSION_STATE = Object.freeze({
+  NEW: 'new',
+  INITIALIZING: 'initializing',
+  READY: 'ready',
+  POISONED: 'poisoned',
+  RETIRED: 'retired'
+});
 
 const sessions = new Map();
 let cleanupTimer = null;
@@ -88,6 +95,7 @@ const killSessionClient = (session) => {
 const disposeSessionClient = async (session) => {
   if (!session || typeof session !== 'object') return;
   session.disposed = true;
+  session.state = SESSION_STATE.RETIRED;
   try {
     if (session.client && typeof session.client.shutdownAndExit === 'function') {
       await session.client.shutdownAndExit();
@@ -101,6 +109,76 @@ const shouldExpireForLifetime = (session, now = Date.now()) => (
   && session.maxLifetimeMs > 0
   && ((now - Number(session?.createdAt || now)) >= session.maxLifetimeMs)
 );
+
+const readSessionTransportGeneration = (session) => {
+  const generation = session?.client && typeof session.client.getGeneration === 'function'
+    ? Number(session.client.getGeneration())
+    : Number(session?.transportGeneration);
+  if (!Number.isFinite(generation) || generation < 0) return 0;
+  return Math.floor(generation);
+};
+
+const isSessionTransportRunning = (session) => (
+  Boolean(
+    session?.client
+    && typeof session.client.isTransportRunning === 'function'
+    && session.client.isTransportRunning()
+  )
+);
+
+const refreshSessionState = (session) => {
+  if (!session || typeof session !== 'object') return;
+  const nextGeneration = readSessionTransportGeneration(session);
+  if (nextGeneration !== Number(session.transportGeneration || 0)) {
+    session.transportGeneration = nextGeneration;
+  }
+  if (session.state === SESSION_STATE.POISONED || session.state === SESSION_STATE.RETIRED) return;
+  const initializedGeneration = Number(session.initializedGeneration ?? -1);
+  const running = isSessionTransportRunning(session);
+  if (!running) {
+    session.state = SESSION_STATE.NEW;
+    return;
+  }
+  if (initializedGeneration !== session.transportGeneration) {
+    session.state = SESSION_STATE.NEW;
+    session.initializeResult = null;
+    return;
+  }
+  session.state = SESSION_STATE.READY;
+};
+
+const markSessionInitializing = (session) => {
+  if (!session || typeof session !== 'object') return;
+  session.transportGeneration = readSessionTransportGeneration(session);
+  session.state = SESSION_STATE.INITIALIZING;
+};
+
+const markSessionReady = (session, initializeResult = null) => {
+  if (!session || typeof session !== 'object') return;
+  session.transportGeneration = readSessionTransportGeneration(session);
+  session.initializedGeneration = session.transportGeneration;
+  session.initializeResult = initializeResult ?? null;
+  session.poisonReason = null;
+  session.state = SESSION_STATE.READY;
+};
+
+const markSessionPoisoned = (session, reason = 'unknown') => {
+  if (!session || typeof session !== 'object') return;
+  session.poisonReason = typeof reason === 'string' && reason.trim()
+    ? reason.trim()
+    : 'unknown';
+  session.state = SESSION_STATE.POISONED;
+};
+
+const shouldInitializeSession = (session) => {
+  if (!session || typeof session !== 'object') return true;
+  if (session.state === SESSION_STATE.POISONED || session.state === SESSION_STATE.RETIRED) return true;
+  const running = isSessionTransportRunning(session);
+  if (!running) return true;
+  const transportGeneration = readSessionTransportGeneration(session);
+  const initializedGeneration = Number(session.initializedGeneration ?? -1);
+  return initializedGeneration !== transportGeneration || session.state !== SESSION_STATE.READY;
+};
 
 const createSession = (options) => {
   const key = buildSessionKey(options);
@@ -172,7 +250,12 @@ const createSession = (options) => {
     maxLifetimeMs: toPositiveInt(options.sessionMaxLifetimeMs, DEFAULT_MAX_LIFETIME_MS, 1000),
     lifecycleName: options.lifecycleName || options.cmd,
     handlers,
-    options
+    options,
+    transportGeneration: 0,
+    initializedGeneration: -1,
+    initializeResult: null,
+    state: SESSION_STATE.NEW,
+    poisonReason: null
   };
 };
 
@@ -199,6 +282,12 @@ const runCleanupPass = async () => {
   const now = Date.now();
   for (const [key, session] of sessions.entries()) {
     if (!session || session.activeCount > 0) continue;
+    refreshSessionState(session);
+    if (session.state === SESSION_STATE.POISONED) {
+      sessions.delete(key);
+      await disposeSessionClient(session);
+      continue;
+    }
     const idleMs = now - Number(session.lastUsedAt || now);
     const idleTimeoutMs = toPositiveInt(session.idleTimeoutMs, DEFAULT_IDLE_TIMEOUT_MS, 1000);
     if (idleMs < idleTimeoutMs) continue;
@@ -226,15 +315,22 @@ const getOrCreateSession = (options) => {
   const now = Date.now();
   const existing = sessions.get(key);
   if (existing && !existing.disposed) {
-    const idleTimeoutMs = toPositiveInt(existing.idleTimeoutMs, DEFAULT_IDLE_TIMEOUT_MS, 1000);
-    const idleExpired = (now - Number(existing.lastUsedAt || now)) >= idleTimeoutMs;
-    if ((shouldExpireForLifetime(existing, now) || idleExpired) && existing.activeCount === 0) {
+    refreshSessionState(existing);
+    if (existing.state === SESSION_STATE.POISONED && existing.activeCount === 0) {
       sessions.delete(key);
       killSessionClient(existing);
       void disposeSessionClient(existing);
     } else {
-      existing.lastUsedAt = now;
-      return { session: existing, reused: true };
+      const idleTimeoutMs = toPositiveInt(existing.idleTimeoutMs, DEFAULT_IDLE_TIMEOUT_MS, 1000);
+      const idleExpired = (now - Number(existing.lastUsedAt || now)) >= idleTimeoutMs;
+      if ((shouldExpireForLifetime(existing, now) || idleExpired) && existing.activeCount === 0) {
+        sessions.delete(key);
+        killSessionClient(existing);
+        void disposeSessionClient(existing);
+      } else {
+        existing.lastUsedAt = now;
+        return { session: existing, reused: true };
+      }
     }
   }
   const next = createSession(options);
@@ -335,6 +431,16 @@ export const withLspSession = async (options, fn) => {
   session.handlers.onStderrLine = typeof options?.onStderrLine === 'function'
     ? options.onStderrLine
     : null;
+  refreshSessionState(session);
+  const leaseMarkPoisoned = (reason = 'unknown') => {
+    markSessionPoisoned(session, reason);
+  };
+  const leaseMarkInitialized = (initializeResult = null) => {
+    markSessionReady(session, initializeResult);
+  };
+  const leaseMarkInitializing = () => {
+    markSessionInitializing(session);
+  };
   try {
     return await fn({
       client: session.client,
@@ -344,7 +450,15 @@ export const withLspSession = async (options, fn) => {
       sessionKey: session.key,
       reused: resolved.reused,
       recycleCount: session.recycleCount,
-      ageMs: Math.max(0, Date.now() - Number(session.createdAt || Date.now()))
+      ageMs: Math.max(0, Date.now() - Number(session.createdAt || Date.now())),
+      state: session.state,
+      transportGeneration: readSessionTransportGeneration(session),
+      initializationResult: session.initializeResult,
+      shouldInitialize: shouldInitializeSession(session),
+      isTransportRunning: isSessionTransportRunning(session),
+      markInitializing: leaseMarkInitializing,
+      markInitialized: leaseMarkInitialized,
+      markPoisoned: leaseMarkPoisoned
     });
   } finally {
     session.handlers.onNotification = null;
@@ -353,6 +467,12 @@ export const withLspSession = async (options, fn) => {
     session.handlers.onStderrLine = null;
     session.activeCount = Math.max(0, session.activeCount - 1);
     session.lastUsedAt = Date.now();
+    refreshSessionState(session);
+    if (session.state === SESSION_STATE.POISONED && session.activeCount === 0) {
+      session.recycleCount += 1;
+      sessions.delete(session.key);
+      await disposeSessionClient(session);
+    }
     if (shouldExpireForLifetime(session) && session.activeCount === 0) {
       session.recycleCount += 1;
       sessions.delete(session.key);

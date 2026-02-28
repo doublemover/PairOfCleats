@@ -571,6 +571,8 @@ export function createLspClient(options) {
     initialize,
     notify,
     request,
+    getGeneration: () => generation,
+    isTransportRunning,
     getMetrics: () => ({
       requests: requestMetrics.requests,
       succeeded: requestMetrics.succeeded,

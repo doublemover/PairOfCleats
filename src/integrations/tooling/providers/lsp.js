@@ -363,7 +363,11 @@ export async function collectLspTypes({
       sessionKey: lease.sessionKey,
       reused: lease.reused,
       recycleCount: lease.recycleCount,
-      ageMs: lease.ageMs
+      ageMs: lease.ageMs,
+      state: lease.state || null,
+      transportGeneration: Number.isFinite(Number(lease.transportGeneration))
+        ? Number(lease.transportGeneration)
+        : null
     };
 
     let detachAbortHandler = null;
@@ -403,9 +407,22 @@ export async function collectLspTypes({
         }
         await sleep(Math.min(1000, Math.max(25, state.fdPressureBackoffRemainingMs)));
       }
-      const out = await guard.run(fn, options);
-      refreshRuntimeState();
-      return out;
+      try {
+        const out = await guard.run(fn, options);
+        refreshRuntimeState();
+        return out;
+      } catch (err) {
+        const message = String(err?.message || err || '').toLowerCase();
+        const transportFailure = err?.code === 'ERR_LSP_TRANSPORT_CLOSED'
+          || message.includes('transport closed')
+          || message.includes('writer unavailable')
+          || message.includes('lsp exited');
+        if (transportFailure && typeof lease.markPoisoned === 'function') {
+          lease.markPoisoned('transport_failure');
+        }
+        refreshRuntimeState();
+        throw err;
+      }
     };
 
     const rootUri = pathToFileUri(rootDir);
@@ -419,12 +436,30 @@ export async function collectLspTypes({
     let skipSymbolCollection = false;
     try {
       throwIfAborted(toolingAbortSignal);
-      const initializeResult = await runWithHealthGuard(({ timeoutMs: guardTimeout }) => client.initialize({
-        rootUri,
-        capabilities: { textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } } },
-        initializationOptions,
-        timeoutMs: guardTimeout
-      }), { label: 'initialize' });
+      let initializeResult = null;
+      const mustInitialize = lease.shouldInitialize !== false;
+      if (mustInitialize) {
+        if (typeof lease.markInitializing === 'function') lease.markInitializing();
+        initializeResult = await runWithHealthGuard(({ timeoutMs: guardTimeout }) => client.initialize({
+          rootUri,
+          capabilities: { textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } } },
+          initializationOptions,
+          timeoutMs: guardTimeout
+        }), { label: 'initialize' });
+        if (typeof lease.markInitialized === 'function') lease.markInitialized(initializeResult);
+      } else {
+        initializeResult = lease.initializationResult || null;
+      }
+      if (!initializeResult) {
+        if (typeof lease.markInitializing === 'function') lease.markInitializing();
+        initializeResult = await runWithHealthGuard(({ timeoutMs: guardTimeout }) => client.initialize({
+          rootUri,
+          capabilities: { textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } } },
+          initializationOptions,
+          timeoutMs: guardTimeout
+        }), { label: 'initialize_recover' });
+        if (typeof lease.markInitialized === 'function') lease.markInitialized(initializeResult);
+      }
       capabilityMask = probeLspCapabilities(initializeResult);
       runtime.capabilities = capabilityMask;
       effectiveHoverEnabled = effectiveHoverEnabled && capabilityMask.hover;
@@ -480,6 +515,9 @@ export async function collectLspTypes({
     } catch (err) {
       throwIfAborted(toolingAbortSignal);
       checkFlags.initializeFailed = true;
+      if (typeof lease.markPoisoned === 'function') {
+        lease.markPoisoned('initialize_failed');
+      }
       if (err?.code === 'TOOLING_CRASH_LOOP' && !checkFlags.crashLoopQuarantined) {
         checkFlags.crashLoopQuarantined = true;
         checks.push({

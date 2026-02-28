@@ -45,7 +45,7 @@ const runCollect = async (chunkSuffix) => collectLspTypes({
     symbolHint: { name: 'add', kind: 'function' }
   }],
   cmd: process.execPath,
-  args: [serverPath, '--mode', 'clangd'],
+  args: [serverPath, '--mode', 'initialize-once'],
   parseSignature: (detail) => ({
     signature: detail,
     returnType: 'int',
@@ -64,8 +64,18 @@ try {
     assert.equal(spawnCount, 1, 'expected one spawned LSP process for pooled reuse');
     assert.equal(first.runtime?.pooling?.enabled, true, 'expected pooling metadata on first collect');
     assert.equal(first.runtime?.pooling?.reused, false, 'expected first collect to create a fresh session');
+    assert.equal(
+      first.checks.some((check) => check?.name === 'tooling_initialize_failed'),
+      false,
+      'expected first collect initialize to succeed'
+    );
     assert.equal(second.runtime?.pooling?.reused, true, 'expected second collect to reuse pooled session');
     assert.equal(second.enriched >= 1, true, 'expected pooled session reuse to enrich symbols');
+    assert.equal(
+      second.checks.some((check) => check?.name === 'tooling_initialize_failed'),
+      false,
+      'expected reused pooled session to avoid duplicate initialize failure'
+    );
   });
 
   console.log('LSP session pool reuse test passed');

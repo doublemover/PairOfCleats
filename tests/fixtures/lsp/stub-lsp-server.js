@@ -132,6 +132,11 @@ const symbolsByMode = {
     hoverDetail: 'int add(int a, int b)',
     kind: 12
   },
+  'initialize-once': {
+    name: 'add',
+    detail: 'int add(int a, int b)',
+    kind: 12
+  },
   'signature-help': {
     name: 'add',
     detail: 'add',
@@ -209,6 +214,7 @@ const pyrightDiagnostic = {
   }
 };
 const documents = new Map();
+let initializeCount = 0;
 
 const resolveInitializeCapabilities = (initializeParams = null) => {
   if (mode === 'yaml-requires-schemastore-off') {
@@ -437,6 +443,11 @@ const handleRequest = (message) => {
   recordEvent('request', message);
   const { id, method, params } = message;
   if (method === 'initialize') {
+    if (mode === 'initialize-once' && initializeCount > 0) {
+      respondError(id, 'initialize called more than once in a pooled server process');
+      return;
+    }
+    initializeCount += 1;
     if (mode === 'stall-initialize') {
       return;
     }
