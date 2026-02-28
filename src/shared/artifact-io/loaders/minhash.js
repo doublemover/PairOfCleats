@@ -1,13 +1,107 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { getHeapStatistics } from 'node:v8';
 import { MAX_JSON_BYTES } from '../constants.js';
-import { coerceNonNegativeInt } from '../../number-coerce.js';
+import {
+  INTEGER_COERCE_MODE_STRICT,
+  coerceNonNegativeInt
+} from '../../number-coerce.js';
 import { createPackedChecksumValidator } from '../checksum.js';
 import { loadPiecesManifest, resolveManifestArtifactSources } from '../manifest.js';
-import { readJsonFileCached, warnMaterializeFallback } from './shared.js';
+import {
+  createLoaderError,
+  readJsonFileCached,
+  warnMaterializeFallback
+} from './shared.js';
 import { loadJsonObjectArtifact } from './core.js';
 import { resolveReadableArtifactPathState } from './core-source-resolution.js';
+
+const BYTES_PER_U32 = 4;
+const MAX_STREAM_BUFFER_HARD_CAP_BYTES = 64 * 1024 * 1024;
+const HEAP_BUFFER_BUDGET_FRACTION = 0.02;
+
+const toStrictPositiveSafeInt = (value, label) => {
+  const parsed = coerceNonNegativeInt(value, { mode: INTEGER_COERCE_MODE_STRICT });
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw createLoaderError(
+      'ERR_ARTIFACT_INVALID',
+      `Invalid packed minhash ${label}: ${String(value)}`
+    );
+  }
+  return parsed;
+};
+
+const multiplySafeInts = (left, right, label) => {
+  if (!Number.isSafeInteger(left) || left < 0 || !Number.isSafeInteger(right) || right < 0) {
+    throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid packed minhash ${label}`);
+  }
+  const product = left * right;
+  if (!Number.isSafeInteger(product) || product < 0) {
+    throw createLoaderError(
+      'ERR_ARTIFACT_INVALID',
+      `Packed minhash ${label} exceeds safe integer bounds`
+    );
+  }
+  return product;
+};
+
+const resolvePositiveFiniteByteLimit = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+  return Math.floor(numeric);
+};
+
+const assertWithinMaxBytes = (actualBytes, maxBytes, label) => {
+  const resolvedMaxBytes = resolvePositiveFiniteByteLimit(maxBytes);
+  if (!resolvedMaxBytes) return;
+  if (Number(actualBytes) > resolvedMaxBytes) {
+    throw createLoaderError(
+      'ERR_ARTIFACT_TOO_LARGE',
+      `${label} exceeds maxBytes (${actualBytes} > ${resolvedMaxBytes})`
+    );
+  }
+};
+
+const resolveMinhashStreamBufferBudgetBytes = (maxBytes) => {
+  const candidates = [MAX_STREAM_BUFFER_HARD_CAP_BYTES];
+  const resolvedMaxBytes = resolvePositiveFiniteByteLimit(maxBytes);
+  if (resolvedMaxBytes) {
+    candidates.push(resolvedMaxBytes);
+  }
+  try {
+    const heapLimit = Number(getHeapStatistics()?.heap_size_limit);
+    if (Number.isFinite(heapLimit) && heapLimit > 0) {
+      const heapBudget = Math.floor(heapLimit * HEAP_BUFFER_BUDGET_FRACTION);
+      if (heapBudget > 0) {
+        candidates.push(heapBudget);
+      }
+    }
+  } catch {}
+  return Math.max(BYTES_PER_U32, Math.floor(Math.min(...candidates)));
+};
+
+const resolvePackedShapeAndByteLengths = ({ dims, count }) => {
+  const totalValues = multiplySafeInts(dims, count, 'shape product');
+  const totalBytes = multiplySafeInts(totalValues, BYTES_PER_U32, 'size');
+  const bytesPerSig = multiplySafeInts(dims, BYTES_PER_U32, 'row size');
+  return {
+    totalValues,
+    totalBytes,
+    bytesPerSig
+  };
+};
+
+const assertPackedRowFitsStreamBudget = ({ bytesPerSig, maxBytes }) => {
+  const budgetBytes = resolveMinhashStreamBufferBudgetBytes(maxBytes);
+  if (bytesPerSig > budgetBytes) {
+    throw createLoaderError(
+      'ERR_ARTIFACT_TOO_LARGE',
+      `Packed minhash signature row exceeds stream buffer budget (${bytesPerSig} > ${budgetBytes})`
+    );
+  }
+  return budgetBytes;
+};
 
 const resolvePackedMinhashArtifacts = ({
   dir,
@@ -29,14 +123,16 @@ const resolvePackedMinhashArtifacts = ({
   const resolvedMetaPath = metaState.path;
   const metaRaw = readJsonFileCached(resolvedMetaPath, { maxBytes });
   const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
-  const dims = coerceNonNegativeInt(meta?.dims) ?? 0;
-  const count = coerceNonNegativeInt(meta?.count) ?? 0;
-  if (!dims || !count) {
-    throw new Error('Invalid packed minhash meta');
-  }
+  const dims = toStrictPositiveSafeInt(meta?.dims, 'dims');
+  const count = toStrictPositiveSafeInt(meta?.count, 'count');
+  const shape = resolvePackedShapeAndByteLengths({ dims, count });
+  assertWithinMaxBytes(shape.totalBytes, maxBytes, 'Packed minhash signatures');
   return {
     dims,
     count,
+    totalValues: shape.totalValues,
+    totalBytes: shape.totalBytes,
+    bytesPerSig: shape.bytesPerSig,
     resolvedPackedPath,
     checksumValidator: createPackedChecksumValidator(meta, {
       label: 'Packed minhash signatures'
@@ -78,17 +174,28 @@ export const loadMinhashSignatures = async (
     const packed = resolvePackedMinhashArtifacts({ dir, sources, maxBytes });
     const dims = packed.dims;
     const count = packed.count;
+    const stat = fs.statSync(packed.resolvedPackedPath);
+    const packedSize = Number(stat?.size);
+    if (!Number.isSafeInteger(packedSize) || packedSize < 0) {
+      throw createLoaderError('ERR_ARTIFACT_INVALID', 'Packed minhash signatures invalid size');
+    }
+    assertWithinMaxBytes(packedSize, maxBytes, 'Packed minhash signatures');
+    if (packedSize % BYTES_PER_U32 !== 0) {
+      throw createLoaderError('ERR_ARTIFACT_CORRUPT', 'Packed minhash signatures invalid byte alignment');
+    }
+    if (packedSize !== packed.totalBytes) {
+      throw createLoaderError('ERR_ARTIFACT_CORRUPT', 'Packed minhash signatures size mismatch');
+    }
     const buffer = fs.readFileSync(packed.resolvedPackedPath);
+    if (buffer.byteLength % BYTES_PER_U32 !== 0) {
+      throw createLoaderError('ERR_ARTIFACT_CORRUPT', 'Packed minhash signatures invalid byte alignment');
+    }
+    if (buffer.byteLength !== packed.totalBytes) {
+      throw createLoaderError('ERR_ARTIFACT_CORRUPT', 'Packed minhash signatures size mismatch');
+    }
     packed.checksumValidator?.update(buffer);
     packed.checksumValidator?.verify();
-    const total = dims * count;
-    if (buffer.byteLength % 4 !== 0) {
-      throw new Error('Packed minhash signatures invalid byte alignment');
-    }
-    if (buffer.byteLength !== total * 4) {
-      throw new Error('Packed minhash signatures size mismatch');
-    }
-    const view = new Uint32Array(buffer.buffer, buffer.byteOffset, Math.floor(buffer.byteLength / 4));
+    const view = new Uint32Array(buffer.buffer, buffer.byteOffset, packed.totalValues);
     const signatures = new Array(count);
     for (let i = 0; i < count; i += 1) {
       const start = i * dims;
@@ -152,27 +259,39 @@ export const loadMinhashSignatureRows = async function* (
     const packed = resolvePackedMinhashArtifacts({ dir, sources, maxBytes });
     const dims = packed.dims;
     const count = packed.count;
-    const bytesPerSig = dims * 4;
-    const totalBytes = bytesPerSig * count;
+    const bytesPerSig = packed.bytesPerSig;
+    const totalBytes = packed.totalBytes;
+    const streamBudgetBytes = assertPackedRowFitsStreamBudget({
+      bytesPerSig,
+      maxBytes
+    });
     const stat = await fsPromises.stat(packed.resolvedPackedPath);
-    if (stat.size % 4 !== 0) {
-      throw new Error('Packed minhash signatures invalid byte alignment');
+    const packedSize = Number(stat?.size);
+    if (!Number.isSafeInteger(packedSize) || packedSize < 0) {
+      throw createLoaderError('ERR_ARTIFACT_INVALID', 'Packed minhash signatures invalid size');
     }
-    if (stat.size !== totalBytes) {
-      throw new Error('Packed minhash signatures size mismatch');
+    assertWithinMaxBytes(packedSize, maxBytes, 'Packed minhash signatures');
+    if (packedSize % BYTES_PER_U32 !== 0) {
+      throw createLoaderError('ERR_ARTIFACT_CORRUPT', 'Packed minhash signatures invalid byte alignment');
+    }
+    if (packedSize !== totalBytes) {
+      throw createLoaderError('ERR_ARTIFACT_CORRUPT', 'Packed minhash signatures size mismatch');
     }
     const handle = await fsPromises.open(packed.resolvedPackedPath, 'r');
     const resolvedBatchSize = Math.max(1, Math.floor(Number(batchSize)) || 2048);
-    const buffer = Buffer.allocUnsafe(resolvedBatchSize * bytesPerSig);
+    const cappedBatchSize = Math.max(1, Math.floor(streamBudgetBytes / bytesPerSig));
+    const safeBatchSize = Math.min(resolvedBatchSize, cappedBatchSize);
+    const batchBufferBytes = multiplySafeInts(safeBatchSize, bytesPerSig, 'stream batch size');
+    const buffer = Buffer.allocUnsafe(batchBufferBytes);
     try {
       let docId = 0;
       while (docId < count) {
         const remaining = count - docId;
-        const batchCount = Math.min(resolvedBatchSize, remaining);
+        const batchCount = Math.min(safeBatchSize, remaining);
         const bytesToRead = batchCount * bytesPerSig;
         const { bytesRead } = await handle.read(buffer, 0, bytesToRead, docId * bytesPerSig);
         if (bytesRead < bytesToRead) {
-          throw new Error('Packed minhash signatures truncated');
+          throw createLoaderError('ERR_ARTIFACT_CORRUPT', 'Packed minhash signatures truncated');
         }
         packed.checksumValidator?.update(buffer, 0, bytesRead);
         const view = new Uint32Array(buffer.buffer, buffer.byteOffset, bytesRead / 4);

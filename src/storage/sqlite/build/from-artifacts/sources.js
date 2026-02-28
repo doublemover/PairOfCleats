@@ -380,7 +380,7 @@ export const iterateChunkMetaSources = async (
       includeCold: false,
       materializeTokenIds: false,
       preferBinaryColumnar: true,
-      enforceBinaryDataBudget: false
+      enforceBinaryDataBudget: true
     })) {
       await emitEntry(row);
     }
