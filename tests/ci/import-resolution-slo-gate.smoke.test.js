@@ -24,6 +24,12 @@ try {
       unresolvedByResolverStage: {
         filesystem_probe: 2
       },
+      resolverPipelineStages: {
+        normalize: { attempts: 4, hits: 4, misses: 0, elapsedMs: 3.25 },
+        language_resolver: { attempts: 2, hits: 1, misses: 1, elapsedMs: 2.5 },
+        filesystem_probe: { attempts: 1, hits: 0, misses: 1, elapsedMs: 1.5 },
+        classify: { attempts: 1, hits: 1, misses: 0, elapsedMs: 0.5 }
+      },
       unresolvedActionableHotspots: [
         { importer: 'src/main.ts', count: 2 }
       ]
@@ -91,6 +97,15 @@ try {
       filesystem_probe: 2
     }
   );
+  assert.deepEqual(
+    passPayload?.resolverPipelineStages,
+    {
+      classify: { attempts: 1, hits: 1, misses: 0, elapsedMs: 0.5 },
+      filesystem_probe: { attempts: 1, hits: 0, misses: 1, elapsedMs: 1.5 },
+      language_resolver: { attempts: 2, hits: 1, misses: 1, elapsedMs: 2.5 },
+      normalize: { attempts: 4, hits: 4, misses: 0, elapsedMs: 3.25 }
+    }
+  );
 
   const failGraphPath = path.join(tempRoot, 'import_resolution_graph.fail.json');
   const failJsonPath = path.join(tempRoot, 'import-resolution-slo-gate.fail.json');
@@ -145,6 +160,10 @@ try {
   assert.deepEqual(
     failPayload?.resolverStages,
     { filesystem_probe: 1 }
+  );
+  assert.deepEqual(
+    failPayload?.resolverPipelineStages,
+    {}
   );
 
   const fallbackGraphPath = path.join(tempRoot, 'import_resolution_graph.fallback.json');
@@ -205,6 +224,10 @@ try {
       classify: 1,
       filesystem_probe: 1
     }
+  );
+  assert.deepEqual(
+    fallbackPayload?.resolverPipelineStages,
+    {}
   );
 
   console.log('import resolution slo gate smoke test passed');

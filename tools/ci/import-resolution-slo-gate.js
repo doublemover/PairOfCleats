@@ -75,6 +75,12 @@ const toSortedHotspots = (counts, { maxEntries = 20 } = {}) => (
     .slice(0, Math.max(0, Math.floor(Number(maxEntries) || 0)))
 );
 
+const toNonNegativeMs = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) return null;
+  return Number(numeric.toFixed(3));
+};
+
 const toCountMap = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const output = Object.create(null);
@@ -95,6 +101,55 @@ const toHotspotCounts = (value) => {
     const count = toNonNegativeIntOrNull(entry?.count);
     if (!importer || count == null || count <= 0) continue;
     bumpCount(output, importer, count);
+  }
+  return output;
+};
+
+const toStagePipelineMap = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const output = Object.create(null);
+  for (const [stage, entry] of Object.entries(value)) {
+    if (typeof stage !== 'string' || !stage) continue;
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+    const attempts = toNonNegativeIntOrNull(entry.attempts) ?? 0;
+    const hits = toNonNegativeIntOrNull(entry.hits) ?? 0;
+    const misses = toNonNegativeIntOrNull(entry.misses) ?? 0;
+    const elapsedMs = toNonNegativeMs(entry.elapsedMs) ?? 0;
+    output[stage] = { attempts, hits, misses, elapsedMs };
+  }
+  return Object.keys(output).length > 0 ? output : null;
+};
+
+const mergeStagePipelineMaps = (target, source) => {
+  if (!target || !source) return;
+  for (const [stage, entry] of Object.entries(source)) {
+    if (!target[stage]) {
+      target[stage] = {
+        attempts: 0,
+        hits: 0,
+        misses: 0,
+        elapsedMs: 0
+      };
+    }
+    target[stage].attempts += Math.max(0, Number(entry?.attempts) || 0);
+    target[stage].hits += Math.max(0, Number(entry?.hits) || 0);
+    target[stage].misses += Math.max(0, Number(entry?.misses) || 0);
+    target[stage].elapsedMs += Math.max(0, Number(entry?.elapsedMs) || 0);
+  }
+};
+
+const toSortedStagePipeline = (stages) => {
+  const entries = Object.entries(stages || {})
+    .filter(([stage, entry]) => stage && entry && typeof entry === 'object')
+    .sort((a, b) => sortStrings(a[0], b[0]));
+  const output = Object.create(null);
+  for (const [stage, entry] of entries) {
+    output[stage] = {
+      attempts: Math.floor(Math.max(0, Number(entry?.attempts) || 0)),
+      hits: Math.floor(Math.max(0, Number(entry?.hits) || 0)),
+      misses: Math.floor(Math.max(0, Number(entry?.misses) || 0)),
+      elapsedMs: Number(Math.max(0, Number(entry?.elapsedMs) || 0).toFixed(3))
+    };
   }
   return output;
 };
@@ -156,7 +211,8 @@ const aggregateFromGraphs = async (graphPaths) => {
     parserArtifact: 0,
     resolverGap: 0,
     actionableHotspotCounts: Object.create(null),
-    resolverStageCounts: Object.create(null)
+    resolverStageCounts: Object.create(null),
+    resolverPipelineStages: Object.create(null)
   };
   const reasonCodeCounts = Object.create(null);
   const invalidReports = [];
@@ -220,6 +276,7 @@ const aggregateFromGraphs = async (graphPaths) => {
     const statsReasonCodes = toCountMap(stats.unresolvedByReasonCode);
     const effectiveReasonCodes = statsReasonCodes || warningReasonCodes;
     const statsResolverStages = toCountMap(stats.unresolvedByResolverStage);
+    const statsResolverPipelineStages = toStagePipelineMap(stats.resolverPipelineStages);
     const warningResolverStages = Object.create(null);
     for (const warning of warnings) {
       const stage = typeof warning?.resolverStage === 'string' ? warning.resolverStage.trim() : '';
@@ -257,12 +314,14 @@ const aggregateFromGraphs = async (graphPaths) => {
     for (const [resolverStage, count] of Object.entries(effectiveResolverStages)) {
       bumpCount(totals.resolverStageCounts, resolverStage, count);
     }
+    mergeStagePipelineMaps(totals.resolverPipelineStages, statsResolverPipelineStages);
   }
 
   return {
     totals,
     reasonCodeCounts: toSortedObject(reasonCodeCounts),
     resolverStages: toSortedObject(totals.resolverStageCounts),
+    resolverPipelineStages: toSortedStagePipeline(totals.resolverPipelineStages),
     actionableHotspots: toSortedHotspots(totals.actionableHotspotCounts),
     invalidReports
   };
@@ -304,7 +363,14 @@ const main = async () => {
     return;
   }
 
-  const { totals, reasonCodeCounts, resolverStages, actionableHotspots, invalidReports } = await aggregateFromGraphs(graphPaths);
+  const {
+    totals,
+    reasonCodeCounts,
+    resolverStages,
+    resolverPipelineStages,
+    actionableHotspots,
+    invalidReports
+  } = await aggregateFromGraphs(graphPaths);
   const unresolved = totals.unresolved;
   const actionable = totals.actionable;
   const actionableRate = toRatio(actionable, unresolved);
@@ -321,6 +387,17 @@ const main = async () => {
   const topHotspot = Array.isArray(actionableHotspots) && actionableHotspots.length > 0
     ? actionableHotspots[0]
     : null;
+  const topStageByElapsed = Object.entries(resolverPipelineStages || {})
+    .map(([stage, entry]) => ({
+      stage,
+      elapsedMs: Number(entry?.elapsedMs) || 0
+    }))
+    .filter((entry) => entry.stage && entry.elapsedMs > 0)
+    .sort((a, b) => (
+      b.elapsedMs !== a.elapsedMs
+        ? b.elapsedMs - a.elapsedMs
+        : sortStrings(a.stage, b.stage)
+    ))[0] || null;
   const failures = [];
 
   if (invalidReports.length > 0) {
@@ -360,6 +437,7 @@ const main = async () => {
     },
     reasonCodes: reasonCodeCounts,
     resolverStages,
+    resolverPipelineStages,
     actionableHotspots,
     failures
   };
@@ -376,9 +454,11 @@ const main = async () => {
       `- actionableRate: ${actionableRate.toFixed(4)} (max ${actionableRateMax.toFixed(4)})`,
       `- parserArtifactRate: ${parserArtifactRate.toFixed(4)}`,
       `- resolverGapRate: ${resolverGapRate.toFixed(4)}`,
+      `- resolverPipelineStages: ${Object.keys(resolverPipelineStages || {}).length}`,
       `- actionableHotspots: ${actionableHotspots.length}`,
       `- topHotspot: ${topHotspot ? `${topHotspot.importer}=${topHotspot.count}` : 'none'}`,
-      `- topReasonCode: ${topReasonCode ? `${topReasonCode.reasonCode}=${topReasonCode.count}` : 'none'}`
+      `- topReasonCode: ${topReasonCode ? `${topReasonCode.reasonCode}=${topReasonCode.count}` : 'none'}`,
+      `- topResolverStageByElapsed: ${topStageByElapsed ? `${topStageByElapsed.stage}=${topStageByElapsed.elapsedMs.toFixed(3)}ms` : 'none'}`
     ],
     failures
   });
