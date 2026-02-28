@@ -72,6 +72,20 @@ const reports = [
     }
   },
   {
+    reportPath: 'repo-c/import_resolution_graph.json',
+    payload: {
+      generatedAt: new Date().toISOString(),
+      stats: {
+        unresolved: 5,
+        unresolvedActionable: 3,
+        unresolvedActionableByLanguage: {
+          py: 3
+        }
+      },
+      warnings: []
+    }
+  },
+  {
     reportPath: 'repo-b/import_resolution_graph.json',
     payload: null
   }
@@ -81,10 +95,10 @@ const aggregated = aggregateImportResolutionGraphPayloads(reports, {
   excludedImporterSegments: DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS
 });
 
-assert.equal(aggregated.totals.reportCount, 1, 'expected one valid report');
+assert.equal(aggregated.totals.reportCount, 2, 'expected two valid reports');
 assert.equal(aggregated.invalidReports.length, 1, 'expected one invalid report');
-assert.equal(aggregated.totals.unresolved, 3, 'expected excluded test importer warning to be removed from gate counts');
-assert.equal(aggregated.totals.actionable, 1, 'expected one actionable unresolved warning');
+assert.equal(aggregated.totals.unresolved, 8, 'expected excluded test importer warning to be removed from gate counts');
+assert.equal(aggregated.totals.actionable, 4, 'expected actionable unresolved totals from warnings + stats');
 assert.equal(aggregated.totals.parserArtifact, 1, 'expected parser artifact count to be replayed');
 assert.equal(aggregated.totals.resolverGap, 1, 'expected resolver gap count to be replayed');
 assert.equal(aggregated.reasonCodeCounts.IMP_U_MISSING_FILE_RELATIVE, 2, 'expected reason code counts to include excluded warning');
@@ -110,8 +124,8 @@ assert.deepEqual(
 );
 assert.deepEqual(
   aggregated.actionableByLanguage,
-  { js: 1 },
-  'expected actionable language hotspot rollup'
+  { js: 1, py: 3 },
+  'expected actionable language hotspot rollup with stats override'
 );
 assert.deepEqual(
   aggregated.actionableHotspots,

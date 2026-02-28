@@ -354,6 +354,7 @@ export const aggregateImportResolutionGraphPayloads = (
     const statsResolverStages = toCountMap(stats.unresolvedByResolverStage);
     const statsResolverPipelineStages = toStagePipelineMap(stats.resolverPipelineStages);
     const statsBudgetPolicy = toBudgetPolicy(stats.resolverBudgetPolicy);
+    const statsActionableByLanguage = toCountMap(stats.unresolvedActionableByLanguage);
 
     const warningResolverStages = Object.create(null);
     for (const warning of warnings) {
@@ -371,7 +372,18 @@ export const aggregateImportResolutionGraphPayloads = (
       const importer = typeof entry?.importer === 'string' ? entry.importer.trim() : '';
       if (!importer) continue;
       bumpCount(totals.actionableRepoCounts, repoLabel, 1);
-      bumpCount(totals.actionableLanguageCounts, resolveLanguageLabelFromImporter(importer), 1);
+    }
+    if (statsActionableByLanguage) {
+      for (const [language, count] of Object.entries(statsActionableByLanguage)) {
+        bumpCount(totals.actionableLanguageCounts, language, count);
+      }
+    } else {
+      for (const entry of eligibleWarnings) {
+        if (entry?.disposition !== 'actionable') continue;
+        const importer = typeof entry?.importer === 'string' ? entry.importer.trim() : '';
+        if (!importer) continue;
+        bumpCount(totals.actionableLanguageCounts, resolveLanguageLabelFromImporter(importer), 1);
+      }
     }
     if (!statsHotspots) {
       for (const entry of eligibleWarnings) {
