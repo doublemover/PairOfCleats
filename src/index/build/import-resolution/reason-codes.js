@@ -101,6 +101,10 @@ const NON_ACTIONABLE_FAILURE_CAUSES = new Set([
   IMPORT_FAILURE_CAUSES.RESOLVER_GAP,
   IMPORT_FAILURE_CAUSES.GENERATED_EXPECTED_MISSING
 ]);
+const KNOWN_REASON_CODES = new Set(Object.values(IMPORT_REASON_CODES));
+const KNOWN_FAILURE_CAUSES = new Set(Object.values(IMPORT_FAILURE_CAUSES));
+const KNOWN_DISPOSITIONS = new Set(Object.values(IMPORT_DISPOSITIONS));
+const KNOWN_RESOLVER_STAGES = new Set(Object.values(IMPORT_RESOLVER_STAGES));
 
 const hasText = (value) => typeof value === 'string' && value.trim().length > 0;
 
@@ -157,6 +161,18 @@ export const validateResolutionDecision = (decision) => {
   if (!hasText(decision?.failureCause)) errors.push('unresolved decision requires failureCause');
   if (!hasText(decision?.disposition)) errors.push('unresolved decision requires disposition');
   if (!hasText(decision?.resolverStage)) errors.push('unresolved decision requires resolverStage');
+  if (hasText(decision?.reasonCode) && !KNOWN_REASON_CODES.has(decision.reasonCode)) {
+    errors.push(`unresolved decision has unknown reasonCode=${String(decision.reasonCode)}`);
+  }
+  if (hasText(decision?.failureCause) && !KNOWN_FAILURE_CAUSES.has(decision.failureCause)) {
+    errors.push(`unresolved decision has unknown failureCause=${String(decision.failureCause)}`);
+  }
+  if (hasText(decision?.disposition) && !KNOWN_DISPOSITIONS.has(decision.disposition)) {
+    errors.push(`unresolved decision has unknown disposition=${String(decision.disposition)}`);
+  }
+  if (hasText(decision?.resolverStage) && !KNOWN_RESOLVER_STAGES.has(decision.resolverStage)) {
+    errors.push(`unresolved decision has unknown resolverStage=${String(decision.resolverStage)}`);
+  }
 
   if (decision?.disposition === IMPORT_DISPOSITIONS.ACTIONABLE
     && NON_ACTIONABLE_FAILURE_CAUSES.has(decision?.failureCause)) {

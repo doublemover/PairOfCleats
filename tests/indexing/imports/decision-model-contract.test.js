@@ -45,6 +45,19 @@ assert.equal(
   true
 );
 
+const invalidReasonCode = validateResolutionDecision({
+  resolutionState: IMPORT_RESOLUTION_STATES.UNRESOLVED,
+  reasonCode: 'IMP_U_NOT_A_REAL_REASON',
+  failureCause: 'missing_file',
+  disposition: 'actionable',
+  resolverStage: 'filesystem_probe'
+});
+assert.equal(invalidReasonCode.ok, false);
+assert.equal(
+  invalidReasonCode.errors.some((entry) => entry.includes('unknown reasonCode')),
+  true
+);
+
 assert.throws(
   () => assertUnresolvedDecision({
     resolutionState: IMPORT_RESOLUTION_STATES.RESOLVED,
