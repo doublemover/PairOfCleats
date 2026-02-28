@@ -3,6 +3,7 @@ import { buildCacheKey } from '../../../shared/cache-key.js';
 import { sha1 } from '../../../shared/hash.js';
 import {
   DEFAULT_IMPORT_EXTS,
+  EPHEMERAL_EXTERNAL_CACHE_TTL_MS,
   MAX_GRAPH_EDGES,
   MAX_GRAPH_NODES,
   MAX_IMPORT_WARNINGS,
@@ -311,6 +312,23 @@ export function resolveImportLinks({
     if (typeof value.isFile === 'function') return value.isFile();
     return value.isFile === true;
   };
+  const canReuseEphemeralExternalCacheEntry = ({
+    cacheClass = null,
+    fallbackPath = null,
+    expiresAt = null,
+    nowMs = Date.now()
+  } = {}) => {
+    if (cacheClass !== 'ephemeral_external') return true;
+    if (!Number.isFinite(Number(expiresAt)) || Number(expiresAt) <= nowMs) return false;
+    const normalizedFallbackPath = normalizeRelPath(fallbackPath);
+    if (!normalizedFallbackPath) return false;
+    const fallbackAbs = path.resolve(resolvedLookup.rootAbs, normalizedFallbackPath);
+    const containedRel = resolveWithinRoot(resolvedLookup.rootAbs, fallbackAbs);
+    if (!containedRel) return false;
+    if (resolveCandidate(containedRel, resolvedLookup)) return false;
+    const fallbackStat = fsMemo.statSync(fallbackAbs);
+    return isFileStat(fallbackStat);
+  };
 
   const resolveExistingNonIndexedRelativeImport = ({ spec, importerInfo, importerRel }) => {
     if (!spec || typeof spec !== 'string' || !importerRel) return null;
@@ -344,8 +362,10 @@ export function resolveImportLinks({
       for (const candidate of candidates) {
         if (!candidate) continue;
         const candidateAbs = path.resolve(resolvedLookup.rootAbs, candidate);
+        const candidateRel = resolveWithinRoot(resolvedLookup.rootAbs, candidateAbs);
+        if (!candidateRel) continue;
         const candidateStat = fsMemo.statSync(candidateAbs);
-        if (isFileStat(candidateStat)) return candidate;
+        if (isFileStat(candidateStat)) return candidateRel;
       }
     }
     return null;
@@ -472,7 +492,11 @@ export function resolveImportLinks({
       let tsPathPattern = null;
       let tsconfigPath = null;
       let packageName = null;
+      let cacheClass = null;
+      let fallbackPath = null;
+      let expiresAt = null;
       let edgeTarget = null;
+      const nowMs = Date.now();
 
       if (cacheMetrics) cacheMetrics.specs += 1;
       let cachedSpec = canReuseCache && fileCache?.specs && fileCache.specs[spec]
@@ -484,20 +508,39 @@ export function resolveImportLinks({
       if (cachedSpec && cachedSpec.resolvedPath && !resolvedLookup.fileSet.has(cachedSpec.resolvedPath)) {
         cachedSpec = null;
       }
+      if (cachedSpec && !canReuseEphemeralExternalCacheEntry({
+        cacheClass: cachedSpec.cacheClass || null,
+        fallbackPath: cachedSpec.fallbackPath || null,
+        expiresAt: cachedSpec.expiresAt,
+        nowMs
+      })) {
+        cachedSpec = null;
+      }
       if (cachedSpec) {
         ({
           resolvedType,
           resolvedPath,
           tsPathPattern,
           tsconfigPath,
-          packageName
+          packageName,
+          cacheClass = null,
+          fallbackPath = null,
+          expiresAt = null
         } = cachedSpec);
         if (cacheMetrics) cacheMetrics.specsReused += 1;
       } else {
         const specCacheKey = cacheKeyFor(relNormalized, spec, tsconfig);
-        const nowMs = Date.now();
         let cached = resolutionCache.get(specCacheKey);
         if (cached?.expiresAt && cached.expiresAt < nowMs) {
+          resolutionCache.delete(specCacheKey);
+          cached = null;
+        }
+        if (cached && !canReuseEphemeralExternalCacheEntry({
+          cacheClass: cached.cacheClass || null,
+          fallbackPath: cached.fallbackPath || null,
+          expiresAt: cached.expiresAt,
+          nowMs
+        })) {
           resolutionCache.delete(specCacheKey);
           cached = null;
         }
@@ -507,7 +550,10 @@ export function resolveImportLinks({
             resolvedPath,
             tsPathPattern,
             tsconfigPath,
-            packageName
+            packageName,
+            cacheClass = null,
+            fallbackPath = null,
+            expiresAt = null
           } = cached);
         } else if (isRelative) {
           const base = spec.startsWith('/')
@@ -540,6 +586,10 @@ export function resolveImportLinks({
                 importerRel: relNormalized
               });
               resolvedType = nonIndexedLocal ? 'external' : 'unresolved';
+              if (nonIndexedLocal) {
+                cacheClass = 'ephemeral_external';
+                fallbackPath = nonIndexedLocal;
+              }
             }
           }
         } else {
@@ -579,15 +629,21 @@ export function resolveImportLinks({
         }
 
         if (!cached) {
-          const expiresAt = resolvedType === 'unresolved'
+          expiresAt = resolvedType === 'unresolved'
             ? nowMs + NEGATIVE_CACHE_TTL_MS
-            : null;
+            : (
+              cacheClass === 'ephemeral_external'
+                ? nowMs + EPHEMERAL_EXTERNAL_CACHE_TTL_MS
+                : null
+            );
           insertResolutionCache(resolutionCache, specCacheKey, {
             resolvedType,
             resolvedPath,
             tsPathPattern,
             tsconfigPath,
             packageName,
+            cacheClass,
+            fallbackPath,
             expiresAt
           });
         }
@@ -600,7 +656,10 @@ export function resolveImportLinks({
           resolvedPath,
           tsPathPattern,
           tsconfigPath,
-          packageName
+          packageName,
+          cacheClass,
+          fallbackPath,
+          expiresAt
         };
       }
 
