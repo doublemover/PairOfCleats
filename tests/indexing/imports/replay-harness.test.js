@@ -35,7 +35,11 @@ const reports = [
             misses: 1,
             elapsedMs: 1.25,
             budgetExhausted: 1,
-            degraded: 2
+            degraded: 2,
+            reasonCodes: {
+              IMP_U_RESOLVER_GAP: 2,
+              IMP_U_NOT_REAL: 3
+            }
           }
         }
       },
@@ -129,7 +133,10 @@ assert.deepEqual(
       misses: 1,
       elapsedMs: 1.25,
       budgetExhausted: 1,
-      degraded: 2
+      degraded: 2,
+      reasonCodes: {
+        IMP_U_RESOLVER_GAP: 2
+      }
     }
   }),
   'expected resolver stage pipeline metrics to aggregate with budget/degraded counters'

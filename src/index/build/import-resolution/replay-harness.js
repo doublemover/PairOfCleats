@@ -10,7 +10,7 @@ import {
   isActionableImportWarning
 } from './disposition.js';
 import { resolveLanguageLabelFromImporter, resolveRepoLabelFromReportPath } from './labels.js';
-import { isKnownResolverStage } from './reason-codes.js';
+import { isKnownReasonCode, isKnownResolverStage } from './reason-codes.js';
 import { summarizeResolverPipelineStageElapsedPercentiles } from './stage-pipeline-metrics.js';
 
 export const DEFAULT_REPLAY_SCAN_ROOTS = Object.freeze(['.testCache', '.benchCache']);
@@ -102,6 +102,17 @@ const toResolverStageCounts = (value) => {
   return Object.keys(output).length > 0 ? output : null;
 };
 
+const toReasonCodeCounts = (value) => {
+  const counts = toCountMap(value);
+  if (!counts) return null;
+  const output = Object.create(null);
+  for (const [reasonCode, count] of Object.entries(counts)) {
+    if (!isKnownReasonCode(reasonCode)) continue;
+    output[reasonCode] = count;
+  }
+  return Object.keys(output).length > 0 ? output : null;
+};
+
 const toBudgetPolicy = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const profile = typeof value.adaptiveProfile === 'string' && value.adaptiveProfile.trim()
@@ -127,7 +138,8 @@ const toStagePipelineMap = (value) => {
     const elapsedMs = toNonNegativeMs(entry.elapsedMs) ?? 0;
     const budgetExhausted = toNonNegativeIntOrNull(entry.budgetExhausted) ?? 0;
     const degraded = toNonNegativeIntOrNull(entry.degraded) ?? 0;
-    output[stage] = { attempts, hits, misses, elapsedMs, budgetExhausted, degraded };
+    const reasonCodes = toReasonCodeCounts(entry.reasonCodes) || Object.create(null);
+    output[stage] = { attempts, hits, misses, elapsedMs, budgetExhausted, degraded, reasonCodes };
   }
   return Object.keys(output).length > 0 ? output : null;
 };
@@ -142,7 +154,8 @@ const mergeStagePipelineMaps = (target, source) => {
         misses: 0,
         elapsedMs: 0,
         budgetExhausted: 0,
-        degraded: 0
+        degraded: 0,
+        reasonCodes: Object.create(null)
       };
     }
     target[stage].attempts += Math.max(0, Number(entry?.attempts) || 0);
@@ -151,6 +164,10 @@ const mergeStagePipelineMaps = (target, source) => {
     target[stage].elapsedMs += Math.max(0, Number(entry?.elapsedMs) || 0);
     target[stage].budgetExhausted += Math.max(0, Number(entry?.budgetExhausted) || 0);
     target[stage].degraded += Math.max(0, Number(entry?.degraded) || 0);
+    const reasonCodes = toReasonCodeCounts(entry?.reasonCodes) || Object.create(null);
+    for (const [reasonCode, count] of Object.entries(reasonCodes)) {
+      bumpCount(target[stage].reasonCodes, reasonCode, count);
+    }
   }
 };
 
@@ -177,7 +194,8 @@ const toSortedStagePipeline = (stages) => {
       misses: Math.floor(Math.max(0, Number(entry?.misses) || 0)),
       elapsedMs: Number(Math.max(0, Number(entry?.elapsedMs) || 0).toFixed(3)),
       budgetExhausted: Math.floor(Math.max(0, Number(entry?.budgetExhausted) || 0)),
-      degraded: Math.floor(Math.max(0, Number(entry?.degraded) || 0))
+      degraded: Math.floor(Math.max(0, Number(entry?.degraded) || 0)),
+      reasonCodes: toSortedObject(toReasonCodeCounts(entry?.reasonCodes) || Object.create(null))
     };
   }
   return output;

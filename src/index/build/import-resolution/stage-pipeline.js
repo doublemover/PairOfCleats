@@ -12,13 +12,25 @@ const toNonNegativeMs = (value) => {
   return Number(numeric.toFixed(3));
 };
 
+const toSortedCountObject = (counts) => {
+  const entries = Object.entries(counts || {})
+    .filter(([key, value]) => key && Number.isFinite(Number(value)) && Number(value) > 0)
+    .sort((a, b) => sortStrings(a[0], b[0]));
+  const output = Object.create(null);
+  for (const [key, value] of entries) {
+    output[key] = toNonNegativeInt(value);
+  }
+  return output;
+};
+
 const createEmptyStageEntry = () => ({
   attempts: 0,
   hits: 0,
   misses: 0,
   elapsedMs: 0,
   budgetExhausted: 0,
-  degraded: 0
+  degraded: 0,
+  reasonCodes: Object.create(null)
 });
 
 const getOrCreate = (store, stage) => {
@@ -62,6 +74,15 @@ export const createImportResolutionStageTracker = ({ now = () => Date.now() } = 
     entry.degraded += Math.max(0, Math.floor(Number(amount) || 0));
   };
 
+  const markReasonCode = (stage, reasonCode, amount = 1) => {
+    if (!stage || typeof reasonCode !== 'string') return;
+    const normalizedCode = reasonCode.trim();
+    if (!normalizedCode) return;
+    const entry = getOrCreate(stages, stage);
+    const existing = Number(entry.reasonCodes[normalizedCode]) || 0;
+    entry.reasonCodes[normalizedCode] = existing + Math.max(0, Math.floor(Number(amount) || 0));
+  };
+
   const withStage = (stage, fn) => {
     markAttempt(stage);
     const started = now();
@@ -88,7 +109,8 @@ export const createImportResolutionStageTracker = ({ now = () => Date.now() } = 
         misses: toNonNegativeInt(entry?.misses),
         elapsedMs: toNonNegativeMs(entry?.elapsedMs),
         budgetExhausted: toNonNegativeInt(entry?.budgetExhausted),
-        degraded: toNonNegativeInt(entry?.degraded)
+        degraded: toNonNegativeInt(entry?.degraded),
+        reasonCodes: toSortedCountObject(entry?.reasonCodes)
       };
     }
     return output;
@@ -100,6 +122,7 @@ export const createImportResolutionStageTracker = ({ now = () => Date.now() } = 
     markMiss,
     markBudgetExhausted,
     markDegraded,
+    markReasonCode,
     withStage,
     snapshot
   });

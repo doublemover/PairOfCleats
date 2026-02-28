@@ -112,10 +112,10 @@ try {
   assert.deepEqual(
     passPayload?.resolverPipelineStages,
     {
-      classify: { attempts: 1, hits: 1, misses: 0, elapsedMs: 0.5, budgetExhausted: 0, degraded: 0 },
-      filesystem_probe: { attempts: 1, hits: 0, misses: 1, elapsedMs: 1.5, budgetExhausted: 1, degraded: 1 },
-      language_resolver: { attempts: 2, hits: 1, misses: 1, elapsedMs: 2.5, budgetExhausted: 0, degraded: 1 },
-      normalize: { attempts: 4, hits: 4, misses: 0, elapsedMs: 3.25, budgetExhausted: 0, degraded: 0 }
+      classify: { attempts: 1, hits: 1, misses: 0, elapsedMs: 0.5, budgetExhausted: 0, degraded: 0, reasonCodes: {} },
+      filesystem_probe: { attempts: 1, hits: 0, misses: 1, elapsedMs: 1.5, budgetExhausted: 1, degraded: 1, reasonCodes: {} },
+      language_resolver: { attempts: 2, hits: 1, misses: 1, elapsedMs: 2.5, budgetExhausted: 0, degraded: 1, reasonCodes: {} },
+      normalize: { attempts: 4, hits: 4, misses: 0, elapsedMs: 3.25, budgetExhausted: 0, degraded: 0, reasonCodes: {} }
     }
   );
   assert.deepEqual(

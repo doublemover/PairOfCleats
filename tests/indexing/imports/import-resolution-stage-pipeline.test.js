@@ -47,6 +47,11 @@ assert.equal(warnings.length, 1);
 assert.equal(warnings[0].reasonCode, 'IMP_U_RESOLVER_GAP');
 assert.equal(warnings[0].resolverStage, 'language_resolver');
 assert.equal((stages.language_resolver?.degraded || 0) >= 1, true, 'expected unresolved resolver gap to increment degraded stage counter');
+assert.equal(
+  (stages.language_resolver?.reasonCodes?.IMP_U_RESOLVER_GAP || 0) >= 1,
+  true,
+  'expected stage reason-code counters for unresolved resolver-gap events'
+);
 
 const graphStageStats = resolution?.graph?.stats?.resolverPipelineStages || {};
 assert.deepEqual(

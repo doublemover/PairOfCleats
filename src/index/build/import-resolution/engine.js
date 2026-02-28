@@ -53,6 +53,7 @@ import { createTsConfigLoader, resolveTsPaths } from './tsconfig-resolution.js';
 
 const ABSOLUTE_SYSTEM_PATH_PREFIX_RX = /^\/(?:etc|usr|opt|var|bin|sbin|lib|lib64|dev|proc|sys|run|tmp|home|root)(?:\/|$)/i;
 const SCHEME_RELATIVE_URL_RX = /^\/\/[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:[/:]|$)/i;
+const IMPORT_RESOLVER_VERSION = 'import-resolution-engine-v4';
 
 const normalizeAliasRuleText = (value) => (
   typeof value === 'string'
@@ -335,6 +336,14 @@ export function resolveImportLinks({
       : 1
   };
   const expectedArtifactsIndex = buildContext.expectedArtifactsIndex;
+  const resolverScopeFingerprint = sha1(JSON.stringify({
+    resolverVersion: IMPORT_RESOLVER_VERSION,
+    workspaceFingerprint: lookupCompatibilityFingerprint || fileSetFingerprint || 'none',
+    buildContextFingerprint: buildContext?.fingerprint || 'none',
+    budgetPolicyFingerprint: budgetPolicy?.fingerprint || 'none',
+    aliasRulesFingerprint: aliasRulesFingerprint || 'none',
+    expectedArtifactsFingerprint: expectedArtifactsIndex?.fingerprint || 'none'
+  }));
   const fsExistsIndexStats = {
     enabled: fsExistsIndex?.enabled !== false && typeof fsExistsIndex?.lookup === 'function',
     complete: fsExistsIndex?.complete === true,
@@ -546,7 +555,7 @@ export function resolveImportLinks({
   const resolutionCache = new Map();
   const cacheKeyFor = (importerRel, spec, tsconfig) => {
     const tsKey = tsconfig?.fingerprint || tsconfig?.tsconfigPath || 'none';
-    return `${importerRel || ''}\u0000${spec || ''}\u0000${tsKey}`;
+    return `${resolverScopeFingerprint}\u0000${importerRel || ''}\u0000${spec || ''}\u0000${tsKey}`;
   };
   let suppressedWarnings = 0;
   let unresolvedCount = 0;
@@ -621,6 +630,7 @@ export function resolveImportLinks({
     const canReuseCache = !!(fileCache
       && fileHash
       && fileCache.hash === fileHash
+      && (fileCache.resolverScopeFingerprint || '') === resolverScopeFingerprint
       && (fileCache.tsconfigFingerprint || null) === tsconfigFingerprint);
     if (cacheMetrics) {
       cacheMetrics.files += 1;
@@ -980,6 +990,10 @@ export function resolveImportLinks({
         unresolvedFailureCause = unresolvedDecision.failureCause;
         unresolvedDisposition = unresolvedDecision.disposition;
         unresolvedResolverStage = unresolvedDecision.resolverStage;
+        stageTracker.markReasonCode(
+          unresolvedResolverStage || IMPORT_RESOLVER_STAGES.CLASSIFY,
+          unresolvedReasonCode
+        );
         if (!isActionableDisposition(unresolvedDisposition)) {
           stageTracker.markDegraded(unresolvedResolverStage || IMPORT_RESOLVER_STAGES.CLASSIFY);
         }
@@ -1071,6 +1085,7 @@ export function resolveImportLinks({
     if (nextSpecCache && fileHash && cacheState) {
       cacheState.files[relNormalized] = {
         hash: fileHash,
+        resolverScopeFingerprint,
         tsconfigFingerprint,
         specs: nextSpecCache
       };

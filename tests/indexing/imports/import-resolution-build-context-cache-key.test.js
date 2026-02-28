@@ -42,8 +42,11 @@ const incrementalState = {
   }
 };
 
-const runWithPlugins = async (resolverPlugins) => {
+const runWithPlugins = async (resolverPlugins, { mutateCache = null } = {}) => {
   const { cache, cachePath } = await loadImportResolutionCache({ incrementalState });
+  if (typeof mutateCache === 'function') {
+    mutateCache(cache);
+  }
   const logLines = [];
   const relations = new Map([
     ['src/main.ts', { imports: importsByFile['src/main.ts'].slice() }]
@@ -80,6 +83,19 @@ assert.equal(first?.unresolvedSamples?.[0]?.reasonCode, 'IMP_U_GENERATED_EXPECTE
 const second = await runWithPlugins(generatedPluginConfig);
 assert.equal((second?.cacheStats?.filesReused || 0) > 0, true, 'expected cache reuse with unchanged build-context config');
 assert.equal(second?.unresolvedSamples?.[0]?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
+
+const staleScopeReuse = await runWithPlugins(generatedPluginConfig, {
+  mutateCache: (cache) => {
+    if (!cache?.files?.['src/main.ts']) return;
+    cache.files['src/main.ts'].resolverScopeFingerprint = 'stale-resolver-scope';
+  }
+});
+assert.equal(
+  staleScopeReuse?.cacheStats?.filesReused || 0,
+  0,
+  'expected resolver-scope mismatch to disable stale file-cache reuse'
+);
+assert.equal(staleScopeReuse?.unresolvedSamples?.[0]?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
 
 const third = await runWithPlugins(null);
 assert.equal((third?.cacheStats?.filesReused || 0), 0, 'expected no file-cache reuse after build-context config change');
