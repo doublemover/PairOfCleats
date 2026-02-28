@@ -125,5 +125,33 @@ const abortElapsedMs = Date.now() - abortStartedAt;
 assert.ok(abortElapsedMs < 2500, `expected lock wait abort to short-circuit quickly (elapsed=${abortElapsedMs}ms)`);
 await heldLock.release();
 
+const raceLockPath = path.join(tempRoot, 'race-parent', 'race.lock');
+let observedParentMissingRetry = false;
+for (let attempt = 0; attempt < 8 && !observedParentMissingRetry; attempt += 1) {
+  let keepDeleting = true;
+  const disruptor = (async () => {
+    const endAt = Date.now() + 120;
+    while (keepDeleting && Date.now() < endAt) {
+      await fsPromises.rm(path.dirname(raceLockPath), { recursive: true, force: true }).catch(() => {});
+      await new Promise((resolve) => setTimeout(resolve, 2));
+    }
+  })();
+  const lockWithRace = await acquireFileLock({
+    lockPath: raceLockPath,
+    waitMs: 1000,
+    pollMs: 5
+  });
+  keepDeleting = false;
+  await disruptor;
+  assert.ok(lockWithRace, 'expected lock acquisition to survive parent directory deletion race');
+  observedParentMissingRetry = Number(lockWithRace?.diagnostics?.parentMissingRetries || 0) > 0;
+  await lockWithRace.release();
+}
+assert.equal(
+  observedParentMissingRetry,
+  true,
+  'expected at least one parent-missing retry during lock acquisition race'
+);
+
 await fsPromises.rm(lockPath, { force: true });
 console.log('file-lock contract ok.');

@@ -262,9 +262,9 @@ const removeStaleLockFile = async ({
  *  timeoutMessage?:string,
  *  signal?:AbortSignal|null,
  *  onStale?:(info:{lockPath:string,info:object|null,pid:number|null,reason:'stale'|'dead-pid',removalMode?:'owner'|'force'|'owner-fallback-force'})=>void,
- *  onBusy?:(info:{lockPath:string,info:object|null,pid:number|null})=>void
+ *  onBusy?:(info:{lockPath:string,info:object|null,pid:number|null,reason?:'parent_missing',retries?:number})=>void
  * }} input
- * @returns {Promise<{lockPath:string,payload:object,release:(opts?:{force?:boolean})=>Promise<boolean>}|null>}
+ * @returns {Promise<{lockPath:string,payload:object,diagnostics:{parentMissingRetries:number},release:(opts?:{force?:boolean})=>Promise<boolean>}|null>}
  */
 export const acquireFileLock = async ({
   lockPath,
@@ -287,6 +287,7 @@ export const acquireFileLock = async ({
   if (lockSignal?.aborted) throw createAbortError();
   await fs.mkdir(path.dirname(lockPath), { recursive: true });
   const deadline = resolvedWaitMs > 0 ? Date.now() + resolvedWaitMs : null;
+  let parentMissingRetries = 0;
 
   while (true) {
     if (lockSignal?.aborted) throw createAbortError();
@@ -306,9 +307,33 @@ export const acquireFileLock = async ({
       return {
         lockPath,
         payload,
+        diagnostics: {
+          parentMissingRetries
+        },
         release: async (options = {}) => removeLockFileIfOwned(lockPath, payload, options)
       };
     } catch (err) {
+      if (err?.code === 'ENOENT') {
+        parentMissingRetries += 1;
+        try {
+          await fs.mkdir(path.dirname(lockPath), { recursive: true });
+        } catch {}
+        if (deadline != null && Date.now() < deadline) {
+          await sleepWithAbort(resolvedPollMs, lockSignal);
+          continue;
+        }
+        safeInvokeHook(onBusy, {
+          lockPath,
+          info: null,
+          pid: null,
+          reason: 'parent_missing',
+          retries: parentMissingRetries
+        });
+        if (timeoutBehavior === 'throw') {
+          throw new Error(timeoutMessage || 'Lock timeout.');
+        }
+        return null;
+      }
       if (err?.code !== 'EEXIST') throw err;
       const info = await readLockInfo(lockPath);
       const pid = resolveLockPid(info);
