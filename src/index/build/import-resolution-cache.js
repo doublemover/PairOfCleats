@@ -13,6 +13,7 @@ import {
 const CACHE_VERSION = 6;
 const CACHE_FILE = 'import-resolution-cache.json';
 const CACHE_DIAGNOSTICS_VERSION = 6;
+const CACHE_PERSIST_WARNING_THROTTLE_MS = 60 * 1000;
 const DEFAULT_MAX_STALE_EDGE_CHECKS = 20000;
 const IMPORT_SPEC_CANDIDATE_EXTENSIONS = Object.freeze([
   '.js',
@@ -36,6 +37,7 @@ const OPENAPI_SOURCE_SUFFIXES = Object.freeze([
 ]);
 const OPENAPI_SOURCE_DIRECT_EXTENSIONS = Object.freeze(['.yaml', '.yml', '.json']);
 const OPENAPI_BASENAME_HINTS = new Set(['openapi', 'swagger']);
+const cachePersistWarningStateByPath = new Map();
 
 const isObject = (value) => (
   value && typeof value === 'object' && !Array.isArray(value)
@@ -375,6 +377,63 @@ const throwIfUnknownCategoryKeys = ({
     foundVersion: cacheVersion,
     detail: `Unknown ${fieldName} keys: ${unique.join(', ')}`
   });
+};
+
+const normalizeThrottleMs = (value, fallback = CACHE_PERSIST_WARNING_THROTTLE_MS) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.max(0, Math.floor(numeric));
+};
+
+const maybeLogThrottledCachePersistFailure = ({
+  cachePath,
+  err,
+  log = null,
+  throttleMs = CACHE_PERSIST_WARNING_THROTTLE_MS,
+  cacheStats = null,
+  failOpenMarkerPath = null
+} = {}) => {
+  const key = path.resolve(String(cachePath || '<unknown-cache-path>'));
+  const nowMs = Date.now();
+  const resolvedThrottleMs = normalizeThrottleMs(throttleMs);
+  const state = cachePersistWarningStateByPath.get(key) || {
+    lastWarnAtMs: 0,
+    suppressedCount: 0
+  };
+  const due = resolvedThrottleMs <= 0 || (nowMs - state.lastWarnAtMs) >= resolvedThrottleMs;
+  if (!due) {
+    state.suppressedCount += 1;
+    cachePersistWarningStateByPath.set(key, state);
+    if (isObject(cacheStats)) {
+      cacheStats.cachePersistWriteWarningsSuppressed = Number(cacheStats.cachePersistWriteWarningsSuppressed || 0) + 1;
+    }
+    return;
+  }
+  const suppressedCount = state.suppressedCount;
+  state.lastWarnAtMs = nowMs;
+  state.suppressedCount = 0;
+  cachePersistWarningStateByPath.set(key, state);
+  if (typeof log !== 'function') return;
+  const markerSuffix = failOpenMarkerPath
+    ? ` marker=${failOpenMarkerPath}`
+    : '';
+  const suppressionSuffix = suppressedCount > 0
+    ? ` (suppressed ${suppressedCount} repeated failures)`
+    : '';
+  log(
+    `[imports] Failed to persist import resolution cache (${cachePath}): ${err?.message || err}.${markerSuffix}${suppressionSuffix}`
+  );
+};
+
+const recordImportCachePersistFailure = ({ cacheStats = null, err = null } = {}) => {
+  if (!isObject(cacheStats)) return;
+  cacheStats.cachePersistWriteFailures = Number(cacheStats.cachePersistWriteFailures || 0) + 1;
+  cacheStats.cachePersistWriteLastErrorCode = typeof err?.code === 'string' ? err.code : null;
+  cacheStats.cachePersistWriteLastError = err?.message || String(err || '');
+  if (!isObject(cacheStats.health)) {
+    cacheStats.health = Object.create(null);
+  }
+  cacheStats.health.importCachePersistFailures = Number(cacheStats.health.importCachePersistFailures || 0) + 1;
 };
 
 const normalizeRelPath = (value) => {
@@ -732,7 +791,15 @@ export const loadImportResolutionCache = async ({ incrementalState, log = null }
   };
 };
 
-export const saveImportResolutionCache = async ({ cache, cachePath } = {}) => {
+export const saveImportResolutionCache = async ({
+  cache,
+  cachePath,
+  log = null,
+  cacheStats = null,
+  persistWarningThrottleMs = CACHE_PERSIST_WARNING_THROTTLE_MS,
+  failOpenMarkerPath = null,
+  writeFailOpenMarker = false
+} = {}) => {
   if (!cachePath || !cache) return;
   const payload = {
     version: CACHE_VERSION,
@@ -746,8 +813,61 @@ export const saveImportResolutionCache = async ({ cache, cachePath } = {}) => {
   };
   try {
     await atomicWriteJson(cachePath, payload, { spaces: 2 });
-  } catch {
-    // ignore cache write failures
+    if (writeFailOpenMarker && failOpenMarkerPath) {
+      await fs.rm(failOpenMarkerPath, { force: true }).catch(() => {});
+    }
+    return {
+      ok: true,
+      cachePath,
+      failOpenMarkerPath: writeFailOpenMarker ? failOpenMarkerPath : null
+    };
+  } catch (err) {
+    recordImportCachePersistFailure({ cacheStats, err });
+    let markerWritten = false;
+    let markerWriteError = null;
+    if (writeFailOpenMarker && failOpenMarkerPath) {
+      const markerPayload = {
+        marker: 'import-resolution-cache-persist-fail-open',
+        at: new Date().toISOString(),
+        cachePath,
+        errorCode: typeof err?.code === 'string' ? err.code : null,
+        errorMessage: err?.message || String(err || '')
+      };
+      try {
+        await atomicWriteJson(failOpenMarkerPath, markerPayload, { spaces: 2 });
+        markerWritten = true;
+        if (isObject(cacheStats)) {
+          cacheStats.cachePersistFailOpenMarkerWrites = Number(cacheStats.cachePersistFailOpenMarkerWrites || 0) + 1;
+        }
+      } catch (markerErr) {
+        markerWriteError = markerErr;
+        if (isObject(cacheStats)) {
+          cacheStats.cachePersistFailOpenMarkerWriteFailures = Number(
+            cacheStats.cachePersistFailOpenMarkerWriteFailures || 0
+          ) + 1;
+        }
+      }
+    }
+    maybeLogThrottledCachePersistFailure({
+      cachePath,
+      err,
+      log,
+      throttleMs: persistWarningThrottleMs,
+      cacheStats,
+      failOpenMarkerPath: markerWritten ? failOpenMarkerPath : null
+    });
+    if (markerWriteError && typeof log === 'function') {
+      log(
+        `[imports] Failed to write import cache fail-open marker (${failOpenMarkerPath}): ` +
+        `${markerWriteError?.message || markerWriteError}`
+      );
+    }
+    return {
+      ok: false,
+      cachePath,
+      error: err,
+      failOpenMarkerPath: markerWritten ? failOpenMarkerPath : null
+    };
   }
 };
 

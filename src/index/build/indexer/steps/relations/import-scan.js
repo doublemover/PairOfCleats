@@ -16,6 +16,7 @@ import {
   resolveResolverPipelineStageHighlights,
   summarizeGateEligibleImportWarnings
 } from '../../../import-resolution.js';
+import { buildWarningSortKey } from '../../../import-resolution/graph.js';
 import {
   applyImportResolutionCacheFileSetDiffInvalidation,
   loadImportResolutionCache,
@@ -36,6 +37,29 @@ const toSortedCountObject = (counts) => {
 };
 
 const normalizeUnresolvedSamples = (samples) => enrichUnresolvedImportSamples(samples);
+
+/**
+ * Merge existing graph warnings with unresolved samples while preserving
+ * existing warnings and de-duplicating by warning identity.
+ *
+ * @param {{existingWarnings?:Array<object>, unresolvedSamples?:Array<object>}} input
+ * @returns {Array<object>}
+ */
+export const mergeImportGraphWarnings = ({ existingWarnings, unresolvedSamples }) => {
+  const merged = [];
+  const seen = new Set();
+  const append = (warning) => {
+    if (!warning || typeof warning !== 'object') return;
+    const clone = { ...warning };
+    const key = buildWarningSortKey(clone);
+    if (seen.has(key)) return;
+    seen.add(key);
+    merged.push(clone);
+  };
+  for (const warning of Array.isArray(existingWarnings) ? existingWarnings : []) append(warning);
+  for (const warning of Array.isArray(unresolvedSamples) ? unresolvedSamples : []) append(warning);
+  return merged;
+};
 
 const formatUnresolvedReasonCodeCounts = (reasonCodes) => {
   const entries = Object.entries(reasonCodes || {})
@@ -356,6 +380,12 @@ export const postScanImports = async ({
   let fileHashes = null;
   let cacheStats = null;
   const resolverPlugins = resolveImportResolverPlugins(runtime);
+  const importResolutionConfig = runtime?.indexingConfig?.importResolution
+    && typeof runtime.indexingConfig.importResolution === 'object'
+    ? runtime.indexingConfig.importResolution
+    : {};
+  const cachePersistWarningThrottleMs = importResolutionConfig.cachePersistWarningThrottleMs;
+  const cachePersistFailOpenMarkerEnabled = importResolutionConfig.cachePersistFailOpenMarker === true;
   const budgetRuntimeSignals = resolveImportBudgetRuntimeSignals(runtime);
   const maxStaleEdgeChecks = resolveImportCacheStaleEdgeBudget(resolverPlugins);
   const fsMeta = await runWithHangProbe({
@@ -419,7 +449,12 @@ export const postScanImports = async ({
       filesNeighborhoodInvalidated: 0,
       staleEdgeInvalidated: 0,
       staleEdgeChecks: 0,
-      staleEdgeBudgetExhausted: false
+      staleEdgeBudgetExhausted: false,
+      cachePersistWriteFailures: 0,
+      cachePersistWriteWarningsSuppressed: 0,
+      cachePersistFailOpenMarkerWrites: 0,
+      cachePersistFailOpenMarkerWriteFailures: 0,
+      health: Object.create(null)
     };
     applyImportResolutionCacheFileSetDiffInvalidation({
       cache,
@@ -590,7 +625,10 @@ export const postScanImports = async ({
     resolverBudgetExhaustedByType
   };
   if (resolution?.graph && Array.isArray(resolution.graph.warnings)) {
-    resolution.graph.warnings = unresolvedSamples.map((sample) => ({ ...sample }));
+    resolution.graph.warnings = mergeImportGraphWarnings({
+      existingWarnings: resolution.graph.warnings,
+      unresolvedSamples
+    });
     if (resolution.graph.stats && typeof resolution.graph.stats === 'object') {
       resolution.graph.stats.unresolvedObserved = resolvedUnresolvedObserved;
       resolution.graph.stats.unresolved = resolvedUnresolvedTotal;
@@ -627,7 +665,18 @@ export const postScanImports = async ({
     state.importResolutionGraph = resolution.graph;
   }
   if (cacheEnabled && cache && cachePath) {
-    await saveImportResolutionCache({ cache, cachePath });
+    const failOpenMarkerPath = cachePersistFailOpenMarkerEnabled
+      ? `${cachePath}.fail-open.json`
+      : null;
+    await saveImportResolutionCache({
+      cache,
+      cachePath,
+      log,
+      cacheStats,
+      persistWarningThrottleMs: cachePersistWarningThrottleMs,
+      failOpenMarkerPath,
+      writeFailOpenMarker: cachePersistFailOpenMarkerEnabled
+    });
   }
   const resolvedStats = resolution?.stats && typeof resolution.stats === 'object'
     ? { ...resolution.stats }
