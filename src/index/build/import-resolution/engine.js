@@ -29,9 +29,8 @@ import {
 } from './language-resolvers.js';
 import { createPackageDirectoryResolver, parsePackageName } from './package-entry.js';
 import { resolveDartPackageName, resolveGoModulePath, resolvePackageFingerprint } from './repo-metadata.js';
-import { createExpectedArtifactsIndex } from './expected-artifacts-index.js';
+import { createImportBuildContext } from './build-context/index.js';
 import {
-  isBazelLabelSpecifier,
   matchGeneratedExpectationSpecifier
 } from './specifier-hints.js';
 import { normalizeImportSpecifier, normalizeRelPath, resolveWithinRoot, sortStrings } from './path-utils.js';
@@ -196,11 +195,12 @@ const resolveUnresolvedReasonCode = ({
   importerRel,
   spec,
   rawSpec,
+  buildContextClassification = null,
   generatedExpectationMatch = null,
   expectedArtifactsIndex = null
 }) => {
-  if (isBazelLabelSpecifier(spec) || isBazelLabelSpecifier(rawSpec)) {
-    return IMPORT_REASON_CODES.RESOLVER_GAP;
+  if (buildContextClassification?.reasonCode) {
+    return buildContextClassification.reasonCode;
   }
   const resolvedGeneratedMatch = generatedExpectationMatch || matchGeneratedExpectationSpecifier({
     importer: importerRel,
@@ -278,9 +278,11 @@ export function resolveImportLinks({
   });
   const goModulePath = resolveGoModulePath(resolvedLookup.rootAbs, fsMemo);
   const dartPackageName = resolveDartPackageName(resolvedLookup.rootAbs, fsMemo);
-  const expectedArtifactsIndex = createExpectedArtifactsIndex({
-    entries: Array.from(resolvedLookup.fileSet || [])
+  const buildContext = createImportBuildContext({
+    entries: Array.from(resolvedLookup.fileSet || []),
+    resolverPlugins
   });
+  const expectedArtifactsIndex = buildContext.expectedArtifactsIndex;
   if (cacheMetrics && canReuseLookup && lookup) {
     cacheMetrics.lookupReused = true;
   }
@@ -301,6 +303,7 @@ export function resolveImportLinks({
       featureFlags: [
         ...(graphMeta?.importScanMode ? [`scan:${graphMeta.importScanMode}`] : []),
         ...(aliasRulesFingerprint ? [`resolverAlias:${aliasRulesFingerprint}`] : []),
+        ...(buildContext?.fingerprint ? [`buildContext:${buildContext.fingerprint}`] : []),
         ...(expectedArtifactsIndex?.fingerprint ? [`expectedArtifacts:${expectedArtifactsIndex.fingerprint}`] : [])
       ],
       pathPolicy: 'posix',
@@ -558,14 +561,32 @@ export function resolveImportLinks({
       let unresolvedFailureCause = null;
       let unresolvedDisposition = null;
       let unresolvedResolverStage = null;
+      let buildContextClassification = null;
+      const resolveBuildContextClassification = () => {
+        if (!buildContextClassification) {
+          buildContextClassification = buildContext.classifyUnresolved({
+            importerRel: relNormalized,
+            spec,
+            rawSpec
+          });
+        }
+        return buildContextClassification;
+      };
       let generatedExpectationMatch = null;
       const resolveGeneratedExpectationMatch = () => {
         if (!generatedExpectationMatch) {
-          generatedExpectationMatch = matchGeneratedExpectationSpecifier({
+          const classified = resolveBuildContextClassification();
+          generatedExpectationMatch = classified?.generatedMatch || buildContext.resolveGeneratedExpectation({
             importer: relNormalized,
-            specifier: spec || rawSpec,
-            expectedArtifactsIndex
+            specifier: spec || rawSpec
           });
+          if (!generatedExpectationMatch) {
+            generatedExpectationMatch = matchGeneratedExpectationSpecifier({
+              importer: relNormalized,
+              specifier: spec || rawSpec,
+              expectedArtifactsIndex
+            });
+          }
         }
         return generatedExpectationMatch;
       };
@@ -769,6 +790,7 @@ export function resolveImportLinks({
               importerRel: relNormalized,
               spec,
               rawSpec,
+              buildContextClassification: resolveBuildContextClassification(),
               generatedExpectationMatch: resolveGeneratedExpectationMatch(),
               expectedArtifactsIndex
             })),
