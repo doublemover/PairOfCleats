@@ -17,7 +17,7 @@ Static audit findings across `NEON_TIDE`, including deeper remediation guidance 
 
 ### Core Runtime Safety
 
-#### 1) P1 - Atomic backup swap can cross volumes
+#### 1) P1 - Atomic backup swap can cross volumes (Completed 2026-02-28T06:20:00Z)
 - Location: `src/shared/io/atomic-write.js:61`
 - Problem: backup path generation for swap may fall back to a different volume, so `rename(target -> backup)` can fail with `EXDEV` under long-path fallback conditions.
 - Baseline fix: keep backup path on same directory as target.
@@ -26,7 +26,7 @@ Static audit findings across `NEON_TIDE`, including deeper remediation guidance 
   - Reserve fallback logic only for temp payload files, never for rename-swap backups.
   - Add explicit `EXDEV` handling metric/log counter so this class is visible in telemetry.
 
-#### 2) P2 - `onStale` callback can perturb lock progress
+#### 2) P2 - `onStale` callback can perturb lock progress (Completed 2026-02-28T06:20:00Z)
 - Location: `src/shared/locks/file-lock.js:246`
 - Problem: callback execution is inside stale-removal control flow; callback exceptions can alter acquisition behavior.
 - Baseline fix: isolate callback failure from acquisition path.
@@ -34,7 +34,7 @@ Static audit findings across `NEON_TIDE`, including deeper remediation guidance 
   - Move callbacks to `safeInvokeHook(hook, payload)` utility that never throws.
   - Emit structured hook-failure diagnostics (`code=LOCK_HOOK_ERROR`) without changing lock decisions.
 
-#### 3) P2 - Stale removal remains fragile under lockfile mutation race
+#### 3) P2 - Stale removal remains fragile under lockfile mutation race (Completed 2026-02-28T06:20:00Z)
 - Location: `src/shared/locks/file-lock.js:232`
 - Problem: owner-based remove can fail if lockfile mutates between reads; stale file can remain blocking.
 - Baseline fix: if owner-remove fails, force-remove stale lock once.
@@ -46,7 +46,7 @@ Static audit findings across `NEON_TIDE`, including deeper remediation guidance 
     4. if snapshot changed, re-evaluate.
   - Add `stale_remove_owner_failed_force_succeeded` metric to monitor path frequency.
 
-#### 26) P1 - Lock acquire can fail on lock-directory ENOENT race
+#### 26) P1 - Lock acquire can fail on lock-directory ENOENT race (Completed 2026-02-28T06:20:00Z)
 - Location: `src/shared/locks/file-lock.js` (`acquireFileLock` `fs.open(lockPath, 'wx')` path)
 - Problem: when `.fixture-locks` (or parent lock directory) is removed between initial `mkdir` and `open`, lock acquisition fails with `ENOENT` instead of retrying; this causes intermittent fixture/service failures.
 - Baseline fix:
@@ -62,7 +62,7 @@ Static audit findings across `NEON_TIDE`, including deeper remediation guidance 
 
 ### Tooling/LSP Stack
 
-#### 4) P1 - Re-initialize on pooled LSP sessions
+#### 4) P1 - Re-initialize on pooled LSP sessions (Completed 2026-02-28T06:20:00Z)
 - Location: `src/integrations/tooling/providers/lsp.js:422`
 - Problem: reused pooled sessions can receive duplicate `initialize`, causing protocol errors and churn.
 - Baseline fix: only initialize fresh/restarted sessions.
@@ -71,7 +71,7 @@ Static audit findings across `NEON_TIDE`, including deeper remediation guidance 
   - Bind initialization state to transport generation ID; auto-reinit only when generation changes.
   - Add invariant checks in debug mode: no request before `ready`, no second initialize on same generation.
 
-#### 5) P2 - Signature parse cache key misses symbol context
+#### 5) P2 - Signature parse cache key misses symbol context (Completed 2026-02-28T06:20:00Z)
 - Location: `src/integrations/tooling/providers/lsp/hover-types.js:1040`
 - Problem: cache key excludes `symbolName`, allowing incorrect parse reuse.
 - Baseline fix: include `symbolName` in key.
@@ -79,7 +79,7 @@ Static audit findings across `NEON_TIDE`, including deeper remediation guidance 
   - Version cache key schema: `v2::<language>::<parser>::<symbol>::<detailHash>`.
   - Add parser capability flag `isSymbolSensitive`; only include symbol when required to keep cache efficient.
 
-#### 6) P2 - Cached diagnostics are reused as live diagnostics
+#### 6) P2 - Cached diagnostics are reused as live diagnostics (Completed 2026-02-28T06:20:00Z)
 - Location: `src/index/tooling/orchestrator.js:596`
 - Problem: stale warnings/timeouts become sticky via cache hits.
 - Baseline fix: don’t cache transient diagnostics/runtime fields.
@@ -89,7 +89,7 @@ Static audit findings across `NEON_TIDE`, including deeper remediation guidance 
     - `runtimeEnvelope` (non-cacheable)
   - On cache hit, emit explicit `diagnosticsSource: cache-suppressed` to avoid misleading health interpretation.
 
-#### 24) P1 - Skip `initialize` on reused pooled LSP sessions
+#### 24) P1 - Skip `initialize` on reused pooled LSP sessions (Completed 2026-02-28T06:20:00Z)
 - Location: `src/integrations/tooling/providers/lsp.js`
 - Problem: `collectLspTypes` can issue `initialize` unconditionally for every lease, including pooled reused sessions that were intentionally kept alive (`shouldShutdownClient=false`), causing second-initialize protocol failures and fail-open enrichment drops.
 - Baseline fix: detect reused initialized leases and skip `initialize`.
@@ -103,7 +103,7 @@ Static audit findings across `NEON_TIDE`, including deeper remediation guidance 
     - recreate process,
     - initialize once on fresh generation.
 
-#### 25) P2 - Restore SourceKit candidate score ordering
+#### 25) P2 - Restore SourceKit candidate score ordering (Completed 2026-02-28T06:20:00Z)
 - Location: `src/index/tooling/sourcekit-provider.js`
 - Problem: candidate scoring penalizes `+asserts` / `preview`, but descending sort now prefers higher score first, selecting less stable binaries.
 - Baseline fix: restore sort ordering so penalty scores are deprioritized.
@@ -118,7 +118,7 @@ Static audit findings across `NEON_TIDE`, including deeper remediation guidance 
 
 ### Index Build / Import / Incremental
 
-#### 7) P1 - Non-indexed import fallback probes outside repo root
+#### 7) P1 - Non-indexed import fallback probes outside repo root (Completed 2026-02-28T06:20:00Z)
 - Location: `src/index/build/import-resolution/engine.js:346`
 - Problem: `../` candidates may resolve outside root and be treated based on host FS state.
 - Baseline fix: enforce root containment before stat.
@@ -126,7 +126,7 @@ Static audit findings across `NEON_TIDE`, including deeper remediation guidance 
   - Use one canonical `resolveWithinRepoRoot(root, candidate)` helper returning `{ok, resolved, escaped}`.
   - Mark escaped paths with explicit unresolved reason (`escape_out_of_repo`) for deterministic diagnostics.
 
-#### 8) P1 - Non-indexed local fallback cached as stable external
+#### 8) P1 - Non-indexed local fallback cached as stable external (Completed 2026-02-28T06:20:00Z)
 - Location: `src/index/build/import-resolution/engine.js:537,582,668`
 - Problem: fallback classification persists without existence-sensitive invalidation.
 - Baseline fix: don’t persist or add TTL/revalidation.
@@ -134,19 +134,23 @@ Static audit findings across `NEON_TIDE`, including deeper remediation guidance 
   - Store as separate cache class `ephemeral_external` with short TTL + mandatory existence recheck.
   - Invalidate on directory mtime bloom/signature changes for importer neighborhood.
 
-#### 9) P2 - Incremental shard cleanup before manifest durability
+#### 9) P2 - Incremental shard cleanup before manifest durability (Completed 2026-02-28T06:35:00Z)
 - Location: `src/index/build/incremental/writeback.js:188,474`
 - Problem: crash window can leave manifest referencing deleted files.
 - Baseline fix: two-phase swap and post-commit GC.
 - Better fix:
   - Stage manifests with generation IDs (`manifest.next.json`), fsync, then atomic pointer flip.
   - GC only generations `< activeGeneration` after pointer confirmation.
+- Implemented:
+  - Incremental writeback now defers stale-bundle deletion through a manifest-scoped pending GC queue.
+  - `persistManifestAndDrainGc` commits manifest state first, then drains queued bundle GC, eliminating pre-commit shard deletion windows.
+  - On manifest write failure, stale shards remain queued and are retried later rather than being removed early.
 
 ---
 
 ### Storage / Artifact Pipeline
 
-#### 10) P1 - Bundle checksum verification is fail-open
+#### 10) P1 - Bundle checksum verification is fail-open (Completed 2026-02-28T06:20:00Z)
 - Location: `src/shared/bundle-io.js:493,510`
 - Problem: large/unknown-checksum bundles may be accepted silently.
 - Baseline fix: fail closed when checksum present but unverifiable.
@@ -155,7 +159,7 @@ Static audit findings across `NEON_TIDE`, including deeper remediation guidance 
   - Add strict policy switch defaulting to strict in CI/build paths.
   - Persist checksum verification result in manifest diagnostics.
 
-#### 11) P1 - Offsets validation misses first-offset and boundary invariants
+#### 11) P1 - Offsets validation misses first-offset and boundary invariants (Completed 2026-02-28T06:20:00Z)
 - Location: `src/shared/artifact-io/offsets.js:416`
 - Problem: malformed offsets can pass and shift/drop rows.
 - Baseline fix: enforce `offsets[0] === 0` and newline boundary checks.
@@ -163,23 +167,31 @@ Static audit findings across `NEON_TIDE`, including deeper remediation guidance 
   - Validate monotonicity + terminal boundary + per-offset alignment in one linear pass.
   - Add fast “paranoid mode” sampler for production and full mode for CI.
 
-#### 12) P1 - Binary-columnar chunk_meta path bypasses budget and materializes large blobs
+#### 12) P1 - Binary-columnar chunk_meta path bypasses budget and materializes large blobs (Completed 2026-02-28T06:35:00Z)
 - Location: `src/storage/sqlite/build/from-artifacts/sources.js:327`, `src/shared/artifact-io/loaders/core.js:53`, `src/shared/artifact-io/loaders/core-binary-columnar.js:229`
 - Problem: large artifacts can spike memory / OOM.
 - Baseline fix: enforce budget and stream decode.
 - Better fix:
   - Introduce bounded windowed reader abstraction for sidecars (`offset`, `length`, `data`) and decode row-wise.
   - Track memory watermark and backpressure ingestion queue when near budget.
+- Implemented:
+  - SQLite artifact-source iteration routes binary-columnar chunk meta through `loadChunkMetaRows(...preferBinaryColumnar=true, enforceBinaryDataBudget=true)`.
+  - Core binary-columnar loaders enforce strict per-part `maxBytes` checks (meta/data/offsets/lengths) before decode.
+  - Chunk-meta ingestion now consumes rows via streaming iterators instead of requiring full materialization of large binary payloads in one pass.
 
-#### 13) P1 - Minhash loader can allocate unbounded buffers from `dims`
+#### 13) P1 - Minhash loader can allocate unbounded buffers from `dims` (Completed 2026-02-28T06:35:00Z)
 - Location: `src/shared/artifact-io/loaders/minhash.js:164`
 - Problem: hostile/invalid dimensions can force multi-GB allocations.
 - Baseline fix: cap bytes per read and derive bounded buffer size.
 - Better fix:
   - Validate dimensions against contract max before allocation.
   - Convert to chunked reader with adaptive chunk size based on available memory budget.
+- Implemented:
+  - Packed minhash shape/size now uses strict safe-integer multiplication guards with explicit overflow errors.
+  - Loader enforces `maxBytes` against computed packed size and validates on-disk byte alignment/size before reads.
+  - Streaming row loader uses bounded batched reads with adaptive batch cap (`resolveMinhashStreamBufferBudgetBytes`) tied to both explicit max-bytes and heap budget.
 
-#### 14) P2 - Bundle writer/reader max-size contract mismatch
+#### 14) P2 - Bundle writer/reader max-size contract mismatch (Completed 2026-02-28T06:20:00Z)
 - Location: `src/shared/bundle-io.js:430,470`
 - Problem: writer can emit bundles reader rejects.
 - Baseline fix: enforce coordinated max at write time.
@@ -187,7 +199,7 @@ Static audit findings across `NEON_TIDE`, including deeper remediation guidance 
   - Centralize size constants in one shared contract module used by both writer and reader.
   - Include emitted max-size version in artifact metadata to catch skew.
 
-#### 15) P2 - `coercePositiveInt` maps fractional positive to zero
+#### 15) P2 - `coercePositiveInt` maps fractional positive to zero (Completed 2026-02-28T06:20:00Z)
 - Location: `src/shared/number-coerce.js:22`, `src/shared/artifact-io/offsets.js:89`
 - Problem: brittle semantics (`0.5 -> 0`) create surprising validation failures.
 - Baseline fix: reject non-integers or clamp to min 1.
@@ -195,7 +207,7 @@ Static audit findings across `NEON_TIDE`, including deeper remediation guidance 
   - Add explicit mode param: `strictInteger` vs `flooring`.
   - Use strict mode for all limits/budgets; forbid ambiguous coercion in policy inputs.
 
-#### 16) P2 - Token postings cardinality consistency not enforced
+#### 16) P2 - Token postings cardinality consistency not enforced (Completed 2026-02-28T06:20:00Z)
 - Location: `src/shared/artifact-io/loaders/binary-columnar.js:385`, `src/storage/sqlite/build/from-artifacts/token-ingest.js:76`
 - Problem: malformed artifacts can emit postings with missing vocab rows.
 - Baseline fix: enforce cardinality equality before ingest.
@@ -203,7 +215,7 @@ Static audit findings across `NEON_TIDE`, including deeper remediation guidance 
   - Add hard schema-level invariant check in loader and fail before ingestion begins.
   - Include mismatch diagnostics in artifact validation report for triage.
 
-#### 27) P1 - Binary-columnar meta envelope parsing is inconsistent across loaders/writers
+#### 27) P1 - Binary-columnar meta envelope parsing is inconsistent across loaders/writers (Completed 2026-02-28T06:20:00Z)
 - Location: `src/shared/artifact-io/loaders/binary-columnar.js`, `src/index/build/artifacts/token-postings.js`, related artifact loaders.
 - Problem: loader paths can require `metaRaw.arrays.*` while some writers emit array payload fields at top-level (or vice versa), creating false artifact invalidation (`vocab=0`, cardinality mismatch) and broad downstream failures.
 - Baseline fix:
@@ -220,7 +232,7 @@ Static audit findings across `NEON_TIDE`, including deeper remediation guidance 
 
 ### CI / Bench / Install Tooling
 
-#### 17) P1 - LSP embeddings gate subprocesses lack timeout
+#### 17) P1 - LSP embeddings gate subprocesses lack timeout (Completed 2026-02-28T06:20:00Z)
 - Location: `tools/ci/run-lsp-embeddings-gates.js:38`
 - Problem: hanging process can block CI indefinitely.
 - Baseline fix: pass timeout and fail deterministically.
@@ -228,28 +240,28 @@ Static audit findings across `NEON_TIDE`, including deeper remediation guidance 
   - Add per-gate timeout profiles and classify timeout reason in JUnit artifacts.
   - Emit partial diagnostics bundle on timeout for debugging without rerun.
 
-#### 18) P2 - `PAIROFCLEATS_TESTING` not force-set in gate runtime
+#### 18) P2 - `PAIROFCLEATS_TESTING` not force-set in gate runtime (Completed 2026-02-28T06:20:00Z)
 - Location: `tools/ci/run-lsp-embeddings-gates.js:12`
 - Problem: inherited non-`1` values can disable expected test env behavior.
 - Baseline fix: set to `'1'` unconditionally.
 - Better fix:
   - Use shared env normalization helper (`buildTestRuntimeEnv`) so all gate scripts are consistent.
 
-#### 19) P2 - SLO gate uses fixed absolute timeout count in some paths
+#### 19) P2 - SLO gate uses fixed absolute timeout count in some paths (Completed 2026-02-28T06:20:00Z)
 - Location: `tools/bench/language/tooling-lsp-guardrail.js:55`
 - Problem: absolute counts can false-fail larger samples.
 - Baseline fix: ratio-based thresholding for SLO input.
 - Better fix:
   - Use dual threshold model: `ratio <= rMax` and `absolute <= aMax(sampleSize)` with sample-scaled bound.
 
-#### 20) P2 - PATH normalization can drop effective PATH on Windows
+#### 20) P2 - PATH normalization can drop effective PATH on Windows (Completed 2026-02-28T06:20:00Z)
 - Location: `tools/ci/run-suite.js:42`
 - Problem: case-variant key handling (`PATH`/`Path`) can clobber command resolution.
 - Baseline fix: merge variants, choose canonical key safely.
 - Better fix:
   - Create shared `normalizeEnvPathKeys(env)` utility and consume it from all tooling entrypoints.
 
-#### 21) P2 - PHAR download has no timeout/abort guard
+#### 21) P2 - PHAR download has no timeout/abort guard (Completed 2026-02-28T06:20:00Z)
 - Location: `tools/tooling/install-phpactor-phar.js:44`
 - Problem: installer can hang indefinitely on stalled network.
 - Baseline fix: timeout + retries + cleanup.
@@ -257,7 +269,7 @@ Static audit findings across `NEON_TIDE`, including deeper remediation guidance 
   - Add deterministic retry policy with capped jitter and checksum verification after download.
   - Emit machine-readable failure reason for installer report.
 
-#### 22) P2 - Windows pyright fallback only checks `PATH`, not `Path`
+#### 22) P2 - Windows pyright fallback only checks `PATH`, not `Path` (Completed 2026-02-28T06:20:00Z)
 - Location: `tools/tooling/utils.js:618`
 - Problem: false negatives in tool detection on some Windows environments.
 - Baseline fix: read `PATH || Path`.
