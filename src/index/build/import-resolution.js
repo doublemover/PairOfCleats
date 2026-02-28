@@ -21,3 +21,7 @@ export {
   validateResolutionDecision
 } from './import-resolution/reason-codes.js';
 export { matchGeneratedExpectationSpecifier } from './import-resolution/specifier-hints.js';
+export {
+  aggregateImportResolutionGraphPayloads,
+  DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS
+} from './import-resolution/replay-harness.js';
