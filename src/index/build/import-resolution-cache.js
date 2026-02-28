@@ -4,7 +4,7 @@ import path from 'node:path';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { sha1 } from '../../shared/hash.js';
 
-const CACHE_VERSION = 4;
+const CACHE_VERSION = 5;
 const CACHE_FILE = 'import-resolution-cache.json';
 const CACHE_DIAGNOSTICS_VERSION = 3;
 const IMPORT_SPEC_CANDIDATE_EXTENSIONS = Object.freeze([
@@ -171,6 +171,23 @@ const createEmptyCache = () => ({
   lookup: null,
   diagnostics: null
 });
+
+const createIncompatibleCacheError = ({
+  cachePath = null,
+  foundVersion = null
+} = {}) => {
+  const foundLabel = foundVersion == null ? 'missing' : String(foundVersion);
+  const location = typeof cachePath === 'string' && cachePath ? cachePath : '<unknown>';
+  const error = new Error(
+    `[imports] incompatible import resolution cache version at ${location}: ` +
+    `found=${foundLabel}, expected=${CACHE_VERSION}. Remove the cache file and rerun.`
+  );
+  error.code = 'ERR_IMPORT_RESOLUTION_CACHE_INCOMPATIBLE';
+  error.cachePath = cachePath;
+  error.foundVersion = foundVersion;
+  error.expectedVersion = CACHE_VERSION;
+  return error;
+};
 
 const normalizeRelPath = (value) => {
   if (typeof value !== 'string') return null;
@@ -343,9 +360,16 @@ const buildSnapshotFromTaxonomy = ({ unresolvedTaxonomy, unresolvedTotal }) => {
   };
 };
 
-const normalizeCache = (raw) => {
+const normalizeCache = (raw, { cachePath = null } = {}) => {
   if (!isObject(raw)) return null;
-  if (Number(raw.version) !== CACHE_VERSION) return null;
+  const versionRaw = raw.version;
+  const versionNumeric = Number(versionRaw);
+  if (!Number.isFinite(versionNumeric) || Math.trunc(versionNumeric) !== CACHE_VERSION) {
+    throw createIncompatibleCacheError({
+      cachePath,
+      foundVersion: versionRaw
+    });
+  }
   const files = isObject(raw.files) ? raw.files : {};
   const lookup = isObject(raw.lookup) ? raw.lookup : null;
   const normalizedLookup = lookup
@@ -393,9 +417,13 @@ export const loadImportResolutionCache = async ({ incrementalState, log = null }
   }
   try {
     const raw = JSON.parse(await fs.readFile(cachePath, 'utf8'));
-    const normalized = normalizeCache(raw);
+    const normalized = normalizeCache(raw, { cachePath });
     if (normalized) return { cache: normalized, cachePath };
   } catch (err) {
+    if (err?.code === 'ERR_IMPORT_RESOLUTION_CACHE_INCOMPATIBLE') {
+      if (typeof log === 'function') log(err.message);
+      throw err;
+    }
     if (typeof log === 'function') {
       log(`[imports] Failed to read import resolution cache: ${err?.message || err}`);
     }
