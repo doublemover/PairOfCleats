@@ -12,6 +12,7 @@ const OPEN_RETRY_BASE_DELAY_MS = 10;
 const RENAME_RETRY_ATTEMPTS = 12;
 const RENAME_RETRY_BASE_DELAY_MS = 8;
 const RENAME_RETRY_MAX_DELAY_MS = 250;
+let exdevRenameFallbackCount = 0;
 
 const toNonNegativeInt = (value, fallback) => {
   const parsed = Number(value);
@@ -58,7 +59,7 @@ const pathExists = async (targetPath) => {
 };
 
 const renameWithBackupSwap = async (tempPath, targetPath) => {
-  const backupPath = createTempPath(`${targetPath}.bak`, { preferFallback: true });
+  const backupPath = createSiblingBackupPath(targetPath);
   let movedExistingTarget = false;
   try {
     await fs.rename(targetPath, backupPath);
@@ -90,7 +91,7 @@ const renameWithBackupSwap = async (tempPath, targetPath) => {
 };
 
 const renameWithBackupSwapSync = (tempPath, targetPath) => {
-  const backupPath = createTempPath(`${targetPath}.bak`, { preferFallback: true });
+  const backupPath = createSiblingBackupPath(targetPath);
   let movedExistingTarget = false;
   try {
     fsSync.renameSync(targetPath, backupPath);
@@ -171,6 +172,7 @@ const renameTempFile = async (tempPath, targetPath) => {
         throw err;
       }
       if (err?.code === 'EXDEV') {
+        exdevRenameFallbackCount += 1;
         // Cross-device rename cannot succeed; copy + remove preserves atomic
         // write semantics for temp paths that live on fallback volumes.
         await fs.copyFile(tempPath, targetPath);
@@ -209,6 +211,7 @@ const renameTempFileSync = (tempPath, targetPath) => {
         throw err;
       }
       if (err?.code === 'EXDEV') {
+        exdevRenameFallbackCount += 1;
         fsSync.copyFileSync(tempPath, targetPath);
         fsSync.rmSync(tempPath, { force: true });
         return;
@@ -475,4 +478,19 @@ export const atomicWriteJsonSync = (targetPath, value, options = {}) => {
     newline ? `${payload}\n` : payload,
     options
   );
+};
+
+const createSiblingBackupPath = (targetPath) => {
+  const dir = path.dirname(targetPath);
+  const base = path.basename(targetPath);
+  const entropy = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+  return path.join(dir, `.${base}.bak-${entropy}`);
+};
+
+export const getAtomicWriteRuntimeMetrics = () => ({
+  exdevRenameFallbackCount
+});
+
+export const resetAtomicWriteRuntimeMetricsForTests = () => {
+  exdevRenameFallbackCount = 0;
 };

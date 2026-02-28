@@ -7,7 +7,9 @@ import {
   atomicWriteJson,
   atomicWriteJsonSync,
   atomicWriteText,
-  atomicWriteTextSync
+  atomicWriteTextSync,
+  getAtomicWriteRuntimeMetrics,
+  resetAtomicWriteRuntimeMetricsForTests
 } from '../../../src/shared/io/atomic-write.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
@@ -72,6 +74,7 @@ assert.equal(emfileAttempts, 2, 'expected EMFILE retry path to be exercised');
 const exdevPath = path.join(tempRoot, 'exdev.txt');
 const originalRename = fsPromises.rename;
 let exdevAttempts = 0;
+resetAtomicWriteRuntimeMetricsForTests();
 fsPromises.rename = async (...args) => {
   const [, targetPath] = args;
   if (String(targetPath || '').includes('exdev.txt')) {
@@ -89,6 +92,11 @@ try {
 }
 assert.equal(fs.readFileSync(exdevPath, 'utf8'), 'exdev-ok');
 assert.ok(exdevAttempts >= 1, 'expected EXDEV rename fallback path to be exercised');
+assert.equal(
+  getAtomicWriteRuntimeMetrics().exdevRenameFallbackCount >= 1,
+  true,
+  'expected EXDEV rename fallback metric to be incremented'
+);
 
 const epermPath = path.join(tempRoot, 'eperm.txt');
 const originalRenameEperm = fsPromises.rename;
@@ -115,9 +123,13 @@ const preservePath = path.join(tempRoot, 'preserve-existing-on-rename-failure.tx
 await fsPromises.writeFile(preservePath, 'original', 'utf8');
 const originalRenamePreserve = fsPromises.rename;
 let preserveRenameCalls = 0;
+let preserveBackupPath = null;
 fsPromises.rename = async (...args) => {
   const [fromPath, targetPath] = args;
   const from = String(fromPath || '');
+  if (String(fromPath || '') === preservePath) {
+    preserveBackupPath = String(targetPath || '');
+  }
   if (String(targetPath || '') === preservePath && from.startsWith(`${preservePath}.tmp-`)) {
     preserveRenameCalls += 1;
     const err = new Error(preserveRenameCalls === 1 ? 'already exists' : 'invalid rename state');
@@ -139,6 +151,11 @@ assert.equal(
   fs.readFileSync(preservePath, 'utf8'),
   'original',
   'expected existing target content to be restored when replacement fails'
+);
+assert.equal(
+  path.dirname(String(preserveBackupPath || '')),
+  path.dirname(preservePath),
+  'expected backup swap path to remain in target directory'
 );
 
 let mkdirError = null;
