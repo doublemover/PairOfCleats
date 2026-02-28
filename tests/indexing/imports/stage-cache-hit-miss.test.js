@@ -85,6 +85,16 @@ assert.equal(
   1,
   'expected unresolved decision classification to still run once'
 );
+assert.equal(
+  secondStages.classify?.degraded || 0,
+  0,
+  'expected actionable unresolved classification to avoid degraded stage increments'
+);
+assert.equal(
+  secondStages.classify?.budgetExhausted || 0,
+  0,
+  'expected actionable unresolved classification to avoid budget-exhausted increments'
+);
 
 const unresolved = Array.isArray(second?.unresolvedSamples) ? second.unresolvedSamples : [];
 assert.equal(unresolved.length, 1, 'expected cached unresolved warning to persist');

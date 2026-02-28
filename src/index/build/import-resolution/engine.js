@@ -939,7 +939,11 @@ export function resolveImportLinks({
         unresolvedFailureCause = unresolvedDecision.failureCause;
         unresolvedDisposition = unresolvedDecision.disposition;
         unresolvedResolverStage = unresolvedDecision.resolverStage;
+        if (!isActionableDisposition(unresolvedDisposition)) {
+          stageTracker.markDegraded(unresolvedResolverStage || IMPORT_RESOLVER_STAGES.CLASSIFY);
+        }
         if (unresolvedReasonCode === IMPORT_REASON_CODES.RESOLVER_BUDGET_EXHAUSTED) {
+          stageTracker.markBudgetExhausted(unresolvedResolverStage || IMPORT_RESOLVER_STAGES.FILESYSTEM_PROBE);
           unresolvedBudgetExhausted += 1;
           const exhaustedTypes = specBudget.exhaustedTypes();
           const effectiveExhaustedTypes = exhaustedTypes.length > 0

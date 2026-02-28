@@ -143,6 +143,28 @@ const main = async () => {
         ? b.elapsedMs - a.elapsedMs
         : sortStrings(a.stage, b.stage)
     ))[0] || null;
+  const topStageByBudgetExhausted = Object.entries(resolverPipelineStages || {})
+    .map(([stage, entry]) => ({
+      stage,
+      budgetExhausted: Math.floor(Math.max(0, Number(entry?.budgetExhausted) || 0))
+    }))
+    .filter((entry) => entry.stage && entry.budgetExhausted > 0)
+    .sort((a, b) => (
+      b.budgetExhausted !== a.budgetExhausted
+        ? b.budgetExhausted - a.budgetExhausted
+        : sortStrings(a.stage, b.stage)
+    ))[0] || null;
+  const topStageByDegraded = Object.entries(resolverPipelineStages || {})
+    .map(([stage, entry]) => ({
+      stage,
+      degraded: Math.floor(Math.max(0, Number(entry?.degraded) || 0))
+    }))
+    .filter((entry) => entry.stage && entry.degraded > 0)
+    .sort((a, b) => (
+      b.degraded !== a.degraded
+        ? b.degraded - a.degraded
+        : sortStrings(a.stage, b.stage)
+    ))[0] || null;
   const topBudgetProfile = Object.entries(resolverBudgetPolicyProfiles || {})
     .map(([profile, count]) => ({
       profile,
@@ -245,6 +267,8 @@ const main = async () => {
       `- topReasonCode: ${topReasonCode ? `${topReasonCode.reasonCode}=${topReasonCode.count}` : 'none'}`,
       `- topResolverBudgetProfile: ${topBudgetProfile ? `${topBudgetProfile.profile}=${topBudgetProfile.count}` : 'none'}`,
       `- topResolverStageByElapsed: ${topStageByElapsed ? `${topStageByElapsed.stage}=${topStageByElapsed.elapsedMs.toFixed(3)}ms` : 'none'}`,
+      `- topResolverStageByBudgetExhausted: ${topStageByBudgetExhausted ? `${topStageByBudgetExhausted.stage}=${topStageByBudgetExhausted.budgetExhausted}` : 'none'}`,
+      `- topResolverStageByDegraded: ${topStageByDegraded ? `${topStageByDegraded.stage}=${topStageByDegraded.degraded}` : 'none'}`,
       `- advisories: ${advisories.length}`
     ],
     failures

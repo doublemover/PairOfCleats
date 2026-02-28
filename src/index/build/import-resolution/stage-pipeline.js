@@ -16,7 +16,9 @@ const createEmptyStageEntry = () => ({
   attempts: 0,
   hits: 0,
   misses: 0,
-  elapsedMs: 0
+  elapsedMs: 0,
+  budgetExhausted: 0,
+  degraded: 0
 });
 
 const getOrCreate = (store, stage) => {
@@ -48,6 +50,18 @@ export const createImportResolutionStageTracker = ({ now = () => Date.now() } = 
     entry.misses += 1;
   };
 
+  const markBudgetExhausted = (stage, amount = 1) => {
+    if (!stage) return;
+    const entry = getOrCreate(stages, stage);
+    entry.budgetExhausted += Math.max(0, Math.floor(Number(amount) || 0));
+  };
+
+  const markDegraded = (stage, amount = 1) => {
+    if (!stage) return;
+    const entry = getOrCreate(stages, stage);
+    entry.degraded += Math.max(0, Math.floor(Number(amount) || 0));
+  };
+
   const withStage = (stage, fn) => {
     markAttempt(stage);
     const started = now();
@@ -72,7 +86,9 @@ export const createImportResolutionStageTracker = ({ now = () => Date.now() } = 
         attempts: toNonNegativeInt(entry?.attempts),
         hits: toNonNegativeInt(entry?.hits),
         misses: toNonNegativeInt(entry?.misses),
-        elapsedMs: toNonNegativeMs(entry?.elapsedMs)
+        elapsedMs: toNonNegativeMs(entry?.elapsedMs),
+        budgetExhausted: toNonNegativeInt(entry?.budgetExhausted),
+        degraded: toNonNegativeInt(entry?.degraded)
       };
     }
     return output;
@@ -82,6 +98,8 @@ export const createImportResolutionStageTracker = ({ now = () => Date.now() } = 
     markAttempt,
     markHit,
     markMiss,
+    markBudgetExhausted,
+    markDegraded,
     withStage,
     snapshot
   });

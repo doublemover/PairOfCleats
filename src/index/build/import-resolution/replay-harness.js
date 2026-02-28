@@ -118,7 +118,9 @@ const toStagePipelineMap = (value) => {
     const hits = toNonNegativeIntOrNull(entry.hits) ?? 0;
     const misses = toNonNegativeIntOrNull(entry.misses) ?? 0;
     const elapsedMs = toNonNegativeMs(entry.elapsedMs) ?? 0;
-    output[stage] = { attempts, hits, misses, elapsedMs };
+    const budgetExhausted = toNonNegativeIntOrNull(entry.budgetExhausted) ?? 0;
+    const degraded = toNonNegativeIntOrNull(entry.degraded) ?? 0;
+    output[stage] = { attempts, hits, misses, elapsedMs, budgetExhausted, degraded };
   }
   return Object.keys(output).length > 0 ? output : null;
 };
@@ -131,13 +133,17 @@ const mergeStagePipelineMaps = (target, source) => {
         attempts: 0,
         hits: 0,
         misses: 0,
-        elapsedMs: 0
+        elapsedMs: 0,
+        budgetExhausted: 0,
+        degraded: 0
       };
     }
     target[stage].attempts += Math.max(0, Number(entry?.attempts) || 0);
     target[stage].hits += Math.max(0, Number(entry?.hits) || 0);
     target[stage].misses += Math.max(0, Number(entry?.misses) || 0);
     target[stage].elapsedMs += Math.max(0, Number(entry?.elapsedMs) || 0);
+    target[stage].budgetExhausted += Math.max(0, Number(entry?.budgetExhausted) || 0);
+    target[stage].degraded += Math.max(0, Number(entry?.degraded) || 0);
   }
 };
 
@@ -151,7 +157,9 @@ const toSortedStagePipeline = (stages) => {
       attempts: Math.floor(Math.max(0, Number(entry?.attempts) || 0)),
       hits: Math.floor(Math.max(0, Number(entry?.hits) || 0)),
       misses: Math.floor(Math.max(0, Number(entry?.misses) || 0)),
-      elapsedMs: Number(Math.max(0, Number(entry?.elapsedMs) || 0).toFixed(3))
+      elapsedMs: Number(Math.max(0, Number(entry?.elapsedMs) || 0).toFixed(3)),
+      budgetExhausted: Math.floor(Math.max(0, Number(entry?.budgetExhausted) || 0)),
+      degraded: Math.floor(Math.max(0, Number(entry?.degraded) || 0))
     };
   }
   return output;

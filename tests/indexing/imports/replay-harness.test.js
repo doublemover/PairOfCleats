@@ -15,7 +15,18 @@ const reports = [
     reportPath: 'repo-a/import_resolution_graph.json',
     payload: {
       generatedAt: new Date().toISOString(),
-      stats: {},
+      stats: {
+        resolverPipelineStages: {
+          language_resolver: {
+            attempts: 2,
+            hits: 1,
+            misses: 1,
+            elapsedMs: 1.25,
+            budgetExhausted: 1,
+            degraded: 2
+          }
+        }
+      },
       warnings: [
         {
           importer: 'src\\main.js',
@@ -78,6 +89,20 @@ assert.equal(aggregated.totals.parserArtifact, 1, 'expected parser artifact coun
 assert.equal(aggregated.totals.resolverGap, 1, 'expected resolver gap count to be replayed');
 assert.equal(aggregated.reasonCodeCounts.IMP_U_MISSING_FILE_RELATIVE, 2, 'expected reason code counts to include excluded warning');
 assert.equal(aggregated.resolverStages.filesystem_probe, 2, 'expected stage counts to include all observed warnings');
+assert.deepEqual(
+  aggregated.resolverPipelineStages,
+  Object.assign(Object.create(null), {
+    language_resolver: {
+      attempts: 2,
+      hits: 1,
+      misses: 1,
+      elapsedMs: 1.25,
+      budgetExhausted: 1,
+      degraded: 2
+    }
+  }),
+  'expected resolver stage pipeline metrics to aggregate with budget/degraded counters'
+);
 assert.deepEqual(
   aggregated.actionableByRepo,
   { 'repo-a': 1 },

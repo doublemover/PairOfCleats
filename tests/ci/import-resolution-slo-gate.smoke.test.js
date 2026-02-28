@@ -34,10 +34,10 @@ try {
         filesystem_probe: 2
       },
       resolverPipelineStages: {
-        normalize: { attempts: 4, hits: 4, misses: 0, elapsedMs: 3.25 },
-        language_resolver: { attempts: 2, hits: 1, misses: 1, elapsedMs: 2.5 },
-        filesystem_probe: { attempts: 1, hits: 0, misses: 1, elapsedMs: 1.5 },
-        classify: { attempts: 1, hits: 1, misses: 0, elapsedMs: 0.5 }
+        normalize: { attempts: 4, hits: 4, misses: 0, elapsedMs: 3.25, budgetExhausted: 0, degraded: 0 },
+        language_resolver: { attempts: 2, hits: 1, misses: 1, elapsedMs: 2.5, budgetExhausted: 0, degraded: 1 },
+        filesystem_probe: { attempts: 1, hits: 0, misses: 1, elapsedMs: 1.5, budgetExhausted: 1, degraded: 1 },
+        classify: { attempts: 1, hits: 1, misses: 0, elapsedMs: 0.5, budgetExhausted: 0, degraded: 0 }
       },
       unresolvedActionableHotspots: [
         { importer: 'src/main.ts', count: 2 }
@@ -112,10 +112,10 @@ try {
   assert.deepEqual(
     passPayload?.resolverPipelineStages,
     {
-      classify: { attempts: 1, hits: 1, misses: 0, elapsedMs: 0.5 },
-      filesystem_probe: { attempts: 1, hits: 0, misses: 1, elapsedMs: 1.5 },
-      language_resolver: { attempts: 2, hits: 1, misses: 1, elapsedMs: 2.5 },
-      normalize: { attempts: 4, hits: 4, misses: 0, elapsedMs: 3.25 }
+      classify: { attempts: 1, hits: 1, misses: 0, elapsedMs: 0.5, budgetExhausted: 0, degraded: 0 },
+      filesystem_probe: { attempts: 1, hits: 0, misses: 1, elapsedMs: 1.5, budgetExhausted: 1, degraded: 1 },
+      language_resolver: { attempts: 2, hits: 1, misses: 1, elapsedMs: 2.5, budgetExhausted: 0, degraded: 1 },
+      normalize: { attempts: 4, hits: 4, misses: 0, elapsedMs: 3.25, budgetExhausted: 0, degraded: 0 }
     }
   );
   assert.deepEqual(

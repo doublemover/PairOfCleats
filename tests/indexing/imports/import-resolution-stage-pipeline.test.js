@@ -39,11 +39,14 @@ assert.equal((stages.build_system_resolver?.attempts || 0) >= 1, true, 'expected
 assert.equal((stages.classify?.attempts || 0) >= 1, true, 'expected classify stage attempts');
 assert.equal((stages.filesystem_probe?.attempts || 0) >= 1, true, 'expected filesystem_probe stage attempts');
 assert.equal(Number.isFinite(Number(stages.classify?.elapsedMs)), true, 'expected classify stage elapsedMs');
+assert.equal(Number.isFinite(Number(stages.classify?.budgetExhausted)), true, 'expected classify stage budgetExhausted counter');
+assert.equal(Number.isFinite(Number(stages.classify?.degraded)), true, 'expected classify stage degraded counter');
 
 const warnings = Array.isArray(resolution?.unresolvedSamples) ? resolution.unresolvedSamples : [];
 assert.equal(warnings.length, 1);
 assert.equal(warnings[0].reasonCode, 'IMP_U_RESOLVER_GAP');
 assert.equal(warnings[0].resolverStage, 'language_resolver');
+assert.equal((stages.language_resolver?.degraded || 0) >= 1, true, 'expected unresolved resolver gap to increment degraded stage counter');
 
 const graphStageStats = resolution?.graph?.stats?.resolverPipelineStages || {};
 assert.deepEqual(
