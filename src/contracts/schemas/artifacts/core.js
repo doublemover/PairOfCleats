@@ -285,7 +285,7 @@ const importResolutionGraphSchema = {
       type: 'array',
       items: {
         type: 'object',
-        required: ['from', 'to', 'rawSpecifier', 'resolvedType'],
+        required: ['from', 'to', 'rawSpecifier', 'resolvedType', 'resolutionState'],
         properties: {
           from: { type: 'string' },
           to: { type: ['string', 'null'] },
