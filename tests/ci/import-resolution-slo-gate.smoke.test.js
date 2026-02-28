@@ -21,6 +21,7 @@ try {
     stats: {
       unresolved: 10,
       unresolvedActionable: 2,
+      unresolvedBudgetExhausted: 1,
       unresolvedByResolverStage: {
         filesystem_probe: 2
       },
@@ -85,6 +86,8 @@ try {
   assert.equal(passPayload?.status, 'ok');
   assert.equal(passPayload?.metrics?.unresolved, 10);
   assert.equal(passPayload?.metrics?.actionable, 2);
+  assert.equal(passPayload?.metrics?.resolverBudgetExhausted, 1);
+  assert.equal(passPayload?.metrics?.resolverBudgetExhaustedRate, 0.1);
   assert.equal(passPayload?.metrics?.gateEligibleUnresolved, 1);
   assert.equal(passPayload?.metrics?.gateEligibleActionable, 1);
   assert.deepEqual(
@@ -182,6 +185,15 @@ try {
       },
       {
         importer: 'src/main.ts',
+        specifier: './unbounded.ts',
+        reason: 'unresolved',
+        reasonCode: 'IMP_U_RESOLVER_BUDGET_EXHAUSTED',
+        failureCause: 'resolver_gap',
+        disposition: 'suppress_gate',
+        resolverStage: 'filesystem_probe'
+      },
+      {
+        importer: 'src/main.ts',
         specifier: './missing.ts',
         reason: 'unresolved',
         reasonCode: 'IMP_U_MISSING_FILE_RELATIVE',
@@ -202,7 +214,7 @@ try {
       '--json',
       fallbackJsonPath,
       '--actionable-unresolved-rate-max',
-      '0.5'
+      '0.49'
     ],
     {
       cwd: ROOT,
@@ -212,8 +224,10 @@ try {
   );
   assert.equal(fallbackResult.status, 3, `expected fallback gate status=3, received ${fallbackResult.status}`);
   const fallbackPayload = JSON.parse(await fs.readFile(fallbackJsonPath, 'utf8'));
-  assert.equal(fallbackPayload?.metrics?.unresolved, 1);
+  assert.equal(fallbackPayload?.metrics?.unresolved, 2);
   assert.equal(fallbackPayload?.metrics?.actionable, 1);
+  assert.equal(fallbackPayload?.metrics?.resolverBudgetExhausted, 1);
+  assert.equal(fallbackPayload?.metrics?.resolverBudgetExhaustedRate, 0.5);
   assert.deepEqual(
     fallbackPayload?.actionableHotspots,
     [{ importer: 'src/main.ts', count: 1 }]
@@ -222,7 +236,7 @@ try {
     fallbackPayload?.resolverStages,
     {
       classify: 1,
-      filesystem_probe: 1
+      filesystem_probe: 2
     }
   );
   assert.deepEqual(

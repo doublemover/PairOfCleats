@@ -210,6 +210,7 @@ const aggregateFromGraphs = async (graphPaths) => {
     gateEligibleActionable: 0,
     parserArtifact: 0,
     resolverGap: 0,
+    resolverBudgetExhausted: 0,
     actionableHotspotCounts: Object.create(null),
     resolverStageCounts: Object.create(null),
     resolverPipelineStages: Object.create(null)
@@ -275,6 +276,11 @@ const aggregateFromGraphs = async (graphPaths) => {
     );
     const statsReasonCodes = toCountMap(stats.unresolvedByReasonCode);
     const effectiveReasonCodes = statsReasonCodes || warningReasonCodes;
+    const resolverBudgetExhausted = (
+      toNonNegativeIntOrNull(stats.unresolvedBudgetExhausted)
+      ?? toNonNegativeIntOrNull(effectiveReasonCodes?.IMP_U_RESOLVER_BUDGET_EXHAUSTED)
+      ?? 0
+    );
     const statsResolverStages = toCountMap(stats.unresolvedByResolverStage);
     const statsResolverPipelineStages = toStagePipelineMap(stats.resolverPipelineStages);
     const warningResolverStages = Object.create(null);
@@ -304,6 +310,7 @@ const aggregateFromGraphs = async (graphPaths) => {
     totals.gateEligibleActionable += eligibleActionable;
     totals.parserArtifact += parserArtifact;
     totals.resolverGap += resolverGap;
+    totals.resolverBudgetExhausted += resolverBudgetExhausted;
     for (const [importer, count] of Object.entries(effectiveHotspotCounts)) {
       bumpCount(totals.actionableHotspotCounts, importer, count);
     }
@@ -376,6 +383,7 @@ const main = async () => {
   const actionableRate = toRatio(actionable, unresolved);
   const parserArtifactRate = toRatio(totals.parserArtifact, unresolved);
   const resolverGapRate = toRatio(totals.resolverGap, unresolved);
+  const resolverBudgetExhaustedRate = toRatio(totals.resolverBudgetExhausted, unresolved);
   const topReasonCode = Object.entries(reasonCodeCounts || {})
     .map(([reasonCode, count]) => ({ reasonCode, count: Math.floor(Number(count) || 0) }))
     .filter((entry) => entry.reasonCode && entry.count > 0)
@@ -433,7 +441,9 @@ const main = async () => {
       parserArtifact: totals.parserArtifact,
       parserArtifactRate,
       resolverGap: totals.resolverGap,
-      resolverGapRate
+      resolverGapRate,
+      resolverBudgetExhausted: totals.resolverBudgetExhausted,
+      resolverBudgetExhaustedRate
     },
     reasonCodes: reasonCodeCounts,
     resolverStages,
@@ -454,6 +464,7 @@ const main = async () => {
       `- actionableRate: ${actionableRate.toFixed(4)} (max ${actionableRateMax.toFixed(4)})`,
       `- parserArtifactRate: ${parserArtifactRate.toFixed(4)}`,
       `- resolverGapRate: ${resolverGapRate.toFixed(4)}`,
+      `- resolverBudgetExhaustedRate: ${resolverBudgetExhaustedRate.toFixed(4)}`,
       `- resolverPipelineStages: ${Object.keys(resolverPipelineStages || {}).length}`,
       `- actionableHotspots: ${actionableHotspots.length}`,
       `- topHotspot: ${topHotspot ? `${topHotspot.importer}=${topHotspot.count}` : 'none'}`,
