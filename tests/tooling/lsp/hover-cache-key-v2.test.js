@@ -5,6 +5,7 @@ import path from 'node:path';
 
 import {
   buildHoverCacheKey,
+  buildSignatureParseCacheKey,
   buildSymbolPositionCacheKey,
   loadHoverCache,
   persistHoverCache
@@ -48,6 +49,41 @@ const betaPositionKey = buildSymbolPositionCacheKey({
   symbolKind: 12
 });
 assert.notEqual(alphaPositionKey, betaPositionKey, 'expected symbol-position key to be symbol-sensitive');
+
+const signatureKeyAlpha = buildSignatureParseCacheKey({
+  languageId: 'python',
+  parserKey: 'pyright',
+  detailText: '(value: str) -> str',
+  symbolName: 'alpha',
+  symbolSensitive: true
+});
+const signatureKeyBeta = buildSignatureParseCacheKey({
+  languageId: 'python',
+  parserKey: 'pyright',
+  detailText: '(value: str) -> str',
+  symbolName: 'beta',
+  symbolSensitive: true
+});
+const signatureKeyInsensitiveAlpha = buildSignatureParseCacheKey({
+  languageId: 'python',
+  parserKey: 'pyright',
+  detailText: '(value: str) -> str',
+  symbolName: 'alpha',
+  symbolSensitive: false
+});
+const signatureKeyInsensitiveBeta = buildSignatureParseCacheKey({
+  languageId: 'python',
+  parserKey: 'pyright',
+  detailText: '(value: str) -> str',
+  symbolName: 'beta',
+  symbolSensitive: false
+});
+assert.notEqual(signatureKeyAlpha, signatureKeyBeta, 'expected signature parse cache key to vary by symbol when symbol-sensitive');
+assert.equal(
+  signatureKeyInsensitiveAlpha,
+  signatureKeyInsensitiveBeta,
+  'expected signature parse cache key to ignore symbol when parser is symbol-insensitive'
+);
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testLogs', 'lsp-hover-cache-key-v2');

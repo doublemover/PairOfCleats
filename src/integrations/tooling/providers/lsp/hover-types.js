@@ -263,6 +263,39 @@ const normalizeSignatureCacheText = (value) => (
 );
 
 /**
+ * Build deterministic cache key for parsed signature detail payloads.
+ *
+ * @param {{
+ *   languageId?:string,
+ *   detailText?:string,
+ *   symbolName?:string,
+ *   parserKey?:string,
+ *   symbolSensitive?:boolean
+ * }} input
+ * @returns {string|null}
+ */
+export const buildSignatureParseCacheKey = ({
+  languageId = '',
+  detailText = '',
+  symbolName = '',
+  parserKey = '',
+  symbolSensitive = true
+}) => {
+  const normalizedDetail = normalizeSignatureCacheText(detailText);
+  if (!normalizedDetail) return null;
+  const parts = [
+    'v2',
+    String(languageId || '').trim(),
+    String(parserKey || '').trim() || 'default',
+    normalizedDetail
+  ];
+  if (symbolSensitive !== false) {
+    parts.push(String(symbolName || '').trim());
+  }
+  return parts.join('::');
+};
+
+/**
  * Parse finite integer values with optional lower bound.
  * @param {unknown} value
  * @param {number|null} [min=null]
@@ -1061,15 +1094,23 @@ export const processDocumentTypes = async ({
   const fileHoverStats = hoverFileStats.get(doc.virtualPath) || createHoverFileStats();
   hoverFileStats.set(doc.virtualPath, fileHoverStats);
   const parseCache = signatureParseCache instanceof Map ? signatureParseCache : null;
+  const signatureParserKey = String(parseSignature?.cacheKey || parseSignature?.name || 'default').trim() || 'default';
+  const signatureParserSymbolSensitive = parseSignature?.isSymbolSensitive !== false;
 
   const parseSignatureCached = (detailText, symbolName) => {
     if (typeof parseSignature !== 'function') return null;
-    const normalizedDetail = normalizeSignatureCacheText(detailText);
-    if (!normalizedDetail) return null;
-    const cacheKey = `${languageId || ''}::${normalizedDetail}`;
+    const cacheKey = buildSignatureParseCacheKey({
+      languageId,
+      detailText,
+      symbolName,
+      parserKey: signatureParserKey,
+      symbolSensitive: signatureParserSymbolSensitive
+    });
+    if (!cacheKey) return null;
     if (parseCache?.has(cacheKey)) {
       return parseCache.get(cacheKey);
     }
+    const normalizedDetail = normalizeSignatureCacheText(detailText);
     const parsed = parseSignature(normalizedDetail, languageId, symbolName) || null;
     if (parseCache) parseCache.set(cacheKey, parsed);
     return parsed;
