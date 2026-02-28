@@ -1,6 +1,5 @@
 import http from 'node:http';
 import path from 'node:path';
-import readline from 'node:readline';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { attachSilentLogging } from './test-env.js';
@@ -86,18 +85,23 @@ export const startApiServer = async ({
       : 30000;
 
   const readStartup = async () => {
-    const rl = readline.createInterface({ input: server.stdout });
     return await new Promise((resolve, reject) => {
       let settled = false;
+      let stdoutBuffer = '';
+      let stdoutTail = '';
+      let stderrTail = '';
+      const maxTailChars = 4096;
+      const appendTail = (current, next) => {
+        const combined = `${current}${next}`;
+        if (combined.length <= maxTailChars) return combined;
+        return combined.slice(-maxTailChars);
+      };
       const cleanup = () => {
         clearTimeout(timeout);
         server.off('exit', handleExitBeforeStartup);
         server.off('error', handleStartupError);
-        try {
-          rl.close();
-        } catch {
-          // ignore close race; readline may already be closed
-        }
+        server.stdout?.off('data', handleStdoutData);
+        server.stderr?.off('data', handleStderrData);
       };
       const fail = (err) => {
         if (settled) return;
@@ -112,15 +116,51 @@ export const startApiServer = async ({
         resolve(line);
       };
       const handleExitBeforeStartup = (code, signal) => {
-        fail(new Error(`api-server exited before startup (code=${code ?? 'null'}, signal=${signal ?? 'null'})`));
+        const details = [
+          `api-server exited before startup (code=${code ?? 'null'}, signal=${signal ?? 'null'})`
+        ];
+        const stderrText = stderrTail.trim();
+        const stdoutText = stdoutTail.trim();
+        if (stderrText) details.push(`stderr tail:\n${stderrText}`);
+        if (stdoutText) details.push(`stdout tail:\n${stdoutText}`);
+        fail(new Error(details.join('\n\n')));
       };
       const handleStartupError = (err) => {
         fail(err instanceof Error ? err : new Error(String(err)));
       };
+      const handleStdoutData = (chunk) => {
+        if (settled) return;
+        const text = chunk.toString();
+        if (!text) return;
+        stdoutTail = appendTail(stdoutTail, text);
+        stdoutBuffer += text;
+        while (true) {
+          const newline = stdoutBuffer.indexOf('\n');
+          if (newline === -1) break;
+          const lineRaw = stdoutBuffer.slice(0, newline);
+          stdoutBuffer = stdoutBuffer.slice(newline + 1);
+          const line = lineRaw.trim();
+          if (!line) continue;
+          succeed(line);
+          return;
+        }
+      };
+      const handleStderrData = (chunk) => {
+        if (settled) return;
+        const text = chunk.toString();
+        if (!text) return;
+        stderrTail = appendTail(stderrTail, text);
+      };
       const timeout = setTimeout(() => {
-        fail(new Error(`api-server startup timed out after ${resolvedStartupTimeoutMs}ms`));
+        const details = [`api-server startup timed out after ${resolvedStartupTimeoutMs}ms`];
+        const stderrText = stderrTail.trim();
+        const stdoutText = stdoutTail.trim();
+        if (stderrText) details.push(`stderr tail:\n${stderrText}`);
+        if (stdoutText) details.push(`stdout tail:\n${stdoutText}`);
+        fail(new Error(details.join('\n\n')));
       }, resolvedStartupTimeoutMs);
-      rl.once('line', succeed);
+      server.stdout?.on('data', handleStdoutData);
+      server.stderr?.on('data', handleStderrData);
       server.once('exit', handleExitBeforeStartup);
       server.once('error', handleStartupError);
     });

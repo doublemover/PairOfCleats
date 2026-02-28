@@ -3,6 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from '../helpers/stdio.js';
+import { applyTestEnv } from '../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../helpers/test-cache.js';
 
@@ -24,11 +25,11 @@ await fsPromises.writeFile(
   '# Alpha Repo\nThis is a tiny repo for smoke testing.\n'
 );
 
-const env = {
-  ...process.env,
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  syncProcess: false
+});
 
 const runNode = (label, args, options = {}) => {
   const result = spawnSync(process.execPath, args, {
@@ -39,13 +40,21 @@ const runNode = (label, args, options = {}) => {
   });
   if (result.status !== 0) {
     console.error(`Failed: ${label}`);
-    if (result.stderr) console.error(result.stderr.trim());
+    const output = getCombinedOutput(result, { trim: true });
+    if (output) console.error(output);
     process.exit(result.status ?? 1);
   }
   return result;
 };
 
-runNode('build index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot], { stdio: 'inherit' });
+runNode('build index', [
+  path.join(root, 'build_index.js'),
+  '--stub-embeddings',
+  '--mode',
+  'code',
+  '--repo',
+  repoRoot
+], { stdio: 'inherit' });
 
 const search = runNode('search', [
   path.join(root, 'search.js'),

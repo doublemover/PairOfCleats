@@ -122,6 +122,7 @@ if (!Array.isArray(ingestGeneric.recordIds) || ingestGeneric.recordIds.length ==
 run('build-index', [
   path.join(root, 'build_index.js'),
   '--stub-embeddings',
+  '--mode', 'code',
   '--repo', repoRoot
 ], { cwd: repoRoot, env: testEnv });
 await logExpectedArtifacts({ label: 'post-build-index', mode: 'code' });

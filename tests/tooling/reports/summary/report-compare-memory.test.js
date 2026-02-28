@@ -36,7 +36,7 @@ const result = spawnSync(
     '--top',
     '3',
     '--mode',
-    'both',
+    'code',
     '--cache-root',
     cacheRoot,
     '--out',
@@ -48,6 +48,7 @@ const result = spawnSync(
 if (result.status !== 0) {
   console.error('summary report compare (memory) failed: script error.');
   if (result.stderr) console.error(result.stderr.trim());
+  if (result.stdout) console.error(result.stdout.trim());
   process.exit(result.status ?? 1);
 }
 

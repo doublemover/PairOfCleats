@@ -2,6 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -9,20 +10,25 @@ const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'eval-quality');
 const cacheRoot = path.join(tempRoot, 'cache');
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const datasetPath = path.join(fixtureRoot, 'eval.json');
+const datasetPath = path.join(tempRoot, 'eval-code-only.json');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
+const fullDataset = JSON.parse(await fsPromises.readFile(path.join(fixtureRoot, 'eval.json'), 'utf8'));
+const codeOnlyDataset = Array.isArray(fullDataset)
+  ? fullDataset.filter((entry) => String(entry?.mode || 'code').toLowerCase() === 'code')
+  : [];
+await fsPromises.writeFile(datasetPath, JSON.stringify(codeOnlyDataset, null, 2));
 
-const env = {
-  ...process.env,
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  syncProcess: false
+});
 
 const buildResult = spawnSync(
   process.execPath,
-  [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot],
+  [path.join(root, 'build_index.js'), '--stub-embeddings', '--mode', 'code', '--repo', fixtureRoot],
   { env, stdio: 'inherit' }
 );
 if (buildResult.status !== 0) {
