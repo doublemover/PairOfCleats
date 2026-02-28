@@ -1,7 +1,5 @@
 #!/usr/bin/env node
-import { spawn } from 'node:child_process';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { launchStubServer } from './proxy-runner.js';
 
 const args = process.argv.slice(2);
 if (args.includes('-v') || args.includes('--version') || args.includes('--help') || args.includes('-h')) {
@@ -9,8 +7,4 @@ if (args.includes('-v') || args.includes('--version') || args.includes('--help')
   process.exit(0);
 }
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const script = path.join(__dirname, '..', 'stub-lsp-server.js');
-const child = spawn(process.execPath, [script, '--mode', 'clangd'], { stdio: 'inherit' });
-child.on('exit', (code) => process.exit(code ?? 0));
+launchStubServer({ metaUrl: import.meta.url, mode: 'clangd' });
