@@ -30,10 +30,37 @@ const deadPidLock = await acquireFileLock({ lockPath, staleMs: 24 * 60 * 60 * 10
 assert.ok(deadPidLock, 'expected dead-pid lock to be replaced');
 await deadPidLock.release();
 
+await fsPromises.writeFile(
+  lockPath,
+  JSON.stringify({ pid: 999999, startedAt: new Date().toISOString() }),
+  'utf8'
+);
+const deadPidWithThrowingStaleHook = await acquireFileLock({
+  lockPath,
+  staleMs: 24 * 60 * 60 * 1000,
+  onStale: () => {
+    throw new Error('intentional stale hook failure');
+  }
+});
+assert.ok(
+  deadPidWithThrowingStaleHook,
+  'expected stale lock cleanup to proceed even when onStale hook throws'
+);
+await deadPidWithThrowingStaleHook.release();
+
 await fsPromises.writeFile(lockPath, 'not-json-lock');
 await fsPromises.utimes(lockPath, new Date(Date.now() - 60_000), new Date(Date.now() - 60_000));
-const corruptStaleLock = await acquireFileLock({ lockPath, staleMs: 1_000, waitMs: 0 });
+let corruptStaleEvent = null;
+const corruptStaleLock = await acquireFileLock({
+  lockPath,
+  staleMs: 1_000,
+  waitMs: 0,
+  onStale: (event) => {
+    corruptStaleEvent = event;
+  }
+});
 assert.ok(corruptStaleLock, 'expected stale corrupt lock to be replaced even without owner metadata');
+assert.equal(corruptStaleEvent?.removalMode, 'force', 'expected ownerless stale lock cleanup to use force mode');
 await corruptStaleLock.release();
 
 await fsPromises.writeFile(lockPath, 'not-json-lock');
@@ -48,6 +75,20 @@ await fsPromises.writeFile(
 );
 const activeLock = await acquireFileLock({ lockPath, waitMs: 50, pollMs: 10 });
 assert.equal(activeLock, null, 'expected active lock acquisition to return null');
+
+const activeWithThrowingBusyHook = await acquireFileLock({
+  lockPath,
+  waitMs: 20,
+  pollMs: 5,
+  onBusy: () => {
+    throw new Error('intentional busy hook failure');
+  }
+});
+assert.equal(
+  activeWithThrowingBusyHook,
+  null,
+  'expected busy hook failure to not change lock acquisition decision'
+);
 
 let threwTimeout = false;
 try {

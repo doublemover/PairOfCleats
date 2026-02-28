@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { createAbortError } from '../abort.js';
 
 export const DEFAULT_FILE_LOCK_WAIT_MS = 0;
@@ -48,6 +48,55 @@ const createLockId = () => {
 const resolveLockPid = (info) => {
   const parsed = Number(info?.pid);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
+const createLockSnapshotFingerprint = (raw, stat) => {
+  const hash = createHash('sha1').update(raw).digest('hex');
+  return `${Number(stat?.mtimeMs) || 0}:${Number(stat?.size) || 0}:${hash}`;
+};
+
+const readLockSnapshot = async (lockPath, staleMs) => {
+  try {
+    const [stat, raw] = await Promise.all([
+      fs.stat(lockPath),
+      fs.readFile(lockPath, 'utf8')
+    ]);
+    const ageMs = Date.now() - Number(stat?.mtimeMs || 0);
+    return {
+      exists: true,
+      staleByMtime: ageMs > staleMs,
+      ageMs,
+      fingerprint: createLockSnapshotFingerprint(raw, stat)
+    };
+  } catch {
+    return {
+      exists: false,
+      staleByMtime: false,
+      ageMs: 0,
+      fingerprint: null
+    };
+  }
+};
+
+const isStableStaleSnapshot = (before, after) => (
+  Boolean(before?.exists)
+  && Boolean(after?.exists)
+  && Boolean(before?.staleByMtime)
+  && Boolean(after?.staleByMtime)
+  && typeof before?.fingerprint === 'string'
+  && before.fingerprint === after?.fingerprint
+);
+
+const safeInvokeHook = (hook, payload, { code = 'LOCK_HOOK_ERROR' } = {}) => {
+  if (typeof hook !== 'function') return;
+  try {
+    hook(payload);
+  } catch (err) {
+    const message = err?.message || String(err || 'unknown lock hook failure');
+    try {
+      process.emitWarning(`[file-lock] hook failed: ${message}`, { code });
+    } catch {}
+  }
 };
 
 const buildOwnerFromLockInfo = (info) => {
@@ -160,6 +209,46 @@ const removeLockFileIfOwned = async (lockPath, owner, { force = false } = {}) =>
   }
 };
 
+const removeStaleLockFile = async ({
+  lockPath,
+  info,
+  staleMs
+}) => {
+  const staleOwner = buildOwnerFromLockInfo(info);
+  if (!staleOwner) {
+    return {
+      removed: await removeLockFileIfOwned(lockPath, null, { force: true }),
+      removalMode: 'force'
+    };
+  }
+  const before = await readLockSnapshot(lockPath, staleMs);
+  const removedByOwner = await removeLockFileIfOwned(lockPath, staleOwner);
+  if (removedByOwner) {
+    return {
+      removed: true,
+      removalMode: 'owner'
+    };
+  }
+  if (!before.exists) {
+    return {
+      removed: true,
+      removalMode: 'owner'
+    };
+  }
+  const after = await readLockSnapshot(lockPath, staleMs);
+  if (!isStableStaleSnapshot(before, after)) {
+    return {
+      removed: false,
+      removalMode: 'owner'
+    };
+  }
+  const forceRemoved = await removeLockFileIfOwned(lockPath, null, { force: true });
+  return {
+    removed: forceRemoved,
+    removalMode: forceRemoved ? 'owner-fallback-force' : 'owner'
+  };
+};
+
 /**
  * Acquire a file lock by creating a lockfile atomically.
  * @param {{
@@ -172,7 +261,7 @@ const removeLockFileIfOwned = async (lockPath, owner, { force = false } = {}) =>
  *  timeoutBehavior?:'null'|'throw',
  *  timeoutMessage?:string,
  *  signal?:AbortSignal|null,
- *  onStale?:(info:{lockPath:string,info:object|null,pid:number|null,reason:'stale'|'dead-pid'})=>void,
+ *  onStale?:(info:{lockPath:string,info:object|null,pid:number|null,reason:'stale'|'dead-pid',removalMode?:'owner'|'force'|'owner-fallback-force'})=>void,
  *  onBusy?:(info:{lockPath:string,info:object|null,pid:number|null})=>void
  * }} input
  * @returns {Promise<{lockPath:string,payload:object,release:(opts?:{force?:boolean})=>Promise<boolean>}|null>}
@@ -228,29 +317,29 @@ export const acquireFileLock = async ({
       const staleCleanup = stale && (forceStaleCleanup || !pid || (pid && !alive));
       if ((pid && !alive) || staleCleanup) {
         try {
-          const staleOwner = buildOwnerFromLockInfo(info);
-          const removed = staleOwner
-            ? await removeLockFileIfOwned(lockPath, staleOwner)
-            : await removeLockFileIfOwned(lockPath, null, { force: true });
+          const { removed, removalMode } = await removeStaleLockFile({
+            lockPath,
+            info,
+            staleMs: resolvedStaleMs
+          });
           if (!removed) {
             if (deadline != null && Date.now() < deadline) {
               await sleepWithAbort(resolvedPollMs, lockSignal);
               continue;
             }
-            if (typeof onBusy === 'function') onBusy({ lockPath, info, pid });
+            safeInvokeHook(onBusy, { lockPath, info, pid });
             if (timeoutBehavior === 'throw') {
               throw new Error(timeoutMessage || 'Lock timeout.');
             }
             return null;
           }
-          if (typeof onStale === 'function') {
-            onStale({
-              lockPath,
-              info,
-              pid,
-              reason: pid && !alive ? 'dead-pid' : 'stale'
-            });
-          }
+          safeInvokeHook(onStale, {
+            lockPath,
+            info,
+            pid,
+            reason: pid && !alive ? 'dead-pid' : 'stale',
+            removalMode
+          });
           continue;
         } catch {}
       }
@@ -258,7 +347,7 @@ export const acquireFileLock = async ({
         await sleepWithAbort(resolvedPollMs, lockSignal);
         continue;
       }
-      if (typeof onBusy === 'function') onBusy({ lockPath, info, pid });
+      safeInvokeHook(onBusy, { lockPath, info, pid });
       if (timeoutBehavior === 'throw') {
         throw new Error(timeoutMessage || 'Lock timeout.');
       }
