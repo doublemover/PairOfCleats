@@ -113,6 +113,10 @@ const KNOWN_DISPOSITIONS = new Set(Object.values(IMPORT_DISPOSITIONS));
 const KNOWN_RESOLVER_STAGES = new Set(Object.values(IMPORT_RESOLVER_STAGES));
 
 const hasText = (value) => typeof value === 'string' && value.trim().length > 0;
+export const isKnownReasonCode = (value) => hasText(value) && KNOWN_REASON_CODES.has(value.trim());
+export const isKnownFailureCause = (value) => hasText(value) && KNOWN_FAILURE_CAUSES.has(value.trim());
+export const isKnownDisposition = (value) => hasText(value) && KNOWN_DISPOSITIONS.has(value.trim());
+export const isKnownResolverStage = (value) => hasText(value) && KNOWN_RESOLVER_STAGES.has(value.trim());
 
 export const resolveDecisionFromReasonCode = (reasonCode, {
   fallbackStage = IMPORT_RESOLVER_STAGES.CLASSIFY
@@ -143,6 +147,33 @@ export const createUnresolvedDecision = (reasonCode, options = {}) => {
     failureCause: decision.failureCause,
     disposition: decision.disposition,
     resolverStage: decision.resolverStage
+  };
+};
+
+export const normalizeUnresolvedDecision = (input = {}, options = {}) => {
+  const normalizedReasonCode = isKnownReasonCode(input?.reasonCode)
+    ? input.reasonCode.trim()
+    : IMPORT_REASON_CODES.UNKNOWN;
+  const seed = createUnresolvedDecision(normalizedReasonCode, options);
+  const normalizedFailureCause = isKnownFailureCause(input?.failureCause)
+    ? input.failureCause.trim()
+    : seed.failureCause;
+  let normalizedDisposition = isKnownDisposition(input?.disposition)
+    ? input.disposition.trim()
+    : seed.disposition;
+  if (normalizedDisposition === IMPORT_DISPOSITIONS.ACTIONABLE
+    && NON_ACTIONABLE_FAILURE_CAUSES.has(normalizedFailureCause)) {
+    normalizedDisposition = seed.disposition;
+  }
+  const normalizedResolverStage = isKnownResolverStage(input?.resolverStage)
+    ? input.resolverStage.trim()
+    : seed.resolverStage;
+  return {
+    resolutionState: IMPORT_RESOLUTION_STATES.UNRESOLVED,
+    reasonCode: seed.reasonCode,
+    failureCause: normalizedFailureCause,
+    disposition: normalizedDisposition,
+    resolverStage: normalizedResolverStage
   };
 };
 

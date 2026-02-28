@@ -14,7 +14,7 @@ import {
   IMPORT_DISPOSITIONS,
   IMPORT_REASON_CODES,
   IMPORT_RESOLUTION_STATES,
-  resolveDecisionFromReasonCode
+  normalizeUnresolvedDecision
 } from './import-resolution/reason-codes.js';
 import { isBazelLabelSpecifier, isGeneratedExpectationSpecifier } from './import-resolution/specifier-hints.js';
 
@@ -366,34 +366,30 @@ export const classifyUnresolvedImportSample = (sample) => {
     }
     : classifyCategory({ importer, specifier, reason });
   const reasonCode = incomingReasonCode || mapCategoryToReasonCode(classified.category);
-  const decision = resolveDecisionFromReasonCode(reasonCode);
-  const disposition = typeof sample?.disposition === 'string' && sample.disposition.trim()
-    ? sample.disposition.trim()
-    : decision.disposition;
-  const resolverStage = typeof sample?.resolverStage === 'string' && sample.resolverStage.trim()
-    ? sample.resolverStage.trim()
-    : decision.resolverStage;
-  const failureCause = typeof sample?.failureCause === 'string' && sample.failureCause.trim()
-    ? sample.failureCause.trim()
-    : decision.failureCause;
+  const decision = normalizeUnresolvedDecision({
+    reasonCode,
+    failureCause: sample?.failureCause,
+    disposition: sample?.disposition,
+    resolverStage: sample?.resolverStage
+  });
   const resolutionState = sample?.resolutionState === IMPORT_RESOLUTION_STATES.RESOLVED
     ? IMPORT_RESOLUTION_STATES.RESOLVED
     : IMPORT_RESOLUTION_STATES.UNRESOLVED;
-  const suppressLive = disposition !== IMPORT_DISPOSITIONS.ACTIONABLE;
+  const suppressLive = decision.disposition !== IMPORT_DISPOSITIONS.ACTIONABLE;
   return {
     importer,
     specifier,
     reason,
-    reasonCode,
+    reasonCode: decision.reasonCode,
     resolutionState,
-    failureCause,
-    disposition,
-    resolverStage,
+    failureCause: decision.failureCause,
+    disposition: decision.disposition,
+    resolverStage: decision.resolverStage,
     category: classified.category,
     confidence: classified.confidence,
     suggestedRemediation: classified.suggestedRemediation,
     suppressLive,
-    actionable: disposition === IMPORT_DISPOSITIONS.ACTIONABLE
+    actionable: decision.disposition === IMPORT_DISPOSITIONS.ACTIONABLE
   };
 };
 

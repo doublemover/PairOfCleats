@@ -418,4 +418,17 @@ assert.equal(parseErrorCategory.reasonCode, 'IMP_U_PARSE_ERROR');
 assert.equal(parseErrorCategory.failureCause, 'parse_error');
 assert.equal(parseErrorCategory.resolutionState, 'unresolved');
 
+const invalidIncomingFields = classifyUnresolvedImportSample({
+  importer: 'src/noise.js',
+  specifier: './missing.js',
+  reasonCode: 'IMP_U_PARSER_NOISE_SUPPRESSED',
+  failureCause: 'invalid_failure',
+  disposition: 'actionable',
+  resolverStage: 'invalid_stage'
+});
+assert.equal(invalidIncomingFields.reasonCode, 'IMP_U_PARSER_NOISE_SUPPRESSED');
+assert.equal(invalidIncomingFields.failureCause, 'parser_artifact');
+assert.equal(invalidIncomingFields.disposition, 'suppress_live');
+assert.equal(invalidIncomingFields.resolverStage, 'classify');
+
 console.log('import resolution language coverage tests passed');

@@ -8,6 +8,7 @@ export {
   IMPORT_REASON_CODES,
   IMPORT_RESOLUTION_STATES,
   IMPORT_RESOLVER_STAGES,
+  normalizeUnresolvedDecision,
   resolveDecisionFromReasonCode,
   validateResolutionDecision
 } from './import-resolution/reason-codes.js';

@@ -5,6 +5,7 @@ import {
   createUnresolvedDecision,
   IMPORT_REASON_CODES,
   IMPORT_RESOLUTION_STATES,
+  normalizeUnresolvedDecision,
   validateResolutionDecision
 } from '../../../src/index/build/import-resolution.js';
 
@@ -62,6 +63,17 @@ assert.equal(
   invalidReasonCode.errors.some((entry) => entry.includes('unknown reasonCode')),
   true
 );
+
+const normalizedInvalidInput = normalizeUnresolvedDecision({
+  reasonCode: IMPORT_REASON_CODES.PARSER_NOISE_SUPPRESSED,
+  failureCause: 'definitely-not-real',
+  disposition: 'actionable',
+  resolverStage: 'not-a-stage'
+});
+assert.equal(normalizedInvalidInput.reasonCode, IMPORT_REASON_CODES.PARSER_NOISE_SUPPRESSED);
+assert.equal(normalizedInvalidInput.failureCause, 'parser_artifact');
+assert.equal(normalizedInvalidInput.disposition, 'suppress_live');
+assert.equal(normalizedInvalidInput.resolverStage, 'classify');
 
 assert.throws(
   () => assertUnresolvedDecision({
