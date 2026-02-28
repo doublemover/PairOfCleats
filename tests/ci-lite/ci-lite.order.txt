@@ -205,6 +205,7 @@ lang/python/imports
 indexing/imports/expected-artifacts-index
 indexing/imports/fs-exists-index
 indexing/imports/import-build-context-plugins
+indexing/imports/gate-eligibility
 indexing/imports/import-resolution-stage-pipeline
 indexing/imports/stage-pipeline-metrics
 indexing/imports/import-resolution-build-context-cache-key
