@@ -661,6 +661,7 @@ tooling/paths/explicit-repo-root-arg
 ci/suite-runner.smoke
 ci/tooling-lsp-slo-gate.smoke
 ci/tooling-lsp-default-enable-gate.smoke
+ci/import-resolution-slo-gate.smoke
 perf/bench/language-tooling-lsp-guardrail
 tooling/vfs/partial-lsp-open
 retrieval/cache/query-signature-sharded-chunk-meta
@@ -781,6 +782,7 @@ indexing/artifacts/sharded-meta/schema
 shared/subprocess/abort-kills-child
 indexing/artifacts/symbols/symbol-links-by-chunkuid
 indexing/imports/import-scan
+indexing/imports/import-scan-non-js-end-to-end
 embeddings/runner/helper-contracts
 indexing/embeddings/build/explicit-index-root-missing-mode-fails-fast
 indexing/determinism/chunk-meta-ordering-drift
@@ -826,7 +828,6 @@ tooling/lsp/haskell-provider-command-fallback
 tooling/lsp/zig-signature-parse
 tooling/doctor/runtime-requirements-haskell-dedicated
 tooling/doctor/workspace-model-haskell-detection
-tooling/lsp/dedicated-providers-multifile-session-reuse
 tooling/lsp/dart-provider-bootstrap
 tooling/lsp/dart-provider-workspace-guard
 tooling/lsp/dart-provider-command-fallback
@@ -839,7 +840,6 @@ tooling/lsp/session-pool-poisoned-recycle
 tooling/lsp/session-pool-max-lifetime-recycle
 tooling/doctor/runtime-requirements-dart-dedicated
 tooling/doctor/workspace-model-dart-detection
-tooling/doctor/dedicated-provider-handshake-fixtures
 tooling/doctor/runtime-requirements-solargraph-dedicated
 tooling/doctor/runtime-requirements-phpactor-dedicated
 tooling/doctor/workspace-model-solargraph-detection
@@ -858,7 +858,6 @@ tooling/config/dump
 tooling/config/tooling-lsp-lifecycle-and-dedicated-passthrough
 tooling/config/tooling-load-preserves-lsp-and-dedicated
 tooling/triage/decision
-tooling/doctor/scm-none-annotate-disabled
 services/snapshots/concurrent-registry-writers
 tooling/lsp/sourcekit-provider-output-shape
 workspace/build-pointer-invalid-scenarios
@@ -870,7 +869,6 @@ services/snapshot-freeze
 indexing/discovery/discover
 smoke/baseline
 tooling/lsp/typescript/destructured-param-names
-tooling/doctor/json-stable
 indexing/validate/determinism-line-hash
 indexing/segments/segment-uid-derived
 cli/general/cli

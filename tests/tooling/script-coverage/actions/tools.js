@@ -282,6 +282,15 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
     covers: ['get-last-failure']
   },
   {
+    label: 'import-resolution-slo-gate-help',
+    run: () => runNode(
+      'import-resolution-slo-gate',
+      path.join(root, 'tools', 'ci', 'import-resolution-slo-gate.js'),
+      ['--help']
+    ),
+    covers: ['import-resolution-slo-gate']
+  },
+  {
     label: 'shard-census-help',
     run: () => runNode('shard-census', path.join(root, 'tools', 'index', 'shard-census.js'), ['--help']),
     covers: ['shard-census']

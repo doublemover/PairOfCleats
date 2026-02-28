@@ -139,6 +139,7 @@ const main = async () => {
   const toolingLspSloJson = path.join(diagnosticsDir, 'tooling-lsp-slo-gate.json');
   const toolingLspDefaultEnableJson = path.join(diagnosticsDir, 'tooling-lsp-default-enable-gate.json');
   const toolingLspGuardrailJson = path.join(diagnosticsDir, 'tooling-lsp-guardrail.json');
+  const importResolutionSloJson = path.join(diagnosticsDir, 'import-resolution-slo-gate.json');
   validateUsrGuardrailGates();
 
   if (!argv['dry-run']) {
@@ -238,6 +239,23 @@ const main = async () => {
         junitPath,
         '--log-dir',
         logDir
+      ]
+    },
+    {
+      label: 'Import resolution SLO gate',
+      command: process.execPath,
+      args: [
+        'tools/ci/import-resolution-slo-gate.js',
+        '--mode',
+        mode,
+        '--repo',
+        ROOT,
+        '--json',
+        importResolutionSloJson,
+        '--actionable-unresolved-rate-max',
+        mode === 'nightly' ? '0.45' : '0.60',
+        '--min-unresolved-samples',
+        '5'
       ]
     },
     ...(mode === 'nightly'

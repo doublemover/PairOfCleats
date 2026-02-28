@@ -39,6 +39,7 @@ assertRequired(ciOutput, [
   /tools[\\/]ci[\\/]tooling-doctor-gate\.js --mode ci/,
   /tools[\\/]ci[\\/]tooling-lsp-slo-gate\.js --mode ci --doctor/,
   /tools[\\/]ci[\\/]tooling-lsp-default-enable-gate\.js/,
+  /tools[\\/]ci[\\/]import-resolution-slo-gate\.js --mode ci/,
   /tools[\\/]bench[\\/]language[\\/]tooling-lsp-guardrail\.js --report/
 ], 'ci');
 

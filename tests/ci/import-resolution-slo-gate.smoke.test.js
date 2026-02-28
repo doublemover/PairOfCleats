@@ -1,0 +1,178 @@
+#!/usr/bin/env node
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+
+const ROOT = process.cwd();
+const gatePath = path.join(ROOT, 'tools', 'ci', 'import-resolution-slo-gate.js');
+const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-import-resolution-gate-'));
+
+const writeGraph = async (targetPath, payload) => {
+  await fs.writeFile(targetPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+};
+
+try {
+  const passGraphPath = path.join(tempRoot, 'import_resolution_graph.pass.json');
+  const passJsonPath = path.join(tempRoot, 'import-resolution-slo-gate.pass.json');
+  await writeGraph(passGraphPath, {
+    generatedAt: new Date().toISOString(),
+    stats: {
+      unresolved: 10,
+      unresolvedActionable: 2
+    },
+    warnings: [
+      {
+        importer: 'src/main.ts',
+        specifier: './missing.ts',
+        reason: 'unresolved',
+        reasonCode: 'IMP_U_MISSING_FILE_RELATIVE',
+        failureCause: 'missing_file',
+        disposition: 'actionable',
+        resolverStage: 'filesystem_probe'
+      },
+      {
+        importer: 'tests/fixtures/case.ts',
+        specifier: './fixture.ts',
+        reason: 'unresolved',
+        reasonCode: 'IMP_U_FIXTURE_REFERENCE',
+        failureCause: 'parser_artifact',
+        disposition: 'suppress_live',
+        resolverStage: 'classify'
+      }
+    ]
+  });
+  const passResult = spawnSync(
+    process.execPath,
+    [
+      gatePath,
+      '--mode',
+      'ci',
+      '--report',
+      passGraphPath,
+      '--json',
+      passJsonPath,
+      '--actionable-unresolved-rate-max',
+      '0.4'
+    ],
+    {
+      cwd: ROOT,
+      env: process.env,
+      encoding: 'utf8'
+    }
+  );
+  if (passResult.status !== 0) {
+    console.error('import resolution slo gate smoke test failed (pass case)');
+    console.error(passResult.stdout || '');
+    console.error(passResult.stderr || '');
+  }
+  assert.equal(passResult.status, 0, `expected pass gate status=0, received ${passResult.status}`);
+
+  const passPayload = JSON.parse(await fs.readFile(passJsonPath, 'utf8'));
+  assert.equal(passPayload?.status, 'ok');
+  assert.equal(passPayload?.metrics?.unresolved, 10);
+  assert.equal(passPayload?.metrics?.actionable, 2);
+  assert.equal(passPayload?.metrics?.gateEligibleUnresolved, 1);
+  assert.equal(passPayload?.metrics?.gateEligibleActionable, 1);
+
+  const failGraphPath = path.join(tempRoot, 'import_resolution_graph.fail.json');
+  const failJsonPath = path.join(tempRoot, 'import-resolution-slo-gate.fail.json');
+  await writeGraph(failGraphPath, {
+    generatedAt: new Date().toISOString(),
+    stats: {
+      unresolved: 10,
+      unresolvedActionable: 8
+    },
+    warnings: [
+      {
+        importer: 'src/main.ts',
+        specifier: './missing.ts',
+        reason: 'unresolved',
+        reasonCode: 'IMP_U_MISSING_FILE_RELATIVE',
+        failureCause: 'missing_file',
+        disposition: 'actionable',
+        resolverStage: 'filesystem_probe'
+      }
+    ]
+  });
+  const failResult = spawnSync(
+    process.execPath,
+    [
+      gatePath,
+      '--mode',
+      'ci',
+      '--report',
+      failGraphPath,
+      '--json',
+      failJsonPath,
+      '--actionable-unresolved-rate-max',
+      '0.5'
+    ],
+    {
+      cwd: ROOT,
+      env: process.env,
+      encoding: 'utf8'
+    }
+  );
+  assert.equal(failResult.status, 3, `expected fail gate status=3, received ${failResult.status}`);
+  const failPayload = JSON.parse(await fs.readFile(failJsonPath, 'utf8'));
+  assert.equal(failPayload?.status, 'error');
+  assert.ok(
+    Array.isArray(failPayload?.failures) && failPayload.failures.some((entry) => String(entry).includes('actionable unresolved rate')),
+    'expected actionable unresolved rate failure'
+  );
+
+  const fallbackGraphPath = path.join(tempRoot, 'import_resolution_graph.fallback.json');
+  const fallbackJsonPath = path.join(tempRoot, 'import-resolution-slo-gate.fallback.json');
+  await writeGraph(fallbackGraphPath, {
+    generatedAt: new Date().toISOString(),
+    warnings: [
+      {
+        importer: 'tests/fixtures/case.ts',
+        specifier: './fixture.ts',
+        reason: 'unresolved',
+        reasonCode: 'IMP_U_FIXTURE_REFERENCE',
+        failureCause: 'parser_artifact',
+        disposition: 'suppress_live',
+        resolverStage: 'classify'
+      },
+      {
+        importer: 'src/main.ts',
+        specifier: './missing.ts',
+        reason: 'unresolved',
+        reasonCode: 'IMP_U_MISSING_FILE_RELATIVE',
+        failureCause: 'missing_file',
+        disposition: 'actionable',
+        resolverStage: 'filesystem_probe'
+      }
+    ]
+  });
+  const fallbackResult = spawnSync(
+    process.execPath,
+    [
+      gatePath,
+      '--mode',
+      'ci',
+      '--report',
+      fallbackGraphPath,
+      '--json',
+      fallbackJsonPath,
+      '--actionable-unresolved-rate-max',
+      '0.5'
+    ],
+    {
+      cwd: ROOT,
+      env: process.env,
+      encoding: 'utf8'
+    }
+  );
+  assert.equal(fallbackResult.status, 3, `expected fallback gate status=3, received ${fallbackResult.status}`);
+  const fallbackPayload = JSON.parse(await fs.readFile(fallbackJsonPath, 'utf8'));
+  assert.equal(fallbackPayload?.metrics?.unresolved, 1);
+  assert.equal(fallbackPayload?.metrics?.actionable, 1);
+
+  console.log('import resolution slo gate smoke test passed');
+} finally {
+  await fs.rm(tempRoot, { recursive: true, force: true });
+}
