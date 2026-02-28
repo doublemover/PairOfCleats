@@ -43,6 +43,7 @@ retrieval/ann/candidate-set-contract
 indexing/runtime/stage-overrides
 tooling/lsp/swift-signature-parse
 tooling/lsp/python-signature-parse
+shared/subprocess/tracked-event-ledger
 retrieval/ann/embedding-dims-normalization
 indexing/embeddings/cache-layout-provider-model
 tooling/docs/embeddings-cache-sync
@@ -164,6 +165,7 @@ retrieval/federation/repo-selection
 lang/clike/doc-comments
 storage/sqlite/wal-size-limit
 shared/io/remove-path-with-retry
+shared/io/bundle-io-checksum-fail-closed
 graph/output-deterministic
 lang/python/pool
 retrieval/graph/impact-analysis-downstream
@@ -832,6 +834,7 @@ tooling/lsp/provider-metrics-capability-rollup
 tooling/lsp/provider-metrics-hover-timeout-rollup
 tooling/lsp/dart-provider-process-reuse
 tooling/lsp/session-pool-reuse
+tooling/lsp/session-pool-poisoned-recycle
 tooling/lsp/session-pool-max-lifetime-recycle
 tooling/doctor/runtime-requirements-dart-dedicated
 tooling/doctor/workspace-model-dart-detection
@@ -922,6 +925,11 @@ tooling/install/tooling-detect-global-bin-fallbacks
 tooling/install/tooling-dotnet-requirement-probe
 tooling/install/tooling-go-requirement-probe
 tooling/install/tooling-phpactor-phar-plan
+tooling/install/install-phpactor-phar-network-guards
+tooling/install/tooling-detect-pyright-path-key-fallback
+tooling/ci/lsp-embeddings-gates-testing-env
+tooling/ci/lsp-embeddings-gates-timeout-junit
+tooling/ci/run-suite-path-normalization
 lang/contracts/python
 lang/contracts/typescript
 retrieval/contracts/result-shape
