@@ -364,6 +364,11 @@ export async function collectLspTypes({
     const client = lease.client;
     const guard = lease.guard;
     const lifecycleHealth = lease.lifecycleHealth;
+    const killClientSafely = async () => {
+      try {
+        await Promise.resolve(client.kill());
+      } catch {}
+    };
     runtime.pooling = {
       enabled: lease.pooled,
       sessionKey: lease.sessionKey,
@@ -377,9 +382,10 @@ export async function collectLspTypes({
     };
 
     let detachAbortHandler = null;
+    let abortKillPromise = null;
     if (toolingAbortSignal && typeof toolingAbortSignal.addEventListener === 'function') {
       const onAbort = () => {
-        client.kill();
+        abortKillPromise = killClientSafely();
       };
       toolingAbortSignal.addEventListener('abort', onAbort, { once: true });
       detachAbortHandler = () => toolingAbortSignal.removeEventListener('abort', onAbort);
@@ -545,7 +551,7 @@ export async function collectLspTypes({
         message: `${cmd} initialize failed: ${err?.message || err}`
       });
       log(`[index] ${cmd} initialize failed: ${err?.message || err}`);
-      client.kill();
+      await killClientSafely();
       if (detachAbortHandler) {
         try {
           detachAbortHandler();
@@ -749,13 +755,18 @@ export async function collectLspTypes({
           detachAbortHandler();
         } catch {}
       }
+      if (abortKillPromise && typeof abortKillPromise.then === 'function') {
+        try {
+          await abortKillPromise;
+        } catch {}
+      }
       if (shouldShutdownClient) {
         try {
           await client.shutdownAndExit();
         } catch {}
       }
       if (lease.pooled !== true) {
-        client.kill();
+        await killClientSafely();
       }
     }
   });

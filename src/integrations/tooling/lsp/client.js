@@ -273,9 +273,12 @@ export function createLspClient(options) {
     } catch {}
     setTimeout(() => {
       if (isChildRunning(child)) {
-        try {
-          child.kill('SIGKILL');
-        } catch {}
+        killChildProcessTree(child, {
+          killTree: true,
+          detached: killTreeDetached,
+          graceMs: 0,
+          awaitGrace: false
+        }).catch(() => {});
       }
     }, 200).unref?.();
     try {
@@ -433,7 +436,12 @@ export function createLspClient(options) {
       onMessage: handleMessage,
       onError: (err) => {
         log(`[lsp] parse error: ${err.message}`);
-        child?.kill();
+        killChildProcessTree(child, {
+          killTree: true,
+          detached: killTreeDetached,
+          graceMs: 0,
+          awaitGrace: false
+        }).catch(() => {});
       },
       maxBufferBytes,
       maxHeaderBytes,
@@ -687,9 +695,12 @@ export function createLspClient(options) {
     } catch {}
     setTimeout(() => {
       if (current.exitCode === null) {
-        try {
-          current.kill('SIGKILL');
-        } catch {}
+        killChildProcessTree(current, {
+          killTree: true,
+          detached: killTreeDetached,
+          graceMs: 0,
+          awaitGrace: false
+        }).catch(() => {});
       }
     }, 200).unref?.();
     proc = null;
