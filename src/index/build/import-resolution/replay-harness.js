@@ -25,6 +25,15 @@ const toNonNegativeMs = (value) => {
   return Number(numeric.toFixed(3));
 };
 
+const clampActionableCount = ({ unresolved, actionable }) => {
+  const normalizedUnresolved = Math.max(0, Math.floor(Number(unresolved) || 0));
+  const normalizedActionable = Math.max(0, Math.floor(Number(actionable) || 0));
+  return {
+    unresolved: normalizedUnresolved,
+    actionable: Math.min(normalizedUnresolved, normalizedActionable)
+  };
+};
+
 const bumpCount = (target, key, amount = 1) => {
   if (!key) return;
   const current = Number(target[key]) || 0;
@@ -299,18 +308,29 @@ export const aggregateImportResolutionGraphPayloads = (
       && statsGateEligibleActionable != null
     );
     const hasStatsGateTotals = statsUnresolved != null && statsActionable != null;
-    const unresolved = hasStatsGateEligibleTotals
+    const unresolvedRaw = hasStatsGateEligibleTotals
       ? statsGateEligibleUnresolved
       : (hasStatsGateTotals ? statsUnresolved : eligibleUnresolved);
-    const actionable = hasStatsGateEligibleTotals
+    const actionableRaw = hasStatsGateEligibleTotals
       ? statsGateEligibleActionable
       : (hasStatsGateTotals ? statsActionable : eligibleActionable);
-    const gateEligibleUnresolved = hasStatsGateEligibleTotals
+    const gateEligibleUnresolvedRaw = hasStatsGateEligibleTotals
       ? statsGateEligibleUnresolved
       : eligibleUnresolved;
-    const gateEligibleActionable = hasStatsGateEligibleTotals
+    const gateEligibleActionableRaw = hasStatsGateEligibleTotals
       ? statsGateEligibleActionable
       : eligibleActionable;
+    const { unresolved, actionable } = clampActionableCount({
+      unresolved: unresolvedRaw,
+      actionable: actionableRaw
+    });
+    const {
+      unresolved: gateEligibleUnresolved,
+      actionable: gateEligibleActionable
+    } = clampActionableCount({
+      unresolved: gateEligibleUnresolvedRaw,
+      actionable: gateEligibleActionableRaw
+    });
 
     const observedUnresolved = statsUnresolved ?? warnings.length;
     const observedActionable = statsActionable

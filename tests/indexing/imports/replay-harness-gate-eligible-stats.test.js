@@ -29,4 +29,22 @@ assert.deepEqual(
   'expected actionable repo rollup to align with gate-eligible actionable totals'
 );
 
+const clamped = aggregateImportResolutionGraphPayloads([
+  {
+    reportPath: 'repo-overflow/import_resolution_graph.json',
+    payload: {
+      generatedAt: new Date().toISOString(),
+      stats: {
+        unresolvedGateEligible: 2,
+        unresolvedActionableGateEligible: 5
+      },
+      warnings: []
+    }
+  }
+]);
+assert.equal(clamped.totals.unresolved, 2, 'expected unresolved totals to preserve gate-eligible unresolved counts');
+assert.equal(clamped.totals.actionable, 2, 'expected actionable totals to clamp at unresolved counts');
+assert.equal(clamped.totals.gateEligibleUnresolved, 2, 'expected gate-eligible unresolved totals');
+assert.equal(clamped.totals.gateEligibleActionable, 2, 'expected clamped gate-eligible actionable totals');
+
 console.log('import-resolution replay harness gate-eligible stats test passed');
