@@ -231,7 +231,7 @@ export const acquireFileLock = async ({
           const staleOwner = buildOwnerFromLockInfo(info);
           const removed = staleOwner
             ? await removeLockFileIfOwned(lockPath, staleOwner)
-            : false;
+            : await removeLockFileIfOwned(lockPath, null, { force: true });
           if (!removed) {
             if (deadline != null && Date.now() < deadline) {
               await sleepWithAbort(resolvedPollMs, lockSignal);

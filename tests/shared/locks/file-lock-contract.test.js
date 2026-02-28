@@ -30,6 +30,17 @@ const deadPidLock = await acquireFileLock({ lockPath, staleMs: 24 * 60 * 60 * 10
 assert.ok(deadPidLock, 'expected dead-pid lock to be replaced');
 await deadPidLock.release();
 
+await fsPromises.writeFile(lockPath, 'not-json-lock');
+await fsPromises.utimes(lockPath, new Date(Date.now() - 60_000), new Date(Date.now() - 60_000));
+const corruptStaleLock = await acquireFileLock({ lockPath, staleMs: 1_000, waitMs: 0 });
+assert.ok(corruptStaleLock, 'expected stale corrupt lock to be replaced even without owner metadata');
+await corruptStaleLock.release();
+
+await fsPromises.writeFile(lockPath, 'not-json-lock');
+const corruptFreshLock = await acquireFileLock({ lockPath, staleMs: 60_000, waitMs: 0 });
+assert.equal(corruptFreshLock, null, 'expected fresh corrupt lock to remain busy until stale');
+await fsPromises.rm(lockPath, { force: true });
+
 await fsPromises.writeFile(
   lockPath,
   JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }),
