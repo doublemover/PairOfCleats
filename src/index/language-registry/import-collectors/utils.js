@@ -67,7 +67,9 @@ export const applyCollectorSourceBudget = (
 
 export const createCollectorScanBudget = ({
   maxMatches = 512,
-  maxTokens = 512
+  maxTokens = 512,
+  maxMs = 0,
+  timeSource = Date.now
 } = {}) => {
   const normalizeCap = (value) => {
     const numeric = Number(value);
@@ -76,29 +78,170 @@ export const createCollectorScanBudget = ({
   };
   const limits = {
     maxMatches: normalizeCap(maxMatches),
-    maxTokens: normalizeCap(maxTokens)
+    maxTokens: normalizeCap(maxTokens),
+    maxMs: normalizeCap(maxMs)
   };
+  const now = typeof timeSource === 'function' ? timeSource : Date.now;
+  const startedAt = Number(now());
   let matches = 0;
   let tokens = 0;
+  let timedOut = false;
+  const refreshTimeout = () => {
+    if (timedOut || limits.maxMs <= 0) return !timedOut;
+    const current = Number(now());
+    if (!Number.isFinite(current)) return true;
+    if (current - startedAt < limits.maxMs) return true;
+    timedOut = true;
+    return false;
+  };
+  const matchesExhausted = () => limits.maxMatches > 0 && matches >= limits.maxMatches;
+  const tokensExhausted = () => limits.maxTokens > 0 && tokens >= limits.maxTokens;
   return {
     limits,
+    get matchesUsed() {
+      return matches;
+    },
+    get tokensUsed() {
+      return tokens;
+    },
+    get elapsedMs() {
+      const current = Number(now());
+      if (!Number.isFinite(current) || !Number.isFinite(startedAt)) return 0;
+      return Math.max(0, current - startedAt);
+    },
+    get timedOut() {
+      refreshTimeout();
+      return timedOut;
+    },
+    get matchesExhausted() {
+      return matchesExhausted();
+    },
+    get tokensExhausted() {
+      return tokensExhausted();
+    },
     get exhausted() {
+      refreshTimeout();
       return (
-        (limits.maxMatches > 0 && matches >= limits.maxMatches)
-        || (limits.maxTokens > 0 && tokens >= limits.maxTokens)
+        timedOut
+        || matchesExhausted()
+        || tokensExhausted()
       );
     },
+    consumeTime() {
+      return refreshTimeout();
+    },
     consumeMatch() {
+      if (!refreshTimeout()) return false;
       if (limits.maxMatches === 0) return true;
       if (matches >= limits.maxMatches) return false;
       matches += 1;
-      return true;
+      return refreshTimeout();
     },
     consumeToken() {
+      if (!refreshTimeout()) return false;
       if (limits.maxTokens === 0) return true;
       if (tokens >= limits.maxTokens) return false;
       tokens += 1;
-      return true;
+      return refreshTimeout();
+    }
+  };
+};
+
+const normalizeCollectorBudgetValue = (value, fallback) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return Math.max(0, Math.floor(Number(fallback) || 0));
+  return Math.max(0, Math.floor(numeric));
+};
+
+const readCollectorBudgetOverrides = (options, collectorId) => {
+  if (!options || typeof options !== 'object') return {};
+  const global = options.collectorScanBudget;
+  const perCollector = options.collectorScanBudgets;
+  const byId = perCollector
+    && typeof perCollector === 'object'
+    && !Array.isArray(perCollector)
+    && collectorId
+    && perCollector[collectorId]
+    && typeof perCollector[collectorId] === 'object'
+    ? perCollector[collectorId]
+    : null;
+  return {
+    ...(global && typeof global === 'object' && !Array.isArray(global) ? global : {}),
+    ...(byId || {})
+  };
+};
+
+export const resolveCollectorBudgetConfig = ({
+  options = null,
+  collectorId = '',
+  defaults = {}
+} = {}) => {
+  const overrides = readCollectorBudgetOverrides(options, collectorId);
+  return {
+    maxChars: normalizeCollectorBudgetValue(overrides.maxChars, defaults.maxChars),
+    maxMatches: normalizeCollectorBudgetValue(overrides.maxMatches, defaults.maxMatches),
+    maxTokens: normalizeCollectorBudgetValue(overrides.maxTokens, defaults.maxTokens),
+    maxMs: normalizeCollectorBudgetValue(overrides.maxMs, defaults.maxMs)
+  };
+};
+
+const emitCollectorBudgetDiagnostic = (options, diagnostic) => {
+  if (!diagnostic || typeof diagnostic !== 'object') return;
+  if (Array.isArray(options?.collectorDiagnostics)) {
+    options.collectorDiagnostics.push(diagnostic);
+  }
+  if (typeof options?.onCollectorDiagnostic === 'function') {
+    try {
+      options.onCollectorDiagnostic(diagnostic);
+    } catch {}
+  }
+};
+
+export const createCollectorBudgetContext = ({
+  text,
+  options = null,
+  collectorId = '',
+  defaults = {}
+} = {}) => {
+  const budget = resolveCollectorBudgetConfig({ options, collectorId, defaults });
+  const source = String(text || '');
+  const sourceBudget = applyCollectorSourceBudget(source, { maxChars: budget.maxChars });
+  const scanBudget = createCollectorScanBudget({
+    maxMatches: budget.maxMatches,
+    maxTokens: budget.maxTokens,
+    maxMs: budget.maxMs,
+    timeSource: typeof options?.collectorNow === 'function' ? options.collectorNow : Date.now
+  });
+  let finalized = false;
+  return {
+    source: sourceBudget.source,
+    sourceLength: source.length,
+    sourceBudget,
+    scanBudget,
+    budget,
+    finalize() {
+      if (finalized) return;
+      finalized = true;
+      const reasons = [];
+      if (sourceBudget.truncated) reasons.push('source_bytes');
+      if (scanBudget.matchesExhausted) reasons.push('scan_matches');
+      if (scanBudget.tokensExhausted) reasons.push('scan_tokens');
+      if (scanBudget.timedOut) reasons.push('scan_time');
+      if (!reasons.length) return;
+      emitCollectorBudgetDiagnostic(options, {
+        type: 'collector-scan-budget',
+        collectorId,
+        reasons,
+        sourceLength: source.length,
+        sourceScannedLength: sourceBudget.source.length,
+        maxChars: budget.maxChars,
+        maxMatches: budget.maxMatches,
+        maxTokens: budget.maxTokens,
+        maxMs: budget.maxMs,
+        elapsedMs: scanBudget.elapsedMs,
+        matchesUsed: scanBudget.matchesUsed,
+        tokensUsed: scanBudget.tokensUsed
+      });
     }
   };
 };

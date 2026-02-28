@@ -435,6 +435,30 @@ const cases = [
     expected: ['System.Text']
   },
   {
+    label: 'razor-static-using',
+    fn: collectRazorImports,
+    text: '@using static System.Math',
+    expected: ['System.Math']
+  },
+  {
+    label: 'razor-alias-using',
+    fn: collectRazorImports,
+    text: '@using Json = System.Text.Json;',
+    expected: ['System.Text.Json']
+  },
+  {
+    label: 'razor-inline-block-comment-tail',
+    fn: collectRazorImports,
+    text: '@using System.Text @* trailing note *@',
+    expected: ['System.Text']
+  },
+  {
+    label: 'razor-using-expression-not-import',
+    fn: collectRazorImports,
+    text: '@using (Html.BeginForm()) { }',
+    expected: []
+  },
+  {
     label: 'collector-long-line-budget',
     fn: collectGraphqlImports,
     text: `#import "${'a'.repeat(8193)}.graphql"`,
