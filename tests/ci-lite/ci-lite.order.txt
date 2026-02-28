@@ -784,6 +784,7 @@ indexing/artifacts/symbols/symbol-links-by-chunkuid
 indexing/imports/import-scan
 indexing/imports/import-scan-non-js-end-to-end
 indexing/imports/decision-model-contract
+indexing/imports/import-scan-post-graph-stats
 embeddings/runner/helper-contracts
 indexing/embeddings/build/explicit-index-root-missing-mode-fails-fast
 indexing/determinism/chunk-meta-ordering-drift
