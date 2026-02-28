@@ -43,6 +43,14 @@ const formatUnresolvedResolverStageCounts = (resolverStages) => {
   return entries.map(([stage, count]) => `${stage}=${Number(count)}`).join(', ');
 };
 
+const formatBudgetExhaustedByType = (counts) => {
+  const entries = Object.entries(counts || {})
+    .filter(([kind, count]) => kind && Number.isFinite(Number(count)) && Number(count) > 0)
+    .sort((a, b) => sortStrings(a[0], b[0]));
+  if (entries.length === 0) return 'none';
+  return entries.map(([kind, count]) => `${kind}=${Number(count)}`).join(', ');
+};
+
 const formatUnresolvedActionableHotspots = (hotspots, maxEntries = 3) => {
   const normalized = Array.isArray(hotspots)
     ? hotspots
@@ -126,6 +134,13 @@ const logUnresolvedImportSamples = ({
   );
   log(`[imports] unresolved reason codes: ${formatUnresolvedReasonCodeCounts(summary?.reasonCodes)}`);
   log(`[imports] unresolved resolver stages: ${formatUnresolvedResolverStageCounts(summary?.resolverStages)}`);
+  const budgetExhausted = Number(summary?.resolverBudgetExhausted || 0);
+  if (budgetExhausted > 0) {
+    log(
+      `[imports] unresolved resolver budgets exhausted: ${budgetExhausted} ` +
+      `(byType=${formatBudgetExhaustedByType(summary?.resolverBudgetExhaustedByType)})`
+    );
+  }
   log(`[imports] unresolved actionable hotspots: ${formatUnresolvedActionableHotspots(summary?.actionableHotspots)}`);
   log(`[imports] unresolved import samples (${visible.length} live of ${total}):`);
   for (const entry of visible) {
@@ -355,7 +370,14 @@ export const postScanImports = async ({
   });
   throwIfAborted(abortSignal);
   const unresolvedSamples = normalizeUnresolvedSamples(resolution?.unresolvedSamples);
-  const unresolvedTaxonomy = summarizeUnresolvedImportTaxonomy(unresolvedSamples);
+  const unresolvedTaxonomyBase = summarizeUnresolvedImportTaxonomy(unresolvedSamples);
+  const resolverBudgetExhausted = Number(resolution?.stats?.unresolvedBudgetExhausted) || 0;
+  const resolverBudgetExhaustedByType = resolution?.stats?.unresolvedBudgetExhaustedByType || {};
+  const unresolvedTaxonomy = {
+    ...unresolvedTaxonomyBase,
+    resolverBudgetExhausted,
+    resolverBudgetExhaustedByType
+  };
   if (resolution?.graph && Array.isArray(resolution.graph.warnings)) {
     resolution.graph.warnings = unresolvedSamples.map((sample) => ({ ...sample }));
     if (resolution.graph.stats && typeof resolution.graph.stats === 'object') {
@@ -376,6 +398,8 @@ export const postScanImports = async ({
       resolution.graph.stats.unresolvedActionableRate = unresolvedTaxonomy.actionableUnresolvedRate;
       resolution.graph.stats.unresolvedParserArtifactRate = unresolvedTaxonomy.parserArtifactRate;
       resolution.graph.stats.unresolvedResolverGapRate = unresolvedTaxonomy.resolverGapRate;
+      resolution.graph.stats.unresolvedBudgetExhausted = resolverBudgetExhausted;
+      resolution.graph.stats.unresolvedBudgetExhaustedByType = resolverBudgetExhaustedByType;
       resolution.graph.stats.unresolvedResolverSuppressed = resolverSuppressed;
     }
   }
@@ -399,6 +423,8 @@ export const postScanImports = async ({
     resolvedStats.unresolvedActionableRate = unresolvedTaxonomy.actionableUnresolvedRate;
     resolvedStats.unresolvedParserArtifactRate = unresolvedTaxonomy.parserArtifactRate;
     resolvedStats.unresolvedResolverGapRate = unresolvedTaxonomy.resolverGapRate;
+    resolvedStats.unresolvedBudgetExhausted = resolverBudgetExhausted;
+    resolvedStats.unresolvedBudgetExhaustedByType = resolverBudgetExhaustedByType;
   }
   const resolvedResult = {
     importsByFile,
@@ -406,6 +432,8 @@ export const postScanImports = async ({
     unresolvedSamples,
     unresolvedSuppressed: resolution?.unresolvedSuppressed || 0,
     unresolvedTaxonomy,
+    resolverBudgetExhausted,
+    resolverBudgetExhaustedByType,
     cacheDiagnostics: cacheDiagnostics || null,
     cacheStats: resolution?.cacheStats || cacheStats || null,
     durationMs: Date.now() - importStart

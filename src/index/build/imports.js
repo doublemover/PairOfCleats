@@ -450,6 +450,7 @@ export const summarizeUnresolvedImportTaxonomy = (samples) => {
   const total = normalized.length;
   const parserArtifact = categoryCounts.get(UNRESOLVED_IMPORT_CATEGORIES.PARSER_ARTIFACT) || 0;
   const resolverGap = categoryCounts.get(UNRESOLVED_IMPORT_CATEGORIES.RESOLVER_GAP) || 0;
+  const resolverBudgetExhausted = reasonCodeCounts.get(IMPORT_REASON_CODES.RESOLVER_BUDGET_EXHAUSTED) || 0;
   const actionableRate = total > 0 ? actionable / total : 0;
   const parserArtifactRate = total > 0 ? parserArtifact / total : 0;
   const resolverGapRate = total > 0 ? resolverGap / total : 0;
@@ -468,7 +469,9 @@ export const summarizeUnresolvedImportTaxonomy = (samples) => {
     actionableRate,
     actionableUnresolvedRate: actionableRate,
     parserArtifactRate,
-    resolverGapRate
+    resolverGapRate,
+    resolverBudgetExhausted,
+    resolverBudgetExhaustedByType: Object.create(null)
   };
 };
 
