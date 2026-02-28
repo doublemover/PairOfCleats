@@ -41,6 +41,68 @@ export const addCollectorImport = (imports, value, sanitizeOptions = undefined) 
   return true;
 };
 
+export const applyCollectorSourceBudget = (
+  text,
+  { maxChars = 524288 } = {}
+) => {
+  const source = String(text || '');
+  const normalizedMax = Math.max(0, Math.floor(Number(maxChars) || 0));
+  if (!normalizedMax) {
+    return {
+      source: '',
+      truncated: source.length > 0
+    };
+  }
+  if (source.length <= normalizedMax) {
+    return {
+      source,
+      truncated: false
+    };
+  }
+  return {
+    source: source.slice(0, normalizedMax),
+    truncated: true
+  };
+};
+
+export const createCollectorScanBudget = ({
+  maxMatches = 512,
+  maxTokens = 512
+} = {}) => {
+  const normalizeCap = (value) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return 0;
+    return Math.max(0, Math.floor(numeric));
+  };
+  const limits = {
+    maxMatches: normalizeCap(maxMatches),
+    maxTokens: normalizeCap(maxTokens)
+  };
+  let matches = 0;
+  let tokens = 0;
+  return {
+    limits,
+    get exhausted() {
+      return (
+        (limits.maxMatches > 0 && matches >= limits.maxMatches)
+        || (limits.maxTokens > 0 && tokens >= limits.maxTokens)
+      );
+    },
+    consumeMatch() {
+      if (limits.maxMatches === 0) return true;
+      if (matches >= limits.maxMatches) return false;
+      matches += 1;
+      return true;
+    },
+    consumeToken() {
+      if (limits.maxTokens === 0) return true;
+      if (tokens >= limits.maxTokens) return false;
+      tokens += 1;
+      return true;
+    }
+  };
+};
+
 const clampUnit = (value) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return null;

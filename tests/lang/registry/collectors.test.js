@@ -239,6 +239,18 @@ const cases = [
     expected: ['@rules_go', '//tools:deps.bzl']
   },
   {
+    label: 'starlark-ignores-string-noise',
+    fn: collectStarlarkImports,
+    text: [
+      'DOC = """',
+      'load("//ignored:target", "x")',
+      'bazel_dep(name = "ignored")',
+      '"""',
+      'load("//real:target", "x")'
+    ].join('\n'),
+    expected: ['//real:target']
+  },
+  {
     label: 'nix',
     fn: collectNixImports,
     text: [
@@ -279,6 +291,45 @@ const cases = [
       'import ./real.nix'
     ].join('\n'),
     expected: ['./real.nix']
+  },
+  {
+    label: 'nix-ignores-quoted-doc-noise',
+    fn: collectNixImports,
+    text: [
+      'let',
+      "  doc = ''",
+      '    import ./ignored-in-doc.nix',
+      "    builtins.getFlake \"github:ignored/example\"",
+      "  '';",
+      'in {',
+      '  imports = [ ./real.nix ];',
+      '}'
+    ].join('\n'),
+    expected: ['./real.nix']
+  },
+  {
+    label: 'starlark-budget-cap',
+    fn: collectStarlarkImports,
+    text: Array.from(
+      { length: 700 },
+      (_, index) => `bazel_dep(name = "rules_${String(index).padStart(4, '0')}")`
+    ).join('\n'),
+    expected: Array.from(
+      { length: 512 },
+      (_, index) => `@rules_${String(index).padStart(4, '0')}`
+    )
+  },
+  {
+    label: 'nix-budget-cap',
+    fn: collectNixImports,
+    text: `imports = [ ${Array.from(
+      { length: 1400 },
+      (_, index) => `./modules/m${String(index).padStart(4, '0')}.nix`
+    ).join(' ')} ];`,
+    expected: Array.from(
+      { length: 1024 },
+      (_, index) => `./modules/m${String(index).padStart(4, '0')}.nix`
+    )
   },
   {
     label: 'dart',
