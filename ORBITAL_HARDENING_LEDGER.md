@@ -264,7 +264,7 @@ Static audit findings across `NEON_TIDE`, including deeper remediation guidance 
 - Better fix:
   - Reuse shared path-entry resolver everywhere (`splitPathEntries(resolveEnvPath(env))`) to eliminate per-callsite divergence.
 
-#### 23) P1 - Orphaned subprocesses (OpenJDK/Erlang/Node/etc.) after index/build/test flows
+#### 23) P1 - Orphaned subprocesses (OpenJDK/Erlang/Node/etc.) after index/build/test flows (Completed 2026-02-28T04:10:00Z)
 - Location: `src/shared/subprocess/**`, `src/integrations/tooling/providers/lsp/**`, `src/index/tooling/**`, `tools/**`, and any direct `spawn`/`spawnSync` callsites used by indexing/testing.
 - Problem: some subprocesses survive beyond their intended lifecycle (normal completion and failure paths), indicating inconsistent cleanup ownership and non-uniform use of shared process lifecycle modules.
 - Baseline fix:
@@ -279,6 +279,12 @@ Static audit findings across `NEON_TIDE`, including deeper remediation guidance 
     - probe for still-alive descendants,
     - fail gate (or hard-warn in non-gate mode) when leaked process count exceeds strict threshold.
   - Add targeted tests for abrupt-failure scenarios (timeout/abort/crash-loop) to verify no lingering child processes across platforms.
+- Implemented:
+  - Added synchronous tracked-subprocess teardown (`terminateTrackedSubprocessesSync`) and wired `process.exit`/`uncaughtExceptionMonitor` hooks to use deterministic sync reaping.
+  - Fixed timeout/abort subprocess paths so they no longer unregister tracked children before a reap/close signal can occur.
+  - Hardened non-blocking kill-tree behavior for both POSIX and Windows to force-kill immediately when `awaitGrace=false` and no grace window is requested.
+  - Updated LSP client tracking so kill/restart paths do not drop tracked ownership before transport exit.
+  - Added cleanup guardrails in test runtime and new targeted regression coverage (`shared/subprocess/process-exit-cleanup`, timeout/abort tracked cleanup assertions, and LSP restart tracked-registry assertions).
 
 #### 28) P2 - Timeout policy misclassifies slow-pass tests as hard failures
 - Location: `tests/run.js`, lane ordering files (`tests/ci-lite/ci-lite.order.txt`, `tests/ci/ci.order.txt`, `tests/ci-long/ci-long.order.txt`)
