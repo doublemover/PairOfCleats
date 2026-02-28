@@ -51,6 +51,55 @@ assert.equal(
   'expected malformed JSON cache read failure log'
 );
 
+await fs.writeFile(cachePath, JSON.stringify({
+  version: malformedLoad.cache.version,
+  diagnostics: {
+    version: 3,
+    unresolvedTrend: {
+      previous: null,
+      current: {
+        total: 1,
+        actionable: 1,
+        liveSuppressed: 0,
+        gateSuppressed: 0,
+        categories: { missing_file: 1 },
+        reasonCodes: { IMP_U_NOT_REAL: 1 },
+        failureCauses: { missing_file: 1 },
+        dispositions: { actionable: 1 },
+        resolverStages: { filesystem_probe: 1 },
+        resolverBudgetExhausted: 0,
+        resolverBudgetExhaustedByType: {},
+        actionableHotspots: [],
+        actionableRate: 1,
+        liveSuppressedCategories: []
+      },
+      deltaTotal: 1,
+      deltaByCategory: { missing_file: 1 },
+      deltaByReasonCode: { IMP_U_NOT_REAL: 1 },
+      deltaByFailureCause: { missing_file: 1 },
+      deltaByDisposition: { actionable: 1 },
+      deltaByResolverStage: { filesystem_probe: 1 },
+      deltaResolverBudgetExhausted: 0,
+      deltaResolverBudgetExhaustedByType: {}
+    }
+  }
+}, null, 2));
+await assert.rejects(
+  () => loadImportResolutionCache({
+    incrementalState: { incrementalDir },
+    log
+  }),
+  (error) => {
+    assert.equal(error?.code, 'ERR_IMPORT_RESOLUTION_CACHE_INCOMPATIBLE');
+    assert.equal(
+      String(error?.message || '').includes('Unknown reasonCode keys: IMP_U_NOT_REAL'),
+      true
+    );
+    return true;
+  },
+  'unknown taxonomy enum keys should force cache incompatibility'
+);
+
 await saveImportResolutionCache({
   cache: malformedLoad.cache,
   cachePath: malformedLoad.cachePath

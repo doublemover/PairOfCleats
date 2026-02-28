@@ -3,6 +3,12 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { sha1 } from '../../shared/hash.js';
+import {
+  IMPORT_DISPOSITIONS,
+  IMPORT_FAILURE_CAUSES,
+  IMPORT_REASON_CODES,
+  IMPORT_RESOLVER_STAGES
+} from './import-resolution/reason-codes.js';
 
 const CACHE_VERSION = 5;
 const CACHE_FILE = 'import-resolution-cache.json';
@@ -24,6 +30,10 @@ const isObject = (value) => (
 );
 
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
+const KNOWN_REASON_CODES = new Set(Object.values(IMPORT_REASON_CODES));
+const KNOWN_FAILURE_CAUSES = new Set(Object.values(IMPORT_FAILURE_CAUSES));
+const KNOWN_DISPOSITIONS = new Set(Object.values(IMPORT_DISPOSITIONS));
+const KNOWN_RESOLVER_STAGES = new Set(Object.values(IMPORT_RESOLVER_STAGES));
 
 const normalizeStringList = (value) => {
   if (!Array.isArray(value)) return [];
@@ -44,10 +54,26 @@ const normalizeCount = (value, { allowNegative = false } = {}) => {
   return Math.trunc(numeric);
 };
 
-const normalizeCategoryCounts = (counts, { allowNegative = false } = {}) => {
+const normalizeCategoryCounts = (
+  counts,
+  {
+    allowNegative = false,
+    allowedKeys = null,
+    unknownKeysOut = null
+  } = {}
+) => {
   if (!isObject(counts)) return Object.create(null);
   const entries = Object.entries(counts)
-    .filter(([category]) => typeof category === 'string' && category.trim())
+    .filter(([category]) => {
+      if (typeof category !== 'string') return false;
+      const trimmed = category.trim();
+      if (!trimmed) return false;
+      if (allowedKeys && !allowedKeys.has(trimmed)) {
+        if (Array.isArray(unknownKeysOut)) unknownKeysOut.push(trimmed);
+        return false;
+      }
+      return true;
+    })
     .map(([category, value]) => [category.trim(), normalizeCount(value, { allowNegative })])
     .sort((a, b) => sortStrings(a[0], b[0]));
   const output = Object.create(null);
@@ -74,13 +100,56 @@ const normalizeActionableHotspots = (hotspots) => {
     .slice(0, 20);
 };
 
-const normalizeUnresolvedSnapshot = (raw) => {
+const normalizeUnresolvedSnapshot = (
+  raw,
+  { cachePath = null, cacheVersion = null } = {}
+) => {
   if (!isObject(raw)) return null;
+  const unknownReasonCodes = [];
+  const unknownFailureCauses = [];
+  const unknownDispositions = [];
+  const unknownResolverStages = [];
   const categories = normalizeCategoryCounts(raw.categories);
-  const reasonCodes = normalizeCategoryCounts(raw.reasonCodes);
-  const failureCauses = normalizeCategoryCounts(raw.failureCauses);
-  const dispositions = normalizeCategoryCounts(raw.dispositions);
-  const resolverStages = normalizeCategoryCounts(raw.resolverStages);
+  const reasonCodes = normalizeCategoryCounts(raw.reasonCodes, {
+    allowedKeys: KNOWN_REASON_CODES,
+    unknownKeysOut: unknownReasonCodes
+  });
+  const failureCauses = normalizeCategoryCounts(raw.failureCauses, {
+    allowedKeys: KNOWN_FAILURE_CAUSES,
+    unknownKeysOut: unknownFailureCauses
+  });
+  const dispositions = normalizeCategoryCounts(raw.dispositions, {
+    allowedKeys: KNOWN_DISPOSITIONS,
+    unknownKeysOut: unknownDispositions
+  });
+  const resolverStages = normalizeCategoryCounts(raw.resolverStages, {
+    allowedKeys: KNOWN_RESOLVER_STAGES,
+    unknownKeysOut: unknownResolverStages
+  });
+  throwIfUnknownCategoryKeys({
+    unknownKeys: unknownReasonCodes,
+    fieldName: 'reasonCode',
+    cachePath,
+    cacheVersion
+  });
+  throwIfUnknownCategoryKeys({
+    unknownKeys: unknownFailureCauses,
+    fieldName: 'failureCause',
+    cachePath,
+    cacheVersion
+  });
+  throwIfUnknownCategoryKeys({
+    unknownKeys: unknownDispositions,
+    fieldName: 'disposition',
+    cachePath,
+    cacheVersion
+  });
+  throwIfUnknownCategoryKeys({
+    unknownKeys: unknownResolverStages,
+    fieldName: 'resolverStage',
+    cachePath,
+    cacheVersion
+  });
   const resolverBudgetExhaustedRaw = Number(raw.resolverBudgetExhausted);
   const resolverBudgetExhausted = Number.isFinite(resolverBudgetExhaustedRaw) && resolverBudgetExhaustedRaw >= 0
     ? Math.trunc(resolverBudgetExhaustedRaw)
@@ -132,20 +201,49 @@ const normalizeSuppressionPolicy = (raw) => {
   };
 };
 
-const normalizeDiagnostics = (raw) => {
+const normalizeDiagnostics = (
+  raw,
+  { cachePath = null, cacheVersion = null } = {}
+) => {
   if (!isObject(raw)) return null;
   const unresolvedTrendRaw = isObject(raw.unresolvedTrend) ? raw.unresolvedTrend : {};
+  const unknownDeltaReasonCodes = [];
+  const unknownDeltaFailureCauses = [];
+  const unknownDeltaDispositions = [];
+  const unknownDeltaResolverStages = [];
   const unresolvedTrend = {
-    previous: normalizeUnresolvedSnapshot(unresolvedTrendRaw.previous),
-    current: normalizeUnresolvedSnapshot(unresolvedTrendRaw.current),
+    previous: normalizeUnresolvedSnapshot(unresolvedTrendRaw.previous, {
+      cachePath,
+      cacheVersion
+    }),
+    current: normalizeUnresolvedSnapshot(unresolvedTrendRaw.current, {
+      cachePath,
+      cacheVersion
+    }),
     deltaTotal: Number.isFinite(Number(unresolvedTrendRaw.deltaTotal))
       ? Math.trunc(Number(unresolvedTrendRaw.deltaTotal))
       : null,
     deltaByCategory: normalizeCategoryCounts(unresolvedTrendRaw.deltaByCategory, { allowNegative: true }),
-    deltaByReasonCode: normalizeCategoryCounts(unresolvedTrendRaw.deltaByReasonCode, { allowNegative: true }),
-    deltaByFailureCause: normalizeCategoryCounts(unresolvedTrendRaw.deltaByFailureCause, { allowNegative: true }),
-    deltaByDisposition: normalizeCategoryCounts(unresolvedTrendRaw.deltaByDisposition, { allowNegative: true }),
-    deltaByResolverStage: normalizeCategoryCounts(unresolvedTrendRaw.deltaByResolverStage, { allowNegative: true }),
+    deltaByReasonCode: normalizeCategoryCounts(unresolvedTrendRaw.deltaByReasonCode, {
+      allowNegative: true,
+      allowedKeys: KNOWN_REASON_CODES,
+      unknownKeysOut: unknownDeltaReasonCodes
+    }),
+    deltaByFailureCause: normalizeCategoryCounts(unresolvedTrendRaw.deltaByFailureCause, {
+      allowNegative: true,
+      allowedKeys: KNOWN_FAILURE_CAUSES,
+      unknownKeysOut: unknownDeltaFailureCauses
+    }),
+    deltaByDisposition: normalizeCategoryCounts(unresolvedTrendRaw.deltaByDisposition, {
+      allowNegative: true,
+      allowedKeys: KNOWN_DISPOSITIONS,
+      unknownKeysOut: unknownDeltaDispositions
+    }),
+    deltaByResolverStage: normalizeCategoryCounts(unresolvedTrendRaw.deltaByResolverStage, {
+      allowNegative: true,
+      allowedKeys: KNOWN_RESOLVER_STAGES,
+      unknownKeysOut: unknownDeltaResolverStages
+    }),
     deltaResolverBudgetExhausted: Number.isFinite(Number(unresolvedTrendRaw.deltaResolverBudgetExhausted))
       ? Math.trunc(Number(unresolvedTrendRaw.deltaResolverBudgetExhausted))
       : 0,
@@ -154,6 +252,30 @@ const normalizeDiagnostics = (raw) => {
       { allowNegative: true }
     )
   };
+  throwIfUnknownCategoryKeys({
+    unknownKeys: unknownDeltaReasonCodes,
+    fieldName: 'delta reasonCode',
+    cachePath,
+    cacheVersion
+  });
+  throwIfUnknownCategoryKeys({
+    unknownKeys: unknownDeltaFailureCauses,
+    fieldName: 'delta failureCause',
+    cachePath,
+    cacheVersion
+  });
+  throwIfUnknownCategoryKeys({
+    unknownKeys: unknownDeltaDispositions,
+    fieldName: 'delta disposition',
+    cachePath,
+    cacheVersion
+  });
+  throwIfUnknownCategoryKeys({
+    unknownKeys: unknownDeltaResolverStages,
+    fieldName: 'delta resolverStage',
+    cachePath,
+    cacheVersion
+  });
   return {
     version: CACHE_DIAGNOSTICS_VERSION,
     suppressionPolicy: normalizeSuppressionPolicy(raw.suppressionPolicy),
@@ -174,19 +296,40 @@ const createEmptyCache = () => ({
 
 const createIncompatibleCacheError = ({
   cachePath = null,
-  foundVersion = null
+  foundVersion = null,
+  detail = null
 } = {}) => {
   const foundLabel = foundVersion == null ? 'missing' : String(foundVersion);
   const location = typeof cachePath === 'string' && cachePath ? cachePath : '<unknown>';
+  const suffix = typeof detail === 'string' && detail.trim() ? ` ${detail.trim()}` : '';
   const error = new Error(
     `[imports] incompatible import resolution cache version at ${location}: ` +
-    `found=${foundLabel}, expected=${CACHE_VERSION}. Remove the cache file and rerun.`
+    `found=${foundLabel}, expected=${CACHE_VERSION}. Remove the cache file and rerun.${suffix}`
   );
   error.code = 'ERR_IMPORT_RESOLUTION_CACHE_INCOMPATIBLE';
   error.cachePath = cachePath;
   error.foundVersion = foundVersion;
   error.expectedVersion = CACHE_VERSION;
   return error;
+};
+
+const throwIfUnknownCategoryKeys = ({
+  unknownKeys,
+  fieldName,
+  cachePath,
+  cacheVersion
+}) => {
+  const unique = Array.from(new Set(
+    Array.isArray(unknownKeys)
+      ? unknownKeys.filter((entry) => typeof entry === 'string' && entry.trim())
+      : []
+  )).sort(sortStrings);
+  if (unique.length === 0) return;
+  throw createIncompatibleCacheError({
+    cachePath,
+    foundVersion: cacheVersion,
+    detail: `Unknown ${fieldName} keys: ${unique.join(', ')}`
+  });
 };
 
 const normalizeRelPath = (value) => {
@@ -397,7 +540,10 @@ const normalizeCache = (raw, { cachePath = null } = {}) => {
     cacheKey: typeof raw.cacheKey === 'string' ? raw.cacheKey : null,
     files,
     lookup: normalizedLookup,
-    diagnostics: normalizeDiagnostics(raw.diagnostics)
+    diagnostics: normalizeDiagnostics(raw.diagnostics, {
+      cachePath,
+      cacheVersion: versionNumeric
+    })
   };
 };
 
