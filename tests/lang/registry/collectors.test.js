@@ -316,10 +316,22 @@ const cases = [
     expected: ['partial-name', 'partials/nav']
   },
   {
+    label: 'handlebars-comment-suppression',
+    fn: collectHandlebarsImports,
+    text: '{{!-- {{> ignored/partial}} --}}{{> "partials/nav"}}',
+    expected: ['partials/nav']
+  },
+  {
     label: 'mustache',
     fn: collectMustacheImports,
     text: '{{> other}}{{> partials/footer}}',
     expected: ['other', 'partials/footer']
+  },
+  {
+    label: 'mustache-comment-suppression',
+    fn: collectMustacheImports,
+    text: '{{! {{> ignored}} }}{{> partials/footer}}',
+    expected: ['partials/footer']
   },
   {
     label: 'jinja',
@@ -331,6 +343,12 @@ const cases = [
     label: 'jinja-multiline-include',
     fn: collectJinjaImports,
     text: '{% include\n  \"partials/footer.html\"\n%}',
+    expected: ['partials/footer.html']
+  },
+  {
+    label: 'jinja-comment-suppression',
+    fn: collectJinjaImports,
+    text: '{# {% include "ignored.html" %} #}\n{% include "partials/footer.html" %}',
     expected: ['partials/footer.html']
   },
   {

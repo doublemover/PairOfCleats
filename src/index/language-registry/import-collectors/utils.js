@@ -143,6 +143,12 @@ const normalizeBlockPairs = (pairs = []) => {
 
 const INLINE_STRIPPER_CACHE = new Map();
 
+const TEMPLATE_COMMENT_PATTERNS = Object.freeze([
+  /\{\{!--[\s\S]*?--\}\}/g, // Handlebars block comments
+  /\{\{![\s\S]*?\}\}/g, // Handlebars/Mustache inline comments
+  /\{#[\s\S]*?#\}/g // Jinja comments
+]);
+
 /**
  * Create a quote-aware comment stripper that can keep block-comment state
  * across lines.
@@ -285,6 +291,14 @@ export const stripInlineCommentAware = (
   return stripper(line);
 };
 
+export const stripTemplateCommentBlocks = (text) => {
+  let source = String(text || '');
+  for (const pattern of TEMPLATE_COMMENT_PATTERNS) {
+    source = source.replace(pattern, ' ');
+  }
+  return source;
+};
+
 /**
  * Collect import-like symbols from JVM-style languages that share `import`,
  * `package`, and optional type-reference keywords (for example `extends`,
@@ -343,7 +357,7 @@ export const collectJvmStyleImports = (
  */
 export const collectTemplatePartialImports = (text, { lineTokens = ['{{>'] } = {}) => {
   const imports = [];
-  const lines = String(text || '').split('\n');
+  const lines = stripTemplateCommentBlocks(text).split('\n');
   const precheck = (value) => lineHasAny(value, lineTokens);
   for (const line of lines) {
     if (!shouldScanLine(line, precheck)) continue;

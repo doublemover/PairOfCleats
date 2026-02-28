@@ -1,8 +1,13 @@
-import { lineHasAny, sanitizeCollectorImportToken, shouldScanLine } from './utils.js';
+import {
+  lineHasAny,
+  sanitizeCollectorImportToken,
+  shouldScanLine,
+  stripTemplateCommentBlocks
+} from './utils.js';
 
 export const collectJinjaImports = (text) => {
   const imports = new Set();
-  const source = String(text || '');
+  const source = stripTemplateCommentBlocks(text);
   const lines = source.split('\n');
   const precheck = (value) =>
     value.includes('{%') && lineHasAny(value, ['extends', 'include', 'import']);
