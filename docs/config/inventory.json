@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-28T02:11:40.928Z",
+  "generatedAt": "2026-02-28T04:29:23.814Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3004,6 +3004,14 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_TEST_ALLOW_TIMEOUT_PASS_SIGNAL_TARGET",
+      "files": [
+        "tests/run.js",
+        "tests/runner/harness/timeout-pass-signal-classification.test.js",
+        "tests/runner/harness/timeout-pass-signal-target.test.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_TEST_ALLOW_TIMEOUT_TARGET",
       "files": [
         "tests/run.js",
@@ -3128,6 +3136,7 @@
         "tests/indexing/validate/index-chunk-meta-large-manifest-budget.test.js",
         "tests/retrieval/pipeline/index-loader-binary-chunk-meta-budget-fallback.test.js",
         "tests/retrieval/pipeline/index-loader-binary-file-meta-budget-fallback.test.js",
+        "tests/storage/sqlite/chunk-meta-binary-columnar-budget-hardening.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3498,7 +3507,9 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [],
+  "envVarsUnknown": [
+    "PAIROFCLEATS_TEST_ALLOW_TIMEOUT_PASS_SIGNAL_TARGET"
+  ],
   "cliFlags": {
     "totalFlags": 382,
     "publicFlags": [
