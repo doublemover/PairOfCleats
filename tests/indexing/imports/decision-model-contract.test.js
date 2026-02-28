@@ -28,6 +28,11 @@ assert.equal(generatedDecision.failureCause, 'generated_expected_missing');
 assert.equal(generatedDecision.disposition, 'suppress_gate');
 assert.equal(generatedDecision.resolverStage, 'build_system_resolver');
 
+const budgetDecision = createUnresolvedDecision(IMPORT_REASON_CODES.RESOLVER_BUDGET_EXHAUSTED);
+assert.equal(budgetDecision.failureCause, 'resolver_gap');
+assert.equal(budgetDecision.disposition, 'suppress_gate');
+assert.equal(budgetDecision.resolverStage, 'filesystem_probe');
+
 const invalidResolved = validateResolutionDecision({
   resolutionState: IMPORT_RESOLUTION_STATES.RESOLVED,
   reasonCode: IMPORT_REASON_CODES.UNKNOWN
