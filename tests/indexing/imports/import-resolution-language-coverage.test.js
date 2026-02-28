@@ -122,6 +122,7 @@ await write('src/main/groovy/com/acme/GMain.groovy', 'import com.acme.util.GHelp
 await write('src/main/groovy/com/acme/util/GHelper.groovy', 'package com.acme.util\n');
 await write('src/plugin/main.js', "import '@repo/dep.js';\n");
 await write('src/repo_alias/dep.js', 'export const dep = 1;\n');
+await write('src/custom/main.ts', "import './code-output/client.codegen.ts';\n");
 
 await write('src/Main.jl', 'using Util.Core\n');
 await write('src/Util/Core.jl', 'module Core\nend\n');
@@ -205,6 +206,7 @@ const entries = [
   'src/main/groovy/com/acme/util/GHelper.groovy',
   'src/plugin/main.js',
   'src/repo_alias/dep.js',
+  'src/custom/main.ts',
   'src/Main.jl',
   'src/Util/Core.jl',
   'src/main.cpp',
@@ -249,6 +251,7 @@ const importsByFile = {
   'src/main/scala/com/acme/ScalaMain.scala': ['com.acme.util.ScalaHelper'],
   'src/main/groovy/com/acme/GMain.groovy': ['com.acme.util.GHelper'],
   'src/plugin/main.js': ['@repo/dep.js'],
+  'src/custom/main.ts': ['./code-output/client.codegen.ts'],
   'src/Main.jl': ['Util.Core'],
   'src/main.cpp': ['myproj/foo.hpp', 'vector'],
   'rust/Cargo.toml': ['crates/util'],
@@ -271,6 +274,11 @@ const resolution = resolveImportLinks({
       rules: [
         { match: '@repo/*', replace: 'src/repo_alias/*' }
       ]
+    },
+    buildContext: {
+      generatedArtifactsConfig: {
+        suffixes: ['.codegen.ts']
+      }
     }
   }
 });
@@ -338,7 +346,7 @@ assertLinks(
 );
 
 const realUnresolvedSamples = enrichUnresolvedImportSamples(resolution.unresolvedSamples || []);
-assert.equal(realUnresolvedSamples.length, 4, 'expected unresolved samples from shell, bazel label, and generated coverage');
+assert.equal(realUnresolvedSamples.length, 5, 'expected unresolved samples from shell, bazel label, and generated coverage');
 const realBySpecifier = Object.fromEntries(realUnresolvedSamples.map((entry) => [entry.specifier, entry]));
 assert.equal(realBySpecifier['./lib/missing.sh']?.category, 'missing_file');
 assert.equal(realBySpecifier['./lib/missing.sh']?.reasonCode, 'IMP_U_MISSING_FILE_RELATIVE');
@@ -360,6 +368,11 @@ assert.equal(realBySpecifier['./proto/client_pb2.py']?.reasonCode, 'IMP_U_GENERA
 assert.equal(realBySpecifier['./proto/client_pb2.py']?.failureCause, 'generated_expected_missing');
 assert.equal(realBySpecifier['./proto/client_pb2.py']?.disposition, 'suppress_gate');
 assert.equal(realBySpecifier['./proto/client_pb2.py']?.resolverStage, 'build_system_resolver');
+assert.equal(realBySpecifier['./code-output/client.codegen.ts']?.category, 'generated_expected_missing');
+assert.equal(realBySpecifier['./code-output/client.codegen.ts']?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
+assert.equal(realBySpecifier['./code-output/client.codegen.ts']?.failureCause, 'generated_expected_missing');
+assert.equal(realBySpecifier['./code-output/client.codegen.ts']?.disposition, 'suppress_gate');
+assert.equal(realBySpecifier['./code-output/client.codegen.ts']?.resolverStage, 'build_system_resolver');
 
 const taxonomySamples = enrichUnresolvedImportSamples([
   ...realUnresolvedSamples,
@@ -381,13 +394,13 @@ assert.equal(taxonomyBySpecifier['./utlis.jss'], 'typo');
 assert.equal(taxonomyBySpecifier['./lib/missing.sh'], 'missing_file');
 assert.equal(taxonomyBySpecifier['./generated/client.pb.ts'], 'generated_expected_missing');
 assert.equal(taxonomy.liveSuppressed, 2);
-assert.equal(taxonomy.gateSuppressed, 4);
+assert.equal(taxonomy.gateSuppressed, 5);
 assert.equal(taxonomy.actionable, 3);
 assert.equal(Object.keys(taxonomy.reasonCodes).length > 0, true, 'expected reason-code aggregation');
 assert.deepEqual(
   Object.fromEntries(Object.entries(taxonomy.resolverStages)),
   {
-    build_system_resolver: 2,
+    build_system_resolver: 3,
     classify: 3,
     filesystem_probe: 1,
     language_resolver: 2,
@@ -406,12 +419,12 @@ assert.deepEqual(
 assert.equal(Number.isFinite(Number(taxonomy.actionableRate)), true, 'expected actionable rate in taxonomy');
 assert.equal(taxonomy.actionableUnresolvedRate, taxonomy.actionableRate, 'expected actionable rate alias');
 assert.equal(taxonomy.parserArtifactRate, 0, 'expected parser artifact rate in taxonomy');
-assert.equal(taxonomy.resolverGapRate, 2 / 9, 'expected resolver-gap rate in taxonomy');
+assert.equal(taxonomy.resolverGapRate, 2 / 10, 'expected resolver-gap rate in taxonomy');
 assert.deepEqual(
   Object.fromEntries(Object.entries(taxonomy.categories)),
   {
     fixture: 1,
-    generated_expected_missing: 2,
+    generated_expected_missing: 3,
     missing_file: 1,
     optional_dependency: 1,
     path_normalization: 1,

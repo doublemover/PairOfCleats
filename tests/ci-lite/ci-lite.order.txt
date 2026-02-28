@@ -201,6 +201,7 @@ indexing/embeddings/writer-backpressure
 retrieval/graph/impact-analysis-changed-set
 lang/python/imports
 indexing/imports/expected-artifacts-index
+indexing/imports/import-build-context-plugins
 indexing/embeddings/cache-invalidation
 retrieval/cli/options-smoke
 indexing/tree-sitter/runtime-cache
