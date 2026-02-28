@@ -123,6 +123,11 @@ assert.equal(aggregatedA.invalidReports.length, 0, 'expected no invalid syntheti
 assert.equal(aggregatedA.totals.reportCount, reports.length, 'expected report count parity');
 assert.equal(aggregatedA.totals.unresolved > 0, true, 'expected unresolved totals from replay');
 assert.equal(aggregatedA.totals.actionable > 0, true, 'expected actionable totals from replay');
+assert.equal(
+  Number(aggregatedA?.resolverPipelineStagePercentiles?.language_resolver?.p95) > 0,
+  true,
+  'expected resolver pipeline stage percentile aggregation'
+);
 
 const maxAllowedElapsedMs = 8000;
 assert.equal(

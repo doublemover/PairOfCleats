@@ -11,6 +11,7 @@ import {
 } from './disposition.js';
 import { resolveLanguageLabelFromImporter, resolveRepoLabelFromReportPath } from './labels.js';
 import { isKnownResolverStage } from './reason-codes.js';
+import { summarizeResolverPipelineStageElapsedPercentiles } from './stage-pipeline-metrics.js';
 
 export const DEFAULT_REPLAY_SCAN_ROOTS = Object.freeze(['.testCache', '.benchCache']);
 export const DEFAULT_REPLAY_MAX_REPORTS = 256;
@@ -153,6 +154,17 @@ const mergeStagePipelineMaps = (target, source) => {
   }
 };
 
+const collectStageElapsedSamples = (target, source) => {
+  if (!target || !source) return;
+  for (const [stage, entry] of Object.entries(source)) {
+    if (!isKnownResolverStage(stage)) continue;
+    const elapsedMs = toNonNegativeMs(entry?.elapsedMs);
+    if (elapsedMs == null) continue;
+    if (!Array.isArray(target[stage])) target[stage] = [];
+    target[stage].push(elapsedMs);
+  }
+};
+
 const toSortedStagePipeline = (stages) => {
   const entries = Object.entries(stages || {})
     .filter(([stage, entry]) => stage && entry && typeof entry === 'object')
@@ -249,6 +261,7 @@ export const loadImportResolutionGraphReports = async (
  *   reasonCodeCounts: object,
  *   resolverStages: object,
  *   resolverPipelineStages: object,
+ *   resolverPipelineStagePercentiles: object,
  *   resolverBudgetPolicyProfiles: object,
  *   actionableHotspots: Array<{importer:string,count:number}>,
  *   invalidReports: string[]
@@ -275,6 +288,7 @@ export const aggregateImportResolutionGraphPayloads = (
     actionableLanguageCounts: Object.create(null),
     resolverStageCounts: Object.create(null),
     resolverPipelineStages: Object.create(null),
+    resolverPipelineStageElapsedSamples: Object.create(null),
     resolverBudgetPolicyProfiles: Object.create(null)
   };
   const reasonCodeCounts = Object.create(null);
@@ -433,6 +447,7 @@ export const aggregateImportResolutionGraphPayloads = (
       bumpCount(totals.resolverStageCounts, resolverStage, count);
     }
     mergeStagePipelineMaps(totals.resolverPipelineStages, statsResolverPipelineStages);
+    collectStageElapsedSamples(totals.resolverPipelineStageElapsedSamples, statsResolverPipelineStages);
   }
 
   return {
@@ -442,6 +457,9 @@ export const aggregateImportResolutionGraphPayloads = (
     actionableByLanguage: toSortedObject(totals.actionableLanguageCounts),
     resolverStages: toSortedObject(totals.resolverStageCounts),
     resolverPipelineStages: toSortedStagePipeline(totals.resolverPipelineStages),
+    resolverPipelineStagePercentiles: summarizeResolverPipelineStageElapsedPercentiles(
+      totals.resolverPipelineStageElapsedSamples
+    ),
     resolverBudgetPolicyProfiles: toSortedObject(totals.resolverBudgetPolicyProfiles),
     actionableHotspots: toSortedHotspots(totals.actionableHotspotCounts),
     invalidReports

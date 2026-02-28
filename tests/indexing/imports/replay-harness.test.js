@@ -135,6 +135,19 @@ assert.deepEqual(
   'expected resolver stage pipeline metrics to aggregate with budget/degraded counters'
 );
 assert.deepEqual(
+  aggregated.resolverPipelineStagePercentiles,
+  {
+    language_resolver: {
+      samples: 1,
+      max: 1.25,
+      p50: 1.25,
+      p95: 1.25,
+      p99: 1.25
+    }
+  },
+  'expected resolver stage pipeline elapsed percentiles to aggregate'
+);
+assert.deepEqual(
   aggregated.actionableByRepo,
   { 'repo-a': 1, 'repo-c': 3 },
   'expected actionable repo hotspot rollup'

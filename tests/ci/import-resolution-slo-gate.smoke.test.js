@@ -119,6 +119,15 @@ try {
     }
   );
   assert.deepEqual(
+    passPayload?.resolverPipelineStagePercentiles,
+    {
+      classify: { samples: 1, max: 0.5, p50: 0.5, p95: 0.5, p99: 0.5 },
+      filesystem_probe: { samples: 1, max: 1.5, p50: 1.5, p95: 1.5, p99: 1.5 },
+      language_resolver: { samples: 1, max: 2.5, p50: 2.5, p95: 2.5, p99: 2.5 },
+      normalize: { samples: 1, max: 3.25, p50: 3.25, p95: 3.25, p99: 3.25 }
+    }
+  );
+  assert.deepEqual(
     passPayload?.resolverBudgetPolicyProfiles,
     { queue_backlog: 1 }
   );
@@ -197,6 +206,10 @@ try {
   );
   assert.deepEqual(
     failPayload?.resolverPipelineStages,
+    {}
+  );
+  assert.deepEqual(
+    failPayload?.resolverPipelineStagePercentiles,
     {}
   );
   assert.deepEqual(
@@ -284,6 +297,10 @@ try {
   );
   assert.deepEqual(
     fallbackPayload?.resolverPipelineStages,
+    {}
+  );
+  assert.deepEqual(
+    fallbackPayload?.resolverPipelineStagePercentiles,
     {}
   );
   assert.deepEqual(

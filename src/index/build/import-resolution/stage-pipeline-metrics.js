@@ -4,6 +4,7 @@ const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
 const toNonNegativeInt = (value) => Math.floor(Math.max(0, Number(value) || 0));
 const toNonNegativeMs = (value) => Number(Math.max(0, Number(value) || 0).toFixed(3));
+const toPercentileLabel = (value) => `p${Math.round(Number(value) * 100)}`;
 
 const toEntries = (stages) => (
   Object.entries(stages || {})
@@ -18,6 +19,53 @@ const toEntries = (stages) => (
       degraded: toNonNegativeInt(entry?.degraded)
     }))
 );
+
+const resolveQuantile = (sortedValues, percentile) => {
+  if (!Array.isArray(sortedValues) || sortedValues.length === 0) return null;
+  if (sortedValues.length === 1) return toNonNegativeMs(sortedValues[0]);
+  const clamped = Math.max(0, Math.min(1, Number(percentile) || 0));
+  const index = (sortedValues.length - 1) * clamped;
+  const lower = Math.floor(index);
+  const upper = Math.ceil(index);
+  if (lower === upper) return toNonNegativeMs(sortedValues[lower]);
+  const weight = index - lower;
+  return toNonNegativeMs((sortedValues[lower] * (1 - weight)) + (sortedValues[upper] * weight));
+};
+
+export const summarizeResolverPipelineStageElapsedPercentiles = (
+  stageElapsedSamples,
+  { percentiles = [0.5, 0.95, 0.99] } = {}
+) => {
+  const percentileValues = Array.isArray(percentiles)
+    ? percentiles
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value) && value >= 0 && value <= 1)
+    : [];
+  const normalizedPercentiles = percentileValues.length > 0
+    ? Array.from(new Set(percentileValues)).sort((a, b) => a - b)
+    : [0.5, 0.95, 0.99];
+  const output = Object.create(null);
+  for (const [stage, rawSamples] of Object.entries(stageElapsedSamples || {})) {
+    if (!isKnownResolverStage(stage)) continue;
+    if (!Array.isArray(rawSamples) || rawSamples.length === 0) continue;
+    const samples = rawSamples
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value) && value >= 0)
+      .sort((a, b) => a - b);
+    if (samples.length === 0) continue;
+    const entry = {
+      samples: samples.length,
+      max: toNonNegativeMs(samples[samples.length - 1])
+    };
+    for (const percentile of normalizedPercentiles) {
+      entry[toPercentileLabel(percentile)] = resolveQuantile(samples, percentile);
+    }
+    output[stage] = entry;
+  }
+  return Object.fromEntries(
+    Object.entries(output).sort((a, b) => sortStrings(a[0], b[0]))
+  );
+};
 
 export const resolveResolverPipelineStageHighlights = (stages) => {
   const entries = toEntries(stages);

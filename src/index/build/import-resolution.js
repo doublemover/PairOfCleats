@@ -10,7 +10,8 @@ export {
 export { createImportResolutionStageTracker } from './import-resolution/stage-pipeline.js';
 export {
   formatResolverPipelineStageSummary,
-  resolveResolverPipelineStageHighlights
+  resolveResolverPipelineStageHighlights,
+  summarizeResolverPipelineStageElapsedPercentiles
 } from './import-resolution/stage-pipeline-metrics.js';
 export {
   DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS,

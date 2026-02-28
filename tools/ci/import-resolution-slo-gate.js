@@ -121,6 +121,7 @@ const main = async () => {
     actionableByLanguage,
     resolverStages,
     resolverPipelineStages,
+    resolverPipelineStagePercentiles,
     resolverBudgetPolicyProfiles,
     actionableHotspots,
     invalidReports
@@ -184,6 +185,17 @@ const main = async () => {
   const topStageByElapsed = stageHighlights.topByElapsed;
   const topStageByBudgetExhausted = stageHighlights.topByBudgetExhausted;
   const topStageByDegraded = stageHighlights.topByDegraded;
+  const topStageByP95 = Object.entries(resolverPipelineStagePercentiles || {})
+    .map(([stage, metrics]) => ({
+      stage,
+      p95: Number(metrics?.p95)
+    }))
+    .filter((entry) => entry.stage && Number.isFinite(entry.p95))
+    .sort((a, b) => (
+      b.p95 !== a.p95
+        ? b.p95 - a.p95
+        : sortStrings(a.stage, b.stage)
+    ))[0] || null;
   const topBudgetProfile = Object.entries(resolverBudgetPolicyProfiles || {})
     .map(([profile, count]) => ({
       profile,
@@ -281,6 +293,7 @@ const main = async () => {
     actionableByLanguage,
     resolverStages,
     resolverPipelineStages,
+    resolverPipelineStagePercentiles,
     resolverBudgetPolicyProfiles,
     stageHighlights,
     actionableHotspots,
@@ -306,6 +319,7 @@ const main = async () => {
       `- resolverBudgetAdaptiveReports: ${totals.resolverBudgetAdaptiveReports}`,
       `- resolverBudgetProfiles: ${Object.keys(resolverBudgetPolicyProfiles || {}).length}`,
       `- resolverPipelineStages: ${Object.keys(resolverPipelineStages || {}).length}`,
+      `- resolverPipelineStagePercentiles: ${Object.keys(resolverPipelineStagePercentiles || {}).length}`,
       `- actionableHotspots: ${actionableHotspots.length}`,
       `- actionableRepoHotspots: ${Object.keys(actionableByRepo || {}).length}`,
       `- actionableLanguageHotspots: ${Object.keys(actionableByLanguage || {}).length}`,
@@ -315,6 +329,7 @@ const main = async () => {
       `- topReasonCode: ${topReasonCode ? `${topReasonCode.reasonCode}=${topReasonCode.count}` : 'none'}`,
       `- topResolverBudgetProfile: ${topBudgetProfile ? `${topBudgetProfile.profile}=${topBudgetProfile.count}` : 'none'}`,
       `- topResolverStageByElapsed: ${topStageByElapsed ? `${topStageByElapsed.stage}=${topStageByElapsed.elapsedMs.toFixed(3)}ms` : 'none'}`,
+      `- topResolverStageByP95: ${topStageByP95 ? `${topStageByP95.stage}=${topStageByP95.p95.toFixed(3)}ms` : 'none'}`,
       `- topResolverStageByBudgetExhausted: ${topStageByBudgetExhausted ? `${topStageByBudgetExhausted.stage}=${topStageByBudgetExhausted.budgetExhausted}` : 'none'}`,
       `- topResolverStageByDegraded: ${topStageByDegraded ? `${topStageByDegraded.stage}=${topStageByDegraded.degraded}` : 'none'}`,
       `- advisories: ${advisories.length}`
