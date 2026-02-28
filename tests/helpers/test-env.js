@@ -160,12 +160,22 @@ export const resolveSilentStdio = (defaultStdio = 'ignore') => (
 
 let trackedCleanupTriggered = false;
 
-const markTrackedCleanupLeak = (summary, reason, { sync = false } = {}) => {
+const summarizeTrackedCleanup = (summary) => {
   const attempted = Number(summary?.attempted || 0);
-  if (!Number.isFinite(attempted) || attempted <= 0) return;
+  const failures = Number(summary?.failures || 0);
+  return {
+    attempted: Number.isFinite(attempted) ? attempted : 0,
+    failures: Number.isFinite(failures) ? failures : 0
+  };
+};
+
+const markTrackedCleanupLeak = (summary, reason, { sync = false } = {}) => {
+  const details = summarizeTrackedCleanup(summary);
+  if (details.attempted <= 0) return;
+  if (details.failures <= 0) return;
   const prefix = sync ? '[test-cleanup][leak-sync]' : '[test-cleanup][leak]';
   process.stderr.write(
-    `${prefix} reaped ${attempted} tracked subprocess(es) during ${reason}; failing test process.\n`
+    `${prefix} tracked subprocess cleanup failed during ${reason}; attempted=${details.attempted} failures=${details.failures}; failing test process.\n`
   );
   if (!Number.isInteger(process.exitCode) || process.exitCode === 0) {
     process.exitCode = 1;

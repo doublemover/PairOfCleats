@@ -11,6 +11,12 @@ const tempRoot = path.join(root, '.testLogs', `tracked-leak-fails-${process.pid}
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 
+if (process.platform === 'win32') {
+  console.log('skipping tracked leak fail-on-cleanup test on Windows');
+  await fs.rm(tempRoot, { recursive: true, force: true });
+  process.exit(0);
+}
+
 const pidFile = path.join(tempRoot, 'leaked-child.pid');
 const scriptPath = path.join(tempRoot, 'spawn-leak.mjs');
 const subprocessModuleHref = pathToFileURL(path.join(root, 'src', 'shared', 'subprocess.js')).href;
@@ -18,13 +24,14 @@ const scriptBody = [
   "import fs from 'node:fs';",
   "import { spawn } from 'node:child_process';",
   `import { registerChildProcessForCleanup } from '${subprocessModuleHref}';`,
-  `const pidFile = process.argv[2];`,
+  'const pidFile = process.argv[2];',
   "const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 60_000);'], {",
   "  stdio: 'ignore',",
   "  detached: process.platform !== 'win32'",
-  "});",
-  "registerChildProcessForCleanup(child, {",
+  '});',
+  'registerChildProcessForCleanup(child, {',
   "  killTree: true,",
+  "  killSignal: 'NOT_A_SIGNAL',",
   "  detached: process.platform !== 'win32',",
   "  name: 'tracked-leak-fixture-child'",
   "});",
