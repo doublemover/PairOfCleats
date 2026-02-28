@@ -1,4 +1,3 @@
-import { execaSync } from 'execa';
 import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
 
 /**
@@ -36,38 +35,32 @@ export function exitLikeCommandResult(result, proc = process) {
  * @returns {{ok:boolean,status:number|null,signal:string|null,stdout?:string,stderr?:string}}
  */
 export function runCommand(cmd, args, options = {}) {
-  if (cmd === process.execPath) {
-    const maxOutputBytes = Number.isFinite(Number(options.maxOutputBytes))
-      ? Number(options.maxOutputBytes)
-      : (Number.isFinite(Number(options.maxBuffer)) ? Number(options.maxBuffer) : undefined);
-    const result = spawnSubprocessSync(cmd, args, {
-      cwd: options.cwd,
-      env: options.env,
-      stdio: options.stdio,
-      input: options.input,
-      shell: options.shell,
-      outputEncoding: options.outputEncoding || options.encoding || 'utf8',
-      maxOutputBytes,
-      captureStdout: true,
-      captureStderr: true,
-      outputMode: 'string',
-      rejectOnNonZeroExit: false
-    });
-    return {
-      ok: result.exitCode === 0,
-      status: result.exitCode ?? null,
-      signal: typeof result.signal === 'string' ? result.signal : null,
-      stdout: typeof result.stdout === 'string' ? result.stdout : '',
-      stderr: typeof result.stderr === 'string' ? result.stderr : ''
-    };
-  }
-  const result = execaSync(cmd, args, { reject: false, ...options });
+  const maxOutputBytes = Number.isFinite(Number(options.maxOutputBytes))
+    ? Number(options.maxOutputBytes)
+    : (Number.isFinite(Number(options.maxBuffer)) ? Number(options.maxBuffer) : undefined);
+  const timeoutMs = Number.isFinite(Number(options.timeoutMs))
+    ? Math.max(100, Math.floor(Number(options.timeoutMs)))
+    : null;
+  const result = spawnSubprocessSync(cmd, Array.isArray(args) ? args : [], {
+    cwd: options.cwd,
+    env: options.env,
+    stdio: options.stdio,
+    input: options.input,
+    shell: options.shell,
+    outputEncoding: options.outputEncoding || options.encoding || 'utf8',
+    maxOutputBytes,
+    timeoutMs: timeoutMs ?? undefined,
+    captureStdout: true,
+    captureStderr: true,
+    outputMode: 'string',
+    rejectOnNonZeroExit: false
+  });
   return {
     ok: result.exitCode === 0,
-    status: result.exitCode,
+    status: result.exitCode ?? null,
     signal: typeof result.signal === 'string' ? result.signal : null,
-    stdout: result.stdout,
-    stderr: result.stderr
+    stdout: typeof result.stdout === 'string' ? result.stdout : '',
+    stderr: typeof result.stderr === 'string' ? result.stderr : ''
   };
 }
 
@@ -80,7 +73,15 @@ export function runCommand(cmd, args, options = {}) {
  */
 export function canRunCommand(cmd, args = ['--version'], options = {}) {
   try {
-    const result = runCommand(cmd, args, { encoding: 'utf8', stdio: 'ignore', ...options });
+    const timeoutMs = Number.isFinite(Number(options.timeoutMs))
+      ? Math.max(100, Math.floor(Number(options.timeoutMs)))
+      : 4000;
+    const result = runCommand(cmd, args, {
+      encoding: 'utf8',
+      stdio: 'ignore',
+      ...options,
+      timeoutMs
+    });
     return result.ok;
   } catch {
     return false;

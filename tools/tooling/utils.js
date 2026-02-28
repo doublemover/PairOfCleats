@@ -232,8 +232,6 @@ function resolveDetectArgCandidates(tool) {
   addCandidate(tool?.detect?.args || ['--version']);
   addCandidate(['--version']);
   addCandidate(['version']);
-  addCandidate(['--help']);
-  addCandidate(['-h']);
   return candidates;
 }
 

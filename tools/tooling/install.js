@@ -4,11 +4,10 @@ import { createCli } from '../../src/shared/cli.js';
 import { createStdoutGuard } from '../../src/shared/cli/stdout-guard.js';
 import { resolveEnvPath } from '../../src/shared/env-path.js';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
 import { buildToolingReport, detectTool, normalizeLanguageList, resolveToolsById, resolveToolsForLanguages, selectInstallPlan } from './utils.js';
 import { splitPathEntries } from '../../src/index/tooling/binary-utils.js';
 import { getToolingConfig, resolveRepoRootArg } from '../shared/dict-utils.js';
-import { exitLikeCommandResult } from '../shared/cli-utils.js';
 
 const argv = createCli({
   scriptName: 'tooling-install',
@@ -60,21 +59,52 @@ const resolveSpawnCommand = (cmd) => {
 };
 
 const spawnToolCommand = (command, args, options) => {
+  const run = (cmd, cmdArgs) => {
+    try {
+      const result = spawnSubprocessSync(cmd, cmdArgs, {
+        cwd: options?.cwd,
+        env: options?.env,
+        stdio: options?.stdio,
+        outputEncoding: options?.encoding || 'utf8',
+        timeoutMs: options?.timeoutMs,
+        rejectOnNonZeroExit: false,
+        captureStdout: true,
+        captureStderr: true,
+        outputMode: 'string'
+      });
+      return {
+        status: result.exitCode ?? null,
+        signal: result.signal ?? null,
+        stdout: typeof result.stdout === 'string' ? result.stdout : '',
+        stderr: typeof result.stderr === 'string' ? result.stderr : '',
+        error: null
+      };
+    } catch (error) {
+      const output = error?.result && typeof error.result === 'object' ? error.result : null;
+      return {
+        status: output?.exitCode ?? null,
+        signal: output?.signal ?? null,
+        stdout: typeof output?.stdout === 'string' ? output.stdout : '',
+        stderr: typeof output?.stderr === 'string' ? output.stderr : '',
+        error
+      };
+    }
+  };
   if (!shouldUseCmdShell(command)) {
-    return spawnSync(command, args, options);
+    return run(command, args);
   }
   const commandLine = [command, ...args].map(quoteWindowsCmdArg).join(' ');
   const shellExe = process.env.ComSpec || 'cmd.exe';
-  return spawnSync(shellExe, ['/d', '/s', '/c', commandLine], options);
+  return run(shellExe, ['/d', '/s', '/c', commandLine]);
 };
 
 const resolveRequirementCheckArgCandidates = (commandName) => {
   const normalized = String(commandName || '').trim().toLowerCase();
   if (normalized === 'go') return [['version'], ['--version']];
   if (normalized === 'dotnet') return [['--info'], ['--version']];
-  if (normalized === 'composer') return [['--version'], ['--help']];
-  if (normalized === 'gem') return [['--version'], ['--help']];
-  return [['--version'], ['--help']];
+  if (normalized === 'composer') return [['--version']];
+  if (normalized === 'gem') return [['--version']];
+  return [['--version'], ['version']];
 };
 
 const report = toolOverride.length
@@ -104,14 +134,16 @@ for (const tool of tools) {
     const requirementCommand = resolveSpawnCommand(requires);
     const requirementArgCandidates = resolveRequirementCheckArgCandidates(requires);
     let requirementSatisfied = false;
+    let requirementTerminated = false;
     for (const requirementArgs of requirementArgCandidates) {
       const requireCheck = spawnToolCommand(requirementCommand, requirementArgs, {
         encoding: 'utf8',
         stdio: 'ignore',
-        windowsHide: true
+        timeoutMs: 4000
       });
       if (typeof requireCheck.signal === 'string' && requireCheck.signal.trim()) {
-        exitLikeCommandResult({ status: null, signal: requireCheck.signal });
+        requirementTerminated = true;
+        continue;
       }
       if (requireCheck.status === 0) {
         requirementSatisfied = true;
@@ -119,7 +151,13 @@ for (const tool of tools) {
       }
     }
     if (!requirementSatisfied) {
-      results.push({ id: tool.id, status: 'missing-requirement', requires, docs: tool.docs || null });
+      results.push({
+        id: tool.id,
+        status: 'missing-requirement',
+        requires,
+        ...(requirementTerminated ? { error: `${requires} probe timed out or terminated.` } : {}),
+        docs: tool.docs || null
+      });
       continue;
     }
   }
@@ -147,12 +185,18 @@ for (const action of actions) {
     env,
     // Keep JSON mode machine-parseable: suppress child stdout and stream
     // installer diagnostics through stderr only.
-    stdio: argv.json ? ['inherit', 'ignore', 'inherit'] : 'inherit',
-    windowsHide: true
+    stdio: argv.json ? ['inherit', 'ignore', 'inherit'] : 'inherit'
   };
   const result = spawnToolCommand(command, action.args, spawnOpts);
   if (typeof result.signal === 'string' && result.signal.trim()) {
-    exitLikeCommandResult({ status: null, signal: result.signal });
+    results.push({
+      id: action.id,
+      status: 'failed',
+      exitCode: 1,
+      error: `terminated by signal ${result.signal}`,
+      docs: action.docs
+    });
+    continue;
   }
   if (result.status !== 0) {
     const exitCode = Number.isInteger(result.status) ? Number(result.status) : 1;
