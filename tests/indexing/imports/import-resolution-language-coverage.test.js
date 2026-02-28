@@ -416,6 +416,11 @@ assert.deepEqual(
   ],
   'expected actionable unresolved importer hotspots'
 );
+assert.deepEqual(
+  Object.fromEntries(Object.entries(taxonomy.actionableByLanguage || {})),
+  { js: 2, sh: 1 },
+  'expected actionable unresolved language hotspot counts'
+);
 assert.equal(Number.isFinite(Number(taxonomy.actionableRate)), true, 'expected actionable rate in taxonomy');
 assert.equal(taxonomy.actionableUnresolvedRate, taxonomy.actionableRate, 'expected actionable rate alias');
 assert.equal(taxonomy.parserArtifactRate, 0, 'expected parser artifact rate in taxonomy');

@@ -16,6 +16,7 @@ import {
   IMPORT_RESOLUTION_STATES,
   normalizeUnresolvedDecision
 } from './import-resolution/reason-codes.js';
+import { resolveLanguageLabelFromImporter } from './import-resolution/labels.js';
 import { isBazelLabelSpecifier, matchGeneratedExpectationSpecifier } from './import-resolution/specifier-hints.js';
 
 let esModuleInitPromise = null;
@@ -414,6 +415,7 @@ export const summarizeUnresolvedImportTaxonomy = (samples) => {
   const dispositionCounts = new Map();
   const resolverStageCounts = new Map();
   const actionableImporterCounts = new Map();
+  const actionableLanguageCounts = new Map();
   const suppressedCategories = new Set();
   let liveSuppressed = 0;
   let gateSuppressed = 0;
@@ -444,6 +446,11 @@ export const summarizeUnresolvedImportTaxonomy = (samples) => {
           sample.importer,
           (actionableImporterCounts.get(sample.importer) || 0) + 1
         );
+        const languageLabel = resolveLanguageLabelFromImporter(sample.importer);
+        actionableLanguageCounts.set(
+          languageLabel,
+          (actionableLanguageCounts.get(languageLabel) || 0) + 1
+        );
       }
     }
   }
@@ -465,6 +472,7 @@ export const summarizeUnresolvedImportTaxonomy = (samples) => {
     dispositions: toSortedCountObject(dispositionCounts),
     resolverStages: toSortedCountObject(resolverStageCounts),
     actionableHotspots: toSortedHotspotEntries(actionableImporterCounts),
+    actionableByLanguage: toSortedCountObject(actionableLanguageCounts),
     liveSuppressedCategories: Array.from(suppressedCategories.values()).sort(sortStrings),
     actionableRate,
     actionableUnresolvedRate: actionableRate,

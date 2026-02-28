@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { enrichUnresolvedImportSamples } from '../imports.js';
+import { resolveLanguageLabelFromImporter, resolveRepoLabelFromReportPath } from './labels.js';
 
 export const DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS = Object.freeze([
   '/test/',
@@ -16,21 +17,6 @@ export const DEFAULT_REPLAY_SCAN_ROOTS = Object.freeze(['.testCache', '.benchCac
 export const DEFAULT_REPLAY_MAX_REPORTS = 256;
 
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
-
-const resolveRepoLabelFromReportPath = (reportPath) => {
-  const normalized = String(reportPath || '').replace(/\\/g, '/');
-  if (!normalized) return '<unknown>';
-  const parent = path.posix.basename(path.posix.dirname(normalized));
-  return parent || '<unknown>';
-};
-
-const resolveLanguageLabelFromImporter = (importer) => {
-  const normalized = String(importer || '').replace(/\\/g, '/');
-  if (!normalized) return 'unknown';
-  const ext = path.posix.extname(normalized).toLowerCase();
-  if (!ext) return 'unknown';
-  return ext.slice(1) || 'unknown';
-};
 
 const toNonNegativeIntOrNull = (value) => {
   const numeric = Number(value);

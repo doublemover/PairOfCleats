@@ -72,6 +72,23 @@ const formatUnresolvedActionableHotspots = (hotspots, maxEntries = 3) => {
     .join(', ');
 };
 
+const formatUnresolvedActionableByLanguage = (counts, maxEntries = 5) => {
+  const entries = Object.entries(counts || {})
+    .filter(([language, count]) => language && Number.isFinite(Number(count)) && Number(count) > 0)
+    .map(([language, count]) => ({
+      language,
+      count: Math.floor(Number(count))
+    }))
+    .sort((a, b) => (
+      b.count !== a.count
+        ? b.count - a.count
+        : sortStrings(a.language, b.language)
+    ))
+    .slice(0, Math.max(0, Math.floor(Number(maxEntries) || 0)));
+  if (entries.length === 0) return 'none';
+  return entries.map((entry) => `${entry.language}=${entry.count}`).join(', ');
+};
+
 const formatRate = (value) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric < 0) return '0.00%';
@@ -172,6 +189,7 @@ const logUnresolvedImportSamples = ({
     );
   }
   log(`[imports] unresolved actionable hotspots: ${formatUnresolvedActionableHotspots(summary?.actionableHotspots)}`);
+  log(`[imports] unresolved actionable languages: ${formatUnresolvedActionableByLanguage(summary?.actionableByLanguage)}`);
   log(`[imports] unresolved import samples (${visible.length} live of ${total}):`);
   for (const entry of visible) {
     const from = entry.importer || '<unknown-importer>';
@@ -447,6 +465,7 @@ export const postScanImports = async ({
       resolution.graph.stats.unresolvedByDisposition = unresolvedTaxonomy.dispositions;
       resolution.graph.stats.unresolvedByResolverStage = unresolvedTaxonomy.resolverStages;
       resolution.graph.stats.unresolvedActionableHotspots = unresolvedTaxonomy.actionableHotspots;
+      resolution.graph.stats.unresolvedActionableByLanguage = unresolvedTaxonomy.actionableByLanguage;
       resolution.graph.stats.unresolvedLiveSuppressedCategories = unresolvedTaxonomy.liveSuppressedCategories;
       resolution.graph.stats.unresolvedActionableRate = unresolvedTaxonomy.actionableUnresolvedRate;
       resolution.graph.stats.unresolvedParserArtifactRate = unresolvedTaxonomy.parserArtifactRate;

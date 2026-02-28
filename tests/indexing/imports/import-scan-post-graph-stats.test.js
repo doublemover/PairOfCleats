@@ -67,6 +67,10 @@ assert.deepEqual(
   [{ importer: 'src/main.js', count: 1 }]
 );
 assert.deepEqual(
+  Object.fromEntries(Object.entries(result?.unresolvedTaxonomy?.actionableByLanguage || {})),
+  { js: 1 }
+);
+assert.deepEqual(
   Object.fromEntries(Object.entries(result?.stats?.unresolvedByReasonCode || {})),
   { IMP_U_MISSING_FILE_RELATIVE: 1 }
 );
@@ -85,6 +89,10 @@ assert.deepEqual(
 assert.deepEqual(
   stageState?.importResolutionGraph?.stats?.unresolvedActionableHotspots || [],
   [{ importer: 'src/main.js', count: 1 }]
+);
+assert.deepEqual(
+  Object.fromEntries(Object.entries(stageState?.importResolutionGraph?.stats?.unresolvedActionableByLanguage || {})),
+  { js: 1 }
 );
 assert.equal(stageState?.importResolutionGraph?.stats?.unresolvedActionableRate, 1);
 assert.equal(stageState?.importResolutionGraph?.stats?.unresolvedParserArtifactRate, 0);
