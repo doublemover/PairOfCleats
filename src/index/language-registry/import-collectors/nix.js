@@ -1,11 +1,19 @@
 import { normalizeImportToken } from '../simple-relations.js';
-import { lineHasAny, shouldScanLine } from './utils.js';
+import {
+  addCollectorImport,
+  createCommentAwareLineStripper,
+  lineHasAny,
+  shouldScanLine
+} from './utils.js';
 
 const NIX_IMPORT_CALL_RX = /\b(?:import|callPackage)\s+("([^"\\]|\\.)+"|'([^'\\]|\\.)+'|[^\s;(){}\]]+)/g;
 
 export const collectNixImports = (text) => {
   const imports = new Set();
   const lines = String(text || '').split('\n');
+  const stripComments = createCommentAwareLineStripper({
+    markers: ['#']
+  });
   const precheck = (value) => lineHasAny(value, [
     'import',
     'callPackage',
@@ -16,10 +24,12 @@ export const collectNixImports = (text) => {
   ]);
   const addImport = (value) => {
     const cleaned = normalizeImportToken(value);
-    if (cleaned) imports.add(cleaned);
+    addCollectorImport(imports, cleaned);
   };
-  for (const line of lines) {
-    if (!shouldScanLine(line, precheck)) continue;
+  for (const rawLine of lines) {
+    if (!shouldScanLine(rawLine, precheck)) continue;
+    const line = stripComments(rawLine);
+    if (!line.trim()) continue;
     const importMatches = line.matchAll(NIX_IMPORT_CALL_RX);
     for (const match of importMatches) {
       if (match?.[1]) addImport(match[1]);

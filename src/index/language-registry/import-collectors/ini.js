@@ -1,5 +1,5 @@
 import {
-  isPseudoImportToken,
+  addCollectorImport,
   lineHasAnyInsensitive,
   shouldScanLine,
   stripInlineCommentAware
@@ -23,12 +23,6 @@ const REFERENCE_SECTION_TOKENS = new Set([
   'import',
   'imports'
 ]);
-
-const addImport = (imports, value) => {
-  const token = String(value || '').trim();
-  if (!token || isPseudoImportToken(token)) return;
-  imports.add(token);
-};
 
 const collectIniValues = (value) => String(value || '')
   .split(',')
@@ -67,7 +61,7 @@ export const collectIniImports = (text) => {
 
     if (!REFERENCE_KEY_TOKENS.has(key) && !REFERENCE_SECTION_TOKENS.has(section)) continue;
     for (const token of collectIniValues(value)) {
-      addImport(imports, token);
+      addCollectorImport(imports, token);
     }
   }
 

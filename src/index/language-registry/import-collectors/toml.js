@@ -1,5 +1,5 @@
 import {
-  isPseudoImportToken,
+  addCollectorImport,
   lineHasAnyInsensitive,
   shouldScanLine,
   stripInlineCommentAware
@@ -18,12 +18,6 @@ const REFERENCE_KEY_TOKENS = new Set([
   'registry',
   'git'
 ]);
-
-const addImport = (imports, value) => {
-  const token = String(value || '').trim();
-  if (!token || isPseudoImportToken(token)) return;
-  imports.add(token);
-};
 
 const normalizeTomlValue = (value) => String(value || '')
   .trim()
@@ -116,13 +110,13 @@ export const collectTomlImports = (text) => {
 
     if (isDependencySection(currentSection)) {
       for (const token of collectDependencyReferences(value)) {
-        addImport(imports, token);
+        addCollectorImport(imports, token);
       }
     }
 
     if (!REFERENCE_KEY_TOKENS.has(keyLower)) continue;
     for (const token of collectTomlValues(value)) {
-      addImport(imports, token);
+      addCollectorImport(imports, token);
     }
   }
 
