@@ -179,6 +179,7 @@ indexing/tokenization/tokenize-dictionary
 shared/cache/lru
 shared/truncation/contract
 lang/registry/collectors
+lang/registry/collector-scan-budget-diagnostics
 lang/registry/import-entries
 lang/registry/collector-utils-comment-aware
 lang/registry/collector-metamorphic-comment-placement
@@ -319,6 +320,7 @@ shared/merge/contract
 graph/import-missing-file-warning
 indexing/imports/cache-invalidation
 indexing/imports/cache-hard-cutover
+indexing/imports/import-resolution-cache-save-failure-health
 indexing/imports/import-resolution
 indexing/contracts/import-resolution-graph-decision-model
 tooling/logging/output-byte-accounting
@@ -811,6 +813,7 @@ indexing/imports/decision-model-contract
 indexing/imports/collector-hints
 indexing/imports/warning-dispositions
 indexing/imports/import-scan-post-graph-stats
+indexing/imports/import-graph-warning-merge
 embeddings/runner/helper-contracts
 indexing/embeddings/build/explicit-index-root-missing-mode-fails-fast
 indexing/determinism/chunk-meta-ordering-drift
@@ -820,7 +823,10 @@ tooling/doctor/command-profile-gopls
 tooling/doctor/command-profile-pyright-override
 tooling/doctor/command-profile-probe-cache
 tooling/doctor/command-profile-probe-cache-negative
+tooling/doctor/command-profile-probe-cache-success-ttl
+tooling/doctor/command-profile-probe-cache-invalidate-launch-failure
 tooling/doctor/command-profile-probe-timeout
+tooling/doctor/command-profile-probe-timeout-tiers
 tooling/doctor/command-profile-runtime-probe-args
 tooling/doctor/command-profile-tooling-dir-precedence
 tooling/doctor/provider-requires-args
@@ -976,3 +982,5 @@ indexing/config/index-dump
 tooling/service/subprocess-cancellation-contract
 indexing/tokenization/file-stream-reuse
 shared/runtime/records-config
+indexing/state/patch-queue-required-durability-awaits-flush
+indexing/state/patch-queue-durability-class-forwarding

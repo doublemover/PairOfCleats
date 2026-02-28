@@ -3,11 +3,15 @@ tooling/lsp/pyright-provider-output-shape
 tooling/lsp/pyright-provider-command-override
 tooling/lsp/clangd-provider-command-override
 tooling/lsp/sourcekit-provider-command-override
+tooling/lsp/sourcekit-package-preflight-lock-unavailable
 tooling/lsp/configured-provider-gopls-workspace-diagnostics
 tooling/lsp/configured-provider-probe-fallback
+tooling/lsp/request-timeout-sends-cancel
+tooling/lsp/session-pool-disposal-barrier
 tooling/doctor/emits-report
 tooling/doctor/reports-xxhash-backend
 tooling/lsp/dedicated-providers-multifile-session-reuse
+tooling/lsp/writer-closed-restart-reaps-stale-process
 tooling/doctor/dedicated-provider-handshake-fixtures
 tooling/doctor/scm-none-annotate-disabled
 tooling/doctor/json-stable
