@@ -32,7 +32,7 @@ try {
     registerDefaultToolingProviders();
     const docOne = 'String greet(String name) { return name; }\n';
     const docTwo = 'String hello(String name) { return name; }\n';
-    const result = await runToolingProviders({
+    const runDartPass = async (suffix) => runToolingProviders({
       strict: true,
       repoRoot: tempRoot,
       buildRoot: tempRoot,
@@ -52,18 +52,18 @@ try {
         text: docOne,
         languageId: 'dart',
         effectiveExt: '.dart',
-        docHash: 'hash-dart-one'
+        docHash: `hash-dart-one-${suffix}`
       }, {
         virtualPath: 'lib/two.dart',
         text: docTwo,
         languageId: 'dart',
         effectiveExt: '.dart',
-        docHash: 'hash-dart-two'
+        docHash: `hash-dart-two-${suffix}`
       }],
       targets: [{
         chunkRef: {
           docId: 0,
-          chunkUid: 'ck64:v1:test:lib/one.dart:dart-reuse-one',
+          chunkUid: `ck64:v1:test:lib/one.dart:dart-reuse-one-${suffix}`,
           chunkId: 'chunk_dart_reuse_one',
           file: 'lib/one.dart',
           segmentUid: null,
@@ -77,7 +77,7 @@ try {
       }, {
         chunkRef: {
           docId: 1,
-          chunkUid: 'ck64:v1:test:lib/two.dart:dart-reuse-two',
+          chunkUid: `ck64:v1:test:lib/two.dart:dart-reuse-two-${suffix}`,
           chunkId: 'chunk_dart_reuse_two',
           file: 'lib/two.dart',
           segmentUid: null,
@@ -92,13 +92,22 @@ try {
       kinds: ['types']
     });
 
+    const firstPass = await runDartPass('first');
+    const secondPass = await runDartPass('second');
+
     const spawnCount = await countNonEmptyLines(counterPath);
-    assert.equal(spawnCount, 1, 'expected one dart language-server process spawn per provider run');
-    assert.equal(result.byChunkUid.size, 2, 'expected both Dart chunks enriched');
+    assert.equal(spawnCount, 1, 'expected one dart language-server process spawn across reused provider runs');
+    assert.equal(firstPass.byChunkUid.size, 2, 'expected both Dart chunks enriched (first pass)');
+    assert.equal(secondPass.byChunkUid.size, 2, 'expected both Dart chunks enriched (second pass)');
     assert.equal(
-      Number(result.diagnostics?.dart?.runtime?.requests?.byMethod?.initialize?.requests || 0),
+      Number(firstPass.diagnostics?.dart?.runtime?.requests?.byMethod?.initialize?.requests || 0),
       1,
-      'expected one initialize request for the shared dart session'
+      'expected one initialize request for the shared dart session (first pass)'
+    );
+    assert.equal(
+      Number(secondPass.diagnostics?.dart?.runtime?.requests?.byMethod?.initialize?.requests || 0),
+      1,
+      'expected reused pooled session to avoid duplicate initialize requests (second pass)'
     );
 
     console.log('dart provider process reuse test passed');

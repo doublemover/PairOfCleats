@@ -54,6 +54,12 @@ const clampPositiveInt = (value, fallback) => {
   return Math.max(1, parsed);
 };
 
+const LSP_SESSION_DESYNC_ERROR_CODE = 'ERR_TOOLING_LSP_SESSION_DESYNC';
+
+const coerceInitializeResultObject = (value) => (
+  value && typeof value === 'object' ? value : null
+);
+
 /**
  * Create the canonical empty LSP collection payload.
  * @param {Array<object>} checks
@@ -333,7 +339,7 @@ export async function collectLspTypes({
     maxDiagnosticsPerUri: resolvedMaxDiagnosticsPerUri
   });
 
-  return withLspSession({
+  const runWithPooledSession = () => withLspSession({
     enabled: true,
     repoRoot: rootDir,
     providerId: String(providerId || cmd || 'lsp'),
@@ -440,25 +446,29 @@ export async function collectLspTypes({
       const mustInitialize = lease.shouldInitialize !== false;
       if (mustInitialize) {
         if (typeof lease.markInitializing === 'function') lease.markInitializing();
-        initializeResult = await runWithHealthGuard(({ timeoutMs: guardTimeout }) => client.initialize({
+        const rawInitializeResult = await runWithHealthGuard(({ timeoutMs: guardTimeout }) => client.initialize({
           rootUri,
           capabilities: { textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } } },
           initializationOptions,
           timeoutMs: guardTimeout
         }), { label: 'initialize' });
+        initializeResult = coerceInitializeResultObject(rawInitializeResult);
+        if (!initializeResult) {
+          const initError = new Error(`${cmd} initialize returned invalid response.`);
+          initError.code = 'ERR_TOOLING_LSP_INVALID_INITIALIZE_RESULT';
+          throw initError;
+        }
         if (typeof lease.markInitialized === 'function') lease.markInitialized(initializeResult);
       } else {
-        initializeResult = lease.initializationResult || null;
-      }
-      if (!initializeResult) {
-        if (typeof lease.markInitializing === 'function') lease.markInitializing();
-        initializeResult = await runWithHealthGuard(({ timeoutMs: guardTimeout }) => client.initialize({
-          rootUri,
-          capabilities: { textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } } },
-          initializationOptions,
-          timeoutMs: guardTimeout
-        }), { label: 'initialize_recover' });
-        if (typeof lease.markInitialized === 'function') lease.markInitialized(initializeResult);
+        initializeResult = coerceInitializeResultObject(lease.initializationResult);
+        if (!initializeResult) {
+          if (typeof lease.markPoisoned === 'function') {
+            lease.markPoisoned('initialize_state_desync');
+          }
+          const desyncError = new Error(`${cmd} pooled session missing initialize state.`);
+          desyncError.code = LSP_SESSION_DESYNC_ERROR_CODE;
+          throw desyncError;
+        }
       }
       capabilityMask = probeLspCapabilities(initializeResult);
       runtime.capabilities = capabilityMask;
@@ -514,6 +524,9 @@ export async function collectLspTypes({
       shouldShutdownClient = lease.pooled !== true;
     } catch (err) {
       throwIfAborted(toolingAbortSignal);
+      if (err?.code === LSP_SESSION_DESYNC_ERROR_CODE) {
+        throw err;
+      }
       checkFlags.initializeFailed = true;
       if (typeof lease.markPoisoned === 'function') {
         lease.markPoisoned('initialize_failed');
@@ -746,4 +759,30 @@ export async function collectLspTypes({
       }
     }
   });
+  let attemptedDesyncRecovery = false;
+  while (true) {
+    try {
+      return await runWithPooledSession();
+    } catch (err) {
+      const isSessionDesync = err?.code === LSP_SESSION_DESYNC_ERROR_CODE;
+      if (!isSessionDesync) throw err;
+      if (attemptedDesyncRecovery) {
+        checkFlags.initializeFailed = true;
+        checks.push({
+          name: 'tooling_initialize_failed',
+          status: 'warn',
+          message: `${cmd} initialize failed: pooled session desync persisted after recycle.`
+        });
+        log(`[index] ${cmd} initialize failed: pooled session desync persisted after recycle.`);
+        return buildEmptyCollectResult(checks, runtime);
+      }
+      attemptedDesyncRecovery = true;
+      checks.push({
+        name: 'tooling_session_recycled_after_desync',
+        status: 'warn',
+        message: `${cmd} pooled session initialize state desynced; recycled session and retrying once.`
+      });
+      log(`[tooling] ${cmd} pooled session initialize state desynced; recycling session and retrying once.`);
+    }
+  }
 }
