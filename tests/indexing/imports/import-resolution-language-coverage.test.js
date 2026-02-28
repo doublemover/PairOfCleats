@@ -376,11 +376,31 @@ assert.equal(realBySpecifier['./code-output/client.codegen.ts']?.resolverStage, 
 
 const taxonomySamples = enrichUnresolvedImportSamples([
   ...realUnresolvedSamples,
-  { importer: 'tests/__fixtures__/case.test.js', specifier: './missing-fixture.js', reason: 'unresolved' },
-  { importer: 'src/main.js', specifier: 'fsevents', reason: 'optional dependency not installed' },
-  { importer: 'MODULE.bazel', specifier: '//go:missing.bzl', reason: 'unresolved' },
-  { importer: 'src/main.js', specifier: '.\\windows\\path\\module.js', reason: 'unresolved' },
-  { importer: 'src/main.js', specifier: './utlis.jss', reason: 'unresolved' }
+  {
+    importer: 'tests/__fixtures__/case.test.js',
+    specifier: './missing-fixture.js',
+    reasonCode: 'IMP_U_FIXTURE_REFERENCE'
+  },
+  {
+    importer: 'src/main.js',
+    specifier: 'fsevents',
+    reasonCode: 'IMP_U_OPTIONAL_DEPENDENCY'
+  },
+  {
+    importer: 'MODULE.bazel',
+    specifier: '//go:missing.bzl',
+    reasonCode: 'IMP_U_RESOLVER_GAP'
+  },
+  {
+    importer: 'src/main.js',
+    specifier: '.\\windows\\path\\module.js',
+    reasonCode: 'IMP_U_PATH_NORMALIZATION'
+  },
+  {
+    importer: 'src/main.js',
+    specifier: './utlis.jss',
+    reasonCode: 'IMP_U_TYPO'
+  }
 ]);
 const taxonomy = summarizeUnresolvedImportTaxonomy(taxonomySamples);
 const taxonomyBySpecifier = Object.fromEntries(
@@ -423,8 +443,8 @@ assert.deepEqual(
 );
 assert.equal(Number.isFinite(Number(taxonomy.actionableRate)), true, 'expected actionable rate in taxonomy');
 assert.equal(taxonomy.actionableUnresolvedRate, taxonomy.actionableRate, 'expected actionable rate alias');
-assert.equal(taxonomy.parserArtifactRate, 0, 'expected parser artifact rate in taxonomy');
-assert.equal(taxonomy.resolverGapRate, 2 / 10, 'expected resolver-gap rate in taxonomy');
+assert.equal(taxonomy.parserArtifactRate, 1 / 10, 'expected parser artifact rate in taxonomy');
+assert.equal(taxonomy.resolverGapRate, 3 / 10, 'expected resolver-gap rate in taxonomy');
 assert.deepEqual(
   Object.fromEntries(Object.entries(taxonomy.categories)),
   {

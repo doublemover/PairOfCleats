@@ -18,11 +18,11 @@ const normalizedVariant = classifyUnresolvedImportSample({
   reason: 'missing'
 });
 
-assert.equal(windowsVariant.category, 'path_normalization');
-assert.equal(redundantSegmentVariant.category, 'path_normalization');
-assert.equal(windowsVariant.reasonCode, 'IMP_U_PATH_NORMALIZATION');
-assert.equal(redundantSegmentVariant.reasonCode, 'IMP_U_PATH_NORMALIZATION');
-assert.equal(normalizedVariant.category, 'missing_file');
+assert.equal(windowsVariant.category, 'unknown');
+assert.equal(redundantSegmentVariant.category, 'unknown');
+assert.equal(windowsVariant.reasonCode, 'IMP_U_UNKNOWN');
+assert.equal(redundantSegmentVariant.reasonCode, 'IMP_U_UNKNOWN');
+assert.equal(normalizedVariant.category, 'unknown');
 
 const explicitReasonCodeA = classifyUnresolvedImportSample({
   importer: 'src\\main.js',
@@ -45,5 +45,13 @@ assert.equal(explicitReasonCodeA.reasonCode, explicitReasonCodeB.reasonCode);
 assert.equal(explicitReasonCodeA.failureCause, explicitReasonCodeB.failureCause);
 assert.equal(explicitReasonCodeA.disposition, explicitReasonCodeB.disposition);
 assert.equal(explicitReasonCodeA.resolverStage, explicitReasonCodeB.resolverStage);
+
+const parseReasonVariant = classifyUnresolvedImportSample({
+  importer: 'src/main.js',
+  specifier: './foo/bar.js',
+  reason: 'parse_error'
+});
+assert.equal(parseReasonVariant.reasonCode, 'IMP_U_PARSE_ERROR');
+assert.equal(parseReasonVariant.category, 'parse_error');
 
 console.log('import resolution decision metamorphic test passed');

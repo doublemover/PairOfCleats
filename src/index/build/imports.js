@@ -21,7 +21,6 @@ import {
   isResolverGapImportWarning
 } from './import-resolution/disposition.js';
 import { resolveLanguageLabelFromImporter } from './import-resolution/labels.js';
-import { isBazelLabelSpecifier, matchGeneratedExpectationSpecifier } from './import-resolution/specifier-hints.js';
 
 let esModuleInitPromise = null;
 let cjsInitPromise = null;
@@ -42,109 +41,9 @@ export const UNRESOLVED_IMPORT_CATEGORIES = Object.freeze({
   UNKNOWN: 'unknown'
 });
 
-const FIXTURE_HINT_SEGMENTS = [
-  '/fixture/',
-  '/fixtures/',
-  '/__fixtures__/',
-  '/test/',
-  '/tests/',
-  '/__tests__/',
-  '/spec/',
-  '/specs/',
-  '/expected_output/',
-  '/golden/',
-  '/mocks/',
-  '/mock/'
-];
-const OPTIONAL_DEPENDENCY_PACKAGE_HINTS = new Set([
-  'bufferutil',
-  'canvas',
-  'fsevents',
-  'pg-native',
-  'sharp',
-  'supports-color',
-  'utf-8-validate'
-]);
-const TYPO_EXTENSION_HINTS = [
-  '.csx',
-  '.goo',
-  '.jav',
-  '.jss',
-  '.jsxs',
-  '.jsxx',
-  '.ktt',
-  '.pyy',
-  '.swfit',
-  '.tss',
-  '.tsxx'
-];
-const TYPO_TOKEN_HINTS = [
-  'confg',
-  'funciton',
-  'resposne',
-  'teh',
-  'utlis'
-];
-
 const normalizeForClassifier = (value) => (
   typeof value === 'string' ? value.trim().replace(/\\/g, '/') : ''
 );
-
-const normalizeLowerForClassifier = (value) => normalizeForClassifier(value).toLowerCase();
-
-const extractPackageRoot = (specifier) => {
-  const normalized = normalizeForClassifier(specifier);
-  if (!normalized) return '';
-  if (normalized.startsWith('@')) {
-    const segments = normalized.split('/');
-    if (segments.length >= 2) return `${segments[0]}/${segments[1]}`;
-    return normalized;
-  }
-  const slash = normalized.indexOf('/');
-  return slash === -1 ? normalized : normalized.slice(0, slash);
-};
-
-const hasFixtureHint = ({ importer, specifier }) => {
-  const importerLower = normalizeLowerForClassifier(importer);
-  const specLower = normalizeLowerForClassifier(specifier);
-  return FIXTURE_HINT_SEGMENTS.some((segment) => importerLower.includes(segment) || specLower.includes(segment));
-};
-
-const hasOptionalDependencyHint = ({ importer, specifier, reason }) => {
-  const reasonLower = normalizeLowerForClassifier(reason);
-  if (reasonLower.includes('optional')) return true;
-  const specNormalized = normalizeForClassifier(specifier);
-  if (!specNormalized) return false;
-  const specLower = specNormalized.toLowerCase();
-  if (specLower.includes('?optional') || specLower.includes('#optional')) return true;
-  const importerLower = normalizeLowerForClassifier(importer);
-  if (importerLower.includes('/optional/')) return true;
-  const packageRoot = extractPackageRoot(specNormalized).toLowerCase();
-  return OPTIONAL_DEPENDENCY_PACKAGE_HINTS.has(packageRoot);
-};
-
-const hasPathNormalizationHint = (specifier) => {
-  const raw = typeof specifier === 'string' ? specifier : '';
-  const normalized = normalizeForClassifier(specifier);
-  if (!normalized) return false;
-  if (isBazelLabelSpecifier(normalized)) return false;
-  if (/[A-Za-z]:[\\/]/.test(raw)) return true;
-  if (raw.includes('\\')) return true;
-  if (normalized.includes('/./') || normalized.endsWith('/.') || normalized.includes('/../')) return true;
-  if (/(^|[^:])\/\/+/.test(normalized)) return true;
-  if (/%2f|%5c/i.test(normalized)) return true;
-  return false;
-};
-
-const hasTypoHint = (specifier) => {
-  const normalized = normalizeForClassifier(specifier);
-  if (!normalized) return false;
-  const lower = normalized.toLowerCase();
-  if (/\s/.test(normalized)) return true;
-  if (TYPO_EXTENSION_HINTS.some((hint) => lower.endsWith(hint))) return true;
-  const stem = lower.split('/').pop() || '';
-  return TYPO_TOKEN_HINTS.some((hint) => stem.includes(hint));
-};
 
 const toSortedCategoryCounts = (counts) => {
   const entries = counts instanceof Map
@@ -192,82 +91,6 @@ const toSortedHotspotEntries = (counts, { maxEntries = 20 } = {}) => {
     .slice(0, Math.max(0, Math.floor(Number(maxEntries) || 0)));
 };
 
-const classifyCategory = ({ importer, specifier, reason }) => {
-  const normalizedSpecifier = normalizeForClassifier(specifier);
-  const normalizedReason = normalizeForClassifier(reason);
-  const isRelative = normalizedSpecifier.startsWith('.')
-    || normalizedSpecifier.startsWith('/')
-    || normalizedSpecifier.startsWith('\\');
-  if (normalizedReason.toLowerCase().includes('parse')) {
-    return {
-      category: UNRESOLVED_IMPORT_CATEGORIES.PARSE_ERROR,
-      confidence: 0.95,
-      suggestedRemediation: 'Fix parse errors in the importer before resolving imports.'
-    };
-  }
-  if (hasFixtureHint({ importer, specifier: normalizedSpecifier })) {
-    return {
-      category: UNRESOLVED_IMPORT_CATEGORIES.FIXTURE,
-      confidence: 0.9,
-      suggestedRemediation: 'Keep fixture-only unresolved imports suppressed or map fixture roots explicitly.'
-    };
-  }
-  if (hasOptionalDependencyHint({ importer, specifier: normalizedSpecifier, reason: normalizedReason })) {
-    return {
-      category: UNRESOLVED_IMPORT_CATEGORIES.OPTIONAL_DEPENDENCY,
-      confidence: 0.87,
-      suggestedRemediation: 'Document optional dependency behavior or install the dependency for full resolution.'
-    };
-  }
-  if (hasPathNormalizationHint(specifier)) {
-    return {
-      category: UNRESOLVED_IMPORT_CATEGORIES.PATH_NORMALIZATION,
-      confidence: 0.83,
-      suggestedRemediation: 'Normalize path separators and collapse redundant path segments in the import specifier.'
-    };
-  }
-  if (hasTypoHint(normalizedSpecifier)) {
-    return {
-      category: UNRESOLVED_IMPORT_CATEGORIES.TYPO,
-      confidence: 0.75,
-      suggestedRemediation: 'Check for spelling mistakes in the import path or module name.'
-    };
-  }
-  if (isBazelLabelSpecifier(normalizedSpecifier)) {
-    return {
-      category: UNRESOLVED_IMPORT_CATEGORIES.RESOLVER_GAP,
-      confidence: 0.88,
-      suggestedRemediation: 'Enable build-system label resolution for Bazel workspace imports.'
-    };
-  }
-  if (matchGeneratedExpectationSpecifier({ importer, specifier: normalizedSpecifier }).matched) {
-    return {
-      category: UNRESOLVED_IMPORT_CATEGORIES.GENERATED_EXPECTED_MISSING,
-      confidence: 0.86,
-      suggestedRemediation: 'Build or materialize generated artifacts before indexing this import surface.'
-    };
-  }
-  if (isRelative) {
-    return {
-      category: UNRESOLVED_IMPORT_CATEGORIES.MISSING_FILE,
-      confidence: 0.68,
-      suggestedRemediation: 'Verify the target file exists and that relative pathing matches repository layout.'
-    };
-  }
-  if (normalizedSpecifier) {
-    return {
-      category: UNRESOLVED_IMPORT_CATEGORIES.MISSING_DEPENDENCY,
-      confidence: 0.72,
-      suggestedRemediation: 'Install or map the dependency path so import resolution can locate it.'
-    };
-  }
-  return {
-    category: UNRESOLVED_IMPORT_CATEGORIES.UNKNOWN,
-    confidence: 0.5,
-    suggestedRemediation: 'Inspect import parser output for malformed or empty unresolved specifiers.'
-  };
-};
-
 const mapReasonCodeToCategory = (reasonCode) => {
   switch (reasonCode) {
     case IMPORT_REASON_CODES.PARSE_ERROR:
@@ -297,52 +120,6 @@ const mapReasonCodeToCategory = (reasonCode) => {
   }
 };
 
-const mapCategoryToReasonCode = (category) => {
-  switch (category) {
-    case UNRESOLVED_IMPORT_CATEGORIES.PARSE_ERROR:
-      return IMPORT_REASON_CODES.PARSE_ERROR;
-    case UNRESOLVED_IMPORT_CATEGORIES.FIXTURE:
-      return IMPORT_REASON_CODES.FIXTURE_REFERENCE;
-    case UNRESOLVED_IMPORT_CATEGORIES.OPTIONAL_DEPENDENCY:
-      return IMPORT_REASON_CODES.OPTIONAL_DEPENDENCY;
-    case UNRESOLVED_IMPORT_CATEGORIES.PATH_NORMALIZATION:
-      return IMPORT_REASON_CODES.PATH_NORMALIZATION;
-    case UNRESOLVED_IMPORT_CATEGORIES.TYPO:
-      return IMPORT_REASON_CODES.TYPO;
-    case UNRESOLVED_IMPORT_CATEGORIES.MISSING_FILE:
-      return IMPORT_REASON_CODES.MISSING_FILE_RELATIVE;
-    case UNRESOLVED_IMPORT_CATEGORIES.MISSING_DEPENDENCY:
-      return IMPORT_REASON_CODES.MISSING_DEPENDENCY_PACKAGE;
-    case UNRESOLVED_IMPORT_CATEGORIES.GENERATED_EXPECTED_MISSING:
-      return IMPORT_REASON_CODES.GENERATED_EXPECTED_MISSING;
-    case UNRESOLVED_IMPORT_CATEGORIES.RESOLVER_GAP:
-      return IMPORT_REASON_CODES.RESOLVER_GAP;
-    case UNRESOLVED_IMPORT_CATEGORIES.PARSER_ARTIFACT:
-      return IMPORT_REASON_CODES.PARSER_NOISE_SUPPRESSED;
-    default:
-      return IMPORT_REASON_CODES.UNKNOWN;
-  }
-};
-
-const mapFailureCauseToCategory = (failureCause) => {
-  switch (failureCause) {
-    case 'missing_file':
-      return UNRESOLVED_IMPORT_CATEGORIES.MISSING_FILE;
-    case 'missing_dependency':
-      return UNRESOLVED_IMPORT_CATEGORIES.MISSING_DEPENDENCY;
-    case 'generated_expected_missing':
-      return UNRESOLVED_IMPORT_CATEGORIES.GENERATED_EXPECTED_MISSING;
-    case 'parser_artifact':
-      return UNRESOLVED_IMPORT_CATEGORIES.PARSER_ARTIFACT;
-    case 'resolver_gap':
-      return UNRESOLVED_IMPORT_CATEGORIES.RESOLVER_GAP;
-    case 'parse_error':
-      return UNRESOLVED_IMPORT_CATEGORIES.PARSE_ERROR;
-    default:
-      return null;
-  }
-};
-
 const unresolvedSortKey = (sample) => (
   [
     sample.importer || '',
@@ -353,6 +130,26 @@ const unresolvedSortKey = (sample) => (
   ].join('|')
 );
 
+const resolveSuggestedRemediation = (reasonCode) => {
+  switch (reasonCode) {
+    case IMPORT_REASON_CODES.PARSE_ERROR:
+      return 'Fix parse errors in the importer before resolving imports.';
+    case IMPORT_REASON_CODES.MISSING_FILE_RELATIVE:
+      return 'Verify the target file exists and that relative pathing matches repository layout.';
+    case IMPORT_REASON_CODES.MISSING_DEPENDENCY_PACKAGE:
+      return 'Install or map the dependency path so import resolution can locate it.';
+    case IMPORT_REASON_CODES.GENERATED_EXPECTED_MISSING:
+      return 'Build or materialize generated artifacts before indexing this import surface.';
+    case IMPORT_REASON_CODES.RESOLVER_GAP:
+    case IMPORT_REASON_CODES.RESOLVER_BUDGET_EXHAUSTED:
+      return 'Extend resolver coverage/budgets for this import surface.';
+    case IMPORT_REASON_CODES.PARSER_NOISE_SUPPRESSED:
+      return 'No action required; parser artifact is suppressed by policy.';
+    default:
+      return 'Review unresolved diagnostic metadata for precise cause/remediation.';
+  }
+};
+
 export const classifyUnresolvedImportSample = (sample) => {
   const importer = typeof sample?.importer === 'string' ? normalizeForClassifier(sample.importer) : '';
   const specifier = sanitizeImportSpecifier(sample?.specifier, { stripTrailingPunctuation: false });
@@ -360,25 +157,22 @@ export const classifyUnresolvedImportSample = (sample) => {
     ? sample.reason.trim()
     : 'unresolved';
   const incomingReasonCode = typeof sample?.reasonCode === 'string' ? sample.reasonCode.trim() : '';
-  const incomingFailureCause = typeof sample?.failureCause === 'string' ? sample.failureCause.trim() : '';
-  const categoryFromFailureCause = mapFailureCauseToCategory(incomingFailureCause);
-  const classificationFromCode = incomingReasonCode
-    ? mapReasonCodeToCategory(incomingReasonCode)
-    : categoryFromFailureCause;
-  const classified = classificationFromCode
-    ? {
-      category: classificationFromCode,
-      confidence: 0.95,
-      suggestedRemediation: 'Review unresolved diagnostic metadata for precise cause/remediation.'
-    }
-    : classifyCategory({ importer, specifier, reason });
-  const reasonCode = incomingReasonCode || mapCategoryToReasonCode(classified.category);
+  const parseReasonHint = !incomingReasonCode && /parse/i.test(reason);
+  const reasonCode = incomingReasonCode || (
+    parseReasonHint
+      ? IMPORT_REASON_CODES.PARSE_ERROR
+      : IMPORT_REASON_CODES.UNKNOWN
+  );
   const decision = normalizeUnresolvedDecision({
     reasonCode,
     failureCause: sample?.failureCause,
     disposition: sample?.disposition,
     resolverStage: sample?.resolverStage
   });
+  const category = mapReasonCodeToCategory(decision.reasonCode);
+  const confidence = incomingReasonCode
+    ? 0.95
+    : (parseReasonHint ? 0.82 : 0.5);
   const resolutionState = sample?.resolutionState === IMPORT_RESOLUTION_STATES.RESOLVED
     ? IMPORT_RESOLUTION_STATES.RESOLVED
     : IMPORT_RESOLUTION_STATES.UNRESOLVED;
@@ -392,9 +186,9 @@ export const classifyUnresolvedImportSample = (sample) => {
     failureCause: decision.failureCause,
     disposition: decision.disposition,
     resolverStage: decision.resolverStage,
-    category: classified.category,
-    confidence: classified.confidence,
-    suggestedRemediation: classified.suggestedRemediation,
+    category,
+    confidence,
+    suggestedRemediation: resolveSuggestedRemediation(decision.reasonCode),
     suppressLive,
     actionable: isActionableImportWarning({ disposition: decision.disposition })
   };
