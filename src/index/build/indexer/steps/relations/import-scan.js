@@ -60,6 +60,12 @@ const formatUnresolvedActionableHotspots = (hotspots, maxEntries = 3) => {
     .join(', ');
 };
 
+const formatRate = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) return '0.00%';
+  return `${(numeric * 100).toFixed(2)}%`;
+};
+
 const formatUnresolvedCategoryDelta = (categories) => {
   const entries = Object.entries(categories || {})
     .filter(([category, count]) => category && Number.isFinite(Number(count)) && Number(count) !== 0)
@@ -105,9 +111,18 @@ const logUnresolvedImportSamples = ({
   const total = Number.isFinite(unresolvedTotal) ? unresolvedTotal : normalized.length;
   const actionableTotal = Number.isFinite(summary?.actionable) ? summary.actionable : actionable.length;
   const policySuppressed = Number.isFinite(summary?.liveSuppressed) ? summary.liveSuppressed : 0;
+  const actionableRate = Number.isFinite(summary?.actionableUnresolvedRate)
+    ? summary.actionableUnresolvedRate
+    : summary?.actionableRate;
+  const parserArtifactRate = Number.isFinite(summary?.parserArtifactRate) ? summary.parserArtifactRate : 0;
+  const resolverGapRate = Number.isFinite(summary?.resolverGapRate) ? summary.resolverGapRate : 0;
   log(
     `[imports] unresolved taxonomy: ${formatUnresolvedCategoryCounts(summary?.categories)} ` +
     `(actionable=${actionableTotal}, live-suppressed=${policySuppressed})`
+  );
+  log(
+    `[imports] unresolved rates: actionable=${formatRate(actionableRate)}, ` +
+    `parser_artifact=${formatRate(parserArtifactRate)}, resolver_gap=${formatRate(resolverGapRate)}`
   );
   log(`[imports] unresolved reason codes: ${formatUnresolvedReasonCodeCounts(summary?.reasonCodes)}`);
   log(`[imports] unresolved resolver stages: ${formatUnresolvedResolverStageCounts(summary?.resolverStages)}`);
@@ -358,6 +373,9 @@ export const postScanImports = async ({
       resolution.graph.stats.unresolvedByResolverStage = unresolvedTaxonomy.resolverStages;
       resolution.graph.stats.unresolvedActionableHotspots = unresolvedTaxonomy.actionableHotspots;
       resolution.graph.stats.unresolvedLiveSuppressedCategories = unresolvedTaxonomy.liveSuppressedCategories;
+      resolution.graph.stats.unresolvedActionableRate = unresolvedTaxonomy.actionableUnresolvedRate;
+      resolution.graph.stats.unresolvedParserArtifactRate = unresolvedTaxonomy.parserArtifactRate;
+      resolution.graph.stats.unresolvedResolverGapRate = unresolvedTaxonomy.resolverGapRate;
       resolution.graph.stats.unresolvedResolverSuppressed = resolverSuppressed;
     }
   }
@@ -374,9 +392,17 @@ export const postScanImports = async ({
   if (cacheEnabled && cache && cachePath) {
     await saveImportResolutionCache({ cache, cachePath });
   }
+  const resolvedStats = resolution?.stats && typeof resolution.stats === 'object'
+    ? { ...resolution.stats }
+    : null;
+  if (resolvedStats) {
+    resolvedStats.unresolvedActionableRate = unresolvedTaxonomy.actionableUnresolvedRate;
+    resolvedStats.unresolvedParserArtifactRate = unresolvedTaxonomy.parserArtifactRate;
+    resolvedStats.unresolvedResolverGapRate = unresolvedTaxonomy.resolverGapRate;
+  }
   const resolvedResult = {
     importsByFile,
-    stats: resolution?.stats || null,
+    stats: resolvedStats,
     unresolvedSamples,
     unresolvedSuppressed: resolution?.unresolvedSuppressed || 0,
     unresolvedTaxonomy,

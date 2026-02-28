@@ -55,6 +55,9 @@ const result = await postScanImports({
 
 assert.equal(result?.unresolvedTaxonomy?.total, 1);
 assert.equal(result?.unresolvedTaxonomy?.actionable, 1);
+assert.equal(result?.unresolvedTaxonomy?.actionableUnresolvedRate, 1);
+assert.equal(result?.unresolvedTaxonomy?.parserArtifactRate, 0);
+assert.equal(result?.unresolvedTaxonomy?.resolverGapRate, 0);
 assert.deepEqual(
   Object.fromEntries(Object.entries(result?.unresolvedTaxonomy?.resolverStages || {})),
   { filesystem_probe: 1 }
@@ -67,6 +70,9 @@ assert.deepEqual(
   Object.fromEntries(Object.entries(result?.stats?.unresolvedByReasonCode || {})),
   { IMP_U_MISSING_FILE_RELATIVE: 1 }
 );
+assert.equal(result?.stats?.unresolvedActionableRate, 1);
+assert.equal(result?.stats?.unresolvedParserArtifactRate, 0);
+assert.equal(result?.stats?.unresolvedResolverGapRate, 0);
 assert.deepEqual(
   Object.fromEntries(Object.entries(stageState?.importResolutionGraph?.stats?.unresolvedByResolverStage || {})),
   { filesystem_probe: 1 }
@@ -75,5 +81,8 @@ assert.deepEqual(
   stageState?.importResolutionGraph?.stats?.unresolvedActionableHotspots || [],
   [{ importer: 'src/main.js', count: 1 }]
 );
+assert.equal(stageState?.importResolutionGraph?.stats?.unresolvedActionableRate, 1);
+assert.equal(stageState?.importResolutionGraph?.stats?.unresolvedParserArtifactRate, 0);
+assert.equal(stageState?.importResolutionGraph?.stats?.unresolvedResolverGapRate, 0);
 
 console.log('import scan post graph stats test passed');

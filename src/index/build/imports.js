@@ -445,8 +445,14 @@ export const summarizeUnresolvedImportTaxonomy = (samples) => {
       }
     }
   }
+  const total = normalized.length;
+  const parserArtifact = categoryCounts.get(UNRESOLVED_IMPORT_CATEGORIES.PARSER_ARTIFACT) || 0;
+  const resolverGap = categoryCounts.get(UNRESOLVED_IMPORT_CATEGORIES.RESOLVER_GAP) || 0;
+  const actionableRate = total > 0 ? actionable / total : 0;
+  const parserArtifactRate = total > 0 ? parserArtifact / total : 0;
+  const resolverGapRate = total > 0 ? resolverGap / total : 0;
   return {
-    total: normalized.length,
+    total,
     actionable,
     liveSuppressed,
     gateSuppressed,
@@ -457,7 +463,10 @@ export const summarizeUnresolvedImportTaxonomy = (samples) => {
     resolverStages: toSortedCountObject(resolverStageCounts),
     actionableHotspots: toSortedHotspotEntries(actionableImporterCounts),
     liveSuppressedCategories: Array.from(suppressedCategories.values()).sort(sortStrings),
-    actionableRate: normalized.length > 0 ? actionable / normalized.length : 0
+    actionableRate,
+    actionableUnresolvedRate: actionableRate,
+    parserArtifactRate,
+    resolverGapRate
   };
 };
 

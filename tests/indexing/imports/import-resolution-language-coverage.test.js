@@ -404,6 +404,9 @@ assert.deepEqual(
   'expected actionable unresolved importer hotspots'
 );
 assert.equal(Number.isFinite(Number(taxonomy.actionableRate)), true, 'expected actionable rate in taxonomy');
+assert.equal(taxonomy.actionableUnresolvedRate, taxonomy.actionableRate, 'expected actionable rate alias');
+assert.equal(taxonomy.parserArtifactRate, 0, 'expected parser artifact rate in taxonomy');
+assert.equal(taxonomy.resolverGapRate, 2 / 9, 'expected resolver-gap rate in taxonomy');
 assert.deepEqual(
   Object.fromEntries(Object.entries(taxonomy.categories)),
   {
