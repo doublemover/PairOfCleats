@@ -6,6 +6,7 @@ import {
 } from '../../../src/index/build/import-resolution.js';
 
 const stages = {
+  fake_stage: { attempts: 100, hits: 100, misses: 0, elapsedMs: 100, budgetExhausted: 100, degraded: 100 },
   normalize: { attempts: 4, hits: 4, misses: 0, elapsedMs: 3.25, budgetExhausted: 0, degraded: 0 },
   language_resolver: { attempts: 2, hits: 1, misses: 1, elapsedMs: 2.5, budgetExhausted: 0, degraded: 1 },
   filesystem_probe: { attempts: 1, hits: 0, misses: 1, elapsedMs: 1.5, budgetExhausted: 2, degraded: 1 },

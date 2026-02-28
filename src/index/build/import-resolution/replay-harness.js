@@ -10,6 +10,7 @@ import {
   isActionableImportWarning
 } from './disposition.js';
 import { resolveLanguageLabelFromImporter, resolveRepoLabelFromReportPath } from './labels.js';
+import { isKnownResolverStage } from './reason-codes.js';
 
 export const DEFAULT_REPLAY_SCAN_ROOTS = Object.freeze(['.testCache', '.benchCache']);
 export const DEFAULT_REPLAY_MAX_REPORTS = 256;
@@ -89,6 +90,17 @@ const toHotspotCounts = (value) => {
   return output;
 };
 
+const toResolverStageCounts = (value) => {
+  const counts = toCountMap(value);
+  if (!counts) return null;
+  const output = Object.create(null);
+  for (const [stage, count] of Object.entries(counts)) {
+    if (!isKnownResolverStage(stage)) continue;
+    output[stage] = count;
+  }
+  return Object.keys(output).length > 0 ? output : null;
+};
+
 const toBudgetPolicy = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const profile = typeof value.adaptiveProfile === 'string' && value.adaptiveProfile.trim()
@@ -106,6 +118,7 @@ const toStagePipelineMap = (value) => {
   const output = Object.create(null);
   for (const [stage, entry] of Object.entries(value)) {
     if (typeof stage !== 'string' || !stage) continue;
+    if (!isKnownResolverStage(stage)) continue;
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
     const attempts = toNonNegativeIntOrNull(entry.attempts) ?? 0;
     const hits = toNonNegativeIntOrNull(entry.hits) ?? 0;
@@ -360,7 +373,7 @@ export const aggregateImportResolutionGraphPayloads = (
       ?? 0
     );
 
-    const statsResolverStages = toCountMap(stats.unresolvedByResolverStage);
+    const statsResolverStages = toResolverStageCounts(stats.unresolvedByResolverStage);
     const statsResolverPipelineStages = toStagePipelineMap(stats.resolverPipelineStages);
     const statsBudgetPolicy = toBudgetPolicy(stats.resolverBudgetPolicy);
     const statsActionableByLanguage = toCountMap(stats.unresolvedActionableByLanguage);
@@ -368,6 +381,7 @@ export const aggregateImportResolutionGraphPayloads = (
     const warningResolverStages = Object.create(null);
     for (const warning of warnings) {
       const stage = typeof warning?.resolverStage === 'string' ? warning.resolverStage.trim() : '';
+      if (!isKnownResolverStage(stage)) continue;
       if (!stage) continue;
       bumpCount(warningResolverStages, stage);
     }

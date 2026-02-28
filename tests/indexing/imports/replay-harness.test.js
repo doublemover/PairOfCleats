@@ -16,7 +16,19 @@ const reports = [
     payload: {
       generatedAt: new Date().toISOString(),
       stats: {
+        unresolvedByResolverStage: {
+          filesystem_probe: 2,
+          fake_stage: 5
+        },
         resolverPipelineStages: {
+          fake_stage: {
+            attempts: 99,
+            hits: 99,
+            misses: 0,
+            elapsedMs: 99,
+            budgetExhausted: 99,
+            degraded: 99
+          },
           language_resolver: {
             attempts: 2,
             hits: 1,
@@ -103,6 +115,11 @@ assert.equal(aggregated.totals.parserArtifact, 1, 'expected parser artifact coun
 assert.equal(aggregated.totals.resolverGap, 1, 'expected resolver gap count to be replayed');
 assert.equal(aggregated.reasonCodeCounts.IMP_U_MISSING_FILE_RELATIVE, 2, 'expected reason code counts to include excluded warning');
 assert.equal(aggregated.resolverStages.filesystem_probe, 2, 'expected stage counts to include all observed warnings');
+assert.equal(
+  Object.prototype.hasOwnProperty.call(aggregated.resolverStages, 'fake_stage'),
+  false,
+  'expected unknown resolver stages to be ignored'
+);
 assert.deepEqual(
   aggregated.resolverPipelineStages,
   Object.assign(Object.create(null), {

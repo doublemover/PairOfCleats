@@ -1,3 +1,5 @@
+import { isKnownResolverStage } from './reason-codes.js';
+
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
 const toNonNegativeInt = (value) => Math.floor(Math.max(0, Number(value) || 0));
@@ -5,7 +7,7 @@ const toNonNegativeMs = (value) => Number(Math.max(0, Number(value) || 0).toFixe
 
 const toEntries = (stages) => (
   Object.entries(stages || {})
-    .filter(([stage]) => stage && typeof stage === 'string')
+    .filter(([stage]) => stage && typeof stage === 'string' && isKnownResolverStage(stage))
     .map(([stage, entry]) => ({
       stage,
       attempts: toNonNegativeInt(entry?.attempts),
