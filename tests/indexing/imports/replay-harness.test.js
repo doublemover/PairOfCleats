@@ -171,6 +171,44 @@ assert.deepEqual(
   'expected actionable hotspot importer path normalization during replay'
 );
 
+const exclusionAwareFallback = aggregateImportResolutionGraphPayloads([
+  {
+    reportPath: 'repo-exclusion/import_resolution_graph.json',
+    payload: {
+      stats: {
+        unresolved: 99,
+        unresolvedActionable: 99
+      },
+      warnings: [
+        {
+          importer: 'src/feature.js',
+          reasonCode: 'IMP_U_MISSING_FILE_RELATIVE',
+          failureCause: 'missing_file',
+          disposition: 'actionable'
+        },
+        {
+          importer: 'tests/feature.test.js',
+          reasonCode: 'IMP_U_MISSING_FILE_RELATIVE',
+          failureCause: 'missing_file',
+          disposition: 'actionable'
+        }
+      ]
+    }
+  }
+], {
+  excludedImporterSegments: DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS
+});
+assert.equal(
+  exclusionAwareFallback.totals.gateEligibleUnresolved,
+  1,
+  'expected gate-eligible unresolved totals to defer to warning-level eligibility when gate totals are absent'
+);
+assert.equal(
+  exclusionAwareFallback.totals.gateEligibleActionable,
+  1,
+  'expected gate-eligible actionable totals to defer to warning-level eligibility when gate totals are absent'
+);
+
 const replayRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-import-replay-harness-'));
 try {
   const reportPathA = path.join(replayRoot, '.benchCache', 'repo-c', 'import_resolution_graph.json');

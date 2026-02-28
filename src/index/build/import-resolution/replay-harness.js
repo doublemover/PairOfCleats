@@ -3,11 +3,11 @@ import path from 'node:path';
 import { enrichUnresolvedImportSamples } from '../imports.js';
 import {
   DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS,
-  filterGateEligibleImportWarnings,
-  summarizeGateEligibleImportWarnings
+  filterGateEligibleImportWarnings
 } from './gate-eligibility.js';
 import {
-  isActionableImportWarning
+  isActionableImportWarning,
+  summarizeImportWarningDispositions
 } from './disposition.js';
 import { resolveLanguageLabelFromImporter, resolveRepoLabelFromReportPath } from './labels.js';
 import { isKnownReasonCode, isKnownResolverStage } from './reason-codes.js';
@@ -316,11 +316,12 @@ const accumulateGraphReport = (
   }
 
   const eligibleWarnings = filterGateEligibleImportWarnings(warnings, { excludedImporterSegments });
-  const eligibleSummary = summarizeGateEligibleImportWarnings(warnings, { excludedImporterSegments });
-  const eligibleUnresolved = eligibleSummary.unresolved;
-  const eligibleActionable = eligibleSummary.actionable;
-  const eligibleParserArtifact = eligibleSummary.parserArtifact;
-  const eligibleResolverGap = eligibleSummary.resolverGap;
+  const eligibleUnresolved = eligibleWarnings.length;
+  const {
+    actionable: eligibleActionable,
+    parserArtifact: eligibleParserArtifact,
+    resolverGap: eligibleResolverGap
+  } = summarizeImportWarningDispositions(eligibleWarnings);
 
   const statsUnresolved = toNonNegativeIntOrNull(stats.unresolved);
   const statsActionable = toNonNegativeIntOrNull(
