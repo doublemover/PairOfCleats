@@ -85,6 +85,12 @@ assert.equal(firstLinks.length, 0, 'expected unresolved import to remain empty')
 assert.equal(first.unresolvedTaxonomy.total, 1, 'expected unresolved taxonomy total to capture unresolved import');
 assert.equal(first.cacheDiagnostics?.unresolvedTrend?.previous, null);
 assert.equal(first.cacheDiagnostics?.unresolvedTrend?.current?.total, 1);
+assert.equal(first.cacheDiagnostics?.unresolvedTrend?.current?.actionableRate, 1);
+assert.equal(first.cacheDiagnostics?.unresolvedTrend?.current?.parserArtifactRate, 0);
+assert.equal(first.cacheDiagnostics?.unresolvedTrend?.current?.resolverGapRate, 0);
+assert.equal(first.cacheDiagnostics?.unresolvedTrend?.deltaActionableRate, null);
+assert.equal(first.cacheDiagnostics?.unresolvedTrend?.deltaParserArtifactRate, null);
+assert.equal(first.cacheDiagnostics?.unresolvedTrend?.deltaResolverGapRate, null);
 assert.deepEqual(
   Object.fromEntries(Object.entries(first.cacheDiagnostics?.unresolvedTrend?.current?.categories || {})),
   { missing_file: 1 }
@@ -118,6 +124,12 @@ assert.equal(second.unresolvedTaxonomy.total, 0, 'expected unresolved taxonomy t
 assert.equal(second.cacheDiagnostics?.unresolvedTrend?.previous?.total, 1);
 assert.equal(second.cacheDiagnostics?.unresolvedTrend?.current?.total, 0);
 assert.equal(second.cacheDiagnostics?.unresolvedTrend?.deltaTotal, -1);
+assert.equal(second.cacheDiagnostics?.unresolvedTrend?.current?.actionableRate, 0);
+assert.equal(second.cacheDiagnostics?.unresolvedTrend?.current?.parserArtifactRate, 0);
+assert.equal(second.cacheDiagnostics?.unresolvedTrend?.current?.resolverGapRate, 0);
+assert.equal(second.cacheDiagnostics?.unresolvedTrend?.deltaActionableRate, -1);
+assert.equal(second.cacheDiagnostics?.unresolvedTrend?.deltaParserArtifactRate, 0);
+assert.equal(second.cacheDiagnostics?.unresolvedTrend?.deltaResolverGapRate, 0);
 assert.deepEqual(
   Object.fromEntries(Object.entries(second.cacheDiagnostics?.unresolvedTrend?.deltaByCategory || {})),
   { missing_file: -1 }

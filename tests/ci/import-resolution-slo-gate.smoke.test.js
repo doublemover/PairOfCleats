@@ -130,6 +130,16 @@ try {
       topByDegraded: { stage: 'filesystem_probe', degraded: 1 }
     }
   );
+  assert.deepEqual(
+    passPayload?.drift,
+    {
+      baselineJsonPath: null,
+      baselineGeneratedAt: null,
+      actionableRateDelta: null,
+      parserArtifactRateDelta: null,
+      resolverGapRateDelta: null
+    }
+  );
 
   const failGraphPath = path.join(tempRoot, 'import_resolution_graph.fail.json');
   const failJsonPath = path.join(tempRoot, 'import-resolution-slo-gate.fail.json');
@@ -338,6 +348,61 @@ try {
     advisoryPayload.advisories.some((entry) => String(entry).includes('resolver gap rate')),
     'expected resolver gap advisory message'
   );
+
+  const driftBaselineJsonPath = path.join(tempRoot, 'import-resolution-slo-gate.baseline.json');
+  await fs.writeFile(driftBaselineJsonPath, JSON.stringify({
+    generatedAt: new Date().toISOString(),
+    metrics: {
+      actionableRate: 0.1,
+      parserArtifactRate: 0.1,
+      resolverGapRate: 0.1
+    }
+  }, null, 2), 'utf8');
+  const driftJsonPath = path.join(tempRoot, 'import-resolution-slo-gate.drift.json');
+  const driftResult = spawnSync(
+    process.execPath,
+    [
+      gatePath,
+      '--mode',
+      'ci',
+      '--report',
+      advisoryGraphPath,
+      '--json',
+      driftJsonPath,
+      '--baseline-json',
+      driftBaselineJsonPath,
+      '--actionable-unresolved-rate-max',
+      '0.9',
+      '--parser-artifact-rate-warn-max',
+      '1',
+      '--resolver-gap-rate-warn-max',
+      '1',
+      '--parser-artifact-rate-drift-warn-max',
+      '0.2',
+      '--resolver-gap-rate-drift-warn-max',
+      '0.2'
+    ],
+    {
+      cwd: ROOT,
+      env: process.env,
+      encoding: 'utf8'
+    }
+  );
+  assert.equal(driftResult.status, 0, `expected drift gate status=0, received ${driftResult.status}`);
+  const driftPayload = JSON.parse(await fs.readFile(driftJsonPath, 'utf8'));
+  assert.equal(Array.isArray(driftPayload?.advisories), true);
+  assert.equal(driftPayload.advisories.length, 2);
+  assert.ok(
+    driftPayload.advisories.some((entry) => String(entry).includes('parser artifact rate drift')),
+    'expected parser artifact drift advisory message'
+  );
+  assert.ok(
+    driftPayload.advisories.some((entry) => String(entry).includes('resolver gap rate drift')),
+    'expected resolver gap drift advisory message'
+  );
+  assert.equal(driftPayload?.drift?.baselineJsonPath, driftBaselineJsonPath);
+  assert.equal(Math.abs(Number(driftPayload?.drift?.parserArtifactRateDelta) - 0.5) < 1e-9, true);
+  assert.equal(Math.abs(Number(driftPayload?.drift?.resolverGapRateDelta) - 0.3) < 1e-9, true);
 
   const gateEligibleStatsGraphPath = path.join(tempRoot, 'import_resolution_graph.gate-eligible-stats.json');
   const gateEligibleStatsJsonPath = path.join(tempRoot, 'import-resolution-slo-gate.gate-eligible-stats.json');

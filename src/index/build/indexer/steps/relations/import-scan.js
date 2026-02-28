@@ -100,6 +100,13 @@ const formatRate = (value) => {
   return `${(numeric * 100).toFixed(2)}%`;
 };
 
+const formatRateDelta = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 'n/a';
+  const prefix = numeric > 0 ? '+' : '';
+  return `${prefix}${(numeric * 100).toFixed(2)}%`;
+};
+
 const formatUnresolvedCategoryDelta = (categories) => {
   const entries = Object.entries(categories || {})
     .filter(([category, count]) => category && Number.isFinite(Number(count)) && Number(count) !== 0)
@@ -588,6 +595,15 @@ export const postScanImports = async ({
         resolvedResult?.cacheDiagnostics?.unresolvedTrend?.deltaByCategory
       );
       log(`[imports] unresolved delta vs previous run: ${sign}${deltaTotal} (byCategory: ${deltaByCategory})`);
+      const deltaActionableRate = resolvedResult?.cacheDiagnostics?.unresolvedTrend?.deltaActionableRate;
+      const deltaParserArtifactRate = resolvedResult?.cacheDiagnostics?.unresolvedTrend?.deltaParserArtifactRate;
+      const deltaResolverGapRate = resolvedResult?.cacheDiagnostics?.unresolvedTrend?.deltaResolverGapRate;
+      log(
+        `[imports] unresolved rate drift vs previous run: ` +
+        `actionable=${formatRateDelta(deltaActionableRate)}, ` +
+        `parser_artifact=${formatRateDelta(deltaParserArtifactRate)}, ` +
+        `resolver_gap=${formatRateDelta(deltaResolverGapRate)}`
+      );
     }
     if (unresolved > 0) {
       logUnresolvedImportSamples({

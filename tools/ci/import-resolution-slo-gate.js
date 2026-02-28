@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { coerceNumberAtLeast } from '../../src/shared/number-coerce.js';
@@ -20,10 +21,13 @@ const parseArgs = () => createCli({
     repo: { type: 'string', default: '' },
     report: { type: 'string', default: '' },
     json: { type: 'string', default: '' },
+    'baseline-json': { type: 'string', default: '' },
     'actionable-unresolved-rate-max': { type: 'number', default: 0.6 },
     'min-unresolved-samples': { type: 'number', default: 1 },
     'parser-artifact-rate-warn-max': { type: 'number', default: 0.35 },
-    'resolver-gap-rate-warn-max': { type: 'number', default: 0.35 }
+    'resolver-gap-rate-warn-max': { type: 'number', default: 0.35 },
+    'parser-artifact-rate-drift-warn-max': { type: 'number', default: 0.08 },
+    'resolver-gap-rate-drift-warn-max': { type: 'number', default: 0.08 }
   }
 })
   .strictOptions()
@@ -36,6 +40,34 @@ const toRatio = (numerator, denominator) => (
 );
 
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
+
+const loadBaselineMetrics = async (baselinePath) => {
+  if (typeof baselinePath !== 'string' || !baselinePath.trim()) {
+    return {
+      path: null,
+      metrics: null,
+      generatedAt: null,
+      loadError: null
+    };
+  }
+  const resolvedPath = toResolvedPath(baselinePath);
+  try {
+    const payload = JSON.parse(await fs.readFile(resolvedPath, 'utf8'));
+    return {
+      path: resolvedPath,
+      metrics: payload?.metrics && typeof payload.metrics === 'object' ? payload.metrics : null,
+      generatedAt: typeof payload?.generatedAt === 'string' ? payload.generatedAt : null,
+      loadError: null
+    };
+  } catch (error) {
+    return {
+      path: resolvedPath,
+      metrics: null,
+      generatedAt: null,
+      loadError: error?.message || String(error)
+    };
+  }
+};
 
 const main = async () => {
   const argv = parseArgs();
@@ -53,6 +85,9 @@ const main = async () => {
   const minUnresolvedSamples = Math.max(0, Math.floor(coerceNumberAtLeast(argv['min-unresolved-samples'], 0) ?? 1));
   const parserArtifactRateWarnMax = coerceNumberAtLeast(argv['parser-artifact-rate-warn-max'], 0) ?? 0.35;
   const resolverGapRateWarnMax = coerceNumberAtLeast(argv['resolver-gap-rate-warn-max'], 0) ?? 0.35;
+  const parserArtifactRateDriftWarnMax = coerceNumberAtLeast(argv['parser-artifact-rate-drift-warn-max'], 0) ?? 0.08;
+  const resolverGapRateDriftWarnMax = coerceNumberAtLeast(argv['resolver-gap-rate-drift-warn-max'], 0) ?? 0.08;
+  const baseline = await loadBaselineMetrics(argv['baseline-json']);
 
   if (graphPaths.length === 0) {
     const payload = {
@@ -99,6 +134,18 @@ const main = async () => {
   const parserArtifactRate = toRatio(totals.parserArtifact, unresolved);
   const resolverGapRate = toRatio(totals.resolverGap, unresolved);
   const resolverBudgetExhaustedRate = toRatio(totals.resolverBudgetExhausted, unresolved);
+  const baselineActionableRate = Number(baseline.metrics?.actionableRate);
+  const baselineParserArtifactRate = Number(baseline.metrics?.parserArtifactRate);
+  const baselineResolverGapRate = Number(baseline.metrics?.resolverGapRate);
+  const actionableRateDelta = Number.isFinite(baselineActionableRate)
+    ? actionableRate - baselineActionableRate
+    : null;
+  const parserArtifactRateDelta = Number.isFinite(baselineParserArtifactRate)
+    ? parserArtifactRate - baselineParserArtifactRate
+    : null;
+  const resolverGapRateDelta = Number.isFinite(baselineResolverGapRate)
+    ? resolverGapRate - baselineResolverGapRate
+    : null;
 
   const topReasonCode = Object.entries(reasonCodeCounts || {})
     .map(([reasonCode, count]) => ({ reasonCode, count: Math.floor(Number(count) || 0) }))
@@ -172,6 +219,23 @@ const main = async () => {
       `${resolverGapRateWarnMax.toFixed(4)} (resolver_gap=${totals.resolverGap}, unresolved=${unresolved})`
     );
   }
+  if (Number.isFinite(parserArtifactRateDelta) && parserArtifactRateDelta > parserArtifactRateDriftWarnMax) {
+    advisories.push(
+      `parser artifact rate drift ${parserArtifactRateDelta.toFixed(4)} exceeded advisory max ` +
+      `${parserArtifactRateDriftWarnMax.toFixed(4)} (baseline=${baselineParserArtifactRate.toFixed(4)}, ` +
+      `current=${parserArtifactRate.toFixed(4)})`
+    );
+  }
+  if (Number.isFinite(resolverGapRateDelta) && resolverGapRateDelta > resolverGapRateDriftWarnMax) {
+    advisories.push(
+      `resolver gap rate drift ${resolverGapRateDelta.toFixed(4)} exceeded advisory max ` +
+      `${resolverGapRateDriftWarnMax.toFixed(4)} (baseline=${baselineResolverGapRate.toFixed(4)}, ` +
+      `current=${resolverGapRate.toFixed(4)})`
+    );
+  }
+  if (baseline.path && baseline.loadError) {
+    advisories.push(`baseline metrics unavailable (${baseline.path}): ${baseline.loadError}`);
+  }
 
   const payload = {
     schemaVersion: 1,
@@ -185,7 +249,9 @@ const main = async () => {
       actionableUnresolvedRateMax: actionableRateMax,
       minUnresolvedSamples,
       parserArtifactRateWarnMax,
-      resolverGapRateWarnMax
+      resolverGapRateWarnMax,
+      parserArtifactRateDriftWarnMax,
+      resolverGapRateDriftWarnMax
     },
     metrics: {
       unresolved,
@@ -202,6 +268,13 @@ const main = async () => {
       resolverBudgetExhausted: totals.resolverBudgetExhausted,
       resolverBudgetExhaustedRate,
       resolverBudgetAdaptiveReports: totals.resolverBudgetAdaptiveReports
+    },
+    drift: {
+      baselineJsonPath: baseline.path,
+      baselineGeneratedAt: baseline.generatedAt,
+      actionableRateDelta,
+      parserArtifactRateDelta,
+      resolverGapRateDelta
     },
     reasonCodes: reasonCodeCounts,
     actionableByRepo,
@@ -227,6 +300,8 @@ const main = async () => {
       `- actionableRate: ${actionableRate.toFixed(4)} (max ${actionableRateMax.toFixed(4)})`,
       `- parserArtifactRate: ${parserArtifactRate.toFixed(4)}`,
       `- resolverGapRate: ${resolverGapRate.toFixed(4)}`,
+      `- parserArtifactRateDelta: ${Number.isFinite(parserArtifactRateDelta) ? parserArtifactRateDelta.toFixed(4) : 'n/a'}`,
+      `- resolverGapRateDelta: ${Number.isFinite(resolverGapRateDelta) ? resolverGapRateDelta.toFixed(4) : 'n/a'}`,
       `- resolverBudgetExhaustedRate: ${resolverBudgetExhaustedRate.toFixed(4)}`,
       `- resolverBudgetAdaptiveReports: ${totals.resolverBudgetAdaptiveReports}`,
       `- resolverBudgetProfiles: ${Object.keys(resolverBudgetPolicyProfiles || {}).length}`,

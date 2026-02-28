@@ -54,7 +54,7 @@ assert.equal(
 await fs.writeFile(cachePath, JSON.stringify({
   version: malformedLoad.cache.version,
   diagnostics: {
-    version: 3,
+    version: 4,
     unresolvedTrend: {
       previous: null,
       current: {

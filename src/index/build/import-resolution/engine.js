@@ -52,7 +52,6 @@ import { createTsConfigLoader, resolveTsPaths } from './tsconfig-resolution.js';
 
 const ABSOLUTE_SYSTEM_PATH_PREFIX_RX = /^\/(?:etc|usr|opt|var|bin|sbin|lib|lib64|dev|proc|sys|run|tmp|home|root)(?:\/|$)/i;
 const SCHEME_RELATIVE_URL_RX = /^\/\/[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:[/:]|$)/i;
-const DEFAULT_UNRESOLVED_NOISE_PREFIXES = ['node:', '@types/', 'internal/'];
 
 const normalizeAliasRuleText = (value) => (
   typeof value === 'string'
@@ -577,11 +576,6 @@ export function resolveImportLinks({
     const lower = normalized.toLowerCase();
     const rawNormalized = typeof rawSpec === 'string' ? rawSpec.trim() : '';
     const lowerRaw = rawNormalized.toLowerCase();
-    const importerRel = String(importerInfo?.importerRel || '').toLowerCase();
-    if (DEFAULT_UNRESOLVED_NOISE_PREFIXES.some((prefix) => lower.startsWith(prefix))) return true;
-    if (importerRel.includes('/tests/expected_output/')) return true;
-    if (importerRel.includes('/unittests/') && (lower.startsWith('//./') || lowerRaw.startsWith('//./'))) return true;
-    if (importerRel.endsWith('/tooling/syntax/tokenstest.cpp') && lower === './foo.h') return true;
     if (/[<>|^]/.test(normalized)) return true;
     if (ABSOLUTE_SYSTEM_PATH_PREFIX_RX.test(normalized) && (importerInfo?.isShell || importerInfo?.isPathLike)) {
       return true;

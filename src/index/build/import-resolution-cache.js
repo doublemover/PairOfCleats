@@ -12,7 +12,7 @@ import {
 
 const CACHE_VERSION = 5;
 const CACHE_FILE = 'import-resolution-cache.json';
-const CACHE_DIAGNOSTICS_VERSION = 3;
+const CACHE_DIAGNOSTICS_VERSION = 4;
 const IMPORT_SPEC_CANDIDATE_EXTENSIONS = Object.freeze([
   '.js',
   '.jsx',
@@ -52,6 +52,18 @@ const normalizeCount = (value, { allowNegative = false } = {}) => {
   if (!Number.isFinite(numeric)) return 0;
   if (!allowNegative && numeric < 0) return 0;
   return Math.trunc(numeric);
+};
+
+const normalizeRate = (value, fallback = 0) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return Math.max(0, Math.min(1, Number(fallback) || 0));
+  return Math.max(0, Math.min(1, numeric));
+};
+
+const normalizeRateDelta = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return null;
+  return Math.max(-1, Math.min(1, numeric));
 };
 
 const normalizeCategoryCounts = (
@@ -174,8 +186,16 @@ const normalizeUnresolvedSnapshot = (
     : Math.max(0, total - liveSuppressed - gateSuppressed);
   const actionableRateRaw = Number(raw.actionableRate);
   const actionableRate = Number.isFinite(actionableRateRaw)
-    ? Math.max(0, Math.min(1, actionableRateRaw))
+    ? normalizeRate(actionableRateRaw, 0)
     : (total > 0 ? actionable / total : 0);
+  const parserArtifactCount = Number(failureCauses.parser_artifact || 0);
+  const resolverGapCount = Number(failureCauses.resolver_gap || 0);
+  const parserArtifactRate = Number.isFinite(Number(raw.parserArtifactRate))
+    ? normalizeRate(raw.parserArtifactRate, 0)
+    : (total > 0 ? parserArtifactCount / total : 0);
+  const resolverGapRate = Number.isFinite(Number(raw.resolverGapRate))
+    ? normalizeRate(raw.resolverGapRate, 0)
+    : (total > 0 ? resolverGapCount / total : 0);
   return {
     total,
     actionable,
@@ -191,6 +211,8 @@ const normalizeUnresolvedSnapshot = (
     actionableHotspots: normalizeActionableHotspots(raw.actionableHotspots),
     actionableByLanguage: normalizeCategoryCounts(raw.actionableByLanguage),
     actionableRate,
+    parserArtifactRate,
+    resolverGapRate,
     liveSuppressedCategories: normalizeStringList(raw.liveSuppressedCategories)
   };
 };
@@ -251,7 +273,10 @@ const normalizeDiagnostics = (
     deltaResolverBudgetExhaustedByType: normalizeCategoryCounts(
       unresolvedTrendRaw.deltaResolverBudgetExhaustedByType,
       { allowNegative: true }
-    )
+    ),
+    deltaActionableRate: normalizeRateDelta(unresolvedTrendRaw.deltaActionableRate),
+    deltaParserArtifactRate: normalizeRateDelta(unresolvedTrendRaw.deltaParserArtifactRate),
+    deltaResolverGapRate: normalizeRateDelta(unresolvedTrendRaw.deltaResolverGapRate)
   };
   throwIfUnknownCategoryKeys({
     unknownKeys: unknownDeltaReasonCodes,
@@ -484,8 +509,14 @@ const buildSnapshotFromTaxonomy = ({ unresolvedTaxonomy, unresolvedTotal }) => {
     : Math.max(0, total - liveSuppressed - gateSuppressed);
   const actionableRateRaw = Number(taxonomy.actionableRate);
   const actionableRate = Number.isFinite(actionableRateRaw)
-    ? Math.max(0, Math.min(1, actionableRateRaw))
+    ? normalizeRate(actionableRateRaw, 0)
     : (total > 0 ? actionable / total : 0);
+  const parserArtifactRate = Number.isFinite(Number(taxonomy.parserArtifactRate))
+    ? normalizeRate(taxonomy.parserArtifactRate, 0)
+    : (total > 0 ? Number(failureCauses.parser_artifact || 0) / total : 0);
+  const resolverGapRate = Number.isFinite(Number(taxonomy.resolverGapRate))
+    ? normalizeRate(taxonomy.resolverGapRate, 0)
+    : (total > 0 ? Number(failureCauses.resolver_gap || 0) / total : 0);
   return {
     total,
     actionable,
@@ -501,6 +532,8 @@ const buildSnapshotFromTaxonomy = ({ unresolvedTaxonomy, unresolvedTotal }) => {
     actionableHotspots: normalizeActionableHotspots(taxonomy.actionableHotspots),
     actionableByLanguage: normalizeCategoryCounts(taxonomy.actionableByLanguage),
     actionableRate,
+    parserArtifactRate,
+    resolverGapRate,
     liveSuppressedCategories: normalizeStringList(taxonomy.liveSuppressedCategories)
   };
 };
@@ -799,7 +832,16 @@ export const updateImportResolutionDiagnosticsCache = ({
       deltaResolverBudgetExhaustedByType: buildCategoryDelta(
         previousCurrent?.resolverBudgetExhaustedByType || {},
         current.resolverBudgetExhaustedByType
-      )
+      ),
+      deltaActionableRate: previousCurrent
+        ? current.actionableRate - (previousCurrent.actionableRate || 0)
+        : null,
+      deltaParserArtifactRate: previousCurrent
+        ? current.parserArtifactRate - (previousCurrent.parserArtifactRate || 0)
+        : null,
+      deltaResolverGapRate: previousCurrent
+        ? current.resolverGapRate - (previousCurrent.resolverGapRate || 0)
+        : null
     }
   };
   cache.diagnostics = diagnostics;
