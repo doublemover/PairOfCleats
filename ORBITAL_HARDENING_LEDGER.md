@@ -286,7 +286,7 @@ Static audit findings across `NEON_TIDE`, including deeper remediation guidance 
   - Updated LSP client tracking so kill/restart paths do not drop tracked ownership before transport exit.
   - Added cleanup guardrails in test runtime and new targeted regression coverage (`shared/subprocess/process-exit-cleanup`, timeout/abort tracked cleanup assertions, and LSP restart tracked-registry assertions).
 
-#### 28) P2 - Timeout policy misclassifies slow-pass tests as hard failures
+#### 28) P2 - Timeout policy misclassifies slow-pass tests as hard failures (Completed 2026-02-28T05:55:00Z)
 - Location: `tests/run.js`, lane ordering files (`tests/ci-lite/ci-lite.order.txt`, `tests/ci/ci.order.txt`, `tests/ci-long/ci-long.order.txt`)
 - Problem: some tests complete successfully (`stdout` says passed, `exit=0`) but are marked failed because they exceed lane timeout budget; this creates false red builds and obscures real regressions.
 - Baseline fix:
@@ -298,8 +298,17 @@ Static audit findings across `NEON_TIDE`, including deeper remediation guidance 
     - `timed_out_with_failure`.
   - Gate policy should treat `timed_out_after_pass` as infra/laning hygiene debt (separate bucket) rather than product regression.
   - Add lane budget calibration report generated from recent timing ledger to keep lane assignments stable.
+- Implemented:
+  - Runner exit policy now treats timeout classes in two buckets:
+    - non-blocking: `timed_out_after_pass`
+    - blocking: all other timeout classes.
+  - `tests/run.js` now exits non-zero for timeout classes only when blocking timeout classes are present (or when non-timeout failures exist).
+  - Added regression fixture + harness coverage:
+    - `tests/runner/harness/timeout-pass-signal-target.test.js`
+    - `tests/runner/harness/timeout-pass-signal-classification.test.js`
+  - Extended inherited test env allowlist to preserve `PAIROFCLEATS_TEST_ALLOW_TIMEOUT_PASS_SIGNAL_TARGET` through runner env scrubbing.
 
-#### 29) P2 - Test wrappers hide root-cause stderr from build/search failures
+#### 29) P2 - Test wrappers hide root-cause stderr from build/search failures (Completed 2026-02-28T05:40:00Z)
 - Location: shared test helpers and wrapper tests (`tests/helpers/run-node.js`, fixture index helpers, search/build wrapper callsites)
 - Problem: wrappers often emit generic messages (`Failed: build index`, `Failed: search`) without forwarding the first meaningful underlying error, slowing triage.
 - Baseline fix:
@@ -310,6 +319,15 @@ Static audit findings across `NEON_TIDE`, including deeper remediation guidance 
     - include command, cwd, exit/signal, and clipped stderr sections.
   - Standardize across build/search/api/fixture helpers so every failure message contains root signature and diagnostic context.
   - Add tests that intentionally fail subprocesses and assert root-cause forwarding is present.
+- Implemented:
+  - Extended shared helper formatter with `formatErroredCommandFailure` in `tests/helpers/command-failure.js`.
+  - Migrated core wrapper helpers to use shared structured formatting for command failures and thrown command metadata:
+    - `tests/helpers/fixture-index.js`
+    - `tests/helpers/search-filters-repo.js`
+    - `tests/helpers/search-lifecycle.js`
+    - `tests/helpers/sqlite-incremental.js`
+    - `tests/helpers/triage.js`
+  - Wrapper failure output now consistently includes command, cwd, exit/signal, and clipped stderr/stdout context rather than generic labels.
 
 ---
 
