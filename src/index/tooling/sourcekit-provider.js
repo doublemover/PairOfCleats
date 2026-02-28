@@ -516,6 +516,8 @@ const normalizeSourcekitCandidateSortKey = (candidate) => (
 export const compareSourcekitCandidatePriority = (left, right) => {
   const scoreDelta = (Number(left?.score) || 0) - (Number(right?.score) || 0);
   if (scoreDelta !== 0) return scoreDelta;
+  const indexDelta = (Number(left?.index) || 0) - (Number(right?.index) || 0);
+  if (indexDelta !== 0) return indexDelta;
   const leftNormalized = normalizeSourcekitCandidateSortKey(left?.candidate);
   const rightNormalized = normalizeSourcekitCandidateSortKey(right?.candidate);
   if (leftNormalized !== rightNormalized) {
@@ -526,7 +528,7 @@ export const compareSourcekitCandidatePriority = (left, right) => {
   if (leftRaw !== rightRaw) {
     return leftRaw.localeCompare(rightRaw);
   }
-  return (Number(left?.index) || 0) - (Number(right?.index) || 0);
+  return 0;
 };
 
 const resolveCommand = (cmd) => {
