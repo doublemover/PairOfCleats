@@ -62,7 +62,6 @@ await fs.writeFile(cachePath, JSON.stringify({
         actionable: 1,
         liveSuppressed: 0,
         gateSuppressed: 0,
-        categories: { missing_file: 1 },
         reasonCodes: { IMP_U_NOT_REAL: 1 },
         failureCauses: { missing_file: 1 },
         dispositions: { actionable: 1 },
@@ -70,11 +69,9 @@ await fs.writeFile(cachePath, JSON.stringify({
         resolverBudgetExhausted: 0,
         resolverBudgetExhaustedByType: {},
         actionableHotspots: [],
-        actionableRate: 1,
-        liveSuppressedCategories: []
+        actionableRate: 1
       },
       deltaTotal: 1,
-      deltaByCategory: { missing_file: 1 },
       deltaByReasonCode: { IMP_U_NOT_REAL: 1 },
       deltaByFailureCause: { missing_file: 1 },
       deltaByDisposition: { actionable: 1 },

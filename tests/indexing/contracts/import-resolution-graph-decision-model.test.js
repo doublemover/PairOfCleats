@@ -42,7 +42,6 @@ const baseGraph = {
       failureCause: 'missing_file',
       disposition: 'actionable',
       resolverStage: 'filesystem_probe',
-      category: 'missing_file',
       confidence: 0.9
     }
   ],
@@ -137,6 +136,15 @@ const invalidReasonCodeBucket = validateArtifact('import_resolution_graph', {
 });
 assert.equal(invalidReasonCodeBucket.ok, false, 'unknown reason-code buckets must be rejected');
 
+const invalidLegacyCategoryStats = validateArtifact('import_resolution_graph', {
+  ...baseGraph,
+  stats: {
+    ...baseGraph.stats,
+    unresolvedByCategory: { missing_file: 1 }
+  }
+});
+assert.equal(invalidLegacyCategoryStats.ok, false, 'legacy unresolvedByCategory stats must be rejected');
+
 const invalidWarning = validateArtifact('import_resolution_graph', {
   ...baseGraph,
   warnings: [
@@ -147,6 +155,17 @@ const invalidWarning = validateArtifact('import_resolution_graph', {
   ]
 });
 assert.equal(invalidWarning.ok, false, 'warning entries must use known decision-model enums');
+
+const invalidWarningCategoryField = validateArtifact('import_resolution_graph', {
+  ...baseGraph,
+  warnings: [
+    {
+      ...baseGraph.warnings[0],
+      category: 'missing_file'
+    }
+  ]
+});
+assert.equal(invalidWarningCategoryField.ok, false, 'warning entries must reject legacy category field');
 
 const invalidResolverStagePipelineKey = validateArtifact('import_resolution_graph', {
   ...baseGraph,

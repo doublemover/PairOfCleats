@@ -348,27 +348,22 @@ assertLinks(
 const realUnresolvedSamples = enrichUnresolvedImportSamples(resolution.unresolvedSamples || []);
 assert.equal(realUnresolvedSamples.length, 5, 'expected unresolved samples from shell, bazel label, and generated coverage');
 const realBySpecifier = Object.fromEntries(realUnresolvedSamples.map((entry) => [entry.specifier, entry]));
-assert.equal(realBySpecifier['./lib/missing.sh']?.category, 'missing_file');
 assert.equal(realBySpecifier['./lib/missing.sh']?.reasonCode, 'IMP_U_MISSING_FILE_RELATIVE');
 assert.equal(realBySpecifier['./lib/missing.sh']?.failureCause, 'missing_file');
 assert.equal(realBySpecifier['./lib/missing.sh']?.disposition, 'actionable');
 assert.equal(realBySpecifier['./lib/missing.sh']?.resolverStage, 'filesystem_probe');
-assert.equal(realBySpecifier['//go:missing_extension.bzl']?.category, 'resolver_gap');
 assert.equal(realBySpecifier['//go:missing_extension.bzl']?.reasonCode, 'IMP_U_RESOLVER_GAP');
 assert.equal(realBySpecifier['//go:missing_extension.bzl']?.failureCause, 'resolver_gap');
 assert.equal(realBySpecifier['//go:missing_extension.bzl']?.disposition, 'suppress_gate');
 assert.equal(realBySpecifier['//go:missing_extension.bzl']?.resolverStage, 'language_resolver');
-assert.equal(realBySpecifier['./generated/client.pb.ts']?.category, 'generated_expected_missing');
 assert.equal(realBySpecifier['./generated/client.pb.ts']?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
 assert.equal(realBySpecifier['./generated/client.pb.ts']?.failureCause, 'generated_expected_missing');
 assert.equal(realBySpecifier['./generated/client.pb.ts']?.disposition, 'suppress_gate');
 assert.equal(realBySpecifier['./generated/client.pb.ts']?.resolverStage, 'build_system_resolver');
-assert.equal(realBySpecifier['./proto/client_pb2.py']?.category, 'generated_expected_missing');
 assert.equal(realBySpecifier['./proto/client_pb2.py']?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
 assert.equal(realBySpecifier['./proto/client_pb2.py']?.failureCause, 'generated_expected_missing');
 assert.equal(realBySpecifier['./proto/client_pb2.py']?.disposition, 'suppress_gate');
 assert.equal(realBySpecifier['./proto/client_pb2.py']?.resolverStage, 'build_system_resolver');
-assert.equal(realBySpecifier['./code-output/client.codegen.ts']?.category, 'generated_expected_missing');
 assert.equal(realBySpecifier['./code-output/client.codegen.ts']?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
 assert.equal(realBySpecifier['./code-output/client.codegen.ts']?.failureCause, 'generated_expected_missing');
 assert.equal(realBySpecifier['./code-output/client.codegen.ts']?.disposition, 'suppress_gate');
@@ -403,16 +398,6 @@ const taxonomySamples = enrichUnresolvedImportSamples([
   }
 ]);
 const taxonomy = summarizeUnresolvedImportTaxonomy(taxonomySamples);
-const taxonomyBySpecifier = Object.fromEntries(
-  taxonomySamples.map((sample) => [sample.specifier, sample.category])
-);
-assert.equal(taxonomyBySpecifier['./missing-fixture.js'], 'fixture');
-assert.equal(taxonomyBySpecifier.fsevents, 'optional_dependency');
-assert.equal(taxonomyBySpecifier['//go:missing.bzl'], 'resolver_gap');
-assert.equal(taxonomyBySpecifier['.\\windows\\path\\module.js'], 'path_normalization');
-assert.equal(taxonomyBySpecifier['./utlis.jss'], 'typo');
-assert.equal(taxonomyBySpecifier['./lib/missing.sh'], 'missing_file');
-assert.equal(taxonomyBySpecifier['./generated/client.pb.ts'], 'generated_expected_missing');
 assert.equal(taxonomy.liveSuppressed, 2);
 assert.equal(taxonomy.gateSuppressed, 5);
 assert.equal(taxonomy.actionable, 3);
@@ -445,25 +430,20 @@ assert.equal(Number.isFinite(Number(taxonomy.actionableRate)), true, 'expected a
 assert.equal(taxonomy.actionableUnresolvedRate, taxonomy.actionableRate, 'expected actionable rate alias');
 assert.equal(taxonomy.parserArtifactRate, 1 / 10, 'expected parser artifact rate in taxonomy');
 assert.equal(taxonomy.resolverGapRate, 3 / 10, 'expected resolver-gap rate in taxonomy');
-assert.deepEqual(
-  Object.fromEntries(Object.entries(taxonomy.categories)),
-  {
-    fixture: 1,
-    generated_expected_missing: 3,
-    missing_file: 1,
-    optional_dependency: 1,
-    path_normalization: 1,
-    resolver_gap: 2,
-    typo: 1
-  }
-);
+assert.deepEqual(Object.fromEntries(Object.entries(taxonomy.failureCauses)), {
+  generated_expected_missing: 3,
+  missing_dependency: 1,
+  missing_file: 1,
+  parser_artifact: 1,
+  resolver_gap: 3,
+  unknown: 1
+});
 
 const parseErrorCategory = classifyUnresolvedImportSample({
   importer: 'src/broken.js',
   specifier: './module.js',
   reason: 'parse_error'
 });
-assert.equal(parseErrorCategory.category, 'parse_error');
 assert.equal(parseErrorCategory.suppressLive, false);
 assert.equal(parseErrorCategory.reasonCode, 'IMP_U_PARSE_ERROR');
 assert.equal(parseErrorCategory.failureCause, 'parse_error');

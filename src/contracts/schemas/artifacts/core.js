@@ -182,6 +182,24 @@ const importResolutionGraphSchema = {
     importScanMode: nullableString,
     stats: {
       type: 'object',
+      allOf: [
+        {
+          not: {
+            properties: {
+              unresolvedByCategory: {}
+            },
+            required: ['unresolvedByCategory']
+          }
+        },
+        {
+          not: {
+            properties: {
+              unresolvedLiveSuppressedCategories: {}
+            },
+            required: ['unresolvedLiveSuppressedCategories']
+          }
+        }
+      ],
       properties: {
         files: intId,
         nodes: intId,
@@ -193,7 +211,6 @@ const importResolutionGraphSchema = {
         unresolvedActionable: intId,
         unresolvedSuppressed: intId,
         unresolvedResolverSuppressed: intId,
-        unresolvedByCategory: { type: 'object', additionalProperties: intId },
         unresolvedByReasonCode: {
           type: 'object',
           propertyNames: { enum: importReasonCodeEnum },
@@ -244,7 +261,6 @@ const importResolutionGraphSchema = {
           propertyNames: { enum: importResolverStageEnum },
           additionalProperties: importResolverPipelineStageSchema
         },
-        unresolvedLiveSuppressedCategories: { type: 'array', items: { type: 'string' } },
         truncatedEdges: intId,
         truncatedNodes: intId,
         warningSuppressed: intId,
@@ -329,6 +345,16 @@ const importResolutionGraphSchema = {
       items: {
         type: 'object',
         required: ['resolutionState', 'reasonCode', 'failureCause', 'disposition', 'resolverStage'],
+        allOf: [
+          {
+            not: {
+              properties: {
+                category: {}
+              },
+              required: ['category']
+            }
+          }
+        ],
         properties: {
           importer: nullableString,
           specifier: nullableString,
@@ -341,7 +367,6 @@ const importResolutionGraphSchema = {
           failureCause: { type: 'string', enum: importFailureCauseEnum },
           disposition: { type: 'string', enum: importDispositionEnum },
           resolverStage: { type: 'string', enum: importResolverStageEnum },
-          category: nullableString,
           confidence: { type: ['number', 'null'] }
         },
         additionalProperties: true

@@ -47,37 +47,9 @@ const normalizeCollectorHint = (value) => {
   };
 };
 
-export const UNRESOLVED_IMPORT_CATEGORIES = Object.freeze({
-  FIXTURE: 'fixture',
-  OPTIONAL_DEPENDENCY: 'optional_dependency',
-  TYPO: 'typo',
-  PATH_NORMALIZATION: 'path_normalization',
-  PARSER_ARTIFACT: 'parser_artifact',
-  RESOLVER_GAP: 'resolver_gap',
-  GENERATED_EXPECTED_MISSING: 'generated_expected_missing',
-  MISSING_FILE: 'missing_file',
-  MISSING_DEPENDENCY: 'missing_dependency',
-  PARSE_ERROR: 'parse_error',
-  UNKNOWN: 'unknown'
-});
-
 const normalizeForClassifier = (value) => (
   typeof value === 'string' ? value.trim().replace(/\\/g, '/') : ''
 );
-
-const toSortedCategoryCounts = (counts) => {
-  const entries = counts instanceof Map
-    ? Array.from(counts.entries())
-    : Object.entries(counts || {});
-  entries.sort((a, b) => sortStrings(a[0], b[0]));
-  const output = Object.create(null);
-  for (const [category, count] of entries) {
-    if (!category) continue;
-    const numeric = Number(count);
-    output[category] = Number.isFinite(numeric) && numeric > 0 ? Math.floor(numeric) : 0;
-  }
-  return output;
-};
 
 const toSortedCountObject = (counts) => {
   const entries = counts instanceof Map
@@ -111,42 +83,12 @@ const toSortedHotspotEntries = (counts, { maxEntries = 20 } = {}) => {
     .slice(0, Math.max(0, Math.floor(Number(maxEntries) || 0)));
 };
 
-const mapReasonCodeToCategory = (reasonCode) => {
-  switch (reasonCode) {
-    case IMPORT_REASON_CODES.PARSE_ERROR:
-      return UNRESOLVED_IMPORT_CATEGORIES.PARSE_ERROR;
-    case IMPORT_REASON_CODES.FIXTURE_REFERENCE:
-      return UNRESOLVED_IMPORT_CATEGORIES.FIXTURE;
-    case IMPORT_REASON_CODES.OPTIONAL_DEPENDENCY:
-      return UNRESOLVED_IMPORT_CATEGORIES.OPTIONAL_DEPENDENCY;
-    case IMPORT_REASON_CODES.PARSER_NOISE_SUPPRESSED:
-      return UNRESOLVED_IMPORT_CATEGORIES.PARSER_ARTIFACT;
-    case IMPORT_REASON_CODES.PATH_NORMALIZATION:
-      return UNRESOLVED_IMPORT_CATEGORIES.PATH_NORMALIZATION;
-    case IMPORT_REASON_CODES.TYPO:
-      return UNRESOLVED_IMPORT_CATEGORIES.TYPO;
-    case IMPORT_REASON_CODES.MISSING_FILE_RELATIVE:
-      return UNRESOLVED_IMPORT_CATEGORIES.MISSING_FILE;
-    case IMPORT_REASON_CODES.MISSING_DEPENDENCY_PACKAGE:
-      return UNRESOLVED_IMPORT_CATEGORIES.MISSING_DEPENDENCY;
-    case IMPORT_REASON_CODES.GENERATED_EXPECTED_MISSING:
-      return UNRESOLVED_IMPORT_CATEGORIES.GENERATED_EXPECTED_MISSING;
-    case IMPORT_REASON_CODES.RESOLVER_BUDGET_EXHAUSTED:
-      return UNRESOLVED_IMPORT_CATEGORIES.RESOLVER_GAP;
-    case IMPORT_REASON_CODES.RESOLVER_GAP:
-      return UNRESOLVED_IMPORT_CATEGORIES.RESOLVER_GAP;
-    default:
-      return UNRESOLVED_IMPORT_CATEGORIES.UNKNOWN;
-  }
-};
-
 const unresolvedSortKey = (sample) => (
   [
     sample.importer || '',
     sample.specifier || '',
     sample.reason || '',
-    sample.reasonCode || '',
-    sample.category || ''
+    sample.reasonCode || ''
   ].join('|')
 );
 
@@ -189,7 +131,6 @@ export const classifyUnresolvedImportSample = (sample) => {
     disposition: sample?.disposition,
     resolverStage: sample?.resolverStage
   });
-  const category = mapReasonCodeToCategory(decision.reasonCode);
   const confidence = incomingReasonCode
     ? 0.95
     : (parseReasonHint ? 0.82 : 0.5);
@@ -206,7 +147,6 @@ export const classifyUnresolvedImportSample = (sample) => {
     failureCause: decision.failureCause,
     disposition: decision.disposition,
     resolverStage: decision.resolverStage,
-    category,
     confidence,
     suggestedRemediation: resolveSuggestedRemediation(decision.reasonCode),
     suppressLive,
@@ -227,21 +167,18 @@ export const enrichUnresolvedImportSamples = (samples) => {
 
 export const summarizeUnresolvedImportTaxonomy = (samples) => {
   const normalized = enrichUnresolvedImportSamples(samples);
-  const categoryCounts = new Map();
   const reasonCodeCounts = new Map();
   const failureCauseCounts = new Map();
   const dispositionCounts = new Map();
   const resolverStageCounts = new Map();
   const actionableImporterCounts = new Map();
   const actionableLanguageCounts = new Map();
-  const suppressedCategories = new Set();
   let liveSuppressed = 0;
   let gateSuppressed = 0;
   let actionable = 0;
   let parserArtifact = 0;
   let resolverGap = 0;
   for (const sample of normalized) {
-    categoryCounts.set(sample.category, (categoryCounts.get(sample.category) || 0) + 1);
     if (sample.reasonCode) {
       reasonCodeCounts.set(sample.reasonCode, (reasonCodeCounts.get(sample.reasonCode) || 0) + 1);
     }
@@ -262,7 +199,6 @@ export const summarizeUnresolvedImportTaxonomy = (samples) => {
     }
     if (sample.disposition === 'suppress_live') {
       liveSuppressed += 1;
-      if (sample.category) suppressedCategories.add(sample.category);
     } else if (sample.disposition === 'suppress_gate') {
       gateSuppressed += 1;
     } else {
@@ -290,14 +226,12 @@ export const summarizeUnresolvedImportTaxonomy = (samples) => {
     actionable,
     liveSuppressed,
     gateSuppressed,
-    categories: toSortedCategoryCounts(categoryCounts),
     reasonCodes: toSortedCountObject(reasonCodeCounts),
     failureCauses: toSortedCountObject(failureCauseCounts),
     dispositions: toSortedCountObject(dispositionCounts),
     resolverStages: toSortedCountObject(resolverStageCounts),
     actionableHotspots: toSortedHotspotEntries(actionableImporterCounts),
     actionableByLanguage: toSortedCountObject(actionableLanguageCounts),
-    liveSuppressedCategories: Array.from(suppressedCategories.values()).sort(sortStrings),
     actionableRate,
     actionableUnresolvedRate: actionableRate,
     parserArtifactRate,

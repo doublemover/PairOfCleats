@@ -75,10 +75,6 @@ assert.deepEqual(
   { IMP_U_MISSING_FILE_RELATIVE: 1 }
 );
 assert.deepEqual(
-  Object.fromEntries(Object.entries(result?.stats?.unresolvedByCategory || {})),
-  { missing_file: 1 }
-);
-assert.deepEqual(
   Object.fromEntries(Object.entries(result?.stats?.unresolvedByFailureCause || {})),
   { missing_file: 1 }
 );

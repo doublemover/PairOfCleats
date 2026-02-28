@@ -78,7 +78,6 @@ export const summarizeImportGraphStats = (state) => {
     unresolvedResolverSuppressed: Number(stats.unresolvedResolverSuppressed) || 0,
     unresolvedLiveSuppressed: Number(stats.unresolvedLiveSuppressed) || 0,
     unresolvedGateSuppressed: Number(stats.unresolvedGateSuppressed) || 0,
-    unresolvedByCategory: stats.unresolvedByCategory || null,
     unresolvedByReasonCode: stats.unresolvedByReasonCode || null,
     unresolvedByFailureCause: stats.unresolvedByFailureCause || null,
     unresolvedByDisposition: stats.unresolvedByDisposition || null,

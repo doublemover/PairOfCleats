@@ -49,7 +49,6 @@ for (const sample of unresolved) {
   assert.equal(sample.failureCause, 'resolver_gap');
   assert.equal(sample.disposition, 'suppress_gate');
   assert.equal(sample.resolverStage, 'filesystem_probe');
-  assert.equal(sample.category, 'resolver_gap');
 }
 
 assert.equal(result?.stats?.unresolvedBudgetExhausted, 2);

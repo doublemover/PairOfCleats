@@ -92,7 +92,7 @@ assert.equal(first.cacheDiagnostics?.unresolvedTrend?.deltaActionableRate, null)
 assert.equal(first.cacheDiagnostics?.unresolvedTrend?.deltaParserArtifactRate, null);
 assert.equal(first.cacheDiagnostics?.unresolvedTrend?.deltaResolverGapRate, null);
 assert.deepEqual(
-  Object.fromEntries(Object.entries(first.cacheDiagnostics?.unresolvedTrend?.current?.categories || {})),
+  Object.fromEntries(Object.entries(first.cacheDiagnostics?.unresolvedTrend?.current?.failureCauses || {})),
   { missing_file: 1 }
 );
 assert.deepEqual(
@@ -131,7 +131,7 @@ assert.equal(second.cacheDiagnostics?.unresolvedTrend?.deltaActionableRate, -1);
 assert.equal(second.cacheDiagnostics?.unresolvedTrend?.deltaParserArtifactRate, 0);
 assert.equal(second.cacheDiagnostics?.unresolvedTrend?.deltaResolverGapRate, 0);
 assert.deepEqual(
-  Object.fromEntries(Object.entries(second.cacheDiagnostics?.unresolvedTrend?.deltaByCategory || {})),
+  Object.fromEntries(Object.entries(second.cacheDiagnostics?.unresolvedTrend?.deltaByFailureCause || {})),
   { missing_file: -1 }
 );
 assert.deepEqual(

@@ -22,11 +22,9 @@ const normalizedVariant = classifyUnresolvedImportSample({
   reason: 'missing'
 });
 
-assert.equal(windowsVariant.category, 'unknown');
-assert.equal(redundantSegmentVariant.category, 'unknown');
 assert.equal(windowsVariant.reasonCode, 'IMP_U_UNKNOWN');
 assert.equal(redundantSegmentVariant.reasonCode, 'IMP_U_UNKNOWN');
-assert.equal(normalizedVariant.category, 'unknown');
+assert.equal(normalizedVariant.failureCause, 'unknown');
 
 const explicitReasonCodeA = classifyUnresolvedImportSample({
   importer: 'src\\main.js',
@@ -56,7 +54,7 @@ const parseReasonVariant = classifyUnresolvedImportSample({
   reason: 'parse_error'
 });
 assert.equal(parseReasonVariant.reasonCode, 'IMP_U_PARSE_ERROR');
-assert.equal(parseReasonVariant.category, 'parse_error');
+assert.equal(parseReasonVariant.failureCause, 'parse_error');
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'import-resolution-decision-metamorphic');

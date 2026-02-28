@@ -28,20 +28,20 @@ const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
 const normalizeUnresolvedSamples = (samples) => enrichUnresolvedImportSamples(samples);
 
-const formatUnresolvedCategoryCounts = (categories) => {
-  const entries = Object.entries(categories || {})
-    .filter(([category, count]) => category && Number.isFinite(Number(count)) && Number(count) > 0)
-    .sort((a, b) => sortStrings(a[0], b[0]));
-  if (entries.length === 0) return 'none';
-  return entries.map(([category, count]) => `${category}=${Number(count)}`).join(', ');
-};
-
 const formatUnresolvedReasonCodeCounts = (reasonCodes) => {
   const entries = Object.entries(reasonCodes || {})
     .filter(([reasonCode, count]) => reasonCode && Number.isFinite(Number(count)) && Number(count) > 0)
     .sort((a, b) => sortStrings(a[0], b[0]));
   if (entries.length === 0) return 'none';
   return entries.map(([reasonCode, count]) => `${reasonCode}=${Number(count)}`).join(', ');
+};
+
+const formatUnresolvedFailureCauseCounts = (failureCauses) => {
+  const entries = Object.entries(failureCauses || {})
+    .filter(([failureCause, count]) => failureCause && Number.isFinite(Number(count)) && Number(count) > 0)
+    .sort((a, b) => sortStrings(a[0], b[0]));
+  if (entries.length === 0) return 'none';
+  return entries.map(([failureCause, count]) => `${failureCause}=${Number(count)}`).join(', ');
 };
 
 const formatUnresolvedResolverStageCounts = (resolverStages) => {
@@ -107,16 +107,16 @@ const formatRateDelta = (value) => {
   return `${prefix}${(numeric * 100).toFixed(2)}%`;
 };
 
-const formatUnresolvedCategoryDelta = (categories) => {
-  const entries = Object.entries(categories || {})
-    .filter(([category, count]) => category && Number.isFinite(Number(count)) && Number(count) !== 0)
+const formatUnresolvedFailureCauseDelta = (failureCauses) => {
+  const entries = Object.entries(failureCauses || {})
+    .filter(([failureCause, count]) => failureCause && Number.isFinite(Number(count)) && Number(count) !== 0)
     .sort((a, b) => sortStrings(a[0], b[0]));
   if (entries.length === 0) return 'none';
   return entries
-    .map(([category, count]) => {
+    .map(([failureCause, count]) => {
       const numeric = Number(count);
       const prefix = numeric > 0 ? '+' : '';
-      return `${category}=${prefix}${numeric}`;
+      return `${failureCause}=${prefix}${numeric}`;
     })
     .join(', ');
 };
@@ -184,7 +184,7 @@ const logUnresolvedImportSamples = ({
   const parserArtifactRate = Number.isFinite(summary?.parserArtifactRate) ? summary.parserArtifactRate : 0;
   const resolverGapRate = Number.isFinite(summary?.resolverGapRate) ? summary.resolverGapRate : 0;
   log(
-    `[imports] unresolved taxonomy: ${formatUnresolvedCategoryCounts(summary?.categories)} ` +
+    `[imports] unresolved taxonomy: ${formatUnresolvedFailureCauseCounts(summary?.failureCauses)} ` +
     `(actionable=${actionableTotal}, live-suppressed=${policySuppressed})`
   );
   log(
@@ -206,12 +206,12 @@ const logUnresolvedImportSamples = ({
   for (const entry of visible) {
     const from = entry.importer || '<unknown-importer>';
     const specifier = entry.specifier || '<empty-specifier>';
-    const category = entry.category || 'unknown';
     const reasonCode = entry.reasonCode || 'IMP_U_UNKNOWN';
+    const failureCause = entry.failureCause || 'unknown';
     const confidence = Number.isFinite(entry.confidence) ? entry.confidence.toFixed(2) : 'n/a';
     log(
       `[imports] unresolved: ${from} -> ${specifier} ` +
-      `[category=${category}, reasonCode=${reasonCode}, confidence=${confidence}]`
+      `[reasonCode=${reasonCode}, failureCause=${failureCause}, confidence=${confidence}]`
     );
   }
   if (visible.length === 0 && policySuppressed > 0) {
@@ -476,7 +476,6 @@ export const postScanImports = async ({
       const resolverSuppressed = Number(resolution.graph.stats.unresolvedSuppressed) || 0;
       resolution.graph.stats.unresolvedObserved = unresolvedObserved;
       resolution.graph.stats.unresolved = unresolvedTaxonomy.total;
-      resolution.graph.stats.unresolvedByCategory = unresolvedTaxonomy.categories;
       resolution.graph.stats.unresolvedActionable = unresolvedTaxonomy.actionable;
       resolution.graph.stats.unresolvedLiveSuppressed = unresolvedTaxonomy.liveSuppressed;
       resolution.graph.stats.unresolvedGateSuppressed = unresolvedTaxonomy.gateSuppressed || 0;
@@ -491,7 +490,6 @@ export const postScanImports = async ({
       resolution.graph.stats.unresolvedGateEligibleActionableRate = unresolvedGateEligible.unresolved > 0
         ? unresolvedGateEligible.actionable / unresolvedGateEligible.unresolved
         : 0;
-      resolution.graph.stats.unresolvedLiveSuppressedCategories = unresolvedTaxonomy.liveSuppressedCategories;
       resolution.graph.stats.unresolvedActionableRate = unresolvedTaxonomy.actionableUnresolvedRate;
       resolution.graph.stats.unresolvedParserArtifactRate = unresolvedTaxonomy.parserArtifactRate;
       resolution.graph.stats.unresolvedResolverGapRate = unresolvedTaxonomy.resolverGapRate;
@@ -521,7 +519,6 @@ export const postScanImports = async ({
     resolvedStats.unresolvedActionable = unresolvedTaxonomy.actionable;
     resolvedStats.unresolvedLiveSuppressed = unresolvedTaxonomy.liveSuppressed;
     resolvedStats.unresolvedGateSuppressed = unresolvedTaxonomy.gateSuppressed || 0;
-    resolvedStats.unresolvedByCategory = unresolvedTaxonomy.categories;
     resolvedStats.unresolvedActionableRate = unresolvedTaxonomy.actionableUnresolvedRate;
     resolvedStats.unresolvedByFailureCause = unresolvedTaxonomy.failureCauses;
     resolvedStats.unresolvedByDisposition = unresolvedTaxonomy.dispositions;
@@ -533,7 +530,6 @@ export const postScanImports = async ({
     resolvedStats.unresolvedGateEligibleActionableRate = unresolvedGateEligible.unresolved > 0
       ? unresolvedGateEligible.actionable / unresolvedGateEligible.unresolved
       : 0;
-    resolvedStats.unresolvedLiveSuppressedCategories = unresolvedTaxonomy.liveSuppressedCategories;
     resolvedStats.unresolvedParserArtifactRate = unresolvedTaxonomy.parserArtifactRate;
     resolvedStats.unresolvedResolverGapRate = unresolvedTaxonomy.resolverGapRate;
     resolvedStats.unresolvedBudgetExhausted = resolverBudgetExhausted;
@@ -591,10 +587,10 @@ export const postScanImports = async ({
     const deltaTotal = Number(resolvedResult?.cacheDiagnostics?.unresolvedTrend?.deltaTotal);
     if (Number.isFinite(deltaTotal)) {
       const sign = deltaTotal > 0 ? '+' : '';
-      const deltaByCategory = formatUnresolvedCategoryDelta(
-        resolvedResult?.cacheDiagnostics?.unresolvedTrend?.deltaByCategory
+      const deltaByFailureCause = formatUnresolvedFailureCauseDelta(
+        resolvedResult?.cacheDiagnostics?.unresolvedTrend?.deltaByFailureCause
       );
-      log(`[imports] unresolved delta vs previous run: ${sign}${deltaTotal} (byCategory: ${deltaByCategory})`);
+      log(`[imports] unresolved delta vs previous run: ${sign}${deltaTotal} (byFailureCause: ${deltaByFailureCause})`);
       const deltaActionableRate = resolvedResult?.cacheDiagnostics?.unresolvedTrend?.deltaActionableRate;
       const deltaParserArtifactRate = resolvedResult?.cacheDiagnostics?.unresolvedTrend?.deltaParserArtifactRate;
       const deltaResolverGapRate = resolvedResult?.cacheDiagnostics?.unresolvedTrend?.deltaResolverGapRate;

@@ -10,9 +10,9 @@ import {
   IMPORT_RESOLVER_STAGES
 } from './import-resolution/reason-codes.js';
 
-const CACHE_VERSION = 5;
+const CACHE_VERSION = 6;
 const CACHE_FILE = 'import-resolution-cache.json';
-const CACHE_DIAGNOSTICS_VERSION = 4;
+const CACHE_DIAGNOSTICS_VERSION = 5;
 const IMPORT_SPEC_CANDIDATE_EXTENSIONS = Object.freeze([
   '.js',
   '.jsx',
@@ -121,7 +121,6 @@ const normalizeUnresolvedSnapshot = (
   const unknownFailureCauses = [];
   const unknownDispositions = [];
   const unknownResolverStages = [];
-  const categories = normalizeCategoryCounts(raw.categories);
   const reasonCodes = normalizeCategoryCounts(raw.reasonCodes, {
     allowedKeys: KNOWN_REASON_CODES,
     unknownKeysOut: unknownReasonCodes
@@ -167,11 +166,11 @@ const normalizeUnresolvedSnapshot = (
     ? Math.trunc(resolverBudgetExhaustedRaw)
     : (reasonCodes.IMP_U_RESOLVER_BUDGET_EXHAUSTED || 0);
   const resolverBudgetExhaustedByType = normalizeCategoryCounts(raw.resolverBudgetExhaustedByType);
-  const categoriesTotal = Object.values(categories).reduce((sum, value) => sum + value, 0);
+  const reasonCodeTotal = Object.values(reasonCodes).reduce((sum, value) => sum + value, 0);
   const rawTotal = Number(raw.total);
   const total = Number.isFinite(rawTotal) && rawTotal >= 0
     ? Math.trunc(rawTotal)
-    : categoriesTotal;
+    : reasonCodeTotal;
   const liveSuppressedRaw = Number(raw.liveSuppressed);
   const liveSuppressed = Number.isFinite(liveSuppressedRaw) && liveSuppressedRaw >= 0
     ? Math.min(total, Math.trunc(liveSuppressedRaw))
@@ -201,7 +200,6 @@ const normalizeUnresolvedSnapshot = (
     actionable,
     liveSuppressed,
     gateSuppressed,
-    categories,
     reasonCodes,
     failureCauses,
     dispositions,
@@ -212,15 +210,7 @@ const normalizeUnresolvedSnapshot = (
     actionableByLanguage: normalizeCategoryCounts(raw.actionableByLanguage),
     actionableRate,
     parserArtifactRate,
-    resolverGapRate,
-    liveSuppressedCategories: normalizeStringList(raw.liveSuppressedCategories)
-  };
-};
-
-const normalizeSuppressionPolicy = (raw) => {
-  if (!isObject(raw)) return { liveSuppressedCategories: [] };
-  return {
-    liveSuppressedCategories: normalizeStringList(raw.liveSuppressedCategories)
+    resolverGapRate
   };
 };
 
@@ -246,7 +236,6 @@ const normalizeDiagnostics = (
     deltaTotal: Number.isFinite(Number(unresolvedTrendRaw.deltaTotal))
       ? Math.trunc(Number(unresolvedTrendRaw.deltaTotal))
       : null,
-    deltaByCategory: normalizeCategoryCounts(unresolvedTrendRaw.deltaByCategory, { allowNegative: true }),
     deltaByReasonCode: normalizeCategoryCounts(unresolvedTrendRaw.deltaByReasonCode, {
       allowNegative: true,
       allowedKeys: KNOWN_REASON_CODES,
@@ -304,7 +293,6 @@ const normalizeDiagnostics = (
   });
   return {
     version: CACHE_DIAGNOSTICS_VERSION,
-    suppressionPolicy: normalizeSuppressionPolicy(raw.suppressionPolicy),
     unresolvedTrend
   };
 };
@@ -475,7 +463,6 @@ const buildCategoryDelta = (previous, current) => {
 
 const buildSnapshotFromTaxonomy = ({ unresolvedTaxonomy, unresolvedTotal }) => {
   const taxonomy = isObject(unresolvedTaxonomy) ? unresolvedTaxonomy : {};
-  const categories = normalizeCategoryCounts(taxonomy.categories);
   const reasonCodes = normalizeCategoryCounts(taxonomy.reasonCodes);
   const failureCauses = normalizeCategoryCounts(taxonomy.failureCauses);
   const dispositions = normalizeCategoryCounts(taxonomy.dispositions);
@@ -485,7 +472,7 @@ const buildSnapshotFromTaxonomy = ({ unresolvedTaxonomy, unresolvedTotal }) => {
     ? Math.trunc(resolverBudgetExhaustedRaw)
     : (reasonCodes.IMP_U_RESOLVER_BUDGET_EXHAUSTED || 0);
   const resolverBudgetExhaustedByType = normalizeCategoryCounts(taxonomy.resolverBudgetExhaustedByType);
-  const categoriesTotal = Object.values(categories).reduce((sum, value) => sum + value, 0);
+  const reasonCodeTotal = Object.values(reasonCodes).reduce((sum, value) => sum + value, 0);
   const candidateTotal = Number(unresolvedTotal);
   const taxonomyTotal = Number(taxonomy.total);
   const total = Number.isFinite(candidateTotal) && candidateTotal >= 0
@@ -493,7 +480,7 @@ const buildSnapshotFromTaxonomy = ({ unresolvedTaxonomy, unresolvedTotal }) => {
     : (
       Number.isFinite(taxonomyTotal) && taxonomyTotal >= 0
         ? Math.trunc(taxonomyTotal)
-        : categoriesTotal
+        : reasonCodeTotal
     );
   const liveSuppressedRaw = Number(taxonomy.liveSuppressed);
   const liveSuppressed = Number.isFinite(liveSuppressedRaw) && liveSuppressedRaw >= 0
@@ -522,7 +509,6 @@ const buildSnapshotFromTaxonomy = ({ unresolvedTaxonomy, unresolvedTotal }) => {
     actionable,
     liveSuppressed,
     gateSuppressed,
-    categories,
     reasonCodes,
     failureCauses,
     dispositions,
@@ -533,8 +519,7 @@ const buildSnapshotFromTaxonomy = ({ unresolvedTaxonomy, unresolvedTotal }) => {
     actionableByLanguage: normalizeCategoryCounts(taxonomy.actionableByLanguage),
     actionableRate,
     parserArtifactRate,
-    resolverGapRate,
-    liveSuppressedCategories: normalizeStringList(taxonomy.liveSuppressedCategories)
+    resolverGapRate
   };
 };
 
@@ -807,19 +792,12 @@ export const updateImportResolutionDiagnosticsCache = ({
   const normalizedExisting = normalizeDiagnostics(cache.diagnostics);
   const previousCurrent = normalizedExisting?.unresolvedTrend?.current || null;
   const current = buildSnapshotFromTaxonomy({ unresolvedTaxonomy, unresolvedTotal });
-  const suppressionCategories = current.liveSuppressedCategories.length
-    ? current.liveSuppressedCategories
-    : normalizeStringList(normalizedExisting?.suppressionPolicy?.liveSuppressedCategories);
   const diagnostics = {
     version: CACHE_DIAGNOSTICS_VERSION,
-    suppressionPolicy: {
-      liveSuppressedCategories: suppressionCategories
-    },
     unresolvedTrend: {
       previous: previousCurrent,
       current,
       deltaTotal: previousCurrent ? (current.total - previousCurrent.total) : null,
-      deltaByCategory: buildCategoryDelta(previousCurrent?.categories || {}, current.categories),
       deltaByReasonCode: buildCategoryDelta(previousCurrent?.reasonCodes || {}, current.reasonCodes),
       deltaByFailureCause: buildCategoryDelta(previousCurrent?.failureCauses || {}, current.failureCauses),
       deltaByDisposition: buildCategoryDelta(previousCurrent?.dispositions || {}, current.dispositions),

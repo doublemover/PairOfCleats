@@ -44,7 +44,6 @@ assert.equal(unresolved.length, 1);
 assert.equal(unresolved[0].reasonCode, 'IMP_U_RESOLVER_BUDGET_EXHAUSTED');
 assert.equal(unresolved[0].failureCause, 'resolver_gap');
 assert.equal(unresolved[0].resolverStage, 'filesystem_probe');
-assert.equal(unresolved[0].category, 'resolver_gap');
 
 assert.equal(result?.stats?.unresolvedBudgetExhausted, 1);
 assert.deepEqual(

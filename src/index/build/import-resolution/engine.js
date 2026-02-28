@@ -359,7 +359,7 @@ export function resolveImportLinks({
       repoHash,
       buildConfigHash: packageFingerprint || null,
       mode,
-      schemaVersion: 'import-resolution-cache-v7',
+      schemaVersion: 'import-resolution-cache-v8',
       featureFlags: [
         ...(graphMeta?.importScanMode ? [`scan:${graphMeta.importScanMode}`] : []),
         ...(aliasRulesFingerprint ? [`resolverAlias:${aliasRulesFingerprint}`] : []),
