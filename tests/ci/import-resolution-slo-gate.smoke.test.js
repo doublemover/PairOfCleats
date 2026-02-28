@@ -122,6 +122,14 @@ try {
     passPayload?.resolverBudgetPolicyProfiles,
     { queue_backlog: 1 }
   );
+  assert.deepEqual(
+    passPayload?.stageHighlights,
+    {
+      topByElapsed: { stage: 'normalize', elapsedMs: 3.25 },
+      topByBudgetExhausted: { stage: 'filesystem_probe', budgetExhausted: 1 },
+      topByDegraded: { stage: 'filesystem_probe', degraded: 1 }
+    }
+  );
 
   const failGraphPath = path.join(tempRoot, 'import_resolution_graph.fail.json');
   const failJsonPath = path.join(tempRoot, 'import-resolution-slo-gate.fail.json');
@@ -184,6 +192,14 @@ try {
   assert.deepEqual(
     failPayload?.resolverBudgetPolicyProfiles,
     { normal: 1 }
+  );
+  assert.deepEqual(
+    failPayload?.stageHighlights,
+    {
+      topByElapsed: null,
+      topByBudgetExhausted: null,
+      topByDegraded: null
+    }
   );
 
   const fallbackGraphPath = path.join(tempRoot, 'import_resolution_graph.fallback.json');
@@ -263,6 +279,14 @@ try {
   assert.deepEqual(
     fallbackPayload?.resolverBudgetPolicyProfiles,
     { normal: 1 }
+  );
+  assert.deepEqual(
+    fallbackPayload?.stageHighlights,
+    {
+      topByElapsed: null,
+      topByBudgetExhausted: null,
+      topByDegraded: null
+    }
   );
 
   const advisoryGraphPath = path.join(tempRoot, 'import_resolution_graph.advisory.json');

@@ -237,6 +237,11 @@ const main = async () => {
     resolverStages,
     resolverPipelineStages,
     resolverBudgetPolicyProfiles,
+    stageHighlights: {
+      topByElapsed: topStageByElapsed,
+      topByBudgetExhausted: topStageByBudgetExhausted,
+      topByDegraded: topStageByDegraded
+    },
     actionableHotspots,
     advisories,
     failures
