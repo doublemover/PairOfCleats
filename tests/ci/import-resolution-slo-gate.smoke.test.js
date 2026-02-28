@@ -20,7 +20,13 @@ try {
     generatedAt: new Date().toISOString(),
     stats: {
       unresolved: 10,
-      unresolvedActionable: 2
+      unresolvedActionable: 2,
+      unresolvedByResolverStage: {
+        filesystem_probe: 2
+      },
+      unresolvedActionableHotspots: [
+        { importer: 'src/main.ts', count: 2 }
+      ]
     },
     warnings: [
       {
@@ -77,13 +83,12 @@ try {
   assert.equal(passPayload?.metrics?.gateEligibleActionable, 1);
   assert.deepEqual(
     passPayload?.actionableHotspots,
-    [{ importer: 'src/main.ts', count: 1 }]
+    [{ importer: 'src/main.ts', count: 2 }]
   );
   assert.deepEqual(
     passPayload?.resolverStages,
     {
-      classify: 1,
-      filesystem_probe: 1
+      filesystem_probe: 2
     }
   );
 
