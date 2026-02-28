@@ -1,6 +1,7 @@
 import { createLspClient } from '../../lsp/client.js';
 import { createToolingGuard, createToolingLifecycleHealth } from '../shared.js';
 import { coercePositiveInt } from '../../../../shared/number-coerce.js';
+import { sleep } from '../../../../shared/sleep.js';
 import { stableStringify } from '../../../../shared/stable-json.js';
 
 const DEFAULT_IDLE_TIMEOUT_MS = 1_500;
@@ -15,8 +16,13 @@ const SESSION_STATE = Object.freeze({
 });
 
 const sessions = new Map();
+const disposalBarriers = new Map();
 let cleanupTimer = null;
+let cleanupPassQueue = Promise.resolve();
 let exitCleanupInstalled = false;
+const testHooks = {
+  disposeDelayMs: 0
+};
 
 const toPositiveInt = (value, fallback, min = 1) => {
   const parsed = coercePositiveInt(value);
@@ -94,14 +100,62 @@ const killSessionClient = (session) => {
 
 const disposeSessionClient = async (session) => {
   if (!session || typeof session !== 'object') return;
-  session.disposed = true;
-  session.state = SESSION_STATE.RETIRED;
-  try {
-    if (session.client && typeof session.client.shutdownAndExit === 'function') {
-      await session.client.shutdownAndExit();
+  if (session.disposePromise && typeof session.disposePromise.then === 'function') {
+    await session.disposePromise;
+    return;
+  }
+  const runDispose = async () => {
+    session.disposed = true;
+    session.state = SESSION_STATE.RETIRED;
+    const delayMs = toNonNegativeInt(testHooks.disposeDelayMs, 0);
+    if (delayMs > 0) {
+      await sleep(delayMs);
     }
-  } catch {}
-  killSessionClient(session);
+    try {
+      if (session.client && typeof session.client.shutdownAndExit === 'function') {
+        await session.client.shutdownAndExit();
+      }
+    } catch {}
+    killSessionClient(session);
+  };
+  session.disposePromise = runDispose();
+  session.disposed = true;
+  await session.disposePromise;
+};
+
+const awaitSessionDisposalBarrier = async (key) => {
+  const normalizedKey = String(key || '');
+  if (!normalizedKey) return;
+  const pending = disposalBarriers.get(normalizedKey);
+  if (!pending) return;
+  await pending;
+};
+
+const enqueueSessionDisposal = (session, {
+  killFirst = false
+} = {}) => {
+  if (!session || typeof session !== 'object') return Promise.resolve();
+  const key = String(session.key || '');
+  const previous = key ? disposalBarriers.get(key) : null;
+  const run = async () => {
+    if (previous) {
+      await previous.catch(() => {});
+    }
+    if (killFirst) {
+      killSessionClient(session);
+    }
+    await disposeSessionClient(session);
+  };
+  const tracked = run().catch(() => {});
+  if (key) {
+    disposalBarriers.set(key, tracked);
+    tracked.finally(() => {
+      if (disposalBarriers.get(key) === tracked) {
+        disposalBarriers.delete(key);
+      }
+    });
+  }
+  return tracked;
 };
 
 const shouldExpireForLifetime = (session, now = Date.now()) => (
@@ -268,6 +322,7 @@ const clearCleanupTimer = () => {
 const killAllSessionsNow = () => {
   const live = Array.from(sessions.values());
   sessions.clear();
+  disposalBarriers.clear();
   clearCleanupTimer();
   for (const session of live) {
     killSessionClient(session);
@@ -285,21 +340,23 @@ const runCleanupPass = async () => {
     refreshSessionState(session);
     if (session.state === SESSION_STATE.POISONED) {
       sessions.delete(key);
-      await disposeSessionClient(session);
+      await enqueueSessionDisposal(session);
       continue;
     }
     const idleMs = now - Number(session.lastUsedAt || now);
     const idleTimeoutMs = toPositiveInt(session.idleTimeoutMs, DEFAULT_IDLE_TIMEOUT_MS, 1000);
     if (idleMs < idleTimeoutMs) continue;
     sessions.delete(key);
-    await disposeSessionClient(session);
+    await enqueueSessionDisposal(session);
   }
 };
 
 const ensureCleanupTimer = () => {
   if (cleanupTimer) return;
   cleanupTimer = setInterval(() => {
-    void runCleanupPass();
+    cleanupPassQueue = cleanupPassQueue
+      .then(() => runCleanupPass())
+      .catch(() => {});
   }, DEFAULT_CLEANUP_INTERVAL_MS);
   cleanupTimer.unref?.();
   if (!exitCleanupInstalled) {
@@ -313,29 +370,29 @@ const ensureCleanupTimer = () => {
   }
 };
 
-const getOrCreateSession = (options) => {
+const getOrCreateSession = async (options) => {
   const key = buildSessionKey(options);
+  await awaitSessionDisposalBarrier(key);
   const now = Date.now();
   const existing = sessions.get(key);
   if (existing && !existing.disposed) {
     refreshSessionState(existing);
     if (existing.state === SESSION_STATE.POISONED && existing.activeCount === 0) {
       sessions.delete(key);
-      killSessionClient(existing);
-      void disposeSessionClient(existing);
+      await enqueueSessionDisposal(existing, { killFirst: true });
     } else {
       const idleTimeoutMs = toPositiveInt(existing.idleTimeoutMs, DEFAULT_IDLE_TIMEOUT_MS, 1000);
       const idleExpired = (now - Number(existing.lastUsedAt || now)) >= idleTimeoutMs;
       if ((shouldExpireForLifetime(existing, now) || idleExpired) && existing.activeCount === 0) {
         sessions.delete(key);
-        killSessionClient(existing);
-        void disposeSessionClient(existing);
+        await enqueueSessionDisposal(existing, { killFirst: true });
       } else {
         existing.lastUsedAt = now;
         return { session: existing, reused: true };
       }
     }
   }
+  await awaitSessionDisposalBarrier(key);
   const next = createSession(options);
   sessions.set(key, next);
   ensureCleanupTimer();
@@ -408,7 +465,7 @@ export const withLspSession = async (options, fn) => {
     }
   }
 
-  const resolved = getOrCreateSession({
+  const resolved = await getOrCreateSession({
     ...options,
     providerId: options?.providerId || options?.cmd || 'lsp',
     workspaceKey: options?.workspaceKey || options?.repoRoot || options?.cwd || '',
@@ -498,8 +555,16 @@ export const __testLspSessionPool = {
     for (const session of live) {
       await disposeSessionClient(session);
     }
+    testHooks.disposeDelayMs = 0;
+    cleanupPassQueue = Promise.resolve();
   },
   getSize() {
     return sessions.size;
+  },
+  setDisposeDelayMs(value) {
+    testHooks.disposeDelayMs = toNonNegativeInt(value, 0);
+  },
+  getPendingDisposals() {
+    return disposalBarriers.size;
   }
 };

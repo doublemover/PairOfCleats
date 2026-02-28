@@ -96,7 +96,16 @@ const summarizeLatencies = (samples, totalMs, maxMs) => ({
 
 /**
  * Create a minimal JSON-RPC client for LSP servers.
- * @param {{cmd:string,args?:string[],cwd?:string,env?:object,log?:(msg:string)=>void,onNotification?:(msg:object)=>void,onRequest?:(msg:object)=>Promise<any>}} options
+ * @param {{
+ *   cmd:string,
+ *   args?:string[],
+ *   cwd?:string,
+ *   env?:object,
+ *   log?:(msg:string)=>void,
+ *   onNotification?:(msg:object)=>void,
+ *   onRequest?:(msg:object)=>Promise<any>,
+ *   spawnProcess?:(input:{cmd:string,args:string[],options:import('node:child_process').SpawnOptionsWithoutStdio,rawCmd:string,rawArgs:string[],useShell:boolean})=>import('node:child_process').ChildProcess
+ * }} options
  */
 export function createLspClient(options) {
   const {
@@ -113,7 +122,8 @@ export function createLspClient(options) {
     stderrFilter,
     maxBufferBytes,
     maxHeaderBytes,
-    maxMessageBytes
+    maxMessageBytes,
+    spawnProcess
   } = options || {};
   if (!cmd) throw new Error('createLspClient requires a command.');
   const useShell = typeof shell === 'boolean'
@@ -127,6 +137,7 @@ export function createLspClient(options) {
   let writerClosed = false;
   let unregisterChildProcess = null;
   let trackedChildProcess = null;
+  const reapedChildren = new WeakSet();
   let nextId = 1;
   const pending = new Map();
   let generation = 0;
@@ -224,6 +235,51 @@ export function createLspClient(options) {
     trackedChildProcess = null;
   };
 
+  const isChildRunning = (child) => Boolean(
+    child
+    && child.exitCode === null
+    && !child.killed
+  );
+
+  const reapStaleChildProcess = (child, reason = 'stale_child') => {
+    if (!child || reapedChildren.has(child) || !isChildRunning(child)) return;
+    reapedChildren.add(child);
+    try {
+      if (child.stdin) closeJsonRpcWriter(child.stdin);
+    } catch {}
+    try {
+      child.stdout?.destroy();
+    } catch {}
+    try {
+      child.stderr?.destroy();
+    } catch {}
+    try {
+      child.kill();
+    } catch {}
+    killChildProcessTree(child, {
+      killTree: true,
+      detached: killTreeDetached,
+      graceMs: 0,
+      awaitGrace: true
+    }).catch(() => {});
+    setTimeout(() => {
+      if (isChildRunning(child)) {
+        try {
+          child.kill('SIGKILL');
+        } catch {}
+      }
+    }, 200).unref?.();
+    try {
+      child.unref?.();
+    } catch {}
+    clearTrackedChild({ force: true, child });
+    emitLifecycleEvent({
+      kind: 'reap',
+      reason,
+      pid: Number.isFinite(Number(child?.pid)) ? Number(child.pid) : null
+    });
+  };
+
   const isTransportRunning = () => Boolean(
     proc
     && proc.exitCode === null
@@ -308,9 +364,13 @@ export function createLspClient(options) {
   const start = () => {
     if (proc) {
       if (proc.killed || proc.exitCode !== null || writerClosed) {
-        if (proc.stdin) closeJsonRpcWriter(proc.stdin);
+        const staleChild = proc;
+        if (writerClosed) {
+          reapStaleChildProcess(staleChild, 'writer_closed_restart');
+        }
+        if (staleChild.stdin) closeJsonRpcWriter(staleChild.stdin);
         parser?.dispose();
-        clearTrackedChild();
+        clearTrackedChild({ force: true, child: staleChild });
         proc = null;
         writer = null;
         writerClosed = true;
@@ -333,9 +393,21 @@ export function createLspClient(options) {
       shell: useShell,
       detached: killTreeDetached
     };
-    const child = useShell
-      ? spawn(spawnCmd, spawnOptions)
-      : spawn(spawnCmd, spawnArgs, spawnOptions);
+    const child = typeof spawnProcess === 'function'
+      ? spawnProcess({
+        cmd: spawnCmd,
+        args: [...spawnArgs],
+        options: { ...spawnOptions },
+        rawCmd: cmd,
+        rawArgs: [...args],
+        useShell
+      })
+      : (useShell
+        ? spawn(spawnCmd, spawnOptions)
+        : spawn(spawnCmd, spawnArgs, spawnOptions));
+    if (!child || typeof child.on !== 'function') {
+      throw new Error('createLspClient spawnProcess override must return a ChildProcess-like object.');
+    }
     proc = child;
     emitLifecycleEvent({
       kind: 'start',
@@ -366,6 +438,7 @@ export function createLspClient(options) {
       if (!writerClosed) rejectPendingTransportClosed();
       writerClosed = true;
       if (child?.stdin) closeJsonRpcWriter(child.stdin);
+      reapStaleChildProcess(child, 'writer_closed');
     };
     child.stdin?.on('close', markWriterClosed);
     child.stdin?.on('error', markWriterClosed);
@@ -467,6 +540,9 @@ export function createLspClient(options) {
           methodMetric.timedOut += 1;
           methodMetric.failed += 1;
           recordRequestLatency(method, Date.now() - startedAt);
+          try {
+            notify('$/cancelRequest', { id }, { startIfNeeded: false });
+          } catch {}
           const err = new Error(`LSP request timeout (${method}).`);
           err.code = 'ERR_LSP_REQUEST_TIMEOUT';
           reject(err);
