@@ -6,7 +6,7 @@ import { sha1 } from '../../shared/hash.js';
 
 const CACHE_VERSION = 4;
 const CACHE_FILE = 'import-resolution-cache.json';
-const CACHE_DIAGNOSTICS_VERSION = 2;
+const CACHE_DIAGNOSTICS_VERSION = 3;
 const IMPORT_SPEC_CANDIDATE_EXTENSIONS = Object.freeze([
   '.js',
   '.jsx',
@@ -81,6 +81,11 @@ const normalizeUnresolvedSnapshot = (raw) => {
   const failureCauses = normalizeCategoryCounts(raw.failureCauses);
   const dispositions = normalizeCategoryCounts(raw.dispositions);
   const resolverStages = normalizeCategoryCounts(raw.resolverStages);
+  const resolverBudgetExhaustedRaw = Number(raw.resolverBudgetExhausted);
+  const resolverBudgetExhausted = Number.isFinite(resolverBudgetExhaustedRaw) && resolverBudgetExhaustedRaw >= 0
+    ? Math.trunc(resolverBudgetExhaustedRaw)
+    : (reasonCodes.IMP_U_RESOLVER_BUDGET_EXHAUSTED || 0);
+  const resolverBudgetExhaustedByType = normalizeCategoryCounts(raw.resolverBudgetExhaustedByType);
   const categoriesTotal = Object.values(categories).reduce((sum, value) => sum + value, 0);
   const rawTotal = Number(raw.total);
   const total = Number.isFinite(rawTotal) && rawTotal >= 0
@@ -112,6 +117,8 @@ const normalizeUnresolvedSnapshot = (raw) => {
     failureCauses,
     dispositions,
     resolverStages,
+    resolverBudgetExhausted,
+    resolverBudgetExhaustedByType,
     actionableHotspots: normalizeActionableHotspots(raw.actionableHotspots),
     actionableRate,
     liveSuppressedCategories: normalizeStringList(raw.liveSuppressedCategories)
@@ -138,7 +145,14 @@ const normalizeDiagnostics = (raw) => {
     deltaByReasonCode: normalizeCategoryCounts(unresolvedTrendRaw.deltaByReasonCode, { allowNegative: true }),
     deltaByFailureCause: normalizeCategoryCounts(unresolvedTrendRaw.deltaByFailureCause, { allowNegative: true }),
     deltaByDisposition: normalizeCategoryCounts(unresolvedTrendRaw.deltaByDisposition, { allowNegative: true }),
-    deltaByResolverStage: normalizeCategoryCounts(unresolvedTrendRaw.deltaByResolverStage, { allowNegative: true })
+    deltaByResolverStage: normalizeCategoryCounts(unresolvedTrendRaw.deltaByResolverStage, { allowNegative: true }),
+    deltaResolverBudgetExhausted: Number.isFinite(Number(unresolvedTrendRaw.deltaResolverBudgetExhausted))
+      ? Math.trunc(Number(unresolvedTrendRaw.deltaResolverBudgetExhausted))
+      : 0,
+    deltaResolverBudgetExhaustedByType: normalizeCategoryCounts(
+      unresolvedTrendRaw.deltaResolverBudgetExhaustedByType,
+      { allowNegative: true }
+    )
   };
   return {
     version: CACHE_DIAGNOSTICS_VERSION,
@@ -280,6 +294,11 @@ const buildSnapshotFromTaxonomy = ({ unresolvedTaxonomy, unresolvedTotal }) => {
   const failureCauses = normalizeCategoryCounts(taxonomy.failureCauses);
   const dispositions = normalizeCategoryCounts(taxonomy.dispositions);
   const resolverStages = normalizeCategoryCounts(taxonomy.resolverStages);
+  const resolverBudgetExhaustedRaw = Number(taxonomy.resolverBudgetExhausted);
+  const resolverBudgetExhausted = Number.isFinite(resolverBudgetExhaustedRaw) && resolverBudgetExhaustedRaw >= 0
+    ? Math.trunc(resolverBudgetExhaustedRaw)
+    : (reasonCodes.IMP_U_RESOLVER_BUDGET_EXHAUSTED || 0);
+  const resolverBudgetExhaustedByType = normalizeCategoryCounts(taxonomy.resolverBudgetExhaustedByType);
   const categoriesTotal = Object.values(categories).reduce((sum, value) => sum + value, 0);
   const candidateTotal = Number(unresolvedTotal);
   const taxonomyTotal = Number(taxonomy.total);
@@ -316,6 +335,8 @@ const buildSnapshotFromTaxonomy = ({ unresolvedTaxonomy, unresolvedTotal }) => {
     failureCauses,
     dispositions,
     resolverStages,
+    resolverBudgetExhausted,
+    resolverBudgetExhaustedByType,
     actionableHotspots: normalizeActionableHotspots(taxonomy.actionableHotspots),
     actionableRate,
     liveSuppressedCategories: normalizeStringList(taxonomy.liveSuppressedCategories)
@@ -593,7 +614,12 @@ export const updateImportResolutionDiagnosticsCache = ({
       deltaByReasonCode: buildCategoryDelta(previousCurrent?.reasonCodes || {}, current.reasonCodes),
       deltaByFailureCause: buildCategoryDelta(previousCurrent?.failureCauses || {}, current.failureCauses),
       deltaByDisposition: buildCategoryDelta(previousCurrent?.dispositions || {}, current.dispositions),
-      deltaByResolverStage: buildCategoryDelta(previousCurrent?.resolverStages || {}, current.resolverStages)
+      deltaByResolverStage: buildCategoryDelta(previousCurrent?.resolverStages || {}, current.resolverStages),
+      deltaResolverBudgetExhausted: current.resolverBudgetExhausted - (previousCurrent?.resolverBudgetExhausted || 0),
+      deltaResolverBudgetExhaustedByType: buildCategoryDelta(
+        previousCurrent?.resolverBudgetExhaustedByType || {},
+        current.resolverBudgetExhaustedByType
+      )
     }
   };
   cache.diagnostics = diagnostics;

@@ -310,7 +310,7 @@ export function resolveImportLinks({
       repoHash,
       buildConfigHash: packageFingerprint || null,
       mode,
-      schemaVersion: 'import-resolution-cache-v5',
+      schemaVersion: 'import-resolution-cache-v6',
       featureFlags: [
         ...(graphMeta?.importScanMode ? [`scan:${graphMeta.importScanMode}`] : []),
         ...(aliasRulesFingerprint ? [`resolverAlias:${aliasRulesFingerprint}`] : []),
@@ -581,9 +581,12 @@ export function resolveImportLinks({
       let tsPathPattern = null;
       let tsconfigPath = null;
       let packageName = null;
+      let unresolvedReasonCodeHint = null;
+      let unresolvedBudgetExhaustedTypesHint = [];
       let cacheClass = null;
       let fallbackPath = null;
       let expiresAt = null;
+      let specCacheKeyUsed = null;
       let edgeTarget = null;
       let resolutionState = IMPORT_RESOLUTION_STATES.RESOLVED;
       let unresolvedReasonCode = null;
@@ -652,6 +655,8 @@ export function resolveImportLinks({
           tsPathPattern,
           tsconfigPath,
           packageName,
+          unresolvedReasonCode: unresolvedReasonCodeHint = null,
+          unresolvedBudgetExhaustedTypes: unresolvedBudgetExhaustedTypesHint = [],
           cacheClass = null,
           fallbackPath = null,
           expiresAt = null
@@ -659,6 +664,7 @@ export function resolveImportLinks({
         if (cacheMetrics) cacheMetrics.specsReused += 1;
       } else {
         const specCacheKey = cacheKeyFor(relNormalized, spec, tsconfig);
+        specCacheKeyUsed = specCacheKey;
         let cached = resolutionCache.get(specCacheKey);
         if (cached?.expiresAt && cached.expiresAt < nowMs) {
           resolutionCache.delete(specCacheKey);
@@ -680,6 +686,8 @@ export function resolveImportLinks({
             tsPathPattern,
             tsconfigPath,
             packageName,
+            unresolvedReasonCode: unresolvedReasonCodeHint = null,
+            unresolvedBudgetExhaustedTypes: unresolvedBudgetExhaustedTypesHint = [],
             cacheClass = null,
             fallbackPath = null,
             expiresAt = null
@@ -810,6 +818,8 @@ export function resolveImportLinks({
             tsPathPattern,
             tsconfigPath,
             packageName,
+            unresolvedReasonCode: unresolvedReasonCodeHint,
+            unresolvedBudgetExhaustedTypes: unresolvedBudgetExhaustedTypesHint,
             cacheClass,
             fallbackPath,
             expiresAt
@@ -825,6 +835,8 @@ export function resolveImportLinks({
           tsPathPattern,
           tsconfigPath,
           packageName,
+          unresolvedReasonCode: unresolvedReasonCodeHint,
+          unresolvedBudgetExhaustedTypes: unresolvedBudgetExhaustedTypesHint,
           cacheClass,
           fallbackPath,
           expiresAt
@@ -855,15 +867,19 @@ export function resolveImportLinks({
           () => assertUnresolvedDecision(
             ignoredUnresolved
               ? createUnresolvedDecision(IMPORT_REASON_CODES.PARSER_NOISE_SUPPRESSED)
-              : createUnresolvedDecision(resolveUnresolvedReasonCode({
-                importerRel: relNormalized,
-                spec,
-                rawSpec,
-                buildContextClassification: resolveBuildContextClassification(),
-                budgetExhausted: specBudget.isExhausted(),
-                generatedExpectationMatch: resolveGeneratedExpectationMatch(),
-                expectedArtifactsIndex
-              })),
+              : (
+                unresolvedReasonCodeHint
+                  ? createUnresolvedDecision(unresolvedReasonCodeHint)
+                  : createUnresolvedDecision(resolveUnresolvedReasonCode({
+                    importerRel: relNormalized,
+                    spec,
+                    rawSpec,
+                    buildContextClassification: resolveBuildContextClassification(),
+                    budgetExhausted: specBudget.isExhausted(),
+                    generatedExpectationMatch: resolveGeneratedExpectationMatch(),
+                    expectedArtifactsIndex
+                  }))
+              ),
             {
               context: `imports.resolve:${relNormalized}->${spec}`
             }
@@ -876,14 +892,34 @@ export function resolveImportLinks({
         unresolvedResolverStage = unresolvedDecision.resolverStage;
         if (unresolvedReasonCode === IMPORT_REASON_CODES.RESOLVER_BUDGET_EXHAUSTED) {
           unresolvedBudgetExhausted += 1;
-          for (const exhaustedType of specBudget.exhaustedTypes()) {
+          const exhaustedTypes = specBudget.exhaustedTypes();
+          const effectiveExhaustedTypes = exhaustedTypes.length > 0
+            ? exhaustedTypes
+            : (
+              Array.isArray(unresolvedBudgetExhaustedTypesHint)
+                ? unresolvedBudgetExhaustedTypesHint
+                : []
+            );
+          for (const exhaustedType of effectiveExhaustedTypes) {
             bumpCount(unresolvedBudgetExhaustedByType, exhaustedType, 1);
           }
+          unresolvedBudgetExhaustedTypesHint = effectiveExhaustedTypes;
         }
         if (isActionableDisposition(unresolvedDisposition)) {
           unresolvedActionable += 1;
         }
         bumpCount(unresolvedReasonCounts, unresolvedReasonCode);
+        if (specCacheKeyUsed && resolutionCache.has(specCacheKeyUsed)) {
+          const cachedEntry = resolutionCache.get(specCacheKeyUsed);
+          if (cachedEntry && typeof cachedEntry === 'object') {
+            cachedEntry.unresolvedReasonCode = unresolvedReasonCode;
+            cachedEntry.unresolvedBudgetExhaustedTypes = unresolvedBudgetExhaustedTypesHint;
+          }
+        }
+        if (nextSpecCache && nextSpecCache[spec] && typeof nextSpecCache[spec] === 'object') {
+          nextSpecCache[spec].unresolvedReasonCode = unresolvedReasonCode;
+          nextSpecCache[spec].unresolvedBudgetExhaustedTypes = unresolvedBudgetExhaustedTypesHint;
+        }
         if (ignoredUnresolved || unresolvedDedup.has(unresolvedKey)) {
           suppressedWarnings += 1;
           includeGraphEdge = false;
