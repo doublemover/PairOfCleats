@@ -7,6 +7,7 @@ import { execaSync } from 'execa';
 import { SymbolKind } from 'vscode-languageserver-protocol';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { isTestingEnv } from '../../shared/env.js';
+import { resolveEnvPath } from '../../shared/env-path.js';
 import { readJsonFileSafe, toPosix } from '../../shared/files.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { throwIfAborted } from '../../shared/abort.js';
@@ -465,7 +466,7 @@ const resolveCommandCandidates = (cmd) => {
     output.push(normalized);
   };
 
-  const pathEntries = splitPathEntries(process.env.PATH || '');
+  const pathEntries = splitPathEntries(resolveEnvPath(process.env));
   const lowered = String(cmd || '').toLowerCase();
   const hasExt = /\.(exe|cmd|bat)$/i.test(lowered);
 

@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import { createCli } from '../../src/shared/cli.js';
 import { createStdoutGuard } from '../../src/shared/cli/stdout-guard.js';
+import { resolveEnvPath } from '../../src/shared/env-path.js';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { buildToolingReport, detectTool, normalizeLanguageList, resolveToolsById, resolveToolsForLanguages, selectInstallPlan } from './utils.js';
@@ -48,7 +49,7 @@ const resolveSpawnCommand = (cmd) => {
   const value = String(cmd || '').trim();
   if (!value || process.platform !== 'win32') return value;
   if (path.extname(value) || value.includes(path.sep) || value.includes('/')) return value;
-  const pathEntries = splitPathEntries(process.env.PATH || process.env.Path || '');
+  const pathEntries = splitPathEntries(resolveEnvPath(process.env));
   for (const ext of WINDOWS_EXEC_EXTS) {
     for (const dir of pathEntries) {
       const candidate = path.join(dir, `${value}${ext}`);

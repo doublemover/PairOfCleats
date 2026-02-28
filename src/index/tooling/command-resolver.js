@@ -1,6 +1,7 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { resolveToolRoot } from '../../shared/dict-utils.js';
+import { resolveEnvPath } from '../../shared/env-path.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
 import { spawnSubprocessSync } from '../../shared/subprocess.js';
 import { createLspClient, pathToFileUri } from '../../integrations/tooling/lsp/client.js';
@@ -94,7 +95,7 @@ const resolveWindowsCommand = (cmd) => {
   if (process.platform !== 'win32') return cmd;
   const lowered = String(cmd || '').toLowerCase();
   if (WINDOWS_EXEC_EXTS.some((ext) => lowered.endsWith(ext))) return cmd;
-  const pathEntries = splitPathEntries(process.env.PATH || '');
+  const pathEntries = splitPathEntries(resolveEnvPath(process.env));
   for (const ext of WINDOWS_EXEC_EXTS) {
     for (const dir of pathEntries) {
       const candidate = path.join(dir, `${cmd}${ext}`);

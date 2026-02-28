@@ -5,6 +5,11 @@ import { canRunCommand } from '../shared/cli-utils.js';
 import { LOCK_FILES, MANIFEST_FILES, SKIP_DIRS, SKIP_FILES } from '../../src/index/constants.js';
 import { findBinaryInDirs, splitPathEntries } from '../../src/index/tooling/binary-utils.js';
 import { toPosix } from '../../src/shared/files.js';
+import {
+  normalizeEnvPathKeys as normalizeSharedEnvPathKeys,
+  resolveEnvPath as resolveSharedEnvPath,
+  resolvePathEnvKey as resolveSharedPathEnvKey
+} from '../../src/shared/env-path.js';
 import { getToolingConfig } from '../shared/dict-utils.js';
 
 const LANGUAGE_EXTENSIONS = {
@@ -107,51 +112,16 @@ function dedupePaths(paths = []) {
   return normalized;
 }
 
-export function resolvePathEnvKey(env, { preferredKey = '' } = {}) {
-  const keys = Object.keys(env || {});
-  const pathKeys = keys.filter((key) => String(key || '').toLowerCase() === 'path');
-  const preferred = String(preferredKey || '').trim();
-  if (preferred && pathKeys.includes(preferred)) return preferred;
-  if (process.platform === 'win32') {
-    if (pathKeys.includes('Path')) return 'Path';
-    if (pathKeys.includes('PATH')) return 'PATH';
-  } else if (pathKeys.includes('PATH')) {
-    return 'PATH';
-  }
-  if (pathKeys.length) return pathKeys[0];
-  if (preferred) return preferred;
-  return process.platform === 'win32' ? 'Path' : 'PATH';
+export function resolvePathEnvKey(env, options = {}) {
+  return resolveSharedPathEnvKey(env, options);
 }
 
 export function resolveEnvPath(env) {
-  const pathKeys = Object.keys(env || {}).filter((key) => String(key || '').toLowerCase() === 'path');
-  if (!pathKeys.length) return '';
-  const entries = [];
-  for (const key of pathKeys) {
-    const raw = env?.[key];
-    if (typeof raw !== 'string' || !raw.trim()) continue;
-    entries.push(...splitPathEntries(raw));
-  }
-  return dedupePaths(entries).join(path.delimiter);
+  return resolveSharedEnvPath(env);
 }
 
 export function normalizeEnvPathKeys(env, options = {}) {
-  if (!env || typeof env !== 'object') {
-    return { key: resolvePathEnvKey({}, options), value: '' };
-  }
-  const key = resolvePathEnvKey(env, options);
-  const value = resolveEnvPath(env);
-  if (value) {
-    env[key] = value;
-  } else if (env[key] === undefined) {
-    env[key] = '';
-  }
-  for (const candidate of Object.keys(env)) {
-    if (candidate === key) continue;
-    if (String(candidate || '').toLowerCase() !== 'path') continue;
-    delete env[candidate];
-  }
-  return { key, value: String(env[key] || '') };
+  return normalizeSharedEnvPathKeys(env, options);
 }
 
 export function prependPathEntries(env, entries, options = {}) {
