@@ -46,6 +46,18 @@ Static audit findings across `NEON_TIDE`, including deeper remediation guidance 
     4. if snapshot changed, re-evaluate.
   - Add `stale_remove_owner_failed_force_succeeded` metric to monitor path frequency.
 
+#### 26) P1 - Lock acquire can fail on lock-directory ENOENT race
+- Location: `src/shared/locks/file-lock.js` (`acquireFileLock` `fs.open(lockPath, 'wx')` path)
+- Problem: when `.fixture-locks` (or parent lock directory) is removed between initial `mkdir` and `open`, lock acquisition fails with `ENOENT` instead of retrying; this causes intermittent fixture/service failures.
+- Baseline fix:
+  - On `ENOENT` from `open`, re-create parent directory and retry within the same lock wait/deadline semantics.
+- Better fix:
+  - Treat `ENOENT` as transient lock-acquire contention state:
+    - keep retrying with `pollMs` and `waitMs`/`timeoutBehavior` semantics,
+    - preserve `AbortSignal` behavior,
+    - emit one structured diagnostic counter (`lock_parent_missing_retry`).
+  - Add race test that deletes lock parent directory during acquire and verifies eventual success or deterministic timeout behavior.
+
 ---
 
 ### Tooling/LSP Stack
@@ -191,6 +203,19 @@ Static audit findings across `NEON_TIDE`, including deeper remediation guidance 
   - Add hard schema-level invariant check in loader and fail before ingestion begins.
   - Include mismatch diagnostics in artifact validation report for triage.
 
+#### 27) P1 - Binary-columnar meta envelope parsing is inconsistent across loaders/writers
+- Location: `src/shared/artifact-io/loaders/binary-columnar.js`, `src/index/build/artifacts/token-postings.js`, related artifact loaders.
+- Problem: loader paths can require `metaRaw.arrays.*` while some writers emit array payload fields at top-level (or vice versa), creating false artifact invalidation (`vocab=0`, cardinality mismatch) and broad downstream failures.
+- Baseline fix:
+  - Normalize binary meta parsing in one shared helper returning canonical `{ fields, arrays }` for both top-level and nested envelope shapes.
+- Better fix:
+  - Introduce strict artifact envelope contract module for binary metadata:
+    - canonicalize read-path envelope (`fields`/`arrays`) with deterministic fallback rules,
+    - validate writer output against the same contract before publish,
+    - fail at write time if envelope is ambiguous/incomplete.
+  - Add contract tests for both accepted envelope shapes and round-trip load/write invariants.
+  - Add a targeted regression test: `token_postings.binary-columnar.meta.json` produced by build must load without fallback and preserve `count===vocab.length===postings.length`.
+
 ---
 
 ### CI / Bench / Install Tooling
@@ -255,11 +280,36 @@ Static audit findings across `NEON_TIDE`, including deeper remediation guidance 
     - fail gate (or hard-warn in non-gate mode) when leaked process count exceeds strict threshold.
   - Add targeted tests for abrupt-failure scenarios (timeout/abort/crash-loop) to verify no lingering child processes across platforms.
 
+#### 28) P2 - Timeout policy misclassifies slow-pass tests as hard failures
+- Location: `tests/run.js`, lane ordering files (`tests/ci-lite/ci-lite.order.txt`, `tests/ci/ci.order.txt`, `tests/ci-long/ci-long.order.txt`)
+- Problem: some tests complete successfully (`stdout` says passed, `exit=0`) but are marked failed because they exceed lane timeout budget; this creates false red builds and obscures real regressions.
+- Baseline fix:
+  - Re-lane tests that consistently exceed `ci-lite` budget and tighten fixture/runtime setup for borderline tests.
+- Better fix:
+  - Add explicit timeout classification in harness output:
+    - `timed_out_after_pass`,
+    - `timed_out_no_pass_signal`,
+    - `timed_out_with_failure`.
+  - Gate policy should treat `timed_out_after_pass` as infra/laning hygiene debt (separate bucket) rather than product regression.
+  - Add lane budget calibration report generated from recent timing ledger to keep lane assignments stable.
+
+#### 29) P2 - Test wrappers hide root-cause stderr from build/search failures
+- Location: shared test helpers and wrapper tests (`tests/helpers/run-node.js`, fixture index helpers, search/build wrapper callsites)
+- Problem: wrappers often emit generic messages (`Failed: build index`, `Failed: search`) without forwarding the first meaningful underlying error, slowing triage.
+- Baseline fix:
+  - Ensure wrappers print structured stderr excerpts for failed subprocess calls.
+- Better fix:
+  - Add shared failure formatter utility:
+    - extract first actionable signature (`ERR_*`, assertion, stack head, artifact invariant),
+    - include command, cwd, exit/signal, and clipped stderr sections.
+  - Standardize across build/search/api/fixture helpers so every failure message contains root signature and diagnostic context.
+  - Add tests that intentionally fail subprocesses and assert root-cause forwarding is present.
+
 ---
 
 ## Suggested execution order
-1. P1 integrity/safety fixes: 4, 7, 10, 11, 12, 13, 17, 23, 24.
+1. P1 integrity/safety fixes: 4, 7, 10, 11, 12, 13, 17, 23, 24, 26, 27.
 2. P1 runtime correctness: 1.
-3. P2 stale-state/caching correctness: 6, 8, 9, 16, 25.
-4. P2 cross-platform/env hardening: 18, 20, 22.
+3. P2 stale-state/caching correctness: 6, 8, 9, 16, 25, 29.
+4. P2 cross-platform/env hardening: 18, 20, 22, 28.
 5. P2 contract consistency + ergonomics: 5, 14, 15, 19, 21, 2, 3.
