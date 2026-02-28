@@ -394,7 +394,8 @@ export const postScanImports = async ({
       return createFsExistsIndex({
         root: runtime.root,
         entries,
-        resolverPlugins
+        resolverPlugins,
+        abortSignal
       });
     }
   });

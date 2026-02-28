@@ -1,5 +1,6 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { throwIfAborted } from '../../../shared/abort.js';
 import { normalizeRelPath, resolveWithinRoot } from './path-utils.js';
 
 const DEFAULT_MAX_SCAN_FILES = 200000;
@@ -193,7 +194,8 @@ export const resolveFsExistsIndexCacheFingerprint = (resolverPlugins = null) => 
  * @param {{
  *  root:string,
  *  entries?:Array<object|string>,
- *  resolverPlugins?:object|null
+ *  resolverPlugins?:object|null,
+ *  abortSignal?:AbortSignal|null
  * }} input
  * @returns {Promise<{
  *  enabled:boolean,
@@ -208,9 +210,11 @@ export const resolveFsExistsIndexCacheFingerprint = (resolverPlugins = null) => 
 export const createFsExistsIndex = async ({
   root,
   entries = [],
-  resolverPlugins = null
+  resolverPlugins = null,
+  abortSignal = null
 } = {}) => {
   if (!root) return null;
+  throwIfAborted(abortSignal);
   const rootAbs = path.resolve(root);
   const normalizedConfig = resolveNormalizedFsExistsIndexConfig(resolverPlugins);
   if (!normalizedConfig.enabled) {
@@ -245,6 +249,7 @@ export const createFsExistsIndex = async ({
     { length: Math.max(1, dirConcurrency) },
     async () => {
       for (;;) {
+        throwIfAborted(abortSignal);
         if (truncated) return;
         const current = pendingDirs.pop();
         if (!current) {
@@ -255,13 +260,16 @@ export const createFsExistsIndex = async ({
         activeWorkers += 1;
         let entriesInDir;
         try {
+          throwIfAborted(abortSignal);
           entriesInDir = await fsPromises.readdir(current, { withFileTypes: true });
         } catch {
+          throwIfAborted(abortSignal);
           hadReadErrors = true;
           entriesInDir = null;
         }
         try {
           for (const entry of entriesInDir || []) {
+            throwIfAborted(abortSignal);
             if (truncated) break;
             const fullPath = path.join(current, entry.name);
             if (entry.isDirectory()) {
