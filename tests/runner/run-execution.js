@@ -61,7 +61,20 @@ const resolveTestTimeout = ({ test, defaultTimeoutMs, overrides }) => {
   return Math.min(defaultTimeoutMs, override);
 };
 
-const writeLogFile = async ({ logDir, test, attempt, stdout, stderr, status, exitCode, signal, timedOut, skipReason, termination }) => {
+const writeLogFile = async ({
+  logDir,
+  test,
+  attempt,
+  stdout,
+  stderr,
+  status,
+  exitCode,
+  signal,
+  timedOut,
+  timeoutClass,
+  skipReason,
+  termination
+}) => {
   if (!logDir) return '';
   const safeId = sanitizeId(test.id);
   const filePath = path.join(logDir, `${safeId}.attempt-${attempt}.log`);
@@ -73,6 +86,7 @@ const writeLogFile = async ({ logDir, test, attempt, stdout, stderr, status, exi
     `exit: ${exitCode ?? 'null'}`,
     `signal: ${signal ?? 'null'}`,
     `timedOut: ${timedOut ? 'true' : 'false'}`,
+    `timeoutClass: ${timeoutClass || ''}`,
     `skipReason: ${skipReason || ''}`,
     `termination: ${termination ? JSON.stringify(termination) : ''}`,
     ''
@@ -235,6 +249,7 @@ const runTestWithRetries = async ({
       exitCode: result.exitCode,
       signal: result.signal,
       timedOut: result.timedOut,
+      timeoutClass: result.timeoutClass,
       skipReason: result.skipReason,
       termination: result.termination
     });

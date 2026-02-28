@@ -319,7 +319,8 @@ export const reportTestResult = ({ context, result }) => {
     });
     const label = formatLabel('TIME', { useColor, mode: 'timeout' });
     const gap = ' ';
-    const timeoutLine = `${label}${gap}${duration} ${result.id} - timeout`;
+    const timeoutClass = String(result.timeoutClass || '').trim();
+    const timeoutLine = `${label}${gap}${duration} ${result.id} - timeout${timeoutClass ? ` (${timeoutClass})` : ''}`;
     const render = () => {
       consoleStream.write(`${applyLineBackground(timeoutLine, {
         useColor,
@@ -562,9 +563,24 @@ export const renderSummary = ({ context, summary, results, runLogDir, border, in
     consoleStream.write(`${applyLineBackground(timeoutHeader, summaryBg)}\n`);
     for (const timeout of timeouts) {
       const bullet = useColor ? `${ANSI.fgBrightWhite}- ${ANSI.reset}` : '- ';
-      const timeoutLine = `${itemIndent}${bullet}${timeout.id} ${formatDurationBadge(timeout.durationMs, { useColor })}`;
+      const timeoutClass = String(timeout.timeoutClass || '').trim();
+      const timeoutLine = `${itemIndent}${bullet}${timeout.id} ${formatDurationBadge(timeout.durationMs, { useColor })}${timeoutClass ? ` (${timeoutClass})` : ''}`;
       const coloredLine = useColor ? `${ANSI.fgDarkOrange}${timeoutLine}${ANSI.reset}` : timeoutLine;
       consoleStream.write(`${applyLineBackground(coloredLine, summaryBg)}\n`);
+    }
+    const timeoutClassCounts = new Map();
+    for (const timeout of timeouts) {
+      const key = String(timeout.timeoutClass || 'timed_out_no_pass_signal');
+      timeoutClassCounts.set(key, (timeoutClassCounts.get(key) || 0) + 1);
+    }
+    const breakdown = Array.from(timeoutClassCounts.entries())
+      .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
+      .map(([key, count]) => `${key}=${count}`)
+      .join(', ');
+    if (breakdown) {
+      const infoLine = `${itemIndent}${useColor ? `${ANSI.fgBrightWhite}- ${ANSI.reset}` : '- '}classes: ${breakdown}`;
+      const coloredInfoLine = useColor ? `${ANSI.fgDarkGray}${infoLine}${ANSI.reset}` : infoLine;
+      consoleStream.write(`${applyLineBackground(coloredInfoLine, summaryBg)}\n`);
     }
     consoleStream.write(`${applyLineBackground('', summaryBg)}\n`);
   }
@@ -682,6 +698,7 @@ export const buildJsonReport = ({ summary, results, root, runLogDir, junitPath }
     exitCode: result.exitCode ?? null,
     signal: result.signal ?? null,
     timedOut: result.timedOut ?? false,
+    timeoutClass: result.timeoutClass || null,
     skipReason: result.skipReason || null,
     termination: result.termination || null,
     logs: result.logs || []
