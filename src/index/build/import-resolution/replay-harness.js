@@ -6,6 +6,9 @@ import {
   filterGateEligibleImportWarnings,
   summarizeGateEligibleImportWarnings
 } from './gate-eligibility.js';
+import {
+  isActionableImportWarning
+} from './disposition.js';
 import { resolveLanguageLabelFromImporter, resolveRepoLabelFromReportPath } from './labels.js';
 
 export const DEFAULT_REPLAY_SCAN_ROOTS = Object.freeze(['.testCache', '.benchCache']);
@@ -334,7 +337,7 @@ export const aggregateImportResolutionGraphPayloads = (
 
     const observedUnresolved = statsUnresolved ?? warnings.length;
     const observedActionable = statsActionable
-      ?? warnings.filter((entry) => entry?.disposition === 'actionable').length;
+      ?? warnings.filter((entry) => isActionableImportWarning(entry)).length;
 
     const statsFailureCauseCounts = toCountMap(stats.unresolvedByFailureCause);
     const statsCategoryCounts = toCountMap(stats.unresolvedByCategory);
@@ -380,7 +383,7 @@ export const aggregateImportResolutionGraphPayloads = (
       }
     } else {
       for (const entry of eligibleWarnings) {
-        if (entry?.disposition !== 'actionable') continue;
+        if (!isActionableImportWarning(entry)) continue;
         const importer = typeof entry?.importer === 'string' ? entry.importer.trim() : '';
         if (!importer) continue;
         bumpCount(totals.actionableLanguageCounts, resolveLanguageLabelFromImporter(importer), 1);
@@ -388,7 +391,7 @@ export const aggregateImportResolutionGraphPayloads = (
     }
     if (!statsHotspots) {
       for (const entry of eligibleWarnings) {
-        if (entry?.disposition !== 'actionable') continue;
+        if (!isActionableImportWarning(entry)) continue;
         const importer = typeof entry?.importer === 'string' ? entry.importer.trim() : '';
         if (!importer) continue;
         bumpCount(effectiveHotspotCounts, importer);

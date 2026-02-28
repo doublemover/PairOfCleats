@@ -11,11 +11,15 @@ import { fileExt, toPosix } from '../../shared/files.js';
 import { showProgress } from '../../shared/progress.js';
 import { readCachedImports } from './incremental.js';
 import {
-  IMPORT_DISPOSITIONS,
   IMPORT_REASON_CODES,
   IMPORT_RESOLUTION_STATES,
   normalizeUnresolvedDecision
 } from './import-resolution/reason-codes.js';
+import {
+  isActionableImportWarning,
+  isParserArtifactImportWarning,
+  isResolverGapImportWarning
+} from './import-resolution/disposition.js';
 import { resolveLanguageLabelFromImporter } from './import-resolution/labels.js';
 import { isBazelLabelSpecifier, matchGeneratedExpectationSpecifier } from './import-resolution/specifier-hints.js';
 
@@ -378,7 +382,7 @@ export const classifyUnresolvedImportSample = (sample) => {
   const resolutionState = sample?.resolutionState === IMPORT_RESOLUTION_STATES.RESOLVED
     ? IMPORT_RESOLUTION_STATES.RESOLVED
     : IMPORT_RESOLUTION_STATES.UNRESOLVED;
-  const suppressLive = decision.disposition !== IMPORT_DISPOSITIONS.ACTIONABLE;
+  const suppressLive = !isActionableImportWarning({ disposition: decision.disposition });
   return {
     importer,
     specifier,
@@ -392,7 +396,7 @@ export const classifyUnresolvedImportSample = (sample) => {
     confidence: classified.confidence,
     suggestedRemediation: classified.suggestedRemediation,
     suppressLive,
-    actionable: decision.disposition === IMPORT_DISPOSITIONS.ACTIONABLE
+    actionable: isActionableImportWarning({ disposition: decision.disposition })
   };
 };
 
@@ -420,6 +424,8 @@ export const summarizeUnresolvedImportTaxonomy = (samples) => {
   let liveSuppressed = 0;
   let gateSuppressed = 0;
   let actionable = 0;
+  let parserArtifact = 0;
+  let resolverGap = 0;
   for (const sample of normalized) {
     categoryCounts.set(sample.category, (categoryCounts.get(sample.category) || 0) + 1);
     if (sample.reasonCode) {
@@ -434,10 +440,16 @@ export const summarizeUnresolvedImportTaxonomy = (samples) => {
     if (sample.resolverStage) {
       resolverStageCounts.set(sample.resolverStage, (resolverStageCounts.get(sample.resolverStage) || 0) + 1);
     }
-    if (sample.disposition === IMPORT_DISPOSITIONS.SUPPRESS_LIVE) {
+    if (isParserArtifactImportWarning(sample)) {
+      parserArtifact += 1;
+    }
+    if (isResolverGapImportWarning(sample)) {
+      resolverGap += 1;
+    }
+    if (sample.disposition === 'suppress_live') {
       liveSuppressed += 1;
       if (sample.category) suppressedCategories.add(sample.category);
-    } else if (sample.disposition === IMPORT_DISPOSITIONS.SUPPRESS_GATE) {
+    } else if (sample.disposition === 'suppress_gate') {
       gateSuppressed += 1;
     } else {
       actionable += 1;
@@ -455,8 +467,6 @@ export const summarizeUnresolvedImportTaxonomy = (samples) => {
     }
   }
   const total = normalized.length;
-  const parserArtifact = categoryCounts.get(UNRESOLVED_IMPORT_CATEGORIES.PARSER_ARTIFACT) || 0;
-  const resolverGap = categoryCounts.get(UNRESOLVED_IMPORT_CATEGORIES.RESOLVER_GAP) || 0;
   const resolverBudgetExhausted = reasonCodeCounts.get(IMPORT_REASON_CODES.RESOLVER_BUDGET_EXHAUSTED) || 0;
   const actionableRate = total > 0 ? actionable / total : 0;
   const parserArtifactRate = total > 0 ? parserArtifact / total : 0;

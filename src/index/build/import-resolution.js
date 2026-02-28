@@ -20,6 +20,13 @@ export {
   summarizeGateEligibleImportWarnings
 } from './import-resolution/gate-eligibility.js';
 export {
+  countWarningsByPredicate,
+  isActionableImportWarning,
+  isParserArtifactImportWarning,
+  isResolverGapImportWarning,
+  summarizeImportWarningDispositions
+} from './import-resolution/disposition.js';
+export {
   resolveLanguageLabelFromImporter,
   resolveRepoLabelFromReportPath
 } from './import-resolution/labels.js';

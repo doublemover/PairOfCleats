@@ -1,3 +1,7 @@
+import {
+  summarizeImportWarningDispositions
+} from './disposition.js';
+
 export const DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS = Object.freeze([
   '/test/',
   '/tests/',
@@ -54,15 +58,11 @@ export const summarizeGateEligibleImportWarnings = (
 ) => {
   const eligibleWarnings = filterGateEligibleImportWarnings(warnings, { excludedImporterSegments });
   const unresolved = eligibleWarnings.length;
-  const actionable = eligibleWarnings.filter((entry) => entry?.disposition === 'actionable').length;
-  const parserArtifact = eligibleWarnings.filter((entry) => (
-    entry?.failureCause === 'parser_artifact'
-    || entry?.category === 'parser_artifact'
-  )).length;
-  const resolverGap = eligibleWarnings.filter((entry) => (
-    entry?.failureCause === 'resolver_gap'
-    || entry?.category === 'resolver_gap'
-  )).length;
+  const {
+    actionable,
+    parserArtifact,
+    resolverGap
+  } = summarizeImportWarningDispositions(eligibleWarnings);
   return {
     unresolved,
     actionable,

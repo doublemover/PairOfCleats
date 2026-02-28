@@ -9,6 +9,7 @@ import {
   DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS,
   createFsExistsIndex,
   formatResolverPipelineStageSummary,
+  isActionableImportWarning,
   prepareImportResolutionFsMeta,
   resolveImportLinks,
   resolveResolverPipelineStageHighlights,
@@ -165,7 +166,7 @@ const logUnresolvedImportSamples = ({
     }
     return;
   }
-  const actionable = normalized.filter((entry) => entry?.disposition === 'actionable');
+  const actionable = normalized.filter((entry) => isActionableImportWarning(entry));
   const visible = actionable.slice(0, MAX_UNRESOLVED_IMPORT_LOG_LINES);
   const total = Number.isFinite(unresolvedTotal) ? unresolvedTotal : normalized.length;
   const actionableTotal = Number.isFinite(summary?.actionable) ? summary.actionable : actionable.length;
