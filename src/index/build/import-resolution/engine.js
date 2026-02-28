@@ -236,6 +236,7 @@ export function resolveImportLinks({
   fileHashes = null,
   cacheStats = null,
   fsMeta = null,
+  fsExistsIndex = null,
   resolverPlugins = null,
   budgetRuntimeSignals = null
 }) {
@@ -310,6 +311,17 @@ export function resolveImportLinks({
       : 1
   };
   const expectedArtifactsIndex = buildContext.expectedArtifactsIndex;
+  const fsExistsIndexStats = {
+    enabled: fsExistsIndex?.enabled !== false && typeof fsExistsIndex?.lookup === 'function',
+    complete: fsExistsIndex?.complete === true,
+    indexedCount: Math.max(0, Number(fsExistsIndex?.indexedCount) || 0),
+    fileCount: Math.max(0, Number(fsExistsIndex?.fileCount) || 0),
+    truncated: fsExistsIndex?.truncated === true,
+    bloomBits: Math.max(0, Number(fsExistsIndex?.bloomBits) || 0),
+    exactHits: 0,
+    negativeSkips: 0,
+    unknownFallbacks: 0
+  };
   if (cacheMetrics && canReuseLookup && lookup) {
     cacheMetrics.lookupReused = true;
   }
@@ -420,7 +432,8 @@ export function resolveImportLinks({
     spec,
     importerInfo,
     importerRel,
-    specBudget
+    specBudget,
+    fsExistsIndexState
   }) => {
     if (!spec || typeof spec !== 'string' || !importerRel) return null;
     if (!(spec.startsWith('.') || spec.startsWith('/'))) return null;
@@ -463,6 +476,18 @@ export function resolveImportLinks({
         const candidateAbs = path.resolve(resolvedLookup.rootAbs, candidate);
         const candidateRel = resolveWithinRoot(resolvedLookup.rootAbs, candidateAbs);
         if (!candidateRel) continue;
+        if (fsExistsIndexState?.enabled && typeof fsExistsIndex?.lookup === 'function') {
+          const lookupState = fsExistsIndex.lookup(candidateRel);
+          if (lookupState === 'present') {
+            fsExistsIndexState.exactHits += 1;
+            return candidateRel;
+          }
+          if (lookupState === 'absent') {
+            fsExistsIndexState.negativeSkips += 1;
+            continue;
+          }
+          fsExistsIndexState.unknownFallbacks += 1;
+        }
         if (specBudget && !specBudget.consumeFilesystemProbe()) return null;
         const candidateStat = fsMemo.statSync(candidateAbs);
         if (isFileStat(candidateStat)) return candidateRel;
@@ -766,7 +791,8 @@ export function resolveImportLinks({
                     spec,
                     importerInfo,
                     importerRel: relNormalized,
-                    specBudget
+                    specBudget,
+                    fsExistsIndexState: fsExistsIndexStats
                   });
                   return {
                     resolvedType: nonIndexedLocal ? 'external' : 'unresolved',
@@ -1051,6 +1077,7 @@ export function resolveImportLinks({
       maxEdges: MAX_GRAPH_EDGES,
       maxNodes: MAX_GRAPH_NODES,
       warningSuppressed: suppressedWarnings,
+      resolverFsExistsIndex: fsExistsIndexStats,
       resolverBudgetPolicy: budgetPolicyStats,
       resolverPipelineStages: stageTracker.snapshot()
     };
@@ -1075,6 +1102,7 @@ export function resolveImportLinks({
       truncatedEdges,
       truncatedNodes: capStats?.truncatedNodes ?? 0,
       warningSuppressed: suppressedWarnings,
+      resolverFsExistsIndex: fsExistsIndexStats,
       resolverBudgetPolicy: budgetPolicyStats,
       resolverPipelineStages: stageTracker.snapshot()
     },

@@ -1,4 +1,5 @@
 export { prepareImportResolutionFsMeta } from './import-resolution/fs-meta.js';
+export { createFsExistsIndex } from './import-resolution/fs-exists-index.js';
 export { resolveImportLinks } from './import-resolution/engine.js';
 export { createExpectedArtifactsIndex } from './import-resolution/expected-artifacts-index.js';
 export { createImportBuildContext } from './import-resolution/build-context/index.js';

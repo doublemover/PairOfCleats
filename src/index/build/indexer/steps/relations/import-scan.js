@@ -5,7 +5,11 @@ import {
   scanImports,
   summarizeUnresolvedImportTaxonomy
 } from '../../../imports.js';
-import { prepareImportResolutionFsMeta, resolveImportLinks } from '../../../import-resolution.js';
+import {
+  createFsExistsIndex,
+  prepareImportResolutionFsMeta,
+  resolveImportLinks
+} from '../../../import-resolution.js';
 import {
   applyImportResolutionCacheFileSetDiffInvalidation,
   loadImportResolutionCache,
@@ -299,6 +303,8 @@ export const postScanImports = async ({
   let cachePath = null;
   let fileHashes = null;
   let cacheStats = null;
+  const resolverPlugins = resolveImportResolverPlugins(runtime);
+  const budgetRuntimeSignals = resolveImportBudgetRuntimeSignals(runtime);
   const fsMeta = await runWithHangProbe({
     ...probeConfig,
     label: 'imports.prepare-fs-meta',
@@ -316,6 +322,26 @@ export const postScanImports = async ({
         root: runtime.root,
         entries,
         importsByFile
+      });
+    }
+  });
+  throwIfAborted(abortSignal);
+  const fsExistsIndex = await runWithHangProbe({
+    ...probeConfig,
+    label: 'imports.prepare-fs-exists-index',
+    mode,
+    stage: 'imports',
+    step: 'fs-exists-index',
+    log: logLine,
+    meta: {
+      entryCount: Array.isArray(entries) ? entries.length : 0
+    },
+    run: () => {
+      throwIfAborted(abortSignal);
+      return createFsExistsIndex({
+        root: runtime.root,
+        entries,
+        resolverPlugins
       });
     }
   });
@@ -360,8 +386,6 @@ export const postScanImports = async ({
       }
     }
   }
-  const resolverPlugins = resolveImportResolverPlugins(runtime);
-  const budgetRuntimeSignals = resolveImportBudgetRuntimeSignals(runtime);
   const resolution = await runWithHangProbe({
     ...probeConfig,
     label: 'imports.resolve-links',
@@ -391,6 +415,7 @@ export const postScanImports = async ({
         fileHashes,
         cacheStats,
         fsMeta,
+        fsExistsIndex,
         resolverPlugins,
         budgetRuntimeSignals
       });
@@ -479,6 +504,17 @@ export const postScanImports = async ({
         `adaptive=${resolverBudgetPolicy.adaptiveEnabled === true ? 'on' : 'off'} ` +
         `(profile=${resolverBudgetPolicy.adaptiveProfile || 'normal'}, ` +
         `scale=${Number(resolverBudgetPolicy.adaptiveScale || 1).toFixed(3)}).`
+      );
+    }
+    const resolverFsExistsIndex = resolvedResult.stats?.resolverFsExistsIndex;
+    if (resolverFsExistsIndex && typeof resolverFsExistsIndex === 'object') {
+      log(
+        `[imports] fs-exists-index: enabled=${resolverFsExistsIndex.enabled === true ? 'yes' : 'no'}, ` +
+        `complete=${resolverFsExistsIndex.complete === true ? 'yes' : 'no'}, ` +
+        `indexed=${Number(resolverFsExistsIndex.indexedCount || 0)}, ` +
+        `exactHits=${Number(resolverFsExistsIndex.exactHits || 0)}, ` +
+        `negativeSkips=${Number(resolverFsExistsIndex.negativeSkips || 0)}, ` +
+        `unknownFallbacks=${Number(resolverFsExistsIndex.unknownFallbacks || 0)}`
       );
     }
     const deltaTotal = Number(resolvedResult?.cacheDiagnostics?.unresolvedTrend?.deltaTotal);
