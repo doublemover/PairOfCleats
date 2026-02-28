@@ -236,7 +236,8 @@ export function resolveImportLinks({
   fileHashes = null,
   cacheStats = null,
   fsMeta = null,
-  resolverPlugins = null
+  resolverPlugins = null,
+  budgetRuntimeSignals = null
 }) {
   const fsMemo = createFsMemo(fsMeta);
   const cacheState = cache && typeof cache === 'object' ? cache : null;
@@ -292,7 +293,22 @@ export function resolveImportLinks({
     entries: Array.from(resolvedLookup.fileSet || []),
     resolverPlugins
   });
-  const budgetPolicy = createImportResolutionBudgetPolicy({ resolverPlugins });
+  const budgetPolicy = createImportResolutionBudgetPolicy({
+    resolverPlugins,
+    runtimeSignals: budgetRuntimeSignals
+  });
+  const budgetPolicyStats = {
+    maxFilesystemProbesPerSpecifier: Number(budgetPolicy?.maxFilesystemProbesPerSpecifier) || 0,
+    maxFallbackCandidatesPerSpecifier: Number(budgetPolicy?.maxFallbackCandidatesPerSpecifier) || 0,
+    maxFallbackDepth: Number(budgetPolicy?.maxFallbackDepth) || 0,
+    adaptiveEnabled: budgetPolicy?.adaptiveEnabled === true,
+    adaptiveProfile: typeof budgetPolicy?.adaptiveProfile === 'string'
+      ? budgetPolicy.adaptiveProfile
+      : 'normal',
+    adaptiveScale: Number.isFinite(Number(budgetPolicy?.adaptiveScale))
+      ? Number(Number(budgetPolicy.adaptiveScale).toFixed(3))
+      : 1
+  };
   const expectedArtifactsIndex = buildContext.expectedArtifactsIndex;
   if (cacheMetrics && canReuseLookup && lookup) {
     cacheMetrics.lookupReused = true;
@@ -1035,6 +1051,7 @@ export function resolveImportLinks({
       maxEdges: MAX_GRAPH_EDGES,
       maxNodes: MAX_GRAPH_NODES,
       warningSuppressed: suppressedWarnings,
+      resolverBudgetPolicy: budgetPolicyStats,
       resolverPipelineStages: stageTracker.snapshot()
     };
     if (suppressedWarnings > 0 && log) {
@@ -1058,6 +1075,7 @@ export function resolveImportLinks({
       truncatedEdges,
       truncatedNodes: capStats?.truncatedNodes ?? 0,
       warningSuppressed: suppressedWarnings,
+      resolverBudgetPolicy: budgetPolicyStats,
       resolverPipelineStages: stageTracker.snapshot()
     },
     graph,

@@ -95,6 +95,32 @@ const resolveImportResolverPlugins = (runtime) => {
   return plugins && typeof plugins === 'object' ? plugins : null;
 };
 
+const resolveImportBudgetRuntimeSignals = (runtime) => {
+  const schedulerStats = typeof runtime?.scheduler?.stats === 'function'
+    ? runtime.scheduler.stats()
+    : null;
+  const scheduler = schedulerStats && typeof schedulerStats === 'object'
+    ? {
+      utilizationOverall: Number(schedulerStats?.utilization?.overall),
+      pending: Number(schedulerStats?.activity?.pending),
+      running: Number(schedulerStats?.activity?.running),
+      memoryPressure: Number(schedulerStats?.adaptive?.signals?.memory?.pressureScore),
+      fdPressure: Number(schedulerStats?.adaptive?.signals?.fd?.pressureScore)
+    }
+    : null;
+  const envelope = runtime?.envelope?.concurrency && typeof runtime.envelope.concurrency === 'object'
+    ? {
+      cpuConcurrency: Number(runtime.envelope.concurrency?.cpuConcurrency?.value),
+      ioConcurrency: Number(runtime.envelope.concurrency?.ioConcurrency?.value)
+    }
+    : null;
+  if (!scheduler && !envelope) return null;
+  return {
+    scheduler,
+    envelope
+  };
+};
+
 const logUnresolvedImportSamples = ({
   samples,
   suppressed,
@@ -335,6 +361,7 @@ export const postScanImports = async ({
     }
   }
   const resolverPlugins = resolveImportResolverPlugins(runtime);
+  const budgetRuntimeSignals = resolveImportBudgetRuntimeSignals(runtime);
   const resolution = await runWithHangProbe({
     ...probeConfig,
     label: 'imports.resolve-links',
@@ -364,7 +391,8 @@ export const postScanImports = async ({
         fileHashes,
         cacheStats,
         fsMeta,
-        resolverPlugins
+        resolverPlugins,
+        budgetRuntimeSignals
       });
     }
   });
@@ -442,6 +470,17 @@ export const postScanImports = async ({
   if (resolvedResult?.stats) {
     const { resolved, external, unresolved } = resolvedResult.stats;
     log(`→ Imports: resolved=${resolved}, external=${external}, unresolved=${unresolved}`);
+    const resolverBudgetPolicy = resolvedResult.stats?.resolverBudgetPolicy;
+    if (resolverBudgetPolicy && typeof resolverBudgetPolicy === 'object') {
+      log(
+        `[imports] resolver budgets: fsProbe<=${resolverBudgetPolicy.maxFilesystemProbesPerSpecifier}, ` +
+        `fallbackCandidates<=${resolverBudgetPolicy.maxFallbackCandidatesPerSpecifier}, ` +
+        `fallbackDepth<=${resolverBudgetPolicy.maxFallbackDepth}, ` +
+        `adaptive=${resolverBudgetPolicy.adaptiveEnabled === true ? 'on' : 'off'} ` +
+        `(profile=${resolverBudgetPolicy.adaptiveProfile || 'normal'}, ` +
+        `scale=${Number(resolverBudgetPolicy.adaptiveScale || 1).toFixed(3)}).`
+      );
+    }
     const deltaTotal = Number(resolvedResult?.cacheDiagnostics?.unresolvedTrend?.deltaTotal);
     if (Number.isFinite(deltaTotal)) {
       const sign = deltaTotal > 0 ? '+' : '';
