@@ -9,6 +9,10 @@ export {
 } from './import-resolution/budgets.js';
 export { createImportResolutionStageTracker } from './import-resolution/stage-pipeline.js';
 export {
+  formatResolverPipelineStageSummary,
+  resolveResolverPipelineStageHighlights
+} from './import-resolution/stage-pipeline-metrics.js';
+export {
   resolveLanguageLabelFromImporter,
   resolveRepoLabelFromReportPath
 } from './import-resolution/labels.js';

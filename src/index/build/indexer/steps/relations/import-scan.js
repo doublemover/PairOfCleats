@@ -7,8 +7,10 @@ import {
 } from '../../../imports.js';
 import {
   createFsExistsIndex,
+  formatResolverPipelineStageSummary,
   prepareImportResolutionFsMeta,
-  resolveImportLinks
+  resolveImportLinks,
+  resolveResolverPipelineStageHighlights
 } from '../../../import-resolution.js';
 import {
   applyImportResolutionCacheFileSetDiffInvalidation,
@@ -534,6 +536,17 @@ export const postScanImports = async ({
         `exactHits=${Number(resolverFsExistsIndex.exactHits || 0)}, ` +
         `negativeSkips=${Number(resolverFsExistsIndex.negativeSkips || 0)}, ` +
         `unknownFallbacks=${Number(resolverFsExistsIndex.unknownFallbacks || 0)}`
+      );
+    }
+    const resolverPipelineStages = resolvedResult.stats?.resolverPipelineStages;
+    if (resolverPipelineStages && typeof resolverPipelineStages === 'object') {
+      log(`[imports] resolver pipeline: ${formatResolverPipelineStageSummary(resolverPipelineStages)}`);
+      const stageHighlights = resolveResolverPipelineStageHighlights(resolverPipelineStages);
+      log(
+        `[imports] resolver pipeline highlights: ` +
+        `elapsed=${stageHighlights.topByElapsed ? `${stageHighlights.topByElapsed.stage}=${stageHighlights.topByElapsed.elapsedMs.toFixed(3)}ms` : 'none'}, ` +
+        `budget=${stageHighlights.topByBudgetExhausted ? `${stageHighlights.topByBudgetExhausted.stage}=${stageHighlights.topByBudgetExhausted.budgetExhausted}` : 'none'}, ` +
+        `degraded=${stageHighlights.topByDegraded ? `${stageHighlights.topByDegraded.stage}=${stageHighlights.topByDegraded.degraded}` : 'none'}`
       );
     }
     const deltaTotal = Number(resolvedResult?.cacheDiagnostics?.unresolvedTrend?.deltaTotal);

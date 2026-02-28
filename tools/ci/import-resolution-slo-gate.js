@@ -7,7 +7,8 @@ import {
   DEFAULT_GATE_EXCLUDED_IMPORTER_SEGMENTS,
   DEFAULT_REPLAY_MAX_REPORTS,
   discoverImportResolutionGraphReports,
-  loadImportResolutionGraphReports
+  loadImportResolutionGraphReports,
+  resolveResolverPipelineStageHighlights
 } from '../../src/index/build/import-resolution.js';
 import { resolveRepoConfig } from '../shared/dict-utils.js';
 import { emitGateResult } from '../shared/tooling-gate-utils.js';
@@ -132,39 +133,10 @@ const main = async () => {
         ? b.count - a.count
         : sortStrings(a.language, b.language)
     ))[0] || null;
-  const topStageByElapsed = Object.entries(resolverPipelineStages || {})
-    .map(([stage, entry]) => ({
-      stage,
-      elapsedMs: Number(entry?.elapsedMs) || 0
-    }))
-    .filter((entry) => entry.stage && entry.elapsedMs > 0)
-    .sort((a, b) => (
-      b.elapsedMs !== a.elapsedMs
-        ? b.elapsedMs - a.elapsedMs
-        : sortStrings(a.stage, b.stage)
-    ))[0] || null;
-  const topStageByBudgetExhausted = Object.entries(resolverPipelineStages || {})
-    .map(([stage, entry]) => ({
-      stage,
-      budgetExhausted: Math.floor(Math.max(0, Number(entry?.budgetExhausted) || 0))
-    }))
-    .filter((entry) => entry.stage && entry.budgetExhausted > 0)
-    .sort((a, b) => (
-      b.budgetExhausted !== a.budgetExhausted
-        ? b.budgetExhausted - a.budgetExhausted
-        : sortStrings(a.stage, b.stage)
-    ))[0] || null;
-  const topStageByDegraded = Object.entries(resolverPipelineStages || {})
-    .map(([stage, entry]) => ({
-      stage,
-      degraded: Math.floor(Math.max(0, Number(entry?.degraded) || 0))
-    }))
-    .filter((entry) => entry.stage && entry.degraded > 0)
-    .sort((a, b) => (
-      b.degraded !== a.degraded
-        ? b.degraded - a.degraded
-        : sortStrings(a.stage, b.stage)
-    ))[0] || null;
+  const stageHighlights = resolveResolverPipelineStageHighlights(resolverPipelineStages);
+  const topStageByElapsed = stageHighlights.topByElapsed;
+  const topStageByBudgetExhausted = stageHighlights.topByBudgetExhausted;
+  const topStageByDegraded = stageHighlights.topByDegraded;
   const topBudgetProfile = Object.entries(resolverBudgetPolicyProfiles || {})
     .map(([profile, count]) => ({
       profile,
@@ -237,11 +209,7 @@ const main = async () => {
     resolverStages,
     resolverPipelineStages,
     resolverBudgetPolicyProfiles,
-    stageHighlights: {
-      topByElapsed: topStageByElapsed,
-      topByBudgetExhausted: topStageByBudgetExhausted,
-      topByDegraded: topStageByDegraded
-    },
+    stageHighlights,
     actionableHotspots,
     advisories,
     failures
