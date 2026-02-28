@@ -99,14 +99,19 @@ export const runDedicatedProviderFixture = async ({
   providerConfig,
   inputs,
   toolingConfig = {},
-  strict = true
+  strict = true,
+  ctxOverrides = null
 }) => {
   registerDefaultToolingProviders();
+  const resolvedCtxOverrides = ctxOverrides && typeof ctxOverrides === 'object'
+    ? ctxOverrides
+    : {};
   const mergedProviderConfig = {
     enabled: true,
     ...((providerConfig && typeof providerConfig === 'object') ? providerConfig : {})
   };
   return runToolingProviders({
+    ...resolvedCtxOverrides,
     strict,
     repoRoot: tempRoot,
     buildRoot: tempRoot,

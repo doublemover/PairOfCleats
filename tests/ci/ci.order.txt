@@ -11,6 +11,7 @@ tooling/lsp/session-pool-disposal-barrier
 tooling/doctor/emits-report
 tooling/doctor/reports-xxhash-backend
 tooling/lsp/dedicated-providers-multifile-session-reuse
+tooling/lsp/dedicated-providers-abrupt-failure-cleanup
 tooling/lsp/writer-closed-restart-reaps-stale-process
 tooling/doctor/dedicated-provider-handshake-fixtures
 tooling/doctor/scm-none-annotate-disabled
