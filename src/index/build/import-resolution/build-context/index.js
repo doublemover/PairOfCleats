@@ -3,6 +3,7 @@ import { IMPORT_REASON_CODES } from '../reason-codes.js';
 import { createExpectedArtifactsIndex } from '../expected-artifacts-index.js';
 import { createBazelLabelPlugin } from './plugins/bazel-label.js';
 import { createGeneratedArtifactsPlugin } from './plugins/generated-artifacts.js';
+import { createNixFlakePlugin } from './plugins/nix-flake.js';
 
 const normalizePluginConfig = (resolverPlugins) => (
   resolverPlugins && typeof resolverPlugins === 'object'
@@ -47,6 +48,10 @@ export const createImportBuildContext = ({ entries = [], resolverPlugins = null 
 
   if (isEnabled(buildContextConfig?.bazelLabels, true)) {
     plugins.push(createBazelLabelPlugin());
+  }
+
+  if (isEnabled(buildContextConfig?.nixFlakeReferences, true)) {
+    plugins.push(createNixFlakePlugin());
   }
 
   if (isEnabled(buildContextConfig?.generatedArtifacts, true)) {

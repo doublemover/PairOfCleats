@@ -16,6 +16,7 @@ assert.deepEqual(
   buildContext.plugins,
   [
     { id: 'bazel-label', priority: 10 },
+    { id: 'nix-flake', priority: 15 },
     { id: 'generated-artifacts', priority: 20 }
   ],
   'expected deterministic plugin priority ordering'
@@ -37,6 +38,14 @@ const generatedFromIndex = buildContext.classifyUnresolved({
 assert.equal(generatedFromIndex?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
 assert.equal(generatedFromIndex?.pluginId, 'generated-artifacts');
 assert.equal(generatedFromIndex?.generatedMatch?.source, 'index');
+
+const nixResult = buildContext.classifyUnresolved({
+  importerRel: 'nix/flake.nix',
+  spec: '<nixpkgs>',
+  rawSpec: '<nixpkgs>'
+});
+assert.equal(nixResult?.reasonCode, 'IMP_U_RESOLVER_GAP');
+assert.equal(nixResult?.pluginId, 'nix-flake');
 
 const configurableContext = createImportBuildContext({
   entries: [{ rel: 'src/main.ts' }],
