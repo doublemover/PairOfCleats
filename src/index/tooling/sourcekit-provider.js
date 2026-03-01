@@ -12,6 +12,7 @@ import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { acquireFileLock } from '../../shared/locks/file-lock.js';
 import { spawnSubprocess } from '../../shared/subprocess.js';
+import { buildWindowsShellCommand } from '../../shared/subprocess/windows-cmd.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
 import {
   invalidateProbeCacheOnInitializeFailure,
@@ -87,12 +88,6 @@ const shouldSkipSourcekitPath = (virtualPath, excludePathRegexes) => {
 };
 
 const shouldUseShell = (cmd) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd);
-const quoteWindowsCmdArg = (value) => {
-  const text = String(value ?? '');
-  if (!text) return '""';
-  if (!/[\s"&|<>^();]/u.test(text)) return text;
-  return `"${text.replaceAll('"', '""')}"`;
-};
 /**
  * Build a spawn-safe command tuple for platform-specific binaries.
  *
@@ -112,9 +107,7 @@ const resolveSpawnCommandForExec = (cmd, args) => {
     };
   }
   const shellExe = process.env.ComSpec || 'cmd.exe';
-  const commandLine = [cmd, ...(Array.isArray(args) ? args : [])]
-    .map(quoteWindowsCmdArg)
-    .join(' ');
+  const commandLine = buildWindowsShellCommand(cmd, args);
   return {
     command: shellExe,
     args: ['/d', '/s', '/c', commandLine]

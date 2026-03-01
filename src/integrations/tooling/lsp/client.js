@@ -8,6 +8,7 @@ import {
   isClosedStreamWriteError
 } from '../../../shared/jsonrpc.js';
 import { registerChildProcessForCleanup } from '../../../shared/subprocess.js';
+import { buildWindowsShellCommand } from '../../../shared/subprocess/windows-cmd.js';
 import { killChildProcessTree, killChildProcessTreeSync } from '../../../shared/kill-tree.js';
 import { applyToolchainDaemonPolicyEnv } from '../../../shared/toolchain-env.js';
 
@@ -49,17 +50,6 @@ export function languageIdForFileExt(ext) {
   };
   return map[normalized] || 'plaintext';
 }
-
-const quoteWindowsCmdArg = (value) => {
-  const text = String(value ?? '');
-  if (!text) return '""';
-  if (!/[\s"&|<>^();]/u.test(text)) return text;
-  return `"${text.replaceAll('"', '""')}"`;
-};
-
-const buildWindowsShellCommand = (cmd, args) => (
-  [cmd, ...(Array.isArray(args) ? args : [])].map(quoteWindowsCmdArg).join(' ')
-);
 
 const LATENCY_SAMPLE_CAP = 4096;
 

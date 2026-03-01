@@ -4,6 +4,7 @@ import { resolveToolRoot } from '../../shared/dict-utils.js';
 import { resolveEnvPath } from '../../shared/env-path.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
 import { spawnSubprocessSync } from '../../shared/subprocess.js';
+import { buildWindowsShellCommand } from '../../shared/subprocess/windows-cmd.js';
 import { createLspClient, pathToFileUri } from '../../integrations/tooling/lsp/client.js';
 import { findBinaryInDirs, findBinaryOnPath, splitPathEntries } from './binary-utils.js';
 import { normalizeProviderId } from './provider-contract.js';
@@ -24,13 +25,6 @@ let commandProbeSuccessTtlMs = DEFAULT_COMMAND_PROBE_SUCCESS_TTL_MS;
 
 const shouldUseShell = (cmd) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(String(cmd || ''));
 
-const quoteWindowsCmdArg = (value) => {
-  const text = String(value ?? '');
-  if (!text) return '""';
-  if (!/[\s"&|<>^();]/u.test(text)) return text;
-  return `"${text.replaceAll('"', '""')}"`;
-};
-
 const runProbeCommand = (cmd, args = [], options = {}) => {
   const maxOutputBytes = options.maxBuffer || (2 * 1024 * 1024);
   const timeoutMs = Number.isFinite(Number(options.timeoutMs))
@@ -48,9 +42,7 @@ const runProbeCommand = (cmd, args = [], options = {}) => {
       timeoutMs
     });
   }
-  const commandLine = [cmd, ...(Array.isArray(args) ? args : [])]
-    .map(quoteWindowsCmdArg)
-    .join(' ');
+  const commandLine = buildWindowsShellCommand(cmd, args);
   const shellExe = process.env.ComSpec || 'cmd.exe';
   return spawnSubprocessSync(shellExe, ['/d', '/s', '/c', commandLine], {
     stdio: ['ignore', 'pipe', 'pipe'],
