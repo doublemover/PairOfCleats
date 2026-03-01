@@ -334,22 +334,22 @@ export async function shouldReuseIncrementalIndex({
     pieceManifest.pieces,
     PIECE_VALIDATION_CONCURRENCY,
     async (piece) => {
-    const relPath = typeof piece?.path === 'string' ? piece.path : null;
-    if (!relPath) {
-      return 'piece manifest missing path';
+      const relPath = typeof piece?.path === 'string' ? piece.path : null;
+      if (!relPath) {
+        return 'piece manifest missing path';
+      }
+      const resolvedPath = path.resolve(outDir, relPath);
+      if (!isWithinOutDir(resolvedPath)) {
+        return 'piece manifest path escapes output dir';
+      }
+      if (!(await pathExists(resolvedPath))) {
+        return `piece missing: ${relPath}`;
+      }
+      if (!isWithinOutDir(resolvedPath, { canonical: true })) {
+        return 'piece manifest path escapes output dir';
+      }
+      return null;
     }
-    const resolvedPath = path.resolve(outDir, relPath);
-    if (!isWithinOutDir(resolvedPath)) {
-      return 'piece manifest path escapes output dir';
-    }
-    if (!(await pathExists(resolvedPath))) {
-      return `piece missing: ${relPath}`;
-    }
-    if (!isWithinOutDir(resolvedPath, { canonical: true })) {
-      return 'piece manifest path escapes output dir';
-    }
-    return null;
-  }
   );
   const firstPieceError = pieceErrors.find((entry) => typeof entry === 'string' && entry);
   if (firstPieceError) {
