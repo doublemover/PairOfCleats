@@ -9,6 +9,7 @@ import {
 } from '../../../shared/jsonrpc.js';
 import { registerChildProcessForCleanup } from '../../../shared/subprocess.js';
 import { killChildProcessTree, killChildProcessTreeSync } from '../../../shared/kill-tree.js';
+import { applyToolchainDaemonPolicyEnv } from '../../../shared/toolchain-env.js';
 
 /**
  * Convert a local path to a file:// URI.
@@ -130,6 +131,7 @@ export function createLspClient(options) {
     ? shell
     : (process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd));
   const killTreeDetached = process.platform !== 'win32';
+  const resolvedEnv = applyToolchainDaemonPolicyEnv(env || process.env);
 
   let proc = null;
   let parser = null;
@@ -401,7 +403,7 @@ export function createLspClient(options) {
     const spawnOptions = {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd,
-      env,
+      env: resolvedEnv,
       shell: useShell,
       detached: killTreeDetached
     };
