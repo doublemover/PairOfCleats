@@ -78,7 +78,7 @@ const assertNoStubCacheArtifacts = async () => {
   }
 };
 
-runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
+runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage3', '--mode', 'code', '--repo', repoRoot]);
 runNode('build_embeddings', [path.join(root, 'tools', 'build/embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
 await assertNoStubCacheArtifacts();
 

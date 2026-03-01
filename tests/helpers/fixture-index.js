@@ -30,7 +30,12 @@ import { isPlainObject, mergeConfig } from '../../src/shared/config.js';
 import { runSqliteBuild } from './sqlite-builder.js';
 import { withDirectoryLock } from './directory-lock.js';
 
-import { normalizeTestCacheScope, resolveTestCachePath } from './test-cache.js';
+import {
+  normalizeTestCacheScope,
+  resolveDefaultTestBuildStage,
+  resolveDefaultTestCacheScope,
+  resolveTestCachePath
+} from './test-cache.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -112,11 +117,20 @@ const DEFAULT_TEST_CONFIG = {
     use: false
   },
   indexing: {
+    typeInference: false,
+    typeInferenceCrossFile: false,
+    riskAnalysis: false,
+    riskAnalysisCrossFile: false,
     embeddings: {
       enabled: false,
       mode: 'off',
       lancedb: { enabled: false },
       hnsw: { enabled: false }
+    }
+  },
+  tooling: {
+    lsp: {
+      enabled: false
     }
   }
 };
@@ -367,8 +381,9 @@ export const ensureFixtureIndex = async ({
   cacheName = `fixture-${fixtureName}`,
   envOverrides = {},
   requireRiskTags = false,
-  cacheScope = 'isolated',
-  requiredModes
+  cacheScope = resolveDefaultTestCacheScope(),
+  requiredModes,
+  buildStage = resolveDefaultTestBuildStage()
 } = {}) => {
   if (!fixtureName) throw new Error('fixtureName is required');
   const normalizedCacheScope = normalizeTestCacheScope(cacheScope, { defaultScope: 'isolated' });
@@ -476,6 +491,9 @@ export const ensureFixtureIndex = async ({
       await ensureDir(repoCacheRoot);
       const buildMode = resolveBuildMode(normalizedRequiredModes);
       const buildArgs = [path.join(ROOT, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot];
+      if (typeof buildStage === 'string' && buildStage.trim()) {
+        buildArgs.push('--stage', buildStage.trim());
+      }
       if (buildMode) {
         buildArgs.push('--mode', buildMode);
       }
@@ -681,5 +699,3 @@ export const runSearch = ({
     process.exit(1);
   }
 };
-
-

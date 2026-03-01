@@ -68,6 +68,8 @@ const result = spawnSync(process.execPath, [
   '--stub-embeddings',
   '--stage',
   'stage2',
+  '--mode',
+  'code',
   '--repo',
   repoRoot
 ], {

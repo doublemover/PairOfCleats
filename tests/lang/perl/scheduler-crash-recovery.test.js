@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import { createCrashLogger } from '../../../src/index/build/crash-log.js';
 import { runTreeSitterScheduler } from '../../../src/index/build/tree-sitter-scheduler/runner.js';
-import { applyTestEnv } from '../../helpers/test-env.js';
+import { applyTestEnv, withTemporaryEnv } from '../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -40,10 +40,8 @@ const crashLogger = await createCrashLogger({
   enabled: true
 });
 
-const previousCrashInjection = process.env.PAIROFCLEATS_TEST_TREE_SITTER_SCHEDULER_CRASH;
-process.env.PAIROFCLEATS_TEST_TREE_SITTER_SCHEDULER_CRASH = 'perl';
 let scheduler = null;
-try {
+await withTemporaryEnv({ PAIROFCLEATS_TEST_TREE_SITTER_SCHEDULER_CRASH: 'perl' }, async () => {
   scheduler = await runTreeSitterScheduler({
     mode: 'code',
     runtime,
@@ -53,13 +51,7 @@ try {
     log: () => {},
     crashLogger
   });
-} finally {
-  if (previousCrashInjection === undefined) {
-    delete process.env.PAIROFCLEATS_TEST_TREE_SITTER_SCHEDULER_CRASH;
-  } else {
-    process.env.PAIROFCLEATS_TEST_TREE_SITTER_SCHEDULER_CRASH = previousCrashInjection;
-  }
-}
+});
 
 assert.ok(scheduler, 'expected scheduler object');
 assert.ok(scheduler.index instanceof Map, 'expected scheduler index map');

@@ -53,7 +53,7 @@ const env = applyTestEnv({
 
 const result = spawnSync(
   process.execPath,
-  [path.join(root, 'build_index.js'), '--repo', repoRoot, '--stub-embeddings'],
+  [path.join(root, 'build_index.js'), '--repo', repoRoot, '--stub-embeddings', '--stage', 'stage2', '--mode', 'code'],
   { env, encoding: 'utf8' }
 );
 if (result.status !== 0) {

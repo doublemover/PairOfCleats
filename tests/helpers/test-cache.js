@@ -3,6 +3,28 @@ import path from 'node:path';
 
 const VALID_TEST_CACHE_SCOPES = new Set(['isolated', 'shared']);
 
+export const normalizeTestLane = (lane = process.env.PAIROFCLEATS_TEST_LANE) => (
+  String(lane || '').trim().toLowerCase()
+);
+
+export const resolveDefaultTestCacheScope = (lane = process.env.PAIROFCLEATS_TEST_LANE) => {
+  const normalized = normalizeTestLane(lane);
+  if (normalized === 'ci' || normalized === 'ci-long') return 'shared';
+  return 'isolated';
+};
+
+export const resolveDefaultTestBuildStage = (lane = process.env.PAIROFCLEATS_TEST_LANE) => {
+  const normalized = normalizeTestLane(lane);
+  if (normalized === 'ci' || normalized === 'ci-long') return 'stage2';
+  return null;
+};
+
+export const resolveDefaultTestConfigLane = (lane = process.env.PAIROFCLEATS_TEST_LANE) => {
+  const normalized = String(lane || '').trim().toLowerCase();
+  if (normalized === 'ci' || normalized === 'ci-long') return normalized;
+  return '';
+};
+
 export const resolveTestCacheDir = (name, { root = process.cwd() } = {}) => {
   const label = typeof name === 'string' && name.trim() ? name.trim() : 'default';
   return {

@@ -46,7 +46,7 @@ const env = applyTestEnv({
 
 const buildResult = spawnSync(
   process.execPath,
-  [path.join(root, 'build_index.js'), '--mode', 'code', '--stub-embeddings', '--repo', repoRoot],
+  [path.join(root, 'build_index.js'), '--mode', 'code', '--stage', 'stage2', '--stub-embeddings', '--repo', repoRoot],
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
 

@@ -27,6 +27,8 @@ const env = applyTestEnv({
 const result = spawnSync(process.execPath, [
   buildIndexPath,
   '--stub-embeddings',
+  '--stage',
+  'stage2',
   '--scm-provider',
   'none',
   '--mode',

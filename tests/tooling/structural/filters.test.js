@@ -54,6 +54,10 @@ await fsPromises.writeFile(
 const buildResult = spawnSync(process.execPath, [
   path.join(root, 'build_index.js'),
   '--stub-embeddings',
+  '--stage',
+  'stage2',
+  '--mode',
+  'code',
   '--repo',
   repoRoot
 ], { encoding: 'utf8', env });

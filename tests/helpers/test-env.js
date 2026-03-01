@@ -4,6 +4,8 @@ import {
   terminateTrackedSubprocesses,
   terminateTrackedSubprocessesSync
 } from '../../src/shared/subprocess.js';
+import { mergeConfig } from '../../src/shared/config.js';
+import { resolveDefaultTestConfigLane } from './test-cache.js';
 
 export const DEFAULT_TEST_ENV_KEYS = [
   'PAIROFCLEATS_TESTING',
@@ -13,6 +15,26 @@ export const DEFAULT_TEST_ENV_KEYS = [
 ];
 
 export const TESTING_ENABLED = '1';
+
+const CI_LONG_DEFAULT_TEST_CONFIG = {
+  indexing: {
+    typeInference: false,
+    typeInferenceCrossFile: false,
+    riskAnalysis: false,
+    riskAnalysisCrossFile: false
+  },
+  tooling: {
+    lsp: {
+      enabled: false
+    }
+  }
+};
+
+const resolveLaneDefaultTestConfig = (env) => {
+  const lane = resolveDefaultTestConfigLane(env?.PAIROFCLEATS_TEST_LANE);
+  if (!lane) return undefined;
+  return CI_LONG_DEFAULT_TEST_CONFIG;
+};
 
 export const syncProcessEnv = (env, keys = DEFAULT_TEST_ENV_KEYS, { clearMissing = false } = {}) => {
   if (!env || typeof env !== 'object') return;
@@ -88,12 +110,15 @@ export const applyTestEnv = ({
   syncProcess = true
 } = {}) => {
   const env = { ...process.env };
+  const laneDefaultTestConfig = resolveLaneDefaultTestConfig(env);
   const deletedKeys = new Set();
   const preservedPairOfCleatsKeys = new Set([
     'PAIROFCLEATS_TEST_API_STARTUP_TIMEOUT_MS',
     'PAIROFCLEATS_TEST_CACHE_SUFFIX',
     'PAIROFCLEATS_TEST_LOG_SILENT',
     'PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY',
+    'PAIROFCLEATS_TEST_LANE',
+    'PAIROFCLEATS_TEST_ID',
     'PAIROFCLEATS_TESTING'
   ]);
   for (const key of Object.keys(env)) {
@@ -119,15 +144,32 @@ export const applyTestEnv = ({
       env.PAIROFCLEATS_EMBEDDINGS = String(embeddings);
     }
   }
-  if (testConfig === undefined) {
+  const effectiveTestConfig = (() => {
+    if (testConfig !== undefined) return testConfig;
+    return laneDefaultTestConfig;
+  })();
+  if (effectiveTestConfig === undefined) {
     // Prevent inherited runner/shell overrides from silently mutating test behavior.
     removeKey('PAIROFCLEATS_TEST_CONFIG');
-  } else if (testConfig === null) {
+  } else if (effectiveTestConfig === null) {
     removeKey('PAIROFCLEATS_TEST_CONFIG');
-  } else if (typeof testConfig === 'string') {
-    env.PAIROFCLEATS_TEST_CONFIG = testConfig;
+  } else if (typeof effectiveTestConfig === 'string') {
+    if (!laneDefaultTestConfig) {
+      env.PAIROFCLEATS_TEST_CONFIG = effectiveTestConfig;
+    } else {
+      try {
+        const parsed = JSON.parse(effectiveTestConfig);
+        env.PAIROFCLEATS_TEST_CONFIG = JSON.stringify(mergeConfig(laneDefaultTestConfig, parsed));
+      } catch {
+        env.PAIROFCLEATS_TEST_CONFIG = effectiveTestConfig;
+      }
+    }
   } else {
-    env.PAIROFCLEATS_TEST_CONFIG = JSON.stringify(testConfig);
+    env.PAIROFCLEATS_TEST_CONFIG = JSON.stringify(
+      laneDefaultTestConfig
+        ? mergeConfig(laneDefaultTestConfig, effectiveTestConfig)
+        : effectiveTestConfig
+    );
   }
   if (extraEnv && typeof extraEnv === 'object') {
     for (const [key, value] of Object.entries(extraEnv)) {

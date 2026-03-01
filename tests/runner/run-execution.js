@@ -118,6 +118,12 @@ const runTestOnce = async ({
   const start = Date.now();
   const args = [test.path, ...passThrough];
   const testEnv = { ...env };
+  if (!testEnv.PAIROFCLEATS_TEST_LANE && typeof test.lane === 'string' && test.lane.trim()) {
+    testEnv.PAIROFCLEATS_TEST_LANE = test.lane.trim();
+  }
+  if (!testEnv.PAIROFCLEATS_TEST_ID && typeof test.id === 'string' && test.id.trim()) {
+    testEnv.PAIROFCLEATS_TEST_ID = test.id.trim();
+  }
   if (!testEnv.PAIROFCLEATS_TEST_CACHE_SUFFIX) {
     testEnv.PAIROFCLEATS_TEST_CACHE_SUFFIX = sanitizeId(test.id);
   }

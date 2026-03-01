@@ -45,6 +45,8 @@ const runBuild = () => {
       path.join(root, 'build_index.js'),
       '--repo',
       repoRoot,
+      '--stage',
+      'stage2',
       '--mode',
       'code',
       '--stub-embeddings',

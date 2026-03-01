@@ -2,6 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -12,15 +13,14 @@ const cacheRoot = resolveTestCachePath(root, 'prose-skip-imports');
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 
-const env = {
-  ...process.env,
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub'
+});
 
 const result = spawnSync(
   process.execPath,
-  [path.join(root, 'build_index.js'), '--stub-embeddings', '--mode', 'prose', '--repo', fixtureRoot],
+  [path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage2', '--mode', 'prose', '--repo', fixtureRoot],
   { cwd: fixtureRoot, env, encoding: 'utf8' }
 );
 

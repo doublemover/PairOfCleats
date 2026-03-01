@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-28T17:56:10.073Z",
+  "generatedAt": "2026-03-01T04:57:05.454Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -156,6 +156,8 @@
       "PAIROFCLEATS_TEST_EMBEDDING_MIN_THROUGHPUT",
       "PAIROFCLEATS_TEST_FORCE_DOCX_MISSING",
       "PAIROFCLEATS_TEST_FORCE_PDF_MISSING",
+      "PAIROFCLEATS_TEST_ID",
+      "PAIROFCLEATS_TEST_LANE",
       "PAIROFCLEATS_TEST_LOG_DIR",
       "PAIROFCLEATS_TEST_LOG_SILENT",
       "PAIROFCLEATS_TEST_MAX_JSON_BYTES",
@@ -2193,8 +2195,6 @@
         "tests/helpers/mcp-client.js",
         "tests/helpers/search-lifecycle-env-isolation.test.js",
         "tests/helpers/test-env.js",
-        "tests/indexer/call-sites/emit-artifacts-none.test.js",
-        "tests/indexer/call-sites/empty-required.test.js",
         "tests/indexing/artifacts/artifact-size-guardrails.test.js",
         "tests/indexing/artifacts/manifest/report-artifacts-driven.test.js",
         "tests/indexing/artifacts/packed-artifact-fastpath.test.js",
@@ -2202,7 +2202,6 @@
         "tests/indexing/embeddings/build/runtime-defaults.test.js",
         "tests/indexing/embeddings/validate.test.js",
         "tests/indexing/git/blame-range.test.js",
-        "tests/indexing/imports/prose-skip.test.js",
         "tests/indexing/map/code-graphviz-fallback.test.js",
         "tests/indexing/piece-assembly/core.test.js",
         "tests/indexing/postings/vector-only-missing-embeddings-is-error.test.js",
@@ -2379,16 +2378,12 @@
         "tests/helpers/test-env-clear.test.js",
         "tests/helpers/test-env-sync-option.test.js",
         "tests/helpers/test-env.js",
-        "tests/indexer/call-sites/emit-artifacts-none.test.js",
-        "tests/indexer/call-sites/empty-required.test.js",
         "tests/indexing/artifacts/artifact-size-guardrails.test.js",
         "tests/indexing/artifacts/packed-artifact-fastpath.test.js",
         "tests/indexing/embeddings/build/runtime-defaults.test.js",
         "tests/indexing/git/blame-range.test.js",
-        "tests/indexing/imports/prose-skip.test.js",
         "tests/indexing/map/code-graphviz-fallback.test.js",
         "tests/indexing/piece-assembly/core.test.js",
-        "tests/indexing/scm/index-build-no.test.js",
         "tests/indexing/scm/no-build-id.test.js",
         "tests/perf/bench/run.test.js",
         "tests/retrieval/ann/hnsw-atomic.test.js",
@@ -3062,12 +3057,11 @@
         "src/shared/env.js",
         "src/shared/ops-failure-injection.js",
         "tests/helpers/fixture-index.js",
+        "tests/helpers/lane-default-test-config.test.js",
         "tests/helpers/search-lifecycle-env-isolation.test.js",
         "tests/helpers/test-env-clear.test.js",
         "tests/helpers/test-env-sync-option.test.js",
         "tests/helpers/test-env.js",
-        "tests/indexer/call-sites/emit-artifacts-none.test.js",
-        "tests/indexer/call-sites/empty-required.test.js",
         "tests/indexing/artifacts/artifact-size-guardrails.test.js",
         "tests/indexing/artifacts/packed-artifact-fastpath.test.js",
         "tests/indexing/contracts/golden-surface-suite.test.js",
@@ -3107,6 +3101,24 @@
         "src/shared/env.js",
         "tests/indexing/extracted-prose/documents-skipped-when-unavailable.test.js",
         "tests/indexing/extracted-prose/pdf-missing-dep-skips.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_ID",
+      "files": [
+        "tests/helpers/test-env.js",
+        "tests/runner/run-execution.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_LANE",
+      "files": [
+        "tests/helpers/lane-default-test-config.test.js",
+        "tests/helpers/test-cache.js",
+        "tests/helpers/test-env.js",
+        "tests/runner/run-execution.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3277,10 +3289,9 @@
         "src/shared/env.js",
         "src/shared/ops-failure-injection.js",
         "tests/helpers/fixture-index.js",
+        "tests/helpers/lane-default-test-config.test.js",
         "tests/helpers/test-env-sync-option.test.js",
         "tests/helpers/test-env.js",
-        "tests/indexer/call-sites/emit-artifacts-none.test.js",
-        "tests/indexer/call-sites/empty-required.test.js",
         "tests/indexing/crash-log-retention.test.js",
         "tests/ops/failure-injection/retrieval-hotpath.test.js",
         "tests/retrieval/parity/equivalence.test.js",

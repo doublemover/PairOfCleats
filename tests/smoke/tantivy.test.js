@@ -32,7 +32,18 @@ await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 
 const env = applyTestEnv({
   cacheRoot,
-  embeddings: 'stub'
+  embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false
+    },
+    tooling: {
+      lsp: { enabled: false }
+    }
+  }
 });
 
 const run = (args, label) => {
@@ -47,7 +58,7 @@ const run = (args, label) => {
   }
 };
 
-run([path.join(root, 'build_index.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot], 'build index');
+run([path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage2', '--mode', 'code', '--repo', repoRoot], 'build index');
 run([path.join(root, 'tools', 'build/tantivy-index.js'), '--mode', 'code', '--repo', repoRoot], 'build tantivy index');
 
 const searchResult = spawnSync(
