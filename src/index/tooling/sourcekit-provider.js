@@ -11,7 +11,7 @@ import { readJsonFileSafe, toPosix } from '../../shared/files.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { acquireFileLock } from '../../shared/locks/file-lock.js';
-import { runSyncCommandWithTimeout, spawnSubprocess, toSyncCommandExitCode } from '../../shared/subprocess.js';
+import { spawnSubprocess } from '../../shared/subprocess.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
 import {
   invalidateProbeCacheOnInitializeFailure,
@@ -34,11 +34,7 @@ const SOURCEKIT_DEFAULT_HOVER_MAX_PER_FILE = 10;
 const SOURCEKIT_DEFAULT_HOVER_DISABLE_AFTER_TIMEOUTS = 2;
 const SOURCEKIT_TOP_OFFENDER_LIMIT = 8;
 const SOURCEKIT_PACKAGE_PREFLIGHT_SCHEMA_VERSION = 1;
-const SOURCEKIT_PACKAGE_PREFLIGHT_MARKER_RELATIVE_PATH = path.join(
-  '.build',
-  'pairofcleats',
-  'sourcekit-package-preflight.json'
-);
+const SOURCEKIT_PACKAGE_PREFLIGHT_MARKER_FILENAME = 'sourcekit-package-preflight.json';
 const SOURCEKIT_PACKAGE_PREFLIGHT_TIMEOUT_MS = 90 * 1000;
 const SOURCEKIT_PACKAGE_PREFLIGHT_LOCK_WAIT_MS = 90 * 1000;
 const SOURCEKIT_PACKAGE_PREFLIGHT_LOCK_POLL_MS = 250;
@@ -96,31 +92,6 @@ const quoteWindowsCmdArg = (value) => {
   if (!/[\s"&|<>^();]/u.test(text)) return text;
   return `"${text.replaceAll('"', '""')}"`;
 };
-const runProbeCommand = (cmd, args) => {
-  if (!shouldUseShell(cmd)) {
-    const result = runSyncCommandWithTimeout(cmd, args, {
-      stdio: 'ignore',
-      encoding: 'utf8',
-      timeoutMs: 2_000
-    });
-    return {
-      exitCode: toSyncCommandExitCode(result)
-    };
-  }
-  const commandLine = [cmd, ...(Array.isArray(args) ? args : [])]
-    .map(quoteWindowsCmdArg)
-    .join(' ');
-  const shellExe = process.env.ComSpec || 'cmd.exe';
-  const result = runSyncCommandWithTimeout(shellExe, ['/d', '/s', '/c', commandLine], {
-    stdio: 'ignore',
-    encoding: 'utf8',
-    timeoutMs: 2_000
-  });
-  return {
-    exitCode: toSyncCommandExitCode(result)
-  };
-};
-
 /**
  * Build a spawn-safe command tuple for platform-specific binaries.
  *
@@ -161,8 +132,14 @@ const asFiniteInteger = (value) => {
 
 const canRunCommand = (cmd, args = ['--help']) => {
   try {
-    const result = runProbeCommand(cmd, args);
-    return result.exitCode === 0;
+    const profile = resolveToolingCommandProfile({
+      providerId: 'sourcekit',
+      cmd,
+      args: Array.isArray(args) ? args : [],
+      repoRoot: process.cwd(),
+      toolingConfig: {}
+    });
+    return profile?.probe?.ok === true;
   } catch {
     return false;
   }
@@ -297,6 +274,31 @@ const writeSourcekitPreflightMarker = async ({ markerPath, fingerprint, swiftCmd
   });
 };
 
+const resolveSourcekitPreflightMarkerPath = ({
+  repoRoot,
+  cacheRoot = null
+}) => {
+  if (typeof cacheRoot === 'string' && cacheRoot.trim()) {
+    const repoHash = crypto
+      .createHash('sha1')
+      .update(path.resolve(repoRoot || '').toLowerCase())
+      .digest('hex');
+    return path.join(
+      path.resolve(cacheRoot),
+      'tooling',
+      'sourcekit-preflight',
+      repoHash,
+      SOURCEKIT_PACKAGE_PREFLIGHT_MARKER_FILENAME
+    );
+  }
+  return path.join(
+    repoRoot,
+    '.build',
+    'pairofcleats',
+    SOURCEKIT_PACKAGE_PREFLIGHT_MARKER_FILENAME
+  );
+};
+
 /**
  * Run bounded `swift package resolve` preflight to drain package side effects
  * before sourcekit starts serving symbol requests.
@@ -369,7 +371,8 @@ const runSourcekitPackagePreflight = async ({
  * @param {{
  *   repoRoot:string,
  *   log:(line:string)=>void,
- *   sourcekitConfig?:Record<string,unknown>
+ *   sourcekitConfig?:Record<string,unknown>,
+ *   cacheRoot?:string|null
  * }} input
  * @returns {Promise<{blockSourcekit:boolean,check:object|null}>}
  */
@@ -377,7 +380,8 @@ const ensureSourcekitPackageResolutionPreflight = async ({
   repoRoot,
   log,
   signal = null,
-  sourcekitConfig = {}
+  sourcekitConfig = {},
+  cacheRoot = null
 }) => {
   try {
     throwIfAborted(signal);
@@ -385,7 +389,10 @@ const ensureSourcekitPackageResolutionPreflight = async ({
     if (!need.required) {
       return { blockSourcekit: false, check: null };
     }
-    const markerPath = path.join(repoRoot, SOURCEKIT_PACKAGE_PREFLIGHT_MARKER_RELATIVE_PATH);
+    const markerPath = resolveSourcekitPreflightMarkerPath({
+      repoRoot,
+      cacheRoot
+    });
     const marker = await readSourcekitPreflightMarker(markerPath);
     if (marker?.fingerprint === need.fingerprint) {
       log('[tooling] sourcekit package preflight cache hit.');
@@ -758,7 +765,8 @@ export const createSourcekitProvider = () => ({
       repoRoot: ctx.repoRoot,
       log,
       signal: abortSignal,
-      sourcekitConfig
+      sourcekitConfig,
+      cacheRoot: ctx?.cache?.dir || null
     });
     throwIfAborted(abortSignal);
     if (preflight.check) checks.push(preflight.check);
