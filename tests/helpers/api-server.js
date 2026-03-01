@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { attachSilentLogging } from './test-env.js';
 import { terminateChild } from './process-lifecycle.js';
+import { registerChildProcessForCleanup } from '../../src/shared/subprocess.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -74,6 +75,13 @@ export const startApiServer = async ({
   }
 
   const server = spawn(process.execPath, args, { env, stdio: ['ignore', 'pipe', 'pipe'] });
+  const unregisterTrackedServer = registerChildProcessForCleanup(server, {
+    killTree: true,
+    detached: process.platform !== 'win32',
+    name: 'api-server-test',
+    command: process.execPath,
+    args
+  });
   attachSilentLogging(server, 'api-server');
 
   const resolvedStartupTimeoutMs = startupTimeoutMs !== null
@@ -259,14 +267,25 @@ export const startApiServer = async ({
     req.end();
   });
 
-  const line = await readStartup();
-  const serverInfo = JSON.parse(line || '{}');
-  if (!serverInfo?.port) {
-    throw new Error('api-server did not report a listening port');
+  let serverInfo = null;
+  try {
+    const line = await readStartup();
+    serverInfo = JSON.parse(line || '{}');
+    if (!serverInfo?.port) {
+      throw new Error('api-server did not report a listening port');
+    }
+  } catch (error) {
+    await terminateChild(server, { graceMs: 5000 });
+    unregisterTrackedServer();
+    throw error;
   }
 
   const stop = async () => {
-    await terminateChild(server, { graceMs: 5000 });
+    try {
+      await terminateChild(server, { graceMs: 5000 });
+    } finally {
+      unregisterTrackedServer();
+    }
   };
 
   return { server, serverInfo, requestJson, requestRaw, stop };

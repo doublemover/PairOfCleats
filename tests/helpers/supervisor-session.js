@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { registerChildProcessForCleanup } from '../../src/shared/subprocess.js';
 
 const DEFAULT_POLL_MS = 20;
 
@@ -28,6 +29,13 @@ export const createSupervisorSession = ({
     cwd: root,
     stdio: ['pipe', 'pipe', 'pipe']
   });
+  const unregisterTrackedChild = registerChildProcessForCleanup(child, {
+    killTree: true,
+    detached: process.platform !== 'win32',
+    name: 'supervisor-session-test',
+    command: process.execPath,
+    args: [supervisorPath]
+  });
   child.stderr.on('data', () => {});
   let exitCode = null;
   let exitSignal = null;
@@ -35,6 +43,7 @@ export const createSupervisorSession = ({
     child.once('exit', (code, signal) => {
       exitCode = code;
       exitSignal = signal;
+      unregisterTrackedChild();
       resolve(code ?? null);
     });
   });
@@ -78,10 +87,21 @@ export const createSupervisorSession = ({
     return exitPromise;
   };
 
-  const shutdown = async (reason = 'test_complete') => {
+  const shutdown = async (reason = 'test_complete', waitTimeoutMs = timeoutMs) => {
     try {
       send({ op: 'shutdown', reason });
     } catch {}
+    const waitPromise = waitForExit();
+    if (child.exitCode !== null) return waitPromise;
+    const bounded = await Promise.race([
+      waitPromise,
+      new Promise((resolve) => {
+        const timer = setTimeout(() => resolve(null), Math.max(1, Number(waitTimeoutMs) || timeoutMs));
+        timer.unref?.();
+      })
+    ]);
+    if (bounded !== null) return bounded;
+    forceKill();
     return waitForExit();
   };
 
@@ -89,6 +109,7 @@ export const createSupervisorSession = ({
     try {
       child.kill('SIGKILL');
     } catch {}
+    unregisterTrackedChild();
   };
 
   return {

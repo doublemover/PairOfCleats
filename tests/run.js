@@ -784,4 +784,7 @@ const main = async () => {
   process.exit(exitCode);
 };
 
-main();
+main().catch((error) => {
+  console.error(error?.stack || error?.message || String(error));
+  process.exit(1);
+});
