@@ -118,7 +118,8 @@ export const summarizeGrammarJobs = (jobs) => {
   sortedCosts.sort((a, b) => a - b);
 
   const avgCost = totalEstimatedCost / Math.max(1, jobCount);
-  const p95Cost = sortedCosts[Math.max(0, Math.floor((validCostCount - 1) * 0.95))];
+  const p95Rank = Math.ceil(validCostCount * 0.95);
+  const p95Cost = sortedCosts[Math.max(0, Math.min(validCostCount - 1, p95Rank - 1))];
   const skewRatio = maxCost / Math.max(1, avgCost);
 
   return {
