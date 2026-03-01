@@ -15,6 +15,7 @@ const CACHE_VERSION = 6;
 const CACHE_FILE = 'import-resolution-cache.json';
 const CACHE_DIAGNOSTICS_VERSION = 6;
 const CACHE_PERSIST_WARNING_THROTTLE_MS = 60 * 1000;
+const IMPORT_RESOLUTION_CACHE_MAX_BYTES = 16 * 1024 * 1024;
 const DEFAULT_MAX_STALE_EDGE_CHECKS = 20000;
 const IMPORT_SPEC_CANDIDATE_EXTENSIONS = Object.freeze([...DEFAULT_IMPORT_EXTS]);
 const GENERATED_DIR_SEGMENT_RX = /\/(?:__generated__|generated|gen)\//i;
@@ -764,6 +765,19 @@ export const loadImportResolutionCache = async ({ incrementalState, log = null }
     };
   }
   try {
+    const stat = await fs.stat(cachePath);
+    if (Number.isFinite(stat?.size) && stat.size > IMPORT_RESOLUTION_CACHE_MAX_BYTES) {
+      if (typeof log === 'function') {
+        log(
+          `[imports] Import resolution cache exceeds ${IMPORT_RESOLUTION_CACHE_MAX_BYTES} bytes; ` +
+          `skipping load (${stat.size} bytes).`
+        );
+      }
+      return {
+        cache: createEmptyCache(),
+        cachePath
+      };
+    }
     const raw = JSON.parse(await fs.readFile(cachePath, 'utf8'));
     const normalized = normalizeCache(raw, { cachePath });
     if (normalized) return { cache: normalized, cachePath };

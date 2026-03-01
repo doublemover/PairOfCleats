@@ -8,6 +8,7 @@ import { writeJsonObjectFile } from '../../shared/json-stream.js';
 export const CROSS_FILE_CACHE_SCHEMA_VERSION = 1;
 export const CROSS_FILE_CACHE_DIRNAME = 'cross-file-inference';
 export const DEFAULT_CROSS_FILE_CACHE_MAX_BYTES = 8 * 1024 * 1024;
+export const DEFAULT_CROSS_FILE_CACHE_READ_MAX_BYTES = 12 * 1024 * 1024;
 
 const compareStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
@@ -182,10 +183,22 @@ export const readCrossFileInferenceCache = async ({
   cachePath,
   chunks,
   crossFileFingerprint,
-  log = () => {}
+  log = () => {},
+  maxReadBytes = DEFAULT_CROSS_FILE_CACHE_READ_MAX_BYTES
 }) => {
   if (!cachePath) return null;
   try {
+    if (Number.isFinite(maxReadBytes) && maxReadBytes > 0) {
+      const stat = await fs.stat(cachePath);
+      if (Number.isFinite(stat?.size) && stat.size > maxReadBytes) {
+        if (typeof log === 'function') {
+          log(
+            `[perf] cross-file cache read skipped: cache size ${stat.size} bytes exceeds max ${maxReadBytes} bytes.`
+          );
+        }
+        return null;
+      }
+    }
     const raw = await fs.readFile(cachePath, 'utf8');
     const cached = JSON.parse(raw);
     const cacheStats = cached?.stats && typeof cached.stats === 'object'
@@ -208,7 +221,11 @@ export const readCrossFileInferenceCache = async ({
         return normalizeCacheStats(cacheStats);
       }
     }
-  } catch {}
+  } catch (err) {
+    if (typeof log === 'function') {
+      log(`[perf] cross-file cache read failed: ${err?.message || err}`);
+    }
+  }
   return null;
 };
 
@@ -285,5 +302,9 @@ export const writeCrossFileInferenceCache = async ({
       },
       arrays: { rows }
     });
-  } catch {}
+  } catch (err) {
+    if (typeof log === 'function') {
+      log(`[perf] cross-file cache write failed: ${err?.message || err}`);
+    }
+  }
 };

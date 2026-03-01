@@ -15,6 +15,7 @@ import {
 
 const TOOLING_PROVIDER_CACHE_KEY_VERSION = 'lk2';
 const TOOLING_PROVIDER_CACHE_SCHEMA_VERSION = 2;
+const TOOLING_PROVIDER_CACHE_READ_MAX_BYTES = 8 * 1024 * 1024;
 
 const mapFromRecord = (record) => {
   if (record instanceof Map) return record;
@@ -698,14 +699,40 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
     let outputFromCache = false;
     if (cachePath) {
       try {
-        const cached = JSON.parse(await fs.readFile(cachePath, 'utf8'));
-        if (cached?.provider?.id === providerId
-          && cached?.provider?.version === provider.version
-          && cached?.provider?.configHash === configHash) {
-          output = normalizeCachedProviderOutput(cached);
-          outputFromCache = Boolean(output);
+        const stat = await fs.stat(cachePath);
+        if (Number.isFinite(stat?.size) && stat.size > TOOLING_PROVIDER_CACHE_READ_MAX_BYTES) {
+          observations.push({
+            level: 'warn',
+            code: 'tooling_cache_oversized',
+            message: `[tooling] provider cache skipped for ${providerId}: oversized (${stat.size} bytes).`,
+            context: {
+              providerId,
+              cachePath,
+              sizeBytes: stat.size,
+              maxBytes: TOOLING_PROVIDER_CACHE_READ_MAX_BYTES
+            }
+          });
+        } else {
+          const cached = JSON.parse(await fs.readFile(cachePath, 'utf8'));
+          if (cached?.provider?.id === providerId
+            && cached?.provider?.version === provider.version
+            && cached?.provider?.configHash === configHash) {
+            output = normalizeCachedProviderOutput(cached);
+            outputFromCache = Boolean(output);
+          }
         }
-      } catch {}
+      } catch (error) {
+        observations.push({
+          level: 'warn',
+          code: 'tooling_cache_read_failed',
+          message: `[tooling] provider cache read failed for ${providerId}; using live run.`,
+          context: {
+            providerId,
+            cachePath,
+            error: error?.message || String(error)
+          }
+        });
+      }
     }
     if (!output) {
       const providerInputs = {
@@ -734,7 +761,18 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
             if (deterministicPayload) {
               await atomicWriteJson(cachePath, deterministicPayload, { spaces: 2 });
             }
-          } catch {}
+          } catch (error) {
+            observations.push({
+              level: 'warn',
+              code: 'tooling_cache_write_failed',
+              message: `[tooling] provider cache write failed for ${providerId}.`,
+              context: {
+                providerId,
+                cachePath,
+                error: error?.message || String(error)
+              }
+            });
+          }
         }
       } catch (err) {
         const errorMessage = String(err?.message || err || 'unknown provider failure');

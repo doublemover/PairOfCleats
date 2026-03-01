@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
+import { promisify } from 'node:util';
 import { atomicWriteJson, atomicWriteText } from '../../../shared/io/atomic-write.js';
 import { sha1 } from '../../../shared/hash.js';
 import { logLine } from '../../../shared/progress.js';
@@ -21,6 +22,9 @@ const STATE_SCHEMA_VERSION = 1;
 const EVENT_LOG_MAX_BYTES = 2 * 1024 * 1024;
 const DELTA_LOG_MAX_BYTES = 4 * 1024 * 1024;
 const STATE_MAP_MAX_ENTRIES = 64;
+const STATE_JSON_MAX_BYTES = 8 * 1024 * 1024;
+const PROGRESS_JSON_MAX_BYTES = 4 * 1024 * 1024;
+const gzipAsync = promisify(zlib.gzip);
 
 const isObjectLike = (value) => (
   Boolean(value) && typeof value === 'object'
@@ -93,8 +97,21 @@ const readFingerprint = async (filePath) => {
   }
 };
 
-const readJsonFile = async (filePath) => {
+const readJsonFile = async (filePath, {
+  maxBytes = 0,
+  label = 'json'
+} = {}) => {
   try {
+    if (Number.isFinite(maxBytes) && maxBytes > 0) {
+      const stat = await fs.stat(filePath);
+      if (Number.isFinite(stat?.size) && stat.size > maxBytes) {
+        logLine(
+          `[build_state] Skipping oversized ${label} file (${stat.size} bytes > ${maxBytes} bytes): ${filePath}`,
+          { kind: 'warning' }
+        );
+        return null;
+      }
+    }
     const parsed = JSON.parse(await fs.readFile(filePath, 'utf8'));
     if (!isObjectLike(parsed)) return null;
     return parsed;
@@ -270,7 +287,7 @@ const compressRotatedLog = async (filePath) => {
   try {
     const payload = await fs.readFile(filePath);
     const gzPath = `${filePath}.gz`;
-    const gzPayload = zlib.gzipSync(payload);
+    const gzPayload = await gzipAsync(payload);
     await fs.writeFile(gzPath, gzPayload);
     await fs.unlink(filePath);
   } catch {}
@@ -375,7 +392,9 @@ export const loadBuildState = async (buildRoot) => {
   if (fingerprintsMatch(fingerprint, cache.fingerprint) && cache.state) {
     return { state: cache.state, loaded: true, cache };
   }
-  const parsed = fingerprint ? await readJsonFile(statePath) : null;
+  const parsed = fingerprint
+    ? await readJsonFile(statePath, { maxBytes: STATE_JSON_MAX_BYTES, label: 'state' })
+    : null;
   cache.state = parsed;
   cache.fingerprint = fingerprint;
   cache.lastHash = parsed ? hashJson(parsed) : null;
@@ -391,7 +410,9 @@ const loadSidecar = async (buildRoot, type) => {
     if (fingerprintsMatch(fingerprint, cache.progressFingerprint) && cache.progress) {
       return cache.progress;
     }
-    const parsed = fingerprint ? await readJsonFile(filePath) : null;
+    const parsed = fingerprint
+      ? await readJsonFile(filePath, { maxBytes: PROGRESS_JSON_MAX_BYTES, label: 'progress' })
+      : null;
     cache.progress = parsed;
     cache.progressFingerprint = fingerprint;
     cache.progressHash = parsed ? hashJson(parsed) : null;
@@ -591,15 +612,9 @@ export const applyStatePatch = async (
     });
   }
   if (deltaEntries.length) {
-    if (isRequiredBuildStateDurability(resolvedDurabilityClass)) {
-      await appendDeltaLog(buildRoot, deltaEntries, merged, {
-        durabilityClass: resolvedDurabilityClass
-      });
-    } else {
-      void appendDeltaLog(buildRoot, deltaEntries, merged, {
-        durabilityClass: resolvedDurabilityClass
-      });
-    }
+    await appendDeltaLog(buildRoot, deltaEntries, merged, {
+      durabilityClass: resolvedDurabilityClass
+    });
   }
   return merged;
 };
