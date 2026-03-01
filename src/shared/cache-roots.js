@@ -8,7 +8,6 @@ export const CACHE_ROOT_LAYOUT_VERSION = CACHE_ROOT_DIRNAME;
 const LEGACY_CACHE_ROOT_DIRNAME = 'cache-v1';
 
 const rebuiltRoots = new Set();
-const drainedLegacyRoots = new Set();
 const cacheRootWarnings = new Set();
 const warnCacheRootIssue = (key, message) => {
   if (!key || !message) return;
@@ -20,11 +19,6 @@ const isCacheRootDir = (targetRoot) => (
   typeof targetRoot === 'string'
   && targetRoot
   && path.basename(path.resolve(targetRoot)).toLowerCase() === CACHE_ROOT_DIRNAME
-);
-const isLegacyCacheRootDir = (targetRoot) => (
-  typeof targetRoot === 'string'
-  && targetRoot
-  && path.basename(path.resolve(targetRoot)).toLowerCase() === LEGACY_CACHE_ROOT_DIRNAME
 );
 
 const resolveCacheRoot = (baseRoot) => {
@@ -44,80 +38,28 @@ const purgeCacheRoot = (cacheRoot) => {
   }
 };
 
-const isDirectory = (targetPath) => {
+const pathHasLegacyCacheRootSegment = (targetPath) => {
   if (!targetPath) return false;
-  try {
-    return fs.statSync(targetPath).isDirectory();
-  } catch {
-    return false;
-  }
+  const parsed = path.parse(targetPath);
+  const tail = String(targetPath).slice(parsed.root.length);
+  const segments = tail.split(path.sep);
+  return segments.some((segment) => String(segment || '').toLowerCase() === LEGACY_CACHE_ROOT_DIRNAME);
 };
 
-const pathExists = (targetPath) => {
-  if (!targetPath) return false;
-  try {
-    fs.accessSync(targetPath);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-const drainLegacyCacheRoot = (baseRoot) => {
-  const resolvedBase = resolveCacheRoot(baseRoot);
-  if (!resolvedBase) return;
-  const targetRoot = resolveVersionedCacheRoot(resolvedBase);
-  if (!targetRoot) return;
-  if (drainedLegacyRoots.has(targetRoot)) return;
-  drainedLegacyRoots.add(targetRoot);
-  const legacyRoot = path.join(path.dirname(targetRoot), LEGACY_CACHE_ROOT_DIRNAME);
-  if (!isDirectory(legacyRoot)) return;
-  try {
-    fs.mkdirSync(targetRoot, { recursive: true });
-  } catch (err) {
-    warnCacheRootIssue(
-      `mkdir:${targetRoot}:${err?.code || 'unknown'}`,
-      `[cache] failed to prepare cache root ${targetRoot}: ${err?.message || err}`
-    );
-  }
-  let entries = [];
-  try {
-    entries = fs.readdirSync(legacyRoot, { withFileTypes: true });
-  } catch (err) {
-    warnCacheRootIssue(
-      `readdir:${legacyRoot}:${err?.code || 'unknown'}`,
-      `[cache] failed to read legacy cache root ${legacyRoot}: ${err?.message || err}`
-    );
-    return;
-  }
-  for (const entry of entries) {
-    if (!entry?.name) continue;
-    const source = path.join(legacyRoot, entry.name);
-    const destination = path.join(targetRoot, entry.name);
-    if (pathExists(destination)) continue;
-    try {
-      fs.renameSync(source, destination);
-    } catch (err) {
-      warnCacheRootIssue(
-        `move:${source}->${destination}:${err?.code || 'unknown'}`,
-        `[cache] failed to migrate legacy cache entry ${source} -> ${destination}: ${err?.message || err}`
-      );
-    }
-  }
-  try {
-    if (fs.readdirSync(legacyRoot).length === 0) fs.rmdirSync(legacyRoot);
-  } catch (err) {
-    warnCacheRootIssue(
-      `cleanup:${legacyRoot}:${err?.code || 'unknown'}`,
-      `[cache] failed to clean legacy cache root ${legacyRoot}: ${err?.message || err}`
-    );
-  }
+const assertNoLegacyCacheRootPath = (targetPath) => {
+  if (!pathHasLegacyCacheRootSegment(targetPath)) return;
+  const error = new Error(
+    `[cache] legacy cache root segment "${LEGACY_CACHE_ROOT_DIRNAME}" is unsupported; use "${CACHE_ROOT_DIRNAME}".`
+  );
+  error.code = 'ERR_LEGACY_CACHE_ROOT_UNSUPPORTED';
+  error.cacheRootPath = String(targetPath || '');
+  throw error;
 };
 
 /**
- * Normalize any legacy `cache-v1` path segments to the stable `cache` segment.
+ * Resolve and validate cache root paths.
  *
- * This does not add/remove path depth; it only rewrites segment names.
+ * Hard cutover: legacy `cache-v1` segments are no longer supported.
  *
  * @param {string|null|undefined} targetPath
  * @returns {string}
@@ -125,18 +67,8 @@ const drainLegacyCacheRoot = (baseRoot) => {
 export function normalizeLegacyCacheRootPath(targetPath) {
   const resolved = resolveCacheRoot(targetPath);
   if (!resolved) return '';
-  const parsed = path.parse(resolved);
-  const tail = resolved.slice(parsed.root.length);
-  const segments = tail.split(path.sep);
-  const normalizedSegments = segments.map((segment) => (
-    String(segment || '').toLowerCase() === LEGACY_CACHE_ROOT_DIRNAME
-      ? CACHE_ROOT_DIRNAME
-      : segment
-  ));
-  const normalizedTail = normalizedSegments.join(path.sep);
-  return parsed.root
-    ? path.join(parsed.root, normalizedTail)
-    : path.join(...normalizedSegments);
+  assertNoLegacyCacheRootPath(resolved);
+  return resolved;
 }
 
 /**
@@ -188,7 +120,6 @@ export function getCacheRootBase() {
  */
 export function getCacheRoot() {
   const envConfig = getEnvConfig();
-  drainLegacyCacheRoot(getCacheRootBase());
   const cacheRoot = resolveVersionedCacheRoot(getCacheRootBase());
   if (envConfig.cacheRebuild && cacheRoot) {
     const resolvedRoot = path.resolve(cacheRoot);
@@ -219,12 +150,9 @@ export function getCacheTempRoot(...segments) {
 }
 
 export function resolveVersionedCacheRoot(baseRoot) {
-  const resolvedBase = resolveCacheRoot(baseRoot);
+  const resolvedBase = normalizeLegacyCacheRootPath(baseRoot);
   if (!resolvedBase) return '';
   if (isCacheRootDir(resolvedBase)) return resolvedBase;
-  if (isLegacyCacheRootDir(resolvedBase)) {
-    return path.join(path.dirname(resolvedBase), CACHE_ROOT_DIRNAME);
-  }
   return path.join(resolvedBase, CACHE_ROOT_DIRNAME);
 }
 

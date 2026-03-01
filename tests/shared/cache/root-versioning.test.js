@@ -31,10 +31,10 @@ await withTemporaryEnv({
     'cache root should be a stable, non-versioned cache directory'
   );
   assert.equal(path.basename(cacheRoot), 'cache', 'cache root must not include version suffixes');
-  assert.equal(
-    normalizeLegacyCacheRootPath(path.join(baseRoot, 'cache-v1', 'bench-language')),
-    path.join(baseRoot, 'cache', 'bench-language'),
-    'legacy cache-v1 segments should normalize to cache'
+  assert.throws(
+    () => normalizeLegacyCacheRootPath(path.join(baseRoot, 'cache-v1', 'bench-language')),
+    { code: 'ERR_LEGACY_CACHE_ROOT_UNSUPPORTED' },
+    'legacy cache-v1 segments should fail hard after cache root cutover'
   );
 
   await fsp.mkdir(baseRoot, { recursive: true });
@@ -62,8 +62,8 @@ await withTemporaryEnv({
   assert.equal(fs.existsSync(legacySentinel), true, 'legacy base entries should remain when includeLegacy=false');
   assert.equal(
     fs.existsSync(legacyCacheSentinel),
-    false,
-    'legacy cache root should be drained into stable cache root during resolution'
+    true,
+    'legacy cache root should remain untouched when includeLegacy=false'
   );
 
   clearCacheRoot({ baseRoot, includeLegacy: true });
