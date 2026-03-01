@@ -6,6 +6,8 @@ import { sha1, checksumString } from './hash.js';
 import { estimateJsonBytes } from './cache.js';
 import { stableStringify } from './stable-json.js';
 import { writeJsonObjectFile } from './json-stream.js';
+import { atomicWriteJson, atomicWriteText } from './io/atomic-write.js';
+import { acquireFileLock } from './locks/file-lock.js';
 import {
   MAX_BUNDLE_BYTES,
   MAX_BUNDLE_CHECKSUM_BYTES,
@@ -22,6 +24,9 @@ const MSGPACK_EXTENSIONS = new Set(['.mpk', '.msgpack', '.msgpackr']);
 const BUNDLE_PATCH_FORMAT_TAG = 'pairofcleats.bundle.patch';
 const BUNDLE_PATCH_VERSION = 1;
 const BUNDLE_PATCH_SUFFIX = '.patch.jsonl';
+const BUNDLE_PATCH_LOCK_SUFFIX = '.lock';
+const BUNDLE_PATCH_META_SUFFIX = '.meta.json';
+const BUNDLE_JSON_CHECKSUM_SUFFIX = '.checksum.json';
 const BUNDLE_WORKER_TIMEOUT_MS = 15000;
 const BUNDLE_PATCH_FIELD_KEYS = [
   'file',
@@ -124,6 +129,9 @@ const runBundleTransformWorker = ({ operation, payload, timeoutMs = BUNDLE_WORKE
 const clearBundlePatchFile = async (bundlePath) => {
   try {
     await fs.rm(resolveBundlePatchPath(bundlePath), { force: true });
+  } catch {}
+  try {
+    await fs.rm(resolveBundlePatchMetaPath(bundlePath), { force: true });
   } catch {}
 };
 
@@ -379,6 +387,83 @@ export function resolveBundlePatchPath(bundlePath) {
   return `${bundlePath}${BUNDLE_PATCH_SUFFIX}`;
 }
 
+export function resolveBundlePatchLockPath(bundlePath) {
+  return `${resolveBundlePatchPath(bundlePath)}${BUNDLE_PATCH_LOCK_SUFFIX}`;
+}
+
+export function resolveBundlePatchMetaPath(bundlePath) {
+  return `${resolveBundlePatchPath(bundlePath)}${BUNDLE_PATCH_META_SUFFIX}`;
+}
+
+const resolveBundleJsonChecksumPath = (bundlePath) => (
+  `${bundlePath}${BUNDLE_JSON_CHECKSUM_SUFFIX}`
+);
+
+const readBundlePatchMeta = async (bundlePath) => {
+  const metaPath = resolveBundlePatchMetaPath(bundlePath);
+  try {
+    const raw = await fs.readFile(metaPath, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const bytes = Number(parsed.bytes);
+    const entries = Number(parsed.entries);
+    if (!Number.isFinite(bytes) || bytes < 0 || !Number.isFinite(entries) || entries < 0) {
+      return null;
+    }
+    return {
+      bytes: Math.floor(bytes),
+      entries: Math.floor(entries)
+    };
+  } catch {
+    return null;
+  }
+};
+
+const writeBundlePatchMeta = async (bundlePath, { bytes, entries }) => {
+  const metaPath = resolveBundlePatchMetaPath(bundlePath);
+  await atomicWriteJson(metaPath, {
+    version: 1,
+    bytes: Math.max(0, Math.floor(Number(bytes) || 0)),
+    entries: Math.max(0, Math.floor(Number(entries) || 0)),
+    updatedAt: new Date().toISOString()
+  }, {
+    spaces: 0,
+    newline: false
+  });
+};
+
+const writeBundleJsonChecksum = async (bundlePath, bundle) => {
+  const normalized = normalizeBundlePayload(bundle);
+  const checksum = await checksumBundlePayload(normalized);
+  if (!checksum || !checksum.value || !checksum.algo) {
+    try {
+      await fs.rm(resolveBundleJsonChecksumPath(bundlePath), { force: true });
+    } catch {}
+    return { checksum: null, checksumAlgo: null };
+  }
+  await atomicWriteJson(resolveBundleJsonChecksumPath(bundlePath), {
+    format: BUNDLE_FORMAT_TAG,
+    version: BUNDLE_VERSION,
+    checksum: {
+      algo: checksum.algo,
+      value: checksum.value
+    }
+  }, {
+    spaces: 0,
+    newline: false
+  });
+  return {
+    checksum: checksum.value,
+    checksumAlgo: checksum.algo
+  };
+};
+
+const appendSerializedPatchLine = (raw, serialized) => {
+  if (!raw) return serialized;
+  if (raw.endsWith('\n')) return `${raw}${serialized}`;
+  return `${raw}\n${serialized}`;
+};
+
 export async function writeBundlePatch({
   bundlePath,
   previousBundle,
@@ -397,36 +482,74 @@ export async function writeBundlePatch({
     return { applied: false, reason: 'patch-entry-too-large' };
   }
   const patchPath = resolveBundlePatchPath(bundlePath);
-  let existingBytes = 0;
-  let existingEntries = 0;
+  const lock = await acquireFileLock({
+    lockPath: resolveBundlePatchLockPath(bundlePath),
+    waitMs: 30000,
+    pollMs: 25,
+    staleMs: 120000,
+    forceStaleCleanup: true,
+    metadata: { scope: 'bundle-patch-write' }
+  });
+  if (!lock) {
+    return { applied: false, reason: 'patch-lock-timeout' };
+  }
   try {
-    const stat = await fs.stat(patchPath);
-    existingBytes = stat.size;
-    if (existingBytes > 0) {
-      const raw = await fs.readFile(patchPath, 'utf8');
-      existingEntries = countPatchEntries(raw);
+    let existingBytes = 0;
+    let existingEntries = 0;
+    let existingRaw = '';
+    let stat = null;
+    try {
+      stat = await fs.stat(patchPath);
+    } catch {}
+    if (stat && stat.size > 0) {
+      const meta = await readBundlePatchMeta(bundlePath);
+      if (
+        meta
+        && Number.isFinite(meta.bytes)
+        && Number.isFinite(meta.entries)
+        && meta.bytes === stat.size
+      ) {
+        existingBytes = meta.bytes;
+        existingEntries = meta.entries;
+      } else {
+        existingRaw = await fs.readFile(patchPath, 'utf8');
+        existingBytes = Buffer.byteLength(existingRaw, 'utf8');
+        existingEntries = countPatchEntries(existingRaw);
+      }
     }
-  } catch {}
-  if ((existingBytes + bytes) > MAX_BUNDLE_PATCH_BYTES) {
-    return { applied: false, reason: 'patch-file-too-large' };
+    if ((existingBytes + bytes) > MAX_BUNDLE_PATCH_BYTES) {
+      return { applied: false, reason: 'patch-file-too-large' };
+    }
+    if (existingEntries >= MAX_BUNDLE_PATCH_ENTRIES) {
+      return { applied: false, reason: 'patch-entry-limit' };
+    }
+    const nextRaw = appendSerializedPatchLine(existingRaw, serialized);
+    await atomicWriteText(patchPath, nextRaw, { newline: false });
+    const nextBytes = Buffer.byteLength(nextRaw, 'utf8');
+    const nextEntries = existingEntries + 1;
+    await writeBundlePatchMeta(bundlePath, {
+      bytes: nextBytes,
+      entries: nextEntries
+    });
+    await writeBundleJsonChecksum(bundlePath, nextBundle);
+    const chunkPatch = patch.chunks;
+    const operation = chunkPatch
+      ? ((chunkPatch.deleteCount === 0 && chunkPatch.start >= (Array.isArray(previousBundle?.chunks) ? previousBundle.chunks.length : 0))
+        ? 'append'
+        : 'replace')
+      : 'set';
+    return {
+      applied: true,
+      reason: null,
+      patchPath,
+      bytes,
+      operation
+    };
+  } finally {
+    try {
+      await lock.release({ force: true });
+    } catch {}
   }
-  if (existingEntries >= MAX_BUNDLE_PATCH_ENTRIES) {
-    return { applied: false, reason: 'patch-entry-limit' };
-  }
-  await fs.appendFile(patchPath, serialized, 'utf8');
-  const chunkPatch = patch.chunks;
-  const operation = chunkPatch
-    ? ((chunkPatch.deleteCount === 0 && chunkPatch.start >= (Array.isArray(previousBundle?.chunks) ? previousBundle.chunks.length : 0))
-      ? 'append'
-      : 'replace')
-    : 'set';
-  return {
-    applied: true,
-    reason: null,
-    patchPath,
-    bytes,
-    operation
-  };
 }
 
 export async function writeBundleFile({ bundlePath, bundle, format = 'json' }) {
@@ -456,8 +579,11 @@ export async function writeBundleFile({ bundlePath, bundle, format = 'json' }) {
       payload: normalized
     };
     const encoded = packr.pack(envelope);
-    await fs.writeFile(bundlePath, Buffer.from(encoded));
+    await atomicWriteText(bundlePath, Buffer.from(encoded), { newline: false });
     await clearBundlePatchFile(bundlePath);
+    try {
+      await fs.rm(resolveBundleJsonChecksumPath(bundlePath), { force: true });
+    } catch {}
     return {
       format: resolvedFormat,
       checksum: checksum?.value ?? null,
@@ -465,8 +591,13 @@ export async function writeBundleFile({ bundlePath, bundle, format = 'json' }) {
     };
   }
   await writeJsonObjectFile(bundlePath, { fields: bundle, trailingNewline: true });
+  const checksumResult = await writeBundleJsonChecksum(bundlePath, bundle);
   await clearBundlePatchFile(bundlePath);
-  return { format: resolvedFormat, checksum: null, checksumAlgo: null };
+  return {
+    format: resolvedFormat,
+    checksum: checksumResult?.checksum ?? null,
+    checksumAlgo: checksumResult?.checksumAlgo ?? null
+  };
 }
 
 export async function readBundleFile(bundlePath, { format = null, maxBytes = MAX_BUNDLE_BYTES } = {}) {
@@ -552,6 +683,42 @@ export async function readBundleFile(bundlePath, { format = null, maxBytes = MAX
       return { ok: false, reason: 'invalid bundle patch' };
     }
     bundle = patchedBundle;
+  }
+  try {
+    const checksumPath = resolveBundleJsonChecksumPath(bundlePath);
+    const rawChecksum = await fs.readFile(checksumPath, 'utf8');
+    const parsedChecksum = JSON.parse(rawChecksum);
+    const checksum = parsedChecksum?.checksum;
+    if (!isPlainObject(checksum)) {
+      return { ok: false, reason: 'invalid bundle checksum' };
+    }
+    const checksumAlgo = typeof checksum.algo === 'string' ? checksum.algo.trim() : '';
+    const checksumValue = typeof checksum.value === 'string' ? checksum.value.trim() : '';
+    if (!checksumAlgo || !checksumValue) {
+      return { ok: false, reason: 'invalid bundle checksum' };
+    }
+    const normalized = normalizeBundlePayload(bundle);
+    const estimate = estimateJsonBytes(normalized);
+    if (estimate && estimate > MAX_BUNDLE_CHECKSUM_BYTES) {
+      return { ok: false, reason: 'bundle checksum unverifiable under size budget' };
+    }
+    if (checksumAlgo === 'xxh64') {
+      const expected = await checksumBundlePayload(normalized);
+      if (!expected || expected.value !== checksumValue) {
+        return { ok: false, reason: 'bundle checksum mismatch' };
+      }
+    } else if (checksumAlgo === 'sha1') {
+      const expected = sha1(stableStringify(normalized));
+      if (expected !== checksumValue) {
+        return { ok: false, reason: 'bundle checksum mismatch' };
+      }
+    } else {
+      return { ok: false, reason: 'unsupported bundle checksum algo' };
+    }
+  } catch (err) {
+    if (err?.code !== 'ENOENT') {
+      return { ok: false, reason: 'invalid bundle checksum' };
+    }
   }
   return { ok: true, bundle };
 }

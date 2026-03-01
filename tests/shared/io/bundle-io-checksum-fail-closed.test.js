@@ -15,6 +15,7 @@ await fs.mkdir(tempRoot, { recursive: true });
 const packr = new Packr({ useRecords: false, structuredClone: true });
 const unpackr = new Unpackr({ useRecords: false });
 const bundlePath = path.join(tempRoot, 'bundle.mpk');
+const jsonBundlePath = path.join(tempRoot, 'bundle.json');
 const bundle = {
   file: 'src/sample.ts',
   chunks: [{ chunkUid: 'ck:test:1', text: 'export const answer = 42;' }]
@@ -64,6 +65,26 @@ try {
   const invalid = await readBundleFile(bundlePath, { format: 'msgpack' });
   assert.equal(invalid?.ok, false, 'expected invalid checksum envelope to fail closed');
   assert.equal(invalid?.reason, 'invalid bundle checksum');
+
+  const jsonWrite = await writeBundleFile({
+    bundlePath: jsonBundlePath,
+    bundle,
+    format: 'json'
+  });
+  assert.equal(typeof jsonWrite?.checksum, 'string', 'expected json bundle checksum sidecar');
+  const jsonChecksumPath = `${jsonBundlePath}.checksum.json`;
+  const checksumPayload = JSON.parse(await fs.readFile(jsonChecksumPath, 'utf8'));
+  checksumPayload.checksum.value = 'deadbeef';
+  await fs.writeFile(jsonChecksumPath, `${JSON.stringify(checksumPayload)}\n`, 'utf8');
+  const jsonMismatch = await readBundleFile(jsonBundlePath, { format: 'json' });
+  assert.equal(jsonMismatch?.ok, false, 'expected json checksum mismatch to fail closed');
+  assert.equal(jsonMismatch?.reason, 'bundle checksum mismatch');
+
+  checksumPayload.checksum = { algo: 'sha512', value: 'abc' };
+  await fs.writeFile(jsonChecksumPath, `${JSON.stringify(checksumPayload)}\n`, 'utf8');
+  const jsonUnsupported = await readBundleFile(jsonBundlePath, { format: 'json' });
+  assert.equal(jsonUnsupported?.ok, false, 'expected json unsupported checksum algo to fail closed');
+  assert.equal(jsonUnsupported?.reason, 'unsupported bundle checksum algo');
 
   console.log('bundle io checksum fail-closed test passed');
 } finally {

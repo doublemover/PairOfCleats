@@ -58,6 +58,10 @@ assert.equal(patchResult.applied, true, 'expected bundle patch write to succeed'
 const patchPath = resolveBundlePatchPath(jsonBundlePath);
 const patchStat = await fs.stat(patchPath);
 assert.ok(patchStat.size > 0, 'expected non-empty patch sidecar after worker patch transform');
+const patchMetaPath = `${patchPath}.meta.json`;
+const patchMeta = JSON.parse(await fs.readFile(patchMetaPath, 'utf8'));
+assert.equal(Number.isFinite(Number(patchMeta.entries)), true, 'expected patch meta entries');
+assert.equal(Number(patchMeta.entries), 1, 'expected single patch entry recorded in metadata');
 const patched = await readBundleFile(jsonBundlePath, { format: 'json' });
 assert.equal(patched?.ok, true, 'expected patched JSON bundle to load');
 assert.equal(patched.bundle?.chunks?.[1]?.text, 'new-tail', 'expected patched tail chunk');
