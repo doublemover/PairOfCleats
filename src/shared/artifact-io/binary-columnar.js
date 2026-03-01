@@ -2,6 +2,8 @@ import fs from 'node:fs/promises';
 
 import { decodeVarint64List, encodeVarint64List } from './varint.js';
 import { toArray } from '../iterables.js';
+import { atomicWriteText } from '../io/atomic-write.js';
+import { createTempPath, replaceFile } from '../io/atomic-persistence.js';
 
 const OFFSET_BYTES = 8;
 const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
@@ -143,7 +145,8 @@ export const writeBinaryRowFrames = async ({
   const lengths = [];
   let cursor = 0;
   let count = 0;
-  const handle = await fs.open(dataPath, 'w');
+  const tempDataPath = createTempPath(dataPath);
+  const handle = await fs.open(tempDataPath, 'wx');
   try {
     if (resolvedPreallocateBytes > 0) {
       await handle.truncate(resolvedPreallocateBytes);
@@ -164,8 +167,14 @@ export const writeBinaryRowFrames = async ({
   } finally {
     await handle.close();
   }
-  await fs.writeFile(offsetsPath, encodeU64Offsets(offsets));
-  await fs.writeFile(lengthsPath, encodeVarint64List(lengths));
+  try {
+    await replaceFile(tempDataPath, dataPath, { keepBackup: false });
+  } catch (error) {
+    await fs.rm(tempDataPath, { force: true }).catch(() => {});
+    throw error;
+  }
+  await atomicWriteText(offsetsPath, encodeU64Offsets(offsets), { newline: false });
+  await atomicWriteText(lengthsPath, encodeVarint64List(lengths), { newline: false });
   return {
     count,
     totalBytes: cursor,
