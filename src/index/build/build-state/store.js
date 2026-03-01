@@ -23,6 +23,10 @@ const STATE_WRITE_LOCK_FILE = 'build_state.write.lock';
 const STATE_SCHEMA_VERSION = 1;
 const EVENT_LOG_MAX_BYTES = 2 * 1024 * 1024;
 const DELTA_LOG_MAX_BYTES = 4 * 1024 * 1024;
+const EVENT_LOG_MAX_ARCHIVES = 24;
+const DELTA_LOG_MAX_ARCHIVES = 24;
+const EVENT_LOG_MAX_ARCHIVE_BYTES = 64 * 1024 * 1024;
+const DELTA_LOG_MAX_ARCHIVE_BYTES = 128 * 1024 * 1024;
 const STATE_MAP_MAX_ENTRIES = 64;
 const STATE_JSON_MAX_BYTES = 8 * 1024 * 1024;
 const PROGRESS_JSON_MAX_BYTES = 4 * 1024 * 1024;
@@ -398,6 +402,83 @@ const statIfExists = async (filePath) => {
   }
 };
 
+const resolveRotatedLogRetentionPolicy = (target) => {
+  if (target === 'events') {
+    return {
+      maxArchives: EVENT_LOG_MAX_ARCHIVES,
+      maxArchiveBytes: EVENT_LOG_MAX_ARCHIVE_BYTES
+    };
+  }
+  if (target === 'deltas') {
+    return {
+      maxArchives: DELTA_LOG_MAX_ARCHIVES,
+      maxArchiveBytes: DELTA_LOG_MAX_ARCHIVE_BYTES
+    };
+  }
+  return {
+    maxArchives: 16,
+    maxArchiveBytes: 64 * 1024 * 1024
+  };
+};
+
+const listRotatedLogEntries = async (filePath) => {
+  const dirPath = path.dirname(filePath);
+  const parsed = path.parse(filePath);
+  const prefix = `${parsed.name}.`;
+  const entries = await fs.readdir(dirPath, { withFileTypes: true });
+  const rotatedEntries = [];
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    const name = entry.name;
+    if (!name.startsWith(prefix)) continue;
+    if (!name.endsWith('.jsonl') && !name.endsWith('.jsonl.gz')) continue;
+    const fullPath = path.join(dirPath, name);
+    let stat = null;
+    try {
+      stat = await fs.stat(fullPath);
+    } catch {
+      continue;
+    }
+    rotatedEntries.push({
+      path: fullPath,
+      mtimeMs: Number(stat?.mtimeMs || 0),
+      size: Number(stat?.size || 0)
+    });
+  }
+  rotatedEntries.sort((left, right) => (
+    right.mtimeMs - left.mtimeMs
+  ));
+  return rotatedEntries;
+};
+
+const pruneRotatedLogs = async (filePath, target) => {
+  const {
+    maxArchives,
+    maxArchiveBytes
+  } = resolveRotatedLogRetentionPolicy(target);
+  const entries = await listRotatedLogEntries(filePath);
+  if (!entries.length) return;
+  let retainedCount = 0;
+  let retainedBytes = 0;
+  const toDelete = [];
+  for (const entry of entries) {
+    const shouldKeepByCount = retainedCount < maxArchives;
+    const shouldKeepByBytes = (retainedBytes + entry.size) <= maxArchiveBytes;
+    if (shouldKeepByCount && shouldKeepByBytes) {
+      retainedCount += 1;
+      retainedBytes += entry.size;
+      continue;
+    }
+    toDelete.push(entry.path);
+  }
+  if (!toDelete.length) return;
+  await Promise.all(toDelete.map(async (targetPath) => {
+    try {
+      await fs.rm(targetPath, { force: true });
+    } catch {}
+  }));
+};
+
 const rotateLogIfNeeded = async (
   filePath,
   maxBytes,
@@ -432,6 +513,19 @@ const rotateLogIfNeeded = async (
         buildRoot,
         target,
         phase: 'compress',
+        cause: err
+      });
+    }
+    recordStateError(buildRoot, err);
+  }
+  try {
+    await pruneRotatedLogs(filePath, target);
+  } catch (err) {
+    if (isRequiredBuildStateDurability(resolvedDurabilityClass)) {
+      throw createBuildStateWriteFailureError({
+        buildRoot,
+        target,
+        phase: 'prune',
         cause: err
       });
     }
