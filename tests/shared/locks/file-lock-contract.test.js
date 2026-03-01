@@ -118,6 +118,15 @@ const corruptFreshLock = await acquireFileLock({ lockPath, staleMs: 60_000, wait
 assert.equal(corruptFreshLock, null, 'expected fresh corrupt lock to remain busy until stale');
 await fsPromises.rm(lockPath, { force: true });
 
+await fsPromises.writeFile(lockPath, 'not-json-lock');
+await fsPromises.utimes(lockPath, new Date(Date.now() - 5_000), new Date(Date.now() - 5_000));
+const corruptGraceExpiredLock = await acquireFileLock({ lockPath, staleMs: 60_000, waitMs: 0 });
+assert.ok(
+  corruptGraceExpiredLock,
+  'expected invalid lock metadata to be reclaimed after invalid-lock grace even when not stale by max age'
+);
+await corruptGraceExpiredLock.release();
+
 await fsPromises.writeFile(
   lockPath,
   JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }),

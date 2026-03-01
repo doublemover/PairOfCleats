@@ -9,6 +9,7 @@ export const DEFAULT_FILE_LOCK_WAIT_MS = 0;
 export const DEFAULT_FILE_LOCK_POLL_MS = 100;
 export const DEFAULT_FILE_LOCK_STALE_MS = 30 * 60 * 1000;
 const DEFAULT_WINDOWS_TASKLIST_TIMEOUT_MS = 2000;
+const INVALID_LOCK_RECLAIM_GRACE_MS = 2000;
 const lockRuntimeMetrics = {
   hookFailures: 0,
   parentMissingRetries: 0,
@@ -97,6 +98,17 @@ const createLockId = () => {
 const resolveLockPid = (info) => {
   const parsed = Number(info?.pid);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
+const hasLockId = (info) => (
+  typeof info?.lockId === 'string'
+  && info.lockId.trim().length > 0
+);
+
+const isInvalidLockInfo = (info) => {
+  if (!info || typeof info !== 'object') return true;
+  const pid = resolveLockPid(info);
+  return !pid && !hasLockId(info);
 };
 
 const createLockSnapshotFingerprint = (raw, stat) => {
@@ -368,10 +380,21 @@ export const acquireFileLock = async ({
     };
     try {
       const handle = await fs.open(lockPath, 'wx');
+      let closed = false;
+      const closeHandle = async () => {
+        if (closed) return;
+        closed = true;
+        await handle.close();
+      };
       try {
         await handle.writeFile(JSON.stringify(payload));
-      } finally {
-        await handle.close();
+        await closeHandle();
+      } catch (writeError) {
+        try {
+          await closeHandle();
+        } catch {}
+        await fs.rm(lockPath, { force: true }).catch(() => {});
+        throw writeError;
       }
       return {
         lockPath,
@@ -419,8 +442,15 @@ export const acquireFileLock = async ({
       const info = await readLockInfo(lockPath);
       const pid = resolveLockPid(info);
       const alive = pid ? isProcessAlive(pid) : false;
+      const invalidLock = isInvalidLockInfo(info);
+      let invalidLockGraceElapsed = false;
+      if (invalidLock) {
+        const snapshot = await readLockSnapshot(lockPath, resolvedStaleMs);
+        invalidLockGraceElapsed = snapshot.exists && snapshot.ageMs >= INVALID_LOCK_RECLAIM_GRACE_MS;
+      }
       const stale = await isLockStale(lockPath, resolvedStaleMs);
-      const staleCleanup = stale && (forceStaleCleanup || !pid || (pid && !alive));
+      const staleCleanup = invalidLockGraceElapsed
+        || (stale && (forceStaleCleanup || !pid || (pid && !alive)));
       if ((pid && !alive) || staleCleanup) {
         try {
           const { removed, removalMode } = await staleRemovalImpl({

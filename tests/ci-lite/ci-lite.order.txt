@@ -274,6 +274,7 @@ indexing/tree-sitter/query-precompile-cache
 map/viewer-culling-correctness
 indexing/tree-sitter/adaptive-budget
 shared/json-stream/abort-closes-stream
+shared/json-stream/wait-timeout-cleans-listeners
 retrieval/pipeline/context-skips
 indexing/artifacts/writers/writer-common-contract
 indexing/cache/cas-reuse-across-repos

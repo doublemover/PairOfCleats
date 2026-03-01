@@ -5,6 +5,7 @@ const DEFAULT_SIGNAL = 'SIGTERM';
 const DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS = 2000;
 const WINDOWS_DESCENDANT_DISCOVERY_TIMEOUT_MS = 2000;
 const WINDOWS_DESCENDANT_KILL_LIMIT = 256;
+const WINDOWS_TASKLIST_TIMEOUT_MS = 2000;
 
 const wait = (ms, { unrefTimer = true } = {}) => new Promise((resolve) => {
   const timer = setTimeout(resolve, ms);
@@ -128,6 +129,28 @@ const scheduleUnrefTimer = (ms, fn) => {
   return timer;
 };
 
+const isWindowsPidAlive = (pid) => {
+  const numericPid = Number(pid);
+  if (!Number.isFinite(numericPid) || numericPid <= 0) return false;
+  const result = runSyncCommandWithTimeout(
+    'tasklist',
+    ['/FI', `PID eq ${Math.floor(numericPid)}`, '/FO', 'CSV', '/NH'],
+    {
+      stdio: ['ignore', 'pipe', 'ignore'],
+      encoding: 'utf8',
+      timeoutMs: WINDOWS_TASKLIST_TIMEOUT_MS
+    }
+  );
+  const exitCode = toSyncCommandExitCode(result);
+  if (exitCode == null && result?.error) return true;
+  const output = String(result?.stdout || '').trim();
+  if (!output || /INFO:\s+No tasks are running/i.test(output)) return false;
+  const firstLine = output.split(/\r?\n/)[0] || '';
+  const parts = firstLine.split('","').map((part) => part.replace(/^"|"$/g, ''));
+  const listedPid = Number(parts[1] || '');
+  return Number.isFinite(listedPid) ? listedPid === Math.floor(numericPid) : true;
+};
+
 const killPosixGroup = async (pid, {
   signal,
   graceMs,
@@ -246,9 +269,13 @@ const killWindowsTree = async (pid, { graceMs, awaitGrace = true }) => {
       if (graceMs > 0 && awaitGrace) await wait(graceMs, { unrefTimer: false });
     }
   } catch {}
+  if (terminated && !isWindowsPidAlive(pid)) {
+    return { terminated: true, forced: false, fallbackAttempted, fallbackTerminated };
+  }
   if (!awaitGrace) {
     if (graceMs > 0) {
       scheduleUnrefTimer(graceMs, () => {
+        if (!isWindowsPidAlive(pid)) return;
         runSyncCommandWithTimeout('taskkill', [...baseArgs, '/F'], {
           stdio: 'ignore',
           timeoutMs: DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS
@@ -305,6 +332,9 @@ const killWindowsTreeSync = (pid) => {
       terminated = true;
     }
   } catch {}
+  if (terminated && !isWindowsPidAlive(pid)) {
+    return { terminated: true, forced: false, fallbackAttempted, fallbackTerminated };
+  }
   try {
     const forcedKill = runSyncCommandWithTimeout('taskkill', [...baseArgs, '/F'], {
       stdio: 'ignore',

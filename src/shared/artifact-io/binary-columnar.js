@@ -122,6 +122,25 @@ const toAsyncIterable = (rows) => {
   })();
 };
 
+const writeAllToHandle = async (handle, payload, position) => {
+  let offset = 0;
+  while (offset < payload.length) {
+    const result = await handle.write(
+      payload,
+      offset,
+      payload.length - offset,
+      Number.isFinite(position) ? position + offset : null
+    );
+    const bytesWritten = Number(result?.bytesWritten || 0);
+    if (bytesWritten <= 0) {
+      const err = new Error('Failed to write full binary payload: zero-byte write.');
+      err.code = 'ERR_BINARY_COLUMNAR_SHORT_WRITE';
+      throw err;
+    }
+    offset += bytesWritten;
+  }
+};
+
 /**
  * Stream row-frame payloads to disk while generating offset/length sidecars.
  * This avoids materializing a full in-memory data buffer for large artifacts.
@@ -153,11 +172,12 @@ export const writeBinaryRowFrames = async ({
     }
     for await (const row of toAsyncIterable(rowBuffers)) {
       const payload = Buffer.isBuffer(row) ? row : Buffer.from(row || '');
-      offsets.push(cursor);
+      const rowOffset = cursor;
+      offsets.push(rowOffset);
       lengths.push(payload.length);
       cursor += payload.length;
       if (payload.length) {
-        await handle.write(payload);
+        await writeAllToHandle(handle, payload, rowOffset);
       }
       count += 1;
     }

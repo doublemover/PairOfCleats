@@ -34,24 +34,39 @@ const createStreamWaitTimeoutError = ({ event, timeoutMs, label = null } = {}) =
 };
 
 const waitForEventWithTimeout = async ({ stream, event, timeoutMs, label = null }) => {
-  const waitPromise = once(stream, event);
   if (!Number.isFinite(Number(timeoutMs)) || timeoutMs <= 0) {
-    await waitPromise;
+    await once(stream, event);
     return;
   }
-  let timer = null;
-  try {
-    await Promise.race([
-      waitPromise,
-      new Promise((_, reject) => {
-        timer = setTimeout(() => {
-          reject(createStreamWaitTimeoutError({ event, timeoutMs, label }));
-        }, timeoutMs);
-      })
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
+  await new Promise((resolve, reject) => {
+    let settled = false;
+    let timer = null;
+    const cleanup = () => {
+      if (timer) clearTimeout(timer);
+      stream.removeListener(event, onEvent);
+      if (event !== 'error') {
+        stream.removeListener('error', onError);
+      }
+    };
+    const finish = (handler) => (value) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      handler(value);
+    };
+    const onEvent = finish(() => resolve());
+    const onError = finish((error) => reject(error));
+    stream.once(event, onEvent);
+    if (event !== 'error') {
+      stream.once('error', onError);
+    }
+    timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(createStreamWaitTimeoutError({ event, timeoutMs, label }));
+    }, timeoutMs);
+  });
 };
 
 /**
