@@ -213,21 +213,28 @@ function createPythonAstPool({ pythonBin, config, log }) {
     state.workers = state.workers.filter((w) => w !== worker);
   };
 
-  const handleWorkerExit = (worker, reason, options = {}) => {
-    if (worker.exited) return;
+  const finalizeWorkerRegistration = (worker) => {
     try {
       worker.unregisterChild?.();
     } catch {}
     worker.unregisterChild = null;
+  };
+
+  const handleWorkerExit = (worker, reason, options = {}) => {
+    if (worker.exited) return;
+    worker.exited = true;
     if (options.forceKill) {
       killChildProcessTree(worker.proc, {
         killTree: true,
         detached: false,
         graceMs: 0,
         awaitGrace: false
-      }).catch(() => {});
+      })
+        .catch(() => {})
+        .finally(() => finalizeWorkerRegistration(worker));
+    } else {
+      finalizeWorkerRegistration(worker);
     }
-    worker.exited = true;
     const pending = Array.from(worker.pending.values());
     worker.pending.clear();
     worker.busy = false;
