@@ -344,7 +344,7 @@ export async function buildIndex(repoRoot, options = {}) {
     void spawnSubprocess(process.execPath, stage2ArgsWithScript, {
       stdio: 'ignore',
       env: runtimeEnv,
-      detached: true,
+      detached: false,
       unref: true,
       rejectOnNonZeroExit: false,
       captureStdout: false,

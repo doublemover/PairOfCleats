@@ -1,4 +1,9 @@
-const TRACKED_SUBPROCESS_TERMINATION_SIGNALS = Object.freeze(['SIGINT', 'SIGTERM']);
+const TRACKED_SUBPROCESS_TERMINATION_SIGNALS = Object.freeze([
+  'SIGINT',
+  'SIGTERM',
+  'SIGBREAK',
+  'SIGHUP'
+]);
 
 let trackedSubprocessHooksInstalled = false;
 let trackedSubprocessShutdownTriggered = false;
@@ -74,6 +79,7 @@ const installTrackedSubprocessHooks = (terminateTrackedSubprocesses, terminateTr
   if (trackedSubprocessHooksInstalled) return;
   trackedSubprocessHooksInstalled = true;
   process.once('beforeExit', () => {
+    triggerTrackedSubprocessShutdownSync('process_before_exit');
     void triggerTrackedSubprocessShutdown('process_before_exit');
   });
   process.once('exit', () => {

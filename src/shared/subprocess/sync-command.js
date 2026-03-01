@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 
-export const DEFAULT_SYNC_COMMAND_TIMEOUT_MS = 2_000;
+export const DEFAULT_SYNC_COMMAND_TIMEOUT_MS = 5_000;
 
 const isPositivePid = (value) => {
   const parsed = Number(value);
