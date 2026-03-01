@@ -38,6 +38,67 @@ const isAliveSinglePosix = (pid) => {
   }
 };
 
+const parsePosixPidList = (value) => (
+  String(value || '')
+    .split(/\r?\n/)
+    .map((line) => Number.parseInt(String(line || '').trim(), 10))
+    .filter((entry) => Number.isFinite(entry) && entry > 0)
+    .map((entry) => Math.floor(entry))
+);
+
+const discoverPosixDescendantPidsSync = (rootPid, {
+  maxNodes = 512,
+  timeoutMs = 1000
+} = {}) => {
+  if (process.platform === 'win32') return [];
+  const queue = [rootPid];
+  const seen = new Set([rootPid]);
+  const descendants = [];
+  while (queue.length > 0 && descendants.length < maxNodes) {
+    const currentPid = queue.shift();
+    const result = runSyncCommandWithTimeout(
+      'ps',
+      ['-o', 'pid=', '--ppid', String(currentPid)],
+      {
+        stdio: ['ignore', 'pipe', 'ignore'],
+        encoding: 'utf8',
+        timeoutMs
+      }
+    );
+    if (toSyncCommandExitCode(result) !== 0) continue;
+    for (const childPid of parsePosixPidList(result.stdout)) {
+      if (seen.has(childPid)) continue;
+      seen.add(childPid);
+      descendants.push(childPid);
+      queue.push(childPid);
+    }
+  }
+  return descendants;
+};
+
+const killPosixPidQuiet = (pid, signal) => {
+  try {
+    process.kill(pid, signal);
+    return true;
+  } catch (error) {
+    return error?.code === 'EPERM';
+  }
+};
+
+const isAnyPosixPidAlive = (pids) => (
+  Array.isArray(pids) && pids.some((pid) => isAliveSinglePosix(pid))
+);
+
+const killPosixPidList = (pids, signal) => {
+  if (!Array.isArray(pids) || !pids.length) return false;
+  let signaled = false;
+  for (const pid of pids) {
+    if (!Number.isFinite(Number(pid)) || Number(pid) <= 0) continue;
+    signaled = killPosixPidQuiet(Math.floor(Number(pid)), signal) || signaled;
+  }
+  return signaled;
+};
+
 const scheduleUnrefTimer = (ms, fn) => {
   const timer = setTimeout(() => {
     try {
@@ -54,11 +115,19 @@ const killPosixGroup = async (pid, {
   signal,
   graceMs,
   useProcessGroup,
+  killTreeRequested = false,
   awaitGrace = true
 }) => {
   const target = useProcessGroup ? -pid : pid;
+  const fallbackDescendants = killTreeRequested
+    ? discoverPosixDescendantPidsSync(pid)
+    : [];
+  const fallbackTargets = fallbackDescendants.slice().reverse();
   let terminated = false;
   let forced = false;
+  if (killTreeRequested) {
+    terminated = killPosixPidList(fallbackTargets, signal || DEFAULT_SIGNAL) || terminated;
+  }
   try {
     process.kill(target, signal || DEFAULT_SIGNAL);
     terminated = true;
@@ -72,7 +141,11 @@ const killPosixGroup = async (pid, {
     if (graceMs > 0) {
       scheduleUnrefTimer(graceMs, () => {
         const aliveLater = useProcessGroup ? isAlivePosix(pid) : isAliveSinglePosix(pid);
-        if (!aliveLater) return;
+        const fallbackAlive = killTreeRequested && isAnyPosixPidAlive(fallbackDescendants);
+        if (!aliveLater && !fallbackAlive) return;
+        if (killTreeRequested) {
+          killPosixPidList(fallbackTargets, 'SIGKILL');
+        }
         try {
           process.kill(target, 'SIGKILL');
         } catch (error) {
@@ -82,8 +155,12 @@ const killPosixGroup = async (pid, {
       return { terminated, forced: false };
     }
     const aliveNow = useProcessGroup ? isAlivePosix(pid) : isAliveSinglePosix(pid);
-    if (aliveNow) {
+    const fallbackAlive = killTreeRequested && isAnyPosixPidAlive(fallbackDescendants);
+    if (aliveNow || fallbackAlive) {
       forced = true;
+      if (killTreeRequested) {
+        terminated = killPosixPidList(fallbackTargets, 'SIGKILL') || terminated;
+      }
       try {
         process.kill(target, 'SIGKILL');
         terminated = true;
@@ -94,8 +171,12 @@ const killPosixGroup = async (pid, {
     return { terminated, forced };
   }
   const alive = useProcessGroup ? isAlivePosix(pid) : isAliveSinglePosix(pid);
-  if (alive) {
+  const fallbackAlive = killTreeRequested && isAnyPosixPidAlive(fallbackDescendants);
+  if (alive || fallbackAlive) {
     forced = true;
+    if (killTreeRequested) {
+      terminated = killPosixPidList(fallbackTargets, 'SIGKILL') || terminated;
+    }
     try {
       process.kill(target, 'SIGKILL');
       terminated = true;
@@ -108,11 +189,19 @@ const killPosixGroup = async (pid, {
 
 const killPosixGroupSync = (pid, {
   signal,
-  useProcessGroup
+  useProcessGroup,
+  killTreeRequested = false
 }) => {
   const target = useProcessGroup ? -pid : pid;
+  const fallbackDescendants = killTreeRequested
+    ? discoverPosixDescendantPidsSync(pid)
+    : [];
+  const fallbackTargets = fallbackDescendants.slice().reverse();
   let terminated = false;
   let forced = false;
+  if (killTreeRequested) {
+    terminated = killPosixPidList(fallbackTargets, signal || DEFAULT_SIGNAL) || terminated;
+  }
   try {
     process.kill(target, signal || DEFAULT_SIGNAL);
     terminated = true;
@@ -120,8 +209,12 @@ const killPosixGroupSync = (pid, {
     if (error?.code !== 'ESRCH') throw error;
   }
   const alive = useProcessGroup ? isAlivePosix(pid) : isAliveSinglePosix(pid);
-  if (alive) {
+  const fallbackAlive = killTreeRequested && isAnyPosixPidAlive(fallbackDescendants);
+  if (alive || fallbackAlive) {
     forced = true;
+    if (killTreeRequested) {
+      terminated = killPosixPidList(fallbackTargets, 'SIGKILL') || terminated;
+    }
     try {
       process.kill(target, 'SIGKILL');
       terminated = true;
@@ -347,6 +440,7 @@ export const killProcessTree = async (
     signal: killSignal,
     graceMs: resolvedGraceMs,
     useProcessGroup,
+    killTreeRequested: killTree !== false,
     awaitGrace
   });
 };
@@ -377,7 +471,8 @@ export const killProcessTreeSync = (
   const useProcessGroup = killTree !== false && detached === true;
   return killPosixGroupSync(numericPid, {
     signal: killSignal,
-    useProcessGroup
+    useProcessGroup,
+    killTreeRequested: killTree !== false
   });
 };
 

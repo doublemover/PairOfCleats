@@ -10,12 +10,48 @@ const isPositivePid = (value) => {
 export const killTimedOutSyncProcessTree = (
   pid,
   timeoutMs = DEFAULT_SYNC_COMMAND_TIMEOUT_MS,
-  killTree = true,
-  detached = process.platform !== 'win32'
+  killTree = true
 ) => {
   if (!isPositivePid(pid)) return false;
   const numericPid = Math.floor(Number(pid));
   const boundedTimeoutMs = resolveSyncCommandTimeoutMs(timeoutMs, DEFAULT_SYNC_COMMAND_TIMEOUT_MS);
+  const terminatePosixPid = (targetPid, signal) => {
+    try {
+      process.kill(targetPid, signal);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const parsePsPidList = (value) => (
+    String(value || '')
+      .split(/\r?\n/)
+      .map((line) => Number.parseInt(String(line || '').trim(), 10))
+      .filter((entry) => Number.isFinite(entry) && entry > 0)
+      .map((entry) => Math.floor(entry))
+  );
+  const discoverPosixDescendantsSync = (rootPid, maxNodes = 512) => {
+    if (process.platform === 'win32') return [];
+    const queue = [rootPid];
+    const seen = new Set([rootPid]);
+    const descendants = [];
+    while (queue.length > 0 && descendants.length < maxNodes) {
+      const currentPid = queue.shift();
+      const psResult = spawnSync('ps', ['-o', 'pid=', '--ppid', String(currentPid)], {
+        stdio: ['ignore', 'pipe', 'ignore'],
+        encoding: 'utf8',
+        timeout: boundedTimeoutMs
+      });
+      if (Number(psResult?.status) !== 0) continue;
+      for (const childPid of parsePsPidList(psResult.stdout)) {
+        if (seen.has(childPid)) continue;
+        seen.add(childPid);
+        descendants.push(childPid);
+        queue.push(childPid);
+      }
+    }
+    return descendants;
+  };
   try {
     if (process.platform === 'win32') {
       const taskkillResult = spawnSync('taskkill', ['/PID', String(numericPid), '/T', '/F'], {
@@ -24,21 +60,26 @@ export const killTimedOutSyncProcessTree = (
       });
       return taskkillResult?.status === 0;
     }
-    if (killTree && detached) {
+    const descendants = killTree ? discoverPosixDescendantsSync(numericPid) : [];
+    const fallbackTargets = descendants.slice().reverse();
+    if (killTree) {
       try {
         process.kill(-numericPid, 'SIGTERM');
       } catch {}
     }
-    process.kill(numericPid, 'SIGTERM');
-  } catch {}
-  try {
-    if (killTree && detached) {
+    for (const childPid of fallbackTargets) {
+      terminatePosixPid(childPid, 'SIGTERM');
+    }
+    terminatePosixPid(numericPid, 'SIGTERM');
+    if (killTree) {
       try {
         process.kill(-numericPid, 'SIGKILL');
       } catch {}
     }
-    process.kill(numericPid, 'SIGKILL');
-    return true;
+    for (const childPid of fallbackTargets) {
+      terminatePosixPid(childPid, 'SIGKILL');
+    }
+    return terminatePosixPid(numericPid, 'SIGKILL');
   } catch {}
   return false;
 };

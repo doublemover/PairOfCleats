@@ -60,8 +60,7 @@ const resolveTimeoutAbortReapWaitMs = (value) => {
 };
 
 const waitMs = (ms) => new Promise((resolve) => {
-  const timer = setTimeout(resolve, Math.max(1, Math.floor(ms)));
-  timer.unref?.();
+  setTimeout(resolve, Math.max(1, Math.floor(ms)));
 });
 
 const awaitBoundedReap = async (promise, waitTimeoutMs) => {
