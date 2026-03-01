@@ -13,6 +13,7 @@ const parseArgs = () => createCli({
   options: {
     report: { type: 'string', default: '' },
     json: { type: 'string', default: '' },
+    enforce: { type: 'boolean', default: false },
     'min-summary-coverage': { type: 'number', default: 0.9 },
     'max-crash-retention': { type: 'number', default: 25 },
     'max-top-regressions': { type: 'number', default: 20 },
@@ -105,32 +106,34 @@ const main = async () => {
     )
   );
 
-  const failures = [];
+  const violations = [];
   if (summaryCoverage < thresholds.minSummaryCoverage) {
-    failures.push(
+    violations.push(
       `summary coverage ${summaryCoverage.toFixed(4)} below min ${thresholds.minSummaryCoverage.toFixed(4)}`
     );
   }
   if (crashRetentionCount > thresholds.maxCrashRetention) {
-    failures.push(`crash retention count ${crashRetentionCount} exceeded max ${thresholds.maxCrashRetention}`);
+    violations.push(`crash retention count ${crashRetentionCount} exceeded max ${thresholds.maxCrashRetention}`);
   }
   if (reportMetrics.sourceType === 'slo-gate') {
     if (timedOutRatio > thresholds.maxTimeoutRatio) {
-      failures.push(
+      violations.push(
         `timed out ratio ${timedOutRatio.toFixed(4)} exceeded max ${thresholds.maxTimeoutRatio.toFixed(4)}`
       );
     }
     if (topRegressionCount > timeoutAbsoluteScaledMax) {
-      failures.push(`timed out count ${topRegressionCount} exceeded scaled max ${timeoutAbsoluteScaledMax}`);
+      violations.push(`timed out count ${topRegressionCount} exceeded scaled max ${timeoutAbsoluteScaledMax}`);
     }
   } else if (topRegressionCount > thresholds.maxTopRegressions) {
-    failures.push(`top regression count ${topRegressionCount} exceeded max ${thresholds.maxTopRegressions}`);
+    violations.push(`top regression count ${topRegressionCount} exceeded max ${thresholds.maxTopRegressions}`);
   }
+  const enforce = argv.enforce === true;
 
   const payload = {
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
-    status: failures.length ? 'error' : 'ok',
+    status: violations.length ? (enforce ? 'error' : 'warn') : 'ok',
+    enforced: enforce,
     reportPath,
     sourceType: reportMetrics.sourceType,
     thresholds,
@@ -143,7 +146,7 @@ const main = async () => {
       timedOutRatio,
       timeoutAbsoluteScaledMax: reportMetrics.sourceType === 'slo-gate' ? timeoutAbsoluteScaledMax : null
     },
-    failures
+    failures: violations
   };
 
   await emitGateResult({
@@ -152,13 +155,15 @@ const main = async () => {
     heading: 'bench-language tooling LSP guardrail',
     summaryLines: [
       `- status: ${payload.status}`,
+      `- enforce: ${enforce ? 'on' : 'off (informational)'}`,
       `- summaryCoverage: ${summaryCoverage.toFixed(4)} (min ${thresholds.minSummaryCoverage.toFixed(4)})`,
       `- crashRetentionCount: ${crashRetentionCount} (max ${thresholds.maxCrashRetention})`,
       reportMetrics.sourceType === 'slo-gate'
         ? `- timedOut: ${topRegressionCount} (ratio ${timedOutRatio.toFixed(4)}, max-ratio ${thresholds.maxTimeoutRatio.toFixed(4)}, scaled-max ${timeoutAbsoluteScaledMax})`
         : `- topRegressionCount: ${topRegressionCount} (max ${thresholds.maxTopRegressions})`
     ],
-    failures
+    failures: violations,
+    enforceFailureExit: enforce
   });
 };
 

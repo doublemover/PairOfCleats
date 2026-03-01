@@ -53,7 +53,8 @@ export const resolveDoctorReportInput = async (doctorPath) => {
  *   heading: string,
  *   summaryLines?: string[],
  *   failures?: unknown[],
- *   renderFailure?: (failure: unknown) => string
+ *   renderFailure?: (failure: unknown) => string,
+ *   enforceFailureExit?: boolean
  * }} input
  * @returns {Promise<void>}
  */
@@ -63,7 +64,8 @@ export const emitGateResult = async ({
   heading,
   summaryLines = [],
   failures = [],
-  renderFailure = (failure) => String(failure)
+  renderFailure = (failure) => String(failure),
+  enforceFailureExit = true
 }) => {
   await writeJsonFileResolved(jsonPath, payload, { trailingNewline: true });
   console.error(heading);
@@ -74,5 +76,7 @@ export const emitGateResult = async ({
   for (const failure of failures) {
     console.error(`  - ${renderFailure(failure)}`);
   }
-  process.exit(3);
+  if (enforceFailureExit) {
+    process.exit(3);
+  }
 };

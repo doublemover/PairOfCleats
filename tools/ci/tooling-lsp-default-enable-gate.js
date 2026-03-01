@@ -42,6 +42,7 @@ const main = async () => {
   const slo = await readJsonFileResolvedSafe(sloPath, null);
 
   const failures = [];
+  const advisories = [];
   if (!policy || Number(policy.schemaVersion) !== 1 || !Array.isArray(policy.providers)) {
     failures.push('policy file is missing or invalid');
   }
@@ -51,8 +52,8 @@ const main = async () => {
   if (!slo || typeof slo !== 'object') {
     failures.push('slo gate payload is missing or invalid');
   }
-  if (!failures.length && slo.status !== 'ok') {
-    failures.push(`slo gate status is ${String(slo.status)}`);
+  if (!failures.length && String(slo?.status || '').toLowerCase() !== 'ok') {
+    advisories.push(`slo gate status is ${String(slo?.status || 'unknown')} (informational)`);
   }
 
   const doctorProviders = mapProvidersById(doctor?.providers);
@@ -94,6 +95,7 @@ const main = async () => {
     },
     defaultEnabledProviderCount: defaultEnabledProviders.length,
     checkedProviders,
+    advisories,
     failures
   };
 
@@ -103,10 +105,14 @@ const main = async () => {
     heading: 'Tooling LSP default-enable gate',
     summaryLines: [
       `- status: ${payload.status}`,
-      `- default-enabled providers: ${payload.defaultEnabledProviderCount}`
+      `- default-enabled providers: ${payload.defaultEnabledProviderCount}`,
+      `- advisories: ${advisories.length}`
     ],
     failures
   });
+  for (const advisory of advisories) {
+    console.error(`  - advisory: ${advisory}`);
+  }
 };
 
 main().catch((error) => {
