@@ -129,7 +129,27 @@ function createPythonAstPool({ pythonBin, config, log }) {
     log(message);
   };
 
+  const settlePendingJobs = (reason = null) => {
+    for (const worker of state.workers) {
+      const pendingJobs = Array.from(worker.pending.values());
+      worker.pending.clear();
+      worker.busy = false;
+      worker.busySince = 0;
+      for (const job of pendingJobs) {
+        if (job.timer) clearTimeout(job.timer);
+        job.resolve(null);
+      }
+    }
+    const queuedJobs = state.queue.splice(0, state.queue.length);
+    for (const job of queuedJobs) {
+      if (job.timer) clearTimeout(job.timer);
+      job.lastError = reason || job.lastError || null;
+      job.resolve(null);
+    }
+  };
+
   const shutdownWorkers = () => {
+    settlePendingJobs(new Error('python_ast_pool_shutdown'));
     for (const worker of state.workers) {
       killChildProcessTree(worker.proc, {
         killTree: true,
@@ -154,10 +174,7 @@ function createPythonAstPool({ pythonBin, config, log }) {
     state.crashCount = 0;
     state.crashWindowStart = 0;
     logOnce(`[python-ast] Crash loop detected; disabling pool for ${backoffMs}ms (${reasonText}).`, 'disabled');
-    for (const job of state.queue) {
-      job.resolve(null);
-    }
-    state.queue = [];
+    settlePendingJobs(reason);
     shutdownWorkers();
   };
 
@@ -394,7 +411,6 @@ function createPythonAstPool({ pythonBin, config, log }) {
     shutdown() {
       state.stopping = true;
       shutdownWorkers();
-      state.queue = [];
     }
   };
 }

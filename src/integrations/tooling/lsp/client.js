@@ -401,7 +401,15 @@ export function createLspClient(options) {
       return;
     }
     if (message.method && typeof onNotification === 'function') {
-      onNotification(message);
+      try {
+        onNotification(message);
+      } catch (error) {
+        log(`[lsp] notification handler failed: ${error?.message || error}`);
+        emitLifecycleEvent({
+          kind: 'notification_handler_error',
+          message: error?.message || String(error)
+        });
+      }
     }
   };
 
@@ -410,7 +418,16 @@ export function createLspClient(options) {
       if (proc.killed || proc.exitCode !== null || writerClosed) {
         const staleChild = proc;
         if (writerClosed) {
-          reapStaleChildProcess(staleChild, 'writer_closed_restart');
+          try {
+            const outcome = killChildProcessTreeSync(staleChild, {
+              killTree: true,
+              detached: killTreeDetached
+            });
+            clearTrackedChildIfTerminated(staleChild, outcome);
+          } catch {}
+          if (isChildRunning(staleChild)) {
+            reapStaleChildProcess(staleChild, 'writer_closed_restart');
+          }
         }
         if (staleChild.stdin) closeJsonRpcWriter(staleChild.stdin);
         parser?.dispose();
