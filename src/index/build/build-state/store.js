@@ -293,6 +293,28 @@ const compressRotatedLog = async (filePath) => {
   } catch {}
 };
 
+const writeTextWithDurability = async (filePath, text, {
+  append = false,
+  durable = false
+} = {}) => {
+  if (!durable) {
+    if (append) {
+      await fs.appendFile(filePath, text, 'utf8');
+      return;
+    }
+    await fs.writeFile(filePath, text, 'utf8');
+    return;
+  }
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  const handle = await fs.open(filePath, append ? 'a' : 'w');
+  try {
+    await handle.writeFile(text, 'utf8');
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+};
+
 const appendEventLog = async (
   buildRoot,
   events,
@@ -309,7 +331,10 @@ const appendEventLog = async (
       await compressRotatedLog(rotated);
     }
     const lines = events.map((event) => JSON.stringify(event)).join('\n') + '\n';
-    await fs.appendFile(filePath, lines, 'utf8');
+    await writeTextWithDurability(filePath, lines, {
+      append: true,
+      durable: isRequiredBuildStateDurability(resolvedDurabilityClass)
+    });
   } catch (err) {
     if (isRequiredBuildStateDurability(resolvedDurabilityClass)) {
       throw createBuildStateWriteFailureError({
@@ -364,14 +389,21 @@ const appendDeltaLog = async (
       await compressRotatedLog(rotated);
       if (snapshot) {
         const snapshotLine = JSON.stringify({ op: 'snapshot', value: snapshot, ts: new Date().toISOString() }) + '\n';
-        await fs.writeFile(filePath, snapshotLine, 'utf8');
+        await writeTextWithDurability(filePath, snapshotLine, {
+          durable: isRequiredBuildStateDurability(resolvedDurabilityClass)
+        });
       }
     } else if (!stat && snapshot) {
       const snapshotLine = JSON.stringify({ op: 'snapshot', value: snapshot, ts: new Date().toISOString() }) + '\n';
-      await fs.writeFile(filePath, snapshotLine, 'utf8');
+      await writeTextWithDurability(filePath, snapshotLine, {
+        durable: isRequiredBuildStateDurability(resolvedDurabilityClass)
+      });
     }
     const lines = deltas.map((entry) => JSON.stringify(entry)).join('\n') + '\n';
-    await fs.appendFile(filePath, lines, 'utf8');
+    await writeTextWithDurability(filePath, lines, {
+      append: true,
+      durable: isRequiredBuildStateDurability(resolvedDurabilityClass)
+    });
   } catch (err) {
     if (isRequiredBuildStateDurability(resolvedDurabilityClass)) {
       throw createBuildStateWriteFailureError({
