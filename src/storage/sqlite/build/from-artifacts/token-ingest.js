@@ -15,6 +15,7 @@ import {
 } from './sources.js';
 
 const SQLITE_TOKEN_CARDINALITY_ERROR_CODE = 'ERR_SQLITE_TOKEN_CARDINALITY';
+const MAX_TOKEN_ID_LOOKUP_CACHE_ENTRIES = 250000;
 
 const isCardinalityInvariantError = (error) => (
   error?.code === SQLITE_TOKEN_CARDINALITY_ERROR_CODE
@@ -482,6 +483,7 @@ export const createTokenIngestor = (ctx) => {
   const ingestTokenIndexFromChunks = (chunks, targetMode) => {
     if (!Array.isArray(chunks) || !chunks.length) return;
     const tokenIdMap = new Map();
+    let tokenIdMapTrimmed = false;
     let nextTokenId = 0;
     let totalDocs = 0;
     let totalLen = 0;
@@ -509,6 +511,16 @@ export const createTokenIngestor = (ctx) => {
         for (const [token, tf] of freq.entries()) {
           let tokenId = tokenIdMap.get(token);
           if (tokenId === undefined) {
+            if (tokenIdMap.size >= MAX_TOKEN_ID_LOOKUP_CACHE_ENTRIES) {
+              tokenIdMap.clear();
+              if (!tokenIdMapTrimmed) {
+                warn(
+                  `[sqlite] token lookup cache reached ${MAX_TOKEN_ID_LOOKUP_CACHE_ENTRIES} entries; ` +
+                  'clearing cache to cap memory.'
+                );
+                tokenIdMapTrimmed = true;
+              }
+            }
             tokenId = nextTokenId;
             nextTokenId += 1;
             tokenIdMap.set(token, tokenId);
@@ -561,6 +573,7 @@ export const createTokenIngestor = (ctx) => {
       'SELECT id, tokens FROM chunks WHERE mode = ? AND id > ? ORDER BY id LIMIT ?'
     );
     const tokenIdMap = new Map();
+    let tokenIdMapTrimmed = false;
     let nextTokenId = 0;
     let totalDocs = 0;
     let totalLen = 0;
@@ -598,6 +611,16 @@ export const createTokenIngestor = (ctx) => {
         for (const [token, tf] of freq.entries()) {
           let tokenId = tokenIdMap.get(token);
           if (tokenId === undefined) {
+            if (tokenIdMap.size >= MAX_TOKEN_ID_LOOKUP_CACHE_ENTRIES) {
+              tokenIdMap.clear();
+              if (!tokenIdMapTrimmed) {
+                warn(
+                  `[sqlite] token lookup cache reached ${MAX_TOKEN_ID_LOOKUP_CACHE_ENTRIES} entries; ` +
+                  'clearing cache to cap memory.'
+                );
+                tokenIdMapTrimmed = true;
+              }
+            }
             tokenId = nextTokenId;
             nextTokenId += 1;
             tokenIdMap.set(token, tokenId);

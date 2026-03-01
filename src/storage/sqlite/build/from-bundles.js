@@ -36,6 +36,8 @@ import {
 } from './core.js';
 import { createBundleLoader } from './bundle-loader.js';
 
+const MAX_VOCAB_LOOKUP_CACHE_ENTRIES = 250000;
+
 /**
  * Build a sqlite database from incremental bundle files.
  * @param {object} params
@@ -197,6 +199,9 @@ export async function buildDatabaseFromBundles({
     const tokenIdMap = new Map();
     const phraseIdMap = new Map();
     const chargramIdMap = new Map();
+    let tokenIdMapTrimmed = false;
+    let phraseIdMapTrimmed = false;
+    let chargramIdMapTrimmed = false;
     let nextTokenId = 0;
     let nextPhraseId = 0;
     let nextChargramId = 0;
@@ -300,6 +305,22 @@ export async function buildDatabaseFromBundles({
       flushBuffer(chargramVocabBuffer, insertChargramVocabMany, insertChargramVocab);
       flushBuffer(chargramPostingBuffer, insertChargramPostingMany, insertChargramPosting);
     };
+
+    const ensureMapCapacity = (map, {
+      warned,
+      label
+    }) => {
+      if (!(map instanceof Map)) return warned;
+      if (map.size < MAX_VOCAB_LOOKUP_CACHE_ENTRIES) return warned;
+      map.clear();
+      if (!warned) {
+        warn(
+          `[sqlite] ${label} lookup cache reached ${MAX_VOCAB_LOOKUP_CACHE_ENTRIES} entries; ` +
+          'clearing cache to cap memory.'
+        );
+      }
+      return true;
+    };
     const reserveFallbackDocId = () => {
       while (assignedDocIds.has(nextDocId)) nextDocId += 1;
       const docId = nextDocId;
@@ -363,6 +384,10 @@ export async function buildDatabaseFromBundles({
             if (tokenId === undefined) {
               tokenId = nextTokenId;
               nextTokenId += 1;
+              tokenIdMapTrimmed = ensureMapCapacity(tokenIdMap, {
+                warned: tokenIdMapTrimmed,
+                label: 'token vocab'
+              });
               tokenIdMap.set(token, tokenId);
               if (insertTokenVocabMany) {
                 tokenVocabBuffer.push([mode, tokenId, token]);
@@ -393,6 +418,10 @@ export async function buildDatabaseFromBundles({
             if (phraseId === undefined) {
               phraseId = nextPhraseId;
               nextPhraseId += 1;
+              phraseIdMapTrimmed = ensureMapCapacity(phraseIdMap, {
+                warned: phraseIdMapTrimmed,
+                label: 'phrase vocab'
+              });
               phraseIdMap.set(ng, phraseId);
               if (insertPhraseVocabMany) {
                 phraseVocabBuffer.push([mode, phraseId, ng]);
@@ -423,6 +452,10 @@ export async function buildDatabaseFromBundles({
             if (gramId === undefined) {
               gramId = nextChargramId;
               nextChargramId += 1;
+              chargramIdMapTrimmed = ensureMapCapacity(chargramIdMap, {
+                warned: chargramIdMapTrimmed,
+                label: 'chargram vocab'
+              });
               chargramIdMap.set(gram, gramId);
               if (insertChargramVocabMany) {
                 chargramVocabBuffer.push([mode, gramId, gram]);

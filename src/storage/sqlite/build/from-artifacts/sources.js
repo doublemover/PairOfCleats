@@ -30,6 +30,27 @@ import {
 
 const SQLITE_TOKEN_CARDINALITY_ERROR_CODE = 'ERR_SQLITE_TOKEN_CARDINALITY';
 
+const readJsonWithBudget = (filePath, {
+  maxBytes = MAX_JSON_BYTES,
+  label = 'artifact'
+} = {}) => {
+  if (!filePath) return null;
+  try {
+    const stat = fsSync.statSync(filePath);
+    if (Number.isFinite(stat?.size) && stat.size > maxBytes) {
+      const err = new Error(
+        `[sqlite] ${label} exceeds size budget (${stat.size} bytes > ${maxBytes} bytes): ${filePath}`
+      );
+      err.code = 'ERR_SQLITE_ARTIFACT_TOO_LARGE';
+      throw err;
+    }
+  } catch (err) {
+    if (err?.code === 'ENOENT') return null;
+    throw err;
+  }
+  return readJson(filePath);
+};
+
 const resolveFirstExistingPath = (basePath) => {
   const candidates = [basePath, `${basePath}.gz`, `${basePath}.zst`];
   return candidates.find((candidate) => fsSync.existsSync(candidate)) || null;
@@ -355,7 +376,10 @@ export const iterateChunkMetaSources = async (
     const sourcePath = paths[0];
     if (sourcePath) {
       await emitSourceFile(sourcePath);
-      const rows = readJson(sourcePath);
+      const rows = readJsonWithBudget(sourcePath, {
+        maxBytes: MAX_JSON_BYTES,
+        label: 'chunk_meta json'
+      });
       if (Array.isArray(rows)) {
         for (const row of rows) {
           await emitEntry(row);
@@ -368,7 +392,10 @@ export const iterateChunkMetaSources = async (
     const sourcePath = paths[0];
     if (sourcePath) {
       await emitSourceFile(sourcePath);
-      const rows = inflateColumnarRows(readJson(sourcePath));
+      const rows = inflateColumnarRows(readJsonWithBudget(sourcePath, {
+        maxBytes: MAX_JSON_BYTES,
+        label: 'chunk_meta columnar'
+      }));
       if (Array.isArray(rows)) {
         for (const row of rows) {
           await emitEntry(row);
