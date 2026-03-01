@@ -1,11 +1,25 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { captureProcessSnapshot, snapshotTrackedSubprocesses, spawnSubprocess } from '../../../src/shared/subprocess.js';
+import {
+  captureProcessSnapshot,
+  getTrackedSubprocessCount,
+  snapshotTrackedSubprocesses,
+  spawnSubprocess
+} from '../../../src/shared/subprocess.js';
 import { resolveSilentStdio } from '../../helpers/test-env.js';
 
 const controller = new AbortController();
 const args = ['-e', 'setInterval(() => {}, 1000)'];
 let trackedSnapshotAtSpawn = null;
+
+const waitFor = async (predicate, timeoutMs = 5000) => {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (predicate()) return true;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  return predicate();
+};
 
 setTimeout(() => controller.abort(), 120);
 
@@ -54,11 +68,13 @@ if (pid && process.platform !== 'win32') {
   assert.equal(alive, false, 'expected subprocess to be killed');
 }
 
+const trackedCleared = await waitFor(() => getTrackedSubprocessCount() === 0, 5000);
+assert.equal(trackedCleared, true, 'expected aborted subprocess to be removed from tracked registry');
 const trackedAfterAbort = snapshotTrackedSubprocesses({ limit: 8 });
 assert.equal(
   trackedAfterAbort.entries.some((entry) => entry.pid === pid),
   false,
-  'expected aborted subprocess to be removed from tracked registry'
+  'expected aborted subprocess snapshot to exclude spawned pid'
 );
 const processSnapshot = captureProcessSnapshot({ includeStack: true, frameLimit: 6, handleTypeLimit: 4 });
 assert.equal(processSnapshot.pid, process.pid, 'expected process snapshot to include current pid');

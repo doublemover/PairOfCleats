@@ -12,7 +12,15 @@ const EMPTY_CROSS_FILE_STATS = Object.freeze({
   linkedCalls: 0,
   linkedUsages: 0,
   inferredReturns: 0,
-  riskFlows: 0
+  riskFlows: 0,
+  toolingDegradedProviders: 0,
+  toolingDegradedWarnings: 0,
+  toolingDegradedErrors: 0,
+  toolingProvidersExecuted: 0,
+  toolingProvidersContributed: 0,
+  toolingRequests: 0,
+  toolingRequestFailures: 0,
+  toolingRequestTimeouts: 0
 });
 
 /**
@@ -86,7 +94,9 @@ const resolveCacheContext = ({
   enableTypeInference,
   enableRiskCorrelation,
   useTooling,
-  fileRelations
+  fileRelations,
+  inferenceLite,
+  inferenceLiteHighSignalOnly
 }) => {
   const { cacheDir, cachePath } = resolveCrossFileCacheLocation({
     cacheRoot,
@@ -101,7 +111,9 @@ const resolveCacheContext = ({
       enableTypeInference,
       enableRiskCorrelation,
       useTooling,
-      fileRelations
+      fileRelations,
+      inferenceLite,
+      inferenceLiteHighSignalOnly
     })
   };
 };
@@ -161,7 +173,9 @@ export async function applyCrossFileInference({
     enableTypeInference,
     enableRiskCorrelation,
     useTooling,
-    fileRelations
+    fileRelations,
+    inferenceLite,
+    inferenceLiteHighSignalOnly
   });
 
   const cachedStats = await readCrossFileInferenceCache({

@@ -123,5 +123,7 @@ assert.equal(
   0,
   'expected fixture-only unresolved imports to be suppressed'
 );
+assert.equal(result?.graph?.stats?.unresolvedActionable || 0, 0, 'expected no actionable unresolved warnings');
+assert.equal(result?.graph?.stats?.unresolvedSuppressed > 0, true, 'expected suppressed unresolved accounting');
 
 console.log('import resolution llvm fixture path test passed');

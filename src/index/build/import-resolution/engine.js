@@ -1,15 +1,21 @@
 import path from 'node:path';
 import { buildCacheKey } from '../../../shared/cache-key.js';
 import { sha1 } from '../../../shared/hash.js';
+import { stableStringify } from '../../../shared/stable-json.js';
 import {
+  DEFAULT_IMPORT_EXTS,
+  EPHEMERAL_EXTERNAL_CACHE_TTL_MS,
   MAX_GRAPH_EDGES,
   MAX_GRAPH_NODES,
   MAX_IMPORT_WARNINGS,
   MAX_RESOLUTION_CACHE_ENTRIES,
   NEGATIVE_CACHE_TTL_MS
 } from './constants.js';
+import { resolveRelativeImportCandidates } from '../../shared/import-candidates.js';
 import { createFsMemo } from './fs-meta.js';
+import { resolveFsExistsIndexCacheFingerprint } from './fs-exists-index.js';
 import { addGraphNode, buildEdgeSortKey, buildWarningSortKey } from './graph.js';
+import { resolveLanguageLabelFromImporter } from './labels.js';
 import {
   buildLookupCompatibilityFingerprint,
   collectEntryFileSet,
@@ -26,12 +32,31 @@ import {
 } from './language-resolvers.js';
 import { createPackageDirectoryResolver, parsePackageName } from './package-entry.js';
 import { resolveDartPackageName, resolveGoModulePath, resolvePackageFingerprint } from './repo-metadata.js';
+import { createImportBuildContext } from './build-context/index.js';
+import {
+  createImportResolutionBudgetPolicy,
+  createImportResolutionSpecifierBudgetState
+} from './budgets.js';
+import {
+  isBazelLabelSpecifier,
+  matchGeneratedExpectationSpecifier
+} from './specifier-hints.js';
 import { normalizeImportSpecifier, normalizeRelPath, resolveWithinRoot, sortStrings } from './path-utils.js';
+import {
+  IMPORT_REASON_CODES,
+  IMPORT_RESOLUTION_STATES,
+  IMPORT_RESOLVER_STAGES,
+  assertUnresolvedDecision,
+  createUnresolvedDecision,
+  isActionableDisposition,
+  isKnownReasonCode,
+} from './reason-codes.js';
+import { createImportResolutionStageTracker } from './stage-pipeline.js';
 import { createTsConfigLoader, resolveTsPaths } from './tsconfig-resolution.js';
 
 const ABSOLUTE_SYSTEM_PATH_PREFIX_RX = /^\/(?:etc|usr|opt|var|bin|sbin|lib|lib64|dev|proc|sys|run|tmp|home|root)(?:\/|$)/i;
 const SCHEME_RELATIVE_URL_RX = /^\/\/[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:[/:]|$)/i;
-const DEFAULT_UNRESOLVED_NOISE_PREFIXES = ['node:', '@types/', 'internal/'];
+const IMPORT_RESOLVER_VERSION = 'import-resolution-engine-v4';
 
 const normalizeAliasRuleText = (value) => (
   typeof value === 'string'
@@ -145,7 +170,7 @@ const buildAliasRulesFingerprint = (aliasRules) => {
   if (!Array.isArray(aliasRules) || aliasRules.length === 0) return null;
   const payload = aliasRules
     .map((rule) => `${rule.match}->${rule.replace}`)
-    .sort((a, b) => a.localeCompare(b))
+    .sort(sortStrings)
     .join('|');
   return payload ? sha1(payload) : null;
 };
@@ -159,10 +184,90 @@ const insertResolutionCache = (cache, key, value) => {
   cache.set(key, value);
 };
 
+const normalizeCollectorHint = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const reasonCode = typeof value.reasonCode === 'string' && isKnownReasonCode(value.reasonCode)
+    ? value.reasonCode.trim()
+    : '';
+  if (!reasonCode) return null;
+  const confidenceRaw = Number(value.confidence);
+  const confidence = Number.isFinite(confidenceRaw)
+    ? Math.max(0, Math.min(1, confidenceRaw))
+    : null;
+  const detail = typeof value.detail === 'string' && value.detail.trim()
+    ? value.detail.trim()
+    : null;
+  return {
+    reasonCode,
+    confidence,
+    detail
+  };
+};
+
+const bumpCount = (target, key, amount = 1) => {
+  if (!target || typeof target !== 'object') return;
+  if (!key) return;
+  const next = Number(target[key]) || 0;
+  target[key] = next + Math.max(0, Math.floor(Number(amount) || 0));
+};
+
+const toSortedCountObject = (counts) => {
+  const entries = Object.entries(counts || {})
+    .filter(([key, value]) => key && Number.isFinite(Number(value)) && Number(value) > 0)
+    .sort((a, b) => sortStrings(a[0], b[0]));
+  const output = Object.create(null);
+  for (const [key, value] of entries) {
+    output[key] = Math.floor(Number(value));
+  }
+  return output;
+};
+
+const toSortedHotspotEntries = (counts, { maxEntries = 20 } = {}) => (
+  Object.entries(counts || {})
+    .filter(([importer, value]) => importer && Number.isFinite(Number(value)) && Number(value) > 0)
+    .map(([importer, value]) => ({
+      importer,
+      count: Math.floor(Number(value))
+    }))
+    .sort((a, b) => (
+      b.count !== a.count
+        ? b.count - a.count
+        : sortStrings(a.importer, b.importer)
+    ))
+    .slice(0, Math.max(0, Math.floor(Number(maxEntries) || 0)))
+);
+
+const resolveUnresolvedReasonCode = ({
+  importerRel,
+  spec,
+  rawSpec,
+  buildContextClassification = null,
+  budgetExhausted = false,
+  generatedExpectationMatch = null,
+  expectedArtifactsIndex = null
+}) => {
+  if (buildContextClassification?.reasonCode) {
+    return buildContextClassification.reasonCode;
+  }
+  const resolvedGeneratedMatch = generatedExpectationMatch || matchGeneratedExpectationSpecifier({
+    importer: importerRel,
+    specifier: spec || rawSpec,
+    expectedArtifactsIndex
+  });
+  if (resolvedGeneratedMatch?.matched) {
+    return IMPORT_REASON_CODES.GENERATED_EXPECTED_MISSING;
+  }
+  if (budgetExhausted) {
+    return IMPORT_REASON_CODES.RESOLVER_BUDGET_EXHAUSTED;
+  }
+  return IMPORT_REASON_CODES.MISSING_FILE_RELATIVE;
+};
+
 export function resolveImportLinks({
   root,
   entries,
   importsByFile,
+  importHintsByFile = null,
   fileRelations,
   log,
   mode = null,
@@ -172,7 +277,9 @@ export function resolveImportLinks({
   fileHashes = null,
   cacheStats = null,
   fsMeta = null,
-  resolverPlugins = null
+  fsExistsIndex = null,
+  resolverPlugins = null,
+  budgetRuntimeSignals = null
 }) {
   const fsMemo = createFsMemo(fsMeta);
   const cacheState = cache && typeof cache === 'object' ? cache : null;
@@ -224,6 +331,54 @@ export function resolveImportLinks({
   });
   const goModulePath = resolveGoModulePath(resolvedLookup.rootAbs, fsMemo);
   const dartPackageName = resolveDartPackageName(resolvedLookup.rootAbs, fsMemo);
+  const buildContext = createImportBuildContext({
+    entries: Array.from(resolvedLookup.fileSet || []),
+    resolverPlugins,
+    rootAbs: resolvedLookup.rootAbs,
+    fsMemo
+  });
+  const fsExistsIndexFingerprint = resolveFsExistsIndexCacheFingerprint(resolverPlugins);
+  const budgetPolicy = createImportResolutionBudgetPolicy({
+    resolverPlugins,
+    runtimeSignals: budgetRuntimeSignals
+  });
+  const budgetPolicyStats = {
+    maxFilesystemProbesPerSpecifier: Number(budgetPolicy?.maxFilesystemProbesPerSpecifier) || 0,
+    maxFallbackCandidatesPerSpecifier: Number(budgetPolicy?.maxFallbackCandidatesPerSpecifier) || 0,
+    maxFallbackDepth: Number(budgetPolicy?.maxFallbackDepth) || 0,
+    adaptiveEnabled: budgetPolicy?.adaptiveEnabled === true,
+    adaptiveProfile: typeof budgetPolicy?.adaptiveProfile === 'string'
+      ? budgetPolicy.adaptiveProfile
+      : 'normal',
+    adaptiveScale: Number.isFinite(Number(budgetPolicy?.adaptiveScale))
+      ? Number(Number(budgetPolicy.adaptiveScale).toFixed(3))
+      : 1
+  };
+  const expectedArtifactsIndex = buildContext.expectedArtifactsIndex;
+  const resolverPluginsFingerprint = sha1(stableStringify(resolverPlugins || {}));
+  const resolverStaticScopeFingerprint = sha1(JSON.stringify({
+    resolverVersion: IMPORT_RESOLVER_VERSION,
+    resolverPluginsFingerprint,
+    budgetPolicyFingerprint: budgetPolicy?.fingerprint || 'none',
+    aliasRulesFingerprint: aliasRulesFingerprint || 'none'
+  }));
+  const resolverRuntimeScopeFingerprint = sha1(JSON.stringify({
+    resolverStaticScopeFingerprint,
+    workspaceFingerprint: lookupCompatibilityFingerprint || fileSetFingerprint || 'none',
+    buildContextFingerprint: buildContext?.fingerprint || 'none',
+    expectedArtifactsFingerprint: expectedArtifactsIndex?.fingerprint || 'none'
+  }));
+  const fsExistsIndexStats = {
+    enabled: fsExistsIndex?.enabled !== false && typeof fsExistsIndex?.lookup === 'function',
+    complete: fsExistsIndex?.complete === true,
+    indexedCount: Math.max(0, Number(fsExistsIndex?.indexedCount) || 0),
+    fileCount: Math.max(0, Number(fsExistsIndex?.fileCount) || 0),
+    truncated: fsExistsIndex?.truncated === true,
+    bloomBits: Math.max(0, Number(fsExistsIndex?.bloomBits) || 0),
+    exactHits: 0,
+    negativeSkips: 0,
+    unknownFallbacks: 0
+  };
   if (cacheMetrics && canReuseLookup && lookup) {
     cacheMetrics.lookupReused = true;
   }
@@ -240,10 +395,14 @@ export function resolveImportLinks({
       repoHash,
       buildConfigHash: packageFingerprint || null,
       mode,
-      schemaVersion: 'import-resolution-cache-v3',
+      schemaVersion: 'import-resolution-cache-v9',
       featureFlags: [
         ...(graphMeta?.importScanMode ? [`scan:${graphMeta.importScanMode}`] : []),
-        ...(aliasRulesFingerprint ? [`resolverAlias:${aliasRulesFingerprint}`] : [])
+        ...(aliasRulesFingerprint ? [`resolverAlias:${aliasRulesFingerprint}`] : []),
+        ...(buildContext?.fingerprint ? [`buildContext:${buildContext.fingerprint}`] : []),
+        ...(fsExistsIndexFingerprint ? [`fsExistsIndex:${fsExistsIndexFingerprint}`] : []),
+        ...(budgetPolicy?.fingerprint ? [`resolverBudgets:${budgetPolicy.fingerprint}`] : []),
+        ...(expectedArtifactsIndex?.fingerprint ? [`expectedArtifacts:${expectedArtifactsIndex.fingerprint}`] : [])
       ],
       pathPolicy: 'posix',
       extra: { fileSetFingerprint }
@@ -304,6 +463,97 @@ export function resolveImportLinks({
     return importerInfo.isShell === true;
   };
 
+  const isFileStat = (value) => {
+    if (!value) return false;
+    if (typeof value.isFile === 'function') return value.isFile();
+    return value.isFile === true;
+  };
+  const canReuseEphemeralExternalCacheEntry = ({
+    cacheClass = null,
+    fallbackPath = null,
+    expiresAt = null,
+    nowMs = Date.now()
+  } = {}) => {
+    if (cacheClass !== 'ephemeral_external') return true;
+    if (!Number.isFinite(Number(expiresAt)) || Number(expiresAt) <= nowMs) return false;
+    const normalizedFallbackPath = normalizeRelPath(fallbackPath);
+    if (!normalizedFallbackPath) return false;
+    const fallbackAbs = path.resolve(resolvedLookup.rootAbs, normalizedFallbackPath);
+    const containedRel = resolveWithinRoot(resolvedLookup.rootAbs, fallbackAbs);
+    if (!containedRel) return false;
+    if (resolveCandidate(containedRel, resolvedLookup)) return false;
+    const fallbackStat = fsMemo.statSync(fallbackAbs);
+    return isFileStat(fallbackStat);
+  };
+
+  const resolveExistingNonIndexedRelativeImport = ({
+    spec,
+    importerInfo,
+    importerRel,
+    specBudget,
+    fsExistsIndexState
+  }) => {
+    if (!spec || typeof spec !== 'string' || !importerRel) return null;
+    if (!(spec.startsWith('.') || spec.startsWith('/'))) return null;
+    if (spec === '.' || spec === '..') return null;
+    if (specBudget && !spec.startsWith('/')) {
+      const traversalDepth = spec
+        .replace(/\\/g, '/')
+        .split('/')
+        .reduce((count, segment) => count + (segment === '..' ? 1 : 0), 0);
+      if (!specBudget.allowFallbackDepth(traversalDepth)) return null;
+    }
+    const baseCandidates = [];
+    if (spec.startsWith('/')) {
+      const absoluteTarget = normalizeRelPath(spec.slice(1));
+      if (absoluteTarget) {
+        baseCandidates.push(absoluteTarget);
+        const htmlSourceFile = importerInfo?.extension === '.html' || importerInfo?.extension === '.htm';
+        if (htmlSourceFile) {
+          const importerAnchored = normalizeRelPath(path.posix.join(importerInfo.importerDir, absoluteTarget));
+          if (importerAnchored) baseCandidates.unshift(importerAnchored);
+        }
+      }
+    } else {
+      const importerDir = path.posix.dirname(importerRel);
+      const joined = normalizeRelPath(path.posix.join(importerDir, spec));
+      if (joined) baseCandidates.push(joined);
+    }
+    if (!baseCandidates.length) return null;
+    const seenBases = new Set();
+    for (const base of baseCandidates) {
+      if (!base || seenBases.has(base)) continue;
+      seenBases.add(base);
+      const pathExt = path.posix.extname(base);
+      const candidates = pathExt
+        ? [base]
+        : resolveRelativeImportCandidates(base, DEFAULT_IMPORT_EXTS);
+      for (const candidate of candidates) {
+        if (!candidate) continue;
+        if (specBudget && !specBudget.consumeFallbackCandidate()) return null;
+        const candidateAbs = path.resolve(resolvedLookup.rootAbs, candidate);
+        const candidateRel = resolveWithinRoot(resolvedLookup.rootAbs, candidateAbs);
+        if (!candidateRel) continue;
+        if (fsExistsIndexState?.enabled && typeof fsExistsIndex?.lookup === 'function') {
+          const lookupState = fsExistsIndex.lookup(candidateRel);
+          if (lookupState === 'present') {
+            fsExistsIndexState.exactHits += 1;
+            return candidateRel;
+          }
+          if (lookupState === 'absent') {
+            fsExistsIndexState.negativeSkips += 1;
+            continue;
+          }
+          fsExistsIndexState.unknownFallbacks += 1;
+        }
+        if (specBudget && !specBudget.consumeFilesystemProbe()) return null;
+        const candidateStat = fsMemo.statSync(candidateAbs);
+        if (isFileStat(candidateStat)) return candidateRel;
+      }
+    }
+    return null;
+  };
+
   const resolveFileHash = (relPath) => {
     if (!fileHashes || !relPath) return null;
     if (typeof fileHashes.get === 'function') return fileHashes.get(relPath) || null;
@@ -326,13 +576,16 @@ export function resolveImportLinks({
     lookup: resolvedLookup,
     rootAbs: resolvedLookup.rootAbs
   });
+  const stageTracker = createImportResolutionStageTracker();
   const resolutionCache = new Map();
   const cacheKeyFor = (importerRel, spec, tsconfig) => {
     const tsKey = tsconfig?.fingerprint || tsconfig?.tsconfigPath || 'none';
-    return `${importerRel || ''}\u0000${spec || ''}\u0000${tsKey}`;
+    return `${resolverRuntimeScopeFingerprint}\u0000${importerRel || ''}\u0000${spec || ''}\u0000${tsKey}`;
   };
   let suppressedWarnings = 0;
   let unresolvedCount = 0;
+  let unresolvedActionable = 0;
+  let unresolvedBudgetExhausted = 0;
   let externalCount = 0;
   let resolvedCount = 0;
   let edgeTotal = 0;
@@ -340,6 +593,13 @@ export function resolveImportLinks({
   const capStats = enableGraph ? { truncatedNodes: 0 } : null;
   const truncatedByKind = { import: 0 };
   const unresolvedSamples = [];
+  const unresolvedReasonCounts = Object.create(null);
+  const unresolvedFailureCauseCounts = Object.create(null);
+  const unresolvedDispositionCounts = Object.create(null);
+  const unresolvedResolverStageCounts = Object.create(null);
+  const unresolvedActionableHotspotCounts = Object.create(null);
+  const unresolvedActionableLanguageCounts = Object.create(null);
+  const unresolvedBudgetExhaustedByType = Object.create(null);
 
   const warningList = unresolvedSamples;
   const unresolvedDedup = new Set();
@@ -358,11 +618,6 @@ export function resolveImportLinks({
     const lower = normalized.toLowerCase();
     const rawNormalized = typeof rawSpec === 'string' ? rawSpec.trim() : '';
     const lowerRaw = rawNormalized.toLowerCase();
-    const importerRel = String(importerInfo?.importerRel || '').toLowerCase();
-    if (DEFAULT_UNRESOLVED_NOISE_PREFIXES.some((prefix) => lower.startsWith(prefix))) return true;
-    if (importerRel.includes('/tests/expected_output/')) return true;
-    if (importerRel.includes('/unittests/') && (lower.startsWith('//./') || lowerRaw.startsWith('//./'))) return true;
-    if (importerRel.endsWith('/tooling/syntax/tokenstest.cpp') && lower === './foo.h') return true;
     if (/[<>|^]/.test(normalized)) return true;
     if (ABSOLUTE_SYSTEM_PATH_PREFIX_RX.test(normalized) && (importerInfo?.isShell || importerInfo?.isPathLike)) {
       return true;
@@ -388,6 +643,9 @@ export function resolveImportLinks({
 
     const rawSpecs = Array.from(new Set(rawImports.filter((spec) => typeof spec === 'string' && spec)));
     rawSpecs.sort(sortStrings);
+    const importHintsForFile = importHintsByFile && typeof importHintsByFile === 'object'
+      ? (importHintsByFile[relNormalized] || importHintsByFile[importerRel] || null)
+      : null;
     const hasNonRelative = rawSpecs.some((rawSpec) => {
       const spec = normalizeImportSpecifier(rawSpec);
       return spec && !(spec.startsWith('.') || spec.startsWith('/'));
@@ -402,6 +660,7 @@ export function resolveImportLinks({
     const canReuseCache = !!(fileCache
       && fileHash
       && fileCache.hash === fileHash
+      && (fileCache.resolverScopeFingerprint || '') === resolverStaticScopeFingerprint
       && (fileCache.tsconfigFingerprint || null) === tsconfigFingerprint);
     if (cacheMetrics) {
       cacheMetrics.files += 1;
@@ -412,8 +671,15 @@ export function resolveImportLinks({
     const nextSpecCache = cacheState && fileHash ? {} : null;
 
     for (const rawSpec of rawSpecs) {
-      const spec = normalizeImportSpecifier(rawSpec);
-      if (!spec) continue;
+      const spec = stageTracker.withStage(
+        IMPORT_RESOLVER_STAGES.NORMALIZE,
+        () => normalizeImportSpecifier(rawSpec)
+      );
+      if (!spec) {
+        stageTracker.markMiss(IMPORT_RESOLVER_STAGES.NORMALIZE);
+        continue;
+      }
+      stageTracker.markHit(IMPORT_RESOLVER_STAGES.NORMALIZE);
       let includeGraphEdge = true;
       const isRelative = spec.startsWith('.') || spec.startsWith('/');
       if (!isRelative && !tsconfigResolved) {
@@ -425,16 +691,80 @@ export function resolveImportLinks({
       let tsPathPattern = null;
       let tsconfigPath = null;
       let packageName = null;
+      let unresolvedReasonCodeHint = null;
+      const collectorHint = normalizeCollectorHint(
+        importHintsForFile && typeof importHintsForFile === 'object'
+          ? importHintsForFile[rawSpec]
+          : null
+      );
+      const collectorHintReasonCode = collectorHint?.reasonCode || null;
+      let unresolvedBudgetExhaustedTypesHint = [];
+      let cacheClass = null;
+      let fallbackPath = null;
+      let expiresAt = null;
+      let specCacheKeyUsed = null;
       let edgeTarget = null;
+      let resolutionState = IMPORT_RESOLUTION_STATES.RESOLVED;
+      let unresolvedReasonCode = null;
+      let unresolvedFailureCause = null;
+      let unresolvedDisposition = null;
+      let unresolvedResolverStage = null;
+      const specBudget = createImportResolutionSpecifierBudgetState(budgetPolicy);
+      let buildContextClassification = null;
+      const resolveBuildContextClassification = () => {
+        if (!buildContextClassification) {
+          buildContextClassification = stageTracker.withStage(
+            IMPORT_RESOLVER_STAGES.BUILD_SYSTEM_RESOLVER,
+            () => buildContext.classifyUnresolved({
+              importerRel: relNormalized,
+              spec,
+              rawSpec
+            })
+          );
+          if (buildContextClassification?.reasonCode) {
+            stageTracker.markHit(IMPORT_RESOLVER_STAGES.BUILD_SYSTEM_RESOLVER);
+          } else {
+            stageTracker.markMiss(IMPORT_RESOLVER_STAGES.BUILD_SYSTEM_RESOLVER);
+          }
+        }
+        return buildContextClassification;
+      };
+      let generatedExpectationMatch = null;
+      const resolveGeneratedExpectationMatch = () => {
+        if (!generatedExpectationMatch) {
+          const classified = resolveBuildContextClassification();
+          generatedExpectationMatch = classified?.generatedMatch || null;
+          if (!generatedExpectationMatch) {
+            generatedExpectationMatch = matchGeneratedExpectationSpecifier({
+              importer: relNormalized,
+              specifier: spec || rawSpec,
+              expectedArtifactsIndex
+            });
+          }
+        }
+        return generatedExpectationMatch;
+      };
+      const nowMs = Date.now();
 
       if (cacheMetrics) cacheMetrics.specs += 1;
       let cachedSpec = canReuseCache && fileCache?.specs && fileCache.specs[spec]
         ? fileCache.specs[spec]
         : null;
+      if (cachedSpec && Number.isFinite(Number(cachedSpec.expiresAt)) && Number(cachedSpec.expiresAt) <= nowMs) {
+        cachedSpec = null;
+      }
       if (cachedSpec && fileSetChanged) {
         cachedSpec = null;
       }
       if (cachedSpec && cachedSpec.resolvedPath && !resolvedLookup.fileSet.has(cachedSpec.resolvedPath)) {
+        cachedSpec = null;
+      }
+      if (cachedSpec && !canReuseEphemeralExternalCacheEntry({
+        cacheClass: cachedSpec.cacheClass || null,
+        fallbackPath: cachedSpec.fallbackPath || null,
+        expiresAt: cachedSpec.expiresAt,
+        nowMs
+      })) {
         cachedSpec = null;
       }
       if (cachedSpec) {
@@ -443,14 +773,28 @@ export function resolveImportLinks({
           resolvedPath,
           tsPathPattern,
           tsconfigPath,
-          packageName
+          packageName,
+          unresolvedReasonCode: unresolvedReasonCodeHint = null,
+          unresolvedBudgetExhaustedTypes: unresolvedBudgetExhaustedTypesHint = [],
+          cacheClass = null,
+          fallbackPath = null,
+          expiresAt = null
         } = cachedSpec);
         if (cacheMetrics) cacheMetrics.specsReused += 1;
       } else {
         const specCacheKey = cacheKeyFor(relNormalized, spec, tsconfig);
-        const nowMs = Date.now();
+        specCacheKeyUsed = specCacheKey;
         let cached = resolutionCache.get(specCacheKey);
         if (cached?.expiresAt && cached.expiresAt < nowMs) {
+          resolutionCache.delete(specCacheKey);
+          cached = null;
+        }
+        if (cached && !canReuseEphemeralExternalCacheEntry({
+          cacheClass: cached.cacheClass || null,
+          fallbackPath: cached.fallbackPath || null,
+          expiresAt: cached.expiresAt,
+          nowMs
+        })) {
           resolutionCache.delete(specCacheKey);
           cached = null;
         }
@@ -460,18 +804,31 @@ export function resolveImportLinks({
             resolvedPath,
             tsPathPattern,
             tsconfigPath,
-            packageName
+            packageName,
+            unresolvedReasonCode: unresolvedReasonCodeHint = null,
+            unresolvedBudgetExhaustedTypes: unresolvedBudgetExhaustedTypesHint = [],
+            cacheClass = null,
+            fallbackPath = null,
+            expiresAt = null
           } = cached);
         } else if (isRelative) {
           const base = spec.startsWith('/')
             ? normalizeRelPath(spec.slice(1))
             : normalizeRelPath(path.posix.join(path.posix.dirname(relNormalized), spec));
-          const languageRelativeResolved = resolveLanguageRelativeImport({
-            spec,
-            base,
-            importerInfo,
-            lookup: resolvedLookup
-          });
+          const languageRelativeResolved = stageTracker.withStage(
+            IMPORT_RESOLVER_STAGES.LANGUAGE_RESOLVER,
+            () => resolveLanguageRelativeImport({
+              spec,
+              base,
+              importerInfo,
+              lookup: resolvedLookup
+            })
+          );
+          if (languageRelativeResolved) {
+            stageTracker.markHit(IMPORT_RESOLVER_STAGES.LANGUAGE_RESOLVER);
+          } else {
+            stageTracker.markMiss(IMPORT_RESOLVER_STAGES.LANGUAGE_RESOLVER);
+          }
           const hasExtension = Boolean(path.posix.extname(base));
           const candidate = languageRelativeResolved
             || resolveCandidate(base, resolvedLookup)
@@ -480,14 +837,50 @@ export function resolveImportLinks({
             resolvedType = 'relative';
             resolvedPath = candidate;
           } else {
-            const absoluteExternal = shouldTreatAbsoluteSpecifierAsExternal({
-              spec,
-              importerInfo
-            });
-            if (absoluteExternal) {
-              resolvedType = 'external';
-            } else {
+            const generatedMatch = resolveGeneratedExpectationMatch();
+            const skipFallbackProbe = generatedMatch?.matched
+              && generatedMatch.source === 'index';
+            if (skipFallbackProbe) {
               resolvedType = 'unresolved';
+            } else {
+              const fallbackResult = stageTracker.withStage(
+                IMPORT_RESOLVER_STAGES.FILESYSTEM_PROBE,
+                () => {
+                  const absoluteExternal = shouldTreatAbsoluteSpecifierAsExternal({
+                    spec,
+                    importerInfo
+                  });
+                  if (absoluteExternal) {
+                    return {
+                      resolvedType: 'external',
+                      hit: false,
+                      cacheClass: null,
+                      fallbackPath: null
+                    };
+                  }
+                  const nonIndexedLocal = resolveExistingNonIndexedRelativeImport({
+                    spec,
+                    importerInfo,
+                    importerRel: relNormalized,
+                    specBudget,
+                    fsExistsIndexState: fsExistsIndexStats
+                  });
+                  return {
+                    resolvedType: nonIndexedLocal ? 'external' : 'unresolved',
+                    hit: Boolean(nonIndexedLocal),
+                    cacheClass: nonIndexedLocal ? 'ephemeral_external' : null,
+                    fallbackPath: nonIndexedLocal || null
+                  };
+                }
+              );
+              resolvedType = fallbackResult.resolvedType;
+              if (fallbackResult.cacheClass) cacheClass = fallbackResult.cacheClass;
+              if (fallbackResult.fallbackPath) fallbackPath = fallbackResult.fallbackPath;
+              if (fallbackResult.hit) {
+                stageTracker.markHit(IMPORT_RESOLVER_STAGES.FILESYSTEM_PROBE);
+              } else {
+                stageTracker.markMiss(IMPORT_RESOLVER_STAGES.FILESYSTEM_PROBE);
+              }
             }
           }
         } else {
@@ -508,34 +901,56 @@ export function resolveImportLinks({
               resolvedType = 'plugin-alias';
               resolvedPath = aliasResolvedPath;
             } else {
-              const languageResolved = resolveLanguageNonRelativeImport({
-                importerInfo,
-                spec,
-                lookup: resolvedLookup,
-                goModulePath,
-                dartPackageName
-              });
+              const languageResolved = stageTracker.withStage(
+                IMPORT_RESOLVER_STAGES.LANGUAGE_RESOLVER,
+                () => resolveLanguageNonRelativeImport({
+                  importerInfo,
+                  spec,
+                  lookup: resolvedLookup,
+                  goModulePath,
+                  dartPackageName
+                })
+              );
               if (languageResolved) {
+                stageTracker.markHit(IMPORT_RESOLVER_STAGES.LANGUAGE_RESOLVER);
                 resolvedType = languageResolved.resolvedType;
                 resolvedPath = languageResolved.resolvedPath;
               } else {
-                resolvedType = 'external';
-                packageName = parsePackageName(spec);
+                stageTracker.markMiss(IMPORT_RESOLVER_STAGES.LANGUAGE_RESOLVER);
+                const bazelLabelLike = isBazelLabelSpecifier(spec)
+                  && (importerInfo?.extension === '.bzl'
+                    || importerInfo?.extension === '.star'
+                    || importerInfo?.extension === '.bazel');
+                if (bazelLabelLike) {
+                  resolvedType = 'unresolved';
+                  unresolvedReasonCodeHint = IMPORT_REASON_CODES.RESOLVER_GAP;
+                } else {
+                  resolvedType = 'external';
+                  packageName = parsePackageName(spec);
+                }
               }
             }
           }
         }
 
         if (!cached) {
-          const expiresAt = resolvedType === 'unresolved'
+          expiresAt = resolvedType === 'unresolved'
             ? nowMs + NEGATIVE_CACHE_TTL_MS
-            : null;
+            : (
+              cacheClass === 'ephemeral_external'
+                ? nowMs + EPHEMERAL_EXTERNAL_CACHE_TTL_MS
+                : null
+            );
           insertResolutionCache(resolutionCache, specCacheKey, {
             resolvedType,
             resolvedPath,
             tsPathPattern,
             tsconfigPath,
             packageName,
+            unresolvedReasonCode: unresolvedReasonCodeHint,
+            unresolvedBudgetExhaustedTypes: unresolvedBudgetExhaustedTypesHint,
+            cacheClass,
+            fallbackPath,
             expiresAt
           });
         }
@@ -548,8 +963,17 @@ export function resolveImportLinks({
           resolvedPath,
           tsPathPattern,
           tsconfigPath,
-          packageName
+          packageName,
+          unresolvedReasonCode: unresolvedReasonCodeHint,
+          unresolvedBudgetExhaustedTypes: unresolvedBudgetExhaustedTypesHint,
+          cacheClass,
+          fallbackPath,
+          expiresAt
         };
+      }
+
+      if (!unresolvedReasonCodeHint && collectorHintReasonCode) {
+        unresolvedReasonCodeHint = collectorHintReasonCode;
       }
 
       if (resolvedType !== 'external' && resolvedType !== 'unresolved') {
@@ -563,6 +987,7 @@ export function resolveImportLinks({
         edgeTarget = `ext:${spec}`;
         if (enableGraph) addGraphNode(graphNodes, edgeTarget, 'external', capStats);
       } else {
+        resolutionState = IMPORT_RESOLUTION_STATES.UNRESOLVED;
         unresolvedCount += 1;
         const unresolvedKey = `${relNormalized}\u0001${spec}`;
         const ignoredUnresolved = shouldIgnoreUnresolvedImport({
@@ -570,6 +995,81 @@ export function resolveImportLinks({
           rawSpec,
           importerInfo
         });
+        const unresolvedDecision = stageTracker.withStage(
+          IMPORT_RESOLVER_STAGES.CLASSIFY,
+          () => assertUnresolvedDecision(
+            ignoredUnresolved
+              ? createUnresolvedDecision(IMPORT_REASON_CODES.PARSER_NOISE_SUPPRESSED)
+              : (
+                unresolvedReasonCodeHint
+                  ? createUnresolvedDecision(unresolvedReasonCodeHint)
+                  : createUnresolvedDecision(resolveUnresolvedReasonCode({
+                    importerRel: relNormalized,
+                    spec,
+                    rawSpec,
+                    buildContextClassification: resolveBuildContextClassification(),
+                    budgetExhausted: specBudget.isExhausted(),
+                    generatedExpectationMatch: resolveGeneratedExpectationMatch(),
+                    expectedArtifactsIndex
+                  }))
+              ),
+            {
+              context: `imports.resolve:${relNormalized}->${spec}`
+            }
+          )
+        );
+        stageTracker.markHit(IMPORT_RESOLVER_STAGES.CLASSIFY);
+        unresolvedReasonCode = unresolvedDecision.reasonCode;
+        unresolvedFailureCause = unresolvedDecision.failureCause;
+        unresolvedDisposition = unresolvedDecision.disposition;
+        unresolvedResolverStage = unresolvedDecision.resolverStage;
+        stageTracker.markReasonCode(
+          unresolvedResolverStage || IMPORT_RESOLVER_STAGES.CLASSIFY,
+          unresolvedReasonCode
+        );
+        if (!isActionableDisposition(unresolvedDisposition)) {
+          stageTracker.markDegraded(unresolvedResolverStage || IMPORT_RESOLVER_STAGES.CLASSIFY);
+        }
+        if (unresolvedReasonCode === IMPORT_REASON_CODES.RESOLVER_BUDGET_EXHAUSTED) {
+          stageTracker.markBudgetExhausted(unresolvedResolverStage || IMPORT_RESOLVER_STAGES.FILESYSTEM_PROBE);
+          unresolvedBudgetExhausted += 1;
+          const exhaustedTypes = specBudget.exhaustedTypes();
+          const effectiveExhaustedTypes = exhaustedTypes.length > 0
+            ? exhaustedTypes
+            : (
+              Array.isArray(unresolvedBudgetExhaustedTypesHint)
+                ? unresolvedBudgetExhaustedTypesHint
+                : []
+            );
+          for (const exhaustedType of effectiveExhaustedTypes) {
+            bumpCount(unresolvedBudgetExhaustedByType, exhaustedType, 1);
+          }
+          unresolvedBudgetExhaustedTypesHint = effectiveExhaustedTypes;
+        }
+        if (isActionableDisposition(unresolvedDisposition)) {
+          unresolvedActionable += 1;
+          bumpCount(unresolvedActionableHotspotCounts, relNormalized, 1);
+          bumpCount(
+            unresolvedActionableLanguageCounts,
+            resolveLanguageLabelFromImporter(relNormalized),
+            1
+          );
+        }
+        bumpCount(unresolvedReasonCounts, unresolvedReasonCode);
+        bumpCount(unresolvedFailureCauseCounts, unresolvedFailureCause);
+        bumpCount(unresolvedDispositionCounts, unresolvedDisposition);
+        bumpCount(unresolvedResolverStageCounts, unresolvedResolverStage);
+        if (specCacheKeyUsed && resolutionCache.has(specCacheKeyUsed)) {
+          const cachedEntry = resolutionCache.get(specCacheKeyUsed);
+          if (cachedEntry && typeof cachedEntry === 'object') {
+            cachedEntry.unresolvedReasonCode = unresolvedReasonCode;
+            cachedEntry.unresolvedBudgetExhaustedTypes = unresolvedBudgetExhaustedTypesHint;
+          }
+        }
+        if (nextSpecCache && nextSpecCache[spec] && typeof nextSpecCache[spec] === 'object') {
+          nextSpecCache[spec].unresolvedReasonCode = unresolvedReasonCode;
+          nextSpecCache[spec].unresolvedBudgetExhaustedTypes = unresolvedBudgetExhaustedTypesHint;
+        }
         if (ignoredUnresolved || unresolvedDedup.has(unresolvedKey)) {
           suppressedWarnings += 1;
           includeGraphEdge = false;
@@ -579,7 +1079,13 @@ export function resolveImportLinks({
             warningList.push({
               importer: relNormalized,
               specifier: rawSpec,
-              reason: 'unresolved'
+              reason: 'unresolved',
+              reasonCode: unresolvedReasonCode,
+              resolutionState,
+              failureCause: unresolvedFailureCause,
+              disposition: unresolvedDisposition,
+              resolverStage: unresolvedResolverStage,
+              collectorHint: collectorHint || null
             });
           } else {
             suppressedWarnings += 1;
@@ -600,11 +1106,16 @@ export function resolveImportLinks({
             to: edgeTarget,
             rawSpecifier: rawSpec,
             kind: 'import',
+            resolutionState,
             resolvedType,
             resolvedPath: resolvedPath || null,
             packageName: packageName || null,
             tsconfigPath: tsconfigRel ? normalizeRelPath(tsconfigRel) : null,
-            tsPathPattern: tsPathPattern || null
+            tsPathPattern: tsPathPattern || null,
+            reasonCode: unresolvedReasonCode,
+            failureCause: unresolvedFailureCause,
+            disposition: unresolvedDisposition,
+            resolverStage: unresolvedResolverStage
           });
         } else {
           truncatedEdges += 1;
@@ -616,6 +1127,7 @@ export function resolveImportLinks({
     if (nextSpecCache && fileHash && cacheState) {
       cacheState.files[relNormalized] = {
         hash: fileHash,
+        resolverScopeFingerprint: resolverStaticScopeFingerprint,
         tsconfigFingerprint,
         specs: nextSpecCache
       };
@@ -657,12 +1169,25 @@ export function resolveImportLinks({
       resolved: resolvedCount,
       external: externalCount,
       unresolved: unresolvedCount,
+      unresolvedActionable: unresolvedActionable,
+      unresolvedSuppressed: suppressedWarnings,
+      unresolvedByReasonCode: toSortedCountObject(unresolvedReasonCounts),
+      unresolvedByFailureCause: toSortedCountObject(unresolvedFailureCauseCounts),
+      unresolvedByDisposition: toSortedCountObject(unresolvedDispositionCounts),
+      unresolvedByResolverStage: toSortedCountObject(unresolvedResolverStageCounts),
+      unresolvedActionableHotspots: toSortedHotspotEntries(unresolvedActionableHotspotCounts),
+      unresolvedActionableByLanguage: toSortedCountObject(unresolvedActionableLanguageCounts),
+      unresolvedBudgetExhausted,
+      unresolvedBudgetExhaustedByType: toSortedCountObject(unresolvedBudgetExhaustedByType),
       truncatedEdges,
       truncatedEdgesByKind: truncatedByKind,
       truncatedNodes: capStats?.truncatedNodes ?? 0,
       maxEdges: MAX_GRAPH_EDGES,
       maxNodes: MAX_GRAPH_NODES,
-      warningSuppressed: suppressedWarnings
+      warningSuppressed: suppressedWarnings,
+      resolverFsExistsIndex: fsExistsIndexStats,
+      resolverBudgetPolicy: budgetPolicyStats,
+      resolverPipelineStages: stageTracker.snapshot()
     };
     if (suppressedWarnings > 0 && log) {
       log(`[imports] suppressed ${suppressedWarnings} import resolution warnings.`);
@@ -677,9 +1202,22 @@ export function resolveImportLinks({
       resolved: resolvedCount,
       external: externalCount,
       unresolved: unresolvedCount,
+      unresolvedActionable: unresolvedActionable,
+      unresolvedSuppressed: suppressedWarnings,
+      unresolvedByReasonCode: toSortedCountObject(unresolvedReasonCounts),
+      unresolvedByFailureCause: toSortedCountObject(unresolvedFailureCauseCounts),
+      unresolvedByDisposition: toSortedCountObject(unresolvedDispositionCounts),
+      unresolvedByResolverStage: toSortedCountObject(unresolvedResolverStageCounts),
+      unresolvedActionableHotspots: toSortedHotspotEntries(unresolvedActionableHotspotCounts),
+      unresolvedActionableByLanguage: toSortedCountObject(unresolvedActionableLanguageCounts),
+      unresolvedBudgetExhausted,
+      unresolvedBudgetExhaustedByType: toSortedCountObject(unresolvedBudgetExhaustedByType),
       truncatedEdges,
       truncatedNodes: capStats?.truncatedNodes ?? 0,
-      warningSuppressed: suppressedWarnings
+      warningSuppressed: suppressedWarnings,
+      resolverFsExistsIndex: fsExistsIndexStats,
+      resolverBudgetPolicy: budgetPolicyStats,
+      resolverPipelineStages: stageTracker.snapshot()
     },
     graph,
     unresolvedSamples: graph?.warnings || warningList,

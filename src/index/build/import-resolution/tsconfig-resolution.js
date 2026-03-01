@@ -37,7 +37,7 @@ const applyTsTemplate = (template, captures) => {
   });
 };
 
-const resolveTsConfigExtends = (baseDir, extendsValue) => {
+export const resolveTsConfigExtends = (baseDir, extendsValue) => {
   if (!extendsValue || typeof extendsValue !== 'string') return null;
   const raw = extendsValue.trim();
   if (!raw) return null;

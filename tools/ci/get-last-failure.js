@@ -7,6 +7,14 @@ const root = process.cwd();
 const candidates = [];
 const seenCandidatePaths = new Set();
 
+const isWithinRoot = (candidatePath) => {
+  if (!candidatePath) return false;
+  const resolvedRoot = path.resolve(root);
+  const resolvedCandidate = path.resolve(candidatePath);
+  const relative = path.relative(resolvedRoot, resolvedCandidate);
+  return Boolean(relative) && !relative.startsWith('..') && !path.isAbsolute(relative);
+};
+
 const readPrefix = async (filePath, maxBytes) => {
   try {
     const handle = await fs.open(filePath, 'r');
@@ -108,6 +116,9 @@ const collectLatestLogs = async () => {
   if (!pointer) return;
 
   const resolvedTarget = path.resolve(root, pointer);
+  if (!isWithinRoot(resolvedTarget)) {
+    return;
+  }
   let targetStat = null;
   try {
     targetStat = await fs.stat(resolvedTarget);

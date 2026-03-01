@@ -55,6 +55,13 @@ const parseDiffFormat = (raw) => {
   throw err;
 };
 
+const toOptionalPositiveInt = (value) => {
+  if (value == null) return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 1) return null;
+  return Math.floor(parsed);
+};
+
 /**
  * Parse diff event shaping/filter options from query parameters.
  *
@@ -99,8 +106,8 @@ const shapeDiffEvents = (events, options) => {
     if (kindFilter && !kindFilter.has(String(entry?.kind || ''))) return false;
     return true;
   });
-  const maxEvents = Number.isFinite(Number(options?.maxEvents)) ? Number(options.maxEvents) : null;
-  const maxBytes = Number.isFinite(Number(options?.maxBytes)) ? Number(options.maxBytes) : null;
+  const maxEvents = toOptionalPositiveInt(options?.maxEvents);
+  const maxBytes = toOptionalPositiveInt(options?.maxBytes);
   const limitedByEvents = maxEvents != null ? filtered.slice(0, maxEvents) : filtered;
   if (maxBytes == null) return limitedByEvents;
   const bounded = [];

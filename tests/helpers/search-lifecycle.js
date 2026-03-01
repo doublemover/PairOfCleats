@@ -4,21 +4,27 @@ import { applyTestEnv } from './test-env.js';
 import { makeTempDir } from './temp.js';
 import { runNode } from './run-node.js';
 import { runSearchCliWithSpawnSync } from '../../tools/shared/search-cli-harness.js';
-import { resolveTestCacheDir } from './test-cache.js';
+import { formatErroredCommandFailure } from './command-failure.js';
+import {
+  normalizeTestCacheScope,
+  resolveDefaultTestBuildStage,
+  resolveDefaultTestCacheScope,
+  resolveTestCacheDir
+} from './test-cache.js';
 
 const DEFAULT_SEARCH_TEST_CONFIG = {
   indexing: {
-    scm: { provider: 'none' }
+    scm: { provider: 'none' },
+    typeInference: false,
+    typeInferenceCrossFile: false,
+    riskAnalysis: false,
+    riskAnalysisCrossFile: false
+  },
+  tooling: {
+    lsp: {
+      enabled: false
+    }
   }
-};
-const VALID_CACHE_SCOPES = new Set(['isolated', 'shared']);
-
-const normalizeCacheScope = (cacheScope) => {
-  const normalized = String(cacheScope || 'isolated').trim().toLowerCase();
-  if (!VALID_CACHE_SCOPES.has(normalized)) {
-    throw new Error(`Unsupported cacheScope: ${cacheScope}`);
-  }
-  return normalized;
 };
 
 /**
@@ -42,7 +48,7 @@ export const createSearchLifecycle = async ({
   root = process.cwd(),
   tempPrefix = 'pairofcleats-search-',
   tempRoot,
-  cacheScope = 'isolated',
+  cacheScope = resolveDefaultTestCacheScope(),
   cacheName = 'search',
   repoDir = 'repo',
   cacheDir = 'cache',
@@ -50,7 +56,7 @@ export const createSearchLifecycle = async ({
   testConfig = DEFAULT_SEARCH_TEST_CONFIG,
   extraEnv
 } = {}) => {
-  const normalizedCacheScope = normalizeCacheScope(cacheScope);
+  const normalizedCacheScope = normalizeTestCacheScope(cacheScope, { defaultScope: 'isolated' });
   const { dir: sharedWorkspaceRoot } = resolveTestCacheDir(
     path.join('search-lifecycle', String(cacheName || 'search').trim() || 'search'),
     { root }
@@ -81,9 +87,13 @@ export const createSearchLifecycle = async ({
     const {
       label = 'build index',
       mode = null,
+      stage = resolveDefaultTestBuildStage(),
       extraArgs = []
     } = options;
     const args = [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot];
+    if (typeof stage === 'string' && stage.trim()) {
+      args.push('--stage', stage.trim());
+    }
     if (typeof mode === 'string' && mode.trim()) {
       args.push('--mode', mode.trim());
     }
@@ -112,9 +122,16 @@ export const createSearchLifecycle = async ({
         ...options
       });
     } catch (error) {
-      console.error(`Failed: ${label}`);
-      const stderr = typeof error?.stderr === 'string' ? error.stderr.trim() : '';
-      if (stderr) console.error(stderr);
+      const command = [
+        process.execPath,
+        ...(Array.isArray(error?.args) ? error.args : [path.join(root, 'search.js'), query])
+      ].join(' ');
+      console.error(formatErroredCommandFailure({
+        label,
+        command,
+        cwd: repoRoot,
+        error: error || {}
+      }));
       process.exit(1);
     }
   };

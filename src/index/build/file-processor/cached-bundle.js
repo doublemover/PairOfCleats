@@ -1,4 +1,4 @@
-import { sha1 } from '../../../shared/hash.js';
+import { normalizeBundleFormat, resolveBundleShardFilename, resolveManifestBundleNames } from '../../../shared/bundle-io.js';
 import { buildMetaV2 } from '../../metadata-v2.js';
 import { applyStructuralMatchesToChunks } from './chunk.js';
 import { pickMinLimit, resolveFileCaps } from './read.js';
@@ -107,11 +107,15 @@ export function reuseCachedBundle({
     encodingFallback: resolvedEncodingFallback,
     encodingConfidence: resolvedEncodingConfidence
   };
+  const manifestBundleNames = resolveManifestBundleNames(cachedEntry);
+  const manifestBundleFormat = normalizeBundleFormat(cachedEntry?.bundleFormat);
   const manifestEntry = cachedEntry ? {
     hash: resolvedHash,
     mtimeMs: fileStat.mtimeMs,
     size: fileStat.size,
-    bundle: cachedEntry.bundle || `${sha1(relKey)}.json`,
+    bundles: manifestBundleNames.length
+      ? manifestBundleNames
+      : [resolveBundleShardFilename(relKey, manifestBundleFormat, 0)],
     encoding: resolvedEncoding,
     encodingFallback: resolvedEncodingFallback,
     encodingConfidence: resolvedEncodingConfidence

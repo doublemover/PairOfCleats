@@ -552,7 +552,9 @@ export async function buildDatabaseFromBundles({
     };
 
     let count = 0;
-    let bundleFailure = null;
+    let successfulFiles = 0;
+    const bundleFailures = [];
+    let fatalBundleFailure = null;
     const maxInFlightBundles = useBundleWorkers
       ? Math.max(1, Math.min(totalFiles, Math.max(1, bundleThreads), 32))
       : 1;
@@ -566,24 +568,39 @@ export async function buildDatabaseFromBundles({
           file: record.file
         }));
         const results = await Promise.all(tasks);
-        const failure = results.find((result) => !result.ok);
-        if (failure) {
-          bundleFailure = `${failure.reason} for ${failure.file}`;
-          break;
-        }
         for (const result of results) {
-          try {
-            insertBundle(result.bundle, result.file);
-          } catch (err) {
-            bundleFailure = err?.message || 'bundle insert failed';
-            break;
-          }
-          const chunkCount = Array.isArray(result.bundle?.chunks) ? result.bundle.chunks.length : 0;
-          count += chunkCount;
           processedFiles += 1;
+          if (!result.ok) {
+            bundleFailures.push(`${result.reason} for ${result.file}`);
+            logBundleProgress(result.file, processedFiles === totalFiles);
+            continue;
+          }
+          const shardBundles = Array.isArray(result.bundleShards) ? result.bundleShards : [];
+          if (!shardBundles.length) {
+            bundleFailures.push(`invalid bundle shards for ${result.file}`);
+            logBundleProgress(result.file, processedFiles === totalFiles);
+            continue;
+          }
+          let chunkCount = 0;
+          try {
+            for (const shardBundle of shardBundles) {
+              insertBundle(shardBundle, result.file);
+              chunkCount += Array.isArray(shardBundle?.chunks) ? shardBundle.chunks.length : 0;
+            }
+          } catch (err) {
+            const reason = `${err?.message || 'bundle insert failed'} for ${result.file}`;
+            bundleFailures.push(reason);
+            if (/dense vector dims mismatch/i.test(String(err?.message || ''))) {
+              fatalBundleFailure = reason;
+            }
+            logBundleProgress(result.file, processedFiles === totalFiles);
+            continue;
+          }
+          count += chunkCount;
+          successfulFiles += 1;
           logBundleProgress(result.file, processedFiles === totalFiles);
         }
-        if (bundleFailure) break;
+        if (fatalBundleFailure) break;
       }
     } finally {
       await bundleLoader.close();
@@ -612,13 +629,60 @@ export async function buildDatabaseFromBundles({
       vectorAnnState.reason = 'no embeddings observed';
     }
 
-    if (bundleFailure) {
+    if (bundleFailures.length && emitOutput) {
+      warn(
+        `[sqlite] Bundle read failures for ${mode}: ${bundleFailures.length} file(s) ` +
+        `(loaded ${successfulFiles}/${totalFiles}).`
+      );
+      for (const failure of bundleFailures.slice(0, 3)) {
+        warn(`[sqlite] bundle failure ${mode}: ${failure}.`);
+      }
+    }
+
+    if (fatalBundleFailure) {
       if (emitOutput) {
-        warn(`[sqlite] Bundle build failed for ${mode}: ${bundleFailure}.`);
+        warn(`[sqlite] Bundle build failed for ${mode}: ${fatalBundleFailure}.`);
       }
       rollbackSqliteBuildTransaction(db, batchStats);
       emitDenseClampSummary();
-      return { count: 0, denseCount: 0, reason: bundleFailure, embedStats, vectorAnn: vectorAnnState };
+      return {
+        count: 0,
+        denseCount: 0,
+        reason: fatalBundleFailure,
+        embedStats,
+        vectorAnn: vectorAnnState
+      };
+    }
+
+    if (bundleFailures.length > 0) {
+      const reason = bundleFailures[0] || 'bundle read failures encountered';
+      if (emitOutput) {
+        warn(`[sqlite] Bundle build failed for ${mode}: ${reason}; using artifacts.`);
+      }
+      rollbackSqliteBuildTransaction(db, batchStats);
+      emitDenseClampSummary();
+      return {
+        count: 0,
+        denseCount: 0,
+        reason,
+        embedStats,
+        vectorAnn: vectorAnnState
+      };
+    }
+
+    if (successfulFiles <= 0) {
+      if (emitOutput) {
+        warn(`[sqlite] Bundle build failed for ${mode}: no readable bundles.`);
+      }
+      rollbackSqliteBuildTransaction(db, batchStats);
+      emitDenseClampSummary();
+      return {
+        count: 0,
+        denseCount: 0,
+        reason: bundleFailures[0] || 'no readable bundles',
+        embedStats,
+        vectorAnn: vectorAnnState
+      };
     }
     insertTokenStats.run(mode, totalDocs ? totalLen / totalDocs : 0, totalDocs);
     recordTable('token_stats', 1, 0);

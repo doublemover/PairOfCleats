@@ -1,8 +1,7 @@
 import path from 'node:path';
 import { buildLineIndex } from '../../../shared/lines.js';
-import { createLspClient, languageIdForFileExt, pathToFileUri } from '../lsp/client.js';
+import { languageIdForFileExt, pathToFileUri } from '../lsp/client.js';
 import { buildVfsUri } from '../lsp/uris.js';
-import { createToolingGuard } from './shared.js';
 import { buildIndexSignature } from '../../../retrieval/index-cache.js';
 import {
   computeVfsManifestHash,
@@ -37,7 +36,12 @@ import {
   resolveDocumentUri,
   resolveVfsIoBatching
 } from './lsp/vfs-batching.js';
+import { probeLspCapabilities } from './lsp/capabilities.js';
+import { withLspSession } from './lsp/session-pool.js';
 import { throwIfAborted } from '../../../shared/abort.js';
+import { coercePositiveInt } from '../../../shared/number-coerce.js';
+import { sleep } from '../../../shared/sleep.js';
+import { applyToolchainDaemonPolicyEnv } from '../../../shared/toolchain-env.js';
 
 /**
  * Parse positive integer configuration with fallback floor of 1.
@@ -46,23 +50,38 @@ import { throwIfAborted } from '../../../shared/abort.js';
  * @returns {number}
  */
 const clampPositiveInt = (value, fallback) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
-  return Math.max(1, Math.floor(parsed));
+  const parsed = coercePositiveInt(value);
+  if (parsed == null) return fallback;
+  return Math.max(1, parsed);
 };
+
+const LSP_SESSION_DESYNC_ERROR_CODE = 'ERR_TOOLING_LSP_SESSION_DESYNC';
+
+const coerceInitializeResultObject = (value) => (
+  value && typeof value === 'object' ? value : null
+);
 
 /**
  * Create the canonical empty LSP collection payload.
  * @param {Array<object>} checks
- * @returns {{byChunkUid:object,diagnosticsByChunkUid:object,enriched:number,diagnosticsCount:number,checks:Array<object>,hoverMetrics:object}}
+ * @param {object|null} [runtime]
+ * @returns {{byChunkUid:object,diagnosticsByChunkUid:object,enriched:number,diagnosticsCount:number,checks:Array<object>,hoverMetrics:object,runtime:object|null}}
  */
-const buildEmptyCollectResult = (checks) => ({
+const buildEmptyCollectResult = (checks, runtime = null) => ({
   byChunkUid: {},
   diagnosticsByChunkUid: {},
   enriched: 0,
   diagnosticsCount: 0,
   checks,
-  hoverMetrics: createEmptyHoverMetricsResult()
+  hoverMetrics: createEmptyHoverMetricsResult(),
+  runtime: runtime && typeof runtime === 'object'
+    ? {
+      ...runtime,
+      hoverMetrics: runtime.hoverMetrics && typeof runtime.hoverMetrics === 'object'
+        ? runtime.hoverMetrics
+        : createEmptyHoverMetricsResult()
+    }
+    : runtime
 });
 
 export { resolveVfsIoBatching, ensureVirtualFilesBatch };
@@ -103,7 +122,15 @@ export { resolveVfsIoBatching, ensureVirtualFilesBatch };
  * @param {object|boolean|null} [params.vfsColdStartCache=null]
  * @param {string|null} [params.cacheRoot=null]
  * @param {number|null} [params.hoverTimeoutMs=null]
+ * @param {number|null} [params.signatureHelpTimeoutMs=null]
+ * @param {number|null} [params.definitionTimeoutMs=null]
+ * @param {number|null} [params.typeDefinitionTimeoutMs=null]
+ * @param {number|null} [params.referencesTimeoutMs=null]
  * @param {boolean} [params.hoverEnabled=true]
+ * @param {boolean} [params.signatureHelpEnabled=true]
+ * @param {boolean} [params.definitionEnabled=true]
+ * @param {boolean} [params.typeDefinitionEnabled=true]
+ * @param {boolean} [params.referencesEnabled=true]
  * @param {boolean} [params.hoverRequireMissingReturn=true]
  * @param {number[]|number|null} [params.hoverSymbolKinds=null]
  * @param {number|null} [params.hoverMaxPerFile=null]
@@ -114,11 +141,23 @@ export { resolveVfsIoBatching, ensureVirtualFilesBatch };
  * @param {number|null} [params.documentSymbolTimeoutMs=null]
  * @param {number} [params.documentSymbolConcurrency=4]
  * @param {number} [params.hoverConcurrency=8]
+ * @param {number} [params.signatureHelpConcurrency=8]
+ * @param {number} [params.definitionConcurrency=8]
+ * @param {number} [params.typeDefinitionConcurrency=8]
+ * @param {number} [params.referencesConcurrency=8]
  * @param {number} [params.hoverCacheMaxEntries=50000]
  * @param {(line:string)=>boolean|null} [params.stderrFilter=null]
  * @param {object|null} [params.initializationOptions=null]
+ * @param {string|null} [params.providerId=null]
+ * @param {string|null} [params.workspaceKey=null]
+ * @param {number|null} [params.lifecycleRestartWindowMs=null]
+ * @param {number|null} [params.lifecycleMaxRestartsPerWindow=null]
+ * @param {number|null} [params.lifecycleFdPressureBackoffMs=null]
+ * @param {number|null} [params.sessionIdleTimeoutMs=null]
+ * @param {number|null} [params.sessionMaxLifetimeMs=null]
+ * @param {boolean} [params.sessionPoolingEnabled=true]
  * @param {AbortSignal|null} [params.abortSignal=null]
- * @returns {Promise<{byChunkUid:object,diagnosticsByChunkUid:object,enriched:number,diagnosticsCount:number,checks:Array<object>,hoverMetrics:object}>}
+ * @returns {Promise<{byChunkUid:object,diagnosticsByChunkUid:object,enriched:number,diagnosticsCount:number,checks:Array<object>,hoverMetrics:object,runtime:object|null}>}
  */
 export async function collectLspTypes({
   rootDir,
@@ -142,7 +181,15 @@ export async function collectLspTypes({
   vfsColdStartCache = null,
   cacheRoot = null,
   hoverTimeoutMs = null,
+  signatureHelpTimeoutMs = null,
+  definitionTimeoutMs = null,
+  typeDefinitionTimeoutMs = null,
+  referencesTimeoutMs = null,
   hoverEnabled = true,
+  signatureHelpEnabled = true,
+  definitionEnabled = true,
+  typeDefinitionEnabled = true,
+  referencesEnabled = true,
   hoverRequireMissingReturn = true,
   hoverSymbolKinds = null,
   hoverMaxPerFile = null,
@@ -153,9 +200,21 @@ export async function collectLspTypes({
   documentSymbolTimeoutMs = null,
   documentSymbolConcurrency = DEFAULT_DOCUMENT_SYMBOL_CONCURRENCY,
   hoverConcurrency = DEFAULT_HOVER_CONCURRENCY,
+  signatureHelpConcurrency = DEFAULT_HOVER_CONCURRENCY,
+  definitionConcurrency = DEFAULT_HOVER_CONCURRENCY,
+  typeDefinitionConcurrency = DEFAULT_HOVER_CONCURRENCY,
+  referencesConcurrency = DEFAULT_HOVER_CONCURRENCY,
   hoverCacheMaxEntries = DEFAULT_HOVER_CACHE_MAX_ENTRIES,
   stderrFilter = null,
   initializationOptions = null,
+  providerId = null,
+  workspaceKey = null,
+  lifecycleRestartWindowMs = null,
+  lifecycleMaxRestartsPerWindow = null,
+  lifecycleFdPressureBackoffMs = null,
+  sessionIdleTimeoutMs = null,
+  sessionMaxLifetimeMs = null,
+  sessionPoolingEnabled = true,
   abortSignal = null
 }) {
   const toolingAbortSignal = abortSignal && typeof abortSignal.aborted === 'boolean'
@@ -169,6 +228,10 @@ export async function collectLspTypes({
   };
 
   const resolvedHoverTimeout = resolvePositiveTimeout(hoverTimeoutMs);
+  const resolvedSignatureHelpTimeout = resolvePositiveTimeout(signatureHelpTimeoutMs) ?? resolvedHoverTimeout;
+  const resolvedDefinitionTimeout = resolvePositiveTimeout(definitionTimeoutMs) ?? resolvedHoverTimeout;
+  const resolvedTypeDefinitionTimeout = resolvePositiveTimeout(typeDefinitionTimeoutMs) ?? resolvedDefinitionTimeout;
+  const resolvedReferencesTimeout = resolvePositiveTimeout(referencesTimeoutMs) ?? resolvedTypeDefinitionTimeout;
   const resolvedDocumentSymbolTimeout = resolvePositiveTimeout(documentSymbolTimeoutMs);
   const resolvedHoverMaxPerFile = toFiniteInt(hoverMaxPerFile, 0);
   const resolvedHoverDisableAfterTimeouts = toFiniteInt(hoverDisableAfterTimeouts, 1);
@@ -186,6 +249,26 @@ export async function collectLspTypes({
     DEFAULT_HOVER_CONCURRENCY,
     { min: 1, max: 64 }
   );
+  const resolvedSignatureHelpConcurrency = clampIntRange(
+    signatureHelpConcurrency,
+    DEFAULT_HOVER_CONCURRENCY,
+    { min: 1, max: 64 }
+  );
+  const resolvedDefinitionConcurrency = clampIntRange(
+    definitionConcurrency,
+    DEFAULT_HOVER_CONCURRENCY,
+    { min: 1, max: 64 }
+  );
+  const resolvedTypeDefinitionConcurrency = clampIntRange(
+    typeDefinitionConcurrency,
+    DEFAULT_HOVER_CONCURRENCY,
+    { min: 1, max: 64 }
+  );
+  const resolvedReferencesConcurrency = clampIntRange(
+    referencesConcurrency,
+    DEFAULT_HOVER_CONCURRENCY,
+    { min: 1, max: 64 }
+  );
   const resolvedHoverCacheMaxEntries = clampIntRange(
     hoverCacheMaxEntries,
     DEFAULT_HOVER_CACHE_MAX_ENTRIES,
@@ -193,10 +276,17 @@ export async function collectLspTypes({
   );
 
   const checks = [];
+  const runtime = {
+    command: String(cmd || ''),
+    capabilities: null,
+    lifecycle: null,
+    guard: null,
+    requests: null
+  };
   const docs = Array.isArray(documents) ? documents : [];
   const targetList = Array.isArray(targets) ? targets : [];
   if (!docs.length || !targetList.length) {
-    return buildEmptyCollectResult(checks);
+    return buildEmptyCollectResult(checks, runtime);
   }
   throwIfAborted(toolingAbortSignal);
 
@@ -215,7 +305,7 @@ export async function collectLspTypes({
 
   const docsToOpen = docs.filter((doc) => (targetsByPath.get(doc.virtualPath) || []).length);
   if (!docsToOpen.length) {
-    return buildEmptyCollectResult(checks);
+    return buildEmptyCollectResult(checks, runtime);
   }
 
   let coldStartCache = null;
@@ -237,8 +327,11 @@ export async function collectLspTypes({
     diagnosticsUriBufferTrimmed: false,
     diagnosticsPerChunkTrimmed: false,
     hoverTimedOut: false,
+    documentSymbolFailed: false,
     circuitOpened: false,
-    initializeFailed: false
+    initializeFailed: false,
+    fdPressureBackoff: false,
+    crashLoopQuarantined: false
   };
 
   const { diagnosticsByUri, onNotification } = createDiagnosticsCollector({
@@ -249,196 +342,467 @@ export async function collectLspTypes({
     maxDiagnosticsPerUri: resolvedMaxDiagnosticsPerUri
   });
 
-  const client = createLspClient({
+  const runWithPooledSession = () => withLspSession({
+    enabled: sessionPoolingEnabled !== false,
+    repoRoot: rootDir,
+    providerId: String(providerId || cmd || 'lsp'),
+    workspaceKey: workspaceKey || rootDir,
     cmd,
     args,
     cwd: rootDir,
+    env: applyToolchainDaemonPolicyEnv(process.env),
     log,
     stderrFilter,
-    onNotification
-  });
-  let detachAbortHandler = null;
-  if (toolingAbortSignal && typeof toolingAbortSignal.addEventListener === 'function') {
-    const onAbort = () => {
-      client.kill();
-    };
-    toolingAbortSignal.addEventListener('abort', onAbort, { once: true });
-    detachAbortHandler = () => toolingAbortSignal.removeEventListener('abort', onAbort);
-    if (toolingAbortSignal.aborted) onAbort();
-  }
-
-  const guard = createToolingGuard({
-    name: cmd,
+    onNotification,
     timeoutMs,
     retries,
     breakerThreshold,
-    log
-  });
-
-  const rootUri = pathToFileUri(rootDir);
-  let shouldShutdownClient = false;
-  try {
-    throwIfAborted(toolingAbortSignal);
-    await guard.run(({ timeoutMs: guardTimeout }) => client.initialize({
-      rootUri,
-      capabilities: { textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } } },
-      initializationOptions,
-      timeoutMs: guardTimeout
-    }), { label: 'initialize' });
-    shouldShutdownClient = true;
-  } catch (err) {
-    throwIfAborted(toolingAbortSignal);
-    checkFlags.initializeFailed = true;
-    checks.push({
-      name: 'tooling_initialize_failed',
-      status: 'warn',
-      message: `${cmd} initialize failed: ${err?.message || err}`
-    });
-    log(`[index] ${cmd} initialize failed: ${err?.message || err}`);
-    client.kill();
-    return buildEmptyCollectResult(checks);
-  }
-
-  try {
-    const byChunkUid = {};
-    let enriched = 0;
-    const signatureParseCache = new Map();
-    const hoverFileStats = new Map();
-    const hoverLatencyMs = [];
-    const hoverMetrics = createEmptyHoverMetricsResult();
-    const hoverControl = { disabledGlobal: false };
-    const hoverLimiter = createConcurrencyLimiter(resolvedHoverConcurrency);
-    const hoverCacheState = await loadHoverCache(cacheRoot);
-    const hoverCacheEntries = hoverCacheState.entries;
-    let hoverCacheDirty = false;
-    const markHoverCacheDirty = () => {
-      hoverCacheDirty = true;
+    lifecycleName: String(providerId || cmd || 'lsp'),
+    lifecycleRestartWindowMs,
+    lifecycleMaxRestartsPerWindow,
+    lifecycleFdPressureBackoffMs,
+    sessionIdleTimeoutMs,
+    sessionMaxLifetimeMs,
+    initializationOptions
+  }, async (lease) => {
+    const client = lease.client;
+    const guard = lease.guard;
+    const lifecycleHealth = lease.lifecycleHealth;
+    const killClientSafely = async () => {
+      try {
+        await Promise.resolve(client.kill());
+      } catch {}
+    };
+    runtime.pooling = {
+      enabled: lease.pooled,
+      sessionKey: lease.sessionKey,
+      reused: lease.reused,
+      recycleCount: lease.recycleCount,
+      ageMs: lease.ageMs,
+      state: lease.state || null,
+      transportGeneration: Number.isFinite(Number(lease.transportGeneration))
+        ? Number(lease.transportGeneration)
+        : null
     };
 
-    throwIfAborted(toolingAbortSignal);
-    const openDocs = new Map();
-    const diskPathMap = resolvedScheme === 'file'
-      ? await ensureVirtualFilesBatch({
-        rootDir: resolvedRoot,
-        docs: docsToOpen,
-        batching: resolvedBatching,
-        coldStartCache
-      })
-      : null;
+    let detachAbortHandler = null;
+    let abortKillPromise = null;
+    if (toolingAbortSignal && typeof toolingAbortSignal.addEventListener === 'function') {
+      const onAbort = () => {
+        abortKillPromise = killClientSafely();
+      };
+      toolingAbortSignal.addEventListener('abort', onAbort, { once: true });
+      detachAbortHandler = () => toolingAbortSignal.removeEventListener('abort', onAbort);
+      if (toolingAbortSignal.aborted) onAbort();
+    }
 
-    const processDoc = async (doc) => {
+    const refreshRuntimeState = () => {
+      runtime.lifecycle = lifecycleHealth.getState();
+      runtime.guard = guard.getState ? guard.getState() : null;
+      runtime.requests = typeof client.getMetrics === 'function' ? client.getMetrics() : null;
+    };
+
+    const runWithHealthGuard = async (fn, options = {}) => {
+      const state = lifecycleHealth.getState();
+      runtime.lifecycle = state;
+      if (state.crashLoopQuarantined) {
+        const err = new Error(`${cmd} crash-loop quarantine active.`);
+        err.code = 'TOOLING_CRASH_LOOP';
+        err.detail = state;
+        throw err;
+      }
+      if (state.fdPressureBackoffActive) {
+        if (!checkFlags.fdPressureBackoff) {
+          checkFlags.fdPressureBackoff = true;
+          checks.push({
+            name: 'tooling_fd_pressure_backoff',
+            status: 'warn',
+            message: `${cmd} observed fd pressure; delaying LSP requests by ${state.fdPressureBackoffRemainingMs}ms.`,
+            count: state.fdPressureEvents
+          });
+        }
+        await sleep(Math.min(1000, Math.max(25, state.fdPressureBackoffRemainingMs)));
+      }
+      try {
+        const out = await guard.run(fn, options);
+        refreshRuntimeState();
+        return out;
+      } catch (err) {
+        const message = String(err?.message || err || '').toLowerCase();
+        const transportFailure = err?.code === 'ERR_LSP_TRANSPORT_CLOSED'
+          || message.includes('transport closed')
+          || message.includes('writer unavailable')
+          || message.includes('lsp exited');
+        const requestTimeout = err?.code === 'ERR_LSP_REQUEST_TIMEOUT'
+          || message.includes('request timeout');
+        if (transportFailure && typeof lease.markPoisoned === 'function') {
+          lease.markPoisoned('transport_failure');
+        }
+        if (requestTimeout && typeof lease.markPoisoned === 'function') {
+          lease.markPoisoned('request_timeout');
+        }
+        refreshRuntimeState();
+        throw err;
+      }
+    };
+
+    const rootUri = pathToFileUri(rootDir);
+    let shouldShutdownClient = false;
+    let capabilityMask = null;
+    let effectiveHoverEnabled = hoverEnabled !== false;
+    let effectiveSignatureHelpEnabled = signatureHelpEnabled !== false;
+    let effectiveDefinitionEnabled = definitionEnabled !== false;
+    let effectiveTypeDefinitionEnabled = typeDefinitionEnabled !== false;
+    let effectiveReferencesEnabled = referencesEnabled !== false;
+    let skipSymbolCollection = false;
+    try {
       throwIfAborted(toolingAbortSignal);
-      const languageId = doc.languageId || languageIdForFileExt(path.extname(doc.virtualPath));
-      const uri = await resolveDocumentUri({
-        rootDir: resolvedRoot,
-        doc,
-        uriScheme: resolvedScheme,
-        tokenMode: vfsTokenMode,
-        diskPathMap,
-        coldStartCache
+      let initializeResult = null;
+      const mustInitialize = lease.shouldInitialize !== false;
+      if (mustInitialize) {
+        if (typeof lease.markInitializing === 'function') lease.markInitializing();
+        const rawInitializeResult = await runWithHealthGuard(({ timeoutMs: guardTimeout }) => client.initialize({
+          rootUri,
+          capabilities: { textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } } },
+          initializationOptions,
+          timeoutMs: guardTimeout
+        }), { label: 'initialize' });
+        initializeResult = coerceInitializeResultObject(rawInitializeResult);
+        if (!initializeResult) {
+          const initError = new Error(`${cmd} initialize returned invalid response.`);
+          initError.code = 'ERR_TOOLING_LSP_INVALID_INITIALIZE_RESULT';
+          throw initError;
+        }
+        if (typeof lease.markInitialized === 'function') lease.markInitialized(initializeResult);
+      } else {
+        initializeResult = coerceInitializeResultObject(lease.initializationResult);
+        if (!initializeResult) {
+          if (typeof lease.markPoisoned === 'function') {
+            lease.markPoisoned('initialize_state_desync');
+          }
+          const desyncError = new Error(`${cmd} pooled session missing initialize state.`);
+          desyncError.code = LSP_SESSION_DESYNC_ERROR_CODE;
+          throw desyncError;
+        }
+      }
+      capabilityMask = probeLspCapabilities(initializeResult);
+      runtime.capabilities = capabilityMask;
+      effectiveHoverEnabled = effectiveHoverEnabled && capabilityMask.hover;
+      effectiveSignatureHelpEnabled = effectiveSignatureHelpEnabled && capabilityMask.signatureHelp;
+      effectiveDefinitionEnabled = effectiveDefinitionEnabled && capabilityMask.definition;
+      effectiveTypeDefinitionEnabled = effectiveTypeDefinitionEnabled && capabilityMask.typeDefinition;
+      effectiveReferencesEnabled = effectiveReferencesEnabled && capabilityMask.references;
+      if (!capabilityMask.documentSymbol) {
+        checks.push({
+          name: 'tooling_capability_missing_document_symbol',
+          status: 'warn',
+          message: `${cmd} does not advertise textDocument/documentSymbol; skipping LSP enrichment.`
+        });
+        skipSymbolCollection = true;
+        shouldShutdownClient = lease.pooled !== true;
+      }
+      if (hoverEnabled !== false && !capabilityMask.hover) {
+        checks.push({
+          name: 'tooling_capability_missing_hover',
+          status: 'warn',
+          message: `${cmd} does not advertise textDocument/hover; hover enrichment disabled.`
+        });
+      }
+      if (signatureHelpEnabled !== false && !capabilityMask.signatureHelp) {
+        checks.push({
+          name: 'tooling_capability_missing_signature_help',
+          status: 'info',
+          message: `${cmd} does not advertise textDocument/signatureHelp.`
+        });
+      }
+      if (definitionEnabled !== false && !capabilityMask.definition) {
+        checks.push({
+          name: 'tooling_capability_missing_definition',
+          status: 'info',
+          message: `${cmd} does not advertise textDocument/definition.`
+        });
+      }
+      if (typeDefinitionEnabled !== false && !capabilityMask.typeDefinition) {
+        checks.push({
+          name: 'tooling_capability_missing_type_definition',
+          status: 'info',
+          message: `${cmd} does not advertise textDocument/typeDefinition.`
+        });
+      }
+      if (referencesEnabled !== false && !capabilityMask.references) {
+        checks.push({
+          name: 'tooling_capability_missing_references',
+          status: 'info',
+          message: `${cmd} does not advertise textDocument/references.`
+        });
+      }
+      shouldShutdownClient = lease.pooled !== true;
+    } catch (err) {
+      throwIfAborted(toolingAbortSignal);
+      if (err?.code === LSP_SESSION_DESYNC_ERROR_CODE) {
+        throw err;
+      }
+      checkFlags.initializeFailed = true;
+      if (typeof lease.markPoisoned === 'function') {
+        lease.markPoisoned('initialize_failed');
+      }
+      if (err?.code === 'TOOLING_CRASH_LOOP' && !checkFlags.crashLoopQuarantined) {
+        checkFlags.crashLoopQuarantined = true;
+        checks.push({
+          name: 'tooling_crash_loop_quarantined',
+          status: 'warn',
+          message: `${cmd} crash-loop quarantine active; skipping provider work.`
+        });
+      }
+      checks.push({
+        name: 'tooling_initialize_failed',
+        status: 'warn',
+        message: `${cmd} initialize failed: ${err?.message || err}`
       });
-      const legacyUri = resolvedScheme === 'poc-vfs' ? buildVfsUri(doc.virtualPath) : null;
+      log(`[index] ${cmd} initialize failed: ${err?.message || err}`);
+      await killClientSafely();
+      if (detachAbortHandler) {
+        try {
+          detachAbortHandler();
+        } catch {}
+        detachAbortHandler = null;
+      }
+      refreshRuntimeState();
+      return buildEmptyCollectResult(checks, {
+        ...runtime,
+        lifecycle: lifecycleHealth.getState()
+      });
+    }
 
-      const { enrichedDelta } = await processDocumentTypes({
-        doc,
-        cmd,
-        client,
-        guard,
-        log,
-        strict,
-        parseSignature,
-        lineIndexFactory,
-        uri,
-        legacyUri,
-        languageId,
+    try {
+      if (skipSymbolCollection) {
+        runtime.lifecycle = lifecycleHealth.getState();
+        runtime.guard = guard.getState ? guard.getState() : null;
+        runtime.requests = typeof client.getMetrics === 'function' ? client.getMetrics() : null;
+        return buildEmptyCollectResult(checks, runtime);
+      }
+      const byChunkUid = {};
+      let enriched = 0;
+      const signatureParseCache = new Map();
+      const hoverFileStats = new Map();
+      const hoverLatencyMs = [];
+      const hoverMetrics = createEmptyHoverMetricsResult();
+      const hoverControl = { disabledGlobal: false };
+      const hoverLimiter = createConcurrencyLimiter(resolvedHoverConcurrency);
+      const signatureHelpLimiter = createConcurrencyLimiter(resolvedSignatureHelpConcurrency);
+      const definitionLimiter = createConcurrencyLimiter(resolvedDefinitionConcurrency);
+      const typeDefinitionLimiter = createConcurrencyLimiter(resolvedTypeDefinitionConcurrency);
+      const referencesLimiter = createConcurrencyLimiter(resolvedReferencesConcurrency);
+      const hoverCacheState = await loadHoverCache(cacheRoot);
+      const hoverCacheEntries = hoverCacheState.entries;
+      let hoverCacheDirty = false;
+      const markHoverCacheDirty = () => {
+        hoverCacheDirty = true;
+      };
+
+      throwIfAborted(toolingAbortSignal);
+      const openDocs = new Map();
+      const diskPathMap = resolvedScheme === 'file'
+        ? await ensureVirtualFilesBatch({
+          rootDir: resolvedRoot,
+          docs: docsToOpen,
+          batching: resolvedBatching,
+          coldStartCache
+        })
+        : null;
+
+      const processDoc = async (doc) => {
+        throwIfAborted(toolingAbortSignal);
+        const languageId = doc.languageId || languageIdForFileExt(path.extname(doc.virtualPath));
+        const uri = await resolveDocumentUri({
+          rootDir: resolvedRoot,
+          doc,
+          uriScheme: resolvedScheme,
+          tokenMode: vfsTokenMode,
+          diskPathMap,
+          coldStartCache
+        });
+        const legacyUri = resolvedScheme === 'poc-vfs' ? buildVfsUri(doc.virtualPath) : null;
+
+        const { enrichedDelta } = await processDocumentTypes({
+          doc,
+          cmd,
+          client,
+          guard,
+          guardRun: runWithHealthGuard,
+          log,
+          strict,
+          parseSignature,
+          lineIndexFactory,
+          uri,
+          legacyUri,
+          languageId,
+          openDocs,
+          targetsByPath,
+          byChunkUid,
+          signatureParseCache,
+          hoverEnabled: effectiveHoverEnabled,
+          signatureHelpEnabled: effectiveSignatureHelpEnabled,
+          definitionEnabled: effectiveDefinitionEnabled,
+          typeDefinitionEnabled: effectiveTypeDefinitionEnabled,
+          referencesEnabled: effectiveReferencesEnabled,
+          hoverRequireMissingReturn,
+          resolvedHoverKinds,
+          resolvedHoverMaxPerFile,
+          resolvedHoverDisableAfterTimeouts,
+          resolvedHoverTimeout,
+          resolvedSignatureHelpTimeout,
+          resolvedDefinitionTimeout,
+          resolvedTypeDefinitionTimeout,
+          resolvedReferencesTimeout,
+          resolvedDocumentSymbolTimeout,
+          hoverLimiter,
+          signatureHelpLimiter,
+          definitionLimiter,
+          typeDefinitionLimiter,
+          referencesLimiter,
+          hoverCacheEntries,
+          markHoverCacheDirty,
+          hoverControl,
+          hoverFileStats,
+          hoverLatencyMs,
+          hoverMetrics,
+          checks,
+          checkFlags,
+          abortSignal: toolingAbortSignal
+        });
+        enriched += enrichedDelta;
+      };
+
+      await runWithConcurrency(docsToOpen, resolvedDocumentSymbolConcurrency, processDoc, {
+        signal: toolingAbortSignal
+      });
+      throwIfAborted(toolingAbortSignal);
+      if (captureDiagnostics) {
+        // PublishDiagnostics notifications can trail didOpen/documentSymbol by a few
+        // milliseconds; give the session a brief drain window before shaping.
+        await sleep(15);
+        throwIfAborted(toolingAbortSignal);
+      }
+
+      if (hoverCacheDirty) {
+        try {
+          await persistHoverCache({
+            cachePath: hoverCacheState.path,
+            entries: hoverCacheEntries,
+            maxEntries: resolvedHoverCacheMaxEntries
+          });
+        } catch {}
+      }
+      throwIfAborted(toolingAbortSignal);
+
+      const { diagnosticsByChunkUid, diagnosticsCount } = shapeDiagnosticsByChunkUid({
+        captureDiagnostics,
+        diagnosticsByUri,
+        docs,
         openDocs,
         targetsByPath,
-        byChunkUid,
-        signatureParseCache,
-        hoverEnabled,
-        hoverRequireMissingReturn,
-        resolvedHoverKinds,
-        resolvedHoverMaxPerFile,
-        resolvedHoverDisableAfterTimeouts,
-        resolvedHoverTimeout,
-        resolvedDocumentSymbolTimeout,
-        hoverLimiter,
-        hoverCacheEntries,
-        markHoverCacheDirty,
-        hoverControl,
-        hoverFileStats,
-        hoverLatencyMs,
-        hoverMetrics,
+        diskPathMap,
+        resolvedRoot,
+        resolvedScheme,
+        lineIndexFactory,
+        maxDiagnosticsPerChunk: resolvedMaxDiagnosticsPerChunk,
         checks,
         checkFlags,
-        abortSignal: toolingAbortSignal
+        findTargetForOffsets
       });
-      enriched += enrichedDelta;
-    };
 
-    await runWithConcurrency(docsToOpen, resolvedDocumentSymbolConcurrency, processDoc, {
-      signal: toolingAbortSignal
-    });
-    throwIfAborted(toolingAbortSignal);
-
-    if (hoverCacheDirty) {
-      try {
-        await persistHoverCache({
-          cachePath: hoverCacheState.path,
-          entries: hoverCacheEntries,
-          maxEntries: resolvedHoverCacheMaxEntries
-        });
-      } catch {}
-    }
-    throwIfAborted(toolingAbortSignal);
-
-    const { diagnosticsByChunkUid, diagnosticsCount } = shapeDiagnosticsByChunkUid({
-      captureDiagnostics,
-      diagnosticsByUri,
-      docs,
-      openDocs,
-      targetsByPath,
-      diskPathMap,
-      resolvedRoot,
-      resolvedScheme,
-      lineIndexFactory,
-      maxDiagnosticsPerChunk: resolvedMaxDiagnosticsPerChunk,
-      checks,
-      checkFlags,
-      findTargetForOffsets
-    });
-
-    if (coldStartCache?.flush) {
-      try {
-        await coldStartCache.flush();
-      } catch (err) {
-        log(`[tooling] vfs cold-start cache flush failed: ${err?.message || err}`);
+      if (coldStartCache?.flush) {
+        try {
+          await coldStartCache.flush();
+        } catch (err) {
+          log(`[tooling] vfs cold-start cache flush failed: ${err?.message || err}`);
+        }
       }
-    }
 
-    return {
-      byChunkUid,
-      diagnosticsByChunkUid,
-      enriched,
-      diagnosticsCount,
-      checks,
-      hoverMetrics: summarizeHoverMetrics({
+      const lifecycleState = lifecycleHealth.getState();
+      runtime.lifecycle = lifecycleState;
+      runtime.guard = guard.getState ? guard.getState() : null;
+      runtime.requests = typeof client.getMetrics === 'function' ? client.getMetrics() : null;
+      if (lifecycleState.crashLoopTrips > 0 && !checkFlags.crashLoopQuarantined) {
+        checkFlags.crashLoopQuarantined = true;
+        checks.push({
+          name: 'tooling_crash_loop_detected',
+          status: 'warn',
+          message: `${cmd} observed crash-loop pressure (${lifecycleState.crashLoopTrips} trip${lifecycleState.crashLoopTrips === 1 ? '' : 's'}).`,
+          count: lifecycleState.crashLoopTrips
+        });
+      }
+
+      const summarizedHoverMetrics = summarizeHoverMetrics({
         hoverMetrics,
         hoverLatencyMs,
         hoverFileStats
-      })
-    };
-  } finally {
-    if (detachAbortHandler) {
-      try {
-        detachAbortHandler();
-      } catch {}
+      });
+      runtime.hoverMetrics = summarizedHoverMetrics;
+      const fallbackCount = Number(summarizedHoverMetrics.fallbackUsed || 0);
+      const incompleteCount = Number(summarizedHoverMetrics.incompleteSymbols || 0);
+      const fallbackRatio = incompleteCount > 0 ? (fallbackCount / incompleteCount) : 0;
+      if (fallbackCount >= 10 || fallbackRatio >= 0.25) {
+        log(
+          `[tooling] ${cmd} fallback summary: used=${fallbackCount} incomplete=${incompleteCount} ratio=${fallbackRatio.toFixed(2)} reasons=${JSON.stringify(summarizedHoverMetrics.fallbackReasonCounts || {})}`
+        );
+      }
+
+      return {
+        byChunkUid,
+        diagnosticsByChunkUid,
+        enriched,
+        diagnosticsCount,
+        checks,
+        runtime,
+        hoverMetrics: summarizedHoverMetrics
+      };
+    } finally {
+      if (detachAbortHandler) {
+        try {
+          detachAbortHandler();
+        } catch {}
+      }
+      if (abortKillPromise && typeof abortKillPromise.then === 'function') {
+        try {
+          await abortKillPromise;
+        } catch {}
+      }
+      if (shouldShutdownClient) {
+        try {
+          await client.shutdownAndExit();
+        } catch {}
+      }
+      if (lease.pooled !== true) {
+        await killClientSafely();
+      }
     }
-    if (shouldShutdownClient) {
-      try {
-        await client.shutdownAndExit();
-      } catch {}
+  });
+  let attemptedDesyncRecovery = false;
+  while (true) {
+    try {
+      return await runWithPooledSession();
+    } catch (err) {
+      const isSessionDesync = err?.code === LSP_SESSION_DESYNC_ERROR_CODE;
+      if (!isSessionDesync) throw err;
+      if (attemptedDesyncRecovery) {
+        checkFlags.initializeFailed = true;
+        checks.push({
+          name: 'tooling_initialize_failed',
+          status: 'warn',
+          message: `${cmd} initialize failed: pooled session desync persisted after recycle.`
+        });
+        log(`[index] ${cmd} initialize failed: pooled session desync persisted after recycle.`);
+        return buildEmptyCollectResult(checks, runtime);
+      }
+      attemptedDesyncRecovery = true;
+      checks.push({
+        name: 'tooling_session_recycled_after_desync',
+        status: 'warn',
+        message: `${cmd} pooled session initialize state desynced; recycled session and retrying once.`
+      });
+      log(`[tooling] ${cmd} pooled session initialize state desynced; recycling session and retrying once.`);
     }
-    client.kill();
   }
 }

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { getBenchMirrorRefreshMs } from '../../src/shared/env.js';
+import { applyToolchainDaemonPolicyEnv } from '../../src/shared/toolchain-env.js';
 import { parseBenchLanguageArgs } from './language/cli.js';
 import { loadBenchConfig } from './language/config.js';
 import {
@@ -89,7 +90,7 @@ const {
 
 const mirrorCacheRoot = resolveMirrorCacheRoot({ reposRoot });
 const mirrorRefreshMs = resolveMirrorRefreshMs(getBenchMirrorRefreshMs());
-const baseEnv = { ...process.env };
+const baseEnv = applyToolchainDaemonPolicyEnv(process.env);
 const benchEnvironmentMetadata = buildBenchEnvironmentMetadata(baseEnv);
 const quietMode = argv.quiet === true || argv.json === true;
 const display = createToolDisplay({

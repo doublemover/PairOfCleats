@@ -2,7 +2,7 @@
 import { createInProcessSearchRunner, ensureFixtureIndex } from '../../helpers/fixture-index.js';
 import { skipIfNativeGrammarsUnavailable } from '../../indexing/tree-sitter/native-availability.js';
 
-if (skipIfNativeGrammarsUnavailable(['javascript', 'typescript'], 'retrieval type filters')) {
+if (skipIfNativeGrammarsUnavailable(['typescript'], 'retrieval type filters')) {
   process.exit(0);
 }
 
@@ -14,8 +14,8 @@ const testConfig = {
 };
 
 const { fixtureRoot, env } = await ensureFixtureIndex({
-  fixtureName: 'languages',
-  cacheName: 'language-fixture-types',
+  fixtureName: 'type-filters',
+  cacheName: 'type-filters',
   envOverrides: { PAIROFCLEATS_TEST_CONFIG: JSON.stringify(testConfig) },
   cacheScope: 'shared',
   requiredModes: ['code']
@@ -25,7 +25,7 @@ const runSearch = createInProcessSearchRunner({ fixtureRoot, env });
 const inferred = await runSearch({
   query: 'makeWidget',
   mode: 'code',
-  args: ['--inferred-type', 'object']
+  args: ['--backend', 'memory', '--inferred-type', 'widget']
 });
 if (!(inferred.code || []).length) {
   console.log('inferred-type metadata unavailable in fixture index; skipping retrieval type filters test.');
@@ -35,7 +35,7 @@ if (!(inferred.code || []).length) {
 const returns = await runSearch({
   query: 'makeWidget',
   mode: 'code',
-  args: ['--return-type', 'Widget']
+  args: ['--backend', 'memory', '--return-type', 'Widget']
 });
 if (!(returns.code || []).length) {
   console.log('return-type metadata unavailable in fixture index; skipping retrieval type filters test.');

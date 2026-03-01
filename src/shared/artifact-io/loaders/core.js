@@ -5,7 +5,9 @@ import {
   loadPiecesManifest,
   resolveManifestArtifactSources
 } from '../manifest.js';
-import { loadBinaryColumnarJsonRows } from './core-binary-columnar.js';
+import {
+  iterateBinaryColumnarJsonRows
+} from './core-binary-columnar.js';
 import {
   resolveManifestMaxBytes,
   resolveReadableArtifactPath,
@@ -50,7 +52,7 @@ const iterateBinaryColumnarRows = function* ({
   enforceBinaryDataBudget = true
 }) {
   for (let index = 0; index < sources.paths.length; index += 1) {
-    const rows = loadBinaryColumnarJsonRows({
+    const rows = iterateBinaryColumnarJsonRows({
       dir,
       baseName,
       sources: resolveBinaryColumnarSourcePart(sources, index),
@@ -59,8 +61,8 @@ const iterateBinaryColumnarRows = function* ({
       strict,
       enforceDataBudget: enforceBinaryDataBudget
     });
-    for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
-      yield rows[rowIndex];
+    for (const row of rows) {
+      yield row;
     }
   }
 };

@@ -3,7 +3,7 @@ import path from 'node:path';
 export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ciOutDir, runNode }) => [
   {
     label: 'summary-report-test',
-    run: () => runNode('summary-report-test', path.join(root, 'tests', 'tooling', 'reports', 'summary', 'summary-report.test.js')),
+    run: () => runNode('summary-report-test', path.join(root, 'tests', 'tooling', 'reports', 'summary', 'report.test.js')),
     covers: ['summary-report-test', 'summary-report']
   },
   {
@@ -13,7 +13,7 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
   },
   {
     label: 'index-validate-test',
-    run: () => runNode('index-validate-test', path.join(root, 'tests', 'indexing', 'validate', 'index-validate.test.js')),
+    run: () => runNode('index-validate-test', path.join(root, 'tests', 'indexing', 'validate', 'index.test.js')),
     covers: ['index-validate-test', 'index-validate']
   },
   {
@@ -23,22 +23,22 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
   },
   {
     label: 'ctags-ingest-test',
-    run: () => runNode('ctags-ingest-test', path.join(root, 'tests', 'tooling', 'ingest', 'ctags', 'ctags-ingest.test.js')),
+    run: () => runNode('ctags-ingest-test', path.join(root, 'tests', 'tooling', 'ingest', 'ctags', 'ingest.test.js')),
     covers: ['ctags-ingest-test']
   },
   {
     label: 'scip-ingest-test',
-    run: () => runNode('scip-ingest-test', path.join(root, 'tests', 'tooling', 'ingest', 'scip', 'scip-ingest.test.js')),
+    run: () => runNode('scip-ingest-test', path.join(root, 'tests', 'tooling', 'ingest', 'scip', 'ingest.test.js')),
     covers: ['scip-ingest-test']
   },
   {
     label: 'lsif-ingest-test',
-    run: () => runNode('lsif-ingest-test', path.join(root, 'tests', 'tooling', 'ingest', 'lsif', 'lsif-ingest.test.js')),
+    run: () => runNode('lsif-ingest-test', path.join(root, 'tests', 'tooling', 'ingest', 'lsif', 'ingest.test.js')),
     covers: ['lsif-ingest-test']
   },
   {
     label: 'gtags-ingest-test',
-    run: () => runNode('gtags-ingest-test', path.join(root, 'tests', 'tooling', 'ingest', 'gtags', 'gtags-ingest.test.js')),
+    run: () => runNode('gtags-ingest-test', path.join(root, 'tests', 'tooling', 'ingest', 'gtags', 'ingest.test.js')),
     covers: ['gtags-ingest-test']
   },
   {
@@ -63,7 +63,7 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
   },
   {
     label: 'vscode-extension-test',
-    run: () => runNode('vscode-extension-test', path.join(root, 'tests', 'tooling', 'vscode', 'vscode-extension.test.js')),
+    run: () => runNode('vscode-extension-test', path.join(root, 'tests', 'tooling', 'vscode', 'extension.test.js')),
     covers: ['vscode-extension-test']
   },
   {
@@ -78,12 +78,12 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
   },
   {
     label: 'jsonrpc-parser-test',
-    run: () => runNode('jsonrpc-parser-test', path.join(root, 'tests', 'shared', 'jsonrpc', 'jsonrpc-parser.test.js')),
+    run: () => runNode('jsonrpc-parser-test', path.join(root, 'tests', 'shared', 'jsonrpc', 'parser.test.js')),
     covers: ['jsonrpc-parser-test']
   },
   {
     label: 'index-cache-test',
-    run: () => runNode('index-cache-test', path.join(root, 'tests', 'retrieval', 'cache', 'index-cache.test.js')),
+    run: () => runNode('index-cache-test', path.join(root, 'tests', 'retrieval', 'cache', 'index.test.js')),
     covers: ['index-cache-test']
   },
   {
@@ -103,14 +103,14 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
   },
   {
     label: 'build-index-all-test',
-    run: () => runNode('build-index-all-test', path.join(root, 'tests', 'cli', 'build-index', 'build-index-all.test.js')),
+    run: () => runNode('build-index-all-test', path.join(root, 'tests', 'cli', 'build-index', 'all.test.js')),
     covers: ['build-index-all-test']
   },
   {
     label: 'parity',
     run: () => runNode(
       'parity',
-      path.join(root, 'tests', 'retrieval', 'parity', 'parity.test.js'),
+      path.join(root, 'tests', 'retrieval', 'parity', 'equivalence.test.js'),
       ['--search', path.join(root, 'search.js'), '--no-ann'],
       { cwd: fixtureRoot, env: repoEnv }
     ),
@@ -128,12 +128,12 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
   },
   {
     label: 'cache-gc-test',
-    run: () => runNode('cache-gc-test', path.join(root, 'tests', 'shared', 'cache', 'cache-gc.test.js')),
+    run: () => runNode('cache-gc-test', path.join(root, 'tests', 'shared', 'cache', 'gc.test.js')),
     covers: ['cache-gc', 'cache-gc-test']
   },
   {
     label: 'cache-lru-test',
-    run: () => runNode('cache-lru-test', path.join(root, 'tests', 'shared', 'cache', 'cache-lru.test.js')),
+    run: () => runNode('cache-lru-test', path.join(root, 'tests', 'shared', 'cache', 'lru.test.js')),
     covers: ['cache-lru-test']
   },
   {
@@ -143,22 +143,22 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
   },
   {
     label: 'watch-debounce-test',
-    run: () => runNode('watch-debounce-test', path.join(root, 'tests', 'indexing', 'watch', 'watch-debounce.test.js')),
+    run: () => runNode('watch-debounce-test', path.join(root, 'tests', 'indexing', 'watch', 'debounce.test.js')),
     covers: ['watch-debounce-test']
   },
   {
     label: 'watch-backend-selection-test',
-    run: () => runNode('watch-backend-selection-test', path.join(root, 'tests', 'indexing', 'watch', 'watch-backend-selection.test.js')),
+    run: () => runNode('watch-backend-selection-test', path.join(root, 'tests', 'indexing', 'watch', 'backend-selection.test.js')),
     covers: ['watch-backend-selection-test']
   },
   {
     label: 'watch-stability-guard-test',
-    run: () => runNode('watch-stability-guard-test', path.join(root, 'tests', 'indexing', 'watch', 'watch-stability-guard.test.js')),
+    run: () => runNode('watch-stability-guard-test', path.join(root, 'tests', 'indexing', 'watch', 'stability-guard.test.js')),
     covers: ['watch-stability-guard-test']
   },
   {
     label: 'watch-filter-test',
-    run: () => runNode('watch-filter-test', path.join(root, 'tests', 'indexing', 'watch', 'watch-filter.test.js')),
+    run: () => runNode('watch-filter-test', path.join(root, 'tests', 'indexing', 'watch', 'filter.test.js')),
     covers: ['watch-filter-test']
   },
   {
@@ -198,12 +198,12 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
   },
   {
     label: 'config-validate-test',
-    run: () => runNode('config-validate-test', path.join(root, 'tests', 'tooling', 'config', 'config-validate.test.js')),
+    run: () => runNode('config-validate-test', path.join(root, 'tests', 'tooling', 'config', 'validate.test.js')),
     covers: ['config-validate', 'config-validate-test']
   },
   {
     label: 'config-dump-test',
-    run: () => runNode('config-dump-test', path.join(root, 'tests', 'tooling', 'config', 'config-dump.test.js')),
+    run: () => runNode('config-dump-test', path.join(root, 'tests', 'tooling', 'config', 'dump.test.js')),
     covers: ['config-dump-test']
   },
   {
@@ -282,6 +282,15 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
     covers: ['get-last-failure']
   },
   {
+    label: 'import-resolution-slo-gate-help',
+    run: () => runNode(
+      'import-resolution-slo-gate',
+      path.join(root, 'tools', 'ci', 'import-resolution-slo-gate.js'),
+      ['--help']
+    ),
+    covers: ['import-resolution-slo-gate']
+  },
+  {
     label: 'shard-census-help',
     run: () => runNode('shard-census', path.join(root, 'tools', 'index', 'shard-census.js'), ['--help']),
     covers: ['shard-census']
@@ -298,12 +307,12 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
   },
   {
     label: 'io-concurrency-cap-test',
-    run: () => runNode('io-concurrency-cap-test', path.join(root, 'tests', 'shared', 'concurrency', 'io-concurrency-cap.test.js')),
+    run: () => runNode('io-concurrency-cap-test', path.join(root, 'tests', 'shared', 'concurrency', 'io-cap.test.js')),
     covers: ['io-concurrency-cap-test']
   },
   {
     label: 'backend-policy-test',
-    run: () => runNode('backend-policy-test', path.join(root, 'tests', 'storage', 'backend', 'backend-policy.test.js')),
+    run: () => runNode('backend-policy-test', path.join(root, 'tests', 'storage', 'backend', 'policy.test.js')),
     covers: ['backend-policy-test']
   },
   {
@@ -318,12 +327,12 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
   },
   {
     label: 'core-api-test',
-    run: () => runNode('core-api-test', path.join(root, 'tests', 'services', 'api', 'core-api.test.js')),
+    run: () => runNode('core-api-test', path.join(root, 'tests', 'services', 'api', 'core.test.js')),
     covers: ['core-api-test']
   },
   {
     label: 'script-coverage-harness-test',
-    run: () => runNode('script-coverage-harness-test', path.join(root, 'tests', 'tooling', 'script-coverage', 'script-coverage-harness.test.js')),
+    run: () => runNode('script-coverage-harness-test', path.join(root, 'tests', 'tooling', 'script-coverage', 'harness.test.js')),
     covers: ['script-coverage-harness-test']
   },
   {

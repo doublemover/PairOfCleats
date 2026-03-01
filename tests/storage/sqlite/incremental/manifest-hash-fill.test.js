@@ -6,11 +6,19 @@ import { runSqliteBuild } from '../../../helpers/sqlite-builder.js';
 const { root, repoRoot, env, userConfig, run } = await setupIncrementalRepo({ name: 'manifest-hash-fill' });
 
 run(
-  [path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot],
+  [
+    path.join(root, 'build_index.js'),
+    '--incremental',
+    '--stub-embeddings',
+    '--mode',
+    'code',
+    '--repo',
+    repoRoot
+  ],
   'build index',
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
-await runSqliteBuild(repoRoot);
+await runSqliteBuild(repoRoot, { mode: 'code' });
 
 let Database;
 try {
@@ -36,11 +44,19 @@ db.prepare('UPDATE file_manifest SET hash = NULL WHERE mode = ? AND file = ?')
 db.close();
 
 run(
-  [path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot],
+  [
+    path.join(root, 'build_index.js'),
+    '--incremental',
+    '--stub-embeddings',
+    '--mode',
+    'code',
+    '--repo',
+    repoRoot
+  ],
   'build index (incremental)',
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
-await runSqliteBuild(repoRoot, { incremental: true });
+await runSqliteBuild(repoRoot, { incremental: true, mode: 'code' });
 
 const sqlitePathsAfter = ensureSqlitePaths(repoRoot, userConfig);
 const dbAfter = new Database(sqlitePathsAfter.codePath, { readonly: true });

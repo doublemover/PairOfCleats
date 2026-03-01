@@ -298,7 +298,7 @@ export const LANGUAGE_ROUTE_DESCRIPTORS = Object.freeze([
     adapterId: 'xml',
     parserRoute: 'structured-xml',
     capsProfile: 'xml-default',
-    extensions: Object.freeze(['.xml', '.props', '.targets', '.csproj', '.config'])
+    extensions: Object.freeze(['.xml', '.props', '.targets', '.csproj', '.config', '.projitems'])
   }),
   Object.freeze({
     id: 'yaml',

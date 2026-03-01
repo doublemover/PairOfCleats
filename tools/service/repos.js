@@ -1,13 +1,38 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { isAbsolutePathNative } from '../../src/shared/files.js';
+import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
 
-const runGit = (args, cwd) => spawnSync('git', args, { cwd, encoding: 'utf8' });
+const runGit = (args, cwd) => {
+  try {
+    return spawnSubprocessSync('git', args, {
+      cwd,
+      outputEncoding: 'utf8',
+      captureStdout: true,
+      captureStderr: true,
+      outputMode: 'string',
+      rejectOnNonZeroExit: false,
+      killTree: true,
+      detached: process.platform !== 'win32'
+    });
+  } catch (error) {
+    return {
+      exitCode: Number.isInteger(error?.result?.exitCode) ? Number(error.result.exitCode) : null,
+      signal: normalizeSignal(error?.result?.signal),
+      stdout: typeof error?.result?.stdout === 'string' ? error.result.stdout : '',
+      stderr: typeof error?.result?.stderr === 'string' ? error.result.stderr : '',
+      error
+    };
+  }
+};
 const normalizeSignal = (value) => (
   typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
 );
+const normalizeResolvedRepoPath = (value) => {
+  const resolved = path.resolve(String(value || ''));
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+};
 
 /**
  * Build a stable failure message for git subprocess results.
@@ -26,8 +51,8 @@ export const formatGitFailure = (result, fallback) => {
   if (stderr) return stderr;
   const stdout = typeof result?.stdout === 'string' ? result.stdout.trim() : '';
   if (stdout) return stdout;
-  if (Number.isInteger(result?.status)) {
-    return `${fallback} (exit ${Number(result.status)})`;
+  if (Number.isInteger(result?.exitCode)) {
+    return `${fallback} (exit ${Number(result.exitCode)})`;
   }
   return fallback;
 };
@@ -47,7 +72,12 @@ export function resolveRepoPath(entry, baseDir) {
 export function resolveRepoEntry(repoArg, repoEntries, baseDir) {
   if (!repoArg) return null;
   const resolved = path.resolve(repoArg);
-  return repoEntries.find((entry) => resolveRepoPath(entry, baseDir) === resolved)
+  const normalizedResolved = normalizeResolvedRepoPath(resolved);
+  return repoEntries.find((entry) => {
+    const candidatePath = resolveRepoPath(entry, baseDir);
+    if (!candidatePath) return false;
+    return normalizeResolvedRepoPath(candidatePath) === normalizedResolved;
+  })
     || repoEntries.find((entry) => entry.id === repoArg)
     || { id: repoArg, path: resolved, syncPolicy: 'none' };
 }
@@ -67,7 +97,7 @@ export async function ensureRepo(entry, baseDir, defaultPolicy = 'pull') {
     if (branch) cloneArgs.push('--branch', branch);
     cloneArgs.push(entry.url, repoPath);
     const clone = runGit(cloneArgs, process.cwd());
-    if (clone.status !== 0) {
+    if (clone.exitCode !== 0) {
       return {
         ok: false,
         signal: normalizeSignal(clone.signal),
@@ -80,7 +110,7 @@ export async function ensureRepo(entry, baseDir, defaultPolicy = 'pull') {
   if (policy === 'none') return { ok: true, repoPath, action: 'skip' };
   const args = policy === 'fetch' ? ['fetch', '--all', '--prune'] : ['pull', '--ff-only'];
   const sync = runGit(args, repoPath);
-  if (sync.status !== 0) {
+  if (sync.exitCode !== 0) {
     return {
       ok: false,
       repoPath,

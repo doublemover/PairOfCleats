@@ -84,7 +84,7 @@ for (const fixtureName of fixtures) {
 
   runNode(
     [
-      path.join(root, 'tests', 'retrieval', 'parity', 'parity.test.js'),
+      path.join(root, 'tests', 'retrieval', 'parity', 'equivalence.test.js'),
       '--no-ann',
       '--queries',
       queryFile,

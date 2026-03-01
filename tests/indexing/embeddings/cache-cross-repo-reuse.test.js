@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode as runNodeSync } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { rmDirRecursive } from '../../helpers/temp.js';
+
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'embeddings-cache-cross-repo');
@@ -12,7 +14,7 @@ const repoA = path.join(tempRoot, 'repo-a');
 const repoB = path.join(tempRoot, 'repo-b');
 const cacheRoot = path.join(tempRoot, 'cache');
 
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
+await rmDirRecursive(tempRoot, { retries: 8, delayMs: 150 });
 await fsPromises.mkdir(path.join(repoA, 'src'), { recursive: true });
 await fsPromises.mkdir(path.join(repoB, 'src'), { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
@@ -35,14 +37,7 @@ const env = applyTestEnv({
   }
 });
 
-const runNode = (cwd, label, args) => {
-  const result = spawnSync(process.execPath, args, { cwd, env, stdio: 'inherit' });
-  if (result.status !== 0) {
-    const exitLabel = result.status ?? 'unknown';
-    console.error(`Failed: ${label} (exit ${exitLabel})`);
-    process.exit(result.status ?? 1);
-  }
-};
+const runNode = (cwd, label, args) => runNodeSync(args, label, cwd, env, { stdio: 'pipe' });
 
 const findCacheIndexPaths = async (rootDir) => {
   const matches = [];

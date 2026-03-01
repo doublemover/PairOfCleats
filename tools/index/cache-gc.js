@@ -23,6 +23,7 @@ import {
 } from '../../src/shared/cache-cas.js';
 import { isPathWithinRoot } from '../../src/shared/files.js';
 import { getEnvConfig } from '../../src/shared/env.js';
+import { normalizeLegacyCacheRootPath } from '../../src/shared/cache-roots.js';
 import { getCacheRoot, resolveRepoConfig } from '../shared/dict-utils.js';
 import { isRootPath } from '../shared/path-utils.js';
 
@@ -59,12 +60,11 @@ const fileExists = (targetPath) => {
 const resolveCacheRoot = () => {
   const { userConfig } = resolveRepoConfig(argv.repo);
   const envConfig = getEnvConfig();
-  return path.resolve(
-    argv['cache-root']
+  const cacheRootInput = argv['cache-root']
     || userConfig.cache?.root
     || envConfig.cacheRoot
-    || getCacheRoot()
-  );
+    || getCacheRoot();
+  return normalizeLegacyCacheRootPath(cacheRootInput) || path.resolve(cacheRootInput);
 };
 
 const resolveMs = (value, fallbackMs = 0) => {

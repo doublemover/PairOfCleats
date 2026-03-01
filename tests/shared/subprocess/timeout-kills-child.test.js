@@ -1,9 +1,18 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { spawnSubprocess } from '../../../src/shared/subprocess.js';
+import { getTrackedSubprocessCount, spawnSubprocess } from '../../../src/shared/subprocess.js';
 import { resolveSilentStdio } from '../../helpers/test-env.js';
 
 const args = ['-e', 'setInterval(() => {}, 1000)'];
+
+const waitFor = async (predicate, timeoutMs = 5000) => {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (predicate()) return true;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  return predicate();
+};
 
 let pid = null;
 try {
@@ -28,5 +37,8 @@ if (pid && process.platform !== 'win32') {
   }
   assert.equal(alive, false, 'expected subprocess to be killed');
 }
+
+const trackedCleared = await waitFor(() => getTrackedSubprocessCount() === 0, 5000);
+assert.equal(trackedCleared, true, 'expected timeout subprocess registration to be cleared');
 
 console.log('subprocess timeout kill test passed');

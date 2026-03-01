@@ -1,5 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { killChildProcessTree } from '../kill-tree.js';
+import { isSyncCommandTimedOut, killTimedOutSyncProcessTree } from './sync-command.js';
 import {
   DEFAULT_MAX_OUTPUT_BYTES,
   SHELL_MODE_DISABLED_ERROR,
@@ -50,6 +51,35 @@ class SubprocessAbortError extends Error {
   }
 }
 
+const DEFAULT_TIMEOUT_ABORT_REAP_WAIT_MS = 500;
+
+const resolveTimeoutAbortReapWaitMs = (value) => {
+  const parsed = toNumber(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_TIMEOUT_ABORT_REAP_WAIT_MS;
+  return Math.max(0, Math.floor(parsed));
+};
+
+const waitMs = (ms) => new Promise((resolve) => {
+  setTimeout(resolve, Math.max(1, Math.floor(ms)));
+});
+
+const awaitBoundedReap = async (promise, waitTimeoutMs) => {
+  if (!promise || typeof promise.then !== 'function') return;
+  const boundedMs = resolveTimeoutAbortReapWaitMs(waitTimeoutMs);
+  if (boundedMs <= 0) {
+    await promise.catch(() => {});
+    return;
+  }
+  const boundedWait = waitMs(boundedMs);
+  await Promise.race([
+    promise.catch(() => {}),
+    boundedWait
+  ]);
+  // Keep timeout/abort rejection deterministic by holding the bounded wait
+  // window even if the kill promise settles earlier.
+  await boundedWait;
+};
+
 function spawnSubprocess(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     const startedAt = Date.now();
@@ -67,6 +97,11 @@ function spawnSubprocess(command, args, options = {}) {
     const killTree = options.killTree !== false;
     const killSignal = options.killSignal || 'SIGTERM';
     const killGraceMs = resolveKillGraceMs(options.killGraceMs);
+    const timeoutAbortKillGraceMs = options.killGraceMs == null ? 0 : killGraceMs;
+    const timeoutAbortReapWaitMs = resolveTimeoutAbortReapWaitMs(
+      options.timeoutAbortReapWaitMs
+        ?? (timeoutAbortKillGraceMs + 500)
+    );
     const cleanupOnParentExit = typeof options.cleanupOnParentExit === 'boolean'
       ? options.cleanupOnParentExit
       : !(options.unref === true && detached === true);
@@ -139,30 +174,16 @@ function spawnSubprocess(command, args, options = {}) {
     let abortHandler = null;
     const onStdout = typeof options.onStdout === 'function' ? options.onStdout : null;
     const onStderr = typeof options.onStderr === 'function' ? options.onStderr : null;
-    const handleOutput = (collector, handler) => (chunk) => {
-      collector.push(chunk);
-      if (handler) {
-        handler(Buffer.isBuffer(chunk) ? chunk.toString(encoding) : String(chunk));
-      }
-    };
-    const onStdoutData = captureStdout || onStdout
-      ? handleOutput(stdoutCollector, onStdout)
-      : null;
-    const onStderrData = captureStderr || onStderr
-      ? handleOutput(stderrCollector, onStderr)
-      : null;
-    if (onStdoutData && child.stdout) {
-      child.stdout.on('data', onStdoutData);
-    }
-    if (onStderrData && child.stderr) {
-      child.stderr.on('data', onStderrData);
-    }
-    const cleanup = () => {
+    let onStdoutData = null;
+    let onStderrData = null;
+    const cleanup = ({ keepTrackedRegistration = false } = {}) => {
       if (timeoutId) clearTimeout(timeoutId);
       if (abortHandler && abortSignal) {
         abortSignal.removeEventListener('abort', abortHandler);
       }
-      unregisterTrackedChild();
+      if (!keepTrackedRegistration) {
+        unregisterTrackedChild();
+      }
       if (onStdoutData && child.stdout) child.stdout.off('data', onStdoutData);
       if (onStderrData && child.stderr) child.stderr.off('data', onStderrData);
     };
@@ -182,47 +203,19 @@ function spawnSubprocess(command, args, options = {}) {
       const name = options.name ? `${options.name} ` : '';
       reject(new SubprocessError(`${name}exited with code ${exitCode ?? 'unknown'}`, result));
     };
-    const resolvedTimeoutMs = toNumber(options.timeoutMs);
-    if (Number.isFinite(resolvedTimeoutMs) && resolvedTimeoutMs > 0) {
-      timeoutId = setTimeout(() => {
-        if (settled) return;
-        settled = true;
-        try {
-          if (typeof child.unref === 'function') child.unref();
-        } catch {}
-        killChildProcessTree(child, {
-          killTree,
-          killSignal,
-          graceMs: killGraceMs,
-          detached,
-          awaitGrace: false
-        }).catch(() => {});
-        cleanup();
-        const result = buildResult({
-          pid: child.pid,
-          exitCode: null,
-          signal: null,
-          startedAt,
-          stdout: stdoutCollector.toOutput(outputMode),
-          stderr: stderrCollector.toOutput(outputMode)
-        });
-        reject(new SubprocessTimeoutError('Subprocess timeout', result));
-      }, Math.max(1, resolvedTimeoutMs));
-    }
-    abortHandler = () => {
-      if (settled) return;
-      settled = true;
+    const terminateAndReject = async (createError) => {
       try {
         if (typeof child.unref === 'function') child.unref();
       } catch {}
-      killChildProcessTree(child, {
+      const killPromise = killChildProcessTree(child, {
         killTree,
         killSignal,
-        graceMs: killGraceMs,
+        graceMs: timeoutAbortKillGraceMs,
         detached,
-        awaitGrace: false
-      }).catch(() => {});
-      cleanup();
+        awaitGrace: true
+      });
+      cleanup({ keepTrackedRegistration: true });
+      await awaitBoundedReap(killPromise, timeoutAbortReapWaitMs);
       const result = buildResult({
         pid: child.pid,
         exitCode: null,
@@ -231,7 +224,52 @@ function spawnSubprocess(command, args, options = {}) {
         stdout: stdoutCollector.toOutput(outputMode),
         stderr: stderrCollector.toOutput(outputMode)
       });
-      reject(new SubprocessAbortError('Operation aborted', result));
+      reject(createError(result));
+    };
+    const onOutputHandlerError = (streamName, error) => {
+      if (settled) return;
+      settled = true;
+      void terminateAndReject((result) => new SubprocessError(
+        `Subprocess ${streamName} callback failed`,
+        result,
+        error
+      ));
+    };
+    const handleOutput = (collector, handler, streamName) => (chunk) => {
+      if (settled) return;
+      collector.push(chunk);
+      if (!handler) return;
+      const text = Buffer.isBuffer(chunk) ? chunk.toString(encoding) : String(chunk);
+      try {
+        handler(text);
+      } catch (error) {
+        onOutputHandlerError(streamName, error);
+      }
+    };
+    onStdoutData = captureStdout || onStdout
+      ? handleOutput(stdoutCollector, onStdout, 'stdout')
+      : null;
+    onStderrData = captureStderr || onStderr
+      ? handleOutput(stderrCollector, onStderr, 'stderr')
+      : null;
+    if (onStdoutData && child.stdout) {
+      child.stdout.on('data', onStdoutData);
+    }
+    if (onStderrData && child.stderr) {
+      child.stderr.on('data', onStderrData);
+    }
+    const resolvedTimeoutMs = toNumber(options.timeoutMs);
+    if (Number.isFinite(resolvedTimeoutMs) && resolvedTimeoutMs > 0) {
+      timeoutId = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        void terminateAndReject((result) => new SubprocessTimeoutError('Subprocess timeout', result));
+      }, Math.max(1, resolvedTimeoutMs));
+    }
+    abortHandler = () => {
+      if (settled) return;
+      settled = true;
+      void terminateAndReject((result) => new SubprocessAbortError('Operation aborted', result));
     };
     if (abortSignal) {
       abortSignal.addEventListener('abort', abortHandler, { once: true });
@@ -270,6 +308,8 @@ function spawnSubprocessSync(command, args, options = {}) {
   const captureStderr = shouldCapture(stdio, options.captureStderr, 2);
   const rejectOnNonZeroExit = options.rejectOnNonZeroExit !== false;
   const expectedExitCodes = resolveExpectedExitCodes(options.expectedExitCodes);
+  const resolvedTimeoutMs = toNumber(options.timeoutMs);
+  const killSignal = options.killSignal || 'SIGTERM';
   if (options.shell === true) {
     const normalized = buildResult({
       pid: null,
@@ -287,6 +327,10 @@ function spawnSubprocessSync(command, args, options = {}) {
     stdio,
     shell: false,
     input: options.input,
+    timeout: Number.isFinite(resolvedTimeoutMs) && resolvedTimeoutMs > 0
+      ? Math.max(1, Math.floor(resolvedTimeoutMs))
+      : undefined,
+    killSignal,
     maxBuffer: maxBufferBytes,
     encoding: captureStdout || captureStderr ? 'buffer' : undefined
   });
@@ -305,6 +349,17 @@ function spawnSubprocessSync(command, args, options = {}) {
     stderr
   });
   if (result.error) {
+    if (isSyncCommandTimedOut(result)) {
+      killTimedOutSyncProcessTree(
+        result?.pid,
+        resolvedTimeoutMs,
+        options.killTree !== false,
+        options.detached === true
+      );
+    }
+    if (result.error?.code === 'ETIMEDOUT') {
+      throw new SubprocessTimeoutError('Subprocess timeout', normalized);
+    }
     const name = options.name ? `${options.name} ` : '';
     throw new SubprocessError(
       `${name}failed to spawn: ${result.error.message || result.error}`,

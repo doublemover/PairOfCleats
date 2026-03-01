@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
 import { spawnSubprocess } from '../../src/shared/subprocess.js';
-import { getRuntimeConfig, loadUserConfig, resolveRuntimeEnv } from '../shared/dict-utils.js';
+import { getRuntimeConfig, getToolingDir, loadUserConfig, resolveRuntimeEnv } from '../shared/dict-utils.js';
+import { buildTestRuntimeEnv, normalizeEnvPathKeys, prependPathEntries } from '../tooling/utils.js';
 import { USR_GUARDRAIL_GATES, validateUsrGuardrailGates } from './usr/guardrails.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -12,6 +14,8 @@ const DEFAULT_DIAGNOSTICS = path.join(ROOT, '.diagnostics');
 const DEFAULT_LOG_DIR = path.join(ROOT, '.testLogs');
 const DEFAULT_JUNIT = path.join(DEFAULT_LOG_DIR, 'junit.xml');
 const DEFAULT_CACHE_ROOT = path.join(ROOT, '.ci-cache', 'pairofcleats');
+const DEFAULT_HOME_ROOT = path.join(ROOT, '.ci-home', 'pairofcleats');
+const LSP_FIXTURE_BIN = path.join(ROOT, 'tests', 'fixtures', 'lsp', 'bin');
 
 const npmCommand = process.platform === 'win32' ? 'cmd' : 'npm';
 const npmPrefix = process.platform === 'win32' ? ['/c', 'npm'] : [];
@@ -37,9 +41,8 @@ const withDefaults = (env, key, value) => {
   if (env[key] === undefined || env[key] === '') env[key] = value;
 };
 
-const buildSuiteEnv = (mode) => {
-  const env = { ...process.env };
-  withDefaults(env, 'PAIROFCLEATS_TESTING', '1');
+const buildSuiteEnv = (mode, baseEnv = process.env) => {
+  const env = buildTestRuntimeEnv(baseEnv);
   withDefaults(env, 'PAIROFCLEATS_EMBEDDINGS', 'stub');
   withDefaults(env, 'PAIROFCLEATS_WORKER_POOL', 'off');
   withDefaults(env, 'PAIROFCLEATS_THREADS', '1');
@@ -48,10 +51,16 @@ const buildSuiteEnv = (mode) => {
   if (!env.PAIROFCLEATS_CACHE_ROOT && isCi()) {
     env.PAIROFCLEATS_CACHE_ROOT = DEFAULT_CACHE_ROOT;
   }
+  if (!env.PAIROFCLEATS_HOME && isCi()) {
+    env.PAIROFCLEATS_HOME = DEFAULT_HOME_ROOT;
+  }
 
   env.PAIROFCLEATS_SUITE_MODE = mode;
+  normalizeEnvPathKeys(env);
   return env;
 };
+
+export const __buildSuiteEnvForTests = buildSuiteEnv;
 
 const renderCommand = (command, args) => [command, ...args].join(' ');
 const SCRIPT_COVERAGE_GROUPS = Object.freeze([
@@ -113,8 +122,12 @@ const main = async () => {
   const baseLane = argv.lane || (mode === 'nightly' ? 'ci' : 'ci-lite');
   const baseEnv = buildSuiteEnv(mode);
   const userConfig = loadUserConfig(ROOT);
+  prependPathEntries(baseEnv, path.join(getToolingDir(ROOT, userConfig), 'bin'));
+  // Keep CI gate behavior deterministic across runners by preferring fixture servers.
+  prependPathEntries(baseEnv, LSP_FIXTURE_BIN);
   const runtimeConfig = getRuntimeConfig(ROOT, userConfig);
   const env = resolveRuntimeEnv(runtimeConfig, baseEnv);
+  normalizeEnvPathKeys(env);
 
   const diagnosticsDir = path.resolve(argv.diagnostics);
   const junitPath = path.resolve(argv.junit);
@@ -123,6 +136,11 @@ const main = async () => {
     env.PAIROFCLEATS_TEST_LOG_DIR = logDir;
   }
   const capabilityJson = path.join(diagnosticsDir, 'capabilities.json');
+  const toolingDoctorJson = path.join(diagnosticsDir, 'tooling-doctor-gate.json');
+  const toolingLspSloJson = path.join(diagnosticsDir, 'tooling-lsp-slo-gate.json');
+  const toolingLspDefaultEnableJson = path.join(diagnosticsDir, 'tooling-lsp-default-enable-gate.json');
+  const toolingLspGuardrailJson = path.join(diagnosticsDir, 'tooling-lsp-guardrail.json');
+  const importResolutionSloJson = path.join(diagnosticsDir, 'import-resolution-slo-gate.json');
   validateUsrGuardrailGates();
 
   if (!argv['dry-run']) {
@@ -162,6 +180,48 @@ const main = async () => {
       command: process.execPath,
       args: ['tools/ci/capability-gate.js', '--mode', mode, '--json', capabilityJson]
     },
+    {
+      label: 'Tooling doctor gate',
+      command: process.execPath,
+      args: ['tools/ci/tooling-doctor-gate.js', '--mode', mode, '--json', toolingDoctorJson]
+    },
+    {
+      label: 'Tooling LSP SLO gate',
+      command: process.execPath,
+      args: [
+        'tools/ci/tooling-lsp-slo-gate.js',
+        '--mode',
+        mode,
+        '--doctor',
+        toolingDoctorJson,
+        '--json',
+        toolingLspSloJson
+      ]
+    },
+    {
+      label: 'Tooling LSP default-enable gate',
+      command: process.execPath,
+      args: [
+        'tools/ci/tooling-lsp-default-enable-gate.js',
+        '--json',
+        toolingLspDefaultEnableJson,
+        '--doctor',
+        toolingDoctorJson,
+        '--slo',
+        toolingLspSloJson
+      ]
+    },
+    {
+      label: 'Tooling LSP bench guardrail',
+      command: process.execPath,
+      args: [
+        'tools/bench/language/tooling-lsp-guardrail.js',
+        '--report',
+        toolingLspSloJson,
+        '--json',
+        toolingLspGuardrailJson
+      ]
+    },
     ...buildUsrGateSteps(diagnosticsDir),
     {
       label: 'CI test lane',
@@ -180,6 +240,23 @@ const main = async () => {
         junitPath,
         '--log-dir',
         logDir
+      ]
+    },
+    {
+      label: 'Import resolution SLO gate',
+      command: process.execPath,
+      args: [
+        'tools/ci/import-resolution-slo-gate.js',
+        '--mode',
+        mode,
+        '--repo',
+        ROOT,
+        '--json',
+        importResolutionSloJson,
+        '--actionable-unresolved-rate-max',
+        mode === 'nightly' ? '0.45' : '0.60',
+        '--min-unresolved-samples',
+        '5'
       ]
     },
     ...(mode === 'nightly'
@@ -217,7 +294,26 @@ const main = async () => {
   }
 };
 
-main().catch((err) => {
-  console.error(err?.message || err);
-  process.exit(1);
-});
+const isDirectExecution = () => {
+  const normalizeForCompare = (value) => {
+    if (!value) return null;
+    let canonical = null;
+    try {
+      canonical = fsSync.realpathSync.native(value);
+    } catch {
+      canonical = path.resolve(value);
+    }
+    if (!canonical) return null;
+    return process.platform === 'win32' ? canonical.toLowerCase() : canonical;
+  };
+  const entry = process.argv[1];
+  if (!entry) return false;
+  return normalizeForCompare(entry) === normalizeForCompare(fileURLToPath(import.meta.url));
+};
+
+if (isDirectExecution()) {
+  main().catch((err) => {
+    console.error(err?.message || err);
+    process.exit(1);
+  });
+}

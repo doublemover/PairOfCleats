@@ -1,5 +1,22 @@
-import { execaSync } from 'execa';
 import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
+
+const shouldUseCmdShell = (command) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(String(command || ''));
+
+const quoteWindowsCmdArg = (value) => {
+  const text = String(value ?? '');
+  if (!text) return '""';
+  if (!/[\s"&|<>^();]/u.test(text)) return text;
+  return `"${text.replaceAll('"', '""')}"`;
+};
+
+const resolveWindowsCmdInvocation = (command, args = []) => {
+  const shellExe = process.env.ComSpec || 'cmd.exe';
+  const commandLine = [command, ...args].map(quoteWindowsCmdArg).join(' ');
+  return {
+    command: shellExe,
+    args: ['/d', '/s', '/c', commandLine]
+  };
+};
 
 /**
  * Exit current process using child-command exit semantics.
@@ -36,38 +53,36 @@ export function exitLikeCommandResult(result, proc = process) {
  * @returns {{ok:boolean,status:number|null,signal:string|null,stdout?:string,stderr?:string}}
  */
 export function runCommand(cmd, args, options = {}) {
-  if (cmd === process.execPath) {
-    const maxOutputBytes = Number.isFinite(Number(options.maxOutputBytes))
-      ? Number(options.maxOutputBytes)
-      : (Number.isFinite(Number(options.maxBuffer)) ? Number(options.maxBuffer) : undefined);
-    const result = spawnSubprocessSync(cmd, args, {
-      cwd: options.cwd,
-      env: options.env,
-      stdio: options.stdio,
-      input: options.input,
-      shell: options.shell,
-      outputEncoding: options.outputEncoding || options.encoding || 'utf8',
-      maxOutputBytes,
-      captureStdout: true,
-      captureStderr: true,
-      outputMode: 'string',
-      rejectOnNonZeroExit: false
-    });
-    return {
-      ok: result.exitCode === 0,
-      status: result.exitCode ?? null,
-      signal: typeof result.signal === 'string' ? result.signal : null,
-      stdout: typeof result.stdout === 'string' ? result.stdout : '',
-      stderr: typeof result.stderr === 'string' ? result.stderr : ''
-    };
-  }
-  const result = execaSync(cmd, args, { reject: false, ...options });
+  const resolvedArgs = Array.isArray(args) ? args : [];
+  const invocation = shouldUseCmdShell(cmd)
+    ? resolveWindowsCmdInvocation(cmd, resolvedArgs)
+    : { command: cmd, args: resolvedArgs };
+  const maxOutputBytes = Number.isFinite(Number(options.maxOutputBytes))
+    ? Number(options.maxOutputBytes)
+    : (Number.isFinite(Number(options.maxBuffer)) ? Number(options.maxBuffer) : undefined);
+  const timeoutMs = Number.isFinite(Number(options.timeoutMs))
+    ? Math.max(100, Math.floor(Number(options.timeoutMs)))
+    : null;
+  const result = spawnSubprocessSync(invocation.command, invocation.args, {
+    cwd: options.cwd,
+    env: options.env,
+    stdio: options.stdio,
+    input: options.input,
+    shell: options.shell,
+    outputEncoding: options.outputEncoding || options.encoding || 'utf8',
+    maxOutputBytes,
+    timeoutMs: timeoutMs ?? undefined,
+    captureStdout: true,
+    captureStderr: true,
+    outputMode: 'string',
+    rejectOnNonZeroExit: false
+  });
   return {
     ok: result.exitCode === 0,
-    status: result.exitCode,
+    status: result.exitCode ?? null,
     signal: typeof result.signal === 'string' ? result.signal : null,
-    stdout: result.stdout,
-    stderr: result.stderr
+    stdout: typeof result.stdout === 'string' ? result.stdout : '',
+    stderr: typeof result.stderr === 'string' ? result.stderr : ''
   };
 }
 
@@ -79,11 +94,82 @@ export function runCommand(cmd, args, options = {}) {
  * @returns {boolean}
  */
 export function canRunCommand(cmd, args = ['--version'], options = {}) {
+  return probeCommand(cmd, args, options).ok === true;
+}
+
+const isMissingCommandText = (stderr = '', stdout = '') => {
+  const output = `${String(stderr || '')} ${String(stdout || '')}`.toLowerCase();
+  if (!output.trim()) return false;
+  return output.includes('command not found')
+    || output.includes('is not recognized as an internal or external command')
+    || output.includes('no such file or directory')
+    || output.includes('enoent')
+    || output.includes('cannot find the file');
+};
+
+const pickProbeOutcomeFromExit = ({ status, signal, stderr, stdout }) => {
+  if (typeof signal === 'string' && signal.trim()) return 'terminated';
+  if (Number.isInteger(status) && status === 0) return 'ok';
+  if (Number.isInteger(status) && status === 127) return 'missing';
+  if (isMissingCommandText(stderr, stdout)) return 'missing';
+  if (Number.isInteger(status)) return 'nonzero';
+  return 'inconclusive';
+};
+
+/**
+ * Run a command probe and return structured outcome metadata.
+ *
+ * @param {string} cmd
+ * @param {string[]} [args]
+ * @param {object} [options]
+ * @returns {{
+ *   ok:boolean,
+ *   outcome:'ok'|'missing'|'timeout'|'terminated'|'nonzero'|'spawn_error'|'inconclusive',
+ *   status:number|null,
+ *   signal:string|null,
+ *   errorCode:string|null,
+ *   stderr?:string,
+ *   stdout?:string
+ * }}
+ */
+export function probeCommand(cmd, args = ['--version'], options = {}) {
+  const timeoutMs = Number.isFinite(Number(options.timeoutMs))
+    ? Math.max(100, Math.floor(Number(options.timeoutMs)))
+    : 4000;
   try {
-    const result = runCommand(cmd, args, { encoding: 'utf8', stdio: 'ignore', ...options });
-    return result.ok;
-  } catch {
-    return false;
+    const result = runCommand(cmd, args, {
+      encoding: 'utf8',
+      stdio: 'ignore',
+      ...options,
+      timeoutMs
+    });
+    const outcome = pickProbeOutcomeFromExit(result);
+    return {
+      ok: outcome === 'ok',
+      outcome,
+      status: Number.isInteger(result?.status) ? Number(result.status) : null,
+      signal: typeof result?.signal === 'string' ? result.signal : null,
+      errorCode: null,
+      stdout: typeof result?.stdout === 'string' ? result.stdout : '',
+      stderr: typeof result?.stderr === 'string' ? result.stderr : ''
+    };
+  } catch (error) {
+    const result = error?.result || null;
+    const errorCode = typeof error?.code === 'string'
+      ? error.code
+      : (typeof result?.errorCode === 'string' ? result.errorCode : null);
+    const outcome = error?.name === 'SubprocessTimeoutError' || errorCode === 'ETIMEDOUT'
+      ? 'timeout'
+      : (errorCode === 'ENOENT' ? 'missing' : 'spawn_error');
+    return {
+      ok: false,
+      outcome,
+      status: Number.isInteger(result?.status) ? Number(result.status) : null,
+      signal: typeof result?.signal === 'string' ? result.signal : null,
+      errorCode,
+      stdout: typeof result?.stdout === 'string' ? result.stdout : '',
+      stderr: typeof result?.stderr === 'string' ? result.stderr : ''
+    };
   }
 }
 

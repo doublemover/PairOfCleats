@@ -1,6 +1,8 @@
 import path from 'node:path';
+import { logLine } from '../../../shared/progress.js';
 import { createLifecycleRegistry } from '../../../shared/lifecycle/registry.js';
 import { runBuildCleanupWithTimeout } from '../cleanup-timeout.js';
+import { BUILD_STATE_DURABILITY_CLASS, resolveBuildStateDurabilityClass } from './durability.js';
 
 const HEARTBEAT_MIN_INTERVAL_MS = 5000;
 
@@ -8,7 +10,8 @@ export const startHeartbeat = ({
   buildRoot,
   stage,
   intervalMs = 30000,
-  updateBuildState,
+  updateBuildStateOutcome,
+  durabilityClass = BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT,
   flushBuildState,
   buildRootExists
 } = {}) => {
@@ -19,6 +22,7 @@ export const startHeartbeat = ({
   let lastWrite = 0;
   let active = true;
   let timer = null;
+  const resolvedDurabilityClass = resolveBuildStateDurabilityClass(durabilityClass);
   const stop = () => {
     if (!active) return;
     active = false;
@@ -30,7 +34,10 @@ export const startHeartbeat = ({
       label: 'build-state.heartbeat.lifecycle.close',
       cleanup: () => lifecycle.close()
     }).catch(() => {});
-    void flushBuildState(buildRoot);
+    void runBuildCleanupWithTimeout({
+      label: 'build-state.heartbeat.flush',
+      cleanup: () => flushBuildState(buildRoot)
+    }).catch(() => {});
   };
   const tick = async () => {
     if (!active) return;
@@ -42,12 +49,41 @@ export const startHeartbeat = ({
     if (nowMs - lastWrite < HEARTBEAT_MIN_INTERVAL_MS) return;
     lastWrite = nowMs;
     const now = new Date().toISOString();
-    const writeTask = updateBuildState(buildRoot, {
+    const writeTask = updateBuildStateOutcome(buildRoot, {
       heartbeat: {
         stage: stage || null,
         lastHeartbeatAt: now
       }
-    }).catch(() => {});
+    }, {
+      durabilityClass: resolvedDurabilityClass
+    }).then((outcome) => {
+      if (outcome?.status !== 'timed_out') return;
+      logLine(
+        `[build_state] heartbeat write timed out for ${path.resolve(buildRoot)}; heartbeat remains best-effort.`,
+        {
+          kind: 'warning',
+          buildState: {
+            event: 'heartbeat-write-timeout',
+            buildRoot: path.resolve(buildRoot),
+            stage: stage || null,
+            timeoutMs: outcome?.timeoutMs ?? null,
+            elapsedMs: outcome?.elapsedMs ?? null
+          }
+        }
+      );
+    }).catch((error) => {
+      logLine(
+        `[build_state] heartbeat write failed for ${path.resolve(buildRoot)}: ${error?.message || String(error)}`,
+        {
+          kind: 'warning',
+          buildState: {
+            event: 'heartbeat-write-failed',
+            buildRoot: path.resolve(buildRoot),
+            stage: stage || null
+          }
+        }
+      );
+    });
     lifecycle.registerPromise(writeTask, { label: 'build-state-heartbeat-write' });
   };
   const queueTick = () => {

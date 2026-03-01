@@ -50,6 +50,14 @@ const normalizeCacheStats = (cacheStats) => ({
   linkedUsages: Number(cacheStats?.linkedUsages) || 0,
   inferredReturns: Number(cacheStats?.inferredReturns) || 0,
   riskFlows: Number(cacheStats?.riskFlows) || 0,
+  toolingDegradedProviders: Number(cacheStats?.toolingDegradedProviders) || 0,
+  toolingDegradedWarnings: Number(cacheStats?.toolingDegradedWarnings) || 0,
+  toolingDegradedErrors: Number(cacheStats?.toolingDegradedErrors) || 0,
+  toolingProvidersExecuted: Number(cacheStats?.toolingProvidersExecuted) || 0,
+  toolingProvidersContributed: Number(cacheStats?.toolingProvidersContributed) || 0,
+  toolingRequests: Number(cacheStats?.toolingRequests) || 0,
+  toolingRequestFailures: Number(cacheStats?.toolingRequestFailures) || 0,
+  toolingRequestTimeouts: Number(cacheStats?.toolingRequestTimeouts) || 0,
   droppedCallLinks: Number(cacheStats?.droppedCallLinks) || 0,
   droppedCallSummaries: Number(cacheStats?.droppedCallSummaries) || 0,
   droppedUsageLinks: Number(cacheStats?.droppedUsageLinks) || 0,
@@ -125,7 +133,9 @@ export const buildCrossFileFingerprint = ({
   enableTypeInference,
   enableRiskCorrelation,
   useTooling,
-  fileRelations
+  fileRelations,
+  inferenceLite = false,
+  inferenceLiteHighSignalOnly = true
 }) => {
   const fileRelationSignatures = resolveFileRelationSignatures(fileRelations);
   const chunkSignatures = [];
@@ -161,6 +171,8 @@ export const buildCrossFileFingerprint = ({
     enableTypeInference: enableTypeInference === true,
     enableRiskCorrelation: enableRiskCorrelation === true,
     useTooling: useTooling === true,
+    inferenceLite: inferenceLite === true,
+    inferenceLiteHighSignalOnly: inferenceLiteHighSignalOnly !== false,
     chunks: chunkSignatures,
     fileRelations: fileRelationSignatures
   }));

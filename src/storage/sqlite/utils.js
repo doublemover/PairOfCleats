@@ -36,7 +36,7 @@ export function chunkArray(items, size = 900) {
   if (!Array.isArray(items) || items.length === 0) return [];
   const parsedSize = Number(size);
   const chunkSize = Number.isFinite(parsedSize) && parsedSize > 0
-    ? Math.floor(parsedSize)
+    ? Math.max(1, Math.floor(parsedSize))
     : 900;
   const chunks = [];
   for (let i = 0; i < items.length; i += chunkSize) {
@@ -687,25 +687,34 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
       options.logger.log(message);
     }
   };
+  const createCrossDeviceReplaceError = (operation, sourcePath, destinationPath, cause) => {
+    const err = new Error(
+      `[sqlite] Cross-device replace blocked during ${operation}; SQLite promotion requires temp/output/backup paths on the same volume. `
+      + `source=${sourcePath} destination=${destinationPath}`
+    );
+    err.code = 'ERR_SQLITE_REPLACE_CROSS_DEVICE';
+    err.operation = operation;
+    err.sourcePath = sourcePath;
+    err.destinationPath = destinationPath;
+    err.cause = cause || null;
+    err.causeCode = cause?.code || null;
+    return err;
+  };
   /**
-   * Move a file into place and transparently handle cross-device (`EXDEV`)
-   * boundaries by copy+remove fallback.
-   *
-   * `preserveSource` is used by rollback restore paths that should leave the
-   * backup artifact intact when `keepBackup=true`.
+   * Move a file into place and fail closed on cross-device (`EXDEV`) boundaries.
    */
-  const moveFileWithCrossDeviceFallback = async (sourcePath, destinationPath, { preserveSource = false } = {}) => {
-    if (!preserveSource) {
-      try {
-        await fsPromises.rename(sourcePath, destinationPath);
-        return;
-      } catch (err) {
-        if (err?.code !== 'EXDEV') throw err;
+  const moveFileOrFailCrossDevice = async (
+    sourcePath,
+    destinationPath,
+    { operation = 'sqlite-replace' } = {}
+  ) => {
+    try {
+      await fsPromises.rename(sourcePath, destinationPath);
+    } catch (err) {
+      if (err?.code === 'EXDEV') {
+        throw createCrossDeviceReplaceError(operation, sourcePath, destinationPath, err);
       }
-    }
-    await fsPromises.copyFile(sourcePath, destinationPath);
-    if (!preserveSource) {
-      await fsPromises.rm(sourcePath, { force: true });
+      throw err;
     }
   };
 
@@ -723,12 +732,18 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
     }
     if (!backupAvailable) {
       try {
-        await moveFileWithCrossDeviceFallback(finalDbPath, backupPath);
+        await moveFileOrFailCrossDevice(finalDbPath, backupPath, {
+          operation: 'move-final-to-backup'
+        });
         backupAvailable = true;
         backupFromCurrentFinal = true;
       } catch (err) {
+        if (err?.code === 'ERR_SQLITE_REPLACE_CROSS_DEVICE') {
+          throw err;
+        }
         if (err?.code !== 'ENOENT') {
           backupAvailable = fs.existsSync(backupPath);
+          if (!backupAvailable) throw err;
         }
         if (!backupAvailable) {
           emit(`[sqlite] Failed to move existing db to backup (${err?.message || err}).`);
@@ -742,10 +757,12 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
     if (fs.existsSync(finalDbPath)) return;
     if (!fs.existsSync(backupPath)) return;
     emit('[sqlite] Replace failed; restoring previous database from backup.');
-    await moveFileWithCrossDeviceFallback(backupPath, finalDbPath, {
-      preserveSource: keepBackup
+    await moveFileOrFailCrossDevice(backupPath, finalDbPath, {
+      operation: 'restore-backup-to-final'
     });
-    if (!keepBackup) {
+    if (keepBackup) {
+      await fsPromises.copyFile(finalDbPath, backupPath);
+    } else {
       backupAvailable = false;
       backupFromCurrentFinal = false;
     }
@@ -753,7 +770,9 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
 
   try {
     try {
-      await moveFileWithCrossDeviceFallback(tempDbPath, finalDbPath);
+      await moveFileOrFailCrossDevice(tempDbPath, finalDbPath, {
+        operation: 'promote-temp-to-final'
+      });
     } catch (err) {
       if (err?.code !== 'EEXIST' && err?.code !== 'EPERM' && err?.code !== 'ENOTEMPTY') {
         throw err;
@@ -765,7 +784,9 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
       try {
         await fsPromises.rm(finalDbPath, { force: true });
       } catch {}
-      await moveFileWithCrossDeviceFallback(tempDbPath, finalDbPath);
+      await moveFileOrFailCrossDevice(tempDbPath, finalDbPath, {
+        operation: 'promote-temp-to-final-after-remove'
+      });
     }
   } catch (err) {
     try {

@@ -1,1 +1,1 @@
-conformance/language-shards/build-infra-dsl/build-infra-dsl-validation
+conformance/language-shards/build-infra-dsl/validation

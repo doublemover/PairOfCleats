@@ -133,11 +133,18 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
     emitOutput,
     externalLogger
   });
+  const createRunnerError = (message, code = 1, cause = null) => {
+    const err = new Error(message || 'SQLite index build failed.');
+    err.code = 'ERR_SQLITE_BUILD_FAILED';
+    err.exitCode = Number.isFinite(Number(code)) ? Math.max(1, Math.floor(Number(code))) : 1;
+    err.exitOnError = exitOnError === true;
+    if (cause) err.cause = cause;
+    return err;
+  };
   const bail = (message, code = 1) => {
     if (message) error(message);
     finalize();
-    if (exitOnError) process.exit(code);
-    throw new Error(message || 'SQLite index build failed.');
+    throw createRunnerError(message, code);
   };
   if (!Database) return bail('better-sqlite3 is required. Run npm install first.');
 

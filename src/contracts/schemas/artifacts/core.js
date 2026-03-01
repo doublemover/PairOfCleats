@@ -1,8 +1,27 @@
 import { METADATA_V2_SCHEMA } from '../analysis.js';
+import {
+  IMPORT_DISPOSITIONS,
+  IMPORT_FAILURE_CAUSES,
+  IMPORT_REASON_CODES,
+  IMPORT_RESOLUTION_STATES,
+  IMPORT_RESOLVER_STAGES
+} from '../../../index/build/import-resolution/reason-codes.js';
 
 const intId = { type: 'integer', minimum: 0 };
 const nullableString = { type: ['string', 'null'] };
 const nullableInt = { type: ['integer', 'null'], minimum: 0 };
+const importResolutionStateEnum = Object.freeze(Object.values(IMPORT_RESOLUTION_STATES));
+const importReasonCodeEnum = Object.freeze(Object.values(IMPORT_REASON_CODES));
+const importFailureCauseEnum = Object.freeze(Object.values(IMPORT_FAILURE_CAUSES));
+const importDispositionEnum = Object.freeze(Object.values(IMPORT_DISPOSITIONS));
+const importResolverStageEnum = Object.freeze(Object.values(IMPORT_RESOLVER_STAGES));
+
+const nullableEnum = (values) => ({
+  anyOf: [
+    { type: 'string', enum: values },
+    { type: 'null' }
+  ]
+});
 
 const chunkMetaEntry = {
   type: 'object',
@@ -90,6 +109,70 @@ const idPostingList = {
   items: { type: 'array', items: intId }
 };
 
+const unitIntervalNumber = { type: 'number', minimum: 0, maximum: 1 };
+
+const importResolverPipelineStageSchema = {
+  type: 'object',
+  required: ['attempts', 'hits', 'misses', 'elapsedMs', 'budgetExhausted', 'degraded'],
+  additionalProperties: false,
+  properties: {
+    attempts: intId,
+    hits: intId,
+    misses: intId,
+    elapsedMs: { type: 'number', minimum: 0 },
+    budgetExhausted: intId,
+    degraded: intId
+  }
+};
+
+const importResolverFsExistsIndexSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'enabled',
+    'complete',
+    'indexedCount',
+    'fileCount',
+    'truncated',
+    'bloomBits',
+    'exactHits',
+    'negativeSkips',
+    'unknownFallbacks'
+  ],
+  properties: {
+    enabled: { type: 'boolean' },
+    complete: { type: 'boolean' },
+    indexedCount: intId,
+    fileCount: intId,
+    truncated: { type: 'boolean' },
+    bloomBits: intId,
+    exactHits: intId,
+    negativeSkips: intId,
+    unknownFallbacks: intId
+  }
+};
+
+const importResolverBudgetPolicySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'maxFilesystemProbesPerSpecifier',
+    'maxFallbackCandidatesPerSpecifier',
+    'maxFallbackDepth',
+    'adaptiveEnabled',
+    'adaptiveProfile',
+    'adaptiveScale'
+  ],
+  properties: {
+    maxFilesystemProbesPerSpecifier: intId,
+    maxFallbackCandidatesPerSpecifier: intId,
+    maxFallbackDepth: intId,
+    adaptiveEnabled: { type: 'boolean' },
+    adaptiveProfile: { type: 'string' },
+    adaptiveScale: { type: 'number', minimum: 0 }
+  }
+};
+
 const importResolutionGraphSchema = {
   type: 'object',
   required: ['generatedAt', 'nodes', 'edges', 'stats'],
@@ -99,15 +182,90 @@ const importResolutionGraphSchema = {
     importScanMode: nullableString,
     stats: {
       type: 'object',
+      allOf: [
+        {
+          not: {
+            properties: {
+              unresolvedByCategory: {}
+            },
+            required: ['unresolvedByCategory']
+          }
+        },
+        {
+          not: {
+            properties: {
+              unresolvedLiveSuppressedCategories: {}
+            },
+            required: ['unresolvedLiveSuppressedCategories']
+          }
+        }
+      ],
       properties: {
         files: intId,
+        nodes: intId,
         edges: intId,
         resolved: intId,
         external: intId,
         unresolved: intId,
-        truncatedEdges: { type: 'boolean' },
-        truncatedNodes: { type: 'boolean' },
-        warningSuppressed: intId
+        unresolvedObserved: intId,
+        unresolvedActionable: intId,
+        unresolvedSuppressed: intId,
+        unresolvedResolverSuppressed: intId,
+        unresolvedByReasonCode: {
+          type: 'object',
+          propertyNames: { enum: importReasonCodeEnum },
+          additionalProperties: intId
+        },
+        unresolvedByFailureCause: {
+          type: 'object',
+          propertyNames: { enum: importFailureCauseEnum },
+          additionalProperties: intId
+        },
+        unresolvedByDisposition: {
+          type: 'object',
+          propertyNames: { enum: importDispositionEnum },
+          additionalProperties: intId
+        },
+        unresolvedByResolverStage: {
+          type: 'object',
+          propertyNames: { enum: importResolverStageEnum },
+          additionalProperties: intId
+        },
+        unresolvedActionableByLanguage: { type: 'object', additionalProperties: intId },
+        unresolvedGateEligible: intId,
+        unresolvedActionableGateEligible: intId,
+        unresolvedGateEligibleActionableRate: unitIntervalNumber,
+        unresolvedActionableHotspots: {
+          type: 'array',
+          items: {
+            type: 'object',
+            required: ['importer', 'count'],
+            properties: {
+              importer: { type: 'string' },
+              count: intId
+            },
+            additionalProperties: false
+          }
+        },
+        unresolvedLiveSuppressed: intId,
+        unresolvedGateSuppressed: intId,
+        unresolvedActionableRate: unitIntervalNumber,
+        unresolvedParserArtifactRate: unitIntervalNumber,
+        unresolvedResolverGapRate: unitIntervalNumber,
+        unresolvedBudgetExhausted: intId,
+        unresolvedBudgetExhaustedByType: { type: 'object', additionalProperties: intId },
+        resolverFsExistsIndex: importResolverFsExistsIndexSchema,
+        resolverBudgetPolicy: importResolverBudgetPolicySchema,
+        resolverPipelineStages: {
+          type: 'object',
+          propertyNames: { enum: importResolverStageEnum },
+          additionalProperties: importResolverPipelineStageSchema
+        },
+        truncatedEdges: intId,
+        truncatedNodes: intId,
+        warningSuppressed: intId,
+        maxEdges: intId,
+        maxNodes: intId
       },
       additionalProperties: true
     },
@@ -127,18 +285,58 @@ const importResolutionGraphSchema = {
       type: 'array',
       items: {
         type: 'object',
-        required: ['from', 'to', 'rawSpecifier', 'resolvedType'],
+        required: ['from', 'to', 'rawSpecifier', 'resolvedType', 'resolutionState'],
         properties: {
           from: { type: 'string' },
           to: { type: ['string', 'null'] },
           rawSpecifier: { type: 'string' },
           kind: { type: 'string' },
+          resolutionState: { type: 'string', enum: importResolutionStateEnum },
           resolvedType: { type: 'string' },
           resolvedPath: nullableString,
           packageName: nullableString,
           tsconfigPath: nullableString,
-          tsPathPattern: nullableString
+          tsPathPattern: nullableString,
+          reasonCode: nullableEnum(importReasonCodeEnum),
+          failureCause: nullableEnum(importFailureCauseEnum),
+          disposition: nullableEnum(importDispositionEnum),
+          resolverStage: nullableEnum(importResolverStageEnum)
         },
+        allOf: [
+          {
+            if: {
+              properties: {
+                resolutionState: { const: IMPORT_RESOLUTION_STATES.RESOLVED }
+              },
+              required: ['resolutionState']
+            },
+            then: {
+              properties: {
+                reasonCode: { type: 'null' },
+                failureCause: { type: 'null' },
+                disposition: { type: 'null' },
+                resolverStage: { type: 'null' }
+              }
+            }
+          },
+          {
+            if: {
+              properties: {
+                resolutionState: { const: IMPORT_RESOLUTION_STATES.UNRESOLVED }
+              },
+              required: ['resolutionState']
+            },
+            then: {
+              required: ['reasonCode', 'failureCause', 'disposition', 'resolverStage'],
+              properties: {
+                reasonCode: { type: 'string', enum: importReasonCodeEnum },
+                failureCause: { type: 'string', enum: importFailureCauseEnum },
+                disposition: { type: 'string', enum: importDispositionEnum },
+                resolverStage: { type: 'string', enum: importResolverStageEnum }
+              }
+            }
+          }
+        ],
         additionalProperties: true
       }
     },
@@ -146,10 +344,30 @@ const importResolutionGraphSchema = {
       type: 'array',
       items: {
         type: 'object',
+        required: ['resolutionState', 'reasonCode', 'failureCause', 'disposition', 'resolverStage'],
+        allOf: [
+          {
+            not: {
+              properties: {
+                category: {}
+              },
+              required: ['category']
+            }
+          }
+        ],
         properties: {
           importer: nullableString,
           specifier: nullableString,
-          reason: nullableString
+          reason: nullableString,
+          reasonCode: { type: 'string', enum: importReasonCodeEnum },
+          resolutionState: {
+            type: 'string',
+            const: IMPORT_RESOLUTION_STATES.UNRESOLVED
+          },
+          failureCause: { type: 'string', enum: importFailureCauseEnum },
+          disposition: { type: 'string', enum: importDispositionEnum },
+          resolverStage: { type: 'string', enum: importResolverStageEnum },
+          confidence: { type: ['number', 'null'] }
         },
         additionalProperties: true
       }

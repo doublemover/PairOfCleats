@@ -1,6 +1,7 @@
 import path from 'node:path';
 import * as linguistLanguages from 'linguist-languages';
 import { toArray } from '../../shared/iterables.js';
+import { normalizeImportSpecifiers } from '../shared/import-specifier.js';
 import { LANGUAGE_REGISTRY } from './registry-data.js';
 import { LANGUAGE_ROUTE_DESCRIPTORS } from './descriptors.js';
 const LANGUAGE_BY_ID = new Map(LANGUAGE_REGISTRY.map((lang) => [lang.id, lang]));
@@ -140,6 +141,75 @@ const resolveDescriptorLanguage = (ext, relPath) => {
   return null;
 };
 
+const normalizeCollectorHint = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const reasonCode = typeof value.reasonCode === 'string' ? value.reasonCode.trim() : '';
+  if (!reasonCode) return null;
+  const confidenceRaw = Number(value.confidence);
+  const confidence = Number.isFinite(confidenceRaw)
+    ? Math.max(0, Math.min(1, confidenceRaw))
+    : null;
+  const detail = typeof value.detail === 'string' && value.detail.trim()
+    ? value.detail.trim()
+    : null;
+  return {
+    reasonCode,
+    confidence,
+    detail
+  };
+};
+
+const coerceImportEntry = (value) => {
+  if (typeof value === 'string') return { specifier: value.trim(), collectorHint: null };
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const specifier = typeof value.specifier === 'string'
+    ? value.specifier.trim()
+    : (
+      typeof value.import === 'string'
+        ? value.import.trim()
+        : ''
+    );
+  if (!specifier) return null;
+  return {
+    specifier,
+    collectorHint: normalizeCollectorHint(value.collectorHint)
+  };
+};
+
+const normalizeImportEntries = (entries) => {
+  const deduped = new Map();
+  for (const rawEntry of Array.isArray(entries) ? entries : []) {
+    const normalized = coerceImportEntry(rawEntry);
+    if (!normalized) continue;
+    const normalizedSpecifierList = normalizeImportSpecifiers([normalized.specifier]);
+    const specifier = normalizedSpecifierList[0];
+    if (!specifier) continue;
+    const existing = deduped.get(specifier);
+    if (!existing) {
+      deduped.set(specifier, {
+        specifier,
+        collectorHint: normalized.collectorHint
+      });
+      continue;
+    }
+    const existingConfidence = Number(existing?.collectorHint?.confidence);
+    const nextConfidence = Number(normalized?.collectorHint?.confidence);
+    const shouldReplaceHint = (
+      normalized.collectorHint
+      && (
+        !existing?.collectorHint
+        || (
+          Number.isFinite(nextConfidence)
+          && (!Number.isFinite(existingConfidence) || nextConfidence > existingConfidence)
+        )
+      )
+    );
+    if (shouldReplaceHint) existing.collectorHint = normalized.collectorHint;
+  }
+  return Array.from(deduped.values())
+    .sort((a, b) => (a.specifier < b.specifier ? -1 : (a.specifier > b.specifier ? 1 : 0)));
+};
+
 export function getLanguageForFile(ext, relPath) {
   const normalized = relPath || '';
   const descriptorMatch = resolveDescriptorLanguage(ext, normalized);
@@ -148,6 +218,11 @@ export function getLanguageForFile(ext, relPath) {
 }
 
 export function collectLanguageImports(input = {}) {
+  const entries = collectLanguageImportEntries(input);
+  return entries.map((entry) => entry.specifier);
+}
+
+export function collectLanguageImportEntries(input = {}) {
   const {
     ext,
     relPath,
@@ -159,7 +234,9 @@ export function collectLanguageImports(input = {}) {
     ...rest
   } = input;
   const lang = getLanguageForFile(ext, relPath);
-  if (!lang || typeof lang.collectImports !== 'function') return [];
+  if (!lang || (typeof lang.collectImports !== 'function' && typeof lang.collectImportEntries !== 'function')) {
+    return [];
+  }
   const forwarded = {
     ...(options && typeof options === 'object' ? options : {}),
     ...rest
@@ -172,8 +249,10 @@ export function collectLanguageImports(input = {}) {
   };
   if (root) merged.root = root;
   if (filePath) merged.filePath = filePath;
-  const imports = lang.collectImports(text, merged);
-  return Array.isArray(imports) ? imports : [];
+  const imports = typeof lang.collectImportEntries === 'function'
+    ? lang.collectImportEntries(text, merged)
+    : lang.collectImports(text, merged);
+  return normalizeImportEntries(imports);
 }
 
 export async function buildLanguageContext({ ext, relPath, mode, text, options }) {

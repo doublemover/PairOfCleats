@@ -1,10 +1,14 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline/promises';
 import { stdin as input, stderr as output } from 'node:process';
 import { createCli } from '../../src/shared/cli.js';
-import { clearCacheRoot, getCacheRootBase, resolveVersionedCacheRoot } from '../../src/shared/cache-roots.js';
+import {
+  clearCacheRoot,
+  getCacheRootBase,
+  normalizeLegacyCacheRootPath,
+  resolveVersionedCacheRoot
+} from '../../src/shared/cache-roots.js';
 
 const cli = createCli({
   scriptName: 'clear-cache',
@@ -18,7 +22,8 @@ const cli = createCli({
 });
 
 const argv = cli.parse();
-const baseRoot = argv['cache-root'] ? path.resolve(argv['cache-root']) : getCacheRootBase();
+const baseRootInput = argv['cache-root'] || getCacheRootBase();
+const baseRoot = normalizeLegacyCacheRootPath(baseRootInput) || path.resolve(baseRootInput);
 const cacheRoot = resolveVersionedCacheRoot(baseRoot);
 const targetLabel = argv.all ? baseRoot : cacheRoot;
 
@@ -37,10 +42,5 @@ if (!argv.force) {
 }
 
 clearCacheRoot({ baseRoot, includeLegacy: argv.all === true });
-if (fs.existsSync(targetLabel)) {
-  try {
-    fs.rmSync(targetLabel, { recursive: true, force: true });
-  } catch {}
-}
 
 console.error(`Cache cleared: ${targetLabel}`);

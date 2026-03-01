@@ -44,6 +44,7 @@ export const MANIFEST_FILENAMES = Object.freeze([
 
 export const MANIFEST_SUFFIXES = Object.freeze([
   '.csproj',
+  '.projitems',
   '.props',
   '.sln',
   '.targets'

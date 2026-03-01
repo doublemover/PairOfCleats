@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { formatGitFailure } from '../../../tools/service/repos.js';
+import path from 'node:path';
+import { formatGitFailure, resolveRepoEntry } from '../../../tools/service/repos.js';
 
 assert.equal(
   formatGitFailure({ status: null, signal: 'SIGINT', stderr: '', stdout: '' }, 'fallback'),
@@ -22,5 +23,17 @@ assert.equal(
   formatGitFailure({ status: 1, signal: null, stderr: 'fatal: bad ref\n', stdout: '' }, 'fallback'),
   'fatal: bad ref'
 );
+
+if (process.platform === 'win32') {
+  const repoEntries = [
+    { id: 'sample', path: path.join('C:', 'Temp', 'Repo-A') }
+  ];
+  const resolved = resolveRepoEntry(
+    path.join('c:', 'temp', 'repo-a'),
+    repoEntries,
+    process.cwd()
+  );
+  assert.equal(resolved?.id, 'sample', 'expected resolveRepoEntry to match Windows paths case-insensitively');
+}
 
 console.log('service repos failure reason test passed');

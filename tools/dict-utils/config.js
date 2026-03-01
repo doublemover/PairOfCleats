@@ -4,7 +4,7 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import { buildAutoPolicy } from '../../src/shared/auto-policy.js';
 import { getEnvConfig, getTestEnvConfig } from '../../src/shared/env.js';
-import { getCacheRoot as getVersionedCacheRoot, getCacheRootBase } from '../../src/shared/cache-roots.js';
+import { getCacheRoot as getResolvedCacheRoot, getCacheRootBase } from '../../src/shared/cache-roots.js';
 import { readJsoncFile } from '../../src/shared/jsonc.js';
 import { isPlainObject, mergeConfig } from '../../src/shared/config.js';
 import { validateConfig } from '../../src/config/validate.js';
@@ -221,6 +221,7 @@ function normalizeUserConfig(baseConfig, repoRoot = null) {
     if (tooling.circuitBreakerThreshold !== undefined) {
       normalizedTooling.circuitBreakerThreshold = tooling.circuitBreakerThreshold;
     }
+    if (isPlainObject(tooling.lifecycle)) normalizedTooling.lifecycle = tooling.lifecycle;
     if (tooling.logDir) normalizedTooling.logDir = tooling.logDir;
     if (tooling.enabledTools) normalizedTooling.enabledTools = tooling.enabledTools;
     if (tooling.disabledTools) normalizedTooling.disabledTools = tooling.disabledTools;
@@ -231,10 +232,15 @@ function normalizeUserConfig(baseConfig, repoRoot = null) {
       if (tooling.vfs.maxVirtualFileBytes !== undefined) {
         vfs.maxVirtualFileBytes = tooling.vfs.maxVirtualFileBytes;
       }
+      if (tooling.vfs.hashRouting !== undefined) vfs.hashRouting = tooling.vfs.hashRouting;
+      if (tooling.vfs.coalesceSegments !== undefined) vfs.coalesceSegments = tooling.vfs.coalesceSegments;
+      if (tooling.vfs.tokenMode !== undefined) vfs.tokenMode = tooling.vfs.tokenMode;
+      if (isPlainObject(tooling.vfs.ioBatching)) vfs.ioBatching = tooling.vfs.ioBatching;
+      if (tooling.vfs.coldStartCache !== undefined) vfs.coldStartCache = tooling.vfs.coldStartCache;
       if (Object.keys(vfs).length) normalizedTooling.vfs = vfs;
     }
     if (isPlainObject(tooling.lsp)) {
-      const lsp = {};
+      const lsp = { ...tooling.lsp };
       if (tooling.lsp.enabled !== undefined) lsp.enabled = tooling.lsp.enabled;
       if (tooling.lsp.servers) lsp.servers = tooling.lsp.servers;
       if (Object.keys(lsp).length) normalizedTooling.lsp = lsp;
@@ -243,6 +249,8 @@ function normalizeUserConfig(baseConfig, repoRoot = null) {
       const cache = {};
       if (tooling.cache.enabled !== undefined) cache.enabled = tooling.cache.enabled;
       if (tooling.cache.dir) cache.dir = tooling.cache.dir;
+      if (tooling.cache.maxBytes !== undefined) cache.maxBytes = tooling.cache.maxBytes;
+      if (tooling.cache.maxEntries !== undefined) cache.maxEntries = tooling.cache.maxEntries;
       if (Object.keys(cache).length) normalizedTooling.cache = cache;
     }
     if (isPlainObject(tooling.typescript)) {
@@ -269,6 +277,14 @@ function normalizeUserConfig(baseConfig, repoRoot = null) {
       if (clangd.compileCommandsDir) normalizedClangd.compileCommandsDir = clangd.compileCommandsDir;
       if (Object.keys(normalizedClangd).length) normalizedTooling.clangd = normalizedClangd;
     }
+    if (isPlainObject(tooling.gopls)) normalizedTooling.gopls = tooling.gopls;
+    if (isPlainObject(tooling.jdtls)) normalizedTooling.jdtls = tooling.jdtls;
+    if (isPlainObject(tooling.csharp)) normalizedTooling.csharp = tooling.csharp;
+    if (isPlainObject(tooling.solargraph)) normalizedTooling.solargraph = tooling.solargraph;
+    if (isPlainObject(tooling.elixir)) normalizedTooling.elixir = tooling.elixir;
+    if (isPlainObject(tooling.phpactor)) normalizedTooling.phpactor = tooling.phpactor;
+    if (isPlainObject(tooling.haskell)) normalizedTooling.haskell = tooling.haskell;
+    if (isPlainObject(tooling.dart)) normalizedTooling.dart = tooling.dart;
     if (isPlainObject(tooling.pyright)) normalizedTooling.pyright = tooling.pyright;
     if (isPlainObject(tooling.sourcekit)) normalizedTooling.sourcekit = tooling.sourcekit;
     if (Object.keys(normalizedTooling).length) normalized.tooling = normalizedTooling;
@@ -378,7 +394,7 @@ function normalizeUserConfig(baseConfig, repoRoot = null) {
  * @returns {string}
  */
 export function getCacheRoot() {
-  return getVersionedCacheRoot();
+  return getResolvedCacheRoot();
 }
 
 /**
@@ -396,7 +412,7 @@ export function getDictConfig(repoRoot, userConfig = null) {
     dict.dpMaxTokenLengthByFileCount
   );
   return {
-    // Dictionaries are shared and durable across cache-key versions; do not pin them to the versioned cache root.
+    // Dictionaries are shared and durable across cache-key versions; keep them outside repo cache data.
     dir: envDictDir || dict.dir || path.join(getCacheRootBase(), 'dictionaries'),
     languages: Array.isArray(dict.languages) ? dict.languages : ['en'],
     files: Array.isArray(dict.files) ? dict.files : [],

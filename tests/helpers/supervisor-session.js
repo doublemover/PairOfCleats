@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { registerChildProcessForCleanup } from '../../src/shared/subprocess.js';
 
 const DEFAULT_POLL_MS = 20;
 
@@ -28,7 +29,24 @@ export const createSupervisorSession = ({
     cwd: root,
     stdio: ['pipe', 'pipe', 'pipe']
   });
+  const unregisterTrackedChild = registerChildProcessForCleanup(child, {
+    killTree: true,
+    detached: process.platform !== 'win32',
+    name: 'supervisor-session-test',
+    command: process.execPath,
+    args: [supervisorPath]
+  });
   child.stderr.on('data', () => {});
+  let exitCode = null;
+  let exitSignal = null;
+  const exitPromise = new Promise((resolve) => {
+    child.once('exit', (code, signal) => {
+      exitCode = code;
+      exitSignal = signal;
+      unregisterTrackedChild();
+      resolve(code ?? null);
+    });
+  });
 
   const events = [];
   let carry = '';
@@ -48,6 +66,11 @@ export const createSupervisorSession = ({
     while (Date.now() - started < waitTimeoutMs) {
       const found = events.find(predicate);
       if (found) return found;
+      if (child.exitCode !== null) {
+        throw new Error(
+          `supervisor exited before expected event (code=${child.exitCode}, signal=${exitSignal || 'null'})`
+        );
+      }
       await new Promise((resolve) => setTimeout(resolve, DEFAULT_POLL_MS));
     }
     throw new Error('timeout waiting for supervisor event');
@@ -57,10 +80,27 @@ export const createSupervisorSession = ({
     child.stdin.write(`${JSON.stringify({ proto: 'poc.tui@1', ...payload })}\n`);
   };
 
-  const waitForExit = () => new Promise((resolve) => child.once('exit', (code) => resolve(code)));
+  const waitForExit = () => {
+    if (child.exitCode !== null) {
+      return Promise.resolve(child.exitCode ?? exitCode ?? null);
+    }
+    return exitPromise;
+  };
 
-  const shutdown = async (reason = 'test_complete') => {
-    send({ op: 'shutdown', reason });
+  const shutdown = async (reason = 'test_complete', waitTimeoutMs = timeoutMs) => {
+    try {
+      send({ op: 'shutdown', reason });
+    } catch {}
+    const waitPromise = waitForExit();
+    if (child.exitCode !== null) return waitPromise;
+    const bounded = await Promise.race([
+      waitPromise,
+      new Promise((resolve) => {
+        setTimeout(() => resolve(null), Math.max(1, Number(waitTimeoutMs) || timeoutMs));
+      })
+    ]);
+    if (bounded !== null) return bounded;
+    forceKill();
     return waitForExit();
   };
 
@@ -68,6 +108,7 @@ export const createSupervisorSession = ({
     try {
       child.kill('SIGKILL');
     } catch {}
+    unregisterTrackedChild();
   };
 
   return {

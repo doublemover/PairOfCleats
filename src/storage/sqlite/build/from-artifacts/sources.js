@@ -16,11 +16,19 @@ import {
   expandMetaPartPaths,
   listShardFiles,
   locateChunkMetaShards,
+  loadChunkMetaRows,
   loadTokenPostings,
   readJsonLinesEachAwait,
   resolveArtifactPresence,
   resolveJsonlRequiredKeys
 } from '../../../../shared/artifact-io.js';
+import {
+  INTEGER_COERCE_MODE_STRICT,
+  INTEGER_COERCE_MODE_TRUNCATE,
+  coerceNonNegativeInt
+} from '../../../../shared/number-coerce.js';
+
+const SQLITE_TOKEN_CARDINALITY_ERROR_CODE = 'ERR_SQLITE_TOKEN_CARDINALITY';
 
 const resolveFirstExistingPath = (basePath) => {
   const candidates = [basePath, `${basePath}.gz`, `${basePath}.zst`];
@@ -117,8 +125,15 @@ export const resolveChunkMetaSources = (dir) => {
   }
   if (Array.isArray(presence?.paths) && presence.paths.length) {
     return {
-      format: presence.format === 'json' || presence.format === 'columnar' ? presence.format : 'jsonl',
+      format: (
+        presence.format === 'json'
+        || presence.format === 'columnar'
+        || presence.format === 'binary-columnar'
+      )
+        ? presence.format
+        : 'jsonl',
       paths: presence.paths,
+      dir,
       metaPath: presence.metaPath || null,
       meta: presence.meta || null
     };
@@ -138,6 +153,7 @@ export const resolveChunkMetaSources = (dir) => {
       return {
         format: 'jsonl',
         paths: located.parts,
+        dir,
         metaPath: located.metaPath || null,
         meta: located.meta || null
       };
@@ -146,11 +162,11 @@ export const resolveChunkMetaSources = (dir) => {
 
   const jsonlResolved = resolveFirstExistingPath(path.join(dir, 'chunk_meta.jsonl'));
   if (jsonlResolved) {
-    return { format: 'jsonl', paths: [jsonlResolved], metaPath: null, meta: null };
+    return { format: 'jsonl', paths: [jsonlResolved], dir, metaPath: null, meta: null };
   }
   const jsonResolved = resolveFirstExistingPath(path.join(dir, 'chunk_meta.json'));
   if (jsonResolved) {
-    return { format: 'json', paths: [jsonResolved], metaPath: null, meta: null };
+    return { format: 'json', paths: [jsonResolved], dir, metaPath: null, meta: null };
   }
   return null;
 };
@@ -183,12 +199,22 @@ export const resolveTokenPostingsSources = (dir) => {
   const shardsDir = path.join(dir, TOKEN_POSTINGS_SHARDS_DIR);
   if (!fsSync.existsSync(metaPath) && !fsSync.existsSync(shardsDir)) return null;
   let parts = [];
+  let metaError = null;
   if (fsSync.existsSync(metaPath)) {
     try {
       const metaRaw = readJson(metaPath);
       const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
+      const declaredPartsCount = Array.isArray(meta?.parts) ? meta.parts.length : 0;
       parts = expandMetaPartPaths(meta?.parts, dir);
-    } catch {}
+      if (declaredPartsCount > 0 && parts.length !== declaredPartsCount) {
+        throw new Error('[sqlite] token_postings.meta.json contains invalid shard paths');
+      }
+    } catch (err) {
+      metaError = err;
+    }
+  }
+  if (metaError) {
+    throw metaError;
   }
   if (!parts.length) {
     parts = listShardFiles(shardsDir, TOKEN_POSTINGS_PART_PREFIX, TOKEN_POSTINGS_PART_EXTENSIONS);
@@ -196,30 +222,84 @@ export const resolveTokenPostingsSources = (dir) => {
   return parts.length ? { metaPath, parts } : null;
 };
 
-export const normalizeTfPostingRows = (posting) => {
-  if (!Array.isArray(posting) || posting.length <= 1) return Array.isArray(posting) ? posting : [];
+export const normalizeTfPostingRows = (
+  posting,
+  {
+    mode = INTEGER_COERCE_MODE_TRUNCATE,
+    rejectInvalid = false,
+    contextLabel = 'token_postings posting row'
+  } = {}
+) => {
+  if (!Array.isArray(posting) || posting.length === 0) return Array.isArray(posting) ? posting : [];
+  const coerceValue = (value) => coerceNonNegativeInt(value, { mode });
   let previousDocId = -1;
   let alreadySortedUnique = true;
   for (const entry of posting) {
-    if (!Array.isArray(entry) || entry.length < 2) continue;
-    const docIdRaw = Number(entry[0]);
-    if (!Number.isFinite(docIdRaw)) continue;
-    const docId = Math.max(0, Math.floor(docIdRaw));
+    if (!Array.isArray(entry) || entry.length < 2) {
+      if (rejectInvalid) {
+        const error = new Error(
+          `[sqlite] ${contextLabel} cardinality invariant failed: ` +
+          `must contain non-negative integer [docId, tf] pairs; got ${JSON.stringify(entry)}`
+        );
+        error.code = SQLITE_TOKEN_CARDINALITY_ERROR_CODE;
+        throw error;
+      }
+      alreadySortedUnique = false;
+      continue;
+    }
+    const docId = coerceValue(entry[0]);
+    if (docId == null) {
+      if (rejectInvalid) {
+        const error = new Error(
+          `[sqlite] ${contextLabel} cardinality invariant failed: ` +
+          `non-integer docId (${String(entry[0])}) is not allowed in strict mode.`
+        );
+        error.code = SQLITE_TOKEN_CARDINALITY_ERROR_CODE;
+        throw error;
+      }
+      continue;
+    }
     if (docId <= previousDocId) {
       alreadySortedUnique = false;
       break;
     }
     previousDocId = docId;
   }
+  if (alreadySortedUnique && mode === INTEGER_COERCE_MODE_STRICT) {
+    for (const entry of posting) {
+      if (!Array.isArray(entry) || entry.length < 2) continue;
+      const tf = coerceValue(entry[1]);
+      if (tf == null) {
+        if (rejectInvalid) {
+          const error = new Error(
+            `[sqlite] ${contextLabel} cardinality invariant failed: ` +
+            `non-integer tf (${String(entry[1])}) is not allowed in strict mode.`
+          );
+          error.code = SQLITE_TOKEN_CARDINALITY_ERROR_CODE;
+          throw error;
+        }
+        alreadySortedUnique = false;
+        break;
+      }
+    }
+  }
   if (alreadySortedUnique) return posting;
   const merged = new Map();
   for (const entry of posting) {
     if (!Array.isArray(entry) || entry.length < 2) continue;
-    const docIdRaw = Number(entry[0]);
-    const tfRaw = Number(entry[1]);
-    if (!Number.isFinite(docIdRaw) || !Number.isFinite(tfRaw)) continue;
-    const docId = Math.max(0, Math.floor(docIdRaw));
-    const tf = Math.max(0, Math.floor(tfRaw));
+    const docId = coerceValue(entry[0]);
+    const tf = coerceValue(entry[1]);
+    if (docId == null || tf == null) {
+      if (rejectInvalid) {
+        const error = new Error(
+          `[sqlite] ${contextLabel} cardinality invariant failed: must contain non-negative integer [docId, tf] pairs; ` +
+          `received [${String(entry[0])}, ${String(entry[1])}].`
+        );
+        error.code = SQLITE_TOKEN_CARDINALITY_ERROR_CODE;
+        throw error;
+      }
+      continue;
+    }
     if (!tf) continue;
     merged.set(docId, (merged.get(docId) || 0) + tf);
   }
@@ -228,7 +308,11 @@ export const normalizeTfPostingRows = (posting) => {
 };
 
 export const resolveChunkMetaSourceKind = (format) => (
-  format === 'jsonl' ? 'jsonl' : (format === 'columnar' ? 'columnar' : 'json')
+  format === 'jsonl'
+    ? 'jsonl'
+    : (format === 'columnar'
+      ? 'columnar'
+      : (format === 'binary-columnar' ? 'binary-columnar' : 'json'))
 );
 
 export const CHUNK_META_REQUIRED_KEYS = resolveJsonlRequiredKeys('chunk_meta');
@@ -290,6 +374,26 @@ export const iterateChunkMetaSources = async (
           await emitEntry(row);
         }
       }
+    }
+    return { sourceKind, sourceFiles, count };
+  }
+  if (sourceKind === 'binary-columnar') {
+    for (const sourcePath of paths) {
+      await emitSourceFile(sourcePath);
+    }
+    const sourceDir = typeof sources?.dir === 'string' && sources.dir
+      ? sources.dir
+      : (paths.length ? path.dirname(paths[0]) : null);
+    if (!sourceDir) return { sourceKind, sourceFiles, count };
+    for await (const row of loadChunkMetaRows(sourceDir, {
+      maxBytes: MAX_JSON_BYTES,
+      strict: false,
+      includeCold: false,
+      materializeTokenIds: false,
+      preferBinaryColumnar: true,
+      enforceBinaryDataBudget: true
+    })) {
+      await emitEntry(row);
     }
     return { sourceKind, sourceFiles, count };
   }

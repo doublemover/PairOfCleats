@@ -165,6 +165,12 @@ const cases = [
     expected: ['foo.proto', 'bar.proto', 'baz.proto']
   },
   {
+    label: 'proto-inline-block-comment-import',
+    fn: collectProtoImports,
+    text: '/* c */ import "real.proto";',
+    expected: ['real.proto']
+  },
+  {
     label: 'graphql',
     fn: collectGraphqlImports,
     text: [
@@ -173,6 +179,17 @@ const cases = [
       'extend schema @link(url: \"https://specs.apollo.dev/federation/v2.6\", import: [\"@key\"])'
     ].join('\n'),
     expected: ['common.graphql', 'shared.graphql', 'https://specs.apollo.dev/federation/v2.6']
+  },
+  {
+    label: 'graphql-multiline-link',
+    fn: collectGraphqlImports,
+    text: [
+      'extend schema @link(',
+      '  url: "https://specs.apollo.dev/federation/v2.7",',
+      '  import: ["@key"]',
+      ')'
+    ].join('\n'),
+    expected: ['https://specs.apollo.dev/federation/v2.7']
   },
   {
     label: 'cmake',
@@ -198,6 +215,42 @@ const cases = [
     expected: ['//path:target', '@rules_cc', '//tools:deps.bzl', '../third_party/custom']
   },
   {
+    label: 'starlark-ignores-inline-comment-noise',
+    fn: collectStarlarkImports,
+    text: [
+      '# bazel_dep(name = "rules_cc")',
+      'load("//path:target", "x") # bazel_dep(name = "rules_java")'
+    ].join('\n'),
+    expected: ['//path:target']
+  },
+  {
+    label: 'starlark-multiline-calls',
+    fn: collectStarlarkImports,
+    text: [
+      'bazel_dep(',
+      '  name = "rules_go",',
+      '  version = "0.48.0",',
+      ')',
+      'use_extension(',
+      '  "//tools:deps.bzl",',
+      '  "deps"',
+      ')'
+    ].join('\n'),
+    expected: ['@rules_go', '//tools:deps.bzl']
+  },
+  {
+    label: 'starlark-ignores-string-noise',
+    fn: collectStarlarkImports,
+    text: [
+      'DOC = """',
+      'load("//ignored:target", "x")',
+      'bazel_dep(name = "ignored")',
+      '"""',
+      'load("//real:target", "x")'
+    ].join('\n'),
+    expected: ['//real:target']
+  },
+  {
     label: 'nix',
     fn: collectNixImports,
     text: [
@@ -217,6 +270,66 @@ const cases = [
       'github:NixOS/nixpkgs/nixos-24.11',
       '../local-override'
     ]
+  },
+  {
+    label: 'nix-multiline-imports-array',
+    fn: collectNixImports,
+    text: [
+      'imports = [',
+      '  ./hosts/default.nix',
+      '  ../shared/infra.nix',
+      '];'
+    ].join('\n'),
+    expected: ['./hosts/default.nix', '../shared/infra.nix']
+  },
+  {
+    label: 'nix-ignores-commented-imports',
+    fn: collectNixImports,
+    text: [
+      '# import ./ignored.nix',
+      '# callPackage ../nope.nix {}',
+      'import ./real.nix'
+    ].join('\n'),
+    expected: ['./real.nix']
+  },
+  {
+    label: 'nix-ignores-quoted-doc-noise',
+    fn: collectNixImports,
+    text: [
+      'let',
+      "  doc = ''",
+      '    import ./ignored-in-doc.nix',
+      "    builtins.getFlake \"github:ignored/example\"",
+      "  '';",
+      'in {',
+      '  imports = [ ./real.nix ];',
+      '}'
+    ].join('\n'),
+    expected: ['./real.nix']
+  },
+  {
+    label: 'starlark-budget-cap',
+    fn: collectStarlarkImports,
+    text: Array.from(
+      { length: 700 },
+      (_, index) => `bazel_dep(name = "rules_${String(index).padStart(4, '0')}")`
+    ).join('\n'),
+    expected: Array.from(
+      { length: 512 },
+      (_, index) => `@rules_${String(index).padStart(4, '0')}`
+    )
+  },
+  {
+    label: 'nix-budget-cap',
+    fn: collectNixImports,
+    text: `imports = [ ${Array.from(
+      { length: 1400 },
+      (_, index) => `./modules/m${String(index).padStart(4, '0')}.nix`
+    ).join(' ')} ];`,
+    expected: Array.from(
+      { length: 1024 },
+      (_, index) => `./modules/m${String(index).padStart(4, '0')}.nix`
+    )
   },
   {
     label: 'dart',
@@ -280,10 +393,22 @@ const cases = [
     expected: ['partial-name', 'partials/nav']
   },
   {
+    label: 'handlebars-comment-suppression',
+    fn: collectHandlebarsImports,
+    text: '{{!-- {{> ignored/partial}} --}}{{> "partials/nav"}}',
+    expected: ['partials/nav']
+  },
+  {
     label: 'mustache',
     fn: collectMustacheImports,
     text: '{{> other}}{{> partials/footer}}',
     expected: ['other', 'partials/footer']
+  },
+  {
+    label: 'mustache-comment-suppression',
+    fn: collectMustacheImports,
+    text: '{{! {{> ignored}} }}{{> partials/footer}}',
+    expected: ['partials/footer']
   },
   {
     label: 'jinja',
@@ -292,10 +417,52 @@ const cases = [
     expected: ['base.html']
   },
   {
+    label: 'jinja-multiline-include',
+    fn: collectJinjaImports,
+    text: '{% include\n  \"partials/footer.html\"\n%}',
+    expected: ['partials/footer.html']
+  },
+  {
+    label: 'jinja-comment-suppression',
+    fn: collectJinjaImports,
+    text: '{# {% include "ignored.html" %} #}\n{% include "partials/footer.html" %}',
+    expected: ['partials/footer.html']
+  },
+  {
     label: 'razor',
     fn: collectRazorImports,
-    text: '@using System.Text',
+    text: '@using System.Text // note',
     expected: ['System.Text']
+  },
+  {
+    label: 'razor-static-using',
+    fn: collectRazorImports,
+    text: '@using static System.Math',
+    expected: ['System.Math']
+  },
+  {
+    label: 'razor-alias-using',
+    fn: collectRazorImports,
+    text: '@using Json = System.Text.Json;',
+    expected: ['System.Text.Json']
+  },
+  {
+    label: 'razor-inline-block-comment-tail',
+    fn: collectRazorImports,
+    text: '@using System.Text @* trailing note *@',
+    expected: ['System.Text']
+  },
+  {
+    label: 'razor-using-expression-not-import',
+    fn: collectRazorImports,
+    text: '@using (Html.BeginForm()) { }',
+    expected: []
+  },
+  {
+    label: 'collector-long-line-budget',
+    fn: collectGraphqlImports,
+    text: `#import "${'a'.repeat(8193)}.graphql"`,
+    expected: []
   }
 ];
 

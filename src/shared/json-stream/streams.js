@@ -47,7 +47,6 @@ const waitForEventWithTimeout = async ({ stream, event, timeoutMs, label = null 
         timer = setTimeout(() => {
           reject(createStreamWaitTimeoutError({ event, timeoutMs, label }));
         }, timeoutMs);
-        if (typeof timer?.unref === 'function') timer.unref();
       })
     ]);
   } finally {

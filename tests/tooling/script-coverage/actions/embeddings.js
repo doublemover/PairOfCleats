@@ -3,37 +3,37 @@ import path from 'node:path';
 export const buildEmbeddingActions = ({ root, runNode }) => [
   {
     label: 'embeddings-validate-test',
-    run: () => runNode('embeddings-validate-test', path.join(root, 'tests', 'indexing', 'embeddings', 'embeddings-validate.test.js')),
+    run: () => runNode('embeddings-validate-test', path.join(root, 'tests', 'indexing', 'embeddings', 'validate.test.js')),
     covers: ['embeddings-validate-test']
   },
   {
     label: 'embeddings-cache-identity-test',
-    run: () => runNode('embeddings-cache-identity-test', path.join(root, 'tests', 'indexing', 'embeddings', 'embeddings-cache-identity.test.js')),
+    run: () => runNode('embeddings-cache-identity-test', path.join(root, 'tests', 'indexing', 'embeddings', 'cache-identity.test.js')),
     covers: ['embeddings-cache-identity-test']
   },
   {
     label: 'embeddings-identity-test',
-    run: () => runNode('embeddings-identity-test', path.join(root, 'tests', 'indexing', 'embeddings', 'embeddings-identity.test.js')),
+    run: () => runNode('embeddings-identity-test', path.join(root, 'tests', 'indexing', 'embeddings', 'identity.test.js')),
     covers: ['embeddings-identity-test']
   },
   {
     label: 'embeddings-cache-invalidation-test',
-    run: () => runNode('embeddings-cache-invalidation-test', path.join(root, 'tests', 'indexing', 'embeddings', 'embeddings-cache-invalidation.test.js')),
+    run: () => runNode('embeddings-cache-invalidation-test', path.join(root, 'tests', 'indexing', 'embeddings', 'cache-invalidation.test.js')),
     covers: ['embeddings-cache-invalidation-test']
   },
   {
     label: 'embeddings-dims-mismatch-test',
-    run: () => runNode('embeddings-dims-mismatch-test', path.join(root, 'tests', 'indexing', 'embeddings', 'embeddings-dims-mismatch.test.js')),
+    run: () => runNode('embeddings-dims-mismatch-test', path.join(root, 'tests', 'indexing', 'embeddings', 'dims-mismatch.test.js')),
     covers: ['embeddings-dims-mismatch-test']
   },
   {
     label: 'embeddings-dims-validation-test',
-    run: () => runNode('embeddings-dims-validation-test', path.join(root, 'tests', 'indexing', 'embeddings', 'embeddings-dims-validation.test.js')),
+    run: () => runNode('embeddings-dims-validation-test', path.join(root, 'tests', 'indexing', 'embeddings', 'dims-validation.test.js')),
     covers: ['embeddings-dims-validation-test']
   },
   {
     label: 'embeddings-sqlite-dense-test',
-    run: () => runNode('embeddings-sqlite-dense-test', path.join(root, 'tests', 'indexing', 'embeddings', 'embeddings-sqlite-dense.test.js')),
+    run: () => runNode('embeddings-sqlite-dense-test', path.join(root, 'tests', 'indexing', 'embeddings', 'sqlite-dense.test.js')),
     covers: ['embeddings-sqlite-dense-test']
   },
   {
@@ -58,7 +58,7 @@ export const buildEmbeddingActions = ({ root, runNode }) => [
   },
   {
     label: 'build-embeddings-cache-test',
-    run: () => runNode('build-embeddings-cache-test', path.join(root, 'tests', 'indexing', 'embeddings', 'build', 'build-embeddings-cache.test.js')),
+    run: () => runNode('build-embeddings-cache-test', path.join(root, 'tests', 'indexing', 'embeddings', 'build', 'embeddings-cache.test.js')),
     covers: ['build-embeddings-cache-test']
   },
   {

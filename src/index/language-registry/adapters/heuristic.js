@@ -26,12 +26,16 @@ import { collectJinjaImports } from '../import-collectors/jinja.js';
 import { collectJuliaImports } from '../import-collectors/julia.js';
 import { collectMakefileImports } from '../import-collectors/makefile.js';
 import { collectMustacheImports } from '../import-collectors/mustache.js';
-import { collectNixImports } from '../import-collectors/nix.js';
+import { collectNixImportEntries, collectNixImports } from '../import-collectors/nix.js';
 import { collectProtoImports } from '../import-collectors/proto.js';
 import { collectRazorImports } from '../import-collectors/razor.js';
 import { collectRImports } from '../import-collectors/r.js';
 import { collectScalaImports } from '../import-collectors/scala.js';
-import { collectStarlarkImports } from '../import-collectors/starlark.js';
+import { collectStarlarkImportEntries, collectStarlarkImports } from '../import-collectors/starlark.js';
+import {
+  collectorImportEntriesToSpecifiers,
+  createCollectorBudgetContext
+} from '../import-collectors/utils.js';
 import { flowOptions, normalizeRelPath } from './managed.js';
 
 const createExtensionMatcher = (extensions) => (ext) => extensions.has(ext);
@@ -253,38 +257,48 @@ const BUILD_DSL_USAGE_SKIP = new Set([
   'endmacro'
 ]);
 
+const HEURISTIC_RELATION_SCAN_BUDGET = Object.freeze({
+  maxChars: 1048576,
+  maxMatches: 8192,
+  maxTokens: 4096,
+  maxMs: 40
+});
+
 const sortUnique = (values) => Array.from(new Set(values.filter(Boolean))).sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
 
-const collectPatternNames = (text, patterns) => {
+const collectPatternNames = (text, patterns, scanBudget = null) => {
   const names = [];
   const source = String(text || '');
   for (const pattern of patterns || []) {
+    if (scanBudget?.exhausted) break;
     const flags = pattern.flags.includes('g') ? pattern.flags : `${pattern.flags}g`;
     const matcher = new RegExp(pattern.source, flags);
     let match;
-    while ((match = matcher.exec(source)) !== null) {
+    while (!scanBudget?.exhausted && (match = matcher.exec(source)) !== null) {
+      if (scanBudget && !scanBudget.consumeMatch()) break;
       const name = String(match[1] || '').trim();
-      if (name) names.push(name);
+      if (name && (!scanBudget || scanBudget.consumeToken())) names.push(name);
       if (!match[0]) matcher.lastIndex += 1;
     }
   }
   return sortUnique(names);
 };
 
-const collectHeuristicCallees = (text) => {
+const collectHeuristicCallees = (text, scanBudget = null) => {
   const source = String(text || '');
   const out = [];
   const callRe = /\b([A-Za-z_][A-Za-z0-9_!.]*)\s*\(/g;
   let match;
-  while ((match = callRe.exec(source)) !== null) {
+  while (!scanBudget?.exhausted && (match = callRe.exec(source)) !== null) {
+    if (scanBudget && !scanBudget.consumeMatch()) break;
     const callee = String(match[1] || '').trim();
-    if (callee && !HEURISTIC_CALL_SKIP.has(callee)) out.push(callee);
+    if (callee && !HEURISTIC_CALL_SKIP.has(callee) && (!scanBudget || scanBudget.consumeToken())) out.push(callee);
     if (!match[0]) callRe.lastIndex += 1;
   }
   return sortUnique(out);
 };
 
-const collectTemplateUsages = (text) => {
+const collectTemplateUsages = (text, scanBudget = null) => {
   const source = String(text || '');
   const matches = [];
   const moustacheRef = /\{\{\s*[#/>]?\s*([A-Za-z_][A-Za-z0-9_.-]*)/g;
@@ -292,45 +306,51 @@ const collectTemplateUsages = (text) => {
   const razorPartialRef = /@(?:Html\.)?Partial(?:Async)?\s*\(\s*["']([^"']+)["']/g;
   const razorCallRef = /@([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
   for (const matcher of [moustacheRef, jinjaRef, razorPartialRef, razorCallRef]) {
+    if (scanBudget?.exhausted) break;
     let match;
-    while ((match = matcher.exec(source)) !== null) {
+    while (!scanBudget?.exhausted && (match = matcher.exec(source)) !== null) {
+      if (scanBudget && !scanBudget.consumeMatch()) break;
       const name = String(match[1] || '').trim();
-      if (name && !TEMPLATE_USAGE_SKIP.has(name)) matches.push(name);
+      if (name && !TEMPLATE_USAGE_SKIP.has(name) && (!scanBudget || scanBudget.consumeToken())) matches.push(name);
       if (!match[0]) matcher.lastIndex += 1;
     }
   }
   return sortUnique(matches);
 };
 
-const collectGraphqlUsages = (text) => {
+const collectGraphqlUsages = (text, scanBudget = null) => {
   const source = String(text || '');
   const values = [];
   const typeRef = /:\s*([A-Za-z_][A-Za-z0-9_]*)/g;
   const fragmentRef = /\.\.\.\s*([A-Za-z_][A-Za-z0-9_]*)/g;
   const implRef = /\b(?:on|implements)\s+([A-Za-z_][A-Za-z0-9_]*)/g;
   for (const matcher of [typeRef, fragmentRef, implRef]) {
+    if (scanBudget?.exhausted) break;
     let match;
-    while ((match = matcher.exec(source)) !== null) {
+    while (!scanBudget?.exhausted && (match = matcher.exec(source)) !== null) {
+      if (scanBudget && !scanBudget.consumeMatch()) break;
       const name = String(match[1] || '').trim();
-      if (name && !GRAPHQL_USAGE_SKIP.has(name)) values.push(name);
+      if (name && !GRAPHQL_USAGE_SKIP.has(name) && (!scanBudget || scanBudget.consumeToken())) values.push(name);
       if (!match[0]) matcher.lastIndex += 1;
     }
   }
   return sortUnique(values);
 };
 
-const collectProtoUsages = (text) => {
+const collectProtoUsages = (text, scanBudget = null) => {
   const source = String(text || '');
   const values = [];
   const rpcTypes = /\brpc\s+[A-Za-z_][A-Za-z0-9_]*\s*\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)\s+returns\s*\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)/g;
   const fieldTypes = /\b(?:optional|required|repeated)?\s*([A-Za-z_][A-Za-z0-9_.]*)\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*\d+/g;
   for (const matcher of [rpcTypes, fieldTypes]) {
+    if (scanBudget?.exhausted) break;
     let match;
-    while ((match = matcher.exec(source)) !== null) {
+    while (!scanBudget?.exhausted && (match = matcher.exec(source)) !== null) {
+      if (scanBudget && !scanBudget.consumeMatch()) break;
       const candidates = matcher === rpcTypes ? [match[1], match[2]] : [match[1]];
       for (const candidate of candidates) {
         const name = String(candidate || '').trim();
-        if (name && !PROTO_USAGE_SKIP.has(name)) values.push(name);
+        if (name && !PROTO_USAGE_SKIP.has(name) && (!scanBudget || scanBudget.consumeToken())) values.push(name);
       }
       if (!match[0]) matcher.lastIndex += 1;
     }
@@ -338,7 +358,7 @@ const collectProtoUsages = (text) => {
   return sortUnique(values);
 };
 
-const collectBuildDslUsages = (text) => {
+const collectBuildDslUsages = (text, scanBudget = null) => {
   const source = String(text || '');
   const values = [];
   const cmakeCalls = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(/gm;
@@ -349,47 +369,68 @@ const collectBuildDslUsages = (text) => {
   const nixOps = /\b(import|callPackage)\b/g;
   const matchers = [cmakeCalls, starlarkCalls, dockerFrom, dockerCopyFrom, nixOps];
   for (const matcher of matchers) {
+    if (scanBudget?.exhausted) break;
     let match;
-    while ((match = matcher.exec(source)) !== null) {
+    while (!scanBudget?.exhausted && (match = matcher.exec(source)) !== null) {
+      if (scanBudget && !scanBudget.consumeMatch()) break;
       const name = String(match[1] || '').trim();
-      if (name && !BUILD_DSL_USAGE_SKIP.has(name)) values.push(name);
+      if (name && !BUILD_DSL_USAGE_SKIP.has(name) && (!scanBudget || scanBudget.consumeToken())) values.push(name);
       if (!match[0]) matcher.lastIndex += 1;
     }
   }
   let depMatch;
-  while ((depMatch = makeDeps.exec(source)) !== null) {
+  while (!scanBudget?.exhausted && (depMatch = makeDeps.exec(source)) !== null) {
+    if (scanBudget && !scanBudget.consumeMatch()) break;
     const depBlock = String(depMatch[1] || '');
     const deps = depBlock.split(/\s+/).map((entry) => entry.trim()).filter(Boolean);
     for (const dep of deps) {
-      if (!BUILD_DSL_USAGE_SKIP.has(dep)) values.push(dep);
+      if (!BUILD_DSL_USAGE_SKIP.has(dep) && (!scanBudget || scanBudget.consumeToken())) values.push(dep);
+      if (scanBudget?.exhausted) break;
     }
     if (!depMatch[0]) makeDeps.lastIndex += 1;
   }
   return sortUnique(values);
 };
 
-const buildHeuristicManagedRelations = ({ text, options, collectImports, symbolPatterns, usageCollector }) => {
-  const base = buildSimpleRelations({ imports: collectImports(text, options) });
-  const symbols = collectPatternNames(text, symbolPatterns);
-  const callees = typeof usageCollector === 'function'
-    ? usageCollector(text)
-    : collectHeuristicCallees(text);
-  const calls = [];
-  const callers = symbols.length ? symbols : ['<module>'];
-  for (const caller of callers) {
-    for (const callee of callees) {
-      if (!callee || callee === caller) continue;
-      calls.push([caller, callee]);
+const buildHeuristicManagedRelations = ({
+  text,
+  options,
+  collectImports,
+  symbolPatterns,
+  usageCollector,
+  adapterId
+}) => {
+  const budgetContext = createCollectorBudgetContext({
+    text,
+    options,
+    collectorId: `heuristic-adapter:${adapterId || 'unknown'}`,
+    defaults: HEURISTIC_RELATION_SCAN_BUDGET
+  });
+  try {
+    const base = buildSimpleRelations({ imports: collectImports(text, options) });
+    const symbols = collectPatternNames(budgetContext.source, symbolPatterns, budgetContext.scanBudget);
+    const callees = typeof usageCollector === 'function'
+      ? usageCollector(budgetContext.source, budgetContext.scanBudget)
+      : collectHeuristicCallees(budgetContext.source, budgetContext.scanBudget);
+    const calls = [];
+    const callers = symbols.length ? symbols : ['<module>'];
+    for (const caller of callers) {
+      for (const callee of callees) {
+        if (!callee || callee === caller) continue;
+        calls.push([caller, callee]);
+        if (calls.length >= 96) break;
+      }
       if (calls.length >= 96) break;
     }
-    if (calls.length >= 96) break;
+    return {
+      ...base,
+      exports: symbols,
+      calls,
+      usages: callees
+    };
+  } finally {
+    budgetContext.finalize();
   }
-  return {
-    ...base,
-    exports: symbols,
-    calls,
-    usages: callees
-  };
 };
 
 const extractHeuristicManagedDocMeta = (chunk) => {
@@ -435,26 +476,37 @@ export const createHeuristicManagedAdapter = ({
   id,
   match,
   collectImports,
+  collectImportEntries = null,
   symbolPatterns,
   usageCollector = null,
   capabilityProfile = null
 }) => {
+  const normalizeImports = (text, options) => {
+    if (typeof collectImportEntries === 'function') {
+      return collectorImportEntriesToSpecifiers(collectImportEntries(text, options));
+    }
+    return collectImports(text, options);
+  };
   const adapter = {
     id,
     match,
-    collectImports: (text, options) => collectImports(text, options),
+    collectImports: (text, options) => normalizeImports(text, options),
     prepare: async () => ({}),
     buildRelations: ({ text, options }) => buildHeuristicManagedRelations({
       text,
       options,
-      collectImports,
+      collectImports: normalizeImports,
       symbolPatterns,
-      usageCollector
+      usageCollector,
+      adapterId: id
     }),
     extractDocMeta: ({ chunk }) => extractHeuristicManagedDocMeta(chunk),
     flow: ({ text, chunk, options }) => buildHeuristicManagedFlow(text, chunk, flowOptions(options)),
     attachName: true
   };
+  if (typeof collectImportEntries === 'function') {
+    adapter.collectImportEntries = (text, options) => collectImportEntries(text, options);
+  }
   if (capabilityProfile) adapter.capabilityProfile = capabilityProfile;
   return adapter;
 };
@@ -494,6 +546,7 @@ export const buildHeuristicAdapters = () => [
     id: 'starlark',
     match: matchByExtension.starlark,
     collectImports: collectStarlarkImports,
+    collectImportEntries: collectStarlarkImportEntries,
     symbolPatterns: STARLARK_SYMBOL_PATTERNS,
     usageCollector: collectBuildDslUsages,
     capabilityProfile: IMPORT_COLLECTOR_CAPABILITY_PROFILE
@@ -502,6 +555,7 @@ export const buildHeuristicAdapters = () => [
     id: 'nix',
     match: matchByExtension.nix,
     collectImports: collectNixImports,
+    collectImportEntries: collectNixImportEntries,
     symbolPatterns: NIX_SYMBOL_PATTERNS,
     usageCollector: collectBuildDslUsages,
     capabilityProfile: IMPORT_COLLECTOR_CAPABILITY_PROFILE

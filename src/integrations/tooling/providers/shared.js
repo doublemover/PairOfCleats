@@ -1,21 +1,16 @@
-const hasIterable = (value) => value != null && typeof value[Symbol.iterator] === 'function';
-
-const toEntryList = (value) => {
-  if (Array.isArray(value)) return value;
-  if (value == null) return [];
-  if (typeof value === 'string') return [value];
-  if (value instanceof Set) return Array.from(value);
-  if (value instanceof Map) return Array.from(value.values());
-  if (hasIterable(value)) return Array.from(value);
-  if (value && typeof value === 'object' && Object.hasOwn(value, 'type')) return [value];
-  return [];
-};
+import { sleep } from '../../../shared/sleep.js';
+import {
+  mergeTypeEntries,
+  normalizeTypeEntry,
+  toTypeEntryCollection
+} from '../../../shared/type-entry-utils.js';
 
 export const uniqueTypes = (values) => {
   const out = [];
   const seen = new Set();
-  for (const entry of toEntryList(values)) {
-    const normalized = typeof entry === 'string' ? entry.trim() : String(entry?.type || '').trim();
+  for (const entry of toTypeEntryCollection(values)) {
+    const normalizedEntry = normalizeTypeEntry(entry);
+    const normalized = String(normalizedEntry?.type || '').trim();
     if (!normalized || seen.has(normalized)) continue;
     seen.add(normalized);
     out.push(normalized);
@@ -26,51 +21,9 @@ export const uniqueTypes = (values) => {
 const DEFAULT_MAX_RETURN_CANDIDATES = 5;
 const DEFAULT_MAX_PARAM_CANDIDATES = 5;
 
-const normalizeEntry = (entry) => {
-  if (!entry) return null;
-  if (typeof entry === 'string') {
-    const type = entry.trim();
-    if (!type) return null;
-    return { type, source: null, confidence: null };
-  }
-  if (!entry.type) return null;
-  return {
-    type: entry.type,
-    source: entry.source || null,
-    confidence: Number.isFinite(entry.confidence) ? entry.confidence : null
-  };
-};
-
-const mergeEntries = (existing, incoming, cap) => {
-  const map = new Map();
-  const add = (entry) => {
-    const normalized = normalizeEntry(entry);
-    if (!normalized || !normalized.type) return;
-    const key = `${normalized.type}:${normalized.source || ''}`;
-    const prior = map.get(key);
-    if (!prior) {
-      map.set(key, normalized);
-      return;
-    }
-    const priorConfidence = Number.isFinite(prior.confidence) ? prior.confidence : 0;
-    const nextConfidence = Number.isFinite(normalized.confidence) ? normalized.confidence : 0;
-    if (nextConfidence > priorConfidence) map.set(key, normalized);
-  };
-  for (const entry of toEntryList(existing)) add(entry);
-  for (const entry of toEntryList(incoming)) add(entry);
-  const list = Array.from(map.values());
-  list.sort((a, b) => {
-    const typeCmp = String(a.type).localeCompare(String(b.type));
-    if (typeCmp) return typeCmp;
-    const sourceCmp = String(a.source || '').localeCompare(String(b.source || ''));
-    if (sourceCmp) return sourceCmp;
-    const confA = Number.isFinite(a.confidence) ? a.confidence : 0;
-    const confB = Number.isFinite(b.confidence) ? b.confidence : 0;
-    return confB - confA;
-  });
-  if (cap && list.length > cap) return list.slice(0, cap);
-  return list;
-};
+const mergeEntries = (existing, incoming, cap) => (
+  mergeTypeEntries(existing, incoming, { cap }).list
+);
 
 export const createToolingEntry = () => ({
   returns: [],
@@ -95,7 +48,7 @@ export const mergeToolingEntry = (target, incoming, options = {}) => {
     if (!target.params || typeof target.params !== 'object') target.params = {};
     for (const [name, types] of Object.entries(incoming.params)) {
       if (!name) continue;
-      const incomingTypes = toEntryList(types);
+      const incomingTypes = toTypeEntryCollection(types);
       if (!incomingTypes.length) continue;
       const cap = Number.isFinite(options.maxParamCandidates)
         ? options.maxParamCandidates
@@ -125,7 +78,124 @@ export const mergeToolingMaps = (base, incoming) => {
   return target;
 };
 
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const FD_PRESSURE_PATTERN = /\b(emfile|enfile|too many open files)\b/i;
+
+const trimWindow = (events, now, windowMs) => {
+  while (events.length && (now - events[0]) > windowMs) events.shift();
+};
+
+/**
+ * Shared runtime health tracker for long-lived tooling subprocess providers.
+ * Tracks restart churn, crash-loop quarantine, and transient FD-pressure backoff.
+ *
+ * @param {{
+ *   name?:string,
+ *   restartWindowMs?:number,
+ *   maxRestartsPerWindow?:number,
+ *   fdPressureBackoffMs?:number,
+ *   log?:(line:string)=>void
+ * }} [options]
+ * @returns {{
+ *   onLifecycleEvent:(event:object)=>void,
+ *   noteStderrLine:(line:string)=>void,
+ *   getState:()=>object
+ * }}
+ */
+export const createToolingLifecycleHealth = (options = {}) => {
+  const name = String(options?.name || 'tooling');
+  const restartWindowMs = Number.isFinite(Number(options?.restartWindowMs))
+    ? Math.max(1000, Math.floor(Number(options.restartWindowMs)))
+    : 60_000;
+  const maxRestartsPerWindow = Number.isFinite(Number(options?.maxRestartsPerWindow))
+    ? Math.max(2, Math.floor(Number(options.maxRestartsPerWindow)))
+    : 6;
+  const fdPressureBackoffMs = Number.isFinite(Number(options?.fdPressureBackoffMs))
+    ? Math.max(50, Math.floor(Number(options.fdPressureBackoffMs)))
+    : 1500;
+  const log = typeof options?.log === 'function' ? options.log : (() => {});
+
+  const starts = [];
+  const crashes = [];
+  let crashLoopTrips = 0;
+  let crashLoopUntil = 0;
+  let lastCrash = null;
+  let fdPressureEvents = 0;
+  let fdPressureUntil = 0;
+  let lastFdPressureLine = '';
+
+  const refreshWindows = (now = Date.now()) => {
+    trimWindow(starts, now, restartWindowMs);
+    trimWindow(crashes, now, restartWindowMs);
+  };
+
+  const evaluateCrashLoop = (now = Date.now()) => {
+    refreshWindows(now);
+    if (starts.length >= maxRestartsPerWindow && crashes.length >= (maxRestartsPerWindow - 1)) {
+      crashLoopTrips += 1;
+      crashLoopUntil = Math.max(crashLoopUntil, now + restartWindowMs);
+      log(`[tooling] ${name} crash-loop quarantine active (${starts.length} starts/${crashes.length} failures in ${restartWindowMs}ms).`);
+    }
+  };
+
+  const onLifecycleEvent = (event) => {
+    const kind = String(event?.kind || '').trim();
+    if (!kind) return;
+    const now = Number.isFinite(Number(event?.at)) ? Number(event.at) : Date.now();
+    if (kind === 'start') {
+      starts.push(now);
+      evaluateCrashLoop(now);
+      return;
+    }
+    if (kind === 'exit' || kind === 'error') {
+      crashes.push(now);
+      lastCrash = {
+        kind,
+        code: event?.code ?? null,
+        signal: event?.signal ?? null,
+        message: event?.message ? String(event.message) : null,
+        at: new Date(now).toISOString()
+      };
+      evaluateCrashLoop(now);
+    }
+  };
+
+  const noteStderrLine = (line) => {
+    const text = String(line || '').trim();
+    if (!text) return;
+    if (!FD_PRESSURE_PATTERN.test(text)) return;
+    const now = Date.now();
+    fdPressureEvents += 1;
+    fdPressureUntil = Math.max(fdPressureUntil, now + fdPressureBackoffMs);
+    lastFdPressureLine = text;
+    log(`[tooling] ${name} fd-pressure backoff armed (${fdPressureBackoffMs}ms).`);
+  };
+
+  const getState = () => {
+    const now = Date.now();
+    refreshWindows(now);
+    return {
+      restartWindowMs,
+      maxRestartsPerWindow,
+      startsInWindow: starts.length,
+      crashesInWindow: crashes.length,
+      crashLoopTrips,
+      crashLoopQuarantined: now < crashLoopUntil,
+      crashLoopBackoffRemainingMs: Math.max(0, crashLoopUntil - now),
+      lastCrash,
+      fdPressureEvents,
+      fdPressureBackoffMs,
+      fdPressureBackoffActive: now < fdPressureUntil,
+      fdPressureBackoffRemainingMs: Math.max(0, fdPressureUntil - now),
+      lastFdPressureLine: lastFdPressureLine || null
+    };
+  };
+
+  return {
+    onLifecycleEvent,
+    noteStderrLine,
+    getState
+  };
+};
 
 export const createToolingGuard = ({
   name,
@@ -184,7 +254,7 @@ export const createToolingGuard = ({
           throw err;
         }
         const delay = attempt === 1 ? 250 : 1000;
-        await wait(delay);
+        await sleep(delay);
       }
     }
     return null;

@@ -130,6 +130,6 @@ The doctor logs one summary line:
 
 ## 6) Tests
 
-- `tests/tooling/doctor/doctor-emits-report.test.js`
-- `tests/tooling/doctor/doctor-detects-missing-typescript.test.js`
-- `tests/tooling/doctor/doctor-reports-xxhash-backend.test.js`
+- `tests/tooling/doctor/emits-report.test.js`
+- `tests/tooling/doctor/detects-missing-typescript.test.js`
+- `tests/tooling/doctor/reports-xxhash-backend.test.js`

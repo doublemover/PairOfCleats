@@ -12,7 +12,7 @@ const runSearch = createInProcessSearchRunner({ fixtureRoot, env });
 const payload = await runSearch({
   query: 'message',
   mode: 'code',
-  args: ['--explain']
+  args: ['--backend', 'memory', '--explain']
 });
 const hit = (payload.code || [])[0];
 if (!hit) {

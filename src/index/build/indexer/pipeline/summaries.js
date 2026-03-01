@@ -72,6 +72,19 @@ export const summarizeImportGraphStats = (state) => {
     resolved: Number(stats.resolved) || 0,
     external: Number(stats.external) || 0,
     unresolved: Number(stats.unresolved) || 0,
+    unresolvedObserved: Number(stats.unresolvedObserved) || 0,
+    unresolvedActionable: Number(stats.unresolvedActionable) || 0,
+    unresolvedSuppressed: Number(stats.unresolvedSuppressed) || 0,
+    unresolvedResolverSuppressed: Number(stats.unresolvedResolverSuppressed) || 0,
+    unresolvedLiveSuppressed: Number(stats.unresolvedLiveSuppressed) || 0,
+    unresolvedGateSuppressed: Number(stats.unresolvedGateSuppressed) || 0,
+    unresolvedByReasonCode: stats.unresolvedByReasonCode || null,
+    unresolvedByFailureCause: stats.unresolvedByFailureCause || null,
+    unresolvedByDisposition: stats.unresolvedByDisposition || null,
+    unresolvedByResolverStage: stats.unresolvedByResolverStage || null,
+    unresolvedActionableHotspots: Array.isArray(stats.unresolvedActionableHotspots)
+      ? stats.unresolvedActionableHotspots
+      : null,
     truncatedEdges: Number(stats.truncatedEdges) || 0,
     truncatedNodes: Number(stats.truncatedNodes) || 0,
     warningSuppressed: Number(stats.warningSuppressed) || 0

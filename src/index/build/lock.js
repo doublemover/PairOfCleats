@@ -59,21 +59,9 @@ export async function acquireIndexLock({
     }
     handlers.length = 0;
   };
+  // Keep library behavior non-authoritative for process lifetime: cleanup on
+  // process exit, but do not install signal handlers that force termination.
   registerHandler('exit', cleanupSync);
-  registerHandler('SIGINT', () => {
-    cleanupSync();
-    process.exit(130);
-  });
-  registerHandler('SIGTERM', () => {
-    cleanupSync();
-    process.exit(143);
-  });
-  if (process.platform === 'win32') {
-    registerHandler('SIGBREAK', () => {
-      cleanupSync();
-      process.exit(1);
-    });
-  }
 
   return {
     lockPath,

@@ -15,6 +15,7 @@ import { buildCacheKey } from '../../shared/cache-key.js';
 import { sha1 } from '../../shared/hash.js';
 import { stableStringifyForSignature } from '../../shared/stable-json.js';
 import { coerceIntAtLeast, coerceNumberAtLeast } from '../../shared/number-coerce.js';
+import { atomicWriteText } from '../../shared/io/atomic-write.js';
 import { removePathWithRetry } from '../../shared/io/remove-path-with-retry.js';
 import { resolveCompressionConfig } from './artifacts/compression.js';
 import { getToolingConfig } from '../../shared/dict-utils.js';
@@ -57,7 +58,12 @@ import {
 } from './artifacts/writers/chunk-meta.js';
 import { enqueueChunkUidMapArtifacts } from './artifacts/writers/chunk-uid-map.js';
 import { enqueueVfsManifestArtifacts } from './artifacts/writers/vfs-manifest.js';
-import { recordOrderingHash, updateBuildState } from './build-state.js';
+import {
+  BUILD_STATE_DURABILITY_CLASS,
+  recordOrderingHash,
+  updateBuildState,
+  updateBuildStateOutcome
+} from './build-state.js';
 import { applyByteBudget, resolveByteBudgetMap } from './byte-budget.js';
 import { CHARGRAM_HASH_META } from '../../shared/chargram-hash.js';
 import { createOrderingHasher } from '../../shared/order.js';
@@ -165,6 +171,32 @@ const buildBoilerplateCatalog = (chunks) => {
       sampleFiles: row.sampleFiles
     }))
     .sort((a, b) => b.count - a.count || a.ref.localeCompare(b.ref));
+};
+
+/**
+ * Atomically publish a binary artifact payload (temp file + fsync + rename).
+ *
+ * Reuses the shared atomic-write primitive so binary outputs are crash-safe and
+ * never observed partially written.
+ *
+ * @param {string} filePath
+ * @param {Buffer|Uint8Array|ArrayBuffer} payload
+ * @returns {Promise<void>}
+ */
+const writeBinaryArtifactAtomically = async (filePath, payload) => {
+  let bytes = null;
+  if (Buffer.isBuffer(payload)) {
+    bytes = payload;
+  } else if (payload instanceof Uint8Array) {
+    bytes = Buffer.from(payload);
+  } else if (payload instanceof ArrayBuffer) {
+    bytes = Buffer.from(payload);
+  } else if (ArrayBuffer.isView(payload)) {
+    bytes = Buffer.from(payload.buffer, payload.byteOffset, payload.byteLength);
+  } else {
+    bytes = Buffer.from([]);
+  }
+  await atomicWriteText(filePath, bytes, { newline: false });
 };
 
 /**
@@ -543,7 +575,25 @@ export async function writeIndexArtifacts(input) {
     policies: byteBudgetPolicies
   };
   if (buildRoot) {
-    await updateBuildState(buildRoot, { byteBudgets: byteBudgetSnapshot });
+    const outcome = await updateBuildStateOutcome(
+      buildRoot,
+      { byteBudgets: byteBudgetSnapshot },
+      { durabilityClass: BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT }
+    );
+    if (outcome?.status === 'timed_out') {
+      logLine(
+        `[build_state] byte budget state write timed out for ${buildRoot}; continuing artifact writes.`,
+        {
+          kind: 'warning',
+          buildState: {
+            event: 'byte-budget-write-timeout',
+            buildRoot,
+            timeoutMs: outcome?.timeoutMs ?? null,
+            elapsedMs: outcome?.elapsedMs ?? null
+          }
+        }
+      );
+    }
   }
   const maxJsonBytesSoft = maxJsonBytes * 0.9;
   const shardTargetBytes = maxJsonBytes * 0.75;
@@ -1649,19 +1699,8 @@ export async function writeIndexArtifacts(input) {
               : 0;
           }
         }
-        await fs.writeFile(binPath, bytes);
-      }
-    );
-    addPieceFile({
-      type: 'embeddings',
-      name: artifactName,
-      format: 'bin',
-      count,
-      dims: rowWidth
-    }, binPath);
-    enqueueWrite(
-      formatArtifactLabel(binMetaPath),
-      async () => {
+        await writeBinaryArtifactAtomically(binPath, bytes);
+        // Publish metadata only after the binary payload is durable and renamed.
         await writeJsonObjectFile(binMetaPath, {
           fields: {
             schemaVersion: '1.0.0',
@@ -1679,6 +1718,13 @@ export async function writeIndexArtifacts(input) {
         });
       }
     );
+    addPieceFile({
+      type: 'embeddings',
+      name: artifactName,
+      format: 'bin',
+      count,
+      dims: rowWidth
+    }, binPath);
     addPieceFile({
       type: 'embeddings',
       name: `${artifactName}_binary_meta`,
@@ -2051,7 +2097,7 @@ export async function writeIndexArtifacts(input) {
     enqueueWrite(
       formatArtifactLabel(packedPath),
       async () => {
-        await fs.writeFile(packedPath, packedMinhash.buffer);
+        await writeBinaryArtifactAtomically(packedPath, packedMinhash.buffer);
         await writeJsonObjectFile(packedMetaPath, {
           fields: {
             format: 'u32',

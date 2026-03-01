@@ -46,7 +46,28 @@ export const loadVfsManifestRowByPath = async ({
   telemetry = null
 }) => {
   if (!virtualPath) return null;
-  const resolvedBloom = bloom || (bloomPath ? await loadVfsManifestBloomFilter({ bloomPath }) : null);
+  let resolvedBloom = bloom || null;
+  if (!resolvedBloom && bloomPath) {
+    try {
+      resolvedBloom = await loadVfsManifestBloomFilter({ bloomPath });
+    } catch {
+      emitVfsLookupTelemetry(telemetry, {
+        path: 'bloom',
+        outcome: 'load_error',
+        virtualPath
+      });
+      resolvedBloom = null;
+    }
+  }
+  const bloomHasFn = resolvedBloom && typeof resolvedBloom.has === 'function';
+  if (resolvedBloom && !bloomHasFn) {
+    emitVfsLookupTelemetry(telemetry, {
+      path: 'bloom',
+      outcome: 'load_error',
+      virtualPath
+    });
+    resolvedBloom = null;
+  }
   if (resolvedBloom && !resolvedBloom.has(virtualPath)) {
     emitVfsLookupTelemetry(telemetry, {
       path: 'bloom',
@@ -62,7 +83,19 @@ export const loadVfsManifestRowByPath = async ({
       virtualPath
     });
   }
-  const resolvedIndex = index || (indexPath ? await loadVfsManifestIndex({ indexPath }) : null);
+  let resolvedIndex = index || null;
+  if (!resolvedIndex && indexPath) {
+    try {
+      resolvedIndex = await loadVfsManifestIndex({ indexPath });
+    } catch {
+      emitVfsLookupTelemetry(telemetry, {
+        path: 'vfsidx',
+        outcome: 'load_error',
+        virtualPath
+      });
+      if (!allowScan) return null;
+    }
+  }
   if (resolvedIndex) {
     const entry = resolvedIndex.get(virtualPath);
     if (!entry) {
@@ -79,13 +112,24 @@ export const loadVfsManifestRowByPath = async ({
         bytes: entry.bytes,
         reader
       });
-      emitVfsLookupTelemetry(telemetry, {
-        path: 'vfsidx',
-        outcome: row ? 'hit' : 'miss',
-        virtualPath
-      });
-      if (row) return row;
-      if (!allowScan) return null;
+      const rowVirtualPath = String(row?.virtualPath || '');
+      if (row && rowVirtualPath && rowVirtualPath !== virtualPath) {
+        emitVfsLookupTelemetry(telemetry, {
+          path: 'vfsidx',
+          outcome: 'mismatch',
+          virtualPath,
+          rowVirtualPath
+        });
+        if (!allowScan) return null;
+      } else {
+        emitVfsLookupTelemetry(telemetry, {
+          path: 'vfsidx',
+          outcome: row ? 'hit' : 'miss',
+          virtualPath
+        });
+        if (row) return row;
+        if (!allowScan) return null;
+      }
     }
   }
   if (!allowScan) {

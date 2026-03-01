@@ -4,6 +4,8 @@ import path from 'node:path';
 import { enqueueEmbeddingJob } from '../../../src/index/build/indexer/embedding-queue.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { rmDirRecursive } from '../../helpers/temp.js';
+
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'embedding-queue-defaults');
@@ -11,7 +13,7 @@ const queueDir = path.join(tempRoot, 'queue');
 const buildRoot = path.join(tempRoot, 'builds', 'b1');
 const indexDir = path.join(buildRoot, 'index-code');
 
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
+await rmDirRecursive(tempRoot, { retries: 8, delayMs: 150 });
 await fsPromises.mkdir(indexDir, { recursive: true });
 
 const runtime = {

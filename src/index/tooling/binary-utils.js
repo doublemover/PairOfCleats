@@ -1,5 +1,6 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { resolveEnvPath } from '../../shared/env-path.js';
 
 export const candidateNames = (name) => {
   if (process.platform === 'win32') {
@@ -19,13 +20,13 @@ export const findBinaryInDirs = (name, dirs = []) => {
   return null;
 };
 
-export const splitPathEntries = (envPath = process.env.PATH || '') => (
+export const splitPathEntries = (envPath = resolveEnvPath(process.env)) => (
   String(envPath || '')
     .split(path.delimiter)
     .map((entry) => String(entry || '').trim())
     .filter(Boolean)
 );
 
-export const findBinaryOnPath = (name, envPath = process.env.PATH || '') => (
+export const findBinaryOnPath = (name, envPath = resolveEnvPath(process.env)) => (
   findBinaryInDirs(name, splitPathEntries(envPath))
 );

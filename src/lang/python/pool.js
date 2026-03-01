@@ -4,6 +4,7 @@ import { createInterface } from 'node:readline';
 import { PYTHON_AST_SCRIPT } from './ast-script.js';
 import { findPythonExecutable } from './executable.js';
 import { registerChildProcessForCleanup } from '../../shared/subprocess.js';
+import { killChildProcessTree } from '../../shared/kill-tree.js';
 
 const PYTHON_AST_DEFAULTS = {
   enabled: true,
@@ -130,9 +131,12 @@ function createPythonAstPool({ pythonBin, config, log }) {
 
   const shutdownWorkers = () => {
     for (const worker of state.workers) {
-      try {
-        worker.proc.kill();
-      } catch {}
+      killChildProcessTree(worker.proc, {
+        killTree: true,
+        detached: false,
+        graceMs: 0,
+        awaitGrace: false
+      }).catch(() => {});
     }
     state.workers = [];
   };
@@ -199,9 +203,12 @@ function createPythonAstPool({ pythonBin, config, log }) {
     } catch {}
     worker.unregisterChild = null;
     if (options.forceKill) {
-      try {
-        worker.proc.kill();
-      } catch {}
+      killChildProcessTree(worker.proc, {
+        killTree: true,
+        detached: false,
+        graceMs: 0,
+        awaitGrace: false
+      }).catch(() => {});
     }
     worker.exited = true;
     const pending = Array.from(worker.pending.values());

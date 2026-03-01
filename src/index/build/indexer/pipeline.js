@@ -8,7 +8,12 @@ import { log, logLine, showProgress } from '../../../shared/progress.js';
 import { coerceAbortSignal, throwIfAborted } from '../../../shared/abort.js';
 import { coerceUnitFraction } from '../../../shared/number-coerce.js';
 import { createCrashLogger } from '../crash-log.js';
-import { recordOrderingSeedInputs, updateBuildState } from '../build-state.js';
+import {
+  BUILD_STATE_DURABILITY_CLASS,
+  recordOrderingSeedInputs,
+  updateBuildState,
+  updateBuildStateOutcome
+} from '../build-state.js';
 import { runBuildCleanupWithTimeout } from '../cleanup-timeout.js';
 import { estimateContextWindow } from '../context-window.js';
 import { createPerfProfile, loadPerfProfile } from '../perf-profile.js';
@@ -749,7 +754,9 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       run
     }).then(
       (value) => ({ status: 'resolved', value }),
-      (error) => ({ status: 'rejected', error })
+      (error) => (error?.code === 'ERR_BUILD_STATE_PATCH_TIMEOUT'
+        ? { status: 'timed-out', error }
+        : { status: 'rejected', error })
     );
     if (!Number.isFinite(stateWriteContinueMs) || stateWriteContinueMs <= 0) {
       const settled = await stateWritePromise;
@@ -811,6 +818,24 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
         );
         return;
       }
+      if (backgroundSettled?.status === 'timed-out') {
+        logLine(
+          `[hang-probe] background-timeout ${label} after ${settledElapsedMs}ms: ${backgroundSettled?.error?.message || 'build-state patch timeout'}`,
+          {
+            kind: 'warning',
+            mode,
+            stage,
+            step,
+            ...(safeMeta || {}),
+            hangProbe: {
+              event: 'background-timeout',
+              label,
+              elapsedMs: settledElapsedMs
+            }
+          }
+        );
+        return;
+      }
       const errorMessage = backgroundSettled?.error?.message || String(backgroundSettled?.error || 'unknown error');
       logLine(
         `[hang-probe] background-failed ${label} after ${settledElapsedMs}ms: ${errorMessage}`,
@@ -829,6 +854,24 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       );
     });
     return null;
+  };
+  const updateBuildStateBestEffort = async (patch) => {
+    const outcome = await updateBuildStateOutcome(runtimeRef.buildRoot, patch, {
+      durabilityClass: BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT
+    });
+    if (outcome?.status !== 'timed_out') return outcome?.value ?? null;
+    const timeoutMs = Number.isFinite(Number(outcome?.timeoutMs)) ? Math.floor(Number(outcome.timeoutMs)) : null;
+    const err = new Error(
+      `[build_state] patch wait timed out${timeoutMs != null ? ` after ${timeoutMs}ms` : ''} `
+      + `for ${runtimeRef.buildRoot}.`
+    );
+    err.code = 'ERR_BUILD_STATE_PATCH_TIMEOUT';
+    err.buildState = outcome;
+    if (timeoutMs != null) err.timeoutMs = timeoutMs;
+    if (Number.isFinite(Number(outcome?.elapsedMs))) {
+      err.elapsedMs = Math.floor(Number(outcome.elapsedMs));
+    }
+    throw err;
   };
   /**
    * Advance visible stage progress and retag scheduler telemetry.
@@ -1097,7 +1140,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       fileCount: allEntries.length,
       chunkCount: state.chunks?.length || 0
     },
-    run: () => updateBuildState(runtimeRef.buildRoot, {
+    run: () => updateBuildStateBestEffort({
       counts: {
         [mode]: {
           files: allEntries.length,
@@ -1136,7 +1179,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
         meta: {
           mode
         },
-        run: () => updateBuildState(runtimeRef.buildRoot, {
+        run: () => updateBuildStateBestEffort({
           documentExtraction: {
             [mode]: extractionSummary
           }
@@ -1164,7 +1207,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       importResult,
       incrementalState,
       fileTextByFile,
-      hangProbeConfig
+      hangProbeConfig,
+      abortSignal: effectiveAbortSignal
     })
   });
   if (postImportResult) importResult = postImportResult;

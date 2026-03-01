@@ -210,7 +210,7 @@ const extractTypes = (ts, checker, sourceFile, node) => {
   const signature = checker.getSignatureFromDeclaration(node);
   if (!signature) return null;
   const returnType = normalizeTypeText(checker.typeToString(checker.getReturnTypeOfSignature(signature), node));
-  const paramTypes = {};
+  const paramTypes = Object.create(null);
   for (const param of node.parameters || []) {
     let paramName = null;
     if (param?.name) {
@@ -224,7 +224,9 @@ const extractTypes = (ts, checker, sourceFile, node) => {
     const typeText = normalizeTypeText(checker.typeToString(checker.getTypeAtLocation(param), param));
     if (!typeText) continue;
     const confidence = param.type ? 0.95 : (typeText === 'any' || typeText === 'unknown' ? 0.5 : 0.7);
-    if (!paramTypes[paramName]) paramTypes[paramName] = [];
+    if (!Object.hasOwn(paramTypes, paramName) || !Array.isArray(paramTypes[paramName])) {
+      paramTypes[paramName] = [];
+    }
     paramTypes[paramName].push({ type: typeText, confidence, source: 'tooling' });
   }
   const signatureText = normalizeTypeText(checker.signatureToString(signature, node));

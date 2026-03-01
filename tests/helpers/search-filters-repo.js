@@ -4,13 +4,28 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { getIndexDir, loadUserConfig } from '../../tools/shared/dict-utils.js';
-import { acquireFileLock } from '../../src/shared/locks/file-lock.js';
 import { applyTestEnv } from './test-env.js';
+import { withDirectoryLock } from './directory-lock.js';
+import { formatCommandFailure } from './command-failure.js';
 
-import { resolveTestCachePath } from './test-cache.js';
+import { normalizeTestCacheScope, resolveTestCachePath } from './test-cache.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const VALID_CACHE_SCOPES = new Set(['isolated', 'shared']);
+const FIXTURE_FILES = Object.freeze([
+  'alpha.txt',
+  'beta.txt',
+  'CaseFile.TXT',
+  'sample.js'
+]);
+const FIXTURE_COMMIT_MESSAGES = Object.freeze([
+  'add sample.js',
+  'add case file',
+  'add beta',
+  'add alpha'
+]);
+const GIT_COMMAND_TIMEOUT_MS = 15000;
+const BUILD_INDEX_TIMEOUT_MS = 10 * 60 * 1000;
+const SEARCH_TIMEOUT_MS = 2 * 60 * 1000;
 
 /**
  * Run git command for fixture setup and fail fast on non-zero exit.
@@ -25,17 +40,26 @@ const runGit = (args, label, cwd, envOverride = {}) => {
   const result = spawnSync('git', args, {
     cwd,
     encoding: 'utf8',
-    env: { ...process.env, ...envOverride }
+    env: { ...process.env, ...envOverride },
+    timeout: GIT_COMMAND_TIMEOUT_MS
   });
   if (result.status !== 0) {
-    console.error(`Failed: ${label}`);
-    if (result.stderr) console.error(result.stderr.trim());
+    const command = ['git', ...args].join(' ');
+    console.error(formatCommandFailure({
+      label,
+      command,
+      cwd,
+      result
+    }));
     process.exit(result.status ?? 1);
   }
 };
 
 const hasGit = () => {
-  const check = spawnSync('git', ['--version'], { encoding: 'utf8' });
+  const check = spawnSync('git', ['--version'], {
+    encoding: 'utf8',
+    timeout: GIT_COMMAND_TIMEOUT_MS
+  });
   return check.status === 0;
 };
 
@@ -58,60 +82,56 @@ const buildIndex = (repoRoot, env) => {
       '--repo',
       repoRoot
     ],
-    { cwd: repoRoot, env, stdio: 'inherit' }
+    {
+      cwd: repoRoot,
+      env,
+      stdio: 'inherit',
+      timeout: BUILD_INDEX_TIMEOUT_MS
+    }
   );
   if (result.status !== 0) {
-    const exitLabel = result.status ?? 'unknown';
-    console.error(`Failed: build_index (exit ${exitLabel})`);
-    if (result.error) console.error(result.error.message || result.error);
+    const command = [
+      process.execPath,
+      path.join(ROOT, 'build_index.js'),
+      '--stub-embeddings',
+      '--stage',
+      'stage2',
+      '--repo',
+      repoRoot
+    ].join(' ');
+    console.error(formatCommandFailure({
+      label: 'build_index',
+      command,
+      cwd: repoRoot,
+      result
+    }));
     process.exit(result.status ?? 1);
   }
 };
 
-const normalizeCacheScope = (cacheScope) => {
-  const normalized = String(cacheScope || 'shared').trim().toLowerCase();
-  if (!VALID_CACHE_SCOPES.has(normalized)) {
-    throw new Error(`Unsupported cacheScope: ${cacheScope}`);
-  }
-  return normalized;
-};
 
-/**
- * Execute callback under directory lock with stale-lock eviction.
- *
- * @template T
- * @param {string} lockDir
- * @param {() => Promise<T>} callback
- * @param {{pollMs?:number,staleMs?:number,maxWaitMs?:number}} [options]
- * @returns {Promise<T>}
- */
-const withDirectoryLock = async (
-  lockDir,
-  callback,
-  {
-    pollMs = 120,
-    staleMs = 10 * 60 * 1000,
-    maxWaitMs = 15 * 60 * 1000
-  } = {}
-) => {
-  const lockPath = `${lockDir}.json`;
-  const lock = await acquireFileLock({
-    lockPath,
-    waitMs: maxWaitMs,
-    pollMs,
-    staleMs,
-    timeoutBehavior: 'throw',
-    timeoutMessage: `Timed out waiting for search-filters lock at ${lockDir}`,
-    forceStaleCleanup: false
-  });
-  if (!lock) {
-    throw new Error(`Timed out waiting for search-filters lock at ${lockDir}`);
+const hasExpectedFixtureHistory = (repoRoot) => {
+  const requiredFilesPresent = FIXTURE_FILES.every((filename) => fs.existsSync(path.join(repoRoot, filename)));
+  if (!requiredFilesPresent) return false;
+  const history = spawnSync(
+    'git',
+    ['log', '--format=%s', `--max-count=${FIXTURE_COMMIT_MESSAGES.length}`],
+    {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      timeout: GIT_COMMAND_TIMEOUT_MS
+    }
+  );
+  if (history.status !== 0) return false;
+  const lines = String(history.stdout || '')
+    .split(/\r?\n/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  if (lines.length < FIXTURE_COMMIT_MESSAGES.length) return false;
+  for (let i = 0; i < FIXTURE_COMMIT_MESSAGES.length; i += 1) {
+    if (lines[i] !== FIXTURE_COMMIT_MESSAGES[i]) return false;
   }
-  try {
-    return await callback();
-  } finally {
-    await lock.release({ force: false });
-  }
+  return true;
 };
 
 /**
@@ -125,7 +145,7 @@ export const ensureSearchFiltersRepo = async ({ cacheScope = 'shared' } = {}) =>
     console.log('[skip] git not available');
     return null;
   }
-  const normalizedCacheScope = normalizeCacheScope(cacheScope);
+  const normalizedCacheScope = normalizeTestCacheScope(cacheScope, { defaultScope: 'shared' });
   const tempRoot = resolveTestCachePath(ROOT, 'search-filters');
   const runSuffix = `${Date.now()}-${process.pid}-${Math.random().toString(16).slice(2, 8)}`;
   const repoRoot = normalizedCacheScope === 'shared'
@@ -142,17 +162,15 @@ export const ensureSearchFiltersRepo = async ({ cacheScope = 'shared' } = {}) =>
     await fsPromises.mkdir(repoRoot, { recursive: true });
     await fsPromises.mkdir(cacheRoot, { recursive: true });
 
-    const requiredFiles = [
-      'alpha.txt',
-      'beta.txt',
-      'CaseFile.TXT',
-      'sample.js'
-    ];
     const gitDir = path.join(repoRoot, '.git');
     const needsBootstrap = !fs.existsSync(gitDir)
-      || requiredFiles.some((filename) => !fs.existsSync(path.join(repoRoot, filename)));
+      || !hasExpectedFixtureHistory(repoRoot);
 
     if (needsBootstrap) {
+      if (fs.existsSync(repoRoot)) {
+        await fsPromises.rm(repoRoot, { recursive: true, force: true });
+      }
+      await fsPromises.mkdir(repoRoot, { recursive: true });
       if (!fs.existsSync(gitDir)) {
         runGit(['init'], 'git init', repoRoot);
       }
@@ -172,9 +190,7 @@ export const ensureSearchFiltersRepo = async ({ cacheScope = 'shared' } = {}) =>
         message,
         label
       }) => {
-        const filePath = path.join(repoRoot, filename);
-        if (fs.existsSync(filePath)) return;
-        await fsPromises.writeFile(filePath, content);
+        await fsPromises.writeFile(path.join(repoRoot, filename), content);
         runGit(['add', filename], `git add ${label}`, repoRoot);
         runGit(
           ['commit', '-m', message, '--author', author, '--date', date],
@@ -243,11 +259,17 @@ export const ensureSearchFiltersRepo = async ({ cacheScope = 'shared' } = {}) =>
 
     const branchResult = spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
       cwd: repoRoot,
-      encoding: 'utf8'
+      encoding: 'utf8',
+      timeout: GIT_COMMAND_TIMEOUT_MS
     });
     const branchName = branchResult.status === 0 ? branchResult.stdout.trim() : null;
 
     return { root: ROOT, repoRoot, cacheRoot, env, branchName };
+  }, {
+    pollMs: 120,
+    staleMs: 10 * 60 * 1000,
+    maxWaitMs: 15 * 60 * 1000,
+    timeoutMessage: `Timed out waiting for search-filters lock at ${lockDir}`
   });
 };
 
@@ -288,11 +310,33 @@ export const runFilterSearch = ({
       ...(backend ? ['--backend', backend] : []),
       ...args
     ],
-    { cwd: repoRoot, env, encoding: 'utf8' }
+    {
+      cwd: repoRoot,
+      env,
+      encoding: 'utf8',
+      timeout: SEARCH_TIMEOUT_MS
+    }
   );
   if (result.status !== 0) {
-    console.error('Failed: search');
-    if (result.stderr) console.error(result.stderr.trim());
+    const command = [
+      process.execPath,
+      path.join(root, 'search.js'),
+      query,
+      '--mode',
+      mode,
+      '--json',
+      '--no-ann',
+      '--repo',
+      repoRoot,
+      ...(backend ? ['--backend', backend] : []),
+      ...args
+    ].join(' ');
+    console.error(formatCommandFailure({
+      label: 'search',
+      command,
+      cwd: repoRoot,
+      result
+    }));
     process.exit(result.status ?? 1);
   }
   try {
@@ -302,4 +346,3 @@ export const runFilterSearch = ({
     process.exit(1);
   }
 };
-

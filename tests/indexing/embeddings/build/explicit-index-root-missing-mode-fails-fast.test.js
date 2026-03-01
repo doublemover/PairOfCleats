@@ -6,6 +6,8 @@ import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+import { rmDirRecursive } from '../../../helpers/temp.js';
+
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'build-embeddings-explicit-index-root-failfast');
@@ -13,7 +15,7 @@ const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 const explicitIndexRoot = path.join(tempRoot, 'explicit-index-root-missing-mode');
 
-await fs.rm(tempRoot, { recursive: true, force: true });
+await rmDirRecursive(tempRoot, { retries: 8, delayMs: 150 });
 await fs.mkdir(path.join(repoRoot, 'src'), { recursive: true });
 await fs.mkdir(cacheRoot, { recursive: true });
 await fs.mkdir(explicitIndexRoot, { recursive: true });

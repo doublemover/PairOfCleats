@@ -75,6 +75,7 @@ assert.equal(getLanguageForFile('.xml', 'config/app.xml')?.id, 'xml');
 assert.equal(getLanguageForFile('.props', 'Directory.Build.props')?.id, 'xml');
 assert.equal(getLanguageForFile('.targets', 'Directory.Build.targets')?.id, 'xml');
 assert.equal(getLanguageForFile('.csproj', 'src/service/service.csproj')?.id, 'xml');
+assert.equal(getLanguageForFile('.projitems', 'src/service/service.projitems')?.id, 'xml');
 assert.equal(getLanguageForFile('.config', 'src/service/app.config')?.id, 'xml');
 assert.equal(getLanguageForFile('.yaml', 'config/app.yaml')?.id, 'yaml');
 assert.equal(getLanguageForFile('.yml', 'config/app.yml')?.id, 'yaml');

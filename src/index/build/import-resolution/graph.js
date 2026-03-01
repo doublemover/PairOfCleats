@@ -21,5 +21,10 @@ export const buildEdgeSortKey = (edge) => [
 ].join('|');
 
 export const buildWarningSortKey = (warning) => (
-  `${warning?.importer || ''}|${warning?.specifier || ''}|${warning?.reason || ''}`
+  [
+    warning?.importer || '',
+    warning?.specifier || '',
+    warning?.reasonCode || '',
+    warning?.reason || ''
+  ].join('|')
 );

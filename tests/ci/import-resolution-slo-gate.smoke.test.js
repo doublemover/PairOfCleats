@@ -1,0 +1,559 @@
+#!/usr/bin/env node
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+
+const ROOT = process.cwd();
+const gatePath = path.join(ROOT, 'tools', 'ci', 'import-resolution-slo-gate.js');
+const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-import-resolution-gate-'));
+
+const writeGraph = async (targetPath, payload) => {
+  await fs.writeFile(targetPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+};
+
+try {
+  const passGraphPath = path.join(tempRoot, 'import_resolution_graph.pass.json');
+  const passJsonPath = path.join(tempRoot, 'import-resolution-slo-gate.pass.json');
+  await writeGraph(passGraphPath, {
+    generatedAt: new Date().toISOString(),
+    stats: {
+      unresolved: 10,
+      unresolvedActionable: 2,
+      unresolvedBudgetExhausted: 1,
+      resolverBudgetPolicy: {
+        maxFilesystemProbesPerSpecifier: 24,
+        maxFallbackCandidatesPerSpecifier: 36,
+        maxFallbackDepth: 12,
+        adaptiveEnabled: true,
+        adaptiveProfile: 'queue_backlog',
+        adaptiveScale: 0.75
+      },
+      unresolvedByResolverStage: {
+        filesystem_probe: 2
+      },
+      resolverPipelineStages: {
+        normalize: { attempts: 4, hits: 4, misses: 0, elapsedMs: 3.25, budgetExhausted: 0, degraded: 0 },
+        language_resolver: { attempts: 2, hits: 1, misses: 1, elapsedMs: 2.5, budgetExhausted: 0, degraded: 1 },
+        filesystem_probe: { attempts: 1, hits: 0, misses: 1, elapsedMs: 1.5, budgetExhausted: 1, degraded: 1 },
+        classify: { attempts: 1, hits: 1, misses: 0, elapsedMs: 0.5, budgetExhausted: 0, degraded: 0 }
+      },
+      unresolvedActionableHotspots: [
+        { importer: 'src/main.ts', count: 2 }
+      ]
+    },
+    warnings: [
+      {
+        importer: 'src/main.ts',
+        specifier: './missing.ts',
+        reason: 'unresolved',
+        reasonCode: 'IMP_U_MISSING_FILE_RELATIVE',
+        failureCause: 'missing_file',
+        disposition: 'actionable',
+        resolverStage: 'filesystem_probe'
+      },
+      {
+        importer: 'tests/fixtures/case.ts',
+        specifier: './fixture.ts',
+        reason: 'unresolved',
+        reasonCode: 'IMP_U_FIXTURE_REFERENCE',
+        failureCause: 'parser_artifact',
+        disposition: 'suppress_live',
+        resolverStage: 'classify'
+      }
+    ]
+  });
+  const passResult = spawnSync(
+    process.execPath,
+    [
+      gatePath,
+      '--mode',
+      'ci',
+      '--report',
+      passGraphPath,
+      '--json',
+      passJsonPath,
+      '--actionable-unresolved-rate-max',
+      '0.4'
+    ],
+    {
+      cwd: ROOT,
+      env: process.env,
+      encoding: 'utf8'
+    }
+  );
+  if (passResult.status !== 0) {
+    console.error('import resolution slo gate smoke test failed (pass case)');
+    console.error(passResult.stdout || '');
+    console.error(passResult.stderr || '');
+  }
+  assert.equal(passResult.status, 0, `expected pass gate status=0, received ${passResult.status}`);
+
+  const passPayload = JSON.parse(await fs.readFile(passJsonPath, 'utf8'));
+  assert.equal(passPayload?.status, 'ok');
+  assert.equal(passPayload?.metrics?.unresolved, 10);
+  assert.equal(passPayload?.metrics?.actionable, 2);
+  assert.equal(passPayload?.metrics?.resolverBudgetExhausted, 1);
+  assert.equal(passPayload?.metrics?.resolverBudgetExhaustedRate, 0.1);
+  assert.equal(passPayload?.metrics?.resolverBudgetAdaptiveReports, 1);
+  assert.equal(passPayload?.metrics?.gateEligibleUnresolved, 1);
+  assert.equal(passPayload?.metrics?.gateEligibleActionable, 1);
+  assert.deepEqual(
+    passPayload?.actionableHotspots,
+    [{ importer: 'src/main.ts', count: 2 }]
+  );
+  assert.deepEqual(
+    passPayload?.resolverStages,
+    {
+      filesystem_probe: 2
+    }
+  );
+  assert.deepEqual(
+    passPayload?.resolverPipelineStages,
+    {
+      classify: { attempts: 1, hits: 1, misses: 0, elapsedMs: 0.5, budgetExhausted: 0, degraded: 0, reasonCodes: {} },
+      filesystem_probe: { attempts: 1, hits: 0, misses: 1, elapsedMs: 1.5, budgetExhausted: 1, degraded: 1, reasonCodes: {} },
+      language_resolver: { attempts: 2, hits: 1, misses: 1, elapsedMs: 2.5, budgetExhausted: 0, degraded: 1, reasonCodes: {} },
+      normalize: { attempts: 4, hits: 4, misses: 0, elapsedMs: 3.25, budgetExhausted: 0, degraded: 0, reasonCodes: {} }
+    }
+  );
+  assert.deepEqual(
+    passPayload?.resolverPipelineStagePercentiles,
+    {
+      classify: { samples: 1, max: 0.5, p50: 0.5, p95: 0.5, p99: 0.5 },
+      filesystem_probe: { samples: 1, max: 1.5, p50: 1.5, p95: 1.5, p99: 1.5 },
+      language_resolver: { samples: 1, max: 2.5, p50: 2.5, p95: 2.5, p99: 2.5 },
+      normalize: { samples: 1, max: 3.25, p50: 3.25, p95: 3.25, p99: 3.25 }
+    }
+  );
+  assert.deepEqual(
+    passPayload?.resolverBudgetPolicyProfiles,
+    { queue_backlog: 1 }
+  );
+  assert.deepEqual(
+    passPayload?.stageHighlights,
+    {
+      topByElapsed: { stage: 'normalize', elapsedMs: 3.25 },
+      topByBudgetExhausted: { stage: 'filesystem_probe', budgetExhausted: 1 },
+      topByDegraded: { stage: 'filesystem_probe', degraded: 1 }
+    }
+  );
+  assert.deepEqual(
+    passPayload?.drift,
+    {
+      baselineJsonPath: null,
+      baselineGeneratedAt: null,
+      actionableRateDelta: null,
+      parserArtifactRateDelta: null,
+      resolverGapRateDelta: null,
+      resolverStageP95DriftByStage: {},
+      resolverStageP99DriftByStage: {}
+    }
+  );
+
+  const failGraphPath = path.join(tempRoot, 'import_resolution_graph.fail.json');
+  const failJsonPath = path.join(tempRoot, 'import-resolution-slo-gate.fail.json');
+  await writeGraph(failGraphPath, {
+    generatedAt: new Date().toISOString(),
+    stats: {
+      unresolved: 10,
+      unresolvedActionable: 8
+    },
+    warnings: [
+      {
+        importer: 'src/main.ts',
+        specifier: './missing.ts',
+        reason: 'unresolved',
+        reasonCode: 'IMP_U_MISSING_FILE_RELATIVE',
+        failureCause: 'missing_file',
+        disposition: 'actionable',
+        resolverStage: 'filesystem_probe'
+      }
+    ]
+  });
+  const failResult = spawnSync(
+    process.execPath,
+    [
+      gatePath,
+      '--mode',
+      'ci',
+      '--report',
+      failGraphPath,
+      '--json',
+      failJsonPath,
+      '--actionable-unresolved-rate-max',
+      '0.5'
+    ],
+    {
+      cwd: ROOT,
+      env: process.env,
+      encoding: 'utf8'
+    }
+  );
+  assert.equal(failResult.status, 3, `expected fail gate status=3, received ${failResult.status}`);
+  const failPayload = JSON.parse(await fs.readFile(failJsonPath, 'utf8'));
+  assert.equal(failPayload?.status, 'error');
+  assert.ok(
+    Array.isArray(failPayload?.failures) && failPayload.failures.some((entry) => String(entry).includes('actionable unresolved rate')),
+    'expected actionable unresolved rate failure'
+  );
+  assert.deepEqual(
+    failPayload?.actionableHotspots,
+    [{ importer: 'src/main.ts', count: 1 }]
+  );
+  assert.deepEqual(
+    failPayload?.resolverStages,
+    { filesystem_probe: 1 }
+  );
+  assert.deepEqual(
+    failPayload?.resolverPipelineStages,
+    {}
+  );
+  assert.deepEqual(
+    failPayload?.resolverPipelineStagePercentiles,
+    {}
+  );
+  assert.deepEqual(
+    failPayload?.resolverBudgetPolicyProfiles,
+    { normal: 1 }
+  );
+  assert.deepEqual(
+    failPayload?.stageHighlights,
+    {
+      topByElapsed: null,
+      topByBudgetExhausted: null,
+      topByDegraded: null
+    }
+  );
+
+  const fallbackGraphPath = path.join(tempRoot, 'import_resolution_graph.fallback.json');
+  const fallbackJsonPath = path.join(tempRoot, 'import-resolution-slo-gate.fallback.json');
+  await writeGraph(fallbackGraphPath, {
+    generatedAt: new Date().toISOString(),
+    warnings: [
+      {
+        importer: 'tests/fixtures/case.ts',
+        specifier: './fixture.ts',
+        reason: 'unresolved',
+        reasonCode: 'IMP_U_FIXTURE_REFERENCE',
+        failureCause: 'parser_artifact',
+        disposition: 'suppress_live',
+        resolverStage: 'classify'
+      },
+      {
+        importer: 'src/main.ts',
+        specifier: './unbounded.ts',
+        reason: 'unresolved',
+        reasonCode: 'IMP_U_RESOLVER_BUDGET_EXHAUSTED',
+        failureCause: 'resolver_gap',
+        disposition: 'suppress_gate',
+        resolverStage: 'filesystem_probe'
+      },
+      {
+        importer: 'src/main.ts',
+        specifier: './missing.ts',
+        reason: 'unresolved',
+        reasonCode: 'IMP_U_MISSING_FILE_RELATIVE',
+        failureCause: 'missing_file',
+        disposition: 'actionable',
+        resolverStage: 'filesystem_probe'
+      }
+    ]
+  });
+  const fallbackResult = spawnSync(
+    process.execPath,
+    [
+      gatePath,
+      '--mode',
+      'ci',
+      '--report',
+      fallbackGraphPath,
+      '--json',
+      fallbackJsonPath,
+      '--actionable-unresolved-rate-max',
+      '0.49'
+    ],
+    {
+      cwd: ROOT,
+      env: process.env,
+      encoding: 'utf8'
+    }
+  );
+  assert.equal(fallbackResult.status, 3, `expected fallback gate status=3, received ${fallbackResult.status}`);
+  const fallbackPayload = JSON.parse(await fs.readFile(fallbackJsonPath, 'utf8'));
+  assert.equal(fallbackPayload?.metrics?.unresolved, 2);
+  assert.equal(fallbackPayload?.metrics?.actionable, 1);
+  assert.equal(fallbackPayload?.metrics?.resolverBudgetExhausted, 1);
+  assert.equal(fallbackPayload?.metrics?.resolverBudgetExhaustedRate, 0.5);
+  assert.deepEqual(
+    fallbackPayload?.actionableHotspots,
+    [{ importer: 'src/main.ts', count: 1 }]
+  );
+  assert.deepEqual(
+    fallbackPayload?.resolverStages,
+    {
+      classify: 1,
+      filesystem_probe: 2
+    }
+  );
+  assert.deepEqual(
+    fallbackPayload?.resolverPipelineStages,
+    {}
+  );
+  assert.deepEqual(
+    fallbackPayload?.resolverPipelineStagePercentiles,
+    {}
+  );
+  assert.deepEqual(
+    fallbackPayload?.resolverBudgetPolicyProfiles,
+    { normal: 1 }
+  );
+  assert.deepEqual(
+    fallbackPayload?.stageHighlights,
+    {
+      topByElapsed: null,
+      topByBudgetExhausted: null,
+      topByDegraded: null
+    }
+  );
+
+  const advisoryGraphPath = path.join(tempRoot, 'import_resolution_graph.advisory.json');
+  const advisoryJsonPath = path.join(tempRoot, 'import-resolution-slo-gate.advisory.json');
+  await writeGraph(advisoryGraphPath, {
+    generatedAt: new Date().toISOString(),
+    stats: {
+      unresolved: 10,
+      unresolvedActionable: 1,
+      unresolvedByFailureCause: {
+        parser_artifact: 6,
+        resolver_gap: 4
+      }
+    },
+    warnings: []
+  });
+  const advisoryResult = spawnSync(
+    process.execPath,
+    [
+      gatePath,
+      '--mode',
+      'ci',
+      '--report',
+      advisoryGraphPath,
+      '--json',
+      advisoryJsonPath,
+      '--actionable-unresolved-rate-max',
+      '0.5',
+      '--parser-artifact-rate-warn-max',
+      '0.5',
+      '--resolver-gap-rate-warn-max',
+      '0.3'
+    ],
+    {
+      cwd: ROOT,
+      env: process.env,
+      encoding: 'utf8'
+    }
+  );
+  assert.equal(advisoryResult.status, 0, `expected advisory gate status=0, received ${advisoryResult.status}`);
+  const advisoryPayload = JSON.parse(await fs.readFile(advisoryJsonPath, 'utf8'));
+  assert.equal(Array.isArray(advisoryPayload?.advisories), true);
+  assert.equal(advisoryPayload.advisories.length, 2);
+  assert.ok(
+    advisoryPayload.advisories.some((entry) => String(entry).includes('parser artifact rate')),
+    'expected parser artifact advisory message'
+  );
+  assert.ok(
+    advisoryPayload.advisories.some((entry) => String(entry).includes('resolver gap rate')),
+    'expected resolver gap advisory message'
+  );
+
+  const driftBaselineJsonPath = path.join(tempRoot, 'import-resolution-slo-gate.baseline.json');
+  await fs.writeFile(driftBaselineJsonPath, JSON.stringify({
+    generatedAt: new Date().toISOString(),
+    metrics: {
+      actionableRate: 0.1,
+      parserArtifactRate: 0.1,
+      resolverGapRate: 0.1
+    }
+  }, null, 2), 'utf8');
+  const driftJsonPath = path.join(tempRoot, 'import-resolution-slo-gate.drift.json');
+  const driftResult = spawnSync(
+    process.execPath,
+    [
+      gatePath,
+      '--mode',
+      'ci',
+      '--report',
+      advisoryGraphPath,
+      '--json',
+      driftJsonPath,
+      '--baseline-json',
+      driftBaselineJsonPath,
+      '--actionable-unresolved-rate-max',
+      '0.9',
+      '--parser-artifact-rate-warn-max',
+      '1',
+      '--resolver-gap-rate-warn-max',
+      '1',
+      '--parser-artifact-rate-drift-warn-max',
+      '0.2',
+      '--resolver-gap-rate-drift-warn-max',
+      '0.2'
+    ],
+    {
+      cwd: ROOT,
+      env: process.env,
+      encoding: 'utf8'
+    }
+  );
+  assert.equal(driftResult.status, 0, `expected drift gate status=0, received ${driftResult.status}`);
+  const driftPayload = JSON.parse(await fs.readFile(driftJsonPath, 'utf8'));
+  assert.equal(Array.isArray(driftPayload?.advisories), true);
+  assert.equal(driftPayload.advisories.length, 2);
+  assert.ok(
+    driftPayload.advisories.some((entry) => String(entry).includes('parser artifact rate drift')),
+    'expected parser artifact drift advisory message'
+  );
+  assert.ok(
+    driftPayload.advisories.some((entry) => String(entry).includes('resolver gap rate drift')),
+    'expected resolver gap drift advisory message'
+  );
+  assert.equal(driftPayload?.drift?.baselineJsonPath, driftBaselineJsonPath);
+  assert.equal(Math.abs(Number(driftPayload?.drift?.parserArtifactRateDelta) - 0.5) < 1e-9, true);
+  assert.equal(Math.abs(Number(driftPayload?.drift?.resolverGapRateDelta) - 0.3) < 1e-9, true);
+
+  const stageDriftGraphPath = path.join(tempRoot, 'import_resolution_graph.stage-drift.json');
+  const stageDriftJsonPath = path.join(tempRoot, 'import-resolution-slo-gate.stage-drift.json');
+  await writeGraph(stageDriftGraphPath, {
+    generatedAt: new Date().toISOString(),
+    stats: {
+      unresolved: 1,
+      unresolvedActionable: 1,
+      unresolvedByFailureCause: {
+        missing_file: 1
+      },
+      resolverPipelineStages: {
+        normalize: {
+          attempts: 1,
+          hits: 1,
+          misses: 0,
+          elapsedMs: 50,
+          budgetExhausted: 0,
+          degraded: 0
+        }
+      }
+    },
+    warnings: []
+  });
+  const stageDriftBaselineJsonPath = path.join(tempRoot, 'import-resolution-slo-gate.stage-drift.baseline.json');
+  await fs.writeFile(stageDriftBaselineJsonPath, JSON.stringify({
+    generatedAt: new Date().toISOString(),
+    metrics: {
+      actionableRate: 1,
+      parserArtifactRate: 0,
+      resolverGapRate: 0,
+      resolverPipelineStagePercentiles: {
+        normalize: {
+          p95: 10,
+          p99: 12
+        }
+      }
+    }
+  }, null, 2), 'utf8');
+  const stageDriftResult = spawnSync(
+    process.execPath,
+    [
+      gatePath,
+      '--mode',
+      'ci',
+      '--report',
+      stageDriftGraphPath,
+      '--json',
+      stageDriftJsonPath,
+      '--baseline-json',
+      stageDriftBaselineJsonPath,
+      '--actionable-unresolved-rate-max',
+      '1',
+      '--parser-artifact-rate-warn-max',
+      '1',
+      '--resolver-gap-rate-warn-max',
+      '1',
+      '--parser-artifact-rate-drift-warn-max',
+      '1',
+      '--resolver-gap-rate-drift-warn-max',
+      '1',
+      '--resolver-stage-p95-drift-warn-ms-max',
+      '20',
+      '--resolver-stage-p99-drift-warn-ms-max',
+      '20'
+    ],
+    {
+      cwd: ROOT,
+      env: process.env,
+      encoding: 'utf8'
+    }
+  );
+  assert.equal(stageDriftResult.status, 0, `expected stage drift gate status=0, received ${stageDriftResult.status}`);
+  const stageDriftPayload = JSON.parse(await fs.readFile(stageDriftJsonPath, 'utf8'));
+  assert.equal(Array.isArray(stageDriftPayload?.advisories), true);
+  assert.equal(stageDriftPayload.advisories.length, 2);
+  assert.ok(
+    stageDriftPayload.advisories.some((entry) => String(entry).includes('resolver stage p95 drift')),
+    'expected resolver stage p95 drift advisory message'
+  );
+  assert.ok(
+    stageDriftPayload.advisories.some((entry) => String(entry).includes('resolver stage p99 drift')),
+    'expected resolver stage p99 drift advisory message'
+  );
+  assert.deepEqual(
+    stageDriftPayload?.drift?.resolverStageP95DriftByStage,
+    { normalize: 40 }
+  );
+  assert.deepEqual(
+    stageDriftPayload?.drift?.resolverStageP99DriftByStage,
+    { normalize: 38 }
+  );
+
+  const gateEligibleStatsGraphPath = path.join(tempRoot, 'import_resolution_graph.gate-eligible-stats.json');
+  const gateEligibleStatsJsonPath = path.join(tempRoot, 'import-resolution-slo-gate.gate-eligible-stats.json');
+  await writeGraph(gateEligibleStatsGraphPath, {
+    generatedAt: new Date().toISOString(),
+    stats: {
+      unresolved: 100,
+      unresolvedActionable: 40,
+      unresolvedGateEligible: 4,
+      unresolvedActionableGateEligible: 1
+    },
+    warnings: []
+  });
+  const gateEligibleStatsResult = spawnSync(
+    process.execPath,
+    [
+      gatePath,
+      '--mode',
+      'ci',
+      '--report',
+      gateEligibleStatsGraphPath,
+      '--json',
+      gateEligibleStatsJsonPath,
+      '--actionable-unresolved-rate-max',
+      '0.3'
+    ],
+    {
+      cwd: ROOT,
+      env: process.env,
+      encoding: 'utf8'
+    }
+  );
+  assert.equal(gateEligibleStatsResult.status, 0, `expected gate-eligible stats status=0, received ${gateEligibleStatsResult.status}`);
+  const gateEligibleStatsPayload = JSON.parse(await fs.readFile(gateEligibleStatsJsonPath, 'utf8'));
+  assert.equal(gateEligibleStatsPayload?.metrics?.unresolved, 4);
+  assert.equal(gateEligibleStatsPayload?.metrics?.actionable, 1);
+  assert.equal(gateEligibleStatsPayload?.metrics?.gateEligibleUnresolved, 4);
+  assert.equal(gateEligibleStatsPayload?.metrics?.gateEligibleActionable, 1);
+
+  console.log('import resolution slo gate smoke test passed');
+} finally {
+  await fs.rm(tempRoot, { recursive: true, force: true });
+}

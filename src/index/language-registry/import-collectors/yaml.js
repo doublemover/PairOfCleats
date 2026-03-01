@@ -1,5 +1,5 @@
 import {
-  isPseudoImportToken,
+  addCollectorImport,
   lineHasAnyInsensitive,
   shouldScanLine,
   stripInlineCommentAware
@@ -15,12 +15,6 @@ const REFERENCE_KEY_TOKENS = new Set([
   '$ref',
   'schema'
 ]);
-
-const addImport = (imports, value) => {
-  const token = String(value || '').trim();
-  if (!token || isPseudoImportToken(token)) return;
-  imports.add(token);
-};
 
 const normalizeScalar = (value) => String(value || '')
   .trim()
@@ -65,7 +59,7 @@ export const collectYamlImports = (text) => {
     const listMatch = trimmed.match(/^-+\s*(.+)$/);
     if (listMatch && listKeyIndent >= 0 && indent >= listKeyIndent) {
       const value = normalizeScalar(listMatch[1]);
-      if (value) addImport(imports, value);
+      if (value) addCollectorImport(imports, value);
       continue;
     }
     if (listKeyIndent >= 0 && indent <= listKeyIndent) {
@@ -83,11 +77,11 @@ export const collectYamlImports = (text) => {
       continue;
     }
     for (const item of collectInlineList(value)) {
-      addImport(imports, item);
+      addCollectorImport(imports, item);
     }
     const scalarValue = normalizeScalar(value);
     if (scalarValue && !value.startsWith('[') && !/^[*&][A-Za-z0-9_.-]+$/.test(scalarValue)) {
-      addImport(imports, scalarValue);
+      addCollectorImport(imports, scalarValue);
     }
   }
   return Array.from(imports);

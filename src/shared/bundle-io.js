@@ -6,20 +6,22 @@ import { sha1, checksumString } from './hash.js';
 import { estimateJsonBytes } from './cache.js';
 import { stableStringify } from './stable-json.js';
 import { writeJsonObjectFile } from './json-stream.js';
+import {
+  MAX_BUNDLE_BYTES,
+  MAX_BUNDLE_CHECKSUM_BYTES,
+  MAX_BUNDLE_PATCH_BYTES,
+  MAX_BUNDLE_PATCH_ENTRIES,
+  MAX_BUNDLE_PATCH_ENTRY_BYTES,
+  BUNDLE_WORKER_OFFLOAD_THRESHOLD_BYTES,
+  BUNDLE_WORKER_MAX_PAYLOAD_BYTES
+} from './bundle-contract.js';
 
 const BUNDLE_FORMAT_TAG = 'pairofcleats.bundle';
 const BUNDLE_VERSION = 1;
 const MSGPACK_EXTENSIONS = new Set(['.mpk', '.msgpack', '.msgpackr']);
-const MAX_BUNDLE_CHECKSUM_BYTES = 16 * 1024 * 1024;
-const MAX_BUNDLE_BYTES = 256 * 1024 * 1024;
 const BUNDLE_PATCH_FORMAT_TAG = 'pairofcleats.bundle.patch';
 const BUNDLE_PATCH_VERSION = 1;
 const BUNDLE_PATCH_SUFFIX = '.patch.jsonl';
-const MAX_BUNDLE_PATCH_BYTES = 8 * 1024 * 1024;
-const MAX_BUNDLE_PATCH_ENTRIES = 64;
-const MAX_BUNDLE_PATCH_ENTRY_BYTES = 2 * 1024 * 1024;
-const BUNDLE_WORKER_OFFLOAD_THRESHOLD_BYTES = 4 * 1024 * 1024;
-const BUNDLE_WORKER_MAX_PAYLOAD_BYTES = 32 * 1024 * 1024;
 const BUNDLE_WORKER_TIMEOUT_MS = 15000;
 const BUNDLE_PATCH_FIELD_KEYS = [
   'file',
@@ -334,6 +336,39 @@ export function resolveBundleFilename(relKey, format) {
   return `${sha1(relKey)}.${ext}`;
 }
 
+export function resolveBundleShardFilename(relKey, format, shardIndex = 0) {
+  const baseName = resolveBundleFilename(relKey, format);
+  const index = Number.isFinite(Number(shardIndex))
+    ? Math.max(0, Math.floor(Number(shardIndex)))
+    : 0;
+  if (index <= 0) return baseName;
+  const parsed = path.parse(baseName);
+  return `${parsed.name}.part${String(index).padStart(4, '0')}${parsed.ext}`;
+}
+
+export function resolveManifestBundleNames(entry) {
+  if (!entry || typeof entry !== 'object') return [];
+  const legacyBundle = typeof entry.bundle === 'string'
+    ? entry.bundle.trim()
+    : '';
+  const rawBundleNames = Array.isArray(entry.bundles) && entry.bundles.length
+    ? entry.bundles
+    : (legacyBundle ? [legacyBundle] : []);
+  if (!rawBundleNames.length) return [];
+  const names = [];
+  const seen = new Set();
+  for (const value of rawBundleNames) {
+    if (typeof value !== 'string') return [];
+    const name = value.trim();
+    if (!name) return [];
+    if (name.includes('/') || name.includes('\\')) return [];
+    if (seen.has(name)) continue;
+    seen.add(name);
+    names.push(name);
+  }
+  return names;
+}
+
 export function resolveBundleFormatFromName(bundleName, fallback = 'json') {
   if (typeof bundleName !== 'string' || !bundleName) return fallback;
   const ext = path.extname(bundleName).toLowerCase();
@@ -453,27 +488,40 @@ export async function readBundleFile(bundlePath, { format = null, maxBytes = MAX
     if (!payload || !Array.isArray(payload.chunks)) {
       return { ok: false, reason: 'invalid bundle payload' };
     }
-    const checksum = envelope.checksum?.value;
-    if (checksum) {
+    const checksumEnvelope = envelope.checksum;
+    if (checksumEnvelope != null) {
+      if (!isPlainObject(checksumEnvelope)) {
+        return { ok: false, reason: 'invalid bundle checksum' };
+      }
+      const checksumAlgo = typeof checksumEnvelope.algo === 'string'
+        ? checksumEnvelope.algo.trim()
+        : '';
+      const checksumValue = typeof checksumEnvelope.value === 'string'
+        ? checksumEnvelope.value.trim()
+        : '';
+      if (!checksumAlgo || !checksumValue) {
+        return { ok: false, reason: 'invalid bundle checksum' };
+      }
       const normalized = normalizeBundlePayload(payload);
       const estimate = estimateJsonBytes(normalized);
       if (estimate && estimate > MAX_BUNDLE_CHECKSUM_BYTES) {
-        return { ok: true, bundle: normalized };
+        return { ok: false, reason: 'bundle checksum unverifiable under size budget' };
       }
-      if (envelope.checksum?.algo === 'xxh64') {
+      if (checksumAlgo === 'xxh64') {
         const expected = await checksumBundlePayload(normalized);
-        if (!expected || expected.value !== checksum) {
+        if (!expected || expected.value !== checksumValue) {
           return { ok: false, reason: 'bundle checksum mismatch' };
         }
         return { ok: true, bundle: normalized };
       }
-      if (envelope.checksum?.algo === 'sha1') {
+      if (checksumAlgo === 'sha1') {
         const expected = sha1(stableStringify(normalized));
-        if (expected !== checksum) {
+        if (expected !== checksumValue) {
           return { ok: false, reason: 'bundle checksum mismatch' };
         }
         return { ok: true, bundle: normalized };
       }
+      return { ok: false, reason: 'unsupported bundle checksum algo' };
     }
     return { ok: true, bundle: payload };
   }

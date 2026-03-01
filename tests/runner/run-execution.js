@@ -61,7 +61,20 @@ const resolveTestTimeout = ({ test, defaultTimeoutMs, overrides }) => {
   return Math.min(defaultTimeoutMs, override);
 };
 
-const writeLogFile = async ({ logDir, test, attempt, stdout, stderr, status, exitCode, signal, timedOut, skipReason, termination }) => {
+const writeLogFile = async ({
+  logDir,
+  test,
+  attempt,
+  stdout,
+  stderr,
+  status,
+  exitCode,
+  signal,
+  timedOut,
+  timeoutClass,
+  skipReason,
+  termination
+}) => {
   if (!logDir) return '';
   const safeId = sanitizeId(test.id);
   const filePath = path.join(logDir, `${safeId}.attempt-${attempt}.log`);
@@ -73,6 +86,7 @@ const writeLogFile = async ({ logDir, test, attempt, stdout, stderr, status, exi
     `exit: ${exitCode ?? 'null'}`,
     `signal: ${signal ?? 'null'}`,
     `timedOut: ${timedOut ? 'true' : 'false'}`,
+    `timeoutClass: ${timeoutClass || ''}`,
     `skipReason: ${skipReason || ''}`,
     `termination: ${termination ? JSON.stringify(termination) : ''}`,
     ''
@@ -104,6 +118,12 @@ const runTestOnce = async ({
   const start = Date.now();
   const args = [test.path, ...passThrough];
   const testEnv = { ...env };
+  if (!testEnv.PAIROFCLEATS_TEST_LANE && typeof test.lane === 'string' && test.lane.trim()) {
+    testEnv.PAIROFCLEATS_TEST_LANE = test.lane.trim();
+  }
+  if (!testEnv.PAIROFCLEATS_TEST_ID && typeof test.id === 'string' && test.id.trim()) {
+    testEnv.PAIROFCLEATS_TEST_ID = test.id.trim();
+  }
   if (!testEnv.PAIROFCLEATS_TEST_CACHE_SUFFIX) {
     testEnv.PAIROFCLEATS_TEST_CACHE_SUFFIX = sanitizeId(test.id);
   }
@@ -235,6 +255,7 @@ const runTestWithRetries = async ({
       exitCode: result.exitCode,
       signal: result.signal,
       timedOut: result.timedOut,
+      timeoutClass: result.timeoutClass,
       skipReason: result.skipReason,
       termination: result.termination
     });
@@ -279,107 +300,117 @@ export const runTests = async ({ selection, context, reportResult, reportDirect 
     }, 500);
     if (typeof watchdogTimer.unref === 'function') watchdogTimer.unref();
   }
-  selection.forEach((test, index) => {
-    queue.add(async () => {
-      let result = null;
-      if (test.presetStatus === 'skipped') {
-        result = normalizeResult({ status: 'skipped', durationMs: 0, skipReason: test.skipReason || '' });
-      } else if (context.failFast && failFastTriggered) {
-        result = normalizeResult({ status: 'skipped', durationMs: 0, skipReason: '' });
-      } else {
-        if (context.initReporter?.start) {
-          context.initReporter.start(test);
-        }
-        result = await runTestWithRetries({
-          test,
-          passThrough: context.passThrough,
-          env: context.baseEnv,
-          cwd: context.root,
-          timeoutMs: resolveTestTimeout({
+  try {
+    selection.forEach((test, index) => {
+      queue.add(async () => {
+        let result = null;
+        if (test.presetStatus === 'skipped') {
+          result = normalizeResult({ status: 'skipped', durationMs: 0, skipReason: test.skipReason || '' });
+        } else if (context.failFast && failFastTriggered) {
+          result = normalizeResult({ status: 'skipped', durationMs: 0, skipReason: '' });
+        } else {
+          if (context.initReporter?.start) {
+            context.initReporter.start(test);
+          }
+          result = await runTestWithRetries({
             test,
-            defaultTimeoutMs: context.timeoutMs,
-            overrides: context.timeoutOverrides
-          }),
-          captureOutput: context.captureOutput,
-          retries: context.retries,
-          logDir: context.runLogDir,
-          timeoutGraceMs: context.timeoutGraceMs,
-          skipExitCode: context.skipExitCode,
-          maxOutputBytes: context.maxOutputBytes,
-          redoExitCodes: context.redoExitCodes,
-          onChildStart: (pid) => {
-            activeChildren.add(pid);
-            markActivity();
-          },
-          onChildStop: (pid) => {
-            activeChildren.delete(pid);
-            markActivity();
-          },
-          onActivity: markActivity
-        });
-      }
-      const fullResult = { ...test, ...normalizeResult(result) };
-      if (fullResult.status === 'redo') {
-        redoQueue.push({ test, index, prior: fullResult });
-      }
-      if (context.failFast && fullResult.status === 'failed') {
-        failFastTriggered = true;
-      }
-      results[index] = fullResult;
-      markActivity();
-      if (reportResult) reportResult(fullResult, index);
-    });
-  });
-  await queue.onIdle();
-  if (redoQueue.length) {
-    const redoRunner = new PQueue({ concurrency: context.jobs });
-    redoQueue.forEach(({ test, index, prior }) => {
-      redoRunner.add(async () => {
-        if (context.initReporter?.start) {
-          context.initReporter.start(test, { label: 'REDO', labelMode: 'redo' });
+            passThrough: context.passThrough,
+            env: context.baseEnv,
+            cwd: context.root,
+            timeoutMs: resolveTestTimeout({
+              test,
+              defaultTimeoutMs: context.timeoutMs,
+              overrides: context.timeoutOverrides
+            }),
+            captureOutput: context.captureOutput,
+            retries: context.retries,
+            logDir: context.runLogDir,
+            timeoutGraceMs: context.timeoutGraceMs,
+            skipExitCode: context.skipExitCode,
+            maxOutputBytes: context.maxOutputBytes,
+            redoExitCodes: context.redoExitCodes,
+            onChildStart: (pid) => {
+              activeChildren.add(pid);
+              markActivity();
+            },
+            onChildStop: (pid) => {
+              activeChildren.delete(pid);
+              markActivity();
+            },
+            onActivity: markActivity
+          });
         }
-        const result = await runTestWithRetries({
-          test,
-          passThrough: context.passThrough,
-          env: context.baseEnv,
-          cwd: context.root,
-          timeoutMs: resolveTestTimeout({
-            test,
-            defaultTimeoutMs: context.timeoutMs,
-            overrides: context.timeoutOverrides
-          }),
-          captureOutput: context.captureOutput,
-          retries: context.retries,
-          logDir: context.runLogDir,
-          timeoutGraceMs: context.timeoutGraceMs,
-          skipExitCode: context.skipExitCode,
-          maxOutputBytes: context.maxOutputBytes,
-          redoExitCodes: null,
-          attemptOffset: prior.attempts,
-          onChildStart: (pid) => {
-            activeChildren.add(pid);
-            markActivity();
-          },
-          onChildStop: (pid) => {
-            activeChildren.delete(pid);
-            markActivity();
-          },
-          onActivity: markActivity
-        });
-        const mergedLogs = [...(prior.logs || []), ...(result.logs || [])];
-        const finalResult = { ...test, ...normalizeResult({ ...result, logs: mergedLogs }) };
-        results[index] = finalResult;
+        const fullResult = { ...test, ...normalizeResult(result) };
+        if (fullResult.status === 'redo') {
+          redoQueue.push({ test, index, prior: fullResult });
+        }
+        if (context.failFast && fullResult.status === 'failed') {
+          failFastTriggered = true;
+        }
+        results[index] = fullResult;
         markActivity();
-        if (reportResult) {
-          reportResult(finalResult, index);
-        }
-        if (reportDirect && reportDirect !== reportResult) {
-          reportDirect(finalResult);
-        }
+        if (reportResult) reportResult(fullResult, index);
       });
     });
-    await redoRunner.onIdle();
+    await queue.onIdle();
+    if (redoQueue.length) {
+      const redoRunner = new PQueue({ concurrency: context.jobs });
+      redoQueue.forEach(({ test, index, prior }) => {
+        redoRunner.add(async () => {
+          if (context.initReporter?.start) {
+            context.initReporter.start(test, { label: 'REDO', labelMode: 'redo' });
+          }
+          const result = await runTestWithRetries({
+            test,
+            passThrough: context.passThrough,
+            env: context.baseEnv,
+            cwd: context.root,
+            timeoutMs: resolveTestTimeout({
+              test,
+              defaultTimeoutMs: context.timeoutMs,
+              overrides: context.timeoutOverrides
+            }),
+            captureOutput: context.captureOutput,
+            retries: context.retries,
+            logDir: context.runLogDir,
+            timeoutGraceMs: context.timeoutGraceMs,
+            skipExitCode: context.skipExitCode,
+            maxOutputBytes: context.maxOutputBytes,
+            redoExitCodes: null,
+            attemptOffset: prior.attempts,
+            onChildStart: (pid) => {
+              activeChildren.add(pid);
+              markActivity();
+            },
+            onChildStop: (pid) => {
+              activeChildren.delete(pid);
+              markActivity();
+            },
+            onActivity: markActivity
+          });
+          const mergedLogs = [...(prior.logs || []), ...(result.logs || [])];
+          const finalResult = { ...test, ...normalizeResult({ ...result, logs: mergedLogs }) };
+          results[index] = finalResult;
+          markActivity();
+          if (reportResult) {
+            reportResult(finalResult, index);
+          }
+          if (reportDirect && reportDirect !== reportResult) {
+            reportDirect(finalResult);
+          }
+        });
+      });
+      await redoRunner.onIdle();
+    }
+    return results;
+  } finally {
+    if (watchdogTimer) clearInterval(watchdogTimer);
+    if (activeChildren.size > 0) {
+      const reapTargets = Array.from(activeChildren);
+      activeChildren.clear();
+      await Promise.allSettled(
+        reapTargets.map((pid) => killProcessTree(pid, { graceMs: context.timeoutGraceMs }))
+      );
+    }
   }
-  if (watchdogTimer) clearInterval(watchdogTimer);
-  return results;
 };

@@ -1,13 +1,22 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { createAbortError } from '../abort.js';
+import { runSyncCommandWithTimeout, toSyncCommandExitCode } from '../subprocess/sync-command.js';
 
 export const DEFAULT_FILE_LOCK_WAIT_MS = 0;
 export const DEFAULT_FILE_LOCK_POLL_MS = 100;
 export const DEFAULT_FILE_LOCK_STALE_MS = 30 * 60 * 1000;
+const DEFAULT_WINDOWS_TASKLIST_TIMEOUT_MS = 2000;
+const lockRuntimeMetrics = {
+  hookFailures: 0,
+  parentMissingRetries: 0,
+  staleRemoveOwnerFailedForceSucceeded: 0
+};
+const RESERVED_LOCK_METADATA_KEYS = new Set(['pid', 'lockId', 'startedAt']);
+const DISALLOWED_LOCK_METADATA_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
+const BENIGN_STALE_REMOVAL_RACE_CODES = new Set(['ENOENT', 'ENOTDIR']);
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const sleepWithAbort = (ms, signal = null) => {
@@ -37,6 +46,46 @@ const toPositiveNumber = (value, fallback) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
 
+const isBenignStaleRemovalRace = (error) => {
+  const code = String(error?.code || '').toUpperCase();
+  return BENIGN_STALE_REMOVAL_RACE_CODES.has(code);
+};
+
+const sanitizeLockMetadata = (metadata) => {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return {};
+  const sanitized = {};
+  for (const [key, value] of Object.entries(metadata)) {
+    if (DISALLOWED_LOCK_METADATA_KEYS.has(key)) continue;
+    if (RESERVED_LOCK_METADATA_KEYS.has(key)) continue;
+    sanitized[key] = value;
+  }
+  return sanitized;
+};
+
+const createStaleRemovalFailureError = ({
+  lockPath,
+  info,
+  pid,
+  stale,
+  cause,
+  phase = 'stale_remove'
+}) => {
+  const message = [
+    `[file-lock] stale lock cleanup failed for "${lockPath}"`,
+    `phase=${phase}`,
+    `cause=${String(cause?.code || cause?.name || 'UNKNOWN')}`
+  ].join(' ');
+  const error = new Error(message, { cause });
+  error.code = 'ERR_FILE_LOCK_STALE_REMOVE_FAILED';
+  error.lockPath = lockPath;
+  error.phase = phase;
+  error.pid = Number.isFinite(pid) ? pid : null;
+  error.stale = Boolean(stale);
+  error.causeCode = String(cause?.code || '');
+  error.lockInfo = info && typeof info === 'object' ? info : null;
+  return error;
+};
+
 const createLockId = () => {
   try {
     return randomUUID();
@@ -48,6 +97,67 @@ const createLockId = () => {
 const resolveLockPid = (info) => {
   const parsed = Number(info?.pid);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
+const createLockSnapshotFingerprint = (raw, stat) => {
+  const hash = createHash('sha1').update(raw).digest('hex');
+  return `${Number(stat?.mtimeMs) || 0}:${Number(stat?.size) || 0}:${hash}`;
+};
+
+const readLockSnapshot = async (lockPath, staleMs) => {
+  try {
+    const [stat, raw] = await Promise.all([
+      fs.stat(lockPath),
+      fs.readFile(lockPath, 'utf8')
+    ]);
+    const ageMs = Date.now() - Number(stat?.mtimeMs || 0);
+    return {
+      exists: true,
+      staleByMtime: ageMs > staleMs,
+      ageMs,
+      fingerprint: createLockSnapshotFingerprint(raw, stat)
+    };
+  } catch {
+    return {
+      exists: false,
+      staleByMtime: false,
+      ageMs: 0,
+      fingerprint: null
+    };
+  }
+};
+
+const isStableStaleSnapshot = (before, after) => (
+  Boolean(before?.exists)
+  && Boolean(after?.exists)
+  && Boolean(before?.staleByMtime)
+  && Boolean(after?.staleByMtime)
+  && typeof before?.fingerprint === 'string'
+  && before.fingerprint === after?.fingerprint
+);
+
+const safeInvokeHook = (hook, payload, { code = 'LOCK_HOOK_ERROR' } = {}) => {
+  if (typeof hook !== 'function') return;
+  try {
+    hook(payload);
+  } catch (err) {
+    lockRuntimeMetrics.hookFailures += 1;
+    const message = err?.message || String(err || 'unknown lock hook failure');
+    try {
+      process.emitWarning(`[file-lock] hook failed: ${message}`, { code });
+    } catch {}
+  }
+};
+
+const buildOwnerFromLockInfo = (info) => {
+  if (!info || typeof info !== 'object') return null;
+  const owner = {};
+  if (typeof info.lockId === 'string' && info.lockId.trim()) {
+    owner.lockId = info.lockId.trim();
+  }
+  const pid = resolveLockPid(info);
+  if (pid) owner.pid = pid;
+  return Object.keys(owner).length ? owner : null;
 };
 
 export const readLockInfoSync = (lockPath) => {
@@ -80,12 +190,16 @@ export const isProcessAlive = (pid) => {
   }
   if (process.platform !== 'win32') return true;
   try {
-    const result = spawnSync(
+    const result = runSyncCommandWithTimeout(
       'tasklist',
       ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'],
-      { encoding: 'utf8', windowsHide: true }
+      {
+        encoding: 'utf8',
+        windowsHide: true,
+        timeoutMs: DEFAULT_WINDOWS_TASKLIST_TIMEOUT_MS
+      }
     );
-    if (result.error) return true;
+    if (toSyncCommandExitCode(result) == null && result?.error) return true;
     const output = String(result.stdout || '').trim();
     if (!output || /INFO:\s+No tasks are running/i.test(output)) return false;
     const line = output.split(/\r?\n/)[0] || '';
@@ -135,7 +249,7 @@ export const removeLockFileSyncIfOwned = (lockPath, owner, { force = false } = {
   }
 };
 
-const removeLockFileIfOwned = async (lockPath, owner, { force = false } = {}) => {
+const removeLockFileIfOwned = async (lockPath, owner, { force = false, swallowErrors = true } = {}) => {
   if (!lockPath) return false;
   try {
     if (!force) {
@@ -144,9 +258,61 @@ const removeLockFileIfOwned = async (lockPath, owner, { force = false } = {}) =>
     }
     await fs.rm(lockPath, { force: true });
     return true;
-  } catch {
+  } catch (err) {
+    if (!swallowErrors) throw err;
     return false;
   }
+};
+
+const removeStaleLockFile = async ({
+  lockPath,
+  info,
+  staleMs
+}) => {
+  const staleOwner = buildOwnerFromLockInfo(info);
+  if (!staleOwner) {
+    return {
+      removed: await removeLockFileIfOwned(lockPath, null, {
+        force: true,
+        swallowErrors: false
+      }),
+      removalMode: 'force'
+    };
+  }
+  const before = await readLockSnapshot(lockPath, staleMs);
+  const removedByOwner = await removeLockFileIfOwned(lockPath, staleOwner, {
+    swallowErrors: false
+  });
+  if (removedByOwner) {
+    return {
+      removed: true,
+      removalMode: 'owner'
+    };
+  }
+  if (!before.exists) {
+    return {
+      removed: true,
+      removalMode: 'owner'
+    };
+  }
+  const after = await readLockSnapshot(lockPath, staleMs);
+  if (!isStableStaleSnapshot(before, after)) {
+    return {
+      removed: false,
+      removalMode: 'owner'
+    };
+  }
+  const forceRemoved = await removeLockFileIfOwned(lockPath, null, {
+    force: true,
+    swallowErrors: false
+  });
+  if (forceRemoved) {
+    lockRuntimeMetrics.staleRemoveOwnerFailedForceSucceeded += 1;
+  }
+  return {
+    removed: forceRemoved,
+    removalMode: forceRemoved ? 'owner-fallback-force' : 'owner'
+  };
 };
 
 /**
@@ -161,10 +327,11 @@ const removeLockFileIfOwned = async (lockPath, owner, { force = false } = {}) =>
  *  timeoutBehavior?:'null'|'throw',
  *  timeoutMessage?:string,
  *  signal?:AbortSignal|null,
- *  onStale?:(info:{lockPath:string,info:object|null,pid:number|null,reason:'stale'|'dead-pid'})=>void,
- *  onBusy?:(info:{lockPath:string,info:object|null,pid:number|null})=>void
+ *  staleRemovalImpl?:(input:{lockPath:string,info:object|null,staleMs:number})=>Promise<{removed:boolean,removalMode:'owner'|'force'|'owner-fallback-force'}>,
+ *  onStale?:(info:{lockPath:string,info:object|null,pid:number|null,reason:'stale'|'dead-pid',removalMode?:'owner'|'force'|'owner-fallback-force'})=>void,
+ *  onBusy?:(info:{lockPath:string,info:object|null,pid:number|null,reason?:'parent_missing',retries?:number})=>void
  * }} input
- * @returns {Promise<{lockPath:string,payload:object,release:(opts?:{force?:boolean})=>Promise<boolean>}|null>}
+ * @returns {Promise<{lockPath:string,payload:object,diagnostics:{parentMissingRetries:number},release:(opts?:{force?:boolean})=>Promise<boolean>}|null>}
  */
 export const acquireFileLock = async ({
   lockPath,
@@ -176,6 +343,7 @@ export const acquireFileLock = async ({
   timeoutBehavior = 'null',
   timeoutMessage = 'Lock timeout.',
   signal = null,
+  staleRemovalImpl = removeStaleLockFile,
   onStale = null,
   onBusy = null
 } = {}) => {
@@ -187,14 +355,16 @@ export const acquireFileLock = async ({
   if (lockSignal?.aborted) throw createAbortError();
   await fs.mkdir(path.dirname(lockPath), { recursive: true });
   const deadline = resolvedWaitMs > 0 ? Date.now() + resolvedWaitMs : null;
+  let parentMissingRetries = 0;
 
   while (true) {
     if (lockSignal?.aborted) throw createAbortError();
+    const sanitizedMetadata = sanitizeLockMetadata(metadata);
     const payload = {
+      ...sanitizedMetadata,
       pid: process.pid,
       lockId: createLockId(),
-      startedAt: new Date().toISOString(),
-      ...(metadata && typeof metadata === 'object' ? metadata : {})
+      startedAt: new Date().toISOString()
     };
     try {
       const handle = await fs.open(lockPath, 'wx');
@@ -206,9 +376,45 @@ export const acquireFileLock = async ({
       return {
         lockPath,
         payload,
+        diagnostics: {
+          parentMissingRetries
+        },
         release: async (options = {}) => removeLockFileIfOwned(lockPath, payload, options)
       };
     } catch (err) {
+      if (err?.code === 'ENOENT') {
+        parentMissingRetries += 1;
+        lockRuntimeMetrics.parentMissingRetries += 1;
+        let parentReady = false;
+        try {
+          await fs.mkdir(path.dirname(lockPath), { recursive: true });
+          parentReady = true;
+        } catch (mkdirErr) {
+          // Retry only for transient parent races; surface everything else.
+          if (mkdirErr?.code !== 'ENOENT' && mkdirErr?.code !== 'ENOTDIR') {
+            throw err;
+          }
+        }
+        if (!parentReady && resolvedWaitMs <= 0) {
+          throw err;
+        }
+        if (deadline != null && Date.now() < deadline) {
+          await sleepWithAbort(resolvedPollMs, lockSignal);
+          continue;
+        }
+        if (resolvedWaitMs <= 0) throw err;
+        safeInvokeHook(onBusy, {
+          lockPath,
+          info: null,
+          pid: null,
+          reason: 'parent_missing',
+          retries: parentMissingRetries
+        });
+        if (timeoutBehavior === 'throw') {
+          throw new Error(timeoutMessage || 'Lock timeout.');
+        }
+        return null;
+      }
       if (err?.code !== 'EEXIST') throw err;
       const info = await readLockInfo(lockPath);
       const pid = resolveLockPid(info);
@@ -217,23 +423,58 @@ export const acquireFileLock = async ({
       const staleCleanup = stale && (forceStaleCleanup || !pid || (pid && !alive));
       if ((pid && !alive) || staleCleanup) {
         try {
-          await fs.rm(lockPath, { force: true });
-          if (typeof onStale === 'function') {
-            onStale({
-              lockPath,
-              info,
-              pid,
-              reason: pid && !alive ? 'dead-pid' : 'stale'
-            });
+          const { removed, removalMode } = await staleRemovalImpl({
+            lockPath,
+            info,
+            staleMs: resolvedStaleMs
+          });
+          if (!removed) {
+            if (deadline != null && Date.now() < deadline) {
+              await sleepWithAbort(resolvedPollMs, lockSignal);
+              continue;
+            }
+            safeInvokeHook(onBusy, { lockPath, info, pid });
+            if (timeoutBehavior === 'throw') {
+              throw new Error(timeoutMessage || 'Lock timeout.');
+            }
+            return null;
           }
+          safeInvokeHook(onStale, {
+            lockPath,
+            info,
+            pid,
+            reason: pid && !alive ? 'dead-pid' : 'stale',
+            removalMode
+          });
           continue;
-        } catch {}
+        } catch (cleanupError) {
+          if (cleanupError?.code === 'ABORT_ERR') throw cleanupError;
+          if (isBenignStaleRemovalRace(cleanupError)) {
+            if (deadline != null && Date.now() < deadline) {
+              await sleepWithAbort(resolvedPollMs, lockSignal);
+              continue;
+            }
+            safeInvokeHook(onBusy, { lockPath, info, pid });
+            if (timeoutBehavior === 'throw') {
+              throw new Error(timeoutMessage || 'Lock timeout.');
+            }
+            return null;
+          }
+          throw createStaleRemovalFailureError({
+            lockPath,
+            info,
+            pid,
+            stale: staleCleanup || Boolean(pid && !alive),
+            cause: cleanupError,
+            phase: 'acquire'
+          });
+        }
       }
       if (deadline != null && Date.now() < deadline) {
         await sleepWithAbort(resolvedPollMs, lockSignal);
         continue;
       }
-      if (typeof onBusy === 'function') onBusy({ lockPath, info, pid });
+      safeInvokeHook(onBusy, { lockPath, info, pid });
       if (timeoutBehavior === 'throw') {
         throw new Error(timeoutMessage || 'Lock timeout.');
       }
@@ -256,4 +497,16 @@ export const withFileLock = async (options, worker) => {
   } finally {
     await lock.release();
   }
+};
+
+export const getFileLockRuntimeMetrics = () => ({
+  hookFailures: Number(lockRuntimeMetrics.hookFailures) || 0,
+  parentMissingRetries: Number(lockRuntimeMetrics.parentMissingRetries) || 0,
+  staleRemoveOwnerFailedForceSucceeded: Number(lockRuntimeMetrics.staleRemoveOwnerFailedForceSucceeded) || 0
+});
+
+export const resetFileLockRuntimeMetricsForTests = () => {
+  lockRuntimeMetrics.hookFailures = 0;
+  lockRuntimeMetrics.parentMissingRetries = 0;
+  lockRuntimeMetrics.staleRemoveOwnerFailedForceSucceeded = 0;
 };

@@ -2,8 +2,7 @@ import { parentPort, workerData } from 'node:worker_threads';
 import { checksumString } from '../hash.js';
 import { estimateJsonBytes } from '../cache.js';
 import { stableStringify } from '../stable-json.js';
-
-const MAX_BUNDLE_CHECKSUM_BYTES = 16 * 1024 * 1024;
+import { MAX_BUNDLE_CHECKSUM_BYTES } from '../bundle-contract.js';
 const BUNDLE_PATCH_FIELD_KEYS = [
   'file',
   'hash',

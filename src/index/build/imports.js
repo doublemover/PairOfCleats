@@ -1,235 +1,156 @@
 import path from 'node:path';
 import { init as initEsModuleLexer, parse as parseEsModuleLexer } from 'es-module-lexer';
 import { init as initCjsLexer, parse as parseCjsLexer } from 'cjs-module-lexer';
-import { collectLanguageImports } from '../language-registry.js';
+import {
+  collectLanguageImportEntries,
+  collectLanguageImports
+} from '../language-registry.js';
 import { isJsLike, isTypeScript } from '../constants.js';
+import { normalizeImportSpecifiers, sanitizeImportSpecifier } from '../shared/import-specifier.js';
 import { runWithConcurrency, runWithQueue } from '../../shared/concurrency.js';
 import { coerceAbortSignal, throwIfAborted } from '../../shared/abort.js';
 import { readTextFile, readTextFileWithHash } from '../../shared/encoding.js';
 import { fileExt, toPosix } from '../../shared/files.js';
 import { showProgress } from '../../shared/progress.js';
 import { readCachedImports } from './incremental.js';
+import {
+  IMPORT_REASON_CODES,
+  IMPORT_RESOLUTION_STATES,
+  normalizeUnresolvedDecision
+} from './import-resolution/reason-codes.js';
+import {
+  isActionableImportWarning,
+  isParserArtifactImportWarning,
+  isResolverGapImportWarning
+} from './import-resolution/disposition.js';
+import { resolveLanguageLabelFromImporter } from './import-resolution/labels.js';
 
 let esModuleInitPromise = null;
 let cjsInitPromise = null;
 
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
-
-export const UNRESOLVED_IMPORT_CATEGORIES = Object.freeze({
-  FIXTURE: 'fixture',
-  OPTIONAL_DEPENDENCY: 'optional_dependency',
-  TYPO: 'typo',
-  PATH_NORMALIZATION: 'path_normalization',
-  MISSING_FILE: 'missing_file',
-  MISSING_DEPENDENCY: 'missing_dependency',
-  PARSE_ERROR: 'parse_error',
-  UNKNOWN: 'unknown'
-});
-
-export const LIVE_UNRESOLVED_IMPORT_SUPPRESSED_CATEGORIES = Object.freeze([
-  UNRESOLVED_IMPORT_CATEGORIES.FIXTURE,
-  UNRESOLVED_IMPORT_CATEGORIES.OPTIONAL_DEPENDENCY
-]);
-
-const LIVE_UNRESOLVED_IMPORT_SUPPRESSED_SET = new Set(LIVE_UNRESOLVED_IMPORT_SUPPRESSED_CATEGORIES);
-const FIXTURE_HINT_SEGMENTS = [
-  '/fixture/',
-  '/fixtures/',
-  '/__fixtures__/',
-  '/test/',
-  '/tests/',
-  '/__tests__/',
-  '/spec/',
-  '/specs/',
-  '/expected_output/',
-  '/golden/',
-  '/mocks/',
-  '/mock/'
-];
-const OPTIONAL_DEPENDENCY_PACKAGE_HINTS = new Set([
-  'bufferutil',
-  'canvas',
-  'fsevents',
-  'pg-native',
-  'sharp',
-  'supports-color',
-  'utf-8-validate'
-]);
-const TYPO_EXTENSION_HINTS = [
-  '.csx',
-  '.goo',
-  '.jav',
-  '.jss',
-  '.jsxs',
-  '.jsxx',
-  '.ktt',
-  '.pyy',
-  '.swfit',
-  '.tss',
-  '.tsxx'
-];
-const TYPO_TOKEN_HINTS = [
-  'confg',
-  'funciton',
-  'resposne',
-  'teh',
-  'utlis'
-];
+const normalizeCollectorHint = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const reasonCode = typeof value.reasonCode === 'string' ? value.reasonCode.trim() : '';
+  if (!reasonCode) return null;
+  const confidenceRaw = Number(value.confidence);
+  const confidence = Number.isFinite(confidenceRaw)
+    ? Math.max(0, Math.min(1, confidenceRaw))
+    : null;
+  const detail = typeof value.detail === 'string' && value.detail.trim()
+    ? value.detail.trim()
+    : null;
+  return {
+    reasonCode,
+    confidence,
+    detail
+  };
+};
 
 const normalizeForClassifier = (value) => (
   typeof value === 'string' ? value.trim().replace(/\\/g, '/') : ''
 );
 
-const normalizeLowerForClassifier = (value) => normalizeForClassifier(value).toLowerCase();
-
-const extractPackageRoot = (specifier) => {
-  const normalized = normalizeForClassifier(specifier);
-  if (!normalized) return '';
-  if (normalized.startsWith('@')) {
-    const segments = normalized.split('/');
-    if (segments.length >= 2) return `${segments[0]}/${segments[1]}`;
-    return normalized;
-  }
-  const slash = normalized.indexOf('/');
-  return slash === -1 ? normalized : normalized.slice(0, slash);
-};
-
-const hasFixtureHint = ({ importer, specifier }) => {
-  const importerLower = normalizeLowerForClassifier(importer);
-  const specLower = normalizeLowerForClassifier(specifier);
-  return FIXTURE_HINT_SEGMENTS.some((segment) => importerLower.includes(segment) || specLower.includes(segment));
-};
-
-const hasOptionalDependencyHint = ({ importer, specifier, reason }) => {
-  const reasonLower = normalizeLowerForClassifier(reason);
-  if (reasonLower.includes('optional')) return true;
-  const specNormalized = normalizeForClassifier(specifier);
-  if (!specNormalized) return false;
-  const specLower = specNormalized.toLowerCase();
-  if (specLower.includes('?optional') || specLower.includes('#optional')) return true;
-  const importerLower = normalizeLowerForClassifier(importer);
-  if (importerLower.includes('/optional/')) return true;
-  const packageRoot = extractPackageRoot(specNormalized).toLowerCase();
-  return OPTIONAL_DEPENDENCY_PACKAGE_HINTS.has(packageRoot);
-};
-
-const hasPathNormalizationHint = (specifier) => {
-  const raw = typeof specifier === 'string' ? specifier : '';
-  const normalized = normalizeForClassifier(specifier);
-  if (!normalized) return false;
-  if (/[A-Za-z]:[\\/]/.test(raw)) return true;
-  if (raw.includes('\\')) return true;
-  if (normalized.includes('/./') || normalized.endsWith('/.') || normalized.includes('/../')) return true;
-  if (/(^|[^:])\/\/+/.test(normalized)) return true;
-  if (/%2f|%5c/i.test(normalized)) return true;
-  return false;
-};
-
-const hasTypoHint = (specifier) => {
-  const normalized = normalizeForClassifier(specifier);
-  if (!normalized) return false;
-  const lower = normalized.toLowerCase();
-  if (/\s/.test(normalized)) return true;
-  if (TYPO_EXTENSION_HINTS.some((hint) => lower.endsWith(hint))) return true;
-  const stem = lower.split('/').pop() || '';
-  return TYPO_TOKEN_HINTS.some((hint) => stem.includes(hint));
-};
-
-const toSortedCategoryCounts = (counts) => {
+const toSortedCountObject = (counts) => {
   const entries = counts instanceof Map
     ? Array.from(counts.entries())
     : Object.entries(counts || {});
   entries.sort((a, b) => sortStrings(a[0], b[0]));
   const output = Object.create(null);
-  for (const [category, count] of entries) {
-    if (!category) continue;
+  for (const [key, count] of entries) {
+    if (!key) continue;
     const numeric = Number(count);
-    output[category] = Number.isFinite(numeric) && numeric > 0 ? Math.floor(numeric) : 0;
+    output[key] = Number.isFinite(numeric) && numeric > 0 ? Math.floor(numeric) : 0;
   }
   return output;
 };
 
-const classifyCategory = ({ importer, specifier, reason }) => {
-  const normalizedSpecifier = normalizeForClassifier(specifier);
-  const normalizedReason = normalizeForClassifier(reason);
-  const isRelative = normalizedSpecifier.startsWith('.')
-    || normalizedSpecifier.startsWith('/')
-    || normalizedSpecifier.startsWith('\\');
-  if (normalizedReason.toLowerCase().includes('parse')) {
-    return {
-      category: UNRESOLVED_IMPORT_CATEGORIES.PARSE_ERROR,
-      confidence: 0.95,
-      suggestedRemediation: 'Fix parse errors in the importer before resolving imports.'
-    };
-  }
-  if (hasFixtureHint({ importer, specifier: normalizedSpecifier })) {
-    return {
-      category: UNRESOLVED_IMPORT_CATEGORIES.FIXTURE,
-      confidence: 0.9,
-      suggestedRemediation: 'Keep fixture-only unresolved imports suppressed or map fixture roots explicitly.'
-    };
-  }
-  if (hasOptionalDependencyHint({ importer, specifier: normalizedSpecifier, reason: normalizedReason })) {
-    return {
-      category: UNRESOLVED_IMPORT_CATEGORIES.OPTIONAL_DEPENDENCY,
-      confidence: 0.87,
-      suggestedRemediation: 'Document optional dependency behavior or install the dependency for full resolution.'
-    };
-  }
-  if (hasPathNormalizationHint(specifier)) {
-    return {
-      category: UNRESOLVED_IMPORT_CATEGORIES.PATH_NORMALIZATION,
-      confidence: 0.83,
-      suggestedRemediation: 'Normalize path separators and collapse redundant path segments in the import specifier.'
-    };
-  }
-  if (hasTypoHint(normalizedSpecifier)) {
-    return {
-      category: UNRESOLVED_IMPORT_CATEGORIES.TYPO,
-      confidence: 0.75,
-      suggestedRemediation: 'Check for spelling mistakes in the import path or module name.'
-    };
-  }
-  if (isRelative) {
-    return {
-      category: UNRESOLVED_IMPORT_CATEGORIES.MISSING_FILE,
-      confidence: 0.68,
-      suggestedRemediation: 'Verify the target file exists and that relative pathing matches repository layout.'
-    };
-  }
-  if (normalizedSpecifier) {
-    return {
-      category: UNRESOLVED_IMPORT_CATEGORIES.MISSING_DEPENDENCY,
-      confidence: 0.72,
-      suggestedRemediation: 'Install or map the dependency path so import resolution can locate it.'
-    };
-  }
-  return {
-    category: UNRESOLVED_IMPORT_CATEGORIES.UNKNOWN,
-    confidence: 0.5,
-    suggestedRemediation: 'Inspect import parser output for malformed or empty unresolved specifiers.'
-  };
+const toSortedHotspotEntries = (counts, { maxEntries = 20 } = {}) => {
+  const entries = counts instanceof Map
+    ? Array.from(counts.entries())
+    : Object.entries(counts || {});
+  return entries
+    .filter(([importer, count]) => importer && Number.isFinite(Number(count)) && Number(count) > 0)
+    .map(([importer, count]) => ({
+      importer,
+      count: Math.floor(Number(count))
+    }))
+    .sort((a, b) => (
+      b.count !== a.count
+        ? b.count - a.count
+        : sortStrings(a.importer, b.importer)
+    ))
+    .slice(0, Math.max(0, Math.floor(Number(maxEntries) || 0)));
 };
 
 const unresolvedSortKey = (sample) => (
-  `${sample.importer || ''}|${sample.specifier || ''}|${sample.reason || ''}|${sample.category || ''}`
+  [
+    sample.importer || '',
+    sample.specifier || '',
+    sample.reason || '',
+    sample.reasonCode || ''
+  ].join('|')
 );
+
+const resolveSuggestedRemediation = (reasonCode) => {
+  switch (reasonCode) {
+    case IMPORT_REASON_CODES.PARSE_ERROR:
+      return 'Fix parse errors in the importer before resolving imports.';
+    case IMPORT_REASON_CODES.MISSING_FILE_RELATIVE:
+      return 'Verify the target file exists and that relative pathing matches repository layout.';
+    case IMPORT_REASON_CODES.MISSING_DEPENDENCY_PACKAGE:
+      return 'Install or map the dependency path so import resolution can locate it.';
+    case IMPORT_REASON_CODES.GENERATED_EXPECTED_MISSING:
+      return 'Build or materialize generated artifacts before indexing this import surface.';
+    case IMPORT_REASON_CODES.RESOLVER_GAP:
+    case IMPORT_REASON_CODES.RESOLVER_BUDGET_EXHAUSTED:
+      return 'Extend resolver coverage/budgets for this import surface.';
+    case IMPORT_REASON_CODES.PARSER_NOISE_SUPPRESSED:
+      return 'No action required; parser artifact is suppressed by policy.';
+    default:
+      return 'Review unresolved diagnostic metadata for precise cause/remediation.';
+  }
+};
 
 export const classifyUnresolvedImportSample = (sample) => {
   const importer = typeof sample?.importer === 'string' ? normalizeForClassifier(sample.importer) : '';
-  const specifier = typeof sample?.specifier === 'string' ? sample.specifier.trim() : '';
+  const specifier = sanitizeImportSpecifier(sample?.specifier, { stripTrailingPunctuation: false });
   const reason = typeof sample?.reason === 'string' && sample.reason.trim()
     ? sample.reason.trim()
     : 'unresolved';
-  const classified = classifyCategory({ importer, specifier, reason });
+  const incomingReasonCode = typeof sample?.reasonCode === 'string' ? sample.reasonCode.trim() : '';
+  const parseReasonHint = !incomingReasonCode && /parse/i.test(reason);
+  const reasonCode = incomingReasonCode || (
+    parseReasonHint
+      ? IMPORT_REASON_CODES.PARSE_ERROR
+      : IMPORT_REASON_CODES.UNKNOWN
+  );
+  const decision = normalizeUnresolvedDecision({
+    reasonCode,
+    failureCause: sample?.failureCause,
+    disposition: sample?.disposition,
+    resolverStage: sample?.resolverStage
+  });
+  const confidence = incomingReasonCode
+    ? 0.95
+    : (parseReasonHint ? 0.82 : 0.5);
+  const resolutionState = sample?.resolutionState === IMPORT_RESOLUTION_STATES.RESOLVED
+    ? IMPORT_RESOLUTION_STATES.RESOLVED
+    : IMPORT_RESOLUTION_STATES.UNRESOLVED;
+  const suppressLive = !isActionableImportWarning({ disposition: decision.disposition });
   return {
     importer,
     specifier,
     reason,
-    category: classified.category,
-    confidence: classified.confidence,
-    suggestedRemediation: classified.suggestedRemediation,
-    suppressLive: LIVE_UNRESOLVED_IMPORT_SUPPRESSED_SET.has(classified.category)
+    reasonCode: decision.reasonCode,
+    resolutionState,
+    failureCause: decision.failureCause,
+    disposition: decision.disposition,
+    resolverStage: decision.resolverStage,
+    confidence,
+    suggestedRemediation: resolveSuggestedRemediation(decision.reasonCode),
+    suppressLive,
+    actionable: isActionableImportWarning({ disposition: decision.disposition })
   };
 };
 
@@ -246,18 +167,77 @@ export const enrichUnresolvedImportSamples = (samples) => {
 
 export const summarizeUnresolvedImportTaxonomy = (samples) => {
   const normalized = enrichUnresolvedImportSamples(samples);
-  const categoryCounts = new Map();
+  const reasonCodeCounts = new Map();
+  const failureCauseCounts = new Map();
+  const dispositionCounts = new Map();
+  const resolverStageCounts = new Map();
+  const actionableImporterCounts = new Map();
+  const actionableLanguageCounts = new Map();
   let liveSuppressed = 0;
+  let gateSuppressed = 0;
+  let actionable = 0;
+  let parserArtifact = 0;
+  let resolverGap = 0;
   for (const sample of normalized) {
-    categoryCounts.set(sample.category, (categoryCounts.get(sample.category) || 0) + 1);
-    if (sample.suppressLive) liveSuppressed += 1;
+    if (sample.reasonCode) {
+      reasonCodeCounts.set(sample.reasonCode, (reasonCodeCounts.get(sample.reasonCode) || 0) + 1);
+    }
+    if (sample.failureCause) {
+      failureCauseCounts.set(sample.failureCause, (failureCauseCounts.get(sample.failureCause) || 0) + 1);
+    }
+    if (sample.disposition) {
+      dispositionCounts.set(sample.disposition, (dispositionCounts.get(sample.disposition) || 0) + 1);
+    }
+    if (sample.resolverStage) {
+      resolverStageCounts.set(sample.resolverStage, (resolverStageCounts.get(sample.resolverStage) || 0) + 1);
+    }
+    if (isParserArtifactImportWarning(sample)) {
+      parserArtifact += 1;
+    }
+    if (isResolverGapImportWarning(sample)) {
+      resolverGap += 1;
+    }
+    if (sample.disposition === 'suppress_live') {
+      liveSuppressed += 1;
+    } else if (sample.disposition === 'suppress_gate') {
+      gateSuppressed += 1;
+    } else {
+      actionable += 1;
+      if (sample.importer) {
+        actionableImporterCounts.set(
+          sample.importer,
+          (actionableImporterCounts.get(sample.importer) || 0) + 1
+        );
+        const languageLabel = resolveLanguageLabelFromImporter(sample.importer);
+        actionableLanguageCounts.set(
+          languageLabel,
+          (actionableLanguageCounts.get(languageLabel) || 0) + 1
+        );
+      }
+    }
   }
+  const total = normalized.length;
+  const resolverBudgetExhausted = reasonCodeCounts.get(IMPORT_REASON_CODES.RESOLVER_BUDGET_EXHAUSTED) || 0;
+  const actionableRate = total > 0 ? actionable / total : 0;
+  const parserArtifactRate = total > 0 ? parserArtifact / total : 0;
+  const resolverGapRate = total > 0 ? resolverGap / total : 0;
   return {
-    total: normalized.length,
-    actionable: Math.max(0, normalized.length - liveSuppressed),
+    total,
+    actionable,
     liveSuppressed,
-    categories: toSortedCategoryCounts(categoryCounts),
-    liveSuppressedCategories: LIVE_UNRESOLVED_IMPORT_SUPPRESSED_CATEGORIES.slice()
+    gateSuppressed,
+    reasonCodes: toSortedCountObject(reasonCodeCounts),
+    failureCauses: toSortedCountObject(failureCauseCounts),
+    dispositions: toSortedCountObject(dispositionCounts),
+    resolverStages: toSortedCountObject(resolverStageCounts),
+    actionableHotspots: toSortedHotspotEntries(actionableImporterCounts),
+    actionableByLanguage: toSortedCountObject(actionableLanguageCounts),
+    actionableRate,
+    actionableUnresolvedRate: actionableRate,
+    parserArtifactRate,
+    resolverGapRate,
+    resolverBudgetExhausted,
+    resolverBudgetExhaustedByType: Object.create(null)
   };
 };
 
@@ -286,15 +266,7 @@ const ensureCjsLexer = async () => {
  * @returns {string[]}
  */
 const normalizeImports = (list) => {
-  const set = new Set();
-  if (Array.isArray(list)) {
-    for (const entry of list) {
-      if (typeof entry === 'string' && entry) set.add(entry);
-    }
-  }
-  const output = Array.from(set);
-  output.sort(sortStrings);
-  return output;
+  return normalizeImportSpecifiers(Array.isArray(list) ? list : []);
 };
 
 /**
@@ -368,7 +340,7 @@ export function sortImportScanItems(items, cachedImportCounts) {
 /**
  * Scan files for imports to build cross-link map.
  * @param {{files:Array<string|{abs:string,rel?:string,stat?:import('node:fs').Stats,ext?:string}>,root:string,mode:'code'|'prose',languageOptions:object,importConcurrency:number,queue?:object,incrementalState?:object,fileTextByFile?:Map<string,string>,readCachedImportsFn?:Function}} input
- * @returns {Promise<{importsByFile:Record<string,string[]>,durationMs:number,stats:{modules:number,edges:number,files:number,scanned:number}}>}
+ * @returns {Promise<{importsByFile:Record<string,string[]>,importHintsByFile:Record<string,Record<string,object>>,durationMs:number,stats:{modules:number,edges:number,files:number,scanned:number}}>}
  */
 export async function scanImports({
   files,
@@ -385,6 +357,7 @@ export async function scanImports({
   const effectiveAbortSignal = coerceAbortSignal(abortSignal);
   throwIfAborted(effectiveAbortSignal);
   const importsByFile = new Map();
+  const importHintsByFile = new Map();
   const moduleSet = new Set();
   const start = Date.now();
   let processed = 0;
@@ -475,6 +448,33 @@ export async function scanImports({
         edgeCount += imports.length;
         for (const mod of imports) moduleSet.add(mod);
       };
+      const recordImportEntries = (entries) => {
+        if (!Array.isArray(entries)) return false;
+        const imports = [];
+        const hints = Object.create(null);
+        for (const entry of entries) {
+          const specifier = typeof entry?.specifier === 'string' ? entry.specifier.trim() : '';
+          if (!specifier) continue;
+          imports.push(specifier);
+          const hint = normalizeCollectorHint(entry?.collectorHint);
+          if (hint) hints[specifier] = hint;
+        }
+        const normalizedImports = normalizeImports(imports);
+        recordImports(normalizedImports);
+        if (Object.keys(hints).length > 0) {
+          const filteredHints = Object.create(null);
+          for (const specifier of normalizedImports) {
+            if (hints[specifier]) filteredHints[specifier] = hints[specifier];
+          }
+          if (Object.keys(filteredHints).length > 0) {
+            importHintsByFile.set(relKey, filteredHints);
+          }
+        }
+        // Entry-based collectors are authoritative even when they return zero
+        // imports (for example after budget/policy filtering). Avoid falling
+        // back to legacy collection, which would parse the file a second time.
+        return true;
+      };
       if (hadPrefetch) {
         const cachedImports = cachedImportsByFile.get(relKey);
         cachedImportsByFile.delete(relKey);
@@ -561,9 +561,11 @@ export async function scanImports({
       }
       const fastImports = await collectModuleImportsFast({ text, ext });
       const options = languageOptions && typeof languageOptions === 'object' ? languageOptions : {};
-      const imports = normalizeImports(Array.isArray(fastImports)
-        ? fastImports
-        : collectLanguageImports({
+      if (Array.isArray(fastImports)) {
+        const imports = normalizeImports(fastImports);
+        recordImports(imports);
+      } else {
+        const importEntries = collectLanguageImportEntries({
           ext,
           relPath: relKey,
           text,
@@ -571,8 +573,19 @@ export async function scanImports({
           options,
           root,
           filePath: item.absPath
-        }));
-      recordImports(imports);
+        });
+        if (!recordImportEntries(importEntries)) {
+          recordImports(collectLanguageImports({
+            ext,
+            relPath: relKey,
+            text,
+            mode,
+            options,
+            root,
+            filePath: item.absPath
+          }));
+        }
+      }
       processed += 1;
       showProgress('Imports', processed, items.length, progressMeta);
     },
@@ -585,8 +598,14 @@ export async function scanImports({
   for (const file of fileKeys) {
     dedupedImportsByFile[file] = importsByFile.get(file) || [];
   }
+  const dedupedImportHintsByFile = Object.create(null);
+  const hintKeys = Array.from(importHintsByFile.keys()).sort(sortStrings);
+  for (const file of hintKeys) {
+    dedupedImportHintsByFile[file] = importHintsByFile.get(file) || Object.create(null);
+  }
   return {
     importsByFile: dedupedImportsByFile,
+    importHintsByFile: dedupedImportHintsByFile,
     durationMs: Date.now() - start,
     stats: {
       modules: moduleSet.size,

@@ -224,5 +224,8 @@ export async function getStatus(input = {}) {
 }
 
 export async function status(input = {}) {
+  if (typeof input === 'string') {
+    return getStatus({ repoRoot: input });
+  }
   return getStatus(input);
 }

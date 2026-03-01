@@ -5,14 +5,16 @@ let trackedSubprocessShutdownTriggered = false;
 let trackedSubprocessShutdownPromise = null;
 const signalForwardInFlight = new Set();
 let terminateTrackedSubprocessesRef = null;
+let terminateTrackedSubprocessesSyncRef = null;
 
 /**
- * Trigger one-time tracked-child shutdown for process teardown paths.
+ * Trigger tracked-child shutdown for process teardown paths.
  *
  * @param {string} reason
+ * @param {{allowRepeat?:boolean}} [options]
  * @returns {Promise<unknown>}
  */
-const triggerTrackedSubprocessShutdown = (reason) => {
+const triggerTrackedSubprocessShutdown = (reason, { allowRepeat = false } = {}) => {
   if (trackedSubprocessShutdownTriggered) return trackedSubprocessShutdownPromise;
   trackedSubprocessShutdownTriggered = true;
   const terminate = terminateTrackedSubprocessesRef;
@@ -21,7 +23,23 @@ const triggerTrackedSubprocessShutdown = (reason) => {
       ? terminate({ reason, force: true })
       : Promise.resolve(null)
   ).catch(() => null);
+  if (allowRepeat) {
+    trackedSubprocessShutdownPromise.finally(() => {
+      trackedSubprocessShutdownTriggered = false;
+      trackedSubprocessShutdownPromise = null;
+    });
+  }
   return trackedSubprocessShutdownPromise;
+};
+
+const triggerTrackedSubprocessShutdownSync = (reason) => {
+  const terminateSync = terminateTrackedSubprocessesSyncRef;
+  if (typeof terminateSync !== 'function') return null;
+  try {
+    return terminateSync({ reason, force: true });
+  } catch {
+    return null;
+  }
 };
 
 const forwardSignalToDefault = (signal) => {
@@ -43,25 +61,35 @@ const forwardSignalToDefault = (signal) => {
  * child cleanup even when Node would otherwise terminate by default handling.
  *
  * @param {(input:{reason?:string,force?:boolean}) => Promise<unknown>} terminateTrackedSubprocesses
+ * @param {(input:{reason?:string,force?:boolean}) => unknown} [terminateTrackedSubprocessesSync]
  * @returns {void}
  */
-const installTrackedSubprocessHooks = (terminateTrackedSubprocesses) => {
+const installTrackedSubprocessHooks = (terminateTrackedSubprocesses, terminateTrackedSubprocessesSync = null) => {
   if (typeof terminateTrackedSubprocesses === 'function') {
     terminateTrackedSubprocessesRef = terminateTrackedSubprocesses;
   }
+  if (typeof terminateTrackedSubprocessesSync === 'function') {
+    terminateTrackedSubprocessesSyncRef = terminateTrackedSubprocessesSync;
+  }
   if (trackedSubprocessHooksInstalled) return;
   trackedSubprocessHooksInstalled = true;
+  process.once('beforeExit', () => {
+    void triggerTrackedSubprocessShutdown('process_before_exit');
+  });
   process.once('exit', () => {
-    triggerTrackedSubprocessShutdown('process_exit');
+    triggerTrackedSubprocessShutdownSync('process_exit');
   });
   process.on('uncaughtExceptionMonitor', () => {
-    triggerTrackedSubprocessShutdown('uncaught_exception');
+    triggerTrackedSubprocessShutdownSync('uncaught_exception');
+    void triggerTrackedSubprocessShutdown('uncaught_exception');
   });
   for (const signal of TRACKED_SUBPROCESS_TERMINATION_SIGNALS) {
     try {
       process.once(signal, () => {
         const hasAdditionalSignalHandlers = process.listenerCount(signal) > 0;
-        void triggerTrackedSubprocessShutdown(`signal_${String(signal || '').toLowerCase()}`)
+        void triggerTrackedSubprocessShutdown(`signal_${String(signal || '').toLowerCase()}`, {
+          allowRepeat: true
+        })
           .finally(() => {
             if (!hasAdditionalSignalHandlers) {
               forwardSignalToDefault(signal);
