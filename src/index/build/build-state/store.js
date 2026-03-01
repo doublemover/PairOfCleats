@@ -6,6 +6,7 @@ import { atomicWriteJson, atomicWriteText } from '../../../shared/io/atomic-writ
 import { sha1 } from '../../../shared/hash.js';
 import { acquireFileLock } from '../../../shared/locks/file-lock.js';
 import { logLine } from '../../../shared/progress.js';
+import { readJsonFileSafe } from '../../../shared/files.js';
 import { loadCheckpointSlices, mergeStageCheckpoints, resolveCheckpointIndexPath, writeCheckpointSlices } from './checkpoints.js';
 import {
   BUILD_STATE_DURABILITY_CLASS,
@@ -25,6 +26,7 @@ const DELTA_LOG_MAX_BYTES = 4 * 1024 * 1024;
 const STATE_MAP_MAX_ENTRIES = 64;
 const STATE_JSON_MAX_BYTES = 8 * 1024 * 1024;
 const PROGRESS_JSON_MAX_BYTES = 4 * 1024 * 1024;
+const CURRENT_POINTER_MAX_BYTES = 512 * 1024;
 const gzipAsync = promisify(zlib.gzip);
 
 const isObjectLike = (value) => (
@@ -254,16 +256,31 @@ export const hydrateStateDefaults = async (state, buildRoot) => {
   let repo = state.repo ?? null;
   let repoRoot = state.repoRoot ?? null;
   if (!repo || !repoRoot) {
-    try {
-      const currentPath = path.join(path.dirname(resolvedBuildRoot), 'current.json');
-      const current = JSON.parse(await fs.readFile(currentPath, 'utf8')) || {};
+    const currentPath = path.join(path.dirname(resolvedBuildRoot), 'current.json');
+    let currentReadError = null;
+    const current = await readJsonFileSafe(currentPath, {
+      fallback: null,
+      maxBytes: CURRENT_POINTER_MAX_BYTES,
+      onError: (info) => {
+        currentReadError = info || null;
+      }
+    });
+    if (currentReadError?.error?.code && currentReadError.error.code !== 'ENOENT') {
+      const errorCode = currentReadError.error.code || 'ERR_CURRENT_POINTER_READ';
+      logLine(
+        `[build_state] current.json read failed (${errorCode}) at ${currentPath}; `
+          + 'using in-state repo defaults',
+        { kind: 'warning' }
+      );
+    }
+    if (current && typeof current === 'object') {
       if (!repo && current.repo) {
         repo = current.repo;
       }
       if (!repoRoot && current.repo?.root) {
         repoRoot = path.resolve(current.repo.root);
       }
-    } catch {}
+    }
   }
   return {
     ...state,
