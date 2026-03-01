@@ -96,8 +96,7 @@ export const createSupervisorSession = ({
     const bounded = await Promise.race([
       waitPromise,
       new Promise((resolve) => {
-        const timer = setTimeout(() => resolve(null), Math.max(1, Number(waitTimeoutMs) || timeoutMs));
-        timer.unref?.();
+        setTimeout(() => resolve(null), Math.max(1, Number(waitTimeoutMs) || timeoutMs));
       })
     ]);
     if (bounded !== null) return bounded;
