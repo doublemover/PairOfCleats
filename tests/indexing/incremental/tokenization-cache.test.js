@@ -20,10 +20,30 @@ await fsPromises.mkdir(cacheRoot, { recursive: true });
 const filePath = path.join(repoRoot, 'src.js');
 await fsPromises.writeFile(filePath, 'function alpha() { return 1; }\n');
 
+const BASE_TEST_CONFIG = Object.freeze({
+  indexing: {
+    scm: { provider: 'none' },
+    typeInference: false,
+    typeInferenceCrossFile: false
+  }
+});
+
+const mergeTestConfig = (testConfig) => {
+  if (!testConfig || typeof testConfig !== 'object') return BASE_TEST_CONFIG;
+  return {
+    ...BASE_TEST_CONFIG,
+    ...testConfig,
+    indexing: {
+      ...(BASE_TEST_CONFIG.indexing || {}),
+      ...(testConfig.indexing || {})
+    }
+  };
+};
+
 const buildTestEnv = (testConfig) => applyTestEnv({
   cacheRoot,
   embeddings: 'stub',
-  testConfig: testConfig ?? null,
+  testConfig: mergeTestConfig(testConfig),
   extraEnv: {
     PAIROFCLEATS_WORKER_POOL: 'off'
   }
@@ -32,7 +52,19 @@ const buildTestEnv = (testConfig) => applyTestEnv({
 const runBuild = (label, testConfig) => {
   const result = spawnSync(
     process.execPath,
-    [path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--incremental', '--repo', repoRoot],
+    [
+      path.join(root, 'build_index.js'),
+      '--stub-embeddings',
+      '--scm-provider',
+      'none',
+      '--incremental',
+      '--stage',
+      'stage2',
+      '--mode',
+      'code',
+      '--repo',
+      repoRoot
+    ],
     {
       cwd: repoRoot,
       env: buildTestEnv(testConfig),

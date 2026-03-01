@@ -15,6 +15,10 @@ const repoDir = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 const srcDir = path.join(repoDir, 'src');
 const binRoot = path.join(root, 'tests', 'fixtures', 'lsp', 'bin');
+const pyrightStubCmd = path.join(
+  binRoot,
+  process.platform === 'win32' ? 'pyright-langserver.cmd' : 'pyright-langserver'
+);
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(srcDir, { recursive: true });
@@ -31,6 +35,12 @@ const testConfig = {
     scm: { provider: 'none' },
     typeInference: true,
     typeInferenceCrossFile: true
+  },
+  tooling: {
+    pyright: {
+      command: pyrightStubCmd,
+      args: ['--stdio']
+    }
   }
 };
 
