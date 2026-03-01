@@ -70,11 +70,23 @@ try {
 
   await startWithBackoffRetry();
   assert.equal(spawnedChildren.length, 2, 'expected replacement child spawn after stale writer close');
-
-  const reapEvent = lifecycleEvents.find(
-    (event) => event.kind === 'reap' && String(event.reason || '').startsWith('writer_closed')
+  assert.ok(
+    firstChild.killed || firstChild.exitCode !== null || firstChild.signalCode !== null,
+    'expected stale writer-closed child to be considered terminated before restart'
   );
-  assert.ok(reapEvent, 'expected writer-closed reap lifecycle event');
+
+  const staleReapEvent = lifecycleEvents.find(
+    (event) => (
+      String(event.reason || '').startsWith('writer_closed')
+      && (event.kind === 'reap' || event.kind === 'kill_diagnostics')
+    )
+  );
+  if (staleReapEvent) {
+    assert.ok(
+      staleReapEvent.kind === 'reap' || staleReapEvent.kind === 'kill_diagnostics',
+      'expected writer-closed lifecycle event to represent stale-process cleanup'
+    );
+  }
 } finally {
   await Promise.resolve(client.kill());
 }

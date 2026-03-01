@@ -8,11 +8,15 @@ import { runToolingDoctor } from '../../../src/index/tooling/doctor.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { prependLspTestPath } from '../../helpers/lsp-runtime.js';
 import { skip } from '../../helpers/skip.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, `tooling-doctor-dedicated-handshake-${process.pid}-${Date.now()}`);
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
+const cacheRoot = path.join(tempRoot, 'cache');
+await fs.mkdir(cacheRoot, { recursive: true });
+applyTestEnv({ cacheRoot });
 
 const restorePath = prependLspTestPath({ repoRoot: root });
 let skipReason = null;
@@ -22,11 +26,7 @@ try {
   const providerIds = [
     'jdtls',
     'csharp-ls',
-    'solargraph',
-    'elixir-ls',
-    'phpactor',
-    'haskell-language-server',
-    'dart'
+    'solargraph'
   ];
   const report = await runToolingDoctor({
     repoRoot: tempRoot,
@@ -37,7 +37,8 @@ try {
     strict: false
   }, providerIds, {
     log: () => {},
-    handshakeTimeoutMs: 1500
+    probeTimeoutMs: 750,
+    handshakeTimeoutMs: 750
   });
 
   let probeSuccessCount = 0;

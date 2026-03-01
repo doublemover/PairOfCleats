@@ -7,6 +7,7 @@ import { createLspClient } from '../../../src/integrations/tooling/lsp/client.js
 import { getTrackedSubprocessCount } from '../../../src/shared/subprocess.js';
 import { sleep } from '../../../src/shared/sleep.js';
 import { countNonEmptyLines } from '../../helpers/lsp-signature-fixtures.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -32,7 +33,10 @@ const waitForSpawns = async (expected, timeoutMs = 2000) => {
 const client = createLspClient({
   cmd: process.execPath,
   args: [serverPath],
-  env: { ...process.env, POC_LSP_COUNTER: counterPath },
+  env: applyTestEnv({
+    syncProcess: false,
+    extraEnv: { POC_LSP_COUNTER: counterPath }
+  }),
   log: () => {}
 });
 
