@@ -1,9 +1,8 @@
 import { normalizeImportToken } from '../simple-relations.js';
 import {
-  applyCollectorSourceBudget,
   addCollectorImportEntry,
   collectorImportEntriesToSpecifiers,
-  createCollectorScanBudget,
+  createCollectorBudgetContext,
   createCollectorImportEntryStore,
   finalizeCollectorImportEntries,
   lineHasAny
@@ -299,9 +298,20 @@ const parseImportsArray = (source, importsTokenEnd, onToken) => {
   return index;
 };
 
-export const collectNixImportEntries = (text) => {
+export const collectNixImportEntries = (text, options = {}) => {
   const imports = createCollectorImportEntryStore();
-  const source = String(text || '');
+  const budgetContext = createCollectorBudgetContext({
+    text,
+    options,
+    collectorId: 'nix',
+    defaults: {
+      maxChars: NIX_SOURCE_BUDGET.maxChars,
+      maxMatches: NIX_SCAN_BUDGET.maxMatches,
+      maxTokens: NIX_SCAN_BUDGET.maxTokens,
+      maxMs: 0
+    }
+  });
+  const source = budgetContext.source;
   const precheck = (value) => lineHasAny(value, [
     'import',
     'callPackage',
@@ -311,8 +321,7 @@ export const collectNixImportEntries = (text) => {
     '.nix'
   ]);
   if (!precheck(source)) return [];
-  const sourceBudget = applyCollectorSourceBudget(source, NIX_SOURCE_BUDGET);
-  const scanBudget = createCollectorScanBudget(NIX_SCAN_BUDGET);
+  const scanBudget = budgetContext.scanBudget;
   const addImport = (value, hintSource = null) => {
     if (scanBudget.exhausted || !scanBudget.consumeToken()) return;
     const cleaned = normalizeImportToken(value);
@@ -321,109 +330,113 @@ export const collectNixImportEntries = (text) => {
     });
   };
 
-  let index = 0;
-  let inComment = false;
-  let inSingle = false;
-  let inDouble = false;
-  let escaped = false;
-  const sourceText = sourceBudget.source;
-  while (index < sourceText.length) {
-    const char = sourceText[index];
-    if (inComment) {
-      if (char === '\n') inComment = false;
-      index += 1;
-      continue;
-    }
-    if (inSingle) {
+  const sourceText = source;
+  try {
+    let index = 0;
+    let inComment = false;
+    let inSingle = false;
+    let inDouble = false;
+    let escaped = false;
+    while (index < sourceText.length) {
+      const char = sourceText[index];
+      if (inComment) {
+        if (char === '\n') inComment = false;
+        index += 1;
+        continue;
+      }
+      if (inSingle) {
+        if (sourceText.startsWith("''", index)) {
+          inSingle = false;
+          index += 2;
+        } else {
+          index += 1;
+        }
+        continue;
+      }
+      if (inDouble) {
+        if (escaped) {
+          escaped = false;
+          index += 1;
+          continue;
+        }
+        if (char === '\\') {
+          escaped = true;
+          index += 1;
+          continue;
+        }
+        if (char === '"') inDouble = false;
+        index += 1;
+        continue;
+      }
+      if (char === '#') {
+        inComment = true;
+        index += 1;
+        continue;
+      }
       if (sourceText.startsWith("''", index)) {
-        inSingle = false;
+        inSingle = true;
         index += 2;
-      } else {
-        index += 1;
+        continue;
       }
-      continue;
-    }
-    if (inDouble) {
-      if (escaped) {
-        escaped = false;
+      if (char === '"') {
+        inDouble = true;
         index += 1;
         continue;
       }
-      if (char === '\\') {
-        escaped = true;
+      if (!isIdentifierStart(char)) {
         index += 1;
         continue;
       }
-      if (char === '"') inDouble = false;
-      index += 1;
-      continue;
-    }
-    if (char === '#') {
-      inComment = true;
-      index += 1;
-      continue;
-    }
-    if (sourceText.startsWith("''", index)) {
-      inSingle = true;
-      index += 2;
-      continue;
-    }
-    if (char === '"') {
-      inDouble = true;
-      index += 1;
-      continue;
-    }
-    if (!isIdentifierStart(char)) {
-      index += 1;
-      continue;
-    }
-    const identifier = readIdentifier(sourceText, index);
-    if (!identifier) {
-      index += 1;
-      continue;
-    }
-    const token = identifier.value;
-    const tokenEnd = identifier.nextIndex;
-    if (token === 'import' || token === 'callPackage') {
-      if (!scanBudget.consumeMatch()) break;
-      const expression = readNixExpression(sourceText, tokenEnd);
-      if (expression?.token) addImport(expression.token);
-      index = expression?.nextIndex || tokenEnd;
-      continue;
-    }
-    if (token === 'builtins' && sourceText[tokenEnd] === '.') {
-      const callIdent = readIdentifier(sourceText, tokenEnd + 1);
-      if (callIdent?.value === 'getFlake') {
+      const identifier = readIdentifier(sourceText, index);
+      if (!identifier) {
+        index += 1;
+        continue;
+      }
+      const token = identifier.value;
+      const tokenEnd = identifier.nextIndex;
+      if (token === 'import' || token === 'callPackage') {
         if (!scanBudget.consumeMatch()) break;
-        const expression = readNixExpression(sourceText, callIdent.nextIndex);
-        if (expression?.token) addImport(expression.token, 'getFlake');
-        index = expression?.nextIndex || callIdent.nextIndex;
+        const expression = readNixExpression(sourceText, tokenEnd);
+        if (expression?.token) addImport(expression.token);
+        index = expression?.nextIndex || tokenEnd;
         continue;
       }
-    }
-    if (token === 'inputs') {
-      const assignment = parseInputsAssignment(sourceText, tokenEnd);
-      if (assignment?.token) {
+      if (token === 'builtins' && sourceText[tokenEnd] === '.') {
+        const callIdent = readIdentifier(sourceText, tokenEnd + 1);
+        if (callIdent?.value === 'getFlake') {
+          if (!scanBudget.consumeMatch()) break;
+          const expression = readNixExpression(sourceText, callIdent.nextIndex);
+          if (expression?.token) addImport(expression.token, 'getFlake');
+          index = expression?.nextIndex || callIdent.nextIndex;
+          continue;
+        }
+      }
+      if (token === 'inputs') {
+        const assignment = parseInputsAssignment(sourceText, tokenEnd);
+        if (assignment?.token) {
+          if (!scanBudget.consumeMatch()) break;
+          addImport(assignment.token, 'flakeInput');
+          index = assignment.nextIndex;
+          continue;
+        }
+      }
+      if (token === 'imports') {
         if (!scanBudget.consumeMatch()) break;
-        addImport(assignment.token, 'flakeInput');
-        index = assignment.nextIndex;
-        continue;
+        const nextIndex = parseImportsArray(sourceText, tokenEnd, (value) => addImport(value));
+        if (nextIndex > tokenEnd) {
+          index = nextIndex;
+          continue;
+        }
       }
+      index = tokenEnd;
+      if (scanBudget.exhausted) break;
     }
-    if (token === 'imports') {
-      if (!scanBudget.consumeMatch()) break;
-      const nextIndex = parseImportsArray(sourceText, tokenEnd, (value) => addImport(value));
-      if (nextIndex > tokenEnd) {
-        index = nextIndex;
-        continue;
-      }
-    }
-    index = tokenEnd;
-    if (scanBudget.exhausted) break;
+    return finalizeCollectorImportEntries(imports);
+  } finally {
+    budgetContext.finalize();
   }
-  return finalizeCollectorImportEntries(imports);
 };
 
-export const collectNixImports = (text) => (
-  collectorImportEntriesToSpecifiers(collectNixImportEntries(text))
+export const collectNixImports = (text, options = {}) => (
+  collectorImportEntriesToSpecifiers(collectNixImportEntries(text, options))
 );

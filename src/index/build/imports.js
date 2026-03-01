@@ -470,7 +470,10 @@ export async function scanImports({
             importHintsByFile.set(relKey, filteredHints);
           }
         }
-        return normalizedImports.length > 0;
+        // Entry-based collectors are authoritative even when they return zero
+        // imports (for example after budget/policy filtering). Avoid falling
+        // back to legacy collection, which would parse the file a second time.
+        return true;
       };
       if (hadPrefetch) {
         const cachedImports = cachedImportsByFile.get(relKey);

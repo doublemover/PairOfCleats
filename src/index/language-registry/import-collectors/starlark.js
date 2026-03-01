@@ -1,8 +1,7 @@
 import {
-  applyCollectorSourceBudget,
   addCollectorImportEntry,
   collectorImportEntriesToSpecifiers,
-  createCollectorScanBudget,
+  createCollectorBudgetContext,
   createCollectorImportEntryStore,
   finalizeCollectorImportEntries,
   lineHasAny
@@ -295,9 +294,20 @@ const collectTopLevelCalls = (source, targetNames, budget) => {
   return calls;
 };
 
-export const collectStarlarkImportEntries = (text) => {
+export const collectStarlarkImportEntries = (text, options = {}) => {
   const imports = createCollectorImportEntryStore();
-  const source = String(text || '');
+  const budgetContext = createCollectorBudgetContext({
+    text,
+    options,
+    collectorId: 'starlark',
+    defaults: {
+      maxChars: STARLARK_SOURCE_BUDGET.maxChars,
+      maxMatches: STARLARK_SCAN_BUDGET.maxMatches,
+      maxTokens: STARLARK_SCAN_BUDGET.maxTokens,
+      maxMs: 0
+    }
+  });
+  const source = budgetContext.source;
   const precheck = (value) => lineHasAny(value, [
     'load',
     'bazel_dep',
@@ -305,50 +315,53 @@ export const collectStarlarkImportEntries = (text) => {
     'local_path_override'
   ]);
   if (!precheck(source)) return [];
-  const sourceBudget = applyCollectorSourceBudget(source, STARLARK_SOURCE_BUDGET);
-  const scanBudget = createCollectorScanBudget(STARLARK_SCAN_BUDGET);
-  const calls = collectTopLevelCalls(
-    sourceBudget.source,
-    new Set(['load', 'bazel_dep', 'use_extension', 'local_path_override']),
-    scanBudget
-  );
+  const scanBudget = budgetContext.scanBudget;
+  try {
+    const calls = collectTopLevelCalls(
+      source,
+      new Set(['load', 'bazel_dep', 'use_extension', 'local_path_override']),
+      scanBudget
+    );
 
-  for (const call of calls) {
-    if (!scanBudget.consumeToken()) break;
-    if (call.callee === 'load') {
-      const specifier = readFirstQuotedArgument(call.args);
-      if (!specifier) continue;
-      addCollectorImportEntry(imports, specifier, {
-        collectorHint: resolveStarlarkCollectorHint(specifier)
-      });
-      continue;
+    for (const call of calls) {
+      if (!scanBudget.consumeToken()) break;
+      if (call.callee === 'load') {
+        const specifier = readFirstQuotedArgument(call.args);
+        if (!specifier) continue;
+        addCollectorImportEntry(imports, specifier, {
+          collectorHint: resolveStarlarkCollectorHint(specifier)
+        });
+        continue;
+      }
+      if (call.callee === 'bazel_dep') {
+        const moduleDep = String(call.args || '').match(/\bname\s*=\s*['"]([^'"]+)['"]/);
+        if (!moduleDep?.[1]) continue;
+        const specifier = `@${moduleDep[1]}`;
+        addCollectorImportEntry(imports, specifier, {
+          collectorHint: resolveStarlarkCollectorHint(specifier)
+        });
+        continue;
+      }
+      if (call.callee === 'use_extension') {
+        const specifier = readFirstQuotedArgument(call.args);
+        if (!specifier) continue;
+        addCollectorImportEntry(imports, specifier, {
+          collectorHint: resolveStarlarkCollectorHint(specifier)
+        });
+        continue;
+      }
+      if (call.callee === 'local_path_override') {
+        const pathOverride = String(call.args || '').match(/\bpath\s*=\s*['"]([^'"]+)['"]/);
+        if (pathOverride?.[1]) addCollectorImportEntry(imports, pathOverride[1]);
+      }
+      if (scanBudget.exhausted) break;
     }
-    if (call.callee === 'bazel_dep') {
-      const moduleDep = String(call.args || '').match(/\bname\s*=\s*['"]([^'"]+)['"]/);
-      if (!moduleDep?.[1]) continue;
-      const specifier = `@${moduleDep[1]}`;
-      addCollectorImportEntry(imports, specifier, {
-        collectorHint: resolveStarlarkCollectorHint(specifier)
-      });
-      continue;
-    }
-    if (call.callee === 'use_extension') {
-      const specifier = readFirstQuotedArgument(call.args);
-      if (!specifier) continue;
-      addCollectorImportEntry(imports, specifier, {
-        collectorHint: resolveStarlarkCollectorHint(specifier)
-      });
-      continue;
-    }
-    if (call.callee === 'local_path_override') {
-      const pathOverride = String(call.args || '').match(/\bpath\s*=\s*['"]([^'"]+)['"]/);
-      if (pathOverride?.[1]) addCollectorImportEntry(imports, pathOverride[1]);
-    }
-    if (scanBudget.exhausted) break;
+    return finalizeCollectorImportEntries(imports);
+  } finally {
+    budgetContext.finalize();
   }
-  return finalizeCollectorImportEntries(imports);
 };
 
-export const collectStarlarkImports = (text) => (
-  collectorImportEntriesToSpecifiers(collectStarlarkImportEntries(text))
+export const collectStarlarkImports = (text, options = {}) => (
+  collectorImportEntriesToSpecifiers(collectStarlarkImportEntries(text, options))
 );
