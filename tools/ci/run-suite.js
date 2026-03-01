@@ -4,6 +4,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
+import { getEnvConfig } from '../../src/shared/env.js';
 import { spawnSubprocess } from '../../src/shared/subprocess.js';
 import { getRuntimeConfig, getToolingDir, loadUserConfig, resolveRuntimeEnv } from '../shared/dict-utils.js';
 import { buildTestRuntimeEnv, normalizeEnvPathKeys, prependPathEntries } from '../tooling/utils.js';
@@ -129,7 +130,8 @@ const main = async () => {
   const userConfig = loadUserConfig(ROOT);
   prependPathEntries(baseEnv, path.join(getToolingDir(ROOT, userConfig), 'bin'));
   // Fixture LSP binaries remain opt-in for dedicated contract lanes.
-  if (String(process.env.PAIROFCLEATS_CI_USE_LSP_FIXTURES || '') === '1') {
+  const envConfig = getEnvConfig(baseEnv);
+  if (envConfig.ciUseLspFixtures === true) {
     prependPathEntries(baseEnv, LSP_FIXTURE_BIN);
   }
   const runtimeConfig = getRuntimeConfig(ROOT, userConfig);

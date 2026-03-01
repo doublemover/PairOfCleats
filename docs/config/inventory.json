@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-01T04:57:05.454Z",
+  "generatedAt": "2026-03-01T18:33:15.541Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -55,6 +55,7 @@
       "PAIROFCLEATS_CACHE_NAMESPACE",
       "PAIROFCLEATS_CACHE_REBUILD",
       "PAIROFCLEATS_CACHE_ROOT",
+      "PAIROFCLEATS_CI_USE_LSP_FIXTURES",
       "PAIROFCLEATS_COMPRESSION",
       "PAIROFCLEATS_CRASH_LOG_ANNOUNCE",
       "PAIROFCLEATS_CROSSFILE_PROPAGATION_PARALLEL",
@@ -2201,8 +2202,6 @@
         "tests/indexing/embeddings/build/args-parsing.test.js",
         "tests/indexing/embeddings/build/runtime-defaults.test.js",
         "tests/indexing/embeddings/validate.test.js",
-        "tests/indexing/git/blame-range.test.js",
-        "tests/indexing/map/code-graphviz-fallback.test.js",
         "tests/indexing/piece-assembly/core.test.js",
         "tests/indexing/postings/vector-only-missing-embeddings-is-error.test.js",
         "tests/indexing/postings/vector-only-service-embeddings-pending-artifacts.test.js",
@@ -2218,7 +2217,6 @@
         "tests/services/api/core.test.js",
         "tests/services/api/federated-search-redacts-paths.test.js",
         "tests/services/mcp/repo-path-resolution.test.js",
-        "tests/services/mcp/robustness.test.js",
         "tests/services/mcp/schema.test.js",
         "tests/services/mcp/sdk-mode.test.js",
         "tests/services/service-mode-smoke.test.js",
@@ -2227,7 +2225,6 @@
         "tests/shared/cache/root-versioning.test.js",
         "tests/shared/encoding/fallback.test.js",
         "tests/shared/subprocess/quoting.test.js",
-        "tests/storage/lmdb/mapsize.test.js",
         "tests/storage/sqlite/build-indexes.test.js",
         "tests/storage/sqlite/bundle-missing.test.js",
         "tests/storage/sqlite/compact.test.js",
@@ -2241,8 +2238,6 @@
         "tests/tooling/index-stats/explicit-repo-path.test.js",
         "tests/tooling/install/bootstrap-json-output.test.js",
         "tests/tooling/install/setup-index-detection.test.js",
-        "tests/tooling/install/setup-json-output.test.js",
-        "tests/tooling/install/setup.test.js",
         "tests/tooling/reports/summary/summary-report-helpers.js",
         "tests/tooling/script-coverage/script-coverage.runner.js",
         "tests/tooling/triage/records-index-and-search.test.js",
@@ -2255,6 +2250,13 @@
         "tools/config/inventory.js",
         "tools/reports/compare-models.js",
         "tools/service/indexer-service.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_CI_USE_LSP_FIXTURES",
+      "files": [
+        "src/shared/env.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -2381,8 +2383,6 @@
         "tests/indexing/artifacts/artifact-size-guardrails.test.js",
         "tests/indexing/artifacts/packed-artifact-fastpath.test.js",
         "tests/indexing/embeddings/build/runtime-defaults.test.js",
-        "tests/indexing/git/blame-range.test.js",
-        "tests/indexing/map/code-graphviz-fallback.test.js",
         "tests/indexing/piece-assembly/core.test.js",
         "tests/indexing/scm/no-build-id.test.js",
         "tests/perf/bench/run.test.js",
@@ -2391,7 +2391,6 @@
         "tests/retrieval/parity/equivalence.test.js",
         "tests/services/api/core.test.js",
         "tests/shared/encoding/fallback.test.js",
-        "tests/storage/lmdb/mapsize.test.js",
         "tests/storage/sqlite/bundle-missing.test.js",
         "tests/storage/sqlite/compact.test.js",
         "tests/storage/sqlite/index-state-fail-closed.test.js",
@@ -2457,8 +2456,6 @@
       "files": [
         "src/shared/env.js",
         "tests/helpers/mcp-client.js",
-        "tests/services/mcp/robustness.test.js",
-        "tests/services/mcp/schema.test.js",
         "tests/services/mcp/sdk-mode.test.js",
         "tests/shared/cache/root-versioning.test.js",
         "tools/ci/run-suite.js",
@@ -4307,6 +4304,13 @@
         ]
       },
       {
+        "file": "tests/lang/registry/collector-budget-diagnostics.test.js",
+        "flags": [
+          "collectorDiagnostics",
+          "collectorScanBudgets"
+        ]
+      },
+      {
         "file": "tests/lang/registry/collector-scan-budget-diagnostics.test.js",
         "flags": [
           "collectorDiagnostics",
@@ -5366,7 +5370,8 @@
           "json",
           "out",
           "repo",
-          "run"
+          "run",
+          "timeout-ms"
         ]
       },
       {
@@ -5378,7 +5383,8 @@
           "json",
           "out",
           "repo",
-          "run"
+          "run",
+          "timeout-ms"
         ]
       },
       {
@@ -5399,7 +5405,8 @@
           "out",
           "repo",
           "run",
-          "scip"
+          "scip",
+          "timeout-ms"
         ]
       },
       {
@@ -6432,6 +6439,17 @@
         ]
       },
       {
+        "flag": "timeout-ms",
+        "count": 5,
+        "files": [
+          "tests/tooling/fixtures/fixture-parity.test.js",
+          "tools/ingest/ctags.js",
+          "tools/ingest/gtags.js",
+          "tools/ingest/scip.js",
+          "tools/tooling/install-phpactor-phar.js"
+        ]
+      },
+      {
         "flag": "top-k-by-degree",
         "count": 5,
         "files": [
@@ -6881,6 +6899,22 @@
         ]
       },
       {
+        "flag": "collectorDiagnostics",
+        "count": 2,
+        "files": [
+          "tests/lang/registry/collector-budget-diagnostics.test.js",
+          "tests/lang/registry/collector-scan-budget-diagnostics.test.js"
+        ]
+      },
+      {
+        "flag": "collectorScanBudgets",
+        "count": 2,
+        "files": [
+          "tests/lang/registry/collector-budget-diagnostics.test.js",
+          "tests/lang/registry/collector-scan-budget-diagnostics.test.js"
+        ]
+      },
+      {
         "flag": "command",
         "count": 2,
         "files": [
@@ -7230,14 +7264,6 @@
         "files": [
           "tools/analysis/map-iso-serve.js",
           "tools/reports/report-code-map.js"
-        ]
-      },
-      {
-        "flag": "timeout-ms",
-        "count": 2,
-        "files": [
-          "tests/tooling/fixtures/fixture-parity.test.js",
-          "tools/tooling/install-phpactor-phar.js"
         ]
       },
       {

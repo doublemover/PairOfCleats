@@ -106,6 +106,7 @@ export function getEnvConfig(env = process.env) {
     debugHangProbes: normalizeOptionalBoolean(env.PAIROFCLEATS_DEBUG_HANG_PROBES),
     debugHangProbeWarnMs: normalizeNumber(env.PAIROFCLEATS_DEBUG_HANG_PROBE_WARN_MS),
     debugHangProbeHeartbeatMs: normalizeNumber(env.PAIROFCLEATS_DEBUG_HANG_PROBE_HEARTBEAT_MS),
+    ciUseLspFixtures: normalizeOptionalBoolean(env.PAIROFCLEATS_CI_USE_LSP_FIXTURES),
     crashLogAnnounce: normalizeOptionalDisableFlag(env.PAIROFCLEATS_CRASH_LOG_ANNOUNCE),
     debugPerfEvents: normalizeBoolean(env.PAIROFCLEATS_DEBUG_PERF_EVENTS),
     benchRun: normalizeBoolean(env.PAIROFCLEATS_BENCH_RUN),

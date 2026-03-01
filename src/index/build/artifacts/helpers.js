@@ -285,14 +285,22 @@ export const createRowSpillCollector = ({
 const writeBuffer = async (stream, buffer) => {
   if (!buffer || buffer.length === 0) return;
   if (!stream.write(buffer)) {
-    await waitForStreamEvent(stream, 'drain', { label: 'artifacts.per-file-varint.stream.drain' });
+    await waitForStreamEvent(stream, 'drain', {
+      label: 'artifacts.per-file-varint.stream.drain',
+      timeoutMs: 10_000
+    });
   }
 };
 
 const fsyncFile = async (targetPath) => {
   const handle = await fs.promises.open(targetPath, 'r');
   try {
-    await handle.sync();
+    try {
+      await handle.sync();
+    } catch (err) {
+      if (['EPERM', 'EINVAL', 'ENOTSUP', 'ENOSYS'].includes(err?.code)) return;
+      throw err;
+    }
   } finally {
     await handle.close();
   }
@@ -325,7 +333,10 @@ export const writePerFileVarintIndex = async ({
     }
     await offsetsWriter.writeOffset(bytesWritten);
     stream.end();
-    await waitForStreamEvent(stream, 'finish', { label: 'artifacts.per-file-varint.stream.finish' });
+    await waitForStreamEvent(stream, 'finish', {
+      label: 'artifacts.per-file-varint.stream.finish',
+      timeoutMs: 10_000
+    });
     if (atomic) {
       await fsyncFile(targetPath);
       await replaceFile(targetPath, dataPath);
@@ -337,7 +348,12 @@ export const writePerFileVarintIndex = async ({
     });
   } catch (err) {
     try { stream.destroy(err); } catch {}
-    try { await waitForStreamEvent(stream, 'close', { label: 'artifacts.per-file-varint.stream.close' }); } catch {}
+    try {
+      await waitForStreamEvent(stream, 'close', {
+        label: 'artifacts.per-file-varint.stream.close',
+        timeoutMs: 10_000
+      });
+    } catch {}
     try {
       await runBuildCleanupWithTimeout({
         label: 'artifacts.per-file-varint.offsets.destroy',
@@ -346,6 +362,9 @@ export const writePerFileVarintIndex = async ({
     } catch {}
     if (atomic) {
       try { await fs.promises.rm(targetPath, { force: true }); } catch {}
+    }
+    if (err?.code === 'JSON_STREAM_WAIT_TIMEOUT' || err?.code === 'BUILD_CLEANUP_TIMEOUT') {
+      return null;
     }
     throw err;
   }
