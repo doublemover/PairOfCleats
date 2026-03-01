@@ -14,6 +14,8 @@ const LONG_DEBOUNCE_MS = 500;
 const VERY_LONG_DEBOUNCE_MS = 1000;
 const LARGE_PATCH_BYTES = 64 * 1024;
 const PATCH_WAITER_TIMEOUT_MS_DEFAULT = 30000;
+const LOCK_UNAVAILABLE_RETRY_LOG_INTERVAL_MS = 5000;
+const BUILD_STATE_LOCK_UNAVAILABLE_CODE = 'ERR_BUILD_STATE_LOCK_UNAVAILABLE';
 
 export const PATCH_QUEUE_WAIT_STATUS = Object.freeze({
   FLUSHED: 'flushed',
@@ -41,6 +43,7 @@ export const createPatchQueue = ({
   const stateQueues = new Map();
   const statePending = new Map();
   const statePendingLifecycles = new Map();
+  const lockRetryLogAtMsByBuildRoot = new Map();
 
   const createFlushedOutcome = (value) => ({
     status: PATCH_QUEUE_WAIT_STATUS.FLUSHED,
@@ -88,6 +91,7 @@ export const createPatchQueue = ({
       settled: false,
       timer: null,
       timerCancel: null,
+      createdAtMs,
       resolve: resolvePromise,
       reject: rejectPromise
     };
@@ -115,6 +119,24 @@ export const createPatchQueue = ({
     }
     return { waiter, promise };
   };
+
+  const createTimedOutOutcomeForWaiter = (buildRoot, waiter) => {
+    const key = path.resolve(buildRoot);
+    const startedAt = Number.isFinite(Number(waiter?.createdAtMs))
+      ? Number(waiter.createdAtMs)
+      : Date.now();
+    const elapsedMs = Math.max(0, Date.now() - startedAt);
+    return createTimedOutOutcome(key, elapsedMs);
+  };
+
+  const isRetryableLockUnavailable = (err, durabilityClass) => (
+    !isRequiredBuildStateDurability(durabilityClass)
+    && (
+      String(err?.code || '') === BUILD_STATE_LOCK_UNAVAILABLE_CODE
+      || err?.buildState?.reason === 'lock-unavailable'
+      || err?.buildState?.retryable === true
+    )
+  );
 
   const isActiveStateKey = (key) => (
     stateQueues.has(key)
@@ -147,6 +169,7 @@ export const createPatchQueue = ({
   const releasePendingLifecycle = (buildRoot) => {
     const key = path.resolve(buildRoot);
     const lifecycle = statePendingLifecycles.get(key);
+    lockRetryLogAtMsByBuildRoot.delete(key);
     if (!lifecycle) return;
     statePendingLifecycles.delete(key);
     void runBuildCleanupWithTimeout({
@@ -203,7 +226,17 @@ export const createPatchQueue = ({
       }
       return result;
     } catch (err) {
-      waiters.forEach((waiter) => settleWaiter(pending, waiter, 'reject', err));
+      const retryableLockUnavailable = isRetryableLockUnavailable(err, durabilityClass);
+      if (retryableLockUnavailable) {
+        waiters.forEach((waiter) => settleWaiter(
+          pending,
+          waiter,
+          'resolve',
+          createTimedOutOutcomeForWaiter(buildRoot, waiter)
+        ));
+      } else {
+        waiters.forEach((waiter) => settleWaiter(pending, waiter, 'reject', err));
+      }
       /**
        * Preserve pending patch/events on write failure so state updates are not
        * dropped when the next flush succeeds.
@@ -224,7 +257,25 @@ export const createPatchQueue = ({
           label: 'build-state-debounce-retry'
         });
       }
-      recordStateError(buildRoot, err);
+      if (retryableLockUnavailable) {
+        const nowMs = Date.now();
+        const lastLoggedAtMs = Number(lockRetryLogAtMsByBuildRoot.get(key) || 0);
+        if (nowMs - lastLoggedAtMs >= LOCK_UNAVAILABLE_RETRY_LOG_INTERVAL_MS) {
+          lockRetryLogAtMsByBuildRoot.set(key, nowMs);
+          logLine(
+            `[build_state] state write lock unavailable for ${key}; deferring best-effort patch flush and retrying.`,
+            {
+              kind: 'warning',
+              buildState: {
+                event: 'patch-lock-unavailable-retry',
+                buildRoot: key
+              }
+            }
+          );
+        }
+      } else {
+        recordStateError(buildRoot, err);
+      }
       if (!pending.patch && !pending.timer && pending.waiters.length === 0) {
         statePending.delete(key);
         releasePendingLifecycle(buildRoot);
@@ -281,6 +332,7 @@ export const createPatchQueue = ({
   const flushBuildState = async (buildRoot) => {
     if (!buildRoot) return createFlushedOutcome(null);
     const key = path.resolve(buildRoot);
+    const startedAtMs = Date.now();
     const pending = statePending.get(key);
     if (pending?.timerCancel) {
       pending.timerCancel();
@@ -291,6 +343,10 @@ export const createPatchQueue = ({
       pending.timer = null;
     }
     const result = await flushPendingState(buildRoot);
+    const nextPending = statePending.get(key);
+    if (nextPending?.patch) {
+      return createTimedOutOutcome(key, Math.max(0, Date.now() - startedAtMs));
+    }
     if (pending && !pending.patch && !pending.timer && pending.waiters.length === 0) {
       statePending.delete(key);
       releasePendingLifecycle(buildRoot);

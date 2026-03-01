@@ -69,6 +69,26 @@ const createBuildStateWriteFailureError = ({
   return err;
 };
 
+const createBuildStateLockUnavailableError = ({
+  buildRoot,
+  durabilityClass
+}) => {
+  const resolvedBuildRoot = buildRoot ? path.resolve(buildRoot) : null;
+  const err = new Error(
+    `[build_state] state write lock unavailable${resolvedBuildRoot ? ` for ${resolvedBuildRoot}` : ''}.`
+  );
+  err.code = 'ERR_BUILD_STATE_LOCK_UNAVAILABLE';
+  err.buildRoot = resolvedBuildRoot;
+  err.retryable = true;
+  err.buildState = {
+    retryable: true,
+    reason: 'lock-unavailable',
+    durabilityClass: resolveBuildStateDurabilityClass(durabilityClass),
+    buildRoot: resolvedBuildRoot
+  };
+  return err;
+};
+
 const isActiveStateKey = (key) => {
   if (!activeStateKeyResolver) return false;
   try {
@@ -863,8 +883,10 @@ export const applyStatePatch = async (
     metadata: { scope: 'build-state-write' }
   });
   if (!lock) {
-    recordStateError(buildRoot, new Error(`[build_state] state write lock unavailable: ${path.resolve(buildRoot)}`));
-    return null;
+    throw createBuildStateLockUnavailableError({
+      buildRoot,
+      durabilityClass: resolvedDurabilityClass
+    });
   }
   let releaseError = null;
   try {
