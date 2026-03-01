@@ -8,6 +8,7 @@ import {
   CACHE_ROOT_LAYOUT_VERSION,
   clearCacheRoot,
   getCacheRoot,
+  getCacheTempRoot,
   resolveVersionedCacheRoot
 } from '../../../src/shared/cache-roots.js';
 import { withTemporaryEnv } from '../../helpers/test-env.js';
@@ -49,6 +50,12 @@ await withTemporaryEnv({
 
   const resolved = getCacheRoot();
   assert.equal(path.resolve(resolved), path.resolve(cacheRoot), 'getCacheRoot should resolve stable cache root');
+  const tempRootPath = getCacheTempRoot('sqlite-build');
+  assert.equal(
+    path.resolve(tempRootPath),
+    path.resolve(path.join(cacheRoot, 'tmp', 'sqlite-build')),
+    'cache temp root should live under stable cache/tmp namespace'
+  );
 
   clearCacheRoot({ baseRoot, includeLegacy: false });
   assert.equal(fs.existsSync(versionedSentinel), false, 'versioned root contents should be removed');

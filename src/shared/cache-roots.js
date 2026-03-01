@@ -201,6 +201,23 @@ export function getCacheRoot() {
   return cacheRoot;
 }
 
+/**
+ * Resolve a writable temporary-work root scoped under the stable cache root.
+ *
+ * This avoids platform-global temp folders for internal scratch data while
+ * still keeping ephemeral artifacts isolated from durable index outputs.
+ *
+ * @param {...string} segments
+ * @returns {string}
+ */
+export function getCacheTempRoot(...segments) {
+  const base = path.join(getCacheRoot(), 'tmp');
+  const suffix = segments
+    .map((segment) => String(segment || '').trim())
+    .filter(Boolean);
+  return suffix.length ? path.join(base, ...suffix) : base;
+}
+
 export function resolveVersionedCacheRoot(baseRoot) {
   const resolvedBase = resolveCacheRoot(baseRoot);
   if (!resolvedBase) return '';
