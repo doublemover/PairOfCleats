@@ -155,6 +155,7 @@ export { resolveVfsIoBatching, ensureVirtualFilesBatch };
  * @param {number|null} [params.lifecycleFdPressureBackoffMs=null]
  * @param {number|null} [params.sessionIdleTimeoutMs=null]
  * @param {number|null} [params.sessionMaxLifetimeMs=null]
+ * @param {boolean} [params.sessionPoolingEnabled=true]
  * @param {AbortSignal|null} [params.abortSignal=null]
  * @returns {Promise<{byChunkUid:object,diagnosticsByChunkUid:object,enriched:number,diagnosticsCount:number,checks:Array<object>,hoverMetrics:object,runtime:object|null}>}
  */
@@ -213,6 +214,7 @@ export async function collectLspTypes({
   lifecycleFdPressureBackoffMs = null,
   sessionIdleTimeoutMs = null,
   sessionMaxLifetimeMs = null,
+  sessionPoolingEnabled = true,
   abortSignal = null
 }) {
   const toolingAbortSignal = abortSignal && typeof abortSignal.aborted === 'boolean'
@@ -341,7 +343,7 @@ export async function collectLspTypes({
   });
 
   const runWithPooledSession = () => withLspSession({
-    enabled: true,
+    enabled: sessionPoolingEnabled !== false,
     repoRoot: rootDir,
     providerId: String(providerId || cmd || 'lsp'),
     workspaceKey: workspaceKey || rootDir,

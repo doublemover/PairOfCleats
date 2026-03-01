@@ -363,7 +363,9 @@ const runCleanupPass = async () => {
     }
     const idleMs = now - Number(session.lastUsedAt || now);
     const idleTimeoutMs = toPositiveInt(session.idleTimeoutMs, DEFAULT_IDLE_TIMEOUT_MS, 1000);
-    if (idleMs < idleTimeoutMs) continue;
+    const lifetimeExpired = shouldExpireForLifetime(session, now);
+    const idleExpired = idleMs >= idleTimeoutMs;
+    if (!idleExpired && !lifetimeExpired) continue;
     if (session.activeCount > 0 || sessions.get(key) !== session) continue;
     sessions.delete(key);
     await enqueueSessionDisposal(session, { killFirst: true });

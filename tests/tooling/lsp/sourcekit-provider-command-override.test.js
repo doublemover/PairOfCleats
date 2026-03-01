@@ -33,7 +33,8 @@ const ctx = {
   toolingConfig: {
     sourcekit: {
       cmd: fixtureCmd,
-      args: []
+      args: [],
+      hostConcurrencyGate: true
     }
   },
   logger: () => {},
@@ -79,6 +80,11 @@ assert.equal(
   path.resolve(runtimeCommand),
   path.resolve(fixtureCmd),
   'expected sourcekit runtime command to honor tooling.sourcekit.cmd override'
+);
+assert.equal(
+  output?.diagnostics?.runtime?.pooling?.enabled,
+  false,
+  'expected sourcekit host concurrency gate to disable pooled LSP sessions'
 );
 
 console.log('sourcekit provider command override test passed');

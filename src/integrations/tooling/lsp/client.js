@@ -137,8 +137,8 @@ export function createLspClient(options) {
   let parser = null;
   let writer = null;
   let writerClosed = false;
-  let unregisterChildProcess = null;
   let trackedChildProcess = null;
+  const unregisterChildProcessByChild = new WeakMap();
   const reapedChildren = new WeakSet();
   let nextId = 1;
   const pending = new Map();
@@ -223,24 +223,28 @@ export function createLspClient(options) {
   };
 
   const clearTrackedChild = ({ force = false, child = null } = {}) => {
-    if (!unregisterChildProcess) return;
     const targetChild = child || trackedChildProcess;
+    if (!targetChild) return;
+    const unregisterChildProcess = unregisterChildProcessByChild.get(targetChild);
     const stillRunning = Boolean(
       targetChild
       && targetChild.exitCode === null
     );
     if (!force && stillRunning) return;
-    try {
-      unregisterChildProcess();
-    } catch {}
-    unregisterChildProcess = null;
-    trackedChildProcess = null;
+    if (typeof unregisterChildProcess === 'function') {
+      try {
+        unregisterChildProcess();
+      } catch {}
+    }
+    unregisterChildProcessByChild.delete(targetChild);
+    if (targetChild === trackedChildProcess) {
+      trackedChildProcess = null;
+    }
   };
 
   const isChildRunning = (child) => Boolean(
     child
     && child.exitCode === null
-    && !child.killed
   );
 
   const clearTrackedChildIfTerminated = (child, outcome = null) => {
@@ -309,6 +313,25 @@ export function createLspClient(options) {
     && !proc.killed
     && writer
     && !writerClosed
+  );
+
+  const isEventEmitterLike = (value) => Boolean(
+    value
+    && typeof value.on === 'function'
+    && typeof value.once === 'function'
+  );
+
+  const isWritableLike = (value) => Boolean(
+    value
+    && typeof value.write === 'function'
+    && typeof value.end === 'function'
+    && typeof value.on === 'function'
+  );
+
+  const isReadableLike = (value) => Boolean(
+    value
+    && typeof value.on === 'function'
+    && typeof value.destroy === 'function'
   );
 
   const send = (payload) => {
@@ -430,8 +453,18 @@ export function createLspClient(options) {
       : (useShell
         ? spawn(spawnCmd, spawnOptions)
         : spawn(spawnCmd, spawnArgs, spawnOptions));
-    if (!child || typeof child.on !== 'function') {
+    if (!child || !isEventEmitterLike(child)) {
       throw new Error('createLspClient spawnProcess override must return a ChildProcess-like object.');
+    }
+    if (!isWritableLike(child.stdin) || !isReadableLike(child.stdout)) {
+      throw new Error(
+        'createLspClient spawnProcess override must provide stdin/stdout stream objects.'
+      );
+    }
+    if (child.stderr != null && !isReadableLike(child.stderr)) {
+      throw new Error(
+        'createLspClient spawnProcess override must provide a readable stderr stream when present.'
+      );
     }
     proc = child;
     emitLifecycleEvent({
@@ -440,10 +473,11 @@ export function createLspClient(options) {
       cmd,
       args
     });
-    unregisterChildProcess = registerChildProcessForCleanup(child, {
+    const unregisterChildProcess = registerChildProcessForCleanup(child, {
       killTree: true,
       detached: killTreeDetached
     });
+    unregisterChildProcessByChild.set(child, unregisterChildProcess);
     trackedChildProcess = child;
     const childParser = createFramedJsonRpcParser({
       onMessage: handleMessage,
@@ -489,7 +523,7 @@ export function createLspClient(options) {
       log(`[lsp] stdout error: ${err?.message || err}`);
       markTransportClosed('reader_error');
     });
-    child.stderr.on('data', (chunk) => {
+    child.stderr?.on('data', (chunk) => {
       if (proc !== child || childGen !== generation) return;
       const text = chunk.toString('utf8');
       if (!text) return;

@@ -816,6 +816,7 @@ export const createSourcekitProvider = () => ({
         vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode,
         vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching,
         vfsColdStartCache: ctx?.toolingConfig?.vfs?.coldStartCache,
+        sessionPoolingEnabled: !hostLockEnabled,
         indexDir: ctx?.buildRoot || null
       });
       if (Array.isArray(result?.checks) && result.checks.some((check) => check?.name === 'tooling_initialize_failed')) {
