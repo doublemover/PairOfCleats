@@ -3,6 +3,7 @@ import path from 'node:path';
 import { sha1 } from '../../shared/hash.js';
 import { atomicWriteText } from '../../shared/io/atomic-write.js';
 import { stableStringify } from '../../shared/stable-json.js';
+import { loadBoundedJsonFile } from '../../shared/cache/json-file.js';
 
 export const FEDERATED_QUERY_CACHE_SCHEMA_VERSION = 1;
 
@@ -169,41 +170,36 @@ const toMs = (value) => {
   return Number.isNaN(date.getTime()) ? 0 : date.getTime();
 };
 
-const parseCacheFile = (raw, repoSetId) => {
-  try {
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return createEmptyCache(repoSetId);
-    if (parsed.schemaVersion !== FEDERATED_QUERY_CACHE_SCHEMA_VERSION) {
-      return createEmptyCache(repoSetId);
-    }
-    if (repoSetId && parsed.repoSetId && parsed.repoSetId !== repoSetId) {
-      return createEmptyCache(repoSetId);
-    }
-    const entriesInput = parsed.entries && typeof parsed.entries === 'object'
-      ? parsed.entries
-      : {};
-    const entries = {};
-    for (const key of Object.keys(entriesInput).sort((a, b) => a.localeCompare(b))) {
-      const entry = entriesInput[key];
-      if (!entry || typeof entry !== 'object') continue;
-      if (typeof entry.manifestHash !== 'string' || !entry.manifestHash) continue;
-      entries[key] = {
-        createdAt: toIsoString(entry.createdAt, new Date(0).toISOString()),
-        lastUsedAt: toIsoString(entry.lastUsedAt, new Date(0).toISOString()),
-        manifestHash: entry.manifestHash,
-        keyPayloadHash: typeof entry.keyPayloadHash === 'string' ? entry.keyPayloadHash : null,
-        result: entry.result
-      };
-    }
-    return {
-      schemaVersion: FEDERATED_QUERY_CACHE_SCHEMA_VERSION,
-      repoSetId: parsed.repoSetId || repoSetId || null,
-      updatedAt: toIsoString(parsed.updatedAt, null),
-      entries
-    };
-  } catch {
-    return null;
+const normalizeCachePayload = (parsed, repoSetId) => {
+  if (!parsed || typeof parsed !== 'object') return createEmptyCache(repoSetId);
+  if (parsed.schemaVersion !== FEDERATED_QUERY_CACHE_SCHEMA_VERSION) {
+    return createEmptyCache(repoSetId);
   }
+  if (repoSetId && parsed.repoSetId && parsed.repoSetId !== repoSetId) {
+    return createEmptyCache(repoSetId);
+  }
+  const entriesInput = parsed.entries && typeof parsed.entries === 'object'
+    ? parsed.entries
+    : {};
+  const entries = {};
+  for (const key of Object.keys(entriesInput).sort((a, b) => a.localeCompare(b))) {
+    const entry = entriesInput[key];
+    if (!entry || typeof entry !== 'object') continue;
+    if (typeof entry.manifestHash !== 'string' || !entry.manifestHash) continue;
+    entries[key] = {
+      createdAt: toIsoString(entry.createdAt, new Date(0).toISOString()),
+      lastUsedAt: toIsoString(entry.lastUsedAt, new Date(0).toISOString()),
+      manifestHash: entry.manifestHash,
+      keyPayloadHash: typeof entry.keyPayloadHash === 'string' ? entry.keyPayloadHash : null,
+      result: entry.result
+    };
+  }
+  return {
+    schemaVersion: FEDERATED_QUERY_CACHE_SCHEMA_VERSION,
+    repoSetId: parsed.repoSetId || repoSetId || null,
+    updatedAt: toIsoString(parsed.updatedAt, null),
+    entries
+  };
 };
 
 const bumpCacheHealthCounter = (health, key) => {
@@ -245,36 +241,40 @@ export const loadFederatedQueryCache = async ({
   health = null
 } = {}) => {
   if (!cachePath) return createEmptyCache(repoSetId);
-  try {
-    const stat = await fsPromises.stat(cachePath);
-    if (Number.isFinite(Number(stat.size)) && Number(stat.size) > FEDERATED_QUERY_CACHE_MAX_READ_BYTES) {
+  const {
+    data: parsedPayload,
+    error: readError,
+    phase: readPhase
+  } = await loadBoundedJsonFile(cachePath, {
+    fallback: null,
+    maxBytes: FEDERATED_QUERY_CACHE_MAX_READ_BYTES
+  });
+  if (readError) {
+    const readErrorCode = typeof readError?.code === 'string' ? readError.code : null;
+    if (readError?.code === 'ERR_JSON_FILE_TOO_LARGE') {
       emitCacheWarning(
         log,
-        `[retrieval:federation] cache file oversized (${stat.size} bytes > ${FEDERATED_QUERY_CACHE_MAX_READ_BYTES}); using empty cache.`
+        `[retrieval:federation] cache file oversized (> ${FEDERATED_QUERY_CACHE_MAX_READ_BYTES} bytes); using empty cache.`
       );
       bumpCacheHealthCounter(health, 'federatedQueryCacheOversized');
       return createEmptyCache(repoSetId);
     }
-    const raw = await fsPromises.readFile(cachePath, 'utf8');
-    const parsed = parseCacheFile(raw, repoSetId);
-    if (parsed) return parsed;
-    bumpCacheHealthCounter(health, 'federatedQueryCacheParseFailures');
-    emitCacheWarning(
-      log,
-      `[retrieval:federation] cache parse failed; falling back to empty cache (path=${cachePath}).`
-    );
-    await quarantineCorruptCacheFile(cachePath, log);
-    return createEmptyCache(repoSetId);
-  } catch (error) {
-    if (error?.code && error.code !== 'ENOENT') {
-      bumpCacheHealthCounter(health, 'federatedQueryCacheReadFailures');
+    if (readErrorCode !== 'ENOENT') {
+      if (readPhase === 'parse') {
+        bumpCacheHealthCounter(health, 'federatedQueryCacheParseFailures');
+      } else {
+        bumpCacheHealthCounter(health, 'federatedQueryCacheReadFailures');
+      }
       emitCacheWarning(
         log,
-        `[retrieval:federation] cache read failed (${error?.code || 'ERR_READ'}): ${error?.message || error}`
+        `[retrieval:federation] cache ${readPhase === 'parse' ? 'parse' : 'read'} failed `
+          + `(${readErrorCode || 'ERR_READ'}): ${readError?.message || readError}`
       );
+      await quarantineCorruptCacheFile(cachePath, log);
     }
     return createEmptyCache(repoSetId);
   }
+  return normalizeCachePayload(parsedPayload, repoSetId);
 };
 
 const listEvictionCandidates = (cache) => (

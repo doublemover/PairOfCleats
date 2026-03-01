@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { normalizePositiveInt } from '../shared/limits.js';
 import { sortAndTrimEntriesByNewest } from './cache-trim.js';
-import { readJsonFileSyncSafe } from '../shared/files.js';
+import { loadBoundedJsonFileSync } from '../shared/cache/json-file.js';
 
 const QUERY_CACHE_VERSION = 1;
 const queryCacheDiskCache = new Map();
@@ -263,13 +263,9 @@ export function loadQueryCache(cachePath, options = {}) {
     }
     return cached.value;
   }
-  let readError = null;
-  const data = readJsonFileSyncSafe(cachePath, {
+  const { data, error: readError } = loadBoundedJsonFileSync(cachePath, {
     fallback: null,
-    maxBytes: QUERY_CACHE_MAX_READ_BYTES,
-    onError: (info) => {
-      if (!readError) readError = info?.error || new Error('query_cache_read_failed');
-    }
+    maxBytes: QUERY_CACHE_MAX_READ_BYTES
   });
   if (
     data
