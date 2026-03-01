@@ -94,24 +94,24 @@ export const resolveSyncCommandTimeoutMs = (value, fallback = DEFAULT_SYNC_COMMA
 };
 
 export const runSyncCommandWithTimeout = (command, args = [], options = {}) => {
-  const timeoutMs = resolveSyncCommandTimeoutMs(options.timeoutMs, DEFAULT_SYNC_COMMAND_TIMEOUT_MS);
+  const {
+    timeoutMs: rawTimeoutMs,
+    killTree = true,
+    detached = false,
+    ...spawnOptions
+  } = options || {};
+  const timeoutMs = resolveSyncCommandTimeoutMs(rawTimeoutMs, DEFAULT_SYNC_COMMAND_TIMEOUT_MS);
   try {
     const result = spawnSync(command, Array.isArray(args) ? args : [], {
-      cwd: options.cwd,
-      env: options.env,
-      stdio: options.stdio,
-      shell: options.shell,
-      input: options.input,
-      maxBuffer: options.maxBuffer,
-      encoding: options.encoding,
+      ...spawnOptions,
       timeout: timeoutMs
     });
     if (isSyncCommandTimedOut(result)) {
       killTimedOutSyncProcessTree(
         result?.pid,
         timeoutMs,
-        options.killTree !== false,
-        options.detached === true
+        killTree !== false,
+        detached === true
       );
     }
     return result;
