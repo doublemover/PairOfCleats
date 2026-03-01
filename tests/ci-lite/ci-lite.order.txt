@@ -370,6 +370,7 @@ retrieval/filters/filter-index
 retrieval/filters/filter-strictness
 lang/javascript/js-relations
 shared/fs/atomic-replace-restores-backup-on-missing-temp
+shared/fs/atomic-replace-sync-stale-bak-collision-guard
 cli/general/cli-options-schema-drift
 retrieval/pipeline/filter-bitmap-shortcircuit
 indexer/incremental/plan
