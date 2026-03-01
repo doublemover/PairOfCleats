@@ -53,7 +53,7 @@ export function languageIdForFileExt(ext) {
 const quoteWindowsCmdArg = (value) => {
   const text = String(value ?? '');
   if (!text) return '""';
-  if (!/\s|"/u.test(text)) return text;
+  if (!/[\s"&|<>^();]/u.test(text)) return text;
   return `"${text.replaceAll('"', '""')}"`;
 };
 
@@ -222,14 +222,17 @@ export function createLspClient(options) {
     rejectPending(err);
   };
 
+  const isChildRunning = (child) => Boolean(
+    child
+    && child.exitCode === null
+    && child.signalCode === null
+  );
+
   const clearTrackedChild = ({ force = false, child = null } = {}) => {
     const targetChild = child || trackedChildProcess;
     if (!targetChild) return;
     const unregisterChildProcess = unregisterChildProcessByChild.get(targetChild);
-    const stillRunning = Boolean(
-      targetChild
-      && targetChild.exitCode === null
-    );
+    const stillRunning = isChildRunning(targetChild);
     if (!force && stillRunning) return;
     if (typeof unregisterChildProcess === 'function') {
       try {
@@ -241,11 +244,6 @@ export function createLspClient(options) {
       trackedChildProcess = null;
     }
   };
-
-  const isChildRunning = (child) => Boolean(
-    child
-    && child.exitCode === null
-  );
 
   const clearTrackedChildIfTerminated = (child, outcome = null) => {
     const terminated = !isChildRunning(child) || outcome?.terminated === true;
@@ -566,24 +564,6 @@ export function createLspClient(options) {
     });
     child.on('exit', (code, signal) => {
       if (proc !== child || childGen !== generation) return;
-      killChildProcessTree(child, {
-        killTree: true,
-        detached: killTreeDetached,
-        graceMs: 0,
-        awaitGrace: false
-      }).then((outcome) => {
-        if (!outcome || typeof outcome !== 'object') return;
-        if (outcome.terminated === true && !outcome.fallbackAttempted) return;
-        emitLifecycleEvent({
-          kind: 'kill_diagnostics',
-          reason: 'exit_handler',
-          pid: Number.isFinite(Number(child?.pid)) ? Number(child.pid) : null,
-          terminated: outcome.terminated === true,
-          forced: outcome.forced === true,
-          fallbackAttempted: outcome.fallbackAttempted === true,
-          fallbackTerminated: Number(outcome.fallbackTerminated || 0)
-        });
-      }).catch(() => {});
       rejectPending(new Error(`LSP exited (${code ?? 'null'}, ${signal ?? 'null'}).`));
       proc = null;
       childParser?.dispose();
@@ -766,7 +746,7 @@ export function createLspClient(options) {
       current.unref?.();
     } catch {}
     setTimeout(() => {
-      if (current.exitCode === null) {
+      if (isChildRunning(current)) {
         killChildProcessTree(current, {
           killTree: true,
           detached: killTreeDetached,

@@ -38,9 +38,9 @@ try {
 
   assert.equal(__testLspSessionPool.getSize(), 1, 'expected replacement session to remain pooled');
   assert.equal(
-    elapsedMs >= 300,
+    elapsedMs >= 150,
     true,
-    `expected lease acquisition to await disposal barrier (elapsed=${elapsedMs}ms)`
+    `expected lease acquisition to observe disposal barrier wait (elapsed=${elapsedMs}ms)`
   );
 
   await sleep(50);

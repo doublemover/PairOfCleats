@@ -18,6 +18,7 @@ const SESSION_STATE = Object.freeze({
 
 const sessions = new Map();
 const disposalBarriers = new Map();
+const creationBarriers = new Map();
 let cleanupTimer = null;
 let cleanupPassQueue = Promise.resolve();
 let exitCleanupInstalled = false;
@@ -146,6 +147,33 @@ const awaitSessionDisposalBarrier = async (key) => {
   const pending = disposalBarriers.get(normalizedKey);
   if (!pending) return;
   await pending;
+};
+
+const withSessionCreationBarrier = async (key, operation) => {
+  const normalizedKey = String(key || '');
+  if (typeof operation !== 'function') {
+    throw new TypeError('withSessionCreationBarrier requires an operation function.');
+  }
+  if (!normalizedKey) {
+    return await operation();
+  }
+  while (true) {
+    const pending = creationBarriers.get(normalizedKey);
+    if (pending) {
+      await pending.catch(() => {});
+      continue;
+    }
+    const barrier = createPendingBarrier();
+    creationBarriers.set(normalizedKey, barrier.promise);
+    try {
+      return await operation();
+    } finally {
+      if (creationBarriers.get(normalizedKey) === barrier.promise) {
+        creationBarriers.delete(normalizedKey);
+      }
+      barrier.resolve();
+    }
+  }
 };
 
 const enqueueSessionDisposal = (session, {
@@ -340,6 +368,7 @@ const killAllSessionsNow = () => {
   const live = Array.from(sessions.values());
   sessions.clear();
   disposalBarriers.clear();
+  creationBarriers.clear();
   clearCleanupTimer();
   for (const session of live) {
     killSessionClient(session, { sync: true });
@@ -393,31 +422,33 @@ const ensureCleanupTimer = () => {
 
 const getOrCreateSession = async (options) => {
   const key = buildSessionKey(options);
-  await awaitSessionDisposalBarrier(key);
-  const now = Date.now();
-  const existing = sessions.get(key);
-  if (existing && !existing.disposed) {
-    refreshSessionState(existing);
-    if (existing.state === SESSION_STATE.POISONED && existing.activeCount === 0) {
-      sessions.delete(key);
-      await enqueueSessionDisposal(existing, { killFirst: true });
-    } else {
-      const idleTimeoutMs = toPositiveInt(existing.idleTimeoutMs, DEFAULT_IDLE_TIMEOUT_MS, 1000);
-      const idleExpired = (now - Number(existing.lastUsedAt || now)) >= idleTimeoutMs;
-      if ((shouldExpireForLifetime(existing, now) || idleExpired) && existing.activeCount === 0) {
+  return await withSessionCreationBarrier(key, async () => {
+    await awaitSessionDisposalBarrier(key);
+    const now = Date.now();
+    const existing = sessions.get(key);
+    if (existing && !existing.disposed) {
+      refreshSessionState(existing);
+      if (existing.state === SESSION_STATE.POISONED && existing.activeCount === 0) {
         sessions.delete(key);
         await enqueueSessionDisposal(existing, { killFirst: true });
       } else {
-        existing.lastUsedAt = now;
-        return { session: existing, reused: true };
+        const idleTimeoutMs = toPositiveInt(existing.idleTimeoutMs, DEFAULT_IDLE_TIMEOUT_MS, 1000);
+        const idleExpired = (now - Number(existing.lastUsedAt || now)) >= idleTimeoutMs;
+        if ((shouldExpireForLifetime(existing, now) || idleExpired) && existing.activeCount === 0) {
+          sessions.delete(key);
+          await enqueueSessionDisposal(existing, { killFirst: true });
+        } else {
+          existing.lastUsedAt = now;
+          return { session: existing, reused: true };
+        }
       }
     }
-  }
-  await awaitSessionDisposalBarrier(key);
-  const next = createSession(options);
-  sessions.set(key, next);
-  ensureCleanupTimer();
-  return { session: next, reused: false };
+    await awaitSessionDisposalBarrier(key);
+    const next = createSession(options);
+    sessions.set(key, next);
+    ensureCleanupTimer();
+    return { session: next, reused: false };
+  });
 };
 
 /**
@@ -549,7 +580,11 @@ export const withLspSession = async (options, fn) => {
     session.activeCount = Math.max(0, session.activeCount - 1);
     session.lastUsedAt = Date.now();
     refreshSessionState(session);
-    if (session.state === SESSION_STATE.POISONED && session.activeCount === 0) {
+    const activeSession = sessions.get(session.key);
+    if (activeSession !== session && session.activeCount === 0) {
+      session.recycleCount += 1;
+      await enqueueSessionDisposal(session, { killFirst: true });
+    } else if (session.state === SESSION_STATE.POISONED && session.activeCount === 0) {
       session.recycleCount += 1;
       sessions.delete(session.key);
       await enqueueSessionDisposal(session, { killFirst: true });
