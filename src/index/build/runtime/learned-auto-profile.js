@@ -5,6 +5,7 @@ import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 const AUTO_PROFILE_STATE_FILE = 'learned-auto-profile.json';
 const AUTO_PROFILE_SCHEMA_VERSION = '1.0.0';
 const AUTO_PROFILE_MAX_TRACKED_PROFILES = 256;
+const AUTO_PROFILE_STATE_MAX_BYTES = 4 * 1024 * 1024;
 
 /**
  * Narrow runtime values to plain object records.
@@ -110,7 +111,13 @@ const resolveAutoProfileConfig = (indexingConfig = {}) => {
  * @param {{maxTrackedProfiles?:number}} [options]
  * @returns {Promise<{statePath:string|null,state:object,recovered:boolean}>}
  */
-const loadAutoProfileState = async (repoCacheRoot, { maxTrackedProfiles = AUTO_PROFILE_MAX_TRACKED_PROFILES } = {}) => {
+const loadAutoProfileState = async (
+  repoCacheRoot,
+  {
+    maxTrackedProfiles = AUTO_PROFILE_MAX_TRACKED_PROFILES,
+    log = null
+  } = {}
+) => {
   const statePath = resolveStatePath(repoCacheRoot);
   if (!statePath) {
     return {
@@ -120,6 +127,20 @@ const loadAutoProfileState = async (repoCacheRoot, { maxTrackedProfiles = AUTO_P
     };
   }
   try {
+    const stat = await fs.stat(statePath);
+    if (Number.isFinite(Number(stat?.size)) && Number(stat.size) > AUTO_PROFILE_STATE_MAX_BYTES) {
+      if (typeof log === 'function') {
+        log(
+          `[auto-profile] learned state oversized (${stat.size} bytes > ${AUTO_PROFILE_STATE_MAX_BYTES}); ` +
+          'resetting to defaults.'
+        );
+      }
+      return {
+        statePath,
+        state: createDefaultState(),
+        recovered: true
+      };
+    }
     const parsed = JSON.parse(await fs.readFile(statePath, 'utf8'));
     return {
       statePath,
@@ -131,6 +152,12 @@ const loadAutoProfileState = async (repoCacheRoot, { maxTrackedProfiles = AUTO_P
       recovered: false
     };
   } catch (err) {
+    if (err?.code !== 'ENOENT' && typeof log === 'function') {
+      log(
+        `[auto-profile] learned state load failed (${err?.code || 'ERR_AUTO_PROFILE_LOAD'}): ` +
+        `${err?.message || err}`
+      );
+    }
     return {
       statePath,
       state: createDefaultState(),
@@ -343,7 +370,8 @@ export const resolveLearnedAutoProfileSelection = async ({
   }
   const rootIdentity = resolveRootIdentity(root);
   const { statePath, state, recovered } = await loadAutoProfileState(repoCacheRoot, {
-    maxTrackedProfiles: config.maxTrackedProfiles
+    maxTrackedProfiles: config.maxTrackedProfiles,
+    log
   });
   const priorEntry = state?.profiles?.[rootIdentity] && isObject(state.profiles[rootIdentity])
     ? state.profiles[rootIdentity]

@@ -181,7 +181,14 @@ export async function readJsonFileSafe(
   if (Number.isFinite(maxBytes) && maxBytes > 0) {
     try {
       const stat = await fsPromises.stat(filePath);
-      if (Number(stat.size) > Number(maxBytes)) return fallback;
+      if (Number(stat.size) > Number(maxBytes)) {
+        const error = new Error(
+          `JSON file exceeds maxBytes (${Number(stat.size)} > ${Number(maxBytes)})`
+        );
+        error.code = 'ERR_JSON_FILE_TOO_LARGE';
+        emitError('stat', error);
+        return fallback;
+      }
     } catch (error) {
       emitError('stat', error);
       return fallback;
@@ -227,7 +234,14 @@ export function readJsonFileSyncSafe(
   if (Number.isFinite(maxBytes) && maxBytes > 0) {
     try {
       const stat = fs.statSync(filePath);
-      if (Number(stat.size) > Number(maxBytes)) return fallback;
+      if (Number(stat.size) > Number(maxBytes)) {
+        const error = new Error(
+          `JSON file exceeds maxBytes (${Number(stat.size)} > ${Number(maxBytes)})`
+        );
+        error.code = 'ERR_JSON_FILE_TOO_LARGE';
+        emitError('stat', error);
+        return fallback;
+      }
     } catch (error) {
       emitError('stat', error);
       return fallback;

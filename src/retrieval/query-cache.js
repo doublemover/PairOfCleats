@@ -9,6 +9,7 @@ const queryCacheHotEntries = new Map();
 const HOT_CACHE_MAX_ENTRIES_DEFAULT = 512;
 const QUERY_CACHE_MAX_PATH_ENTRIES = 128;
 const QUERY_CACHE_MAX_READ_BYTES = 8 * 1024 * 1024;
+const QUERY_CACHE_CORRUPT_SUFFIX = '.corrupt';
 const MEMORY_CACHE_KEY = ':memory:query-cache';
 
 const trimPathCacheEntries = (cacheMap, maxEntries = QUERY_CACHE_MAX_PATH_ENTRIES) => {
@@ -123,6 +124,38 @@ const clearDiskCache = (cachePath) => {
   queryCacheDiskCache.delete(pathKey);
 };
 
+const bumpCacheHealthCounter = (health, key) => {
+  if (!health || typeof health !== 'object' || !key) return;
+  const current = Number.isFinite(Number(health[key])) ? Number(health[key]) : 0;
+  health[key] = current + 1;
+};
+
+const emitCacheWarning = (onWarning, message) => {
+  if (typeof onWarning === 'function') {
+    onWarning(message);
+    return;
+  }
+  try {
+    process.emitWarning(message, { code: 'QUERY_CACHE_WARNING' });
+  } catch {}
+};
+
+const quarantineCorruptCacheFileSync = (cachePath, onWarning) => {
+  if (!cachePath) return null;
+  const quarantinePath = `${cachePath}${QUERY_CACHE_CORRUPT_SUFFIX}-${Date.now()}`;
+  try {
+    fs.renameSync(cachePath, quarantinePath);
+    emitCacheWarning(onWarning, `[retrieval] quarantined corrupt query cache: ${quarantinePath}`);
+    return quarantinePath;
+  } catch (error) {
+    emitCacheWarning(
+      onWarning,
+      `[retrieval] failed to quarantine corrupt query cache (${cachePath}): ${error?.message || error}`
+    );
+    return null;
+  }
+};
+
 const trimHotCache = (state) => {
   if (!state?.entries || !(state.entries instanceof Map)) return;
   const maxEntries = normalizeHotCacheMaxEntries(state.maxEntries, HOT_CACHE_MAX_ENTRIES_DEFAULT);
@@ -203,7 +236,12 @@ const prewarmHotCache = ({
 /**
  * Load query cache data from disk.
  * @param {string} cachePath
- * @param {{prewarm?:boolean,prewarmMaxEntries?:number}} [options]
+ * @param {{
+ *  prewarm?:boolean,
+ *  prewarmMaxEntries?:number,
+ *  onWarning?:(message:string)=>void,
+ *  health?:object|null
+ * }} [options]
  * @returns {{version:number,entries:Array}}
  */
 export function loadQueryCache(cachePath, options = {}) {
@@ -250,10 +288,24 @@ export function loadQueryCache(cachePath, options = {}) {
     }
     return data;
   }
+  const health = options?.health && typeof options.health === 'object'
+    ? options.health
+    : null;
+  if (readError?.code === 'ERR_JSON_FILE_TOO_LARGE') {
+    bumpCacheHealthCounter(health, 'queryCacheOversized');
+    emitCacheWarning(
+      options?.onWarning,
+      `[retrieval] query cache exceeds ${QUERY_CACHE_MAX_READ_BYTES} bytes; using empty cache.`
+    );
+  } else if (readError && readError?.code !== 'ENOENT') {
+    bumpCacheHealthCounter(health, 'queryCacheParseOrReadFailures');
+    emitCacheWarning(
+      options?.onWarning,
+      `[retrieval] query cache read/parse failed (${readError?.code || 'ERR_QUERY_CACHE_READ'}): ${readError?.message || readError}`
+    );
+  }
   if (readError && readError?.code !== 'ENOENT') {
-    try {
-      fs.rmSync(cachePath, { force: true });
-    } catch {}
+    quarantineCorruptCacheFileSync(cachePath, options?.onWarning);
   }
   clearDiskCache(cachePath);
   clearHotCache(cachePath);

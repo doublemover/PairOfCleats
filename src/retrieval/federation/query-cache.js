@@ -12,6 +12,7 @@ export const FEDERATED_QUERY_CACHE_DEFAULTS = Object.freeze({
   maxAgeDays: 30
 });
 const FEDERATED_QUERY_CACHE_MAX_READ_BYTES = 16 * 1024 * 1024;
+const FEDERATED_QUERY_CACHE_CORRUPT_SUFFIX = '.corrupt';
 
 const normalizeStringList = (value) => {
   const list = Array.isArray(value) ? value : (value == null ? [] : [value]);
@@ -205,24 +206,73 @@ const parseCacheFile = (raw, repoSetId) => {
   }
 };
 
+const bumpCacheHealthCounter = (health, key) => {
+  if (!health || typeof health !== 'object' || !key) return;
+  const current = Number.isFinite(Number(health[key])) ? Number(health[key]) : 0;
+  health[key] = current + 1;
+};
+
+const emitCacheWarning = (log, message) => {
+  if (typeof log === 'function') {
+    log(message);
+    return;
+  }
+  try {
+    process.emitWarning(message, { code: 'FEDERATED_QUERY_CACHE_WARNING' });
+  } catch {}
+};
+
+const quarantineCorruptCacheFile = async (cachePath, log) => {
+  if (!cachePath) return null;
+  const quarantinePath = `${cachePath}${FEDERATED_QUERY_CACHE_CORRUPT_SUFFIX}-${Date.now()}`;
+  try {
+    await fsPromises.rename(cachePath, quarantinePath);
+    emitCacheWarning(log, `[retrieval:federation] quarantined corrupt cache file: ${quarantinePath}`);
+    return quarantinePath;
+  } catch (error) {
+    emitCacheWarning(
+      log,
+      `[retrieval:federation] failed to quarantine corrupt cache file (${cachePath}): ${error?.message || error}`
+    );
+    return null;
+  }
+};
+
 export const loadFederatedQueryCache = async ({
   cachePath,
-  repoSetId
+  repoSetId,
+  log = null,
+  health = null
 } = {}) => {
   if (!cachePath) return createEmptyCache(repoSetId);
   try {
     const stat = await fsPromises.stat(cachePath);
     if (Number.isFinite(Number(stat.size)) && Number(stat.size) > FEDERATED_QUERY_CACHE_MAX_READ_BYTES) {
+      emitCacheWarning(
+        log,
+        `[retrieval:federation] cache file oversized (${stat.size} bytes > ${FEDERATED_QUERY_CACHE_MAX_READ_BYTES}); using empty cache.`
+      );
+      bumpCacheHealthCounter(health, 'federatedQueryCacheOversized');
       return createEmptyCache(repoSetId);
     }
     const raw = await fsPromises.readFile(cachePath, 'utf8');
     const parsed = parseCacheFile(raw, repoSetId);
     if (parsed) return parsed;
-    try {
-      await fsPromises.rm(cachePath, { force: true });
-    } catch {}
+    bumpCacheHealthCounter(health, 'federatedQueryCacheParseFailures');
+    emitCacheWarning(
+      log,
+      `[retrieval:federation] cache parse failed; falling back to empty cache (path=${cachePath}).`
+    );
+    await quarantineCorruptCacheFile(cachePath, log);
     return createEmptyCache(repoSetId);
-  } catch {
+  } catch (error) {
+    if (error?.code && error.code !== 'ENOENT') {
+      bumpCacheHealthCounter(health, 'federatedQueryCacheReadFailures');
+      emitCacheWarning(
+        log,
+        `[retrieval:federation] cache read failed (${error?.code || 'ERR_READ'}): ${error?.message || error}`
+      );
+    }
     return createEmptyCache(repoSetId);
   }
 };

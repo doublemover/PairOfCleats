@@ -5,6 +5,11 @@ import { isWithinRoot, toRealPathSync } from '../../../workspace/identity.js';
 import { SIGNATURE_VERSION } from '../indexer/signatures.js';
 import { pathExists } from './shared.js';
 
+const INCREMENTAL_MANIFEST_JSON_MAX_BYTES = 8 * 1024 * 1024;
+const INCREMENTAL_INDEX_STATE_JSON_MAX_BYTES = 8 * 1024 * 1024;
+const INCREMENTAL_PIECES_MANIFEST_JSON_MAX_BYTES = 16 * 1024 * 1024;
+const PIECE_VALIDATION_CONCURRENCY = 32;
+
 /**
  * Summarize changed signature keys for incremental-cache reset diagnostics.
  *
@@ -31,6 +36,30 @@ const summarizeSignatureDelta = (current, previous, limit = 5) => {
   if (!diffCount) return null;
   const extra = diffCount > diffList.length ? ` (+${diffCount - diffList.length} more)` : '';
   return `${diffList.join(', ')}${extra}`;
+};
+
+const toPositiveInt = (value, fallback) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.floor(parsed);
+};
+
+const mapWithConcurrency = async (items, concurrency, worker) => {
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) return [];
+  const out = new Array(list.length);
+  const workerCount = Math.max(1, Math.min(list.length, toPositiveInt(concurrency, 1)));
+  let cursor = 0;
+  const workers = Array.from({ length: workerCount }, async () => {
+    for (;;) {
+      const index = cursor;
+      cursor += 1;
+      if (index >= list.length) break;
+      out[index] = await worker(list[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return out;
 };
 
 /**
@@ -68,7 +97,10 @@ export async function loadIncrementalState({
   };
   if (enabled && await pathExists(manifestPath)) {
     try {
-      const loaded = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
+      const loaded = await readJsonFile(manifestPath, {
+        maxBytes: INCREMENTAL_MANIFEST_JSON_MAX_BYTES,
+        label: `${mode} incremental manifest`
+      });
       if (loaded && typeof loaded === 'object') {
         const loadedKey = typeof loaded.tokenizationKey === 'string'
           ? loaded.tokenizationKey
@@ -119,7 +151,18 @@ export async function loadIncrementalState({
           }
         }
       }
-    } catch {}
+    } catch (error) {
+      if (typeof log === 'function') {
+        log(
+          `[incremental] ${mode} cache manifest read failed ` +
+          `(${error?.code || 'ERR_INCREMENTAL_MANIFEST_READ'}): ${error?.message || error}.`
+        );
+      }
+      await quarantineCorruptJsonFile(manifestPath, {
+        label: `${mode} incremental manifest`,
+        log
+      });
+    }
   }
   if (enabled) {
     await fs.mkdir(bundleDir, { recursive: true });
@@ -173,13 +216,56 @@ const createOutDirContainmentCheck = (outDir) => {
   };
 };
 
+const quarantineCorruptJsonFile = async (filePath, { label = 'json', log = null } = {}) => {
+  try {
+    const quarantinePath = `${filePath}.corrupt-${Date.now()}`;
+    await fs.rename(filePath, quarantinePath);
+    if (typeof log === 'function') {
+      log(`[incremental] quarantined ${label}: ${quarantinePath}`);
+    }
+    return quarantinePath;
+  } catch (error) {
+    if (typeof log === 'function') {
+      log(
+        `[incremental] failed to quarantine ${label} (${filePath}): ` +
+        `${error?.message || error}`
+      );
+    }
+    return null;
+  }
+};
+
 /**
  * Read and parse a JSON file into an object.
  *
  * @param {string} filePath
+ * @param {{maxBytes?:number,label?:string}} [options]
  * @returns {Promise<unknown>}
  */
-const readJsonFile = async (filePath) => JSON.parse(await fs.readFile(filePath, 'utf8'));
+const readJsonFile = async (filePath, { maxBytes = 0, label = 'json' } = {}) => {
+  const resolvedMaxBytes = Number(maxBytes);
+  if (Number.isFinite(resolvedMaxBytes) && resolvedMaxBytes > 0) {
+    const stat = await fs.stat(filePath);
+    if (Number.isFinite(Number(stat?.size)) && Number(stat.size) > resolvedMaxBytes) {
+      const err = new Error(
+        `[incremental] ${label} exceeded maxBytes (${stat.size} > ${resolvedMaxBytes})`
+      );
+      err.code = 'ERR_INCREMENTAL_JSON_OVERSIZE';
+      throw err;
+    }
+  }
+  const raw = await fs.readFile(filePath, 'utf8');
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    const err = new Error(
+      `[incremental] failed to parse ${label}: ${error?.message || error}`,
+      { cause: error }
+    );
+    err.code = 'ERR_INCREMENTAL_JSON_PARSE';
+    throw err;
+  }
+};
 
 /**
  * Decide whether an incremental index can be reused for the current build.
@@ -225,11 +311,17 @@ export async function shouldReuseIncrementalIndex({
   let pieceManifest = null;
   try {
     [indexState, pieceManifest] = await Promise.all([
-      readJsonFile(indexStatePath),
-      readJsonFile(piecesPath)
+      readJsonFile(indexStatePath, {
+        maxBytes: INCREMENTAL_INDEX_STATE_JSON_MAX_BYTES,
+        label: 'index state'
+      }),
+      readJsonFile(piecesPath, {
+        maxBytes: INCREMENTAL_PIECES_MANIFEST_JSON_MAX_BYTES,
+        label: 'pieces manifest'
+      })
     ]);
-  } catch {
-    return fail('failed to read index state/manifest');
+  } catch (error) {
+    return fail(`failed to read index state/manifest (${error?.code || 'ERR_JSON_READ'})`);
   }
   if (!stageSatisfied(stage, indexState?.stage || null)) {
     return fail('index stage mismatch');
@@ -238,21 +330,30 @@ export async function shouldReuseIncrementalIndex({
     return fail('piece manifest empty');
   }
   const isWithinOutDir = createOutDirContainmentCheck(outDir);
-  for (const piece of pieceManifest.pieces) {
+  const pieceErrors = await mapWithConcurrency(
+    pieceManifest.pieces,
+    PIECE_VALIDATION_CONCURRENCY,
+    async (piece) => {
     const relPath = typeof piece?.path === 'string' ? piece.path : null;
     if (!relPath) {
-      return fail('piece manifest missing path');
+      return 'piece manifest missing path';
     }
     const resolvedPath = path.resolve(outDir, relPath);
     if (!isWithinOutDir(resolvedPath)) {
-      return fail('piece manifest path escapes output dir');
+      return 'piece manifest path escapes output dir';
     }
     if (!(await pathExists(resolvedPath))) {
-      return fail(`piece missing: ${relPath}`);
+      return `piece missing: ${relPath}`;
     }
     if (!isWithinOutDir(resolvedPath, { canonical: true })) {
-      return fail('piece manifest path escapes output dir');
+      return 'piece manifest path escapes output dir';
     }
+    return null;
+  }
+  );
+  const firstPieceError = pieceErrors.find((entry) => typeof entry === 'string' && entry);
+  if (firstPieceError) {
+    return fail(firstPieceError);
   }
   const entryKeys = new Set();
   for (const entry of entries) {

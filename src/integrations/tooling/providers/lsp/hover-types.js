@@ -10,6 +10,7 @@ export const DEFAULT_HOVER_CONCURRENCY = 8;
 export const DEFAULT_HOVER_CACHE_MAX_ENTRIES = 50000;
 const HOVER_CACHE_SCHEMA_VERSION = 2;
 const HOVER_CACHE_KEY_VERSION = 'v2';
+const HOVER_CACHE_MAX_READ_BYTES = 16 * 1024 * 1024;
 
 /**
  * Clamp numeric values to an integer range with fallback.
@@ -104,17 +105,36 @@ const resolveHoverCachePath = (cacheRoot) => {
   return path.join(cacheRoot, 'lsp', `hover-cache-v${HOVER_CACHE_SCHEMA_VERSION}.json`);
 };
 
+const emitHoverCacheWarning = (log, message) => {
+  if (typeof log === 'function') {
+    log(message);
+    return;
+  }
+  try {
+    process.emitWarning(message, { code: 'LSP_HOVER_CACHE_WARNING' });
+  } catch {}
+};
+
 /**
  * Load persisted hover parse cache from disk.
  * Invalid/missing cache files degrade to an empty cache.
  *
  * @param {string|null} cacheRoot
+ * @param {{log?:(message:string)=>void}} [options]
  * @returns {Promise<{path:string|null,entries:Map<string,object>}>}
  */
-export const loadHoverCache = async (cacheRoot) => {
+export const loadHoverCache = async (cacheRoot, { log = null } = {}) => {
   const cachePath = resolveHoverCachePath(cacheRoot);
   if (!cachePath) return { path: null, entries: new Map() };
   try {
+    const stat = await fs.stat(cachePath);
+    if (Number.isFinite(Number(stat?.size)) && Number(stat.size) > HOVER_CACHE_MAX_READ_BYTES) {
+      emitHoverCacheWarning(
+        log,
+        `[tooling] hover cache oversized (${stat.size} bytes > ${HOVER_CACHE_MAX_READ_BYTES}); skipping cache load.`
+      );
+      return { path: cachePath, entries: new Map() };
+    }
     const raw = await fs.readFile(cachePath, 'utf8');
     const parsed = JSON.parse(raw);
     const version = Number(parsed?.version);
@@ -130,7 +150,13 @@ export const loadHoverCache = async (cacheRoot) => {
       entries.set(row.key, row.value);
     }
     return { path: cachePath, entries };
-  } catch {
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      emitHoverCacheWarning(
+        log,
+        `[tooling] hover cache load failed (${error?.code || 'ERR_HOVER_CACHE_LOAD'}): ${error?.message || error}`
+      );
+    }
     return { path: cachePath, entries: new Map() };
   }
 };
