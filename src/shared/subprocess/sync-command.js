@@ -7,7 +7,12 @@ const isPositivePid = (value) => {
   return Number.isFinite(parsed) && parsed > 0;
 };
 
-export const killTimedOutSyncProcessTree = (pid, timeoutMs = DEFAULT_SYNC_COMMAND_TIMEOUT_MS) => {
+export const killTimedOutSyncProcessTree = (
+  pid,
+  timeoutMs = DEFAULT_SYNC_COMMAND_TIMEOUT_MS,
+  killTree = true,
+  detached = process.platform !== 'win32'
+) => {
   if (!isPositivePid(pid)) return false;
   const numericPid = Math.floor(Number(pid));
   const boundedTimeoutMs = resolveSyncCommandTimeoutMs(timeoutMs, DEFAULT_SYNC_COMMAND_TIMEOUT_MS);
@@ -19,9 +24,19 @@ export const killTimedOutSyncProcessTree = (pid, timeoutMs = DEFAULT_SYNC_COMMAN
       });
       return taskkillResult?.status === 0;
     }
+    if (killTree && detached) {
+      try {
+        process.kill(-numericPid, 'SIGTERM');
+      } catch {}
+    }
     process.kill(numericPid, 'SIGTERM');
   } catch {}
   try {
+    if (killTree && detached) {
+      try {
+        process.kill(-numericPid, 'SIGKILL');
+      } catch {}
+    }
     process.kill(numericPid, 'SIGKILL');
     return true;
   } catch {}
@@ -50,7 +65,12 @@ export const runSyncCommandWithTimeout = (command, args = [], options = {}) => {
       timeout: timeoutMs
     });
     if (isSyncCommandTimedOut(result)) {
-      killTimedOutSyncProcessTree(result?.pid, timeoutMs);
+      killTimedOutSyncProcessTree(
+        result?.pid,
+        timeoutMs,
+        options.killTree !== false,
+        options.detached === true
+      );
     }
     return result;
   } catch (error) {

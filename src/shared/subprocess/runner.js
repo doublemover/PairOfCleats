@@ -95,7 +95,10 @@ function spawnSubprocess(command, args, options = {}) {
     const killSignal = options.killSignal || 'SIGTERM';
     const killGraceMs = resolveKillGraceMs(options.killGraceMs);
     const timeoutAbortKillGraceMs = options.killGraceMs == null ? 0 : killGraceMs;
-    const timeoutAbortReapWaitMs = resolveTimeoutAbortReapWaitMs(options.timeoutAbortReapWaitMs);
+    const timeoutAbortReapWaitMs = resolveTimeoutAbortReapWaitMs(
+      options.timeoutAbortReapWaitMs
+        ?? (timeoutAbortKillGraceMs + 500)
+    );
     const cleanupOnParentExit = typeof options.cleanupOnParentExit === 'boolean'
       ? options.cleanupOnParentExit
       : !(options.unref === true && detached === true);
@@ -344,7 +347,12 @@ function spawnSubprocessSync(command, args, options = {}) {
   });
   if (result.error) {
     if (isSyncCommandTimedOut(result)) {
-      killTimedOutSyncProcessTree(result?.pid, resolvedTimeoutMs);
+      killTimedOutSyncProcessTree(
+        result?.pid,
+        resolvedTimeoutMs,
+        options.killTree !== false,
+        options.detached === true
+      );
     }
     if (result.error?.code === 'ETIMEDOUT') {
       throw new SubprocessTimeoutError('Subprocess timeout', normalized);

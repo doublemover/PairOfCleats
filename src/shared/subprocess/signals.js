@@ -8,12 +8,13 @@ let terminateTrackedSubprocessesRef = null;
 let terminateTrackedSubprocessesSyncRef = null;
 
 /**
- * Trigger one-time tracked-child shutdown for process teardown paths.
+ * Trigger tracked-child shutdown for process teardown paths.
  *
  * @param {string} reason
+ * @param {{allowRepeat?:boolean}} [options]
  * @returns {Promise<unknown>}
  */
-const triggerTrackedSubprocessShutdown = (reason) => {
+const triggerTrackedSubprocessShutdown = (reason, { allowRepeat = false } = {}) => {
   if (trackedSubprocessShutdownTriggered) return trackedSubprocessShutdownPromise;
   trackedSubprocessShutdownTriggered = true;
   const terminate = terminateTrackedSubprocessesRef;
@@ -22,6 +23,12 @@ const triggerTrackedSubprocessShutdown = (reason) => {
       ? terminate({ reason, force: true })
       : Promise.resolve(null)
   ).catch(() => null);
+  if (allowRepeat) {
+    trackedSubprocessShutdownPromise.finally(() => {
+      trackedSubprocessShutdownTriggered = false;
+      trackedSubprocessShutdownPromise = null;
+    });
+  }
   return trackedSubprocessShutdownPromise;
 };
 
@@ -78,9 +85,11 @@ const installTrackedSubprocessHooks = (terminateTrackedSubprocesses, terminateTr
   });
   for (const signal of TRACKED_SUBPROCESS_TERMINATION_SIGNALS) {
     try {
-      process.once(signal, () => {
-        const hasAdditionalSignalHandlers = process.listenerCount(signal) > 0;
-        void triggerTrackedSubprocessShutdown(`signal_${String(signal || '').toLowerCase()}`)
+      process.on(signal, () => {
+        const hasAdditionalSignalHandlers = process.listenerCount(signal) > 1;
+        void triggerTrackedSubprocessShutdown(`signal_${String(signal || '').toLowerCase()}`, {
+          allowRepeat: true
+        })
           .finally(() => {
             if (!hasAdditionalSignalHandlers) {
               forwardSignalToDefault(signal);

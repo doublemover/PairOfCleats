@@ -6,9 +6,9 @@ const DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS = 2000;
 const WINDOWS_DESCENDANT_DISCOVERY_TIMEOUT_MS = 2000;
 const WINDOWS_DESCENDANT_KILL_LIMIT = 256;
 
-const wait = (ms) => new Promise((resolve) => {
+const wait = (ms, { unrefTimer = true } = {}) => new Promise((resolve) => {
   const timer = setTimeout(resolve, ms);
-  if (typeof timer.unref === 'function') {
+  if (unrefTimer && typeof timer.unref === 'function') {
     timer.unref();
   }
 });
@@ -66,7 +66,7 @@ const killPosixGroup = async (pid, {
     if (error?.code !== 'ESRCH') throw error;
   }
   if (graceMs > 0 && awaitGrace) {
-    await wait(graceMs);
+    await wait(graceMs, { unrefTimer: false });
   }
   if (!awaitGrace) {
     if (graceMs > 0) {
@@ -145,7 +145,7 @@ const killWindowsTree = async (pid, { graceMs, awaitGrace = true }) => {
     });
     if (toSyncCommandExitCode(graceful) === 0) {
       terminated = true;
-      if (graceMs > 0 && awaitGrace) await wait(graceMs);
+      if (graceMs > 0 && awaitGrace) await wait(graceMs, { unrefTimer: false });
     }
   } catch {}
   if (!awaitGrace) {
