@@ -14,10 +14,12 @@ const DEFAULT_POLICY_PATH = path.join('docs', 'tooling', 'lsp-default-enable-pol
 const parseArgs = () => createCli({
   scriptName: 'pairofcleats tooling-lsp-default-enable-gate',
   options: {
+    mode: { type: 'string', default: 'ci', choices: ['ci', 'nightly'] },
     policy: { type: 'string', default: DEFAULT_POLICY_PATH },
     doctor: { type: 'string', default: '' },
     slo: { type: 'string', default: '' },
-    json: { type: 'string', default: '' }
+    json: { type: 'string', default: '' },
+    enforce: { type: 'boolean', default: false }
   }
 })
   .strictOptions()
@@ -25,6 +27,7 @@ const parseArgs = () => createCli({
 
 const main = async () => {
   const argv = parseArgs();
+  const enforce = argv.enforce === true;
   const policyPath = path.resolve(argv.policy || DEFAULT_POLICY_PATH);
   const doctorPath = argv.doctor ? path.resolve(argv.doctor) : '';
   const sloPath = argv.slo ? path.resolve(argv.slo) : '';
@@ -84,10 +87,19 @@ const main = async () => {
     }
   }
 
+  const status = failures.length
+    ? (enforce ? 'error' : 'warn')
+    : 'ok';
+  if (failures.length && !enforce) {
+    advisories.push('default-enable failures are informational (enforce=off)');
+  }
+
   const payload = {
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
-    status: failures.length ? 'error' : 'ok',
+    mode: argv.mode,
+    status,
+    enforced: enforce,
     inputs: {
       policyPath,
       doctorPath,
@@ -105,10 +117,12 @@ const main = async () => {
     heading: 'Tooling LSP default-enable gate',
     summaryLines: [
       `- status: ${payload.status}`,
+      `- enforce: ${enforce ? 'on' : 'off (informational)'}`,
       `- default-enabled providers: ${payload.defaultEnabledProviderCount}`,
       `- advisories: ${advisories.length}`
     ],
-    failures
+    failures,
+    enforceFailureExit: enforce
   });
   for (const advisory of advisories) {
     console.error(`  - advisory: ${advisory}`);

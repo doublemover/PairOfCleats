@@ -212,6 +212,8 @@ const main = async () => {
       command: process.execPath,
       args: [
         'tools/ci/tooling-lsp-default-enable-gate.js',
+        '--mode',
+        mode,
         '--json',
         toolingLspDefaultEnableJson,
         '--doctor',

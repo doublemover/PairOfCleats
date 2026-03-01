@@ -119,6 +119,17 @@ jobs:
           node -v
           npm -v
 
+      - name: Install optional LSP tools (best effort)
+        shell: bash
+        run: |
+          set +e
+          node tools/tooling/install.js --scope cache --tools pyright,yaml-language-server,gopls,csharp-ls,solargraph,phpactor --json
+          status=$?
+          if [ $status -ne 0 ]; then
+            echo "optional tooling install had non-fatal failures (continuing)."
+          fi
+          exit 0
+
       - name: CI Suite
         run: |
           node tools/ci/run-suite.js --mode ci --skip-prechecks
@@ -194,6 +205,15 @@ jobs:
           node -v
           npm -v
 
+      - name: Install optional LSP tools (best effort)
+        shell: pwsh
+        run: |
+          node tools/tooling/install.js --scope cache --tools pyright,yaml-language-server,gopls,csharp-ls,solargraph,phpactor --json
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host 'optional tooling install had non-fatal failures (continuing).'
+          }
+          exit 0
+
       - name: CI Suite
         run: |
           node tools/ci/run-suite.js --mode ci --skip-prechecks
@@ -258,6 +278,17 @@ jobs:
           fi
           node -v
           npm -v
+
+      - name: Install optional LSP tools (best effort)
+        shell: bash
+        run: |
+          set +e
+          node tools/tooling/install.js --scope cache --tools pyright,yaml-language-server,gopls,csharp-ls,solargraph,phpactor --json
+          status=$?
+          if [ $status -ne 0 ]; then
+            echo "optional tooling install had non-fatal failures (continuing)."
+          fi
+          exit 0
 
       - name: CI Suite
         run: |

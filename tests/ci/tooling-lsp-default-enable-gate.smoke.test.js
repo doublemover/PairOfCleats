@@ -29,10 +29,12 @@ try {
   }, null, 2), 'utf8');
   await fs.writeFile(sloPath, JSON.stringify({ status: 'ok' }, null, 2), 'utf8');
 
-  const runGate = (doctorInputPath) => spawnSync(
+  const runGate = (doctorInputPath, extraArgs = []) => spawnSync(
     process.execPath,
     [
       gatePath,
+      '--mode',
+      'ci',
       '--policy',
       policyPath,
       '--doctor',
@@ -40,7 +42,8 @@ try {
       '--slo',
       sloPath,
       '--json',
-      jsonPath
+      jsonPath,
+      ...extraArgs
     ],
     {
       cwd: ROOT,
@@ -63,6 +66,35 @@ try {
 
   await assertGateOk(runGate(doctorPath), 'doctor-report-input');
   await assertGateOk(runGate(doctorGatePath), 'doctor-gate-input');
+
+  await fs.writeFile(doctorPath, JSON.stringify({
+    providers: [{ id: 'clangd', enabled: true, available: false, status: 'warn' }]
+  }, null, 2), 'utf8');
+  await fs.writeFile(doctorGatePath, JSON.stringify({
+    reportPath: doctorPath,
+    status: 'warn'
+  }, null, 2), 'utf8');
+
+  const informationalResult = runGate(doctorGatePath);
+  assert.equal(
+    informationalResult.status,
+    0,
+    `expected informational default-enable gate to pass, received ${informationalResult.status}`
+  );
+  const informationalPayload = JSON.parse(await fs.readFile(jsonPath, 'utf8'));
+  assert.equal(informationalPayload?.status, 'warn', 'expected informational payload status=warn');
+  assert.equal(informationalPayload?.enforced, false, 'expected informational payload enforced=false');
+  assert.equal(Array.isArray(informationalPayload?.failures) && informationalPayload.failures.length > 0, true);
+
+  const enforcedResult = runGate(doctorGatePath, ['--enforce']);
+  assert.equal(
+    enforcedResult.status,
+    3,
+    `expected enforced default-enable gate to exit 3, received ${enforcedResult.status}`
+  );
+  const enforcedPayload = JSON.parse(await fs.readFile(jsonPath, 'utf8'));
+  assert.equal(enforcedPayload?.status, 'error', 'expected enforced payload status=error');
+  assert.equal(enforcedPayload?.enforced, true, 'expected enforced payload enforced=true');
 
   console.log('tooling lsp default-enable gate smoke test passed');
 } finally {
