@@ -44,7 +44,10 @@ const percentile = (values, ratio) => {
     .sort((a, b) => a - b);
   if (!sorted.length) return 0;
   const clampedRatio = Math.max(0, Math.min(1, coerceFiniteNumber(ratio, 1) ?? 1));
-  const index = Math.min(sorted.length - 1, Math.floor(clampedRatio * (sorted.length - 1)));
+  // Use nearest-rank percentile to preserve tail sensitivity on small samples.
+  // Example: n=3, p95 => index=2 (max), not index=1.
+  const rank = Math.ceil(clampedRatio * sorted.length);
+  const index = Math.min(sorted.length - 1, Math.max(0, rank - 1));
   return sorted[index];
 };
 

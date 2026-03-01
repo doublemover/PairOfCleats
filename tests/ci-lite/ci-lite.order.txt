@@ -26,6 +26,7 @@ indexing/embeddings/embedding-merge-vectors-semantics
 retrieval/context-expansion/shuffled-chunkmeta
 indexing/type-inference/crossfile/symbols
 ci/workflow-contract
+ci/tooling-lsp-slo-gate-tail-p95
 retrieval/context/expansion
 graph/context-pack-skip-resort
 indexing/scm/jj-changed-files-parse
@@ -207,6 +208,7 @@ indexing/imports/expected-artifacts-index
 indexing/imports/fs-exists-index
 indexing/imports/import-build-context-plugins
 indexing/imports/import-build-context-typescript-emit
+indexing/imports/cache-hints-reuse
 indexing/imports/gate-eligibility
 indexing/imports/import-resolution-stage-pipeline
 indexing/imports/stage-pipeline-metrics
