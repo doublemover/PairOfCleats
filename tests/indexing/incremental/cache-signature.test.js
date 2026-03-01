@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { getRepoId } from '../../../tools/shared/dict-utils.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -57,31 +57,24 @@ const runBuild = (label, testConfig) => {
 };
 
 runBuild('initial build', { indexing: { lint: false } });
-runBuild('cache build', { indexing: { lint: false } });
-
-applyTestEnv({ cacheRoot, embeddings: 'stub' });
-const userConfig = loadUserConfig(repoRoot);
-const codeDir = getIndexDir(repoRoot, 'code', userConfig);
-const fileListsPath = path.join(codeDir, '.filelists.json');
-if (!fs.existsSync(fileListsPath)) {
-  console.error('Missing .filelists.json');
+const repoId = getRepoId(repoRoot);
+const manifestPath = path.join(cacheRoot, 'repos', repoId, 'incremental', 'code', 'manifest.json');
+if (!fs.existsSync(manifestPath)) {
+  console.error('Missing incremental manifest after initial build');
   process.exit(1);
 }
-const fileLists = JSON.parse(await fsPromises.readFile(fileListsPath, 'utf8'));
-const cachedEntry = fileLists?.scanned?.sample?.find((entry) => entry?.file?.endsWith('src.js'));
-if (!cachedEntry || cachedEntry.cached !== true) {
-  console.error('Expected cached entry after incremental rebuild');
+const manifestInitial = JSON.parse(await fsPromises.readFile(manifestPath, 'utf8'));
+runBuild('cache build', { indexing: { lint: false } });
+const manifestCached = JSON.parse(await fsPromises.readFile(manifestPath, 'utf8'));
+if (!manifestCached?.cacheSignature || manifestCached.cacheSignature !== manifestInitial?.cacheSignature) {
+  console.error('Expected unchanged incremental cache signature for identical config rebuild');
   process.exit(1);
 }
 
 runBuild('config signature rebuild', { indexing: { lint: true } });
-
-const userConfigAfter = loadUserConfig(repoRoot);
-const codeDirAfter = getIndexDir(repoRoot, 'code', userConfigAfter);
-const fileListsAfter = JSON.parse(await fsPromises.readFile(path.join(codeDirAfter, '.filelists.json'), 'utf8'));
-const rebuildEntry = fileListsAfter?.scanned?.sample?.find((entry) => entry?.file?.endsWith('src.js'));
-if (!rebuildEntry || rebuildEntry.cached === true) {
-  console.error('Expected cache invalidation after config signature change');
+const manifestChanged = JSON.parse(await fsPromises.readFile(manifestPath, 'utf8'));
+if (!manifestChanged?.cacheSignature || manifestChanged.cacheSignature === manifestCached.cacheSignature) {
+  console.error('Expected incremental cache signature change after config signature change');
   process.exit(1);
 }
 

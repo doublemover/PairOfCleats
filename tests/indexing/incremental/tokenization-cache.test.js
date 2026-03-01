@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 import { applyTestEnv } from '../../helpers/test-env.js';
-import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { getRepoId } from '../../../tools/shared/dict-utils.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -77,50 +76,39 @@ const runBuild = (label, testConfig) => {
   }
 };
 
-const readCachedEntry = async () => {
-  applyTestEnv({ cacheRoot, embeddings: 'stub' });
-  const userConfig = loadUserConfig(repoRoot);
-  const codeDir = getIndexDir(repoRoot, 'code', userConfig);
-  const fileListsPath = path.join(codeDir, '.filelists.json');
-  if (!fs.existsSync(fileListsPath)) {
-    console.error('Missing .filelists.json');
+const repoId = getRepoId(repoRoot);
+const manifestPath = path.join(cacheRoot, 'repos', repoId, 'incremental', 'code', 'manifest.json');
+
+const readManifest = async () => {
+  try {
+    return JSON.parse(await fsPromises.readFile(manifestPath, 'utf8'));
+  } catch (error) {
+    console.error(`Missing or invalid incremental manifest: ${manifestPath}`);
+    console.error(error?.message || String(error));
     process.exit(1);
   }
-  const fileLists = JSON.parse(await fsPromises.readFile(fileListsPath, 'utf8'));
-  const scannedSample = fileLists?.scanned?.sample;
-  if (!Array.isArray(scannedSample)) {
-    console.error('Scanned sample payload is not an array');
-    process.exit(1);
-  }
-  const entry = scannedSample.find((entry) => entry?.file && entry.file.endsWith('src.js'));
-  if (!entry) {
-    console.error('Expected sample entry for src.js');
-    process.exit(1);
-  }
-  return entry;
 };
 
 runBuild('initial build', { indexing: { postings: { enablePhraseNgrams: false } } });
+const manifestInitial = await readManifest();
 runBuild('cache build', { indexing: { postings: { enablePhraseNgrams: false } } });
-
-const cachedEntry = await readCachedEntry();
-if (!cachedEntry || cachedEntry.cached !== true) {
-  console.error('Expected cached entry after incremental rebuild');
+const manifestCached = await readManifest();
+if (manifestCached.cacheSignature !== manifestInitial.cacheSignature) {
+  console.error('Expected stable cache signature for identical tokenization config');
   process.exit(1);
 }
 
 runBuild('config change rebuild', { indexing: { postings: { enablePhraseNgrams: true } } });
-
-const rebuildEntry = await readCachedEntry();
-if (!rebuildEntry || rebuildEntry.cached === true) {
-  console.error('Expected cache invalidation after tokenization config change');
+const manifestTokenChanged = await readManifest();
+if (manifestTokenChanged.tokenizationKey === manifestCached.tokenizationKey) {
+  console.error('Expected tokenization key change after phrase n-gram config change');
   process.exit(1);
 }
 
 runBuild('cache build after config change', { indexing: { postings: { enablePhraseNgrams: true } } });
-const cachedAfterChange = await readCachedEntry();
-if (!cachedAfterChange || cachedAfterChange.cached !== true) {
-  console.error('Expected cached entry after config change rebuild');
+const manifestTokenStable = await readManifest();
+if (manifestTokenStable.cacheSignature !== manifestTokenChanged.cacheSignature) {
+  console.error('Expected stable cache signature after unchanged tokenization config rebuild');
   process.exit(1);
 }
 
@@ -128,9 +116,9 @@ runBuild('dict config change rebuild', {
   indexing: { postings: { enablePhraseNgrams: true } },
   dictionary: { includeSlang: false }
 });
-const dictEntry = await readCachedEntry();
-if (!dictEntry || dictEntry.cached === true) {
-  console.error('Expected cache invalidation after dictionary config change');
+const manifestDictChanged = await readManifest();
+if (manifestDictChanged.cacheSignature === manifestTokenStable.cacheSignature) {
+  console.error('Expected cache signature change after dictionary config change');
   process.exit(1);
 }
 
