@@ -8,6 +8,14 @@ export const CACHE_ROOT_LAYOUT_VERSION = CACHE_ROOT_DIRNAME;
 const LEGACY_CACHE_ROOT_DIRNAME = 'cache-v1';
 
 const rebuiltRoots = new Set();
+const drainedLegacyRoots = new Set();
+const cacheRootWarnings = new Set();
+const warnCacheRootIssue = (key, message) => {
+  if (!key || !message) return;
+  if (cacheRootWarnings.has(key)) return;
+  cacheRootWarnings.add(key);
+  console.warn(message);
+};
 const isCacheRootDir = (targetRoot) => (
   typeof targetRoot === 'string'
   && targetRoot
@@ -28,7 +36,12 @@ const purgeCacheRoot = (cacheRoot) => {
   if (!cacheRoot) return;
   try {
     fs.rmSync(cacheRoot, { recursive: true, force: true });
-  } catch {}
+  } catch (err) {
+    warnCacheRootIssue(
+      `purge:${cacheRoot}:${err?.code || 'unknown'}`,
+      `[cache] failed to purge cache root ${cacheRoot}: ${err?.message || err}`
+    );
+  }
 };
 
 const isDirectory = (targetPath) => {
@@ -55,15 +68,26 @@ const drainLegacyCacheRoot = (baseRoot) => {
   if (!resolvedBase) return;
   const targetRoot = resolveVersionedCacheRoot(resolvedBase);
   if (!targetRoot) return;
+  if (drainedLegacyRoots.has(targetRoot)) return;
+  drainedLegacyRoots.add(targetRoot);
   const legacyRoot = path.join(path.dirname(targetRoot), LEGACY_CACHE_ROOT_DIRNAME);
   if (!isDirectory(legacyRoot)) return;
   try {
     fs.mkdirSync(targetRoot, { recursive: true });
-  } catch {}
+  } catch (err) {
+    warnCacheRootIssue(
+      `mkdir:${targetRoot}:${err?.code || 'unknown'}`,
+      `[cache] failed to prepare cache root ${targetRoot}: ${err?.message || err}`
+    );
+  }
   let entries = [];
   try {
     entries = fs.readdirSync(legacyRoot, { withFileTypes: true });
-  } catch {
+  } catch (err) {
+    warnCacheRootIssue(
+      `readdir:${legacyRoot}:${err?.code || 'unknown'}`,
+      `[cache] failed to read legacy cache root ${legacyRoot}: ${err?.message || err}`
+    );
     return;
   }
   for (const entry of entries) {
@@ -73,11 +97,21 @@ const drainLegacyCacheRoot = (baseRoot) => {
     if (pathExists(destination)) continue;
     try {
       fs.renameSync(source, destination);
-    } catch {}
+    } catch (err) {
+      warnCacheRootIssue(
+        `move:${source}->${destination}:${err?.code || 'unknown'}`,
+        `[cache] failed to migrate legacy cache entry ${source} -> ${destination}: ${err?.message || err}`
+      );
+    }
   }
   try {
     if (fs.readdirSync(legacyRoot).length === 0) fs.rmdirSync(legacyRoot);
-  } catch {}
+  } catch (err) {
+    warnCacheRootIssue(
+      `cleanup:${legacyRoot}:${err?.code || 'unknown'}`,
+      `[cache] failed to clean legacy cache root ${legacyRoot}: ${err?.message || err}`
+    );
+  }
 };
 
 /**

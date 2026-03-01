@@ -164,7 +164,7 @@ export const createTempPath = (filePath, options = {}) => {
 
   const buildFallbackTempPath = (withExt = true) => {
     const suffixExt = withExt ? ext : '';
-    const baseDir = path.join(process.env.TEMP || process.env.TMP || path.join(process.cwd(), '.tmp'), 'poc-atomic');
+    const baseDir = path.join(dir, '.poc-atomic');
     const name = `t.tmp-${compactToken}`;
     if (!isCandidateDirWritable(baseDir)) return null;
     return path.join(baseDir, `${name}${suffixExt}`);
