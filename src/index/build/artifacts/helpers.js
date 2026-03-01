@@ -289,6 +289,15 @@ const writeBuffer = async (stream, buffer) => {
   }
 };
 
+const fsyncFile = async (targetPath) => {
+  const handle = await fs.promises.open(targetPath, 'r');
+  try {
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+};
+
 export const writePerFileVarintIndex = async ({
   outDir,
   baseName,
@@ -318,6 +327,7 @@ export const writePerFileVarintIndex = async ({
     stream.end();
     await waitForStreamEvent(stream, 'finish', { label: 'artifacts.per-file-varint.stream.finish' });
     if (atomic) {
+      await fsyncFile(targetPath);
       await replaceFile(targetPath, dataPath);
     }
     await runBuildCleanupWithTimeout({
