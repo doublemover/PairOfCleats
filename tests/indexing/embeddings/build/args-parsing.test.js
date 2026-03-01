@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { applyTestEnv } from '../../../helpers/test-env.js';
+import { applyTestEnv, withTemporaryEnv } from '../../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -15,20 +15,10 @@ await rmDirRecursive(tempRoot, { retries: 8, delayMs: 150 });
 await fs.mkdir(tempRoot, { recursive: true });
 const cacheRoot = path.join(tempRoot, 'cache');
 
-const savedEnv = { ...process.env };
-const restoreEnv = () => {
-  for (const key of Object.keys(process.env)) {
-    if (!(key in savedEnv)) delete process.env[key];
-  }
-  for (const [key, value] of Object.entries(savedEnv)) {
-    process.env[key] = value;
-  }
-};
-
 applyTestEnv();
-try {
-  process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-
+await withTemporaryEnv({
+  PAIROFCLEATS_CACHE_ROOT: cacheRoot
+}, async () => {
   const parsed = parseBuildEmbeddingsArgs([
     '--repo', tempRoot,
     '--mode', 'both',
@@ -51,6 +41,4 @@ try {
   assert.equal(parsed.embeddingBatchSize, 16, 'expected batch size to respect cli value');
 
   console.log('build-embeddings args parsing test passed');
-} finally {
-  restoreEnv();
-}
+});

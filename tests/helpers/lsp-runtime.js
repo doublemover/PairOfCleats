@@ -1,8 +1,10 @@
 import path from 'node:path';
 import { getToolingDir } from '../../src/shared/dict-utils.js';
+import { resolveEnvPath, resolvePathEnvKey } from '../../src/shared/env-path.js';
 import { resolveToolingCommandProfile } from '../../src/index/tooling/command-resolver.js';
 import { __testLspSessionPool } from '../../src/integrations/tooling/providers/lsp/session-pool.js';
 import { getTrackedSubprocessCount, terminateTrackedSubprocesses } from '../../src/shared/subprocess.js';
+import { withTemporaryEnv } from './test-env.js';
 import { skip } from './skip.js';
 
 const normalizePathKey = (value) => (
@@ -25,6 +27,32 @@ const dedupePathEntries = (entries) => {
   return out;
 };
 
+const buildLspPathValue = ({
+  repoRoot,
+  includeFixtures,
+  extraPrepend
+}) => {
+  const toolingBin = path.join(getToolingDir(repoRoot), 'bin');
+  const fixturesBin = path.join(repoRoot, 'tests', 'fixtures', 'lsp', 'bin');
+  const currentPath = resolveEnvPath(process.env);
+  const merged = dedupePathEntries([
+    ...extraPrepend,
+    toolingBin,
+    ...String(currentPath)
+      .split(path.delimiter)
+      .map((entry) => String(entry || '').trim())
+      .filter(Boolean),
+    includeFixtures ? fixturesBin : ''
+  ]);
+  const pathKey = resolvePathEnvKey(process.env, {
+    preferredKey: process.platform === 'win32' ? 'Path' : 'PATH'
+  });
+  return {
+    pathKey,
+    pathValue: merged.join(path.delimiter)
+  };
+};
+
 /**
  * Prepend the real tooling bin directory before fixture stubs for LSP tests.
  * This ensures tests exercise installed language servers when present while
@@ -41,24 +69,23 @@ export function prependLspTestPath(options = {}) {
   const repoRoot = options.repoRoot || process.cwd();
   const includeFixtures = options.includeFixtures !== false;
   const extraPrepend = Array.isArray(options.extraPrepend) ? options.extraPrepend : [];
-  const originalPath = process.env.PATH || '';
-  const toolingBin = path.join(getToolingDir(repoRoot), 'bin');
-  const fixturesBin = path.join(repoRoot, 'tests', 'fixtures', 'lsp', 'bin');
-  const merged = dedupePathEntries([
-    ...extraPrepend,
-    toolingBin,
-    ...String(originalPath)
-      .split(path.delimiter)
-      .map((entry) => String(entry || '').trim())
-      .filter(Boolean),
-    includeFixtures ? fixturesBin : ''
-  ]);
-  process.env.PATH = merged.join(path.delimiter);
+  const { pathKey, pathValue } = buildLspPathValue({
+    repoRoot,
+    includeFixtures,
+    extraPrepend
+  });
+  const hadPathKey = Object.prototype.hasOwnProperty.call(process.env, pathKey);
+  const originalPath = hadPathKey ? process.env[pathKey] : '';
+  process.env[pathKey] = pathValue;
   return async () => {
     try {
       await cleanupLspTestRuntime({ reason: 'lsp_test_path_restore', strict: true });
     } finally {
-      process.env.PATH = originalPath;
+      if (hadPathKey) {
+        process.env[pathKey] = originalPath;
+      } else {
+        delete process.env[pathKey];
+      }
     }
   };
 }
@@ -135,12 +162,21 @@ export async function cleanupLspTestRuntime({ reason = 'lsp_test_cleanup', stric
  * @returns {Promise<T>}
  */
 export async function withLspTestPath(options, fn) {
-  const restorePath = prependLspTestPath(options);
-  try {
-    return await fn();
-  } finally {
-    await restorePath();
-  }
+  const repoRoot = options?.repoRoot || process.cwd();
+  const includeFixtures = options?.includeFixtures !== false;
+  const extraPrepend = Array.isArray(options?.extraPrepend) ? options.extraPrepend : [];
+  const { pathKey, pathValue } = buildLspPathValue({
+    repoRoot,
+    includeFixtures,
+    extraPrepend
+  });
+  return await withTemporaryEnv({ [pathKey]: pathValue }, async () => {
+    try {
+      return await fn();
+    } finally {
+      await cleanupLspTestRuntime({ reason: 'lsp_test_path_restore', strict: true });
+    }
+  });
 }
 
 /**

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { applyTestEnv } from '../../../helpers/test-env.js';
+import { applyTestEnv, withTemporaryEnv } from '../../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -14,21 +14,11 @@ const tempRoot = resolveTestCachePath(root, 'build-embeddings-defaults');
 await rmDirRecursive(tempRoot, { retries: 8, delayMs: 150 });
 await fs.mkdir(tempRoot, { recursive: true });
 
-const savedEnv = { ...process.env };
-const restoreEnv = () => {
-  for (const key of Object.keys(process.env)) {
-    if (!(key in savedEnv)) delete process.env[key];
-  }
-  for (const [key, value] of Object.entries(savedEnv)) {
-    process.env[key] = value;
-  }
-};
-
 applyTestEnv();
-try {
-  process.env.PAIROFCLEATS_CACHE_ROOT = path.join(tempRoot, 'cache');
-  process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
-
+await withTemporaryEnv({
+  PAIROFCLEATS_CACHE_ROOT: path.join(tempRoot, 'cache'),
+  PAIROFCLEATS_EMBEDDINGS: 'stub'
+}, async () => {
   const parsed = parseBuildEmbeddingsArgs([
     '--repo', tempRoot,
     '--mode', 'code',
@@ -41,6 +31,4 @@ try {
   assert.ok(parsed.embeddingBatchSize > 0, 'expected auto batch size to be resolved');
 
   console.log('build-embeddings runtime defaults test passed');
-} finally {
-  restoreEnv();
-}
+});

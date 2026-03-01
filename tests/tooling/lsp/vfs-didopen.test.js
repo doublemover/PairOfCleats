@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { collectLspTypes } from '../../../src/integrations/tooling/providers/lsp.js';
+import { withTemporaryEnv } from '../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -38,9 +39,7 @@ const targets = [{
   symbolHint: { name: 'add', kind: 'function' }
 }];
 
-const originalTrace = process.env.POC_LSP_TRACE;
-process.env.POC_LSP_TRACE = tracePath;
-try {
+await withTemporaryEnv({ POC_LSP_TRACE: tracePath }, async () => {
   await collectLspTypes({
     rootDir: tempRoot,
     vfsRoot: tempRoot,
@@ -54,9 +53,7 @@ try {
       paramTypes: { a: 'int', b: 'int' }
     })
   });
-} finally {
-  process.env.POC_LSP_TRACE = originalTrace;
-}
+});
 
 const traceRaw = await fs.readFile(tracePath, 'utf8');
 const events = traceRaw.trim().split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
