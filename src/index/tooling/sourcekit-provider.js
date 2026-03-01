@@ -5,7 +5,6 @@ import path from 'node:path';
 import { SymbolKind } from 'vscode-languageserver-protocol';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { getCacheRoot } from '../../shared/cache-roots.js';
-import { isTestingEnv } from '../../shared/env.js';
 import { resolveEnvPath } from '../../shared/env-path.js';
 import { readJsonFileSafe, toPosix } from '../../shared/files.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
@@ -393,6 +392,7 @@ const ensureSourcekitPackageResolutionPreflight = async ({
   sourcekitConfig = {},
   cacheRoot = null
 }) => {
+  const failClosed = sourcekitConfig?.preflightFailOpen !== true;
   try {
     throwIfAborted(signal);
     const need = await resolveSourcekitPackagePreflightNeed({ repoRoot });
@@ -413,7 +413,7 @@ const ensureSourcekitPackageResolutionPreflight = async ({
     if (!canRunCommand(resolvedSwiftCmd, ['--version'])) {
       const message = 'sourcekit package preflight skipped because `swift` command is unavailable.';
       return {
-        blockSourcekit: false,
+        blockSourcekit: failClosed,
         check: {
           name: 'sourcekit_package_preflight_unavailable',
           status: 'warn',
@@ -486,7 +486,7 @@ const ensureSourcekitPackageResolutionPreflight = async ({
       const timeoutText = preflight.timeout ? 'timeout' : 'failed';
       const message = `sourcekit package preflight ${timeoutText}: ${preflight.message || 'unknown failure'}`;
       return {
-        blockSourcekit: false,
+        blockSourcekit: failClosed,
         check: {
           name: 'sourcekit_package_preflight_failed',
           status: 'warn',
@@ -507,7 +507,7 @@ const ensureSourcekitPackageResolutionPreflight = async ({
     if (err?.code === 'ABORT_ERR') throw err;
     const message = summarizeSubprocessOutput(err?.message || err, 200) || 'unknown preflight error';
     return {
-      blockSourcekit: false,
+      blockSourcekit: failClosed,
       check: {
         name: 'sourcekit_package_preflight_error',
         status: 'warn',
@@ -793,8 +793,7 @@ export const createSourcekitProvider = () => ({
       };
     }
 
-    const hostLockEnabled = sourcekitConfig.hostConcurrencyGate === true
-      || (sourcekitConfig.hostConcurrencyGate !== false && isTestingEnv());
+    const hostLockEnabled = sourcekitConfig.hostConcurrencyGate !== false;
     const hostLockWaitMs = Math.max(
       0,
       asFiniteInteger(sourcekitConfig.hostConcurrencyWaitMs) ?? SOURCEKIT_HOST_LOCK_WAIT_MS
