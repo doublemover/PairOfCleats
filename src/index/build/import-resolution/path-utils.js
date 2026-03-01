@@ -23,7 +23,9 @@ export const normalizeImportSpecifier = (spec) => {
 export const normalizeRelPath = (value) => {
   if (!value) return '';
   const normalized = path.posix.normalize(toPosix(String(value)));
-  return normalized.replace(/^\.\/?/, '');
+  if (!normalized || normalized === '.') return '';
+  if (normalized.startsWith('./')) return normalized.slice(2);
+  return normalized;
 };
 
 export const stripImportExtension = (value) => {
