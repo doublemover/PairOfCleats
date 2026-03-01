@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-01T19:08:43.355Z",
+  "generatedAt": "2026-03-01T22:08:05.934Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3517,7 +3517,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 393,
+    "totalFlags": 396,
     "publicFlags": [
       "allow-unauthenticated",
       "allowed-repo-roots",
@@ -3793,6 +3793,7 @@
       "policy",
       "pretty",
       "probe-handshake",
+      "probe-timeout-ms",
       "progress",
       "properties",
       "provider",
@@ -3835,6 +3836,7 @@
       "runtime",
       "sample",
       "samples",
+      "samples-per-provider",
       "schema",
       "scheme",
       "scip",
@@ -3904,6 +3906,7 @@
       "verbose",
       "verify",
       "warmup",
+      "warmup-samples",
       "wasd-acceleration",
       "wasd-drag",
       "wasd-max-speed",
@@ -4647,6 +4650,7 @@
       {
         "file": "tools/bench/language/tooling-lsp-guardrail.js",
         "flags": [
+          "enforce",
           "json",
           "max-crash-retention",
           "max-timeout-absolute-cap",
@@ -5107,7 +5111,9 @@
         "file": "tools/ci/tooling-lsp-default-enable-gate.js",
         "flags": [
           "doctor",
+          "enforce",
           "json",
+          "mode",
           "policy",
           "slo"
         ]
@@ -5116,14 +5122,18 @@
         "file": "tools/ci/tooling-lsp-slo-gate.js",
         "flags": [
           "doctor",
+          "enforce",
           "fatal-failure-rate-max",
           "json",
           "max-p95-ms",
           "min-enrichment-coverage",
           "min-provider-samples",
           "mode",
+          "probe-timeout-ms",
           "repo",
-          "timeout-ratio-max"
+          "samples-per-provider",
+          "timeout-ratio-max",
+          "warmup-samples"
         ]
       },
       {
@@ -5890,7 +5900,7 @@
       },
       {
         "flag": "mode",
-        "count": 38,
+        "count": 39,
         "files": [
           "bin/pairofcleats.js",
           "tests/map/build-determinism.test.js",
@@ -5921,6 +5931,7 @@
           "tools/ci/import-resolution-slo-gate.js",
           "tools/ci/run-suite.js",
           "tools/ci/tooling-doctor-gate.js",
+          "tools/ci/tooling-lsp-default-enable-gate.js",
           "tools/ci/tooling-lsp-slo-gate.js",
           "tools/docs/script-inventory.js",
           "tools/index/assemble-pieces.js",
@@ -6516,6 +6527,16 @@
           "tools/bench/vfs/hash-routing-lookup.js",
           "tools/bench/vfs/partial-lsp-open.js",
           "tools/bench/vfs/token-uri-encode.js"
+        ]
+      },
+      {
+        "flag": "enforce",
+        "count": 4,
+        "files": [
+          "tests/retrieval/parity/equivalence.test.js",
+          "tools/bench/language/tooling-lsp-guardrail.js",
+          "tools/ci/tooling-lsp-default-enable-gate.js",
+          "tools/ci/tooling-lsp-slo-gate.js"
         ]
       },
       {

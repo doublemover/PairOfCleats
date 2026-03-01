@@ -962,3 +962,5 @@ indexing/tokenization/file-stream-reuse
 shared/runtime/records-config
 indexing/state/patch-queue-required-durability-awaits-flush
 indexing/state/patch-queue-durability-class-forwarding
+indexing/state/patch-queue-lock-unavailable-best-effort-retry
+indexing/state/build-state-lock-unavailable-retryable
