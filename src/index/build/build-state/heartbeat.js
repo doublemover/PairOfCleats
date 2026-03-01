@@ -47,7 +47,7 @@ export const startHeartbeat = ({
   const tick = async () => {
     if (!active) return;
     if (!(await buildRootExists(buildRoot))) {
-      await stop();
+      void stop();
       return;
     }
     const nowMs = Date.now();
