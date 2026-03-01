@@ -33,9 +33,10 @@ try {
       checks.some((check) => check?.name === 'sourcekit_package_preflight_failed'),
       'expected sourcekit preflight failure check in diagnostics'
     );
-    assert.ok(
+    assert.equal(
       logs.some((line) => line.includes('sourcekit skipped because package preflight did not complete safely')),
-      'expected sourcekit skip log after preflight failure'
+      false,
+      'expected sourcekit preflight failure to warn without hard-blocking provider'
     );
     const count = await countNonEmptyLines(fixture.counterPath);
     assert.equal(count, 1, 'expected one preflight resolve attempt');

@@ -278,8 +278,7 @@ const writeSourcekitPreflightMarker = async ({ markerPath, fingerprint, swiftCmd
   await fs.mkdir(path.dirname(markerPath), { recursive: true });
   await atomicWriteJson(markerPath, payload, {
     spaces: 0,
-    newline: false,
-    durable: false
+    newline: false
   });
 };
 
@@ -412,7 +411,7 @@ const ensureSourcekitPackageResolutionPreflight = async ({
     if (!canRunCommand(resolvedSwiftCmd, ['--version'])) {
       const message = 'sourcekit package preflight skipped because `swift` command is unavailable.';
       return {
-        blockSourcekit: true,
+        blockSourcekit: false,
         check: {
           name: 'sourcekit_package_preflight_unavailable',
           status: 'warn',
@@ -452,7 +451,7 @@ const ensureSourcekitPackageResolutionPreflight = async ({
         );
         log(`[tooling] ${message}`);
         return {
-          blockSourcekit: true,
+          blockSourcekit: false,
           check: {
             name: 'sourcekit_package_preflight_lock_unavailable',
             status: 'warn',
@@ -485,7 +484,7 @@ const ensureSourcekitPackageResolutionPreflight = async ({
       const timeoutText = preflight.timeout ? 'timeout' : 'failed';
       const message = `sourcekit package preflight ${timeoutText}: ${preflight.message || 'unknown failure'}`;
       return {
-        blockSourcekit: true,
+        blockSourcekit: false,
         check: {
           name: 'sourcekit_package_preflight_failed',
           status: 'warn',
@@ -506,7 +505,7 @@ const ensureSourcekitPackageResolutionPreflight = async ({
     if (err?.code === 'ABORT_ERR') throw err;
     const message = summarizeSubprocessOutput(err?.message || err, 200) || 'unknown preflight error';
     return {
-      blockSourcekit: true,
+      blockSourcekit: false,
       check: {
         name: 'sourcekit_package_preflight_error',
         status: 'warn',
