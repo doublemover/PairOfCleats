@@ -70,10 +70,14 @@ const awaitBoundedReap = async (promise, waitTimeoutMs) => {
     await promise.catch(() => {});
     return;
   }
+  const boundedWait = waitMs(boundedMs);
   await Promise.race([
     promise.catch(() => {}),
-    waitMs(boundedMs)
+    boundedWait
   ]);
+  // Keep timeout/abort rejection deterministic by holding the bounded wait
+  // window even if the kill promise settles earlier.
+  await boundedWait;
 };
 
 function spawnSubprocess(command, args, options = {}) {

@@ -85,8 +85,8 @@ const installTrackedSubprocessHooks = (terminateTrackedSubprocesses, terminateTr
   });
   for (const signal of TRACKED_SUBPROCESS_TERMINATION_SIGNALS) {
     try {
-      process.on(signal, () => {
-        const hasAdditionalSignalHandlers = process.listenerCount(signal) > 1;
+      process.once(signal, () => {
+        const hasAdditionalSignalHandlers = process.listenerCount(signal) > 0;
         void triggerTrackedSubprocessShutdown(`signal_${String(signal || '').toLowerCase()}`, {
           allowRepeat: true
         })

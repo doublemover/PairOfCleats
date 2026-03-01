@@ -10,7 +10,8 @@ const isPositivePid = (value) => {
 export const killTimedOutSyncProcessTree = (
   pid,
   timeoutMs = DEFAULT_SYNC_COMMAND_TIMEOUT_MS,
-  killTree = true
+  killTree = true,
+  detached = false
 ) => {
   if (!isPositivePid(pid)) return false;
   const numericPid = Math.floor(Number(pid));
@@ -62,7 +63,7 @@ export const killTimedOutSyncProcessTree = (
     }
     const descendants = killTree ? discoverPosixDescendantsSync(numericPid) : [];
     const fallbackTargets = descendants.slice().reverse();
-    if (killTree) {
+    if (killTree && detached) {
       try {
         process.kill(-numericPid, 'SIGTERM');
       } catch {}
@@ -71,7 +72,7 @@ export const killTimedOutSyncProcessTree = (
       terminatePosixPid(childPid, 'SIGTERM');
     }
     terminatePosixPid(numericPid, 'SIGTERM');
-    if (killTree) {
+    if (killTree && detached) {
       try {
         process.kill(-numericPid, 'SIGKILL');
       } catch {}

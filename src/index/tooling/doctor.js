@@ -12,7 +12,9 @@ import { isAbsolutePathNative } from '../../shared/files.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { hasWorkspaceMarker, resolveWorkspaceModelCheckForCommand } from './workspace-model.js';
 import { listLspServerPresets } from './lsp-presets.js';
+import { resolveCompileCommandsDir } from './compile-commands.js';
 import {
+  normalizeCommandToken,
   isProbeCommandDefinitelyMissing,
   probeLspInitializeHandshake,
   resolveToolingCommandProfile
@@ -60,13 +62,6 @@ const PRESET_LSP_COMMANDS = new Set(
     .filter(Boolean)
 );
 
-const normalizeCommandToken = (value) => {
-  const raw = String(value || '').trim();
-  if (!raw) return '';
-  const base = path.basename(raw).trim().toLowerCase();
-  return base.replace(/\.(exe|cmd|bat)$/iu, '');
-};
-
 const shouldProbeLspHandshake = ({
   providerId,
   requestedCmd,
@@ -86,25 +81,6 @@ const shouldProbeLspHandshake = ({
     return true;
   }
   return false;
-};
-
-const resolveCompileCommandsDir = (rootDir, clangdConfig) => {
-  const candidates = [];
-  if (clangdConfig?.compileCommandsDir) {
-    const value = clangdConfig.compileCommandsDir;
-    candidates.push(isAbsolutePathNative(value) ? value : path.join(rootDir, value));
-  } else {
-    candidates.push(rootDir);
-    candidates.push(path.join(rootDir, 'build'));
-    candidates.push(path.join(rootDir, 'out'));
-    candidates.push(path.join(rootDir, 'cmake-build-debug'));
-    candidates.push(path.join(rootDir, 'cmake-build-release'));
-  }
-  for (const dir of candidates) {
-    const candidate = path.join(dir, 'compile_commands.json');
-    if (fsSync.existsSync(candidate)) return dir;
-  }
-  return null;
 };
 
 const summarizeStatus = (errors, warnings) => {

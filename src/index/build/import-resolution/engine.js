@@ -750,6 +750,9 @@ export function resolveImportLinks({
       let cachedSpec = canReuseCache && fileCache?.specs && fileCache.specs[spec]
         ? fileCache.specs[spec]
         : null;
+      if (cachedSpec && Number.isFinite(Number(cachedSpec.expiresAt)) && Number(cachedSpec.expiresAt) <= nowMs) {
+        cachedSpec = null;
+      }
       if (cachedSpec && fileSetChanged) {
         cachedSpec = null;
       }

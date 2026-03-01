@@ -3,6 +3,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { sha1 } from '../../shared/hash.js';
+import { DEFAULT_IMPORT_EXTS } from './import-resolution/constants.js';
 import {
   IMPORT_DISPOSITIONS,
   IMPORT_FAILURE_CAUSES,
@@ -15,17 +16,7 @@ const CACHE_FILE = 'import-resolution-cache.json';
 const CACHE_DIAGNOSTICS_VERSION = 6;
 const CACHE_PERSIST_WARNING_THROTTLE_MS = 60 * 1000;
 const DEFAULT_MAX_STALE_EDGE_CHECKS = 20000;
-const IMPORT_SPEC_CANDIDATE_EXTENSIONS = Object.freeze([
-  '.js',
-  '.jsx',
-  '.ts',
-  '.tsx',
-  '.mjs',
-  '.cjs',
-  '.json',
-  '.node',
-  '.d.ts'
-]);
+const IMPORT_SPEC_CANDIDATE_EXTENSIONS = Object.freeze([...DEFAULT_IMPORT_EXTS]);
 const GENERATED_DIR_SEGMENT_RX = /\/(?:__generated__|generated|gen)\//i;
 const OPENAPI_SOURCE_SUFFIXES = Object.freeze([
   '.openapi.yaml',

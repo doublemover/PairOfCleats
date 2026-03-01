@@ -111,7 +111,6 @@ const isChildExited = (child) => Boolean(
   !child
   || child.exitCode !== null
   || child.signalCode !== null
-  || child.killed === true
 );
 
 const isPidAlive = (pid) => {

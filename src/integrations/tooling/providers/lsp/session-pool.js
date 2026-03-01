@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { createLspClient } from '../../lsp/client.js';
 import { createToolingGuard, createToolingLifecycleHealth } from '../shared.js';
 import { coercePositiveInt } from '../../../../shared/number-coerce.js';
@@ -40,12 +41,24 @@ const normalizeArgs = (value) => (
   Array.isArray(value) ? value.map((entry) => String(entry)) : []
 );
 
+const buildEnvFingerprint = (value) => {
+  if (!value || typeof value !== 'object') return null;
+  const normalizedEntries = Object.entries(value)
+    .map(([key, envValue]) => [String(key || '').trim(), envValue])
+    .filter(([key]) => key.length > 0)
+    .map(([key, envValue]) => [key, envValue == null ? null : String(envValue)])
+    .sort(([left], [right]) => left.localeCompare(right));
+  if (!normalizedEntries.length) return null;
+  return crypto.createHash('sha1').update(stableStringify(normalizedEntries)).digest('hex');
+};
+
 const buildSessionKey = ({
   repoRoot,
   providerId,
   workspaceKey,
   cmd,
   args,
+  env,
   initializationOptions,
   cwd,
   shell,
@@ -64,6 +77,7 @@ const buildSessionKey = ({
     workspaceKey: String(workspaceKey || ''),
     cmd: String(cmd || ''),
     args: normalizeArgs(args),
+    envFingerprint: buildEnvFingerprint(env),
     initializationOptions: initializationOptions ?? null,
     cwd: String(cwd || ''),
     shell: shell === true,

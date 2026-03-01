@@ -331,12 +331,14 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
   };
   const finalExistedAtStart = finalExists;
   let backupAvailable = fsSync.existsSync(bakPath);
+  let backupCreatedForReplace = false;
   const restoreBackup = async () => {
-    if (!backupAvailable) return false;
+    if (!backupAvailable || !backupCreatedForReplace) return false;
     if (fsSync.existsSync(finalPath) || !fsSync.existsSync(bakPath)) return false;
     try {
       await fs.rename(bakPath, finalPath);
       backupAvailable = false;
+      backupCreatedForReplace = false;
       return true;
     } catch {
       return false;
@@ -352,7 +354,11 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
     baseDelayMs: REPLACE_TEMP_WAIT_BASE_DELAY_MS
   }))) {
     if (await canTreatExistingFinalAsCommitted()) {
-      await cleanupBackupIfNeeded({ keepBackup, backupAvailable, bakPath });
+      await cleanupBackupIfNeeded({
+        keepBackup,
+        backupAvailable: backupAvailable && backupCreatedForReplace,
+        bakPath
+      });
       return;
     }
     if (await restoreBackup()) return;
@@ -374,6 +380,7 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
     try {
       await fs.rename(finalPath, bakPath);
       backupAvailable = true;
+      backupCreatedForReplace = true;
     } catch (err) {
       if (err?.code !== 'ENOENT') {
         backupAvailable = fsSync.existsSync(bakPath);
@@ -386,7 +393,11 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
       baseDelayMs: REPLACE_FILE_RENAME_BASE_DELAY_MS,
       retryableCodes: RETRYABLE_FILE_RENAME_CODES
     });
-    await cleanupBackupIfNeeded({ keepBackup, backupAvailable, bakPath });
+    await cleanupBackupIfNeeded({
+      keepBackup,
+      backupAvailable: backupAvailable && backupCreatedForReplace,
+      bakPath
+    });
   } catch (err) {
     if (err?.code === 'ENOENT') {
       if (await waitForPath(tempPath, {
@@ -403,11 +414,19 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
           await restoreBackup();
           throw retryErr;
         }
-        await cleanupBackupIfNeeded({ keepBackup, backupAvailable, bakPath });
+        await cleanupBackupIfNeeded({
+          keepBackup,
+          backupAvailable: backupAvailable && backupCreatedForReplace,
+          bakPath
+        });
         return;
       }
       if (await canTreatExistingFinalAsCommitted()) {
-        await cleanupBackupIfNeeded({ keepBackup, backupAvailable, bakPath });
+        await cleanupBackupIfNeeded({
+          keepBackup,
+          backupAvailable: backupAvailable && backupCreatedForReplace,
+          bakPath
+        });
         return;
       }
       if (await restoreBackup()) return;
@@ -428,7 +447,11 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
     } catch {}
     try {
       await renameWithBackupSwap(tempPath, finalPath);
-      await cleanupBackupIfNeeded({ keepBackup, backupAvailable, bakPath });
+      await cleanupBackupIfNeeded({
+        keepBackup,
+        backupAvailable: backupAvailable && backupCreatedForReplace,
+        bakPath
+      });
     } catch (renameErr) {
       if (await copyFallback(renameErr?.code || err?.code || null)) return;
       await restoreBackup();
@@ -469,12 +492,14 @@ export const replaceFileSync = (tempPath, finalPath, options = {}) => {
     }
   }
   let backupAvailable = fsSync.existsSync(bakPath);
+  let backupCreatedForReplace = false;
   const restoreBackup = () => {
-    if (!backupAvailable) return false;
+    if (!backupAvailable || !backupCreatedForReplace) return false;
     if (fsSync.existsSync(finalPath) || !fsSync.existsSync(bakPath)) return false;
     try {
       fsSync.renameSync(bakPath, finalPath);
       backupAvailable = false;
+      backupCreatedForReplace = false;
       return true;
     } catch {
       return false;
@@ -497,6 +522,7 @@ export const replaceFileSync = (tempPath, finalPath, options = {}) => {
         retryableCodes: RETRYABLE_FILE_RENAME_CODES
       });
       backupAvailable = true;
+      backupCreatedForReplace = true;
     } catch (err) {
       if (err?.code !== 'ENOENT') {
         backupAvailable = fsSync.existsSync(bakPath);
@@ -508,7 +534,11 @@ export const replaceFileSync = (tempPath, finalPath, options = {}) => {
       attempts: REPLACE_FILE_RENAME_RETRY_ATTEMPTS,
       retryableCodes: RETRYABLE_FILE_RENAME_CODES
     });
-    cleanupBackupIfNeededSync({ keepBackup, backupAvailable, bakPath });
+    cleanupBackupIfNeededSync({
+      keepBackup,
+      backupAvailable: backupAvailable && backupCreatedForReplace,
+      bakPath
+    });
   } catch (err) {
     if (!RETRYABLE_FILE_RENAME_CODES.has(err?.code)) {
       restoreBackup();
@@ -523,7 +553,11 @@ export const replaceFileSync = (tempPath, finalPath, options = {}) => {
     } catch {}
     try {
       renameWithBackupSwapSync(tempPath, finalPath);
-      cleanupBackupIfNeededSync({ keepBackup, backupAvailable, bakPath });
+      cleanupBackupIfNeededSync({
+        keepBackup,
+        backupAvailable: backupAvailable && backupCreatedForReplace,
+        bakPath
+      });
     } catch (renameErr) {
       if (copyFallback(renameErr?.code || err?.code || null)) return;
       restoreBackup();

@@ -2,6 +2,7 @@ import path from 'node:path';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
 import { invalidateToolingCommandProbeCache, resolveToolingCommandProfile } from './command-resolver.js';
+import { resolveProviderRequestedCommand } from './provider-command-override.js';
 import { hasWorkspaceMarker } from './workspace-model.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 import { isPlainObject, normalizeCommandArgs, filterTargetsForDocuments } from './provider-utils.js';
@@ -61,14 +62,16 @@ const appendRuntimeDiagnostics = (result, checks) => {
     : diagnostics;
 };
 
-const resolveRequestedCommand = (descriptor, config) => {
-  const configured = typeof config?.cmd === 'string' ? config.cmd.trim() : '';
-  const fallback = String(descriptor.command.defaultCmd || descriptor.id).trim();
-  const cmd = configured || fallback;
-  const requestedArgs = descriptor.command.resolveArgs
+const resolveRequestedCommand = (descriptor, config, toolingConfig) => {
+  const defaultArgs = descriptor.command.resolveArgs
     ? descriptor.command.resolveArgs(config)
     : normalizeCommandArgs(config?.args);
-  return { cmd, args: requestedArgs };
+  return resolveProviderRequestedCommand({
+    providerId: descriptor.id,
+    toolingConfig: toolingConfig || { [descriptor.configKey]: config },
+    defaultCmd: descriptor.command.defaultCmd || descriptor.id,
+    defaultArgs
+  });
 };
 
 const buildCommandUnavailableCheck = (descriptor, requestedCmd) => {
@@ -184,7 +187,7 @@ export const createDedicatedLspProvider = (descriptor) => ({
       }
     }
 
-    const requested = resolveRequestedCommand(descriptor, config);
+    const requested = resolveRequestedCommand(descriptor, config, ctx?.toolingConfig);
     const commandProfile = resolveToolingCommandProfile({
       providerId: descriptor.id,
       cmd: requested.cmd,

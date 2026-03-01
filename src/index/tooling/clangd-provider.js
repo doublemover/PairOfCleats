@@ -3,13 +3,14 @@ import path from 'node:path';
 import { execaSync } from 'execa';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
-import { isAbsolutePathNative, toPosix } from '../../shared/files.js';
+import { toPosix } from '../../shared/files.js';
 import { atomicWriteJsonSync } from '../../shared/io/atomic-write.js';
 import { resolveToolingCommandProfile } from './command-resolver.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 import { resolveProviderRequestedCommand } from './provider-command-override.js';
 import { filterTargetsForDocuments } from './provider-utils.js';
 import { parseClikeSignature } from './signature-parse/clike.js';
+import { resolveCompileCommandsDir } from './compile-commands.js';
 
 const CLANGD_BASE_EXTS = ['.c', '.h', '.cc', '.cpp', '.cxx', '.hpp', '.hh'];
 const CLANGD_OBJC_EXTS = ['.m', '.mm'];
@@ -21,25 +22,6 @@ const asFiniteNumber = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return null;
   return parsed;
-};
-
-const resolveCompileCommandsDir = (rootDir, clangdConfig) => {
-  const candidates = [];
-  if (clangdConfig?.compileCommandsDir) {
-    const value = clangdConfig.compileCommandsDir;
-    candidates.push(isAbsolutePathNative(value) ? value : path.join(rootDir, value));
-  } else {
-    candidates.push(rootDir);
-    candidates.push(path.join(rootDir, 'build'));
-    candidates.push(path.join(rootDir, 'out'));
-    candidates.push(path.join(rootDir, 'cmake-build-debug'));
-    candidates.push(path.join(rootDir, 'cmake-build-release'));
-  }
-  for (const dir of candidates) {
-    const candidate = path.join(dir, 'compile_commands.json');
-    if (fsSync.existsSync(candidate)) return dir;
-  }
-  return null;
 };
 
 const HEADER_FILE_EXTS = new Set([

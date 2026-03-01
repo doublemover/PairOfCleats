@@ -172,7 +172,7 @@ const isExplicitCommandPath = (value) => {
   return isAbsolutePathNative(raw) || hasPathSeparator(raw);
 };
 
-const normalizeCommandToken = (value) => {
+export const normalizeCommandToken = (value) => {
   const raw = String(value || '').trim();
   if (!raw) return '';
   const base = path.basename(raw).trim().toLowerCase();
