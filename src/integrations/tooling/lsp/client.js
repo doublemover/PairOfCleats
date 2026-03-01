@@ -426,7 +426,19 @@ export function createLspClient(options) {
             clearTrackedChildIfTerminated(staleChild, outcome);
           } catch {}
           if (isChildRunning(staleChild)) {
+            try {
+              const retryOutcome = killChildProcessTreeSync(staleChild, {
+                killTree: true,
+                detached: killTreeDetached
+              });
+              clearTrackedChildIfTerminated(staleChild, retryOutcome);
+            } catch {}
+          }
+          if (isChildRunning(staleChild)) {
             reapStaleChildProcess(staleChild, 'writer_closed_restart');
+            const err = new Error('LSP restart blocked: previous writer-closed process is still running.');
+            err.code = 'ERR_LSP_RESTART_STALE_PROCESS';
+            throw err;
           }
         }
         if (staleChild.stdin) closeJsonRpcWriter(staleChild.stdin);

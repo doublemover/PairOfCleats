@@ -425,7 +425,7 @@ const runCleanupPass = async () => {
     if (session.state === SESSION_STATE.POISONED) {
       if (session.activeCount > 0 || sessions.get(key) !== session) continue;
       sessions.delete(key);
-      void enqueueSessionDisposal(session, { killFirst: true });
+      await enqueueSessionDisposal(session, { killFirst: true });
       continue;
     }
     const idleMs = now - Number(session.lastUsedAt || now);
@@ -435,7 +435,7 @@ const runCleanupPass = async () => {
     if (!idleExpired && !lifetimeExpired) continue;
     if (session.activeCount > 0 || sessions.get(key) !== session) continue;
     sessions.delete(key);
-    void enqueueSessionDisposal(session, { killFirst: true });
+    await enqueueSessionDisposal(session, { killFirst: true });
   }
 };
 
@@ -641,9 +641,7 @@ export const withLspSession = async (options, fn) => {
       disposalPromise = enqueueSessionDisposal(session, { killFirst: true });
     }
     barrier.resolve();
-    if (disposalPromise) {
-      void disposalPromise;
-    }
+    if (disposalPromise) await disposalPromise;
   }
 };
 

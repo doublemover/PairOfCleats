@@ -1,11 +1,11 @@
 import crypto from 'node:crypto';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { execaSync } from 'execa';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
 import { toPosix } from '../../shared/files.js';
 import { atomicWriteJsonSync } from '../../shared/io/atomic-write.js';
+import { runSyncCommandWithTimeout, toSyncCommandExitCode } from '../../shared/subprocess/sync-command.js';
 import { invalidateProbeCacheOnInitializeFailure, resolveToolingCommandProfile } from './command-resolver.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 import { resolveProviderRequestedCommand } from './provider-command-override.js';
@@ -38,7 +38,32 @@ const HEADER_FILE_EXTS = new Set([
 ]);
 const TRACKED_HEADER_PATHS_CACHE = new Map();
 const TRACKED_HEADER_DISK_CACHE = new Map();
+const TRACKED_HEADER_CACHE_MAX_ENTRIES = 64;
 const TRACKED_HEADER_CACHE_FILE_PREFIX = 'clangd-tracked-headers-v1';
+const CLANGD_GIT_PROBE_TIMEOUT_MS = 5000;
+
+const setBoundedCacheEntry = (map, key, value, maxEntries = TRACKED_HEADER_CACHE_MAX_ENTRIES) => {
+  if (!map || typeof map.set !== 'function') return;
+  if (map.has(key)) map.delete(key);
+  map.set(key, value);
+  while (map.size > maxEntries) {
+    const oldest = map.keys().next().value;
+    if (oldest == null) break;
+    map.delete(oldest);
+  }
+};
+
+const runGitSync = (args, { cwd = null, maxBuffer = 32 * 1024 * 1024 } = {}) => runSyncCommandWithTimeout(
+  'git',
+  Array.isArray(args) ? args : [],
+  {
+    cwd,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    timeoutMs: CLANGD_GIT_PROBE_TIMEOUT_MS,
+    maxBuffer
+  }
+);
 
 const normalizeRepoPosixPath = (value) => toPosix(String(value || ''))
   .replace(/^\.\/+/, '')
@@ -60,13 +85,12 @@ const headerExtForPath = (value) => {
 const resolveTrackedHeaderCacheFingerprint = (repoRoot) => {
   const root = path.resolve(repoRoot || process.cwd());
   try {
-    const result = execaSync('git', ['-C', root, 'rev-parse', '--git-path', 'index'], {
-      reject: false,
-      encoding: 'utf8',
+    const result = runGitSync(['rev-parse', '--git-path', 'index'], {
+      cwd: root,
       maxBuffer: 1024 * 1024
     });
-    if (result.exitCode !== 0) return null;
-    const rawPath = String(result.stdout || '').trim();
+    if (toSyncCommandExitCode(result) !== 0) return null;
+    const rawPath = String(result?.stdout || '').trim();
     if (!rawPath) return null;
     const indexPath = path.isAbsolute(rawPath)
       ? rawPath
@@ -115,10 +139,10 @@ const loadTrackedHeaderDiskCache = (cachePath) => {
         paths: parsed.paths
       }
       : null;
-    TRACKED_HEADER_DISK_CACHE.set(cachePath, entry);
+    setBoundedCacheEntry(TRACKED_HEADER_DISK_CACHE, cachePath, entry);
     return entry;
   } catch {
-    TRACKED_HEADER_DISK_CACHE.set(cachePath, null);
+    setBoundedCacheEntry(TRACKED_HEADER_DISK_CACHE, cachePath, null);
     return null;
   }
 };
@@ -137,7 +161,7 @@ const persistTrackedHeaderDiskCache = (cachePath, entry) => {
       newline: false,
       durable: false
     });
-    TRACKED_HEADER_DISK_CACHE.set(cachePath, {
+    setBoundedCacheEntry(TRACKED_HEADER_DISK_CACHE, cachePath, {
       fingerprint: payload.fingerprint,
       paths: payload.paths
     });
@@ -251,7 +275,7 @@ export const listTrackedHeaderPaths = (repoRoot, { cacheDir = null } = {}) => {
     if (diskEntry
       && diskEntry.fingerprint === fingerprint
       && Array.isArray(diskEntry.paths)) {
-      TRACKED_HEADER_PATHS_CACHE.set(cacheKey, {
+      setBoundedCacheEntry(TRACKED_HEADER_PATHS_CACHE, cacheKey, {
         fingerprint,
         paths: diskEntry.paths
       });
@@ -260,20 +284,19 @@ export const listTrackedHeaderPaths = (repoRoot, { cacheDir = null } = {}) => {
   }
   const pathSpecs = Array.from(HEADER_FILE_EXTS).map((ext) => `*${ext}`);
   try {
-    const result = execaSync('git', ['-C', cacheKey, 'ls-files', '-z', '--', ...pathSpecs], {
-      reject: false,
-      encoding: 'utf8',
+    const result = runGitSync(['ls-files', '-z', '--', ...pathSpecs], {
+      cwd: cacheKey,
       maxBuffer: 32 * 1024 * 1024
     });
-    if (result.exitCode !== 0) {
+    if (toSyncCommandExitCode(result) !== 0) {
       return [];
     }
-    const trackedPaths = String(result.stdout || '')
+    const trackedPaths = String(result?.stdout || '')
       .split('\0')
       .map((entry) => normalizeRepoPosixPath(entry))
       .filter((entry) => Boolean(entry) && headerExtForPath(entry));
     if (fingerprint) {
-      TRACKED_HEADER_PATHS_CACHE.set(cacheKey, { fingerprint, paths: trackedPaths });
+      setBoundedCacheEntry(TRACKED_HEADER_PATHS_CACHE, cacheKey, { fingerprint, paths: trackedPaths });
       persistTrackedHeaderDiskCache(diskCachePath, {
         fingerprint,
         paths: trackedPaths,
