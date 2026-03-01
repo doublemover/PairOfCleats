@@ -7,6 +7,7 @@ import {
 
 const GRAPHQL_SCAN_BUDGET = Object.freeze({
   maxChars: 786432,
+  maxLines: 4096,
   maxMatches: 4096,
   maxTokens: 2048,
   maxMs: 30
@@ -33,18 +34,26 @@ export const collectGraphqlImports = (text, options = {}) => {
     };
     for (const line of lines) {
       if (scanBudget.exhausted || !scanBudget.consumeTime()) break;
-      if (!shouldScanLine(line, precheck)) continue;
-      const importMatcher = /^\s*#\s*import\s+["']([^"']+)["']/gim;
-      let match;
-      while (!scanBudget.exhausted && (match = importMatcher.exec(line)) !== null) {
-        if (!scanBudget.consumeMatch()) break;
-        if (match?.[1]) addImport(match[1]);
-        if (!match[0]) importMatcher.lastIndex += 1;
+      if (shouldScanLine(line, precheck)) {
+        const importMatcher = /^\s*#\s*import\s+["']([^"']+)["']/gim;
+        let match;
+        while (!scanBudget.exhausted) {
+          if (!scanBudget.consumeTime()) break;
+          match = importMatcher.exec(line);
+          if (match === null) break;
+          if (!scanBudget.consumeMatch()) break;
+          if (match?.[1]) addImport(match[1]);
+          if (!match[0]) importMatcher.lastIndex += 1;
+        }
       }
+      if (!scanBudget.consumeLine()) break;
     }
     const linkMatcher = /@link\s*\([\s\S]*?\burl\s*:\s*["']([^"']+)["'][\s\S]*?\)/gi;
     let linkMatch;
-    while (!scanBudget.exhausted && (linkMatch = linkMatcher.exec(source)) !== null) {
+    while (!scanBudget.exhausted) {
+      if (!scanBudget.consumeTime()) break;
+      linkMatch = linkMatcher.exec(source);
+      if (linkMatch === null) break;
       if (!scanBudget.consumeMatch()) break;
       if (linkMatch?.[1]) addImport(linkMatch[1]);
       if (!linkMatch[0]) linkMatcher.lastIndex += 1;

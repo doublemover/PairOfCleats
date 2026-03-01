@@ -28,6 +28,28 @@ assert.ok(
   'expected GraphQL token budget reason'
 );
 
+const graphqlLineDiagnostics = [];
+const graphqlLineSource = Array.from({ length: 12 }, (_, index) => `#import "line-${index}.graphql"`).join('\n');
+const graphqlLineBudgetImports = collectGraphqlImports(graphqlLineSource, {
+  collectorDiagnostics: graphqlLineDiagnostics,
+  collectorScanBudgets: {
+    graphql: {
+      maxChars: 16384,
+      maxLines: 2,
+      maxMatches: 64,
+      maxTokens: 64,
+      maxMs: 200
+    }
+  }
+});
+assert.equal(graphqlLineBudgetImports.length, 2, 'expected GraphQL line budget to cap imports deterministically');
+const graphqlLineBudgetDiagnostic = graphqlLineDiagnostics.find((entry) => entry?.collectorId === 'graphql');
+assert.ok(graphqlLineBudgetDiagnostic, 'expected GraphQL line budget diagnostic');
+assert.ok(
+  Array.isArray(graphqlLineBudgetDiagnostic.reasons) && graphqlLineBudgetDiagnostic.reasons.includes('scan_lines'),
+  'expected GraphQL line budget reason'
+);
+
 const jinjaDiagnostics = [];
 const jinjaSource = Array.from({ length: 24 }, () => '{% include "partials/item.html" %}').join('\n');
 collectJinjaImports(jinjaSource, {
@@ -106,6 +128,33 @@ assert.ok(
     || heuristicBudgetDiagnostic.reasons.includes('scan_tokens')
   ),
   'expected heuristic adapter match/token budget reason'
+);
+
+const heuristicNamespaceDiagnostics = [];
+makefileEntry.buildRelations({
+  text: makefileSource,
+  relPath: 'Makefile',
+  options: {
+    collectorDiagnostics: heuristicNamespaceDiagnostics,
+    collectorScanBudgets: {
+      'heuristic-adapter': {
+        maxChars: 65536,
+        maxLines: 128,
+        maxMatches: 1,
+        maxTokens: 64,
+        maxMs: 200
+      }
+    }
+  }
+});
+const heuristicNamespaceBudgetDiagnostic = heuristicNamespaceDiagnostics.find(
+  (entry) => entry?.collectorId === 'heuristic-adapter:makefile'
+);
+assert.ok(heuristicNamespaceBudgetDiagnostic, 'expected heuristic adapter namespace budget diagnostic');
+assert.ok(
+  Array.isArray(heuristicNamespaceBudgetDiagnostic.reasons)
+  && heuristicNamespaceBudgetDiagnostic.reasons.includes('scan_matches'),
+  'expected deterministic namespace budget match-cap reason'
 );
 
 console.log('collector scan budget diagnostics test passed');

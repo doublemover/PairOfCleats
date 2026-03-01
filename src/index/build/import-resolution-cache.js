@@ -377,6 +377,14 @@ const normalizeThrottleMs = (value, fallback = CACHE_PERSIST_WARNING_THROTTLE_MS
   return Math.max(0, Math.floor(numeric));
 };
 
+const ensureCacheStatsHealth = (cacheStats) => {
+  if (!isObject(cacheStats)) return null;
+  if (!isObject(cacheStats.health)) {
+    cacheStats.health = Object.create(null);
+  }
+  return cacheStats.health;
+};
+
 const maybeLogThrottledCachePersistFailure = ({
   cachePath,
   err,
@@ -396,25 +404,57 @@ const maybeLogThrottledCachePersistFailure = ({
   if (!due) {
     state.suppressedCount += 1;
     cachePersistWarningStateByPath.set(key, state);
+    const health = ensureCacheStatsHealth(cacheStats);
     if (isObject(cacheStats)) {
       cacheStats.cachePersistWriteWarningsSuppressed = Number(cacheStats.cachePersistWriteWarningsSuppressed || 0) + 1;
     }
-    return;
+    if (health) {
+      health.importCachePersistWarningSuppressions = Number(health.importCachePersistWarningSuppressions || 0) + 1;
+    }
+    return {
+      emitted: false,
+      suppressed: true,
+      suppressedCount: state.suppressedCount,
+      throttleMs: resolvedThrottleMs
+    };
   }
   const suppressedCount = state.suppressedCount;
   state.lastWarnAtMs = nowMs;
   state.suppressedCount = 0;
   cachePersistWarningStateByPath.set(key, state);
-  if (typeof log !== 'function') return;
+  const health = ensureCacheStatsHealth(cacheStats);
   const markerSuffix = failOpenMarkerPath
     ? ` marker=${failOpenMarkerPath}`
     : '';
   const suppressionSuffix = suppressedCount > 0
     ? ` (suppressed ${suppressedCount} repeated failures)`
     : '';
-  log(
-    `[imports] Failed to persist import resolution cache (${cachePath}): ${err?.message || err}.${markerSuffix}${suppressionSuffix}`
-  );
+  const emitted = typeof log === 'function';
+  if (emitted) {
+    log(
+      `[imports] Failed to persist import resolution cache (${cachePath}): ${err?.message || err}.${markerSuffix}${suppressionSuffix}`
+    );
+  }
+  if (isObject(cacheStats)) {
+    if (emitted) {
+      cacheStats.cachePersistWriteWarnings = Number(cacheStats.cachePersistWriteWarnings || 0) + 1;
+    } else {
+      cacheStats.cachePersistWriteWarningsNoLogger = Number(cacheStats.cachePersistWriteWarningsNoLogger || 0) + 1;
+    }
+  }
+  if (health) {
+    if (emitted) {
+      health.importCachePersistWarnings = Number(health.importCachePersistWarnings || 0) + 1;
+    } else {
+      health.importCachePersistWarningsNoLogger = Number(health.importCachePersistWarningsNoLogger || 0) + 1;
+    }
+  }
+  return {
+    emitted,
+    suppressed: false,
+    suppressedCount,
+    throttleMs: resolvedThrottleMs
+  };
 };
 
 const recordImportCachePersistFailure = ({ cacheStats = null, err = null } = {}) => {
@@ -422,10 +462,11 @@ const recordImportCachePersistFailure = ({ cacheStats = null, err = null } = {})
   cacheStats.cachePersistWriteFailures = Number(cacheStats.cachePersistWriteFailures || 0) + 1;
   cacheStats.cachePersistWriteLastErrorCode = typeof err?.code === 'string' ? err.code : null;
   cacheStats.cachePersistWriteLastError = err?.message || String(err || '');
-  if (!isObject(cacheStats.health)) {
-    cacheStats.health = Object.create(null);
+  cacheStats.cachePersistWriteLastFailureAt = new Date().toISOString();
+  const health = ensureCacheStatsHealth(cacheStats);
+  if (health) {
+    health.importCachePersistFailures = Number(health.importCachePersistFailures || 0) + 1;
   }
-  cacheStats.health.importCachePersistFailures = Number(cacheStats.health.importCachePersistFailures || 0) + 1;
 };
 
 const normalizeRelPath = (value) => {
@@ -806,6 +847,17 @@ export const saveImportResolutionCache = async ({
   writeFailOpenMarker = false
 } = {}) => {
   if (!cachePath || !cache) return;
+  const configuredFailOpenMarkerPath = (
+    writeFailOpenMarker === true
+    && typeof failOpenMarkerPath === 'string'
+    && failOpenMarkerPath.trim()
+  )
+    ? failOpenMarkerPath
+    : null;
+  if (isObject(cacheStats)) {
+    cacheStats.cachePersistFailOpenMarkerEnabled = Boolean(configuredFailOpenMarkerPath);
+    cacheStats.cachePersistFailOpenMarkerPath = configuredFailOpenMarkerPath;
+  }
   const payload = {
     version: CACHE_VERSION,
     generatedAt: new Date().toISOString(),
@@ -818,19 +870,56 @@ export const saveImportResolutionCache = async ({
   };
   try {
     await atomicWriteJson(cachePath, payload, { spaces: 2 });
-    if (writeFailOpenMarker && failOpenMarkerPath) {
-      await fs.rm(failOpenMarkerPath, { force: true }).catch(() => {});
+    let markerCleared = false;
+    let markerClearError = null;
+    if (configuredFailOpenMarkerPath) {
+      try {
+        await fs.rm(configuredFailOpenMarkerPath, { force: true });
+        markerCleared = true;
+        if (isObject(cacheStats)) {
+          cacheStats.cachePersistFailOpenMarkerClears = Number(cacheStats.cachePersistFailOpenMarkerClears || 0) + 1;
+        }
+      } catch (markerErr) {
+        markerClearError = markerErr;
+        if (isObject(cacheStats)) {
+          cacheStats.cachePersistFailOpenMarkerClearFailures = Number(
+            cacheStats.cachePersistFailOpenMarkerClearFailures || 0
+          ) + 1;
+        }
+        const health = ensureCacheStatsHealth(cacheStats);
+        if (health) {
+          health.importCachePersistFailOpenMarkerClearFailures = Number(
+            health.importCachePersistFailOpenMarkerClearFailures || 0
+          ) + 1;
+        }
+        if (typeof log === 'function') {
+          log(
+            `[imports] Failed to clear import cache fail-open marker (${configuredFailOpenMarkerPath}): ` +
+            `${markerErr?.message || markerErr}`
+          );
+        }
+      }
+    }
+    if (isObject(cacheStats)) {
+      cacheStats.cachePersistLastWriteOk = true;
+      cacheStats.cachePersistFailOpenActive = false;
     }
     return {
       ok: true,
       cachePath,
-      failOpenMarkerPath: writeFailOpenMarker ? failOpenMarkerPath : null
+      failOpenMarkerPath: configuredFailOpenMarkerPath,
+      configuredFailOpenMarkerPath,
+      failOpenMarkerCleared: markerCleared,
+      failOpenMarkerClearError: markerClearError,
+      warningEmitted: false,
+      warningSuppressed: false,
+      warningSuppressedCount: 0
     };
   } catch (err) {
     recordImportCachePersistFailure({ cacheStats, err });
     let markerWritten = false;
     let markerWriteError = null;
-    if (writeFailOpenMarker && failOpenMarkerPath) {
+    if (configuredFailOpenMarkerPath) {
       const markerPayload = {
         marker: 'import-resolution-cache-persist-fail-open',
         at: new Date().toISOString(),
@@ -839,10 +928,14 @@ export const saveImportResolutionCache = async ({
         errorMessage: err?.message || String(err || '')
       };
       try {
-        await atomicWriteJson(failOpenMarkerPath, markerPayload, { spaces: 2 });
+        await atomicWriteJson(configuredFailOpenMarkerPath, markerPayload, { spaces: 2 });
         markerWritten = true;
         if (isObject(cacheStats)) {
           cacheStats.cachePersistFailOpenMarkerWrites = Number(cacheStats.cachePersistFailOpenMarkerWrites || 0) + 1;
+        }
+        const health = ensureCacheStatsHealth(cacheStats);
+        if (health) {
+          health.importCachePersistFailOpenMarkerWrites = Number(health.importCachePersistFailOpenMarkerWrites || 0) + 1;
         }
       } catch (markerErr) {
         markerWriteError = markerErr;
@@ -851,19 +944,32 @@ export const saveImportResolutionCache = async ({
             cacheStats.cachePersistFailOpenMarkerWriteFailures || 0
           ) + 1;
         }
+        const health = ensureCacheStatsHealth(cacheStats);
+        if (health) {
+          health.importCachePersistFailOpenMarkerWriteFailures = Number(
+            health.importCachePersistFailOpenMarkerWriteFailures || 0
+          ) + 1;
+        }
       }
     }
-    maybeLogThrottledCachePersistFailure({
+    const warningOutcome = maybeLogThrottledCachePersistFailure({
       cachePath,
       err,
       log,
       throttleMs: persistWarningThrottleMs,
       cacheStats,
-      failOpenMarkerPath: markerWritten ? failOpenMarkerPath : null
+      failOpenMarkerPath: configuredFailOpenMarkerPath
     });
+    if (isObject(cacheStats)) {
+      cacheStats.cachePersistLastWriteOk = false;
+      cacheStats.cachePersistFailOpenActive = true;
+      cacheStats.cachePersistWarningLastEmitted = warningOutcome?.emitted === true;
+      cacheStats.cachePersistWarningLastSuppressed = warningOutcome?.suppressed === true;
+      cacheStats.cachePersistWarningLastSuppressedCount = Number(warningOutcome?.suppressedCount || 0);
+    }
     if (markerWriteError && typeof log === 'function') {
       log(
-        `[imports] Failed to write import cache fail-open marker (${failOpenMarkerPath}): ` +
+        `[imports] Failed to write import cache fail-open marker (${configuredFailOpenMarkerPath}): ` +
         `${markerWriteError?.message || markerWriteError}`
       );
     }
@@ -871,7 +977,13 @@ export const saveImportResolutionCache = async ({
       ok: false,
       cachePath,
       error: err,
-      failOpenMarkerPath: markerWritten ? failOpenMarkerPath : null
+      failOpenMarkerPath: markerWritten ? configuredFailOpenMarkerPath : null,
+      configuredFailOpenMarkerPath,
+      failOpenMarkerWritten: markerWritten,
+      failOpenMarkerWriteError: markerWriteError,
+      warningEmitted: warningOutcome?.emitted === true,
+      warningSuppressed: warningOutcome?.suppressed === true,
+      warningSuppressedCount: Number(warningOutcome?.suppressedCount || 0)
     };
   }
 };

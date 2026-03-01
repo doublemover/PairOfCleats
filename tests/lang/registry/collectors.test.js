@@ -453,6 +453,18 @@ const cases = [
     expected: ['System.Text']
   },
   {
+    label: 'razor-inline-comment-tail-no-whitespace',
+    fn: collectRazorImports,
+    text: '@using System.Text//note',
+    expected: ['System.Text']
+  },
+  {
+    label: 'razor-comment-only-using',
+    fn: collectRazorImports,
+    text: '@using //comment',
+    expected: []
+  },
+  {
     label: 'razor-using-expression-not-import',
     fn: collectRazorImports,
     text: '@using (Html.BeginForm()) { }',

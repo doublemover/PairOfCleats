@@ -258,10 +258,11 @@ const BUILD_DSL_USAGE_SKIP = new Set([
 ]);
 
 const HEURISTIC_RELATION_SCAN_BUDGET = Object.freeze({
-  maxChars: 1048576,
-  maxMatches: 8192,
-  maxTokens: 4096,
-  maxMs: 40
+  maxChars: 786432,
+  maxLines: 4096,
+  maxMatches: 4096,
+  maxTokens: 2048,
+  maxMs: 30
 });
 
 const sortUnique = (values) => Array.from(new Set(values.filter(Boolean))).sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
@@ -270,11 +271,15 @@ const collectPatternNames = (text, patterns, scanBudget = null) => {
   const names = [];
   const source = String(text || '');
   for (const pattern of patterns || []) {
+    if (scanBudget && !scanBudget.consumeTime()) break;
     if (scanBudget?.exhausted) break;
     const flags = pattern.flags.includes('g') ? pattern.flags : `${pattern.flags}g`;
     const matcher = new RegExp(pattern.source, flags);
     let match;
-    while (!scanBudget?.exhausted && (match = matcher.exec(source)) !== null) {
+    while (!scanBudget?.exhausted) {
+      if (scanBudget && !scanBudget.consumeTime()) break;
+      match = matcher.exec(source);
+      if (match === null) break;
       if (scanBudget && !scanBudget.consumeMatch()) break;
       const name = String(match[1] || '').trim();
       if (name && (!scanBudget || scanBudget.consumeToken())) names.push(name);
@@ -289,7 +294,10 @@ const collectHeuristicCallees = (text, scanBudget = null) => {
   const out = [];
   const callRe = /\b([A-Za-z_][A-Za-z0-9_!.]*)\s*\(/g;
   let match;
-  while (!scanBudget?.exhausted && (match = callRe.exec(source)) !== null) {
+  while (!scanBudget?.exhausted) {
+    if (scanBudget && !scanBudget.consumeTime()) break;
+    match = callRe.exec(source);
+    if (match === null) break;
     if (scanBudget && !scanBudget.consumeMatch()) break;
     const callee = String(match[1] || '').trim();
     if (callee && !HEURISTIC_CALL_SKIP.has(callee) && (!scanBudget || scanBudget.consumeToken())) out.push(callee);
@@ -306,9 +314,13 @@ const collectTemplateUsages = (text, scanBudget = null) => {
   const razorPartialRef = /@(?:Html\.)?Partial(?:Async)?\s*\(\s*["']([^"']+)["']/g;
   const razorCallRef = /@([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
   for (const matcher of [moustacheRef, jinjaRef, razorPartialRef, razorCallRef]) {
+    if (scanBudget && !scanBudget.consumeTime()) break;
     if (scanBudget?.exhausted) break;
     let match;
-    while (!scanBudget?.exhausted && (match = matcher.exec(source)) !== null) {
+    while (!scanBudget?.exhausted) {
+      if (scanBudget && !scanBudget.consumeTime()) break;
+      match = matcher.exec(source);
+      if (match === null) break;
       if (scanBudget && !scanBudget.consumeMatch()) break;
       const name = String(match[1] || '').trim();
       if (name && !TEMPLATE_USAGE_SKIP.has(name) && (!scanBudget || scanBudget.consumeToken())) matches.push(name);
@@ -325,9 +337,13 @@ const collectGraphqlUsages = (text, scanBudget = null) => {
   const fragmentRef = /\.\.\.\s*([A-Za-z_][A-Za-z0-9_]*)/g;
   const implRef = /\b(?:on|implements)\s+([A-Za-z_][A-Za-z0-9_]*)/g;
   for (const matcher of [typeRef, fragmentRef, implRef]) {
+    if (scanBudget && !scanBudget.consumeTime()) break;
     if (scanBudget?.exhausted) break;
     let match;
-    while (!scanBudget?.exhausted && (match = matcher.exec(source)) !== null) {
+    while (!scanBudget?.exhausted) {
+      if (scanBudget && !scanBudget.consumeTime()) break;
+      match = matcher.exec(source);
+      if (match === null) break;
       if (scanBudget && !scanBudget.consumeMatch()) break;
       const name = String(match[1] || '').trim();
       if (name && !GRAPHQL_USAGE_SKIP.has(name) && (!scanBudget || scanBudget.consumeToken())) values.push(name);
@@ -343,9 +359,13 @@ const collectProtoUsages = (text, scanBudget = null) => {
   const rpcTypes = /\brpc\s+[A-Za-z_][A-Za-z0-9_]*\s*\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)\s+returns\s*\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)/g;
   const fieldTypes = /\b(?:optional|required|repeated)?\s*([A-Za-z_][A-Za-z0-9_.]*)\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*\d+/g;
   for (const matcher of [rpcTypes, fieldTypes]) {
+    if (scanBudget && !scanBudget.consumeTime()) break;
     if (scanBudget?.exhausted) break;
     let match;
-    while (!scanBudget?.exhausted && (match = matcher.exec(source)) !== null) {
+    while (!scanBudget?.exhausted) {
+      if (scanBudget && !scanBudget.consumeTime()) break;
+      match = matcher.exec(source);
+      if (match === null) break;
       if (scanBudget && !scanBudget.consumeMatch()) break;
       const candidates = matcher === rpcTypes ? [match[1], match[2]] : [match[1]];
       for (const candidate of candidates) {
@@ -369,9 +389,13 @@ const collectBuildDslUsages = (text, scanBudget = null) => {
   const nixOps = /\b(import|callPackage)\b/g;
   const matchers = [cmakeCalls, starlarkCalls, dockerFrom, dockerCopyFrom, nixOps];
   for (const matcher of matchers) {
+    if (scanBudget && !scanBudget.consumeTime()) break;
     if (scanBudget?.exhausted) break;
     let match;
-    while (!scanBudget?.exhausted && (match = matcher.exec(source)) !== null) {
+    while (!scanBudget?.exhausted) {
+      if (scanBudget && !scanBudget.consumeTime()) break;
+      match = matcher.exec(source);
+      if (match === null) break;
       if (scanBudget && !scanBudget.consumeMatch()) break;
       const name = String(match[1] || '').trim();
       if (name && !BUILD_DSL_USAGE_SKIP.has(name) && (!scanBudget || scanBudget.consumeToken())) values.push(name);
@@ -379,7 +403,10 @@ const collectBuildDslUsages = (text, scanBudget = null) => {
     }
   }
   let depMatch;
-  while (!scanBudget?.exhausted && (depMatch = makeDeps.exec(source)) !== null) {
+  while (!scanBudget?.exhausted) {
+    if (scanBudget && !scanBudget.consumeTime()) break;
+    depMatch = makeDeps.exec(source);
+    if (depMatch === null) break;
     if (scanBudget && !scanBudget.consumeMatch()) break;
     const depBlock = String(depMatch[1] || '');
     const deps = depBlock.split(/\s+/).map((entry) => entry.trim()).filter(Boolean);
@@ -407,11 +434,12 @@ const buildHeuristicManagedRelations = ({
     defaults: HEURISTIC_RELATION_SCAN_BUDGET
   });
   try {
-    const base = buildSimpleRelations({ imports: collectImports(text, options) });
-    const symbols = collectPatternNames(budgetContext.source, symbolPatterns, budgetContext.scanBudget);
+    const source = budgetContext.source;
+    const base = buildSimpleRelations({ imports: collectImports(source, options) });
+    const symbols = collectPatternNames(source, symbolPatterns, budgetContext.scanBudget);
     const callees = typeof usageCollector === 'function'
-      ? usageCollector(budgetContext.source, budgetContext.scanBudget)
-      : collectHeuristicCallees(budgetContext.source, budgetContext.scanBudget);
+      ? usageCollector(source, budgetContext.scanBudget)
+      : collectHeuristicCallees(source, budgetContext.scanBudget);
     const calls = [];
     const callers = symbols.length ? symbols : ['<module>'];
     for (const caller of callers) {

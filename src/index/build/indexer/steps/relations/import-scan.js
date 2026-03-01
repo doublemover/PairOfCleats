@@ -27,6 +27,7 @@ import { resolveHangProbeConfig, runWithHangProbe } from '../../hang-probe.js';
 
 const MAX_UNRESOLVED_IMPORT_LOG_LINES = 50;
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
+const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
 const toSortedCountObject = (counts) => {
   const entries = Object.entries(
     counts && typeof counts === 'object' && !Array.isArray(counts) ? counts : {}
@@ -386,6 +387,7 @@ export const postScanImports = async ({
     : {};
   const cachePersistWarningThrottleMs = importResolutionConfig.cachePersistWarningThrottleMs;
   const cachePersistFailOpenMarkerEnabled = importResolutionConfig.cachePersistFailOpenMarker === true;
+  let cachePersistResult = null;
   const budgetRuntimeSignals = resolveImportBudgetRuntimeSignals(runtime);
   const maxStaleEdgeChecks = resolveImportCacheStaleEdgeBudget(resolverPlugins);
   const fsMeta = await runWithHangProbe({
@@ -451,9 +453,20 @@ export const postScanImports = async ({
       staleEdgeChecks: 0,
       staleEdgeBudgetExhausted: false,
       cachePersistWriteFailures: 0,
+      cachePersistWriteWarnings: 0,
       cachePersistWriteWarningsSuppressed: 0,
+      cachePersistWriteWarningsNoLogger: 0,
       cachePersistFailOpenMarkerWrites: 0,
       cachePersistFailOpenMarkerWriteFailures: 0,
+      cachePersistFailOpenMarkerClears: 0,
+      cachePersistFailOpenMarkerClearFailures: 0,
+      cachePersistFailOpenMarkerEnabled: false,
+      cachePersistFailOpenMarkerPath: null,
+      cachePersistFailOpenActive: false,
+      cachePersistLastWriteOk: true,
+      cachePersistWarningLastEmitted: false,
+      cachePersistWarningLastSuppressed: false,
+      cachePersistWarningLastSuppressedCount: 0,
       health: Object.create(null)
     };
     applyImportResolutionCacheFileSetDiffInvalidation({
@@ -624,7 +637,7 @@ export const postScanImports = async ({
     resolverBudgetExhausted: resolvedResolverBudgetExhausted,
     resolverBudgetExhaustedByType
   };
-  if (resolution?.graph && Array.isArray(resolution.graph.warnings)) {
+  if (isObject(resolution?.graph)) {
     resolution.graph.warnings = mergeImportGraphWarnings({
       existingWarnings: resolution.graph.warnings,
       unresolvedSamples
@@ -668,7 +681,7 @@ export const postScanImports = async ({
     const failOpenMarkerPath = cachePersistFailOpenMarkerEnabled
       ? `${cachePath}.fail-open.json`
       : null;
-    await saveImportResolutionCache({
+    cachePersistResult = await saveImportResolutionCache({
       cache,
       cachePath,
       log,
@@ -677,6 +690,26 @@ export const postScanImports = async ({
       failOpenMarkerPath,
       writeFailOpenMarker: cachePersistFailOpenMarkerEnabled
     });
+    if (cachePersistResult?.ok === false && cachePersistResult?.warningSuppressed === true) {
+      log(
+        `[imports] cache persist failure observed (warning throttled, ` +
+        `suppressed=${Number(cachePersistResult.warningSuppressedCount || 0)}).`
+      );
+    }
+    if (cachePersistResult && isObject(state.importResolutionGraph?.stats)) {
+      state.importResolutionGraph.stats.cachePersistOk = cachePersistResult.ok === true;
+      state.importResolutionGraph.stats.cachePersistWarningSuppressed = cachePersistResult.warningSuppressed === true;
+      state.importResolutionGraph.stats.cachePersistWarningSuppressedCount = Number(
+        cachePersistResult.warningSuppressedCount || 0
+      );
+      state.importResolutionGraph.stats.cachePersistFailOpenMarkerPath = (
+        cachePersistResult.configuredFailOpenMarkerPath
+        || cachePersistResult.failOpenMarkerPath
+        || null
+      );
+      state.importResolutionGraph.stats.cachePersistFailOpenMarkerWritten =
+        cachePersistResult.failOpenMarkerWritten === true;
+    }
   }
   const resolvedStats = resolution?.stats && typeof resolution.stats === 'object'
     ? { ...resolution.stats }
@@ -702,6 +735,17 @@ export const postScanImports = async ({
     resolvedStats.unresolvedResolverGapRate = unresolvedTaxonomy.resolverGapRate;
     resolvedStats.unresolvedBudgetExhausted = resolvedResolverBudgetExhausted;
     resolvedStats.unresolvedBudgetExhaustedByType = resolverBudgetExhaustedByType;
+    if (cachePersistResult && typeof cachePersistResult === 'object') {
+      resolvedStats.cachePersistOk = cachePersistResult.ok === true;
+      resolvedStats.cachePersistWarningSuppressed = cachePersistResult.warningSuppressed === true;
+      resolvedStats.cachePersistWarningSuppressedCount = Number(cachePersistResult.warningSuppressedCount || 0);
+      resolvedStats.cachePersistFailOpenMarkerPath = (
+        cachePersistResult.configuredFailOpenMarkerPath
+        || cachePersistResult.failOpenMarkerPath
+        || null
+      );
+      resolvedStats.cachePersistFailOpenMarkerWritten = cachePersistResult.failOpenMarkerWritten === true;
+    }
   }
   const resolvedResult = {
     importsByFile,

@@ -68,6 +68,7 @@ export const applyCollectorSourceBudget = (
 export const createCollectorScanBudget = ({
   maxMatches = 512,
   maxTokens = 512,
+  maxLines = 0,
   maxMs = 0,
   timeSource = Date.now
 } = {}) => {
@@ -79,12 +80,14 @@ export const createCollectorScanBudget = ({
   const limits = {
     maxMatches: normalizeCap(maxMatches),
     maxTokens: normalizeCap(maxTokens),
+    maxLines: normalizeCap(maxLines),
     maxMs: normalizeCap(maxMs)
   };
   const now = typeof timeSource === 'function' ? timeSource : Date.now;
   const startedAt = Number(now());
   let matches = 0;
   let tokens = 0;
+  let lines = 0;
   let timedOut = false;
   const refreshTimeout = () => {
     if (timedOut || limits.maxMs <= 0) return !timedOut;
@@ -96,6 +99,7 @@ export const createCollectorScanBudget = ({
   };
   const matchesExhausted = () => limits.maxMatches > 0 && matches >= limits.maxMatches;
   const tokensExhausted = () => limits.maxTokens > 0 && tokens >= limits.maxTokens;
+  const linesExhausted = () => limits.maxLines > 0 && lines >= limits.maxLines;
   return {
     limits,
     get matchesUsed() {
@@ -103,6 +107,9 @@ export const createCollectorScanBudget = ({
     },
     get tokensUsed() {
       return tokens;
+    },
+    get linesUsed() {
+      return lines;
     },
     get elapsedMs() {
       const current = Number(now());
@@ -119,12 +126,16 @@ export const createCollectorScanBudget = ({
     get tokensExhausted() {
       return tokensExhausted();
     },
+    get linesExhausted() {
+      return linesExhausted();
+    },
     get exhausted() {
       refreshTimeout();
       return (
         timedOut
         || matchesExhausted()
         || tokensExhausted()
+        || linesExhausted()
       );
     },
     consumeTime() {
@@ -143,6 +154,13 @@ export const createCollectorScanBudget = ({
       if (tokens >= limits.maxTokens) return false;
       tokens += 1;
       return refreshTimeout();
+    },
+    consumeLine() {
+      if (!refreshTimeout()) return false;
+      if (limits.maxLines === 0) return true;
+      if (lines >= limits.maxLines) return false;
+      lines += 1;
+      return refreshTimeout();
     }
   };
 };
@@ -157,6 +175,20 @@ const readCollectorBudgetOverrides = (options, collectorId) => {
   if (!options || typeof options !== 'object') return {};
   const global = options.collectorScanBudget;
   const perCollector = options.collectorScanBudgets;
+  const byNamespace = [];
+  if (perCollector && typeof perCollector === 'object' && !Array.isArray(perCollector) && collectorId) {
+    const segments = String(collectorId || '')
+      .split(':')
+      .map((segment) => segment.trim())
+      .filter(Boolean);
+    let prefix = '';
+    for (let index = 0; index < Math.max(0, segments.length - 1); index += 1) {
+      prefix = prefix ? `${prefix}:${segments[index]}` : segments[index];
+      if (perCollector[prefix] && typeof perCollector[prefix] === 'object') {
+        byNamespace.push(perCollector[prefix]);
+      }
+    }
+  }
   const byId = perCollector
     && typeof perCollector === 'object'
     && !Array.isArray(perCollector)
@@ -167,6 +199,7 @@ const readCollectorBudgetOverrides = (options, collectorId) => {
     : null;
   return {
     ...(global && typeof global === 'object' && !Array.isArray(global) ? global : {}),
+    ...Object.assign({}, ...byNamespace),
     ...(byId || {})
   };
 };
@@ -179,6 +212,7 @@ export const resolveCollectorBudgetConfig = ({
   const overrides = readCollectorBudgetOverrides(options, collectorId);
   return {
     maxChars: normalizeCollectorBudgetValue(overrides.maxChars, defaults.maxChars),
+    maxLines: normalizeCollectorBudgetValue(overrides.maxLines, defaults.maxLines),
     maxMatches: normalizeCollectorBudgetValue(overrides.maxMatches, defaults.maxMatches),
     maxTokens: normalizeCollectorBudgetValue(overrides.maxTokens, defaults.maxTokens),
     maxMs: normalizeCollectorBudgetValue(overrides.maxMs, defaults.maxMs)
@@ -207,6 +241,7 @@ export const createCollectorBudgetContext = ({
   const source = String(text || '');
   const sourceBudget = applyCollectorSourceBudget(source, { maxChars: budget.maxChars });
   const scanBudget = createCollectorScanBudget({
+    maxLines: budget.maxLines,
     maxMatches: budget.maxMatches,
     maxTokens: budget.maxTokens,
     maxMs: budget.maxMs,
@@ -224,6 +259,7 @@ export const createCollectorBudgetContext = ({
       finalized = true;
       const reasons = [];
       if (sourceBudget.truncated) reasons.push('source_bytes');
+      if (scanBudget.linesExhausted) reasons.push('scan_lines');
       if (scanBudget.matchesExhausted) reasons.push('scan_matches');
       if (scanBudget.tokensExhausted) reasons.push('scan_tokens');
       if (scanBudget.timedOut) reasons.push('scan_time');
@@ -235,10 +271,12 @@ export const createCollectorBudgetContext = ({
         sourceLength: source.length,
         sourceScannedLength: sourceBudget.source.length,
         maxChars: budget.maxChars,
+        maxLines: budget.maxLines,
         maxMatches: budget.maxMatches,
         maxTokens: budget.maxTokens,
         maxMs: budget.maxMs,
         elapsedMs: scanBudget.elapsedMs,
+        linesUsed: scanBudget.linesUsed,
         matchesUsed: scanBudget.matchesUsed,
         tokensUsed: scanBudget.tokensUsed
       });

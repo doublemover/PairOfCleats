@@ -8,6 +8,7 @@ import {
 
 const JINJA_SCAN_BUDGET = Object.freeze({
   maxChars: 786432,
+  maxLines: 4096,
   maxMatches: 4096,
   maxTokens: 2048,
   maxMs: 30
@@ -35,18 +36,26 @@ export const collectJinjaImports = (text, options = {}) => {
     };
     for (const line of lines) {
       if (scanBudget.exhausted || !scanBudget.consumeTime()) break;
-      if (!shouldScanLine(line, precheck)) continue;
-      const lineMatcher = /{%\s*(?:extends|include|import)\s+['"]([^'"]+)['"]/g;
-      let match;
-      while (!scanBudget.exhausted && (match = lineMatcher.exec(line)) !== null) {
-        if (!scanBudget.consumeMatch()) break;
-        if (match?.[1]) addImport(match[1]);
-        if (!match[0]) lineMatcher.lastIndex += 1;
+      if (shouldScanLine(line, precheck)) {
+        const lineMatcher = /{%\s*(?:extends|include|import)\s+['"]([^'"]+)['"]/g;
+        let match;
+        while (!scanBudget.exhausted) {
+          if (!scanBudget.consumeTime()) break;
+          match = lineMatcher.exec(line);
+          if (match === null) break;
+          if (!scanBudget.consumeMatch()) break;
+          if (match?.[1]) addImport(match[1]);
+          if (!match[0]) lineMatcher.lastIndex += 1;
+        }
       }
+      if (!scanBudget.consumeLine()) break;
     }
     const multilineMatcher = /{%\s*(?:extends|include|import)\s+["']([^"']+)["'][\s\S]*?%}/g;
     let multilineMatch;
-    while (!scanBudget.exhausted && (multilineMatch = multilineMatcher.exec(source)) !== null) {
+    while (!scanBudget.exhausted) {
+      if (!scanBudget.consumeTime()) break;
+      multilineMatch = multilineMatcher.exec(source);
+      if (multilineMatch === null) break;
       if (!scanBudget.consumeMatch()) break;
       if (multilineMatch?.[1]) addImport(multilineMatch[1]);
       if (!multilineMatch[0]) multilineMatcher.lastIndex += 1;
