@@ -258,15 +258,21 @@ export const isProcessAlive = (pid) => {
         timeoutMs: DEFAULT_WINDOWS_TASKLIST_TIMEOUT_MS
       }
     );
-    if (toSyncCommandExitCode(result) == null && result?.error) return false;
+    if (toSyncCommandExitCode(result) == null && result?.error) {
+      // If tasklist probe fails (timeout/spawn error), do not treat the process as dead.
+      // Failing closed here can reclaim a live lock held by another process.
+      return true;
+    }
     const output = String(result.stdout || '').trim();
     if (!output || /INFO:\s+No tasks are running/i.test(output)) return false;
     const line = output.split(/\r?\n/)[0] || '';
     const parts = line.split('","').map((part) => part.replace(/^"|"$/g, ''));
     const parsedPid = Number(parts[1] || '');
-    return Number.isFinite(parsedPid) ? parsedPid === pid : false;
+    // Unparseable tasklist output should be treated as indeterminate, not dead.
+    return Number.isFinite(parsedPid) ? parsedPid === pid : true;
   } catch {
-    return false;
+    // A transient tasklist failure should not force stale-lock reclamation.
+    return true;
   }
 };
 

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-01T18:33:15.541Z",
+  "generatedAt": "2026-03-01T19:08:43.355Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2210,7 +2210,6 @@
         "tests/indexing/scm/no-build-id.test.js",
         "tests/indexing/shards/shard-merge.test.js",
         "tests/perf/baseline-artifacts.test.js",
-        "tests/retrieval/ann/hnsw-atomic.test.js",
         "tests/retrieval/filters/churn-filter.test.js",
         "tests/retrieval/parity/equivalence.test.js",
         "tests/run.js",
@@ -2386,7 +2385,6 @@
         "tests/indexing/piece-assembly/core.test.js",
         "tests/indexing/scm/no-build-id.test.js",
         "tests/perf/bench/run.test.js",
-        "tests/retrieval/ann/hnsw-atomic.test.js",
         "tests/retrieval/filters/churn-filter.test.js",
         "tests/retrieval/parity/equivalence.test.js",
         "tests/services/api/core.test.js",
