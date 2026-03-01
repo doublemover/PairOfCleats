@@ -41,7 +41,7 @@ const doctorPayload = {
 await fs.writeFile(doctorPath, `${JSON.stringify(doctorPayload, null, 2)}\n`, 'utf8');
 
 try {
-  const result = spawnSync(
+  const resultInformational = spawnSync(
     process.execPath,
     [
       gatePath,
@@ -61,17 +61,44 @@ try {
     }
   );
 
-  assert.equal(result.status, 3, `expected gating failure status=3, received ${result.status}`);
+  assert.equal(
+    resultInformational.status,
+    0,
+    `expected informational status=0 without --enforce, received ${resultInformational.status}`
+  );
 
   const raw = await fs.readFile(jsonPath, 'utf8');
   const payload = JSON.parse(raw);
-  assert.equal(payload?.status, 'error', 'expected gate status=error');
+  assert.equal(payload?.status, 'warn', 'expected gate status=warn without enforce');
   assert.equal(Number(payload?.metrics?.maxP95Ms), 5000, 'expected p95 to preserve tail latency');
   assert.equal(
     Array.isArray(payload?.failures) && payload.failures.some((entry) => String(entry).includes('max p95')),
     true,
     'expected max p95 failure'
   );
+  const resultEnforced = spawnSync(
+    process.execPath,
+    [
+      gatePath,
+      '--mode',
+      'ci',
+      '--doctor',
+      doctorPath,
+      '--json',
+      jsonPath,
+      '--max-p95-ms',
+      '1000',
+      '--enforce'
+    ],
+    {
+      cwd: ROOT,
+      env: applyTestEnv({ syncProcess: false }),
+      encoding: 'utf8'
+    }
+  );
+  assert.equal(resultEnforced.status, 3, `expected enforced gate failure status=3, received ${resultEnforced.status}`);
+  const enforcedPayload = JSON.parse(await fs.readFile(jsonPath, 'utf8'));
+  assert.equal(enforcedPayload?.status, 'error', 'expected gate status=error with --enforce');
 
   console.log('tooling lsp slo gate tail p95 test passed');
 } finally {

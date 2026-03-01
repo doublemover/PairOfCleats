@@ -12,9 +12,9 @@ const scriptPath = path.join(root, 'tools', 'bench', 'language', 'tooling-lsp-gu
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 
-const runGuardrail = (reportPath, jsonPath) => spawnSync(
+const runGuardrail = (reportPath, jsonPath, extraArgs = []) => spawnSync(
   process.execPath,
-  [scriptPath, '--report', reportPath, '--json', jsonPath],
+  [scriptPath, '--report', reportPath, '--json', jsonPath, ...extraArgs],
   { cwd: root, env: applyTestEnv({ syncProcess: false }), encoding: 'utf8' }
 );
 
@@ -76,12 +76,24 @@ await fs.writeFile(sloFailReportPath, JSON.stringify({
   }
 }, null, 2), 'utf8');
 const sloFailResult = runGuardrail(sloFailReportPath, sloFailJsonPath);
-assert.equal(sloFailResult.status, 3, `expected failing slo guardrail exit code 3, received ${sloFailResult.status}`);
+assert.equal(sloFailResult.status, 0, `expected informational slo guardrail exit code 0, received ${sloFailResult.status}`);
 const sloFailPayload = JSON.parse(await fs.readFile(sloFailJsonPath, 'utf8'));
-assert.equal(sloFailPayload?.status, 'error', `expected SLO failure status=error, received ${String(sloFailPayload?.status)}`);
+assert.equal(sloFailPayload?.status, 'warn', `expected SLO failure status=warn, received ${String(sloFailPayload?.status)}`);
 assert.ok(
   Array.isArray(sloFailPayload?.failures) && sloFailPayload.failures.some((entry) => String(entry).includes('timed out ratio')),
   'expected timed out ratio failure message for high timeout ratio'
+);
+const sloFailEnforcedResult = runGuardrail(sloFailReportPath, sloFailJsonPath, ['--enforce']);
+assert.equal(
+  sloFailEnforcedResult.status,
+  3,
+  `expected enforced slo guardrail exit code 3, received ${sloFailEnforcedResult.status}`
+);
+const sloFailEnforcedPayload = JSON.parse(await fs.readFile(sloFailJsonPath, 'utf8'));
+assert.equal(
+  sloFailEnforcedPayload?.status,
+  'error',
+  `expected enforced SLO failure status=error, received ${String(sloFailEnforcedPayload?.status)}`
 );
 
 await fs.rm(tempRoot, { recursive: true, force: true });
