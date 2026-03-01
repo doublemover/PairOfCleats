@@ -431,8 +431,13 @@ export async function collectLspTypes({
           || message.includes('transport closed')
           || message.includes('writer unavailable')
           || message.includes('lsp exited');
+        const requestTimeout = err?.code === 'ERR_LSP_REQUEST_TIMEOUT'
+          || message.includes('request timeout');
         if (transportFailure && typeof lease.markPoisoned === 'function') {
           lease.markPoisoned('transport_failure');
+        }
+        if (requestTimeout && typeof lease.markPoisoned === 'function') {
+          lease.markPoisoned('request_timeout');
         }
         refreshRuntimeState();
         throw err;
