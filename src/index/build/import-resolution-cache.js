@@ -45,6 +45,11 @@ const setBoundedPersistWarningState = (key, state) => {
   }
 };
 
+const clearPersistWarningState = (cachePath) => {
+  const key = path.resolve(String(cachePath || '<unknown-cache-path>'));
+  cachePersistWarningStateByPath.delete(key);
+};
+
 const isObject = (value) => (
   value && typeof value === 'object' && !Array.isArray(value)
 );
@@ -884,6 +889,7 @@ export const saveImportResolutionCache = async ({
   };
   try {
     await atomicWriteJson(cachePath, payload, { spaces: 2 });
+    clearPersistWarningState(cachePath);
     let markerCleared = false;
     let markerClearError = null;
     if (configuredFailOpenMarkerPath) {
