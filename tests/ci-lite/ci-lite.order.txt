@@ -1,4 +1,3 @@
-tooling/fixtures/prewarm-shared-indexes
 indexing/embeddings/maintenance-thresholds
 indexing/postings/token-id-parse-resilience
 retrieval/ann/backend-selection
@@ -696,7 +695,6 @@ tooling/lsp/signature-help-timeout-adaptive-gates-next-symbol
 tooling/lsp/definition-fallback
 tooling/lsp/definition-timeout-adaptive
 tooling/lsp/type-definition-fallback
-tooling/lsp/type-definition-timeout-adaptive
 tooling/lsp/references-fallback
 tooling/lsp/references-timeout-adaptive
 tooling/lsp/pyright-function-symbol-priority
@@ -871,7 +869,6 @@ tooling/lsp/provider-metrics-capability-rollup
 tooling/lsp/provider-metrics-hover-timeout-rollup
 tooling/lsp/dart-provider-process-reuse
 tooling/lsp/session-pool-reuse
-tooling/lsp/session-pool-poisoned-recycle
 tooling/lsp/session-pool-max-lifetime-recycle
 tooling/doctor/runtime-requirements-dart-dedicated
 tooling/doctor/workspace-model-dart-detection
@@ -950,10 +947,6 @@ runner/harness/skip-semantics
 indexing/tree-sitter/scheduler-native-smoke
 indexing/watch/debounce
 indexing/watch/lock-backoff
-lang/contracts/language-fixture-contracts
-lang/contracts/misc-buildfiles
-indexing/language-fixture/postings-integrity
-lang/contracts/sql
 tooling/install/tooling-detect-global-bin-fallbacks
 tooling/install/tooling-dotnet-requirement-probe
 tooling/install/tooling-go-requirement-probe
@@ -963,22 +956,8 @@ tooling/install/tooling-detect-pyright-path-key-fallback
 tooling/ci/lsp-embeddings-gates-testing-env
 tooling/ci/lsp-embeddings-gates-timeout-junit
 tooling/ci/run-suite-path-normalization
-lang/contracts/python
-lang/contracts/typescript
-retrieval/contracts/result-shape
-retrieval/filters/file-selector
-lang/fixtures-sample/swift-metadata
-retrieval/filters/control-flow
-lang/fixtures-sample/python-metadata
-lang/fixtures-sample/rust-metadata
 indexing/tree-sitter/scheduler-paged-json-gzip
-retrieval/filters/behavioral
-retrieval/filters/ext-path
-retrieval/filters/types
-retrieval/filters/risk
-retrieval/filters/type-signature-decorator
 cli/search/help
-indexing/config/index-dump
 tooling/service/subprocess-cancellation-contract
 indexing/tokenization/file-stream-reuse
 shared/runtime/records-config

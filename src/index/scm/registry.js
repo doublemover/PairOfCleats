@@ -1,5 +1,9 @@
 import path from 'node:path';
-import { runSyncCommandWithTimeout, toSyncCommandExitCode } from '../../shared/subprocess.js';
+import {
+  isSyncCommandTimedOut,
+  runSyncCommandWithTimeout,
+  toSyncCommandExitCode
+} from '../../shared/subprocess.js';
 import { assertScmProvider, normalizeProviderName } from './provider.js';
 import { SCM_PROVIDER_NAMES } from './types.js';
 import { gitProvider } from './providers/git.js';
@@ -15,10 +19,20 @@ const PROVIDER_REGISTRY = Object.freeze({
 const canRun = (cmd, args = ['--version']) => {
   try {
     const result = runSyncCommandWithTimeout(cmd, args, {
+      stdio: 'ignore',
       encoding: 'utf8',
-      timeoutMs: 1_500
+      timeoutMs: 5_000
     });
-    return toSyncCommandExitCode(result) === 0;
+    if (toSyncCommandExitCode(result) === 0) return true;
+    if (!isSyncCommandTimedOut(result)) return false;
+    // CI runners can transiently stall on first process spawn; retry once with
+    // a wider timeout before classifying the command as unavailable.
+    const retryResult = runSyncCommandWithTimeout(cmd, args, {
+      stdio: 'ignore',
+      encoding: 'utf8',
+      timeoutMs: 10_000
+    });
+    return toSyncCommandExitCode(retryResult) === 0;
   } catch {
     return false;
   }
