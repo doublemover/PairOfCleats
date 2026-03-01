@@ -4,7 +4,7 @@ import { createCli } from '../../src/shared/cli.js';
 import { createStdoutGuard } from '../../src/shared/cli/stdout-guard.js';
 import { resolveEnvPath } from '../../src/shared/env-path.js';
 import path from 'node:path';
-import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
+import { probeCommand, runCommand } from '../shared/cli-utils.js';
 import { buildToolingReport, detectTool, normalizeLanguageList, resolveToolsById, resolveToolsForLanguages, selectInstallPlan } from './utils.js';
 import { splitPathEntries } from '../../src/index/tooling/binary-utils.js';
 import { getToolingConfig, resolveRepoRootArg } from '../shared/dict-utils.js';
@@ -35,14 +35,7 @@ const stdoutGuard = createStdoutGuard({
 });
 const languageOverride = normalizeLanguageList(argv.languages);
 const toolOverride = normalizeLanguageList(argv.tools);
-const shouldUseCmdShell = (command) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(command);
 const WINDOWS_EXEC_EXTS = ['.exe', '.cmd', '.bat', '.com'];
-const quoteWindowsCmdArg = (value) => {
-  const text = String(value ?? '');
-  if (!text) return '""';
-  if (!/[\s"&|<>^();]/u.test(text)) return text;
-  return `"${text.replaceAll('"', '""')}"`;
-};
 
 const resolveSpawnCommand = (cmd) => {
   const value = String(cmd || '').trim();
@@ -58,46 +51,6 @@ const resolveSpawnCommand = (cmd) => {
   return value;
 };
 
-const spawnToolCommand = (command, args, options) => {
-  const run = (cmd, cmdArgs) => {
-    try {
-      const result = spawnSubprocessSync(cmd, cmdArgs, {
-        cwd: options?.cwd,
-        env: options?.env,
-        stdio: options?.stdio,
-        outputEncoding: options?.encoding || 'utf8',
-        timeoutMs: options?.timeoutMs,
-        rejectOnNonZeroExit: false,
-        captureStdout: true,
-        captureStderr: true,
-        outputMode: 'string'
-      });
-      return {
-        status: result.exitCode ?? null,
-        signal: result.signal ?? null,
-        stdout: typeof result.stdout === 'string' ? result.stdout : '',
-        stderr: typeof result.stderr === 'string' ? result.stderr : '',
-        error: null
-      };
-    } catch (error) {
-      const output = error?.result && typeof error.result === 'object' ? error.result : null;
-      return {
-        status: output?.exitCode ?? null,
-        signal: output?.signal ?? null,
-        stdout: typeof output?.stdout === 'string' ? output.stdout : '',
-        stderr: typeof output?.stderr === 'string' ? output.stderr : '',
-        error
-      };
-    }
-  };
-  if (!shouldUseCmdShell(command)) {
-    return run(command, args);
-  }
-  const commandLine = [command, ...args].map(quoteWindowsCmdArg).join(' ');
-  const shellExe = process.env.ComSpec || 'cmd.exe';
-  return run(shellExe, ['/d', '/s', '/c', commandLine]);
-};
-
 const resolveRequirementCheckArgCandidates = (commandName) => {
   const normalized = String(commandName || '').trim().toLowerCase();
   if (normalized === 'go') return [['version'], ['--version']];
@@ -107,22 +60,23 @@ const resolveRequirementCheckArgCandidates = (commandName) => {
   return [['--version'], ['version']];
 };
 
-const classifyProbeResult = (result) => {
-  if (result?.status === 0) return 'ok';
-  if (typeof result?.signal === 'string' && result.signal.trim()) return 'terminated';
-  const errorCode = String(result?.error?.code || '').trim().toUpperCase();
-  if (errorCode === 'ETIMEDOUT') return 'timeout';
-  const output = `${String(result?.stderr || '')} ${String(result?.stdout || '')}`.toLowerCase();
-  if (
-    output.includes('command not found')
-    || output.includes('is not recognized as an internal or external command')
-    || output.includes('no such file or directory')
-    || output.includes('enoent')
-    || output.includes('cannot find the file')
-  ) {
-    return 'missing';
+const runInstallCommand = (command, args, options = {}) => {
+  try {
+    const result = runCommand(command, args, options);
+    return { ...result, error: null };
+  } catch (error) {
+    const output = error?.result && typeof error.result === 'object'
+      ? error.result
+      : null;
+    return {
+      ok: false,
+      status: Number.isInteger(output?.exitCode) ? Number(output.exitCode) : null,
+      signal: typeof output?.signal === 'string' ? output.signal : null,
+      stdout: typeof output?.stdout === 'string' ? output.stdout : '',
+      stderr: typeof output?.stderr === 'string' ? output.stderr : '',
+      error
+    };
   }
-  return 'nonzero';
 };
 
 const report = toolOverride.length
@@ -164,19 +118,19 @@ for (const tool of tools) {
     let requirementSatisfied = false;
     const requirementChecks = [];
     for (const requirementArgs of requirementArgCandidates) {
-      const requireCheck = spawnToolCommand(requirementCommand, requirementArgs, {
-        encoding: 'utf8',
+      const requireCheck = probeCommand(requirementCommand, requirementArgs, {
         stdio: 'ignore',
-        timeoutMs: 4000
+        timeoutMs: 4000,
+        outputEncoding: 'utf8'
       });
       requirementChecks.push({
         args: requirementArgs,
-        outcome: classifyProbeResult(requireCheck),
+        outcome: requireCheck?.outcome || 'inconclusive',
         status: Number.isInteger(requireCheck?.status) ? Number(requireCheck.status) : null,
         signal: typeof requireCheck?.signal === 'string' ? requireCheck.signal : null,
-        errorCode: typeof requireCheck?.error?.code === 'string' ? requireCheck.error.code : null
+        errorCode: typeof requireCheck?.errorCode === 'string' ? requireCheck.errorCode : null
       });
-      if (requireCheck.status === 0) {
+      if (requireCheck?.ok === true) {
         requirementSatisfied = true;
         break;
       }
@@ -219,7 +173,7 @@ for (const action of actions) {
     // installer diagnostics through stderr only.
     stdio: argv.json ? ['inherit', 'ignore', 'inherit'] : 'inherit'
   };
-  const result = spawnToolCommand(command, action.args, spawnOpts);
+  const result = runInstallCommand(command, action.args, spawnOpts);
   if (typeof result.signal === 'string' && result.signal.trim()) {
     results.push({
       id: action.id,
@@ -230,9 +184,14 @@ for (const action of actions) {
     });
     continue;
   }
-  if (result.status !== 0) {
+  if (result.ok !== true) {
     const exitCode = Number.isInteger(result.status) ? Number(result.status) : 1;
-    const error = result.error?.message ? String(result.error.message) : null;
+    const error = String(
+      result.stderr
+      || result.stdout
+      || result.error?.message
+      || ''
+    ).trim() || null;
     results.push({
       id: action.id,
       status: 'failed',

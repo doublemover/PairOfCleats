@@ -671,28 +671,23 @@ export function resolveToolsById(ids, toolingRoot, repoRoot, toolingConfig = nul
 
 export function detectTool(tool) {
   const detectCmd = String(tool?.detect?.cmd || '');
-  const isPyrightLangserver = detectCmd.toLowerCase() === 'pyright-langserver';
   const detectArgCandidates = resolveDetectArgCandidates(tool);
   const binDirs = tool.detect?.binDirs || [];
   const binPath = binDirs.length ? findBinaryInDirs(tool.detect.cmd, binDirs) : null;
   if (binPath) {
     const probe = probeWithArgCandidates(binPath, detectArgCandidates);
-    const ok = probe.ok === true;
-    if (ok || (isPyrightLangserver && fs.existsSync(binPath))) {
-      return { found: true, path: binPath, source: 'cache', probe };
-    }
-    if (!ok && isPyrightLangserver && fs.existsSync(binPath)) {
+    if (probe.ok === true) {
       return { found: true, path: binPath, source: 'cache', probe };
     }
   }
   const probe = probeWithArgCandidates(tool.detect.cmd, detectArgCandidates);
-  const ok = probe.ok === true;
-  if (ok) return { found: true, path: tool.detect.cmd, source: 'path', probe };
-  if (isPyrightLangserver) {
-    const pathEntries = splitPathEntries(resolveEnvPath(process.env));
-    const pathFound = findBinaryInDirs(tool.detect.cmd, pathEntries);
-    if (pathFound && fs.existsSync(pathFound)) {
-      return { found: true, path: pathFound, source: 'path', probe };
+  if (probe.ok === true) return { found: true, path: tool.detect.cmd, source: 'path', probe };
+  const pathEntries = splitPathEntries(resolveEnvPath(process.env));
+  const pathFound = findBinaryInDirs(detectCmd, pathEntries);
+  if (pathFound) {
+    const pathProbe = probeWithArgCandidates(pathFound, detectArgCandidates);
+    if (pathProbe.ok === true) {
+      return { found: true, path: pathFound, source: 'path', probe: pathProbe };
     }
   }
   return { found: false, path: null, source: null, probe };
