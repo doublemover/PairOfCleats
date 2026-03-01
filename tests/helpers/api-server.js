@@ -3,7 +3,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { attachSilentLogging } from './test-env.js';
-import { terminateChild } from './process-lifecycle.js';
+import { terminateChild, waitForChildExit } from './process-lifecycle.js';
 import { registerChildProcessForCleanup } from '../../src/shared/subprocess.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -77,7 +77,7 @@ export const startApiServer = async ({
   const server = spawn(process.execPath, args, { env, stdio: ['ignore', 'pipe', 'pipe'] });
   const unregisterTrackedServer = registerChildProcessForCleanup(server, {
     killTree: true,
-    detached: process.platform !== 'win32',
+    detached: false,
     name: 'api-server-test',
     command: process.execPath,
     args
@@ -283,6 +283,7 @@ export const startApiServer = async ({
   const stop = async () => {
     try {
       await terminateChild(server, { graceMs: 5000 });
+      await waitForChildExit(server, { timeoutMs: 5000, forceSignal: 'SIGKILL' });
     } finally {
       unregisterTrackedServer();
     }

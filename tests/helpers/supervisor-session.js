@@ -31,7 +31,7 @@ export const createSupervisorSession = ({
   });
   const unregisterTrackedChild = registerChildProcessForCleanup(child, {
     killTree: true,
-    detached: process.platform !== 'win32',
+    detached: false,
     name: 'supervisor-session-test',
     command: process.execPath,
     args: [supervisorPath]
@@ -57,7 +57,14 @@ export const createSupervisorSession = ({
     for (const line of parts) {
       const trimmed = line.trim();
       if (!trimmed) continue;
-      events.push(JSON.parse(trimmed));
+      try {
+        events.push(JSON.parse(trimmed));
+      } catch {
+        events.push({
+          type: 'malformed-json-line',
+          line: trimmed
+        });
+      }
     }
   });
 
