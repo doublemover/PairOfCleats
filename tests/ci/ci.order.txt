@@ -3,6 +3,7 @@ tooling/lsp/pyright-provider-command-override
 tooling/lsp/clangd-provider-command-override
 tooling/lsp/sourcekit-provider-command-override
 tooling/lsp/sourcekit-package-preflight-lock-unavailable
+tooling/lsp/sourcekit-provider-host-lock-unavailable
 tooling/lsp/configured-provider-gopls-workspace-diagnostics
 tooling/lsp/configured-provider-probe-fallback
 tooling/lsp/request-timeout-sends-cancel

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,9 +19,17 @@ const fixture = await createSourcekitPreflightFixture({
   dependencyVersion: '1.0.0',
   resolveExitCode: 0
 });
-const preflightLockPath = path.join(os.tmpdir(), 'pairofcleats', 'locks', 'sourcekit-package-preflight.lock');
 const logs = [];
 const { ctx, document, target } = fixture.contextFor(logs);
+const preflightLockPath = path.join(
+  os.tmpdir(),
+  'pairofcleats',
+  'locks',
+  `sourcekit-package-preflight-${crypto
+    .createHash('sha1')
+    .update(path.resolve(String(ctx.repoRoot || '')).toLowerCase())
+    .digest('hex')}.lock`
+);
 ctx.toolingConfig = {
   sourcekit: {
     preflightLockWaitMs: 0,

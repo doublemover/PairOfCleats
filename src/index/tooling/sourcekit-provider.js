@@ -42,6 +42,7 @@ const SOURCEKIT_PACKAGE_PREFLIGHT_LOCK_STALE_MS = 10 * 60 * 1000;
 const SOURCEKIT_DEFAULT_EXCLUDE_PATH_REGEXES = [
   /\/test\/sourcekit\/misc\/parser-cutoff\.swift$/i
 ];
+const SOURCEKIT_LOCK_NAMESPACE = path.join(os.tmpdir(), 'pairofcleats', 'locks');
 
 const buildRegex = (value) => {
   if (value instanceof RegExp) return value;
@@ -248,6 +249,14 @@ const summarizeSubprocessOutput = (value, maxChars = 240) => {
   return `${text.slice(0, Math.max(0, maxChars - 1)).trimEnd()}...`;
 };
 
+const buildRepoScopedLockPath = (repoRoot, suffix) => {
+  const hash = crypto
+    .createHash('sha1')
+    .update(path.resolve(String(repoRoot || '')).toLowerCase())
+    .digest('hex');
+  return path.join(SOURCEKIT_LOCK_NAMESPACE, `${suffix}-${hash}.lock`);
+};
+
 const readSourcekitPreflightMarker = async (markerPath) => {
   const parsed = await readJsonFileSafe(markerPath, {
     fallback: null,
@@ -412,7 +421,7 @@ const ensureSourcekitPackageResolutionPreflight = async ({
       };
     }
 
-    const preflightLockPath = path.join(os.tmpdir(), 'pairofcleats', 'locks', 'sourcekit-package-preflight.lock');
+    const preflightLockPath = buildRepoScopedLockPath(repoRoot, 'sourcekit-package-preflight');
     const timeoutMs = SOURCEKIT_PACKAGE_PREFLIGHT_TIMEOUT_MS;
     const preflightLockWaitMs = Math.max(
       0,
@@ -789,7 +798,7 @@ export const createSourcekitProvider = () => ({
       0,
       asFiniteInteger(sourcekitConfig.hostConcurrencyWaitMs) ?? SOURCEKIT_HOST_LOCK_WAIT_MS
     );
-    const hostLockPath = path.join(os.tmpdir(), 'pairofcleats', 'locks', 'sourcekit-provider.lock');
+    const hostLockPath = buildRepoScopedLockPath(ctx.repoRoot, 'sourcekit-provider');
     let hostLock = null;
     if (hostLockEnabled) {
       hostLock = await acquireHostSourcekitLock({
@@ -799,7 +808,17 @@ export const createSourcekitProvider = () => ({
         log
       });
       if (!hostLock) {
-        log('[tooling] sourcekit host lock wait elapsed; continuing without lock.');
+        log('[tooling] sourcekit host lock wait elapsed; skipping sourcekit provider for this run.');
+        checks.push({
+          name: 'sourcekit_host_lock_unavailable',
+          status: 'warn',
+          message: `sourcekit host lock timed out after ${hostLockWaitMs}ms; skipping provider to avoid unlocked contention.`
+        });
+        return {
+          provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+          byChunkUid: {},
+          diagnostics: appendDiagnosticChecks(null, checks)
+        };
       }
     }
 
