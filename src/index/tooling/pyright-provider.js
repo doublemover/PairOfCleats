@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
-import { resolveToolingCommandProfile } from './command-resolver.js';
+import { invalidateProbeCacheOnInitializeFailure, resolveToolingCommandProfile } from './command-resolver.js';
 import { parsePythonSignature } from './signature-parse/python.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 import { resolveProviderRequestedCommand } from './provider-command-override.js';
@@ -116,6 +116,11 @@ export const createPyrightProvider = () => ({
         : null,
       [...checks, ...(Array.isArray(result.checks) ? result.checks : [])]
     );
+    invalidateProbeCacheOnInitializeFailure({
+      checks: result?.checks,
+      providerId: 'pyright',
+      command: commandProfile.resolved.cmd
+    });
     return {
       provider: { id: 'pyright', version: '2.0.0', configHash: this.getConfigHash(ctx) },
       byChunkUid: result.byChunkUid,

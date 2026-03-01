@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
-import { invalidateToolingCommandProbeCache, resolveToolingCommandProfile } from './command-resolver.js';
+import { invalidateProbeCacheOnInitializeFailure, resolveToolingCommandProfile } from './command-resolver.js';
 import { resolveProviderRequestedCommand } from './provider-command-override.js';
 import { hasWorkspaceMarker } from './workspace-model.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
@@ -249,13 +249,11 @@ export const createDedicatedLspProvider = (descriptor) => ({
       captureDiagnostics: true,
       ...collectOptions
     });
-    if (Array.isArray(result?.checks) && result.checks.some((check) => check?.name === 'tooling_initialize_failed')) {
-      invalidateToolingCommandProbeCache({
-        providerId: descriptor.id,
-        command: commandProfile.resolved.cmd,
-        successOnly: true
-      });
-    }
+    invalidateProbeCacheOnInitializeFailure({
+      checks: result?.checks,
+      providerId: descriptor.id,
+      command: commandProfile.resolved.cmd
+    });
 
     return {
       provider: providerRef,

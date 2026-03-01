@@ -5,7 +5,7 @@ import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
 import { toPosix } from '../../shared/files.js';
 import { atomicWriteJsonSync } from '../../shared/io/atomic-write.js';
-import { resolveToolingCommandProfile } from './command-resolver.js';
+import { invalidateProbeCacheOnInitializeFailure, resolveToolingCommandProfile } from './command-resolver.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 import { resolveProviderRequestedCommand } from './provider-command-override.js';
 import { filterTargetsForDocuments } from './provider-utils.js';
@@ -531,6 +531,11 @@ export const createClangdProvider = () => ({
       result.diagnosticsCount ? { diagnosticsCount: result.diagnosticsCount } : null,
       [...checks, ...(Array.isArray(result.checks) ? result.checks : [])]
     );
+    invalidateProbeCacheOnInitializeFailure({
+      checks: result?.checks,
+      providerId: 'clangd',
+      command: commandProfile.resolved.cmd
+    });
     return {
       provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },
       byChunkUid: result.byChunkUid,

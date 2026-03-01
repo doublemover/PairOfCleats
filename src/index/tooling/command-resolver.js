@@ -151,6 +151,32 @@ export const invalidateToolingCommandProbeCache = ({
   return removed;
 };
 
+/**
+ * Invalidate successful probe cache entries when initialize handshake failed.
+ *
+ * @param {{
+ *  checks?:Array<{name?:string}>|null,
+ *  providerId?:string|null,
+ *  command?:string|null
+ * }} input
+ * @returns {boolean}
+ */
+export const invalidateProbeCacheOnInitializeFailure = ({
+  checks = null,
+  providerId = null,
+  command = null
+} = {}) => {
+  const hasInitializeFailure = Array.isArray(checks)
+    && checks.some((check) => check?.name === 'tooling_initialize_failed');
+  if (!hasInitializeFailure) return false;
+  invalidateToolingCommandProbeCache({
+    providerId,
+    command,
+    successOnly: true
+  });
+  return true;
+};
+
 const resolveWindowsCommand = (cmd) => {
   if (process.platform !== 'win32') return cmd;
   const lowered = String(cmd || '').toLowerCase();

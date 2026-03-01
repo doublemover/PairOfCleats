@@ -14,7 +14,7 @@ import { acquireFileLock } from '../../shared/locks/file-lock.js';
 import { runSyncCommandWithTimeout, spawnSubprocess, toSyncCommandExitCode } from '../../shared/subprocess.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
 import {
-  invalidateToolingCommandProbeCache,
+  invalidateProbeCacheOnInitializeFailure,
   isProbeCommandDefinitelyMissing,
   resolveToolingCommandProfile
 } from './command-resolver.js';
@@ -819,13 +819,11 @@ export const createSourcekitProvider = () => ({
         sessionPoolingEnabled: !hostLockEnabled,
         indexDir: ctx?.buildRoot || null
       });
-      if (Array.isArray(result?.checks) && result.checks.some((check) => check?.name === 'tooling_initialize_failed')) {
-        invalidateToolingCommandProbeCache({
-          providerId: 'sourcekit',
-          command: commandProfile.resolved.cmd,
-          successOnly: true
-        });
-      }
+      invalidateProbeCacheOnInitializeFailure({
+        checks: result?.checks,
+        providerId: 'sourcekit',
+        command: commandProfile.resolved.cmd
+      });
 
       logHoverMetrics(log, result.hoverMetrics);
       const diagnostics = appendDiagnosticChecks(
