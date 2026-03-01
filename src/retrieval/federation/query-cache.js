@@ -237,6 +237,20 @@ const listEvictionCandidates = (cache) => (
     ))
 );
 
+const estimateFederatedCacheEntryBytes = (key, entry) => (
+  Buffer.byteLength(stableStringify({ [key]: entry }), 'utf8')
+);
+
+const estimateFederatedCacheHeaderBytes = (cache) => {
+  const envelope = {
+    schemaVersion: cache?.schemaVersion ?? FEDERATED_QUERY_CACHE_SCHEMA_VERSION,
+    repoSetId: cache?.repoSetId || null,
+    updatedAt: cache?.updatedAt || null,
+    entries: {}
+  };
+  return Buffer.byteLength(stableStringify(envelope), 'utf8');
+};
+
 export const pruneFederatedQueryCache = (cache, policy = {}) => {
   const maxEntries = Number.isFinite(Number(policy.maxEntries))
     ? Math.max(1, Math.floor(Number(policy.maxEntries)))
@@ -262,14 +276,30 @@ export const pruneFederatedQueryCache = (cache, policy = {}) => {
     delete cache.entries[oldest.key];
   }
 
-  let currentBytes = Buffer.byteLength(stableStringify(cache), 'utf8');
+  const headerBytes = estimateFederatedCacheHeaderBytes(cache);
+  const entryByteSizes = new Map();
+  let currentBytes = headerBytes;
+  for (const [key, entry] of Object.entries(cache.entries || {})) {
+    const size = estimateFederatedCacheEntryBytes(key, entry);
+    entryByteSizes.set(key, size);
+    currentBytes += size;
+  }
   if (currentBytes > maxBytes) {
     candidates = listEvictionCandidates(cache);
     while (candidates.length && currentBytes > maxBytes) {
       const oldest = candidates.shift();
       if (!oldest) break;
       delete cache.entries[oldest.key];
-      currentBytes = Buffer.byteLength(stableStringify(cache), 'utf8');
+      const reclaimed = Number(entryByteSizes.get(oldest.key) || 0);
+      currentBytes = Math.max(headerBytes, currentBytes - reclaimed);
+    }
+  }
+  if (currentBytes > maxBytes) {
+    candidates = listEvictionCandidates(cache);
+    while (candidates.length && Buffer.byteLength(stableStringify(cache), 'utf8') > maxBytes) {
+      const oldest = candidates.shift();
+      if (!oldest) break;
+      delete cache.entries[oldest.key];
     }
   }
 };

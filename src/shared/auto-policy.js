@@ -12,6 +12,7 @@ const DEFAULT_SCAN_LIMITS = {
 const DEFAULT_SCAN_STAT_CONCURRENCY = 32;
 const DEFAULT_SCAN_PROGRESS_INTERVAL_MS = 1000;
 const REPO_STATS_MEMO_TTL_MS = 30 * 1000;
+const REPO_STATS_MEMO_MAX_ENTRIES = 256;
 const IGNORE_DIRS = new Set([
   '.git',
   'node_modules',
@@ -70,6 +71,20 @@ const CANONICAL_HUGE_REPO_OVERRIDES = Object.freeze({
   }
 });
 const repoStatsMemo = new Map();
+
+const pruneRepoStatsMemo = (nowMs = Date.now()) => {
+  for (const [key, entry] of repoStatsMemo.entries()) {
+    const at = Number(entry?.at || 0);
+    if (!Number.isFinite(at) || (nowMs - at) > REPO_STATS_MEMO_TTL_MS) {
+      repoStatsMemo.delete(key);
+    }
+  }
+  while (repoStatsMemo.size > REPO_STATS_MEMO_MAX_ENTRIES) {
+    const oldestKey = repoStatsMemo.keys().next().value;
+    if (oldestKey == null) break;
+    repoStatsMemo.delete(oldestKey);
+  }
+};
 
 const clonePlain = (value) => JSON.parse(JSON.stringify(value));
 
@@ -137,6 +152,7 @@ const buildRepoStatsMemoKey = (repoRoot, limits, hasIgnoreMatcher) => {
 };
 
 const scanRepoStats = async (repoRoot, limits = {}, options = {}) => {
+  pruneRepoStatsMemo();
   const memoKey = buildRepoStatsMemoKey(repoRoot, limits, Boolean(options?.ignoreMatcher));
   const cached = repoStatsMemo.get(memoKey);
   const now = Date.now();
@@ -275,6 +291,7 @@ const scanRepoStats = async (repoRoot, limits = {}, options = {}) => {
     at: Date.now(),
     value: summary
   });
+  pruneRepoStatsMemo();
   return summary;
 };
 
