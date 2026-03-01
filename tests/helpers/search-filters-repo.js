@@ -23,6 +23,9 @@ const FIXTURE_COMMIT_MESSAGES = Object.freeze([
   'add beta',
   'add alpha'
 ]);
+const GIT_COMMAND_TIMEOUT_MS = 15000;
+const BUILD_INDEX_TIMEOUT_MS = 10 * 60 * 1000;
+const SEARCH_TIMEOUT_MS = 2 * 60 * 1000;
 
 /**
  * Run git command for fixture setup and fail fast on non-zero exit.
@@ -37,7 +40,8 @@ const runGit = (args, label, cwd, envOverride = {}) => {
   const result = spawnSync('git', args, {
     cwd,
     encoding: 'utf8',
-    env: { ...process.env, ...envOverride }
+    env: { ...process.env, ...envOverride },
+    timeout: GIT_COMMAND_TIMEOUT_MS
   });
   if (result.status !== 0) {
     const command = ['git', ...args].join(' ');
@@ -52,7 +56,10 @@ const runGit = (args, label, cwd, envOverride = {}) => {
 };
 
 const hasGit = () => {
-  const check = spawnSync('git', ['--version'], { encoding: 'utf8' });
+  const check = spawnSync('git', ['--version'], {
+    encoding: 'utf8',
+    timeout: GIT_COMMAND_TIMEOUT_MS
+  });
   return check.status === 0;
 };
 
@@ -75,7 +82,12 @@ const buildIndex = (repoRoot, env) => {
       '--repo',
       repoRoot
     ],
-    { cwd: repoRoot, env, stdio: 'inherit' }
+    {
+      cwd: repoRoot,
+      env,
+      stdio: 'inherit',
+      timeout: BUILD_INDEX_TIMEOUT_MS
+    }
   );
   if (result.status !== 0) {
     const command = [
@@ -104,7 +116,11 @@ const hasExpectedFixtureHistory = (repoRoot) => {
   const history = spawnSync(
     'git',
     ['log', '--format=%s', `--max-count=${FIXTURE_COMMIT_MESSAGES.length}`],
-    { cwd: repoRoot, encoding: 'utf8' }
+    {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      timeout: GIT_COMMAND_TIMEOUT_MS
+    }
   );
   if (history.status !== 0) return false;
   const lines = String(history.stdout || '')
@@ -243,7 +259,8 @@ export const ensureSearchFiltersRepo = async ({ cacheScope = 'shared' } = {}) =>
 
     const branchResult = spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
       cwd: repoRoot,
-      encoding: 'utf8'
+      encoding: 'utf8',
+      timeout: GIT_COMMAND_TIMEOUT_MS
     });
     const branchName = branchResult.status === 0 ? branchResult.stdout.trim() : null;
 
@@ -293,7 +310,12 @@ export const runFilterSearch = ({
       ...(backend ? ['--backend', backend] : []),
       ...args
     ],
-    { cwd: repoRoot, env, encoding: 'utf8' }
+    {
+      cwd: repoRoot,
+      env,
+      encoding: 'utf8',
+      timeout: SEARCH_TIMEOUT_MS
+    }
   );
   if (result.status !== 0) {
     const command = [
@@ -324,4 +346,3 @@ export const runFilterSearch = ({
     process.exit(1);
   }
 };
-

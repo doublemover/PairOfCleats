@@ -12,6 +12,7 @@ const timeoutProbePath = path.join(tempRoot, 'timeout-probe.test.js');
 const testsJsonPath = path.join(tempRoot, 'tests.json');
 const junitPath = path.join(tempRoot, 'junit.xml');
 const diagnosticsPath = path.join(tempRoot, 'diagnostics.json');
+const GATE_TIMEOUT_MS = 20_000;
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
@@ -46,7 +47,8 @@ const result = spawnSync(
   {
     cwd: root,
     env: applyTestEnv({ syncProcess: false }),
-    encoding: 'utf8'
+    encoding: 'utf8',
+    timeout: GATE_TIMEOUT_MS
   }
 );
 

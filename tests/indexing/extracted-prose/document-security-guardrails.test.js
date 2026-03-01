@@ -9,6 +9,7 @@ import { extractDocx, loadDocxExtractorRuntime } from '../../../src/index/extrac
 import { buildEncryptedDocxBuffer, buildMinimalDocxBuffer, buildMinimalPdfBuffer } from '../../helpers/document-fixtures.js';
 applyTestEnv();
 const root = process.cwd();
+const PDF_STUB_SUBPROCESS_TIMEOUT_MS = 20_000;
 
 const runPdfStubCase = ({ payload, timeoutMs, delayMs }) => {
   const moduleUrl = pathToFileURL(path.join(root, 'src', 'index', 'extractors', 'pdf.js')).href;
@@ -30,7 +31,8 @@ process.stdout.write(JSON.stringify(result));
         PAIROFCLEATS_TEST_STUB_PDF_EXTRACT_DELAY_MS: String(delayMs)
       },
       stdio: ['ignore', 'pipe', 'inherit'],
-      encoding: 'utf8'
+      encoding: 'utf8',
+      timeout: PDF_STUB_SUBPROCESS_TIMEOUT_MS
     }
   );
   assert.equal(child.status, 0, 'expected subprocess extraction to succeed');
