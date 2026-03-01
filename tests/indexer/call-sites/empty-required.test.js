@@ -4,12 +4,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-import { loadUserConfig, getCurrentBuildInfo, getIndexDir } from '../../../tools/shared/dict-utils.js';
+import { loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { loadJsonArrayArtifact } from '../../../src/shared/artifact-io.js';
 import { copyFixtureToTemp } from '../../helpers/fixtures.js';
 import { repoRoot } from '../../helpers/root.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
-import { applyTestEnv, syncProcessEnv } from '../../helpers/test-env.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
+import { resolveIndexDirFromBuildResult } from '../../helpers/index-build-output.js';
 applyTestEnv();
 
 const ROOT = repoRoot();
@@ -24,37 +25,21 @@ const TEST_CONFIG = {
   }
 };
 
-const resolveCodeDir = (fixtureRoot, userConfig, result) => {
-  const output = `${result?.stderr || ''}\n${result?.stdout || ''}`;
-  const buildRootMatch = output.match(/^\[init\] build root:\s*(.+)$/m);
-  let indexRoot = buildRootMatch?.[1]?.trim() || null;
-  if (!indexRoot) {
-    const current = getCurrentBuildInfo(fixtureRoot, userConfig, { mode: 'code' });
-    indexRoot = current?.activeRoot || current?.buildRoot || null;
-  }
-  return getIndexDir(fixtureRoot, 'code', userConfig, indexRoot ? { indexRoot } : {});
-};
-
 const buildOnce = async (fixtureRoot) => {
   const cacheRoot = await makeTempDir('pairofcleats-cache-call-sites-empty-');
-  const prevEnv = {
-    PAIROFCLEATS_TESTING: process.env.PAIROFCLEATS_TESTING,
-    PAIROFCLEATS_TEST_CONFIG: process.env.PAIROFCLEATS_TEST_CONFIG,
-    PAIROFCLEATS_CACHE_ROOT: process.env.PAIROFCLEATS_CACHE_ROOT,
-    PAIROFCLEATS_EMBEDDINGS: process.env.PAIROFCLEATS_EMBEDDINGS
-  };
   const env = applyTestEnv({
     cacheRoot,
     embeddings: 'stub',
     testConfig: TEST_CONFIG,
     extraEnv: {
       PAIROFCLEATS_WORKER_POOL: 'off'
-    }
+    },
+    syncProcess: false
   });
 
   const result = spawnSync(
     process.execPath,
-    [BUILD_INDEX, '--stub-embeddings', '--repo', fixtureRoot, '--mode', 'code'],
+    [BUILD_INDEX, '--stub-embeddings', '--repo', fixtureRoot, '--stage', 'stage2', '--mode', 'code'],
     { cwd: fixtureRoot, env, encoding: 'utf8' }
   );
 
@@ -64,13 +49,9 @@ const buildOnce = async (fixtureRoot) => {
     assert.fail(`build_index.js failed with status ${result.status}`);
   }
 
-  try {
-    const userConfig = loadUserConfig(fixtureRoot);
-    const codeDir = resolveCodeDir(fixtureRoot, userConfig, result);
-    return { cacheRoot, codeDir };
-  } finally {
-    syncProcessEnv(prevEnv);
-  }
+  const userConfig = loadUserConfig(fixtureRoot);
+  const codeDir = resolveIndexDirFromBuildResult(fixtureRoot, userConfig, result, { mode: 'code' });
+  return { cacheRoot, codeDir };
 };
 
 const fixtureRoot = await copyFixtureToTemp('empty', {
