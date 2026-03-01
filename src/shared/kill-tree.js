@@ -38,6 +38,23 @@ const isAliveSinglePosix = (pid) => {
   }
 };
 
+const isIgnorablePosixKillError = (error) => (
+  error?.code === 'ESRCH'
+  || error?.code === 'EPERM'
+);
+
+const tryKillPosix = (targetPid, signal) => {
+  try {
+    process.kill(targetPid, signal);
+    return true;
+  } catch (error) {
+    if (isIgnorablePosixKillError(error)) {
+      return false;
+    }
+    throw error;
+  }
+};
+
 const parsePosixPidList = (value) => (
   String(value || '')
     .split(/\r?\n/)
@@ -128,11 +145,11 @@ const killPosixGroup = async (pid, {
   if (killTreeRequested) {
     terminated = killPosixPidList(fallbackTargets, signal || DEFAULT_SIGNAL) || terminated;
   }
-  try {
-    process.kill(target, signal || DEFAULT_SIGNAL);
+  if (tryKillPosix(target, signal || DEFAULT_SIGNAL)) {
     terminated = true;
-  } catch (error) {
-    if (error?.code !== 'ESRCH') throw error;
+  } else if (useProcessGroup && tryKillPosix(pid, signal || DEFAULT_SIGNAL)) {
+    // Some POSIX hosts reject group signaling for short-lived detached children.
+    terminated = true;
   }
   if (graceMs > 0 && awaitGrace) {
     await wait(graceMs, { unrefTimer: false });
@@ -146,10 +163,8 @@ const killPosixGroup = async (pid, {
         if (killTreeRequested) {
           killPosixPidList(fallbackTargets, 'SIGKILL');
         }
-        try {
-          process.kill(target, 'SIGKILL');
-        } catch (error) {
-          if (error?.code !== 'ESRCH') throw error;
+        if (!tryKillPosix(target, 'SIGKILL') && useProcessGroup) {
+          tryKillPosix(pid, 'SIGKILL');
         }
       });
       return { terminated, forced: false };
@@ -161,11 +176,8 @@ const killPosixGroup = async (pid, {
       if (killTreeRequested) {
         terminated = killPosixPidList(fallbackTargets, 'SIGKILL') || terminated;
       }
-      try {
-        process.kill(target, 'SIGKILL');
+      if (tryKillPosix(target, 'SIGKILL') || (useProcessGroup && tryKillPosix(pid, 'SIGKILL'))) {
         terminated = true;
-      } catch (error) {
-        if (error?.code !== 'ESRCH') throw error;
       }
     }
     return { terminated, forced };
@@ -177,11 +189,8 @@ const killPosixGroup = async (pid, {
     if (killTreeRequested) {
       terminated = killPosixPidList(fallbackTargets, 'SIGKILL') || terminated;
     }
-    try {
-      process.kill(target, 'SIGKILL');
+    if (tryKillPosix(target, 'SIGKILL') || (useProcessGroup && tryKillPosix(pid, 'SIGKILL'))) {
       terminated = true;
-    } catch (error) {
-      if (error?.code !== 'ESRCH') throw error;
     }
   }
   return { terminated, forced };
@@ -202,11 +211,10 @@ const killPosixGroupSync = (pid, {
   if (killTreeRequested) {
     terminated = killPosixPidList(fallbackTargets, signal || DEFAULT_SIGNAL) || terminated;
   }
-  try {
-    process.kill(target, signal || DEFAULT_SIGNAL);
+  if (tryKillPosix(target, signal || DEFAULT_SIGNAL)) {
     terminated = true;
-  } catch (error) {
-    if (error?.code !== 'ESRCH') throw error;
+  } else if (useProcessGroup && tryKillPosix(pid, signal || DEFAULT_SIGNAL)) {
+    terminated = true;
   }
   const alive = useProcessGroup ? isAlivePosix(pid) : isAliveSinglePosix(pid);
   const fallbackAlive = killTreeRequested && isAnyPosixPidAlive(fallbackDescendants);
@@ -215,11 +223,8 @@ const killPosixGroupSync = (pid, {
     if (killTreeRequested) {
       terminated = killPosixPidList(fallbackTargets, 'SIGKILL') || terminated;
     }
-    try {
-      process.kill(target, 'SIGKILL');
+    if (tryKillPosix(target, 'SIGKILL') || (useProcessGroup && tryKillPosix(pid, 'SIGKILL'))) {
       terminated = true;
-    } catch (error) {
-      if (error?.code !== 'ESRCH') throw error;
     }
   }
   return { terminated, forced };

@@ -107,7 +107,30 @@ const removeTrackedSubprocess = (entryKey, reason = 'unregister') => {
   return entry;
 };
 
-const isChildExited = (child) => Boolean(!child || child.exitCode !== null);
+const isChildExited = (child) => Boolean(
+  !child
+  || child.exitCode !== null
+  || child.signalCode !== null
+  || child.killed === true
+);
+
+const isPidAlive = (pid) => {
+  const numericPid = Number(pid);
+  if (!Number.isFinite(numericPid) || numericPid <= 0) return false;
+  try {
+    process.kill(Math.floor(numericPid), 0);
+    return true;
+  } catch (error) {
+    if (error?.code === 'EPERM') return true;
+    return false;
+  }
+};
+
+const resolveTerminationState = (child, pid, fallbackTerminated = false) => {
+  if (fallbackTerminated === true) return true;
+  if (isChildExited(child)) return true;
+  return !isPidAlive(pid);
+};
 
 const markEntryTerminating = (entry) => {
   if (!entry || entry.terminating === true) return false;
@@ -261,14 +284,17 @@ const terminateTrackedSubprocesses = async ({
   const killAudit = settled
     .map((result, index) => {
       const target = killTargets[index];
-      let terminated = isChildExited(target.child);
+      let terminated = resolveTerminationState(target.child, target.pid);
       let forced = false;
       let error = null;
       if (result.status === 'rejected') {
         error = result.reason?.message || String(result.reason || 'unknown_kill_error');
       } else {
-        terminated = isChildExited(target.child) || result.value?.terminated === true;
+        terminated = resolveTerminationState(target.child, target.pid, result.value?.terminated === true);
         forced = result.value?.forced === true;
+      }
+      if (terminated) {
+        error = null;
       }
       if (terminated) {
         removeTrackedSubprocess(target.entryKey, 'terminate');
@@ -374,7 +400,7 @@ const terminateTrackedSubprocessesSync = ({
       const pid = Number.isFinite(Number(entry?.child?.pid)) ? Number(entry.child.pid) : null;
       const entryScope = normalizeTrackedScope(entry?.scope);
       const entryOwnershipId = resolveEntryOwnershipId(entry);
-      let terminated = isChildExited(entry.child);
+      let terminated = resolveTerminationState(entry.child, pid);
       let forced = false;
       let error = null;
       try {
@@ -384,11 +410,14 @@ const terminateTrackedSubprocessesSync = ({
           detached: entry.detached,
           graceMs: force ? TRACKED_SUBPROCESS_FORCE_GRACE_MS : entry.killGraceMs
         });
-        terminated = isChildExited(entry.child) || result?.terminated === true;
+        terminated = resolveTerminationState(entry.child, pid, result?.terminated === true);
         forced = result?.forced === true;
       } catch (caughtError) {
-        terminated = isChildExited(entry.child);
+        terminated = resolveTerminationState(entry.child, pid);
         error = caughtError?.message || String(caughtError || 'unknown_kill_error');
+      }
+      if (terminated) {
+        error = null;
       }
       if (terminated) {
         removeTrackedSubprocess(entryKey, 'terminate_sync');
