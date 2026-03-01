@@ -21,6 +21,48 @@ export function pathToFileUri(absPath) {
   return pathToFileURL(path.resolve(absPath)).href;
 }
 
+const LANGUAGE_ID_BY_EXT = Object.freeze({
+  '.ts': 'typescript',
+  '.tsx': 'typescriptreact',
+  '.mts': 'typescript',
+  '.cts': 'typescript',
+  '.js': 'javascript',
+  '.jsx': 'javascriptreact',
+  '.mjs': 'javascript',
+  '.cjs': 'javascript',
+  '.c': 'c',
+  '.h': 'c',
+  '.cc': 'cpp',
+  '.cpp': 'cpp',
+  '.cxx': 'cpp',
+  '.hpp': 'cpp',
+  '.hh': 'cpp',
+  '.mm': 'objective-cpp',
+  '.m': 'objective-c',
+  '.swift': 'swift',
+  '.py': 'python',
+  '.pyi': 'python',
+  '.go': 'go',
+  '.rs': 'rust',
+  '.lua': 'lua',
+  '.rb': 'ruby',
+  '.php': 'php',
+  '.cs': 'csharp',
+  '.dart': 'dart',
+  '.ex': 'elixir',
+  '.exs': 'elixir',
+  '.erl': 'erlang',
+  '.hrl': 'erlang',
+  '.hs': 'haskell',
+  '.lhs': 'haskell',
+  '.java': 'java',
+  '.kt': 'kotlin',
+  '.kts': 'kotlin',
+  '.zig': 'zig',
+  '.graphql': 'graphql',
+  '.gql': 'graphql'
+});
+
 /**
  * Map file extensions to LSP language identifiers.
  * @param {string} ext
@@ -28,27 +70,7 @@ export function pathToFileUri(absPath) {
  */
 export function languageIdForFileExt(ext) {
   const normalized = ext.toLowerCase();
-  const map = {
-    '.ts': 'typescript',
-    '.tsx': 'typescriptreact',
-    '.mts': 'typescript',
-    '.cts': 'typescript',
-    '.js': 'javascript',
-    '.jsx': 'javascriptreact',
-    '.c': 'c',
-    '.h': 'c',
-    '.cc': 'cpp',
-    '.cpp': 'cpp',
-    '.cxx': 'cpp',
-    '.hpp': 'cpp',
-    '.hh': 'cpp',
-    '.mm': 'objective-cpp',
-    '.m': 'objective-c',
-    '.swift': 'swift',
-    '.py': 'python',
-    '.pyi': 'python'
-  };
-  return map[normalized] || 'plaintext';
+  return LANGUAGE_ID_BY_EXT[normalized] || 'plaintext';
 }
 
 const LATENCY_SAMPLE_CAP = 4096;

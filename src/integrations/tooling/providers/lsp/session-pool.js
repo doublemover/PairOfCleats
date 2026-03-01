@@ -10,6 +10,7 @@ const DEFAULT_MAX_LIFETIME_MS = 10 * 60_000;
 const DEFAULT_CLEANUP_INTERVAL_MS = 500;
 const DEFAULT_DISPOSE_TIMEOUT_MS = 8_000;
 const DEFAULT_KILL_TIMEOUT_MS = 4_000;
+const DEFAULT_MAX_SESSION_ENTRIES = 64;
 const SESSION_STATE = Object.freeze({
   NEW: 'new',
   INITIALIZING: 'initializing',
@@ -21,6 +22,13 @@ const SESSION_STATE = Object.freeze({
 const sessions = new Map();
 const disposalBarriers = new Map();
 const creationBarriers = new Map();
+const sessionPoolMetrics = {
+  cleanupPassFailures: 0,
+  disposalFailures: 0,
+  creationBarrierFailures: 0,
+  queueBarrierFailures: 0,
+  maxSessionEvictions: 0
+};
 let cleanupTimer = null;
 let cleanupPassQueue = Promise.resolve();
 let exitCleanupInstalled = false;
@@ -42,6 +50,20 @@ const toNonNegativeInt = (value, fallback) => {
 
 const normalizeArgs = (value) => (
   Array.isArray(value) ? value.map((entry) => String(entry)) : []
+);
+
+const emitPoolWarning = (log, message) => {
+  if (typeof log === 'function') {
+    log(message);
+    return;
+  }
+  try {
+    process.emitWarning(message, { code: 'LSP_SESSION_POOL_WARNING' });
+  } catch {}
+};
+
+const resolveMaxSessionEntries = (value) => (
+  toPositiveInt(value, DEFAULT_MAX_SESSION_ENTRIES, 1)
 );
 
 const buildEnvFingerprint = (value) => {
@@ -198,7 +220,13 @@ const withSessionCreationBarrier = async (key, operation) => {
   while (true) {
     const pending = creationBarriers.get(normalizedKey);
     if (pending) {
-      await pending.catch(() => {});
+      await pending.catch((error) => {
+        sessionPoolMetrics.creationBarrierFailures += 1;
+        emitPoolWarning(
+          null,
+          `[tooling:lsp] session creation barrier failed for key=${normalizedKey}: ${error?.message || error}`
+        );
+      });
       continue;
     }
     const barrier = createPendingBarrier();
@@ -222,14 +250,28 @@ const enqueueSessionDisposal = (session, {
   const previous = key ? disposalBarriers.get(key) : null;
   const run = async () => {
     if (previous) {
-      await previous.catch(() => {});
+      await previous.catch((error) => {
+        sessionPoolMetrics.disposalFailures += 1;
+        emitPoolWarning(
+          session?.options?.log,
+          `[tooling:lsp] prior disposal barrier failed for ${session?.lifecycleName || session?.key || 'session'}: ` +
+          `${error?.message || error}`
+        );
+      });
     }
     if (killFirst) {
       await Promise.resolve(killSessionClient(session));
     }
     await disposeSessionClient(session);
   };
-  const tracked = run().catch(() => {});
+  const tracked = run().catch((error) => {
+    sessionPoolMetrics.disposalFailures += 1;
+    emitPoolWarning(
+      session?.options?.log,
+      `[tooling:lsp] session disposal failed for ${session?.lifecycleName || session?.key || 'session'}: ` +
+      `${error?.message || error}`
+    );
+  });
   if (key) {
     disposalBarriers.set(key, tracked);
     tracked.finally(() => {
@@ -239,6 +281,19 @@ const enqueueSessionDisposal = (session, {
     });
   }
   return tracked;
+};
+
+const evictIdleSessionsForCapacity = async ({ maxEntries, protectedKey = null } = {}) => {
+  const cap = resolveMaxSessionEntries(maxEntries);
+  if (sessions.size <= cap) return;
+  for (const [key, session] of sessions.entries()) {
+    if (sessions.size <= cap) break;
+    if (!session || key === protectedKey) continue;
+    if (session.activeCount > 0) continue;
+    sessions.delete(key);
+    sessionPoolMetrics.maxSessionEvictions += 1;
+    await enqueueSessionDisposal(session, { killFirst: true });
+  }
 };
 
 const shouldExpireForLifetime = (session, now = Date.now()) => (
@@ -444,7 +499,13 @@ const ensureCleanupTimer = () => {
   cleanupTimer = setInterval(() => {
     cleanupPassQueue = cleanupPassQueue
       .then(() => runCleanupPass())
-      .catch(() => {});
+      .catch((error) => {
+        sessionPoolMetrics.cleanupPassFailures += 1;
+        emitPoolWarning(
+          null,
+          `[tooling:lsp] cleanup pass failed: ${error?.message || error}`
+        );
+      });
   }, DEFAULT_CLEANUP_INTERVAL_MS);
   cleanupTimer.unref?.();
   if (!exitCleanupInstalled) {
@@ -477,13 +538,24 @@ const getOrCreateSession = async (options) => {
           await enqueueSessionDisposal(existing, { killFirst: true });
         } else {
           existing.lastUsedAt = now;
+          // Refresh insertion order so capacity eviction remains LRU-like.
+          sessions.delete(key);
+          sessions.set(key, existing);
           return { session: existing, reused: true };
         }
       }
     }
     await awaitSessionDisposalBarrier(key);
+    await evictIdleSessionsForCapacity({
+      maxEntries: options?.sessionPoolMaxEntries,
+      protectedKey: key
+    });
     const next = createSession(options);
     sessions.set(key, next);
+    await evictIdleSessionsForCapacity({
+      maxEntries: options?.sessionPoolMaxEntries,
+      protectedKey: key
+    });
     ensureCleanupTimer();
     return { session: next, reused: false };
   });
@@ -517,6 +589,7 @@ const getOrCreateSession = async (options) => {
  *   lifecycleFdPressureBackoffMs?:number|null,
  *   sessionIdleTimeoutMs?:number|null,
  *   sessionMaxLifetimeMs?:number|null,
+ *   sessionPoolMaxEntries?:number|null,
  *   initializationOptions?:object|null
  * }} options
  * @param {(lease:{
@@ -559,12 +632,20 @@ export const withLspSession = async (options, fn) => {
     ...options,
     providerId: options?.providerId || options?.cmd || 'lsp',
     workspaceKey: options?.workspaceKey || options?.repoRoot || options?.cwd || '',
-    args: normalizeArgs(options?.args)
+    args: normalizeArgs(options?.args),
+    sessionPoolMaxEntries: options?.sessionPoolMaxEntries
   });
   const session = resolved.session;
   const prev = session.queue;
   const barrier = createPendingBarrier();
-  session.queue = barrier.promise.catch(() => {});
+  session.queue = barrier.promise.catch((error) => {
+    sessionPoolMetrics.queueBarrierFailures += 1;
+    emitPoolWarning(
+      session?.options?.log,
+      `[tooling:lsp] queue barrier failed for ${session?.lifecycleName || session?.key || 'session'}: ` +
+      `${error?.message || error}`
+    );
+  });
   await prev;
   refreshSessionState(session);
   if (sessions.get(session.key) !== session || session.disposed || session.state === SESSION_STATE.RETIRED) {
@@ -660,6 +741,11 @@ export const __testLspSessionPool = {
     }
     testHooks.disposeDelayMs = 0;
     cleanupPassQueue = Promise.resolve();
+    sessionPoolMetrics.cleanupPassFailures = 0;
+    sessionPoolMetrics.disposalFailures = 0;
+    sessionPoolMetrics.creationBarrierFailures = 0;
+    sessionPoolMetrics.queueBarrierFailures = 0;
+    sessionPoolMetrics.maxSessionEvictions = 0;
   },
   getSize() {
     return sessions.size;
@@ -669,5 +755,14 @@ export const __testLspSessionPool = {
   },
   getPendingDisposals() {
     return disposalBarriers.size;
+  },
+  getMetrics() {
+    return {
+      cleanupPassFailures: Number(sessionPoolMetrics.cleanupPassFailures) || 0,
+      disposalFailures: Number(sessionPoolMetrics.disposalFailures) || 0,
+      creationBarrierFailures: Number(sessionPoolMetrics.creationBarrierFailures) || 0,
+      queueBarrierFailures: Number(sessionPoolMetrics.queueBarrierFailures) || 0,
+      maxSessionEvictions: Number(sessionPoolMetrics.maxSessionEvictions) || 0
+    };
   }
 };
