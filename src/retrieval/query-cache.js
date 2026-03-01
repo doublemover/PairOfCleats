@@ -1,12 +1,25 @@
 import fs from 'node:fs';
 import { normalizePositiveInt } from '../shared/limits.js';
 import { sortAndTrimEntriesByNewest } from './cache-trim.js';
+import { readJsonFileSyncSafe } from '../shared/files.js';
 
 const QUERY_CACHE_VERSION = 1;
 const queryCacheDiskCache = new Map();
 const queryCacheHotEntries = new Map();
 const HOT_CACHE_MAX_ENTRIES_DEFAULT = 512;
+const QUERY_CACHE_MAX_PATH_ENTRIES = 128;
+const QUERY_CACHE_MAX_READ_BYTES = 8 * 1024 * 1024;
 const MEMORY_CACHE_KEY = ':memory:query-cache';
+
+const trimPathCacheEntries = (cacheMap, maxEntries = QUERY_CACHE_MAX_PATH_ENTRIES) => {
+  if (!(cacheMap instanceof Map)) return;
+  const resolvedMaxEntries = Math.max(1, Math.floor(Number(maxEntries) || QUERY_CACHE_MAX_PATH_ENTRIES));
+  while (cacheMap.size > resolvedMaxEntries) {
+    const oldestKey = cacheMap.keys().next()?.value;
+    if (!oldestKey) break;
+    cacheMap.delete(oldestKey);
+  }
+};
 
 const readCacheFileSignature = (cachePath) => {
   try {
@@ -88,6 +101,7 @@ const ensureHotCache = (cachePath, maxEntries = HOT_CACHE_MAX_ENTRIES_DEFAULT) =
       maxEntries: normalizeHotCacheMaxEntries(maxEntries, HOT_CACHE_MAX_ENTRIES_DEFAULT)
     };
     queryCacheHotEntries.set(pathKey, state);
+    trimPathCacheEntries(queryCacheHotEntries);
   } else if (maxEntries != null) {
     state.maxEntries = normalizeHotCacheMaxEntries(
       maxEntries,
@@ -212,13 +226,17 @@ export function loadQueryCache(cachePath, options = {}) {
     return cached.value;
   }
   try {
-    const data = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+    const data = readJsonFileSyncSafe(cachePath, {
+      fallback: null,
+      maxBytes: QUERY_CACHE_MAX_READ_BYTES
+    });
     if (
       data
       && Number(data.version) === QUERY_CACHE_VERSION
       && Array.isArray(data.entries)
     ) {
       queryCacheDiskCache.set(cachePath, { signature, value: data });
+      trimPathCacheEntries(queryCacheDiskCache);
       rebuildLookup(data);
       if (options.prewarm === true) {
         prewarmHotCache({

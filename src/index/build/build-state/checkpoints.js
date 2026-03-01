@@ -3,6 +3,7 @@ import path from 'node:path';
 import { atomicWriteText } from '../../../shared/io/atomic-write.js';
 import { sha1 } from '../../../shared/hash.js';
 import { compareStrings } from '../../../shared/sort.js';
+import { readJsonFileSafe } from '../../../shared/files.js';
 import {
   STAGE_CHECKPOINTS_SIDECAR_VERSION,
   STAGE_CHECKPOINTS_INDEX_BASENAME,
@@ -10,6 +11,7 @@ import {
 } from '../stage-checkpoints/sidecar.js';
 
 const LEGACY_STATE_CHECKPOINTS_FILE = 'build_state.stage-checkpoints.json';
+const CHECKPOINT_JSON_MAX_BYTES = 16 * 1024 * 1024;
 
 const isObjectLike = (value) => (
   Boolean(value) && typeof value === 'object'
@@ -22,13 +24,12 @@ const resolveCheckpointModePath = (buildRoot, mode) => (
 );
 
 const readJsonFile = async (filePath) => {
-  try {
-    const parsed = JSON.parse(await fs.readFile(filePath, 'utf8'));
-    if (!isObjectLike(parsed)) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
+  const parsed = await readJsonFileSafe(filePath, {
+    fallback: null,
+    maxBytes: CHECKPOINT_JSON_MAX_BYTES
+  });
+  if (!isObjectLike(parsed)) return null;
+  return parsed;
 };
 
 const readFingerprint = async (filePath) => {
@@ -176,6 +177,9 @@ export const writeCheckpointSlices = async (buildRoot, {
     ? checkpointPatch
     : mergedCheckpoints;
   const modeKeys = Object.keys(modeSource || {}).sort(compareStrings);
+  if (!isObjectLike(cache.modeHashes)) {
+    cache.modeHashes = {};
+  }
   for (const mode of modeKeys) {
     const modePayload = mergedCheckpoints?.[mode];
     const descriptor = nextIndex.modes?.[mode] || null;
@@ -193,15 +197,21 @@ export const writeCheckpointSlices = async (buildRoot, {
       if (nextIndex.modes && mode in nextIndex.modes) {
         delete nextIndex.modes[mode];
       }
+      if (cache.modeHashes && mode in cache.modeHashes) {
+        delete cache.modeHashes[mode];
+      }
       continue;
     }
     const modePath = resolveCheckpointModePath(buildRoot, mode);
     const relPath = path.basename(modePath);
-    const jsonString = `${JSON.stringify(modePayload)}\n`;
-    const existingString = await fs.readFile(modePath, 'utf8').catch(() => null);
-    if (existingString !== jsonString) {
-      await atomicWriteText(modePath, jsonString);
+    const modeHash = hashJson(modePayload);
+    const priorModeHash = typeof cache.modeHashes[mode] === 'string'
+      ? cache.modeHashes[mode]
+      : null;
+    if (modeHash !== priorModeHash) {
+      await atomicWriteText(modePath, `${JSON.stringify(modePayload)}\n`);
     }
+    cache.modeHashes[mode] = modeHash;
     nextIndex.modes[mode] = {
       path: relPath,
       updatedAt: now

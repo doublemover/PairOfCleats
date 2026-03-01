@@ -11,6 +11,7 @@ export const FEDERATED_QUERY_CACHE_DEFAULTS = Object.freeze({
   maxBytes: 5 * 1024 * 1024,
   maxAgeDays: 30
 });
+const FEDERATED_QUERY_CACHE_MAX_READ_BYTES = 16 * 1024 * 1024;
 
 const normalizeStringList = (value) => {
   const list = Array.isArray(value) ? value : (value == null ? [] : [value]);
@@ -210,6 +211,10 @@ export const loadFederatedQueryCache = async ({
 } = {}) => {
   if (!cachePath) return createEmptyCache(repoSetId);
   try {
+    const stat = await fsPromises.stat(cachePath);
+    if (Number.isFinite(Number(stat.size)) && Number(stat.size) > FEDERATED_QUERY_CACHE_MAX_READ_BYTES) {
+      return createEmptyCache(repoSetId);
+    }
     const raw = await fsPromises.readFile(cachePath, 'utf8');
     const parsed = parseCacheFile(raw, repoSetId);
     if (parsed) return parsed;

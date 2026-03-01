@@ -10,6 +10,7 @@ const DEFAULT_INDEX_CACHE_TTL_MS = 15 * 60 * 1000;
 export const INDEX_SIGNATURE_TTL_MS = 5 * 60 * 1000;
 const INDEX_SIGNATURE_CACHE_MAX_ENTRIES = 256;
 const SHARD_SIGNATURE_CONCURRENCY = 32;
+const INDEX_STATE_READ_MAX_BYTES = 4 * 1024 * 1024;
 const indexSignatureCache = new Map();
 
 /**
@@ -120,6 +121,10 @@ const indexStateSignature = async (dir) => {
   if (!dir) return null;
   const statePath = path.join(dir, 'index_state.json');
   try {
+    const stat = await fs.stat(statePath);
+    if (Number.isFinite(Number(stat.size)) && Number(stat.size) > INDEX_STATE_READ_MAX_BYTES) {
+      throw new Error('index_state.json exceeds bounded read size');
+    }
     const raw = await fs.readFile(statePath, 'utf8');
     const state = JSON.parse(raw);
     if (state && typeof state === 'object') {
