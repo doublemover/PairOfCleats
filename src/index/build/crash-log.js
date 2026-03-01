@@ -6,7 +6,7 @@ import { pipeline } from 'node:stream/promises';
 import { getRecentLogEvents } from '../../shared/progress.js';
 import { createTempPath } from '../../shared/json-stream/atomic.js';
 import { createQueuedAppendWriter } from '../../shared/io/append-writer.js';
-import { atomicWriteJson, atomicWriteJsonSync } from '../../shared/io/atomic-write.js';
+import { atomicWriteJson, atomicWriteJsonSync, atomicWriteTextSync } from '../../shared/io/atomic-write.js';
 import { sha1 } from '../../shared/hash.js';
 import { normalizeFailureEvent, validateFailureEvent } from './failure-taxonomy.js';
 
@@ -644,7 +644,8 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
     const suffix = extra ? ` ${safeStringify(extra)}` : '';
     const line = `[${formatTimestamp()}] ${message}${suffix}\n`;
     try {
-      fsSync.appendFileSync(logPath, line);
+      const existing = fsSync.existsSync(logPath) ? fsSync.readFileSync(logPath, 'utf8') : '';
+      atomicWriteTextSync(logPath, `${existing}${line}`, { newline: false });
     } catch (err) {
       warnIo('append crash log sync', err);
     }

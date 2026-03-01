@@ -1,5 +1,4 @@
 import fs from 'node:fs/promises';
-import fsSync from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { promisify } from 'node:util';
@@ -373,6 +372,57 @@ const compressRotatedLog = async (filePath) => {
   }
 };
 
+const statIfExists = async (filePath) => {
+  try {
+    return await fs.stat(filePath);
+  } catch (err) {
+    if (err?.code === 'ENOENT') return null;
+    throw err;
+  }
+};
+
+const rotateLogIfNeeded = async (
+  filePath,
+  maxBytes,
+  buildRoot,
+  target,
+  resolvedDurabilityClass
+) => {
+  const stat = await statIfExists(filePath);
+  if (!stat || stat.size < maxBytes) {
+    return { rotated: false, existed: Boolean(stat) };
+  }
+  const rotated = `${filePath.replace(/\.jsonl$/, '')}.${Date.now()}.jsonl`;
+  try {
+    await fs.rename(filePath, rotated);
+  } catch (err) {
+    if (isRequiredBuildStateDurability(resolvedDurabilityClass)) {
+      throw createBuildStateWriteFailureError({
+        buildRoot,
+        target,
+        phase: 'rotate',
+        cause: err
+      });
+    }
+    recordStateError(buildRoot, err);
+    return { rotated: false, existed: true };
+  }
+  try {
+    await compressRotatedLog(rotated);
+  } catch (err) {
+    if (isRequiredBuildStateDurability(resolvedDurabilityClass)) {
+      throw createBuildStateWriteFailureError({
+        buildRoot,
+        target,
+        phase: 'compress',
+        cause: err
+      });
+    }
+    recordStateError(buildRoot, err);
+  }
+  return { rotated: true, existed: true };
+};
+
 const syncParentDirectory = async (filePath) => {
   const parentPath = path.dirname(filePath);
   let handle = null;
@@ -396,16 +446,16 @@ const writeTextWithDurability = async (filePath, text, {
   append = false,
   durable = false
 } = {}) => {
+  if (!append) {
+    await atomicWriteText(filePath, text, { newline: false });
+    return;
+  }
   if (!durable) {
-    if (append) {
-      await fs.appendFile(filePath, text, 'utf8');
-      return;
-    }
-    await fs.writeFile(filePath, text, 'utf8');
+    await fs.appendFile(filePath, text, 'utf8');
     return;
   }
   await fs.mkdir(path.dirname(filePath), { recursive: true });
-  const existedBefore = fsSync.existsSync(filePath);
+  const existedBefore = Boolean(await statIfExists(filePath));
   const handle = await fs.open(filePath, append ? 'a' : 'w');
   try {
     await handle.writeFile(text, 'utf8');
@@ -427,36 +477,13 @@ const appendEventLog = async (
   const filePath = resolveEventsPath(buildRoot);
   const resolvedDurabilityClass = resolveBuildStateDurabilityClass(durabilityClass);
   try {
-    const stat = fsSync.existsSync(filePath) ? fsSync.statSync(filePath) : null;
-    if (stat && stat.size >= EVENT_LOG_MAX_BYTES) {
-      const rotated = `${filePath.replace(/\.jsonl$/, '')}.${Date.now()}.jsonl`;
-      try {
-        fsSync.renameSync(filePath, rotated);
-      } catch (err) {
-        if (isRequiredBuildStateDurability(resolvedDurabilityClass)) {
-          throw createBuildStateWriteFailureError({
-            buildRoot,
-            target: 'events',
-            phase: 'rotate',
-            cause: err
-          });
-        }
-        recordStateError(buildRoot, err);
-      }
-      try {
-        await compressRotatedLog(rotated);
-      } catch (err) {
-        if (isRequiredBuildStateDurability(resolvedDurabilityClass)) {
-          throw createBuildStateWriteFailureError({
-            buildRoot,
-            target: 'events',
-            phase: 'compress',
-            cause: err
-          });
-        }
-        recordStateError(buildRoot, err);
-      }
-    }
+    await rotateLogIfNeeded(
+      filePath,
+      EVENT_LOG_MAX_BYTES,
+      buildRoot,
+      'events',
+      resolvedDurabilityClass
+    );
     const lines = events.map((event) => JSON.stringify(event)).join('\n') + '\n';
     await writeTextWithDurability(filePath, lines, {
       append: true,
@@ -509,42 +536,19 @@ const appendDeltaLog = async (
   const filePath = resolveDeltasPath(buildRoot);
   const resolvedDurabilityClass = resolveBuildStateDurabilityClass(durabilityClass);
   try {
-    const stat = fsSync.existsSync(filePath) ? fsSync.statSync(filePath) : null;
-    if (stat && stat.size >= DELTA_LOG_MAX_BYTES) {
-      const rotated = `${filePath.replace(/\.jsonl$/, '')}.${Date.now()}.jsonl`;
-      try {
-        fsSync.renameSync(filePath, rotated);
-      } catch (err) {
-        if (isRequiredBuildStateDurability(resolvedDurabilityClass)) {
-          throw createBuildStateWriteFailureError({
-            buildRoot,
-            target: 'deltas',
-            phase: 'rotate',
-            cause: err
-          });
-        }
-        recordStateError(buildRoot, err);
-      }
-      try {
-        await compressRotatedLog(rotated);
-      } catch (err) {
-        if (isRequiredBuildStateDurability(resolvedDurabilityClass)) {
-          throw createBuildStateWriteFailureError({
-            buildRoot,
-            target: 'deltas',
-            phase: 'compress',
-            cause: err
-          });
-        }
-        recordStateError(buildRoot, err);
-      }
-      if (snapshot) {
-        const snapshotLine = JSON.stringify({ op: 'snapshot', value: snapshot, ts: new Date().toISOString() }) + '\n';
-        await writeTextWithDurability(filePath, snapshotLine, {
-          durable: isRequiredBuildStateDurability(resolvedDurabilityClass)
-        });
-      }
-    } else if (!stat && snapshot) {
+    const rotateResult = await rotateLogIfNeeded(
+      filePath,
+      DELTA_LOG_MAX_BYTES,
+      buildRoot,
+      'deltas',
+      resolvedDurabilityClass
+    );
+    if (rotateResult.rotated && snapshot) {
+      const snapshotLine = JSON.stringify({ op: 'snapshot', value: snapshot, ts: new Date().toISOString() }) + '\n';
+      await writeTextWithDurability(filePath, snapshotLine, {
+        durable: isRequiredBuildStateDurability(resolvedDurabilityClass)
+      });
+    } else if (!rotateResult.existed && snapshot) {
       const snapshotLine = JSON.stringify({ op: 'snapshot', value: snapshot, ts: new Date().toISOString() }) + '\n';
       await writeTextWithDurability(filePath, snapshotLine, {
         durable: isRequiredBuildStateDurability(resolvedDurabilityClass)
