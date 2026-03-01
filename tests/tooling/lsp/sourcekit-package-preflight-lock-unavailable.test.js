@@ -59,8 +59,8 @@ try {
     );
     assert.equal(
       logs.some((line) => line.includes('sourcekit skipped because package preflight did not complete safely.')),
-      false,
-      'expected provider to continue even when preflight lock is unavailable'
+      true,
+      'expected provider to fail closed when preflight lock is unavailable'
     );
     const count = await countNonEmptyLines(fixture.counterPath);
     assert.equal(count, 0, 'expected no preflight resolve attempt when lock is unavailable');
