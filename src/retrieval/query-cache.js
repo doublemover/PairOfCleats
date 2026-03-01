@@ -225,29 +225,36 @@ export function loadQueryCache(cachePath, options = {}) {
     }
     return cached.value;
   }
-  try {
-    const data = readJsonFileSyncSafe(cachePath, {
-      fallback: null,
-      maxBytes: QUERY_CACHE_MAX_READ_BYTES
-    });
-    if (
-      data
-      && Number(data.version) === QUERY_CACHE_VERSION
-      && Array.isArray(data.entries)
-    ) {
-      queryCacheDiskCache.set(cachePath, { signature, value: data });
-      trimPathCacheEntries(queryCacheDiskCache);
-      rebuildLookup(data);
-      if (options.prewarm === true) {
-        prewarmHotCache({
-          cachePath,
-          entries: data.entries,
-          maxEntries: options.prewarmMaxEntries
-        });
-      }
-      return data;
+  let readError = null;
+  const data = readJsonFileSyncSafe(cachePath, {
+    fallback: null,
+    maxBytes: QUERY_CACHE_MAX_READ_BYTES,
+    onError: (info) => {
+      if (!readError) readError = info?.error || new Error('query_cache_read_failed');
     }
-  } catch {}
+  });
+  if (
+    data
+    && Number(data.version) === QUERY_CACHE_VERSION
+    && Array.isArray(data.entries)
+  ) {
+    queryCacheDiskCache.set(cachePath, { signature, value: data });
+    trimPathCacheEntries(queryCacheDiskCache);
+    rebuildLookup(data);
+    if (options.prewarm === true) {
+      prewarmHotCache({
+        cachePath,
+        entries: data.entries,
+        maxEntries: options.prewarmMaxEntries
+      });
+    }
+    return data;
+  }
+  if (readError && readError?.code !== 'ENOENT') {
+    try {
+      fs.rmSync(cachePath, { force: true });
+    } catch {}
+  }
   clearDiskCache(cachePath);
   clearHotCache(cachePath);
   return createEmptyCache();
