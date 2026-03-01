@@ -15,6 +15,7 @@ const CACHE_VERSION = 6;
 const CACHE_FILE = 'import-resolution-cache.json';
 const CACHE_DIAGNOSTICS_VERSION = 6;
 const CACHE_PERSIST_WARNING_THROTTLE_MS = 60 * 1000;
+const CACHE_PERSIST_WARNING_STATE_MAX_ENTRIES = 256;
 const IMPORT_RESOLUTION_CACHE_MAX_BYTES = 16 * 1024 * 1024;
 const DEFAULT_MAX_STALE_EDGE_CHECKS = 20000;
 const IMPORT_SPEC_CANDIDATE_EXTENSIONS = Object.freeze([...DEFAULT_IMPORT_EXTS]);
@@ -30,6 +31,19 @@ const OPENAPI_SOURCE_SUFFIXES = Object.freeze([
 const OPENAPI_SOURCE_DIRECT_EXTENSIONS = Object.freeze(['.yaml', '.yml', '.json']);
 const OPENAPI_BASENAME_HINTS = new Set(['openapi', 'swagger']);
 const cachePersistWarningStateByPath = new Map();
+
+const setBoundedPersistWarningState = (key, state) => {
+  if (!key) return;
+  if (cachePersistWarningStateByPath.has(key)) {
+    cachePersistWarningStateByPath.delete(key);
+  }
+  cachePersistWarningStateByPath.set(key, state);
+  while (cachePersistWarningStateByPath.size > CACHE_PERSIST_WARNING_STATE_MAX_ENTRIES) {
+    const oldestKey = cachePersistWarningStateByPath.keys().next().value;
+    if (oldestKey == null) break;
+    cachePersistWarningStateByPath.delete(oldestKey);
+  }
+};
 
 const isObject = (value) => (
   value && typeof value === 'object' && !Array.isArray(value)
@@ -403,7 +417,7 @@ const maybeLogThrottledCachePersistFailure = ({
   const due = resolvedThrottleMs <= 0 || (nowMs - state.lastWarnAtMs) >= resolvedThrottleMs;
   if (!due) {
     state.suppressedCount += 1;
-    cachePersistWarningStateByPath.set(key, state);
+    setBoundedPersistWarningState(key, state);
     const health = ensureCacheStatsHealth(cacheStats);
     if (isObject(cacheStats)) {
       cacheStats.cachePersistWriteWarningsSuppressed = Number(cacheStats.cachePersistWriteWarningsSuppressed || 0) + 1;
@@ -421,7 +435,7 @@ const maybeLogThrottledCachePersistFailure = ({
   const suppressedCount = state.suppressedCount;
   state.lastWarnAtMs = nowMs;
   state.suppressedCount = 0;
-  cachePersistWarningStateByPath.set(key, state);
+  setBoundedPersistWarningState(key, state);
   const health = ensureCacheStatsHealth(cacheStats);
   const markerSuffix = failOpenMarkerPath
     ? ` marker=${failOpenMarkerPath}`
