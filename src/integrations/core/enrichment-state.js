@@ -20,10 +20,17 @@ const logEnrichmentWarning = (log, message) => {
 };
 
 const readEnrichmentState = async (statePath) => {
+  let readError = null;
   const parsed = await readJsonFileSafe(statePath, {
     fallback: {},
-    maxBytes: ENRICHMENT_STATE_MAX_BYTES
+    maxBytes: ENRICHMENT_STATE_MAX_BYTES,
+    onError: (info) => {
+      if (!readError) readError = info?.error || new Error('read_enrichment_state_failed');
+    }
   });
+  if (readError && readError?.code !== 'ENOENT') {
+    throw readError;
+  }
   if (!parsed || typeof parsed !== 'object') {
     throw new Error('Enrichment state must be a JSON object.');
   }
