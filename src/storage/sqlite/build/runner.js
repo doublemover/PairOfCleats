@@ -210,6 +210,10 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
     }
     return { ok: true, mode: modeArg, outPath, outputPaths: modeOutputPaths };
   } finally {
+    try {
+      await Promise.resolve(stopHeartbeat());
+    } catch {}
+    stopHeartbeat = () => {};
     finalize();
   }
 }

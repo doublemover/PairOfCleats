@@ -908,7 +908,11 @@ export const runStage = async (
       });
       throw err;
     } finally {
-      stopHeartbeat();
+      await runBuildCleanupWithTimeout({
+        label: `${phaseStage}.heartbeat.stop`,
+        cleanup: () => stopHeartbeat(),
+        log
+      });
       try {
         await runBuildCleanupWithTimeout({
           label: `${phaseStage}.build-state.flush`,

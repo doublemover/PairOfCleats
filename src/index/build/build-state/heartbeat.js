@@ -22,27 +22,32 @@ export const startHeartbeat = ({
   let lastWrite = 0;
   let active = true;
   let timer = null;
+  let stopPromise = null;
   const resolvedDurabilityClass = resolveBuildStateDurabilityClass(durabilityClass);
   const stop = () => {
-    if (!active) return;
+    if (stopPromise) return stopPromise;
+    if (!active) return Promise.resolve();
     active = false;
     if (timer) {
       clearInterval(timer);
       timer = null;
     }
-    void runBuildCleanupWithTimeout({
-      label: 'build-state.heartbeat.lifecycle.close',
-      cleanup: () => lifecycle.close()
-    }).catch(() => {});
-    void runBuildCleanupWithTimeout({
-      label: 'build-state.heartbeat.flush',
-      cleanup: () => flushBuildState(buildRoot)
-    }).catch(() => {});
+    stopPromise = (async () => {
+      await runBuildCleanupWithTimeout({
+        label: 'build-state.heartbeat.lifecycle.close',
+        cleanup: () => lifecycle.close()
+      }).catch(() => {});
+      await runBuildCleanupWithTimeout({
+        label: 'build-state.heartbeat.flush',
+        cleanup: () => flushBuildState(buildRoot)
+      }).catch(() => {});
+    })();
+    return stopPromise;
   };
   const tick = async () => {
     if (!active) return;
     if (!(await buildRootExists(buildRoot))) {
-      stop();
+      await stop();
       return;
     }
     const nowMs = Date.now();

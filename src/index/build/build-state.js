@@ -351,7 +351,7 @@ export async function markBuildPhase(buildRoot, phase, status, detail = null) {
  * @param {string} buildRoot
  * @param {string} stage
  * @param {number} [intervalMs]
- * @returns {{stop:()=>Promise<void>,flush:()=>Promise<void>}|null}
+ * @returns {(()=>Promise<void>)|null}
  */
 export function startBuildHeartbeat(buildRoot, stage, intervalMs = 30000) {
   return startHeartbeat({
