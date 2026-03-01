@@ -314,9 +314,9 @@ export const collectStarlarkImportEntries = (text, options = {}) => {
     'use_extension',
     'local_path_override'
   ]);
-  if (!precheck(source)) return [];
   const scanBudget = budgetContext.scanBudget;
   try {
+    if (!precheck(source)) return [];
     const calls = collectTopLevelCalls(
       source,
       new Set(['load', 'bazel_dep', 'use_extension', 'local_path_override']),

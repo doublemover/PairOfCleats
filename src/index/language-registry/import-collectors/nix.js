@@ -320,7 +320,6 @@ export const collectNixImportEntries = (text, options = {}) => {
     'getFlake',
     '.nix'
   ]);
-  if (!precheck(source)) return [];
   const scanBudget = budgetContext.scanBudget;
   const addImport = (value, hintSource = null) => {
     if (scanBudget.exhausted || !scanBudget.consumeToken()) return;
@@ -332,6 +331,7 @@ export const collectNixImportEntries = (text, options = {}) => {
 
   const sourceText = source;
   try {
+    if (!precheck(sourceText)) return [];
     let index = 0;
     let inComment = false;
     let inSingle = false;

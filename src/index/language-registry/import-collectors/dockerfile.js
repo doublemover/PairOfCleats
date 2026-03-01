@@ -1,5 +1,12 @@
-import { lineHasAnyInsensitive, shouldScanLine } from './utils.js';
+import { createCollectorBudgetContext, lineHasAnyInsensitive, shouldScanLine } from './utils.js';
 import { parseDockerfileFromClause, parseDockerfileInstruction } from '../../../shared/dockerfile.js';
+
+const DOCKERFILE_SCAN_BUDGET = Object.freeze({
+  maxChars: 786432,
+  maxMatches: 4096,
+  maxTokens: 2048,
+  maxMs: 30
+});
 
 const normalizeImportToken = (value) => String(value || '')
   .trim()
@@ -11,10 +18,12 @@ const extractCopyAddSource = (line) => {
   return fromFlag?.[1] ? normalizeImportToken(fromFlag[1]) : '';
 };
 
-const extractRunMountSources = (line) => {
+const extractRunMountSources = (line, scanBudget = null) => {
   const out = [];
-  const mountMatches = Array.from(line.matchAll(/(?:^|\s)--mount(?:=|\s+)([^\s\\]+)/gi));
-  for (const match of mountMatches) {
+  const mountMatcher = /(?:^|\s)--mount(?:=|\s+)([^\s\\]+)/gi;
+  let match;
+  while (!scanBudget?.exhausted && (match = mountMatcher.exec(line)) !== null) {
+    if (scanBudget && !scanBudget.consumeMatch()) break;
     const spec = String(match[1] || '');
     const parts = spec.split(',');
     for (const part of parts) {
@@ -23,6 +32,7 @@ const extractRunMountSources = (line) => {
       const value = normalizeImportToken(trimmed.slice(trimmed.indexOf('=') + 1));
       if (value) out.push(value);
     }
+    if (!match[0]) mountMatcher.lastIndex += 1;
   }
   return out;
 };
@@ -52,31 +62,42 @@ const toLogicalDockerfileLines = (text) => {
   return out;
 };
 
-export const collectDockerfileImports = (text) => {
+export const collectDockerfileImports = (text, options = {}) => {
   const imports = new Set();
-  const lines = toLogicalDockerfileLines(text);
-  const precheck = (value) => lineHasAnyInsensitive(value, ['from', 'copy', 'add', '--mount']);
-
-  for (const line of lines) {
-    if (!shouldScanLine(line, precheck)) continue;
-    const from = parseDockerfileFromClause(line);
-    if (from) {
-      if (from.image) imports.add(from.image);
-      if (from.stage) imports.add(from.stage);
-    }
-    const instruction = parseDockerfileInstruction(line);
-    if (!instruction) continue;
-    if (instruction.instruction === 'COPY' || instruction.instruction === 'ADD') {
-      const source = extractCopyAddSource(line);
-      if (source) imports.add(source);
-      continue;
-    }
-    if (instruction.instruction === 'RUN') {
-      for (const source of extractRunMountSources(line)) {
-        imports.add(source);
+  const budgetContext = createCollectorBudgetContext({
+    text,
+    options,
+    collectorId: 'dockerfile',
+    defaults: DOCKERFILE_SCAN_BUDGET
+  });
+  const { scanBudget } = budgetContext;
+  try {
+    const lines = toLogicalDockerfileLines(budgetContext.source);
+    const precheck = (value) => lineHasAnyInsensitive(value, ['from', 'copy', 'add', '--mount']);
+    for (const line of lines) {
+      if (scanBudget.exhausted || !scanBudget.consumeTime()) break;
+      if (!shouldScanLine(line, precheck)) continue;
+      const from = parseDockerfileFromClause(line);
+      if (from) {
+        if (from.image && scanBudget.consumeToken()) imports.add(from.image);
+        if (from.stage && scanBudget.consumeToken()) imports.add(from.stage);
+      }
+      const instruction = parseDockerfileInstruction(line);
+      if (!instruction) continue;
+      if (instruction.instruction === 'COPY' || instruction.instruction === 'ADD') {
+        const source = extractCopyAddSource(line);
+        if (source && scanBudget.consumeToken()) imports.add(source);
+        continue;
+      }
+      if (instruction.instruction === 'RUN') {
+        for (const source of extractRunMountSources(line, scanBudget)) {
+          if (!scanBudget.consumeToken()) break;
+          imports.add(source);
+        }
       }
     }
+    return Array.from(imports);
+  } finally {
+    budgetContext.finalize();
   }
-
-  return Array.from(imports);
 };
