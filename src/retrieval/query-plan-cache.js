@@ -106,10 +106,21 @@ const hydrateQueryPlanEntry = (rawEntry, { configSignature, indexSignature } = {
 
 const readDiskCache = (cachePath, maxReadBytes = DEFAULT_QUERY_PLAN_DISK_READ_MAX_BYTES) => {
   if (!cachePath || !fs.existsSync(cachePath)) return null;
-  return readJsonFileSyncSafe(cachePath, {
+  let readError = null;
+  const parsed = readJsonFileSyncSafe(cachePath, {
     fallback: null,
-    maxBytes: maxReadBytes
+    maxBytes: maxReadBytes,
+    onError: (info) => {
+      if (!readError) readError = info?.error || new Error('query_plan_disk_cache_read_failed');
+    }
   });
+  if (parsed != null) return parsed;
+  if (readError && readError?.code !== 'ENOENT') {
+    try {
+      fs.rmSync(cachePath, { force: true });
+    } catch {}
+  }
+  return null;
 };
 
 const serializeDiskEntry = (entry) => {
