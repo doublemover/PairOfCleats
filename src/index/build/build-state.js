@@ -369,7 +369,7 @@ export function startBuildHeartbeat(buildRoot, stage, intervalMs = 30000) {
  * Create per-mode checkpoint writer for processed-file progress.
  *
  * @param {object} input
- * @returns {{tick:()=>void,finish:()=>void}}
+ * @returns {{tick:()=>void,finish:()=>Promise<void>}}
  */
 export function createBuildCheckpoint({
   buildRoot,

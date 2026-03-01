@@ -4688,7 +4688,7 @@ export const processFiles = async ({
         : { enabled: false, updatedAt };
     }
     showProgress('Files', progress.total, progress.total, { stage: 'processing', mode });
-    checkpoint.finish();
+    await checkpoint.finish();
     timing.processMs = Date.now() - processStart;
     const stageTimingBreakdownPayload = buildStageTimingBreakdownPayload();
     const extractedProseLowYieldSummary = buildExtractedProseLowYieldBailoutSummary(extractedProseLowYieldBailout);
