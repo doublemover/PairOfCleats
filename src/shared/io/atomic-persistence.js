@@ -71,12 +71,35 @@ const waitForPath = async (targetPath, { attempts = 3, baseDelayMs = 10 } = {}) 
   return false;
 };
 
-const safeStat = async (targetPath) => {
+const syncParentDirectory = async (targetPath) => {
+  let handle = null;
   try {
-    return await fs.stat(targetPath);
-  } catch {
-    return null;
+    handle = await fs.open(path.dirname(targetPath), 'r');
+    await handle.sync();
+  } catch (err) {
+    const code = String(err?.code || '').toUpperCase();
+    if (code !== 'EINVAL' && code !== 'ENOTSUP' && code !== 'EPERM') {
+      throw err;
+    }
+  } finally {
+    try {
+      await handle?.close();
+    } catch {}
   }
+};
+
+const copyFileWithDurability = async (sourcePath, targetPath) => {
+  await fs.copyFile(sourcePath, targetPath);
+  let targetHandle = null;
+  try {
+    targetHandle = await fs.open(targetPath, 'r+');
+    await targetHandle.sync();
+  } finally {
+    try {
+      await targetHandle?.close();
+    } catch {}
+  }
+  await syncParentDirectory(targetPath);
 };
 
 export const createTempPath = (filePath, options = {}) => {
@@ -223,6 +246,41 @@ const renameWithRetrySync = (fromPath, toPath, {
   throw lastError;
 };
 
+const syncParentDirectorySync = (targetPath) => {
+  let fd = null;
+  try {
+    fd = fsSync.openSync(path.dirname(targetPath), 'r');
+    fsSync.fsyncSync(fd);
+  } catch (err) {
+    const code = String(err?.code || '').toUpperCase();
+    if (code !== 'EINVAL' && code !== 'ENOTSUP' && code !== 'EPERM') {
+      throw err;
+    }
+  } finally {
+    if (typeof fd === 'number') {
+      try {
+        fsSync.closeSync(fd);
+      } catch {}
+    }
+  }
+};
+
+const copyFileWithDurabilitySync = (sourcePath, targetPath) => {
+  fsSync.copyFileSync(sourcePath, targetPath);
+  let fd = null;
+  try {
+    fd = fsSync.openSync(targetPath, 'r+');
+    fsSync.fsyncSync(fd);
+  } finally {
+    if (typeof fd === 'number') {
+      try {
+        fsSync.closeSync(fd);
+      } catch {}
+    }
+  }
+  syncParentDirectorySync(targetPath);
+};
+
 const renameWithBackupSwap = async (tempPath, targetPath) => {
   const backupPath = createSiblingBackupPath(targetPath);
   let movedExistingTarget = false;
@@ -297,7 +355,6 @@ const maybeReportExdevFallback = (options = {}, reasonCode = null) => {
 };
 
 export const replaceFile = async (tempPath, finalPath, options = {}) => {
-  const startedAt = Date.now();
   const keepBackup = options.keepBackup === true;
   const backupPath = createSiblingBackupPath(finalPath);
   const isSamePath = (
@@ -323,10 +380,6 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
       throw err;
     }
   }
-  const isFreshFinal = async () => {
-    const stat = await safeStat(finalPath);
-    return Boolean(stat && stat.mtimeMs >= startedAt - 2000);
-  };
   const finalExistedAtStart = finalExists;
   let backupAvailable = false;
   let backupCreatedForReplace = false;
@@ -342,23 +395,10 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
       return false;
     }
   };
-  const canTreatExistingFinalAsCommitted = async () => {
-    if (!fsSync.existsSync(finalPath)) return false;
-    if (!finalExistedAtStart) return true;
-    return isFreshFinal();
-  };
   if (!(await waitForPath(tempPath, {
     attempts: REPLACE_TEMP_WAIT_ATTEMPTS,
     baseDelayMs: REPLACE_TEMP_WAIT_BASE_DELAY_MS
   }))) {
-    if (await canTreatExistingFinalAsCommitted()) {
-      await cleanupBackupIfNeeded({
-        keepBackup,
-        backupAvailable: backupAvailable && backupCreatedForReplace,
-        bakPath: backupPath
-      });
-      return;
-    }
     if (await restoreBackup()) return;
     const err = new Error(`Temp file missing before replace: ${tempPath}`);
     err.code = 'ERR_TEMP_MISSING';
@@ -366,7 +406,7 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
   }
   const copyFallback = async (reasonCode = null) => {
     try {
-      await fs.copyFile(tempPath, finalPath);
+      await copyFileWithDurability(tempPath, finalPath);
       await fs.rm(tempPath, { force: true });
       maybeReportExdevFallback(options, reasonCode);
       return true;
@@ -427,14 +467,6 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
           await restoreBackup();
           throw retryErr;
         }
-        await cleanupBackupIfNeeded({
-          keepBackup,
-          backupAvailable: backupAvailable && backupCreatedForReplace,
-          bakPath: backupPath
-        });
-        return;
-      }
-      if (await canTreatExistingFinalAsCommitted()) {
         await cleanupBackupIfNeeded({
           keepBackup,
           backupAvailable: backupAvailable && backupCreatedForReplace,
@@ -524,7 +556,7 @@ export const replaceFileSync = (tempPath, finalPath, options = {}) => {
   };
   const copyFallback = (reasonCode = null) => {
     try {
-      fsSync.copyFileSync(tempPath, finalPath);
+      copyFileWithDurabilitySync(tempPath, finalPath);
       fsSync.rmSync(tempPath, { force: true });
       maybeReportExdevFallback(options, reasonCode);
       return true;
@@ -600,27 +632,40 @@ export const replaceFileSync = (tempPath, finalPath, options = {}) => {
 
 export const replaceDir = async (tempPath, finalPath, options = {}) => {
   const keepBackup = options.keepBackup === true;
-  const bakPath = `${finalPath}.bak`;
+  const bakPath = createSiblingBackupPath(finalPath);
   const finalExists = fsSync.existsSync(finalPath);
   if (!fsSync.existsSync(tempPath)) {
     const err = new Error(`Temp dir missing before replace: ${tempPath}`);
     err.code = 'ERR_TEMP_MISSING';
     throw err;
   }
-  let backupAvailable = fsSync.existsSync(bakPath);
+  let backupAvailable = false;
   let backupCreatedForReplace = false;
   const restoreBackup = async () => {
     if (!backupAvailable || !backupCreatedForReplace) return;
-    try {
-      if (fsSync.existsSync(finalPath)) {
-        await fs.rm(finalPath, { recursive: true, force: true });
+    const rollbackCurrentPath = createTempPath(`${finalPath}.restore-current`, { preferFallback: true });
+    let movedCurrentAside = false;
+    if (fsSync.existsSync(finalPath)) {
+      try {
+        await renameWithRetries(finalPath, rollbackCurrentPath);
+        movedCurrentAside = true;
+      } catch {
+        movedCurrentAside = false;
       }
-    } catch {}
+    }
     try {
       await fs.rename(bakPath, finalPath);
       backupAvailable = false;
       backupCreatedForReplace = false;
+      if (movedCurrentAside) {
+        try { await fs.rm(rollbackCurrentPath, { recursive: true, force: true }); } catch {}
+      }
     } catch {}
+    if (movedCurrentAside && !fsSync.existsSync(finalPath)) {
+      try {
+        await renameWithRetries(rollbackCurrentPath, finalPath);
+      } catch {}
+    }
   };
   const renameWithRetries = async (fromPath, toPath) => {
     for (let attempt = 0; attempt < REPLACE_DIR_RENAME_ATTEMPTS; attempt += 1) {
@@ -669,6 +714,9 @@ export const replaceDir = async (tempPath, finalPath, options = {}) => {
         await cleanupDir(stagedPath);
         return false;
       }
+      try {
+        await syncParentDirectory(finalPath);
+      } catch {}
       await cleanupDir(rollbackPath);
       await fs.rm(tempPath, { recursive: true, force: true });
       return true;
@@ -687,13 +735,14 @@ export const replaceDir = async (tempPath, finalPath, options = {}) => {
       backupAvailable = true;
       backupCreatedForReplace = true;
     } catch (err) {
-      if (err?.code !== 'ENOENT') {
-        backupAvailable = fsSync.existsSync(bakPath);
-      }
+      if (err?.code !== 'ENOENT') throw err;
     }
   }
   try {
     await renameWithRetries(tempPath, finalPath);
+    try {
+      await syncParentDirectory(finalPath);
+    } catch {}
     if (!keepBackup && backupAvailable) {
       try { await fs.rm(bakPath, { recursive: true, force: true }); } catch {}
     }
@@ -704,6 +753,9 @@ export const replaceDir = async (tempPath, finalPath, options = {}) => {
     }
     try {
       await renameWithRetries(tempPath, finalPath);
+      try {
+        await syncParentDirectory(finalPath);
+      } catch {}
       if (!keepBackup && backupAvailable) {
         try { await fs.rm(bakPath, { recursive: true, force: true }); } catch {}
       }
