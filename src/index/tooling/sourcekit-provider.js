@@ -42,7 +42,7 @@ const SOURCEKIT_PACKAGE_PREFLIGHT_LOCK_STALE_MS = 10 * 60 * 1000;
 const SOURCEKIT_DEFAULT_EXCLUDE_PATH_REGEXES = [
   /\/test\/sourcekit\/misc\/parser-cutoff\.swift$/i
 ];
-const SOURCEKIT_LOCK_NAMESPACE = path.join(getCacheRoot(), 'locks', 'sourcekit');
+const SOURCEKIT_LOCK_NAMESPACE_SUFFIX = path.join('locks', 'sourcekit');
 
 const buildRegex = (value) => {
   if (value instanceof RegExp) return value;
@@ -250,11 +250,12 @@ const summarizeSubprocessOutput = (value, maxChars = 240) => {
 };
 
 const buildRepoScopedLockPath = (repoRoot, suffix) => {
+  const lockNamespace = path.join(getCacheRoot(), SOURCEKIT_LOCK_NAMESPACE_SUFFIX);
   const hash = crypto
     .createHash('sha1')
     .update(path.resolve(String(repoRoot || '')).toLowerCase())
     .digest('hex');
-  return path.join(SOURCEKIT_LOCK_NAMESPACE, `${suffix}-${hash}.lock`);
+  return path.join(lockNamespace, `${suffix}-${hash}.lock`);
 };
 
 export const resolveSourcekitPreflightLockPath = (repoRoot) => (
