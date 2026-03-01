@@ -1,16 +1,15 @@
 #!/usr/bin/env node
 import { applyTestEnv } from '../../helpers/test-env.js';
-import { spawn } from 'node:child_process';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { getToolCatalog, getToolDefs, MCP_SCHEMA_VERSION } from '../../../src/integrations/mcp/defs.js';
 import { stableStringify } from '../../../src/shared/stable-json.js';
 import { DEFAULT_MODEL_ID } from '../../../tools/shared/dict-utils.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { startMcpServer } from '../../helpers/mcp-client.js';
 
 applyTestEnv();
 const root = process.cwd();
-const serverPath = path.join(root, 'tools', 'mcp', 'server.js');
 const sampleRepo = path.join(root, 'tests', 'fixtures', 'sample');
 const tempRoot = resolveTestCachePath(root, 'mcp-schema');
 const cacheRoot = path.join(tempRoot, 'cache');
@@ -60,79 +59,6 @@ const fallbackExtensionFiles = [
 for (const filePath of fallbackExtensionFiles) {
   await fsPromises.mkdir(path.dirname(filePath), { recursive: true });
   await fsPromises.writeFile(filePath, Buffer.alloc(0));
-}
-
-function encodeMessage(payload) {
-  const json = JSON.stringify(payload);
-  return `Content-Length: ${Buffer.byteLength(json, 'utf8')}\r\n\r\n${json}`;
-}
-
-function createReader(stream) {
-  let buffer = Buffer.alloc(0);
-  const tryRead = () => {
-    const headerEnd = buffer.indexOf('\r\n\r\n');
-    if (headerEnd === -1) return null;
-    const header = buffer.slice(0, headerEnd).toString('utf8');
-    const match = header.match(/Content-Length:\s*(\d+)/i);
-    if (!match) {
-      buffer = buffer.slice(headerEnd + 4);
-      return null;
-    }
-    const length = parseInt(match[1], 10);
-    const total = headerEnd + 4 + length;
-    if (buffer.length < total) return null;
-    const body = buffer.slice(headerEnd + 4, total).toString('utf8');
-    buffer = buffer.slice(total);
-    return JSON.parse(body);
-  };
-  const notifications = [];
-  const readRaw = async () => {
-    const existing = tryRead();
-    if (existing) return existing;
-    return new Promise((resolve) => {
-      const onData = (chunk) => {
-        buffer = Buffer.concat([buffer, chunk]);
-        const parsed = tryRead();
-        if (!parsed) return;
-        stream.off('data', onData);
-        resolve(parsed);
-      };
-      stream.on('data', onData);
-    });
-  };
-  const readMessage = async () => {
-    while (true) {
-      const parsed = await readRaw();
-      if (parsed && parsed.method && parsed.id === undefined) {
-        notifications.push(parsed);
-        continue;
-      }
-      return parsed;
-    }
-  };
-  return { readMessage, notifications };
-}
-
-const server = spawn(process.execPath, [serverPath], {
-  stdio: ['pipe', 'pipe', 'inherit'],
-  env: {
-    ...process.env,    PAIROFCLEATS_HOME: cacheRoot,
-    PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-    // Force the default cache root to our seeded test directory to keep schema snapshots stable.
-    XDG_CACHE_HOME: defaultCacheHome,
-    LOCALAPPDATA: process.platform === 'win32' ? defaultCacheHome : ''
-  }
-});
-
-const { readMessage } = createReader(server.stdout);
-const timeout = setTimeout(() => {
-  console.error('MCP schema test timed out.');
-  server.kill('SIGKILL');
-  process.exit(1);
-}, 30000);
-
-function send(payload) {
-  server.stdin.write(encodeMessage(payload));
 }
 
 const shapeValue = (value) => {
@@ -250,16 +176,16 @@ const findFirstDiff = (expected, actual, currentPath = '') => {
   };
 };
 
-async function run() {
-  send({
+async function run(session) {
+  session.send({
     jsonrpc: '2.0',
     id: 1,
     method: 'initialize',
     params: { protocolVersion: '2024-11-05', capabilities: {} }
   });
-  await readMessage();
+  await session.readMessage();
 
-  send({
+  session.send({
     jsonrpc: '2.0',
     id: 2,
     method: 'tools/call',
@@ -268,11 +194,11 @@ async function run() {
       arguments: { repoPath: sampleRepo }
     }
   });
-  const status = await readMessage();
+  const status = await session.readMessage();
   const statusText = status.result?.content?.[0]?.text || '';
   const statusPayload = JSON.parse(statusText || '{}');
 
-  send({
+  session.send({
     jsonrpc: '2.0',
     id: 3,
     method: 'tools/call',
@@ -281,13 +207,13 @@ async function run() {
       arguments: { repoPath: emptyRepo }
     }
   });
-  const configStatus = await readMessage();
+  const configStatus = await session.readMessage();
   const configText = configStatus.result?.content?.[0]?.text || '';
   const configPayload = JSON.parse(configText || '{}');
 
-  send({ jsonrpc: '2.0', id: 4, method: 'shutdown' });
-  await readMessage();
-  send({ jsonrpc: '2.0', method: 'exit' });
+  session.send({ jsonrpc: '2.0', id: 4, method: 'shutdown' });
+  await session.readMessage();
+  session.send({ jsonrpc: '2.0', method: 'exit' });
 
   return {
     tools: toolSchemaSnapshot,
@@ -298,47 +224,58 @@ async function run() {
   };
 }
 
-run()
+const session = await startMcpServer({
+  cacheRoot,
+  timeoutMs: 30000,
+  env: {
+    // Force the default cache root to our seeded test directory to keep schema snapshots stable.
+    XDG_CACHE_HOME: defaultCacheHome,
+    LOCALAPPDATA: process.platform === 'win32' ? defaultCacheHome : ''
+  }
+});
+
+run(session)
   .then(async (actual) => {
-    clearTimeout(timeout);
-    server.stdin.end();
-    const expectedRaw = await fsPromises.readFile(snapshotPath, 'utf8');
-    const expected = JSON.parse(expectedRaw);
-    const expectedStable = stableStringify(expected);
-    const actualStable = stableStringify(actual);
-    if (actualStable !== expectedStable) {
-      console.error('MCP schema snapshot mismatch.');
-      const diff = findFirstDiff(expected, actual);
-      if (diff) {
-        console.error(`First diff (${diff.reason}) at: ${diff.path}`);
-        console.error(`Expected: ${JSON.stringify(diff.expected)}`);
-        console.error(`Actual:   ${JSON.stringify(diff.actual)}`);
+    try {
+      const expectedRaw = await fsPromises.readFile(snapshotPath, 'utf8');
+      const expected = JSON.parse(expectedRaw);
+      const expectedStable = stableStringify(expected);
+      const actualStable = stableStringify(actual);
+      if (actualStable !== expectedStable) {
+        console.error('MCP schema snapshot mismatch.');
+        const diff = findFirstDiff(expected, actual);
+        if (diff) {
+          console.error(`First diff (${diff.reason}) at: ${diff.path}`);
+          console.error(`Expected: ${JSON.stringify(diff.expected)}`);
+          console.error(`Actual:   ${JSON.stringify(diff.actual)}`);
+        }
+
+        const debugActualPath = path.join(tempRoot, 'schema-snapshot.actual.json');
+        const debugExpectedPath = path.join(tempRoot, 'schema-snapshot.expected.json');
+        await fsPromises.writeFile(debugActualPath, `${actualStable}\n`, 'utf8');
+        await fsPromises.writeFile(debugExpectedPath, `${expectedStable}\n`, 'utf8');
+        console.error(`Wrote expected snapshot to: ${debugExpectedPath}`);
+        console.error(`Wrote actual snapshot to:   ${debugActualPath}`);
+
+        const updateSnapshots = process.env.PAIROFCLEATS_UPDATE_SNAPSHOTS === '1'
+          || process.env.UPDATE_SNAPSHOTS === '1';
+        if (updateSnapshots) {
+          await fsPromises.writeFile(snapshotPath, `${actualStable}\n`, 'utf8');
+          console.error(`Updated snapshot at: ${snapshotPath}`);
+          return;
+        }
+
+        console.error('Set PAIROFCLEATS_UPDATE_SNAPSHOTS=1 to update schema-snapshot.json.');
+        process.exitCode = 1;
+        return;
       }
-
-      const debugActualPath = path.join(tempRoot, 'schema-snapshot.actual.json');
-      const debugExpectedPath = path.join(tempRoot, 'schema-snapshot.expected.json');
-      await fsPromises.writeFile(debugActualPath, `${actualStable}\n`, 'utf8');
-      await fsPromises.writeFile(debugExpectedPath, `${expectedStable}\n`, 'utf8');
-      console.error(`Wrote expected snapshot to: ${debugExpectedPath}`);
-      console.error(`Wrote actual snapshot to:   ${debugActualPath}`);
-
-      const updateSnapshots = process.env.PAIROFCLEATS_UPDATE_SNAPSHOTS === '1'
-        || process.env.UPDATE_SNAPSHOTS === '1';
-      if (updateSnapshots) {
-        await fsPromises.writeFile(snapshotPath, `${actualStable}\n`, 'utf8');
-        console.error(`Updated snapshot at: ${snapshotPath}`);
-        process.exit(0);
-      }
-
-      console.error('Set PAIROFCLEATS_UPDATE_SNAPSHOTS=1 to update schema-snapshot.json.');
-      process.exit(1);
+      console.log('MCP schema snapshot test passed');
+    } finally {
+      await session.shutdown();
     }
-    console.log('MCP schema snapshot test passed');
   })
-  .catch((err) => {
-    clearTimeout(timeout);
+  .catch(async (err) => {
     console.error(err?.message || err);
-    server.kill('SIGKILL');
-    process.exit(1);
+    process.exitCode = 1;
+    await session.shutdown();
   });
-

@@ -4,7 +4,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { ensureTestingEnv } from './test-env.js';
-import { terminateChild } from './process-lifecycle.js';
+import {
+  registerChildProcessForCleanup,
+  terminateTrackedSubprocesses
+} from '../../src/shared/subprocess.js';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 const encodeFramedMessage = (payload) => {
@@ -174,6 +177,16 @@ export const startMcpServer = async ({
     stdio: ['pipe', 'pipe', 'inherit'],
     env: childEnv
   });
+  const ownershipId = `tests:mcp:${process.pid}:${Date.now()}:${Math.random().toString(16).slice(2, 10)}`;
+  const unregisterTrackedServer = registerChildProcessForCleanup(server, {
+    killTree: true,
+    detached: process.platform !== 'win32',
+    command: process.execPath,
+    args: serverArgs,
+    name: 'tests-mcp-server',
+    ownershipId,
+    scope: ownershipId
+  });
 
   let timeout = null;
   const resolvedTimeoutMs = Number.isFinite(Number(timeoutMs))
@@ -184,7 +197,11 @@ export const startMcpServer = async ({
     if (timeout) clearTimeout(timeout);
     timeout = setTimeout(() => {
       console.error(`MCP server test timed out after ${resolvedTimeoutMs}ms.`);
-      server.kill('SIGKILL');
+      void terminateTrackedSubprocesses({
+        reason: 'mcp_server_test_timeout',
+        ownershipId,
+        force: true
+      });
     }, resolvedTimeoutMs);
   };
   const reader = createReader(server.stdout, { onActivity: touchTimeout });
@@ -204,7 +221,15 @@ export const startMcpServer = async ({
     try {
       server.stdin.end();
     } catch {}
-    await terminateChild(server, { graceMs: 5000 });
+    try {
+      await terminateTrackedSubprocesses({
+        reason: 'mcp_server_test_shutdown',
+        ownershipId,
+        force: false
+      });
+    } finally {
+      unregisterTrackedServer();
+    }
   };
 
   return { server, send, readMessage, readAnyMessage, notifications, shutdown };
