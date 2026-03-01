@@ -17,7 +17,6 @@ const DEFAULT_JUNIT = path.join(DEFAULT_LOG_DIR, 'junit.xml');
 const DEFAULT_CACHE_ROOT = path.join(ROOT, '.ci-cache', 'pairofcleats');
 const DEFAULT_HOME_ROOT = path.join(ROOT, '.ci-home', 'pairofcleats');
 const LSP_FIXTURE_BIN = path.join(ROOT, 'tests', 'fixtures', 'lsp', 'bin');
-const DEFAULT_STEP_TIMEOUT_MS = 20 * 60 * 1000;
 
 const npmCommand = process.platform === 'win32' ? 'cmd' : 'npm';
 const npmPrefix = process.platform === 'win32' ? ['/c', 'npm'] : [];
@@ -102,13 +101,14 @@ const runStep = async (step, env, dryRun) => {
     return;
   }
   console.error(`\n==> ${step.label}`);
+  const resolvedTimeoutMs = Number.isFinite(Number(step.timeoutMs))
+    ? Math.max(1000, Math.floor(Number(step.timeoutMs)))
+    : null;
   const result = await spawnSubprocess(step.command, step.args, {
     stdio: 'inherit',
     cwd: step.cwd || ROOT,
     env,
-    timeoutMs: Number.isFinite(Number(step.timeoutMs))
-      ? Math.max(1000, Math.floor(Number(step.timeoutMs)))
-      : DEFAULT_STEP_TIMEOUT_MS,
+    ...(resolvedTimeoutMs != null ? { timeoutMs: resolvedTimeoutMs } : {}),
     killTree: true,
     detached: false,
     rejectOnNonZeroExit: false
