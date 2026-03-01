@@ -55,7 +55,8 @@ const env = applyTestEnv({
       typeInferenceCrossFile: true
     },
     tooling: {
-      autoEnableOnDetect: false
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
     }
   }
 });

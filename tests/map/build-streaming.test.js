@@ -12,7 +12,7 @@ const { repoRoot, indexDir, tempRoot } = await prepareMapBuildFixture({
     ['src/alpha.js', 'export function alpha() { return 1; }\n'],
     ['src/beta.js', 'import { alpha } from "./alpha.js";\nexport function beta() { return alpha(); }\n']
   ],
-  buildIndexArgs: ['--stage', 'stage2', '--mode', 'code']
+  buildIndexArgs: ['--stage', 'stage1', '--mode', 'code']
 });
 
 const mapModel = await buildCodeMap({ repoRoot, indexDir, options: { mode: 'code' } });

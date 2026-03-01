@@ -104,7 +104,7 @@ const run = spawnSync(
   [toolPath, '--index-dir', indexRoot, '--json'],
   {
     encoding: 'utf8',
-    env: { ...process.env }
+    env: applyTestEnv({ syncProcess: false })
   }
 );
 

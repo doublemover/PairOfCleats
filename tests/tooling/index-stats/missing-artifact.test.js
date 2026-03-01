@@ -63,7 +63,7 @@ const run = spawnSync(
   [toolPath, '--repo', repoRoot, '--verify', '--json'],
   {
     encoding: 'utf8',
-    env: { ...process.env }
+    env: applyTestEnv({ syncProcess: false })
   }
 );
 

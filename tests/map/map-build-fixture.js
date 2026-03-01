@@ -34,18 +34,28 @@ export async function prepareMapBuildFixture({
     embeddings: 'stub',
     testConfig: {
       indexing: {
-        scm: { provider: 'none' }
+        scm: { provider: 'none' },
+        typeInference: false,
+        typeInferenceCrossFile: false
+      },
+      tooling: {
+        autoEnableOnDetect: false,
+        lsp: { enabled: false }
       }
     },
     ...envOverrides
   });
+
+  const effectiveBuildArgs = Array.isArray(buildIndexArgs) && buildIndexArgs.length
+    ? buildIndexArgs
+    : ['--stage', 'stage1', '--mode', 'code'];
 
   const buildArgs = [
     path.join(root, 'build_index.js'),
     '--stub-embeddings',
     '--repo',
     repoRoot,
-    ...buildIndexArgs
+    ...effectiveBuildArgs
   ];
 
   const buildResult = spawnSync(process.execPath, buildArgs, {

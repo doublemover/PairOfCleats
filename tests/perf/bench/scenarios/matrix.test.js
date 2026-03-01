@@ -2,6 +2,7 @@
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { applyTestEnv } from '../../../helpers/test-env.js';
 
 if (!process.env.PAIROFCLEATS_BENCH_RUN) {
   console.log('[skip] set PAIROFCLEATS_BENCH_RUN=1 to run bench scenarios');
@@ -9,6 +10,7 @@ if (!process.env.PAIROFCLEATS_BENCH_RUN) {
 }
 
 const runPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'run.test.js');
+const scenarioEnv = applyTestEnv({ syncProcess: false });
 const scenarios = [
   {
     label: 'ann-on',
@@ -35,7 +37,7 @@ const scenarios = [
 for (const scenario of scenarios) {
   const result = spawnSync(process.execPath, [runPath, ...scenario.args], {
     stdio: 'inherit',
-    env: process.env
+    env: scenarioEnv
   });
   if (result.status !== 0) {
     process.exit(result.status ?? 1);

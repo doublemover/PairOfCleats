@@ -2,9 +2,11 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
+import { applyTestEnv } from '../../helpers/test-env.js';
 import { setupSqliteBuildFixture } from './helpers/build-fixture.js';
 
 const root = process.cwd();
+const env = applyTestEnv({ syncProcess: false });
 const fixture = await setupSqliteBuildFixture({
   tempLabel: 'sqlite-build-bench-contract',
   chunkCount: 50,
@@ -21,7 +23,7 @@ const result = spawnSync(process.execPath, [
   fixture.indexDir,
   '--statement-strategy',
   'prepared'
-], { cwd: root, env: process.env, encoding: 'utf8' });
+], { cwd: root, env, encoding: 'utf8' });
 
 if (result.status !== 0) {
   console.error(result.stdout || '');

@@ -40,7 +40,7 @@ const runGit = (args, label, cwd, envOverride = {}) => {
   const result = spawnSync('git', args, {
     cwd,
     encoding: 'utf8',
-    env: { ...process.env, ...envOverride },
+    env: applyTestEnv({ syncProcess: false, extraEnv: envOverride }),
     timeout: GIT_COMMAND_TIMEOUT_MS
   });
   if (result.status !== 0) {

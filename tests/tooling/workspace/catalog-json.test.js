@@ -52,7 +52,7 @@ const run = spawnSync(
   [toolPath, '--workspace', workspacePath, '--json'],
   {
     encoding: 'utf8',
-    env: { ...process.env }
+    env: applyTestEnv({ syncProcess: false })
   }
 );
 

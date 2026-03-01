@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig, toRealPathSync } from '../../../tools/shared/dict-utils.js';
 import { loadChunkMeta } from '../../../src/shared/artifact-io.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = await makeTempDir('pairofcleats-git-blame-range-');
@@ -30,11 +31,6 @@ const runGit = (args, label) => {
   }
 };
 
-const prevCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
-const prevEmbeddings = process.env.PAIROFCLEATS_EMBEDDINGS;
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
-
 try {
   runGit(['init'], 'git init');
   runGit(['config', 'user.email', 'alpha@example.com'], 'git config email alpha');
@@ -57,14 +53,24 @@ try {
   runGit(['add', '.'], 'git add beta');
   runGit(['commit', '-m', 'beta'], 'git commit beta');
 
-  const env = {
-    ...process.env,
-    PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-    PAIROFCLEATS_EMBEDDINGS: 'stub'
-  };
+  const env = applyTestEnv({
+    cacheRoot,
+    embeddings: 'stub',
+    syncProcess: true,
+    testConfig: {
+      indexing: {
+        typeInference: false,
+        typeInferenceCrossFile: false
+      },
+      tooling: {
+        autoEnableOnDetect: false,
+        lsp: { enabled: false }
+      }
+    }
+  });
   const buildResult = spawnSync(
     process.execPath,
-    [path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage2', '--mode', 'code', '--repo', repoRoot],
+    [path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage1', '--mode', 'code', '--repo', repoRoot],
     { cwd: repoRoot, env, stdio: 'inherit' }
   );
   if (buildResult.status !== 0) {
@@ -117,16 +123,6 @@ try {
 
   console.log('Git blame range test passed');
 } finally {
-  if (prevCacheRoot === undefined) {
-    delete process.env.PAIROFCLEATS_CACHE_ROOT;
-  } else {
-    process.env.PAIROFCLEATS_CACHE_ROOT = prevCacheRoot;
-  }
-  if (prevEmbeddings === undefined) {
-    delete process.env.PAIROFCLEATS_EMBEDDINGS;
-  } else {
-    process.env.PAIROFCLEATS_EMBEDDINGS = prevEmbeddings;
-  }
   await rmDirRecursive(tempRoot);
 }
 

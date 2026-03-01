@@ -11,7 +11,6 @@ import { requireHnswLib } from '../../helpers/optional-deps.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
-const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const { dir: tempRoot } = await prepareIsolatedTestCacheDir('hnsw-ann', { root });
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
@@ -45,14 +44,35 @@ if (fakeHits.length !== 2 || fakeHits[0].idx !== 1 || fakeHits[1].idx !== 2) {
 
 requireHnswLib({ reason: 'hnswlib-node not available; skipping hnsw-ann test.' });
 
-await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
+await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
+await fsPromises.writeFile(
+  path.join(repoRoot, 'src', 'main.js'),
+  'export function indexItem(value) { return value + 1; }\n',
+  'utf8'
+);
+await fsPromises.writeFile(
+  path.join(repoRoot, 'README.md'),
+  '# HNSW Fixture\n\nThis fixture provides prose chunks for ANN backend validation.\n',
+  'utf8'
+);
 
 const env = applyTestEnv({
   cacheRoot,
   embeddings: 'stub',
   testConfig: {
+    indexing: {
+      embeddings: {
+        hnsw: {
+          enabled: true,
+          isolate: false
+        }
+      },
+      typeInference: false,
+      typeInferenceCrossFile: false
+    },
     tooling: {
-      autoEnableOnDetect: false
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
     }
   },
   extraEnv: {
@@ -72,7 +92,7 @@ function run(args, label) {
   }
 }
 
-run([path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--repo', repoRoot], 'build index');
+run([path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--stage', 'stage1', '--repo', repoRoot], 'build index');
 run([path.join(root, 'tools', 'build/embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot], 'build embeddings (code)');
 run([path.join(root, 'tools', 'build/embeddings.js'), '--stub-embeddings', '--mode', 'prose', '--repo', repoRoot], 'build embeddings (prose)');
 

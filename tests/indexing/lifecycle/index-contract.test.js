@@ -28,13 +28,26 @@ try {
     syncProcess: false,
     testConfig: {
       indexing: {
-        scm: { provider: 'none' }
+        scm: { provider: 'none' },
+        typeInference: false,
+        typeInferenceCrossFile: false
+      },
+      tooling: {
+        autoEnableOnDetect: false,
+        lsp: { enabled: false }
       }
     }
   });
 
   runNode(
-    [buildIndexPath, '--stub-embeddings', '--mode', 'code', '--repo', repoDir],
+    [buildIndexPath, '--stub-embeddings', '--stage', 'stage2', '--mode', 'code', '--repo', repoDir],
+    'index build stage2 for lifecycle contract',
+    repoDir,
+    env
+  );
+
+  runNode(
+    [buildIndexPath, '--stub-embeddings', '--stage', 'stage4', '--mode', 'code', '--repo', repoDir],
     'index build for lifecycle contract',
     repoDir,
     env

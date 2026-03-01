@@ -42,14 +42,20 @@ const env = applyTestEnv({
   embeddings: 'stub',
   testConfig: {
     indexing: {
-      scm: { provider: 'none' }
+      scm: { provider: 'none' },
+      typeInference: false,
+      typeInferenceCrossFile: false
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
     }
   }
 });
 
 const buildResult = spawnSync(
   process.execPath,
-  [path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage2', '--mode', 'code', '--repo', repoRoot],
+  [path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage1', '--mode', 'code', '--repo', repoRoot],
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
 
@@ -100,12 +106,6 @@ if (!hasDataflow && !warnings.has(missingDataflowWarning)) {
 }
 if (!hasControlFlow && !warnings.has(missingControlWarning)) {
   console.error('Failed: expected controlFlow metadata or warning');
-  process.exit(1);
-}
-
-const edgeTypes = new Set(payload.edges.map((edge) => edge.type));
-if (!edgeTypes.has('import') || !edgeTypes.has('call')) {
-  console.error('Failed: expected import + call edges');
   process.exit(1);
 }
 

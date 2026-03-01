@@ -44,7 +44,7 @@ const run = spawnSync(
   ],
   {
     encoding: 'utf8',
-    env: { ...process.env }
+    env: applyTestEnv({ syncProcess: false })
   }
 );
 

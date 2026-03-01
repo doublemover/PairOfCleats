@@ -2,6 +2,7 @@
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { repoRoot } from '../../helpers/root.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const ROOT = repoRoot();
 
@@ -15,7 +16,7 @@ const runSnippet = (envOverrides) => spawnSync(
   {
     cwd: ROOT,
     encoding: 'utf8',
-    env: { ...process.env, ...envOverrides }
+    env: applyTestEnv({ syncProcess: false, extraEnv: envOverrides })
   }
 );
 
@@ -29,7 +30,7 @@ const optionalResult = spawnSync(
   {
     cwd: ROOT,
     encoding: 'utf8',
-    env: { ...process.env }
+    env: applyTestEnv({ syncProcess: false })
   }
 );
 

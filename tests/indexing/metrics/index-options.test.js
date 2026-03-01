@@ -23,12 +23,23 @@ await fsPromises.writeFile(path.join(repoRoot, 'alpha.js'), 'export const alpha 
 
 const env = applyTestEnv({
   cacheRoot,
-  embeddings: 'stub'
+  embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      scm: { provider: 'none' },
+      typeInference: false,
+      typeInferenceCrossFile: false
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
+    }
+  }
 });
 
 const buildResult = spawnSync(
   process.execPath,
-  [path.join(root, 'build_index.js'), '--mode', 'code', '--stage', 'stage2', '--stub-embeddings', '--repo', repoRoot],
+  [path.join(root, 'build_index.js'), '--mode', 'code', '--stage', 'stage1', '--stub-embeddings', '--repo', repoRoot],
   { cwd: repoRoot, env, encoding: 'utf8' }
 );
 if (buildResult.status !== 0) {

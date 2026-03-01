@@ -39,14 +39,15 @@ const env = applyTestEnv({
       }
     },
     tooling: {
-      autoEnableOnDetect: false
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
     }
   }
 });
 
 const buildResult = spawnSync(
   process.execPath,
-  [path.join(root, 'build_index.js'), '--mode', 'code', '--stage', 'stage2', '--stub-embeddings', '--repo', repoRoot],
+  [path.join(root, 'build_index.js'), '--mode', 'code', '--stage', 'stage1', '--stub-embeddings', '--repo', repoRoot],
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
 

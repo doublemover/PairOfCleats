@@ -35,7 +35,8 @@ const testConfig = {
     typeInferenceCrossFile: true
   },
   tooling: {
-    autoEnableOnDetect: false
+    autoEnableOnDetect: false,
+    lsp: { enabled: false }
   }
 };
 const testConfigJson = JSON.stringify(testConfig);

@@ -24,6 +24,7 @@ const CI_LONG_DEFAULT_TEST_CONFIG = {
     riskAnalysisCrossFile: false
   },
   tooling: {
+    autoEnableOnDetect: false,
     lsp: {
       enabled: false
     }

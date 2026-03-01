@@ -23,7 +23,17 @@ try {
   const env = applyTestEnv({
     cacheRoot,
     embeddings: 'stub',
-    syncProcess: false
+    syncProcess: false,
+    testConfig: {
+      indexing: {
+        typeInference: false,
+        typeInferenceCrossFile: false
+      },
+      tooling: {
+        autoEnableOnDetect: false,
+        lsp: { enabled: false }
+      }
+    }
   });
   const buildResult = spawnSync(
     process.execPath,
@@ -32,6 +42,8 @@ try {
       '--stub-embeddings',
       '--repo',
       repoRoot,
+      '--stage',
+      'stage1',
       '--mode',
       'code',
       '--scm-provider',

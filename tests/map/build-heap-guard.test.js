@@ -18,7 +18,7 @@ try {
     indexDir,
     options: {
       mode: 'code',
-      maxEdgeBytes: 10
+      maxEdgeBytes: 1
     }
   });
 } catch (err) {
