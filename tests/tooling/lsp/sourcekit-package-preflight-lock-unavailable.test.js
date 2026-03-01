@@ -1,11 +1,10 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import crypto from 'node:crypto';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { registerDefaultToolingProviders } from '../../../src/index/tooling/providers/index.js';
 import { getToolingProvider } from '../../../src/index/tooling/provider-registry.js';
+import { resolveSourcekitPreflightLockPath } from '../../../src/index/tooling/sourcekit-provider.js';
 import { acquireFileLock } from '../../../src/shared/locks/file-lock.js';
 import { countNonEmptyLines } from '../../helpers/lsp-signature-fixtures.js';
 import { createSourcekitPreflightFixture } from '../../helpers/sourcekit-preflight-fixture.js';
@@ -21,15 +20,7 @@ const fixture = await createSourcekitPreflightFixture({
 });
 const logs = [];
 const { ctx, document, target } = fixture.contextFor(logs);
-const preflightLockPath = path.join(
-  os.tmpdir(),
-  'pairofcleats',
-  'locks',
-  `sourcekit-package-preflight-${crypto
-    .createHash('sha1')
-    .update(path.resolve(String(ctx.repoRoot || '')).toLowerCase())
-    .digest('hex')}.lock`
-);
+const preflightLockPath = resolveSourcekitPreflightLockPath(ctx.repoRoot);
 ctx.toolingConfig = {
   sourcekit: {
     preflightLockWaitMs: 0,

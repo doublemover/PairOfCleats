@@ -1,10 +1,10 @@
 import crypto from 'node:crypto';
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 import { SymbolKind } from 'vscode-languageserver-protocol';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
+import { getCacheRoot } from '../../shared/cache-roots.js';
 import { isTestingEnv } from '../../shared/env.js';
 import { resolveEnvPath } from '../../shared/env-path.js';
 import { readJsonFileSafe, toPosix } from '../../shared/files.js';
@@ -42,7 +42,7 @@ const SOURCEKIT_PACKAGE_PREFLIGHT_LOCK_STALE_MS = 10 * 60 * 1000;
 const SOURCEKIT_DEFAULT_EXCLUDE_PATH_REGEXES = [
   /\/test\/sourcekit\/misc\/parser-cutoff\.swift$/i
 ];
-const SOURCEKIT_LOCK_NAMESPACE = path.join(os.tmpdir(), 'pairofcleats', 'locks');
+const SOURCEKIT_LOCK_NAMESPACE = path.join(getCacheRoot(), 'locks', 'sourcekit');
 
 const buildRegex = (value) => {
   if (value instanceof RegExp) return value;
@@ -257,6 +257,14 @@ const buildRepoScopedLockPath = (repoRoot, suffix) => {
   return path.join(SOURCEKIT_LOCK_NAMESPACE, `${suffix}-${hash}.lock`);
 };
 
+export const resolveSourcekitPreflightLockPath = (repoRoot) => (
+  buildRepoScopedLockPath(repoRoot, 'sourcekit-package-preflight')
+);
+
+export const resolveSourcekitHostLockPath = (repoRoot) => (
+  buildRepoScopedLockPath(repoRoot, 'sourcekit-provider')
+);
+
 const readSourcekitPreflightMarker = async (markerPath) => {
   const parsed = await readJsonFileSafe(markerPath, {
     fallback: null,
@@ -420,7 +428,7 @@ const ensureSourcekitPackageResolutionPreflight = async ({
       };
     }
 
-    const preflightLockPath = buildRepoScopedLockPath(repoRoot, 'sourcekit-package-preflight');
+    const preflightLockPath = resolveSourcekitPreflightLockPath(repoRoot);
     const timeoutMs = SOURCEKIT_PACKAGE_PREFLIGHT_TIMEOUT_MS;
     const preflightLockWaitMs = Math.max(
       0,
@@ -797,7 +805,7 @@ export const createSourcekitProvider = () => ({
       0,
       asFiniteInteger(sourcekitConfig.hostConcurrencyWaitMs) ?? SOURCEKIT_HOST_LOCK_WAIT_MS
     );
-    const hostLockPath = buildRepoScopedLockPath(ctx.repoRoot, 'sourcekit-provider');
+    const hostLockPath = resolveSourcekitHostLockPath(ctx.repoRoot);
     let hostLock = null;
     if (hostLockEnabled) {
       hostLock = await acquireHostSourcekitLock({

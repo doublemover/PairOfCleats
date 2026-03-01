@@ -1,12 +1,11 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { registerDefaultToolingProviders } from '../../../src/index/tooling/providers/index.js';
 import { getToolingProvider } from '../../../src/index/tooling/provider-registry.js';
+import { resolveSourcekitHostLockPath } from '../../../src/index/tooling/sourcekit-provider.js';
 import { acquireFileLock } from '../../../src/shared/locks/file-lock.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
@@ -26,15 +25,7 @@ const fixtureCmd = path.join(
 );
 await fs.access(fixtureCmd);
 
-const hostLockPath = path.join(
-  os.tmpdir(),
-  'pairofcleats',
-  'locks',
-  `sourcekit-provider-${crypto
-    .createHash('sha1')
-    .update(path.resolve(String(tempRoot || '')).toLowerCase())
-    .digest('hex')}.lock`
-);
+const hostLockPath = resolveSourcekitHostLockPath(tempRoot);
 
 const ctx = {
   repoRoot: tempRoot,
