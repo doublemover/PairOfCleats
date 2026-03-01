@@ -10,6 +10,7 @@ import { writeJsonObjectFile } from '../../shared/json-stream.js';
 import { createJsonWriteStream, writeChunk } from '../../shared/json-stream/streams.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { ensureDiskSpace } from '../../shared/disk-space.js';
+import { writeDenseVectorBinaryFile } from '../../shared/dense-vector-artifacts.js';
 import { estimateJsonBytes } from '../../shared/cache.js';
 import { buildCacheKey } from '../../shared/cache-key.js';
 import { sha1 } from '../../shared/hash.js';
@@ -1671,9 +1672,6 @@ export async function writeIndexArtifacts(input) {
     vectors,
     dims
   }) => {
-    const count = Array.isArray(vectors) ? vectors.length : 0;
-    const rowWidth = Number.isFinite(Number(dims)) ? Math.max(0, Math.floor(Number(dims))) : 0;
-    const totalBytes = rowWidth > 0 ? rowWidth * count : 0;
     const binFile = `${baseName}.bin`;
     const binMetaFile = `${baseName}.bin.meta.json`;
     const binPath = path.join(outDir, binFile);
@@ -1681,25 +1679,11 @@ export async function writeIndexArtifacts(input) {
     enqueueWrite(
       formatArtifactLabel(binPath),
       async () => {
-        const bytes = Buffer.alloc(totalBytes);
-        for (let docId = 0; docId < count; docId += 1) {
-          const vec = vectors[docId];
-          if (!vec || typeof vec.length !== 'number') continue;
-          const start = docId * rowWidth;
-          const end = start + rowWidth;
-          if (end > bytes.length) break;
-          if (ArrayBuffer.isView(vec) && vec.BYTES_PER_ELEMENT === 1) {
-            bytes.set(vec.subarray(0, rowWidth), start);
-            continue;
-          }
-          for (let i = 0; i < rowWidth; i += 1) {
-            const value = Number(vec[i]);
-            bytes[start + i] = Number.isFinite(value)
-              ? Math.max(0, Math.min(255, Math.floor(value)))
-              : 0;
-          }
-        }
-        await writeBinaryArtifactAtomically(binPath, bytes);
+        const binaryWrite = await writeDenseVectorBinaryFile({
+          binPath,
+          vectors,
+          dims
+        });
         // Publish metadata only after the binary payload is durable and renamed.
         await writeJsonObjectFile(binMetaPath, {
           fields: {
@@ -1709,15 +1693,17 @@ export async function writeIndexArtifacts(input) {
             generatedAt: new Date().toISOString(),
             path: binFile,
             model: modelId || null,
-            dims: rowWidth,
-            count,
-            bytes: totalBytes,
+            dims: binaryWrite.rowWidth,
+            count: binaryWrite.count,
+            bytes: binaryWrite.totalBytes,
             scale: denseScale
           },
           atomic: true
         });
       }
     );
+    const count = Array.isArray(vectors) ? vectors.length : 0;
+    const rowWidth = Number.isFinite(Number(dims)) ? Math.max(0, Math.floor(Number(dims))) : 0;
     addPieceFile({
       type: 'embeddings',
       name: artifactName,
