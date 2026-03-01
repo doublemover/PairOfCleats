@@ -166,6 +166,7 @@ export const writeBinaryRowFrames = async ({
   let count = 0;
   const tempDataPath = createTempPath(dataPath);
   const handle = await fs.open(tempDataPath, 'wx');
+  let wrotePayload = false;
   try {
     if (resolvedPreallocateBytes > 0) {
       await handle.truncate(resolvedPreallocateBytes);
@@ -184,8 +185,14 @@ export const writeBinaryRowFrames = async ({
     if (resolvedPreallocateBytes > 0 && cursor !== resolvedPreallocateBytes) {
       await handle.truncate(cursor);
     }
+    wrotePayload = true;
+    await handle.sync();
   } finally {
     await handle.close();
+  }
+  if (!wrotePayload) {
+    await fs.rm(tempDataPath, { force: true }).catch(() => {});
+    throw new Error('Failed to materialize binary-columnar payload.');
   }
   try {
     await replaceFile(tempDataPath, dataPath, { keepBackup: false });
