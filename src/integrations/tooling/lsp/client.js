@@ -8,7 +8,7 @@ import {
   isClosedStreamWriteError
 } from '../../../shared/jsonrpc.js';
 import { registerChildProcessForCleanup } from '../../../shared/subprocess.js';
-import { killChildProcessTree } from '../../../shared/kill-tree.js';
+import { killChildProcessTree, killChildProcessTreeSync } from '../../../shared/kill-tree.js';
 
 /**
  * Convert a local path to a file:// URI.
@@ -704,7 +704,7 @@ export function createLspClient(options) {
       }
     }, 200).unref?.();
     proc = null;
-    clearTrackedChild();
+    clearTrackedChild({ force: true, child: current });
     writer = null;
     writerClosed = true;
     backoffMs = 0;
@@ -714,6 +714,39 @@ export function createLspClient(options) {
       pid: Number.isFinite(Number(current?.pid)) ? Number(current.pid) : null
     });
     return terminatePromise;
+  };
+
+  const killSync = () => {
+    if (!proc) return;
+    const current = proc;
+    try {
+      killChildProcessTreeSync(current, {
+        killTree: true,
+        detached: killTreeDetached
+      });
+    } catch {}
+    rejectPendingTransportClosed();
+    if (current.stdin) closeJsonRpcWriter(current.stdin);
+    try {
+      current.stdout?.destroy();
+    } catch {}
+    try {
+      current.stderr?.destroy();
+    } catch {}
+    parser?.dispose();
+    try {
+      current.unref?.();
+    } catch {}
+    proc = null;
+    clearTrackedChild({ force: true, child: current });
+    writer = null;
+    writerClosed = true;
+    backoffMs = 0;
+    nextStartAt = 0;
+    emitLifecycleEvent({
+      kind: 'kill_sync',
+      pid: Number.isFinite(Number(current?.pid)) ? Number(current.pid) : null
+    });
   };
 
   return {
@@ -751,6 +784,7 @@ export function createLspClient(options) {
       )
     }),
     shutdownAndExit,
-    kill
+    kill,
+    killSync
   };
 }

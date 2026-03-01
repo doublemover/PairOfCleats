@@ -89,9 +89,12 @@ const createPendingBarrier = () => {
   return { promise, resolve, reject };
 };
 
-const killSessionClient = (session) => {
+const killSessionClient = (session, { sync = false } = {}) => {
   if (!session || typeof session !== 'object') return;
   try {
+    if (sync && session.client && typeof session.client.killSync === 'function') {
+      return session.client.killSync();
+    }
     if (session.client && typeof session.client.kill === 'function') {
       return session.client.kill();
     }
@@ -142,7 +145,7 @@ const enqueueSessionDisposal = (session, {
       await previous.catch(() => {});
     }
     if (killFirst) {
-      killSessionClient(session);
+      await Promise.resolve(killSessionClient(session));
     }
     await disposeSessionClient(session);
   };
@@ -325,7 +328,7 @@ const killAllSessionsNow = () => {
   disposalBarriers.clear();
   clearCleanupTimer();
   for (const session of live) {
-    Promise.resolve(killSessionClient(session)).catch(() => {});
+    killSessionClient(session, { sync: true });
   }
 };
 

@@ -41,6 +41,7 @@ import { withLspSession } from './lsp/session-pool.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { coercePositiveInt } from '../../../shared/number-coerce.js';
 import { sleep } from '../../../shared/sleep.js';
+import { applyToolchainDaemonPolicyEnv } from '../../../shared/toolchain-env.js';
 
 /**
  * Parse positive integer configuration with fallback floor of 1.
@@ -347,6 +348,7 @@ export async function collectLspTypes({
     cmd,
     args,
     cwd: rootDir,
+    env: applyToolchainDaemonPolicyEnv(process.env),
     log,
     stderrFilter,
     onNotification,

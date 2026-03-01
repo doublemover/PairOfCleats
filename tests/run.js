@@ -32,6 +32,7 @@ import {
   resolveTimeout
 } from './runner/run-helpers.js';
 import { ensureTestingEnv } from './helpers/test-env.js';
+import { applyToolchainDaemonPolicyEnv } from '../src/shared/toolchain-env.js';
 import { runTests } from './runner/run-execution.js';
 import { summarizeResults } from './runner/run-results.js';
 import {
@@ -511,7 +512,7 @@ const main = async () => {
     await writeLatestLogPointer({ root: ROOT, runLogDir });
   }
 
-  const baseEnv = { ...process.env };
+  const baseEnv = applyToolchainDaemonPolicyEnv(process.env);
   scrubInheritedPairOfCleatsEnv(baseEnv);
   ensureTestingEnv(baseEnv);
   if (!baseEnv.PAIROFCLEATS_CACHE_ROOT) {

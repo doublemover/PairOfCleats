@@ -1,6 +1,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { formatEtaSeconds } from '../../../src/shared/perf/eta.js';
+import { applyToolchainDaemonPolicyEnv } from '../../../src/shared/toolchain-env.js';
 import { getRuntimeConfig, loadUserConfig, resolveRuntimeEnv } from '../../shared/dict-utils.js';
 import { checkIndexLock, formatLockDetail } from '../language/locks.js';
 import {
@@ -379,7 +380,7 @@ export const runBenchExecutionLoop = async ({
     ? stripMaxOldSpaceFlag(baseEnv.NODE_OPTIONS || '')
     : (baseEnv.NODE_OPTIONS || '');
   const baseNodeOptionsHasHeapFlag = baseNodeOptionsForRun.includes('--max-old-space-size');
-  const baseEnvForRepoRuntime = { ...baseEnv };
+  const baseEnvForRepoRuntime = applyToolchainDaemonPolicyEnv(baseEnv);
   if (typeof baseEnv.NODE_OPTIONS === 'string' || baseNodeOptionsForRun) {
     baseEnvForRepoRuntime.NODE_OPTIONS = baseNodeOptionsForRun;
   }
@@ -654,7 +655,7 @@ export const runBenchExecutionLoop = async ({
       if (dryRun) {
         appendLog(`[dry-run] node ${benchArgs.join(' ')}`);
       } else {
-        const benchProcessEnv = { ...repoEnvBase };
+        const benchProcessEnv = applyToolchainDaemonPolicyEnv(repoEnvBase);
         if (!Object.prototype.hasOwnProperty.call(benchProcessEnv, 'PAIROFCLEATS_CRASH_LOG_ANNOUNCE')) {
           benchProcessEnv.PAIROFCLEATS_CRASH_LOG_ANNOUNCE = '0';
         }

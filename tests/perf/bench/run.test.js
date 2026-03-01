@@ -20,6 +20,7 @@ import { formatBenchDuration as formatDuration, formatBenchDurationMs as formatD
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 import { sanitizeBenchNodeOptions } from '../../../tools/bench/language/node-options.js';
 import { resolveBenchQueryBackends } from '../../../tools/bench/language/query-backends.js';
+import { applyToolchainDaemonPolicyEnv } from '../../../src/shared/toolchain-env.js';
 
 applyTestEnv();
 
@@ -175,7 +176,7 @@ const realEmbeddings = argv['real-embeddings'] === true;
 const stubEmbeddings = argv['stub-embeddings'] === true
   || (!realEmbeddings && envStubEmbeddings);
 
-const baseEnvCandidate = { ...process.env, NODE_OPTIONS: baseNodeOptions };
+const baseEnvCandidate = applyToolchainDaemonPolicyEnv({ ...process.env, NODE_OPTIONS: baseNodeOptions });
 const baseEnv = resolveRuntimeEnv(runtimeConfigForRun, baseEnvCandidate);
 if (realEmbeddings && baseEnv.PAIROFCLEATS_EMBEDDINGS) {
   delete baseEnv.PAIROFCLEATS_EMBEDDINGS;
