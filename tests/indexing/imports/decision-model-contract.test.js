@@ -43,6 +43,11 @@ assert.equal(budgetDecision.failureCause, 'resolver_gap');
 assert.equal(budgetDecision.disposition, 'suppress_gate');
 assert.equal(budgetDecision.resolverStage, 'filesystem_probe');
 
+const fsProbeErrorDecision = createUnresolvedDecision(IMPORT_REASON_CODES.FILESYSTEM_PROBE_ERROR);
+assert.equal(fsProbeErrorDecision.failureCause, 'resolver_gap');
+assert.equal(fsProbeErrorDecision.disposition, 'suppress_gate');
+assert.equal(fsProbeErrorDecision.resolverStage, 'filesystem_probe');
+
 const invalidResolved = validateResolutionDecision({
   resolutionState: IMPORT_RESOLUTION_STATES.RESOLVED,
   reasonCode: IMPORT_REASON_CODES.UNKNOWN

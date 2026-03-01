@@ -242,6 +242,7 @@ const resolveUnresolvedReasonCode = ({
   spec,
   rawSpec,
   buildContextClassification = null,
+  filesystemProbeErrors = 0,
   budgetExhausted = false,
   generatedExpectationMatch = null,
   expectedArtifactsIndex = null
@@ -256,6 +257,9 @@ const resolveUnresolvedReasonCode = ({
   });
   if (resolvedGeneratedMatch?.matched) {
     return IMPORT_REASON_CODES.GENERATED_EXPECTED_MISSING;
+  }
+  if (Number(filesystemProbeErrors) > 0) {
+    return IMPORT_REASON_CODES.FILESYSTEM_PROBE_ERROR;
   }
   if (budgetExhausted) {
     return IMPORT_REASON_CODES.RESOLVER_BUDGET_EXHAUSTED;
@@ -379,6 +383,10 @@ export function resolveImportLinks({
     negativeSkips: 0,
     unknownFallbacks: 0
   };
+  const fsProbeStats = {
+    errors: 0,
+    errorByCode: Object.create(null)
+  };
   if (cacheMetrics && canReuseLookup && lookup) {
     cacheMetrics.lookupReused = true;
   }
@@ -482,8 +490,10 @@ export function resolveImportLinks({
     const containedRel = resolveWithinRoot(resolvedLookup.rootAbs, fallbackAbs);
     if (!containedRel) return false;
     if (resolveCandidate(containedRel, resolvedLookup)) return false;
-    const fallbackStat = fsMemo.statSync(fallbackAbs);
-    return isFileStat(fallbackStat);
+    const fallbackProbe = typeof fsMemo.statProbeSync === 'function'
+      ? fsMemo.statProbeSync(fallbackAbs)
+      : { state: 'present', stat: fsMemo.statSync(fallbackAbs), errorCode: null };
+    return fallbackProbe.state === 'present' && isFileStat(fallbackProbe.stat);
   };
 
   const resolveExistingNonIndexedRelativeImport = ({
@@ -491,7 +501,8 @@ export function resolveImportLinks({
     importerInfo,
     importerRel,
     specBudget,
-    fsExistsIndexState
+    fsExistsIndexState,
+    probeDiagnostics = null
   }) => {
     if (!spec || typeof spec !== 'string' || !importerRel) return null;
     if (!(spec.startsWith('.') || spec.startsWith('/'))) return null;
@@ -547,8 +558,24 @@ export function resolveImportLinks({
           fsExistsIndexState.unknownFallbacks += 1;
         }
         if (specBudget && !specBudget.consumeFilesystemProbe()) return null;
-        const candidateStat = fsMemo.statSync(candidateAbs);
-        if (isFileStat(candidateStat)) return candidateRel;
+        const candidateProbe = typeof fsMemo.statProbeSync === 'function'
+          ? fsMemo.statProbeSync(candidateAbs)
+          : { state: 'present', stat: fsMemo.statSync(candidateAbs), errorCode: null };
+        if (candidateProbe.state === 'present' && isFileStat(candidateProbe.stat)) return candidateRel;
+        if (candidateProbe.state === 'error' || candidateProbe.state === 'transient_error') {
+          fsProbeStats.errors += 1;
+          const errorCode = typeof candidateProbe.errorCode === 'string' && candidateProbe.errorCode
+            ? candidateProbe.errorCode
+            : 'UNKNOWN';
+          bumpCount(fsProbeStats.errorByCode, errorCode, 1);
+          if (probeDiagnostics && typeof probeDiagnostics === 'object') {
+            probeDiagnostics.errors = Number(probeDiagnostics.errors || 0) + 1;
+            if (!probeDiagnostics.errorByCode || typeof probeDiagnostics.errorByCode !== 'object') {
+              probeDiagnostics.errorByCode = Object.create(null);
+            }
+            bumpCount(probeDiagnostics.errorByCode, errorCode, 1);
+          }
+        }
       }
     }
     return null;
@@ -709,6 +736,7 @@ export function resolveImportLinks({
       let unresolvedFailureCause = null;
       let unresolvedDisposition = null;
       let unresolvedResolverStage = null;
+      const specProbeDiagnostics = { errors: 0, errorByCode: Object.create(null) };
       const specBudget = createImportResolutionSpecifierBudgetState(budgetPolicy);
       let buildContextClassification = null;
       const resolveBuildContextClassification = () => {
@@ -863,7 +891,8 @@ export function resolveImportLinks({
                     importerInfo,
                     importerRel: relNormalized,
                     specBudget,
-                    fsExistsIndexState: fsExistsIndexStats
+                    fsExistsIndexState: fsExistsIndexStats,
+                    probeDiagnostics: specProbeDiagnostics
                   });
                   return {
                     resolvedType: nonIndexedLocal ? 'external' : 'unresolved',
@@ -1008,6 +1037,7 @@ export function resolveImportLinks({
                     spec,
                     rawSpec,
                     buildContextClassification: resolveBuildContextClassification(),
+                    filesystemProbeErrors: specProbeDiagnostics.errors,
                     budgetExhausted: specBudget.isExhausted(),
                     generatedExpectationMatch: resolveGeneratedExpectationMatch(),
                     expectedArtifactsIndex

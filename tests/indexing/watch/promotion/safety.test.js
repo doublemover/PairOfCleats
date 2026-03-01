@@ -96,4 +96,25 @@ await fs.writeFile(currentPath, JSON.stringify({
 const info = getCurrentBuildInfo(repoRoot, userConfig);
 assert.equal(info, null, 'expected unsafe current.json to be rejected');
 
+const validBuildRoot = path.join(buildsRoot, 'parse-recovery-build');
+await fs.mkdir(validBuildRoot, { recursive: true });
+await fs.writeFile(currentPath, '{invalid-json', 'utf8');
+await assert.doesNotReject(
+  () => promoteBuild({
+    repoRoot,
+    userConfig,
+    buildId: 'parse-recovery-build',
+    buildRoot: validBuildRoot,
+    modes: ['code']
+  }),
+  'expected malformed current.json to be treated as empty prior state'
+);
+const recovered = getCurrentBuildInfo(repoRoot, userConfig);
+assert.equal(recovered?.buildId, 'parse-recovery-build');
+assert.equal(
+  normalizePath(recovered?.buildRoot || ''),
+  normalizePath(validBuildRoot),
+  'expected promotion to recover from malformed current.json pointer'
+);
+
 console.log('promotion safety tests passed');
