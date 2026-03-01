@@ -215,7 +215,7 @@ export async function readCachedBundle({
  * Attempt to load cached imports for a file when size/mtime match.
  *
  * @param {{enabled:boolean,absPath:string,relKey:string,fileStat:import('node:fs').Stats,manifest:object,bundleDir:string,bundleFormat?:string|null,sharedReadState?:Map<string,object>|null}} input
- * @returns {Promise<string[]|null>}
+ * @returns {Promise<Array<string|{specifier:string,collectorHint?:object}>|null>}
  */
 export async function readCachedImports({
   enabled,

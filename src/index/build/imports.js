@@ -269,6 +269,98 @@ const normalizeImports = (list) => {
   return normalizeImportSpecifiers(Array.isArray(list) ? list : []);
 };
 
+const mergeCollectorHints = (existingHint, nextHint) => {
+  if (!nextHint) return existingHint || null;
+  if (!existingHint) return nextHint;
+  const existingConfidence = Number(existingHint.confidence);
+  const nextConfidence = Number(nextHint.confidence);
+  if (Number.isFinite(nextConfidence) && Number.isFinite(existingConfidence)) {
+    return nextConfidence >= existingConfidence ? nextHint : existingHint;
+  }
+  if (Number.isFinite(nextConfidence)) return nextHint;
+  return existingHint;
+};
+
+const normalizeImportEntriesWithHints = (entries) => {
+  const imports = [];
+  const hints = Object.create(null);
+  for (const entry of Array.isArray(entries) ? entries : []) {
+    const specifier = sanitizeImportSpecifier(
+      typeof entry === 'string' ? entry : entry?.specifier,
+      { stripTrailingPunctuation: false }
+    );
+    if (!specifier) continue;
+    imports.push(specifier);
+    const hint = normalizeCollectorHint(entry?.collectorHint);
+    if (!hint) continue;
+    hints[specifier] = mergeCollectorHints(hints[specifier], hint);
+  }
+  const normalizedImports = normalizeImports(imports);
+  const filteredHints = Object.create(null);
+  for (const specifier of normalizedImports) {
+    if (hints[specifier]) filteredHints[specifier] = hints[specifier];
+  }
+  return {
+    imports: normalizedImports,
+    hints: filteredHints
+  };
+};
+
+const collectImportHintsForSpecifiers = ({
+  ext,
+  relPath,
+  text,
+  mode,
+  options,
+  root,
+  filePath,
+  specifiers
+}) => {
+  if (typeof text !== 'string') return Object.create(null);
+  const hintEntries = collectLanguageImportEntries({
+    ext,
+    relPath,
+    text,
+    mode,
+    options,
+    root,
+    filePath
+  });
+  const normalized = normalizeImportEntriesWithHints(hintEntries);
+  if (!Object.keys(normalized.hints).length) return Object.create(null);
+  const allowed = new Set(Array.isArray(specifiers) ? specifiers : []);
+  const filteredHints = Object.create(null);
+  for (const [specifier, hint] of Object.entries(normalized.hints)) {
+    if (allowed.has(specifier)) filteredHints[specifier] = hint;
+  }
+  return filteredHints;
+};
+
+const coerceCachedImportEntries = (value) => {
+  if (Array.isArray(value)) return value;
+  if (!value || typeof value !== 'object') return null;
+  const imports = Array.isArray(value.imports) ? value.imports : null;
+  if (!imports) return null;
+  const hints = value.importHintsBySpecifier && typeof value.importHintsBySpecifier === 'object'
+    ? value.importHintsBySpecifier
+    : (value.importHints && typeof value.importHints === 'object'
+      ? value.importHints
+      : null);
+  if (!hints) return imports;
+  return imports.map((specifier) => {
+    const normalizedSpecifier = sanitizeImportSpecifier(specifier, {
+      stripTrailingPunctuation: false
+    });
+    if (!normalizedSpecifier) return specifier;
+    const hint = normalizeCollectorHint(hints[normalizedSpecifier]);
+    if (!hint) return specifier;
+    return {
+      specifier: normalizedSpecifier,
+      collectorHint: hint
+    };
+  });
+};
+
 /**
  * Fast-path JS/TS import discovery using ESM/CJS lexers with regex fallback.
  *
@@ -420,11 +512,13 @@ export async function scanImports({
           bundleFormat: incrementalState.bundleFormat,
           sharedReadState: incrementalState.readHashCache || null
         });
-        if (Array.isArray(cachedImports)) {
-          if (cachedImports.length > 0) {
-            cachedImportCounts.set(item.relKey, cachedImports.length);
+        const cachedEntries = coerceCachedImportEntries(cachedImports);
+        if (Array.isArray(cachedEntries)) {
+          const normalizedCached = normalizeImportEntriesWithHints(cachedEntries);
+          if (normalizedCached.imports.length > 0) {
+            cachedImportCounts.set(item.relKey, normalizedCached.imports.length);
           }
-          cachedImportsByFile.set(item.relKey, cachedImports);
+          cachedImportsByFile.set(item.relKey, cachedEntries);
         } else {
           cachedImportsByFile.set(item.relKey, null);
         }
@@ -441,6 +535,21 @@ export async function scanImports({
       const relKey = item.relKey;
       const ext = item.ext || fileExt(relKey);
       const hadPrefetch = cachedImportsByFile.has(relKey);
+      const options = languageOptions && typeof languageOptions === 'object' ? languageOptions : {};
+      const recordImportHints = (hints, imports = null) => {
+        if (!hints || typeof hints !== 'object') return;
+        const importSet = new Set(Array.isArray(imports) ? imports : []);
+        const filteredHints = Object.create(null);
+        for (const [specifier, hint] of Object.entries(hints)) {
+          if (importSet.size > 0 && !importSet.has(specifier)) continue;
+          const normalizedHint = normalizeCollectorHint(hint);
+          if (!normalizedHint) continue;
+          filteredHints[specifier] = mergeCollectorHints(filteredHints[specifier], normalizedHint);
+        }
+        if (Object.keys(filteredHints).length > 0) {
+          importHintsByFile.set(relKey, filteredHints);
+        }
+      };
       const recordImports = (imports) => {
         if (!Array.isArray(imports)) return;
         if (imports.length > 0) filesWithImports += 1;
@@ -450,36 +559,96 @@ export async function scanImports({
       };
       const recordImportEntries = (entries) => {
         if (!Array.isArray(entries)) return false;
-        const imports = [];
-        const hints = Object.create(null);
-        for (const entry of entries) {
-          const specifier = typeof entry?.specifier === 'string' ? entry.specifier.trim() : '';
-          if (!specifier) continue;
-          imports.push(specifier);
-          const hint = normalizeCollectorHint(entry?.collectorHint);
-          if (hint) hints[specifier] = hint;
-        }
-        const normalizedImports = normalizeImports(imports);
-        recordImports(normalizedImports);
-        if (Object.keys(hints).length > 0) {
-          const filteredHints = Object.create(null);
-          for (const specifier of normalizedImports) {
-            if (hints[specifier]) filteredHints[specifier] = hints[specifier];
-          }
-          if (Object.keys(filteredHints).length > 0) {
-            importHintsByFile.set(relKey, filteredHints);
-          }
-        }
+        const normalized = normalizeImportEntriesWithHints(entries);
+        recordImports(normalized.imports);
+        recordImportHints(normalized.hints, normalized.imports);
         // Entry-based collectors are authoritative even when they return zero
         // imports (for example after budget/policy filtering). Avoid falling
         // back to legacy collection, which would parse the file a second time.
         return true;
       };
+      const cachedText = fileTextByFile?.get ? fileTextByFile.get(relKey) : null;
+      let text = typeof cachedText === 'string'
+        ? cachedText
+        : (cachedText && typeof cachedText === 'object' && typeof cachedText.text === 'string'
+          ? cachedText.text
+          : null);
+      let buffer = cachedText && typeof cachedText === 'object' && Buffer.isBuffer(cachedText.buffer)
+        ? cachedText.buffer
+        : null;
+      let hash = cachedText && typeof cachedText === 'object' && cachedText.hash
+        ? cachedText.hash
+        : null;
+      const ensureTextLoaded = async () => {
+        if (cachedText && typeof cachedText === 'object' && item.stat) {
+          if (Number.isFinite(cachedText.size) && cachedText.size !== item.stat.size) {
+            text = null;
+            buffer = null;
+            hash = null;
+          }
+          if (Number.isFinite(cachedText.mtimeMs) && cachedText.mtimeMs !== item.stat.mtimeMs) {
+            text = null;
+            buffer = null;
+            hash = null;
+          }
+        } else if (cachedText && typeof cachedText === 'object' && !item.stat) {
+          // Without stat metadata we cannot validate freshness; force a re-read.
+          text = null;
+          buffer = null;
+          hash = null;
+        }
+        try {
+          if (typeof text !== 'string') {
+            if (fileTextByFile?.captureBuffers) {
+              const decoded = await readTextFileWithHash(item.absPath);
+              text = decoded.text;
+              buffer = decoded.buffer;
+              hash = decoded.hash;
+            } else {
+              ({ text } = await readTextFile(item.absPath));
+            }
+            if (fileTextByFile?.set) {
+              fileTextByFile.set(relKey, fileTextByFile.captureBuffers
+                ? {
+                  text,
+                  buffer,
+                  hash,
+                  size: item.stat?.size ?? null,
+                  mtimeMs: item.stat?.mtimeMs ?? null
+                }
+                : text);
+            }
+          }
+          return true;
+        } catch {
+          return false;
+        }
+      };
+      const populateCachedHintsIfNeeded = async (imports, hints) => {
+        if (!Array.isArray(imports) || imports.length === 0) return;
+        if (hints && Object.keys(hints).length > 0) return;
+        if (!(await ensureTextLoaded())) return;
+        const rebuiltHints = collectImportHintsForSpecifiers({
+          ext,
+          relPath: relKey,
+          text,
+          mode,
+          options,
+          root,
+          filePath: item.absPath,
+          specifiers: imports
+        });
+        recordImportHints(rebuiltHints, imports);
+      };
       if (hadPrefetch) {
         const cachedImports = cachedImportsByFile.get(relKey);
         cachedImportsByFile.delete(relKey);
-        if (Array.isArray(cachedImports)) {
-          recordImports(cachedImports);
+        const cachedEntries = coerceCachedImportEntries(cachedImports);
+        if (Array.isArray(cachedEntries)) {
+          const normalizedCached = normalizeImportEntriesWithHints(cachedEntries);
+          recordImports(normalizedCached.imports);
+          recordImportHints(normalizedCached.hints, normalizedCached.imports);
+          await populateCachedHintsIfNeeded(normalizedCached.imports, normalizedCached.hints);
           processed += 1;
           showProgress('Imports', processed, items.length, progressMeta);
           return;
@@ -496,71 +665,23 @@ export async function scanImports({
           bundleFormat: incrementalState.bundleFormat,
           sharedReadState: incrementalState.readHashCache || null
         });
-        if (Array.isArray(cachedImportsFallback)) {
-          recordImports(cachedImportsFallback);
+        const cachedFallbackEntries = coerceCachedImportEntries(cachedImportsFallback);
+        if (Array.isArray(cachedFallbackEntries)) {
+          const normalizedCachedFallback = normalizeImportEntriesWithHints(cachedFallbackEntries);
+          recordImports(normalizedCachedFallback.imports);
+          recordImportHints(normalizedCachedFallback.hints, normalizedCachedFallback.imports);
+          await populateCachedHintsIfNeeded(normalizedCachedFallback.imports, normalizedCachedFallback.hints);
           processed += 1;
           showProgress('Imports', processed, items.length, progressMeta);
           return;
         }
       }
-      const cachedText = fileTextByFile?.get ? fileTextByFile.get(relKey) : null;
-      let text = typeof cachedText === 'string'
-        ? cachedText
-        : (cachedText && typeof cachedText === 'object' && typeof cachedText.text === 'string'
-          ? cachedText.text
-          : null);
-      let buffer = cachedText && typeof cachedText === 'object' && Buffer.isBuffer(cachedText.buffer)
-        ? cachedText.buffer
-        : null;
-      let hash = cachedText && typeof cachedText === 'object' && cachedText.hash
-        ? cachedText.hash
-        : null;
-      if (cachedText && typeof cachedText === 'object' && item.stat) {
-        if (Number.isFinite(cachedText.size) && cachedText.size !== item.stat.size) {
-          text = null;
-          buffer = null;
-          hash = null;
-        }
-        if (Number.isFinite(cachedText.mtimeMs) && cachedText.mtimeMs !== item.stat.mtimeMs) {
-          text = null;
-          buffer = null;
-          hash = null;
-        }
-      } else if (cachedText && typeof cachedText === 'object' && !item.stat) {
-        // Without stat metadata we cannot validate freshness; force a re-read.
-        text = null;
-        buffer = null;
-        hash = null;
-      }
-      try {
-        if (typeof text !== 'string') {
-          if (fileTextByFile?.captureBuffers) {
-            const decoded = await readTextFileWithHash(item.absPath);
-            text = decoded.text;
-            buffer = decoded.buffer;
-            hash = decoded.hash;
-          } else {
-            ({ text } = await readTextFile(item.absPath));
-          }
-          if (fileTextByFile?.set) {
-            fileTextByFile.set(relKey, fileTextByFile.captureBuffers
-              ? {
-                text,
-                buffer,
-                hash,
-                size: item.stat?.size ?? null,
-                mtimeMs: item.stat?.mtimeMs ?? null
-              }
-              : text);
-          }
-        }
-      } catch {
+      if (!(await ensureTextLoaded())) {
         processed += 1;
         showProgress('Imports', processed, items.length, progressMeta);
         return;
       }
       const fastImports = await collectModuleImportsFast({ text, ext });
-      const options = languageOptions && typeof languageOptions === 'object' ? languageOptions : {};
       if (Array.isArray(fastImports)) {
         const imports = normalizeImports(fastImports);
         recordImports(imports);
