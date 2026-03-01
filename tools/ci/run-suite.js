@@ -16,6 +16,7 @@ const DEFAULT_JUNIT = path.join(DEFAULT_LOG_DIR, 'junit.xml');
 const DEFAULT_CACHE_ROOT = path.join(ROOT, '.ci-cache', 'pairofcleats');
 const DEFAULT_HOME_ROOT = path.join(ROOT, '.ci-home', 'pairofcleats');
 const LSP_FIXTURE_BIN = path.join(ROOT, 'tests', 'fixtures', 'lsp', 'bin');
+const DEFAULT_STEP_TIMEOUT_MS = 20 * 60 * 1000;
 
 const npmCommand = process.platform === 'win32' ? 'cmd' : 'npm';
 const npmPrefix = process.platform === 'win32' ? ['/c', 'npm'] : [];
@@ -104,6 +105,10 @@ const runStep = async (step, env, dryRun) => {
     stdio: 'inherit',
     cwd: step.cwd || ROOT,
     env,
+    timeoutMs: Number.isFinite(Number(step.timeoutMs))
+      ? Math.max(1000, Math.floor(Number(step.timeoutMs)))
+      : DEFAULT_STEP_TIMEOUT_MS,
+    killTree: true,
     detached: false,
     rejectOnNonZeroExit: false
   });
@@ -123,8 +128,10 @@ const main = async () => {
   const baseEnv = buildSuiteEnv(mode);
   const userConfig = loadUserConfig(ROOT);
   prependPathEntries(baseEnv, path.join(getToolingDir(ROOT, userConfig), 'bin'));
-  // Keep CI gate behavior deterministic across runners by preferring fixture servers.
-  prependPathEntries(baseEnv, LSP_FIXTURE_BIN);
+  // Fixture LSP binaries remain opt-in for dedicated contract lanes.
+  if (String(process.env.PAIROFCLEATS_CI_USE_LSP_FIXTURES || '') === '1') {
+    prependPathEntries(baseEnv, LSP_FIXTURE_BIN);
+  }
   const runtimeConfig = getRuntimeConfig(ROOT, userConfig);
   const env = resolveRuntimeEnv(runtimeConfig, baseEnv);
   normalizeEnvPathKeys(env);
@@ -235,7 +242,6 @@ const main = async () => {
         ...(mode === 'nightly' ? ['--lane', 'storage', '--lane', 'perf'] : []),
         '--timeout-ms',
         '600000',
-        '--allow-timeouts',
         '--junit',
         junitPath,
         '--log-dir',
