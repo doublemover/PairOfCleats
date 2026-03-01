@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { execaSync } from 'execa';
@@ -37,7 +38,7 @@ const HEADER_FILE_EXTS = new Set([
 ]);
 const TRACKED_HEADER_PATHS_CACHE = new Map();
 const TRACKED_HEADER_DISK_CACHE = new Map();
-const TRACKED_HEADER_CACHE_FILE = 'clangd-tracked-headers-v1.json';
+const TRACKED_HEADER_CACHE_FILE_PREFIX = 'clangd-tracked-headers-v1';
 
 const normalizeRepoPosixPath = (value) => toPosix(String(value || ''))
   .replace(/^\.\/+/, '')
@@ -71,15 +72,27 @@ const resolveTrackedHeaderCacheFingerprint = (repoRoot) => {
       ? rawPath
       : path.resolve(root, rawPath);
     const stat = fsSync.statSync(indexPath);
-    return `${indexPath}:${stat.size}:${stat.mtimeMs}`;
+    try {
+      const digest = crypto
+        .createHash('sha1')
+        .update(fsSync.readFileSync(indexPath))
+        .digest('hex');
+      return `${indexPath}:${digest}`;
+    } catch {
+      return `${indexPath}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}`;
+    }
   } catch {
     return null;
   }
 };
 
-const resolveTrackedHeaderDiskCachePath = (cacheDir) => {
+const resolveTrackedHeaderDiskCachePath = (cacheDir, repoRoot) => {
   if (!cacheDir || typeof cacheDir !== 'string') return null;
-  return path.join(cacheDir, 'clangd', TRACKED_HEADER_CACHE_FILE);
+  const rootHash = crypto
+    .createHash('sha1')
+    .update(path.resolve(String(repoRoot || process.cwd())).toLowerCase())
+    .digest('hex');
+  return path.join(cacheDir, 'clangd', `${TRACKED_HEADER_CACHE_FILE_PREFIX}-${rootHash}.json`);
 };
 
 const loadTrackedHeaderDiskCache = (cachePath) => {
@@ -90,28 +103,43 @@ const loadTrackedHeaderDiskCache = (cachePath) => {
   try {
     const raw = fsSync.readFileSync(cachePath, 'utf8');
     const parsed = JSON.parse(raw);
-    const repos = parsed?.repos && typeof parsed.repos === 'object' ? parsed.repos : {};
-    TRACKED_HEADER_DISK_CACHE.set(cachePath, repos);
-    return repos;
+    const entry = (
+      parsed
+      && typeof parsed === 'object'
+      && Number(parsed.version) === 1
+      && typeof parsed.fingerprint === 'string'
+      && Array.isArray(parsed.paths)
+    )
+      ? {
+        fingerprint: parsed.fingerprint,
+        paths: parsed.paths
+      }
+      : null;
+    TRACKED_HEADER_DISK_CACHE.set(cachePath, entry);
+    return entry;
   } catch {
-    const empty = {};
-    TRACKED_HEADER_DISK_CACHE.set(cachePath, empty);
-    return empty;
+    TRACKED_HEADER_DISK_CACHE.set(cachePath, null);
+    return null;
   }
 };
 
-const persistTrackedHeaderDiskCache = (cachePath, repos) => {
-  if (!cachePath || !repos || typeof repos !== 'object') return;
+const persistTrackedHeaderDiskCache = (cachePath, entry) => {
+  if (!cachePath || !entry || typeof entry !== 'object') return;
   const payload = {
     version: 1,
-    generatedAt: new Date().toISOString(),
-    repos
+    updatedAt: Date.now(),
+    fingerprint: String(entry.fingerprint || ''),
+    paths: Array.isArray(entry.paths) ? entry.paths : []
   };
   try {
     atomicWriteJsonSync(cachePath, payload, {
       spaces: 0,
       newline: false,
       durable: false
+    });
+    TRACKED_HEADER_DISK_CACHE.set(cachePath, {
+      fingerprint: payload.fingerprint,
+      paths: payload.paths
     });
   } catch {}
 };
@@ -213,16 +241,13 @@ export const inferIncludeRootsFromHeaderPaths = ({
 export const listTrackedHeaderPaths = (repoRoot, { cacheDir = null } = {}) => {
   const cacheKey = path.resolve(repoRoot || process.cwd());
   const fingerprint = resolveTrackedHeaderCacheFingerprint(cacheKey);
-  const diskCachePath = resolveTrackedHeaderDiskCachePath(cacheDir);
+  const diskCachePath = resolveTrackedHeaderDiskCachePath(cacheDir, cacheKey);
   if (fingerprint) {
     const cached = TRACKED_HEADER_PATHS_CACHE.get(cacheKey) || null;
     if (cached && cached.fingerprint === fingerprint) {
       return cached.paths;
     }
-    const diskRepos = loadTrackedHeaderDiskCache(diskCachePath);
-    const diskEntry = diskRepos && typeof diskRepos[cacheKey] === 'object'
-      ? diskRepos[cacheKey]
-      : null;
+    const diskEntry = loadTrackedHeaderDiskCache(diskCachePath);
     if (diskEntry
       && diskEntry.fingerprint === fingerprint
       && Array.isArray(diskEntry.paths)) {
@@ -249,13 +274,11 @@ export const listTrackedHeaderPaths = (repoRoot, { cacheDir = null } = {}) => {
       .filter((entry) => Boolean(entry) && headerExtForPath(entry));
     if (fingerprint) {
       TRACKED_HEADER_PATHS_CACHE.set(cacheKey, { fingerprint, paths: trackedPaths });
-      const diskRepos = loadTrackedHeaderDiskCache(diskCachePath) || {};
-      diskRepos[cacheKey] = {
+      persistTrackedHeaderDiskCache(diskCachePath, {
         fingerprint,
         paths: trackedPaths,
         updatedAt: Date.now()
-      };
-      persistTrackedHeaderDiskCache(diskCachePath, diskRepos);
+      });
     }
     return trackedPaths;
   } catch {
