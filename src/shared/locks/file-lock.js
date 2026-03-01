@@ -87,6 +87,32 @@ const createStaleRemovalFailureError = ({
   return error;
 };
 
+const isStructuredStaleRemovalFailureError = (error) => (
+  error?.code === 'ERR_FILE_LOCK_STALE_REMOVE_FAILED'
+);
+
+const createLockReleaseFailureError = ({
+  lockPath,
+  cause = null,
+  releaseResult,
+  workerError = null
+}) => {
+  const causeCode = String(cause?.code || cause?.name || '');
+  const resultCode = releaseResult === false ? 'RELEASE_RETURNED_FALSE' : 'RELEASE_THROW';
+  const detailCode = causeCode || resultCode || 'UNKNOWN';
+  const message = [
+    `[file-lock] lock release failed for "${lockPath}"`,
+    `cause=${detailCode}`
+  ].join(' ');
+  const error = new Error(message, cause ? { cause } : undefined);
+  error.code = 'ERR_FILE_LOCK_RELEASE_FAILED';
+  error.lockPath = lockPath;
+  error.causeCode = causeCode;
+  error.releaseResult = releaseResult === undefined ? null : releaseResult;
+  error.workerError = workerError || null;
+  return error;
+};
+
 const createLockId = () => {
   try {
     return randomUUID();
@@ -479,6 +505,7 @@ export const acquireFileLock = async ({
           continue;
         } catch (cleanupError) {
           if (cleanupError?.code === 'ABORT_ERR') throw cleanupError;
+          if (isStructuredStaleRemovalFailureError(cleanupError)) throw cleanupError;
           if (isBenignStaleRemovalRace(cleanupError)) {
             if (deadline != null && Date.now() < deadline) {
               await sleepWithAbort(resolvedPollMs, lockSignal);
@@ -522,11 +549,30 @@ export const acquireFileLock = async ({
 export const withFileLock = async (options, worker) => {
   const lock = await acquireFileLock(options);
   if (!lock) return null;
+  let workerResult;
+  let workerError = null;
   try {
-    return await worker(lock);
-  } finally {
-    await lock.release();
+    workerResult = await worker(lock);
+  } catch (error) {
+    workerError = error;
   }
+  let releaseResult = null;
+  let releaseError = null;
+  try {
+    releaseResult = await lock.release();
+  } catch (error) {
+    releaseError = error;
+  }
+  if (releaseError || releaseResult !== true) {
+    throw createLockReleaseFailureError({
+      lockPath: lock.lockPath,
+      cause: releaseError,
+      releaseResult,
+      workerError
+    });
+  }
+  if (workerError) throw workerError;
+  return workerResult;
 };
 
 export const getFileLockRuntimeMetrics = () => ({

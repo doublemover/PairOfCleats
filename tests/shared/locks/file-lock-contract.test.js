@@ -7,7 +7,8 @@ import {
   acquireFileLock,
   getFileLockRuntimeMetrics,
   readLockInfo,
-  resetFileLockRuntimeMetricsForTests
+  resetFileLockRuntimeMetricsForTests,
+  withFileLock
 } from '../../../src/shared/locks/file-lock.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
@@ -85,6 +86,29 @@ await fsPromises.writeFile(
   JSON.stringify({ pid: 999999, startedAt: new Date().toISOString() }),
   'utf8'
 );
+let benignRaceCleanupCalls = 0;
+const benignRaceRecoveredLock = await acquireFileLock({
+  lockPath,
+  waitMs: 200,
+  pollMs: 10,
+  staleMs: 24 * 60 * 60 * 1000,
+  staleRemovalImpl: async ({ lockPath: candidatePath }) => {
+    benignRaceCleanupCalls += 1;
+    await fsPromises.rm(candidatePath, { force: true });
+    const raceError = new Error('simulated stale cleanup race');
+    raceError.code = 'ENOENT';
+    throw raceError;
+  }
+});
+assert.ok(benignRaceRecoveredLock, 'expected benign stale cleanup race to be retried');
+assert.equal(benignRaceCleanupCalls, 1, 'expected stale cleanup race path to run once');
+await benignRaceRecoveredLock.release();
+
+await fsPromises.writeFile(
+  lockPath,
+  JSON.stringify({ pid: 999999, startedAt: new Date().toISOString() }),
+  'utf8'
+);
 const deadPidWithThrowingStaleHook = await acquireFileLock({
   lockPath,
   staleMs: 24 * 60 * 60 * 1000,
@@ -97,6 +121,29 @@ assert.ok(
   'expected stale lock cleanup to proceed even when onStale hook throws'
 );
 await deadPidWithThrowingStaleHook.release();
+
+await fsPromises.writeFile(
+  lockPath,
+  JSON.stringify({ pid: 999999, startedAt: new Date().toISOString() }),
+  'utf8'
+);
+const structuredCleanupCause = new Error('already structured cleanup failure');
+structuredCleanupCause.code = 'EACCES';
+const structuredCleanupError = new Error('wrapped stale cleanup failure', { cause: structuredCleanupCause });
+structuredCleanupError.code = 'ERR_FILE_LOCK_STALE_REMOVE_FAILED';
+structuredCleanupError.phase = 'acquire';
+await assert.rejects(
+  () => acquireFileLock({
+    lockPath,
+    staleMs: 24 * 60 * 60 * 1000,
+    staleRemovalImpl: async () => {
+      throw structuredCleanupError;
+    }
+  }),
+  (error) => error === structuredCleanupError,
+  'expected structured stale cleanup errors to propagate without re-wrapping'
+);
+await fsPromises.rm(lockPath, { force: true });
 
 await fsPromises.writeFile(lockPath, 'not-json-lock');
 await fsPromises.utimes(lockPath, new Date(Date.now() - 60_000), new Date(Date.now() - 60_000));
@@ -183,6 +230,51 @@ await assert.rejects(
 const abortElapsedMs = Date.now() - abortStartedAt;
 assert.ok(abortElapsedMs < 2500, `expected lock wait abort to short-circuit quickly (elapsed=${abortElapsedMs}ms)`);
 await heldLock.release();
+
+await assert.rejects(
+  () => withFileLock({ lockPath }, async () => {
+    await fsPromises.rm(lockPath, { force: true });
+    return 'worker-value';
+  }),
+  (error) => (
+    error?.code === 'ERR_FILE_LOCK_RELEASE_FAILED'
+    && error?.releaseResult === false
+    && error?.causeCode === ''
+  ),
+  'expected withFileLock to throw structured error when release returns false'
+);
+await fsPromises.rm(lockPath, { force: true });
+
+await assert.rejects(
+  () => withFileLock({ lockPath }, async (lockHandle) => {
+    lockHandle.release = async () => {
+      const releaseError = new Error('simulated release I/O failure');
+      releaseError.code = 'EIO';
+      throw releaseError;
+    };
+    return 'worker-value';
+  }),
+  (error) => (
+    error?.code === 'ERR_FILE_LOCK_RELEASE_FAILED'
+    && error?.causeCode === 'EIO'
+  ),
+  'expected withFileLock to throw structured error when release throws'
+);
+await fsPromises.rm(lockPath, { force: true });
+
+await assert.rejects(
+  () => withFileLock({ lockPath }, async () => {
+    await fsPromises.rm(lockPath, { force: true });
+    throw new Error('worker exploded');
+  }),
+  (error) => (
+    error?.code === 'ERR_FILE_LOCK_RELEASE_FAILED'
+    && error?.releaseResult === false
+    && error?.workerError?.message === 'worker exploded'
+  ),
+  'expected release failure to surface even when worker also throws'
+);
+await fsPromises.rm(lockPath, { force: true });
 
 const raceLockPath = path.join(tempRoot, 'race-parent', 'race.lock');
 let observedParentMissingRetry = false;
