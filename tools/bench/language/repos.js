@@ -81,7 +81,7 @@ const runGitCommand = (args, { timeoutMs = DEFAULT_PREFLIGHT_TIMEOUT_MS, repoPat
   try {
     const result = gitCommandRunner('git', fullArgs, {
       encoding: 'utf8',
-      timeout: timeoutMs,
+      timeoutMs,
       env: buildNonInteractiveGitEnv()
     });
     return {
@@ -483,7 +483,7 @@ export const ensureRepoBenchmarkReady = ({
   if (pullLfs) {
     const lfsVersion = runCommand('git', ['lfs', 'version'], {
       encoding: 'utf8',
-      timeout: Math.min(preflightTimeoutMs, 15000)
+      timeoutMs: Math.min(preflightTimeoutMs, 15000)
     });
     if (lfsVersion.ok) {
       summary.lfs.supported = true;

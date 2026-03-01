@@ -2,8 +2,8 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { exitLikeCommandResult } from '../shared/cli-utils.js';
+import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
 
 const ROOT = process.cwd();
 const BENCH_RUNNER = path.join(ROOT, 'tools', 'bench', 'bench-runner.js');
@@ -206,9 +206,19 @@ const runVariant = ({ argv, variant, runIndex, runRoot }) => {
     env.PAIROFCLEATS_TEST_CONFIG = JSON.stringify(testConfig);
   }
   const startedAt = Date.now();
-  const result = spawnSync(process.execPath, args, { cwd: ROOT, env, encoding: 'utf8' });
+  const result = spawnSubprocessSync(process.execPath, args, {
+    cwd: ROOT,
+    env,
+    outputEncoding: 'utf8',
+    captureStdout: true,
+    captureStderr: true,
+    outputMode: 'string',
+    rejectOnNonZeroExit: false,
+    killTree: true,
+    detached: process.platform !== 'win32'
+  });
   const durationMs = Date.now() - startedAt;
-  const exitCode = Number.isInteger(result.status) ? Number(result.status) : null;
+  const exitCode = Number.isInteger(result.exitCode) ? Number(result.exitCode) : null;
   const signal = typeof result.signal === 'string' && result.signal.trim().length > 0
     ? result.signal.trim()
     : null;

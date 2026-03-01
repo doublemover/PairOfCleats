@@ -3,9 +3,9 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { createHash } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
 
 import { getEnvConfig } from '../../src/shared/env.js';
+import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
 import { resolveBenchSuite } from './suites/sweet16.js';
 
 const MAX_UTILIZATION_SAMPLES = 2048;
@@ -384,17 +384,39 @@ const resolveStageOverlapRow = ({ json, script, durationMs }) => {
 const runOne = ({ script, args, timeoutMs, tokens }) => {
   const absScript = path.isAbsolute(script) ? script : path.join(process.cwd(), script);
   const start = Date.now();
-  const result = spawnSync(
-    process.execPath,
-    [absScript, ...(args || []).map((value) => substituteTokens(value, tokens))],
-    { encoding: 'utf8', timeout: timeoutMs > 0 ? timeoutMs : undefined }
-  );
+  let result = null;
+  let timedOut = false;
+  try {
+    result = spawnSubprocessSync(
+      process.execPath,
+      [absScript, ...(args || []).map((value) => substituteTokens(value, tokens))],
+      {
+        outputEncoding: 'utf8',
+        timeoutMs: timeoutMs > 0 ? timeoutMs : undefined,
+        captureStdout: true,
+        captureStderr: true,
+        outputMode: 'string',
+        rejectOnNonZeroExit: false,
+        killTree: true,
+        detached: process.platform !== 'win32'
+      }
+    );
+  } catch (error) {
+    timedOut = error?.name === 'SubprocessTimeoutError'
+      || error?.code === 'SUBPROCESS_TIMEOUT'
+      || String(error?.result?.errorCode || '').toUpperCase() === 'ETIMEDOUT';
+    result = error?.result || {
+      exitCode: null,
+      signal: null,
+      stdout: '',
+      stderr: error?.message || String(error || '')
+    };
+  }
   const durationMs = Date.now() - start;
-  const stdout = result.stdout || '';
-  const stderr = result.stderr || '';
+  const stdout = typeof result?.stdout === 'string' ? result.stdout : '';
+  const stderr = typeof result?.stderr === 'string' ? result.stderr : '';
   const combined = `${stdout}\n${stderr}`;
-  const timedOut = Boolean(result.error && result.error.code === 'ETIMEDOUT');
-  const exitCode = typeof result.status === 'number' ? result.status : null;
+  const exitCode = typeof result?.exitCode === 'number' ? result.exitCode : null;
   const parsed = parseBenchOutput(combined);
   const json = parseTrailingJson(stdout);
   return {
