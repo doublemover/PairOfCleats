@@ -486,7 +486,11 @@ const ensureSourcekitPackageResolutionPreflight = async ({
       };
     } finally {
       if (preflightLock?.release) {
-        await preflightLock.release();
+        try {
+          await preflightLock.release();
+        } catch (error) {
+          log(`[tooling] sourcekit preflight lock release failed: ${error?.message || error}`);
+        }
       }
     }
   } catch (err) {
@@ -847,7 +851,11 @@ export const createSourcekitProvider = () => ({
       };
     } finally {
       if (hostLock?.release) {
-        await hostLock.release();
+        try {
+          await hostLock.release();
+        } catch (error) {
+          log(`[tooling] sourcekit host lock release failed: ${error?.message || error}`);
+        }
       }
     }
   }

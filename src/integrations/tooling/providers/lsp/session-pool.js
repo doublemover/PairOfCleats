@@ -8,6 +8,8 @@ import { stableStringify } from '../../../../shared/stable-json.js';
 const DEFAULT_IDLE_TIMEOUT_MS = 1_500;
 const DEFAULT_MAX_LIFETIME_MS = 10 * 60_000;
 const DEFAULT_CLEANUP_INTERVAL_MS = 500;
+const DEFAULT_DISPOSE_TIMEOUT_MS = 8_000;
+const DEFAULT_KILL_TIMEOUT_MS = 4_000;
 const SESSION_STATE = Object.freeze({
   NEW: 'new',
   INITIALIZING: 'initializing',
@@ -104,6 +106,27 @@ const createPendingBarrier = () => {
   return { promise, resolve, reject };
 };
 
+const awaitWithTimeout = async (promise, timeoutMs) => {
+  const resolvedTimeoutMs = toPositiveInt(timeoutMs, DEFAULT_DISPOSE_TIMEOUT_MS, 100);
+  let timeoutHandle = null;
+  let timedOut = false;
+  try {
+    await Promise.race([
+      Promise.resolve(promise),
+      new Promise((resolve) => {
+        timeoutHandle = setTimeout(() => {
+          timedOut = true;
+          resolve();
+        }, resolvedTimeoutMs);
+        timeoutHandle.unref?.();
+      })
+    ]);
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+  }
+  return { timedOut };
+};
+
 const killSessionClient = (session, { sync = false } = {}) => {
   if (!session || typeof session !== 'object') return;
   try {
@@ -129,12 +152,27 @@ const disposeSessionClient = async (session) => {
     if (delayMs > 0) {
       await sleep(delayMs);
     }
+    let shutdownTimedOut = false;
     try {
       if (session.client && typeof session.client.shutdownAndExit === 'function') {
-        await session.client.shutdownAndExit();
+        const shutdownResult = await awaitWithTimeout(
+          session.client.shutdownAndExit(),
+          DEFAULT_DISPOSE_TIMEOUT_MS
+        );
+        shutdownTimedOut = shutdownResult.timedOut === true;
       }
     } catch {}
-    await Promise.resolve(killSessionClient(session));
+    if (shutdownTimedOut) {
+      await awaitWithTimeout(
+        Promise.resolve(killSessionClient(session)),
+        DEFAULT_KILL_TIMEOUT_MS
+      );
+      return;
+    }
+    await awaitWithTimeout(
+      Promise.resolve(killSessionClient(session)),
+      DEFAULT_KILL_TIMEOUT_MS
+    );
   };
   session.disposePromise = runDispose();
   session.disposed = true;
@@ -387,7 +425,7 @@ const runCleanupPass = async () => {
     if (session.state === SESSION_STATE.POISONED) {
       if (session.activeCount > 0 || sessions.get(key) !== session) continue;
       sessions.delete(key);
-      await enqueueSessionDisposal(session, { killFirst: true });
+      void enqueueSessionDisposal(session, { killFirst: true });
       continue;
     }
     const idleMs = now - Number(session.lastUsedAt || now);
@@ -397,7 +435,7 @@ const runCleanupPass = async () => {
     if (!idleExpired && !lifetimeExpired) continue;
     if (session.activeCount > 0 || sessions.get(key) !== session) continue;
     sessions.delete(key);
-    await enqueueSessionDisposal(session, { killFirst: true });
+    void enqueueSessionDisposal(session, { killFirst: true });
   }
 };
 
@@ -527,10 +565,19 @@ export const withLspSession = async (options, fn) => {
   const prev = session.queue;
   const barrier = createPendingBarrier();
   session.queue = barrier.promise.catch(() => {});
+  await prev;
+  refreshSessionState(session);
+  if (sessions.get(session.key) !== session || session.disposed || session.state === SESSION_STATE.RETIRED) {
+    barrier.resolve();
+    throw new Error('LSP session became unavailable before lease acquisition.');
+  }
+  if (session.state === SESSION_STATE.POISONED) {
+    barrier.resolve();
+    throw new Error(`LSP session is poisoned (${session.poisonReason || 'unknown'}).`);
+  }
   session.activeCount += 1;
   session.lastUsedAt = Date.now();
   if (resolved.reused) session.reuseCount += 1;
-  await prev;
   session.handlers.onNotification = typeof options?.onNotification === 'function'
     ? options.onNotification
     : null;
@@ -543,7 +590,6 @@ export const withLspSession = async (options, fn) => {
   session.handlers.onStderrLine = typeof options?.onStderrLine === 'function'
     ? options.onStderrLine
     : null;
-  refreshSessionState(session);
   const leaseMarkPoisoned = (reason = 'unknown') => {
     markSessionPoisoned(session, reason);
   };
@@ -577,23 +623,27 @@ export const withLspSession = async (options, fn) => {
     session.handlers.onRequest = null;
     session.handlers.stderrFilter = null;
     session.handlers.onStderrLine = null;
+    let disposalPromise = null;
     session.activeCount = Math.max(0, session.activeCount - 1);
     session.lastUsedAt = Date.now();
     refreshSessionState(session);
     const activeSession = sessions.get(session.key);
     if (activeSession !== session && session.activeCount === 0) {
       session.recycleCount += 1;
-      await enqueueSessionDisposal(session, { killFirst: true });
+      disposalPromise = enqueueSessionDisposal(session, { killFirst: true });
     } else if (session.state === SESSION_STATE.POISONED && session.activeCount === 0) {
       session.recycleCount += 1;
       sessions.delete(session.key);
-      await enqueueSessionDisposal(session, { killFirst: true });
+      disposalPromise = enqueueSessionDisposal(session, { killFirst: true });
     } else if (shouldExpireForLifetime(session) && session.activeCount === 0) {
       session.recycleCount += 1;
       sessions.delete(session.key);
-      await enqueueSessionDisposal(session, { killFirst: true });
+      disposalPromise = enqueueSessionDisposal(session, { killFirst: true });
     }
     barrier.resolve();
+    if (disposalPromise) {
+      void disposalPromise;
+    }
   }
 };
 
