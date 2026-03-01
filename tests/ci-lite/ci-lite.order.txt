@@ -630,7 +630,6 @@ tooling/providers/provider-registry-gating
 tooling/index-stats/aggregate
 shared/artifact-io/packed-postings-windowed-read
 tooling/providers/provider-registry-merges-deterministically
-tooling/lsp/restart-generation-safety
 tooling/lsp/latency-microbench-contract
 tooling/lsp/fd-pressure-backoff-contract
 tooling/lsp/runtime-config-resolution
@@ -660,9 +659,6 @@ retrieval/providers/provider-unnamed-state-isolation-contract
 tooling/lsp/shutdown
 tooling/lsp/collect-shutdown-race-clean
 tooling/lsp/protocol-fragmented-frames
-tooling/lsp/protocol-malformed-initialize-fail-open
-tooling/lsp/protocol-malformed-document-symbol-fail-open
-tooling/lsp/protocol-malformed-hover-fail-open
 tooling/lsp/protocol-disconnect-document-symbol-fail-open
 tooling/lsp/protocol-stall-initialize-timeout
 tooling/download/shared-fetch-contract
@@ -827,7 +823,6 @@ tooling/doctor/command-profile-pyright-override
 tooling/doctor/command-profile-probe-cache
 tooling/doctor/command-profile-probe-cache-negative
 tooling/doctor/command-profile-probe-cache-success-ttl
-tooling/doctor/command-profile-probe-cache-invalidate-launch-failure
 tooling/doctor/command-profile-probe-timeout
 tooling/doctor/command-profile-probe-timeout-tiers
 tooling/doctor/command-profile-runtime-probe-args

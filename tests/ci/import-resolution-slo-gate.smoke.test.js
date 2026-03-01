@@ -4,10 +4,12 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { applyTestEnv } from '../helpers/test-env.js';
 
 const ROOT = process.cwd();
 const gatePath = path.join(ROOT, 'tools', 'ci', 'import-resolution-slo-gate.js');
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-import-resolution-gate-'));
+const gateEnv = applyTestEnv({ syncProcess: false });
 
 const writeGraph = async (targetPath, payload) => {
   await fs.writeFile(targetPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
@@ -79,7 +81,7 @@ try {
     ],
     {
       cwd: ROOT,
-      env: process.env,
+      env: gateEnv,
       encoding: 'utf8'
     }
   );
@@ -187,7 +189,7 @@ try {
     ],
     {
       cwd: ROOT,
-      env: process.env,
+      env: gateEnv,
       encoding: 'utf8'
     }
   );
@@ -276,7 +278,7 @@ try {
     ],
     {
       cwd: ROOT,
-      env: process.env,
+      env: gateEnv,
       encoding: 'utf8'
     }
   );
@@ -351,7 +353,7 @@ try {
     ],
     {
       cwd: ROOT,
-      env: process.env,
+      env: gateEnv,
       encoding: 'utf8'
     }
   );
@@ -403,7 +405,7 @@ try {
     ],
     {
       cwd: ROOT,
-      env: process.env,
+      env: gateEnv,
       encoding: 'utf8'
     }
   );
@@ -490,7 +492,7 @@ try {
     ],
     {
       cwd: ROOT,
-      env: process.env,
+      env: gateEnv,
       encoding: 'utf8'
     }
   );
@@ -542,7 +544,7 @@ try {
     ],
     {
       cwd: ROOT,
-      env: process.env,
+      env: gateEnv,
       encoding: 'utf8'
     }
   );

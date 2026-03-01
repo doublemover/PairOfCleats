@@ -8,8 +8,13 @@ tooling/lsp/configured-provider-gopls-workspace-diagnostics
 tooling/lsp/configured-provider-probe-fallback
 tooling/lsp/request-timeout-sends-cancel
 tooling/lsp/session-pool-disposal-barrier
+tooling/lsp/restart-generation-safety
+tooling/lsp/protocol-malformed-initialize-fail-open
+tooling/lsp/protocol-malformed-document-symbol-fail-open
+tooling/lsp/protocol-malformed-hover-fail-open
 tooling/doctor/emits-report
 tooling/doctor/reports-xxhash-backend
+tooling/doctor/command-profile-probe-cache-invalidate-launch-failure
 tooling/lsp/dedicated-providers-multifile-session-reuse
 tooling/lsp/dedicated-providers-abrupt-failure-cleanup
 tooling/lsp/writer-closed-restart-reaps-stale-process
