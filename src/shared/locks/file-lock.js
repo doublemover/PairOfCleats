@@ -9,7 +9,8 @@ export const DEFAULT_FILE_LOCK_WAIT_MS = 0;
 export const DEFAULT_FILE_LOCK_POLL_MS = 100;
 export const DEFAULT_FILE_LOCK_STALE_MS = 30 * 60 * 1000;
 const DEFAULT_WINDOWS_TASKLIST_TIMEOUT_MS = 2000;
-const INVALID_LOCK_RECLAIM_GRACE_MS = 2000;
+const INVALID_LOCK_RECLAIM_GRACE_MS_DEFAULT = 5000;
+const INVALID_LOCK_RECLAIM_GRACE_MS_MAX = 60000;
 const lockRuntimeMetrics = {
   hookFailures: 0,
   parentMissingRetries: 0,
@@ -45,6 +46,26 @@ const toNonNegativeNumber = (value, fallback) => {
 const toPositiveNumber = (value, fallback) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const resolveInvalidLockReclaimGraceMs = ({
+  staleMs,
+  pollMs,
+  overrideMs = null
+} = {}) => {
+  const override = Number(overrideMs);
+  if (Number.isFinite(override) && override >= 0) {
+    return Math.min(INVALID_LOCK_RECLAIM_GRACE_MS_MAX, Math.floor(override));
+  }
+  const staleWindow = Number(staleMs);
+  const pollWindow = Number(pollMs);
+  const staleBound = Number.isFinite(staleWindow) && staleWindow > 0
+    ? Math.floor(Math.max(INVALID_LOCK_RECLAIM_GRACE_MS_DEFAULT, staleWindow * 0.1))
+    : INVALID_LOCK_RECLAIM_GRACE_MS_DEFAULT;
+  const pollBound = Number.isFinite(pollWindow) && pollWindow > 0
+    ? Math.floor(Math.max(INVALID_LOCK_RECLAIM_GRACE_MS_DEFAULT, pollWindow * 8))
+    : INVALID_LOCK_RECLAIM_GRACE_MS_DEFAULT;
+  return Math.min(INVALID_LOCK_RECLAIM_GRACE_MS_MAX, Math.max(staleBound, pollBound));
 };
 
 const isBenignStaleRemovalRace = (error) => {
@@ -237,15 +258,15 @@ export const isProcessAlive = (pid) => {
         timeoutMs: DEFAULT_WINDOWS_TASKLIST_TIMEOUT_MS
       }
     );
-    if (toSyncCommandExitCode(result) == null && result?.error) return true;
+    if (toSyncCommandExitCode(result) == null && result?.error) return false;
     const output = String(result.stdout || '').trim();
     if (!output || /INFO:\s+No tasks are running/i.test(output)) return false;
     const line = output.split(/\r?\n/)[0] || '';
     const parts = line.split('","').map((part) => part.replace(/^"|"$/g, ''));
     const parsedPid = Number(parts[1] || '');
-    return Number.isFinite(parsedPid) ? parsedPid === pid : true;
+    return Number.isFinite(parsedPid) ? parsedPid === pid : false;
   } catch {
-    return true;
+    return false;
   }
 };
 
@@ -364,6 +385,7 @@ const removeStaleLockFile = async ({
  *  forceStaleCleanup?:boolean,
  *  timeoutBehavior?:'null'|'throw',
  *  timeoutMessage?:string,
+ *  invalidLockGraceMs?:number,
  *  signal?:AbortSignal|null,
  *  staleRemovalImpl?:(input:{lockPath:string,info:object|null,staleMs:number})=>Promise<{removed:boolean,removalMode:'owner'|'force'|'owner-fallback-force'}>,
  *  onStale?:(info:{lockPath:string,info:object|null,pid:number|null,reason:'stale'|'dead-pid',removalMode?:'owner'|'force'|'owner-fallback-force'})=>void,
@@ -380,6 +402,7 @@ export const acquireFileLock = async ({
   forceStaleCleanup = false,
   timeoutBehavior = 'null',
   timeoutMessage = 'Lock timeout.',
+  invalidLockGraceMs = null,
   signal = null,
   staleRemovalImpl = removeStaleLockFile,
   onStale = null,
@@ -389,6 +412,11 @@ export const acquireFileLock = async ({
   const resolvedWaitMs = toNonNegativeNumber(waitMs, DEFAULT_FILE_LOCK_WAIT_MS);
   const resolvedPollMs = Math.max(1, toPositiveNumber(pollMs, DEFAULT_FILE_LOCK_POLL_MS));
   const resolvedStaleMs = toPositiveNumber(staleMs, DEFAULT_FILE_LOCK_STALE_MS);
+  const resolvedInvalidLockGraceMs = resolveInvalidLockReclaimGraceMs({
+    staleMs: resolvedStaleMs,
+    pollMs: resolvedPollMs,
+    overrideMs: invalidLockGraceMs
+  });
   const lockSignal = signal && typeof signal.aborted === 'boolean' ? signal : null;
   if (lockSignal?.aborted) throw createAbortError();
   await fs.mkdir(path.dirname(lockPath), { recursive: true });
@@ -472,7 +500,7 @@ export const acquireFileLock = async ({
       let invalidLockGraceElapsed = false;
       if (invalidLock) {
         const snapshot = await readLockSnapshot(lockPath, resolvedStaleMs);
-        invalidLockGraceElapsed = snapshot.exists && snapshot.ageMs >= INVALID_LOCK_RECLAIM_GRACE_MS;
+        invalidLockGraceElapsed = snapshot.exists && snapshot.ageMs >= resolvedInvalidLockGraceMs;
       }
       const stale = await isLockStale(lockPath, resolvedStaleMs);
       const staleCleanup = invalidLockGraceElapsed

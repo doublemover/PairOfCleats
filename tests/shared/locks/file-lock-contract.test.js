@@ -161,13 +161,23 @@ assert.equal(corruptStaleEvent?.removalMode, 'force', 'expected ownerless stale 
 await corruptStaleLock.release();
 
 await fsPromises.writeFile(lockPath, 'not-json-lock');
-const corruptFreshLock = await acquireFileLock({ lockPath, staleMs: 60_000, waitMs: 0 });
+const corruptFreshLock = await acquireFileLock({
+  lockPath,
+  staleMs: 60_000,
+  waitMs: 0,
+  invalidLockGraceMs: 3_000
+});
 assert.equal(corruptFreshLock, null, 'expected fresh corrupt lock to remain busy until stale');
 await fsPromises.rm(lockPath, { force: true });
 
 await fsPromises.writeFile(lockPath, 'not-json-lock');
 await fsPromises.utimes(lockPath, new Date(Date.now() - 5_000), new Date(Date.now() - 5_000));
-const corruptGraceExpiredLock = await acquireFileLock({ lockPath, staleMs: 60_000, waitMs: 0 });
+const corruptGraceExpiredLock = await acquireFileLock({
+  lockPath,
+  staleMs: 60_000,
+  waitMs: 0,
+  invalidLockGraceMs: 3_000
+});
 assert.ok(
   corruptGraceExpiredLock,
   'expected invalid lock metadata to be reclaimed after invalid-lock grace even when not stale by max age'
