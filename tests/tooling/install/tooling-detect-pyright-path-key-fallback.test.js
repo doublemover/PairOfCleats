@@ -22,7 +22,8 @@ if (process.platform === 'win32') {
   );
 } else {
   const scriptPath = path.join(binDir, 'pyright-langserver');
-  await fs.writeFile(scriptPath, '#!/usr/bin/env sh\nexit 0\n', 'utf8');
+  // Use an absolute shell path so execution does not depend on PATH.
+  await fs.writeFile(scriptPath, '#!/bin/sh\nexit 0\n', 'utf8');
   await fs.chmod(scriptPath, 0o755);
 }
 
@@ -44,7 +45,11 @@ await withTemporaryEnv(
   },
   async () => {
     const status = detectTool(pyrightPathOnly);
-    assert.equal(status?.found, true, 'expected pyright detection to use Path fallback when PATH is empty');
+    assert.equal(
+      status?.found,
+      true,
+      `expected pyright detection to use Path fallback when PATH is empty; status=${JSON.stringify(status)}`
+    );
     assert.equal(status?.source, 'path', 'expected pyright detection source=path');
     assert.ok(String(status?.path || '').toLowerCase().includes('pyright-langserver'), 'expected pyright binary path');
   }
