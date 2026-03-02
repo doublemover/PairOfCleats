@@ -9,6 +9,12 @@ const normalizeCheck = (value) => (
     : null
 );
 
+const resolveCheckDedupeKey = (check) => (
+  `${String(check?.name || '').trim().toLowerCase()}`
+  + `|${String(check?.status || '').trim().toLowerCase()}`
+  + `|${String(check?.message || '').trim()}`
+);
+
 const resolveUnavailableMessage = ({
   unavailableMessage,
   check,
@@ -187,4 +193,30 @@ export const resolveRuntimeCommandFromPreflight = ({
     probeOk: commandProfile?.probe?.ok === true,
     checks
   };
+};
+
+/**
+ * Merge preflight/diagnostic checks into a deduplicated array.
+ *
+ * @param {...(object|object[]|null|undefined)} groups
+ * @returns {object[]}
+ */
+export const mergePreflightChecks = (...groups) => {
+  const out = [];
+  const seen = new Set();
+  const pushCheck = (check) => {
+    if (!check || typeof check !== 'object') return;
+    const key = resolveCheckDedupeKey(check);
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(check);
+  };
+  for (const group of groups) {
+    if (Array.isArray(group)) {
+      for (const entry of group) pushCheck(entry);
+      continue;
+    }
+    pushCheck(group);
+  }
+  return out;
 };

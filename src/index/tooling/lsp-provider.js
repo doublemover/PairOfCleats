@@ -16,6 +16,7 @@ import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 import { isPlainObject, normalizeCommandArgs } from './provider-utils.js';
 import { awaitToolingProviderPreflight } from './preflight-manager.js';
 import {
+  mergePreflightChecks,
   resolveCommandProfilePreflightResult,
   resolveRuntimeCommandFromPreflight
 } from './preflight/command-profile-preflight.js';
@@ -608,11 +609,11 @@ const createConfiguredLspProvider = (server) => {
       fallbackMessage: server.workspaceModelMissingMessage,
       policy: server.workspaceModelPolicy
     });
-    const checks = [
-      ...(Array.isArray(commandPreflight?.checks) ? commandPreflight.checks : []),
-      ...(workspacePreflight?.check ? [workspacePreflight.check] : []),
-      ...(Array.isArray(workspacePreflight?.checks) ? workspacePreflight.checks : [])
-    ];
+    const checks = mergePreflightChecks(
+      commandPreflight?.checks,
+      workspacePreflight?.check,
+      workspacePreflight?.checks
+    );
     if (workspacePreflight.blockProvider === true || workspacePreflight.blockSourcekit === true) {
       return {
         state: 'blocked',

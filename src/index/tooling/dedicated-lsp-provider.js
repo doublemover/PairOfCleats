@@ -8,6 +8,7 @@ import { isPlainObject, normalizeCommandArgs, filterTargetsForDocuments } from '
 import { awaitToolingProviderPreflight } from './preflight-manager.js';
 import {
   resolveCommandProfilePreflightResult,
+  mergePreflightChecks,
   resolveRuntimeCommandFromPreflight
 } from './preflight/command-profile-preflight.js';
 import { resolveWorkspaceModelPreflight } from './preflight/workspace-model-preflight.js';
@@ -89,20 +90,6 @@ const resolveCommandProfilePreflight = ({ descriptor, ctx, config }) => {
       buildCommandUnavailableCheck(descriptor, resolvedRequested.cmd)
     )
   });
-};
-
-const mergePreflightChecks = (...groups) => {
-  const checks = [];
-  for (const group of groups) {
-    if (Array.isArray(group)) {
-      for (const entry of group) {
-        if (entry && typeof entry === 'object') checks.push(entry);
-      }
-      continue;
-    }
-    if (group && typeof group === 'object') checks.push(group);
-  }
-  return checks;
 };
 
 const buildCommandUnavailableCheck = (descriptor, requestedCmd) => {

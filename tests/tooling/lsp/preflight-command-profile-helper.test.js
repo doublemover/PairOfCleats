@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import {
+  mergePreflightChecks,
   resolveCommandProfilePreflightResult,
   resolveRuntimeCommandFromPreflight
 } from '../../../src/index/tooling/preflight/command-profile-preflight.js';
@@ -88,5 +89,12 @@ assert.equal(runtimeUnknownProbe.cmd, process.execPath, 'expected fallback to re
 assert.equal(runtimeUnknownProbe.probeKnown, false, 'expected unknown probe state when preflight has no commandProfile');
 assert.equal(runtimeUnknownProbe.probeOk, false, 'expected probeOk false when probe is unknown');
 assert.equal(runtimeUnknownProbe.checks.length, 0, 'expected no missing-profile check when command is still resolved');
+
+const dedupedChecks = mergePreflightChecks(
+  [{ name: 'a', status: 'warn', message: 'm' }, { name: 'a', status: 'warn', message: 'm' }],
+  { name: 'b', status: 'warn', message: 'm2' },
+  [{ name: 'b', status: 'warn', message: 'm2' }]
+);
+assert.equal(dedupedChecks.length, 2, 'expected merged preflight checks to dedupe identical entries');
 
 console.log('preflight command-profile helper test passed');
