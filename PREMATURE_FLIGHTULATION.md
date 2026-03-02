@@ -645,3 +645,8 @@ Acceptance gate:
 - [x] At least one additional provider integrated into framework.
 - [x] Informational CI/doctor reporting for preflight health is live.
 - [x] Bench/log diagnostics include canonical preflight lifecycle events.
+
+## Execution Log
+- 2026-03-02T09:30:17.1397807-05:00: Migrated dedicated-provider command profile probing into framework preflight; run-path now consumes preflight-resolved command profiles.
+- 2026-03-02T09:30:17.1397807-05:00: Migrated clangd command profile probing into preflight (workspace gating preserved) and reused preflight command profile in collect path.
+- 2026-03-02T09:30:17.1397807-05:00: Migrated sourcekit command profile probing into preflight and removed dead provider-local candidate/probe path left from preflight ownership cutover.
