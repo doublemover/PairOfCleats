@@ -499,6 +499,17 @@ const normalizeServerConfig = (server, index) => {
     ? merged.goWorkspaceModuleArgs.map((entry) => String(entry))
     : null;
   const goWorkspaceModuleTimeoutMs = Number(merged.goWorkspaceModuleTimeoutMs);
+  const goWorkspaceWarmup = typeof merged.goWorkspaceWarmup === 'boolean'
+    ? merged.goWorkspaceWarmup
+    : null;
+  const goWorkspaceWarmupCmd = String(merged.goWorkspaceWarmupCmd || '').trim();
+  const goWorkspaceWarmupArgs = Array.isArray(merged.goWorkspaceWarmupArgs)
+    ? merged.goWorkspaceWarmupArgs.map((entry) => String(entry))
+    : null;
+  const goWorkspaceWarmupTimeoutMs = Number(merged.goWorkspaceWarmupTimeoutMs);
+  const goWorkspaceWarmupMinGoFiles = Number(merged.goWorkspaceWarmupMinGoFiles);
+  const goWorkspaceWarmupScanBudget = Number(merged.goWorkspaceWarmupScanBudget);
+  const goWorkspaceWarmupScanMaxDepth = Number(merged.goWorkspaceWarmupScanMaxDepth);
   const rustWorkspaceMetadataCmd = String(merged.rustWorkspaceMetadataCmd || '').trim();
   const rustWorkspaceMetadataArgs = Array.isArray(merged.rustWorkspaceMetadataArgs)
     ? merged.rustWorkspaceMetadataArgs.map((entry) => String(entry))
@@ -630,6 +641,21 @@ const normalizeServerConfig = (server, index) => {
     goWorkspaceModuleArgs: goWorkspaceModuleArgs?.length ? goWorkspaceModuleArgs : null,
     goWorkspaceModuleTimeoutMs: Number.isFinite(goWorkspaceModuleTimeoutMs)
       ? Math.max(500, Math.floor(goWorkspaceModuleTimeoutMs))
+      : null,
+    goWorkspaceWarmup,
+    goWorkspaceWarmupCmd: goWorkspaceWarmupCmd || null,
+    goWorkspaceWarmupArgs: goWorkspaceWarmupArgs?.length ? goWorkspaceWarmupArgs : null,
+    goWorkspaceWarmupTimeoutMs: Number.isFinite(goWorkspaceWarmupTimeoutMs)
+      ? Math.max(500, Math.floor(goWorkspaceWarmupTimeoutMs))
+      : null,
+    goWorkspaceWarmupMinGoFiles: Number.isFinite(goWorkspaceWarmupMinGoFiles)
+      ? Math.max(1, Math.floor(goWorkspaceWarmupMinGoFiles))
+      : null,
+    goWorkspaceWarmupScanBudget: Number.isFinite(goWorkspaceWarmupScanBudget)
+      ? Math.max(100, Math.floor(goWorkspaceWarmupScanBudget))
+      : null,
+    goWorkspaceWarmupScanMaxDepth: Number.isFinite(goWorkspaceWarmupScanMaxDepth)
+      ? Math.max(1, Math.floor(goWorkspaceWarmupScanMaxDepth))
       : null,
     rustWorkspaceMetadataCmd: rustWorkspaceMetadataCmd || null,
     rustWorkspaceMetadataArgs: rustWorkspaceMetadataArgs?.length ? rustWorkspaceMetadataArgs : null,

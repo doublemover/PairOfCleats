@@ -7,6 +7,7 @@ import { createDedicatedLspProvider } from './dedicated-lsp-provider.js';
 import { ensureCommandArgPair, normalizeCommandArgs } from './provider-utils.js';
 
 const JAVA_EXTS = ['.java'];
+const JAVA_COMMAND_TOKENS = new Set(['java', 'java.exe']);
 
 const resolveWorkspaceDataDir = (ctx, config) => {
   const configured = typeof config?.workspaceDataDir === 'string'
@@ -44,6 +45,10 @@ const resolveLaunchPath = (repoRoot, value) => {
   if (isAbsolutePathNative(raw)) return raw;
   return path.resolve(repoRoot || process.cwd(), raw);
 };
+
+const resolveCommandToken = (value) => (
+  path.basename(String(value || '').trim()).toLowerCase()
+);
 
 export const createJdtlsProvider = () => createDedicatedLspProvider({
   id: 'jdtls',
@@ -89,10 +94,25 @@ export const createJdtlsProvider = () => createDedicatedLspProvider({
   getPreflightKey: ({ ctx, config }) => resolveWorkspaceDataDir(ctx, config),
   preflight: async ({ ctx, config, abortSignal, requestedCommand, commandProfile }) => {
     const repoRoot = ctx?.repoRoot || process.cwd();
+    const requestedCmd = String(commandProfile?.resolved?.cmd || requestedCommand?.cmd || '').trim();
+    const commandToken = resolveCommandToken(requestedCmd);
     const launchArgs = Array.isArray(commandProfile?.resolved?.args)
       ? commandProfile.resolved.args
       : (Array.isArray(requestedCommand?.args) ? requestedCommand.args : normalizeCommandArgs(config?.args));
     const configurationArg = resolveLaunchArgValue(launchArgs, '-configuration');
+    const jarArg = resolveLaunchArgValue(launchArgs, '-jar');
+    if (JAVA_COMMAND_TOKENS.has(commandToken) && (!configurationArg.present || !jarArg.present)) {
+      return {
+        state: 'blocked',
+        reasonCode: 'jdtls_launch_script_mismatch',
+        blockProvider: true,
+        check: {
+          name: 'jdtls_launch_script_mismatch',
+          status: 'warn',
+          message: 'jdtls launch command points to java directly but is missing required -jar/-configuration launch args.'
+        }
+      };
+    }
     if (configurationArg.present && !configurationArg.value) {
       return {
         state: 'blocked',
@@ -120,8 +140,6 @@ export const createJdtlsProvider = () => createDedicatedLspProvider({
         };
       }
     }
-
-    const jarArg = resolveLaunchArgValue(launchArgs, '-jar');
     if (jarArg.present && !jarArg.value) {
       return {
         state: 'blocked',

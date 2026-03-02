@@ -4,6 +4,11 @@ import { runWorkspaceCommandPreflight } from './workspace-command-preflight.js';
 
 const DEFAULT_MODULE_ARGS = Object.freeze(['list', '-m']);
 const DEFAULT_MODULE_TIMEOUT_MS = 8000;
+const DEFAULT_WARMUP_ARGS = Object.freeze(['list', './...']);
+const DEFAULT_WARMUP_TIMEOUT_MS = 20000;
+const DEFAULT_WARMUP_MIN_GO_FILES = 120;
+const DEFAULT_WARMUP_SCAN_BUDGET = 8000;
+const DEFAULT_WARMUP_SCAN_MAX_DEPTH = 7;
 const GO_ROOT_MARKER_NAMES = new Set(['go.mod', 'go.work']);
 
 const normalizeGoLanguages = (server) => {
@@ -30,6 +35,98 @@ const resolveModuleCommand = (server) => {
     ? Math.max(500, Math.floor(timeoutRaw))
     : DEFAULT_MODULE_TIMEOUT_MS;
   return { cmd, args, timeoutMs };
+};
+
+const resolveWarmupCommand = (server) => {
+  const cmd = String(server?.goWorkspaceWarmupCmd || 'go').trim() || 'go';
+  const args = Array.isArray(server?.goWorkspaceWarmupArgs) && server.goWorkspaceWarmupArgs.length
+    ? server.goWorkspaceWarmupArgs.map((entry) => String(entry))
+    : Array.from(DEFAULT_WARMUP_ARGS);
+  const timeoutRaw = Number(server?.goWorkspaceWarmupTimeoutMs);
+  const timeoutMs = Number.isFinite(timeoutRaw)
+    ? Math.max(500, Math.floor(timeoutRaw))
+    : DEFAULT_WARMUP_TIMEOUT_MS;
+  return { cmd, args, timeoutMs };
+};
+
+const resolveWarmupScanOptions = (server) => {
+  const minGoFilesRaw = Number(server?.goWorkspaceWarmupMinGoFiles);
+  const scanBudgetRaw = Number(server?.goWorkspaceWarmupScanBudget);
+  const scanMaxDepthRaw = Number(server?.goWorkspaceWarmupScanMaxDepth);
+  const minGoFiles = Number.isFinite(minGoFilesRaw)
+    ? Math.max(1, Math.floor(minGoFilesRaw))
+    : DEFAULT_WARMUP_MIN_GO_FILES;
+  const scanBudget = Number.isFinite(scanBudgetRaw)
+    ? Math.max(100, Math.floor(scanBudgetRaw))
+    : DEFAULT_WARMUP_SCAN_BUDGET;
+  const scanMaxDepth = Number.isFinite(scanMaxDepthRaw)
+    ? Math.max(1, Math.floor(scanMaxDepthRaw))
+    : DEFAULT_WARMUP_SCAN_MAX_DEPTH;
+  return {
+    minGoFiles,
+    scanBudget,
+    scanMaxDepth
+  };
+};
+
+const countGoFilesForWarmup = (repoRoot, options) => {
+  const minGoFiles = Number(options?.minGoFiles) || DEFAULT_WARMUP_MIN_GO_FILES;
+  const scanBudget = Number(options?.scanBudget) || DEFAULT_WARMUP_SCAN_BUDGET;
+  const scanMaxDepth = Number(options?.scanMaxDepth) || DEFAULT_WARMUP_SCAN_MAX_DEPTH;
+  const queue = [{ dir: repoRoot, depth: 0 }];
+  let scannedEntries = 0;
+  let goFiles = 0;
+  while (queue.length > 0 && scannedEntries < scanBudget && goFiles < minGoFiles) {
+    const next = queue.shift();
+    if (!next) break;
+    let entries = [];
+    try {
+      entries = fsSync.readdirSync(next.dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      scannedEntries += 1;
+      if (scannedEntries >= scanBudget || goFiles >= minGoFiles) break;
+      const entryName = String(entry?.name || '');
+      const lowerName = entryName.toLowerCase();
+      if (entry?.isFile?.() && lowerName.endsWith('.go')) {
+        goFiles += 1;
+        continue;
+      }
+      if (!entry?.isDirectory?.()) continue;
+      if (entryName.startsWith('.')) continue;
+      if (lowerName === 'node_modules' || lowerName === 'vendor') continue;
+      if ((next.depth + 1) > scanMaxDepth) continue;
+      queue.push({
+        dir: path.join(next.dir, entryName),
+        depth: next.depth + 1
+      });
+    }
+  }
+  return goFiles;
+};
+
+const shouldRunGoWorkspaceWarmupPreflight = (repoRoot, server) => {
+  if (server?.goWorkspaceWarmup === false) return false;
+  const scanOptions = resolveWarmupScanOptions(server);
+  const goFileCount = countGoFilesForWarmup(repoRoot, scanOptions);
+  return goFileCount >= scanOptions.minGoFiles;
+};
+
+const resolveGoWorkspaceWarmupPreflight = ({ ctx, server, repoRoot }) => {
+  if (!shouldRunGoWorkspaceWarmupPreflight(repoRoot, server)) {
+    return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
+  }
+  const warmupCommand = resolveWarmupCommand(server);
+  return runWorkspaceCommandPreflight({
+    ctx,
+    cmd: warmupCommand.cmd,
+    args: warmupCommand.args,
+    timeoutMs: warmupCommand.timeoutMs,
+    reasonPrefix: 'go_workspace_warmup_probe',
+    label: 'go workspace warmup'
+  });
 };
 
 const resolveGoWorkspaceRootShapePreflight = (repoRoot) => {
@@ -104,12 +201,20 @@ export const resolveGoWorkspaceModulePreflight = ({ ctx, server }) => {
   }
 
   const command = resolveModuleCommand(server);
-  return runWorkspaceCommandPreflight({
+  const modulePreflight = runWorkspaceCommandPreflight({
     ctx,
     cmd: command.cmd,
     args: command.args,
     timeoutMs: command.timeoutMs,
     reasonPrefix: 'go_workspace_module_probe',
     label: 'go workspace module'
+  });
+  if (modulePreflight.state !== 'ready') {
+    return modulePreflight;
+  }
+  return resolveGoWorkspaceWarmupPreflight({
+    ctx,
+    server,
+    repoRoot
   });
 };

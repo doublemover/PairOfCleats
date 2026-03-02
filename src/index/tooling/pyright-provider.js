@@ -17,12 +17,50 @@ import {
 
 export const PYTHON_EXTS = ['.py', '.pyi'];
 const PYRIGHT_CONFIG_MAX_BYTES = 2 * 1024 * 1024;
+const PYRIGHT_WORKSPACE_SCAN_OUTLIER_ENTRY_THRESHOLD = 3000;
+const PYRIGHT_WORKSPACE_SCAN_OUTLIER_DURATION_MS = 250;
 const PYRIGHT_WORKSPACE_MARKERS = new Set([
   'pyproject.toml',
   'setup.py',
   'setup.cfg',
   'requirements.txt'
 ]);
+
+const resolveWorkspaceScanOutlierThresholds = (toolingConfig) => {
+  const pyrightConfig = toolingConfig?.pyright && typeof toolingConfig.pyright === 'object'
+    ? toolingConfig.pyright
+    : {};
+  const entryThresholdRaw = Number(pyrightConfig.workspaceScanOutlierEntryThreshold);
+  const durationThresholdRaw = Number(pyrightConfig.workspaceScanOutlierDurationMs);
+  return {
+    entryThreshold: Number.isFinite(entryThresholdRaw)
+      ? Math.max(1, Math.floor(entryThresholdRaw))
+      : PYRIGHT_WORKSPACE_SCAN_OUTLIER_ENTRY_THRESHOLD,
+    durationMs: Number.isFinite(durationThresholdRaw)
+      ? Math.max(10, Math.floor(durationThresholdRaw))
+      : PYRIGHT_WORKSPACE_SCAN_OUTLIER_DURATION_MS
+  };
+};
+
+const resolveWorkspaceScanOutlierCheck = ({
+  scannedEntries,
+  scannedDirs,
+  elapsedMs,
+  thresholds
+}) => {
+  if (!Number.isFinite(scannedEntries) || !Number.isFinite(scannedDirs) || !Number.isFinite(elapsedMs)) {
+    return null;
+  }
+  if (scannedEntries < thresholds.entryThreshold && elapsedMs < thresholds.durationMs) {
+    return null;
+  }
+  const message = `pyright workspace scan outlier (entries=${scannedEntries}, dirs=${scannedDirs}, duration=${elapsedMs}ms; thresholds entries>=${thresholds.entryThreshold} or duration>=${thresholds.durationMs}ms).`;
+  return {
+    name: 'pyright_workspace_scan_outlier',
+    status: 'warn',
+    message
+  };
+};
 
 export const __canRunPyrightForTests = (cmd) => (
   resolveToolingCommandProfile({
@@ -105,12 +143,16 @@ const resolvePyrightWorkspaceConfigPreflight = async ({ ctx }) => {
 
 const resolvePyrightWorkspaceRootPreflight = ({ ctx }) => {
   const repoRoot = String(ctx?.repoRoot || process.cwd());
+  const thresholds = resolveWorkspaceScanOutlierThresholds(ctx?.toolingConfig || {});
+  const startedAt = Date.now();
   let rootEntries = [];
   try {
     rootEntries = fsSync.readdirSync(repoRoot, { withFileTypes: true });
   } catch {
     return { state: 'ready', reasonCode: null, message: '', checks: [] };
   }
+  let scannedEntries = rootEntries.length;
+  let scannedDirs = 0;
   const workspaceRoots = [];
   const rootHasMarker = rootEntries.some((entry) => (
     entry?.isFile?.() && PYRIGHT_WORKSPACE_MARKERS.has(String(entry.name || '').toLowerCase())
@@ -118,8 +160,10 @@ const resolvePyrightWorkspaceRootPreflight = ({ ctx }) => {
   if (rootHasMarker) workspaceRoots.push('.');
   for (const entry of rootEntries) {
     if (!entry?.isDirectory?.()) continue;
+    scannedDirs += 1;
     try {
       const childEntries = fsSync.readdirSync(path.join(repoRoot, entry.name), { withFileTypes: true });
+      scannedEntries += childEntries.length;
       const hasMarker = childEntries.some((child) => (
         child?.isFile?.() && PYRIGHT_WORKSPACE_MARKERS.has(String(child.name || '').toLowerCase())
       ));
@@ -128,22 +172,40 @@ const resolvePyrightWorkspaceRootPreflight = ({ ctx }) => {
       // Ignore unreadable child directories for this advisory-only classification.
     }
   }
-  if (workspaceRoots.length <= 1) {
-    return { state: 'ready', reasonCode: null, message: '', checks: [] };
-  }
-  const sample = workspaceRoots.slice(0, 4).join(', ');
-  const suffix = workspaceRoots.length > 4 ? ` (+${workspaceRoots.length - 4} more)` : '';
-  const message = `pyright workspace appears to be monorepo/multi-root (${sample}${suffix}); diagnostics may vary unless workspace root is narrowed.`;
-  return {
-    state: 'degraded',
-    reasonCode: 'pyright_workspace_mono_root',
-    message,
-    checks: [{
+  const elapsedMs = Date.now() - startedAt;
+  const checks = [];
+  const outlierCheck = resolveWorkspaceScanOutlierCheck({
+    scannedEntries,
+    scannedDirs,
+    elapsedMs,
+    thresholds
+  });
+  if (outlierCheck) checks.push(outlierCheck);
+  if (workspaceRoots.length > 1) {
+    const sample = workspaceRoots.slice(0, 4).join(', ');
+    const suffix = workspaceRoots.length > 4 ? ` (+${workspaceRoots.length - 4} more)` : '';
+    const message = `pyright workspace appears to be monorepo/multi-root (${sample}${suffix}); diagnostics may vary unless workspace root is narrowed.`;
+    checks.push({
       name: 'pyright_workspace_mono_root',
       status: 'warn',
       message
-    }]
-  };
+    });
+    return {
+      state: 'degraded',
+      reasonCode: 'pyright_workspace_mono_root',
+      message,
+      checks
+    };
+  }
+  if (outlierCheck) {
+    return {
+      state: 'degraded',
+      reasonCode: 'pyright_workspace_scan_outlier',
+      message: outlierCheck.message,
+      checks
+    };
+  }
+  return { state: 'ready', reasonCode: null, message: '', checks: [] };
 };
 
 export const createPyrightProvider = () => ({

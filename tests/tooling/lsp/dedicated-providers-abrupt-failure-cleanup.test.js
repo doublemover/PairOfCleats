@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import {
+  resetTrackedSubprocessEvents,
+  snapshotTrackedSubprocessEvents
+} from '../../../src/shared/subprocess.js';
+import {
   buildSingleSymbolInputs,
   createLspProviderTempRepo,
   runDedicatedProviderFixture
@@ -182,9 +186,41 @@ const runAbortScenario = async (providerCase) => {
   }
 };
 
+resetTrackedSubprocessEvents();
 for (const providerCase of providerCases) {
   await runTimeoutScenario(providerCase);
   await runAbortScenario(providerCase);
+}
+
+const trackedSnapshot = snapshotTrackedSubprocessEvents({ limit: 5000 });
+const trackedEvents = Array.isArray(trackedSnapshot?.events) ? trackedSnapshot.events : [];
+const stallTrackedEvents = trackedEvents.filter((event) => (
+  event?.kind === 'process_spawned'
+));
+assert.equal(
+  stallTrackedEvents.length > 0,
+  true,
+  'expected tracked subprocess lifecycle events during dedicated-provider timeout/abort scenarios'
+);
+const lifecycleEventsByPid = new Map();
+for (const event of trackedEvents) {
+  const pid = Number(event?.pid);
+  if (!Number.isFinite(pid)) continue;
+  if (!lifecycleEventsByPid.has(pid)) lifecycleEventsByPid.set(pid, []);
+  lifecycleEventsByPid.get(pid).push(event);
+}
+for (const trackedEvent of stallTrackedEvents) {
+  const pid = Number(trackedEvent?.pid);
+  const pidEvents = lifecycleEventsByPid.get(pid) || [];
+  const hasTerminalEvent = pidEvents.some((event) => (
+    event?.kind === 'process_reaped'
+    || event?.kind === 'process_untracked'
+  ));
+  assert.equal(
+    hasTerminalEvent,
+    true,
+    `expected tracked stall process pid=${pid} to emit terminal tracked-subprocess lifecycle events`
+  );
 }
 
 const noTracked = await waitForNoTrackedSubprocesses();
