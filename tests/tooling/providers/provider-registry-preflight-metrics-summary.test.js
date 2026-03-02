@@ -63,6 +63,11 @@ assert.equal(
   true,
   'expected scheduler metrics on preflight envelope'
 );
+assert.equal(
+  result.metrics.preflights.scheduler?.byClass?.dependency?.started >= 1,
+  true,
+  'expected scheduler byClass counters in preflight envelope'
+);
 assert.ok(result?.diagnostics?.['preflight-fixture']?.preflight, 'expected provider preflight diagnostics envelope');
 assert.equal(
   result.diagnostics['preflight-fixture'].preflight.state,
