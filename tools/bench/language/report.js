@@ -57,6 +57,30 @@ const buildCrashRetentionSummary = (results) => {
 
 const DIAGNOSTIC_STREAM_FILE_SUFFIX = '.diagnostics.jsonl';
 const PROGRESS_CONFIDENCE_STREAM_FILE_SUFFIX = '.progress-confidence.jsonl';
+const LOG_FILE_SUFFIX = '.log';
+const PREFLIGHT_LOG_SCHEMA_VERSION = 1;
+const PREFLIGHT_EVENT_TYPE_SET = new Set([
+  'start',
+  'cache_hit',
+  'ok',
+  'degraded',
+  'blocked',
+  'timeout',
+  'failed',
+  'queued',
+  'dequeued',
+  'teardown_timeout',
+  'teardown_abort'
+]);
+const PREFLIGHT_EVENT_STATE_BY_EVENT = Object.freeze({
+  ok: 'ready',
+  degraded: 'degraded',
+  blocked: 'blocked',
+  timeout: 'degraded',
+  failed: 'failed',
+  cache_hit: 'ready'
+});
+const PREFLIGHT_TOP_SLOW_LIMIT = 20;
 
 const loadJsonFile = async (filePath) => {
   try {
@@ -277,6 +301,120 @@ const parseProgressConfidenceLine = (line) => {
     label,
     reason: typeof parsed.reason === 'string' ? parsed.reason.trim() : null,
     ts: typeof parsed.ts === 'string' ? parsed.ts : null
+  };
+};
+
+const parsePreflightLogLine = (line) => {
+  const trimmed = String(line || '').trim();
+  if (!trimmed || !trimmed.includes('preflight:')) return null;
+  const match = /\[tooling\]\s+preflight:(?<event>[a-z_]+)\s+provider=(?<provider>[^\s]+)\s+id=(?<id>[^\s]+)(?<rest>.*)$/iu.exec(trimmed);
+  if (!match) return null;
+  const event = String(match.groups?.event || '').trim().toLowerCase();
+  if (!event || !PREFLIGHT_EVENT_TYPE_SET.has(event)) return null;
+  const providerId = String(match.groups?.provider || '').trim();
+  const preflightId = String(match.groups?.id || '').trim();
+  const rest = String(match.groups?.rest || '');
+  const values = Object.create(null);
+  for (const entry of rest.split(/\s+/u)) {
+    const idx = entry.indexOf('=');
+    if (idx <= 0 || idx >= entry.length - 1) continue;
+    const key = entry.slice(0, idx).trim().toLowerCase();
+    const value = entry.slice(idx + 1).trim();
+    if (!key || !value) continue;
+    values[key] = value;
+  }
+  const durationRaw = Number(values.durationms);
+  const durationMs = Number.isFinite(durationRaw) ? Math.max(0, durationRaw) : null;
+  const preflightClass = String(values.class || '').trim().toLowerCase() || 'unknown';
+  const state = String(values.state || PREFLIGHT_EVENT_STATE_BY_EVENT[event] || '').trim().toLowerCase() || null;
+  const timedOut = values.timeout === '1' || event === 'timeout';
+  return {
+    event,
+    providerId,
+    preflightId,
+    preflightClass,
+    state,
+    durationMs,
+    timedOut
+  };
+};
+
+const pushTopSlowPreflights = (rows, entry) => {
+  pushTopNOrdered(
+    rows,
+    entry,
+    PREFLIGHT_TOP_SLOW_LIMIT,
+    (left, right) => (
+      Number(right.durationMs) - Number(left.durationMs)
+    ) || String(left.providerId || '').localeCompare(String(right.providerId || ''))
+  );
+};
+
+const buildPreflightLogSummary = async (resultsRoot) => {
+  const files = await listBenchStreamFiles(resultsRoot, LOG_FILE_SUFFIX);
+  const countsByEvent = new Map();
+  const countsByState = new Map();
+  const countsByClass = new Map();
+  const countsByProvider = new Map();
+  const topSlow = [];
+  let eventCount = 0;
+  let timeoutEvents = 0;
+  for (const filePath of files) {
+    let raw = '';
+    try {
+      raw = await fsPromises.readFile(filePath, 'utf8');
+    } catch {
+      continue;
+    }
+    forEachNonEmptyLine(raw, (line) => {
+      const event = parsePreflightLogLine(line);
+      if (!event) return;
+      eventCount += 1;
+      countsByEvent.set(event.event, (countsByEvent.get(event.event) || 0) + 1);
+      countsByClass.set(event.preflightClass, (countsByClass.get(event.preflightClass) || 0) + 1);
+      if (event.state) {
+        countsByState.set(event.state, (countsByState.get(event.state) || 0) + 1);
+      }
+      if (event.timedOut) timeoutEvents += 1;
+      if (event.providerId) {
+        countsByProvider.set(event.providerId, (countsByProvider.get(event.providerId) || 0) + 1);
+      }
+      if (Number.isFinite(event.durationMs)) {
+        pushTopSlowPreflights(topSlow, {
+          providerId: event.providerId,
+          preflightId: event.preflightId,
+          preflightClass: event.preflightClass,
+          state: event.state || null,
+          event: event.event,
+          durationMs: event.durationMs
+        });
+      }
+    });
+  }
+
+  const topProviders = Array.from(countsByProvider.entries())
+    .map(([providerId, count]) => ({ providerId, count }))
+    .sort((left, right) => (
+      Number(right.count) - Number(left.count)
+    ) || String(left.providerId).localeCompare(String(right.providerId)))
+    .slice(0, 20);
+
+  return {
+    schemaVersion: PREFLIGHT_LOG_SCHEMA_VERSION,
+    fileCount: files.length,
+    eventCount,
+    timeoutEvents,
+    countsByEvent: Object.fromEntries(
+      Array.from(countsByEvent.entries()).sort(([left], [right]) => left.localeCompare(right))
+    ),
+    countsByState: Object.fromEntries(
+      Array.from(countsByState.entries()).sort(([left], [right]) => left.localeCompare(right))
+    ),
+    countsByClass: Object.fromEntries(
+      Array.from(countsByClass.entries()).sort(([left], [right]) => left.localeCompare(right))
+    ),
+    topProviders,
+    topSlow
   };
 };
 
@@ -829,6 +967,7 @@ export const buildReportOutput = async ({ configPath, cacheRoot, resultsRoot, re
   const crashRetention = buildCrashRetentionSummary(tasks);
   const diagnosticsStream = await buildDiagnosticsStreamSummary(resultsRoot);
   const progressConfidence = await buildProgressConfidenceSummary(resultsRoot);
+  const preflight = await buildPreflightLogSummary(resultsRoot);
   const throughputLedger = buildThroughputLedgerSummary(tasks);
   const stageTimingTasks = tasks
     .filter((entry) => entry?.stageTimingProfile)
@@ -854,7 +993,8 @@ export const buildReportOutput = async ({ configPath, cacheRoot, resultsRoot, re
     diagnostics: {
       crashRetention,
       stream: diagnosticsStream,
-      progressConfidence
+      progressConfidence,
+      preflight
     },
     throughputLedger,
     stageTiming: {
