@@ -16,6 +16,7 @@ import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 import { resolveProviderRequestedCommand } from './provider-command-override.js';
 import { filterTargetsForDocuments } from './provider-utils.js';
 import { awaitToolingProviderPreflight } from './preflight-manager.js';
+import { resolveCommandProfilePreflightResult } from './preflight/command-profile-preflight.js';
 import {
   buildSourcekitRepoScopedLockPath,
   ensureSourcekitPackageResolutionPreflight,
@@ -269,28 +270,26 @@ export const createSourcekitProvider = () => ({
       };
     }
     const requestedCommand = resolveSourcekitRequestedCommand(ctx);
-    const commandProfile = resolveToolingCommandProfile({
+    const commandPreflight = resolveCommandProfilePreflightResult({
       providerId: 'sourcekit',
-      cmd: requestedCommand.cmd,
-      args: requestedCommand.args,
-      repoRoot: ctx?.repoRoot || process.cwd(),
-      toolingConfig: ctx?.toolingConfig || {}
+      requestedCommand,
+      ctx,
+      blockWhenDefinitelyMissing: true,
+      blockFlag: 'blockSourcekit',
+      unavailableCheck: ({ definitelyMissing }) => (
+        buildSourcekitCommandUnavailableCheck({ definitelyMissing })
+      )
     });
-    let commandCheck = null;
-    if (!commandProfile.probe.ok) {
-      if (isProbeCommandDefinitelyMissing(commandProfile.probe)) {
+    if (commandPreflight.state === 'blocked') {
+      if (commandPreflight.definitelyMissing) {
         log('[index] sourcekit-lsp not detected; skipping.');
-        return {
-          state: 'blocked',
-          reasonCode: 'preflight_command_unavailable',
-          blockSourcekit: true,
-          requestedCommand,
-          commandProfile,
-          check: buildSourcekitCommandUnavailableCheck({ definitelyMissing: true })
-        };
       }
+      return commandPreflight;
+    }
+    let commandCheck = null;
+    if (commandPreflight.state !== 'ready') {
       log('[index] sourcekit-lsp command probe failed; attempting stdio initialization.');
-      commandCheck = buildSourcekitCommandUnavailableCheck({ definitelyMissing: false });
+      commandCheck = commandPreflight.check || buildSourcekitCommandUnavailableCheck({ definitelyMissing: false });
     }
     const preflight = await ensureSourcekitPackageResolutionPreflight({
       repoRoot: ctx.repoRoot,
@@ -307,8 +306,8 @@ export const createSourcekitProvider = () => ({
       return {
         ...preflight,
         state: 'blocked',
-        requestedCommand,
-        commandProfile,
+        requestedCommand: commandPreflight.requestedCommand,
+        commandProfile: commandPreflight.commandProfile,
         check: null,
         ...(checks.length ? { checks } : {})
       };
@@ -319,16 +318,16 @@ export const createSourcekitProvider = () => ({
         state: 'degraded',
         reasonCode: 'preflight_command_unavailable',
         blockSourcekit: false,
-        requestedCommand,
-        commandProfile,
+        requestedCommand: commandPreflight.requestedCommand,
+        commandProfile: commandPreflight.commandProfile,
         checks: [commandCheck]
       };
     }
     return {
       ...preflight,
       state: 'ready',
-      requestedCommand,
-      commandProfile
+      requestedCommand: commandPreflight.requestedCommand,
+      commandProfile: commandPreflight.commandProfile
     };
   },
   async run(ctx, inputs) {

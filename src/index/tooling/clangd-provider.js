@@ -11,6 +11,7 @@ import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 import { resolveProviderRequestedCommand } from './provider-command-override.js';
 import { filterTargetsForDocuments } from './provider-utils.js';
 import { awaitToolingProviderPreflight } from './preflight-manager.js';
+import { resolveCommandProfilePreflightResult } from './preflight/command-profile-preflight.js';
 import { parseClikeSignature } from './signature-parse/clike.js';
 import { resolveCompileCommandsDir } from './compile-commands.js';
 
@@ -452,24 +453,26 @@ export const createClangdProvider = () => ({
       clangdConfig,
       compileCommandsDir
     });
-    const commandProfile = resolveToolingCommandProfile({
+    const commandPreflight = resolveCommandProfilePreflightResult({
       providerId: 'clangd',
-      cmd: requestedCommand.cmd,
-      args: requestedCommand.args,
-      repoRoot: ctx?.repoRoot || process.cwd(),
-      toolingConfig: ctx?.toolingConfig || {}
+      requestedCommand,
+      ctx,
+      unavailableCheck: buildClangdCommandUnavailableCheck()
     });
-    if (!commandProfile.probe.ok) {
+    if (commandPreflight.state !== 'ready') {
       log('[index] clangd command probe failed; attempting stdio initialization.');
-      const check = buildClangdCommandUnavailableCheck();
       return {
-        state: 'degraded',
-        reasonCode: 'preflight_command_unavailable',
-        blockProvider: false,
+        state: commandPreflight.state,
+        reasonCode: commandPreflight.reasonCode,
+        message: commandPreflight.message,
+        blockProvider: commandPreflight.blockProvider === true,
         compileCommandsDir: compileCommandsDir || null,
-        requestedCommand,
-        commandProfile,
-        check
+        requestedCommand: commandPreflight.requestedCommand,
+        commandProfile: commandPreflight.commandProfile,
+        ...(commandPreflight.check ? { check: commandPreflight.check } : {}),
+        ...(Array.isArray(commandPreflight.checks) && commandPreflight.checks.length
+          ? { checks: commandPreflight.checks }
+          : {})
       };
     }
     return {
@@ -477,8 +480,8 @@ export const createClangdProvider = () => ({
       blockProvider: false,
       compileCommandsDir: compileCommandsDir || null,
       check: null,
-      requestedCommand,
-      commandProfile
+      requestedCommand: commandPreflight.requestedCommand,
+      commandProfile: commandPreflight.commandProfile
     };
   },
   async run(ctx, inputs) {
