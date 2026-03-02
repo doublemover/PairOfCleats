@@ -633,6 +633,7 @@ tooling/providers/provider-registry-merges-deterministically
 tooling/lsp/latency-microbench-contract
 tooling/lsp/fd-pressure-backoff-contract
 tooling/lsp/runtime-config-resolution
+tooling/lsp/preflight-command-profile-helper
 tooling/lsp/configured-provider-go-rust-signature-parsing
 tooling/lsp/configured-provider-yaml-schema-override-merge
 tooling/lsp/configured-provider-lua-workspace-library
