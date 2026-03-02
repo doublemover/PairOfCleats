@@ -859,6 +859,7 @@ tooling/lsp/jdtls-provider-launch-contract-invalid
 tooling/lsp/csharp-provider-bootstrap
 tooling/lsp/csharp-provider-workspace-guard
 tooling/lsp/csharp-provider-ambiguous-solution-preflight
+tooling/lsp/csharp-provider-ambiguous-project-preflight
 tooling/lsp/csharp-provider-overload-signature
 tooling/lsp/solargraph-provider-bootstrap
 tooling/lsp/solargraph-provider-workspace-guard
