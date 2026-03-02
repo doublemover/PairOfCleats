@@ -91,6 +91,7 @@ let rejectCount = 0;
 const failingProvider = {
   id: 'sourcekit',
   preflightId: 'sourcekit.package-resolution',
+  preflightPolicy: 'required',
   getConfigHash() {
     return 'hash-b';
   },
@@ -144,6 +145,44 @@ assert.equal(
   failingSnapshot?.diagnostic?.reasonCode,
   'preflight_failed',
   'expected failed diagnostic reason code'
+);
+
+let optionalFailOpenCount = 0;
+const optionalFailOpenProvider = {
+  id: 'optional-fail-open-provider',
+  preflightId: 'optional-fail-open-provider.preflight',
+  preflightPolicy: 'optional',
+  getConfigHash() {
+    return 'optional-fail-open-hash';
+  },
+  async preflight() {
+    optionalFailOpenCount += 1;
+    throw new Error('forced optional preflight failure');
+  }
+};
+const optionalFailOpenResult = await awaitToolingProviderPreflight(ctx, {
+  provider: optionalFailOpenProvider,
+  inputs: {
+    documents: [{ virtualPath: 'optional.txt', languageId: 'plaintext' }],
+    targets: [{ chunkRef: { chunkUid: 'chunk-optional', file: 'optional.txt', chunkId: 4 } }]
+  },
+  waveToken: 'optional-fail-open-wave'
+});
+assert.equal(optionalFailOpenCount, 1, 'expected one optional preflight execution');
+assert.equal(optionalFailOpenResult?.state, 'degraded', 'expected optional preflight failure to fail open');
+assert.equal(optionalFailOpenResult?.blockProvider, false, 'expected optional fail-open preflight not to block provider');
+const optionalSnapshot = readToolingProviderPreflightState(ctx, {
+  provider: optionalFailOpenProvider,
+  inputs: {
+    documents: [{ virtualPath: 'optional.txt', languageId: 'plaintext' }],
+    targets: [{ chunkRef: { chunkUid: 'chunk-optional', file: 'optional.txt', chunkId: 4 } }]
+  }
+});
+assert.equal(optionalSnapshot?.state, 'degraded', 'expected optional fail-open snapshot state');
+assert.equal(
+  optionalSnapshot?.diagnostic?.reasonCode,
+  'preflight_failed',
+  'expected optional fail-open reason code to preserve root failure cause'
 );
 
 let noopRunCount = 0;

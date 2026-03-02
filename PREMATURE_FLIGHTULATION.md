@@ -670,3 +670,4 @@ Acceptance gate:
 - 2026-03-02T10:26:33.9588791-05:00: Added shared configured-provider runtime-requirement preflight validation (metadata-driven, fail-open degraded warnings) to generalize prerequisite checks across preset LSPs.
 - 2026-03-02T10:37:16.8472420-05:00: Hoisted runtime-requirement preflight probing into a shared helper and applied it to both configured and dedicated provider preflight paths; added dedicated-path coverage and ci-lite lane wiring.
 - 2026-03-02T10:39:15.9431048-05:00: Added Rust workspace metadata preflight classification (`cargo metadata` fail-open degraded path) for configured providers with deterministic degraded-path coverage and ci-lite assignment.
+- 2026-03-02T10:40:58.9941037-05:00: Updated preflight-manager failure semantics so explicit `preflightPolicy: optional` preflight exceptions fail open as degraded snapshots/results (required policies remain fail-closed), with single-flight coverage for both paths.

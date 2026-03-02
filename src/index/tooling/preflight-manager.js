@@ -67,7 +67,7 @@ const resolveProviderPreflightClass = (provider) => {
 };
 
 const resolveProviderPreflightPolicy = (provider) => (
-  normalizePreflightPolicy(provider?.preflightPolicy, PREFLIGHT_POLICY.OPTIONAL)
+  normalizePreflightPolicy(provider?.preflightPolicy, PREFLIGHT_POLICY.REQUIRED)
 );
 
 const resolveSchedulerConfig = (ctx) => {
@@ -749,16 +749,23 @@ const startProviderPreflight = ({
         const message = error?.message || String(error);
         state.scheduler.metrics.failed += 1;
         incrementClassMetric(state.scheduler.metrics, preflightClass, 'failed');
+        const failOpen = preflightPolicy === PREFLIGHT_POLICY.OPTIONAL;
+        const failOpenState = TOOLING_PREFLIGHT_STATES.DEGRADED;
+        const finalState = failOpen ? failOpenState : TOOLING_PREFLIGHT_STATES.FAILED;
+        const finalReasonCode = TOOLING_PREFLIGHT_REASON_CODES.FAILED;
+        const finalMessage = failOpen
+          ? `optional preflight failed open: ${message}`
+          : message;
         log(
-          `[tooling] preflight:failed provider=${providerId} id=${preflightId} `
-          + `durationMs=${elapsedMs} error=${message}`
+          `[tooling] preflight:${failOpen ? 'degraded' : 'failed'} provider=${providerId} id=${preflightId} `
+          + `durationMs=${elapsedMs}${failOpen ? ' failOpen=1' : ''} error=${message}`
         );
         setSnapshot(state, key, {
           providerId,
           preflightId,
-          state: TOOLING_PREFLIGHT_STATES.FAILED,
-          reasonCode: TOOLING_PREFLIGHT_REASON_CODES.FAILED,
-          message,
+          state: finalState,
+          reasonCode: finalReasonCode,
+          message: finalMessage,
           startedAtMs,
           finishedAtMs: Date.now(),
           durationMs: elapsedMs,
@@ -768,6 +775,47 @@ const startProviderPreflight = ({
           preflightClass,
           preflightTimeoutMs
         });
+        if (failOpen) {
+          const value = {
+            state: failOpenState,
+            reasonCode: finalReasonCode,
+            message: finalMessage,
+            blockProvider: false,
+            checks: [{
+              name: `${providerId}_preflight_failed_open`,
+              status: 'warn',
+              message: finalMessage
+            }]
+          };
+          state.completed.set(key, {
+            providerId,
+            preflightId,
+            preflightPolicy,
+            waveToken,
+            status: 'fulfilled',
+            state: failOpenState,
+            reasonCode: finalReasonCode,
+            message: finalMessage,
+            durationMs: elapsedMs,
+            startedAtMs,
+            finishedAtMs: Date.now(),
+            timedOut: false,
+            value,
+            diagnostic: buildToolingPreflightDiagnostic({
+              providerId,
+              preflightId,
+              state: failOpenState,
+              reasonCode: finalReasonCode,
+              message: finalMessage,
+              durationMs: elapsedMs,
+              timedOut: false,
+              cached: false,
+              startedAtMs,
+              finishedAtMs: Date.now()
+            })
+          });
+          return value;
+        }
         state.completed.set(key, {
           providerId,
           preflightId,
