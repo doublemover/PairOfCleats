@@ -189,6 +189,72 @@ const resolveYamlSchemaModePreflight = ({ server }) => {
   };
 };
 
+const ZIG_WORKSPACE_MARKER_NAMES = new Set(['build.zig', 'build.zig.zon']);
+
+const resolveZigWorkspaceRootPreflight = ({ server, repoRoot }) => {
+  const serverId = String(server?.id || '').trim().toLowerCase();
+  const languages = Array.isArray(server?.languages)
+    ? server.languages.map((entry) => String(entry || '').trim().toLowerCase()).filter(Boolean)
+    : [];
+  if (serverId !== 'zls' && !languages.includes('zig')) {
+    return { state: 'ready', reasonCode: null, message: '', check: null };
+  }
+  let rootEntries = [];
+  try {
+    rootEntries = fsSync.readdirSync(repoRoot || process.cwd(), { withFileTypes: true });
+  } catch {
+    return { state: 'ready', reasonCode: null, message: '', check: null };
+  }
+  const rootHasMarker = rootEntries.some((entry) => (
+    entry?.isFile?.() && ZIG_WORKSPACE_MARKER_NAMES.has(String(entry.name || '').toLowerCase())
+  ));
+  if (rootHasMarker) {
+    return { state: 'ready', reasonCode: null, message: '', check: null };
+  }
+  const nestedMarkerDirs = [];
+  for (const entry of rootEntries) {
+    if (!entry?.isDirectory?.()) continue;
+    try {
+      const childEntries = fsSync.readdirSync(path.join(repoRoot || process.cwd(), entry.name), { withFileTypes: true });
+      const hasNestedMarker = childEntries.some((child) => (
+        child?.isFile?.() && ZIG_WORKSPACE_MARKER_NAMES.has(String(child.name || '').toLowerCase())
+      ));
+      if (hasNestedMarker) nestedMarkerDirs.push(String(entry.name || ''));
+    } catch {
+      // ignore unreadable nested directories for this advisory-only preflight.
+    }
+  }
+  if (!nestedMarkerDirs.length) {
+    return { state: 'ready', reasonCode: null, message: '', check: null };
+  }
+  if (nestedMarkerDirs.length === 1) {
+    const message = `zls workspace marker found only in nested directory "${nestedMarkerDirs[0]}"; set workspace root explicitly for stable resolution.`;
+    return {
+      state: 'degraded',
+      reasonCode: 'zls_workspace_nested_root',
+      message,
+      check: {
+        name: 'zls_workspace_nested_root',
+        status: 'warn',
+        message
+      }
+    };
+  }
+  const samples = nestedMarkerDirs.slice(0, 3).join(', ');
+  const suffix = nestedMarkerDirs.length > 3 ? ` (+${nestedMarkerDirs.length - 3} more)` : '';
+  const message = `zls workspace markers found in multiple nested directories (${samples}${suffix}); workspace root is ambiguous.`;
+  return {
+    state: 'degraded',
+    reasonCode: 'zls_workspace_ambiguous_root',
+    message,
+    check: {
+      name: 'zls_workspace_ambiguous_root',
+      status: 'warn',
+      message
+    }
+  };
+};
+
 const resolveFirstNonReadyPreflight = (...entries) => {
   for (const entry of entries) {
     const state = String(entry?.state || 'ready').trim().toLowerCase() || 'ready';
@@ -747,6 +813,10 @@ const createConfiguredLspProvider = (server) => {
       providerId,
       requirements: server.preflightRuntimeRequirements
     });
+    const zigWorkspaceRootPreflight = resolveZigWorkspaceRootPreflight({
+      server,
+      repoRoot: ctx?.repoRoot || process.cwd()
+    });
     const goWorkspacePreflight = resolveGoWorkspaceModulePreflight({
       ctx,
       server
@@ -764,6 +834,8 @@ const createConfiguredLspProvider = (server) => {
         yamlSchemaModePreflight?.checks,
         runtimeRequirementPreflight?.check,
         runtimeRequirementPreflight?.checks,
+        zigWorkspaceRootPreflight?.check,
+        zigWorkspaceRootPreflight?.checks,
         goWorkspacePreflight?.check,
         goWorkspacePreflight?.checks,
         rustWorkspacePreflight?.check,
@@ -779,6 +851,7 @@ const createConfiguredLspProvider = (server) => {
         luaLibraryPreflight,
         yamlSchemaModePreflight,
         runtimeRequirementPreflight,
+        zigWorkspaceRootPreflight,
         goWorkspacePreflight,
         rustWorkspacePreflight
       );
@@ -817,6 +890,8 @@ const createConfiguredLspProvider = (server) => {
       yamlSchemaModePreflight?.checks,
       runtimeRequirementPreflight?.check,
       runtimeRequirementPreflight?.checks,
+      zigWorkspaceRootPreflight?.check,
+      zigWorkspaceRootPreflight?.checks,
       goWorkspacePreflight?.check,
       goWorkspacePreflight?.checks,
       rustWorkspacePreflight?.check,
@@ -842,6 +917,7 @@ const createConfiguredLspProvider = (server) => {
       luaLibraryPreflight,
       yamlSchemaModePreflight,
       runtimeRequirementPreflight,
+      zigWorkspaceRootPreflight,
       goWorkspacePreflight,
       rustWorkspacePreflight
     );
