@@ -667,3 +667,4 @@ Acceptance gate:
 - 2026-03-02T10:17:40.5364622-05:00: Added YAML schema-mode preflight classification for configured providers and surfaced remote schemaStore mode as explicit degraded diagnostics (non-blocking) with ci-lite coverage.
 - 2026-03-02T10:22:29.1734065-05:00: Propagated preflight policy metadata into manager snapshots/orchestrator diagnostics+metrics, logged policy aggregates in preflight summaries, and extended bench preflight parser/reporting for policy counts.
 - 2026-03-02T10:24:34.0665498-05:00: Refreshed tooling doctor/reporting spec to match current doctor artifact schema and preflight metadata surfaces (provider policy/class/runtime requirements + bench policy rollups).
+- 2026-03-02T10:26:33.9588791-05:00: Added shared configured-provider runtime-requirement preflight validation (metadata-driven, fail-open degraded warnings) to generalize prerequisite checks across preset LSPs.

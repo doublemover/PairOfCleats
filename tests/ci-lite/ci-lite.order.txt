@@ -644,6 +644,7 @@ tooling/lsp/configured-provider-yaml-schema-override-merge
 tooling/lsp/configured-provider-yaml-schema-store-remote-warning-preflight
 tooling/lsp/configured-provider-lua-workspace-library
 tooling/lsp/configured-provider-lua-workspace-library-missing-path-preflight
+tooling/lsp/configured-provider-runtime-requirement-preflight-degraded
 tooling/lsp/configured-provider-rust-proc-macro-diagnostic-suppression
 storage/sqlite/reader-schema-mismatch
 indexing/build/promotion-timing-contract
