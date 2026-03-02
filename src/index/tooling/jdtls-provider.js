@@ -29,6 +29,22 @@ const resolveWorkspaceBootstrapLockPath = (workspaceDataDir) => (
   path.join(String(workspaceDataDir || ''), '.workspace.bootstrap.lock.json')
 );
 
+const resolveLaunchArgValue = (args, flag) => {
+  const normalized = Array.isArray(args) ? args.map((entry) => String(entry || '')) : [];
+  const index = normalized.findIndex((entry) => entry === flag);
+  if (index < 0) return { present: false, value: null };
+  const value = typeof normalized[index + 1] === 'string' ? normalized[index + 1].trim() : '';
+  if (!value || value.startsWith('-')) return { present: true, value: null };
+  return { present: true, value };
+};
+
+const resolveLaunchPath = (repoRoot, value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (isAbsolutePathNative(raw)) return raw;
+  return path.resolve(repoRoot || process.cwd(), raw);
+};
+
 export const createJdtlsProvider = () => createDedicatedLspProvider({
   id: 'jdtls',
   preflightId: 'jdtls.workspace-bootstrap',
@@ -71,7 +87,69 @@ export const createJdtlsProvider = () => createDedicatedLspProvider({
   },
   parseSignature: (detail, _lang, symbolName) => parseClikeSignature(detail, symbolName),
   getPreflightKey: ({ ctx, config }) => resolveWorkspaceDataDir(ctx, config),
-  preflight: async ({ ctx, config, abortSignal }) => {
+  preflight: async ({ ctx, config, abortSignal, requestedCommand, commandProfile }) => {
+    const repoRoot = ctx?.repoRoot || process.cwd();
+    const launchArgs = Array.isArray(commandProfile?.resolved?.args)
+      ? commandProfile.resolved.args
+      : (Array.isArray(requestedCommand?.args) ? requestedCommand.args : normalizeCommandArgs(config?.args));
+    const configurationArg = resolveLaunchArgValue(launchArgs, '-configuration');
+    if (configurationArg.present && !configurationArg.value) {
+      return {
+        state: 'blocked',
+        reasonCode: 'jdtls_launch_contract_invalid',
+        blockProvider: true,
+        check: {
+          name: 'jdtls_launch_contract_invalid',
+          status: 'warn',
+          message: 'jdtls launch args include -configuration but no configuration path value.'
+        }
+      };
+    }
+    if (configurationArg.value) {
+      const configurationPath = resolveLaunchPath(repoRoot, configurationArg.value);
+      if (!configurationPath || !await fsPromises.access(configurationPath).then(() => true).catch(() => false)) {
+        return {
+          state: 'blocked',
+          reasonCode: 'jdtls_launch_configuration_missing',
+          blockProvider: true,
+          check: {
+            name: 'jdtls_launch_configuration_missing',
+            status: 'warn',
+            message: `jdtls launch configuration path not found: ${configurationArg.value}`
+          }
+        };
+      }
+    }
+
+    const jarArg = resolveLaunchArgValue(launchArgs, '-jar');
+    if (jarArg.present && !jarArg.value) {
+      return {
+        state: 'blocked',
+        reasonCode: 'jdtls_launch_contract_invalid',
+        blockProvider: true,
+        check: {
+          name: 'jdtls_launch_contract_invalid',
+          status: 'warn',
+          message: 'jdtls launch args include -jar but no launcher jar path value.'
+        }
+      };
+    }
+    if (jarArg.value) {
+      const jarPath = resolveLaunchPath(repoRoot, jarArg.value);
+      if (!jarPath || !await fsPromises.access(jarPath).then(() => true).catch(() => false)) {
+        return {
+          state: 'blocked',
+          reasonCode: 'jdtls_launch_jar_missing',
+          blockProvider: true,
+          check: {
+            name: 'jdtls_launch_jar_missing',
+            status: 'warn',
+            message: `jdtls launcher jar path not found: ${jarArg.value}`
+          }
+        };
+      }
+    }
+
     const workspaceDataDir = resolveWorkspaceDataDir(ctx, config);
     const lockPath = resolveWorkspaceBootstrapLockPath(workspaceDataDir);
     const lock = await acquireFileLock({

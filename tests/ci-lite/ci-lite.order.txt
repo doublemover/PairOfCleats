@@ -854,6 +854,7 @@ tooling/lsp/ruby-signature-parse
 tooling/lsp/jdtls-provider-bootstrap
 tooling/lsp/jdtls-provider-workspace-guard
 tooling/lsp/jdtls-provider-workspace-lock-unavailable
+tooling/lsp/jdtls-provider-launch-contract-invalid
 tooling/lsp/csharp-provider-bootstrap
 tooling/lsp/csharp-provider-workspace-guard
 tooling/lsp/csharp-provider-ambiguous-solution-preflight
