@@ -639,6 +639,7 @@ tooling/lsp/preflight-manager-entrypoint-guard
 tooling/lsp/preflight-await-manager-usage-guard
 tooling/lsp/preflight-runtime-command-helper-usage-guard
 tooling/lsp/preflight-provider-metadata-coverage
+tooling/lsp/dedicated-provider-preflight-blocking
 tooling/lsp/configured-provider-go-rust-signature-parsing
 tooling/lsp/configured-provider-yaml-schema-override-merge
 tooling/lsp/configured-provider-yaml-schema-store-remote-warning-preflight

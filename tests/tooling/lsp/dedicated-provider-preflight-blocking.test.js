@@ -41,6 +41,25 @@ assert.equal(
   'expected dedicated provider with workspace model to expose preflight hook'
 );
 
+const providerWithRuntimeRequirementPreflight = createDedicatedLspProvider({
+  ...baseDescriptor,
+  id: 'fixture-dedicated-runtime-req',
+  command: {
+    defaultCmd: process.execPath
+  },
+  preflightRuntimeRequirements: [{
+    id: 'missing-runtime',
+    cmd: 'definitely-missing-runtime-preflight-command',
+    args: ['--version'],
+    label: 'Missing Runtime'
+  }]
+});
+assert.equal(
+  typeof providerWithRuntimeRequirementPreflight.preflight,
+  'function',
+  'expected dedicated provider with runtime requirements to expose preflight hook'
+);
+
 let preflightCalls = 0;
 const provider = createDedicatedLspProvider({
   ...baseDescriptor,
@@ -139,6 +158,29 @@ assert.equal(
   workspaceChecks.some((check) => check?.name === 'fixture-dedicated-workspace_command_unavailable'),
   false,
   'expected command checks to be skipped when workspace preflight blocks provider'
+);
+
+const runtimeRequirementPreflight = await providerWithRuntimeRequirementPreflight.preflight({
+  ...ctx,
+  toolingConfig: {
+    fixtureDedicated: {
+      enabled: true
+    }
+  }
+}, {});
+assert.equal(runtimeRequirementPreflight?.state, 'degraded', 'expected runtime requirement preflight to degrade');
+const runtimeRequirementChecks = Array.isArray(runtimeRequirementPreflight?.checks)
+  ? runtimeRequirementPreflight.checks
+  : [];
+assert.equal(
+  runtimeRequirementChecks.some((check) => String(check?.name || '').includes('_runtime_missing-runtime_missing')),
+  true,
+  'expected runtime requirement missing check from dedicated preflight'
+);
+assert.equal(
+  runtimeRequirementPreflight?.reasonCode,
+  'preflight_runtime_requirement_missing',
+  'expected runtime requirement missing reason code from dedicated preflight'
 );
 
 console.log('dedicated provider preflight blocking test passed');

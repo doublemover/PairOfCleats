@@ -18,6 +18,7 @@ import {
   mergePreflightChecks,
   resolveRuntimeCommandFromPreflight
 } from './preflight/command-profile-preflight.js';
+import { resolveRuntimeRequirementsPreflight } from './preflight/runtime-requirements-preflight.js';
 import { resolveWorkspaceModelPreflight } from './preflight/workspace-model-preflight.js';
 
 const DEFAULT_RUNTIME_OPTIONS = {
@@ -198,6 +199,9 @@ const shouldBlockProviderFromPreflight = (preflight) => {
  * @returns {import('./provider-registry.js').ToolingProvider}
  */
 export const createDedicatedLspProvider = (descriptor) => {
+  const runtimeRequirementDescriptors = normalizePreflightRuntimeRequirements(
+    descriptor.preflightRuntimeRequirements
+  );
   const provider = {
     id: descriptor.id,
     version: descriptor.version || '1.0.0',
@@ -344,15 +348,14 @@ export const createDedicatedLspProvider = (descriptor) => {
 
   const hasWorkspacePreflight = Boolean(descriptor?.workspace && descriptor.workspace.markerOptions);
   const hasCustomPreflight = typeof descriptor.preflight === 'function';
+  const hasRuntimeRequirementPreflight = runtimeRequirementDescriptors.length > 0;
 
-  if (hasWorkspacePreflight || hasCustomPreflight) {
+  if (hasWorkspacePreflight || hasCustomPreflight || hasRuntimeRequirementPreflight) {
     provider.preflightPolicy = normalizePreflightPolicy(
       descriptor.preflightPolicy,
       hasWorkspacePreflight ? PREFLIGHT_POLICY.REQUIRED : PREFLIGHT_POLICY.OPTIONAL
     );
-    provider.preflightRuntimeRequirements = normalizePreflightRuntimeRequirements(
-      descriptor.preflightRuntimeRequirements
-    );
+    provider.preflightRuntimeRequirements = runtimeRequirementDescriptors;
     provider.preflightClass = descriptor.preflightClass
       || (hasWorkspacePreflight ? 'workspace' : 'dependency');
     const preflightId = typeof descriptor?.preflightId === 'string' && descriptor.preflightId.trim()
@@ -425,23 +428,72 @@ export const createDedicatedLspProvider = (descriptor) => {
           checks: mergePreflightChecks(commandPreflight.checks, customPreflight.check, customPreflight.checks)
         };
       }
-      if (hasCustomPreflight) {
+      const runtimeRequirementPreflight = resolveRuntimeRequirementsPreflight({
+        ctx,
+        providerId: descriptor.id,
+        requirements: provider.preflightRuntimeRequirements
+      });
+      if (runtimeRequirementPreflight.state !== 'ready' && !hasCustomPreflight) {
+        const checks = mergePreflightChecks(
+          commandPreflight.checks,
+          runtimeRequirementPreflight.check,
+          runtimeRequirementPreflight.checks
+        );
         return {
-          ...customPreflight,
+          state: runtimeRequirementPreflight.state || 'degraded',
+          reasonCode: runtimeRequirementPreflight.reasonCode || null,
+          message: runtimeRequirementPreflight.message || '',
+          blockProvider: false,
           requestedCommand: commandPreflight.requestedCommand,
           commandProfile: commandPreflight.commandProfile,
-          checks: mergePreflightChecks(commandPreflight.checks, customPreflight.check, customPreflight.checks)
+          ...(checks.length ? { checks } : {})
         };
       }
+      if (hasCustomPreflight) {
+        const customReady = String(customPreflight?.state || '').trim().toLowerCase() === 'ready';
+        const effectiveState = runtimeRequirementPreflight.state !== 'ready'
+          && customReady
+          ? runtimeRequirementPreflight.state
+          : (customPreflight.state || 'ready');
+        const effectiveReasonCode = runtimeRequirementPreflight.state !== 'ready'
+          && customReady
+          ? runtimeRequirementPreflight.reasonCode
+          : customPreflight.reasonCode;
+        const effectiveMessage = runtimeRequirementPreflight.state !== 'ready'
+          && customReady
+          ? runtimeRequirementPreflight.message
+          : customPreflight.message;
+        const checks = mergePreflightChecks(
+          commandPreflight.checks,
+          runtimeRequirementPreflight.check,
+          runtimeRequirementPreflight.checks,
+          customPreflight.check,
+          customPreflight.checks
+        );
+        return {
+          ...customPreflight,
+          state: effectiveState,
+          reasonCode: effectiveReasonCode,
+          message: effectiveMessage,
+          requestedCommand: commandPreflight.requestedCommand,
+          commandProfile: commandPreflight.commandProfile,
+          ...(checks.length ? { checks } : {})
+        };
+      }
+      const checks = mergePreflightChecks(
+        commandPreflight.checks,
+        runtimeRequirementPreflight.check,
+        runtimeRequirementPreflight.checks
+      );
       return {
-        state: 'ready',
+        state: runtimeRequirementPreflight.state || 'ready',
+        reasonCode: runtimeRequirementPreflight.reasonCode || null,
+        message: runtimeRequirementPreflight.message || '',
         blockProvider: false,
         check: null,
         requestedCommand: commandPreflight.requestedCommand,
         commandProfile: commandPreflight.commandProfile,
-        ...(Array.isArray(commandPreflight.checks) && commandPreflight.checks.length
-          ? { checks: commandPreflight.checks }
-          : {})
+        ...(checks.length ? { checks } : {})
       };
     };
   }

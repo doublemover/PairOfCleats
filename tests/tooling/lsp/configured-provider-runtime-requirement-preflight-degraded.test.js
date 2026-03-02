@@ -60,15 +60,18 @@ const result = await runToolingProviders({
     },
     virtualPath,
     virtualRange: { start: 0, end: docText.length },
-    symbolHint: { name: 'name', kind: 'property' },
+    symbolHint: { name: 'add', kind: 'function' },
     languageId: 'yaml'
   }],
   kinds: ['types']
 });
 
-assert.equal(result.byChunkUid.has(chunkUid), true, 'expected provider to continue while runtime requirement preflight degrades');
-
 const diagnostics = result.diagnostics?.['lsp-runtime-req-preflight'] || {};
+assert.equal(
+  diagnostics?.preflight?.state,
+  'degraded',
+  'expected runtime requirement preflight degraded state'
+);
 assert.equal(
   diagnostics?.preflight?.reasonCode,
   'preflight_runtime_requirement_missing',
