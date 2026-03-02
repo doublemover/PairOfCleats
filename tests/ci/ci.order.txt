@@ -5,6 +5,7 @@ tooling/lsp/pyright-preflight-workspace-mono-root
 tooling/lsp/clangd-provider-command-override
 tooling/lsp/sourcekit-provider-command-override
 tooling/lsp/sourcekit-package-preflight-lock-unavailable
+tooling/lsp/sourcekit-package-preflight-cache-resolved-invalidation
 tooling/lsp/sourcekit-provider-host-lock-unavailable
 tooling/lsp/configured-provider-gopls-workspace-diagnostics
 tooling/lsp/configured-provider-gopls-workspace-root-ambiguous-preflight

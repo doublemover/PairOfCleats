@@ -697,3 +697,4 @@ Acceptance gate:
 - 2026-03-02T12:08:35.9224182-05:00: Added gopls workspace root-shape preflight classification for nested and ambiguous module roots (`go_workspace_module_root_nested`, `go_workspace_module_root_ambiguous`) with ci coverage.
 - 2026-03-02T12:10:26.1424699-05:00: Added rust preflight policy classification for explicit proc-macro diagnostic suppression (`rust_workspace_proc_macro_suppression_active`) with ci-lite coverage to surface intentional warning filtering.
 - 2026-03-02T12:11:56.2119146-05:00: Tuned zls preflight timeout behavior by adding preset-level timeout default (`preflightTimeoutMs=30000`) plus configured-provider override support, with ci-lite coverage.
+- 2026-03-02T12:13:25.1584117-05:00: Added explicit SourceKit preflight cache invalidation coverage for `Package.resolved` changes to complement existing `Package.swift` invalidation testing, and wired it into ci.
