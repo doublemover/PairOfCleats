@@ -861,6 +861,7 @@ tooling/lsp/csharp-provider-ambiguous-solution-preflight
 tooling/lsp/csharp-provider-overload-signature
 tooling/lsp/solargraph-provider-bootstrap
 tooling/lsp/solargraph-provider-workspace-guard
+tooling/lsp/solargraph-provider-gemfile-lock-missing-preflight
 tooling/lsp/solargraph-provider-command-fallback
 tooling/lsp/elixir-signature-parse
 tooling/lsp/elixir-provider-bootstrap
