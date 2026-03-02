@@ -852,6 +852,7 @@ tooling/doctor/workspace-model-csharp-detection
 tooling/lsp/ruby-signature-parse
 tooling/lsp/jdtls-provider-bootstrap
 tooling/lsp/jdtls-provider-workspace-guard
+tooling/lsp/jdtls-provider-workspace-lock-unavailable
 tooling/lsp/csharp-provider-bootstrap
 tooling/lsp/csharp-provider-workspace-guard
 tooling/lsp/csharp-provider-overload-signature

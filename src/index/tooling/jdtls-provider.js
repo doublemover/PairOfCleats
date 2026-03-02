@@ -2,6 +2,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { parseClikeSignature } from './signature-parse/clike.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
+import { acquireFileLock } from '../../shared/locks/file-lock.js';
 import { createDedicatedLspProvider } from './dedicated-lsp-provider.js';
 import { ensureCommandArgPair, normalizeCommandArgs } from './provider-utils.js';
 
@@ -23,6 +24,10 @@ const resolveWorkspaceDataDir = (ctx, config) => {
 const ensureWorkspaceDataArg = (args, workspaceDataDir) => {
   return ensureCommandArgPair(normalizeCommandArgs(args), '-data', workspaceDataDir);
 };
+
+const resolveWorkspaceBootstrapLockPath = (workspaceDataDir) => (
+  path.join(String(workspaceDataDir || ''), '.workspace.bootstrap.lock.json')
+);
 
 export const createJdtlsProvider = () => createDedicatedLspProvider({
   id: 'jdtls',
@@ -66,8 +71,32 @@ export const createJdtlsProvider = () => createDedicatedLspProvider({
   },
   parseSignature: (detail, _lang, symbolName) => parseClikeSignature(detail, symbolName),
   getPreflightKey: ({ ctx, config }) => resolveWorkspaceDataDir(ctx, config),
-  preflight: async ({ ctx, config }) => {
+  preflight: async ({ ctx, config, abortSignal }) => {
     const workspaceDataDir = resolveWorkspaceDataDir(ctx, config);
+    const lockPath = resolveWorkspaceBootstrapLockPath(workspaceDataDir);
+    const lock = await acquireFileLock({
+      lockPath,
+      waitMs: 0,
+      pollMs: 25,
+      staleMs: 5 * 60 * 1000,
+      signal: abortSignal || null,
+      metadata: { scope: 'jdtls-workspace-bootstrap' },
+      forceStaleCleanup: true
+    });
+    if (!lock) {
+      return {
+        state: 'blocked',
+        reasonCode: 'jdtls_workspace_lock_unavailable',
+        blockProvider: true,
+        workspaceDataDir,
+        workspaceReady: false,
+        check: {
+          name: 'jdtls_workspace_lock_unavailable',
+          status: 'warn',
+          message: 'jdtls workspace bootstrap lock unavailable; skipping dedicated provider.'
+        }
+      };
+    }
     try {
       await fsPromises.mkdir(workspaceDataDir, { recursive: true });
       return {
@@ -88,6 +117,10 @@ export const createJdtlsProvider = () => createDedicatedLspProvider({
           message: `jdtls workspace data directory unavailable: ${error?.message || String(error)}`
         }
       };
+    } finally {
+      try {
+        await lock.release();
+      } catch {}
     }
   },
   prepareCollect: async ({ ctx, config, preflight, requested, commandProfile }) => {
