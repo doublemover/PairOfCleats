@@ -1,8 +1,33 @@
+import fsSync from 'node:fs';
+import path from 'node:path';
 import { parseElixirSignature } from './signature-parse/elixir.js';
 import { createDedicatedLspProvider } from './dedicated-lsp-provider.js';
 import { normalizeCommandArgs } from './provider-utils.js';
 
 const ELIXIR_EXTS = ['.ex', '.exs'];
+
+const resolveElixirWorkspaceBootstrapPreflight = ({ ctx }) => {
+  const repoRoot = String(ctx?.repoRoot || process.cwd());
+  const mixExsPath = path.join(repoRoot, 'mix.exs');
+  if (!fsSync.existsSync(mixExsPath)) {
+    return { state: 'ready', reasonCode: null, message: '' };
+  }
+  const mixLockPath = path.join(repoRoot, 'mix.lock');
+  if (fsSync.existsSync(mixLockPath)) {
+    return { state: 'ready', reasonCode: null, message: '' };
+  }
+  const message = 'elixir workspace is missing mix.lock; dependency graph/bootstrap state may be incomplete.';
+  return {
+    state: 'degraded',
+    reasonCode: 'elixir_workspace_mix_lock_missing',
+    message,
+    checks: [{
+      name: 'elixir_workspace_mix_lock_missing',
+      status: 'warn',
+      message
+    }]
+  };
+};
 
 export const createElixirProvider = () => createDedicatedLspProvider({
   id: 'elixir-ls',
@@ -47,5 +72,6 @@ export const createElixirProvider = () => createDedicatedLspProvider({
       message: (requestedCmd) => `${requestedCmd} command not available for elixir-ls.`
     }
   },
-  parseSignature: parseElixirSignature
+  parseSignature: parseElixirSignature,
+  preflight: async ({ ctx }) => resolveElixirWorkspaceBootstrapPreflight({ ctx })
 });
