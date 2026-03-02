@@ -37,6 +37,11 @@ export const createSolargraphProvider = () => createDedicatedLspProvider({
     cmd: 'gem',
     args: ['--version'],
     label: 'RubyGems'
+  }, {
+    id: 'bundle',
+    cmd: 'bundle',
+    args: ['--version'],
+    label: 'Bundler'
   }],
   command: {
     defaultCmd: 'solargraph',

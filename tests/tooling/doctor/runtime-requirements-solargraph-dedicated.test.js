@@ -9,7 +9,7 @@ import {
 const tempRoot = await createToolingDoctorTempRoot('tooling-doctor-runtime-reqs-solargraph');
 const resolveCommandProfile = createDoctorCommandResolver({
   available: ['solargraph'],
-  missing: ['ruby', 'gem']
+  missing: ['ruby', 'gem', 'bundle']
 });
 
 const report = await runToolingDoctorFixture({
@@ -26,5 +26,8 @@ assert.equal(rubyRuntimeCheck.status, 'error', 'expected Ruby runtime check erro
 const gemRuntimeCheck = (provider.checks || []).find((check) => check.name === 'solargraph-runtime-gem');
 assert.ok(gemRuntimeCheck, 'expected RubyGems runtime requirement check');
 assert.equal(gemRuntimeCheck.status, 'error', 'expected RubyGems runtime check error when gem command missing');
+const bundlerRuntimeCheck = (provider.checks || []).find((check) => check.name === 'solargraph-runtime-bundle');
+assert.ok(bundlerRuntimeCheck, 'expected Bundler runtime requirement check');
+assert.equal(bundlerRuntimeCheck.status, 'error', 'expected Bundler runtime check error when bundle command missing');
 
 console.log('tooling doctor dedicated solargraph runtime requirements test passed');
