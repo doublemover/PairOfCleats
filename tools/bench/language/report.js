@@ -379,7 +379,8 @@ const parsePreflightSummaryLine = (line) => {
     queuePeak: Number.isFinite(Number(values.queuepeak)) ? Math.max(0, Number(values.queuepeak)) : null,
     teardownTimedOut: Number(values.teardowntimedout) === 1,
     countsByState: parseCommaCountMap(values.states),
-    countsByClass: parseCommaCountMap(values.classes)
+    countsByClass: parseCommaCountMap(values.classes),
+    countsByPolicy: parseCommaCountMap(values.policies)
   };
 };
 
@@ -432,6 +433,7 @@ const buildPreflightLogSummary = async (resultsRoot) => {
   const topSlow = [];
   const summaryCountsByClass = new Map();
   const summaryCountsByState = new Map();
+  const summaryCountsByPolicy = new Map();
   const summaryTopSlow = [];
   let summaryLineCount = 0;
   let summaryMaxQueuePeak = 0;
@@ -458,6 +460,9 @@ const buildPreflightLogSummary = async (resultsRoot) => {
         }
         for (const [name, count] of Object.entries(summary.countsByState || {})) {
           summaryCountsByState.set(name, (summaryCountsByState.get(name) || 0) + count);
+        }
+        for (const [name, count] of Object.entries(summary.countsByPolicy || {})) {
+          summaryCountsByPolicy.set(name, (summaryCountsByPolicy.get(name) || 0) + count);
         }
       }
       const summarySlowEntries = parsePreflightSlowestLine(line);
@@ -521,6 +526,9 @@ const buildPreflightLogSummary = async (resultsRoot) => {
       ),
       countsByState: Object.fromEntries(
         Array.from(summaryCountsByState.entries()).sort(([left], [right]) => left.localeCompare(right))
+      ),
+      countsByPolicy: Object.fromEntries(
+        Array.from(summaryCountsByPolicy.entries()).sort(([left], [right]) => left.localeCompare(right))
       ),
       topSlow: summaryTopSlow
     }

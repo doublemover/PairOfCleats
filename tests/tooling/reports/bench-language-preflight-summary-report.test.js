@@ -21,7 +21,7 @@ await fsPromises.writeFile(
     '[tooling] preflight:ok provider=sourcekit id=sourcekit.package-resolution durationMs=1234 state=ready',
     '[tooling] preflight:queued provider=gopls id=gopls.workspace-model class=workspace depth=1 running=1 cap=1',
     '[tooling] preflight:timeout provider=gopls id=gopls.workspace-model durationMs=60000 state=degraded timeout=1',
-    '[tooling] preflight summary total=4 cached=0 timedOut=1 failed=0 queuePeak=2 teardownTimedOut=0 states=ready:1,degraded:1 classes=dependency:1,workspace:1',
+    '[tooling] preflight summary total=4 cached=0 timedOut=1 failed=0 queuePeak=2 teardownTimedOut=0 states=ready:1,degraded:1 classes=dependency:1,workspace:1 policies=required:1,optional:1',
     '[tooling] preflight slowest gopls/gopls.workspace-model:60000ms, sourcekit/sourcekit.package-resolution:1234ms'
   ].join('\n') + '\n',
   'utf8'
@@ -65,6 +65,8 @@ assert.equal(preflight.summary?.maxQueuePeak, 2, 'expected max queue peak from s
 assert.equal(preflight.summary?.teardownTimedOutCount, 0, 'expected no teardown timeout summaries');
 assert.equal(preflight.summary?.countsByClass?.dependency, 1, 'expected summary class aggregation');
 assert.equal(preflight.summary?.countsByState?.degraded, 1, 'expected summary state aggregation');
+assert.equal(preflight.summary?.countsByPolicy?.required, 1, 'expected summary policy aggregation');
+assert.equal(preflight.summary?.countsByPolicy?.optional, 1, 'expected summary policy aggregation');
 assert.equal(preflight.summary?.topSlow?.[0]?.durationMs, 60000, 'expected parsed summary slowest duration');
 assert.equal(preflight.summary?.topSlow?.[0]?.providerId, 'gopls', 'expected parsed summary slowest provider');
 

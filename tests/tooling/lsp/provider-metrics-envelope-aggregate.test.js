@@ -93,6 +93,11 @@ assert.equal(result.metrics?.providersContributed, 1, 'expected one contributing
 assert.ok(result.metrics?.preflights && typeof result.metrics.preflights === 'object', 'expected preflight rollup envelope');
 assert.equal(Number(result.metrics?.preflights?.total) >= 1, true, 'expected at least one tracked preflight');
 assert.equal(
+  result.metrics?.preflights?.byPolicy && typeof result.metrics.preflights.byPolicy === 'object',
+  true,
+  'expected preflight policy rollup map'
+);
+assert.equal(
   Number(result.metrics?.preflights?.teardown?.timedOut || 0),
   0,
   'expected preflight teardown not to time out'
@@ -146,6 +151,11 @@ assert.equal(
 assert.ok(
   result.diagnostics?.dart?.preflight && typeof result.diagnostics.dart.preflight === 'object',
   'expected per-provider preflight diagnostics envelope'
+);
+assert.equal(
+  typeof result.diagnostics?.dart?.preflight?.preflightPolicy,
+  'string',
+  'expected preflight policy in diagnostics envelope'
 );
 
 console.log('LSP provider metrics envelope aggregate test passed');

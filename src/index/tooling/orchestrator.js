@@ -209,11 +209,17 @@ const withPreflightDiagnostic = ({
     ? { ...diagnostics }
     : {};
   if (preflight.diagnostic && typeof preflight.diagnostic === 'object') {
-    payload.preflight = { ...preflight.diagnostic };
+    payload.preflight = {
+      ...preflight.diagnostic,
+      preflightClass: String(preflight.preflightClass || ''),
+      preflightPolicy: String(preflight.preflightPolicy || '')
+    };
   } else {
     payload.preflight = {
       providerId: String(preflight.providerId || ''),
       preflightId: String(preflight.preflightId || ''),
+      preflightClass: String(preflight.preflightClass || ''),
+      preflightPolicy: String(preflight.preflightPolicy || ''),
       state: String(preflight.state || ''),
       reasonCode: String(preflight.reasonCode || ''),
       message: String(preflight.message || '')
@@ -499,6 +505,7 @@ const summarizeToolingPreflights = (preflights) => {
     total: 0,
     byState: Object.create(null),
     byClass: Object.create(null),
+    byPolicy: Object.create(null),
     timedOut: 0,
     cached: 0,
     failed: 0,
@@ -507,10 +514,12 @@ const summarizeToolingPreflights = (preflights) => {
   for (const entry of Array.isArray(preflights) ? preflights : []) {
     const state = String(entry?.state || 'unknown').trim().toLowerCase() || 'unknown';
     const preflightClass = String(entry?.preflightClass || 'unknown').trim().toLowerCase() || 'unknown';
+    const preflightPolicy = String(entry?.preflightPolicy || 'unknown').trim().toLowerCase() || 'unknown';
     const durationMs = Number(entry?.durationMs);
     summary.total += 1;
     summary.byState[state] = (summary.byState[state] || 0) + 1;
     summary.byClass[preflightClass] = (summary.byClass[preflightClass] || 0) + 1;
+    summary.byPolicy[preflightPolicy] = (summary.byPolicy[preflightPolicy] || 0) + 1;
     if (entry?.timedOut === true) summary.timedOut += 1;
     if (entry?.cached === true) summary.cached += 1;
     if (state === 'failed') summary.failed += 1;
@@ -963,6 +972,10 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([name, value]) => `${name}:${value}`)
       .join(',');
+    const policies = Object.entries(metrics.preflights.byPolicy || {})
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([name, value]) => `${name}:${value}`)
+      .join(',');
     log(
       '[tooling] preflight summary '
       + `total=${metrics.preflights.total} `
@@ -972,7 +985,8 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
       + `queuePeak=${metrics.preflights.scheduler?.queueDepthPeak || 0} `
       + `teardownTimedOut=${preflightTeardown.timedOut === true ? 1 : 0} `
       + `states=${states || 'none'} `
-      + `classes=${classes || 'none'}`
+      + `classes=${classes || 'none'} `
+      + `policies=${policies || 'none'}`
     );
     const topSlow = Array.isArray(metrics.preflights.topSlow)
       ? metrics.preflights.topSlow.slice(0, 5)

@@ -1,4 +1,8 @@
-import { normalizeProviderId } from './provider-contract.js';
+import {
+  normalizePreflightPolicy,
+  normalizeProviderId,
+  PREFLIGHT_POLICY
+} from './provider-contract.js';
 import {
   TOOLING_PREFLIGHT_REASON_CODES,
   TOOLING_PREFLIGHT_STATES,
@@ -61,6 +65,10 @@ const resolveProviderPreflightClass = (provider) => {
   }
   return PREFLIGHT_CLASS.PROBE;
 };
+
+const resolveProviderPreflightPolicy = (provider) => (
+  normalizePreflightPolicy(provider?.preflightPolicy, PREFLIGHT_POLICY.OPTIONAL)
+);
 
 const resolveSchedulerConfig = (ctx) => {
   const preflightConfig = ctx?.toolingConfig?.preflight && typeof ctx.toolingConfig.preflight === 'object'
@@ -429,12 +437,14 @@ const finalizeQueuedTaskAbort = ({ state, task, error }) => {
     durationMs: 0,
     cached: false,
     timedOut: false,
+    preflightPolicy: task.preflightPolicy,
     preflightClass: task.preflightClass,
     preflightTimeoutMs: task.preflightTimeoutMs
   });
   state.completed.set(task.key, {
     providerId: task.providerId,
     preflightId: task.preflightId,
+    preflightPolicy: task.preflightPolicy,
     waveToken: task.waveToken,
     status: 'rejected',
     state: TOOLING_PREFLIGHT_STATES.FAILED,
@@ -550,6 +560,7 @@ const startProviderPreflight = ({
   const providerId = describeProvider(provider);
   const preflightId = resolvePreflightId(provider);
   const preflightClass = resolveProviderPreflightClass(provider);
+  const preflightPolicy = resolveProviderPreflightPolicy(provider);
   const preflightTimeoutMs = resolvePreflightTimeoutMs({
     ctx,
     provider,
@@ -574,6 +585,7 @@ const startProviderPreflight = ({
       durationMs: completed?.durationMs ?? null,
       cached: true,
       timedOut: completed?.timedOut === true,
+      preflightPolicy,
       preflightClass,
       preflightTimeoutMs
     });
@@ -597,6 +609,7 @@ const startProviderPreflight = ({
       durationMs: completed?.durationMs ?? null,
       cached: true,
       timedOut: completed?.timedOut === true,
+      preflightPolicy,
       preflightClass,
       preflightTimeoutMs
     });
@@ -616,6 +629,7 @@ const startProviderPreflight = ({
     ...(inputs && typeof inputs === 'object' ? inputs : {}),
     abortSignal: managedAbortBridge.signal || requestedAbortSignal || null,
     managerAbortSignal: managedAbortBridge.signal || null,
+    preflightPolicy,
     preflightClass,
     preflightTimeoutMs
   };
@@ -638,6 +652,7 @@ const startProviderPreflight = ({
     providerId,
     preflightId,
     preflightClass,
+    preflightPolicy,
     preflightTimeoutMs,
     waveToken,
     resolve: resolvePromise,
@@ -659,6 +674,7 @@ const startProviderPreflight = ({
         durationMs: null,
         cached: false,
         timedOut: false,
+        preflightPolicy,
         preflightClass,
         preflightTimeoutMs
       });
@@ -696,12 +712,14 @@ const startProviderPreflight = ({
           durationMs: elapsedMs,
           cached: false,
           timedOut,
+          preflightPolicy,
           preflightClass,
           preflightTimeoutMs
         });
         state.completed.set(key, {
           providerId,
           preflightId,
+          preflightPolicy,
           waveToken,
           status: 'fulfilled',
           state: status,
@@ -746,12 +764,14 @@ const startProviderPreflight = ({
           durationMs: elapsedMs,
           cached: false,
           timedOut: false,
+          preflightPolicy,
           preflightClass,
           preflightTimeoutMs
         });
         state.completed.set(key, {
           providerId,
           preflightId,
+          preflightPolicy,
           waveToken,
           status: 'rejected',
           state: TOOLING_PREFLIGHT_STATES.FAILED,
@@ -785,6 +805,7 @@ const startProviderPreflight = ({
     preflightId,
     startedAtMs: null,
     preflightClass,
+    preflightPolicy,
     preflightTimeoutMs,
     promise,
     abort: (reason) => {
