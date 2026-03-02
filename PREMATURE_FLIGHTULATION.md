@@ -679,3 +679,4 @@ Acceptance gate:
 - 2026-03-02T10:52:56.2622364-05:00: Tightened csharp-ls runtime prerequisite preflight from generic `dotnet --version` to explicit SDK probing via `dotnet --list-sdks` to detect runtime-only .NET installations.
 - 2026-03-02T10:53:55.7038658-05:00: Expanded phpactor runtime prerequisite preflight to include Composer availability (`composer --version`) so PHP workspace dependency tooling readiness is surfaced in doctor/runtime diagnostics.
 - 2026-03-02T10:56:10.8472577-05:00: Hoisted shared workspace-command preflight probe execution helper and migrated Go/Rust workspace preflight implementations to it, eliminating duplicated timeout/error classification logic.
+- 2026-03-02T10:57:30.4695078-05:00: Added configured rust metadata timeout-override coverage to enforce that `rustWorkspaceMetadataCmd/Args/TimeoutMs` overrides are honored end-to-end (regression guard for server normalization).
