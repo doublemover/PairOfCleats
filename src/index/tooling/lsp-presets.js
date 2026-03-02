@@ -84,6 +84,7 @@ const PRESET_DEFINITIONS = Object.freeze({
     languages: ['zig'],
     label: 'Zig (zls)',
     priority: 80,
+    preflightTimeoutMs: 30000,
     requireWorkspaceModel: true,
     preflightPolicy: 'required',
     preflightRuntimeRequirements: Object.freeze([Object.freeze({

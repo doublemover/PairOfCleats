@@ -493,6 +493,7 @@ const normalizeServerConfig = (server, index) => {
   const preflightClass = preflightClassRaw === 'dependency'
     ? 'dependency'
     : (preflightClassRaw === 'workspace' ? 'workspace' : null);
+  const preflightTimeoutMs = Number(merged.preflightTimeoutMs);
   const goWorkspaceModuleCmd = String(merged.goWorkspaceModuleCmd || '').trim();
   const goWorkspaceModuleArgs = Array.isArray(merged.goWorkspaceModuleArgs)
     ? merged.goWorkspaceModuleArgs.map((entry) => String(entry))
@@ -620,6 +621,9 @@ const normalizeServerConfig = (server, index) => {
     workspaceMarkerOptions: resolvedWorkspaceMarkerOptions,
     workspaceModelPolicy,
     preflightClass,
+    preflightTimeoutMs: Number.isFinite(preflightTimeoutMs)
+      ? Math.max(500, Math.floor(preflightTimeoutMs))
+      : null,
     preflightPolicy,
     preflightRuntimeRequirements,
     goWorkspaceModuleCmd: goWorkspaceModuleCmd || null,
@@ -900,6 +904,9 @@ const createConfiguredLspProvider = (server) => {
     : `${providerId}.command-profile`;
   provider.preflightPolicy = server.preflightPolicy;
   provider.preflightRuntimeRequirements = server.preflightRuntimeRequirements;
+  provider.preflightTimeoutMs = Number.isFinite(server.preflightTimeoutMs)
+    ? Math.max(500, Math.floor(server.preflightTimeoutMs))
+    : null;
   provider.preflightClass = server.preflightClass
     || (server.workspaceMarkerOptions && server.requireWorkspaceModel !== false ? 'workspace' : 'probe');
   provider.preflight = async (ctx) => {

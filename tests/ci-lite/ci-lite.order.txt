@@ -642,6 +642,7 @@ tooling/lsp/preflight-provider-metadata-coverage
 tooling/lsp/dedicated-provider-preflight-blocking
 tooling/lsp/configured-provider-go-rust-signature-parsing
 tooling/lsp/configured-provider-zls-workspace-nested-root-preflight
+tooling/lsp/configured-provider-zls-preflight-timeout
 tooling/lsp/configured-provider-go-workspace-module-preflight-failed
 tooling/lsp/configured-provider-go-workspace-module-preflight-timeout
 tooling/lsp/configured-provider-yaml-schema-override-merge

@@ -696,3 +696,4 @@ Acceptance gate:
 - 2026-03-02T12:07:12.4179020-05:00: Added pyright workspace root preflight classification for multi-root repos (`pyright_workspace_mono_root`) with coverage in ci lane while preserving fail-open enrichment.
 - 2026-03-02T12:08:35.9224182-05:00: Added gopls workspace root-shape preflight classification for nested and ambiguous module roots (`go_workspace_module_root_nested`, `go_workspace_module_root_ambiguous`) with ci coverage.
 - 2026-03-02T12:10:26.1424699-05:00: Added rust preflight policy classification for explicit proc-macro diagnostic suppression (`rust_workspace_proc_macro_suppression_active`) with ci-lite coverage to surface intentional warning filtering.
+- 2026-03-02T12:11:56.2119146-05:00: Tuned zls preflight timeout behavior by adding preset-level timeout default (`preflightTimeoutMs=30000`) plus configured-provider override support, with ci-lite coverage.
