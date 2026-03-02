@@ -680,3 +680,4 @@ Acceptance gate:
 - 2026-03-02T10:53:55.7038658-05:00: Expanded phpactor runtime prerequisite preflight to include Composer availability (`composer --version`) so PHP workspace dependency tooling readiness is surfaced in doctor/runtime diagnostics.
 - 2026-03-02T10:56:10.8472577-05:00: Hoisted shared workspace-command preflight probe execution helper and migrated Go/Rust workspace preflight implementations to it, eliminating duplicated timeout/error classification logic.
 - 2026-03-02T10:57:30.4695078-05:00: Added configured rust metadata timeout-override coverage to enforce that `rustWorkspaceMetadataCmd/Args/TimeoutMs` overrides are honored end-to-end (regression guard for server normalization).
+- 2026-03-02T11:16:56.9923183-05:00: Added explicit clangd preflight degraded classification for missing `compile_commands.json` when include-root inference is disabled and no fallback flags are configured, with ci-lite coverage.

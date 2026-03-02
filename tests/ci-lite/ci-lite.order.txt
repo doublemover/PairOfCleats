@@ -806,6 +806,7 @@ shared/config/normalization-quality-threads
 indexing/tooling/pyright-runnable-detection
 tooling/workspace/catalog-json
 tooling/lsp/clangd-provider-output-shape
+tooling/lsp/clangd-preflight-missing-compile-commands-inference-disabled
 tooling/impact/seed-and-changed-behavior
 tooling/index-stats/missing-artifact
 shared/artifact-io/minhash-checksum-validation

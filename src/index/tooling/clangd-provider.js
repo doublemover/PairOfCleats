@@ -370,6 +370,14 @@ const buildClangdCommandUnavailableCheck = () => ({
   message: 'clangd command probe failed; attempting stdio initialization anyway.'
 });
 
+const resolveConfiguredFallbackFlags = (clangdConfig) => (
+  Array.isArray(clangdConfig?.fallbackFlags)
+    ? clangdConfig.fallbackFlags
+      .map((entry) => String(entry || '').trim())
+      .filter(Boolean)
+    : []
+);
+
 export const createClangdStderrFilter = () => {
   let suppressedIncludeCleaner = 0;
   const includeCleanerPattern = /\bIncludeCleaner:\s+Failed to get an entry for resolved path '' from include (?:<([^>]+)>|"([^"]+)")\s*:\s*no such file or directory\b/i;
@@ -480,6 +488,29 @@ export const createClangdProvider = () => ({
           : {})
       };
     }
+    const configuredFallbackFlags = resolveConfiguredFallbackFlags(clangdConfig);
+    if (!compileCommandsDir
+      && clangdConfig.autoInferIncludeRoots === false
+      && configuredFallbackFlags.length === 0) {
+      const message = (
+        'clangd compile_commands.json missing and include-root inference is disabled; '
+        + 'workspace model may be partial.'
+      );
+      return {
+        state: 'degraded',
+        reasonCode: 'clangd_compile_commands_missing_inference_disabled',
+        message,
+        blockProvider: false,
+        compileCommandsDir: null,
+        requestedCommand: commandPreflight.requestedCommand,
+        commandProfile: commandPreflight.commandProfile,
+        checks: [{
+          name: 'clangd_compile_commands_missing_inference_disabled',
+          status: 'warn',
+          message
+        }]
+      };
+    }
     return {
       state: 'ready',
       blockProvider: false,
@@ -588,11 +619,7 @@ export const createClangdProvider = () => ({
         checks.push(buildClangdCommandUnavailableCheck());
       }
     }
-    const configuredFallbackFlags = Array.isArray(clangdConfig.fallbackFlags)
-      ? clangdConfig.fallbackFlags
-        .map((entry) => String(entry || '').trim())
-        .filter(Boolean)
-      : [];
+    const configuredFallbackFlags = resolveConfiguredFallbackFlags(clangdConfig);
     let inferredIncludeRoots = [];
     if (!compileCommandsDir && clangdConfig.autoInferIncludeRoots !== false) {
       const maxDocsForIncludeInference = Number.isFinite(Number(clangdConfig.maxDocsForIncludeInference))
