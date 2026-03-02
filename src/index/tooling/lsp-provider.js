@@ -33,6 +33,7 @@ import {
   resolveRuntimeCommandFromPreflight
 } from './preflight/command-profile-preflight.js';
 import { resolveRuntimeRequirementsPreflight } from './preflight/runtime-requirements-preflight.js';
+import { resolveRustWorkspaceMetadataPreflight } from './preflight/rust-workspace-preflight.js';
 import { resolveWorkspaceModelPreflight } from './preflight/workspace-model-preflight.js';
 
 const normalizeList = (value) => {
@@ -717,6 +718,10 @@ const createConfiguredLspProvider = (server) => {
       providerId,
       requirements: server.preflightRuntimeRequirements
     });
+    const rustWorkspacePreflight = resolveRustWorkspaceMetadataPreflight({
+      ctx,
+      server
+    });
     if (!(server.workspaceMarkerOptions && server.requireWorkspaceModel !== false)) {
       const checks = mergePreflightChecks(
         commandPreflight?.checks,
@@ -725,7 +730,9 @@ const createConfiguredLspProvider = (server) => {
         yamlSchemaModePreflight?.check,
         yamlSchemaModePreflight?.checks,
         runtimeRequirementPreflight?.check,
-        runtimeRequirementPreflight?.checks
+        runtimeRequirementPreflight?.checks,
+        rustWorkspacePreflight?.check,
+        rustWorkspacePreflight?.checks
       );
       if (commandPreflight.state !== 'ready') {
         return {
@@ -737,7 +744,9 @@ const createConfiguredLspProvider = (server) => {
         ? luaLibraryPreflight
         : (yamlSchemaModePreflight.state !== 'ready'
           ? yamlSchemaModePreflight
-          : runtimeRequirementPreflight);
+          : (runtimeRequirementPreflight.state !== 'ready'
+            ? runtimeRequirementPreflight
+            : rustWorkspacePreflight));
       if (environmentPreflight.state !== 'ready') {
         return {
           ...commandPreflight,
@@ -772,7 +781,9 @@ const createConfiguredLspProvider = (server) => {
       yamlSchemaModePreflight?.check,
       yamlSchemaModePreflight?.checks,
       runtimeRequirementPreflight?.check,
-      runtimeRequirementPreflight?.checks
+      runtimeRequirementPreflight?.checks,
+      rustWorkspacePreflight?.check,
+      rustWorkspacePreflight?.checks
     );
     if (workspacePreflight.blockProvider === true || workspacePreflight.blockSourcekit === true) {
       return {
@@ -794,7 +805,9 @@ const createConfiguredLspProvider = (server) => {
       ? luaLibraryPreflight
       : (yamlSchemaModePreflight.state !== 'ready'
         ? yamlSchemaModePreflight
-        : runtimeRequirementPreflight);
+        : (runtimeRequirementPreflight.state !== 'ready'
+          ? runtimeRequirementPreflight
+          : rustWorkspacePreflight));
     if (environmentPreflight.state !== 'ready') {
       return {
         ...commandPreflight,

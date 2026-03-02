@@ -669,3 +669,4 @@ Acceptance gate:
 - 2026-03-02T10:24:34.0665498-05:00: Refreshed tooling doctor/reporting spec to match current doctor artifact schema and preflight metadata surfaces (provider policy/class/runtime requirements + bench policy rollups).
 - 2026-03-02T10:26:33.9588791-05:00: Added shared configured-provider runtime-requirement preflight validation (metadata-driven, fail-open degraded warnings) to generalize prerequisite checks across preset LSPs.
 - 2026-03-02T10:37:16.8472420-05:00: Hoisted runtime-requirement preflight probing into a shared helper and applied it to both configured and dedicated provider preflight paths; added dedicated-path coverage and ci-lite lane wiring.
+- 2026-03-02T10:39:15.9431048-05:00: Added Rust workspace metadata preflight classification (`cargo metadata` fail-open degraded path) for configured providers with deterministic degraded-path coverage and ci-lite assignment.
