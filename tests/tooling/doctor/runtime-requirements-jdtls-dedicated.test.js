@@ -9,7 +9,7 @@ import {
 const tempRoot = await createToolingDoctorTempRoot('tooling-doctor-runtime-reqs-jdtls');
 const resolveCommandProfile = createDoctorCommandResolver({
   available: ['jdtls'],
-  missing: ['java']
+  missing: ['java', 'javac']
 });
 
 const report = await runToolingDoctorFixture({
@@ -23,5 +23,8 @@ assert.ok(provider, 'expected dedicated jdtls provider report');
 const javaRuntimeCheck = (provider.checks || []).find((check) => check.name === 'jdtls-runtime-java');
 assert.ok(javaRuntimeCheck, 'expected Java runtime requirement check');
 assert.equal(javaRuntimeCheck.status, 'error', 'expected Java runtime check error when java command missing');
+const javacRuntimeCheck = (provider.checks || []).find((check) => check.name === 'jdtls-runtime-javac');
+assert.ok(javacRuntimeCheck, 'expected Java compiler runtime requirement check');
+assert.equal(javacRuntimeCheck.status, 'error', 'expected Java compiler check error when javac command missing');
 
 console.log('tooling doctor dedicated jdtls runtime requirements test passed');

@@ -50,6 +50,11 @@ export const createJdtlsProvider = () => createDedicatedLspProvider({
     cmd: 'java',
     args: ['--version'],
     label: 'Java runtime'
+  }, {
+    id: 'javac',
+    cmd: 'javac',
+    args: ['--version'],
+    label: 'Java compiler (JDK)'
   }],
   command: {
     defaultCmd: 'jdtls',
