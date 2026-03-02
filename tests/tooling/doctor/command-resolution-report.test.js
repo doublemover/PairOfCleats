@@ -55,6 +55,16 @@ try {
     true,
     'expected doctor preflight summary byClass map'
   );
+  assert.equal(
+    report.summary?.preflight?.byPolicy && typeof report.summary.preflight.byPolicy === 'object',
+    true,
+    'expected doctor preflight summary byPolicy map'
+  );
+  assert.equal(
+    Number.isFinite(Number(report.summary?.preflight?.withRuntimeRequirements)),
+    true,
+    'expected numeric preflight withRuntimeRequirements count'
+  );
 
   const providers = Array.isArray(report.providers) ? report.providers : [];
   const clangd = providers.find((entry) => entry.id === 'clangd');

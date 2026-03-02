@@ -37,6 +37,17 @@ assert.equal(
   'dependency',
   'expected sourcekit preflight class metadata'
 );
+assert.equal(
+  sourcekit.preflight?.policy,
+  'required',
+  'expected sourcekit preflight policy metadata'
+);
+assert.equal(
+  Array.isArray(sourcekit.preflight?.runtimeRequirements)
+  && sourcekit.preflight.runtimeRequirements.some((entry) => entry?.id === 'swift'),
+  true,
+  'expected sourcekit preflight runtime requirement metadata'
+);
 
 const clangd = (report.providers || []).find((entry) => entry.id === 'clangd');
 assert.ok(clangd, 'expected clangd provider in doctor report');
@@ -50,6 +61,11 @@ assert.equal(
   clangd.preflight?.class,
   'workspace',
   'expected clangd preflight class metadata'
+);
+assert.equal(
+  clangd.preflight?.policy,
+  'optional',
+  'expected clangd preflight policy metadata'
 );
 
 const typescript = (report.providers || []).find((entry) => entry.id === 'typescript');

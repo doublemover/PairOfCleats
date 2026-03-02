@@ -48,6 +48,17 @@ try {
     'workspace',
     'expected configured rust preflight class'
   );
+  assert.equal(
+    provider.preflight?.policy,
+    'required',
+    'expected configured rust preflight policy'
+  );
+  assert.equal(
+    Array.isArray(provider.preflight?.runtimeRequirements)
+    && provider.preflight.runtimeRequirements.some((entry) => entry?.id === 'cargo'),
+    true,
+    'expected configured rust runtime requirement metadata'
+  );
   assert.equal(report.summary?.preflight?.supported, 1, 'expected one supported preflight provider');
   assert.equal(report.summary?.preflight?.enabled, 1, 'expected one enabled preflight provider');
   assert.ok(

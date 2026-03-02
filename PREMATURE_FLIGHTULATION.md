@@ -661,3 +661,4 @@ Acceptance gate:
 - 2026-03-02T09:54:06.9523509-05:00: Added scheduler metrics by preflight class (probe/workspace/dependency) and validated class counters in concurrency tests.
 - 2026-03-02T09:56:10.1593384-05:00: Extended bench-language report diagnostics to parse preflight summary lines (queue peak, teardown timeout, class/state aggregates).
 - 2026-03-02T09:57:33.5749448-05:00: Extended bench-language report diagnostics to parse preflight slowest summary lines and surface parsed offender lists.
+- 2026-03-02T10:04:20.4891399-05:00: Added provider-declared preflight policy/runtime-prerequisite metadata across dedicated/configured providers and made tooling doctor consume/report metadata first (with command-heuristic fallback).

@@ -48,6 +48,17 @@ try {
     'workspace',
     'expected configured gopls preflight class'
   );
+  assert.equal(
+    provider.preflight?.policy,
+    'required',
+    'expected configured gopls preflight policy'
+  );
+  assert.equal(
+    Array.isArray(provider.preflight?.runtimeRequirements)
+    && provider.preflight.runtimeRequirements.some((entry) => entry?.id === 'go'),
+    true,
+    'expected configured gopls runtime requirement metadata'
+  );
   assert.equal(report.summary?.preflight?.supported, 1, 'expected one supported preflight provider');
   assert.equal(report.summary?.preflight?.enabled, 1, 'expected one enabled preflight provider');
   assert.ok(
