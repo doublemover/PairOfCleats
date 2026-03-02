@@ -27,6 +27,13 @@ export const createDartProvider = () => createDedicatedLspProvider({
       message: 'dart workspace markers not found; skipping dedicated provider.'
     }
   },
+  preflightPolicy: 'required',
+  preflightRuntimeRequirements: [{
+    id: 'dart-sdk',
+    cmd: 'dart',
+    args: ['--version'],
+    label: 'Dart SDK'
+  }],
   command: {
     defaultCmd: 'dart',
     resolveArgs: (config) => ensureLanguageServerArgs(normalizeCommandArgs(config?.args)),

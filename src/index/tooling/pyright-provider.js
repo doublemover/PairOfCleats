@@ -34,6 +34,8 @@ export const createPyrightProvider = () => ({
   languages: ['python'],
   kinds: ['types', 'diagnostics'],
   requires: { cmd: 'pyright-langserver' },
+  preflightPolicy: 'optional',
+  preflightRuntimeRequirements: [],
   capabilities: {
     supportsVirtualDocuments: true,
     supportsSegmentRouting: true,

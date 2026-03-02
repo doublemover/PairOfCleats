@@ -44,6 +44,13 @@ export const createJdtlsProvider = () => createDedicatedLspProvider({
       message: 'jdtls workspace model markers not found; skipping dedicated provider.'
     }
   },
+  preflightPolicy: 'required',
+  preflightRuntimeRequirements: [{
+    id: 'java',
+    cmd: 'java',
+    args: ['--version'],
+    label: 'Java runtime'
+  }],
   command: {
     defaultCmd: 'jdtls',
     resolveArgs: (config) => normalizeCommandArgs(config?.args),

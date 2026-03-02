@@ -11,6 +11,13 @@ const PRESET_DEFINITIONS = Object.freeze({
     label: 'Go (gopls)',
     priority: 80,
     requireWorkspaceModel: true,
+    preflightPolicy: 'required',
+    preflightRuntimeRequirements: Object.freeze([Object.freeze({
+      id: 'go',
+      cmd: 'go',
+      args: Object.freeze(['version']),
+      label: 'Go toolchain'
+    })]),
     workspaceMarkerOptions: Object.freeze({
       exactNames: Object.freeze(['go.mod', 'go.work'])
     }),
@@ -24,6 +31,21 @@ const PRESET_DEFINITIONS = Object.freeze({
     label: 'Rust (rust-analyzer)',
     priority: 80,
     requireWorkspaceModel: true,
+    preflightPolicy: 'required',
+    preflightRuntimeRequirements: Object.freeze([
+      Object.freeze({
+        id: 'cargo',
+        cmd: 'cargo',
+        args: Object.freeze(['--version']),
+        label: 'Cargo'
+      }),
+      Object.freeze({
+        id: 'rustc',
+        cmd: 'rustc',
+        args: Object.freeze(['--version']),
+        label: 'Rust compiler'
+      })
+    ]),
     workspaceMarkerOptions: Object.freeze({
       exactNames: Object.freeze(['Cargo.toml', 'Cargo.lock'])
     }),
@@ -52,7 +74,8 @@ const PRESET_DEFINITIONS = Object.freeze({
     args: [],
     languages: ['lua'],
     label: 'Lua (lua-language-server)',
-    priority: 80
+    priority: 80,
+    preflightPolicy: 'optional'
   }),
   zls: Object.freeze({
     id: 'zls',
@@ -62,6 +85,13 @@ const PRESET_DEFINITIONS = Object.freeze({
     label: 'Zig (zls)',
     priority: 80,
     requireWorkspaceModel: true,
+    preflightPolicy: 'required',
+    preflightRuntimeRequirements: Object.freeze([Object.freeze({
+      id: 'zig',
+      cmd: 'zig',
+      args: Object.freeze(['version']),
+      label: 'Zig toolchain'
+    })]),
     workspaceMarkerOptions: Object.freeze({
       exactNames: Object.freeze(['build.zig', 'build.zig.zon'])
     }),

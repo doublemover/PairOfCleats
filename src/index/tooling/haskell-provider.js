@@ -23,6 +23,13 @@ export const createHaskellProvider = () => createDedicatedLspProvider({
       message: 'haskell workspace markers not found; skipping dedicated provider.'
     }
   },
+  preflightPolicy: 'required',
+  preflightRuntimeRequirements: [{
+    id: 'ghc',
+    cmd: 'ghc',
+    args: ['--version'],
+    label: 'GHC compiler'
+  }],
   command: {
     defaultCmd: 'haskell-language-server',
     resolveArgs: (config) => normalizeCommandArgs(config?.args),

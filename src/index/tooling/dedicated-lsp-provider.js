@@ -1,6 +1,13 @@
 import path from 'node:path';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
-import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
+import {
+  appendDiagnosticChecks,
+  buildDuplicateChunkUidChecks,
+  hashProviderConfig,
+  normalizePreflightPolicy,
+  normalizePreflightRuntimeRequirements,
+  PREFLIGHT_POLICY
+} from './provider-contract.js';
 import { invalidateProbeCacheOnInitializeFailure } from './command-resolver.js';
 import { resolveProviderRequestedCommand } from './provider-command-override.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
@@ -171,6 +178,8 @@ const shouldBlockProviderFromPreflight = (preflight) => {
  *   } | null,
  *   runtimeDefaults?: { timeoutMs?: number, retries?: number, breakerThreshold?: number },
  *   preflightClass?: 'probe'|'workspace'|'dependency',
+ *   preflightPolicy?: 'required'|'optional',
+ *   preflightRuntimeRequirements?: Array<{id: string, cmd: string, args?: string[], label?: string}>,
  *   prepareCollect?: (input: {
  *     ctx: object,
  *     config: object,
@@ -337,6 +346,13 @@ export const createDedicatedLspProvider = (descriptor) => {
   const hasCustomPreflight = typeof descriptor.preflight === 'function';
 
   if (hasWorkspacePreflight || hasCustomPreflight) {
+    provider.preflightPolicy = normalizePreflightPolicy(
+      descriptor.preflightPolicy,
+      hasWorkspacePreflight ? PREFLIGHT_POLICY.REQUIRED : PREFLIGHT_POLICY.OPTIONAL
+    );
+    provider.preflightRuntimeRequirements = normalizePreflightRuntimeRequirements(
+      descriptor.preflightRuntimeRequirements
+    );
     provider.preflightClass = descriptor.preflightClass
       || (hasWorkspacePreflight ? 'workspace' : 'dependency');
     const preflightId = typeof descriptor?.preflightId === 'string' && descriptor.preflightId.trim()

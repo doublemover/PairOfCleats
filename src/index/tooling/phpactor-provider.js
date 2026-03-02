@@ -26,6 +26,13 @@ export const createPhpactorProvider = () => createDedicatedLspProvider({
       message: 'phpactor workspace markers not found; skipping dedicated provider.'
     }
   },
+  preflightPolicy: 'required',
+  preflightRuntimeRequirements: [{
+    id: 'php',
+    cmd: 'php',
+    args: ['--version'],
+    label: 'PHP runtime'
+  }],
   command: {
     defaultCmd: 'phpactor',
     resolveArgs: (config) => ensureLanguageServerArg(normalizeCommandArgs(config?.args)),

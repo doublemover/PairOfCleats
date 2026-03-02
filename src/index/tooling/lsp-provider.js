@@ -1,5 +1,12 @@
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
-import { appendDiagnosticChecks, hashProviderConfig, normalizeProviderId } from './provider-contract.js';
+import {
+  appendDiagnosticChecks,
+  hashProviderConfig,
+  normalizePreflightPolicy,
+  normalizePreflightRuntimeRequirements,
+  normalizeProviderId,
+  PREFLIGHT_POLICY
+} from './provider-contract.js';
 import { invalidateProbeCacheOnInitializeFailure } from './command-resolver.js';
 import { listLspServerPresets, resolveLspServerPreset } from './lsp-presets.js';
 import { parseClikeSignature } from './signature-parse/clike.js';
@@ -256,6 +263,15 @@ const normalizeServerConfig = (server, index) => {
         ? 'gopls workspace markers (go.mod/go.work) not found near repo root.'
         : `${id} workspace model markers not found near repo root.`)
   );
+  const defaultPreflightPolicy = (
+    resolvedWorkspaceMarkerOptions && requireWorkspaceModel !== false
+      ? PREFLIGHT_POLICY.REQUIRED
+      : PREFLIGHT_POLICY.OPTIONAL
+  );
+  const preflightPolicy = normalizePreflightPolicy(merged.preflightPolicy, defaultPreflightPolicy);
+  const preflightRuntimeRequirements = normalizePreflightRuntimeRequirements(
+    merged.preflightRuntimeRequirements || merged.runtimeRequirements
+  );
   return {
     id,
     providerId,
@@ -325,6 +341,8 @@ const normalizeServerConfig = (server, index) => {
     workspaceMarkerOptions: resolvedWorkspaceMarkerOptions,
     workspaceModelPolicy,
     preflightClass,
+    preflightPolicy,
+    preflightRuntimeRequirements,
     workspaceModelMissingMessage: resolvedWorkspaceModelMissingMessage,
     lifecycle,
     lifecycleRestartWindowMs: merged.lifecycleRestartWindowMs,
@@ -591,6 +609,8 @@ const createConfiguredLspProvider = (server) => {
   provider.preflightId = server.workspaceMarkerOptions && server.requireWorkspaceModel !== false
     ? `${providerId}.workspace-model`
     : `${providerId}.command-profile`;
+  provider.preflightPolicy = server.preflightPolicy;
+  provider.preflightRuntimeRequirements = server.preflightRuntimeRequirements;
   provider.preflightClass = server.preflightClass
     || (server.workspaceMarkerOptions && server.requireWorkspaceModel !== false ? 'workspace' : 'probe');
   provider.preflight = async (ctx) => {

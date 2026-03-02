@@ -236,6 +236,13 @@ export const createSourcekitProvider = () => ({
   languages: ['swift'],
   kinds: ['types'],
   requires: { cmd: 'sourcekit-lsp' },
+  preflightPolicy: 'required',
+  preflightRuntimeRequirements: [{
+    id: 'swift',
+    cmd: 'swift',
+    args: ['--version'],
+    label: 'Swift toolchain'
+  }],
   capabilities: {
     supportsVirtualDocuments: true,
     supportsSegmentRouting: true,

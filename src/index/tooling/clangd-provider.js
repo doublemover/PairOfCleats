@@ -412,6 +412,8 @@ export const createClangdProvider = () => ({
   languages: ['clike', 'c', 'cpp', 'objective-c', 'objective-cpp'],
   kinds: ['types'],
   requires: { cmd: 'clangd' },
+  preflightPolicy: 'optional',
+  preflightRuntimeRequirements: [],
   capabilities: {
     supportsVirtualDocuments: true,
     supportsSegmentRouting: true,

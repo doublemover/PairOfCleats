@@ -22,6 +22,18 @@ export const createElixirProvider = () => createDedicatedLspProvider({
       message: 'elixir workspace markers not found; skipping dedicated provider.'
     }
   },
+  preflightPolicy: 'required',
+  preflightRuntimeRequirements: [{
+    id: 'elixir',
+    cmd: 'elixir',
+    args: ['--version'],
+    label: 'Elixir runtime'
+  }, {
+    id: 'erl',
+    cmd: 'erl',
+    args: ['-version'],
+    label: 'Erlang runtime'
+  }],
   command: {
     defaultCmd: 'elixir-ls',
     resolveArgs: (config) => normalizeCommandArgs(config?.args),

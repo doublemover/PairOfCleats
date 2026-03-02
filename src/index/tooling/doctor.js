@@ -3,7 +3,12 @@ import path from 'node:path';
 import semver from 'semver';
 import { getXxhashBackend } from '../../shared/hash.js';
 import { listToolingProviders } from './provider-registry.js';
-import { normalizeProviderId } from './provider-contract.js';
+import {
+  normalizePreflightPolicy,
+  normalizePreflightRuntimeRequirements,
+  normalizeProviderId,
+  PREFLIGHT_POLICY
+} from './provider-contract.js';
 import { resolveProviderCommandOverride } from './provider-command-override.js';
 import { loadTypeScript } from './typescript/load.js';
 import { getScmProviderAndRoot, resolveScmConfig } from '../scm/registry.js';
@@ -216,6 +221,8 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
         supported: 0,
         enabled: 0,
         withCustomKey: 0,
+        withRuntimeRequirements: 0,
+        byPolicy: {},
         byClass: {},
         ids: []
       }
@@ -323,6 +330,10 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
           ? provider.preflightId.trim()
           : null,
         hasCustomKey: typeof provider?.getPreflightKey === 'function',
+        policy: typeof provider?.preflight === 'function'
+          ? normalizePreflightPolicy(provider?.preflightPolicy, PREFLIGHT_POLICY.OPTIONAL)
+          : null,
+        runtimeRequirements: normalizePreflightRuntimeRequirements(provider?.preflightRuntimeRequirements),
         class: typeof provider?.preflightClass === 'string' && provider.preflightClass.trim()
           ? provider.preflightClass.trim().toLowerCase()
           : null,
@@ -352,6 +363,14 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
       report.summary.preflight.supported += 1;
       if (providerReport.enabled) report.summary.preflight.enabled += 1;
       if (providerReport.preflight.hasCustomKey) report.summary.preflight.withCustomKey += 1;
+      if (providerReport.preflight.policy) {
+        report.summary.preflight.byPolicy[providerReport.preflight.policy] = (
+          Number(report.summary.preflight.byPolicy[providerReport.preflight.policy]) || 0
+        ) + 1;
+      }
+      if (providerReport.preflight.runtimeRequirements.length > 0) {
+        report.summary.preflight.withRuntimeRequirements += 1;
+      }
       if (providerReport.preflight.id) {
         report.summary.preflight.ids.push(providerReport.preflight.id);
       }
@@ -364,8 +383,8 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
         name: `${providerId}-preflight`,
         status: 'ok',
         message: providerReport.preflight.id
-          ? `preflight registered (${providerReport.preflight.id}${providerReport.preflight.class ? `, class=${providerReport.preflight.class}` : ''}).`
-          : `preflight registered${providerReport.preflight.class ? ` (class=${providerReport.preflight.class})` : ''}.`
+          ? `preflight registered (${providerReport.preflight.id}${providerReport.preflight.class ? `, class=${providerReport.preflight.class}` : ''}${providerReport.preflight.policy ? `, policy=${providerReport.preflight.policy}` : ''}).`
+          : `preflight registered${providerReport.preflight.class ? ` (class=${providerReport.preflight.class})` : ''}${providerReport.preflight.policy ? ` (policy=${providerReport.preflight.policy})` : ''}.`
       });
     }
 
@@ -538,7 +557,9 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
               });
             }
           }
-          const runtimeRequirements = resolveRuntimeRequirementsForCommand(commandToken);
+          const runtimeRequirements = providerReport.preflight.runtimeRequirements.length
+            ? providerReport.preflight.runtimeRequirements
+            : resolveRuntimeRequirementsForCommand(commandToken);
           if (runtimeRequirements.length) {
             providerReport.runtimeRequirements = [];
             for (const requirement of runtimeRequirements) {

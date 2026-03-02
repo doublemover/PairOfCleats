@@ -26,6 +26,18 @@ export const createSolargraphProvider = () => createDedicatedLspProvider({
       message: 'solargraph workspace markers not found; skipping dedicated provider.'
     }
   },
+  preflightPolicy: 'required',
+  preflightRuntimeRequirements: [{
+    id: 'ruby',
+    cmd: 'ruby',
+    args: ['--version'],
+    label: 'Ruby runtime'
+  }, {
+    id: 'gem',
+    cmd: 'gem',
+    args: ['--version'],
+    label: 'RubyGems'
+  }],
   command: {
     defaultCmd: 'solargraph',
     resolveArgs: (config) => ensureStdioArg(normalizeCommandArgs(config?.args)),

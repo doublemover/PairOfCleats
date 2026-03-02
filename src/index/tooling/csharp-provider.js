@@ -21,6 +21,13 @@ export const createCsharpProvider = () => createDedicatedLspProvider({
       message: 'csharp-ls workspace model markers not found; skipping dedicated provider.'
     }
   },
+  preflightPolicy: 'required',
+  preflightRuntimeRequirements: [{
+    id: 'dotnet',
+    cmd: 'dotnet',
+    args: ['--version'],
+    label: '.NET runtime'
+  }],
   command: {
     defaultCmd: 'csharp-ls',
     resolveArgs: (config) => (Array.isArray(config?.args) ? config.args : []),
