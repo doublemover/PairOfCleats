@@ -162,7 +162,7 @@ export function createLspClient(options) {
   let backoffMs = 0;
   let nextStartAt = 0;
   // Ensure every LSP request is bounded unless explicitly disabled.
-  const DEFAULT_REQUEST_TIMEOUT_MS = 15000;
+  const DEFAULT_REQUEST_TIMEOUT_MS = 60000;
   const requestMetrics = {
     requests: 0,
     succeeded: 0,

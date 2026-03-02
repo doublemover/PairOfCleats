@@ -64,7 +64,7 @@ const resolveToolingPropagationOptions = ({ rootDir, useTooling }) => {
     toolingConfig,
     toolingTimeoutMs: normalizeConfigInteger({
       value: toolingConfig?.timeoutMs,
-      fallback: 15000,
+      fallback: 60000,
       min: 1000
     }),
     toolingRetries: normalizeConfigInteger({

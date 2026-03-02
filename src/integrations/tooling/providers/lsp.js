@@ -107,7 +107,7 @@ export { resolveVfsIoBatching, ensureVirtualFilesBatch };
  * @param {(line:string)=>void} [params.log]
  * @param {string} params.cmd
  * @param {string[]} params.args
- * @param {number} [params.timeoutMs=15000]
+ * @param {number} [params.timeoutMs=60000]
  * @param {number} [params.retries=2]
  * @param {number} [params.breakerThreshold=3]
  * @param {(detail:string,languageId:string,symbolName?:string)=>object|null} [params.parseSignature]
@@ -166,7 +166,7 @@ export async function collectLspTypes({
   log = () => {},
   cmd,
   args,
-  timeoutMs = 15000,
+  timeoutMs = 60000,
   retries = 2,
   breakerThreshold = 3,
   parseSignature,

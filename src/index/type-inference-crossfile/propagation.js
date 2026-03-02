@@ -134,7 +134,7 @@ export async function runCrossFilePropagation({
   inferenceLite = false,
   inferenceLiteHighSignalOnly = true,
   toolingConfig = null,
-  toolingTimeoutMs = 15000,
+  toolingTimeoutMs = 60000,
   toolingRetries = 2,
   toolingBreaker = 3,
   toolingLogDir = null,

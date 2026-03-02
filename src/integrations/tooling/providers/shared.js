@@ -199,7 +199,7 @@ export const createToolingLifecycleHealth = (options = {}) => {
 
 export const createToolingGuard = ({
   name,
-  timeoutMs = 15000,
+  timeoutMs = 60000,
   retries = 2,
   breakerThreshold = 3,
   log = () => {}

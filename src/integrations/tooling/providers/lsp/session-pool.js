@@ -106,7 +106,7 @@ const buildSessionKey = ({
     initializationOptions: initializationOptions ?? null,
     cwd: String(cwd || ''),
     shell: shell === true,
-    timeoutMs: toPositiveInt(timeoutMs, 15000, 1),
+    timeoutMs: toPositiveInt(timeoutMs, 60000, 1),
     retries: toNonNegativeInt(retries, 2),
     breakerThreshold: toPositiveInt(breakerThreshold, 3, 1),
     lifecycleRestartWindowMs: toPositiveInt(lifecycleRestartWindowMs, 60000, 1000),

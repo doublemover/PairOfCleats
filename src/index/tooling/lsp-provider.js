@@ -400,7 +400,7 @@ const createConfiguredLspProvider = (server) => {
           providerConfig: server,
           globalConfigs: [ctx?.toolingConfig?.lsp || null, ctx?.toolingConfig || null],
           defaults: {
-            timeoutMs: 15000,
+            timeoutMs: 60000,
             retries: 2,
             breakerThreshold: 3
           }
