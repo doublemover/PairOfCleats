@@ -699,3 +699,4 @@ Acceptance gate:
 - 2026-03-02T12:11:56.2119146-05:00: Tuned zls preflight timeout behavior by adding preset-level timeout default (`preflightTimeoutMs=30000`) plus configured-provider override support, with ci-lite coverage.
 - 2026-03-02T12:13:25.1584117-05:00: Added explicit SourceKit preflight cache invalidation coverage for `Package.resolved` changes to complement existing `Package.swift` invalidation testing, and wired it into ci.
 - 2026-03-02T12:14:20.7718268-05:00: Extended dedicated-provider abrupt-failure cleanup coverage to include csharp-ls, ensuring timeout/abort scenarios leave no tracked subprocess ownership for Java/C#/Elixir/Ruby/PHP dedicated providers.
+- 2026-03-02T12:15:26.5390072-05:00: Added ci coverage for `go_workspace_module_root_nested` to fully validate gopls nested-vs-ambiguous root-shape preflight classification.
