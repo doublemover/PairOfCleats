@@ -50,6 +50,11 @@ try {
     true,
     'expected doctor preflight summary id list'
   );
+  assert.equal(
+    report.summary?.preflight?.byClass && typeof report.summary.preflight.byClass === 'object',
+    true,
+    'expected doctor preflight summary byClass map'
+  );
 
   const providers = Array.isArray(report.providers) ? report.providers : [];
   const clangd = providers.find((entry) => entry.id === 'clangd');

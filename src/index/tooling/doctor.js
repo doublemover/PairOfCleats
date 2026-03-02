@@ -216,6 +216,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
         supported: 0,
         enabled: 0,
         withCustomKey: 0,
+        byClass: {},
         ids: []
       }
     }
@@ -321,7 +322,13 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
         id: typeof provider?.preflightId === 'string' && provider.preflightId.trim()
           ? provider.preflightId.trim()
           : null,
-        hasCustomKey: typeof provider?.getPreflightKey === 'function'
+        hasCustomKey: typeof provider?.getPreflightKey === 'function',
+        class: typeof provider?.preflightClass === 'string' && provider.preflightClass.trim()
+          ? provider.preflightClass.trim().toLowerCase()
+          : null,
+        timeoutMs: Number.isFinite(Number(provider?.preflightTimeoutMs))
+          ? Math.max(0, Math.floor(Number(provider.preflightTimeoutMs)))
+          : null
       },
       status: 'ok',
       checks: []
@@ -348,12 +355,17 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
       if (providerReport.preflight.id) {
         report.summary.preflight.ids.push(providerReport.preflight.id);
       }
+      if (providerReport.preflight.class) {
+        report.summary.preflight.byClass[providerReport.preflight.class] = (
+          Number(report.summary.preflight.byClass[providerReport.preflight.class]) || 0
+        ) + 1;
+      }
       addCheck({
         name: `${providerId}-preflight`,
         status: 'ok',
         message: providerReport.preflight.id
-          ? `preflight registered (${providerReport.preflight.id}).`
-          : 'preflight registered.'
+          ? `preflight registered (${providerReport.preflight.id}${providerReport.preflight.class ? `, class=${providerReport.preflight.class}` : ''}).`
+          : `preflight registered${providerReport.preflight.class ? ` (class=${providerReport.preflight.class})` : ''}.`
       });
     }
 

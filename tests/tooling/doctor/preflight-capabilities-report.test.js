@@ -32,6 +32,11 @@ assert.equal(
   'sourcekit.package-resolution',
   'expected sourcekit preflight id in doctor report'
 );
+assert.equal(
+  sourcekit.preflight?.class,
+  'dependency',
+  'expected sourcekit preflight class metadata'
+);
 
 const clangd = (report.providers || []).find((entry) => entry.id === 'clangd');
 assert.ok(clangd, 'expected clangd provider in doctor report');
@@ -40,6 +45,11 @@ assert.equal(
   clangd.preflight?.id,
   'clangd.workspace-model',
   'expected clangd preflight id in doctor report'
+);
+assert.equal(
+  clangd.preflight?.class,
+  'workspace',
+  'expected clangd preflight class metadata'
 );
 
 const typescript = (report.providers || []).find((entry) => entry.id === 'typescript');

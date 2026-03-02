@@ -43,6 +43,11 @@ try {
     'lsp-gopls.workspace-model',
     'expected configured gopls preflight id'
   );
+  assert.equal(
+    provider.preflight?.class,
+    'workspace',
+    'expected configured gopls preflight class'
+  );
   assert.equal(report.summary?.preflight?.supported, 1, 'expected one supported preflight provider');
   assert.equal(report.summary?.preflight?.enabled, 1, 'expected one enabled preflight provider');
   assert.ok(
