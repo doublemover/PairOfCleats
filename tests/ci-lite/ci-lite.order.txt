@@ -873,6 +873,7 @@ tooling/lsp/phpactor-provider-command-fallback
 tooling/lsp/haskell-signature-parse
 tooling/lsp/haskell-provider-bootstrap
 tooling/lsp/haskell-provider-workspace-guard
+tooling/lsp/haskell-provider-ambiguous-cradle-preflight
 tooling/lsp/haskell-provider-command-fallback
 tooling/lsp/zig-signature-parse
 tooling/doctor/runtime-requirements-haskell-dedicated

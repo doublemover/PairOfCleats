@@ -684,3 +684,4 @@ Acceptance gate:
 - 2026-03-02T11:18:46.9806871-05:00: Added pyright workspace-config preflight classification for malformed/unreadable/oversized `pyrightconfig.json` (fail-open degraded) with ci coverage.
 - 2026-03-02T11:20:27.3409850-05:00: Added jdtls workspace-bootstrap lock contention classification (`jdtls_workspace_lock_unavailable`) with dedicated ci-lite coverage to surface concurrent bootstrap conflicts deterministically.
 - 2026-03-02T11:22:35.1051311-05:00: Added dart project-model preflight classification for missing/invalid `.dart_tool/package_config.json` when `pubspec.yaml` is present (fail-open degraded) with ci-lite coverage.
+- 2026-03-02T11:25:35.1651980-05:00: Added haskell workspace ambiguous-cradle preflight classification (`haskell_workspace_ambiguous_cradle`) when Stack and Cabal markers coexist without `hie.yaml`, with ci-lite coverage and fail-open degraded diagnostics.

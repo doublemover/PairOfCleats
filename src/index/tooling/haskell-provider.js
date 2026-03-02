@@ -1,8 +1,45 @@
+import fsSync from 'node:fs';
+import path from 'node:path';
 import { parseHaskellSignature } from './signature-parse/haskell.js';
 import { createDedicatedLspProvider } from './dedicated-lsp-provider.js';
 import { normalizeCommandArgs } from './provider-utils.js';
 
 const HASKELL_EXTS = ['.hs', '.lhs', '.cabal'];
+
+const hasCabalFileInRoot = (repoRoot) => {
+  try {
+    const entries = fsSync.readdirSync(repoRoot, { withFileTypes: true });
+    return entries.some((entry) => entry?.isFile?.() && String(entry.name || '').toLowerCase().endsWith('.cabal'));
+  } catch {
+    return false;
+  }
+};
+
+const resolveHaskellWorkspaceCradlePreflight = ({ ctx }) => {
+  const repoRoot = String(ctx?.repoRoot || process.cwd());
+  const hasStack = fsSync.existsSync(path.join(repoRoot, 'stack.yaml'));
+  const hasCabalProject = fsSync.existsSync(path.join(repoRoot, 'cabal.project'));
+  const hasCabalFile = hasCabalFileInRoot(repoRoot);
+  const hasHieYaml = fsSync.existsSync(path.join(repoRoot, 'hie.yaml'));
+  const ambiguous = hasStack && (hasCabalProject || hasCabalFile);
+  if (!ambiguous || hasHieYaml) {
+    return { state: 'ready', reasonCode: null, message: '', checks: [] };
+  }
+  const message = (
+    'haskell workspace has both Stack and Cabal markers without hie.yaml; '
+    + 'cradle selection may be ambiguous.'
+  );
+  return {
+    state: 'degraded',
+    reasonCode: 'haskell_workspace_ambiguous_cradle',
+    message,
+    checks: [{
+      name: 'haskell_workspace_ambiguous_cradle',
+      status: 'warn',
+      message
+    }]
+  };
+};
 
 export const createHaskellProvider = () => createDedicatedLspProvider({
   id: 'haskell-language-server',
@@ -38,5 +75,6 @@ export const createHaskellProvider = () => createDedicatedLspProvider({
       message: (requestedCmd) => `${requestedCmd} command not available for haskell-language-server.`
     }
   },
-  parseSignature: parseHaskellSignature
+  parseSignature: parseHaskellSignature,
+  preflight: async ({ ctx }) => resolveHaskellWorkspaceCradlePreflight({ ctx })
 });
