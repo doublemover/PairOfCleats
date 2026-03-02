@@ -2,6 +2,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
+import { readJsonFileSafe } from '../../shared/files.js';
 import {
   appendDiagnosticChecks,
   hashProviderConfig,
@@ -126,6 +127,8 @@ const resolveLuaWorkspaceLibraryPath = (repoRoot, value) => {
   return path.resolve(repoRoot || process.cwd(), raw);
 };
 
+const LUA_WORKSPACE_CONFIG_MAX_BYTES = 1024 * 1024;
+
 const resolveLuaWorkspaceLibraryPreflight = ({ server, repoRoot }) => {
   const serverId = String(server?.id || '').trim().toLowerCase();
   const languages = Array.isArray(server?.languages)
@@ -158,6 +161,74 @@ const resolveLuaWorkspaceLibraryPreflight = ({ server, repoRoot }) => {
     message,
     check: {
       name: 'lua_workspace_library_missing',
+      status: 'warn',
+      message
+    }
+  };
+};
+
+const resolveLuaWorkspaceConfigPreflight = async ({ server, repoRoot }) => {
+  const serverId = String(server?.id || '').trim().toLowerCase();
+  const languages = Array.isArray(server?.languages)
+    ? server.languages.map((entry) => String(entry || '').trim().toLowerCase()).filter(Boolean)
+    : [];
+  if (serverId !== 'lua-language-server' && !languages.includes('lua')) {
+    return { state: 'ready', reasonCode: null, message: '', check: null };
+  }
+  const configPath = path.join(repoRoot || process.cwd(), '.luarc.json');
+  if (!fsSync.existsSync(configPath)) {
+    return { state: 'ready', reasonCode: null, message: '', check: null };
+  }
+  let readError = null;
+  const parsed = await readJsonFileSafe(configPath, {
+    fallback: null,
+    maxBytes: LUA_WORKSPACE_CONFIG_MAX_BYTES,
+    onError: (info) => {
+      readError = info;
+    }
+  });
+  if (!readError) {
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return { state: 'ready', reasonCode: null, message: '', check: null };
+    }
+    const message = 'lua workspace config (.luarc.json) must be a JSON object.';
+    return {
+      state: 'degraded',
+      reasonCode: 'lua_workspace_config_invalid',
+      message,
+      check: {
+        name: 'lua_workspace_config_invalid',
+        status: 'warn',
+        message
+      }
+    };
+  }
+  const errorCode = String(readError?.error?.code || '').trim().toUpperCase();
+  if (errorCode === 'ERR_JSON_FILE_TOO_LARGE') {
+    const message = `lua workspace config exceeds ${LUA_WORKSPACE_CONFIG_MAX_BYTES} bytes.`;
+    return {
+      state: 'degraded',
+      reasonCode: 'lua_workspace_config_too_large',
+      message,
+      check: {
+        name: 'lua_workspace_config_too_large',
+        status: 'warn',
+        message
+      }
+    };
+  }
+  const message = String(readError?.phase || '').toLowerCase() === 'parse'
+    ? `lua workspace config is invalid JSON: ${readError?.error?.message || 'parse failed'}`
+    : `lua workspace config unreadable: ${readError?.error?.message || 'read failed'}`;
+  const reasonCode = String(readError?.phase || '').toLowerCase() === 'parse'
+    ? 'lua_workspace_config_invalid'
+    : 'lua_workspace_config_unreadable';
+  return {
+    state: 'degraded',
+    reasonCode,
+    message,
+    check: {
+      name: reasonCode,
       status: 'warn',
       message
     }
@@ -807,6 +878,10 @@ const createConfiguredLspProvider = (server) => {
       server,
       repoRoot: ctx?.repoRoot || process.cwd()
     });
+    const luaWorkspaceConfigPreflight = await resolveLuaWorkspaceConfigPreflight({
+      server,
+      repoRoot: ctx?.repoRoot || process.cwd()
+    });
     const yamlSchemaModePreflight = resolveYamlSchemaModePreflight({ server });
     const runtimeRequirementPreflight = resolveRuntimeRequirementsPreflight({
       ctx,
@@ -830,6 +905,8 @@ const createConfiguredLspProvider = (server) => {
         commandPreflight?.checks,
         luaLibraryPreflight?.check,
         luaLibraryPreflight?.checks,
+        luaWorkspaceConfigPreflight?.check,
+        luaWorkspaceConfigPreflight?.checks,
         yamlSchemaModePreflight?.check,
         yamlSchemaModePreflight?.checks,
         runtimeRequirementPreflight?.check,
@@ -849,6 +926,7 @@ const createConfiguredLspProvider = (server) => {
       }
       const environmentPreflight = resolveFirstNonReadyPreflight(
         luaLibraryPreflight,
+        luaWorkspaceConfigPreflight,
         yamlSchemaModePreflight,
         runtimeRequirementPreflight,
         zigWorkspaceRootPreflight,
@@ -886,6 +964,8 @@ const createConfiguredLspProvider = (server) => {
       workspacePreflight?.checks,
       luaLibraryPreflight?.check,
       luaLibraryPreflight?.checks,
+      luaWorkspaceConfigPreflight?.check,
+      luaWorkspaceConfigPreflight?.checks,
       yamlSchemaModePreflight?.check,
       yamlSchemaModePreflight?.checks,
       runtimeRequirementPreflight?.check,
@@ -915,6 +995,7 @@ const createConfiguredLspProvider = (server) => {
     }
     const environmentPreflight = resolveFirstNonReadyPreflight(
       luaLibraryPreflight,
+      luaWorkspaceConfigPreflight,
       yamlSchemaModePreflight,
       runtimeRequirementPreflight,
       zigWorkspaceRootPreflight,
