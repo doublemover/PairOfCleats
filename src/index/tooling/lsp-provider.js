@@ -33,6 +33,7 @@ import {
   resolveRuntimeCommandFromPreflight
 } from './preflight/command-profile-preflight.js';
 import { resolveRuntimeRequirementsPreflight } from './preflight/runtime-requirements-preflight.js';
+import { resolveGoWorkspaceModulePreflight } from './preflight/go-workspace-preflight.js';
 import { resolveRustWorkspaceMetadataPreflight } from './preflight/rust-workspace-preflight.js';
 import { resolveWorkspaceModelPreflight } from './preflight/workspace-model-preflight.js';
 
@@ -188,6 +189,14 @@ const resolveYamlSchemaModePreflight = ({ server }) => {
   };
 };
 
+const resolveFirstNonReadyPreflight = (...entries) => {
+  for (const entry of entries) {
+    const state = String(entry?.state || 'ready').trim().toLowerCase() || 'ready';
+    if (state !== 'ready') return entry;
+  }
+  return { state: 'ready', reasonCode: null, message: '' };
+};
+
 const parseGenericSignature = (detail, languageId, symbolName) => {
   const lang = String(languageId || '').toLowerCase();
   if (lang === 'python' || lang === 'py' || lang === 'pyi') return parsePythonSignature(detail);
@@ -322,6 +331,16 @@ const normalizeServerConfig = (server, index) => {
   const preflightClass = preflightClassRaw === 'dependency'
     ? 'dependency'
     : (preflightClassRaw === 'workspace' ? 'workspace' : null);
+  const goWorkspaceModuleCmd = String(merged.goWorkspaceModuleCmd || '').trim();
+  const goWorkspaceModuleArgs = Array.isArray(merged.goWorkspaceModuleArgs)
+    ? merged.goWorkspaceModuleArgs.map((entry) => String(entry))
+    : null;
+  const goWorkspaceModuleTimeoutMs = Number(merged.goWorkspaceModuleTimeoutMs);
+  const rustWorkspaceMetadataCmd = String(merged.rustWorkspaceMetadataCmd || '').trim();
+  const rustWorkspaceMetadataArgs = Array.isArray(merged.rustWorkspaceMetadataArgs)
+    ? merged.rustWorkspaceMetadataArgs.map((entry) => String(entry))
+    : null;
+  const rustWorkspaceMetadataTimeoutMs = Number(merged.rustWorkspaceMetadataTimeoutMs);
   const workspaceModelMissingMessage = typeof merged.workspaceModelMissingMessage === 'string'
     ? merged.workspaceModelMissingMessage.trim()
     : '';
@@ -436,6 +455,16 @@ const normalizeServerConfig = (server, index) => {
     preflightClass,
     preflightPolicy,
     preflightRuntimeRequirements,
+    goWorkspaceModuleCmd: goWorkspaceModuleCmd || null,
+    goWorkspaceModuleArgs: goWorkspaceModuleArgs?.length ? goWorkspaceModuleArgs : null,
+    goWorkspaceModuleTimeoutMs: Number.isFinite(goWorkspaceModuleTimeoutMs)
+      ? Math.max(500, Math.floor(goWorkspaceModuleTimeoutMs))
+      : null,
+    rustWorkspaceMetadataCmd: rustWorkspaceMetadataCmd || null,
+    rustWorkspaceMetadataArgs: rustWorkspaceMetadataArgs?.length ? rustWorkspaceMetadataArgs : null,
+    rustWorkspaceMetadataTimeoutMs: Number.isFinite(rustWorkspaceMetadataTimeoutMs)
+      ? Math.max(500, Math.floor(rustWorkspaceMetadataTimeoutMs))
+      : null,
     workspaceModelMissingMessage: resolvedWorkspaceModelMissingMessage,
     lifecycle,
     lifecycleRestartWindowMs: merged.lifecycleRestartWindowMs,
@@ -718,6 +747,10 @@ const createConfiguredLspProvider = (server) => {
       providerId,
       requirements: server.preflightRuntimeRequirements
     });
+    const goWorkspacePreflight = resolveGoWorkspaceModulePreflight({
+      ctx,
+      server
+    });
     const rustWorkspacePreflight = resolveRustWorkspaceMetadataPreflight({
       ctx,
       server
@@ -731,6 +764,8 @@ const createConfiguredLspProvider = (server) => {
         yamlSchemaModePreflight?.checks,
         runtimeRequirementPreflight?.check,
         runtimeRequirementPreflight?.checks,
+        goWorkspacePreflight?.check,
+        goWorkspacePreflight?.checks,
         rustWorkspacePreflight?.check,
         rustWorkspacePreflight?.checks
       );
@@ -740,13 +775,13 @@ const createConfiguredLspProvider = (server) => {
           ...(checks.length ? { checks } : {})
         };
       }
-      const environmentPreflight = luaLibraryPreflight.state !== 'ready'
-        ? luaLibraryPreflight
-        : (yamlSchemaModePreflight.state !== 'ready'
-          ? yamlSchemaModePreflight
-          : (runtimeRequirementPreflight.state !== 'ready'
-            ? runtimeRequirementPreflight
-            : rustWorkspacePreflight));
+      const environmentPreflight = resolveFirstNonReadyPreflight(
+        luaLibraryPreflight,
+        yamlSchemaModePreflight,
+        runtimeRequirementPreflight,
+        goWorkspacePreflight,
+        rustWorkspacePreflight
+      );
       if (environmentPreflight.state !== 'ready') {
         return {
           ...commandPreflight,
@@ -782,6 +817,8 @@ const createConfiguredLspProvider = (server) => {
       yamlSchemaModePreflight?.checks,
       runtimeRequirementPreflight?.check,
       runtimeRequirementPreflight?.checks,
+      goWorkspacePreflight?.check,
+      goWorkspacePreflight?.checks,
       rustWorkspacePreflight?.check,
       rustWorkspacePreflight?.checks
     );
@@ -801,13 +838,13 @@ const createConfiguredLspProvider = (server) => {
         ...(checks.length ? { checks } : {})
       };
     }
-    const environmentPreflight = luaLibraryPreflight.state !== 'ready'
-      ? luaLibraryPreflight
-      : (yamlSchemaModePreflight.state !== 'ready'
-        ? yamlSchemaModePreflight
-        : (runtimeRequirementPreflight.state !== 'ready'
-          ? runtimeRequirementPreflight
-          : rustWorkspacePreflight));
+    const environmentPreflight = resolveFirstNonReadyPreflight(
+      luaLibraryPreflight,
+      yamlSchemaModePreflight,
+      runtimeRequirementPreflight,
+      goWorkspacePreflight,
+      rustWorkspacePreflight
+    );
     if (environmentPreflight.state !== 'ready') {
       return {
         ...commandPreflight,
