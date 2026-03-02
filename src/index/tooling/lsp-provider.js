@@ -159,6 +159,31 @@ const resolveLuaWorkspaceLibraryPreflight = ({ server, repoRoot }) => {
   };
 };
 
+const resolveYamlSchemaModePreflight = ({ server }) => {
+  const serverId = String(server?.id || '').trim().toLowerCase();
+  const languages = Array.isArray(server?.languages)
+    ? server.languages.map((entry) => String(entry || '').trim().toLowerCase()).filter(Boolean)
+    : [];
+  if (serverId !== 'yaml-language-server' && !languages.includes('yaml') && !languages.includes('yml')) {
+    return { state: 'ready', reasonCode: null, message: '', check: null };
+  }
+  const enabled = server?.initializationOptions?.settings?.yaml?.schemaStore?.enable;
+  if (enabled !== true) {
+    return { state: 'ready', reasonCode: null, message: '', check: null };
+  }
+  const message = 'yaml schemaStore remote fetch is enabled; this may introduce network-latency variability.';
+  return {
+    state: 'degraded',
+    reasonCode: 'yaml_schema_store_remote_enabled',
+    message,
+    check: {
+      name: 'yaml_schema_store_remote_enabled',
+      status: 'warn',
+      message
+    }
+  };
+};
+
 const parseGenericSignature = (detail, languageId, symbolName) => {
   const lang = String(languageId || '').toLowerCase();
   if (lang === 'python' || lang === 'py' || lang === 'pyi') return parsePythonSignature(detail);
@@ -683,11 +708,14 @@ const createConfiguredLspProvider = (server) => {
       server,
       repoRoot: ctx?.repoRoot || process.cwd()
     });
+    const yamlSchemaModePreflight = resolveYamlSchemaModePreflight({ server });
     if (!(server.workspaceMarkerOptions && server.requireWorkspaceModel !== false)) {
       const checks = mergePreflightChecks(
         commandPreflight?.checks,
         luaLibraryPreflight?.check,
-        luaLibraryPreflight?.checks
+        luaLibraryPreflight?.checks,
+        yamlSchemaModePreflight?.check,
+        yamlSchemaModePreflight?.checks
       );
       if (commandPreflight.state !== 'ready') {
         return {
@@ -695,12 +723,15 @@ const createConfiguredLspProvider = (server) => {
           ...(checks.length ? { checks } : {})
         };
       }
-      if (luaLibraryPreflight.state !== 'ready') {
+      const environmentPreflight = luaLibraryPreflight.state !== 'ready'
+        ? luaLibraryPreflight
+        : yamlSchemaModePreflight;
+      if (environmentPreflight.state !== 'ready') {
         return {
           ...commandPreflight,
-          state: luaLibraryPreflight.state || 'degraded',
-          reasonCode: luaLibraryPreflight.reasonCode || null,
-          message: luaLibraryPreflight.message || '',
+          state: environmentPreflight.state || 'degraded',
+          reasonCode: environmentPreflight.reasonCode || null,
+          message: environmentPreflight.message || '',
           ...(checks.length ? { checks } : {})
         };
       }
@@ -725,7 +756,9 @@ const createConfiguredLspProvider = (server) => {
       workspacePreflight?.check,
       workspacePreflight?.checks,
       luaLibraryPreflight?.check,
-      luaLibraryPreflight?.checks
+      luaLibraryPreflight?.checks,
+      yamlSchemaModePreflight?.check,
+      yamlSchemaModePreflight?.checks
     );
     if (workspacePreflight.blockProvider === true || workspacePreflight.blockSourcekit === true) {
       return {
@@ -743,12 +776,15 @@ const createConfiguredLspProvider = (server) => {
         ...(checks.length ? { checks } : {})
       };
     }
-    if (luaLibraryPreflight.state !== 'ready') {
+    const environmentPreflight = luaLibraryPreflight.state !== 'ready'
+      ? luaLibraryPreflight
+      : yamlSchemaModePreflight;
+    if (environmentPreflight.state !== 'ready') {
       return {
         ...commandPreflight,
-        state: luaLibraryPreflight.state || 'degraded',
-        reasonCode: luaLibraryPreflight.reasonCode || null,
-        message: luaLibraryPreflight.message || '',
+        state: environmentPreflight.state || 'degraded',
+        reasonCode: environmentPreflight.reasonCode || null,
+        message: environmentPreflight.message || '',
         ...(checks.length ? { checks } : {})
       };
     }

@@ -664,3 +664,4 @@ Acceptance gate:
 - 2026-03-02T10:04:20.4891399-05:00: Added provider-declared preflight policy/runtime-prerequisite metadata across dedicated/configured providers and made tooling doctor consume/report metadata first (with command-heuristic fallback).
 - 2026-03-02T10:13:05.0043036-05:00: Added static preflight provider metadata coverage guard (preflight id/class/policy/runtime requirements) and wired it into ci-lite to enforce hard-cutover invariants.
 - 2026-03-02T10:15:53.1310996-05:00: Added Lua workspace-library preflight validation (missing path degraded warning, non-blocking) for configured providers with coverage in ci-lite.
+- 2026-03-02T10:17:40.5364622-05:00: Added YAML schema-mode preflight classification for configured providers and surfaced remote schemaStore mode as explicit degraded diagnostics (non-blocking) with ci-lite coverage.
