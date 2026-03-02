@@ -2,7 +2,6 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { SymbolKind } from 'vscode-languageserver-protocol';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
-import { resolveEnvPath } from '../../shared/env-path.js';
 import { toPosix } from '../../shared/files.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { acquireFileLock } from '../../shared/locks/file-lock.js';
@@ -12,7 +11,6 @@ import {
   isProbeCommandDefinitelyMissing,
   resolveToolingCommandProfile
 } from './command-resolver.js';
-import { splitPathEntries } from './binary-utils.js';
 import { parseSwiftSignature } from './signature-parse/swift.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 import { resolveProviderRequestedCommand } from './provider-command-override.js';
@@ -121,25 +119,6 @@ const buildSourcekitCommandUnavailableCheck = ({ definitelyMissing = false } = {
     : 'sourcekit-lsp command probe failed; attempting stdio initialization anyway.'
 });
 
-const canRunCommand = (cmd, args = ['--help']) => {
-  try {
-    const profile = resolveToolingCommandProfile({
-      providerId: 'sourcekit',
-      cmd,
-      args: Array.isArray(args) ? args : [],
-      repoRoot: process.cwd(),
-      toolingConfig: {}
-    });
-    return profile?.probe?.ok === true;
-  } catch {
-    return false;
-  }
-};
-
-const canRunSourcekit = (cmd) => {
-  return canRunCommand(cmd, ['--help']);
-};
-
 const acquireHostSourcekitLock = async ({
   lockPath,
   waitMs = SOURCEKIT_HOST_LOCK_WAIT_MS,
@@ -173,47 +152,6 @@ export const resolveSourcekitHostLockPath = (repoRoot) => (
 );
 export { resolveSourcekitPreflightLockPath };
 
-const resolveCommandCandidates = (cmd) => {
-  const output = [];
-  const seen = new Set();
-  const add = (candidate) => {
-    const normalized = String(candidate || '').trim();
-    if (!normalized || seen.has(normalized)) return;
-    seen.add(normalized);
-    output.push(normalized);
-  };
-
-  const pathEntries = splitPathEntries(resolveEnvPath(process.env));
-  const lowered = String(cmd || '').toLowerCase();
-  const hasExt = /\.(exe|cmd|bat)$/i.test(lowered);
-
-  if (path.isAbsolute(cmd)) {
-    add(cmd);
-    if (process.platform === 'win32' && !hasExt) {
-      for (const ext of ['.exe', '.cmd', '.bat']) {
-        add(`${cmd}${ext}`);
-      }
-    }
-  } else if (process.platform === 'win32' && hasExt) {
-    for (const dir of pathEntries) {
-      add(path.join(dir, cmd));
-    }
-  } else if (process.platform === 'win32') {
-    for (const dir of pathEntries) {
-      for (const ext of ['.exe', '.cmd', '.bat']) {
-        add(path.join(dir, `${cmd}${ext}`));
-      }
-    }
-  } else {
-    for (const dir of pathEntries) {
-      add(path.join(dir, cmd));
-    }
-  }
-
-  add(cmd);
-  return output;
-};
-
 export const scoreSourcekitCandidate = (candidate) => {
   const lowered = String(candidate || '').toLowerCase();
   let score = 0;
@@ -246,24 +184,6 @@ export const compareSourcekitCandidatePriority = (left, right) => {
     return leftRaw.localeCompare(rightRaw);
   }
   return 0;
-};
-
-const resolveCommand = (cmd) => {
-  const prioritizeSourcekitCandidates = String(cmd || '').toLowerCase().includes('sourcekit');
-  const candidates = resolveCommandCandidates(cmd)
-    .filter((candidate) => candidate !== cmd && fsSync.existsSync(candidate))
-    .map((candidate, index) => ({
-      candidate,
-      index,
-      score: prioritizeSourcekitCandidates ? scoreSourcekitCandidate(candidate) : 0
-    }))
-    .sort(compareSourcekitCandidatePriority)
-    .map((entry) => entry.candidate);
-  for (const candidate of candidates) {
-    if (canRunSourcekit(candidate)) return candidate;
-  }
-  if (canRunSourcekit(cmd)) return cmd;
-  return cmd;
 };
 
 const formatLatency = (value) => (Number.isFinite(value) ? `${Math.round(value)}ms` : 'n/a');
