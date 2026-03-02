@@ -109,14 +109,24 @@ export const createPyrightProvider = () => ({
 
     const commandProfile = preflight?.commandProfile && typeof preflight.commandProfile === 'object'
       ? preflight.commandProfile
-      : resolveToolingCommandProfile({
-        providerId: 'pyright',
-        cmd: requestedCommand.cmd,
-        args: requestedCommand.args,
-        repoRoot: ctx?.repoRoot || process.cwd(),
-        toolingConfig: ctx?.toolingConfig || {}
+      : null;
+    const resolvedCmd = String(commandProfile?.resolved?.cmd || requestedCommand.cmd || '').trim();
+    const resolvedArgs = Array.isArray(commandProfile?.resolved?.args)
+      ? commandProfile.resolved.args
+      : requestedCommand.args;
+    if (!resolvedCmd) {
+      checks.push({
+        name: 'pyright_preflight_command_profile_missing',
+        status: 'warn',
+        message: 'pyright preflight did not provide a resolved command profile; skipping provider.'
       });
-    if (!commandProfile.probe.ok) {
+      return {
+        provider: { id: 'pyright', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+        byChunkUid: {},
+        diagnostics: appendDiagnosticChecks(null, checks)
+      };
+    }
+    if (commandProfile?.probe?.ok !== true) {
       log('[index] pyright-langserver command probe failed; attempting stdio initialization.');
       if (!checks.some((entry) => entry?.name === 'pyright_command_unavailable')) {
         checks.push({
@@ -143,8 +153,8 @@ export const createPyrightProvider = () => ({
       abortSignal: ctx?.abortSignal || null,
       log,
       providerId: 'pyright',
-      cmd: commandProfile.resolved.cmd,
-      args: commandProfile.resolved.args || requestedCommand.args,
+      cmd: resolvedCmd,
+      args: resolvedArgs,
       parseSignature: (detail) => parsePythonSignature(detail),
       strict: ctx?.strict !== false,
       vfsRoot: ctx?.buildRoot || ctx.repoRoot,
@@ -163,7 +173,7 @@ export const createPyrightProvider = () => ({
     invalidateProbeCacheOnInitializeFailure({
       checks: result?.checks,
       providerId: 'pyright',
-      command: commandProfile.resolved.cmd
+      command: resolvedCmd
     });
     return {
       provider: { id: 'pyright', version: '2.0.0', configHash: this.getConfigHash(ctx) },

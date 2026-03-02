@@ -8,8 +8,7 @@ import { acquireFileLock } from '../../shared/locks/file-lock.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
 import {
   invalidateProbeCacheOnInitializeFailure,
-  isProbeCommandDefinitelyMissing,
-  resolveToolingCommandProfile
+  isProbeCommandDefinitelyMissing
 } from './command-resolver.js';
 import { parseSwiftSignature } from './signature-parse/swift.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
@@ -438,15 +437,25 @@ export const createSourcekitProvider = () => ({
       : resolveSourcekitRequestedCommand(ctx);
     const commandProfile = preflight?.commandProfile && typeof preflight.commandProfile === 'object'
       ? preflight.commandProfile
-      : resolveToolingCommandProfile({
-        providerId: 'sourcekit',
-        cmd: requestedCommand.cmd,
-        args: requestedCommand.args,
-        repoRoot: ctx?.repoRoot || process.cwd(),
-        toolingConfig: ctx?.toolingConfig || {}
+      : null;
+    const resolvedCmd = String(commandProfile?.resolved?.cmd || requestedCommand.cmd || '').trim();
+    const resolvedArgs = Array.isArray(commandProfile?.resolved?.args)
+      ? commandProfile.resolved.args
+      : requestedCommand.args;
+    if (!resolvedCmd) {
+      checks.push({
+        name: 'sourcekit_preflight_command_profile_missing',
+        status: 'warn',
+        message: 'sourcekit preflight did not provide a resolved command profile; skipping provider.'
       });
-    if (!commandProfile.probe.ok && !checks.some((entry) => entry?.name === 'sourcekit_command_unavailable')) {
-      const definitelyMissing = isProbeCommandDefinitelyMissing(commandProfile.probe);
+      return {
+        provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+        byChunkUid: {},
+        diagnostics: appendDiagnosticChecks(null, checks)
+      };
+    }
+    if (commandProfile?.probe?.ok !== true && !checks.some((entry) => entry?.name === 'sourcekit_command_unavailable')) {
+      const definitelyMissing = isProbeCommandDefinitelyMissing(commandProfile?.probe);
       checks.push(buildSourcekitCommandUnavailableCheck({ definitelyMissing }));
       if (definitelyMissing) {
         log('[index] sourcekit-lsp not detected; skipping.');
@@ -497,8 +506,8 @@ export const createSourcekitProvider = () => ({
         abortSignal,
         log,
         providerId: 'sourcekit',
-        cmd: commandProfile.resolved.cmd,
-        args: commandProfile.resolved.args || requestedCommand.args,
+        cmd: resolvedCmd,
+        args: resolvedArgs,
         hoverTimeoutMs,
         signatureHelpTimeoutMs,
         hoverEnabled,
@@ -519,7 +528,7 @@ export const createSourcekitProvider = () => ({
       invalidateProbeCacheOnInitializeFailure({
         checks: result?.checks,
         providerId: 'sourcekit',
-        command: commandProfile.resolved.cmd
+        command: resolvedCmd
       });
 
       logHoverMetrics(log, result.hoverMetrics);

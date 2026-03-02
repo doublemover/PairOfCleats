@@ -1,6 +1,6 @@
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { appendDiagnosticChecks, hashProviderConfig, normalizeProviderId } from './provider-contract.js';
-import { invalidateProbeCacheOnInitializeFailure, resolveToolingCommandProfile } from './command-resolver.js';
+import { invalidateProbeCacheOnInitializeFailure } from './command-resolver.js';
 import { listLspServerPresets, resolveLspServerPreset } from './lsp-presets.js';
 import { parseClikeSignature } from './signature-parse/clike.js';
 import { parseElixirSignature } from './signature-parse/elixir.js';
@@ -366,15 +366,6 @@ const createConfiguredLspProvider = (server) => {
     status: 'warn',
     message: `${requestedCmd} command probe failed for ${providerId}; attempting stdio initialization anyway.`
   });
-  const resolveCommandProfile = (ctx) => (
-    resolveToolingCommandProfile({
-      providerId: server.id || providerId,
-      cmd: server.cmd,
-      args: server.args || [],
-      repoRoot: ctx?.repoRoot || process.cwd(),
-      toolingConfig: ctx?.toolingConfig || {}
-    })
-  );
   const collectConfiguredOutput = async ({
     ctx,
     provider,
@@ -382,8 +373,13 @@ const createConfiguredLspProvider = (server) => {
     targets,
     log,
     preChecks,
-    commandProfile
+    commandProfile,
+    requestedCommand
   }) => {
+    const resolvedCmd = String(commandProfile?.resolved?.cmd || requestedCommand?.cmd || '').trim();
+    const resolvedArgs = Array.isArray(commandProfile?.resolved?.args)
+      ? commandProfile.resolved.args
+      : (Array.isArray(requestedCommand?.args) ? requestedCommand.args : []);
     const result = await collectLspTypes({
       ...resolveLspRuntimeConfig({
         providerConfig: server,
@@ -400,8 +396,8 @@ const createConfiguredLspProvider = (server) => {
       abortSignal: ctx?.abortSignal || null,
       log,
       providerId,
-      cmd: commandProfile.resolved.cmd,
-      args: commandProfile.resolved.args || [],
+      cmd: resolvedCmd,
+      args: resolvedArgs,
       parseSignature: parseGenericSignature,
       strict: ctx?.strict !== false,
       vfsRoot: ctx?.buildRoot || ctx.repoRoot,
@@ -426,7 +422,7 @@ const createConfiguredLspProvider = (server) => {
     invalidateProbeCacheOnInitializeFailure({
       checks: resultChecks,
       providerId: server.id || providerId,
-      command: commandProfile.resolved.cmd
+      command: resolvedCmd
     });
     if (server.rustSuppressProcMacroDiagnostics) {
       const suppression = applyRustProcMacroSuppression(diagnosticsByChunkUid);
@@ -492,6 +488,10 @@ const createConfiguredLspProvider = (server) => {
     async run(ctx, inputs) {
       const log = typeof ctx?.logger === 'function' ? ctx.logger : (() => {});
       const preChecks = [];
+      let requestedCommand = {
+        cmd: server.cmd,
+        args: server.args || []
+      };
       if (ctx?.toolingConfig?.lsp?.enabled === false) {
         return {
           provider: { id: providerId, version: this.version, configHash: this.getConfigHash(ctx) },
@@ -537,14 +537,27 @@ const createConfiguredLspProvider = (server) => {
             diagnostics: appendDiagnosticChecks(null, preChecks)
           };
         }
+        if (preflight?.requestedCommand && typeof preflight.requestedCommand === 'object') {
+          requestedCommand = preflight.requestedCommand;
+        }
         if (preflight?.commandProfile && typeof preflight.commandProfile === 'object') {
           commandProfile = preflight.commandProfile;
         }
       }
-      if (!commandProfile) {
-        commandProfile = resolveCommandProfile(ctx);
+      const resolvedCmd = String(commandProfile?.resolved?.cmd || requestedCommand.cmd || '').trim();
+      if (!resolvedCmd) {
+        preChecks.push({
+          name: 'lsp_preflight_command_profile_missing',
+          status: 'warn',
+          message: `configured LSP preflight did not provide a resolved command for ${providerId}; skipping provider.`
+        });
+        return {
+          provider: { id: providerId, version: this.version, configHash: this.getConfigHash(ctx) },
+          byChunkUid: {},
+          diagnostics: appendDiagnosticChecks(null, preChecks)
+        };
       }
-      if (!commandProfile.probe.ok) {
+      if (commandProfile?.probe?.ok !== true) {
         if (!preChecks.some((entry) => entry?.name === 'lsp_command_unavailable')) {
           preChecks.push(buildCommandUnavailableCheck(server.cmd));
         }
@@ -557,7 +570,8 @@ const createConfiguredLspProvider = (server) => {
         targets,
         log,
         preChecks,
-        commandProfile
+        commandProfile,
+        requestedCommand
       });
     }
   };

@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
-import { invalidateProbeCacheOnInitializeFailure, resolveToolingCommandProfile } from './command-resolver.js';
+import { invalidateProbeCacheOnInitializeFailure } from './command-resolver.js';
 import { resolveProviderRequestedCommand } from './provider-command-override.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 import { isPlainObject, normalizeCommandArgs, filterTargetsForDocuments } from './provider-utils.js';
@@ -185,7 +185,7 @@ const shouldBlockProviderFromPreflight = (preflight) => {
  *     ctx: object,
  *     config: object,
  *     requested: { cmd: string, args: string[] },
- *     commandProfile: ReturnType<typeof resolveToolingCommandProfile>
+ *     commandProfile: object
  *   }) => Promise<{
  *     args?: string[],
  *     checks?: Array<{name: string, status: string, message: string}>,
@@ -256,20 +256,25 @@ export const createDedicatedLspProvider = (descriptor) => {
         : resolveRequestedCommand(descriptor, config, ctx?.toolingConfig);
       const commandProfile = preflight?.commandProfile && typeof preflight.commandProfile === 'object'
         ? preflight.commandProfile
-        : resolveToolingCommandProfile({
-          providerId: descriptor.id,
-          cmd: requested.cmd,
-          args: requested.args,
-          repoRoot: ctx?.repoRoot || process.cwd(),
-          toolingConfig: ctx?.toolingConfig || {}
+        : null;
+      const resolvedCmd = String(commandProfile?.resolved?.cmd || requested.cmd || '').trim();
+      if (!resolvedCmd) {
+        checks.push({
+          name: `${descriptor.id}_preflight_command_profile_missing`,
+          status: 'warn',
+          message: `${descriptor.label} preflight did not provide a resolved command profile; skipping provider.`
         });
-      if (!commandProfile.probe.ok) {
+        return buildBaseResult(providerRef, checks);
+      }
+      if (commandProfile?.probe?.ok !== true) {
         if (!checks.some((entry) => entry?.name === buildCommandUnavailableCheck(descriptor, requested.cmd).name)) {
           checks.push(buildCommandUnavailableCheck(descriptor, requested.cmd));
         }
       }
 
-      let resolvedArgs = commandProfile.resolved.args || requested.args;
+      let resolvedArgs = Array.isArray(commandProfile?.resolved?.args)
+        ? commandProfile.resolved.args
+        : requested.args;
       let collectOptions = {};
       if (typeof descriptor.prepareCollect === 'function') {
         const prepared = await descriptor.prepareCollect({
@@ -306,7 +311,7 @@ export const createDedicatedLspProvider = (descriptor) => {
         abortSignal: ctx?.abortSignal || null,
         log: getLogger(ctx),
         providerId: descriptor.id,
-        cmd: commandProfile.resolved.cmd,
+        cmd: resolvedCmd,
         args: resolvedArgs,
         parseSignature: descriptor.parseSignature,
         strict: ctx?.strict !== false,
@@ -323,7 +328,7 @@ export const createDedicatedLspProvider = (descriptor) => {
       invalidateProbeCacheOnInitializeFailure({
         checks: result?.checks,
         providerId: descriptor.id,
-        command: commandProfile.resolved.cmd
+        command: resolvedCmd
       });
 
       return {

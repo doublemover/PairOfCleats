@@ -6,7 +6,7 @@ import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfi
 import { toPosix } from '../../shared/files.js';
 import { atomicWriteJsonSync } from '../../shared/io/atomic-write.js';
 import { runSyncCommandWithTimeout, toSyncCommandExitCode } from '../../shared/subprocess/sync-command.js';
-import { invalidateProbeCacheOnInitializeFailure, resolveToolingCommandProfile } from './command-resolver.js';
+import { invalidateProbeCacheOnInitializeFailure } from './command-resolver.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 import { resolveProviderRequestedCommand } from './provider-command-override.js';
 import { filterTargetsForDocuments } from './provider-utils.js';
@@ -560,14 +560,24 @@ export const createClangdProvider = () => ({
       });
     const commandProfile = preflight?.commandProfile && typeof preflight.commandProfile === 'object'
       ? preflight.commandProfile
-      : resolveToolingCommandProfile({
-        providerId: 'clangd',
-        cmd: requestedCommand.cmd,
-        args: requestedCommand.args,
-        repoRoot: ctx?.repoRoot || process.cwd(),
-        toolingConfig: ctx?.toolingConfig || {}
+      : null;
+    const resolvedCmd = String(commandProfile?.resolved?.cmd || requestedCommand.cmd || '').trim();
+    const resolvedArgs = Array.isArray(commandProfile?.resolved?.args)
+      ? commandProfile.resolved.args
+      : requestedCommand.args;
+    if (!resolvedCmd) {
+      checks.push({
+        name: 'clangd_preflight_command_profile_missing',
+        status: 'warn',
+        message: 'clangd preflight did not provide a resolved command profile; skipping provider.'
       });
-    if (!commandProfile.probe.ok) {
+      return {
+        provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+        byChunkUid: {},
+        diagnostics: appendDiagnosticChecks(null, checks)
+      };
+    }
+    if (commandProfile?.probe?.ok !== true) {
       log('[index] clangd command probe failed; attempting stdio initialization.');
       if (!checks.some((entry) => entry?.name === 'clangd_command_unavailable')) {
         checks.push(buildClangdCommandUnavailableCheck());
@@ -658,8 +668,8 @@ export const createClangdProvider = () => ({
         abortSignal: ctx?.abortSignal || null,
         log,
         providerId: 'clangd',
-        cmd: commandProfile.resolved.cmd,
-        args: commandProfile.resolved.args || requestedCommand.args,
+        cmd: resolvedCmd,
+        args: resolvedArgs,
         documentSymbolTimeoutMs,
         documentSymbolConcurrency: clangdConfig.documentSymbolConcurrency,
         hoverEnabled,
@@ -688,7 +698,7 @@ export const createClangdProvider = () => ({
     invalidateProbeCacheOnInitializeFailure({
       checks: result?.checks,
       providerId: 'clangd',
-      command: commandProfile.resolved.cmd
+      command: resolvedCmd
     });
     return {
       provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },
