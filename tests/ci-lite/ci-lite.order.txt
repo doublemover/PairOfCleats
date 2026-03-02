@@ -651,6 +651,7 @@ tooling/lsp/configured-provider-lua-workspace-library-missing-path-preflight
 tooling/lsp/configured-provider-lua-workspace-config-invalid-preflight
 tooling/lsp/configured-provider-runtime-requirement-preflight-degraded
 tooling/lsp/configured-provider-rust-proc-macro-diagnostic-suppression
+tooling/lsp/configured-provider-rust-proc-macro-suppression-policy-preflight
 tooling/lsp/configured-provider-rust-workspace-metadata-preflight-degraded
 tooling/lsp/configured-provider-rust-workspace-metadata-preflight-timeout-override
 storage/sqlite/reader-schema-mismatch

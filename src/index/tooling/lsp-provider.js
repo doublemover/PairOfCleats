@@ -326,6 +326,31 @@ const resolveZigWorkspaceRootPreflight = ({ server, repoRoot }) => {
   };
 };
 
+const resolveRustProcMacroSuppressionPolicyPreflight = ({ server }) => {
+  const serverId = String(server?.id || '').trim().toLowerCase();
+  const languages = Array.isArray(server?.languages)
+    ? server.languages.map((entry) => String(entry || '').trim().toLowerCase()).filter(Boolean)
+    : [];
+  const isRustServer = serverId === 'rust-analyzer' || languages.includes('rust');
+  if (!isRustServer) {
+    return { state: 'ready', reasonCode: null, message: '', check: null };
+  }
+  if (server?.rustSuppressProcMacroDiagnostics !== true || server?.rustSuppressProcMacroDiagnosticsExplicit !== true) {
+    return { state: 'ready', reasonCode: null, message: '', check: null };
+  }
+  const message = 'rust proc-macro non-fatal diagnostics suppression policy is enabled; warning diagnostics may be intentionally filtered.';
+  return {
+    state: 'degraded',
+    reasonCode: 'rust_workspace_proc_macro_suppression_active',
+    message,
+    check: {
+      name: 'rust_workspace_proc_macro_suppression_active',
+      status: 'warn',
+      message
+    }
+  };
+};
+
 const resolveFirstNonReadyPreflight = (...entries) => {
   for (const entry of entries) {
     const state = String(entry?.state || 'ready').trim().toLowerCase() || 'ready';
@@ -496,6 +521,10 @@ const normalizeServerConfig = (server, index) => {
   const lifecycle = isPlainObject(merged.lifecycle)
     ? deepCloneValue(merged.lifecycle)
     : null;
+  const rustSuppressProcMacroDiagnosticsExplicit = Object.prototype.hasOwnProperty.call(
+    merged,
+    'rustSuppressProcMacroDiagnostics'
+  );
   const rustSuppressProcMacroDiagnostics = id === 'rust-analyzer'
     ? merged.rustSuppressProcMacroDiagnostics !== false
     : false;
@@ -586,6 +615,7 @@ const normalizeServerConfig = (server, index) => {
     hoverRequireMissingReturn,
     hoverSymbolKinds,
     rustSuppressProcMacroDiagnostics,
+    rustSuppressProcMacroDiagnosticsExplicit,
     requireWorkspaceModel,
     workspaceMarkerOptions: resolvedWorkspaceMarkerOptions,
     workspaceModelPolicy,
@@ -900,6 +930,9 @@ const createConfiguredLspProvider = (server) => {
       ctx,
       server
     });
+    const rustSuppressionPolicyPreflight = resolveRustProcMacroSuppressionPolicyPreflight({
+      server
+    });
     if (!(server.workspaceMarkerOptions && server.requireWorkspaceModel !== false)) {
       const checks = mergePreflightChecks(
         commandPreflight?.checks,
@@ -911,6 +944,8 @@ const createConfiguredLspProvider = (server) => {
         yamlSchemaModePreflight?.checks,
         runtimeRequirementPreflight?.check,
         runtimeRequirementPreflight?.checks,
+        rustSuppressionPolicyPreflight?.check,
+        rustSuppressionPolicyPreflight?.checks,
         zigWorkspaceRootPreflight?.check,
         zigWorkspaceRootPreflight?.checks,
         goWorkspacePreflight?.check,
@@ -929,6 +964,7 @@ const createConfiguredLspProvider = (server) => {
         luaWorkspaceConfigPreflight,
         yamlSchemaModePreflight,
         runtimeRequirementPreflight,
+        rustSuppressionPolicyPreflight,
         zigWorkspaceRootPreflight,
         goWorkspacePreflight,
         rustWorkspacePreflight
@@ -970,6 +1006,8 @@ const createConfiguredLspProvider = (server) => {
       yamlSchemaModePreflight?.checks,
       runtimeRequirementPreflight?.check,
       runtimeRequirementPreflight?.checks,
+      rustSuppressionPolicyPreflight?.check,
+      rustSuppressionPolicyPreflight?.checks,
       zigWorkspaceRootPreflight?.check,
       zigWorkspaceRootPreflight?.checks,
       goWorkspacePreflight?.check,
@@ -998,6 +1036,7 @@ const createConfiguredLspProvider = (server) => {
       luaWorkspaceConfigPreflight,
       yamlSchemaModePreflight,
       runtimeRequirementPreflight,
+      rustSuppressionPolicyPreflight,
       zigWorkspaceRootPreflight,
       goWorkspacePreflight,
       rustWorkspacePreflight
