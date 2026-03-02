@@ -383,6 +383,35 @@ const parsePreflightSummaryLine = (line) => {
   };
 };
 
+const parsePreflightSlowestLine = (line) => {
+  const trimmed = String(line || '').trim();
+  if (!trimmed || !trimmed.includes('[tooling] preflight slowest')) return [];
+  const match = /\[tooling\]\s+preflight slowest\s+(?<rest>.+)$/iu.exec(trimmed);
+  if (!match) return [];
+  const rest = String(match.groups?.rest || '').trim();
+  if (!rest) return [];
+  const out = [];
+  for (const chunk of rest.split(',')) {
+    const entry = String(chunk || '').trim();
+    if (!entry) continue;
+    const parsed = /^(?<provider>[^/]+)\/(?<id>[^:]+):(?<duration>\d+)ms$/u.exec(entry);
+    if (!parsed) continue;
+    const providerId = String(parsed.groups?.provider || '').trim();
+    const preflightId = String(parsed.groups?.id || '').trim();
+    const durationMsRaw = Number(parsed.groups?.duration);
+    if (!providerId || !preflightId || !Number.isFinite(durationMsRaw)) continue;
+    out.push({
+      providerId,
+      preflightId,
+      preflightClass: 'unknown',
+      state: null,
+      event: 'summary_slowest',
+      durationMs: Math.max(0, durationMsRaw)
+    });
+  }
+  return out;
+};
+
 const pushTopSlowPreflights = (rows, entry) => {
   pushTopNOrdered(
     rows,
@@ -403,6 +432,7 @@ const buildPreflightLogSummary = async (resultsRoot) => {
   const topSlow = [];
   const summaryCountsByClass = new Map();
   const summaryCountsByState = new Map();
+  const summaryTopSlow = [];
   let summaryLineCount = 0;
   let summaryMaxQueuePeak = 0;
   let summaryTeardownTimedOutCount = 0;
@@ -429,6 +459,10 @@ const buildPreflightLogSummary = async (resultsRoot) => {
         for (const [name, count] of Object.entries(summary.countsByState || {})) {
           summaryCountsByState.set(name, (summaryCountsByState.get(name) || 0) + count);
         }
+      }
+      const summarySlowEntries = parsePreflightSlowestLine(line);
+      for (const entry of summarySlowEntries) {
+        pushTopSlowPreflights(summaryTopSlow, entry);
       }
       const event = parsePreflightLogLine(line);
       if (!event) return;
@@ -487,7 +521,8 @@ const buildPreflightLogSummary = async (resultsRoot) => {
       ),
       countsByState: Object.fromEntries(
         Array.from(summaryCountsByState.entries()).sort(([left], [right]) => left.localeCompare(right))
-      )
+      ),
+      topSlow: summaryTopSlow
     }
   };
 };
