@@ -722,16 +722,18 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
           }
         }
       } catch (error) {
-        observations.push({
-          level: 'warn',
-          code: 'tooling_cache_read_failed',
-          message: `[tooling] provider cache read failed for ${providerId}; using live run.`,
-          context: {
-            providerId,
-            cachePath,
-            error: error?.message || String(error)
-          }
-        });
+        if (error?.code !== 'ENOENT') {
+          observations.push({
+            level: 'warn',
+            code: 'tooling_cache_read_failed',
+            message: `[tooling] provider cache read failed for ${providerId}; using live run.`,
+            context: {
+              providerId,
+              cachePath,
+              error: error?.message || String(error)
+            }
+          });
+        }
       }
     }
     if (!output) {

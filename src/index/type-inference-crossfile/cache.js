@@ -222,6 +222,9 @@ export const readCrossFileInferenceCache = async ({
       }
     }
   } catch (err) {
+    if (err?.code === 'ENOENT') {
+      return null;
+    }
     if (typeof log === 'function') {
       log(`[perf] cross-file cache read failed: ${err?.message || err}`);
     }
