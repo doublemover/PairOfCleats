@@ -693,3 +693,4 @@ Acceptance gate:
 - 2026-03-02T11:35:09.2746410-05:00: Added configured Lua workspace-config preflight classification for invalid/unreadable oversized `.luarc.json` (`lua_workspace_config_invalid`/`lua_workspace_config_unreadable`/`lua_workspace_config_too_large`) with ci-lite coverage.
 - 2026-03-02T11:36:26.6366015-05:00: Added phpactor workspace dependency bootstrap preflight classification for missing `composer.lock` (`phpactor_workspace_composer_lock_missing`) while preserving fail-open enrichment behavior, with ci-lite coverage.
 - 2026-03-02T11:37:27.5294947-05:00: Added ci-lite coverage for csharp ambiguous project-root preflight branch (`csharp_workspace_ambiguous_project`) to harden workspace-bootstrap classification tests.
+- 2026-03-02T12:07:12.4179020-05:00: Added pyright workspace root preflight classification for multi-root repos (`pyright_workspace_mono_root`) with coverage in ci lane while preserving fail-open enrichment.

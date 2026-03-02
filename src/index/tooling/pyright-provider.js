@@ -1,4 +1,5 @@
 import path from 'node:path';
+import fsSync from 'node:fs';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { readJsonFileSafe } from '../../shared/files.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
@@ -16,6 +17,12 @@ import {
 
 export const PYTHON_EXTS = ['.py', '.pyi'];
 const PYRIGHT_CONFIG_MAX_BYTES = 2 * 1024 * 1024;
+const PYRIGHT_WORKSPACE_MARKERS = new Set([
+  'pyproject.toml',
+  'setup.py',
+  'setup.cfg',
+  'requirements.txt'
+]);
 
 export const __canRunPyrightForTests = (cmd) => (
   resolveToolingCommandProfile({
@@ -96,6 +103,49 @@ const resolvePyrightWorkspaceConfigPreflight = async ({ ctx }) => {
   };
 };
 
+const resolvePyrightWorkspaceRootPreflight = ({ ctx }) => {
+  const repoRoot = String(ctx?.repoRoot || process.cwd());
+  let rootEntries = [];
+  try {
+    rootEntries = fsSync.readdirSync(repoRoot, { withFileTypes: true });
+  } catch {
+    return { state: 'ready', reasonCode: null, message: '', checks: [] };
+  }
+  const workspaceRoots = [];
+  const rootHasMarker = rootEntries.some((entry) => (
+    entry?.isFile?.() && PYRIGHT_WORKSPACE_MARKERS.has(String(entry.name || '').toLowerCase())
+  ));
+  if (rootHasMarker) workspaceRoots.push('.');
+  for (const entry of rootEntries) {
+    if (!entry?.isDirectory?.()) continue;
+    try {
+      const childEntries = fsSync.readdirSync(path.join(repoRoot, entry.name), { withFileTypes: true });
+      const hasMarker = childEntries.some((child) => (
+        child?.isFile?.() && PYRIGHT_WORKSPACE_MARKERS.has(String(child.name || '').toLowerCase())
+      ));
+      if (hasMarker) workspaceRoots.push(String(entry.name || ''));
+    } catch {
+      // Ignore unreadable child directories for this advisory-only classification.
+    }
+  }
+  if (workspaceRoots.length <= 1) {
+    return { state: 'ready', reasonCode: null, message: '', checks: [] };
+  }
+  const sample = workspaceRoots.slice(0, 4).join(', ');
+  const suffix = workspaceRoots.length > 4 ? ` (+${workspaceRoots.length - 4} more)` : '';
+  const message = `pyright workspace appears to be monorepo/multi-root (${sample}${suffix}); diagnostics may vary unless workspace root is narrowed.`;
+  return {
+    state: 'degraded',
+    reasonCode: 'pyright_workspace_mono_root',
+    message,
+    checks: [{
+      name: 'pyright_workspace_mono_root',
+      status: 'warn',
+      message
+    }]
+  };
+};
+
 export const createPyrightProvider = () => ({
   id: 'pyright',
   preflightId: 'pyright.command-profile',
@@ -143,10 +193,12 @@ export const createPyrightProvider = () => ({
       }
     });
     const workspaceConfigPreflight = await resolvePyrightWorkspaceConfigPreflight({ ctx });
+    const workspaceRootPreflight = resolvePyrightWorkspaceRootPreflight({ ctx });
     const checks = mergePreflightChecks(
       commandPreflight?.check,
       commandPreflight?.checks,
-      workspaceConfigPreflight?.checks
+      workspaceConfigPreflight?.checks,
+      workspaceRootPreflight?.checks
     );
     if (commandPreflight.state !== 'ready') {
       return {
@@ -160,6 +212,15 @@ export const createPyrightProvider = () => ({
         state: workspaceConfigPreflight.state || 'degraded',
         reasonCode: workspaceConfigPreflight.reasonCode || null,
         message: workspaceConfigPreflight.message || '',
+        ...(checks.length ? { checks } : {})
+      };
+    }
+    if (workspaceRootPreflight.state !== 'ready') {
+      return {
+        ...commandPreflight,
+        state: workspaceRootPreflight.state || 'degraded',
+        reasonCode: workspaceRootPreflight.reasonCode || null,
+        message: workspaceRootPreflight.message || '',
         ...(checks.length ? { checks } : {})
       };
     }
