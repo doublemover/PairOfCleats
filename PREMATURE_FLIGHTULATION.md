@@ -650,3 +650,4 @@ Acceptance gate:
 - 2026-03-02T09:30:17.1397807-05:00: Migrated dedicated-provider command profile probing into framework preflight; run-path now consumes preflight-resolved command profiles.
 - 2026-03-02T09:30:17.1397807-05:00: Migrated clangd command profile probing into preflight (workspace gating preserved) and reused preflight command profile in collect path.
 - 2026-03-02T09:30:17.1397807-05:00: Migrated sourcekit command profile probing into preflight and removed dead provider-local candidate/probe path left from preflight ownership cutover.
+- 2026-03-02T09:37:03.7156135-05:00: Hoisted shared command-profile preflight helper and migrated configured/dedicated/pyright/clangd/sourcekit providers to consume the shared implementation.
