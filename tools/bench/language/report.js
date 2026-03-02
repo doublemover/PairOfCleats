@@ -339,6 +339,50 @@ const parsePreflightLogLine = (line) => {
   };
 };
 
+const parseCommaCountMap = (value) => {
+  const out = Object.create(null);
+  const raw = String(value || '').trim();
+  if (!raw) return out;
+  for (const entry of raw.split(',')) {
+    const trimmed = String(entry || '').trim();
+    if (!trimmed) continue;
+    const idx = trimmed.indexOf(':');
+    if (idx <= 0 || idx >= trimmed.length - 1) continue;
+    const name = trimmed.slice(0, idx).trim().toLowerCase();
+    const countRaw = Number(trimmed.slice(idx + 1).trim());
+    if (!name || !Number.isFinite(countRaw)) continue;
+    out[name] = (out[name] || 0) + Math.max(0, Math.floor(countRaw));
+  }
+  return out;
+};
+
+const parsePreflightSummaryLine = (line) => {
+  const trimmed = String(line || '').trim();
+  if (!trimmed || !trimmed.includes('[tooling] preflight summary')) return null;
+  const match = /\[tooling\]\s+preflight summary\s+(?<rest>.+)$/iu.exec(trimmed);
+  if (!match) return null;
+  const rest = String(match.groups?.rest || '');
+  const values = Object.create(null);
+  for (const entry of rest.split(/\s+/u)) {
+    const idx = entry.indexOf('=');
+    if (idx <= 0 || idx >= entry.length - 1) continue;
+    const key = entry.slice(0, idx).trim().toLowerCase();
+    const value = entry.slice(idx + 1).trim();
+    if (!key || !value) continue;
+    values[key] = value;
+  }
+  return {
+    total: Number.isFinite(Number(values.total)) ? Math.max(0, Number(values.total)) : null,
+    cached: Number.isFinite(Number(values.cached)) ? Math.max(0, Number(values.cached)) : null,
+    timedOut: Number.isFinite(Number(values.timedout)) ? Math.max(0, Number(values.timedout)) : null,
+    failed: Number.isFinite(Number(values.failed)) ? Math.max(0, Number(values.failed)) : null,
+    queuePeak: Number.isFinite(Number(values.queuepeak)) ? Math.max(0, Number(values.queuepeak)) : null,
+    teardownTimedOut: Number(values.teardowntimedout) === 1,
+    countsByState: parseCommaCountMap(values.states),
+    countsByClass: parseCommaCountMap(values.classes)
+  };
+};
+
 const pushTopSlowPreflights = (rows, entry) => {
   pushTopNOrdered(
     rows,
@@ -357,6 +401,11 @@ const buildPreflightLogSummary = async (resultsRoot) => {
   const countsByClass = new Map();
   const countsByProvider = new Map();
   const topSlow = [];
+  const summaryCountsByClass = new Map();
+  const summaryCountsByState = new Map();
+  let summaryLineCount = 0;
+  let summaryMaxQueuePeak = 0;
+  let summaryTeardownTimedOutCount = 0;
   let eventCount = 0;
   let timeoutEvents = 0;
   for (const filePath of files) {
@@ -367,6 +416,20 @@ const buildPreflightLogSummary = async (resultsRoot) => {
       continue;
     }
     forEachNonEmptyLine(raw, (line) => {
+      const summary = parsePreflightSummaryLine(line);
+      if (summary) {
+        summaryLineCount += 1;
+        if (Number.isFinite(summary.queuePeak)) {
+          summaryMaxQueuePeak = Math.max(summaryMaxQueuePeak, summary.queuePeak);
+        }
+        if (summary.teardownTimedOut === true) summaryTeardownTimedOutCount += 1;
+        for (const [name, count] of Object.entries(summary.countsByClass || {})) {
+          summaryCountsByClass.set(name, (summaryCountsByClass.get(name) || 0) + count);
+        }
+        for (const [name, count] of Object.entries(summary.countsByState || {})) {
+          summaryCountsByState.set(name, (summaryCountsByState.get(name) || 0) + count);
+        }
+      }
       const event = parsePreflightLogLine(line);
       if (!event) return;
       eventCount += 1;
@@ -414,7 +477,18 @@ const buildPreflightLogSummary = async (resultsRoot) => {
       Array.from(countsByClass.entries()).sort(([left], [right]) => left.localeCompare(right))
     ),
     topProviders,
-    topSlow
+    topSlow,
+    summary: {
+      lineCount: summaryLineCount,
+      maxQueuePeak: summaryMaxQueuePeak,
+      teardownTimedOutCount: summaryTeardownTimedOutCount,
+      countsByClass: Object.fromEntries(
+        Array.from(summaryCountsByClass.entries()).sort(([left], [right]) => left.localeCompare(right))
+      ),
+      countsByState: Object.fromEntries(
+        Array.from(summaryCountsByState.entries()).sort(([left], [right]) => left.localeCompare(right))
+      )
+    }
   };
 };
 
