@@ -129,7 +129,7 @@ export const createPyrightProvider = () => ({
         diagnostics: appendDiagnosticChecks(null, checks)
       };
     }
-    if (runtimeCommand.probeOk !== true) {
+    if (runtimeCommand.probeKnown && runtimeCommand.probeOk !== true) {
       log('[index] pyright-langserver command probe failed; attempting stdio initialization.');
       if (!checks.some((entry) => entry?.name === 'pyright_command_unavailable')) {
         checks.push({

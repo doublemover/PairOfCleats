@@ -569,7 +569,7 @@ const createConfiguredLspProvider = (server) => {
           diagnostics: appendDiagnosticChecks(null, preChecks)
         };
       }
-      if (runtimeCommand.probeOk !== true) {
+      if (runtimeCommand.probeKnown && runtimeCommand.probeOk !== true) {
         if (!preChecks.some((entry) => entry?.name === 'lsp_command_unavailable')) {
           preChecks.push(buildCommandUnavailableCheck(server.cmd));
         }

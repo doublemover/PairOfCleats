@@ -580,7 +580,7 @@ export const createClangdProvider = () => ({
         diagnostics: appendDiagnosticChecks(null, checks)
       };
     }
-    if (runtimeCommand.probeOk !== true) {
+    if (runtimeCommand.probeKnown && runtimeCommand.probeOk !== true) {
       log('[index] clangd command probe failed; attempting stdio initialization.');
       if (!checks.some((entry) => entry?.name === 'clangd_command_unavailable')) {
         checks.push(buildClangdCommandUnavailableCheck());

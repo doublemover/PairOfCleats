@@ -458,7 +458,11 @@ export const createSourcekitProvider = () => ({
         diagnostics: appendDiagnosticChecks(null, checks)
       };
     }
-    if (runtimeCommand.probeOk !== true && !checks.some((entry) => entry?.name === 'sourcekit_command_unavailable')) {
+    if (
+      runtimeCommand.probeKnown
+      && runtimeCommand.probeOk !== true
+      && !checks.some((entry) => entry?.name === 'sourcekit_command_unavailable')
+    ) {
       const definitelyMissing = isProbeCommandDefinitelyMissing(commandProfile?.probe);
       checks.push(buildSourcekitCommandUnavailableCheck({ definitelyMissing }));
       if (definitelyMissing) {

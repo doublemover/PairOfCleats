@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { resolveCommandProfilePreflightResult } from '../../../src/index/tooling/preflight/command-profile-preflight.js';
+import {
+  resolveCommandProfilePreflightResult,
+  resolveRuntimeCommandFromPreflight
+} from '../../../src/index/tooling/preflight/command-profile-preflight.js';
 
 const ctx = {
   repoRoot: process.cwd(),
@@ -63,5 +66,27 @@ const blocked = resolveCommandProfilePreflightResult({
 assert.equal(blocked.state, 'blocked', 'expected missing command to block when configured');
 assert.equal(blocked.blockSourcekit, true, 'expected configured block flag to be set');
 assert.equal(blocked.definitelyMissing, true, 'expected helper to classify definitely-missing probe');
+
+const runtimeUnknownProbe = resolveRuntimeCommandFromPreflight({
+  preflight: {
+    requestedCommand: {
+      cmd: process.execPath,
+      args: ['--version']
+    }
+  },
+  fallbackRequestedCommand: {
+    cmd: '',
+    args: []
+  },
+  missingProfileCheck: {
+    name: 'fixture_preflight_command_profile_missing',
+    status: 'warn',
+    message: 'missing profile'
+  }
+});
+assert.equal(runtimeUnknownProbe.cmd, process.execPath, 'expected fallback to requested command cmd');
+assert.equal(runtimeUnknownProbe.probeKnown, false, 'expected unknown probe state when preflight has no commandProfile');
+assert.equal(runtimeUnknownProbe.probeOk, false, 'expected probeOk false when probe is unknown');
+assert.equal(runtimeUnknownProbe.checks.length, 0, 'expected no missing-profile check when command is still resolved');
 
 console.log('preflight command-profile helper test passed');

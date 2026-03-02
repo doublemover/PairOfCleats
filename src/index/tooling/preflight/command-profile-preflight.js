@@ -147,6 +147,7 @@ export const resolveCommandProfilePreflightResult = ({
  *   commandProfile:object|null,
  *   cmd:string,
  *   args:string[],
+ *   probeKnown:boolean,
  *   probeOk:boolean,
  *   checks:object[]
  * }}
@@ -176,11 +177,13 @@ export const resolveRuntimeCommandFromPreflight = ({
   if (!cmd && missingProfileCheck && typeof missingProfileCheck === 'object') {
     checks.push(missingProfileCheck);
   }
+  const probeKnown = typeof commandProfile?.probe?.ok === 'boolean';
   return {
     requestedCommand,
     commandProfile,
     cmd,
     args,
+    probeKnown,
     probeOk: commandProfile?.probe?.ok === true,
     checks
   };

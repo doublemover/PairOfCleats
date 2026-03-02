@@ -272,7 +272,7 @@ export const createDedicatedLspProvider = (descriptor) => {
         checks.push(...runtimeCommand.checks);
         return buildBaseResult(providerRef, checks);
       }
-      if (runtimeCommand.probeOk !== true) {
+      if (runtimeCommand.probeKnown && runtimeCommand.probeOk !== true) {
         if (!checks.some((entry) => entry?.name === buildCommandUnavailableCheck(descriptor, requested.cmd).name)) {
           checks.push(buildCommandUnavailableCheck(descriptor, requested.cmd));
         }
