@@ -636,6 +636,7 @@ tooling/lsp/runtime-config-resolution
 tooling/lsp/preflight-command-profile-helper
 tooling/lsp/preflight-command-profile-no-runtime-reprobe
 tooling/lsp/preflight-manager-entrypoint-guard
+tooling/lsp/preflight-await-manager-usage-guard
 tooling/lsp/configured-provider-go-rust-signature-parsing
 tooling/lsp/configured-provider-yaml-schema-override-merge
 tooling/lsp/configured-provider-lua-workspace-library
