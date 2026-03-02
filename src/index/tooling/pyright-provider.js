@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
+import { readJsonFileSafe } from '../../shared/files.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
 import { invalidateProbeCacheOnInitializeFailure, resolveToolingCommandProfile } from './command-resolver.js';
 import { parsePythonSignature } from './signature-parse/python.js';
@@ -8,11 +9,13 @@ import { resolveProviderRequestedCommand } from './provider-command-override.js'
 import { filterTargetsForDocuments } from './provider-utils.js';
 import { awaitToolingProviderPreflight } from './preflight-manager.js';
 import {
+  mergePreflightChecks,
   resolveCommandProfilePreflightResult,
   resolveRuntimeCommandFromPreflight
 } from './preflight/command-profile-preflight.js';
 
 export const PYTHON_EXTS = ['.py', '.pyi'];
+const PYRIGHT_CONFIG_MAX_BYTES = 2 * 1024 * 1024;
 
 export const __canRunPyrightForTests = (cmd) => (
   resolveToolingCommandProfile({
@@ -23,6 +26,75 @@ export const __canRunPyrightForTests = (cmd) => (
     toolingConfig: {}
   })?.probe?.ok === true
 );
+
+const resolvePyrightWorkspaceConfigPreflight = async ({ ctx }) => {
+  const configPath = path.join(String(ctx?.repoRoot || process.cwd()), 'pyrightconfig.json');
+  let readError = null;
+  const parsed = await readJsonFileSafe(configPath, {
+    fallback: null,
+    maxBytes: PYRIGHT_CONFIG_MAX_BYTES,
+    onError: (info) => {
+      readError = info;
+    }
+  });
+  const code = String(readError?.error?.code || '').trim().toUpperCase();
+  if (!readError) {
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return { state: 'ready', reasonCode: null, message: '', checks: [] };
+    }
+    const message = 'pyright workspace config (pyrightconfig.json) must be a JSON object.';
+    return {
+      state: 'degraded',
+      reasonCode: 'pyright_workspace_config_invalid',
+      message,
+      checks: [{
+        name: 'pyright_workspace_config_invalid',
+        status: 'warn',
+        message
+      }]
+    };
+  }
+  if (code === 'ENOENT') {
+    return { state: 'ready', reasonCode: null, message: '', checks: [] };
+  }
+  if (code === 'ERR_JSON_FILE_TOO_LARGE') {
+    const message = `pyright workspace config exceeds ${PYRIGHT_CONFIG_MAX_BYTES} bytes.`;
+    return {
+      state: 'degraded',
+      reasonCode: 'pyright_workspace_config_too_large',
+      message,
+      checks: [{
+        name: 'pyright_workspace_config_too_large',
+        status: 'warn',
+        message
+      }]
+    };
+  }
+  if (String(readError?.phase || '').toLowerCase() === 'parse') {
+    const message = `pyright workspace config is invalid JSON: ${readError?.error?.message || 'parse failed'}`;
+    return {
+      state: 'degraded',
+      reasonCode: 'pyright_workspace_config_invalid',
+      message,
+      checks: [{
+        name: 'pyright_workspace_config_invalid',
+        status: 'warn',
+        message
+      }]
+    };
+  }
+  const message = `pyright workspace config is unreadable: ${readError?.error?.message || 'read failed'}`;
+  return {
+    state: 'degraded',
+    reasonCode: 'pyright_workspace_config_unreadable',
+    message,
+    checks: [{
+      name: 'pyright_workspace_config_unreadable',
+      status: 'warn',
+      message
+    }]
+  };
+};
 
 export const createPyrightProvider = () => ({
   id: 'pyright',
@@ -60,7 +132,7 @@ export const createPyrightProvider = () => ({
       defaultCmd: 'pyright-langserver',
       defaultArgs: ['--stdio']
     });
-    return resolveCommandProfilePreflightResult({
+    const commandPreflight = resolveCommandProfilePreflightResult({
       providerId: 'pyright',
       requestedCommand,
       ctx,
@@ -70,6 +142,31 @@ export const createPyrightProvider = () => ({
         message: 'pyright-langserver command probe failed; attempting stdio initialization anyway.'
       }
     });
+    const workspaceConfigPreflight = await resolvePyrightWorkspaceConfigPreflight({ ctx });
+    const checks = mergePreflightChecks(
+      commandPreflight?.check,
+      commandPreflight?.checks,
+      workspaceConfigPreflight?.checks
+    );
+    if (commandPreflight.state !== 'ready') {
+      return {
+        ...commandPreflight,
+        ...(checks.length ? { checks } : {})
+      };
+    }
+    if (workspaceConfigPreflight.state !== 'ready') {
+      return {
+        ...commandPreflight,
+        state: workspaceConfigPreflight.state || 'degraded',
+        reasonCode: workspaceConfigPreflight.reasonCode || null,
+        message: workspaceConfigPreflight.message || '',
+        ...(checks.length ? { checks } : {})
+      };
+    }
+    return {
+      ...commandPreflight,
+      ...(checks.length ? { checks } : {})
+    };
   },
   async run(ctx, inputs) {
     const log = typeof ctx?.logger === 'function' ? ctx.logger : (() => {});

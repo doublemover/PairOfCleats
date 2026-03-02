@@ -1,5 +1,6 @@
 tooling/lsp/pyright-provider-output-shape
 tooling/lsp/pyright-provider-command-override
+tooling/lsp/pyright-preflight-workspace-config-invalid
 tooling/lsp/clangd-provider-command-override
 tooling/lsp/sourcekit-provider-command-override
 tooling/lsp/sourcekit-package-preflight-lock-unavailable
