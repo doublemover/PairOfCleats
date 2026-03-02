@@ -660,3 +660,4 @@ Acceptance gate:
 - 2026-03-02T09:51:54.6183250-05:00: Added guard coverage to enforce shared runtime-command helper usage across all migrated preflight-owned providers.
 - 2026-03-02T09:54:06.9523509-05:00: Added scheduler metrics by preflight class (probe/workspace/dependency) and validated class counters in concurrency tests.
 - 2026-03-02T09:56:10.1593384-05:00: Extended bench-language report diagnostics to parse preflight summary lines (queue peak, teardown timeout, class/state aggregates).
+- 2026-03-02T09:57:33.5749448-05:00: Extended bench-language report diagnostics to parse preflight slowest summary lines and surface parsed offender lists.
