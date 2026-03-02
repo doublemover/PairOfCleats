@@ -7,7 +7,10 @@ import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 import { resolveProviderRequestedCommand } from './provider-command-override.js';
 import { filterTargetsForDocuments } from './provider-utils.js';
 import { awaitToolingProviderPreflight } from './preflight-manager.js';
-import { resolveCommandProfilePreflightResult } from './preflight/command-profile-preflight.js';
+import {
+  resolveCommandProfilePreflightResult,
+  resolveRuntimeCommandFromPreflight
+} from './preflight/command-profile-preflight.js';
 
 export const PYTHON_EXTS = ['.py', '.pyi'];
 
@@ -107,26 +110,26 @@ export const createPyrightProvider = () => ({
       defaultArgs: ['--stdio']
     });
 
-    const commandProfile = preflight?.commandProfile && typeof preflight.commandProfile === 'object'
-      ? preflight.commandProfile
-      : null;
-    const resolvedCmd = String(commandProfile?.resolved?.cmd || requestedCommand.cmd || '').trim();
-    const resolvedArgs = Array.isArray(commandProfile?.resolved?.args)
-      ? commandProfile.resolved.args
-      : requestedCommand.args;
-    if (!resolvedCmd) {
-      checks.push({
+    const runtimeCommand = resolveRuntimeCommandFromPreflight({
+      preflight,
+      fallbackRequestedCommand: requestedCommand,
+      missingProfileCheck: {
         name: 'pyright_preflight_command_profile_missing',
         status: 'warn',
         message: 'pyright preflight did not provide a resolved command profile; skipping provider.'
-      });
+      }
+    });
+    const resolvedCmd = runtimeCommand.cmd;
+    const resolvedArgs = runtimeCommand.args;
+    if (!resolvedCmd) {
+      checks.push(...runtimeCommand.checks);
       return {
         provider: { id: 'pyright', version: '2.0.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(null, checks)
       };
     }
-    if (commandProfile?.probe?.ok !== true) {
+    if (runtimeCommand.probeOk !== true) {
       log('[index] pyright-langserver command probe failed; attempting stdio initialization.');
       if (!checks.some((entry) => entry?.name === 'pyright_command_unavailable')) {
         checks.push({

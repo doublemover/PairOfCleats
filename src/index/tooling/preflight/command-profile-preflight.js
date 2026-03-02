@@ -133,3 +133,55 @@ export const resolveCommandProfilePreflightResult = ({
     ...(check ? { check, checks: [check] } : {})
   };
 };
+
+/**
+ * Resolve runtime command inputs from preflight output without re-probing.
+ *
+ * @param {{
+ *   preflight?: object | null,
+ *   fallbackRequestedCommand?: {cmd?:string,args?:string[]} | null,
+ *   missingProfileCheck?: object | null
+ * }} input
+ * @returns {{
+ *   requestedCommand:{cmd:string,args:string[]},
+ *   commandProfile:object|null,
+ *   cmd:string,
+ *   args:string[],
+ *   probeOk:boolean,
+ *   checks:object[]
+ * }}
+ */
+export const resolveRuntimeCommandFromPreflight = ({
+  preflight = null,
+  fallbackRequestedCommand = null,
+  missingProfileCheck = null
+} = {}) => {
+  const requestedCommand = preflight?.requestedCommand && typeof preflight.requestedCommand === 'object'
+    ? {
+      cmd: String(preflight.requestedCommand.cmd || '').trim(),
+      args: Array.isArray(preflight.requestedCommand.args) ? preflight.requestedCommand.args : []
+    }
+    : {
+      cmd: String(fallbackRequestedCommand?.cmd || '').trim(),
+      args: Array.isArray(fallbackRequestedCommand?.args) ? fallbackRequestedCommand.args : []
+    };
+  const commandProfile = preflight?.commandProfile && typeof preflight.commandProfile === 'object'
+    ? preflight.commandProfile
+    : null;
+  const cmd = String(commandProfile?.resolved?.cmd || requestedCommand.cmd || '').trim();
+  const args = Array.isArray(commandProfile?.resolved?.args)
+    ? commandProfile.resolved.args
+    : requestedCommand.args;
+  const checks = [];
+  if (!cmd && missingProfileCheck && typeof missingProfileCheck === 'object') {
+    checks.push(missingProfileCheck);
+  }
+  return {
+    requestedCommand,
+    commandProfile,
+    cmd,
+    args,
+    probeOk: commandProfile?.probe?.ok === true,
+    checks
+  };
+};

@@ -6,7 +6,10 @@ import { resolveProviderRequestedCommand } from './provider-command-override.js'
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 import { isPlainObject, normalizeCommandArgs, filterTargetsForDocuments } from './provider-utils.js';
 import { awaitToolingProviderPreflight } from './preflight-manager.js';
-import { resolveCommandProfilePreflightResult } from './preflight/command-profile-preflight.js';
+import {
+  resolveCommandProfilePreflightResult,
+  resolveRuntimeCommandFromPreflight
+} from './preflight/command-profile-preflight.js';
 import { resolveWorkspaceModelPreflight } from './preflight/workspace-model-preflight.js';
 
 const DEFAULT_RUNTIME_OPTIONS = {
@@ -254,27 +257,28 @@ export const createDedicatedLspProvider = (descriptor) => {
       const requested = preflight?.requestedCommand && typeof preflight.requestedCommand === 'object'
         ? preflight.requestedCommand
         : resolveRequestedCommand(descriptor, config, ctx?.toolingConfig);
-      const commandProfile = preflight?.commandProfile && typeof preflight.commandProfile === 'object'
-        ? preflight.commandProfile
-        : null;
-      const resolvedCmd = String(commandProfile?.resolved?.cmd || requested.cmd || '').trim();
-      if (!resolvedCmd) {
-        checks.push({
+      const runtimeCommand = resolveRuntimeCommandFromPreflight({
+        preflight,
+        fallbackRequestedCommand: requested,
+        missingProfileCheck: {
           name: `${descriptor.id}_preflight_command_profile_missing`,
           status: 'warn',
           message: `${descriptor.label} preflight did not provide a resolved command profile; skipping provider.`
-        });
+        }
+      });
+      const commandProfile = runtimeCommand.commandProfile;
+      const resolvedCmd = runtimeCommand.cmd;
+      if (!resolvedCmd) {
+        checks.push(...runtimeCommand.checks);
         return buildBaseResult(providerRef, checks);
       }
-      if (commandProfile?.probe?.ok !== true) {
+      if (runtimeCommand.probeOk !== true) {
         if (!checks.some((entry) => entry?.name === buildCommandUnavailableCheck(descriptor, requested.cmd).name)) {
           checks.push(buildCommandUnavailableCheck(descriptor, requested.cmd));
         }
       }
 
-      let resolvedArgs = Array.isArray(commandProfile?.resolved?.args)
-        ? commandProfile.resolved.args
-        : requested.args;
+      let resolvedArgs = runtimeCommand.args;
       let collectOptions = {};
       if (typeof descriptor.prepareCollect === 'function') {
         const prepared = await descriptor.prepareCollect({

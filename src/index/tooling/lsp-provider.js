@@ -15,7 +15,10 @@ import { parseZigSignature } from './signature-parse/zig.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 import { isPlainObject, normalizeCommandArgs } from './provider-utils.js';
 import { awaitToolingProviderPreflight } from './preflight-manager.js';
-import { resolveCommandProfilePreflightResult } from './preflight/command-profile-preflight.js';
+import {
+  resolveCommandProfilePreflightResult,
+  resolveRuntimeCommandFromPreflight
+} from './preflight/command-profile-preflight.js';
 import { resolveWorkspaceModelPreflight } from './preflight/workspace-model-preflight.js';
 
 const normalizeList = (value) => {
@@ -544,12 +547,21 @@ const createConfiguredLspProvider = (server) => {
           commandProfile = preflight.commandProfile;
         }
       }
-      const resolvedCmd = String(commandProfile?.resolved?.cmd || requestedCommand.cmd || '').trim();
-      if (!resolvedCmd) {
-        preChecks.push({
+      const runtimeCommand = resolveRuntimeCommandFromPreflight({
+        preflight: {
+          requestedCommand,
+          commandProfile
+        },
+        fallbackRequestedCommand: requestedCommand,
+        missingProfileCheck: {
           name: 'lsp_preflight_command_profile_missing',
           status: 'warn',
           message: `configured LSP preflight did not provide a resolved command for ${providerId}; skipping provider.`
+        }
+      });
+      if (!runtimeCommand.cmd) {
+        preChecks.push({
+          ...runtimeCommand.checks[0]
         });
         return {
           provider: { id: providerId, version: this.version, configHash: this.getConfigHash(ctx) },
@@ -557,7 +569,7 @@ const createConfiguredLspProvider = (server) => {
           diagnostics: appendDiagnosticChecks(null, preChecks)
         };
       }
-      if (commandProfile?.probe?.ok !== true) {
+      if (runtimeCommand.probeOk !== true) {
         if (!preChecks.some((entry) => entry?.name === 'lsp_command_unavailable')) {
           preChecks.push(buildCommandUnavailableCheck(server.cmd));
         }
@@ -570,8 +582,8 @@ const createConfiguredLspProvider = (server) => {
         targets,
         log,
         preChecks,
-        commandProfile,
-        requestedCommand
+        commandProfile: runtimeCommand.commandProfile,
+        requestedCommand: runtimeCommand.requestedCommand
       });
     }
   };
