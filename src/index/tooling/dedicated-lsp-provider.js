@@ -75,6 +75,49 @@ const resolveRequestedCommand = (descriptor, config, toolingConfig) => {
   });
 };
 
+const resolveCommandProfilePreflight = ({ descriptor, ctx, config }) => {
+  const requested = resolveRequestedCommand(descriptor, config, ctx?.toolingConfig);
+  const commandProfile = resolveToolingCommandProfile({
+    providerId: descriptor.id,
+    cmd: requested.cmd,
+    args: requested.args,
+    repoRoot: ctx?.repoRoot || process.cwd(),
+    toolingConfig: ctx?.toolingConfig || {}
+  });
+  if (commandProfile.probe.ok) {
+    return {
+      state: 'ready',
+      reasonCode: null,
+      message: '',
+      requestedCommand: requested,
+      commandProfile
+    };
+  }
+  const check = buildCommandUnavailableCheck(descriptor, requested.cmd);
+  return {
+    state: 'degraded',
+    reasonCode: 'preflight_command_unavailable',
+    message: check.message,
+    requestedCommand: requested,
+    commandProfile,
+    checks: [check]
+  };
+};
+
+const mergePreflightChecks = (...groups) => {
+  const checks = [];
+  for (const group of groups) {
+    if (Array.isArray(group)) {
+      for (const entry of group) {
+        if (entry && typeof entry === 'object') checks.push(entry);
+      }
+      continue;
+    }
+    if (group && typeof group === 'object') checks.push(group);
+  }
+  return checks;
+};
+
 const buildCommandUnavailableCheck = (descriptor, requestedCmd) => {
   const check = descriptor.command.commandUnavailableCheck || {};
   const name = typeof check.name === 'string' && check.name.trim()
@@ -224,16 +267,22 @@ export const createDedicatedLspProvider = (descriptor) => {
         }
       }
 
-      const requested = resolveRequestedCommand(descriptor, config, ctx?.toolingConfig);
-      const commandProfile = resolveToolingCommandProfile({
-        providerId: descriptor.id,
-        cmd: requested.cmd,
-        args: requested.args,
-        repoRoot: ctx?.repoRoot || process.cwd(),
-        toolingConfig: ctx?.toolingConfig || {}
-      });
+      const requested = preflight?.requestedCommand && typeof preflight.requestedCommand === 'object'
+        ? preflight.requestedCommand
+        : resolveRequestedCommand(descriptor, config, ctx?.toolingConfig);
+      const commandProfile = preflight?.commandProfile && typeof preflight.commandProfile === 'object'
+        ? preflight.commandProfile
+        : resolveToolingCommandProfile({
+          providerId: descriptor.id,
+          cmd: requested.cmd,
+          args: requested.args,
+          repoRoot: ctx?.repoRoot || process.cwd(),
+          toolingConfig: ctx?.toolingConfig || {}
+        });
       if (!commandProfile.probe.ok) {
-        checks.push(buildCommandUnavailableCheck(descriptor, requested.cmd));
+        if (!checks.some((entry) => entry?.name === buildCommandUnavailableCheck(descriptor, requested.cmd).name)) {
+          checks.push(buildCommandUnavailableCheck(descriptor, requested.cmd));
+        }
       }
 
       let resolvedArgs = commandProfile.resolved.args || requested.args;
@@ -328,6 +377,13 @@ export const createDedicatedLspProvider = (descriptor) => {
     };
     provider.preflight = async (ctx, inputs = {}) => {
       const config = resolveProviderConfig(ctx, descriptor.configKey);
+      if (config.enabled !== true) {
+        return {
+          state: 'skipped',
+          blockProvider: false,
+          check: null
+        };
+      }
       if (hasWorkspacePreflight && config.requireWorkspaceModel !== false) {
         const missingCheck = resolveWorkspaceMissingCheck(descriptor);
         const workspacePreflight = resolveWorkspaceModelPreflight({
@@ -338,21 +394,58 @@ export const createDedicatedLspProvider = (descriptor) => {
           fallbackMessage: missingCheck.message,
           policy: 'block'
         });
-        if (workspacePreflight.state !== 'ready') return workspacePreflight;
+        if (workspacePreflight.state !== 'ready') {
+          return workspacePreflight;
+        }
       }
-      if (hasCustomPreflight) {
-        return await descriptor.preflight({
+      const commandPreflight = resolveCommandProfilePreflight({
+        descriptor,
+        ctx,
+        config
+      });
+      const customPreflight = hasCustomPreflight
+        ? await descriptor.preflight({
           ctx,
           config,
           inputs,
           log: getLogger(ctx),
-          abortSignal: inputs?.abortSignal || ctx?.abortSignal || null
-        });
+          abortSignal: inputs?.abortSignal || ctx?.abortSignal || null,
+          requestedCommand: commandPreflight.requestedCommand,
+          commandProfile: commandPreflight.commandProfile
+        })
+        : { state: 'ready', blockProvider: false, check: null };
+      if (shouldBlockProviderFromPreflight(customPreflight)) {
+        return {
+          ...customPreflight,
+          requestedCommand: commandPreflight.requestedCommand,
+          commandProfile: commandPreflight.commandProfile,
+          checks: mergePreflightChecks(customPreflight.check, customPreflight.checks)
+        };
+      }
+      if (commandPreflight.state !== 'ready') {
+        return {
+          ...commandPreflight,
+          blockProvider: false,
+          checks: mergePreflightChecks(commandPreflight.checks, customPreflight.check, customPreflight.checks)
+        };
+      }
+      if (hasCustomPreflight) {
+        return {
+          ...customPreflight,
+          requestedCommand: commandPreflight.requestedCommand,
+          commandProfile: commandPreflight.commandProfile,
+          checks: mergePreflightChecks(commandPreflight.checks, customPreflight.check, customPreflight.checks)
+        };
       }
       return {
         state: 'ready',
         blockProvider: false,
-        check: null
+        check: null,
+        requestedCommand: commandPreflight.requestedCommand,
+        commandProfile: commandPreflight.commandProfile,
+        ...(Array.isArray(commandPreflight.checks) && commandPreflight.checks.length
+          ? { checks: commandPreflight.checks }
+          : {})
       };
     };
   }
