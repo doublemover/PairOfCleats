@@ -115,7 +115,36 @@ const createSchedulerMetrics = () => ({
   runningPeak: 0,
   queueWaitMsTotal: 0,
   queueWaitMsMax: 0,
-  queueWaitSamples: 0
+  queueWaitSamples: 0,
+  byClass: {
+    [PREFLIGHT_CLASS.PROBE]: {
+      scheduled: 0,
+      queued: 0,
+      dequeued: 0,
+      started: 0,
+      completed: 0,
+      timedOut: 0,
+      failed: 0
+    },
+    [PREFLIGHT_CLASS.WORKSPACE]: {
+      scheduled: 0,
+      queued: 0,
+      dequeued: 0,
+      started: 0,
+      completed: 0,
+      timedOut: 0,
+      failed: 0
+    },
+    [PREFLIGHT_CLASS.DEPENDENCY]: {
+      scheduled: 0,
+      queued: 0,
+      dequeued: 0,
+      started: 0,
+      completed: 0,
+      timedOut: 0,
+      failed: 0
+    }
+  }
 });
 
 const createState = () => ({
@@ -351,8 +380,20 @@ const buildSchedulerMetricsSnapshot = (state, ctx) => {
     queueWaitMsMax: metrics.queueWaitMsMax,
     queueWaitSamples: metrics.queueWaitSamples,
     timedOut: metrics.timedOut,
-    failed: metrics.failed
+    failed: metrics.failed,
+    byClass: {
+      [PREFLIGHT_CLASS.PROBE]: { ...(metrics.byClass?.[PREFLIGHT_CLASS.PROBE] || {}) },
+      [PREFLIGHT_CLASS.WORKSPACE]: { ...(metrics.byClass?.[PREFLIGHT_CLASS.WORKSPACE] || {}) },
+      [PREFLIGHT_CLASS.DEPENDENCY]: { ...(metrics.byClass?.[PREFLIGHT_CLASS.DEPENDENCY] || {}) }
+    }
   };
+};
+
+const incrementClassMetric = (metrics, preflightClass, field) => {
+  const className = normalizePreflightClass(preflightClass, PREFLIGHT_CLASS.PROBE);
+  const bucket = metrics?.byClass?.[className];
+  if (!bucket || typeof bucket !== 'object') return;
+  bucket[field] = (Number(bucket[field]) || 0) + 1;
 };
 
 const createSchedulerClosedError = () => {
@@ -425,6 +466,7 @@ const runScheduledTask = ({ state, ctx, task, fromQueue = false }) => {
   const log = resolveLogger(ctx);
   scheduler.running += 1;
   scheduler.metrics.started += 1;
+  incrementClassMetric(scheduler.metrics, task.preflightClass, 'started');
   scheduler.metrics.runningPeak = Math.max(scheduler.metrics.runningPeak, scheduler.running);
 
   if (fromQueue && Number.isFinite(task.enqueuedAtMs)) {
@@ -454,10 +496,12 @@ const runScheduledTask = ({ state, ctx, task, fromQueue = false }) => {
     .finally(() => {
       scheduler.running = Math.max(0, scheduler.running - 1);
       scheduler.metrics.completed += 1;
+      incrementClassMetric(scheduler.metrics, task.preflightClass, 'completed');
       while (scheduler.running < scheduler.maxConcurrency && scheduler.queue.length > 0) {
         const nextTask = scheduler.queue.shift();
         if (!nextTask || nextTask.cancelled === true || nextTask.settled) continue;
         scheduler.metrics.dequeued += 1;
+        incrementClassMetric(scheduler.metrics, nextTask.preflightClass, 'dequeued');
         runScheduledTask({ state, ctx, task: nextTask, fromQueue: true });
       }
     });
@@ -467,6 +511,7 @@ const scheduleTask = ({ state, ctx, task }) => {
   const scheduler = resolveScheduler(state, ctx);
   const log = resolveLogger(ctx);
   scheduler.metrics.scheduled += 1;
+  incrementClassMetric(scheduler.metrics, task.preflightClass, 'scheduled');
 
   if (!scheduler.accepting) {
     const error = createSchedulerClosedError();
@@ -482,6 +527,7 @@ const scheduleTask = ({ state, ctx, task }) => {
   task.enqueuedAtMs = Date.now();
   scheduler.queue.push(task);
   scheduler.metrics.queued += 1;
+  incrementClassMetric(scheduler.metrics, task.preflightClass, 'queued');
   scheduler.metrics.queueDepthPeak = Math.max(scheduler.metrics.queueDepthPeak, scheduler.queue.length);
   log(
     `[tooling] preflight:queued provider=${task.providerId} id=${task.preflightId} `
@@ -633,6 +679,7 @@ const startProviderPreflight = ({
           : (status === TOOLING_PREFLIGHT_STATES.READY ? 'ok' : status);
         if (timedOut) {
           state.scheduler.metrics.timedOut += 1;
+          incrementClassMetric(state.scheduler.metrics, preflightClass, 'timedOut');
         }
         log(
           `[tooling] preflight:${eventName} provider=${providerId} id=${preflightId} `
@@ -683,6 +730,7 @@ const startProviderPreflight = ({
         const elapsedMs = Math.max(0, Date.now() - startedAtMs);
         const message = error?.message || String(error);
         state.scheduler.metrics.failed += 1;
+        incrementClassMetric(state.scheduler.metrics, preflightClass, 'failed');
         log(
           `[tooling] preflight:failed provider=${providerId} id=${preflightId} `
           + `durationMs=${elapsedMs} error=${message}`

@@ -75,6 +75,9 @@ assert.equal(metrics.maxConcurrency, 1, 'expected scheduler maxConcurrency to re
 assert.ok(metrics.queuedTotal >= 1, 'expected at least one queued preflight');
 assert.ok(metrics.queueDepthPeak >= 1, 'expected queue depth peak');
 assert.ok(metrics.queueWaitSamples >= 1, 'expected queue wait samples');
+assert.ok(metrics.byClass?.workspace?.scheduled >= 2, 'expected class metrics for workspace scheduled tasks');
+assert.ok(metrics.byClass?.workspace?.started >= 2, 'expected class metrics for workspace started tasks');
+assert.ok(metrics.byClass?.workspace?.completed >= 2, 'expected class metrics for workspace completed tasks');
 assert.ok(
   logs.some((line) => line.includes('preflight:queued provider=')),
   'expected queued preflight log'
