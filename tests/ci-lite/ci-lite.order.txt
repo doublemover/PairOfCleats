@@ -865,6 +865,7 @@ tooling/doctor/runtime-requirements-elixir-dedicated
 tooling/doctor/workspace-model-elixir-detection
 tooling/lsp/phpactor-provider-bootstrap
 tooling/lsp/phpactor-provider-workspace-guard
+tooling/lsp/phpactor-provider-workspace-composer-invalid-preflight
 tooling/lsp/phpactor-provider-command-fallback
 tooling/lsp/haskell-signature-parse
 tooling/lsp/haskell-provider-bootstrap

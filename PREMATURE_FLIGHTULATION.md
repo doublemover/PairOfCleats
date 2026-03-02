@@ -672,3 +672,4 @@ Acceptance gate:
 - 2026-03-02T10:39:15.9431048-05:00: Added Rust workspace metadata preflight classification (`cargo metadata` fail-open degraded path) for configured providers with deterministic degraded-path coverage and ci-lite assignment.
 - 2026-03-02T10:40:58.9941037-05:00: Updated preflight-manager failure semantics so explicit `preflightPolicy: optional` preflight exceptions fail open as degraded snapshots/results (required policies remain fail-closed), with single-flight coverage for both paths.
 - 2026-03-02T10:43:49.0325246-05:00: Added Go workspace module preflight classification for configured providers (`go list -m`/override command) with deterministic failed/timeout degraded-path coverage and ci-lite lane wiring.
+- 2026-03-02T10:48:10.8417446-05:00: Added phpactor workspace bootstrap manifest preflight classification (invalid/unreadable/oversized `composer.json`) with fail-open degraded diagnostics and ci-lite coverage.
