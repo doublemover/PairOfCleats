@@ -106,6 +106,21 @@ const resolveSourcekitPackageSignatureKey = (repoRoot) => {
   return `${readStatSignature(manifestPath)}|${readStatSignature(resolvedPath)}`;
 };
 
+const resolveSourcekitRequestedCommand = (ctx) => resolveProviderRequestedCommand({
+  providerId: 'sourcekit',
+  toolingConfig: ctx?.toolingConfig || {},
+  defaultCmd: 'sourcekit-lsp',
+  defaultArgs: []
+});
+
+const buildSourcekitCommandUnavailableCheck = ({ definitelyMissing = false } = {}) => ({
+  name: 'sourcekit_command_unavailable',
+  status: 'warn',
+  message: definitelyMissing
+    ? 'sourcekit-lsp not detected; skipping.'
+    : 'sourcekit-lsp command probe failed; attempting stdio initialization anyway.'
+});
+
 const canRunCommand = (cmd, args = ['--help']) => {
   try {
     const profile = resolveToolingCommandProfile({
@@ -333,6 +348,30 @@ export const createSourcekitProvider = () => ({
         check: null
       };
     }
+    const requestedCommand = resolveSourcekitRequestedCommand(ctx);
+    const commandProfile = resolveToolingCommandProfile({
+      providerId: 'sourcekit',
+      cmd: requestedCommand.cmd,
+      args: requestedCommand.args,
+      repoRoot: ctx?.repoRoot || process.cwd(),
+      toolingConfig: ctx?.toolingConfig || {}
+    });
+    let commandCheck = null;
+    if (!commandProfile.probe.ok) {
+      if (isProbeCommandDefinitelyMissing(commandProfile.probe)) {
+        log('[index] sourcekit-lsp not detected; skipping.');
+        return {
+          state: 'blocked',
+          reasonCode: 'preflight_command_unavailable',
+          blockSourcekit: true,
+          requestedCommand,
+          commandProfile,
+          check: buildSourcekitCommandUnavailableCheck({ definitelyMissing: true })
+        };
+      }
+      log('[index] sourcekit-lsp command probe failed; attempting stdio initialization.');
+      commandCheck = buildSourcekitCommandUnavailableCheck({ definitelyMissing: false });
+    }
     const preflight = await ensureSourcekitPackageResolutionPreflight({
       repoRoot: ctx.repoRoot,
       log,
@@ -341,9 +380,35 @@ export const createSourcekitProvider = () => ({
       cacheRoot: ctx?.cache?.dir || null,
       timeoutMs: inputs?.preflightTimeoutMs
     });
+    if (preflight?.blockSourcekit) {
+      const checks = [];
+      if (commandCheck) checks.push(commandCheck);
+      if (preflight?.check && typeof preflight.check === 'object') checks.push(preflight.check);
+      return {
+        ...preflight,
+        state: 'blocked',
+        requestedCommand,
+        commandProfile,
+        check: null,
+        ...(checks.length ? { checks } : {})
+      };
+    }
+    if (commandCheck) {
+      return {
+        ...preflight,
+        state: 'degraded',
+        reasonCode: 'preflight_command_unavailable',
+        blockSourcekit: false,
+        requestedCommand,
+        commandProfile,
+        checks: [commandCheck]
+      };
+    }
     return {
       ...preflight,
-      state: preflight?.blockSourcekit ? 'blocked' : 'ready'
+      state: 'ready',
+      requestedCommand,
+      commandProfile
     };
   },
   async run(ctx, inputs) {
@@ -369,41 +434,6 @@ export const createSourcekitProvider = () => ({
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(null, checks)
       };
-    }
-
-    const requestedCommand = resolveProviderRequestedCommand({
-      providerId: 'sourcekit',
-      toolingConfig: ctx?.toolingConfig || {},
-      defaultCmd: 'sourcekit-lsp',
-      defaultArgs: []
-    });
-    const commandProfile = resolveToolingCommandProfile({
-      providerId: 'sourcekit',
-      cmd: requestedCommand.cmd,
-      args: requestedCommand.args,
-      repoRoot: ctx?.repoRoot || process.cwd(),
-      toolingConfig: ctx?.toolingConfig || {}
-    });
-    if (!commandProfile.probe.ok) {
-      if (isProbeCommandDefinitelyMissing(commandProfile.probe)) {
-        log('[index] sourcekit-lsp not detected; skipping.');
-        checks.push({
-          name: 'sourcekit_command_unavailable',
-          status: 'warn',
-          message: 'sourcekit-lsp not detected; skipping.'
-        });
-        return {
-          provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) },
-          byChunkUid: {},
-          diagnostics: appendDiagnosticChecks(null, checks)
-        };
-      }
-      log('[index] sourcekit-lsp command probe failed; attempting stdio initialization.');
-      checks.push({
-        name: 'sourcekit_command_unavailable',
-        status: 'warn',
-        message: 'sourcekit-lsp command probe failed; attempting stdio initialization anyway.'
-      });
     }
 
     const runtimeConfig = resolveLspRuntimeConfig({
@@ -471,6 +501,11 @@ export const createSourcekitProvider = () => ({
     });
     throwIfAborted(abortSignal);
     if (preflight?.check) checks.push(preflight.check);
+    if (Array.isArray(preflight?.checks)) {
+      for (const check of preflight.checks) {
+        if (check && typeof check === 'object') checks.push(check);
+      }
+    }
     if (preflight?.blockSourcekit) {
       log('[tooling] sourcekit skipped because package preflight did not complete safely.');
       return {
@@ -478,6 +513,31 @@ export const createSourcekitProvider = () => ({
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(null, checks)
       };
+    }
+    const requestedCommand = preflight?.requestedCommand && typeof preflight.requestedCommand === 'object'
+      ? preflight.requestedCommand
+      : resolveSourcekitRequestedCommand(ctx);
+    const commandProfile = preflight?.commandProfile && typeof preflight.commandProfile === 'object'
+      ? preflight.commandProfile
+      : resolveToolingCommandProfile({
+        providerId: 'sourcekit',
+        cmd: requestedCommand.cmd,
+        args: requestedCommand.args,
+        repoRoot: ctx?.repoRoot || process.cwd(),
+        toolingConfig: ctx?.toolingConfig || {}
+      });
+    if (!commandProfile.probe.ok && !checks.some((entry) => entry?.name === 'sourcekit_command_unavailable')) {
+      const definitelyMissing = isProbeCommandDefinitelyMissing(commandProfile.probe);
+      checks.push(buildSourcekitCommandUnavailableCheck({ definitelyMissing }));
+      if (definitelyMissing) {
+        log('[index] sourcekit-lsp not detected; skipping.');
+        return {
+          provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+          byChunkUid: {},
+          diagnostics: appendDiagnosticChecks(null, checks)
+        };
+      }
+      log('[index] sourcekit-lsp command probe failed; attempting stdio initialization.');
     }
 
     const hostLockEnabled = sourcekitConfig.hostConcurrencyGate !== false;
