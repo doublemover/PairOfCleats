@@ -878,6 +878,7 @@ tooling/lsp/zig-signature-parse
 tooling/doctor/runtime-requirements-haskell-dedicated
 tooling/doctor/workspace-model-haskell-detection
 tooling/lsp/dart-provider-bootstrap
+tooling/lsp/dart-provider-package-config-missing-preflight
 tooling/lsp/dart-provider-workspace-guard
 tooling/lsp/dart-provider-command-fallback
 tooling/lsp/provider-metrics-envelope-aggregate
