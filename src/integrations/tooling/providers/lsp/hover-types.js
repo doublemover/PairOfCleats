@@ -183,7 +183,8 @@ export const persistHoverCache = async ({ cachePath, entries, maxEntries }) => {
     },
     arrays: {
       entries: limited
-    }
+    },
+    atomic: true
   });
 };
 

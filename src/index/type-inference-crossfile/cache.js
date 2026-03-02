@@ -303,7 +303,8 @@ export const writeCrossFileInferenceCache = async ({
         fingerprint: crossFileFingerprint,
         stats: normalizedStats
       },
-      arrays: { rows }
+      arrays: { rows },
+      atomic: true
     });
   } catch (err) {
     if (typeof log === 'function') {

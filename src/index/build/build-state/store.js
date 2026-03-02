@@ -406,7 +406,7 @@ const compressRotatedLog = async (filePath) => {
     const payload = await fs.readFile(filePath);
     const gzPath = `${filePath}.gz`;
     const gzPayload = await gzipAsync(payload);
-    await fs.writeFile(gzPath, gzPayload);
+    await atomicWriteText(gzPath, gzPayload, { newline: false });
     await fs.unlink(filePath);
   } catch (err) {
     throw err;

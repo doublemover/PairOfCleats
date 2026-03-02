@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { readJsonFileSafe } from '../../shared/files.js';
+import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 
 export async function recordSearchArtifacts({
   metricsDir,
@@ -32,7 +33,7 @@ export async function recordSearchArtifacts({
     extractedProseHits.forEach((hit) => inc(hit.file, 'extractedProse'));
     codeHits.forEach((hit) => inc(hit.file, 'code'));
     recordHits.forEach((hit) => inc(hit.file, 'records'));
-    await fs.writeFile(metricsPath, JSON.stringify(metrics) + '\n');
+    await atomicWriteJson(metricsPath, metrics);
 
     await fs.appendFile(
       historyPath,
