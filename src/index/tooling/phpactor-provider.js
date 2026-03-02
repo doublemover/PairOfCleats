@@ -1,3 +1,4 @@
+import fsSync from 'node:fs';
 import path from 'node:path';
 import { parseClikeSignature } from './signature-parse/clike.js';
 import { readJsonFileSafe } from '../../shared/files.js';
@@ -14,6 +15,11 @@ const ensureLanguageServerArg = (args) => {
 const resolveComposerManifestPath = (ctx) => path.join(
   ctx?.repoRoot || process.cwd(),
   'composer.json'
+);
+
+const resolveComposerLockPath = (ctx) => path.join(
+  ctx?.repoRoot || process.cwd(),
+  'composer.lock'
 );
 
 const resolveComposerManifestPreflight = async ({ ctx }) => {
@@ -85,6 +91,36 @@ const resolveComposerManifestPreflight = async ({ ctx }) => {
   };
 };
 
+const resolveComposerLockPreflight = ({ ctx }) => {
+  const composerPath = resolveComposerManifestPath(ctx);
+  if (!fsSync.existsSync(composerPath)) {
+    return { state: 'ready', reasonCode: null, message: '', check: null };
+  }
+  const lockPath = resolveComposerLockPath(ctx);
+  if (fsSync.existsSync(lockPath)) {
+    return { state: 'ready', reasonCode: null, message: '', check: null };
+  }
+  const message = 'phpactor workspace is missing composer.lock; dependency graph/bootstrap state may be incomplete.';
+  return {
+    state: 'degraded',
+    reasonCode: 'phpactor_workspace_composer_lock_missing',
+    message,
+    check: {
+      name: 'phpactor_workspace_composer_lock_missing',
+      status: 'warn',
+      message
+    }
+  };
+};
+
+const resolveFirstNonReadyPreflight = (...entries) => {
+  for (const entry of entries) {
+    const state = String(entry?.state || 'ready').trim().toLowerCase();
+    if (state && state !== 'ready') return entry;
+  }
+  return { state: 'ready', reasonCode: null, message: '', check: null };
+};
+
 export const createPhpactorProvider = () => createDedicatedLspProvider({
   id: 'phpactor',
   preflightId: 'phpactor.workspace-model',
@@ -125,7 +161,21 @@ export const createPhpactorProvider = () => createDedicatedLspProvider({
     }
   },
   parseSignature: (detail, _lang, symbolName) => parseClikeSignature(detail, symbolName),
-  preflight: async ({ ctx }) => resolveComposerManifestPreflight({ ctx }),
+  preflight: async ({ ctx }) => {
+    const manifestPreflight = await resolveComposerManifestPreflight({ ctx });
+    const lockPreflight = resolveComposerLockPreflight({ ctx });
+    const firstNonReady = resolveFirstNonReadyPreflight(manifestPreflight, lockPreflight);
+    const checks = [manifestPreflight?.check, lockPreflight?.check].filter(Boolean);
+    if (String(firstNonReady?.state || '').toLowerCase() === 'ready') {
+      return { state: 'ready', reasonCode: null, message: '' };
+    }
+    return {
+      state: firstNonReady.state || 'degraded',
+      reasonCode: firstNonReady.reasonCode || null,
+      message: firstNonReady.message || '',
+      ...(checks.length ? { checks } : {})
+    };
+  },
   prepareCollect: ({ commandProfile, requested }) => ({
     args: ensureLanguageServerArg(commandProfile.resolved.args || requested.args)
   })
