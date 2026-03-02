@@ -25,6 +25,16 @@ const providerCases = [
     text: 'class Example { int add(int a, int b) { return a + b; } }\n'
   },
   {
+    providerId: 'csharp-ls',
+    configKey: 'csharp',
+    languageId: 'csharp',
+    ext: '.cs',
+    markerPath: 'sample.sln',
+    markerContent: 'Microsoft Visual Studio Solution File\n',
+    symbolName: 'add',
+    text: 'class Example { int Add(int a, int b) { return a + b; } }\n'
+  },
+  {
     providerId: 'elixir-ls',
     configKey: 'elixir',
     languageId: 'elixir',
