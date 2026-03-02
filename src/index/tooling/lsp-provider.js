@@ -15,6 +15,7 @@ import { parseZigSignature } from './signature-parse/zig.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 import { isPlainObject, normalizeCommandArgs } from './provider-utils.js';
 import { awaitToolingProviderPreflight } from './preflight-manager.js';
+import { resolveCommandProfilePreflightResult } from './preflight/command-profile-preflight.js';
 import { resolveWorkspaceModelPreflight } from './preflight/workspace-model-preflight.js';
 
 const normalizeList = (value) => {
@@ -455,23 +456,17 @@ const createConfiguredLspProvider = (server) => {
     };
   };
   const runCommandProfilePreflight = (ctx) => {
-    const commandProfile = resolveCommandProfile(ctx);
-    if (commandProfile.probe.ok) {
-      return {
-        state: 'ready',
-        reasonCode: null,
-        message: '',
-        commandProfile
-      };
-    }
-    const check = buildCommandUnavailableCheck(server.cmd);
-    return {
-      state: 'degraded',
-      reasonCode: 'preflight_command_unavailable',
-      message: check.message,
-      checks: [check],
-      commandProfile
-    };
+    return resolveCommandProfilePreflightResult({
+      providerId: server.id || providerId,
+      requestedCommand: {
+        cmd: server.cmd,
+        args: server.args || []
+      },
+      ctx,
+      unavailableCheck: {
+        ...buildCommandUnavailableCheck(server.cmd)
+      }
+    });
   };
 
   const provider = {

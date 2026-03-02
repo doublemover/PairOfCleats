@@ -7,6 +7,7 @@ import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 import { resolveProviderRequestedCommand } from './provider-command-override.js';
 import { filterTargetsForDocuments } from './provider-utils.js';
 import { awaitToolingProviderPreflight } from './preflight-manager.js';
+import { resolveCommandProfilePreflightResult } from './preflight/command-profile-preflight.js';
 
 export const PYTHON_EXTS = ['.py', '.pyi'];
 
@@ -54,32 +55,16 @@ export const createPyrightProvider = () => ({
       defaultCmd: 'pyright-langserver',
       defaultArgs: ['--stdio']
     });
-    const commandProfile = resolveToolingCommandProfile({
+    return resolveCommandProfilePreflightResult({
       providerId: 'pyright',
-      cmd: requestedCommand.cmd,
-      args: requestedCommand.args,
-      repoRoot: ctx?.repoRoot || process.cwd(),
-      toolingConfig: ctx?.toolingConfig || {}
-    });
-    if (commandProfile.probe.ok) {
-      return {
-        state: 'ready',
-        reasonCode: null,
-        message: '',
-        commandProfile
-      };
-    }
-    return {
-      state: 'degraded',
-      reasonCode: 'preflight_command_unavailable',
-      message: 'pyright-langserver command probe failed; attempting stdio initialization anyway.',
-      checks: [{
+      requestedCommand,
+      ctx,
+      unavailableCheck: {
         name: 'pyright_command_unavailable',
         status: 'warn',
         message: 'pyright-langserver command probe failed; attempting stdio initialization anyway.'
-      }],
-      commandProfile
-    };
+      }
+    });
   },
   async run(ctx, inputs) {
     const log = typeof ctx?.logger === 'function' ? ctx.logger : (() => {});

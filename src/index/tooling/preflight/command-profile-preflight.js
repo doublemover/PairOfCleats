@@ -1,0 +1,135 @@
+import {
+  isProbeCommandDefinitelyMissing,
+  resolveToolingCommandProfile
+} from '../command-resolver.js';
+
+const normalizeCheck = (value) => (
+  value && typeof value === 'object'
+    ? value
+    : null
+);
+
+const resolveUnavailableMessage = ({
+  unavailableMessage,
+  check,
+  requestedCommand,
+  commandProfile,
+  definitelyMissing,
+  providerId
+}) => {
+  if (typeof unavailableMessage === 'function') {
+    const value = unavailableMessage({
+      providerId,
+      requestedCommand,
+      commandProfile,
+      definitelyMissing
+    });
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  if (typeof unavailableMessage === 'string' && unavailableMessage.trim()) {
+    return unavailableMessage.trim();
+  }
+  if (typeof check?.message === 'string' && check.message.trim()) {
+    return check.message.trim();
+  }
+  return `${requestedCommand.cmd} command probe failed for ${providerId}; attempting stdio initialization anyway.`;
+};
+
+/**
+ * Resolve a command profile for provider preflight and normalize degraded/blocked
+ * results when command probing fails.
+ *
+ * @param {{
+ *   providerId:string,
+ *   requestedCommand:{cmd:string,args?:string[]},
+ *   ctx?:object,
+ *   unavailableCheck?:object | ((input:{
+ *     providerId:string,
+ *     requestedCommand:{cmd:string,args:string[]},
+ *     commandProfile:object,
+ *     definitelyMissing:boolean,
+ *     message:string
+ *   }) => object | null),
+ *   unavailableMessage?:string | ((input:{
+ *     providerId:string,
+ *     requestedCommand:{cmd:string,args:string[]},
+ *     commandProfile:object,
+ *     definitelyMissing:boolean
+ *   }) => string),
+ *   blockWhenDefinitelyMissing?:boolean,
+ *   blockFlag?:string
+ * }} input
+ * @returns {{
+ *   state:'ready'|'degraded'|'blocked',
+ *   reasonCode:string|null,
+ *   message:string,
+ *   requestedCommand:{cmd:string,args:string[]},
+ *   commandProfile:object,
+ *   definitelyMissing?:boolean,
+ *   check?:object,
+ *   checks?:object[],
+ *   [k:string]:unknown
+ * }}
+ */
+export const resolveCommandProfilePreflightResult = ({
+  providerId,
+  requestedCommand,
+  ctx = null,
+  unavailableCheck = null,
+  unavailableMessage = null,
+  blockWhenDefinitelyMissing = false,
+  blockFlag = 'blockProvider'
+} = {}) => {
+  const command = requestedCommand && typeof requestedCommand === 'object'
+    ? requestedCommand
+    : { cmd: '', args: [] };
+  const normalizedRequested = {
+    cmd: String(command.cmd || '').trim(),
+    args: Array.isArray(command.args) ? command.args : []
+  };
+  const commandProfile = resolveToolingCommandProfile({
+    providerId: String(providerId || ''),
+    cmd: normalizedRequested.cmd,
+    args: normalizedRequested.args,
+    repoRoot: ctx?.repoRoot || process.cwd(),
+    toolingConfig: ctx?.toolingConfig || {}
+  });
+  if (commandProfile.probe.ok) {
+    return {
+      state: 'ready',
+      reasonCode: null,
+      message: '',
+      requestedCommand: normalizedRequested,
+      commandProfile
+    };
+  }
+  const definitelyMissing = isProbeCommandDefinitelyMissing(commandProfile.probe);
+  const rawCheck = typeof unavailableCheck === 'function'
+    ? unavailableCheck({
+      providerId: String(providerId || ''),
+      requestedCommand: normalizedRequested,
+      commandProfile,
+      definitelyMissing
+    })
+    : unavailableCheck;
+  const check = normalizeCheck(rawCheck);
+  const message = resolveUnavailableMessage({
+    unavailableMessage,
+    check,
+    requestedCommand: normalizedRequested,
+    commandProfile,
+    definitelyMissing,
+    providerId: String(providerId || '')
+  });
+  const blocked = blockWhenDefinitelyMissing === true && definitelyMissing;
+  return {
+    state: blocked ? 'blocked' : 'degraded',
+    reasonCode: 'preflight_command_unavailable',
+    message,
+    requestedCommand: normalizedRequested,
+    commandProfile,
+    definitelyMissing,
+    ...(blocked ? { [String(blockFlag || 'blockProvider')]: true } : {}),
+    ...(check ? { check, checks: [check] } : {})
+  };
+};

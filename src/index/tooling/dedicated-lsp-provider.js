@@ -6,6 +6,7 @@ import { resolveProviderRequestedCommand } from './provider-command-override.js'
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 import { isPlainObject, normalizeCommandArgs, filterTargetsForDocuments } from './provider-utils.js';
 import { awaitToolingProviderPreflight } from './preflight-manager.js';
+import { resolveCommandProfilePreflightResult } from './preflight/command-profile-preflight.js';
 import { resolveWorkspaceModelPreflight } from './preflight/workspace-model-preflight.js';
 
 const DEFAULT_RUNTIME_OPTIONS = {
@@ -77,31 +78,14 @@ const resolveRequestedCommand = (descriptor, config, toolingConfig) => {
 
 const resolveCommandProfilePreflight = ({ descriptor, ctx, config }) => {
   const requested = resolveRequestedCommand(descriptor, config, ctx?.toolingConfig);
-  const commandProfile = resolveToolingCommandProfile({
+  return resolveCommandProfilePreflightResult({
     providerId: descriptor.id,
-    cmd: requested.cmd,
-    args: requested.args,
-    repoRoot: ctx?.repoRoot || process.cwd(),
-    toolingConfig: ctx?.toolingConfig || {}
-  });
-  if (commandProfile.probe.ok) {
-    return {
-      state: 'ready',
-      reasonCode: null,
-      message: '',
-      requestedCommand: requested,
-      commandProfile
-    };
-  }
-  const check = buildCommandUnavailableCheck(descriptor, requested.cmd);
-  return {
-    state: 'degraded',
-    reasonCode: 'preflight_command_unavailable',
-    message: check.message,
     requestedCommand: requested,
-    commandProfile,
-    checks: [check]
-  };
+    ctx,
+    unavailableCheck: ({ requestedCommand: resolvedRequested }) => (
+      buildCommandUnavailableCheck(descriptor, resolvedRequested.cmd)
+    )
+  });
 };
 
 const mergePreflightChecks = (...groups) => {
