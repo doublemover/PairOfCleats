@@ -349,6 +349,23 @@ const resolveClangdDocumentsAndTargets = (inputs) => {
   return { docs, targets };
 };
 
+const buildClangdRequestedCommand = ({ ctx, clangdConfig, compileCommandsDir }) => {
+  const clangdArgs = ['--log=error', '--background-index=false'];
+  if (compileCommandsDir) clangdArgs.push(`--compile-commands-dir=${compileCommandsDir}`);
+  return resolveProviderRequestedCommand({
+    providerId: 'clangd',
+    toolingConfig: ctx?.toolingConfig || {},
+    defaultCmd: 'clangd',
+    defaultArgs: clangdArgs
+  });
+};
+
+const buildClangdCommandUnavailableCheck = () => ({
+  name: 'clangd_command_unavailable',
+  status: 'warn',
+  message: 'clangd command probe failed; attempting stdio initialization anyway.'
+});
+
 export const createClangdStderrFilter = () => {
   let suppressedIncludeCleaner = 0;
   const includeCleanerPattern = /\bIncludeCleaner:\s+Failed to get an entry for resolved path '' from include (?:<([^>]+)>|"([^"]+)")\s*:\s*no such file or directory\b/i;
@@ -430,11 +447,38 @@ export const createClangdProvider = () => ({
         }
       };
     }
+    const requestedCommand = buildClangdRequestedCommand({
+      ctx,
+      clangdConfig,
+      compileCommandsDir
+    });
+    const commandProfile = resolveToolingCommandProfile({
+      providerId: 'clangd',
+      cmd: requestedCommand.cmd,
+      args: requestedCommand.args,
+      repoRoot: ctx?.repoRoot || process.cwd(),
+      toolingConfig: ctx?.toolingConfig || {}
+    });
+    if (!commandProfile.probe.ok) {
+      log('[index] clangd command probe failed; attempting stdio initialization.');
+      const check = buildClangdCommandUnavailableCheck();
+      return {
+        state: 'degraded',
+        reasonCode: 'preflight_command_unavailable',
+        blockProvider: false,
+        compileCommandsDir: compileCommandsDir || null,
+        requestedCommand,
+        commandProfile,
+        check
+      };
+    }
     return {
       state: 'ready',
       blockProvider: false,
       compileCommandsDir: compileCommandsDir || null,
-      check: null
+      check: null,
+      requestedCommand,
+      commandProfile
     };
   },
   async run(ctx, inputs) {
@@ -459,6 +503,11 @@ export const createClangdProvider = () => ({
     });
     if (preflight?.check && typeof preflight.check === 'object') {
       preflightChecks.push(preflight.check);
+    }
+    if (Array.isArray(preflight?.checks)) {
+      for (const check of preflight.checks) {
+        if (check && typeof check === 'object') preflightChecks.push(check);
+      }
     }
     if (preflight?.blockProvider === true || preflight?.blockSourcekit === true) {
       return {
@@ -499,32 +548,27 @@ export const createClangdProvider = () => ({
         diagnostics: appendDiagnosticChecks(null, checks)
       };
     }
-    const clangdArgs = [];
-    // clangd is very chatty at info-level (e.g. missing compilation DB).
-    // Keep stdout/stderr noise down during indexing runs.
-    clangdArgs.push('--log=error');
-    clangdArgs.push('--background-index=false');
-    if (compileCommandsDir) clangdArgs.push(`--compile-commands-dir=${compileCommandsDir}`);
-    const requestedCommand = resolveProviderRequestedCommand({
-      providerId: 'clangd',
-      toolingConfig: ctx?.toolingConfig || {},
-      defaultCmd: 'clangd',
-      defaultArgs: clangdArgs
-    });
-    const commandProfile = resolveToolingCommandProfile({
-      providerId: 'clangd',
-      cmd: requestedCommand.cmd,
-      args: requestedCommand.args,
-      repoRoot: ctx?.repoRoot || process.cwd(),
-      toolingConfig: ctx?.toolingConfig || {}
-    });
+    const requestedCommand = preflight?.requestedCommand && typeof preflight.requestedCommand === 'object'
+      ? preflight.requestedCommand
+      : buildClangdRequestedCommand({
+        ctx,
+        clangdConfig,
+        compileCommandsDir
+      });
+    const commandProfile = preflight?.commandProfile && typeof preflight.commandProfile === 'object'
+      ? preflight.commandProfile
+      : resolveToolingCommandProfile({
+        providerId: 'clangd',
+        cmd: requestedCommand.cmd,
+        args: requestedCommand.args,
+        repoRoot: ctx?.repoRoot || process.cwd(),
+        toolingConfig: ctx?.toolingConfig || {}
+      });
     if (!commandProfile.probe.ok) {
       log('[index] clangd command probe failed; attempting stdio initialization.');
-      checks.push({
-        name: 'clangd_command_unavailable',
-        status: 'warn',
-        message: 'clangd command probe failed; attempting stdio initialization anyway.'
-      });
+      if (!checks.some((entry) => entry?.name === 'clangd_command_unavailable')) {
+        checks.push(buildClangdCommandUnavailableCheck());
+      }
     }
     const configuredFallbackFlags = Array.isArray(clangdConfig.fallbackFlags)
       ? clangdConfig.fallbackFlags
