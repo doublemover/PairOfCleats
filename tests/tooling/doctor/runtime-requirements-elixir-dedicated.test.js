@@ -9,7 +9,7 @@ import {
 const tempRoot = await createToolingDoctorTempRoot('tooling-doctor-runtime-reqs-elixir');
 const resolveCommandProfile = createDoctorCommandResolver({
   available: ['elixir-ls'],
-  missing: ['elixir', 'erl']
+  missing: ['elixir', 'erl', 'mix']
 });
 
 const report = await runToolingDoctorFixture({
@@ -26,5 +26,8 @@ assert.equal(elixirRuntimeCheck.status, 'error', 'expected Elixir runtime check 
 const erlRuntimeCheck = (provider.checks || []).find((check) => check.name === 'elixir-ls-runtime-erl');
 assert.ok(erlRuntimeCheck, 'expected Erlang runtime requirement check');
 assert.equal(erlRuntimeCheck.status, 'error', 'expected Erlang runtime check error when erl command missing');
+const mixRuntimeCheck = (provider.checks || []).find((check) => check.name === 'elixir-ls-runtime-mix');
+assert.ok(mixRuntimeCheck, 'expected Mix runtime requirement check');
+assert.equal(mixRuntimeCheck.status, 'error', 'expected Mix runtime check error when mix command missing');
 
 console.log('tooling doctor dedicated elixir runtime requirements test passed');

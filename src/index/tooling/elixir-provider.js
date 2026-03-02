@@ -33,6 +33,11 @@ export const createElixirProvider = () => createDedicatedLspProvider({
     cmd: 'erl',
     args: ['-version'],
     label: 'Erlang runtime'
+  }, {
+    id: 'mix',
+    cmd: 'mix',
+    args: ['--version'],
+    label: 'Mix build tool'
   }],
   command: {
     defaultCmd: 'elixir-ls',
