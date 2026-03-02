@@ -1,20 +1,9 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
-import {
-  isSyncCommandTimedOut,
-  runSyncCommandWithTimeout,
-  toSyncCommandExitCode
-} from '../../../shared/subprocess/sync-command.js';
+import { runWorkspaceCommandPreflight } from './workspace-command-preflight.js';
 
 const DEFAULT_METADATA_ARGS = Object.freeze(['metadata', '--no-deps', '--format-version', '1']);
 const DEFAULT_METADATA_TIMEOUT_MS = 12000;
-
-const summarize = (value, maxChars = 220) => {
-  const text = String(value || '').replace(/\s+/g, ' ').trim();
-  if (!text) return '';
-  if (text.length <= maxChars) return text;
-  return `${text.slice(0, Math.max(0, maxChars - 1))}…`;
-};
 
 const normalizeRustLanguages = (server) => {
   if (!Array.isArray(server?.languages)) return [];
@@ -54,62 +43,12 @@ export const resolveRustWorkspaceMetadataPreflight = ({ ctx, server }) => {
   }
 
   const command = resolveMetadataCommand(server);
-  const result = runSyncCommandWithTimeout(command.cmd, command.args, {
-    cwd: repoRoot,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
+  return runWorkspaceCommandPreflight({
+    ctx,
+    cmd: command.cmd,
+    args: command.args,
     timeoutMs: command.timeoutMs,
-    killTree: true
+    reasonPrefix: 'rust_workspace_metadata',
+    label: 'rust workspace metadata'
   });
-
-  if (isSyncCommandTimedOut(result)) {
-    const message = `rust workspace metadata probe timed out after ${command.timeoutMs}ms.`;
-    return {
-      state: 'degraded',
-      reasonCode: 'rust_workspace_metadata_timeout',
-      message,
-      check: {
-        name: 'rust_workspace_metadata_timeout',
-        status: 'warn',
-        message
-      },
-      checks: []
-    };
-  }
-
-  const exitCode = toSyncCommandExitCode(result);
-  if (exitCode === 0) {
-    return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
-  }
-
-  if (result?.error) {
-    const message = `rust workspace metadata probe error: ${summarize(result.error?.message || result.error) || 'unknown error'}`;
-    return {
-      state: 'degraded',
-      reasonCode: 'rust_workspace_metadata_error',
-      message,
-      check: {
-        name: 'rust_workspace_metadata_error',
-        status: 'warn',
-        message
-      },
-      checks: []
-    };
-  }
-
-  const summary = summarize(result?.stderr || result?.stdout);
-  const message = summary
-    ? `rust workspace metadata probe failed (exit ${exitCode}): ${summary}`
-    : `rust workspace metadata probe failed (exit ${exitCode}).`;
-  return {
-    state: 'degraded',
-    reasonCode: 'rust_workspace_metadata_failed',
-    message,
-    check: {
-      name: 'rust_workspace_metadata_failed',
-      status: 'warn',
-      message
-    },
-    checks: []
-  };
 };
