@@ -7,6 +7,7 @@ import { estimateJsonBytes } from './cache.js';
 import { stableStringify } from './stable-json.js';
 import { writeJsonObjectFile } from './json-stream.js';
 import { atomicWriteJson, atomicWriteText } from './io/atomic-write.js';
+import { removePathWithRetry } from './io/remove-path-with-retry.js';
 import { acquireFileLock } from './locks/file-lock.js';
 import {
   MAX_BUNDLE_BYTES,
@@ -126,13 +127,18 @@ const runBundleTransformWorker = ({ operation, payload, timeoutMs = BUNDLE_WORKE
   })
 );
 
+const removeFileOrThrow = async (targetPath) => {
+  const removed = await removePathWithRetry(targetPath, {
+    recursive: false,
+    force: true
+  });
+  if (removed.ok) return;
+  throw removed.error || new Error(`Failed to remove path: ${targetPath}`);
+};
+
 const clearBundlePatchFile = async (bundlePath) => {
-  try {
-    await fs.rm(resolveBundlePatchPath(bundlePath), { force: true });
-  } catch {}
-  try {
-    await fs.rm(resolveBundlePatchMetaPath(bundlePath), { force: true });
-  } catch {}
+  await removeFileOrThrow(resolveBundlePatchPath(bundlePath));
+  await removeFileOrThrow(resolveBundlePatchMetaPath(bundlePath));
 };
 
 const stableEquals = (left, right) => {
@@ -581,16 +587,22 @@ export async function writeBundleFile({ bundlePath, bundle, format = 'json' }) {
     const encoded = packr.pack(envelope);
     await atomicWriteText(bundlePath, Buffer.from(encoded), { newline: false });
     await clearBundlePatchFile(bundlePath);
-    try {
-      await fs.rm(resolveBundleJsonChecksumPath(bundlePath), { force: true });
-    } catch {}
+    await removePathWithRetry(resolveBundleJsonChecksumPath(bundlePath), {
+      recursive: false,
+      force: true
+    });
     return {
       format: resolvedFormat,
       checksum: checksum?.value ?? null,
       checksumAlgo: checksum?.algo ?? null
     };
   }
-  await writeJsonObjectFile(bundlePath, { fields: bundle, trailingNewline: true });
+  await removeFileOrThrow(resolveBundleJsonChecksumPath(bundlePath));
+  await writeJsonObjectFile(bundlePath, {
+    fields: bundle,
+    trailingNewline: true,
+    atomic: true
+  });
   const checksumResult = await writeBundleJsonChecksum(bundlePath, bundle);
   await clearBundlePatchFile(bundlePath);
   return {
