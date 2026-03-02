@@ -135,6 +135,31 @@ export async function runWithQueue(queue, items, worker, options = {}) {
       return result;
     }
   };
+  const waitForAnyPendingOrAbort = async () => {
+    if (!pendingSignals.size) return;
+    const pendingRace = Promise.race(Array.from(pendingSignals));
+    if (!signal) {
+      await pendingRace;
+      return;
+    }
+    if (signal.aborted) {
+      markAborted();
+      throw abortError;
+    }
+    let onAbort = null;
+    const abortedPromise = new Promise((_, reject) => {
+      onAbort = () => {
+        markAborted();
+        reject(abortError);
+      };
+      signal.addEventListener('abort', onAbort, { once: true });
+    });
+    try {
+      await Promise.race([pendingRace, abortedPromise]);
+    } finally {
+      if (onAbort) signal.removeEventListener('abort', onAbort);
+    }
+  };
   const enqueue = async (item, index) => {
     const ctx = { index, item, signal };
     let taskBytes = 0;
@@ -167,7 +192,7 @@ export async function runWithQueue(queue, items, worker, options = {}) {
     }
     if (maxPending) {
       while (pendingSignals.size >= maxPending && !aborted) {
-        await Promise.race(pendingSignals);
+        await waitForAnyPendingOrAbort();
       }
     }
     if (maxPendingBytes && taskBytes > 0) {
@@ -177,7 +202,7 @@ export async function runWithQueue(queue, items, worker, options = {}) {
         const oversizeSingle = inflightBytes === 0 && pendingSignals.size === 0;
         if (fits || oversizeSingle) break;
         if (pendingSignals.size === 0) break;
-        await Promise.race(pendingSignals);
+        await waitForAnyPendingOrAbort();
       }
     }
     if (aborted) return;
