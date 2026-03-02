@@ -657,3 +657,4 @@ Acceptance gate:
 - 2026-03-02T09:48:05.5946190-05:00: Fixed probe-state modeling for runtime command resolution so missing commandProfile no longer emits false command-unavailable warnings.
 - 2026-03-02T09:49:19.4345025-05:00: Added shared preflight-check merge dedupe utility and applied it to configured/dedicated preflight check aggregation.
 - 2026-03-02T09:50:57.6755577-05:00: Enhanced preflight teardown timeout diagnostics with active offender details (provider/id/class/age) and added test coverage.
+- 2026-03-02T09:51:54.6183250-05:00: Added guard coverage to enforce shared runtime-command helper usage across all migrated preflight-owned providers.
