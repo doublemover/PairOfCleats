@@ -360,6 +360,120 @@ const collectAutoPresetServers = (toolingConfig, configuredServerIds) => {
 
 const createConfiguredLspProvider = (server) => {
   const providerId = normalizeServerId(server.providerId, `lsp-${server.id}`);
+  const buildCommandUnavailableCheck = (requestedCmd) => ({
+    name: 'lsp_command_unavailable',
+    status: 'warn',
+    message: `${requestedCmd} command probe failed for ${providerId}; attempting stdio initialization anyway.`
+  });
+  const resolveCommandProfile = (ctx) => (
+    resolveToolingCommandProfile({
+      providerId: server.id || providerId,
+      cmd: server.cmd,
+      args: server.args || [],
+      repoRoot: ctx?.repoRoot || process.cwd(),
+      toolingConfig: ctx?.toolingConfig || {}
+    })
+  );
+  const collectConfiguredOutput = async ({
+    ctx,
+    provider,
+    docs,
+    targets,
+    log,
+    preChecks,
+    commandProfile
+  }) => {
+    const result = await collectLspTypes({
+      ...resolveLspRuntimeConfig({
+        providerConfig: server,
+        globalConfigs: [ctx?.toolingConfig?.lsp || null, ctx?.toolingConfig || null],
+        defaults: {
+          timeoutMs: 60000,
+          retries: 2,
+          breakerThreshold: 3
+        }
+      }),
+      rootDir: ctx.repoRoot,
+      documents: docs,
+      targets,
+      abortSignal: ctx?.abortSignal || null,
+      log,
+      providerId,
+      cmd: commandProfile.resolved.cmd,
+      args: commandProfile.resolved.args || [],
+      parseSignature: parseGenericSignature,
+      strict: ctx?.strict !== false,
+      vfsRoot: ctx?.buildRoot || ctx.repoRoot,
+      uriScheme: server.uriScheme || 'file',
+      vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode,
+      vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching,
+      vfsColdStartCache: ctx?.toolingConfig?.vfs?.coldStartCache,
+      indexDir: ctx?.buildRoot || null,
+      cacheRoot: ctx?.cache?.dir || null,
+      documentSymbolConcurrency: server.documentSymbolConcurrency,
+      hoverConcurrency: server.hoverConcurrency,
+      hoverCacheMaxEntries: server.hoverCacheMaxEntries,
+      ...(Array.isArray(server.hoverSymbolKinds) && server.hoverSymbolKinds.length
+        ? { hoverSymbolKinds: server.hoverSymbolKinds }
+        : {}),
+      initializationOptions: server.initializationOptions,
+      captureDiagnostics: true
+    });
+    let diagnosticsByChunkUid = result.diagnosticsByChunkUid;
+    let diagnosticsCount = result.diagnosticsCount;
+    const resultChecks = Array.isArray(result.checks) ? result.checks.slice() : [];
+    invalidateProbeCacheOnInitializeFailure({
+      checks: resultChecks,
+      providerId: server.id || providerId,
+      command: commandProfile.resolved.cmd
+    });
+    if (server.rustSuppressProcMacroDiagnostics) {
+      const suppression = applyRustProcMacroSuppression(diagnosticsByChunkUid);
+      diagnosticsByChunkUid = suppression.diagnosticsByChunkUid;
+      diagnosticsCount = suppression.diagnosticsCount;
+      if (suppression.suppressedCount > 0) {
+        resultChecks.push({
+          name: 'tooling_rust_proc_macro_diagnostics_suppressed',
+          status: 'info',
+          message: `suppressed ${suppression.suppressedCount} non-fatal rust proc-macro diagnostic(s).`,
+          count: suppression.suppressedCount
+        });
+      }
+    }
+    const diagnostics = appendDiagnosticChecks(
+      diagnosticsCount
+        ? { diagnosticsCount, diagnosticsByChunkUid }
+        : null,
+      [...preChecks, ...resultChecks]
+    );
+    return {
+      provider: { id: providerId, version: provider.version, configHash: provider.getConfigHash(ctx) },
+      byChunkUid: result.byChunkUid,
+      diagnostics: result.runtime
+        ? { ...(diagnostics || {}), runtime: result.runtime }
+        : diagnostics
+    };
+  };
+  const runCommandProfilePreflight = (ctx) => {
+    const commandProfile = resolveCommandProfile(ctx);
+    if (commandProfile.probe.ok) {
+      return {
+        state: 'ready',
+        reasonCode: null,
+        message: '',
+        commandProfile
+      };
+    }
+    const check = buildCommandUnavailableCheck(server.cmd);
+    return {
+      state: 'degraded',
+      reasonCode: 'preflight_command_unavailable',
+      message: check.message,
+      checks: [check],
+      commandProfile
+    };
+  };
+
   const provider = {
     id: providerId,
     label: server.label || `LSP ${server.id}`,
@@ -399,6 +513,7 @@ const createConfiguredLspProvider = (server) => {
           diagnostics: appendDiagnosticChecks(null, preChecks)
         };
       }
+      let commandProfile = null;
       if (typeof this.preflight === 'function') {
         const preflight = await awaitToolingProviderPreflight(ctx, {
           provider: this,
@@ -427,110 +542,80 @@ const createConfiguredLspProvider = (server) => {
             diagnostics: appendDiagnosticChecks(null, preChecks)
           };
         }
-      }
-      const commandProfile = resolveToolingCommandProfile({
-        providerId: server.id || providerId,
-        cmd: server.cmd,
-        args: server.args || [],
-        repoRoot: ctx?.repoRoot || process.cwd(),
-        toolingConfig: ctx?.toolingConfig || {}
-      });
-      if (!commandProfile.probe.ok) {
-        preChecks.push({
-          name: 'lsp_command_unavailable',
-          status: 'warn',
-          message: `${server.cmd} command probe failed for ${providerId}; attempting stdio initialization anyway.`
-        });
-      }
-      const result = await collectLspTypes({
-        ...resolveLspRuntimeConfig({
-          providerConfig: server,
-          globalConfigs: [ctx?.toolingConfig?.lsp || null, ctx?.toolingConfig || null],
-          defaults: {
-            timeoutMs: 60000,
-            retries: 2,
-            breakerThreshold: 3
-          }
-        }),
-        rootDir: ctx.repoRoot,
-        documents: docs,
-        targets,
-        abortSignal: ctx?.abortSignal || null,
-        log,
-        providerId,
-        cmd: commandProfile.resolved.cmd,
-        args: commandProfile.resolved.args || [],
-        parseSignature: parseGenericSignature,
-        strict: ctx?.strict !== false,
-        vfsRoot: ctx?.buildRoot || ctx.repoRoot,
-        uriScheme: server.uriScheme || 'file',
-        vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode,
-        vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching,
-        vfsColdStartCache: ctx?.toolingConfig?.vfs?.coldStartCache,
-        indexDir: ctx?.buildRoot || null,
-        cacheRoot: ctx?.cache?.dir || null,
-        documentSymbolConcurrency: server.documentSymbolConcurrency,
-        hoverConcurrency: server.hoverConcurrency,
-        hoverCacheMaxEntries: server.hoverCacheMaxEntries,
-        ...(Array.isArray(server.hoverSymbolKinds) && server.hoverSymbolKinds.length
-          ? { hoverSymbolKinds: server.hoverSymbolKinds }
-          : {}),
-        initializationOptions: server.initializationOptions,
-        captureDiagnostics: true
-      });
-      let diagnosticsByChunkUid = result.diagnosticsByChunkUid;
-      let diagnosticsCount = result.diagnosticsCount;
-      const resultChecks = Array.isArray(result.checks) ? result.checks.slice() : [];
-      invalidateProbeCacheOnInitializeFailure({
-        checks: resultChecks,
-        providerId: server.id || providerId,
-        command: commandProfile.resolved.cmd
-      });
-      if (server.rustSuppressProcMacroDiagnostics) {
-        const suppression = applyRustProcMacroSuppression(diagnosticsByChunkUid);
-        diagnosticsByChunkUid = suppression.diagnosticsByChunkUid;
-        diagnosticsCount = suppression.diagnosticsCount;
-        if (suppression.suppressedCount > 0) {
-          resultChecks.push({
-            name: 'tooling_rust_proc_macro_diagnostics_suppressed',
-            status: 'info',
-            message: `suppressed ${suppression.suppressedCount} non-fatal rust proc-macro diagnostic(s).`,
-            count: suppression.suppressedCount
-          });
+        if (preflight?.commandProfile && typeof preflight.commandProfile === 'object') {
+          commandProfile = preflight.commandProfile;
         }
       }
-      const diagnostics = appendDiagnosticChecks(
-        diagnosticsCount
-          ? { diagnosticsCount, diagnosticsByChunkUid }
-          : null,
-        [...preChecks, ...resultChecks]
-      );
-      return {
-        provider: { id: providerId, version: this.version, configHash: this.getConfigHash(ctx) },
-        byChunkUid: result.byChunkUid,
-        diagnostics: result.runtime
-          ? { ...(diagnostics || {}), runtime: result.runtime }
-          : diagnostics
-      };
+      if (!commandProfile) {
+        commandProfile = resolveCommandProfile(ctx);
+      }
+      if (!commandProfile.probe.ok) {
+        if (!preChecks.some((entry) => entry?.name === 'lsp_command_unavailable')) {
+          preChecks.push(buildCommandUnavailableCheck(server.cmd));
+        }
+        log('[index] configured LSP command probe failed; attempting stdio initialization.');
+      }
+      return await collectConfiguredOutput({
+        ctx,
+        provider: this,
+        docs,
+        targets,
+        log,
+        preChecks,
+        commandProfile
+      });
     }
   };
-  if (server.workspaceMarkerOptions && server.requireWorkspaceModel !== false) {
-    provider.preflightId = `${providerId}.workspace-model`;
-    provider.preflightClass = server.preflightClass || 'workspace';
-    provider.preflight = async (ctx) => {
-      return resolveWorkspaceModelPreflight({
-        repoRoot: ctx?.repoRoot || process.cwd(),
-        markerOptions: server.workspaceMarkerOptions || {},
-        missingCheck: {
-          name: `${server.id}_workspace_model_missing`,
-          message: server.workspaceModelMissingMessage
-        },
-        fallbackName: `${server.id}_workspace_model_missing`,
-        fallbackMessage: server.workspaceModelMissingMessage,
-        policy: server.workspaceModelPolicy
-      });
+  provider.preflightId = server.workspaceMarkerOptions && server.requireWorkspaceModel !== false
+    ? `${providerId}.workspace-model`
+    : `${providerId}.command-profile`;
+  provider.preflightClass = server.preflightClass
+    || (server.workspaceMarkerOptions && server.requireWorkspaceModel !== false ? 'workspace' : 'probe');
+  provider.preflight = async (ctx) => {
+    const commandPreflight = runCommandProfilePreflight(ctx);
+    if (!(server.workspaceMarkerOptions && server.requireWorkspaceModel !== false)) {
+      return commandPreflight;
+    }
+    const workspacePreflight = resolveWorkspaceModelPreflight({
+      repoRoot: ctx?.repoRoot || process.cwd(),
+      markerOptions: server.workspaceMarkerOptions || {},
+      missingCheck: {
+        name: `${server.id}_workspace_model_missing`,
+        message: server.workspaceModelMissingMessage
+      },
+      fallbackName: `${server.id}_workspace_model_missing`,
+      fallbackMessage: server.workspaceModelMissingMessage,
+      policy: server.workspaceModelPolicy
+    });
+    const checks = [
+      ...(Array.isArray(commandPreflight?.checks) ? commandPreflight.checks : []),
+      ...(workspacePreflight?.check ? [workspacePreflight.check] : []),
+      ...(Array.isArray(workspacePreflight?.checks) ? workspacePreflight.checks : [])
+    ];
+    if (workspacePreflight.blockProvider === true || workspacePreflight.blockSourcekit === true) {
+      return {
+        state: 'blocked',
+        reasonCode: workspacePreflight.reasonCode || commandPreflight.reasonCode || 'preflight_unknown',
+        message: workspacePreflight.message || commandPreflight.message || '',
+        blockProvider: true,
+        commandProfile: commandPreflight.commandProfile,
+        ...(checks.length ? { checks } : {})
+      };
+    }
+    if (commandPreflight.state !== 'ready') {
+      return {
+        ...commandPreflight,
+        ...(checks.length ? { checks } : {})
+      };
+    }
+    return {
+      state: workspacePreflight.state || 'ready',
+      reasonCode: workspacePreflight.reasonCode || commandPreflight.reasonCode || null,
+      message: workspacePreflight.message || commandPreflight.message || '',
+      commandProfile: commandPreflight.commandProfile,
+      ...(checks.length ? { checks } : {})
     };
-  }
+  };
   return provider;
 };
 
