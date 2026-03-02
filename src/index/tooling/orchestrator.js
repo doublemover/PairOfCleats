@@ -959,6 +959,10 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([name, value]) => `${name}:${value}`)
       .join(',');
+    const classes = Object.entries(metrics.preflights.byClass || {})
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([name, value]) => `${name}:${value}`)
+      .join(',');
     log(
       '[tooling] preflight summary '
       + `total=${metrics.preflights.total} `
@@ -967,8 +971,23 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
       + `failed=${metrics.preflights.failed} `
       + `queuePeak=${metrics.preflights.scheduler?.queueDepthPeak || 0} `
       + `teardownTimedOut=${preflightTeardown.timedOut === true ? 1 : 0} `
-      + `states=${states || 'none'}`
+      + `states=${states || 'none'} `
+      + `classes=${classes || 'none'}`
     );
+    const topSlow = Array.isArray(metrics.preflights.topSlow)
+      ? metrics.preflights.topSlow.slice(0, 5)
+      : [];
+    if (topSlow.length) {
+      const offenders = topSlow
+        .map((entry) => {
+          const providerId = String(entry?.providerId || '<unknown>');
+          const preflightId = String(entry?.preflightId || '<unknown>');
+          const durationMs = Number.isFinite(Number(entry?.durationMs)) ? Math.round(Number(entry.durationMs)) : 0;
+          return `${providerId}/${preflightId}:${durationMs}ms`;
+        })
+        .join(', ');
+      log(`[tooling] preflight slowest ${offenders}`);
+    }
   }
 
   return {
