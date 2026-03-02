@@ -1,3 +1,6 @@
+import fsSync from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import {
   appendDiagnosticChecks,
@@ -93,6 +96,67 @@ const withLuaWorkspaceLibrary = (initializationOptions, luaWorkspaceLibrary) => 
   settings.Lua = luaSettings;
   next.settings = settings;
   return next;
+};
+
+const normalizeLuaWorkspaceLibraryEntries = (initializationOptions) => {
+  const libraries = initializationOptions?.settings?.Lua?.workspace?.library;
+  if (!Array.isArray(libraries)) return [];
+  return libraries
+    .map((entry) => String(entry || '').trim())
+    .filter(Boolean);
+};
+
+const resolveLuaWorkspaceLibraryPath = (repoRoot, value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (/^[a-z]+:\/\//i.test(raw)) {
+    if (!raw.toLowerCase().startsWith('file://')) return '';
+    try {
+      return fileURLToPath(raw);
+    } catch {
+      return '';
+    }
+  }
+  if (path.isAbsolute(raw)) return raw;
+  return path.resolve(repoRoot || process.cwd(), raw);
+};
+
+const resolveLuaWorkspaceLibraryPreflight = ({ server, repoRoot }) => {
+  const serverId = String(server?.id || '').trim().toLowerCase();
+  const languages = Array.isArray(server?.languages)
+    ? server.languages.map((entry) => String(entry || '').trim().toLowerCase()).filter(Boolean)
+    : [];
+  if (serverId !== 'lua-language-server' && !languages.includes('lua')) {
+    return { state: 'ready', reasonCode: null, message: '', check: null };
+  }
+  const libraries = normalizeLuaWorkspaceLibraryEntries(server?.initializationOptions);
+  if (!libraries.length) {
+    return { state: 'ready', reasonCode: null, message: '', check: null };
+  }
+  const missing = [];
+  for (const entry of libraries) {
+    const candidatePath = resolveLuaWorkspaceLibraryPath(repoRoot, entry);
+    if (!candidatePath) continue;
+    if (!fsSync.existsSync(candidatePath)) {
+      missing.push(entry);
+    }
+  }
+  if (!missing.length) {
+    return { state: 'ready', reasonCode: null, message: '', check: null };
+  }
+  const samples = missing.slice(0, 3).join(', ');
+  const suffix = missing.length > 3 ? ` (+${missing.length - 3} more)` : '';
+  const message = `lua workspace library path(s) missing: ${samples}${suffix}`;
+  return {
+    state: 'degraded',
+    reasonCode: 'lua_workspace_library_missing',
+    message,
+    check: {
+      name: 'lua_workspace_library_missing',
+      status: 'warn',
+      message
+    }
+  };
 };
 
 const parseGenericSignature = (detail, languageId, symbolName) => {
@@ -615,8 +679,35 @@ const createConfiguredLspProvider = (server) => {
     || (server.workspaceMarkerOptions && server.requireWorkspaceModel !== false ? 'workspace' : 'probe');
   provider.preflight = async (ctx) => {
     const commandPreflight = runCommandProfilePreflight(ctx);
+    const luaLibraryPreflight = resolveLuaWorkspaceLibraryPreflight({
+      server,
+      repoRoot: ctx?.repoRoot || process.cwd()
+    });
     if (!(server.workspaceMarkerOptions && server.requireWorkspaceModel !== false)) {
-      return commandPreflight;
+      const checks = mergePreflightChecks(
+        commandPreflight?.checks,
+        luaLibraryPreflight?.check,
+        luaLibraryPreflight?.checks
+      );
+      if (commandPreflight.state !== 'ready') {
+        return {
+          ...commandPreflight,
+          ...(checks.length ? { checks } : {})
+        };
+      }
+      if (luaLibraryPreflight.state !== 'ready') {
+        return {
+          ...commandPreflight,
+          state: luaLibraryPreflight.state || 'degraded',
+          reasonCode: luaLibraryPreflight.reasonCode || null,
+          message: luaLibraryPreflight.message || '',
+          ...(checks.length ? { checks } : {})
+        };
+      }
+      return {
+        ...commandPreflight,
+        ...(checks.length ? { checks } : {})
+      };
     }
     const workspacePreflight = resolveWorkspaceModelPreflight({
       repoRoot: ctx?.repoRoot || process.cwd(),
@@ -632,7 +723,9 @@ const createConfiguredLspProvider = (server) => {
     const checks = mergePreflightChecks(
       commandPreflight?.checks,
       workspacePreflight?.check,
-      workspacePreflight?.checks
+      workspacePreflight?.checks,
+      luaLibraryPreflight?.check,
+      luaLibraryPreflight?.checks
     );
     if (workspacePreflight.blockProvider === true || workspacePreflight.blockSourcekit === true) {
       return {
@@ -647,6 +740,15 @@ const createConfiguredLspProvider = (server) => {
     if (commandPreflight.state !== 'ready') {
       return {
         ...commandPreflight,
+        ...(checks.length ? { checks } : {})
+      };
+    }
+    if (luaLibraryPreflight.state !== 'ready') {
+      return {
+        ...commandPreflight,
+        state: luaLibraryPreflight.state || 'degraded',
+        reasonCode: luaLibraryPreflight.reasonCode || null,
+        message: luaLibraryPreflight.message || '',
         ...(checks.length ? { checks } : {})
       };
     }

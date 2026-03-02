@@ -642,6 +642,7 @@ tooling/lsp/preflight-provider-metadata-coverage
 tooling/lsp/configured-provider-go-rust-signature-parsing
 tooling/lsp/configured-provider-yaml-schema-override-merge
 tooling/lsp/configured-provider-lua-workspace-library
+tooling/lsp/configured-provider-lua-workspace-library-missing-path-preflight
 tooling/lsp/configured-provider-rust-proc-macro-diagnostic-suppression
 storage/sqlite/reader-schema-mismatch
 indexing/build/promotion-timing-contract
