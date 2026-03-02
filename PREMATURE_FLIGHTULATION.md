@@ -666,3 +666,4 @@ Acceptance gate:
 - 2026-03-02T10:15:53.1310996-05:00: Added Lua workspace-library preflight validation (missing path degraded warning, non-blocking) for configured providers with coverage in ci-lite.
 - 2026-03-02T10:17:40.5364622-05:00: Added YAML schema-mode preflight classification for configured providers and surfaced remote schemaStore mode as explicit degraded diagnostics (non-blocking) with ci-lite coverage.
 - 2026-03-02T10:22:29.1734065-05:00: Propagated preflight policy metadata into manager snapshots/orchestrator diagnostics+metrics, logged policy aggregates in preflight summaries, and extended bench preflight parser/reporting for policy counts.
+- 2026-03-02T10:24:34.0665498-05:00: Refreshed tooling doctor/reporting spec to match current doctor artifact schema and preflight metadata surfaces (provider policy/class/runtime requirements + bench policy rollups).
