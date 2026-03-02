@@ -662,3 +662,4 @@ Acceptance gate:
 - 2026-03-02T09:56:10.1593384-05:00: Extended bench-language report diagnostics to parse preflight summary lines (queue peak, teardown timeout, class/state aggregates).
 - 2026-03-02T09:57:33.5749448-05:00: Extended bench-language report diagnostics to parse preflight slowest summary lines and surface parsed offender lists.
 - 2026-03-02T10:04:20.4891399-05:00: Added provider-declared preflight policy/runtime-prerequisite metadata across dedicated/configured providers and made tooling doctor consume/report metadata first (with command-heuristic fallback).
+- 2026-03-02T10:13:05.0043036-05:00: Added static preflight provider metadata coverage guard (preflight id/class/policy/runtime requirements) and wired it into ci-lite to enforce hard-cutover invariants.
