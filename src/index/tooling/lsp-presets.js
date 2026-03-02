@@ -9,7 +9,12 @@ const PRESET_DEFINITIONS = Object.freeze({
     args: [],
     languages: ['go'],
     label: 'Go (gopls)',
-    priority: 80
+    priority: 80,
+    requireWorkspaceModel: true,
+    workspaceMarkerOptions: Object.freeze({
+      exactNames: Object.freeze(['go.mod', 'go.work'])
+    }),
+    workspaceModelMissingMessage: 'gopls workspace markers (go.mod/go.work) not found near repo root.'
   }),
   'rust-analyzer': Object.freeze({
     id: 'rust-analyzer',
@@ -17,7 +22,12 @@ const PRESET_DEFINITIONS = Object.freeze({
     args: [],
     languages: ['rust'],
     label: 'Rust (rust-analyzer)',
-    priority: 80
+    priority: 80,
+    requireWorkspaceModel: true,
+    workspaceMarkerOptions: Object.freeze({
+      exactNames: Object.freeze(['Cargo.toml', 'Cargo.lock'])
+    }),
+    workspaceModelMissingMessage: 'rust-analyzer workspace markers (Cargo.toml/Cargo.lock) not found near repo root.'
   }),
   'yaml-language-server': Object.freeze({
     id: 'yaml-language-server',
@@ -50,7 +60,12 @@ const PRESET_DEFINITIONS = Object.freeze({
     args: [],
     languages: ['zig'],
     label: 'Zig (zls)',
-    priority: 80
+    priority: 80,
+    requireWorkspaceModel: true,
+    workspaceMarkerOptions: Object.freeze({
+      exactNames: Object.freeze(['build.zig', 'build.zig.zon'])
+    }),
+    workspaceModelMissingMessage: 'zls workspace markers (build.zig/build.zig.zon) not found near repo root.'
   })
 });
 

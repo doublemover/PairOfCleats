@@ -10,6 +10,7 @@ import { invalidateProbeCacheOnInitializeFailure, resolveToolingCommandProfile }
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 import { resolveProviderRequestedCommand } from './provider-command-override.js';
 import { filterTargetsForDocuments } from './provider-utils.js';
+import { awaitToolingProviderPreflight } from './preflight-manager.js';
 import { parseClikeSignature } from './signature-parse/clike.js';
 import { resolveCompileCommandsDir } from './compile-commands.js';
 
@@ -340,6 +341,14 @@ const parseSignature = (detail, languageId, symbolName) => {
   return parseClikeSignature(trimmed, symbolName);
 };
 
+const resolveClangdDocumentsAndTargets = (inputs) => {
+  const docs = Array.isArray(inputs?.documents)
+    ? inputs.documents.filter((doc) => CLIKE_EXTS.includes(path.extname(doc.virtualPath).toLowerCase()))
+    : [];
+  const targets = filterTargetsForDocuments(inputs?.targets, docs);
+  return { docs, targets };
+};
+
 export const createClangdStderrFilter = () => {
   let suppressedIncludeCleaner = 0;
   const includeCleanerPattern = /\bIncludeCleaner:\s+Failed to get an entry for resolved path '' from include (?:<([^>]+)>|"([^"]+)")\s*:\s*no such file or directory\b/i;
@@ -374,6 +383,8 @@ export const createClangdStderrFilter = () => {
 
 export const createClangdProvider = () => ({
   id: 'clangd',
+  preflightId: 'clangd.workspace-model',
+  preflightClass: 'workspace',
   version: '2.0.0',
   label: 'clangd',
   priority: 20,
@@ -390,14 +401,73 @@ export const createClangdProvider = () => ({
   getConfigHash(ctx) {
     return hashProviderConfig({ clangd: ctx?.toolingConfig?.clangd || {} });
   },
+  async preflight(ctx, inputs = {}) {
+    const log = typeof inputs?.log === 'function'
+      ? inputs.log
+      : (typeof ctx?.logger === 'function' ? ctx.logger : (() => {}));
+    const { docs, targets } = resolveClangdDocumentsAndTargets(inputs);
+    if (!docs.length || !targets.length) {
+      return {
+        state: 'skipped',
+        blockProvider: false,
+        compileCommandsDir: null,
+        check: null
+      };
+    }
+    const clangdConfig = inputs?.clangdConfig || ctx?.toolingConfig?.clangd || {};
+    const compileCommandsDir = resolveCompileCommandsDir(ctx.repoRoot, clangdConfig);
+    if (!compileCommandsDir && clangdConfig.requireCompilationDatabase === true) {
+      log('[index] clangd requires compile_commands.json; skipping tooling-based types.');
+      return {
+        state: 'blocked',
+        reasonCode: 'clangd_compile_commands_missing',
+        blockProvider: true,
+        compileCommandsDir: null,
+        check: {
+          name: 'clangd_compile_commands_missing',
+          status: 'warn',
+          message: 'clangd requires compile_commands.json; skipping tooling-based types.'
+        }
+      };
+    }
+    return {
+      state: 'ready',
+      blockProvider: false,
+      compileCommandsDir: compileCommandsDir || null,
+      check: null
+    };
+  },
   async run(ctx, inputs) {
     const log = typeof ctx?.logger === 'function' ? ctx.logger : (() => {});
-    const docs = Array.isArray(inputs?.documents)
-      ? inputs.documents.filter((doc) => CLIKE_EXTS.includes(path.extname(doc.virtualPath).toLowerCase()))
-      : [];
-    let targets = filterTargetsForDocuments(inputs?.targets, docs);
+    const { docs, targets: resolvedTargets } = resolveClangdDocumentsAndTargets(inputs);
+    let targets = resolvedTargets;
     const clangdConfig = ctx?.toolingConfig?.clangd || {};
-    const compileCommandsDir = resolveCompileCommandsDir(ctx.repoRoot, clangdConfig);
+    const duplicateChecks = buildDuplicateChunkUidChecks(targets, { label: 'clangd' });
+    const preflightChecks = [];
+    const preflight = await awaitToolingProviderPreflight(ctx, {
+      provider: this,
+      inputs: {
+        ...inputs,
+        documents: docs,
+        targets,
+        clangdConfig,
+        log
+      },
+      waveToken: typeof inputs?.toolingPreflightWaveToken === 'string'
+        ? inputs.toolingPreflightWaveToken
+        : null
+    });
+    if (preflight?.check && typeof preflight.check === 'object') {
+      preflightChecks.push(preflight.check);
+    }
+    if (preflight?.blockProvider === true || preflight?.blockSourcekit === true) {
+      return {
+        provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+        byChunkUid: {},
+        diagnostics: appendDiagnosticChecks(null, [...duplicateChecks, ...preflightChecks])
+      };
+    }
+    const compileCommandsDir = preflight?.compileCommandsDir || resolveCompileCommandsDir(ctx.repoRoot, clangdConfig);
     let selectedDocs = docs;
     if (!compileCommandsDir) {
       const maxDocsWithoutCompileCommands = Number.isFinite(Number(clangdConfig.maxDocsWithoutCompileCommands))
@@ -421,17 +491,8 @@ export const createClangdProvider = () => ({
         );
       }
     }
-    const duplicateChecks = buildDuplicateChunkUidChecks(targets, { label: 'clangd' });
-    const checks = [...duplicateChecks];
+    const checks = [...duplicateChecks, ...preflightChecks];
     if (!selectedDocs.length || !targets.length) {
-      return {
-        provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },
-        byChunkUid: {},
-        diagnostics: appendDiagnosticChecks(null, checks)
-      };
-    }
-    if (!compileCommandsDir && clangdConfig.requireCompilationDatabase === true) {
-      log('[index] clangd requires compile_commands.json; skipping tooling-based types.');
       return {
         provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},

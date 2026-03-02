@@ -12,9 +12,10 @@ import { parseRubySignature } from './signature-parse/ruby.js';
 import { parseRustSignature } from './signature-parse/rust.js';
 import { parseSwiftSignature } from './signature-parse/swift.js';
 import { parseZigSignature } from './signature-parse/zig.js';
-import { hasWorkspaceMarker } from './workspace-model.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 import { isPlainObject, normalizeCommandArgs } from './provider-utils.js';
+import { awaitToolingProviderPreflight } from './preflight-manager.js';
+import { resolveWorkspaceModelPreflight } from './preflight/workspace-model-preflight.js';
 
 const normalizeList = (value) => {
   if (Array.isArray(value)) return value.map((entry) => String(entry).trim()).filter(Boolean);
@@ -207,6 +208,18 @@ const normalizeServerConfig = (server, index) => {
   const requireWorkspaceModel = typeof merged.requireWorkspaceModel === 'boolean'
     ? merged.requireWorkspaceModel
     : null;
+  const workspaceMarkerOptions = isPlainObject(merged.workspaceMarkerOptions)
+    ? deepCloneValue(merged.workspaceMarkerOptions)
+    : null;
+  const workspaceModelPolicyRaw = String(merged.workspaceModelPolicy || '').trim().toLowerCase();
+  const workspaceModelPolicy = workspaceModelPolicyRaw === 'block' ? 'block' : 'warn';
+  const preflightClassRaw = String(merged.preflightClass || '').trim().toLowerCase();
+  const preflightClass = preflightClassRaw === 'dependency'
+    ? 'dependency'
+    : (preflightClassRaw === 'workspace' ? 'workspace' : null);
+  const workspaceModelMissingMessage = typeof merged.workspaceModelMissingMessage === 'string'
+    ? merged.workspaceModelMissingMessage.trim()
+    : '';
   const presetName = String(merged.preset || '').trim().toLowerCase();
   const usesLuaPreset = presetName === 'lua'
     || presetName === 'lua_ls'
@@ -225,6 +238,19 @@ const normalizeServerConfig = (server, index) => {
   const rustSuppressProcMacroDiagnostics = id === 'rust-analyzer'
     ? merged.rustSuppressProcMacroDiagnostics !== false
     : false;
+  const resolvedWorkspaceMarkerOptions = (
+    requireWorkspaceModel === false
+      ? null
+      : (workspaceMarkerOptions || (id === 'gopls'
+        ? { exactNames: ['go.mod', 'go.work'] }
+        : null))
+  );
+  const resolvedWorkspaceModelMissingMessage = (
+    workspaceModelMissingMessage
+      || (id === 'gopls'
+        ? 'gopls workspace markers (go.mod/go.work) not found near repo root.'
+        : `${id} workspace model markers not found near repo root.`)
+  );
   return {
     id,
     providerId,
@@ -291,6 +317,10 @@ const normalizeServerConfig = (server, index) => {
     hoverSymbolKinds,
     rustSuppressProcMacroDiagnostics,
     requireWorkspaceModel,
+    workspaceMarkerOptions: resolvedWorkspaceMarkerOptions,
+    workspaceModelPolicy,
+    preflightClass,
+    workspaceModelMissingMessage: resolvedWorkspaceModelMissingMessage,
     lifecycle,
     lifecycleRestartWindowMs: merged.lifecycleRestartWindowMs,
     lifecycleMaxRestartsPerWindow: merged.lifecycleMaxRestartsPerWindow,
@@ -330,7 +360,7 @@ const collectAutoPresetServers = (toolingConfig, configuredServerIds) => {
 
 const createConfiguredLspProvider = (server) => {
   const providerId = normalizeServerId(server.providerId, `lsp-${server.id}`);
-  return {
+  const provider = {
     id: providerId,
     label: server.label || `LSP ${server.id}`,
     version: server.version || '1.0.0',
@@ -369,16 +399,33 @@ const createConfiguredLspProvider = (server) => {
           diagnostics: appendDiagnosticChecks(null, preChecks)
         };
       }
-      if (server.id === 'gopls' && server.requireWorkspaceModel !== false) {
-        const markerFound = hasWorkspaceMarker(ctx?.repoRoot || process.cwd(), {
-          exactNames: ['go.mod', 'go.work']
+      if (typeof this.preflight === 'function') {
+        const preflight = await awaitToolingProviderPreflight(ctx, {
+          provider: this,
+          inputs: {
+            ...inputs,
+            documents: docs,
+            targets,
+            log
+          },
+          waveToken: typeof inputs?.toolingPreflightWaveToken === 'string'
+            ? inputs.toolingPreflightWaveToken
+            : null
         });
-        if (!markerFound) {
-          preChecks.push({
-            name: 'gopls_workspace_model_missing',
-            status: 'warn',
-            message: 'gopls workspace markers (go.mod/go.work) not found near repo root.'
-          });
+        if (preflight?.check && typeof preflight.check === 'object') {
+          preChecks.push(preflight.check);
+        }
+        if (Array.isArray(preflight?.checks)) {
+          for (const check of preflight.checks) {
+            if (check && typeof check === 'object') preChecks.push(check);
+          }
+        }
+        if (preflight?.blockProvider === true || preflight?.blockSourcekit === true) {
+          return {
+            provider: { id: providerId, version: this.version, configHash: this.getConfigHash(ctx) },
+            byChunkUid: {},
+            diagnostics: appendDiagnosticChecks(null, preChecks)
+          };
         }
       }
       const commandProfile = resolveToolingCommandProfile({
@@ -467,6 +514,24 @@ const createConfiguredLspProvider = (server) => {
       };
     }
   };
+  if (server.workspaceMarkerOptions && server.requireWorkspaceModel !== false) {
+    provider.preflightId = `${providerId}.workspace-model`;
+    provider.preflightClass = server.preflightClass || 'workspace';
+    provider.preflight = async (ctx) => {
+      return resolveWorkspaceModelPreflight({
+        repoRoot: ctx?.repoRoot || process.cwd(),
+        markerOptions: server.workspaceMarkerOptions || {},
+        missingCheck: {
+          name: `${server.id}_workspace_model_missing`,
+          message: server.workspaceModelMissingMessage
+        },
+        fallbackName: `${server.id}_workspace_model_missing`,
+        fallbackMessage: server.workspaceModelMissingMessage,
+        policy: server.workspaceModelPolicy
+      });
+    };
+  }
+  return provider;
 };
 
 export const createConfiguredLspProviders = (toolingConfig) => {

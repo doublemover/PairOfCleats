@@ -3,9 +3,10 @@ import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
 import { invalidateProbeCacheOnInitializeFailure, resolveToolingCommandProfile } from './command-resolver.js';
 import { resolveProviderRequestedCommand } from './provider-command-override.js';
-import { hasWorkspaceMarker } from './workspace-model.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 import { isPlainObject, normalizeCommandArgs, filterTargetsForDocuments } from './provider-utils.js';
+import { awaitToolingProviderPreflight } from './preflight-manager.js';
+import { resolveWorkspaceModelPreflight } from './preflight/workspace-model-preflight.js';
 
 const DEFAULT_RUNTIME_OPTIONS = {
   timeoutMs: 60000,
@@ -87,7 +88,7 @@ const buildCommandUnavailableCheck = (descriptor, requestedCmd) => {
   return { name, status: 'warn', message };
 };
 
-const maybeBuildWorkspaceMissingCheck = (descriptor) => {
+const resolveWorkspaceMissingCheck = (descriptor) => {
   const check = descriptor.workspace?.missingCheck || {};
   const name = typeof check.name === 'string' && check.name.trim()
     ? check.name.trim()
@@ -96,6 +97,30 @@ const maybeBuildWorkspaceMissingCheck = (descriptor) => {
     ? check.message
     : `${descriptor.label} workspace markers not found; skipping dedicated provider.`;
   return { name, status: 'warn', message };
+};
+
+const resolveWaveToken = (inputs) => (
+  typeof inputs?.toolingPreflightWaveToken === 'string'
+    ? inputs.toolingPreflightWaveToken
+    : null
+);
+
+const appendPreflightChecks = (checks, preflight) => {
+  if (!Array.isArray(checks)) return;
+  if (preflight?.check && typeof preflight.check === 'object') {
+    checks.push(preflight.check);
+  }
+  if (Array.isArray(preflight?.checks)) {
+    for (const check of preflight.checks) {
+      if (check && typeof check === 'object') checks.push(check);
+    }
+  }
+};
+
+const shouldBlockProviderFromPreflight = (preflight) => {
+  if (!preflight || typeof preflight !== 'object') return false;
+  if (preflight.blockProvider === true || preflight.blockSourcekit === true) return true;
+  return String(preflight.state || '').trim().toLowerCase() === 'blocked';
 };
 
 /**
@@ -128,6 +153,7 @@ const maybeBuildWorkspaceMissingCheck = (descriptor) => {
  *     missingCheck?: { name?: string, message?: string }
  *   } | null,
  *   runtimeDefaults?: { timeoutMs?: number, retries?: number, breakerThreshold?: number },
+ *   preflightClass?: 'probe'|'workspace'|'dependency',
  *   prepareCollect?: (input: {
  *     ctx: object,
  *     config: object,
@@ -145,123 +171,191 @@ const maybeBuildWorkspaceMissingCheck = (descriptor) => {
  * }} descriptor
  * @returns {import('./provider-registry.js').ToolingProvider}
  */
-export const createDedicatedLspProvider = (descriptor) => ({
-  id: descriptor.id,
-  version: descriptor.version || '1.0.0',
-  label: descriptor.label,
-  priority: descriptor.priority,
-  languages: descriptor.languages,
-  kinds: Array.isArray(descriptor.kinds) && descriptor.kinds.length
-    ? descriptor.kinds
-    : ['types', 'diagnostics'],
-  requires: descriptor.requires || { cmd: descriptor.command.defaultCmd },
-  capabilities: descriptor.capabilities || {
-    supportsVirtualDocuments: true,
-    supportsSegmentRouting: true,
-    supportsJavaScript: false,
-    supportsTypeScript: false,
-    supportsSymbolRef: false
-  },
-  getConfigHash(ctx) {
-    return resolveProviderConfigHash(ctx, descriptor.configKey);
-  },
-  async run(ctx, inputs) {
-    const configHash = resolveProviderConfigHash(ctx, descriptor.configKey);
-    const providerRef = buildProviderRef(this, configHash);
-    const config = resolveProviderConfig(ctx, descriptor.configKey);
-    const docs = filterProviderDocuments(inputs?.documents, toExtensionSet(descriptor.docExtensions));
-    const targets = filterTargetsForDocuments(inputs?.targets, docs);
-    const duplicateChecks = buildDuplicateChunkUidChecks(targets, {
-      label: descriptor.duplicateLabel || descriptor.id
-    });
-    if (!docs.length || !targets.length || config.enabled !== true) {
-      return buildBaseResult(providerRef, duplicateChecks);
-    }
-
-    const checks = [...duplicateChecks];
-    if (descriptor.workspace && config.requireWorkspaceModel !== false) {
-      const markerFound = hasWorkspaceMarker(ctx?.repoRoot || process.cwd(), descriptor.workspace.markerOptions || {});
-      if (!markerFound) {
-        checks.push(maybeBuildWorkspaceMissingCheck(descriptor));
-        return buildBaseResult(providerRef, checks);
+export const createDedicatedLspProvider = (descriptor) => {
+  const provider = {
+    id: descriptor.id,
+    version: descriptor.version || '1.0.0',
+    label: descriptor.label,
+    priority: descriptor.priority,
+    languages: descriptor.languages,
+    kinds: Array.isArray(descriptor.kinds) && descriptor.kinds.length
+      ? descriptor.kinds
+      : ['types', 'diagnostics'],
+    requires: descriptor.requires || { cmd: descriptor.command.defaultCmd },
+    capabilities: descriptor.capabilities || {
+      supportsVirtualDocuments: true,
+      supportsSegmentRouting: true,
+      supportsJavaScript: false,
+      supportsTypeScript: false,
+      supportsSymbolRef: false
+    },
+    getConfigHash(ctx) {
+      return resolveProviderConfigHash(ctx, descriptor.configKey);
+    },
+    async run(ctx, inputs) {
+      const configHash = resolveProviderConfigHash(ctx, descriptor.configKey);
+      const providerRef = buildProviderRef(this, configHash);
+      const config = resolveProviderConfig(ctx, descriptor.configKey);
+      const docs = filterProviderDocuments(inputs?.documents, toExtensionSet(descriptor.docExtensions));
+      const targets = filterTargetsForDocuments(inputs?.targets, docs);
+      const duplicateChecks = buildDuplicateChunkUidChecks(targets, {
+        label: descriptor.duplicateLabel || descriptor.id
+      });
+      if (!docs.length || !targets.length || config.enabled !== true) {
+        return buildBaseResult(providerRef, duplicateChecks);
       }
-    }
 
-    const requested = resolveRequestedCommand(descriptor, config, ctx?.toolingConfig);
-    const commandProfile = resolveToolingCommandProfile({
-      providerId: descriptor.id,
-      cmd: requested.cmd,
-      args: requested.args,
-      repoRoot: ctx?.repoRoot || process.cwd(),
-      toolingConfig: ctx?.toolingConfig || {}
-    });
-    if (!commandProfile.probe.ok) {
-      checks.push(buildCommandUnavailableCheck(descriptor, requested.cmd));
-    }
+      const checks = [...duplicateChecks];
+      let preflight = null;
+      if (typeof this.preflight === 'function') {
+        preflight = await awaitToolingProviderPreflight(ctx, {
+          provider: this,
+          inputs: {
+            ...inputs,
+            documents: docs,
+            targets,
+            config
+          },
+          waveToken: resolveWaveToken(inputs)
+        });
+        appendPreflightChecks(checks, preflight);
+        if (shouldBlockProviderFromPreflight(preflight)) {
+          return buildBaseResult(providerRef, checks);
+        }
+      }
 
-    let resolvedArgs = commandProfile.resolved.args || requested.args;
-    let collectOptions = {};
-    if (typeof descriptor.prepareCollect === 'function') {
-      const prepared = await descriptor.prepareCollect({
+      const requested = resolveRequestedCommand(descriptor, config, ctx?.toolingConfig);
+      const commandProfile = resolveToolingCommandProfile({
+        providerId: descriptor.id,
+        cmd: requested.cmd,
+        args: requested.args,
+        repoRoot: ctx?.repoRoot || process.cwd(),
+        toolingConfig: ctx?.toolingConfig || {}
+      });
+      if (!commandProfile.probe.ok) {
+        checks.push(buildCommandUnavailableCheck(descriptor, requested.cmd));
+      }
+
+      let resolvedArgs = commandProfile.resolved.args || requested.args;
+      let collectOptions = {};
+      if (typeof descriptor.prepareCollect === 'function') {
+        const prepared = await descriptor.prepareCollect({
+          ctx,
+          config,
+          preflight,
+          requested,
+          commandProfile
+        });
+        if (Array.isArray(prepared?.args)) resolvedArgs = prepared.args;
+        if (Array.isArray(prepared?.checks) && prepared.checks.length) checks.push(...prepared.checks);
+        if (prepared?.collectOptions && typeof prepared.collectOptions === 'object') {
+          collectOptions = { ...prepared.collectOptions };
+        }
+      }
+
+      const runtimeConfig = resolveLspRuntimeConfig({
+        providerConfig: config,
+        globalConfigs: [ctx?.toolingConfig || null],
+        defaults: {
+          ...DEFAULT_RUNTIME_OPTIONS,
+          ...(descriptor.runtimeDefaults || {})
+        }
+      });
+      const initializationOptions = isPlainObject(config.initializationOptions)
+        ? config.initializationOptions
+        : null;
+
+      const result = await collectLspTypes({
+        ...runtimeConfig,
+        rootDir: ctx.repoRoot,
+        documents: docs,
+        targets,
+        abortSignal: ctx?.abortSignal || null,
+        log: getLogger(ctx),
+        providerId: descriptor.id,
+        cmd: commandProfile.resolved.cmd,
+        args: resolvedArgs,
+        parseSignature: descriptor.parseSignature,
+        strict: ctx?.strict !== false,
+        vfsRoot: ctx?.buildRoot || ctx.repoRoot,
+        vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode,
+        vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching,
+        vfsColdStartCache: ctx?.toolingConfig?.vfs?.coldStartCache,
+        indexDir: ctx?.buildRoot || null,
+        cacheRoot: ctx?.cache?.dir || null,
+        initializationOptions,
+        captureDiagnostics: true,
+        ...collectOptions
+      });
+      invalidateProbeCacheOnInitializeFailure({
+        checks: result?.checks,
+        providerId: descriptor.id,
+        command: commandProfile.resolved.cmd
+      });
+
+      return {
+        provider: providerRef,
+        byChunkUid: result.byChunkUid,
+        diagnostics: appendRuntimeDiagnostics(result, [
+          ...checks,
+          ...(Array.isArray(result.checks) ? result.checks : [])
+        ])
+      };
+    }
+  };
+
+  const hasWorkspacePreflight = Boolean(descriptor?.workspace && descriptor.workspace.markerOptions);
+  const hasCustomPreflight = typeof descriptor.preflight === 'function';
+
+  if (hasWorkspacePreflight || hasCustomPreflight) {
+    provider.preflightClass = descriptor.preflightClass
+      || (hasWorkspacePreflight ? 'workspace' : 'dependency');
+    const preflightId = typeof descriptor?.preflightId === 'string' && descriptor.preflightId.trim()
+      ? descriptor.preflightId.trim()
+      : (hasWorkspacePreflight && !hasCustomPreflight
+        ? `${descriptor.id}.workspace-model`
+        : `${descriptor.id}.preflight`);
+    provider.preflightId = preflightId;
+    provider.getPreflightKey = (ctx, inputs) => {
+      if (typeof descriptor.getPreflightKey !== 'function') return '';
+      const config = resolveProviderConfig(ctx, descriptor.configKey);
+      const value = descriptor.getPreflightKey({
         ctx,
         config,
-        requested,
-        commandProfile
+        inputs
       });
-      if (Array.isArray(prepared?.args)) resolvedArgs = prepared.args;
-      if (Array.isArray(prepared?.checks) && prepared.checks.length) checks.push(...prepared.checks);
-      if (prepared?.collectOptions && typeof prepared.collectOptions === 'object') {
-        collectOptions = { ...prepared.collectOptions };
+      return String(value || '');
+    };
+    provider.preflight = async (ctx, inputs = {}) => {
+      const config = resolveProviderConfig(ctx, descriptor.configKey);
+      if (hasWorkspacePreflight && config.requireWorkspaceModel !== false) {
+        const missingCheck = resolveWorkspaceMissingCheck(descriptor);
+        const workspacePreflight = resolveWorkspaceModelPreflight({
+          repoRoot: ctx?.repoRoot || process.cwd(),
+          markerOptions: descriptor.workspace.markerOptions || {},
+          missingCheck,
+          fallbackName: missingCheck.name,
+          fallbackMessage: missingCheck.message,
+          policy: 'block'
+        });
+        if (workspacePreflight.state !== 'ready') return workspacePreflight;
       }
-    }
-
-    const runtimeConfig = resolveLspRuntimeConfig({
-      providerConfig: config,
-      globalConfigs: [ctx?.toolingConfig || null],
-      defaults: {
-        ...DEFAULT_RUNTIME_OPTIONS,
-        ...(descriptor.runtimeDefaults || {})
+      if (hasCustomPreflight) {
+        return await descriptor.preflight({
+          ctx,
+          config,
+          inputs,
+          log: getLogger(ctx),
+          abortSignal: inputs?.abortSignal || ctx?.abortSignal || null
+        });
       }
-    });
-    const initializationOptions = isPlainObject(config.initializationOptions)
-      ? config.initializationOptions
-      : null;
-
-    const result = await collectLspTypes({
-      ...runtimeConfig,
-      rootDir: ctx.repoRoot,
-      documents: docs,
-      targets,
-      abortSignal: ctx?.abortSignal || null,
-      log: getLogger(ctx),
-      providerId: descriptor.id,
-      cmd: commandProfile.resolved.cmd,
-      args: resolvedArgs,
-      parseSignature: descriptor.parseSignature,
-      strict: ctx?.strict !== false,
-      vfsRoot: ctx?.buildRoot || ctx.repoRoot,
-      vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode,
-      vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching,
-      vfsColdStartCache: ctx?.toolingConfig?.vfs?.coldStartCache,
-      indexDir: ctx?.buildRoot || null,
-      cacheRoot: ctx?.cache?.dir || null,
-      initializationOptions,
-      captureDiagnostics: true,
-      ...collectOptions
-    });
-    invalidateProbeCacheOnInitializeFailure({
-      checks: result?.checks,
-      providerId: descriptor.id,
-      command: commandProfile.resolved.cmd
-    });
-
-    return {
-      provider: providerRef,
-      byChunkUid: result.byChunkUid,
-      diagnostics: appendRuntimeDiagnostics(result, [
-        ...checks,
-        ...(Array.isArray(result.checks) ? result.checks : [])
-      ])
+      return {
+        state: 'ready',
+        blockProvider: false,
+        check: null
+      };
     };
   }
-});
+
+  return provider;
+};

@@ -26,6 +26,8 @@ const ensureWorkspaceDataArg = (args, workspaceDataDir) => {
 
 export const createJdtlsProvider = () => createDedicatedLspProvider({
   id: 'jdtls',
+  preflightId: 'jdtls.workspace-bootstrap',
+  preflightClass: 'workspace',
   label: 'jdtls (dedicated)',
   priority: 82,
   languages: ['java'],
@@ -51,11 +53,40 @@ export const createJdtlsProvider = () => createDedicatedLspProvider({
     }
   },
   parseSignature: (detail, _lang, symbolName) => parseClikeSignature(detail, symbolName),
-  prepareCollect: async ({ ctx, config, requested, commandProfile }) => {
+  getPreflightKey: ({ ctx, config }) => resolveWorkspaceDataDir(ctx, config),
+  preflight: async ({ ctx, config }) => {
     const workspaceDataDir = resolveWorkspaceDataDir(ctx, config);
     try {
       await fsPromises.mkdir(workspaceDataDir, { recursive: true });
-    } catch {}
+      return {
+        state: 'ready',
+        workspaceDataDir,
+        workspaceReady: true
+      };
+    } catch (error) {
+      return {
+        state: 'blocked',
+        reasonCode: 'jdtls_workspace_data_dir_unavailable',
+        blockProvider: true,
+        workspaceDataDir,
+        workspaceReady: false,
+        check: {
+          name: 'jdtls_workspace_data_dir_unavailable',
+          status: 'warn',
+          message: `jdtls workspace data directory unavailable: ${error?.message || String(error)}`
+        }
+      };
+    }
+  },
+  prepareCollect: async ({ ctx, config, preflight, requested, commandProfile }) => {
+    const workspaceDataDir = String(
+      preflight?.workspaceDataDir || resolveWorkspaceDataDir(ctx, config)
+    );
+    if (preflight?.workspaceReady !== true) {
+      try {
+        await fsPromises.mkdir(workspaceDataDir, { recursive: true });
+      } catch {}
+    }
     return {
       args: ensureWorkspaceDataArg(commandProfile.resolved.args || requested.args, workspaceDataDir)
     };

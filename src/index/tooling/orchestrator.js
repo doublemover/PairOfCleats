@@ -6,6 +6,12 @@ import { coerceFiniteNumber } from '../../shared/number-coerce.js';
 import { selectToolingProviders } from './provider-registry.js';
 import { normalizeProviderId } from './provider-contract.js';
 import {
+  getToolingProviderPreflightSchedulerMetrics,
+  kickoffToolingProviderPreflights,
+  listToolingProviderPreflightStates,
+  teardownToolingProviderPreflights
+} from './preflight-manager.js';
+import {
   MAX_PARAM_CANDIDATES,
   ensureParamTypeMap,
   mergeTypeEntries,
@@ -190,6 +196,55 @@ const withDiagnosticsSource = (diagnostics, {
   if (stripRuntime) delete payload.runtime;
   payload.diagnosticsSource = source;
   return payload;
+};
+
+const withPreflightDiagnostic = ({
+  diagnostics,
+  preflight
+}) => {
+  if (!preflight || typeof preflight !== 'object') {
+    return diagnostics && typeof diagnostics === 'object' ? diagnostics : null;
+  }
+  const payload = diagnostics && typeof diagnostics === 'object'
+    ? { ...diagnostics }
+    : {};
+  if (preflight.diagnostic && typeof preflight.diagnostic === 'object') {
+    payload.preflight = { ...preflight.diagnostic };
+  } else {
+    payload.preflight = {
+      providerId: String(preflight.providerId || ''),
+      preflightId: String(preflight.preflightId || ''),
+      state: String(preflight.state || ''),
+      reasonCode: String(preflight.reasonCode || ''),
+      message: String(preflight.message || '')
+    };
+  }
+  return payload;
+};
+
+const mergeProviderPreflightDiagnostics = (providerDiagnostics, preflights) => {
+  const diagnostics = providerDiagnostics && typeof providerDiagnostics === 'object'
+    ? providerDiagnostics
+    : {};
+  const snapshots = Array.isArray(preflights) ? preflights : [];
+  const latestByProvider = new Map();
+  for (const entry of snapshots) {
+    const providerId = normalizeProviderId(entry?.providerId);
+    if (!providerId) continue;
+    const current = latestByProvider.get(providerId) || null;
+    const currentFinishedAt = Number(current?.finishedAtMs) || 0;
+    const nextFinishedAt = Number(entry?.finishedAtMs) || 0;
+    if (!current || nextFinishedAt >= currentFinishedAt) {
+      latestByProvider.set(providerId, entry);
+    }
+  }
+  for (const [providerId, preflight] of latestByProvider.entries()) {
+    diagnostics[providerId] = withPreflightDiagnostic({
+      diagnostics: diagnostics[providerId] || null,
+      preflight
+    });
+  }
+  return diagnostics;
 };
 
 const buildDeterministicCachePayload = ({
@@ -439,6 +494,42 @@ const summarizeProviderRuntime = (runtime) => ({
   }
 });
 
+const summarizeToolingPreflights = (preflights) => {
+  const summary = {
+    total: 0,
+    byState: Object.create(null),
+    byClass: Object.create(null),
+    timedOut: 0,
+    cached: 0,
+    failed: 0,
+    topSlow: []
+  };
+  for (const entry of Array.isArray(preflights) ? preflights : []) {
+    const state = String(entry?.state || 'unknown').trim().toLowerCase() || 'unknown';
+    const preflightClass = String(entry?.preflightClass || 'unknown').trim().toLowerCase() || 'unknown';
+    const durationMs = Number(entry?.durationMs);
+    summary.total += 1;
+    summary.byState[state] = (summary.byState[state] || 0) + 1;
+    summary.byClass[preflightClass] = (summary.byClass[preflightClass] || 0) + 1;
+    if (entry?.timedOut === true) summary.timedOut += 1;
+    if (entry?.cached === true) summary.cached += 1;
+    if (state === 'failed') summary.failed += 1;
+    if (!Number.isFinite(durationMs)) continue;
+    summary.topSlow.push({
+      providerId: String(entry?.providerId || ''),
+      preflightId: String(entry?.preflightId || ''),
+      preflightClass,
+      state,
+      durationMs
+    });
+  }
+  summary.topSlow.sort((left, right) => (
+    Number(right.durationMs) - Number(left.durationMs)
+  ) || String(left.providerId).localeCompare(String(right.providerId)));
+  if (summary.topSlow.length > 8) summary.topSlow.length = 8;
+  return summary;
+};
+
 /**
  * Build machine-readable provider metrics for observability and CI assertions.
  *
@@ -671,6 +762,7 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
     providerIds,
     kinds: inputs?.kinds || null
   });
+  const preflightWaveToken = kickoffToolingProviderPreflights(ctx, providerPlans);
 
   const merged = new Map();
   const sourcesByChunkUid = new Map();
@@ -740,7 +832,8 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
       const providerInputs = {
         ...inputs,
         documents: planDocuments,
-        targets: planTargets
+        targets: planTargets,
+        toolingPreflightWaveToken: preflightWaveToken
       };
       try {
         output = await provider.run(ctx, providerInputs);
@@ -852,6 +945,31 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
     sourcesByChunkUid,
     degradedProviders
   });
+  const preflightTeardown = await teardownToolingProviderPreflights(ctx, {
+    timeoutMs: 5000
+  });
+  const preflights = listToolingProviderPreflightStates(ctx);
+  mergeProviderPreflightDiagnostics(providerDiagnostics, preflights);
+  metrics.preflights = summarizeToolingPreflights(preflights);
+  metrics.preflights.scheduler = getToolingProviderPreflightSchedulerMetrics(ctx);
+  metrics.preflights.teardown = preflightTeardown;
+  const log = typeof ctx?.logger === 'function' ? ctx.logger : null;
+  if (log && metrics.preflights.total > 0) {
+    const states = Object.entries(metrics.preflights.byState)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([name, value]) => `${name}:${value}`)
+      .join(',');
+    log(
+      '[tooling] preflight summary '
+      + `total=${metrics.preflights.total} `
+      + `cached=${metrics.preflights.cached} `
+      + `timedOut=${metrics.preflights.timedOut} `
+      + `failed=${metrics.preflights.failed} `
+      + `queuePeak=${metrics.preflights.scheduler?.queueDepthPeak || 0} `
+      + `teardownTimedOut=${preflightTeardown.timedOut === true ? 1 : 0} `
+      + `states=${states || 'none'}`
+    );
+  }
 
   return {
     byChunkUid: merged,

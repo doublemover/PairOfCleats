@@ -90,6 +90,13 @@ const result = await runToolingProviders({
 assert.equal(result.metrics?.providersPlanned, 2, 'expected two planned providers');
 assert.equal(result.metrics?.providersExecuted, 2, 'expected two executed providers');
 assert.equal(result.metrics?.providersContributed, 1, 'expected one contributing provider');
+assert.ok(result.metrics?.preflights && typeof result.metrics.preflights === 'object', 'expected preflight rollup envelope');
+assert.equal(Number(result.metrics?.preflights?.total) >= 1, true, 'expected at least one tracked preflight');
+assert.equal(
+  Number(result.metrics?.preflights?.teardown?.timedOut || 0),
+  0,
+  'expected preflight teardown not to time out'
+);
 assert.equal(result.metrics?.degradedProviderCount, 1, 'expected one degraded provider');
 assert.equal(Number(result.metrics?.degradedWarningChecks || 0) >= 1, true, 'expected degraded warning count');
 assert.equal(Number(result.metrics?.requests?.requests || 0) >= 1, true, 'expected request count from active provider');
@@ -135,6 +142,10 @@ assert.equal(
   result.metrics?.providerRuntime?.['lsp-test']?.capabilities?.documentSymbol,
   true,
   'expected lsp-test capability mask in metrics envelope'
+);
+assert.ok(
+  result.diagnostics?.dart?.preflight && typeof result.diagnostics.dart.preflight === 'object',
+  'expected per-provider preflight diagnostics envelope'
 );
 
 console.log('LSP provider metrics envelope aggregate test passed');

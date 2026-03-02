@@ -34,6 +34,22 @@ try {
     'tooling_doctor_report.json',
     'expected doctor report path to use tooling_doctor_report.json'
   );
+  assert.ok(report.summary?.preflight && typeof report.summary.preflight === 'object', 'expected doctor preflight summary envelope');
+  assert.equal(
+    Number.isFinite(Number(report.summary?.preflight?.supported)),
+    true,
+    'expected numeric preflight supported count'
+  );
+  assert.equal(
+    Number.isFinite(Number(report.summary?.preflight?.enabled)),
+    true,
+    'expected numeric preflight enabled count'
+  );
+  assert.equal(
+    Array.isArray(report.summary?.preflight?.ids),
+    true,
+    'expected doctor preflight summary id list'
+  );
 
   const providers = Array.isArray(report.providers) ? report.providers : [];
   const clangd = providers.find((entry) => entry.id === 'clangd');

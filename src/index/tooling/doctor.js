@@ -211,7 +211,13 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
     summary: {
       status: 'ok',
       warnings: 0,
-      errors: 0
+      errors: 0,
+      preflight: {
+        supported: 0,
+        enabled: 0,
+        withCustomKey: 0,
+        ids: []
+      }
     }
   };
 
@@ -310,6 +316,13 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
       requires: provider?.requires || null,
       languages: Array.isArray(provider?.languages) ? provider.languages.slice() : [],
       capabilities: provider?.capabilities || {},
+      preflight: {
+        supported: typeof provider?.preflight === 'function',
+        id: typeof provider?.preflightId === 'string' && provider.preflightId.trim()
+          ? provider.preflightId.trim()
+          : null,
+        hasCustomKey: typeof provider?.getPreflightKey === 'function'
+      },
       status: 'ok',
       checks: []
     };
@@ -328,6 +341,21 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
       }
     };
     const missingBinaryStatus = isProviderExplicitlyEnabled(providerId) ? 'error' : 'warn';
+    if (providerReport.preflight.supported) {
+      report.summary.preflight.supported += 1;
+      if (providerReport.enabled) report.summary.preflight.enabled += 1;
+      if (providerReport.preflight.hasCustomKey) report.summary.preflight.withCustomKey += 1;
+      if (providerReport.preflight.id) {
+        report.summary.preflight.ids.push(providerReport.preflight.id);
+      }
+      addCheck({
+        name: `${providerId}-preflight`,
+        status: 'ok',
+        message: providerReport.preflight.id
+          ? `preflight registered (${providerReport.preflight.id}).`
+          : 'preflight registered.'
+      });
+    }
 
     if (!providerReport.enabled) {
       addCheck({
@@ -588,6 +616,9 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
 
   report.summary.status = summarizeStatus(report.summary.errors, report.summary.warnings);
   report.providers.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  report.summary.preflight.ids = Array.from(new Set(report.summary.preflight.ids))
+    .filter(Boolean)
+    .sort((a, b) => String(a).localeCompare(String(b)));
 
   const reportPath = path.join(buildRoot, TOOLING_DOCTOR_REPORT_FILENAME);
   await writeReport(reportPath, report);
