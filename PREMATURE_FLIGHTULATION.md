@@ -676,3 +676,4 @@ Acceptance gate:
 - 2026-03-02T10:49:46.8674648-05:00: Expanded solargraph preflight runtime requirements to include Bundler (`bundle --version`) so Ruby workspace dependency readiness is surfaced in doctor/runtime checks.
 - 2026-03-02T10:51:00.8800730-05:00: Expanded jdtls runtime prerequisite preflight to require both `java` and `javac`, improving detection of JRE-only environments that cannot support full Java workspace modeling.
 - 2026-03-02T10:51:54.0594379-05:00: Expanded elixir-ls runtime prerequisite preflight to require `mix` in addition to `elixir`/`erl`, improving project bootstrap readiness checks for Mix-based workspaces.
+- 2026-03-02T10:52:56.2622364-05:00: Tightened csharp-ls runtime prerequisite preflight from generic `dotnet --version` to explicit SDK probing via `dotnet --list-sdks` to detect runtime-only .NET installations.

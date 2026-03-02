@@ -25,8 +25,8 @@ export const createCsharpProvider = () => createDedicatedLspProvider({
   preflightRuntimeRequirements: [{
     id: 'dotnet',
     cmd: 'dotnet',
-    args: ['--version'],
-    label: '.NET runtime'
+    args: ['--list-sdks'],
+    label: '.NET SDK'
   }],
   command: {
     defaultCmd: 'csharp-ls',
