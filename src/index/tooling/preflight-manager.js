@@ -925,8 +925,21 @@ export const teardownToolingProviderPreflights = async (ctx, { timeoutMs = 5000 
       log(`[tooling] preflight:teardown_abort active=${aborted}`);
     }
     const settledAfterAbort = await waitForPromisesWithTimeout(promises, 1000);
+    const nowMs = Date.now();
+    const offenderSummary = inFlightEntries
+      .map((entry) => {
+        const providerId = String(entry?.providerId || '<unknown>');
+        const preflightId = String(entry?.preflightId || '<unknown>');
+        const preflightClass = String(entry?.preflightClass || 'unknown');
+        const startedAtMs = Number.isFinite(entry?.startedAtMs) ? entry.startedAtMs : null;
+        const ageMs = Number.isFinite(startedAtMs) ? Math.max(0, nowMs - startedAtMs) : null;
+        return `${providerId}/${preflightId}[${preflightClass}]${Number.isFinite(ageMs) ? `:${Math.round(ageMs)}ms` : ''}`;
+      })
+      .slice(0, 8)
+      .join(', ');
     log(
       `[tooling] preflight:teardown_timeout active=${promises.length} timeoutMs=${Math.max(0, Math.floor(timeoutMs))}`
+      + ` offenders=${offenderSummary || 'none'}`
     );
     const rejectedAfterAbort = settledAfterAbort.timedOut
       ? 0

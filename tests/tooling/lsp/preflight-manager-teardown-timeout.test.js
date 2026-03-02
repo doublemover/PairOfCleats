@@ -40,6 +40,10 @@ assert.ok(
   logs.some((line) => line.includes('preflight:teardown_timeout')),
   'expected teardown timeout log'
 );
+assert.ok(
+  logs.some((line) => line.includes('teardown-fixture/teardown-fixture.preflight')),
+  'expected teardown timeout log to include active preflight offender details'
+);
 
 await wait(170);
 const settled = await teardownToolingProviderPreflights(ctx, { timeoutMs: 10 });
