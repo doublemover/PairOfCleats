@@ -655,3 +655,4 @@ Acceptance gate:
 - 2026-03-02T09:45:20.4788483-05:00: Hoisted shared runtime command resolution from preflight output and migrated configured/dedicated/pyright/clangd/sourcekit callsites.
 - 2026-03-02T09:46:26.6314426-05:00: Added coordinator ownership invariant guard to ensure provider preflight execution remains centralized in preflight-manager.
 - 2026-03-02T09:48:05.5946190-05:00: Fixed probe-state modeling for runtime command resolution so missing commandProfile no longer emits false command-unavailable warnings.
+- 2026-03-02T09:49:19.4345025-05:00: Added shared preflight-check merge dedupe utility and applied it to configured/dedicated preflight check aggregation.
