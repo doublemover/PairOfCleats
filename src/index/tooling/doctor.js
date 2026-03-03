@@ -309,10 +309,15 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
       .map((id) => allProviders.find((provider) => normalizeProviderId(provider?.id) === normalizeProviderId(id)))
       .filter(Boolean)
     : allProviders;
+  log(`[tooling] doctor:provider-checks start total=${providers.length}.`);
+  let providerOrdinal = 0;
 
   for (const provider of providers) {
+    providerOrdinal += 1;
     const providerId = normalizeProviderId(provider?.id);
     if (!providerId) continue;
+    const providerStartMs = Date.now();
+    log(`[tooling] doctor:provider ${providerOrdinal}/${providers.length} start id=${providerId}.`);
     const reasonsDisabled = getDisableReasons(providerId);
     const enabled = reasonsDisabled.length === 0;
     const providerReport = {
@@ -645,6 +650,11 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
     providerReport.status = summarizeStatus(providerErrors, providerWarnings);
     providerReport.available = providerAvailable;
     report.providers.push(providerReport);
+    const providerElapsedMs = Math.max(0, Date.now() - providerStartMs);
+    log(
+      `[tooling] doctor:provider ${providerOrdinal}/${providers.length} done id=${providerId} `
+      + `status=${providerReport.status} elapsedMs=${providerElapsedMs}.`
+    );
   }
 
   report.summary.status = summarizeStatus(report.summary.errors, report.summary.warnings);

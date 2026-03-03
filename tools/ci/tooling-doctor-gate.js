@@ -141,6 +141,7 @@ const main = async () => {
   const requiredProviders = argv['require-provider']
     .map(normalizeProviderId)
     .filter(Boolean);
+  const scopedProviderIds = requiredProviders.length ? requiredProviders : null;
   const { repoRoot, userConfig } = resolveRepoConfig(argv.repo || null);
   const toolingConfig = getToolingConfig(repoRoot, userConfig);
   const scmConfig = resolveScmConfig({
@@ -155,7 +156,7 @@ const main = async () => {
     toolingConfig,
     scmConfig,
     strict: false
-  }, null, {
+  }, scopedProviderIds, {
     log: () => {},
     probeHandshake: argv['probe-handshake'] !== false,
     handshakeTimeoutMs: argv['handshake-timeout-ms']
