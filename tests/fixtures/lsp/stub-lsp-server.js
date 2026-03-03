@@ -126,6 +126,11 @@ const symbolsByMode = {
     detail: 'add',
     kind: 12
   },
+  'clangd-overlapping-symbols': {
+    name: 'add',
+    detail: 'add',
+    kind: 12
+  },
   'clangd-hover-richer': {
     name: 'add',
     detail: 'add',
@@ -534,6 +539,13 @@ const handleRequest = (message) => {
     }
     if (mode === 'clangd-duplicate-symbols' && symbol) {
       respond(id, [symbol, { ...symbol }]);
+      return;
+    }
+    if (mode === 'clangd-overlapping-symbols' && symbol) {
+      respond(id, [
+        { ...symbol, name: 'add' },
+        { ...symbol, name: 'alias_add' }
+      ]);
       return;
     }
     respond(id, symbol ? [symbol] : []);

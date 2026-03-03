@@ -5,6 +5,7 @@ import { resolveLspRuntimeConfig } from '../../../src/index/tooling/lsp-runtime-
 const resolved = resolveLspRuntimeConfig({
   providerConfig: {
     timeoutMs: 1500,
+    softDeadlineMs: 1700,
     maxRetries: 3,
     hoverEnabled: false,
     signatureHelpEnabled: false,
@@ -27,6 +28,7 @@ const resolved = resolveLspRuntimeConfig({
   },
   globalConfigs: [{
     timeoutMs: 31000,
+    softDeadlineMs: 9000,
     maxRetries: 9,
     circuitBreakerThreshold: 11,
     hoverTimeoutMs: 3600,
@@ -51,6 +53,7 @@ const resolved = resolveLspRuntimeConfig({
 });
 
 assert.equal(resolved.timeoutMs, 1500, 'expected provider timeout override');
+assert.equal(resolved.softDeadlineMs, 1700, 'expected provider soft deadline override');
 assert.equal(resolved.retries, 3, 'expected provider retries override');
 assert.equal(resolved.breakerThreshold, 11, 'expected global breaker threshold fallback');
 assert.equal(resolved.documentSymbolTimeoutMs, 2400, 'expected provider documentSymbol timeout');
@@ -88,6 +91,7 @@ const defaultsOnly = resolveLspRuntimeConfig({
 });
 
 assert.equal(defaultsOnly.timeoutMs, 12000, 'expected timeout default');
+assert.equal(defaultsOnly.softDeadlineMs, null, 'expected soft deadline to remain unset');
 assert.equal(defaultsOnly.retries, 1, 'expected retries default');
 assert.equal(defaultsOnly.breakerThreshold, 3, 'expected breaker default');
 assert.equal(defaultsOnly.documentSymbolTimeoutMs, null, 'expected documentSymbol timeout to remain unset');

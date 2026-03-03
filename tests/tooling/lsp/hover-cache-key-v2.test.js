@@ -35,8 +35,8 @@ const betaFunctionKey = buildHoverCacheKey({
 });
 
 assert.equal(alphaFunctionKey?.startsWith('v2|'), true, 'expected hover cache key version v2 prefix');
-assert.notEqual(alphaFunctionKey, alphaVariableKey, 'expected hover cache key to vary by symbol kind');
-assert.notEqual(alphaFunctionKey, betaFunctionKey, 'expected hover cache key to vary by symbol name');
+assert.equal(alphaFunctionKey, alphaVariableKey, 'expected hover cache key to dedupe by position');
+assert.equal(alphaFunctionKey, betaFunctionKey, 'expected hover cache key to dedupe by position');
 
 const alphaPositionKey = buildSymbolPositionCacheKey({
   position: baseInput.position,
@@ -48,7 +48,7 @@ const betaPositionKey = buildSymbolPositionCacheKey({
   symbolName: 'beta',
   symbolKind: 12
 });
-assert.notEqual(alphaPositionKey, betaPositionKey, 'expected symbol-position key to be symbol-sensitive');
+assert.equal(alphaPositionKey, betaPositionKey, 'expected symbol-position key to be position-only');
 
 const signatureKeyAlpha = buildSignatureParseCacheKey({
   languageId: 'python',
