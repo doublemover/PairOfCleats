@@ -1305,14 +1305,14 @@ export const processDocumentTypes = async ({
       const key = buildSymbolPositionCacheKey({
         position
       });
-      if (!key) return Promise.resolve(null);
+      if (!key) return Promise.resolve({ attempted: false, info: null });
       if (hoverRequestByPosition.has(key)) return hoverRequestByPosition.get(key);
       if (isSoftDeadlineExpired()) {
         markSoftDeadlineReached();
         recordSoftDeadlineSkip();
-        return Promise.resolve(null);
+        return Promise.resolve({ attempted: false, info: null });
       }
-      if (!reserveRequestBudget()) return Promise.resolve(null);
+      if (!reserveRequestBudget()) return Promise.resolve({ attempted: false, info: null });
       const hoverCacheKey = buildHoverCacheKey({
         cmd,
         docHash: doc.docHash || null,
@@ -1324,7 +1324,7 @@ export const processDocumentTypes = async ({
       const cachedHoverInfo = hoverCacheKey ? hoverCacheEntries.get(hoverCacheKey) : null;
       const promise = (async () => {
         if (cachedHoverInfo?.info) {
-          return cachedHoverInfo.info;
+          return { attempted: true, info: cachedHoverInfo.info };
         }
 
         const hoverTimeoutOverride = Number.isFinite(resolvedHoverTimeout)
@@ -1354,9 +1354,9 @@ export const processDocumentTypes = async ({
             hoverCacheEntries.set(hoverCacheKey, { info: hoverInfo, at: Date.now() });
             markHoverCacheDirty();
           }
-          return hoverInfo;
+          return { attempted: true, info: hoverInfo };
         } catch (err) {
-          return handleStageRequestError({
+          const info = handleStageRequestError({
             err,
             cmd,
             stageKey: 'hover',
@@ -1368,6 +1368,7 @@ export const processDocumentTypes = async ({
             hoverControl,
             resolvedHoverDisableAfterTimeouts
           });
+          return { attempted: true, info };
         }
       })();
       hoverRequestByPosition.set(key, promise);
@@ -1379,14 +1380,14 @@ export const processDocumentTypes = async ({
       const key = buildSymbolPositionCacheKey({
         position
       });
-      if (!key) return Promise.resolve(null);
+      if (!key) return Promise.resolve({ attempted: false, info: null });
       if (signatureHelpRequestByPosition.has(key)) return signatureHelpRequestByPosition.get(key);
       if (isSoftDeadlineExpired()) {
         markSoftDeadlineReached();
         recordSoftDeadlineSkip();
-        return Promise.resolve(null);
+        return Promise.resolve({ attempted: false, info: null });
       }
-      if (!reserveRequestBudget()) return Promise.resolve(null);
+      if (!reserveRequestBudget()) return Promise.resolve({ attempted: false, info: null });
       const runSignatureHelp = typeof signatureHelpLimiter === 'function'
         ? signatureHelpLimiter
         : hoverLimiter;
@@ -1413,9 +1414,9 @@ export const processDocumentTypes = async ({
           fileHoverStats.signatureHelpSucceeded += 1;
           hoverMetrics.signatureHelpSucceeded += 1;
           const signatureText = extractSignatureHelpText(signatureHelp);
-          return parseSignatureCached(signatureText, symbol?.name);
+          return { attempted: true, info: parseSignatureCached(signatureText, symbol?.name) };
         } catch (err) {
-          return handleStageRequestError({
+          const info = handleStageRequestError({
             err,
             cmd,
             stageKey: 'signature_help',
@@ -1427,6 +1428,7 @@ export const processDocumentTypes = async ({
             hoverControl,
             resolvedHoverDisableAfterTimeouts
           });
+          return { attempted: true, info };
         }
       })();
       signatureHelpRequestByPosition.set(key, promise);
@@ -1438,14 +1440,14 @@ export const processDocumentTypes = async ({
       const key = buildSymbolPositionCacheKey({
         position
       });
-      if (!key) return Promise.resolve(null);
+      if (!key) return Promise.resolve({ attempted: false, info: null });
       if (definitionRequestByPosition.has(key)) return definitionRequestByPosition.get(key);
       if (isSoftDeadlineExpired()) {
         markSoftDeadlineReached();
         recordSoftDeadlineSkip();
-        return Promise.resolve(null);
+        return Promise.resolve({ attempted: false, info: null });
       }
-      if (!reserveRequestBudget()) return Promise.resolve(null);
+      if (!reserveRequestBudget()) return Promise.resolve({ attempted: false, info: null });
       const runDefinition = typeof definitionLimiter === 'function'
         ? definitionLimiter
         : hoverLimiter;
@@ -1483,12 +1485,12 @@ export const processDocumentTypes = async ({
             if (info) {
               fileHoverStats.definitionSucceeded += 1;
               hoverMetrics.definitionSucceeded += 1;
-              return info;
+              return { attempted: true, info };
             }
           }
-          return null;
+          return { attempted: true, info: null };
         } catch (err) {
-          return handleStageRequestError({
+          const info = handleStageRequestError({
             err,
             cmd,
             stageKey: 'definition',
@@ -1500,6 +1502,7 @@ export const processDocumentTypes = async ({
             hoverControl,
             resolvedHoverDisableAfterTimeouts
           });
+          return { attempted: true, info };
         }
       })();
       definitionRequestByPosition.set(key, promise);
@@ -1511,14 +1514,14 @@ export const processDocumentTypes = async ({
       const key = buildSymbolPositionCacheKey({
         position
       });
-      if (!key) return Promise.resolve(null);
+      if (!key) return Promise.resolve({ attempted: false, info: null });
       if (typeDefinitionRequestByPosition.has(key)) return typeDefinitionRequestByPosition.get(key);
       if (isSoftDeadlineExpired()) {
         markSoftDeadlineReached();
         recordSoftDeadlineSkip();
-        return Promise.resolve(null);
+        return Promise.resolve({ attempted: false, info: null });
       }
-      if (!reserveRequestBudget()) return Promise.resolve(null);
+      if (!reserveRequestBudget()) return Promise.resolve({ attempted: false, info: null });
       const runTypeDefinition = typeof typeDefinitionLimiter === 'function'
         ? typeDefinitionLimiter
         : hoverLimiter;
@@ -1556,12 +1559,12 @@ export const processDocumentTypes = async ({
             if (info) {
               fileHoverStats.typeDefinitionSucceeded += 1;
               hoverMetrics.typeDefinitionSucceeded += 1;
-              return info;
+              return { attempted: true, info };
             }
           }
-          return null;
+          return { attempted: true, info: null };
         } catch (err) {
-          return handleStageRequestError({
+          const info = handleStageRequestError({
             err,
             cmd,
             stageKey: 'type_definition',
@@ -1573,6 +1576,7 @@ export const processDocumentTypes = async ({
             hoverControl,
             resolvedHoverDisableAfterTimeouts
           });
+          return { attempted: true, info };
         }
       })();
       typeDefinitionRequestByPosition.set(key, promise);
@@ -1584,14 +1588,14 @@ export const processDocumentTypes = async ({
       const key = buildSymbolPositionCacheKey({
         position
       });
-      if (!key) return Promise.resolve(null);
+      if (!key) return Promise.resolve({ attempted: false, info: null });
       if (referencesRequestByPosition.has(key)) return referencesRequestByPosition.get(key);
       if (isSoftDeadlineExpired()) {
         markSoftDeadlineReached();
         recordSoftDeadlineSkip();
-        return Promise.resolve(null);
+        return Promise.resolve({ attempted: false, info: null });
       }
-      if (!reserveRequestBudget()) return Promise.resolve(null);
+      if (!reserveRequestBudget()) return Promise.resolve({ attempted: false, info: null });
       const runReferences = typeof referencesLimiter === 'function'
         ? referencesLimiter
         : hoverLimiter;
@@ -1630,12 +1634,12 @@ export const processDocumentTypes = async ({
             if (info) {
               fileHoverStats.referencesSucceeded += 1;
               hoverMetrics.referencesSucceeded += 1;
-              return info;
+              return { attempted: true, info };
             }
           }
-          return null;
+          return { attempted: true, info: null };
         } catch (err) {
-          return handleStageRequestError({
+          const info = handleStageRequestError({
             err,
             cmd,
             stageKey: 'references',
@@ -1647,6 +1651,7 @@ export const processDocumentTypes = async ({
             hoverControl,
             resolvedHoverDisableAfterTimeouts
           });
+          return { attempted: true, info };
         }
       })();
       referencesRequestByPosition.set(key, promise);
@@ -1794,8 +1799,10 @@ export const processDocumentTypes = async ({
         });
         if (!incompleteState.incomplete) return;
         if (shouldSuppressAdditionalRequests()) return;
+        const stageResult = await requestFn(record.symbol, record.position);
+        if (!stageResult?.attempted) return;
         record[requestedFlag] = true;
-        const stageInfo = await requestFn(record.symbol, record.position);
+        const stageInfo = stageResult.info;
         if (!stageInfo) return;
         record[succeededFlag] = true;
         record.info = mergeSignatureInfo(record.info, stageInfo, { symbolKind: record?.symbol?.kind });
