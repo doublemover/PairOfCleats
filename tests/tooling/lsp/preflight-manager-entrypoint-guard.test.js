@@ -6,6 +6,7 @@ import path from 'node:path';
 const root = process.cwd();
 const toolingRoot = path.join(root, 'src', 'index', 'tooling');
 const expectedPath = path.join('src', 'index', 'tooling', 'preflight-manager.js').replace(/\\/g, '/');
+const PROVIDER_PREFLIGHT_CALL_PATTERN = /\bprovider\.preflight\s*\(/;
 
 const walkJsFiles = (dir) => {
   const out = [];
@@ -24,12 +25,12 @@ const walkJsFiles = (dir) => {
 const matches = [];
 for (const abs of walkJsFiles(toolingRoot)) {
   const content = fs.readFileSync(abs, 'utf8');
-  if (content.includes('await provider.preflight(')) {
+  if (PROVIDER_PREFLIGHT_CALL_PATTERN.test(content)) {
     matches.push(path.relative(root, abs).replace(/\\/g, '/'));
   }
 }
 
-assert.equal(matches.length > 0, true, 'expected at least one provider.preflight await call for guard to be meaningful');
+assert.equal(matches.length > 0, true, 'expected at least one provider.preflight(...) call for guard to be meaningful');
 assert.deepEqual(
   matches,
   [expectedPath],
