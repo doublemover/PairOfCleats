@@ -25,8 +25,8 @@ if (pythonBin) {
   }
 }
 
-shutdownPythonAstPool();
-shutdownPythonAstPool();
+await shutdownPythonAstPool();
+await shutdownPythonAstPool();
 process.env.PATH = originalPath;
 
 console.log('Python pool test passed.');

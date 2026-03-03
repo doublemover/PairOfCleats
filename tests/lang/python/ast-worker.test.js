@@ -59,4 +59,4 @@ if (parserLogs.some((line) => /\binvalid escape sequence\b/i.test(line) || /\bSy
 }
 
 console.log('Python AST worker test passed');
-shutdownPythonAstPool();
+await shutdownPythonAstPool();
