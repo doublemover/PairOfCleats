@@ -20,45 +20,46 @@ export const teardownRuntime = async (runtime) => {
   const log = typeof runtime?.log === 'function'
     ? runtime.log
     : null;
-  try {
-    if (runtime.workerPools?.destroy) {
+  const runTeardownStep = async (label, cleanup) => {
+    try {
       await runBuildCleanupWithTimeout({
-        label: 'runtime.worker-pools.destroy',
-        cleanup: () => runtime.workerPools.destroy(),
+        label,
+        cleanup,
         timeoutMs: cleanupTimeoutMs,
         log
       });
-    } else if (runtime.workerPool?.destroy) {
-      await runBuildCleanupWithTimeout({
-        label: 'runtime.worker-pool.destroy',
-        cleanup: () => runtime.workerPool.destroy(),
-        timeoutMs: cleanupTimeoutMs,
-        log
-      });
+    } catch (error) {
+      if (typeof log === 'function') {
+        try {
+          log(`[cleanup] ${label} failed: ${error?.message || error}`);
+        } catch {}
+      }
     }
-  } catch {}
-  try {
-    await runBuildCleanupWithTimeout({
-      label: 'runtime.scheduler.shutdown',
-      cleanup: () => Promise.resolve(runtime.scheduler?.shutdown?.()),
-      timeoutMs: cleanupTimeoutMs,
-      log
-    });
-  } catch {}
-  try {
-    await runBuildCleanupWithTimeout({
-      label: 'runtime.tree-sitter-worker-pool.shutdown',
-      cleanup: () => shutdownTreeSitterWorkerPool(),
-      timeoutMs: cleanupTimeoutMs,
-      log
-    });
-  } catch {}
-  try {
-    await runBuildCleanupWithTimeout({
-      label: 'runtime.python-ast-pool.shutdown',
-      cleanup: () => Promise.resolve(shutdownPythonAstPool()),
-      timeoutMs: cleanupTimeoutMs,
-      log
-    });
-  } catch {}
+  };
+  if (runtime.workerPools?.destroy) {
+    await runTeardownStep(
+      'runtime.worker-pools.destroy',
+      () => runtime.workerPools.destroy()
+    );
+  } else if (runtime.workerPool?.destroy) {
+    await runTeardownStep(
+      'runtime.worker-pool.destroy',
+      () => runtime.workerPool.destroy()
+    );
+  }
+  await runTeardownStep(
+    'runtime.scheduler.shutdown',
+    () => Promise.resolve(runtime.scheduler?.shutdown?.({
+      awaitRunning: true,
+      timeoutMs: cleanupTimeoutMs
+    }))
+  );
+  await runTeardownStep(
+    'runtime.tree-sitter-worker-pool.shutdown',
+    () => shutdownTreeSitterWorkerPool()
+  );
+  await runTeardownStep(
+    'runtime.python-ast-pool.shutdown',
+    () => Promise.resolve(shutdownPythonAstPool())
+  );
 };
