@@ -1,3 +1,8 @@
+import crypto from 'node:crypto';
+import {
+  terminateTrackedSubprocesses,
+  withTrackedSubprocessSignalScope
+} from '../../shared/subprocess.js';
 import {
   normalizePreflightPolicy,
   normalizeProviderId,
@@ -48,6 +53,27 @@ const normalizePreflightClass = (value, fallback = PREFLIGHT_CLASS.PROBE) => {
   const normalized = String(value || '').trim().toLowerCase();
   if (PREFLIGHT_CLASS_SET.has(normalized)) return normalized;
   return fallback;
+};
+
+const normalizeOwnershipSegment = (value, fallback) => {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+  return normalized || fallback;
+};
+
+const resolvePreflightOwnershipId = ({ providerId, preflightId, key }) => {
+  const providerSegment = normalizeOwnershipSegment(providerId, 'provider');
+  const preflightSegment = normalizeOwnershipSegment(preflightId, 'preflight');
+  const hash = crypto
+    .createHash('sha1')
+    .update(String(key || `${providerSegment}:${preflightSegment}`))
+    .digest('hex')
+    .slice(0, 12);
+  return `tooling-preflight:${providerSegment}:${preflightSegment}:${hash}`;
 };
 
 const resolveProviderPreflightClass = (provider) => {
@@ -567,6 +593,11 @@ const startProviderPreflight = ({
     preflightClass
   });
   const key = resolvePreflightKey({ provider, ctx, inputs });
+  const ownershipId = resolvePreflightOwnershipId({
+    providerId,
+    preflightId,
+    key
+  });
   const completed = state.completed.get(key);
   const completedReusable = (
     Boolean(waveToken)
@@ -663,6 +694,10 @@ const startProviderPreflight = ({
     cancelled: false,
     execute: async () => {
       const startedAtMs = Date.now();
+      const inFlightEntry = state.inFlight.get(key);
+      if (inFlightEntry && typeof inFlightEntry === 'object') {
+        inFlightEntry.startedAtMs = startedAtMs;
+      }
       setSnapshot(state, key, {
         providerId,
         preflightId,
@@ -683,7 +718,11 @@ const startProviderPreflight = ({
         + `class=${preflightClass} timeoutMs=${preflightTimeoutMs}`
       );
       try {
-        const rawResult = await provider.preflight(ctx, preflightInputs);
+        const rawResult = await withTrackedSubprocessSignalScope(
+          managedAbortBridge.signal || requestedAbortSignal,
+          ownershipId,
+          () => provider.preflight(ctx, preflightInputs)
+        );
         const result = normalizeToolingPreflightResult(rawResult);
         const elapsedMs = Math.max(0, Date.now() - startedAtMs);
         const status = String(result?.state || TOOLING_PREFLIGHT_STATES.READY);
@@ -851,6 +890,7 @@ const startProviderPreflight = ({
   state.inFlight.set(key, {
     providerId,
     preflightId,
+    ownershipId,
     startedAtMs: null,
     preflightClass,
     preflightPolicy,
@@ -1014,67 +1054,129 @@ export const getToolingProviderPreflightSchedulerMetrics = (ctx) => {
  *
  * @param {object} ctx
  * @param {{timeoutMs?:number}} input
- * @returns {Promise<{total:number,settled:number,rejected:number,timedOut:boolean}>}
+ * @returns {Promise<{
+ *   status:'ok'|'timed_out'|'failed',
+ *   total:number,
+ *   settled:number,
+ *   rejected:number,
+ *   timedOut:boolean,
+ *   aborted:number,
+ *   forcedCleanup?:{
+ *     ownershipIds:number,
+ *     attempted:number,
+ *     terminated:number,
+ *     failures:number
+ *   },
+ *   error?:string
+ * }>}
  */
 export const teardownToolingProviderPreflights = async (ctx, { timeoutMs = 5000 } = {}) => {
-  const state = resolveState(ctx);
-  const scheduler = resolveScheduler(state, ctx);
-  scheduler.accepting = false;
-  const inFlightEntries = Array.from(state.inFlight.values());
-  if (!inFlightEntries.length) {
-    return { total: 0, settled: 0, rejected: 0, timedOut: false, aborted: 0 };
-  }
   const log = resolveLogger(ctx);
-  const promises = inFlightEntries
-    .map((entry) => entry?.promise)
-    .filter((promise) => promise && typeof promise.then === 'function');
-  const waited = await waitForPromisesWithTimeout(promises, timeoutMs);
-  if (waited.timedOut) {
-    let aborted = 0;
-    for (const entry of inFlightEntries) {
-      if (typeof entry?.abort !== 'function') continue;
-      try {
-        entry.abort(new Error('tooling preflight teardown timeout'));
-        aborted += 1;
-      } catch {}
+  try {
+    const state = resolveState(ctx);
+    const scheduler = resolveScheduler(state, ctx);
+    scheduler.accepting = false;
+    const inFlightEntries = Array.from(state.inFlight.values());
+    if (!inFlightEntries.length) {
+      return { status: 'ok', total: 0, settled: 0, rejected: 0, timedOut: false, aborted: 0 };
     }
-    if (aborted > 0) {
-      log(`[tooling] preflight:teardown_abort active=${aborted}`);
+    const promises = inFlightEntries
+      .map((entry) => entry?.promise)
+      .filter((promise) => promise && typeof promise.then === 'function');
+    const waited = await waitForPromisesWithTimeout(promises, timeoutMs);
+    if (waited.timedOut) {
+      let aborted = 0;
+      for (const entry of inFlightEntries) {
+        if (typeof entry?.abort !== 'function') continue;
+        try {
+          entry.abort(new Error('tooling preflight teardown timeout'));
+          aborted += 1;
+        } catch {}
+      }
+      if (aborted > 0) {
+        log(`[tooling] preflight:teardown_abort active=${aborted}`);
+      }
+      const ownershipIds = [...new Set(
+        inFlightEntries
+          .map((entry) => (typeof entry?.ownershipId === 'string' ? entry.ownershipId.trim() : ''))
+          .filter(Boolean)
+      )];
+      const forcedCleanup = {
+        ownershipIds: ownershipIds.length,
+        attempted: 0,
+        terminated: 0,
+        failures: 0
+      };
+      for (const ownershipId of ownershipIds) {
+        try {
+          const cleanup = await terminateTrackedSubprocesses({
+            reason: 'tooling_preflight_teardown_timeout',
+            force: true,
+            ownershipId
+          });
+          forcedCleanup.attempted += Number(cleanup?.attempted || 0);
+          forcedCleanup.terminated += Number(cleanup?.terminatedPids?.length || 0);
+          forcedCleanup.failures += Number(cleanup?.failures || 0);
+        } catch {
+          forcedCleanup.failures += 1;
+        }
+      }
+      if (forcedCleanup.attempted > 0 || forcedCleanup.failures > 0) {
+        log(
+          `[tooling] preflight:teardown_force_cleanup ownershipIds=${forcedCleanup.ownershipIds} `
+          + `attempted=${forcedCleanup.attempted} terminated=${forcedCleanup.terminated} `
+          + `failures=${forcedCleanup.failures}`
+        );
+      }
+      const settledAfterAbort = await waitForPromisesWithTimeout(promises, 1000);
+      const nowMs = Date.now();
+      const offenderSummary = inFlightEntries
+        .map((entry) => {
+          const providerId = String(entry?.providerId || '<unknown>');
+          const preflightId = String(entry?.preflightId || '<unknown>');
+          const preflightClass = String(entry?.preflightClass || 'unknown');
+          const startedAtMs = Number.isFinite(entry?.startedAtMs) ? entry.startedAtMs : null;
+          const ageMs = Number.isFinite(startedAtMs) ? Math.max(0, nowMs - startedAtMs) : null;
+          return `${providerId}/${preflightId}[${preflightClass}]${Number.isFinite(ageMs) ? `:${Math.round(ageMs)}ms` : ''}`;
+        })
+        .slice(0, 8)
+        .join(', ');
+      log(
+        `[tooling] preflight:teardown_timeout active=${promises.length} timeoutMs=${Math.max(0, Math.floor(timeoutMs))}`
+        + ` offenders=${offenderSummary || 'none'}`
+      );
+      const rejectedAfterAbort = settledAfterAbort.timedOut
+        ? 0
+        : settledAfterAbort.settled.filter((entry) => entry?.status === 'rejected').length;
+      return {
+        status: 'timed_out',
+        total: promises.length,
+        settled: settledAfterAbort.timedOut ? 0 : settledAfterAbort.settled.length,
+        rejected: rejectedAfterAbort,
+        timedOut: true,
+        aborted,
+        forcedCleanup
+      };
     }
-    const settledAfterAbort = await waitForPromisesWithTimeout(promises, 1000);
-    const nowMs = Date.now();
-    const offenderSummary = inFlightEntries
-      .map((entry) => {
-        const providerId = String(entry?.providerId || '<unknown>');
-        const preflightId = String(entry?.preflightId || '<unknown>');
-        const preflightClass = String(entry?.preflightClass || 'unknown');
-        const startedAtMs = Number.isFinite(entry?.startedAtMs) ? entry.startedAtMs : null;
-        const ageMs = Number.isFinite(startedAtMs) ? Math.max(0, nowMs - startedAtMs) : null;
-        return `${providerId}/${preflightId}[${preflightClass}]${Number.isFinite(ageMs) ? `:${Math.round(ageMs)}ms` : ''}`;
-      })
-      .slice(0, 8)
-      .join(', ');
-    log(
-      `[tooling] preflight:teardown_timeout active=${promises.length} timeoutMs=${Math.max(0, Math.floor(timeoutMs))}`
-      + ` offenders=${offenderSummary || 'none'}`
-    );
-    const rejectedAfterAbort = settledAfterAbort.timedOut
-      ? 0
-      : settledAfterAbort.settled.filter((entry) => entry?.status === 'rejected').length;
+    const rejected = waited.settled.filter((entry) => entry?.status === 'rejected').length;
     return {
+      status: 'ok',
       total: promises.length,
-      settled: settledAfterAbort.timedOut ? 0 : settledAfterAbort.settled.length,
-      rejected: rejectedAfterAbort,
-      timedOut: true,
-      aborted
+      settled: waited.settled.length,
+      rejected,
+      timedOut: false,
+      aborted: 0
+    };
+  } catch (error) {
+    log(`[tooling] preflight:teardown_failed error=${error?.message || error}`);
+    return {
+      status: 'failed',
+      total: 0,
+      settled: 0,
+      rejected: 0,
+      timedOut: false,
+      aborted: 0,
+      error: error?.message || String(error)
     };
   }
-  const rejected = waited.settled.filter((entry) => entry?.status === 'rejected').length;
-  return {
-    total: promises.length,
-    settled: waited.settled.length,
-    rejected,
-    timedOut: false,
-    aborted: 0
-  };
 };
