@@ -145,6 +145,7 @@ export { resolveVfsIoBatching, ensureVirtualFilesBatch };
  * @param {number} [params.definitionConcurrency=8]
  * @param {number} [params.typeDefinitionConcurrency=8]
  * @param {number} [params.referencesConcurrency=8]
+ * @param {number|null} [params.softDeadlineMs=null]
  * @param {number} [params.hoverCacheMaxEntries=50000]
  * @param {(line:string)=>boolean|null} [params.stderrFilter=null]
  * @param {object|null} [params.initializationOptions=null]
@@ -204,6 +205,7 @@ export async function collectLspTypes({
   definitionConcurrency = DEFAULT_HOVER_CONCURRENCY,
   typeDefinitionConcurrency = DEFAULT_HOVER_CONCURRENCY,
   referencesConcurrency = DEFAULT_HOVER_CONCURRENCY,
+  softDeadlineMs = null,
   hoverCacheMaxEntries = DEFAULT_HOVER_CACHE_MAX_ENTRIES,
   stderrFilter = null,
   initializationOptions = null,
@@ -236,6 +238,11 @@ export async function collectLspTypes({
   const resolvedHoverMaxPerFile = toFiniteInt(hoverMaxPerFile, 0);
   const resolvedHoverDisableAfterTimeouts = toFiniteInt(hoverDisableAfterTimeouts, 1);
   const resolvedHoverKinds = normalizeHoverKinds(hoverSymbolKinds);
+  const resolvedSoftDeadlineMs = resolvePositiveTimeout(softDeadlineMs)
+    ?? Math.max(
+      2000,
+      Math.floor((resolvePositiveTimeout(timeoutMs) ?? 60000) * 0.9)
+    );
   const resolvedMaxDiagnosticUris = clampPositiveInt(maxDiagnosticUris, DEFAULT_MAX_DIAGNOSTIC_URIS);
   const resolvedMaxDiagnosticsPerUri = clampPositiveInt(maxDiagnosticsPerUri, DEFAULT_MAX_DIAGNOSTICS_PER_URI);
   const resolvedMaxDiagnosticsPerChunk = clampPositiveInt(maxDiagnosticsPerChunk, DEFAULT_MAX_DIAGNOSTICS_PER_CHUNK);
@@ -268,6 +275,18 @@ export async function collectLspTypes({
     referencesConcurrency,
     DEFAULT_HOVER_CONCURRENCY,
     { min: 1, max: 64 }
+  );
+  // Symbol-level enrichment used to run mostly serial within each document.
+  // Raise concurrency here while downstream request-limiters keep per-method
+  // pressure bounded so we improve throughput without dropping enrichment work.
+  const resolvedSymbolProcessingConcurrency = clampIntRange(
+    Math.max(
+      resolvedDocumentSymbolConcurrency * 8,
+      resolvedHoverConcurrency * 2,
+      8
+    ),
+    16,
+    { min: 1, max: 256 }
   );
   const resolvedHoverCacheMaxEntries = clampIntRange(
     hoverCacheMaxEntries,
@@ -327,6 +346,7 @@ export async function collectLspTypes({
     diagnosticsUriBufferTrimmed: false,
     diagnosticsPerChunkTrimmed: false,
     hoverTimedOut: false,
+    softDeadlineReached: false,
     documentSymbolFailed: false,
     circuitOpened: false,
     initializeFailed: false,
@@ -588,6 +608,9 @@ export async function collectLspTypes({
       const hoverLatencyMs = [];
       const hoverMetrics = createEmptyHoverMetricsResult();
       const hoverControl = { disabledGlobal: false };
+      const softDeadlineAt = Number.isFinite(Number(resolvedSoftDeadlineMs))
+        ? Date.now() + Number(resolvedSoftDeadlineMs)
+        : null;
       const hoverLimiter = createConcurrencyLimiter(resolvedHoverConcurrency);
       const signatureHelpLimiter = createConcurrencyLimiter(resolvedSignatureHelpConcurrency);
       const definitionLimiter = createConcurrencyLimiter(resolvedDefinitionConcurrency);
@@ -667,6 +690,8 @@ export async function collectLspTypes({
           hoverFileStats,
           hoverLatencyMs,
           hoverMetrics,
+          symbolProcessingConcurrency: resolvedSymbolProcessingConcurrency,
+          softDeadlineAt,
           checks,
           checkFlags,
           abortSignal: toolingAbortSignal
@@ -674,7 +699,27 @@ export async function collectLspTypes({
         enriched += enrichedDelta;
       };
 
-      await runWithConcurrency(docsToOpen, resolvedDocumentSymbolConcurrency, processDoc, {
+      let processedDocs = 0;
+      let lastProgressLogAt = Date.now();
+      const progressLogEnabled = docsToOpen.length >= 20;
+      const runDocWithProgress = async (doc) => {
+        try {
+          await processDoc(doc);
+        } finally {
+          processedDocs += 1;
+          if (!progressLogEnabled) return;
+          const now = Date.now();
+          const shouldLog = processedDocs === docsToOpen.length
+            || processedDocs % 20 === 0
+            || (now - lastProgressLogAt) >= 5000;
+          if (!shouldLog) return;
+          lastProgressLogAt = now;
+          log(
+            `[tooling] ${cmd} progress: docs=${processedDocs}/${docsToOpen.length}, enriched=${enriched}, checks=${checks.length}`
+          );
+        }
+      };
+      await runWithConcurrency(docsToOpen, resolvedDocumentSymbolConcurrency, runDocWithProgress, {
         signal: toolingAbortSignal
       });
       throwIfAborted(toolingAbortSignal);

@@ -189,17 +189,15 @@ export const persistHoverCache = async ({ cachePath, entries, maxEntries }) => {
 };
 
 /**
- * Build symbol-sensitive position key for hover-stage request dedupe.
- * @param {{position:{line:number,character:number},symbolName?:string,symbolKind?:string|number|null}} input
+ * Build document-position key for request dedupe.
+ * Keep keying coarse (line/character only) to avoid duplicate work when
+ * servers emit multiple symbol variants for the same cursor location.
+ * @param {{position:{line:number,character:number}}} input
  * @returns {string|null}
  */
-export const buildSymbolPositionCacheKey = ({ position, symbolName, symbolKind }) => {
+export const buildSymbolPositionCacheKey = ({ position }) => {
   if (!position || !Number.isFinite(position.line) || !Number.isFinite(position.character)) return null;
-  return [
-    `${Math.floor(position.line)}:${Math.floor(position.character)}`,
-    String(symbolName || '').trim(),
-    String(symbolKind ?? '').trim()
-  ].join('|');
+  return `${Math.floor(position.line)}:${Math.floor(position.character)}`;
 };
 
 /**
@@ -337,6 +335,25 @@ export const toFiniteInt = (value, min = null) => {
   return Math.max(min, normalized);
 };
 
+const createRequestBudgetController = (maxRequests) => {
+  const cap = toFiniteInt(maxRequests, 0);
+  if (!Number.isFinite(cap) || cap < 0) {
+    return {
+      enabled: false,
+      tryReserve: () => true
+    };
+  }
+  let used = 0;
+  return {
+    enabled: true,
+    tryReserve: () => {
+      if (used >= cap) return false;
+      used += 1;
+      return true;
+    }
+  };
+};
+
 const percentile = (values, ratio) => {
   if (!Array.isArray(values) || values.length === 0) return null;
   const target = Number(ratio);
@@ -376,6 +393,7 @@ const createHoverFileStats = () => ({
   referencesTimedOut: 0,
   timedOut: 0,
   skippedByBudget: 0,
+  skippedBySoftDeadline: 0,
   skippedByKind: 0,
   skippedByReturnSufficient: 0,
   skippedByAdaptiveDisable: 0,
@@ -404,8 +422,12 @@ export const normalizeHoverKinds = (kinds) => {
  * @param {object|null} paramTypes
  * @returns {object|null}
  */
-export const normalizeParamTypes = (paramTypes) => {
+export const normalizeParamTypes = (paramTypes, options = {}) => {
   if (!paramTypes || typeof paramTypes !== 'object') return null;
+  const configuredDefaultConfidence = Number(options?.defaultConfidence);
+  const defaultConfidence = Number.isFinite(configuredDefaultConfidence)
+    ? Math.max(0, Math.min(1, configuredDefaultConfidence))
+    : 0.7;
   const output = {};
   for (const [name, entries] of Object.entries(paramTypes)) {
     if (!name) continue;
@@ -415,7 +437,7 @@ export const normalizeParamTypes = (paramTypes) => {
         .filter((entry) => entry?.type)
         .map((entry) => ({
           type: normalizeTypeText(entry.type),
-          confidence: Number.isFinite(entry.confidence) ? entry.confidence : 0.7,
+          confidence: Number.isFinite(entry.confidence) ? entry.confidence : defaultConfidence,
           source: entry.source || 'tooling'
         }))
         .filter((entry) => entry.type);
@@ -424,7 +446,7 @@ export const normalizeParamTypes = (paramTypes) => {
     }
     if (typeof entries === 'string') {
       const type = normalizeTypeText(entries);
-      if (type) output[name] = [{ type, confidence: 0.7, source: 'tooling' }];
+      if (type) output[name] = [{ type, confidence: defaultConfidence, source: 'tooling' }];
     }
   }
   return Object.keys(output).length ? output : null;
@@ -756,6 +778,34 @@ const scoreChunkPayloadCandidate = ({ info, symbol, target }) => {
   return total;
 };
 
+const resolveEvidenceTier = (record) => {
+  if (
+    record?.hoverSucceeded
+    || record?.signatureHelpSucceeded
+    || record?.definitionSucceeded
+    || record?.typeDefinitionSucceeded
+    || record?.referencesSucceeded
+  ) {
+    return 'full';
+  }
+  if (record?.sourceFallbackUsed) {
+    return 'heuristic';
+  }
+  return 'inferred';
+};
+
+const scoreEvidenceTier = (tier) => {
+  if (tier === 'full') return 20;
+  if (tier === 'inferred') return 8;
+  return 0;
+};
+
+const defaultParamConfidenceForTier = (tier) => {
+  if (tier === 'full') return 0.9;
+  if (tier === 'inferred') return 0.75;
+  return 0.6;
+};
+
 /**
  * Create default hover metrics envelope.
  * @returns {object}
@@ -782,6 +832,7 @@ export const createEmptyHoverMetricsResult = () => ({
   fallbackUsed: 0,
   fallbackReasonCounts: Object.create(null),
   skippedByBudget: 0,
+  skippedBySoftDeadline: 0,
   skippedByKind: 0,
   skippedByReturnSufficient: 0,
   skippedByAdaptiveDisable: 0,
@@ -818,6 +869,7 @@ export const summarizeHoverMetrics = ({ hoverMetrics, hoverLatencyMs, hoverFileS
       referencesTimedOut: stats.referencesTimedOut,
       timedOut: stats.timedOut,
       skippedByBudget: stats.skippedByBudget,
+      skippedBySoftDeadline: stats.skippedBySoftDeadline,
       skippedByKind: stats.skippedByKind,
       skippedByReturnSufficient: stats.skippedByReturnSufficient,
       skippedByAdaptiveDisable: stats.skippedByAdaptiveDisable,
@@ -856,6 +908,7 @@ export const summarizeHoverMetrics = ({ hoverMetrics, hoverLatencyMs, hoverFileS
     fallbackUsed: hoverMetrics.fallbackUsed,
     fallbackReasonCounts: { ...(hoverMetrics.fallbackReasonCounts || {}) },
     skippedByBudget: hoverMetrics.skippedByBudget,
+    skippedBySoftDeadline: hoverMetrics.skippedBySoftDeadline,
     skippedByKind: hoverMetrics.skippedByKind,
     skippedByReturnSufficient: hoverMetrics.skippedByReturnSufficient,
     skippedByAdaptiveDisable: hoverMetrics.skippedByAdaptiveDisable,
@@ -914,6 +967,24 @@ const recordDocumentSymbolFailureCheck = ({ cmd, checks, checkFlags, err }) => {
     name: 'tooling_document_symbol_failed',
     status: 'warn',
     message: `${cmd} documentSymbol requests failed; running in degraded mode (${category}).`
+  });
+};
+
+const recordSoftDeadlineCheck = ({
+  cmd,
+  checks,
+  checkFlags,
+  softDeadlineAt
+}) => {
+  if (checkFlags.softDeadlineReached) return;
+  checkFlags.softDeadlineReached = true;
+  const deadlineIso = Number.isFinite(Number(softDeadlineAt))
+    ? new Date(Number(softDeadlineAt)).toISOString()
+    : null;
+  checks.push({
+    name: 'tooling_soft_deadline_reached',
+    status: 'warn',
+    message: `${cmd} tooling soft deadline reached${deadlineIso ? ` (${deadlineIso})` : ''}; suppressing additional LSP stage requests.`
   });
 };
 
@@ -1106,6 +1177,8 @@ export const processDocumentTypes = async ({
   hoverFileStats,
   hoverLatencyMs,
   hoverMetrics,
+  symbolProcessingConcurrency = 8,
+  softDeadlineAt = null,
   checks,
   checkFlags,
   abortSignal = null
@@ -1201,18 +1274,45 @@ export const processDocumentTypes = async ({
     const definitionRequestByPosition = new Map();
     const typeDefinitionRequestByPosition = new Map();
     const referencesRequestByPosition = new Map();
-    const bestCandidateScoreByChunkUid = new Map();
     const symbolRecords = [];
+    const requestBudget = createRequestBudgetController(resolvedHoverMaxPerFile);
+    const isSoftDeadlineExpired = () => (
+      Number.isFinite(Number(softDeadlineAt))
+      && Date.now() >= Number(softDeadlineAt)
+    );
+    const recordSoftDeadlineSkip = () => {
+      fileHoverStats.skippedBySoftDeadline += 1;
+      hoverMetrics.skippedBySoftDeadline += 1;
+    };
+    const markSoftDeadlineReached = () => {
+      hoverControl.disabledGlobal = true;
+      recordSoftDeadlineCheck({
+        cmd,
+        checks,
+        checkFlags,
+        softDeadlineAt
+      });
+    };
+    const reserveRequestBudget = () => {
+      if (requestBudget.tryReserve()) return true;
+      fileHoverStats.skippedByBudget += 1;
+      hoverMetrics.skippedByBudget += 1;
+      return false;
+    };
 
     const requestHover = (symbol, position) => {
       throwIfAborted(abortSignal);
       const key = buildSymbolPositionCacheKey({
-        position,
-        symbolName: symbol?.name,
-        symbolKind: symbol?.kind
+        position
       });
       if (!key) return Promise.resolve(null);
       if (hoverRequestByPosition.has(key)) return hoverRequestByPosition.get(key);
+      if (isSoftDeadlineExpired()) {
+        markSoftDeadlineReached();
+        recordSoftDeadlineSkip();
+        return Promise.resolve(null);
+      }
+      if (!reserveRequestBudget()) return Promise.resolve(null);
       const hoverCacheKey = buildHoverCacheKey({
         cmd,
         docHash: doc.docHash || null,
@@ -1277,12 +1377,16 @@ export const processDocumentTypes = async ({
     const requestSignatureHelp = (symbol, position) => {
       throwIfAborted(abortSignal);
       const key = buildSymbolPositionCacheKey({
-        position,
-        symbolName: symbol?.name,
-        symbolKind: symbol?.kind
+        position
       });
       if (!key) return Promise.resolve(null);
       if (signatureHelpRequestByPosition.has(key)) return signatureHelpRequestByPosition.get(key);
+      if (isSoftDeadlineExpired()) {
+        markSoftDeadlineReached();
+        recordSoftDeadlineSkip();
+        return Promise.resolve(null);
+      }
+      if (!reserveRequestBudget()) return Promise.resolve(null);
       const runSignatureHelp = typeof signatureHelpLimiter === 'function'
         ? signatureHelpLimiter
         : hoverLimiter;
@@ -1332,12 +1436,16 @@ export const processDocumentTypes = async ({
     const requestDefinition = (symbol, position) => {
       throwIfAborted(abortSignal);
       const key = buildSymbolPositionCacheKey({
-        position,
-        symbolName: symbol?.name,
-        symbolKind: symbol?.kind
+        position
       });
       if (!key) return Promise.resolve(null);
       if (definitionRequestByPosition.has(key)) return definitionRequestByPosition.get(key);
+      if (isSoftDeadlineExpired()) {
+        markSoftDeadlineReached();
+        recordSoftDeadlineSkip();
+        return Promise.resolve(null);
+      }
+      if (!reserveRequestBudget()) return Promise.resolve(null);
       const runDefinition = typeof definitionLimiter === 'function'
         ? definitionLimiter
         : hoverLimiter;
@@ -1401,12 +1509,16 @@ export const processDocumentTypes = async ({
     const requestTypeDefinition = (symbol, position) => {
       throwIfAborted(abortSignal);
       const key = buildSymbolPositionCacheKey({
-        position,
-        symbolName: symbol?.name,
-        symbolKind: symbol?.kind
+        position
       });
       if (!key) return Promise.resolve(null);
       if (typeDefinitionRequestByPosition.has(key)) return typeDefinitionRequestByPosition.get(key);
+      if (isSoftDeadlineExpired()) {
+        markSoftDeadlineReached();
+        recordSoftDeadlineSkip();
+        return Promise.resolve(null);
+      }
+      if (!reserveRequestBudget()) return Promise.resolve(null);
       const runTypeDefinition = typeof typeDefinitionLimiter === 'function'
         ? typeDefinitionLimiter
         : hoverLimiter;
@@ -1470,12 +1582,16 @@ export const processDocumentTypes = async ({
     const requestReferences = (symbol, position) => {
       throwIfAborted(abortSignal);
       const key = buildSymbolPositionCacheKey({
-        position,
-        symbolName: symbol?.name,
-        symbolKind: symbol?.kind
+        position
       });
       if (!key) return Promise.resolve(null);
       if (referencesRequestByPosition.has(key)) return referencesRequestByPosition.get(key);
+      if (isSoftDeadlineExpired()) {
+        markSoftDeadlineReached();
+        recordSoftDeadlineSkip();
+        return Promise.resolve(null);
+      }
+      if (!reserveRequestBudget()) return Promise.resolve(null);
       const runReferences = typeof referencesLimiter === 'function'
         ? referencesLimiter
         : hoverLimiter;
@@ -1567,67 +1683,33 @@ export const processDocumentTypes = async ({
         hoverMetrics.skippedByKind += 1;
       }
 
-      const requestBudgetCount = Number(fileHoverStats.requested || 0)
-        + Number(fileHoverStats.signatureHelpRequested || 0)
-        + Number(fileHoverStats.definitionRequested || 0)
-        + Number(fileHoverStats.typeDefinitionRequested || 0)
-        + Number(fileHoverStats.referencesRequested || 0);
-      const fileOverBudget = Number.isFinite(resolvedHoverMaxPerFile)
-        && resolvedHoverMaxPerFile >= 0
-        && requestBudgetCount >= resolvedHoverMaxPerFile;
-      if (fileOverBudget) {
-        fileHoverStats.skippedByBudget += 1;
-        hoverMetrics.skippedByBudget += 1;
-      }
-
-      const adaptiveDisabled = hoverControl.disabledGlobal || fileHoverStats.disabledAdaptive;
-      if (adaptiveDisabled) {
-        if (hoverControl.disabledGlobal) {
-          fileHoverStats.skippedByGlobalDisable += 1;
-          hoverMetrics.skippedByGlobalDisable += 1;
-        } else {
-          fileHoverStats.skippedByAdaptiveDisable += 1;
-          hoverMetrics.skippedByAdaptiveDisable += 1;
-        }
-      }
-
       const position = symbol.selectionRange?.start || symbol.range?.start || null;
       const sourceSignature = buildSourceSignatureCandidate(
         openEntry?.text || doc.text || '',
         target?.virtualRange
       );
-      const hoverPromise = (
-        hoverEnabled
-        && needsHover
-        && symbolKindAllowed
-        && !fileOverBudget
-        && !adaptiveDisabled
-        && position
-      )
-        ? requestHover(symbol, position)
-        : null;
       symbolRecords.push({
         symbol,
         position,
         target,
         info,
-        hoverPromise,
         sourceSignature,
-        hoverRequested: hoverPromise != null,
+        hoverEligible: (
+          hoverEnabled
+          && needsHover
+          && symbolKindAllowed
+          && position != null
+        ),
         signatureHelpEligible: (
           signatureHelpEnabled
           && needsHover
           && symbolKindAllowed
-          && !fileOverBudget
-          && !adaptiveDisabled
           && position != null
         ),
         definitionEligible: (
           definitionEnabled
           && needsHover
           && symbolKindAllowed
-          && !fileOverBudget
-          && !adaptiveDisabled
           && position != null
           && !sourceSignature
         ),
@@ -1635,8 +1717,6 @@ export const processDocumentTypes = async ({
           typeDefinitionEnabled
           && needsHover
           && symbolKindAllowed
-          && !fileOverBudget
-          && !adaptiveDisabled
           && position != null
           && !sourceSignature
         ),
@@ -1645,15 +1725,37 @@ export const processDocumentTypes = async ({
           && FUNCTION_LIKE_SYMBOL_KINDS.has(Number(symbol?.kind))
           && needsHover
           && symbolKindAllowed
-          && !fileOverBudget
-          && !adaptiveDisabled
           && position != null
           && !sourceSignature
-        )
+        ),
+        hoverRequested: false,
+        hoverSucceeded: false,
+        signatureHelpRequested: false,
+        signatureHelpSucceeded: false,
+        definitionRequested: false,
+        definitionSucceeded: false,
+        typeDefinitionRequested: false,
+        typeDefinitionSucceeded: false,
+        referencesRequested: false,
+        referencesSucceeded: false,
+        sourceFallbackUsed: false
       });
     }
 
     let enrichedDelta = 0;
+    const adaptiveSymbolProcessingConcurrency = clampIntRange(
+      Math.max(1, Math.min(
+        symbolProcessingConcurrency,
+        Math.ceil(Math.max(1, symbolRecords.length) / 8)
+      )),
+      symbolProcessingConcurrency,
+      { min: 1, max: 256 }
+    );
+    const resolvedSymbolProcessingConcurrency = clampIntRange(
+      adaptiveSymbolProcessingConcurrency,
+      8,
+      { min: 1, max: 256 }
+    );
     const isAdaptiveSuppressed = () => hoverControl.disabledGlobal || fileHoverStats.disabledAdaptive;
     const recordAdaptiveSkip = () => {
       if (hoverControl.disabledGlobal) {
@@ -1664,116 +1766,112 @@ export const processDocumentTypes = async ({
         hoverMetrics.skippedByAdaptiveDisable += 1;
       }
     };
-    for (const record of symbolRecords) {
+    const shouldSuppressAdditionalRequests = () => {
+      if (isSoftDeadlineExpired()) {
+        markSoftDeadlineReached();
+        recordSoftDeadlineSkip();
+        return true;
+      }
+      if (isAdaptiveSuppressed()) {
+        recordAdaptiveSkip();
+        return true;
+      }
+      return false;
+    };
+    const runStagePass = async ({
+      enabled = true,
+      eligibleFlag,
+      requestFn,
+      requestedFlag,
+      succeededFlag
+    }) => {
+      if (!enabled) return;
+      await runWithConcurrency(symbolRecords, resolvedSymbolProcessingConcurrency, async (record) => {
+        throwIfAborted(abortSignal);
+        if (!record?.[eligibleFlag]) return;
+        const incompleteState = isIncompleteTypePayload(record.info, {
+          symbolKind: record?.symbol?.kind
+        });
+        if (!incompleteState.incomplete) return;
+        if (shouldSuppressAdditionalRequests()) return;
+        record[requestedFlag] = true;
+        const stageInfo = await requestFn(record.symbol, record.position);
+        if (!stageInfo) return;
+        record[succeededFlag] = true;
+        record.info = mergeSignatureInfo(record.info, stageInfo, { symbolKind: record?.symbol?.kind });
+      }, { signal: abortSignal });
+    };
+
+    await runStagePass({
+      enabled: hoverEnabled !== false,
+      eligibleFlag: 'hoverEligible',
+      requestFn: requestHover,
+      requestedFlag: 'hoverRequested',
+      succeededFlag: 'hoverSucceeded'
+    });
+    await runStagePass({
+      enabled: signatureHelpEnabled !== false,
+      eligibleFlag: 'signatureHelpEligible',
+      requestFn: requestSignatureHelp,
+      requestedFlag: 'signatureHelpRequested',
+      succeededFlag: 'signatureHelpSucceeded'
+    });
+    await runStagePass({
+      enabled: definitionEnabled !== false,
+      eligibleFlag: 'definitionEligible',
+      requestFn: requestDefinition,
+      requestedFlag: 'definitionRequested',
+      succeededFlag: 'definitionSucceeded'
+    });
+    await runStagePass({
+      enabled: typeDefinitionEnabled !== false,
+      eligibleFlag: 'typeDefinitionEligible',
+      requestFn: requestTypeDefinition,
+      requestedFlag: 'typeDefinitionRequested',
+      succeededFlag: 'typeDefinitionSucceeded'
+    });
+    await runStagePass({
+      enabled: referencesEnabled !== false,
+      eligibleFlag: 'referencesEligible',
+      requestFn: requestReferences,
+      requestedFlag: 'referencesRequested',
+      succeededFlag: 'referencesSucceeded'
+    });
+
+    const candidateRows = [];
+    const resolveRecordCandidate = async (record, recordIndex) => {
       throwIfAborted(abortSignal);
       let info = record.info;
-      let hoverSucceeded = false;
-      let signatureHelpSucceeded = false;
-      let signatureHelpRequested = false;
-      let definitionSucceeded = false;
-      let definitionRequested = false;
-      let typeDefinitionSucceeded = false;
-      let typeDefinitionRequested = false;
-      let referencesSucceeded = false;
-      let referencesRequested = false;
-      if (record.hoverPromise) {
-        const hoverInfo = await record.hoverPromise;
-        if (hoverInfo) {
-          hoverSucceeded = true;
-          info = mergeSignatureInfo(info, hoverInfo, { symbolKind: record?.symbol?.kind });
-        }
-      }
-
-      const incompleteAfterHover = isIncompleteTypePayload(info, {
+      const incompleteAfterStages = isIncompleteTypePayload(info, {
         symbolKind: record?.symbol?.kind
       });
-      if (incompleteAfterHover.incomplete && record.signatureHelpEligible) {
-        if (isAdaptiveSuppressed()) {
-          recordAdaptiveSkip();
-        } else {
-          signatureHelpRequested = true;
-          const signatureHelpInfo = await requestSignatureHelp(record.symbol, record.position);
-          if (signatureHelpInfo) {
-            signatureHelpSucceeded = true;
-            info = mergeSignatureInfo(info, signatureHelpInfo, { symbolKind: record?.symbol?.kind });
-          }
-        }
-      }
-
-      const incompleteAfterSignatureHelp = isIncompleteTypePayload(info, {
-        symbolKind: record?.symbol?.kind
-      });
-      if (incompleteAfterSignatureHelp.incomplete && record.definitionEligible) {
-        if (isAdaptiveSuppressed()) {
-          recordAdaptiveSkip();
-        } else {
-          definitionRequested = true;
-          const definitionInfo = await requestDefinition(record.symbol, record.position);
-          if (definitionInfo) {
-            definitionSucceeded = true;
-            info = mergeSignatureInfo(info, definitionInfo, { symbolKind: record?.symbol?.kind });
-          }
-        }
-      }
-      const incompleteAfterDefinition = isIncompleteTypePayload(info, {
-        symbolKind: record?.symbol?.kind
-      });
-      if (incompleteAfterDefinition.incomplete && record.typeDefinitionEligible) {
-        if (isAdaptiveSuppressed()) {
-          recordAdaptiveSkip();
-        } else {
-          typeDefinitionRequested = true;
-          const typeDefinitionInfo = await requestTypeDefinition(record.symbol, record.position);
-          if (typeDefinitionInfo) {
-            typeDefinitionSucceeded = true;
-            info = mergeSignatureInfo(info, typeDefinitionInfo, { symbolKind: record?.symbol?.kind });
-          }
-        }
-      }
-      const incompleteAfterTypeDefinition = isIncompleteTypePayload(info, {
-        symbolKind: record?.symbol?.kind
-      });
-      if (incompleteAfterTypeDefinition.incomplete && record.referencesEligible) {
-        if (isAdaptiveSuppressed()) {
-          recordAdaptiveSkip();
-        } else {
-          referencesRequested = true;
-          const referencesInfo = await requestReferences(record.symbol, record.position);
-          if (referencesInfo) {
-            referencesSucceeded = true;
-            info = mergeSignatureInfo(info, referencesInfo, { symbolKind: record?.symbol?.kind });
-          }
-        }
-      }
-      const incompleteAfterReferences = isIncompleteTypePayload(info, {
-        symbolKind: record?.symbol?.kind
-      });
-      if (incompleteAfterReferences.incomplete && record.sourceSignature) {
+      if (incompleteAfterStages.incomplete && record.sourceSignature) {
         const sourceInfo = parseSignatureCached(record.sourceSignature, record?.symbol?.name);
         if (sourceInfo) {
           const fallbackReasons = buildFallbackReasonCodes({
-            incompleteState: incompleteAfterReferences,
+            incompleteState: incompleteAfterStages,
             hoverRequested: record.hoverRequested === true,
-            hoverSucceeded,
-            signatureHelpRequested,
-            signatureHelpSucceeded,
-            definitionRequested,
-            definitionSucceeded,
-            typeDefinitionRequested,
-            typeDefinitionSucceeded,
-            referencesRequested,
-            referencesSucceeded
+            hoverSucceeded: record.hoverSucceeded === true,
+            signatureHelpRequested: record.signatureHelpRequested === true,
+            signatureHelpSucceeded: record.signatureHelpSucceeded === true,
+            definitionRequested: record.definitionRequested === true,
+            definitionSucceeded: record.definitionSucceeded === true,
+            typeDefinitionRequested: record.typeDefinitionRequested === true,
+            typeDefinitionSucceeded: record.typeDefinitionSucceeded === true,
+            referencesRequested: record.referencesRequested === true,
+            referencesSucceeded: record.referencesSucceeded === true
           });
           recordFallbackReasons(hoverMetrics, fallbackReasons);
           info = mergeSignatureInfo(info, sourceInfo, { symbolKind: record?.symbol?.kind });
+          record.sourceFallbackUsed = true;
         }
       }
-      if (!info) continue;
+      if (!info) return null;
 
       const chunkUid = record.target?.chunkRef?.chunkUid;
       if (!chunkUid) {
         if (strict) throw new Error('LSP output missing chunkUid.');
-        continue;
+        return null;
       }
 
       const normalizedSignature = normalizeTypeText(info.signature);
@@ -1785,33 +1883,53 @@ export const processDocumentTypes = async ({
           normalizedReturn = trimmed === '()' ? 'Void' : trimmed;
         }
       }
+      const evidenceTier = resolveEvidenceTier(record);
 
       const payload = {
         returnType: normalizedReturn,
-        paramTypes: normalizeParamTypes(info.paramTypes),
+        paramTypes: normalizeParamTypes(info.paramTypes, {
+          defaultConfidence: defaultParamConfidenceForTier(evidenceTier)
+        }),
         signature: normalizedSignature
       };
       const candidateScore = scoreChunkPayloadCandidate({
         info,
         symbol: record.symbol,
         target: record.target
-      });
-      const existingScore = bestCandidateScoreByChunkUid.get(chunkUid);
-      if (Number.isFinite(existingScore) && existingScore > candidateScore) {
-        continue;
-      }
-      if (Number.isFinite(existingScore) && existingScore === candidateScore) {
-        const existingSignatureLength = String(byChunkUid[chunkUid]?.payload?.signature || '').length;
-        const candidateSignatureLength = String(payload.signature || '').length;
-        if (existingSignatureLength >= candidateSignatureLength) {
-          continue;
-        }
-      }
-
-      bestCandidateScoreByChunkUid.set(chunkUid, candidateScore);
-      byChunkUid[chunkUid] = {
-        chunk: record.target.chunkRef,
+      }) + scoreEvidenceTier(evidenceTier);
+      return {
+        chunkUid,
+        chunkRef: record.target.chunkRef,
         payload,
+        candidateScore,
+        evidenceTier,
+        signatureLength: String(payload.signature || '').length,
+        recordIndex
+      };
+    };
+
+    const symbolWorkItems = symbolRecords.map((record, recordIndex) => ({ record, recordIndex }));
+    await runWithConcurrency(symbolWorkItems, resolvedSymbolProcessingConcurrency, async (item) => {
+      const candidate = await resolveRecordCandidate(item.record, item.recordIndex);
+      if (candidate) candidateRows.push(candidate);
+    }, { signal: abortSignal });
+
+    candidateRows.sort((a, b) => {
+      const chunkCmp = String(a.chunkUid).localeCompare(String(b.chunkUid));
+      if (chunkCmp) return chunkCmp;
+      const scoreCmp = Number(b.candidateScore || 0) - Number(a.candidateScore || 0);
+      if (scoreCmp) return scoreCmp;
+      const signatureCmp = Number(b.signatureLength || 0) - Number(a.signatureLength || 0);
+      if (signatureCmp) return signatureCmp;
+      return Number(a.recordIndex || 0) - Number(b.recordIndex || 0);
+    });
+    const selectedChunkUids = new Set();
+    for (const row of candidateRows) {
+      if (selectedChunkUids.has(row.chunkUid)) continue;
+      selectedChunkUids.add(row.chunkUid);
+      byChunkUid[row.chunkUid] = {
+        chunk: row.chunkRef,
+        payload: row.payload,
         provenance: {
           provider: cmd,
           version: '1.0.0',

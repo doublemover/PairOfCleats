@@ -72,6 +72,7 @@ const resolveBooleanSetting = ({ providerConfig, globalConfigs, keys, fallback =
  * }} [input]
  * @returns {{
  *   timeoutMs:number|null,
+ *   softDeadlineMs:number|null,
  *   retries:number|null,
  *   breakerThreshold:number|null,
  *   documentSymbolTimeoutMs:number|null,
@@ -113,6 +114,13 @@ export const resolveLspRuntimeConfig = (input = {}) => {
       keys: ['timeoutMs'],
       min: 1000,
       fallback: defaults.timeoutMs ?? null
+    }),
+    softDeadlineMs: resolveIntegerSetting({
+      providerConfig,
+      globalConfigs,
+      keys: ['softDeadlineMs', 'lspSoftDeadlineMs'],
+      min: 1000,
+      fallback: null
     }),
     retries: resolveIntegerSetting({
       providerConfig,
