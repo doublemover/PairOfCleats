@@ -116,6 +116,11 @@ export const runCrossFileInference = async ({
       );
     }
 
+    log(
+      `[stage2:${mode}] cross-file start chunks=${formatCount(state.chunks?.length || 0)} `
+      + `fileRelations=${formatCount(state.fileRelations?.size || 0)} `
+      + `tooling=${useTooling ? 'enabled' : 'disabled'}.`
+    );
     const crossFileStart = Date.now();
     const crossFileStats = await applyCrossFileInference({
       rootDir: runtime.root,
@@ -133,6 +138,7 @@ export const runCrossFileInference = async ({
       abortSignal
     });
     const crossFileDurationMs = Date.now() - crossFileStart;
+    log(`[stage2:${mode}] cross-file done elapsedMs=${Math.max(0, crossFileDurationMs)}.`);
     const roiMetrics = buildCrossFileInferenceRoiMetrics({
       crossFileStats,
       budgetStats,

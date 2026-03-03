@@ -22,6 +22,10 @@ import {
 const TOOLING_PROVIDER_CACHE_KEY_VERSION = 'lk2';
 const TOOLING_PROVIDER_CACHE_SCHEMA_VERSION = 2;
 const TOOLING_PROVIDER_CACHE_READ_MAX_BYTES = 8 * 1024 * 1024;
+const TOOLING_PROVIDER_PROGRESS_HEARTBEAT_MS = 10_000;
+const TOOLING_PROVIDER_PROGRESS_SLOW_WARN_MS = 45_000;
+
+const toElapsedMs = (startedAtMs) => Math.max(0, Date.now() - Number(startedAtMs || 0));
 
 const mapFromRecord = (record) => {
   if (record instanceof Map) return record;
@@ -741,6 +745,7 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
   const strict = ctx?.strict !== false;
   const documents = Array.isArray(inputs?.documents) ? inputs.documents : [];
   const targets = Array.isArray(inputs?.targets) ? inputs.targets : [];
+  const log = typeof ctx?.logger === 'function' ? ctx.logger : null;
   const targetByChunkUid = new Map();
   const chunkUidByChunkId = new Map();
 
@@ -772,19 +777,52 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
     kinds: inputs?.kinds || null
   });
   const preflightWaveToken = kickoffToolingProviderPreflights(ctx, providerPlans);
+  const providerCount = providerPlans.length;
+  if (log && providerCount > 0) {
+    log(
+      `[tooling] provider runtime start providers=${providerCount} docs=${documents.length} targets=${targets.length}.`
+    );
+  }
 
   const merged = new Map();
   const sourcesByChunkUid = new Map();
   const providerDiagnostics = {};
   const observations = [];
   const cacheDir = ctx?.cache?.enabled ? await ensureCacheDir(ctx.cache.dir) : null;
+  let providerOrdinal = 0;
 
   for (const plan of providerPlans) {
+    providerOrdinal += 1;
     const provider = plan.provider;
     const providerId = normalizeProviderId(provider?.id);
     if (!providerId) continue;
     const planDocuments = Array.isArray(plan.documents) ? plan.documents : [];
     const planTargets = Array.isArray(plan.targets) ? plan.targets : [];
+    const providerStartedAtMs = Date.now();
+    let providerProgressPhase = 'cache-read';
+    let providerProgressTimer = null;
+    let providerOutcome = 'done';
+    let providerOutputSource = 'live';
+    let providerChunksMerged = 0;
+    const emitProviderProgress = (kind = 'heartbeat') => {
+      if (!log) return;
+      const elapsedMs = toElapsedMs(providerStartedAtMs);
+      const slow = elapsedMs >= TOOLING_PROVIDER_PROGRESS_SLOW_WARN_MS ? '1' : '0';
+      log(
+        `[tooling] provider ${providerOrdinal}/${providerCount} ${kind} id=${providerId} `
+        + `phase=${providerProgressPhase} elapsedMs=${elapsedMs} slow=${slow}.`
+      );
+    };
+    if (log) {
+      log(
+        `[tooling] provider ${providerOrdinal}/${providerCount} start id=${providerId} `
+        + `docs=${planDocuments.length} targets=${planTargets.length}.`
+      );
+      providerProgressTimer = setInterval(() => {
+        emitProviderProgress('heartbeat');
+      }, TOOLING_PROVIDER_PROGRESS_HEARTBEAT_MS);
+      providerProgressTimer.unref?.();
+    }
     const configHash = provider.getConfigHash(ctx);
     const cacheKey = computeCacheKey({
       providerId,
@@ -798,78 +836,39 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
       : null;
     let output = null;
     let outputFromCache = false;
-    if (cachePath) {
-      try {
-        const stat = await fs.stat(cachePath);
-        if (Number.isFinite(stat?.size) && stat.size > TOOLING_PROVIDER_CACHE_READ_MAX_BYTES) {
-          observations.push({
-            level: 'warn',
-            code: 'tooling_cache_oversized',
-            message: `[tooling] provider cache skipped for ${providerId}: oversized (${stat.size} bytes).`,
-            context: {
-              providerId,
-              cachePath,
-              sizeBytes: stat.size,
-              maxBytes: TOOLING_PROVIDER_CACHE_READ_MAX_BYTES
-            }
-          });
-        } else {
-          const cached = JSON.parse(await fs.readFile(cachePath, 'utf8'));
-          if (cached?.provider?.id === providerId
-            && cached?.provider?.version === provider.version
-            && cached?.provider?.configHash === configHash) {
-            output = normalizeCachedProviderOutput(cached);
-            outputFromCache = Boolean(output);
-          }
-        }
-      } catch (error) {
-        if (error?.code !== 'ENOENT') {
-          observations.push({
-            level: 'warn',
-            code: 'tooling_cache_read_failed',
-            message: `[tooling] provider cache read failed for ${providerId}; using live run.`,
-            context: {
-              providerId,
-              cachePath,
-              error: error?.message || String(error)
-            }
-          });
-        }
-      }
-    }
-    if (!output) {
-      const providerInputs = {
-        ...inputs,
-        documents: planDocuments,
-        targets: planTargets,
-        toolingPreflightWaveToken: preflightWaveToken
-      };
-      try {
-        output = await provider.run(ctx, providerInputs);
-        if (output) {
-          output.provider = {
-            id: providerId,
-            version: provider.version,
-            configHash
-          };
-        }
-        outputFromCache = false;
-        if (cachePath && output) {
-          try {
-            const deterministicPayload = buildDeterministicCachePayload({
-              output,
-              providerId,
-              providerVersion: provider.version,
-              configHash
-            });
-            if (deterministicPayload) {
-              await atomicWriteJson(cachePath, deterministicPayload, { spaces: 2 });
-            }
-          } catch (error) {
+    try {
+      if (cachePath) {
+        providerProgressPhase = 'cache-read';
+        try {
+          const stat = await fs.stat(cachePath);
+          if (Number.isFinite(stat?.size) && stat.size > TOOLING_PROVIDER_CACHE_READ_MAX_BYTES) {
             observations.push({
               level: 'warn',
-              code: 'tooling_cache_write_failed',
-              message: `[tooling] provider cache write failed for ${providerId}.`,
+              code: 'tooling_cache_oversized',
+              message: `[tooling] provider cache skipped for ${providerId}: oversized (${stat.size} bytes).`,
+              context: {
+                providerId,
+                cachePath,
+                sizeBytes: stat.size,
+                maxBytes: TOOLING_PROVIDER_CACHE_READ_MAX_BYTES
+              }
+            });
+          } else {
+            const cached = JSON.parse(await fs.readFile(cachePath, 'utf8'));
+            if (cached?.provider?.id === providerId
+              && cached?.provider?.version === provider.version
+              && cached?.provider?.configHash === configHash) {
+              output = normalizeCachedProviderOutput(cached);
+              outputFromCache = Boolean(output);
+              if (outputFromCache) providerOutputSource = 'cache';
+            }
+          }
+        } catch (error) {
+          if (error?.code !== 'ENOENT') {
+            observations.push({
+              level: 'warn',
+              code: 'tooling_cache_read_failed',
+              message: `[tooling] provider cache read failed for ${providerId}; using live run.`,
               context: {
                 providerId,
                 cachePath,
@@ -878,61 +877,122 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
             });
           }
         }
-      } catch (err) {
-        const errorMessage = String(err?.message || err || 'unknown provider failure');
-        providerDiagnostics[providerId] = {
-          checks: [{
-            name: `${providerId}_provider_execution_failed`,
-            status: 'error',
-            message: `${providerId} provider execution failed: ${errorMessage}`
-          }]
+      }
+      if (!output) {
+        providerProgressPhase = 'live-run';
+        const providerInputs = {
+          ...inputs,
+          documents: planDocuments,
+          targets: planTargets,
+          toolingPreflightWaveToken: preflightWaveToken
         };
-        observations.push({
-          level: 'error',
-          code: 'tooling_provider_execution_failed',
-          message: `[tooling] ${providerId} provider execution failed; continuing in fail-open mode.`,
-          context: {
-            providerId,
-            error: errorMessage
+        try {
+          output = await provider.run(ctx, providerInputs);
+          if (output) {
+            output.provider = {
+              id: providerId,
+              version: provider.version,
+              configHash
+            };
           }
-        });
+          outputFromCache = false;
+          providerOutputSource = 'live';
+          if (cachePath && output) {
+            try {
+              const deterministicPayload = buildDeterministicCachePayload({
+                output,
+                providerId,
+                providerVersion: provider.version,
+                configHash
+              });
+              if (deterministicPayload) {
+                await atomicWriteJson(cachePath, deterministicPayload, { spaces: 2 });
+              }
+            } catch (error) {
+              observations.push({
+                level: 'warn',
+                code: 'tooling_cache_write_failed',
+                message: `[tooling] provider cache write failed for ${providerId}.`,
+                context: {
+                  providerId,
+                  cachePath,
+                  error: error?.message || String(error)
+                }
+              });
+            }
+          }
+        } catch (err) {
+          providerOutcome = 'error';
+          const errorMessage = String(err?.message || err || 'unknown provider failure');
+          providerDiagnostics[providerId] = {
+            checks: [{
+              name: `${providerId}_provider_execution_failed`,
+              status: 'error',
+              message: `${providerId} provider execution failed: ${errorMessage}`
+            }]
+          };
+          observations.push({
+            level: 'error',
+            code: 'tooling_provider_execution_failed',
+            message: `[tooling] ${providerId} provider execution failed; continuing in fail-open mode.`,
+            context: {
+              providerId,
+              error: errorMessage
+            }
+          });
+          continue;
+        }
+      }
+      if (!output) {
+        providerOutcome = 'empty';
         continue;
       }
-    }
-    if (!output) continue;
-    providerDiagnostics[providerId] = withDiagnosticsSource(output.diagnostics || null, {
-      source: outputFromCache ? 'cache-suppressed' : 'live',
-      stripRuntime: outputFromCache
-    });
-    const normalized = normalizeProviderOutputs({
-      output,
-      targetByChunkUid,
-      chunkUidByChunkId,
-      strict,
-      observations,
-      providerId
-    });
-    for (const [chunkUid, entry] of normalized.entries()) {
-      const existing = merged.get(chunkUid) || {
-        chunk: entry?.chunk || targetByChunkUid.get(chunkUid)?.chunkRef || null,
-        payload: {},
-        provenance: []
-      };
-      mergePayload(existing, entry, { observations, chunkUid });
-      if (entry?.symbolRef && !existing.symbolRef) {
-        existing.symbolRef = entry.symbolRef;
-      }
-      const provenanceEntries = normalizeProvenanceList(entry?.provenance, {
-        providerId,
-        providerVersion: provider.version
+      providerProgressPhase = 'merge';
+      providerDiagnostics[providerId] = withDiagnosticsSource(output.diagnostics || null, {
+        source: outputFromCache ? 'cache-suppressed' : 'live',
+        stripRuntime: outputFromCache
       });
-      existing.provenance = Array.isArray(existing.provenance)
-        ? [...existing.provenance, ...provenanceEntries]
-        : provenanceEntries;
-      merged.set(chunkUid, existing);
-      const sources = sourcesByChunkUid.get(chunkUid) || new Set();
-      sources.add(providerId);
-      sourcesByChunkUid.set(chunkUid, sources);
+      const normalized = normalizeProviderOutputs({
+        output,
+        targetByChunkUid,
+        chunkUidByChunkId,
+        strict,
+        observations,
+        providerId
+      });
+      providerChunksMerged = normalized.size;
+      for (const [chunkUid, entry] of normalized.entries()) {
+        const existing = merged.get(chunkUid) || {
+          chunk: entry?.chunk || targetByChunkUid.get(chunkUid)?.chunkRef || null,
+          payload: {},
+          provenance: []
+        };
+        mergePayload(existing, entry, { observations, chunkUid });
+        if (entry?.symbolRef && !existing.symbolRef) {
+          existing.symbolRef = entry.symbolRef;
+        }
+        const provenanceEntries = normalizeProvenanceList(entry?.provenance, {
+          providerId,
+          providerVersion: provider.version
+        });
+        existing.provenance = Array.isArray(existing.provenance)
+          ? [...existing.provenance, ...provenanceEntries]
+          : provenanceEntries;
+        merged.set(chunkUid, existing);
+        const sources = sourcesByChunkUid.get(chunkUid) || new Set();
+        sources.add(providerId);
+        sourcesByChunkUid.set(chunkUid, sources);
+      }
+    } finally {
+      if (providerProgressTimer) clearInterval(providerProgressTimer);
+      if (log) {
+        const elapsedMs = toElapsedMs(providerStartedAtMs);
+        log(
+          `[tooling] provider ${providerOrdinal}/${providerCount} done id=${providerId} `
+          + `outcome=${providerOutcome} source=${providerOutputSource} `
+          + `chunks=${providerChunksMerged} elapsedMs=${elapsedMs}.`
+        );
+      }
     }
   }
 
@@ -962,7 +1022,14 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
   metrics.preflights = summarizeToolingPreflights(preflights);
   metrics.preflights.scheduler = getToolingProviderPreflightSchedulerMetrics(ctx);
   metrics.preflights.teardown = preflightTeardown;
-  const log = typeof ctx?.logger === 'function' ? ctx.logger : null;
+  if (log && providerCount > 0) {
+    log(
+      `[tooling] provider runtime done providers=${providerCount} `
+      + `executed=${metrics.providersExecuted || 0} contributed=${metrics.providersContributed || 0} `
+      + `requests=${metrics.requests?.requests || 0} timedOut=${metrics.requests?.timedOut || 0} `
+      + `preflightTeardownTimedOut=${preflightTeardown.timedOut === true ? 1 : 0}.`
+    );
+  }
   if (log && metrics.preflights.total > 0) {
     const states = Object.entries(metrics.preflights.byState)
       .sort((a, b) => a[0].localeCompare(b[0]))
