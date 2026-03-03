@@ -20,6 +20,7 @@ import {
   updateBundleSizing
 } from './bundler.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { runWithConcurrency } from '../../shared/concurrency.js';
 
 const LARGE_REPO_CHUNK_THRESHOLD = 3000;
 const LARGE_REPO_FILE_THRESHOLD = 500;
@@ -32,6 +33,8 @@ const LARGE_REPO_CALL_SAMPLE_LIMIT = 10;
 const LARGE_REPO_PARAM_TYPE_LIMIT = 3;
 const SYMBOL_REF_CACHE_MAX_ENTRIES = 20000;
 const SYMBOL_REF_CACHE_TTL_MS = 5 * 60 * 1000;
+const TOOLING_PRELOAD_CONCURRENCY_DEFAULT = 8;
+const TOOLING_PRELOAD_PROGRESS_HEARTBEAT_MS = 10_000;
 
 const resolveLinkRef = (link) => link?.to || link?.calleeRef || link?.ref || link?.symbolRef || null;
 
@@ -299,10 +302,39 @@ export async function runCrossFilePropagation({
     for (const chunk of chunks) {
       if (chunk?.file) filesToLoad.add(chunk.file);
     }
-    for (const file of filesToLoad) {
-      throwIfAborted(abortSignal);
-      await getFileText(file);
+    const preloadFiles = Array.from(filesToLoad);
+    const preloadTotal = preloadFiles.length;
+    const preloadConcurrency = Math.max(
+      1,
+      Math.floor(Number(toolingConfig?.preloadFileConcurrency) || TOOLING_PRELOAD_CONCURRENCY_DEFAULT)
+    );
+    let preloadLoaded = 0;
+    const preloadStartMs = Date.now();
+    log(
+      `[tooling] preload:start files=${preloadTotal} concurrency=${preloadConcurrency}.`
+    );
+    const preloadHeartbeatTimer = setInterval(() => {
+      const elapsedMs = Math.max(0, Date.now() - preloadStartMs);
+      log(
+        `[tooling] preload:heartbeat loaded=${preloadLoaded}/${preloadTotal} elapsedMs=${elapsedMs}.`
+      );
+    }, TOOLING_PRELOAD_PROGRESS_HEARTBEAT_MS);
+    preloadHeartbeatTimer.unref?.();
+    try {
+      await runWithConcurrency(preloadFiles, preloadConcurrency, async (file) => {
+        throwIfAborted(abortSignal);
+        await getFileText(file);
+        preloadLoaded += 1;
+      }, { signal: abortSignal });
+    } finally {
+      clearInterval(preloadHeartbeatTimer);
     }
+    const preloadElapsedMs = Math.max(0, Date.now() - preloadStartMs);
+    log(
+      `[tooling] preload:done loaded=${preloadLoaded}/${preloadTotal} elapsedMs=${preloadElapsedMs}.`
+    );
+    const toolingPassStartMs = Date.now();
+    log('[tooling] pass:start stage=cross-file.');
     const toolingResult = await runToolingPass({
       rootDir,
       buildRoot: buildRoot || rootDir,
@@ -317,6 +349,8 @@ export async function runCrossFilePropagation({
       fileTextByFile: fileTextByRel,
       abortSignal
     });
+    const toolingPassElapsedMs = Math.max(0, Date.now() - toolingPassStartMs);
+    log(`[tooling] pass:done stage=cross-file elapsedMs=${toolingPassElapsedMs}.`);
     inferredReturns += toolingResult.inferredReturns || 0;
     toolingDegradedProviders += toolingResult.toolingDegradedProviders || 0;
     toolingDegradedWarnings += toolingResult.toolingDegradedWarnings || 0;

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { uniqueTypes } from '../../integrations/tooling/providers/shared.js';
 import { buildToolingVirtualDocuments } from '../tooling/vfs.js';
 import { runToolingProviders } from '../tooling/orchestrator.js';
+import { selectToolingProviders } from '../tooling/provider-registry.js';
 import { registerDefaultToolingProviders } from '../tooling/providers/index.js';
 import { runToolingDoctor } from '../tooling/doctor.js';
 import { TOOLING_CONFIDENCE, TOOLING_SOURCE } from './constants.js';
@@ -28,7 +29,16 @@ const EMPTY_TOOLING_PASS_STATS = Object.freeze({
   toolingRequestTimeouts: 0
 });
 
-const buildToolingDoctorCacheKey = ({ rootDir, buildRoot, strict, toolingConfig, toolingTimeoutMs, toolingRetries, toolingBreaker }) => {
+const buildToolingDoctorCacheKey = ({
+  rootDir,
+  buildRoot,
+  strict,
+  toolingConfig,
+  toolingTimeoutMs,
+  toolingRetries,
+  toolingBreaker,
+  providerIds
+}) => {
   const payload = {
     version: TOOLING_DOCTOR_CACHE_VERSION,
     rootDir,
@@ -38,6 +48,7 @@ const buildToolingDoctorCacheKey = ({ rootDir, buildRoot, strict, toolingConfig,
     toolingRetries,
     toolingBreaker,
     toolingConfig,
+    providerIds: Array.isArray(providerIds) ? providerIds.slice().sort() : [],
     runtime: {
       node: process.version,
       platform: process.platform,
@@ -292,6 +303,22 @@ export const runToolingPass = async ({
     },
     abortSignal
   };
+  const providerPlans = selectToolingProviders({
+    toolingConfig: ctx.toolingConfig,
+    documents,
+    targets,
+    kinds: ['types']
+  });
+  const providerIds = Array.from(new Set(
+    providerPlans
+      .map((plan) => String(plan?.provider?.id || '').trim())
+      .filter(Boolean)
+  ));
+  if (!providerIds.length) {
+    log('[tooling] providers: none selected for current documents/targets; skipping doctor and provider runtime.');
+    return { ...EMPTY_TOOLING_PASS_STATS };
+  }
+  log(`[tooling] providers:selected count=${providerIds.length}.`);
 
   const doctorCacheEnabled = toolingConfig?.doctorCache !== false;
   const doctorCachePath = path.join(buildRoot || rootDir, TOOLING_DOCTOR_CACHE_FILE);
@@ -303,7 +330,8 @@ export const runToolingPass = async ({
     toolingConfig: ctx.toolingConfig,
     toolingTimeoutMs,
     toolingRetries,
-    toolingBreaker
+    toolingBreaker,
+    providerIds
   });
   let doctorCacheHit = false;
   if (doctorCacheEnabled) {
@@ -314,7 +342,11 @@ export const runToolingPass = async ({
     }
   }
   if (!doctorCacheHit) {
-    await runToolingDoctor(ctx, null, { log });
+    const doctorStartMs = Date.now();
+    log('[tooling] doctor:start.');
+    await runToolingDoctor(ctx, providerIds, { log });
+    const doctorElapsedMs = Math.max(0, Date.now() - doctorStartMs);
+    log(`[tooling] doctor:done elapsedMs=${doctorElapsedMs}.`);
     if (doctorCacheEnabled) {
       await writeToolingDoctorCache({
         cachePath: doctorCachePath,
@@ -327,7 +359,11 @@ export const runToolingPass = async ({
   const providerLog = createToolingLogger(rootDir, toolingLogDir, 'tooling', log);
   let result;
   try {
-    result = await runToolingProviders(ctx, { documents, targets, kinds: ['types'] });
+    log(`[tooling] providers:start docs=${documents.length} targets=${targets.length}.`);
+    const providerStartMs = Date.now();
+    result = await runToolingProviders(ctx, { documents, targets, kinds: ['types'] }, providerIds);
+    const providerElapsedMs = Math.max(0, Date.now() - providerStartMs);
+    log(`[tooling] providers:done elapsedMs=${providerElapsedMs}.`);
     if (Array.isArray(result?.degradedProviders) && result.degradedProviders.length) {
       const summary = result.degradedProviders
         .map((entry) => `${entry.providerId}${entry.errorCount > 0 ? `:error=${entry.errorCount}` : ''}${entry.warningCount > 0 ? `:warn=${entry.warningCount}` : ''}`)
