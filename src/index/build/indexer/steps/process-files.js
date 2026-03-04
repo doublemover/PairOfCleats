@@ -4214,6 +4214,7 @@ export const processFiles = async ({
           // enqueued, later tasks may be blocked waiting for an ordered flush.
           // Abort rejects any waiting promises to prevent hangs/leaks.
           orderedAppender.abort(err);
+          abortProcessing(err);
         }
         throw err;
       }
@@ -4676,6 +4677,7 @@ export const processFiles = async ({
       if (workerFailures.length) {
         const firstFailure = workerFailures[0] || new Error('shard worker failed');
         orderedAppender.abort(firstFailure);
+        abortProcessing(firstFailure);
         throw firstFailure;
       }
       shardExecutionMeta = {

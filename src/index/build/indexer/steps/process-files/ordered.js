@@ -680,6 +680,9 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     if (!Number.isFinite(seq)) {
       return Promise.reject(new Error(`Invalid ordered seq value: ${seq}`));
     }
+    if (aborted) {
+      return Promise.reject(abortError || new Error('Ordered appender aborted.'));
+    }
     const normalizedSeq = Math.floor(seq);
     const existingState = seqLedger.getState(normalizedSeq);
     if (existingState === COMMITTED) {
