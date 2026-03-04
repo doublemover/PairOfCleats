@@ -4,6 +4,7 @@ const TRACKED_SUBPROCESS_TERMINATION_SIGNALS = Object.freeze([
   'SIGBREAK',
   'SIGHUP'
 ]);
+const SIGNAL_FORWARD_TIMEOUT_MS = 3000;
 
 let trackedSubprocessHooksInstalled = false;
 let trackedSubprocessShutdownTriggered = false;
@@ -93,13 +94,21 @@ const installTrackedSubprocessHooks = (terminateTrackedSubprocesses, terminateTr
     try {
       process.once(signal, () => {
         const hasAdditionalSignalHandlers = process.listenerCount(signal) > 0;
+        const forwardSignal = () => {
+          if (!hasAdditionalSignalHandlers) {
+            forwardSignalToDefault(signal);
+          }
+        };
+        const timeout = setTimeout(() => {
+          forwardSignal();
+        }, SIGNAL_FORWARD_TIMEOUT_MS);
+        timeout.unref?.();
         void triggerTrackedSubprocessShutdown(`signal_${String(signal || '').toLowerCase()}`, {
           allowRepeat: true
         })
           .finally(() => {
-            if (!hasAdditionalSignalHandlers) {
-              forwardSignalToDefault(signal);
-            }
+            clearTimeout(timeout);
+            forwardSignal();
           });
       });
     } catch {}

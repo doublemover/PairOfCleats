@@ -6,6 +6,7 @@ const DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS = 2000;
 const WINDOWS_DESCENDANT_DISCOVERY_TIMEOUT_MS = 2000;
 const WINDOWS_DESCENDANT_KILL_LIMIT = 2048;
 const WINDOWS_TASKLIST_TIMEOUT_MS = 2000;
+const WINDOWS_DESCENDANT_KILL_BUDGET_MS = 4000;
 
 const wait = (ms, { unrefTimer = true } = {}) => new Promise((resolve) => {
   const timer = setTimeout(resolve, ms);
@@ -417,16 +418,26 @@ const discoverWindowsDescendantPidsSync = (rootPid) => {
   return parseWindowsPidList(result.stdout);
 };
 
-const killWindowsOrphanDescendantsSync = (rootPid) => {
+const killWindowsOrphanDescendantsSync = (
+  rootPid,
+  { budgetMs = WINDOWS_DESCENDANT_KILL_BUDGET_MS } = {}
+) => {
   if (process.platform !== 'win32') {
     return { attempted: false, terminatedCount: 0 };
   }
+  const resolvedBudgetMs = Number.isFinite(Number(budgetMs))
+    ? Math.max(0, Math.floor(Number(budgetMs)))
+    : WINDOWS_DESCENDANT_KILL_BUDGET_MS;
   const descendants = discoverWindowsDescendantPidsSync(rootPid).slice(0, WINDOWS_DESCENDANT_KILL_LIMIT);
   if (!descendants.length) {
     return { attempted: false, terminatedCount: 0 };
   }
+  const startedAtMs = Date.now();
   let terminatedCount = 0;
   for (const pid of descendants) {
+    if (resolvedBudgetMs > 0 && (Date.now() - startedAtMs) >= resolvedBudgetMs) {
+      break;
+    }
     if (!Number.isFinite(pid) || pid <= 0 || pid === rootPid) continue;
     try {
       const result = runSyncCommandWithTimeout('taskkill', ['/PID', String(pid), '/T', '/F'], {
