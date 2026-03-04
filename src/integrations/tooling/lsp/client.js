@@ -434,24 +434,8 @@ export function createLspClient(options) {
       if (proc.killed || proc.exitCode !== null || writerClosed) {
         const staleChild = proc;
         if (writerClosed) {
-          try {
-            const outcome = killChildProcessTreeSync(staleChild, {
-              killTree: true,
-              detached: killTreeDetached
-            });
-            clearTrackedChildIfTerminated(staleChild, outcome);
-          } catch {}
+          reapStaleChildProcess(staleChild, 'writer_closed_restart');
           if (isChildRunning(staleChild)) {
-            try {
-              const retryOutcome = killChildProcessTreeSync(staleChild, {
-                killTree: true,
-                detached: killTreeDetached
-              });
-              clearTrackedChildIfTerminated(staleChild, retryOutcome);
-            } catch {}
-          }
-          if (isChildRunning(staleChild)) {
-            reapStaleChildProcess(staleChild, 'writer_closed_restart');
             const err = new Error('LSP restart blocked: previous writer-closed process is still running.');
             err.code = 'ERR_LSP_RESTART_STALE_PROCESS';
             throw err;

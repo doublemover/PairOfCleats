@@ -474,13 +474,14 @@ const runCleanupPass = async () => {
     return;
   }
   const now = Date.now();
+  const disposals = [];
   for (const [key, session] of sessions.entries()) {
     if (!session || session.activeCount > 0) continue;
     refreshSessionState(session);
     if (session.state === SESSION_STATE.POISONED) {
       if (session.activeCount > 0 || sessions.get(key) !== session) continue;
       sessions.delete(key);
-      await enqueueSessionDisposal(session, { killFirst: true });
+      disposals.push(enqueueSessionDisposal(session, { killFirst: true }));
       continue;
     }
     const idleMs = now - Number(session.lastUsedAt || now);
@@ -490,7 +491,10 @@ const runCleanupPass = async () => {
     if (!idleExpired && !lifetimeExpired) continue;
     if (session.activeCount > 0 || sessions.get(key) !== session) continue;
     sessions.delete(key);
-    await enqueueSessionDisposal(session, { killFirst: true });
+    disposals.push(enqueueSessionDisposal(session, { killFirst: true }));
+  }
+  if (disposals.length > 0) {
+    await Promise.allSettled(disposals);
   }
 };
 
@@ -722,7 +726,16 @@ export const withLspSession = async (options, fn) => {
       disposalPromise = enqueueSessionDisposal(session, { killFirst: true });
     }
     barrier.resolve();
-    if (disposalPromise) await disposalPromise;
+    if (disposalPromise) {
+      void disposalPromise.catch((error) => {
+        sessionPoolMetrics.disposalFailures += 1;
+        emitPoolWarning(
+          session?.options?.log,
+          `[tooling:lsp] lease-finalizer disposal failed for ${session?.lifecycleName || session?.key || 'session'}: ` +
+          `${error?.message || error}`
+        );
+      });
+    }
   }
 };
 
