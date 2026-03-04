@@ -398,6 +398,24 @@ export const createSeqLedger = ({ expectedSeqs = [], leaseTimeoutMs = 60000 } = 
     return states[slot];
   };
 
+  const advanceNextCommitSeq = (cursor = counters.nextCommitSeq) => {
+    if (!orderedSeqs.length) return 0;
+    let normalizedCursor = Number(cursor);
+    if (!Number.isFinite(normalizedCursor)) normalizedCursor = orderedSeqs[0];
+    normalizedCursor = Math.floor(normalizedCursor);
+    if (normalizedCursor < startSeq) normalizedCursor = startSeq;
+    let slot = normalizedCursor - startSeq;
+    if (slot < 0) slot = 0;
+    while (slot < states.length) {
+      const stateCode = states[slot];
+      if (stateCode !== STAGE1_SEQ_STATE.UNUSED && stateCode !== STAGE1_SEQ_STATE.COMMITTED) {
+        return startSeq + slot;
+      }
+      slot += 1;
+    }
+    return endSeq + 1;
+  };
+
   const assertLegalTransition = (seq, nextState) => {
     const slot = toSlot(seq);
     if (slot < 0) {
@@ -459,10 +477,7 @@ export const createSeqLedger = ({ expectedSeqs = [], leaseTimeoutMs = 60000 } = 
       terminalReason[slot] = Math.floor(Number(reasonCode) || 0);
     } else if (nextState === STAGE1_SEQ_STATE.COMMITTED) {
       counters.committedCount += 1;
-      const normalizedSeq = Math.floor(Number(seq));
-      if (normalizedSeq === counters.nextCommitSeq) {
-        counters.nextCommitSeq += 1;
-      }
+      counters.nextCommitSeq = advanceNextCommitSeq(counters.nextCommitSeq);
     }
 
     return nextState;
@@ -478,17 +493,29 @@ export const createSeqLedger = ({ expectedSeqs = [], leaseTimeoutMs = 60000 } = 
     return true;
   };
 
-  const reclaimExpiredLeases = (nowMs = Date.now()) => {
+  const reclaimExpiredLeases = (
+    nowMs = Date.now(),
+    {
+      includeDispatched = false,
+      dispatchedGraceMs = leaseExpiryMs * 3
+    } = {}
+  ) => {
     const reclaimed = [];
     const now = Number.isFinite(nowMs) ? nowMs : Date.now();
+    const resolvedDispatchedGraceMs = clampPositiveIntOr(dispatchedGraceMs, leaseExpiryMs * 3);
     for (let slot = 0; slot < states.length; slot += 1) {
-      if (states[slot] !== STAGE1_SEQ_STATE.IN_FLIGHT) continue;
+      const stateCode = states[slot];
+      if (stateCode !== STAGE1_SEQ_STATE.IN_FLIGHT && stateCode !== STAGE1_SEQ_STATE.DISPATCHED) continue;
       const lastBeat = Number(leaseHeartbeat[slot]) || 0;
       if (lastBeat <= 0) continue;
-      if ((now - lastBeat) < leaseExpiryMs) continue;
+      const graceMs = stateCode === STAGE1_SEQ_STATE.DISPATCHED
+        ? resolvedDispatchedGraceMs
+        : leaseExpiryMs;
+      if (stateCode === STAGE1_SEQ_STATE.DISPATCHED && includeDispatched !== true) continue;
+      if ((now - lastBeat) < graceMs) continue;
       const seq = startSeq + slot;
       transition(seq, STAGE1_SEQ_STATE.TERMINAL_FAIL, {
-        reasonCode: 910,
+        reasonCode: stateCode === STAGE1_SEQ_STATE.DISPATCHED ? 911 : 910,
         nowMs: now
       });
       reclaimed.push(seq);
@@ -545,6 +572,7 @@ export const createSeqLedger = ({ expectedSeqs = [], leaseTimeoutMs = 60000 } = 
     assertLegalTransition,
     transition,
     heartbeat,
+    advanceNextCommitSeq,
     reclaimExpiredLeases,
     snapshot,
     assertCompletion

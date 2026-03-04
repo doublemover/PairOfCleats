@@ -2399,6 +2399,7 @@ export const processFiles = async ({
   let stallSnapshotTimer = null;
   let progressHeartbeatTimer = null;
   let stallAbortTimer = null;
+  let preDispatchWatchdogTimer = null;
   let orderedCompletionTracker = null;
   const activeOrderedCompletionTrackers = new Set();
 
@@ -2735,6 +2736,7 @@ export const processFiles = async ({
         commitLagHard: orderedAppenderConfig.commitLagHard,
         resumeHysteresisRatio: orderedAppenderConfig.resumeHysteresisRatio,
         leaseTimeoutMs: runtime?.stage1Queues?.window?.leaseTimeoutMs,
+        dispatchLeaseTimeoutMs: runtime?.stage1Queues?.window?.dispatchLeaseTimeoutMs,
         runId: runtime?.buildId || null,
         flushTimeoutMs: orderedFlushTimeoutMs,
         signal: effectiveAbortSignal,
@@ -3523,6 +3525,52 @@ export const processFiles = async ({
         }
       }
     );
+    let preDispatchPhase = 'initializing';
+    let preDispatchPhaseAtMs = Date.now();
+    const markPreDispatchPhase = (phase) => {
+      preDispatchPhase = phase;
+      preDispatchPhaseAtMs = Date.now();
+    };
+    const clearPreDispatchWatchdog = () => {
+      if (typeof preDispatchWatchdogTimer === 'object' && preDispatchWatchdogTimer) {
+        clearInterval(preDispatchWatchdogTimer);
+      }
+      preDispatchWatchdogTimer = null;
+    };
+    const preDispatchHeartbeatMs = Math.max(10000, progressHeartbeatMs || FILE_PROGRESS_HEARTBEAT_DEFAULT_MS);
+    if (preDispatchHeartbeatMs > 0) {
+      preDispatchWatchdogTimer = setInterval(() => {
+        if (stage1StallAbortTriggered) return;
+        const elapsedMs = Math.max(0, Date.now() - preDispatchPhaseAtMs);
+        if (elapsedMs >= preDispatchHeartbeatMs) {
+          logLine(
+            `[watchdog] pre-dispatch heartbeat phase=${preDispatchPhase} elapsed=${Math.round(elapsedMs / 1000)}s`,
+            {
+              kind: 'warning',
+              mode,
+              stage: 'processing',
+              preDispatchPhase,
+              idleMs: elapsedMs
+            }
+          );
+        }
+        if (stage1StallAbortMs > 0 && elapsedMs >= stage1StallAbortMs) {
+          stage1StallAbortTriggered = true;
+          const err = createTimeoutError({
+            message: `Stage1 pre-dispatch stalled in phase=${preDispatchPhase} for ${elapsedMs}ms`,
+            code: 'FILE_PROCESS_STALL_TIMEOUT',
+            retryable: false,
+            meta: {
+              phase: preDispatchPhase,
+              elapsedMs
+            }
+          });
+          orderedAppender.abort(err);
+          abortProcessing(err);
+        }
+      }, preDispatchHeartbeatMs);
+      preDispatchWatchdogTimer.unref?.();
+    }
     /**
      * Process one shard or global entry list with stage1 watchdog integration.
      *
@@ -4125,7 +4173,25 @@ export const processFiles = async ({
             retryDelayMs: 200,
             signal: effectiveAbortSignal,
             requireSignal: true,
-            signalLabel: 'build.stage1.process-files.runWithQueue'
+            signalLabel: 'build.stage1.process-files.runWithQueue',
+            pendingDrainTimeoutMs: orderedCompletionGuardTimeoutMs,
+            pendingDrainStallPollMs: orderedCompletionStallPollMs,
+            onPendingDrainStall: ({ pending, elapsedMs }) => {
+              if (pending <= 0) return;
+              const elapsedSeconds = Math.max(0, Math.round(elapsedMs / 1000));
+              if (elapsedSeconds === 0) return;
+              if (elapsedSeconds % 15 !== 0) return;
+              logLine(
+                `[ordered] queue pending-drain waiting pending=${pending} elapsed=${elapsedSeconds}s`,
+                {
+                  kind: 'warning',
+                  mode,
+                  stage: 'processing',
+                  orderedPending: pending,
+                  idleMs: elapsedMs
+                }
+              );
+            }
           }
         );
         attemptOrderedGapRecovery({
@@ -4269,6 +4335,7 @@ export const processFiles = async ({
     };
 
     const discoveryLineCounts = discovery?.lineCounts instanceof Map ? discovery.lineCounts : null;
+    markPreDispatchPhase('line-counts');
     const clusterModeEnabled = runtime.shards?.cluster?.enabled === true;
     const clusterDeterministicMerge = runtime.shards?.cluster?.deterministicMerge !== false;
     let lineCounts = discoveryLineCounts;
@@ -4284,6 +4351,7 @@ export const processFiles = async ({
         timing.lineCountsMs = Date.now() - lineStart;
       }
     }
+    markPreDispatchPhase('shard-planning');
     const shardFeatureWeights = {
       relations: relationsEnabled ? 0.15 : 0,
       flow: (runtime.astDataflowEnabled || runtime.controlFlowEnabled) ? 0.1 : 0,
@@ -4342,6 +4410,7 @@ export const processFiles = async ({
       }
       : { enabled: false };
     const checkpointBatchSize = resolveCheckpointBatchSize(entries.length, shardPlan);
+    markPreDispatchPhase('checkpoint-setup');
     checkpoint = createBuildCheckpoint({
       buildRoot: runtime.buildRoot,
       mode,
@@ -4379,6 +4448,8 @@ export const processFiles = async ({
       }, progressHeartbeatMs);
       progressHeartbeatTimer.unref?.();
     }
+    clearPreDispatchWatchdog();
+    markPreDispatchPhase('stage1-dispatch');
     if (shardPlan && shardPlan.length > 1) {
       const shardQueuePlan = resolveStage1ShardExecutionQueuePlan({
         shardPlan,
@@ -4915,6 +4986,9 @@ export const processFiles = async ({
     }
     if (typeof stallAbortTimer === 'object' && stallAbortTimer) {
       clearInterval(stallAbortTimer);
+    }
+    if (typeof preDispatchWatchdogTimer === 'object' && preDispatchWatchdogTimer) {
+      clearInterval(preDispatchWatchdogTimer);
     }
     if (typeof detachExternalAbort === 'function') {
       detachExternalAbort();

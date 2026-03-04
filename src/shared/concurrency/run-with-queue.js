@@ -6,7 +6,7 @@ import { createAbortError, isAbortSignal, throwIfAborted } from '../abort.js';
  * @param {PQueue} queue
  * @param {Array<any>} items
  * @param {(item:any, ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<any>} worker
- * @param {{collectResults?:boolean,onResult?:(result:any, ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<void>,onError?:(error:any, ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<void>,onProgress?:(state:{done:number,total:number})=>Promise<void>,bestEffort?:boolean,signal?:AbortSignal,requireSignal?:boolean,signalLabel?:string,abortError?:Error,retries?:number,retryDelayMs?:number,backoffMs?:number,onBeforeDispatch?:(ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<void>,estimateBytes?:(item:any, ctx:{index:number,item:any,signal?:AbortSignal})=>number}} [options]
+ * @param {{collectResults?:boolean,onResult?:(result:any, ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<void>,onError?:(error:any, ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<void>,onProgress?:(state:{done:number,total:number})=>Promise<void>,bestEffort?:boolean,signal?:AbortSignal,requireSignal?:boolean,signalLabel?:string,abortError?:Error,retries?:number,retryDelayMs?:number,backoffMs?:number,onBeforeDispatch?:(ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<void>,estimateBytes?:(item:any, ctx:{index:number,item:any,signal?:AbortSignal})=>number,pendingDrainTimeoutMs?:number,pendingDrainStallPollMs?:number,onPendingDrainStall?:(state:{pending:number,elapsedMs:number})=>void}} [options]
  * @returns {Promise<any[]|null>}
  */
 export async function runWithQueue(queue, items, worker, options = {}) {
@@ -48,6 +48,15 @@ export async function runWithQueue(queue, items, worker, options = {}) {
     : null;
   const estimateBytes = typeof options.estimateBytes === 'function'
     ? options.estimateBytes
+    : null;
+  const pendingDrainTimeoutMs = Number.isFinite(Number(options.pendingDrainTimeoutMs))
+    ? Math.max(0, Math.floor(Number(options.pendingDrainTimeoutMs)))
+    : 0;
+  const pendingDrainStallPollMs = Number.isFinite(Number(options.pendingDrainStallPollMs))
+    ? Math.max(0, Math.floor(Number(options.pendingDrainStallPollMs)))
+    : 0;
+  const onPendingDrainStall = typeof options.onPendingDrainStall === 'function'
+    ? options.onPendingDrainStall
     : null;
   if (queue && !Number.isFinite(Number(queue.inflightBytes))) {
     queue.inflightBytes = 0;
@@ -251,21 +260,73 @@ export async function runWithQueue(queue, items, worker, options = {}) {
   const waitForPendingDrainOrAbort = async () => {
     if (!pendingSignals.size) return;
     const pendingDrain = Promise.all(Array.from(pendingSignals));
+    const pendingStartedAt = Date.now();
+    let timeoutId = null;
+    let stallTimer = null;
+    let onAbort = null;
+    const raceCandidates = [pendingDrain];
+    if (pendingDrainTimeoutMs > 0) {
+      raceCandidates.push(new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+          const err = new Error(
+            `runWithQueue pending drain timed out after ${pendingDrainTimeoutMs}ms (pending=${pendingSignals.size}).`
+          );
+          err.code = 'RUN_WITH_QUEUE_PENDING_DRAIN_TIMEOUT';
+          err.retryable = false;
+          err.meta = {
+            pending: pendingSignals.size,
+            timeoutMs: pendingDrainTimeoutMs,
+            elapsedMs: Math.max(0, Date.now() - pendingStartedAt)
+          };
+          reject(err);
+        }, pendingDrainTimeoutMs);
+        timeoutId.unref?.();
+      }));
+    }
     if (!signal) {
-      await pendingDrain;
+      if (onPendingDrainStall && pendingDrainStallPollMs > 0) {
+        stallTimer = setInterval(() => {
+          try {
+            onPendingDrainStall({
+              pending: pendingSignals.size,
+              elapsedMs: Math.max(0, Date.now() - pendingStartedAt)
+            });
+          } catch {}
+        }, pendingDrainStallPollMs);
+        stallTimer.unref?.();
+      }
+      try {
+        await Promise.race(raceCandidates);
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+        if (stallTimer) clearInterval(stallTimer);
+      }
       return;
     }
     if (signal.aborted) {
       throw abortError;
     }
-    let onAbort = null;
     const aborted = new Promise((_, reject) => {
       onAbort = () => reject(abortError);
       signal.addEventListener('abort', onAbort, { once: true });
     });
+    raceCandidates.push(aborted);
+    if (onPendingDrainStall && pendingDrainStallPollMs > 0) {
+      stallTimer = setInterval(() => {
+        try {
+          onPendingDrainStall({
+            pending: pendingSignals.size,
+            elapsedMs: Math.max(0, Date.now() - pendingStartedAt)
+          });
+        } catch {}
+      }, pendingDrainStallPollMs);
+      stallTimer.unref?.();
+    }
     try {
-      await Promise.race([pendingDrain, aborted]);
+      await Promise.race(raceCandidates);
     } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+      if (stallTimer) clearInterval(stallTimer);
       if (onAbort) signal.removeEventListener('abort', onAbort);
     }
   };

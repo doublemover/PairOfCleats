@@ -119,8 +119,20 @@ export const replayCommitJournal = (records = [], { expectedSeqs = [] } = {}) =>
     : Array.from(committed).sort((a, b) => a - b);
   const first = expected.length ? expected[0] : 0;
   let nextCommitSeq = first;
-  while (committed.has(nextCommitSeq)) {
-    nextCommitSeq += 1;
+  if (expected.length) {
+    const expectedSet = new Set(expected);
+    const upperBound = expected[expected.length - 1];
+    let cursor = expected[0];
+    while (cursor <= upperBound) {
+      if (expectedSet.has(cursor) && !committed.has(cursor)) {
+        nextCommitSeq = cursor;
+        break;
+      }
+      cursor += 1;
+      if (cursor > upperBound) {
+        nextCommitSeq = upperBound + 1;
+      }
+    }
   }
 
   return {
@@ -182,9 +194,14 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     : null;
 
   const expectedSeqs = ensureExpectedSeqs(options);
+  const leaseTimeoutMs = coercePositiveIntOr(options.leaseTimeoutMs, 60000);
+  const dispatchLeaseTimeoutMs = coercePositiveIntOr(
+    options.dispatchLeaseTimeoutMs,
+    Math.max(leaseTimeoutMs * 3, leaseTimeoutMs + 60000)
+  );
   const seqLedger = createSeqLedger({
     expectedSeqs,
-    leaseTimeoutMs: coercePositiveIntOr(options.leaseTimeoutMs, 60000)
+    leaseTimeoutMs
   });
 
   const envelopeBySeq = new Map();
@@ -317,6 +334,8 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       maxPendingEmergencyFactor,
       maxPendingBytes,
       commitLagHard,
+      leaseTimeoutMs,
+      dispatchLeaseTimeoutMs,
       flushActive: flushActiveStartedAt > 0
         ? {
           orderIndex: flushActiveSeq,
@@ -730,7 +749,10 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
   const heartbeat = (orderIndex, ownerId) => seqLedger.heartbeat(Math.floor(Number(orderIndex)), ownerId, Date.now());
 
   const reclaimExpiredLeases = () => {
-    const reclaimed = seqLedger.reclaimExpiredLeases(Date.now());
+    const reclaimed = seqLedger.reclaimExpiredLeases(Date.now(), {
+      includeDispatched: true,
+      dispatchedGraceMs: dispatchLeaseTimeoutMs
+    });
     if (reclaimed.length) {
       for (const seq of reclaimed) {
         appendJournal({

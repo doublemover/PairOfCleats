@@ -49,4 +49,21 @@ const reclaimed = leaseLedger.reclaimExpiredLeases(2010);
 assert.deepEqual(reclaimed, [50], 'expected expired in-flight lease reclaim');
 assert.equal(leaseLedger.getState(50), S.TERMINAL_FAIL, 'expected reclaimed seq to hard-terminalize as fail');
 
+const sparseLedger = createSeqLedger({ expectedSeqs: [10, 20, 30], leaseTimeoutMs: 5 });
+sparseLedger.transition(10, S.DISPATCHED, { ownerId: 1, nowMs: 3000 });
+sparseLedger.transition(10, S.IN_FLIGHT, { ownerId: 1, nowMs: 3001 });
+sparseLedger.transition(10, S.TERMINAL_SUCCESS, { nowMs: 3002 });
+sparseLedger.transition(10, S.COMMITTED, { nowMs: 3003 });
+assert.equal(sparseLedger.snapshot().nextCommitSeq, 20, 'expected sparse cursor to skip non-expected seq holes');
+
+sparseLedger.transition(20, S.DISPATCHED, { ownerId: 2, nowMs: 3004 });
+const dispatchedReclaimDisabled = sparseLedger.reclaimExpiredLeases(3012);
+assert.deepEqual(dispatchedReclaimDisabled, [], 'expected dispatched reclaim disabled by default');
+const dispatchedReclaimEnabled = sparseLedger.reclaimExpiredLeases(3012, {
+  includeDispatched: true,
+  dispatchedGraceMs: 5
+});
+assert.deepEqual(dispatchedReclaimEnabled, [20], 'expected dispatched reclaim when explicitly enabled');
+assert.equal(sparseLedger.getState(20), S.TERMINAL_FAIL, 'expected reclaimed dispatched seq to hard-fail');
+
 console.log('stage1 seq ledger state machine test passed');
