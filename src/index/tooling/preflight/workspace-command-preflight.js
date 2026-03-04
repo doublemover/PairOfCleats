@@ -1,8 +1,6 @@
 import {
-  isSyncCommandTimedOut,
-  runSyncCommandWithTimeout,
-  toSyncCommandExitCode
-} from '../../../shared/subprocess/sync-command.js';
+  spawnSubprocess
+} from '../../../shared/subprocess.js';
 
 const summarize = (value, maxChars = 220) => {
   const text = String(value || '').replace(/\s+/g, ' ').trim();
@@ -20,6 +18,7 @@ const summarize = (value, maxChars = 220) => {
  *   cmd: string,
  *   args: string[],
  *   timeoutMs: number,
+ *   abortSignal?: AbortSignal|null,
  *   reasonPrefix: string,
  *   label: string
  * }} input
@@ -29,13 +28,14 @@ const summarize = (value, maxChars = 220) => {
  *   message: string,
  *   check: {name:string,status:'warn',message:string}|null,
  *   checks: Array<object>
- * }}
+ * }>}
  */
-export const runWorkspaceCommandPreflight = ({
+export const runWorkspaceCommandPreflight = async ({
   ctx,
   cmd,
   args,
   timeoutMs,
+  abortSignal = null,
   reasonPrefix,
   label
 }) => {
@@ -49,36 +49,57 @@ export const runWorkspaceCommandPreflight = ({
   if (!command || !prefix) {
     return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
   }
-  const result = runSyncCommandWithTimeout(command, commandArgs, {
-    cwd: String(ctx?.repoRoot || process.cwd()),
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-    timeoutMs: timeout,
-    killTree: true
-  });
-
-  if (isSyncCommandTimedOut(result)) {
-    const message = `${descriptor} probe timed out after ${timeout}ms.`;
+  try {
+    const result = await spawnSubprocess(command, commandArgs, {
+      cwd: String(ctx?.repoRoot || process.cwd()),
+      stdio: ['ignore', 'pipe', 'pipe'],
+      rejectOnNonZeroExit: false,
+      captureStdout: true,
+      captureStderr: true,
+      outputMode: 'string',
+      outputEncoding: 'utf8',
+      timeoutMs: timeout,
+      killTree: true,
+      ...(abortSignal ? { signal: abortSignal } : {})
+    });
+    const exitCode = Number(result?.exitCode);
+    if (Number.isFinite(exitCode) && exitCode === 0) {
+      return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
+    }
+    const summary = summarize(result?.stderr || result?.stdout);
+    const message = summary
+      ? `${descriptor} probe failed (exit ${Number.isFinite(exitCode) ? exitCode : 'unknown'}): ${summary}`
+      : `${descriptor} probe failed (exit ${Number.isFinite(exitCode) ? exitCode : 'unknown'}).`;
     return {
       state: 'degraded',
-      reasonCode: `${prefix}_timeout`,
+      reasonCode: `${prefix}_failed`,
       message,
       check: {
-        name: `${prefix}_timeout`,
+        name: `${prefix}_failed`,
         status: 'warn',
         message
       },
       checks: []
     };
-  }
-
-  const exitCode = toSyncCommandExitCode(result);
-  if (exitCode === 0) {
-    return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
-  }
-
-  if (result?.error) {
-    const message = `${descriptor} probe error: ${summarize(result.error?.message || result.error) || 'unknown error'}`;
+  } catch (error) {
+    if (error?.code === 'ABORT_ERR') {
+      throw error;
+    }
+    if (error?.code === 'SUBPROCESS_TIMEOUT') {
+      const message = `${descriptor} probe timed out after ${timeout}ms.`;
+      return {
+        state: 'degraded',
+        reasonCode: `${prefix}_timeout`,
+        message,
+        check: {
+          name: `${prefix}_timeout`,
+          status: 'warn',
+          message
+        },
+        checks: []
+      };
+    }
+    const message = `${descriptor} probe error: ${summarize(error?.message || error) || 'unknown error'}`;
     return {
       state: 'degraded',
       reasonCode: `${prefix}_error`,
@@ -91,20 +112,4 @@ export const runWorkspaceCommandPreflight = ({
       checks: []
     };
   }
-
-  const summary = summarize(result?.stderr || result?.stdout);
-  const message = summary
-    ? `${descriptor} probe failed (exit ${exitCode}): ${summary}`
-    : `${descriptor} probe failed (exit ${exitCode}).`;
-  return {
-    state: 'degraded',
-    reasonCode: `${prefix}_failed`,
-    message,
-    check: {
-      name: `${prefix}_failed`,
-      status: 'warn',
-      message
-    },
-    checks: []
-  };
 };

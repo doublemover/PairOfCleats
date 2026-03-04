@@ -31,7 +31,7 @@ const resolveMetadataCommand = (server) => {
   return { cmd, args, timeoutMs };
 };
 
-export const resolveRustWorkspaceMetadataPreflight = ({ ctx, server }) => {
+export const resolveRustWorkspaceMetadataPreflight = async ({ ctx, server, abortSignal = null }) => {
   if (!isRustWorkspacePreflightServer(server)) {
     return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
   }
@@ -43,11 +43,12 @@ export const resolveRustWorkspaceMetadataPreflight = ({ ctx, server }) => {
   }
 
   const command = resolveMetadataCommand(server);
-  return runWorkspaceCommandPreflight({
+  return await runWorkspaceCommandPreflight({
     ctx,
     cmd: command.cmd,
     args: command.args,
     timeoutMs: command.timeoutMs,
+    abortSignal,
     reasonPrefix: 'rust_workspace_metadata',
     label: 'rust workspace metadata'
   });

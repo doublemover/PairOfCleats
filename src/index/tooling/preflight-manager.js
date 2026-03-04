@@ -663,6 +663,8 @@ const startProviderPreflight = ({
   if (existing?.promise) {
     return existing.promise;
   }
+  // New execution should not inherit terminal snapshot state from prior runs.
+  state.snapshots.delete(key);
 
   const requestedAbortSignal = resolveRequestedAbortSignal(ctx, inputs);
   const managedAbortBridge = createManagedAbortBridge(requestedAbortSignal);
@@ -682,6 +684,9 @@ const startProviderPreflight = ({
     rejectPromise = reject;
   }).finally(() => {
     managedAbortBridge.cleanup();
+    if (managedAbortBridge.signal && managedAbortHandler) {
+      managedAbortBridge.signal.removeEventListener('abort', managedAbortHandler);
+    }
     const current = state.inFlight.get(key);
     if (current?.promise === promise) {
       state.inFlight.delete(key);
@@ -934,6 +939,31 @@ const startProviderPreflight = ({
     }
   };
 
+  const cancelQueuedTask = (reason) => {
+    managedAbortBridge.abort(reason);
+    if (task.started || task.settled || task.cancelled === true) return;
+    task.cancelled = true;
+    const scheduler = resolveScheduler(state, ctx);
+    removeQueuedTask(scheduler, task);
+    finalizeQueuedTaskAbort({
+      state,
+      task,
+      error: normalizeAbortError(reason)
+    });
+  };
+
+  let managedAbortHandler = null;
+  if (managedAbortBridge.signal && typeof managedAbortBridge.signal.addEventListener === 'function') {
+    managedAbortHandler = () => {
+      cancelQueuedTask(managedAbortBridge.signal?.reason || new Error('tooling preflight aborted'));
+    };
+    if (managedAbortBridge.signal.aborted) {
+      managedAbortHandler();
+    } else {
+      managedAbortBridge.signal.addEventListener('abort', managedAbortHandler, { once: true });
+    }
+  }
+
   state.inFlight.set(key, {
     providerId,
     preflightId,
@@ -944,16 +974,7 @@ const startProviderPreflight = ({
     preflightTimeoutMs,
     promise,
     abort: (reason) => {
-      managedAbortBridge.abort(reason);
-      if (task.started || task.settled) return;
-      task.cancelled = true;
-      const scheduler = resolveScheduler(state, ctx);
-      removeQueuedTask(scheduler, task);
-      finalizeQueuedTaskAbort({
-        state,
-        task,
-        error: normalizeAbortError(reason)
-      });
+      cancelQueuedTask(reason);
     }
   });
 

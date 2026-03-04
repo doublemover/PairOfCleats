@@ -114,16 +114,17 @@ const shouldRunGoWorkspaceWarmupPreflight = (repoRoot, server) => {
   return goFileCount >= scanOptions.minGoFiles;
 };
 
-const resolveGoWorkspaceWarmupPreflight = ({ ctx, server, repoRoot }) => {
+const resolveGoWorkspaceWarmupPreflight = async ({ ctx, server, repoRoot, abortSignal = null }) => {
   if (!shouldRunGoWorkspaceWarmupPreflight(repoRoot, server)) {
     return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
   }
   const warmupCommand = resolveWarmupCommand(server);
-  return runWorkspaceCommandPreflight({
+  return await runWorkspaceCommandPreflight({
     ctx,
     cmd: warmupCommand.cmd,
     args: warmupCommand.args,
     timeoutMs: warmupCommand.timeoutMs,
+    abortSignal,
     reasonPrefix: 'go_workspace_warmup_probe',
     label: 'go workspace warmup'
   });
@@ -185,7 +186,7 @@ const resolveGoWorkspaceRootShapePreflight = (repoRoot) => {
   };
 };
 
-export const resolveGoWorkspaceModulePreflight = ({ ctx, server }) => {
+export const resolveGoWorkspaceModulePreflight = async ({ ctx, server, abortSignal = null }) => {
   if (!isGoWorkspacePreflightServer(server)) {
     return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
   }
@@ -201,20 +202,22 @@ export const resolveGoWorkspaceModulePreflight = ({ ctx, server }) => {
   }
 
   const command = resolveModuleCommand(server);
-  const modulePreflight = runWorkspaceCommandPreflight({
+  const modulePreflight = await runWorkspaceCommandPreflight({
     ctx,
     cmd: command.cmd,
     args: command.args,
     timeoutMs: command.timeoutMs,
+    abortSignal,
     reasonPrefix: 'go_workspace_module_probe',
     label: 'go workspace module'
   });
   if (modulePreflight.state !== 'ready') {
     return modulePreflight;
   }
-  return resolveGoWorkspaceWarmupPreflight({
+  return await resolveGoWorkspaceWarmupPreflight({
     ctx,
     server,
-    repoRoot
+    repoRoot,
+    abortSignal
   });
 };

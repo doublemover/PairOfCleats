@@ -935,7 +935,8 @@ const createConfiguredLspProvider = (server) => {
     : null;
   provider.preflightClass = server.preflightClass
     || (server.workspaceMarkerOptions && server.requireWorkspaceModel !== false ? 'workspace' : 'probe');
-  provider.preflight = async (ctx) => {
+  provider.preflight = async (ctx, inputs = {}) => {
+    const preflightAbortSignal = inputs?.abortSignal || inputs?.managerAbortSignal || null;
     const commandPreflight = runCommandProfilePreflight(ctx);
     const luaLibraryPreflight = resolveLuaWorkspaceLibraryPreflight({
       server,
@@ -955,13 +956,15 @@ const createConfiguredLspProvider = (server) => {
       server,
       repoRoot: ctx?.repoRoot || process.cwd()
     });
-    const goWorkspacePreflight = resolveGoWorkspaceModulePreflight({
+    const goWorkspacePreflight = await resolveGoWorkspaceModulePreflight({
       ctx,
-      server
+      server,
+      abortSignal: preflightAbortSignal
     });
-    const rustWorkspacePreflight = resolveRustWorkspaceMetadataPreflight({
+    const rustWorkspacePreflight = await resolveRustWorkspaceMetadataPreflight({
       ctx,
-      server
+      server,
+      abortSignal: preflightAbortSignal
     });
     const rustSuppressionPolicyPreflight = resolveRustProcMacroSuppressionPolicyPreflight({
       server
