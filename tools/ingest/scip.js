@@ -18,7 +18,7 @@ const argv = createCli({
     run: { type: 'boolean', default: false },
     scip: { type: 'string', default: 'scip' },
     args: { type: 'string' },
-    'timeout-ms': { type: 'number', default: 300000 }
+    'timeout-ms': { type: 'number' }
   }
 }).parse();
 
@@ -33,7 +33,7 @@ const runScip = argv.run === true;
 const scipCmd = argv.scip || 'scip';
 const commandTimeoutMs = Number.isFinite(Number(argv['timeout-ms']))
   ? Math.max(1000, Math.floor(Number(argv['timeout-ms'])))
-  : 300000;
+  : null;
 
 const normalizePath = (value) => {
   if (!value) return null;

@@ -20,7 +20,7 @@ const argv = createCli({
     ctags: { type: 'string', default: 'ctags' },
     fields: { type: 'string' },
     args: { type: 'string' },
-    'timeout-ms': { type: 'number', default: 300000 }
+    'timeout-ms': { type: 'number' }
   }
 }).parse();
 
@@ -36,7 +36,7 @@ const interactive = argv.interactive === true;
 const ctagsCmd = argv.ctags || 'ctags';
 const commandTimeoutMs = Number.isFinite(Number(argv['timeout-ms']))
   ? Math.max(1000, Math.floor(Number(argv['timeout-ms'])))
-  : 300000;
+  : null;
 
 const normalizePath = (value) => {
   if (!value) return null;

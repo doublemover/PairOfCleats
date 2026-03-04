@@ -3,9 +3,7 @@ import readline from 'node:readline';
 import { registerChildProcessForCleanup } from '../../src/shared/subprocess.js';
 import { killChildProcessTree } from '../../src/shared/kill-tree.js';
 
-const DEFAULT_INGEST_COMMAND_TIMEOUT_MS = 5 * 60 * 1000;
-
-const toTimeoutMs = (value, fallback = DEFAULT_INGEST_COMMAND_TIMEOUT_MS) => {
+const toTimeoutMs = (value, fallback = null) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return Math.max(1_000, Math.floor(parsed));
@@ -15,7 +13,7 @@ export const runLineStreamingCommand = async ({
   command,
   args = [],
   cwd = undefined,
-  timeoutMs = DEFAULT_INGEST_COMMAND_TIMEOUT_MS,
+  timeoutMs = null,
   onStdoutLine = null,
   onStderrChunk = null
 }) => {
@@ -29,16 +27,18 @@ export const runLineStreamingCommand = async ({
   });
   const resolvedTimeoutMs = toTimeoutMs(timeoutMs);
   let timedOut = false;
-  const timeout = setTimeout(() => {
-    timedOut = true;
-    killChildProcessTree(child, {
-      killTree: true,
-      detached: false,
-      graceMs: 0,
-      awaitGrace: false
-    }).catch(() => {});
-  }, resolvedTimeoutMs);
-  timeout.unref?.();
+  const timeout = Number.isFinite(resolvedTimeoutMs) && resolvedTimeoutMs > 0
+    ? setTimeout(() => {
+      timedOut = true;
+      killChildProcessTree(child, {
+        killTree: true,
+        detached: false,
+        graceMs: 0,
+        awaitGrace: false
+      }).catch(() => {});
+    }, resolvedTimeoutMs)
+    : null;
+  timeout?.unref?.();
   const rl = readline.createInterface({
     input: child.stdout,
     crlfDelay: Infinity
@@ -81,10 +81,9 @@ export const runLineStreamingCommand = async ({
     }
     return { exitCode };
   } finally {
-    clearTimeout(timeout);
+    if (timeout) clearTimeout(timeout);
     child.stdout.off('error', onStdoutError);
     rl.close();
     unregisterChild();
   }
 };
-

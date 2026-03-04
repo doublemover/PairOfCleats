@@ -18,7 +18,7 @@ const argv = createCli({
     run: { type: 'boolean', default: false },
     global: { type: 'string', default: 'global' },
     args: { type: 'string' },
-    'timeout-ms': { type: 'number', default: 300000 }
+    'timeout-ms': { type: 'number' }
   }
 }).parse();
 
@@ -33,7 +33,7 @@ const runGlobal = argv.run === true;
 const globalCmd = argv.global || 'global';
 const commandTimeoutMs = Number.isFinite(Number(argv['timeout-ms']))
   ? Math.max(1000, Math.floor(Number(argv['timeout-ms'])))
-  : 300000;
+  : null;
 
 const normalizePath = (value) => {
   if (!value) return null;
