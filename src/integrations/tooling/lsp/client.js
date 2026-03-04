@@ -155,7 +155,8 @@ export function createLspClient(options) {
   let writerClosed = false;
   let trackedChildProcess = null;
   const unregisterChildProcessByChild = new WeakMap();
-  const reapedChildren = new WeakSet();
+  const staleReapInFlight = new WeakMap();
+  const STALE_REAP_RETRY_MS = 500;
   let nextId = 1;
   const pending = new Map();
   let generation = 0;
@@ -269,9 +270,45 @@ export function createLspClient(options) {
     return terminated;
   };
 
+  const cleanupInvalidSpawnCandidate = (child, reason = 'invalid_spawn_candidate') => {
+    if (!child || typeof child !== 'object') return;
+    try {
+      if (child.stdin) closeJsonRpcWriter(child.stdin);
+    } catch {}
+    try {
+      child.stdout?.destroy?.();
+    } catch {}
+    try {
+      child.stderr?.destroy?.();
+    } catch {}
+    try {
+      killChildProcessTree(child, {
+        killTree: true,
+        detached: killTreeDetached,
+        graceMs: 0,
+        awaitGrace: false
+      }).catch(() => {});
+    } catch {
+      try {
+        child.kill?.('SIGKILL');
+      } catch {}
+    }
+    try {
+      child.unref?.();
+    } catch {}
+    emitLifecycleEvent({
+      kind: 'cleanup_invalid_spawn',
+      reason,
+      pid: Number.isFinite(Number(child?.pid)) ? Number(child.pid) : null
+    });
+  };
+
   const reapStaleChildProcess = (child, reason = 'stale_child') => {
-    if (!child || reapedChildren.has(child) || !isChildRunning(child)) return;
-    reapedChildren.add(child);
+    if (!child || !isChildRunning(child)) return;
+    const lastAttemptAt = Number(staleReapInFlight.get(child) || 0);
+    const nowMs = Date.now();
+    if (lastAttemptAt > 0 && (nowMs - lastAttemptAt) < STALE_REAP_RETRY_MS) return;
+    staleReapInFlight.set(child, nowMs);
     killChildProcessTree(child, {
       killTree: true,
       detached: killTreeDetached,
@@ -279,7 +316,10 @@ export function createLspClient(options) {
       awaitGrace: true
     }).then((outcome) => {
       if (!outcome || typeof outcome !== 'object') return;
-      if (clearTrackedChildIfTerminated(child, outcome) && !outcome.fallbackAttempted) return;
+      if (clearTrackedChildIfTerminated(child, outcome)) {
+        staleReapInFlight.delete(child);
+        if (!outcome.fallbackAttempted) return;
+      }
       emitLifecycleEvent({
         kind: 'kill_diagnostics',
         reason,
@@ -289,7 +329,12 @@ export function createLspClient(options) {
         fallbackAttempted: outcome.fallbackAttempted === true,
         fallbackTerminated: Number(outcome.fallbackTerminated || 0)
       });
-    }).catch(() => {});
+    }).catch(() => {})
+      .finally(() => {
+        if (!isChildRunning(child)) {
+          staleReapInFlight.delete(child);
+        }
+      });
     try {
       if (child.stdin) closeJsonRpcWriter(child.stdin);
     } catch {}
@@ -481,14 +526,17 @@ export function createLspClient(options) {
         ? spawn(spawnCmd, spawnOptions)
         : spawn(spawnCmd, spawnArgs, spawnOptions));
     if (!child || !isEventEmitterLike(child)) {
+      cleanupInvalidSpawnCandidate(child, 'spawn_override_invalid_child');
       throw new Error('createLspClient spawnProcess override must return a ChildProcess-like object.');
     }
     if (!isWritableLike(child.stdin) || !isReadableLike(child.stdout)) {
+      cleanupInvalidSpawnCandidate(child, 'spawn_override_invalid_stdio');
       throw new Error(
         'createLspClient spawnProcess override must provide stdin/stdout stream objects.'
       );
     }
     if (child.stderr != null && !isReadableLike(child.stderr)) {
+      cleanupInvalidSpawnCandidate(child, 'spawn_override_invalid_stderr');
       throw new Error(
         'createLspClient spawnProcess override must provide a readable stderr stream when present.'
       );

@@ -262,11 +262,18 @@ export const runTreeSitterScheduler = async ({
     }
     throwIfAborted(effectiveAbortSignal);
   }
-  await runBuildCleanupWithTimeout({
+  const crashPersistenceResult = await runBuildCleanupWithTimeout({
     label: `tree-sitter-scheduler.${mode}.crash-persistence`,
     cleanup: () => crashTracker.waitForPersistence(),
     log
   });
+  if (crashPersistenceResult?.timedOut && log) {
+    log(
+      `[tree-sitter:schedule] crash persistence timed out after ${
+        crashPersistenceResult?.elapsedMs || 'unknown'
+      }ms; continuing with degraded crash telemetry.`
+    );
+  }
   const crashSummary = crashTracker.summarize();
   const failedGrammarKeySet = new Set(crashSummary.failedGrammarKeys);
   const successfulGrammarKeys = grammarKeys.filter((grammarKey) => !failedGrammarKeySet.has(grammarKey));

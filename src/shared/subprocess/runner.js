@@ -1,5 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { killChildProcessTree } from '../kill-tree.js';
+import { isAbortSignal } from '../abort.js';
 import { isSyncCommandTimedOut, killTimedOutSyncProcessTree } from './sync-command.js';
 import {
   DEFAULT_MAX_OUTPUT_BYTES,
@@ -105,7 +106,19 @@ function spawnSubprocess(command, args, options = {}) {
     const cleanupOnParentExit = typeof options.cleanupOnParentExit === 'boolean'
       ? options.cleanupOnParentExit
       : !(options.unref === true && detached === true);
-    const abortSignal = options.signal || null;
+    const abortSignal = isAbortSignal(options.signal) ? options.signal : null;
+    if (options.signal != null && !abortSignal) {
+      const result = buildResult({
+        pid: null,
+        exitCode: null,
+        signal: null,
+        startedAt,
+        stdout: undefined,
+        stderr: undefined
+      });
+      reject(new SubprocessError('Invalid AbortSignal passed to spawnSubprocess.', result));
+      return;
+    }
     const trackedScopeContext = trackedSubprocessScopeContext.getStore() || null;
     const inheritedOwnershipId = normalizeTrackedOwnershipId(options.ownershipId ?? options.ownerId)
       || normalizeTrackedOwnershipId(trackedOwnershipIdByAbortSignal.get(abortSignal))

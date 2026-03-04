@@ -99,7 +99,9 @@ export const createTreeSitterSchedulerLookup = ({
   });
   const stats = {
     readerEvictions: 0,
-    transientFdRetries: 0
+    transientFdRetries: 0,
+    readerCloseFailures: 0,
+    forcedReaderCloseFailures: 0
   };
   const pageRefCounts = new Map();
   const consumedIndexEntries = new WeakSet();
@@ -195,24 +197,94 @@ export const createTreeSitterSchedulerLookup = ({
       entry.closeRequested = true;
       return;
     }
-    readersByManifestPath.delete(entry.key);
-    if (recordEviction) stats.readerEvictions += 1;
-    entry.closeRequested = false;
+    entry.closeRequested = true;
     const reader = entry.reader;
     entry.closingPromise = (async () => {
+      let closeError = null;
       try {
-        await runBuildCleanupWithTimeout({
+        const closeResult = await runBuildCleanupWithTimeout({
           label: `tree-sitter-lookup.reader-close:${entry.key}`,
           cleanup: () => reader.close(),
           timeoutMs: readerCloseStepTimeoutMs,
           log
         });
-      } catch {}
+        if (closeResult?.timedOut) {
+          closeError = closeResult.error || new Error(
+            `[cleanup] tree-sitter-lookup.reader-close timed out: ${entry.key}`
+          );
+        }
+      } catch (error) {
+        closeError = error;
+      }
+      if (closeError) {
+        stats.readerCloseFailures += 1;
+        if (typeof log === 'function') {
+          log(`[tree-sitter:schedule] reader close failed: ${entry.key} (${closeError?.message || closeError})`);
+        }
+        return { ok: false, error: closeError };
+      }
+      return { ok: true, error: null };
     })();
     try {
-      await entry.closingPromise;
+      const closeOutcome = await entry.closingPromise;
+      if (closeOutcome?.ok) {
+        readersByManifestPath.delete(entry.key);
+        if (recordEviction) stats.readerEvictions += 1;
+        entry.closeRequested = false;
+      } else {
+        entry.closeRequested = true;
+      }
     } finally {
       entry.closingPromise = null;
+    }
+  };
+
+  const forceCloseReaderEntry = async (entry) => {
+    if (!entry || typeof entry !== 'object') return { ok: true, error: null };
+    if (entry.closingPromise) {
+      const inflightResult = await runBuildCleanupWithTimeout({
+        label: `tree-sitter-lookup.reader-close.force.inflight:${entry.key}`,
+        cleanup: () => entry.closingPromise,
+        timeoutMs: readerCloseStepTimeoutMs,
+        log
+      });
+      if (inflightResult?.timedOut) {
+        const error = inflightResult.error || new Error(
+          `[cleanup] tree-sitter-lookup.reader-close.force.inflight timed out: ${entry.key}`
+        );
+        stats.forcedReaderCloseFailures += 1;
+        if (typeof log === 'function') {
+          log(`[tree-sitter:schedule] forced reader close failed: ${entry.key} (${error?.message || error})`);
+        }
+        return { ok: false, error };
+      }
+      return { ok: true, error: null };
+    }
+    const reader = entry.reader;
+    try {
+      const closeResult = await runBuildCleanupWithTimeout({
+        label: `tree-sitter-lookup.reader-close.force:${entry.key}`,
+        cleanup: () => reader.close(),
+        timeoutMs: readerCloseStepTimeoutMs,
+        log
+      });
+      if (closeResult?.timedOut) {
+        const error = closeResult.error || new Error(
+          `[cleanup] tree-sitter-lookup.reader-close.force timed out: ${entry.key}`
+        );
+        stats.forcedReaderCloseFailures += 1;
+        if (typeof log === 'function') {
+          log(`[tree-sitter:schedule] forced reader close failed: ${entry.key} (${error?.message || error})`);
+        }
+        return { ok: false, error };
+      }
+      return { ok: true, error: null };
+    } catch (error) {
+      stats.forcedReaderCloseFailures += 1;
+      if (typeof log === 'function') {
+        log(`[tree-sitter:schedule] forced reader close failed: ${entry.key} (${error?.message || error})`);
+      }
+      return { ok: false, error };
     }
   };
 
@@ -228,7 +300,21 @@ export const createTreeSitterSchedulerLookup = ({
         }
       }
       if (!oldestIdle) break;
+      const sizeBeforeClose = readersByManifestPath.size;
       await closeReaderEntry(oldestIdle, { recordEviction: true });
+      if (readersByManifestPath.size >= sizeBeforeClose) {
+        // Keep eviction bounded: do not spin indefinitely on a reader that
+        // refuses to close. Attempt one forced close, then drop local
+        // reference so new readers can progress.
+        const forced = await forceCloseReaderEntry(oldestIdle);
+        if (!forced.ok && typeof log === 'function') {
+          log(
+            `[tree-sitter:schedule] forced eviction close failed: ${oldestIdle.key}; ` +
+            'dropping local reader reference.'
+          );
+        }
+        readersByManifestPath.delete(oldestIdle.key);
+      }
     }
   };
 
@@ -253,14 +339,47 @@ export const createTreeSitterSchedulerLookup = ({
     const key = `${manifestPath}|${format}`;
     const existing = readersByManifestPath.get(key);
     if (existing) {
-      existing.lastUsedTick = ++readerUseTick;
-      return existing;
+      if (
+        existing.closeRequested
+        && existing.inUseCount <= 0
+        && !existing.closingPromise
+      ) {
+        await closeReaderEntry(existing);
+        const refreshed = readersByManifestPath.get(key);
+        if (refreshed && !refreshed.closeRequested) {
+          refreshed.lastUsedTick = ++readerUseTick;
+          return refreshed;
+        }
+        if (refreshed && refreshed.closeRequested && refreshed.inUseCount <= 0) {
+          const forced = await forceCloseReaderEntry(refreshed);
+          if (!forced.ok && typeof log === 'function') {
+            log(
+              `[tree-sitter:schedule] forced poisoned reader close failed: ${refreshed.key}; ` +
+              'dropping local reader reference.'
+            );
+          }
+          readersByManifestPath.delete(refreshed.key);
+        }
+      } else {
+        existing.lastUsedTick = ++readerUseTick;
+        return existing;
+      }
     }
     await evictIdleReadersIfNeeded();
     const secondCheck = readersByManifestPath.get(key);
-    if (secondCheck) {
+    if (secondCheck && !secondCheck.closeRequested) {
       secondCheck.lastUsedTick = ++readerUseTick;
       return secondCheck;
+    }
+    if (secondCheck && secondCheck.closeRequested && secondCheck.inUseCount <= 0) {
+      const forced = await forceCloseReaderEntry(secondCheck);
+      if (!forced.ok && typeof log === 'function') {
+        log(
+          `[tree-sitter:schedule] forced second-check reader close failed: ${secondCheck.key}; ` +
+          'dropping local reader reference.'
+        );
+      }
+      readersByManifestPath.delete(secondCheck.key);
     }
     const reader = createVfsManifestOffsetReader({
       manifestPath,
@@ -322,17 +441,24 @@ export const createTreeSitterSchedulerLookup = ({
         if (readersByManifestPath.size <= 0) break;
         if (Date.now() >= closeDeadlineMs) {
           const pendingEntries = Array.from(readersByManifestPath.values());
-          readersByManifestPath.clear();
+          const forceCloseErrors = [];
           await Promise.all(pendingEntries.map(async (entry) => {
-            try {
-              await runBuildCleanupWithTimeout({
-                label: `tree-sitter-lookup.reader-close.force:${entry.key}`,
-                cleanup: () => entry.reader.close(),
-                timeoutMs: readerCloseStepTimeoutMs,
-                log
-              });
-            } catch {}
+            const outcome = await forceCloseReaderEntry(entry);
+            if (outcome.ok) {
+              readersByManifestPath.delete(entry.key);
+            } else {
+              forceCloseErrors.push(outcome.error);
+            }
           }));
+          if (forceCloseErrors.length) {
+            if (typeof log === 'function') {
+              log(
+                `[tree-sitter:schedule] forced reader close failures=${forceCloseErrors.length}; ` +
+                'dropping remaining reader references.'
+              );
+            }
+            readersByManifestPath.clear();
+          }
           break;
         }
         await sleep(10);

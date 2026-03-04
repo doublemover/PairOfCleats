@@ -140,7 +140,6 @@ const awaitWithTimeout = async (promise, timeoutMs) => {
           timedOut = true;
           resolve();
         }, resolvedTimeoutMs);
-        timeoutHandle.unref?.();
       })
     ]);
   } finally {

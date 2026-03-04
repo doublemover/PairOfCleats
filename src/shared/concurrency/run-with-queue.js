@@ -259,6 +259,9 @@ export async function runWithQueue(queue, items, worker, options = {}) {
   };
   const waitForPendingDrainOrAbort = async () => {
     if (!pendingSignals.size) return;
+    if (signal?.aborted) {
+      throw abortError;
+    }
     const pendingDrain = Promise.all(Array.from(pendingSignals));
     const pendingStartedAt = Date.now();
     let timeoutId = null;
@@ -280,7 +283,6 @@ export async function runWithQueue(queue, items, worker, options = {}) {
           };
           reject(err);
         }, pendingDrainTimeoutMs);
-        timeoutId.unref?.();
       }));
     }
     if (!signal) {
@@ -302,9 +304,6 @@ export async function runWithQueue(queue, items, worker, options = {}) {
         if (stallTimer) clearInterval(stallTimer);
       }
       return;
-    }
-    if (signal.aborted) {
-      throw abortError;
     }
     const aborted = new Promise((_, reject) => {
       onAbort = () => reject(abortError);

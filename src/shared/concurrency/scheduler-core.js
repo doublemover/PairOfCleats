@@ -1649,14 +1649,16 @@ export function createBuildScheduler(input = {}) {
       ? Math.max(0, Math.floor(Number(timeoutMs)))
       : 0;
     if (resolvedTimeoutMs <= 0) return joined;
-    return Promise.race([
-      joined,
-      new Promise((resolve) => {
-        setTimeout(() => {
-          resolve();
-        }, resolvedTimeoutMs);
-      })
-    ]);
+    let timeoutHandle = null;
+    const timeoutPromise = new Promise((resolve) => {
+      timeoutHandle = setTimeout(() => {
+        resolve();
+      }, resolvedTimeoutMs);
+    });
+    return Promise.race([joined, timeoutPromise])
+      .finally(() => {
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+      });
   };
 
   const setLimits = (limits = {}) => {
@@ -1669,9 +1671,36 @@ export function createBuildScheduler(input = {}) {
     if (Number.isFinite(Number(limits.memoryTokens))) {
       memoryTokens = Math.max(1, Math.floor(Number(limits.memoryTokens)));
     }
+    baselineLimits.cpu = cpuTokens;
+    baselineLimits.io = ioTokens;
+    baselineLimits.mem = memoryTokens;
+    maxLimits.cpu = cpuTokens;
+    maxLimits.io = ioTokens;
+    maxLimits.mem = memoryTokens;
     tokens.cpu.total = cpuTokens;
     tokens.io.total = ioTokens;
     tokens.mem.total = memoryTokens;
+    for (const [surfaceName, surfaceState] of adaptiveSurfaceStates.entries()) {
+      if (!surfaceState || typeof surfaceState !== 'object') continue;
+      const bounds = resolveSurfaceDefaultBounds(surfaceName);
+      const boundedMax = Math.max(1, Number(bounds?.maxConcurrency) || 1);
+      const boundedMin = Math.max(
+        1,
+        Math.min(
+          Number(surfaceState.minConcurrency) || 1,
+          boundedMax
+        )
+      );
+      surfaceState.minConcurrency = boundedMin;
+      surfaceState.maxConcurrency = Math.max(
+        boundedMin,
+        Math.min(Number(surfaceState.maxConcurrency) || boundedMax, boundedMax)
+      );
+      surfaceState.currentConcurrency = Math.max(
+        surfaceState.minConcurrency,
+        Math.min(Number(surfaceState.currentConcurrency) || surfaceState.minConcurrency, surfaceState.maxConcurrency)
+      );
+    }
     captureSchedulingTrace({ reason: 'set-limits', force: true });
     pump();
   };
