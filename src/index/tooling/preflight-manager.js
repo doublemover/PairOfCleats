@@ -4,6 +4,10 @@ import {
   withTrackedSubprocessSignalScope
 } from '../../shared/subprocess.js';
 import {
+  createTimeoutError,
+  runWithTimeout
+} from '../../shared/promise-timeout.js';
+import {
   normalizePreflightPolicy,
   normalizeProviderId,
   PREFLIGHT_POLICY
@@ -35,6 +39,7 @@ const MAX_PREFLIGHT_TIMEOUT_MS = 15 * 60 * 1000;
 const DEFAULT_PREFLIGHT_MAX_CONCURRENCY = 4;
 const MIN_PREFLIGHT_MAX_CONCURRENCY = 1;
 const MAX_PREFLIGHT_MAX_CONCURRENCY = 16;
+const PREFLIGHT_TEARDOWN_SETTLE_TIMEOUT_MS = 1000;
 
 const clampInt = (value, fallback, min, max) => {
   const parsed = Number(value);
@@ -442,6 +447,11 @@ const normalizeAbortError = (reason) => {
   return new Error('tooling preflight aborted');
 };
 
+const isPreflightTimeoutError = (error) => {
+  const code = String(error?.code || '').trim();
+  return code === 'TOOLING_PREFLIGHT_TIMEOUT' || code === 'ERR_TIMEOUT';
+};
+
 const removeQueuedTask = (scheduler, task) => {
   const index = scheduler.queue.indexOf(task);
   if (index < 0) return false;
@@ -718,10 +728,37 @@ const startProviderPreflight = ({
         + `class=${preflightClass} timeoutMs=${preflightTimeoutMs}`
       );
       try {
-        const rawResult = await withTrackedSubprocessSignalScope(
-          managedAbortBridge.signal || requestedAbortSignal,
-          ownershipId,
-          () => provider.preflight(ctx, preflightInputs)
+        const rawResult = await runWithTimeout(
+          async (timeoutSignal) => {
+            const effectiveSignal = timeoutSignal || managedAbortBridge.signal || requestedAbortSignal || null;
+            return withTrackedSubprocessSignalScope(
+              effectiveSignal,
+              ownershipId,
+              () => provider.preflight(
+                ctx,
+                {
+                  ...preflightInputs,
+                  abortSignal: effectiveSignal,
+                  managerAbortSignal: effectiveSignal
+                }
+              )
+            );
+          },
+          {
+            timeoutMs: preflightTimeoutMs,
+            signal: managedAbortBridge.signal || requestedAbortSignal || null,
+            errorFactory: () => createTimeoutError({
+              message: `Tooling preflight timed out after ${preflightTimeoutMs}ms (${providerId}/${preflightId}).`,
+              code: 'TOOLING_PREFLIGHT_TIMEOUT',
+              retryable: false,
+              meta: {
+                providerId,
+                preflightId,
+                preflightClass,
+                timeoutMs: preflightTimeoutMs
+              }
+            })
+          }
         );
         const result = normalizeToolingPreflightResult(rawResult);
         const elapsedMs = Math.max(0, Date.now() - startedAtMs);
@@ -785,18 +822,28 @@ const startProviderPreflight = ({
         return result || null;
       } catch (error) {
         const elapsedMs = Math.max(0, Date.now() - startedAtMs);
-        const message = error?.message || String(error);
-        state.scheduler.metrics.failed += 1;
-        incrementClassMetric(state.scheduler.metrics, preflightClass, 'failed');
+        const timedOut = isPreflightTimeoutError(error);
+        const message = timedOut
+          ? `preflight timed out after ${preflightTimeoutMs}ms`
+          : (error?.message || String(error));
+        if (timedOut) {
+          state.scheduler.metrics.timedOut += 1;
+          incrementClassMetric(state.scheduler.metrics, preflightClass, 'timedOut');
+        } else {
+          state.scheduler.metrics.failed += 1;
+          incrementClassMetric(state.scheduler.metrics, preflightClass, 'failed');
+        }
         const failOpen = preflightPolicy === PREFLIGHT_POLICY.OPTIONAL;
         const failOpenState = TOOLING_PREFLIGHT_STATES.DEGRADED;
         const finalState = failOpen ? failOpenState : TOOLING_PREFLIGHT_STATES.FAILED;
-        const finalReasonCode = TOOLING_PREFLIGHT_REASON_CODES.FAILED;
+        const finalReasonCode = timedOut
+          ? TOOLING_PREFLIGHT_REASON_CODES.TIMEOUT
+          : TOOLING_PREFLIGHT_REASON_CODES.FAILED;
         const finalMessage = failOpen
           ? `optional preflight failed open: ${message}`
           : message;
         log(
-          `[tooling] preflight:${failOpen ? 'degraded' : 'failed'} provider=${providerId} id=${preflightId} `
+          `[tooling] preflight:${timedOut ? 'timeout' : (failOpen ? 'degraded' : 'failed')} provider=${providerId} id=${preflightId} `
           + `durationMs=${elapsedMs}${failOpen ? ' failOpen=1' : ''} error=${message}`
         );
         setSnapshot(state, key, {
@@ -809,7 +856,7 @@ const startProviderPreflight = ({
           finishedAtMs: Date.now(),
           durationMs: elapsedMs,
           cached: false,
-          timedOut: false,
+          timedOut,
           preflightPolicy,
           preflightClass,
           preflightTimeoutMs
@@ -838,7 +885,7 @@ const startProviderPreflight = ({
             durationMs: elapsedMs,
             startedAtMs,
             finishedAtMs: Date.now(),
-            timedOut: false,
+            timedOut,
             value,
             diagnostic: buildToolingPreflightDiagnostic({
               providerId,
@@ -847,7 +894,7 @@ const startProviderPreflight = ({
               reasonCode: finalReasonCode,
               message: finalMessage,
               durationMs: elapsedMs,
-              timedOut: false,
+              timedOut,
               cached: false,
               startedAtMs,
               finishedAtMs: Date.now()
@@ -862,21 +909,21 @@ const startProviderPreflight = ({
           waveToken,
           status: 'rejected',
           state: TOOLING_PREFLIGHT_STATES.FAILED,
-          reasonCode: TOOLING_PREFLIGHT_REASON_CODES.FAILED,
-          message,
+          reasonCode: finalReasonCode,
+          message: finalMessage,
           durationMs: elapsedMs,
           startedAtMs,
           finishedAtMs: Date.now(),
-          timedOut: false,
+          timedOut,
           error,
           diagnostic: buildToolingPreflightDiagnostic({
             providerId,
             preflightId,
             state: TOOLING_PREFLIGHT_STATES.FAILED,
-            reasonCode: TOOLING_PREFLIGHT_REASON_CODES.FAILED,
-            message,
+            reasonCode: finalReasonCode,
+            message: finalMessage,
             durationMs: elapsedMs,
-            timedOut: false,
+            timedOut,
             cached: false,
             startedAtMs,
             finishedAtMs: Date.now()
@@ -1076,17 +1123,17 @@ export const teardownToolingProviderPreflights = async (ctx, { timeoutMs = 5000 
     const state = resolveState(ctx);
     const scheduler = resolveScheduler(state, ctx);
     scheduler.accepting = false;
-    const inFlightEntries = Array.from(state.inFlight.values());
+    const inFlightEntries = Array.from(state.inFlight.entries());
     if (!inFlightEntries.length) {
       return { status: 'ok', total: 0, settled: 0, rejected: 0, timedOut: false, aborted: 0 };
     }
     const promises = inFlightEntries
-      .map((entry) => entry?.promise)
+      .map(([, entry]) => entry?.promise)
       .filter((promise) => promise && typeof promise.then === 'function');
     const waited = await waitForPromisesWithTimeout(promises, timeoutMs);
     if (waited.timedOut) {
       let aborted = 0;
-      for (const entry of inFlightEntries) {
+      for (const [, entry] of inFlightEntries) {
         if (typeof entry?.abort !== 'function') continue;
         try {
           entry.abort(new Error('tooling preflight teardown timeout'));
@@ -1098,7 +1145,7 @@ export const teardownToolingProviderPreflights = async (ctx, { timeoutMs = 5000 
       }
       const ownershipIds = [...new Set(
         inFlightEntries
-          .map((entry) => (typeof entry?.ownershipId === 'string' ? entry.ownershipId.trim() : ''))
+          .map(([, entry]) => (typeof entry?.ownershipId === 'string' ? entry.ownershipId.trim() : ''))
           .filter(Boolean)
       )];
       const forcedCleanup = {
@@ -1129,9 +1176,78 @@ export const teardownToolingProviderPreflights = async (ctx, { timeoutMs = 5000 
         );
       }
       const settledAfterAbort = await waitForPromisesWithTimeout(promises, 1000);
+      for (const [entryKey, entry] of inFlightEntries) {
+        const entryPromise = entry?.promise;
+        if (!entryKey || !entryPromise) continue;
+        if (state.inFlight.get(entryKey)?.promise !== entryPromise) continue;
+        const providerId = String(entry?.providerId || '<unknown>');
+        const preflightId = String(entry?.preflightId || '<unknown>');
+        const preflightClass = String(entry?.preflightClass || PREFLIGHT_CLASS.PROBE);
+        const preflightPolicy = normalizePreflightPolicy(entry?.preflightPolicy, PREFLIGHT_POLICY.REQUIRED);
+        const startedAtMs = Number.isFinite(entry?.startedAtMs) ? entry.startedAtMs : null;
+        const finishedAtMs = Date.now();
+        const durationMs = Number.isFinite(startedAtMs)
+          ? Math.max(0, finishedAtMs - startedAtMs)
+          : Math.max(0, Math.floor(timeoutMs));
+        const timeoutMessage = `preflight teardown timed out after ${Math.max(0, Math.floor(timeoutMs))}ms`;
+        setSnapshot(state, entryKey, {
+          providerId,
+          preflightId,
+          state: TOOLING_PREFLIGHT_STATES.FAILED,
+          reasonCode: TOOLING_PREFLIGHT_REASON_CODES.TIMEOUT,
+          message: timeoutMessage,
+          startedAtMs,
+          finishedAtMs,
+          durationMs,
+          cached: false,
+          timedOut: true,
+          preflightPolicy,
+          preflightClass,
+          preflightTimeoutMs: Number.isFinite(entry?.preflightTimeoutMs)
+            ? Math.max(0, Math.floor(Number(entry.preflightTimeoutMs)))
+            : null
+        });
+        const timeoutError = createTimeoutError({
+          message: timeoutMessage,
+          code: 'TOOLING_PREFLIGHT_TEARDOWN_TIMEOUT',
+          retryable: false,
+          meta: {
+            providerId,
+            preflightId
+          }
+        });
+        state.completed.set(entryKey, {
+          providerId,
+          preflightId,
+          preflightPolicy,
+          waveToken: entry?.waveToken || null,
+          status: 'rejected',
+          state: TOOLING_PREFLIGHT_STATES.FAILED,
+          reasonCode: TOOLING_PREFLIGHT_REASON_CODES.TIMEOUT,
+          message: timeoutMessage,
+          durationMs,
+          startedAtMs,
+          finishedAtMs,
+          timedOut: true,
+          error: timeoutError,
+          diagnostic: buildToolingPreflightDiagnostic({
+            providerId,
+            preflightId,
+            state: TOOLING_PREFLIGHT_STATES.FAILED,
+            reasonCode: TOOLING_PREFLIGHT_REASON_CODES.TIMEOUT,
+            message: timeoutMessage,
+            durationMs,
+            timedOut: true,
+            cached: false,
+            startedAtMs,
+            finishedAtMs
+          })
+        });
+        state.inFlight.delete(entryKey);
+      }
       const nowMs = Date.now();
       const offenderSummary = inFlightEntries
-        .map((entry) => {
+        .map(([, entry]) => {
           const providerId = String(entry?.providerId || '<unknown>');
           const preflightId = String(entry?.preflightId || '<unknown>');
           const preflightClass = String(entry?.preflightClass || 'unknown');
@@ -1148,6 +1264,9 @@ export const teardownToolingProviderPreflights = async (ctx, { timeoutMs = 5000 
       const rejectedAfterAbort = settledAfterAbort.timedOut
         ? 0
         : settledAfterAbort.settled.filter((entry) => entry?.status === 'rejected').length;
+      if (!settledAfterAbort.timedOut && settledAfterAbort.settled.length > 0) {
+        await waitForPromisesWithTimeout(promises, PREFLIGHT_TEARDOWN_SETTLE_TIMEOUT_MS);
+      }
       return {
         status: 'timed_out',
         total: promises.length,
