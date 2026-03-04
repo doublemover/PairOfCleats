@@ -150,11 +150,19 @@ const mapWithConcurrency = async (values, worker, { concurrency = 8 } = {}) => {
   return out;
 };
 
-const listBenchStreamFiles = async (resultsRoot, suffix) => {
+const resolveRunLogPrefix = (runSuffix) => {
+  const normalized = String(runSuffix || '').trim();
+  if (!normalized) return null;
+  return `run-${normalized}-`;
+};
+
+const listBenchStreamFiles = async (resultsRoot, suffix, { runSuffix = null } = {}) => {
   if (!resultsRoot) return [];
   const root = path.join(resultsRoot, 'logs', 'bench-language');
   const files = [];
   const queue = [root];
+  const normalizedSuffix = String(suffix || '');
+  const runPrefix = resolveRunLogPrefix(runSuffix);
   while (queue.length) {
     const current = queue.pop();
     let entries = [];
@@ -169,16 +177,17 @@ const listBenchStreamFiles = async (resultsRoot, suffix) => {
         queue.push(resolved);
         continue;
       }
-      if (entry.isFile() && entry.name.endsWith(String(suffix || ''))) {
-        files.push(resolved);
-      }
+      if (!entry.isFile()) continue;
+      if (normalizedSuffix && !entry.name.endsWith(normalizedSuffix)) continue;
+      if (runPrefix && !entry.name.startsWith(runPrefix)) continue;
+      files.push(resolved);
     }
   }
   return files.sort((left, right) => left.localeCompare(right));
 };
 
-const listDiagnosticsStreamFiles = async (resultsRoot) => (
-  listBenchStreamFiles(resultsRoot, DIAGNOSTIC_STREAM_FILE_SUFFIX)
+const listDiagnosticsStreamFiles = async (resultsRoot, options = {}) => (
+  listBenchStreamFiles(resultsRoot, DIAGNOSTIC_STREAM_FILE_SUFFIX, options)
 );
 
 const parseDiagnosticEventLine = (line) => {
@@ -213,8 +222,8 @@ const parseDiagnosticEventLine = (line) => {
   };
 };
 
-const buildDiagnosticsStreamSummary = async (resultsRoot) => {
-  const files = await listDiagnosticsStreamFiles(resultsRoot);
+const buildDiagnosticsStreamSummary = async (resultsRoot, options = {}) => {
+  const files = await listDiagnosticsStreamFiles(resultsRoot, options);
   const countsByType = new Map();
   const uniqueEventIds = new Set();
   const knownTypes = new Set(BENCH_DIAGNOSTIC_EVENT_TYPES);
@@ -424,8 +433,8 @@ const pushTopSlowPreflights = (rows, entry) => {
   );
 };
 
-const buildPreflightLogSummary = async (resultsRoot) => {
-  const files = await listBenchStreamFiles(resultsRoot, LOG_FILE_SUFFIX);
+const buildPreflightLogSummary = async (resultsRoot, options = {}) => {
+  const files = await listBenchStreamFiles(resultsRoot, LOG_FILE_SUFFIX, options);
   const countsByEvent = new Map();
   const countsByState = new Map();
   const countsByClass = new Map();
@@ -535,8 +544,8 @@ const buildPreflightLogSummary = async (resultsRoot) => {
   };
 };
 
-const buildProgressConfidenceSummary = async (resultsRoot) => {
-  const files = await listBenchStreamFiles(resultsRoot, PROGRESS_CONFIDENCE_STREAM_FILE_SUFFIX);
+const buildProgressConfidenceSummary = async (resultsRoot, options = {}) => {
+  const files = await listBenchStreamFiles(resultsRoot, PROGRESS_CONFIDENCE_STREAM_FILE_SUFFIX, options);
   const bucketCounts = new Map();
   const perFile = [];
   const lowConfidenceEventsTop = [];
@@ -1049,7 +1058,7 @@ const buildThroughputLedgerSummary = (tasks) => {
   };
 };
 
-export const buildReportOutput = async ({ configPath, cacheRoot, resultsRoot, results, config }) => {
+export const buildReportOutput = async ({ configPath, cacheRoot, resultsRoot, results, config, runSuffix = null }) => {
   const taskInputs = Array.isArray(results) ? results : [];
   const tasksWithTelemetry = await mapWithConcurrency(taskInputs, async (entry) => {
     const payload = await resolveTaskPayload(entry);
@@ -1082,9 +1091,10 @@ export const buildReportOutput = async ({ configPath, cacheRoot, resultsRoot, re
   }
   const overallSummary = summarizeResults(tasks);
   const crashRetention = buildCrashRetentionSummary(tasks);
-  const diagnosticsStream = await buildDiagnosticsStreamSummary(resultsRoot);
-  const progressConfidence = await buildProgressConfidenceSummary(resultsRoot);
-  const preflight = await buildPreflightLogSummary(resultsRoot);
+  const streamOptions = { runSuffix };
+  const diagnosticsStream = await buildDiagnosticsStreamSummary(resultsRoot, streamOptions);
+  const progressConfidence = await buildProgressConfidenceSummary(resultsRoot, streamOptions);
+  const preflight = await buildPreflightLogSummary(resultsRoot, streamOptions);
   const throughputLedger = buildThroughputLedgerSummary(tasks);
   const stageTimingTasks = tasks
     .filter((entry) => entry?.stageTimingProfile)

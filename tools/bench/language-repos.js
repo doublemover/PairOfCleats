@@ -480,7 +480,8 @@ const output = await buildReportOutput({
   cacheRoot,
   resultsRoot,
   results,
-  config
+  config,
+  runSuffix
 });
 if (usrGuardrailBenchmarks.length) {
   output.usrGuardrails = {
