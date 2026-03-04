@@ -260,7 +260,17 @@ const enqueueSessionDisposal = (session, {
       });
     }
     if (killFirst) {
-      await Promise.resolve(killSessionClient(session));
+      const killResult = await awaitWithTimeout(
+        Promise.resolve(killSessionClient(session)),
+        DEFAULT_KILL_TIMEOUT_MS
+      );
+      if (killResult.timedOut) {
+        emitPoolWarning(
+          session?.options?.log,
+          `[tooling:lsp] timed out waiting for kill-first disposal step for `
+            + `${session?.lifecycleName || session?.key || 'session'}`
+        );
+      }
     }
     await disposeSessionClient(session);
   };
