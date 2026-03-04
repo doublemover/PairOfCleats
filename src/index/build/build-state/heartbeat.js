@@ -33,14 +33,67 @@ export const startHeartbeat = ({
       timer = null;
     }
     stopPromise = (async () => {
-      await runBuildCleanupWithTimeout({
-        label: 'build-state.heartbeat.lifecycle.close',
-        cleanup: () => lifecycle.close()
-      }).catch(() => {});
-      await runBuildCleanupWithTimeout({
-        label: 'build-state.heartbeat.flush',
-        cleanup: () => flushBuildState(buildRoot)
-      }).catch(() => {});
+      const resolvedBuildRoot = path.resolve(buildRoot);
+      try {
+        const lifecycleCloseResult = await runBuildCleanupWithTimeout({
+          label: 'build-state.heartbeat.lifecycle.close',
+          cleanup: () => lifecycle.close()
+        });
+        if (lifecycleCloseResult?.timedOut) {
+          logLine(
+            `[build_state] heartbeat lifecycle close timed out for ${resolvedBuildRoot}; continuing shutdown.`,
+            {
+              kind: 'warning',
+              buildState: {
+                event: 'heartbeat-lifecycle-close-timeout',
+                buildRoot: resolvedBuildRoot,
+                elapsedMs: lifecycleCloseResult?.elapsedMs ?? null
+              }
+            }
+          );
+        }
+      } catch (error) {
+        logLine(
+          `[build_state] heartbeat lifecycle close failed for ${resolvedBuildRoot}: ${error?.message || String(error)}`,
+          {
+            kind: 'warning',
+            buildState: {
+              event: 'heartbeat-lifecycle-close-failed',
+              buildRoot: resolvedBuildRoot
+            }
+          }
+        );
+      }
+      try {
+        const flushResult = await runBuildCleanupWithTimeout({
+          label: 'build-state.heartbeat.flush',
+          cleanup: () => flushBuildState(buildRoot)
+        });
+        if (flushResult?.timedOut) {
+          logLine(
+            `[build_state] heartbeat final flush timed out for ${resolvedBuildRoot}; continuing shutdown.`,
+            {
+              kind: 'warning',
+              buildState: {
+                event: 'heartbeat-flush-timeout',
+                buildRoot: resolvedBuildRoot,
+                elapsedMs: flushResult?.elapsedMs ?? null
+              }
+            }
+          );
+        }
+      } catch (error) {
+        logLine(
+          `[build_state] heartbeat final flush failed for ${resolvedBuildRoot}: ${error?.message || String(error)}`,
+          {
+            kind: 'warning',
+            buildState: {
+              event: 'heartbeat-flush-failed',
+              buildRoot: resolvedBuildRoot
+            }
+          }
+        );
+      }
     })();
     return stopPromise;
   };

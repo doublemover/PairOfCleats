@@ -23,6 +23,21 @@ const resolveCheckpointModePath = (buildRoot, mode) => (
   path.join(buildRoot, buildStageCheckpointModeBasename(mode))
 );
 
+const resolveSafeCheckpointRelativePath = (mode, relPath) => {
+  if (typeof relPath !== 'string' || !relPath.trim()) return null;
+  if (path.isAbsolute(relPath)) return null;
+  const normalized = path.normalize(relPath);
+  if (
+    normalized.startsWith('..')
+    || normalized.includes(`..${path.sep}`)
+    || path.basename(normalized) !== normalized
+  ) {
+    return null;
+  }
+  const expected = buildStageCheckpointModeBasename(mode);
+  return normalized === expected ? normalized : null;
+};
+
 const readJsonFile = async (filePath) => {
   const parsed = await readJsonFileSafe(filePath, {
     fallback: null,
@@ -93,7 +108,7 @@ const normalizeCheckpointIndex = (value) => {
   const normalizedModes = {};
   for (const [mode, descriptor] of Object.entries(modes)) {
     if (!descriptor || typeof descriptor !== 'object') continue;
-    const relPath = typeof descriptor.path === 'string' ? descriptor.path : null;
+    const relPath = resolveSafeCheckpointRelativePath(mode, descriptor.path);
     if (!relPath) continue;
     normalizedModes[mode] = {
       path: relPath,
@@ -137,7 +152,7 @@ export const loadCheckpointSlices = async (buildRoot) => {
     const modeKeys = Object.keys(index.modes).sort(compareStrings);
     for (const mode of modeKeys) {
       const descriptor = index.modes[mode];
-      const relPath = descriptor?.path || null;
+      const relPath = resolveSafeCheckpointRelativePath(mode, descriptor?.path);
       if (!relPath) continue;
       const modePath = path.join(buildRoot, relPath);
       const payload = await readJsonFile(modePath);
@@ -183,9 +198,8 @@ export const writeCheckpointSlices = async (buildRoot, {
   for (const mode of modeKeys) {
     const modePayload = mergedCheckpoints?.[mode];
     const descriptor = nextIndex.modes?.[mode] || null;
-    const indexedModePath = descriptor?.path
-      ? path.join(buildRoot, descriptor.path)
-      : null;
+    const indexedRelPath = resolveSafeCheckpointRelativePath(mode, descriptor?.path);
+    const indexedModePath = indexedRelPath ? path.join(buildRoot, indexedRelPath) : null;
     if (!modePayload || typeof modePayload !== 'object') {
       if (indexedModePath) {
         await fs.rm(indexedModePath, { force: true }).catch(() => {});

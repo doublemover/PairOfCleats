@@ -77,7 +77,8 @@ export const createWorkerPoolLifecycle = (input = {}) => {
         label: `worker-pool.${poolLabel}.destroy`,
         cleanup: () => pool.destroy(),
         timeoutMs: resolvedCleanupTimeoutMs,
-        log
+        log,
+        swallowTimeout: false
       });
     } catch (err) {
       const detail = summarizeError(err);

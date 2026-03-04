@@ -615,7 +615,8 @@ export async function createIndexerWorkerPool(input = {}) {
           label: `worker-pool.${poolLabel}.lifecycle.destroy`,
           cleanup: () => lifecycle.destroy(),
           timeoutMs: resolvedCleanupTimeoutMs,
-          log
+          log,
+          swallowTimeout: false
         });
       }
     };
@@ -646,7 +647,8 @@ export async function createIndexerWorkerPools(input = {}) {
         await runBuildCleanupWithTimeout({
           label: poolLabel('tokenize'),
           cleanup: () => pool.destroy(),
-          timeoutMs: cleanupTimeoutMs
+          timeoutMs: cleanupTimeoutMs,
+          swallowTimeout: false
         });
       }
     };
@@ -668,7 +670,8 @@ export async function createIndexerWorkerPools(input = {}) {
         await runBuildCleanupWithTimeout({
           label: poolLabel('tokenize'),
           cleanup: () => pool.destroy(),
-          timeoutMs: cleanupTimeoutMs
+          timeoutMs: cleanupTimeoutMs,
+          swallowTimeout: false
         });
       }
     };
@@ -699,14 +702,16 @@ export async function createIndexerWorkerPools(input = {}) {
       await runBuildCleanupWithTimeout({
         label: poolLabel('tokenize'),
         cleanup: () => finalTokenizePool.destroy(),
-        timeoutMs: cleanupTimeoutMs
+        timeoutMs: cleanupTimeoutMs,
+        swallowTimeout: false
       });
     }
     if (finalQuantizePool?.destroy && finalQuantizePool !== finalTokenizePool) {
       await runBuildCleanupWithTimeout({
         label: poolLabel('quantize'),
         cleanup: () => finalQuantizePool.destroy(),
-        timeoutMs: cleanupTimeoutMs
+        timeoutMs: cleanupTimeoutMs,
+        swallowTimeout: false
       });
     }
   };

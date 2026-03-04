@@ -74,7 +74,8 @@ export const createShardRuntime = (baseRuntime, { fileConcurrency, importConcurr
         label: task.label,
         cleanup: task.wait,
         timeoutMs: cleanupTimeoutMs,
-        log: cleanupLog
+        log: cleanupLog,
+        swallowTimeout: false
       }))
     );
     queues.io.clear();
@@ -89,14 +90,16 @@ export const createShardRuntime = (baseRuntime, { fileConcurrency, importConcurr
         label: 'shard-runtime.worker-pools.destroy',
         cleanup: () => baseWorkerPools.destroy(),
         timeoutMs: cleanupTimeoutMs,
-        log: cleanupLog
+        log: cleanupLog,
+        swallowTimeout: false
       });
     } else if (baseWorkerPool && baseWorkerPool !== baseRuntime.workerPool && baseWorkerPool.destroy) {
       await runBuildCleanupWithTimeout({
         label: 'shard-runtime.worker-pool.destroy',
         cleanup: () => baseWorkerPool.destroy(),
         timeoutMs: cleanupTimeoutMs,
-        log: cleanupLog
+        log: cleanupLog,
+        swallowTimeout: false
       });
     }
   };

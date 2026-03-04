@@ -151,7 +151,8 @@ export const createStageCheckpointRecorder = ({
             }
           }),
           timeoutMs: cleanupTimeoutMs,
-          log: (line) => logLine(line, { kind: 'warning' })
+          log: (line) => logLine(line, { kind: 'warning' }),
+          swallowTimeout: false
         });
       } catch (err) {
         logLine(`[metrics] Failed to update build state checkpoints: ${err?.message || err}`, { kind: 'warning' });
@@ -171,7 +172,8 @@ export const createStageCheckpointRecorder = ({
             await writeJsonObjectFile(path.join(metricsDir, fileName), { fields: summary, atomic: true });
           },
           timeoutMs: cleanupTimeoutMs,
-          log: (line) => logLine(line, { kind: 'warning' })
+          log: (line) => logLine(line, { kind: 'warning' }),
+          swallowTimeout: false
         });
       } catch (err) {
         logLine(`[metrics] Failed to write stage checkpoints: ${err?.message || err}`, { kind: 'warning' });

@@ -26,7 +26,8 @@ export const teardownRuntime = async (runtime) => {
         label,
         cleanup,
         timeoutMs: cleanupTimeoutMs,
-        log
+        log,
+        swallowTimeout: false
       });
     } catch (error) {
       if (typeof log === 'function') {

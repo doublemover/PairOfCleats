@@ -604,7 +604,7 @@ const appendEventLog = async (
   events,
   { durabilityClass = BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT } = {}
 ) => {
-  if (!buildRoot || !events || !events.length) return;
+  if (!buildRoot || !events || !events.length) return true;
   const filePath = resolveEventsPath(buildRoot);
   const resolvedDurabilityClass = resolveBuildStateDurabilityClass(durabilityClass);
   try {
@@ -620,6 +620,7 @@ const appendEventLog = async (
       append: true,
       durable: isRequiredBuildStateDurability(resolvedDurabilityClass)
     });
+    return true;
   } catch (err) {
     if (isRequiredBuildStateDurability(resolvedDurabilityClass)) {
       throw createBuildStateWriteFailureError({
@@ -630,6 +631,7 @@ const appendEventLog = async (
       });
     }
     recordStateError(buildRoot, err);
+    return false;
   }
 };
 
@@ -663,7 +665,7 @@ const appendDeltaLog = async (
   snapshot = null,
   { durabilityClass = BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT } = {}
 ) => {
-  if (!buildRoot || !deltas || !deltas.length) return;
+  if (!buildRoot || !deltas || !deltas.length) return true;
   const filePath = resolveDeltasPath(buildRoot);
   const resolvedDurabilityClass = resolveBuildStateDurabilityClass(durabilityClass);
   try {
@@ -690,6 +692,7 @@ const appendDeltaLog = async (
       append: true,
       durable: isRequiredBuildStateDurability(resolvedDurabilityClass)
     });
+    return true;
   } catch (err) {
     if (isRequiredBuildStateDurability(resolvedDurabilityClass)) {
       throw createBuildStateWriteFailureError({
@@ -700,6 +703,7 @@ const appendDeltaLog = async (
       });
     }
     recordStateError(buildRoot, err);
+    return false;
   }
 };
 
@@ -876,8 +880,8 @@ export const applyStatePatch = async (
     lockPath,
     waitMs: isRequiredBuildStateDurability(resolvedDurabilityClass) ? 5000 : 0,
     pollMs: 100,
-    staleMs: 60 * 1000,
-    forceStaleCleanup: true,
+    staleMs: 15 * 60 * 1000,
+    forceStaleCleanup: false,
     timeoutBehavior: isRequiredBuildStateDurability(resolvedDurabilityClass) ? 'throw' : 'null',
     timeoutMessage: `[build_state] state write lock timeout for ${path.resolve(buildRoot)}`,
     metadata: { scope: 'build-state-write' }
@@ -956,23 +960,34 @@ export const applyStatePatch = async (
       await Promise.all(writes);
     }
     if (events?.length && !hasPatchStageApplied(buildRoot, patchId, 'events')) {
-      await appendEventLog(buildRoot, events, {
+      const eventsWritten = await appendEventLog(buildRoot, events, {
         durabilityClass: resolvedDurabilityClass
       });
-      markPatchStageApplied(buildRoot, patchId, 'events');
+      if (eventsWritten) {
+        markPatchStageApplied(buildRoot, patchId, 'events');
+      }
     }
     if (deltaEntries.length && !hasPatchStageApplied(buildRoot, patchId, 'deltas')) {
-      await appendDeltaLog(buildRoot, deltaEntries, merged, {
+      const deltasWritten = await appendDeltaLog(buildRoot, deltaEntries, merged, {
         durabilityClass: resolvedDurabilityClass
       });
-      markPatchStageApplied(buildRoot, patchId, 'deltas');
+      if (deltasWritten) {
+        markPatchStageApplied(buildRoot, patchId, 'deltas');
+      }
     }
     return merged;
   } finally {
+    let released = false;
     try {
-      await lock.release();
+      released = await lock.release();
     } catch (err) {
       releaseError = err;
+    }
+    if (!releaseError && released !== true) {
+      releaseError = new Error(
+        `[build_state] state write lock release returned false for ${path.resolve(buildRoot)}.`
+      );
+      releaseError.code = 'ERR_BUILD_STATE_LOCK_RELEASE_FAILED';
     }
     if (releaseError) {
       if (isRequiredBuildStateDurability(resolvedDurabilityClass)) {

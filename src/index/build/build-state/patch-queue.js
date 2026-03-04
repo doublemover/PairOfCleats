@@ -175,7 +175,31 @@ export const createPatchQueue = ({
     void runBuildCleanupWithTimeout({
       label: 'build-state.patch-queue.lifecycle.close',
       cleanup: () => lifecycle.close()
-    }).catch(() => {});
+    }).then((result) => {
+      if (!result?.timedOut) return;
+      logLine(
+        `[build_state] pending patch lifecycle close timed out for ${key}; continuing cleanup.`,
+        {
+          kind: 'warning',
+          buildState: {
+            event: 'patch-pending-lifecycle-close-timeout',
+            buildRoot: key,
+            elapsedMs: result?.elapsedMs ?? null
+          }
+        }
+      );
+    }).catch((error) => {
+      logLine(
+        `[build_state] pending patch lifecycle close failed for ${key}: ${error?.message || String(error)}`,
+        {
+          kind: 'warning',
+          buildState: {
+            event: 'patch-pending-lifecycle-close-failed',
+            buildRoot: key
+          }
+        }
+      );
+    });
   };
 
   const getPendingEntry = (buildRoot) => {

@@ -20,6 +20,7 @@ import { getEnvConfig, isTestingEnv } from '../../../shared/env.js';
 import { SCHEDULER_QUEUE_NAMES } from '../../../index/build/runtime/scheduler.js';
 import { createFeatureMetrics, writeFeatureMetrics } from '../../../index/build/feature-metrics.js';
 import { runBuildCleanupWithTimeout } from '../../../index/build/cleanup-timeout.js';
+import { releaseFileLockOrThrow } from '../../../shared/locks/file-lock.js';
 import {
   getCacheRoot,
   getCurrentBuildInfo,
@@ -326,8 +327,9 @@ export const runEmbeddingsStage = async ({
     } finally {
       await runBuildCleanupWithTimeout({
         label: 'stage3.lock.release',
-        cleanup: () => lock.release(),
-        log
+        cleanup: () => releaseFileLockOrThrow(lock),
+        log,
+        swallowTimeout: false
       });
     }
   } catch (err) {
@@ -539,8 +541,9 @@ export const runSqliteStage = async ({
       if (lock?.release) {
         await runBuildCleanupWithTimeout({
           label: 'stage4.lock.release',
-          cleanup: () => lock.release(),
-          log
+          cleanup: () => releaseFileLockOrThrow(lock),
+          log,
+          swallowTimeout: false
         });
       }
     }
@@ -908,16 +911,24 @@ export const runStage = async (
       });
       throw err;
     } finally {
-      await runBuildCleanupWithTimeout({
-        label: `${phaseStage}.heartbeat.stop`,
-        cleanup: () => stopHeartbeat(),
-        log
-      });
+      try {
+        await runBuildCleanupWithTimeout({
+          label: `${phaseStage}.heartbeat.stop`,
+          cleanup: () => stopHeartbeat(),
+          log,
+          swallowTimeout: false
+        });
+      } catch (err) {
+        logLine(`[build_state] ${phaseStage} heartbeat stop failed: ${err?.message || String(err)}`, {
+          kind: 'warning'
+        });
+      }
       try {
         await runBuildCleanupWithTimeout({
           label: `${phaseStage}.build-state.flush`,
           cleanup: () => flushBuildState(runtime?.buildRoot),
-          log
+          log,
+          swallowTimeout: false
         });
       } catch (err) {
         logLine(`[build_state] ${phaseStage} final flush failed: ${err?.message || String(err)}`, {
@@ -929,7 +940,7 @@ export const runStage = async (
         if (lock?.release) {
           const releaseResult = await runBuildCleanupWithTimeout({
             label: `${phaseStage}.lock.release`,
-            cleanup: () => lock.release(),
+            cleanup: () => releaseFileLockOrThrow(lock),
             log,
             swallowTimeout: false
           });

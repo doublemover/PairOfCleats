@@ -68,7 +68,13 @@ export const createLifecycleRegistry = ({ name = 'lifecycle', onError = null } =
       resources.delete(entry);
       if (entry.close) {
         try {
-          entry.close();
+          const closeResult = entry.close();
+          if (isPromiseLike(closeResult)) {
+            closeResult.catch((err) => {
+              reportError(err);
+              return null;
+            });
+          }
         } catch (err) {
           reportError(err);
         }
