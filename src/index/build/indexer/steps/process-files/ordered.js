@@ -681,6 +681,10 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       return Promise.reject(new Error(`Invalid ordered seq value: ${seq}`));
     }
     const normalizedSeq = Math.floor(seq);
+    const existingState = seqLedger.getState(normalizedSeq);
+    if (existingState === COMMITTED) {
+      return Promise.resolve();
+    }
     if (normalizedSeq > maxSeenSeq) maxSeenSeq = normalizedSeq;
 
     const envelope = ensureEnvelope(normalizedSeq);
@@ -755,11 +759,12 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     });
     if (reclaimed.length) {
       for (const seq of reclaimed) {
+        const reclaimedReasonCode = Number(seqLedger.getTerminalReason?.(seq)) || 910;
         appendJournal({
           seq,
           recordType: 'terminal',
           terminalOutcome: 'fail',
-          reasonCode: 910
+          reasonCode: reclaimedReasonCode
         });
       }
       drain().catch(() => {});

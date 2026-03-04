@@ -427,6 +427,7 @@ export const createSeqLedger = ({ expectedSeqs = [], leaseTimeoutMs = 60000 } = 
       || (prior === STAGE1_SEQ_STATE.DISPATCHED && nextState === STAGE1_SEQ_STATE.IN_FLIGHT)
       || (prior === STAGE1_SEQ_STATE.IN_FLIGHT && TERMINAL_STATE_SET.has(nextState))
       || (prior === STAGE1_SEQ_STATE.DISPATCHED && nextState === STAGE1_SEQ_STATE.TERMINAL_CANCEL)
+      || (prior === STAGE1_SEQ_STATE.DISPATCHED && nextState === STAGE1_SEQ_STATE.TERMINAL_FAIL)
       || (prior === STAGE1_SEQ_STATE.TERMINAL_FAIL && nextState === STAGE1_SEQ_STATE.DISPATCHED)
       || (TERMINAL_STATE_SET.has(prior) && nextState === STAGE1_SEQ_STATE.COMMITTED)
     );
@@ -534,6 +535,12 @@ export const createSeqLedger = ({ expectedSeqs = [], leaseTimeoutMs = 60000 } = 
     nextCommitSeq: counters.nextCommitSeq
   });
 
+  const getTerminalReason = (seq) => {
+    const slot = toSlot(seq);
+    if (slot < 0) return 0;
+    return Math.floor(Number(terminalReason[slot]) || 0);
+  };
+
   const assertCompletion = () => {
     if (counters.totalSeqCount !== counters.terminalCount) {
       const err = new Error(
@@ -573,6 +580,7 @@ export const createSeqLedger = ({ expectedSeqs = [], leaseTimeoutMs = 60000 } = 
     transition,
     heartbeat,
     advanceNextCommitSeq,
+    getTerminalReason,
     reclaimExpiredLeases,
     snapshot,
     assertCompletion
