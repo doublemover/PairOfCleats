@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonObjectFile } from '../../shared/json-stream.js';
-import { acquireFileLock } from '../../shared/locks/file-lock.js';
+import { acquireFileLock, releaseFileLockOrThrow } from '../../shared/locks/file-lock.js';
 import { readJsonFileSafe } from '../../shared/files.js';
 
 const resolveEnrichmentStatePath = (repoCacheRoot) => path.join(repoCacheRoot, 'enrichment_state.json');
@@ -76,6 +76,6 @@ export const updateEnrichmentState = async (repoCacheRoot, patch, { log } = {}) 
     }
     return next;
   } finally {
-    await lock.release({ force: false });
+    await releaseFileLockOrThrow(lock, { releaseOptions: { force: false } });
   }
 };

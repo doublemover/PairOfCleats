@@ -6,7 +6,7 @@ import { resolveEnvPath } from '../../../shared/env-path.js';
 import { readJsonFileSafe } from '../../../shared/files.js';
 import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 import { throwIfAborted } from '../../../shared/abort.js';
-import { acquireFileLock } from '../../../shared/locks/file-lock.js';
+import { acquireFileLock, releaseFileLockOrThrow } from '../../../shared/locks/file-lock.js';
 import { spawnSubprocess } from '../../../shared/subprocess.js';
 import { buildWindowsShellCommand } from '../../../shared/subprocess/windows-cmd.js';
 import { resolveToolingCommandProfile } from '../command-resolver.js';
@@ -146,11 +146,7 @@ const acquireHostSourcekitLock = async ({
     forceStaleCleanup: true
   });
   if (!lock) return null;
-  return {
-    release: async () => {
-      await lock.release();
-    }
-  };
+  return lock;
 };
 
 /**
@@ -460,11 +456,7 @@ export const ensureSourcekitPackageResolutionPreflight = async ({
       };
     } finally {
       if (preflightLock?.release) {
-        try {
-          await preflightLock.release();
-        } catch (error) {
-          log(`[tooling] sourcekit preflight lock release failed: ${error?.message || error}`);
-        }
+        await releaseFileLockOrThrow(preflightLock);
       }
     }
   } catch (err) {

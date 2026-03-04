@@ -1,6 +1,7 @@
 import path from 'node:path';
 import {
   acquireFileLock,
+  releaseFileLockOrThrow,
   readLockInfo,
   removeLockFileSyncIfOwned
 } from '../../shared/locks/file-lock.js';
@@ -69,13 +70,14 @@ export async function acquireIndexLock({
       if (!released) {
         await runBuildCleanupWithTimeout({
           label: 'index-lock.release',
-          cleanup: () => lock.release(),
+          cleanup: () => releaseFileLockOrThrow(lock),
           log,
           swallowTimeout: false
         });
         released = true;
       }
       detachHandlers();
+      return true;
     }
   };
 }

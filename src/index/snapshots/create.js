@@ -9,6 +9,7 @@ import { isManifestPathSafe } from '../validate/paths.js';
 import { toPosix } from '../../shared/files.js';
 import { sha1 } from '../../shared/hash.js';
 import { getRepoCacheRoot, getRepoId } from '../../shared/dict-utils.js';
+import { releaseFileLockOrThrow } from '../../shared/locks/file-lock.js';
 import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
 import {
   loadSnapshot,
@@ -218,7 +219,7 @@ const withSnapshotLock = async (repoCacheRoot, options, worker) => {
   try {
     return await worker(lock);
   } finally {
-    await lock.release();
+    await releaseFileLockOrThrow(lock);
   }
 };
 

@@ -4,7 +4,7 @@ import { SymbolKind } from 'vscode-languageserver-protocol';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { toPosix } from '../../shared/files.js';
 import { throwIfAborted } from '../../shared/abort.js';
-import { acquireFileLock } from '../../shared/locks/file-lock.js';
+import { acquireFileLock, releaseFileLockOrThrow } from '../../shared/locks/file-lock.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
 import {
   invalidateProbeCacheOnInitializeFailure,
@@ -143,11 +143,7 @@ const acquireHostSourcekitLock = async ({
     }
   });
   if (!lock) return null;
-  return {
-    release: async () => {
-      await lock.release();
-    }
-  };
+  return lock;
 };
 
 export const resolveSourcekitHostLockPath = (repoRoot) => (
@@ -560,11 +556,7 @@ export const createSourcekitProvider = () => ({
       };
     } finally {
       if (hostLock?.release) {
-        try {
-          await hostLock.release();
-        } catch (error) {
-          log(`[tooling] sourcekit host lock release failed: ${error?.message || error}`);
-        }
+        await releaseFileLockOrThrow(hostLock);
       }
     }
   }

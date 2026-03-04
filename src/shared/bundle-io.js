@@ -8,7 +8,7 @@ import { stableStringify } from './stable-json.js';
 import { writeJsonObjectFile } from './json-stream.js';
 import { atomicWriteJson, atomicWriteText } from './io/atomic-write.js';
 import { removePathWithRetry } from './io/remove-path-with-retry.js';
-import { acquireFileLock } from './locks/file-lock.js';
+import { acquireFileLock, releaseFileLockOrThrow } from './locks/file-lock.js';
 import {
   MAX_BUNDLE_BYTES,
   MAX_BUNDLE_CHECKSUM_BYTES,
@@ -499,6 +499,8 @@ export async function writeBundlePatch({
   if (!lock) {
     return { applied: false, reason: 'patch-lock-timeout' };
   }
+  let workerResult = null;
+  let workerError = null;
   try {
     let existingBytes = 0;
     let existingEntries = 0;
@@ -524,38 +526,45 @@ export async function writeBundlePatch({
       }
     }
     if ((existingBytes + bytes) > MAX_BUNDLE_PATCH_BYTES) {
-      return { applied: false, reason: 'patch-file-too-large' };
+      workerResult = { applied: false, reason: 'patch-file-too-large' };
+    } else if (existingEntries >= MAX_BUNDLE_PATCH_ENTRIES) {
+      workerResult = { applied: false, reason: 'patch-entry-limit' };
+    } else {
+      const nextRaw = appendSerializedPatchLine(existingRaw, serialized);
+      await atomicWriteText(patchPath, nextRaw, { newline: false });
+      const nextBytes = Buffer.byteLength(nextRaw, 'utf8');
+      const nextEntries = existingEntries + 1;
+      await writeBundlePatchMeta(bundlePath, {
+        bytes: nextBytes,
+        entries: nextEntries
+      });
+      await writeBundleJsonChecksum(bundlePath, nextBundle);
+      const chunkPatch = patch.chunks;
+      const operation = chunkPatch
+        ? ((chunkPatch.deleteCount === 0
+            && chunkPatch.start >= (Array.isArray(previousBundle?.chunks)
+              ? previousBundle.chunks.length
+              : 0))
+          ? 'append'
+          : 'replace')
+        : 'set';
+      workerResult = {
+        applied: true,
+        reason: null,
+        patchPath,
+        bytes,
+        operation
+      };
     }
-    if (existingEntries >= MAX_BUNDLE_PATCH_ENTRIES) {
-      return { applied: false, reason: 'patch-entry-limit' };
-    }
-    const nextRaw = appendSerializedPatchLine(existingRaw, serialized);
-    await atomicWriteText(patchPath, nextRaw, { newline: false });
-    const nextBytes = Buffer.byteLength(nextRaw, 'utf8');
-    const nextEntries = existingEntries + 1;
-    await writeBundlePatchMeta(bundlePath, {
-      bytes: nextBytes,
-      entries: nextEntries
-    });
-    await writeBundleJsonChecksum(bundlePath, nextBundle);
-    const chunkPatch = patch.chunks;
-    const operation = chunkPatch
-      ? ((chunkPatch.deleteCount === 0 && chunkPatch.start >= (Array.isArray(previousBundle?.chunks) ? previousBundle.chunks.length : 0))
-        ? 'append'
-        : 'replace')
-      : 'set';
-    return {
-      applied: true,
-      reason: null,
-      patchPath,
-      bytes,
-      operation
-    };
-  } finally {
-    try {
-      await lock.release({ force: true });
-    } catch {}
+  } catch (error) {
+    workerError = error;
   }
+  await releaseFileLockOrThrow(lock, {
+    workerError,
+    releaseOptions: { force: true }
+  });
+  if (workerError) throw workerError;
+  return workerResult;
 }
 
 export async function writeBundleFile({ bundlePath, bundle, format = 'json' }) {

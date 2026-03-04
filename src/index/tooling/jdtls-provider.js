@@ -2,7 +2,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { parseClikeSignature } from './signature-parse/clike.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
-import { acquireFileLock } from '../../shared/locks/file-lock.js';
+import { acquireFileLock, releaseFileLockOrThrow } from '../../shared/locks/file-lock.js';
 import { createDedicatedLspProvider } from './dedicated-lsp-provider.js';
 import { ensureCommandArgPair, normalizeCommandArgs } from './provider-utils.js';
 
@@ -214,9 +214,7 @@ export const createJdtlsProvider = () => createDedicatedLspProvider({
         }
       };
     } finally {
-      try {
-        await lock.release();
-      } catch {}
+      await releaseFileLockOrThrow(lock);
     }
   },
   prepareCollect: async ({ ctx, config, preflight, requested, commandProfile }) => {

@@ -134,6 +134,41 @@ const createLockReleaseFailureError = ({
   return error;
 };
 
+/**
+ * Release a file lock and throw a structured error when release fails.
+ *
+ * This treats `release() === false` as a failure so ownership races are never
+ * silently accepted by higher-level cleanup paths.
+ *
+ * @param {{lockPath?:string,release:Function}} lock
+ * @param {{workerError?:Error|null,releaseOptions?:object}} [options]
+ * @returns {Promise<true>}
+ */
+export const releaseFileLockOrThrow = async (
+  lock,
+  { workerError = null, releaseOptions = undefined } = {}
+) => {
+  if (!lock || typeof lock.release !== 'function') {
+    throw new TypeError('releaseFileLockOrThrow requires a lock with a release() function.');
+  }
+  let releaseResult = null;
+  let releaseError = null;
+  try {
+    releaseResult = await lock.release(releaseOptions);
+  } catch (error) {
+    releaseError = error;
+  }
+  if (releaseError || releaseResult !== true) {
+    throw createLockReleaseFailureError({
+      lockPath: typeof lock.lockPath === 'string' ? lock.lockPath : '<unknown-lock>',
+      cause: releaseError,
+      releaseResult,
+      workerError
+    });
+  }
+  return true;
+};
+
 const createLockId = () => {
   try {
     return randomUUID();
@@ -590,21 +625,7 @@ export const withFileLock = async (options, worker) => {
   } catch (error) {
     workerError = error;
   }
-  let releaseResult = null;
-  let releaseError = null;
-  try {
-    releaseResult = await lock.release();
-  } catch (error) {
-    releaseError = error;
-  }
-  if (releaseError || releaseResult !== true) {
-    throw createLockReleaseFailureError({
-      lockPath: lock.lockPath,
-      cause: releaseError,
-      releaseResult,
-      workerError
-    });
-  }
+  await releaseFileLockOrThrow(lock, { workerError });
   if (workerError) throw workerError;
   return workerResult;
 };

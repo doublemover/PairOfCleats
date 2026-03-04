@@ -5,6 +5,7 @@ import { acquireIndexLock } from '../build/lock.js';
 import { createError, ERROR_CODES } from '../../shared/error-codes.js';
 import { isAbsolutePathAny, toPosix } from '../../shared/files.js';
 import { sha1 } from '../../shared/hash.js';
+import { releaseFileLockOrThrow } from '../../shared/locks/file-lock.js';
 import { atomicWriteText } from '../../shared/io/atomic-write.js';
 import { stableStringify } from '../../shared/stable-json.js';
 import { parseIndexRef, redactIndexRefForPersistence } from '../index-ref.js';
@@ -185,7 +186,7 @@ const withIndexLock = async (repoCacheRoot, options, worker) => {
   try {
     return await worker(lock);
   } finally {
-    await lock.release();
+    await releaseFileLockOrThrow(lock);
   }
 };
 
