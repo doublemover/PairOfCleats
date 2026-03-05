@@ -273,16 +273,34 @@ const terminateTrackedSubprocesses = async ({
     killGraceMs: entry.killGraceMs,
     detached: entry.detached
   }));
-  const settled = await Promise.allSettled(killTargets.map((entry) => killChildProcessTree(entry.child, {
+  const killAudit = [];
+  const liveTargets = [];
+  for (const target of killTargets) {
+    const terminated = resolveTerminationState(target.child, target.pid);
+    if (terminated) {
+      removeTrackedSubprocess(target.entryKey, 'terminate_already_exited');
+      killAudit.push({
+        pid: target.pid,
+        scope: target.scope,
+        ownershipId: target.ownershipId,
+        terminated: true,
+        forced: false,
+        error: null
+      });
+      continue;
+    }
+    liveTargets.push(target);
+  }
+  const settled = await Promise.allSettled(liveTargets.map((entry) => killChildProcessTree(entry.child, {
     killTree: entry.killTree,
     killSignal: entry.killSignal,
     graceMs: force ? TRACKED_SUBPROCESS_FORCE_GRACE_MS : entry.killGraceMs,
     detached: entry.detached,
     awaitGrace: true
   })));
-  const killAudit = settled
+  const attemptedAudit = settled
     .map((result, index) => {
-      const target = killTargets[index];
+      const target = liveTargets[index];
       let terminated = resolveTerminationState(target.child, target.pid);
       let forced = false;
       let error = null;
@@ -308,7 +326,9 @@ const terminateTrackedSubprocesses = async ({
         forced,
         error
       };
-    })
+    });
+  killAudit.push(...attemptedAudit);
+  killAudit
     .sort((left, right) => {
       const leftPid = Number.isFinite(left?.pid) ? left.pid : Number.MAX_SAFE_INTEGER;
       const rightPid = Number.isFinite(right?.pid) ? right.pid : Number.MAX_SAFE_INTEGER;
@@ -399,6 +419,18 @@ const terminateTrackedSubprocessesSync = ({
       const pid = Number.isFinite(Number(entry?.child?.pid)) ? Number(entry.child.pid) : null;
       const entryScope = normalizeTrackedScope(entry?.scope);
       const entryOwnershipId = resolveEntryOwnershipId(entry);
+      const alreadyTerminated = resolveTerminationState(entry.child, pid);
+      if (alreadyTerminated) {
+        removeTrackedSubprocess(entryKey, 'terminate_sync_already_exited');
+        return {
+          pid,
+          scope: entryScope,
+          ownershipId: entryOwnershipId,
+          terminated: true,
+          forced: false,
+          error: null
+        };
+      }
       let terminated = resolveTerminationState(entry.child, pid);
       let forced = false;
       let error = null;

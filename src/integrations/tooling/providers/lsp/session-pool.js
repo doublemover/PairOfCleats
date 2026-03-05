@@ -32,6 +32,7 @@ const sessionPoolMetrics = {
 let cleanupTimer = null;
 let cleanupPassQueue = Promise.resolve();
 let exitCleanupInstalled = false;
+let beforeExitCleanupPromise = null;
 const testHooks = {
   disposeDelayMs: 0
 };
@@ -477,6 +478,22 @@ const killAllSessionsNow = () => {
   }
 };
 
+const scheduleBeforeExitCleanup = () => {
+  if (beforeExitCleanupPromise) return beforeExitCleanupPromise;
+  const live = Array.from(sessions.values());
+  if (!live.length) {
+    beforeExitCleanupPromise = Promise.resolve();
+    return beforeExitCleanupPromise;
+  }
+  clearCleanupTimer();
+  beforeExitCleanupPromise = Promise.allSettled(
+    live.map((session) => enqueueSessionDisposal(session, { killFirst: true }))
+  ).finally(() => {
+    beforeExitCleanupPromise = null;
+  });
+  return beforeExitCleanupPromise;
+};
+
 const runCleanupPass = async () => {
   if (!sessions.size) {
     clearCleanupTimer();
@@ -524,7 +541,7 @@ const ensureCleanupTimer = () => {
   if (!exitCleanupInstalled) {
     exitCleanupInstalled = true;
     process.once('beforeExit', () => {
-      killAllSessionsNow();
+      void scheduleBeforeExitCleanup();
     });
     process.once('exit', () => {
       killAllSessionsNow();

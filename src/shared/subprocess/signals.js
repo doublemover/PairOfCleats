@@ -80,7 +80,7 @@ const installTrackedSubprocessHooks = (terminateTrackedSubprocesses, terminateTr
   if (trackedSubprocessHooksInstalled) return;
   trackedSubprocessHooksInstalled = true;
   process.once('beforeExit', () => {
-    triggerTrackedSubprocessShutdownSync('process_before_exit');
+    // Keep beforeExit non-blocking; synchronous tree-kill can stall normal closeout.
     void triggerTrackedSubprocessShutdown('process_before_exit');
   });
   process.once('exit', () => {
