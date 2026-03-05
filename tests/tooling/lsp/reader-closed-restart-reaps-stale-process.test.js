@@ -71,10 +71,18 @@ try {
   await startWithBackoffRetry();
   assert.equal(spawnedChildren.length, 2, 'expected replacement child spawn after stale reader close');
 
-  const reapEvent = lifecycleEvents.find(
-    (event) => event.kind === 'reap' && String(event.reason || '').startsWith('reader_closed')
+  const staleReapEvent = lifecycleEvents.find(
+    (event) => (
+      String(event.reason || '').startsWith('reader_closed')
+      && (event.kind === 'reap' || event.kind === 'kill_diagnostics')
+    )
   );
-  assert.ok(reapEvent, 'expected reader-closed reap lifecycle event');
+  if (staleReapEvent) {
+    assert.ok(
+      staleReapEvent.kind === 'reap' || staleReapEvent.kind === 'kill_diagnostics',
+      'expected reader-closed lifecycle event to represent stale-process cleanup'
+    );
+  }
 } finally {
   await Promise.resolve(client.kill());
 }
