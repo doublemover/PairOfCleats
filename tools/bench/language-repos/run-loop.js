@@ -332,7 +332,7 @@ const buildBenchArgs = ({
  *   quietMode:boolean,
  *   dryRun:boolean,
  *   repoLogsEnabled:boolean,
- *   initRepoLog:(input:{label:string,tier?:string,repoPath:string,slug:string}) => (string|null),
+ *   initRepoLog:(input:{label:string,tier?:string,repoPath:string,slug:string}) => Promise<(string|null)>,
  *   getRepoLogPath:() => (string|null),
  *   clearLogHistory:() => void,
  *   hasDiskFullMessageInHistory:() => boolean,
@@ -461,7 +461,7 @@ export const runBenchExecutionLoop = async ({
     // detection reflect only the currently executing repo.
     clearLogHistory();
     if (repoLogsEnabled) {
-      initRepoLog({
+      await initRepoLog({
         label: repoLabel,
         tier: tierLabel,
         repoPath,

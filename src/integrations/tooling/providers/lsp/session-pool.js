@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { createLspClient } from '../../lsp/client.js';
 import { createToolingGuard, createToolingLifecycleHealth } from '../shared.js';
 import { coercePositiveInt } from '../../../../shared/number-coerce.js';
+import { createTimeoutError, runWithTimeout } from '../../../../shared/promise-timeout.js';
 import { sleep } from '../../../../shared/sleep.js';
 import { stableStringify } from '../../../../shared/stable-json.js';
 
@@ -11,6 +12,7 @@ const DEFAULT_CLEANUP_INTERVAL_MS = 500;
 const DEFAULT_DISPOSE_TIMEOUT_MS = 8_000;
 const DEFAULT_KILL_TIMEOUT_MS = 4_000;
 const DEFAULT_MAX_SESSION_ENTRIES = 64;
+const DEFAULT_DRAIN_TIMEOUT_MS = 20_000;
 const SESSION_STATE = Object.freeze({
   NEW: 'new',
   INITIALIZING: 'initializing',
@@ -33,6 +35,8 @@ let cleanupTimer = null;
 let cleanupPassQueue = Promise.resolve();
 let exitCleanupInstalled = false;
 let beforeExitCleanupPromise = null;
+let drainSessionPoolPromise = null;
+const activeDisposals = new Set();
 const testHooks = {
   disposeDelayMs: 0
 };
@@ -147,6 +151,15 @@ const awaitWithTimeout = async (promise, timeoutMs) => {
     if (timeoutHandle) clearTimeout(timeoutHandle);
   }
   return { timedOut };
+};
+
+const trackDisposalPromise = (promise) => {
+  if (!promise || typeof promise.then !== 'function') return Promise.resolve();
+  activeDisposals.add(promise);
+  promise.finally(() => {
+    activeDisposals.delete(promise);
+  });
+  return promise;
 };
 
 const killSessionClient = (session, { sync = false } = {}) => {
@@ -274,14 +287,14 @@ const enqueueSessionDisposal = (session, {
     }
     await disposeSessionClient(session);
   };
-  const tracked = run().catch((error) => {
+  const tracked = trackDisposalPromise(run().catch((error) => {
     sessionPoolMetrics.disposalFailures += 1;
     emitPoolWarning(
       session?.options?.log,
       `[tooling:lsp] session disposal failed for ${session?.lifecycleName || session?.key || 'session'}: ` +
       `${error?.message || error}`
     );
-  });
+  }));
   if (key) {
     disposalBarriers.set(key, tracked);
     tracked.finally(() => {
@@ -467,11 +480,56 @@ const clearCleanupTimer = () => {
   cleanupTimer = null;
 };
 
+const uniquePromiseList = (entries) => {
+  const seen = new Set();
+  const out = [];
+  for (const entry of entries) {
+    if (!entry || typeof entry.then !== 'function') continue;
+    if (seen.has(entry)) continue;
+    seen.add(entry);
+    out.push(entry);
+  }
+  return out;
+};
+
+const waitForAllSettledWithTimeout = async (promises, timeoutMs) => {
+  const list = uniquePromiseList(promises);
+  if (!list.length) return { timedOut: false, settled: [] };
+  const resolvedTimeoutMs = toPositiveInt(timeoutMs, DEFAULT_DRAIN_TIMEOUT_MS, 100);
+  try {
+    const settled = await runWithTimeout(
+      () => Promise.allSettled(list),
+      {
+        timeoutMs: resolvedTimeoutMs,
+        errorFactory: () => createTimeoutError({
+          message: `[tooling:lsp] session pool drain timed out after ${resolvedTimeoutMs}ms.`,
+          code: 'LSP_SESSION_POOL_DRAIN_TIMEOUT',
+          retryable: false,
+          meta: { timeoutMs: resolvedTimeoutMs, pending: list.length }
+        })
+      }
+    );
+    return { timedOut: false, settled };
+  } catch (error) {
+    if (error?.code === 'LSP_SESSION_POOL_DRAIN_TIMEOUT') {
+      return { timedOut: true, settled: [], error };
+    }
+    throw error;
+  }
+};
+
+const hardKillSessionsSync = (sessionsToKill) => {
+  for (const session of sessionsToKill) {
+    killSessionClient(session, { sync: true });
+  }
+};
+
 const killAllSessionsNow = () => {
   const live = Array.from(sessions.values());
   sessions.clear();
   disposalBarriers.clear();
   creationBarriers.clear();
+  activeDisposals.clear();
   clearCleanupTimer();
   for (const session of live) {
     killSessionClient(session, { sync: true });
@@ -481,6 +539,7 @@ const killAllSessionsNow = () => {
 const scheduleBeforeExitCleanup = () => {
   if (beforeExitCleanupPromise) return beforeExitCleanupPromise;
   const live = Array.from(sessions.values());
+  sessions.clear();
   if (!live.length) {
     beforeExitCleanupPromise = Promise.resolve();
     return beforeExitCleanupPromise;
@@ -552,6 +611,9 @@ const ensureCleanupTimer = () => {
 const getOrCreateSession = async (options) => {
   const key = buildSessionKey(options);
   return await withSessionCreationBarrier(key, async () => {
+    if (drainSessionPoolPromise) {
+      await drainSessionPoolPromise.catch(() => {});
+    }
     await awaitSessionDisposalBarrier(key);
     const now = Date.now();
     const existing = sessions.get(key);
@@ -589,6 +651,74 @@ const getOrCreateSession = async (options) => {
     ensureCleanupTimer();
     return { session: next, reused: false };
   });
+};
+
+/**
+ * Drain and dispose all pooled LSP sessions.
+ *
+ * This is used by explicit runtime teardown paths so closeout does not rely on
+ * idle timers or process exit hooks to reap language-server subprocesses.
+ *
+ * @param {{timeoutMs?:number,killFirst?:boolean,log?:(line:string)=>void}} [options]
+ * @returns {Promise<{status:'ok'|'timed_out',total:number,rejected:number,timedOut:boolean,timeoutMs:number}>}
+ */
+export const drainLspSessionPool = async (options = {}) => {
+  if (drainSessionPoolPromise) return drainSessionPoolPromise;
+  const timeoutMs = toPositiveInt(options?.timeoutMs, DEFAULT_DRAIN_TIMEOUT_MS, 100);
+  const killFirst = options?.killFirst !== false;
+  const log = typeof options?.log === 'function' ? options.log : null;
+  drainSessionPoolPromise = (async () => {
+    clearCleanupTimer();
+    await cleanupPassQueue.catch(() => {});
+    const liveSessions = Array.from(sessions.values());
+    sessions.clear();
+    const disposalPromises = liveSessions.map((session) => enqueueSessionDisposal(session, { killFirst }));
+    const pendingDisposals = Array.from(disposalBarriers.values());
+    const pendingTrackedDisposals = Array.from(activeDisposals.values());
+    const waited = await waitForAllSettledWithTimeout(
+      [...disposalPromises, ...pendingDisposals, ...pendingTrackedDisposals],
+      timeoutMs
+    );
+    if (waited.timedOut) {
+      hardKillSessionsSync(liveSessions);
+      disposalBarriers.clear();
+      creationBarriers.clear();
+      if (log) {
+        log(
+          `[tooling:lsp] session pool drain timed out after ${timeoutMs}ms; `
+          + `hard-killed ${liveSessions.length} session(s).`
+        );
+      }
+      return {
+        status: 'timed_out',
+        total: liveSessions.length,
+        rejected: 0,
+        timedOut: true,
+        timeoutMs
+      };
+    }
+    const rejected = waited.settled.filter((entry) => entry?.status === 'rejected').length;
+    disposalBarriers.clear();
+    creationBarriers.clear();
+    if (log) {
+      log(
+        `[tooling:lsp] session pool drain complete: sessions=${liveSessions.length}, `
+        + `rejected=${rejected}, timeoutMs=${timeoutMs}.`
+      );
+    }
+    return {
+      status: 'ok',
+      total: liveSessions.length,
+      rejected,
+      timedOut: false,
+      timeoutMs
+    };
+  })();
+  try {
+    return await drainSessionPoolPromise;
+  } finally {
+    drainSessionPoolPromise = null;
+  }
 };
 
 /**
@@ -772,12 +902,17 @@ export const __testLspSessionPool = {
   killAllNow() {
     killAllSessionsNow();
   },
+  async drain(options = {}) {
+    return await drainLspSessionPool(options);
+  },
   async reset() {
     const live = Array.from(sessions.values());
     killAllSessionsNow();
     for (const session of live) {
       await disposeSessionClient(session);
     }
+    drainSessionPoolPromise = null;
+    activeDisposals.clear();
     testHooks.disposeDelayMs = 0;
     cleanupPassQueue = Promise.resolve();
     sessionPoolMetrics.cleanupPassFailures = 0;

@@ -152,6 +152,7 @@ export const startHeartbeat = ({
   timer = setInterval(() => {
     queueTick();
   }, intervalMs);
+  timer.unref?.();
   lifecycle.registerTimer(timer, { label: 'build-state-heartbeat-interval' });
   return stop;
 };

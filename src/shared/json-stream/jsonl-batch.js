@@ -3,11 +3,13 @@ import { Worker } from 'node:worker_threads';
 import { normalizeGzipOptions, resolveZstd } from './compress.js';
 import { createJsonWriteStream, writeChunk } from './streams.js';
 import { createAbortError } from './runtime.js';
+import { createTimeoutError, runWithTimeout } from '../promise-timeout.js';
 
 const MIN_BLOCK_BYTES = 1024 * 1024;
 const MAX_BLOCK_BYTES = 4 * 1024 * 1024;
 const DEFAULT_GZIP_BLOCK_BYTES = MIN_BLOCK_BYTES;
 const DEFAULT_ZSTD_BLOCK_BYTES = MAX_BLOCK_BYTES;
+const JSONL_COMPRESS_WORKER_TERMINATE_TIMEOUT_MS = 5000;
 const NEWLINE = Buffer.from('\n');
 const WORKER_URL = new URL('./jsonl-compress-worker.js', import.meta.url);
 
@@ -221,7 +223,17 @@ class JsonlCompressionPool {
       this._fail(new Error('Compression pool closed before all tasks completed.'));
     }
     const workers = this.workers.splice(0);
-    await Promise.all(workers.map((worker) => worker.terminate().catch(() => {})));
+    await Promise.allSettled(workers.map((worker) => runWithTimeout(
+      () => Promise.resolve(worker.terminate()),
+      {
+        timeoutMs: JSONL_COMPRESS_WORKER_TERMINATE_TIMEOUT_MS,
+        errorFactory: () => createTimeoutError({
+          message: `JSONL compression worker terminate timed out after ${JSONL_COMPRESS_WORKER_TERMINATE_TIMEOUT_MS}ms.`,
+          code: 'JSONL_COMPRESS_WORKER_TERMINATE_TIMEOUT',
+          retryable: false
+        })
+      }
+    )));
   }
 }
 

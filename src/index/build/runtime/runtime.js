@@ -1066,6 +1066,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   return {
     envelope,
     root,
+    log,
     argv,
     rawArgv,
     userConfig,

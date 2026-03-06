@@ -29,12 +29,13 @@ const triggerTrackedSubprocessShutdown = (reason, { allowRepeat = false } = {}) 
       ? terminate({ reason, force: true })
       : Promise.resolve(null)
   ).catch(() => null);
-  if (allowRepeat) {
-    trackedSubprocessShutdownPromise.finally(() => {
-      trackedSubprocessShutdownTriggered = false;
-      trackedSubprocessShutdownPromise = null;
-    });
-  }
+  trackedSubprocessShutdownPromise.finally(() => {
+    // Keep hooks reusable even when beforeExit fired early and process continued.
+    // `allowRepeat` is retained for callsite compatibility.
+    void allowRepeat;
+    trackedSubprocessShutdownTriggered = false;
+    trackedSubprocessShutdownPromise = null;
+  });
   return trackedSubprocessShutdownPromise;
 };
 

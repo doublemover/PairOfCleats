@@ -112,7 +112,8 @@ export const createPatchQueue = ({
           }
         );
       }, resolvedWaiterTimeoutMs);
-      if (typeof waiter.timer?.unref === 'function') waiter.timer.unref();
+      // Keep waiter timeout referenced: callers may await this promise and
+      // require deterministic resolution even during low-activity periods.
       waiter.timerCancel = pending.lifecycle.registerTimer(waiter.timer, {
         label: 'build-state-waiter-timeout'
       });
@@ -277,6 +278,7 @@ export const createPatchQueue = ({
           pending.timerCancel = null;
           void flushPendingState(buildRoot);
         }, delay);
+        pending.timer.unref?.();
         pending.timerCancel = pending.lifecycle.registerTimer(pending.timer, {
           label: 'build-state-debounce-retry'
         });
@@ -346,6 +348,7 @@ export const createPatchQueue = ({
         pending.timerCancel = null;
         void flushPendingState(buildRoot);
       }, delay);
+      pending.timer.unref?.();
       pending.timerCancel = pending.lifecycle.registerTimer(pending.timer, {
         label: 'build-state-debounce'
       });

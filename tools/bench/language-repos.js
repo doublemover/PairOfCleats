@@ -124,6 +124,7 @@ const {
   initRepoLog,
   closeRepoLog,
   closeMasterLog,
+  closeLogsSync,
   appendLog,
   writeListLine,
   writeLog,
@@ -150,9 +151,9 @@ const processRunner = createProcessRunner({
   onProgressEvent: progressRuntime.handleProgressEvent
 });
 
-const closeLogs = () => {
-  closeRepoLog();
-  closeMasterLog();
+const closeLogs = async () => {
+  await closeRepoLog();
+  await closeMasterLog();
 };
 
 const reportFatal = (label, err) => {
@@ -216,7 +217,7 @@ const gracefulShutdown = ({
       }
     }
     processRunner.logExit(normalizedReason, exitCode);
-    closeLogs();
+    await closeLogs();
     display.close();
     process.exit(exitCode);
   })();
@@ -225,7 +226,7 @@ const gracefulShutdown = ({
 
 process.on('exit', (code) => {
   processRunner.logExit('exit', code);
-  closeLogs();
+  closeLogsSync();
 });
 process.on('SIGINT', () => {
   void gracefulShutdown({
@@ -514,6 +515,7 @@ if (outputPath) {
 }
 
 if (argv.json) {
+  await closeLogs();
   display.close();
   console.log(JSON.stringify(output, null, 2));
 } else {
@@ -523,5 +525,6 @@ if (argv.json) {
       fileOnlyLine: `Summary written to ${outputPath}`
     });
   }
+  await closeLogs();
   display.close();
 }

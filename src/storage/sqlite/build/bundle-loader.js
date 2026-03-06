@@ -3,6 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import Piscina from 'piscina';
 import { readBundleFile, resolveManifestBundleNames } from '../../../shared/bundle-io.js';
+import { destroyPiscinaPool } from '../../../shared/piscina-cleanup.js';
+import { createTimeoutError, runWithTimeout } from '../../../shared/promise-timeout.js';
 
 const buildWorkerExecArgv = () => process.execArgv.filter((arg) => (
   typeof arg === 'string'
@@ -40,16 +42,30 @@ const resolveWorkerResourceLimits = (maxWorkers) => {
 };
 
 export const createBundleLoader = ({ bundleThreads, workerPath }) => {
+  const bundleTaskTimeoutMs = 30_000;
   const useWorkers = Number.isFinite(bundleThreads) && bundleThreads > 1 && Boolean(workerPath);
   const pool = useWorkers && workerPath
     ? new Piscina({
       filename: workerPath,
       maxThreads: bundleThreads,
       execArgv: buildWorkerExecArgv(),
+      taskTimeout: bundleTaskTimeoutMs,
       resourceLimits: resolveWorkerResourceLimits(bundleThreads)
     })
     : null;
   let workerAvailable = Boolean(pool);
+  let workerPoolDestroyed = false;
+
+  const disableWorkerPool = async () => {
+    if (!pool || workerPoolDestroyed) return;
+    workerPoolDestroyed = true;
+    workerAvailable = false;
+    try {
+      await destroyPiscinaPool(pool, {
+        label: 'sqlite.bundle-loader.worker-pool'
+      });
+    } catch {}
+  };
 
   const loadBundleDirect = async (bundlePath, file) => {
     const result = await readBundleFile(bundlePath);
@@ -77,7 +93,17 @@ export const createBundleLoader = ({ bundleThreads, workerPath }) => {
       try {
         if (pool && workerAvailable) {
           try {
-            const result = await pool.run({ bundlePath });
+            const result = await runWithTimeout(
+              () => pool.run({ bundlePath }),
+              {
+                timeoutMs: bundleTaskTimeoutMs,
+                errorFactory: () => createTimeoutError({
+                  message: `bundle worker timed out (${bundlePath}) after ${bundleTaskTimeoutMs}ms`,
+                  code: 'SQLITE_BUNDLE_WORKER_TIMEOUT',
+                  retryable: false
+                })
+              }
+            );
             if (!result?.ok) {
               const reason = result?.reason || 'invalid bundle';
               return { file, ok: false, reason: `bundle read failed (${bundlePath}): ${reason}` };
@@ -85,7 +111,7 @@ export const createBundleLoader = ({ bundleThreads, workerPath }) => {
             loadedShards.push(result.bundle);
             continue;
           } catch {
-            workerAvailable = false;
+            await disableWorkerPool();
           }
         }
         const loaded = await loadBundleDirect(bundlePath, file);
@@ -99,8 +125,10 @@ export const createBundleLoader = ({ bundleThreads, workerPath }) => {
   };
 
   const close = async () => {
-    if (pool) {
-      await pool.destroy();
+    if (pool && !workerPoolDestroyed) {
+      await destroyPiscinaPool(pool, {
+        label: 'sqlite.bundle-loader.worker-pool'
+      });
     }
   };
 

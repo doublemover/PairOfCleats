@@ -9,6 +9,7 @@ import { writeJsonObjectFile } from './json-stream.js';
 import { atomicWriteJson, atomicWriteText } from './io/atomic-write.js';
 import { removePathWithRetry } from './io/remove-path-with-retry.js';
 import { acquireFileLock, releaseFileLockOrThrow } from './locks/file-lock.js';
+import { createTimeoutError, runWithTimeout } from './promise-timeout.js';
 import {
   MAX_BUNDLE_BYTES,
   MAX_BUNDLE_CHECKSUM_BYTES,
@@ -29,6 +30,8 @@ const BUNDLE_PATCH_LOCK_SUFFIX = '.lock';
 const BUNDLE_PATCH_META_SUFFIX = '.meta.json';
 const BUNDLE_JSON_CHECKSUM_SUFFIX = '.checksum.json';
 const BUNDLE_WORKER_TIMEOUT_MS = 15000;
+const BUNDLE_WORKER_TERMINATE_TIMEOUT_MS = 5000;
+const BUNDLE_WORKER_MAX_TERMINATE_FAILURES = 3;
 const BUNDLE_PATCH_FIELD_KEYS = [
   'file',
   'hash',
@@ -45,6 +48,8 @@ const BUNDLE_PATCH_FIELD_KEY_SET = new Set(BUNDLE_PATCH_FIELD_KEYS);
 const packr = new Packr({ useRecords: false, structuredClone: true });
 const unpackr = new Unpackr({ useRecords: false });
 const bundleTransformWorkerUrl = new URL('./workers/bundle-transform-worker.js', import.meta.url);
+let bundleTransformWorkerTerminateFailures = 0;
+let bundleTransformWorkerDisabled = false;
 
 const isPlainObject = (value) => !!value && typeof value === 'object' && value.constructor === Object;
 
@@ -85,6 +90,7 @@ const estimatePayloadBytes = (value) => {
 };
 
 const shouldOffloadBundleTransform = (payloadBytes) => Number.isFinite(payloadBytes)
+  && !bundleTransformWorkerDisabled
   && payloadBytes >= BUNDLE_WORKER_OFFLOAD_THRESHOLD_BYTES
   && payloadBytes <= BUNDLE_WORKER_MAX_PAYLOAD_BYTES;
 
@@ -95,12 +101,33 @@ const runBundleTransformWorker = ({ operation, payload, timeoutMs = BUNDLE_WORKE
       type: 'module'
     });
     let settled = false;
+    const terminateWorker = async () => {
+      try {
+        await runWithTimeout(
+          () => Promise.resolve(worker.terminate()),
+          {
+            timeoutMs: BUNDLE_WORKER_TERMINATE_TIMEOUT_MS,
+            errorFactory: () => createTimeoutError({
+              message: `bundle worker terminate timed out after ${BUNDLE_WORKER_TERMINATE_TIMEOUT_MS}ms`,
+              code: 'BUNDLE_WORKER_TERMINATE_TIMEOUT',
+              retryable: false
+            })
+          }
+        );
+        bundleTransformWorkerTerminateFailures = 0;
+      } catch {
+        bundleTransformWorkerTerminateFailures += 1;
+        if (bundleTransformWorkerTerminateFailures >= BUNDLE_WORKER_MAX_TERMINATE_FAILURES) {
+          bundleTransformWorkerDisabled = true;
+        }
+      }
+    };
     const settle = (result) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
       resolve(result);
-      worker.terminate().catch(() => {});
+      void terminateWorker();
     };
     const timer = setTimeout(() => {
       settle({ ok: false, reason: 'timeout' });

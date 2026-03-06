@@ -779,6 +779,7 @@ export function createLspClient(options) {
       const timer = setTimeout(() => {
         finish();
       }, 2500);
+      timer.unref?.();
       current.once('exit', onExit);
     });
     if (proc === current && generation === currentGen && isChildRunning(current)) {

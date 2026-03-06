@@ -111,8 +111,9 @@ export const createWorkerPoolQueue = (input = {}) => {
     };
     const releaseLang = registerThrottleWaiter(languageId, onResolve);
     const releaseAll = registerThrottleWaiter('*', onResolve);
+    // Keep this timer referenced: this promise is awaited on the hot path and
+    // must always wake, even when no other event-loop handles are active.
     const timer = setTimeout(onResolve, THROTTLE_SIGNAL_TIMEOUT_MS);
-    if (typeof timer?.unref === 'function') timer.unref();
   });
 
   const updatePressureState = ({

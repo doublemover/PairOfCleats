@@ -3226,9 +3226,8 @@ export async function writeIndexArtifacts(input) {
                 () => resolve({ ok: true, tick: true }),
                 adaptiveWriteObserveIntervalMs
               );
-              if (typeof settleWatchdogTimer?.unref === 'function') {
-                settleWatchdogTimer.unref();
-              }
+              // Keep this watchdog tick referenced because the race result is
+              // awaited to drive forward progress in the write loop.
             })
           );
         }

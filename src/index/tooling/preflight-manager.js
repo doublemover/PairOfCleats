@@ -1264,7 +1264,10 @@ export const teardownToolingProviderPreflights = async (ctx, { timeoutMs = 5000 
             finishedAtMs
           })
         });
-        state.inFlight.delete(entryKey);
+        /**
+         * Keep in-flight entry until the original promise settles so its own
+         * finally-handler can complete normal cleanup and cancellation paths.
+         */
       }
       const nowMs = Date.now();
       const offenderSummary = inFlightEntries
