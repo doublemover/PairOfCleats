@@ -699,7 +699,6 @@ export function createLspClient(options) {
           err.code = 'ERR_LSP_REQUEST_TIMEOUT';
           reject(err);
         }, resolvedTimeout);
-        entry.timeout.unref?.();
       }
       pending.set(id, entry);
       if (!send({ jsonrpc: '2.0', id, method, params })) {
@@ -779,7 +778,6 @@ export function createLspClient(options) {
       const timer = setTimeout(() => {
         finish();
       }, 2500);
-      timer.unref?.();
       current.once('exit', onExit);
     });
     if (proc === current && generation === currentGen && isChildRunning(current)) {

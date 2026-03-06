@@ -2,6 +2,7 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createLspClient } from '../../../src/integrations/tooling/lsp/client.js';
+import { createTimeoutError, runWithTimeout } from '../../../src/shared/promise-timeout.js';
 import { sleep } from '../../../src/shared/sleep.js';
 
 const root = process.cwd();
@@ -15,7 +16,16 @@ const client = createLspClient({
 
 try {
   await client.initialize({ rootUri: pathToFileURL(root).href });
-  await client.shutdownAndExit();
+  await runWithTimeout(
+    () => client.shutdownAndExit(),
+    {
+      timeoutMs: 7000,
+      errorFactory: () => createTimeoutError({
+        code: 'ERR_TEST_TIMEOUT',
+        message: 'LSP shutdownAndExit did not settle within 7000ms.'
+      })
+    }
+  );
   await sleep(200);
 } finally {
   await Promise.resolve(client.kill());
