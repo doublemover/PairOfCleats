@@ -4,6 +4,7 @@ import { Worker } from 'node:worker_threads';
 import { Packr, Unpackr } from 'msgpackr';
 import { sha1, checksumString } from './hash.js';
 import { estimateJsonBytes } from './cache.js';
+import { canonicalizeBundlePayloadForChecksum } from './bundle-checksum.js';
 import { stableStringify } from './stable-json.js';
 import { writeJsonObjectFile } from './json-stream.js';
 import { atomicWriteJson, atomicWriteText } from './io/atomic-write.js';
@@ -29,6 +30,7 @@ const BUNDLE_PATCH_SUFFIX = '.patch.jsonl';
 const BUNDLE_PATCH_LOCK_SUFFIX = '.lock';
 const BUNDLE_PATCH_META_SUFFIX = '.meta.json';
 const BUNDLE_JSON_CHECKSUM_SUFFIX = '.checksum.json';
+export const BUNDLE_CHECKSUM_SCHEMA_VERSION = 2;
 const BUNDLE_WORKER_TIMEOUT_MS = 15000;
 const BUNDLE_WORKER_TERMINATE_TIMEOUT_MS = 5000;
 const BUNDLE_WORKER_MAX_TERMINATE_FAILURES = 3;
@@ -80,7 +82,8 @@ const checksumBundlePayload = async (payload) => {
       if (checksum && typeof checksum === 'object') return checksum;
     }
   }
-  return checksumString(stableStringify(payload));
+  const canonical = canonicalizeBundlePayloadForChecksum(payload);
+  return checksumString(stableStringify(canonical));
 };
 
 const estimatePayloadBytes = (value) => {
@@ -477,7 +480,9 @@ const writeBundleJsonChecksum = async (bundlePath, bundle) => {
   await atomicWriteJson(resolveBundleJsonChecksumPath(bundlePath), {
     format: BUNDLE_FORMAT_TAG,
     version: BUNDLE_VERSION,
+    checksumSchemaVersion: BUNDLE_CHECKSUM_SCHEMA_VERSION,
     checksum: {
+      schemaVersion: BUNDLE_CHECKSUM_SCHEMA_VERSION,
       algo: checksum.algo,
       value: checksum.value
     }
@@ -617,7 +622,13 @@ export async function writeBundleFile({ bundlePath, bundle, format = 'json' }) {
     const envelope = {
       format: BUNDLE_FORMAT_TAG,
       version: BUNDLE_VERSION,
-      checksum: checksum ? { algo: checksum.algo, value: checksum.value } : null,
+      checksum: checksum
+        ? {
+          schemaVersion: BUNDLE_CHECKSUM_SCHEMA_VERSION,
+          algo: checksum.algo,
+          value: checksum.value
+        }
+        : null,
       payload: normalized
     };
     const encoded = packr.pack(envelope);
@@ -678,6 +689,10 @@ export async function readBundleFile(bundlePath, { format = null, maxBytes = MAX
       const checksumValue = typeof checksumEnvelope.value === 'string'
         ? checksumEnvelope.value.trim()
         : '';
+      const checksumSchemaVersion = Number(checksumEnvelope.schemaVersion);
+      if (checksumSchemaVersion !== BUNDLE_CHECKSUM_SCHEMA_VERSION) {
+        return { ok: false, reason: 'unsupported bundle checksum schema' };
+      }
       if (!checksumAlgo || !checksumValue) {
         return { ok: false, reason: 'invalid bundle checksum' };
       }
@@ -737,8 +752,16 @@ export async function readBundleFile(bundlePath, { format = null, maxBytes = MAX
     const rawChecksum = await fs.readFile(checksumPath, 'utf8');
     const parsedChecksum = JSON.parse(rawChecksum);
     const checksum = parsedChecksum?.checksum;
+    const checksumSchemaVersion = Number(parsedChecksum?.checksumSchemaVersion);
+    if (checksumSchemaVersion !== BUNDLE_CHECKSUM_SCHEMA_VERSION) {
+      return { ok: false, reason: 'unsupported bundle checksum schema' };
+    }
     if (!isPlainObject(checksum)) {
       return { ok: false, reason: 'invalid bundle checksum' };
+    }
+    const checksumEntrySchemaVersion = Number(checksum?.schemaVersion);
+    if (checksumEntrySchemaVersion !== BUNDLE_CHECKSUM_SCHEMA_VERSION) {
+      return { ok: false, reason: 'unsupported bundle checksum schema' };
     }
     const checksumAlgo = typeof checksum.algo === 'string' ? checksum.algo.trim() : '';
     const checksumValue = typeof checksum.value === 'string' ? checksum.value.trim() : '';

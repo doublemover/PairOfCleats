@@ -2352,12 +2352,13 @@ export async function writeIndexArtifacts(input) {
     const fieldPostingsBinaryOffsetsPath = path.join(outDir, 'field_postings.binary-columnar.offsets.bin');
     const fieldPostingsBinaryLengthsPath = path.join(outDir, 'field_postings.binary-columnar.lengths.varint');
     const fieldPostingsBinaryMetaPath = path.join(outDir, 'field_postings.binary-columnar.meta.json');
+    const fieldPostingsBinaryTaskLabel = 'field_postings.binary-columnar.bundle';
     const shouldWriteFieldPostingsBinary = fieldPostingsBinaryColumnar
       && fieldPostingsEstimatedBytes >= fieldPostingsBinaryColumnarThresholdBytes
       && fieldNames.length > 0;
     if (shouldWriteFieldPostingsBinary) {
       enqueueWrite(
-        formatArtifactLabel(fieldPostingsBinaryMetaPath),
+        fieldPostingsBinaryTaskLabel,
         async () => {
           const serializationStartedAt = Date.now();
           const rowPayloads = (async function* binaryRows() {

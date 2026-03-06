@@ -588,6 +588,7 @@ export async function buildDatabaseFromBundles({
     let successfulFiles = 0;
     const bundleFailures = [];
     let fatalBundleFailure = null;
+    let bundleFailureAbort = false;
     const maxInFlightBundles = useBundleWorkers
       ? Math.max(1, Math.min(totalFiles, Math.max(1, bundleThreads), 32))
       : 1;
@@ -606,13 +607,15 @@ export async function buildDatabaseFromBundles({
           if (!result.ok) {
             bundleFailures.push(`${result.reason} for ${result.file}`);
             logBundleProgress(result.file, processedFiles === totalFiles);
-            continue;
+            bundleFailureAbort = true;
+            break;
           }
           const shardBundles = Array.isArray(result.bundleShards) ? result.bundleShards : [];
           if (!shardBundles.length) {
             bundleFailures.push(`invalid bundle shards for ${result.file}`);
             logBundleProgress(result.file, processedFiles === totalFiles);
-            continue;
+            bundleFailureAbort = true;
+            break;
           }
           let chunkCount = 0;
           try {
@@ -627,13 +630,14 @@ export async function buildDatabaseFromBundles({
               fatalBundleFailure = reason;
             }
             logBundleProgress(result.file, processedFiles === totalFiles);
-            continue;
+            bundleFailureAbort = true;
+            break;
           }
           count += chunkCount;
           successfulFiles += 1;
           logBundleProgress(result.file, processedFiles === totalFiles);
         }
-        if (fatalBundleFailure) break;
+        if (fatalBundleFailure || bundleFailureAbort) break;
       }
     } finally {
       await bundleLoader.close();

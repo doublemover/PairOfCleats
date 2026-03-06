@@ -1,6 +1,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { normalizeBundleFormat } from '../../../shared/bundle-io.js';
+import {
+  BUNDLE_CHECKSUM_SCHEMA_VERSION,
+  normalizeBundleFormat
+} from '../../../shared/bundle-io.js';
 import { isWithinRoot, toRealPathSync } from '../../../workspace/identity.js';
 import { SIGNATURE_VERSION } from '../indexer/signatures.js';
 import { pathExists } from './shared.js';
@@ -92,6 +95,7 @@ export async function loadIncrementalState({
     cacheSignature: cacheSignature || null,
     signatureSummary: cacheSignatureSummary || null,
     bundleFormat: defaultBundleFormat,
+    bundleChecksumSchemaVersion: BUNDLE_CHECKSUM_SCHEMA_VERSION,
     files: {},
     shards: null
   };
@@ -109,6 +113,9 @@ export async function loadIncrementalState({
           ? loaded.cacheSignature
           : null;
         const loadedBundleFormat = normalizeBundleFormat(loaded.bundleFormat);
+        const loadedBundleChecksumSchemaVersion = Number(
+          loaded.bundleChecksumSchemaVersion
+        );
         const effectiveBundleFormat = requestedBundleFormat || loadedBundleFormat || defaultBundleFormat;
         const loadedSignatureVersion = Number.isFinite(Number(loaded.signatureVersion))
           ? Number(loaded.signatureVersion)
@@ -117,15 +124,25 @@ export async function loadIncrementalState({
           ? cacheSignature !== loadedSignature
           : false;
         const signatureVersionMismatch = loadedSignatureVersion !== SIGNATURE_VERSION;
+        const bundleChecksumSchemaMismatch = loadedBundleChecksumSchemaVersion !== BUNDLE_CHECKSUM_SCHEMA_VERSION;
         if (
           signatureMismatch
           || signatureVersionMismatch
+          || bundleChecksumSchemaMismatch
           || (tokenizationKey && loadedKey !== tokenizationKey)
         ) {
           if (typeof log === 'function') {
-            const reason = signatureVersionMismatch
-              ? `signatureVersion mismatch (${loadedSignatureVersion ?? 'none'} -> ${SIGNATURE_VERSION})`
-              : (signatureMismatch ? 'signature changed' : 'tokenization config changed');
+            let reason = 'tokenization config changed';
+            if (signatureVersionMismatch) {
+              reason = `signatureVersion mismatch (${loadedSignatureVersion ?? 'none'} -> ${SIGNATURE_VERSION})`;
+            } else if (signatureMismatch) {
+              reason = 'signature changed';
+            } else if (bundleChecksumSchemaMismatch) {
+              reason = (
+                `bundle checksum schema mismatch ` +
+                `(${loadedBundleChecksumSchemaVersion || 'none'} -> ${BUNDLE_CHECKSUM_SCHEMA_VERSION})`
+              );
+            }
             log(`[incremental] ${mode} cache reset: ${reason}.`);
             if (signatureMismatch && cacheSignatureSummary && loaded.signatureSummary) {
               const diff = summarizeSignatureDelta(cacheSignatureSummary, loaded.signatureSummary);
@@ -143,6 +160,7 @@ export async function loadIncrementalState({
             cacheSignature: loadedSignature || cacheSignature || null,
             signatureSummary: loaded.signatureSummary || cacheSignatureSummary || null,
             bundleFormat: effectiveBundleFormat,
+            bundleChecksumSchemaVersion: BUNDLE_CHECKSUM_SCHEMA_VERSION,
             files: loaded.files || {},
             shards: loaded.shards || null
           };

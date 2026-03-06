@@ -321,9 +321,10 @@ export async function enqueueTokenPostingsArtifacts({
   const binaryOffsetsPath = path.join(outDir, 'token_postings.binary-columnar.offsets.bin');
   const binaryLengthsPath = path.join(outDir, 'token_postings.binary-columnar.lengths.varint');
   const binaryMetaPath = path.join(outDir, 'token_postings.binary-columnar.meta.json');
+  const binaryTaskLabel = 'token_postings.binary-columnar.bundle';
   if (tokenPostingsBinaryColumnar) {
     enqueueWrite(
-      formatArtifactLabel(binaryMetaPath),
+      binaryTaskLabel,
       async () => {
         const rowPayloads = new Array(postings.tokenVocab.length);
         for (let i = 0; i < postings.tokenVocab.length; i += 1) {

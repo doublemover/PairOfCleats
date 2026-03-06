@@ -1,6 +1,7 @@
 import { parentPort, workerData } from 'node:worker_threads';
 import { checksumString } from '../hash.js';
 import { estimateJsonBytes } from '../cache.js';
+import { canonicalizeBundlePayloadForChecksum } from '../bundle-checksum.js';
 import { stableStringify } from '../stable-json.js';
 import { MAX_BUNDLE_CHECKSUM_BYTES } from '../bundle-contract.js';
 const BUNDLE_PATCH_FIELD_KEYS = [
@@ -89,9 +90,10 @@ const buildBundlePatch = ({ previousBundle, nextBundle }) => {
 const runNormalizeChecksum = (payload) => {
   const normalized = normalizeBundlePayload(payload?.bundle ?? null);
   const estimate = estimateJsonBytes(normalized);
+  const canonical = canonicalizeBundlePayloadForChecksum(normalized);
   const checksum = estimate && estimate > MAX_BUNDLE_CHECKSUM_BYTES
     ? null
-    : checksumString(stableStringify(normalized));
+    : checksumString(stableStringify(canonical));
   return { normalized, checksum };
 };
 
