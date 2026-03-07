@@ -378,6 +378,8 @@ export const createPyrightProvider = () => ({
       abortSignal: ctx?.abortSignal || null,
       log,
       providerId: 'pyright',
+      adaptiveDegradedHint: preflight?.state === 'degraded',
+      adaptiveReasonHint: preflight?.reasonCode || null,
       cmd: resolvedCmd,
       args: resolvedArgs,
       parseSignature: (detail) => parsePythonSignature(detail),

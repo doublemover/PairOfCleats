@@ -33,6 +33,7 @@ const SOURCEKIT_HOST_LOCK_POLL_MS = 250;
 const SOURCEKIT_DEFAULT_HOVER_TIMEOUT_MS = 3500;
 const SOURCEKIT_DEFAULT_HOVER_MAX_PER_FILE = 10;
 const SOURCEKIT_DEFAULT_HOVER_DISABLE_AFTER_TIMEOUTS = 2;
+const SOURCEKIT_DEFAULT_HOVER_CONCURRENCY = 2;
 const SOURCEKIT_TOP_OFFENDER_LIMIT = 8;
 const SOURCEKIT_DEFAULT_EXCLUDE_PATH_REGEXES = [
   /\/test\/sourcekit\/misc\/parser-cutoff\.swift$/i
@@ -395,6 +396,12 @@ export const createSourcekitProvider = () => ({
       asFiniteInteger(sourcekitConfig.hoverDisableAfterTimeouts)
         ?? SOURCEKIT_DEFAULT_HOVER_DISABLE_AFTER_TIMEOUTS
     );
+    const hoverConcurrency = Math.max(
+      1,
+      asFiniteInteger(sourcekitConfig.hoverConcurrency)
+        ?? asFiniteInteger(runtimeConfig.hoverConcurrency)
+        ?? SOURCEKIT_DEFAULT_HOVER_CONCURRENCY
+    );
     const hoverRequireMissingReturn = sourcekitConfig.hoverRequireMissingReturn === false
       ? false
       : runtimeConfig.hoverRequireMissingReturn !== false;
@@ -517,6 +524,8 @@ export const createSourcekitProvider = () => ({
         abortSignal,
         log,
         providerId: 'sourcekit',
+        adaptiveDegradedHint: preflight?.state === 'degraded',
+        adaptiveReasonHint: preflight?.reasonCode || null,
         cmd: resolvedCmd,
         args: resolvedArgs,
         hoverTimeoutMs,
@@ -527,6 +536,7 @@ export const createSourcekitProvider = () => ({
         hoverSymbolKinds,
         hoverMaxPerFile,
         hoverDisableAfterTimeouts,
+        hoverConcurrency,
         parseSignature: (detail) => parseSwiftSignature(detail),
         strict: ctx?.strict !== false,
         vfsRoot: ctx?.buildRoot || ctx.repoRoot,

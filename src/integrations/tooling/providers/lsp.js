@@ -89,15 +89,33 @@ const ADAPTIVE_LSP_SCOPE_PROFILES = Object.freeze({
     docThreshold: 256,
     maxDocs: 384,
     degradedMaxDocs: 192,
+    targetThreshold: 512,
+    maxTargets: 1024,
+    degradedMaxTargets: 384,
     degradedDocumentSymbolTimeouts: 2,
     degradedDocumentSymbolP95Ms: 2500,
     defaultHoverMaxPerFile: 12,
     degradedHoverMaxPerFile: 8
   }),
+  clangd: Object.freeze({
+    docThreshold: 96,
+    maxDocs: 160,
+    degradedMaxDocs: 80,
+    targetThreshold: 512,
+    maxTargets: 960,
+    degradedMaxTargets: 320,
+    degradedDocumentSymbolTimeouts: 1,
+    degradedDocumentSymbolP95Ms: 3500,
+    defaultHoverMaxPerFile: 6,
+    degradedHoverMaxPerFile: 3
+  }),
   gopls: Object.freeze({
     docThreshold: 192,
     maxDocs: 320,
     degradedMaxDocs: 160,
+    targetThreshold: 384,
+    maxTargets: 768,
+    degradedMaxTargets: 256,
     degradedDocumentSymbolTimeouts: 2,
     degradedDocumentSymbolP95Ms: 2500,
     defaultHoverMaxPerFile: 10,
@@ -107,15 +125,29 @@ const ADAPTIVE_LSP_SCOPE_PROFILES = Object.freeze({
     docThreshold: 96,
     maxDocs: 160,
     degradedMaxDocs: 96,
+    targetThreshold: 192,
+    maxTargets: 320,
+    degradedMaxTargets: 160,
     degradedHoverTimeouts: 2,
     degradedHoverP95Ms: 2000,
-    defaultHoverMaxPerFile: 8,
-    degradedHoverMaxPerFile: 4
+    defaultHoverMaxPerFile: 6,
+    degradedHoverMaxPerFile: 3
+  }),
+  'yaml-language-server': Object.freeze({
+    docThreshold: 64,
+    maxDocs: 96,
+    degradedMaxDocs: 48,
+    targetThreshold: 96,
+    maxTargets: 160,
+    degradedMaxTargets: 80
   }),
   'lua-language-server': Object.freeze({
     docThreshold: 192,
     maxDocs: 256,
     degradedMaxDocs: 160,
+    targetThreshold: 320,
+    maxTargets: 640,
+    degradedMaxTargets: 256,
     degradedDocumentSymbolTimeouts: 2,
     degradedDocumentSymbolP95Ms: 2500,
     defaultHoverMaxPerFile: 8,
@@ -125,6 +157,9 @@ const ADAPTIVE_LSP_SCOPE_PROFILES = Object.freeze({
     docThreshold: 256,
     maxDocs: 320,
     degradedMaxDocs: 192,
+    targetThreshold: 384,
+    maxTargets: 768,
+    degradedMaxTargets: 320,
     degradedDocumentSymbolTimeouts: 2,
     degradedDocumentSymbolP95Ms: 3000,
     defaultHoverMaxPerFile: 8,
@@ -134,6 +169,9 @@ const ADAPTIVE_LSP_SCOPE_PROFILES = Object.freeze({
     docThreshold: 160,
     maxDocs: 256,
     degradedMaxDocs: 128,
+    targetThreshold: 256,
+    maxTargets: 512,
+    degradedMaxTargets: 192,
     degradedDocumentSymbolTimeouts: 2,
     degradedDocumentSymbolP95Ms: 2500,
     defaultHoverMaxPerFile: 6,
@@ -151,6 +189,9 @@ const normalizeAdaptiveLspScopeProfile = (value) => {
     docThreshold: normalizeInt(value.docThreshold),
     maxDocs: normalizeInt(value.maxDocs),
     degradedMaxDocs: normalizeInt(value.degradedMaxDocs),
+    targetThreshold: normalizeInt(value.targetThreshold),
+    maxTargets: normalizeInt(value.maxTargets),
+    degradedMaxTargets: normalizeInt(value.degradedMaxTargets),
     degradedDocumentSymbolTimeouts: normalizeInt(value.degradedDocumentSymbolTimeouts, 0),
     degradedDocumentSymbolP95Ms: normalizeInt(value.degradedDocumentSymbolP95Ms, 0),
     degradedHoverTimeouts: normalizeInt(value.degradedHoverTimeouts, 0),
@@ -197,7 +238,9 @@ export const __resolveAdaptiveLspScopePlanForTests = ({
   clientMetrics = null,
   documentSymbolConcurrency = DEFAULT_DOCUMENT_SYMBOL_CONCURRENCY,
   hoverMaxPerFile = null,
-  adaptiveDocScope = null
+  adaptiveDocScope = null,
+  adaptiveDegradedHint = false,
+  adaptiveReasonHint = null
 }) => {
   const profile = resolveAdaptiveLspScopeProfile({ providerId, override: adaptiveDocScope });
   const sourceDocs = Array.isArray(docs) ? docs : [];
@@ -215,8 +258,22 @@ export const __resolveAdaptiveLspScopePlanForTests = ({
   let effectiveHoverMaxPerFile = configuredHoverMaxPerFile;
   let selectedDocs = sourceDocs;
   let docLimitApplied = false;
+  let targetLimitApplied = false;
   let degraded = false;
-  let reason = null;
+  const reasons = [];
+  const rankDocs = (docsToRank) => rankAdaptiveLspDocuments(docsToRank, effectiveTargetsByPath);
+  const applyTargetCap = (docsToLimit, targetCap) => {
+    const rankedDocs = rankDocs(docsToLimit);
+    const limited = [];
+    let accumulatedTargets = 0;
+    for (const doc of rankedDocs) {
+      const docTargetCount = (effectiveTargetsByPath.get(doc?.virtualPath) || []).length;
+      if (limited.length > 0 && accumulatedTargets >= targetCap) break;
+      limited.push(doc);
+      accumulatedTargets += docTargetCount;
+    }
+    return limited.length ? limited : rankedDocs.slice(0, 1);
+  };
   if (profile) {
     const docThreshold = Number(profile.docThreshold || 0);
     const maxDocsBase = Number(profile.maxDocs || 0);
@@ -224,7 +281,9 @@ export const __resolveAdaptiveLspScopePlanForTests = ({
     const documentSymbolP95Ms = Number(documentSymbolMetrics?.p95 || 0);
     const hoverP95Ms = Number(hoverMetrics?.p95 || 0);
     degraded = (
-      (Number(profile.degradedDocumentSymbolTimeouts || 0) > 0
+      adaptiveDegradedHint === true
+      || (
+        (Number(profile.degradedDocumentSymbolTimeouts || 0) > 0
         && documentSymbolTimedOut >= Number(profile.degradedDocumentSymbolTimeouts || 0))
       || (Number(profile.degradedDocumentSymbolP95Ms || 0) > 0
         && documentSymbolP95Ms >= Number(profile.degradedDocumentSymbolP95Ms || 0))
@@ -232,26 +291,43 @@ export const __resolveAdaptiveLspScopePlanForTests = ({
         && hoverTimedOut >= Number(profile.degradedHoverTimeouts || 0))
       || (Number(profile.degradedHoverP95Ms || 0) > 0
         && hoverP95Ms >= Number(profile.degradedHoverP95Ms || 0))
+      )
     );
+    if (adaptiveDegradedHint === true && adaptiveReasonHint) {
+      reasons.push(`preflight:${String(adaptiveReasonHint)}`);
+    }
     if (docThreshold > 0 && maxDocsBase > 0 && sourceDocs.length > docThreshold) {
       const targetCap = Math.max(
         Math.max(1, clampIntRange(documentSymbolConcurrency, DEFAULT_DOCUMENT_SYMBOL_CONCURRENCY, { min: 1, max: 32 })) * 4,
         degraded ? degradedMaxDocsBase : maxDocsBase
       );
       if (sourceDocs.length > targetCap) {
-        selectedDocs = rankAdaptiveLspDocuments(sourceDocs, effectiveTargetsByPath).slice(0, targetCap);
+        selectedDocs = rankDocs(sourceDocs).slice(0, targetCap);
         docLimitApplied = true;
       }
-      reason = degraded
-        ? `degraded-doc-cap:${targetCap}`
-        : `doc-cap:${targetCap}`;
+      reasons.push(degraded ? `degraded-doc-cap:${targetCap}` : `doc-cap:${targetCap}`);
+    }
+    const targetThreshold = Number(profile.targetThreshold || 0);
+    const maxTargetsBase = Number(profile.maxTargets || 0);
+    const degradedMaxTargetsBase = Number(profile.degradedMaxTargets || maxTargetsBase || 0);
+    const currentTargetCount = selectedDocs.reduce(
+      (sum, doc) => sum + (effectiveTargetsByPath.get(doc?.virtualPath) || []).length,
+      0
+    );
+    if (targetThreshold > 0 && maxTargetsBase > 0 && currentTargetCount > targetThreshold) {
+      const targetCap = degraded ? degradedMaxTargetsBase : maxTargetsBase;
+      if (targetCap > 0 && currentTargetCount > targetCap) {
+        selectedDocs = applyTargetCap(selectedDocs, targetCap);
+        targetLimitApplied = true;
+      }
+      reasons.push(degraded ? `degraded-target-cap:${targetCap}` : `target-cap:${targetCap}`);
     }
     if (!Number.isFinite(effectiveHoverMaxPerFile) || effectiveHoverMaxPerFile <= 0) {
       if (Number(profile.defaultHoverMaxPerFile || 0) > 0) {
         effectiveHoverMaxPerFile = Number(profile.defaultHoverMaxPerFile);
       }
     }
-    if ((degraded || docLimitApplied) && Number(profile.degradedHoverMaxPerFile || 0) > 0) {
+    if ((degraded || docLimitApplied || targetLimitApplied) && Number(profile.degradedHoverMaxPerFile || 0) > 0) {
       effectiveHoverMaxPerFile = Number.isFinite(effectiveHoverMaxPerFile) && effectiveHoverMaxPerFile > 0
         ? Math.min(effectiveHoverMaxPerFile, Number(profile.degradedHoverMaxPerFile))
         : Number(profile.degradedHoverMaxPerFile);
@@ -271,8 +347,9 @@ export const __resolveAdaptiveLspScopePlanForTests = ({
     totalTargets,
     selectedTargets,
     docLimitApplied,
+    targetLimitApplied,
     degraded,
-    reason,
+    reason: reasons.length ? reasons.join(',') : null,
     hoverMaxPerFile: Number.isFinite(effectiveHoverMaxPerFile) && effectiveHoverMaxPerFile > 0
       ? effectiveHoverMaxPerFile
       : null
@@ -392,6 +469,8 @@ export async function collectLspTypes({
   hoverMaxPerFile = null,
   hoverDisableAfterTimeouts = null,
   adaptiveDocScope = null,
+  adaptiveDegradedHint = false,
+  adaptiveReasonHint = null,
   maxDiagnosticUris = DEFAULT_MAX_DIAGNOSTIC_URIS,
   maxDiagnosticsPerUri = DEFAULT_MAX_DIAGNOSTICS_PER_URI,
   maxDiagnosticsPerChunk = DEFAULT_MAX_DIAGNOSTICS_PER_CHUNK,
@@ -827,7 +906,9 @@ export async function collectLspTypes({
         clientMetrics: typeof client.getMetrics === 'function' ? client.getMetrics() : null,
         documentSymbolConcurrency: resolvedDocumentSymbolConcurrency,
         hoverMaxPerFile: resolvedHoverMaxPerFile,
-        adaptiveDocScope
+        adaptiveDocScope,
+        adaptiveDegradedHint,
+        adaptiveReasonHint
       });
       const selectedDocsToOpen = adaptiveScopePlan.documents;
       if (!selectedDocsToOpen.length) {
@@ -838,6 +919,7 @@ export async function collectLspTypes({
           totalTargets: adaptiveScopePlan.totalTargets,
           selectedTargets: 0,
           docLimitApplied: adaptiveScopePlan.docLimitApplied,
+          targetLimitApplied: adaptiveScopePlan.targetLimitApplied,
           degraded: adaptiveScopePlan.degraded,
           reason: adaptiveScopePlan.reason,
           hoverMaxPerFile: adaptiveScopePlan.hoverMaxPerFile
@@ -861,6 +943,7 @@ export async function collectLspTypes({
         totalTargets: adaptiveScopePlan.totalTargets,
         selectedTargets: adaptiveScopePlan.selectedTargets,
         docLimitApplied: adaptiveScopePlan.docLimitApplied,
+        targetLimitApplied: adaptiveScopePlan.targetLimitApplied,
         degraded: adaptiveScopePlan.degraded,
         reason: adaptiveScopePlan.reason,
         hoverMaxPerFile: effectiveHoverMaxPerFile,
@@ -868,6 +951,7 @@ export async function collectLspTypes({
       };
       if (
         adaptiveScopePlan.docLimitApplied
+        || adaptiveScopePlan.targetLimitApplied
         || adaptiveScopePlan.degraded
         || effectiveHoverMaxPerFile !== (resolvedHoverMaxPerFile > 0 ? resolvedHoverMaxPerFile : null)
       ) {

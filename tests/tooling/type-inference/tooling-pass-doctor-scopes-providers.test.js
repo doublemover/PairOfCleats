@@ -85,8 +85,13 @@ assert.ok(
   'expected selected provider count log'
 );
 assert.ok(
-  logs.some((line) => line.includes('[tooling] doctor:provider-checks start total=1.')),
-  'expected doctor to scope checks to selected provider set'
+  logs.some((line) => line.includes('[tooling] providers:start docs=1 targets=1.')),
+  'expected tooling runtime to start directly after provider selection'
+);
+assert.equal(
+  logs.some((line) => line.includes('[tooling] doctor:')),
+  false,
+  'expected indexing runtime to skip standalone tooling doctor'
 );
 
-console.log('tooling pass doctor scopes providers test passed');
+console.log('tooling pass skips standalone doctor runtime test passed');

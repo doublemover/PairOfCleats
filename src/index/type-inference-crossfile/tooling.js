@@ -1,22 +1,14 @@
-import fs from 'node:fs/promises';
-import fsSync from 'node:fs';
 import path from 'node:path';
 import { uniqueTypes } from '../../integrations/tooling/providers/shared.js';
 import { buildToolingVirtualDocuments } from '../tooling/vfs.js';
 import { runToolingProviders } from '../tooling/orchestrator.js';
 import { selectToolingProviders } from '../tooling/provider-registry.js';
 import { registerDefaultToolingProviders } from '../tooling/providers/index.js';
-import { runToolingDoctor } from '../tooling/doctor.js';
 import { TOOLING_CONFIDENCE, TOOLING_SOURCE } from './constants.js';
 import { addInferredParam, addInferredReturn } from './apply.js';
 import { ensureParamTypeMap, getParamTypeList } from './extract.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
-import { stableStringify } from '../../shared/stable-json.js';
-import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { createQueuedAppendWriter } from '../../shared/io/append-writer.js';
-
-const TOOLING_DOCTOR_CACHE_VERSION = 1;
-const TOOLING_DOCTOR_CACHE_FILE = '.tooling-doctor-cache.json';
 const EMPTY_TOOLING_PASS_STATS = Object.freeze({
   inferredReturns: 0,
   toolingDegradedProviders: 0,
@@ -28,63 +20,6 @@ const EMPTY_TOOLING_PASS_STATS = Object.freeze({
   toolingRequestFailures: 0,
   toolingRequestTimeouts: 0
 });
-
-const buildToolingDoctorCacheKey = ({
-  rootDir,
-  buildRoot,
-  strict,
-  toolingConfig,
-  toolingTimeoutMs,
-  toolingRetries,
-  toolingBreaker,
-  providerIds
-}) => {
-  const payload = {
-    version: TOOLING_DOCTOR_CACHE_VERSION,
-    rootDir,
-    buildRoot,
-    strict,
-    toolingTimeoutMs,
-    toolingRetries,
-    toolingBreaker,
-    toolingConfig,
-    providerIds: Array.isArray(providerIds) ? providerIds.slice().sort() : [],
-    runtime: {
-      node: process.version,
-      platform: process.platform,
-      arch: process.arch,
-      path: process.env.PATH || process.env.Path || ''
-    }
-  };
-  return stableStringify(payload);
-};
-
-const readToolingDoctorCache = async (cachePath) => {
-  try {
-    const raw = await fs.readFile(cachePath, 'utf8');
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return null;
-    if (parsed.version !== TOOLING_DOCTOR_CACHE_VERSION) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-};
-
-const writeToolingDoctorCache = async ({ cachePath, key, reportPath }) => {
-  const payload = {
-    version: TOOLING_DOCTOR_CACHE_VERSION,
-    generatedAt: new Date().toISOString(),
-    key,
-    reportPath
-  };
-  try {
-    await atomicWriteJson(cachePath, payload, {
-      spaces: 0,
-      newline: false
-    });
-  } catch {}
-};
 
 const createToolingLogger = (rootDir, logDir, provider, baseLog) => {
   if (!logDir || !provider) return baseLog;
@@ -315,46 +250,10 @@ export const runToolingPass = async ({
       .filter(Boolean)
   ));
   if (!providerIds.length) {
-    log('[tooling] providers: none selected for current documents/targets; skipping doctor and provider runtime.');
+    log('[tooling] providers: none selected for current documents/targets; skipping provider runtime.');
     return { ...EMPTY_TOOLING_PASS_STATS };
   }
   log(`[tooling] providers:selected count=${providerIds.length}.`);
-
-  const doctorCacheEnabled = toolingConfig?.doctorCache !== false;
-  const doctorCachePath = path.join(buildRoot || rootDir, TOOLING_DOCTOR_CACHE_FILE);
-  const doctorReportPath = path.join(buildRoot || rootDir, 'tooling_doctor_report.json');
-  const doctorCacheKey = buildToolingDoctorCacheKey({
-    rootDir,
-    buildRoot: buildRoot || rootDir,
-    strict,
-    toolingConfig: ctx.toolingConfig,
-    toolingTimeoutMs,
-    toolingRetries,
-    toolingBreaker,
-    providerIds
-  });
-  let doctorCacheHit = false;
-  if (doctorCacheEnabled) {
-    const cached = await readToolingDoctorCache(doctorCachePath);
-    if (cached?.key === doctorCacheKey && fsSync.existsSync(doctorReportPath)) {
-      doctorCacheHit = true;
-      log('[tooling] doctor: using cached report.');
-    }
-  }
-  if (!doctorCacheHit) {
-    const doctorStartMs = Date.now();
-    log('[tooling] doctor:start.');
-    await runToolingDoctor(ctx, providerIds, { log });
-    const doctorElapsedMs = Math.max(0, Date.now() - doctorStartMs);
-    log(`[tooling] doctor:done elapsedMs=${doctorElapsedMs}.`);
-    if (doctorCacheEnabled) {
-      await writeToolingDoctorCache({
-        cachePath: doctorCachePath,
-        key: doctorCacheKey,
-        reportPath: doctorReportPath
-      });
-    }
-  }
 
   const providerLog = createToolingLogger(rootDir, toolingLogDir, 'tooling', log);
   let result;

@@ -30,13 +30,6 @@ const scenarios = [
     text: 'fn add(a: i32, b: i32) -> i32 { a + b }\n'
   },
   {
-    preset: 'yaml-language-server',
-    providerId: 'lsp-yaml-language-server',
-    languageId: 'yaml',
-    ext: '.yaml',
-    text: 'name: example\nversion: 1\n'
-  },
-  {
     preset: 'lua-language-server',
     providerId: 'lsp-lua-language-server',
     languageId: 'lua',

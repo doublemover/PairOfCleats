@@ -32,14 +32,6 @@ const presetMatrix = [
     symbol: 'add'
   },
   {
-    preset: 'yaml-language-server',
-    providerId: 'lsp-yaml-language-server',
-    languageId: 'yaml',
-    ext: '.yaml',
-    text: 'name: example\nversion: 1\n',
-    symbol: 'name'
-  },
-  {
     preset: 'lua-language-server',
     providerId: 'lsp-lua-language-server',
     languageId: 'lua',

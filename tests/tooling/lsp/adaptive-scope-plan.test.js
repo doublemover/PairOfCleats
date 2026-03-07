@@ -57,8 +57,26 @@ const uncappedPlan = __resolveAdaptiveLspScopePlanForTests({
   targetsByPath,
   hoverMaxPerFile: 3
 });
-assert.equal(uncappedPlan.docLimitApplied, false, 'expected providers without a scope profile to leave docs untouched');
+assert.equal(uncappedPlan.docLimitApplied, false, 'expected small clangd inputs to avoid adaptive capping');
 assert.equal(uncappedPlan.selectedDocs, 20, 'expected uncapped provider to keep all docs');
 assert.equal(uncappedPlan.hoverMaxPerFile, 3, 'expected explicit hover max-per-file to pass through unchanged');
+
+const targetHeavyDocs = docs.slice(0, 60);
+const targetHeavyTargetsByPath = new Map(
+  targetHeavyDocs.map((doc, index) => [
+    doc.virtualPath,
+    Array.from({ length: 20 }, (_, targetIndex) => ({ id: `${index}:${targetIndex}` }))
+  ])
+);
+const targetCappedPlan = __resolveAdaptiveLspScopePlanForTests({
+  providerId: 'clangd',
+  docs: targetHeavyDocs,
+  targetsByPath: targetHeavyTargetsByPath,
+  hoverMaxPerFile: null
+});
+assert.equal(targetCappedPlan.docLimitApplied, false, 'expected target-heavy clangd input to avoid doc-count capping');
+assert.equal(targetCappedPlan.targetLimitApplied, true, 'expected clangd profile to cap by target count');
+assert.equal(targetCappedPlan.selectedTargets <= 960, true, 'expected clangd target cap to bound selected targets');
+assert.match(String(targetCappedPlan.reason || ''), /target-cap/, 'expected target cap reason to be recorded');
 
 console.log('LSP adaptive scope plan test passed');

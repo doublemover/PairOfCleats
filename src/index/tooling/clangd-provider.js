@@ -700,6 +700,8 @@ export const createClangdProvider = () => ({
         abortSignal: ctx?.abortSignal || null,
         log,
         providerId: 'clangd',
+        adaptiveDegradedHint: preflight?.state === 'degraded',
+        adaptiveReasonHint: preflight?.reasonCode || null,
         cmd: resolvedCmd,
         args: resolvedArgs,
         documentSymbolTimeoutMs,

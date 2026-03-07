@@ -63,6 +63,8 @@ const normalizeServerId = (value, fallback) => {
 
 const normalizeLanguageList = (value) => normalizeList(value).map((entry) => entry.toLowerCase());
 
+const normalizeKindList = (value) => normalizeList(value).map((entry) => entry.toLowerCase());
+
 const deepCloneValue = (value) => {
   if (Array.isArray(value)) return value.map((entry) => deepCloneValue(entry));
   if (isPlainObject(value)) {
@@ -442,6 +444,7 @@ const normalizeServerConfig = (server, index) => {
   if (!cmd) return null;
   const args = normalizeArgs(merged.args);
   const languages = normalizeLanguageList(merged.languages);
+  const kinds = normalizeKindList(merged.kinds);
   const uriScheme = merged.uriScheme === 'poc-vfs' ? 'poc-vfs' : 'file';
   const timeoutMs = Number(merged.timeoutMs);
   const documentSymbolTimeoutMs = Number(merged.documentSymbolTimeoutMs);
@@ -530,6 +533,9 @@ const normalizeServerConfig = (server, index) => {
     baseInitializationOptions,
     usesLuaPreset ? merged.luaWorkspaceLibrary : null
   );
+  const adaptiveDocScope = isPlainObject(merged.adaptiveDocScope)
+    ? deepCloneValue(merged.adaptiveDocScope)
+    : null;
   const lifecycle = isPlainObject(merged.lifecycle)
     ? deepCloneValue(merged.lifecycle)
     : null;
@@ -568,6 +574,7 @@ const normalizeServerConfig = (server, index) => {
     cmd,
     args,
     languages,
+    kinds,
     uriScheme,
     timeoutMs: Number.isFinite(timeoutMs) ? Math.max(1000, Math.floor(timeoutMs)) : null,
     documentSymbolTimeoutMs: Number.isFinite(documentSymbolTimeoutMs)
@@ -668,6 +675,7 @@ const normalizeServerConfig = (server, index) => {
     lifecycleMaxRestartsPerWindow: merged.lifecycleMaxRestartsPerWindow,
     lifecycleFdPressureBackoffMs: merged.lifecycleFdPressureBackoffMs,
     initializationOptions,
+    adaptiveDocScope,
     priority: Number.isFinite(priority) ? priority : null,
     label: typeof merged.label === 'string' ? merged.label : null,
     version: typeof merged.version === 'string' ? merged.version : null
@@ -715,7 +723,9 @@ const createConfiguredLspProvider = (server) => {
     log,
     preChecks,
     commandProfile,
-    requestedCommand
+    requestedCommand,
+    preflightState = 'ready',
+    preflightReasonCode = null
   }) => {
     const resolvedCmd = String(commandProfile?.resolved?.cmd || requestedCommand?.cmd || '').trim();
     const resolvedArgs = Array.isArray(commandProfile?.resolved?.args)
@@ -751,6 +761,9 @@ const createConfiguredLspProvider = (server) => {
       documentSymbolConcurrency: server.documentSymbolConcurrency,
       hoverConcurrency: server.hoverConcurrency,
       hoverCacheMaxEntries: server.hoverCacheMaxEntries,
+      adaptiveDocScope: server.adaptiveDocScope,
+      adaptiveDegradedHint: preflightState === 'degraded',
+      adaptiveReasonHint: preflightReasonCode,
       ...(Array.isArray(server.hoverSymbolKinds) && server.hoverSymbolKinds.length
         ? { hoverSymbolKinds: server.hoverSymbolKinds }
         : {}),
@@ -812,7 +825,9 @@ const createConfiguredLspProvider = (server) => {
     version: server.version || '1.0.0',
     priority: Number.isFinite(server.priority) ? server.priority : 80,
     languages: server.languages || [],
-    kinds: ['types', 'diagnostics'],
+    kinds: Array.isArray(server.kinds) && server.kinds.length
+      ? server.kinds.slice()
+      : ['types', 'diagnostics'],
     capabilities: {
       supportsVirtualDocuments: true,
       supportsSegmentRouting: true,
@@ -850,6 +865,8 @@ const createConfiguredLspProvider = (server) => {
         };
       }
       let commandProfile = null;
+      let preflightState = 'ready';
+      let preflightReasonCode = null;
       if (typeof this.preflight === 'function') {
         const preflight = await awaitToolingProviderPreflight(ctx, {
           provider: this,
@@ -884,6 +901,8 @@ const createConfiguredLspProvider = (server) => {
         if (preflight?.commandProfile && typeof preflight.commandProfile === 'object') {
           commandProfile = preflight.commandProfile;
         }
+        preflightState = String(preflight?.state || 'ready');
+        preflightReasonCode = preflight?.reasonCode || null;
       }
       const runtimeCommand = resolveRuntimeCommandFromPreflight({
         preflight: {
@@ -921,7 +940,9 @@ const createConfiguredLspProvider = (server) => {
         log,
         preChecks,
         commandProfile: runtimeCommand.commandProfile,
-        requestedCommand: runtimeCommand.requestedCommand
+        requestedCommand: runtimeCommand.requestedCommand,
+        preflightState,
+        preflightReasonCode
       });
     }
   };

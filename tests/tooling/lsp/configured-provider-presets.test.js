@@ -24,11 +24,13 @@ const yamlFast = providers.find((provider) => provider.id === 'lsp-yaml-fast');
 assert.ok(yamlFast, 'expected yaml preset provider with custom id');
 assert.equal(yamlFast.requires?.cmd, 'yaml-language-server', 'expected yaml command default');
 assert.deepEqual(yamlFast.languages, ['yaml', 'yml'], 'expected yaml language defaults');
+assert.deepEqual(yamlFast.kinds, ['diagnostics'], 'expected yaml preset to default to diagnostics-only routing');
 
 const rust = providers.find((provider) => provider.id === 'lsp-rust');
 assert.ok(rust, 'expected implicit rust preset provider');
 assert.equal(rust.requires?.cmd, 'rust-analyzer', 'expected rust-analyzer command default');
 assert.deepEqual(rust.languages, ['rust'], 'expected rust language default');
+assert.ok(gopls.preflightId?.includes('workspace-model'), 'expected gopls preset to retain workspace-model preflight');
 
 const autoProviders = createConfiguredLspProviders({
   autoEnableOnDetect: true,

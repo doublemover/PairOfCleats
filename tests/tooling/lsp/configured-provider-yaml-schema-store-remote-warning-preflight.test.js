@@ -67,7 +67,7 @@ const result = await runToolingProviders({
     symbolHint: { name: 'name', kind: 'property' },
     languageId: 'yaml'
   }],
-  kinds: ['types']
+  kinds: ['diagnostics']
 });
 
 const checks = Array.isArray(result.diagnostics?.['lsp-yaml-remote-schema']?.checks)
