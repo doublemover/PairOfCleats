@@ -135,6 +135,84 @@ const ensureCacheDir = async (dir) => {
   return dir;
 };
 
+const resolveProviderCachedExecution = async ({
+  ctx,
+  plan,
+  cacheDir,
+  observations
+}) => {
+  const provider = plan?.provider;
+  const providerId = normalizeProviderId(provider?.id);
+  const planDocuments = Array.isArray(plan?.documents) ? plan.documents : [];
+  const planTargets = Array.isArray(plan?.targets) ? plan.targets : [];
+  const configHash = provider.getConfigHash(ctx);
+  const cacheKey = computeCacheKey({
+    providerId,
+    providerVersion: provider.version,
+    configHash,
+    documents: planDocuments,
+    targets: planTargets
+  });
+  const cachePath = cacheDir
+    ? path.join(cacheDir, buildCacheFileName({ providerId, cacheKey }))
+    : null;
+  let output = null;
+  let outputFromCache = false;
+  let outputSource = 'live';
+  if (cachePath) {
+    try {
+      const stat = await fs.stat(cachePath);
+      if (Number.isFinite(stat?.size) && stat.size > TOOLING_PROVIDER_CACHE_READ_MAX_BYTES) {
+        observations.push({
+          level: 'warn',
+          code: 'tooling_cache_oversized',
+          message: `[tooling] provider cache skipped for ${providerId}: oversized (${stat.size} bytes).`,
+          context: {
+            providerId,
+            cachePath,
+            sizeBytes: stat.size,
+            maxBytes: TOOLING_PROVIDER_CACHE_READ_MAX_BYTES
+          }
+        });
+      } else {
+        const cached = JSON.parse(await fs.readFile(cachePath, 'utf8'));
+        if (cached?.provider?.id === providerId
+          && cached?.provider?.version === provider.version
+          && cached?.provider?.configHash === configHash) {
+          output = normalizeCachedProviderOutput(cached);
+          outputFromCache = Boolean(output);
+          if (outputFromCache) outputSource = 'cache';
+        }
+      }
+    } catch (error) {
+      if (error?.code !== 'ENOENT') {
+        observations.push({
+          level: 'warn',
+          code: 'tooling_cache_read_failed',
+          message: `[tooling] provider cache read failed for ${providerId}; using live run.`,
+          context: {
+            providerId,
+            cachePath,
+            error: error?.message || String(error)
+          }
+        });
+      }
+    }
+  }
+  return {
+    plan,
+    provider,
+    providerId,
+    planDocuments,
+    planTargets,
+    configHash,
+    cachePath,
+    output,
+    outputFromCache,
+    outputSource
+  };
+};
+
 const pruneToolingCacheDir = async (cacheDir, { maxBytes, maxEntries } = {}) => {
   if (!cacheDir) return { removed: 0, remainingBytes: 0 };
   const limitBytes = Number.isFinite(maxBytes) ? Math.max(0, Math.floor(maxBytes)) : 0;
@@ -830,20 +908,41 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
 
   try {
     const cacheDir = ctx?.cache?.enabled ? await ensureCacheDir(ctx.cache.dir) : null;
+    const providerExecutions = [];
+    for (const plan of providerPlans) {
+      providerExecutions.push(await resolveProviderCachedExecution({
+        ctx,
+        plan,
+        cacheDir,
+        observations
+      }));
+    }
+    const preflightLivePlans = providerExecutions
+      .filter((entry) => !entry.output && entry.provider && entry.providerId)
+      .map((entry) => ({
+        provider: entry.provider,
+        documents: entry.planDocuments,
+        targets: entry.planTargets
+      }));
+    const providerPreflightWaveToken = kickoffToolingProviderPreflights(ctx, preflightLivePlans);
     let providerOrdinal = 0;
 
-    for (const plan of providerPlans) {
+    for (const execution of providerExecutions) {
       providerOrdinal += 1;
-      const provider = plan.provider;
-      const providerId = normalizeProviderId(provider?.id);
+      const {
+        provider,
+        providerId,
+        planDocuments,
+        planTargets,
+        configHash,
+        cachePath
+      } = execution;
       if (!providerId) continue;
-      const planDocuments = Array.isArray(plan.documents) ? plan.documents : [];
-      const planTargets = Array.isArray(plan.targets) ? plan.targets : [];
       const providerStartedAtMs = Date.now();
       let providerProgressPhase = 'cache-read';
       let providerProgressTimer = null;
       let providerOutcome = 'done';
-      let providerOutputSource = 'live';
+      let providerOutputSource = execution.outputSource;
       let providerChunksMerged = 0;
       const emitProviderProgress = (kind = 'heartbeat') => {
         if (!log) return;
@@ -864,64 +963,11 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
         }, TOOLING_PROVIDER_PROGRESS_HEARTBEAT_MS);
         providerProgressTimer.unref?.();
       }
-      const configHash = provider.getConfigHash(ctx);
-      const cacheKey = computeCacheKey({
-        providerId,
-        providerVersion: provider.version,
-        configHash,
-        documents: planDocuments,
-        targets: planTargets
-      });
-      const cachePath = cacheDir
-        ? path.join(cacheDir, buildCacheFileName({ providerId, cacheKey }))
-        : null;
-      let output = null;
-      let outputFromCache = false;
+      let output = execution.output;
+      let outputFromCache = execution.outputFromCache;
       try {
-        if (cachePath) {
-          providerProgressPhase = 'cache-read';
-          try {
-            const stat = await fs.stat(cachePath);
-            if (Number.isFinite(stat?.size) && stat.size > TOOLING_PROVIDER_CACHE_READ_MAX_BYTES) {
-              observations.push({
-                level: 'warn',
-                code: 'tooling_cache_oversized',
-                message: `[tooling] provider cache skipped for ${providerId}: oversized (${stat.size} bytes).`,
-                context: {
-                  providerId,
-                  cachePath,
-                  sizeBytes: stat.size,
-                  maxBytes: TOOLING_PROVIDER_CACHE_READ_MAX_BYTES
-                }
-              });
-            } else {
-              const cached = JSON.parse(await fs.readFile(cachePath, 'utf8'));
-              if (cached?.provider?.id === providerId
-                && cached?.provider?.version === provider.version
-                && cached?.provider?.configHash === configHash) {
-                output = normalizeCachedProviderOutput(cached);
-                outputFromCache = Boolean(output);
-                if (outputFromCache) providerOutputSource = 'cache';
-              }
-            }
-          } catch (error) {
-            if (error?.code !== 'ENOENT') {
-              observations.push({
-                level: 'warn',
-                code: 'tooling_cache_read_failed',
-                message: `[tooling] provider cache read failed for ${providerId}; using live run.`,
-                context: {
-                  providerId,
-                  cachePath,
-                  error: error?.message || String(error)
-                }
-              });
-            }
-          }
-        }
         if (!output) {
           providerProgressPhase = 'live-run';
-          const providerPreflightWaveToken = kickoffToolingProviderPreflights(ctx, [plan]);
           const providerInputs = {
             ...inputs,
             documents: planDocuments,

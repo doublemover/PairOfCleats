@@ -622,6 +622,7 @@ shared/artifact-io/broken-offsets-fallback
 tooling/providers/provider-registry-ignores-legacy-keys
 retrieval/ann/hnsw-insert-failures
 tooling/providers/provider-registry-ordering
+tooling/providers/preflight-overlap
 indexing/artifacts/manifest/report-artifacts-driven
 indexing/tree-sitter/scheduler-binary-row-format
 indexing/chunking/smartchunk-yaml
@@ -1024,3 +1025,4 @@ indexing/state/patch-queue-lock-unavailable-best-effort-retry
 indexing/state/build-state-lock-unavailable-retryable
 indexing/tree-sitter/scheduler-lookup-reader-lease
 tooling/lsp/adaptive-scope-plan
+tooling/lsp/target-index
