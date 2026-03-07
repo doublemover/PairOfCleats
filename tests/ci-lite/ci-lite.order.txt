@@ -2,6 +2,7 @@ indexing/embeddings/maintenance-thresholds
 indexing/postings/token-id-parse-resilience
 retrieval/ann/backend-selection
 tooling/vfs/idx-contract
+tooling/vfs/offset-reader-close-timeout
 tooling/vscode/extension
 indexing/map/edges
 retrieval/context-expansion/no-candidate-explosion
@@ -110,6 +111,8 @@ indexing/relations/file-name-collision-no-wrong-join
 retrieval/query/intent
 shared/limits/normalization
 indexing/artifacts/file-meta-stable-ids
+indexing/artifacts/active-write-telemetry-snapshot
+indexing/build-cleanup-pending-timeout
 indexing/chunk-id/stable-id-does-not-depend-on-name-or-kind
 indexing/tree-sitter/scheduler-deferred-options
 tooling/architecture/forbidden-import-edge
@@ -194,6 +197,12 @@ graph/count-mismatch-warning
 graph/edge-bucket-determinism
 retrieval/federation/query-cache-invalidation-via-manifesthash
 indexing/scm/signature-provenance-stability
+indexing/scm/config-bench-annotate-default
+indexing/scm/build-runtime-timeout-policy
+indexing/scm/file-meta-snapshot-partial-fallback
+indexing/git/meta-batch-churn
+indexing/file-processor/scm-annotate-fast-timeout
+indexing/file-processor/scm-runproc-queue-timeout
 retrieval/graph/impact-analysis-caps-and-truncation
 retrieval/graph/impact-analysis-determinism
 indexing/embeddings/embedding-normalization-consistency
@@ -996,8 +1005,14 @@ indexing/tree-sitter/scheduler-paged-json-gzip
 cli/search/help
 tooling/service/subprocess-cancellation-contract
 indexing/tokenization/file-stream-reuse
+indexing/failure-taxonomy-null-shard
+indexing/stage1/process-files-inflight-drain
+storage/sqlite/bundle-vocab-cache-eviction
+storage/sqlite/incremental/bundle-partial-embeddings-fallback
 shared/runtime/records-config
 indexing/state/patch-queue-required-durability-awaits-flush
 indexing/state/patch-queue-durability-class-forwarding
 indexing/state/patch-queue-lock-unavailable-best-effort-retry
 indexing/state/build-state-lock-unavailable-retryable
+indexing/tree-sitter/scheduler-lookup-reader-lease
+tooling/lsp/adaptive-scope-plan
