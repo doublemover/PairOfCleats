@@ -183,4 +183,54 @@ assert.equal(verifySummary.submodules.initialMissing, 1, 'expected one missing s
 assert.equal(verifySummary.submodules.missing, 1, 'expected one missing submodule after update');
 assert.equal(verifySummary.submodules.updated, false, 'expected update flag to remain false on incomplete state');
 
+const successRepoPath = await setupMockRepo(
+  'verify-success',
+  [
+    '[submodule "deps/example"]',
+    '  path = deps/example',
+    '  url = https://github.com/example/example.git'
+  ].join('\n')
+);
+let successStatusChecks = 0;
+const successLogs = [];
+const successSummary = withMockGitRunner((cmd, args) => {
+  assert.equal(cmd, 'git', 'expected git command for preflight success case');
+  if (args[0] === '--version') {
+    return { ok: true, status: 0, stdout: 'git version 2.49.0\n', stderr: '' };
+  }
+  if (args[0] === '-C' && args[1] === successRepoPath && args[2] === 'rev-parse') {
+    return { ok: true, status: 0, stdout: 'true\n', stderr: '' };
+  }
+  if (args[0] === '-C' && args[1] === successRepoPath && args[2] === 'submodule' && args[3] === 'status') {
+    successStatusChecks += 1;
+    if (successStatusChecks === 1) {
+      return { ok: true, status: 0, stdout: '-89abcde deps/example\n', stderr: '' };
+    }
+    return { ok: true, status: 0, stdout: ' 89abcde deps/example\n', stderr: '' };
+  }
+  if (args[0] === '-C' && args[1] === successRepoPath && args[2] === 'submodule' && args[3] === 'sync') {
+    return { ok: true, status: 0, stdout: '', stderr: '' };
+  }
+  if (args[0] === '-C' && args[1] === successRepoPath && args[2] === 'submodule' && args[3] === 'update') {
+    return { ok: true, status: 0, stdout: '', stderr: '' };
+  }
+  throw new Error(`unexpected git invocation: ${JSON.stringify(args)}`);
+}, () => ensureRepoBenchmarkReady({
+  repoPath: successRepoPath,
+  onLog: (message) => successLogs.push(String(message || ''))
+}));
+
+assert.equal(successSummary.ok, true, 'expected successful submodule update to keep preflight healthy');
+assert.equal(successSummary.submodules.updated, true, 'expected update marker after successful repair');
+assert.equal(successSummary.submodules.initialMissing, 1, 'expected one initial missing submodule');
+assert.equal(successSummary.submodules.missing, 0, 'expected zero missing submodules after verification');
+assert.ok(
+  successLogs.some((line) => line.includes('submodules ready') && line.includes('missing=0, dirty=0')),
+  'expected success log to report final submodule state'
+);
+assert.ok(
+  successLogs.some((line) => line.includes('initialMissing=1, initialDirty=0')),
+  'expected success log to preserve initial submodule state for diagnostics'
+);
+
 console.log('bench-language repo preflight parser test passed.');

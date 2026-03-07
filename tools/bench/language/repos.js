@@ -471,9 +471,11 @@ export const ensureRepoBenchmarkReady = ({
             return summary;
           }
           summary.submodules.updated = true;
+          const initialStateText = `initialMissing=${summary.submodules.initialMissing}, initialDirty=${summary.submodules.initialDirty}`;
+          const finalStateText = `missing=${summary.submodules.missing}, dirty=${summary.submodules.dirty}`;
           log(
             `[repo-preflight] submodules ready (${repoName}) ` +
-            `(missing=${summary.submodules.initialMissing}, dirty=${summary.submodules.initialDirty}).`
+            `(${finalStateText}; ${initialStateText}).`
           );
         }
       }
