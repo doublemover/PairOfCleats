@@ -555,6 +555,14 @@ export const buildCrossFileInferenceRoiMetrics = ({
     + (Number(budgetStats?.retained?.fileUsageSignals) || 0)
   );
   const contributionSignal = inferredReturns + riskFlows;
+  const toolingProvidersExecuted = Number(crossFileStats?.toolingProvidersExecuted) || 0;
+  const toolingProvidersContributed = Number(crossFileStats?.toolingProvidersContributed) || 0;
+  const toolingDegradedProviders = Number(crossFileStats?.toolingDegradedProviders) || 0;
+  const toolingDegradedWarnings = Number(crossFileStats?.toolingDegradedWarnings) || 0;
+  const toolingDegradedErrors = Number(crossFileStats?.toolingDegradedErrors) || 0;
+  const toolingRequests = Number(crossFileStats?.toolingRequests) || 0;
+  const toolingRequestFailures = Number(crossFileStats?.toolingRequestFailures) || 0;
+  const toolingRequestTimeouts = Number(crossFileStats?.toolingRequestTimeouts) || 0;
   return {
     schemaVersion: CROSS_FILE_BUDGET_SCHEMA_VERSION,
     durationMs: Number.isFinite(Number(durationMs)) ? Math.max(0, Math.floor(Number(durationMs))) : 0,
@@ -563,6 +571,19 @@ export const buildCrossFileInferenceRoiMetrics = ({
     contributionSignal,
     linkRetentionRate: safeDivide(linkAdditions, retainedLinksAfterFiltering),
     contributionPerAddedLink: safeDivide(contributionSignal, linkAdditions),
-    contributionPerRetainedLink: safeDivide(contributionSignal, retainedLinksAfterFiltering)
+    contributionPerRetainedLink: safeDivide(contributionSignal, retainedLinksAfterFiltering),
+    tooling: {
+      providersExecuted: toolingProvidersExecuted,
+      providersContributed: toolingProvidersContributed,
+      degradedProviders: toolingDegradedProviders,
+      degradedWarnings: toolingDegradedWarnings,
+      degradedErrors: toolingDegradedErrors,
+      requests: toolingRequests,
+      requestFailures: toolingRequestFailures,
+      requestTimeouts: toolingRequestTimeouts,
+      requestFailureRate: safeDivide(toolingRequestFailures, toolingRequests),
+      requestTimeoutRate: safeDivide(toolingRequestTimeouts, toolingRequests),
+      degradedProviderRate: safeDivide(toolingDegradedProviders, toolingProvidersExecuted)
+    }
   };
 };

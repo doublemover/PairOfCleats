@@ -260,7 +260,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   const scmConfig = resolveScmConfig({
     indexingConfig,
     analysisPolicy: userConfig.analysisPolicy || null,
-    benchRun: envConfig.benchRun === true
+    benchRun: envConfig.benchRun === true,
+    workload: 'batch'
   });
   setScmRuntimeConfig(scmConfig);
   const cacheRoot = cacheRootCandidate;
@@ -566,6 +567,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     : null;
   log(
     `[scm] policy provider=${scmSelection.provider} annotate=${gitBlameEnabled ? 'on' : 'off'} ` +
+      `timeoutCaps=${scmConfig?.allowSlowTimeouts === true ? 'guardrail-only' : 'aggressive'} ` +
       `benchRun=${envConfig.benchRun === true ? '1' : '0'} ` +
       `metaTimeoutMs=${scmTimeoutMs ?? 'default'} ` +
       `annotateTimeoutMs=${scmAnnotateTimeoutMs ?? 'default'} ` +
@@ -847,35 +849,40 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     || indexingConfig.debugCrash === true
     || isTestingEnv();
 
-  const {
-    dictConfig,
-    dictionaryPaths,
-    codeDictPaths,
-    dictWords,
-    codeDictCommonWords,
-    codeDictWordsByLanguage,
-    dictSummary,
-    dictSignature,
-    dictSharedPayload,
-    dictShared,
-    codeDictLanguages
-  } = await resolveRuntimeDictionaries({
-    root,
-    userConfig,
-    workerPoolConfig,
-    daemonSession,
-    log,
-    logInit
-  });
-  const codeDictEnabled = codeDictLanguages.size > 0;
   const generatedPolicy = buildGeneratedIndexingPolicyConfig(indexingConfig);
 
-  const {
-    ignoreMatcher,
-    config: ignoreConfig,
-    ignoreFiles,
-    warnings: ignoreWarnings
-  } = await timeInit('ignore rules', () => buildIgnoreMatcher({ root, userConfig, generatedPolicy }));
+  const [
+    {
+      dictConfig,
+      dictionaryPaths,
+      codeDictPaths,
+      dictWords,
+      codeDictCommonWords,
+      codeDictWordsByLanguage,
+      dictSummary,
+      dictSignature,
+      dictSharedPayload,
+      dictShared,
+      codeDictLanguages
+    },
+    {
+      ignoreMatcher,
+      config: ignoreConfig,
+      ignoreFiles,
+      warnings: ignoreWarnings
+    }
+  ] = await Promise.all([
+    timeInit('dictionaries', () => resolveRuntimeDictionaries({
+      root,
+      userConfig,
+      workerPoolConfig,
+      daemonSession,
+      log,
+      logInit
+    })),
+    timeInit('ignore rules', () => buildIgnoreMatcher({ root, userConfig, generatedPolicy }))
+  ]);
+  const codeDictEnabled = codeDictLanguages.size > 0;
   const cacheConfig = getCacheRuntimeConfig(root, userConfig);
   const verboseCache = envConfig.verbose === true;
 
@@ -1061,6 +1068,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   return {
     envelope,
     root,
+    log,
     argv,
     rawArgv,
     userConfig,

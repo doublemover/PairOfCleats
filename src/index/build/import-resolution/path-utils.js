@@ -1,5 +1,6 @@
 import path from 'node:path';
-import { isAbsolutePathNative, isRelativePathEscape, toPosix } from '../../../shared/files.js';
+import { toPosix } from '../../../shared/files.js';
+import { isWithinRoot } from '../../../workspace/identity.js';
 import { DEFAULT_IMPORT_EXTS } from './constants.js';
 
 export const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
@@ -22,7 +23,9 @@ export const normalizeImportSpecifier = (spec) => {
 export const normalizeRelPath = (value) => {
   if (!value) return '';
   const normalized = path.posix.normalize(toPosix(String(value)));
-  return normalized.replace(/^\.\/?/, '');
+  if (!normalized || normalized === '.') return '';
+  if (normalized.startsWith('./')) return normalized.slice(2);
+  return normalized;
 };
 
 export const stripImportExtension = (value) => {
@@ -39,7 +42,11 @@ export const stripImportExtension = (value) => {
 };
 
 export const resolveWithinRoot = (rootAbs, absPath) => {
-  const rel = path.relative(rootAbs, absPath);
-  if (!rel || isRelativePathEscape(rel) || isAbsolutePathNative(rel)) return null;
+  if (!rootAbs || !absPath) return null;
+  const resolvedRoot = path.resolve(rootAbs);
+  const resolvedPath = path.resolve(absPath);
+  if (!isWithinRoot(resolvedPath, resolvedRoot)) return null;
+  const rel = path.relative(resolvedRoot, resolvedPath);
+  if (!rel) return null;
   return normalizeRelPath(toPosix(rel));
 };

@@ -44,7 +44,7 @@ import { formatEtaSeconds } from '../../../src/shared/perf/eta.js';
 import {
   normalizeBundleFormat,
   readBundleFile,
-  resolveBundleFilename,
+  resolveManifestBundleNames,
   resolveBundleFormatFromName,
   writeBundleFile
 } from '../../../src/shared/bundle-io.js';
@@ -1091,22 +1091,37 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
     const normalizedFile = toPosix(filePath).trim();
     const chunkMapping = resolveChunkFileMapping(mappingIndex, normalizedFile);
     if (trackWarmup) observeWarmupMapping({ normalizedFile, chunkMapping });
-    const bundleName = entry?.bundle || resolveBundleFilename(filePath, resolvedBundleFormat);
-    const bundlePath = path.join(incremental.bundleDir, bundleName);
-    const bundleFormat = resolveBundleFormatFromName(bundleName, resolvedBundleFormat);
-    let existing = null;
-    try {
-      existing = await scheduleIo(() => readBundleFile(bundlePath, { format: bundleFormat }));
-    } catch {
-      existing = null;
-    }
-    if (!existing?.ok || !Array.isArray(existing.bundle?.chunks)) {
+    const bundleNames = resolveManifestBundleNames(entry);
+    if (!bundleNames.length) {
       skippedInvalidBundle += 1;
       return;
     }
+    const bundleShards = [];
+    for (const bundleName of bundleNames) {
+      const bundlePath = path.join(incremental.bundleDir, bundleName);
+      const bundleFormat = resolveBundleFormatFromName(bundleName, resolvedBundleFormat);
+      let existing = null;
+      try {
+        existing = await scheduleIo(() => readBundleFile(bundlePath, { format: bundleFormat }));
+      } catch {
+        existing = null;
+      }
+      if (!existing?.ok || !Array.isArray(existing.bundle?.chunks)) {
+        skippedInvalidBundle += 1;
+        return;
+      }
+      bundleShards.push({
+        bundlePath,
+        bundleFormat,
+        bundle: existing.bundle
+      });
+    }
 
-    const bundle = existing.bundle;
-    if (!bundle.chunks.length) {
+    const totalChunks = bundleShards.reduce(
+      (sum, shard) => sum + (Array.isArray(shard.bundle?.chunks) ? shard.bundle.chunks.length : 0),
+      0
+    );
+    if (!totalChunks) {
       skippedEmptyBundle += 1;
       return;
     }
@@ -1116,38 +1131,41 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
     let fileCovered = true;
     let fileNoMappingCounted = false;
 
-    for (const chunk of bundle.chunks) {
-      if (!chunk || typeof chunk !== 'object') continue;
-      const mappingResult = resolveBundleChunkVectorIndex({
-        chunk,
-        normalizedFile,
-        fileMapping: chunkMapping,
-        mappingIndex,
-        fallbackState,
-        vectorCount: mergedVectors.length
-      });
-      const vectorIndex = mappingResult.vectorIndex;
-      const vector = vectorIndex != null ? mergedVectors[vectorIndex] : null;
-      const mappedButMissingVector = vectorIndex != null && !hasVectorPayload(vector);
-      if (hasVectorPayload(vector)) {
-        const quantized = toUint8Vector(vector);
-        if (quantized && !vectorsEqual(chunk.embedding_u8, quantized)) {
-          chunk.embedding_u8 = quantized;
+    for (const shard of bundleShards) {
+      const shardChunks = Array.isArray(shard.bundle?.chunks) ? shard.bundle.chunks : [];
+      for (const chunk of shardChunks) {
+        if (!chunk || typeof chunk !== 'object') continue;
+        const mappingResult = resolveBundleChunkVectorIndex({
+          chunk,
+          normalizedFile,
+          fileMapping: chunkMapping,
+          mappingIndex,
+          fallbackState,
+          vectorCount: mergedVectors.length
+        });
+        const vectorIndex = mappingResult.vectorIndex;
+        const vector = vectorIndex != null ? mergedVectors[vectorIndex] : null;
+        const mappedButMissingVector = vectorIndex != null && !hasVectorPayload(vector);
+        if (hasVectorPayload(vector)) {
+          const quantized = toUint8Vector(vector);
+          if (quantized && !vectorsEqual(chunk.embedding_u8, quantized)) {
+            chunk.embedding_u8 = quantized;
+            changed = true;
+          }
+        }
+        if (chunk.embedding !== undefined) {
+          delete chunk.embedding;
           changed = true;
         }
-      }
-      if (chunk.embedding !== undefined) {
-        delete chunk.embedding;
-        changed = true;
-      }
-      if (!hasVectorPayload(chunk.embedding_u8)) {
-        fileCovered = false;
-        if (vectorIndex == null || mappedButMissingVector) {
-          skippedNoMappingChunks += 1;
-          recordMappingFailureReason(mappingFailureReasons, mappingResult.reason);
-          if (!fileNoMappingCounted) {
-            skippedNoMapping += 1;
-            fileNoMappingCounted = true;
+        if (!hasVectorPayload(chunk.embedding_u8)) {
+          fileCovered = false;
+          if (vectorIndex == null || mappedButMissingVector) {
+            skippedNoMappingChunks += 1;
+            recordMappingFailureReason(mappingFailureReasons, mappingResult.reason);
+            if (!fileNoMappingCounted) {
+              skippedNoMapping += 1;
+              fileNoMappingCounted = true;
+            }
           }
         }
       }
@@ -1158,11 +1176,13 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
       return;
     }
     try {
-      await scheduleIo(() => writeBundleFile({
-        bundlePath,
-        bundle,
-        format: bundleFormat
-      }));
+      for (const shard of bundleShards) {
+        await scheduleIo(() => writeBundleFile({
+          bundlePath: shard.bundlePath,
+          bundle: shard.bundle,
+          format: shard.bundleFormat
+        }));
+      }
       rewritten += 1;
       if (fileCovered) covered += 1;
     } catch (err) {
@@ -2917,7 +2937,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           });
           if (force || perfStatusLine !== lastPerfStatusLine) {
             lastPerfStatusLine = perfStatusLine;
-            log(perfStatusLine);
+            log(perfStatusLine, { kind: 'status', stage: 'embeddings', mode });
           }
           const filesMessage = [
             `${processedFiles}/${sampledFileEntries.length} files`,
@@ -4211,11 +4231,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
 
         {
           const vectorSummary = `[embeddings] ${mode}: wrote ${totalChunks} vectors (dims=${finalDims}).`;
-          if (typeof display?.logLine === 'function') {
-            display.logLine(vectorSummary, { kind: 'status' });
-          } else {
-            log(vectorSummary);
-          }
+          log(vectorSummary, { kind: 'status', stage: 'embeddings', mode });
         }
         if (crossFileChunkDedupeEnabled) {
           log(

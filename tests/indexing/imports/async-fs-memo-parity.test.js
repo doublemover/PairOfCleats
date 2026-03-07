@@ -155,4 +155,43 @@ assert.deepEqual(
   'transient prefetch failures should fall back to live fs checks'
 );
 
+const missingEntryPath = path.join(srcDir, 'missing-entry.js');
+await fs.writeFile(missingEntryPath, 'import "./does-not-exist.js";\n', 'utf8');
+const missingEntries = [
+  { abs: missingEntryPath, rel: 'src/missing-entry.js' }
+];
+const missingImportsByFile = {
+  'src/missing-entry.js': ['./does-not-exist.js']
+};
+const missingRelations = new Map([
+  ['src/missing-entry.js', { imports: ['./does-not-exist.js'] }]
+]);
+const missingTargetAbs = path.resolve(tempRoot, 'src/does-not-exist.js');
+const probeErrorMeta = {
+  existsByPath: {
+    [missingTargetAbs]: false
+  },
+  statByPath: {
+    [missingTargetAbs]: null
+  },
+  transientByPath: {},
+  errorByPath: {
+    [missingTargetAbs]: { code: 'EACCES' }
+  },
+  candidateCount: 1
+};
+const probeErrorResult = resolveImportLinks({
+  root: tempRoot,
+  entries: missingEntries,
+  importsByFile: missingImportsByFile,
+  fileRelations: missingRelations,
+  enableGraph: true,
+  fsMeta: probeErrorMeta
+});
+assert.equal(
+  probeErrorResult?.unresolvedSamples?.[0]?.reasonCode,
+  'IMP_U_FILESYSTEM_PROBE_ERROR',
+  'filesystem probe errors should not collapse into missing-file unresolved reasons'
+);
+
 console.log('async fs memo parity test passed');

@@ -51,4 +51,27 @@ assert.equal(abortingTimeoutErr.code, 'ABORT_TIMEOUT');
 assert.ok(observedAbortReason instanceof Error, 'expected abort reason to be propagated to operation signal');
 assert.equal(observedAbortReason.code, 'ABORT_TIMEOUT');
 
+const preAbortedController = new AbortController();
+preAbortedController.abort(new Error('already-aborted'));
+const preAbortedErr = await runWithTimeout(
+  () => Promise.resolve('unexpected-success'),
+  { timeoutMs: 50, signal: preAbortedController.signal }
+).then(() => null, (err) => err);
+assert.ok(preAbortedErr instanceof Error, 'expected immediate abort rejection for pre-aborted signal');
+assert.equal(preAbortedErr.code, 'ABORT_ERR');
+assert.match(String(preAbortedErr.message || ''), /already-aborted/i);
+
+const upstreamAbortController = new AbortController();
+const upstreamAbortErrPromise = runWithTimeout(
+  () => new Promise((resolve) => {
+    setTimeout(() => resolve('ignored-abort-success'), 80);
+  }),
+  { timeoutMs: 500, signal: upstreamAbortController.signal }
+).then(() => null, (err) => err);
+setTimeout(() => upstreamAbortController.abort(new Error('upstream-stop')), 20);
+const upstreamAbortErr = await upstreamAbortErrPromise;
+assert.ok(upstreamAbortErr instanceof Error, 'expected upstream abort to reject runWithTimeout');
+assert.equal(upstreamAbortErr.code, 'ABORT_ERR');
+assert.match(String(upstreamAbortErr.message || ''), /upstream-stop/i);
+
 console.log('promise timeout contract test passed');

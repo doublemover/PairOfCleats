@@ -8,7 +8,7 @@ export const buildSearchActions = ({ root, runNode }) => [
   },
   {
     label: 'retrieval-backend-policy-test',
-    run: () => runNode('retrieval-backend-policy-test', path.join(root, 'tests', 'retrieval', 'backend', 'retrieval-backend-policy.test.js')),
+    run: () => runNode('retrieval-backend-policy-test', path.join(root, 'tests', 'retrieval', 'backend', 'retrieval-policy.test.js')),
     covers: ['retrieval-backend-policy-test']
   },
   {
@@ -23,12 +23,12 @@ export const buildSearchActions = ({ root, runNode }) => [
   },
   {
     label: 'structural-search-test',
-    run: () => runNode('structural-search-test', path.join(root, 'tests', 'tooling', 'structural', 'structural-search.test.js')),
+    run: () => runNode('structural-search-test', path.join(root, 'tests', 'tooling', 'structural', 'search.test.js')),
     covers: ['structural-search-test']
   },
   {
     label: 'structural-filters-test',
-    run: () => runNode('structural-filters-test', path.join(root, 'tests', 'tooling', 'structural', 'structural-filters.test.js')),
+    run: () => runNode('structural-filters-test', path.join(root, 'tests', 'tooling', 'structural', 'filters.test.js')),
     covers: ['structural-filters-test']
   },
   {
@@ -43,7 +43,7 @@ export const buildSearchActions = ({ root, runNode }) => [
   },
   {
     label: 'search-symbol-boost-test',
-    run: () => runNode('search-symbol-boost-test', path.join(root, 'tests', 'cli', 'search', 'search-symbol-boost.test.js')),
+    run: () => runNode('search-symbol-boost-test', path.join(root, 'tests', 'cli', 'search', 'symbol-boost.test.js')),
     covers: ['search-symbol-boost-test']
   },
   {
@@ -63,47 +63,47 @@ export const buildSearchActions = ({ root, runNode }) => [
   },
   {
     label: 'search-missing-index-test',
-    run: () => runNode('search-missing-index-test', path.join(root, 'tests', 'cli', 'search', 'search-missing-index.test.js')),
+    run: () => runNode('search-missing-index-test', path.join(root, 'tests', 'cli', 'search', 'missing-index.test.js')),
     covers: ['search-missing-index-test']
   },
   {
     label: 'search-help-test',
-    run: () => runNode('search-help-test', path.join(root, 'tests', 'cli', 'search', 'search-help.test.js')),
+    run: () => runNode('search-help-test', path.join(root, 'tests', 'cli', 'search', 'help.test.js')),
     covers: ['search-help-test']
   },
   {
     label: 'search-removed-flags-test',
-    run: () => runNode('search-removed-flags-test', path.join(root, 'tests', 'cli', 'search', 'search-removed-flags.test.js')),
+    run: () => runNode('search-removed-flags-test', path.join(root, 'tests', 'cli', 'search', 'removed-flags.test.js')),
     covers: []
   },
   {
     label: 'search-missing-flag-values-test',
-    run: () => runNode('search-missing-flag-values-test', path.join(root, 'tests', 'cli', 'search', 'search-missing-flag-values.test.js')),
+    run: () => runNode('search-missing-flag-values-test', path.join(root, 'tests', 'cli', 'search', 'missing-flag-values.test.js')),
     covers: []
   },
   {
     label: 'search-windows-path-filter-test',
-    run: () => runNode('search-windows-path-filter-test', path.join(root, 'tests', 'cli', 'search', 'search-windows-path-filter.test.js')),
+    run: () => runNode('search-windows-path-filter-test', path.join(root, 'tests', 'cli', 'search', 'windows-path-filter.test.js')),
     covers: []
   },
   {
     label: 'search-explain-symbol-test',
-    run: () => runNode('search-explain-symbol-test', path.join(root, 'tests', 'cli', 'search', 'search-explain-symbol.test.js')),
+    run: () => runNode('search-explain-symbol-test', path.join(root, 'tests', 'cli', 'search', 'explain-symbol.test.js')),
     covers: []
   },
   {
     label: 'query-intent-test',
-    run: () => runNode('query-intent-test', path.join(root, 'tests', 'retrieval', 'query', 'query-intent.test.js')),
+    run: () => runNode('query-intent-test', path.join(root, 'tests', 'retrieval', 'query', 'intent.test.js')),
     covers: ['query-intent-test']
   },
   {
     label: 'context-expansion-test',
-    run: () => runNode('context-expansion-test', path.join(root, 'tests', 'retrieval', 'context', 'context-expansion.test.js')),
+    run: () => runNode('context-expansion-test', path.join(root, 'tests', 'retrieval', 'context', 'expansion.test.js')),
     covers: ['context-expansion-test']
   },
   {
     label: 'query-cache-test',
-    run: () => runNode('query-cache-test', path.join(root, 'tests', 'retrieval', 'cache', 'query-cache.test.js')),
+    run: () => runNode('query-cache-test', path.join(root, 'tests', 'retrieval', 'cache', 'query.test.js')),
     covers: ['query-cache-test']
   },
   {

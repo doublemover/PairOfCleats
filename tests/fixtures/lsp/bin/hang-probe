@@ -1,0 +1,18 @@
+#!/usr/bin/env node
+const args = process.argv.slice(2);
+
+if (
+  args.includes('--version')
+  || args.includes('-version')
+  || args.includes('version')
+  || args.includes('--help')
+  || args.includes('-help')
+  || args.includes('help')
+  || args.includes('-h')
+) {
+  // Intentionally never exit so probe timeout behavior can be exercised.
+  setInterval(() => {}, 60_000);
+} else {
+  process.stdout.write('hang-probe ok\n');
+  process.exit(0);
+}

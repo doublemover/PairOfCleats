@@ -13,6 +13,7 @@ import {
   resolveSpecialCodeExt
 } from '../constants.js';
 import { log } from '../../shared/progress.js';
+import { releaseFileLockOrThrow } from '../../shared/locks/file-lock.js';
 import {
   incWatchBurst,
   incWatchDebounce,
@@ -663,8 +664,9 @@ export async function watchIndex({
         try {
           await runBuildCleanupWithTimeout({
             label: 'watch.lock.release',
-            cleanup: () => lock.release(),
-            log
+            cleanup: () => releaseFileLockOrThrow(lock),
+            log,
+            swallowTimeout: false
           });
         } catch (err) {
           status = 'error';
@@ -884,33 +886,37 @@ export async function watchIndex({
 
   if (shouldExit) stop();
   await exitPromise;
-
-  await runBuildCleanupWithTimeout({
-    label: 'watch.watcher.close',
-    cleanup: () => watcher.close(),
-    log
-  });
-
-  if (running) {
-    log('[watch] Waiting for active build to finish...');
+  try {
     await runBuildCleanupWithTimeout({
-      label: 'watch.active-build.wait',
-      cleanup: async () => {
-        while (running) {
-          await sleep(200);
-        }
-      },
-      log
+      label: 'watch.watcher.close',
+      cleanup: () => watcher.close(),
+      log,
+      swallowTimeout: false
     });
+
+    if (running) {
+      log('[watch] Waiting for active build to finish...');
+      await runBuildCleanupWithTimeout({
+        label: 'watch.active-build.wait',
+        cleanup: async () => {
+          while (running) {
+            await sleep(200);
+          }
+        },
+        log,
+        swallowTimeout: false
+      });
+    }
+  } finally {
+    if (handleSignals) {
+      process.off('SIGINT', handleSigint);
+      process.off('SIGTERM', handleSigterm);
+    }
+    if (abortSignal && abortHandler) {
+      abortSignal.removeEventListener('abort', abortHandler);
+    }
+    log(`[watch] Shutdown complete${shutdownSignal ? ` (${shutdownSignal})` : ''}.`);
   }
-  if (handleSignals) {
-    process.off('SIGINT', handleSigint);
-    process.off('SIGTERM', handleSigterm);
-  }
-  if (abortSignal && abortHandler) {
-    abortSignal.removeEventListener('abort', abortHandler);
-  }
-  log(`[watch] Shutdown complete${shutdownSignal ? ` (${shutdownSignal})` : ''}.`);
 }
 
 export { resolveWatcherBackend, waitForStableFile, isIndexablePath };

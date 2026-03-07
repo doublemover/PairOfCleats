@@ -1,17 +1,29 @@
-import crypto from 'node:crypto';
 import fsSync from 'node:fs';
-import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
-import { execaSync } from 'execa';
 import { SymbolKind } from 'vscode-languageserver-protocol';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
-import { isTestingEnv } from '../../shared/env.js';
+import { toPosix } from '../../shared/files.js';
 import { throwIfAborted } from '../../shared/abort.js';
-import { acquireFileLock } from '../../shared/locks/file-lock.js';
-import { spawnSubprocess } from '../../shared/subprocess.js';
+import { acquireFileLock, releaseFileLockOrThrow } from '../../shared/locks/file-lock.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
+import {
+  invalidateProbeCacheOnInitializeFailure,
+  isProbeCommandDefinitelyMissing
+} from './command-resolver.js';
 import { parseSwiftSignature } from './signature-parse/swift.js';
+import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
+import { resolveProviderRequestedCommand } from './provider-command-override.js';
+import { filterTargetsForDocuments } from './provider-utils.js';
+import { awaitToolingProviderPreflight } from './preflight-manager.js';
+import {
+  resolveCommandProfilePreflightResult,
+  resolveRuntimeCommandFromPreflight
+} from './preflight/command-profile-preflight.js';
+import {
+  buildSourcekitRepoScopedLockPath,
+  ensureSourcekitPackageResolutionPreflight,
+  resolveSourcekitPreflightLockPath
+} from './preflight/sourcekit-package-resolution.js';
 
 export const SWIFT_EXTS = ['.swift'];
 
@@ -22,16 +34,6 @@ const SOURCEKIT_DEFAULT_HOVER_TIMEOUT_MS = 3500;
 const SOURCEKIT_DEFAULT_HOVER_MAX_PER_FILE = 10;
 const SOURCEKIT_DEFAULT_HOVER_DISABLE_AFTER_TIMEOUTS = 2;
 const SOURCEKIT_TOP_OFFENDER_LIMIT = 8;
-const SOURCEKIT_PACKAGE_PREFLIGHT_SCHEMA_VERSION = 1;
-const SOURCEKIT_PACKAGE_PREFLIGHT_MARKER_RELATIVE_PATH = path.join(
-  '.build',
-  'pairofcleats',
-  'sourcekit-package-preflight.json'
-);
-const SOURCEKIT_PACKAGE_PREFLIGHT_TIMEOUT_MS = 90 * 1000;
-const SOURCEKIT_PACKAGE_PREFLIGHT_LOCK_WAIT_MS = 90 * 1000;
-const SOURCEKIT_PACKAGE_PREFLIGHT_LOCK_POLL_MS = 250;
-const SOURCEKIT_PACKAGE_PREFLIGHT_LOCK_STALE_MS = 10 * 60 * 1000;
 const SOURCEKIT_DEFAULT_EXCLUDE_PATH_REGEXES = [
   /\/test\/sourcekit\/misc\/parser-cutoff\.swift$/i
 ];
@@ -68,7 +70,7 @@ const resolveSourcekitExcludePathRegexes = (sourcekitConfig) => {
 };
 
 const shouldSkipSourcekitPath = (virtualPath, excludePathRegexes) => {
-  const normalized = String(virtualPath || '').replace(/\\/g, '/');
+  const normalized = toPosix(String(virtualPath || ''));
   if (!normalized) return false;
   for (const pattern of excludePathRegexes || []) {
     if (!(pattern instanceof RegExp)) continue;
@@ -76,58 +78,6 @@ const shouldSkipSourcekitPath = (virtualPath, excludePathRegexes) => {
     if (pattern.test(normalized)) return true;
   }
   return false;
-};
-
-const shouldUseShell = (cmd) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd);
-const quoteWindowsCmdArg = (value) => {
-  const text = String(value ?? '');
-  if (!text) return '""';
-  if (!/[\s"&|<>^();]/u.test(text)) return text;
-  return `"${text.replaceAll('"', '""')}"`;
-};
-const runProbeCommand = (cmd, args) => {
-  if (!shouldUseShell(cmd)) {
-    return execaSync(cmd, args, {
-      stdio: 'ignore',
-      reject: false
-    });
-  }
-  const commandLine = [cmd, ...(Array.isArray(args) ? args : [])]
-    .map(quoteWindowsCmdArg)
-    .join(' ');
-  const shellExe = process.env.ComSpec || 'cmd.exe';
-  return execaSync(shellExe, ['/d', '/s', '/c', commandLine], {
-    stdio: 'ignore',
-    reject: false
-  });
-};
-
-/**
- * Build a spawn-safe command tuple for platform-specific binaries.
- *
- * On Windows, `.cmd` and `.bat` files cannot be executed directly with
- * `shell: false`, so we route through `cmd.exe /c` while still preserving
- * explicit argument quoting.
- *
- * @param {string} cmd
- * @param {string[]} args
- * @returns {{command:string,args:string[]}}
- */
-const resolveSpawnCommandForExec = (cmd, args) => {
-  if (!shouldUseShell(cmd)) {
-    return {
-      command: cmd,
-      args: Array.isArray(args) ? args : []
-    };
-  }
-  const shellExe = process.env.ComSpec || 'cmd.exe';
-  const commandLine = [cmd, ...(Array.isArray(args) ? args : [])]
-    .map(quoteWindowsCmdArg)
-    .join(' ');
-  return {
-    command: shellExe,
-    args: ['/d', '/s', '/c', commandLine]
-  };
 };
 
 const asFiniteNumber = (value) => {
@@ -140,18 +90,37 @@ const asFiniteInteger = (value) => {
   return Number.isFinite(parsed) ? Math.floor(parsed) : null;
 };
 
-const canRunCommand = (cmd, args = ['--help']) => {
+const readStatSignature = (filePath) => {
   try {
-    const result = runProbeCommand(cmd, args);
-    return result.exitCode === 0;
-  } catch {
-    return false;
+    const stat = fsSync.statSync(filePath);
+    return `${filePath}:${Number(stat?.size) || 0}:${Number(stat?.mtimeMs) || 0}`;
+  } catch (error) {
+    if (error?.code === 'ENOENT') return `${filePath}:missing`;
+    return `${filePath}:error`;
   }
 };
 
-const canRunSourcekit = (cmd) => {
-  return canRunCommand(cmd, ['--help']);
+const resolveSourcekitPackageSignatureKey = (repoRoot) => {
+  const normalizedRoot = path.resolve(String(repoRoot || ''));
+  const manifestPath = path.join(normalizedRoot, 'Package.swift');
+  const resolvedPath = path.join(normalizedRoot, 'Package.resolved');
+  return `${readStatSignature(manifestPath)}|${readStatSignature(resolvedPath)}`;
 };
+
+const resolveSourcekitRequestedCommand = (ctx) => resolveProviderRequestedCommand({
+  providerId: 'sourcekit',
+  toolingConfig: ctx?.toolingConfig || {},
+  defaultCmd: 'sourcekit-lsp',
+  defaultArgs: []
+});
+
+const buildSourcekitCommandUnavailableCheck = ({ definitelyMissing = false } = {}) => ({
+  name: 'sourcekit_command_unavailable',
+  status: 'warn',
+  message: definitelyMissing
+    ? 'sourcekit-lsp not detected; skipping.'
+    : 'sourcekit-lsp command probe failed; attempting stdio initialization anyway.'
+});
 
 const acquireHostSourcekitLock = async ({
   lockPath,
@@ -174,342 +143,46 @@ const acquireHostSourcekitLock = async ({
     }
   });
   if (!lock) return null;
-  return {
-    release: async () => {
-      await lock.release();
-    }
-  };
+  return lock;
 };
 
-const readUtf8IfExists = async (targetPath) => {
-  try {
-    return await fs.readFile(targetPath, 'utf8');
-  } catch (err) {
-    if (err?.code === 'ENOENT') return null;
-    throw err;
-  }
-};
+export const resolveSourcekitHostLockPath = (repoRoot) => (
+  buildSourcekitRepoScopedLockPath(repoRoot, 'sourcekit-provider')
+);
+export { resolveSourcekitPreflightLockPath };
 
-/**
- * Determine whether SwiftPM dependency resolution should run before sourcekit.
- *
- * SourceKit can trigger background dependency/network activity when the repo is
- * SwiftPM-based. We proactively resolve that work once per manifest fingerprint
- * to avoid side effects happening during LSP enrichment.
- *
- * @param {{repoRoot:string}} input
- * @returns {Promise<{
- *   required:boolean,
- *   reason:string,
- *   packageManifestPath:string,
- *   packageResolvedPath:string,
- *   fingerprint:string|null
- * }>}
- */
-const resolveSourcekitPackagePreflightNeed = async ({ repoRoot }) => {
-  const packageManifestPath = path.join(repoRoot, 'Package.swift');
-  const packageResolvedPath = path.join(repoRoot, 'Package.resolved');
-  const packageManifest = await readUtf8IfExists(packageManifestPath);
-  if (typeof packageManifest !== 'string') {
-    return {
-      required: false,
-      reason: 'no-package-manifest',
-      packageManifestPath,
-      packageResolvedPath,
-      fingerprint: null
-    };
-  }
-  const hasPackageDependencies = /\.package\s*\(/u.test(packageManifest);
-  if (!hasPackageDependencies) {
-    return {
-      required: false,
-      reason: 'no-package-dependencies',
-      packageManifestPath,
-      packageResolvedPath,
-      fingerprint: null
-    };
-  }
-  const packageResolved = await readUtf8IfExists(packageResolvedPath);
-  const fingerprintHash = crypto.createHash('sha1');
-  fingerprintHash.update(`schema:${SOURCEKIT_PACKAGE_PREFLIGHT_SCHEMA_VERSION}`);
-  fingerprintHash.update(`manifest:${packageManifest}`);
-  fingerprintHash.update(`resolved:${packageResolved || '<missing>'}`);
-  return {
-    required: true,
-    reason: 'swiftpm-dependencies-detected',
-    packageManifestPath,
-    packageResolvedPath,
-    fingerprint: fingerprintHash.digest('hex')
-  };
-};
-
-const summarizeSubprocessOutput = (value, maxChars = 240) => {
-  const text = String(value || '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (!text) return '';
-  if (text.length <= maxChars) return text;
-  return `${text.slice(0, Math.max(0, maxChars - 1)).trimEnd()}...`;
-};
-
-const readSourcekitPreflightMarker = async (markerPath) => {
-  const raw = await readUtf8IfExists(markerPath);
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return null;
-    if (parsed.schemaVersion !== SOURCEKIT_PACKAGE_PREFLIGHT_SCHEMA_VERSION) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-};
-
-const writeSourcekitPreflightMarker = async ({ markerPath, fingerprint, swiftCmd, durationMs }) => {
-  const payload = {
-    schemaVersion: SOURCEKIT_PACKAGE_PREFLIGHT_SCHEMA_VERSION,
-    completedAt: new Date().toISOString(),
-    fingerprint,
-    swiftCmd: String(swiftCmd || ''),
-    durationMs: Number.isFinite(Number(durationMs)) ? Math.max(0, Math.round(Number(durationMs))) : null
-  };
-  await fs.mkdir(path.dirname(markerPath), { recursive: true });
-  await fs.writeFile(markerPath, JSON.stringify(payload), 'utf8');
-};
-
-/**
- * Run bounded `swift package resolve` preflight to drain package side effects
- * before sourcekit starts serving symbol requests.
- *
- * @param {{repoRoot:string,swiftCmd:string,timeoutMs:number}} input
- * @returns {Promise<{ok:boolean,timeout:boolean,durationMs:number,message:string}>}
- */
-const runSourcekitPackagePreflight = async ({
-  repoRoot,
-  swiftCmd,
-  timeoutMs,
-  signal = null
-}) => {
-  const startedAt = Date.now();
-  const resolvedCommand = resolveSpawnCommandForExec(swiftCmd, ['package', 'resolve']);
-  try {
-    const result = await spawnSubprocess(resolvedCommand.command, resolvedCommand.args, {
-      cwd: repoRoot,
-      env: {
-        ...process.env,
-        GIT_TERMINAL_PROMPT: process.env.GIT_TERMINAL_PROMPT || '0'
-      },
-      timeoutMs,
-      killTree: true,
-      detached: false,
-      captureStdout: true,
-      captureStderr: true,
-      outputMode: 'string',
-      maxOutputBytes: 48 * 1024,
-      rejectOnNonZeroExit: false,
-      signal,
-      name: 'sourcekit-package-resolve'
-    });
-    const durationMs = Date.now() - startedAt;
-    if (result.exitCode === 0) {
-      return {
-        ok: true,
-        timeout: false,
-        durationMs,
-        message: ''
-      };
-    }
-    const summary = summarizeSubprocessOutput(result.stderr || result.stdout);
-    return {
-      ok: false,
-      timeout: false,
-      durationMs,
-      message: summary || `swift package resolve failed with exit code ${result.exitCode ?? 'unknown'}`
-    };
-  } catch (err) {
-    if (err?.code === 'ABORT_ERR') throw err;
-    const durationMs = Date.now() - startedAt;
-    const timeout = err?.code === 'SUBPROCESS_TIMEOUT';
-    const summary = summarizeSubprocessOutput(
-      err?.result?.stderr || err?.result?.stdout || err?.message || err
-    );
-    return {
-      ok: false,
-      timeout,
-      durationMs,
-      message: summary || (timeout ? 'swift package resolve timed out' : 'swift package resolve failed')
-    };
-  }
-};
-
-/**
- * Ensure SwiftPM dependency resolution side effects are completed before
- * sourcekit begins LSP work for Swift repos.
- *
- * @param {{repoRoot:string,log:(line:string)=>void}} input
- * @returns {Promise<{blockSourcekit:boolean,check:object|null}>}
- */
-const ensureSourcekitPackageResolutionPreflight = async ({
-  repoRoot,
-  log,
-  signal = null
-}) => {
-  try {
-    throwIfAborted(signal);
-    const need = await resolveSourcekitPackagePreflightNeed({ repoRoot });
-    if (!need.required) {
-      return { blockSourcekit: false, check: null };
-    }
-    const markerPath = path.join(repoRoot, SOURCEKIT_PACKAGE_PREFLIGHT_MARKER_RELATIVE_PATH);
-    const marker = await readSourcekitPreflightMarker(markerPath);
-    if (marker?.fingerprint === need.fingerprint) {
-      log('[tooling] sourcekit package preflight cache hit.');
-      return { blockSourcekit: false, check: null };
-    }
-
-    const resolvedSwiftCmd = resolveCommand('swift');
-    if (!canRunCommand(resolvedSwiftCmd, ['--version'])) {
-      const message = 'sourcekit package preflight skipped because `swift` command is unavailable.';
-      return {
-        blockSourcekit: true,
-        check: {
-          name: 'sourcekit_package_preflight_unavailable',
-          status: 'warn',
-          message
-        }
-      };
-    }
-
-    const preflightLockPath = path.join(os.tmpdir(), 'pairofcleats', 'locks', 'sourcekit-package-preflight.lock');
-    const timeoutMs = SOURCEKIT_PACKAGE_PREFLIGHT_TIMEOUT_MS;
-    let preflightLock = null;
-    try {
-      preflightLock = await acquireHostSourcekitLock({
-        lockPath: preflightLockPath,
-        waitMs: SOURCEKIT_PACKAGE_PREFLIGHT_LOCK_WAIT_MS,
-        pollMs: SOURCEKIT_PACKAGE_PREFLIGHT_LOCK_POLL_MS,
-        staleMs: SOURCEKIT_PACKAGE_PREFLIGHT_LOCK_STALE_MS,
-        signal,
-        log
-      });
-      if (!preflightLock) {
-        log('[tooling] sourcekit package preflight lock wait elapsed; continuing without lock.');
-      }
-      throwIfAborted(signal);
-      log('[tooling] sourcekit package preflight: running `swift package resolve`.');
-      const preflight = await runSourcekitPackagePreflight({
-        repoRoot,
-        swiftCmd: resolvedSwiftCmd,
-        timeoutMs,
-        signal
-      });
-      throwIfAborted(signal);
-      if (preflight.ok) {
-        try {
-          throwIfAborted(signal);
-          await writeSourcekitPreflightMarker({
-            markerPath,
-            fingerprint: need.fingerprint,
-            swiftCmd: resolvedSwiftCmd,
-            durationMs: preflight.durationMs
-          });
-        } catch {}
-        log(`[tooling] sourcekit package preflight completed in ${preflight.durationMs}ms.`);
-        return { blockSourcekit: false, check: null };
-      }
-      const timeoutText = preflight.timeout ? 'timeout' : 'failed';
-      const message = `sourcekit package preflight ${timeoutText}: ${preflight.message || 'unknown failure'}`;
-      return {
-        blockSourcekit: true,
-        check: {
-          name: 'sourcekit_package_preflight_failed',
-          status: 'warn',
-          message,
-          timeout: preflight.timeout === true
-        }
-      };
-    } finally {
-      if (preflightLock?.release) {
-        await preflightLock.release();
-      }
-    }
-  } catch (err) {
-    if (err?.code === 'ABORT_ERR') throw err;
-    const message = summarizeSubprocessOutput(err?.message || err, 200) || 'unknown preflight error';
-    return {
-      blockSourcekit: true,
-      check: {
-        name: 'sourcekit_package_preflight_error',
-        status: 'warn',
-        message: `sourcekit package preflight error: ${message}`
-      }
-    };
-  }
-};
-
-const resolveCommandCandidates = (cmd) => {
-  const output = [];
-  const seen = new Set();
-  const add = (candidate) => {
-    const normalized = String(candidate || '').trim();
-    if (!normalized || seen.has(normalized)) return;
-    seen.add(normalized);
-    output.push(normalized);
-  };
-
-  const pathEntries = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
-  const lowered = String(cmd || '').toLowerCase();
-  const hasExt = /\.(exe|cmd|bat)$/i.test(lowered);
-
-  if (path.isAbsolute(cmd)) {
-    add(cmd);
-    if (process.platform === 'win32' && !hasExt) {
-      for (const ext of ['.exe', '.cmd', '.bat']) {
-        add(`${cmd}${ext}`);
-      }
-    }
-  } else if (process.platform === 'win32' && hasExt) {
-    for (const dir of pathEntries) {
-      add(path.join(dir, cmd));
-    }
-  } else if (process.platform === 'win32') {
-    for (const ext of ['.exe', '.cmd', '.bat']) {
-      for (const dir of pathEntries) {
-        add(path.join(dir, `${cmd}${ext}`));
-      }
-    }
-  } else {
-    for (const dir of pathEntries) {
-      add(path.join(dir, cmd));
-    }
-  }
-
-  add(cmd);
-  return output;
-};
-
-const sourcekitCandidateScore = (candidate) => {
+export const scoreSourcekitCandidate = (candidate) => {
   const lowered = String(candidate || '').toLowerCase();
   let score = 0;
+  // Higher score means lower priority (penalties); comparator sorts ascending.
   if (lowered.includes('+asserts')) score += 100;
   if (lowered.includes('preview')) score += 10;
   return score;
 };
 
-const resolveCommand = (cmd) => {
-  const candidates = resolveCommandCandidates(cmd)
-    .filter((candidate) => candidate !== cmd && fsSync.existsSync(candidate))
-    .sort((a, b) => {
-      const scoreA = sourcekitCandidateScore(a);
-      const scoreB = sourcekitCandidateScore(b);
-      if (scoreA !== scoreB) return scoreA - scoreB;
-      return String(a).localeCompare(String(b));
-    });
-  for (const candidate of candidates) {
-    if (canRunSourcekit(candidate)) return candidate;
+const normalizeSourcekitCandidateSortKey = (candidate) => (
+  String(candidate || '')
+    .trim()
+    .replace(/\\/g, '/')
+    .toLowerCase()
+);
+
+export const compareSourcekitCandidatePriority = (left, right) => {
+  const scoreDelta = (Number(left?.score) || 0) - (Number(right?.score) || 0);
+  if (scoreDelta !== 0) return scoreDelta;
+  const indexDelta = (Number(left?.index) || 0) - (Number(right?.index) || 0);
+  if (indexDelta !== 0) return indexDelta;
+  const leftNormalized = normalizeSourcekitCandidateSortKey(left?.candidate);
+  const rightNormalized = normalizeSourcekitCandidateSortKey(right?.candidate);
+  if (leftNormalized !== rightNormalized) {
+    return leftNormalized.localeCompare(rightNormalized);
   }
-  if (canRunSourcekit(cmd)) return cmd;
-  return cmd;
+  const leftRaw = String(left?.candidate || '').trim();
+  const rightRaw = String(right?.candidate || '').trim();
+  if (leftRaw !== rightRaw) {
+    return leftRaw.localeCompare(rightRaw);
+  }
+  return 0;
 };
 
 const formatLatency = (value) => (Number.isFinite(value) ? `${Math.round(value)}ms` : 'n/a');
@@ -551,12 +224,21 @@ const logHoverMetrics = (log, metrics) => {
 
 export const createSourcekitProvider = () => ({
   id: 'sourcekit',
+  preflightId: 'sourcekit.package-resolution',
+  preflightClass: 'dependency',
   version: '2.0.0',
   label: 'sourcekit-lsp',
   priority: 40,
   languages: ['swift'],
   kinds: ['types'],
   requires: { cmd: 'sourcekit-lsp' },
+  preflightPolicy: 'required',
+  preflightRuntimeRequirements: [{
+    id: 'swift',
+    cmd: 'swift',
+    args: ['--version'],
+    label: 'Swift toolchain'
+  }],
   capabilities: {
     supportsVirtualDocuments: true,
     supportsSegmentRouting: true,
@@ -566,6 +248,92 @@ export const createSourcekitProvider = () => ({
   },
   getConfigHash(ctx) {
     return hashProviderConfig({ sourcekit: ctx?.toolingConfig?.sourcekit || {} });
+  },
+  getPreflightKey(ctx) {
+    return resolveSourcekitPackageSignatureKey(ctx?.repoRoot || process.cwd());
+  },
+  async preflight(ctx, inputs = {}) {
+    const log = typeof inputs?.log === 'function'
+      ? inputs.log
+      : (typeof ctx?.logger === 'function' ? ctx.logger : (() => {}));
+    const abortSignal = inputs?.abortSignal && typeof inputs.abortSignal.aborted === 'boolean'
+      ? inputs.abortSignal
+      : (ctx?.abortSignal && typeof ctx.abortSignal.aborted === 'boolean' ? ctx.abortSignal : null);
+    throwIfAborted(abortSignal);
+    const sourcekitConfig = inputs?.sourcekitConfig || ctx?.toolingConfig?.sourcekit || {};
+    const docsAll = Array.isArray(inputs?.documents)
+      ? inputs.documents.filter((doc) => SWIFT_EXTS.includes(path.extname(doc.virtualPath).toLowerCase()))
+      : [];
+    const excludePathRegexes = resolveSourcekitExcludePathRegexes(sourcekitConfig);
+    const docs = docsAll.filter((doc) => !shouldSkipSourcekitPath(doc?.virtualPath, excludePathRegexes));
+    const targets = filterTargetsForDocuments(inputs?.targets, docs);
+    if (!docs.length || !targets.length) {
+      return {
+        state: 'skipped',
+        blockSourcekit: false,
+        check: null
+      };
+    }
+    const requestedCommand = resolveSourcekitRequestedCommand(ctx);
+    const commandPreflight = resolveCommandProfilePreflightResult({
+      providerId: 'sourcekit',
+      requestedCommand,
+      ctx,
+      blockWhenDefinitelyMissing: true,
+      blockFlag: 'blockSourcekit',
+      unavailableCheck: ({ definitelyMissing }) => (
+        buildSourcekitCommandUnavailableCheck({ definitelyMissing })
+      )
+    });
+    if (commandPreflight.state === 'blocked') {
+      if (commandPreflight.definitelyMissing) {
+        log('[index] sourcekit-lsp not detected; skipping.');
+      }
+      return commandPreflight;
+    }
+    let commandCheck = null;
+    if (commandPreflight.state !== 'ready') {
+      log('[index] sourcekit-lsp command probe failed; attempting stdio initialization.');
+      commandCheck = commandPreflight.check || buildSourcekitCommandUnavailableCheck({ definitelyMissing: false });
+    }
+    const preflight = await ensureSourcekitPackageResolutionPreflight({
+      repoRoot: ctx.repoRoot,
+      log,
+      signal: abortSignal,
+      sourcekitConfig,
+      cacheRoot: ctx?.cache?.dir || null,
+      timeoutMs: inputs?.preflightTimeoutMs
+    });
+    if (preflight?.blockSourcekit) {
+      const checks = [];
+      if (commandCheck) checks.push(commandCheck);
+      if (preflight?.check && typeof preflight.check === 'object') checks.push(preflight.check);
+      return {
+        ...preflight,
+        state: 'blocked',
+        requestedCommand: commandPreflight.requestedCommand,
+        commandProfile: commandPreflight.commandProfile,
+        check: null,
+        ...(checks.length ? { checks } : {})
+      };
+    }
+    if (commandCheck) {
+      return {
+        ...preflight,
+        state: 'degraded',
+        reasonCode: 'preflight_command_unavailable',
+        blockSourcekit: false,
+        requestedCommand: commandPreflight.requestedCommand,
+        commandProfile: commandPreflight.commandProfile,
+        checks: [commandCheck]
+      };
+    }
+    return {
+      ...preflight,
+      state: 'ready',
+      requestedCommand: commandPreflight.requestedCommand,
+      commandProfile: commandPreflight.commandProfile
+    };
   },
   async run(ctx, inputs) {
     const log = typeof ctx?.logger === 'function' ? ctx.logger : (() => {});
@@ -582,10 +350,7 @@ export const createSourcekitProvider = () => ({
     if (docs.length < docsAll.length) {
       log(`[tooling] sourcekit skipped ${docsAll.length - docs.length} document(s) by path filter.`);
     }
-    const docPaths = new Set(docs.map((doc) => doc.virtualPath));
-    const targets = Array.isArray(inputs?.targets)
-      ? inputs.targets.filter((target) => docPaths.has(target.virtualPath))
-      : [];
+    const targets = filterTargetsForDocuments(inputs?.targets, docs);
     const checks = buildDuplicateChunkUidChecks(targets, { label: 'sourcekit' });
     if (!docs.length || !targets.length) {
       return {
@@ -595,31 +360,30 @@ export const createSourcekitProvider = () => ({
       };
     }
 
-    const resolvedCmd = resolveCommand('sourcekit-lsp');
-    if (!canRunSourcekit(resolvedCmd)) {
-      log('[index] sourcekit-lsp not detected; skipping tooling-based types.');
-      return {
-        provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) },
-        byChunkUid: {},
-        diagnostics: appendDiagnosticChecks(null, checks)
-      };
-    }
-
-    const globalTimeoutMs = asFiniteNumber(ctx?.toolingConfig?.timeoutMs);
-    const providerTimeoutMs = asFiniteNumber(sourcekitConfig.timeoutMs);
-    const timeoutMs = Math.max(30000, providerTimeoutMs ?? globalTimeoutMs ?? 45000);
-    const retries = Number.isFinite(Number(sourcekitConfig.maxRetries))
-      ? Math.max(0, Math.floor(Number(sourcekitConfig.maxRetries)))
-      : (ctx?.toolingConfig?.maxRetries ?? 2);
-    const breakerThreshold = Number.isFinite(Number(sourcekitConfig.circuitBreakerThreshold))
-      ? Math.max(1, Math.floor(Number(sourcekitConfig.circuitBreakerThreshold)))
-      : (ctx?.toolingConfig?.circuitBreakerThreshold ?? 3);
+    const runtimeConfig = resolveLspRuntimeConfig({
+      providerConfig: sourcekitConfig,
+      globalConfigs: [ctx?.toolingConfig || null],
+      defaults: {
+        timeoutMs: 45000,
+        retries: 2,
+        breakerThreshold: 3
+      }
+    });
+    const timeoutMs = Number(runtimeConfig.timeoutMs);
     const hoverTimeoutMs = Math.max(
       750,
       Math.floor(
         asFiniteNumber(sourcekitConfig.hoverTimeoutMs)
-          ?? asFiniteNumber(ctx?.toolingConfig?.hoverTimeoutMs)
+          ?? asFiniteNumber(runtimeConfig.hoverTimeoutMs)
           ?? SOURCEKIT_DEFAULT_HOVER_TIMEOUT_MS
+      )
+    );
+    const signatureHelpTimeoutMs = Math.max(
+      750,
+      Math.floor(
+        asFiniteNumber(sourcekitConfig.signatureHelpTimeoutMs)
+          ?? asFiniteNumber(runtimeConfig.signatureHelpTimeoutMs)
+          ?? hoverTimeoutMs
       )
     );
     const hoverMaxPerFile = Math.max(
@@ -631,20 +395,42 @@ export const createSourcekitProvider = () => ({
       asFiniteInteger(sourcekitConfig.hoverDisableAfterTimeouts)
         ?? SOURCEKIT_DEFAULT_HOVER_DISABLE_AFTER_TIMEOUTS
     );
-    const hoverRequireMissingReturn = sourcekitConfig.hoverRequireMissingReturn !== false;
+    const hoverRequireMissingReturn = sourcekitConfig.hoverRequireMissingReturn === false
+      ? false
+      : runtimeConfig.hoverRequireMissingReturn !== false;
+    const hoverEnabled = sourcekitConfig.hoverEnabled === false || sourcekitConfig.hover === false
+      ? false
+      : runtimeConfig.hoverEnabled !== false;
+    const signatureHelpEnabled = sourcekitConfig.signatureHelpEnabled === false
+      || sourcekitConfig.signatureHelp === false
+      ? false
+      : runtimeConfig.signatureHelpEnabled !== false;
     const hoverSymbolKinds = Array.isArray(sourcekitConfig.hoverSymbolKinds)
       && sourcekitConfig.hoverSymbolKinds.length
       ? sourcekitConfig.hoverSymbolKinds
       : [SymbolKind.Function, SymbolKind.Method];
 
-    const preflight = await ensureSourcekitPackageResolutionPreflight({
-      repoRoot: ctx.repoRoot,
-      log,
-      signal: abortSignal
+    const preflight = await awaitToolingProviderPreflight(ctx, {
+      provider: this,
+      inputs: {
+        documents: docs,
+        targets,
+        sourcekitConfig,
+        abortSignal,
+        log
+      },
+      waveToken: typeof inputs?.toolingPreflightWaveToken === 'string'
+        ? inputs.toolingPreflightWaveToken
+        : null
     });
     throwIfAborted(abortSignal);
-    if (preflight.check) checks.push(preflight.check);
-    if (preflight.blockSourcekit) {
+    if (preflight?.check) checks.push(preflight.check);
+    if (Array.isArray(preflight?.checks)) {
+      for (const check of preflight.checks) {
+        if (check && typeof check === 'object') checks.push(check);
+      }
+    }
+    if (preflight?.blockSourcekit) {
       log('[tooling] sourcekit skipped because package preflight did not complete safely.');
       return {
         provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) },
@@ -652,14 +438,53 @@ export const createSourcekitProvider = () => ({
         diagnostics: appendDiagnosticChecks(null, checks)
       };
     }
+    const requestedCommand = preflight?.requestedCommand && typeof preflight.requestedCommand === 'object'
+      ? preflight.requestedCommand
+      : resolveSourcekitRequestedCommand(ctx);
+    const runtimeCommand = resolveRuntimeCommandFromPreflight({
+      preflight,
+      fallbackRequestedCommand: requestedCommand,
+      missingProfileCheck: {
+        name: 'sourcekit_preflight_command_profile_missing',
+        status: 'warn',
+        message: 'sourcekit preflight did not provide a resolved command profile; skipping provider.'
+      }
+    });
+    const commandProfile = runtimeCommand.commandProfile;
+    const resolvedCmd = runtimeCommand.cmd;
+    const resolvedArgs = runtimeCommand.args;
+    if (!resolvedCmd) {
+      checks.push(...runtimeCommand.checks);
+      return {
+        provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+        byChunkUid: {},
+        diagnostics: appendDiagnosticChecks(null, checks)
+      };
+    }
+    if (
+      runtimeCommand.probeKnown
+      && runtimeCommand.probeOk !== true
+      && !checks.some((entry) => entry?.name === 'sourcekit_command_unavailable')
+    ) {
+      const definitelyMissing = isProbeCommandDefinitelyMissing(commandProfile?.probe);
+      checks.push(buildSourcekitCommandUnavailableCheck({ definitelyMissing }));
+      if (definitelyMissing) {
+        log('[index] sourcekit-lsp not detected; skipping.');
+        return {
+          provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+          byChunkUid: {},
+          diagnostics: appendDiagnosticChecks(null, checks)
+        };
+      }
+      log('[index] sourcekit-lsp command probe failed; attempting stdio initialization.');
+    }
 
-    const hostLockEnabled = sourcekitConfig.hostConcurrencyGate === true
-      || (sourcekitConfig.hostConcurrencyGate !== false && isTestingEnv());
+    const hostLockEnabled = sourcekitConfig.hostConcurrencyGate !== false;
     const hostLockWaitMs = Math.max(
       0,
       asFiniteInteger(sourcekitConfig.hostConcurrencyWaitMs) ?? SOURCEKIT_HOST_LOCK_WAIT_MS
     );
-    const hostLockPath = path.join(os.tmpdir(), 'pairofcleats', 'locks', 'sourcekit-provider.lock');
+    const hostLockPath = resolveSourcekitHostLockPath(ctx.repoRoot);
     let hostLock = null;
     if (hostLockEnabled) {
       hostLock = await acquireHostSourcekitLock({
@@ -669,24 +494,35 @@ export const createSourcekitProvider = () => ({
         log
       });
       if (!hostLock) {
-        log('[tooling] sourcekit host lock wait elapsed; continuing without lock.');
+        log('[tooling] sourcekit host lock wait elapsed; skipping sourcekit provider for this run.');
+        checks.push({
+          name: 'sourcekit_host_lock_unavailable',
+          status: 'warn',
+          message: `sourcekit host lock timed out after ${hostLockWaitMs}ms; skipping provider to avoid unlocked contention.`
+        });
+        return {
+          provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+          byChunkUid: {},
+          diagnostics: appendDiagnosticChecks(null, checks)
+        };
       }
     }
 
     try {
       const result = await collectLspTypes({
+        ...runtimeConfig,
         rootDir: ctx.repoRoot,
         documents: docs,
         targets,
         abortSignal,
         log,
+        providerId: 'sourcekit',
         cmd: resolvedCmd,
-        args: [],
-        timeoutMs,
-        retries,
-        breakerThreshold,
+        args: resolvedArgs,
         hoverTimeoutMs,
-        hoverEnabled: sourcekitConfig.hover !== false,
+        signatureHelpTimeoutMs,
+        hoverEnabled,
+        signatureHelpEnabled,
         hoverRequireMissingReturn,
         hoverSymbolKinds,
         hoverMaxPerFile,
@@ -697,21 +533,30 @@ export const createSourcekitProvider = () => ({
         vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode,
         vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching,
         vfsColdStartCache: ctx?.toolingConfig?.vfs?.coldStartCache,
+        sessionPoolingEnabled: !hostLockEnabled,
         indexDir: ctx?.buildRoot || null
+      });
+      invalidateProbeCacheOnInitializeFailure({
+        checks: result?.checks,
+        providerId: 'sourcekit',
+        command: resolvedCmd
       });
 
       logHoverMetrics(log, result.hoverMetrics);
+      const diagnostics = appendDiagnosticChecks(
+        result.diagnosticsCount ? { diagnosticsCount: result.diagnosticsCount } : null,
+        [...checks, ...(Array.isArray(result.checks) ? result.checks : [])]
+      );
       return {
         provider: { id: 'sourcekit', version: '2.0.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: result.byChunkUid,
-        diagnostics: appendDiagnosticChecks(
-          result.diagnosticsCount ? { diagnosticsCount: result.diagnosticsCount } : null,
-          [...checks, ...(Array.isArray(result.checks) ? result.checks : [])]
-        )
+        diagnostics: result.runtime
+          ? { ...(diagnostics || {}), runtime: result.runtime }
+          : diagnostics
       };
     } finally {
       if (hostLock?.release) {
-        await hostLock.release();
+        await releaseFileLockOrThrow(hostLock);
       }
     }
   }

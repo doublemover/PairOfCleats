@@ -10,6 +10,8 @@ import {
   writeCacheIndex
 } from '../../../tools/build/embeddings/cache.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { rmDirRecursive } from '../../helpers/temp.js';
+
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'embeddings-cache-index-binary-sidecar');
@@ -17,7 +19,7 @@ const cacheDir = path.join(tempRoot, 'files');
 const identityKey = 'identity:test:binary-sidecar';
 const cacheKey = 'cache-key';
 
-await fs.rm(tempRoot, { recursive: true, force: true });
+await rmDirRecursive(tempRoot, { retries: 8, delayMs: 150 });
 await fs.mkdir(cacheDir, { recursive: true });
 
 const baseIndex = {

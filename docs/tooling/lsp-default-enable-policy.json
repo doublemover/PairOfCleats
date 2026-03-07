@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-02-26T00:00:00.000Z",
+  "providers": [
+    { "id": "clangd", "language": "c/cpp", "defaultEnabled": true },
+    { "id": "pyright", "language": "python", "defaultEnabled": true },
+    { "id": "sourcekit", "language": "swift", "defaultEnabled": true },
+    { "id": "jdtls", "language": "java", "defaultEnabled": true },
+    { "id": "csharp-ls", "language": "csharp", "defaultEnabled": true },
+    { "id": "solargraph", "language": "ruby", "defaultEnabled": true },
+    { "id": "elixir-ls", "language": "elixir", "defaultEnabled": true },
+    { "id": "haskell-language-server", "language": "haskell", "defaultEnabled": true },
+    { "id": "phpactor", "language": "php", "defaultEnabled": true },
+    { "id": "dart", "language": "dart", "defaultEnabled": true },
+    { "id": "gopls", "language": "go", "defaultEnabled": true },
+    { "id": "rust-analyzer", "language": "rust", "defaultEnabled": true },
+    { "id": "yaml-language-server", "language": "yaml", "defaultEnabled": true },
+    { "id": "lua-language-server", "language": "lua", "defaultEnabled": true },
+    { "id": "zls", "language": "zig", "defaultEnabled": true }
+  ]
+}

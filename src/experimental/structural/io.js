@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import fsPromises from 'node:fs/promises';
+import { atomicWriteText } from '../../shared/io/atomic-write.js';
 
 export const writeJsonl = async (items, outPath = null) => {
   const stream = outPath
@@ -39,7 +39,7 @@ export const writeJsonl = async (items, outPath = null) => {
 export const writeJson = async (items, outPath = null) => {
   const payload = JSON.stringify({ results: items }, null, 2);
   if (outPath) {
-    await fsPromises.writeFile(outPath, payload);
+    await atomicWriteText(outPath, payload, { newline: false });
   } else {
     console.log(payload);
   }

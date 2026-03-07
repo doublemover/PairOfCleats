@@ -155,4 +155,50 @@ assert.equal(
   'expected disable-enforce flag to allow large binary token_postings to load'
 );
 
+await fs.writeFile(
+  path.join(testRoot, 'token_postings.binary-columnar.meta.json'),
+  JSON.stringify({
+    fields: {
+      format: 'binary-columnar-v1',
+      count: 1,
+      data: 'token_postings.binary-columnar.bin',
+      offsets: 'token_postings.binary-columnar.offsets.bin',
+      lengths: 'token_postings.binary-columnar.lengths.varint'
+    },
+    arrays: {
+      vocab: [],
+      docLengths: [3]
+    }
+  }, null, 2)
+);
+assert.throws(
+  () => loadTokenPostings(testRoot, { strict: true, preferBinaryColumnar: true }),
+  /cardinality invariant failed/i,
+  'expected token_postings binary-columnar loader to enforce vocab/postings cardinality invariants'
+);
+
+await fs.writeFile(path.join(testRoot, 'token_postings.binary-columnar.bin'), tokenPostingsBinaryRows.dataBuffer);
+await fs.writeFile(path.join(testRoot, 'token_postings.binary-columnar.offsets.bin'), tokenPostingsBinaryRows.offsetsBuffer);
+await fs.writeFile(path.join(testRoot, 'token_postings.binary-columnar.lengths.varint'), tokenPostingsBinaryRows.lengthsBuffer);
+await fs.writeFile(
+  path.join(testRoot, 'token_postings.binary-columnar.meta.json'),
+  JSON.stringify({
+    format: 'binary-columnar-v1',
+    count: 1,
+    data: 'token_postings.binary-columnar.bin',
+    offsets: 'token_postings.binary-columnar.offsets.bin',
+    lengths: 'token_postings.binary-columnar.lengths.varint',
+    totalDocs: 1,
+    avgDocLen: 3,
+    vocab: ['top_level_tok'],
+    docLengths: [3]
+  }, null, 2)
+);
+const postingsTopLevelEnvelope = loadTokenPostings(testRoot, { strict: true, preferBinaryColumnar: true });
+assert.equal(
+  postingsTopLevelEnvelope?.vocab?.[0],
+  'top_level_tok',
+  'expected binary token_postings loader to accept top-level meta envelope shape'
+);
+
 console.log('prefer binary-columnar loaders test passed');

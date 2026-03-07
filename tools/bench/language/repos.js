@@ -81,7 +81,7 @@ const runGitCommand = (args, { timeoutMs = DEFAULT_PREFLIGHT_TIMEOUT_MS, repoPat
   try {
     const result = gitCommandRunner('git', fullArgs, {
       encoding: 'utf8',
-      timeout: timeoutMs,
+      timeoutMs,
       env: buildNonInteractiveGitEnv()
     });
     return {
@@ -471,9 +471,11 @@ export const ensureRepoBenchmarkReady = ({
             return summary;
           }
           summary.submodules.updated = true;
+          const initialStateText = `initialMissing=${summary.submodules.initialMissing}, initialDirty=${summary.submodules.initialDirty}`;
+          const finalStateText = `missing=${summary.submodules.missing}, dirty=${summary.submodules.dirty}`;
           log(
             `[repo-preflight] submodules ready (${repoName}) ` +
-            `(missing=${summary.submodules.initialMissing}, dirty=${summary.submodules.initialDirty}).`
+            `(${finalStateText}; ${initialStateText}).`
           );
         }
       }
@@ -483,7 +485,7 @@ export const ensureRepoBenchmarkReady = ({
   if (pullLfs) {
     const lfsVersion = runCommand('git', ['lfs', 'version'], {
       encoding: 'utf8',
-      timeout: Math.min(preflightTimeoutMs, 15000)
+      timeoutMs: Math.min(preflightTimeoutMs, 15000)
     });
     if (lfsVersion.ok) {
       summary.lfs.supported = true;

@@ -1,0 +1,49 @@
+{
+  "generatedAt": "2026-02-28T00:01:00.000Z",
+  "stats": {
+    "unresolved": 8,
+    "unresolvedActionable": 2,
+    "unresolvedBudgetExhausted": 2,
+    "unresolvedByFailureCause": {
+      "missing_file": 3,
+      "resolver_gap": 2,
+      "parser_artifact": 1,
+      "generated_expected_missing": 2
+    },
+    "unresolvedByReasonCode": {
+      "IMP_U_MISSING_FILE_RELATIVE": 3,
+      "IMP_U_RESOLVER_GAP": 2,
+      "IMP_U_PARSER_NOISE_SUPPRESSED": 1,
+      "IMP_U_GENERATED_EXPECTED_MISSING": 2
+    },
+    "unresolvedByResolverStage": {
+      "filesystem_probe": 3,
+      "language_resolver": 2,
+      "classify": 1,
+      "build_system_resolver": 2
+    },
+    "unresolvedActionableHotspots": [
+      { "importer": "src/service.ts", "count": 2 }
+    ],
+    "resolverBudgetPolicy": {
+      "adaptiveEnabled": true,
+      "adaptiveProfile": "fd_pressure"
+    },
+    "resolverPipelineStages": {
+      "normalize": { "attempts": 30, "hits": 30, "misses": 0, "elapsedMs": 5.25 },
+      "language_resolver": { "attempts": 12, "hits": 8, "misses": 4, "elapsedMs": 6.75 }
+    }
+  },
+  "warnings": [
+    {
+      "importer": "src/service.ts",
+      "specifier": "./missing-local.ts",
+      "reason": "unresolved",
+      "resolutionState": "unresolved",
+      "reasonCode": "IMP_U_MISSING_FILE_RELATIVE",
+      "failureCause": "missing_file",
+      "disposition": "actionable",
+      "resolverStage": "filesystem_probe"
+    }
+  ]
+}

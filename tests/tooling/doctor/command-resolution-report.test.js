@@ -1,0 +1,84 @@
+#!/usr/bin/env node
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { registerDefaultToolingProviders } from '../../../src/index/tooling/providers/index.js';
+import { runToolingDoctor } from '../../../src/index/tooling/doctor.js';
+
+
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { prependLspTestPath } from '../../helpers/lsp-runtime.js';
+
+const root = process.cwd();
+const tempRoot = resolveTestCachePath(root, 'tooling-doctor-command-resolution');
+await fs.rm(tempRoot, { recursive: true, force: true });
+await fs.mkdir(tempRoot, { recursive: true });
+
+const restorePath = prependLspTestPath({ repoRoot: root });
+
+try {
+  registerDefaultToolingProviders();
+  const report = await runToolingDoctor({
+    repoRoot: root,
+    buildRoot: tempRoot,
+    toolingConfig: {
+      enabledTools: ['clangd', 'pyright', 'sourcekit']
+    },
+    strict: false
+  }, null, { log: () => {}, handshakeTimeoutMs: 1500 });
+
+  assert.equal(report.schemaVersion, 2, 'expected doctor report schema version 2');
+  assert.equal(report.reportFile, 'tooling_doctor_report.json', 'expected canonical doctor report filename');
+  assert.equal(
+    path.basename(report.reportPath || ''),
+    'tooling_doctor_report.json',
+    'expected doctor report path to use tooling_doctor_report.json'
+  );
+  assert.ok(report.summary?.preflight && typeof report.summary.preflight === 'object', 'expected doctor preflight summary envelope');
+  assert.equal(
+    Number.isFinite(Number(report.summary?.preflight?.supported)),
+    true,
+    'expected numeric preflight supported count'
+  );
+  assert.equal(
+    Number.isFinite(Number(report.summary?.preflight?.enabled)),
+    true,
+    'expected numeric preflight enabled count'
+  );
+  assert.equal(
+    Array.isArray(report.summary?.preflight?.ids),
+    true,
+    'expected doctor preflight summary id list'
+  );
+  assert.equal(
+    report.summary?.preflight?.byClass && typeof report.summary.preflight.byClass === 'object',
+    true,
+    'expected doctor preflight summary byClass map'
+  );
+  assert.equal(
+    report.summary?.preflight?.byPolicy && typeof report.summary.preflight.byPolicy === 'object',
+    true,
+    'expected doctor preflight summary byPolicy map'
+  );
+  assert.equal(
+    Number.isFinite(Number(report.summary?.preflight?.withRuntimeRequirements)),
+    true,
+    'expected numeric preflight withRuntimeRequirements count'
+  );
+
+  const providers = Array.isArray(report.providers) ? report.providers : [];
+  const clangd = providers.find((entry) => entry.id === 'clangd');
+  assert.ok(clangd, 'expected clangd provider report');
+  assert.ok(clangd.command && typeof clangd.command === 'object', 'expected command profile in provider report');
+  assert.equal(
+    Array.isArray(clangd.command?.probe?.attempted),
+    true,
+    'expected probe attempts in provider command profile'
+  );
+  assert.ok(clangd.handshake && typeof clangd.handshake === 'object', 'expected handshake probe details');
+} finally {
+  await restorePath();
+}
+
+console.log('tooling doctor command resolution report test passed');
+

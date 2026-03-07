@@ -71,6 +71,11 @@ if (Object.keys(result.byChunkUid).length !== 0) {
   console.error('sourcekit provider should return empty map when sourcekit-lsp is missing.');
   process.exit(1);
 }
+const checks = Array.isArray(result?.diagnostics?.checks) ? result.diagnostics.checks : [];
+if (!checks.some((entry) => entry?.name === 'sourcekit_command_unavailable')) {
+  console.error('sourcekit provider should emit sourcekit_command_unavailable when sourcekit-lsp is missing.');
+  process.exit(1);
+}
 
 if (!logs.some((entry) => entry.includes('sourcekit-lsp not detected'))) {
   console.error('sourcekit provider missing expected fallback log message.');

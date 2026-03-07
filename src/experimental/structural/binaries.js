@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { runSyncCommandWithTimeout } from '../../shared/subprocess/sync-command.js';
 
 const isWindows = process.platform === 'win32';
 const binaryCache = new Map();
@@ -56,16 +56,28 @@ const runCommand = (resolved, args, options = {}) => {
   const command = resolved?.command || resolved;
   const argsPrefix = resolved?.argsPrefix || [];
   const effectiveArgs = [...argsPrefix, ...args];
+  const hasExplicitEncoding = Object.prototype.hasOwnProperty.call(options, 'encoding');
+  const encoding = hasExplicitEncoding ? options.encoding : 'utf8';
+  const timeoutMs = Number.isFinite(Number(options?.timeoutMs))
+    ? Math.max(100, Math.floor(Number(options.timeoutMs)))
+    : undefined;
   if (isWindows && /\.(cmd|bat)$/i.test(command)) {
     const cmdLine = buildCmdLine(command, effectiveArgs);
     const wrapped = `"${cmdLine}"`;
-    return spawnSync('cmd.exe', ['/d', '/s', '/c', wrapped], {
+    return runSyncCommandWithTimeout('cmd.exe', ['/d', '/s', '/c', wrapped], {
       ...options,
+      encoding,
+      timeoutMs,
       shell: false,
       windowsVerbatimArguments: true
     });
   }
-  return spawnSync(command, effectiveArgs, { ...options, shell: false });
+  return runSyncCommandWithTimeout(command, effectiveArgs, {
+    ...options,
+    encoding,
+    timeoutMs,
+    shell: false
+  });
 };
 
 const findOnPath = (candidate) => {

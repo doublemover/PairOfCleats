@@ -1,9 +1,19 @@
 export { resolveSubprocessFanoutPreset } from './subprocess/options.js';
 export {
+  DEFAULT_SYNC_COMMAND_TIMEOUT_MS,
+  resolveSyncCommandTimeoutMs,
+  runSyncCommandWithTimeout,
+  isSyncCommandTimedOut,
+  toSyncCommandExitCode
+} from './subprocess/sync-command.js';
+export {
   withTrackedSubprocessSignalScope,
   terminateTrackedSubprocesses,
+  terminateTrackedSubprocessesSync,
   registerChildProcessForCleanup,
-  getTrackedSubprocessCount
+  getTrackedSubprocessCount,
+  snapshotTrackedSubprocessEvents,
+  resetTrackedSubprocessEvents
 } from './subprocess/tracking.js';
 export { snapshotTrackedSubprocesses, captureProcessSnapshot } from './subprocess/snapshot.js';
 export {

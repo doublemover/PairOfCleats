@@ -193,16 +193,23 @@ export const createVectorIngestor = (ctx) => {
         }
       }
     } else if (hasDenseRows) {
-      let docId = 0;
+      let fallbackDocId = 0;
       for await (const entry of dense.rows) {
         const vec = (entry && typeof entry === 'object' && !Array.isArray(entry))
           ? (entry.vector ?? entry.values ?? null)
           : entry;
+        const entryDocIdRaw = (entry && typeof entry === 'object' && !Array.isArray(entry))
+          ? (entry.docId ?? entry.id ?? null)
+          : null;
+        const entryDocId = Number.isFinite(Number(entryDocIdRaw))
+          ? Math.max(0, Math.floor(Number(entryDocIdRaw)))
+          : null;
+        const docId = entryDocId ?? fallbackDocId;
         if (vec) {
           denseBatch.push({ docId, vec });
           if (denseBatch.length >= resolvedBatchSize) flush();
         }
-        docId += 1;
+        fallbackDocId += 1;
       }
     }
     flush();

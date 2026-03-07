@@ -3,6 +3,7 @@ import path from 'node:path';
 import { sha1 } from '../../shared/hash.js';
 import { atomicWriteText } from '../../shared/io/atomic-write.js';
 import { stableStringify } from '../../shared/stable-json.js';
+import { loadBoundedJsonFile } from '../../shared/cache/json-file.js';
 
 export const FEDERATED_QUERY_CACHE_SCHEMA_VERSION = 1;
 
@@ -11,6 +12,8 @@ export const FEDERATED_QUERY_CACHE_DEFAULTS = Object.freeze({
   maxBytes: 5 * 1024 * 1024,
   maxAgeDays: 30
 });
+const FEDERATED_QUERY_CACHE_MAX_READ_BYTES = 16 * 1024 * 1024;
+const FEDERATED_QUERY_CACHE_CORRUPT_SUFFIX = '.corrupt';
 
 const normalizeStringList = (value) => {
   const list = Array.isArray(value) ? value : (value == null ? [] : [value]);
@@ -167,59 +170,111 @@ const toMs = (value) => {
   return Number.isNaN(date.getTime()) ? 0 : date.getTime();
 };
 
-const parseCacheFile = (raw, repoSetId) => {
-  try {
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return createEmptyCache(repoSetId);
-    if (parsed.schemaVersion !== FEDERATED_QUERY_CACHE_SCHEMA_VERSION) {
-      return createEmptyCache(repoSetId);
-    }
-    if (repoSetId && parsed.repoSetId && parsed.repoSetId !== repoSetId) {
-      return createEmptyCache(repoSetId);
-    }
-    const entriesInput = parsed.entries && typeof parsed.entries === 'object'
-      ? parsed.entries
-      : {};
-    const entries = {};
-    for (const key of Object.keys(entriesInput).sort((a, b) => a.localeCompare(b))) {
-      const entry = entriesInput[key];
-      if (!entry || typeof entry !== 'object') continue;
-      if (typeof entry.manifestHash !== 'string' || !entry.manifestHash) continue;
-      entries[key] = {
-        createdAt: toIsoString(entry.createdAt, new Date(0).toISOString()),
-        lastUsedAt: toIsoString(entry.lastUsedAt, new Date(0).toISOString()),
-        manifestHash: entry.manifestHash,
-        keyPayloadHash: typeof entry.keyPayloadHash === 'string' ? entry.keyPayloadHash : null,
-        result: entry.result
-      };
-    }
-    return {
-      schemaVersion: FEDERATED_QUERY_CACHE_SCHEMA_VERSION,
-      repoSetId: parsed.repoSetId || repoSetId || null,
-      updatedAt: toIsoString(parsed.updatedAt, null),
-      entries
+const normalizeCachePayload = (parsed, repoSetId) => {
+  if (!parsed || typeof parsed !== 'object') return createEmptyCache(repoSetId);
+  if (parsed.schemaVersion !== FEDERATED_QUERY_CACHE_SCHEMA_VERSION) {
+    return createEmptyCache(repoSetId);
+  }
+  if (repoSetId && parsed.repoSetId && parsed.repoSetId !== repoSetId) {
+    return createEmptyCache(repoSetId);
+  }
+  const entriesInput = parsed.entries && typeof parsed.entries === 'object'
+    ? parsed.entries
+    : {};
+  const entries = {};
+  for (const key of Object.keys(entriesInput).sort((a, b) => a.localeCompare(b))) {
+    const entry = entriesInput[key];
+    if (!entry || typeof entry !== 'object') continue;
+    if (typeof entry.manifestHash !== 'string' || !entry.manifestHash) continue;
+    entries[key] = {
+      createdAt: toIsoString(entry.createdAt, new Date(0).toISOString()),
+      lastUsedAt: toIsoString(entry.lastUsedAt, new Date(0).toISOString()),
+      manifestHash: entry.manifestHash,
+      keyPayloadHash: typeof entry.keyPayloadHash === 'string' ? entry.keyPayloadHash : null,
+      result: entry.result
     };
-  } catch {
+  }
+  return {
+    schemaVersion: FEDERATED_QUERY_CACHE_SCHEMA_VERSION,
+    repoSetId: parsed.repoSetId || repoSetId || null,
+    updatedAt: toIsoString(parsed.updatedAt, null),
+    entries
+  };
+};
+
+const bumpCacheHealthCounter = (health, key) => {
+  if (!health || typeof health !== 'object' || !key) return;
+  const current = Number.isFinite(Number(health[key])) ? Number(health[key]) : 0;
+  health[key] = current + 1;
+};
+
+const emitCacheWarning = (log, message) => {
+  if (typeof log === 'function') {
+    log(message);
+    return;
+  }
+  try {
+    process.emitWarning(message, { code: 'FEDERATED_QUERY_CACHE_WARNING' });
+  } catch {}
+};
+
+const quarantineCorruptCacheFile = async (cachePath, log) => {
+  if (!cachePath) return null;
+  const quarantinePath = `${cachePath}${FEDERATED_QUERY_CACHE_CORRUPT_SUFFIX}-${Date.now()}`;
+  try {
+    await fsPromises.rename(cachePath, quarantinePath);
+    emitCacheWarning(log, `[retrieval:federation] quarantined corrupt cache file: ${quarantinePath}`);
+    return quarantinePath;
+  } catch (error) {
+    emitCacheWarning(
+      log,
+      `[retrieval:federation] failed to quarantine corrupt cache file (${cachePath}): ${error?.message || error}`
+    );
     return null;
   }
 };
 
 export const loadFederatedQueryCache = async ({
   cachePath,
-  repoSetId
+  repoSetId,
+  log = null,
+  health = null
 } = {}) => {
   if (!cachePath) return createEmptyCache(repoSetId);
-  try {
-    const raw = await fsPromises.readFile(cachePath, 'utf8');
-    const parsed = parseCacheFile(raw, repoSetId);
-    if (parsed) return parsed;
-    try {
-      await fsPromises.rm(cachePath, { force: true });
-    } catch {}
-    return createEmptyCache(repoSetId);
-  } catch {
+  const {
+    data: parsedPayload,
+    error: readError,
+    phase: readPhase
+  } = await loadBoundedJsonFile(cachePath, {
+    fallback: null,
+    maxBytes: FEDERATED_QUERY_CACHE_MAX_READ_BYTES
+  });
+  if (readError) {
+    const readErrorCode = typeof readError?.code === 'string' ? readError.code : null;
+    if (readError?.code === 'ERR_JSON_FILE_TOO_LARGE') {
+      emitCacheWarning(
+        log,
+        `[retrieval:federation] cache file oversized (> ${FEDERATED_QUERY_CACHE_MAX_READ_BYTES} bytes); using empty cache.`
+      );
+      bumpCacheHealthCounter(health, 'federatedQueryCacheOversized');
+      return createEmptyCache(repoSetId);
+    }
+    if (readErrorCode !== 'ENOENT') {
+      if (readPhase === 'parse') {
+        bumpCacheHealthCounter(health, 'federatedQueryCacheParseFailures');
+      } else {
+        bumpCacheHealthCounter(health, 'federatedQueryCacheReadFailures');
+      }
+      emitCacheWarning(
+        log,
+        `[retrieval:federation] cache ${readPhase === 'parse' ? 'parse' : 'read'} failed `
+          + `(${readErrorCode || 'ERR_READ'}): ${readError?.message || readError}`
+      );
+      await quarantineCorruptCacheFile(cachePath, log);
+    }
     return createEmptyCache(repoSetId);
   }
+  return normalizeCachePayload(parsedPayload, repoSetId);
 };
 
 const listEvictionCandidates = (cache) => (
@@ -231,6 +286,20 @@ const listEvictionCandidates = (cache) => (
       || a.key.localeCompare(b.key)
     ))
 );
+
+const estimateFederatedCacheEntryBytes = (key, entry) => (
+  Buffer.byteLength(stableStringify({ [key]: entry }), 'utf8')
+);
+
+const estimateFederatedCacheHeaderBytes = (cache) => {
+  const envelope = {
+    schemaVersion: cache?.schemaVersion ?? FEDERATED_QUERY_CACHE_SCHEMA_VERSION,
+    repoSetId: cache?.repoSetId || null,
+    updatedAt: cache?.updatedAt || null,
+    entries: {}
+  };
+  return Buffer.byteLength(stableStringify(envelope), 'utf8');
+};
 
 export const pruneFederatedQueryCache = (cache, policy = {}) => {
   const maxEntries = Number.isFinite(Number(policy.maxEntries))
@@ -257,14 +326,30 @@ export const pruneFederatedQueryCache = (cache, policy = {}) => {
     delete cache.entries[oldest.key];
   }
 
-  let currentBytes = Buffer.byteLength(stableStringify(cache), 'utf8');
+  const headerBytes = estimateFederatedCacheHeaderBytes(cache);
+  const entryByteSizes = new Map();
+  let currentBytes = headerBytes;
+  for (const [key, entry] of Object.entries(cache.entries || {})) {
+    const size = estimateFederatedCacheEntryBytes(key, entry);
+    entryByteSizes.set(key, size);
+    currentBytes += size;
+  }
   if (currentBytes > maxBytes) {
     candidates = listEvictionCandidates(cache);
     while (candidates.length && currentBytes > maxBytes) {
       const oldest = candidates.shift();
       if (!oldest) break;
       delete cache.entries[oldest.key];
-      currentBytes = Buffer.byteLength(stableStringify(cache), 'utf8');
+      const reclaimed = Number(entryByteSizes.get(oldest.key) || 0);
+      currentBytes = Math.max(headerBytes, currentBytes - reclaimed);
+    }
+  }
+  if (currentBytes > maxBytes) {
+    candidates = listEvictionCandidates(cache);
+    while (candidates.length && Buffer.byteLength(stableStringify(cache), 'utf8') > maxBytes) {
+      const oldest = candidates.shift();
+      if (!oldest) break;
+      delete cache.entries[oldest.key];
     }
   }
 };

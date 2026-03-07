@@ -1,3 +1,5 @@
+import { killChildProcessTree } from '../kill-tree.js';
+
 const isPromiseLike = (value) => (
   value && typeof value.then === 'function'
 );
@@ -10,6 +12,14 @@ const toLifecycleError = (name, stage, errors) => {
 
 const resolveWorkerClose = (worker) => {
   if (!worker) return null;
+  if (Number.isFinite(Number(worker?.pid)) && typeof worker?.kill === 'function') {
+    return () => killChildProcessTree(worker, {
+      killTree: true,
+      detached: Boolean(worker?.detached),
+      graceMs: 0,
+      awaitGrace: false
+    }).catch(() => {});
+  }
   if (typeof worker.terminate === 'function') {
     return () => worker.terminate();
   }
@@ -58,7 +68,13 @@ export const createLifecycleRegistry = ({ name = 'lifecycle', onError = null } =
       resources.delete(entry);
       if (entry.close) {
         try {
-          entry.close();
+          const closeResult = entry.close();
+          if (isPromiseLike(closeResult)) {
+            closeResult.catch((err) => {
+              reportError(err);
+              return null;
+            });
+          }
         } catch (err) {
           reportError(err);
         }

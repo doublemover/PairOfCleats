@@ -19,6 +19,8 @@ import {
   resolvePropagationParallelOptions,
   updateBundleSizing
 } from './bundler.js';
+import { throwIfAborted } from '../../shared/abort.js';
+import { runWithConcurrency } from '../../shared/concurrency.js';
 
 const LARGE_REPO_CHUNK_THRESHOLD = 3000;
 const LARGE_REPO_FILE_THRESHOLD = 500;
@@ -31,6 +33,8 @@ const LARGE_REPO_CALL_SAMPLE_LIMIT = 10;
 const LARGE_REPO_PARAM_TYPE_LIMIT = 3;
 const SYMBOL_REF_CACHE_MAX_ENTRIES = 20000;
 const SYMBOL_REF_CACHE_TTL_MS = 5 * 60 * 1000;
+const TOOLING_PRELOAD_CONCURRENCY_DEFAULT = 8;
+const TOOLING_PRELOAD_PROGRESS_HEARTBEAT_MS = 10_000;
 
 const resolveLinkRef = (link) => link?.to || link?.calleeRef || link?.ref || link?.symbolRef || null;
 
@@ -133,12 +137,13 @@ export async function runCrossFilePropagation({
   inferenceLite = false,
   inferenceLiteHighSignalOnly = true,
   toolingConfig = null,
-  toolingTimeoutMs = 15000,
+  toolingTimeoutMs = 60000,
   toolingRetries = 2,
   toolingBreaker = 3,
   toolingLogDir = null,
   abortSignal = null
 }) {
+  throwIfAborted(abortSignal);
   const symbolEntries = [];
   const entryByKey = new Map();
   const entryByUid = new Map();
@@ -167,6 +172,7 @@ export async function runCrossFilePropagation({
   };
 
   for (const chunk of chunks) {
+    throwIfAborted(abortSignal);
     if (!chunk?.name) continue;
     if (chunk?.file) fileSet.add(chunk.file);
     const chunkUid = chunk.chunkUid || chunk.metaV2?.chunkUid || null;
@@ -253,6 +259,14 @@ export async function runCrossFilePropagation({
   let linkedUsages = 0;
   let inferredReturns = 0;
   let riskFlows = 0;
+  let toolingDegradedProviders = 0;
+  let toolingDegradedWarnings = 0;
+  let toolingDegradedErrors = 0;
+  let toolingProvidersExecuted = 0;
+  let toolingProvidersContributed = 0;
+  let toolingRequests = 0;
+  let toolingRequestFailures = 0;
+  let toolingRequestTimeouts = 0;
   let droppedCallLinks = 0;
   let droppedCallSummaries = 0;
   let droppedUsageLinks = 0;
@@ -288,9 +302,39 @@ export async function runCrossFilePropagation({
     for (const chunk of chunks) {
       if (chunk?.file) filesToLoad.add(chunk.file);
     }
-    for (const file of filesToLoad) {
-      await getFileText(file);
+    const preloadFiles = Array.from(filesToLoad);
+    const preloadTotal = preloadFiles.length;
+    const preloadConcurrency = Math.max(
+      1,
+      Math.floor(Number(toolingConfig?.preloadFileConcurrency) || TOOLING_PRELOAD_CONCURRENCY_DEFAULT)
+    );
+    let preloadLoaded = 0;
+    const preloadStartMs = Date.now();
+    log(
+      `[tooling] preload:start files=${preloadTotal} concurrency=${preloadConcurrency}.`
+    );
+    const preloadHeartbeatTimer = setInterval(() => {
+      const elapsedMs = Math.max(0, Date.now() - preloadStartMs);
+      log(
+        `[tooling] preload:heartbeat loaded=${preloadLoaded}/${preloadTotal} elapsedMs=${elapsedMs}.`
+      );
+    }, TOOLING_PRELOAD_PROGRESS_HEARTBEAT_MS);
+    preloadHeartbeatTimer.unref?.();
+    try {
+      await runWithConcurrency(preloadFiles, preloadConcurrency, async (file) => {
+        throwIfAborted(abortSignal);
+        await getFileText(file);
+        preloadLoaded += 1;
+      }, { signal: abortSignal });
+    } finally {
+      clearInterval(preloadHeartbeatTimer);
     }
+    const preloadElapsedMs = Math.max(0, Date.now() - preloadStartMs);
+    log(
+      `[tooling] preload:done loaded=${preloadLoaded}/${preloadTotal} elapsedMs=${preloadElapsedMs}.`
+    );
+    const toolingPassStartMs = Date.now();
+    log('[tooling] pass:start stage=cross-file.');
     const toolingResult = await runToolingPass({
       rootDir,
       buildRoot: buildRoot || rootDir,
@@ -305,7 +349,17 @@ export async function runCrossFilePropagation({
       fileTextByFile: fileTextByRel,
       abortSignal
     });
+    const toolingPassElapsedMs = Math.max(0, Date.now() - toolingPassStartMs);
+    log(`[tooling] pass:done stage=cross-file elapsedMs=${toolingPassElapsedMs}.`);
     inferredReturns += toolingResult.inferredReturns || 0;
+    toolingDegradedProviders += toolingResult.toolingDegradedProviders || 0;
+    toolingDegradedWarnings += toolingResult.toolingDegradedWarnings || 0;
+    toolingDegradedErrors += toolingResult.toolingDegradedErrors || 0;
+    toolingProvidersExecuted += toolingResult.toolingProvidersExecuted || 0;
+    toolingProvidersContributed += toolingResult.toolingProvidersContributed || 0;
+    toolingRequests += toolingResult.toolingRequests || 0;
+    toolingRequestFailures += toolingResult.toolingRequestFailures || 0;
+    toolingRequestTimeouts += toolingResult.toolingRequestTimeouts || 0;
   }
 
   const getChunkText = async (chunk) => {
@@ -434,6 +488,7 @@ export async function runCrossFilePropagation({
   let propagationParallelLogged = false;
   let chunkCursor = 0;
   while (chunkCursor < chunks.length) {
+    throwIfAborted(abortSignal);
     const bundleStart = chunkCursor;
     const bundleEnd = Math.min(chunks.length, bundleStart + currentBundleSize);
     const bundle = chunks.slice(bundleStart, bundleEnd);
@@ -453,6 +508,7 @@ export async function runCrossFilePropagation({
     }
 
     for (const chunk of bundle) {
+      throwIfAborted(abortSignal);
       if (!chunk) continue;
       const relations = chunk.codeRelations || {};
       const fromChunkUid = chunk.chunkUid || chunk.metaV2?.chunkUid || null;
@@ -846,6 +902,14 @@ export async function runCrossFilePropagation({
     linkedUsages,
     inferredReturns,
     riskFlows,
+    toolingDegradedProviders,
+    toolingDegradedWarnings,
+    toolingDegradedErrors,
+    toolingProvidersExecuted,
+    toolingProvidersContributed,
+    toolingRequests,
+    toolingRequestFailures,
+    toolingRequestTimeouts,
     droppedCallLinks,
     droppedCallSummaries,
     droppedUsageLinks,

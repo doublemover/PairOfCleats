@@ -41,6 +41,10 @@
         "timeoutMs": { "type": "number" },
         "maxRetries": { "type": "number" },
         "circuitBreakerThreshold": { "type": "number" },
+        "lifecycle": {
+          "type": "object",
+          "additionalProperties": true
+        },
         "logDir": { "type": "string" },
         "enabledTools": {
           "anyOf": [
@@ -98,6 +102,13 @@
           "additionalProperties": false,
           "properties": {
             "enabled": { "type": "boolean" },
+            "timeoutMs": { "type": "number" },
+            "maxRetries": { "type": "number" },
+            "circuitBreakerThreshold": { "type": "number" },
+            "lifecycle": {
+              "type": "object",
+              "additionalProperties": true
+            },
             "servers": {
               "type": "array",
               "items": {
@@ -172,7 +183,39 @@
           "type": "object",
           "additionalProperties": true
         },
+        "gopls": {
+          "type": "object",
+          "additionalProperties": true
+        },
         "sourcekit": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "jdtls": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "csharp": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "solargraph": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "elixir": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "haskell": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "phpactor": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "dart": {
           "type": "object",
           "additionalProperties": true
         }

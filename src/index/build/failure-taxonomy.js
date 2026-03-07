@@ -20,7 +20,7 @@ const FAILURE_SCHEMA = {
     stage: { type: 'string' },
     file: { type: 'string' },
     languageId: { type: 'string' },
-    shardId: { type: 'string' },
+    shardId: { type: ['string', 'null'] },
     workerId: { type: ['string', 'number'] },
     tool: { type: 'string' },
     retryable: { type: 'boolean' },

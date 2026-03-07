@@ -3,11 +3,10 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import readline from 'node:readline';
-import { spawn } from 'node:child_process';
 import { createCli } from '../../src/shared/cli.js';
 import { isAbsolutePathNative, isRelativePathEscape, toPosix } from '../../src/shared/files.js';
-import { registerChildProcessForCleanup } from '../../src/shared/subprocess.js';
 import { getRepoCacheRoot, resolveRepoConfig } from '../shared/dict-utils.js';
+import { runLineStreamingCommand } from './shared-runner.js';
 
 const argv = createCli({
   scriptName: 'ctags-ingest',
@@ -20,7 +19,8 @@ const argv = createCli({
     interactive: { type: 'boolean', default: false },
     ctags: { type: 'string', default: 'ctags' },
     fields: { type: 'string' },
-    args: { type: 'string' }
+    args: { type: 'string' },
+    'timeout-ms': { type: 'number' }
   }
 }).parse();
 
@@ -34,6 +34,9 @@ const inputPath = argv.input ? String(argv.input) : null;
 const runCtags = argv.run === true;
 const interactive = argv.interactive === true;
 const ctagsCmd = argv.ctags || 'ctags';
+const commandTimeoutMs = Number.isFinite(Number(argv['timeout-ms']))
+  ? Math.max(1000, Math.floor(Number(argv['timeout-ms'])))
+  : null;
 
 const normalizePath = (value) => {
   if (!value) return null;
@@ -137,24 +140,32 @@ const runCtagsCommand = async () => {
     args.push(...extra);
   }
   args.push(repoRoot);
-  const child = spawn(ctagsCmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
-  const unregisterChild = registerChildProcessForCleanup(child, {
-    killTree: true,
-    detached: false
+  await runLineStreamingCommand({
+    command: ctagsCmd,
+    args,
+    timeoutMs: commandTimeoutMs,
+    onStdoutLine: async (line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+      let parsed = null;
+      try {
+        parsed = JSON.parse(trimmed);
+      } catch {
+        stats.errors += 1;
+        return;
+      }
+      const mapped = mapEntry(parsed);
+      if (!mapped) {
+        stats.ignored += 1;
+        return;
+      }
+      stats.entries += 1;
+      bump(stats.kinds, mapped.kind || mapped.kindName || 'unknown');
+      bump(stats.languages, mapped.language || 'unknown');
+      await writeLine(`${JSON.stringify(mapped)}\n`);
+    },
+    onStderrChunk: (chunk) => process.stderr.write(chunk)
   });
-  child.stderr.on('data', (chunk) => process.stderr.write(chunk));
-  try {
-    await ingestStream(child.stdout);
-    const exitCode = await new Promise((resolve, reject) => {
-      child.once('error', reject);
-      child.once('close', (code) => resolve(code ?? 0));
-    });
-    if (exitCode !== 0) {
-      throw new Error(`ctags exited with code ${exitCode}`);
-    }
-  } finally {
-    unregisterChild();
-  }
 };
 
 await ensureOutputDir();
@@ -175,6 +186,7 @@ if (interactive) {
 }
 
 writeStream.end();
+await new Promise((resolve) => writeStream.once('finish', resolve));
 
 const summary = {
   generatedAt: new Date().toISOString(),

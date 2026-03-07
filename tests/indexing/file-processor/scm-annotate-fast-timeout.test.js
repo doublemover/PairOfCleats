@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { normalizeCommentConfig } from '../../../src/index/comments.js';
 import { getLanguageForFile } from '../../../src/index/language-registry.js';
+import { resolveScmConfig } from '../../../src/index/scm/registry.js';
 import { normalizeSegmentsConfig } from '../../../src/index/segments.js';
 import { processFileCpu } from '../../../src/index/build/file-processor/cpu.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
@@ -481,6 +482,45 @@ await processFileCpu(createContext({
 }));
 assert.equal(allowSlowTimeoutMs, 4321, 'expected allowSlowTimeouts to permit explicit annotate timeout');
 assert.equal(allowSlowMetaTimeoutMs, 333, 'expected allowSlowTimeouts to permit explicit meta timeout');
+
+let batchDefaultMetaTimeoutMs = null;
+let batchDefaultAnnotateTimeoutMs = null;
+const batchDefaultScmProvider = {
+  async getFileMeta(args) {
+    batchDefaultMetaTimeoutMs = args?.timeoutMs ?? null;
+    return { ok: false };
+  },
+  async annotate(args) {
+    batchDefaultAnnotateTimeoutMs = args?.timeoutMs ?? null;
+    return { ok: false, reason: 'timeout' };
+  }
+};
+await processFileCpu(createContext({
+  abs: yamlAbs,
+  ext: '.yml',
+  rel: yamlRel,
+  relKey: yamlRelKey,
+  text: yamlText,
+  fileStat: yamlStat,
+  languageHint: yamlLanguageHint,
+  scmProviderImpl: batchDefaultScmProvider,
+  fileHash: 'scm-annotate-fast-timeout-batch-default',
+  scmConfig: resolveScmConfig({
+    indexingConfig: {},
+    analysisPolicy: null,
+    workload: 'batch'
+  })
+}));
+assert.equal(
+  batchDefaultMetaTimeoutMs,
+  10000,
+  'expected batch SCM policy to use slower metadata default when fast caps are disabled'
+);
+assert.equal(
+  batchDefaultAnnotateTimeoutMs,
+  10000,
+  'expected batch SCM policy to keep default annotate timeout when fast caps are disabled'
+);
 
 let forcedCapAnnotateTimeoutMs = null;
 let forcedCapMetaTimeoutMs = null;

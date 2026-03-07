@@ -1,5 +1,5 @@
 import fsPromises from 'node:fs/promises';
-import { createTimeoutError, runWithTimeout } from '../../../shared/promise-timeout.js';
+import { createTimeoutError } from '../../../shared/promise-timeout.js';
 
 const TRANSIENT_FD_OPEN_ERROR_CODES = new Set(['EAGAIN', 'EMFILE', 'ENFILE']);
 const DEFAULT_OPEN_RETRY_ATTEMPTS = 8;
@@ -74,6 +74,8 @@ export const createVfsManifestOffsetReader = ({
   let pooledBuffers = 0;
   let handlePromise = null;
   let closed = false;
+  let closePromise = null;
+  const pendingCloseOperations = new Set();
   const stats = {
     handleOpens: 0,
     readCalls: 0,
@@ -105,6 +107,15 @@ export const createVfsManifestOffsetReader = ({
     if (!bufferPool.has(key)) bufferPool.set(key, []);
     bufferPool.get(key).push(buffer);
     pooledBuffers += 1;
+  };
+
+  const trackPendingCloseOperation = (promise) => {
+    if (!promise || typeof promise.then !== 'function') return promise;
+    pendingCloseOperations.add(promise);
+    promise.finally(() => {
+      pendingCloseOperations.delete(promise);
+    }).catch(() => {});
+    return promise;
   };
 
   const openHandle = async () => {
@@ -224,42 +235,56 @@ export const createVfsManifestOffsetReader = ({
   };
 
   const close = async () => {
+    if (closePromise) {
+      await closePromise;
+      return;
+    }
     closed = true;
     const pending = handlePromise;
     handlePromise = null;
     if (!pending) return;
-    const handle = await pending;
-    // Handle close is timeout-bounded so scheduler teardown can fail-open even
-    // when the underlying filesystem never resolves `FileHandle.close()`.
-    if (!Number.isFinite(resolvedCloseTimeoutMs) || resolvedCloseTimeoutMs <= 0) {
-      await handle.close();
-      return;
-    }
-    try {
-      await runWithTimeout(
-        () => handle.close(),
-        {
-          timeoutMs: resolvedCloseTimeoutMs,
-          errorFactory: () => createTimeoutError({
-            message: `[cleanup] vfs-offset-reader.close timed out after ${resolvedCloseTimeoutMs}ms for ${manifestPath}`,
-            code: 'ERR_VFS_OFFSET_READER_CLOSE_TIMEOUT',
-            retryable: false,
-            meta: {
-              manifestPath,
-              timeoutMs: resolvedCloseTimeoutMs
-            }
-          })
-        }
-      );
-    } catch (err) {
-      if (err?.code !== 'ERR_VFS_OFFSET_READER_CLOSE_TIMEOUT') throw err;
-      if (typeof log === 'function') {
-        try {
-          log(
-            `[cleanup] vfs-offset-reader.close timed out after ${resolvedCloseTimeoutMs}ms for ${manifestPath}; continuing.`
-          );
-        } catch {}
+    closePromise = (async () => {
+      const handle = await pending;
+      const closeOperation = trackPendingCloseOperation(Promise.resolve().then(() => handle.close()));
+      // Keep the underlying close promise strongly referenced even when teardown
+      // times out so Node does not later GC-close the FileHandle and emit DEP0137.
+      if (!Number.isFinite(resolvedCloseTimeoutMs) || resolvedCloseTimeoutMs <= 0) {
+        await closeOperation;
+        return;
       }
+      let timeoutId = null;
+      try {
+        await Promise.race([
+          closeOperation,
+          new Promise((_, reject) => {
+            timeoutId = setTimeout(() => reject(createTimeoutError({
+              message: `[cleanup] vfs-offset-reader.close timed out after ${resolvedCloseTimeoutMs}ms for ${manifestPath}`,
+              code: 'ERR_VFS_OFFSET_READER_CLOSE_TIMEOUT',
+              retryable: false,
+              meta: {
+                manifestPath,
+                timeoutMs: resolvedCloseTimeoutMs
+              }
+            })), resolvedCloseTimeoutMs);
+          })
+        ]);
+      } catch (err) {
+        if (err?.code !== 'ERR_VFS_OFFSET_READER_CLOSE_TIMEOUT') throw err;
+        if (typeof log === 'function') {
+          try {
+            log(
+              `[cleanup] vfs-offset-reader.close timed out after ${resolvedCloseTimeoutMs}ms for ${manifestPath}; continuing.`
+            );
+          } catch {}
+        }
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+      }
+    })();
+    try {
+      await closePromise;
+    } finally {
+      closePromise = null;
     }
   };
 
@@ -269,7 +294,9 @@ export const createVfsManifestOffsetReader = ({
     stats: () => ({
       ...stats,
       closeTimeoutMs: resolvedCloseTimeoutMs,
-      pooledBuffers
+      pooledBuffers,
+      pendingCloseOperations: pendingCloseOperations.size,
+      closed
     }),
     close
   };

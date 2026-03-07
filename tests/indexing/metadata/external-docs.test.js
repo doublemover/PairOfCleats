@@ -32,7 +32,13 @@ const env = applyTestEnv({
   embeddings: 'stub',
   testConfig: {
     indexing: {
-      scm: { provider: 'none' }
+      scm: { provider: 'none' },
+      typeInference: false,
+      typeInferenceCrossFile: false
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
     }
   }
 });

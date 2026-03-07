@@ -6,6 +6,7 @@ import { acquireIndexLock } from '../build/lock.js';
 import { createError, ERROR_CODES } from '../../shared/error-codes.js';
 import { fromPosix, isAbsolutePathAny, toPosix } from '../../shared/files.js';
 import { getRepoCacheRoot } from '../../shared/dict-utils.js';
+import { releaseFileLockOrThrow } from '../../shared/locks/file-lock.js';
 import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
 import { isManifestPathSafe } from '../validate/paths.js';
 import { validateArtifact } from '../../contracts/validators/artifacts.js';
@@ -111,7 +112,7 @@ const withSnapshotLock = async (repoCacheRoot, options, worker) => {
   try {
     return await worker(lock);
   } finally {
-    await lock.release();
+    await releaseFileLockOrThrow(lock);
   }
 };
 

@@ -64,8 +64,9 @@ export const formatEmbedStats = (stats) => {
   if (Number.isFinite(stats.filesTotal)) {
     const withEmbeddings = Number.isFinite(stats.filesWithEmbeddings) ? stats.filesWithEmbeddings : 0;
     const totalFiles = Number.isFinite(stats.filesTotal) ? stats.filesTotal : 0;
+    const filesWithChunks = Number.isFinite(stats.filesWithChunks) ? stats.filesWithChunks : totalFiles;
     const missing = Number.isFinite(stats.filesMissingEmbeddings) ? stats.filesMissingEmbeddings : 0;
-    parts.push(`files ${withEmbeddings}/${totalFiles} (missing ${missing})`);
+    parts.push(`files ${withEmbeddings}/${filesWithChunks} chunked (${totalFiles} total, missing ${missing})`);
   }
   if (Array.isArray(stats.sampleMissingFiles) && stats.sampleMissingFiles.length) {
     parts.push(`sample missing: ${stats.sampleMissingFiles.join(', ')}`);

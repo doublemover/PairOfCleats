@@ -5,6 +5,7 @@ import { writeJsonObjectFile } from '../../../shared/json-stream.js';
 
 const PROFILE_SCHEMA_VERSION = '1.0.0';
 const PROFILE_FILE_NAME = 'adaptive-rows-per-sec.json';
+const PROFILE_MAX_READ_BYTES = 4 * 1024 * 1024;
 const EMA_ALPHA = 0.35;
 const TAIL_EMA_ALPHA = 0.2;
 const LANE_COOLDOWN_STEPS_DEFAULT = 3;
@@ -250,6 +251,16 @@ export const loadTreeSitterSchedulerAdaptiveProfile = async ({
     return { profilePath: null, entriesByGrammarKey: new Map() };
   }
   try {
+    const stat = await fs.stat(profilePath);
+    if (Number.isFinite(Number(stat?.size)) && Number(stat.size) > PROFILE_MAX_READ_BYTES) {
+      if (typeof log === 'function') {
+        log(
+          `[tree-sitter:schedule] adaptive profile oversized ` +
+          `(${stat.size} bytes > ${PROFILE_MAX_READ_BYTES}); skipping load.`
+        );
+      }
+      return { profilePath, entriesByGrammarKey: new Map() };
+    }
     const raw = JSON.parse(await fs.readFile(profilePath, 'utf8'));
     const fields = raw?.fields && typeof raw.fields === 'object' ? raw.fields : raw;
     const entriesByGrammarKey = fromSerializableEntries(fields?.entriesByGrammarKey || {});

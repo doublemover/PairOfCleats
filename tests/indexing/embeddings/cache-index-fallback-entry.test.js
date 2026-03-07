@@ -11,6 +11,8 @@ import {
 } from '../../../tools/build/embeddings/cache.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { rmDirRecursive } from '../../helpers/temp.js';
+
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'embeddings-cache-fallback-entry');
@@ -18,7 +20,7 @@ const cacheDir = path.join(tempRoot, 'files');
 const cacheKey = 'cache-fallback-key';
 const now = new Date().toISOString();
 
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
+await rmDirRecursive(tempRoot, { retries: 8, delayMs: 150 });
 await fsPromises.mkdir(cacheDir, { recursive: true });
 
 const index = {

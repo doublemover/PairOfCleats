@@ -36,7 +36,7 @@ const resolveBuildPragmas = (options = {}) => {
     : clamp(Math.round(inputBytes * 0.05), 32 * BYTES_PER_MB, 256 * BYTES_PER_MB);
   return {
     journal_mode: 'WAL',
-    synchronous: 'OFF',
+    synchronous: 'NORMAL',
     temp_store: 'MEMORY',
     cache_size: -cacheMb * 1024,
     mmap_size: mmapMb * BYTES_PER_MB,

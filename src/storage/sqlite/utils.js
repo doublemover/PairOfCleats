@@ -36,7 +36,7 @@ export function chunkArray(items, size = 900) {
   if (!Array.isArray(items) || items.length === 0) return [];
   const parsedSize = Number(size);
   const chunkSize = Number.isFinite(parsedSize) && parsedSize > 0
-    ? Math.floor(parsedSize)
+    ? Math.max(1, Math.floor(parsedSize))
     : 900;
   const chunks = [];
   for (let i = 0; i < items.length; i += chunkSize) {
@@ -57,6 +57,20 @@ const SQLITE_TX_ROWS_MIN = 2000;
 const SQLITE_TX_ROWS_MAX = 250000;
 const DEFAULT_DENSE_BINARY_MAX_INLINE_MB = 512;
 const DENSE_BINARY_STREAM_READ_TARGET_BYTES = 4 * BYTES_PER_MB;
+const BENIGN_SQLITE_CLEANUP_CODES = new Set(['ENOENT', 'ENOTDIR']);
+
+const isBenignSqliteCleanupError = (error) => (
+  BENIGN_SQLITE_CLEANUP_CODES.has(String(error?.code || '').toUpperCase())
+);
+
+const emitSqliteCleanupWarning = (logger, message) => {
+  if (!message) return;
+  if (logger?.warn) {
+    logger.warn(message);
+    return;
+  }
+  logLine(message, { kind: 'warning' });
+};
 
 const resolveDenseBinaryMaxInlineBytes = () => {
   const envConfig = getEnvConfig();
@@ -658,7 +672,14 @@ export async function removeSqliteSidecars(basePath) {
         logLine(`[sqlite-cleanup] remove ${targetPath}`, { kind: 'status' });
       }
       await fsPromises.rm(targetPath, { force: true });
-    } catch {}
+    } catch (err) {
+      if (isBenignSqliteCleanupError(err)) return;
+      emitSqliteCleanupWarning(
+        null,
+        `[sqlite-cleanup] failed to remove sidecar ${basePath}${suffix}: ${err?.message || err}`
+      );
+      throw err;
+    }
   }));
 }
 
@@ -687,25 +708,48 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
       options.logger.log(message);
     }
   };
-  /**
-   * Move a file into place and transparently handle cross-device (`EXDEV`)
-   * boundaries by copy+remove fallback.
-   *
-   * `preserveSource` is used by rollback restore paths that should leave the
-   * backup artifact intact when `keepBackup=true`.
-   */
-  const moveFileWithCrossDeviceFallback = async (sourcePath, destinationPath, { preserveSource = false } = {}) => {
-    if (!preserveSource) {
-      try {
-        await fsPromises.rename(sourcePath, destinationPath);
-        return;
-      } catch (err) {
-        if (err?.code !== 'EXDEV') throw err;
-      }
+  const removeFileWithDiagnostics = async (targetPath, { context, swallow = true } = {}) => {
+    try {
+      await fsPromises.rm(targetPath, { force: true });
+      return true;
+    } catch (err) {
+      if (isBenignSqliteCleanupError(err)) return false;
+      emitSqliteCleanupWarning(
+        options.logger,
+        `[sqlite-cleanup] failed to remove ${context || 'path'} ${targetPath}: ${err?.message || err}`
+      );
+      if (!swallow) throw err;
+      return false;
     }
-    await fsPromises.copyFile(sourcePath, destinationPath);
-    if (!preserveSource) {
-      await fsPromises.rm(sourcePath, { force: true });
+  };
+  const createCrossDeviceReplaceError = (operation, sourcePath, destinationPath, cause) => {
+    const err = new Error(
+      `[sqlite] Cross-device replace blocked during ${operation}; SQLite promotion requires temp/output/backup paths on the same volume. `
+      + `source=${sourcePath} destination=${destinationPath}`
+    );
+    err.code = 'ERR_SQLITE_REPLACE_CROSS_DEVICE';
+    err.operation = operation;
+    err.sourcePath = sourcePath;
+    err.destinationPath = destinationPath;
+    err.cause = cause || null;
+    err.causeCode = cause?.code || null;
+    return err;
+  };
+  /**
+   * Move a file into place and fail closed on cross-device (`EXDEV`) boundaries.
+   */
+  const moveFileOrFailCrossDevice = async (
+    sourcePath,
+    destinationPath,
+    { operation = 'sqlite-replace' } = {}
+  ) => {
+    try {
+      await fsPromises.rename(sourcePath, destinationPath);
+    } catch (err) {
+      if (err?.code === 'EXDEV') {
+        throw createCrossDeviceReplaceError(operation, sourcePath, destinationPath, err);
+      }
+      throw err;
     }
   };
 
@@ -716,19 +760,26 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
   let backupFromCurrentFinal = false;
   if (finalExists) {
     if (backupAvailable) {
-      try {
-        await fsPromises.rm(backupPath, { force: true });
-      } catch {}
+      await removeFileWithDiagnostics(backupPath, {
+        context: 'existing backup',
+        swallow: false
+      });
       backupAvailable = fs.existsSync(backupPath);
     }
     if (!backupAvailable) {
       try {
-        await moveFileWithCrossDeviceFallback(finalDbPath, backupPath);
+        await moveFileOrFailCrossDevice(finalDbPath, backupPath, {
+          operation: 'move-final-to-backup'
+        });
         backupAvailable = true;
         backupFromCurrentFinal = true;
       } catch (err) {
+        if (err?.code === 'ERR_SQLITE_REPLACE_CROSS_DEVICE') {
+          throw err;
+        }
         if (err?.code !== 'ENOENT') {
           backupAvailable = fs.existsSync(backupPath);
+          if (!backupAvailable) throw err;
         }
         if (!backupAvailable) {
           emit(`[sqlite] Failed to move existing db to backup (${err?.message || err}).`);
@@ -742,10 +793,12 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
     if (fs.existsSync(finalDbPath)) return;
     if (!fs.existsSync(backupPath)) return;
     emit('[sqlite] Replace failed; restoring previous database from backup.');
-    await moveFileWithCrossDeviceFallback(backupPath, finalDbPath, {
-      preserveSource: keepBackup
+    await moveFileOrFailCrossDevice(backupPath, finalDbPath, {
+      operation: 'restore-backup-to-final'
     });
-    if (!keepBackup) {
+    if (keepBackup) {
+      await fsPromises.copyFile(finalDbPath, backupPath);
+    } else {
       backupAvailable = false;
       backupFromCurrentFinal = false;
     }
@@ -753,7 +806,9 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
 
   try {
     try {
-      await moveFileWithCrossDeviceFallback(tempDbPath, finalDbPath);
+      await moveFileOrFailCrossDevice(tempDbPath, finalDbPath, {
+        operation: 'promote-temp-to-final'
+      });
     } catch (err) {
       if (err?.code !== 'EEXIST' && err?.code !== 'EPERM' && err?.code !== 'ENOTEMPTY') {
         throw err;
@@ -762,10 +817,13 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
         throw err;
       }
       emit('[sqlite] Falling back to removing existing db before replace.');
-      try {
-        await fsPromises.rm(finalDbPath, { force: true });
-      } catch {}
-      await moveFileWithCrossDeviceFallback(tempDbPath, finalDbPath);
+      await removeFileWithDiagnostics(finalDbPath, {
+        context: 'existing final db',
+        swallow: false
+      });
+      await moveFileOrFailCrossDevice(tempDbPath, finalDbPath, {
+        operation: 'promote-temp-to-final-after-remove'
+      });
     }
   } catch (err) {
     try {
@@ -778,9 +836,10 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
   }
 
   if (!keepBackup) {
-    try {
-      await fsPromises.rm(backupPath, { force: true });
-    } catch {}
+    await removeFileWithDiagnostics(backupPath, {
+      context: 'final backup cleanup',
+      swallow: false
+    });
   }
   await removeSqliteSidecars(finalDbPath);
   await removeSqliteSidecars(backupPath);

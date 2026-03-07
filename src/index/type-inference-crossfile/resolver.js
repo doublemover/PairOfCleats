@@ -74,7 +74,8 @@ export const resolveSymbolRef = ({
   const candidates = [];
   const importHint = { moduleSpecifier: null, resolvedFile: null };
   let importedName = null;
-  let narrowedEntries = null;
+  let narrowedEntries = [];
+  let hasImportNarrowing = false;
 
   if (fileRelations && fromFile) {
     const relation = typeof fileRelations.get === 'function'
@@ -90,14 +91,19 @@ export const resolveSymbolRef = ({
         const resolvedFile = resolveRelativeImport(fromFile, binding.module, fileSet);
         if (resolvedFile) {
           importHint.resolvedFile = resolvedFile;
-          narrowedEntries = symbolIndex?.byFile?.get(resolvedFile) || null;
+          narrowedEntries = symbolIndex?.byFile?.get(resolvedFile) || [];
+          hasImportNarrowing = true;
         }
       }
     }
   }
 
-  const baseEntries = narrowedEntries || symbolIndex?.byName?.get(name) || [];
-  const leafEntries = leaf && leaf !== name ? (symbolIndex?.byName?.get(leaf) || []) : [];
+  const baseEntries = hasImportNarrowing
+    ? narrowedEntries
+    : (symbolIndex?.byName?.get(name) || []);
+  const leafEntries = !hasImportNarrowing && leaf && leaf !== name
+    ? (symbolIndex?.byName?.get(leaf) || [])
+    : [];
   const allEntries = baseEntries.length ? baseEntries : leafEntries;
 
   for (const entry of allEntries) {

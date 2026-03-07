@@ -7,10 +7,12 @@ import {
   getToolVersion
 } from '../../shared/dict-utils.js';
 import { log } from '../../shared/progress.js';
-import { isAbsolutePathNative, toPosix } from '../../shared/files.js';
+import { isAbsolutePathNative, readJsonFileSafe, toPosix } from '../../shared/files.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
+
+const CURRENT_POINTER_MAX_BYTES = 512 * 1024;
 
 export async function promoteBuild({
   repoRoot,
@@ -43,8 +45,26 @@ export async function promoteBuild({
   const currentPath = path.join(buildsRoot, 'current.json');
   let priorRoots = {};
   if (fsSync.existsSync(currentPath)) {
-    try {
-      const current = JSON.parse(await fs.readFile(currentPath, 'utf8')) || {};
+    let currentReadError = null;
+    const current = await readJsonFileSafe(currentPath, {
+      fallback: null,
+      maxBytes: CURRENT_POINTER_MAX_BYTES,
+      onError: (info) => {
+        currentReadError = info || null;
+      }
+    });
+    if (currentReadError) {
+      const errorCode = typeof currentReadError.error?.code === 'string'
+        ? currentReadError.error.code
+        : 'UNKNOWN';
+      log('[build] warning: failed to read existing current.json; proceeding with empty prior roots.', {
+        fileOnlyLine: (
+          `[build] warning: current.json read failed (${currentReadError.phase}, ${errorCode}); `
+          + 'proceeding with empty prior roots.'
+        )
+      });
+    }
+    if (current && typeof current === 'object') {
       if (current.buildRootsByMode && typeof current.buildRootsByMode === 'object' && !Array.isArray(current.buildRootsByMode)) {
         for (const [mode, value] of Object.entries(current.buildRootsByMode)) {
           const normalized = normalizeRelativeRoot(value);
@@ -64,7 +84,7 @@ export async function promoteBuild({
           }
         }
       }
-    } catch {}
+    }
   }
   const promotedModes = Array.isArray(modes) ? modes.filter((mode) => typeof mode === 'string') : [];
   const buildRootsByMode = { ...priorRoots };

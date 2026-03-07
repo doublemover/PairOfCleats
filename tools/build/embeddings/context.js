@@ -17,9 +17,15 @@ export function createBuildEmbeddingsContext({ argv }) {
     closeDisplay();
   };
   process.once('exit', finalize);
-  const log = (message) => display.log(message);
-  const warn = (message) => display.warn(message);
-  const error = (message) => display.error(message);
+  const log = (message, meta = null) => {
+    if (meta?.kind === 'status' && typeof display?.logLine === 'function') {
+      display.logLine(message, meta);
+      return;
+    }
+    display.log(message, meta);
+  };
+  const warn = (message, meta = null) => display.warn(message, meta);
+  const error = (message, meta = null) => display.error(message, meta);
   const logger = { log, warn, error };
   const fail = (message, code = 1) => {
     error(message);

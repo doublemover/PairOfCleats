@@ -18,6 +18,8 @@ export const SCM_META_FAST_TIMEOUT_EXTS = new Set(SCM_FAST_TIMEOUT_EXT_VALUES);
 export const SCM_PYTHON_EXTS = new Set(['.py', '.pyi']);
 export const SCM_ANNOTATE_PYTHON_MAX_BYTES = 64 * 1024;
 export const SCM_ANNOTATE_PYTHON_HEAVY_LINE_CUTOFF = 2500;
+export const SCM_META_DEFAULT_TIMEOUT_MS = 2000;
+export const SCM_META_BATCH_DEFAULT_TIMEOUT_MS = 10000;
 export const SCM_ANNOTATE_FAST_TIMEOUT_MS = 5000;
 export const SCM_ANNOTATE_HEAVY_PATH_TIMEOUT_MS = 5000;
 export const SCM_ANNOTATE_DEFAULT_TIMEOUT_CAP_MS = 5000;
@@ -212,6 +214,36 @@ export const shouldForceScmTimeoutCaps = (relPath) => {
     if (boundedPath.includes(part)) return true;
   }
   return false;
+};
+
+/**
+ * Resolve whether SCM metadata/annotate requests should retain aggressive fast
+ * timeout caps for a file.
+ *
+ * Batch indexing defaults to guardrail-only caps so build-index/bench runs do
+ * not self-impose interactive latency limits, while known hotspot paths still
+ * keep the stricter caps.
+ *
+ * @param {{relPath:string,scmConfig?:object|null,annotateConfig?:object|null}} input
+ * @returns {{forceCaps:boolean,allowSlowTimeouts:boolean,enforceCaps:boolean,batchFriendly:boolean}}
+ */
+export const resolveScmTimeoutCapPolicy = ({
+  relPath,
+  scmConfig = null,
+  annotateConfig = null
+}) => {
+  const forceCaps = shouldForceScmTimeoutCaps(relPath);
+  const allowSlowTimeouts = !forceCaps && (
+    scmConfig?.allowSlowTimeouts === true
+    || annotateConfig?.allowSlowTimeouts === true
+  );
+  const enforceCaps = forceCaps || !allowSlowTimeouts;
+  return {
+    forceCaps,
+    allowSlowTimeouts,
+    enforceCaps,
+    batchFriendly: !forceCaps && allowSlowTimeouts
+  };
 };
 
 /**

@@ -3,11 +3,10 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import readline from 'node:readline';
-import { spawn } from 'node:child_process';
 import { createCli } from '../../src/shared/cli.js';
 import { isAbsolutePathNative, isRelativePathEscape, toPosix } from '../../src/shared/files.js';
-import { registerChildProcessForCleanup } from '../../src/shared/subprocess.js';
 import { getRepoCacheRoot, resolveRepoConfig } from '../shared/dict-utils.js';
+import { runLineStreamingCommand } from './shared-runner.js';
 
 const argv = createCli({
   scriptName: 'gtags-ingest',
@@ -18,7 +17,8 @@ const argv = createCli({
     json: { type: 'boolean', default: false },
     run: { type: 'boolean', default: false },
     global: { type: 'string', default: 'global' },
-    args: { type: 'string' }
+    args: { type: 'string' },
+    'timeout-ms': { type: 'number' }
   }
 }).parse();
 
@@ -31,6 +31,9 @@ const metaPath = `${outputPath}.meta.json`;
 const inputPath = argv.input ? String(argv.input) : null;
 const runGlobal = argv.run === true;
 const globalCmd = argv.global || 'global';
+const commandTimeoutMs = Number.isFinite(Number(argv['timeout-ms']))
+  ? Math.max(1000, Math.floor(Number(argv['timeout-ms'])))
+  : null;
 
 const normalizePath = (value) => {
   if (!value) return null;
@@ -109,24 +112,31 @@ const runGlobalCommand = async () => {
       .filter(Boolean);
     args.push(...extra);
   }
-  const child = spawn(globalCmd, args, { cwd: repoRoot, stdio: ['ignore', 'pipe', 'pipe'] });
-  const unregisterChild = registerChildProcessForCleanup(child, {
-    killTree: true,
-    detached: false
+  await runLineStreamingCommand({
+    command: globalCmd,
+    args,
+    cwd: repoRoot,
+    timeoutMs: commandTimeoutMs,
+    onStdoutLine: async (line) => {
+      const parsed = parseGlobalLine(line);
+      if (!parsed) {
+        if (line.trim()) stats.errors += 1;
+        return;
+      }
+      stats.entries += 1;
+      const payload = {
+        file: parsed.file,
+        ext: path.extname(parsed.file).toLowerCase(),
+        name: parsed.name,
+        startLine: parsed.line,
+        endLine: parsed.line,
+        role: 'definition',
+        source: 'gtags'
+      };
+      writeStream.write(`${JSON.stringify(payload)}\n`);
+    },
+    onStderrChunk: (chunk) => process.stderr.write(chunk)
   });
-  child.stderr.on('data', (chunk) => process.stderr.write(chunk));
-  try {
-    await ingestTextLines(child.stdout);
-    const exitCode = await new Promise((resolve, reject) => {
-      child.once('error', reject);
-      child.once('close', (code) => resolve(code ?? 0));
-    });
-    if (exitCode !== 0) {
-      throw new Error(`global exited with code ${exitCode}`);
-    }
-  } finally {
-    unregisterChild();
-  }
 };
 
 await ensureOutputDir();
@@ -141,6 +151,7 @@ if (runGlobal) {
 }
 
 writeStream.end();
+await new Promise((resolve) => writeStream.once('finish', resolve));
 
 const summary = {
   generatedAt: new Date().toISOString(),

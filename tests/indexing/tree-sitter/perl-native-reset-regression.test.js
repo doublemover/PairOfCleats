@@ -45,7 +45,7 @@ console.log('perl-native-reset-ok');
 
 const result = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
   cwd: root,
-  env: { ...process.env, PAIROFCLEATS_TESTING: '1' },
+  env: applyTestEnv({ testing: '1', syncProcess: false }),
   encoding: 'utf8'
 });
 

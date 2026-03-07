@@ -1,13 +1,15 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonObjectFile } from '../../shared/json-stream.js';
-import { acquireFileLock } from '../../shared/locks/file-lock.js';
+import { acquireFileLock, releaseFileLockOrThrow } from '../../shared/locks/file-lock.js';
+import { readJsonFileSafe } from '../../shared/files.js';
 
 const resolveEnrichmentStatePath = (repoCacheRoot) => path.join(repoCacheRoot, 'enrichment_state.json');
 const resolveEnrichmentStateLockPath = (repoCacheRoot) => path.join(repoCacheRoot, 'locks', 'enrichment-state.lock');
 const ENRICHMENT_STATE_LOCK_WAIT_MS = 5000;
 const ENRICHMENT_STATE_LOCK_POLL_MS = 100;
 const ENRICHMENT_STATE_LOCK_STALE_MS = 30 * 60 * 1000;
+const ENRICHMENT_STATE_MAX_BYTES = 2 * 1024 * 1024;
 
 const logEnrichmentWarning = (log, message) => {
   if (typeof log === 'function') {
@@ -18,17 +20,21 @@ const logEnrichmentWarning = (log, message) => {
 };
 
 const readEnrichmentState = async (statePath) => {
-  try {
-    const raw = await fs.readFile(statePath, 'utf8');
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') {
-      throw new Error('Enrichment state must be a JSON object.');
+  let readError = null;
+  const parsed = await readJsonFileSafe(statePath, {
+    fallback: {},
+    maxBytes: ENRICHMENT_STATE_MAX_BYTES,
+    onError: (info) => {
+      if (!readError) readError = info?.error || new Error('read_enrichment_state_failed');
     }
-    return parsed;
-  } catch (err) {
-    if (err?.code === 'ENOENT') return {};
-    throw err;
+  });
+  if (readError && readError?.code !== 'ENOENT') {
+    throw readError;
   }
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('Enrichment state must be a JSON object.');
+  }
+  return parsed;
 };
 
 export const updateEnrichmentState = async (repoCacheRoot, patch, { log } = {}) => {
@@ -70,6 +76,6 @@ export const updateEnrichmentState = async (repoCacheRoot, patch, { log } = {}) 
     }
     return next;
   } finally {
-    await lock.release({ force: false });
+    await releaseFileLockOrThrow(lock, { releaseOptions: { force: false } });
   }
 };

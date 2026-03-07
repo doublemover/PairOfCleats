@@ -20,6 +20,7 @@ import { getEnvConfig, isTestingEnv } from '../../../shared/env.js';
 import { SCHEDULER_QUEUE_NAMES } from '../../../index/build/runtime/scheduler.js';
 import { createFeatureMetrics, writeFeatureMetrics } from '../../../index/build/feature-metrics.js';
 import { runBuildCleanupWithTimeout } from '../../../index/build/cleanup-timeout.js';
+import { releaseFileLockOrThrow } from '../../../shared/locks/file-lock.js';
 import {
   getCacheRoot,
   getCurrentBuildInfo,
@@ -32,6 +33,7 @@ import { buildSqliteIndex } from './sqlite.js';
 import { computeCompatibilityKey } from './compatibility.js';
 import { createOverallProgress } from './progress.js';
 import { teardownRuntime } from './runtime.js';
+import { createCloseoutRegistry } from './closeout-registry.js';
 import { updateEnrichmentState } from '../enrichment-state.js';
 import { runEmbeddingsTool } from '../embeddings.js';
 import { PRIMARY_INDEX_MODES, areAllPrimaryModesRequested, filterPrimaryIndexModes } from './stages/modes.js';
@@ -261,10 +263,6 @@ export const runEmbeddingsStage = async ({
               logLine(line, { kind: 'status' });
               return;
             }
-            if (line.startsWith('[embeddings]') || line.includes('embeddings]')) {
-              logLine(line, { kind: 'status' });
-              return;
-            }
             logLine(line);
           }
         });
@@ -330,8 +328,9 @@ export const runEmbeddingsStage = async ({
     } finally {
       await runBuildCleanupWithTimeout({
         label: 'stage3.lock.release',
-        cleanup: () => lock.release(),
-        log
+        cleanup: () => releaseFileLockOrThrow(lock),
+        log,
+        swallowTimeout: false
       });
     }
   } catch (err) {
@@ -543,8 +542,9 @@ export const runSqliteStage = async ({
       if (lock?.release) {
         await runBuildCleanupWithTimeout({
           label: 'stage4.lock.release',
-          cleanup: () => lock.release(),
-          log
+          cleanup: () => releaseFileLockOrThrow(lock),
+          log,
+          swallowTimeout: false
         });
       }
     }
@@ -912,42 +912,51 @@ export const runStage = async (
       });
       throw err;
     } finally {
-      stopHeartbeat();
-      try {
-        await runBuildCleanupWithTimeout({
+      const closeout = createCloseoutRegistry({
+        stage: phaseStage,
+        log,
+        warn: (line) => logLine(line, { kind: 'warning' })
+      });
+      closeout.addStep({
+        label: 'heartbeat.stop',
+        run: () => runBuildCleanupWithTimeout({
+          label: `${phaseStage}.heartbeat.stop`,
+          cleanup: () => stopHeartbeat(),
+          log,
+          swallowTimeout: false
+        })
+      });
+      closeout.addStep({
+        label: 'build-state.flush',
+        run: () => runBuildCleanupWithTimeout({
           label: `${phaseStage}.build-state.flush`,
           cleanup: () => flushBuildState(runtime?.buildRoot),
-          log
-        });
-      } catch (err) {
-        logLine(`[build_state] ${phaseStage} final flush failed: ${err?.message || String(err)}`, {
-          kind: 'warning'
-        });
-      }
-      let releaseError = null;
-      try {
-        if (lock?.release) {
+          log,
+          swallowTimeout: false
+        })
+      });
+      closeout.addStep({
+        label: 'lock.release',
+        run: async () => {
+          if (!lock?.release) return null;
           const releaseResult = await runBuildCleanupWithTimeout({
             label: `${phaseStage}.lock.release`,
-            cleanup: () => lock.release(),
+            cleanup: () => releaseFileLockOrThrow(lock),
             log,
             swallowTimeout: false
           });
           if (releaseResult?.timedOut) {
-            releaseError = releaseResult.error || new Error(`[cleanup] ${phaseStage} lock release timed out.`);
+            throw releaseResult.error || new Error(`[cleanup] ${phaseStage} lock release timed out.`);
           }
+          return releaseResult;
         }
-      } catch (err) {
-        releaseError = err;
-      }
-      let teardownError = null;
-      try {
-        await teardownRuntime(runtime);
-      } catch (err) {
-        teardownError = err;
-      }
-      if (releaseError) throw releaseError;
-      if (teardownError) throw teardownError;
+      });
+      closeout.addStep({
+        label: 'runtime.teardown',
+        run: () => teardownRuntime(runtime)
+      });
+      const closeoutResult = await closeout.run();
+      if (closeoutResult.error) throw closeoutResult.error;
     }
   } catch (err) {
     if (isAbortError(err)) {

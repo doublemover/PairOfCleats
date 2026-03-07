@@ -1,6 +1,5 @@
 import path from 'node:path';
 import fsPromises from 'node:fs/promises';
-import os from 'node:os';
 import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { loadChunkMeta, MAX_JSON_BYTES } from '../shared/artifact-io.js';
@@ -34,6 +33,7 @@ import {
 import { buildSymbolId, buildMemberIndex, upsertMember } from './build-map/symbols.js';
 import { resolveChunkId } from '../index/chunk-id.js';
 import { removePathWithRetry } from '../shared/io/remove-path-with-retry.js';
+import { getCacheTempRoot } from '../shared/cache-roots.js';
 import {
   buildAliasEdges,
   buildEdgesFromCallSummaries,
@@ -106,7 +106,8 @@ const edgeSortKey = (edge) => {
 const compareEdges = (a, b) => edgeSortKey(a).localeCompare(edgeSortKey(b));
 
 const createTempDir = async () => {
-  const base = path.join(os.tmpdir(), 'pairofcleats-map-');
+  const base = path.join(getCacheTempRoot('map-build'), 'pairofcleats-map-');
+  await fsPromises.mkdir(path.dirname(base), { recursive: true });
   return fsPromises.mkdtemp(base);
 };
 

@@ -49,4 +49,29 @@ await assert.rejects(
   'expected binary-columnar loader to reject traversal sidecar paths from meta'
 );
 
+const unreadableDir = path.join(indexDir, 'sample.binary-columnar.data-dir');
+await fs.mkdir(unreadableDir, { recursive: true });
+await fs.writeFile(
+  path.join(indexDir, 'sample.binary-columnar.meta.json'),
+  JSON.stringify({
+    fields: {
+      format: 'binary-columnar-v1',
+      count: rows.length,
+      data: 'sample.binary-columnar.data-dir',
+      offsets: 'sample.binary-columnar.offsets.bin',
+      lengths: 'sample.binary-columnar.lengths.varint'
+    }
+  }, null, 2)
+);
+
+await assert.rejects(
+  () => loadJsonArrayArtifact(indexDir, 'sample', { strict: true }),
+  (err) => {
+    const message = String(err?.message || '');
+    if (/checksum mismatch/i.test(message)) return false;
+    return err?.code === 'ERR_ARTIFACT_READ' || /truncated/i.test(message);
+  },
+  'expected unreadable binary-columnar payload paths to fail without being misclassified as checksum mismatch'
+);
+
 console.log('binary-columnar meta path traversal test passed');

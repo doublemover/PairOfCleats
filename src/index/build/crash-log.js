@@ -1,10 +1,12 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
+import crypto from 'node:crypto';
 import path from 'node:path';
+import { pipeline } from 'node:stream/promises';
 import { getRecentLogEvents } from '../../shared/progress.js';
 import { createTempPath } from '../../shared/json-stream/atomic.js';
 import { createQueuedAppendWriter } from '../../shared/io/append-writer.js';
-import { atomicWriteJson, atomicWriteJsonSync } from '../../shared/io/atomic-write.js';
+import { atomicWriteJson, atomicWriteJsonSync, atomicWriteTextSync } from '../../shared/io/atomic-write.js';
 import { sha1 } from '../../shared/hash.js';
 import { normalizeFailureEvent, validateFailureEvent } from './failure-taxonomy.js';
 
@@ -225,15 +227,35 @@ const renameWithFallback = async (tempPath, targetPath) => {
  */
 const copyFileAtomic = async (sourcePath, targetPath) => {
   const tempPath = createTempPath(targetPath);
+  const digest = crypto.createHash('sha1');
+  let bytes = 0;
   try {
     await ensureParentDir(targetPath);
     await ensureParentDir(tempPath);
-    const payload = await fs.readFile(sourcePath);
-    await fs.writeFile(tempPath, payload);
+    await pipeline(
+      fsSync.createReadStream(sourcePath),
+      fsSync.createWriteStream(tempPath)
+    );
+    const stream = fsSync.createReadStream(tempPath);
+    await new Promise((resolve, reject) => {
+      stream.on('data', (chunk) => {
+        bytes += chunk.length;
+        digest.update(chunk);
+      });
+      stream.once('error', reject);
+      stream.once('end', resolve);
+    });
+    let handle = null;
+    try {
+      handle = await fs.open(tempPath, 'r+');
+      await handle.sync();
+    } finally {
+      await handle?.close().catch(() => {});
+    }
     await renameWithFallback(tempPath, targetPath);
     return {
-      bytes: payload.length,
-      sha1: sha1(payload)
+      bytes,
+      sha1: digest.digest('hex')
     };
   } catch (err) {
     try {
@@ -622,7 +644,8 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
     const suffix = extra ? ` ${safeStringify(extra)}` : '';
     const line = `[${formatTimestamp()}] ${message}${suffix}\n`;
     try {
-      fsSync.appendFileSync(logPath, line);
+      const existing = fsSync.existsSync(logPath) ? fsSync.readFileSync(logPath, 'utf8') : '';
+      atomicWriteTextSync(logPath, `${existing}${line}`, { newline: false });
     } catch (err) {
       warnIo('append crash log sync', err);
     }

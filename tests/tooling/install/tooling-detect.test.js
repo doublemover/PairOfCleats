@@ -41,4 +41,17 @@ for (const tool of toolRequired) {
   }
 }
 
+for (const tool of (payload.tools || [])) {
+  if (!tool || typeof tool !== 'object') continue;
+  if (!tool.probe || typeof tool.probe !== 'object') {
+    console.error(`Missing structured probe payload for tool: ${tool.id || 'unknown'}`);
+    process.exit(1);
+  }
+  const outcome = String(tool.probe.outcome || '');
+  if (!outcome) {
+    console.error(`Missing probe outcome for tool: ${tool.id || 'unknown'}`);
+    process.exit(1);
+  }
+}
+
 console.log('tooling detect test passed');

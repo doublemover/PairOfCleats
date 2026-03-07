@@ -458,7 +458,10 @@ export const executeSqliteModeBuilds = async ({
           batchSize: activeBatchConfig,
           stats: sqliteStats
         });
-        const missingDense = denseArtifactsRequired && bundleResult?.denseCount === 0;
+        const missingDense = denseArtifactsRequired && (
+          bundleResult?.denseCount === 0
+          || Number(bundleResult?.embedStats?.filesMissingEmbeddings || 0) > 0
+        );
         const bundleFailureReason = bundleResult?.reason || (missingDense ? 'bundles missing embeddings' : '');
         if (bundleFailureReason) {
           warn(`[sqlite] incremental bundle build failed for ${mode}: ${bundleFailureReason}; using artifacts.`);
@@ -581,8 +584,17 @@ export const executeSqliteModeBuilds = async ({
       }
       const errorMessage = err?.message || String(err);
       await reporter.reportFailure({ errorMessage, err });
-      if (exitOnError) process.exit(1);
-      throw err;
+      if (err && typeof err === 'object') {
+        if (!err.code) err.code = 'ERR_SQLITE_MODE_BUILD_FAILED';
+        if (!Number.isFinite(Number(err.exitCode))) err.exitCode = 1;
+        err.exitOnError = exitOnError === true;
+        throw err;
+      }
+      const wrapped = new Error(errorMessage);
+      wrapped.code = 'ERR_SQLITE_MODE_BUILD_FAILED';
+      wrapped.exitCode = 1;
+      wrapped.exitOnError = exitOnError === true;
+      throw wrapped;
     } finally {
       await stageCheckpoints.flush();
       // buildDatabaseFromArtifacts/buildDatabaseFromBundles close their DB handles internally.

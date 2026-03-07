@@ -6,12 +6,14 @@ import { parseBuildArgs } from '../../../src/index/build/args.js';
 import { createBuildRuntime } from '../../../src/index/build/runtime.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { rmDirRecursive } from '../../helpers/temp.js';
+
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'embedding-batch-autotune');
 const repoRoot = path.join(tempRoot, 'repo');
 
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
+await rmDirRecursive(tempRoot, { retries: 8, delayMs: 150 });
 await fsPromises.mkdir(repoRoot, { recursive: true });
 applyTestEnv({
   cacheRoot: tempRoot,

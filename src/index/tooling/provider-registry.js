@@ -116,7 +116,8 @@ export function selectToolingProviders({
     if (provider.enabled === false) continue;
 
     const providerKinds = normalizeKindSet(provider.kinds || []);
-    if (kindFilter.size && providerKinds.size) {
+    if (kindFilter.size) {
+      if (!providerKinds.size) continue;
       let matches = false;
       for (const kind of kindFilter) {
         if (providerKinds.has(kind)) {
@@ -134,7 +135,7 @@ export function selectToolingProviders({
     const filteredTargets = languageSet.size
       ? targetList.filter((target) => languageSet.has(normalizeLanguageId(target?.languageId)))
       : targetList;
-    if (!filteredDocs.length && !filteredTargets.length) continue;
+    if (!filteredDocs.length || !filteredTargets.length) continue;
     plans.push({ provider, documents: filteredDocs, targets: filteredTargets });
   }
 

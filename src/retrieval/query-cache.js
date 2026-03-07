@@ -1,12 +1,26 @@
 import fs from 'node:fs';
 import { normalizePositiveInt } from '../shared/limits.js';
 import { sortAndTrimEntriesByNewest } from './cache-trim.js';
+import { loadBoundedJsonFileSync } from '../shared/cache/json-file.js';
 
 const QUERY_CACHE_VERSION = 1;
 const queryCacheDiskCache = new Map();
 const queryCacheHotEntries = new Map();
 const HOT_CACHE_MAX_ENTRIES_DEFAULT = 512;
+const QUERY_CACHE_MAX_PATH_ENTRIES = 128;
+const QUERY_CACHE_MAX_READ_BYTES = 8 * 1024 * 1024;
+const QUERY_CACHE_CORRUPT_SUFFIX = '.corrupt';
 const MEMORY_CACHE_KEY = ':memory:query-cache';
+
+const trimPathCacheEntries = (cacheMap, maxEntries = QUERY_CACHE_MAX_PATH_ENTRIES) => {
+  if (!(cacheMap instanceof Map)) return;
+  const resolvedMaxEntries = Math.max(1, Math.floor(Number(maxEntries) || QUERY_CACHE_MAX_PATH_ENTRIES));
+  while (cacheMap.size > resolvedMaxEntries) {
+    const oldestKey = cacheMap.keys().next()?.value;
+    if (!oldestKey) break;
+    cacheMap.delete(oldestKey);
+  }
+};
 
 const readCacheFileSignature = (cachePath) => {
   try {
@@ -88,6 +102,7 @@ const ensureHotCache = (cachePath, maxEntries = HOT_CACHE_MAX_ENTRIES_DEFAULT) =
       maxEntries: normalizeHotCacheMaxEntries(maxEntries, HOT_CACHE_MAX_ENTRIES_DEFAULT)
     };
     queryCacheHotEntries.set(pathKey, state);
+    trimPathCacheEntries(queryCacheHotEntries);
   } else if (maxEntries != null) {
     state.maxEntries = normalizeHotCacheMaxEntries(
       maxEntries,
@@ -107,6 +122,38 @@ const clearDiskCache = (cachePath) => {
   const pathKey = resolveCachePathKey(cachePath);
   if (!pathKey) return;
   queryCacheDiskCache.delete(pathKey);
+};
+
+const bumpCacheHealthCounter = (health, key) => {
+  if (!health || typeof health !== 'object' || !key) return;
+  const current = Number.isFinite(Number(health[key])) ? Number(health[key]) : 0;
+  health[key] = current + 1;
+};
+
+const emitCacheWarning = (onWarning, message) => {
+  if (typeof onWarning === 'function') {
+    onWarning(message);
+    return;
+  }
+  try {
+    process.emitWarning(message, { code: 'QUERY_CACHE_WARNING' });
+  } catch {}
+};
+
+const quarantineCorruptCacheFileSync = (cachePath, onWarning) => {
+  if (!cachePath) return null;
+  const quarantinePath = `${cachePath}${QUERY_CACHE_CORRUPT_SUFFIX}-${Date.now()}`;
+  try {
+    fs.renameSync(cachePath, quarantinePath);
+    emitCacheWarning(onWarning, `[retrieval] quarantined corrupt query cache: ${quarantinePath}`);
+    return quarantinePath;
+  } catch (error) {
+    emitCacheWarning(
+      onWarning,
+      `[retrieval] failed to quarantine corrupt query cache (${cachePath}): ${error?.message || error}`
+    );
+    return null;
+  }
 };
 
 const trimHotCache = (state) => {
@@ -189,7 +236,12 @@ const prewarmHotCache = ({
 /**
  * Load query cache data from disk.
  * @param {string} cachePath
- * @param {{prewarm?:boolean,prewarmMaxEntries?:number}} [options]
+ * @param {{
+ *  prewarm?:boolean,
+ *  prewarmMaxEntries?:number,
+ *  onWarning?:(message:string)=>void,
+ *  health?:object|null
+ * }} [options]
  * @returns {{version:number,entries:Array}}
  */
 export function loadQueryCache(cachePath, options = {}) {
@@ -211,25 +263,46 @@ export function loadQueryCache(cachePath, options = {}) {
     }
     return cached.value;
   }
-  try {
-    const data = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
-    if (
-      data
-      && Number(data.version) === QUERY_CACHE_VERSION
-      && Array.isArray(data.entries)
-    ) {
-      queryCacheDiskCache.set(cachePath, { signature, value: data });
-      rebuildLookup(data);
-      if (options.prewarm === true) {
-        prewarmHotCache({
-          cachePath,
-          entries: data.entries,
-          maxEntries: options.prewarmMaxEntries
-        });
-      }
-      return data;
+  const { data, error: readError } = loadBoundedJsonFileSync(cachePath, {
+    fallback: null,
+    maxBytes: QUERY_CACHE_MAX_READ_BYTES
+  });
+  if (
+    data
+    && Number(data.version) === QUERY_CACHE_VERSION
+    && Array.isArray(data.entries)
+  ) {
+    queryCacheDiskCache.set(cachePath, { signature, value: data });
+    trimPathCacheEntries(queryCacheDiskCache);
+    rebuildLookup(data);
+    if (options.prewarm === true) {
+      prewarmHotCache({
+        cachePath,
+        entries: data.entries,
+        maxEntries: options.prewarmMaxEntries
+      });
     }
-  } catch {}
+    return data;
+  }
+  const health = options?.health && typeof options.health === 'object'
+    ? options.health
+    : null;
+  if (readError?.code === 'ERR_JSON_FILE_TOO_LARGE') {
+    bumpCacheHealthCounter(health, 'queryCacheOversized');
+    emitCacheWarning(
+      options?.onWarning,
+      `[retrieval] query cache exceeds ${QUERY_CACHE_MAX_READ_BYTES} bytes; using empty cache.`
+    );
+  } else if (readError && readError?.code !== 'ENOENT') {
+    bumpCacheHealthCounter(health, 'queryCacheParseOrReadFailures');
+    emitCacheWarning(
+      options?.onWarning,
+      `[retrieval] query cache read/parse failed (${readError?.code || 'ERR_QUERY_CACHE_READ'}): ${readError?.message || readError}`
+    );
+  }
+  if (readError && readError?.code !== 'ENOENT') {
+    quarantineCorruptCacheFileSync(cachePath, options?.onWarning);
+  }
   clearDiskCache(cachePath);
   clearHotCache(cachePath);
   return createEmptyCache();

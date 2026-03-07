@@ -3,10 +3,11 @@ import path from 'node:path';
 import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 import {
   normalizeBundleFormat,
-  resolveBundleFilename,
-  writeBundleFile,
-  writeBundlePatch
+  resolveBundleShardFilename,
+  resolveManifestBundleNames,
+  writeBundleFile
 } from '../../../shared/bundle-io.js';
+import { estimateJsonBytes } from '../../../shared/cache.js';
 import {
   prioritizePendingCrossFileBundleUpdates,
   resolveIncrementalBundleUpdateConcurrency,
@@ -17,7 +18,7 @@ import { normalizeIncrementalRelPath, resolvePrefetchedVfsRows } from './paths.j
 import {
   pathExists,
   readBundleOrNull,
-  resolveBundleRecord,
+  resolveBundleRecords,
   resolveBundleVfsManifestRows
 } from './shared.js';
 
@@ -42,12 +43,159 @@ const createFileRelationsResolver = (fileRelations) => {
   return () => null;
 };
 
+const INCREMENTAL_BUNDLE_SHARD_TARGET_BYTES = 16 * 1024 * 1024;
+const INCREMENTAL_BUNDLE_SHARD_HARD_TARGET_BYTES = 32 * 1024 * 1024;
+const MANIFEST_PENDING_BUNDLE_GC = Symbol('incrementalManifestPendingBundleGc');
+
+const estimateBundleBytes = (value) => {
+  const estimated = estimateJsonBytes(value);
+  if (!Number.isFinite(estimated) || estimated <= 0) return 0;
+  return Math.floor(estimated);
+};
+
+const splitBundleChunksBySize = (bundle) => {
+  const chunks = Array.isArray(bundle?.chunks) ? bundle.chunks : [];
+  if (!chunks.length) return [[]];
+  const baseBundle = {
+    ...bundle,
+    chunks: []
+  };
+  const baseBytes = Math.max(1, estimateBundleBytes(baseBundle));
+  const targetBytes = Math.max(baseBytes + 1024, INCREMENTAL_BUNDLE_SHARD_TARGET_BYTES);
+  const hardTargetBytes = Math.max(targetBytes, INCREMENTAL_BUNDLE_SHARD_HARD_TARGET_BYTES);
+  const shardChunks = [];
+  let currentChunks = [];
+  let currentBytes = baseBytes;
+  for (const chunk of chunks) {
+    const chunkBytes = Math.max(1, estimateBundleBytes(chunk));
+    if (currentChunks.length && (currentBytes + chunkBytes) > targetBytes) {
+      shardChunks.push(currentChunks);
+      currentChunks = [];
+      currentBytes = baseBytes;
+    }
+    currentChunks.push(chunk);
+    currentBytes += chunkBytes;
+    if ((currentBytes > hardTargetBytes) && currentChunks.length > 1) {
+      const spillChunk = currentChunks.pop();
+      shardChunks.push(currentChunks);
+      currentChunks = spillChunk ? [spillChunk] : [];
+      currentBytes = spillChunk ? (baseBytes + chunkBytes) : baseBytes;
+    }
+  }
+  if (currentChunks.length) {
+    shardChunks.push(currentChunks);
+  }
+  return shardChunks.length ? shardChunks : [[]];
+};
+
+const buildBundleShards = ({ relKey, bundleFormat, bundle }) => {
+  const shardChunks = splitBundleChunksBySize(bundle);
+  const shardCount = shardChunks.length;
+  const bundles = shardChunks.map((chunks, index) => ({
+    ...bundle,
+    chunks,
+    bundleShardIndex: index,
+    bundleShardCount: shardCount
+  }));
+  const names = bundles.map((_, index) => resolveBundleShardFilename(relKey, bundleFormat, index));
+  return { names, bundles };
+};
+
+const removeManifestBundleFiles = async ({ bundleDir, entry, keep = null }) => {
+  const names = resolveManifestBundleNames(entry);
+  if (!names.length) return;
+  const keepSet = keep instanceof Set ? keep : null;
+  for (const name of names) {
+    if (keepSet && keepSet.has(name)) continue;
+    try {
+      await fs.rm(path.join(bundleDir, name), { force: true });
+    } catch {}
+  }
+};
+
+const resolveManifestPendingBundleGc = (manifest) => {
+  if (!manifest || typeof manifest !== 'object') return null;
+  if (manifest[MANIFEST_PENDING_BUNDLE_GC] instanceof Set) {
+    return manifest[MANIFEST_PENDING_BUNDLE_GC];
+  }
+  const pending = new Set();
+  Object.defineProperty(manifest, MANIFEST_PENDING_BUNDLE_GC, {
+    value: pending,
+    enumerable: false,
+    configurable: false,
+    writable: false
+  });
+  return pending;
+};
+
+const queueManifestBundleGc = ({ manifest, entry, keep = null }) => {
+  const pending = resolveManifestPendingBundleGc(manifest);
+  if (!pending) return;
+  const keepSet = keep instanceof Set ? keep : null;
+  const names = resolveManifestBundleNames(entry);
+  for (const name of names) {
+    if (keepSet && keepSet.has(name)) continue;
+    pending.add(name);
+  }
+};
+
+const collectManifestActiveBundleNames = (manifest) => {
+  const active = new Set();
+  const files = manifest?.files && typeof manifest.files === 'object'
+    ? manifest.files
+    : {};
+  for (const entry of Object.values(files)) {
+    for (const name of resolveManifestBundleNames(entry)) {
+      active.add(name);
+    }
+  }
+  return active;
+};
+
+const drainManifestBundleGc = async ({ manifest, bundleDir }) => {
+  if (!bundleDir) return 0;
+  const pending = resolveManifestPendingBundleGc(manifest);
+  if (!pending || pending.size === 0) return 0;
+  const active = collectManifestActiveBundleNames(manifest);
+  let removed = 0;
+  for (const name of Array.from(pending)) {
+    if (!name) {
+      pending.delete(name);
+      continue;
+    }
+    if (active.has(name)) {
+      pending.delete(name);
+      continue;
+    }
+    try {
+      await fs.rm(path.join(bundleDir, name), { force: true });
+      pending.delete(name);
+      removed += 1;
+    } catch {
+      // Keep failures queued for the next successful manifest commit.
+    }
+  }
+  return removed;
+};
+
+const persistManifestAndDrainGc = async ({ manifest, manifestPath, bundleDir }) => {
+  if (!manifestPath || !manifest || typeof manifest !== 'object') return false;
+  try {
+    await atomicWriteJson(manifestPath, manifest, { spaces: 2 });
+  } catch {
+    return false;
+  }
+  await drainManifestBundleGc({ manifest, bundleDir });
+  return true;
+};
+
 /**
- * Write bundle and return manifest entry.
+ * Write bundle shard(s) and return manifest entry.
  *
  * @param {{
  *   enabled:boolean,
  *   bundleDir:string,
+ *   manifest?:object|null,
  *   relKey:string,
  *   fileStat:import('node:fs').Stats,
  *   fileHash:string,
@@ -55,6 +203,7 @@ const createFileRelationsResolver = (fileRelations) => {
  *   fileRelations:object|null,
  *   vfsManifestRows?:Array<object>|null,
  *   bundleFormat?:string|null,
+ *   previousManifestEntry?:object|null,
  *   fileEncoding?:string|null,
  *   fileEncodingFallback?:boolean|null,
  *   fileEncodingConfidence?:number|null
@@ -64,6 +213,7 @@ const createFileRelationsResolver = (fileRelations) => {
 export async function writeIncrementalBundle({
   enabled,
   bundleDir,
+  manifest = null,
   relKey,
   fileStat,
   fileHash,
@@ -71,14 +221,13 @@ export async function writeIncrementalBundle({
   fileRelations,
   vfsManifestRows,
   bundleFormat = null,
+  previousManifestEntry = null,
   fileEncoding = null,
   fileEncodingFallback = null,
   fileEncodingConfidence = null
 }) {
   if (!enabled) return null;
   const resolvedBundleFormat = normalizeBundleFormat(bundleFormat);
-  const bundleName = resolveBundleFilename(relKey, resolvedBundleFormat);
-  const bundlePath = path.join(bundleDir, bundleName);
   const bundle = {
     file: relKey,
     hash: fileHash,
@@ -92,13 +241,43 @@ export async function writeIncrementalBundle({
     encodingConfidence: Number.isFinite(fileEncodingConfidence) ? fileEncodingConfidence : null
   };
   try {
-    const writeResult = await writeBundleFile({
-      bundlePath,
-      bundle,
-      format: resolvedBundleFormat
+    const { names: bundleNames, bundles } = buildBundleShards({
+      relKey,
+      bundleFormat: resolvedBundleFormat,
+      bundle
     });
-    const checksum = writeResult.checksum;
-    const checksumAlgo = writeResult.checksumAlgo;
+    if (!bundleNames.length || !bundles.length || bundleNames.length !== bundles.length) {
+      return null;
+    }
+    let checksum = null;
+    let checksumAlgo = null;
+    for (let i = 0; i < bundleNames.length; i += 1) {
+      const bundleName = bundleNames[i];
+      const bundlePath = path.join(bundleDir, bundleName);
+      const writeResult = await writeBundleFile({
+        bundlePath,
+        bundle: bundles[i],
+        format: resolvedBundleFormat
+      });
+      if (i === 0) {
+        checksum = writeResult?.checksum || null;
+        checksumAlgo = writeResult?.checksumAlgo || null;
+      }
+    }
+    const keepSet = new Set(bundleNames);
+    if (manifest && typeof manifest === 'object') {
+      queueManifestBundleGc({
+        manifest,
+        entry: previousManifestEntry,
+        keep: keepSet
+      });
+    } else {
+      await removeManifestBundleFiles({
+        bundleDir,
+        entry: previousManifestEntry,
+        keep: keepSet
+      });
+    }
     const bundleChecksum = checksum && checksumAlgo
       ? `${checksumAlgo}:${checksum}`
       : (checksum || null);
@@ -106,7 +285,7 @@ export async function writeIncrementalBundle({
       hash: fileHash,
       mtimeMs: fileStat.mtimeMs,
       size: fileStat.size,
-      bundle: path.basename(bundlePath),
+      bundles: bundleNames,
       bundleFormat: resolvedBundleFormat,
       bundleChecksum,
       encoding: fileEncoding,
@@ -134,17 +313,10 @@ export async function pruneIncrementalManifest({ enabled, manifest, manifestPath
     const normalizedRelKey = normalizeIncrementalRelPath(relKey);
     if (seenNormalized.has(normalizedRelKey)) continue;
     const entry = manifest.files[relKey];
-    if (entry?.bundle) {
-      const bundlePath = path.join(bundleDir, entry.bundle);
-      try {
-        await fs.rm(bundlePath, { force: true });
-      } catch {}
-    }
+    queueManifestBundleGc({ manifest, entry });
     delete manifest.files[relKey];
   }
-  try {
-    await atomicWriteJson(manifestPath, manifest, { spaces: 2 });
-  } catch {}
+  await persistManifestAndDrainGc({ manifest, manifestPath, bundleDir });
 }
 
 /**
@@ -184,21 +356,28 @@ export async function preloadIncrementalBundleVfsRows({
       if (index >= entries.length) break;
       const [file, entry] = entries[index];
       const normalizedFile = normalizeIncrementalRelPath(file);
-      const bundleRecord = resolveBundleRecord({
+      const bundleRecords = resolveBundleRecords({
         relKey: file,
         entry,
         bundleDir,
         fallbackFormat: resolvedBundleFormat
       });
-      if (!bundleRecord) {
+      if (!bundleRecords?.length) {
         rowsByFile.set(normalizedFile, null);
         continue;
       }
-      if (!(await pathExists(bundleRecord.bundlePath))) {
+      let missing = false;
+      for (const record of bundleRecords) {
+        if (!(await pathExists(record.bundlePath))) {
+          missing = true;
+          break;
+        }
+      }
+      if (missing) {
         rowsByFile.set(normalizedFile, null);
         continue;
       }
-      const existingBundle = await readBundleOrNull(bundleRecord);
+      const existingBundle = await readBundleOrNull({ bundleRecords });
       rowsByFile.set(normalizedFile, resolveBundleVfsManifestRows(existingBundle));
     }
   });
@@ -212,6 +391,7 @@ export async function preloadIncrementalBundleVfsRows({
  * @param {{
  *   enabled:boolean,
  *   manifest:object,
+ *   manifestPath?:string|null,
  *   bundleDir:string,
  *   chunks:object[],
  *   fileRelations:Map<string,object>|object|null,
@@ -223,6 +403,7 @@ export async function preloadIncrementalBundleVfsRows({
 export async function updateBundlesWithChunks({
   enabled,
   manifest,
+  manifestPath = null,
   bundleDir,
   chunks,
   fileRelations,
@@ -246,18 +427,19 @@ export async function updateBundlesWithChunks({
     const normalizedFile = normalizeIncrementalRelPath(file);
     const fileChunks = chunkMap.get(normalizedFile);
     if (!fileChunks) continue;
-    const bundleRecord = resolveBundleRecord({
+    const bundleRecords = resolveBundleRecords({
       relKey: file,
       entry,
       bundleDir,
       fallbackFormat: resolvedBundleFormat
     });
-    if (!bundleRecord) continue;
+    if (!bundleRecords?.length) continue;
     pendingUpdates.push({
       file,
       normalizedFile,
       entry,
-      bundleRecord,
+      bundleRecords,
+      bundleFormatLocal: bundleRecords[0].bundleFormat || resolvedBundleFormat,
       fileChunks
     });
   }
@@ -301,7 +483,6 @@ export async function updateBundlesWithChunks({
     );
   }
   let bundleUpdates = 0;
-  let bundlePatched = 0;
   let bundleSkipped = 0;
   let bundleFailures = 0;
   let nextProgressUpdate = 500;
@@ -321,24 +502,20 @@ export async function updateBundlesWithChunks({
         file,
         normalizedFile,
         entry,
-        bundleRecord,
+        bundleRecords,
+        bundleFormatLocal,
         fileChunks,
         prefetchedHit = false,
         prefetchedRows = null
       } = prioritizedPendingUpdates[index];
       const relations = resolveFileRelations(normalizedFile, file);
-      const bundlePath = bundleRecord.bundlePath;
-      const bundleFormatLocal = bundleRecord.bundleFormat;
       let vfsManifestRows = null;
-      let existingBundle = null;
+      let existingBundle = await readBundleOrNull({ bundleRecords });
       if (prefetchedHit) {
         vfsManifestRows = prefetchedRows;
       }
-      if (!prefetchedHit || !skipFallbackReadForPrefetchMisses || bundleFormatLocal === 'json') {
-        existingBundle = await readBundleOrNull(bundleRecord);
-        if (!prefetchedHit) {
-          vfsManifestRows = resolveBundleVfsManifestRows(existingBundle);
-        }
+      if (!prefetchedHit || !Array.isArray(vfsManifestRows)) {
+        vfsManifestRows = resolveBundleVfsManifestRows(existingBundle);
       }
       const bundle = {
         file,
@@ -356,31 +533,52 @@ export async function updateBundlesWithChunks({
         bundleSkipped += 1;
         continue;
       }
-      if (existingBundle && bundleFormatLocal === 'json') {
-        try {
-          const patchResult = await writeBundlePatch({
-            bundlePath,
-            previousBundle: existingBundle,
-            nextBundle: bundle,
+      try {
+        const { names: bundleNames, bundles } = buildBundleShards({
+          relKey: file,
+          bundleFormat: bundleFormatLocal,
+          bundle
+        });
+        if (!bundleNames.length || !bundles.length || bundleNames.length !== bundles.length) {
+          bundleFailures += 1;
+          continue;
+        }
+        let checksum = null;
+        let checksumAlgo = null;
+        for (let shardIndex = 0; shardIndex < bundleNames.length; shardIndex += 1) {
+          const shardName = bundleNames[shardIndex];
+          const shardPath = path.join(bundleDir, shardName);
+          const writeResult = await writeBundleFile({
+            bundlePath: shardPath,
+            bundle: bundles[shardIndex],
             format: bundleFormatLocal
           });
-          if (patchResult?.applied) {
-            bundleUpdates += 1;
-            bundlePatched += 1;
-            continue;
+          if (shardIndex === 0) {
+            checksum = writeResult?.checksum || null;
+            checksumAlgo = writeResult?.checksumAlgo || null;
           }
-          if (patchResult?.reason === 'no-changes') {
-            bundleSkipped += 1;
-            continue;
-          }
-        } catch {}
-      }
-      try {
-        await writeBundleFile({
-          bundlePath,
-          bundle,
-          format: bundleFormatLocal
-        });
+        }
+        const keepSet = new Set(bundleNames);
+        if (manifest && typeof manifest === 'object') {
+          queueManifestBundleGc({
+            manifest,
+            entry,
+            keep: keepSet
+          });
+        } else {
+          await removeManifestBundleFiles({
+            bundleDir,
+            entry,
+            keep: keepSet
+          });
+        }
+        entry.bundles = bundleNames;
+        if (checksum && checksumAlgo) {
+          entry.bundleChecksum = `${checksumAlgo}:${checksum}`;
+        } else {
+          entry.bundleChecksum = checksum || null;
+        }
+        entry.bundleFormat = bundleFormatLocal;
         bundleUpdates += 1;
       } catch {
         bundleFailures += 1;
@@ -393,13 +591,19 @@ export async function updateBundlesWithChunks({
     }
   });
   await Promise.all(workers);
+  const hasPendingGc = (resolveManifestPendingBundleGc(manifest)?.size || 0) > 0;
+  if ((bundleUpdates > 0 || hasPendingGc) && manifestPath) {
+    const persisted = await persistManifestAndDrainGc({ manifest, manifestPath, bundleDir });
+    if (!persisted && typeof log === 'function') {
+      log('[incremental] manifest write failed; deferred shard GC to preserve durability.');
+    }
+  }
   if (bundleUpdates || bundleSkipped || bundleFailures) {
     const durationMs = Math.max(0, Date.now() - startedAt);
     const failureText = bundleFailures > 0 ? `, failed ${bundleFailures}` : '';
-    const patchedText = bundlePatched > 0 ? `, patched ${bundlePatched}` : '';
     const skippedText = bundleSkipped > 0 ? `, reused ${bundleSkipped}` : '';
     log(
-      `Cross-file inference updated ${bundleUpdates} incremental bundle(s)${patchedText}${skippedText}${failureText} `
+      `Cross-file inference updated ${bundleUpdates} incremental bundle(s)${skippedText}${failureText} `
       + `in ${durationMs}ms (workers=${workerCount}).`
     );
   }

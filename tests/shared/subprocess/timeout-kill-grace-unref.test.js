@@ -12,6 +12,7 @@ try {
     {
       timeoutMs: 75,
       killGraceMs: 2500,
+      timeoutAbortReapWaitMs: 200,
       stdio: ['ignore', 'ignore', 'ignore'],
       captureStdout: false,
       captureStderr: false
@@ -39,6 +40,7 @@ try {
 
 const innerDurationMs = Number(payload.durationMs);
 assert.ok(Number.isFinite(innerDurationMs), `expected numeric inner duration, got: ${String(payload.durationMs)}`);
+assert.ok(innerDurationMs >= 200, `expected timeout path to await bounded reap before reject; got ${innerDurationMs}ms`);
 assert.ok(innerDurationMs < 2000, `expected timeout path to return before grace wait; got ${innerDurationMs}ms`);
 assert.ok(wallClockMs < 3000, `expected process to exit without waiting full grace timer; got ${wallClockMs}ms`);
 

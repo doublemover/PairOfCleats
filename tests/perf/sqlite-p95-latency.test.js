@@ -27,7 +27,12 @@ const env = applyTestEnv({
 });
 
 const run = (args, label) => {
-  const result = spawnSync(process.execPath, args, { cwd: repoRoot, env, stdio: 'inherit' });
+  const result = spawnSync(process.execPath, args, {
+    cwd: repoRoot,
+    env,
+    stdio: 'inherit',
+    encoding: 'utf8'
+  });
   if (result.status !== 0) {
     console.error(`Failed: ${label}`);
     process.exit(result.status ?? 1);
@@ -67,7 +72,12 @@ const runSearch = (query) => {
   const result = spawnSync(
     process.execPath,
     args,
-    { cwd: repoRoot, env, stdio: resolveSilentStdio('ignore') }
+    {
+      cwd: repoRoot,
+      env,
+      stdio: resolveSilentStdio('ignore'),
+      encoding: 'utf8'
+    }
   );
   const end = process.hrtime.bigint();
   if (result.status !== 0) {

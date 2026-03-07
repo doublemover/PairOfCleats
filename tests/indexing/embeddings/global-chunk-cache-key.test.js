@@ -13,6 +13,8 @@ import {
   writeCacheEntry
 } from '../../../tools/build/embeddings/cache.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { rmDirRecursive } from '../../helpers/temp.js';
+
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'embeddings-global-chunk-cache-key');
@@ -21,7 +23,7 @@ const identity = { provider: 'provider-a', modelId: 'model-a', dims: 384 };
 const identityKey = 'identity-a';
 const payloadHash = 'chunk-payload-hash-a';
 
-await fs.rm(tempRoot, { recursive: true, force: true });
+await rmDirRecursive(tempRoot, { retries: 8, delayMs: 150 });
 
 const baseDir = resolveCacheBase(cacheRoot, identity);
 const globalChunkCacheDir = resolveGlobalChunkCacheDir(cacheRoot, identity);

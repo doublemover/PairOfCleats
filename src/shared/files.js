@@ -160,19 +160,51 @@ export async function pathExists(targetPath) {
  * Best-effort JSON reader for async paths.
  *
  * @param {string} filePath
- * @param {{fallback?:any,maxBytes?:number|null}} [options]
+ * @param {{
+ *  fallback?:any,
+ *  maxBytes?:number|null,
+ *  onError?:((info:{path:string,error:unknown,phase:'stat'|'read'|'parse',sync:boolean})=>void)|null
+ * }} [options]
  * @returns {Promise<any>}
  */
-export async function readJsonFileSafe(filePath, { fallback = null, maxBytes = null } = {}) {
+export async function readJsonFileSafe(
+  filePath,
+  { fallback = null, maxBytes = null, onError = null } = {}
+) {
   if (!filePath) return fallback;
-  try {
-    if (Number.isFinite(maxBytes) && maxBytes > 0) {
+  const emitError = (phase, error) => {
+    if (typeof onError !== 'function') return;
+    try {
+      onError({ path: String(filePath), error, phase, sync: false });
+    } catch {}
+  };
+  if (Number.isFinite(maxBytes) && maxBytes > 0) {
+    try {
       const stat = await fsPromises.stat(filePath);
-      if (Number(stat.size) > Number(maxBytes)) return fallback;
+      if (Number(stat.size) > Number(maxBytes)) {
+        const error = new Error(
+          `JSON file exceeds maxBytes (${Number(stat.size)} > ${Number(maxBytes)})`
+        );
+        error.code = 'ERR_JSON_FILE_TOO_LARGE';
+        emitError('stat', error);
+        return fallback;
+      }
+    } catch (error) {
+      emitError('stat', error);
+      return fallback;
     }
-    const raw = await fsPromises.readFile(filePath, 'utf8');
+  }
+  let raw = '';
+  try {
+    raw = await fsPromises.readFile(filePath, 'utf8');
+  } catch (error) {
+    emitError('read', error);
+    return fallback;
+  }
+  try {
     return JSON.parse(raw);
-  } catch {
+  } catch (error) {
+    emitError('parse', error);
     return fallback;
   }
 }
@@ -181,18 +213,51 @@ export async function readJsonFileSafe(filePath, { fallback = null, maxBytes = n
  * Best-effort JSON reader for sync tooling paths.
  *
  * @param {string} filePath
- * @param {{fallback?:any,maxBytes?:number|null}} [options]
+ * @param {{
+ *  fallback?:any,
+ *  maxBytes?:number|null,
+ *  onError?:((info:{path:string,error:unknown,phase:'stat'|'read'|'parse',sync:boolean})=>void)|null
+ * }} [options]
  * @returns {any}
  */
-export function readJsonFileSyncSafe(filePath, { fallback = null, maxBytes = null } = {}) {
-  if (!filePath || !fs.existsSync(filePath)) return fallback;
-  try {
-    if (Number.isFinite(maxBytes) && maxBytes > 0) {
+export function readJsonFileSyncSafe(
+  filePath,
+  { fallback = null, maxBytes = null, onError = null } = {}
+) {
+  if (!filePath) return fallback;
+  const emitError = (phase, error) => {
+    if (typeof onError !== 'function') return;
+    try {
+      onError({ path: String(filePath), error, phase, sync: true });
+    } catch {}
+  };
+  if (Number.isFinite(maxBytes) && maxBytes > 0) {
+    try {
       const stat = fs.statSync(filePath);
-      if (Number(stat.size) > Number(maxBytes)) return fallback;
+      if (Number(stat.size) > Number(maxBytes)) {
+        const error = new Error(
+          `JSON file exceeds maxBytes (${Number(stat.size)} > ${Number(maxBytes)})`
+        );
+        error.code = 'ERR_JSON_FILE_TOO_LARGE';
+        emitError('stat', error);
+        return fallback;
+      }
+    } catch (error) {
+      emitError('stat', error);
+      return fallback;
     }
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-  } catch {
+  }
+  let raw = '';
+  try {
+    raw = fs.readFileSync(filePath, 'utf8');
+  } catch (error) {
+    emitError('read', error);
+    return fallback;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    emitError('parse', error);
     return fallback;
   }
 }

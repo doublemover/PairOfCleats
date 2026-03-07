@@ -56,6 +56,23 @@ const readJsonFileCached = (filePath, options) => {
 };
 
 /**
+ * Normalize artifact metadata envelopes that may encode fields/arrays either
+ * as nested objects (`{fields:{}, arrays:{}}`) or as top-level keys.
+ *
+ * @param {any} raw
+ * @returns {{ fields: object, arrays: object }}
+ */
+const resolveArtifactMetaEnvelope = (raw) => {
+  const fields = raw?.fields && typeof raw.fields === 'object' && !Array.isArray(raw.fields)
+    ? raw.fields
+    : (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {});
+  const arrays = raw?.arrays && typeof raw.arrays === 'object' && !Array.isArray(raw.arrays)
+    ? raw.arrays
+    : (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {});
+  return { fields, arrays };
+};
+
+/**
  * Parse shard index from `<name>.part-000123.jsonl[.gz|.zst]`.
  *
  * @param {string} filePath
@@ -187,6 +204,7 @@ export {
   createLoaderError,
   warnMaterializeFallback,
   readJsonFileCached,
+  resolveArtifactMetaEnvelope,
   assertNoShardIndexGaps,
   ensureOffsetsValid,
   inflateColumnarRows,

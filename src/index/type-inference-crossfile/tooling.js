@@ -4,6 +4,7 @@ import path from 'node:path';
 import { uniqueTypes } from '../../integrations/tooling/providers/shared.js';
 import { buildToolingVirtualDocuments } from '../tooling/vfs.js';
 import { runToolingProviders } from '../tooling/orchestrator.js';
+import { selectToolingProviders } from '../tooling/provider-registry.js';
 import { registerDefaultToolingProviders } from '../tooling/providers/index.js';
 import { runToolingDoctor } from '../tooling/doctor.js';
 import { TOOLING_CONFIDENCE, TOOLING_SOURCE } from './constants.js';
@@ -16,8 +17,28 @@ import { createQueuedAppendWriter } from '../../shared/io/append-writer.js';
 
 const TOOLING_DOCTOR_CACHE_VERSION = 1;
 const TOOLING_DOCTOR_CACHE_FILE = '.tooling-doctor-cache.json';
+const EMPTY_TOOLING_PASS_STATS = Object.freeze({
+  inferredReturns: 0,
+  toolingDegradedProviders: 0,
+  toolingDegradedWarnings: 0,
+  toolingDegradedErrors: 0,
+  toolingProvidersExecuted: 0,
+  toolingProvidersContributed: 0,
+  toolingRequests: 0,
+  toolingRequestFailures: 0,
+  toolingRequestTimeouts: 0
+});
 
-const buildToolingDoctorCacheKey = ({ rootDir, buildRoot, strict, toolingConfig, toolingTimeoutMs, toolingRetries, toolingBreaker }) => {
+const buildToolingDoctorCacheKey = ({
+  rootDir,
+  buildRoot,
+  strict,
+  toolingConfig,
+  toolingTimeoutMs,
+  toolingRetries,
+  toolingBreaker,
+  providerIds
+}) => {
   const payload = {
     version: TOOLING_DOCTOR_CACHE_VERSION,
     rootDir,
@@ -27,6 +48,7 @@ const buildToolingDoctorCacheKey = ({ rootDir, buildRoot, strict, toolingConfig,
     toolingRetries,
     toolingBreaker,
     toolingConfig,
+    providerIds: Array.isArray(providerIds) ? providerIds.slice().sort() : [],
     runtime: {
       node: process.version,
       platform: process.platform,
@@ -174,6 +196,35 @@ const applyToolingDiagnostics = ({ diagnosticsByChunkUid, chunkByUid }) => {
   return { enriched };
 };
 
+const summarizeDegradedProviderCounts = (degradedProviders) => {
+  if (!Array.isArray(degradedProviders) || !degradedProviders.length) {
+    return {
+      toolingDegradedProviders: 0,
+      toolingDegradedWarnings: 0,
+      toolingDegradedErrors: 0
+    };
+  }
+  let toolingDegradedWarnings = 0;
+  let toolingDegradedErrors = 0;
+  for (const entry of degradedProviders) {
+    toolingDegradedWarnings += Number(entry?.warningCount) || 0;
+    toolingDegradedErrors += Number(entry?.errorCount) || 0;
+  }
+  return {
+    toolingDegradedProviders: degradedProviders.length,
+    toolingDegradedWarnings,
+    toolingDegradedErrors
+  };
+};
+
+const summarizeToolingRuntimeCounts = (metrics) => ({
+  toolingProvidersExecuted: Number(metrics?.providersExecuted) || 0,
+  toolingProvidersContributed: Number(metrics?.providersContributed) || 0,
+  toolingRequests: Number(metrics?.requests?.requests) || 0,
+  toolingRequestFailures: Number(metrics?.requests?.failed) || 0,
+  toolingRequestTimeouts: Number(metrics?.requests?.timedOut) || 0
+});
+
 export const runToolingPass = async ({
   rootDir,
   buildRoot,
@@ -188,7 +239,7 @@ export const runToolingPass = async ({
   fileTextByFile,
   abortSignal = null
 }) => {
-  if (!Array.isArray(chunks) || !chunks.length) return { inferredReturns: 0 };
+  if (!Array.isArray(chunks) || !chunks.length) return { ...EMPTY_TOOLING_PASS_STATS };
   registerDefaultToolingProviders();
   const strict = toolingConfig?.strict !== false;
   const vfsConfig = toolingConfig?.vfs && typeof toolingConfig.vfs === 'object'
@@ -218,7 +269,7 @@ export const runToolingPass = async ({
     coalesceSegments,
     log
   });
-  if (!documents.length || !targets.length) return { inferredReturns: 0 };
+  if (!documents.length || !targets.length) return { ...EMPTY_TOOLING_PASS_STATS };
 
   const chunkByUid = new Map();
   for (const chunk of chunks) {
@@ -252,10 +303,26 @@ export const runToolingPass = async ({
     },
     abortSignal
   };
+  const providerPlans = selectToolingProviders({
+    toolingConfig: ctx.toolingConfig,
+    documents,
+    targets,
+    kinds: ['types']
+  });
+  const providerIds = Array.from(new Set(
+    providerPlans
+      .map((plan) => String(plan?.provider?.id || '').trim())
+      .filter(Boolean)
+  ));
+  if (!providerIds.length) {
+    log('[tooling] providers: none selected for current documents/targets; skipping doctor and provider runtime.');
+    return { ...EMPTY_TOOLING_PASS_STATS };
+  }
+  log(`[tooling] providers:selected count=${providerIds.length}.`);
 
   const doctorCacheEnabled = toolingConfig?.doctorCache !== false;
   const doctorCachePath = path.join(buildRoot || rootDir, TOOLING_DOCTOR_CACHE_FILE);
-  const doctorReportPath = path.join(buildRoot || rootDir, 'tooling_report.json');
+  const doctorReportPath = path.join(buildRoot || rootDir, 'tooling_doctor_report.json');
   const doctorCacheKey = buildToolingDoctorCacheKey({
     rootDir,
     buildRoot: buildRoot || rootDir,
@@ -263,7 +330,8 @@ export const runToolingPass = async ({
     toolingConfig: ctx.toolingConfig,
     toolingTimeoutMs,
     toolingRetries,
-    toolingBreaker
+    toolingBreaker,
+    providerIds
   });
   let doctorCacheHit = false;
   if (doctorCacheEnabled) {
@@ -274,7 +342,11 @@ export const runToolingPass = async ({
     }
   }
   if (!doctorCacheHit) {
-    await runToolingDoctor(ctx, null, { log });
+    const doctorStartMs = Date.now();
+    log('[tooling] doctor:start.');
+    await runToolingDoctor(ctx, providerIds, { log });
+    const doctorElapsedMs = Math.max(0, Date.now() - doctorStartMs);
+    log(`[tooling] doctor:done elapsedMs=${doctorElapsedMs}.`);
     if (doctorCacheEnabled) {
       await writeToolingDoctorCache({
         cachePath: doctorCachePath,
@@ -285,20 +357,36 @@ export const runToolingPass = async ({
   }
 
   const providerLog = createToolingLogger(rootDir, toolingLogDir, 'tooling', log);
-  const result = await runToolingProviders(ctx, { documents, targets, kinds: ['types'] });
-  if (providerLog && result?.diagnostics) {
-    for (const [providerId, diag] of Object.entries(result.diagnostics || {})) {
-      if (!diag) continue;
-      providerLog(`[tooling] ${providerId} diagnostics captured.`);
+  let result;
+  try {
+    log(`[tooling] providers:start docs=${documents.length} targets=${targets.length}.`);
+    const providerStartMs = Date.now();
+    result = await runToolingProviders(ctx, { documents, targets, kinds: ['types'] }, providerIds);
+    const providerElapsedMs = Math.max(0, Date.now() - providerStartMs);
+    log(`[tooling] providers:done elapsedMs=${providerElapsedMs}.`);
+    if (Array.isArray(result?.degradedProviders) && result.degradedProviders.length) {
+      const summary = result.degradedProviders
+        .map((entry) => `${entry.providerId}${entry.errorCount > 0 ? `:error=${entry.errorCount}` : ''}${entry.warningCount > 0 ? `:warn=${entry.warningCount}` : ''}`)
+        .join(', ');
+      log(`[tooling] degraded mode active for ${result.degradedProviders.length} provider(s): ${summary}`);
     }
-  }
-  if (providerLog && Array.isArray(result?.observations)) {
-    for (const observation of result.observations) {
-      if (!observation?.message) continue;
-      providerLog(`[tooling] ${observation.message}`);
+    if (providerLog && result?.diagnostics) {
+      for (const [providerId, diag] of Object.entries(result.diagnostics || {})) {
+        if (!diag) continue;
+        providerLog(`[tooling] ${providerId} diagnostics captured.`);
+      }
     }
+    if (providerLog && Array.isArray(result?.observations)) {
+      for (const observation of result.observations) {
+        if (!observation?.message) continue;
+        providerLog(`[tooling] ${observation.message}`);
+      }
+    }
+  } finally {
+    await providerLog?.close?.();
   }
-  await providerLog?.close?.();
+  const degradedStats = summarizeDegradedProviderCounts(result?.degradedProviders);
+  const runtimeStats = summarizeToolingRuntimeCounts(result?.metrics);
 
   const applyResult = applyToolingTypes({
     byChunkUid: result.byChunkUid,
@@ -322,5 +410,9 @@ export const runToolingPass = async ({
     log(`[index] tooling enriched ${applyResult.enriched} symbol(s).`);
   }
 
-  return { inferredReturns: applyResult.inferredReturns || 0 };
+  return {
+    inferredReturns: applyResult.inferredReturns || 0,
+    ...degradedStats,
+    ...runtimeStats
+  };
 };

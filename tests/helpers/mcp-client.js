@@ -4,6 +4,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { ensureTestingEnv } from './test-env.js';
+import {
+  registerChildProcessForCleanup,
+  terminateTrackedSubprocesses
+} from '../../src/shared/subprocess.js';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 const encodeFramedMessage = (payload) => {
@@ -14,6 +18,7 @@ const encodeFramedMessage = (payload) => {
 const createReader = (stream, { onActivity } = {}) => {
   let buffer = Buffer.alloc(0);
   const notifications = [];
+  const pendingRejectors = new Set();
   const MAX_GARBAGE_BYTES = 1024 * 1024;
   const trimLeadingWhitespace = () => {
     let offset = 0;
@@ -87,11 +92,13 @@ const createReader = (stream, { onActivity } = {}) => {
     if (existing) return existing;
     return new Promise((resolve, reject) => {
       let settled = false;
+      pendingRejectors.add(reject);
       const cleanup = () => {
         stream.off('data', onData);
         stream.off('end', onEnd);
         stream.off('close', onEnd);
         stream.off('error', onError);
+        pendingRejectors.delete(reject);
       };
       const onData = (chunk) => {
         onActivity?.();
@@ -142,7 +149,19 @@ const createReader = (stream, { onActivity } = {}) => {
     }
   };
 
-  return { readMessage, readAnyMessage, notifications };
+  const cancelPending = (error) => {
+    const err = error instanceof Error
+      ? error
+      : new Error(String(error || 'MCP reader cancelled.'));
+    for (const reject of Array.from(pendingRejectors)) {
+      try {
+        reject(err);
+      } catch {}
+    }
+    pendingRejectors.clear();
+  };
+
+  return { readMessage, readAnyMessage, notifications, cancelPending };
 };
 
 export const startMcpServer = async ({
@@ -173,6 +192,16 @@ export const startMcpServer = async ({
     stdio: ['pipe', 'pipe', 'inherit'],
     env: childEnv
   });
+  const ownershipId = `tests:mcp:${process.pid}:${Date.now()}:${Math.random().toString(16).slice(2, 10)}`;
+  const unregisterTrackedServer = registerChildProcessForCleanup(server, {
+    killTree: true,
+    detached: false,
+    command: process.execPath,
+    args: serverArgs,
+    name: 'tests-mcp-server',
+    ownershipId,
+    scope: ownershipId
+  });
 
   let timeout = null;
   const resolvedTimeoutMs = Number.isFinite(Number(timeoutMs))
@@ -182,12 +211,18 @@ export const startMcpServer = async ({
     if (!resolvedTimeoutMs) return;
     if (timeout) clearTimeout(timeout);
     timeout = setTimeout(() => {
-      console.error(`MCP server test timed out after ${resolvedTimeoutMs}ms.`);
-      server.kill('SIGKILL');
+      const timeoutError = new Error(`MCP server test timed out after ${resolvedTimeoutMs}ms.`);
+      console.error(timeoutError.message);
+      cancelPending(timeoutError);
+      void terminateTrackedSubprocesses({
+        reason: 'mcp_server_test_timeout',
+        ownershipId,
+        force: true
+      });
     }, resolvedTimeoutMs);
   };
   const reader = createReader(server.stdout, { onActivity: touchTimeout });
-  const { readMessage, readAnyMessage, notifications } = reader;
+  const { readMessage, readAnyMessage, notifications, cancelPending } = reader;
   touchTimeout();
   const resolvedTransport = transport || (mode === 'sdk' ? 'line' : 'legacy');
   const send = (payload) => {
@@ -200,8 +235,26 @@ export const startMcpServer = async ({
 
   const shutdown = async () => {
     if (timeout) clearTimeout(timeout);
-    server.stdin.end();
-    server.kill('SIGTERM');
+    cancelPending(new Error('MCP server test shutdown.'));
+    try {
+      server.stdin.end();
+    } catch {}
+    try {
+      let result = await terminateTrackedSubprocesses({
+        reason: 'mcp_server_test_shutdown',
+        ownershipId,
+        force: false
+      });
+      if (Number(result?.failures || 0) > 0) {
+        result = await terminateTrackedSubprocesses({
+          reason: 'mcp_server_test_shutdown_force',
+          ownershipId,
+          force: true
+        });
+      }
+    } finally {
+      unregisterTrackedServer();
+    }
   };
 
   return { server, send, readMessage, readAnyMessage, notifications, shutdown };

@@ -137,7 +137,7 @@ const writeVfsIndexForJsonl = async ({
     if (bloom && bloomPath) {
       await writeJsonObjectFile(bloomPath, {
         fields: encodeBloomFilter(bloom),
-        atomic: false
+        atomic: true
       });
     }
   } catch (err) {

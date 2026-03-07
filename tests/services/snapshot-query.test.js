@@ -130,11 +130,35 @@ const searchB = await runSearchCli([
   '--snapshot',
   snapshotB,
   '--',
+  'phase14beta'
+], {
+  emitOutput: false,
+  exitOnError: false
+});
+
+const searchBAlpha = await runSearchCli([
+  '--repo',
+  repoRoot,
+  '--mode',
+  'code',
+  '--backend',
+  'memory',
+  '--top',
+  '50',
+  '--json',
+  '--compact',
+  '--snapshot',
+  snapshotB,
+  '--',
   'phase14alpha'
 ], {
   emitOutput: false,
   exitOnError: false
 });
+const staleSnapshotBHit = Array.isArray(searchBAlpha.code)
+  ? searchBAlpha.code.find((hit) => String(hit.file || '').includes('phase14-snapshot-query.js'))
+  : null;
+assert.ok(!staleSnapshotBHit, 'snapshot B should not match stale alpha marker text');
 
 const snapshotBHit = Array.isArray(searchB.code)
   ? searchB.code.find((hit) => String(hit.file || '').includes('phase14-snapshot-query.js'))

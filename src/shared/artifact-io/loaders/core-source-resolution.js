@@ -201,13 +201,6 @@ const resolveRequiredSources = ({
       );
     }
   }
-  if (strict && isSingleSourceFormat && paths.length > 1) {
-    throw createLoaderError(
-      'ERR_MANIFEST_SOURCE_AMBIGUOUS',
-      `Ambiguous ${sources.format.toUpperCase()} sources for ${name}`
-    );
-  }
-
   const resolvedPaths = resolvedPathStates.map((entry) => entry.path);
   const resolvedOffsets = Array.isArray(sources.offsets)
     ? sources.offsets.map((targetPath) => resolveReadableArtifactPath(targetPath))

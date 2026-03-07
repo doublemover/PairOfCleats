@@ -1,0 +1,14 @@
+#!/usr/bin/env node
+import { launchStubServer } from './proxy-runner.js';
+
+const args = process.argv.slice(2);
+if (args.includes('--version') || args.includes('--help') || args.includes('-h')) {
+  process.stdout.write('dart stub\n');
+  process.exit(0);
+}
+if (!args.includes('language-server')) {
+  process.stderr.write('expected "language-server" arg for dart lsp mode\n');
+  process.exit(1);
+}
+
+launchStubServer({ metaUrl: import.meta.url, mode: 'dart' });

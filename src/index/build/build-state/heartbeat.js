@@ -1,6 +1,8 @@
 import path from 'node:path';
+import { logLine } from '../../../shared/progress.js';
 import { createLifecycleRegistry } from '../../../shared/lifecycle/registry.js';
 import { runBuildCleanupWithTimeout } from '../cleanup-timeout.js';
+import { BUILD_STATE_DURABILITY_CLASS, resolveBuildStateDurabilityClass } from './durability.js';
 
 const HEARTBEAT_MIN_INTERVAL_MS = 5000;
 
@@ -8,7 +10,8 @@ export const startHeartbeat = ({
   buildRoot,
   stage,
   intervalMs = 30000,
-  updateBuildState,
+  updateBuildStateOutcome,
+  durabilityClass = BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT,
   flushBuildState,
   buildRootExists
 } = {}) => {
@@ -19,35 +22,126 @@ export const startHeartbeat = ({
   let lastWrite = 0;
   let active = true;
   let timer = null;
+  let stopPromise = null;
+  const resolvedDurabilityClass = resolveBuildStateDurabilityClass(durabilityClass);
   const stop = () => {
-    if (!active) return;
+    if (stopPromise) return stopPromise;
+    if (!active) return Promise.resolve();
     active = false;
     if (timer) {
       clearInterval(timer);
       timer = null;
     }
-    void runBuildCleanupWithTimeout({
-      label: 'build-state.heartbeat.lifecycle.close',
-      cleanup: () => lifecycle.close()
-    }).catch(() => {});
-    void flushBuildState(buildRoot);
+    stopPromise = (async () => {
+      const resolvedBuildRoot = path.resolve(buildRoot);
+      try {
+        const lifecycleCloseResult = await runBuildCleanupWithTimeout({
+          label: 'build-state.heartbeat.lifecycle.close',
+          cleanup: () => lifecycle.close()
+        });
+        if (lifecycleCloseResult?.timedOut) {
+          logLine(
+            `[build_state] heartbeat lifecycle close timed out for ${resolvedBuildRoot}; continuing shutdown.`,
+            {
+              kind: 'warning',
+              buildState: {
+                event: 'heartbeat-lifecycle-close-timeout',
+                buildRoot: resolvedBuildRoot,
+                elapsedMs: lifecycleCloseResult?.elapsedMs ?? null
+              }
+            }
+          );
+        }
+      } catch (error) {
+        logLine(
+          `[build_state] heartbeat lifecycle close failed for ${resolvedBuildRoot}: ${error?.message || String(error)}`,
+          {
+            kind: 'warning',
+            buildState: {
+              event: 'heartbeat-lifecycle-close-failed',
+              buildRoot: resolvedBuildRoot
+            }
+          }
+        );
+      }
+      try {
+        const flushResult = await runBuildCleanupWithTimeout({
+          label: 'build-state.heartbeat.flush',
+          cleanup: () => flushBuildState(buildRoot)
+        });
+        if (flushResult?.timedOut) {
+          logLine(
+            `[build_state] heartbeat final flush timed out for ${resolvedBuildRoot}; continuing shutdown.`,
+            {
+              kind: 'warning',
+              buildState: {
+                event: 'heartbeat-flush-timeout',
+                buildRoot: resolvedBuildRoot,
+                elapsedMs: flushResult?.elapsedMs ?? null
+              }
+            }
+          );
+        }
+      } catch (error) {
+        logLine(
+          `[build_state] heartbeat final flush failed for ${resolvedBuildRoot}: ${error?.message || String(error)}`,
+          {
+            kind: 'warning',
+            buildState: {
+              event: 'heartbeat-flush-failed',
+              buildRoot: resolvedBuildRoot
+            }
+          }
+        );
+      }
+    })();
+    return stopPromise;
   };
   const tick = async () => {
     if (!active) return;
     if (!(await buildRootExists(buildRoot))) {
-      stop();
+      void stop();
       return;
     }
     const nowMs = Date.now();
     if (nowMs - lastWrite < HEARTBEAT_MIN_INTERVAL_MS) return;
     lastWrite = nowMs;
     const now = new Date().toISOString();
-    const writeTask = updateBuildState(buildRoot, {
+    const writeTask = updateBuildStateOutcome(buildRoot, {
       heartbeat: {
         stage: stage || null,
         lastHeartbeatAt: now
       }
-    }).catch(() => {});
+    }, {
+      durabilityClass: resolvedDurabilityClass
+    }).then((outcome) => {
+      if (outcome?.status !== 'timed_out') return;
+      logLine(
+        `[build_state] heartbeat write timed out for ${path.resolve(buildRoot)}; heartbeat remains best-effort.`,
+        {
+          kind: 'warning',
+          buildState: {
+            event: 'heartbeat-write-timeout',
+            buildRoot: path.resolve(buildRoot),
+            stage: stage || null,
+            timeoutMs: outcome?.timeoutMs ?? null,
+            elapsedMs: outcome?.elapsedMs ?? null
+          }
+        }
+      );
+    }).catch((error) => {
+      logLine(
+        `[build_state] heartbeat write failed for ${path.resolve(buildRoot)}: ${error?.message || String(error)}`,
+        {
+          kind: 'warning',
+          buildState: {
+            event: 'heartbeat-write-failed',
+            buildRoot: path.resolve(buildRoot),
+            stage: stage || null
+          }
+        }
+      );
+    });
     lifecycle.registerPromise(writeTask, { label: 'build-state-heartbeat-write' });
   };
   const queueTick = () => {
@@ -58,6 +152,7 @@ export const startHeartbeat = ({
   timer = setInterval(() => {
     queueTick();
   }, intervalMs);
+  timer.unref?.();
   lifecycle.registerTimer(timer, { label: 'build-state-heartbeat-interval' });
   return stop;
 };

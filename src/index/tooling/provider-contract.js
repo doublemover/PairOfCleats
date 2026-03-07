@@ -3,6 +3,55 @@ import { stableStringify } from '../../shared/stable-json.js';
 
 export const normalizeProviderId = (value) => String(value || '').trim().toLowerCase();
 
+export const PREFLIGHT_POLICY = Object.freeze({
+  REQUIRED: 'required',
+  OPTIONAL: 'optional'
+});
+
+const normalizeRuntimeRequirement = (entry) => {
+  if (!entry || typeof entry !== 'object') return null;
+  const id = String(entry.id || '').trim().toLowerCase();
+  const cmd = String(entry.cmd || entry.command || '').trim();
+  if (!id || !cmd) return null;
+  const label = String(entry.label || id).trim() || id;
+  return {
+    id,
+    cmd,
+    args: Array.isArray(entry.args)
+      ? entry.args.map((value) => String(value))
+      : ['--version'],
+    label
+  };
+};
+
+export const normalizePreflightPolicy = (value, fallback = PREFLIGHT_POLICY.OPTIONAL) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === PREFLIGHT_POLICY.REQUIRED) return PREFLIGHT_POLICY.REQUIRED;
+  if (normalized === PREFLIGHT_POLICY.OPTIONAL) return PREFLIGHT_POLICY.OPTIONAL;
+  return fallback === PREFLIGHT_POLICY.REQUIRED
+    ? PREFLIGHT_POLICY.REQUIRED
+    : PREFLIGHT_POLICY.OPTIONAL;
+};
+
+export const isPreflightPolicy = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === PREFLIGHT_POLICY.REQUIRED || normalized === PREFLIGHT_POLICY.OPTIONAL;
+};
+
+export const normalizePreflightRuntimeRequirements = (value) => {
+  if (!Array.isArray(value)) return [];
+  const requirements = [];
+  const seen = new Set();
+  for (const entry of value) {
+    const normalized = normalizeRuntimeRequirement(entry);
+    if (!normalized) continue;
+    if (seen.has(normalized.id)) continue;
+    seen.add(normalized.id);
+    requirements.push(normalized);
+  }
+  return requirements;
+};
+
 export const hashProviderConfig = (config) => {
   const normalized = config && typeof config === 'object' ? config : {};
   return sha1(stableStringify(normalized));
@@ -54,6 +103,12 @@ export const validateToolingProvider = (provider) => {
   if (!provider.capabilities || typeof provider.capabilities !== 'object') return 'provider.capabilities missing';
   if (provider.languages && !Array.isArray(provider.languages)) return 'provider.languages must be array';
   if (provider.kinds && !Array.isArray(provider.kinds)) return 'provider.kinds must be array';
+  if (provider.preflightPolicy) {
+    if (!isPreflightPolicy(provider.preflightPolicy)) return 'provider.preflightPolicy invalid';
+  }
+  if (provider.preflightRuntimeRequirements && !Array.isArray(provider.preflightRuntimeRequirements)) {
+    return 'provider.preflightRuntimeRequirements must be array';
+  }
   if (typeof provider.getConfigHash !== 'function') return 'provider.getConfigHash missing';
   if (typeof provider.run !== 'function') return 'provider.run missing';
   return null;

@@ -4,6 +4,7 @@ import { createInterface } from 'node:readline';
 import { PYTHON_AST_SCRIPT } from './ast-script.js';
 import { findPythonExecutable } from './executable.js';
 import { registerChildProcessForCleanup } from '../../shared/subprocess.js';
+import { killChildProcessTree } from '../../shared/kill-tree.js';
 
 const PYTHON_AST_DEFAULTS = {
   enabled: true,
@@ -105,7 +106,8 @@ function createPythonAstPool({ pythonBin, config, log }) {
     crashWindowStart: 0,
     lastBackpressureLog: 0,
     lastDisabledLog: 0,
-    lastPayloadLog: 0
+    lastPayloadLog: 0,
+    shutdownPromise: null
   };
 
   const isDisabled = () => state.disabledUntil && Date.now() < state.disabledUntil;
@@ -128,13 +130,50 @@ function createPythonAstPool({ pythonBin, config, log }) {
     log(message);
   };
 
-  const shutdownWorkers = () => {
+  const settlePendingJobs = (reason = null) => {
     for (const worker of state.workers) {
-      try {
-        worker.proc.kill();
-      } catch {}
+      const pendingJobs = Array.from(worker.pending.values());
+      worker.pending.clear();
+      worker.busy = false;
+      worker.busySince = 0;
+      for (const job of pendingJobs) {
+        if (job.timer) clearTimeout(job.timer);
+        job.resolve(null);
+      }
     }
-    state.workers = [];
+    const queuedJobs = state.queue.splice(0, state.queue.length);
+    for (const job of queuedJobs) {
+      if (job.timer) clearTimeout(job.timer);
+      job.lastError = reason || job.lastError || null;
+      job.resolve(null);
+    }
+  };
+
+  const shutdownWorkers = async () => {
+    settlePendingJobs(new Error('python_ast_pool_shutdown'));
+    const workers = state.workers.splice(0, state.workers.length);
+    const stopTasks = [];
+    for (const worker of workers) {
+      worker.exited = true;
+      worker.busy = false;
+      worker.busySince = 0;
+      try {
+        worker.proc?.stdin?.end?.();
+      } catch {}
+      try {
+        worker.readline?.close?.();
+      } catch {}
+      const killTask = killChildProcessTree(worker.proc, {
+        killTree: true,
+        detached: false,
+        graceMs: 100,
+        awaitGrace: true
+      })
+        .catch(() => {})
+        .finally(() => finalizeWorkerRegistration(worker));
+      stopTasks.push(killTask);
+    }
+    await Promise.allSettled(stopTasks);
   };
 
   const disablePool = (reason) => {
@@ -150,11 +189,8 @@ function createPythonAstPool({ pythonBin, config, log }) {
     state.crashCount = 0;
     state.crashWindowStart = 0;
     logOnce(`[python-ast] Crash loop detected; disabling pool for ${backoffMs}ms (${reasonText}).`, 'disabled');
-    for (const job of state.queue) {
-      job.resolve(null);
-    }
-    state.queue = [];
-    shutdownWorkers();
+    settlePendingJobs(reason);
+    void shutdownWorkers();
   };
 
   const recordCrash = (reason) => {
@@ -192,18 +228,32 @@ function createPythonAstPool({ pythonBin, config, log }) {
     state.workers = state.workers.filter((w) => w !== worker);
   };
 
-  const handleWorkerExit = (worker, reason, options = {}) => {
-    if (worker.exited) return;
+  function finalizeWorkerRegistration(worker) {
+    try {
+      worker.readline?.close?.();
+    } catch {}
+    worker.readline = null;
     try {
       worker.unregisterChild?.();
     } catch {}
     worker.unregisterChild = null;
-    if (options.forceKill) {
-      try {
-        worker.proc.kill();
-      } catch {}
-    }
+  }
+
+  const handleWorkerExit = (worker, reason, options = {}) => {
+    if (worker.exited) return;
     worker.exited = true;
+    if (options.forceKill) {
+      killChildProcessTree(worker.proc, {
+        killTree: true,
+        detached: false,
+        graceMs: 0,
+        awaitGrace: false
+      })
+        .catch(() => {})
+        .finally(() => finalizeWorkerRegistration(worker));
+    } else {
+      finalizeWorkerRegistration(worker);
+    }
     const pending = Array.from(worker.pending.values());
     worker.pending.clear();
     worker.busy = false;
@@ -262,10 +312,12 @@ function createPythonAstPool({ pythonBin, config, log }) {
       pending: new Map(),
       busy: false,
       busySince: 0,
-      exited: false
+      exited: false,
+      readline: null
     };
     state.workers.push(worker);
     const rl = createInterface({ input: proc.stdout, crlfDelay: Infinity });
+    worker.readline = rl;
     rl.on('line', (line) => handleLine(worker, line));
     proc.on('error', (err) => handleWorkerExit(worker, err, { forceKill: true }));
     proc.on('exit', (code, signal) =>
@@ -384,10 +436,20 @@ function createPythonAstPool({ pythonBin, config, log }) {
         drainQueue();
       });
     },
-    shutdown() {
+    async shutdown() {
+      if (state.shutdownPromise) {
+        await state.shutdownPromise;
+        return;
+      }
       state.stopping = true;
-      shutdownWorkers();
-      state.queue = [];
+      state.shutdownPromise = (async () => {
+        await shutdownWorkers();
+      })();
+      try {
+        await state.shutdownPromise;
+      } finally {
+        state.shutdownPromise = null;
+      }
     }
   };
 }
@@ -399,7 +461,7 @@ export async function getPythonAstPool(log, config = {}) {
   if (!pythonBin) return null;
   const signature = JSON.stringify(normalized);
   if (!pythonPool || pythonPoolSignature !== signature) {
-    if (pythonPool) pythonPool.shutdown();
+    if (pythonPool) await pythonPool.shutdown();
     pythonPool = createPythonAstPool({ pythonBin, config: normalized, log });
     pythonPoolSignature = signature;
   }
@@ -412,9 +474,9 @@ export async function getPythonAstPool(log, config = {}) {
   return pythonPool;
 }
 
-export function shutdownPythonAstPool() {
+export async function shutdownPythonAstPool() {
   if (pythonPool) {
-    pythonPool.shutdown();
+    await pythonPool.shutdown();
     pythonPool = null;
     pythonPoolSignature = null;
   }

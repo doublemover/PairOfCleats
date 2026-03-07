@@ -46,6 +46,76 @@ const toPositiveInteger = (value) => {
     : 0;
 };
 
+const DENSE_BINARY_WRITE_CHUNK_BYTES = 1024 * 1024;
+
+const fillDenseBinaryRow = (buffer, offset, rowWidth, vec) => {
+  buffer.fill(0, offset, offset + rowWidth);
+  if (!vec || typeof vec.length !== 'number') return;
+  if (ArrayBuffer.isView(vec) && vec.BYTES_PER_ELEMENT === 1) {
+    const copyLength = Math.min(rowWidth, Math.max(0, Math.floor(Number(vec.length) || 0)));
+    if (copyLength <= 0) return;
+    const source = new Uint8Array(vec.buffer, vec.byteOffset, copyLength);
+    buffer.set(source, offset);
+    return;
+  }
+  for (let i = 0; i < rowWidth; i += 1) {
+    const value = Number(vec[i]);
+    buffer[offset + i] = Number.isFinite(value)
+      ? Math.max(0, Math.min(255, Math.floor(value)))
+      : 0;
+  }
+};
+
+/**
+ * Stream a uint8 row-major dense vector binary artifact to disk atomically.
+ *
+ * @param {{
+ *   binPath:string,
+ *   vectors:Array<any>,
+ *   dims:number
+ * }} input
+ * @returns {Promise<{count:number,rowWidth:number,totalBytes:number}>}
+ */
+export const writeDenseVectorBinaryFile = async ({
+  binPath,
+  vectors,
+  dims
+}) => {
+  const count = Array.isArray(vectors) ? vectors.length : 0;
+  const rowWidth = toPositiveInteger(dims);
+  const totalBytes = rowWidth > 0 ? rowWidth * count : 0;
+  const tempBinPath = createTempPath(binPath);
+  await fsPromises.mkdir(path.dirname(binPath), { recursive: true });
+  const handle = await fsPromises.open(tempBinPath, 'w');
+  try {
+    if (rowWidth > 0 && count > 0) {
+      const rowsPerChunk = Math.max(1, Math.floor(DENSE_BINARY_WRITE_CHUNK_BYTES / rowWidth));
+      const chunk = Buffer.alloc(rowsPerChunk * rowWidth);
+      let chunkRows = 0;
+      const flushChunk = async () => {
+        if (chunkRows <= 0) return;
+        const bytesToWrite = chunkRows * rowWidth;
+        await handle.write(chunk, 0, bytesToWrite);
+        chunkRows = 0;
+      };
+      for (let docId = 0; docId < count; docId += 1) {
+        const rowOffset = chunkRows * rowWidth;
+        fillDenseBinaryRow(chunk, rowOffset, rowWidth, vectors[docId]);
+        chunkRows += 1;
+        if (chunkRows >= rowsPerChunk) {
+          await flushChunk();
+        }
+      }
+      await flushChunk();
+    }
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+  await replaceFile(tempBinPath, binPath);
+  return { count, rowWidth, totalBytes };
+};
+
 /**
  * Normalize dense-vector metadata envelopes that may be wrapped in `{fields}`.
  *
@@ -275,32 +345,12 @@ export const writeDenseVectorArtifacts = async ({
   let binPath = null;
   let binMetaPath = null;
   if (writeBinary) {
-    const dims = Number(vectorFields?.dims);
-    const count = Array.isArray(vectors) ? vectors.length : 0;
-    const rowWidth = Number.isFinite(dims) && dims > 0 ? Math.floor(dims) : 0;
-    const totalBytes = rowWidth > 0 ? rowWidth * count : 0;
-    const bytes = Buffer.alloc(totalBytes);
-    for (let docId = 0; docId < count; docId += 1) {
-      const vec = vectors[docId];
-      if (!vec || typeof vec.length !== 'number') continue;
-      const start = docId * rowWidth;
-      const end = start + rowWidth;
-      if (end > bytes.length) break;
-      if (ArrayBuffer.isView(vec) && vec.BYTES_PER_ELEMENT === 1) {
-        bytes.set(vec.subarray(0, rowWidth), start);
-        continue;
-      }
-      for (let i = 0; i < rowWidth; i += 1) {
-        const value = Number(vec[i]);
-        bytes[start + i] = Number.isFinite(value)
-          ? Math.max(0, Math.min(255, Math.floor(value)))
-          : 0;
-      }
-    }
     binPath = path.join(indexDir, `${baseName}.bin`);
-    const tempBinPath = createTempPath(binPath);
-    await fsPromises.writeFile(tempBinPath, bytes);
-    await replaceFile(tempBinPath, binPath);
+    const binaryWrite = await writeDenseVectorBinaryFile({
+      binPath,
+      vectors,
+      dims: vectorFields?.dims
+    });
     binMetaPath = path.join(indexDir, `${baseName}.bin.meta.json`);
     await writeJsonObjectFile(binMetaPath, {
       fields: {
@@ -309,9 +359,9 @@ export const writeDenseVectorArtifacts = async ({
         format: 'uint8-row-major',
         generatedAt: new Date().toISOString(),
         path: path.basename(binPath),
-        count,
-        dims: rowWidth,
-        bytes: totalBytes,
+        count: binaryWrite.count,
+        dims: binaryWrite.rowWidth,
+        bytes: binaryWrite.totalBytes,
         ...vectorFields
       },
       atomic: true

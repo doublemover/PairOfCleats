@@ -2,6 +2,7 @@ import {
   resolveBuildCleanupTimeoutMs,
   runBuildCleanupWithTimeout
 } from '../../cleanup-timeout.js';
+import { destroyPiscinaPool } from '../../../../shared/piscina-cleanup.js';
 
 /**
  * Manage worker-pool lifecycle, restart scheduling, and pressure-driven resize.
@@ -72,18 +73,31 @@ export const createWorkerPoolLifecycle = (input = {}) => {
 
   const shutdownPool = async () => {
     if (!pool) return;
+    const currentPool = pool;
+    let shutdownSucceeded = false;
+    let shutdownError = null;
     try {
       await runBuildCleanupWithTimeout({
         label: `worker-pool.${poolLabel}.destroy`,
-        cleanup: () => pool.destroy(),
-        timeoutMs: resolvedCleanupTimeoutMs,
-        log
+        cleanup: () => destroyPiscinaPool(currentPool, {
+          label: `worker-pool.${poolLabel}`,
+          log,
+          destroyTimeoutMs: resolvedCleanupTimeoutMs
+        }),
+        timeoutMs: resolvedCleanupTimeoutMs + 6000,
+        log,
+        swallowTimeout: false
       });
+      shutdownSucceeded = true;
     } catch (err) {
       const detail = summarizeError(err);
       log(`Worker pool shutdown failed: ${detail || 'unknown error'}`);
+      shutdownError = err;
     }
-    pool = null;
+    if (shutdownSucceeded && pool === currentPool) {
+      pool = null;
+    }
+    if (shutdownError) throw shutdownError;
   };
 
   const shutdownNowOrWhenIdle = async () => {

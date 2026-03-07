@@ -157,9 +157,7 @@ export function createDisplay(options = {}) {
     const prefix = level === 'warn' ? '[warn] ' : (level === 'error' ? '[error] ' : '');
     const line = `${prefix}${baseLine}`.trim();
     const isStatusLine = (meta && typeof meta === 'object' && meta.kind === 'status')
-      || baseLine.startsWith('Writing index files')
-      || baseLine.startsWith('[embeddings]')
-      || baseLine.includes('embeddings]') && baseLine.includes('processed') && baseLine.includes('files');
+      || baseLine.startsWith('Writing index files');
     if (isStatusLine) {
       state.statusLine = line;
       if (interactive && canRender) {

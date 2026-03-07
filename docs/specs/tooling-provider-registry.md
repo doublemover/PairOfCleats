@@ -84,9 +84,8 @@ Key behaviors:
 - `strict` defaults to true; missing `chunkUid` in targets or provider outputs is an error.
 - Builds lookup maps from targets:
   - `chunkUidByChunkId` for `byChunkId` outputs.
-  - `chunkUidByLegacyKey` for `byLegacyKey` outputs (`<file>::<symbolName>`).
 - Provider outputs may use:
-  - `byChunkUid`, `byChunkId`, or `byLegacyKey` (all are normalized to `byChunkUid`).
+  - `byChunkUid` or `byChunkId` (both are normalized to `byChunkUid`).
 
 ## 5) Caching
 
@@ -114,7 +113,7 @@ For each chunk entry:
 ## 7) Tests
 
 Existing tests cover key behaviors:
-- `tests/tooling/providers/provider-registry-normalizes-legacy-keys.test.js`
+- `tests/tooling/providers/provider-registry-ignores-legacy-keys.test.js`
 - `tests/tooling/providers/provider-registry-merges-deterministically.test.js`
 - `tests/tooling/providers/provider-registry-strict-missing-chunkuid.test.js`
 - `tests/tooling/providers/provider-registry-ordering.test.js`

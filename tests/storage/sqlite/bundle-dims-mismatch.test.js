@@ -58,8 +58,8 @@ await writeBundleFile({
 
 const manifest = {
   files: {
-    'a.js': { bundle: bundleA, mtimeMs: 1, size: 1, hash: 'a' },
-    'b.js': { bundle: bundleB, mtimeMs: 2, size: 1, hash: 'b' }
+    'a.js': { bundles: [bundleA], mtimeMs: 1, size: 1, hash: 'a' },
+    'b.js': { bundles: [bundleB], mtimeMs: 2, size: 1, hash: 'b' }
   }
 };
 

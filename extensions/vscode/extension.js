@@ -334,98 +334,156 @@ async function runSearch() {
   const { command, argsPrefix } = resolveCli(repoRoot, config);
   const args = [...argsPrefix, ...buildArgs(query.trim(), repoRoot, config)];
   const env = buildSpawnEnv(config);
+  const searchTimeoutMs = 60000;
 
   await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
       title: 'PairOfCleats search',
-      cancellable: false
+      cancellable: true
     },
-    () => new Promise((resolve) => {
-      cp.execFile(
-        command,
-        args,
-        { cwd: repoRoot, env, maxBuffer: 20 * 1024 * 1024 },
-        async (error, stdout, stderr) => {
-          if (error) {
-            const message = stderr || error.message;
-            vscode.window.showErrorMessage(`PairOfCleats search failed: ${message}`);
-            resolve();
-            return;
-          }
-
-          let payload = null;
-          try {
-            payload = JSON.parse(stdout || '{}');
-          } catch (err) {
-            vscode.window.showErrorMessage(`PairOfCleats search returned invalid JSON: ${err.message}`);
-            resolve();
-            return;
-          }
-
-          const hits = [];
-          const pushHits = (items, kind) => {
-            if (!Array.isArray(items)) return;
-            items.forEach((hit) => {
-              if (!hit || !hit.file) return;
-              hits.push({
-                ...hit,
-                section: kind
-              });
-            });
-          };
-          pushHits(payload.code, 'code');
-          pushHits(payload.prose, 'prose');
-          pushHits(payload.records, 'records');
-
-          if (!hits.length) {
-            vscode.window.showInformationMessage('PairOfCleats: no results.');
-            resolve();
-            return;
-          }
-
-          const items = hits.map((hit) => {
-            const line = Number.isFinite(hit.startLine) ? `:${hit.startLine}` : '';
-            const fileLabel = `${hit.file}${line}`;
-            const scoreLabel = Number.isFinite(hit.score)
-              ? `${hit.score.toFixed(2)} ${hit.scoreType || ''}`.trim()
-              : 'n/a';
-            const label = hit.name || hit.headline || fileLabel;
-            return {
-              label,
-              description: fileLabel,
-              detail: `${hit.section} • score ${scoreLabel}`,
-              hit
-            };
-          });
-
-          const selection = await vscode.window.showQuickPick(items, {
-            title: `PairOfCleats results (${hits.length})`,
-            matchOnDescription: true,
-            matchOnDetail: true
-          });
-          if (!selection) {
-            resolve();
-            return;
-          }
-
-          const selected = selection.hit;
-          const filePath = path.isAbsolute(selected.file)
-            ? selected.file
-            : path.join(repoRoot, selected.file);
-          const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
-          const editor = await vscode.window.showTextDocument(document, { preview: true });
-          if (Number.isFinite(selected.startLine) && selected.startLine > 0) {
-            const line = Math.max(0, Number(selected.startLine) - 1);
-            const pos = new vscode.Position(line, 0);
-            const range = new vscode.Range(pos, pos);
-            editor.selection = new vscode.Selection(pos, pos);
-            editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
-          }
-
-          resolve();
+    (_, token) => new Promise((resolve) => {
+      const useShell = process.platform === 'win32' && /\.(cmd|bat)$/i.test(command);
+      const child = cp.spawn(command, args, {
+        cwd: repoRoot,
+        env,
+        shell: useShell,
+        windowsHide: true
+      });
+      const maxBufferBytes = 20 * 1024 * 1024;
+      const stdoutChunks = [];
+      const stderrChunks = [];
+      let stdoutBytes = 0;
+      let stderrBytes = 0;
+      let timedOut = false;
+      const timeout = setTimeout(() => {
+        timedOut = true;
+        try {
+          child.kill('SIGKILL');
+        } catch {}
+      }, searchTimeoutMs);
+      timeout.unref?.();
+      const cancelSub = token.onCancellationRequested(() => {
+        try {
+          child.kill('SIGKILL');
+        } catch {}
+      });
+      const pushChunk = (bucket, sizeRef, chunk) => {
+        if (!chunk) return sizeRef;
+        const value = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
+        const nextSize = sizeRef + value.length;
+        if (nextSize > maxBufferBytes) {
+          const remaining = maxBufferBytes - sizeRef;
+          if (remaining > 0) bucket.push(value.subarray(0, remaining));
+          return maxBufferBytes;
         }
-      );
+        bucket.push(value);
+        return nextSize;
+      };
+      child.stdout?.on('data', (chunk) => {
+        stdoutBytes = pushChunk(stdoutChunks, stdoutBytes, chunk);
+      });
+      child.stderr?.on('data', (chunk) => {
+        stderrBytes = pushChunk(stderrChunks, stderrBytes, chunk);
+      });
+      child.once('error', (error) => {
+        clearTimeout(timeout);
+        cancelSub.dispose();
+        vscode.window.showErrorMessage(`PairOfCleats search failed: ${error?.message || error}`);
+        resolve();
+      });
+      child.once('close', async (code) => {
+        clearTimeout(timeout);
+        cancelSub.dispose();
+        if (token.isCancellationRequested) {
+          resolve();
+          return;
+        }
+        if (timedOut) {
+          vscode.window.showErrorMessage(`PairOfCleats search timed out after ${searchTimeoutMs}ms.`);
+          resolve();
+          return;
+        }
+        const stdout = Buffer.concat(stdoutChunks).toString('utf8');
+        const stderr = Buffer.concat(stderrChunks).toString('utf8');
+        if (code !== 0) {
+          const message = String(stderr || `exit ${code}`);
+          vscode.window.showErrorMessage(`PairOfCleats search failed: ${message}`);
+          resolve();
+          return;
+        }
+
+        let payload = null;
+        try {
+          payload = JSON.parse(stdout || '{}');
+        } catch (err) {
+          vscode.window.showErrorMessage(`PairOfCleats search returned invalid JSON: ${err.message}`);
+          resolve();
+          return;
+        }
+
+        const hits = [];
+        const pushHits = (items, kind) => {
+          if (!Array.isArray(items)) return;
+          items.forEach((hit) => {
+            if (!hit || !hit.file) return;
+            hits.push({
+              ...hit,
+              section: kind
+            });
+          });
+        };
+        pushHits(payload.code, 'code');
+        pushHits(payload.prose, 'prose');
+        pushHits(payload.records, 'records');
+
+        if (!hits.length) {
+          vscode.window.showInformationMessage('PairOfCleats: no results.');
+          resolve();
+          return;
+        }
+
+        const items = hits.map((hit) => {
+          const line = Number.isFinite(hit.startLine) ? `:${hit.startLine}` : '';
+          const fileLabel = `${hit.file}${line}`;
+          const scoreLabel = Number.isFinite(hit.score)
+            ? `${hit.score.toFixed(2)} ${hit.scoreType || ''}`.trim()
+            : 'n/a';
+          const label = hit.name || hit.headline || fileLabel;
+          return {
+            label,
+            description: fileLabel,
+            detail: `${hit.section} • score ${scoreLabel}`,
+            hit
+          };
+        });
+
+        const selection = await vscode.window.showQuickPick(items, {
+          title: `PairOfCleats results (${hits.length})`,
+          matchOnDescription: true,
+          matchOnDetail: true
+        });
+        if (!selection) {
+          resolve();
+          return;
+        }
+
+        const selected = selection.hit;
+        const filePath = path.isAbsolute(selected.file)
+          ? selected.file
+          : path.join(repoRoot, selected.file);
+        const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
+        const editor = await vscode.window.showTextDocument(document, { preview: true });
+        if (Number.isFinite(selected.startLine) && selected.startLine > 0) {
+          const line = Math.max(0, Number(selected.startLine) - 1);
+          const pos = new vscode.Position(line, 0);
+          const range = new vscode.Range(pos, pos);
+          editor.selection = new vscode.Selection(pos, pos);
+          editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
+        }
+
+        resolve();
+      });
     })
   );
 }

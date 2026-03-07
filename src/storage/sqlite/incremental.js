@@ -1,6 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
+import { logLine } from '../../shared/progress.js';
+
+const INCREMENTAL_MANIFEST_MAX_BYTES = 8 * 1024 * 1024;
 
 /**
  * Resolve incremental cache paths for a repo/mode.
@@ -27,6 +30,14 @@ export function loadIncrementalManifest(repoCacheRoot, mode) {
   const paths = getIncrementalPaths(repoCacheRoot, mode);
   if (!fs.existsSync(paths.manifestPath)) return null;
   try {
+    const stat = fs.statSync(paths.manifestPath);
+    if (Number.isFinite(stat?.size) && stat.size > INCREMENTAL_MANIFEST_MAX_BYTES) {
+      logLine(
+        `[sqlite] incremental manifest too large; skipping (${stat.size} bytes > ${INCREMENTAL_MANIFEST_MAX_BYTES} bytes).`,
+        { kind: 'warning' }
+      );
+      return null;
+    }
     const manifest = JSON.parse(fs.readFileSync(paths.manifestPath, 'utf8'));
     if (!manifest || typeof manifest !== 'object') return null;
     return { manifest, ...paths };

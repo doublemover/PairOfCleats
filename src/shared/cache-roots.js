@@ -3,13 +3,22 @@ import os from 'node:os';
 import path from 'node:path';
 import { getEnvConfig } from './env.js';
 
-export const CACHE_ROOT_LAYOUT_VERSION = 'cache-v1';
+export const CACHE_ROOT_DIRNAME = 'cache';
+export const CACHE_ROOT_LAYOUT_VERSION = CACHE_ROOT_DIRNAME;
+const LEGACY_CACHE_ROOT_DIRNAME = 'cache-v1';
 
 const rebuiltRoots = new Set();
-const isVersionedCacheRoot = (targetRoot) => (
+const cacheRootWarnings = new Set();
+const warnCacheRootIssue = (key, message) => {
+  if (!key || !message) return;
+  if (cacheRootWarnings.has(key)) return;
+  cacheRootWarnings.add(key);
+  console.warn(message);
+};
+const isCacheRootDir = (targetRoot) => (
   typeof targetRoot === 'string'
   && targetRoot
-  && path.basename(path.resolve(targetRoot)).toLowerCase() === CACHE_ROOT_LAYOUT_VERSION
+  && path.basename(path.resolve(targetRoot)).toLowerCase() === CACHE_ROOT_DIRNAME
 );
 
 const resolveCacheRoot = (baseRoot) => {
@@ -21,8 +30,46 @@ const purgeCacheRoot = (cacheRoot) => {
   if (!cacheRoot) return;
   try {
     fs.rmSync(cacheRoot, { recursive: true, force: true });
-  } catch {}
+  } catch (err) {
+    warnCacheRootIssue(
+      `purge:${cacheRoot}:${err?.code || 'unknown'}`,
+      `[cache] failed to purge cache root ${cacheRoot}: ${err?.message || err}`
+    );
+  }
 };
+
+const pathHasLegacyCacheRootSegment = (targetPath) => {
+  if (!targetPath) return false;
+  const parsed = path.parse(targetPath);
+  const tail = String(targetPath).slice(parsed.root.length);
+  const segments = tail.split(path.sep);
+  return segments.some((segment) => String(segment || '').toLowerCase() === LEGACY_CACHE_ROOT_DIRNAME);
+};
+
+const assertNoLegacyCacheRootPath = (targetPath) => {
+  if (!pathHasLegacyCacheRootSegment(targetPath)) return;
+  const error = new Error(
+    `[cache] legacy cache root segment "${LEGACY_CACHE_ROOT_DIRNAME}" is unsupported; use "${CACHE_ROOT_DIRNAME}".`
+  );
+  error.code = 'ERR_LEGACY_CACHE_ROOT_UNSUPPORTED';
+  error.cacheRootPath = String(targetPath || '');
+  throw error;
+};
+
+/**
+ * Resolve and validate cache root paths.
+ *
+ * Hard cutover: legacy `cache-v1` segments are no longer supported.
+ *
+ * @param {string|null|undefined} targetPath
+ * @returns {string}
+ */
+export function normalizeLegacyCacheRootPath(targetPath) {
+  const resolved = resolveCacheRoot(targetPath);
+  if (!resolved) return '';
+  assertNoLegacyCacheRootPath(resolved);
+  return resolved;
+}
 
 /**
  * Resolve the default cache root directory (ignores test overrides).
@@ -85,23 +132,39 @@ export function getCacheRoot() {
   return cacheRoot;
 }
 
+/**
+ * Resolve a writable temporary-work root scoped under the stable cache root.
+ *
+ * This avoids platform-global temp folders for internal scratch data while
+ * still keeping ephemeral artifacts isolated from durable index outputs.
+ *
+ * @param {...string} segments
+ * @returns {string}
+ */
+export function getCacheTempRoot(...segments) {
+  const base = path.join(getCacheRoot(), 'tmp');
+  const suffix = segments
+    .map((segment) => String(segment || '').trim())
+    .filter(Boolean);
+  return suffix.length ? path.join(base, ...suffix) : base;
+}
+
 export function resolveVersionedCacheRoot(baseRoot) {
-  const resolvedBase = resolveCacheRoot(baseRoot);
+  const resolvedBase = normalizeLegacyCacheRootPath(baseRoot);
   if (!resolvedBase) return '';
-  if (isVersionedCacheRoot(resolvedBase)) return resolvedBase;
-  return path.join(resolvedBase, CACHE_ROOT_LAYOUT_VERSION);
+  if (isCacheRootDir(resolvedBase)) return resolvedBase;
+  return path.join(resolvedBase, CACHE_ROOT_DIRNAME);
 }
 
 export function clearCacheRoot({ baseRoot, includeLegacy = false } = {}) {
-  const resolvedBase = baseRoot ? path.resolve(baseRoot) : getCacheRootBase();
-  const targetRoot = resolveVersionedCacheRoot(resolvedBase);
-  if (includeLegacy && resolvedBase && fs.existsSync(resolvedBase)) {
-    purgeCacheRoot(resolvedBase);
-    return;
-  }
-  if (isVersionedCacheRoot(resolvedBase)) {
-    purgeCacheRoot(resolvedBase);
-    return;
-  }
+  const resolvedBase = resolveCacheRoot(baseRoot || getCacheRoot());
+  if (!resolvedBase) return;
+  const targetRoot = isCacheRootDir(resolvedBase)
+    ? resolvedBase
+    : resolveVersionedCacheRoot(resolvedBase);
   purgeCacheRoot(targetRoot);
+  if (includeLegacy) {
+    const legacyRoot = path.join(path.dirname(targetRoot), LEGACY_CACHE_ROOT_DIRNAME);
+    purgeCacheRoot(legacyRoot);
+  }
 }

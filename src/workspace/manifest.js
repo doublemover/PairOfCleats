@@ -5,7 +5,7 @@ import { buildIndexSignature } from '../retrieval/index-cache.js';
 import { sha1 } from '../shared/hash.js';
 import { stableStringify } from '../shared/stable-json.js';
 import { atomicWriteText } from '../shared/io/atomic-write.js';
-import { isAbsolutePathNative } from '../shared/files.js';
+import { isAbsolutePathNative, readJsonFileSafe } from '../shared/files.js';
 import { validateWorkspaceManifest } from '../contracts/validators/workspace.js';
 import {
   getCacheRoot,
@@ -19,6 +19,7 @@ import { toRealPathSync } from './identity.js';
 
 export const WORKSPACE_MANIFEST_SCHEMA_VERSION = 1;
 export const WORKSPACE_INDEX_MODES = ['code', 'prose', 'extracted-prose', 'records'];
+const WORKSPACE_JSON_MAX_BYTES = 8 * 1024 * 1024;
 
 const CHUNK_META_MARKERS = [
   'chunk_meta.json',
@@ -190,9 +191,17 @@ const hasRequiredArtifacts = (indexDir) => (
 );
 
 const readJsonFile = async (filePath) => {
+  let readError = null;
   try {
-    const raw = await fsPromises.readFile(filePath, 'utf8');
-    return { ok: true, value: JSON.parse(raw) };
+    const value = await readJsonFileSafe(filePath, {
+      fallback: null,
+      maxBytes: WORKSPACE_JSON_MAX_BYTES,
+      onError: ({ error }) => {
+        if (!readError) readError = error || new Error('workspace_manifest_json_read_failed');
+      }
+    });
+    if (readError) return { ok: false, error: readError };
+    return { ok: true, value };
   } catch (error) {
     return { ok: false, error };
   }

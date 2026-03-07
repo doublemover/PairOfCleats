@@ -15,6 +15,7 @@ import { coerceAbortSignal, throwIfAborted } from '../../../../shared/abort.js';
 import { compareStrings } from '../../../../shared/sort.js';
 import { toArray } from '../../../../shared/iterables.js';
 import { atomicWriteJson } from '../../../../shared/io/atomic-write.js';
+import { createLifecycleRegistry } from '../../../../shared/lifecycle/registry.js';
 import {
   snapshotTrackedSubprocesses,
   terminateTrackedSubprocesses,
@@ -1261,21 +1262,22 @@ export const runCleanupWithTimeout = async ({
  * }} [input]
  * @returns {Promise<Array<{label:string,skipped:boolean,timedOut:boolean,elapsedMs:number,error?:unknown}>>}
  */
-const runStage1TailCleanupTasks = async ({
+export const runStage1TailCleanupTasks = async ({
   tasks = [],
-  logSummary = null
+  logSummary = null,
+  sequential = false
 } = {}) => {
   const cleanupTasks = Array.isArray(tasks)
     ? tasks.filter((task) => typeof task?.run === 'function')
     : [];
   if (!cleanupTasks.length) return [];
   const startedAtMs = Date.now();
-  const settled = await Promise.allSettled(cleanupTasks.map(async (task) => {
+  const runTask = async (task, index) => {
     const result = await task.run();
     return {
       label: typeof task.label === 'string' && task.label.trim()
         ? task.label.trim()
-        : 'cleanup',
+        : `cleanup-${index + 1}`,
       skipped: result?.skipped === true,
       timedOut: result?.timedOut === true,
       elapsedMs: Number.isFinite(result?.elapsedMs)
@@ -1283,7 +1285,27 @@ const runStage1TailCleanupTasks = async ({
         : 0,
       error: result?.error
     };
-  }));
+  };
+  const settled = sequential
+    ? await (async () => {
+      const results = [];
+      for (let index = 0; index < cleanupTasks.length; index += 1) {
+        try {
+          results.push({
+            status: 'fulfilled',
+            value: await runTask(cleanupTasks[index], index)
+          });
+        } catch (error) {
+          results.push({
+            status: 'rejected',
+            reason: error
+          });
+          break;
+        }
+      }
+      return results;
+    })()
+    : await Promise.allSettled(cleanupTasks.map((task, index) => runTask(task, index)));
   const outcomes = [];
   const fatalErrors = [];
   settled.forEach((entry, index) => {
@@ -1318,6 +1340,170 @@ const runStage1TailCleanupTasks = async ({
     throw fatalErrors[0].error;
   }
   return outcomes;
+};
+
+const normalizeTrackedProcessFileTaskMeta = (meta = {}) => ({
+  file: typeof meta?.file === 'string' && meta.file.trim() ? meta.file.trim() : null,
+  fileIndex: Number.isFinite(Number(meta?.fileIndex)) ? Math.floor(Number(meta.fileIndex)) : null,
+  orderIndex: Number.isFinite(Number(meta?.orderIndex)) ? Math.floor(Number(meta.orderIndex)) : null,
+  shardId: typeof meta?.shardId === 'string' && meta.shardId.trim() ? meta.shardId.trim() : null,
+  ownershipId: typeof meta?.ownershipId === 'string' && meta.ownershipId.trim() ? meta.ownershipId.trim() : null,
+  startedAtMs: Number.isFinite(Number(meta?.startedAtMs))
+    ? Math.max(0, Math.floor(Number(meta.startedAtMs)))
+    : Date.now()
+});
+
+/**
+ * Summarize still-running raw `processFile` tasks for cleanup diagnostics.
+ *
+ * These entries represent work that can survive a timeout-wrapped caller due to
+ * `runWithTimeout` racing the wrapper promise instead of the underlying task.
+ *
+ * @param {Array<object>} [entries]
+ * @param {number} [maxEntries=8]
+ * @returns {string}
+ */
+export const buildTrackedProcessFileTaskSummaryText = (
+  entries = [],
+  maxEntries = 8
+) => {
+  const list = Array.isArray(entries) ? entries : [];
+  const safeMaxEntries = Number.isFinite(Number(maxEntries))
+    ? Math.max(1, Math.floor(Number(maxEntries)))
+    : 8;
+  const preview = list
+    .slice(0, safeMaxEntries)
+    .map((entry) => {
+      const file = entry?.file || 'unknown';
+      const fileIndex = Number.isFinite(Number(entry?.fileIndex))
+        ? `#${Math.floor(Number(entry.fileIndex))}`
+        : '#?';
+      const orderIndex = Number.isFinite(Number(entry?.orderIndex))
+        ? `seq=${Math.floor(Number(entry.orderIndex))}`
+        : null;
+      const shardId = entry?.shardId ? `shard=${entry.shardId}` : null;
+      const ageMs = Number.isFinite(Number(entry?.ageMs))
+        ? `age=${Math.max(0, Math.floor(Number(entry.ageMs)))}ms`
+        : null;
+      return [fileIndex, file, orderIndex, shardId, ageMs].filter(Boolean).join(' ');
+    });
+  const remainder = list.length > preview.length
+    ? ` (+${list.length - preview.length} more)`
+    : '';
+  return preview.length ? `${preview.join('; ')}${remainder}` : 'none';
+};
+
+/**
+ * Track raw `processFile` promises independently from timeout wrappers.
+ *
+ * Stage1 uses this registry to drain active file work before shared teardown
+ * closes scheduler-backed readers.
+ *
+ * @param {{name?:string,now?:() => number}} [input]
+ * @returns {{
+ *   track:(promise:Promise<unknown>, meta?:object) => Promise<unknown>,
+ *   snapshot:() => Array<object>,
+ *   pendingCount:() => number,
+ *   drain:() => Promise<void>
+ * }}
+ */
+export const createTrackedProcessFileTaskRegistry = ({
+  name = 'stage1-process-file-tasks',
+  now = () => Date.now()
+} = {}) => {
+  const lifecycle = createLifecycleRegistry({ name });
+  const pending = new Map();
+  let nextId = 0;
+
+  const snapshot = () => Array.from(pending.entries())
+    .map(([id, entry]) => ({
+      id,
+      ...entry,
+      ageMs: Math.max(0, now() - (Number(entry?.startedAtMs) || now()))
+    }))
+    .sort((left, right) => {
+      const rightAge = Number.isFinite(Number(right?.ageMs)) ? Number(right.ageMs) : -1;
+      const leftAge = Number.isFinite(Number(left?.ageMs)) ? Number(left.ageMs) : -1;
+      if (rightAge !== leftAge) return rightAge - leftAge;
+      const leftIndex = Number.isFinite(Number(left?.fileIndex)) ? Number(left.fileIndex) : Number.MAX_SAFE_INTEGER;
+      const rightIndex = Number.isFinite(Number(right?.fileIndex)) ? Number(right.fileIndex) : Number.MAX_SAFE_INTEGER;
+      return leftIndex - rightIndex;
+    });
+
+  const track = (promise, meta = {}) => {
+    if (!promise || typeof promise.then !== 'function') return promise;
+    const id = nextId + 1;
+    nextId = id;
+    pending.set(id, normalizeTrackedProcessFileTaskMeta(meta));
+    const tracked = lifecycle.registerPromise(Promise.resolve(promise), {
+      label: typeof meta?.file === 'string' && meta.file.trim()
+        ? `process-file:${meta.file.trim()}`
+        : `process-file:${id}`
+    });
+    tracked.finally(() => {
+      pending.delete(id);
+    });
+    return tracked;
+  };
+
+  return {
+    track,
+    snapshot,
+    pendingCount: () => pending.size,
+    drain: () => lifecycle.drain()
+  };
+};
+
+/**
+ * Drain tracked raw `processFile` tasks with bounded timeout and named logs.
+ *
+ * @param {{
+ *   registry?:{drain?:Function,snapshot?:Function}|null,
+ *   timeoutMs?:number,
+ *   log?:(message:string,meta?:object)=>void,
+ *   logMeta?:object|null,
+ *   onTimeout?:(error:Error,pendingEntries:Array<object>)=>Promise<void>|void,
+ *   snapshotLimit?:number
+ * }} [input]
+ * @returns {Promise<{skipped:boolean,timedOut:boolean,elapsedMs:number,error?:unknown}>}
+ */
+export const drainTrackedProcessFileTasks = async ({
+  registry = null,
+  timeoutMs = FILE_PROCESS_CLEANUP_TIMEOUT_DEFAULT_MS,
+  log = null,
+  logMeta = null,
+  onTimeout = null,
+  snapshotLimit = 8
+} = {}) => {
+  if (!registry || typeof registry.drain !== 'function') {
+    return { skipped: true, timedOut: false, elapsedMs: 0 };
+  }
+  return runCleanupWithTimeout({
+    label: 'stage1.process-file-drain',
+    cleanup: () => registry.drain(),
+    timeoutMs,
+    log,
+    logMeta,
+    onTimeout: async (error) => {
+      const pendingEntries = typeof registry.snapshot === 'function' ? registry.snapshot() : [];
+      if (typeof log === 'function' && pendingEntries.length > 0) {
+        log(
+          `[cleanup] stage1 process-file drain timed out with ${pendingEntries.length} pending task(s): `
+            + `${buildTrackedProcessFileTaskSummaryText(pendingEntries, snapshotLimit)}`,
+          {
+            kind: 'warning',
+            ...(logMeta && typeof logMeta === 'object' ? logMeta : {}),
+            cleanupLabel: 'stage1.process-file-drain',
+            pendingCount: pendingEntries.length,
+            pendingEntries: pendingEntries.slice(0, snapshotLimit)
+          }
+        );
+      }
+      if (typeof onTimeout === 'function') {
+        await onTimeout(error, pendingEntries);
+      }
+    }
+  });
 };
 
 /**
@@ -2399,8 +2585,12 @@ export const processFiles = async ({
   let stallSnapshotTimer = null;
   let progressHeartbeatTimer = null;
   let stallAbortTimer = null;
+  let preDispatchWatchdogTimer = null;
   let orderedCompletionTracker = null;
   const activeOrderedCompletionTrackers = new Set();
+  const inFlightProcessFileTasks = createTrackedProcessFileTaskRegistry({
+    name: `stage1:${String(runtime?.buildId || 'unknown-build')}:${mode || 'unknown-mode'}`
+  });
 
   try {
     assignFileIndexes(entries);
@@ -2422,7 +2612,7 @@ export const processFiles = async ({
         repoRoot: runtime.scmRepoRoot,
         repoProvenance: runtime.repoProvenance,
         filesPosix: scmFilesPosix,
-        includeChurn: scmSnapshotConfig.includeChurn === true,
+        includeChurn: scmSnapshotConfig.includeChurn !== false,
         timeoutMs: Number.isFinite(Number(scmSnapshotConfig.timeoutMs))
           ? Number(scmSnapshotConfig.timeoutMs)
           : runtime?.scmConfig?.timeoutMs,
@@ -2735,6 +2925,7 @@ export const processFiles = async ({
         commitLagHard: orderedAppenderConfig.commitLagHard,
         resumeHysteresisRatio: orderedAppenderConfig.resumeHysteresisRatio,
         leaseTimeoutMs: runtime?.stage1Queues?.window?.leaseTimeoutMs,
+        dispatchLeaseTimeoutMs: runtime?.stage1Queues?.window?.dispatchLeaseTimeoutMs,
         runId: runtime?.buildId || null,
         flushTimeoutMs: orderedFlushTimeoutMs,
         signal: effectiveAbortSignal,
@@ -3523,6 +3714,52 @@ export const processFiles = async ({
         }
       }
     );
+    let preDispatchPhase = 'initializing';
+    let preDispatchPhaseAtMs = Date.now();
+    const markPreDispatchPhase = (phase) => {
+      preDispatchPhase = phase;
+      preDispatchPhaseAtMs = Date.now();
+    };
+    const clearPreDispatchWatchdog = () => {
+      if (typeof preDispatchWatchdogTimer === 'object' && preDispatchWatchdogTimer) {
+        clearInterval(preDispatchWatchdogTimer);
+      }
+      preDispatchWatchdogTimer = null;
+    };
+    const preDispatchHeartbeatMs = Math.max(10000, progressHeartbeatMs || FILE_PROGRESS_HEARTBEAT_DEFAULT_MS);
+    if (preDispatchHeartbeatMs > 0) {
+      preDispatchWatchdogTimer = setInterval(() => {
+        if (stage1StallAbortTriggered) return;
+        const elapsedMs = Math.max(0, Date.now() - preDispatchPhaseAtMs);
+        if (elapsedMs >= preDispatchHeartbeatMs) {
+          logLine(
+            `[watchdog] pre-dispatch heartbeat phase=${preDispatchPhase} elapsed=${Math.round(elapsedMs / 1000)}s`,
+            {
+              kind: 'warning',
+              mode,
+              stage: 'processing',
+              preDispatchPhase,
+              idleMs: elapsedMs
+            }
+          );
+        }
+        if (stage1StallAbortMs > 0 && elapsedMs >= stage1StallAbortMs) {
+          stage1StallAbortTriggered = true;
+          const err = createTimeoutError({
+            message: `Stage1 pre-dispatch stalled in phase=${preDispatchPhase} for ${elapsedMs}ms`,
+            code: 'FILE_PROCESS_STALL_TIMEOUT',
+            retryable: false,
+            meta: {
+              phase: preDispatchPhase,
+              elapsedMs
+            }
+          });
+          orderedAppender.abort(err);
+          abortProcessing(err);
+        }
+      }, preDispatchHeartbeatMs);
+      preDispatchWatchdogTimer.unref?.();
+    }
     /**
      * Process one shard or global entry list with stage1 watchdog integration.
      *
@@ -3799,19 +4036,30 @@ export const processFiles = async ({
             });
             try {
               return await runWithTimeout(
-                (signal) => withTrackedSubprocessSignalScope(
-                  signal,
-                  fileSubprocessOwnershipId,
-                  () => processFile(entry, stableFileIndex, {
+                (signal) => {
+                  const rawProcessFileTask = withTrackedSubprocessSignalScope(
                     signal,
-                    onScmProcQueueWait: (queueWaitMs) => {
-                      if (!(Number.isFinite(queueWaitMs) && queueWaitMs > 0)) return;
-                      if (lifecycle) {
-                        lifecycle.scmProcQueueWaitMs = (Number(lifecycle.scmProcQueueWaitMs) || 0) + queueWaitMs;
+                    fileSubprocessOwnershipId,
+                    () => processFile(entry, stableFileIndex, {
+                      signal,
+                      onScmProcQueueWait: (queueWaitMs) => {
+                        if (!(Number.isFinite(queueWaitMs) && queueWaitMs > 0)) return;
+                        if (lifecycle) {
+                          lifecycle.scmProcQueueWaitMs = (Number(lifecycle.scmProcQueueWaitMs) || 0) + queueWaitMs;
+                        }
                       }
-                    }
-                  })
-                ),
+                    })
+                  );
+                  inFlightProcessFileTasks.track(rawProcessFileTask, {
+                    file: rel,
+                    fileIndex: stableFileIndex,
+                    orderIndex,
+                    shardId: shardMeta?.id || null,
+                    ownershipId: fileSubprocessOwnershipId,
+                    startedAtMs: activeStartAtMs
+                  });
+                  return rawProcessFileTask;
+                },
                 {
                   timeoutMs: fileHardTimeoutMs,
                   signal: effectiveAbortSignal,
@@ -4125,7 +4373,25 @@ export const processFiles = async ({
             retryDelayMs: 200,
             signal: effectiveAbortSignal,
             requireSignal: true,
-            signalLabel: 'build.stage1.process-files.runWithQueue'
+            signalLabel: 'build.stage1.process-files.runWithQueue',
+            pendingDrainTimeoutMs: orderedCompletionGuardTimeoutMs,
+            pendingDrainStallPollMs: orderedCompletionStallPollMs,
+            onPendingDrainStall: ({ pending, elapsedMs }) => {
+              if (pending <= 0) return;
+              const elapsedSeconds = Math.max(0, Math.round(elapsedMs / 1000));
+              if (elapsedSeconds === 0) return;
+              if (elapsedSeconds % 15 !== 0) return;
+              logLine(
+                `[ordered] queue pending-drain waiting pending=${pending} elapsed=${elapsedSeconds}s`,
+                {
+                  kind: 'warning',
+                  mode,
+                  stage: 'processing',
+                  orderedPending: pending,
+                  idleMs: elapsedMs
+                }
+              );
+            }
           }
         );
         attemptOrderedGapRecovery({
@@ -4148,6 +4414,7 @@ export const processFiles = async ({
           // enqueued, later tasks may be blocked waiting for an ordered flush.
           // Abort rejects any waiting promises to prevent hangs/leaks.
           orderedAppender.abort(err);
+          abortProcessing(err);
         }
         throw err;
       }
@@ -4269,6 +4536,7 @@ export const processFiles = async ({
     };
 
     const discoveryLineCounts = discovery?.lineCounts instanceof Map ? discovery.lineCounts : null;
+    markPreDispatchPhase('line-counts');
     const clusterModeEnabled = runtime.shards?.cluster?.enabled === true;
     const clusterDeterministicMerge = runtime.shards?.cluster?.deterministicMerge !== false;
     let lineCounts = discoveryLineCounts;
@@ -4284,6 +4552,7 @@ export const processFiles = async ({
         timing.lineCountsMs = Date.now() - lineStart;
       }
     }
+    markPreDispatchPhase('shard-planning');
     const shardFeatureWeights = {
       relations: relationsEnabled ? 0.15 : 0,
       flow: (runtime.astDataflowEnabled || runtime.controlFlowEnabled) ? 0.1 : 0,
@@ -4342,6 +4611,7 @@ export const processFiles = async ({
       }
       : { enabled: false };
     const checkpointBatchSize = resolveCheckpointBatchSize(entries.length, shardPlan);
+    markPreDispatchPhase('checkpoint-setup');
     checkpoint = createBuildCheckpoint({
       buildRoot: runtime.buildRoot,
       mode,
@@ -4379,6 +4649,8 @@ export const processFiles = async ({
       }, progressHeartbeatMs);
       progressHeartbeatTimer.unref?.();
     }
+    clearPreDispatchWatchdog();
+    markPreDispatchPhase('stage1-dispatch');
     if (shardPlan && shardPlan.length > 1) {
       const shardQueuePlan = resolveStage1ShardExecutionQueuePlan({
         shardPlan,
@@ -4605,6 +4877,7 @@ export const processFiles = async ({
       if (workerFailures.length) {
         const firstFailure = workerFailures[0] || new Error('shard worker failed');
         orderedAppender.abort(firstFailure);
+        abortProcessing(firstFailure);
         throw firstFailure;
       }
       shardExecutionMeta = {
@@ -4688,7 +4961,7 @@ export const processFiles = async ({
         : { enabled: false, updatedAt };
     }
     showProgress('Files', progress.total, progress.total, { stage: 'processing', mode });
-    checkpoint.finish();
+    await checkpoint.finish();
     timing.processMs = Date.now() - processStart;
     const stageTimingBreakdownPayload = buildStageTimingBreakdownPayload();
     const extractedProseLowYieldSummary = buildExtractedProseLowYieldBailoutSummary(extractedProseLowYieldBailout);
@@ -4916,6 +5189,9 @@ export const processFiles = async ({
     if (typeof stallAbortTimer === 'object' && stallAbortTimer) {
       clearInterval(stallAbortTimer);
     }
+    if (typeof preDispatchWatchdogTimer === 'object' && preDispatchWatchdogTimer) {
+      clearInterval(preDispatchWatchdogTimer);
+    }
     if (typeof detachExternalAbort === 'function') {
       detachExternalAbort();
     }
@@ -4930,7 +5206,92 @@ export const processFiles = async ({
       log: logLine,
       meta: { cleanupTimeoutMs },
       run: () => runStage1TailCleanupTasks({
+        sequential: true,
         tasks: [
+          {
+            label: 'stage1.process-file-drain',
+            run: async () => {
+              const drainLog = (line, meta) => logLine(line, {
+                ...(meta || {}),
+                mode,
+                stage: 'processing'
+              });
+              const drainResult = await drainTrackedProcessFileTasks({
+                registry: inFlightProcessFileTasks,
+                timeoutMs: cleanupTimeoutMs,
+                log: drainLog,
+                logMeta: {
+                  mode,
+                  stage: 'processing'
+                },
+                onTimeout: async (_error, pendingEntries) => {
+                  const subprocessSnapshot = snapshotTrackedSubprocesses({
+                    ownershipPrefix: stage1OwnershipPrefix,
+                    limit: 12
+                  });
+                  if (subprocessSnapshot.total > 0) {
+                    drainLog(
+                      `[cleanup] stage1 process-file drain timeout retained ${subprocessSnapshot.total} tracked subprocess(es) `
+                        + `for ${stage1OwnershipPrefix}`,
+                      {
+                        kind: 'warning',
+                        stage1Drain: {
+                          pendingCount: Array.isArray(pendingEntries) ? pendingEntries.length : 0,
+                          trackedSubprocesses: subprocessSnapshot
+                        }
+                      }
+                    );
+                  }
+                  const cleanup = await terminateTrackedSubprocesses({
+                    reason: 'stage1_process_file_drain_timeout',
+                    force: true,
+                    ownershipPrefix: stage1OwnershipPrefix
+                  });
+                  if (cleanup?.attempted > 0) {
+                    drainLog(
+                      `[cleanup] forced termination of ${cleanup.attempted} stage1 tracked subprocess(es) `
+                        + `after process-file drain timeout.`,
+                      {
+                        kind: 'warning',
+                        cleanup
+                      }
+                    );
+                  }
+                }
+              });
+              if (!drainResult?.timedOut) {
+                return drainResult;
+              }
+              const drainRetry = await runCleanupWithTimeout({
+                label: 'stage1.process-file-drain.retry',
+                cleanup: () => inFlightProcessFileTasks.drain(),
+                timeoutMs: cleanupTimeoutMs,
+                log: drainLog,
+                logMeta: {
+                  mode,
+                  stage: 'processing'
+                }
+              });
+              if (drainRetry?.timedOut) {
+                const pendingEntries = inFlightProcessFileTasks.snapshot();
+                const drainError = createTimeoutError({
+                  message: `[cleanup] stage1 process-file drain failed with ${pendingEntries.length} pending task(s).`,
+                  code: 'STAGE1_PROCESS_FILE_DRAIN_TIMEOUT',
+                  retryable: false,
+                  meta: {
+                    pendingCount: pendingEntries.length,
+                    pendingEntries: pendingEntries.slice(0, 12)
+                  }
+                });
+                throw drainError;
+              }
+              return {
+                skipped: false,
+                timedOut: true,
+                elapsedMs: (Number(drainResult?.elapsedMs) || 0) + (Number(drainRetry?.elapsedMs) || 0)
+              };
+            }
+          },
           {
             label: 'perf-event-logger.close',
             run: () => runCleanupWithTimeout({
