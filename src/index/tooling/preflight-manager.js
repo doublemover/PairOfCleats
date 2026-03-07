@@ -769,18 +769,23 @@ const startProviderPreflight = ({
         const elapsedMs = Math.max(0, Date.now() - startedAtMs);
         const status = String(result?.state || TOOLING_PREFLIGHT_STATES.READY);
         const timedOut = result?.timedOut === true;
+        const cached = result?.cached === true;
         const reasonCode = result?.reasonCode || null;
         const message = String(result?.message || '');
-        const eventName = timedOut
-          ? 'timeout'
-          : (status === TOOLING_PREFLIGHT_STATES.READY ? 'ok' : status);
+        const eventName = cached
+          ? 'cache_hit'
+          : (timedOut
+            ? 'timeout'
+            : (status === TOOLING_PREFLIGHT_STATES.READY ? 'ok' : status));
         if (timedOut) {
           state.scheduler.metrics.timedOut += 1;
           incrementClassMetric(state.scheduler.metrics, preflightClass, 'timedOut');
         }
         log(
           `[tooling] preflight:${eventName} provider=${providerId} id=${preflightId} `
-          + `durationMs=${elapsedMs} state=${status}${timedOut ? ' timeout=1' : ''}`
+          + `durationMs=${elapsedMs} state=${status}`
+          + `${timedOut ? ' timeout=1' : ''}`
+          + `${cached ? ' cached=1' : ''}`
         );
         setSnapshot(state, key, {
           providerId,
@@ -791,7 +796,7 @@ const startProviderPreflight = ({
           startedAtMs,
           finishedAtMs: Date.now(),
           durationMs: elapsedMs,
-          cached: false,
+          cached,
           timedOut,
           preflightPolicy,
           preflightClass,
@@ -810,6 +815,7 @@ const startProviderPreflight = ({
           startedAtMs,
           finishedAtMs: Date.now(),
           timedOut,
+          cached,
           value: result || null,
           diagnostic: buildToolingPreflightDiagnostic({
             providerId,
@@ -819,7 +825,7 @@ const startProviderPreflight = ({
             message,
             durationMs: elapsedMs,
             timedOut,
-            cached: false,
+            cached,
             startedAtMs,
             finishedAtMs: Date.now()
           })

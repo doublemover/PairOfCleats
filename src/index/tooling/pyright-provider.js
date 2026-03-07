@@ -254,6 +254,9 @@ export const createPyrightProvider = () => ({
         message: 'pyright-langserver command probe failed; attempting stdio initialization anyway.'
       }
     });
+    if (commandPreflight.state !== 'ready') {
+      return commandPreflight;
+    }
     const workspaceConfigPreflight = await resolvePyrightWorkspaceConfigPreflight({ ctx });
     const workspaceRootPreflight = resolvePyrightWorkspaceRootPreflight({ ctx });
     const checks = mergePreflightChecks(
@@ -262,12 +265,6 @@ export const createPyrightProvider = () => ({
       workspaceConfigPreflight?.checks,
       workspaceRootPreflight?.checks
     );
-    if (commandPreflight.state !== 'ready') {
-      return {
-        ...commandPreflight,
-        ...(checks.length ? { checks } : {})
-      };
-    }
     if (workspaceConfigPreflight.state !== 'ready') {
       return {
         ...commandPreflight,

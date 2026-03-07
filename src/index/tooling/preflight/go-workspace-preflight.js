@@ -10,6 +10,7 @@ const DEFAULT_WARMUP_MIN_GO_FILES = 120;
 const DEFAULT_WARMUP_SCAN_BUDGET = 8000;
 const DEFAULT_WARMUP_SCAN_MAX_DEPTH = 7;
 const GO_ROOT_MARKER_NAMES = new Set(['go.mod', 'go.work']);
+const GO_SOURCE_EXTS = new Set(['.go']);
 
 const normalizeGoLanguages = (server) => {
   if (!Array.isArray(server?.languages)) return [];
@@ -69,6 +70,21 @@ const resolveWarmupScanOptions = (server) => {
   };
 };
 
+const countSelectedGoDocuments = (documents) => {
+  if (!Array.isArray(documents)) return 0;
+  let count = 0;
+  for (const doc of documents) {
+    const languageId = String(doc?.languageId || '').trim().toLowerCase();
+    if (languageId === 'go') {
+      count += 1;
+      continue;
+    }
+    const ext = path.extname(String(doc?.virtualPath || '')).toLowerCase();
+    if (GO_SOURCE_EXTS.has(ext)) count += 1;
+  }
+  return count;
+};
+
 const countGoFilesForWarmup = (repoRoot, options) => {
   const minGoFiles = Number(options?.minGoFiles) || DEFAULT_WARMUP_MIN_GO_FILES;
   const scanBudget = Number(options?.scanBudget) || DEFAULT_WARMUP_SCAN_BUDGET;
@@ -107,15 +123,26 @@ const countGoFilesForWarmup = (repoRoot, options) => {
   return goFiles;
 };
 
-const shouldRunGoWorkspaceWarmupPreflight = (repoRoot, server) => {
+const shouldRunGoWorkspaceWarmupPreflight = (repoRoot, server, documents = null) => {
   if (server?.goWorkspaceWarmup === false) return false;
   const scanOptions = resolveWarmupScanOptions(server);
+  const selectedGoDocuments = countSelectedGoDocuments(documents);
+  if (selectedGoDocuments > 0) {
+    return selectedGoDocuments >= scanOptions.minGoFiles;
+  }
   const goFileCount = countGoFilesForWarmup(repoRoot, scanOptions);
   return goFileCount >= scanOptions.minGoFiles;
 };
 
-const resolveGoWorkspaceWarmupPreflight = async ({ ctx, server, repoRoot, abortSignal = null }) => {
-  if (!shouldRunGoWorkspaceWarmupPreflight(repoRoot, server)) {
+const resolveGoWorkspaceWarmupPreflight = async ({
+  ctx,
+  server,
+  repoRoot,
+  abortSignal = null,
+  documents = null,
+  watchedFiles = []
+}) => {
+  if (!shouldRunGoWorkspaceWarmupPreflight(repoRoot, server, documents)) {
     return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
   }
   const warmupCommand = resolveWarmupCommand(server);
@@ -126,7 +153,19 @@ const resolveGoWorkspaceWarmupPreflight = async ({ ctx, server, repoRoot, abortS
     timeoutMs: warmupCommand.timeoutMs,
     abortSignal,
     reasonPrefix: 'go_workspace_warmup_probe',
-    label: 'go workspace warmup'
+    label: 'go workspace warmup',
+    log: typeof ctx?.logger === 'function' ? ctx.logger : () => {},
+    successCache: {
+      repoRoot,
+      cacheRoot: ctx?.cache?.dir || null,
+      namespace: 'go-workspace-warmup',
+      watchedFiles,
+      extra: {
+        command: warmupCommand.cmd,
+        args: warmupCommand.args,
+        minGoFiles: resolveWarmupScanOptions(server).minGoFiles
+      }
+    }
   });
 };
 
@@ -140,6 +179,9 @@ const resolveGoWorkspaceRootShapePreflight = (repoRoot) => {
   const rootHasMarker = rootEntries.some((entry) => (
     entry?.isFile?.() && GO_ROOT_MARKER_NAMES.has(String(entry.name || '').toLowerCase())
   ));
+  if (rootHasMarker) {
+    return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
+  }
   const nestedMarkerDirs = [];
   for (const entry of rootEntries) {
     if (!entry?.isDirectory?.()) continue;
@@ -186,8 +228,17 @@ const resolveGoWorkspaceRootShapePreflight = (repoRoot) => {
   };
 };
 
-export const resolveGoWorkspaceModulePreflight = async ({ ctx, server, abortSignal = null }) => {
+export const resolveGoWorkspaceModulePreflight = async ({
+  ctx,
+  server,
+  abortSignal = null,
+  documents = null
+}) => {
   if (!isGoWorkspacePreflightServer(server)) {
+    return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
+  }
+  const selectedGoDocuments = countSelectedGoDocuments(documents);
+  if (Array.isArray(documents) && documents.length > 0 && selectedGoDocuments <= 0) {
     return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
   }
   const repoRoot = String(ctx?.repoRoot || process.cwd());
@@ -197,9 +248,11 @@ export const resolveGoWorkspaceModulePreflight = async ({ ctx, server, abortSign
   }
   const goModPath = path.join(repoRoot, 'go.mod');
   const goWorkPath = path.join(repoRoot, 'go.work');
+  const goSumPath = path.join(repoRoot, 'go.sum');
   if (!fsSync.existsSync(goModPath) && !fsSync.existsSync(goWorkPath)) {
     return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
   }
+  const watchedFiles = [goModPath, goWorkPath, goSumPath];
 
   const command = resolveModuleCommand(server);
   const modulePreflight = await runWorkspaceCommandPreflight({
@@ -209,7 +262,18 @@ export const resolveGoWorkspaceModulePreflight = async ({ ctx, server, abortSign
     timeoutMs: command.timeoutMs,
     abortSignal,
     reasonPrefix: 'go_workspace_module_probe',
-    label: 'go workspace module'
+    label: 'go workspace module',
+    log: typeof ctx?.logger === 'function' ? ctx.logger : () => {},
+    successCache: {
+      repoRoot,
+      cacheRoot: ctx?.cache?.dir || null,
+      namespace: 'go-workspace-module',
+      watchedFiles,
+      extra: {
+        command: command.cmd,
+        args: command.args
+      }
+    }
   });
   if (modulePreflight.state !== 'ready') {
     return modulePreflight;
@@ -218,6 +282,8 @@ export const resolveGoWorkspaceModulePreflight = async ({ ctx, server, abortSign
     ctx,
     server,
     repoRoot,
-    abortSignal
+    abortSignal,
+    documents,
+    watchedFiles
   });
 };

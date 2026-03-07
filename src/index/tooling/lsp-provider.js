@@ -354,11 +354,13 @@ const resolveRustProcMacroSuppressionPolicyPreflight = ({ server }) => {
 };
 
 const resolveFirstNonReadyPreflight = (...entries) => {
+  let cachedReady = null;
   for (const entry of entries) {
     const state = String(entry?.state || 'ready').trim().toLowerCase() || 'ready';
     if (state !== 'ready') return entry;
+    if (!cachedReady && entry?.cached === true) cachedReady = entry;
   }
-  return { state: 'ready', reasonCode: null, message: '' };
+  return cachedReady || { state: 'ready', reasonCode: null, message: '' };
 };
 
 const parseGenericSignature = (detail, languageId, symbolName) => {
@@ -963,10 +965,6 @@ const createConfiguredLspProvider = (server) => {
       server,
       repoRoot: ctx?.repoRoot || process.cwd()
     });
-    const luaWorkspaceConfigPreflight = await resolveLuaWorkspaceConfigPreflight({
-      server,
-      repoRoot: ctx?.repoRoot || process.cwd()
-    });
     const yamlSchemaModePreflight = resolveYamlSchemaModePreflight({ server });
     const runtimeRequirementPreflight = resolveRuntimeRequirementsPreflight({
       ctx,
@@ -977,22 +975,51 @@ const createConfiguredLspProvider = (server) => {
       server,
       repoRoot: ctx?.repoRoot || process.cwd()
     });
-    const goWorkspacePreflight = await resolveGoWorkspaceModulePreflight({
-      ctx,
-      server,
-      abortSignal: preflightAbortSignal
-    });
-    const rustWorkspacePreflight = await resolveRustWorkspaceMetadataPreflight({
-      ctx,
-      server,
-      abortSignal: preflightAbortSignal
-    });
     const rustSuppressionPolicyPreflight = resolveRustProcMacroSuppressionPolicyPreflight({
       server
     });
-    if (!(server.workspaceMarkerOptions && server.requireWorkspaceModel !== false)) {
+    if (commandPreflight.state !== 'ready') {
       const checks = mergePreflightChecks(
         commandPreflight?.checks,
+        luaLibraryPreflight?.check,
+        luaLibraryPreflight?.checks,
+        yamlSchemaModePreflight?.check,
+        yamlSchemaModePreflight?.checks,
+        runtimeRequirementPreflight?.check,
+        runtimeRequirementPreflight?.checks,
+        rustSuppressionPolicyPreflight?.check,
+        rustSuppressionPolicyPreflight?.checks,
+        zigWorkspaceRootPreflight?.check,
+        zigWorkspaceRootPreflight?.checks
+      );
+      return {
+        ...commandPreflight,
+        ...(checks.length ? { checks } : {})
+      };
+    }
+    const [
+      luaWorkspaceConfigPreflight,
+      goWorkspacePreflight,
+      rustWorkspacePreflight
+    ] = await Promise.all([
+      resolveLuaWorkspaceConfigPreflight({
+        server,
+        repoRoot: ctx?.repoRoot || process.cwd()
+      }),
+      resolveGoWorkspaceModulePreflight({
+        ctx,
+        server,
+        abortSignal: preflightAbortSignal,
+        documents: Array.isArray(inputs?.documents) ? inputs.documents : []
+      }),
+      resolveRustWorkspaceMetadataPreflight({
+        ctx,
+        server,
+        abortSignal: preflightAbortSignal
+      })
+    ]);
+    if (!(server.workspaceMarkerOptions && server.requireWorkspaceModel !== false)) {
+      const checks = mergePreflightChecks(
         luaLibraryPreflight?.check,
         luaLibraryPreflight?.checks,
         luaWorkspaceConfigPreflight?.check,
@@ -1010,12 +1037,6 @@ const createConfiguredLspProvider = (server) => {
         rustWorkspacePreflight?.check,
         rustWorkspacePreflight?.checks
       );
-      if (commandPreflight.state !== 'ready') {
-        return {
-          ...commandPreflight,
-          ...(checks.length ? { checks } : {})
-        };
-      }
       const environmentPreflight = resolveFirstNonReadyPreflight(
         luaLibraryPreflight,
         luaWorkspaceConfigPreflight,
@@ -1032,11 +1053,13 @@ const createConfiguredLspProvider = (server) => {
           state: environmentPreflight.state || 'degraded',
           reasonCode: environmentPreflight.reasonCode || null,
           message: environmentPreflight.message || '',
+          cached: environmentPreflight.cached === true,
           ...(checks.length ? { checks } : {})
         };
       }
       return {
         ...commandPreflight,
+        cached: environmentPreflight.cached === true,
         ...(checks.length ? { checks } : {})
       };
     }
@@ -1052,7 +1075,6 @@ const createConfiguredLspProvider = (server) => {
       policy: server.workspaceModelPolicy
     });
     const checks = mergePreflightChecks(
-      commandPreflight?.checks,
       workspacePreflight?.check,
       workspacePreflight?.checks,
       luaLibraryPreflight?.check,
@@ -1082,12 +1104,6 @@ const createConfiguredLspProvider = (server) => {
         ...(checks.length ? { checks } : {})
       };
     }
-    if (commandPreflight.state !== 'ready') {
-      return {
-        ...commandPreflight,
-        ...(checks.length ? { checks } : {})
-      };
-    }
     const environmentPreflight = resolveFirstNonReadyPreflight(
       luaLibraryPreflight,
       luaWorkspaceConfigPreflight,
@@ -1104,6 +1120,7 @@ const createConfiguredLspProvider = (server) => {
         state: environmentPreflight.state || 'degraded',
         reasonCode: environmentPreflight.reasonCode || null,
         message: environmentPreflight.message || '',
+        cached: environmentPreflight.cached === true,
         ...(checks.length ? { checks } : {})
       };
     }
@@ -1111,6 +1128,7 @@ const createConfiguredLspProvider = (server) => {
       state: workspacePreflight.state || 'ready',
       reasonCode: workspacePreflight.reasonCode || commandPreflight.reasonCode || null,
       message: workspacePreflight.message || commandPreflight.message || '',
+      cached: environmentPreflight.cached === true,
       commandProfile: commandPreflight.commandProfile,
       ...(checks.length ? { checks } : {})
     };

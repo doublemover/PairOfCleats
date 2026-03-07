@@ -21,6 +21,23 @@ const EMPTY_TOOLING_PASS_STATS = Object.freeze({
   toolingRequestTimeouts: 0
 });
 
+const resolveDefaultToolingCacheDir = ({
+  rootDir,
+  buildRoot
+}) => {
+  const resolvedRootDir = path.resolve(String(rootDir || process.cwd()));
+  const resolvedBuildRoot = buildRoot
+    ? path.resolve(String(buildRoot))
+    : '';
+  const buildParent = resolvedBuildRoot ? path.dirname(resolvedBuildRoot) : '';
+  if (resolvedBuildRoot && path.basename(buildParent).toLowerCase() === 'builds') {
+    return path.join(path.dirname(buildParent), 'tooling-cache');
+  }
+  return path.join(resolvedRootDir, '.build', 'pairofcleats', 'tooling-cache');
+};
+
+export const __resolveDefaultToolingCacheDirForTests = resolveDefaultToolingCacheDir;
+
 const createToolingLogger = (rootDir, logDir, provider, baseLog) => {
   if (!logDir || !provider) return baseLog;
   const absDir = isAbsolutePathNative(logDir) ? logDir : path.join(rootDir, logDir);
@@ -215,7 +232,7 @@ export const runToolingPass = async ({
   const cacheDirRaw = cacheConfig.dir;
   const cacheDir = cacheDirRaw
     ? (isAbsolutePathNative(cacheDirRaw) ? cacheDirRaw : path.join(buildRoot || rootDir, cacheDirRaw))
-    : path.join(buildRoot || rootDir, 'tooling-cache');
+    : resolveDefaultToolingCacheDir({ rootDir, buildRoot });
 
   const ctx = {
     repoRoot: rootDir,

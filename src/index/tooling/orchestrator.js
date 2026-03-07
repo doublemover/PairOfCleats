@@ -780,7 +780,6 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
   const sourcesByChunkUid = new Map();
   const providerDiagnostics = {};
   const observations = [];
-  const preflightWaveToken = kickoffToolingProviderPreflights(ctx, providerPlans);
   const providerCount = providerPlans.length;
   if (log && providerCount > 0) {
     log(
@@ -922,11 +921,12 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
         }
         if (!output) {
           providerProgressPhase = 'live-run';
+          const providerPreflightWaveToken = kickoffToolingProviderPreflights(ctx, [plan]);
           const providerInputs = {
             ...inputs,
             documents: planDocuments,
             targets: planTargets,
-            toolingPreflightWaveToken: preflightWaveToken
+            toolingPreflightWaveToken: providerPreflightWaveToken
           };
           try {
             output = await provider.run(ctx, providerInputs);

@@ -38,6 +38,8 @@ export const resolveRustWorkspaceMetadataPreflight = async ({ ctx, server, abort
   const repoRoot = String(ctx?.repoRoot || process.cwd());
   const cargoTomlPath = path.join(repoRoot, 'Cargo.toml');
   const cargoLockPath = path.join(repoRoot, 'Cargo.lock');
+  const cargoConfigTomlPath = path.join(repoRoot, '.cargo', 'config.toml');
+  const cargoConfigPath = path.join(repoRoot, '.cargo', 'config');
   if (!fsSync.existsSync(cargoTomlPath) && !fsSync.existsSync(cargoLockPath)) {
     return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
   }
@@ -50,6 +52,17 @@ export const resolveRustWorkspaceMetadataPreflight = async ({ ctx, server, abort
     timeoutMs: command.timeoutMs,
     abortSignal,
     reasonPrefix: 'rust_workspace_metadata',
-    label: 'rust workspace metadata'
+    label: 'rust workspace metadata',
+    log: typeof ctx?.logger === 'function' ? ctx.logger : () => {},
+    successCache: {
+      repoRoot,
+      cacheRoot: ctx?.cache?.dir || null,
+      namespace: 'rust-workspace-metadata',
+      watchedFiles: [cargoTomlPath, cargoLockPath, cargoConfigTomlPath, cargoConfigPath],
+      extra: {
+        command: command.cmd,
+        args: command.args
+      }
+    }
   });
 };

@@ -1,6 +1,12 @@
 import {
   spawnSubprocess
 } from '../../../shared/subprocess.js';
+import { TOOLING_PREFLIGHT_REASON_CODES } from './contract.js';
+import {
+  buildWorkspaceCommandPreflightFingerprint,
+  readWorkspaceCommandPreflightCacheHit,
+  writeWorkspaceCommandPreflightCacheMarker
+} from './workspace-command-preflight-cache.js';
 
 const summarize = (value, maxChars = 220) => {
   const text = String(value || '').replace(/\s+/g, ' ').trim();
@@ -20,7 +26,15 @@ const summarize = (value, maxChars = 220) => {
  *   timeoutMs: number,
  *   abortSignal?: AbortSignal|null,
  *   reasonPrefix: string,
- *   label: string
+ *   label: string,
+ *   log?:(line:string)=>void,
+ *   successCache?:{
+ *     repoRoot?:string,
+ *     cacheRoot?:string|null,
+ *     namespace:string,
+ *     watchedFiles?:string[],
+ *     extra?:object|null
+ *   }|null
  * }} input
  * @returns {{
  *   state: 'ready'|'degraded',
@@ -37,7 +51,9 @@ export const runWorkspaceCommandPreflight = async ({
   timeoutMs,
   abortSignal = null,
   reasonPrefix,
-  label
+  label,
+  log = () => {},
+  successCache = null
 }) => {
   const command = String(cmd || '').trim();
   const commandArgs = Array.isArray(args) ? args.map((entry) => String(entry)) : [];
@@ -48,6 +64,41 @@ export const runWorkspaceCommandPreflight = async ({
   const descriptor = String(label || 'workspace probe').trim() || 'workspace probe';
   if (!command || !prefix) {
     return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
+  }
+  const cacheEnabled = successCache
+    && typeof successCache === 'object'
+    && typeof successCache.namespace === 'string'
+    && successCache.namespace.trim();
+  let successFingerprint = null;
+  if (cacheEnabled) {
+    try {
+      successFingerprint = await buildWorkspaceCommandPreflightFingerprint({
+        repoRoot: successCache.repoRoot || ctx?.repoRoot || process.cwd(),
+        command,
+        args: commandArgs,
+        watchedFiles: successCache.watchedFiles || [],
+        extra: successCache.extra || null
+      });
+      const cached = await readWorkspaceCommandPreflightCacheHit({
+        repoRoot: successCache.repoRoot || ctx?.repoRoot || process.cwd(),
+        cacheRoot: successCache.cacheRoot || null,
+        namespace: successCache.namespace,
+        fingerprint: successFingerprint
+      });
+      if (cached.hit) {
+        if (typeof log === 'function') {
+          log(`[tooling] ${descriptor} preflight cache hit.`);
+        }
+        return {
+          state: 'ready',
+          reasonCode: TOOLING_PREFLIGHT_REASON_CODES.CACHE_HIT,
+          message: '',
+          check: null,
+          checks: [],
+          cached: true
+        };
+      }
+    } catch {}
   }
   try {
     const result = await spawnSubprocess(command, commandArgs, {
@@ -64,6 +115,19 @@ export const runWorkspaceCommandPreflight = async ({
     });
     const exitCode = Number(result?.exitCode);
     if (Number.isFinite(exitCode) && exitCode === 0) {
+      if (cacheEnabled && successFingerprint) {
+        try {
+          await writeWorkspaceCommandPreflightCacheMarker({
+            repoRoot: successCache.repoRoot || ctx?.repoRoot || process.cwd(),
+            cacheRoot: successCache.cacheRoot || null,
+            namespace: successCache.namespace,
+            fingerprint: successFingerprint,
+            command,
+            args: commandArgs,
+            durationMs: result?.durationMs
+          });
+        } catch {}
+      }
       return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
     }
     const summary = summarize(result?.stderr || result?.stdout);
