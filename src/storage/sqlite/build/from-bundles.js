@@ -58,6 +58,7 @@ const MAX_VOCAB_LOOKUP_CACHE_ENTRIES = 250000;
  * @param {'prepared'|'multi-row'|'prepare-per-shard'} [params.statementStrategy]
  * @param {boolean} [params.buildPragmas]
  * @param {boolean} [params.optimize]
+ * @param {number} [params.vocabLookupCacheMaxEntries]
  * @param {object} [params.stats]
  * @returns {Promise<{count:number,denseCount:number,reason?:string,embedStats?:object,vectorAnn?:object}>}
  */
@@ -79,6 +80,7 @@ export async function buildDatabaseFromBundles({
   statementStrategy,
   buildPragmas,
   optimize,
+  vocabLookupCacheMaxEntries,
   stats
 }) {
   const log = (message, meta = null) => {
@@ -111,6 +113,10 @@ export async function buildDatabaseFromBundles({
     recordBatch,
     recordTable
   } = createBuildExecutionContext({ batchSize, inputBytes, statementStrategy, stats });
+  const maxVocabLookupEntries = Number.isFinite(Number(vocabLookupCacheMaxEntries))
+    && Number(vocabLookupCacheMaxEntries) > 0
+    ? Math.max(1, Math.floor(Number(vocabLookupCacheMaxEntries)))
+    : MAX_VOCAB_LOOKUP_CACHE_ENTRIES;
   const manifestFiles = incrementalData.manifest.files || {};
   const manifestLookup = createManifestLookup(manifestFiles);
   const manifestByNormalized = manifestLookup.map;
@@ -193,6 +199,9 @@ export async function buildDatabaseFromBundles({
       insertChargramVocabMany,
       insertChargramPostingMany
     } = createSqliteBuildInsertContext(db, { batchStats, resolvedStatementStrategy });
+    const selectTokenVocabId = db.prepare('SELECT token_id FROM token_vocab WHERE mode = ? AND token = ?');
+    const selectPhraseVocabId = db.prepare('SELECT phrase_id FROM phrase_vocab WHERE mode = ? AND ngram = ?');
+    const selectChargramVocabId = db.prepare('SELECT gram_id FROM chargram_vocab WHERE mode = ? AND gram = ?');
 
     beginSqliteBuildTransaction(db, batchStats);
 
@@ -308,18 +317,67 @@ export async function buildDatabaseFromBundles({
 
     const ensureMapCapacity = (map, {
       warned,
-      label
+      label,
+      flushPending = null
     }) => {
       if (!(map instanceof Map)) return warned;
-      if (map.size < MAX_VOCAB_LOOKUP_CACHE_ENTRIES) return warned;
+      if (map.size < maxVocabLookupEntries) return warned;
+      if (typeof flushPending === 'function') flushPending();
       map.clear();
       if (!warned) {
         warn(
-          `[sqlite] ${label} lookup cache reached ${MAX_VOCAB_LOOKUP_CACHE_ENTRIES} entries; ` +
+          `[sqlite] ${label} lookup cache reached ${maxVocabLookupEntries} entries; ` +
           'clearing cache to cap memory.'
         );
       }
       return true;
+    };
+    const cacheResolvedVocabId = ({
+      map,
+      value,
+      id,
+      label,
+      warned,
+      flushPending = null
+    }) => {
+      const nextWarned = ensureMapCapacity(map, {
+        warned,
+        label,
+        flushPending
+      });
+      map.set(value, id);
+      return nextWarned;
+    };
+    const resolvePersistedVocabId = ({
+      map,
+      value,
+      selectStmt,
+      label,
+      warned,
+      flushPending = null
+    }) => {
+      const cached = map.get(value);
+      if (cached !== undefined) {
+        return { id: cached, warned };
+      }
+      const persistedRow = selectStmt?.get(mode, value) || null;
+      const persistedId = Number(
+        persistedRow?.token_id
+          ?? persistedRow?.phrase_id
+          ?? persistedRow?.gram_id
+      );
+      if (!Number.isInteger(persistedId) || persistedId < 0) {
+        return { id: undefined, warned };
+      }
+      const nextWarned = cacheResolvedVocabId({
+        map,
+        value,
+        id: persistedId,
+        label,
+        warned,
+        flushPending
+      });
+      return { id: persistedId, warned: nextWarned };
     };
     const reserveFallbackDocId = () => {
       while (assignedDocIds.has(nextDocId)) nextDocId += 1;
@@ -382,22 +440,37 @@ export async function buildDatabaseFromBundles({
           for (const [token, tf] of freq.entries()) {
             let tokenId = tokenIdMap.get(token);
             if (tokenId === undefined) {
-              tokenId = nextTokenId;
-              nextTokenId += 1;
-              tokenIdMapTrimmed = ensureMapCapacity(tokenIdMap, {
+              const persisted = resolvePersistedVocabId({
+                map: tokenIdMap,
+                value: token,
+                selectStmt: selectTokenVocabId,
+                label: 'token vocab',
                 warned: tokenIdMapTrimmed,
-                label: 'token vocab'
+                flushPending: () => flushBuffer(tokenVocabBuffer, insertTokenVocabMany, insertTokenVocab)
               });
-              tokenIdMap.set(token, tokenId);
-              if (insertTokenVocabMany) {
-                tokenVocabBuffer.push([mode, tokenId, token]);
-                if (tokenVocabBuffer.length >= insertTokenVocabMany.maxRows) {
-                  flushBuffer(tokenVocabBuffer, insertTokenVocabMany, insertTokenVocab);
+              tokenId = persisted.id;
+              tokenIdMapTrimmed = persisted.warned;
+              if (tokenId === undefined) {
+                tokenId = nextTokenId;
+                nextTokenId += 1;
+                tokenIdMapTrimmed = cacheResolvedVocabId({
+                  map: tokenIdMap,
+                  value: token,
+                  id: tokenId,
+                  label: 'token vocab',
+                  warned: tokenIdMapTrimmed,
+                  flushPending: () => flushBuffer(tokenVocabBuffer, insertTokenVocabMany, insertTokenVocab)
+                });
+                if (insertTokenVocabMany) {
+                  tokenVocabBuffer.push([mode, tokenId, token]);
+                  if (tokenVocabBuffer.length >= insertTokenVocabMany.maxRows) {
+                    flushBuffer(tokenVocabBuffer, insertTokenVocabMany, insertTokenVocab);
+                  }
+                } else {
+                  insertTokenVocab.run(mode, tokenId, token);
                 }
-              } else {
-                insertTokenVocab.run(mode, tokenId, token);
+                tokenVocabRows += 1;
               }
-              tokenVocabRows += 1;
             }
             if (insertTokenPostingMany) {
               tokenPostingBuffer.push([mode, tokenId, docId, tf]);
@@ -416,22 +489,37 @@ export async function buildDatabaseFromBundles({
           for (const ng of unique) {
             let phraseId = phraseIdMap.get(ng);
             if (phraseId === undefined) {
-              phraseId = nextPhraseId;
-              nextPhraseId += 1;
-              phraseIdMapTrimmed = ensureMapCapacity(phraseIdMap, {
+              const persisted = resolvePersistedVocabId({
+                map: phraseIdMap,
+                value: ng,
+                selectStmt: selectPhraseVocabId,
+                label: 'phrase vocab',
                 warned: phraseIdMapTrimmed,
-                label: 'phrase vocab'
+                flushPending: () => flushBuffer(phraseVocabBuffer, insertPhraseVocabMany, insertPhraseVocab)
               });
-              phraseIdMap.set(ng, phraseId);
-              if (insertPhraseVocabMany) {
-                phraseVocabBuffer.push([mode, phraseId, ng]);
-                if (phraseVocabBuffer.length >= insertPhraseVocabMany.maxRows) {
-                  flushBuffer(phraseVocabBuffer, insertPhraseVocabMany, insertPhraseVocab);
+              phraseId = persisted.id;
+              phraseIdMapTrimmed = persisted.warned;
+              if (phraseId === undefined) {
+                phraseId = nextPhraseId;
+                nextPhraseId += 1;
+                phraseIdMapTrimmed = cacheResolvedVocabId({
+                  map: phraseIdMap,
+                  value: ng,
+                  id: phraseId,
+                  label: 'phrase vocab',
+                  warned: phraseIdMapTrimmed,
+                  flushPending: () => flushBuffer(phraseVocabBuffer, insertPhraseVocabMany, insertPhraseVocab)
+                });
+                if (insertPhraseVocabMany) {
+                  phraseVocabBuffer.push([mode, phraseId, ng]);
+                  if (phraseVocabBuffer.length >= insertPhraseVocabMany.maxRows) {
+                    flushBuffer(phraseVocabBuffer, insertPhraseVocabMany, insertPhraseVocab);
+                  }
+                } else {
+                  insertPhraseVocab.run(mode, phraseId, ng);
                 }
-              } else {
-                insertPhraseVocab.run(mode, phraseId, ng);
+                phraseVocabRows += 1;
               }
-              phraseVocabRows += 1;
             }
             if (insertPhrasePostingMany) {
               phrasePostingBuffer.push([mode, phraseId, docId]);
@@ -450,22 +538,37 @@ export async function buildDatabaseFromBundles({
           for (const gram of unique) {
             let gramId = chargramIdMap.get(gram);
             if (gramId === undefined) {
-              gramId = nextChargramId;
-              nextChargramId += 1;
-              chargramIdMapTrimmed = ensureMapCapacity(chargramIdMap, {
+              const persisted = resolvePersistedVocabId({
+                map: chargramIdMap,
+                value: gram,
+                selectStmt: selectChargramVocabId,
+                label: 'chargram vocab',
                 warned: chargramIdMapTrimmed,
-                label: 'chargram vocab'
+                flushPending: () => flushBuffer(chargramVocabBuffer, insertChargramVocabMany, insertChargramVocab)
               });
-              chargramIdMap.set(gram, gramId);
-              if (insertChargramVocabMany) {
-                chargramVocabBuffer.push([mode, gramId, gram]);
-                if (chargramVocabBuffer.length >= insertChargramVocabMany.maxRows) {
-                  flushBuffer(chargramVocabBuffer, insertChargramVocabMany, insertChargramVocab);
+              gramId = persisted.id;
+              chargramIdMapTrimmed = persisted.warned;
+              if (gramId === undefined) {
+                gramId = nextChargramId;
+                nextChargramId += 1;
+                chargramIdMapTrimmed = cacheResolvedVocabId({
+                  map: chargramIdMap,
+                  value: gram,
+                  id: gramId,
+                  label: 'chargram vocab',
+                  warned: chargramIdMapTrimmed,
+                  flushPending: () => flushBuffer(chargramVocabBuffer, insertChargramVocabMany, insertChargramVocab)
+                });
+                if (insertChargramVocabMany) {
+                  chargramVocabBuffer.push([mode, gramId, gram]);
+                  if (chargramVocabBuffer.length >= insertChargramVocabMany.maxRows) {
+                    flushBuffer(chargramVocabBuffer, insertChargramVocabMany, insertChargramVocab);
+                  }
+                } else {
+                  insertChargramVocab.run(mode, gramId, gram);
                 }
-              } else {
-                insertChargramVocab.run(mode, gramId, gram);
+                chargramVocabRows += 1;
               }
-              chargramVocabRows += 1;
             }
             if (insertChargramPostingMany) {
               chargramPostingBuffer.push([mode, gramId, docId]);
@@ -650,14 +753,19 @@ export async function buildDatabaseFromBundles({
       denseFloatChunks,
       denseU8Chunks,
       filesTotal: fileEmbeddingCounts.size,
+      filesWithChunks: 0,
       filesWithEmbeddings: 0,
       filesMissingEmbeddings: 0,
       sampleMissingFiles: []
     };
     for (const [file, embedCount] of fileEmbeddingCounts.entries()) {
+      const chunkCount = Number(fileCounts.get(file) || 0);
+      if (chunkCount > 0) {
+        embedStats.filesWithChunks += 1;
+      }
       if (embedCount > 0) {
         embedStats.filesWithEmbeddings += 1;
-      } else {
+      } else if (chunkCount > 0) {
         embedStats.filesMissingEmbeddings += 1;
         if (embedStats.sampleMissingFiles.length < 3) embedStats.sampleMissingFiles.push(file);
       }

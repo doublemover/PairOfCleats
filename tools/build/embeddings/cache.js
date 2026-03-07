@@ -289,10 +289,20 @@ export const createShardAppendHandlePool = () => {
     async get(shardPath) {
       let entry = handles.get(shardPath) || null;
       if (!entry) {
-        const handle = await fs.open(shardPath, 'a');
-        const stat = await handle.stat();
-        entry = { handle, size: stat.size };
-        handles.set(shardPath, entry);
+        let handle = null;
+        try {
+          handle = await fs.open(shardPath, 'a');
+          const stat = await handle.stat();
+          entry = { handle, size: stat.size };
+          handles.set(shardPath, entry);
+        } catch (error) {
+          if (handle) {
+            try {
+              await handle.close();
+            } catch {}
+          }
+          throw error;
+        }
       }
       return entry;
     },

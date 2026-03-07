@@ -458,7 +458,10 @@ export const executeSqliteModeBuilds = async ({
           batchSize: activeBatchConfig,
           stats: sqliteStats
         });
-        const missingDense = denseArtifactsRequired && bundleResult?.denseCount === 0;
+        const missingDense = denseArtifactsRequired && (
+          bundleResult?.denseCount === 0
+          || Number(bundleResult?.embedStats?.filesMissingEmbeddings || 0) > 0
+        );
         const bundleFailureReason = bundleResult?.reason || (missingDense ? 'bundles missing embeddings' : '');
         if (bundleFailureReason) {
           warn(`[sqlite] incremental bundle build failed for ${mode}: ${bundleFailureReason}; using artifacts.`);
