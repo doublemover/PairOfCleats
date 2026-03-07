@@ -40,43 +40,47 @@ const crashLogger = await createCrashLogger({
   enabled: true
 });
 
-let scheduler = null;
-await withTemporaryEnv({ PAIROFCLEATS_TEST_TREE_SITTER_SCHEDULER_CRASH: 'perl' }, async () => {
-  scheduler = await runTreeSitterScheduler({
-    mode: 'code',
-    runtime,
-    entries: [perlAbs, jsAbs],
-    outDir,
-    abortSignal: null,
-    log: () => {},
-    crashLogger
+try {
+  let scheduler = null;
+  await withTemporaryEnv({ PAIROFCLEATS_TEST_TREE_SITTER_SCHEDULER_CRASH: 'perl' }, async () => {
+    scheduler = await runTreeSitterScheduler({
+      mode: 'code',
+      runtime,
+      entries: [perlAbs, jsAbs],
+      outDir,
+      abortSignal: null,
+      log: () => {},
+      crashLogger
+    });
   });
-});
 
-assert.ok(scheduler, 'expected scheduler object');
-assert.ok(scheduler.index instanceof Map, 'expected scheduler index map');
-assert.ok(
-  scheduler.index.size > 0,
-  'expected repo to continue indexing unaffected files after injected perl parser crash'
-);
-const stats = scheduler.stats();
-assert.ok(
-  Number(stats?.parserCrashSignatures) >= 1,
-  'expected parser crash signature marker in scheduler stats'
-);
-assert.ok(
-  Number(stats?.degradedVirtualPaths) >= 1,
-  'expected degraded path count in scheduler stats'
-);
-const crashSummary = scheduler.getCrashSummary();
-assert.ok(Array.isArray(crashSummary?.parserCrashEvents), 'expected parser crash events array');
-assert.ok(crashSummary.parserCrashEvents.length >= 1, 'expected at least one parser crash event');
+  assert.ok(scheduler, 'expected scheduler object');
+  assert.ok(scheduler.index instanceof Map, 'expected scheduler index map');
+  assert.ok(
+    scheduler.index.size > 0,
+    'expected repo to continue indexing unaffected files after injected perl parser crash'
+  );
+  const stats = scheduler.stats();
+  assert.ok(
+    Number(stats?.parserCrashSignatures) >= 1,
+    'expected parser crash signature marker in scheduler stats'
+  );
+  assert.ok(
+    Number(stats?.degradedVirtualPaths) >= 1,
+    'expected degraded path count in scheduler stats'
+  );
+  const crashSummary = scheduler.getCrashSummary();
+  assert.ok(Array.isArray(crashSummary?.parserCrashEvents), 'expected parser crash events array');
+  assert.ok(crashSummary.parserCrashEvents.length >= 1, 'expected at least one parser crash event');
 
-await fs.access(scheduler.crashForensicsBundlePath);
-await fs.access(path.join(repoCacheRoot, 'logs', 'index-crash-forensics-index.json'));
-const durableCrashPath = scheduler.durableCrashForensicsBundlePath;
-if (durableCrashPath) {
-  await fs.access(durableCrashPath);
+  await fs.access(scheduler.crashForensicsBundlePath);
+  await fs.access(path.join(repoCacheRoot, 'logs', 'index-crash-forensics-index.json'));
+  const durableCrashPath = scheduler.durableCrashForensicsBundlePath;
+  if (durableCrashPath) {
+    await fs.access(durableCrashPath);
+  }
+} finally {
+  await crashLogger.close?.();
 }
 
 console.log('perl scheduler crash recovery ok');

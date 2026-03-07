@@ -16,14 +16,16 @@ await fs.mkdir(tempRoot, { recursive: true });
 
 const previous = process.env.PAIROFCLEATS_CRASH_LOG_ANNOUNCE;
 const messages = [];
+let logger = null;
 process.env.PAIROFCLEATS_CRASH_LOG_ANNOUNCE = '0';
 try {
-  await createCrashLogger({
+  logger = await createCrashLogger({
     repoCacheRoot: tempRoot,
     enabled: true,
     log: (line) => messages.push(String(line))
   });
 } finally {
+  await logger?.close?.();
   if (previous === undefined) delete process.env.PAIROFCLEATS_CRASH_LOG_ANNOUNCE;
   else process.env.PAIROFCLEATS_CRASH_LOG_ANNOUNCE = previous;
 }
