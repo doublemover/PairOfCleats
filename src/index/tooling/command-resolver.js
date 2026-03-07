@@ -7,6 +7,12 @@ import { spawnSubprocessSync } from '../../shared/subprocess.js';
 import { buildWindowsShellCommand } from '../../shared/subprocess/windows-cmd.js';
 import { createLspClient, pathToFileUri } from '../../integrations/tooling/lsp/client.js';
 import { findBinaryInDirs, findBinaryOnPath, splitPathEntries } from './binary-utils.js';
+import {
+  __getPersistentCommandProbeCacheRuntimeStatsForTests,
+  __resetPersistentCommandProbeCacheRuntimeStatsForTests,
+  readPersistentCommandProbeCache,
+  writePersistentCommandProbeCache
+} from './command-probe-persistent-cache.js';
 import { normalizeProviderId } from './provider-contract.js';
 
 const WINDOWS_EXEC_EXTS = ['.exe', '.cmd', '.bat'];
@@ -444,7 +450,7 @@ const resolveBaseCommand = ({ providerId, requestedCmd, repoRoot, toolingConfig 
   return '';
 };
 
-const probeBinary = ({ providerId, command, probeArgs, timeoutMs }) => {
+const probeBinary = ({ providerId, command, probeArgs, timeoutMs, toolingConfig }) => {
   const cacheKey = `${normalizeProviderId(providerId) || ''}\u0000${String(command || '').trim()}\u0000${JSON.stringify(probeArgs || [])}\u0000${Math.max(100, Math.floor(Number(timeoutMs) || DEFAULT_PROBE_TIMEOUT_MS))}`;
   const now = Date.now();
   const normalizedProviderId = normalizeProviderId(providerId);
@@ -454,11 +460,31 @@ const probeBinary = ({ providerId, command, probeArgs, timeoutMs }) => {
     return {
       ok: cached.ok === true,
       attempted: Array.isArray(cached.attempted) ? cached.attempted : [],
-      cached: true
+      cached: true,
+      cacheSource: 'memory'
     };
   }
   if (cached) {
     COMMAND_PROBE_CACHE.delete(cacheKey);
+  }
+  const persistentCached = readPersistentCommandProbeCache({
+    command,
+    toolingConfig
+  });
+  if (persistentCached?.ok === true) {
+    setBoundedCacheEntry(
+      COMMAND_PROBE_CACHE,
+      cacheKey,
+      {
+        ok: true,
+        attempted: persistentCached.attempted,
+        expiresAt: now + resolveCommandProbeSuccessTtlMs(),
+        providerId: normalizedProviderId,
+        commandKey
+      },
+      COMMAND_PROBE_CACHE_MAX_ENTRIES
+    );
+    return persistentCached;
   }
   const attempted = [];
   for (const args of probeArgs) {
@@ -492,10 +518,16 @@ const probeBinary = ({ providerId, command, probeArgs, timeoutMs }) => {
           },
           COMMAND_PROBE_CACHE_MAX_ENTRIES
         );
+        writePersistentCommandProbeCache({
+          command,
+          toolingConfig,
+          attempted
+        });
         return {
           ok: true,
           attempted,
-          cached: false
+          cached: false,
+          cacheSource: null
         };
       }
     } catch (err) {
@@ -530,18 +562,21 @@ const probeBinary = ({ providerId, command, probeArgs, timeoutMs }) => {
   return {
     ok: false,
     attempted,
-    cached: false
+    cached: false,
+    cacheSource: null
   };
 };
 
 export const __resetToolingCommandProbeCacheForTests = () => {
   COMMAND_PROBE_CACHE.clear();
   commandProbeSuccessTtlMs = DEFAULT_COMMAND_PROBE_SUCCESS_TTL_MS;
+  __resetPersistentCommandProbeCacheRuntimeStatsForTests();
 };
 
 export const __getToolingCommandProbeCacheStatsForTests = () => ({
   commandProbeEntries: COMMAND_PROBE_CACHE.size,
-  successTtlMs: resolveCommandProbeSuccessTtlMs()
+  successTtlMs: resolveCommandProbeSuccessTtlMs(),
+  ...__getPersistentCommandProbeCacheRuntimeStatsForTests()
 });
 
 export const __setToolingCommandProbeSuccessTtlMsForTests = (value) => {
@@ -638,7 +673,8 @@ export const resolveToolingCommandProfile = (input) => {
     providerId,
     command: resolvedCmd || requestedCmd,
     probeArgs,
-    timeoutMs: probeTimeoutMs
+    timeoutMs: probeTimeoutMs,
+    toolingConfig
   });
 
   const resolved = {

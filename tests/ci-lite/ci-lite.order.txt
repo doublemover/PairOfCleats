@@ -852,6 +852,8 @@ tooling/doctor/command-profile-jdtls
 tooling/doctor/command-profile-gopls
 tooling/doctor/command-profile-pyright-override
 tooling/doctor/command-profile-probe-cache
+tooling/doctor/command-profile-probe-cache-persistent
+tooling/doctor/command-profile-probe-cache-fingerprint-invalidation
 tooling/doctor/command-profile-probe-cache-negative
 tooling/doctor/command-profile-probe-cache-success-ttl
 tooling/doctor/command-profile-probe-timeout
