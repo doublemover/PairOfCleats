@@ -7,12 +7,28 @@ export const DOCUMENT_CHUNKING_DEFAULTS = Object.freeze({
   minCharsPerChunk: 400,
   maxTokensPerChunk: 700
 });
+export const EXTRACTED_PROSE_DOCUMENT_EXTENSIONS = Object.freeze([
+  '.md',
+  '.markdown',
+  '.mdx',
+  '.rst',
+  '.adoc',
+  '.asciidoc',
+  '.txt',
+  '.pdf',
+  '.docx',
+  '.rtf',
+  '.html',
+  '.htm',
+  '.xml'
+]);
 export const EXTRACTED_PROSE_LOW_YIELD_BAILOUT_DEFAULTS = Object.freeze({
   enabled: true,
   warmupSampleSize: 48,
   warmupWindowMultiplier: 4,
   minYieldRatio: 0.08,
   minYieldedFiles: 2,
+  minYieldedChunks: 4,
   seed: 'extracted-prose-low-yield-v1',
   disableWhenHistoryHasYield: true,
   historyMinBuilds: 1,
@@ -76,6 +92,7 @@ export const normalizeExtractedProseLowYieldBailoutConfig = (value = null) => {
     ),
     minYieldRatio: normalizeRatio(config.minYieldRatio, defaults.minYieldRatio),
     minYieldedFiles: normalizePositiveInt(config.minYieldedFiles, defaults.minYieldedFiles),
+    minYieldedChunks: normalizePositiveInt(config.minYieldedChunks, defaults.minYieldedChunks),
     seed: normalizeString(config.seed, defaults.seed),
     disableWhenHistoryHasYield: normalizeBoolean(
       config.disableWhenHistoryHasYield,
@@ -95,6 +112,13 @@ export const normalizeExtractedProseLowYieldBailoutConfig = (value = null) => {
       defaults.historyWarmupSampleFloor
     )
   };
+};
+
+export const isExtractedProseDocumentLikeExtension = (value) => {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return false;
+  const normalized = raw.startsWith('.') ? raw : `.${raw}`;
+  return EXTRACTED_PROSE_DOCUMENT_EXTENSIONS.includes(normalized);
 };
 
 export const normalizeExtractedProseYieldProfilePrefilterConfig = (value = null) => {

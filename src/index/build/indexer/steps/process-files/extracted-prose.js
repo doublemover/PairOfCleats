@@ -1,5 +1,6 @@
 import { toPosix } from '../../../../../shared/files.js';
 import {
+  isExtractedProseDocumentLikeExtension,
   normalizeExtractedProseLowYieldBailoutConfig,
   selectDeterministicWarmupSample
 } from '../../../../chunking/formats/document-common.js';
@@ -9,6 +10,7 @@ import {
 } from './ordering.js';
 
 export const EXTRACTED_PROSE_LOW_YIELD_SKIP_REASON = 'extracted-prose-low-yield-bailout';
+const EXTRACTED_PROSE_LOW_YIELD_DOC_SAMPLE_RATIO = 0.25;
 
 const toIsoTimestamp = (value) => {
   const parsed = Number(value);
@@ -21,6 +23,41 @@ const resolveExtractedProseLowYieldBailoutConfig = (runtime) => {
     ? runtime.indexingConfig.extractedProse
     : {};
   return normalizeExtractedProseLowYieldBailoutConfig(extractedProseConfig.lowYieldBailout);
+};
+
+const resolveWarmupEntryKey = (entry) => String(entry?.rel || toPosix(entry?.abs || '') || '');
+
+const resolveWarmupEntryExtension = (entry) => String(entry?.ext || '').trim().toLowerCase();
+
+const selectWarmupEntries = ({ warmupWindowEntries, warmupSampleSize, seed }) => {
+  const requested = Math.max(0, Math.floor(Number(warmupSampleSize) || 0));
+  if (!Array.isArray(warmupWindowEntries) || !warmupWindowEntries.length || requested <= 0) {
+    return [];
+  }
+  const docLikeEntries = warmupWindowEntries.filter((entry) => (
+    isExtractedProseDocumentLikeExtension(resolveWarmupEntryExtension(entry))
+  ));
+  const docLikeQuota = docLikeEntries.length > 0
+    ? Math.min(
+      requested,
+      Math.max(1, Math.floor(requested * EXTRACTED_PROSE_LOW_YIELD_DOC_SAMPLE_RATIO))
+    )
+    : 0;
+  const docLikeSample = selectDeterministicWarmupSample({
+    values: docLikeEntries,
+    sampleSize: docLikeQuota,
+    seed: `${seed}|doc-like`,
+    resolveKey: resolveWarmupEntryKey
+  });
+  const selectedKeys = new Set(docLikeSample.map((entry) => resolveWarmupEntryKey(entry)).filter(Boolean));
+  const remainingEntries = warmupWindowEntries.filter((entry) => !selectedKeys.has(resolveWarmupEntryKey(entry)));
+  const fallbackSample = selectDeterministicWarmupSample({
+    values: remainingEntries,
+    sampleSize: Math.max(0, requested - docLikeSample.length),
+    seed,
+    resolveKey: resolveWarmupEntryKey
+  });
+  return [...docLikeSample, ...fallbackSample];
 };
 
 const normalizeLowYieldHistory = (value) => {
@@ -122,11 +159,10 @@ export const buildExtractedProseLowYieldBailoutState = ({
   );
   const warmupWindowEntries = sortedEntries.slice(0, warmupWindowSize);
   warmupSampleSize = Math.max(0, Math.min(warmupWindowEntries.length, warmupSampleSize));
-  const sampledEntries = selectDeterministicWarmupSample({
-    values: warmupWindowEntries,
-    sampleSize: warmupSampleSize,
-    seed: config.seed,
-    resolveKey: (entry) => entry?.rel || toPosix(entry?.abs || '')
+  const sampledEntries = selectWarmupEntries({
+    warmupWindowEntries,
+    warmupSampleSize,
+    seed: config.seed
   });
   const sampledOrderIndices = new Set();
   for (const entry of sampledEntries) {
@@ -184,10 +220,15 @@ export const observeExtractedProseLowYieldSample = ({ bailout, orderIndex, resul
     Math.max(1, Math.floor(Number(bailout.config.minYieldedFiles) || 1)),
     Math.max(1, bailout.observedSamples)
   );
+  const minYieldedChunks = Math.max(
+    minYieldedFiles,
+    Math.floor(Number(bailout.config.minYieldedChunks) || 0)
+  );
   const lowRatio = observedYieldRatio < bailout.config.minYieldRatio;
   const lowYieldedCount = bailout.yieldedSamples < minYieldedFiles;
+  const lowChunkCount = bailout.sampledChunkCount < minYieldedChunks;
   bailout.decisionMade = true;
-  bailout.triggered = lowRatio && lowYieldedCount;
+  bailout.triggered = lowRatio && lowYieldedCount && lowChunkCount;
   bailout.decisionAtOrderIndex = normalizedOrderIndex;
   bailout.decisionAtMs = Date.now();
   return {
@@ -197,7 +238,8 @@ export const observeExtractedProseLowYieldSample = ({ bailout, orderIndex, resul
     observedSamples: bailout.observedSamples,
     sampledChunkCount: bailout.sampledChunkCount,
     minYieldRatio: bailout.config.minYieldRatio,
-    minYieldedFiles
+    minYieldedFiles,
+    minYieldedChunks
   };
 };
 
@@ -231,6 +273,7 @@ export const buildExtractedProseLowYieldBailoutSummary = (bailout) => {
     observedYieldRatio,
     minYieldRatio: bailout.config.minYieldRatio,
     minYieldedFiles: bailout.config.minYieldedFiles,
+    minYieldedChunks: bailout.config.minYieldedChunks,
     skippedFiles: bailout.skippedFiles,
     decisionAtOrderIndex: bailout.decisionAtOrderIndex,
     decisionAt: toIsoTimestamp(bailout.decisionAtMs)
