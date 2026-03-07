@@ -57,7 +57,7 @@ const result = await runToolingProviders({
     symbolHint: { name: 'add', kind: 'function' },
     languageId: 'rust'
   }],
-  kinds: ['types']
+  kinds: ['types', 'diagnostics']
 });
 
 const diagnostics = result.diagnostics?.['lsp-rust-analyzer'];
