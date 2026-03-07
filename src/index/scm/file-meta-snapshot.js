@@ -21,15 +21,41 @@ const normalizeFileKey = (value) => {
   return normalized;
 };
 
+const normalizeFiniteMetaNumber = (value) => (
+  typeof value === 'number' && Number.isFinite(value) ? value : null
+);
+
 const normalizeMeta = (value) => ({
   lastCommitId: typeof value?.lastCommitId === 'string' ? value.lastCommitId : null,
   lastModifiedAt: typeof value?.lastModifiedAt === 'string' ? value.lastModifiedAt : null,
   lastAuthor: typeof value?.lastAuthor === 'string' ? value.lastAuthor : null,
-  churn: Number.isFinite(Number(value?.churn)) ? Number(value.churn) : null,
-  churnAdded: Number.isFinite(Number(value?.churnAdded)) ? Number(value.churnAdded) : null,
-  churnDeleted: Number.isFinite(Number(value?.churnDeleted)) ? Number(value.churnDeleted) : null,
-  churnCommits: Number.isFinite(Number(value?.churnCommits)) ? Number(value.churnCommits) : null
+  churn: normalizeFiniteMetaNumber(value?.churn),
+  churnAdded: normalizeFiniteMetaNumber(value?.churnAdded),
+  churnDeleted: normalizeFiniteMetaNumber(value?.churnDeleted),
+  churnCommits: normalizeFiniteMetaNumber(value?.churnCommits)
 });
+
+const hasMetaIdentity = (meta) => Boolean(
+  meta
+  && (
+    typeof meta.lastCommitId === 'string'
+    || typeof meta.lastModifiedAt === 'string'
+    || typeof meta.lastAuthor === 'string'
+  )
+);
+
+const hasResolvedChurn = (meta) => (
+  (typeof meta?.churn === 'number' && Number.isFinite(meta.churn))
+  || (typeof meta?.churnAdded === 'number' && Number.isFinite(meta.churnAdded))
+  || (typeof meta?.churnDeleted === 'number' && Number.isFinite(meta.churnDeleted))
+  || (typeof meta?.churnCommits === 'number' && Number.isFinite(meta.churnCommits))
+);
+
+const isIncompleteFileMeta = (meta, { includeChurn = false } = {}) => {
+  if (!hasMetaIdentity(meta)) return true;
+  if (includeChurn !== true) return false;
+  return !hasResolvedChurn(meta);
+};
 
 const normalizeFileMetaMap = (input) => {
   const fileMetaByPath = Object.create(null);
@@ -377,6 +403,24 @@ export const prepareScmFileMetaSnapshot = async ({
     if (batch.ok) {
       fetchedMap = batch.fileMetaByPath;
       batchDiagnostics = batch.diagnostics || normalizeBatchDiagnostics(null);
+      const incompleteFiles = Object.entries(fetchedMap)
+        .filter(([, meta]) => isIncompleteFileMeta(meta, { includeChurn }))
+        .map(([filePosix]) => filePosix);
+      if (incompleteFiles.length > 0) {
+        const completedMap = await runPerFileFetch({
+          providerImpl,
+          repoRoot,
+          filesPosix: incompleteFiles,
+          includeChurn,
+          timeoutMs: resolvedTimeoutMs,
+          maxConcurrency: maxFallbackConcurrency,
+          headId
+        });
+        for (const [filePosix, meta] of Object.entries(completedMap || {})) {
+          fetchedMap[filePosix] = meta;
+        }
+        source = reused > 0 ? 'mixed-fallback' : 'fresh-fallback';
+      }
     } else {
       fetchedMap = await runPerFileFetch({
         providerImpl,

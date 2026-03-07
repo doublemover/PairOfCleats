@@ -47,9 +47,18 @@ const detectProviderRoot = (providerImpl, startPath) => {
   return null;
 };
 
-export const resolveScmConfig = ({ indexingConfig = {}, analysisPolicy = null, benchRun = false } = {}) => {
+export const resolveScmConfig = ({
+  indexingConfig = {},
+  analysisPolicy = null,
+  benchRun = false,
+  workload = 'interactive'
+} = {}) => {
   const scmConfig = indexingConfig.scm || {};
   const annotateConfig = scmConfig.annotate || {};
+  const workloadRaw = typeof workload === 'string'
+    ? workload.trim().toLowerCase()
+    : '';
+  const normalizedWorkload = workloadRaw === 'interactive' ? 'interactive' : 'batch';
   let annotateEnabled = typeof annotateConfig.enabled === 'boolean' ? annotateConfig.enabled : null;
   if (annotateEnabled == null) {
     const policyBlame = analysisPolicy && typeof analysisPolicy === 'object'
@@ -65,12 +74,25 @@ export const resolveScmConfig = ({ indexingConfig = {}, analysisPolicy = null, b
       annotateEnabled = true;
     }
   }
-  return {
-    ...scmConfig,
-    annotate: {
-      ...annotateConfig,
-      enabled: annotateEnabled
+  const normalizedAnnotateConfig = {
+    ...annotateConfig,
+    enabled: annotateEnabled
+  };
+  if (normalizedWorkload === 'batch') {
+    if (normalizedAnnotateConfig.allowSlowTimeouts == null) {
+      normalizedAnnotateConfig.allowSlowTimeouts = true;
     }
+  }
+  const resolved = {
+    ...scmConfig,
+    annotate: normalizedAnnotateConfig
+  };
+  if (normalizedWorkload === 'batch' && resolved.allowSlowTimeouts == null) {
+    resolved.allowSlowTimeouts = true;
+  }
+  return {
+    ...resolved,
+    workload: normalizedWorkload
   };
 };
 

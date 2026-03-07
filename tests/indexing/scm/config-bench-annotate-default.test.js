@@ -37,4 +37,43 @@ const explicitGitBlameDisable = resolveScmConfig({
 });
 assert.equal(explicitGitBlameDisable.annotate.enabled, false, 'expected explicit gitBlame=false to disable annotate');
 
+const interactiveDefault = resolveScmConfig({
+  indexingConfig: {},
+  analysisPolicy: null,
+  workload: 'interactive'
+});
+assert.equal(
+  interactiveDefault.allowSlowTimeouts === true,
+  false,
+  'expected interactive SCM config to keep aggressive timeout caps by default'
+);
+
+const batchDefault = resolveScmConfig({
+  indexingConfig: {},
+  analysisPolicy: null,
+  workload: 'batch'
+});
+assert.equal(batchDefault.allowSlowTimeouts, true, 'expected batch SCM config to enable slow-timeout path by default');
+assert.equal(
+  batchDefault.annotate.allowSlowTimeouts,
+  true,
+  'expected batch SCM annotate config to enable slow-timeout path by default'
+);
+
+const batchExplicitDisable = resolveScmConfig({
+  indexingConfig: { scm: { allowSlowTimeouts: false, annotate: { allowSlowTimeouts: false } } },
+  analysisPolicy: null,
+  workload: 'batch'
+});
+assert.equal(
+  batchExplicitDisable.allowSlowTimeouts,
+  false,
+  'expected batch SCM config to respect explicit allowSlowTimeouts=false'
+);
+assert.equal(
+  batchExplicitDisable.annotate.allowSlowTimeouts,
+  false,
+  'expected batch SCM annotate config to respect explicit allowSlowTimeouts=false'
+);
+
 console.log('scm config bench annotate default test passed');

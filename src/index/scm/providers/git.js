@@ -206,12 +206,19 @@ const getPrefetchMissingFiles = (entry, filesPosix) => (
  * @param {object} input
  * @returns {Promise<object|null>}
  */
-const fetchGitMetaBatch = async ({ repoRoot, filesPosix, timeoutMs, config }) => {
+const fetchGitMetaBatch = async ({
+  repoRoot,
+  filesPosix,
+  timeoutMs,
+  config,
+  includeChurn = false
+}) => {
   const fetched = await runGitMetaBatchFetch({
     repoRoot,
     filesPosix,
     timeoutMs,
-    config
+    config,
+    includeChurn
   });
   return fetched.ok ? fetched : null;
 };
@@ -371,7 +378,8 @@ export const gitProvider = {
           repoRoot,
           filesPosix: unresolvedFiles,
           timeoutMs,
-          config
+          config,
+          includeChurn
         });
         if (!fetched) return null;
         mergeGitMetaPrefetchEntry({
@@ -398,7 +406,8 @@ export const gitProvider = {
       repoRoot,
       filesPosix: normalizedFiles,
       timeoutMs,
-      config
+      config,
+      includeChurn
     });
     if (!fetched) return toUnavailableResult();
     return buildFetchedBatchResponse(fetched);

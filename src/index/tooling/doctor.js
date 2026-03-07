@@ -184,7 +184,8 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
     : resolveToolingCommandProfile;
   const scmConfig = ctx?.scmConfig || resolveScmConfig({
     indexingConfig: ctx?.indexingConfig || {},
-    analysisPolicy: ctx?.analysisPolicy || null
+    analysisPolicy: ctx?.analysisPolicy || null,
+    workload: 'interactive'
   });
   setScmRuntimeConfig(scmConfig);
 

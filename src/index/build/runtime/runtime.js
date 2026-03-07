@@ -260,7 +260,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   const scmConfig = resolveScmConfig({
     indexingConfig,
     analysisPolicy: userConfig.analysisPolicy || null,
-    benchRun: envConfig.benchRun === true
+    benchRun: envConfig.benchRun === true,
+    workload: 'batch'
   });
   setScmRuntimeConfig(scmConfig);
   const cacheRoot = cacheRootCandidate;
@@ -566,6 +567,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     : null;
   log(
     `[scm] policy provider=${scmSelection.provider} annotate=${gitBlameEnabled ? 'on' : 'off'} ` +
+      `timeoutCaps=${scmConfig?.allowSlowTimeouts === true ? 'guardrail-only' : 'aggressive'} ` +
       `benchRun=${envConfig.benchRun === true ? '1' : '0'} ` +
       `metaTimeoutMs=${scmTimeoutMs ?? 'default'} ` +
       `annotateTimeoutMs=${scmAnnotateTimeoutMs ?? 'default'} ` +
