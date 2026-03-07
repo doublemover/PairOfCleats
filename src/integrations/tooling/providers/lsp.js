@@ -21,7 +21,6 @@ import {
   clampIntRange,
   createConcurrencyLimiter,
   createEmptyHoverMetricsResult,
-  findTargetForOffsets,
   loadHoverCache,
   normalizeHoverKinds,
   persistHoverCache,
@@ -30,6 +29,7 @@ import {
   summarizeHoverMetrics,
   toFiniteInt
 } from './lsp/hover-types.js';
+import { buildTargetLookupIndex, findTargetForOffsets } from './lsp/target-index.js';
 import {
   ensureVirtualFilesBatch,
   normalizeUriScheme,
@@ -211,17 +211,24 @@ const mergeAdaptiveLspScopeProfiles = (base, override) => {
   };
 };
 
-const rankAdaptiveLspDocuments = (docs, targetsByPath) => (
+const buildAdaptiveLspDocEntries = (docs, targetsByPath) => (
   Array.isArray(docs)
-    ? docs.slice().sort((left, right) => {
-      const leftTargets = (targetsByPath.get(left?.virtualPath) || []).length;
-      const rightTargets = (targetsByPath.get(right?.virtualPath) || []).length;
-      if (leftTargets !== rightTargets) return rightTargets - leftTargets;
-      const leftBytes = Buffer.byteLength(String(left?.text || ''), 'utf8');
-      const rightBytes = Buffer.byteLength(String(right?.text || ''), 'utf8');
-      if (leftBytes !== rightBytes) return leftBytes - rightBytes;
-      return String(left?.virtualPath || '').localeCompare(String(right?.virtualPath || ''));
-    })
+    ? docs.map((doc) => ({
+      doc,
+      virtualPath: String(doc?.virtualPath || ''),
+      targetCount: (targetsByPath.get(doc?.virtualPath) || []).length,
+      byteLength: Buffer.byteLength(String(doc?.text || ''), 'utf8')
+    }))
+    : []
+);
+
+const rankAdaptiveLspDocumentEntries = (entries) => (
+  Array.isArray(entries)
+    ? entries.slice().sort((left, right) => (
+      (right.targetCount - left.targetCount)
+      || (left.byteLength - right.byteLength)
+      || left.virtualPath.localeCompare(right.virtualPath)
+    ))
     : []
 );
 
@@ -245,10 +252,8 @@ export const __resolveAdaptiveLspScopePlanForTests = ({
   const profile = resolveAdaptiveLspScopeProfile({ providerId, override: adaptiveDocScope });
   const sourceDocs = Array.isArray(docs) ? docs : [];
   const effectiveTargetsByPath = targetsByPath instanceof Map ? targetsByPath : new Map();
-  const totalTargets = sourceDocs.reduce(
-    (sum, doc) => sum + (effectiveTargetsByPath.get(doc?.virtualPath) || []).length,
-    0
-  );
+  const sourceEntries = buildAdaptiveLspDocEntries(sourceDocs, effectiveTargetsByPath);
+  const totalTargets = sourceEntries.reduce((sum, entry) => sum + entry.targetCount, 0);
   const methodMetrics = clientMetrics?.byMethod || {};
   const documentSymbolMetrics = methodMetrics['textDocument/documentSymbol']?.latencyMs || {};
   const documentSymbolTimedOut = Number(methodMetrics['textDocument/documentSymbol']?.timedOut || 0);
@@ -256,23 +261,22 @@ export const __resolveAdaptiveLspScopePlanForTests = ({
   const hoverTimedOut = Number(methodMetrics['textDocument/hover']?.timedOut || 0);
   const configuredHoverMaxPerFile = toFiniteInt(hoverMaxPerFile, 0);
   let effectiveHoverMaxPerFile = configuredHoverMaxPerFile;
-  let selectedDocs = sourceDocs;
+  let selectedEntries = sourceEntries;
   let docLimitApplied = false;
   let targetLimitApplied = false;
   let degraded = false;
   const reasons = [];
-  const rankDocs = (docsToRank) => rankAdaptiveLspDocuments(docsToRank, effectiveTargetsByPath);
-  const applyTargetCap = (docsToLimit, targetCap) => {
-    const rankedDocs = rankDocs(docsToLimit);
+  const rankEntries = (entriesToRank) => rankAdaptiveLspDocumentEntries(entriesToRank);
+  const applyTargetCap = (entriesToLimit, targetCap) => {
+    const rankedEntries = rankEntries(entriesToLimit);
     const limited = [];
     let accumulatedTargets = 0;
-    for (const doc of rankedDocs) {
-      const docTargetCount = (effectiveTargetsByPath.get(doc?.virtualPath) || []).length;
+    for (const entry of rankedEntries) {
       if (limited.length > 0 && accumulatedTargets >= targetCap) break;
-      limited.push(doc);
-      accumulatedTargets += docTargetCount;
+      limited.push(entry);
+      accumulatedTargets += entry.targetCount;
     }
-    return limited.length ? limited : rankedDocs.slice(0, 1);
+    return limited.length ? limited : rankedEntries.slice(0, 1);
   };
   if (profile) {
     const docThreshold = Number(profile.docThreshold || 0);
@@ -302,7 +306,7 @@ export const __resolveAdaptiveLspScopePlanForTests = ({
         degraded ? degradedMaxDocsBase : maxDocsBase
       );
       if (sourceDocs.length > targetCap) {
-        selectedDocs = rankDocs(sourceDocs).slice(0, targetCap);
+        selectedEntries = rankEntries(sourceEntries).slice(0, targetCap);
         docLimitApplied = true;
       }
       reasons.push(degraded ? `degraded-doc-cap:${targetCap}` : `doc-cap:${targetCap}`);
@@ -310,14 +314,11 @@ export const __resolveAdaptiveLspScopePlanForTests = ({
     const targetThreshold = Number(profile.targetThreshold || 0);
     const maxTargetsBase = Number(profile.maxTargets || 0);
     const degradedMaxTargetsBase = Number(profile.degradedMaxTargets || maxTargetsBase || 0);
-    const currentTargetCount = selectedDocs.reduce(
-      (sum, doc) => sum + (effectiveTargetsByPath.get(doc?.virtualPath) || []).length,
-      0
-    );
+    const currentTargetCount = selectedEntries.reduce((sum, entry) => sum + entry.targetCount, 0);
     if (targetThreshold > 0 && maxTargetsBase > 0 && currentTargetCount > targetThreshold) {
       const targetCap = degraded ? degradedMaxTargetsBase : maxTargetsBase;
       if (targetCap > 0 && currentTargetCount > targetCap) {
-        selectedDocs = applyTargetCap(selectedDocs, targetCap);
+        selectedEntries = applyTargetCap(selectedEntries, targetCap);
         targetLimitApplied = true;
       }
       reasons.push(degraded ? `degraded-target-cap:${targetCap}` : `target-cap:${targetCap}`);
@@ -333,11 +334,9 @@ export const __resolveAdaptiveLspScopePlanForTests = ({
         : Number(profile.degradedHoverMaxPerFile);
     }
   }
+  const selectedDocs = selectedEntries.map((entry) => entry.doc);
   const selectedTargetPaths = new Set(selectedDocs.map((doc) => String(doc?.virtualPath || '')).filter(Boolean));
-  const selectedTargets = selectedDocs.reduce(
-    (sum, doc) => sum + (effectiveTargetsByPath.get(doc?.virtualPath) || []).length,
-    0
-  );
+  const selectedTargets = selectedEntries.reduce((sum, entry) => sum + entry.targetCount, 0);
   return {
     profile,
     documents: selectedDocs,
@@ -920,6 +919,12 @@ export async function collectLspTypes({
           selectedTargetsByPath.set(pathKey, docTargets);
         }
       }
+      const targetIndexesByPath = new Map(
+        Array.from(selectedTargetsByPath.entries(), ([pathKey, docTargets]) => [
+          pathKey,
+          buildTargetLookupIndex(docTargets)
+        ])
+      );
       const effectiveHoverMaxPerFile = adaptiveScopePlan.hoverMaxPerFile;
       runtime.selection = {
         providerId: resolvedProviderId,
@@ -1001,7 +1006,7 @@ export async function collectLspTypes({
           legacyUri,
           languageId,
           openDocs,
-          targetsByPath: selectedTargetsByPath,
+          targetIndexesByPath,
           byChunkUid,
           signatureParseCache,
           hoverEnabled: effectiveHoverEnabled,
@@ -1086,7 +1091,7 @@ export async function collectLspTypes({
         diagnosticsByUri,
         docs: selectedDocsToOpen,
         openDocs,
-        targetsByPath: selectedTargetsByPath,
+        targetIndexesByPath,
         diskPathMap,
         resolvedRoot,
         resolvedScheme,

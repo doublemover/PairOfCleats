@@ -4,6 +4,7 @@ import { rangeToOffsets } from '../../lsp/positions.js';
 import { flattenSymbols } from '../../lsp/symbols.js';
 import { writeJsonObjectFile } from '../../../../shared/json-stream.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
+import { findTargetForOffsets } from './target-index.js';
 
 export const DEFAULT_DOCUMENT_SYMBOL_CONCURRENCY = 4;
 export const DEFAULT_HOVER_CONCURRENCY = 8;
@@ -605,41 +606,6 @@ const buildLineSignatureCandidate = (text, lineNumber) => {
 };
 
 /**
- * Resolve best chunk target for a symbol/diagnostic offset range.
- *
- * Ranking prefers containing ranges, then optional symbol-name matches, then
- * smallest span to keep mapping stable for nested declarations.
- *
- * @param {Array<object>} targets
- * @param {{start:number,end:number}|null} offsets
- * @param {string|null} [nameHint=null]
- * @returns {object|null}
- */
-export const findTargetForOffsets = (targets, offsets, nameHint = null) => {
-  if (!offsets) return null;
-  let best = null;
-  let bestRank = -1;
-  let bestSpan = Infinity;
-  for (const target of targets || []) {
-    const range = target?.virtualRange || null;
-    if (!range) continue;
-    if (!Number.isFinite(range.start) || !Number.isFinite(range.end)) continue;
-    const overlaps = offsets.end >= range.start && offsets.start <= range.end;
-    if (!overlaps) continue;
-    const contains = offsets.start >= range.start && offsets.end <= range.end;
-    const nameMatch = nameHint && target?.symbolHint?.name === nameHint;
-    const span = range.end - range.start;
-    const rank = (contains ? 2 : 1) + (nameMatch ? 2 : 0);
-    if (rank > bestRank || (rank === bestRank && span < bestSpan)) {
-      best = target;
-      bestRank = rank;
-      bestSpan = span;
-    }
-  }
-  return best;
-};
-
-/**
  * Compute deterministic quality score for one signature candidate.
  *
  * @param {object|null} info
@@ -1152,7 +1118,7 @@ export const processDocumentTypes = async ({
   legacyUri,
   languageId,
   openDocs,
-  targetsByPath,
+  targetIndexesByPath,
   byChunkUid,
   signatureParseCache,
   hoverEnabled,
@@ -1194,7 +1160,7 @@ export const processDocumentTypes = async ({
     ? guardRun
     : ((fn, options) => guard.run(fn, options));
 
-  const docTargets = targetsByPath.get(doc.virtualPath) || [];
+  const docTargetIndex = targetIndexesByPath.get(doc.virtualPath) || null;
   const fileHoverStats = hoverFileStats.get(doc.virtualPath) || createHoverFileStats();
   hoverFileStats.set(doc.virtualPath, fileHoverStats);
   const parseCache = signatureParseCache instanceof Map ? signatureParseCache : null;
@@ -1665,7 +1631,7 @@ export const processDocumentTypes = async ({
     for (const symbol of flattened) {
       throwIfAborted(abortSignal);
       const offsets = rangeToOffsets(lineIndex, symbol.selectionRange || symbol.range);
-      const target = findTargetForOffsets(docTargets, offsets, symbol.name);
+      const target = findTargetForOffsets(docTargetIndex, offsets, symbol.name);
       if (!target) continue;
 
       const detailText = symbol.detail || symbol.name;

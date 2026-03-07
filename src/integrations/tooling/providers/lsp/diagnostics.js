@@ -105,7 +105,7 @@ export const shapeDiagnosticsByChunkUid = ({
   diagnosticsByUri,
   docs,
   openDocs,
-  targetsByPath,
+  targetIndexesByPath,
   diskPathMap,
   resolvedRoot,
   resolvedScheme,
@@ -139,11 +139,11 @@ export const shapeDiagnosticsByChunkUid = ({
     const lineIndex = openEntry?.lineIndex
       || lineIndexFactory(openEntry?.text || doc.text || '');
     if (openEntry && !openEntry.lineIndex) openEntry.lineIndex = lineIndex;
-    const docTargets = targetsByPath.get(doc.virtualPath) || [];
+    const docTargetIndex = targetIndexesByPath.get(doc.virtualPath) || null;
 
     for (const diag of diagnostics) {
       const offsets = rangeToOffsets(lineIndex, diag.range);
-      const target = findTargetForOffsets(docTargets, offsets);
+      const target = findTargetForOffsets(docTargetIndex, offsets);
       if (!target?.chunkRef?.chunkUid) continue;
 
       const chunkUid = target.chunkRef.chunkUid;
