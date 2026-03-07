@@ -36,6 +36,7 @@ import {
   resolveDocumentUri,
   resolveVfsIoBatching
 } from './lsp/vfs-batching.js';
+import { classifyLspDocumentPathPolicy } from './lsp/path-policy.js';
 import { probeLspCapabilities } from './lsp/capabilities.js';
 import { withLspSession } from './lsp/session-pool.js';
 import { throwIfAborted } from '../../../shared/abort.js';
@@ -217,7 +218,11 @@ const buildAdaptiveLspDocEntries = (docs, targetsByPath) => (
       doc,
       virtualPath: String(doc?.virtualPath || ''),
       targetCount: (targetsByPath.get(doc?.virtualPath) || []).length,
-      byteLength: Buffer.byteLength(String(doc?.text || ''), 'utf8')
+      byteLength: Buffer.byteLength(String(doc?.text || ''), 'utf8'),
+      pathPolicy: classifyLspDocumentPathPolicy({
+        providerId: doc?.providerId || null,
+        virtualPath: doc?.virtualPath || ''
+      })
     }))
     : []
 );
@@ -226,6 +231,7 @@ const rankAdaptiveLspDocumentEntries = (entries) => (
   Array.isArray(entries)
     ? entries.slice().sort((left, right) => (
       (right.targetCount - left.targetCount)
+      || (Number(Boolean(left?.pathPolicy?.deprioritized)) - Number(Boolean(right?.pathPolicy?.deprioritized)))
       || (left.byteLength - right.byteLength)
       || left.virtualPath.localeCompare(right.virtualPath)
     ))
@@ -252,7 +258,10 @@ export const __resolveAdaptiveLspScopePlanForTests = ({
   const profile = resolveAdaptiveLspScopeProfile({ providerId, override: adaptiveDocScope });
   const sourceDocs = Array.isArray(docs) ? docs : [];
   const effectiveTargetsByPath = targetsByPath instanceof Map ? targetsByPath : new Map();
-  const sourceEntries = buildAdaptiveLspDocEntries(sourceDocs, effectiveTargetsByPath);
+  const sourceEntries = buildAdaptiveLspDocEntries(
+    sourceDocs.map((doc) => ({ ...doc, providerId })),
+    effectiveTargetsByPath
+  ).filter((entry) => entry?.pathPolicy?.skipDocument !== true);
   const totalTargets = sourceEntries.reduce((sum, entry) => sum + entry.targetCount, 0);
   const methodMetrics = clientMetrics?.byMethod || {};
   const documentSymbolMetrics = methodMetrics['textDocument/documentSymbol']?.latencyMs || {};
@@ -337,14 +346,20 @@ export const __resolveAdaptiveLspScopePlanForTests = ({
   const selectedDocs = selectedEntries.map((entry) => entry.doc);
   const selectedTargetPaths = new Set(selectedDocs.map((doc) => String(doc?.virtualPath || '')).filter(Boolean));
   const selectedTargets = selectedEntries.reduce((sum, entry) => sum + entry.targetCount, 0);
+  const skippedByPathPolicy = Math.max(0, sourceDocs.length - sourceEntries.length);
+  const interactiveSuppressedDocs = selectedEntries.filter((entry) => entry?.pathPolicy?.suppressInteractive).length;
   return {
     profile,
+    entries: selectedEntries,
     documents: selectedDocs,
     selectedTargetPaths,
-    totalDocs: sourceDocs.length,
+    sourceDocCount: sourceDocs.length,
+    totalDocs: sourceEntries.length,
     selectedDocs: selectedDocs.length,
     totalTargets,
     selectedTargets,
+    skippedByPathPolicy,
+    interactiveSuppressedDocs,
     docLimitApplied,
     targetLimitApplied,
     degraded,
@@ -906,11 +921,18 @@ export async function collectLspTypes({
           targetLimitApplied: adaptiveScopePlan.targetLimitApplied,
           degraded: adaptiveScopePlan.degraded,
           reason: adaptiveScopePlan.reason,
-          hoverMaxPerFile: adaptiveScopePlan.hoverMaxPerFile
+          hoverMaxPerFile: adaptiveScopePlan.hoverMaxPerFile,
+          skippedByPathPolicy: adaptiveScopePlan.skippedByPathPolicy,
+          interactiveSuppressedDocs: 0
         };
         return buildEmptyCollectResult(checks, runtime);
       }
       const selectedTargetsByPath = new Map();
+      const docPathPolicyByPath = new Map();
+      const selectedEntries = Array.isArray(adaptiveScopePlan.entries) ? adaptiveScopePlan.entries : [];
+      const selectedEntryByPath = new Map(
+        selectedEntries.map((entry) => [String(entry?.virtualPath || ''), entry])
+      );
       for (const doc of selectedDocsToOpen) {
         const pathKey = String(doc?.virtualPath || '');
         if (!pathKey) continue;
@@ -918,6 +940,8 @@ export async function collectLspTypes({
         if (docTargets.length) {
           selectedTargetsByPath.set(pathKey, docTargets);
         }
+        const matchingEntry = selectedEntryByPath.get(pathKey);
+        docPathPolicyByPath.set(pathKey, matchingEntry?.pathPolicy || null);
       }
       const targetIndexesByPath = new Map(
         Array.from(selectedTargetsByPath.entries(), ([pathKey, docTargets]) => [
@@ -937,8 +961,23 @@ export async function collectLspTypes({
         degraded: adaptiveScopePlan.degraded,
         reason: adaptiveScopePlan.reason,
         hoverMaxPerFile: effectiveHoverMaxPerFile,
-        profile: adaptiveScopePlan.profile
+        profile: adaptiveScopePlan.profile,
+        skippedByPathPolicy: adaptiveScopePlan.skippedByPathPolicy,
+        interactiveSuppressedDocs: adaptiveScopePlan.interactiveSuppressedDocs
       };
+      if (adaptiveScopePlan.skippedByPathPolicy > 0) {
+        log(
+          `[tooling] ${cmd} path policy skipped ${adaptiveScopePlan.skippedByPathPolicy}/${adaptiveScopePlan.sourceDocCount} `
+          + 'document(s) before LSP collection.'
+        );
+      }
+      const interactiveSuppressedDocs = adaptiveScopePlan.interactiveSuppressedDocs;
+      if (interactiveSuppressedDocs > 0) {
+        log(
+          `[tooling] ${cmd} path policy disabled interactive LSP stages for `
+          + `${interactiveSuppressedDocs}/${selectedEntries.length} document(s).`
+        );
+      }
       if (
         adaptiveScopePlan.docLimitApplied
         || adaptiveScopePlan.targetLimitApplied
@@ -1014,6 +1053,7 @@ export async function collectLspTypes({
           definitionEnabled: effectiveDefinitionEnabled,
           typeDefinitionEnabled: effectiveTypeDefinitionEnabled,
           referencesEnabled: effectiveReferencesEnabled,
+          docPathPolicy: docPathPolicyByPath.get(String(doc?.virtualPath || '')) || null,
           hoverRequireMissingReturn,
           resolvedHoverKinds,
           resolvedHoverMaxPerFile: effectiveHoverMaxPerFile,

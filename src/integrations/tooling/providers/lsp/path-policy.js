@@ -1,0 +1,204 @@
+import path from 'node:path';
+import {
+  isDocsPath,
+  isFixturePath,
+  isInfraConfigPath
+} from '../../../../index/build/mode-routing.js';
+import { resolveGeneratedPolicyDecision } from '../../../../index/build/generated-policy.js';
+
+const toPosixLower = (value) => String(value || '').replace(/\\/g, '/').toLowerCase();
+const stripSegmentSuffix = (value) => String(value || '').split('#')[0];
+const extensionOf = (virtualPath) => path.extname(stripSegmentSuffix(virtualPath)).toLowerCase();
+const normalizeVirtualPath = (virtualPath) => stripSegmentSuffix(virtualPath)
+  .replace(/\\/g, '/')
+  .replace(/^\/+/, '')
+  .replace(/^\.poc-vfs\/+/i, '')
+  .replace(/^poc-vfs\/+/i, '');
+
+const matchesAny = (text, patterns) => {
+  for (const pattern of patterns || []) {
+    pattern.lastIndex = 0;
+    if (pattern.test(text)) return true;
+  }
+  return false;
+};
+
+const GENERIC_LOW_VALUE_PATH_PATTERNS = Object.freeze([
+  /\/examples?\//i,
+  /\/samples?\//i,
+  /\/tests?\//i,
+  /\/testdata\//i,
+  /\/bench(?:marks)?\//i,
+  /\/scripts?\//i,
+  /\/tools?\//i,
+  /\/spec\//i
+]);
+
+const classifySharedPathSignals = (virtualPath) => {
+  const normalizedRelPath = normalizeVirtualPath(virtualPath);
+  const lowered = toPosixLower(normalizedRelPath);
+  const generatedDecision = resolveGeneratedPolicyDecision({
+    generatedPolicy: null,
+    relPath: normalizedRelPath,
+    baseName: path.basename(normalizedRelPath)
+  });
+  const generatedLike = generatedDecision?.downgrade === true;
+  return {
+    normalizedRelPath,
+    lowered,
+    docsPath: isDocsPath(normalizedRelPath),
+    fixturePath: isFixturePath(normalizedRelPath),
+    infraPath: isInfraConfigPath(normalizedRelPath),
+    generatedLike,
+    lowValuePath: matchesAny(lowered, GENERIC_LOW_VALUE_PATH_PATTERNS)
+  };
+};
+
+const PATH_POLICY_PROFILES = Object.freeze({
+  pyright: Object.freeze({
+    allowedExtensions: Object.freeze(['.py', '.pyi']),
+    deprioritizePatterns: Object.freeze([
+      /\/docs?\//i,
+      /\/examples?\//i,
+      /\/samples?\//i,
+      /\/tests?\//i,
+      /\/testdata\//i,
+      /\/bench(?:marks)?\//i,
+      /\/scripts?\//i,
+      /\/tools?\//i
+    ]),
+    suppressInteractivePatterns: Object.freeze([
+      /\/docs?\//i,
+      /\/examples?\//i,
+      /\/samples?\//i,
+      /\/tests?\//i,
+      /\/testdata\//i
+    ])
+  }),
+  gopls: Object.freeze({
+    allowedExtensions: Object.freeze(['.go']),
+    deprioritizePatterns: Object.freeze([
+      /\/docs?\//i,
+      /\/examples?\//i,
+      /\/samples?\//i,
+      /\/tests?\//i,
+      /\/testdata\//i,
+      /\/vendor\//i,
+      /\/third_party\//i
+    ]),
+    suppressInteractivePatterns: Object.freeze([
+      /\/docs?\//i,
+      /\/examples?\//i,
+      /\/samples?\//i,
+      /\/tests?\//i,
+      /\/testdata\//i,
+      /\/vendor\//i
+    ])
+  }),
+  clangd: Object.freeze({
+    allowedExtensions: Object.freeze([
+      '.c', '.h', '.cc', '.cpp', '.cxx', '.hpp', '.hh', '.m', '.mm'
+    ]),
+    deprioritizePatterns: Object.freeze([
+      /\/tests?\//i,
+      /\/examples?\//i,
+      /\/samples?\//i,
+      /\/bench(?:marks)?\//i,
+      /\/deps\//i,
+      /\/vendor\//i,
+      /\/third_party\//i
+    ]),
+    suppressInteractivePatterns: Object.freeze([
+      /\/tests?\//i,
+      /\/examples?\//i,
+      /\/samples?\//i,
+      /\/bench(?:marks)?\//i
+    ])
+  }),
+  sourcekit: Object.freeze({
+    allowedExtensions: Object.freeze(['.swift']),
+    deprioritizePatterns: Object.freeze([
+      /\/tests?\//i,
+      /\/examples?\//i,
+      /\/samples?\//i
+    ]),
+    suppressInteractivePatterns: Object.freeze([
+      /\/tests?\//i,
+      /\/examples?\//i,
+      /\/samples?\//i
+    ])
+  }),
+  'lua-language-server': Object.freeze({
+    allowedExtensions: Object.freeze(['.lua']),
+    deprioritizePatterns: Object.freeze([
+      /\/tests?\//i,
+      /\/spec\//i,
+      /\/examples?\//i,
+      /\/samples?\//i
+    ]),
+    suppressInteractivePatterns: Object.freeze([
+      /\/tests?\//i,
+      /\/spec\//i,
+      /\/examples?\//i,
+      /\/samples?\//i
+    ])
+  }),
+  'rust-analyzer': Object.freeze({
+    allowedExtensions: Object.freeze(['.rs']),
+    deprioritizePatterns: Object.freeze([
+      /\/tests?\//i,
+      /\/examples?\//i,
+      /\/benches\//i,
+      /\/testdata\//i
+    ]),
+    suppressInteractivePatterns: Object.freeze([
+      /\/tests?\//i,
+      /\/examples?\//i,
+      /\/benches\//i,
+      /\/testdata\//i
+    ])
+  }),
+  zls: Object.freeze({
+    allowedExtensions: Object.freeze(['.zig']),
+    deprioritizePatterns: Object.freeze([
+      /\/tests?\//i,
+      /\/examples?\//i,
+      /\/samples?\//i
+    ]),
+    suppressInteractivePatterns: Object.freeze([
+      /\/tests?\//i,
+      /\/examples?\//i,
+      /\/samples?\//i
+    ])
+  })
+});
+
+export const classifyLspDocumentPathPolicy = ({ providerId, virtualPath }) => {
+  const normalizedProviderId = String(providerId || '').trim().toLowerCase();
+  const profile = PATH_POLICY_PROFILES[normalizedProviderId] || null;
+  const extension = extensionOf(virtualPath);
+  if (!profile) {
+    return { skipDocument: false, deprioritized: false, suppressInteractive: false, extension };
+  }
+  const sharedSignals = classifySharedPathSignals(virtualPath);
+  const normalizedPath = sharedSignals.lowered;
+  const allowedExtensions = new Set(profile.allowedExtensions || []);
+  const skipDocument = allowedExtensions.size > 0 && (!extension || !allowedExtensions.has(extension));
+  const deprioritized = !skipDocument && (
+    sharedSignals.docsPath
+    || sharedSignals.fixturePath
+    || sharedSignals.infraPath
+    || sharedSignals.generatedLike
+    || sharedSignals.lowValuePath
+    || matchesAny(normalizedPath, profile.deprioritizePatterns)
+  );
+  const suppressInteractive = !skipDocument && (
+    sharedSignals.docsPath
+    || sharedSignals.fixturePath
+    || sharedSignals.generatedLike
+    || matchesAny(normalizedPath, profile.suppressInteractivePatterns)
+  );
+  return { skipDocument, deprioritized, suppressInteractive, extension };
+};
+
+export const __classifyLspDocumentPathPolicyForTests = classifyLspDocumentPathPolicy;

@@ -1126,6 +1126,7 @@ export const processDocumentTypes = async ({
   definitionEnabled,
   typeDefinitionEnabled,
   referencesEnabled,
+  docPathPolicy = null,
   hoverRequireMissingReturn,
   resolvedHoverKinds,
   resolvedHoverMaxPerFile,
@@ -1161,6 +1162,7 @@ export const processDocumentTypes = async ({
     : ((fn, options) => guard.run(fn, options));
 
   const docTargetIndex = targetIndexesByPath.get(doc.virtualPath) || null;
+  const interactiveAllowed = docPathPolicy?.suppressInteractive !== true;
   const fileHoverStats = hoverFileStats.get(doc.virtualPath) || createHoverFileStats();
   hoverFileStats.set(doc.virtualPath, fileHoverStats);
   const parseCache = signatureParseCache instanceof Map ? signatureParseCache : null;
@@ -1694,18 +1696,21 @@ export const processDocumentTypes = async ({
         sourceSignature,
         hoverEligible: (
           hoverEnabled
+          && interactiveAllowed
           && needsHover
           && symbolKindAllowed
           && position != null
         ),
         signatureHelpEligible: (
           signatureHelpEnabled
+          && interactiveAllowed
           && needsHover
           && symbolKindAllowed
           && position != null
         ),
         definitionEligible: (
           definitionEnabled
+          && interactiveAllowed
           && needsHover
           && symbolKindAllowed
           && position != null
@@ -1713,6 +1718,7 @@ export const processDocumentTypes = async ({
         ),
         typeDefinitionEligible: (
           typeDefinitionEnabled
+          && interactiveAllowed
           && needsHover
           && symbolKindAllowed
           && position != null
@@ -1720,6 +1726,7 @@ export const processDocumentTypes = async ({
         ),
         referencesEligible: (
           referencesEnabled
+          && interactiveAllowed
           && FUNCTION_LIKE_SYMBOL_KINDS.has(Number(symbol?.kind))
           && needsHover
           && symbolKindAllowed
