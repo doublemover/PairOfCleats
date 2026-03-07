@@ -1,6 +1,8 @@
 import { matchGeneratedExpectationSpecifier } from '../../specifier-hints.js';
+import { toSpecifierCandidatePaths } from '../../candidate-paths.js';
 import { normalizeImportSpecifier, normalizeRelPath } from '../../path-utils.js';
 import { IMPORT_REASON_CODES } from '../../reason-codes.js';
+import { resolveGeneratedPolicyDecision } from '../../../generated-policy.js';
 
 const normalizeTextToken = (value) => (
   typeof value === 'string'
@@ -47,9 +49,47 @@ const stableSerializedConfig = (config) => JSON.stringify({
   suffixes: config.customSuffixes
 });
 
+const resolveGeneratedPolicyMatch = ({
+  generatedPolicy = null,
+  importerRel = '',
+  targetSpecifier = '',
+  rawSpec = ''
+} = {}) => {
+  const candidates = toSpecifierCandidatePaths({
+    importer: importerRel,
+    specifier: targetSpecifier || rawSpec
+  });
+  for (const candidate of candidates) {
+    const decision = resolveGeneratedPolicyDecision({
+      generatedPolicy,
+      relPath: candidate
+    });
+    if (!decision) continue;
+    if (decision.downgrade !== true) {
+      return {
+        matched: false,
+        blockedByInclude: true
+      };
+    }
+    return {
+      matched: true,
+      source: 'generated-policy',
+      matchType: decision.classification || 'generated',
+      candidate,
+      classification: decision.classification || 'generated',
+      decisionSource: decision.source || 'explicit-policy'
+    };
+  }
+  return {
+    matched: false,
+    blockedByInclude: false
+  };
+};
+
 export const createGeneratedArtifactsPlugin = ({
   expectedArtifactsIndex = null,
-  config = null
+  config = null,
+  generatedPolicy = null
 } = {}) => {
   const generatedConfig = config && typeof config === 'object' ? config : {};
   const customSegments = normalizeTokenArray(generatedConfig.segments);
@@ -74,6 +114,22 @@ export const createGeneratedArtifactsPlugin = ({
         pluginId: 'generated-artifacts',
         match: generatedMatch
       };
+    }
+    const generatedPolicyMatch = resolveGeneratedPolicyMatch({
+      generatedPolicy,
+      importerRel,
+      targetSpecifier,
+      rawSpec
+    });
+    if (generatedPolicyMatch?.matched) {
+      return {
+        reasonCode: IMPORT_REASON_CODES.GENERATED_EXPECTED_MISSING,
+        pluginId: 'generated-artifacts',
+        match: generatedPolicyMatch
+      };
+    }
+    if (generatedPolicyMatch?.blockedByInclude) {
+      return null;
     }
     if (hasCustomGeneratedMatch({
       importer: importerRel,

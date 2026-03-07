@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { resolveImportLinks } from '../../../src/index/build/import-resolution.js';
+import { buildGeneratedPolicyConfig } from '../../../src/index/build/generated-policy.js';
 import {
   classifyUnresolvedImportSample,
   enrichUnresolvedImportSamples,
@@ -125,6 +126,7 @@ await write('src/main/groovy/com/acme/util/GHelper.groovy', 'package com.acme.ut
 await write('src/plugin/main.js', "import '@repo/dep.js';\n");
 await write('src/repo_alias/dep.js', 'export const dep = 1;\n');
 await write('src/custom/main.ts', "import './code-output/client.codegen.ts';\n");
+await write('src/web/main.ts', "import '../vendor/runtime/app.min.js';\n");
 
 await write('src/Main.jl', 'using Util.Core\n');
 await write('src/Util/Core.jl', 'module Core\nend\n');
@@ -209,6 +211,7 @@ const entries = [
   'src/plugin/main.js',
   'src/repo_alias/dep.js',
   'src/custom/main.ts',
+  'src/web/main.ts',
   'src/Main.jl',
   'src/Util/Core.jl',
   'src/main.cpp',
@@ -261,6 +264,7 @@ const importsByFile = {
   'src/main/groovy/com/acme/GMain.groovy': ['com.acme.util.GHelper'],
   'src/plugin/main.js': ['@repo/dep.js'],
   'src/custom/main.ts': ['./code-output/client.codegen.ts'],
+  'src/web/main.ts': ['../vendor/runtime/app.min.js'],
   'src/Main.jl': ['Util.Core'],
   'src/main.cpp': ['myproj/foo.hpp', 'vector'],
   'rust/Cargo.toml': ['crates/util'],
@@ -289,7 +293,8 @@ const resolution = resolveImportLinks({
         suffixes: ['.codegen.ts']
       }
     }
-  }
+  },
+  generatedPolicy: buildGeneratedPolicyConfig({})
 });
 
 const assertLinks = (file, expected) => {
@@ -355,7 +360,7 @@ assertLinks(
 );
 
 const realUnresolvedSamples = enrichUnresolvedImportSamples(resolution.unresolvedSamples || []);
-assert.equal(realUnresolvedSamples.length, 7, 'expected unresolved samples from shell, bazel label, and generated coverage');
+assert.equal(realUnresolvedSamples.length, 8, 'expected unresolved samples from shell, bazel label, and generated coverage');
 const realBySpecifier = Object.fromEntries(realUnresolvedSamples.map((entry) => [entry.specifier, entry]));
 assert.equal(realBySpecifier['./lib/missing.sh']?.reasonCode, 'IMP_U_MISSING_FILE_RELATIVE');
 assert.equal(realBySpecifier['./lib/missing.sh']?.failureCause, 'missing_file');
@@ -385,6 +390,10 @@ assert.equal(realBySpecifier['./code-output/client.codegen.ts']?.reasonCode, 'IM
 assert.equal(realBySpecifier['./code-output/client.codegen.ts']?.failureCause, 'generated_expected_missing');
 assert.equal(realBySpecifier['./code-output/client.codegen.ts']?.disposition, 'suppress_gate');
 assert.equal(realBySpecifier['./code-output/client.codegen.ts']?.resolverStage, 'build_system_resolver');
+assert.equal(realBySpecifier['../vendor/runtime/app.min.js']?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
+assert.equal(realBySpecifier['../vendor/runtime/app.min.js']?.failureCause, 'generated_expected_missing');
+assert.equal(realBySpecifier['../vendor/runtime/app.min.js']?.disposition, 'suppress_gate');
+assert.equal(realBySpecifier['../vendor/runtime/app.min.js']?.resolverStage, 'build_system_resolver');
 
 const taxonomySamples = enrichUnresolvedImportSamples([
   ...realUnresolvedSamples,
@@ -416,13 +425,13 @@ const taxonomySamples = enrichUnresolvedImportSamples([
 ]);
 const taxonomy = summarizeUnresolvedImportTaxonomy(taxonomySamples);
 assert.equal(taxonomy.liveSuppressed, 2);
-assert.equal(taxonomy.gateSuppressed, 7);
+assert.equal(taxonomy.gateSuppressed, 8);
 assert.equal(taxonomy.actionable, 3);
 assert.equal(Object.keys(taxonomy.reasonCodes).length > 0, true, 'expected reason-code aggregation');
 assert.deepEqual(
   Object.fromEntries(Object.entries(taxonomy.resolverStages)),
   {
-    build_system_resolver: 3,
+    build_system_resolver: 4,
     classify: 3,
     filesystem_probe: 1,
     language_resolver: 4,
@@ -445,10 +454,10 @@ assert.deepEqual(
 );
 assert.equal(Number.isFinite(Number(taxonomy.actionableRate)), true, 'expected actionable rate in taxonomy');
 assert.equal(taxonomy.actionableUnresolvedRate, taxonomy.actionableRate, 'expected actionable rate alias');
-assert.equal(taxonomy.parserArtifactRate, 1 / 12, 'expected parser artifact rate in taxonomy');
-assert.equal(taxonomy.resolverGapRate, 4 / 12, 'expected resolver-gap rate in taxonomy');
+assert.equal(taxonomy.parserArtifactRate, 1 / 13, 'expected parser artifact rate in taxonomy');
+assert.equal(taxonomy.resolverGapRate, 4 / 13, 'expected resolver-gap rate in taxonomy');
 assert.deepEqual(Object.fromEntries(Object.entries(taxonomy.failureCauses)), {
-  generated_expected_missing: 3,
+  generated_expected_missing: 4,
   missing_dependency: 1,
   missing_file: 1,
   parser_artifact: 1,

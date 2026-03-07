@@ -65,4 +65,25 @@ assert.equal(
   'builtins.getFlake refs should emit resolver-gap collector hints'
 );
 
+const pythonEntries = collectLanguageImportEntries({
+  ext: '.py',
+  relPath: 'app/main.py',
+  text: [
+    '"""',
+    'from docs.fake import Demo',
+    'import docs_only',
+    '"""',
+    'from pkg.runtime import loader as load',
+    'import os',
+    'config = """import hidden_runtime"""'
+  ].join('\n'),
+  mode: 'code',
+  options: {}
+});
+assert.deepEqual(
+  pythonEntries.map((entry) => entry.specifier),
+  ['os', 'pkg.runtime'],
+  'python import entries should ignore docstring/string-only import examples'
+);
+
 console.log('language registry import entries test passed');

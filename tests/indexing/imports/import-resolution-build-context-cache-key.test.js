@@ -5,6 +5,7 @@ import path from 'node:path';
 import { sha1 } from '../../../src/shared/hash.js';
 import { resolveImportLinks } from '../../../src/index/build/import-resolution.js';
 import { loadImportResolutionCache, saveImportResolutionCache } from '../../../src/index/build/import-resolution-cache.js';
+import { buildGeneratedPolicyConfig } from '../../../src/index/build/generated-policy.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
@@ -42,7 +43,10 @@ const incrementalState = {
   }
 };
 
-const runWithPlugins = async (resolverPlugins, { mutateCache = null } = {}) => {
+const runWithPlugins = async (resolverPlugins, {
+  mutateCache = null,
+  generatedPolicy = null
+} = {}) => {
   const { cache, cachePath } = await loadImportResolutionCache({ incrementalState });
   if (typeof mutateCache === 'function') {
     mutateCache(cache);
@@ -62,7 +66,8 @@ const runWithPlugins = async (resolverPlugins, { mutateCache = null } = {}) => {
     log: (line) => {
       if (typeof line === 'string' && line.trim()) logLines.push(line.trim());
     },
-    resolverPlugins
+    resolverPlugins,
+    generatedPolicy
   });
   await saveImportResolutionCache({ cache, cachePath });
   return { ...result, logLines };
@@ -75,12 +80,17 @@ const generatedPluginConfig = {
     }
   }
 };
+const defaultGeneratedPolicy = buildGeneratedPolicyConfig({});
 
-const first = await runWithPlugins(generatedPluginConfig);
+const first = await runWithPlugins(generatedPluginConfig, {
+  generatedPolicy: defaultGeneratedPolicy
+});
 assert.equal(first?.cacheStats?.filesReused || 0, 0);
 assert.equal(first?.unresolvedSamples?.[0]?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
 
-const second = await runWithPlugins(generatedPluginConfig);
+const second = await runWithPlugins(generatedPluginConfig, {
+  generatedPolicy: defaultGeneratedPolicy
+});
 assert.equal((second?.cacheStats?.filesReused || 0) > 0, true, 'expected cache reuse with unchanged build-context config');
 assert.equal(second?.unresolvedSamples?.[0]?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
 
@@ -102,6 +112,7 @@ assert.equal(
 );
 
 const staleScopeReuse = await runWithPlugins(generatedPluginConfig, {
+  generatedPolicy: defaultGeneratedPolicy,
   mutateCache: (cache) => {
     if (!cache?.files?.['src/main.ts']) return;
     cache.files['src/main.ts'].resolverScopeFingerprint = 'stale-resolver-scope';
@@ -113,6 +124,22 @@ assert.equal(
   'expected resolver-scope mismatch to disable stale file-cache reuse'
 );
 assert.equal(staleScopeReuse?.unresolvedSamples?.[0]?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
+
+const includeGeneratedPolicy = buildGeneratedPolicyConfig({
+  generatedPolicy: {
+    include: ['src/code-output/**']
+  }
+});
+const included = await runWithPlugins(generatedPluginConfig, {
+  generatedPolicy: includeGeneratedPolicy
+});
+assert.equal((included?.cacheStats?.filesReused || 0), 0, 'expected no file-cache reuse after generated-policy change');
+assert.equal(
+  included?.logLines?.some((line) => line.includes('cache invalidated: cache key changed')) || false,
+  true,
+  'expected cache-key invalidation log when generated-policy config changes'
+);
+assert.equal(included?.unresolvedSamples?.[0]?.reasonCode, 'IMP_U_MISSING_FILE_RELATIVE');
 
 const third = await runWithPlugins(null);
 assert.equal((third?.cacheStats?.filesReused || 0), 0, 'expected no file-cache reuse after build-context config change');

@@ -523,6 +523,7 @@ export const postScanImports = async ({
         fsMeta,
         fsExistsIndex,
         resolverPlugins,
+        generatedPolicy: runtime.generatedPolicy,
         budgetRuntimeSignals
       });
     }

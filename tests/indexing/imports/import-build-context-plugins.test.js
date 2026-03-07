@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { createImportBuildContext } from '../../../src/index/build/import-resolution.js';
+import { buildGeneratedPolicyConfig } from '../../../src/index/build/generated-policy.js';
 
 const entries = [
   { rel: 'src/main.ts' },
@@ -10,7 +11,7 @@ const entries = [
 ];
 
 const buildContext = createImportBuildContext({ entries });
-assert.equal(buildContext.version, 'build-context-v1');
+assert.equal(buildContext.version, 'build-context-v2');
 assert.equal(typeof buildContext.fingerprint, 'string');
 assert.equal(Array.isArray(buildContext.plugins), true);
 assert.deepEqual(
@@ -66,6 +67,26 @@ assert.equal(generatedOpenApi?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
 assert.equal(generatedOpenApi?.pluginId, 'generated-artifacts');
 assert.equal(generatedOpenApi?.generatedMatch?.source, 'index');
 
+const generatedFromVendorPolicy = buildContext.classifyUnresolved({
+  importerRel: 'src/main.ts',
+  spec: '../vendor/runtime/app.min.js',
+  rawSpec: '../vendor/runtime/app.min.js'
+});
+assert.equal(generatedFromVendorPolicy?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
+assert.equal(generatedFromVendorPolicy?.pluginId, 'generated-artifacts');
+assert.equal(generatedFromVendorPolicy?.generatedMatch?.source, 'generated-policy');
+assert.equal(generatedFromVendorPolicy?.generatedMatch?.classification, 'minified');
+
+const generatedFromNodeModulesPolicy = buildContext.classifyUnresolved({
+  importerRel: 'src/main.ts',
+  spec: '../node_modules/pkg/runtime.js',
+  rawSpec: '../node_modules/pkg/runtime.js'
+});
+assert.equal(generatedFromNodeModulesPolicy?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
+assert.equal(generatedFromNodeModulesPolicy?.pluginId, 'generated-artifacts');
+assert.equal(generatedFromNodeModulesPolicy?.generatedMatch?.source, 'generated-policy');
+assert.equal(generatedFromNodeModulesPolicy?.generatedMatch?.classification, 'vendor');
+
 const nixResult = buildContext.classifyUnresolved({
   importerRel: 'nix/flake.nix',
   spec: '<nixpkgs>',
@@ -92,5 +113,20 @@ const generatedFromConfig = configurableContext.classifyUnresolved({
 assert.equal(generatedFromConfig?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
 assert.equal(generatedFromConfig?.pluginId, 'generated-artifacts');
 assert.equal(generatedFromConfig?.generatedMatch?.source, 'plugin-config');
+
+const includeOverrideContext = createImportBuildContext({
+  entries: [{ rel: 'src/main.ts' }],
+  generatedPolicy: buildGeneratedPolicyConfig({
+    generatedPolicy: {
+      include: ['vendor/**']
+    }
+  })
+});
+const includedVendor = includeOverrideContext.classifyUnresolved({
+  importerRel: 'src/main.ts',
+  spec: '../vendor/runtime/app.min.js',
+  rawSpec: '../vendor/runtime/app.min.js'
+});
+assert.equal(includedVendor, null, 'generated-policy include should bypass unresolved suppression for included paths');
 
 console.log('import build-context plugins tests passed');

@@ -21,12 +21,23 @@ await write('cmake/main.cmake', 'include(modules/common.cmake)\n');
 await write('cmake/modules/common.cmake', '# helper\n');
 await write('nix/flake.nix', 'imports = [ ./modules ];\n');
 await write('nix/modules/default.nix', '{ }:\n{ }\n');
+await write('python/app.py', [
+  '"""',
+  'from fake.docs import Demo',
+  'import docs_only',
+  '"""',
+  'from runtime.pkg import Loader',
+  'import os'
+].join('\n'));
+await write('python/runtime/pkg.py', 'class Loader:\n    pass\n');
 
 const relFiles = [
   'cmake/main.cmake',
   'cmake/modules/common.cmake',
   'nix/flake.nix',
-  'nix/modules/default.nix'
+  'nix/modules/default.nix',
+  'python/app.py',
+  'python/runtime/pkg.py'
 ];
 
 const files = [];
@@ -49,6 +60,7 @@ const scanResult = await scanImports({
 const importsByFile = scanResult.importsByFile || {};
 assert.deepEqual(importsByFile['cmake/main.cmake'] || [], ['modules/common.cmake']);
 assert.deepEqual(importsByFile['nix/flake.nix'] || [], ['./modules']);
+assert.deepEqual(importsByFile['python/app.py'] || [], ['os', 'runtime.pkg']);
 
 const relations = new Map(
   Object.entries(importsByFile).map(([file, imports]) => [file, { imports: imports.slice() }])
@@ -63,7 +75,7 @@ const resolution = resolveImportLinks({
 
 assert.deepEqual(relations.get('cmake/main.cmake')?.importLinks || [], ['cmake/modules/common.cmake']);
 assert.deepEqual(relations.get('nix/flake.nix')?.importLinks || [], ['nix/modules/default.nix']);
+assert.deepEqual(relations.get('python/app.py')?.importLinks || [], ['python/runtime/pkg.py']);
 assert.equal((resolution?.graph?.warnings || []).length, 0, 'expected no unresolved warnings');
 
 console.log('import scan non-js end-to-end test passed');
-

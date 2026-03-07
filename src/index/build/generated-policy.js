@@ -62,6 +62,7 @@ export const GENERATED_POLICY_DEFAULT_SKIP_GLOBS = new Set([
 ]);
 
 const VENDOR_PATH_PARTS = Object.freeze([
+  '/node_modules/',
   '/vendor/',
   '/third_party/',
   '/thirdparty/',

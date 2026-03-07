@@ -283,6 +283,7 @@ export function resolveImportLinks({
   fsMeta = null,
   fsExistsIndex = null,
   resolverPlugins = null,
+  generatedPolicy = null,
   budgetRuntimeSignals = null
 }) {
   const fsMemo = createFsMemo(fsMeta);
@@ -339,7 +340,8 @@ export function resolveImportLinks({
     entries: Array.from(resolvedLookup.fileSet || []),
     resolverPlugins,
     rootAbs: resolvedLookup.rootAbs,
-    fsMemo
+    fsMemo,
+    generatedPolicy
   });
   const fsExistsIndexFingerprint = resolveFsExistsIndexCacheFingerprint(resolverPlugins);
   const budgetPolicy = createImportResolutionBudgetPolicy({

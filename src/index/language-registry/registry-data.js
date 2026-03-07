@@ -32,6 +32,7 @@ import { buildSqlChunks, buildSqlRelations, collectSqlImports, computeSqlFlow, e
 import { buildPerlChunks, buildPerlRelations, collectPerlImports, computePerlFlow, extractPerlDocMeta } from '../../lang/perl.js';
 import {
   getPythonAst,
+  collectPythonImportEntries,
   collectPythonImports,
   buildPythonRelations,
   extractPythonDocMeta,
@@ -440,7 +441,7 @@ const MANAGED_LANGUAGE_ADAPTERS = [
   {
     id: 'python',
     match: (ext) => ext === '.py',
-    collectImports: collectImportsFromPayload(collectPythonImports),
+    collectImportEntries: collectPythonImportEntries,
     prepare: async ({ text, mode, relPath, options }) => {
       if (mode !== 'code') return {};
       let pythonAst = null;

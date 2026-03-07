@@ -30,6 +30,20 @@ const buildPluginFingerprint = (plugins) => (
     .join('|')
 );
 
+const buildGeneratedPolicyFingerprint = (generatedPolicy) => {
+  if (!generatedPolicy || typeof generatedPolicy !== 'object') return 'policy=default';
+  const includePatterns = Array.isArray(generatedPolicy.includePatterns)
+    ? generatedPolicy.includePatterns.slice().sort(sortStrings)
+    : [];
+  const excludePatterns = Array.isArray(generatedPolicy.excludePatterns)
+    ? generatedPolicy.excludePatterns.slice().sort(sortStrings)
+    : [];
+  return JSON.stringify({
+    includePatterns,
+    excludePatterns
+  });
+};
+
 const resolveGeneratedMatchForResult = (result) => {
   if (result?.reasonCode !== IMPORT_REASON_CODES.GENERATED_EXPECTED_MISSING) return null;
   return result?.match || null;
@@ -42,7 +56,8 @@ export const createImportBuildContext = ({
   entries = [],
   resolverPlugins = null,
   rootAbs = '',
-  fsMemo = null
+  fsMemo = null,
+  generatedPolicy = null
 } = {}) => {
   const normalizedConfig = normalizePluginConfig(resolverPlugins);
   const buildContextConfig = normalizedConfig.buildContext
@@ -71,12 +86,13 @@ export const createImportBuildContext = ({
   if (isEnabled(buildContextConfig?.generatedArtifacts, true)) {
     plugins.push(createGeneratedArtifactsPlugin({
       expectedArtifactsIndex,
-      config: buildContextConfig.generatedArtifactsConfig || normalizedConfig.generatedArtifactsConfig || null
+      config: buildContextConfig.generatedArtifactsConfig || normalizedConfig.generatedArtifactsConfig || null,
+      generatedPolicy
     }));
   }
 
   plugins.sort(stablePluginComparator);
-  const fingerprint = `build-context-v1|${buildPluginFingerprint(plugins)}`;
+  const fingerprint = `build-context-v2|${buildPluginFingerprint(plugins)}|${buildGeneratedPolicyFingerprint(generatedPolicy)}`;
 
   const classifyUnresolved = ({ importerRel = '', spec = '', rawSpec = '' } = {}) => {
     for (const plugin of plugins) {
@@ -103,7 +119,7 @@ export const createImportBuildContext = ({
   };
 
   return Object.freeze({
-    version: 'build-context-v1',
+    version: 'build-context-v2',
     fingerprint,
     plugins: plugins.map((plugin) => ({
       id: plugin.id,

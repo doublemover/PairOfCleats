@@ -48,4 +48,30 @@ if (JSON.stringify(imports) !== JSON.stringify(expectedOrder)) {
   process.exit(1);
 }
 
+const docstringSample = collectPythonImports([
+  '"""',
+  'Example:',
+  '    from fake.docs import ExampleThing',
+  '    import pretend_module',
+  '"""',
+  'from real.pkg import ActualThing as AliasThing',
+  'import json',
+  'guide = """',
+  'import another_fake',
+  '"""',
+  'from feature.flags import (',
+  '    EnabledFeature,',
+  '    DisabledFeature as DF,',
+  ')'
+].join('\n'));
+
+expectSet('docstring imports filtered', docstringSample.imports, ['feature.flags', 'json', 'real.pkg']);
+expectSet('docstring usages filtered', docstringSample.usages, [
+  'ActualThing',
+  'AliasThing',
+  'DF',
+  'DisabledFeature',
+  'EnabledFeature'
+]);
+
 console.log('Python imports test passed.');
