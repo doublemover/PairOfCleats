@@ -36,8 +36,10 @@ import { createArtifactWriter } from './artifacts/writer.js';
 import { formatBytes } from './artifacts/helpers.js';
 import { resolveFilterIndexArtifactState } from './artifacts/filter-index-reuse.js';
 import {
+  buildActiveWriteTelemetrySnapshot,
   createWriteHeartbeatController,
-  recordArtifactMetricRow
+  recordArtifactMetricRow,
+  resolveActiveWritePhaseLabel
 } from './artifacts/write-telemetry.js';
 import {
   resolveDispatchWriteSchedulerTokens,
@@ -758,13 +760,12 @@ export async function writeIndexArtifacts(input) {
     fileRelations: state.fileRelations
   });
 
-  const { fileListPath } = await writeFileLists({
+  const { fileListPath } = await runTrackedArtifactCloseout('file-lists', async () => writeFileLists({
     outDir,
     state,
     userConfig,
     log
-  });
-
+  }));
 
   const resolvedConfig = normalizePostingsConfig(postingsConfig || {});
   const {
@@ -1003,6 +1004,7 @@ export async function writeIndexArtifacts(input) {
   let lastWriteLabel = '';
   const activeWrites = new Map();
   const activeWriteBytes = new Map();
+  const activeWriteMeta = new Map();
   const artifactMetrics = new Map();
   const artifactQueueDelaySamples = new Map();
   const writeLogIntervalMs = 1000;
@@ -1208,6 +1210,53 @@ export async function writeIndexArtifacts(input) {
     }
     return Math.max(0, Math.round(longest / 1000));
   };
+  /**
+   * Record lightweight phase metadata for one active artifact write.
+   *
+   * @param {string} label
+   * @param {object} patch
+   * @returns {void}
+   */
+  const updateActiveWriteMeta = (label, patch = {}) => {
+    if (!label) return;
+    const existing = activeWriteMeta.get(label) || {};
+    activeWriteMeta.set(label, {
+      ...existing,
+      ...patch
+    });
+  };
+  const runTrackedArtifactCloseout = async (name, fn) => {
+    const closeoutName = String(name || 'task').trim() || 'task';
+    const closeoutLabel = `closeout/${closeoutName}`;
+    activeWrites.set(closeoutLabel, Date.now());
+    activeWriteBytes.set(closeoutLabel, 0);
+    updateActiveWriteMeta(closeoutLabel, {
+      phase: resolveActiveWritePhaseLabel(closeoutLabel),
+      lane: 'closeout'
+    });
+    updateWriteInFlightTelemetry();
+    try {
+      return await fn();
+    } finally {
+      activeWrites.delete(closeoutLabel);
+      activeWriteBytes.delete(closeoutLabel);
+      activeWriteMeta.delete(closeoutLabel);
+      updateWriteInFlightTelemetry();
+      writeHeartbeat.clearLabelAlerts(closeoutLabel);
+    }
+  };
+  /**
+   * Build current active-write preview for stall diagnostics.
+   *
+   * @returns {{previewText:string,phaseSummaryText:string}}
+   */
+  const getActiveWriteTelemetrySnapshot = () => buildActiveWriteTelemetrySnapshot({
+    activeWrites,
+    activeWriteBytes,
+    activeWriteMeta,
+    limit: 3,
+    formatBytes
+  });
   let enqueueSeq = 0;
   /**
    * Convert artifact path to normalized output-root relative label.
@@ -1331,6 +1380,7 @@ export async function writeIndexArtifacts(input) {
     writeProgressHeartbeatMs,
     activeWrites,
     activeWriteBytes,
+    activeWriteMeta,
     getCompletedWrites: () => completedWrites,
     getTotalWrites: () => totalWrites,
     normalizedWriteStallThresholds,
@@ -1354,10 +1404,20 @@ export async function writeIndexArtifacts(input) {
       ? parsedEstimatedBytes
       : null;
     const laneHint = typeof meta?.laneHint === 'string' ? meta.laneHint : null;
+    const phaseHint = typeof meta?.phaseHint === 'string' ? meta.phaseHint : null;
     const eagerStart = meta?.eagerStart === true;
+    const trackedJob = typeof job === 'function'
+      ? async () => {
+        updateActiveWriteMeta(label, {
+          phase: resolveActiveWritePhaseLabel(label, phaseHint),
+          lane: laneHint || null
+        });
+        return job();
+      }
+      : job;
     let prefetched = null;
     let prefetchStartedAt = null;
-    if (eagerStart && typeof job === 'function') {
+    if (eagerStart && typeof trackedJob === 'function') {
       prefetchStartedAt = Date.now();
       const tokens = resolveEagerWriteSchedulerTokens({
         estimatedBytes,
@@ -1371,8 +1431,8 @@ export async function writeIndexArtifacts(input) {
         signal: effectiveAbortSignal
       };
       prefetched = scheduler?.schedule
-        ? scheduler.schedule(SCHEDULER_QUEUE_NAMES.stage2Write, schedulerTokens, job)
-        : job();
+        ? scheduler.schedule(SCHEDULER_QUEUE_NAMES.stage2Write, schedulerTokens, trackedJob)
+        : trackedJob();
       Promise.resolve(prefetched).catch(() => {});
     }
     writes.push({
@@ -1385,7 +1445,7 @@ export async function writeIndexArtifacts(input) {
       prefetchStartedAt,
       seq: enqueueSeq,
       enqueuedAt: Date.now(),
-      job
+      job: trackedJob
     });
     enqueueSeq += 1;
   };
@@ -2873,11 +2933,19 @@ export async function writeIndexArtifacts(input) {
         const nowMs = Date.now();
         if ((nowMs - lastNonWriteStallLogAt) >= 10000) {
           lastNonWriteStallLogAt = nowMs;
+          const activeWriteSnapshot = getActiveWriteTelemetrySnapshot();
+          const phaseSuffix = activeWriteSnapshot.phaseSummaryText
+            ? `, phases={${activeWriteSnapshot.phaseSummaryText}}`
+            : '';
+          const previewSuffix = activeWriteSnapshot.previewText
+            ? `, preview=${activeWriteSnapshot.previewText}`
+            : '';
           logLine(
             `[perf] artifact stall attribution: non-write ` +
             `(active=${activeCount}, pendingWrites=${pendingWriteCount()}, ` +
             `writeQ.pending=${schedulerWritePending}, writeQ.oldest=${schedulerWriteOldestWaitMs}ms, ` +
-            `writeQ.p95=${Number.isFinite(schedulerWriteWaitP95Ms) ? schedulerWriteWaitP95Ms : 'n/a'}ms)`,
+            `writeQ.p95=${Number.isFinite(schedulerWriteWaitP95Ms) ? schedulerWriteWaitP95Ms : 'n/a'}ms` +
+            `${phaseSuffix}${previewSuffix})`,
             { kind: 'warning' }
           );
         }
@@ -3029,6 +3097,13 @@ export async function writeIndexArtifacts(input) {
       const startedConcurrency = getActiveWriteConcurrency();
       activeWrites.set(activeLabel, started);
       activeWriteBytes.set(activeLabel, Number.isFinite(estimatedBytes) ? estimatedBytes : 0);
+      const existingPhase = activeWriteMeta.get(activeLabel)?.phase;
+      updateActiveWriteMeta(activeLabel, {
+        phase: existingPhase || (prefetched ? 'prefetch-wait' : 'scheduler-wait'),
+        lane: laneName,
+        rescueBoost: rescueBoost === true,
+        tailWorker: tailWorker === true
+      });
       updateWriteInFlightTelemetry();
       try {
         const schedulerTokens = resolveDispatchWriteSchedulerTokens({
@@ -3107,6 +3182,7 @@ export async function writeIndexArtifacts(input) {
       } finally {
         activeWrites.delete(activeLabel);
         activeWriteBytes.delete(activeLabel);
+        activeWriteMeta.delete(activeLabel);
         updateWriteInFlightTelemetry();
         writeHeartbeat.clearLabelAlerts(activeLabel);
         logWriteProgress(label);
@@ -3375,14 +3451,14 @@ export async function writeIndexArtifacts(input) {
     const nameB = String(b?.name || '');
     return nameA.localeCompare(nameB);
   });
-  await writePiecesManifest({
+  await runTrackedArtifactCloseout('pieces-manifest', async () => writePiecesManifest({
     pieceEntries,
     outDir,
     mode,
     indexState,
     abortSignal: effectiveAbortSignal
-  });
-  await writeIndexMetrics({
+  }));
+  await runTrackedArtifactCloseout('index-metrics', async () => writeIndexMetrics({
     root,
     userConfig,
     mode,
@@ -3410,5 +3486,5 @@ export async function writeIndexArtifacts(input) {
     compressionKeepRaw,
     documentExtractionEnabled,
     repoProvenance
-  });
+  }));
 }
