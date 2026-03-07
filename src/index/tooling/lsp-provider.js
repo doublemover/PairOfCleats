@@ -9,7 +9,8 @@ import {
   normalizePreflightPolicy,
   normalizePreflightRuntimeRequirements,
   normalizeProviderId,
-  PREFLIGHT_POLICY
+  PREFLIGHT_POLICY,
+  shouldCaptureDiagnosticsForRequestedKinds
 } from './provider-contract.js';
 import {
   invalidateProbeCacheOnInitializeFailure
@@ -722,6 +723,7 @@ const createConfiguredLspProvider = (server) => {
     provider,
     docs,
     targets,
+    requestedKinds = null,
     log,
     preChecks,
     commandProfile,
@@ -770,7 +772,7 @@ const createConfiguredLspProvider = (server) => {
         ? { hoverSymbolKinds: server.hoverSymbolKinds }
         : {}),
       initializationOptions: server.initializationOptions,
-      captureDiagnostics: true
+      captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(requestedKinds)
     });
     let diagnosticsByChunkUid = result.diagnosticsByChunkUid;
     let diagnosticsCount = result.diagnosticsCount;
@@ -939,6 +941,7 @@ const createConfiguredLspProvider = (server) => {
         provider: this,
         docs,
         targets,
+        requestedKinds: inputs?.kinds,
         log,
         preChecks,
         commandProfile: runtimeCommand.commandProfile,

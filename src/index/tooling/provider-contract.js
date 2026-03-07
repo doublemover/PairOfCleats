@@ -96,6 +96,11 @@ export const appendDiagnosticChecks = (diagnostics, checks) => {
   return next;
 };
 
+export const shouldCaptureDiagnosticsForRequestedKinds = (requestedKinds) => {
+  if (!Array.isArray(requestedKinds) || !requestedKinds.length) return true;
+  return requestedKinds.some((entry) => String(entry || '').trim().toLowerCase() === 'diagnostics');
+};
+
 export const validateToolingProvider = (provider) => {
   if (!provider || typeof provider !== 'object') return 'provider missing';
   if (!normalizeProviderId(provider.id)) return 'provider.id missing';

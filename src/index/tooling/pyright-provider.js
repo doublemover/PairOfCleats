@@ -2,7 +2,12 @@ import path from 'node:path';
 import fsSync from 'node:fs';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { readJsonFileSafe } from '../../shared/files.js';
-import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
+import {
+  appendDiagnosticChecks,
+  buildDuplicateChunkUidChecks,
+  hashProviderConfig,
+  shouldCaptureDiagnosticsForRequestedKinds
+} from './provider-contract.js';
 import { invalidateProbeCacheOnInitializeFailure, resolveToolingCommandProfile } from './command-resolver.js';
 import { parsePythonSignature } from './signature-parse/python.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
@@ -386,7 +391,7 @@ export const createPyrightProvider = () => ({
       vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching,
       vfsColdStartCache: ctx?.toolingConfig?.vfs?.coldStartCache,
       indexDir: ctx?.buildRoot || null,
-      captureDiagnostics: true
+      captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds)
     });
     const diagnostics = appendDiagnosticChecks(
       result.diagnosticsCount

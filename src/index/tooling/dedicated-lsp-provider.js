@@ -6,7 +6,8 @@ import {
   hashProviderConfig,
   normalizePreflightPolicy,
   normalizePreflightRuntimeRequirements,
-  PREFLIGHT_POLICY
+  PREFLIGHT_POLICY,
+  shouldCaptureDiagnosticsForRequestedKinds
 } from './provider-contract.js';
 import { invalidateProbeCacheOnInitializeFailure } from './command-resolver.js';
 import { resolveProviderRequestedCommand } from './provider-command-override.js';
@@ -326,7 +327,7 @@ export const createDedicatedLspProvider = (descriptor) => {
         indexDir: ctx?.buildRoot || null,
         cacheRoot: ctx?.cache?.dir || null,
         initializationOptions,
-        captureDiagnostics: true,
+        captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds),
         ...collectOptions
       });
       invalidateProbeCacheOnInitializeFailure({
