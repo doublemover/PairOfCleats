@@ -179,7 +179,8 @@ try {
   );
   assert.ok(injectedEbadf >= 1, 'expected injected EBADF/file closed path to be exercised');
 
-  // Regression: a wedged reader close should not stall scheduler lookup close.
+  // Regression: a wedged reader close should keep lookup shutdown bounded but
+  // fail deterministically instead of force-closing the shared reader entry.
   fs.open = async (...args) => {
     const [targetPath] = args;
     const handle = await originalOpen(...args);
@@ -200,16 +201,29 @@ try {
     closeTimeoutMs: 25,
     forceCloseAfterMs: 25
   });
+  const loaded = await hangingCloseLookup.loadRow(rowA.virtualPath);
+  assert.equal(loaded?.virtualPath, rowA.virtualPath, 'expected lookup row load before close-timeout regression check');
+  const closeStartAtMs = Date.now();
+  let hangingCloseError = null;
   try {
-    const loaded = await hangingCloseLookup.loadRow(rowA.virtualPath);
-    assert.equal(loaded?.virtualPath, rowA.virtualPath, 'expected lookup row load before close-timeout regression check');
-    const closeStartAtMs = Date.now();
     await hangingCloseLookup.close();
-    const closeElapsedMs = Date.now() - closeStartAtMs;
-    assert.ok(closeElapsedMs < 1500, `expected lookup close to remain bounded (elapsed=${closeElapsedMs}ms)`);
-  } finally {
-    await hangingCloseLookup.close();
+    assert.fail('expected wedged reader close to raise deterministic timeout');
+  } catch (err) {
+    hangingCloseError = err;
   }
+  const closeElapsedMs = Date.now() - closeStartAtMs;
+  assert.ok(closeElapsedMs < 1500, `expected lookup close to remain bounded (elapsed=${closeElapsedMs}ms)`);
+  assert.equal(
+    hangingCloseError?.code,
+    'ERR_TREE_SITTER_LOOKUP_CLOSE_TIMEOUT',
+    'expected wedged reader close to fail with typed lookup close timeout'
+  );
+  const hangingStats = hangingCloseLookup.stats();
+  assert.equal(
+    hangingStats.closeErrorCode,
+    'ERR_TREE_SITTER_LOOKUP_CLOSE_TIMEOUT',
+    'expected lookup stats to retain close timeout diagnostics'
+  );
 
   // Regression: non-positive force-close config must still stay bounded.
   const nonPositiveForceCloseLookup = createTreeSitterSchedulerLookup({

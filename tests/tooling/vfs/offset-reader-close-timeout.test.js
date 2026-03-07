@@ -49,6 +49,12 @@ try {
     logs.some((line) => line.includes('vfs-offset-reader.close timed out')),
     'expected timeout close path to emit a warning log line'
   );
+  const readerStats = reader.stats();
+  assert.equal(
+    readerStats.pendingCloseOperations,
+    1,
+    'expected timed-out close to remain tracked until the underlying handle settles'
+  );
 } finally {
   fs.open = originalOpen;
   await rmDirRecursive(tempRoot);
