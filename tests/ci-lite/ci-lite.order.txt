@@ -1024,5 +1024,11 @@ indexing/state/patch-queue-durability-class-forwarding
 indexing/state/patch-queue-lock-unavailable-best-effort-retry
 indexing/state/build-state-lock-unavailable-retryable
 indexing/tree-sitter/scheduler-lookup-reader-lease
+indexing/extracted-prose/extraction-report
+indexing/extracted-prose/low-yield-doc-sample-bias
+indexing/extracted-prose/low-yield-history-disable
+indexing/extracted-prose/low-yield-history-warmup-reduction
+indexing/extracted-prose/low-yield-min-chunks
 tooling/lsp/adaptive-scope-plan
+tooling/lsp/path-policy
 tooling/lsp/target-index
