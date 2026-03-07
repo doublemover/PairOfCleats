@@ -111,4 +111,14 @@ assert.deepEqual(
   'expected scheduler close to happen only after tracked process-file work settled'
 );
 
+const sealedRegistry = createTrackedProcessFileTaskRegistry({
+  name: 'process-files-inflight-drain-sealed'
+});
+sealedRegistry.seal('stage1 tail cleanup');
+assert.throws(
+  () => sealedRegistry.track(Promise.resolve(), { file: 'src/late.js' }),
+  (err) => err?.code === 'ERR_STAGE1_PROCESS_FILE_TASK_REGISTRY_SEALED',
+  'expected sealed registry to reject late process-file tracking'
+);
+
 console.log('process files inflight drain test passed');

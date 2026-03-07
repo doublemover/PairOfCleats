@@ -81,15 +81,35 @@ const rowB = createRow({
   languageId: 'typescript',
   ext: '.ts'
 });
+const grammarC = 'native:python';
+const grammarD = 'native:ruby';
+const rowC = createRow({
+  virtualPath: '.poc-vfs/src/c.py#seg:c.py',
+  grammarKey: grammarC,
+  languageId: 'python',
+  ext: '.py'
+});
+const rowD = createRow({
+  virtualPath: '.poc-vfs/src/d.rb#seg:d.rb',
+  grammarKey: grammarD,
+  languageId: 'ruby',
+  ext: '.rb'
+});
 const entryA = await writeBinaryRow({ grammarKey: grammarA, row: rowA });
 const entryB = await writeBinaryRow({ grammarKey: grammarB, row: rowB });
+const entryC = await writeBinaryRow({ grammarKey: grammarC, row: rowC });
+const entryD = await writeBinaryRow({ grammarKey: grammarD, row: rowD });
 
 const index = new Map();
 index.set(rowA.virtualPath, entryA);
 index.set(rowB.virtualPath, entryB);
+index.set(rowC.virtualPath, entryC);
+index.set(rowD.virtualPath, entryD);
 
 const resultsPathA = paths.resultsPathForGrammarKey(grammarA, 'binary-v1');
 const resultsPathB = paths.resultsPathForGrammarKey(grammarB, 'binary-v1');
+const resultsPathC = paths.resultsPathForGrammarKey(grammarC, 'binary-v1');
+const resultsPathD = paths.resultsPathForGrammarKey(grammarD, 'binary-v1');
 
 const originalOpen = fs.open;
 try {
@@ -134,6 +154,95 @@ try {
     assert.ok(stats.openReaders <= 1, 'expected lookup to respect maxOpenReaders cap');
   } finally {
     await lookup.close();
+  }
+
+  // Regression: an entry that is already closing due to eviction must never be
+  // leased again for a same-manifest request. The retried request should wait
+  // for close settlement and reopen cleanly instead of surfacing "reader is
+  // closed" from the retiring reader instance.
+  fs.open = async (...args) => {
+    const [targetPath] = args;
+    const handle = await originalOpen(...args);
+    const shouldDelayClose = String(targetPath) === String(resultsPathA);
+    return new Proxy(handle, {
+      get(target, prop, receiver) {
+        if (prop === 'close' && shouldDelayClose) {
+          return async () => {
+            await sleep(75);
+            return target.close();
+          };
+        }
+        const value = Reflect.get(target, prop, receiver);
+        return typeof value === 'function' ? value.bind(target) : value;
+      }
+    });
+  };
+  const sameManifestRetryLookup = createTreeSitterSchedulerLookup({
+    outDir,
+    index: new Map([
+      [rowA.virtualPath, entryA],
+      [rowB.virtualPath, entryB]
+    ]),
+    maxOpenReaders: 1
+  });
+  try {
+    const firstA = await sameManifestRetryLookup.loadRow(rowA.virtualPath);
+    assert.equal(firstA?.virtualPath, rowA.virtualPath, 'expected initial A lookup to succeed');
+    const pendingB = sameManifestRetryLookup.loadRow(rowB.virtualPath);
+    await sleep(10);
+    const retriedA = await sameManifestRetryLookup.loadRow(rowA.virtualPath);
+    const loadedB = await pendingB;
+    assert.equal(loadedB?.virtualPath, rowB.virtualPath, 'expected B lookup to succeed while A is retiring');
+    assert.equal(retriedA?.virtualPath, rowA.virtualPath, 'expected same-manifest retry to reopen cleanly');
+  } finally {
+    await sameManifestRetryLookup.close();
+  }
+
+  // Regression: idle-reader eviction must be identity-based. Concurrent reader
+  // creation can keep map size unchanged even after the targeted idle entry was
+  // evicted, which used to trip a false "eviction did not settle" failure.
+  fs.open = async (...args) => {
+    const [targetPath] = args;
+    const handle = await originalOpen(...args);
+    const shouldDelayClose = String(targetPath) === String(resultsPathA);
+    return new Proxy(handle, {
+      get(target, prop, receiver) {
+        if (prop === 'close' && shouldDelayClose) {
+          return async () => {
+            await sleep(75);
+            return target.close();
+          };
+        }
+        const value = Reflect.get(target, prop, receiver);
+        return typeof value === 'function' ? value.bind(target) : value;
+      }
+    });
+  };
+  const identityEvictionLookup = createTreeSitterSchedulerLookup({
+    outDir,
+    index: new Map([
+      [rowA.virtualPath, entryA],
+      [rowB.virtualPath, entryB],
+      [rowC.virtualPath, entryC],
+      [rowD.virtualPath, entryD]
+    ]),
+    maxOpenReaders: 2
+  });
+  try {
+    await identityEvictionLookup.loadRow(rowA.virtualPath);
+    await identityEvictionLookup.loadRow(rowB.virtualPath);
+    const pendingC = identityEvictionLookup.loadRow(rowC.virtualPath);
+    await sleep(10);
+    const loadedD = await identityEvictionLookup.loadRow(rowD.virtualPath);
+    const loadedC = await pendingC;
+    assert.equal(loadedC?.virtualPath, rowC.virtualPath, 'expected C lookup to succeed during concurrent eviction churn');
+    assert.equal(loadedD?.virtualPath, rowD.virtualPath, 'expected D lookup to succeed during concurrent eviction churn');
+    assert.ok(
+      identityEvictionLookup.stats().readerEvictions >= 2,
+      'expected concurrent churn scenario to record idle reader evictions'
+    );
+  } finally {
+    await identityEvictionLookup.close();
   }
 
   // Regression: treat EBADF/"file closed" as transient for scheduler row reads.

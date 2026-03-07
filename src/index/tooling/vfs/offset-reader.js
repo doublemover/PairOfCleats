@@ -73,8 +73,12 @@ export const createVfsManifestOffsetReader = ({
   const bufferPool = new Map();
   let pooledBuffers = 0;
   let handlePromise = null;
+  let closing = false;
   let closed = false;
   let closePromise = null;
+  let activeReadOperations = 0;
+  let readDrainPromise = null;
+  let resolveReadDrain = null;
   const pendingCloseOperations = new Set();
   const stats = {
     handleOpens: 0,
@@ -118,6 +122,41 @@ export const createVfsManifestOffsetReader = ({
     return promise;
   };
 
+  const finishReadOperation = () => {
+    activeReadOperations = Math.max(0, activeReadOperations - 1);
+    if (activeReadOperations === 0 && typeof resolveReadDrain === 'function') {
+      const resolve = resolveReadDrain;
+      resolveReadDrain = null;
+      readDrainPromise = null;
+      resolve();
+    }
+  };
+
+  const beginReadOperation = () => {
+    if (closing || closed) {
+      const err = new Error(closed ? 'VFS offset reader is closed.' : 'VFS offset reader is closing.');
+      err.code = 'ERR_VFS_OFFSET_READER_CLOSED';
+      throw err;
+    }
+    activeReadOperations += 1;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      finishReadOperation();
+    };
+  };
+
+  const waitForActiveReadsToDrain = async () => {
+    if (activeReadOperations <= 0) return;
+    if (!readDrainPromise) {
+      readDrainPromise = new Promise((resolve) => {
+        resolveReadDrain = resolve;
+      });
+    }
+    await readDrainPromise;
+  };
+
   const openHandle = async () => {
     if (closed) {
       const err = new Error('VFS offset reader is closed.');
@@ -154,16 +193,21 @@ export const createVfsManifestOffsetReader = ({
 
   const readAtOffset = async ({ offset, bytes }) => {
     if (!Number.isFinite(offset) || !Number.isFinite(bytes) || bytes <= 0) return null;
-    const handle = await openHandle();
-    const expectedBytes = Math.max(1, Math.floor(bytes));
-    const buffer = checkoutBuffer(expectedBytes);
-    if (!buffer) return null;
-    stats.readCalls += 1;
+    const releaseRead = beginReadOperation();
     try {
-      const result = await handle.read(buffer, 0, expectedBytes, offset);
-      return parseRowBuffer(buffer, result?.bytesRead || 0);
+      const handle = await openHandle();
+      const expectedBytes = Math.max(1, Math.floor(bytes));
+      const buffer = checkoutBuffer(expectedBytes);
+      if (!buffer) return null;
+      stats.readCalls += 1;
+      try {
+        const result = await handle.read(buffer, 0, expectedBytes, offset);
+        return parseRowBuffer(buffer, result?.bytesRead || 0);
+      } finally {
+        checkinBuffer(buffer);
+      }
     } finally {
-      checkinBuffer(buffer);
+      releaseRead();
     }
   };
 
@@ -172,66 +216,71 @@ export const createVfsManifestOffsetReader = ({
     stats.batchCalls += 1;
     const out = new Array(list.length).fill(null);
     if (!list.length) return out;
-    const handle = await openHandle();
-    const normalized = [];
-    for (let i = 0; i < list.length; i += 1) {
-      const request = list[i] || {};
-      const offset = Number(request.offset);
-      const bytes = Number(request.bytes);
-      if (!Number.isFinite(offset) || !Number.isFinite(bytes) || bytes <= 0) continue;
-      normalized.push({
-        index: i,
-        offset,
-        bytes: Math.max(1, Math.floor(bytes))
-      });
-    }
-    normalized.sort((a, b) => a.offset - b.offset || a.index - b.index);
-    let cursor = 0;
-    while (cursor < normalized.length) {
-      const first = normalized[cursor];
-      const group = [first];
-      let groupStart = first.offset;
-      let groupEnd = first.offset + first.bytes;
-      cursor += 1;
+    const releaseRead = beginReadOperation();
+    try {
+      const handle = await openHandle();
+      const normalized = [];
+      for (let i = 0; i < list.length; i += 1) {
+        const request = list[i] || {};
+        const offset = Number(request.offset);
+        const bytes = Number(request.bytes);
+        if (!Number.isFinite(offset) || !Number.isFinite(bytes) || bytes <= 0) continue;
+        normalized.push({
+          index: i,
+          offset,
+          bytes: Math.max(1, Math.floor(bytes))
+        });
+      }
+      normalized.sort((a, b) => a.offset - b.offset || a.index - b.index);
+      let cursor = 0;
       while (cursor < normalized.length) {
-        const next = normalized[cursor];
-        const nextEnd = next.offset + next.bytes;
-        const mergedStart = Math.min(groupStart, next.offset);
-        const mergedEnd = Math.max(groupEnd, nextEnd);
-        const mergedBytes = mergedEnd - mergedStart;
-        if (mergedBytes > coalesceLimit) break;
-        group.push(next);
-        groupStart = mergedStart;
-        groupEnd = mergedEnd;
+        const first = normalized[cursor];
+        const group = [first];
+        let groupStart = first.offset;
+        let groupEnd = first.offset + first.bytes;
         cursor += 1;
-      }
-      const readBytes = Math.max(0, groupEnd - groupStart);
-      if (!readBytes) continue;
-      const buffer = checkoutBuffer(readBytes);
-      if (!buffer) continue;
-      stats.readCalls += 1;
-      if (group.length > 1) {
-        stats.coalescedReads += 1;
-        stats.coalescedBytes += readBytes;
-      }
-      try {
-        const result = await handle.read(buffer, 0, readBytes, groupStart);
-        const bytesRead = result?.bytesRead || 0;
-        for (const request of group) {
-          const relativeStart = request.offset - groupStart;
-          const relativeEnd = relativeStart + request.bytes;
-          if (relativeStart < 0 || relativeEnd > bytesRead) {
-            out[request.index] = null;
-            continue;
-          }
-          const rowBuffer = buffer.subarray(relativeStart, relativeEnd);
-          out[request.index] = parseRowBuffer(rowBuffer, rowBuffer.length);
+        while (cursor < normalized.length) {
+          const next = normalized[cursor];
+          const nextEnd = next.offset + next.bytes;
+          const mergedStart = Math.min(groupStart, next.offset);
+          const mergedEnd = Math.max(groupEnd, nextEnd);
+          const mergedBytes = mergedEnd - mergedStart;
+          if (mergedBytes > coalesceLimit) break;
+          group.push(next);
+          groupStart = mergedStart;
+          groupEnd = mergedEnd;
+          cursor += 1;
         }
-      } finally {
-        checkinBuffer(buffer);
+        const readBytes = Math.max(0, groupEnd - groupStart);
+        if (!readBytes) continue;
+        const buffer = checkoutBuffer(readBytes);
+        if (!buffer) continue;
+        stats.readCalls += 1;
+        if (group.length > 1) {
+          stats.coalescedReads += 1;
+          stats.coalescedBytes += readBytes;
+        }
+        try {
+          const result = await handle.read(buffer, 0, readBytes, groupStart);
+          const bytesRead = result?.bytesRead || 0;
+          for (const request of group) {
+            const relativeStart = request.offset - groupStart;
+            const relativeEnd = relativeStart + request.bytes;
+            if (relativeStart < 0 || relativeEnd > bytesRead) {
+              out[request.index] = null;
+              continue;
+            }
+            const rowBuffer = buffer.subarray(relativeStart, relativeEnd);
+            out[request.index] = parseRowBuffer(rowBuffer, rowBuffer.length);
+          }
+        } finally {
+          checkinBuffer(buffer);
+        }
       }
+      return out;
+    } finally {
+      releaseRead();
     }
-    return out;
   };
 
   const close = async () => {
@@ -239,11 +288,16 @@ export const createVfsManifestOffsetReader = ({
       await closePromise;
       return;
     }
-    closed = true;
-    const pending = handlePromise;
-    handlePromise = null;
-    if (!pending) return;
     closePromise = (async () => {
+      closing = true;
+      await waitForActiveReadsToDrain();
+      const pending = handlePromise;
+      handlePromise = null;
+      if (!pending) {
+        closed = true;
+        closing = false;
+        return;
+      }
       const handle = await pending;
       const closeOperation = trackPendingCloseOperation(Promise.resolve().then(() => handle.close()));
       // Keep the underlying close promise strongly referenced even when teardown
@@ -279,6 +333,8 @@ export const createVfsManifestOffsetReader = ({
         }
       } finally {
         if (timeoutId) clearTimeout(timeoutId);
+        closed = true;
+        closing = false;
       }
     })();
     try {
@@ -295,6 +351,8 @@ export const createVfsManifestOffsetReader = ({
       ...stats,
       closeTimeoutMs: resolvedCloseTimeoutMs,
       pooledBuffers,
+      activeReadOperations,
+      closing,
       pendingCloseOperations: pendingCloseOperations.size,
       closed
     }),

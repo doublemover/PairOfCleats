@@ -1414,6 +1414,8 @@ export const createTrackedProcessFileTaskRegistry = ({
   const lifecycle = createLifecycleRegistry({ name });
   const pending = new Map();
   let nextId = 0;
+  let sealed = false;
+  let sealReason = null;
 
   const snapshot = () => Array.from(pending.entries())
     .map(([id, entry]) => ({
@@ -1432,6 +1434,14 @@ export const createTrackedProcessFileTaskRegistry = ({
 
   const track = (promise, meta = {}) => {
     if (!promise || typeof promise.then !== 'function') return promise;
+    if (sealed) {
+      const err = new Error(
+        `[stage1] ${name} is sealed; refusing new process-file task` +
+        `${sealReason ? ` (${sealReason})` : ''}.`
+      );
+      err.code = 'ERR_STAGE1_PROCESS_FILE_TASK_REGISTRY_SEALED';
+      throw err;
+    }
     const id = nextId + 1;
     nextId = id;
     pending.set(id, normalizeTrackedProcessFileTaskMeta(meta));
@@ -1448,6 +1458,11 @@ export const createTrackedProcessFileTaskRegistry = ({
 
   return {
     track,
+    seal: (reason = null) => {
+      sealed = true;
+      sealReason = typeof reason === 'string' && reason.trim() ? reason.trim() : null;
+    },
+    isSealed: () => sealed,
     snapshot,
     pendingCount: () => pending.size,
     drain: () => lifecycle.drain()
@@ -2591,6 +2606,7 @@ export const processFiles = async ({
   const inFlightProcessFileTasks = createTrackedProcessFileTaskRegistry({
     name: `stage1:${String(runtime?.buildId || 'unknown-build')}:${mode || 'unknown-mode'}`
   });
+  let stage1ShuttingDown = false;
 
   try {
     assignFileIndexes(entries);
@@ -4037,6 +4053,11 @@ export const processFiles = async ({
             try {
               return await runWithTimeout(
                 (signal) => {
+                  if (stage1ShuttingDown) {
+                    const err = new Error('[cleanup] stage1 tail cleanup has started; refusing new process-file task.');
+                    err.code = 'ERR_STAGE1_SHUTTING_DOWN';
+                    throw err;
+                  }
                   const rawProcessFileTask = withTrackedSubprocessSignalScope(
                     signal,
                     fileSubprocessOwnershipId,
@@ -5177,6 +5198,8 @@ export const processFiles = async ({
       extractedProseLowYieldBailout: extractedProseLowYieldSummary
     };
   } finally {
+    stage1ShuttingDown = true;
+    inFlightProcessFileTasks.seal('stage1 tail cleanup');
     if (orderedCompletionTracker) {
       activeOrderedCompletionTrackers.delete(orderedCompletionTracker);
     }
