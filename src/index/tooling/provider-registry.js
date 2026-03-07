@@ -135,7 +135,7 @@ export function selectToolingProviders({
     const filteredTargets = languageSet.size
       ? targetList.filter((target) => languageSet.has(normalizeLanguageId(target?.languageId)))
       : targetList;
-    if (!filteredDocs.length || !filteredTargets.length) continue;
+    if (!filteredDocs.length && !filteredTargets.length) continue;
     plans.push({ provider, documents: filteredDocs, targets: filteredTargets });
   }
 

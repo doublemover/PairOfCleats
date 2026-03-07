@@ -760,13 +760,6 @@ export async function writeIndexArtifacts(input) {
     fileRelations: state.fileRelations
   });
 
-  const { fileListPath } = await runTrackedArtifactCloseout('file-lists', async () => writeFileLists({
-    outDir,
-    state,
-    userConfig,
-    log
-  }));
-
   const resolvedConfig = normalizePostingsConfig(postingsConfig || {});
   const {
     filterIndex,
@@ -3451,6 +3444,12 @@ export async function writeIndexArtifacts(input) {
     const nameB = String(b?.name || '');
     return nameA.localeCompare(nameB);
   });
+  await runTrackedArtifactCloseout('file-lists', async () => writeFileLists({
+    outDir,
+    state,
+    userConfig,
+    log
+  }));
   await runTrackedArtifactCloseout('pieces-manifest', async () => writePiecesManifest({
     pieceEntries,
     outDir,

@@ -12,23 +12,23 @@ import { resolveTestCachePath } from '../../helpers/test-cache.js';
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'import-resolution-fs-exists-index-budget-shortcircuit');
 const srcRoot = path.join(tempRoot, 'src');
-const vendorRoot = path.join(tempRoot, 'vendor');
+const depsRoot = path.join(tempRoot, 'deps');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(srcRoot, { recursive: true });
-await fs.mkdir(vendorRoot, { recursive: true });
-await fs.writeFile(path.join(srcRoot, 'main.js'), "import '../vendor/local.js';\n", 'utf8');
-await fs.writeFile(path.join(vendorRoot, 'local.js'), 'export const local = true;\n', 'utf8');
+await fs.mkdir(depsRoot, { recursive: true });
+await fs.writeFile(path.join(srcRoot, 'main.js'), "import '../deps/local.js';\n", 'utf8');
+await fs.writeFile(path.join(depsRoot, 'local.js'), 'export const local = true;\n', 'utf8');
 
 const entries = [
   { abs: path.join(srcRoot, 'main.js'), rel: 'src/main.js' }
 ];
 const importsByFile = {
-  'src/main.js': ['../vendor/local.js']
+  'src/main.js': ['../deps/local.js']
 };
 
 const baselineRelations = new Map([
-  ['src/main.js', { imports: ['../vendor/local.js'] }]
+  ['src/main.js', { imports: ['../deps/local.js'] }]
 ]);
 const baseline = resolveImportLinks({
   root: tempRoot,
@@ -53,7 +53,7 @@ const fsExistsIndex = await createFsExistsIndex({
   entries
 });
 const acceleratedRelations = new Map([
-  ['src/main.js', { imports: ['../vendor/local.js'] }]
+  ['src/main.js', { imports: ['../deps/local.js'] }]
 ]);
 const accelerated = resolveImportLinks({
   root: tempRoot,
@@ -71,7 +71,7 @@ const accelerated = resolveImportLinks({
 });
 assert.deepEqual(
   acceleratedRelations.get('src/main.js')?.externalImports || [],
-  ['../vendor/local.js'],
+  ['../deps/local.js'],
   'expected fs-exists-index exact hit to bypass fs probe budget exhaustion'
 );
 assert.equal(accelerated?.stats?.unresolvedBudgetExhausted, 0);
