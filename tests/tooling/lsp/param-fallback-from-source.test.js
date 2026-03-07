@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { collectLspTypes } from '../../../src/integrations/tooling/providers/lsp.js';
-import { parseCppTwoIntParamSignature } from '../../helpers/lsp-signature-fixtures.js';
+import { parseCppTwoIntParamSignature, parseJsonLinesFile } from '../../helpers/lsp-signature-fixtures.js';
+import { withTemporaryEnv } from '../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -13,6 +14,7 @@ await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 
 const serverPath = path.join(root, 'tests', 'fixtures', 'lsp', 'stub-lsp-server.js');
+const tracePath = path.join(tempRoot, 'trace.jsonl');
 const docText = 'int add(int a, int b) { return a + b; }\n';
 const virtualPath = '.poc-vfs/src/sample.cpp#seg:stub.cpp';
 const documents = [{
@@ -43,14 +45,17 @@ const parseSignature = (detailText) => parseCppTwoIntParamSignature(detailText, 
   allowUnnamedPrototype: true
 });
 
-const result = await collectLspTypes({
-  rootDir: tempRoot,
-  vfsRoot: tempRoot,
-  documents,
-  targets,
-  cmd: process.execPath,
-  args: [serverPath, '--mode', 'clangd-compact'],
-  parseSignature
+let result = null;
+await withTemporaryEnv({ POC_LSP_TRACE: tracePath }, async () => {
+  result = await collectLspTypes({
+    rootDir: tempRoot,
+    vfsRoot: tempRoot,
+    documents,
+    targets,
+    cmd: process.execPath,
+    args: [serverPath, '--mode', 'signature-help'],
+    parseSignature
+  });
 });
 
 const payload = result.byChunkUid?.[chunkUid]?.payload || null;
@@ -59,14 +64,23 @@ assert.equal(payload.returnType, 'int');
 assert.deepEqual(payload.paramTypes?.a?.map((entry) => entry.type), ['int']);
 assert.deepEqual(payload.paramTypes?.b?.map((entry) => entry.type), ['int']);
 assert.equal(
-  Number(result?.hoverMetrics?.fallbackUsed || 0) >= 1,
+  Number(result?.hoverMetrics?.sourceBootstrapUsed || 0) >= 1,
   true,
-  'expected source fallback usage metric to increment'
+  'expected source bootstrap metric to increment'
 );
 assert.equal(
-  Number(result?.hoverMetrics?.fallbackReasonCounts?.missing_param_types || 0) >= 1,
-  true,
-  'expected missing_param_types fallback reason to be counted'
+  Number(result?.hoverMetrics?.fallbackUsed || 0),
+  0,
+  'expected late source fallback metric to remain unused when source bootstrap completes payload'
 );
+const traceLines = await parseJsonLinesFile(tracePath);
+const hoverRequests = traceLines.filter(
+  (entry) => entry.kind === 'request' && entry.method === 'textDocument/hover'
+).length;
+const signatureHelpRequests = traceLines.filter(
+  (entry) => entry.kind === 'request' && entry.method === 'textDocument/signatureHelp'
+).length;
+assert.equal(hoverRequests, 0, 'expected no hover requests when source bootstrap completes payload');
+assert.equal(signatureHelpRequests, 0, 'expected no signatureHelp requests when source bootstrap completes payload');
 
-console.log('LSP source fallback param recovery test passed');
+console.log('LSP source bootstrap param recovery test passed');

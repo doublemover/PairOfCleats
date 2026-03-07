@@ -605,18 +605,6 @@ export async function collectLspTypes({
   }
 
   let coldStartCache = null;
-  if (vfsColdStartCache !== false) {
-    throwIfAborted(toolingAbortSignal);
-    const resolvedIndexDir = indexDir || resolvedRoot || rootDir;
-    const indexSignature = resolvedIndexDir ? await buildIndexSignature(resolvedIndexDir) : null;
-    const manifestHash = resolvedIndexDir ? await computeVfsManifestHash({ indexDir: resolvedIndexDir }) : null;
-    coldStartCache = await createVfsColdStartCache({
-      cacheRoot,
-      indexSignature,
-      manifestHash,
-      config: vfsColdStartCache
-    });
-  }
 
   const checkFlags = {
     diagnosticsPerUriTrimmed: false,
@@ -693,10 +681,12 @@ export async function collectLspTypes({
       if (toolingAbortSignal.aborted) onAbort();
     }
 
-    const refreshRuntimeState = () => {
+    const refreshRuntimeState = ({ includeRequests = false } = {}) => {
       runtime.lifecycle = lifecycleHealth.getState();
       runtime.guard = guard.getState ? guard.getState() : null;
-      runtime.requests = typeof client.getMetrics === 'function' ? client.getMetrics() : null;
+      if (includeRequests || runtime.requests == null) {
+        runtime.requests = typeof client.getMetrics === 'function' ? client.getMetrics() : null;
+      }
     };
 
     const runWithHealthGuard = async (fn, options = {}) => {
@@ -864,18 +854,13 @@ export async function collectLspTypes({
         } catch {}
         detachAbortHandler = null;
       }
-      refreshRuntimeState();
-      return buildEmptyCollectResult(checks, {
-        ...runtime,
-        lifecycle: lifecycleHealth.getState()
-      });
+      refreshRuntimeState({ includeRequests: true });
+      return buildEmptyCollectResult(checks, runtime);
     }
 
     try {
       if (skipSymbolCollection) {
-        runtime.lifecycle = lifecycleHealth.getState();
-        runtime.guard = guard.getState ? guard.getState() : null;
-        runtime.requests = typeof client.getMetrics === 'function' ? client.getMetrics() : null;
+        refreshRuntimeState({ includeRequests: true });
         return buildEmptyCollectResult(checks, runtime);
       }
       const byChunkUid = {};
@@ -964,6 +949,20 @@ export async function collectLspTypes({
         );
       }
 
+      throwIfAborted(toolingAbortSignal);
+      if (vfsColdStartCache !== false) {
+        const resolvedIndexDir = indexDir || resolvedRoot || rootDir;
+        const indexSignature = resolvedIndexDir ? await buildIndexSignature(resolvedIndexDir) : null;
+        const manifestHash = resolvedIndexDir
+          ? await computeVfsManifestHash({ indexDir: resolvedIndexDir })
+          : null;
+        coldStartCache = await createVfsColdStartCache({
+          cacheRoot,
+          indexSignature,
+          manifestHash,
+          config: vfsColdStartCache
+        });
+      }
       throwIfAborted(toolingAbortSignal);
       const openDocs = new Map();
       const diskPathMap = resolvedScheme === 'file'
@@ -1107,9 +1106,7 @@ export async function collectLspTypes({
       }
 
       const lifecycleState = lifecycleHealth.getState();
-      runtime.lifecycle = lifecycleState;
-      runtime.guard = guard.getState ? guard.getState() : null;
-      runtime.requests = typeof client.getMetrics === 'function' ? client.getMetrics() : null;
+      refreshRuntimeState({ includeRequests: true });
       if (lifecycleState.crashLoopTrips > 0 && !checkFlags.crashLoopQuarantined) {
         checkFlags.crashLoopQuarantined = true;
         checks.push({

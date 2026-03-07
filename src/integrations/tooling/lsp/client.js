@@ -174,6 +174,13 @@ export function createLspClient(options) {
     latencyMaxMs: 0,
     byMethod: Object.create(null)
   };
+  let cachedMetricsSnapshot = null;
+  let metricsSnapshotDirty = true;
+
+  const invalidateMetricsSnapshot = () => {
+    metricsSnapshotDirty = true;
+    cachedMetricsSnapshot = null;
+  };
 
   const ensureMethodMetric = (method) => {
     const key = String(method || 'unknown');
@@ -187,6 +194,7 @@ export function createLspClient(options) {
         latencyTotalMs: 0,
         latencyMaxMs: 0
       };
+      invalidateMetricsSnapshot();
     }
     return requestMetrics.byMethod[key];
   };
@@ -201,6 +209,7 @@ export function createLspClient(options) {
     const removedMethodTotal = pushLatencySample(methodMetric.latencySamplesMs, value);
     methodMetric.latencyTotalMs += value - removedMethodTotal;
     methodMetric.latencyMaxMs = Math.max(methodMetric.latencyMaxMs, value);
+    invalidateMetricsSnapshot();
   };
 
   const emitLifecycleEvent = (event) => {
@@ -228,6 +237,7 @@ export function createLspClient(options) {
       const methodMetric = ensureMethodMetric(entry.method);
       methodMetric.failed += 1;
       recordRequestLatency(entry.method, now - Number(entry.startedAt || now));
+      invalidateMetricsSnapshot();
       entry.reject(err);
     }
     pending.clear();
@@ -420,6 +430,7 @@ export function createLspClient(options) {
     if (message.error) {
       requestMetrics.failed += 1;
       methodMetric.failed += 1;
+      invalidateMetricsSnapshot();
       const err = new Error(message.error.message || 'LSP request failed.');
       err.code = message.error.code;
       entry.reject(err);
@@ -427,6 +438,7 @@ export function createLspClient(options) {
     }
     requestMetrics.succeeded += 1;
     methodMetric.succeeded += 1;
+    invalidateMetricsSnapshot();
     entry.resolve(message.result);
   };
 
@@ -680,6 +692,7 @@ export function createLspClient(options) {
     requestMetrics.requests += 1;
     const methodMetric = ensureMethodMetric(method);
     methodMetric.requests += 1;
+    invalidateMetricsSnapshot();
     const resolvedTimeout = Number.isFinite(timeoutMs) ? timeoutMs : DEFAULT_REQUEST_TIMEOUT_MS;
     const startedAt = Date.now();
     return new Promise((resolve, reject) => {
@@ -692,6 +705,7 @@ export function createLspClient(options) {
           methodMetric.timedOut += 1;
           methodMetric.failed += 1;
           recordRequestLatency(method, Date.now() - startedAt);
+          invalidateMetricsSnapshot();
           try {
             notify('$/cancelRequest', { id }, { startIfNeeded: false });
           } catch {}
@@ -707,6 +721,7 @@ export function createLspClient(options) {
         requestMetrics.failed += 1;
         methodMetric.failed += 1;
         recordRequestLatency(method, Date.now() - startedAt);
+        invalidateMetricsSnapshot();
         entry.reject(new Error(`LSP writer unavailable (${method}).`));
       }
     });
@@ -886,33 +901,40 @@ export function createLspClient(options) {
     request,
     getGeneration: () => generation,
     isTransportRunning,
-    getMetrics: () => ({
-      requests: requestMetrics.requests,
-      succeeded: requestMetrics.succeeded,
-      failed: requestMetrics.failed,
-      timedOut: requestMetrics.timedOut,
-      latencyMs: summarizeLatencies(
-        requestMetrics.latencySamplesMs,
-        requestMetrics.latencyTotalMs,
-        requestMetrics.latencyMaxMs
-      ),
-      byMethod: Object.fromEntries(
-        Object.entries(requestMetrics.byMethod).map(([method, stats]) => [
-          method,
-          {
-            requests: Number(stats?.requests || 0),
-            succeeded: Number(stats?.succeeded || 0),
-            failed: Number(stats?.failed || 0),
-            timedOut: Number(stats?.timedOut || 0),
-            latencyMs: summarizeLatencies(
-              stats?.latencySamplesMs,
-              stats?.latencyTotalMs,
-              stats?.latencyMaxMs
-            )
-          }
-        ])
-      )
-    }),
+    getMetrics: () => {
+      if (!metricsSnapshotDirty && cachedMetricsSnapshot) {
+        return cachedMetricsSnapshot;
+      }
+      cachedMetricsSnapshot = {
+        requests: requestMetrics.requests,
+        succeeded: requestMetrics.succeeded,
+        failed: requestMetrics.failed,
+        timedOut: requestMetrics.timedOut,
+        latencyMs: summarizeLatencies(
+          requestMetrics.latencySamplesMs,
+          requestMetrics.latencyTotalMs,
+          requestMetrics.latencyMaxMs
+        ),
+        byMethod: Object.fromEntries(
+          Object.entries(requestMetrics.byMethod).map(([method, stats]) => [
+            method,
+            {
+              requests: Number(stats?.requests || 0),
+              succeeded: Number(stats?.succeeded || 0),
+              failed: Number(stats?.failed || 0),
+              timedOut: Number(stats?.timedOut || 0),
+              latencyMs: summarizeLatencies(
+                stats?.latencySamplesMs,
+                stats?.latencyTotalMs,
+                stats?.latencyMaxMs
+              )
+            }
+          ])
+        )
+      };
+      metricsSnapshotDirty = false;
+      return cachedMetricsSnapshot;
+    },
     shutdownAndExit,
     kill,
     killSync

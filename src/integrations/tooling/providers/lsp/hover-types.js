@@ -378,6 +378,7 @@ const summarizeLatencies = (values) => {
 const createHoverFileStats = () => ({
   requested: 0,
   succeeded: 0,
+  sourceBootstrapUsed: 0,
   hoverTimedOut: 0,
   signatureHelpRequested: 0,
   signatureHelpSucceeded: 0,
@@ -788,7 +789,7 @@ const resolveEvidenceTier = (record) => {
   ) {
     return 'full';
   }
-  if (record?.sourceFallbackUsed) {
+  if (record?.sourceBootstrapUsed || record?.sourceFallbackUsed) {
     return 'heuristic';
   }
   return 'inferred';
@@ -813,6 +814,7 @@ const defaultParamConfidenceForTier = (tier) => {
 export const createEmptyHoverMetricsResult = () => ({
   requested: 0,
   succeeded: 0,
+  sourceBootstrapUsed: 0,
   hoverTimedOut: 0,
   signatureHelpRequested: 0,
   signatureHelpSucceeded: 0,
@@ -854,6 +856,7 @@ export const summarizeHoverMetrics = ({ hoverMetrics, hoverLatencyMs, hoverFileS
       virtualPath,
       requested: stats.requested,
       succeeded: stats.succeeded,
+      sourceBootstrapUsed: stats.sourceBootstrapUsed,
       hoverTimedOut: stats.hoverTimedOut,
       signatureHelpRequested: stats.signatureHelpRequested,
       signatureHelpSucceeded: stats.signatureHelpSucceeded,
@@ -889,6 +892,7 @@ export const summarizeHoverMetrics = ({ hoverMetrics, hoverLatencyMs, hoverFileS
   return {
     requested: hoverMetrics.requested,
     succeeded: hoverMetrics.succeeded,
+    sourceBootstrapUsed: hoverMetrics.sourceBootstrapUsed,
     hoverTimedOut: hoverMetrics.hoverTimedOut,
     signatureHelpRequested: hoverMetrics.signatureHelpRequested,
     signatureHelpSucceeded: hoverMetrics.signatureHelpSucceeded,
@@ -1666,6 +1670,34 @@ export const processDocumentTypes = async ({
 
       const detailText = symbol.detail || symbol.name;
       let info = parseSignatureCached(detailText, symbol.name);
+      const initialIncompleteState = isIncompleteTypePayload(info, { symbolKind: symbol?.kind });
+      let sourceSignature = null;
+      let sourceBootstrapUsed = false;
+      if (initialIncompleteState.incomplete) {
+        sourceSignature = buildSourceSignatureCandidate(
+          openEntry?.text || doc.text || '',
+          target?.virtualRange
+        );
+      }
+      if (sourceSignature) {
+        const sourceInfo = parseSignatureCached(sourceSignature, symbol?.name);
+        if (sourceInfo) {
+          const baseScore = scoreSignatureInfo(info, { symbolKind: symbol?.kind });
+          const sourceScore = scoreSignatureInfo(sourceInfo, { symbolKind: symbol?.kind });
+          const mergedSourceInfo = mergeSignatureInfo(info, sourceInfo, { symbolKind: symbol?.kind });
+          const mergedState = isIncompleteTypePayload(mergedSourceInfo, { symbolKind: symbol?.kind });
+          const shouldBootstrapSource = (
+            sourceScore.total > baseScore.total
+            || (!mergedState.incomplete && baseScore.incomplete)
+          );
+          if (shouldBootstrapSource) {
+            info = mergedSourceInfo;
+            sourceBootstrapUsed = true;
+            fileHoverStats.sourceBootstrapUsed += 1;
+            hoverMetrics.sourceBootstrapUsed += 1;
+          }
+        }
+      }
       const incompleteState = isIncompleteTypePayload(info, { symbolKind: symbol?.kind });
       if (incompleteState.incomplete) {
         hoverMetrics.incompleteSymbols += 1;
@@ -1687,12 +1719,7 @@ export const processDocumentTypes = async ({
         fileHoverStats.skippedByKind += 1;
         hoverMetrics.skippedByKind += 1;
       }
-
       const position = symbol.selectionRange?.start || symbol.range?.start || null;
-      const sourceSignature = buildSourceSignatureCandidate(
-        openEntry?.text || doc.text || '',
-        target?.virtualRange
-      );
       symbolRecords.push({
         symbol,
         position,
@@ -1743,6 +1770,7 @@ export const processDocumentTypes = async ({
         typeDefinitionSucceeded: false,
         referencesRequested: false,
         referencesSucceeded: false,
+        sourceBootstrapUsed: sourceBootstrapUsed === true,
         sourceFallbackUsed: false
       });
     }
@@ -1761,6 +1789,9 @@ export const processDocumentTypes = async ({
       8,
       { min: 1, max: 256 }
     );
+    let unresolvedRecords = symbolRecords.filter((record) => isIncompleteTypePayload(record?.info, {
+      symbolKind: record?.symbol?.kind
+    }).incomplete);
     const isAdaptiveSuppressed = () => hoverControl.disabledGlobal || fileHoverStats.disabledAdaptive;
     const recordAdaptiveSkip = () => {
       if (hoverControl.disabledGlobal) {
@@ -1790,14 +1821,11 @@ export const processDocumentTypes = async ({
       requestedFlag,
       succeededFlag
     }) => {
-      if (!enabled) return;
-      await runWithConcurrency(symbolRecords, resolvedSymbolProcessingConcurrency, async (record) => {
+      if (!enabled || !unresolvedRecords.length) return;
+      const stageRecords = unresolvedRecords.filter((record) => record?.[eligibleFlag]);
+      if (!stageRecords.length) return;
+      await runWithConcurrency(stageRecords, resolvedSymbolProcessingConcurrency, async (record) => {
         throwIfAborted(abortSignal);
-        if (!record?.[eligibleFlag]) return;
-        const incompleteState = isIncompleteTypePayload(record.info, {
-          symbolKind: record?.symbol?.kind
-        });
-        if (!incompleteState.incomplete) return;
         if (shouldSuppressAdditionalRequests()) return;
         const stageResult = await requestFn(record.symbol, record.position);
         if (!stageResult?.attempted) return;
@@ -1807,6 +1835,9 @@ export const processDocumentTypes = async ({
         record[succeededFlag] = true;
         record.info = mergeSignatureInfo(record.info, stageInfo, { symbolKind: record?.symbol?.kind });
       }, { signal: abortSignal });
+      unresolvedRecords = unresolvedRecords.filter((record) => isIncompleteTypePayload(record?.info, {
+        symbolKind: record?.symbol?.kind
+      }).incomplete);
     };
 
     await runStagePass({
@@ -1852,7 +1883,7 @@ export const processDocumentTypes = async ({
       const incompleteAfterStages = isIncompleteTypePayload(info, {
         symbolKind: record?.symbol?.kind
       });
-      if (incompleteAfterStages.incomplete && record.sourceSignature) {
+      if (incompleteAfterStages.incomplete && record.sourceSignature && !record.sourceBootstrapUsed) {
         const sourceInfo = parseSignatureCached(record.sourceSignature, record?.symbol?.name);
         if (sourceInfo) {
           const fallbackReasons = buildFallbackReasonCodes({

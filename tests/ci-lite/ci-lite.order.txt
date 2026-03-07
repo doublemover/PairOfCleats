@@ -323,6 +323,7 @@ indexing/file-caps/pre-read-skip-respects-language
 shared/concurrency/pending-limit-enforced
 indexing/postings/doc-only-missing-doc-is-zero
 tooling/lsp/tooling
+tooling/lsp/client-metrics-snapshot-cache
 indexing/chunking/limits
 shared/concurrency/scheduler-config-parse
 shared/embeddings-cache/decode-vector-bounds
@@ -721,6 +722,7 @@ storage/sqlite/jsonl-streaming-gzip
 indexing/type-inference/providers/type-inference-sourcekit-provider-no-sourcekit
 workspace/alias-uniqueness-and-tags-normalization
 tooling/lsp/param-fallback-from-source
+tooling/lsp/source-bootstrap-incomplete-still-requests
 tooling/lsp/hover-merge-quality
 tooling/lsp/signature-help-fallback
 tooling/lsp/signature-help-timeout-adaptive

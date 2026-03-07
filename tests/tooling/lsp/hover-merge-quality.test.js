@@ -56,14 +56,14 @@ assert.equal(payload.returnType, 'int', 'expected return type to remain stable')
 assert.deepEqual(payload.paramTypes?.a?.map((entry) => entry.type), ['int']);
 assert.deepEqual(payload.paramTypes?.b?.map((entry) => entry.type), ['int']);
 assert.equal(
-  Number(result?.hoverMetrics?.hoverTriggeredByIncomplete || 0) >= 1,
+  Number(result?.hoverMetrics?.sourceBootstrapUsed || 0) >= 1,
   true,
-  'expected hover to trigger for incomplete param payload'
+  'expected source bootstrap to complete the param payload before hover'
 );
 assert.equal(
   Number(result?.hoverMetrics?.fallbackUsed || 0),
   0,
-  'expected no source fallback when hover provides complete signature'
+  'expected no late source fallback when source bootstrap completes signature'
 );
 
 console.log('LSP hover merge quality test passed');
