@@ -872,6 +872,7 @@ shared/subprocess/abort-kills-child
 tooling/doctor/workspace-model-elixir-detection
 indexing/validate/index-boilerplate-catalog-manifest-name
 tooling/type-inference/tooling-cache-root-default
+tooling/type-inference/tooling-configured-paths
 indexing/embeddings/build/explicit-index-root-missing-mode-fails-fast
 indexing/postings/backpressure-queue
 shared/artifact-io/bench-contract

@@ -7,7 +7,7 @@ import { registerDefaultToolingProviders } from '../tooling/providers/index.js';
 import { TOOLING_CONFIDENCE, TOOLING_SOURCE } from './constants.js';
 import { addInferredParam, addInferredReturn } from './apply.js';
 import { ensureParamTypeMap, getParamTypeList } from './extract.js';
-import { isUncPath } from '../../shared/files.js';
+import { isAbsolutePathNative, isUncPath } from '../../shared/files.js';
 import { createQueuedAppendWriter } from '../../shared/io/append-writer.js';
 import { normalizePathForPlatform } from '../../shared/path-normalize.js';
 const EMPTY_TOOLING_PASS_STATS = Object.freeze({

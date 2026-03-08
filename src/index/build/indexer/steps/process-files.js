@@ -2099,6 +2099,7 @@ export const processFiles = async ({
   fileTextCache,
   abortSignal = null
 }) => {
+  const stage1OwnershipPrefix = `${resolveStage1FileSubprocessOwnershipPrefix(runtime, mode)}:`;
   const stageAbortController = typeof AbortController === 'function'
     ? new AbortController()
     : null;
@@ -2969,7 +2970,6 @@ export const processFiles = async ({
     const stage1StallSoftKickMs = stage1HangPolicy.stallSoftKickMs;
     const stage1StallSoftKickCooldownMs = stage1HangPolicy.stallSoftKickCooldownMs;
     const stage1StallSoftKickMaxAttempts = stage1HangPolicy.stallSoftKickMaxAttempts;
-    const stage1OwnershipPrefix = `${resolveStage1FileSubprocessOwnershipPrefix(runtime, mode)}:`;
     let stage1StallAbortTriggered = false;
     let stage1StallSoftKickAttempts = 0;
     let stage1StallSoftKickSuccessCount = 0;
