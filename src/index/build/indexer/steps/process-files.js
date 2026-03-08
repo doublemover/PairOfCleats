@@ -4198,9 +4198,6 @@ export const processFiles = async ({
                 await waitForStage1ActiveWindow(orderIndex, {
                   signal: effectiveAbortSignal
                 });
-                if (Number.isFinite(orderIndex) && typeof orderedAppender.noteDispatched === 'function') {
-                  orderedAppender.noteDispatched(Math.floor(orderIndex), Number(entry?.fileIndex) || 0);
-                }
                 const dispatchBypassWindow = Math.max(1, Math.floor(runtimeRef.fileConcurrency || 1));
                 const nextOrderedIndex = typeof orderedAppender.peekNextIndex === 'function'
                   ? orderedAppender.peekNextIndex()
