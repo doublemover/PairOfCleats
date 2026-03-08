@@ -803,6 +803,7 @@ indexing/validate/index-determinism-report-required
 indexing/validate/determinism-line-hash
 tooling/doctor/command-profile-probe-timeout
 indexing/imports/import-scan-collector-hints
+indexing/imports/import-scan-cache-hints
 indexing/artifacts/index-state-skip-write
 shared/config/auto-policy
 tooling/doctor/runtime-requirements-dedicated
