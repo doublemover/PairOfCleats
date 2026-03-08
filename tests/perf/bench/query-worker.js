@@ -1,9 +1,14 @@
 #!/usr/bin/env node
 import { runSearchCli } from '../../../src/retrieval/cli.js';
+import { getEnvConfig } from '../../../src/shared/env.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 applyTestEnv();
 
+const envConfig = getEnvConfig();
+const HEARTBEAT_MS = Number.isFinite(Number(envConfig.tests?.benchQueryWorkerHeartbeatMs))
+  ? Math.max(250, Math.floor(Number(envConfig.tests.benchQueryWorkerHeartbeatMs)))
+  : 5000;
 const indexCache = new Map();
 const sqliteCache = new Map();
 let chain = Promise.resolve();
@@ -26,6 +31,17 @@ const runMessage = async (message) => {
     });
     return;
   }
+  const startedAt = Date.now();
+  sendMessage({ type: 'run-start', id, elapsedMs: 0 });
+  const heartbeat = setInterval(() => {
+    sendMessage({
+      type: 'run-heartbeat',
+      id,
+      elapsedMs: Date.now() - startedAt,
+      rssBytes: Number(process.memoryUsage?.().rss || 0)
+    });
+  }, HEARTBEAT_MS);
+  heartbeat.unref?.();
   try {
     const payload = await runSearchCli(args, {
       emitOutput: false,
@@ -33,8 +49,10 @@ const runMessage = async (message) => {
       indexCache,
       sqliteCache
     });
+    sendMessage({ type: 'run-complete', id, elapsedMs: Date.now() - startedAt });
     sendMessage({ id, ok: true, payload });
   } catch (err) {
+    sendMessage({ type: 'run-complete', id, elapsedMs: Date.now() - startedAt });
     sendMessage({
       id,
       ok: false,
@@ -43,6 +61,8 @@ const runMessage = async (message) => {
         message: err?.message || String(err)
       }
     });
+  } finally {
+    clearInterval(heartbeat);
   }
 };
 

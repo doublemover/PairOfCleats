@@ -1021,6 +1021,8 @@ indexing/watch/lock-backoff
 tooling/doctor/gating-reasons
 tooling/lsp/elixir-provider-initialize-stall-fail-open
 perf/bench/language-log-closeout
+perf/bench/query-runtime
+perf/bench/repo-timeout-propagation
 indexing/watch/debounce
 tooling/lsp/signature-help-timeout-adaptive-gates-next-symbol
 tooling/lsp/signature-help-timeout-adaptive
