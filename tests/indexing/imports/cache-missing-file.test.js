@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { resolveImportLinks } from '../../../src/index/build/import-resolution.js';
+import { applyImportResolutionCacheFileSetDiffInvalidation } from '../../../src/index/build/import-resolution-cache.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -32,6 +33,11 @@ const buildRelations = () => new Map([
 
 const runOnce = (entries, stats) => {
   const relations = buildRelations();
+  applyImportResolutionCacheFileSetDiffInvalidation({
+    cache,
+    entries,
+    cacheStats: stats
+  });
   resolveImportLinks({
     root: tempRoot,
     entries,
@@ -65,5 +71,9 @@ const statsB = { ...statsA };
 const relB = runOnce([{ abs: path.join(srcRoot, 'main.js'), rel: 'src/main.js' }], statsB);
 assert.deepEqual(relB.importLinks, [], 'expected cached resolved imports to invalidate when target missing');
 assert.equal(statsB.fileSetInvalidated, true, 'expected file set invalidation for missing file');
+assert.ok(
+  (statsB.filesNeighborhoodInvalidated || 0) >= 1,
+  'expected dependency neighborhood invalidation for removed resolved target'
+);
 
 console.log('import cache missing-file invalidation test passed');

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { resolveImportLinks } from '../../../src/index/build/import-resolution.js';
+import { applyImportResolutionCacheFileSetDiffInvalidation } from '../../../src/index/build/import-resolution-cache.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -52,6 +53,11 @@ const cache = {};
 
 const runOnce = ({ entries, stats }) => {
   const relations = buildRelations();
+  applyImportResolutionCacheFileSetDiffInvalidation({
+    cache,
+    entries,
+    cacheStats: stats
+  });
   resolveImportLinks({
     root: tempRoot,
     entries,
@@ -69,18 +75,27 @@ const runOnce = ({ entries, stats }) => {
 const statsA = makeStats();
 const relA = runOnce({ entries: buildEntries(false), stats: statsA });
 assert.deepEqual(relA.importLinks, [], 'expected unresolved import to have no importLinks');
-assert.equal(statsA.fileSetInvalidated, true, 'expected initial run to seed file-set fingerprint');
+assert.equal(statsA.fileSetInvalidated, true, 'expected initial run to seed file-set fingerprint through invalidation entrypoint');
+assert.equal(statsA.invalidationReasons?.seeded_file_set || 0, 1, 'expected seeded file-set reason on initial run');
 
 await fs.writeFile(path.join(srcRoot, 'later.js'), 'export const later = 1;\n');
 const statsB = makeStats();
 const relB = runOnce({ entries: buildEntries(true), stats: statsB });
 assert.deepEqual(relB.importLinks, ['src/later.js'], 'expected cache to re-resolve after file set change');
 assert.equal(statsB.fileSetInvalidated, true, 'expected file-set invalidation when new file added');
+assert.ok(
+  (statsB.staleEdgeInvalidated || 0) >= 1,
+  'expected stale unresolved edge invalidation when new target file is added'
+);
 
 await fs.rm(path.join(srcRoot, 'later.js'));
 const statsC = makeStats();
 const relC = runOnce({ entries: buildEntries(false), stats: statsC });
 assert.deepEqual(relC.importLinks, [], 'expected resolved imports to invalidate when file removed');
 assert.equal(statsC.fileSetInvalidated, true, 'expected file-set invalidation when file removed');
+assert.ok(
+  (statsC.filesNeighborhoodInvalidated || 0) >= 1,
+  'expected dependency neighborhood invalidation when resolved target file is removed'
+);
 
 console.log('import cache invalidation tests passed');

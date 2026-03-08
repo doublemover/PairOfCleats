@@ -5,6 +5,7 @@ import path from 'node:path';
 import { sha1 } from '../../../src/shared/hash.js';
 import { resolveImportLinks } from '../../../src/index/build/import-resolution.js';
 import {
+  applyImportResolutionCacheFileSetDiffInvalidation,
   loadImportResolutionCache,
   saveImportResolutionCache,
   updateImportResolutionDiagnosticsCache
@@ -49,6 +50,30 @@ const incrementalState = {
 
 const runResolution = async (entries) => {
   const { cache, cachePath } = await loadImportResolutionCache({ incrementalState });
+  const cacheStats = {
+    files: 0,
+    filesHashed: 0,
+    filesReused: 0,
+    filesInvalidated: 0,
+    specs: 0,
+    specsReused: 0,
+    specsComputed: 0,
+    packageInvalidated: false,
+    fileSetInvalidated: false,
+    lookupReused: false,
+    lookupInvalidated: false,
+    invalidationReasons: Object.create(null),
+    fileSetDelta: { added: 0, removed: 0 },
+    filesNeighborhoodInvalidated: 0,
+    staleEdgeInvalidated: 0,
+    staleEdgeChecks: 0,
+    staleEdgeBudgetExhausted: false
+  };
+  applyImportResolutionCacheFileSetDiffInvalidation({
+    cache,
+    entries,
+    cacheStats
+  });
   const relations = new Map([['src/main.js', { imports: ['./missing'] }]]);
   const result = resolveImportLinks({
     root: tempRoot,
@@ -57,7 +82,8 @@ const runResolution = async (entries) => {
     fileRelations: relations,
     enableGraph: false,
     cache,
-    fileHashes
+    fileHashes,
+    cacheStats
   });
   const unresolvedSamples = enrichUnresolvedImportSamples(result.unresolvedSamples || []);
   const unresolvedTaxonomy = summarizeUnresolvedImportTaxonomy(unresolvedSamples);
@@ -69,7 +95,7 @@ const runResolution = async (entries) => {
   await saveImportResolutionCache({ cache, cachePath });
   return {
     relations,
-    cacheStats: result.cacheStats,
+    cacheStats,
     unresolvedTaxonomy,
     cacheDiagnostics
   };

@@ -68,6 +68,7 @@ const REDO_EXIT_CODES = [3221226356, 3221225477];
 const DEFAULT_TIMEOUT_GRACE_MS = 2000;
 const DEFAULT_LOG_DIR = path.join(ROOT, '.testLogs');
 const ORDERED_LANES = new Set([
+  'gate',
   'ci-lite',
   'ci',
   'ci-long'
