@@ -5,7 +5,7 @@ assertLanguageShardDefinition({
   shardId: 'B0',
   laneId: 'conformance-shard-foundation',
   expectedOrderManifest: 'tests/conformance/language-shards/foundation/foundation.order.txt',
-  expectedOrderIds: ['conformance/language-shards/foundation/foundation-validation']
+  expectedOrderIds: ['conformance/language-shards/foundation/validation']
 });
 
 console.log('foundation language shard validation passed');

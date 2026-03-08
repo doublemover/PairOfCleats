@@ -1054,6 +1054,12 @@ export const applyImportResolutionCacheFileSetDiffInvalidation = ({
         .filter(Boolean)
       : []
   );
+  if (previousLookupSet.size === 0 && isObject(cache.files)) {
+    for (const file of Object.keys(cache.files)) {
+      const normalized = normalizeRelPath(file);
+      if (normalized) previousLookupSet.add(normalized);
+    }
+  }
   const addedFiles = new Set();
   const removedFiles = new Set();
   for (const file of currentFileSet.values()) {

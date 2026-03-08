@@ -2,7 +2,7 @@
 import path from 'node:path';
 import { ensureSearchFiltersRepo, runFilterSearch } from '../../../helpers/search-filters-repo.js';
 
-const context = await ensureSearchFiltersRepo();
+const context = await ensureSearchFiltersRepo({ cacheScope: 'isolated' });
 if (!context) process.exit(0);
 
 const { repoRoot, env } = context;

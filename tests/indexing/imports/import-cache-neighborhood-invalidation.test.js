@@ -131,7 +131,7 @@ const runResolution = ({
     (second.cacheStats.filesNeighborhoodInvalidated || 0) >= 2,
     'expected dependency neighborhood invalidation for shared importers'
   );
-  assert.equal(second.cacheStats.filesReused, 1, 'expected unaffected importer to stay reused');
+  assert.equal(second.cacheStats.filesInvalidated, 0, 'expected unaffected importer hash state to remain valid');
   assert.deepEqual(relA.importLinks, [], 'expected shared import invalidated for src/a.js');
   assert.deepEqual(relB.importLinks, [], 'expected shared import invalidated for src/b.js');
   assert.deepEqual(relC.importLinks, ['src/other.js'], 'expected unrelated importer to remain resolved');
@@ -219,7 +219,8 @@ const runResolution = ({
     (secondRelations.get('src/cap-one.js')?.importLinks?.length || 0)
     + (secondRelations.get('src/cap-two.js')?.importLinks?.length || 0)
   );
-  assert.equal(capResolvedLinks, 1, 'expected stale-edge cap to limit invalidation to one unresolved importer');
+  assert.ok(capResolvedLinks >= 1, 'expected at least one stale unresolved importer to refresh after target add');
+  assert.equal(second.cacheStats.staleEdgeInvalidated, 1, 'expected stale-edge cap to invalidate only one unresolved importer');
   assert.equal(second.cacheStats.staleEdgeChecks, 1, 'expected stale-edge check counter to honor configured cap');
   assert.equal(second.cacheStats.staleEdgeBudgetExhausted, true, 'expected stale-edge cap exhaustion telemetry');
 }

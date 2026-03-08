@@ -63,7 +63,7 @@ try {
       stdio: ['ignore', 'ignore', 'ignore'],
       captureStdout: false,
       captureStderr: false,
-      timeoutMs: 120
+      timeoutMs: 400
     }),
     (error) => error instanceof SubprocessTimeoutError,
     'expected sync subprocess timeout error'

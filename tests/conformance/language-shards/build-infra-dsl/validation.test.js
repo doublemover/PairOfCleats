@@ -5,7 +5,7 @@ assertLanguageShardDefinition({
   shardId: 'B7',
   laneId: 'conformance-shard-build-infra-dsl',
   expectedOrderManifest: 'tests/conformance/language-shards/build-infra-dsl/build-infra-dsl.order.txt',
-  expectedOrderIds: ['conformance/language-shards/build-infra-dsl/build-infra-dsl-validation']
+  expectedOrderIds: ['conformance/language-shards/build-infra-dsl/validation']
 });
 
 console.log('build/infra DSL shard validation passed');

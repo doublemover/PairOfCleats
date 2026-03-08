@@ -233,7 +233,7 @@ const iterateBinaryColumnarRowPayloads = ({
         if (!Number.isSafeInteger(length) || length < 0) {
           throw new Error(`Invalid binary-columnar row length: ${length}`);
         }
-        if (max && length > max) {
+        if (enforceDataBudget && max && length > max) {
           throw new Error(`Binary-columnar row exceeds maxBytes (${length} > ${max})`);
         }
         const end = start + length;

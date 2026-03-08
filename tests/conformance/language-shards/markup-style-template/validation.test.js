@@ -5,7 +5,7 @@ assertLanguageShardDefinition({
   shardId: 'B5',
   laneId: 'conformance-shard-markup-style-template',
   expectedOrderManifest: 'tests/conformance/language-shards/markup-style-template/markup-style-template.order.txt',
-  expectedOrderIds: ['conformance/language-shards/markup-style-template/markup-style-template-validation']
+  expectedOrderIds: ['conformance/language-shards/markup-style-template/validation']
 });
 
 console.log('markup/style/template shard validation passed');

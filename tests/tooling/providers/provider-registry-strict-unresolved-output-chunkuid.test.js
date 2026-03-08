@@ -8,6 +8,7 @@ TOOLING_PROVIDERS.clear();
 registerToolingProvider({
   id: 'stub',
   version: '1.0.0',
+  kinds: ['types'],
   capabilities: { supportsVirtualDocuments: true, supportsSegmentRouting: true },
   getConfigHash: () => 'hash',
   async run() {

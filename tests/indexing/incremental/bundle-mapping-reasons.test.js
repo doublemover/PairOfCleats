@@ -109,8 +109,8 @@ const stage3Result = runCapture(
 const output = `${stage3Result.stdout || ''}\n${stage3Result.stderr || ''}`;
 assert.match(
   output,
-  /embedding coverage .*skipped invalid=1\)/i,
-  'expected embedding refresh to report one invalid incremental bundle mapping'
+  /embedding coverage .*skipped noMapping=1, noMappingChunks=1, noMappingReasons=boundaryMismatch:0\|missingParent:1\|parserOmission:0\)\./i,
+  'expected embedding refresh to report one missing-parent incremental bundle mapping'
 );
 
 console.log('incremental bundle mapping reasons test passed');

@@ -35,7 +35,8 @@ import { resolveDartPackageName, resolveGoModulePath, resolvePackageFingerprint 
 import { createImportBuildContext } from './build-context/index.js';
 import {
   createImportResolutionBudgetPolicy,
-  createImportResolutionSpecifierBudgetState
+  createImportResolutionSpecifierBudgetState,
+  resolveImportResolutionBudgetConfig
 } from './budgets.js';
 import {
   isBazelLabelSpecifier,
@@ -348,6 +349,7 @@ export function resolveImportLinks({
     resolverPlugins,
     runtimeSignals: budgetRuntimeSignals
   });
+  const budgetConfigFingerprint = sha1(stableStringify(resolveImportResolutionBudgetConfig(resolverPlugins) || {}));
   const budgetPolicyStats = {
     maxFilesystemProbesPerSpecifier: Number(budgetPolicy?.maxFilesystemProbesPerSpecifier) || 0,
     maxFallbackCandidatesPerSpecifier: Number(budgetPolicy?.maxFallbackCandidatesPerSpecifier) || 0,
@@ -365,7 +367,7 @@ export function resolveImportLinks({
   const resolverStaticScopeFingerprint = sha1(JSON.stringify({
     resolverVersion: IMPORT_RESOLVER_VERSION,
     resolverPluginsFingerprint,
-    budgetPolicyFingerprint: budgetPolicy?.fingerprint || 'none',
+    budgetConfigFingerprint: budgetConfigFingerprint || 'none',
     aliasRulesFingerprint: aliasRulesFingerprint || 'none'
   }));
   const resolverRuntimeScopeFingerprint = sha1(JSON.stringify({
@@ -411,7 +413,7 @@ export function resolveImportLinks({
         ...(aliasRulesFingerprint ? [`resolverAlias:${aliasRulesFingerprint}`] : []),
         ...(buildContext?.fingerprint ? [`buildContext:${buildContext.fingerprint}`] : []),
         ...(fsExistsIndexFingerprint ? [`fsExistsIndex:${fsExistsIndexFingerprint}`] : []),
-        ...(budgetPolicy?.fingerprint ? [`resolverBudgets:${budgetPolicy.fingerprint}`] : []),
+        ...(budgetConfigFingerprint ? [`resolverBudgets:${budgetConfigFingerprint}`] : []),
         ...(expectedArtifactsIndex?.fingerprint ? [`expectedArtifacts:${expectedArtifactsIndex.fingerprint}`] : [])
       ],
       pathPolicy: 'posix',
@@ -429,15 +431,7 @@ export function resolveImportLinks({
     cacheState.files = {};
     cacheState.lookup = null;
   }
-  if (cacheState && fileSetChanged) {
-    if (cacheMetrics) cacheMetrics.fileSetInvalidated = true;
-    if (typeof log === 'function') {
-      log('[imports] cache invalidated: file set changed');
-    }
-    cacheState.files = {};
-    cacheState.lookup = null;
-  }
-  if (cacheState && cacheKeyChanged) {
+  if (cacheState && cacheKeyChanged && !fileSetChanged) {
     if (typeof log === 'function') {
       log('[imports] cache invalidated: cache key changed');
     }
@@ -614,6 +608,7 @@ export function resolveImportLinks({
   let suppressedWarnings = 0;
   let unresolvedCount = 0;
   let unresolvedActionable = 0;
+  let unresolvedSuppressed = 0;
   let unresolvedBudgetExhausted = 0;
   let externalCount = 0;
   let resolvedCount = 0;
@@ -781,9 +776,6 @@ export function resolveImportLinks({
         ? fileCache.specs[spec]
         : null;
       if (cachedSpec && Number.isFinite(Number(cachedSpec.expiresAt)) && Number(cachedSpec.expiresAt) <= nowMs) {
-        cachedSpec = null;
-      }
-      if (cachedSpec && fileSetChanged) {
         cachedSpec = null;
       }
       if (cachedSpec && cachedSpec.resolvedPath && !resolvedLookup.fileSet.has(cachedSpec.resolvedPath)) {
@@ -1091,6 +1083,9 @@ export function resolveImportLinks({
         bumpCount(unresolvedFailureCauseCounts, unresolvedFailureCause);
         bumpCount(unresolvedDispositionCounts, unresolvedDisposition);
         bumpCount(unresolvedResolverStageCounts, unresolvedResolverStage);
+        if (unresolvedDisposition && !isActionableDisposition(unresolvedDisposition)) {
+          unresolvedSuppressed += 1;
+        }
         if (specCacheKeyUsed && resolutionCache.has(specCacheKeyUsed)) {
           const cachedEntry = resolutionCache.get(specCacheKeyUsed);
           if (cachedEntry && typeof cachedEntry === 'object') {
@@ -1202,7 +1197,7 @@ export function resolveImportLinks({
       external: externalCount,
       unresolved: unresolvedCount,
       unresolvedActionable: unresolvedActionable,
-      unresolvedSuppressed: suppressedWarnings,
+      unresolvedSuppressed,
       unresolvedByReasonCode: toSortedCountObject(unresolvedReasonCounts),
       unresolvedByFailureCause: toSortedCountObject(unresolvedFailureCauseCounts),
       unresolvedByDisposition: toSortedCountObject(unresolvedDispositionCounts),
@@ -1235,7 +1230,7 @@ export function resolveImportLinks({
       external: externalCount,
       unresolved: unresolvedCount,
       unresolvedActionable: unresolvedActionable,
-      unresolvedSuppressed: suppressedWarnings,
+      unresolvedSuppressed,
       unresolvedByReasonCode: toSortedCountObject(unresolvedReasonCounts),
       unresolvedByFailureCause: toSortedCountObject(unresolvedFailureCauseCounts),
       unresolvedByDisposition: toSortedCountObject(unresolvedDispositionCounts),
@@ -1253,7 +1248,7 @@ export function resolveImportLinks({
     },
     graph,
     unresolvedSamples: graph?.warnings || warningList,
-    unresolvedSuppressed: suppressedWarnings,
+    unresolvedSuppressed,
     cacheStats: cacheMetrics
   };
 }

@@ -5,7 +5,7 @@ assertLanguageShardDefinition({
   shardId: 'B1',
   laneId: 'conformance-shard-javascript-typescript',
   expectedOrderManifest: 'tests/conformance/language-shards/javascript-typescript/javascript-typescript.order.txt',
-  expectedOrderIds: ['conformance/language-shards/javascript-typescript/javascript-typescript-validation']
+  expectedOrderIds: ['conformance/language-shards/javascript-typescript/validation']
 });
 
 console.log('javascript/typescript language shard validation passed');

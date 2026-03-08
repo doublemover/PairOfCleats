@@ -25,7 +25,24 @@ const baseRelations = () => new Map([
 const cache = { files: {} };
 const normalizeGraph = (graph) => {
   if (!graph || typeof graph !== 'object') return graph;
-  return { ...graph, generatedAt: null };
+  return {
+    ...graph,
+    generatedAt: null,
+    stats: normalizeStats(graph.stats)
+  };
+};
+const normalizeStats = (stats) => {
+  if (!stats || typeof stats !== 'object') return stats;
+  const pipeline = Object.fromEntries(
+    Object.entries(stats.resolverPipelineStages || {}).map(([stage, value]) => [
+      stage,
+      { ...value, elapsedMs: 0 }
+    ])
+  );
+  return {
+    ...stats,
+    resolverPipelineStages: pipeline
+  };
 };
 const firstRelations = baseRelations();
 const first = resolveImportLinks({
@@ -48,7 +65,11 @@ const warm = resolveImportLinks({
   enableGraph: true
 });
 assert.equal(warm.cacheStats.lookupReused, true, 'warm run should reuse persisted lookup snapshot');
-assert.deepEqual(warm.stats, first.stats, 'warm lookup reuse should preserve import resolution stats');
+assert.deepEqual(
+  normalizeStats(warm.stats),
+  normalizeStats(first.stats),
+  'warm lookup reuse should preserve import resolution stats'
+);
 assert.deepEqual(
   normalizeGraph(warm.graph),
   normalizeGraph(first.graph),

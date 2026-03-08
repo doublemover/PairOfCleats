@@ -34,10 +34,6 @@ const createStreamWaitTimeoutError = ({ event, timeoutMs, label = null } = {}) =
 };
 
 const waitForEventWithTimeout = async ({ stream, event, timeoutMs, label = null }) => {
-  if (!Number.isFinite(Number(timeoutMs)) || timeoutMs <= 0) {
-    await once(stream, event);
-    return;
-  }
   await new Promise((resolve, reject) => {
     let settled = false;
     let timer = null;
@@ -60,12 +56,14 @@ const waitForEventWithTimeout = async ({ stream, event, timeoutMs, label = null 
     if (event !== 'error') {
       stream.once('error', onError);
     }
-    timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      reject(createStreamWaitTimeoutError({ event, timeoutMs, label }));
-    }, timeoutMs);
+    if (Number.isFinite(Number(timeoutMs)) && timeoutMs > 0) {
+      timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(createStreamWaitTimeoutError({ event, timeoutMs, label }));
+      }, timeoutMs);
+    }
   });
 };
 

@@ -5,7 +5,7 @@ assertLanguageShardDefinition({
   shardId: 'B4',
   laneId: 'conformance-shard-dynamic-languages',
   expectedOrderManifest: 'tests/conformance/language-shards/dynamic-languages/dynamic-languages.order.txt',
-  expectedOrderIds: ['conformance/language-shards/dynamic-languages/dynamic-languages-validation']
+  expectedOrderIds: ['conformance/language-shards/dynamic-languages/validation']
 });
 
 console.log('dynamic language shard validation passed');

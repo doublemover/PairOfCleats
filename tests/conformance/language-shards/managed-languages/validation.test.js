@@ -5,7 +5,7 @@ assertLanguageShardDefinition({
   shardId: 'B3',
   laneId: 'conformance-shard-managed-languages',
   expectedOrderManifest: 'tests/conformance/language-shards/managed-languages/managed-languages.order.txt',
-  expectedOrderIds: ['conformance/language-shards/managed-languages/managed-languages-validation']
+  expectedOrderIds: ['conformance/language-shards/managed-languages/validation']
 });
 
 console.log('managed language shard validation passed');

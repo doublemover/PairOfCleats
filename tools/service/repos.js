@@ -42,6 +42,9 @@ const normalizeResolvedRepoPath = (value) => {
  * @returns {string}
  */
 export const formatGitFailure = (result, fallback) => {
+  const exitCode = Number.isInteger(result?.exitCode)
+    ? Number(result.exitCode)
+    : (Number.isInteger(result?.status) ? Number(result.status) : null);
   const signal = normalizeSignal(result?.signal);
   if (signal) return `git interrupted by signal ${signal}`;
   if (typeof result?.error?.message === 'string' && result.error.message.trim().length > 0) {
@@ -51,8 +54,8 @@ export const formatGitFailure = (result, fallback) => {
   if (stderr) return stderr;
   const stdout = typeof result?.stdout === 'string' ? result.stdout.trim() : '';
   if (stdout) return stdout;
-  if (Number.isInteger(result?.exitCode)) {
-    return `${fallback} (exit ${Number(result.exitCode)})`;
+  if (exitCode != null) {
+    return `${fallback} (exit ${exitCode})`;
   }
   return fallback;
 };
