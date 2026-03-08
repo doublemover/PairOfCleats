@@ -3,6 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSubprocess } from '../../../src/shared/subprocess.js';
 import { killProcessTree as killPidTree } from '../../../src/shared/kill-tree.js';
+import { createTimeoutError, runWithTimeout } from '../../../src/shared/promise-timeout.js';
 import { createProgressLineDecoder } from '../../../src/shared/cli/progress-stream.js';
 import { parseProgressEventLine } from '../../../src/shared/cli/progress-events.js';
 import { exitLikeCommandResult } from '../../shared/cli-utils.js';
@@ -27,6 +28,7 @@ const QUEUE_DELAY_HOTSPOT_MS = 250;
 const QUEUE_DEPTH_HOTSPOT = 3;
 const HEARTBEAT_STALL_THRESHOLD_MS = 30 * 1000;
 const MAX_PROGRESS_SAMPLES = 240;
+const TELEMETRY_FLUSH_TIMEOUT_MS = 5000;
 
 const PARSER_CRASH_PATTERNS = Object.freeze([
   /\bparser\b[\s\S]{0,80}\b(?:crash|crashed|fatal|abort|aborted)\b/i,
@@ -447,6 +449,26 @@ export const createProcessRunner = ({
       lastEmitMs: 0
     };
 
+    const flushTelemetryWrites = async (reason = 'flush') => {
+      try {
+        await runWithTimeout(
+          () => flushQueuedJsonLines(telemetryWriteQueues),
+          {
+            timeoutMs: TELEMETRY_FLUSH_TIMEOUT_MS,
+            errorFactory: () => createTimeoutError({
+              code: 'ERR_BENCH_TELEMETRY_FLUSH_TIMEOUT',
+              message: `Bench telemetry flush timed out during ${reason}.`
+            })
+          }
+        );
+      } catch (error) {
+        appendLog(
+          `[bench] telemetry flush did not settle during ${reason}: ${error?.message || String(error)}`,
+          'warn'
+        );
+      }
+    };
+
     const buildDiagnosticsSummary = () => ({
       schemaVersion: BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION,
       streamPaths: diagnosticStreams,
@@ -823,7 +845,7 @@ export const createProcessRunner = ({
         interactive: false
       });
       if (code === 0) {
-        await flushQueuedJsonLines(telemetryWriteQueues);
+        await flushTelemetryWrites('success-exit');
         return {
           ok: true,
           schedulerEvents: getSchedulerEvents(),
@@ -844,11 +866,11 @@ export const createProcessRunner = ({
         writeLog('[hint] Enable Windows long paths and set `git config --global core.longpaths true` or use a shorter --root path.');
       }
       if (!continueOnError) {
-        await flushQueuedJsonLines(telemetryWriteQueues);
+        await flushTelemetryWrites('failure-exit');
         logExit('failure', code ?? 1);
         exitLikeCommandResult({ status: code, signal });
       }
-      await flushQueuedJsonLines(telemetryWriteQueues);
+      await flushTelemetryWrites('failure-return');
       return {
         ok: false,
         code: code ?? 1,
@@ -880,7 +902,7 @@ export const createProcessRunner = ({
         logHistory.slice(-10).forEach((line) => writeLog(`[error] ${line}`));   
       }
       if (!continueOnError) {
-        await flushQueuedJsonLines(telemetryWriteQueues);
+        await flushTelemetryWrites('spawn-error-exit');
         logExit('failure', failureStatus ?? 1);
         exitLikeCommandResult({ status: failureStatus, signal: failureSignal });
       }
@@ -890,7 +912,7 @@ export const createProcessRunner = ({
         force: true,
         interactive: false
       });
-      await flushQueuedJsonLines(telemetryWriteQueues);
+      await flushTelemetryWrites('spawn-error-return');
       return {
         ok: false,
         code: failureStatus ?? 1,

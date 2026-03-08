@@ -1,9 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createQueuedAppendWriter } from '../../../src/shared/io/append-writer.js';
+import { createTimeoutError, runWithTimeout } from '../../../src/shared/promise-timeout.js';
 
 const DEFAULT_LOG_HISTORY_LIMIT = 50;
 const DEFAULT_LOG_CLOSE_TIMEOUT_MS = 5000;
+const DEFAULT_LOG_FLUSH_INTERVAL_MS = 2000;
 
 /**
  * Detect disk-full diagnostics from subprocess output.
@@ -68,6 +70,7 @@ export const createBenchLogger = ({
   let masterLogWriter = null;
   let repoLogWriter = null;
   let repoLogPath = null;
+  let flushTimer = null;
   const logsRoot = path.dirname(masterLogPath);
   const logHistory = [];
 
@@ -77,10 +80,53 @@ export const createBenchLogger = ({
     syncOnFlush: false
   });
 
+  const clearFlushTimer = () => {
+    if (!flushTimer) return;
+    clearInterval(flushTimer);
+    flushTimer = null;
+  };
+
+  const ensureFlushTimer = () => {
+    if (flushTimer || (!masterLogWriter && !repoLogWriter)) return;
+    flushTimer = setInterval(() => {
+      void flushLogs();
+    }, DEFAULT_LOG_FLUSH_INTERVAL_MS);
+    flushTimer.unref?.();
+  };
+
+  const flushWriter = async (writer, reason) => {
+    if (!writer?.flush) return;
+    await runWithTimeout(
+      () => writer.flush(),
+      {
+        timeoutMs: DEFAULT_LOG_CLOSE_TIMEOUT_MS,
+        errorFactory: () => createTimeoutError({
+          code: 'ERR_BENCH_LOG_FLUSH_TIMEOUT',
+          message: `Bench log flush timed out during ${reason}.`
+        })
+      }
+    );
+  };
+
+  const closeWriter = async (writer, reason) => {
+    if (!writer?.close) return;
+    await runWithTimeout(
+      () => writer.close(),
+      {
+        timeoutMs: DEFAULT_LOG_CLOSE_TIMEOUT_MS,
+        errorFactory: () => createTimeoutError({
+          code: 'ERR_BENCH_LOG_CLOSE_TIMEOUT',
+          message: `Bench log close timed out during ${reason}.`
+        })
+      }
+    );
+  };
+
   const initMasterLog = () => {
     if (masterLogWriter) return;
     fs.mkdirSync(logsRoot, { recursive: true });
     masterLogWriter = createLogWriter(masterLogPath);
+    ensureFlushTimer();
     void masterLogWriter.enqueue(`\n=== Bench run ${new Date().toISOString()} ===\n`);
     void masterLogWriter.enqueue(`Config: ${configPath}\n`);
     void masterLogWriter.enqueue(`Repos: ${reposRoot}\n`);
@@ -104,6 +150,7 @@ export const createBenchLogger = ({
     repoLogPath = path.join(logsRoot, `${runSuffix}-${slug}.log`);
     fs.mkdirSync(path.dirname(repoLogPath), { recursive: true });
     repoLogWriter = createLogWriter(repoLogPath);
+    ensureFlushTimer();
     await repoLogWriter.enqueue(`\n=== Bench run ${new Date().toISOString()} ===\n`);
     await repoLogWriter.enqueue(`Target: ${label}${tier ? ` tier=${tier}` : ''}\n`);
     await repoLogWriter.enqueue(`Repo path: ${repoDir}\n`);
@@ -117,9 +164,9 @@ export const createBenchLogger = ({
   };
 
   const flushLogs = async () => {
-    await Promise.all([
-      masterLogWriter?.flush?.() || Promise.resolve(),
-      repoLogWriter?.flush?.() || Promise.resolve()
+    await Promise.allSettled([
+      flushWriter(masterLogWriter, 'periodic-master'),
+      flushWriter(repoLogWriter, 'periodic-repo')
     ]);
   };
 
@@ -128,25 +175,30 @@ export const createBenchLogger = ({
     repoLogWriter = null;
     repoLogPath = null;
     if (!writer) return;
-    await writer.flush();
-    await Promise.race([
-      writer.close(),
-      new Promise((resolve) => setTimeout(resolve, DEFAULT_LOG_CLOSE_TIMEOUT_MS))
+    await Promise.allSettled([
+      flushWriter(writer, 'repo-rotate')
     ]);
+    await Promise.allSettled([
+      closeWriter(writer, 'repo-rotate')
+    ]);
+    if (!repoLogWriter && !masterLogWriter) clearFlushTimer();
   };
 
   const closeMasterLog = async () => {
     const writer = masterLogWriter;
     masterLogWriter = null;
     if (!writer) return;
-    await writer.flush();
-    await Promise.race([
-      writer.close(),
-      new Promise((resolve) => setTimeout(resolve, DEFAULT_LOG_CLOSE_TIMEOUT_MS))
+    await Promise.allSettled([
+      flushWriter(writer, 'master-close')
     ]);
+    await Promise.allSettled([
+      closeWriter(writer, 'master-close')
+    ]);
+    if (!repoLogWriter && !masterLogWriter) clearFlushTimer();
   };
 
   const closeLogsSync = () => {
+    clearFlushTimer();
     repoLogWriter = null;
     repoLogPath = null;
     masterLogWriter = null;

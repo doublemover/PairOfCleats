@@ -473,7 +473,8 @@ const results = await runBenchExecutionLoop({
   backendList,
   lockMode,
   lockWaitMs,
-  lockStaleMs
+  lockStaleMs,
+  benchTimeoutMs
 });
 
 const output = await buildReportOutput({

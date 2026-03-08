@@ -342,7 +342,8 @@ const buildBenchArgs = ({
  *   backendList:string[],
  *   lockMode:string,
  *   lockWaitMs:number,
- *   lockStaleMs:number
+ *   lockStaleMs:number,
+ *   benchTimeoutMs:number
  * }} input
  * @returns {Promise<object[]>}
  */
@@ -367,7 +368,8 @@ export const runBenchExecutionLoop = async ({
   backendList,
   lockMode,
   lockWaitMs,
-  lockStaleMs
+  lockStaleMs,
+  benchTimeoutMs
 }) => {
   const results = [];
   const benchScript = path.join(scriptRoot, 'tests', 'perf', 'bench', 'run.test.js');
@@ -662,6 +664,7 @@ export const runBenchExecutionLoop = async ({
         const benchResult = await processRunner.runProcess(`bench ${repoLabel}`, process.execPath, benchArgs, {
           cwd: scriptRoot,
           env: benchProcessEnv,
+          timeoutMs: benchTimeoutMs,
           continueOnError: true
         });
         if (!benchResult.ok) {
