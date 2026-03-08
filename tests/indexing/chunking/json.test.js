@@ -40,4 +40,18 @@ const first = chunkJson(nestedText, {}) || [];
 const second = chunkJson(nestedText, {}) || [];
 expect(JSON.stringify(first) === JSON.stringify(second), 'Expected deterministic JSON chunk ordering across runs.');
 
+const deeplyNestedArray = `${'['.repeat(15000)}0${']'.repeat(15000)}`;
+const deepArrayChunks = chunkJson(deeplyNestedArray, {}) || [];
+expect(deepArrayChunks.length === 1, 'Expected deeply nested array JSON to return a single chunk.');
+expect(deepArrayChunks[0].name === 'root', 'Expected root chunk for deeply nested array JSON.');
+
+const deeplyNestedObject = `{"payload":${'['.repeat(15000)}0${']'.repeat(15000)}}`;
+const deepObjectChunks = chunkJson(deeplyNestedObject, {}) || [];
+expect(deepObjectChunks.length === 1, 'Expected deeply nested object JSON to preserve a single top-level key chunk.');
+expect(deepObjectChunks[0].name === 'payload', 'Expected deeply nested object JSON to preserve the top-level key name.');
+
+const malformedDeeplyNestedArray = '['.repeat(20000);
+const malformedDeepResult = chunkJson(malformedDeeplyNestedArray, {});
+expect(malformedDeepResult === null, 'Expected malformed deeply nested array JSON to return null without overflowing the stack.');
+
 console.log('Chunking JSON test passed.');
