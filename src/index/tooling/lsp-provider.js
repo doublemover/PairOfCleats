@@ -1018,7 +1018,8 @@ const createConfiguredLspProvider = (server) => {
       resolveRustWorkspaceMetadataPreflight({
         ctx,
         server,
-        abortSignal: preflightAbortSignal
+        abortSignal: preflightAbortSignal,
+        documents: Array.isArray(inputs?.documents) ? inputs.documents : []
       })
     ]);
     if (!(server.workspaceMarkerOptions && server.requireWorkspaceModel !== false)) {
@@ -1057,6 +1058,7 @@ const createConfiguredLspProvider = (server) => {
           reasonCode: environmentPreflight.reasonCode || null,
           message: environmentPreflight.message || '',
           cached: environmentPreflight.cached === true,
+          ...(environmentPreflight?.blockProvider === true ? { blockProvider: true } : {}),
           ...(checks.length ? { checks } : {})
         };
       }
@@ -1069,6 +1071,9 @@ const createConfiguredLspProvider = (server) => {
     const workspacePreflight = resolveWorkspaceModelPreflight({
       repoRoot: ctx?.repoRoot || process.cwd(),
       markerOptions: server.workspaceMarkerOptions || {},
+      candidatePaths: Array.isArray(inputs?.documents)
+        ? inputs.documents.map((doc) => doc?.virtualPath || doc?.path || '').filter(Boolean)
+        : [],
       missingCheck: {
         name: `${server.id}_workspace_model_missing`,
         message: server.workspaceModelMissingMessage
@@ -1124,6 +1129,7 @@ const createConfiguredLspProvider = (server) => {
         reasonCode: environmentPreflight.reasonCode || null,
         message: environmentPreflight.message || '',
         cached: environmentPreflight.cached === true,
+        ...(environmentPreflight?.blockProvider === true ? { blockProvider: true } : {}),
         ...(checks.length ? { checks } : {})
       };
     }

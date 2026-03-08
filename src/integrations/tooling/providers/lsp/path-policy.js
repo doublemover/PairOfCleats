@@ -37,6 +37,7 @@ const GENERIC_LOW_VALUE_PATH_PATTERNS = Object.freeze([
 const classifySharedPathSignals = (virtualPath) => {
   const normalizedRelPath = normalizeVirtualPath(virtualPath);
   const lowered = toPosixLower(normalizedRelPath);
+  const bounded = lowered.startsWith('/') ? lowered : `/${lowered}`;
   const generatedDecision = resolveGeneratedPolicyDecision({
     generatedPolicy: null,
     relPath: normalizedRelPath,
@@ -50,7 +51,7 @@ const classifySharedPathSignals = (virtualPath) => {
     fixturePath: isFixturePath(normalizedRelPath),
     infraPath: isInfraConfigPath(normalizedRelPath),
     generatedLike,
-    lowValuePath: matchesAny(lowered, GENERIC_LOW_VALUE_PATH_PATTERNS)
+    lowValuePath: matchesAny(bounded, GENERIC_LOW_VALUE_PATH_PATTERNS)
   };
 };
 
@@ -178,12 +179,34 @@ export const classifyLspDocumentPathPolicy = ({ providerId, virtualPath }) => {
   const profile = PATH_POLICY_PROFILES[normalizedProviderId] || null;
   const extension = extensionOf(virtualPath);
   if (!profile) {
-    return { skipDocument: false, deprioritized: false, suppressInteractive: false, extension };
+    return {
+      skipDocument: false,
+      deprioritized: false,
+      suppressInteractive: false,
+      skipDocumentSymbol: false,
+      selectionTier: 'preferred',
+      extension
+    };
   }
   const sharedSignals = classifySharedPathSignals(virtualPath);
   const normalizedPath = sharedSignals.lowered;
   const allowedExtensions = new Set(profile.allowedExtensions || []);
   const skipDocument = allowedExtensions.size > 0 && (!extension || !allowedExtensions.has(extension));
+  const lowValueDocumentSymbol = !skipDocument && (
+    sharedSignals.docsPath
+    || sharedSignals.fixturePath
+    || sharedSignals.lowValuePath
+    || matchesAny(normalizedPath, profile.suppressInteractivePatterns)
+  );
+  const secondaryDocument = !skipDocument && !lowValueDocumentSymbol && (
+    sharedSignals.docsPath
+    || sharedSignals.infraPath
+    || sharedSignals.generatedLike
+    || matchesAny(normalizedPath, profile.deprioritizePatterns)
+  );
+  const selectionTier = skipDocument
+    ? 'skipped'
+    : (lowValueDocumentSymbol ? 'low-value' : (secondaryDocument ? 'secondary' : 'preferred'));
   const deprioritized = !skipDocument && (
     sharedSignals.docsPath
     || sharedSignals.fixturePath
@@ -198,7 +221,14 @@ export const classifyLspDocumentPathPolicy = ({ providerId, virtualPath }) => {
     || sharedSignals.generatedLike
     || matchesAny(normalizedPath, profile.suppressInteractivePatterns)
   );
-  return { skipDocument, deprioritized, suppressInteractive, extension };
+  return {
+    skipDocument,
+    deprioritized,
+    suppressInteractive,
+    skipDocumentSymbol: lowValueDocumentSymbol,
+    selectionTier,
+    extension
+  };
 };
 
 export const __classifyLspDocumentPathPolicyForTests = classifyLspDocumentPathPolicy;

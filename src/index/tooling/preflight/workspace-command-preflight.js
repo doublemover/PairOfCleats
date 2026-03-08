@@ -21,6 +21,7 @@ const summarize = (value, maxChars = 220) => {
  *
  * @param {{
  *   ctx?: { repoRoot?: string }|null,
+ *   cwd?: string|null,
  *   cmd: string,
  *   args: string[],
  *   timeoutMs: number,
@@ -46,6 +47,7 @@ const summarize = (value, maxChars = 220) => {
  */
 export const runWorkspaceCommandPreflight = async ({
   ctx,
+  cwd = null,
   cmd,
   args,
   timeoutMs,
@@ -101,8 +103,9 @@ export const runWorkspaceCommandPreflight = async ({
     } catch {}
   }
   try {
+    const workingDir = String(cwd || ctx?.repoRoot || process.cwd());
     const result = await spawnSubprocess(command, commandArgs, {
-      cwd: String(ctx?.repoRoot || process.cwd()),
+      cwd: workingDir,
       stdio: ['ignore', 'pipe', 'pipe'],
       rejectOnNonZeroExit: false,
       captureStdout: true,

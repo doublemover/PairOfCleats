@@ -1,4 +1,4 @@
-import { hasWorkspaceMarker } from '../workspace-model.js';
+import { findWorkspaceMarkerNearPaths, hasWorkspaceMarker } from '../workspace-model.js';
 
 const normalizePolicy = (value) => (
   String(value || '').trim().toLowerCase() === 'block' ? 'block' : 'warn'
@@ -24,6 +24,7 @@ const resolveMissingCheck = ({
  * @param {{
  *   repoRoot:string,
  *   markerOptions:object,
+ *   candidatePaths?:string[]|null,
  *   missingCheck?:{name?:string,message?:string}|null,
  *   fallbackName:string,
  *   fallbackMessage:string,
@@ -39,18 +40,26 @@ const resolveMissingCheck = ({
 export const resolveWorkspaceModelPreflight = ({
   repoRoot,
   markerOptions,
+  candidatePaths = null,
   missingCheck = null,
   fallbackName,
   fallbackMessage,
   policy = 'warn'
 }) => {
-  const markerFound = hasWorkspaceMarker(repoRoot || process.cwd(), markerOptions || {});
+  const normalizedRepoRoot = repoRoot || process.cwd();
+  const nearbyMarker = findWorkspaceMarkerNearPaths(
+    normalizedRepoRoot,
+    Array.isArray(candidatePaths) ? candidatePaths : [],
+    markerOptions || {}
+  );
+  const markerFound = nearbyMarker.found || hasWorkspaceMarker(normalizedRepoRoot, markerOptions || {});
   if (markerFound) {
     return {
       state: 'ready',
       reasonCode: null,
       blockProvider: false,
-      check: null
+      check: null,
+      markerDirRel: nearbyMarker.found ? nearbyMarker.markerDirRel : null
     };
   }
   const normalizedPolicy = normalizePolicy(policy);

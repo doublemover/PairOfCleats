@@ -1208,6 +1208,9 @@ export const processDocumentTypes = async ({
 
   try {
     throwIfAborted(abortSignal);
+    if (docPathPolicy?.skipDocumentSymbol === true) {
+      return { enrichedDelta: 0 };
+    }
     let symbols = null;
     try {
       symbols = await runGuarded(

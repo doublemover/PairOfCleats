@@ -227,16 +227,49 @@ const buildAdaptiveLspDocEntries = (docs, targetsByPath) => (
     : []
 );
 
+const resolveAdaptiveSelectionTierRank = (entry) => {
+  const tier = String(entry?.pathPolicy?.selectionTier || 'preferred').trim().toLowerCase();
+  if (tier === 'preferred') return 0;
+  if (tier === 'secondary') return 1;
+  if (tier === 'low-value') return 2;
+  return 3;
+};
+
 const rankAdaptiveLspDocumentEntries = (entries) => (
   Array.isArray(entries)
     ? entries.slice().sort((left, right) => (
-      (right.targetCount - left.targetCount)
+      (resolveAdaptiveSelectionTierRank(left) - resolveAdaptiveSelectionTierRank(right))
+      || (Number(Boolean(left?.pathPolicy?.skipDocumentSymbol)) - Number(Boolean(right?.pathPolicy?.skipDocumentSymbol)))
+      || (right.targetCount - left.targetCount)
       || (Number(Boolean(left?.pathPolicy?.deprioritized)) - Number(Boolean(right?.pathPolicy?.deprioritized)))
       || (left.byteLength - right.byteLength)
       || left.virtualPath.localeCompare(right.virtualPath)
     ))
     : []
 );
+
+const applyAdaptiveDocCapByTier = (entries, limit) => {
+  const rankedEntries = rankAdaptiveLspDocumentEntries(entries);
+  if (!Number.isFinite(Number(limit)) || limit <= 0 || rankedEntries.length <= limit) {
+    return rankedEntries;
+  }
+  const tierBuckets = new Map();
+  for (const entry of rankedEntries) {
+    const rank = resolveAdaptiveSelectionTierRank(entry);
+    const bucket = tierBuckets.get(rank) || [];
+    bucket.push(entry);
+    tierBuckets.set(rank, bucket);
+  }
+  const limited = [];
+  for (const rank of [0, 1, 2, 3]) {
+    const bucket = tierBuckets.get(rank) || [];
+    if (!bucket.length) continue;
+    const remaining = Math.max(0, limit - limited.length);
+    if (remaining <= 0) break;
+    limited.push(...bucket.slice(0, remaining));
+  }
+  return limited.length ? limited : rankedEntries.slice(0, limit);
+};
 
 const resolveAdaptiveLspScopeProfile = ({ providerId, override = null }) => {
   const normalizedProviderId = String(providerId || '').trim().toLowerCase();
@@ -258,10 +291,11 @@ export const __resolveAdaptiveLspScopePlanForTests = ({
   const profile = resolveAdaptiveLspScopeProfile({ providerId, override: adaptiveDocScope });
   const sourceDocs = Array.isArray(docs) ? docs : [];
   const effectiveTargetsByPath = targetsByPath instanceof Map ? targetsByPath : new Map();
-  const sourceEntries = buildAdaptiveLspDocEntries(
+  const candidateEntries = buildAdaptiveLspDocEntries(
     sourceDocs.map((doc) => ({ ...doc, providerId })),
     effectiveTargetsByPath
   ).filter((entry) => entry?.pathPolicy?.skipDocument !== true);
+  const sourceEntries = candidateEntries.filter((entry) => entry?.pathPolicy?.skipDocumentSymbol !== true);
   const totalTargets = sourceEntries.reduce((sum, entry) => sum + entry.targetCount, 0);
   const methodMetrics = clientMetrics?.byMethod || {};
   const documentSymbolMetrics = methodMetrics['textDocument/documentSymbol']?.latencyMs || {};
@@ -309,13 +343,13 @@ export const __resolveAdaptiveLspScopePlanForTests = ({
     if (adaptiveDegradedHint === true && adaptiveReasonHint) {
       reasons.push(`preflight:${String(adaptiveReasonHint)}`);
     }
-    if (docThreshold > 0 && maxDocsBase > 0 && sourceDocs.length > docThreshold) {
+    if (docThreshold > 0 && maxDocsBase > 0 && sourceEntries.length > docThreshold) {
       const targetCap = Math.max(
         Math.max(1, clampIntRange(documentSymbolConcurrency, DEFAULT_DOCUMENT_SYMBOL_CONCURRENCY, { min: 1, max: 32 })) * 4,
         degraded ? degradedMaxDocsBase : maxDocsBase
       );
-      if (sourceDocs.length > targetCap) {
-        selectedEntries = rankEntries(sourceEntries).slice(0, targetCap);
+      if (sourceEntries.length > targetCap) {
+        selectedEntries = applyAdaptiveDocCapByTier(sourceEntries, targetCap);
         docLimitApplied = true;
       }
       reasons.push(degraded ? `degraded-doc-cap:${targetCap}` : `doc-cap:${targetCap}`);
@@ -346,8 +380,12 @@ export const __resolveAdaptiveLspScopePlanForTests = ({
   const selectedDocs = selectedEntries.map((entry) => entry.doc);
   const selectedTargetPaths = new Set(selectedDocs.map((doc) => String(doc?.virtualPath || '')).filter(Boolean));
   const selectedTargets = selectedEntries.reduce((sum, entry) => sum + entry.targetCount, 0);
-  const skippedByPathPolicy = Math.max(0, sourceDocs.length - sourceEntries.length);
+  const skippedByPathPolicy = Math.max(0, sourceDocs.length - candidateEntries.length);
+  const skippedByDocumentSymbolPolicy = Math.max(0, candidateEntries.length - sourceEntries.length);
   const interactiveSuppressedDocs = selectedEntries.filter((entry) => entry?.pathPolicy?.suppressInteractive).length;
+  if (!selectedEntries.length && skippedByDocumentSymbolPolicy > 0) {
+    reasons.push('document-symbol-path-policy');
+  }
   return {
     profile,
     entries: selectedEntries,
@@ -359,6 +397,7 @@ export const __resolveAdaptiveLspScopePlanForTests = ({
     totalTargets,
     selectedTargets,
     skippedByPathPolicy,
+    skippedByDocumentSymbolPolicy,
     interactiveSuppressedDocs,
     docLimitApplied,
     targetLimitApplied,
@@ -909,7 +948,11 @@ export async function collectLspTypes({
         adaptiveDegradedHint,
         adaptiveReasonHint
       });
-      const selectedDocsToOpen = adaptiveScopePlan.documents;
+      const selectedDocsToOpen = captureDiagnostics
+        ? adaptiveScopePlan.documents
+        : adaptiveScopePlan.entries
+          .filter((entry) => entry?.pathPolicy?.skipDocumentSymbol !== true)
+          .map((entry) => entry.doc);
       if (!selectedDocsToOpen.length) {
         runtime.selection = {
           providerId: resolvedProviderId,
@@ -923,6 +966,7 @@ export async function collectLspTypes({
           reason: adaptiveScopePlan.reason,
           hoverMaxPerFile: adaptiveScopePlan.hoverMaxPerFile,
           skippedByPathPolicy: adaptiveScopePlan.skippedByPathPolicy,
+          skippedByDocumentSymbolPolicy: adaptiveScopePlan.skippedByDocumentSymbolPolicy,
           interactiveSuppressedDocs: 0
         };
         return buildEmptyCollectResult(checks, runtime);
@@ -954,6 +998,7 @@ export async function collectLspTypes({
         providerId: resolvedProviderId,
         totalDocs: adaptiveScopePlan.totalDocs,
         selectedDocs: adaptiveScopePlan.selectedDocs,
+        openedDocs: selectedDocsToOpen.length,
         totalTargets: adaptiveScopePlan.totalTargets,
         selectedTargets: adaptiveScopePlan.selectedTargets,
         docLimitApplied: adaptiveScopePlan.docLimitApplied,
@@ -963,6 +1008,7 @@ export async function collectLspTypes({
         hoverMaxPerFile: effectiveHoverMaxPerFile,
         profile: adaptiveScopePlan.profile,
         skippedByPathPolicy: adaptiveScopePlan.skippedByPathPolicy,
+        skippedByDocumentSymbolPolicy: adaptiveScopePlan.skippedByDocumentSymbolPolicy,
         interactiveSuppressedDocs: adaptiveScopePlan.interactiveSuppressedDocs
       };
       if (adaptiveScopePlan.skippedByPathPolicy > 0) {
@@ -971,11 +1017,24 @@ export async function collectLspTypes({
           + 'document(s) before LSP collection.'
         );
       }
+      if (adaptiveScopePlan.skippedByDocumentSymbolPolicy > 0) {
+        log(
+          `[tooling] ${cmd} path policy skipped documentSymbol on `
+          + `${adaptiveScopePlan.skippedByDocumentSymbolPolicy}/${adaptiveScopePlan.totalDocs} `
+          + 'low-value document(s).'
+        );
+      }
       const interactiveSuppressedDocs = adaptiveScopePlan.interactiveSuppressedDocs;
       if (interactiveSuppressedDocs > 0) {
         log(
           `[tooling] ${cmd} path policy disabled interactive LSP stages for `
           + `${interactiveSuppressedDocs}/${selectedEntries.length} document(s).`
+        );
+      }
+      if (selectedDocsToOpen.length < adaptiveScopePlan.selectedDocs) {
+        log(
+          `[tooling] ${cmd} documentSymbol-only scope reduced opened docs to `
+          + `${selectedDocsToOpen.length}/${adaptiveScopePlan.selectedDocs}.`
         );
       }
       if (

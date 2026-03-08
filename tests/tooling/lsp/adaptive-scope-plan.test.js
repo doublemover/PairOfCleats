@@ -92,12 +92,12 @@ assert.match(String(targetCappedPlan.reason || ''), /target-cap/, 'expected targ
 
 const goMixedDocs = [
   {
-    virtualPath: '.poc-vfs/examples/go/go.mod',
+    virtualPath: '.poc-vfs/go.mod',
     languageId: 'go',
     text: 'module example.com/demo\n'
   },
   {
-    virtualPath: '.poc-vfs/examples/go/main.go',
+    virtualPath: '.poc-vfs/src/main.go',
     languageId: 'go',
     text: 'package main\nfunc main() {}\n'
   }
@@ -113,5 +113,34 @@ const goMixedPlan = __resolveAdaptiveLspScopePlanForTests({
 });
 assert.equal(goMixedPlan.totalDocs, 1, 'expected path policy to drop non-source go documents before adaptive planning');
 assert.equal(goMixedPlan.selectedDocs, 1, 'expected only .go file to remain selectable');
+
+const lowValueOnlyDocs = [
+  {
+    virtualPath: '.poc-vfs/tests/unit/example_test.go',
+    languageId: 'go',
+    text: 'package unit\nfunc TestExample(t *testing.T) {}\n'
+  },
+  {
+    virtualPath: '.poc-vfs/examples/demo/example.go',
+    languageId: 'go',
+    text: 'package main\nfunc main() {}\n'
+  }
+];
+const lowValueOnlyTargetsByPath = new Map(
+  lowValueOnlyDocs.map((doc, index) => [doc.virtualPath, [{ id: `low:${index}` }]])
+);
+const lowValueOnlyPlan = __resolveAdaptiveLspScopePlanForTests({
+  providerId: 'gopls',
+  docs: lowValueOnlyDocs,
+  targetsByPath: lowValueOnlyTargetsByPath
+});
+assert.equal(lowValueOnlyPlan.totalDocs, 0, 'expected low-value only Go docs to be skipped before documentSymbol work');
+assert.equal(lowValueOnlyPlan.selectedDocs, 0, 'expected no docs selected when only low-value paths remain');
+assert.equal(
+  lowValueOnlyPlan.skippedByDocumentSymbolPolicy,
+  2,
+  'expected low-value docs to be counted separately from extension/path skips'
+);
+assert.match(String(lowValueOnlyPlan.reason || ''), /document-symbol-path-policy/, 'expected no-work reason to reflect documentSymbol path policy');
 
 console.log('LSP adaptive scope plan test passed');

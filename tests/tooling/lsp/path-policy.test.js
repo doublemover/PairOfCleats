@@ -16,6 +16,7 @@ const pyrightDocsPolicy = __classifyLspDocumentPathPolicyForTests({
 assert.equal(pyrightDocsPolicy.skipDocument, false, 'expected pyright to keep .py documents');
 assert.equal(pyrightDocsPolicy.deprioritized, true, 'expected docs path to be deprioritized');
 assert.equal(pyrightDocsPolicy.suppressInteractive, true, 'expected docs path to suppress interactive LSP stages');
+assert.equal(pyrightDocsPolicy.skipDocumentSymbol, true, 'expected docs path to skip low-value documentSymbol work');
 
 const clangdSourcePolicy = __classifyLspDocumentPathPolicyForTests({
   providerId: 'clangd',
@@ -23,5 +24,6 @@ const clangdSourcePolicy = __classifyLspDocumentPathPolicyForTests({
 });
 assert.equal(clangdSourcePolicy.skipDocument, false, 'expected clangd to keep source file');
 assert.equal(clangdSourcePolicy.deprioritized, false, 'expected regular source file to stay preferred');
+assert.equal(clangdSourcePolicy.skipDocumentSymbol, false, 'expected regular source file to remain documentSymbol-eligible');
 
 console.log('LSP path policy test passed');

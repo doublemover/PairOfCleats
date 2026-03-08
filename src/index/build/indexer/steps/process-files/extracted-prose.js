@@ -4,13 +4,14 @@ import {
   normalizeExtractedProseLowYieldBailoutConfig,
   selectDeterministicWarmupSample
 } from '../../../../chunking/formats/document-common.js';
+import { buildExtractedProseYieldProfileFamily } from '../../../file-processor/skip.js';
 import {
   resolveEntryOrderIndex,
   sortEntriesByOrderIndex
 } from './ordering.js';
 
 export const EXTRACTED_PROSE_LOW_YIELD_SKIP_REASON = 'extracted-prose-low-yield-bailout';
-const EXTRACTED_PROSE_LOW_YIELD_DOC_SAMPLE_RATIO = 0.25;
+const EXTRACTED_PROSE_LOW_YIELD_DOC_SAMPLE_RATIO = 0.5;
 
 const toIsoTimestamp = (value) => {
   const parsed = Number(value);
@@ -29,35 +30,147 @@ const resolveWarmupEntryKey = (entry) => String(entry?.rel || toPosix(entry?.abs
 
 const resolveWarmupEntryExtension = (entry) => String(entry?.ext || '').trim().toLowerCase();
 
+const resolveWarmupEntryFamily = (entry) => buildExtractedProseYieldProfileFamily({
+  relPath: entry?.rel || null,
+  absPath: entry?.abs || null,
+  ext: resolveWarmupEntryExtension(entry)
+});
+
+const groupWarmupEntriesByFamily = ({ entries, seed }) => {
+  const families = new Map();
+  for (const entry of entries) {
+    const family = resolveWarmupEntryFamily(entry);
+    const key = family?.key || '(unknown)';
+    if (!families.has(key)) {
+      families.set(key, {
+        key,
+        ext: family?.ext || null,
+        pathFamily: family?.pathFamily || null,
+        docLike: isExtractedProseDocumentLikeExtension(resolveWarmupEntryExtension(entry)),
+        entries: []
+      });
+    }
+    families.get(key).entries.push(entry);
+  }
+  const orderedFamilies = [...families.values()]
+    .map((family) => ({
+      ...family,
+      orderedEntries: selectDeterministicWarmupSample({
+        values: family.entries,
+        sampleSize: family.entries.length,
+        seed: `${seed}|family:${family.key}`,
+        resolveKey: resolveWarmupEntryKey
+      })
+    }))
+    .sort((left, right) => {
+      const leftDocLike = left.docLike === true ? 1 : 0;
+      const rightDocLike = right.docLike === true ? 1 : 0;
+      if (leftDocLike !== rightDocLike) return rightDocLike - leftDocLike;
+      if (left.key < right.key) return -1;
+      if (left.key > right.key) return 1;
+      return 0;
+    });
+  return orderedFamilies;
+};
+
+const takeFamilyEntry = (family, selectedKeys, selectedEntries) => {
+  if (!family || !Array.isArray(family.orderedEntries) || family.orderedEntries.length === 0) {
+    return false;
+  }
+  while (family.orderedEntries.length > 0) {
+    const candidate = family.orderedEntries.shift();
+    const key = resolveWarmupEntryKey(candidate);
+    if (!key || selectedKeys.has(key)) {
+      continue;
+    }
+    selectedKeys.add(key);
+    selectedEntries.push(candidate);
+    return true;
+  }
+  return false;
+};
+
+const selectFamilyRepresentativesByPathFamily = (families) => {
+  const grouped = new Map();
+  for (const family of families || []) {
+    const pathFamily = String(family?.pathFamily || '(root)');
+    const bucket = grouped.get(pathFamily) || [];
+    bucket.push(family);
+    grouped.set(pathFamily, bucket);
+  }
+  return Array.from(grouped.values())
+    .map((bucket) => bucket[0])
+    .filter(Boolean);
+};
+
 const selectWarmupEntries = ({ warmupWindowEntries, warmupSampleSize, seed }) => {
   const requested = Math.max(0, Math.floor(Number(warmupSampleSize) || 0));
   if (!Array.isArray(warmupWindowEntries) || !warmupWindowEntries.length || requested <= 0) {
     return [];
   }
-  const docLikeEntries = warmupWindowEntries.filter((entry) => (
-    isExtractedProseDocumentLikeExtension(resolveWarmupEntryExtension(entry))
-  ));
-  const docLikeQuota = docLikeEntries.length > 0
+  const familyBuckets = groupWarmupEntriesByFamily({ entries: warmupWindowEntries, seed });
+  const docLikeFamilies = familyBuckets.filter((family) => family.docLike === true);
+  const docLikeQuota = docLikeFamilies.length > 0
     ? Math.min(
       requested,
       Math.max(1, Math.floor(requested * EXTRACTED_PROSE_LOW_YIELD_DOC_SAMPLE_RATIO))
     )
     : 0;
-  const docLikeSample = selectDeterministicWarmupSample({
-    values: docLikeEntries,
-    sampleSize: docLikeQuota,
-    seed: `${seed}|doc-like`,
-    resolveKey: resolveWarmupEntryKey
-  });
-  const selectedKeys = new Set(docLikeSample.map((entry) => resolveWarmupEntryKey(entry)).filter(Boolean));
-  const remainingEntries = warmupWindowEntries.filter((entry) => !selectedKeys.has(resolveWarmupEntryKey(entry)));
-  const fallbackSample = selectDeterministicWarmupSample({
-    values: remainingEntries,
-    sampleSize: Math.max(0, requested - docLikeSample.length),
-    seed,
-    resolveKey: resolveWarmupEntryKey
-  });
-  return [...docLikeSample, ...fallbackSample];
+  const selectedEntries = [];
+  const selectedKeys = new Set();
+  let selectedDocLike = 0;
+
+  const docLikeRepresentatives = selectFamilyRepresentativesByPathFamily(docLikeFamilies);
+  for (const family of docLikeRepresentatives) {
+    if (selectedEntries.length >= requested || selectedDocLike >= docLikeQuota) break;
+    if (takeFamilyEntry(family, selectedKeys, selectedEntries)) {
+      selectedDocLike += 1;
+    }
+  }
+
+  for (const family of docLikeFamilies) {
+    if (selectedEntries.length >= requested || selectedDocLike >= docLikeQuota) break;
+    if (takeFamilyEntry(family, selectedKeys, selectedEntries)) {
+      selectedDocLike += 1;
+    }
+  }
+
+  for (const family of familyBuckets) {
+    if (selectedEntries.length >= requested) break;
+    const before = selectedEntries.length;
+    if (takeFamilyEntry(family, selectedKeys, selectedEntries)
+      && family.docLike === true
+      && before !== selectedEntries.length) {
+      selectedDocLike += 1;
+    }
+  }
+
+  while (selectedEntries.length < requested) {
+    let madeProgress = false;
+    for (const family of familyBuckets) {
+      if (selectedEntries.length >= requested) break;
+      if (selectedDocLike < docLikeQuota && family.docLike !== true) {
+        continue;
+      }
+      const before = selectedEntries.length;
+      if (takeFamilyEntry(family, selectedKeys, selectedEntries)) {
+        madeProgress = true;
+        if (family.docLike === true && before !== selectedEntries.length) {
+          selectedDocLike += 1;
+        }
+      }
+    }
+    if (madeProgress) continue;
+    for (const family of familyBuckets) {
+      if (selectedEntries.length >= requested) break;
+      if (takeFamilyEntry(family, selectedKeys, selectedEntries)) {
+        madeProgress = true;
+        if (family.docLike === true) selectedDocLike += 1;
+      }
+    }
+    if (!madeProgress) break;
+  }
+  return selectedEntries;
 };
 
 const normalizeLowYieldHistory = (value) => {
@@ -165,10 +278,28 @@ export const buildExtractedProseLowYieldBailoutState = ({
     seed: config.seed
   });
   const sampledOrderIndices = new Set();
+  const sampledFamilies = {};
+  const sampledFamilyByOrderIndex = new Map();
   for (const entry of sampledEntries) {
     const orderIndex = resolveEntryOrderIndex(entry, null);
     if (!Number.isFinite(orderIndex)) continue;
-    sampledOrderIndices.add(Math.floor(orderIndex));
+    const normalizedOrderIndex = Math.floor(orderIndex);
+    sampledOrderIndices.add(normalizedOrderIndex);
+    const family = resolveWarmupEntryFamily(entry);
+    const familyKey = family?.key || '(unknown)';
+    const current = sampledFamilies[familyKey] || {
+      key: familyKey,
+      ext: family?.ext || null,
+      pathFamily: family?.pathFamily || null,
+      docLike: isExtractedProseDocumentLikeExtension(resolveWarmupEntryExtension(entry)),
+      sampledFiles: 0,
+      observedFiles: 0,
+      yieldedFiles: 0,
+      chunkCount: 0
+    };
+    current.sampledFiles += 1;
+    sampledFamilies[familyKey] = current;
+    sampledFamilyByOrderIndex.set(normalizedOrderIndex, familyKey);
   }
   const hasSufficientWarmupPopulation = sortedEntries.length >= Math.max(
     2,
@@ -183,6 +314,8 @@ export const buildExtractedProseLowYieldBailoutState = ({
     warmupWindowSize,
     warmupSampleSize,
     sampledOrderIndices,
+    sampledFamilies,
+    sampledFamilyByOrderIndex,
     observedOrderIndices: new Set(),
     observedSamples: 0,
     yieldedSamples: 0,
@@ -210,6 +343,18 @@ export const observeExtractedProseLowYieldSample = ({ bailout, orderIndex, resul
     bailout.yieldedSamples += 1;
   }
   bailout.sampledChunkCount += safeChunkCount;
+  const familyKey = bailout.sampledFamilyByOrderIndex?.get(normalizedOrderIndex);
+  if (familyKey) {
+    const familyStats = bailout.sampledFamilies?.[familyKey];
+    if (familyStats && typeof familyStats === 'object') {
+      familyStats.observedFiles += 1;
+      if (safeChunkCount > 0) {
+        familyStats.yieldedFiles += 1;
+      }
+      familyStats.chunkCount += safeChunkCount;
+      bailout.sampledFamilies[familyKey] = familyStats;
+    }
+  }
   if (bailout.decisionMade || bailout.observedSamples < bailout.warmupSampleSize) {
     return null;
   }
@@ -227,8 +372,35 @@ export const observeExtractedProseLowYieldSample = ({ bailout, orderIndex, resul
   const lowRatio = observedYieldRatio < bailout.config.minYieldRatio;
   const lowYieldedCount = bailout.yieldedSamples < minYieldedFiles;
   const lowChunkCount = bailout.sampledChunkCount < minYieldedChunks;
+  const familySummaries = Object.values(bailout.sampledFamilies || {})
+    .filter((familyState) => Number(familyState?.observedFiles) > 0)
+    .map((familyState) => {
+      const familyObservedFiles = Math.max(0, Math.floor(Number(familyState.observedFiles) || 0));
+      const familyYieldedFiles = Math.max(0, Math.floor(Number(familyState.yieldedFiles) || 0));
+      const familyChunkCount = Math.max(0, Math.floor(Number(familyState.chunkCount) || 0));
+      const familyYieldRatio = familyObservedFiles > 0
+        ? familyYieldedFiles / familyObservedFiles
+        : 0;
+      return {
+        key: familyState.key,
+        ext: familyState.ext,
+        pathFamily: familyState.pathFamily,
+        docLike: familyState.docLike === true,
+        sampledFiles: Math.max(0, Math.floor(Number(familyState.sampledFiles) || 0)),
+        observedFiles: familyObservedFiles,
+        yieldedFiles: familyYieldedFiles,
+        chunkCount: familyChunkCount,
+        yieldRatio: familyYieldRatio
+      };
+    });
+  const familyProtected = familySummaries.some((familyState) => (
+    familyState.docLike === true
+      ? familyState.yieldedFiles > 0 || familyState.chunkCount > 0
+      : familyState.yieldRatio >= bailout.config.minYieldRatio
+        || familyState.chunkCount >= Math.max(1, Math.ceil(minYieldedChunks / 2))
+  ));
   bailout.decisionMade = true;
-  bailout.triggered = lowRatio && lowYieldedCount && lowChunkCount;
+  bailout.triggered = lowRatio && lowYieldedCount && lowChunkCount && familyProtected !== true;
   bailout.decisionAtOrderIndex = normalizedOrderIndex;
   bailout.decisionAtMs = Date.now();
   return {
@@ -237,6 +409,8 @@ export const observeExtractedProseLowYieldSample = ({ bailout, orderIndex, resul
     yieldedSamples: bailout.yieldedSamples,
     observedSamples: bailout.observedSamples,
     sampledChunkCount: bailout.sampledChunkCount,
+    familyProtected,
+    sampledFamilies: familySummaries,
     minYieldRatio: bailout.config.minYieldRatio,
     minYieldedFiles,
     minYieldedChunks
