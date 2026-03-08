@@ -131,7 +131,6 @@ jobs:
           exit 0
 
       - name: CI Suite
-        shell: bash
         run: |
           node tools/ci/run-suite.js --mode ci --skip-prechecks
 

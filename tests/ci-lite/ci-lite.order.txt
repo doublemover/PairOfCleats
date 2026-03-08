@@ -493,6 +493,7 @@ indexing/incremental/signature-version
 retrieval/pipeline/ann-fallback-nonvector
 tooling/dict-utils/paths-builds-root
 tooling/ci/run-suite-path-normalization
+tooling/ci/run-suite-output-sanitization
 indexing/tree-sitter/query-precompile-cache
 indexing/watch/build-state
 retrieval/pipeline/query-plan-disk-cache

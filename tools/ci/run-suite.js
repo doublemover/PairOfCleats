@@ -86,6 +86,17 @@ const buildUsrGateSteps = (diagnosticsDir) => USR_GUARDRAIL_GATES.map((gate) => 
   ]
 }));
 
+const OSC_SEQUENCE_RE = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g;
+
+const sanitizeHostedShellOutput = (chunk) => String(chunk || '').replace(OSC_SEQUENCE_RE, '');
+export const __sanitizeHostedShellOutputForTests = sanitizeHostedShellOutput;
+
+const createOutputForwarder = (stream) => (chunk) => {
+  const text = sanitizeHostedShellOutput(chunk);
+  if (!text) return;
+  stream.write(text);
+};
+
 /**
  * Execute a CI suite step and throw when the child exits non-zero.
  *
@@ -105,9 +116,13 @@ const runStep = async (step, env, dryRun) => {
     ? Math.max(1000, Math.floor(Number(step.timeoutMs)))
     : null;
   const result = await spawnSubprocess(step.command, step.args, {
-    stdio: 'inherit',
+    stdio: ['ignore', 'pipe', 'pipe'],
     cwd: step.cwd || ROOT,
     env,
+    captureStdout: false,
+    captureStderr: false,
+    onStdout: createOutputForwarder(process.stdout),
+    onStderr: createOutputForwarder(process.stderr),
     ...(resolvedTimeoutMs != null ? { timeoutMs: resolvedTimeoutMs } : {}),
     killTree: true,
     detached: false,
