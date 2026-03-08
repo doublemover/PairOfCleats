@@ -7,8 +7,9 @@ import { registerDefaultToolingProviders } from '../tooling/providers/index.js';
 import { TOOLING_CONFIDENCE, TOOLING_SOURCE } from './constants.js';
 import { addInferredParam, addInferredReturn } from './apply.js';
 import { ensureParamTypeMap, getParamTypeList } from './extract.js';
-import { isAbsolutePathNative } from '../../shared/files.js';
+import { isUncPath } from '../../shared/files.js';
 import { createQueuedAppendWriter } from '../../shared/io/append-writer.js';
+import { normalizePathForPlatform } from '../../shared/path-normalize.js';
 const EMPTY_TOOLING_PASS_STATS = Object.freeze({
   inferredReturns: 0,
   toolingDegradedProviders: 0,
@@ -21,19 +22,35 @@ const EMPTY_TOOLING_PASS_STATS = Object.freeze({
   toolingRequestTimeouts: 0
 });
 
+const WINDOWS_DRIVE_PREFIX_RE = /^[a-zA-Z]:[\\/]/;
+
 const resolveDefaultToolingCacheDir = ({
   rootDir,
   buildRoot
 }) => {
-  const resolvedRootDir = path.resolve(String(rootDir || process.cwd()));
-  const resolvedBuildRoot = buildRoot
-    ? path.resolve(String(buildRoot))
+  const rawRootDir = String(rootDir || process.cwd());
+  const rawBuildRoot = buildRoot ? String(buildRoot) : '';
+  const useWin32PathApi = WINDOWS_DRIVE_PREFIX_RE.test(rawRootDir)
+    || WINDOWS_DRIVE_PREFIX_RE.test(rawBuildRoot)
+    || isUncPath(rawRootDir)
+    || isUncPath(rawBuildRoot);
+  const platform = useWin32PathApi ? 'win32' : 'posix';
+  const pathApi = useWin32PathApi ? path.win32 : path.posix;
+  const resolvedRootDir = normalizePathForPlatform(
+    pathApi.resolve(rawRootDir),
+    { platform }
+  );
+  const resolvedBuildRoot = rawBuildRoot
+    ? normalizePathForPlatform(
+      pathApi.resolve(rawBuildRoot),
+      { platform }
+    )
     : '';
-  const buildParent = resolvedBuildRoot ? path.dirname(resolvedBuildRoot) : '';
-  if (resolvedBuildRoot && path.basename(buildParent).toLowerCase() === 'builds') {
-    return path.join(path.dirname(buildParent), 'tooling-cache');
+  const buildParent = resolvedBuildRoot ? pathApi.dirname(resolvedBuildRoot) : '';
+  if (resolvedBuildRoot && pathApi.basename(buildParent).toLowerCase() === 'builds') {
+    return pathApi.join(pathApi.dirname(buildParent), 'tooling-cache');
   }
-  return path.join(resolvedRootDir, '.build', 'pairofcleats', 'tooling-cache');
+  return pathApi.join(resolvedRootDir, '.build', 'pairofcleats', 'tooling-cache');
 };
 
 export const __resolveDefaultToolingCacheDirForTests = resolveDefaultToolingCacheDir;
