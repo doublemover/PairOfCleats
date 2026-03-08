@@ -86,7 +86,7 @@ const buildUsrGateSteps = (diagnosticsDir) => USR_GUARDRAIL_GATES.map((gate) => 
   ]
 }));
 
-const OSC_SEQUENCE_RE = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g;
+const OSC_SEQUENCE_RE = /\x1b\][^\x07\x1b]*(?:\x07|\x1b[\x5c])/g;
 
 const sanitizeHostedShellOutput = (chunk) => String(chunk || '').replace(OSC_SEQUENCE_RE, '');
 export const __sanitizeHostedShellOutputForTests = sanitizeHostedShellOutput;
