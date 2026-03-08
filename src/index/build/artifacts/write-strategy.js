@@ -42,6 +42,12 @@ const VALIDATION_CRITICAL_ARTIFACT_PATTERNS = Object.freeze([
   /(^|\/)field_postings(?:\.|$)/,
   /(^|\/)pieces\/manifest\.json$/
 ]);
+const EXCLUSIVE_ARTIFACT_PUBLISHER_FAMILIES = Object.freeze([
+  { family: 'chunk-meta-binary-columnar', pattern: /(^|\/)chunk_meta\.binary-columnar(?:\.|$)/ },
+  { family: 'field-postings', pattern: /(^|\/)field_postings(?:\.|$)/ },
+  { family: 'token-postings', pattern: /(^|\/)token_postings(?:\.|$)/ }
+]);
+const LARGE_ARTIFACT_DISPATCH_BYTES = 128 * 1024 * 1024;
 
 /**
  * Resolve an upper percentile from sorted millisecond samples.
@@ -93,18 +99,6 @@ export const resolveArtifactWriteThroughputProfile = (perfProfile) => {
 };
 
 /**
- * Normalize filesystem write strategy mode selector.
- *
- * @param {unknown} value
- * @returns {'auto'|'ntfs'|'generic'}
- */
-const normalizeStrategyMode = (value) => {
-  const mode = typeof value === 'string' ? value.trim().toLowerCase() : 'auto';
-  if (mode === 'ntfs' || mode === 'generic' || mode === 'auto') return mode;
-  return 'auto';
-};
-
-/**
  * Coerce optional value to non-negative finite number.
  *
  * @param {unknown} value
@@ -114,6 +108,78 @@ const toNonNegativeNumberOrNull = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 0) return null;
   return parsed;
+};
+
+export const resolveArtifactExclusivePublisherFamily = (label) => {
+  const normalized = String(label || '').replace(/\\/g, '/').toLowerCase();
+  if (!normalized) return null;
+  for (const entry of EXCLUSIVE_ARTIFACT_PUBLISHER_FAMILIES) {
+    entry.pattern.lastIndex = 0;
+    if (entry.pattern.test(normalized)) return entry.family;
+  }
+  return null;
+};
+
+export const resolveArtifactWriteBytesInFlightLimit = ({
+  throughputBytesPerSec = null,
+  writeConcurrency = 1
+} = {}) => {
+  const throughput = resolveOptionalPositiveNumber(throughputBytesPerSec, null);
+  const concurrency = Math.max(1, Math.floor(Number(writeConcurrency) || 1));
+  const throughputWindow = throughput
+    ? Math.max(LARGE_ARTIFACT_DISPATCH_BYTES, Math.floor(throughput * 6))
+    : (384 * 1024 * 1024);
+  const concurrencyAllowance = Math.max(LARGE_ARTIFACT_DISPATCH_BYTES, concurrency * (96 * 1024 * 1024));
+  return Math.max(LARGE_ARTIFACT_DISPATCH_BYTES, Math.min(HUGE_ARTIFACT_WRITE_BYTES, Math.max(throughputWindow, concurrencyAllowance)));
+};
+
+export const canDispatchArtifactWriteEntry = ({
+  entry,
+  activeEntries = [],
+  maxBytesInFlight = null
+} = {}) => {
+  if (!entry || typeof entry !== 'object') return false;
+  const entryBytes = toNonNegativeNumberOrNull(entry.estimatedBytes) ?? 0;
+  const entryFamily = resolveArtifactExclusivePublisherFamily(entry.label);
+  let activeLargeBytes = 0;
+  let exclusivePublisherActive = false;
+  for (const activeEntry of Array.isArray(activeEntries) ? activeEntries : []) {
+    if (!activeEntry || typeof activeEntry !== 'object') continue;
+    const activeFamily = resolveArtifactExclusivePublisherFamily(activeEntry.label);
+    const activeBytes = toNonNegativeNumberOrNull(activeEntry.estimatedBytes) ?? 0;
+    if (activeFamily) {
+      exclusivePublisherActive = true;
+      activeLargeBytes += activeBytes;
+      continue;
+    }
+    if (activeBytes >= LARGE_ARTIFACT_DISPATCH_BYTES) {
+      activeLargeBytes += activeBytes;
+    }
+  }
+  if (entryFamily && exclusivePublisherActive) {
+    return false;
+  }
+  if (
+    maxBytesInFlight != null
+    && (entryFamily || entryBytes >= LARGE_ARTIFACT_DISPATCH_BYTES)
+    && activeLargeBytes > 0
+    && (activeLargeBytes + entryBytes) > maxBytesInFlight
+  ) {
+    return false;
+  }
+  return true;
+};
+
+/**
+ * Normalize filesystem write strategy mode selector.
+ *
+ * @param {unknown} value
+ * @returns {'auto'|'ntfs'|'generic'}
+ */
+const normalizeStrategyMode = (value) => {
+  const mode = typeof value === 'string' ? value.trim().toLowerCase() : 'auto';
+  if (mode === 'ntfs' || mode === 'generic' || mode === 'auto') return mode;
+  return 'auto';
 };
 
 const resolveArtifactWriteSizeClass = (metric = {}) => {
@@ -638,19 +704,23 @@ export const summarizeArtifactLatencyClasses = (metrics) => {
  * then lane rank and enqueue sequence.
  *
  * @param {{ultraLight?:Array<object>,massive?:Array<object>,light?:Array<object>,heavy?:Array<object}} laneQueues
- * @param {{laneOrder?:Array<string>}} [options]
+ * @param {{laneOrder?:Array<string>,canSelect?:(entry:object,laneName:string)=>boolean}} [options]
  * @returns {{laneName:string,entry:object}|null}
  */
 export const selectTailWorkerWriteEntry = (laneQueues, options = {}) => {
   const laneOrder = Array.isArray(options?.laneOrder) && options.laneOrder.length
     ? options.laneOrder
     : ['massive', 'heavy', 'light', 'ultraLight'];
+  const canSelect = typeof options?.canSelect === 'function'
+    ? options.canSelect
+    : () => true;
   const compare = resolveTailWorkerComparator(laneOrder);
   let best = null;
   for (const laneName of laneOrder) {
     const queue = Array.isArray(laneQueues?.[laneName]) ? laneQueues[laneName] : null;
     if (!queue || !queue.length) continue;
     for (let index = 0; index < queue.length; index += 1) {
+      if (!canSelect(queue[index], laneName)) continue;
       const candidate = { laneName, index, entry: queue[index] };
       if (!best || compare(candidate, best) < 0) {
         best = candidate;

@@ -11,13 +11,14 @@ const entries = [
 ];
 
 const buildContext = createImportBuildContext({ entries });
-assert.equal(buildContext.version, 'build-context-v2');
+assert.equal(buildContext.version, 'build-context-v3');
 assert.equal(typeof buildContext.fingerprint, 'string');
 assert.equal(Array.isArray(buildContext.plugins), true);
 assert.deepEqual(
   buildContext.plugins,
   [
     { id: 'bazel-label', priority: 10 },
+    { id: 'path-context', priority: 12 },
     { id: 'nix-flake', priority: 15 },
     { id: 'typescript-emit', priority: 18 },
     { id: 'generated-artifacts', priority: 20 }
@@ -48,6 +49,22 @@ const bazelExternalResult = buildContext.classifyUnresolved({
 });
 assert.equal(bazelExternalResult?.reasonCode, 'IMP_U_RESOLVER_GAP');
 assert.equal(bazelExternalResult?.pluginId, 'bazel-label');
+
+const bazelRootTraversal = buildContext.classifyUnresolved({
+  importerRel: 'MODULE.bazel',
+  spec: '../..',
+  rawSpec: '../..'
+});
+assert.equal(bazelRootTraversal?.reasonCode, 'IMP_U_BAZEL_WORKSPACE_ROOT_SENTINEL');
+assert.equal(bazelRootTraversal?.pluginId, 'path-context');
+
+const configRootSentinel = buildContext.classifyUnresolved({
+  importerRel: '.github/workflows/installer/vercel.json',
+  spec: '/',
+  rawSpec: '/'
+});
+assert.equal(configRootSentinel?.reasonCode, 'IMP_U_CONFIG_ROOT_SENTINEL');
+assert.equal(configRootSentinel?.pluginId, 'path-context');
 
 const generatedFromIndex = buildContext.classifyUnresolved({
   importerRel: 'src/main.ts',

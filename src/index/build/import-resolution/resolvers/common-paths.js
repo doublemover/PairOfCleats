@@ -277,6 +277,26 @@ const resolveUnittestsProjectRootCandidate = ({ rawSpec, importerInfo }) => {
   return normalizeRelPath(`${projectRoot}/${strippedSpec}`);
 };
 
+const countLeadingParentSegments = (rawSpec) => {
+  const segments = String(rawSpec || '').split('/').filter(Boolean);
+  let count = 0;
+  for (const segment of segments) {
+    if (segment !== '..') break;
+    count += 1;
+  }
+  return count;
+};
+
+const escapesImporterRoot = ({ rawSpec, importerDir = '' }) => {
+  const climbs = countLeadingParentSegments(rawSpec);
+  if (climbs <= 0) return false;
+  const depth = String(importerDir || '')
+    .split('/')
+    .filter(Boolean)
+    .length;
+  return climbs > depth;
+};
+
 export const resolvePathLikeImport = ({ spec, importerInfo, lookup }) => {
   const rawSpec = toPosix(String(spec || '')).trim();
   if (!rawSpec) return null;
@@ -333,6 +353,9 @@ export const resolvePathLikeImport = ({ spec, importerInfo, lookup }) => {
     );
   }
   if (rawSpec.startsWith('./') || rawSpec.startsWith('../')) {
+    if (bazelSourceFile && escapesImporterRoot({ rawSpec, importerDir: importerInfo.importerDir })) {
+      return null;
+    }
     const joined = normalizeRelPath(path.posix.join(importerInfo.importerDir, rawSpec));
     const unittestsRootCandidate = resolveUnittestsProjectRootCandidate({ rawSpec, importerInfo });
     return resolveFromCandidateList(

@@ -37,6 +37,7 @@ const logger = createBenchLogger({
 const {
   initMasterLog,
   initRepoLog,
+  flushLogs,
   writeLog,
   closeRepoLog,
   closeMasterLog,
@@ -52,6 +53,9 @@ const firstRepoLog = await initRepoLog({
   slug: 'repo-one'
 });
 writeLog('[test] repo one line');
+await flushLogs();
+const firstRepoTextMidRun = await fsPromises.readFile(firstRepoLog, 'utf8');
+assert.match(firstRepoTextMidRun, /\[test\] repo one line/, 'repo one log should be inspectable before rotation');
 
 const secondRepoLog = await initRepoLog({
   label: 'owner/repo-two',
@@ -60,6 +64,7 @@ const secondRepoLog = await initRepoLog({
   slug: 'repo-two'
 });
 writeLog('[test] repo two final line');
+await flushLogs();
 
 assert.ok(firstRepoLog && secondRepoLog, 'expected repo log paths');
 assert.notEqual(firstRepoLog, secondRepoLog, 'expected unique per-repo log paths');

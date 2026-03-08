@@ -2,6 +2,7 @@ import { sortStrings } from '../path-utils.js';
 import { IMPORT_REASON_CODES } from '../reason-codes.js';
 import { createExpectedArtifactsIndex } from '../expected-artifacts-index.js';
 import { createBazelLabelPlugin } from './plugins/bazel-label.js';
+import { createPathContextPlugin } from './plugins/path-context.js';
 import { createGeneratedArtifactsPlugin } from './plugins/generated-artifacts.js';
 import { createNixFlakePlugin } from './plugins/nix-flake.js';
 import { createTypeScriptEmitPlugin } from './plugins/typescript-emit.js';
@@ -71,6 +72,10 @@ export const createImportBuildContext = ({
     plugins.push(createBazelLabelPlugin());
   }
 
+  if (isEnabled(buildContextConfig?.pathContext, true)) {
+    plugins.push(createPathContextPlugin());
+  }
+
   if (isEnabled(buildContextConfig?.nixFlakeReferences, true)) {
     plugins.push(createNixFlakePlugin());
   }
@@ -92,7 +97,7 @@ export const createImportBuildContext = ({
   }
 
   plugins.sort(stablePluginComparator);
-  const fingerprint = `build-context-v2|${buildPluginFingerprint(plugins)}|${buildGeneratedPolicyFingerprint(generatedPolicy)}`;
+  const fingerprint = `build-context-v3|${buildPluginFingerprint(plugins)}|${buildGeneratedPolicyFingerprint(generatedPolicy)}`;
 
   const classifyUnresolved = ({ importerRel = '', spec = '', rawSpec = '' } = {}) => {
     for (const plugin of plugins) {
@@ -119,7 +124,7 @@ export const createImportBuildContext = ({
   };
 
   return Object.freeze({
-    version: 'build-context-v2',
+    version: 'build-context-v3',
     fingerprint,
     plugins: plugins.map((plugin) => ({
       id: plugin.id,

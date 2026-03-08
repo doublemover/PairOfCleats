@@ -88,9 +88,12 @@ import {
   resolveWriteStartTimestampMs
 } from './artifacts/lane-policy.js';
 import {
+  canDispatchArtifactWriteEntry,
   createAdaptiveWriteConcurrencyController,
   isValidationCriticalArtifact,
   resolveAdaptiveShardCount,
+  resolveArtifactExclusivePublisherFamily,
+  resolveArtifactWriteBytesInFlightLimit,
   resolveArtifactWriteFsStrategy,
   resolveArtifactWriteLatencyClass,
   resolveArtifactWriteMemTokens,
@@ -998,6 +1001,8 @@ export async function writeIndexArtifacts(input) {
   const activeWrites = new Map();
   const activeWriteBytes = new Map();
   const activeWriteMeta = new Map();
+  let activeHugeWriteBytes = 0;
+  const activeHugeWriteFamilies = new Set();
   const artifactMetrics = new Map();
   const artifactQueueDelaySamples = new Map();
   const writeLogIntervalMs = 1000;
@@ -1071,6 +1076,17 @@ export async function writeIndexArtifacts(input) {
     ];
   const massiveWriteIoTokens = coerceIntAtLeast(artifactConfig.writeMassiveIoTokens, 1) ?? 2;
   const massiveWriteMemTokens = coerceIntAtLeast(artifactConfig.writeMassiveMemTokens, 0) ?? 2;
+  const hugeWriteInFlightBudgetBytes = coerceIntAtLeast(
+    artifactConfig.writeHugeInFlightBudgetBytes,
+    massiveWriteThresholdBytes
+  ) ?? resolveArtifactWriteBytesInFlightLimit({
+    throughputBytesPerSec: artifactWriteThroughputBytesPerSec,
+    writeConcurrency: typeof os.availableParallelism === 'function'
+      ? os.availableParallelism()
+      : (Array.isArray(os.cpus()) ? os.cpus().length : 1)
+  });
+  const hugeWriteFamilySerializationEnabled = artifactConfig.writeHugeFamilySerialization !== false;
+  const resolveHugeWriteFamily = (label) => resolveArtifactExclusivePublisherFamily(label);
   /**
    * Resolve first non-negative numeric work-class concurrency override.
    *
@@ -1251,6 +1267,30 @@ export async function writeIndexArtifacts(input) {
     formatBytes
   });
   let enqueueSeq = 0;
+  const resolveEntryEstimatedBytes = (entry) => {
+    const estimated = Number(entry?.estimatedBytes);
+    return Number.isFinite(estimated) && estimated > 0 ? estimated : 0;
+  };
+  const resolveEntryHugeWriteFamily = (entry) => resolveHugeWriteFamily(entry?.label);
+  const canDispatchEntryUnderHugeWritePolicy = (entry) => {
+    const family = resolveEntryHugeWriteFamily(entry);
+    if (
+      family
+      && hugeWriteFamilySerializationEnabled
+      && activeHugeWriteFamilies.size > 0
+      && !activeHugeWriteFamilies.has(family)
+    ) {
+      return false;
+    }
+    return canDispatchArtifactWriteEntry({
+      entry,
+      activeEntries: [...activeWriteBytes.entries()].map(([label, estimatedBytes]) => ({
+        label,
+        estimatedBytes
+      })),
+      maxBytesInFlight: hugeWriteInFlightBudgetBytes
+    });
+  };
   /**
    * Convert artifact path to normalized output-root relative label.
    *
@@ -2933,12 +2973,15 @@ export async function writeIndexArtifacts(input) {
           const previewSuffix = activeWriteSnapshot.previewText
             ? `, preview=${activeWriteSnapshot.previewText}`
             : '';
+          const hugeSuffix = activeHugeWriteFamilies.size > 0
+            ? `, hugeFamilies=${Array.from(activeHugeWriteFamilies).sort().join('+')}, hugeBytes=${formatBytes(activeHugeWriteBytes)}`
+            : '';
           logLine(
             `[perf] artifact stall attribution: non-write ` +
             `(active=${activeCount}, pendingWrites=${pendingWriteCount()}, ` +
             `writeQ.pending=${schedulerWritePending}, writeQ.oldest=${schedulerWriteOldestWaitMs}ms, ` +
             `writeQ.p95=${Number.isFinite(schedulerWriteWaitP95Ms) ? schedulerWriteWaitP95Ms : 'n/a'}ms` +
-            `${phaseSuffix}${previewSuffix})`,
+            `${phaseSuffix}${previewSuffix}${hugeSuffix})`,
             { kind: 'warning' }
           );
         }
@@ -3010,14 +3053,18 @@ export async function writeIndexArtifacts(input) {
      * @returns {'ultraLight'|'massive'|'light'|'heavy'|null}
      */
     const pickDispatchLane = (budgets) => {
-      const ultraLightAvailable = laneQueues.ultraLight.length > 0
-        && laneActive.ultraLight < Math.max(0, budgets.ultraLightConcurrency);
-      const massiveAvailable = laneQueues.massive.length > 0
-        && laneActive.massive < Math.max(0, budgets.massiveConcurrency);
-      const lightAvailable = laneQueues.light.length > 0
-        && laneActive.light < Math.max(0, budgets.lightConcurrency);
-      const heavyAvailable = laneQueues.heavy.length > 0
-        && laneActive.heavy < Math.max(0, budgets.heavyConcurrency);
+      const laneHasEligibleEntry = (laneName) => {
+        const queue = Array.isArray(laneQueues?.[laneName]) ? laneQueues[laneName] : null;
+        return Array.isArray(queue) && queue.some((entry) => canDispatchEntryUnderHugeWritePolicy(entry));
+      };
+      const ultraLightAvailable = laneActive.ultraLight < Math.max(0, budgets.ultraLightConcurrency)
+        && laneHasEligibleEntry('ultraLight');
+      const massiveAvailable = laneActive.massive < Math.max(0, budgets.massiveConcurrency)
+        && laneHasEligibleEntry('massive');
+      const lightAvailable = laneActive.light < Math.max(0, budgets.lightConcurrency)
+        && laneHasEligibleEntry('light');
+      const heavyAvailable = laneActive.heavy < Math.max(0, budgets.heavyConcurrency)
+        && laneHasEligibleEntry('heavy');
       if (ultraLightAvailable) return 'ultraLight';
       if (massiveAvailable) return 'massive';
       if (heavyAvailable) return 'heavy';
@@ -3034,14 +3081,25 @@ export async function writeIndexArtifacts(input) {
       const queue = Array.isArray(laneQueues?.[laneName]) ? laneQueues[laneName] : null;
       if (!queue || !queue.length) return [];
       if (laneName === 'ultraLight' && writeFsStrategy.microCoalescing) {
-        const batch = selectMicroWriteBatch(queue, {
-          maxEntries: writeFsStrategy.microBatchMaxCount,
-          maxBytes: writeFsStrategy.microBatchMaxBytes,
-          maxEntryBytes: ultraLightWriteThresholdBytes
-        });
-        return Array.isArray(batch?.entries) ? batch.entries.filter(Boolean) : [];
+        const eligibleIndex = queue.findIndex((entry) => canDispatchEntryUnderHugeWritePolicy(entry));
+        if (eligibleIndex < 0) return [];
+        if (eligibleIndex === 0) {
+          const batch = selectMicroWriteBatch(queue, {
+            maxEntries: writeFsStrategy.microBatchMaxCount,
+            maxBytes: writeFsStrategy.microBatchMaxBytes,
+            maxEntryBytes: ultraLightWriteThresholdBytes
+          });
+          return Array.isArray(batch?.entries)
+            ? batch.entries.filter((entry) => entry && canDispatchEntryUnderHugeWritePolicy(entry))
+            : [];
+        }
+        const removed = queue.splice(eligibleIndex, 1);
+        return removed[0] ? [removed[0]] : [];
       }
-      const entry = queue.shift();
+      const eligibleIndex = queue.findIndex((entry) => canDispatchEntryUnderHugeWritePolicy(entry));
+      if (eligibleIndex < 0) return [];
+      const removed = queue.splice(eligibleIndex, 1);
+      const entry = removed[0];
       return entry ? [entry] : [];
     };
     /**
@@ -3088,15 +3146,24 @@ export async function writeIndexArtifacts(input) {
       const started = resolveWriteStartTimestampMs(prefetchStartedAt, dispatchStartedAt);
       const queueDelayMs = Math.max(0, started - (Number(enqueuedAt) || started));
       const startedConcurrency = getActiveWriteConcurrency();
+      const hugeWriteFamily = resolveHugeWriteFamily(activeLabel);
+      const hugeWriteBytes = hugeWriteFamily
+        ? resolveEntryEstimatedBytes({ estimatedBytes })
+        : 0;
       activeWrites.set(activeLabel, started);
       activeWriteBytes.set(activeLabel, Number.isFinite(estimatedBytes) ? estimatedBytes : 0);
       const existingPhase = activeWriteMeta.get(activeLabel)?.phase;
       updateActiveWriteMeta(activeLabel, {
         phase: existingPhase || (prefetched ? 'prefetch-wait' : 'scheduler-wait'),
         lane: laneName,
+        hugeWriteFamily,
         rescueBoost: rescueBoost === true,
         tailWorker: tailWorker === true
       });
+      if (hugeWriteFamily) {
+        activeHugeWriteFamilies.add(hugeWriteFamily);
+        activeHugeWriteBytes += hugeWriteBytes;
+      }
       updateWriteInFlightTelemetry();
       try {
         const schedulerTokens = resolveDispatchWriteSchedulerTokens({
@@ -3176,6 +3243,15 @@ export async function writeIndexArtifacts(input) {
         activeWrites.delete(activeLabel);
         activeWriteBytes.delete(activeLabel);
         activeWriteMeta.delete(activeLabel);
+        if (hugeWriteFamily) {
+          activeHugeWriteBytes = Math.max(0, activeHugeWriteBytes - hugeWriteBytes);
+          const familyStillActive = Array.from(activeWriteMeta.values()).some(
+            (meta) => meta?.hugeWriteFamily === hugeWriteFamily
+          );
+          if (!familyStillActive) {
+            activeHugeWriteFamilies.delete(hugeWriteFamily);
+          }
+        }
         updateWriteInFlightTelemetry();
         writeHeartbeat.clearLabelAlerts(activeLabel);
         logWriteProgress(label);
@@ -3231,7 +3307,8 @@ export async function writeIndexArtifacts(input) {
           && activeCount >= activeConcurrency
         ) {
           const tailSelection = selectTailWorkerWriteEntry(laneQueues, {
-            laneOrder: ['massive', 'heavy', 'light', 'ultraLight']
+            laneOrder: ['massive', 'heavy', 'light', 'ultraLight'],
+            canSelect: (entry) => canDispatchEntryUnderHugeWritePolicy(entry)
           });
           if (tailSelection?.entry) {
             laneName = tailSelection.laneName;
@@ -3324,6 +3401,8 @@ export async function writeIndexArtifacts(input) {
     } finally {
       writeHeartbeat.stop();
       activeWriteBytes.clear();
+      activeHugeWriteFamilies.clear();
+      activeHugeWriteBytes = 0;
       updateWriteInFlightTelemetry();
     }
     logLine('', { kind: 'status' });
