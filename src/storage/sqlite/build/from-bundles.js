@@ -802,7 +802,7 @@ export async function buildDatabaseFromBundles({
     if (bundleFailures.length > 0) {
       const reason = bundleFailures[0] || 'bundle read failures encountered';
       if (emitOutput) {
-        warn(`[sqlite] Bundle build failed for ${mode}: ${reason}; using artifacts.`);
+        warn(`[sqlite] Bundle build failed for ${mode}: ${reason}.`);
       }
       rollbackSqliteBuildTransaction(db, batchStats);
       emitDenseClampSummary();

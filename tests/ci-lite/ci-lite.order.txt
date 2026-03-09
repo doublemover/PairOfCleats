@@ -1043,5 +1043,6 @@ perf/bench/language-closeout-exit
 indexing/extracted-prose/extraction-report
 indexing/extracted-prose/low-yield-history-warmup-reduction
 indexing/extracted-prose/low-yield-history-disable
+storage/sqlite/incremental/bundle-count-mismatch-fallback
 storage/sqlite/incremental/bundle-partial-embeddings-fallback
 

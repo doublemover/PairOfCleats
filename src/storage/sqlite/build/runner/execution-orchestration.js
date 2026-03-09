@@ -36,6 +36,43 @@ import {
 import { createModeReporter } from './reporting-state-transitions.js';
 import { resolveModeSelectionPlan } from './selection-planning.js';
 
+const resolveBundleIntegrityFailureReason = ({
+  bundleResult,
+  denseArtifactsRequired,
+  expectedDenseCount,
+  expectedChunkCount
+}) => {
+  const explicitReason = typeof bundleResult?.reason === 'string'
+    ? bundleResult.reason.trim()
+    : '';
+  if (explicitReason) return explicitReason;
+  const observedChunkCount = Number(bundleResult?.count);
+  if (
+    Number.isFinite(Number(expectedChunkCount))
+    && Number(expectedChunkCount) >= 0
+    && Number.isFinite(observedChunkCount)
+    && observedChunkCount !== Number(expectedChunkCount)
+  ) {
+    return `bundle row count mismatch (${observedChunkCount} !== ${Number(expectedChunkCount)})`;
+  }
+  const observedDenseCount = Number(bundleResult?.denseCount);
+  if (
+    denseArtifactsRequired
+    && Number.isFinite(Number(expectedDenseCount))
+    && Number(expectedDenseCount) > 0
+  ) {
+    const missingDense = observedDenseCount === 0
+      || Number(bundleResult?.embedStats?.filesMissingEmbeddings || 0) > 0;
+    if (missingDense) {
+      return 'bundles missing embeddings';
+    }
+    if (Number.isFinite(observedDenseCount) && observedDenseCount !== Number(expectedDenseCount)) {
+      return `bundle dense count mismatch (${observedDenseCount} !== ${Number(expectedDenseCount)})`;
+    }
+  }
+  return '';
+};
+
 /**
  * Execute sqlite build orchestration for all selected modes.
  *
@@ -458,11 +495,12 @@ export const executeSqliteModeBuilds = async ({
           batchSize: activeBatchConfig,
           stats: sqliteStats
         });
-        const missingDense = denseArtifactsRequired && (
-          bundleResult?.denseCount === 0
-          || Number(bundleResult?.embedStats?.filesMissingEmbeddings || 0) > 0
-        );
-        const bundleFailureReason = bundleResult?.reason || (missingDense ? 'bundles missing embeddings' : '');
+        const bundleFailureReason = resolveBundleIntegrityFailureReason({
+          bundleResult,
+          denseArtifactsRequired,
+          expectedDenseCount,
+          expectedChunkCount: modeChunkCountHint
+        });
         if (bundleFailureReason) {
           warn(`[sqlite] incremental bundle build failed for ${mode}: ${bundleFailureReason}; using artifacts.`);
           const embedLine = formatEmbedStats(bundleResult?.embedStats);
