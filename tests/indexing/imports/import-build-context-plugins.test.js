@@ -66,6 +66,38 @@ const configRootSentinel = buildContext.classifyUnresolved({
 assert.equal(configRootSentinel?.reasonCode, 'IMP_U_CONFIG_ROOT_SENTINEL');
 assert.equal(configRootSentinel?.pluginId, 'path-context');
 
+const configRootAnchoredPath = buildContext.classifyUnresolved({
+  importerRel: 'website/vercel.json',
+  spec: '/api',
+  rawSpec: '/api'
+});
+assert.equal(configRootAnchoredPath?.reasonCode, 'IMP_U_CONFIG_ROOT_ANCHORED_PATH');
+assert.equal(configRootAnchoredPath?.pluginId, 'path-context');
+
+const configGlobPattern = buildContext.classifyUnresolved({
+  importerRel: 'website/tsconfig.json',
+  spec: '.next/types/**/*.ts',
+  rawSpec: '.next/types/**/*.ts'
+});
+assert.equal(configGlobPattern?.reasonCode, 'IMP_U_CONFIG_GLOB_PATTERN');
+assert.equal(configGlobPattern?.pluginId, 'path-context');
+
+const nixRootAnchoredPath = buildContext.classifyUnresolved({
+  importerRel: 'hardening/profiles/default.nix',
+  spec: '/profiles/hardened.nix',
+  rawSpec: '/profiles/hardened.nix'
+});
+assert.equal(nixRootAnchoredPath?.reasonCode, 'IMP_U_CONFIG_ROOT_ANCHORED_PATH');
+assert.equal(nixRootAnchoredPath?.pluginId, 'path-context');
+
+const bazelEqualDepthRootTraversal = buildContext.classifyUnresolved({
+  importerRel: 'examples/android/MODULE.bazel',
+  spec: '../..',
+  rawSpec: '../..'
+});
+assert.equal(bazelEqualDepthRootTraversal?.reasonCode, 'IMP_U_BAZEL_WORKSPACE_ROOT_SENTINEL');
+assert.equal(bazelEqualDepthRootTraversal?.pluginId, 'path-context');
+
 const generatedFromIndex = buildContext.classifyUnresolved({
   importerRel: 'src/main.ts',
   spec: './proto/client_pb2.py',

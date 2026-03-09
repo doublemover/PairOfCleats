@@ -7,6 +7,7 @@ const CONFIG_ROOT_SENTINEL_EXTENSIONS = new Set([
   '.json',
   '.jsonc',
   '.json5',
+  '.nix',
   '.yaml',
   '.yml',
   '.toml',
@@ -14,6 +15,7 @@ const CONFIG_ROOT_SENTINEL_EXTENSIONS = new Set([
   '.cfg',
   '.conf'
 ]);
+const CONFIG_GLOB_PATTERN_RX = /[*?[\]{}]/;
 
 const normalizeImporterRel = (value) => String(value || '').replace(/\\/g, '/').trim();
 
@@ -36,7 +38,7 @@ const classifyBazelRootTraversal = ({ importerRel = '', spec = '', rawSpec = '' 
   const importerDir = path.posix.dirname(normalizedImporterRel).replace(/^\.$/, '');
   const importerDepth = importerDir ? importerDir.split('/').filter(Boolean).length : 0;
   const climbs = countLeadingParentSegments(targetSpecifier);
-  if (climbs <= importerDepth) return null;
+  if (climbs < importerDepth) return null;
   return {
     reasonCode: IMPORT_REASON_CODES.BAZEL_WORKSPACE_ROOT_SENTINEL,
     pluginId: 'path-context',
@@ -53,14 +55,55 @@ const classifyConfigRootSentinel = ({ importerRel = '', spec = '', rawSpec = '' 
   const importerExt = path.posix.extname(normalizedImporterRel).toLowerCase();
   if (!CONFIG_ROOT_SENTINEL_EXTENSIONS.has(importerExt)) return null;
   const targetSpecifier = String(rawSpec || spec || '').trim();
-  if (targetSpecifier !== '/') return null;
+  if (targetSpecifier === '/') {
+    return {
+      reasonCode: IMPORT_REASON_CODES.CONFIG_ROOT_SENTINEL,
+      pluginId: 'path-context',
+      match: {
+        matched: true,
+        source: 'plugin',
+        matchType: 'config_root_sentinel'
+      }
+    };
+  }
+  if (targetSpecifier.startsWith('/')) {
+    return {
+      reasonCode: IMPORT_REASON_CODES.CONFIG_ROOT_ANCHORED_PATH,
+      pluginId: 'path-context',
+      match: {
+        matched: true,
+        source: 'plugin',
+        matchType: 'config_root_anchored_path'
+      }
+    };
+  }
+  if (CONFIG_GLOB_PATTERN_RX.test(targetSpecifier)) {
+    return {
+      reasonCode: IMPORT_REASON_CODES.CONFIG_GLOB_PATTERN,
+      pluginId: 'path-context',
+      match: {
+        matched: true,
+        source: 'plugin',
+        matchType: 'config_glob_pattern'
+      }
+    };
+  }
+  return null;
+};
+
+const classifyConfigRootedSpecifier = ({ importerRel = '', spec = '', rawSpec = '' } = {}) => {
+  const normalizedImporterRel = normalizeImporterRel(importerRel);
+  const importerExt = path.posix.extname(normalizedImporterRel).toLowerCase();
+  if (!CONFIG_ROOT_SENTINEL_EXTENSIONS.has(importerExt)) return null;
+  const normalizedSpec = normalizeImportSpecifier(spec || rawSpec);
+  if (!normalizedSpec || normalizedSpec === '/' || !normalizedSpec.startsWith('/')) return null;
   return {
-    reasonCode: IMPORT_REASON_CODES.CONFIG_ROOT_SENTINEL,
+    reasonCode: IMPORT_REASON_CODES.CONFIG_ROOT_ANCHORED_PATH,
     pluginId: 'path-context',
     match: {
       matched: true,
       source: 'plugin',
-      matchType: 'config_root_sentinel'
+      matchType: 'config_root_anchored_path'
     }
   };
 };
@@ -68,9 +111,10 @@ const classifyConfigRootSentinel = ({ importerRel = '', spec = '', rawSpec = '' 
 export const createPathContextPlugin = () => Object.freeze({
   id: 'path-context',
   priority: 12,
-  fingerprint: 'v1',
+  fingerprint: 'v2',
   classify(input = {}) {
     return classifyBazelRootTraversal(input)
-      || classifyConfigRootSentinel(input);
+      || classifyConfigRootSentinel(input)
+      || classifyConfigRootedSpecifier(input);
   }
 });
