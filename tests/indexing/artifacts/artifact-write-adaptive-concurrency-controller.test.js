@@ -42,13 +42,14 @@ assert.equal(
   controller.observe({
     pendingWrites: 3,
     activeWrites: 4,
+    activeWriteBytes: 128 * 1024 * 1024,
     longestStallSec: 14,
     schedulerWritePending: 0,
     schedulerWriteOldestWaitMs: 0,
     schedulerWriteWaitP95Ms: 0
   }),
   4,
-  'expected non-write stalls to avoid write-concurrency scale down'
+  'expected non-write stalls below the heavy-byte threshold to avoid write-concurrency scale down'
 );
 
 nowMs += 1;
@@ -56,12 +57,27 @@ assert.equal(
   controller.observe({
     pendingWrites: 3,
     activeWrites: 4,
+    activeWriteBytes: 900 * 1024 * 1024,
+    longestStallSec: 14,
+    schedulerWritePending: 0,
+    schedulerWriteOldestWaitMs: 0,
+    schedulerWriteWaitP95Ms: 0
+  }),
+  3,
+  'expected sustained non-write stalls with huge active bytes to scale concurrency down conservatively'
+);
+
+nowMs += 1;
+assert.equal(
+  controller.observe({
+    pendingWrites: 3,
+    activeWrites: 3,
     longestStallSec: 14,
     schedulerWritePending: 4,
     schedulerWriteOldestWaitMs: 2200,
     schedulerWriteWaitP95Ms: 1200
   }),
-  3,
+  2,
   'expected queue-attributed stalls to scale concurrency down'
 );
 
@@ -69,7 +85,7 @@ nowMs += 1;
 assert.equal(
   controller.observe({
     pendingWrites: 2,
-    activeWrites: 3,
+    activeWrites: 2,
     longestStallSec: 20,
     schedulerWritePending: 4,
     schedulerWriteOldestWaitMs: 2600,
@@ -171,6 +187,7 @@ assert.equal(
   memoryController.observe({
     pendingWrites: 3,
     activeWrites: 2,
+    activeWriteBytes: 64 * 1024 * 1024,
     longestStallSec: 0,
     memoryPressure: 0.42,
     gcPressure: 0.08,
@@ -196,6 +213,7 @@ assert.equal(
   nonWriteMemoryController.observe({
     pendingWrites: 0,
     activeWrites: 1,
+    activeWriteBytes: 64 * 1024 * 1024,
     longestStallSec: 12,
     memoryPressure: 0.96,
     gcPressure: 0.12,
@@ -212,6 +230,7 @@ assert.equal(
   nonWriteMemoryController.observe({
     pendingWrites: 0,
     activeWrites: 1,
+    activeWriteBytes: 64 * 1024 * 1024,
     longestStallSec: 12,
     memoryPressure: 0.97,
     gcPressure: 0.15,
@@ -240,6 +259,7 @@ assert.equal(
   drainController.observe({
     pendingWrites: 1,
     activeWrites: 2,
+    activeWriteBytes: 64 * 1024 * 1024,
     longestStallSec: 0,
     schedulerWritePending: 0,
     schedulerWriteOldestWaitMs: 0,

@@ -92,6 +92,7 @@ import {
   createAdaptiveWriteConcurrencyController,
   isValidationCriticalArtifact,
   resolveAdaptiveShardCount,
+  resolveArtifactEffectiveDispatchBytes,
   resolveArtifactExclusivePublisherFamily,
   resolveArtifactWriteBytesInFlightLimit,
   resolveArtifactWriteFsStrategy,
@@ -1268,8 +1269,7 @@ export async function writeIndexArtifacts(input) {
   });
   let enqueueSeq = 0;
   const resolveEntryEstimatedBytes = (entry) => {
-    const estimated = Number(entry?.estimatedBytes);
-    return Number.isFinite(estimated) && estimated > 0 ? estimated : 0;
+    return resolveArtifactEffectiveDispatchBytes(entry);
   };
   const resolveEntryHugeWriteFamily = (entry) => resolveHugeWriteFamily(entry?.label);
   const canDispatchEntryUnderHugeWritePolicy = (entry) => {
@@ -1286,7 +1286,8 @@ export async function writeIndexArtifacts(input) {
       entry,
       activeEntries: [...activeWriteBytes.entries()].map(([label, estimatedBytes]) => ({
         label,
-        estimatedBytes
+        estimatedBytes,
+        lane: activeWriteMeta.get(label)?.lane || null
       })),
       maxBytesInFlight: hugeWriteInFlightBudgetBytes
     });
@@ -2906,14 +2907,15 @@ export async function writeIndexArtifacts(input) {
      *
      * @returns {{active:boolean,remainingWrites:number,longestStallSec:number}}
      */
-    const resolveTailRescueState = () => {
+    const resolveTailRescueState = ({ writeQueueBackedUp = false } = {}) => {
       const pendingWrites = pendingWriteCount();
       const remainingWrites = pendingWrites + activeCount;
       const longestStallSec = getLongestWriteStallSeconds();
       const active = writeTailRescueEnabled
         && remainingWrites > 0
         && remainingWrites <= writeTailRescueMaxPending
-        && longestStallSec >= writeTailRescueStallSeconds;
+        && longestStallSec >= writeTailRescueStallSeconds
+        && writeQueueBackedUp;
       return {
         active,
         remainingWrites,
@@ -2926,23 +2928,7 @@ export async function writeIndexArtifacts(input) {
      * @returns {number}
      */
     const observeAdaptiveWriteConcurrency = () => {
-      const rescueState = resolveTailRescueState();
-      if (rescueState.active !== tailRescueActive) {
-        tailRescueActive = rescueState.active;
-        if (tailRescueActive) {
-          logLine(
-            `[perf] write tail rescue active: remaining=${rescueState.remainingWrites}, ` +
-            `stall=${rescueState.longestStallSec}s, boost=+${writeTailRescueBoostIoTokens}io/+${writeTailRescueBoostMemTokens}mem`,
-            { kind: 'warning' }
-          );
-        } else {
-          logLine('[perf] write tail rescue cleared', { kind: 'status' });
-        }
-      }
-      forcedTailRescueConcurrency = rescueState.active ? writeConcurrency : null;
-      if (!adaptiveWriteConcurrencyEnabled) return getActiveWriteConcurrency();
       const schedulerStats = scheduler?.stats ? scheduler.stats() : null;
-      const memorySignals = schedulerStats?.adaptive?.signals?.memory || null;
       const schedulerWriteStats = schedulerStats?.queues?.[SCHEDULER_QUEUE_NAMES.stage2Write] || null;
       const schedulerWritePending = Number(schedulerWriteStats?.pending);
       const schedulerWriteOldestWaitMs = Number(schedulerWriteStats?.oldestWaitMs);
@@ -2957,6 +2943,26 @@ export async function writeIndexArtifacts(input) {
             && schedulerWriteWaitP95Ms >= adaptiveWriteQueueWaitP95MsThreshold)
         )
       );
+      const rescueState = resolveTailRescueState({ writeQueueBackedUp: queueBackedUp });
+      const nonWriteTailStall = (
+        rescueState.longestStallSec >= adaptiveWriteStallScaleDownSeconds
+        && !queueBackedUp
+      );
+      if (rescueState.active !== tailRescueActive) {
+        tailRescueActive = rescueState.active;
+        if (tailRescueActive) {
+          logLine(
+            `[perf] write tail rescue active: remaining=${rescueState.remainingWrites}, ` +
+            `stall=${rescueState.longestStallSec}s, boost=+${writeTailRescueBoostIoTokens}io/+${writeTailRescueBoostMemTokens}mem`,
+            { kind: 'warning' }
+          );
+        } else {
+          logLine('[perf] write tail rescue cleared', { kind: 'status' });
+        }
+      }
+      forcedTailRescueConcurrency = rescueState.active && !nonWriteTailStall ? writeConcurrency : null;
+      if (!adaptiveWriteConcurrencyEnabled) return getActiveWriteConcurrency();
+      const memorySignals = schedulerStats?.adaptive?.signals?.memory || null;
       if (
         rescueState.longestStallSec >= adaptiveWriteStallScaleDownSeconds
         && !queueBackedUp
@@ -2989,6 +2995,10 @@ export async function writeIndexArtifacts(input) {
       return writeConcurrencyController.observe({
         pendingWrites: pendingWriteCount(),
         activeWrites: activeCount,
+        activeWriteBytes: Array.from(activeWriteBytes.values()).reduce(
+          (total, value) => total + (Number.isFinite(value) && value > 0 ? value : 0),
+          0
+        ),
         longestStallSec: rescueState.longestStallSec,
         memoryPressure: Number(memorySignals?.pressureScore),
         gcPressure: Number(memorySignals?.gcPressureScore),
@@ -3147,11 +3157,14 @@ export async function writeIndexArtifacts(input) {
       const queueDelayMs = Math.max(0, started - (Number(enqueuedAt) || started));
       const startedConcurrency = getActiveWriteConcurrency();
       const hugeWriteFamily = resolveHugeWriteFamily(activeLabel);
-      const hugeWriteBytes = hugeWriteFamily
-        ? resolveEntryEstimatedBytes({ estimatedBytes })
-        : 0;
+      const effectiveEstimatedBytes = resolveEntryEstimatedBytes({
+        label: activeLabel,
+        estimatedBytes,
+        lane: laneName
+      });
+      const hugeWriteBytes = hugeWriteFamily ? effectiveEstimatedBytes : 0;
       activeWrites.set(activeLabel, started);
-      activeWriteBytes.set(activeLabel, Number.isFinite(estimatedBytes) ? estimatedBytes : 0);
+      activeWriteBytes.set(activeLabel, effectiveEstimatedBytes);
       const existingPhase = activeWriteMeta.get(activeLabel)?.phase;
       updateActiveWriteMeta(activeLabel, {
         phase: existingPhase || (prefetched ? 'prefetch-wait' : 'scheduler-wait'),
@@ -3175,6 +3188,9 @@ export async function writeIndexArtifacts(input) {
           writeTailRescueBoostIoTokens,
           writeTailRescueBoostMemTokens,
           resolveArtifactWriteMemTokens
+        });
+        updateActiveWriteMeta(activeLabel, {
+          phase: prefetched ? 'prefetch-await' : 'write-execute'
         });
         const writeResult = prefetched
           ? await prefetched
@@ -3296,7 +3312,22 @@ export async function writeIndexArtifacts(input) {
           && remainingWrites <= writeTailWorkerMaxPending;
         const concurrencyLimit = activeConcurrency + (tailWorkerEligible ? 1 : 0);
         if (activeCount >= concurrencyLimit) break;
-        const rescueState = resolveTailRescueState();
+        const schedulerStats = scheduler?.stats ? scheduler.stats() : null;
+        const schedulerWriteStats = schedulerStats?.queues?.[SCHEDULER_QUEUE_NAMES.stage2Write] || null;
+        const schedulerWritePending = Number(schedulerWriteStats?.pending);
+        const schedulerWriteOldestWaitMs = Number(schedulerWriteStats?.oldestWaitMs);
+        const schedulerWriteWaitP95Ms = Number(schedulerWriteStats?.waitP95Ms);
+        const queueBackedUp = (
+          Number.isFinite(schedulerWritePending)
+          && schedulerWritePending >= adaptiveWriteQueuePendingThreshold
+          && (
+            (Number.isFinite(schedulerWriteOldestWaitMs)
+              && schedulerWriteOldestWaitMs >= adaptiveWriteQueueOldestWaitMsThreshold)
+            || (Number.isFinite(schedulerWriteWaitP95Ms)
+              && schedulerWriteWaitP95Ms >= adaptiveWriteQueueWaitP95MsThreshold)
+          )
+        );
+        const rescueState = resolveTailRescueState({ writeQueueBackedUp: queueBackedUp });
         const budgets = resolveLaneBudgets();
         let laneName = pickDispatchLane(budgets);
         let dispatchEntries = laneName ? takeLaneDispatchEntries(laneName) : [];

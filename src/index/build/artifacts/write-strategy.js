@@ -47,6 +47,17 @@ const EXCLUSIVE_ARTIFACT_PUBLISHER_FAMILIES = Object.freeze([
   { family: 'field-postings', pattern: /(^|\/)field_postings(?:\.|$)/ },
   { family: 'token-postings', pattern: /(^|\/)token_postings(?:\.|$)/ }
 ]);
+const HEAVY_ARTIFACT_LABEL_PATTERNS = Object.freeze([
+  /(^|\/)chunk_meta(?:\.|\/|$)/,
+  /(^|\/)field_tokens(?:\.|$)/,
+  /(^|\/)repo_map(?:\.|$)/,
+  /(^|\/)file_meta(?:\.|$)/,
+  /(^|\/)file_relations(?:\.|$)/,
+  /(^|\/)call_sites(?:\.|$)/,
+  /(^|\/)symbols(?:\.|$)/,
+  /(^|\/)symbol_occurrences(?:\.|$)/,
+  /(^|\/)symbol_edges(?:\.|$)/
+]);
 const LARGE_ARTIFACT_DISPATCH_BYTES = 128 * 1024 * 1024;
 
 /**
@@ -120,6 +131,25 @@ export const resolveArtifactExclusivePublisherFamily = (label) => {
   return null;
 };
 
+export const resolveArtifactEffectiveDispatchBytes = (entry) => {
+  if (!entry || typeof entry !== 'object') return 0;
+  const estimatedBytes = toNonNegativeNumberOrNull(entry.estimatedBytes);
+  if (estimatedBytes != null && estimatedBytes > 0) return estimatedBytes;
+  if (resolveArtifactExclusivePublisherFamily(entry.label)) {
+    return HUGE_ARTIFACT_WRITE_BYTES;
+  }
+  const lane = typeof entry.lane === 'string' ? entry.lane.trim().toLowerCase() : '';
+  if (lane === 'massive') return HUGE_ARTIFACT_WRITE_BYTES;
+  if (lane === 'heavy') return LARGE_ARTIFACT_DISPATCH_BYTES;
+  const normalized = String(entry.label || '').replace(/\\/g, '/').toLowerCase();
+  if (!normalized) return 0;
+  for (const pattern of HEAVY_ARTIFACT_LABEL_PATTERNS) {
+    pattern.lastIndex = 0;
+    if (pattern.test(normalized)) return LARGE_ARTIFACT_DISPATCH_BYTES;
+  }
+  return 0;
+};
+
 export const resolveArtifactWriteBytesInFlightLimit = ({
   throughputBytesPerSec = null,
   writeConcurrency = 1
@@ -139,14 +169,18 @@ export const canDispatchArtifactWriteEntry = ({
   maxBytesInFlight = null
 } = {}) => {
   if (!entry || typeof entry !== 'object') return false;
-  const entryBytes = toNonNegativeNumberOrNull(entry.estimatedBytes) ?? 0;
+  const entryBytes = resolveArtifactEffectiveDispatchBytes(entry);
   const entryFamily = resolveArtifactExclusivePublisherFamily(entry.label);
   let activeLargeBytes = 0;
   const activeExclusiveFamilies = new Set();
+  let activeOversize = false;
   for (const activeEntry of Array.isArray(activeEntries) ? activeEntries : []) {
     if (!activeEntry || typeof activeEntry !== 'object') continue;
     const activeFamily = resolveArtifactExclusivePublisherFamily(activeEntry.label);
-    const activeBytes = toNonNegativeNumberOrNull(activeEntry.estimatedBytes) ?? 0;
+    const activeBytes = resolveArtifactEffectiveDispatchBytes(activeEntry);
+    if (maxBytesInFlight != null && activeBytes > maxBytesInFlight) {
+      activeOversize = true;
+    }
     if (activeFamily) {
       activeExclusiveFamilies.add(activeFamily);
       activeLargeBytes += activeBytes;
@@ -159,10 +193,20 @@ export const canDispatchArtifactWriteEntry = ({
   if (entryFamily && activeExclusiveFamilies.has(entryFamily)) {
     return false;
   }
+  if (activeOversize) {
+    return false;
+  }
+  if (
+    maxBytesInFlight != null
+    && entryBytes > maxBytesInFlight
+    && Array.isArray(activeEntries)
+    && activeEntries.length > 0
+  ) {
+    return false;
+  }
   if (
     maxBytesInFlight != null
     && (entryFamily || entryBytes >= LARGE_ARTIFACT_DISPATCH_BYTES)
-    && activeLargeBytes > 0
     && (activeLargeBytes + entryBytes) > maxBytesInFlight
   ) {
     return false;
@@ -265,12 +309,13 @@ const isMicroCoalescibleWrite = (entry, maxEntryBytes) => {
  * @param {number} [input.memoryPressureLowThreshold]
  * @param {number} [input.gcPressureHighThreshold]
  * @param {number} [input.gcPressureLowThreshold]
+ * @param {number} [input.nonWriteHighBytesThreshold]
  * @param {number} [input.writeQueuePendingThreshold]
  * @param {number} [input.writeQueueOldestWaitMsThreshold]
  * @param {number} [input.writeQueueWaitP95MsThreshold]
  * @param {() => number} [input.now]
  * @param {(event:{reason:string,from:number,to:number,pendingWrites:number,activeWrites:number,longestStallSec:number,memoryPressure:number|null,gcPressure:number|null,rssUtilization:number|null,schedulerWritePending:number|null,schedulerWriteOldestWaitMs:number|null,schedulerWriteWaitP95Ms:number|null,stallAttribution:string}) => void} [input.onChange]
- * @returns {{observe:(snapshot?:{pendingWrites?:number,activeWrites?:number,longestStallSec?:number,memoryPressure?:number|null,gcPressure?:number|null,rssUtilization?:number|null,schedulerWritePending?:number|null,schedulerWriteOldestWaitMs?:number|null,schedulerWriteWaitP95Ms?:number|null})=>number,getCurrentConcurrency:()=>number,getLimits:()=>{min:number,max:number}}}
+ * @returns {{observe:(snapshot?:{pendingWrites?:number,activeWrites?:number,activeWriteBytes?:number,longestStallSec?:number,memoryPressure?:number|null,gcPressure?:number|null,rssUtilization?:number|null,schedulerWritePending?:number|null,schedulerWriteOldestWaitMs?:number|null,schedulerWriteWaitP95Ms?:number|null})=>number,getCurrentConcurrency:()=>number,getLimits:()=>{min:number,max:number}}}
  */
 export const createAdaptiveWriteConcurrencyController = (input = {}) => {
   const maxConcurrency = clampWriteConcurrency(input.maxConcurrency, 1);
@@ -314,6 +359,9 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
   const gcPressureLowThreshold = Number.isFinite(Number(input.gcPressureLowThreshold))
     ? Math.max(0, Math.min(gcPressureHighThreshold, Number(input.gcPressureLowThreshold)))
     : 0.2;
+  const nonWriteHighBytesThreshold = Number.isFinite(Number(input.nonWriteHighBytesThreshold))
+    ? Math.max(LARGE_ARTIFACT_DISPATCH_BYTES, Math.floor(Number(input.nonWriteHighBytesThreshold)))
+    : HUGE_ARTIFACT_WRITE_BYTES;
   const writeQueuePendingThreshold = Number.isFinite(Number(input.writeQueuePendingThreshold))
     ? Math.max(1, Math.floor(Number(input.writeQueuePendingThreshold)))
     : 1;
@@ -376,6 +424,9 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
     const schedulerWriteWaitP95Ms = Number.isFinite(Number(snapshot.schedulerWriteWaitP95Ms))
       ? Math.max(0, Math.floor(Number(snapshot.schedulerWriteWaitP95Ms)))
       : null;
+    const activeWriteBytes = Number.isFinite(Number(snapshot.activeWriteBytes))
+      ? Math.max(0, Math.floor(Number(snapshot.activeWriteBytes)))
+      : 0;
     const hasSchedulerWriteSignals = (
       schedulerWritePending != null
       || schedulerWriteOldestWaitMs != null
@@ -487,6 +538,28 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
     }
     if (
       canScaleDown
+      && longestStallSec >= stallScaleDownSeconds
+      && stallAttribution === 'non-write'
+      && activeWriteBytes >= nonWriteHighBytesThreshold
+    ) {
+      currentConcurrency = Math.max(minConcurrency, currentConcurrency - 1);
+      lastScaleDownAt = timestamp;
+      emitChange('non-write-stall', from, currentConcurrency, {
+        pendingWrites,
+        activeWrites,
+        longestStallSec,
+        memoryPressure,
+        gcPressure,
+        rssUtilization,
+        schedulerWritePending,
+        schedulerWriteOldestWaitMs,
+        schedulerWriteWaitP95Ms,
+        stallAttribution
+      });
+      return currentConcurrency;
+    }
+    if (
+      canScaleDown
       && pendingWrites <= 1
       && activeWrites < currentConcurrency
       && backlogPerSlot <= scaleDownBacklogPerSlot
@@ -516,6 +589,7 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
       && pendingWrites > 0
       && backlogPerSlot >= scaleUpBacklogPerSlot
       && longestStallSec <= stallScaleUpGuardSeconds
+      && stallAttribution !== 'non-write'
     ) {
       currentConcurrency += 1;
       lastScaleUpAt = timestamp;
@@ -537,6 +611,7 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
       && lowMemoryPressure
       && backlogPerSlot >= Math.max(0.75, scaleUpBacklogPerSlot * 0.6)
       && longestStallSec <= Math.max(1, stallScaleUpGuardSeconds * 0.75)
+      && stallAttribution !== 'non-write'
     ) {
       currentConcurrency += 1;
       lastScaleUpAt = timestamp;

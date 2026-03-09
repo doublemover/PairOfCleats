@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   canDispatchArtifactWriteEntry,
+  resolveArtifactEffectiveDispatchBytes,
   resolveArtifactExclusivePublisherFamily,
   resolveArtifactWriteBytesInFlightLimit
 } from '../../../src/index/build/artifacts/write-strategy.js';
@@ -89,6 +90,44 @@ assert.equal(
   }),
   false,
   'expected bytes-in-flight budget to block oversized overlapping writes even without an exclusive family conflict'
+);
+assert.equal(
+  canDispatchArtifactWriteEntry({
+    entry: {
+      label: 'chunk_meta.binary-columnar.bundle',
+      estimatedBytes: 900 * 1024 * 1024
+    },
+    activeEntries: [{
+      label: 'pieces/manifest.json',
+      estimatedBytes: 4096
+    }],
+    maxBytesInFlight: 768 * 1024 * 1024
+  }),
+  false,
+  'expected oversize writes to require an exclusive dispatch window'
+);
+assert.equal(
+  canDispatchArtifactWriteEntry({
+    entry: {
+      label: 'repo_map.json',
+      lane: 'heavy'
+    },
+    activeEntries: [{
+      label: 'chunk_meta.binary-columnar.bundle',
+      estimatedBytes: 320 * 1024 * 1024
+    }],
+    maxBytesInFlight: 384 * 1024 * 1024
+  }),
+  false,
+  'expected unknown heavy writes to use a conservative dispatch floor'
+);
+assert.equal(
+  resolveArtifactEffectiveDispatchBytes({
+    label: 'repo_map.json',
+    lane: 'heavy'
+  }),
+  128 * 1024 * 1024,
+  'expected heavy unlabeled writes to inherit the conservative heavy floor'
 );
 
 console.log('artifact huge write policy test passed');

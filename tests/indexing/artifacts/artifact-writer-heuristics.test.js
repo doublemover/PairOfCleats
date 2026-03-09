@@ -74,4 +74,20 @@ assert.ok(
   'expected serialize-time fallback to force sharded output when predicted serialization exceeds threshold'
 );
 
+const fallbackMarker = writes.length;
+writer.enqueueJsonArraySharded(
+  'arr-fallback',
+  [{ index: 1, text: 'z'.repeat(16) }],
+  {
+    maxBytes: 8 * 1024 * 1024,
+    estimatedBytes: 1024,
+    piece: { type: 'chunks', name: 'arr-fallback' }
+  }
+);
+assert.equal(
+  writes[fallbackMarker]?.meta?.estimatedBytes,
+  1024,
+  'expected unsharded enqueueJsonArray fallback to preserve estimatedBytes'
+);
+
 console.log('artifact writer heuristics test passed');
