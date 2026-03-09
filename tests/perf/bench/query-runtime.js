@@ -33,6 +33,8 @@ const includesBackend = (backends, prefix) => (
   Array.isArray(backends) && backends.some((backend) => String(backend || '').startsWith(prefix))
 );
 
+const hasPositiveTimestamp = (value) => Number.isFinite(Number(value)) && Number(value) > 0;
+
 const classifyQueryBackend = (backend) => (
   String(backend || '').startsWith('sqlite') ? 'sqlite' : 'memory'
 );
@@ -242,6 +244,36 @@ const createWorkerExitError = ({
   return error;
 };
 
+const resolveRequestElapsedMs = (request, nowTs) => {
+  if (hasPositiveTimestamp(request?.startedAt)) {
+    return Math.max(0, nowTs - Number(request.startedAt));
+  }
+  if (hasPositiveTimestamp(request?.sentAt)) {
+    return Math.max(0, nowTs - Number(request.sentAt));
+  }
+  return null;
+};
+
+const resolveSinceHeartbeatMs = (request, nowTs) => {
+  if (hasPositiveTimestamp(request?.lastHeartbeatAt)) {
+    return Math.max(0, nowTs - Number(request.lastHeartbeatAt));
+  }
+  if (hasPositiveTimestamp(request?.startedAt)) {
+    return Math.max(0, nowTs - Number(request.startedAt));
+  }
+  if (hasPositiveTimestamp(request?.sentAt)) {
+    return Math.max(0, nowTs - Number(request.sentAt));
+  }
+  return null;
+};
+
+const normalizeMaxRunsPerProcess = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return Number.POSITIVE_INFINITY;
+  const normalized = Math.floor(numeric);
+  return normalized > 0 ? normalized : Number.POSITIVE_INFINITY;
+};
+
 /**
  * Create a forked worker wrapper with heartbeat-aware stall detection.
  *
@@ -273,13 +305,13 @@ const createSearchWorker = ({
   stderrTailLines = DEFAULT_QUERY_WORKER_STDERR_TAIL_LINES,
   now = () => Date.now()
 }) => {
+  const normalizedMaxRunsPerProcess = normalizeMaxRunsPerProcess(maxRunsPerProcess);
   let nextMessageId = 1;
-  let child = null;
+  let nextGeneration = 1;
+  let currentSession = null;
   let watchdog = null;
   let activeRequest = null;
   let completedRuns = 0;
-  let runsSinceChildStart = 0;
-  let stderrLines = [];
 
   const emitEvent = (event) => {
     if (typeof onEvent !== 'function') return;
@@ -306,57 +338,51 @@ const createSearchWorker = ({
     }).catch(() => {});
   };
 
-  const appendStderr = (chunk) => {
+  const appendStderr = (session, chunk) => {
     const text = String(chunk || '');
     if (!text) return;
-    stderrLines.push(...text.split(/\r?\n/).filter(Boolean));
-    if (stderrLines.length > stderrTailLines) {
-      stderrLines = stderrLines.slice(-stderrTailLines);
+    session.stderrLines.push(...text.split(/\r?\n/).filter(Boolean));
+    if (session.stderrLines.length > stderrTailLines) {
+      session.stderrLines = session.stderrLines.slice(-stderrTailLines);
     }
   };
 
-  const getStderrTail = () => stderrLines.join(' | ');
+  const getStderrTail = (session) => session?.stderrLines?.join(' | ') || '';
 
-  const closeChild = async (targetChild = child) => {
-    if (!targetChild || targetChild.killed || targetChild.exitCode != null) return;
-    if (child === targetChild) {
-      child = null;
-    }
-    await new Promise((resolve) => {
-      let settled = false;
-      const finish = () => {
-        if (settled) return;
-        settled = true;
-        resolve();
-      };
-      targetChild.once('exit', finish);
-      try {
-        targetChild.send({ type: 'shutdown' });
-      } catch {
-        finish();
-      }
-      const timeout = setTimeout(() => {
-        terminateChild(targetChild, 'SIGTERM');
-        finish();
-      }, Math.max(250, Math.floor(shutdownTimeoutMs)));
-      timeout.unref?.();
-    });
+  const ownsActiveRequest = (session, id) => (
+    Number.isFinite(Number(id)) &&
+    Boolean(activeRequest) &&
+    activeRequest.id === Number(id) &&
+    activeRequest.ownerGeneration === session.generation
+  );
+
+  const clearActiveRequest = (session, id) => {
+    if (!ownsActiveRequest(session, id)) return null;
+    const request = activeRequest;
+    activeRequest = null;
+    return request;
   };
 
-  const ensureChild = () => {
-    if (child && child.exitCode == null && child.killed !== true) return child;
-    child = fork(workerScriptPath, [], {
+  const createWorkerSession = () => {
+    const spawnedChild = fork(workerScriptPath, [], {
       env,
       stdio: ['ignore', 'pipe', 'pipe', 'ipc']
     });
-    stderrLines = [];
-    runsSinceChildStart = 0;
-    attachSilentLogging(child, label);
-    child.stderr?.on('data', appendStderr);
-    child.on('message', (message) => {
+    const session = {
+      generation: nextGeneration,
+      child: spawnedChild,
+      pid: Number(spawnedChild?.pid) || null,
+      runsSinceStart: 0,
+      stderrLines: []
+    };
+    nextGeneration += 1;
+    currentSession = session;
+    attachSilentLogging(spawnedChild, label);
+    spawnedChild.stderr?.on('data', (chunk) => appendStderr(session, chunk));
+    spawnedChild.on('message', (message) => {
       const id = Number(message?.id);
       if (message?.type === 'run-start') {
-        if (!activeRequest || activeRequest.id !== id) return;
+        if (!ownsActiveRequest(session, id)) return;
         activeRequest.startedAt = now();
         activeRequest.lastHeartbeatAt = activeRequest.startedAt;
         emitEvent({
@@ -364,12 +390,12 @@ const createSearchWorker = ({
           id,
           meta: activeRequest.meta,
           elapsedMs: 0,
-          pid: child.pid
+          pid: session.pid
         });
         return;
       }
       if (message?.type === 'run-heartbeat') {
-        if (!activeRequest || activeRequest.id !== id) return;
+        if (!ownsActiveRequest(session, id)) return;
         activeRequest.lastHeartbeatAt = now();
         activeRequest.lastRssBytes = toFiniteNonNegative(message.rssBytes);
         emitEvent({
@@ -378,26 +404,26 @@ const createSearchWorker = ({
           meta: activeRequest.meta,
           elapsedMs: toFiniteNonNegative(message.elapsedMs),
           rssBytes: activeRequest.lastRssBytes,
-          pid: child.pid
+          pid: session.pid
         });
         return;
       }
       if (message?.type === 'run-complete') {
-        if (!activeRequest || activeRequest.id !== id) return;
+        if (!ownsActiveRequest(session, id)) return;
         emitEvent({
           type: 'run-complete',
           id,
           elapsedMs: toFiniteNonNegative(message.elapsedMs),
-          pid: child.pid
+          pid: session.pid
         });
         return;
       }
-      if (!Number.isFinite(id) || !activeRequest || activeRequest.id !== id) return;
-      const request = activeRequest;
-      activeRequest = null;
+      if (!Number.isFinite(id)) return;
+      const request = clearActiveRequest(session, id);
+      if (!request) return;
       if (message?.ok) {
         completedRuns += 1;
-        runsSinceChildStart += 1;
+        session.runsSinceStart += 1;
         request.resolve(message.payload || {});
         return;
       }
@@ -405,22 +431,22 @@ const createSearchWorker = ({
       err.code = message?.error?.code || 'ERR_QUERY_WORKER';
       request.reject(err);
     });
-    child.on('error', (err) => {
-      if (!activeRequest) return;
-      const request = activeRequest;
+    spawnedChild.on('error', (err) => {
+      const request = activeRequest?.ownerGeneration === session.generation ? activeRequest : null;
+      if (!request) return;
       activeRequest = null;
       request.reject(err instanceof Error ? err : new Error(String(err)));
     });
-    child.on('exit', (code, signal) => {
-      if (!activeRequest) return;
-      const request = activeRequest;
+    spawnedChild.on('exit', (code, signal) => {
+      if (currentSession === session) {
+        currentSession = null;
+      }
+      const request = activeRequest?.ownerGeneration === session.generation ? activeRequest : null;
+      if (!request) return;
       activeRequest = null;
-      const elapsedMs = Number.isFinite(Number(request.startedAt))
-        ? Math.max(0, now() - request.startedAt)
-        : null;
-      const sinceHeartbeatMs = Number.isFinite(Number(request.lastHeartbeatAt))
-        ? Math.max(0, now() - request.lastHeartbeatAt)
-        : null;
+      const nowTs = now();
+      const elapsedMs = resolveRequestElapsedMs(request, nowTs);
+      const sinceHeartbeatMs = resolveSinceHeartbeatMs(request, nowTs);
       request.reject(createWorkerExitError({
         label,
         workerLabel: label,
@@ -431,17 +457,60 @@ const createSearchWorker = ({
         elapsedMs,
         sinceHeartbeatMs,
         rssBytes: request.lastRssBytes,
-        stderrTail: getStderrTail(),
+        stderrTail: getStderrTail(session),
         completedRuns
       }));
     });
+    return session;
+  };
+
+  const closeChild = async (targetSession = currentSession) => {
+    const targetChild = targetSession?.child;
+    if (!targetChild || targetChild.killed || targetChild.exitCode != null) return;
+    if (currentSession === targetSession) {
+      currentSession = null;
+    }
+    await new Promise((resolve) => {
+      let settled = false;
+      let timeout = null;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        if (timeout) {
+          clearTimeout(timeout);
+          timeout = null;
+        }
+        resolve();
+      };
+      targetChild.once('exit', finish);
+      try {
+        targetChild.send({ type: 'shutdown' });
+      } catch {
+        finish();
+      }
+      timeout = setTimeout(() => {
+        terminateChild(targetChild, 'SIGTERM');
+        finish();
+      }, Math.max(250, Math.floor(shutdownTimeoutMs)));
+      timeout.unref?.();
+    });
+  };
+
+  const ensureChild = () => {
+    if (
+      currentSession &&
+      currentSession.child?.exitCode == null &&
+      currentSession.child?.killed !== true
+    ) {
+      return currentSession;
+    }
+    const session = createWorkerSession();
     clearWatchdog();
     watchdog = setInterval(() => {
       if (!activeRequest) return;
       const currentTs = now();
-      const heartbeatAt = activeRequest.lastHeartbeatAt || activeRequest.startedAt || activeRequest.sentAt;
-      const elapsedMs = Math.max(0, currentTs - (activeRequest.startedAt || activeRequest.sentAt));
-      const sinceHeartbeatMs = Math.max(0, currentTs - heartbeatAt);
+      const elapsedMs = resolveRequestElapsedMs(activeRequest, currentTs);
+      const sinceHeartbeatMs = resolveSinceHeartbeatMs(activeRequest, currentTs);
       if (sinceHeartbeatMs >= stallWarnMs && currentTs - activeRequest.lastWarnAt >= stallWarnMs) {
         activeRequest.lastWarnAt = currentTs;
         emitEvent({
@@ -451,7 +520,7 @@ const createSearchWorker = ({
           elapsedMs,
           sinceHeartbeatMs,
           rssBytes: activeRequest.lastRssBytes,
-          pid: child?.pid || null
+          pid: activeRequest.ownerPid
         });
       }
       if (stallTimeoutMs > 0 && sinceHeartbeatMs >= stallTimeoutMs) {
@@ -465,16 +534,18 @@ const createSearchWorker = ({
           elapsedMs,
           sinceHeartbeatMs,
           rssBytes: request.lastRssBytes,
-          pid: child?.pid || null
+          pid: request.ownerPid
         });
         request.reject(error);
-        terminateChild(child, 'SIGTERM');
-        child = null;
+        if (currentSession?.generation === request.ownerGeneration) {
+          currentSession = null;
+        }
+        terminateChild(request.ownerSession?.child, 'SIGTERM');
         clearWatchdog();
       }
     }, Math.max(250, Math.floor(heartbeatMs)));
     watchdog.unref?.();
-    return child;
+    return session;
   };
 
   const run = async (args, meta = null) => {
@@ -483,7 +554,7 @@ const createSearchWorker = ({
       err.code = 'ERR_QUERY_WORKER_BUSY';
       throw err;
     }
-    const activeChild = ensureChild();
+    const activeSession = ensureChild();
     const id = nextMessageId;
     nextMessageId += 1;
     const payload = await new Promise((resolve, reject) => {
@@ -497,24 +568,27 @@ const createSearchWorker = ({
         startedAt: null,
         lastHeartbeatAt: now(),
         lastWarnAt: 0,
-        lastRssBytes: null
+        lastRssBytes: null,
+        ownerGeneration: activeSession.generation,
+        ownerPid: activeSession.pid,
+        ownerSession: activeSession
       };
       try {
-        activeChild.send({ type: 'run', id, args, meta });
+        activeSession.child.send({ type: 'run', id, args, meta });
       } catch (error) {
         activeRequest = null;
         reject(error instanceof Error ? error : new Error(String(error)));
       }
     });
-    if (runsSinceChildStart >= maxRunsPerProcess) {
-      await closeChild(activeChild);
+    if (activeSession.runsSinceStart >= normalizedMaxRunsPerProcess) {
+      await closeChild(activeSession);
     }
     return payload;
   };
 
   const close = async () => {
     clearWatchdog();
-    await closeChild(child);
+    await closeChild(currentSession);
   };
 
   return {
@@ -577,10 +651,8 @@ export const createSearchWorkerPool = ({
           stallWarnMs,
           stallTimeoutMs,
           maxRunsPerProcess: Number.isFinite(Number(maxRunsPerWorkerByBackend?.[backendKey]))
-            ? Math.max(1, Math.floor(Number(maxRunsPerWorkerByBackend[backendKey])))
-            : (Number.isFinite(Number(maxRunsPerProcess))
-              ? Math.max(1, Math.floor(Number(maxRunsPerProcess)))
-              : Number.POSITIVE_INFINITY)
+            ? normalizeMaxRunsPerProcess(maxRunsPerWorkerByBackend[backendKey])
+            : normalizeMaxRunsPerProcess(maxRunsPerProcess)
         })
       ))
     ])

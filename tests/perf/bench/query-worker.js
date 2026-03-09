@@ -12,6 +12,7 @@ const HEARTBEAT_MS = Number.isFinite(Number(envConfig.tests?.benchQueryWorkerHea
 const indexCache = new Map();
 const sqliteCache = new Map();
 let chain = Promise.resolve();
+let shutdownRequested = false;
 
 const sendMessage = (payload) => {
   if (typeof process.send !== 'function') return;
@@ -68,9 +69,13 @@ const runMessage = async (message) => {
 
 process.on('message', (message) => {
   if (message?.type === 'shutdown') {
-    process.exit(0);
+    shutdownRequested = true;
+    chain = chain.finally(() => {
+      process.exit(0);
+    });
     return;
   }
+  if (shutdownRequested) return;
   if (message?.type !== 'run') return;
   chain = chain
     .then(() => runMessage(message))

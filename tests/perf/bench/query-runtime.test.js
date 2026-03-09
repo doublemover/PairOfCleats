@@ -127,6 +127,21 @@ assert.notEqual(
 );
 await recyclingPool.close();
 
+const nonRecyclingPool = createSearchWorkerPool({
+  size: 1,
+  env: { ...process.env },
+  workerScriptPath: recycleScriptPath,
+  maxRunsPerProcess: 0
+});
+const firstNonRecycling = await nonRecyclingPool.run(['--ok'], { backend: 'memory', query: 'select keepalive 1' });
+const secondNonRecycling = await nonRecyclingPool.run(['--ok'], { backend: 'memory', query: 'select keepalive 2' });
+assert.equal(
+  firstNonRecycling?.pid,
+  secondNonRecycling?.pid,
+  'expected maxRunsPerProcess=0 to preserve the same worker instead of forcing recycle'
+);
+await nonRecyclingPool.close();
+
 const exitingScriptPath = path.join(tempRoot, 'exit-worker.js');
 await fs.writeFile(exitingScriptPath, [
   "process.on('message', (message) => {",
@@ -179,6 +194,61 @@ assert.equal(
   'expected stalled event'
 );
 await stalledPool.close();
+
+const staleExitScriptPath = path.join(tempRoot, 'stale-exit-worker.js');
+const staleExitMarkerPath = path.join(tempRoot, 'stale-exit-marker.txt');
+await fs.writeFile(staleExitScriptPath, [
+  "import fs from 'node:fs';",
+  "const markerPath = process.env.STALE_EXIT_MARKER_PATH;",
+  "const send = (payload) => { if (typeof process.send === 'function') process.send(payload); };",
+  "const hasMarker = () => {",
+  "  try { return fs.existsSync(markerPath); } catch { return false; }",
+  "};",
+  "const writeMarker = () => {",
+  "  try { fs.writeFileSync(markerPath, 'spawned', 'utf8'); } catch {}",
+  "};",
+  "process.on('SIGTERM', () => {",
+  "  setTimeout(() => process.exit(0), 120);",
+  "});",
+  "process.on('message', (message) => {",
+  "  if (message?.type === 'shutdown') { process.exit(0); return; }",
+  "  if (message?.type !== 'run') return;",
+  "  const id = Number(message.id);",
+  "  send({ type: 'run-start', id, elapsedMs: 0 });",
+  "  if (!hasMarker()) {",
+  "    writeMarker();",
+  "    return;",
+  "  }",
+  "  setTimeout(() => {",
+  "    send({ type: 'run-heartbeat', id, elapsedMs: 20, rssBytes: 16 * 1024 * 1024 });",
+  "    send({ type: 'run-complete', id, elapsedMs: 20 });",
+  "    send({ id, ok: true, payload: { pid: process.pid, phase: 'fresh-child' } });",
+  "  }, 20);",
+  "});"
+].join('\n'), 'utf8');
+
+const staleExitEvents = [];
+const staleExitPool = createSearchWorkerPool({
+  size: 1,
+  env: { ...process.env, STALE_EXIT_MARKER_PATH: staleExitMarkerPath },
+  workerScriptPath: staleExitScriptPath,
+  heartbeatMs: 20,
+  stallWarnMs: 40,
+  stallTimeoutMs: 60,
+  onEvent: (event) => staleExitEvents.push(event)
+});
+await assert.rejects(
+  () => staleExitPool.run(['--first'], { backend: 'sqlite', query: 'first query' }),
+  (error) => error?.code === 'ERR_QUERY_WORKER_STALLED'
+);
+const recoveredPayload = await staleExitPool.run(['--second'], { backend: 'sqlite', query: 'second query' });
+assert.equal(recoveredPayload?.phase, 'fresh-child', 'expected replacement worker to complete the second request');
+assert.equal(
+  staleExitEvents.some((event) => event?.type === 'run-start' && event?.meta?.query === 'second query'),
+  true,
+  'expected the replacement worker to start the second request after the stale worker retired'
+);
+await staleExitPool.close();
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 
