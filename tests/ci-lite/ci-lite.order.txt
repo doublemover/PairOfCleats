@@ -251,6 +251,7 @@ tooling/vfs/hash-routing-contract
 indexing/artifacts/active-write-telemetry-snapshot
 indexing/risk/interprocedural/summaries-schema
 shared/concurrency/pending-limit-enforced
+shared/concurrency/run-with-queue-pending-drain-keepalive
 indexing/state/patch-queue-durability-class-forwarding
 shared/merge/determinism
 indexing/filter-index/release
@@ -326,6 +327,7 @@ indexing/runtime/stage-timing-checkpoints
 indexing/scm/config-bench-annotate-default
 retrieval/filters/filter-strictness
 shared/lifecycle/registry-contract
+shared/lifecycle/registry-pending-keepalive
 indexing/extracted-prose/low-yield-doc-sample-bias
 graph/id-remap-roundtrip
 graph/index-cache-reuse

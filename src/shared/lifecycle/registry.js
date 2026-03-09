@@ -1,4 +1,5 @@
 import { killChildProcessTree } from '../kill-tree.js';
+import { awaitWithKeepalive } from '../promise-keepalive.js';
 
 const isPromiseLike = (value) => (
   value && typeof value.then === 'function'
@@ -135,7 +136,7 @@ export const createLifecycleRegistry = ({ name = 'lifecycle', onError = null } =
       }
     }
     if (pending.size) {
-      const settled = await Promise.allSettled(Array.from(pending));
+      const settled = await awaitWithKeepalive(Promise.allSettled(Array.from(pending)));
       for (const result of settled) {
         if (result.status === 'rejected') errors.push(result.reason);
       }
@@ -167,7 +168,7 @@ export const createLifecycleRegistry = ({ name = 'lifecycle', onError = null } =
       }
     }
     if (pending.size) {
-      const settled = await Promise.allSettled(Array.from(pending));
+      const settled = await awaitWithKeepalive(Promise.allSettled(Array.from(pending)));
       for (const result of settled) {
         if (result.status === 'rejected') errors.push(result.reason);
       }

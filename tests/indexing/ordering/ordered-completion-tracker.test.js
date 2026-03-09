@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
 import { createOrderedCompletionTracker } from '../../../src/index/build/indexer/steps/process-files.js';
 
@@ -91,6 +92,41 @@ await assert.rejects(
   () => abortTracker.wait({ signal: abortController.signal }),
   (err) => (err?.message || '').includes('abort tracker wait'),
   'expected wait abort signal to reject with abort reason'
+);
+
+const keepaliveScript = [
+  "import { createOrderedCompletionTracker } from './src/shared/concurrency/ordered-completion.js';",
+  'const tracker = createOrderedCompletionTracker();',
+  'tracker.track(new Promise(() => {}));',
+  'await tracker.wait();'
+].join('\n');
+const keepaliveChild = spawn(
+  process.execPath,
+  ['--input-type=module', '-e', keepaliveScript],
+  {
+    cwd: process.cwd(),
+    stdio: ['ignore', 'pipe', 'pipe']
+  }
+);
+let keepaliveStderr = '';
+keepaliveChild.stderr.on('data', (chunk) => {
+  keepaliveStderr += String(chunk);
+});
+await new Promise((resolve) => setTimeout(resolve, 200));
+assert.equal(
+  keepaliveChild.exitCode,
+  null,
+  `expected ordered completion wait child to remain alive while completion is pending; stderr=${keepaliveStderr || '<empty>'}`
+);
+keepaliveChild.kill();
+const keepaliveClose = await new Promise((resolve, reject) => {
+  keepaliveChild.on('error', reject);
+  keepaliveChild.on('close', (exitCode, signal) => resolve({ exitCode, signal }));
+});
+assert.notEqual(
+  keepaliveClose.exitCode,
+  13,
+  `expected ordered completion keepalive to avoid unsettled top-level await exit 13; stderr=${keepaliveStderr || '<empty>'}`
 );
 
 console.log('ordered completion tracker test passed');

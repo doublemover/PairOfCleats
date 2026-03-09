@@ -1,3 +1,5 @@
+import { awaitWithKeepalive } from '../promise-keepalive.js';
+
 /**
  * Track completion promises and surface the first failure deterministically.
  *
@@ -184,7 +186,7 @@ export const createOrderedCompletionTracker = () => {
         signal.addEventListener('abort', abortHandler, { once: true });
       }
       try {
-        await Promise.race([drainPromise, gate]);
+        await awaitWithKeepalive(Promise.race([drainPromise, gate]));
       } finally {
         cleanup();
       }

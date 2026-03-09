@@ -1,5 +1,6 @@
 import PQueue from 'p-queue';
 import { createAbortError, isAbortSignal, throwIfAborted } from '../abort.js';
+import { awaitWithKeepalive } from '../promise-keepalive.js';
 
 /**
  * Run async work over items using a shared queue.
@@ -295,10 +296,9 @@ export async function runWithQueue(queue, items, worker, options = {}) {
             });
           } catch {}
         }, pendingDrainStallPollMs);
-        stallTimer.unref?.();
       }
       try {
-        await Promise.race(raceCandidates);
+        await awaitWithKeepalive(Promise.race(raceCandidates));
       } finally {
         if (timeoutId) clearTimeout(timeoutId);
         if (stallTimer) clearInterval(stallTimer);
@@ -319,10 +319,9 @@ export async function runWithQueue(queue, items, worker, options = {}) {
           });
         } catch {}
       }, pendingDrainStallPollMs);
-      stallTimer.unref?.();
     }
     try {
-      await Promise.race(raceCandidates);
+      await awaitWithKeepalive(Promise.race(raceCandidates));
     } finally {
       if (timeoutId) clearTimeout(timeoutId);
       if (stallTimer) clearInterval(stallTimer);
