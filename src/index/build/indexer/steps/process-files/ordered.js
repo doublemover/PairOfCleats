@@ -1,3 +1,4 @@
+import { awaitWithKeepalive } from '../../../../../shared/promise-keepalive.js';
 import { createTimeoutError, runWithTimeout } from '../../../../../shared/promise-timeout.js';
 import { createSeqLedger, STAGE1_SEQ_STATE } from './ordering.js';
 
@@ -437,7 +438,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       return Promise.resolve();
     }
 
-    return new Promise((resolve, reject) => {
+    return awaitWithKeepalive(new Promise((resolve, reject) => {
       const waiter = {
         resolve,
         reject,
@@ -504,7 +505,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       }
 
       capacityWaiters.push(waiter);
-    });
+    }));
   };
 
   const transitionToTerminal = (seq, terminalState, { ownerId = 0, reasonCode = 0 } = {}) => {

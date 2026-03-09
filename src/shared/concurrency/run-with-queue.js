@@ -149,7 +149,7 @@ export async function runWithQueue(queue, items, worker, options = {}) {
     if (!pendingSignals.size) return;
     const pendingRace = Promise.race(Array.from(pendingSignals));
     if (!signal) {
-      await pendingRace;
+      await awaitWithKeepalive(pendingRace);
       return;
     }
     if (signal.aborted) {
@@ -165,7 +165,7 @@ export async function runWithQueue(queue, items, worker, options = {}) {
       signal.addEventListener('abort', onAbort, { once: true });
     });
     try {
-      await Promise.race([pendingRace, abortedPromise]);
+      await awaitWithKeepalive(Promise.race([pendingRace, abortedPromise]));
     } finally {
       if (onAbort) signal.removeEventListener('abort', onAbort);
     }

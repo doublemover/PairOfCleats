@@ -252,6 +252,7 @@ indexing/artifacts/active-write-telemetry-snapshot
 indexing/artifacts/write-telemetry-thresholds
 indexing/risk/interprocedural/summaries-schema
 shared/concurrency/pending-limit-enforced
+shared/concurrency/run-with-queue-backpressure-keepalive
 shared/concurrency/run-with-queue-pending-drain-keepalive
 indexing/state/patch-queue-durability-class-forwarding
 shared/merge/determinism
@@ -380,7 +381,9 @@ indexing/file-processor/cached-bundle-does-not-emit-stale-metav2
 indexing/scm/signature-provenance-stability
 lang/javascript/js-relations
 indexing/file-processor/cached-bundle
+indexing/ordering/ordered-appender-capacity-keepalive
 indexing/stage1/postings-queue-byte-accounting
+indexing/stage1/postings-queue-capacity-keepalive
 storage/sqlite/chunk-id-non-null
 indexing/vfs/cdc-segmentation-contract
 indexing/artifacts/artifact-io-manifest-discovery
