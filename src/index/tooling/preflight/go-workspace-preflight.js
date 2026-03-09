@@ -1,6 +1,7 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { runWorkspaceCommandPreflight } from './workspace-command-preflight.js';
+import { findWorkspaceMarkersNearPaths } from '../workspace-model.js';
 
 const DEFAULT_MODULE_ARGS = Object.freeze(['list', '-m']);
 const DEFAULT_MODULE_TIMEOUT_MS = 8000;
@@ -85,6 +86,20 @@ const countSelectedGoDocuments = (documents) => {
   return count;
 };
 
+const selectGoDocumentPaths = (documents) => (
+  Array.isArray(documents)
+    ? documents
+      .filter((doc) => {
+        const languageId = String(doc?.languageId || '').trim().toLowerCase();
+        if (languageId === 'go') return true;
+        const ext = path.extname(String(doc?.virtualPath || doc?.path || '')).toLowerCase();
+        return GO_SOURCE_EXTS.has(ext);
+      })
+      .map((doc) => doc?.virtualPath || doc?.path || '')
+      .filter(Boolean)
+    : []
+);
+
 const countGoFilesForWarmup = (repoRoot, options) => {
   const minGoFiles = Number(options?.minGoFiles) || DEFAULT_WARMUP_MIN_GO_FILES;
   const scanBudget = Number(options?.scanBudget) || DEFAULT_WARMUP_SCAN_BUDGET;
@@ -148,6 +163,7 @@ const resolveGoWorkspaceWarmupPreflight = async ({
   const warmupCommand = resolveWarmupCommand(server);
   return await runWorkspaceCommandPreflight({
     ctx,
+    cwd: repoRoot,
     cmd: warmupCommand.cmd,
     args: warmupCommand.args,
     timeoutMs: warmupCommand.timeoutMs,
@@ -242,21 +258,76 @@ export const resolveGoWorkspaceModulePreflight = async ({
     return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
   }
   const repoRoot = String(ctx?.repoRoot || process.cwd());
-  const rootShape = resolveGoWorkspaceRootShapePreflight(repoRoot);
-  if (rootShape.state !== 'ready') {
-    return rootShape;
-  }
+  const selectedGoPaths = selectGoDocumentPaths(documents);
   const goModPath = path.join(repoRoot, 'go.mod');
   const goWorkPath = path.join(repoRoot, 'go.work');
   const goSumPath = path.join(repoRoot, 'go.sum');
-  if (!fsSync.existsSync(goModPath) && !fsSync.existsSync(goWorkPath)) {
+  const repoHasWorkspaceMarker = fsSync.existsSync(goModPath) || fsSync.existsSync(goWorkPath);
+  const selectedWorkspaceMatches = selectedGoPaths.length > 0
+    ? findWorkspaceMarkersNearPaths(repoRoot, selectedGoPaths, { exactNames: ['go.mod', 'go.work'] })
+    : [];
+  if (selectedGoPaths.length > 0) {
+    if (selectedWorkspaceMatches.length > 1) {
+      const sample = selectedWorkspaceMatches
+        .map((entry) => String(entry?.markerDirRel || '.'))
+        .filter(Boolean)
+        .slice(0, 4)
+        .join(', ');
+      const suffix = selectedWorkspaceMatches.length > 4
+        ? ` (+${selectedWorkspaceMatches.length - 4} more)`
+        : '';
+      const message = `go workspace markers found in multiple selected module roots (${sample}${suffix}); gopls root is ambiguous.`;
+      return {
+        state: 'blocked',
+        reasonCode: 'go_workspace_module_root_ambiguous',
+        message,
+        check: {
+          name: 'go_workspace_module_root_ambiguous',
+          status: 'warn',
+          message
+        },
+        checks: [],
+        blockProvider: true
+      };
+    }
+    if (selectedWorkspaceMatches.length === 0 && !repoHasWorkspaceMarker) {
+      const message = 'gopls workspace markers (go.mod/go.work) not found near selected Go documents.';
+      return {
+        state: 'blocked',
+        reasonCode: 'go_workspace_model_missing',
+        message,
+        check: {
+          name: 'go_workspace_model_missing',
+          status: 'warn',
+          message
+        },
+        checks: [],
+        blockProvider: true
+      };
+    }
+  }
+  const selectedWorkspace = selectedWorkspaceMatches.length === 1
+    ? selectedWorkspaceMatches[0]
+    : null;
+  const workspaceRoot = selectedWorkspace?.markerDirAbs || repoRoot;
+  const workspaceGoModPath = path.join(workspaceRoot, 'go.mod');
+  const workspaceGoWorkPath = path.join(workspaceRoot, 'go.work');
+  const workspaceGoSumPath = path.join(workspaceRoot, 'go.sum');
+  if (!fsSync.existsSync(workspaceGoModPath) && !fsSync.existsSync(workspaceGoWorkPath)) {
     return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
   }
-  const watchedFiles = [goModPath, goWorkPath, goSumPath];
+  if (!selectedWorkspace) {
+    const rootShape = resolveGoWorkspaceRootShapePreflight(repoRoot);
+    if (rootShape.state !== 'ready') {
+      return rootShape;
+    }
+  }
+  const watchedFiles = [workspaceGoModPath, workspaceGoWorkPath, workspaceGoSumPath];
 
   const command = resolveModuleCommand(server);
   const modulePreflight = await runWorkspaceCommandPreflight({
     ctx,
+    cwd: workspaceRoot,
     cmd: command.cmd,
     args: command.args,
     timeoutMs: command.timeoutMs,
@@ -265,13 +336,14 @@ export const resolveGoWorkspaceModulePreflight = async ({
     label: 'go workspace module',
     log: typeof ctx?.logger === 'function' ? ctx.logger : () => {},
     successCache: {
-      repoRoot,
+      repoRoot: workspaceRoot,
       cacheRoot: ctx?.cache?.dir || null,
       namespace: 'go-workspace-module',
       watchedFiles,
       extra: {
         command: command.cmd,
-        args: command.args
+        args: command.args,
+        workspaceRoot: selectedWorkspace?.markerDirRel || '.'
       }
     }
   });
@@ -281,7 +353,7 @@ export const resolveGoWorkspaceModulePreflight = async ({
   return await resolveGoWorkspaceWarmupPreflight({
     ctx,
     server,
-    repoRoot,
+    repoRoot: workspaceRoot,
     abortSignal,
     documents,
     watchedFiles

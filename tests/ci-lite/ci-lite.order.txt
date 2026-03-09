@@ -1007,6 +1007,9 @@ tooling/lsp/csharp-provider-overload-signature
 tooling/lsp/configured-provider-go-workspace-warmup-preflight-failed
 tooling/lsp/provider-metrics-envelope-aggregate
 tooling/lsp/configured-provider-go-workspace-preflight-cache-hit
+tooling/lsp/configured-provider-gopls-workspace-root-ambiguous-preflight
+tooling/lsp/configured-provider-gopls-workspace-root-nested-preflight
+tooling/lsp/document-symbol-failure-disables-remaining-docs
 indexing/tree-sitter/scheduler-native-language-contract
 indexing/tree-sitter/scheduler-native-smoke
 tooling/lsp/references-fallback

@@ -64,32 +64,15 @@ export const hasWorkspaceMarker = (repoRoot, options = {}) => {
   return false;
 };
 
-export const findWorkspaceMarkerNearPaths = (repoRoot, candidatePaths = [], options = {}) => {
-  const markerSets = normalizeWorkspaceMarkerSets(options);
-  const normalizedRepoRoot = String(repoRoot || process.cwd());
-  const normalizedCandidates = Array.isArray(candidatePaths)
-    ? candidatePaths
-      .map((entry) => normalizeWorkspaceCandidatePath(entry))
-      .filter(Boolean)
-    : [];
+const walkWorkspaceMarkerForCandidate = (normalizedRepoRoot, candidate, markerSets) => {
   const visitedDirs = new Set();
-  for (const candidate of normalizedCandidates) {
-    let relativeDir = path.posix.dirname(candidate);
-    if (!relativeDir || relativeDir === '.') {
-      relativeDir = '';
-    }
-    while (true) {
-      const key = relativeDir || '.';
-      if (visitedDirs.has(key)) {
-        if (!relativeDir) break;
-        const parentDir = path.posix.dirname(relativeDir);
-        if (!parentDir || parentDir === '.' || parentDir === relativeDir) {
-          relativeDir = '';
-        } else {
-          relativeDir = parentDir;
-        }
-        continue;
-      }
+  let relativeDir = path.posix.dirname(candidate);
+  if (!relativeDir || relativeDir === '.') {
+    relativeDir = '';
+  }
+  while (true) {
+    const key = relativeDir || '.';
+    if (!visitedDirs.has(key)) {
       visitedDirs.add(key);
       const absDir = relativeDir
         ? path.join(normalizedRepoRoot, relativeDir.replace(/\//g, path.sep))
@@ -105,14 +88,43 @@ export const findWorkspaceMarkerNearPaths = (repoRoot, candidatePaths = [], opti
           markerName
         };
       }
-      if (!relativeDir) break;
-      const parentDir = path.posix.dirname(relativeDir);
-      if (!parentDir || parentDir === '.' || parentDir === relativeDir) {
-        relativeDir = '';
-      } else {
-        relativeDir = parentDir;
-      }
     }
+    if (!relativeDir) break;
+    const parentDir = path.posix.dirname(relativeDir);
+    if (!parentDir || parentDir === '.' || parentDir === relativeDir) {
+      relativeDir = '';
+    } else {
+      relativeDir = parentDir;
+    }
+  }
+  return null;
+};
+
+export const findWorkspaceMarkersNearPaths = (repoRoot, candidatePaths = [], options = {}) => {
+  const markerSets = normalizeWorkspaceMarkerSets(options);
+  const normalizedRepoRoot = String(repoRoot || process.cwd());
+  const normalizedCandidates = Array.isArray(candidatePaths)
+    ? candidatePaths
+      .map((entry) => normalizeWorkspaceCandidatePath(entry))
+      .filter(Boolean)
+    : [];
+  const matches = [];
+  const seenMatches = new Set();
+  for (const candidate of normalizedCandidates) {
+    const match = walkWorkspaceMarkerForCandidate(normalizedRepoRoot, candidate, markerSets);
+    if (!match) continue;
+    const dedupeKey = `${match.markerDirRel}|${String(match.markerName || '').toLowerCase()}`;
+    if (seenMatches.has(dedupeKey)) continue;
+    seenMatches.add(dedupeKey);
+    matches.push(match);
+  }
+  return matches;
+};
+
+export const findWorkspaceMarkerNearPaths = (repoRoot, candidatePaths = [], options = {}) => {
+  const matches = findWorkspaceMarkersNearPaths(repoRoot, candidatePaths, options);
+  if (matches.length > 0) {
+    return matches[0];
   }
   return {
     found: false,

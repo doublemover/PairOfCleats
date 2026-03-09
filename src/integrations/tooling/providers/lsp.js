@@ -923,6 +923,7 @@ export async function collectLspTypes({
       const hoverLatencyMs = [];
       const hoverMetrics = createEmptyHoverMetricsResult();
       const hoverControl = { disabledGlobal: false };
+      const documentSymbolControl = { disabled: false };
       const softDeadlineAt = Number.isFinite(Number(resolvedSoftDeadlineMs))
         ? Date.now() + Number(resolvedSoftDeadlineMs)
         : null;
@@ -1134,6 +1135,7 @@ export async function collectLspTypes({
           hoverFileStats,
           hoverLatencyMs,
           hoverMetrics,
+          documentSymbolControl,
           symbolProcessingConcurrency: resolvedSymbolProcessingConcurrency,
           softDeadlineAt,
           checks,

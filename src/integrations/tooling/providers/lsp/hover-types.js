@@ -1100,6 +1100,8 @@ const buildFallbackReasonCodes = ({
  *    typeDefinition/references attempts still leave the payload incomplete.
  * 4. strict mode throws only when resolved symbol data cannot be mapped to a
  *    chunk uid.
+ * 5. provider-level documentSymbol failure disables further documentSymbol work
+ *    for the remaining documents in the same collection pass.
  *
  * @param {object} input
  * @returns {Promise<{enrichedDelta:number}>}
@@ -1145,6 +1147,7 @@ export const processDocumentTypes = async ({
   hoverCacheEntries,
   markHoverCacheDirty,
   hoverControl,
+  documentSymbolControl = null,
   hoverFileStats,
   hoverLatencyMs,
   hoverMetrics,
@@ -1208,6 +1211,9 @@ export const processDocumentTypes = async ({
 
   try {
     throwIfAborted(abortSignal);
+    if (documentSymbolControl?.disabled === true) {
+      return { enrichedDelta: 0 };
+    }
     if (docPathPolicy?.skipDocumentSymbol === true) {
       return { enrichedDelta: 0 };
     }
@@ -1226,6 +1232,9 @@ export const processDocumentTypes = async ({
       );
     } catch (err) {
       log(`[index] ${cmd} documentSymbol failed (${doc.virtualPath}): ${err?.message || err}`);
+      if (documentSymbolControl && typeof documentSymbolControl === 'object') {
+        documentSymbolControl.disabled = true;
+      }
       if (err?.code === 'TOOLING_CIRCUIT_OPEN') {
         recordCircuitOpenCheck({ cmd, guard, checks, checkFlags });
       } else if (err?.code === 'TOOLING_CRASH_LOOP') {

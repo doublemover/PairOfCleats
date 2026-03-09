@@ -15,7 +15,8 @@ await fs.writeFile(path.join(tempRoot, 'svc-b', 'go.mod'), 'module example.com/s
 
 const serverPath = path.join(root, 'tests', 'fixtures', 'lsp', 'stub-lsp-server.js');
 const docText = 'package main\nfunc Add(a int, b int) int { return a + b }\n';
-const chunkUid = 'ck64:v1:test:src/sample.go:gopls-workspace-root-ambiguous';
+const chunkUidA = 'ck64:v1:test:svc-a/src/sample.go:gopls-workspace-root-ambiguous:a';
+const chunkUidB = 'ck64:v1:test:svc-b/src/sample.go:gopls-workspace-root-ambiguous:b';
 
 const result = await runToolingProviders({
   strict: true,
@@ -40,34 +41,61 @@ const result = await runToolingProviders({
     enabled: false
   }
 }, {
-  documents: [{
-    virtualPath: '.poc-vfs/src/sample.go#seg:gopls-workspace-root-ambiguous.txt',
-    text: docText,
-    languageId: 'go',
-    effectiveExt: '.go',
-    docHash: 'hash-gopls-workspace-root-ambiguous'
-  }],
-  targets: [{
-    chunkRef: {
-      docId: 0,
-      chunkUid,
-      chunkId: 'chunk_gopls_workspace_root_ambiguous',
-      file: 'src/sample.go',
-      segmentUid: null,
-      segmentId: null,
-      range: { start: 0, end: docText.length }
+  documents: [
+    {
+      virtualPath: '.poc-vfs/svc-a/src/sample.go#seg:gopls-workspace-root-ambiguous-a.txt',
+      text: docText,
+      languageId: 'go',
+      effectiveExt: '.go',
+      docHash: 'hash-gopls-workspace-root-ambiguous-a'
     },
-    virtualPath: '.poc-vfs/src/sample.go#seg:gopls-workspace-root-ambiguous.txt',
-    virtualRange: { start: 0, end: docText.length },
-    symbolHint: { name: 'Add', kind: 'function' },
-    languageId: 'go'
-  }],
+    {
+      virtualPath: '.poc-vfs/svc-b/src/sample.go#seg:gopls-workspace-root-ambiguous-b.txt',
+      text: docText,
+      languageId: 'go',
+      effectiveExt: '.go',
+      docHash: 'hash-gopls-workspace-root-ambiguous-b'
+    }
+  ],
+  targets: [
+    {
+      chunkRef: {
+        docId: 0,
+        chunkUid: chunkUidA,
+        chunkId: 'chunk_gopls_workspace_root_ambiguous_a',
+        file: 'svc-a/src/sample.go',
+        segmentUid: null,
+        segmentId: null,
+        range: { start: 0, end: docText.length }
+      },
+      virtualPath: '.poc-vfs/svc-a/src/sample.go#seg:gopls-workspace-root-ambiguous-a.txt',
+      virtualRange: { start: 0, end: docText.length },
+      symbolHint: { name: 'Add', kind: 'function' },
+      languageId: 'go'
+    },
+    {
+      chunkRef: {
+        docId: 1,
+        chunkUid: chunkUidB,
+        chunkId: 'chunk_gopls_workspace_root_ambiguous_b',
+        file: 'svc-b/src/sample.go',
+        segmentUid: null,
+        segmentId: null,
+        range: { start: 0, end: docText.length }
+      },
+      virtualPath: '.poc-vfs/svc-b/src/sample.go#seg:gopls-workspace-root-ambiguous-b.txt',
+      virtualRange: { start: 0, end: docText.length },
+      symbolHint: { name: 'Add', kind: 'function' },
+      languageId: 'go'
+    }
+  ],
   kinds: ['types']
 });
 
-assert.equal(result.byChunkUid.has(chunkUid), true, 'expected configured gopls provider to continue when root is ambiguous');
+assert.equal(result.byChunkUid.has(chunkUidA), false, 'expected configured gopls provider to block ambiguous multi-module roots');
+assert.equal(result.byChunkUid.has(chunkUidB), false, 'expected configured gopls provider to block ambiguous multi-module roots');
 const diagnostics = result.diagnostics?.['lsp-gopls'] || {};
-assert.equal(diagnostics?.preflight?.state, 'degraded', 'expected gopls preflight degraded state');
+assert.equal(diagnostics?.preflight?.state, 'blocked', 'expected gopls preflight blocked state');
 assert.equal(
   diagnostics?.preflight?.reasonCode,
   'go_workspace_module_root_ambiguous',
