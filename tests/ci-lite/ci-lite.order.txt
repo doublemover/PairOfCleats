@@ -553,6 +553,7 @@ indexing/tokenization/tokenize-code-dictionaries
 indexing/relations/ts-call-details-tsx
 indexing/postings/chargram-config-defaults
 tooling/doctor/command-profile-probe-cache-persistent
+tooling/doctor/command-profile-probe-cache-disabled
 storage/sqlite/quantization/sqlite-vector-ingest-encoding
 indexing/artifacts/chunk-meta-jsonl-cleanup
 storage/sqlite/ann/sqlite-vec-candidate-set

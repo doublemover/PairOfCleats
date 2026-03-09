@@ -1,12 +1,14 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { buildLocalCacheKey } from '../../shared/cache-key.js';
+import { getCacheRoot } from '../../shared/cache-roots.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
 import { atomicWriteJsonSync } from '../../shared/io/atomic-write.js';
 
 const COMMAND_PROBE_CACHE_SCHEMA_VERSION = 1;
 const COMMAND_PROBE_CACHE_KEY_VERSION = 'tcp1';
-const COMMAND_PROBE_CACHE_SUBDIR = path.join('cache', 'command-probes');
+const SHARED_COMMAND_PROBE_CACHE_SUBDIR = path.join('tooling', 'command-probes');
+const TOOLING_CACHE_COMMAND_PROBE_SUBDIR = 'command-probes';
 const COMMAND_PROBE_CACHE_MAX_ENTRIES = 256;
 const COMMAND_PROBE_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -23,8 +25,9 @@ const normalizeCommandPath = (value) => {
     : resolved;
 };
 
-const normalizeToolingDir = (toolingConfig) => {
-  const raw = String(toolingConfig?.dir || '').trim();
+const normalizeCacheDir = (toolingConfig) => {
+  if (toolingConfig?.cache?.enabled === false) return '';
+  const raw = String(toolingConfig?.cache?.dir || '').trim();
   if (!raw) return '';
   return path.resolve(raw);
 };
@@ -36,6 +39,11 @@ const toFiniteMtimeMs = (value) => {
 
 const toFiniteSize = (value) => {
   const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 0;
+};
+
+const toFiniteTimestampMs = (value) => {
+  const parsed = Date.parse(String(value || ''));
   return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 0;
 };
 
@@ -55,9 +63,18 @@ const readCommandFingerprint = (commandPath) => {
   }
 };
 
+const resolvePersistentCacheRoot = (toolingConfig) => {
+  if (toolingConfig?.cache?.enabled === false) return '';
+  const configuredCacheDir = normalizeCacheDir(toolingConfig);
+  if (configuredCacheDir) return path.join(configuredCacheDir, TOOLING_CACHE_COMMAND_PROBE_SUBDIR);
+  const sharedCacheRoot = String(getCacheRoot() || '').trim();
+  if (!sharedCacheRoot) return '';
+  return path.join(sharedCacheRoot, SHARED_COMMAND_PROBE_CACHE_SUBDIR);
+};
+
 const resolvePersistentCacheDescriptor = ({ command, toolingConfig }) => {
-  const toolingDir = normalizeToolingDir(toolingConfig);
-  if (!toolingDir) return null;
+  const cacheDir = resolvePersistentCacheRoot(toolingConfig);
+  if (!cacheDir) return null;
   const fingerprint = readCommandFingerprint(command);
   if (!fingerprint) return null;
   const keyInfo = buildLocalCacheKey({
@@ -70,7 +87,6 @@ const resolvePersistentCacheDescriptor = ({ command, toolingConfig }) => {
       mtimeMs: fingerprint.mtimeMs
     }
   });
-  const cacheDir = path.join(toolingDir, COMMAND_PROBE_CACHE_SUBDIR);
   return {
     cacheDir,
     cachePath: path.join(cacheDir, `${keyInfo.digest}.json`),
@@ -123,7 +139,8 @@ const prunePersistentCommandProbeCacheDir = (cacheDir) => {
 
 export const readPersistentCommandProbeCache = ({
   command,
-  toolingConfig
+  toolingConfig,
+  successTtlMs = null
 } = {}) => {
   const descriptor = resolvePersistentCacheDescriptor({ command, toolingConfig });
   if (!descriptor) return null;
@@ -137,6 +154,12 @@ export const readPersistentCommandProbeCache = ({
     if (toFiniteSize(parsed?.command?.size) !== descriptor.fingerprint.size) return null;
     if (toFiniteMtimeMs(parsed?.command?.mtimeMs) !== descriptor.fingerprint.mtimeMs) return null;
     if (!isAttemptList(parsed?.attempted)) return null;
+    const ttlMs = Number(successTtlMs);
+    if (Number.isFinite(ttlMs) && ttlMs >= 0) {
+      const createdAtMs = toFiniteTimestampMs(parsed?.createdAt);
+      if (createdAtMs <= 0) return null;
+      if ((Date.now() - createdAtMs) > Math.floor(ttlMs)) return null;
+    }
     persistentHitCount += 1;
     return {
       ok: true,

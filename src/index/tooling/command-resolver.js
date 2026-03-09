@@ -469,7 +469,8 @@ const probeBinary = ({ providerId, command, probeArgs, timeoutMs, toolingConfig 
   }
   const persistentCached = readPersistentCommandProbeCache({
     command,
-    toolingConfig
+    toolingConfig,
+    successTtlMs: resolveCommandProbeSuccessTtlMs()
   });
   if (persistentCached?.ok === true) {
     setBoundedCacheEntry(
