@@ -29,8 +29,22 @@ const adaptive = await resolveAdaptiveQueryWorkerCount({
   sqliteCodeBytes: 256 * MiB,
   sqliteProseBytes: 128 * MiB
 });
-assert.equal(adaptive.effectiveConcurrency, 1, 'expected giant memory artifacts to clamp query workers to 1');
+assert.equal(
+  adaptive.effectiveConcurrency,
+  2,
+  'expected giant memory artifacts to clamp mixed query workers to memory=1 and sqlite=1'
+);
 assert.equal(adaptive.reason, 'memory_artifact_very_large', 'expected giant artifact reason');
+assert.deepEqual(
+  adaptive.backendConcurrency,
+  { memory: 1, sqlite: 1 },
+  'expected mixed query plan to expose backend-specific worker counts'
+);
+assert.equal(
+  adaptive.backendMaxRunsPerWorker.sqlite,
+  1,
+  'expected sqlite worker plan to recycle each worker after one run'
+);
 
 const workerScriptPath = path.join(tempRoot, 'worker.js');
 await fs.writeFile(workerScriptPath, [
@@ -85,6 +99,60 @@ assert.equal(
   'expected run-complete event'
 );
 await successPool.close();
+
+const recycleScriptPath = path.join(tempRoot, 'recycle-worker.js');
+await fs.writeFile(recycleScriptPath, [
+  "if (typeof process.send !== 'function') process.exit(2);",
+  "process.on('message', (message) => {",
+  "  if (message?.type === 'shutdown') { process.exit(0); return; }",
+  "  if (message?.type !== 'run') return;",
+  "  process.send({ type: 'run-start', id: Number(message.id), elapsedMs: 0 });",
+  "  process.send({ type: 'run-complete', id: Number(message.id), elapsedMs: 0 });",
+  "  process.send({ id: Number(message.id), ok: true, payload: { pid: process.pid } });",
+  "});"
+].join('\n'), 'utf8');
+
+const recyclingPool = createSearchWorkerPool({
+  size: 1,
+  env: { ...process.env },
+  workerScriptPath: recycleScriptPath,
+  maxRunsPerProcess: 1
+});
+const firstRecycle = await recyclingPool.run(['--ok'], { backend: 'sqlite', query: 'select 1' });
+const secondRecycle = await recyclingPool.run(['--ok'], { backend: 'sqlite', query: 'select 2' });
+assert.notEqual(
+  firstRecycle?.pid,
+  secondRecycle?.pid,
+  'expected sqlite-style worker recycling to fork a fresh child after each run'
+);
+await recyclingPool.close();
+
+const exitingScriptPath = path.join(tempRoot, 'exit-worker.js');
+await fs.writeFile(exitingScriptPath, [
+  "process.on('message', (message) => {",
+  "  if (message?.type === 'shutdown') { process.exit(0); return; }",
+  "  if (message?.type !== 'run') return;",
+  "  process.stderr.write('worker exploded\\n');",
+  "  process.exit(7);",
+  "});"
+].join('\n'), 'utf8');
+
+const exitPool = createSearchWorkerPool({
+  size: 1,
+  env: { ...process.env },
+  workerScriptPath: exitingScriptPath
+});
+let exitError = null;
+try {
+  await exitPool.run(['--explode'], { backend: 'sqlite', query: 'explode query' });
+} catch (error) {
+  exitError = error;
+}
+assert.equal(exitError?.code, 'ERR_QUERY_WORKER_EXIT', 'expected early worker exit to surface deterministic code');
+assert.match(exitError?.message || '', /backend=sqlite/, 'expected exit error to retain backend context');
+assert.match(exitError?.message || '', /explode query/, 'expected exit error to retain query preview');
+assert.match(exitError?.meta?.stderrTail || '', /worker exploded/, 'expected exit error to include stderr tail');
+await exitPool.close();
 
 const stalledEvents = [];
 const stalledPool = createSearchWorkerPool({

@@ -1025,6 +1025,8 @@ tooling/doctor/gating-reasons
 tooling/lsp/elixir-provider-initialize-stall-fail-open
 perf/bench/language-log-closeout
 perf/bench/query-runtime
+shared/lifecycle/registry-unref-promise-drain
+indexing/embeddings/embedding-batcher-unref-timer
 perf/bench/repo-timeout-propagation
 indexing/watch/debounce
 tooling/lsp/signature-help-timeout-adaptive-gates-next-symbol
@@ -1039,3 +1041,4 @@ indexing/extracted-prose/extraction-report
 indexing/extracted-prose/low-yield-history-warmup-reduction
 indexing/extracted-prose/low-yield-history-disable
 storage/sqlite/incremental/bundle-partial-embeddings-fallback
+
