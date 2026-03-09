@@ -11,6 +11,7 @@ const tempRoot = resolveTestCachePath(root, `configured-lsp-go-rust-signatures-$
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 await fs.writeFile(path.join(tempRoot, 'Cargo.toml'), '[package]\nname = "poc-signature-test"\nversion = "0.1.0"\nedition = "2021"\n');
+await fs.writeFile(path.join(tempRoot, 'go.mod'), 'module example.com/poc-signature-test\n\ngo 1.22\n');
 
 const serverPath = path.join(root, 'tests', 'fixtures', 'lsp', 'stub-lsp-server.js');
 const docsByLanguage = {

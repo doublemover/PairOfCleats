@@ -23,18 +23,19 @@ export function greet(name) {
 `;
 await fsPromises.writeFile(path.join(tempRoot, 'sample.js'), sampleCode);
 
-const envBase = {
-  ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
-applyTestEnv();
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+const buildTestEnv = (extraEnv = {}) => applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  extraEnv: {
+    PAIROFCLEATS_WORKER_POOL: 'off',
+    ...extraEnv
+  }
+});
 
 const run = (args, label, envOverride = {}) => {
   const result = spawnSync(process.execPath, args, {
     cwd: tempRoot,
-    env: { ...envBase, ...envOverride },
+    env: buildTestEnv(envOverride),
     encoding: 'utf8'
   });
   if (result.status !== 0) {
@@ -46,10 +47,10 @@ const run = (args, label, envOverride = {}) => {
 };
 
 run([buildIndexPath, '--stub-embeddings', '--repo', tempRoot], 'build index');
-await runSqliteBuild(tempRoot);
+await runSqliteBuild(tempRoot, { mode: 'code' });
 
 const autoOutput = run(
-  [searchPath, 'greet', '--json', '--repo', tempRoot],
+  [searchPath, 'greet', '--json', '--mode', 'code', '--repo', tempRoot],
   'search auto with sqlite disabled',
   { NODE_OPTIONS: '--no-addons' }
 );
@@ -67,10 +68,10 @@ if (autoBackend !== 'memory') {
 
 const forcedResult = spawnSync(
   process.execPath,
-  [searchPath, 'greet', '--json', '--backend', 'sqlite', '--repo', tempRoot],
+  [searchPath, 'greet', '--json', '--mode', 'code', '--backend', 'sqlite', '--repo', tempRoot],
   {
     cwd: tempRoot,
-    env: { ...envBase, NODE_OPTIONS: '--no-addons' },
+    env: buildTestEnv({ NODE_OPTIONS: '--no-addons' }),
     encoding: 'utf8'
   }
 );
@@ -94,4 +95,3 @@ if (!forcedMessage.includes('better-sqlite3 is required')) {
 }
 
 console.log('SQLite missing dependency test passed');
-

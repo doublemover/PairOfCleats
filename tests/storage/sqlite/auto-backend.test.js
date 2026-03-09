@@ -48,10 +48,10 @@ const run = (args, label, config = null) => {
 };
 
 run([buildIndexPath, '--stub-embeddings', '--repo', tempRoot], 'build index');
-await runSqliteBuild(tempRoot);
+await runSqliteBuild(tempRoot, { mode: 'code' });
 
 const backendA = JSON.parse(run(
-  [searchPath, 'greet', '--json', '--repo', tempRoot],
+  [searchPath, 'greet', '--json', '--mode', 'code', '--repo', tempRoot],
   'search auto sqlite threshold',
   { search: { sqliteAutoChunkThreshold: 1 } }
 )).backend;
@@ -61,7 +61,7 @@ if (backendA !== 'sqlite-fts') {
 }
 
 const resultB = JSON.parse(run(
-  [searchPath, 'greet', '--json', '--stats', '--repo', tempRoot],
+  [searchPath, 'greet', '--json', '--stats', '--mode', 'code', '--repo', tempRoot],
   'search auto memory threshold',
   { search: { sqliteAutoChunkThreshold: 9999 } }
 ));
@@ -76,7 +76,7 @@ if (!reasonB.includes('thresholds not met')) {
 }
 
 const backendC = JSON.parse(run(
-  [searchPath, 'greet', '--json', '--repo', tempRoot],
+  [searchPath, 'greet', '--json', '--mode', 'code', '--repo', tempRoot],
   'search auto sqlite threshold disabled',
   { search: { sqliteAutoChunkThreshold: 0, sqliteAutoArtifactBytes: 0 } }
 )).backend;
@@ -92,7 +92,7 @@ await fsPromises.rm(sqlitePaths.extractedProsePath, { force: true });
 await fsPromises.rm(sqlitePaths.recordsPath, { force: true });
 await fsPromises.rm(sqlitePaths.dbDir, { recursive: true, force: true });
 
-const backendD = JSON.parse(run([searchPath, 'greet', '--json', '--repo', tempRoot], 'search auto memory')).backend;
+const backendD = JSON.parse(run([searchPath, 'greet', '--json', '--mode', 'code', '--repo', tempRoot], 'search auto memory')).backend;
 if (backendD !== 'memory') {
   console.error(`Expected memory backend when sqlite is missing, got ${backendD}`);
   process.exit(1);

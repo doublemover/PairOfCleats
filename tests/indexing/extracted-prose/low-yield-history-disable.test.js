@@ -47,7 +47,7 @@ const envPrime = applyTestEnv({
     PAIROFCLEATS_TEST_STUB_PDF_EXTRACT: '1'
   }
 });
-runExtractedProseBuild({ root, repoRoot, env: envPrime });
+runExtractedProseBuild({ root, repoRoot, env: envPrime, noSqlite: true });
 
 const envCheck = applyTestEnv({
   cacheRoot,
@@ -73,7 +73,7 @@ const envCheck = applyTestEnv({
     PAIROFCLEATS_TEST_STUB_PDF_EXTRACT: '1'
   }
 });
-runExtractedProseBuild({ root, repoRoot, env: envCheck });
+runExtractedProseBuild({ root, repoRoot, env: envCheck, noSqlite: true });
 
 const { extractionReport: report, fileLists } = await readExtractedProseArtifacts(repoRoot);
 assert.ok(report, 'expected extraction_report artifact');

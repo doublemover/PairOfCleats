@@ -9,7 +9,16 @@ import { runSqliteBuild } from '../../../helpers/sqlite-builder.js';
 import { readBundleFile, writeBundleFile } from '../../../../src/shared/bundle-io.js';
 
 const { root, repoRoot, env, userConfig, run } = await setupIncrementalRepo({
-  name: 'bundle-count-mismatch-fallback'
+  name: 'bundle-count-mismatch-fallback',
+  testConfig: {
+    indexing: {
+      scm: { provider: 'none' },
+      treeSitter: { enabled: false }
+    },
+    tooling: {
+      autoEnableOnDetect: false
+    }
+  }
 });
 
 const buildIndexPath = path.join(root, 'build_index.js');
@@ -23,6 +32,7 @@ run(
     'none',
     '--stage',
     'stage2',
+    '--no-sqlite',
     '--mode',
     'code',
     '--repo',
@@ -41,6 +51,7 @@ run(
     'none',
     '--stage',
     'stage3',
+    '--no-sqlite',
     '--mode',
     'code',
     '--repo',

@@ -52,13 +52,15 @@ export const inspectExtractedProseState = (repoRoot) => {
 /**
  * Run build_index in extracted-prose mode for a fixture repo.
  *
- * @param {{root:string,repoRoot:string,env:NodeJS.ProcessEnv}} input
+ * @param {{root:string,repoRoot:string,env:NodeJS.ProcessEnv,noSqlite?:boolean}} input
  * @returns {void}
  */
-export const runExtractedProseBuild = ({ root, repoRoot, env }) => {
+export const runExtractedProseBuild = ({ root, repoRoot, env, noSqlite = true }) => {
+  const args = [path.join(root, 'build_index.js'), '--repo', repoRoot, '--mode', 'extracted-prose', '--stub-embeddings'];
+  if (noSqlite) args.push('--no-sqlite');
   const buildResult = spawnSync(
     process.execPath,
-    [path.join(root, 'build_index.js'), '--repo', repoRoot, '--mode', 'extracted-prose', '--stub-embeddings'],
+    args,
     { cwd: repoRoot, env, stdio: 'inherit' }
   );
   if (buildResult.status !== 0) {

@@ -23,7 +23,16 @@ await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 
 const env = applyTestEnv({
   cacheRoot: cacheRootBase,
-  embeddings: 'stub'
+  embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      scm: { provider: 'none' },
+      embeddings: {
+        hnsw: { enabled: false },
+        lancedb: { enabled: false }
+      }
+    }
+  }
 });
 
 const runNode = (label, args, cwd = repoRoot) => runNodeSync(args, label, cwd, env, { stdio: 'pipe' });
@@ -57,6 +66,9 @@ runNode('build_index failed', [
   '--stub-embeddings',
   '--scm-provider',
   'none',
+  '--mode',
+  'code',
+  '--no-sqlite',
   '--repo',
   repoRoot
 ]);

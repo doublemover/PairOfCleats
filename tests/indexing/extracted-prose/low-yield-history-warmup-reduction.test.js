@@ -47,8 +47,8 @@ const env = applyTestEnv({
   }
 });
 
-runExtractedProseBuild({ root, repoRoot, env });
-runExtractedProseBuild({ root, repoRoot, env });
+runExtractedProseBuild({ root, repoRoot, env, noSqlite: true });
+runExtractedProseBuild({ root, repoRoot, env, noSqlite: true });
 
 const { extractionReport: report, fileLists } = await readExtractedProseArtifacts(repoRoot);
 assert.ok(report, 'expected extraction_report artifact');
