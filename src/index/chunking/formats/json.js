@@ -28,6 +28,7 @@ const JSON_ESCAPE_MAP = {
   r: '\r',
   t: '\t'
 };
+const JSON_TREE_SITTER_MAX_PRECHECK_DEPTH = 4096;
 
 const parseJsonString = (text, start) => {
   let i = start + 1;
@@ -121,6 +122,43 @@ const parseJsonPrimitive = (text, start) => {
   if (ch === 'f') return parseJsonLiteral(text, i, 'false');
   if (ch === 'n') return parseJsonLiteral(text, i, 'null');
   return null;
+};
+
+export const shouldBypassJsonTreeSitter = (text) => {
+  if (typeof text !== 'string' || !text.length) return false;
+  let depth = 0;
+  let inString = false;
+  let escaping = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (inString) {
+      if (escaping) {
+        escaping = false;
+        continue;
+      }
+      if (ch === '\\') {
+        escaping = true;
+        continue;
+      }
+      if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+    if (ch === '{' || ch === '[') {
+      depth += 1;
+      if (depth > JSON_TREE_SITTER_MAX_PRECHECK_DEPTH) return true;
+      continue;
+    }
+    if (ch === '}' || ch === ']') {
+      depth = Math.max(0, depth - 1);
+    }
+  }
+  return false;
 };
 
 /**
@@ -261,7 +299,10 @@ const parseJsonValue = (text, start, topLevelKeys) => {
 };
 
 export function chunkJson(text, context) {
-  if (context?.treeSitter?.configChunking === true) {
+  if (
+    context?.treeSitter?.configChunking === true
+    && shouldBypassJsonTreeSitter(text) !== true
+  ) {
     const treeChunks = buildTreeSitterChunks({
       text,
       languageId: 'json',

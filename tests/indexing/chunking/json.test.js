@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { chunkJson } from '../../../src/index/chunking.js';
+import { shouldBypassJsonTreeSitter } from '../../../src/index/chunking/formats/json.js';
 
 const expect = (condition, message) => {
   if (!condition) {
@@ -53,5 +54,13 @@ expect(deepObjectChunks[0].name === 'payload', 'Expected deeply nested object JS
 const malformedDeeplyNestedArray = '['.repeat(20000);
 const malformedDeepResult = chunkJson(malformedDeeplyNestedArray, {});
 expect(malformedDeepResult === null, 'Expected malformed deeply nested array JSON to return null without overflowing the stack.');
+expect(
+  shouldBypassJsonTreeSitter(malformedDeeplyNestedArray) === true,
+  'Expected pathological deeply nested JSON to bypass tree-sitter preflight.'
+);
+expect(
+  shouldBypassJsonTreeSitter('{"alpha":{"beta":1}}') === false,
+  'Expected ordinary JSON to keep tree-sitter config chunking eligible.'
+);
 
 console.log('Chunking JSON test passed.');
