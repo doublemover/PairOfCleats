@@ -46,10 +46,22 @@ assert.equal(
       estimatedBytes: 180 * 1024 * 1024
     },
     activeEntries: activeHugeEntries,
-    maxBytesInFlight: bytesBudget
+    maxBytesInFlight: 768 * 1024 * 1024
+  }),
+  true,
+  'expected different huge publisher families to overlap when the shared bytes budget allows it'
+);
+assert.equal(
+  canDispatchArtifactWriteEntry({
+    entry: {
+      label: 'token_postings.json',
+      estimatedBytes: 180 * 1024 * 1024
+    },
+    activeEntries: activeHugeEntries,
+    maxBytesInFlight: 768 * 1024 * 1024
   }),
   false,
-  'expected exclusive huge publisher families to serialize instead of overlapping'
+  'expected same huge publisher family to remain serialized'
 );
 assert.equal(
   canDispatchArtifactWriteEntry({

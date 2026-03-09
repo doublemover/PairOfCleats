@@ -249,6 +249,7 @@ indexing/risk/rules/risk-config
 shared/cache/migration
 tooling/vfs/hash-routing-contract
 indexing/artifacts/active-write-telemetry-snapshot
+indexing/artifacts/write-telemetry-thresholds
 indexing/risk/interprocedural/summaries-schema
 shared/concurrency/pending-limit-enforced
 shared/concurrency/run-with-queue-pending-drain-keepalive

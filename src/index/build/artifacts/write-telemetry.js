@@ -1,6 +1,8 @@
 import { summarizeQueueDelayHistogram } from './write-strategy.js';
 
 const toPosix = (value) => String(value || '').replace(/\\/g, '/');
+const LARGE_STALL_THRESHOLD_BYTES = 128 * 1024 * 1024;
+const HUGE_STALL_THRESHOLD_BYTES = 768 * 1024 * 1024;
 
 export const resolveActiveWritePhaseLabel = (label, phaseHint = null) => {
   const hinted = typeof phaseHint === 'string' ? phaseHint.trim() : '';
@@ -41,6 +43,24 @@ export const stallThresholdLevelName = (thresholdSec, index) => {
   if (thresholdSec >= 30) return 'critical';
   if (thresholdSec >= 10) return 'warning';
   return `level-${index + 1}`;
+};
+
+export const resolveArtifactWriteStallThresholds = ({
+  normalizedWriteStallThresholds,
+  estimatedBytes
+}) => {
+  const thresholds = Array.isArray(normalizedWriteStallThresholds)
+    ? normalizedWriteStallThresholds
+    : [];
+  const bytes = Number.isFinite(Number(estimatedBytes))
+    ? Math.max(0, Number(estimatedBytes))
+    : 0;
+  const scale = bytes >= HUGE_STALL_THRESHOLD_BYTES
+    ? 2
+    : bytes >= LARGE_STALL_THRESHOLD_BYTES
+      ? 1.5
+      : 1;
+  return thresholds.map((thresholdSec) => Math.max(1, Math.ceil(Number(thresholdSec) * scale)));
 };
 
 /**
@@ -192,8 +212,12 @@ export const createWriteHeartbeatController = ({
       const inflight = snapshot.inflight;
       for (const { label, elapsedSec, estimatedBytes } of inflight) {
         const alerts = writeStallAlerts.get(label) || new Set();
-        for (let thresholdIndex = 0; thresholdIndex < normalizedWriteStallThresholds.length; thresholdIndex += 1) {
-          const thresholdSec = normalizedWriteStallThresholds[thresholdIndex];
+        const resolvedThresholds = resolveArtifactWriteStallThresholds({
+          normalizedWriteStallThresholds,
+          estimatedBytes
+        });
+        for (let thresholdIndex = 0; thresholdIndex < resolvedThresholds.length; thresholdIndex += 1) {
+          const thresholdSec = resolvedThresholds[thresholdIndex];
           if (alerts.has(thresholdSec) || elapsedSec < thresholdSec) continue;
           alerts.add(thresholdSec);
           writeStallAlerts.set(label, alerts);

@@ -142,13 +142,13 @@ export const canDispatchArtifactWriteEntry = ({
   const entryBytes = toNonNegativeNumberOrNull(entry.estimatedBytes) ?? 0;
   const entryFamily = resolveArtifactExclusivePublisherFamily(entry.label);
   let activeLargeBytes = 0;
-  let exclusivePublisherActive = false;
+  const activeExclusiveFamilies = new Set();
   for (const activeEntry of Array.isArray(activeEntries) ? activeEntries : []) {
     if (!activeEntry || typeof activeEntry !== 'object') continue;
     const activeFamily = resolveArtifactExclusivePublisherFamily(activeEntry.label);
     const activeBytes = toNonNegativeNumberOrNull(activeEntry.estimatedBytes) ?? 0;
     if (activeFamily) {
-      exclusivePublisherActive = true;
+      activeExclusiveFamilies.add(activeFamily);
       activeLargeBytes += activeBytes;
       continue;
     }
@@ -156,7 +156,7 @@ export const canDispatchArtifactWriteEntry = ({
       activeLargeBytes += activeBytes;
     }
   }
-  if (entryFamily && exclusivePublisherActive) {
+  if (entryFamily && activeExclusiveFamilies.has(entryFamily)) {
     return false;
   }
   if (
@@ -325,9 +325,13 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
     : 750;
   const now = typeof input.now === 'function' ? input.now : () => Date.now();
   const onChange = typeof input.onChange === 'function' ? input.onChange : null;
+  const memoryPressureScaleDownConsecutive = Number.isFinite(Number(input.memoryPressureScaleDownConsecutive))
+    ? Math.max(1, Math.floor(Number(input.memoryPressureScaleDownConsecutive)))
+    : 2;
 
   let lastScaleUpAt = Number.NEGATIVE_INFINITY;
   let lastScaleDownAt = Number.NEGATIVE_INFINITY;
+  let consecutiveHighMemoryPressure = 0;
 
   const emitChange = (reason, from, to, snapshot) => {
     if (!onChange || from === to) return;
@@ -416,10 +420,26 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
       && (gcPressure == null || gcPressure <= gcPressureLowThreshold)
       && (rssUtilization == null || rssUtilization <= memoryPressureLowThreshold)
     );
+    if (highMemoryPressure) {
+      consecutiveHighMemoryPressure += 1;
+    } else {
+      consecutiveHighMemoryPressure = 0;
+    }
+    const memoryPressureBackedByWriteLoad = (
+      attributedToWriteQueue
+      || pendingWrites > 0
+      || activeWrites >= currentConcurrency
+    );
 
     const canScaleDown = currentConcurrency > minConcurrency
       && (timestamp - lastScaleDownAt) >= scaleDownCooldownMs;
-    if (canScaleDown && highMemoryPressure) {
+    if (
+      canScaleDown
+      && highMemoryPressure
+      && consecutiveHighMemoryPressure >= memoryPressureScaleDownConsecutive
+      && memoryPressureBackedByWriteLoad
+      && !writeQueueIdleWithSignals
+    ) {
       currentConcurrency -= 1;
       lastScaleDownAt = timestamp;
       emitChange('memory-pressure', from, currentConcurrency, {
