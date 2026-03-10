@@ -3361,6 +3361,29 @@ export async function writeIndexArtifacts(input) {
         snapshot = getSchedulerWriteQueueSnapshot();
       }
     };
+    const repairImpossibleIdleWriteState = () => {
+      const noTrackedWrites = activeCount <= 0
+        && inFlightWrites.size <= 0
+        && activeWrites.size <= 0
+        && activeWriteBytes.size <= 0;
+      if (!noTrackedWrites) return false;
+      let repaired = false;
+      if (activeHugeWriteFamilies.size > 0 || activeHugeWriteBytes > 0) {
+        activeHugeWriteFamilies.clear();
+        activeHugeWriteBytes = 0;
+        repaired = true;
+      }
+      for (const laneName of ['ultraLight', 'massive', 'light', 'heavy']) {
+        if ((laneActive[laneName] || 0) > 0) {
+          laneActive[laneName] = 0;
+          repaired = true;
+        }
+      }
+      if (repaired) {
+        updateWriteInFlightTelemetry();
+      }
+      return repaired;
+    };
     /**
      * Drive lane dispatch loop until all writes settle or a fatal write error occurs.
      *
@@ -3450,6 +3473,7 @@ export async function writeIndexArtifacts(input) {
     };
     writeHeartbeat.start();
     try {
+      let undispatchableSince = null;
       dispatchWrites();
       while (
         inFlightWrites.size > 0
@@ -3464,8 +3488,14 @@ export async function writeIndexArtifacts(input) {
           if (dispatchedCount <= 0) {
             const pendingWrites = pendingWriteCount();
             if (pendingWrites <= 0) break;
+            if (repairImpossibleIdleWriteState()) {
+              undispatchableSince = null;
+              await Promise.resolve();
+              continue;
+            }
             const schedulerSnapshot = getSchedulerWriteQueueSnapshot();
             if (schedulerWriteQueueHasWork(schedulerSnapshot)) {
+              undispatchableSince = null;
               await waitForSchedulerWriteQueueDrain({
                 timeoutMs: 30_000,
                 pollMs: 10,
@@ -3474,6 +3504,15 @@ export async function writeIndexArtifacts(input) {
               dispatchWrites();
               continue;
             }
+            const now = Date.now();
+            if (undispatchableSince == null) {
+              undispatchableSince = now;
+            }
+            if ((now - undispatchableSince) < 250) {
+              await new Promise((resolve) => setTimeout(resolve, 10));
+              continue;
+            }
+            const budgets = resolveLaneBudgets();
             const stalledPreview = [
               ...laneQueues.ultraLight,
               ...laneQueues.massive,
@@ -3485,9 +3524,15 @@ export async function writeIndexArtifacts(input) {
               .join(', ');
             throw new Error(
               `[artifact-write] queued writes became undispatchable without in-flight work ` +
-              `(pending=${pendingWrites}${stalledPreview ? `, sample=${stalledPreview}` : ''})`
+              `(pending=${pendingWrites}, ` +
+              `laneActive={ultraLight=${laneActive.ultraLight}, massive=${laneActive.massive}, light=${laneActive.light}, heavy=${laneActive.heavy}}, ` +
+              `laneBudget={ultraLight=${budgets.ultraLightConcurrency}, massive=${budgets.massiveConcurrency}, light=${budgets.lightConcurrency}, heavy=${budgets.heavyConcurrency}}, ` +
+              `hugeFamilies=${activeHugeWriteFamilies.size > 0 ? Array.from(activeHugeWriteFamilies).sort().join('+') : 'none'}, ` +
+              `hugeBytes=${activeHugeWriteBytes}` +
+              `${stalledPreview ? `, sample=${stalledPreview}` : ''})`
             );
           }
+          undispatchableSince = null;
           if (!inFlightWrites.size) break;
         }
         let settleWatchdogTimer = null;
@@ -3519,6 +3564,7 @@ export async function writeIndexArtifacts(input) {
           fatalWriteError = settled?.error || new Error('artifact write failed');
           break;
         }
+        undispatchableSince = null;
         dispatchWrites();
       }
       if (fatalWriteError) {
