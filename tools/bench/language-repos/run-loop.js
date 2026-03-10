@@ -11,6 +11,7 @@ import {
   getRecommendedHeapMb,
   stripMaxOldSpaceFlag
 } from '../language/metrics.js';
+import { resolveBenchProcessTimeoutProfile } from '../language/timeout.js';
 import { needsIndexArtifacts, needsSqliteArtifacts } from '../language/repos.js';
 
 /**
@@ -373,6 +374,9 @@ export const runBenchExecutionLoop = async ({
 }) => {
   const results = [];
   const benchScript = path.join(scriptRoot, 'tests', 'perf', 'bench', 'run.test.js');
+  const timeoutProfile = resolveBenchProcessTimeoutProfile({
+    repoTimeoutMs: benchTimeoutMs
+  });
   const heapArgRaw = argv['heap-mb'];
   const heapArg = Number.isFinite(Number(heapArgRaw)) ? Math.floor(Number(heapArgRaw)) : null;
   const heapRecommendation = getRecommendedHeapMb();
@@ -664,7 +668,8 @@ export const runBenchExecutionLoop = async ({
         const benchResult = await processRunner.runProcess(`bench ${repoLabel}`, process.execPath, benchArgs, {
           cwd: scriptRoot,
           env: benchProcessEnv,
-          timeoutMs: benchTimeoutMs,
+          timeoutMs: timeoutProfile.hardTimeoutMs,
+          idleTimeoutMs: timeoutProfile.idleTimeoutMs,
           continueOnError: true
         });
         if (!benchResult.ok) {

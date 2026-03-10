@@ -6,6 +6,7 @@ import path from 'node:path';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { runBenchExecutionLoop } from '../../../tools/bench/language-repos/run-loop.js';
+import { resolveBenchProcessTimeoutProfile } from '../../../tools/bench/language/timeout.js';
 
 ensureTestingEnv(process.env);
 
@@ -19,6 +20,7 @@ await fs.mkdir(path.dirname(outFile), { recursive: true });
 await fs.writeFile(path.join(repoPath, 'README.md'), 'demo repo', 'utf8');
 
 let capturedTimeoutMs = null;
+let capturedIdleTimeoutMs = null;
 const results = await runBenchExecutionLoop({
   executionPlans: [{
     task: {
@@ -54,6 +56,7 @@ const results = await runBenchExecutionLoop({
   processRunner: {
     runProcess: async (_label, _cmd, _args, options = {}) => {
       capturedTimeoutMs = options.timeoutMs;
+      capturedIdleTimeoutMs = options.idleTimeoutMs;
       await fs.writeFile(outFile, JSON.stringify({
         summary: {
           queries: 1,
@@ -106,7 +109,9 @@ const results = await runBenchExecutionLoop({
   benchTimeoutMs: 4321
 });
 
-assert.equal(capturedTimeoutMs, 4321, 'expected configured bench timeout to be forwarded to the repo subprocess');
+const expectedTimeoutProfile = resolveBenchProcessTimeoutProfile({ repoTimeoutMs: 4321 });
+assert.equal(capturedIdleTimeoutMs, expectedTimeoutProfile.idleTimeoutMs, 'expected idle bench timeout to be forwarded to the repo subprocess');
+assert.equal(capturedTimeoutMs, expectedTimeoutProfile.hardTimeoutMs, 'expected hard bench timeout profile to be forwarded to the repo subprocess');
 assert.equal(Array.isArray(results), true, 'expected result list');
 assert.equal(results.length, 1, 'expected one result row');
 assert.equal(results[0]?.failed, undefined, 'expected successful repo result');

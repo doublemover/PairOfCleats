@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSubprocess } from '../../../src/shared/subprocess.js';
+import { composeAbortSignals } from '../../../src/shared/abort.js';
 import { killProcessTree as killPidTree } from '../../../src/shared/kill-tree.js';
 import { createTimeoutError, runWithTimeout } from '../../../src/shared/promise-timeout.js';
 import { createProgressLineDecoder } from '../../../src/shared/cli/progress-stream.js';
@@ -29,6 +30,7 @@ const QUEUE_DEPTH_HOTSPOT = 3;
 const HEARTBEAT_STALL_THRESHOLD_MS = 30 * 1000;
 const MAX_PROGRESS_SAMPLES = 240;
 const TELEMETRY_FLUSH_TIMEOUT_MS = 5000;
+const DEFAULT_IDLE_TIMEOUT_WATCHDOG_POLL_MS = 5000;
 
 const PARSER_CRASH_PATTERNS = Object.freeze([
   /\bparser\b[\s\S]{0,80}\b(?:crash|crashed|fatal|abort|aborted)\b/i,
@@ -411,12 +413,63 @@ export const createProcessRunner = ({
   };
 
   const runProcess = async (label, cmd, args, options = {}) => {
-    const { continueOnError = false, ...spawnOptionsRest } = options;
+    const { continueOnError = false, idleTimeoutMs = 0, ...spawnOptionsRest } = options;
     const spawnOptions = {
       ...spawnOptionsRest,
       stdio: ['ignore', 'pipe', 'pipe'],
       rejectOnNonZeroExit: false
     };
+    const resolvedIdleTimeoutMs = Number.isFinite(Number(idleTimeoutMs))
+      ? Math.max(0, Math.floor(Number(idleTimeoutMs)))
+      : 0;
+    const idleWatchdogPollMs = resolvedIdleTimeoutMs > 0
+      ? Math.max(250, Math.min(DEFAULT_IDLE_TIMEOUT_WATCHDOG_POLL_MS, Math.floor(resolvedIdleTimeoutMs / 4) || 250))
+      : 0;
+    const idleAbortController = resolvedIdleTimeoutMs > 0 ? new AbortController() : null;
+    const spawnSignal = idleAbortController
+      ? composeAbortSignals(spawnOptions.signal, idleAbortController.signal)
+      : spawnOptions.signal;
+    let lastActivityAtMs = Date.now();
+    let lastActivitySource = 'spawn';
+    let lastActivityText = label;
+    let idleWatchdog = null;
+    let idleTimeoutTriggered = false;
+
+    const markActivity = ({ source = 'output', text = '' } = {}) => {
+      lastActivityAtMs = Date.now();
+      lastActivitySource = String(source || 'output');
+      lastActivityText = truncateForDisplay(text || label, 140) || label;
+    };
+
+    const cleanupIdleWatchdog = () => {
+      if (idleWatchdog) {
+        clearInterval(idleWatchdog);
+        idleWatchdog = null;
+      }
+    };
+
+    if (idleAbortController && idleWatchdogPollMs > 0) {
+      idleWatchdog = setInterval(() => {
+        if (idleTimeoutTriggered || idleAbortController.signal.aborted) return;
+        const idleMs = Date.now() - lastActivityAtMs;
+        if (idleMs < resolvedIdleTimeoutMs) return;
+        idleTimeoutTriggered = true;
+        const error = new Error(
+          `Bench subprocess idle timeout after ${resolvedIdleTimeoutMs}ms (last activity: ${lastActivitySource}${lastActivityText ? `: ${lastActivityText}` : ''}).`
+        );
+        error.code = 'ERR_BENCH_IDLE_TIMEOUT';
+        error.idleTimeoutMs = resolvedIdleTimeoutMs;
+        error.lastActivityAtMs = lastActivityAtMs;
+        error.lastActivitySource = lastActivitySource;
+        error.lastActivityText = lastActivityText;
+        try {
+          idleAbortController.abort(error);
+        } catch {
+          idleAbortController.abort();
+        }
+      }, idleWatchdogPollMs);
+      idleWatchdog.unref?.();
+    }
     const diagnosticStreams = Array.from(
       new Set(resolveLogPaths().map(resolveDiagnosticsStreamPath).filter(Boolean))
     );
@@ -787,6 +840,14 @@ export const createProcessRunner = ({
     const handleLine = ({ line, event = null, source = 'stream' }) => {
       const textLine = String(line || '');
       const parsedEvent = event || (textLine ? parseProgressEventLine(textLine, { strict: true }) : null);
+      if (parsedEvent) {
+        markActivity({
+          source: parsedEvent.event || 'progress-event',
+          text: parsedEvent.message || parsedEvent.taskId || parsedEvent.name || textLine
+        });
+      } else if (textLine.trim()) {
+        markActivity({ source, text: textLine });
+      }
       inspectDiagnostic({ line: textLine, event: parsedEvent, source });
       if (parsedEvent) {
         pushSchedulerEvent({
@@ -826,10 +887,12 @@ export const createProcessRunner = ({
     try {
       const result = await spawnSubprocess(cmd, args, {
         ...spawnOptions,
+        signal: spawnSignal,
         onSpawn: (child) => setActiveChild(child, label),
         onStdout: (chunk) => stdoutDecoder.push(chunk),
         onStderr: (chunk) => stderrDecoder.push(chunk)
       });
+      cleanupIdleWatchdog();
       stdoutDecoder.flush();
       stderrDecoder.flush();
       const code = result.exitCode;
@@ -880,6 +943,7 @@ export const createProcessRunner = ({
         progressConfidence: buildProgressConfidenceSummary()
       };
     } catch (err) {
+      cleanupIdleWatchdog();
       stdoutDecoder.flush();
       stderrDecoder.flush();
       const message = err?.message || err;
@@ -892,7 +956,12 @@ export const createProcessRunner = ({
       writeLog(`[error] ${label} spawn failed: ${message}`);
       clearActiveChild(err?.result?.pid ?? null);
       appendLog(`[run] failed: ${label}`);
-      if (err?.code === 'SUBPROCESS_TIMEOUT') {
+      if (idleTimeoutTriggered || err?.code === 'ERR_BENCH_IDLE_TIMEOUT') {
+        appendLog(
+          `[run] idle timeout: ${label} (no activity for ${resolvedIdleTimeoutMs}ms; last=${lastActivitySource}${lastActivityText ? `: ${lastActivityText}` : ''})`,
+          'warn'
+        );
+      } else if (err?.code === 'SUBPROCESS_TIMEOUT') {
         appendLog(`[run] timeout: ${label} (${message})`, 'warn');
       }
       emitLogPaths('[error]');
@@ -919,7 +988,17 @@ export const createProcessRunner = ({
         signal: failureSignal,
         schedulerEvents: getSchedulerEvents(),
         diagnostics: buildDiagnosticsSummary(),
-        progressConfidence: buildProgressConfidenceSummary()
+        progressConfidence: buildProgressConfidenceSummary(),
+        ...(idleTimeoutTriggered
+          ? {
+            timeoutKind: 'idle',
+            lastActivity: {
+              source: lastActivitySource,
+              message: lastActivityText,
+              atMs: lastActivityAtMs
+            }
+          }
+          : {})
       };
     }
   };

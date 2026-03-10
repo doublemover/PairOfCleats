@@ -101,3 +101,37 @@ export const resolveAdaptiveBenchTimeoutMs = ({
   if (cap > 0) effective = Math.min(effective, cap);
   return effective;
 };
+
+export const resolveBenchProcessTimeoutProfile = ({
+  repoTimeoutMs,
+  hardTimeoutScale = 1.5,
+  hardTimeoutPaddingMs = 20 * 60 * 1000,
+  maxHardTimeoutMs = 4 * 60 * 60 * 1000
+} = {}) => {
+  const idleTimeoutMs = toSafeInt(repoTimeoutMs);
+  if (idleTimeoutMs === 0) {
+    return {
+      idleTimeoutMs: 0,
+      hardTimeoutMs: 0
+    };
+  }
+  const scale = Number.isFinite(Number(hardTimeoutScale)) && Number(hardTimeoutScale) > 1
+    ? Number(hardTimeoutScale)
+    : 1.5;
+  const paddingMs = toSafeInt(hardTimeoutPaddingMs, 20 * 60 * 1000);
+  const capMs = toSafeInt(maxHardTimeoutMs, 4 * 60 * 60 * 1000);
+  const hardTimeoutMs = idleTimeoutMs > 0
+    ? Math.min(
+      capMs,
+      Math.max(
+        idleTimeoutMs,
+        idleTimeoutMs + paddingMs,
+        Math.ceil(idleTimeoutMs * scale)
+      )
+    )
+    : 0;
+  return {
+    idleTimeoutMs,
+    hardTimeoutMs
+  };
+};
