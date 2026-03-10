@@ -195,6 +195,60 @@ assert.equal(
 );
 await stalledPool.close();
 
+const slowScriptPath = path.join(tempRoot, 'slow-worker.js');
+await fs.writeFile(slowScriptPath, [
+  "if (typeof process.send !== 'function') process.exit(2);",
+  "process.on('message', (message) => {",
+  "  if (message?.type === 'shutdown') { process.exit(0); return; }",
+  "  if (message?.type !== 'run') return;",
+  "  const id = Number(message.id);",
+  "  process.send({ type: 'run-start', id, elapsedMs: 0 });",
+  "  setTimeout(() => {",
+  "    process.send({ type: 'run-heartbeat', id, elapsedMs: 500, rssBytes: 16 * 1024 * 1024 });",
+  "  }, 500);",
+  "});"
+].join('\n'), 'utf8');
+
+const closeBusyPool = createSearchWorkerPool({
+  size: 1,
+  env: { ...process.env },
+  workerScriptPath: slowScriptPath,
+  heartbeatMs: 20,
+  stallWarnMs: 1000,
+  stallTimeoutMs: 2000
+});
+const busyRun = closeBusyPool.run(['--slow'], { backend: 'sqlite', query: 'close while busy' });
+const busyRunAssertion = assert.rejects(
+  () => busyRun,
+  (error) => error?.code === 'ERR_QUERY_WORKER_CLOSED'
+);
+await new Promise((resolve) => setTimeout(resolve, 40));
+await closeBusyPool.close();
+await busyRunAssertion;
+
+const queuedClosePool = createSearchWorkerPool({
+  size: 1,
+  env: { ...process.env },
+  workerScriptPath: slowScriptPath,
+  heartbeatMs: 20,
+  stallWarnMs: 1000,
+  stallTimeoutMs: 2000
+});
+const queuedRunA = queuedClosePool.run(['--slow-a'], { backend: 'sqlite', query: 'queued close a' });
+const queuedRunB = queuedClosePool.run(['--slow-b'], { backend: 'sqlite', query: 'queued close b' });
+const queuedRunAAssertion = assert.rejects(
+  () => queuedRunA,
+  (error) => error?.code === 'ERR_QUERY_WORKER_CLOSED'
+);
+const queuedRunBAssertion = assert.rejects(
+  () => queuedRunB,
+  (error) => error?.code === 'ERR_QUERY_WORKER_POOL_CLOSED'
+);
+await new Promise((resolve) => setTimeout(resolve, 40));
+await queuedClosePool.close();
+await queuedRunAAssertion;
+await queuedRunBAssertion;
+
 const staleExitScriptPath = path.join(tempRoot, 'stale-exit-worker.js');
 const staleExitMarkerPath = path.join(tempRoot, 'stale-exit-marker.txt');
 await fs.writeFile(staleExitScriptPath, [

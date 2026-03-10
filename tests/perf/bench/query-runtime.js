@@ -195,6 +195,26 @@ const createWorkerStallError = ({ label, workerLabel, id, elapsedMs }) => {
   return error;
 };
 
+const createWorkerClosedError = ({ label, workerLabel, requestId = null, meta = null }) => {
+  const backend = meta?.backend ? ` backend=${meta.backend}` : '';
+  const queryText = typeof meta?.query === 'string' && meta.query.trim()
+    ? ` query="${meta.query.trim().slice(0, 80)}${meta.query.trim().length > 80 ? '...' : ''}"`
+    : '';
+  const requestText = Number.isFinite(Number(requestId)) ? ` request=${Math.floor(Number(requestId))}` : '';
+  const error = new Error(
+    `Query worker ${workerLabel} closed before completing ${label}.${requestText}${backend}${queryText}`
+  );
+  error.code = 'ERR_QUERY_WORKER_CLOSED';
+  error.meta = {
+    workerLabel,
+    label,
+    requestId: Number.isFinite(Number(requestId)) ? Math.floor(Number(requestId)) : null,
+    backend: meta?.backend || null,
+    query: meta?.query || null
+  };
+  return error;
+};
+
 const createWorkerExitError = ({
   label,
   workerLabel,
@@ -312,6 +332,7 @@ const createSearchWorker = ({
   let watchdog = null;
   let activeRequest = null;
   let completedRuns = 0;
+  let closed = false;
 
   const emitEvent = (event) => {
     if (typeof onEvent !== 'function') return;
@@ -464,11 +485,24 @@ const createSearchWorker = ({
     return session;
   };
 
-  const closeChild = async (targetSession = currentSession) => {
+  const closeChild = async (targetSession = currentSession, { cancelActiveRequest = false } = {}) => {
     const targetChild = targetSession?.child;
     if (!targetChild || targetChild.killed || targetChild.exitCode != null) return;
     if (currentSession === targetSession) {
       currentSession = null;
+    }
+    if (
+      cancelActiveRequest === true &&
+      activeRequest?.ownerGeneration === targetSession?.generation
+    ) {
+      const request = activeRequest;
+      activeRequest = null;
+      request.reject(createWorkerClosedError({
+        label,
+        workerLabel: label,
+        requestId: request.id,
+        meta: request.meta
+      }));
     }
     await new Promise((resolve) => {
       let settled = false;
@@ -497,6 +531,11 @@ const createSearchWorker = ({
   };
 
   const ensureChild = () => {
+    if (closed) {
+      const err = new Error(`Query worker ${label} is closed.`);
+      err.code = 'ERR_QUERY_WORKER_CLOSED';
+      throw err;
+    }
     if (
       currentSession &&
       currentSession.child?.exitCode == null &&
@@ -549,6 +588,9 @@ const createSearchWorker = ({
   };
 
   const run = async (args, meta = null) => {
+    if (closed) {
+      throw createWorkerClosedError({ label, workerLabel: label, meta });
+    }
     if (activeRequest) {
       const err = new Error(`Query worker ${label} received concurrent work while busy.`);
       err.code = 'ERR_QUERY_WORKER_BUSY';
@@ -587,8 +629,9 @@ const createSearchWorker = ({
   };
 
   const close = async () => {
+    closed = true;
     clearWatchdog();
-    await closeChild(currentSession);
+    await closeChild(currentSession, { cancelActiveRequest: true });
   };
 
   return {
@@ -659,6 +702,21 @@ export const createSearchWorkerPool = ({
   );
   const queue = [];
   let pumping = false;
+  let closed = false;
+
+  const createPoolClosedError = (meta = null) => {
+    const backend = meta?.backend ? ` backend=${meta.backend}` : '';
+    const queryText = typeof meta?.query === 'string' && meta.query.trim()
+      ? ` query="${meta.query.trim().slice(0, 80)}${meta.query.trim().length > 80 ? '...' : ''}"`
+      : '';
+    const error = new Error(`Bench query worker pool closed before dispatch.${backend}${queryText}`);
+    error.code = 'ERR_QUERY_WORKER_POOL_CLOSED';
+    error.meta = {
+      backend: meta?.backend || null,
+      query: meta?.query || null
+    };
+    return error;
+  };
 
   const resolveGroupKey = (meta = null) => {
     if (!normalizedSizeByBackend) return 'default';
@@ -672,6 +730,13 @@ export const createSearchWorkerPool = ({
     pumping = true;
     try {
       while (queue.length) {
+        if (closed) {
+          while (queue.length) {
+            const request = queue.shift();
+            request?.reject(createPoolClosedError(request?.meta));
+          }
+          break;
+        }
         let dispatched = false;
         for (let index = 0; index < queue.length; index += 1) {
           const request = queue[index];
@@ -696,11 +761,20 @@ export const createSearchWorkerPool = ({
   };
 
   const run = (args, meta = null) => new Promise((resolve, reject) => {
+    if (closed) {
+      reject(createPoolClosedError(meta));
+      return;
+    }
     queue.push({ args, meta, resolve, reject });
     void pump();
   });
 
   const close = async () => {
+    closed = true;
+    while (queue.length) {
+      const request = queue.shift();
+      request?.reject(createPoolClosedError(request?.meta));
+    }
     const allWorkers = Object.values(workerGroups).flat();
     await Promise.all(allWorkers.map((worker) => worker.close()));
   };
