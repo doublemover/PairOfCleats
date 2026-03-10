@@ -147,10 +147,7 @@ const generatedFromDistPolicy = buildContext.classifyUnresolved({
   spec: '../dist/runtime/app.js',
   rawSpec: '../dist/runtime/app.js'
 });
-assert.equal(generatedFromDistPolicy?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
-assert.equal(generatedFromDistPolicy?.pluginId, 'generated-artifacts');
-assert.equal(generatedFromDistPolicy?.generatedMatch?.source, 'generated-policy');
-assert.equal(generatedFromDistPolicy?.generatedMatch?.classification, 'generated');
+assert.equal(generatedFromDistPolicy, null);
 
 const generatedFromNodeModulesPolicy = buildContext.classifyUnresolved({
   importerRel: 'src/main.ts',

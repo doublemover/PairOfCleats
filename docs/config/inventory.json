@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-01T22:08:05.934Z",
+  "generatedAt": "2026-03-10T00:33:50.737Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2228,11 +2228,12 @@
         "tests/storage/sqlite/bundle-missing.test.js",
         "tests/storage/sqlite/compact.test.js",
         "tests/storage/sqlite/index-state-fail-closed.test.js",
-        "tests/storage/sqlite/missing-dep.test.js",
         "tests/storage/sqlite/sidecar-cleanup.test.js",
         "tests/storage/vector-extension/missing.test.js",
         "tests/tooling/dict-utils/paths-builds-root.test.js",
         "tests/tooling/dict-utils/repo-current-case-insensitive.test.js",
+        "tests/tooling/doctor/command-profile-probe-cache-disabled.test.js",
+        "tests/tooling/doctor/command-profile-tooling-dir-precedence.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
         "tests/tooling/index-stats/explicit-repo-path.test.js",
         "tests/tooling/install/bootstrap-json-output.test.js",
@@ -2392,7 +2393,6 @@
         "tests/storage/sqlite/bundle-missing.test.js",
         "tests/storage/sqlite/compact.test.js",
         "tests/storage/sqlite/index-state-fail-closed.test.js",
-        "tests/storage/sqlite/missing-dep.test.js",
         "tests/storage/sqlite/sidecar-cleanup.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
         "tests/tooling/reports/summary/summary-report-helpers.js",
@@ -3294,6 +3294,8 @@
         "tests/storage/sqlite/build-indexes.test.js",
         "tests/tooling/ci/lsp-embeddings-gates-testing-env.test.js",
         "tests/tooling/ci/run-suite-path-normalization.test.js",
+        "tests/tooling/doctor/command-profile-probe-cache-disabled.test.js",
+        "tests/tooling/doctor/command-profile-tooling-dir-precedence.test.js",
         "tools/bench/ab-sweep.js",
         "tools/bench/index/scheduler-store-format.js",
         "tools/bench/language/logging.js",
@@ -3471,6 +3473,7 @@
         "tests/shared/encoding/fallback.test.js",
         "tests/storage/sqlite/auto-backend.test.js",
         "tests/storage/sqlite/incremental-no-change.test.js",
+        "tests/storage/sqlite/missing-dep.test.js",
         "tools/ci/run-suite.js",
         "tools/config/inventory.js"
       ]

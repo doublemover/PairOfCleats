@@ -74,10 +74,7 @@ const VENDOR_PATH_PARTS = Object.freeze([
 const GENERATED_PATH_PARTS = Object.freeze([
   '/__generated__/',
   '/generated/',
-  '/gen/',
-  '/dist/',
-  '/out/',
-  '/build/'
+  '/gen/'
 ]);
 
 const GENERATED_FILENAME_PATTERNS = Object.freeze([

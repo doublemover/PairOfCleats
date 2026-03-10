@@ -210,7 +210,12 @@ export async function discoverEntries({
         const relPosix = toPosix(path.relative(root, entryPath));
         if (!relPosix || relPosix === '.' || isRelativePathEscape(relPosix)) return false;
         if (path.isAbsolute(relPosix)) return false;
-        return ignoreMatcher.ignores(relPosix);
+        if (!ignoreMatcher.ignores(relPosix)) return false;
+        if (typeof ignoreMatcher.shouldTraverseIgnoredDirectory === 'function'
+          && ignoreMatcher.shouldTraverseIgnoredDirectory(relPosix)) {
+          return false;
+        }
+        return true;
       });
     }
     return crawler.crawl(root).withPromise();

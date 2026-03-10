@@ -29,6 +29,7 @@ export async function buildIgnoreMatcher({ root, userConfig, generatedPolicy = n
   };
 
   const ignoreMatcher = ignore();
+  const traversalUnignorePrefixes = new Set();
   if (config.useDefaultSkips) {
     const skipDirs = Array.from(SKIP_DIRS).filter((dir) => !GENERATED_POLICY_DEFAULT_SKIP_DIRS.has(dir));
     const skipGlobs = Array.from(SKIP_GLOBS).filter((glob) => !GENERATED_POLICY_DEFAULT_SKIP_GLOBS.has(glob));
@@ -121,6 +122,7 @@ export async function buildIgnoreMatcher({ root, userConfig, generatedPolicy = n
           const part = parts[i];
           if (!part || hasGlob(part)) break;
           current = current ? `${current}/${part}` : part;
+          traversalUnignorePrefixes.add(`${current}/`);
           addPattern(`!${current}/`);
           if (!reignored.has(current) && ignoreMatcher.ignores(`${current}/`)) {
             addPattern(`${current}/**`);
@@ -140,6 +142,18 @@ export async function buildIgnoreMatcher({ root, userConfig, generatedPolicy = n
     const includeUnignore = generatedIncludePatterns.map((pattern) => `!${pattern}`);
     ignoreMatcher.add(expandExtraIgnore(includeUnignore));
   }
+
+  ignoreMatcher.shouldTraverseIgnoredDirectory = (relPath) => {
+    const normalized = toPosix(String(relPath || '')).replace(/^\/+/, '').replace(/\/+$/, '');
+    if (!normalized) return false;
+    const bounded = `${normalized}/`;
+    for (const prefix of traversalUnignorePrefixes) {
+      if (prefix === bounded || prefix.startsWith(bounded)) {
+        return true;
+      }
+    }
+    return false;
+  };
 
   return { ignoreMatcher, config, ignoreFiles: loadedFiles, warnings };
 }

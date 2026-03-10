@@ -307,6 +307,9 @@ export async function resolvePreReadSkip({
   if (extractedProsePrefilterSkip) {
     return extractedProsePrefilterSkip;
   }
+  if (isGeneratedDocsetPath(abs)) {
+    return { reason: 'generated-docset' };
+  }
   const scanState = fileEntry && typeof fileEntry === 'object' ? fileEntry.scan : null;
   const baselinePolicyDecision = isRecordEntry
     ? null
@@ -335,9 +338,6 @@ export async function resolvePreReadSkip({
       ...(resolvedReason === 'oversize' ? { stage: 'pre-read' } : {}),
       ...extra
     };
-  }
-  if (isGeneratedDocsetPath(abs)) {
-    return { reason: 'generated-docset' };
   }
   if (!isRecordEntry
     && !bypassBinaryMinifiedSkip
