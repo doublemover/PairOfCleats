@@ -134,6 +134,7 @@ indexing/callsite-id/zero-based
 indexing/identity/chunkuid-collision-disambiguation
 indexing/state/patch-queue-lock-unavailable-best-effort-retry
 indexing/state/patch-queue-lock-unavailable-mixed-durability
+indexing/state/patch-queue-lock-unavailable-owner-attribution
 indexing/tree-sitter/worker-prune-bounds
 retrieval/graph/context-pack-determinism
 shared/concurrency/run-with-queue-backpressure-on-reject

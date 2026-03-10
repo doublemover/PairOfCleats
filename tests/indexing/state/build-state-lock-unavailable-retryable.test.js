@@ -42,6 +42,9 @@ try {
   assert.equal(result?.retryable, true);
   assert.equal(result?.buildState?.retryable, true);
   assert.equal(result?.buildState?.reason, 'lock-unavailable');
+  assert.equal(result?.buildState?.lockOwner?.pid, process.pid);
+  assert.equal(result?.buildState?.lockOwner?.scope, 'build-state-lock-unavailable-test');
+  assert.equal(result?.lockOwner?.pid, process.pid);
 } finally {
   await heldLock.release({ force: true });
 }

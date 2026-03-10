@@ -18,6 +18,24 @@ const PATCH_WAITER_TIMEOUT_MS_DEFAULT = 30000;
 const LOCK_UNAVAILABLE_RETRY_LOG_INTERVAL_MS = 5000;
 const BUILD_STATE_LOCK_UNAVAILABLE_CODE = 'ERR_BUILD_STATE_LOCK_UNAVAILABLE';
 
+const formatLockOwnerForLog = (owner) => {
+  if (!owner || typeof owner !== 'object') return null;
+  const parts = [];
+  if (Number.isFinite(Number(owner.pid)) && Number(owner.pid) > 0) {
+    parts.push(`pid=${Math.floor(Number(owner.pid))}`);
+  }
+  if (typeof owner.lockId === 'string' && owner.lockId.trim()) {
+    parts.push(`lockId=${owner.lockId.trim()}`);
+  }
+  if (typeof owner.scope === 'string' && owner.scope.trim()) {
+    parts.push(`scope=${owner.scope.trim()}`);
+  }
+  if (typeof owner.startedAt === 'string' && owner.startedAt.trim()) {
+    parts.push(`startedAt=${owner.startedAt.trim()}`);
+  }
+  return parts.length ? parts.join(', ') : null;
+};
+
 export const PATCH_QUEUE_WAIT_STATUS = Object.freeze({
   FLUSHED: 'flushed',
   TIMED_OUT: 'timed_out'
@@ -308,13 +326,16 @@ export const createPatchQueue = ({
         const lastLoggedAtMs = Number(lockRetryLogAtMsByBuildRoot.get(key) || 0);
         if (nowMs - lastLoggedAtMs >= LOCK_UNAVAILABLE_RETRY_LOG_INTERVAL_MS) {
           lockRetryLogAtMsByBuildRoot.set(key, nowMs);
+          const lockOwner = err?.buildState?.lockOwner || err?.lockOwner || null;
+          const ownerDetail = formatLockOwnerForLog(lockOwner);
           logLine(
-            `[build_state] state write lock unavailable for ${key}; deferring best-effort patch flush and retrying.`,
+            `[build_state] state write lock unavailable for ${key}${ownerDetail ? ` (owner: ${ownerDetail})` : ''}; deferring best-effort patch flush and retrying.`,
             {
               kind: 'warning',
               buildState: {
                 event: 'patch-lock-unavailable-retry',
-                buildRoot: key
+                buildRoot: key,
+                lockOwner
               }
             }
           );

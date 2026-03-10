@@ -69,45 +69,86 @@ const createBuildStateWriteFailureError = ({
   return err;
 };
 
+const normalizeBuildStateLockOwner = (info, fallbackPid = null) => {
+  if (!info || typeof info !== 'object') {
+    const numericPid = Number(fallbackPid);
+    return Number.isFinite(numericPid) && numericPid > 0 ? { pid: numericPid } : null;
+  }
+  const owner = {};
+  const pid = Number(info.pid ?? fallbackPid);
+  if (Number.isFinite(pid) && pid > 0) owner.pid = pid;
+  if (typeof info.lockId === 'string' && info.lockId.trim()) owner.lockId = info.lockId.trim();
+  if (typeof info.scope === 'string' && info.scope.trim()) owner.scope = info.scope.trim();
+  if (typeof info.startedAt === 'string' && info.startedAt.trim()) owner.startedAt = info.startedAt.trim();
+  return Object.keys(owner).length ? owner : null;
+};
+
+const formatBuildStateLockOwner = (owner) => {
+  if (!owner || typeof owner !== 'object') return null;
+  const parts = [];
+  if (Number.isFinite(Number(owner.pid)) && Number(owner.pid) > 0) {
+    parts.push(`pid=${Math.floor(Number(owner.pid))}`);
+  }
+  if (typeof owner.lockId === 'string' && owner.lockId.trim()) {
+    parts.push(`lockId=${owner.lockId.trim()}`);
+  }
+  if (typeof owner.scope === 'string' && owner.scope.trim()) {
+    parts.push(`scope=${owner.scope.trim()}`);
+  }
+  if (typeof owner.startedAt === 'string' && owner.startedAt.trim()) {
+    parts.push(`startedAt=${owner.startedAt.trim()}`);
+  }
+  return parts.length ? parts.join(', ') : null;
+};
+
 const createBuildStateLockUnavailableError = ({
   buildRoot,
   durabilityClass,
+  owner = null,
   cause = null
 }) => {
   const resolvedBuildRoot = buildRoot ? path.resolve(buildRoot) : null;
+  const normalizedOwner = normalizeBuildStateLockOwner(owner);
+  const ownerDetail = formatBuildStateLockOwner(normalizedOwner);
   const err = new Error(
-    `[build_state] state write lock unavailable${resolvedBuildRoot ? ` for ${resolvedBuildRoot}` : ''}.`,
+    `[build_state] state write lock unavailable${resolvedBuildRoot ? ` for ${resolvedBuildRoot}` : ''}${ownerDetail ? ` (owner: ${ownerDetail})` : ''}.`,
     cause ? { cause } : undefined
   );
   err.code = 'ERR_BUILD_STATE_LOCK_UNAVAILABLE';
   err.buildRoot = resolvedBuildRoot;
   err.retryable = true;
   if (cause?.code) err.causeCode = String(cause.code);
+  err.lockOwner = normalizedOwner;
   err.buildState = {
     retryable: true,
     reason: 'lock-unavailable',
     durabilityClass: resolveBuildStateDurabilityClass(durabilityClass),
-    buildRoot: resolvedBuildRoot
+    buildRoot: resolvedBuildRoot,
+    lockOwner: normalizedOwner
   };
   return err;
 };
 
 const createBuildStateLockUnavailableResult = ({
   buildRoot,
-  durabilityClass
+  durabilityClass,
+  owner = null
 }) => {
   const resolvedBuildRoot = buildRoot ? path.resolve(buildRoot) : null;
+  const normalizedOwner = normalizeBuildStateLockOwner(owner);
   return {
     ok: false,
     deferred: true,
     retryable: true,
     code: 'ERR_BUILD_STATE_LOCK_UNAVAILABLE',
     buildRoot: resolvedBuildRoot,
+    lockOwner: normalizedOwner,
     buildState: {
       retryable: true,
       reason: 'lock-unavailable',
       durabilityClass: resolveBuildStateDurabilityClass(durabilityClass),
-      buildRoot: resolvedBuildRoot
+      buildRoot: resolvedBuildRoot,
+      lockOwner: normalizedOwner
     }
   };
 };
@@ -909,6 +950,7 @@ export const applyStatePatch = async (
   const lockPath = resolveStateWriteLockPath(buildRoot);
   const lockTimeoutMessage = `[build_state] state write lock timeout for ${path.resolve(buildRoot)}`;
   let lock = null;
+  let lastBusyOwner = null;
   try {
     lock = await acquireFileLock({
       lockPath,
@@ -918,13 +960,17 @@ export const applyStatePatch = async (
       forceStaleCleanup: false,
       timeoutBehavior: isRequiredBuildStateDurability(resolvedDurabilityClass) ? 'throw' : 'null',
       timeoutMessage: lockTimeoutMessage,
-      metadata: { scope: 'build-state-write' }
+      metadata: { scope: 'build-state-write' },
+      onBusy: ({ info, pid }) => {
+        lastBusyOwner = normalizeBuildStateLockOwner(info, pid);
+      }
     });
   } catch (error) {
     if (error?.message === lockTimeoutMessage) {
       throw createBuildStateLockUnavailableError({
         buildRoot,
         durabilityClass: resolvedDurabilityClass,
+        owner: lastBusyOwner,
         cause: error
       });
     }
@@ -939,12 +985,14 @@ export const applyStatePatch = async (
     if (!isRequiredBuildStateDurability(resolvedDurabilityClass)) {
       return createBuildStateLockUnavailableResult({
         buildRoot,
-        durabilityClass: resolvedDurabilityClass
+        durabilityClass: resolvedDurabilityClass,
+        owner: lastBusyOwner
       });
     }
     throw createBuildStateLockUnavailableError({
       buildRoot,
-      durabilityClass: resolvedDurabilityClass
+      durabilityClass: resolvedDurabilityClass,
+      owner: lastBusyOwner
     });
   }
   let releaseError = null;

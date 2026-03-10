@@ -39,6 +39,10 @@ try {
       assert.equal(error?.code, 'ERR_BUILD_STATE_LOCK_UNAVAILABLE');
       assert.equal(error?.retryable, true);
       assert.equal(error?.buildState?.durabilityClass, BUILD_STATE_DURABILITY_CLASS.REQUIRED);
+      assert.equal(error?.buildState?.lockOwner?.pid, process.pid);
+      assert.equal(error?.buildState?.lockOwner?.scope, 'build-state-lock-required-test');
+      assert.equal(error?.lockOwner?.pid, process.pid);
+      assert.match(error?.message || '', /owner: pid=/);
       return true;
     },
     'expected required applyStatePatch to surface retryable lock-unavailable error'
