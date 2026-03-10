@@ -1055,6 +1055,7 @@ tooling/lsp/provider-metrics-hover-timeout-rollup
 indexing/tokenization/file-stream-reuse
 perf/bench/language-closeout-exit
 indexing/extracted-prose/low-yield-history-family-priors
+indexing/extracted-prose/low-yield-history-doclike-reinforcement
 indexing/extracted-prose/low-yield-summary-family-evidence
 indexing/extracted-prose/extraction-report
 indexing/extracted-prose/low-yield-history-warmup-reduction
