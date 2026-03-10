@@ -221,6 +221,13 @@ export const resolveIncrementalInputPlan = ({
   denseArtifactsRequired
 }) => {
   const bundleManifest = incrementalData?.manifest || null;
+  const stageNote = bundleManifest?.bundleEmbeddingStage
+    ? ` (stage ${bundleManifest.bundleEmbeddingStage})`
+    : '';
+  const eligibleCoverageFiles = Number(bundleManifest?.bundleEmbeddingCoverageEligible);
+  const coveredCoverageFiles = Number(bundleManifest?.bundleEmbeddingCoverageCovered);
+  const missingCoverageFiles = Number(bundleManifest?.bundleEmbeddingCoverageMissingFiles);
+  const missingCoverageChunks = Number(bundleManifest?.bundleEmbeddingCoverageMissingChunks);
   const recordsIncrementalCapability = mode === 'records'
     ? resolveRecordsIncrementalCapability(bundleManifest)
     : { supported: true, explicit: false, reason: null };
@@ -242,13 +249,41 @@ export const resolveIncrementalInputPlan = ({
     && (
       bundleManifest?.bundleEmbeddings !== true
       || bundleManifest?.bundleEmbeddingCoverageComplete !== true
+      || (
+        Number.isFinite(eligibleCoverageFiles)
+        && Number.isFinite(coveredCoverageFiles)
+        && coveredCoverageFiles < eligibleCoverageFiles
+      )
+      || (
+        Number.isFinite(missingCoverageFiles)
+        && missingCoverageFiles > 0
+      )
+      || (
+        Number.isFinite(missingCoverageChunks)
+        && missingCoverageChunks > 0
+      )
     )) {
-    const stageNote = bundleManifest.bundleEmbeddingStage
-      ? ` (stage ${bundleManifest.bundleEmbeddingStage})`
+    const coverageDetails = [];
+    if (Number.isFinite(eligibleCoverageFiles) || Number.isFinite(coveredCoverageFiles)) {
+      coverageDetails.push(
+        `covered=${Number.isFinite(coveredCoverageFiles) ? coveredCoverageFiles : 0}/${Number.isFinite(eligibleCoverageFiles) ? eligibleCoverageFiles : 0}`
+      );
+    }
+    if (Number.isFinite(missingCoverageFiles) && missingCoverageFiles > 0) {
+      coverageDetails.push(`missingFiles=${missingCoverageFiles}`);
+    }
+    if (Number.isFinite(missingCoverageChunks) && missingCoverageChunks > 0) {
+      coverageDetails.push(`missingChunks=${missingCoverageChunks}`);
+    }
+    const coverageSuffix = coverageDetails.length
+      ? ` (${coverageDetails.join(', ')})`
       : '';
-    bundleSkipReason = bundleManifest?.bundleEmbeddingCoverageComplete === false
-      ? `bundles omit embeddings${stageNote}; coverage incomplete`
-      : `bundles omit embeddings${stageNote}`;
+    bundleSkipReason = bundleManifest?.bundleEmbeddings !== true
+      ? `bundles omit embeddings${stageNote}`
+      : `bundle embedding coverage inconsistent${stageNote}${coverageSuffix}`;
+    if (bundleManifest?.bundleEmbeddingCoverageComplete === false) {
+      bundleSkipReason = `bundles omit embeddings${stageNote}; coverage incomplete${coverageSuffix}`;
+    }
     hasIncrementalBundles = false;
   }
   if (missingBundleCount > 0) {

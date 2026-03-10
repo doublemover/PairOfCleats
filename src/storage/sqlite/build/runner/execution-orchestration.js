@@ -61,8 +61,25 @@ const resolveBundleIntegrityFailureReason = ({
     && Number.isFinite(Number(expectedDenseCount))
     && Number(expectedDenseCount) > 0
   ) {
+    const embedStats = bundleResult?.embedStats || null;
+    const hasPartialDenseCoverage = (
+      Number(embedStats?.filesMissingEmbeddings || 0) > 0
+      || Number(embedStats?.filesPartiallyMissingEmbeddings || 0) > 0
+      || Number(embedStats?.missingChunks || 0) > 0
+      || (
+        Number.isFinite(Number(embedStats?.denseChunks))
+        && Number.isFinite(Number(embedStats?.totalChunks))
+        && Number(embedStats.totalChunks) > 0
+        && Number(embedStats.denseChunks) !== Number(embedStats.totalChunks)
+      )
+      || (
+        Number.isFinite(Number(embedStats?.filesWithChunks))
+        && Number.isFinite(Number(embedStats?.filesWithEmbeddings))
+        && Number(embedStats.filesWithChunks) > Number(embedStats.filesWithEmbeddings)
+      )
+    );
     const missingDense = observedDenseCount === 0
-      || Number(bundleResult?.embedStats?.filesMissingEmbeddings || 0) > 0;
+      || hasPartialDenseCoverage;
     if (missingDense) {
       return 'bundles missing embeddings';
     }
@@ -267,6 +284,10 @@ export const executeSqliteModeBuilds = async ({
         bundleSkipReason
       } = incrementalPlan;
       if (incrementalRequested && emitOutput && !hasIncrementalBundles) {
+        const manifestLine = formatBundleManifest(bundleManifest);
+        if (manifestLine) {
+          log(`[sqlite] bundle manifest ${mode}: ${manifestLine}.`);
+        }
         const skipMessage = bundleSkipReason
           ? `[sqlite] incremental bundles skipped for ${mode}: ${bundleSkipReason}; using artifacts.`
           : '[sqlite] incremental bundles unavailable; using artifacts.';
