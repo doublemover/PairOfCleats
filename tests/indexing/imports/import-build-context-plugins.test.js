@@ -11,7 +11,7 @@ const entries = [
 ];
 
 const buildContext = createImportBuildContext({ entries });
-assert.equal(buildContext.version, 'build-context-v3');
+assert.equal(buildContext.version, 'build-context-v4');
 assert.equal(typeof buildContext.fingerprint, 'string');
 assert.equal(Array.isArray(buildContext.plugins), true);
 assert.deepEqual(
@@ -82,6 +82,22 @@ const configGlobPattern = buildContext.classifyUnresolved({
 assert.equal(configGlobPattern?.reasonCode, 'IMP_U_CONFIG_GLOB_PATTERN');
 assert.equal(configGlobPattern?.pluginId, 'path-context');
 
+const htmlFixtureReference = buildContext.classifyUnresolved({
+  importerRel: 'tests/manual/index.html',
+  spec: '/dist/app.js',
+  rawSpec: '/dist/app.js'
+});
+assert.equal(htmlFixtureReference?.reasonCode, 'IMP_U_FIXTURE_REFERENCE');
+assert.equal(htmlFixtureReference?.pluginId, 'path-context');
+
+const optionalDependency = buildContext.classifyUnresolved({
+  importerRel: 'src/main.ts',
+  spec: 'fsevents',
+  rawSpec: 'fsevents'
+});
+assert.equal(optionalDependency?.reasonCode, 'IMP_U_OPTIONAL_DEPENDENCY');
+assert.equal(optionalDependency?.pluginId, 'path-context');
+
 const nixRootAnchoredPath = buildContext.classifyUnresolved({
   importerRel: 'hardening/profiles/default.nix',
   spec: '/profiles/hardened.nix',
@@ -125,6 +141,16 @@ assert.equal(generatedFromVendorPolicy?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MI
 assert.equal(generatedFromVendorPolicy?.pluginId, 'generated-artifacts');
 assert.equal(generatedFromVendorPolicy?.generatedMatch?.source, 'generated-policy');
 assert.equal(generatedFromVendorPolicy?.generatedMatch?.classification, 'minified');
+
+const generatedFromDistPolicy = buildContext.classifyUnresolved({
+  importerRel: 'src/main.ts',
+  spec: '../dist/runtime/app.js',
+  rawSpec: '../dist/runtime/app.js'
+});
+assert.equal(generatedFromDistPolicy?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
+assert.equal(generatedFromDistPolicy?.pluginId, 'generated-artifacts');
+assert.equal(generatedFromDistPolicy?.generatedMatch?.source, 'generated-policy');
+assert.equal(generatedFromDistPolicy?.generatedMatch?.classification, 'generated');
 
 const generatedFromNodeModulesPolicy = buildContext.classifyUnresolved({
   importerRel: 'src/main.ts',

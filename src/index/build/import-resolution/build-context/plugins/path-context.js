@@ -4,6 +4,8 @@ import { IMPORT_REASON_CODES } from '../../reason-codes.js';
 
 const BAZEL_SOURCE_EXTENSIONS = new Set(['.bazel', '.bzl', '.star']);
 const CONFIG_ROOT_SENTINEL_EXTENSIONS = new Set([
+  '.html',
+  '.htm',
   '.json',
   '.jsonc',
   '.json5',
@@ -16,8 +18,31 @@ const CONFIG_ROOT_SENTINEL_EXTENSIONS = new Set([
   '.conf'
 ]);
 const CONFIG_GLOB_PATTERN_RX = /[*?[\]{}]/;
+const FIXTURE_PATH_PARTS = Object.freeze([
+  '/test/',
+  '/tests/',
+  '/__tests__/',
+  '/fixture/',
+  '/fixtures/',
+  '/__fixtures__/',
+  '/example/',
+  '/examples/',
+  '/manual/',
+  '/sandbox/',
+  '/demo/'
+]);
+const OPTIONAL_DEPENDENCY_SPECS = new Set([
+  'fsevents',
+  '@napi-rs/canvas',
+  'canvas'
+]);
 
 const normalizeImporterRel = (value) => String(value || '').replace(/\\/g, '/').trim();
+const isFixtureSurfacePath = (value) => {
+  const normalized = `/${normalizeImporterRel(value).replace(/^\/+|\/+$/g, '')}/`.toLowerCase();
+  if (normalized === '//') return false;
+  return FIXTURE_PATH_PARTS.some((part) => normalized.includes(part));
+};
 
 const countLeadingParentSegments = (value) => {
   const segments = String(value || '').split('/').filter(Boolean);
@@ -108,12 +133,50 @@ const classifyConfigRootedSpecifier = ({ importerRel = '', spec = '', rawSpec = 
   };
 };
 
+const classifyFixtureReference = ({ importerRel = '', spec = '', rawSpec = '' } = {}) => {
+  if (!isFixtureSurfacePath(importerRel)) return null;
+  const targetSpecifier = String(rawSpec || spec || '').trim();
+  if (!targetSpecifier) return null;
+  if (
+    targetSpecifier.startsWith('/')
+    || targetSpecifier.startsWith('./')
+    || targetSpecifier.startsWith('../')
+  ) {
+    return {
+      reasonCode: IMPORT_REASON_CODES.FIXTURE_REFERENCE,
+      pluginId: 'path-context',
+      match: {
+        matched: true,
+        source: 'plugin',
+        matchType: 'fixture_reference'
+      }
+    };
+  }
+  return null;
+};
+
+const classifyOptionalDependency = ({ spec = '', rawSpec = '' } = {}) => {
+  const targetSpecifier = normalizeImportSpecifier(spec || rawSpec);
+  if (!OPTIONAL_DEPENDENCY_SPECS.has(targetSpecifier)) return null;
+  return {
+    reasonCode: IMPORT_REASON_CODES.OPTIONAL_DEPENDENCY,
+    pluginId: 'path-context',
+    match: {
+      matched: true,
+      source: 'plugin',
+      matchType: 'optional_dependency'
+    }
+  };
+};
+
 export const createPathContextPlugin = () => Object.freeze({
   id: 'path-context',
   priority: 12,
-  fingerprint: 'v2',
+  fingerprint: 'v3',
   classify(input = {}) {
     return classifyBazelRootTraversal(input)
+      || classifyOptionalDependency(input)
+      || classifyFixtureReference(input)
       || classifyConfigRootSentinel(input)
       || classifyConfigRootedSpecifier(input);
   }

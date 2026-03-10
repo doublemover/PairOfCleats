@@ -97,7 +97,7 @@ export const createImportBuildContext = ({
   }
 
   plugins.sort(stablePluginComparator);
-  const fingerprint = `build-context-v3|${buildPluginFingerprint(plugins)}|${buildGeneratedPolicyFingerprint(generatedPolicy)}`;
+  const fingerprint = `build-context-v4|${buildPluginFingerprint(plugins)}|${buildGeneratedPolicyFingerprint(generatedPolicy)}`;
 
   const classifyUnresolved = ({ importerRel = '', spec = '', rawSpec = '' } = {}) => {
     for (const plugin of plugins) {
@@ -124,7 +124,7 @@ export const createImportBuildContext = ({
   };
 
   return Object.freeze({
-    version: 'build-context-v3',
+    version: 'build-context-v4',
     fingerprint,
     plugins: plugins.map((plugin) => ({
       id: plugin.id,
