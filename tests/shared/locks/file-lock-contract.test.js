@@ -316,5 +316,17 @@ assert.ok(
   'expected runtime metrics to expose parent-missing retry counter'
 );
 
+const noWaitParentLockPath = path.join(tempRoot, 'missing-parent-no-wait', 'contract.lock');
+await fsPromises.rm(path.dirname(noWaitParentLockPath), { recursive: true, force: true }).catch(() => {});
+const noWaitParentLock = await acquireFileLock({
+  lockPath: noWaitParentLockPath,
+  waitMs: 0
+});
+assert.ok(
+  noWaitParentLock,
+  'expected immediate lock acquisition to recreate a missing parent directory without requiring wait time'
+);
+await noWaitParentLock.release();
+
 await fsPromises.rm(lockPath, { force: true });
 console.log('file-lock contract ok.');

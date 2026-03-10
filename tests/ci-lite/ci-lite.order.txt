@@ -1058,10 +1058,3 @@ indexing/extracted-prose/low-yield-history-family-priors
 indexing/extracted-prose/low-yield-history-doclike-reinforcement
 indexing/extracted-prose/low-yield-summary-family-evidence
 indexing/extracted-prose/extraction-report
-indexing/extracted-prose/low-yield-history-warmup-reduction
-indexing/extracted-prose/low-yield-history-disable
-storage/sqlite/incremental/bundle-embeddings-stage3-refresh
-storage/sqlite/incremental/bundle-coverage-metadata-fallback
-storage/sqlite/incremental/bundle-partial-chunk-fallback
-storage/sqlite/incremental/bundle-count-mismatch-fallback
-storage/sqlite/incremental/bundle-partial-embeddings-fallback

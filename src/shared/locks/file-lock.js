@@ -460,7 +460,6 @@ export const acquireFileLock = async ({
   });
   const lockSignal = signal && typeof signal.aborted === 'boolean' ? signal : null;
   if (lockSignal?.aborted) throw createAbortError();
-  await fs.mkdir(path.dirname(lockPath), { recursive: true });
   const deadline = resolvedWaitMs > 0 ? Date.now() + resolvedWaitMs : null;
   let parentMissingRetries = 0;
 
@@ -515,6 +514,9 @@ export const acquireFileLock = async ({
         }
         if (!parentReady && resolvedWaitMs <= 0) {
           throw err;
+        }
+        if (parentReady) {
+          continue;
         }
         if (deadline != null && Date.now() < deadline) {
           await sleepWithAbort(resolvedPollMs, lockSignal);
