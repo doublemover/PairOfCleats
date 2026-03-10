@@ -1,5 +1,6 @@
 import { awaitWithKeepalive } from '../../../../../shared/promise-keepalive.js';
 import { createTimeoutError, runWithTimeout } from '../../../../../shared/promise-timeout.js';
+import { composeAbortSignals } from '../../../../../shared/abort.js';
 import { createSeqLedger, STAGE1_SEQ_STATE } from './ordering.js';
 
 const TERMINAL_SUCCESS = STAGE1_SEQ_STATE.TERMINAL_SUCCESS;
@@ -561,14 +562,14 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
   const applyEnvelope = async (envelope, phase = 'ordered_commit') => {
     if (!envelope || envelope.terminalState !== TERMINAL_SUCCESS || !envelope.result) return;
     const orderIndex = envelope.seq;
-    const apply = () => handleFileResult(envelope.result, state, envelope.shardMeta, {
-      signal: flushAbortSignal,
+    const apply = (signal = flushAbortSignal) => handleFileResult(envelope.result, state, envelope.shardMeta, {
+      signal,
       orderIndex,
       phase
     });
     if (flushTimeoutMs > 0) {
       await runWithTimeout(
-        () => apply(),
+        (timeoutSignal) => apply(composeAbortSignals(flushAbortSignal, timeoutSignal)),
         {
           timeoutMs: flushTimeoutMs,
           signal: flushAbortSignal,

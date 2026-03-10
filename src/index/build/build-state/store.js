@@ -71,15 +71,18 @@ const createBuildStateWriteFailureError = ({
 
 const createBuildStateLockUnavailableError = ({
   buildRoot,
-  durabilityClass
+  durabilityClass,
+  cause = null
 }) => {
   const resolvedBuildRoot = buildRoot ? path.resolve(buildRoot) : null;
   const err = new Error(
-    `[build_state] state write lock unavailable${resolvedBuildRoot ? ` for ${resolvedBuildRoot}` : ''}.`
+    `[build_state] state write lock unavailable${resolvedBuildRoot ? ` for ${resolvedBuildRoot}` : ''}.`,
+    cause ? { cause } : undefined
   );
   err.code = 'ERR_BUILD_STATE_LOCK_UNAVAILABLE';
   err.buildRoot = resolvedBuildRoot;
   err.retryable = true;
+  if (cause?.code) err.causeCode = String(cause.code);
   err.buildState = {
     retryable: true,
     reason: 'lock-unavailable',
@@ -88,6 +91,34 @@ const createBuildStateLockUnavailableError = ({
   };
   return err;
 };
+
+const createBuildStateLockUnavailableResult = ({
+  buildRoot,
+  durabilityClass
+}) => {
+  const resolvedBuildRoot = buildRoot ? path.resolve(buildRoot) : null;
+  return {
+    ok: false,
+    deferred: true,
+    retryable: true,
+    code: 'ERR_BUILD_STATE_LOCK_UNAVAILABLE',
+    buildRoot: resolvedBuildRoot,
+    buildState: {
+      retryable: true,
+      reason: 'lock-unavailable',
+      durabilityClass: resolveBuildStateDurabilityClass(durabilityClass),
+      buildRoot: resolvedBuildRoot
+    }
+  };
+};
+
+export const isBuildStateLockUnavailableResult = (value) => (
+  Boolean(value)
+  && typeof value === 'object'
+  && value.code === 'ERR_BUILD_STATE_LOCK_UNAVAILABLE'
+  && value.retryable === true
+  && value.buildState?.reason === 'lock-unavailable'
+);
 
 const isActiveStateKey = (key) => {
   if (!activeStateKeyResolver) return false;
@@ -876,17 +907,41 @@ export const applyStatePatch = async (
   if (!(await buildRootExists(buildRoot))) return null;
   const resolvedDurabilityClass = resolveBuildStateDurabilityClass(durabilityClass);
   const lockPath = resolveStateWriteLockPath(buildRoot);
-  const lock = await acquireFileLock({
-    lockPath,
-    waitMs: isRequiredBuildStateDurability(resolvedDurabilityClass) ? 5000 : 0,
-    pollMs: 100,
-    staleMs: 15 * 60 * 1000,
-    forceStaleCleanup: false,
-    timeoutBehavior: isRequiredBuildStateDurability(resolvedDurabilityClass) ? 'throw' : 'null',
-    timeoutMessage: `[build_state] state write lock timeout for ${path.resolve(buildRoot)}`,
-    metadata: { scope: 'build-state-write' }
-  });
+  const lockTimeoutMessage = `[build_state] state write lock timeout for ${path.resolve(buildRoot)}`;
+  let lock = null;
+  try {
+    lock = await acquireFileLock({
+      lockPath,
+      waitMs: isRequiredBuildStateDurability(resolvedDurabilityClass) ? 5000 : 0,
+      pollMs: 100,
+      staleMs: 15 * 60 * 1000,
+      forceStaleCleanup: false,
+      timeoutBehavior: isRequiredBuildStateDurability(resolvedDurabilityClass) ? 'throw' : 'null',
+      timeoutMessage: lockTimeoutMessage,
+      metadata: { scope: 'build-state-write' }
+    });
+  } catch (error) {
+    if (error?.message === lockTimeoutMessage) {
+      throw createBuildStateLockUnavailableError({
+        buildRoot,
+        durabilityClass: resolvedDurabilityClass,
+        cause: error
+      });
+    }
+    throw createBuildStateWriteFailureError({
+      buildRoot,
+      target: 'state-lock',
+      phase: 'acquire',
+      cause: error
+    });
+  }
   if (!lock) {
+    if (!isRequiredBuildStateDurability(resolvedDurabilityClass)) {
+      return createBuildStateLockUnavailableResult({
+        buildRoot,
+        durabilityClass: resolvedDurabilityClass
+      });
+    }
     throw createBuildStateLockUnavailableError({
       buildRoot,
       durabilityClass: resolvedDurabilityClass

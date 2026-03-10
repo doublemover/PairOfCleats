@@ -8,6 +8,7 @@ import {
   isRequiredBuildStateDurability,
   resolveBuildStateDurabilityClass
 } from './durability.js';
+import { isBuildStateLockUnavailableResult } from './store.js';
 
 const DEFAULT_DEBOUNCE_MS = 250;
 const LONG_DEBOUNCE_MS = 500;
@@ -92,6 +93,7 @@ export const createPatchQueue = ({
       timer: null,
       timerCancel: null,
       createdAtMs,
+      durabilityClass: resolveBuildStateDurabilityClass(durabilityClass),
       resolve: resolvePromise,
       reject: rejectPromise
     };
@@ -130,13 +132,16 @@ export const createPatchQueue = ({
     return createTimedOutOutcome(key, elapsedMs);
   };
 
+  const isLockUnavailable = (err) => (
+    String(err?.code || '') === BUILD_STATE_LOCK_UNAVAILABLE_CODE
+    || err?.buildState?.reason === 'lock-unavailable'
+    || err?.buildState?.retryable === true
+    || isBuildStateLockUnavailableResult(err)
+  );
+
   const isRetryableLockUnavailable = (err, durabilityClass) => (
     !isRequiredBuildStateDurability(durabilityClass)
-    && (
-      String(err?.code || '') === BUILD_STATE_LOCK_UNAVAILABLE_CODE
-      || err?.buildState?.reason === 'lock-unavailable'
-      || err?.buildState?.retryable === true
-    )
+    && isLockUnavailable(err)
   );
 
   const isActiveStateKey = (key) => (
@@ -150,9 +155,15 @@ export const createPatchQueue = ({
     const key = path.resolve(buildRoot);
     const prior = stateQueues.get(key) || Promise.resolve();
     const next = prior.catch(() => {}).then(action);
-    stateQueues.set(key, next.finally(() => {
-      if (stateQueues.get(key) === next) stateQueues.delete(key);
-    }));
+    // This queue is driven by fire-and-forget flushes, so consume the raw
+    // rejection immediately and let explicit awaiters observe it separately.
+    next.catch(() => null);
+    const queued = next
+      .catch(() => null)
+      .finally(() => {
+        if (stateQueues.get(key) === queued) stateQueues.delete(key);
+      });
+    stateQueues.set(key, queued);
     return next;
   };
 
@@ -244,6 +255,9 @@ export const createPatchQueue = ({
         buildRoot,
         () => applyStatePatch(buildRoot, patch, events, { durabilityClass })
       );
+      if (isLockUnavailable(result)) {
+        throw result;
+      }
       waiters.forEach((waiter) => settleWaiter(pending, waiter, 'resolve', createFlushedOutcome(result)));
       if (!pending.patch && !pending.timer && pending.waiters.length === 0) {
         statePending.delete(key);
@@ -251,14 +265,20 @@ export const createPatchQueue = ({
       }
       return result;
     } catch (err) {
-      const retryableLockUnavailable = isRetryableLockUnavailable(err, durabilityClass);
-      if (retryableLockUnavailable) {
-        waiters.forEach((waiter) => settleWaiter(
-          pending,
-          waiter,
-          'resolve',
-          createTimedOutOutcomeForWaiter(buildRoot, waiter)
-        ));
+      const lockUnavailable = isLockUnavailable(err);
+      if (lockUnavailable) {
+        waiters.forEach((waiter) => {
+          if (isRequiredBuildStateDurability(waiter?.durabilityClass)) {
+            settleWaiter(pending, waiter, 'reject', err);
+            return;
+          }
+          settleWaiter(
+            pending,
+            waiter,
+            'resolve',
+            createTimedOutOutcomeForWaiter(buildRoot, waiter)
+          );
+        });
       } else {
         waiters.forEach((waiter) => settleWaiter(pending, waiter, 'reject', err));
       }
@@ -283,7 +303,7 @@ export const createPatchQueue = ({
           label: 'build-state-debounce-retry'
         });
       }
-      if (retryableLockUnavailable) {
+      if (lockUnavailable) {
         const nowMs = Date.now();
         const lastLoggedAtMs = Number(lockRetryLogAtMsByBuildRoot.get(key) || 0);
         if (nowMs - lastLoggedAtMs >= LOCK_UNAVAILABLE_RETRY_LOG_INTERVAL_MS) {

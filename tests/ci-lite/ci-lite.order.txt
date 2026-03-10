@@ -133,6 +133,7 @@ graph/truncation-deterministic
 indexing/callsite-id/zero-based
 indexing/identity/chunkuid-collision-disambiguation
 indexing/state/patch-queue-lock-unavailable-best-effort-retry
+indexing/state/patch-queue-lock-unavailable-mixed-durability
 indexing/tree-sitter/worker-prune-bounds
 retrieval/graph/context-pack-determinism
 shared/concurrency/run-with-queue-backpressure-on-reject
@@ -531,6 +532,7 @@ retrieval/backend/sqlite-fts-eligibility
 indexing/postings/chargram-long-token-does-not-abort
 tooling/logging/output-byte-accounting
 indexing/state/build-state-lock-unavailable-retryable
+indexing/state/build-state-lock-unavailable-required
 indexing/relations/atomicity-rollback
 indexing/chunking/json
 lang/typescript/imports-only
@@ -1054,4 +1056,3 @@ indexing/extracted-prose/low-yield-history-disable
 storage/sqlite/incremental/bundle-embeddings-stage3-refresh
 storage/sqlite/incremental/bundle-count-mismatch-fallback
 storage/sqlite/incremental/bundle-partial-embeddings-fallback
-

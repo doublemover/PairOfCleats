@@ -1,4 +1,4 @@
-import { awaitWithKeepalive } from '../promise-keepalive.js';
+import { awaitWithKeepalive, createPromiseKeepalive } from '../promise-keepalive.js';
 
 /**
  * Track completion promises and surface the first failure deterministically.
@@ -20,11 +20,15 @@ import { awaitWithKeepalive } from '../promise-keepalive.js';
  */
 export const createOrderedCompletionTracker = () => {
   const pending = new Set();
+  const pendingKeepalive = createPromiseKeepalive();
   let firstError = null;
   let drainPromise = null;
   let drainResolve = null;
 
   const resolveDrainIfIdle = () => {
+    if (pending.size === 0) {
+      pendingKeepalive.stop();
+    }
     if (pending.size > 0 || typeof drainResolve !== 'function') return;
     const resolve = drainResolve;
     drainResolve = null;
@@ -41,6 +45,9 @@ export const createOrderedCompletionTracker = () => {
    */
   const track = (completion, onSettled = null) => {
     if (!completion || typeof completion.then !== 'function') return completion;
+    if (pending.size === 0) {
+      pendingKeepalive.start();
+    }
     pending.add(completion);
     const settle = completion
       .catch((err) => {

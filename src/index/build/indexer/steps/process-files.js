@@ -11,7 +11,7 @@ import { countLinesForEntries } from '../../../../shared/file-stats.js';
 import { log, logLine, showProgress } from '../../../../shared/progress.js';
 import { createTimeoutError, runWithTimeout } from '../../../../shared/promise-timeout.js';
 import { coerceNonNegativeInt, coercePositiveInt } from '../../../../shared/number-coerce.js';
-import { coerceAbortSignal, throwIfAborted } from '../../../../shared/abort.js';
+import { coerceAbortSignal, composeAbortSignals, throwIfAborted } from '../../../../shared/abort.js';
 import { compareStrings } from '../../../../shared/sort.js';
 import { toArray } from '../../../../shared/iterables.js';
 import { atomicWriteJson } from '../../../../shared/io/atomic-write.js';
@@ -4462,10 +4462,10 @@ export const processFiles = async ({
         orderedAppender.drain().catch(() => {});
       }
       await runWithTimeout(
-        () => orderedCompletionTracker.wait({
+        (timeoutSignal) => orderedCompletionTracker.wait({
           timeoutMs: effectiveOrderedCompletionTimeoutMs,
           stallPollMs: orderedCompletionStallPollMs,
-          signal: effectiveAbortSignal,
+          signal: composeAbortSignals(effectiveAbortSignal, timeoutSignal),
           onStall: ({ pending, stallCount, elapsedMs }) => {
             const orderedSnapshot = typeof orderedAppender.snapshot === 'function'
               ? orderedAppender.snapshot()

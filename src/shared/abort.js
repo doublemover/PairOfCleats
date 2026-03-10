@@ -95,3 +95,45 @@ export const createAbortControllerWithHandlers = () => {
     onAbort
   };
 };
+
+export const composeAbortSignals = (...inputs) => {
+  const signals = inputs.flat().filter(isAbortSignal);
+  if (signals.length === 0) return null;
+  const alreadyAborted = signals.find((signal) => signal.aborted);
+  if (alreadyAborted) {
+    const controller = new AbortController();
+    try {
+      controller.abort(alreadyAborted.reason);
+    } catch {
+      controller.abort();
+    }
+    return controller.signal;
+  }
+  if (typeof AbortSignal?.any === 'function') {
+    return AbortSignal.any(signals);
+  }
+  const controller = new AbortController();
+  const listeners = new Map();
+  const cleanup = () => {
+    for (const [signal, handler] of listeners.entries()) {
+      try {
+        signal.removeEventListener('abort', handler);
+      } catch {}
+    }
+    listeners.clear();
+  };
+  for (const signal of signals) {
+    const handler = () => {
+      if (controller.signal.aborted) return;
+      cleanup();
+      try {
+        controller.abort(signal.reason);
+      } catch {
+        controller.abort();
+      }
+    };
+    listeners.set(signal, handler);
+    signal.addEventListener('abort', handler, { once: true });
+  }
+  return controller.signal;
+};

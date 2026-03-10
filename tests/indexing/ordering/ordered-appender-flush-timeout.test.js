@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 
 import { buildOrderedAppender } from '../../../src/index/build/indexer/steps/process-files/ordered.js';
 
@@ -53,5 +54,35 @@ assert.equal(finalSnapshot.flushActive, null, 'expected active flush marker to c
 if (typeof releaseBlockedWrite === 'function') {
   releaseBlockedWrite();
 }
+
+const childScript = [
+  "import { buildOrderedAppender } from './src/index/build/indexer/steps/process-files/ordered.js';",
+  'const blockedWrite = new Promise(() => {});',
+  'const appender = buildOrderedAppender(async () => blockedWrite, {}, { expectedCount: 1, startIndex: 0, flushTimeoutMs: 25, stallMs: 0 });',
+  'try {',
+  "  await appender.enqueue(0, { id: 0 });",
+  '} catch {}'
+].join('\n');
+const child = spawn(
+  process.execPath,
+  ['--input-type=module', '-e', childScript],
+  {
+    cwd: process.cwd(),
+    stdio: ['ignore', 'pipe', 'pipe']
+  }
+);
+let childStderr = '';
+child.stderr.on('data', (chunk) => {
+  childStderr += String(chunk);
+});
+const childClose = await new Promise((resolve, reject) => {
+  child.on('error', reject);
+  child.on('close', (exitCode, signal) => resolve({ exitCode, signal }));
+});
+assert.notEqual(
+  childClose.exitCode,
+  13,
+  `expected ordered flush timeout to exit cleanly without leaving apply wait alive; stderr=${childStderr || '<empty>'}`
+);
 
 console.log('ordered appender flush-timeout test passed');
