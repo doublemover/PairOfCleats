@@ -21,15 +21,37 @@ const CONFIG_GLOB_PATTERN_RX = /[*?[\]{}]/;
 const FIXTURE_PATH_PARTS = Object.freeze([
   '/test/',
   '/tests/',
+  '/testing/',
   '/__tests__/',
   '/fixture/',
   '/fixtures/',
   '/__fixtures__/',
+  '/e2e/',
+  '/benchmark/',
+  '/benchmarks/',
   '/example/',
   '/examples/',
   '/manual/',
   '/sandbox/',
-  '/demo/'
+  '/demo/',
+  '/vendor/',
+  '/vendors/',
+  '/third_party/'
+]);
+const BUILD_SCRIPT_PATH_PARTS = Object.freeze([
+  '/bin/',
+  '/script/',
+  '/scripts/',
+  '/tool/',
+  '/tools/'
+]);
+const BUILD_OUTPUT_PATH_PARTS = Object.freeze([
+  '/dist/',
+  '/build/',
+  '/out/',
+  '/generated/',
+  '/coverage/',
+  '/.next/'
 ]);
 const OPTIONAL_DEPENDENCY_SPECS = new Set([
   'fsevents',
@@ -42,6 +64,16 @@ const isFixtureSurfacePath = (value) => {
   const normalized = `/${normalizeImporterRel(value).replace(/^\/+|\/+$/g, '')}/`.toLowerCase();
   if (normalized === '//') return false;
   return FIXTURE_PATH_PARTS.some((part) => normalized.includes(part));
+};
+const isBuildScriptSurfacePath = (value) => {
+  const normalized = `/${normalizeImporterRel(value).replace(/^\/+|\/+$/g, '')}/`.toLowerCase();
+  if (normalized === '//') return false;
+  return BUILD_SCRIPT_PATH_PARTS.some((part) => normalized.includes(part));
+};
+const looksLikeBuildOutputSpecifier = (value) => {
+  const normalized = normalizeImportSpecifier(value).toLowerCase();
+  if (!normalized) return false;
+  return BUILD_OUTPUT_PATH_PARTS.some((part) => normalized.includes(part));
 };
 
 const countLeadingParentSegments = (value) => {
@@ -155,6 +187,22 @@ const classifyFixtureReference = ({ importerRel = '', spec = '', rawSpec = '' } 
   return null;
 };
 
+const classifyBuildOutputReference = ({ importerRel = '', spec = '', rawSpec = '' } = {}) => {
+  if (!isBuildScriptSurfacePath(importerRel)) return null;
+  const targetSpecifier = String(rawSpec || spec || '').trim();
+  if (!targetSpecifier) return null;
+  if (!looksLikeBuildOutputSpecifier(targetSpecifier)) return null;
+  return {
+    reasonCode: IMPORT_REASON_CODES.GENERATED_EXPECTED_MISSING,
+    pluginId: 'path-context',
+    match: {
+      matched: true,
+      source: 'plugin',
+      matchType: 'build_output_script_reference'
+    }
+  };
+};
+
 const classifyOptionalDependency = ({ spec = '', rawSpec = '' } = {}) => {
   const targetSpecifier = normalizeImportSpecifier(spec || rawSpec);
   if (!OPTIONAL_DEPENDENCY_SPECS.has(targetSpecifier)) return null;
@@ -172,10 +220,11 @@ const classifyOptionalDependency = ({ spec = '', rawSpec = '' } = {}) => {
 export const createPathContextPlugin = () => Object.freeze({
   id: 'path-context',
   priority: 12,
-  fingerprint: 'v3',
+  fingerprint: 'v4',
   classify(input = {}) {
     return classifyBazelRootTraversal(input)
       || classifyOptionalDependency(input)
+      || classifyBuildOutputReference(input)
       || classifyFixtureReference(input)
       || classifyConfigRootSentinel(input)
       || classifyConfigRootedSpecifier(input);

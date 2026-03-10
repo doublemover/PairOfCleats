@@ -90,6 +90,22 @@ const htmlFixtureReference = buildContext.classifyUnresolved({
 assert.equal(htmlFixtureReference?.reasonCode, 'IMP_U_FIXTURE_REFERENCE');
 assert.equal(htmlFixtureReference?.pluginId, 'path-context');
 
+const testingHarnessReference = buildContext.classifyUnresolved({
+  importerRel: 'testing/e2e.sh',
+  spec: './testing/e2e/util.sh',
+  rawSpec: './testing/e2e/util.sh'
+});
+assert.equal(testingHarnessReference?.reasonCode, 'IMP_U_FIXTURE_REFERENCE');
+assert.equal(testingHarnessReference?.pluginId, 'path-context');
+
+const vendoredSurfaceReference = buildContext.classifyUnresolved({
+  importerRel: 'src/main/webapp/assets/vendors/ace/ext-beautify.js',
+  spec: '../token_iterator',
+  rawSpec: '../token_iterator'
+});
+assert.equal(vendoredSurfaceReference?.reasonCode, 'IMP_U_FIXTURE_REFERENCE');
+assert.equal(vendoredSurfaceReference?.pluginId, 'path-context');
+
 const optionalDependency = buildContext.classifyUnresolved({
   importerRel: 'src/main.ts',
   spec: 'fsevents',
@@ -148,6 +164,15 @@ const generatedFromDistPolicy = buildContext.classifyUnresolved({
   rawSpec: '../dist/runtime/app.js'
 });
 assert.equal(generatedFromDistPolicy, null);
+
+const generatedFromBuildScript = buildContext.classifyUnresolved({
+  importerRel: 'bin/check-build-version.js',
+  spec: '../dist/node/axios.cjs',
+  rawSpec: '../dist/node/axios.cjs'
+});
+assert.equal(generatedFromBuildScript?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
+assert.equal(generatedFromBuildScript?.pluginId, 'path-context');
+assert.equal(generatedFromBuildScript?.generatedMatch?.matchType, 'build_output_script_reference');
 
 const generatedFromNodeModulesPolicy = buildContext.classifyUnresolved({
   importerRel: 'src/main.ts',
