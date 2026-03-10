@@ -74,6 +74,38 @@ export function languageIdForFileExt(ext) {
 }
 
 const LATENCY_SAMPLE_CAP = 4096;
+const DEFAULT_LSP_POSITION_ENCODINGS = Object.freeze(['utf-16', 'utf-8', 'utf-32']);
+
+const mergeInitializeCapabilities = (value) => {
+  const source = value && typeof value === 'object' ? value : {};
+  const general = source.general && typeof source.general === 'object'
+    ? source.general
+    : {};
+  const textDocument = source.textDocument && typeof source.textDocument === 'object'
+    ? source.textDocument
+    : {};
+  return {
+    ...source,
+    general: {
+      ...general,
+      positionEncodings: Array.isArray(general.positionEncodings) && general.positionEncodings.length
+        ? general.positionEncodings
+        : DEFAULT_LSP_POSITION_ENCODINGS
+    },
+    offsetEncoding: Array.isArray(source.offsetEncoding) && source.offsetEncoding.length
+      ? source.offsetEncoding
+      : DEFAULT_LSP_POSITION_ENCODINGS,
+    textDocument: {
+      ...textDocument,
+      documentSymbol: {
+        hierarchicalDocumentSymbolSupport: true,
+        ...(textDocument.documentSymbol && typeof textDocument.documentSymbol === 'object'
+          ? textDocument.documentSymbol
+          : {})
+      }
+    }
+  };
+};
 
 const pushLatencySample = (samples, value, cap = LATENCY_SAMPLE_CAP) => {
   if (!Array.isArray(samples)) return 0;
@@ -750,7 +782,7 @@ export function createLspClient(options) {
     const result = await request('initialize', {
       processId: process.pid,
       rootUri: rootUri || null,
-      capabilities: capabilities || {},
+      capabilities: mergeInitializeCapabilities(capabilities),
       initializationOptions: initializationOptions || null,
       workspaceFolders: workspaceFolders || (rootUri ? [{ uri: rootUri, name: rootUri.split('/').pop() || 'workspace' }] : null)
     }, { timeoutMs: Number.isFinite(timeoutMs) ? timeoutMs : 10000 });

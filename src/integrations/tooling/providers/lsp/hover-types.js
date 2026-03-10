@@ -1153,6 +1153,7 @@ export const processDocumentTypes = async ({
   hoverMetrics,
   symbolProcessingConcurrency = 8,
   softDeadlineAt = null,
+  positionEncoding = 'utf-16',
   checks,
   checkFlags,
   abortSignal = null
@@ -1253,6 +1254,7 @@ export const processDocumentTypes = async ({
     const openEntry = openDocs.get(doc.virtualPath) || null;
     const lineIndex = openEntry?.lineIndex || lineIndexFactory(openEntry?.text || doc.text || '');
     if (openEntry && !openEntry.lineIndex) openEntry.lineIndex = lineIndex;
+    const docText = openEntry?.text || doc.text || '';
     const hoverRequestByPosition = new Map();
     const signatureHelpRequestByPosition = new Map();
     const definitionRequestByPosition = new Map();
@@ -1456,7 +1458,10 @@ export const processDocumentTypes = async ({
           if (legacyUri) definitionUris.add(String(legacyUri));
           for (const location of locations) {
             if (!definitionUris.has(String(location?.uri || ''))) continue;
-            const locationOffsets = rangeToOffsets(lineIndex, location?.range || null);
+            const locationOffsets = rangeToOffsets(lineIndex, location?.range || null, {
+              text: docText,
+              positionEncoding
+            });
             let candidate = buildSourceSignatureCandidate(
               openEntry?.text || doc.text || '',
               locationOffsets
@@ -1530,7 +1535,10 @@ export const processDocumentTypes = async ({
           if (legacyUri) definitionUris.add(String(legacyUri));
           for (const location of locations) {
             if (!definitionUris.has(String(location?.uri || ''))) continue;
-            const locationOffsets = rangeToOffsets(lineIndex, location?.range || null);
+            const locationOffsets = rangeToOffsets(lineIndex, location?.range || null, {
+              text: docText,
+              positionEncoding
+            });
             let candidate = buildSourceSignatureCandidate(
               openEntry?.text || doc.text || '',
               locationOffsets
@@ -1605,7 +1613,10 @@ export const processDocumentTypes = async ({
           if (legacyUri) referenceUris.add(String(legacyUri));
           for (const location of locations) {
             if (!referenceUris.has(String(location?.uri || ''))) continue;
-            const locationOffsets = rangeToOffsets(lineIndex, location?.range || null);
+            const locationOffsets = rangeToOffsets(lineIndex, location?.range || null, {
+              text: docText,
+              positionEncoding
+            });
             let candidate = buildSourceSignatureCandidate(
               openEntry?.text || doc.text || '',
               locationOffsets
@@ -1644,7 +1655,10 @@ export const processDocumentTypes = async ({
 
     for (const symbol of flattened) {
       throwIfAborted(abortSignal);
-      const offsets = rangeToOffsets(lineIndex, symbol.selectionRange || symbol.range);
+      const offsets = rangeToOffsets(lineIndex, symbol.selectionRange || symbol.range, {
+        text: docText,
+        positionEncoding
+      });
       const target = findTargetForOffsets(docTargetIndex, offsets, symbol.name);
       if (!target) continue;
 

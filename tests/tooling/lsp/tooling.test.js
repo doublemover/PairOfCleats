@@ -146,4 +146,24 @@ const emojiOffsets = rangeToOffsets(emojiIndex, {
 assert.equal(emojiOffsets.start, 3);
 assert.equal(emojiOffsets.end, 4);
 
+const emojiUtf8Offsets = rangeToOffsets(emojiIndex, {
+  start: { line: 0, character: 5 },
+  end: { line: 0, character: 6 }
+}, {
+  text: emojiText,
+  positionEncoding: 'utf-8'
+});
+assert.equal(emojiUtf8Offsets.start, 3);
+assert.equal(emojiUtf8Offsets.end, 4);
+
+const emojiUtf32Offsets = rangeToOffsets(emojiIndex, {
+  start: { line: 0, character: 2 },
+  end: { line: 0, character: 3 }
+}, {
+  text: emojiText,
+  positionEncoding: 'utf-32'
+});
+assert.equal(emojiUtf32Offsets.start, 3);
+assert.equal(emojiUtf32Offsets.end, 4);
+
 console.log('tooling LSP utils test passed');

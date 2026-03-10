@@ -26,4 +26,18 @@ assert.equal(clangdSourcePolicy.skipDocument, false, 'expected clangd to keep so
 assert.equal(clangdSourcePolicy.deprioritized, false, 'expected regular source file to stay preferred');
 assert.equal(clangdSourcePolicy.skipDocumentSymbol, false, 'expected regular source file to remain documentSymbol-eligible');
 
+const clangdVendorPolicy = __classifyLspDocumentPathPolicyForTests({
+  providerId: 'clangd',
+  virtualPath: '.poc-vfs/third_party/abseil/strings/tests/ascii_test.cc'
+});
+assert.equal(clangdVendorPolicy.skipDocument, false, 'expected clangd to keep third_party source file for diagnostics');
+assert.equal(clangdVendorPolicy.skipDocumentSymbol, true, 'expected clangd to skip low-value documentSymbol work in third_party trees');
+
+const goplsVendorPolicy = __classifyLspDocumentPathPolicyForTests({
+  providerId: 'gopls',
+  virtualPath: '.poc-vfs/vendor/example.com/demo/lib.go'
+});
+assert.equal(goplsVendorPolicy.skipDocument, false, 'expected gopls to keep vendored Go source for diagnostics');
+assert.equal(goplsVendorPolicy.skipDocumentSymbol, true, 'expected gopls to skip vendored documentSymbol work');
+
 console.log('LSP path policy test passed');

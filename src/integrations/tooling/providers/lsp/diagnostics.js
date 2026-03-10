@@ -113,7 +113,8 @@ export const shapeDiagnosticsByChunkUid = ({
   maxDiagnosticsPerChunk,
   checks,
   checkFlags,
-  findTargetForOffsets
+  findTargetForOffsets,
+  positionEncoding = 'utf-16'
 }) => {
   const diagnosticsByChunkUid = {};
   const diagnosticsSeenByChunkUid = new Map();
@@ -139,10 +140,14 @@ export const shapeDiagnosticsByChunkUid = ({
     const lineIndex = openEntry?.lineIndex
       || lineIndexFactory(openEntry?.text || doc.text || '');
     if (openEntry && !openEntry.lineIndex) openEntry.lineIndex = lineIndex;
+    const docText = openEntry?.text || doc.text || '';
     const docTargetIndex = targetIndexesByPath.get(doc.virtualPath) || null;
 
     for (const diag of diagnostics) {
-      const offsets = rangeToOffsets(lineIndex, diag.range);
+      const offsets = rangeToOffsets(lineIndex, diag.range, {
+        text: docText,
+        positionEncoding
+      });
       const target = findTargetForOffsets(docTargetIndex, offsets);
       if (!target?.chunkRef?.chunkUid) continue;
 

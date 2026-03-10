@@ -143,4 +143,28 @@ assert.equal(
 );
 assert.match(String(lowValueOnlyPlan.reason || ''), /document-symbol-path-policy/, 'expected no-work reason to reflect documentSymbol path policy');
 
+const lowValueOnlyClangdDocs = [
+  {
+    virtualPath: '.poc-vfs/third_party/fmt/test/format-test.cc',
+    languageId: 'cpp',
+    text: 'int main() { return 0; }\n'
+  },
+  {
+    virtualPath: '.poc-vfs/vendor/demo/lib.cc',
+    languageId: 'cpp',
+    text: 'int lib() { return 1; }\n'
+  }
+];
+const lowValueOnlyClangdTargetsByPath = new Map(
+  lowValueOnlyClangdDocs.map((doc, index) => [doc.virtualPath, [{ id: `clangd-low:${index}` }]])
+);
+const lowValueOnlyClangdPlan = __resolveAdaptiveLspScopePlanForTests({
+  providerId: 'clangd',
+  docs: lowValueOnlyClangdDocs,
+  targetsByPath: lowValueOnlyClangdTargetsByPath
+});
+assert.equal(lowValueOnlyClangdPlan.selectedDocs, 0, 'expected low-value clangd docs to be skipped before documentSymbol work');
+assert.equal(lowValueOnlyClangdPlan.skippedByDocumentSymbolPolicy, 2, 'expected clangd low-value docs to be counted');
+assert.match(String(lowValueOnlyClangdPlan.reason || ''), /document-symbol-path-policy/, 'expected clangd no-work reason to reflect path policy');
+
 console.log('LSP adaptive scope plan test passed');

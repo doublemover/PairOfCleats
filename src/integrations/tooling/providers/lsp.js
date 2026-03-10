@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { buildLineIndex } from '../../../shared/lines.js';
 import { languageIdForFileExt, pathToFileUri } from '../lsp/client.js';
+import { resolveInitializeResultPositionEncoding } from '../lsp/positions.js';
 import { buildVfsUri } from '../lsp/uris.js';
 import { buildIndexSignature } from '../../../retrieval/index-cache.js';
 import {
@@ -656,6 +657,35 @@ export async function collectLspTypes({
   if (!docsToOpen.length) {
     return buildEmptyCollectResult(checks, runtime);
   }
+  const preInitializeAdaptiveScopePlan = __resolveAdaptiveLspScopePlanForTests({
+    providerId: resolvedProviderId,
+    docs: docsToOpen,
+    targetsByPath,
+    clientMetrics: null,
+    documentSymbolConcurrency: resolvedDocumentSymbolConcurrency,
+    hoverMaxPerFile: resolvedHoverMaxPerFile,
+    adaptiveDocScope,
+    adaptiveDegradedHint,
+    adaptiveReasonHint
+  });
+  if (!preInitializeAdaptiveScopePlan.documents.length) {
+    runtime.selection = {
+      providerId: resolvedProviderId,
+      totalDocs: preInitializeAdaptiveScopePlan.totalDocs,
+      selectedDocs: 0,
+      totalTargets: preInitializeAdaptiveScopePlan.totalTargets,
+      selectedTargets: 0,
+      docLimitApplied: preInitializeAdaptiveScopePlan.docLimitApplied,
+      targetLimitApplied: preInitializeAdaptiveScopePlan.targetLimitApplied,
+      degraded: preInitializeAdaptiveScopePlan.degraded,
+      reason: preInitializeAdaptiveScopePlan.reason,
+      hoverMaxPerFile: preInitializeAdaptiveScopePlan.hoverMaxPerFile,
+      skippedByPathPolicy: preInitializeAdaptiveScopePlan.skippedByPathPolicy,
+      skippedByDocumentSymbolPolicy: preInitializeAdaptiveScopePlan.skippedByDocumentSymbolPolicy,
+      interactiveSuppressedDocs: 0
+    };
+    return buildEmptyCollectResult(checks, runtime);
+  }
 
   let coldStartCache = null;
 
@@ -795,6 +825,7 @@ export async function collectLspTypes({
     let effectiveTypeDefinitionEnabled = typeDefinitionEnabled !== false;
     let effectiveReferencesEnabled = referencesEnabled !== false;
     let skipSymbolCollection = false;
+    let positionEncoding = 'utf-16';
     try {
       throwIfAborted(toolingAbortSignal);
       let initializeResult = null;
@@ -813,6 +844,8 @@ export async function collectLspTypes({
           initError.code = 'ERR_TOOLING_LSP_INVALID_INITIALIZE_RESULT';
           throw initError;
         }
+        positionEncoding = resolveInitializeResultPositionEncoding(initializeResult);
+        runtime.positionEncoding = positionEncoding;
         if (typeof lease.markInitialized === 'function') lease.markInitialized(initializeResult);
       } else {
         initializeResult = coerceInitializeResultObject(lease.initializationResult);
@@ -824,6 +857,8 @@ export async function collectLspTypes({
           desyncError.code = LSP_SESSION_DESYNC_ERROR_CODE;
           throw desyncError;
         }
+        positionEncoding = resolveInitializeResultPositionEncoding(initializeResult);
+        runtime.positionEncoding = positionEncoding;
       }
       capabilityMask = probeLspCapabilities(initializeResult);
       runtime.capabilities = capabilityMask;
@@ -1138,6 +1173,7 @@ export async function collectLspTypes({
           documentSymbolControl,
           symbolProcessingConcurrency: resolvedSymbolProcessingConcurrency,
           softDeadlineAt,
+          positionEncoding,
           checks,
           checkFlags,
           abortSignal: toolingAbortSignal
@@ -1200,7 +1236,8 @@ export async function collectLspTypes({
         maxDiagnosticsPerChunk: resolvedMaxDiagnosticsPerChunk,
         checks,
         checkFlags,
-        findTargetForOffsets
+        findTargetForOffsets,
+        positionEncoding
       });
 
       if (coldStartCache?.flush) {

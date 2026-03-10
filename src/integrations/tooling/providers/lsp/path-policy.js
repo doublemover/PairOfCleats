@@ -47,6 +47,7 @@ const classifySharedPathSignals = (virtualPath) => {
   return {
     normalizedRelPath,
     lowered,
+    bounded,
     docsPath: isDocsPath(normalizedRelPath),
     fixturePath: isFixturePath(normalizedRelPath),
     infraPath: isInfraConfigPath(normalizedRelPath),
@@ -66,7 +67,20 @@ const PATH_POLICY_PROFILES = Object.freeze({
       /\/testdata\//i,
       /\/bench(?:marks)?\//i,
       /\/scripts?\//i,
-      /\/tools?\//i
+      /\/tools?\//i,
+      /\/vendor\//i,
+      /\/third_party\//i
+    ]),
+    skipDocumentSymbolPatterns: Object.freeze([
+      /\/docs?\//i,
+      /\/examples?\//i,
+      /\/samples?\//i,
+      /\/tests?\//i,
+      /\/testdata\//i,
+      /\/scripts?\//i,
+      /\/tools?\//i,
+      /\/vendor\//i,
+      /\/third_party\//i
     ]),
     suppressInteractivePatterns: Object.freeze([
       /\/docs?\//i,
@@ -79,6 +93,15 @@ const PATH_POLICY_PROFILES = Object.freeze({
   gopls: Object.freeze({
     allowedExtensions: Object.freeze(['.go']),
     deprioritizePatterns: Object.freeze([
+      /\/docs?\//i,
+      /\/examples?\//i,
+      /\/samples?\//i,
+      /\/tests?\//i,
+      /\/testdata\//i,
+      /\/vendor\//i,
+      /\/third_party\//i
+    ]),
+    skipDocumentSymbolPatterns: Object.freeze([
       /\/docs?\//i,
       /\/examples?\//i,
       /\/samples?\//i,
@@ -109,6 +132,15 @@ const PATH_POLICY_PROFILES = Object.freeze({
       /\/vendor\//i,
       /\/third_party\//i
     ]),
+    skipDocumentSymbolPatterns: Object.freeze([
+      /\/tests?\//i,
+      /\/examples?\//i,
+      /\/samples?\//i,
+      /\/bench(?:marks)?\//i,
+      /\/deps\//i,
+      /\/vendor\//i,
+      /\/third_party\//i
+    ]),
     suppressInteractivePatterns: Object.freeze([
       /\/tests?\//i,
       /\/examples?\//i,
@@ -123,6 +155,11 @@ const PATH_POLICY_PROFILES = Object.freeze({
       /\/examples?\//i,
       /\/samples?\//i
     ]),
+    skipDocumentSymbolPatterns: Object.freeze([
+      /\/tests?\//i,
+      /\/examples?\//i,
+      /\/samples?\//i
+    ]),
     suppressInteractivePatterns: Object.freeze([
       /\/tests?\//i,
       /\/examples?\//i,
@@ -132,6 +169,12 @@ const PATH_POLICY_PROFILES = Object.freeze({
   'lua-language-server': Object.freeze({
     allowedExtensions: Object.freeze(['.lua']),
     deprioritizePatterns: Object.freeze([
+      /\/tests?\//i,
+      /\/spec\//i,
+      /\/examples?\//i,
+      /\/samples?\//i
+    ]),
+    skipDocumentSymbolPatterns: Object.freeze([
       /\/tests?\//i,
       /\/spec\//i,
       /\/examples?\//i,
@@ -152,6 +195,12 @@ const PATH_POLICY_PROFILES = Object.freeze({
       /\/benches\//i,
       /\/testdata\//i
     ]),
+    skipDocumentSymbolPatterns: Object.freeze([
+      /\/tests?\//i,
+      /\/examples?\//i,
+      /\/benches\//i,
+      /\/testdata\//i
+    ]),
     suppressInteractivePatterns: Object.freeze([
       /\/tests?\//i,
       /\/examples?\//i,
@@ -162,6 +211,11 @@ const PATH_POLICY_PROFILES = Object.freeze({
   zls: Object.freeze({
     allowedExtensions: Object.freeze(['.zig']),
     deprioritizePatterns: Object.freeze([
+      /\/tests?\//i,
+      /\/examples?\//i,
+      /\/samples?\//i
+    ]),
+    skipDocumentSymbolPatterns: Object.freeze([
       /\/tests?\//i,
       /\/examples?\//i,
       /\/samples?\//i
@@ -189,13 +243,14 @@ export const classifyLspDocumentPathPolicy = ({ providerId, virtualPath }) => {
     };
   }
   const sharedSignals = classifySharedPathSignals(virtualPath);
-  const normalizedPath = sharedSignals.lowered;
+  const normalizedPath = sharedSignals.bounded;
   const allowedExtensions = new Set(profile.allowedExtensions || []);
   const skipDocument = allowedExtensions.size > 0 && (!extension || !allowedExtensions.has(extension));
   const lowValueDocumentSymbol = !skipDocument && (
     sharedSignals.docsPath
     || sharedSignals.fixturePath
     || sharedSignals.lowValuePath
+    || matchesAny(normalizedPath, profile.skipDocumentSymbolPatterns)
     || matchesAny(normalizedPath, profile.suppressInteractivePatterns)
   );
   const secondaryDocument = !skipDocument && !lowValueDocumentSymbol && (
