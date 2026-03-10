@@ -5,7 +5,7 @@ import { TOKEN_ID_META } from '../../../shared/token-id.js';
 import { atomicWriteText } from '../../../shared/io/atomic-write.js';
 import { DEFAULT_PACKED_BLOCK_SIZE, encodePackedOffsets, packTfPostings } from '../../../shared/packed-postings.js';
 import { encodeVarint64List } from '../../../shared/artifact-io/varint.js';
-import { encodeBinaryRowFrames } from '../../../shared/artifact-io/binary-columnar.js';
+import { writeBinaryRowFrames } from '../../../shared/artifact-io/binary-columnar.js';
 import { removePathWithRetry } from '../../../shared/io/remove-path-with-retry.js';
 import { estimatePostingsBytes, formatBytes } from './helpers.js';
 
@@ -325,15 +325,20 @@ export async function enqueueTokenPostingsArtifacts({
   if (tokenPostingsBinaryColumnar) {
     enqueueWrite(
       binaryTaskLabel,
-      async () => {
-        const rowPayloads = new Array(postings.tokenVocab.length);
-        for (let i = 0; i < postings.tokenVocab.length; i += 1) {
-          rowPayloads[i] = encodePostingPairs(postings.tokenPostingsList[i]);
-        }
-        const frames = encodeBinaryRowFrames(rowPayloads);
-        await atomicWriteText(binaryDataPath, frames.dataBuffer, { newline: false });
-        await atomicWriteText(binaryOffsetsPath, frames.offsetsBuffer, { newline: false });
-        await atomicWriteText(binaryLengthsPath, frames.lengthsBuffer, { newline: false });
+      async ({ setPhase } = {}) => {
+        setPhase?.('materialize:token-postings-binary-columnar');
+        const rowPayloads = (async function* postingRows() {
+          for (let i = 0; i < postings.tokenVocab.length; i += 1) {
+            yield encodePostingPairs(postings.tokenPostingsList[i]);
+          }
+        })();
+        const frames = await writeBinaryRowFrames({
+          rowBuffers: rowPayloads,
+          dataPath: binaryDataPath,
+          offsetsPath: binaryOffsetsPath,
+          lengthsPath: binaryLengthsPath
+        });
+        setPhase?.('publish:token-postings-binary-meta');
         await writeJsonObjectFile(binaryMetaPath, {
           fields: {
             format: 'binary-columnar-v1',
@@ -352,6 +357,12 @@ export async function enqueueTokenPostingsArtifacts({
           },
           atomic: true
         });
+        return {
+          bytes: Number.isFinite(Number(frames?.totalBytes)) ? Number(frames.totalBytes) : null,
+          serializationMs: null,
+          diskMs: null,
+          directFdStreaming: true
+        };
       }
     );
     addPieceFile({

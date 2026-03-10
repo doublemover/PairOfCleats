@@ -824,7 +824,8 @@ export const enqueueChunkMetaArtifacts = async ({
       : null;
     enqueueWrite(
       binaryTaskLabel,
-      async () => {
+      async ({ setPhase } = {}) => {
+        setPhase?.('materialize:chunk-meta-binary-columnar');
         const toAsyncIterable = (rows) => {
           if (rows && typeof rows[Symbol.asyncIterator] === 'function') return rows;
           return (async function* rowIterator() {
@@ -870,6 +871,7 @@ export const enqueueChunkMetaArtifacts = async ({
           offsetsPath: binaryOffsetsPath,
           lengthsPath: binaryLengthsPath
         });
+        setPhase?.('publish:chunk-meta-binary-meta');
         await writeJsonObjectFile(binaryMetaPath, {
           fields: {
             format: 'binary-columnar-v1',

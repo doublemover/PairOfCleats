@@ -5,7 +5,8 @@ import {
   canDispatchArtifactWriteEntry,
   resolveArtifactEffectiveDispatchBytes,
   resolveArtifactExclusivePublisherFamily,
-  resolveArtifactWriteBytesInFlightLimit
+  resolveArtifactWriteBytesInFlightLimit,
+  shouldEagerStartArtifactWrite
 } from '../../../src/index/build/artifacts/write-strategy.js';
 
 assert.equal(
@@ -128,6 +129,32 @@ assert.equal(
   }),
   128 * 1024 * 1024,
   'expected heavy unlabeled writes to inherit the conservative heavy floor'
+);
+assert.equal(
+  shouldEagerStartArtifactWrite({
+    entry: {
+      label: 'chunk_meta.binary-columnar.bundle',
+      estimatedBytes: 128 * 1024 * 1024,
+      lane: 'massive',
+      eagerStart: true
+    },
+    maxBytesInFlight: 768 * 1024 * 1024
+  }),
+  true,
+  'expected moderate massive binary-columnar writes to remain eager-start eligible'
+);
+assert.equal(
+  shouldEagerStartArtifactWrite({
+    entry: {
+      label: 'chunk_meta.binary-columnar.bundle',
+      estimatedBytes: 900 * 1024 * 1024,
+      lane: 'massive',
+      eagerStart: true
+    },
+    maxBytesInFlight: 768 * 1024 * 1024
+  }),
+  false,
+  'expected oversize binary-columnar writes to avoid eager-start overlap'
 );
 
 console.log('artifact huge write policy test passed');

@@ -99,6 +99,7 @@ import {
   resolveArtifactWriteLatencyClass,
   resolveArtifactWriteMemTokens,
   resolveArtifactWriteThroughputProfile,
+  shouldEagerStartArtifactWrite,
   selectMicroWriteBatch,
   selectTailWorkerWriteEntry,
   summarizeArtifactLatencyClasses
@@ -1439,14 +1440,32 @@ export async function writeIndexArtifacts(input) {
       : null;
     const laneHint = typeof meta?.laneHint === 'string' ? meta.laneHint : null;
     const phaseHint = typeof meta?.phaseHint === 'string' ? meta.phaseHint : null;
-    const eagerStart = meta?.eagerStart === true;
+    const eagerStart = shouldEagerStartArtifactWrite({
+      entry: {
+        label,
+        estimatedBytes,
+        lane: laneHint,
+        eagerStart: meta?.eagerStart === true
+      },
+      maxBytesInFlight: hugeWriteInFlightBudgetBytes
+    });
     const trackedJob = typeof job === 'function'
       ? async () => {
+        const setPhase = (phase) => {
+          updateActiveWriteMeta(label, {
+            phase: resolveActiveWritePhaseLabel(label, phase),
+            lane: laneHint || null
+          });
+        };
         updateActiveWriteMeta(label, {
           phase: resolveActiveWritePhaseLabel(label, phaseHint),
           lane: laneHint || null
         });
-        return job();
+        return job({
+          setPhase,
+          label,
+          estimatedBytes
+        });
       }
       : job;
     let prefetched = null;
@@ -2453,7 +2472,8 @@ export async function writeIndexArtifacts(input) {
     if (shouldWriteFieldPostingsBinary) {
       enqueueWrite(
         fieldPostingsBinaryTaskLabel,
-        async () => {
+        async ({ setPhase } = {}) => {
+          setPhase?.('materialize:field-postings-binary-columnar');
           const serializationStartedAt = Date.now();
           const rowPayloads = (async function* binaryRows() {
             for (const field of fieldNames) {
@@ -2477,6 +2497,7 @@ export async function writeIndexArtifacts(input) {
           });
           const serializationMs = Math.max(0, Date.now() - serializationStartedAt);
           const diskStartedAt = Date.now();
+          setPhase?.('publish:field-postings-binary-meta');
           const binaryMetaResult = await writeJsonObjectFile(fieldPostingsBinaryMetaPath, {
             fields: {
               format: 'binary-columnar-v1',

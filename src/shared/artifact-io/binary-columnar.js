@@ -1,8 +1,7 @@
 import fs from 'node:fs/promises';
 
-import { decodeVarint64List, encodeVarint64List } from './varint.js';
+import { decodeVarint64List, encodeVarint64, encodeVarint64List } from './varint.js';
 import { toArray } from '../iterables.js';
-import { atomicWriteText } from '../io/atomic-write.js';
 import { createTempPath, replaceFile } from '../io/atomic-persistence.js';
 
 const OFFSET_BYTES = 8;
@@ -141,6 +140,20 @@ const writeAllToHandle = async (handle, payload, position) => {
   }
 };
 
+const removeTempPathIfPresent = async (targetPath) => {
+  if (!targetPath) return;
+  await fs.rm(targetPath, { force: true }).catch(() => {});
+};
+
+const replaceTempBinarySidecar = async (tempPath, targetPath) => {
+  try {
+    await replaceFile(tempPath, targetPath, { keepBackup: false });
+  } catch (error) {
+    await removeTempPathIfPresent(tempPath);
+    throw error;
+  }
+};
+
 /**
  * Stream row-frame payloads to disk while generating offset/length sidecars.
  * This avoids materializing a full in-memory data buffer for large artifacts.
@@ -160,48 +173,70 @@ export const writeBinaryRowFrames = async ({
     preallocateBytes ?? writeHints?.preallocateBytes,
     MAX_BINARY_COLUMNAR_PREALLOCATE_BYTES
   );
-  const offsets = [];
-  const lengths = [];
   let cursor = 0;
   let count = 0;
   const tempDataPath = createTempPath(dataPath);
-  const handle = await fs.open(tempDataPath, 'wx');
+  const tempOffsetsPath = createTempPath(offsetsPath);
+  const tempLengthsPath = createTempPath(lengthsPath);
+  const [dataHandle, offsetsHandle, lengthsHandle] = await Promise.all([
+    fs.open(tempDataPath, 'wx'),
+    fs.open(tempOffsetsPath, 'wx'),
+    fs.open(tempLengthsPath, 'wx')
+  ]);
   let wrotePayload = false;
   try {
     if (resolvedPreallocateBytes > 0) {
-      await handle.truncate(resolvedPreallocateBytes);
+      await dataHandle.truncate(resolvedPreallocateBytes);
     }
     for await (const row of toAsyncIterable(rowBuffers)) {
       const payload = Buffer.isBuffer(row) ? row : Buffer.from(row || '');
       const rowOffset = cursor;
-      offsets.push(rowOffset);
-      lengths.push(payload.length);
       cursor += payload.length;
       if (payload.length) {
-        await writeAllToHandle(handle, payload, rowOffset);
+        await writeAllToHandle(dataHandle, payload, rowOffset);
       }
+      const offsetBuffer = Buffer.allocUnsafe(OFFSET_BYTES);
+      offsetBuffer.writeBigUInt64LE(BigInt(rowOffset));
+      await writeAllToHandle(offsetsHandle, offsetBuffer, null);
+      await writeAllToHandle(lengthsHandle, encodeVarint64(payload.length), null);
       count += 1;
     }
     if (resolvedPreallocateBytes > 0 && cursor !== resolvedPreallocateBytes) {
-      await handle.truncate(cursor);
+      await dataHandle.truncate(cursor);
     }
     wrotePayload = true;
-    await handle.sync();
+    await Promise.all([
+      dataHandle.sync(),
+      offsetsHandle.sync(),
+      lengthsHandle.sync()
+    ]);
   } finally {
-    await handle.close();
+    await Promise.allSettled([
+      dataHandle.close(),
+      offsetsHandle.close(),
+      lengthsHandle.close()
+    ]);
   }
   if (!wrotePayload) {
-    await fs.rm(tempDataPath, { force: true }).catch(() => {});
+    await Promise.allSettled([
+      removeTempPathIfPresent(tempDataPath),
+      removeTempPathIfPresent(tempOffsetsPath),
+      removeTempPathIfPresent(tempLengthsPath)
+    ]);
     throw new Error('Failed to materialize binary-columnar payload.');
   }
   try {
-    await replaceFile(tempDataPath, dataPath, { keepBackup: false });
+    await replaceTempBinarySidecar(tempOffsetsPath, offsetsPath);
+    await replaceTempBinarySidecar(tempLengthsPath, lengthsPath);
+    await replaceTempBinarySidecar(tempDataPath, dataPath);
   } catch (error) {
-    await fs.rm(tempDataPath, { force: true }).catch(() => {});
+    await Promise.allSettled([
+      removeTempPathIfPresent(tempDataPath),
+      removeTempPathIfPresent(tempOffsetsPath),
+      removeTempPathIfPresent(tempLengthsPath)
+    ]);
     throw error;
   }
-  await atomicWriteText(offsetsPath, encodeU64Offsets(offsets), { newline: false });
-  await atomicWriteText(lengthsPath, encodeVarint64List(lengths), { newline: false });
   return {
     count,
     totalBytes: cursor,

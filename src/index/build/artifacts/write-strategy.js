@@ -59,6 +59,7 @@ const HEAVY_ARTIFACT_LABEL_PATTERNS = Object.freeze([
   /(^|\/)symbol_edges(?:\.|$)/
 ]);
 const LARGE_ARTIFACT_DISPATCH_BYTES = 128 * 1024 * 1024;
+const HUGE_ARTIFACT_EAGER_START_LIMIT_BYTES = 384 * 1024 * 1024;
 
 /**
  * Resolve an upper percentile from sorted millisecond samples.
@@ -161,6 +162,29 @@ export const resolveArtifactWriteBytesInFlightLimit = ({
     : (384 * 1024 * 1024);
   const concurrencyAllowance = Math.max(LARGE_ARTIFACT_DISPATCH_BYTES, concurrency * (96 * 1024 * 1024));
   return Math.max(LARGE_ARTIFACT_DISPATCH_BYTES, Math.min(HUGE_ARTIFACT_WRITE_BYTES, Math.max(throughputWindow, concurrencyAllowance)));
+};
+
+export const shouldEagerStartArtifactWrite = ({
+  entry,
+  maxBytesInFlight = null
+} = {}) => {
+  if (!entry || typeof entry !== 'object' || entry.eagerStart !== true) return false;
+  const entryBytes = resolveArtifactEffectiveDispatchBytes(entry);
+  const entryFamily = resolveArtifactExclusivePublisherFamily(entry.label);
+  if (entryBytes <= 0) return true;
+  if (maxBytesInFlight != null && entryBytes > maxBytesInFlight) {
+    return false;
+  }
+  if (
+    entryFamily
+    && entryBytes >= Math.min(
+      HUGE_ARTIFACT_EAGER_START_LIMIT_BYTES,
+      Math.max(LARGE_ARTIFACT_DISPATCH_BYTES, Math.floor((Number(maxBytesInFlight) || 0) / 2))
+    )
+  ) {
+    return false;
+  }
+  return true;
 };
 
 export const canDispatchArtifactWriteEntry = ({

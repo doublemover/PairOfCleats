@@ -887,6 +887,9 @@ tooling/type-inference/tooling-configured-paths
 indexing/embeddings/build/explicit-index-root-missing-mode-fails-fast
 indexing/postings/backpressure-queue
 shared/artifact-io/bench-contract
+shared/artifact-io/binary-columnar-streaming-frames
+indexing/artifacts/huge-write-policy
+indexing/artifacts/token-postings-binary-columnar-streaming
 indexing/workers/worker-pool
 services/indexer/service-embedding-job-uses-build-root
 indexing/validate/symbol-integrity-strict
