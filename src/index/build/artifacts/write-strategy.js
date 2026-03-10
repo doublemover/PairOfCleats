@@ -224,20 +224,24 @@ export const canDispatchArtifactWriteEntry = ({
   let activePhaseWeightedBytes = 0;
   const activeMaterializingExclusiveFamilies = new Set();
   let activeOversize = false;
+  let blockingActiveCount = 0;
   for (const activeEntry of Array.isArray(activeEntries) ? activeEntries : []) {
     if (!activeEntry || typeof activeEntry !== 'object') continue;
     const activeFamily = resolveArtifactExclusivePublisherFamily(activeEntry.label);
     const activeBytes = resolveArtifactEffectiveDispatchBytes(activeEntry);
     const phaseWeight = resolveArtifactPhaseBudgetWeight(activeEntry.phase);
     const phaseClass = resolveArtifactWritePhaseClass(activeEntry.phase);
-    if (maxBytesInFlight != null && activeBytes > maxBytesInFlight) {
+    if (phaseWeight > 0 && activeBytes > 0) {
+      blockingActiveCount += 1;
+    }
+    if (maxBytesInFlight != null && phaseWeight > 0 && activeBytes > maxBytesInFlight) {
       activeOversize = true;
     }
     if (phaseWeight > 0 && (activeFamily || activeBytes >= LARGE_ARTIFACT_DISPATCH_BYTES)) {
       activePhaseWeightedBytes += Math.floor(activeBytes * phaseWeight);
     }
     if (activeFamily) {
-      if (phaseClass !== 'publish') {
+      if (phaseClass !== 'publish' && phaseClass !== 'closeout') {
         activeMaterializingExclusiveFamilies.add(activeFamily);
       }
     }
@@ -251,10 +255,16 @@ export const canDispatchArtifactWriteEntry = ({
   if (
     maxBytesInFlight != null
     && entryBytes > maxBytesInFlight
-    && Array.isArray(activeEntries)
-    && activeEntries.length > 0
+    && blockingActiveCount > 0
   ) {
     return false;
+  }
+  if (
+    maxBytesInFlight != null
+    && entryBytes > maxBytesInFlight
+    && blockingActiveCount === 0
+  ) {
+    return true;
   }
   if (
     maxBytesInFlight != null

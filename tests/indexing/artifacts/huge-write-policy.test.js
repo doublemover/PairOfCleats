@@ -153,6 +153,22 @@ assert.equal(
 assert.equal(
   canDispatchArtifactWriteEntry({
     entry: {
+      label: 'chunk_meta.binary-columnar.bundle',
+      estimatedBytes: 900 * 1024 * 1024
+    },
+    activeEntries: [{
+      label: 'chunk_meta.binary-columnar.meta.json',
+      estimatedBytes: 4096,
+      phase: 'closeout:chunk-meta-binary-meta'
+    }],
+    maxBytesInFlight: 768 * 1024 * 1024
+  }),
+  true,
+  'expected oversize writes to remain dispatchable when only zero-weight closeout entries are active'
+);
+assert.equal(
+  canDispatchArtifactWriteEntry({
+    entry: {
       label: 'repo_map.json',
       lane: 'heavy'
     },
