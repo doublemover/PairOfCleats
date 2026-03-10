@@ -5,16 +5,17 @@ import { buildEmbeddingIdentity, buildEmbeddingIdentityKey } from '../../../../s
 import { applyTestEnv } from '../../../helpers/test-env.js';
 import { runNode as runNodeSync } from '../../../helpers/run-node.js';
 
-import { resolveTestCachePath } from '../../../helpers/test-cache.js';
-import { rmDirRecursive } from '../../../helpers/temp.js';
+import { prepareIsolatedTestCacheDir } from '../../../helpers/test-cache.js';
 
 
 const root = process.cwd();
-const tempRoot = resolveTestCachePath(root, 'build-embeddings-cache');
+const { dir: tempRoot } = await prepareIsolatedTestCacheDir('build-embeddings-cache', {
+  root,
+  clean: true
+});
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
-await rmDirRecursive(tempRoot, { retries: 8, delayMs: 150 });
 await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 

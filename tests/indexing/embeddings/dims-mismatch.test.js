@@ -4,17 +4,18 @@ import path from 'node:path';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode as runNodeSync } from '../../helpers/run-node.js';
 
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
-import { rmDirRecursive } from '../../helpers/temp.js';
+import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = resolveTestCachePath(root, 'embeddings-dims-mismatch');
+const { dir: tempRoot } = await prepareIsolatedTestCacheDir('embeddings-dims-mismatch', {
+  root,
+  clean: true
+});
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
-await rmDirRecursive(tempRoot, { retries: 8, delayMs: 150 });
 await fsPromises.mkdir(tempRoot, { recursive: true });
 await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 
