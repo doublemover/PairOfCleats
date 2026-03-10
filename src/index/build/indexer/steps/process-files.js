@@ -2189,7 +2189,8 @@ export const processFiles = async ({
       builds: extractedProseYieldProfile.builds,
       observedFiles: extractedProseYieldProfile.totals?.observedFiles || 0,
       yieldedFiles: extractedProseYieldProfile.totals?.yieldedFiles || 0,
-      chunkCount: extractedProseYieldProfile.totals?.chunkCount || 0
+      chunkCount: extractedProseYieldProfile.totals?.chunkCount || 0,
+      families: extractedProseYieldProfile.families || {}
     }
     : null;
   const documentExtractionCacheState = mode === 'extracted-prose'

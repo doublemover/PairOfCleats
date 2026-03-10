@@ -756,6 +756,8 @@ export async function buildDatabaseFromBundles({
       filesWithChunks: 0,
       filesWithEmbeddings: 0,
       filesMissingEmbeddings: 0,
+      filesPartiallyMissingEmbeddings: 0,
+      missingChunks: 0,
       sampleMissingFiles: []
     };
     for (const [file, embedCount] of fileEmbeddingCounts.entries()) {
@@ -765,8 +767,14 @@ export async function buildDatabaseFromBundles({
       }
       if (embedCount > 0) {
         embedStats.filesWithEmbeddings += 1;
+        if (chunkCount > embedCount) {
+          embedStats.filesPartiallyMissingEmbeddings += 1;
+          embedStats.missingChunks += Math.max(0, chunkCount - embedCount);
+          if (embedStats.sampleMissingFiles.length < 3) embedStats.sampleMissingFiles.push(file);
+        }
       } else if (chunkCount > 0) {
         embedStats.filesMissingEmbeddings += 1;
+        embedStats.missingChunks += chunkCount;
         if (embedStats.sampleMissingFiles.length < 3) embedStats.sampleMissingFiles.push(file);
       }
     }

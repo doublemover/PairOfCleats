@@ -67,6 +67,7 @@ assert.equal(fs.existsSync(manifestPath), true, 'expected incremental manifest a
 
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 assert.equal(manifest.bundleEmbeddings, true, 'expected stage3 manifest to advertise bundle embeddings');
+assert.equal(manifest.bundleEmbeddingCoverageComplete, true, 'expected stage3 manifest coverage to start complete');
 
 const [targetFile, targetEntry] = Object.entries(manifest.files || {}).find(([, entry]) => Array.isArray(entry?.bundles) && entry.bundles.length)
   || [];
@@ -91,6 +92,14 @@ await writeBundleFile({
   }
 });
 
+manifest.bundleEmbeddings = false;
+manifest.bundleEmbeddingCoverageComplete = false;
+manifest.bundleEmbeddingCoverageEligible = 1;
+manifest.bundleEmbeddingCoverageCovered = 0;
+manifest.bundleEmbeddingCoverageMissingFiles = 1;
+manifest.bundleEmbeddingCoverageMissingChunks = mutatedChunks.length;
+fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
 const sqliteLogs = [];
 await runSqliteBuild(repoRoot, {
   mode: 'code',
@@ -103,7 +112,16 @@ await runSqliteBuild(repoRoot, {
 });
 
 const output = getCombinedOutput({ stdout: sqliteLogs.join('\n'), stderr: '' });
-assert.match(output, /incremental bundle build failed for code: bundles missing embeddings; using artifacts\./i);
-assert.match(output, /bundle embeddings code:/i, 'expected bundle embedding coverage diagnostics');
+assert.match(output, /incremental bundles skipped for code: bundles omit embeddings .*coverage incomplete; using artifacts\./i);
+
+const manifestAfter = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+assert.equal(manifestAfter.bundleEmbeddings, false, 'expected partial coverage to fail closed in manifest');
+assert.equal(manifestAfter.bundleEmbeddingCoverageComplete, false, 'expected manifest to record incomplete embedding coverage');
+assert.equal(manifestAfter.bundleEmbeddingCoverageMissingFiles, 1, 'expected manifest to record missing file coverage');
+assert.equal(
+  manifestAfter.bundleEmbeddingCoverageMissingChunks,
+  mutatedChunks.length,
+  'expected manifest to record missing chunk coverage'
+);
 
 console.log('sqlite incremental partial bundle embeddings fallback test passed');

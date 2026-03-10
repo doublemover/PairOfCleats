@@ -116,6 +116,7 @@ import {
 } from '../../../src/index/chunking/formats/document-common.js';
 import {
   buildExtractedProseLowYieldBailoutState,
+  buildExtractedProseLowYieldHistory,
   buildExtractedProseLowYieldBailoutSummary,
   observeExtractedProseLowYieldSample
 } from '../../../src/index/build/indexer/steps/process-files/extracted-prose.js';
@@ -148,6 +149,23 @@ const DEFAULT_EMBEDDINGS_TEXT_REUSE_MAX_TEXT_CHARS = 32768;
 const DEFAULT_EMBEDDINGS_IN_FLIGHT_CLAIMS_MAX_ENTRIES = 200000;
 const DEFAULT_EMBEDDINGS_SQLITE_DENSE_WRITE_BATCH_SIZE = 256;
 const DEFAULT_EMBEDDINGS_ADAPTIVE_PARALLELISM_MULTIPLIER = 2;
+const EXTRACTED_PROSE_RUNTIME_STATE_DIR = 'runtime';
+const EXTRACTED_PROSE_YIELD_PROFILE_FILE = 'extracted-prose-yield-profile.json';
+
+const loadPersistedExtractedProseLowYieldHistory = async ({ repoCacheRoot, scheduleIo, warn = () => {} }) => {
+  if (typeof repoCacheRoot !== 'string' || !repoCacheRoot.trim()) return null;
+  const profilePath = path.join(repoCacheRoot, EXTRACTED_PROSE_RUNTIME_STATE_DIR, EXTRACTED_PROSE_YIELD_PROFILE_FILE);
+  try {
+    const loaded = await scheduleIo(() => fs.readFile(profilePath, 'utf8'));
+    const parsed = JSON.parse(loaded);
+    return buildExtractedProseLowYieldHistory(parsed?.entries?.['extracted-prose'] || null);
+  } catch (err) {
+    if (err?.code !== 'ENOENT') {
+      warn(`[embeddings] extracted-prose: failed to load persisted yield profile: ${err?.message || err}`);
+    }
+    return null;
+  }
+};
 const CHUNK_META_TOO_LARGE_BYTES_PATTERN = /\((\d+)\s*>\s*(\d+)\)/;
 
 /**
@@ -981,6 +999,7 @@ const shouldUseInlineHnswBuilders = ({ enabled, hnswIsolate, samplingActive }) =
  */
 const refreshIncrementalBundlesWithEmbeddings = async ({
   mode,
+  repoCacheRoot,
   incremental,
   chunksByFile,
   mergedVectors,
@@ -1026,6 +1045,9 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
   const resolvedBundleFormat = normalizeBundleFormat(manifest.bundleFormat);
   const scanned = orderedManifestEntries.length;
   const lowYieldConfig = normalizeExtractedProseLowYieldBailoutConfig(lowYieldBailout);
+  const lowYieldHistory = mode === 'extracted-prose'
+    ? await loadPersistedExtractedProseLowYieldHistory({ repoCacheRoot, scheduleIo, warn })
+    : null;
   const lowYieldState = buildExtractedProseLowYieldBailoutState({
     mode,
     runtime: {
@@ -1035,7 +1057,8 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
         }
       }
     },
-    entries: orderedManifestEntries
+    entries: orderedManifestEntries,
+    history: lowYieldHistory
   });
   let lowYieldBailoutSkipped = 0;
   let processedEntries = 0;
@@ -1220,21 +1243,26 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
   }
   const lowYieldBailoutSummary = buildExtractedProseLowYieldBailoutSummary(lowYieldState);
 
+  const missingFiles = Math.max(0, eligible - covered);
+  const missingChunks = Math.max(0, skippedNoMappingChunks);
   const completeCoverage = eligible > 0
-    ? covered === eligible
+    ? covered === eligible && missingChunks === 0
     : skippedInvalidBundle === 0;
   let manifestWritten = false;
-  if (completeCoverage) {
-    manifest.bundleEmbeddings = true;
-    manifest.bundleEmbeddingMode = embeddingMode || manifest.bundleEmbeddingMode || null;
-    manifest.bundleEmbeddingIdentityKey = embeddingIdentityKey || manifest.bundleEmbeddingIdentityKey || null;
-    manifest.bundleEmbeddingStage = 'stage3';
-    manifestWritten = await scheduleIo(
-      () => writeIncrementalManifest(incremental.manifestPath, manifest)
-    );
-    if (!manifestWritten) {
-      warn(`[embeddings] ${mode}: failed to persist incremental manifest embedding metadata.`);
-    }
+  manifest.bundleEmbeddings = completeCoverage;
+  manifest.bundleEmbeddingMode = embeddingMode || null;
+  manifest.bundleEmbeddingIdentityKey = embeddingIdentityKey || null;
+  manifest.bundleEmbeddingStage = 'stage3';
+  manifest.bundleEmbeddingCoverageEligible = eligible;
+  manifest.bundleEmbeddingCoverageCovered = covered;
+  manifest.bundleEmbeddingCoverageMissingFiles = missingFiles;
+  manifest.bundleEmbeddingCoverageMissingChunks = missingChunks;
+  manifest.bundleEmbeddingCoverageComplete = completeCoverage;
+  manifestWritten = await scheduleIo(
+    () => writeIncrementalManifest(incremental.manifestPath, manifest)
+  );
+  if (!manifestWritten) {
+    warn(`[embeddings] ${mode}: failed to persist incremental manifest embedding metadata.`);
   }
 
   if (scanned > 0) {
@@ -3878,6 +3906,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
         bundleTask.set(0, 1, { message: 'refreshing incremental bundles' });
         const refreshedBundles = await refreshIncrementalBundlesWithEmbeddings({
           mode,
+          repoCacheRoot,
           incremental,
           chunksByFile: sampledChunksByFile,
           mergedVectors,

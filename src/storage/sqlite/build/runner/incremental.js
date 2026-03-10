@@ -239,11 +239,16 @@ export const resolveIncrementalInputPlan = ({
   }
   if (hasIncrementalBundles
     && denseArtifactsRequired
-    && bundleManifest?.bundleEmbeddings !== true) {
+    && (
+      bundleManifest?.bundleEmbeddings !== true
+      || bundleManifest?.bundleEmbeddingCoverageComplete !== true
+    )) {
     const stageNote = bundleManifest.bundleEmbeddingStage
       ? ` (stage ${bundleManifest.bundleEmbeddingStage})`
       : '';
-    bundleSkipReason = `bundles omit embeddings${stageNote}`;
+    bundleSkipReason = bundleManifest?.bundleEmbeddingCoverageComplete === false
+      ? `bundles omit embeddings${stageNote}; coverage incomplete`
+      : `bundles omit embeddings${stageNote}`;
     hasIncrementalBundles = false;
   }
   if (missingBundleCount > 0) {
