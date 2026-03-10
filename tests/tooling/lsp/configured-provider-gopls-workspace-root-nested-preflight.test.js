@@ -10,6 +10,12 @@ const tempRoot = resolveTestCachePath(root, `configured-lsp-gopls-workspace-root
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'svc', 'src'), { recursive: true });
 await fs.writeFile(path.join(tempRoot, 'svc', 'go.mod'), 'module example.com/svc\n\ngo 1.22\n', 'utf8');
+const goProbeOkScriptPath = path.join(tempRoot, 'go-probe-ok.js');
+await fs.writeFile(
+  goProbeOkScriptPath,
+  "process.stdout.write('example.com/svc\\n');\n",
+  'utf8'
+);
 
 const serverPath = path.join(root, 'tests', 'fixtures', 'lsp', 'stub-lsp-server.js');
 const docText = 'package main\nfunc Add(a int, b int) int { return a + b }\n';
@@ -30,7 +36,10 @@ const result = await runToolingProviders({
         args: [serverPath, '--mode', 'go'],
         languages: ['go'],
         uriScheme: 'poc-vfs',
-        preflightRuntimeRequirements: []
+        preflightRuntimeRequirements: [],
+        goWorkspaceModuleCmd: process.execPath,
+        goWorkspaceModuleArgs: [goProbeOkScriptPath],
+        goWorkspaceWarmup: false
       }]
     }
   },

@@ -3322,12 +3322,52 @@ export async function writeIndexArtifacts(input) {
         });
       }
     };
+    const getSchedulerWriteQueueSnapshot = () => {
+      const schedulerStats = scheduler?.stats ? scheduler.stats() : null;
+      const schedulerWriteStats = schedulerStats?.queues?.[SCHEDULER_QUEUE_NAMES.stage2Write] || null;
+      return {
+        pending: Number(schedulerWriteStats?.pending),
+        running: Number(schedulerWriteStats?.running),
+        oldestWaitMs: Number(schedulerWriteStats?.oldestWaitMs),
+        waitP95Ms: Number(schedulerWriteStats?.waitP95Ms)
+      };
+    };
+    const schedulerWriteQueueHasWork = (snapshot = null) => {
+      const effectiveSnapshot = snapshot || getSchedulerWriteQueueSnapshot();
+      return (
+        Number.isFinite(effectiveSnapshot.pending) && effectiveSnapshot.pending > 0
+      ) || (
+        Number.isFinite(effectiveSnapshot.running) && effectiveSnapshot.running > 0
+      );
+    };
+    const waitForSchedulerWriteQueueDrain = async ({
+      timeoutMs = 30_000,
+      pollMs = 10,
+      reason = 'artifact write closeout'
+    } = {}) => {
+      const startedAt = Date.now();
+      let snapshot = getSchedulerWriteQueueSnapshot();
+      while (schedulerWriteQueueHasWork(snapshot)) {
+        if ((Date.now() - startedAt) >= timeoutMs) {
+          throw new Error(
+            `[artifact-write] scheduler queue did not drain during ${reason} ` +
+            `(pending=${Number.isFinite(snapshot.pending) ? snapshot.pending : 'n/a'}, ` +
+            `running=${Number.isFinite(snapshot.running) ? snapshot.running : 'n/a'}, ` +
+            `oldestWaitMs=${Number.isFinite(snapshot.oldestWaitMs) ? snapshot.oldestWaitMs : 'n/a'}, ` +
+            `waitP95Ms=${Number.isFinite(snapshot.waitP95Ms) ? snapshot.waitP95Ms : 'n/a'})`
+          );
+        }
+        await new Promise((resolve) => setTimeout(resolve, pollMs));
+        snapshot = getSchedulerWriteQueueSnapshot();
+      }
+    };
     /**
      * Drive lane dispatch loop until all writes settle or a fatal write error occurs.
      *
-     * @returns {void}
+     * @returns {number}
      */
     const dispatchWrites = () => {
+      let dispatchedCount = 0;
       observeAdaptiveWriteConcurrency();
       while (!fatalWriteError) {
         const activeConcurrency = getActiveWriteConcurrency();
@@ -3374,6 +3414,7 @@ export async function writeIndexArtifacts(input) {
           }
         }
         if (!laneName || dispatchEntries.length === 0) break;
+        dispatchedCount += dispatchEntries.length;
         if (usedTailWorker) {
           tailWorkerActive += 1;
         } else {
@@ -3405,6 +3446,7 @@ export async function writeIndexArtifacts(input) {
           })
           .catch(() => {});
       }
+      return dispatchedCount;
     };
     writeHeartbeat.start();
     try {
@@ -3418,7 +3460,34 @@ export async function writeIndexArtifacts(input) {
       ) {
         if (fatalWriteError) break;
         if (!inFlightWrites.size) {
-          dispatchWrites();
+          const dispatchedCount = dispatchWrites();
+          if (dispatchedCount <= 0) {
+            const pendingWrites = pendingWriteCount();
+            if (pendingWrites <= 0) break;
+            const schedulerSnapshot = getSchedulerWriteQueueSnapshot();
+            if (schedulerWriteQueueHasWork(schedulerSnapshot)) {
+              await waitForSchedulerWriteQueueDrain({
+                timeoutMs: 30_000,
+                pollMs: 10,
+                reason: 'artifact write scheduling gap'
+              });
+              dispatchWrites();
+              continue;
+            }
+            const stalledPreview = [
+              ...laneQueues.ultraLight,
+              ...laneQueues.massive,
+              ...laneQueues.light,
+              ...laneQueues.heavy
+            ]
+              .slice(0, 6)
+              .map((entry) => String(entry?.label || '(unnamed artifact)'))
+              .join(', ');
+            throw new Error(
+              `[artifact-write] queued writes became undispatchable without in-flight work ` +
+              `(pending=${pendingWrites}${stalledPreview ? `, sample=${stalledPreview}` : ''})`
+            );
+          }
           if (!inFlightWrites.size) break;
         }
         let settleWatchdogTimer = null;
@@ -3455,6 +3524,11 @@ export async function writeIndexArtifacts(input) {
       if (fatalWriteError) {
         throw fatalWriteError;
       }
+      await waitForSchedulerWriteQueueDrain({
+        timeoutMs: 30_000,
+        pollMs: 10,
+        reason: 'artifact write final drain'
+      });
     } finally {
       writeHeartbeat.stop();
       activeWriteBytes.clear();

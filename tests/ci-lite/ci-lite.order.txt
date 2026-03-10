@@ -816,6 +816,7 @@ tooling/doctor/command-profile-probe-timeout
 indexing/imports/import-scan-collector-hints
 indexing/imports/import-scan-cache-hints
 indexing/artifacts/index-state-skip-write
+indexing/artifacts/eager-prefetch-drain
 shared/config/auto-policy
 tooling/doctor/runtime-requirements-dedicated
 indexing/validate/index-strict
