@@ -89,23 +89,23 @@ const buildEmptyCollectResult = (checks, runtime = null) => ({
 const ADAPTIVE_LSP_SCOPE_PROFILES = Object.freeze({
   pyright: Object.freeze({
     docThreshold: 256,
-    maxDocs: 384,
-    degradedMaxDocs: 192,
+    maxDocs: 256,
+    degradedMaxDocs: 128,
     targetThreshold: 512,
-    maxTargets: 1024,
-    degradedMaxTargets: 384,
+    maxTargets: 640,
+    degradedMaxTargets: 256,
     degradedDocumentSymbolTimeouts: 2,
     degradedDocumentSymbolP95Ms: 2500,
-    defaultHoverMaxPerFile: 12,
-    degradedHoverMaxPerFile: 8
+    defaultHoverMaxPerFile: 8,
+    degradedHoverMaxPerFile: 4
   }),
   clangd: Object.freeze({
     docThreshold: 96,
-    maxDocs: 160,
-    degradedMaxDocs: 80,
-    targetThreshold: 512,
-    maxTargets: 960,
-    degradedMaxTargets: 320,
+    maxDocs: 96,
+    degradedMaxDocs: 48,
+    targetThreshold: 256,
+    maxTargets: 384,
+    degradedMaxTargets: 160,
     degradedDocumentSymbolTimeouts: 1,
     degradedDocumentSymbolP95Ms: 3500,
     defaultHoverMaxPerFile: 6,
@@ -113,27 +113,27 @@ const ADAPTIVE_LSP_SCOPE_PROFILES = Object.freeze({
   }),
   gopls: Object.freeze({
     docThreshold: 192,
-    maxDocs: 320,
-    degradedMaxDocs: 160,
-    targetThreshold: 384,
-    maxTargets: 768,
-    degradedMaxTargets: 256,
+    maxDocs: 192,
+    degradedMaxDocs: 96,
+    targetThreshold: 256,
+    maxTargets: 384,
+    degradedMaxTargets: 160,
     degradedDocumentSymbolTimeouts: 2,
     degradedDocumentSymbolP95Ms: 2500,
-    defaultHoverMaxPerFile: 10,
-    degradedHoverMaxPerFile: 6
+    defaultHoverMaxPerFile: 8,
+    degradedHoverMaxPerFile: 4
   }),
   sourcekit: Object.freeze({
     docThreshold: 96,
-    maxDocs: 160,
-    degradedMaxDocs: 96,
-    targetThreshold: 192,
-    maxTargets: 320,
-    degradedMaxTargets: 160,
+    maxDocs: 96,
+    degradedMaxDocs: 64,
+    targetThreshold: 160,
+    maxTargets: 192,
+    degradedMaxTargets: 96,
     degradedHoverTimeouts: 2,
     degradedHoverP95Ms: 2000,
-    defaultHoverMaxPerFile: 6,
-    degradedHoverMaxPerFile: 3
+    defaultHoverMaxPerFile: 4,
+    degradedHoverMaxPerFile: 2
   }),
   'yaml-language-server': Object.freeze({
     docThreshold: 64,
@@ -317,6 +317,7 @@ export const __resolveAdaptiveLspScopePlanForTests = ({
     let accumulatedTargets = 0;
     for (const entry of rankedEntries) {
       if (limited.length > 0 && accumulatedTargets >= targetCap) break;
+      if (limited.length > 0 && (accumulatedTargets + entry.targetCount) > targetCap) break;
       limited.push(entry);
       accumulatedTargets += entry.targetCount;
     }

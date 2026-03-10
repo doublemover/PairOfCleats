@@ -1192,24 +1192,6 @@ export const processDocumentTypes = async ({
     return parsed;
   };
 
-  if (!openDocs.has(doc.virtualPath)) {
-    client.notify('textDocument/didOpen', {
-      textDocument: {
-        uri,
-        languageId,
-        version: 1,
-        text: doc.text || ''
-      }
-    });
-    openDocs.set(doc.virtualPath, {
-      uri,
-      legacyUri,
-      lineIndex: null,
-      text: doc.text || ''
-    });
-    openedHere = true;
-  }
-
   try {
     throwIfAborted(abortSignal);
     if (documentSymbolControl?.disabled === true) {
@@ -1217,6 +1199,23 @@ export const processDocumentTypes = async ({
     }
     if (docPathPolicy?.skipDocumentSymbol === true) {
       return { enrichedDelta: 0 };
+    }
+    if (!openDocs.has(doc.virtualPath)) {
+      client.notify('textDocument/didOpen', {
+        textDocument: {
+          uri,
+          languageId,
+          version: 1,
+          text: doc.text || ''
+        }
+      });
+      openDocs.set(doc.virtualPath, {
+        uri,
+        legacyUri,
+        lineIndex: null,
+        text: doc.text || ''
+      });
+      openedHere = true;
     }
     let symbols = null;
     try {

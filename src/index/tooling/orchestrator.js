@@ -917,13 +917,28 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
         observations
       }));
     }
-    const preflightLivePlans = providerExecutions
-      .filter((entry) => !entry.output && entry.provider && entry.providerId)
-      .map((entry) => ({
+    const preflightLivePlans = [];
+    for (const entry of providerExecutions) {
+      if (entry.output || !entry.provider || !entry.providerId) continue;
+      const preflightInputs = typeof entry.provider.preparePreflightInputs === 'function'
+        ? await Promise.resolve(entry.provider.preparePreflightInputs(ctx, {
+          ...inputs,
+          documents: entry.planDocuments,
+          targets: entry.planTargets
+        }))
+        : {
+          documents: entry.planDocuments,
+          targets: entry.planTargets
+        };
+      const preflightDocuments = Array.isArray(preflightInputs?.documents) ? preflightInputs.documents : [];
+      const preflightTargets = Array.isArray(preflightInputs?.targets) ? preflightInputs.targets : [];
+      if (!preflightDocuments.length || !preflightTargets.length) continue;
+      preflightLivePlans.push({
         provider: entry.provider,
-        documents: entry.planDocuments,
-        targets: entry.planTargets
-      }));
+        documents: preflightDocuments,
+        targets: preflightTargets
+      });
+    }
     const providerPreflightWaveToken = kickoffToolingProviderPreflights(ctx, preflightLivePlans);
     let providerOrdinal = 0;
 

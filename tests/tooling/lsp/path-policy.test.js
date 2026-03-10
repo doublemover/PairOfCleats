@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 
-import { __classifyLspDocumentPathPolicyForTests } from '../../../src/integrations/tooling/providers/lsp/path-policy.js';
+import {
+  __classifyLspDocumentPathPolicyForTests,
+  resolveLspStartupDocuments
+} from '../../../src/integrations/tooling/providers/lsp/path-policy.js';
 
 const goplsModulePolicy = __classifyLspDocumentPathPolicyForTests({
   providerId: 'gopls',
@@ -39,5 +42,37 @@ const goplsVendorPolicy = __classifyLspDocumentPathPolicyForTests({
 });
 assert.equal(goplsVendorPolicy.skipDocument, false, 'expected gopls to keep vendored Go source for diagnostics');
 assert.equal(goplsVendorPolicy.skipDocumentSymbol, true, 'expected gopls to skip vendored documentSymbol work');
+
+const goplsToolsPolicy = __classifyLspDocumentPathPolicyForTests({
+  providerId: 'gopls',
+  virtualPath: '.poc-vfs/tools/generator/main.go'
+});
+assert.equal(goplsToolsPolicy.skipDocument, false, 'expected gopls to keep tool Go source for diagnostics');
+assert.equal(goplsToolsPolicy.skipDocumentSymbol, true, 'expected gopls tools path to skip documentSymbol work');
+
+const clangdDocsPolicy = __classifyLspDocumentPathPolicyForTests({
+  providerId: 'clangd',
+  virtualPath: '.poc-vfs/docs/tutorial/example.cc'
+});
+assert.equal(clangdDocsPolicy.skipDocument, false, 'expected clangd to keep docs C++ source for diagnostics');
+assert.equal(clangdDocsPolicy.skipDocumentSymbol, true, 'expected clangd docs path to skip low-value documentSymbol work');
+
+const sourcekitDocsPolicy = __classifyLspDocumentPathPolicyForTests({
+  providerId: 'sourcekit',
+  virtualPath: '.poc-vfs/docs/Demo.swift'
+});
+assert.equal(sourcekitDocsPolicy.skipDocument, false, 'expected sourcekit to keep Swift docs for diagnostics');
+assert.equal(sourcekitDocsPolicy.skipDocumentSymbol, true, 'expected sourcekit docs path to skip low-value documentSymbol work');
+
+const startupSelection = resolveLspStartupDocuments({
+  providerId: 'gopls',
+  captureDiagnostics: false,
+  documents: [
+    { virtualPath: '.poc-vfs/tools/generator/main.go' },
+    { virtualPath: '.poc-vfs/src/main.go' }
+  ]
+});
+assert.equal(startupSelection.documents.length, 1, 'expected startup filter to keep only actionable docs for gopls');
+assert.equal(startupSelection.skippedByDocumentSymbolPolicy, 1, 'expected startup filter to count low-value skips');
 
 console.log('LSP path policy test passed');

@@ -4,7 +4,11 @@ import { PassThrough } from 'node:stream';
 import { buildLineIndex } from '../../../src/shared/lines.js';
 import { createFramedJsonRpcParser, writeFramedJsonRpc } from '../../../src/shared/jsonrpc.js';
 import { flattenSymbols } from '../../../src/integrations/tooling/lsp/symbols.js';
-import { rangeToOffsets } from '../../../src/integrations/tooling/lsp/positions.js';
+import {
+  rangeToOffsets,
+  resolveInitializeResultPositionEncoding,
+  resolveLspPositionEncoding
+} from '../../../src/integrations/tooling/lsp/positions.js';
 
 const messages = [];
 const errors = [];
@@ -165,5 +169,30 @@ const emojiUtf32Offsets = rangeToOffsets(emojiIndex, {
 });
 assert.equal(emojiUtf32Offsets.start, 3);
 assert.equal(emojiUtf32Offsets.end, 4);
+
+const clampedUtf16Offsets = rangeToOffsets(lineIndex, {
+  start: { line: 0, character: 999 },
+  end: { line: 1, character: 999 }
+}, {
+  text
+});
+assert.equal(clampedUtf16Offsets.start, lineIndex[1]);
+assert.equal(clampedUtf16Offsets.end, lineIndex[2]);
+
+assert.equal(
+  resolveLspPositionEncoding(['utf-x-custom', 'utf-8']),
+  'utf-8',
+  'expected array negotiation to skip unknown encodings before choosing a known one'
+);
+assert.equal(
+  resolveInitializeResultPositionEncoding({
+    capabilities: {
+      positionEncoding: 'utf-x-custom',
+      offsetEncoding: ['utf-x-custom', 'utf-32']
+    }
+  }),
+  'utf-32',
+  'expected initialize result fallback to recognized offsetEncoding when positionEncoding is unknown'
+);
 
 console.log('tooling LSP utils test passed');

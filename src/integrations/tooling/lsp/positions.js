@@ -1,11 +1,16 @@
 import { lineColToOffset } from '../../../shared/lines.js';
 
-const normalizePositionEncoding = (value) => {
+const recognizePositionEncoding = (value) => {
   const normalized = String(value || '').trim().toLowerCase();
-  if (!normalized) return 'utf-16';
+  if (!normalized) return null;
   if (normalized === 'utf8' || normalized === 'utf-8') return 'utf-8';
   if (normalized === 'utf32' || normalized === 'utf-32') return 'utf-32';
-  return 'utf-16';
+  if (normalized === 'utf16' || normalized === 'utf-16') return 'utf-16';
+  return null;
+};
+
+const normalizePositionEncoding = (value) => {
+  return recognizePositionEncoding(value) || 'utf-16';
 };
 
 const resolveLineWindow = (lineIndex, text, line) => {
@@ -59,7 +64,12 @@ export function positionToOffset(lineIndex, position, options = {}) {
   const col = Math.max(0, Number(position.character) || 0);
   const positionEncoding = normalizePositionEncoding(options?.positionEncoding);
   if (positionEncoding === 'utf-16') {
-    return lineColToOffset(lineIndex, line, col);
+    const unclamped = lineColToOffset(lineIndex, line, col);
+    if (typeof options?.text !== 'string') {
+      return unclamped;
+    }
+    const lineWindow = resolveLineWindow(lineIndex, options.text, Number(position.line) || 0);
+    return Math.max(lineWindow.start, Math.min(lineWindow.end, unclamped));
   }
   const lineWindow = resolveLineWindow(lineIndex, options?.text || '', Number(position.line) || 0);
   return convertLineCharacterToOffset({
@@ -87,7 +97,7 @@ export function rangeToOffsets(lineIndex, range, options = {}) {
 export const resolveLspPositionEncoding = (value) => {
   if (Array.isArray(value)) {
     for (const entry of value) {
-      const normalized = normalizePositionEncoding(entry);
+      const normalized = recognizePositionEncoding(entry);
       if (normalized) return normalized;
     }
     return 'utf-16';
@@ -97,10 +107,11 @@ export const resolveLspPositionEncoding = (value) => {
 
 export const resolveInitializeResultPositionEncoding = (initializeResult) => {
   const capabilities = initializeResult?.capabilities;
-  return resolveLspPositionEncoding(
-    capabilities?.positionEncoding
-      || capabilities?.offsetEncoding
-      || initializeResult?.positionEncoding
-      || initializeResult?.offsetEncoding
-  );
+  const capabilityPositionEncoding = recognizePositionEncoding(capabilities?.positionEncoding);
+  if (capabilityPositionEncoding) return capabilityPositionEncoding;
+  const capabilityOffsetEncoding = resolveLspPositionEncoding(capabilities?.offsetEncoding);
+  if (capabilityOffsetEncoding) return capabilityOffsetEncoding;
+  const initializePositionEncoding = recognizePositionEncoding(initializeResult?.positionEncoding);
+  if (initializePositionEncoding) return initializePositionEncoding;
+  return resolveLspPositionEncoding(initializeResult?.offsetEncoding);
 };

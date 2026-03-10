@@ -31,8 +31,8 @@ const cappedPlan = __resolveAdaptiveLspScopePlanForTests({
   hoverMaxPerFile: null
 });
 assert.equal(cappedPlan.docLimitApplied, true, 'expected pyright profile to cap large document sets');
-assert.equal(cappedPlan.selectedDocs, 384, 'expected pyright baseline cap to apply');
-assert.equal(cappedPlan.hoverMaxPerFile, 8, 'expected capped plan to tighten hover budget to degraded cap');
+assert.equal(cappedPlan.selectedDocs, 256, 'expected pyright baseline cap to apply');
+assert.equal(cappedPlan.hoverMaxPerFile, 4, 'expected capped plan to tighten hover budget to degraded cap');
 assert.match(String(cappedPlan.reason || ''), /doc-cap/, 'expected capped scope reason to be recorded');
 const retainedHotDocs = cappedPlan.documents.filter((doc) => String(doc.virtualPath).includes('doc-000'));
 assert.ok(retainedHotDocs.length >= 8, 'expected high-target documents to survive the initial cap');
@@ -53,8 +53,8 @@ const degradedPlan = __resolveAdaptiveLspScopePlanForTests({
   hoverMaxPerFile: 20
 });
 assert.equal(degradedPlan.degraded, true, 'expected repeated documentSymbol timeout pressure to degrade scope');
-assert.equal(degradedPlan.selectedDocs, 192, 'expected degraded pyright cap to apply');
-assert.equal(degradedPlan.hoverMaxPerFile, 8, 'expected degraded plan to clamp hover max-per-file');
+assert.equal(degradedPlan.selectedDocs, 128, 'expected degraded pyright cap to apply');
+assert.equal(degradedPlan.hoverMaxPerFile, 4, 'expected degraded plan to clamp hover max-per-file');
 assert.match(String(degradedPlan.reason || ''), /degraded-doc-cap/, 'expected degraded scope reason to be recorded');
 
 const uncappedPlan = __resolveAdaptiveLspScopePlanForTests({
@@ -87,7 +87,7 @@ const targetCappedPlan = __resolveAdaptiveLspScopePlanForTests({
 });
 assert.equal(targetCappedPlan.docLimitApplied, false, 'expected target-heavy clangd input to avoid doc-count capping');
 assert.equal(targetCappedPlan.targetLimitApplied, true, 'expected clangd profile to cap by target count');
-assert.equal(targetCappedPlan.selectedTargets <= 960, true, 'expected clangd target cap to bound selected targets');
+assert.equal(targetCappedPlan.selectedTargets <= 384, true, 'expected clangd target cap to bound selected targets');
 assert.match(String(targetCappedPlan.reason || ''), /target-cap/, 'expected target cap reason to be recorded');
 
 const goMixedDocs = [

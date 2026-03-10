@@ -98,6 +98,9 @@ const PATH_POLICY_PROFILES = Object.freeze({
       /\/samples?\//i,
       /\/tests?\//i,
       /\/testdata\//i,
+      /\/scripts?\//i,
+      /\/tools?\//i,
+      /\/bench(?:marks)?\//i,
       /\/vendor\//i,
       /\/third_party\//i
     ]),
@@ -107,6 +110,9 @@ const PATH_POLICY_PROFILES = Object.freeze({
       /\/samples?\//i,
       /\/tests?\//i,
       /\/testdata\//i,
+      /\/scripts?\//i,
+      /\/tools?\//i,
+      /\/bench(?:marks)?\//i,
       /\/vendor\//i,
       /\/third_party\//i
     ]),
@@ -116,6 +122,9 @@ const PATH_POLICY_PROFILES = Object.freeze({
       /\/samples?\//i,
       /\/tests?\//i,
       /\/testdata\//i,
+      /\/scripts?\//i,
+      /\/tools?\//i,
+      /\/bench(?:marks)?\//i,
       /\/vendor\//i
     ])
   }),
@@ -124,46 +133,64 @@ const PATH_POLICY_PROFILES = Object.freeze({
       '.c', '.h', '.cc', '.cpp', '.cxx', '.hpp', '.hh', '.m', '.mm'
     ]),
     deprioritizePatterns: Object.freeze([
+      /\/docs?\//i,
       /\/tests?\//i,
       /\/examples?\//i,
       /\/samples?\//i,
       /\/bench(?:marks)?\//i,
+      /\/scripts?\//i,
+      /\/tools?\//i,
       /\/deps\//i,
       /\/vendor\//i,
       /\/third_party\//i
     ]),
     skipDocumentSymbolPatterns: Object.freeze([
+      /\/docs?\//i,
       /\/tests?\//i,
       /\/examples?\//i,
       /\/samples?\//i,
       /\/bench(?:marks)?\//i,
+      /\/scripts?\//i,
+      /\/tools?\//i,
       /\/deps\//i,
       /\/vendor\//i,
       /\/third_party\//i
     ]),
     suppressInteractivePatterns: Object.freeze([
+      /\/docs?\//i,
       /\/tests?\//i,
       /\/examples?\//i,
       /\/samples?\//i,
-      /\/bench(?:marks)?\//i
+      /\/bench(?:marks)?\//i,
+      /\/scripts?\//i,
+      /\/tools?\//i
     ])
   }),
   sourcekit: Object.freeze({
     allowedExtensions: Object.freeze(['.swift']),
     deprioritizePatterns: Object.freeze([
+      /\/docs?\//i,
       /\/tests?\//i,
       /\/examples?\//i,
-      /\/samples?\//i
+      /\/samples?\//i,
+      /\/scripts?\//i,
+      /\/tools?\//i
     ]),
     skipDocumentSymbolPatterns: Object.freeze([
+      /\/docs?\//i,
       /\/tests?\//i,
       /\/examples?\//i,
-      /\/samples?\//i
+      /\/samples?\//i,
+      /\/scripts?\//i,
+      /\/tools?\//i
     ]),
     suppressInteractivePatterns: Object.freeze([
+      /\/docs?\//i,
       /\/tests?\//i,
       /\/examples?\//i,
-      /\/samples?\//i
+      /\/samples?\//i,
+      /\/scripts?\//i,
+      /\/tools?\//i
     ])
   }),
   'lua-language-server': Object.freeze({
@@ -287,3 +314,34 @@ export const classifyLspDocumentPathPolicy = ({ providerId, virtualPath }) => {
 };
 
 export const __classifyLspDocumentPathPolicyForTests = classifyLspDocumentPathPolicy;
+
+export const resolveLspStartupDocuments = ({
+  providerId,
+  documents,
+  captureDiagnostics = false
+}) => {
+  const sourceDocuments = Array.isArray(documents) ? documents : [];
+  const selected = [];
+  let skippedByPathPolicy = 0;
+  let skippedByDocumentSymbolPolicy = 0;
+  for (const doc of sourceDocuments) {
+    const pathPolicy = classifyLspDocumentPathPolicy({
+      providerId,
+      virtualPath: doc?.virtualPath || ''
+    });
+    if (pathPolicy.skipDocument) {
+      skippedByPathPolicy += 1;
+      continue;
+    }
+    if (!captureDiagnostics && pathPolicy.skipDocumentSymbol) {
+      skippedByDocumentSymbolPolicy += 1;
+      continue;
+    }
+    selected.push(doc);
+  }
+  return {
+    documents: selected,
+    skippedByPathPolicy,
+    skippedByDocumentSymbolPolicy
+  };
+};

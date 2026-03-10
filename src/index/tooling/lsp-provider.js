@@ -38,6 +38,7 @@ import { resolveRuntimeRequirementsPreflight } from './preflight/runtime-require
 import { resolveGoWorkspaceModulePreflight } from './preflight/go-workspace-preflight.js';
 import { resolveRustWorkspaceMetadataPreflight } from './preflight/rust-workspace-preflight.js';
 import { resolveWorkspaceModelPreflight } from './preflight/workspace-model-preflight.js';
+import { resolveLspStartupDocuments } from '../../integrations/tooling/providers/lsp/path-policy.js';
 
 const normalizeList = (value) => {
   if (Array.isArray(value)) return value.map((entry) => String(entry).trim()).filter(Boolean);
@@ -861,7 +862,13 @@ const createConfiguredLspProvider = (server) => {
       }
       const docs = Array.isArray(inputs?.documents) ? inputs.documents : [];
       const targets = Array.isArray(inputs?.targets) ? inputs.targets : [];
-      if (!docs.length || !targets.length) {
+      const captureDiagnostics = shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds);
+      const startupDocs = resolveLspStartupDocuments({
+        providerId,
+        documents: docs,
+        captureDiagnostics
+      }).documents;
+      if (!startupDocs.length || !targets.length) {
         return {
           provider: { id: providerId, version: this.version, configHash: this.getConfigHash(ctx) },
           byChunkUid: {},
@@ -876,7 +883,7 @@ const createConfiguredLspProvider = (server) => {
           provider: this,
           inputs: {
             ...inputs,
-            documents: docs,
+            documents: startupDocs,
             targets,
             log
           },
@@ -939,7 +946,7 @@ const createConfiguredLspProvider = (server) => {
       return await collectConfiguredOutput({
         ctx,
         provider: this,
-        docs,
+        docs: startupDocs,
         targets,
         requestedKinds: inputs?.kinds,
         log,
@@ -949,6 +956,17 @@ const createConfiguredLspProvider = (server) => {
         preflightState,
         preflightReasonCode
       });
+    },
+    preparePreflightInputs(ctx, inputs) {
+      const documents = Array.isArray(inputs?.documents) ? inputs.documents : [];
+      return {
+        documents: resolveLspStartupDocuments({
+          providerId,
+          documents,
+          captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds)
+        }).documents,
+        targets: Array.isArray(inputs?.targets) ? inputs.targets : []
+      };
     }
   };
   provider.preflightId = server.workspaceMarkerOptions && server.requireWorkspaceModel !== false
