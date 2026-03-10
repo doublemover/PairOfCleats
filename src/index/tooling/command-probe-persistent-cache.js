@@ -63,6 +63,14 @@ const readCommandFingerprint = (commandPath) => {
   }
 };
 
+const normalizeProviderIdForCache = (value) => String(value || '').trim().toLowerCase();
+
+const normalizeArgListForCache = (value) => (
+  Array.isArray(value)
+    ? value.map((entry) => String(entry ?? ''))
+    : []
+);
+
 const resolvePersistentCacheRoot = (toolingConfig) => {
   if (toolingConfig?.cache?.enabled === false) return '';
   const configuredCacheDir = normalizeCacheDir(toolingConfig);
@@ -72,17 +80,26 @@ const resolvePersistentCacheRoot = (toolingConfig) => {
   return path.join(sharedCacheRoot, SHARED_COMMAND_PROBE_CACHE_SUBDIR);
 };
 
-const resolvePersistentCacheDescriptor = ({ command, toolingConfig }) => {
+const resolvePersistentCacheDescriptor = ({
+  providerId = null,
+  command,
+  args = [],
+  toolingConfig
+}) => {
   const cacheDir = resolvePersistentCacheRoot(toolingConfig);
   if (!cacheDir) return null;
   const fingerprint = readCommandFingerprint(command);
   if (!fingerprint) return null;
+  const normalizedProviderId = normalizeProviderIdForCache(providerId);
+  const normalizedArgs = normalizeArgListForCache(args);
   const keyInfo = buildLocalCacheKey({
     namespace: 'tooling-command-probe',
     version: COMMAND_PROBE_CACHE_KEY_VERSION,
     payload: {
       schemaVersion: COMMAND_PROBE_CACHE_SCHEMA_VERSION,
+      providerId: normalizedProviderId,
       commandPath: fingerprint.path,
+      args: normalizedArgs,
       size: fingerprint.size,
       mtimeMs: fingerprint.mtimeMs
     }
@@ -90,7 +107,9 @@ const resolvePersistentCacheDescriptor = ({ command, toolingConfig }) => {
   return {
     cacheDir,
     cachePath: path.join(cacheDir, `${keyInfo.digest}.json`),
-    fingerprint
+    fingerprint,
+    providerId: normalizedProviderId,
+    args: normalizedArgs
   };
 };
 
@@ -138,19 +157,29 @@ const prunePersistentCommandProbeCacheDir = (cacheDir) => {
 };
 
 export const readPersistentCommandProbeCache = ({
+  providerId = null,
   command,
+  args = [],
   toolingConfig,
   successTtlMs = null
 } = {}) => {
-  const descriptor = resolvePersistentCacheDescriptor({ command, toolingConfig });
+  const descriptor = resolvePersistentCacheDescriptor({
+    providerId,
+    command,
+    args,
+    toolingConfig
+  });
   if (!descriptor) return null;
   persistentReadCount += 1;
   try {
     const parsed = JSON.parse(fsSync.readFileSync(descriptor.cachePath, 'utf8'));
     if (Number(parsed?.schemaVersion) !== COMMAND_PROBE_CACHE_SCHEMA_VERSION) return null;
     if (parsed?.ok !== true) return null;
+    if (normalizeProviderIdForCache(parsed?.providerId) !== descriptor.providerId) return null;
     const cachedCommand = normalizeCommandPath(parsed?.command?.path);
     if (cachedCommand !== descriptor.fingerprint.path) return null;
+    const cachedArgs = normalizeArgListForCache(parsed?.args);
+    if (JSON.stringify(cachedArgs) !== JSON.stringify(descriptor.args)) return null;
     if (toFiniteSize(parsed?.command?.size) !== descriptor.fingerprint.size) return null;
     if (toFiniteMtimeMs(parsed?.command?.mtimeMs) !== descriptor.fingerprint.mtimeMs) return null;
     if (!isAttemptList(parsed?.attempted)) return null;
@@ -173,11 +202,18 @@ export const readPersistentCommandProbeCache = ({
 };
 
 export const writePersistentCommandProbeCache = ({
+  providerId = null,
   command,
+  args = [],
   toolingConfig,
   attempted
 } = {}) => {
-  const descriptor = resolvePersistentCacheDescriptor({ command, toolingConfig });
+  const descriptor = resolvePersistentCacheDescriptor({
+    providerId,
+    command,
+    args,
+    toolingConfig
+  });
   if (!descriptor || !isAttemptList(attempted) || attempted.length === 0) return false;
   try {
     fsSync.mkdirSync(descriptor.cacheDir, { recursive: true });
@@ -185,6 +221,8 @@ export const writePersistentCommandProbeCache = ({
       schemaVersion: COMMAND_PROBE_CACHE_SCHEMA_VERSION,
       createdAt: new Date().toISOString(),
       ok: true,
+      providerId: descriptor.providerId,
+      args: descriptor.args,
       command: {
         path: descriptor.fingerprint.path,
         size: descriptor.fingerprint.size,
@@ -194,6 +232,27 @@ export const writePersistentCommandProbeCache = ({
     }, { spaces: 0 });
     persistentWriteCount += 1;
     prunePersistentCommandProbeCacheDir(descriptor.cacheDir);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+export const invalidatePersistentCommandProbeCache = ({
+  providerId = null,
+  command,
+  args = [],
+  toolingConfig
+} = {}) => {
+  const descriptor = resolvePersistentCacheDescriptor({
+    providerId,
+    command,
+    args,
+    toolingConfig
+  });
+  if (!descriptor) return false;
+  try {
+    fsSync.rmSync(descriptor.cachePath, { force: true });
     return true;
   } catch {
     return false;

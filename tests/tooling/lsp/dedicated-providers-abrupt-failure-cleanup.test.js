@@ -192,6 +192,9 @@ for (const providerCase of providerCases) {
   await runAbortScenario(providerCase);
 }
 
+const noTracked = await waitForNoTrackedSubprocesses();
+assert.equal(noTracked, true, 'expected dedicated provider abrupt-failure scenarios to leave no tracked subprocesses');
+
 const trackedSnapshot = snapshotTrackedSubprocessEvents({ limit: 5000 });
 const trackedEvents = Array.isArray(trackedSnapshot?.events) ? trackedSnapshot.events : [];
 const stallTrackedEvents = trackedEvents.filter((event) => (
@@ -223,8 +226,6 @@ for (const trackedEvent of stallTrackedEvents) {
   );
 }
 
-const noTracked = await waitForNoTrackedSubprocesses();
-assert.equal(noTracked, true, 'expected dedicated provider abrupt-failure scenarios to leave no tracked subprocesses');
 const cleanupSummary = await cleanupLspTestRuntime({
   reason: 'dedicated_provider_abrupt_failure_cleanup',
   strict: true

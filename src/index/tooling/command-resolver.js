@@ -10,6 +10,7 @@ import { findBinaryInDirs, findBinaryOnPath, splitPathEntries } from './binary-u
 import {
   __getPersistentCommandProbeCacheRuntimeStatsForTests,
   __resetPersistentCommandProbeCacheRuntimeStatsForTests,
+  invalidatePersistentCommandProbeCache,
   readPersistentCommandProbeCache,
   writePersistentCommandProbeCache
 } from './command-probe-persistent-cache.js';
@@ -131,6 +132,8 @@ const cacheEntryMatchesInvalidation = (key, entry, {
 export const invalidateToolingCommandProbeCache = ({
   providerId = null,
   command = null,
+  args = [],
+  toolingConfig = null,
   successOnly = false
 } = {}) => {
   const normalizedProviderId = normalizeProviderId(providerId || '');
@@ -145,6 +148,14 @@ export const invalidateToolingCommandProbeCache = ({
     })) continue;
     COMMAND_PROBE_CACHE.delete(key);
     removed += 1;
+  }
+  if (!successOnly || removed > 0) {
+    invalidatePersistentCommandProbeCache({
+      providerId: normalizedProviderId,
+      command,
+      args,
+      toolingConfig
+    });
   }
   return removed;
 };
@@ -162,7 +173,9 @@ export const invalidateToolingCommandProbeCache = ({
 export const invalidateProbeCacheOnInitializeFailure = ({
   checks = null,
   providerId = null,
-  command = null
+  command = null,
+  args = [],
+  toolingConfig = null
 } = {}) => {
   const hasInitializeFailure = Array.isArray(checks)
     && checks.some((check) => check?.name === 'tooling_initialize_failed');
@@ -170,6 +183,8 @@ export const invalidateProbeCacheOnInitializeFailure = ({
   invalidateToolingCommandProbeCache({
     providerId,
     command,
+    args,
+    toolingConfig,
     successOnly: true
   });
   return true;
@@ -450,8 +465,8 @@ const resolveBaseCommand = ({ providerId, requestedCmd, repoRoot, toolingConfig 
   return '';
 };
 
-const probeBinary = ({ providerId, command, probeArgs, timeoutMs, toolingConfig }) => {
-  const cacheKey = `${normalizeProviderId(providerId) || ''}\u0000${String(command || '').trim()}\u0000${JSON.stringify(probeArgs || [])}\u0000${Math.max(100, Math.floor(Number(timeoutMs) || DEFAULT_PROBE_TIMEOUT_MS))}`;
+const probeBinary = ({ providerId, command, launchArgs = [], probeArgs, timeoutMs, toolingConfig }) => {
+  const cacheKey = `${normalizeProviderId(providerId) || ''}\u0000${String(command || '').trim()}\u0000${JSON.stringify(launchArgs || [])}\u0000${JSON.stringify(probeArgs || [])}\u0000${Math.max(100, Math.floor(Number(timeoutMs) || DEFAULT_PROBE_TIMEOUT_MS))}`;
   const now = Date.now();
   const normalizedProviderId = normalizeProviderId(providerId);
   const commandKey = normalizeCommandCacheKey(command);
@@ -468,7 +483,9 @@ const probeBinary = ({ providerId, command, probeArgs, timeoutMs, toolingConfig 
     COMMAND_PROBE_CACHE.delete(cacheKey);
   }
   const persistentCached = readPersistentCommandProbeCache({
+    providerId,
     command,
+    args: launchArgs,
     toolingConfig,
     successTtlMs: resolveCommandProbeSuccessTtlMs()
   });
@@ -520,7 +537,9 @@ const probeBinary = ({ providerId, command, probeArgs, timeoutMs, toolingConfig 
           COMMAND_PROBE_CACHE_MAX_ENTRIES
         );
         writePersistentCommandProbeCache({
+          providerId,
           command,
+          args: launchArgs,
           toolingConfig,
           attempted
         });
@@ -673,6 +692,7 @@ export const resolveToolingCommandProfile = (input) => {
   const probe = probeBinary({
     providerId,
     command: resolvedCmd || requestedCmd,
+    launchArgs: requestedArgs,
     probeArgs,
     timeoutMs: probeTimeoutMs,
     toolingConfig
@@ -761,6 +781,8 @@ export const probeLspInitializeHandshake = async (input) => {
     invalidateToolingCommandProbeCache({
       providerId: input?.providerId || null,
       command: cmd,
+      args,
+      toolingConfig: input?.toolingConfig || null,
       successOnly: true
     });
     return {
