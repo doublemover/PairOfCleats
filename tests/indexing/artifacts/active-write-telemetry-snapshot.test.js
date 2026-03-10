@@ -33,6 +33,7 @@ const snapshot = buildActiveWriteTelemetrySnapshot({
 assert.equal(snapshot.inflight.length, 3, 'expected all active writes in telemetry snapshot');
 assert.equal(snapshot.inflight[0].label, 'pieces/manifest.json', 'expected longest-running write first');
 assert.equal(snapshot.inflight[0].phase, 'scheduler-wait', 'expected phase metadata to carry through');
+assert.equal(snapshot.inflight[0].phaseClass, 'other', 'expected phase class metadata to be captured');
 assert.equal(
   snapshot.previewText,
   'pieces/manifest.json [scheduler-wait:light] (7s, ~1024b), chunk_meta/shard-0001.jsonl [job:heavy] (4s, ~2048b)',

@@ -1,4 +1,5 @@
 import { summarizeQueueDelayHistogram } from './write-strategy.js';
+import { resolveArtifactWritePhaseClass } from './write-strategy.js';
 
 const toPosix = (value) => String(value || '').replace(/\\/g, '/');
 const LARGE_STALL_THRESHOLD_BYTES = 128 * 1024 * 1024;
@@ -133,6 +134,7 @@ export const buildActiveWriteTelemetrySnapshot = ({
         elapsedSec: Math.max(1, Math.round((now - (Number(startedAt) || now)) / 1000)),
         estimatedBytes: Number(activeWriteBytes?.get?.(label)) || null,
         phase,
+        phaseClass: resolveArtifactWritePhaseClass(phase),
         lane: typeof meta?.lane === 'string' && meta.lane.trim()
           ? meta.lane.trim()
           : null

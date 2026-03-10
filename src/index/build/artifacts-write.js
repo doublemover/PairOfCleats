@@ -1288,7 +1288,8 @@ export async function writeIndexArtifacts(input) {
       activeEntries: [...activeWriteBytes.entries()].map(([label, estimatedBytes]) => ({
         label,
         estimatedBytes,
-        lane: activeWriteMeta.get(label)?.lane || null
+        lane: activeWriteMeta.get(label)?.lane || null,
+        phase: activeWriteMeta.get(label)?.phase || null
       })),
       maxBytesInFlight: hugeWriteInFlightBudgetBytes
     });
@@ -2994,8 +2995,12 @@ export async function writeIndexArtifacts(input) {
         if ((nowMs - lastNonWriteStallLogAt) >= 10000) {
           lastNonWriteStallLogAt = nowMs;
           const activeWriteSnapshot = getActiveWriteTelemetrySnapshot();
+          const oldestInflight = activeWriteSnapshot.inflight[0] || null;
           const phaseSuffix = activeWriteSnapshot.phaseSummaryText
             ? `, phases={${activeWriteSnapshot.phaseSummaryText}}`
+            : '';
+          const oldestPhaseClassSuffix = oldestInflight?.phaseClass
+            ? `, oldestPhaseClass=${oldestInflight.phaseClass}`
             : '';
           const previewSuffix = activeWriteSnapshot.previewText
             ? `, preview=${activeWriteSnapshot.previewText}`
@@ -3008,7 +3013,7 @@ export async function writeIndexArtifacts(input) {
             `(active=${activeCount}, pendingWrites=${pendingWriteCount()}, ` +
             `writeQ.pending=${schedulerWritePending}, writeQ.oldest=${schedulerWriteOldestWaitMs}ms, ` +
             `writeQ.p95=${Number.isFinite(schedulerWriteWaitP95Ms) ? schedulerWriteWaitP95Ms : 'n/a'}ms` +
-            `${phaseSuffix}${previewSuffix}${hugeSuffix})`,
+            `${phaseSuffix}${oldestPhaseClassSuffix}${previewSuffix}${hugeSuffix})`,
             { kind: 'warning' }
           );
         }

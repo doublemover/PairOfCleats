@@ -61,6 +61,32 @@ const HEAVY_ARTIFACT_LABEL_PATTERNS = Object.freeze([
 const LARGE_ARTIFACT_DISPATCH_BYTES = 128 * 1024 * 1024;
 const HUGE_ARTIFACT_EAGER_START_LIMIT_BYTES = 384 * 1024 * 1024;
 
+export const resolveArtifactWritePhaseClass = (phase) => {
+  const normalized = typeof phase === 'string' ? phase.trim().toLowerCase() : '';
+  if (!normalized) return 'unknown';
+  if (normalized.startsWith('materialize:')) return 'materialize';
+  if (normalized.startsWith('publish:')) return 'publish';
+  if (normalized.startsWith('prefetch')) return 'prefetch';
+  if (normalized.startsWith('write-')) return 'execute';
+  if (normalized.startsWith('write:')) return 'execute';
+  if (normalized.startsWith('closeout:')) return 'closeout';
+  return 'other';
+};
+
+const resolveArtifactPhaseBudgetWeight = (phase) => {
+  const phaseClass = resolveArtifactWritePhaseClass(phase);
+  switch (phaseClass) {
+    case 'publish':
+      return 0.2;
+    case 'prefetch':
+      return 0.5;
+    case 'closeout':
+      return 0;
+    default:
+      return 1;
+  }
+};
+
 /**
  * Resolve an upper percentile from sorted millisecond samples.
  *
@@ -195,26 +221,28 @@ export const canDispatchArtifactWriteEntry = ({
   if (!entry || typeof entry !== 'object') return false;
   const entryBytes = resolveArtifactEffectiveDispatchBytes(entry);
   const entryFamily = resolveArtifactExclusivePublisherFamily(entry.label);
-  let activeLargeBytes = 0;
-  const activeExclusiveFamilies = new Set();
+  let activePhaseWeightedBytes = 0;
+  const activeMaterializingExclusiveFamilies = new Set();
   let activeOversize = false;
   for (const activeEntry of Array.isArray(activeEntries) ? activeEntries : []) {
     if (!activeEntry || typeof activeEntry !== 'object') continue;
     const activeFamily = resolveArtifactExclusivePublisherFamily(activeEntry.label);
     const activeBytes = resolveArtifactEffectiveDispatchBytes(activeEntry);
+    const phaseWeight = resolveArtifactPhaseBudgetWeight(activeEntry.phase);
+    const phaseClass = resolveArtifactWritePhaseClass(activeEntry.phase);
     if (maxBytesInFlight != null && activeBytes > maxBytesInFlight) {
       activeOversize = true;
     }
-    if (activeFamily) {
-      activeExclusiveFamilies.add(activeFamily);
-      activeLargeBytes += activeBytes;
-      continue;
+    if (phaseWeight > 0 && (activeFamily || activeBytes >= LARGE_ARTIFACT_DISPATCH_BYTES)) {
+      activePhaseWeightedBytes += Math.floor(activeBytes * phaseWeight);
     }
-    if (activeBytes >= LARGE_ARTIFACT_DISPATCH_BYTES) {
-      activeLargeBytes += activeBytes;
+    if (activeFamily) {
+      if (phaseClass !== 'publish') {
+        activeMaterializingExclusiveFamilies.add(activeFamily);
+      }
     }
   }
-  if (entryFamily && activeExclusiveFamilies.has(entryFamily)) {
+  if (entryFamily && activeMaterializingExclusiveFamilies.has(entryFamily)) {
     return false;
   }
   if (activeOversize) {
@@ -231,7 +259,7 @@ export const canDispatchArtifactWriteEntry = ({
   if (
     maxBytesInFlight != null
     && (entryFamily || entryBytes >= LARGE_ARTIFACT_DISPATCH_BYTES)
-    && (activeLargeBytes + entryBytes) > maxBytesInFlight
+    && (activePhaseWeightedBytes + entryBytes) > maxBytesInFlight
   ) {
     return false;
   }

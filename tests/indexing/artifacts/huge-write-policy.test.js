@@ -5,10 +5,21 @@ import {
   canDispatchArtifactWriteEntry,
   resolveArtifactEffectiveDispatchBytes,
   resolveArtifactExclusivePublisherFamily,
+  resolveArtifactWritePhaseClass,
   resolveArtifactWriteBytesInFlightLimit,
   shouldEagerStartArtifactWrite
 } from '../../../src/index/build/artifacts/write-strategy.js';
 
+assert.equal(
+  resolveArtifactWritePhaseClass('materialize:chunk-meta-binary-columnar'),
+  'materialize',
+  'expected materialize phase classification'
+);
+assert.equal(
+  resolveArtifactWritePhaseClass('publish:chunk-meta-binary-meta'),
+  'publish',
+  'expected publish phase classification'
+);
 assert.equal(
   resolveArtifactExclusivePublisherFamily('chunk_meta.binary-columnar.bundle'),
   'chunk-meta-binary-columnar',
@@ -64,6 +75,38 @@ assert.equal(
   }),
   false,
   'expected same huge publisher family to remain serialized'
+);
+assert.equal(
+  canDispatchArtifactWriteEntry({
+    entry: {
+      label: 'field_postings.binary-columnar.bundle',
+      estimatedBytes: 300 * 1024 * 1024
+    },
+    activeEntries: [{
+      label: 'chunk_meta.binary-columnar.bundle',
+      estimatedBytes: 320 * 1024 * 1024,
+      phase: 'publish:chunk-meta-binary-meta'
+    }],
+    maxBytesInFlight: 400 * 1024 * 1024
+  }),
+  true,
+  'expected publish-phase huge writes to consume only a reduced budget weight'
+);
+assert.equal(
+  canDispatchArtifactWriteEntry({
+    entry: {
+      label: 'field_postings.binary-columnar.bundle',
+      estimatedBytes: 300 * 1024 * 1024
+    },
+    activeEntries: [{
+      label: 'chunk_meta.binary-columnar.bundle',
+      estimatedBytes: 320 * 1024 * 1024,
+      phase: 'materialize:chunk-meta-binary-columnar'
+    }],
+    maxBytesInFlight: 400 * 1024 * 1024
+  }),
+  false,
+  'expected materialize-phase huge writes to hold the full bytes-in-flight budget'
 );
 assert.equal(
   canDispatchArtifactWriteEntry({
