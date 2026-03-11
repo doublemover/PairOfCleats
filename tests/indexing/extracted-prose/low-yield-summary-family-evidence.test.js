@@ -58,9 +58,11 @@ observeExtractedProseLowYieldSample({
 const summary = buildExtractedProseLowYieldBailoutSummary(bailout);
 assert.ok(Array.isArray(summary.sampledFamilies), 'expected sampled family evidence in summary');
 assert.ok(Array.isArray(summary.historyFamilies), 'expected history family evidence in summary');
+assert.ok(Array.isArray(summary.historyDeferredFamilies), 'expected history deferral family evidence in summary');
 assert.ok(Array.isArray(summary.familyEvidence), 'expected merged family evidence in summary');
 assert.equal(summary.sampledFamilies.some((family) => family.key === '.md|docs'), true);
 assert.equal(summary.historyFamilies.some((family) => family.key === '.md|docs'), true);
 assert.equal(summary.familyEvidence.some((family) => family.key === '.md|docs'), true);
+assert.equal(summary.historyDeferred, false, 'expected no history deferral when sampled docs already yielded');
 
 console.log('extracted prose low-yield summary family evidence test passed');

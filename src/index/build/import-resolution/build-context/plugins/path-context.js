@@ -23,6 +23,8 @@ const FIXTURE_PATH_PARTS = Object.freeze([
   '/tests/',
   '/testing/',
   '/__tests__/',
+  '/spec/',
+  '/specs/',
   '/fixture/',
   '/fixtures/',
   '/__fixtures__/',
@@ -34,6 +36,7 @@ const FIXTURE_PATH_PARTS = Object.freeze([
   '/manual/',
   '/sandbox/',
   '/demo/',
+  '/.template.config/',
   '/vendor/',
   '/vendors/',
   '/third_party/'
@@ -51,7 +54,12 @@ const BUILD_OUTPUT_PATH_PARTS = Object.freeze([
   '/out/',
   '/generated/',
   '/coverage/',
-  '/.next/'
+  '/.next/',
+  '/_framework/'
+]);
+const WEB_RUNTIME_SURFACE_PATH_PARTS = Object.freeze([
+  '/wwwroot/',
+  '/public/'
 ]);
 const OPTIONAL_DEPENDENCY_SPECS = new Set([
   'fsevents',
@@ -69,6 +77,11 @@ const isBuildScriptSurfacePath = (value) => {
   const normalized = `/${normalizeImporterRel(value).replace(/^\/+|\/+$/g, '')}/`.toLowerCase();
   if (normalized === '//') return false;
   return BUILD_SCRIPT_PATH_PARTS.some((part) => normalized.includes(part));
+};
+const isWebRuntimeSurfacePath = (value) => {
+  const normalized = `/${normalizeImporterRel(value).replace(/^\/+|\/+$/g, '')}/`.toLowerCase();
+  if (normalized === '//') return false;
+  return WEB_RUNTIME_SURFACE_PATH_PARTS.some((part) => normalized.includes(part));
 };
 const looksLikeBuildOutputSpecifier = (value) => {
   const normalized = normalizeImportSpecifier(value).toLowerCase();
@@ -171,8 +184,7 @@ const classifyFixtureReference = ({ importerRel = '', spec = '', rawSpec = '' } 
   if (!targetSpecifier) return null;
   if (
     targetSpecifier.startsWith('/')
-    || targetSpecifier.startsWith('./')
-    || targetSpecifier.startsWith('../')
+    || targetSpecifier.startsWith('.')
   ) {
     return {
       reasonCode: IMPORT_REASON_CODES.FIXTURE_REFERENCE,
@@ -203,6 +215,37 @@ const classifyBuildOutputReference = ({ importerRel = '', spec = '', rawSpec = '
   };
 };
 
+const classifyBuildRuntimeRootReference = ({ importerRel = '', spec = '', rawSpec = '' } = {}) => {
+  if (!isBuildScriptSurfacePath(importerRel)) return null;
+  const targetSpecifier = String(rawSpec || spec || '').trim();
+  if (!targetSpecifier || !targetSpecifier.startsWith('/')) return null;
+  return {
+    reasonCode: IMPORT_REASON_CODES.RESOLVER_GAP,
+    pluginId: 'path-context',
+    match: {
+      matched: true,
+      source: 'plugin',
+      matchType: 'build_runtime_root_reference'
+    }
+  };
+};
+
+const classifyWebRuntimeBootstrapReference = ({ importerRel = '', spec = '', rawSpec = '' } = {}) => {
+  if (!isWebRuntimeSurfacePath(importerRel)) return null;
+  const targetSpecifier = String(rawSpec || spec || '').trim();
+  if (!targetSpecifier) return null;
+  if (!looksLikeBuildOutputSpecifier(targetSpecifier)) return null;
+  return {
+    reasonCode: IMPORT_REASON_CODES.GENERATED_EXPECTED_MISSING,
+    pluginId: 'path-context',
+    match: {
+      matched: true,
+      source: 'plugin',
+      matchType: 'web_runtime_bootstrap_reference'
+    }
+  };
+};
+
 const classifyOptionalDependency = ({ spec = '', rawSpec = '' } = {}) => {
   const targetSpecifier = normalizeImportSpecifier(spec || rawSpec);
   if (!OPTIONAL_DEPENDENCY_SPECS.has(targetSpecifier)) return null;
@@ -220,10 +263,12 @@ const classifyOptionalDependency = ({ spec = '', rawSpec = '' } = {}) => {
 export const createPathContextPlugin = () => Object.freeze({
   id: 'path-context',
   priority: 12,
-  fingerprint: 'v4',
+  fingerprint: 'v5',
   classify(input = {}) {
     return classifyBazelRootTraversal(input)
       || classifyOptionalDependency(input)
+      || classifyBuildRuntimeRootReference(input)
+      || classifyWebRuntimeBootstrapReference(input)
       || classifyBuildOutputReference(input)
       || classifyFixtureReference(input)
       || classifyConfigRootSentinel(input)

@@ -98,6 +98,22 @@ const testingHarnessReference = buildContext.classifyUnresolved({
 assert.equal(testingHarnessReference?.reasonCode, 'IMP_U_FIXTURE_REFERENCE');
 assert.equal(testingHarnessReference?.pluginId, 'path-context');
 
+const specSupportReference = buildContext.classifyUnresolved({
+  importerRel: 'spec/models/agents/mqtt_agent_spec.rb',
+  spec: './spec/support/fake_mqtt_server',
+  rawSpec: './spec/support/fake_mqtt_server'
+});
+assert.equal(specSupportReference?.reasonCode, 'IMP_U_FIXTURE_REFERENCE');
+assert.equal(specSupportReference?.pluginId, 'path-context');
+
+const fixtureDotReference = buildContext.classifyUnresolved({
+  importerRel: 'tests/inputs/Makefile',
+  spec: '.o',
+  rawSpec: '.o'
+});
+assert.equal(fixtureDotReference?.reasonCode, 'IMP_U_FIXTURE_REFERENCE');
+assert.equal(fixtureDotReference?.pluginId, 'path-context');
+
 const vendoredSurfaceReference = buildContext.classifyUnresolved({
   importerRel: 'src/main/webapp/assets/vendors/ace/ext-beautify.js',
   spec: '../token_iterator',
@@ -173,6 +189,23 @@ const generatedFromBuildScript = buildContext.classifyUnresolved({
 assert.equal(generatedFromBuildScript?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
 assert.equal(generatedFromBuildScript?.pluginId, 'path-context');
 assert.equal(generatedFromBuildScript?.generatedMatch?.matchType, 'build_output_script_reference');
+
+const buildRuntimeRootReference = buildContext.classifyUnresolved({
+  importerRel: 'docker/scripts/setup_env',
+  spec: '/tmp/.env',
+  rawSpec: '/tmp/.env'
+});
+assert.equal(buildRuntimeRootReference?.reasonCode, 'IMP_U_RESOLVER_GAP');
+assert.equal(buildRuntimeRootReference?.pluginId, 'path-context');
+
+const webRuntimeBootstrapReference = buildContext.classifyUnresolved({
+  importerRel: '10.0/BlazorWebAssemblyReact/blazor/wwwroot/main.js',
+  spec: './_framework/blazor.webassembly.js',
+  rawSpec: './_framework/blazor.webassembly.js'
+});
+assert.equal(webRuntimeBootstrapReference?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
+assert.equal(webRuntimeBootstrapReference?.pluginId, 'path-context');
+assert.equal(webRuntimeBootstrapReference?.generatedMatch?.matchType, 'web_runtime_bootstrap_reference');
 
 const generatedFromNodeModulesPolicy = buildContext.classifyUnresolved({
   importerRel: 'src/main.ts',

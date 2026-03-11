@@ -209,6 +209,7 @@ export const buildExtractedProseLowYieldHistory = (value) => normalizeLowYieldHi
 
 const buildFamilyEvidenceSummary = ({
   sampledFamily = null,
+  warmupFamily = null,
   historyFamily = null,
   minYieldRatio = 0,
   minYieldedFiles = 1,
@@ -224,6 +225,10 @@ const buildFamilyEvidenceSummary = ({
   const historyObservedFiles = Math.max(0, Math.floor(Number(historyFamily?.observedFiles) || 0));
   const historyYieldedFiles = Math.max(0, Math.floor(Number(historyFamily?.yieldedFiles) || 0));
   const historyChunkCount = Math.max(0, Math.floor(Number(historyFamily?.chunkCount) || 0));
+  const warmupFiles = Math.max(
+    sampledFiles,
+    Math.max(0, Math.floor(Number(warmupFamily?.warmupFiles) || 0))
+  );
   const docLike = sampledFamily?.docLike === true || historyFamily?.docLike === true;
   const historyObservedCap = docLike
     ? Math.max(2, sampledFiles || 2)
@@ -251,11 +256,16 @@ const buildFamilyEvidenceSummary = ({
   const protectedByHistory = effectiveYieldedFiles >= minYieldedFiles
     || effectiveChunkCount >= minYieldedChunks
     || (effectiveObservedFiles > 0 && effectiveYieldRatio >= minYieldRatio);
+  const deferDecisionByHistory = docLike
+    && warmupFiles > sampledFiles
+    && historyYieldedFiles > 0
+    && historyChunkCount > 0;
   return {
     key: sampledFamily?.key || historyFamily?.key || '(unknown)',
     ext: sampledFamily?.ext || historyFamily?.ext || null,
     pathFamily: sampledFamily?.pathFamily || historyFamily?.pathFamily || null,
     docLike,
+    warmupFiles,
     sampledFiles,
     sampledObservedFiles,
     sampledYieldedFiles,
@@ -271,7 +281,8 @@ const buildFamilyEvidenceSummary = ({
     effectiveChunkCount,
     effectiveYieldRatio,
     protectedBySample,
-    protectedByHistory
+    protectedByHistory,
+    deferDecisionByHistory
   };
 };
 
@@ -373,6 +384,20 @@ export const buildExtractedProseLowYieldBailoutState = ({
   const sampledOrderIndices = new Set();
   const sampledFamilies = {};
   const sampledFamilyByOrderIndex = new Map();
+  const warmupFamilies = {};
+  for (const entry of warmupWindowEntries) {
+    const family = resolveWarmupEntryFamily(entry);
+    const familyKey = family?.key || '(unknown)';
+    const current = warmupFamilies[familyKey] || {
+      key: familyKey,
+      ext: family?.ext || null,
+      pathFamily: family?.pathFamily || null,
+      docLike: isExtractedProseDocumentLikeExtension(resolveWarmupEntryExtension(entry)),
+      warmupFiles: 0
+    };
+    current.warmupFiles += 1;
+    warmupFamilies[familyKey] = current;
+  }
   for (const entry of sampledEntries) {
     const orderIndex = resolveEntryOrderIndex(entry, null);
     if (!Number.isFinite(orderIndex)) continue;
@@ -408,6 +433,7 @@ export const buildExtractedProseLowYieldBailoutState = ({
     warmupSampleSize,
     sampledOrderIndices,
     sampledFamilies,
+    warmupFamilies,
     sampledFamilyByOrderIndex,
     observedOrderIndices: new Set(),
     observedSamples: 0,
@@ -515,15 +541,21 @@ export const observeExtractedProseLowYieldSample = ({ bailout, orderIndex, resul
   const historyFamilyMap = Object.fromEntries(
     historyFamilySummaries.map((familyState) => [familyState.key, familyState])
   );
+  const warmupFamilyMap = Object.fromEntries(
+    Object.values(bailout.warmupFamilies || {}).map((familyState) => [familyState.key, familyState])
+  );
   const familyEvidence = Object.values({
+    ...warmupFamilyMap,
     ...sampledFamilyMap,
     ...historyFamilyMap
   }).map((familyState) => {
     const key = familyState.key;
     const sampledFamily = sampledFamilyMap[key] || bailout.sampledFamilies?.[key] || null;
+    const warmupFamily = warmupFamilyMap[key] || null;
     const historyFamily = historyFamilyMap[key] || null;
     return buildFamilyEvidenceSummary({
       sampledFamily,
+      warmupFamily,
       historyFamily,
       minYieldRatio: bailout.config.minYieldRatio,
       minYieldedFiles,
@@ -532,6 +564,8 @@ export const observeExtractedProseLowYieldSample = ({ bailout, orderIndex, resul
   });
   const historyProtectedFamilies = familyEvidence.filter((familyState) => familyState.protectedByHistory === true);
   const historyProtected = historyProtectedFamilies.length > 0;
+  const historyDeferredFamilies = familyEvidence.filter((familyState) => familyState.deferDecisionByHistory === true);
+  const historyDeferred = historyDeferredFamilies.length > 0;
   const familyProtected = familySummaries.some((familyState) => (
     familyState.docLike === true
       ? familyState.yieldedFiles > 0 || familyState.chunkCount > 0
@@ -543,7 +577,8 @@ export const observeExtractedProseLowYieldSample = ({ bailout, orderIndex, resul
     && lowYieldedCount
     && lowChunkCount
     && familyProtected !== true
-    && historyProtected !== true;
+    && historyProtected !== true
+    && historyDeferred !== true;
   bailout.decisionAtOrderIndex = normalizedOrderIndex;
   bailout.decisionAtMs = Date.now();
   bailout.lastDecision = {
@@ -554,8 +589,10 @@ export const observeExtractedProseLowYieldSample = ({ bailout, orderIndex, resul
     sampledChunkCount: bailout.sampledChunkCount,
     familyProtected,
     historyProtected,
+    historyDeferred,
     sampledFamilies: familySummaries,
     historyFamilies: historyProtectedFamilies,
+    historyDeferredFamilies,
     familyEvidence,
     minYieldRatio: bailout.config.minYieldRatio,
     minYieldedFiles,
@@ -595,6 +632,9 @@ export const buildExtractedProseLowYieldBailoutSummary = (bailout) => {
     minYieldRatio: bailout.config.minYieldRatio,
     minYieldedFiles: bailout.config.minYieldedFiles,
     minYieldedChunks: bailout.config.minYieldedChunks,
+    familyProtected: bailout.lastDecision?.familyProtected === true,
+    historyProtected: bailout.lastDecision?.historyProtected === true,
+    historyDeferred: bailout.lastDecision?.historyDeferred === true,
     skippedFiles: bailout.skippedFiles,
     decisionAtOrderIndex: bailout.decisionAtOrderIndex,
     decisionAt: toIsoTimestamp(bailout.decisionAtMs),
@@ -618,12 +658,27 @@ export const buildExtractedProseLowYieldBailoutSummary = (bailout) => {
       chunkCount: Math.max(0, Math.floor(Number(familyState.chunkCount) || 0)),
       yieldRatio: Number.isFinite(Number(familyState.yieldRatio)) ? Number(familyState.yieldRatio) : 0
     })),
+    historyDeferredFamilies: Array.isArray(bailout.lastDecision?.historyDeferredFamilies)
+      ? bailout.lastDecision.historyDeferredFamilies.map((familyState) => ({
+        key: familyState.key,
+        ext: familyState.ext,
+        pathFamily: familyState.pathFamily,
+        docLike: familyState.docLike === true,
+        warmupFiles: familyState.warmupFiles,
+        sampledFiles: familyState.sampledFiles,
+        historyObservedFiles: familyState.historyObservedFiles,
+        historyYieldedFiles: familyState.historyYieldedFiles,
+        historyChunkCount: familyState.historyChunkCount,
+        deferDecisionByHistory: familyState.deferDecisionByHistory === true
+      }))
+      : [],
     familyEvidence: Array.isArray(bailout.lastDecision?.familyEvidence)
       ? bailout.lastDecision.familyEvidence.map((familyState) => ({
         key: familyState.key,
         ext: familyState.ext,
         pathFamily: familyState.pathFamily,
         docLike: familyState.docLike === true,
+        warmupFiles: familyState.warmupFiles,
         sampledFiles: familyState.sampledFiles,
         sampledObservedFiles: familyState.sampledObservedFiles,
         sampledYieldedFiles: familyState.sampledYieldedFiles,
@@ -639,7 +694,8 @@ export const buildExtractedProseLowYieldBailoutSummary = (bailout) => {
         effectiveChunkCount: familyState.effectiveChunkCount,
         effectiveYieldRatio: familyState.effectiveYieldRatio,
         protectedBySample: familyState.protectedBySample === true,
-        protectedByHistory: familyState.protectedByHistory === true
+        protectedByHistory: familyState.protectedByHistory === true,
+        deferDecisionByHistory: familyState.deferDecisionByHistory === true
       }))
       : []
   };
