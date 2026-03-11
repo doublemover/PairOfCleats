@@ -167,4 +167,17 @@ assert.equal(lowValueOnlyClangdPlan.selectedDocs, 0, 'expected low-value clangd 
 assert.equal(lowValueOnlyClangdPlan.skippedByDocumentSymbolPolicy, 2, 'expected clangd low-value docs to be counted');
 assert.match(String(lowValueOnlyClangdPlan.reason || ''), /document-symbol-path-policy/, 'expected clangd no-work reason to reflect path policy');
 
+const untargetedDocsPlan = __resolveAdaptiveLspScopePlanForTests({
+  providerId: 'pyright',
+  docs: [{
+    virtualPath: '.poc-vfs/src/no-target.py',
+    languageId: 'python',
+    text: 'def fn():\n    return 1\n'
+  }],
+  targetsByPath: new Map()
+});
+assert.equal(untargetedDocsPlan.selectedDocs, 0, 'expected untargeted docs to be dropped before documentSymbol work');
+assert.equal(untargetedDocsPlan.skippedByMissingTargets, 1, 'expected untargeted docs to be counted separately');
+assert.match(String(untargetedDocsPlan.reason || ''), /no-targets/, 'expected untargeted no-work reason to be recorded');
+
 console.log('LSP adaptive scope plan test passed');

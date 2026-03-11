@@ -296,7 +296,10 @@ export const __resolveAdaptiveLspScopePlanForTests = ({
     sourceDocs.map((doc) => ({ ...doc, providerId })),
     effectiveTargetsByPath
   ).filter((entry) => entry?.pathPolicy?.skipDocument !== true);
-  const sourceEntries = candidateEntries.filter((entry) => entry?.pathPolicy?.skipDocumentSymbol !== true);
+  const sourceEntries = candidateEntries.filter((entry) => (
+    entry?.pathPolicy?.skipDocumentSymbol !== true
+    && entry.targetCount > 0
+  ));
   const totalTargets = sourceEntries.reduce((sum, entry) => sum + entry.targetCount, 0);
   const methodMetrics = clientMetrics?.byMethod || {};
   const documentSymbolMetrics = methodMetrics['textDocument/documentSymbol']?.latencyMs || {};
@@ -383,10 +386,23 @@ export const __resolveAdaptiveLspScopePlanForTests = ({
   const selectedTargetPaths = new Set(selectedDocs.map((doc) => String(doc?.virtualPath || '')).filter(Boolean));
   const selectedTargets = selectedEntries.reduce((sum, entry) => sum + entry.targetCount, 0);
   const skippedByPathPolicy = Math.max(0, sourceDocs.length - candidateEntries.length);
-  const skippedByDocumentSymbolPolicy = Math.max(0, candidateEntries.length - sourceEntries.length);
+  const skippedByDocumentSymbolPolicy = Math.max(
+    0,
+    candidateEntries.filter((entry) => entry?.pathPolicy?.skipDocumentSymbol === true).length
+  );
+  const skippedByMissingTargets = Math.max(
+    0,
+    candidateEntries.filter((entry) => (
+      entry?.pathPolicy?.skipDocumentSymbol !== true
+      && entry.targetCount <= 0
+    )).length
+  );
   const interactiveSuppressedDocs = selectedEntries.filter((entry) => entry?.pathPolicy?.suppressInteractive).length;
   if (!selectedEntries.length && skippedByDocumentSymbolPolicy > 0) {
     reasons.push('document-symbol-path-policy');
+  }
+  if (!selectedEntries.length && skippedByMissingTargets > 0) {
+    reasons.push('no-targets');
   }
   return {
     profile,
@@ -400,6 +416,7 @@ export const __resolveAdaptiveLspScopePlanForTests = ({
     selectedTargets,
     skippedByPathPolicy,
     skippedByDocumentSymbolPolicy,
+    skippedByMissingTargets,
     interactiveSuppressedDocs,
     docLimitApplied,
     targetLimitApplied,
@@ -637,6 +654,22 @@ export async function collectLspTypes({
   const docs = Array.isArray(documents) ? documents : [];
   const targetList = Array.isArray(targets) ? targets : [];
   if (!docs.length || !targetList.length) {
+    runtime.selection = {
+      providerId: resolvedProviderId,
+      totalDocs: docs.length,
+      selectedDocs: 0,
+      totalTargets: targetList.length,
+      selectedTargets: 0,
+      docLimitApplied: false,
+      targetLimitApplied: false,
+      degraded: false,
+      reason: !docs.length ? 'no-documents' : 'no-targets',
+      hoverMaxPerFile: resolvedHoverMaxPerFile,
+      skippedByPathPolicy: 0,
+      skippedByDocumentSymbolPolicy: 0,
+      skippedByMissingTargets: docs.length,
+      interactiveSuppressedDocs: 0
+    };
     return buildEmptyCollectResult(checks, runtime);
   }
   throwIfAborted(toolingAbortSignal);
@@ -656,6 +689,22 @@ export async function collectLspTypes({
 
   const docsToOpen = docs.filter((doc) => (targetsByPath.get(doc.virtualPath) || []).length);
   if (!docsToOpen.length) {
+    runtime.selection = {
+      providerId: resolvedProviderId,
+      totalDocs: docs.length,
+      selectedDocs: 0,
+      totalTargets: targetList.length,
+      selectedTargets: 0,
+      docLimitApplied: false,
+      targetLimitApplied: false,
+      degraded: false,
+      reason: 'no-targets',
+      hoverMaxPerFile: resolvedHoverMaxPerFile,
+      skippedByPathPolicy: 0,
+      skippedByDocumentSymbolPolicy: 0,
+      skippedByMissingTargets: docs.length,
+      interactiveSuppressedDocs: 0
+    };
     return buildEmptyCollectResult(checks, runtime);
   }
   const preInitializeAdaptiveScopePlan = __resolveAdaptiveLspScopePlanForTests({
@@ -683,6 +732,7 @@ export async function collectLspTypes({
       hoverMaxPerFile: preInitializeAdaptiveScopePlan.hoverMaxPerFile,
       skippedByPathPolicy: preInitializeAdaptiveScopePlan.skippedByPathPolicy,
       skippedByDocumentSymbolPolicy: preInitializeAdaptiveScopePlan.skippedByDocumentSymbolPolicy,
+      skippedByMissingTargets: preInitializeAdaptiveScopePlan.skippedByMissingTargets,
       interactiveSuppressedDocs: 0
     };
     return buildEmptyCollectResult(checks, runtime);
@@ -1004,6 +1054,7 @@ export async function collectLspTypes({
           hoverMaxPerFile: adaptiveScopePlan.hoverMaxPerFile,
           skippedByPathPolicy: adaptiveScopePlan.skippedByPathPolicy,
           skippedByDocumentSymbolPolicy: adaptiveScopePlan.skippedByDocumentSymbolPolicy,
+          skippedByMissingTargets: adaptiveScopePlan.skippedByMissingTargets,
           interactiveSuppressedDocs: 0
         };
         return buildEmptyCollectResult(checks, runtime);
@@ -1046,6 +1097,7 @@ export async function collectLspTypes({
         profile: adaptiveScopePlan.profile,
         skippedByPathPolicy: adaptiveScopePlan.skippedByPathPolicy,
         skippedByDocumentSymbolPolicy: adaptiveScopePlan.skippedByDocumentSymbolPolicy,
+        skippedByMissingTargets: adaptiveScopePlan.skippedByMissingTargets,
         interactiveSuppressedDocs: adaptiveScopePlan.interactiveSuppressedDocs
       };
       if (adaptiveScopePlan.skippedByPathPolicy > 0) {
@@ -1059,6 +1111,12 @@ export async function collectLspTypes({
           `[tooling] ${cmd} path policy skipped documentSymbol on `
           + `${adaptiveScopePlan.skippedByDocumentSymbolPolicy}/${adaptiveScopePlan.totalDocs} `
           + 'low-value document(s).'
+        );
+      }
+      if (adaptiveScopePlan.skippedByMissingTargets > 0) {
+        log(
+          `[tooling] ${cmd} skipped ${adaptiveScopePlan.skippedByMissingTargets}/${adaptiveScopePlan.sourceDocCount} `
+          + 'document(s) with no selected targets.'
         );
       }
       const interactiveSuppressedDocs = adaptiveScopePlan.interactiveSuppressedDocs;

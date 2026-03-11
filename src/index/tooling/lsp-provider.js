@@ -866,9 +866,16 @@ const createConfiguredLspProvider = (server) => {
       const startupDocs = resolveLspStartupDocuments({
         providerId,
         documents: docs,
-        captureDiagnostics
+        captureDiagnostics,
+        targets
       }).documents;
-      if (!startupDocs.length || !targets.length) {
+      const startupDocPaths = new Set(
+        startupDocs.map((doc) => String(doc?.virtualPath || '')).filter(Boolean)
+      );
+      const startupTargets = startupDocPaths.size > 0
+        ? targets.filter((target) => startupDocPaths.has(String(target?.virtualPath || '')))
+        : [];
+      if (!startupDocs.length || !startupTargets.length) {
         return {
           provider: { id: providerId, version: this.version, configHash: this.getConfigHash(ctx) },
           byChunkUid: {},
@@ -884,7 +891,7 @@ const createConfiguredLspProvider = (server) => {
           inputs: {
             ...inputs,
             documents: startupDocs,
-            targets,
+            targets: startupTargets,
             log
           },
           waveToken: typeof inputs?.toolingPreflightWaveToken === 'string'
@@ -947,7 +954,7 @@ const createConfiguredLspProvider = (server) => {
         ctx,
         provider: this,
         docs: startupDocs,
-        targets,
+        targets: startupTargets,
         requestedKinds: inputs?.kinds,
         log,
         preChecks,
@@ -959,13 +966,24 @@ const createConfiguredLspProvider = (server) => {
     },
     preparePreflightInputs(ctx, inputs) {
       const documents = Array.isArray(inputs?.documents) ? inputs.documents : [];
-      return {
-        documents: resolveLspStartupDocuments({
-          providerId,
-          documents,
-          captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds)
-        }).documents,
+      const startupSelection = resolveLspStartupDocuments({
+        providerId,
+        documents,
+        captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds),
         targets: Array.isArray(inputs?.targets) ? inputs.targets : []
+      });
+      const startupDocuments = startupSelection.documents;
+      const startupDocPaths = new Set(
+        startupDocuments.map((doc) => String(doc?.virtualPath || '')).filter(Boolean)
+      );
+      return {
+        documents: startupDocuments,
+        targets: Array.isArray(inputs?.targets)
+          ? inputs.targets.filter((target) => {
+            const path = String(target?.virtualPath || '');
+            return startupDocPaths.has(path);
+          })
+          : []
       };
     }
   };

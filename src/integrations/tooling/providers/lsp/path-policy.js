@@ -318,12 +318,21 @@ export const __classifyLspDocumentPathPolicyForTests = classifyLspDocumentPathPo
 export const resolveLspStartupDocuments = ({
   providerId,
   documents,
-  captureDiagnostics = false
+  captureDiagnostics = false,
+  targets = []
 }) => {
   const sourceDocuments = Array.isArray(documents) ? documents : [];
+  const targetPaths = !captureDiagnostics
+    ? new Set(
+      (Array.isArray(targets) ? targets : [])
+        .map((target) => String(target?.virtualPath || ''))
+        .filter(Boolean)
+    )
+    : null;
   const selected = [];
   let skippedByPathPolicy = 0;
   let skippedByDocumentSymbolPolicy = 0;
+  let skippedByMissingTargets = 0;
   for (const doc of sourceDocuments) {
     const pathPolicy = classifyLspDocumentPathPolicy({
       providerId,
@@ -337,11 +346,16 @@ export const resolveLspStartupDocuments = ({
       skippedByDocumentSymbolPolicy += 1;
       continue;
     }
+    if (!captureDiagnostics && targetPaths && !targetPaths.has(String(doc?.virtualPath || ''))) {
+      skippedByMissingTargets += 1;
+      continue;
+    }
     selected.push(doc);
   }
   return {
     documents: selected,
     skippedByPathPolicy,
-    skippedByDocumentSymbolPolicy
+    skippedByDocumentSymbolPolicy,
+    skippedByMissingTargets
   };
 };

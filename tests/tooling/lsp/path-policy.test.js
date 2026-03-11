@@ -67,6 +67,9 @@ assert.equal(sourcekitDocsPolicy.skipDocumentSymbol, true, 'expected sourcekit d
 const startupSelection = resolveLspStartupDocuments({
   providerId: 'gopls',
   captureDiagnostics: false,
+  targets: [
+    { virtualPath: '.poc-vfs/src/main.go' }
+  ],
   documents: [
     { virtualPath: '.poc-vfs/tools/generator/main.go' },
     { virtualPath: '.poc-vfs/src/main.go' }
@@ -74,5 +77,17 @@ const startupSelection = resolveLspStartupDocuments({
 });
 assert.equal(startupSelection.documents.length, 1, 'expected startup filter to keep only actionable docs for gopls');
 assert.equal(startupSelection.skippedByDocumentSymbolPolicy, 1, 'expected startup filter to count low-value skips');
+assert.equal(startupSelection.skippedByMissingTargets, 0, 'expected startup filter to avoid counting targeted source docs as missing targets');
+
+const untargetedSelection = resolveLspStartupDocuments({
+  providerId: 'clangd',
+  captureDiagnostics: false,
+  targets: [],
+  documents: [
+    { virtualPath: '.poc-vfs/src/check_error.c' }
+  ]
+});
+assert.equal(untargetedSelection.documents.length, 0, 'expected untargeted docs to be skipped before startup');
+assert.equal(untargetedSelection.skippedByMissingTargets, 1, 'expected startup filter to count untargeted docs');
 
 console.log('LSP path policy test passed');

@@ -145,6 +145,7 @@ indexing/relations/memory-release
 indexing/type-inference/local/type-inference
 tooling/lsp/path-policy
 tooling/lsp/document-symbol-path-policy-skips-initialize
+tooling/lsp/document-symbol-no-targets-skips-initialize
 graph/edge-bucket-determinism
 retrieval/federation/query-cache-invalidation-via-manifesthash
 retrieval/filters/filter-index-config-hash
