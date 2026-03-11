@@ -560,7 +560,7 @@ export const createClangdProvider = () => ({
     if (!compileCommandsDir) {
       const maxDocsWithoutCompileCommands = Number.isFinite(Number(clangdConfig.maxDocsWithoutCompileCommands))
         ? Math.max(1, Math.floor(Number(clangdConfig.maxDocsWithoutCompileCommands)))
-        : 256;
+        : 128;
       if (selectedDocs.length > maxDocsWithoutCompileCommands) {
         const rankedDocs = selectedDocs
           .slice()

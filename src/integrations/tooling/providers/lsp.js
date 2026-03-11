@@ -88,52 +88,52 @@ const buildEmptyCollectResult = (checks, runtime = null) => ({
 
 const ADAPTIVE_LSP_SCOPE_PROFILES = Object.freeze({
   pyright: Object.freeze({
-    docThreshold: 256,
-    maxDocs: 256,
-    degradedMaxDocs: 128,
-    targetThreshold: 512,
-    maxTargets: 640,
-    degradedMaxTargets: 256,
-    degradedDocumentSymbolTimeouts: 2,
-    degradedDocumentSymbolP95Ms: 2500,
-    defaultHoverMaxPerFile: 8,
-    degradedHoverMaxPerFile: 4
-  }),
-  clangd: Object.freeze({
-    docThreshold: 96,
-    maxDocs: 96,
-    degradedMaxDocs: 48,
-    targetThreshold: 256,
-    maxTargets: 384,
-    degradedMaxTargets: 160,
-    degradedDocumentSymbolTimeouts: 1,
-    degradedDocumentSymbolP95Ms: 3500,
-    defaultHoverMaxPerFile: 6,
-    degradedHoverMaxPerFile: 3
-  }),
-  gopls: Object.freeze({
     docThreshold: 192,
     maxDocs: 192,
     degradedMaxDocs: 96,
-    targetThreshold: 256,
-    maxTargets: 384,
-    degradedMaxTargets: 160,
+    targetThreshold: 512,
+    maxTargets: 512,
+    degradedMaxTargets: 192,
     degradedDocumentSymbolTimeouts: 2,
     degradedDocumentSymbolP95Ms: 2500,
-    defaultHoverMaxPerFile: 8,
-    degradedHoverMaxPerFile: 4
+    defaultHoverMaxPerFile: 6,
+    degradedHoverMaxPerFile: 3
   }),
-  sourcekit: Object.freeze({
-    docThreshold: 96,
-    maxDocs: 96,
-    degradedMaxDocs: 64,
-    targetThreshold: 160,
-    maxTargets: 192,
+  clangd: Object.freeze({
+    docThreshold: 64,
+    maxDocs: 64,
+    degradedMaxDocs: 32,
+    targetThreshold: 256,
+    maxTargets: 256,
     degradedMaxTargets: 96,
-    degradedHoverTimeouts: 2,
-    degradedHoverP95Ms: 2000,
+    degradedDocumentSymbolTimeouts: 1,
+    degradedDocumentSymbolP95Ms: 3500,
     defaultHoverMaxPerFile: 4,
     degradedHoverMaxPerFile: 2
+  }),
+  gopls: Object.freeze({
+    docThreshold: 128,
+    maxDocs: 128,
+    degradedMaxDocs: 64,
+    targetThreshold: 256,
+    maxTargets: 256,
+    degradedMaxTargets: 96,
+    degradedDocumentSymbolTimeouts: 2,
+    degradedDocumentSymbolP95Ms: 2500,
+    defaultHoverMaxPerFile: 6,
+    degradedHoverMaxPerFile: 3
+  }),
+  sourcekit: Object.freeze({
+    docThreshold: 64,
+    maxDocs: 64,
+    degradedMaxDocs: 32,
+    targetThreshold: 160,
+    maxTargets: 128,
+    degradedMaxTargets: 64,
+    degradedHoverTimeouts: 2,
+    degradedHoverP95Ms: 2000,
+    defaultHoverMaxPerFile: 3,
+    degradedHoverMaxPerFile: 1
   }),
   'yaml-language-server': Object.freeze({
     docThreshold: 64,

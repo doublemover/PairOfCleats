@@ -60,6 +60,10 @@ const PATH_POLICY_PROFILES = Object.freeze({
   pyright: Object.freeze({
     allowedExtensions: Object.freeze(['.py', '.pyi']),
     deprioritizePatterns: Object.freeze([
+      /\/\.github\//i,
+      /\/ci\//i,
+      /\/hack\//i,
+      /\/contrib\//i,
       /\/docs?\//i,
       /\/examples?\//i,
       /\/samples?\//i,
@@ -72,6 +76,10 @@ const PATH_POLICY_PROFILES = Object.freeze({
       /\/third_party\//i
     ]),
     skipDocumentSymbolPatterns: Object.freeze([
+      /\/\.github\//i,
+      /\/ci\//i,
+      /\/hack\//i,
+      /\/contrib\//i,
       /\/docs?\//i,
       /\/examples?\//i,
       /\/samples?\//i,
@@ -83,16 +91,29 @@ const PATH_POLICY_PROFILES = Object.freeze({
       /\/third_party\//i
     ]),
     suppressInteractivePatterns: Object.freeze([
+      /\/\.github\//i,
+      /\/ci\//i,
+      /\/hack\//i,
+      /\/contrib\//i,
       /\/docs?\//i,
       /\/examples?\//i,
       /\/samples?\//i,
       /\/tests?\//i,
-      /\/testdata\//i
+      /\/testdata\//i,
+      /\/scripts?\//i,
+      /\/tools?\//i,
+      /\/bench(?:marks)?\//i,
+      /\/vendor\//i,
+      /\/third_party\//i
     ])
   }),
   gopls: Object.freeze({
     allowedExtensions: Object.freeze(['.go']),
     deprioritizePatterns: Object.freeze([
+      /\/\.github\//i,
+      /\/ci\//i,
+      /\/hack\//i,
+      /\/contrib\//i,
       /\/docs?\//i,
       /\/examples?\//i,
       /\/samples?\//i,
@@ -105,6 +126,10 @@ const PATH_POLICY_PROFILES = Object.freeze({
       /\/third_party\//i
     ]),
     skipDocumentSymbolPatterns: Object.freeze([
+      /\/\.github\//i,
+      /\/ci\//i,
+      /\/hack\//i,
+      /\/contrib\//i,
       /\/docs?\//i,
       /\/examples?\//i,
       /\/samples?\//i,
@@ -117,6 +142,10 @@ const PATH_POLICY_PROFILES = Object.freeze({
       /\/third_party\//i
     ]),
     suppressInteractivePatterns: Object.freeze([
+      /\/\.github\//i,
+      /\/ci\//i,
+      /\/hack\//i,
+      /\/contrib\//i,
       /\/docs?\//i,
       /\/examples?\//i,
       /\/samples?\//i,
@@ -133,6 +162,9 @@ const PATH_POLICY_PROFILES = Object.freeze({
       '.c', '.h', '.cc', '.cpp', '.cxx', '.hpp', '.hh', '.m', '.mm'
     ]),
     deprioritizePatterns: Object.freeze([
+      /\/contrib\//i,
+      /\/experimental\//i,
+      /\/(?:windows|linux|macos)\/runner\//i,
       /\/docs?\//i,
       /\/tests?\//i,
       /\/examples?\//i,
@@ -145,6 +177,9 @@ const PATH_POLICY_PROFILES = Object.freeze({
       /\/third_party\//i
     ]),
     skipDocumentSymbolPatterns: Object.freeze([
+      /\/contrib\//i,
+      /\/experimental\//i,
+      /\/(?:windows|linux|macos)\/runner\//i,
       /\/docs?\//i,
       /\/tests?\//i,
       /\/examples?\//i,
@@ -157,6 +192,9 @@ const PATH_POLICY_PROFILES = Object.freeze({
       /\/third_party\//i
     ]),
     suppressInteractivePatterns: Object.freeze([
+      /\/contrib\//i,
+      /\/experimental\//i,
+      /\/(?:windows|linux|macos)\/runner\//i,
       /\/docs?\//i,
       /\/tests?\//i,
       /\/examples?\//i,
@@ -169,6 +207,9 @@ const PATH_POLICY_PROFILES = Object.freeze({
   sourcekit: Object.freeze({
     allowedExtensions: Object.freeze(['.swift']),
     deprioritizePatterns: Object.freeze([
+      /\/\.github\//i,
+      /\/ci\//i,
+      /\/hack\//i,
       /\/docs?\//i,
       /\/tests?\//i,
       /\/examples?\//i,
@@ -177,6 +218,9 @@ const PATH_POLICY_PROFILES = Object.freeze({
       /\/tools?\//i
     ]),
     skipDocumentSymbolPatterns: Object.freeze([
+      /\/\.github\//i,
+      /\/ci\//i,
+      /\/hack\//i,
       /\/docs?\//i,
       /\/tests?\//i,
       /\/examples?\//i,
@@ -185,6 +229,9 @@ const PATH_POLICY_PROFILES = Object.freeze({
       /\/tools?\//i
     ]),
     suppressInteractivePatterns: Object.freeze([
+      /\/\.github\//i,
+      /\/ci\//i,
+      /\/hack\//i,
       /\/docs?\//i,
       /\/tests?\//i,
       /\/examples?\//i,
