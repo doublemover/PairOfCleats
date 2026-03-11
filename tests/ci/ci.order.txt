@@ -4,6 +4,7 @@ indexing/imports/replay-corpus
 tooling/install/tooling-detect-generic-lsp-tools
 tooling/lsp/sourcekit-provider-host-lock-unavailable
 tooling/lsp/sourcekit-package-preflight-lock-unavailable
+tooling/lsp/sourcekit-package-preflight-lock-unavailable-fail-open
 tooling/install/tooling-detect-dedicated-lsp-tools
 tooling/install/tooling-detect
 tooling/lsp/session-pool-disposal-barrier

@@ -65,7 +65,10 @@ const kindFilteredPlans = selectToolingProviders({
   targets,
   kinds: ['types']
 });
-assert.equal(kindFilteredPlans.length, 1, 'expected kind filter to exclude providers with empty kinds');
-assert.equal(kindFilteredPlans[0].provider.id, 'typed');
+assert.deepEqual(
+  kindFilteredPlans.map((plan) => plan.provider.id),
+  ['typed', 'untyped'],
+  'expected kind filter to preserve providers that omit optional kinds metadata'
+);
 
 console.log('tooling provider registry gating test passed');

@@ -413,7 +413,7 @@ export const ensureSourcekitPackageResolutionPreflight = async ({
         );
         log(`[tooling] ${message}`);
         return {
-          blockSourcekit: true,
+          blockSourcekit: failClosed,
           check: {
             name: 'sourcekit_package_preflight_lock_unavailable',
             status: 'warn',
