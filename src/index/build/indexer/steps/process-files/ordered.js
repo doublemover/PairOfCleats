@@ -781,6 +781,22 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     if (aborted) return;
     aborted = true;
     abortError = err instanceof Error ? err : new Error(String(err || 'Ordered appender aborted.'));
+    for (let seq = seqLedger.startSeq; seq <= seqLedger.endSeq; seq += 1) {
+      const stateCode = seqLedger.getState(seq);
+      if (
+        stateCode === STAGE1_SEQ_STATE.UNUSED
+        || stateCode === STAGE1_SEQ_STATE.COMMITTED
+        || TERMINAL_SET.has(stateCode)
+      ) {
+        continue;
+      }
+      try {
+        transitionToTerminal(seq, TERMINAL_CANCEL, {
+          ownerId: 0,
+          reasonCode: 2
+        });
+      } catch {}
+    }
     while (capacityWaiters.length) {
       settleWaiter(capacityWaiters.shift(), (entry) => entry.reject(abortError));
     }

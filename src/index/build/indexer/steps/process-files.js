@@ -4293,17 +4293,17 @@ export const processFiles = async ({
                   }
                   recordExtractedProseYieldObservation({ entry, result });
                 }
-                markOrderedEntryComplete(
-                  orderIndex,
-                  shardProgress,
-                  entry?.rel || (entry?.abs ? toPosix(path.relative(runtimeRef.root, entry.abs)) : null)
-                );
                 if (!result) {
                   if (entry?.rel) lifecycleByRelKey.delete(entry.rel);
                   if (Number.isFinite(orderIndex)) {
                     lifecycleByOrderIndex.delete(Math.floor(orderIndex));
                   }
                   const completion = orderedAppender.skip(orderIndex);
+                  markOrderedEntryComplete(
+                    orderIndex,
+                    shardProgress,
+                    entry?.rel || (entry?.abs ? toPosix(path.relative(runtimeRef.root, entry.abs)) : null)
+                  );
                   orderedCompletionTracker.track(completion, () => {
                     lastOrderedCompletionAt = Date.now();
                     refreshStage1ActiveWindows();
@@ -4350,6 +4350,11 @@ export const processFiles = async ({
                   });
                 }
                 const completion = orderedAppender.enqueue(orderIndex, result, shardMeta);
+                markOrderedEntryComplete(
+                  orderIndex,
+                  shardProgress,
+                  entry?.rel || (entry?.abs ? toPosix(path.relative(runtimeRef.root, entry.abs)) : null)
+                );
                 orderedCompletionTracker.track(completion, () => {
                   lastOrderedCompletionAt = Date.now();
                   refreshStage1ActiveWindows();
@@ -4384,16 +4389,16 @@ export const processFiles = async ({
                     shardId: shardMeta?.id || null
                   }
                 );
-                markOrderedEntryComplete(
-                  orderIndex,
-                  shardProgress,
-                  entry?.rel || (entry?.abs ? toPosix(path.relative(runtimeRef.root, entry.abs)) : null)
-                );
                 if (entry?.rel) lifecycleByRelKey.delete(entry.rel);
                 if (Number.isFinite(orderIndex)) {
                   lifecycleByOrderIndex.delete(Math.floor(orderIndex));
                 }
                 const completion = orderedAppender.skip(orderIndex);
+                markOrderedEntryComplete(
+                  orderIndex,
+                  shardProgress,
+                  entry?.rel || (entry?.abs ? toPosix(path.relative(runtimeRef.root, entry.abs)) : null)
+                );
                 orderedCompletionTracker.track(completion, () => {
                   lastOrderedCompletionAt = Date.now();
                   refreshStage1ActiveWindows();
