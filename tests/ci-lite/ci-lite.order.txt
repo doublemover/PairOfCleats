@@ -1065,3 +1065,4 @@ indexing/extracted-prose/low-yield-history-unsampled-doclike-family
 indexing/extracted-prose/low-yield-summary-family-evidence
 indexing/extracted-prose/extraction-report
 indexing/workers/worker-pool-lifecycle-destroy
+indexing/workers/worker-pool-lifecycle-destroy-during-restart

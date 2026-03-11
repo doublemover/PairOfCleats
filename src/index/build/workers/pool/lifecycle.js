@@ -65,6 +65,8 @@ export const createWorkerPoolLifecycle = (input = {}) => {
   let restarting = null;
   let shutdownWhenIdle = false;
   let shutdownPromise = null;
+  let destroyPromise = null;
+  let destroying = false;
   let pendingRestart = false;
   let idleShutdownWaiters = [];
   let effectiveMaxWorkers = Math.max(1, Math.floor(Number(configuredMaxWorkers) || 1));
@@ -250,6 +252,10 @@ export const createWorkerPoolLifecycle = (input = {}) => {
    * @returns {Promise<boolean>}
    */
   const ensurePool = async () => {
+    if (destroying) {
+      pendingRestart = false;
+      return false;
+    }
     if (permanentlyDisabled) {
       pendingRestart = false;
       return false;
@@ -269,6 +275,11 @@ export const createWorkerPoolLifecycle = (input = {}) => {
       restarting = (async () => {
         try {
           await shutdownPool();
+          if (destroying || permanentlyDisabled) {
+            pendingRestart = false;
+            disabled = true;
+            return;
+          }
           pool = createPool(effectiveMaxWorkers);
           attachPoolListeners(pool);
           disabled = false;
@@ -300,6 +311,7 @@ export const createWorkerPoolLifecycle = (input = {}) => {
         throw error;
       }
     }
+    if (destroying) return;
     await maybeRestart();
   };
 
@@ -310,17 +322,31 @@ export const createWorkerPoolLifecycle = (input = {}) => {
   };
 
   const destroy = async () => {
-    permanentlyDisabled = true;
-    disabled = true;
-    pendingRestart = false;
-    restartAttempts = maxRestartAttempts + 1;
-    if (getActiveTasks() === 0) {
-      await shutdownPool();
-      settleIdleShutdownWaiters();
-      return;
+    if (!destroyPromise) {
+      destroyPromise = (async () => {
+        destroying = true;
+        permanentlyDisabled = true;
+        disabled = true;
+        pendingRestart = false;
+        restartAtMs = 0;
+        restartAttempts = maxRestartAttempts + 1;
+        try {
+          if (restarting) {
+            await restarting;
+          }
+          if (getActiveTasks() === 0) {
+            await shutdownPool();
+            settleIdleShutdownWaiters();
+            return;
+          }
+          shutdownWhenIdle = true;
+          await waitForIdleShutdown();
+        } finally {
+          destroying = false;
+        }
+      })();
     }
-    shutdownWhenIdle = true;
-    await waitForIdleShutdown();
+    await destroyPromise;
   };
 
   const pressureDownscaleStats = () => ({
