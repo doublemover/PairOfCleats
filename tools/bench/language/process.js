@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSubprocess } from '../../../src/shared/subprocess.js';
+import { runSyncCommandWithTimeout, spawnSubprocess } from '../../../src/shared/subprocess.js';
 import { composeAbortSignals } from '../../../src/shared/abort.js';
 import { killProcessTree as killPidTree } from '../../../src/shared/kill-tree.js';
 import { createTimeoutError, runWithTimeout } from '../../../src/shared/promise-timeout.js';
@@ -31,6 +31,9 @@ const HEARTBEAT_STALL_THRESHOLD_MS = 30 * 1000;
 const MAX_PROGRESS_SAMPLES = 240;
 const TELEMETRY_FLUSH_TIMEOUT_MS = 5000;
 const DEFAULT_IDLE_TIMEOUT_WATCHDOG_POLL_MS = 5000;
+const PROCESS_ACTIVITY_PROBE_TIMEOUT_MS = 1500;
+const PROCESS_ACTIVITY_CPU_DELTA_MS = 100;
+const PROCESS_ACTIVITY_RSS_DELTA_BYTES = 4 * 1024 * 1024;
 
 const PARSER_CRASH_PATTERNS = Object.freeze([
   /\bparser\b[\s\S]{0,80}\b(?:crash|crashed|fatal|abort|aborted)\b/i,
@@ -117,6 +120,93 @@ const percentile = (values, ratio) => {
 };
 
 const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
+
+const parseCpuDurationMs = (value) => {
+  const text = String(value || '').trim();
+  if (!text) return null;
+  const daySplit = text.split('-');
+  let days = 0;
+  let timeText = text;
+  if (daySplit.length === 2) {
+    days = Number.parseInt(daySplit[0], 10);
+    timeText = daySplit[1] || '';
+    if (!Number.isFinite(days) || days < 0) return null;
+  }
+  const parts = timeText.split(':').map((entry) => Number.parseInt(entry, 10));
+  if (!parts.every((entry) => Number.isFinite(entry) && entry >= 0)) return null;
+  if (parts.length === 2) {
+    const [minutes, seconds] = parts;
+    return ((days * 24 * 60 * 60) + (minutes * 60) + seconds) * 1000;
+  }
+  if (parts.length === 3) {
+    const [hours, minutes, seconds] = parts;
+    return ((days * 24 * 60 * 60) + (hours * 60 * 60) + (minutes * 60) + seconds) * 1000;
+  }
+  return null;
+};
+
+const parseWindowsTasklistActivity = (stdout, pid) => {
+  const output = String(stdout || '').trim();
+  if (!output || /INFO:\s+No tasks are running/i.test(output)) return { alive: false, pid };
+  const line = output.split(/\r?\n/)[0] || '';
+  const parts = line.split('","').map((part) => part.replace(/^"|"$/g, ''));
+  const parsedPid = Number(parts[1] || '');
+  if (!Number.isFinite(parsedPid) || parsedPid !== pid) return { alive: false, pid };
+  const rssKbText = String(parts[4] || '').replace(/[^0-9]/g, '');
+  return {
+    alive: true,
+    pid,
+    cpuMs: parseCpuDurationMs(parts[7]),
+    rssBytes: Number.isFinite(Number(rssKbText)) ? Number(rssKbText) * 1024 : null
+  };
+};
+
+const parsePosixPsActivity = (stdout, pid) => {
+  const output = String(stdout || '').trim();
+  if (!output) return { alive: false, pid };
+  const line = output.split(/\r?\n/).map((entry) => entry.trim()).find(Boolean) || '';
+  if (!line) return { alive: false, pid };
+  const match = line.match(/^(?<time>\S+)\s+(?<rss>\d+)$/);
+  if (!match) return { alive: true, pid, cpuMs: null, rssBytes: null };
+  return {
+    alive: true,
+    pid,
+    cpuMs: parseCpuDurationMs(match.groups?.time),
+    rssBytes: Number.isFinite(Number(match.groups?.rss)) ? Number(match.groups.rss) * 1024 : null
+  };
+};
+
+const sampleChildProcessActivity = (pid) => {
+  const numericPid = Number(pid);
+  if (!Number.isFinite(numericPid) || numericPid <= 0) return null;
+  try {
+    if (process.platform === 'win32') {
+      const result = runSyncCommandWithTimeout(
+        'tasklist',
+        ['/FI', `PID eq ${numericPid}`, '/FO', 'CSV', '/NH', '/V'],
+        {
+          encoding: 'utf8',
+          windowsHide: true,
+          timeoutMs: PROCESS_ACTIVITY_PROBE_TIMEOUT_MS
+        }
+      );
+      if (result?.error) return null;
+      return parseWindowsTasklistActivity(result.stdout, numericPid);
+    }
+    const result = runSyncCommandWithTimeout(
+      'ps',
+      ['-o', 'time=', '-o', 'rss=', '-p', String(numericPid)],
+      {
+        encoding: 'utf8',
+        timeoutMs: PROCESS_ACTIVITY_PROBE_TIMEOUT_MS
+      }
+    );
+    if (result?.error) return null;
+    return parsePosixPsActivity(result.stdout, numericPid);
+  } catch {
+    return null;
+  }
+};
 
 const formatCompactDuration = (value) => {
   if (!Number.isFinite(value)) return 'n/a';
@@ -243,10 +333,20 @@ export const createProcessRunner = ({
   let exitLogged = false;
   const interactiveDiagnostics = new Map();
   const ACTIVE_CHILD_SHUTDOWN_WAIT_MS = 15000;
+  const processActivityState = {
+    childPid: null,
+    baseline: null,
+    probePromise: null,
+    probeWarmupGranted: false
+  };
 
   const setActiveChild = (child, label) => {
     activeChild = child;
     activeLabel = label;
+    processActivityState.childPid = Number(child?.pid);
+    processActivityState.baseline = null;
+    processActivityState.probePromise = null;
+    processActivityState.probeWarmupGranted = false;
   };
 
   const clearActiveChild = (childOrPid = null) => {
@@ -259,7 +359,45 @@ export const createProcessRunner = ({
     if (!Number.isFinite(targetPid) || Number(activeChild.pid) === targetPid || activeChild === childOrPid) {
       activeChild = null;
       activeLabel = '';
+      processActivityState.childPid = null;
+      processActivityState.baseline = null;
+      processActivityState.probePromise = null;
+      processActivityState.probeWarmupGranted = false;
     }
+  };
+
+  const probeActiveChildActivity = async () => {
+    const pid = Number(activeChild?.pid ?? processActivityState.childPid);
+    if (!Number.isFinite(pid) || pid <= 0) return { kind: 'unavailable', pid: null };
+    if (processActivityState.probePromise) return processActivityState.probePromise;
+    const probePromise = Promise.resolve().then(() => {
+      const sample = sampleChildProcessActivity(pid);
+      if (!sample || sample.alive !== true) return { kind: 'unavailable', pid };
+      const prior = processActivityState.baseline;
+      processActivityState.baseline = sample;
+      if (!prior) return { kind: 'baseline', pid, sample };
+      const cpuDeltaMs = Number(sample.cpuMs) - Number(prior.cpuMs);
+      if (Number.isFinite(cpuDeltaMs) && cpuDeltaMs >= PROCESS_ACTIVITY_CPU_DELTA_MS) {
+        return { kind: 'activity', pid, source: 'process-cpu', text: `pid=${pid} cpu+${Math.round(cpuDeltaMs)}ms`, sample };
+      }
+      const rssDeltaBytes = Math.abs(Number(sample.rssBytes) - Number(prior.rssBytes));
+      if (Number.isFinite(rssDeltaBytes) && rssDeltaBytes >= PROCESS_ACTIVITY_RSS_DELTA_BYTES) {
+        return {
+          kind: 'activity',
+          pid,
+          source: 'process-memory',
+          text: `pid=${pid} rssΔ=${Math.round(rssDeltaBytes / (1024 * 1024))}MiB`,
+          sample
+        };
+      }
+      return { kind: 'idle', pid, sample };
+    }).finally(() => {
+      if (processActivityState.probePromise === probePromise) {
+        processActivityState.probePromise = null;
+      }
+    });
+    processActivityState.probePromise = probePromise;
+    return probePromise;
   };
 
   const killProcessTree = (pid) => {
@@ -434,6 +572,7 @@ export const createProcessRunner = ({
     let lastActivityText = label;
     let idleWatchdog = null;
     let idleTimeoutTriggered = false;
+    let idleWatchdogProbeInFlight = false;
 
     const markActivity = ({ source = 'output', text = '' } = {}) => {
       lastActivityAtMs = Date.now();
@@ -449,10 +588,25 @@ export const createProcessRunner = ({
     };
 
     if (idleAbortController && idleWatchdogPollMs > 0) {
-      idleWatchdog = setInterval(() => {
+      idleWatchdog = setInterval(async () => {
         if (idleTimeoutTriggered || idleAbortController.signal.aborted) return;
+        if (idleWatchdogProbeInFlight) return;
         const idleMs = Date.now() - lastActivityAtMs;
         if (idleMs < resolvedIdleTimeoutMs) return;
+        idleWatchdogProbeInFlight = true;
+        try {
+          const probe = await probeActiveChildActivity();
+          if (probe?.kind === 'activity') {
+            markActivity({ source: probe.source, text: probe.text });
+            return;
+          }
+          if (probe?.kind === 'baseline' && !processActivityState.probeWarmupGranted) {
+            processActivityState.probeWarmupGranted = true;
+            return;
+          }
+        } finally {
+          idleWatchdogProbeInFlight = false;
+        }
         idleTimeoutTriggered = true;
         const error = new Error(
           `Bench subprocess idle timeout after ${resolvedIdleTimeoutMs}ms (last activity: ${lastActivitySource}${lastActivityText ? `: ${lastActivityText}` : ''}).`

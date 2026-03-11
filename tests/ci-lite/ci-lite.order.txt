@@ -1043,6 +1043,7 @@ perf/bench/language-log-closeout
 perf/bench/query-runtime
 perf/bench/language-timeout-profile
 perf/bench/language-process-idle-timeout
+perf/bench/language-process-idle-activity-probe
 shared/lifecycle/registry-unref-promise-drain
 indexing/embeddings/embedding-batcher-unref-timer
 perf/bench/repo-timeout-propagation
