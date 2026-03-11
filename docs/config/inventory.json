@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-10T00:33:50.737Z",
+  "generatedAt": "2026-03-11T14:57:33.444Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3051,6 +3051,7 @@
       "files": [
         "src/shared/env.js",
         "src/shared/ops-failure-injection.js",
+        "tests/helpers/fixture-index-risk-config.test.js",
         "tests/helpers/fixture-index.js",
         "tests/helpers/lane-default-test-config.test.js",
         "tests/helpers/search-lifecycle-env-isolation.test.js",

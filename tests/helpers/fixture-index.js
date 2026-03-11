@@ -148,9 +148,17 @@ const mergeTestConfig = (rawOverride) => {
   }
 };
 
-const createFixtureEnv = (cacheRoot, overrides = {}) => {
+const createFixtureEnv = (cacheRoot, overrides = {}, { requireCodeRiskTags = false } = {}) => {
   const { PAIROFCLEATS_TEST_CONFIG: testConfigOverride, ...restOverrides } = overrides;
-  const mergedTestConfig = mergeTestConfig(testConfigOverride);
+  let mergedTestConfig = mergeTestConfig(testConfigOverride);
+  if (requireCodeRiskTags) {
+    mergedTestConfig = mergeConfig(mergedTestConfig, {
+      indexing: {
+        riskAnalysis: true,
+        riskAnalysisCrossFile: true
+      }
+    });
+  }
   return applyTestEnv({
     cacheRoot,
     embeddings: 'stub',
@@ -388,11 +396,12 @@ export const ensureFixtureIndex = async ({
   if (!fixtureName) throw new Error('fixtureName is required');
   const normalizedCacheScope = normalizeTestCacheScope(cacheScope, { defaultScope: 'isolated' });
   const normalizedRequiredModes = normalizeRequiredModes(requiredModes);
+  const requireCodeRiskTags = requireRiskTags && normalizedRequiredModes.includes('code');
   const fixtureRootRaw = path.join(ROOT, 'tests', 'fixtures', fixtureName);
   const fixtureRoot = toRealPathSync(fixtureRootRaw);
   const cacheRoot = resolveTestCachePath(ROOT, resolveCacheName(cacheName, { cacheScope: normalizedCacheScope }));
   await ensureDir(cacheRoot);
-  const env = createFixtureEnv(cacheRoot, envOverrides);
+  const env = createFixtureEnv(cacheRoot, envOverrides, { requireCodeRiskTags });
   const userConfig = loadUserConfig(fixtureRoot);
   const repoCacheRoot = getRepoCacheRoot(fixtureRoot, userConfig);
   const healthStampPath = path.join(repoCacheRoot, '.fixture-health.json');
@@ -409,7 +418,6 @@ export const ensureFixtureIndex = async ({
       requiredModes: normalizedRequiredModes
     });
     const compatibleIndexes = compatibility.compatible;
-    const requireCodeRiskTags = requireRiskTags && normalizedRequiredModes.includes('code');
     const requireSqlDialectMetadata = normalizedRequiredModes.includes('code');
     if (!compatibleIndexes) {
       return {
@@ -586,6 +594,7 @@ export const loadFixtureMetricsDir = (fixtureRoot, userConfig) =>
   getMetricsDir(fixtureRoot, userConfig);
 
 export const fixtureIndexInternals = {
+  createFixtureEnv,
   withTemporaryEnv
 };
 

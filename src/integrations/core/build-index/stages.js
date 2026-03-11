@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
-import { acquireIndexLock } from '../../../index/build/lock.js';
+import { acquireIndexLock, attachIndexLockSignalCleanup } from '../../../index/build/lock.js';
 import { preprocessFiles, writePreprocessStats } from '../../../index/build/preprocess.js';
 import { buildIndexForMode } from '../../../index/build/indexer.js';
 import { SIGNATURE_VERSION } from '../../../index/build/indexer/signatures.js';
@@ -157,6 +157,7 @@ export const runEmbeddingsStage = async ({
       return resolved;
     };
     const lock = await acquireBuildIndexLock({ repoCacheRoot, log });
+    const detachSignalCleanup = attachIndexLockSignalCleanup(lock);
     try {
       throwIfAborted(effectiveAbortSignal);
       const embedTotal = embedModes.length;
@@ -326,6 +327,7 @@ export const runEmbeddingsStage = async ({
       }
       return recordOk({ modes: embedModes, embeddings: { queued: false, inline: true }, repo: root, stage: 'stage3' });
     } finally {
+      detachSignalCleanup();
       await runBuildCleanupWithTimeout({
         label: 'stage3.lock.release',
         cleanup: () => releaseFileLockOrThrow(lock),
@@ -454,6 +456,7 @@ export const runSqliteStage = async ({
       : fn());
     const resolveSqliteDirs = createSqliteDirResolver({ root, userConfig, getIndexDir });
     let lock = null;
+    let detachLockSignalCleanup = null;
     let stage4Running = false;
     let stage4Done = false;
     let promoteRunning = false;
@@ -496,6 +499,7 @@ export const runSqliteStage = async ({
       const shouldPromote = !(explicitIndexRoot && argv.stage === 'stage4');
       if (shouldPromote) {
         lock = await acquireBuildIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log });
+        detachLockSignalCleanup = attachIndexLockSignalCleanup(lock);
         await markBuildPhase(runtime.buildRoot, 'promote', 'running');
         promoteRunning = true;
         await promoteBuild({
@@ -539,6 +543,7 @@ export const runSqliteStage = async ({
       });
       throw err;
     } finally {
+      detachLockSignalCleanup?.();
       if (lock?.release) {
         await runBuildCleanupWithTimeout({
           label: 'stage4.lock.release',
@@ -639,6 +644,7 @@ export const runStage = async (
       runtime.overallProgress = null;
     }
     let lock = null;
+    let detachLockSignalCleanup = null;
     let sqliteResult = null;
     let phaseRunning = false;
     let phaseDone = false;
@@ -873,6 +879,7 @@ export const runStage = async (
       validationDone = true;
       throwIfAborted(effectiveAbortSignal);
       lock = await acquireBuildIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log });
+      detachLockSignalCleanup = attachIndexLockSignalCleanup(lock);
       await markBuildPhase(runtime.buildRoot, 'promote', 'running');
       promoteRunning = true;
       throwIfAborted(effectiveAbortSignal);
@@ -912,6 +919,7 @@ export const runStage = async (
       });
       throw err;
     } finally {
+      detachLockSignalCleanup?.();
       const closeout = createCloseoutRegistry({
         stage: phaseStage,
         log,

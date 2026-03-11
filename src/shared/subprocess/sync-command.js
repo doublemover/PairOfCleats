@@ -2,6 +2,8 @@ import { spawnSync } from 'node:child_process';
 
 export const DEFAULT_SYNC_COMMAND_TIMEOUT_MS = 5_000;
 
+const isSyncCommandTimeoutDisabled = (value) => value === null;
+
 const isPositivePid = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0;
@@ -86,6 +88,7 @@ export const killTimedOutSyncProcessTree = (
 };
 
 export const resolveSyncCommandTimeoutMs = (value, fallback = DEFAULT_SYNC_COMMAND_TIMEOUT_MS) => {
+  if (isSyncCommandTimeoutDisabled(value)) return null;
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 0) {
     return Math.max(1, Math.floor(Number(fallback) || DEFAULT_SYNC_COMMAND_TIMEOUT_MS));
@@ -104,7 +107,7 @@ export const runSyncCommandWithTimeout = (command, args = [], options = {}) => {
   try {
     const result = spawnSync(command, Array.isArray(args) ? args : [], {
       ...spawnOptions,
-      timeout: timeoutMs
+      timeout: timeoutMs === null ? undefined : timeoutMs
     });
     if (isSyncCommandTimedOut(result)) {
       killTimedOutSyncProcessTree(

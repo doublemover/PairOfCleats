@@ -702,6 +702,7 @@ retrieval/providers/provider-empty-ann-success-reset-contract
 storage/sqlite/build-full-transaction
 tooling/lsp/dedicated-provider-preflight-blocking
 indexing/watch/index-lock
+indexing/watch/index-lock-signal-cleanup
 tooling/lsp/failure-accounting-per-target
 tooling/reports/capabilities-report
 ci/tooling-lsp-slo-gate.smoke
@@ -763,6 +764,7 @@ indexing/imports/require-regex-fallback-on-lexer-failure
 indexing/imports/import-resolution-budget-exhaustion
 indexing/imports/import-resolution-fallback-depth-budget
 tooling/structural/search
+tooling/structural/binary-default-timeout
 indexing/imports/import-priority
 indexing/imports/cache-invalidation
 indexing/imports/import-resolution-fs-exists-index-budget-shortcircuit
@@ -961,6 +963,7 @@ indexing/tree-sitter/plan-stale-file-resilience
 indexing/validate/index-unknown-mode
 indexing/validate/manifest-checks
 shared/subprocess/timeout-kills-child
+shared/subprocess/sync-command-timeout-opt-out
 shared/runtime/records-config
 tooling/config/dump
 indexing/file-processor/read-failure-skip
@@ -1028,6 +1031,7 @@ indexing/tree-sitter/scheduler-native-language-contract
 indexing/tree-sitter/scheduler-native-smoke
 tooling/lsp/references-fallback
 runner/harness/redo-semantics
+helpers/fixture-index-risk-config
 shared/cache/gc
 tooling/type-inference/crossfile-stats.unit
 tooling/lsp/elixir-provider-runtime-otp-mismatch-preflight

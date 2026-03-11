@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { acquireIndexLock } from '../build/lock.js';
+import { acquireIndexLock, attachIndexLockSignalCleanup } from '../build/lock.js';
 import { resolveIndexRef } from '../index-ref.js';
 import { createError, ERROR_CODES } from '../../shared/error-codes.js';
 import { isManifestPathSafe } from '../validate/paths.js';
@@ -216,9 +216,11 @@ const withSnapshotLock = async (repoCacheRoot, options, worker) => {
   if (!lock) {
     throw queueError('Index lock held; unable to mutate snapshots.');
   }
+  const detachSignalCleanup = attachIndexLockSignalCleanup(lock);
   try {
     return await worker(lock);
   } finally {
+    detachSignalCleanup();
     await releaseFileLockOrThrow(lock);
   }
 };

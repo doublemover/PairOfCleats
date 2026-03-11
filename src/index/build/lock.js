@@ -44,6 +44,7 @@ export async function acquireIndexLock({
   }
 
   let released = false;
+  let signalCleaned = false;
   const handlers = [];
   const cleanupSync = () => {
     if (released) return;
@@ -64,10 +65,16 @@ export async function acquireIndexLock({
   // process exit, but do not install signal handlers that force termination.
   registerHandler('exit', cleanupSync);
 
-  return {
+  const publicLock = {
     lockPath,
+    payload: lock.payload,
+    signalCleaned: false,
     release: async () => {
       if (!released) {
+        if (signalCleaned || publicLock.signalCleaned === true) {
+          released = true;
+          return true;
+        }
         await runBuildCleanupWithTimeout({
           label: 'index-lock.release',
           cleanup: () => releaseFileLockOrThrow(lock),
@@ -78,6 +85,45 @@ export async function acquireIndexLock({
       }
       detachHandlers();
       return true;
+    }
+  };
+  return publicLock;
+}
+
+/**
+ * Attach deterministic signal cleanup for an owned index lock without making
+ * the low-level lock helper authoritative over process signal ownership.
+ *
+ * Callers that own process lifecycle can opt in so SIGINT/SIGTERM remove the
+ * current lock file synchronously before higher-level abort/exit handling runs.
+ *
+ * @param {{lockPath?:string,payload?:object}} lock
+ * @param {{signals?:string[]}} [options]
+ * @returns {() => void}
+ */
+export function attachIndexLockSignalCleanup(lock, { signals = null } = {}) {
+  if (!lock?.lockPath || !lock?.payload) return () => {};
+  const events = Array.isArray(signals) && signals.length > 0
+    ? signals
+    : ['SIGINT', 'SIGTERM', ...(process.platform === 'win32' ? ['SIGBREAK'] : [])];
+  let detached = false;
+  const handlers = [];
+  const cleanupSync = () => {
+    const removed = removeLockFileSyncIfOwned(lock.lockPath, lock.payload);
+    if (removed) {
+      lock.signalCleaned = true;
+    }
+  };
+  for (const event of events) {
+    const handler = () => cleanupSync();
+    process.once(event, handler);
+    handlers.push({ event, handler });
+  }
+  return () => {
+    if (detached) return;
+    detached = true;
+    for (const { event, handler } of handlers) {
+      process.off(event, handler);
     }
   };
 }
