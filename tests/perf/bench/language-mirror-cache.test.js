@@ -5,7 +5,11 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   __setGitCommandRunnerForTests,
+  DEFAULT_MIRROR_CHECKOUT_TIMEOUT_MS,
+  DEFAULT_MIRROR_CLONE_TIMEOUT_MS,
   DEFAULT_MIRROR_REFRESH_MS,
+  DEFAULT_MIRROR_REFRESH_TIMEOUT_MS,
+  DEFAULT_MIRROR_TIMEOUT_MS,
   resolveMirrorCacheRoot,
   resolveMirrorRefreshMs,
   resolveMirrorRepoPath,
@@ -72,6 +76,9 @@ assert.equal(
   1234,
   'expected fallback mirror refresh value for invalid input'
 );
+assert.equal(DEFAULT_MIRROR_CLONE_TIMEOUT_MS > DEFAULT_MIRROR_TIMEOUT_MS, true, 'expected mirror clone timeout to exceed legacy single timeout');
+assert.equal(DEFAULT_MIRROR_REFRESH_TIMEOUT_MS > DEFAULT_MIRROR_TIMEOUT_MS, true, 'expected mirror refresh timeout to exceed legacy single timeout');
+assert.equal(DEFAULT_MIRROR_CHECKOUT_TIMEOUT_MS > DEFAULT_MIRROR_TIMEOUT_MS, true, 'expected mirror checkout timeout to exceed legacy single timeout');
 
 const shouldFallbackToDirectClone = (mirrorCloneResult) => (
   mirrorCloneResult?.attempted === true && mirrorCloneResult?.ok !== true
