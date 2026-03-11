@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 
 import {
   canDispatchArtifactWriteEntry,
+  resolveArtifactBlockingState,
   resolveArtifactEffectiveDispatchBytes,
   resolveArtifactExclusivePublisherFamily,
+  resolveArtifactPhaseBudgetWeight,
   resolveArtifactWritePhaseClass,
   resolveArtifactWriteBytesInFlightLimit,
   shouldEagerStartArtifactWrite
@@ -19,6 +21,11 @@ assert.equal(
   resolveArtifactWritePhaseClass('publish:chunk-meta-binary-meta'),
   'publish',
   'expected publish phase classification'
+);
+assert.equal(
+  resolveArtifactPhaseBudgetWeight('closeout:chunk-meta-binary-meta'),
+  0,
+  'expected closeout phase writes to carry zero admission weight'
 );
 assert.equal(
   resolveArtifactExclusivePublisherFamily('chunk_meta.binary-columnar.bundle'),
@@ -165,6 +172,21 @@ assert.equal(
   }),
   true,
   'expected oversize writes to remain dispatchable when only zero-weight closeout entries are active'
+);
+const closeoutBlockingState = resolveArtifactBlockingState([{
+  label: 'chunk_meta.binary-columnar.meta.json',
+  estimatedBytes: 4096,
+  phase: 'closeout:chunk-meta-binary-meta'
+}]).fromEntries(768 * 1024 * 1024);
+assert.equal(
+  closeoutBlockingState.blockingCount,
+  0,
+  'expected closeout-only tracked writes to avoid blocking dispatch'
+);
+assert.deepEqual(
+  Array.from(closeoutBlockingState.blockingHugeFamilies),
+  [],
+  'expected closeout-only tracked writes to avoid exclusive-family blocking'
 );
 assert.equal(
   canDispatchArtifactWriteEntry({

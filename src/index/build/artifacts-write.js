@@ -91,6 +91,7 @@ import {
   canDispatchArtifactWriteEntry,
   createAdaptiveWriteConcurrencyController,
   isValidationCriticalArtifact,
+  resolveArtifactBlockingState,
   resolveAdaptiveShardCount,
   resolveArtifactEffectiveDispatchBytes,
   resolveArtifactExclusivePublisherFamily,
@@ -1274,23 +1275,27 @@ export async function writeIndexArtifacts(input) {
   };
   const resolveEntryHugeWriteFamily = (entry) => resolveHugeWriteFamily(entry?.label);
   const canDispatchEntryUnderHugeWritePolicy = (entry) => {
+    const activeEntries = [...activeWriteBytes.entries()].map(([label, estimatedBytes]) => ({
+      label,
+      estimatedBytes,
+      lane: activeWriteMeta.get(label)?.lane || null,
+      phase: activeWriteMeta.get(label)?.phase || null
+    }));
     const family = resolveEntryHugeWriteFamily(entry);
+    const blockingState = resolveArtifactBlockingState(activeEntries).fromEntries(
+      hugeWriteInFlightBudgetBytes
+    );
     if (
       family
       && hugeWriteFamilySerializationEnabled
-      && activeHugeWriteFamilies.size > 0
-      && !activeHugeWriteFamilies.has(family)
+      && blockingState.blockingHugeFamilies.size > 0
+      && !blockingState.blockingHugeFamilies.has(family)
     ) {
       return false;
     }
     return canDispatchArtifactWriteEntry({
       entry,
-      activeEntries: [...activeWriteBytes.entries()].map(([label, estimatedBytes]) => ({
-        label,
-        estimatedBytes,
-        lane: activeWriteMeta.get(label)?.lane || null,
-        phase: activeWriteMeta.get(label)?.phase || null
-      })),
+      activeEntries,
       maxBytesInFlight: hugeWriteInFlightBudgetBytes
     });
   };
@@ -3362,15 +3367,23 @@ export async function writeIndexArtifacts(input) {
       }
     };
     const repairImpossibleIdleWriteState = () => {
-      const noTrackedWrites = activeCount <= 0
-        && inFlightWrites.size <= 0
-        && activeWrites.size <= 0
-        && activeWriteBytes.size <= 0;
-      if (!noTrackedWrites) return false;
+      if (activeCount > 0 || inFlightWrites.size > 0) return false;
+      const activeEntries = [...activeWriteBytes.entries()].map(([label, estimatedBytes]) => ({
+        label,
+        estimatedBytes,
+        lane: activeWriteMeta.get(label)?.lane || null,
+        phase: activeWriteMeta.get(label)?.phase || null
+      }));
       let repaired = false;
       if (activeHugeWriteFamilies.size > 0 || activeHugeWriteBytes > 0) {
         activeHugeWriteFamilies.clear();
         activeHugeWriteBytes = 0;
+        repaired = true;
+      }
+      if (activeEntries.length > 0) {
+        activeWrites.clear();
+        activeWriteBytes.clear();
+        activeWriteMeta.clear();
         repaired = true;
       }
       for (const laneName of ['ultraLight', 'massive', 'light', 'heavy']) {

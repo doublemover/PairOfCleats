@@ -73,7 +73,7 @@ export const resolveArtifactWritePhaseClass = (phase) => {
   return 'other';
 };
 
-const resolveArtifactPhaseBudgetWeight = (phase) => {
+export const resolveArtifactPhaseBudgetWeight = (phase) => {
   const phaseClass = resolveArtifactWritePhaseClass(phase);
   switch (phaseClass) {
     case 'publish':
@@ -85,6 +85,51 @@ const resolveArtifactPhaseBudgetWeight = (phase) => {
     default:
       return 1;
   }
+};
+
+export const resolveArtifactBlockingState = (activeEntries = []) => {
+  let blockingCount = 0;
+  let blockingPhaseWeightedBytes = 0;
+  const blockingHugeFamilies = new Set();
+  let hasOversizeBlockingEntry = false;
+  return {
+    fromEntries(maxBytesInFlight = null) {
+      blockingCount = 0;
+      blockingPhaseWeightedBytes = 0;
+      blockingHugeFamilies.clear();
+      hasOversizeBlockingEntry = false;
+      for (const activeEntry of Array.isArray(activeEntries) ? activeEntries : []) {
+        if (!activeEntry || typeof activeEntry !== 'object') continue;
+        const activeFamily = resolveArtifactExclusivePublisherFamily(activeEntry.label);
+        const activeBytes = resolveArtifactEffectiveDispatchBytes(activeEntry);
+        const phaseWeight = resolveArtifactPhaseBudgetWeight(activeEntry.phase);
+        const phaseClass = resolveArtifactWritePhaseClass(activeEntry.phase);
+        if (phaseWeight > 0 && activeBytes > 0) {
+          blockingCount += 1;
+        }
+        if (maxBytesInFlight != null && phaseWeight > 0 && activeBytes > maxBytesInFlight) {
+          hasOversizeBlockingEntry = true;
+        }
+        if (phaseWeight > 0 && (activeFamily || activeBytes >= LARGE_ARTIFACT_DISPATCH_BYTES)) {
+          blockingPhaseWeightedBytes += Math.floor(activeBytes * phaseWeight);
+        }
+        if (
+          activeFamily
+          && phaseClass !== 'publish'
+          && phaseClass !== 'closeout'
+          && phaseWeight > 0
+        ) {
+          blockingHugeFamilies.add(activeFamily);
+        }
+      }
+      return {
+        blockingCount,
+        blockingPhaseWeightedBytes,
+        blockingHugeFamilies,
+        hasOversizeBlockingEntry
+      };
+    }
+  };
 };
 
 /**
@@ -221,55 +266,31 @@ export const canDispatchArtifactWriteEntry = ({
   if (!entry || typeof entry !== 'object') return false;
   const entryBytes = resolveArtifactEffectiveDispatchBytes(entry);
   const entryFamily = resolveArtifactExclusivePublisherFamily(entry.label);
-  let activePhaseWeightedBytes = 0;
-  const activeMaterializingExclusiveFamilies = new Set();
-  let activeOversize = false;
-  let blockingActiveCount = 0;
-  for (const activeEntry of Array.isArray(activeEntries) ? activeEntries : []) {
-    if (!activeEntry || typeof activeEntry !== 'object') continue;
-    const activeFamily = resolveArtifactExclusivePublisherFamily(activeEntry.label);
-    const activeBytes = resolveArtifactEffectiveDispatchBytes(activeEntry);
-    const phaseWeight = resolveArtifactPhaseBudgetWeight(activeEntry.phase);
-    const phaseClass = resolveArtifactWritePhaseClass(activeEntry.phase);
-    if (phaseWeight > 0 && activeBytes > 0) {
-      blockingActiveCount += 1;
-    }
-    if (maxBytesInFlight != null && phaseWeight > 0 && activeBytes > maxBytesInFlight) {
-      activeOversize = true;
-    }
-    if (phaseWeight > 0 && (activeFamily || activeBytes >= LARGE_ARTIFACT_DISPATCH_BYTES)) {
-      activePhaseWeightedBytes += Math.floor(activeBytes * phaseWeight);
-    }
-    if (activeFamily) {
-      if (phaseClass !== 'publish' && phaseClass !== 'closeout') {
-        activeMaterializingExclusiveFamilies.add(activeFamily);
-      }
-    }
-  }
-  if (entryFamily && activeMaterializingExclusiveFamilies.has(entryFamily)) {
+  const blockingState = resolveArtifactBlockingState(activeEntries).fromEntries(maxBytesInFlight);
+  if (entryFamily && blockingState.blockingHugeFamilies.has(entryFamily)) {
     return false;
   }
-  if (activeOversize) {
+  if (blockingState.hasOversizeBlockingEntry) {
     return false;
   }
   if (
     maxBytesInFlight != null
     && entryBytes > maxBytesInFlight
-    && blockingActiveCount > 0
+    && blockingState.blockingCount > 0
   ) {
     return false;
   }
   if (
     maxBytesInFlight != null
     && entryBytes > maxBytesInFlight
-    && blockingActiveCount === 0
+    && blockingState.blockingCount === 0
   ) {
     return true;
   }
   if (
     maxBytesInFlight != null
     && (entryFamily || entryBytes >= LARGE_ARTIFACT_DISPATCH_BYTES)
-    && (activePhaseWeightedBytes + entryBytes) > maxBytesInFlight
+    && (blockingState.blockingPhaseWeightedBytes + entryBytes) > maxBytesInFlight
   ) {
     return false;
   }
