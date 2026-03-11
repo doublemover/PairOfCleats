@@ -161,6 +161,24 @@ const parseWindowsTasklistActivity = (stdout, pid) => {
   };
 };
 
+const parseWindowsProcessProbeActivity = (stdout, pid) => {
+  const output = String(stdout || '').trim();
+  if (!output) return { alive: false, pid };
+  const line = output.split(/\r?\n/).map((entry) => entry.trim()).find(Boolean) || '';
+  if (!line) return { alive: false, pid };
+  const [pidText = '', cpuSecondsText = '', rssBytesText = ''] = line.split(',').map((entry) => entry.trim());
+  const parsedPid = Number(pidText);
+  if (!Number.isFinite(parsedPid) || parsedPid !== pid) return { alive: false, pid };
+  const cpuSeconds = Number(cpuSecondsText);
+  const rssBytes = Number(rssBytesText);
+  return {
+    alive: true,
+    pid,
+    cpuMs: Number.isFinite(cpuSeconds) && cpuSeconds >= 0 ? cpuSeconds * 1000 : null,
+    rssBytes: Number.isFinite(rssBytes) && rssBytes >= 0 ? rssBytes : null
+  };
+};
+
 const parsePosixPsActivity = (stdout, pid) => {
   const output = String(stdout || '').trim();
   if (!output) return { alive: false, pid };
@@ -181,7 +199,26 @@ const sampleChildProcessActivity = (pid) => {
   if (!Number.isFinite(numericPid) || numericPid <= 0) return null;
   try {
     if (process.platform === 'win32') {
-      const result = runSyncCommandWithTimeout(
+      const powerShellScript = [
+        `$process = Get-Process -Id ${numericPid} -ErrorAction SilentlyContinue`,
+        'if ($null -eq $process) { exit 3 }',
+        '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8',
+        'Write-Output ("{0},{1},{2}" -f $process.Id, $process.CPU, $process.WorkingSet64)'
+      ].join('; ');
+      const processResult = runSyncCommandWithTimeout(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-Command', powerShellScript],
+        {
+          encoding: 'utf8',
+          windowsHide: true,
+          timeoutMs: PROCESS_ACTIVITY_PROBE_TIMEOUT_MS
+        }
+      );
+      if (!processResult?.error) {
+        const parsed = parseWindowsProcessProbeActivity(processResult.stdout, numericPid);
+        if (parsed?.alive === true) return parsed;
+      }
+      const fallback = runSyncCommandWithTimeout(
         'tasklist',
         ['/FI', `PID eq ${numericPid}`, '/FO', 'CSV', '/NH', '/V'],
         {
@@ -190,8 +227,8 @@ const sampleChildProcessActivity = (pid) => {
           timeoutMs: PROCESS_ACTIVITY_PROBE_TIMEOUT_MS
         }
       );
-      if (result?.error) return null;
-      return parseWindowsTasklistActivity(result.stdout, numericPid);
+      if (fallback?.error) return null;
+      return parseWindowsTasklistActivity(fallback.stdout, numericPid);
     }
     const result = runSyncCommandWithTimeout(
       'ps',
