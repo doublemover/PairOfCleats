@@ -7,6 +7,7 @@ import { createProcessRunner } from '../../../tools/bench/language/process.js';
 ensureTestingEnv(process.env);
 
 const captured = [];
+let probeCount = 0;
 const runner = createProcessRunner({
   appendLog: (line) => {
     if (line) captured.push(String(line));
@@ -16,27 +17,26 @@ const runner = createProcessRunner({
   logHistory: [],
   logPath: null,
   getLogPaths: () => [],
-  onProgressEvent: () => {}
+  onProgressEvent: () => {},
+  sampleProcessActivity: (pid) => {
+    probeCount += 1;
+    return {
+      alive: true,
+      pid,
+      cpuMs: 100 + (probeCount * 250),
+      rssBytes: (64 + (probeCount * 4)) * 1024 * 1024
+    };
+  }
 });
 
-const cpuBusyScript = [
-  'const endAt = Date.now() + 2600;',
-  'const allocations = [];',
-  'let lastAllocAt = 0;',
-  'while (Date.now() < endAt) {',
-  '  for (let index = 0; index < 200000; index += 1) Math.sqrt(index);',
-  '  if (Date.now() - lastAllocAt >= 350 && allocations.length < 4) {',
-  '    allocations.push(Buffer.alloc(2 * 1024 * 1024, 1));',
-  '    lastAllocAt = Date.now();',
-  '  }',
-  '}',
-  'process.exit(0);'
+const quietAliveScript = [
+  'setTimeout(() => process.exit(0), 2300);'
 ].join('');
 
 const result = await runner.runProcess(
   'bench-idle-activity-probe',
   process.execPath,
-  ['-e', cpuBusyScript],
+  ['-e', quietAliveScript],
   {
     continueOnError: true,
     idleTimeoutMs: 900,
@@ -45,6 +45,7 @@ const result = await runner.runProcess(
 );
 
 assert.equal(result.ok, true, 'expected active child CPU or RSS activity to suppress idle timeout');
+assert.ok(probeCount >= 2, 'expected idle watchdog to consult the activity probe');
 assert.equal(
   captured.some((line) => line.includes('[run] idle timeout: bench-idle-activity-probe')),
   false,

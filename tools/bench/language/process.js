@@ -363,7 +363,8 @@ export const createProcessRunner = ({
   logHistory,
   logPath,
   getLogPaths,
-  onProgressEvent
+  onProgressEvent,
+  sampleProcessActivity = sampleChildProcessActivity
 }) => {
   let activeChild = null;
   let activeLabel = '';
@@ -408,7 +409,9 @@ export const createProcessRunner = ({
     if (!Number.isFinite(pid) || pid <= 0) return { kind: 'unavailable', pid: null };
     if (processActivityState.probePromise) return processActivityState.probePromise;
     const probePromise = Promise.resolve().then(() => {
-      const sample = sampleChildProcessActivity(pid);
+      const sample = typeof sampleProcessActivity === 'function'
+        ? sampleProcessActivity(pid)
+        : null;
       if (!sample || sample.alive !== true) return { kind: 'unavailable', pid };
       const prior = processActivityState.baseline;
       processActivityState.baseline = sample;
