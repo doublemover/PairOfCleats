@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { createInterface } from 'node:readline';
 import { PYTHON_AST_SCRIPT } from './ast-script.js';
 import { findPythonExecutable } from './executable.js';
+import { attachCleanupSignalHandlers } from '../../shared/process-signals.js';
 import { registerChildProcessForCleanup } from '../../shared/subprocess.js';
 import { killChildProcessTree } from '../../shared/kill-tree.js';
 
@@ -468,8 +469,11 @@ export async function getPythonAstPool(log, config = {}) {
   if (!pythonPoolHooked) {
     pythonPoolHooked = true;
     process.once('exit', () => pythonPool?.shutdown());
-    process.once('SIGINT', () => pythonPool?.shutdown());
-    process.once('SIGTERM', () => pythonPool?.shutdown());
+    attachCleanupSignalHandlers({
+      cleanup: () => {
+        void pythonPool?.shutdown();
+      }
+    });
   }
   return pythonPool;
 }

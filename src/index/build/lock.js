@@ -5,6 +5,7 @@ import {
   readLockInfo,
   removeLockFileSyncIfOwned
 } from '../../shared/locks/file-lock.js';
+import { attachCleanupSignalHandlers } from '../../shared/process-signals.js';
 import { runBuildCleanupWithTimeout } from './cleanup-timeout.js';
 
 const DEFAULT_STALE_MS = 30 * 60 * 1000;
@@ -44,7 +45,6 @@ export async function acquireIndexLock({
   }
 
   let released = false;
-  let signalCleaned = false;
   const handlers = [];
   const cleanupSync = () => {
     if (released) return;
@@ -69,19 +69,25 @@ export async function acquireIndexLock({
     lockPath,
     payload: lock.payload,
     signalCleaned: false,
+    _onSignalCleanup: () => {
+      if (released) return;
+      released = true;
+      publicLock.signalCleaned = true;
+      detachHandlers();
+    },
     release: async () => {
       if (!released) {
-        if (signalCleaned || publicLock.signalCleaned === true) {
+        if (publicLock.signalCleaned === true) {
           released = true;
-          return true;
+        } else {
+          await runBuildCleanupWithTimeout({
+            label: 'index-lock.release',
+            cleanup: () => releaseFileLockOrThrow(lock),
+            log,
+            swallowTimeout: false
+          });
+          released = true;
         }
-        await runBuildCleanupWithTimeout({
-          label: 'index-lock.release',
-          cleanup: () => releaseFileLockOrThrow(lock),
-          log,
-          swallowTimeout: false
-        });
-        released = true;
       }
       detachHandlers();
       return true;
@@ -101,29 +107,26 @@ export async function acquireIndexLock({
  * @param {{signals?:string[]}} [options]
  * @returns {() => void}
  */
-export function attachIndexLockSignalCleanup(lock, { signals = null } = {}) {
+export function attachIndexLockSignalCleanup(
+  lock,
+  {
+    signals = null,
+    preserveDefaultTermination = true,
+    reemitSignal = null
+  } = {}
+) {
   if (!lock?.lockPath || !lock?.payload) return () => {};
-  const events = Array.isArray(signals) && signals.length > 0
-    ? signals
-    : ['SIGINT', 'SIGTERM', ...(process.platform === 'win32' ? ['SIGBREAK'] : [])];
-  let detached = false;
-  const handlers = [];
   const cleanupSync = () => {
     const removed = removeLockFileSyncIfOwned(lock.lockPath, lock.payload);
     if (removed) {
       lock.signalCleaned = true;
+      lock._onSignalCleanup?.();
     }
   };
-  for (const event of events) {
-    const handler = () => cleanupSync();
-    process.once(event, handler);
-    handlers.push({ event, handler });
-  }
-  return () => {
-    if (detached) return;
-    detached = true;
-    for (const { event, handler } of handlers) {
-      process.off(event, handler);
-    }
-  };
+  return attachCleanupSignalHandlers({
+    cleanup: cleanupSync,
+    signals,
+    preserveDefaultTermination,
+    reemitSignal
+  });
 }

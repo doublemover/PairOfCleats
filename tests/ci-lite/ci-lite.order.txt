@@ -965,6 +965,7 @@ indexing/validate/index-unknown-mode
 indexing/validate/manifest-checks
 shared/subprocess/timeout-kills-child
 shared/subprocess/sync-command-timeout-opt-out
+shared/process-signals/cleanup-signal-handlers
 shared/runtime/records-config
 tooling/config/dump
 indexing/file-processor/read-failure-skip

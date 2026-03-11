@@ -20,15 +20,22 @@ await fsPromises.mkdir(path.join(repoCacheRoot, 'locks'), { recursive: true });
 const beforeSigterm = process.listenerCount('SIGTERM');
 const beforeSigint = process.listenerCount('SIGINT');
 const beforeSigbreak = process.platform === 'win32' ? process.listenerCount('SIGBREAK') : 0;
+const beforeExit = process.listenerCount('exit');
 
 const lock = await acquireIndexLock({ repoCacheRoot, waitMs: 0, log: () => {} });
 assert.ok(lock, 'expected index lock acquisition to succeed');
 
-const detach = attachIndexLockSignalCleanup(lock);
+const reemitted = [];
+const detach = attachIndexLockSignalCleanup(lock, {
+  preserveDefaultTermination: true,
+  reemitSignal: (signal) => reemitted.push(signal)
+});
 try {
   assert.equal(fs.existsSync(lockPath), true, 'expected lock file to exist after acquire');
   process.emit('SIGTERM', 'SIGTERM');
   assert.equal(fs.existsSync(lockPath), false, 'expected signal cleanup to remove owned lock file');
+  assert.deepEqual(reemitted, ['SIGTERM'], 'expected signal cleanup to preserve default SIGTERM termination');
+  assert.equal(process.listenerCount('exit'), beforeExit, 'expected exit cleanup listener detached after signal cleanup');
 } finally {
   detach();
   await lock.release();
