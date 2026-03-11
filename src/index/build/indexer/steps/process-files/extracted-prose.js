@@ -73,6 +73,20 @@ const groupWarmupEntriesByFamily = ({ entries, seed }) => {
   return orderedFamilies;
 };
 
+const buildWarmupFamilyOrderIndices = (entries) => {
+  const mapping = {};
+  for (const entry of entries || []) {
+    const orderIndex = resolveEntryOrderIndex(entry, null);
+    if (!Number.isFinite(orderIndex)) continue;
+    const family = resolveWarmupEntryFamily(entry);
+    const key = family?.key || '(unknown)';
+    const bucket = mapping[key] || [];
+    bucket.push(Math.floor(orderIndex));
+    mapping[key] = bucket;
+  }
+  return mapping;
+};
+
 const takeFamilyEntry = (family, selectedKeys, selectedEntries) => {
   if (!family || !Array.isArray(family.orderedEntries) || family.orderedEntries.length === 0) {
     return false;
@@ -434,6 +448,7 @@ export const buildExtractedProseLowYieldBailoutState = ({
     sampledOrderIndices,
     sampledFamilies,
     warmupFamilies,
+    warmupFamilyOrderIndices: buildWarmupFamilyOrderIndices(warmupWindowEntries),
     sampledFamilyByOrderIndex,
     observedOrderIndices: new Set(),
     observedSamples: 0,
@@ -454,6 +469,58 @@ export const buildExtractedProseLowYieldBailoutState = ({
         families: normalizedHistory.families || {}
       }
       : historySummary
+  };
+};
+
+const expandWarmupSampleForUnsampledDocLikeFamilies = (bailout) => {
+  if (!bailout || bailout.enabled !== true) return null;
+  const warmupFamilyOrderIndices = bailout.warmupFamilyOrderIndices || {};
+  const sampledFamilies = bailout.sampledFamilies || {};
+  const selectedOrderIndices = [];
+  const deferredFamilies = [];
+  for (const [familyKey, warmupFamily] of Object.entries(bailout.warmupFamilies || {})) {
+    if (warmupFamily?.docLike !== true) continue;
+    const sampledFamily = sampledFamilies[familyKey] || null;
+    const sampledFiles = Math.max(0, Math.floor(Number(sampledFamily?.sampledFiles) || 0));
+    if (sampledFiles > 0) continue;
+    const candidates = Array.isArray(warmupFamilyOrderIndices[familyKey])
+      ? warmupFamilyOrderIndices[familyKey]
+      : [];
+    const nextOrderIndex = candidates.find((candidate) => (
+      !bailout.sampledOrderIndices.has(candidate)
+      && !bailout.observedOrderIndices.has(candidate)
+    ));
+    if (!Number.isFinite(nextOrderIndex)) continue;
+    bailout.sampledOrderIndices.add(nextOrderIndex);
+    bailout.sampledFamilyByOrderIndex.set(nextOrderIndex, familyKey);
+    const current = sampledFamilies[familyKey] || {
+      key: familyKey,
+      ext: warmupFamily?.ext || null,
+      pathFamily: warmupFamily?.pathFamily || null,
+      docLike: true,
+      sampledFiles: 0,
+      observedFiles: 0,
+      yieldedFiles: 0,
+      chunkCount: 0
+    };
+    current.sampledFiles += 1;
+    sampledFamilies[familyKey] = current;
+    selectedOrderIndices.push(nextOrderIndex);
+    deferredFamilies.push({
+      key: familyKey,
+      ext: warmupFamily?.ext || null,
+      pathFamily: warmupFamily?.pathFamily || null,
+      docLike: true,
+      warmupFiles: Math.max(0, Math.floor(Number(warmupFamily?.warmupFiles) || 0)),
+      sampledFiles: 0
+    });
+  }
+  bailout.sampledFamilies = sampledFamilies;
+  if (!selectedOrderIndices.length) return null;
+  bailout.warmupSampleSize += selectedOrderIndices.length;
+  return {
+    addedOrderIndices: selectedOrderIndices,
+    deferredFamilies
   };
 };
 
@@ -572,6 +639,37 @@ export const observeExtractedProseLowYieldSample = ({ bailout, orderIndex, resul
       : familyState.yieldRatio >= bailout.config.minYieldRatio
         || familyState.chunkCount >= Math.max(1, Math.ceil(minYieldedChunks / 2))
   ));
+  const warmupDeferred = lowRatio
+    && lowYieldedCount
+    && lowChunkCount
+    && bailout.yieldedSamples === 0
+    && familyProtected !== true
+    && historyProtected !== true
+    && historyDeferred !== true
+    ? expandWarmupSampleForUnsampledDocLikeFamilies(bailout)
+    : null;
+  if (warmupDeferred) {
+    bailout.lastDecision = {
+      triggered: false,
+      observedYieldRatio,
+      yieldedSamples: bailout.yieldedSamples,
+      observedSamples: bailout.observedSamples,
+      sampledChunkCount: bailout.sampledChunkCount,
+      familyProtected,
+      historyProtected,
+      historyDeferred,
+      warmupDeferred: true,
+      warmupDeferredFamilies: warmupDeferred.deferredFamilies,
+      sampledFamilies: familySummaries,
+      historyFamilies: historyProtectedFamilies,
+      historyDeferredFamilies,
+      familyEvidence,
+      minYieldRatio: bailout.config.minYieldRatio,
+      minYieldedFiles,
+      minYieldedChunks
+    };
+    return bailout.lastDecision;
+  }
   bailout.decisionMade = true;
   bailout.triggered = lowRatio
     && lowYieldedCount
@@ -590,6 +688,8 @@ export const observeExtractedProseLowYieldSample = ({ bailout, orderIndex, resul
     familyProtected,
     historyProtected,
     historyDeferred,
+    warmupDeferred: false,
+    warmupDeferredFamilies: [],
     sampledFamilies: familySummaries,
     historyFamilies: historyProtectedFamilies,
     historyDeferredFamilies,
@@ -635,6 +735,7 @@ export const buildExtractedProseLowYieldBailoutSummary = (bailout) => {
     familyProtected: bailout.lastDecision?.familyProtected === true,
     historyProtected: bailout.lastDecision?.historyProtected === true,
     historyDeferred: bailout.lastDecision?.historyDeferred === true,
+    warmupDeferred: bailout.lastDecision?.warmupDeferred === true,
     skippedFiles: bailout.skippedFiles,
     decisionAtOrderIndex: bailout.decisionAtOrderIndex,
     decisionAt: toIsoTimestamp(bailout.decisionAtMs),
@@ -670,6 +771,16 @@ export const buildExtractedProseLowYieldBailoutSummary = (bailout) => {
         historyYieldedFiles: familyState.historyYieldedFiles,
         historyChunkCount: familyState.historyChunkCount,
         deferDecisionByHistory: familyState.deferDecisionByHistory === true
+      }))
+      : [],
+    warmupDeferredFamilies: Array.isArray(bailout.lastDecision?.warmupDeferredFamilies)
+      ? bailout.lastDecision.warmupDeferredFamilies.map((familyState) => ({
+        key: familyState.key,
+        ext: familyState.ext,
+        pathFamily: familyState.pathFamily,
+        docLike: familyState.docLike === true,
+        warmupFiles: familyState.warmupFiles,
+        sampledFiles: familyState.sampledFiles
       }))
       : [],
     familyEvidence: Array.isArray(bailout.lastDecision?.familyEvidence)

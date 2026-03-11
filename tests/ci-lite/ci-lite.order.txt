@@ -1063,6 +1063,7 @@ indexing/runtime/runtime-teardown-order
 indexing/ordering/ordered-appender-retry-reset
 indexing/extracted-prose/low-yield-history-doclike-reinforcement
 indexing/extracted-prose/low-yield-history-unsampled-doclike-family
+indexing/extracted-prose/low-yield-unsampled-doclike-family-expansion
 indexing/extracted-prose/low-yield-summary-family-evidence
 indexing/extracted-prose/extraction-report
 indexing/workers/worker-pool-lifecycle-destroy

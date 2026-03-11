@@ -190,6 +190,15 @@ assert.equal(generatedFromBuildScript?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MIS
 assert.equal(generatedFromBuildScript?.pluginId, 'path-context');
 assert.equal(generatedFromBuildScript?.generatedMatch?.matchType, 'build_output_script_reference');
 
+const generatedFromBuildScriptTsEmit = buildContext.classifyUnresolved({
+  importerRel: 'scripts/codemods/ac3-to-ac4/src/index.ts',
+  spec: './apolloClientInitialization.js',
+  rawSpec: './apolloClientInitialization.js'
+});
+assert.equal(generatedFromBuildScriptTsEmit?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
+assert.equal(generatedFromBuildScriptTsEmit?.pluginId, 'path-context');
+assert.equal(generatedFromBuildScriptTsEmit?.generatedMatch?.matchType, 'build_script_typescript_emit_reference');
+
 const buildRuntimeRootReference = buildContext.classifyUnresolved({
   importerRel: 'docker/scripts/setup_env',
   spec: '/tmp/.env',
@@ -206,6 +215,23 @@ const webRuntimeBootstrapReference = buildContext.classifyUnresolved({
 assert.equal(webRuntimeBootstrapReference?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
 assert.equal(webRuntimeBootstrapReference?.pluginId, 'path-context');
 assert.equal(webRuntimeBootstrapReference?.generatedMatch?.matchType, 'web_runtime_bootstrap_reference');
+
+const publicBundleBootstrapReference = buildContext.classifyUnresolved({
+  importerRel: 'frontend/react-webpack/public/index.html',
+  spec: './bundle.js',
+  rawSpec: './bundle.js'
+});
+assert.equal(publicBundleBootstrapReference?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
+assert.equal(publicBundleBootstrapReference?.pluginId, 'path-context');
+assert.equal(publicBundleBootstrapReference?.generatedMatch?.matchType, 'web_runtime_bootstrap_reference');
+
+const dartPackageRootReference = buildContext.classifyUnresolved({
+  importerRel: 'frontend/appflowy_flutter/packages/flowy_infra_ui/lib/flowy_infra_ui.dart',
+  spec: '/widget/flowy_tooltip.dart',
+  rawSpec: '/widget/flowy_tooltip.dart'
+});
+assert.equal(dartPackageRootReference?.reasonCode, 'IMP_U_RESOLVER_GAP');
+assert.equal(dartPackageRootReference?.pluginId, 'path-context');
 
 const generatedFromNodeModulesPolicy = buildContext.classifyUnresolved({
   importerRel: 'src/main.ts',

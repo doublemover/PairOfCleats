@@ -57,6 +57,7 @@ const decision = observeExtractedProseLowYieldSample({
 assert.ok(decision, 'expected low-yield decision after one-file warmup');
 assert.equal(decision.triggered, false, 'expected unsampled productive doc-like history to defer bailout');
 assert.equal(decision.historyDeferred, true, 'expected history deferral flag');
+assert.equal(decision.warmupDeferred, false, 'expected no warmup deferral when history already deferred');
 
 const manualEvidence = (decision.familyEvidence || []).find((family) => family.key === '.rst|manual');
 assert.ok(manualEvidence, 'expected manual doc-like family evidence');
