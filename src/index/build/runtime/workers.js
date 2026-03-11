@@ -682,21 +682,27 @@ export const createRuntimeWorkerPools = async ({
   const destroyWorkerPools = typeof workerPools?.destroy === 'function'
     ? workerPools.destroy.bind(workerPools)
     : async () => {};
+  let destroyWorkerPoolsPromise = null;
   workerPools = {
     ...workerPools,
     async destroy() {
-      let firstError = null;
-      try {
-        await destroyWorkerPools();
-      } catch (err) {
-        firstError = err;
+      if (!destroyWorkerPoolsPromise) {
+        destroyWorkerPoolsPromise = (async () => {
+          let firstError = null;
+          try {
+            await destroyWorkerPools();
+          } catch (err) {
+            firstError = err;
+          }
+          try {
+            await closeWorkerCrashLogger();
+          } catch (err) {
+            if (!firstError) firstError = err;
+          }
+          if (firstError) throw firstError;
+        })();
       }
-      try {
-        await closeWorkerCrashLogger();
-      } catch (err) {
-        if (!firstError) firstError = err;
-      }
-      if (firstError) throw firstError;
+      await destroyWorkerPoolsPromise;
     }
   };
 

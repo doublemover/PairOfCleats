@@ -77,6 +77,13 @@ export const teardownRuntime = async (runtime) => {
     },
     cleanupTimeoutMs + 10_000
   );
+  await runTeardownStepWithTimeout(
+    'runtime.scheduler.shutdown',
+    () => Promise.resolve(runtime.scheduler?.shutdown?.({
+      awaitRunning: true,
+      timeoutMs: cleanupTimeoutMs
+    }))
+  );
   if (runtime.workerPools?.destroy) {
     await runTeardownStepWithTimeout(
       'runtime.worker-pools.destroy',
@@ -90,13 +97,6 @@ export const teardownRuntime = async (runtime) => {
       cleanupTimeoutMs + 15000
     );
   }
-  await runTeardownStepWithTimeout(
-    'runtime.scheduler.shutdown',
-    () => Promise.resolve(runtime.scheduler?.shutdown?.({
-      awaitRunning: true,
-      timeoutMs: cleanupTimeoutMs
-    }))
-  );
   await runTeardownStepWithTimeout(
     'runtime.stage1-subprocesses.terminate',
     () => {

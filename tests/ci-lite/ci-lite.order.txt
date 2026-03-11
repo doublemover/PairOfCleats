@@ -1058,6 +1058,8 @@ indexing/tokenization/file-stream-reuse
 perf/bench/language-closeout-exit
 indexing/extracted-prose/low-yield-history-family-priors
 indexing/stage1/barrier-keepalive
+indexing/runtime/runtime-teardown-order
 indexing/extracted-prose/low-yield-history-doclike-reinforcement
 indexing/extracted-prose/low-yield-summary-family-evidence
 indexing/extracted-prose/extraction-report
+indexing/workers/worker-pool-lifecycle-destroy
