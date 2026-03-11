@@ -9,6 +9,7 @@ import { getEnvConfig } from '../../../../shared/env.js';
 import { fileExt, toPosix } from '../../../../shared/files.js';
 import { countLinesForEntries } from '../../../../shared/file-stats.js';
 import { log, logLine, showProgress } from '../../../../shared/progress.js';
+import { awaitWithKeepalive } from '../../../../shared/promise-keepalive.js';
 import { createTimeoutError, runWithTimeout } from '../../../../shared/promise-timeout.js';
 import { coerceNonNegativeInt, coercePositiveInt } from '../../../../shared/number-coerce.js';
 import { coerceAbortSignal, composeAbortSignals, throwIfAborted } from '../../../../shared/abort.js';
@@ -664,6 +665,19 @@ export const resolveChunkProcessingFeatureFlags = (runtime) => {
  * @type {import('../../../../shared/concurrency/ordered-completion.js').createOrderedCompletionTracker}
  */
 export const createOrderedCompletionTracker = createSharedOrderedCompletionTracker;
+
+/**
+ * Keep outer stage1 orchestration awaits referenced while the underlying work
+ * may temporarily degrade into pure promise waits with no libuv handles.
+ *
+ * This prevents Node from terminating `build_index.js` with unsettled
+ * top-level await while watchdog/timeout logic still owns the true outcome.
+ *
+ * @template T
+ * @param {Promise<T>|T} promise
+ * @returns {Promise<T>}
+ */
+export const awaitStage1Barrier = (promise) => awaitWithKeepalive(Promise.resolve(promise));
 
 /**
  * Resolve per-file watchdog thresholds for stage1 processing.
@@ -4823,7 +4837,7 @@ export const processFiles = async ({
                   shardSubsetMaxAttempts: retryContext.maxAttempts
                 }
               );
-              await processEntries({
+              await awaitStage1Barrier(processEntries({
                 entries: shardEntries,
                 runtime: shardRuntime,
                 shardMeta: {
@@ -4841,7 +4855,7 @@ export const processFiles = async ({
                   allowRetry: clusterRetryEnabled
                 },
                 stateRef: state
-              });
+              }));
             },
             maxSubsetRetries: clusterRetryEnabled ? clusterRetryConfig.maxSubsetRetries : 0,
             retryDelayMs: clusterRetryEnabled ? clusterRetryConfig.retryDelayMs : 0,
@@ -4883,9 +4897,9 @@ export const processFiles = async ({
           await shardRuntime.destroy?.();
         }
       };
-      const workerResults = await Promise.allSettled(
+      const workerResults = await awaitStage1Barrier(Promise.allSettled(
         workerContexts.map((workerContext) => runShardWorker(workerContext))
-      );
+      ));
       const workerFailures = workerResults
         .filter((result) => result.status === 'rejected')
         .map((result) => result.reason);
@@ -4928,7 +4942,7 @@ export const processFiles = async ({
         }
       };
     } else {
-      await processEntries({ entries, runtime, stateRef: state });
+      await awaitStage1Barrier(processEntries({ entries, runtime, stateRef: state }));
       if (runtime.shards?.enabled) {
         shardSummary = shardSummary.map((summary, index) => ({
           ...summary,
@@ -4963,7 +4977,7 @@ export const processFiles = async ({
         };
       }
     }
-    await awaitOrderedCompletionDrain();
+    await awaitStage1Barrier(awaitOrderedCompletionDrain());
     if (incrementalState?.manifest) {
       const updatedAt = new Date().toISOString();
       incrementalState.manifest.shards = runtime.shards?.enabled
