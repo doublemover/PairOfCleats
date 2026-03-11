@@ -188,6 +188,16 @@ assert.deepEqual(
   [],
   'expected closeout-only tracked writes to avoid exclusive-family blocking'
 );
+const publishOversizeBlockingState = resolveArtifactBlockingState([{
+  label: 'chunk_meta.binary-columnar.bundle',
+  estimatedBytes: 900 * 1024 * 1024,
+  phase: 'publish:chunk-meta-binary-meta'
+}]).fromEntries(768 * 1024 * 1024);
+assert.equal(
+  publishOversizeBlockingState.hasOversizeBlockingEntry,
+  false,
+  'expected publish-phase oversize writes to avoid tripping the global oversize blocker'
+);
 assert.equal(
   canDispatchArtifactWriteEntry({
     entry: {

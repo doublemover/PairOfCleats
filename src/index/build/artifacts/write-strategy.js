@@ -107,7 +107,13 @@ export const resolveArtifactBlockingState = (activeEntries = []) => {
         if (phaseWeight > 0 && activeBytes > 0) {
           blockingCount += 1;
         }
-        if (maxBytesInFlight != null && phaseWeight > 0 && activeBytes > maxBytesInFlight) {
+        if (
+          maxBytesInFlight != null
+          && phaseWeight > 0
+          && activeBytes > maxBytesInFlight
+          && phaseClass !== 'publish'
+          && phaseClass !== 'closeout'
+        ) {
           hasOversizeBlockingEntry = true;
         }
         if (phaseWeight > 0 && (activeFamily || activeBytes >= LARGE_ARTIFACT_DISPATCH_BYTES)) {
