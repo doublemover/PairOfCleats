@@ -350,13 +350,14 @@ export async function detectRepoLanguages(root) {
 }
 
 export function getToolingRegistry(toolingRoot, repoRoot) {
-  const nodeDir = path.join(toolingRoot, 'node');
+  const absoluteToolingRoot = path.resolve(toolingRoot);
+  const nodeDir = path.join(absoluteToolingRoot, 'node');
   const nodeBin = path.join(nodeDir, 'node_modules', '.bin');
   const repoNodeBin = path.join(repoRoot, 'node_modules', '.bin');
-  const binDir = path.join(toolingRoot, 'bin');
-  const dotnetDir = path.join(toolingRoot, 'dotnet');
-  const gemsDir = path.join(toolingRoot, 'gems');
-  const composerDir = path.join(toolingRoot, 'composer');
+  const binDir = path.join(absoluteToolingRoot, 'bin');
+  const dotnetDir = path.join(absoluteToolingRoot, 'dotnet');
+  const gemsDir = path.join(absoluteToolingRoot, 'gems');
+  const composerDir = path.join(absoluteToolingRoot, 'composer');
   const composerBin = path.join(composerDir, 'vendor', 'bin');
   const globalDotnetBins = resolveGlobalDotnetBinDirs();
   const globalGemBins = resolveGlobalGemBinDirs();
@@ -550,7 +551,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       install: {
         cache: {
           cmd: process.execPath,
-          args: [path.join(repoRoot, 'tools', 'tooling', 'install-phpactor-phar.js'), '--scope', 'cache', '--tooling-root', toolingRoot],
+          args: [path.join(repoRoot, 'tools', 'tooling', 'install-phpactor-phar.js'), '--scope', 'cache', '--tooling-root', absoluteToolingRoot],
           requires: 'php'
         },
         user: {

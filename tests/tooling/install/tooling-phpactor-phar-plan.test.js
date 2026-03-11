@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
-import path from 'node:path';
+import path, { isAbsolute } from 'node:path';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'languages');
@@ -64,6 +64,11 @@ if (!args.some((value) => value.endsWith(path.join('tools', 'tooling', 'install-
 }
 if (!(args.includes('--scope') && args.includes('cache'))) {
   console.error('tooling-install phpactor phar plan test failed: expected cache scope install args');
+  process.exit(1);
+}
+const toolingRootIndex = args.indexOf('--tooling-root');
+if (toolingRootIndex === -1 || !isAbsolute(String(args[toolingRootIndex + 1] || ''))) {
+  console.error('tooling-install phpactor phar plan test failed: expected absolute tooling root');
   process.exit(1);
 }
 

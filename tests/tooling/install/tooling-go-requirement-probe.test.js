@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
-import path from 'node:path';
+import path, { isAbsolute } from 'node:path';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
@@ -67,6 +67,10 @@ const goplsAction = Array.isArray(payload?.actions)
   : null;
 if (!goplsAction) {
   console.error('tooling-install go requirement probe test failed: expected gopls install action');
+  process.exit(1);
+}
+if (!isAbsolute(String(goplsAction?.env?.GOBIN || ''))) {
+  console.error('tooling-install go requirement probe test failed: expected absolute GOBIN in install action');
   process.exit(1);
 }
 

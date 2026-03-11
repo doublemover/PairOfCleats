@@ -737,6 +737,7 @@ tooling/lsp/solargraph-provider-workspace-guard
 retrieval/providers/provider-adaptive-ordering-contract
 storage/sqlite/chunk-meta-streaming
 tooling/install/tooling-go-requirement-probe
+tooling/install/tooling-registry-cache-install-paths
 lang/registry/selection
 lang/registry/import-entries
 indexing/imports/import-resolver-relative
