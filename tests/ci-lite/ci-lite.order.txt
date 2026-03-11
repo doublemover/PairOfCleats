@@ -1032,7 +1032,6 @@ indexing/tree-sitter/scheduler-native-language-contract
 indexing/tree-sitter/scheduler-native-smoke
 tooling/lsp/references-fallback
 runner/harness/redo-semantics
-helpers/fixture-index-risk-config
 shared/cache/gc
 tooling/type-inference/crossfile-stats.unit
 tooling/lsp/elixir-provider-runtime-otp-mismatch-preflight
