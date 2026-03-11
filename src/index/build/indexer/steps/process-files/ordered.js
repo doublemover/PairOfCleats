@@ -162,6 +162,7 @@ export const replayCommitJournal = (records = [], { expectedSeqs = [] } = {}) =>
  *   cancel:(orderIndex:number,reasonCode?:number)=>Promise<void>,
  *   noteDispatched:(orderIndex:number,ownerId?:number)=>void,
  *   noteInFlight:(orderIndex:number,ownerId?:number)=>void,
+ *   resetForRetry:(orderIndices?:number[])=>number,
  *   heartbeat:(orderIndex:number,ownerId:number)=>boolean,
  *   reclaimExpiredLeases:()=>number[],
  *   peekNextIndex:()=>number,
@@ -757,6 +758,27 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
 
   const heartbeat = (orderIndex, ownerId) => seqLedger.heartbeat(Math.floor(Number(orderIndex)), ownerId, Date.now());
 
+  const resetForRetry = (orderIndices = []) => {
+    if (!Array.isArray(orderIndices) || orderIndices.length === 0) return 0;
+    let resetCount = 0;
+    for (const value of orderIndices) {
+      const seq = Math.floor(Number(value));
+      if (!Number.isFinite(seq)) continue;
+      const envelope = envelopeBySeq.get(seq) || null;
+      if (envelope && envelope.terminalState == null) {
+        releaseEnvelope(seq);
+      }
+      const prior = seqLedger.resetNonTerminal(seq);
+      if (prior === STAGE1_SEQ_STATE.DISPATCHED || prior === STAGE1_SEQ_STATE.IN_FLIGHT) {
+        resetCount += 1;
+      }
+    }
+    if (resetCount > 0) {
+      resolveCapacityWaiters();
+    }
+    return resetCount;
+  };
+
   const reclaimExpiredLeases = () => {
     const reclaimed = seqLedger.reclaimExpiredLeases(Date.now(), {
       includeDispatched: true,
@@ -848,6 +870,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     },
     noteDispatched,
     noteInFlight,
+    resetForRetry,
     heartbeat,
     reclaimExpiredLeases,
     peekNextIndex() {

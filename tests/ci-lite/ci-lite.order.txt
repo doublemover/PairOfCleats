@@ -1060,6 +1060,7 @@ perf/bench/language-closeout-exit
 indexing/extracted-prose/low-yield-history-family-priors
 indexing/stage1/barrier-keepalive
 indexing/runtime/runtime-teardown-order
+indexing/ordering/ordered-appender-retry-reset
 indexing/extracted-prose/low-yield-history-doclike-reinforcement
 indexing/extracted-prose/low-yield-history-unsampled-doclike-family
 indexing/extracted-prose/low-yield-summary-family-evidence

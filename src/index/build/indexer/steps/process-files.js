@@ -4447,7 +4447,42 @@ export const processFiles = async ({
         await runEntryBatch(shardEntries);
       } catch (err) {
         const retryEnabled = shardMeta?.allowRetry === true;
-        if (!retryEnabled) {
+        if (retryEnabled) {
+          const retryOrderIndices = shardEntries
+            .map((entry, entryIndex) => resolveStableEntryOrderIndex(entry, entryIndex))
+            .filter((value) => Number.isFinite(value))
+            .map((value) => Math.floor(value));
+          await drainTrackedProcessFileTasks({
+            registry: inFlightProcessFileTasks,
+            timeoutMs: orderedCompletionGuardTimeoutMs,
+            log,
+            logMeta: {
+              kind: 'warning',
+              mode,
+              stage: 'processing',
+              shardId: shardMeta?.id || null
+            },
+            onTimeout: async (timeoutError) => {
+              orderedAppender.abort(timeoutError);
+              abortProcessing(timeoutError);
+            }
+          });
+          if (typeof orderedAppender.resetForRetry === 'function') {
+            const resetCount = orderedAppender.resetForRetry(retryOrderIndices);
+            if (resetCount > 0) {
+              logLine(
+                `[ordered] reset ${resetCount} non-terminal seq(s) for retry in shard ${shardMeta?.id || 'unknown'}.`,
+                {
+                  kind: 'warning',
+                  mode,
+                  stage: 'processing',
+                  shardId: shardMeta?.id || null,
+                  orderedResetCount: resetCount
+                }
+              );
+            }
+          }
+        } else {
           // If the shard processing fails before a contiguous `orderIndex` is
           // enqueued, later tasks may be blocked waiting for an ordered flush.
           // Abort rejects any waiting promises to prevent hangs/leaks.

@@ -337,6 +337,7 @@ export const resolveActiveSeqWindows = (
  *   getState:(seq:number)=>number,
  *   assertLegalTransition:(seq:number,nextState:number)=>void,
  *   transition:(seq:number,nextState:number,input?:{ownerId?:number,reasonCode?:number,nowMs?:number})=>number,
+ *   resetNonTerminal:(seq:number)=>number,
  *   heartbeat:(seq:number,ownerId:number,nowMs?:number)=>boolean,
  *   reclaimExpiredLeases:(nowMs?:number)=>number[],
  *   snapshot:()=>object,
@@ -484,6 +485,32 @@ export const createSeqLedger = ({ expectedSeqs = [], leaseTimeoutMs = 60000 } = 
     return nextState;
   };
 
+  const resetNonTerminal = (seq) => {
+    const slot = toSlot(seq);
+    if (slot < 0) return STAGE1_SEQ_STATE.UNUSED;
+    const prior = states[slot];
+    if (
+      prior === STAGE1_SEQ_STATE.UNUSED
+      || prior === STAGE1_SEQ_STATE.UNSEEN
+      || prior === STAGE1_SEQ_STATE.COMMITTED
+      || TERMINAL_STATE_SET.has(prior)
+    ) {
+      return prior;
+    }
+    if (prior === STAGE1_SEQ_STATE.DISPATCHED) {
+      counters.dispatchedCount = Math.max(0, counters.dispatchedCount - 1);
+    }
+    if (prior === STAGE1_SEQ_STATE.IN_FLIGHT) {
+      counters.inFlightCount = Math.max(0, counters.inFlightCount - 1);
+    }
+    states[slot] = STAGE1_SEQ_STATE.UNSEEN;
+    leaseOwner[slot] = 0;
+    leaseHeartbeat[slot] = 0;
+    terminalReason[slot] = 0;
+    counters.nextCommitSeq = Math.min(counters.nextCommitSeq, startSeq + slot);
+    return prior;
+  };
+
   const heartbeat = (seq, ownerId, nowMs = Date.now()) => {
     const slot = toSlot(seq);
     if (slot < 0) return false;
@@ -578,6 +605,7 @@ export const createSeqLedger = ({ expectedSeqs = [], leaseTimeoutMs = 60000 } = 
     getState,
     assertLegalTransition,
     transition,
+    resetNonTerminal,
     heartbeat,
     advanceNextCommitSeq,
     getTerminalReason,
