@@ -644,6 +644,11 @@ export const createProcessRunner = ({
             processActivityState.probeWarmupGranted = true;
             return;
           }
+          await new Promise((resolve) => setImmediate(resolve));
+          const refreshedIdleMs = Date.now() - lastActivityAtMs;
+          if (refreshedIdleMs < resolvedIdleTimeoutMs) {
+            return;
+          }
         } finally {
           idleWatchdogProbeInFlight = false;
         }

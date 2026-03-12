@@ -163,11 +163,28 @@ export const createBenchLogger = ({
     return repoLogPath;
   };
 
+  const handleLogOpSettled = (results, { reason = 'log-op', fatal = false } = {}) => {
+    const failures = Array.isArray(results)
+      ? results.filter((entry) => entry?.status === 'rejected').map((entry) => entry.reason)
+      : [];
+    if (!failures.length) return;
+    const message = `[log] ${reason} failed for ${failures.length} writer(s): ${failures.map((error) => error?.message || error).join('; ')}`;
+    logHistory.push(message);
+    while (logHistory.length > logHistoryLimit) logHistory.shift();
+    try {
+      display?.warn?.(message);
+    } catch {}
+    if (fatal) {
+      throw new AggregateError(failures, message);
+    }
+  };
+
   const flushLogs = async () => {
-    await Promise.allSettled([
+    const results = await Promise.allSettled([
       flushWriter(masterLogWriter, 'periodic-master'),
       flushWriter(repoLogWriter, 'periodic-repo')
     ]);
+    handleLogOpSettled(results, { reason: 'periodic flush', fatal: false });
   };
 
   const closeRepoLog = async () => {
@@ -175,12 +192,14 @@ export const createBenchLogger = ({
     repoLogWriter = null;
     repoLogPath = null;
     if (!writer) return;
-    await Promise.allSettled([
+    const flushResults = await Promise.allSettled([
       flushWriter(writer, 'repo-rotate')
     ]);
-    await Promise.allSettled([
+    handleLogOpSettled(flushResults, { reason: 'repo log flush', fatal: true });
+    const closeResults = await Promise.allSettled([
       closeWriter(writer, 'repo-rotate')
     ]);
+    handleLogOpSettled(closeResults, { reason: 'repo log close', fatal: true });
     if (!repoLogWriter && !masterLogWriter) clearFlushTimer();
   };
 
@@ -188,12 +207,14 @@ export const createBenchLogger = ({
     const writer = masterLogWriter;
     masterLogWriter = null;
     if (!writer) return;
-    await Promise.allSettled([
+    const flushResults = await Promise.allSettled([
       flushWriter(writer, 'master-close')
     ]);
-    await Promise.allSettled([
+    handleLogOpSettled(flushResults, { reason: 'master log flush', fatal: true });
+    const closeResults = await Promise.allSettled([
       closeWriter(writer, 'master-close')
     ]);
+    handleLogOpSettled(closeResults, { reason: 'master log close', fatal: true });
     if (!repoLogWriter && !masterLogWriter) clearFlushTimer();
   };
 

@@ -70,7 +70,9 @@ const PREFLIGHT_EVENT_TYPE_SET = new Set([
   'queued',
   'dequeued',
   'teardown_timeout',
-  'teardown_abort'
+  'teardown_abort',
+  'teardown_force_cleanup',
+  'teardown_failed'
 ]);
 const PREFLIGHT_EVENT_STATE_BY_EVENT = Object.freeze({
   ok: 'ready',
@@ -336,12 +338,16 @@ const parseProgressConfidenceLine = (line) => {
 const parsePreflightLogLine = (line) => {
   const trimmed = String(line || '').trim();
   if (!trimmed || !trimmed.includes('preflight:')) return null;
-  const match = /\[tooling\]\s+preflight:(?<event>[a-z_]+)\s+provider=(?<provider>[^\s]+)\s+id=(?<id>[^\s]+)(?<rest>.*)$/iu.exec(trimmed);
+  const providerMatch = /\[tooling\]\s+preflight:(?<event>[a-z_]+)\s+provider=(?<provider>[^\s]+)\s+id=(?<id>[^\s]+)(?<rest>.*)$/iu.exec(trimmed);
+  const aggregateMatch = providerMatch
+    ? null
+    : /\[tooling\]\s+preflight:(?<event>[a-z_]+)(?<rest>.*)$/iu.exec(trimmed);
+  const match = providerMatch || aggregateMatch;
   if (!match) return null;
   const event = String(match.groups?.event || '').trim().toLowerCase();
   if (!event || !PREFLIGHT_EVENT_TYPE_SET.has(event)) return null;
-  const providerId = String(match.groups?.provider || '').trim();
-  const preflightId = String(match.groups?.id || '').trim();
+  const providerId = String(match.groups?.provider || '').trim() || null;
+  const preflightId = String(match.groups?.id || '').trim() || null;
   const rest = String(match.groups?.rest || '');
   const values = Object.create(null);
   for (const entry of rest.split(/\s+/u)) {
@@ -356,7 +362,7 @@ const parsePreflightLogLine = (line) => {
   const durationMs = Number.isFinite(durationRaw) ? Math.max(0, durationRaw) : null;
   const preflightClass = String(values.class || '').trim().toLowerCase() || 'unknown';
   const state = String(values.state || PREFLIGHT_EVENT_STATE_BY_EVENT[event] || '').trim().toLowerCase() || null;
-  const timedOut = values.timeout === '1' || event === 'timeout';
+  const timedOut = values.timeout === '1' || event === 'timeout' || event === 'teardown_timeout';
   return {
     event,
     providerId,

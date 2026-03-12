@@ -1314,7 +1314,6 @@ export const runStage1TailCleanupTasks = async ({
             status: 'rejected',
             reason: error
           });
-          break;
         }
       }
       return results;
@@ -1464,9 +1463,14 @@ export const createTrackedProcessFileTaskRegistry = ({
         ? `process-file:${meta.file.trim()}`
         : `process-file:${id}`
     });
-    tracked.finally(() => {
-      pending.delete(id);
-    });
+    void tracked.then(
+      () => {
+        pending.delete(id);
+      },
+      () => {
+        pending.delete(id);
+      }
+    );
     return tracked;
   };
 

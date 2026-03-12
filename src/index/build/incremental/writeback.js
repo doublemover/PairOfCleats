@@ -120,7 +120,7 @@ const removeManifestBundleFiles = async ({ bundleDir, entry, keep = null }) => {
   for (const name of names) {
     if (keepSet && keepSet.has(name)) continue;
     try {
-      await fs.rm(path.join(bundleDir, name), { force: true });
+      await removeBundleWriteArtifacts(path.join(bundleDir, name));
     } catch {}
   }
 };
@@ -180,7 +180,7 @@ const drainManifestBundleGc = async ({ manifest, bundleDir }) => {
       continue;
     }
     try {
-      await fs.rm(path.join(bundleDir, name), { force: true });
+      await removeBundleWriteArtifacts(path.join(bundleDir, name));
       pending.delete(name);
       removed += 1;
     } catch {

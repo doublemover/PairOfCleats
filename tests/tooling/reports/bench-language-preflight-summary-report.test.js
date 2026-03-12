@@ -21,7 +21,8 @@ await fsPromises.writeFile(
     '[tooling] preflight:ok provider=sourcekit id=sourcekit.package-resolution durationMs=1234 state=ready',
     '[tooling] preflight:queued provider=gopls id=gopls.workspace-model class=workspace depth=1 running=1 cap=1',
     '[tooling] preflight:timeout provider=gopls id=gopls.workspace-model durationMs=60000 state=degraded timeout=1',
-    '[tooling] preflight summary total=4 cached=0 timedOut=1 failed=0 queuePeak=2 teardownTimedOut=0 states=ready:1,degraded:1 classes=dependency:1,workspace:1 policies=required:1,optional:1',
+    '[tooling] preflight:teardown_force_cleanup ownershipIds=alpha,beta forced=2',
+    '[tooling] preflight summary total=5 cached=0 timedOut=1 failed=0 queuePeak=2 teardownTimedOut=0 states=ready:1,degraded:1 classes=dependency:1,workspace:1 policies=required:1,optional:1',
     '[tooling] preflight slowest gopls/gopls.workspace-model:60000ms, sourcekit/sourcekit.package-resolution:1234ms'
   ].join('\n') + '\n',
   'utf8'
@@ -31,7 +32,9 @@ await fsPromises.writeFile(
   path.join(logsRoot, 'run-preflight-b.log'),
   [
     '[tooling] preflight:failed provider=rust-analyzer id=rust-analyzer.workspace-model durationMs=912 error=forced',
-    '[tooling] preflight:cache_hit provider=sourcekit id=sourcekit.package-resolution state=ready'
+    '[tooling] preflight:cache_hit provider=sourcekit id=sourcekit.package-resolution state=ready',
+    '[tooling] preflight:teardown_failed error=forced',
+    '[tooling] preflight:teardown_timeout active=2 timeoutMs=30000'
   ].join('\n') + '\n',
   'utf8'
 );
@@ -47,15 +50,18 @@ const output = await buildReportOutput({
 const preflight = output?.diagnostics?.preflight;
 assert.ok(preflight && typeof preflight === 'object', 'expected preflight diagnostics summary');
 assert.equal(preflight.fileCount, 2, 'expected two bench log files');
-assert.equal(preflight.eventCount, 6, 'expected parsed preflight event count');
-assert.equal(preflight.timeoutEvents, 1, 'expected one timeout event');
+assert.equal(preflight.eventCount, 9, 'expected parsed preflight event count');
+assert.equal(preflight.timeoutEvents, 2, 'expected one provider timeout and one teardown timeout event');
 assert.equal(preflight.countsByEvent.start, 1, 'expected start count');
 assert.equal(preflight.countsByEvent.ok, 1, 'expected ok count');
 assert.equal(preflight.countsByEvent.failed, 1, 'expected failed count');
 assert.equal(preflight.countsByEvent.cache_hit, 1, 'expected cache-hit count');
+assert.equal(preflight.countsByEvent.teardown_force_cleanup, 1, 'expected teardown force-cleanup count');
+assert.equal(preflight.countsByEvent.teardown_failed, 1, 'expected teardown failed count');
+assert.equal(preflight.countsByEvent.teardown_timeout, 1, 'expected teardown timeout count');
 assert.equal(preflight.countsByClass.dependency, 1, 'expected dependency class count');
 assert.equal(preflight.countsByClass.workspace, 1, 'expected workspace class count');
-assert.equal(preflight.countsByClass.unknown, 4, 'expected unknown class count when class is not logged');
+assert.equal(preflight.countsByClass.unknown, 7, 'expected unknown class count when class is not logged');
 assert.equal(preflight.countsByState.ready, 2, 'expected ready state count');
 assert.equal(preflight.countsByState.degraded, 1, 'expected degraded state count');
 assert.equal(preflight.countsByState.failed, 1, 'expected failed state count');
