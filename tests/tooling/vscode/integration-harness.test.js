@@ -1,22 +1,18 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 
-import { createVsCodeFixtureRepo, createVsCodeRuntimeHarness } from '../../helpers/vscode/runtime-harness.js';
+import {
+  prepareVsCodeFixtureWorkspace,
+  createVsCodeRuntimeHarness
+} from '../../helpers/vscode/runtime-harness.js';
 
-const repoRoot = createVsCodeFixtureRepo('poc-vscode-integration-');
-const nestedRepoRoot = path.join(repoRoot, 'packages', 'nested');
-fs.mkdirSync(path.join(nestedRepoRoot, '.git'), { recursive: true });
-fs.mkdirSync(path.join(nestedRepoRoot, 'bin'), { recursive: true });
-fs.mkdirSync(path.join(nestedRepoRoot, 'src'), { recursive: true });
-fs.writeFileSync(path.join(nestedRepoRoot, 'bin', 'pairofcleats.js'), 'console.log("nested");');
-fs.writeFileSync(path.join(nestedRepoRoot, 'src', 'service.ts'), 'export const nested = true;\n');
-
-const nestedSourceFile = path.join(nestedRepoRoot, 'src', 'service.ts');
+const workspace = await prepareVsCodeFixtureWorkspace('vscode/workspace-root', {
+  prefix: 'poc-vscode-integration-'
+});
+const nestedSourceFile = workspace.resolvePath('packages', 'nested', 'src', 'service.ts');
 const harness = createVsCodeRuntimeHarness({
-  repoRoot,
-  workspaceFolders: [{ name: 'root', path: repoRoot }],
+  repoRoot: workspace.root,
+  workspaceFolders: [{ name: 'root', path: workspace.root }],
   activeFile: nestedSourceFile,
   configValues: {
     cliArgs: ['--trace'],
@@ -44,31 +40,33 @@ assert.equal(harness.errorMessages.length, 0, `unexpected search errors: ${harne
 assert.equal(harness.spawnCalls.length, 1);
 assert.equal(harness.spawnCalls[0].command, process.execPath);
 const searchArgs = harness.spawnCalls[0].args;
-assert.equal(searchArgs[0], path.join(nestedRepoRoot, 'bin', 'pairofcleats.js'));
-assert.equal(searchArgs[1], '--trace');
-assert.equal(searchArgs[2], 'search');
-assert.ok(searchArgs.includes('--json'));
-assert.ok(searchArgs.includes('--repo'));
-assert.ok(searchArgs.includes(nestedRepoRoot));
-assert.ok(searchArgs.includes('--mode'));
-assert.ok(searchArgs.includes('code'));
-assert.ok(searchArgs.includes('--backend'));
-assert.ok(searchArgs.includes('sqlite'));
-assert.ok(searchArgs.includes('--top'));
-assert.ok(searchArgs.includes('25'));
-assert.equal(searchArgs.at(-2), '--');
-assert.equal(searchArgs.at(-1), 'nested symbol');
+assert.deepEqual(searchArgs, [
+  workspace.resolvePath('packages', 'nested', 'bin', 'pairofcleats.js'),
+  '--trace',
+  'search',
+  '--json',
+  '--top',
+  '25',
+  '--mode',
+  'code',
+  '--backend',
+  'sqlite',
+  '--repo',
+  workspace.resolvePath('packages', 'nested'),
+  '--',
+  'nested symbol'
+]);
 
 const searchHistory = harness.workspaceStateStore.get('pairofcleats.searchHistory');
 assert.equal(searchHistory.length, 1);
-assert.equal(searchHistory[0].repoRoot, nestedRepoRoot);
+assert.equal(searchHistory[0].repoRoot, workspace.resolvePath('packages', 'nested'));
 
 harness.queuedResults.push({
   code: 0,
   stdout: JSON.stringify({
     ok: true,
     format: 'html-iso',
-    outPath: path.join(nestedRepoRoot, '.pairofcleats', 'maps', 'vscode-map.iso.html'),
+    outPath: workspace.resolvePath('.pairofcleats', 'maps', 'vscode-map.iso.html'),
     summary: { counts: { files: 1, members: 2, edges: 1 } },
     warnings: []
   })
@@ -80,17 +78,17 @@ assert.equal(harness.spawnCalls.length, 2);
 assert.deepEqual(
   harness.spawnCalls[1].args,
   [
-    path.join(nestedRepoRoot, 'bin', 'pairofcleats.js'),
+    workspace.resolvePath('packages', 'nested', 'bin', 'pairofcleats.js'),
     '--trace',
     'report',
     'map',
     '--json',
     '--repo',
-    nestedRepoRoot,
+    workspace.resolvePath('packages', 'nested'),
     '--format',
     'html-iso',
     '--out',
-    path.join(nestedRepoRoot, '.pairofcleats', 'maps', 'vscode-map.iso.html')
+    workspace.resolvePath('packages', 'nested', '.pairofcleats', 'maps', 'vscode-map.iso.html')
   ]
 );
 assert.equal(harness.openExternalCalls.length, 1);

@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import Module from 'node:module';
 import { EventEmitter } from 'node:events';
 import { createRequire } from 'node:module';
+
+import { copyFixtureToTemp } from '../fixtures.js';
 
 const require = createRequire(import.meta.url);
 const extensionPath = path.resolve('extensions/vscode/extension.js');
@@ -17,16 +17,24 @@ function createFakeConfiguration(values) {
   };
 }
 
-export function createVsCodeFixtureRepo(prefix = 'poc-vscode-fixture-') {
-  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
-  fs.mkdirSync(path.join(repoRoot, 'bin'), { recursive: true });
-  fs.mkdirSync(path.join(repoRoot, 'src'), { recursive: true });
-  fs.mkdirSync(path.join(repoRoot, 'rules'), { recursive: true });
-  fs.writeFileSync(path.join(repoRoot, 'bin', 'pairofcleats.js'), 'console.log("ok");');
-  fs.writeFileSync(path.join(repoRoot, 'src', 'app.ts'), 'export const value = 1;\n');
-  fs.writeFileSync(path.join(repoRoot, 'README.md'), '# fixture\n');
-  fs.writeFileSync(path.join(repoRoot, 'rules', 'architecture.rules.json'), '{"version":1,"rules":[]}\n');
-  return repoRoot;
+export async function prepareVsCodeFixtureWorkspace(
+  fixtureName = 'vscode/workspace-root',
+  { prefix = 'poc-vscode-fixture-' } = {}
+) {
+  const root = await copyFixtureToTemp(fixtureName, { prefix });
+  return {
+    root,
+    resolvePath(...segments) {
+      return path.join(root, ...segments);
+    }
+  };
+}
+
+export async function createVsCodeFixtureRepo(
+  fixtureName = 'vscode/workspace-root',
+  options = {}
+) {
+  return (await prepareVsCodeFixtureWorkspace(fixtureName, options)).root;
 }
 
 function loadExtensionWithMocks({ fakeVscode, fakeChildProcess }) {
@@ -44,7 +52,7 @@ function loadExtensionWithMocks({ fakeVscode, fakeChildProcess }) {
   }
 }
 
-function createFakeSpawn(spawnCalls, queuedResults) {
+function createFakeSpawn(spawnCalls, queuedResults, killCalls) {
   return {
     spawn(command, args, options) {
       spawnCalls.push({ command, args, options });
@@ -52,8 +60,9 @@ function createFakeSpawn(spawnCalls, queuedResults) {
       child.stdout = new EventEmitter();
       child.stderr = new EventEmitter();
       child.killed = false;
-      child.kill = () => {
+      child.kill = (signal) => {
         child.killed = true;
+        killCalls.push({ command, args, signal });
         return true;
       };
       const result = queuedResults.shift();
@@ -68,18 +77,48 @@ function createFakeSpawn(spawnCalls, queuedResults) {
           child.emit('error', result.error);
           return;
         }
-        child.emit('close', result.code ?? 0);
+        if (!result.persistent) {
+          child.emit('close', result.code ?? 0);
+        }
       });
       return child;
     }
   };
 }
 
+function normalizeFileUri(filePath) {
+  return { scheme: 'file', fsPath: filePath, path: filePath.replace(/\\/g, '/') };
+}
+
+function createTrackedStatusBarItem(statusBarItems) {
+  const item = {
+    text: '',
+    tooltip: '',
+    command: '',
+    shown: 0,
+    hidden: 0,
+    disposed: false,
+    show() {
+      this.shown += 1;
+    },
+    hide() {
+      this.hidden += 1;
+    },
+    dispose() {
+      this.disposed = true;
+    }
+  };
+  statusBarItems.push(item);
+  return item;
+}
+
 export function createVsCodeRuntimeHarness({
   repoRoot,
   workspaceFolders = [{ name: 'repo', path: repoRoot }],
   activeFile = null,
-  configValues = {}
+  activeEditor = null,
+  configValues = {},
+  workspaceState = {}
 } = {}) {
   const normalizedConfig = {
     cliPath: '',
@@ -94,30 +133,64 @@ export function createVsCodeRuntimeHarness({
     searchLang: '',
     searchExt: '',
     searchType: '',
+    searchAsOf: '',
+    searchSnapshot: '',
+    searchFilter: '',
+    searchAuthor: '',
+    searchModifiedAfter: '',
+    searchModifiedSince: '',
+    searchChurn: '',
     searchCaseSensitive: false,
     extraSearchArgs: [],
     env: {},
     ...configValues
   };
-  const workspaceStateStore = new Map();
+  const workspaceStateStore = new Map(Object.entries(workspaceState));
   const outputEvents = [];
   const errorMessages = [];
   const infoMessages = [];
   const openExternalCalls = [];
   const registeredCommands = new Map();
+  const executeCommandCalls = [];
   const spawnCalls = [];
+  const killCalls = [];
   const queuedResults = [];
   const inputQueue = [];
   const quickPickQueue = [];
   const treeViews = [];
   const treeProviders = [];
+  const statusBarItems = [];
+  const openedDocuments = [];
+  const clipboardWrites = [];
+  const editorHandlers = [];
+  const workspaceHandlers = [];
+
+  const resolveWorkspaceFolderPath = (folder) => {
+    if (!folder) return null;
+    if (folder.path) return path.resolve(folder.path);
+    if (repoRoot && folder.relativePath != null) {
+      return path.resolve(repoRoot, folder.relativePath);
+    }
+    return null;
+  };
+
+  const buildWorkspaceFolders = (folders) => (
+    folders.map((folder, index) => {
+      const folderPath = resolveWorkspaceFolderPath(folder);
+      return {
+        name: folder.name || path.basename(folderPath || `workspace-${index + 1}`),
+        uri: normalizeFileUri(folderPath)
+      };
+    })
+  );
+
+  const defaultActiveEditor = activeFile
+    ? { document: { uri: normalizeFileUri(path.resolve(activeFile)) } }
+    : null;
 
   const fakeVscode = {
     workspace: {
-      workspaceFolders: workspaceFolders.map((folder) => ({
-        name: folder.name,
-        uri: { scheme: 'file', fsPath: folder.path, path: folder.path.replace(/\\/g, '/') }
-      })),
+      workspaceFolders: buildWorkspaceFolders(workspaceFolders),
       getWorkspaceFolder(uri) {
         return this.workspaceFolders.find((folder) => uri?.fsPath?.startsWith(folder.uri.fsPath)) || null;
       },
@@ -125,13 +198,17 @@ export function createVsCodeRuntimeHarness({
         return createFakeConfiguration(normalizedConfig);
       },
       async openTextDocument(uri) {
-        return { uri };
+        const document = { uri };
+        openedDocuments.push(document);
+        return document;
+      },
+      onDidChangeWorkspaceFolders(handler) {
+        workspaceHandlers.push(handler);
+        return { dispose() {} };
       }
     },
     window: {
-      activeTextEditor: activeFile
-        ? { document: { uri: { scheme: 'file', fsPath: activeFile, path: activeFile.replace(/\\/g, '/') } } }
-        : null,
+      activeTextEditor: activeEditor || defaultActiveEditor,
       async withProgress(_options, task) {
         const token = {
           isCancellationRequested: false,
@@ -156,6 +233,7 @@ export function createVsCodeRuntimeHarness({
         infoMessages.push(message);
       },
       async showTextDocument(document) {
+        openedDocuments.push(document);
         return {
           document,
           selection: null,
@@ -174,11 +252,15 @@ export function createVsCodeRuntimeHarness({
         };
       },
       createStatusBarItem() {
-        return { show() {}, hide() {}, dispose() {}, text: '', tooltip: '', command: '' };
+        return createTrackedStatusBarItem(statusBarItems);
       },
       createTreeView(id, options) {
         treeViews.push({ id, options });
         treeProviders.push(options.treeDataProvider);
+        return { dispose() {} };
+      },
+      onDidChangeActiveTextEditor(handler) {
+        editorHandlers.push(handler);
         return { dispose() {} };
       }
     },
@@ -187,12 +269,19 @@ export function createVsCodeRuntimeHarness({
         registeredCommands.set(id, handler);
         return { dispose() {} };
       },
-      async executeCommand() {}
+      async executeCommand(id, arg) {
+        executeCommandCalls.push({ id, arg });
+      }
     },
     env: {
       async openExternal(uri) {
         openExternalCalls.push(uri);
         return true;
+      },
+      clipboard: {
+        async writeText(value) {
+          clipboardWrites.push(value);
+        }
       }
     },
     ProgressLocation: { Notification: 1 },
@@ -221,9 +310,7 @@ export function createVsCodeRuntimeHarness({
       }
     },
     Uri: {
-      file(fsPath) {
-        return { scheme: 'file', fsPath, path: fsPath.replace(/\\/g, '/') };
-      }
+      file: normalizeFileUri
     },
     Position: class Position {
       constructor(line, character) {
@@ -248,7 +335,7 @@ export function createVsCodeRuntimeHarness({
 
   const extension = loadExtensionWithMocks({
     fakeVscode,
-    fakeChildProcess: createFakeSpawn(spawnCalls, queuedResults)
+    fakeChildProcess: createFakeSpawn(spawnCalls, queuedResults, killCalls)
   });
 
   const context = {
@@ -271,21 +358,43 @@ export function createVsCodeRuntimeHarness({
     errorMessages,
     infoMessages,
     openExternalCalls,
+    clipboardWrites,
     registeredCommands,
+    executeCommandCalls,
     spawnCalls,
+    killCalls,
     queuedResults,
     inputQueue,
     quickPickQueue,
     treeViews,
     treeProviders,
+    statusBarItems,
+    openedDocuments,
     workspaceStateStore,
     activate() {
       extension.activate(context);
     },
+    resolvePath(...segments) {
+      if (!repoRoot) throw new Error('resolvePath requires repoRoot');
+      return path.join(repoRoot, ...segments);
+    },
+    setActiveEditor(editor) {
+      fakeVscode.window.activeTextEditor = editor;
+      for (const handler of editorHandlers) handler(editor);
+    },
     setActiveFile(filePath) {
-      fakeVscode.window.activeTextEditor = filePath
-        ? { document: { uri: { scheme: 'file', fsPath: filePath, path: filePath.replace(/\\/g, '/') } } }
+      const nextEditor = filePath
+        ? { document: { uri: normalizeFileUri(path.resolve(filePath)) } }
         : null;
+      this.setActiveEditor(nextEditor);
+    },
+    setWorkspaceFolders(folders) {
+      fakeVscode.workspace.workspaceFolders = buildWorkspaceFolders(folders);
+      const event = {
+        added: fakeVscode.workspace.workspaceFolders,
+        removed: []
+      };
+      for (const handler of workspaceHandlers) handler(event);
     },
     async runCommand(commandId, ...args) {
       const handler = registeredCommands.get(commandId);
