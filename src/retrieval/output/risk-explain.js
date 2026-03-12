@@ -34,7 +34,10 @@ const formatCallSiteDetails = (site) => {
     : '?:?';
   const callee = site.calleeNormalized || site.calleeRaw || 'call';
   const args = Array.isArray(site.args) && site.args.length ? `(${site.args.join(', ')})` : '';
-  return `${file}:${loc} ${callee}${args}`;
+  const invocation = `${callee}${args}`;
+  const excerptText = typeof site.excerpt === 'string' ? site.excerpt.replace(/\s+/g, ' ').trim() : '';
+  const excerpt = excerptText && excerptText !== invocation ? ` | ${excerptText}` : '';
+  return `${file}:${loc} ${invocation}${excerpt}`;
 };
 
 const collectCallSiteStepEvidence = (flow, maxEvidencePerFlow) => {

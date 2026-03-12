@@ -795,6 +795,8 @@ const riskCapsSchema = {
     maxCallSitesPerStep: nullableNumber,
     maxBytes: nullableNumber,
     maxTokens: nullableNumber,
+    maxCallSiteExcerptBytes: nullableNumber,
+    maxCallSiteExcerptTokens: nullableNumber,
     hits: { type: 'array', items: { type: 'string' } },
     observed: {
       type: ['object', 'null'],
@@ -806,7 +808,10 @@ const riskCapsSchema = {
         omittedSteps: nullableNumber,
         omittedCallSites: nullableNumber,
         bytes: nullableNumber,
-        tokens: nullableNumber
+        tokens: nullableNumber,
+        truncatedCallSiteExcerpts: nullableNumber,
+        truncatedCallSiteExcerptBytes: nullableNumber,
+        truncatedCallSiteExcerptTokens: nullableNumber
       },
       additionalProperties: false
     },

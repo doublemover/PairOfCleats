@@ -16,6 +16,9 @@ const tempRoot = resolveTestCachePath(root, 'context-pack-risk-assembly');
 const repoRoot = path.join(tempRoot, 'repo');
 const repoFile = path.join(repoRoot, 'src', 'file.js');
 const fixedNow = () => '2026-03-12T00:00:00.000Z';
+const repoSourceText = 'export function risky(input) {\n  return query(input);\n}\n';
+const queryExcerptText = 'query(input)';
+const queryOffset = repoSourceText.indexOf(queryExcerptText);
 
 const summaryRow = {
   schemaVersion: 1,
@@ -108,12 +111,12 @@ const callSiteRow = {
   callerChunkUid: 'chunk-risk',
   file: 'src/file.js',
   languageId: 'javascript',
-  start: 0,
-  end: 12,
-  startLine: 1,
-  startCol: 1,
-  endLine: 1,
-  endCol: 12,
+  start: queryOffset,
+  end: queryOffset + queryExcerptText.length,
+  startLine: 2,
+  startCol: 10,
+  endLine: 2,
+  endCol: 22,
   calleeRaw: 'query',
   calleeNormalized: 'query',
   args: ['input']
@@ -279,7 +282,7 @@ const chunkMeta = [
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(repoRoot, 'src'), { recursive: true });
-await fs.writeFile(repoFile, 'export function risky(input) {\n  return query(input);\n}\n', 'utf8');
+await fs.writeFile(repoFile, repoSourceText, 'utf8');
 
 const writeJsonl = async (filePath, rows) => {
   const content = rows.map((row) => JSON.stringify(row)).join('\n');
@@ -375,6 +378,9 @@ assert.equal(fullPack.risk?.flows?.[0]?.source?.ruleId, 'source.req.body');
 assert.equal(fullPack.risk?.flows?.[0]?.sink?.ruleId, 'sink.sql.query');
 assert.equal(fullPack.risk?.flows?.[0]?.notes?.hopCount, 1);
 assert.equal(fullPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.callSiteId, 'cs-1');
+assert.equal(fullPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.excerpt, 'query(input)');
+assert.match(fullPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.excerptHash || '', /^sha1:/);
+assert.equal(fullPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.provenance?.excerptSource, 'repo-range');
 assert.deepEqual(
   fullPack.risk?.summary?.topCategories,
   [
@@ -393,11 +399,24 @@ assert.deepEqual(fullPack.risk?.summary?.previewFlowIds, ['sha1:1111111111111111
 assert.equal(validateCompositeContextPack(fullPack).ok, true, 'expected full risk slice to validate');
 const fullRendered = renderCompositeContextPack(fullPack);
 assert.ok(fullRendered.includes('status: ok'), 'expected rendered status');
-assert.ok(fullRendered.includes('src/file.js:1:1 query(input)'), 'expected rendered risk evidence');
+assert.ok(fullRendered.includes('src/file.js:2:10 query(input)'), 'expected rendered risk evidence');
 assert.ok(fullRendered.includes('top categories:'), 'expected rendered top categories');
 assert.ok(fullRendered.includes('rules 1.0.0 sha1:rulebundle-risk-assembly'), 'expected rendered rule bundle provenance');
 assert.ok(fullRendered.includes('artifact refs:'), 'expected rendered artifact refs');
 assert.ok(fullRendered.includes('rules: source.req.body -> sink.sql.query'), 'expected rendered rules');
+
+const fullPackRepeat = await buildPack({
+  name: 'full-repeat',
+  stats: baseStats,
+  summaries: [summaryRow],
+  flows: [flowRow],
+  callSites: [callSiteRow]
+});
+assert.equal(
+  fullPackRepeat.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.excerptHash,
+  fullPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.excerptHash,
+  'expected hydrated call-site excerpt hash to stay stable across repeated assembly'
+);
 
 const summaryOnlyPack = await buildPack({
   name: 'summary-only',
@@ -474,5 +493,35 @@ assert.ok(cappedPack.risk.truncation.some((entry) => entry.cap === 'maxRiskBytes
 assert.ok(cappedPack.risk.truncation.some((entry) => entry.cap === 'maxStepsPerFlow'), 'expected step truncation record');
 assert.ok(cappedPack.risk.truncation.some((entry) => entry.cap === 'maxCallSitesPerStep'), 'expected call-site truncation record');
 assert.equal(validateCompositeContextPack(cappedPack).ok, true, 'expected capped risk slice to validate');
+
+const longExcerptText = `query(${Array.from({ length: 32 }, (_, index) => `segment_${index}`).join(', ')})`;
+const longSourceText = `export function risky(input) {\n  return ${longExcerptText};\n}\n`;
+const longQueryOffset = longSourceText.indexOf(longExcerptText);
+await fs.writeFile(repoFile, longSourceText, 'utf8');
+const longExcerptPack = await buildPack({
+  name: 'excerpt-capped',
+  stats: {
+    ...baseStats,
+    counts: {
+      ...baseStats.counts,
+      flowsEmitted: 1,
+      uniqueCallSitesReferenced: 1
+    }
+  },
+  summaries: [summaryRow],
+  flows: [flowRow],
+  callSites: [{
+    ...callSiteRow,
+    start: longQueryOffset,
+    end: longQueryOffset + longExcerptText.length,
+    startLine: 2,
+    startCol: 10,
+    endLine: 2,
+    endCol: 10 + longExcerptText.length
+  }]
+});
+assert.equal(longExcerptPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.excerptTruncated, true, 'expected long call-site excerpt to truncate');
+assert.ok(longExcerptPack.risk?.caps?.hits?.includes('maxCallSiteExcerptBytes'), 'expected call-site excerpt byte cap hit');
+assert.ok(longExcerptPack.risk?.truncation?.some((entry) => entry.cap === 'maxCallSiteExcerptBytes'), 'expected call-site excerpt truncation record');
 
 console.log('context pack risk assembly test passed');

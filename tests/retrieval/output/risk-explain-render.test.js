@@ -25,7 +25,8 @@ const flows = [
             startLine: 12,
             startCol: 7,
             calleeNormalized: 'sink',
-            args: ['req.body']
+            args: ['req.body'],
+            excerpt: 'db.raw(req.body)'
           }
         }
       ]]
@@ -36,5 +37,5 @@ const flows = [
 const output = renderRiskExplain(flows, { maxFlows: 1, maxEvidencePerFlow: 2 });
 assert(output.includes('flow-1'), 'expected flow id in output');
 assert(output.includes('chunk:chunk-a'), 'expected path nodes in output');
-assert(output.includes('src/index.js:12:7 sink(req.body)'), 'expected formatted call site evidence in output');
+assert(output.includes('src/index.js:12:7 sink(req.body) | db.raw(req.body)'), 'expected formatted call site evidence in output');
 console.log('risk explain render test passed');

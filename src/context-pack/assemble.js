@@ -170,6 +170,8 @@ const resolvePrimaryRef = (seedRef, chunk) => {
 const CONTEXT_PACK_MAX_RISK_FLOWS = 5;
 const CONTEXT_PACK_MAX_RISK_STEPS_PER_FLOW = 8;
 const CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP = 3;
+const CONTEXT_PACK_MAX_RISK_CALL_SITE_EXCERPT_BYTES = 192;
+const CONTEXT_PACK_MAX_RISK_CALL_SITE_EXCERPT_TOKENS = 24;
 const CONTEXT_PACK_MAX_RISK_BYTES = 24 * 1024;
 const CONTEXT_PACK_MAX_RISK_TOKENS = 2048;
 
@@ -441,10 +443,92 @@ const normalizeRiskCallSiteDetails = (row) => {
   };
 };
 
+const resolveRiskCallSiteExcerpt = ({ row, repoRoot }) => {
+  if (!row?.file || !repoRoot) {
+    return {
+      excerpt: null,
+      excerptHash: null,
+      excerptTruncated: false,
+      excerptTruncation: { bytes: false, tokens: false },
+      provenance: { artifact: 'call_sites', excerptSource: 'unavailable' }
+    };
+  }
+  const filePath = path.resolve(repoRoot, row.file);
+  if (!isPathInsideRepo(repoRoot, filePath)) {
+    return {
+      excerpt: null,
+      excerptHash: null,
+      excerptTruncated: false,
+      excerptTruncation: { bytes: false, tokens: false },
+      provenance: { artifact: 'call_sites', excerptSource: 'outside-repo' }
+    };
+  }
+  if (!fs.existsSync(filePath)) {
+    return {
+      excerpt: null,
+      excerptHash: null,
+      excerptTruncated: false,
+      excerptTruncation: { bytes: false, tokens: false },
+      provenance: { artifact: 'call_sites', excerptSource: 'missing-file' }
+    };
+  }
+  if (!Number.isFinite(row.start) || !Number.isFinite(row.end) || row.end <= row.start) {
+    return {
+      excerpt: null,
+      excerptHash: null,
+      excerptTruncated: false,
+      excerptTruncation: { bytes: false, tokens: false },
+      provenance: { artifact: 'call_sites', excerptSource: 'missing-range' }
+    };
+  }
+  const resolvedExcerpt = resolveExcerpt({
+    filePath,
+    start: row.start,
+    end: row.end,
+    maxBytes: CONTEXT_PACK_MAX_RISK_CALL_SITE_EXCERPT_BYTES,
+    maxTokens: CONTEXT_PACK_MAX_RISK_CALL_SITE_EXCERPT_TOKENS
+  });
+  return {
+    excerpt: resolvedExcerpt.excerpt || null,
+    excerptHash: resolvedExcerpt.excerptHash || null,
+    excerptTruncated: resolvedExcerpt.truncated === true,
+    excerptTruncation: {
+      bytes: resolvedExcerpt.truncatedBytes === true,
+      tokens: resolvedExcerpt.truncatedTokens === true
+    },
+    provenance: {
+      artifact: 'call_sites',
+      excerptSource: 'repo-range',
+      maxBytes: CONTEXT_PACK_MAX_RISK_CALL_SITE_EXCERPT_BYTES,
+      maxTokens: CONTEXT_PACK_MAX_RISK_CALL_SITE_EXCERPT_TOKENS
+    }
+  };
+};
+
+const hydrateRiskCallSiteDetails = ({ row, repoRoot }) => {
+  const base = normalizeRiskCallSiteDetails(row);
+  if (!base) return { details: null, excerptTruncated: false };
+  const excerpt = resolveRiskCallSiteExcerpt({ row, repoRoot });
+  return {
+    details: {
+      ...base,
+      excerpt: excerpt.excerpt,
+      excerptHash: excerpt.excerptHash,
+      excerptTruncated: excerpt.excerptTruncated,
+      excerptTruncation: excerpt.excerptTruncation,
+      provenance: excerpt.provenance
+    },
+    excerptTruncated: excerpt.excerptTruncated,
+    excerptTruncation: excerpt.excerptTruncation
+  };
+};
+
 const buildRiskCaps = ({ stats, counts, hits }) => ({
   maxFlows: CONTEXT_PACK_MAX_RISK_FLOWS,
   maxStepsPerFlow: CONTEXT_PACK_MAX_RISK_STEPS_PER_FLOW,
   maxCallSitesPerStep: CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP,
+  maxCallSiteExcerptBytes: CONTEXT_PACK_MAX_RISK_CALL_SITE_EXCERPT_BYTES,
+  maxCallSiteExcerptTokens: CONTEXT_PACK_MAX_RISK_CALL_SITE_EXCERPT_TOKENS,
   maxBytes: CONTEXT_PACK_MAX_RISK_BYTES,
   maxTokens: CONTEXT_PACK_MAX_RISK_TOKENS,
   configured: stats?.effectiveConfig?.caps || null,
@@ -455,6 +539,7 @@ const buildRiskCaps = ({ stats, counts, hits }) => ({
     emittedSteps: counts.emittedSteps,
     omittedSteps: counts.omittedSteps,
     omittedCallSites: counts.omittedCallSites,
+    truncatedCallSiteExcerpts: counts.truncatedCallSiteExcerpts,
     bytes: counts.bytes,
     tokens: counts.tokens
   },
@@ -478,6 +563,7 @@ const buildRiskAnalysisStatus = ({ status, reason, degraded, summaryOnly, code =
 
 const buildRiskSlice = ({
   indexDir,
+  repoRoot,
   seedRef,
   primaryChunk,
   chunkIndex,
@@ -888,6 +974,8 @@ const buildRiskSlice = ({
   let emittedSteps = 0;
   let omittedSteps = 0;
   let omittedCallSites = 0;
+  let truncatedCallSiteExcerptBytes = 0;
+  let truncatedCallSiteExcerptTokens = 0;
   let omittedFlows = 0;
   let maxFlowTruncationRecorded = false;
   let budgetTruncationRecorded = false;
@@ -1069,9 +1157,24 @@ const buildRiskSlice = ({
         maxBytes: MAX_JSON_BYTES,
         strict: true
       });
-      for (const row of Array.isArray(callSiteRows) ? callSiteRows : []) {
+      const relevantRows = Array.isArray(callSiteRows)
+        ? callSiteRows.filter((row) => row?.callSiteId && referencedCallSiteIds.has(row.callSiteId))
+        : [];
+      prefetchFileRanges(relevantRows
+        .filter((row) => row?.file && Number.isFinite(row.start) && Number.isFinite(row.end) && row.end > row.start)
+        .map((row) => ({
+          filePath: path.resolve(repoRoot, row.file),
+          start: row.start,
+          end: row.end
+        })));
+      for (const row of relevantRows) {
         if (row?.callSiteId && referencedCallSiteIds.has(row.callSiteId)) {
-          callSiteById.set(row.callSiteId, normalizeRiskCallSiteDetails(row));
+          const hydrated = hydrateRiskCallSiteDetails({ row, repoRoot });
+          if (hydrated.details) {
+            callSiteById.set(row.callSiteId, hydrated.details);
+          }
+          if (hydrated.excerptTruncation?.bytes) truncatedCallSiteExcerptBytes += 1;
+          if (hydrated.excerptTruncation?.tokens) truncatedCallSiteExcerptTokens += 1;
         }
       }
     } catch (err) {
@@ -1094,6 +1197,33 @@ const buildRiskSlice = ({
       message: 'Risk flows reference call-site evidence, but the call_sites artifact is missing.'
     });
     degraded = true;
+  }
+
+  if (truncatedCallSiteExcerptBytes > 0) {
+    riskCapHits.add('maxCallSiteExcerptBytes');
+    const record = {
+      scope: 'risk',
+      cap: 'maxCallSiteExcerptBytes',
+      limit: CONTEXT_PACK_MAX_RISK_CALL_SITE_EXCERPT_BYTES,
+      observed: truncatedCallSiteExcerptBytes,
+      omitted: truncatedCallSiteExcerptBytes,
+      note: 'Risk call-site excerpts were truncated to the configured per-call-site byte budget.'
+    };
+    truncation.push(record);
+    riskTruncation.push(record);
+  }
+  if (truncatedCallSiteExcerptTokens > 0) {
+    riskCapHits.add('maxCallSiteExcerptTokens');
+    const record = {
+      scope: 'risk',
+      cap: 'maxCallSiteExcerptTokens',
+      limit: CONTEXT_PACK_MAX_RISK_CALL_SITE_EXCERPT_TOKENS,
+      observed: truncatedCallSiteExcerptTokens,
+      omitted: truncatedCallSiteExcerptTokens,
+      note: 'Risk call-site excerpts were truncated to the configured per-call-site token budget.'
+    };
+    truncation.push(record);
+    riskTruncation.push(record);
   }
 
   const normalizedFlows = selectedRawFlows.map((flow) => ({
@@ -1131,6 +1261,7 @@ const buildRiskSlice = ({
       emittedSteps,
       omittedSteps,
       omittedCallSites,
+      truncatedCallSiteExcerpts: truncatedCallSiteExcerptBytes + truncatedCallSiteExcerptTokens,
       bytes: emittedBytes,
       tokens: emittedTokens
     },
@@ -1202,6 +1333,7 @@ const trimUtf8Buffer = (buffer) => {
 const EXCERPT_CACHE_MAX = 128;
 const FILE_RANGE_CACHE_MAX = 64;
 const EXCERPT_HASH_CACHE_MAX = 256;
+const UTF8_TRUNCATION_DETECTION_SLACK_BYTES = 4;
 const excerptCache = new Map();
 const fileRangeCache = new Map();
 const excerptHashCache = new Map();
@@ -1231,12 +1363,21 @@ const setCachedValue = (cache, key, value, maxSize) => {
   }
 };
 
+const getFileCacheFingerprint = (filePath) => {
+  try {
+    const stats = fs.statSync(filePath);
+    return `${stats.size}:${Number.isFinite(stats.mtimeMs) ? Math.trunc(stats.mtimeMs) : 0}`;
+  } catch {
+    return 'missing';
+  }
+};
+
 const readFilePrefix = (filePath, maxBytes) => {
   if (!Number.isFinite(maxBytes) || maxBytes <= 0) return '';
   let fd = null;
   try {
     fd = fs.openSync(filePath, 'r');
-    const buffer = Buffer.allocUnsafe(maxBytes);
+    const buffer = Buffer.allocUnsafe(maxBytes + UTF8_TRUNCATION_DETECTION_SLACK_BYTES);
     const bytesRead = fs.readSync(fd, buffer, 0, buffer.length, 0);
     const slice = trimUtf8Buffer(buffer.subarray(0, bytesRead));
     return slice.toString('utf8');
@@ -1246,7 +1387,7 @@ const readFilePrefix = (filePath, maxBytes) => {
 };
 
 const readFileRangeCached = (filePath, start, end) => {
-  const key = `${filePath}|${start}|${end}`;
+  const key = `${filePath}|${getFileCacheFingerprint(filePath)}|${start}|${end}`;
   const cached = getCachedValue(fileRangeCache, key);
   if (cached != null) return cached;
   const buffer = readFileRangeSync(filePath, start, end);
@@ -1259,7 +1400,7 @@ const prefetchFileRanges = (ranges) => {
   if (!Array.isArray(ranges) || !ranges.length) return;
   for (const range of ranges) {
     if (!range?.filePath) continue;
-    const key = `${range.filePath}|${range.start}|${range.end}`;
+    const key = `${range.filePath}|${getFileCacheFingerprint(range.filePath)}|${range.start}|${range.end}`;
     if (fileRangeCache.has(key)) continue;
     try {
       const buffer = readFileRangeSync(range.filePath, range.start, range.end);
@@ -1281,12 +1422,15 @@ const isPathInsideRepo = (repoRoot, filePath) => {
 const sliceExcerpt = (text, maxBytes, maxTokens) => {
   let excerpt = text;
   let truncated = false;
+  let truncatedBytes = false;
+  let truncatedTokens = false;
   if (maxBytes != null && maxBytes > 0) {
     const buffer = Buffer.from(excerpt, 'utf8');
     if (buffer.length > maxBytes) {
       const safe = trimUtf8Buffer(buffer.subarray(0, maxBytes));
       excerpt = safe.toString('utf8');
       truncated = true;
+      truncatedBytes = true;
     }
   }
   if (maxTokens != null && maxTokens > 0) {
@@ -1294,9 +1438,10 @@ const sliceExcerpt = (text, maxBytes, maxTokens) => {
     if (tokens.length > maxTokens) {
       excerpt = tokens.slice(0, maxTokens).join(' ');
       truncated = true;
+      truncatedTokens = true;
     }
   }
-  return { excerpt, truncated };
+  return { excerpt, truncated, truncatedBytes, truncatedTokens };
 };
 
 const resolveExcerpt = ({
@@ -1310,6 +1455,7 @@ const resolveExcerpt = ({
     namespace: 'context-pack-excerpt',
     payload: {
       filePath,
+      fileFingerprint: getFileCacheFingerprint(filePath),
       start: start ?? null,
       end: end ?? null,
       maxBytes: maxBytes ?? null,
@@ -1321,14 +1467,16 @@ const resolveExcerpt = ({
   let text = '';
   if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
     const safeMaxBytes = normalizeOptionalNumber(maxBytes);
-    const readEnd = safeMaxBytes ? Math.min(end, start + safeMaxBytes) : end;
+    const readEnd = safeMaxBytes
+      ? Math.min(end, start + safeMaxBytes + UTF8_TRUNCATION_DETECTION_SLACK_BYTES)
+      : end;
     prefetchFileRanges([{ filePath, start, end: readEnd }]);
     text = readFileRangeCached(filePath, start, readEnd);
   } else {
     text = readFilePrefix(filePath, normalizeOptionalNumber(maxBytes));
   }
-  const { excerpt, truncated } = sliceExcerpt(text, maxBytes, maxTokens);
-  const excerptHash = excerpt ? sha1(excerpt) : null;
+  const { excerpt, truncated, truncatedBytes, truncatedTokens } = sliceExcerpt(text, maxBytes, maxTokens);
+  const excerptHash = excerpt ? `sha1:${sha1(excerpt)}` : null;
   let deduped = excerpt;
   if (excerptHash) {
     const cached = getCachedValue(excerptHashCache, excerptHash);
@@ -1338,7 +1486,7 @@ const resolveExcerpt = ({
       setCachedValue(excerptHashCache, excerptHash, excerpt, EXCERPT_HASH_CACHE_MAX);
     }
   }
-  const payload = { excerpt: deduped, truncated, excerptHash };
+  const payload = { excerpt: deduped, truncated, excerptHash, truncatedBytes, truncatedTokens };
   setCachedValue(excerptCache, cacheKeyInfo.key, payload, EXCERPT_CACHE_MAX);
   return payload;
 };
@@ -1392,7 +1540,7 @@ const buildPrimaryExcerpt = ({ chunk, repoRoot, maxBytes, maxTokens, warnings })
     );
     excerpt = sliced;
     truncated = truncated || slicedTruncated;
-    excerptHash = excerpt ? sha1(excerpt) : null;
+    excerptHash = excerpt ? `sha1:${sha1(excerpt)}` : null;
   }
   if (truncated) {
     warnings.push({
@@ -1572,6 +1720,7 @@ export const assembleCompositeContextPack = ({
   if (includeRisk) {
     risk = buildRiskSlice({
       indexDir,
+      repoRoot,
       seedRef,
       primaryChunk,
       chunkIndex: resolvedChunkIndex,
