@@ -109,7 +109,11 @@ class FakeView:
 
 
 class FakeWindow:
+    _next_id = 1
+
     def __init__(self):
+        self._id = FakeWindow._next_id
+        FakeWindow._next_id += 1
         self._project_data = {}
         self.quick_panel_items = None
         self.quick_panel_callback = None
@@ -123,6 +127,9 @@ class FakeWindow:
 
     def project_data(self):
         return self._project_data
+
+    def id(self):
+        return self._id
 
     def set_project_data(self, value):
         self._project_data = value

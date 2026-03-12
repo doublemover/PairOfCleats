@@ -78,18 +78,22 @@ def _run_index_watch(window):
         ui.show_error('PairOfCleats settings need attention:\n- {0}'.format('\n- '.join(errors)))
         return
 
-    if watch.is_running(window):
-        active_root = watch.current_root(window)
-        message = 'PairOfCleats: watch already running.'
-        if active_root:
-            message = '{0} ({1})'.format(message, active_root)
-        ui.show_status(message)
-        return
-
     watch_root = paths.resolve_watch_root(window, settings)
     if not watch_root:
         ui.show_error('PairOfCleats: unable to resolve watch root.')
         return
+
+    active_watch = watch.snapshot(window)
+    if active_watch:
+        active_root = active_watch.get('root')
+        if active_root == watch_root:
+            message = 'PairOfCleats: watch already running.'
+            if active_root:
+                message = '{0} ({1})'.format(message, active_root)
+            ui.show_status(message)
+            return
+        watch.stop(window, reason='restart')
+        ui.show_status('PairOfCleats: restarting watch ({0}).'.format(watch_root))
 
     mode = settings.get('index_watch_mode') or 'all'
     poll_ms = settings.get('index_watch_poll_ms')
@@ -110,9 +114,18 @@ def _run_index_watch(window):
 
     ui.show_status('PairOfCleats: watch started ({0}).'.format(watch_root))
 
+    token = None
+
     def on_done(result):
-        watch.clear_if_done(window)
-        if result.returncode == 0:
+        current = watch.snapshot(window)
+        if current and current.get('token') != token:
+            return
+        stop_reason = current.get('stopReason') if current else None
+        stopping = bool(current and current.get('stopping'))
+        watch.clear_if_done(window, token=token)
+        if stop_reason == 'restart':
+            return
+        if result.returncode == 0 or stopping:
             ui.show_status('PairOfCleats: watch stopped.')
             return
         message = result.output.strip() or 'PairOfCleats watch failed.'
@@ -130,11 +143,11 @@ def _run_index_watch(window):
         stream_output=True,
         panel_name=INDEX_PANEL
     )
-    watch.register(window, handle, watch_root)
+    token = watch.register(window, handle, watch_root)
 
 
 def _run_index_watch_stop(window):
-    if watch.stop(window):
+    if watch.stop(window, reason='user'):
         ui.show_status('PairOfCleats: watch stopping...')
     else:
         ui.show_status('PairOfCleats: no watch to stop.')
