@@ -36,6 +36,8 @@
     "onCommand:pairofcleats.search",
     "onCommand:pairofcleats.searchSelection",
     "onCommand:pairofcleats.searchSymbolUnderCursor",
+    "onCommand:pairofcleats.selectRepo",
+    "onCommand:pairofcleats.clearSelectedRepo",
     "onCommand:pairofcleats.repeatLastSearch",
     "onCommand:pairofcleats.explainSearch",
     "onCommand:pairofcleats.openIndexDirectory",
@@ -87,6 +89,14 @@
       {
         "command": "pairofcleats.searchSymbolUnderCursor",
         "title": "PairOfCleats: Search Symbol Under Cursor"
+      },
+      {
+        "command": "pairofcleats.selectRepo",
+        "title": "PairOfCleats: Select Repository"
+      },
+      {
+        "command": "pairofcleats.clearSelectedRepo",
+        "title": "PairOfCleats: Clear Selected Repository"
       },
       {
         "command": "pairofcleats.repeatLastSearch",
@@ -250,6 +260,14 @@
         {
           "command": "pairofcleats.searchSymbolUnderCursor",
           "when": "editorTextFocus"
+        },
+        {
+          "command": "pairofcleats.selectRepo",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.clearSelectedRepo",
+          "when": "workbenchState != empty"
         },
         {
           "command": "pairofcleats.search",

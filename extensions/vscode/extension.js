@@ -171,6 +171,7 @@ const CLI_JS_EXTENSION = String(readContract(
   DEFAULT_EDITOR_CONFIG_CONTRACT.cli.jsEntrypointExtension
 )).toLowerCase();
 const WORKFLOW_SESSION_STORAGE_KEY = 'pairofcleats.workflowSessions';
+const SELECTED_REPO_STORAGE_KEY = 'pairofcleats.selectedRepo';
 const MAX_WORKFLOW_SESSIONS = 20;
 const SEARCH_HISTORY_STORAGE_KEY = 'pairofcleats.searchHistory';
 const SEARCH_GROUP_MODE_STORAGE_KEY = 'pairofcleats.searchResultsGroupMode';
@@ -298,7 +299,8 @@ function createRepoCandidate(folder, repoRoot, source = 'workspace-folder') {
 }
 
 function collectRepoCandidates(folders, {
-  activeUri = null,
+  hintUri = null,
+  hintSource = 'active-editor',
   includeLastSnapshot = false
 } = {}) {
   const seen = new Set();
@@ -310,11 +312,11 @@ function collectRepoCandidates(folders, {
     candidates.push(candidate);
   };
 
-  const activeFolder = activeUri && typeof vscode.workspace.getWorkspaceFolder === 'function'
-    ? vscode.workspace.getWorkspaceFolder(activeUri)
+  const hintedFolder = hintUri && typeof vscode.workspace.getWorkspaceFolder === 'function'
+    ? vscode.workspace.getWorkspaceFolder(hintUri)
     : null;
-  if (activeFolder?.uri?.scheme === 'file' && activeUri?.fsPath) {
-    pushCandidate(activeFolder, resolveFolderRepoRoot(activeFolder, activeUri.fsPath), 'active-editor');
+  if (hintedFolder?.uri?.scheme === 'file' && hintUri?.fsPath) {
+    pushCandidate(hintedFolder, resolveFolderRepoRoot(hintedFolder, hintUri.fsPath), hintSource);
   }
 
   if (includeLastSnapshot?.repoRoot) {
@@ -336,12 +338,63 @@ function collectRepoCandidates(folders, {
   return candidates;
 }
 
+function normalizeSelectedRepoSnapshot(rawSnapshot) {
+  if (!rawSnapshot || typeof rawSnapshot !== 'object') return null;
+  const repoRoot = String(rawSnapshot.repoRoot || '').trim();
+  if (!repoRoot) return null;
+  const workspacePath = String(rawSnapshot.workspacePath || '').trim();
+  return {
+    repoRoot: path.resolve(repoRoot),
+    repoLabel: formatRepoLabel(repoRoot),
+    workspacePath: workspacePath ? path.resolve(workspacePath) : path.resolve(repoRoot)
+  };
+}
+
+function resolveSelectedRepoCandidate(candidates) {
+  const selection = normalizeSelectedRepoSnapshot(readWorkspaceState(SELECTED_REPO_STORAGE_KEY, null));
+  if (!selection) return null;
+  return candidates.find((candidate) => path.resolve(candidate.repoRoot) === selection.repoRoot) || null;
+}
+
+async function persistSelectedRepoCandidate(candidate) {
+  if (!candidate?.repoRoot) {
+    await writeWorkspaceState(SELECTED_REPO_STORAGE_KEY, null);
+    updateWorkflowStatusBar();
+    return;
+  }
+  await writeWorkspaceState(SELECTED_REPO_STORAGE_KEY, {
+    repoRoot: candidate.repoRoot,
+    workspacePath: candidate.workspacePath || candidate.repoRoot
+  });
+  updateWorkflowStatusBar();
+}
+
+async function promptForRepoCandidate(candidates, { title = 'PairOfCleats repository', placeHolder = 'Select the repository root to use' } = {}) {
+  if (typeof vscode.window.showQuickPick !== 'function') {
+    return null;
+  }
+  const selectedCandidate = resolveSelectedRepoCandidate(candidates);
+  const picked = await vscode.window.showQuickPick(
+    candidates.map((candidate) => ({
+      label: candidate.repoLabel,
+      description: `${candidate.workspaceFolder?.name || candidate.workspacePath}${candidate.source === 'workspace-folder' ? '' : ` • ${candidate.source}`}${selectedCandidate?.repoRoot === candidate.repoRoot ? ' • selected' : ''}`,
+      detail: candidate.repoRoot,
+      candidate
+    })),
+    {
+      title,
+      placeHolder
+    }
+  );
+  return picked?.candidate || null;
+}
+
 /**
  * Resolve repository root for current workspace settings.
  *
  * @returns {string|null}
  */
-async function resolveRepoContext() {
+async function resolveRepoContext({ pathHint = null, preferSelectedRepo = true, allowPrompt = true } = {}) {
   const folders = vscode.workspace.workspaceFolders;
   if (!folders || !folders.length) {
     return {
@@ -350,7 +403,7 @@ async function resolveRepoContext() {
       message: 'PairOfCleats: open a workspace to search.'
     };
   }
-  const activeUri = vscode.window.activeTextEditor?.document?.uri || null;
+  const activeUri = pathHint || vscode.window.activeTextEditor?.document?.uri || null;
   const fileFolders = folders.filter((folder) => folder?.uri?.scheme === 'file' && folder?.uri?.fsPath);
   if (!fileFolders.length) {
     return {
@@ -360,8 +413,23 @@ async function resolveRepoContext() {
       detail: 'Open a local checkout or run the CLI directly for remote workspaces.'
     };
   }
-  const candidates = collectRepoCandidates(fileFolders, { activeUri });
-  const activeCandidate = candidates.find((candidate) => candidate.source === 'active-editor') || null;
+  const candidates = collectRepoCandidates(fileFolders, {
+    hintUri: activeUri,
+    hintSource: pathHint ? 'path-hint' : 'active-editor'
+  });
+  const pathHintCandidate = pathHint
+    ? candidates.find((candidate) => candidate.source === 'path-hint') || null
+    : null;
+  const selectedCandidate = preferSelectedRepo ? resolveSelectedRepoCandidate(candidates) : null;
+  const activeCandidate = !pathHint
+    ? candidates.find((candidate) => candidate.source === 'active-editor') || null
+    : null;
+  if (pathHintCandidate) {
+    return { ok: true, ...pathHintCandidate, source: 'path-hint' };
+  }
+  if (selectedCandidate) {
+    return { ok: true, ...selectedCandidate, source: 'selected-repo' };
+  }
   if (activeCandidate) {
     return { ok: true, ...activeCandidate, source: 'active-editor' };
   }
@@ -372,32 +440,21 @@ async function resolveRepoContext() {
       source: fileFolders.length === 1 ? 'single-workspace' : 'single-repo-candidate'
     };
   }
-  if (typeof vscode.window.showQuickPick !== 'function') {
+  if (!allowPrompt || typeof vscode.window.showQuickPick !== 'function') {
     return {
       ok: false,
       kind: 'ambiguous-workspace',
       message: 'PairOfCleats needs an explicit repository selection for this workspace.',
-      detail: 'Focus a file inside the repo you want or use a workspace with a single repo root.'
+      detail: 'Focus a file inside the repo you want, select a repo explicitly, or use a workspace with a single repo root.'
     };
   }
-  const picked = await vscode.window.showQuickPick(
-    candidates.map((candidate) => ({
-      label: candidate.repoLabel,
-      description: `${candidate.workspaceFolder?.name || candidate.workspacePath}${candidate.source === 'workspace-folder' ? '' : ` • ${candidate.source}`}`,
-      detail: candidate.repoRoot,
-      candidate
-    })),
-    {
-      title: 'PairOfCleats repository',
-      placeHolder: 'Select the repository root to use'
-    }
-  );
+  const picked = await promptForRepoCandidate(candidates);
   if (!picked) {
     return { ok: false, kind: 'cancelled', message: null };
   }
   return {
     ok: true,
-    ...picked.candidate,
+    ...picked,
     source: 'repo-picker'
   };
 }
@@ -547,9 +604,14 @@ function resolvePassiveRepoContext() {
     return { ok: false, kind: 'unsupported-workspace', repoLabel: 'no repo' };
   }
   const candidates = collectRepoCandidates(fileFolders, {
-    activeUri,
+    hintUri: activeUri,
+    hintSource: 'active-editor',
     includeLastSnapshot: lastWorkflowRepoSnapshot
   });
+  const selectedCandidate = resolveSelectedRepoCandidate(candidates);
+  if (selectedCandidate) {
+    return { ok: true, ...selectedCandidate, source: 'selected-repo' };
+  }
   const activeCandidate = candidates.find((candidate) => candidate.source === 'active-editor') || null;
   if (activeCandidate) {
     return { ok: true, ...activeCandidate, source: 'active-editor' };
@@ -581,11 +643,15 @@ function updateWorkflowStatusBar() {
     workflowStatusBar.tooltip = `${runningSession.title}\n${runningSession.repoRoot}\nStatus: running`;
   } else if (passiveRepo.ok) {
     const lastSession = getMostRecentWorkflowSession();
-    const suffix = lastSession && lastSession.repoRoot === passiveRepo.repoRoot && lastSession.status !== 'running'
-      ? ` • ${lastSession.status}`
-      : '';
+    const parts = [];
+    if (passiveRepo.source === 'selected-repo') {
+      parts.push('selected');
+    } else if (lastSession && lastSession.repoRoot === passiveRepo.repoRoot && lastSession.status !== 'running') {
+      parts.push(lastSession.status);
+    }
+    const suffix = parts.length ? ` • ${parts.join(' • ')}` : '';
     workflowStatusBar.text = `PairOfCleats: ${passiveRepo.repoLabel}${suffix}`;
-    workflowStatusBar.tooltip = `${passiveRepo.repoRoot}${suffix ? `\nLast workflow: ${lastSession.title} (${lastSession.status})` : ''}`;
+    workflowStatusBar.tooltip = `${passiveRepo.repoRoot}${passiveRepo.source === 'selected-repo' ? '\nContext: explicitly selected repository' : ''}${lastSession && lastSession.repoRoot === passiveRepo.repoRoot && lastSession.status !== 'running' ? `\nLast workflow: ${lastSession.title} (${lastSession.status})` : ''}`;
   } else {
     workflowStatusBar.text = `PairOfCleats: ${passiveRepo.repoLabel || 'no repo'}`;
     workflowStatusBar.tooltip = 'Open a repository workspace or focus an editor to establish PairOfCleats repo context.';
@@ -642,6 +708,42 @@ async function beginWorkflowSession(spec, repoContext, invocation) {
   await persistWorkflowSessions();
   updateWorkflowStatusBar();
   return session;
+}
+
+async function selectRepo() {
+  const folders = vscode.workspace.workspaceFolders;
+  if (!folders || !folders.length) {
+    vscode.window.showErrorMessage('PairOfCleats: open a workspace to select a repository.');
+    return;
+  }
+  const fileFolders = folders.filter((folder) => folder?.uri?.scheme === 'file' && folder?.uri?.fsPath);
+  if (!fileFolders.length) {
+    vscode.window.showErrorMessage('PairOfCleats only supports local file workspaces right now.');
+    return;
+  }
+  const activeUri = vscode.window.activeTextEditor?.document?.uri || null;
+  const candidates = collectRepoCandidates(fileFolders, {
+    hintUri: activeUri,
+    hintSource: 'active-editor'
+  });
+  if (!candidates.length) {
+    vscode.window.showErrorMessage('PairOfCleats could not locate a repository in this workspace.');
+    return;
+  }
+  const picked = candidates.length === 1
+    ? candidates[0]
+    : await promptForRepoCandidate(candidates, {
+      title: 'PairOfCleats repository',
+      placeHolder: 'Select the repository root to use for subsequent commands'
+    });
+  if (!picked) return;
+  await persistSelectedRepoCandidate(picked);
+  vscode.window.showInformationMessage(`PairOfCleats will use ${picked.repoLabel} until you clear the selection.`);
+}
+
+async function clearSelectedRepo() {
+  await persistSelectedRepoCandidate(null);
+  vscode.window.showInformationMessage('PairOfCleats cleared the explicit repository selection.');
 }
 
 async function finishWorkflowSession(sessionId, patch) {
@@ -716,6 +818,7 @@ async function showRecentWorkflows() {
 }
 
 async function showWorkflowStatus() {
+  const passiveRepo = resolvePassiveRepoContext();
   const items = [
     {
       label: 'Reopen PairOfCleats output',
@@ -723,6 +826,19 @@ async function showWorkflowStatus() {
       action: 'output'
     }
   ];
+  if (passiveRepo.ok) {
+    items.push({
+      label: passiveRepo.source === 'selected-repo' ? 'Clear selected repository' : 'Select repository',
+      description: passiveRepo.repoLabel,
+      action: passiveRepo.source === 'selected-repo' ? 'clear-selected-repo' : 'select-repo'
+    });
+  } else {
+    items.push({
+      label: 'Select repository',
+      description: 'Pick a repo for subsequent commands',
+      action: 'select-repo'
+    });
+  }
   const runningSession = getMostRecentRunningWorkflowSession();
   if (runningSession && MANAGED_COMMANDS_BY_ID.has(runningSession.commandId)) {
     const managedSpec = MANAGED_COMMANDS_BY_ID.get(runningSession.commandId);
@@ -753,6 +869,14 @@ async function showWorkflowStatus() {
   if (!selection) return;
   if (selection.action === 'output') {
     getOutputChannel().show?.(true);
+    return;
+  }
+  if (selection.action === 'select-repo') {
+    await selectRepo();
+    return;
+  }
+  if (selection.action === 'clear-selected-repo') {
+    await clearSelectedRepo();
     return;
   }
   if (selection.action === 'rerun-last') {
@@ -2796,6 +2920,8 @@ function activate(context) {
   const searchCommand = vscode.commands.registerCommand('pairofcleats.search', runSearch);
   const searchSelectionCommand = vscode.commands.registerCommand('pairofcleats.searchSelection', runSelectionSearch);
   const searchSymbolCommand = vscode.commands.registerCommand('pairofcleats.searchSymbolUnderCursor', runSymbolSearch);
+  const selectRepoCommand = vscode.commands.registerCommand('pairofcleats.selectRepo', selectRepo);
+  const clearSelectedRepoCommand = vscode.commands.registerCommand('pairofcleats.clearSelectedRepo', clearSelectedRepo);
   const repeatLastSearchCommand = vscode.commands.registerCommand('pairofcleats.repeatLastSearch', repeatLastSearch);
   const explainSearchCommand = vscode.commands.registerCommand('pairofcleats.explainSearch', runExplainSearch);
   const openIndexDirectoryCommand = vscode.commands.registerCommand('pairofcleats.openIndexDirectory', openIndexDirectory);
@@ -2810,6 +2936,8 @@ function activate(context) {
     searchCommand,
     searchSelectionCommand,
     searchSymbolCommand,
+    selectRepoCommand,
+    clearSelectedRepoCommand,
     repeatLastSearchCommand,
     explainSearchCommand,
     openIndexDirectoryCommand,
@@ -2924,6 +3052,8 @@ module.exports = {
     runSelectionSearch,
     runSymbolSearch,
     runExplainSearch,
+    selectRepo,
+    clearSelectedRepo,
     showWorkflowStatus,
     showRecentWorkflows,
     rerunWorkflowSession,

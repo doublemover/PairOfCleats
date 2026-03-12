@@ -29,6 +29,9 @@ const harness = createVsCodeRuntimeHarness({
 const { extension } = harness;
 harness.activate();
 
+assert.ok(harness.registeredCommands.has('pairofcleats.selectRepo'));
+assert.ok(harness.registeredCommands.has('pairofcleats.clearSelectedRepo'));
+
 const cliResolution = extension._test.resolveCli(
   workspace.root,
   harness.fakeVscode.workspace.getConfiguration()
@@ -67,6 +70,44 @@ const repoContextPicked = await extension._test.resolveRepoContext();
 assert.equal(repoContextPicked.ok, true);
 assert.equal(repoContextPicked.repoRoot, otherWorkspace.root);
 assert.equal(repoContextPicked.source, 'repo-picker');
+
+harness.quickPickQueue.push((items) => items[1]);
+await harness.runCommand('pairofcleats.selectRepo');
+assert.match(harness.infoMessages.pop(), /will use secondary-repo/i);
+harness.setActiveFile(workspace.resolvePath('src', 'app.ts'));
+const selectedRepoContext = await extension._test.resolveRepoContext();
+assert.equal(selectedRepoContext.ok, true);
+assert.equal(selectedRepoContext.repoRoot, otherWorkspace.root);
+assert.equal(selectedRepoContext.source, 'selected-repo');
+assert.ok(harness.statusBarItems[0].text.includes('secondary-repo'));
+assert.ok(harness.statusBarItems[0].text.includes('selected'));
+
+await harness.runCommand('pairofcleats.clearSelectedRepo');
+assert.match(harness.infoMessages.pop(), /cleared the explicit repository selection/i);
+const clearedRepoContext = await extension._test.resolveRepoContext();
+assert.equal(clearedRepoContext.ok, true);
+assert.equal(clearedRepoContext.repoRoot, workspace.root);
+assert.equal(clearedRepoContext.source, 'active-editor');
+
+const persistedHarness = createVsCodeRuntimeHarness({
+  repoRoot: workspace.root,
+  workspaceFolders: [
+    { name: 'alpha', path: workspace.root },
+    { name: 'beta', path: otherWorkspace.root }
+  ],
+  activeEditor: null,
+  workspaceState: {
+    'pairofcleats.selectedRepo': {
+      repoRoot: otherWorkspace.root,
+      workspacePath: otherWorkspace.root
+    }
+  }
+});
+persistedHarness.activate();
+const persistedSelectedContext = await persistedHarness.extension._test.resolveRepoContext();
+assert.equal(persistedSelectedContext.ok, true);
+assert.equal(persistedSelectedContext.repoRoot, otherWorkspace.root);
+assert.equal(persistedSelectedContext.source, 'selected-repo');
 
 harness.fakeVscode.workspace.workspaceFolders = [
   { name: 'remote', uri: { scheme: 'vscode-remote', fsPath: '/workspace/repo', path: '/workspace/repo' } }

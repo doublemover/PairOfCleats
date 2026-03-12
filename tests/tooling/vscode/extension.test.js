@@ -45,6 +45,8 @@ const expectedCommands = new Map([
   ['pairofcleats.search', 'PairOfCleats: Search'],
   ['pairofcleats.searchSelection', 'PairOfCleats: Search Selection'],
   ['pairofcleats.searchSymbolUnderCursor', 'PairOfCleats: Search Symbol Under Cursor'],
+  ['pairofcleats.selectRepo', 'PairOfCleats: Select Repository'],
+  ['pairofcleats.clearSelectedRepo', 'PairOfCleats: Clear Selected Repository'],
   ['pairofcleats.repeatLastSearch', 'PairOfCleats: Repeat Last Search'],
   ['pairofcleats.explainSearch', 'PairOfCleats: Explain Search'],
   ['pairofcleats.openIndexDirectory', 'PairOfCleats: Open Index Directory'],
@@ -115,6 +117,8 @@ const viewItemContextMenus = manifest.contributes?.menus?.['view/item/context'] 
 const requireCommandPaletteWhen = new Map([
   ['pairofcleats.searchSelection', 'editorTextFocus && editorHasSelection'],
   ['pairofcleats.searchSymbolUnderCursor', 'editorTextFocus'],
+  ['pairofcleats.selectRepo', 'workbenchState != empty'],
+  ['pairofcleats.clearSelectedRepo', 'workbenchState != empty'],
   ['pairofcleats.search', 'workbenchState != empty'],
   ['pairofcleats.explainSearch', 'workbenchState != empty'],
   ['pairofcleats.showSearchHistory', 'workbenchState != empty'],
