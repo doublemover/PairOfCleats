@@ -1,6 +1,15 @@
 import os
 
 
+def _normalize_config_path(value):
+    text = str(value or '')
+    if not text:
+        return text
+    if os.sep == '/':
+        return text.replace('\\', '/')
+    return text.replace('/', '\\')
+
+
 def find_repo_root(start_path):
     if not start_path:
         return None
@@ -215,11 +224,12 @@ def resolve_cli(settings, repo_root):
 def resolve_path(repo_root, value):
     if not value:
         return None
-    if os.path.isabs(value):
-        return os.path.normpath(value)
+    normalized_value = _normalize_config_path(value)
+    if os.path.isabs(normalized_value):
+        return os.path.normpath(normalized_value)
     if repo_root:
-        return os.path.normpath(os.path.join(repo_root, value))
-    return os.path.normpath(value)
+        return os.path.normpath(os.path.join(repo_root, normalized_value))
+    return os.path.normpath(normalized_value)
 
 
 def resolve_path_within_repo(repo_root, value):

@@ -55,7 +55,7 @@ class WatchBehaviorTests(unittest.TestCase):
             'build_index_args': self.index.indexing.build_index_args,
         }
         self.index.config.get_settings = lambda _window: {'index_watch_mode': 'all'}
-        self.index.config.validate_settings = lambda _settings, _repo_root: []
+        self.index.config.validate_settings = lambda _settings, _repo_root, workflow=None: []
         self.index.paths.resolve_repo_root = (
             lambda _window, return_reason=True, path_hint=None, allow_fallback=True: ('C:/repo', None)
             if return_reason else 'C:/repo'

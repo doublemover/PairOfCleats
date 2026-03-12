@@ -98,6 +98,7 @@ class PackageHarnessTests(unittest.TestCase):
             'analysis_get_settings': self.analysis.config.get_settings,
             'analysis_validate_settings': self.analysis.config.validate_settings,
             'analysis_resolve_repo_root': self.analysis.paths.resolve_repo_root,
+            'analysis_resolve_repo_root_interactive': self.analysis.paths.resolve_repo_root_interactive,
             'analysis_resolve_cli': self.analysis.paths.resolve_cli,
             'analysis_build_env': self.analysis.config.build_env,
             'analysis_run_process': self.analysis.runner.run_process,
@@ -135,10 +136,10 @@ class PackageHarnessTests(unittest.TestCase):
         self.index.config.get_settings = lambda _window: dict(base_settings)
         self.map_commands.config.get_settings = lambda _window: dict(base_settings)
         self.analysis.config.get_settings = lambda _window: dict(base_settings)
-        self.search.config.validate_settings = lambda _settings, _repo_root: []
-        self.index.config.validate_settings = lambda _settings, _repo_root: []
-        self.map_commands.config.validate_settings = lambda _settings, _repo_root: []
-        self.analysis.config.validate_settings = lambda _settings, _repo_root: []
+        self.search.config.validate_settings = lambda _settings, _repo_root, workflow=None: []
+        self.index.config.validate_settings = lambda _settings, _repo_root, workflow=None: []
+        self.map_commands.config.validate_settings = lambda _settings, _repo_root, workflow=None: []
+        self.analysis.config.validate_settings = lambda _settings, _repo_root, workflow=None: []
         self.search.paths.resolve_repo_root = (
             lambda _window, return_reason=True, path_hint=None, allow_fallback=True: (self.repo_root, None)
             if return_reason else self.repo_root
@@ -155,6 +156,10 @@ class PackageHarnessTests(unittest.TestCase):
         self.analysis.paths.resolve_repo_root = (
             lambda _window, return_reason=True, path_hint=None, allow_fallback=True: (self.repo_root, None)
             if return_reason else self.repo_root
+        )
+        self.analysis.paths.resolve_repo_root_interactive = (
+            lambda _window, on_done, path_hint=None, allow_fallback=True, prompt='PairOfCleats repo':
+            on_done(self.repo_root, None)
         )
         self.search.paths.resolve_cli = lambda _settings, _repo_root: dict(cli_profile)
         self.index.paths.resolve_cli = lambda _settings, _repo_root: dict(cli_profile)
@@ -225,6 +230,8 @@ class PackageHarnessTests(unittest.TestCase):
                 self.analysis.config.validate_settings = value
             elif key == 'analysis_resolve_repo_root':
                 self.analysis.paths.resolve_repo_root = value
+            elif key == 'analysis_resolve_repo_root_interactive':
+                self.analysis.paths.resolve_repo_root_interactive = value
             elif key == 'analysis_resolve_cli':
                 self.analysis.paths.resolve_cli = value
             elif key == 'analysis_build_env':

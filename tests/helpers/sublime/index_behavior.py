@@ -34,7 +34,7 @@ class IndexBehaviorTests(unittest.TestCase):
             'index_watch_poll_ms': 2500,
             'index_watch_debounce_ms': 500,
         }
-        self.index.config.validate_settings = lambda _settings, _repo_root: []
+        self.index.config.validate_settings = lambda _settings, _repo_root, workflow=None: []
         self.index.paths.resolve_cli = lambda _settings, _repo_root: {
             'command': 'pairofcleats',
             'args_prefix': [],

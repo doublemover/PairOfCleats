@@ -37,7 +37,7 @@ class NavigationBehaviorTests(unittest.TestCase):
             'run_process': self.search.runner.run_process,
         }
         self.search.config.get_settings = lambda _window: {}
-        self.search.config.validate_settings = lambda _settings, _repo_root: []
+        self.search.config.validate_settings = lambda _settings, _repo_root, workflow=None: []
         self.search.paths.resolve_repo_root = (
             lambda _window, return_reason=True, path_hint=None, allow_fallback=True: ('C:/repo', None)
             if return_reason else 'C:/repo'

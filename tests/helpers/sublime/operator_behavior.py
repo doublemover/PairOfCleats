@@ -58,7 +58,7 @@ class OperatorBehaviorTests(unittest.TestCase):
             'api_timeout_ms': 5000,
             'api_execution_mode': 'prefer',
         }
-        self.operator.config.validate_settings = lambda _settings, _repo_root: []
+        self.operator.config.validate_settings = lambda _settings, _repo_root, workflow=None: []
         self.operator.paths.resolve_repo_root_interactive = self._resolve_repo_root_interactive
         self.operator.paths.resolve_cli = lambda _settings, _repo_root: {
             'command': 'pairofcleats',
