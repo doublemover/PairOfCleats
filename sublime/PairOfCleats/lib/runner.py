@@ -61,14 +61,18 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
         cwd=cwd or None,
         env=full_env,
         stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
+        stderr=subprocess.PIPE,
         universal_newlines=True
     )
 
-    output_lines = []
+    stdout_lines = []
+    stderr_lines = []
+    combined_lines = []
+    output_lock = threading.Lock()
 
     def append_line(line):
-        output_lines.append(line)
+        with output_lock:
+            combined_lines.append(line)
         if panel is not None:
             _append_panel(panel, line)
 
@@ -76,19 +80,35 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
         if on_done:
             on_done(result)
 
-    def worker():
+    def read_stream(stream, sink):
         try:
-            for line in proc.stdout:
+            for line in stream:
+                sink.append(line)
                 append_line(line)
         finally:
-            proc.wait()
+            try:
+                stream.close()
+            except Exception:
+                pass
 
-        output = ''.join(output_lines)
+    def worker():
+        stdout_thread = threading.Thread(target=read_stream, args=(proc.stdout, stdout_lines))
+        stderr_thread = threading.Thread(target=read_stream, args=(proc.stderr, stderr_lines))
+        stdout_thread.daemon = True
+        stderr_thread.daemon = True
+        stdout_thread.start()
+        stderr_thread.start()
+        stdout_thread.join()
+        stderr_thread.join()
+        proc.wait()
+
+        output = ''.join(combined_lines)
+        stdout_output = ''.join(stdout_lines)
         payload = None
         error = None
         if capture_json:
             try:
-                payload = json.loads(output or '{}')
+                payload = json.loads(stdout_output or '{}')
             except Exception as exc:
                 error = 'Failed to parse JSON output: {0}'.format(exc)
         result = ProcessResult(proc.returncode, output, payload=payload, error=error)

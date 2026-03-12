@@ -164,3 +164,4 @@ lang/contracts/misc-buildfiles
 lang/contracts/python
 lang/contracts/sql
 lang/contracts/typescript
+tooling/sublime/package-harness
