@@ -25,6 +25,11 @@ const guide = fs.readFileSync(guidePath, 'utf8');
 const activationEvents = new Set(manifest.activationEvents || []);
 const expectedCommands = new Map([
   ['pairofcleats.search', 'PairOfCleats: Search'],
+  ['pairofcleats.searchSelection', 'PairOfCleats: Search Selection'],
+  ['pairofcleats.searchSymbolUnderCursor', 'PairOfCleats: Search Symbol Under Cursor'],
+  ['pairofcleats.repeatLastSearch', 'PairOfCleats: Repeat Last Search'],
+  ['pairofcleats.explainSearch', 'PairOfCleats: Explain Search'],
+  ['pairofcleats.openIndexDirectory', 'PairOfCleats: Open Index Directory'],
   ['pairofcleats.setup', 'PairOfCleats: Setup'],
   ['pairofcleats.bootstrap', 'PairOfCleats: Bootstrap'],
   ['pairofcleats.doctor', 'PairOfCleats: Tooling Doctor'],
@@ -75,6 +80,53 @@ const explorerViews = manifest.contributes?.views?.explorer || [];
 if (!explorerViews.some((view) => view.id === 'pairofcleats.resultsExplorer')) {
   console.error('VS Code extension explorer view missing pairofcleats.resultsExplorer.');
   process.exit(1);
+}
+
+const commandPaletteMenus = manifest.contributes?.menus?.commandPalette || [];
+const editorContextMenus = manifest.contributes?.menus?.['editor/context'] || [];
+const requireCommandPaletteWhen = new Map([
+  ['pairofcleats.searchSelection', 'editorTextFocus && editorHasSelection'],
+  ['pairofcleats.searchSymbolUnderCursor', 'editorTextFocus'],
+  ['pairofcleats.search', 'workbenchState != empty'],
+  ['pairofcleats.explainSearch', 'workbenchState != empty'],
+  ['pairofcleats.showSearchHistory', 'workbenchState != empty'],
+  ['pairofcleats.repeatLastSearch', 'workbenchState != empty'],
+  ['pairofcleats.reopenLastResults', 'workbenchState != empty'],
+  ['pairofcleats.openIndexDirectory', 'workbenchState != empty'],
+  ['pairofcleats.openResultHit', 'false'],
+  ['pairofcleats.revealResultHit', 'false'],
+  ['pairofcleats.copyResultPath', 'false'],
+  ['pairofcleats.rerunResultSet', 'false']
+]);
+
+for (const [commandId, expectedWhen] of requireCommandPaletteWhen.entries()) {
+  const menu = commandPaletteMenus.find((entry) => entry.command === commandId);
+  if (!menu) {
+    console.error(`VS Code commandPalette menu missing ${commandId}.`);
+    process.exit(1);
+  }
+  if (menu.when !== expectedWhen) {
+    console.error(`VS Code commandPalette when drifted for ${commandId}.`);
+    process.exit(1);
+  }
+}
+
+const requireEditorContextWhen = new Map([
+  ['pairofcleats.searchSelection', 'editorTextFocus && editorHasSelection'],
+  ['pairofcleats.searchSymbolUnderCursor', 'editorTextFocus'],
+  ['pairofcleats.explainSearch', 'editorTextFocus']
+]);
+
+for (const [commandId, expectedWhen] of requireEditorContextWhen.entries()) {
+  const menu = editorContextMenus.find((entry) => entry.command === commandId);
+  if (!menu) {
+    console.error(`VS Code editor/context menu missing ${commandId}.`);
+    process.exit(1);
+  }
+  if (menu.when !== expectedWhen) {
+    console.error(`VS Code editor/context when drifted for ${commandId}.`);
+    process.exit(1);
+  }
 }
 
 const settings = contract?.settings?.vscode || {};

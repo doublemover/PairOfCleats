@@ -12,6 +12,11 @@
   ],
   "activationEvents": [
     "onCommand:pairofcleats.search",
+    "onCommand:pairofcleats.searchSelection",
+    "onCommand:pairofcleats.searchSymbolUnderCursor",
+    "onCommand:pairofcleats.repeatLastSearch",
+    "onCommand:pairofcleats.explainSearch",
+    "onCommand:pairofcleats.openIndexDirectory",
     "onCommand:pairofcleats.setup",
     "onCommand:pairofcleats.bootstrap",
     "onCommand:pairofcleats.doctor",
@@ -44,6 +49,26 @@
       {
         "command": "pairofcleats.search",
         "title": "PairOfCleats: Search"
+      },
+      {
+        "command": "pairofcleats.searchSelection",
+        "title": "PairOfCleats: Search Selection"
+      },
+      {
+        "command": "pairofcleats.searchSymbolUnderCursor",
+        "title": "PairOfCleats: Search Symbol Under Cursor"
+      },
+      {
+        "command": "pairofcleats.repeatLastSearch",
+        "title": "PairOfCleats: Repeat Last Search"
+      },
+      {
+        "command": "pairofcleats.explainSearch",
+        "title": "PairOfCleats: Explain Search"
+      },
+      {
+        "command": "pairofcleats.openIndexDirectory",
+        "title": "PairOfCleats: Open Index Directory"
       },
       {
         "command": "pairofcleats.setup",
@@ -151,6 +176,75 @@
         {
           "id": "pairofcleats.resultsExplorer",
           "name": "PairOfCleats Results"
+        }
+      ]
+    },
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "pairofcleats.searchSelection",
+          "when": "editorTextFocus && editorHasSelection"
+        },
+        {
+          "command": "pairofcleats.searchSymbolUnderCursor",
+          "when": "editorTextFocus"
+        },
+        {
+          "command": "pairofcleats.search",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.explainSearch",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.showSearchHistory",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.repeatLastSearch",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.reopenLastResults",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.openIndexDirectory",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.openResultHit",
+          "when": "false"
+        },
+        {
+          "command": "pairofcleats.revealResultHit",
+          "when": "false"
+        },
+        {
+          "command": "pairofcleats.copyResultPath",
+          "when": "false"
+        },
+        {
+          "command": "pairofcleats.rerunResultSet",
+          "when": "false"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "pairofcleats.searchSelection",
+          "when": "editorTextFocus && editorHasSelection",
+          "group": "navigation@10"
+        },
+        {
+          "command": "pairofcleats.searchSymbolUnderCursor",
+          "when": "editorTextFocus",
+          "group": "navigation@11"
+        },
+        {
+          "command": "pairofcleats.explainSearch",
+          "when": "editorTextFocus",
+          "group": "navigation@12"
         }
       ]
     },

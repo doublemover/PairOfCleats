@@ -60,13 +60,15 @@ function createFakeSpawn(spawnCalls, queuedResults) {
   };
 }
 
-const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-vscode-results-'));
+const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-vscode-search-entrypoints-'));
+const repoCacheRoot = path.join(repoRoot, '.cache', 'repo');
 fs.mkdirSync(path.join(repoRoot, 'bin'), { recursive: true });
+fs.mkdirSync(path.join(repoRoot, 'tools', 'config'), { recursive: true });
 fs.mkdirSync(path.join(repoRoot, 'src'), { recursive: true });
+fs.mkdirSync(repoCacheRoot, { recursive: true });
 fs.writeFileSync(path.join(repoRoot, 'bin', 'pairofcleats.js'), 'console.log("ok");');
+fs.writeFileSync(path.join(repoRoot, 'tools', 'config', 'dump.js'), 'console.log("ok");');
 fs.writeFileSync(path.join(repoRoot, 'src', 'app.ts'), 'export const value = 1;\n');
-fs.writeFileSync(path.join(repoRoot, 'README.md'), '# readme\n');
-fs.writeFileSync(path.join(repoRoot, 'records.json'), '{}\n');
 
 const configValues = {
   cliPath: '',
@@ -88,18 +90,43 @@ const configValues = {
 
 const workspaceStateStore = new Map();
 const registeredCommands = new Map();
-const outputEvents = [];
 const spawnCalls = [];
 const queuedResults = [];
 const inputQueue = [];
 const quickPickQueue = [];
-const openedPaths = [];
-const revealCalls = [];
-const clipboardWrites = [];
 const infoMessages = [];
 const errorMessages = [];
-const treeViews = [];
-const treeProviders = [];
+const revealCalls = [];
+
+const emptySelection = {
+  isEmpty: true,
+  start: { line: 0, character: 4 },
+  end: { line: 0, character: 4 },
+  active: { line: 0, character: 4 }
+};
+const selectedRange = {
+  isEmpty: false,
+  start: { line: 0, character: 0 },
+  end: { line: 0, character: 14 },
+  active: { line: 0, character: 14 }
+};
+const symbolRange = { kind: 'word' };
+const activeDocument = {
+  uri: { scheme: 'file', fsPath: path.join(repoRoot, 'src', 'app.ts') },
+  getText(range) {
+    if (range === selectedRange) return 'selected token';
+    if (range === symbolRange) return 'AuthToken';
+    return '';
+  },
+  getWordRangeAtPosition() {
+    return symbolRange;
+  }
+};
+const activeEditor = {
+  document: activeDocument,
+  selection: emptySelection,
+  selections: [emptySelection]
+};
 
 const fakeVscode = {
   workspace: {
@@ -109,14 +136,10 @@ const fakeVscode = {
     },
     getConfiguration() {
       return createFakeConfiguration(configValues);
-    },
-    async openTextDocument(uri) {
-      openedPaths.push(uri.fsPath);
-      return { uri };
     }
   },
   window: {
-    activeTextEditor: { document: { uri: { scheme: 'file', fsPath: path.join(repoRoot, 'src', 'app.ts') } } },
+    activeTextEditor: activeEditor,
     async withProgress(_options, task) {
       const token = {
         isCancellationRequested: false,
@@ -140,30 +163,13 @@ const fakeVscode = {
     showErrorMessage(message) {
       errorMessages.push(message);
     },
-    async showTextDocument(document) {
+    createOutputChannel() {
       return {
-        document,
-        selection: null,
-        revealRange() {}
+        appendLine() {},
+        show() {}
       };
     },
-    createOutputChannel(name) {
-      return {
-        name,
-        appendLine(line) {
-          outputEvents.push({ kind: 'append', line });
-        },
-        show(preserveFocus) {
-          outputEvents.push({ kind: 'show', preserveFocus });
-        }
-      };
-    },
-    createStatusBarItem() {
-      return { show() {}, hide() {}, dispose() {}, text: '', tooltip: '', command: '' };
-    },
-    createTreeView(id, options) {
-      treeViews.push({ id, options });
-      treeProviders.push(options.treeDataProvider);
+    createTreeView() {
       return { dispose() {} };
     }
   },
@@ -176,45 +182,13 @@ const fakeVscode = {
       revealCalls.push({ id, arg });
     }
   },
-  env: {
-    clipboard: {
-      async writeText(value) {
-        clipboardWrites.push(value);
-      }
-    }
-  },
   Uri: {
     file(fsPath) {
       return { scheme: 'file', fsPath, path: fsPath.replace(/\\/g, '/') };
     }
   },
-  Position: class Position {
-    constructor(line, character) {
-      this.line = line;
-      this.character = character;
-    }
-  },
-  Range: class Range {
-    constructor(start, end) {
-      this.start = start;
-      this.end = end;
-    }
-  },
-  Selection: class Selection {
-    constructor(start, end) {
-      this.start = start;
-      this.end = end;
-    }
-  },
-  TextEditorRevealType: { InCenter: 1 },
   ProgressLocation: { Notification: 1 },
   StatusBarAlignment: { Left: 1 },
-  TreeItem: class TreeItem {
-    constructor(label, collapsibleState) {
-      this.label = label;
-      this.collapsibleState = collapsibleState;
-    }
-  },
   EventEmitter: class EventEmitterWrapper {
     constructor() {
       this.emitter = new EventEmitter();
@@ -250,70 +224,71 @@ const extension = loadExtensionWithMocks({
   fakeVscode,
   fakeChildProcess: createFakeSpawn(spawnCalls, queuedResults)
 });
-
 extension.activate(fakeContext);
-assert.equal(treeViews[0].id, 'pairofcleats.resultsExplorer');
-const provider = treeProviders[0];
 
-inputQueue.push('auth token');
+quickPickQueue.push(null);
 queuedResults.push({
   code: 0,
-  stdout: JSON.stringify({
-    code: [{ file: 'src/app.ts', score: 1, startLine: 1 }],
-    prose: [{ file: 'README.md', score: 2, startLine: 1 }],
-    records: [{ file: 'records.json', score: 3, startLine: 1 }]
-  })
+  stdout: JSON.stringify({ code: [{ file: 'src/app.ts', score: 1, startLine: 1 }] })
 });
-quickPickQueue.push((items) => items[0]);
-await registeredCommands.get('pairofcleats.search')();
+activeEditor.selection = selectedRange;
+activeEditor.selections = [selectedRange];
+await registeredCommands.get('pairofcleats.searchSelection')();
+assert.equal(spawnCalls[0].args.at(-1), 'selected token');
+assert.ok(!spawnCalls[0].args.includes('--explain'));
 
-const history = workspaceStateStore.get('pairofcleats.searchHistory');
-assert.equal(history.length, 1);
-assert.equal(history[0].query, 'auth token');
-assert.equal(history[0].totalHits, 3);
-assert.equal(history[0].mode, 'both');
-assert.equal(history[0].backend, 'sqlite');
-assert.deepEqual(history[0].invocation.args, spawnCalls[0].args);
+quickPickQueue.push(null);
+queuedResults.push({
+  code: 0,
+  stdout: JSON.stringify({ code: [{ file: 'src/app.ts', score: 1, startLine: 1 }] })
+});
+activeEditor.selection = emptySelection;
+activeEditor.selections = [emptySelection];
+await registeredCommands.get('pairofcleats.searchSymbolUnderCursor')();
+assert.equal(spawnCalls[1].args.at(-1), 'AuthToken');
+assert.ok(!spawnCalls[1].args.includes('--explain'));
 
-let roots = provider.getChildren();
-assert.deepEqual(roots.map((node) => node.treeItem.label).sort(), ['code', 'prose', 'records']);
-
-await registeredCommands.get('pairofcleats.groupResultsByFile')();
-roots = provider.getChildren();
-assert.deepEqual(roots.map((node) => node.treeItem.label).sort(), ['README.md', 'records.json', 'src/app.ts']);
-
-await registeredCommands.get('pairofcleats.groupResultsByQuery')();
-roots = provider.getChildren();
-assert.equal(roots[0].treeItem.label, 'auth token');
-const resultNode = roots[0].children[0];
-await registeredCommands.get('pairofcleats.copyResultPath')(resultNode);
-assert.ok(clipboardWrites[0].endsWith(path.join('src', 'app.ts')));
-await registeredCommands.get('pairofcleats.revealResultHit')(resultNode);
-assert.equal(revealCalls[0].id, 'revealInExplorer');
-await registeredCommands.get('pairofcleats.openResultHit')(resultNode);
-assert.ok(openedPaths[0].endsWith(path.join('src', 'app.ts')));
+inputQueue.push('why auth matters');
+quickPickQueue.push(null);
+queuedResults.push({
+  code: 0,
+  stdout: JSON.stringify({ code: [{ file: 'src/app.ts', score: 1, startLine: 1 }] })
+});
+await registeredCommands.get('pairofcleats.explainSearch')();
+assert.equal(spawnCalls[2].args.at(-1), 'why auth matters');
+assert.ok(spawnCalls[2].args.includes('--explain'));
 
 queuedResults.push({
   code: 0,
-  stdout: JSON.stringify({
-    code: [{ file: 'src/app.ts', score: 1, startLine: 1 }]
-  })
+  stdout: JSON.stringify({ code: [{ file: 'src/app.ts', score: 1, startLine: 1 }] })
 });
-quickPickQueue.push((items) => items[0]);
+await registeredCommands.get('pairofcleats.repeatLastSearch')();
+assert.deepEqual(spawnCalls[3].args, spawnCalls[2].args);
+assert.ok(infoMessages.some((message) => /reran "why auth matters"/i.test(message)));
+
+queuedResults.push({
+  code: 0,
+  stdout: JSON.stringify({ code: [{ file: 'src/app.ts', score: 1, startLine: 1 }] })
+});
+quickPickQueue.push((items) => items.find((item) => item.label === 'selected token'));
 await registeredCommands.get('pairofcleats.showSearchHistory')();
-assert.deepEqual(spawnCalls[1].args, spawnCalls[0].args);
-
-await registeredCommands.get('pairofcleats.reopenLastResults')();
-assert.ok(infoMessages.some((message) => /reopened results/i.test(message)));
+assert.deepEqual(spawnCalls[4].args, spawnCalls[0].args);
 
 queuedResults.push({
   code: 0,
   stdout: JSON.stringify({
-    code: [{ file: 'src/app.ts', score: 1, startLine: 1 }]
+    repoRoot,
+    derived: {
+      cacheRoot: path.join(repoRoot, '.cache'),
+      repoCacheRoot,
+      mcp: { mode: 'auto', modeSource: 'default', sdkAvailable: true }
+    },
+    policy: { quality: { value: 'max', source: 'config' } }
   })
 });
-await registeredCommands.get('pairofcleats.rerunResultSet')(history[0]);
-assert.deepEqual(spawnCalls[2].args, spawnCalls[0].args);
+await registeredCommands.get('pairofcleats.openIndexDirectory')();
+assert.equal(revealCalls.at(-1).id, 'revealInExplorer');
+assert.equal(revealCalls.at(-1).arg.fsPath, repoCacheRoot);
 assert.equal(errorMessages.length, 0, `unexpected errors: ${errorMessages.join('; ')}`);
 
-console.log('vscode results explorer runtime test passed');
+console.log('vscode search entrypoints runtime test passed');

@@ -56,6 +56,7 @@ function buildSearchArgs(query, repoRoot, options = {}) {
   if (ext) args.push('--ext', ext);
   if (type) args.push('--type', type);
   if (options.caseSensitive) args.push('--case');
+  if (options.explain) args.push('--explain');
   if (repoRoot) args.push('--repo', repoRoot);
   args.push(...extraArgs);
   args.push('--', String(query ?? ''));

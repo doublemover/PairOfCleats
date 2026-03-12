@@ -1029,9 +1029,66 @@ async function showSearchHistory() {
     }
   );
   if (!selection?.resultSet) return;
-  activeSearchResultId = selection.resultSet.resultSetId;
-  await persistSearchHistory();
-  refreshResultsExplorer();
+  await rerunResultSet(selection.resultSet);
+}
+
+async function repeatLastSearch() {
+  const resultSet = getActiveSearchResultSet();
+  if (!resultSet) {
+    vscode.window.showInformationMessage('PairOfCleats has no saved search to repeat.');
+    return;
+  }
+  await rerunResultSet(resultSet);
+}
+
+async function openIndexDirectory() {
+  const repoContext = await resolveSearchRepoContext();
+  if (!repoContext) return;
+  const spec = OPERATOR_COMMANDS_BY_ID.get('pairofcleats.configDump');
+  if (!spec) {
+    vscode.window.showErrorMessage('PairOfCleats could not locate the config-dump command.');
+    return;
+  }
+  const config = getExtensionConfiguration();
+  const cliResolution = resolveCli(repoContext.repoRoot, config);
+  const invocation = resolveOperatorInvocation(spec, repoContext, cliResolution, undefined);
+  if (!invocation.ok) {
+    const output = getOutputChannel();
+    output.appendLine(invocation.detail || invocation.message);
+    output.show?.(true);
+    vscode.window.showErrorMessage(invocation.message);
+    return;
+  }
+  const output = getOutputChannel();
+  const result = await runBufferedJsonCommand({
+    spec,
+    repoRoot: repoContext.repoRoot,
+    command: invocation.command,
+    args: invocation.args,
+    env: buildSpawnEnv(config),
+    output
+  });
+  if (!result?.payload) {
+    if (result?.detail) output.appendLine(result.detail);
+    output.show?.(true);
+    const show = result?.kind === 'cancelled'
+      ? vscode.window.showInformationMessage
+      : vscode.window.showErrorMessage;
+    show(result?.message || 'PairOfCleats could not resolve the index directory.');
+    return;
+  }
+  const repoCacheRoot = String(result.payload?.derived?.repoCacheRoot || '').trim();
+  if (!repoCacheRoot) {
+    vscode.window.showErrorMessage('PairOfCleats config dump did not report a repo cache root.');
+    return;
+  }
+  const targetUri = vscode.Uri.file(repoCacheRoot);
+  if (typeof vscode.commands.executeCommand === 'function') {
+    await vscode.commands.executeCommand('revealInExplorer', targetUri);
+  } else if (typeof vscode.env?.openExternal === 'function') {
+    await vscode.env.openExternal(targetUri);
+  }
+  vscode.window.showInformationMessage(`PairOfCleats opened index directory for ${formatRepoLabel(repoContext.repoRoot)}.`);
 }
 
 async function setSearchGroupingMode(mode) {
@@ -1060,6 +1117,48 @@ async function promptTextInput(options) {
   const value = await vscode.window.showInputBox(options);
   if (value === undefined) return null;
   return String(value).trim();
+}
+
+function getActiveEditorSelections(editor) {
+  if (Array.isArray(editor?.selections) && editor.selections.length) {
+    return editor.selections;
+  }
+  if (editor?.selection) {
+    return [editor.selection];
+  }
+  return [];
+}
+
+function selectionHasContent(selection) {
+  if (!selection) return false;
+  if (typeof selection.isEmpty === 'boolean') return !selection.isEmpty;
+  const start = selection.start || null;
+  const end = selection.end || null;
+  if (!start || !end) return true;
+  return start.line !== end.line || start.character !== end.character;
+}
+
+function getSelectionSearchQuery() {
+  const editor = vscode.window.activeTextEditor;
+  const document = editor?.document;
+  if (!document || typeof document.getText !== 'function') return '';
+  for (const selection of getActiveEditorSelections(editor)) {
+    if (!selectionHasContent(selection)) continue;
+    const text = String(document.getText(selection) || '').trim();
+    if (text) return text;
+  }
+  return '';
+}
+
+function getSymbolSearchQuery() {
+  const editor = vscode.window.activeTextEditor;
+  const document = editor?.document;
+  const selection = editor?.selection || null;
+  const position = selection?.active || selection?.start || null;
+  if (!document || typeof document.getWordRangeAtPosition !== 'function' || !position) return '';
+  const range = document.getWordRangeAtPosition(position);
+  if (!range || typeof document.getText !== 'function') return '';
+  return String(document.getText(range) || '').trim();
 }
 
 async function promptRulesPath(repoContext) {
@@ -1985,12 +2084,7 @@ async function runOperatorCommand(spec) {
   await executeOperatorWorkflow(spec, repoContext, invocation);
 }
 
-/**
- * Prompt for query, run CLI search, and open selected result in editor.
- *
- * @returns {Promise<void>}
- */
-async function runSearch() {
+async function resolveSearchRepoContext() {
   const repoContext = await resolveRepoContext();
   if (!repoContext.ok) {
     if (repoContext.message) {
@@ -2001,15 +2095,29 @@ async function runSearch() {
       }
       vscode.window.showErrorMessage(repoContext.message);
     }
-    return;
+    return null;
   }
-  const { repoRoot } = repoContext;
+  return repoContext;
+}
 
-  const query = await vscode.window.showInputBox({
-    prompt: 'PairOfCleats search query',
-    placeHolder: 'e.g. auth token validation'
-  });
-  if (!query || !query.trim()) return;
+async function promptSearchQuery({ prompt, placeHolder }) {
+  const query = await promptTextInput({ prompt, placeHolder });
+  return query && query.trim() ? query.trim() : null;
+}
+
+async function executeSearchCommand({
+  query,
+  explain = false,
+  prompt = 'PairOfCleats search query',
+  placeHolder = 'e.g. auth token validation'
+} = {}) {
+  const repoContext = await resolveSearchRepoContext();
+  if (!repoContext) return;
+  const { repoRoot } = repoContext;
+  const resolvedQuery = query && String(query).trim()
+    ? String(query).trim()
+    : await promptSearchQuery({ prompt, placeHolder });
+  if (!resolvedQuery) return;
 
   const config = getExtensionConfiguration();
   const cliResolution = resolveCli(repoRoot, config);
@@ -2021,8 +2129,11 @@ async function runSearch() {
     return;
   }
   const { command, argsPrefix } = cliResolution;
-  const searchOptions = readSearchOptions(config, VSCODE_SETTINGS);
-  const args = [...argsPrefix, ...buildSearchArgs(query.trim(), repoRoot, searchOptions)];
+  const searchOptions = {
+    ...readSearchOptions(config, VSCODE_SETTINGS),
+    explain
+  };
+  const args = [...argsPrefix, ...buildSearchArgs(resolvedQuery, repoRoot, searchOptions)];
   const env = buildSpawnEnv(config);
   const searchTimeoutMs = 60000;
   const output = getOutputChannel();
@@ -2127,7 +2238,7 @@ async function runSearch() {
         const hits = collectSearchHits(payload);
         await recordSearchResultSet({
           repoContext,
-          query: query.trim(),
+          query: resolvedQuery,
           searchOptions,
           command,
           args,
@@ -2180,6 +2291,41 @@ async function runSearch() {
       });
     })
   );
+}
+
+/**
+ * Prompt for query, run CLI search, and open selected result in editor.
+ *
+ * @returns {Promise<void>}
+ */
+async function runSearch() {
+  await executeSearchCommand();
+}
+
+async function runSelectionSearch() {
+  const query = getSelectionSearchQuery();
+  if (!query) {
+    vscode.window.showInformationMessage('PairOfCleats could not find a non-empty editor selection to search.');
+    return;
+  }
+  await executeSearchCommand({ query, prompt: 'PairOfCleats selection search' });
+}
+
+async function runSymbolSearch() {
+  const query = getSymbolSearchQuery();
+  if (!query) {
+    vscode.window.showInformationMessage('PairOfCleats could not resolve a symbol under the cursor.');
+    return;
+  }
+  await executeSearchCommand({ query, prompt: 'PairOfCleats symbol search' });
+}
+
+async function runExplainSearch() {
+  await executeSearchCommand({
+    explain: true,
+    prompt: 'PairOfCleats explain search query',
+    placeHolder: 'e.g. auth token validation'
+  });
 }
 
 async function runSavedSearchInvocation(resultSet, repoContext) {
@@ -2241,7 +2387,19 @@ function activate(context) {
     context.subscriptions.push(workflowStatusBar);
   }
   const searchCommand = vscode.commands.registerCommand('pairofcleats.search', runSearch);
-  context.subscriptions.push(searchCommand);
+  const searchSelectionCommand = vscode.commands.registerCommand('pairofcleats.searchSelection', runSelectionSearch);
+  const searchSymbolCommand = vscode.commands.registerCommand('pairofcleats.searchSymbolUnderCursor', runSymbolSearch);
+  const repeatLastSearchCommand = vscode.commands.registerCommand('pairofcleats.repeatLastSearch', repeatLastSearch);
+  const explainSearchCommand = vscode.commands.registerCommand('pairofcleats.explainSearch', runExplainSearch);
+  const openIndexDirectoryCommand = vscode.commands.registerCommand('pairofcleats.openIndexDirectory', openIndexDirectory);
+  context.subscriptions.push(
+    searchCommand,
+    searchSelectionCommand,
+    searchSymbolCommand,
+    repeatLastSearchCommand,
+    explainSearchCommand,
+    openIndexDirectoryCommand
+  );
   const workflowStatusCommand = vscode.commands.registerCommand('pairofcleats.showWorkflowStatus', showWorkflowStatus);
   const rerunLastWorkflowCommand = vscode.commands.registerCommand('pairofcleats.rerunLastWorkflow', async () => {
     const session = getMostRecentWorkflowSession();
@@ -2334,12 +2492,18 @@ module.exports = {
     runOperatorCommand,
     executeOperatorWorkflow,
     runSavedSearchInvocation,
+    executeSearchCommand,
     runSearch,
+    runSelectionSearch,
+    runSymbolSearch,
+    runExplainSearch,
     showWorkflowStatus,
     showRecentWorkflows,
     rerunWorkflowSession,
     showSearchHistory,
     reopenLastResults,
+    repeatLastSearch,
+    openIndexDirectory,
     setSearchGroupingMode,
     buildResultsTree,
     OPERATOR_COMMAND_SPECS
