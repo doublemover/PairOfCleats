@@ -8,6 +8,10 @@ import {
   loadJsonObjectArtifact,
   loadPiecesManifest
 } from '../../src/shared/artifact-io.js';
+import {
+  buildRiskExplanationModelFromStandalone,
+  renderRiskExplanation
+} from '../../src/retrieval/output/risk-explain.js';
 
 const argv = createCli({
   scriptName: 'risk explain',
@@ -78,12 +82,7 @@ const summaryRow = Array.isArray(riskSummaries)
   : null;
 
 const summaryFromChunk = targetChunk?.docmeta?.risk?.summary || targetChunk?.metaV2?.risk?.summary || null;
-const summary = summaryFromChunk || (summaryRow ? {
-  sources: { count: summaryRow?.totals?.sources || 0 },
-  sinks: { count: summaryRow?.totals?.sinks || 0 },
-  sanitizers: { count: summaryRow?.totals?.sanitizers || 0 },
-  localFlows: { count: summaryRow?.totals?.localFlows || 0 }
-} : null);
+const summary = summaryFromChunk || summaryRow || null;
 
 const callSiteById = new Map();
 if (Array.isArray(callSites)) {
@@ -131,15 +130,6 @@ const formatChunkLabel = (uid) => {
   return uid || 'unknown';
 };
 
-const formatCallSite = (site) => {
-  if (!site) return 'unknown call site';
-  const file = site.file || 'unknown-file';
-  const loc = site.startLine ? `${site.startLine}:${site.startCol || 1}` : '?:?';
-  const callee = site.calleeNormalized || site.calleeRaw || 'call';
-  const args = Array.isArray(site.args) ? site.args.join(', ') : '';
-  return `${file}:${loc} ${callee}${args ? `(${args})` : ''}`;
-};
-
 const buildFlowPayload = (flow) => {
   const chunkUids = Array.isArray(flow?.path?.chunkUids) ? flow.path.chunkUids : [];
   const stepIds = Array.isArray(flow?.path?.callSiteIdsByStep) ? flow.path.callSiteIdsByStep : [];
@@ -153,14 +143,31 @@ const buildFlowPayload = (flow) => {
     source: flow?.source || null,
     sink: flow?.sink || null,
     notes: flow?.notes || null,
+    category: flow?.sink?.category || flow?.source?.category || null,
     path: {
-      chunkUids,
+      nodes: chunkUids.map((uid) => ({ type: 'chunk', chunkUid: uid })),
       labels: chunkUids.map((uid) => formatChunkLabel(uid)),
       callSiteIdsByStep: stepIds
     },
-    callSitesByStep
+    evidence: {
+      callSitesByStep
+    }
   };
 };
+
+const explanationFlows = limitedFlows.map(buildFlowPayload);
+const explanationModel = buildRiskExplanationModelFromStandalone({
+  chunk: {
+    chunkUid: chunkArg,
+    file: resolveChunkFile(targetChunk),
+    name: resolveChunkName(targetChunk),
+    kind: resolveChunkKind(targetChunk)
+  },
+  summary,
+  stats,
+  filters: { sourceRule, sinkRule },
+  flows: explanationFlows
+});
 
 if (argv.json) {
   const output = {
@@ -173,40 +180,10 @@ if (argv.json) {
     summary,
     stats: stats || null,
     filters: { sourceRule, sinkRule },
-    flows: limitedFlows.map(buildFlowPayload)
+    flows: explanationFlows
   };
   console.log(JSON.stringify(output, null, 2));
   process.exit(0);
-}
-
-const headerFile = resolveChunkFile(targetChunk) || 'unknown-file';
-const headerName = resolveChunkName(targetChunk);
-const headerKind = resolveChunkKind(targetChunk);
-console.log(`Chunk ${chunkArg}`);
-console.log(`- file: ${headerFile}`);
-if (headerName) {
-  console.log(`- symbol: ${headerName}${headerKind ? ` (${headerKind})` : ''}`);
-}
-if (summary) {
-  const sources = summary?.sources?.count ?? 0;
-  const sinks = summary?.sinks?.count ?? 0;
-  const sanitizers = summary?.sanitizers?.count ?? 0;
-  const localFlows = summary?.localFlows?.count ?? 0;
-  const categories = Array.isArray(summary?.topCategories) ? summary.topCategories.join(', ') : '';
-  const tags = Array.isArray(summary?.topTags) ? summary.topTags.join(', ') : '';
-  console.log(`- summary: sources ${sources}, sinks ${sinks}, sanitizers ${sanitizers}, localFlows ${localFlows}`);
-  if (categories) console.log(`  top categories: ${categories}`);
-  if (tags) console.log(`  top tags: ${tags}`);
-}
-if (stats) {
-  const flowsEmitted = stats?.counts?.flowsEmitted ?? null;
-  const callSitesReferenced = stats?.counts?.uniqueCallSitesReferenced ?? null;
-  const status = stats?.status || 'unknown';
-  const caps = Array.isArray(stats?.capsHit) ? stats.capsHit.join(', ') : '';
-  console.log(`- interprocedural: status ${status}` +
-    `${flowsEmitted !== null ? `, flows ${flowsEmitted}` : ''}` +
-    `${callSitesReferenced !== null ? `, call sites ${callSitesReferenced}` : ''}` +
-    `${caps ? `, caps hit: ${caps}` : ''}`);
 }
 
 if (!limitedFlows.length) {
@@ -214,27 +191,10 @@ if (!limitedFlows.length) {
   process.exit(0);
 }
 
-console.log(`Flows (${limitedFlows.length}/${matchingFlows.length})`);
-for (const flow of limitedFlows) {
-  const confidence = Number.isFinite(flow?.confidence) ? flow.confidence.toFixed(2) : 'n/a';
-  console.log(`- [${confidence}] ${flow.flowId || 'unknown-flow'}`);
-  if (flow?.source?.ruleId || flow?.sink?.ruleId) {
-    const sourceRuleId = flow?.source?.ruleId || 'unknown-source';
-    const sinkRuleId = flow?.sink?.ruleId || 'unknown-sink';
-    console.log(`  rules: ${sourceRuleId} -> ${sinkRuleId}`);
-  }
-  const chunkUids = Array.isArray(flow?.path?.chunkUids) ? flow.path.chunkUids : [];
-  if (chunkUids.length) {
-    const pathLabels = chunkUids.map((uid) => formatChunkLabel(uid));
-    console.log(`  path: ${pathLabels.join(' -> ')}`);
-  }
-  const steps = Array.isArray(flow?.path?.callSiteIdsByStep) ? flow.path.callSiteIdsByStep : [];
-  if (steps.length && callSiteById.size) {
-    for (let idx = 0; idx < steps.length; idx += 1) {
-      const ids = steps[idx] || [];
-      if (!ids.length) continue;
-      const rendered = ids.map((id) => formatCallSite(callSiteById.get(id))).join('; ');
-      console.log(`  step ${idx + 1}: ${rendered}`);
-    }
-  }
-}
+console.log(renderRiskExplanation(explanationModel, {
+  title: 'Risk Explain',
+  includeSubject: true,
+  includeFilters: true,
+  maxFlows: max,
+  maxEvidencePerFlow: max
+}));

@@ -7,6 +7,10 @@ import {
   normalizeOptionalNumber
 } from '../shared/limits.js';
 import { resolveProvenance } from '../shared/provenance.js';
+import {
+  normalizeRiskSummary,
+  summarizeRiskStats
+} from '../shared/risk-explain.js';
 import { buildGraphContextPack } from '../graph/context-pack.js';
 import { compareStrings } from '../shared/sort.js';
 import { isRelativePathEscape, readFileRangeSync } from '../shared/files.js';
@@ -201,83 +205,6 @@ export const classifyRiskLoadFailure = (err) => {
   return 'degraded';
 };
 
-const summarizeRiskCategories = (summary) => {
-  const counts = new Map();
-  const groups = [
-    summary?.signals?.sources,
-    summary?.signals?.sinks,
-    summary?.signals?.sanitizers,
-    summary?.signals?.localFlows
-  ];
-  for (const group of groups) {
-    for (const entry of Array.isArray(group) ? group : []) {
-      const key = typeof entry?.category === 'string' && entry.category.trim() ? entry.category.trim() : null;
-      if (!key) continue;
-      counts.set(key, (counts.get(key) || 0) + 1);
-    }
-  }
-  return Array.from(counts.entries())
-    .map(([category, count]) => ({ category, count }))
-    .sort((a, b) => (b.count - a.count) || compareStrings(a.category, b.category));
-};
-
-const summarizeRiskTags = (summary) => {
-  const counts = new Map();
-  const groups = [
-    summary?.signals?.sources,
-    summary?.signals?.sinks,
-    summary?.signals?.sanitizers
-  ];
-  for (const group of groups) {
-    for (const entry of Array.isArray(group) ? group : []) {
-      for (const tag of Array.isArray(entry?.tags) ? entry.tags : []) {
-        const key = typeof tag === 'string' && tag.trim() ? tag.trim() : null;
-        if (!key) continue;
-        counts.set(key, (counts.get(key) || 0) + 1);
-      }
-    }
-  }
-  return Array.from(counts.entries())
-    .map(([tag, count]) => ({ tag, count }))
-    .sort((a, b) => (b.count - a.count) || compareStrings(a.tag, b.tag));
-};
-
-const normalizeRiskSummary = (summary, flows = []) => {
-  if (!summary || typeof summary !== 'object') return null;
-  return {
-    chunkUid: summary.chunkUid || null,
-    file: summary.file || null,
-    languageId: summary.languageId || null,
-    symbol: summary.symbol && typeof summary.symbol === 'object'
-      ? {
-        name: summary.symbol.name || null,
-        kind: summary.symbol.kind || null,
-        signature: summary.symbol.signature || null
-      }
-      : null,
-    totals: summary.totals && typeof summary.totals === 'object'
-      ? {
-        sources: Number.isFinite(summary.totals.sources) ? summary.totals.sources : 0,
-        sinks: Number.isFinite(summary.totals.sinks) ? summary.totals.sinks : 0,
-        sanitizers: Number.isFinite(summary.totals.sanitizers) ? summary.totals.sanitizers : 0,
-        localFlows: Number.isFinite(summary.totals.localFlows) ? summary.totals.localFlows : 0
-      }
-      : null,
-    truncated: summary.truncated && typeof summary.truncated === 'object'
-      ? {
-        sources: summary.truncated.sources === true,
-        sinks: summary.truncated.sinks === true,
-        sanitizers: summary.truncated.sanitizers === true,
-        localFlows: summary.truncated.localFlows === true,
-        evidence: summary.truncated.evidence === true
-      }
-      : null,
-    topCategories: summarizeRiskCategories(summary),
-    topTags: summarizeRiskTags(summary),
-    previewFlowIds: Array.isArray(flows) ? flows.map((flow) => flow?.flowId).filter(Boolean) : []
-  };
-};
-
 const normalizeRiskArtifactRefs = (stats) => {
   const artifacts = stats?.artifacts;
   if (!artifacts || typeof artifacts !== 'object') return null;
@@ -329,20 +256,6 @@ const normalizeRiskPathNodes = (flow) => {
   const chunkUids = Array.isArray(flow?.path?.chunkUids) ? flow.path.chunkUids : [];
   return chunkUids.map((chunkUid) => ({ type: 'chunk', chunkUid }));
 };
-
-const summarizeRiskStats = (stats) => ({
-  status: stats?.status || null,
-  reason: stats?.reason || null,
-  summaryOnly: stats?.effectiveConfig?.summaryOnly === true,
-  flowsEmitted: Number.isFinite(stats?.counts?.flowsEmitted) ? stats.counts.flowsEmitted : null,
-  summariesEmitted: Number.isFinite(stats?.counts?.summariesEmitted) ? stats.counts.summariesEmitted : null,
-  uniqueCallSitesReferenced: Number.isFinite(stats?.counts?.uniqueCallSitesReferenced)
-    ? stats.counts.uniqueCallSitesReferenced
-    : null,
-  capsHit: Array.isArray(stats?.capsHit) ? stats.capsHit.slice() : [],
-  callSiteSampling: stats?.callSiteSampling || null,
-  effectiveConfig: stats?.effectiveConfig || null
-});
 
 const RISK_SEVERITY_WEIGHT = Object.freeze({
   critical: 5,

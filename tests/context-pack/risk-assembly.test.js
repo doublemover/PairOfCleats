@@ -393,7 +393,7 @@ assert.deepEqual(fullPack.risk?.summary?.previewFlowIds, ['sha1:1111111111111111
 assert.equal(validateCompositeContextPack(fullPack).ok, true, 'expected full risk slice to validate');
 const fullRendered = renderCompositeContextPack(fullPack);
 assert.ok(fullRendered.includes('status: ok'), 'expected rendered status');
-assert.ok(fullRendered.includes('cs-1'), 'expected rendered risk evidence');
+assert.ok(fullRendered.includes('src/file.js:1:1 query(input)'), 'expected rendered risk evidence');
 assert.ok(fullRendered.includes('top categories:'), 'expected rendered top categories');
 assert.ok(fullRendered.includes('rules 1.0.0 sha1:rulebundle-risk-assembly'), 'expected rendered rule bundle provenance');
 assert.ok(fullRendered.includes('artifact refs:'), 'expected rendered artifact refs');

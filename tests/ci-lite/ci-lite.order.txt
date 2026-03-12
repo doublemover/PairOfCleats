@@ -7,6 +7,8 @@ retrieval/pipeline/candidates-memory-plateau
 cli/search/lazy-imports
 graph/truncation-order-deterministic
 retrieval/output/risk-explain-render
+retrieval/output/risk-explain-alignment
+retrieval/output/risk-explain-parity
 graph/suggest-tests-output-deterministic
 indexer/determinism/sort
 map/config-merge-behavior

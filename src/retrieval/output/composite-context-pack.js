@@ -1,5 +1,5 @@
+import { buildRiskExplanationModelFromRiskSlice, renderRiskExplanation } from './risk-explain.js';
 import { renderGraphContextPack } from './graph-context-pack.js';
-import { renderRiskExplain } from './risk-explain.js';
 
 const renderPrimary = (primary) => {
   const lines = [];
@@ -36,96 +36,16 @@ const renderTypes = (types) => {
 };
 
 const renderRisk = (risk) => {
-  const lines = [];
-  lines.push('Risk');
   if (!risk) {
-    lines.push('- (none)');
-    return lines.join('\n');
+    return 'Risk\n- (none)';
   }
-  if (risk.status) {
-    lines.push(`- status: ${risk.status}${risk.reason ? ` (${risk.reason})` : ''}`);
-  }
-  const analysisStatus = risk?.analysisStatus || null;
-  if (analysisStatus?.code) {
-    lines.push(`- analysis code: ${analysisStatus.code}${analysisStatus.strictFailure ? ' [strict-failure]' : ''}`);
-  }
-  if (risk?.anchor?.kind) {
-    const anchorParts = [risk.anchor.kind];
-    if (risk.anchor.chunkUid) anchorParts.push(risk.anchor.chunkUid);
-    if (risk.anchor.flowId) anchorParts.push(`flow ${risk.anchor.flowId}`);
-    lines.push(`- anchor: ${anchorParts.join(' | ')}`);
-    if (Array.isArray(risk.anchor.alternates) && risk.anchor.alternates.length) {
-      lines.push(`- alternate anchors: ${risk.anchor.alternates.map((entry) => `${entry.kind}:${entry.chunkUid || 'unknown'}`).join(', ')}`);
-    }
-  }
-  if (analysisStatus?.artifactStatus) {
-    const parts = Object.entries(analysisStatus.artifactStatus)
-      .filter(([, value]) => typeof value === 'string' && value)
-      .map(([key, value]) => `${key}=${value}`);
-    if (parts.length) lines.push(`- artifacts: ${parts.join(', ')}`);
-  }
-  if (Array.isArray(analysisStatus?.degradedReasons) && analysisStatus.degradedReasons.length) {
-    lines.push(`- degraded reasons: ${analysisStatus.degradedReasons.join(', ')}`);
-  }
-  const totals = risk?.summary?.totals || null;
-  if (totals) {
-    lines.push(`- summary: sources ${totals.sources || 0}, sinks ${totals.sinks || 0}, sanitizers ${totals.sanitizers || 0}, localFlows ${totals.localFlows || 0}`);
-  }
-  if (Array.isArray(risk?.summary?.topCategories) && risk.summary.topCategories.length) {
-    lines.push(`- top categories: ${risk.summary.topCategories.slice(0, 3).map((entry) => `${entry.category} (${entry.count})`).join(', ')}`);
-  }
-  if (Array.isArray(risk?.summary?.topTags) && risk.summary.topTags.length) {
-    lines.push(`- top tags: ${risk.summary.topTags.slice(0, 3).map((entry) => `${entry.tag} (${entry.count})`).join(', ')}`);
-  }
-  const provenance = risk?.provenance || null;
-  if (provenance?.ruleBundle?.fingerprint || provenance?.effectiveConfigFingerprint || provenance?.generatedAt) {
-    const parts = [];
-    if (provenance.generatedAt) parts.push(`generated ${provenance.generatedAt}`);
-    if (provenance.ruleBundle?.version || provenance.ruleBundle?.fingerprint) {
-      const ruleBits = [
-        provenance.ruleBundle.version || null,
-        provenance.ruleBundle.fingerprint || null
-      ].filter(Boolean);
-      parts.push(`rules ${ruleBits.join(' ')}`);
-    }
-    if (provenance.effectiveConfigFingerprint) {
-      parts.push(`config ${provenance.effectiveConfigFingerprint}`);
-    }
-    if (parts.length) lines.push(`- provenance: ${parts.join(', ')}`);
-  }
-  if (provenance?.artifactRefs) {
-    const refs = Object.entries(provenance.artifactRefs)
-      .filter(([, value]) => value && typeof value === 'object')
-      .map(([key, value]) => `${key}=${value.entrypoint || value.name || 'present'}`);
-    if (refs.length) lines.push(`- artifact refs: ${refs.join(', ')}`);
-  }
-  const stats = risk?.stats || null;
-  if (stats) {
-    const extras = [];
-    if (stats.flowsEmitted != null) extras.push(`flows ${stats.flowsEmitted}`);
-    if (stats.summariesEmitted != null) extras.push(`summaries ${stats.summariesEmitted}`);
-    if (stats.uniqueCallSitesReferenced != null) extras.push(`call sites ${stats.uniqueCallSitesReferenced}`);
-    if (Array.isArray(stats.capsHit) && stats.capsHit.length) extras.push(`caps ${stats.capsHit.join(', ')}`);
-    if (extras.length) lines.push(`- interprocedural: ${extras.join(', ')}`);
-  }
-  if (risk?.caps) {
-    const capParts = [];
-    if (risk.caps.maxFlows != null) capParts.push(`maxFlows ${risk.caps.maxFlows}`);
-    if (risk.caps.maxStepsPerFlow != null) capParts.push(`maxStepsPerFlow ${risk.caps.maxStepsPerFlow}`);
-    if (risk.caps.maxCallSitesPerStep != null) capParts.push(`maxCallSitesPerStep ${risk.caps.maxCallSitesPerStep}`);
-    if (risk.caps.maxBytes != null) capParts.push(`maxBytes ${risk.caps.maxBytes}`);
-    if (risk.caps.maxTokens != null) capParts.push(`maxTokens ${risk.caps.maxTokens}`);
-    if (capParts.length) lines.push(`- pack caps: ${capParts.join(', ')}`);
-    if (Array.isArray(risk.caps.hits) && risk.caps.hits.length) {
-      lines.push(`- cap hits: ${risk.caps.hits.join(', ')}`);
-    }
-  }
-  if (Array.isArray(risk?.truncation) && risk.truncation.length) {
-    lines.push(`- truncation: ${risk.truncation.map((entry) => entry.cap).join(', ')}`);
-  }
-  lines.push('');
-  lines.push(renderRiskExplain(risk.flows || [], { maxFlows: 5 }));
-  return lines.join('\n');
+  const model = buildRiskExplanationModelFromRiskSlice(risk);
+  return renderRiskExplanation(model, {
+    title: 'Risk',
+    includeSubject: false,
+    includeFilters: false,
+    maxFlows: 5
+  });
 };
 
 export const renderCompositeContextPack = (payload) => {

@@ -5,8 +5,9 @@ const path = require('node:path');
 const { EventEmitter: NodeEventEmitter } = require('node:events');
 const { resolveWindowsCmdInvocation } = require('./windows-cmd.js');
 const {
+  buildRiskExplanationModelFromStandalone,
   renderCompositeContextPack,
-  renderRiskExplain
+  renderRiskExplanation
 } = require('./analysis-renderers.js');
 const {
   readSearchOptions,
@@ -2027,19 +2028,17 @@ function ensureOperatorExportDir(repoRoot, spec) {
   return dir;
 }
 
-function renderRiskExplainMarkdownDocument(payload, renderRiskExplain) {
-  const lines = [
-    '# PairOfCleats Risk Explain',
-    '',
-    `- chunkUid: ${payload?.chunk?.chunkUid || 'unknown'}`,
-    `- file: ${payload?.chunk?.file || 'unknown'}`,
-    `- symbol: ${payload?.chunk?.name || 'n/a'}`,
-    `- kind: ${payload?.chunk?.kind || 'n/a'}`,
-    `- flows: ${Array.isArray(payload?.flows) ? payload.flows.length : 0}`,
-    ''
-  ];
-  lines.push(renderRiskExplain(payload?.flows || [], { maxFlows: Math.max(3, Math.min(10, Array.isArray(payload?.flows) ? payload.flows.length : 3)) }));
-  return lines.join('\n');
+function renderRiskExplainMarkdownDocument(payload) {
+  return renderRiskExplanation(
+    buildRiskExplanationModelFromStandalone(payload),
+    {
+      title: '# PairOfCleats Risk Explain',
+      includeSubject: true,
+      includeFilters: true,
+      maxFlows: Math.max(3, Math.min(10, Array.isArray(payload?.flows) ? payload.flows.length : 3)),
+      maxEvidencePerFlow: Math.max(3, Math.min(10, Array.isArray(payload?.flows) ? payload.flows.length : 3))
+    }
+  );
 }
 
 async function buildOperatorPresentation(spec, payload, inputContext) {
@@ -2051,7 +2050,7 @@ async function buildOperatorPresentation(spec, payload, inputContext) {
   }
   if (spec.id === 'pairofcleats.riskExplain') {
     return {
-      markdown: renderRiskExplainMarkdownDocument(payload, renderRiskExplain),
+      markdown: renderRiskExplainMarkdownDocument(payload),
       json: JSON.stringify(payload, null, 2)
     };
   }
