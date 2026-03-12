@@ -664,6 +664,7 @@ tooling/sublime/results-behavior
 tooling/sublime/navigation-behavior
 tooling/sublime/watch-behavior
 tooling/sublime/analysis-behavior
+tooling/sublime/operator-behavior
 tooling/sublime/settings-behavior
 tooling/sublime/search-behavior
 tooling/sublime/map-behavior

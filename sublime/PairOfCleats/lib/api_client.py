@@ -218,6 +218,48 @@ def search_json(
     return payload, headers
 
 
+def _resolve_timeout_ms(settings):
+    timeout_ms = settings.get('api_timeout_ms') if isinstance(settings, dict) else None
+    if not isinstance(timeout_ms, int) or timeout_ms <= 0:
+        timeout_ms = 5000
+    return timeout_ms
+
+
+def health_json(base_url, settings):
+    base_url = normalize_base_url(base_url)
+    if not base_url:
+        raise RuntimeError('api_server_url is not set')
+    timeout_ms = _resolve_timeout_ms(settings)
+    body, headers = request_json(
+        build_url(base_url, '/health'),
+        timeout_ms=timeout_ms,
+    )
+    if not isinstance(body, dict) or body.get('ok') is False:
+        raise RuntimeError((body or {}).get('message') or 'API health request failed.')
+    payload = dict(body)
+    payload.setdefault('ok', True)
+    return payload, headers
+
+
+def status_json(base_url, repo_root, settings):
+    base_url = normalize_base_url(base_url)
+    if not base_url:
+        raise RuntimeError('api_server_url is not set')
+    timeout_ms = _resolve_timeout_ms(settings)
+    body, headers = request_json(
+        build_url(base_url, '/status', {'repo': repo_root}),
+        timeout_ms=timeout_ms,
+    )
+    if not isinstance(body, dict) or body.get('ok') is False:
+        raise RuntimeError((body or {}).get('message') or 'API status request failed.')
+    payload = body.get('status')
+    if not isinstance(payload, dict):
+        raise RuntimeError('API status returned invalid JSON.')
+    payload = dict(payload)
+    payload.setdefault('ok', True)
+    return payload, headers
+
+
 def generate_map_report(
         base_url,
         repo_root,

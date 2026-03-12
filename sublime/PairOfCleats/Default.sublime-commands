@@ -20,6 +20,26 @@
     "command": "pair_of_cleats_validate_settings"
   },
   {
+    "caption": "PairOfCleats: Show Config Dump",
+    "command": "pair_of_cleats_show_config_dump"
+  },
+  {
+    "caption": "PairOfCleats: Tooling Doctor",
+    "command": "pair_of_cleats_tooling_doctor"
+  },
+  {
+    "caption": "PairOfCleats: Server Health",
+    "command": "pair_of_cleats_server_health"
+  },
+  {
+    "caption": "PairOfCleats: Server Status",
+    "command": "pair_of_cleats_server_status"
+  },
+  {
+    "caption": "PairOfCleats: Index Health",
+    "command": "pair_of_cleats_index_health"
+  },
+  {
     "caption": "PairOfCleats: Search",
     "command": "pair_of_cleats_search"
   },

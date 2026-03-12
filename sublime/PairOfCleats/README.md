@@ -92,6 +92,11 @@ Environment:
 - `PairOfCleats: Open Project Settings`
 - `PairOfCleats: Show Effective Settings`
 - `PairOfCleats: Validate Settings`
+- `PairOfCleats: Show Config Dump`
+- `PairOfCleats: Tooling Doctor`
+- `PairOfCleats: Server Health`
+- `PairOfCleats: Server Status`
+- `PairOfCleats: Index Health`
 - `PairOfCleats: Search`
 - `PairOfCleats: Search (With Options)`
 - `PairOfCleats: Search Selection`

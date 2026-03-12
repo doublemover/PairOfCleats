@@ -31,6 +31,10 @@ def resolve_repo_root(window, return_reason=False, path_hint=None, allow_fallbac
     return root
 
 
+def describe_repo_root(window, path_hint=None, allow_fallback=True):
+    return _describe_repo_root(window, path_hint=path_hint, allow_fallback=allow_fallback)
+
+
 def has_repo_root(window, path_hint=None, allow_fallback=True):
     root, _ = resolve_repo_root(window, return_reason=True, path_hint=path_hint, allow_fallback=allow_fallback)
     return root is not None
