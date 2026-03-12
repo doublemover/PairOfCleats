@@ -39,6 +39,19 @@ See `docs/specs/editor-packaging-determinism.md` for contract details.
 The bundled VS Code extension lives in `extensions/vscode` and defines:
 
 - `PairOfCleats: Search`
+- `PairOfCleats: Search Selection`
+- `PairOfCleats: Search Symbol Under Cursor`
+- `PairOfCleats: Repeat Last Search`
+- `PairOfCleats: Explain Search`
+- `PairOfCleats: Open Index Directory`
+- `PairOfCleats: Index Build`
+- `PairOfCleats: Start Index Watch`
+- `PairOfCleats: Stop Index Watch`
+- `PairOfCleats: Index Validate`
+- `PairOfCleats: Start Service API`
+- `PairOfCleats: Stop Service API`
+- `PairOfCleats: Start Service Indexer`
+- `PairOfCleats: Stop Service Indexer`
 - `PairOfCleats: Setup`
 - `PairOfCleats: Bootstrap`
 - `PairOfCleats: Tooling Doctor`
@@ -105,6 +118,29 @@ Operational command behavior:
 - saved result-set actions support open, reveal-in-explorer, copy-path, reopen-last-results, and rerun from history
 - command output is summarized in the `PairOfCleats` output channel with the raw JSON payload appended below the summary
 
+Results explorer menus:
+
+- the explorer title exposes search, history, reopen-last-results, and grouping commands
+- result-hit context menus expose open, reveal, and copy-path actions
+- result-set context menus expose rerun
+
+Default keybindings:
+
+- `Ctrl+Alt+F` / `Cmd+Alt+F`: `PairOfCleats: Search Selection`
+- `Ctrl+Alt+.` / `Cmd+Alt+.`: `PairOfCleats: Search Symbol Under Cursor`
+- `Ctrl+Alt+R` / `Cmd+Alt+R`: `PairOfCleats: Repeat Last Search`
+
+Walkthrough/onboarding:
+
+- the extension contributes a `Get Started with PairOfCleats` walkthrough
+- walkthrough media lives under `extensions/vscode/walkthroughs/`
+
+Packaging/publish hardening:
+
+- `tools/package-vscode.js` validates required manifest metadata before packaging
+- the VSIX must ship `README.md` and all walkthrough markdown files referenced by `package.json`
+- marketplace metadata is declared directly in `extensions/vscode/package.json`
+ 
 ## Sublime package
 
 The Sublime package source lives under `sublime/PairOfCleats` and is emitted as `dist/sublime/pairofcleats.sublime-package`.

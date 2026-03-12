@@ -29,9 +29,18 @@ if (!fs.existsSync(archivePath) || !fs.existsSync(manifestPath)) {
 
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 const paths = Array.isArray(manifest.entries) ? manifest.entries.map((entry) => entry.path) : [];
-if (!paths.includes('extension/package.json') || !paths.includes('extension/extension.js')) {
-  console.error('extension-packaging test failed: required extension entries missing');
-  process.exit(1);
+const requiredEntries = [
+  'extension/package.json',
+  'extension/extension.js',
+  'extension/README.md',
+  'extension/walkthroughs/first-search.md',
+  'extension/walkthroughs/operations.md'
+];
+for (const entry of requiredEntries) {
+  if (!paths.includes(entry)) {
+    console.error(`extension-packaging test failed: missing shipped entry ${entry}`);
+    process.exit(1);
+  }
 }
 
 console.log('vscode extension packaging test passed');

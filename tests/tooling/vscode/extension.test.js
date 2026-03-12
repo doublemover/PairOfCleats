@@ -22,6 +22,24 @@ const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 const contract = JSON.parse(fs.readFileSync(contractPath, 'utf8'));
 const guide = fs.readFileSync(guidePath, 'utf8');
 
+const requiredMetadata = [
+  ['homepage', manifest.homepage],
+  ['repository.url', manifest.repository?.url],
+  ['bugs.url', manifest.bugs?.url],
+  ['publisher', manifest.publisher],
+  ['markdown', manifest.markdown]
+];
+for (const [label, value] of requiredMetadata) {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    console.error(`VS Code extension metadata missing ${label}.`);
+    process.exit(1);
+  }
+}
+if (manifest.capabilities?.virtualWorkspaces !== false) {
+  console.error('VS Code extension must declare virtualWorkspaces=false.');
+  process.exit(1);
+}
+
 const activationEvents = new Set(manifest.activationEvents || []);
 const expectedCommands = new Map([
   ['pairofcleats.search', 'PairOfCleats: Search'],
@@ -92,6 +110,8 @@ if (!explorerViews.some((view) => view.id === 'pairofcleats.resultsExplorer')) {
 
 const commandPaletteMenus = manifest.contributes?.menus?.commandPalette || [];
 const editorContextMenus = manifest.contributes?.menus?.['editor/context'] || [];
+const viewTitleMenus = manifest.contributes?.menus?.['view/title'] || [];
+const viewItemContextMenus = manifest.contributes?.menus?.['view/item/context'] || [];
 const requireCommandPaletteWhen = new Map([
   ['pairofcleats.searchSelection', 'editorTextFocus && editorHasSelection'],
   ['pairofcleats.searchSymbolUnderCursor', 'editorTextFocus'],
@@ -141,6 +161,75 @@ for (const [commandId, expectedWhen] of requireEditorContextWhen.entries()) {
   }
   if (menu.when !== expectedWhen) {
     console.error(`VS Code editor/context when drifted for ${commandId}.`);
+    process.exit(1);
+  }
+}
+
+const requiredViewTitleEntries = new Map([
+  ['pairofcleats.search', 'view == pairofcleats.resultsExplorer'],
+  ['pairofcleats.showSearchHistory', 'view == pairofcleats.resultsExplorer'],
+  ['pairofcleats.reopenLastResults', 'view == pairofcleats.resultsExplorer'],
+  ['pairofcleats.groupResultsBySection', 'view == pairofcleats.resultsExplorer'],
+  ['pairofcleats.groupResultsByFile', 'view == pairofcleats.resultsExplorer'],
+  ['pairofcleats.groupResultsByQuery', 'view == pairofcleats.resultsExplorer']
+]);
+for (const [commandId, expectedWhen] of requiredViewTitleEntries.entries()) {
+  const menu = viewTitleMenus.find((entry) => entry.command === commandId);
+  if (!menu) {
+    console.error(`VS Code view/title menu missing ${commandId}.`);
+    process.exit(1);
+  }
+  if (menu.when !== expectedWhen) {
+    console.error(`VS Code view/title when drifted for ${commandId}.`);
+    process.exit(1);
+  }
+}
+
+const requiredViewItemContextEntries = new Map([
+  ['pairofcleats.openResultHit', 'view == pairofcleats.resultsExplorer && viewItem == pairofcleats.resultHit'],
+  ['pairofcleats.revealResultHit', 'view == pairofcleats.resultsExplorer && viewItem == pairofcleats.resultHit'],
+  ['pairofcleats.copyResultPath', 'view == pairofcleats.resultsExplorer && viewItem == pairofcleats.resultHit'],
+  ['pairofcleats.rerunResultSet', 'view == pairofcleats.resultsExplorer && viewItem == pairofcleats.resultSet']
+]);
+for (const [commandId, expectedWhen] of requiredViewItemContextEntries.entries()) {
+  const menu = viewItemContextMenus.find((entry) => entry.command === commandId);
+  if (!menu) {
+    console.error(`VS Code view/item/context menu missing ${commandId}.`);
+    process.exit(1);
+  }
+  if (menu.when !== expectedWhen) {
+    console.error(`VS Code view/item/context when drifted for ${commandId}.`);
+    process.exit(1);
+  }
+}
+
+const keybindings = manifest.contributes?.keybindings || [];
+const requiredKeybindings = new Map([
+  ['pairofcleats.searchSelection', 'editorTextFocus && editorHasSelection'],
+  ['pairofcleats.searchSymbolUnderCursor', 'editorTextFocus'],
+  ['pairofcleats.repeatLastSearch', 'workbenchState != empty']
+]);
+for (const [commandId, expectedWhen] of requiredKeybindings.entries()) {
+  const binding = keybindings.find((entry) => entry.command === commandId);
+  if (!binding) {
+    console.error(`VS Code keybinding missing ${commandId}.`);
+    process.exit(1);
+  }
+  if (binding.when !== expectedWhen) {
+    console.error(`VS Code keybinding when drifted for ${commandId}.`);
+    process.exit(1);
+  }
+}
+
+const walkthroughs = manifest.contributes?.walkthroughs || [];
+if (!walkthroughs.some((entry) => entry.id === 'pairofcleats.gettingStarted')) {
+  console.error('VS Code walkthrough missing pairofcleats.gettingStarted.');
+  process.exit(1);
+}
+for (const markdownPath of ['walkthroughs/first-search.md', 'walkthroughs/operations.md']) {
+  const fullPath = path.join(root, 'extensions', 'vscode', markdownPath);
+  if (!fs.existsSync(fullPath)) {
+    console.error(`VS Code walkthrough markdown missing ${markdownPath}.`);
     process.exit(1);
   }
 }
