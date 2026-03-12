@@ -6,6 +6,7 @@ from urllib.parse import quote, urlparse
 import sublime
 import sublime_plugin
 
+from ..lib import api_client
 from ..lib import config
 from ..lib import map as map_lib
 from ..lib import map_state
@@ -245,26 +246,12 @@ def _dispatch_map(window, scope, focus, map_type=None, map_format=None, path_hin
     output_path, model_path, node_list_path = map_lib.build_output_paths(
         repo_root, settings, scope, map_type, map_format
     )
-    args = map_lib.build_map_args(
-        repo_root,
-        settings,
-        scope,
-        focus,
-        map_type,
-        map_format,
-        output_path,
-        model_path,
-        node_list_path
-    )
+    execution = config.resolve_execution_mode(settings, 'map', supports_api=True)
+    if execution.get('error'):
+        ui.show_error(execution['error'])
+        return
 
-    cli = paths.resolve_cli(settings, repo_root)
-    command = cli['command']
-    full_args = list(cli.get('args_prefix') or []) + args
-    env = config.build_env(settings)
-
-    ui.show_status('PairOfCleats: generating map...')
-
-    def on_done(result):
+    def handle_payload(result):
         if result.returncode != 0:
             message = result.output.strip() or 'PairOfCleats map failed.'
             ui.show_error(message)
@@ -290,6 +277,65 @@ def _dispatch_map(window, scope, focus, map_type=None, map_format=None, path_hin
         _offer_rebuild(window, resolved_payload.get('warnings') or [])
         _open_map_output(window, resolved_payload)
 
+    if execution.get('mode') == 'api':
+        ui.show_status('PairOfCleats: generating map via API...')
+
+        def on_api_done(result):
+            if result.error:
+                if execution.get('allow_fallback'):
+                    ui.show_status('PairOfCleats: API map failed; falling back to CLI.')
+                    _dispatch_map_cli(window, repo_root, settings, scope, focus, map_type, map_format, output_path, model_path, node_list_path, handle_payload)
+                    return
+                ui.show_error(result.error)
+                return
+            handle_payload(_ApiProcessResult(result.payload))
+
+        api_client.run_async(
+            lambda: api_client.generate_map_report(
+                execution.get('base_url'),
+                repo_root,
+                settings,
+                scope,
+                focus,
+                map_type,
+                map_format,
+                output_path,
+                model_path,
+                node_list_path,
+            ),
+            on_api_done,
+        )
+        return
+
+    ui.show_status('PairOfCleats: generating map...')
+    _dispatch_map_cli(window, repo_root, settings, scope, focus, map_type, map_format, output_path, model_path, node_list_path, handle_payload)
+
+
+class _ApiProcessResult(object):
+    def __init__(self, payload):
+        self.returncode = 0
+        self.output = ''
+        self.error = None
+        self.payload = payload
+
+
+def _dispatch_map_cli(window, repo_root, settings, scope, focus, map_type, map_format, output_path, model_path, node_list_path, on_done):
+    args = map_lib.build_map_args(
+        repo_root,
+        settings,
+        scope,
+        focus,
+        map_type,
+        map_format,
+        output_path,
+        model_path,
+        node_list_path
+    )
+
+    cli = paths.resolve_cli(settings, repo_root)
+    command = cli['command']
+    full_args = list(cli.get('args_prefix') or []) + args
+    env = config.build_env(settings)
     runner.run_process(
         command,
         full_args,

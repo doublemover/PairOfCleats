@@ -119,6 +119,7 @@ for (const command of requiredPreferenceCommands) {
 const requiredSettingKeys = [
   'api_server_url',
   'api_timeout_ms',
+  'api_execution_mode',
   'open_results_in',
   'results_buffer_threshold',
   'index_watch_scope',

@@ -44,6 +44,9 @@ Core:
 API:
 - `api_server_url`: Base URL for API-backed workflows.
 - `api_timeout_ms`: Timeout for API requests in milliseconds.
+- `api_execution_mode`: `cli`, `prefer`, or `require`.
+  - `search` and `map` can use the API path.
+  - context/risk/architecture/impact/suggest/workspace workflows remain CLI-only; `require` fails closed for those commands.
 
 Output:
 - `open_results_in`: `quick_panel`, `new_tab`, or `output_panel`.

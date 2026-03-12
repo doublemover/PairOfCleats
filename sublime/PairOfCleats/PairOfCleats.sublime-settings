@@ -11,6 +11,7 @@
   // API-backed workflows
   "api_server_url": "",
   "api_timeout_ms": 5000,
+  "api_execution_mode": "cli",
 
   // Search/output behavior
   "open_results_in": "quick_panel",

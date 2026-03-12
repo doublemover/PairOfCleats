@@ -1,8 +1,16 @@
 import json
 import os
+import threading
 import urllib.parse
 import urllib.request
 import urllib.error
+
+
+class ApiResult(object):
+    def __init__(self, payload=None, headers=None, error=None):
+        self.payload = payload
+        self.headers = headers or {}
+        self.error = error
 
 
 def normalize_base_url(value):
@@ -30,13 +38,26 @@ def build_url(base_url, path, params=None):
     return '{0}{1}'.format(base_url, path)
 
 
-def _open_url(url, timeout_ms=5000):
+def _encode_payload(payload):
+    if payload is None:
+        return None
+    if isinstance(payload, bytes):
+        return payload
+    return json.dumps(payload).encode('utf-8')
+
+
+def _open_url(url, timeout_ms=5000, method='GET', payload=None, headers=None):
     timeout = float(timeout_ms or 5000) / 1000.0
     if timeout <= 0:
         timeout = 5.0
+    request_headers = dict(headers or {})
+    data = _encode_payload(payload)
+    if data is not None and 'Content-Type' not in request_headers:
+        request_headers['Content-Type'] = 'application/json'
+    request = urllib.request.Request(url, data=data, headers=request_headers, method=method)
 
     try:
-        resp = urllib.request.urlopen(url, timeout=timeout)
+        resp = urllib.request.urlopen(request, timeout=timeout)
         try:
             status = resp.getcode() or 0
             headers = dict(resp.headers.items())
@@ -57,8 +78,8 @@ def _open_url(url, timeout_ms=5000):
         return status, headers, data
 
 
-def request_json(url, timeout_ms=5000):
-    status, headers, data = _open_url(url, timeout_ms=timeout_ms)
+def request_json(url, timeout_ms=5000, method='GET', payload=None, headers=None):
+    status, headers, data = _open_url(url, timeout_ms=timeout_ms, method=method, payload=payload, headers=headers)
     text = (data or b'').decode('utf-8', 'replace')
     if status < 200 or status >= 300:
         raise RuntimeError('API request failed ({0}): {1}'.format(status, text.strip() or url))
@@ -68,8 +89,8 @@ def request_json(url, timeout_ms=5000):
         raise RuntimeError('API returned invalid JSON: {0}'.format(exc))
 
 
-def request_text(url, timeout_ms=5000):
-    status, headers, data = _open_url(url, timeout_ms=timeout_ms)
+def request_text(url, timeout_ms=5000, method='GET', payload=None, headers=None):
+    status, headers, data = _open_url(url, timeout_ms=timeout_ms, method=method, payload=payload, headers=headers)
     text = (data or b'').decode('utf-8', 'replace')
     if status < 200 or status >= 300:
         raise RuntimeError('API request failed ({0}): {1}'.format(status, text.strip() or url))
@@ -100,6 +121,63 @@ def _write_json(path_value, payload):
     _ensure_parent_dir(path_value)
     with open(path_value, 'w') as handle:
         json.dump(payload, handle, indent=2, sort_keys=True)
+
+
+def run_async(request_fn, on_done):
+    import sublime
+
+    def worker():
+        try:
+            response = request_fn()
+            if isinstance(response, tuple) and len(response) == 2:
+                payload, headers = response
+            else:
+                payload, headers = response, {}
+            result = ApiResult(payload=payload, headers=headers)
+        except Exception as exc:
+            result = ApiResult(error=str(exc))
+        sublime.set_timeout(lambda: on_done(result), 0)
+
+    thread = threading.Thread(target=worker)
+    thread.daemon = True
+    thread.start()
+    return thread
+
+
+def search_json(base_url, repo_root, settings, query, mode, backend=None, limit=None):
+    base_url = normalize_base_url(base_url)
+    if not base_url:
+        raise RuntimeError('api_server_url is not set')
+
+    timeout_ms = settings.get('api_timeout_ms') if isinstance(settings, dict) else None
+    if not isinstance(timeout_ms, int) or timeout_ms <= 0:
+        timeout_ms = 5000
+
+    payload = {
+        'repo': repo_root,
+        'query': query,
+        'mode': mode or 'both',
+        'output': 'compact-json',
+    }
+    if backend:
+        payload['backend'] = backend
+    if isinstance(limit, int) and limit > 0:
+        payload['top'] = limit
+
+    body, headers = request_json(
+        build_url(base_url, '/search'),
+        timeout_ms=timeout_ms,
+        method='POST',
+        payload=payload,
+    )
+    if not isinstance(body, dict) or body.get('ok') is False:
+        raise RuntimeError((body or {}).get('message') or 'API search failed.')
+    result = body.get('result')
+    if not isinstance(result, dict):
+        raise RuntimeError('API search returned invalid JSON.')
+    payload = dict(result)
+    payload.setdefault('ok', True)
+    return payload, headers
 
 
 def generate_map_report(

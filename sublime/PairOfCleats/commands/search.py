@@ -1,6 +1,7 @@
 import sublime
 import sublime_plugin
 
+from ..lib import api_client
 from ..lib import config
 from ..lib import history
 from ..lib import paths
@@ -175,23 +176,12 @@ def _execute_search(window, query, overrides=None, explain=False):
         return
 
     resolved = _resolve_defaults(settings, overrides)
-    args = search_lib.build_search_args(
-        query,
-        repo_root=repo_root,
-        mode=resolved.get('mode'),
-        backend=resolved.get('backend') or None,
-        limit=resolved.get('limit'),
-        explain=explain
-    )
+    execution = config.resolve_execution_mode(settings, 'search explain' if explain else 'search', supports_api=not explain)
+    if execution.get('error'):
+        ui.show_error(execution['error'])
+        return
 
-    cli = paths.resolve_cli(settings, repo_root)
-    command = cli['command']
-    full_args = list(cli.get('args_prefix') or []) + args
-    env = config.build_env(settings)
-
-    ui.show_status('PairOfCleats: searching...')
-
-    def on_done(result):
+    def handle_payload(result):
         if result.returncode != 0:
             message = result.output.strip() or 'PairOfCleats search failed.'
             ui.show_error(message)
@@ -260,6 +250,58 @@ def _execute_search(window, query, overrides=None, explain=False):
 
         window.show_quick_panel(items, on_select)
 
+    if execution.get('mode') == 'api':
+        ui.show_status('PairOfCleats: searching via API...')
+
+        def on_api_done(result):
+            if result.error:
+                if execution.get('allow_fallback'):
+                    ui.show_status('PairOfCleats: API search failed; falling back to CLI.')
+                    _execute_search_cli(window, query, repo_root, settings, resolved, explain, handle_payload)
+                    return
+                ui.show_error(result.error)
+                return
+            handle_payload(_ApiProcessResult(result.payload))
+
+        api_client.run_async(
+            lambda: api_client.search_json(
+                execution.get('base_url'),
+                repo_root,
+                settings,
+                query,
+                resolved.get('mode'),
+                backend=resolved.get('backend') or None,
+                limit=resolved.get('limit'),
+            ),
+            on_api_done,
+        )
+        return
+
+    ui.show_status('PairOfCleats: searching...')
+    _execute_search_cli(window, query, repo_root, settings, resolved, explain, handle_payload)
+
+
+class _ApiProcessResult(object):
+    def __init__(self, payload):
+        self.returncode = 0
+        self.output = ''
+        self.error = None
+        self.payload = payload
+
+
+def _execute_search_cli(window, query, repo_root, settings, resolved, explain, on_done):
+    args = search_lib.build_search_args(
+        query,
+        repo_root=repo_root,
+        mode=resolved.get('mode'),
+        backend=resolved.get('backend') or None,
+        limit=resolved.get('limit'),
+        explain=explain
+    )
+    cli = paths.resolve_cli(settings, repo_root)
+    command = cli['command']
+    full_args = list(cli.get('args_prefix') or []) + args
+    env = config.build_env(settings)
     runner.run_process(
         command,
         full_args,
@@ -294,18 +336,10 @@ def _execute_symbol_lookup(window, query, on_hits, limit=25, title='PairOfCleats
         return
 
     resolved = _resolve_defaults(settings, {'mode': 'code', 'limit': limit})
-    args = search_lib.build_search_args(
-        query,
-        repo_root=repo_root,
-        mode='code',
-        backend=resolved.get('backend') or None,
-        limit=resolved.get('limit'),
-        explain=False,
-    )
-    cli = paths.resolve_cli(settings, repo_root)
-    command = cli['command']
-    full_args = list(cli.get('args_prefix') or []) + args
-    env = config.build_env(settings)
+    execution = config.resolve_execution_mode(settings, 'search', supports_api=True)
+    if execution.get('error'):
+        ui.show_error(execution['error'])
+        return
 
     def on_done(result):
         if result.returncode != 0:
@@ -325,6 +359,46 @@ def _execute_symbol_lookup(window, query, on_hits, limit=25, title='PairOfCleats
         hits = [hit for hit in results.collect_hits(payload) if hit.get('section') == 'code']
         on_hits(hits, repo_root, resolved)
 
+    if execution.get('mode') == 'api':
+        def on_api_done(result):
+            if result.error:
+                if execution.get('allow_fallback'):
+                    _execute_symbol_lookup_cli(window, query, repo_root, settings, resolved, title, on_done)
+                    return
+                ui.show_error(result.error)
+                return
+            on_done(_ApiProcessResult(result.payload))
+
+        api_client.run_async(
+            lambda: api_client.search_json(
+                execution.get('base_url'),
+                repo_root,
+                settings,
+                query,
+                'code',
+                backend=resolved.get('backend') or None,
+                limit=resolved.get('limit'),
+            ),
+            on_api_done,
+        )
+        return
+
+    _execute_symbol_lookup_cli(window, query, repo_root, settings, resolved, title, on_done)
+
+
+def _execute_symbol_lookup_cli(window, query, repo_root, settings, resolved, title, on_done):
+    args = search_lib.build_search_args(
+        query,
+        repo_root=repo_root,
+        mode='code',
+        backend=resolved.get('backend') or None,
+        limit=resolved.get('limit'),
+        explain=False,
+    )
+    cli = paths.resolve_cli(settings, repo_root)
+    command = cli['command']
+    full_args = list(cli.get('args_prefix') or []) + args
+    env = config.build_env(settings)
     runner.run_process(
         command,
         full_args,

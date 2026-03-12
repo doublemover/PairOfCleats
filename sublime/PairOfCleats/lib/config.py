@@ -98,6 +98,7 @@ DEFAULT_SETTINGS = {
     'history_limit': 25,
     'api_server_url': '',
     'api_timeout_ms': 5000,
+    'api_execution_mode': 'cli',
     'open_results_in': 'quick_panel',
     'results_buffer_threshold': 50,
     'index_watch_scope': 'repo',
@@ -141,6 +142,7 @@ SETTING_GROUPS = (
     ('API', (
         'api_server_url',
         'api_timeout_ms',
+        'api_execution_mode',
     )),
     ('Output', (
         'open_results_in',
@@ -183,6 +185,7 @@ SETTING_GROUPS = (
 VALID_INDEX_MODES = {'code', 'prose', 'both'}
 VALID_BACKENDS = {'memory', 'sqlite', 'sqlite-fts', 'lmdb'}
 VALID_OPEN_TARGETS = {'quick_panel', 'new_tab', 'output_panel'}
+VALID_API_EXECUTION_MODES = {'cli', 'prefer', 'require'}
 VALID_WATCH_SCOPES = {'repo', 'folder'}
 VALID_WATCH_MODES = {'all', 'code', 'prose', 'records', 'extracted-prose'}
 VALID_MAP_TYPES = {'combined', 'imports', 'calls', 'usages', 'dataflow'}
@@ -293,6 +296,11 @@ def validate_settings(settings, repo_root=None):
     api_server_url = settings.get('api_server_url')
     if api_server_url and not _is_valid_base_url(api_server_url):
         errors.append('api_server_url must be an http:// or https:// URL.')
+    api_execution_mode = str(settings.get('api_execution_mode') or 'cli').strip().lower()
+    if api_execution_mode not in VALID_API_EXECUTION_MODES:
+        errors.append('api_execution_mode must be one of: cli, prefer, require.')
+    elif api_execution_mode in {'prefer', 'require'} and not api_server_url:
+        errors.append('api_server_url must be set when api_execution_mode is prefer or require.')
 
     env = _get_env_settings(settings)
     if env is not None and not isinstance(env, dict):
@@ -376,6 +384,43 @@ def _load_base_settings():
     for key in DEFAULT_SETTINGS:
         values[key] = settings.get(key, DEFAULT_SETTINGS[key])
     return values
+
+
+def resolve_execution_mode(settings, workflow, supports_api=False):
+    mode = str((settings or {}).get('api_execution_mode') or 'cli').strip().lower()
+    if mode not in VALID_API_EXECUTION_MODES:
+        mode = 'cli'
+    base_url = str((settings or {}).get('api_server_url') or '').strip()
+    workflow_label = str(workflow or 'this workflow').replace('-', ' ')
+    if mode == 'cli':
+        return {
+            'mode': 'cli',
+            'allow_fallback': False,
+            'base_url': base_url,
+            'error': None,
+        }
+    if not base_url:
+        return {
+            'mode': None if mode == 'require' else 'cli',
+            'allow_fallback': False,
+            'base_url': '',
+            'error': 'PairOfCleats: api_server_url must be set when api_execution_mode is {0}.'.format(mode)
+            if mode == 'require' else None,
+        }
+    if not supports_api:
+        return {
+            'mode': None if mode == 'require' else 'cli',
+            'allow_fallback': False,
+            'base_url': base_url,
+            'error': 'PairOfCleats: API mode is not supported for {0}.'.format(workflow_label)
+            if mode == 'require' else None,
+        }
+    return {
+        'mode': 'api',
+        'allow_fallback': mode == 'prefer',
+        'base_url': base_url,
+        'error': None,
+    }
 
 
 def _resolve_path(repo_root, raw_path):

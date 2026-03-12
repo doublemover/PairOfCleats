@@ -39,6 +39,9 @@
     "sublime": {
       "cliPathKey": "pairofcleats_path",
       "nodePathKey": "node_path",
+      "apiServerUrlKey": "api_server_url",
+      "apiTimeoutKey": "api_timeout_ms",
+      "apiExecutionModeKey": "api_execution_mode",
       "envKey": "env"
     }
   },

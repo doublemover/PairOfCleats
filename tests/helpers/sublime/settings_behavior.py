@@ -31,6 +31,7 @@ class SettingsBehaviorTests(unittest.TestCase):
         settings.update({
             'api_server_url': 'ftp://bad',
             'api_timeout_ms': 0,
+            'api_execution_mode': 'api',
             'search_prompt_options': 'yes',
             'map_stream_output': 'true',
             'map_show_report_panel': 'sometimes',
@@ -39,16 +40,28 @@ class SettingsBehaviorTests(unittest.TestCase):
         errors = self.config.validate_settings(settings, repo_root='C:/repo')
         self.assertIn('api_server_url must be an http:// or https:// URL.', errors)
         self.assertIn('api_timeout_ms must be 1 or higher.', errors)
+        self.assertIn('api_execution_mode must be one of: cli, prefer, require.', errors)
         self.assertIn('search_prompt_options must be true or false.', errors)
         self.assertIn('map_stream_output must be true or false.', errors)
         self.assertIn('map_show_report_panel must be true, false, or null.', errors)
         self.assertIn('index_watch_scope must be repo or folder.', errors)
+
+    def test_validate_settings_requires_server_url_for_api_modes(self):
+        settings = self.config.get_settings(None)
+        settings['api_execution_mode'] = 'require'
+        errors = self.config.validate_settings(settings, repo_root='C:/repo')
+        self.assertIn('api_server_url must be set when api_execution_mode is prefer or require.', errors)
+
+        settings['api_execution_mode'] = 'prefer'
+        errors = self.config.validate_settings(settings, repo_root='C:/repo')
+        self.assertIn('api_server_url must be set when api_execution_mode is prefer or require.', errors)
 
     def test_project_overrides_merge_env_and_override_scalars(self):
         self.window.set_project_data({
             'settings': {
                 'pairofcleats': {
                     'api_server_url': 'http://127.0.0.1:7464',
+                    'api_execution_mode': 'prefer',
                     'open_results_in': 'output_panel',
                     'env': {
                         'PROJECT_ONLY': '1',
@@ -59,6 +72,7 @@ class SettingsBehaviorTests(unittest.TestCase):
         })
         settings = self.config.get_settings(self.window)
         self.assertEqual(settings['api_server_url'], 'http://127.0.0.1:7464')
+        self.assertEqual(settings['api_execution_mode'], 'prefer')
         self.assertEqual(settings['open_results_in'], 'output_panel')
         self.assertEqual(settings['env']['BASE_ONLY'], '1')
         self.assertEqual(settings['env']['PROJECT_ONLY'], '1')
@@ -83,6 +97,7 @@ class SettingsBehaviorTests(unittest.TestCase):
         self.assertIn('pairofcleats', payload['settings'])
         override = payload['settings']['pairofcleats']
         self.assertEqual(override['api_server_url'], 'http://127.0.0.1:7464')
+        self.assertEqual(override['api_execution_mode'], 'cli')
         self.assertIn('map_stream_output', override)
         self.assertIn('index_watch_mode', override)
         self.assertIn('open_results_in', override)
@@ -92,6 +107,7 @@ class SettingsBehaviorTests(unittest.TestCase):
             'settings': {
                 'pairofcleats': {
                     'api_server_url': 'http://127.0.0.1:7464',
+                    'api_execution_mode': 'prefer',
                     'map_stream_output': True,
                     'env': {'PAIR': '1'}
                 }
@@ -107,6 +123,7 @@ class SettingsBehaviorTests(unittest.TestCase):
         self.assertIn('Watch:', text)
         self.assertIn('Map:', text)
         self.assertIn('api_server_url = "http://127.0.0.1:7464" [project]', text)
+        self.assertIn('api_execution_mode = "prefer" [project]', text)
         self.assertIn('map_stream_output = true [project]', text)
         self.assertIn('Project env override keys: PAIR', text)
 

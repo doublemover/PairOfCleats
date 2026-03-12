@@ -30,6 +30,7 @@ class AnalysisBehaviorTests(unittest.TestCase):
         )
 
     def setUp(self):
+        self.sublime.reset()
         self.window = FakeWindow()
         self.view = FakeView(os.path.join(self.fixture_repo, 'src', 'index.js'), 'buildWidget')
         self.view.set_window(self.window)
@@ -42,7 +43,11 @@ class AnalysisBehaviorTests(unittest.TestCase):
             'build_env': self.analysis.config.build_env,
             'run_process': self.analysis.runner.run_process,
         }
-        self.analysis.config.get_settings = lambda _window: {}
+        self.analysis.config.get_settings = lambda _window: {
+            'api_execution_mode': 'cli',
+            'api_server_url': '',
+            'api_timeout_ms': 5000,
+        }
         self.analysis.config.validate_settings = lambda _settings, _repo_root: []
         self.analysis.paths.resolve_repo_root = (
             lambda _window, return_reason=True, path_hint=None: (self.fixture_repo, None)
@@ -192,6 +197,17 @@ class AnalysisBehaviorTests(unittest.TestCase):
             action='copy_path',
         )
         self.assertTrue(self.sublime.clipboard.replace('\\', '/').endswith('.pairofcleats-workspace.jsonc'))
+
+    def test_require_api_fails_closed_for_cli_only_analysis_workflows(self):
+        self.analysis.config.get_settings = lambda _window: {
+            'api_execution_mode': 'require',
+            'api_server_url': 'http://127.0.0.1:7464',
+            'api_timeout_ms': 5000,
+        }
+
+        self.analysis.PairOfCleatsContextPackCommand(self.window).run(seed='file:src/index.js', hops=1)
+
+        self.assertIn('API mode is not supported for context pack.', self.sublime.last_error)
 
     def _run_process(self, command, args, cwd=None, env=None, window=None, title=None,
                      capture_json=None, on_done=None, stream_output=None, panel_name='pairofcleats'):

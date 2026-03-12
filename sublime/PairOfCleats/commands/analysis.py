@@ -614,8 +614,8 @@ def _show_analysis_action_choices(window, session, hit):
     window.show_quick_panel(items, on_action)
 
 
-def _run_cli_json(window, title, repo_root, args, on_done):
-    context = _resolve_cli_context(window, path_hint=repo_root)
+def _run_cli_json(window, title, repo_root, args, on_done, context=None):
+    context = context or _resolve_cli_context(window, path_hint=repo_root)
     if not context:
         return None
     cli = context['cli']
@@ -636,6 +636,14 @@ def _run_cli_json(window, title, repo_root, args, on_done):
 
 def _execute_analysis_command(window, title, kind, repo_root, args, collect_hits, render_text,
                               export_json=False, out_path=None, export_identity=None):
+    context = _resolve_cli_context(window, path_hint=repo_root)
+    if not context:
+        return
+    execution = config.resolve_execution_mode(context.get('settings') or {}, kind, supports_api=False)
+    if execution.get('error'):
+        ui.show_error(execution['error'])
+        return
+
     def on_done(result):
         if result.error:
             ui.show_error(result.error)
@@ -661,7 +669,7 @@ def _execute_analysis_command(window, title, kind, repo_root, args, collect_hits
         if failed:
             ui.show_error((payload or {}).get('message') or result.output.strip() or '{0} failed.'.format(title))
 
-    _run_cli_json(window, title, repo_root, args, on_done)
+    _run_cli_json(window, title, repo_root, args, on_done, context=context)
 
 
 def _parse_path_list(value):
@@ -744,6 +752,10 @@ class PairOfCleatsContextPackCommand(sublime_plugin.WindowCommand):
         context = _resolve_cli_context(self.window)
         if not context:
             return
+        execution = config.resolve_execution_mode(context.get('settings') or {}, 'context-pack', supports_api=False)
+        if execution.get('error'):
+            ui.show_error(execution['error'])
+            return
         repo_root = context['repo_root']
         args = [
             'context-pack',
@@ -783,7 +795,7 @@ class PairOfCleatsContextPackCommand(sublime_plugin.WindowCommand):
                 self.window.open_file(json_path)
                 ui.show_status('PairOfCleats: exported context pack JSON.')
 
-        _run_cli_json(self.window, 'PairOfCleats context pack', repo_root, args, on_done)
+        _run_cli_json(self.window, 'PairOfCleats context pack', repo_root, args, on_done, context=context)
 
 
 class PairOfCleatsRiskExplainCommand(sublime_plugin.WindowCommand):
@@ -813,6 +825,10 @@ class PairOfCleatsRiskExplainCommand(sublime_plugin.WindowCommand):
             return
         context = _resolve_cli_context(self.window)
         if not context:
+            return
+        execution = config.resolve_execution_mode(context.get('settings') or {}, 'risk-explain', supports_api=False)
+        if execution.get('error'):
+            ui.show_error(execution['error'])
             return
         repo_root = context['repo_root']
         index_dir = _resolve_risk_index_dir(repo_root)
@@ -852,7 +868,7 @@ class PairOfCleatsRiskExplainCommand(sublime_plugin.WindowCommand):
                 self.window.open_file(json_path)
                 ui.show_status('PairOfCleats: exported risk explain JSON.')
 
-        _run_cli_json(self.window, 'PairOfCleats risk explain', repo_root, args, on_done)
+        _run_cli_json(self.window, 'PairOfCleats risk explain', repo_root, args, on_done, context=context)
 
 
 class PairOfCleatsArchitectureCheckCommand(sublime_plugin.WindowCommand):

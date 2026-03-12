@@ -663,7 +663,9 @@ tooling/sublime/navigation-behavior
 tooling/sublime/watch-behavior
 tooling/sublime/analysis-behavior
 tooling/sublime/settings-behavior
+tooling/sublime/search-behavior
 tooling/sublime/map-behavior
+tooling/sublime/api-server
 tooling/sublime/runner-behavior
 tooling/sublime/package-release-sanity
 retrieval/cache/query-signature-sharded-chunk-meta
