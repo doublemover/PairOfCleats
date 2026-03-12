@@ -77,8 +77,17 @@ const renderRisk = (risk) => {
   if (risk?.caps) {
     const capParts = [];
     if (risk.caps.maxFlows != null) capParts.push(`maxFlows ${risk.caps.maxFlows}`);
+    if (risk.caps.maxStepsPerFlow != null) capParts.push(`maxStepsPerFlow ${risk.caps.maxStepsPerFlow}`);
     if (risk.caps.maxCallSitesPerStep != null) capParts.push(`maxCallSitesPerStep ${risk.caps.maxCallSitesPerStep}`);
+    if (risk.caps.maxBytes != null) capParts.push(`maxBytes ${risk.caps.maxBytes}`);
+    if (risk.caps.maxTokens != null) capParts.push(`maxTokens ${risk.caps.maxTokens}`);
     if (capParts.length) lines.push(`- pack caps: ${capParts.join(', ')}`);
+    if (Array.isArray(risk.caps.hits) && risk.caps.hits.length) {
+      lines.push(`- cap hits: ${risk.caps.hits.join(', ')}`);
+    }
+  }
+  if (Array.isArray(risk?.truncation) && risk.truncation.length) {
+    lines.push(`- truncation: ${risk.truncation.map((entry) => entry.cap).join(', ')}`);
   }
   lines.push('');
   lines.push(renderRiskExplain(risk.flows || [], { maxFlows: 5 }));

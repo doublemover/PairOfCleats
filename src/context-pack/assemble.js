@@ -484,7 +484,6 @@ const buildRiskSlice = ({
   }
 
   const summaryOnly = stats?.effectiveConfig?.summaryOnly === true;
-  const normalizedSummary = normalizeRiskSummary(summary);
   const baseArtifactStatus = {
     stats: buildRiskArtifactStatus({ presence: statsPresence, required: true, loadFailed: statsLoadFailed }),
     summaries: buildRiskArtifactStatus({ presence: summariesPresence, required: true, loadFailed: summariesLoadFailed }),
@@ -504,25 +503,38 @@ const buildRiskSlice = ({
         : 'missing';
 
   if (baseStatus === 'disabled') {
+    const riskCaps = buildRiskCaps({
+      stats,
+      counts: {
+        candidateFlows: 0,
+        selectedFlows: 0,
+        omittedFlows: 0,
+        emittedSteps: 0,
+        omittedSteps: 0,
+        omittedCallSites: 0,
+        bytes: 0,
+        tokens: 0
+      },
+      hits: new Set(Array.isArray(stats?.capsHit) ? stats.capsHit : [])
+    });
     return {
       version: 1,
       status: 'disabled',
       reason: stats?.reason || 'disabled',
       flows: [],
-      summary: normalizedSummary,
+      summary: normalizeRiskSummary(summary, []),
       stats: summarizeRiskStats(stats),
-      analysisStatus: {
-        requested: true,
+      analysisStatus: buildRiskAnalysisStatus({
+        status: 'disabled',
+        reason: stats?.reason || 'disabled',
+        degraded: false,
         summaryOnly,
         artifactStatus: baseArtifactStatus,
+        stats: summarizeRiskStats(stats),
+        caps: riskCaps,
         degradedReasons: []
-      },
-      caps: {
-        maxFlows: CONTEXT_PACK_MAX_RISK_FLOWS,
-        maxCallSitesPerStep: CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP,
-        hit: Array.isArray(stats?.capsHit) ? stats.capsHit.slice() : [],
-        configured: stats?.effectiveConfig?.caps || null
-      },
+      }),
+      caps: riskCaps,
       truncation: [],
       provenance: normalizeRiskProvenance({ manifest, stats, artifactStatus: baseArtifactStatus }),
       degraded: false
@@ -530,25 +542,38 @@ const buildRiskSlice = ({
   }
 
   if (baseStatus === 'summary_only') {
+    const riskCaps = buildRiskCaps({
+      stats,
+      counts: {
+        candidateFlows: 0,
+        selectedFlows: 0,
+        omittedFlows: 0,
+        emittedSteps: 0,
+        omittedSteps: 0,
+        omittedCallSites: 0,
+        bytes: 0,
+        tokens: 0
+      },
+      hits: new Set(Array.isArray(stats?.capsHit) ? stats.capsHit : [])
+    });
     return {
       version: 1,
       status: 'summary_only',
       reason: stats?.reason || null,
       flows: [],
-      summary: normalizedSummary,
+      summary: normalizeRiskSummary(summary, []),
       stats: summarizeRiskStats(stats),
-      analysisStatus: {
-        requested: true,
+      analysisStatus: buildRiskAnalysisStatus({
+        status: 'summary_only',
+        reason: stats?.reason || null,
+        degraded: false,
         summaryOnly,
         artifactStatus: baseArtifactStatus,
+        stats: summarizeRiskStats(stats),
+        caps: riskCaps,
         degradedReasons: []
-      },
-      caps: {
-        maxFlows: CONTEXT_PACK_MAX_RISK_FLOWS,
-        maxCallSitesPerStep: CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP,
-        hit: Array.isArray(stats?.capsHit) ? stats.capsHit.slice() : [],
-        configured: stats?.effectiveConfig?.caps || null
-      },
+      }),
+      caps: riskCaps,
       truncation: [],
       provenance: normalizeRiskProvenance({ manifest, stats, artifactStatus: baseArtifactStatus }),
       degraded: false
@@ -566,7 +591,7 @@ const buildRiskSlice = ({
         maxBytes: MAX_JSON_BYTES,
         strict: true
       });
-      const matchingFlows = Array.isArray(flowRows)
+      flows = Array.isArray(flowRows)
         ? flowRows.filter((flow) => {
           const chunkUids = Array.isArray(flow?.path?.chunkUids) ? flow.path.chunkUids : [];
           return flow?.source?.chunkUid === primaryChunk.chunkUid
@@ -574,25 +599,6 @@ const buildRiskSlice = ({
             || chunkUids.includes(primaryChunk.chunkUid);
         })
         : [];
-      matchingFlows.sort((a, b) => {
-        const confidenceA = Number.isFinite(a?.confidence) ? a.confidence : -1;
-        const confidenceB = Number.isFinite(b?.confidence) ? b.confidence : -1;
-        if (confidenceA !== confidenceB) return confidenceB - confidenceA;
-        return compareStrings(a?.flowId || '', b?.flowId || '');
-      });
-      if (matchingFlows.length > CONTEXT_PACK_MAX_RISK_FLOWS) {
-        const record = {
-          scope: 'risk',
-          cap: 'maxPaths',
-          limit: CONTEXT_PACK_MAX_RISK_FLOWS,
-          observed: matchingFlows.length,
-          omitted: matchingFlows.length - CONTEXT_PACK_MAX_RISK_FLOWS,
-          note: 'Risk flows truncated for composite context pack.'
-        };
-        truncation.push(record);
-        riskTruncation.push(record);
-      }
-      flows = matchingFlows.slice(0, CONTEXT_PACK_MAX_RISK_FLOWS);
     } catch (err) {
       flowsLoadFailed = true;
       warnings.push({
@@ -610,49 +616,84 @@ const buildRiskSlice = ({
     degraded = true;
   }
 
+  const rankedFlows = rankRiskFlows(flows, primaryChunk.chunkUid);
   const referencedCallSiteIds = new Set();
-  for (const flow of flows) {
-    const steps = Array.isArray(flow?.path?.callSiteIdsByStep) ? flow.path.callSiteIdsByStep : [];
-    for (const ids of steps) {
-      for (const callSiteId of Array.isArray(ids) ? ids.slice(0, CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP) : []) {
+  const selectedRawFlows = [];
+  const riskCapHits = new Set(Array.isArray(stats?.capsHit) ? stats.capsHit : []);
+  let emittedBytes = 0;
+  let emittedTokens = 0;
+  let emittedSteps = 0;
+  let omittedSteps = 0;
+  let omittedCallSites = 0;
+  let omittedFlows = 0;
+  let maxFlowTruncationRecorded = false;
+  let budgetTruncationRecorded = false;
+
+  for (const entry of rankedFlows) {
+    if (selectedRawFlows.length >= CONTEXT_PACK_MAX_RISK_FLOWS) {
+      omittedFlows += 1;
+      if (!maxFlowTruncationRecorded) {
+        const record = {
+          scope: 'risk',
+          cap: 'maxFlows',
+          limit: CONTEXT_PACK_MAX_RISK_FLOWS,
+          observed: rankedFlows.length,
+          omitted: rankedFlows.length - CONTEXT_PACK_MAX_RISK_FLOWS,
+          note: 'Risk flows truncated for composite context pack.'
+        };
+        truncation.push(record);
+        riskTruncation.push(record);
+        maxFlowTruncationRecorded = true;
+      }
+      riskCapHits.add('maxFlows');
+      continue;
+    }
+
+    const flow = entry.flow;
+    const rawSteps = Array.isArray(flow?.path?.callSiteIdsByStep) ? flow.path.callSiteIdsByStep : [];
+    const limitedSteps = rawSteps.slice(0, CONTEXT_PACK_MAX_RISK_STEPS_PER_FLOW);
+    if (rawSteps.length > limitedSteps.length) {
+      const omitted = rawSteps.length - limitedSteps.length;
+      omittedSteps += omitted;
+      riskCapHits.add('maxStepsPerFlow');
+      const record = {
+        scope: 'risk',
+        cap: 'maxStepsPerFlow',
+        limit: CONTEXT_PACK_MAX_RISK_STEPS_PER_FLOW,
+        observed: rawSteps.length,
+        omitted,
+        note: `Risk flow ${flow?.flowId || 'flow'} truncated to the configured step budget.`
+      };
+      truncation.push(record);
+      riskTruncation.push(record);
+    }
+
+    const normalizedStepIds = limitedSteps.map((ids) => {
+      const sourceIds = Array.isArray(ids) ? ids : [];
+      const limitedIds = sourceIds.slice(0, CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP);
+      if (sourceIds.length > limitedIds.length) {
+        const omitted = sourceIds.length - limitedIds.length;
+        omittedCallSites += omitted;
+        riskCapHits.add('maxCallSitesPerStep');
+        const record = {
+          scope: 'risk',
+          cap: 'maxCallSitesPerStep',
+          limit: CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP,
+          observed: sourceIds.length,
+          omitted,
+          note: `Risk flow ${flow?.flowId || 'flow'} truncated call-site evidence for one path step.`
+        };
+        truncation.push(record);
+        riskTruncation.push(record);
+      }
+      for (const callSiteId of limitedIds) {
         if (callSiteId) referencedCallSiteIds.add(callSiteId);
       }
-    }
-  }
-
-  const callSiteById = new Map();
-  if (referencedCallSiteIds.size > 0 && !callSitesMissing) {
-    try {
-      const callSiteRows = loadJsonArrayArtifactSync(indexDir, 'call_sites', {
-        manifest,
-        maxBytes: MAX_JSON_BYTES,
-        strict: true
-      });
-      for (const row of Array.isArray(callSiteRows) ? callSiteRows : []) {
-        if (row?.callSiteId && referencedCallSiteIds.has(row.callSiteId)) {
-          callSiteById.set(row.callSiteId, row);
-        }
-      }
-    } catch (err) {
-      callSitesLoadFailed = true;
-      warnings.push({
-        code: 'RISK_CALL_SITES_LOAD_FAILED',
-        message: 'Call-site evidence artifact could not be loaded for risk flows.',
-        data: { error: err?.message || String(err) }
-      });
-      degraded = true;
-    }
-  } else if (referencedCallSiteIds.size > 0 && callSitesMissing) {
-    warnings.push({
-      code: 'RISK_CALL_SITES_MISSING',
-      message: 'Risk flows reference call-site evidence, but the call_sites artifact is missing.'
+      return limitedIds;
     });
-    degraded = true;
-  }
 
-  const normalizedFlows = flows.map((flow) => {
-    const steps = Array.isArray(flow?.path?.callSiteIdsByStep) ? flow.path.callSiteIdsByStep : [];
-    return {
+    const candidate = {
+      rank: entry.rank,
       flowId: flow?.flowId || null,
       source: flow?.source && typeof flow.source === 'object'
         ? {
@@ -679,23 +720,25 @@ const buildRiskSlice = ({
       category: flow?.sink?.category || flow?.source?.category || null,
       severity: flow?.sink?.severity || flow?.source?.severity || null,
       confidence: Number.isFinite(flow?.confidence) ? flow.confidence : null,
+      score: {
+        seedRelevance: entry.score.seedRelevance,
+        severity: entry.score.severity,
+        confidence: Number.isFinite(entry.score.confidence) ? entry.score.confidence : null,
+        hopCount: Number.isFinite(flow?.notes?.hopCount) ? flow.notes.hopCount : null
+      },
       path: {
         nodes: normalizeRiskPathNodes(flow),
-        callSiteIdsByStep: steps.map((ids) => (
-          Array.isArray(ids) ? ids.slice(0, CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP) : []
-        ))
+        stepCount: rawSteps.length,
+        truncatedSteps: rawSteps.length - limitedSteps.length,
+        callSiteIdsByStep: normalizedStepIds
       },
       evidence: {
         sourceRuleId: flow?.source?.ruleId || null,
         sinkRuleId: flow?.sink?.ruleId || null,
-        callSitesByStep: steps.map((ids) => (
-          Array.isArray(ids)
-            ? ids.slice(0, CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP).map((callSiteId) => ({
-              callSiteId,
-              details: callSiteById.get(callSiteId) || null
-            }))
-            : []
-        ))
+        callSitesByStep: normalizedStepIds.map((ids) => ids.map((callSiteId) => ({
+          callSiteId,
+          details: null
+        })))
       },
       notes: flow?.notes && typeof flow.notes === 'object'
         ? {
@@ -709,7 +752,92 @@ const buildRiskSlice = ({
         }
         : null
     };
-  });
+
+    const candidateBytes = estimateRiskByteSize(candidate);
+    const candidateTokens = estimateRiskTokenCount(candidate);
+    if ((emittedBytes + candidateBytes) > CONTEXT_PACK_MAX_RISK_BYTES
+      || (emittedTokens + candidateTokens) > CONTEXT_PACK_MAX_RISK_TOKENS) {
+      omittedFlows += 1;
+      if (!budgetTruncationRecorded) {
+        const byteOmitted = (emittedBytes + candidateBytes) > CONTEXT_PACK_MAX_RISK_BYTES;
+        const tokenOmitted = (emittedTokens + candidateTokens) > CONTEXT_PACK_MAX_RISK_TOKENS;
+        if (byteOmitted) {
+          const record = {
+            scope: 'risk',
+            cap: 'maxRiskBytes',
+            limit: CONTEXT_PACK_MAX_RISK_BYTES,
+            observed: emittedBytes + candidateBytes,
+            omitted: candidateBytes,
+            note: 'Risk flow budget hit the total serialized byte cap.'
+          };
+          truncation.push(record);
+          riskTruncation.push(record);
+          riskCapHits.add('maxRiskBytes');
+        }
+        if (tokenOmitted) {
+          const record = {
+            scope: 'risk',
+            cap: 'maxRiskTokens',
+            limit: CONTEXT_PACK_MAX_RISK_TOKENS,
+            observed: emittedTokens + candidateTokens,
+            omitted: candidateTokens,
+            note: 'Risk flow budget hit the total token cap.'
+          };
+          truncation.push(record);
+          riskTruncation.push(record);
+          riskCapHits.add('maxRiskTokens');
+        }
+        budgetTruncationRecorded = true;
+      }
+      continue;
+    }
+
+    emittedBytes += candidateBytes;
+    emittedTokens += candidateTokens;
+    emittedSteps += normalizedStepIds.length;
+    selectedRawFlows.push(candidate);
+  }
+
+  const callSiteById = new Map();
+  if (referencedCallSiteIds.size > 0 && !callSitesMissing) {
+    try {
+      const callSiteRows = loadJsonArrayArtifactSync(indexDir, 'call_sites', {
+        manifest,
+        maxBytes: MAX_JSON_BYTES,
+        strict: true
+      });
+      for (const row of Array.isArray(callSiteRows) ? callSiteRows : []) {
+        if (row?.callSiteId && referencedCallSiteIds.has(row.callSiteId)) {
+          callSiteById.set(row.callSiteId, normalizeRiskCallSiteDetails(row));
+        }
+      }
+    } catch (err) {
+      callSitesLoadFailed = true;
+      warnings.push({
+        code: 'RISK_CALL_SITES_LOAD_FAILED',
+        message: 'Call-site evidence artifact could not be loaded for risk flows.',
+        data: { error: err?.message || String(err) }
+      });
+      degraded = true;
+    }
+  } else if (referencedCallSiteIds.size > 0 && callSitesMissing) {
+    warnings.push({
+      code: 'RISK_CALL_SITES_MISSING',
+      message: 'Risk flows reference call-site evidence, but the call_sites artifact is missing.'
+    });
+    degraded = true;
+  }
+
+  const normalizedFlows = selectedRawFlows.map((flow) => ({
+    ...flow,
+    evidence: {
+      ...flow.evidence,
+      callSitesByStep: flow.evidence.callSitesByStep.map((step) => step.map((entry) => ({
+        ...entry,
+        details: callSiteById.get(entry.callSiteId) || null
+      })))
+    }
+  }));
 
   const status = degraded ? 'degraded' : baseStatus;
   const resolvedArtifactStatus = {
@@ -725,6 +853,21 @@ const buildRiskSlice = ({
       loadFailed: callSitesLoadFailed
     })
   };
+  const normalizedSummary = normalizeRiskSummary(summary, normalizedFlows);
+  const riskCaps = buildRiskCaps({
+    stats,
+    counts: {
+      candidateFlows: rankedFlows.length,
+      selectedFlows: normalizedFlows.length,
+      omittedFlows,
+      emittedSteps,
+      omittedSteps,
+      omittedCallSites,
+      bytes: emittedBytes,
+      tokens: emittedTokens
+    },
+    hits: riskCapHits
+  });
   const degradedReasons = warnings
     .filter((entry) => typeof entry?.code === 'string' && entry.code.startsWith('RISK_'))
     .map((entry) => entry.code);
@@ -735,18 +878,17 @@ const buildRiskSlice = ({
     flows: normalizedFlows,
     summary: normalizedSummary,
     stats: summarizeRiskStats(stats),
-    analysisStatus: {
-      requested: true,
+    analysisStatus: buildRiskAnalysisStatus({
+      status,
+      reason: degraded ? 'partial-artifacts' : (stats?.reason || null),
+      degraded,
       summaryOnly,
       artifactStatus: resolvedArtifactStatus,
+      stats: summarizeRiskStats(stats),
+      caps: riskCaps,
       degradedReasons
-    },
-    caps: {
-      maxFlows: CONTEXT_PACK_MAX_RISK_FLOWS,
-      maxCallSitesPerStep: CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP,
-      hit: Array.isArray(stats?.capsHit) ? stats.capsHit.slice() : [],
-      configured: stats?.effectiveConfig?.caps || null
-    },
+    }),
+    caps: riskCaps,
     truncation: riskTruncation,
     provenance: normalizeRiskProvenance({ manifest, stats, artifactStatus: resolvedArtifactStatus }),
     degraded

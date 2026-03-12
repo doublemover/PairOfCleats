@@ -1099,3 +1099,5 @@ indexing/extracted-prose/extraction-report
 indexing/workers/worker-pool-lifecycle-destroy
 indexing/workers/worker-pool-lifecycle-destroy-during-restart
 
+
+context-pack/risk-ranking-budget

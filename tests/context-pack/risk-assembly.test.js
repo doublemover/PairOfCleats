@@ -119,6 +119,80 @@ const callSiteRow = {
   args: ['input']
 };
 
+const rankedPathOnlyFlow = {
+  ...flowRow,
+  flowId: 'sha1:2222222222222222222222222222222222222222',
+  source: {
+    ...flowRow.source,
+    chunkUid: 'chunk-helper',
+    severity: 'medium',
+    confidence: 0.95
+  },
+  sink: {
+    ...flowRow.sink,
+    chunkUid: 'chunk-helper-sink',
+    severity: 'low',
+    confidence: 0.95
+  },
+  path: {
+    chunkUids: ['chunk-helper', 'chunk-risk', 'chunk-helper-sink'],
+    callSiteIdsByStep: [['cs-1']]
+  },
+  confidence: 0.95,
+  notes: {
+    ...flowRow.notes,
+    hopCount: 3
+  }
+};
+
+const truncatedEvidenceFlow = {
+  ...flowRow,
+  flowId: 'sha1:3333333333333333333333333333333333333333',
+  path: {
+    chunkUids: ['chunk-risk', 'chunk-mid-1', 'chunk-mid-2', 'chunk-mid-3', 'chunk-mid-4', 'chunk-mid-5', 'chunk-mid-6', 'chunk-mid-7', 'chunk-risk-sink'],
+    callSiteIdsByStep: [
+      ['cs-1', 'cs-2', 'cs-3', 'cs-4'],
+      ['cs-5'],
+      ['cs-6'],
+      ['cs-7'],
+      ['cs-8'],
+      ['cs-9'],
+      ['cs-10'],
+      ['cs-11'],
+      ['cs-12']
+    ]
+  },
+  confidence: 0.87,
+  notes: {
+    ...flowRow.notes,
+    hopCount: 9
+  }
+};
+
+const oversizedBudgetFlow = {
+  ...flowRow,
+  flowId: 'sha1:4444444444444444444444444444444444444444',
+  source: {
+    ...flowRow.source,
+    ruleName: 'x'.repeat(30000)
+  },
+  confidence: 0.99,
+  notes: {
+    ...flowRow.notes,
+    hopCount: 1
+  }
+};
+
+const extraCallSiteRows = Array.from({ length: 12 }, (_, index) => ({
+  ...callSiteRow,
+  callSiteId: `cs-${index + 1}`,
+  startLine: index + 1,
+  endLine: index + 1,
+  calleeRaw: `callee-${index + 1}`,
+  calleeNormalized: `callee-${index + 1}`,
+  args: [`arg-${index + 1}`]
+}));
+
 const baseStats = {
   schemaVersion: 1,
   generatedAt: '2026-03-12T00:00:00.000Z',
@@ -263,6 +337,7 @@ assert.deepEqual(
     { tag: 'a', count: 1 }
   ]
 );
+assert.deepEqual(fullPack.risk?.summary?.previewFlowIds, ['sha1:1111111111111111111111111111111111111111']);
 assert.equal(validateCompositeContextPack(fullPack).ok, true, 'expected full risk slice to validate');
 const fullRendered = renderCompositeContextPack(fullPack);
 assert.ok(fullRendered.includes('status: ok'), 'expected rendered status');
@@ -309,5 +384,41 @@ assert.equal(degradedPack.risk?.status, 'degraded');
 assert.equal(degradedPack.risk?.degraded, true);
 assert.equal(degradedPack.risk?.analysisStatus?.artifactStatus?.callSites, 'missing');
 assert.ok(degradedPack.warnings?.some((entry) => entry?.code === 'RISK_CALL_SITES_MISSING'), 'expected degraded call-site warning');
+
+const cappedPack = await buildPack({
+  name: 'capped',
+  stats: {
+    ...baseStats,
+    counts: {
+      ...baseStats.counts,
+      flowsEmitted: 4,
+      uniqueCallSitesReferenced: 12
+    }
+  },
+  summaries: [summaryRow],
+  flows: [oversizedBudgetFlow, flowRow, rankedPathOnlyFlow, truncatedEvidenceFlow],
+  callSites: extraCallSiteRows
+});
+assert.equal(cappedPack.risk?.status, 'ok');
+assert.deepEqual(
+  cappedPack.risk?.flows?.map((flow) => flow.flowId),
+  [
+    'sha1:1111111111111111111111111111111111111111',
+    'sha1:3333333333333333333333333333333333333333',
+    'sha1:2222222222222222222222222222222222222222'
+  ],
+  'expected deterministic ranking and byte-budget omission'
+);
+assert.equal(cappedPack.risk?.flows?.[0]?.rank, 2, 'expected selected flow to retain its original rank');
+assert.equal(cappedPack.risk?.flows?.[2]?.score?.seedRelevance, 1, 'expected path-only flow to rank below direct source flow');
+assert.equal(cappedPack.risk?.flows?.[1]?.path?.truncatedSteps, 1, 'expected step cap truncation');
+assert.equal(cappedPack.risk?.flows?.[1]?.evidence?.callSitesByStep?.[0]?.length, 3, 'expected call-site cap truncation');
+assert.ok(Array.isArray(cappedPack.risk?.caps?.hits) && cappedPack.risk.caps.hits.includes('maxRiskBytes'), 'expected byte-budget cap hit');
+assert.ok(cappedPack.risk.caps.hits.includes('maxStepsPerFlow'), 'expected step cap hit');
+assert.ok(cappedPack.risk.caps.hits.includes('maxCallSitesPerStep'), 'expected call-site cap hit');
+assert.ok(cappedPack.risk.truncation.some((entry) => entry.cap === 'maxRiskBytes'), 'expected byte truncation record');
+assert.ok(cappedPack.risk.truncation.some((entry) => entry.cap === 'maxStepsPerFlow'), 'expected step truncation record');
+assert.ok(cappedPack.risk.truncation.some((entry) => entry.cap === 'maxCallSitesPerStep'), 'expected call-site truncation record');
+assert.equal(validateCompositeContextPack(cappedPack).ok, true, 'expected capped risk slice to validate');
 
 console.log('context pack risk assembly test passed');

@@ -403,7 +403,12 @@ const truncationRecordSchema = {
         'maxViolations',
         'maxEdgesExamined',
         'maxSuggestions',
-        'maxSeeds'
+        'maxSeeds',
+        'maxFlows',
+        'maxStepsPerFlow',
+        'maxCallSitesPerStep',
+        'maxRiskBytes',
+        'maxRiskTokens'
       ]
     },
     limit: { anyOf: [{ type: 'number' }, { type: 'object' }] },
@@ -634,7 +639,8 @@ const riskSummarySchema = {
       additionalProperties: false
     },
     topCategories: { type: 'array', items: riskTopCategorySchema },
-    topTags: { type: 'array', items: riskTopTagSchema }
+    topTags: { type: 'array', items: riskTopTagSchema },
+    previewFlowIds: { type: 'array', items: { type: 'string' } }
   },
   additionalProperties: false
 };
@@ -677,22 +683,35 @@ const riskFlowNotesSchema = {
 
 const riskFlowSummarySchema = {
   type: 'object',
-  required: ['path'],
+  required: ['rank', 'path', 'score'],
   properties: {
+    rank: nullableNumber,
     flowId: nullableString,
     source: riskSourceSinkSchema,
     sink: riskSourceSinkSchema,
     category: nullableString,
     severity: nullableString,
     confidence: nullableNumber,
+    score: {
+      type: ['object', 'null'],
+      properties: {
+        seedRelevance: nullableNumber,
+        severity: nullableNumber,
+        confidence: nullableNumber,
+        hopCount: nullableNumber
+      },
+      additionalProperties: false
+    },
     path: {
       type: 'object',
       required: ['nodes'],
       properties: {
         nodes: { type: 'array', items: nodeRefSchema },
+        stepCount: nullableNumber,
+        truncatedSteps: nullableNumber,
         callSiteIdsByStep: { type: ['array', 'null'], items: { type: 'array', items: { type: 'string' } } }
       },
-      additionalProperties: true
+      additionalProperties: false
     },
     evidence: {
       type: ['object', 'null'],
@@ -718,6 +737,9 @@ const riskAnalysisStatusSchema = {
   type: ['object', 'null'],
   properties: {
     requested: { type: ['boolean', 'null'] },
+    status: nullableString,
+    reason: nullableString,
+    degraded: { type: ['boolean', 'null'] },
     summaryOnly: { type: ['boolean', 'null'] },
     artifactStatus: {
       type: ['object', 'null'],
@@ -729,7 +751,10 @@ const riskAnalysisStatusSchema = {
       },
       additionalProperties: false
     },
-    degradedReasons: { type: 'array', items: { type: 'string' } }
+    degradedReasons: { type: 'array', items: { type: 'string' } },
+    flowsEmitted: nullableNumber,
+    uniqueCallSitesReferenced: nullableNumber,
+    capsHit: { type: 'array', items: { type: 'string' } }
   },
   additionalProperties: false
 };
@@ -738,8 +763,25 @@ const riskCapsSchema = {
   type: ['object', 'null'],
   properties: {
     maxFlows: nullableNumber,
+    maxStepsPerFlow: nullableNumber,
     maxCallSitesPerStep: nullableNumber,
-    hit: { type: 'array', items: { type: 'string' } },
+    maxBytes: nullableNumber,
+    maxTokens: nullableNumber,
+    hits: { type: 'array', items: { type: 'string' } },
+    observed: {
+      type: ['object', 'null'],
+      properties: {
+        candidateFlows: nullableNumber,
+        selectedFlows: nullableNumber,
+        omittedFlows: nullableNumber,
+        emittedSteps: nullableNumber,
+        omittedSteps: nullableNumber,
+        omittedCallSites: nullableNumber,
+        bytes: nullableNumber,
+        tokens: nullableNumber
+      },
+      additionalProperties: false
+    },
     configured: { type: ['object', 'null'], additionalProperties: true }
   },
   additionalProperties: false
