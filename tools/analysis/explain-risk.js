@@ -11,7 +11,8 @@ import {
 } from '../../src/shared/artifact-io.js';
 import {
   buildRiskExplanationModelFromStandalone,
-  renderRiskExplanation
+  renderRiskExplanation,
+  renderRiskExplanationJson
 } from '../../src/retrieval/output/risk-explain.js';
 import {
   filterRiskFlows,
@@ -208,9 +209,17 @@ export async function runRiskExplainCli(rawArgs = process.argv.slice(2)) {
     filters
   });
   const explanationModel = buildRiskExplanationModelFromStandalone(output);
+  const maxItems = Number.isFinite(argv.max) ? Math.max(1, Math.floor(argv.max)) : 20;
 
   if (argv.json) {
-    console.log(JSON.stringify(output, null, 2));
+    console.log(JSON.stringify({
+      ...output,
+      rendered: renderRiskExplanationJson(explanationModel, {
+        title: 'Risk Explain',
+        maxFlows: maxItems,
+        maxEvidencePerFlow: maxItems
+      })
+    }, null, 2));
     return { ok: true, payload: output };
   }
 
@@ -223,8 +232,8 @@ export async function runRiskExplainCli(rawArgs = process.argv.slice(2)) {
     title: 'Risk Explain',
     includeSubject: true,
     includeFilters: true,
-    maxFlows: Number.isFinite(argv.max) ? Math.max(1, Math.floor(argv.max)) : 20,
-    maxEvidencePerFlow: Number.isFinite(argv.max) ? Math.max(1, Math.floor(argv.max)) : 20
+    maxFlows: maxItems,
+    maxEvidencePerFlow: maxItems
   }));
   return { ok: true, payload: output };
 }

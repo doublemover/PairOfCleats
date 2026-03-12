@@ -1140,3 +1140,6 @@ indexing/workers/worker-pool-lifecycle-destroy-during-restart
 
 context-pack/risk-ranking-budget
 context-pack/risk-strict-status
+
+retrieval/output/risk-explanation-contract
+retrieval/output/composite-context-pack-render-contract

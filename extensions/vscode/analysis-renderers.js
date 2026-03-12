@@ -35,10 +35,17 @@ function normalizeExplainSubject(subject) {
 
 function normalizeExplainFilters(filters) {
   if (!filters || typeof filters !== 'object') return null;
-  const sourceRule = filters.sourceRule || filters.source_rule || null;
-  const sinkRule = filters.sinkRule || filters.sink_rule || null;
-  if (!sourceRule && !sinkRule) return null;
-  return { sourceRule, sinkRule };
+  return {
+    rule: Array.isArray(filters.rule) ? filters.rule.slice() : [],
+    category: Array.isArray(filters.category) ? filters.category.slice() : [],
+    severity: Array.isArray(filters.severity) ? filters.severity.slice() : [],
+    tag: Array.isArray(filters.tag) ? filters.tag.slice() : [],
+    source: Array.isArray(filters.source) ? filters.source.slice() : [],
+    sink: Array.isArray(filters.sink) ? filters.sink.slice() : [],
+    sourceRule: Array.isArray(filters.sourceRule) ? filters.sourceRule.slice() : Array.isArray(filters.source_rule) ? filters.source_rule.slice() : [],
+    sinkRule: Array.isArray(filters.sinkRule) ? filters.sinkRule.slice() : Array.isArray(filters.sink_rule) ? filters.sink_rule.slice() : [],
+    flowId: Array.isArray(filters.flowId) ? filters.flowId.slice() : Array.isArray(filters.flow_id) ? filters.flow_id.slice() : []
+  };
 }
 
 function normalizeExplainPath(pathValue, evidence = null) {
@@ -108,7 +115,7 @@ function buildRiskExplanationModelFromStandalone(payload) {
     subject: payload?.chunk || null,
     summary: payload?.summary || null,
     stats: payload?.stats || null,
-    provenance: payload?.stats?.provenance || payload?.provenance || null,
+    provenance: payload?.provenance || payload?.stats?.provenance || null,
     analysisStatus: payload?.stats && typeof payload.stats === 'object'
       ? {
         status: payload.stats.status || null,
@@ -278,8 +285,15 @@ function renderFilters(model, lines) {
   const filters = model?.filters || null;
   if (!filters) return;
   const parts = [];
-  if (filters.sourceRule) parts.push(`sourceRule ${filters.sourceRule}`);
-  if (filters.sinkRule) parts.push(`sinkRule ${filters.sinkRule}`);
+  if (Array.isArray(filters.rule) && filters.rule.length) parts.push(`rule ${filters.rule.join(', ')}`);
+  if (Array.isArray(filters.category) && filters.category.length) parts.push(`category ${filters.category.join(', ')}`);
+  if (Array.isArray(filters.severity) && filters.severity.length) parts.push(`severity ${filters.severity.join(', ')}`);
+  if (Array.isArray(filters.tag) && filters.tag.length) parts.push(`tag ${filters.tag.join(', ')}`);
+  if (Array.isArray(filters.source) && filters.source.length) parts.push(`source ${filters.source.join(', ')}`);
+  if (Array.isArray(filters.sink) && filters.sink.length) parts.push(`sink ${filters.sink.join(', ')}`);
+  if (Array.isArray(filters.sourceRule) && filters.sourceRule.length) parts.push(`sourceRule ${filters.sourceRule.join(', ')}`);
+  if (Array.isArray(filters.sinkRule) && filters.sinkRule.length) parts.push(`sinkRule ${filters.sinkRule.join(', ')}`);
+  if (Array.isArray(filters.flowId) && filters.flowId.length) parts.push(`flowId ${filters.flowId.join(', ')}`);
   if (parts.length) lines.push(`- filters: ${parts.join(', ')}`);
 }
 
@@ -370,6 +384,17 @@ function renderPrimary(primary) {
     lines.push('Excerpt:');
     lines.push(excerpt);
   }
+  const provenance = primary && typeof primary.provenance === 'object' ? primary.provenance : null;
+  if (provenance) {
+    const parts = [];
+    if (provenance.excerptSource) parts.push(`source=${provenance.excerptSource}`);
+    if (provenance.excerptHash) parts.push(`hash=${provenance.excerptHash}`);
+    if (provenance.excerptBytes != null) parts.push(`bytes=${provenance.excerptBytes}`);
+    if (parts.length) {
+      lines.push('');
+      lines.push(`Provenance: ${parts.join(', ')}`);
+    }
+  }
   return lines;
 }
 
@@ -459,10 +484,46 @@ function renderRisk(risk) {
   lines.push(renderRiskExplanation(buildRiskExplanationModelFromRiskSlice(risk), {
     title: null,
     includeSubject: false,
+    includeAnchor: false,
     includeFilters: false,
     maxFlows: 5
   }));
   return lines.join('\n');
+}
+
+function renderListSection(title, items, renderItem) {
+  const lines = [title];
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) {
+    lines.push('- (none)');
+    return lines.join('\n');
+  }
+  for (const item of list) {
+    lines.push(renderItem(item));
+  }
+  return lines.join('\n');
+}
+
+function renderTruncationSection(payload) {
+  return renderListSection(
+    'Truncation',
+    payload && payload.truncation,
+    (entry) => {
+      const pieces = [`- ${entry && entry.cap ? entry.cap : 'unknown'}`];
+      if (entry && entry.limit != null) pieces.push(`limit=${entry.limit}`);
+      if (entry && entry.observed != null) pieces.push(`observed=${entry.observed}`);
+      if (entry && entry.omitted != null) pieces.push(`omitted=${entry.omitted}`);
+      return pieces.join(' ');
+    }
+  );
+}
+
+function renderWarningsSection(payload) {
+  return renderListSection(
+    'Warnings',
+    payload && payload.warnings,
+    (entry) => `- ${(entry && entry.code) || 'warning'}: ${(entry && entry.message) || 'warning emitted'}`
+  );
 }
 
 function renderCompositeContextPack(payload) {
@@ -477,6 +538,8 @@ function renderCompositeContextPack(payload) {
   if (payload?.risk) {
     sections.push(renderRisk(payload.risk));
   }
+  sections.push(renderTruncationSection(payload));
+  sections.push(renderWarningsSection(payload));
   return sections.filter(Boolean).join('\n\n');
 }
 

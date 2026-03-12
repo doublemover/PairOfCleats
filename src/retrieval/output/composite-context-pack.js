@@ -1,4 +1,4 @@
-import { buildRiskExplanationModelFromRiskSlice, renderRiskExplanation } from './risk-explain.js';
+import { buildRiskExplanationModelFromRiskSlice, renderRiskExplanation, renderRiskExplanationJson } from './risk-explain.js';
 import { renderGraphContextPack } from './graph-context-pack.js';
 
 const renderPrimary = (primary) => {
@@ -18,6 +18,17 @@ const renderPrimary = (primary) => {
     lines.push('');
     lines.push('Excerpt:');
     lines.push(excerpt);
+  }
+  const provenance = primary?.provenance && typeof primary.provenance === 'object' ? primary.provenance : null;
+  if (provenance) {
+    const parts = [];
+    if (provenance.excerptSource) parts.push(`source=${provenance.excerptSource}`);
+    if (provenance.excerptHash) parts.push(`hash=${provenance.excerptHash}`);
+    if (provenance.excerptBytes != null) parts.push(`bytes=${provenance.excerptBytes}`);
+    if (parts.length) {
+      lines.push('');
+      lines.push(`Provenance: ${parts.join(', ')}`);
+    }
   }
   return lines;
 };
@@ -43,10 +54,57 @@ const renderRisk = (risk) => {
   return renderRiskExplanation(model, {
     title: 'Risk',
     includeSubject: false,
+    includeAnchor: false,
     includeFilters: true,
     maxFlows: 5
   });
 };
+
+const renderListSection = (title, items, renderItem) => {
+  const lines = [title];
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) {
+    lines.push('- (none)');
+    return lines.join('\n');
+  }
+  for (const item of list) {
+    lines.push(renderItem(item));
+  }
+  return lines.join('\n');
+};
+
+const renderTruncation = (payload) => renderListSection(
+  'Truncation',
+  payload?.truncation,
+  (entry) => {
+    const pieces = [`- ${entry?.cap || 'unknown'}`];
+    if (entry?.limit != null) pieces.push(`limit=${entry.limit}`);
+    if (entry?.observed != null) pieces.push(`observed=${entry.observed}`);
+    if (entry?.omitted != null) pieces.push(`omitted=${entry.omitted}`);
+    return pieces.join(' ');
+  }
+);
+
+const renderWarnings = (payload) => renderListSection(
+  'Warnings',
+  payload?.warnings,
+  (entry) => `- ${entry?.code || 'warning'}: ${entry?.message || 'warning emitted'}`
+);
+
+export const renderCompositeContextPackJson = (payload) => ({
+  ...payload,
+  rendered: {
+    risk: payload?.risk
+      ? renderRiskExplanationJson(buildRiskExplanationModelFromRiskSlice(payload.risk), {
+        title: 'Risk',
+        maxFlows: 5,
+        maxEvidencePerFlow: 3
+      })
+      : null,
+    truncation: Array.isArray(payload?.truncation) ? payload.truncation.slice() : [],
+    warnings: Array.isArray(payload?.warnings) ? payload.warnings.slice() : []
+  }
+});
 
 export const renderCompositeContextPack = (payload) => {
   const sections = [];
@@ -60,5 +118,7 @@ export const renderCompositeContextPack = (payload) => {
   if (payload?.risk) {
     sections.push(renderRisk(payload.risk));
   }
+  sections.push(renderTruncation(payload));
+  sections.push(renderWarnings(payload));
   return sections.filter(Boolean).join('\n\n');
 };

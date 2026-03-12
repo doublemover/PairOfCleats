@@ -6,7 +6,7 @@ import { normalizeOptionalNumber } from '../../shared/limits.js';
 import { parseSeedRef } from '../../shared/seed-ref.js';
 import { emitCliError, emitCliOutput, mergeCaps, resolveFormat } from './cli-helpers.js';
 import { assembleCompositeContextPack, buildChunkIndex } from '../../context-pack/assemble.js';
-import { renderCompositeContextPack } from '../../retrieval/output/composite-context-pack.js';
+import { renderCompositeContextPack, renderCompositeContextPackJson } from '../../retrieval/output/composite-context-pack.js';
 import { validateCompositeContextPack } from '../../contracts/validators/analysis.js';
 import { hasIndexMeta } from '../../retrieval/cli/index-loader.js';
 import { resolveIndexDir } from '../../retrieval/cli-index.js';
@@ -157,7 +157,8 @@ export async function runContextPackCli(rawArgs = process.argv.slice(2)) {
     return emitCliOutput({
       format,
       payload,
-      renderMarkdown: renderCompositeContextPack
+      renderMarkdown: renderCompositeContextPack,
+      renderJson: renderCompositeContextPackJson
     });
   } catch (err) {
     const message = err?.message || String(err);

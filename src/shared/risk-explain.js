@@ -1,5 +1,5 @@
 import { compareStrings } from './sort.js';
-import { normalizeRiskFilters } from './risk-filters.js';
+import { materializeRiskFilters, normalizeRiskFilters } from './risk-filters.js';
 
 export const summarizeRiskCategories = (summary) => {
   const counts = new Map();
@@ -103,7 +103,7 @@ const normalizeExplainSubject = (subject) => {
 };
 
 const normalizeExplainFilters = (filters) => {
-  return normalizeRiskFilters(filters);
+  return materializeRiskFilters(filters);
 };
 
 const normalizeExplainPath = (pathValue, evidence = null) => {
@@ -170,13 +170,14 @@ export const buildRiskExplanationModelFromStandalone = ({
   chunk = null,
   summary = null,
   stats = null,
+  provenance = null,
   filters = null,
   flows = []
 } = {}) => buildRiskExplanationModel({
   subject: chunk,
   summary: normalizeRiskSummary(summary, flows),
   stats: summarizeRiskStats(stats),
-  provenance: stats?.provenance || null,
+  provenance: provenance || stats?.provenance || null,
   analysisStatus: stats && typeof stats === 'object'
     ? {
       status: stats.status || null,

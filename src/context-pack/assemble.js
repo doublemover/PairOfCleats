@@ -13,6 +13,7 @@ import {
 } from '../shared/risk-explain.js';
 import {
   filterRiskFlows,
+  materializeRiskFilters,
   normalizeRiskFilters,
   validateRiskFilters
 } from '../shared/risk-filters.js';
@@ -585,6 +586,7 @@ const buildRiskSlice = ({
       : (primaryChunk?.file ? { type: 'file', path: primaryChunk.file } : null),
     candidates: resolveChunkCandidatesBySeed(seedRef, chunkIndex)
   };
+  const riskFilterState = materializeRiskFilters(riskFilters);
   if (!riskSeedContext.candidates.length && riskSeedContext.primaryChunkUid) {
     riskSeedContext.candidates.push({
       ref: riskSeedContext.primaryRef,
@@ -599,6 +601,7 @@ const buildRiskSlice = ({
       message: 'Risk slice unavailable because no index directory or risk seed anchor was resolved.'
     });
     return {
+      version: 1,
       status: 'missing',
       reason: 'no-index-or-risk-anchor',
       anchor: {
@@ -609,6 +612,7 @@ const buildRiskSlice = ({
         alternates: []
       },
       flows: [],
+      filters: riskFilterState,
       summary: null,
       stats: null,
       analysisStatus: {
@@ -625,6 +629,9 @@ const buildRiskSlice = ({
         uniqueCallSitesReferenced: null,
         capsHit: []
       },
+      caps: null,
+      truncation: [],
+      provenance: normalizeRiskProvenance({ manifest: null, stats: null, artifactStatus: null, indexSignature, indexCompatKey }),
       degraded: true
     };
   }
@@ -639,6 +646,7 @@ const buildRiskSlice = ({
       data: { error: err?.message || String(err) }
     });
     return {
+      version: 1,
       status: 'missing',
       reason: 'missing-manifest',
       anchor: {
@@ -649,6 +657,7 @@ const buildRiskSlice = ({
         alternates: []
       },
       flows: [],
+      filters: riskFilterState,
       summary: null,
       stats: null,
       analysisStatus: {
@@ -665,6 +674,9 @@ const buildRiskSlice = ({
         uniqueCallSitesReferenced: null,
         capsHit: []
       },
+      caps: null,
+      truncation: [],
+      provenance: normalizeRiskProvenance({ manifest: null, stats: null, artifactStatus: null, indexSignature, indexCompatKey }),
       degraded: true
     };
   }
@@ -709,6 +721,7 @@ const buildRiskSlice = ({
       message: 'Risk slice unavailable because interprocedural stats and summaries artifacts are missing.'
     });
     return {
+      version: 1,
       status: 'missing',
       reason: 'missing-risk-artifacts',
       anchor: {
@@ -719,6 +732,7 @@ const buildRiskSlice = ({
         alternates: []
       },
       flows: [],
+      filters: riskFilterState,
       summary: null,
       stats: null,
       analysisStatus: {
@@ -854,7 +868,7 @@ const buildRiskSlice = ({
       }),
       caps: riskCaps,
       truncation: [],
-      filters: riskFilters,
+      filters: riskFilterState,
       provenance: normalizeRiskProvenance({ manifest, stats, artifactStatus: baseArtifactStatus, indexSignature, indexCompatKey }),
       degraded: false
     };
@@ -903,7 +917,7 @@ const buildRiskSlice = ({
       }),
       caps: riskCaps,
       truncation: [],
-      filters: riskFilters,
+      filters: riskFilterState,
       provenance: normalizeRiskProvenance({ manifest, stats, artifactStatus: baseArtifactStatus, indexSignature, indexCompatKey }),
       degraded: false
     };
@@ -1298,7 +1312,7 @@ const buildRiskSlice = ({
     status,
     reason: degraded ? 'partial-artifacts' : (stats?.reason || null),
     anchor: selectedAnchor,
-    filters: riskFilters,
+    filters: riskFilterState,
     flows: normalizedFlows,
     summary: normalizedSummary,
     stats: summarizeRiskStats(stats),

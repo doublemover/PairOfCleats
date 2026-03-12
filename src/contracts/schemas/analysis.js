@@ -667,6 +667,8 @@ const riskFiltersSchema = {
     category: { type: 'array', items: { type: 'string' } },
     severity: { type: 'array', items: { type: 'string' } },
     tag: { type: 'array', items: { type: 'string' } },
+    source: { type: 'array', items: { type: 'string' } },
+    sink: { type: 'array', items: { type: 'string' } },
     sourceRule: { type: 'array', items: { type: 'string' } },
     sinkRule: { type: 'array', items: { type: 'string' } },
     flowId: { type: 'array', items: { type: 'string' } }

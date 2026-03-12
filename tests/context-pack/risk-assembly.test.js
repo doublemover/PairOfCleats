@@ -443,7 +443,22 @@ assert.equal(summaryOnlyPack.risk?.analysisStatus?.summaryOnly, true);
 const missingPack = await buildPack({
   name: 'missing'
 });
+assert.equal(missingPack.risk?.version, 1);
 assert.equal(missingPack.risk?.status, 'missing');
+assert.deepEqual(missingPack.risk?.filters, {
+  rule: [],
+  category: [],
+  severity: [],
+  tag: [],
+  source: [],
+  sink: [],
+  sourceRule: [],
+  sinkRule: [],
+  flowId: []
+});
+assert.equal(missingPack.risk?.caps, null);
+assert.deepEqual(missingPack.risk?.truncation, []);
+assert.equal(typeof missingPack.risk?.provenance, 'object');
 assert.deepEqual(
   missingPack.risk?.analysisStatus?.artifactStatus,
   {

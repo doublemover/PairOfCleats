@@ -2,6 +2,18 @@ import { toStringArray } from './iterables.js';
 
 const RISK_SEVERITY_LEVELS = new Set(['low', 'medium', 'high', 'critical']);
 
+export const EMPTY_RISK_FILTERS = Object.freeze({
+  rule: Object.freeze([]),
+  category: Object.freeze([]),
+  severity: Object.freeze([]),
+  tag: Object.freeze([]),
+  source: Object.freeze([]),
+  sink: Object.freeze([]),
+  sourceRule: Object.freeze([]),
+  sinkRule: Object.freeze([]),
+  flowId: Object.freeze([])
+});
+
 const normalizeFilterList = (value, { lower = false } = {}) => {
   const rawEntries = [];
   if (Array.isArray(value)) {
@@ -36,6 +48,31 @@ const normalizeRiskFilterObject = (filters) => {
 };
 
 export const normalizeRiskFilters = (filters) => normalizeRiskFilterObject(filters);
+
+export const materializeRiskFilters = (filters) => {
+  const normalized = normalizeRiskFilterObject(filters);
+  return normalized ? {
+    rule: normalized.rule.slice(),
+    category: normalized.category.slice(),
+    severity: normalized.severity.slice(),
+    tag: normalized.tag.slice(),
+    source: normalized.source.slice(),
+    sink: normalized.sink.slice(),
+    sourceRule: normalized.sourceRule.slice(),
+    sinkRule: normalized.sinkRule.slice(),
+    flowId: normalized.flowId.slice()
+  } : {
+    rule: [],
+    category: [],
+    severity: [],
+    tag: [],
+    source: [],
+    sink: [],
+    sourceRule: [],
+    sinkRule: [],
+    flowId: []
+  };
+};
 
 export const validateRiskFilters = (filters) => {
   if (!filters) return { ok: true, errors: [] };

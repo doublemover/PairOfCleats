@@ -13,7 +13,12 @@ const rendered = renderCompositeContextPack({
   primary: {
     ref: { type: 'chunk', chunkUid: 'chunk-risk' },
     file: 'src/app.ts',
-    excerpt: 'export function risky(input) { return query(input); }'
+    excerpt: 'export function risky(input) { return query(input); }',
+    provenance: {
+      excerptSource: 'repo-range',
+      excerptHash: 'sha1:primary',
+      excerptBytes: 48
+    }
   },
   risk: {
     status: 'ok',
@@ -42,12 +47,17 @@ const rendered = renderCompositeContextPack({
       }
     },
     flows: []
-  }
+  },
+  truncation: [{ cap: 'maxBytes', limit: 128, observed: 256, omitted: 128 }],
+  warnings: [{ code: 'PACK_WARN', message: 'warning emitted' }]
 });
 
+assert.match(rendered, /Provenance: source=repo-range, hash=sha1:primary, bytes=48/, 'expected rendered primary provenance');
 assert.match(rendered, /rules 1\.0\.0 sha1:rulebundle-risk-assembly/, 'expected rendered rule bundle provenance');
 assert.match(rendered, /config sha1:config-risk-assembly/, 'expected rendered config fingerprint');
 assert.match(rendered, /artifact refs: stats=risk_interprocedural_stats\.json, flows=risk_flows\.jsonl/, 'expected rendered artifact refs');
+assert.match(rendered, /Truncation\n- maxBytes limit=128 observed=256 omitted=128/, 'expected rendered truncation section');
+assert.match(rendered, /Warnings\n- PACK_WARN: warning emitted/, 'expected rendered warnings section');
 
 console.log('vscode context risk renderer test passed');
 
