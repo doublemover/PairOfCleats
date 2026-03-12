@@ -34,6 +34,7 @@ const requiredShippedPaths = [
   'PairOfCleats/commands/search.py',
   'PairOfCleats/commands/index.py',
   'PairOfCleats/commands/map.py',
+  'PairOfCleats/commands/analysis.py',
   'PairOfCleats/commands/settings.py',
   'PairOfCleats/commands/validate.py',
 ];
@@ -54,19 +55,32 @@ const menuEntries = JSON.parse(fs.readFileSync(menuPath, 'utf8'));
 const settingsText = fs.readFileSync(settingsPath, 'utf8');
 const pluginText = fs.readFileSync(pluginPath, 'utf8');
 
-const commandNames = commandEntries.map((entry) => entry.command);
-const uniqueCommandNames = new Set(commandNames);
-if (uniqueCommandNames.size !== commandNames.length) {
+const commandKeys = commandEntries.map((entry) => JSON.stringify({
+  command: entry.command,
+  args: entry.args || null,
+}));
+const uniqueCommandKeys = new Set(commandKeys);
+if (uniqueCommandKeys.size !== commandKeys.length) {
   console.error('package-release-sanity test failed: duplicate command palette entries');
   process.exit(1);
 }
+const commandNames = commandEntries.map((entry) => entry.command);
+const uniqueCommandNames = new Set(commandNames);
 
 const requiredCommands = [
   'pair_of_cleats_open_settings',
   'pair_of_cleats_open_project_settings',
   'pair_of_cleats_validate_settings',
   'pair_of_cleats_search',
+  'pair_of_cleats_architecture_check',
+  'pair_of_cleats_impact',
+  'pair_of_cleats_suggest_tests',
+  'pair_of_cleats_workspace_manifest',
+  'pair_of_cleats_workspace_status',
+  'pair_of_cleats_workspace_build',
+  'pair_of_cleats_workspace_catalog',
   'pair_of_cleats_reopen_last_results',
+  'pair_of_cleats_reopen_analysis',
   'pair_of_cleats_index_build_all',
   'pair_of_cleats_index_validate',
   'pair_of_cleats_map_repo',
@@ -121,6 +135,7 @@ for (const key of requiredSettingKeys) {
 }
 
 const requiredPluginImports = [
+  'from .commands import analysis as _analysis_commands',
   'from .commands import index as _index_commands',
   'from .commands import map as _map_commands',
   'from .commands import search as _search_commands',

@@ -123,6 +123,76 @@ class AnalysisBehaviorTests(unittest.TestCase):
         self.assertIn('src/util.js:7', opened)
         self.assertEqual(self.window.current_group, 1)
 
+    def test_architecture_impact_and_suggest_tests_commands(self):
+        self.analysis.PairOfCleatsArchitectureCheckCommand(self.window).run(
+            rules_path=os.path.join('rules', 'architecture.rules.json')
+        )
+        panel = self.window.panels[self.results.RESULTS_PANEL]
+        self.assertIn('PairOfCleats architecture check', panel.appended)
+        architecture_session = self.results_state.get_last_analysis(self.window, 'architecture_check')
+        self.assertEqual(architecture_session['analysisKind'], 'architecture-check')
+        self.analysis.PairOfCleatsAnalysisActionsCommand(self.window).run(
+            source='architecture_check',
+            hit_index=1,
+            action='open',
+        )
+        opened = self.window.opened_files[-1]['path'].replace('\\', '/')
+        self.assertIn('src/util.js', opened)
+
+        self.analysis.PairOfCleatsImpactCommand(self.window).run(
+            changed=['src/index.js'],
+            direction='downstream',
+            depth=2,
+        )
+        panel = self.window.panels[self.results.RESULTS_PANEL]
+        self.assertIn('PairOfCleats impact analysis', panel.appended)
+        impact_session = self.results_state.get_last_analysis(self.window, 'impact')
+        self.assertEqual(impact_session['analysisKind'], 'impact')
+        self.analysis.PairOfCleatsReopenAnalysisCommand(self.window).run(source='impact')
+        self.analysis.PairOfCleatsAnalysisActionsCommand(self.window).run(
+            source='impact',
+            hit_index=0,
+            action='open',
+        )
+        opened = self.window.opened_files[-1]['path'].replace('\\', '/')
+        self.assertIn('src/util.js', opened)
+
+        self.analysis.PairOfCleatsSuggestTestsCommand(self.window).run(
+            changed=['src/index.js'],
+            max=7,
+        )
+        panel = self.window.panels[self.results.RESULTS_PANEL]
+        self.assertIn('PairOfCleats suggest tests', panel.appended)
+        suggest_session = self.results_state.get_last_analysis(self.window, 'suggest_tests')
+        self.assertEqual(suggest_session['analysisKind'], 'suggest-tests')
+        self.analysis.PairOfCleatsAnalysisActionsCommand(self.window).run(
+            source='suggest_tests',
+            hit_index=0,
+            action='copy_path',
+        )
+        self.assertTrue(self.sublime.clipboard.replace('\\', '/').endswith('tests/app.test.js'))
+
+    def test_workspace_commands_render_and_reopen(self):
+        workspace_path = os.path.join(self.fixture_repo, '.pairofcleats-workspace.jsonc')
+        self.analysis.PairOfCleatsWorkspaceManifestCommand(self.window).run(workspace_path=workspace_path)
+        self.analysis.PairOfCleatsWorkspaceStatusCommand(self.window).run(workspace_path=workspace_path)
+        self.analysis.PairOfCleatsWorkspaceBuildCommand(self.window).run(workspace_path=workspace_path, concurrency=3)
+        self.analysis.PairOfCleatsWorkspaceCatalogCommand(self.window).run(workspace_path=workspace_path)
+
+        panel = self.window.panels[self.results.RESULTS_PANEL]
+        self.assertIn('PairOfCleats workspace catalog', panel.appended)
+        catalog_session = self.results_state.get_last_analysis(self.window, 'workspace_catalog')
+        self.assertEqual(catalog_session['analysisKind'], 'workspace-catalog')
+        self.analysis.PairOfCleatsReopenAnalysisCommand(self.window).run(source='workspace_catalog')
+        reopened = self.window.panels[self.results.RESULTS_PANEL]
+        self.assertIn('workspace-alpha', reopened.appended)
+        self.analysis.PairOfCleatsAnalysisActionsCommand(self.window).run(
+            source='workspace_catalog',
+            hit_index=0,
+            action='copy_path',
+        )
+        self.assertTrue(self.sublime.clipboard.replace('\\', '/').endswith('.pairofcleats-workspace.jsonc'))
+
     def _run_process(self, command, args, cwd=None, env=None, window=None, title=None,
                      capture_json=None, on_done=None, stream_output=None, panel_name='pairofcleats'):
         payload = self._payload_for_args(args)
@@ -191,6 +261,86 @@ class AnalysisBehaviorTests(unittest.TestCase):
                         }
                     ]
                 }
+            }
+        if args and args[0] == 'architecture-check':
+            return {
+                'rules': [{
+                    'id': 'forbidden-import',
+                    'type': 'deny',
+                    'summary': {'violations': 1},
+                }],
+                'violations': [{
+                    'ruleId': 'forbidden-import',
+                    'edge': {
+                        'edgeType': 'imports',
+                        'from': {'type': 'file', 'path': 'src/index.js'},
+                        'to': {'type': 'file', 'path': 'src/util.js'},
+                    },
+                    'evidence': {'note': 'blocked import'},
+                }],
+                'warnings': [],
+            }
+        if args and args[0] == 'impact':
+            return {
+                'direction': 'downstream',
+                'depth': 2,
+                'impacted': [{
+                    'ref': {'type': 'file', 'path': 'src/util.js'},
+                    'distance': 1,
+                    'witnessPath': {
+                        'nodes': [
+                            {'path': 'src/index.js'},
+                            {'path': 'src/util.js'},
+                        ]
+                    },
+                }],
+                'warnings': [],
+                'truncation': [],
+            }
+        if args and args[0] == 'suggest-tests':
+            return {
+                'suggestions': [{
+                    'testPath': 'tests/app.test.js',
+                    'score': 0.9,
+                    'reason': 'imports changed module',
+                }],
+                'warnings': [],
+            }
+        if len(args) >= 2 and args[0] == 'workspace' and args[1] == 'manifest':
+            return {
+                'ok': True,
+                'workspacePath': args[args.index('--workspace') + 1],
+                'manifestPath': os.path.join(self.fixture_repo, '.pairofcleats-workspace.manifest.json'),
+                'repoSetId': 'workspace-alpha',
+                'manifestHash': 'manifest-hash',
+                'diagnostics': {'warnings': 1, 'errors': 0},
+            }
+        if len(args) >= 2 and args[0] == 'workspace' and args[1] == 'status':
+            return {
+                'ok': True,
+                'workspacePath': args[args.index('--workspace') + 1],
+                'manifestPath': os.path.join(self.fixture_repo, '.pairofcleats-workspace.manifest.json'),
+                'repoSetId': 'workspace-alpha',
+                'repos': [{'repoId': 'sample', 'repoRootCanonical': self.fixture_repo}],
+            }
+        if len(args) >= 2 and args[0] == 'workspace' and args[1] == 'build':
+            return {
+                'ok': True,
+                'workspacePath': args[args.index('--workspace') + 1],
+                'manifestPath': os.path.join(self.fixture_repo, '.pairofcleats-workspace.manifest.json'),
+                'repoSetId': 'workspace-alpha',
+                'diagnostics': {'total': 1, 'failed': 0, 'entries': []},
+            }
+        if len(args) >= 2 and args[0] == 'workspace' and args[1] == 'catalog':
+            return {
+                'ok': True,
+                'workspacePath': args[args.index('--workspace') + 1],
+                'workspaceName': 'Workspace',
+                'repoSetId': 'workspace-alpha',
+                'cacheRoots': {
+                    'workspaceManifestPath': os.path.join(self.fixture_repo, '.pairofcleats-workspace.manifest.json')
+                },
+                'repos': [{'repoId': 'sample'}],
             }
         return {
             'chunk': {

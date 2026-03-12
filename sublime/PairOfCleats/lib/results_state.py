@@ -14,6 +14,10 @@ def get_last_risk_explain(window):
     return _get_last_session(window, 'last_risk_explain')
 
 
+def get_last_analysis(window, kind):
+    return _get_last_session(window, _analysis_key(kind))
+
+
 def record_last_results(window, payload):
     _record_last_session(window, 'last_results', payload)
 
@@ -28,6 +32,10 @@ def record_last_context_pack(window, payload):
 
 def record_last_risk_explain(window, payload):
     _record_last_session(window, 'last_risk_explain', payload)
+
+
+def record_last_analysis(window, kind, payload):
+    _record_last_session(window, _analysis_key(kind), payload)
 
 
 def _record_last_session(window, key, payload):
@@ -55,3 +63,8 @@ def _load_state(window):
     if not isinstance(state, dict):
         state = {}
     return data, state
+
+
+def _analysis_key(kind):
+    normalized = str(kind or '').strip().lower().replace('-', '_')
+    return 'last_{0}'.format(normalized)

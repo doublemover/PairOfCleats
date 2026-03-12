@@ -14,6 +14,17 @@ from ..lib import ui
 
 DEFAULT_CONTEXT_PACK_HOPS = 2
 DEFAULT_RISK_EXPLAIN_MAX = 5
+DEFAULT_IMPACT_DEPTH = 2
+DEFAULT_SUGGEST_TESTS_MAX = 10
+DEFAULT_WORKSPACE_CONFIG = '.pairofcleats-workspace.jsonc'
+DEFAULT_WORKSPACE_BUILD_CONCURRENCY = 2
+
+ANALYSIS_KIND_ALIASES = {
+    'context_pack': 'context-pack',
+    'risk_explain': 'risk-explain',
+    'architecture_check': 'architecture-check',
+    'suggest_tests': 'suggest-tests',
+}
 
 ANALYSIS_ACTIONS = [
     ('open', 'Open Hit'),
@@ -48,6 +59,35 @@ def _resolve_active_file_seed(window):
         return None, None, 'PairOfCleats: {0}'.format(reason)
     relative_path = os.path.relpath(file_name, repo_root).replace('\\', '/')
     return 'file:{0}'.format(relative_path), repo_root, reason
+
+
+def _normalize_analysis_kind(kind):
+    normalized = str(kind or '').strip().lower().replace('_', '-')
+    return ANALYSIS_KIND_ALIASES.get(normalized.replace('-', '_'), normalized)
+
+
+def _resolve_default_changed_path(window):
+    view = window.active_view() if window else None
+    file_name = view.file_name() if view else None
+    if not file_name:
+        return '', None
+    repo_root, _reason = _resolve_repo_root(window, path_hint=file_name)
+    if not repo_root:
+        return '', None
+    return os.path.relpath(file_name, repo_root).replace('\\', '/'), repo_root
+
+
+def _resolve_relative_path(repo_root, path_value):
+    if not path_value:
+        return ''
+    value = str(path_value).strip()
+    if not value:
+        return ''
+    if os.path.isabs(value):
+        return value
+    if repo_root:
+        return os.path.normpath(os.path.join(repo_root, value))
+    return os.path.normpath(value)
 
 
 def _prompt_value(window, caption, initial, on_done):
@@ -120,6 +160,19 @@ def _new_hit_collector():
 
 def _finalize_hits(state):
     return state['_items']
+
+
+def _append_file_hit(state, file_path, section, name=None, headline=None, start_line=None, end_line=None):
+    if not file_path or not isinstance(file_path, str):
+        return
+    _append_unique_hit(state, {
+        'file': file_path,
+        'section': section,
+        'name': name or os.path.basename(file_path),
+        'headline': headline or '',
+        'startLine': start_line,
+        'endLine': end_line or start_line,
+    })
 
 
 def _callsite_details_to_hit(details, section, headline):
@@ -228,6 +281,80 @@ def _collect_risk_explain_hits(payload):
     return _finalize_hits(state)
 
 
+def _collect_architecture_hits(payload):
+    state = _new_hit_collector()
+    violations = payload.get('violations') if isinstance(payload, dict) else None
+    if isinstance(violations, list):
+        for violation in violations:
+            if not isinstance(violation, dict):
+                continue
+            rule_id = violation.get('ruleId') or 'rule'
+            edge = violation.get('edge') if isinstance(violation.get('edge'), dict) else {}
+            from_ref = edge.get('from') if isinstance(edge.get('from'), dict) else {}
+            to_ref = edge.get('to') if isinstance(edge.get('to'), dict) else {}
+            from_path = from_ref.get('path') if from_ref.get('type') == 'file' else None
+            to_path = to_ref.get('path') if to_ref.get('type') == 'file' else None
+            if from_path:
+                _append_file_hit(state, from_path, 'architecture-source', name=rule_id, headline='source')
+            if to_path:
+                _append_file_hit(state, to_path, 'architecture-target', name=rule_id, headline='target')
+    return _finalize_hits(state)
+
+
+def _collect_impact_hits(payload):
+    state = _new_hit_collector()
+    impacted = payload.get('impacted') if isinstance(payload, dict) else None
+    if isinstance(impacted, list):
+        for entry in impacted:
+            if not isinstance(entry, dict):
+                continue
+            ref = entry.get('ref') if isinstance(entry.get('ref'), dict) else {}
+            if ref.get('type') == 'file' and ref.get('path'):
+                _append_file_hit(
+                    state,
+                    ref.get('path'),
+                    'impact',
+                    name='impacted file',
+                    headline='distance {0}'.format(entry.get('distance') if entry.get('distance') is not None else '?'),
+                )
+            witness = entry.get('witnessPath') if isinstance(entry.get('witnessPath'), dict) else {}
+            nodes = witness.get('nodes') if isinstance(witness.get('nodes'), list) else []
+            for node in nodes:
+                if not isinstance(node, dict):
+                    continue
+                node_path = node.get('path')
+                if node_path:
+                    _append_file_hit(state, node_path, 'impact-witness', name='witness path')
+    return _finalize_hits(state)
+
+
+def _collect_suggest_tests_hits(payload):
+    state = _new_hit_collector()
+    suggestions = payload.get('suggestions') if isinstance(payload, dict) else None
+    if isinstance(suggestions, list):
+        for suggestion in suggestions:
+            if not isinstance(suggestion, dict):
+                continue
+            test_path = suggestion.get('testPath')
+            if not test_path:
+                continue
+            score = suggestion.get('score')
+            headline = 'score {0:.3f}'.format(score) if isinstance(score, (int, float)) else (suggestion.get('reason') or '')
+            _append_file_hit(state, test_path, 'suggested-test', name=os.path.basename(test_path), headline=headline)
+    return _finalize_hits(state)
+
+
+def _collect_workspace_hits(payload):
+    state = _new_hit_collector()
+    if not isinstance(payload, dict):
+        return _finalize_hits(state)
+    _append_file_hit(state, payload.get('workspacePath'), 'workspace', name='workspace config')
+    _append_file_hit(state, payload.get('manifestPath'), 'workspace-manifest', name='workspace manifest')
+    cache_roots = payload.get('cacheRoots') if isinstance(payload.get('cacheRoots'), dict) else {}
+    _append_file_hit(state, cache_roots.get('workspaceManifestPath'), 'workspace-manifest', name='workspace manifest')
+    return _finalize_hits(state)
+
+
 def _render_context_pack_text(payload, hits):
     lines = ['PairOfCleats context pack', '']
     primary = payload.get('primary') if isinstance(payload, dict) else None
@@ -321,7 +448,117 @@ def _render_risk_explain_text(payload, hits):
     return '\n'.join(lines).rstrip() + '\n'
 
 
+def _render_architecture_text(payload, hits):
+    lines = ['PairOfCleats architecture check', '']
+    rules = payload.get('rules') if isinstance(payload, dict) else None
+    violations = payload.get('violations') if isinstance(payload, dict) else None
+    warnings = payload.get('warnings') if isinstance(payload, dict) else None
+    lines.append('Summary')
+    lines.append('- rules: {0}'.format(len(rules) if isinstance(rules, list) else 0))
+    lines.append('- violations: {0}'.format(len(violations) if isinstance(violations, list) else 0))
+    lines.append('- warnings: {0}'.format(len(warnings) if isinstance(warnings, list) else 0))
+    if isinstance(violations, list) and violations:
+        lines.append('')
+        lines.append('Violations')
+        for violation in violations[:8]:
+            edge = violation.get('edge') if isinstance(violation.get('edge'), dict) else {}
+            from_ref = edge.get('from') if isinstance(edge.get('from'), dict) else {}
+            to_ref = edge.get('to') if isinstance(edge.get('to'), dict) else {}
+            lines.append('- {0}: {1} -> {2}'.format(
+                violation.get('ruleId') or 'rule',
+                from_ref.get('path') or from_ref.get('chunkUid') or 'unknown',
+                to_ref.get('path') or to_ref.get('chunkUid') or 'unknown',
+            ))
+    lines.append('')
+    lines.append('Follow-up')
+    lines.append('- PairOfCleats: Architecture Check Actions')
+    lines.append('- PairOfCleats: Reopen Last Architecture Check')
+    lines.append('- evidence hits: {0}'.format(len(hits)))
+    return '\n'.join(lines).rstrip() + '\n'
+
+
+def _render_impact_text(payload, hits):
+    lines = ['PairOfCleats impact analysis', '']
+    impacted = payload.get('impacted') if isinstance(payload, dict) else None
+    warnings = payload.get('warnings') if isinstance(payload, dict) else None
+    truncation = payload.get('truncation') if isinstance(payload, dict) else None
+    lines.append('Summary')
+    lines.append('- direction: {0}'.format(payload.get('direction') if isinstance(payload, dict) else 'unknown'))
+    lines.append('- depth: {0}'.format(payload.get('depth') if isinstance(payload, dict) else 'unknown'))
+    lines.append('- impacted: {0}'.format(len(impacted) if isinstance(impacted, list) else 0))
+    lines.append('- warnings: {0}'.format(len(warnings) if isinstance(warnings, list) else 0))
+    lines.append('- truncation: {0}'.format(len(truncation) if isinstance(truncation, list) else 0))
+    if isinstance(impacted, list) and impacted:
+        lines.append('')
+        lines.append('Impacted')
+        for entry in impacted[:8]:
+            ref = entry.get('ref') if isinstance(entry.get('ref'), dict) else {}
+            label = ref.get('path') or ref.get('chunkUid') or ref.get('symbolId') or 'unknown'
+            lines.append('- {0}'.format(label))
+    lines.append('')
+    lines.append('Follow-up')
+    lines.append('- PairOfCleats: Impact Actions')
+    lines.append('- PairOfCleats: Reopen Last Impact')
+    lines.append('- evidence hits: {0}'.format(len(hits)))
+    return '\n'.join(lines).rstrip() + '\n'
+
+
+def _render_suggest_tests_text(payload, hits):
+    lines = ['PairOfCleats suggest tests', '']
+    suggestions = payload.get('suggestions') if isinstance(payload, dict) else None
+    warnings = payload.get('warnings') if isinstance(payload, dict) else None
+    lines.append('Summary')
+    lines.append('- suggestions: {0}'.format(len(suggestions) if isinstance(suggestions, list) else 0))
+    lines.append('- warnings: {0}'.format(len(warnings) if isinstance(warnings, list) else 0))
+    if isinstance(suggestions, list) and suggestions:
+        lines.append('')
+        lines.append('Top Suggestions')
+        for suggestion in suggestions[:8]:
+            lines.append('- {0}'.format(suggestion.get('testPath') or 'unknown'))
+    lines.append('')
+    lines.append('Follow-up')
+    lines.append('- PairOfCleats: Suggest Tests Actions')
+    lines.append('- PairOfCleats: Reopen Last Suggest Tests')
+    lines.append('- evidence hits: {0}'.format(len(hits)))
+    return '\n'.join(lines).rstrip() + '\n'
+
+
+def _render_workspace_text(kind, payload, hits):
+    label = kind.replace('-', ' ')
+    title_label = label.title()
+    lines = ['PairOfCleats {0}'.format(label), '']
+    if isinstance(payload, dict):
+        lines.append('Summary')
+        if payload.get('workspacePath'):
+            lines.append('- workspace: {0}'.format(payload.get('workspacePath')))
+        if payload.get('workspaceName'):
+            lines.append('- workspace name: {0}'.format(payload.get('workspaceName')))
+        if payload.get('manifestPath'):
+            lines.append('- manifest: {0}'.format(payload.get('manifestPath')))
+        cache_roots = payload.get('cacheRoots') if isinstance(payload.get('cacheRoots'), dict) else {}
+        if cache_roots.get('workspaceManifestPath') and not payload.get('manifestPath'):
+            lines.append('- manifest: {0}'.format(cache_roots.get('workspaceManifestPath')))
+        if payload.get('repoSetId'):
+            lines.append('- repoSetId: {0}'.format(payload.get('repoSetId')))
+        diagnostics = payload.get('diagnostics') if isinstance(payload.get('diagnostics'), dict) else {}
+        if diagnostics:
+            lines.append('- diagnostics: total={0}, failed={1}'.format(
+                diagnostics.get('total') if diagnostics.get('total') is not None else 0,
+                diagnostics.get('failed') if diagnostics.get('failed') is not None else 0,
+            ))
+        repos = payload.get('repos') if isinstance(payload.get('repos'), list) else []
+        if repos:
+            lines.append('- repos: {0}'.format(len(repos)))
+    lines.append('')
+    lines.append('Follow-up')
+    lines.append('- PairOfCleats: {0} Actions'.format(title_label))
+    lines.append('- PairOfCleats: Reopen Last {0}'.format(title_label))
+    lines.append('- evidence hits: {0}'.format(len(hits)))
+    return '\n'.join(lines).rstrip() + '\n'
+
+
 def _build_analysis_session(kind, repo_root, hits, text, payload, json_path=None):
+    kind = _normalize_analysis_kind(kind)
     session = {
         'query': kind,
         'repoRoot': repo_root,
@@ -338,17 +575,23 @@ def _build_analysis_session(kind, repo_root, hits, text, payload, json_path=None
 
 
 def _record_analysis_session(window, kind, session):
+    kind = _normalize_analysis_kind(kind)
     if kind == 'context-pack':
         results_state.record_last_context_pack(window, session)
         return
     if kind == 'risk-explain':
         results_state.record_last_risk_explain(window, session)
+        return
+    results_state.record_last_analysis(window, kind, session)
 
 
 def _load_analysis_session(window, source):
-    if source == 'risk_explain':
+    source = _normalize_analysis_kind(source)
+    if source == 'risk-explain':
         return results_state.get_last_risk_explain(window)
-    return results_state.get_last_context_pack(window)
+    if source == 'context-pack':
+        return results_state.get_last_context_pack(window)
+    return results_state.get_last_analysis(window, source)
 
 
 def _run_analysis_action(window, session, hit, action):
@@ -389,6 +632,81 @@ def _run_cli_json(window, title, repo_root, args, on_done):
         stream_output=False,
         panel_name='pairofcleats-analysis',
     )
+
+
+def _execute_analysis_command(window, title, kind, repo_root, args, collect_hits, render_text,
+                              export_json=False, out_path=None, export_identity=None):
+    def on_done(result):
+        if result.error:
+            ui.show_error(result.error)
+            return
+        payload = result.payload
+        if not isinstance(payload, dict):
+            ui.show_error(result.output.strip() or '{0} returned invalid JSON.'.format(title))
+            return
+        failed = result.returncode != 0 or payload.get('ok') is False
+        hits = collect_hits(payload)
+        text = render_text(payload, hits)
+        json_path = None
+        if export_json:
+            export_name = export_identity or kind
+            json_path = out_path or _default_export_path(repo_root, kind, export_name)
+            _write_json(json_path, payload)
+        session = _build_analysis_session(kind, repo_root, hits, text, payload, json_path=json_path)
+        _record_analysis_session(window, kind, session)
+        results.open_output_panel(window, text, session=session)
+        if json_path:
+            window.open_file(json_path)
+            ui.show_status('PairOfCleats: exported {0} JSON.'.format(kind.replace('-', ' ')))
+        if failed:
+            ui.show_error((payload or {}).get('message') or result.output.strip() or '{0} failed.'.format(title))
+
+    _run_cli_json(window, title, repo_root, args, on_done)
+
+
+def _parse_path_list(value):
+    if not value:
+        return []
+    pieces = []
+    for item in re.split(r'[\r\n,]+', str(value)):
+        normalized = item.strip()
+        if normalized:
+            pieces.append(normalized)
+    return pieces
+
+
+def _prompt_direction(window, on_done):
+    items = ['Downstream', 'Upstream']
+
+    def on_select(index):
+        if index < 0:
+            return
+        on_done('downstream' if index == 0 else 'upstream')
+
+    window.show_quick_panel(items, on_select)
+
+
+def _default_changed_paths(window):
+    view = window.active_view() if window else None
+    file_name = view.file_name() if view else None
+    if not file_name:
+        return ''
+    repo_root, _reason = _resolve_repo_root(window, path_hint=file_name)
+    if not repo_root:
+        return ''
+    try:
+        return os.path.relpath(file_name, repo_root).replace('\\', '/')
+    except Exception:
+        return ''
+
+
+def _default_workspace_path(window):
+    view = window.active_view() if window else None
+    path_hint = view.file_name() if view else None
+    repo_root, _reason = _resolve_repo_root(window, path_hint=path_hint)
+    if not repo_root:
+        return ''
+    return os.path.join(repo_root, '.pairofcleats-workspace.jsonc')
 
 
 def _resolve_risk_index_dir(repo_root):
@@ -535,6 +853,280 @@ class PairOfCleatsRiskExplainCommand(sublime_plugin.WindowCommand):
                 ui.show_status('PairOfCleats: exported risk explain JSON.')
 
         _run_cli_json(self.window, 'PairOfCleats risk explain', repo_root, args, on_done)
+
+
+class PairOfCleatsArchitectureCheckCommand(sublime_plugin.WindowCommand):
+    def is_enabled(self):
+        return True
+
+    def is_visible(self):
+        return True
+
+    def run(self, rules_path=None, export_json=False, out_path=None):
+        if rules_path:
+            self._execute(rules_path, export_json, out_path)
+            return
+        _prompt_value(
+            self.window,
+            'PairOfCleats architecture rules path',
+            os.path.join('rules', 'architecture.rules.json'),
+            lambda value: self._execute(value, export_json, out_path) if value else None,
+        )
+
+    def _execute(self, rules_path, export_json, out_path):
+        context = _resolve_cli_context(self.window)
+        if not context:
+            return
+        repo_root = context['repo_root']
+        args = ['architecture-check', '--repo', repo_root, '--rules', rules_path, '--json']
+        _execute_analysis_command(
+            self.window,
+            'PairOfCleats architecture check',
+            'architecture-check',
+            repo_root,
+            args,
+            _collect_architecture_hits,
+            _render_architecture_text,
+            export_json=export_json,
+            out_path=out_path,
+            export_identity=rules_path,
+        )
+
+
+class PairOfCleatsImpactCommand(sublime_plugin.WindowCommand):
+    def is_enabled(self):
+        return True
+
+    def is_visible(self):
+        return True
+
+    def run(self, seed=None, changed=None, direction=None, depth=DEFAULT_IMPACT_DEPTH, export_json=False, out_path=None):
+        if seed or changed:
+            self._execute(seed, changed, direction or 'downstream', depth, export_json, out_path)
+            return
+
+        def on_seed(value):
+            seed_value = value.strip() if isinstance(value, str) else ''
+            if seed_value:
+                _prompt_direction(self.window, lambda selected_direction: self._prompt_depth(seed_value, [], selected_direction, export_json, out_path))
+                return
+            _prompt_value(
+                self.window,
+                'PairOfCleats impact changed paths (comma or newline separated)',
+                _default_changed_paths(self.window),
+                lambda changed_value: self._on_changed(changed_value, export_json, out_path),
+            )
+
+        _prompt_value(
+            self.window,
+            'PairOfCleats impact seed (leave blank to use changed paths)',
+            '',
+            on_seed,
+        )
+
+    def _on_changed(self, changed_value, export_json, out_path):
+        changed = _parse_path_list(changed_value)
+        if not changed:
+            return
+        _prompt_direction(self.window, lambda selected_direction: self._prompt_depth('', changed, selected_direction, export_json, out_path))
+
+    def _prompt_depth(self, seed, changed, direction, export_json, out_path):
+        _prompt_value(
+            self.window,
+            'PairOfCleats impact depth',
+            str(DEFAULT_IMPACT_DEPTH),
+            lambda depth_value: self._execute(seed, changed, direction, depth_value or DEFAULT_IMPACT_DEPTH, export_json, out_path),
+        )
+
+    def _execute(self, seed, changed, direction, depth, export_json, out_path):
+        context = _resolve_cli_context(self.window)
+        if not context:
+            return
+        repo_root = context['repo_root']
+        depth_value = int(depth) if str(depth).isdigit() else DEFAULT_IMPACT_DEPTH
+        args = ['impact', '--repo', repo_root, '--direction', direction or 'downstream', '--depth', str(depth_value), '--json']
+        if seed:
+            args.extend(['--seed', seed])
+        else:
+            for entry in changed or []:
+                args.extend(['--changed', entry])
+        identity = seed or ','.join(changed or []) or 'impact'
+        _execute_analysis_command(
+            self.window,
+            'PairOfCleats impact analysis',
+            'impact',
+            repo_root,
+            args,
+            _collect_impact_hits,
+            _render_impact_text,
+            export_json=export_json,
+            out_path=out_path,
+            export_identity=identity,
+        )
+
+
+class PairOfCleatsSuggestTestsCommand(sublime_plugin.WindowCommand):
+    def is_enabled(self):
+        return True
+
+    def is_visible(self):
+        return True
+
+    def run(self, changed=None, max=DEFAULT_SUGGEST_TESTS_MAX, export_json=False, out_path=None):
+        if changed:
+            self._execute(changed, max, export_json, out_path)
+            return
+        _prompt_value(
+            self.window,
+            'PairOfCleats suggest-tests changed paths (comma or newline separated)',
+            _default_changed_paths(self.window),
+            lambda changed_value: self._prompt_max(changed_value, export_json, out_path),
+        )
+
+    def _prompt_max(self, changed_value, export_json, out_path):
+        changed = _parse_path_list(changed_value)
+        if not changed:
+            return
+        _prompt_value(
+            self.window,
+            'PairOfCleats suggest-tests max suggestions',
+            str(DEFAULT_SUGGEST_TESTS_MAX),
+            lambda max_value: self._execute(changed, max_value or DEFAULT_SUGGEST_TESTS_MAX, export_json, out_path),
+        )
+
+    def _execute(self, changed, max_suggestions, export_json, out_path):
+        context = _resolve_cli_context(self.window)
+        if not context:
+            return
+        repo_root = context['repo_root']
+        max_value = int(max_suggestions) if str(max_suggestions).isdigit() else DEFAULT_SUGGEST_TESTS_MAX
+        args = ['suggest-tests', '--repo', repo_root, '--max', str(max_value), '--json']
+        for entry in changed or []:
+            args.extend(['--changed', entry])
+        identity = ','.join(changed or []) or 'suggest-tests'
+        _execute_analysis_command(
+            self.window,
+            'PairOfCleats suggest tests',
+            'suggest-tests',
+            repo_root,
+            args,
+            _collect_suggest_tests_hits,
+            _render_suggest_tests_text,
+            export_json=export_json,
+            out_path=out_path,
+            export_identity=identity,
+        )
+
+
+class PairOfCleatsWorkspaceManifestCommand(sublime_plugin.WindowCommand):
+    def is_enabled(self):
+        return True
+
+    def is_visible(self):
+        return True
+
+    def run(self, workspace_path=None, export_json=False, out_path=None):
+        self._prompt_and_execute('workspace-manifest', 'manifest', workspace_path, export_json, out_path)
+
+    def _prompt_and_execute(self, kind, *command_parts):
+        workspace_path = command_parts[-3]
+        export_json = command_parts[-2]
+        out_path = command_parts[-1]
+        command_tokens = list(command_parts[:-3])
+        if workspace_path:
+            self._execute(kind, command_tokens, workspace_path, export_json, out_path)
+            return
+        _prompt_value(
+            self.window,
+            'PairOfCleats workspace path',
+            _default_workspace_path(self.window),
+            lambda value: self._execute(kind, command_tokens, value, export_json, out_path) if value else None,
+        )
+
+    def _execute(self, kind, command_tokens, workspace_path, export_json, out_path):
+        context = _resolve_cli_context(self.window, path_hint=workspace_path)
+        if not context:
+            return
+        repo_root = context['repo_root']
+        args = ['workspace'] + list(command_tokens) + ['--workspace', workspace_path, '--json']
+        _execute_analysis_command(
+            self.window,
+            'PairOfCleats {0}'.format(kind.replace('-', ' ')),
+            kind,
+            repo_root,
+            args,
+            _collect_workspace_hits,
+            lambda payload, hits: _render_workspace_text(kind, payload, hits),
+            export_json=export_json,
+            out_path=out_path,
+            export_identity=workspace_path,
+        )
+
+
+class PairOfCleatsWorkspaceStatusCommand(PairOfCleatsWorkspaceManifestCommand):
+    def run(self, workspace_path=None, export_json=False, out_path=None):
+        self._prompt_and_execute('workspace-status', 'status', workspace_path, export_json, out_path)
+
+
+class PairOfCleatsWorkspaceBuildCommand(PairOfCleatsWorkspaceManifestCommand):
+    def run(self, workspace_path=None, concurrency=DEFAULT_WORKSPACE_BUILD_CONCURRENCY, export_json=False, out_path=None):
+        if workspace_path:
+            self._execute_build(workspace_path, concurrency, export_json, out_path)
+            return
+        _prompt_value(
+            self.window,
+            'PairOfCleats workspace path',
+            _default_workspace_path(self.window),
+            lambda value: self._prompt_concurrency(value, export_json, out_path) if value else None,
+        )
+
+    def _prompt_concurrency(self, workspace_path, export_json, out_path):
+        _prompt_value(
+            self.window,
+            'PairOfCleats workspace build concurrency',
+            str(DEFAULT_WORKSPACE_BUILD_CONCURRENCY),
+            lambda value: self._execute_build(workspace_path, value or DEFAULT_WORKSPACE_BUILD_CONCURRENCY, export_json, out_path),
+        )
+
+    def _execute_build(self, workspace_path, concurrency, export_json, out_path):
+        context = _resolve_cli_context(self.window, path_hint=workspace_path)
+        if not context:
+            return
+        repo_root = context['repo_root']
+        concurrency_value = int(concurrency) if str(concurrency).isdigit() else DEFAULT_WORKSPACE_BUILD_CONCURRENCY
+        args = ['workspace', 'build', '--workspace', workspace_path, '--concurrency', str(concurrency_value), '--json']
+        _execute_analysis_command(
+            self.window,
+            'PairOfCleats workspace build',
+            'workspace-build',
+            repo_root,
+            args,
+            _collect_workspace_hits,
+            lambda payload, hits: _render_workspace_text('workspace-build', payload, hits),
+            export_json=export_json,
+            out_path=out_path,
+            export_identity=workspace_path,
+        )
+
+
+class PairOfCleatsWorkspaceCatalogCommand(PairOfCleatsWorkspaceManifestCommand):
+    def run(self, workspace_path=None, export_json=False, out_path=None):
+        self._prompt_and_execute('workspace-catalog', 'catalog', workspace_path, export_json, out_path)
+
+
+class PairOfCleatsReopenAnalysisCommand(sublime_plugin.WindowCommand):
+    def is_enabled(self):
+        return True
+
+    def is_visible(self):
+        return True
+
+    def run(self, source=None):
+        session = _load_analysis_session(self.window, source or '')
+        if not session:
+            ui.show_status('PairOfCleats: no previous {0} output to reopen.'.format((source or 'analysis').replace('_', ' ')))
+            return
+        results.reopen_session(self.window, session)
 
 
 class PairOfCleatsReopenLastContextPackCommand(sublime_plugin.WindowCommand):

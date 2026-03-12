@@ -32,6 +32,7 @@ class PackageHarnessTests(unittest.TestCase):
         cls.search = importlib.import_module('PairOfCleats.commands.search')
         cls.index = importlib.import_module('PairOfCleats.commands.index')
         cls.map_commands = importlib.import_module('PairOfCleats.commands.map')
+        cls.analysis = importlib.import_module('PairOfCleats.commands.analysis')
         cls.index_state = importlib.import_module('PairOfCleats.lib.index_state')
         cls.map_state = importlib.import_module('PairOfCleats.lib.map_state')
         cls.results_state = importlib.import_module('PairOfCleats.lib.results_state')
@@ -57,6 +58,21 @@ class PackageHarnessTests(unittest.TestCase):
         self.map_out = os.path.join(self.map_dir, 'fixture-map.json')
         self.map_model = os.path.join(self.map_dir, 'fixture-map.model.json')
         self.map_nodes = os.path.join(self.map_dir, 'fixture-map.nodes.json')
+        self.rules_dir = os.path.join(self.repo_root, 'rules')
+        os.makedirs(self.rules_dir, exist_ok=True)
+        self.rules_path = os.path.join(self.rules_dir, 'architecture.rules.json')
+        with open(self.rules_path, 'w', encoding='utf-8') as handle:
+            json.dump({'version': 1, 'rules': []}, handle)
+            handle.write('\n')
+        self.workspace_path = os.path.join(self.tmp.name, '.pairofcleats-workspace.jsonc')
+        with open(self.workspace_path, 'w', encoding='utf-8') as handle:
+            handle.write('{\n')
+            handle.write('  "schemaVersion": 1,\n')
+            handle.write('  "name": "sample workspace",\n')
+            handle.write('  "repos": [\n')
+            handle.write('    { "root": "./sample", "alias": "sample" }\n')
+            handle.write('  ]\n')
+            handle.write('}\n')
 
         self._originals = {
             'search_get_settings': self.search.config.get_settings,
@@ -79,6 +95,12 @@ class PackageHarnessTests(unittest.TestCase):
             'map_build_env': self.map_commands.config.build_env,
             'map_run_process': self.map_commands.runner.run_process,
             'map_build_output_paths': self.map_commands.map_lib.build_output_paths,
+            'analysis_get_settings': self.analysis.config.get_settings,
+            'analysis_validate_settings': self.analysis.config.validate_settings,
+            'analysis_resolve_repo_root': self.analysis.paths.resolve_repo_root,
+            'analysis_resolve_cli': self.analysis.paths.resolve_cli,
+            'analysis_build_env': self.analysis.config.build_env,
+            'analysis_run_process': self.analysis.runner.run_process,
         }
 
         base_settings = {
@@ -112,9 +134,11 @@ class PackageHarnessTests(unittest.TestCase):
         self.search.config.get_settings = lambda _window: dict(base_settings)
         self.index.config.get_settings = lambda _window: dict(base_settings)
         self.map_commands.config.get_settings = lambda _window: dict(base_settings)
+        self.analysis.config.get_settings = lambda _window: dict(base_settings)
         self.search.config.validate_settings = lambda _settings, _repo_root: []
         self.index.config.validate_settings = lambda _settings, _repo_root: []
         self.map_commands.config.validate_settings = lambda _settings, _repo_root: []
+        self.analysis.config.validate_settings = lambda _settings, _repo_root: []
         self.search.paths.resolve_repo_root = (
             lambda _window, return_reason=True, path_hint=None: (self.repo_root, None)
             if return_reason else self.repo_root
@@ -128,12 +152,18 @@ class PackageHarnessTests(unittest.TestCase):
             lambda _window, return_reason=True, path_hint=None: (self.repo_root, None)
             if return_reason else self.repo_root
         )
+        self.analysis.paths.resolve_repo_root = (
+            lambda _window, return_reason=True, path_hint=None: (self.repo_root, None)
+            if return_reason else self.repo_root
+        )
         self.search.paths.resolve_cli = lambda _settings, _repo_root: dict(cli_profile)
         self.index.paths.resolve_cli = lambda _settings, _repo_root: dict(cli_profile)
         self.map_commands.paths.resolve_cli = lambda _settings, _repo_root: dict(cli_profile)
+        self.analysis.paths.resolve_cli = lambda _settings, _repo_root: dict(cli_profile)
         self.search.config.build_env = lambda _settings: {}
         self.index.config.build_env = lambda _settings: {}
         self.map_commands.config.build_env = lambda _settings: {}
+        self.analysis.config.build_env = lambda _settings: {}
         self.map_commands.map_lib.build_output_paths = (
             lambda repo_root, settings, scope, map_type, map_format: (
                 self.map_out,
@@ -145,6 +175,7 @@ class PackageHarnessTests(unittest.TestCase):
         self.search.runner.run_process = self._run_process
         self.index.runner.run_process = self._run_process
         self.map_commands.runner.run_process = self._run_process
+        self.analysis.runner.run_process = self._run_process
 
     def tearDown(self):
         for key, value in self._originals.items():
@@ -188,6 +219,18 @@ class PackageHarnessTests(unittest.TestCase):
                 self.map_commands.runner.run_process = value
             elif key == 'map_build_output_paths':
                 self.map_commands.map_lib.build_output_paths = value
+            elif key == 'analysis_get_settings':
+                self.analysis.config.get_settings = value
+            elif key == 'analysis_validate_settings':
+                self.analysis.config.validate_settings = value
+            elif key == 'analysis_resolve_repo_root':
+                self.analysis.paths.resolve_repo_root = value
+            elif key == 'analysis_resolve_cli':
+                self.analysis.paths.resolve_cli = value
+            elif key == 'analysis_build_env':
+                self.analysis.config.build_env = value
+            elif key == 'analysis_run_process':
+                self.analysis.runner.run_process = value
         self.tmp.cleanup()
 
     def _run_process(
@@ -282,6 +325,43 @@ class PackageHarnessTests(unittest.TestCase):
         self.window.quick_panel_callback(target_index)
         opened = self.window.opened_files[-1]['path']
         self.assertIn('src/index.js', opened.replace('\\', '/'))
+
+        self.analysis.PairOfCleatsArchitectureCheckCommand(self.window).run(rules_path=self.rules_path)
+        analysis_panel = self.window.panels[self.analysis.results.RESULTS_PANEL]
+        self.assertIn('PairOfCleats architecture check', analysis_panel.appended)
+        architecture_session = self.results_state.get_last_analysis(self.window, 'architecture-check')
+        self.assertEqual(architecture_session['analysisKind'], 'architecture-check')
+
+        self.analysis.PairOfCleatsImpactCommand(self.window).run(
+            changed=['src/index.js'],
+            direction='downstream',
+            depth=2,
+        )
+        analysis_panel = self.window.panels[self.analysis.results.RESULTS_PANEL]
+        self.assertIn('PairOfCleats impact analysis', analysis_panel.appended)
+        impact_session = self.results_state.get_last_analysis(self.window, 'impact')
+        self.assertEqual(impact_session['analysisKind'], 'impact')
+
+        self.analysis.PairOfCleatsSuggestTestsCommand(self.window).run(
+            changed=['src/index.js'],
+            max=5,
+        )
+        analysis_panel = self.window.panels[self.analysis.results.RESULTS_PANEL]
+        self.assertIn('PairOfCleats suggest tests', analysis_panel.appended)
+        suggest_session = self.results_state.get_last_analysis(self.window, 'suggest-tests')
+        self.assertEqual(suggest_session['analysisKind'], 'suggest-tests')
+
+        self.analysis.PairOfCleatsWorkspaceManifestCommand(self.window).run(workspace_path=self.workspace_path)
+        self.analysis.PairOfCleatsWorkspaceStatusCommand(self.window).run(workspace_path=self.workspace_path)
+        self.analysis.PairOfCleatsWorkspaceCatalogCommand(self.window).run(workspace_path=self.workspace_path)
+        self.analysis.PairOfCleatsWorkspaceBuildCommand(self.window).run(
+            workspace_path=self.workspace_path,
+            concurrency=1,
+        )
+        analysis_panel = self.window.panels[self.analysis.results.RESULTS_PANEL]
+        self.assertIn('PairOfCleats workspace build', analysis_panel.appended)
+        workspace_session = self.results_state.get_last_analysis(self.window, 'workspace-build')
+        self.assertEqual(workspace_session['analysisKind'], 'workspace-build')
 
 
 if __name__ == '__main__':

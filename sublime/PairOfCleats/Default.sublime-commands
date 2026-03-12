@@ -78,6 +78,49 @@
     "args": { "export_json": true }
   },
   {
+    "caption": "PairOfCleats: Architecture Check",
+    "command": "pair_of_cleats_architecture_check"
+  },
+  {
+    "caption": "PairOfCleats: Architecture Check (Export JSON)",
+    "command": "pair_of_cleats_architecture_check",
+    "args": { "export_json": true }
+  },
+  {
+    "caption": "PairOfCleats: Impact Analysis",
+    "command": "pair_of_cleats_impact"
+  },
+  {
+    "caption": "PairOfCleats: Impact Analysis (Export JSON)",
+    "command": "pair_of_cleats_impact",
+    "args": { "export_json": true }
+  },
+  {
+    "caption": "PairOfCleats: Suggest Tests",
+    "command": "pair_of_cleats_suggest_tests"
+  },
+  {
+    "caption": "PairOfCleats: Suggest Tests (Export JSON)",
+    "command": "pair_of_cleats_suggest_tests",
+    "args": { "export_json": true }
+  },
+  {
+    "caption": "PairOfCleats: Workspace Manifest",
+    "command": "pair_of_cleats_workspace_manifest"
+  },
+  {
+    "caption": "PairOfCleats: Workspace Status",
+    "command": "pair_of_cleats_workspace_status"
+  },
+  {
+    "caption": "PairOfCleats: Workspace Build",
+    "command": "pair_of_cleats_workspace_build"
+  },
+  {
+    "caption": "PairOfCleats: Workspace Catalog",
+    "command": "pair_of_cleats_workspace_catalog"
+  },
+  {
     "caption": "PairOfCleats: Reopen Last Results",
     "command": "pair_of_cleats_reopen_last_results"
   },
@@ -106,6 +149,76 @@
     "caption": "PairOfCleats: Risk Explain Actions",
     "command": "pair_of_cleats_analysis_actions",
     "args": { "source": "risk_explain" }
+  },
+  {
+    "caption": "PairOfCleats: Reopen Last Architecture Check",
+    "command": "pair_of_cleats_reopen_analysis",
+    "args": { "source": "architecture_check" }
+  },
+  {
+    "caption": "PairOfCleats: Reopen Last Impact",
+    "command": "pair_of_cleats_reopen_analysis",
+    "args": { "source": "impact" }
+  },
+  {
+    "caption": "PairOfCleats: Reopen Last Suggest Tests",
+    "command": "pair_of_cleats_reopen_analysis",
+    "args": { "source": "suggest_tests" }
+  },
+  {
+    "caption": "PairOfCleats: Reopen Last Workspace Manifest",
+    "command": "pair_of_cleats_reopen_analysis",
+    "args": { "source": "workspace_manifest" }
+  },
+  {
+    "caption": "PairOfCleats: Reopen Last Workspace Status",
+    "command": "pair_of_cleats_reopen_analysis",
+    "args": { "source": "workspace_status" }
+  },
+  {
+    "caption": "PairOfCleats: Reopen Last Workspace Build",
+    "command": "pair_of_cleats_reopen_analysis",
+    "args": { "source": "workspace_build" }
+  },
+  {
+    "caption": "PairOfCleats: Reopen Last Workspace Catalog",
+    "command": "pair_of_cleats_reopen_analysis",
+    "args": { "source": "workspace_catalog" }
+  },
+  {
+    "caption": "PairOfCleats: Architecture Check Actions",
+    "command": "pair_of_cleats_analysis_actions",
+    "args": { "source": "architecture_check" }
+  },
+  {
+    "caption": "PairOfCleats: Impact Actions",
+    "command": "pair_of_cleats_analysis_actions",
+    "args": { "source": "impact" }
+  },
+  {
+    "caption": "PairOfCleats: Suggest Tests Actions",
+    "command": "pair_of_cleats_analysis_actions",
+    "args": { "source": "suggest_tests" }
+  },
+  {
+    "caption": "PairOfCleats: Workspace Manifest Actions",
+    "command": "pair_of_cleats_analysis_actions",
+    "args": { "source": "workspace_manifest" }
+  },
+  {
+    "caption": "PairOfCleats: Workspace Status Actions",
+    "command": "pair_of_cleats_analysis_actions",
+    "args": { "source": "workspace_status" }
+  },
+  {
+    "caption": "PairOfCleats: Workspace Build Actions",
+    "command": "pair_of_cleats_analysis_actions",
+    "args": { "source": "workspace_build" }
+  },
+  {
+    "caption": "PairOfCleats: Workspace Catalog Actions",
+    "command": "pair_of_cleats_analysis_actions",
+    "args": { "source": "workspace_catalog" }
   },
   {
     "caption": "PairOfCleats: Index Build (Code)",
