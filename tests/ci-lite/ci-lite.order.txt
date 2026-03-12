@@ -30,6 +30,7 @@ tooling/vscode/extension-runtime
 tooling/vscode/integration-harness
 tooling/vscode/operator-runtime
 tooling/vscode/operations-runtime
+tooling/vscode/search-failure-runtime
 tooling/vscode/workflow-runtime
 tooling/vscode/session-runtime
 tooling/vscode/runtime

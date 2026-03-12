@@ -12,6 +12,8 @@ const {
   parseJsonPayload,
   parseSearchPayload,
   summarizeProcessFailure,
+  summarizeSpawnFailure,
+  spawnBufferedProcess,
   openSearchHit
 } = require('./runtime.js');
 
@@ -2038,12 +2040,20 @@ async function runBufferedJsonCommand({
       const invocation = useShellWrapper
         ? resolveWindowsCmdInvocation(command, args)
         : { command, args };
-      const child = cp.spawn(invocation.command, invocation.args, {
+      const spawned = spawnBufferedProcess(cp, invocation.command, invocation.args, {
         cwd: repoRoot,
         env: invocation.env ? { ...env, ...invocation.env } : env,
         shell: false,
         windowsHide: true
       });
+      if (!spawned.ok) {
+        resolve({
+          ok: false,
+          ...summarizeSpawnFailure(spec.title, spawned.error)
+        });
+        return;
+      }
+      const child = spawned.child;
       const stdoutAccumulator = createChunkAccumulator(DEFAULT_MAX_BUFFER_BYTES);
       const stderrAccumulator = createChunkAccumulator(DEFAULT_MAX_BUFFER_BYTES);
       let timedOut = false;
@@ -2072,9 +2082,7 @@ async function runBufferedJsonCommand({
         cancelSub.dispose();
         resolve({
           ok: false,
-          kind: 'spawn-error',
-          message: `${spec.title} failed to start: ${error?.message || error}`,
-          detail: String(error?.stack || error?.message || error)
+          ...summarizeSpawnFailure(spec.title, error)
         });
       });
       child.once('close', (code) => {
@@ -2091,13 +2099,11 @@ async function runBufferedJsonCommand({
         }
         const stdout = stdoutAccumulator.text();
         const stderr = stderrAccumulator.text();
-        const parsed = stdout.trim()
-          ? parseJsonPayload(stdout, {
-            stdoutTruncated: stdoutAccumulator.truncated(),
-            label: spec.title
-          })
-          : null;
-        if (parsed?.ok) {
+        const parsed = parseJsonPayload(stdout, {
+          stdoutTruncated: stdoutAccumulator.truncated(),
+          label: spec.title
+        });
+        if (parsed.ok) {
           resolve({
             ok: code === 0,
             code,
@@ -2129,9 +2135,9 @@ async function runBufferedJsonCommand({
         }
         resolve({
           ok: false,
-          kind: parsed?.kind || 'invalid-json',
-          message: parsed?.message || `${spec.title} returned no JSON output.`,
-          detail: parsed?.detail || stderr || stdout || null
+          kind: parsed.kind,
+          message: parsed.message,
+          detail: parsed.detail || stderr || stdout || null
         });
       });
     })
@@ -2270,6 +2276,11 @@ function killChildProcess(child) {
   }, 5000).unref?.();
 }
 
+function appendRuntimeFailure(output, prefix, failure) {
+  output.appendLine(`${prefix} failure kind=${failure.kind}`);
+  if (failure.detail) output.appendLine(failure.detail);
+}
+
 async function stopManagedProcessEntry(entry, { reason = 'cancelled', summaryLine } = {}) {
   if (!entry || entry.stopping) return false;
   entry.stopping = true;
@@ -2347,12 +2358,20 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
   const resolved = useShellWrapper
     ? resolveWindowsCmdInvocation(invocation.command, invocation.args)
     : { command: invocation.command, args: invocation.args };
-  const child = cp.spawn(resolved.command, resolved.args, {
+  const spawned = spawnBufferedProcess(cp, resolved.command, resolved.args, {
     cwd: repoRoot,
     env: resolved.env ? { ...env, ...resolved.env } : env,
     shell: false,
     windowsHide: true
   });
+  if (!spawned.ok) {
+    const failure = summarizeSpawnFailure(spec.title, spawned.error);
+    output.appendLine(failure.detail || failure.message);
+    output.show?.(true);
+    vscode.window.showErrorMessage(failure.message);
+    return;
+  }
+  const child = spawned.child;
   const session = await beginWorkflowSession(spec, repoContext, {
     kind: 'managed-process',
     command: invocation.command,
@@ -2532,12 +2551,21 @@ async function executeSearchCommand({
       const invocation = useShellWrapper
         ? resolveWindowsCmdInvocation(command, args)
         : { command, args };
-      const child = cp.spawn(invocation.command, invocation.args, {
+      const spawned = spawnBufferedProcess(cp, invocation.command, invocation.args, {
         cwd: repoRoot,
         env: invocation.env ? { ...env, ...invocation.env } : env,
         shell: false,
         windowsHide: true
       });
+      if (!spawned.ok) {
+        const failure = summarizeSpawnFailure('PairOfCleats search', spawned.error);
+        appendRuntimeFailure(output, '[search]', failure);
+        output.show?.(true);
+        vscode.window.showErrorMessage(failure.message);
+        resolve();
+        return;
+      }
+      const child = spawned.child;
       const stdoutAccumulator = createChunkAccumulator(DEFAULT_MAX_BUFFER_BYTES);
       const stderrAccumulator = createChunkAccumulator(DEFAULT_MAX_BUFFER_BYTES);
       let timedOut = false;
@@ -2564,7 +2592,7 @@ async function executeSearchCommand({
       child.once('error', (error) => {
         clearTimeout(timeout);
         cancelSub.dispose();
-        output.appendLine(`[search] spawn error=${error?.message || error}`);
+        appendRuntimeFailure(output, '[search]', summarizeSpawnFailure('PairOfCleats search', error));
         output.show?.(true);
         vscode.window.showErrorMessage(`PairOfCleats search failed: ${error?.message || error}`);
         resolve();
@@ -2591,8 +2619,7 @@ async function executeSearchCommand({
           timeoutMs: searchTimeoutMs
         });
         if (processFailure) {
-          output.appendLine(`[search] failure kind=${processFailure.kind}`);
-          if (processFailure.detail) output.appendLine(processFailure.detail);
+          appendRuntimeFailure(output, '[search]', processFailure);
           output.show?.(true);
           vscode.window.showErrorMessage(processFailure.message);
           resolve();
@@ -2606,8 +2633,8 @@ async function executeSearchCommand({
           stdoutTruncated: stdoutAccumulator.truncated()
         });
         if (!parsed.ok) {
-          output.appendLine(`[search] parse failure kind=${parsed.kind}`);
-          if (parsed.detail) output.appendLine(parsed.detail);
+          appendRuntimeFailure(output, '[search] parse', parsed);
+          if (stderr.trim()) output.appendLine(stderr);
           output.show?.(true);
           vscode.window.showErrorMessage(parsed.message);
           resolve();

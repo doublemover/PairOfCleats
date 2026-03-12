@@ -55,6 +55,10 @@ function loadExtensionWithMocks({ fakeVscode, fakeChildProcess }) {
 function createFakeSpawn(spawnCalls, queuedResults, killCalls) {
   return {
     spawn(command, args, options) {
+      const result = queuedResults.shift();
+      if (result?.throw) {
+        throw result.throw;
+      }
       spawnCalls.push({ command, args, options });
       const child = new EventEmitter();
       child.stdout = new EventEmitter();
@@ -65,7 +69,6 @@ function createFakeSpawn(spawnCalls, queuedResults, killCalls) {
         killCalls.push({ command, args, signal });
         return true;
       };
-      const result = queuedResults.shift();
       setImmediate(() => {
         if (!result) {
           child.emit('close', 0);

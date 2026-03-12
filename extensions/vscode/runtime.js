@@ -90,6 +90,7 @@ function isPathLike(rawPath) {
 
 function parseJsonPayload(stdout, options = {}) {
   const label = String(options.label || 'PairOfCleats command');
+  const text = String(stdout || '');
   if (options.stdoutTruncated) {
     return {
       ok: false,
@@ -98,17 +99,25 @@ function parseJsonPayload(stdout, options = {}) {
       detail: 'The CLI produced more JSON than the extension can safely buffer. Narrow the scope or reduce result volume.'
     };
   }
+  if (!text.trim()) {
+    return {
+      ok: false,
+      kind: 'empty-output',
+      message: `${label} returned no JSON output.`,
+      detail: null
+    };
+  }
   try {
     return {
       ok: true,
-      payload: JSON.parse(stdout || '{}')
+      payload: JSON.parse(text)
     };
   } catch (error) {
     return {
       ok: false,
       kind: 'invalid-json',
       message: `${label} returned invalid JSON: ${error.message}`,
-      detail: stdout || null
+      detail: text || null
     };
   }
 }
@@ -152,6 +161,28 @@ function summarizeProcessFailure({ code, timedOut, cancelled, stderr, stdout, st
     };
   }
   return null;
+}
+
+function summarizeSpawnFailure(label, error) {
+  return {
+    kind: 'spawn-error',
+    message: `${label} failed to start: ${error?.message || error}`,
+    detail: String(error?.stack || error?.message || error)
+  };
+}
+
+function spawnBufferedProcess(childProcessModule, command, args, options) {
+  try {
+    return {
+      ok: true,
+      child: childProcessModule.spawn(command, args, options)
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error
+    };
+  }
 }
 
 async function openSearchHit(vscodeApi, repoRoot, hit) {
@@ -283,5 +314,7 @@ module.exports = {
   parseJsonPayload,
   parseSearchPayload,
   summarizeProcessFailure,
+  summarizeSpawnFailure,
+  spawnBufferedProcess,
   openSearchHit
 };

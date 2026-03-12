@@ -10,6 +10,8 @@ const {
   resolveConfiguredCli,
   parseSearchPayload,
   summarizeProcessFailure,
+  summarizeSpawnFailure,
+  spawnBufferedProcess,
   openSearchHit
 } = require('../../../extensions/vscode/runtime.js');
 
@@ -110,6 +112,36 @@ assert.equal(parsedBad.kind, 'invalid-json');
 const parsedTruncated = parseSearchPayload('{"code":[', { stdoutTruncated: true });
 assert.equal(parsedTruncated.ok, false);
 assert.equal(parsedTruncated.kind, 'stdout-truncated');
+
+const parsedEmpty = parseSearchPayload('', { stdoutTruncated: false });
+assert.equal(parsedEmpty.ok, false);
+assert.equal(parsedEmpty.kind, 'empty-output');
+
+const spawnOk = spawnBufferedProcess(
+  {
+    spawn(command, args, options) {
+      return { command, args, options };
+    }
+  },
+  'node',
+  ['tool.js'],
+  { cwd: tempRoot }
+);
+assert.equal(spawnOk.ok, true);
+assert.equal(spawnOk.child.command, 'node');
+
+const spawnFail = spawnBufferedProcess(
+  {
+    spawn() {
+      throw new Error('spawn denied');
+    }
+  },
+  'node',
+  ['tool.js'],
+  { cwd: tempRoot }
+);
+assert.equal(spawnFail.ok, false);
+assert.match(summarizeSpawnFailure('PairOfCleats search', spawnFail.error).message, /failed to start/i);
 
 const revealCalls = [];
 const fakeVscode = {

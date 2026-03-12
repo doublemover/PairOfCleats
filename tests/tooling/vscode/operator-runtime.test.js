@@ -36,12 +36,15 @@ function loadExtensionWithMocks({ fakeVscode, fakeChildProcess }) {
 function createFakeSpawn(spawnCalls, queuedResults) {
   return {
     spawn(command, args, options) {
+      const result = queuedResults.shift();
+      if (result?.throw) {
+        throw result.throw;
+      }
       spawnCalls.push({ command, args, options });
       const child = new EventEmitter();
       child.stdout = new EventEmitter();
       child.stderr = new EventEmitter();
       child.kill = () => {};
-      const result = queuedResults.shift();
       setImmediate(() => {
         if (!result) {
           child.emit('close', 0);
@@ -232,5 +235,12 @@ assert.deepEqual(
 );
 assert.ok(outputEvents.some((event) => event.kind === 'append' && /providers: 1 total, 0 warn, 1 error/i.test(event.line)));
 assert.ok(outputEvents.some((event) => event.kind === 'show'));
+
+queuedResults.push({
+  throw: new Error('sync spawn failure')
+});
+await extension._test.runOperatorCommand(configDumpSpec);
+assert.match(errorMessages.pop(), /Config Dump failed to start/i);
+assert.ok(outputEvents.some((event) => event.kind === 'append' && /sync spawn failure/i.test(event.line)));
 
 console.log('vscode operator runtime test passed');

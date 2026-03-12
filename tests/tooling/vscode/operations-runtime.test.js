@@ -37,6 +37,9 @@ function createFakeSpawn(spawnCalls, queuedResults, killCalls) {
   return {
     spawn(command, args, options) {
       const result = queuedResults.shift() || {};
+      if (result.throw) {
+        throw result.throw;
+      }
       const child = new EventEmitter();
       child.stdout = new EventEmitter();
       child.stderr = new EventEmitter();
@@ -277,6 +280,11 @@ await registeredCommands.get('pairofcleats.serviceIndexerStart')();
 assert.equal(infoMessages.shift(), 'PairOfCleats: Service Indexer started. Use PairOfCleats: Stop Service Indexer to stop it.');
 await registeredCommands.get('pairofcleats.serviceIndexerStop')();
 assert.equal(infoMessages.shift(), 'PairOfCleats: Service Indexer stopped.');
+
+queuedResults.push({ throw: new Error('managed spawn exploded') });
+await registeredCommands.get('pairofcleats.indexWatchStart')();
+assert.match(errorMessages.shift(), /Index Watch failed to start/i);
+assert.ok(outputEvents.some((event) => event.kind === 'append' && /managed spawn exploded/i.test(event.line)));
 
 assert.equal(errorMessages.length, 0, `unexpected errors: ${errorMessages.join('; ')}`);
 assert.equal(killCalls.length, 3, 'expected stop commands to terminate all three persistent children');
