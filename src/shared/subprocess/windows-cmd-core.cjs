@@ -114,10 +114,18 @@ function buildWindowsShellCommand(cmd, args = []) {
     .join(' ');
 }
 
-function createUnresolvedWrapperError(cmd) {
-  const error = new Error(`Unsafe Windows wrapper invocation requires an explicit executable or a parseable shim: ${cmd}`);
-  error.code = 'ERR_WINDOWS_CMD_UNSAFE_WRAPPER';
-  return error;
+function resolveWindowsCommandProcessor() {
+  const explicit = String(process.env.ComSpec || process.env.COMSPEC || '').trim();
+  if (explicit) return explicit;
+  const systemRoot = String(process.env.SystemRoot || process.env.SYSTEMROOT || 'C:\\Windows').trim() || 'C:\\Windows';
+  return path.join(systemRoot, 'System32', 'cmd.exe');
+}
+
+function buildWindowsCmdShellInvocation(cmdPath, args = []) {
+  return {
+    command: resolveWindowsCommandProcessor(),
+    args: ['/d', '/s', '/c', buildWindowsShellCommand(cmdPath, args)]
+  };
 }
 
 function resolveWindowsCmdInvocation(cmd, args = []) {
@@ -133,11 +141,12 @@ function resolveWindowsCmdInvocation(cmd, args = []) {
   }
   const shimInvocation = maybeResolveWindowsCmdShim(resolvedPath, args);
   if (shimInvocation) return shimInvocation;
-  throw createUnresolvedWrapperError(resolvedPath);
+  return buildWindowsCmdShellInvocation(resolvedPath, args);
 }
 
 module.exports = {
   quoteWindowsCmdArg,
   buildWindowsShellCommand,
+  buildWindowsCmdShellInvocation,
   resolveWindowsCmdInvocation
 };

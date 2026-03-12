@@ -60,10 +60,21 @@ try {
     'expected parseable wrappers to bypass cmd.exe fallback'
   );
   assert.ok(runInvocation.args.includes(literalArg), 'expected resolved wrapper args to preserve literal argv');
-  assert.throws(
-    () => resolveWindowsCmdInvocation(badWrapperPath, [literalArg]),
-    (err) => err?.code === 'ERR_WINDOWS_CMD_UNSAFE_WRAPPER',
-    'expected opaque Windows wrappers to fail closed'
+  const opaqueInvocation = resolveWindowsCmdInvocation(badWrapperPath, [literalArg]);
+  assert.equal(
+    path.basename(String(opaqueInvocation.command || '')).toLowerCase(),
+    'cmd.exe',
+    'expected opaque wrappers to fall back to an explicit cmd.exe invocation'
+  );
+  assert.equal(
+    opaqueInvocation.args.slice(0, 3).join(' '),
+    '/d /s /c',
+    'expected opaque wrapper fallback to use bounded cmd.exe execution flags'
+  );
+  assert.match(
+    String(opaqueInvocation.args[3] || ''),
+    /opaque\.cmd/i,
+    'expected opaque wrapper fallback payload to target the wrapper path'
   );
   const fixedInvocation = resolveWindowsCmdInvocation(fixedWrapperPath, ['--ignored']);
   assert.match(fixedInvocation.args[0] || '', /ok\.js$/i, 'expected fixed-arg wrapper to resolve its script payload');
