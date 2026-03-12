@@ -88,13 +88,14 @@ function isPathLike(rawPath) {
     || rawPath.includes('\\');
 }
 
-function parseSearchPayload(stdout, options = {}) {
+function parseJsonPayload(stdout, options = {}) {
+  const label = String(options.label || 'PairOfCleats command');
   if (options.stdoutTruncated) {
     return {
       ok: false,
       kind: 'stdout-truncated',
-      message: 'PairOfCleats search output exceeded the VS Code capture limit.',
-      detail: 'The CLI produced more JSON than the extension can safely buffer. Narrow the query or reduce result volume.'
+      message: `${label} output exceeded the VS Code capture limit.`,
+      detail: 'The CLI produced more JSON than the extension can safely buffer. Narrow the scope or reduce result volume.'
     };
   }
   try {
@@ -106,10 +107,17 @@ function parseSearchPayload(stdout, options = {}) {
     return {
       ok: false,
       kind: 'invalid-json',
-      message: `PairOfCleats search returned invalid JSON: ${error.message}`,
+      message: `${label} returned invalid JSON: ${error.message}`,
       detail: stdout || null
     };
   }
+}
+
+function parseSearchPayload(stdout, options = {}) {
+  return parseJsonPayload(stdout, {
+    ...options,
+    label: 'PairOfCleats search'
+  });
 }
 
 function summarizeProcessFailure({ code, timedOut, cancelled, stderr, stdout, stdoutTruncated, stderrTruncated, timeoutMs }) {
@@ -272,6 +280,7 @@ module.exports = {
   DEFAULT_MAX_BUFFER_BYTES,
   createChunkAccumulator,
   resolveConfiguredCli,
+  parseJsonPayload,
   parseSearchPayload,
   summarizeProcessFailure,
   openSearchHit

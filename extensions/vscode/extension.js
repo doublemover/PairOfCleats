@@ -8,6 +8,7 @@ const {
   DEFAULT_MAX_BUFFER_BYTES,
   createChunkAccumulator,
   resolveConfiguredCli,
+  parseJsonPayload,
   parseSearchPayload,
   summarizeProcessFailure,
   openSearchHit
@@ -353,6 +354,419 @@ function buildSpawnEnv(config) {
   return env;
 }
 
+const OPERATOR_COMMAND_SPECS = Object.freeze([
+  {
+    id: 'pairofcleats.setup',
+    title: 'PairOfCleats: Setup',
+    progressTitle: 'PairOfCleats setup',
+    timeoutMs: 10 * 60 * 1000,
+    invocation: 'cli',
+    cliArgs: ['setup'],
+    buildArgs(repoRoot) {
+      return ['--json', '--non-interactive', '--repo', repoRoot];
+    }
+  },
+  {
+    id: 'pairofcleats.bootstrap',
+    title: 'PairOfCleats: Bootstrap',
+    progressTitle: 'PairOfCleats bootstrap',
+    timeoutMs: 10 * 60 * 1000,
+    invocation: 'cli',
+    cliArgs: ['bootstrap'],
+    buildArgs(repoRoot) {
+      return ['--json', '--repo', repoRoot];
+    }
+  },
+  {
+    id: 'pairofcleats.doctor',
+    title: 'PairOfCleats: Tooling Doctor',
+    progressTitle: 'PairOfCleats tooling doctor',
+    timeoutMs: 2 * 60 * 1000,
+    invocation: 'cli',
+    cliArgs: ['tooling', 'doctor'],
+    buildArgs(repoRoot) {
+      return ['--json', '--repo', repoRoot];
+    }
+  },
+  {
+    id: 'pairofcleats.configDump',
+    title: 'PairOfCleats: Config Dump',
+    progressTitle: 'PairOfCleats config dump',
+    timeoutMs: 2 * 60 * 1000,
+    invocation: 'script',
+    scriptParts: ['tools', 'config', 'dump.js'],
+    buildArgs(repoRoot) {
+      return ['--json', '--repo', repoRoot];
+    }
+  },
+  {
+    id: 'pairofcleats.indexHealth',
+    title: 'PairOfCleats: Index Health',
+    progressTitle: 'PairOfCleats index health',
+    timeoutMs: 2 * 60 * 1000,
+    invocation: 'script',
+    scriptParts: ['tools', 'index', 'report-artifacts.js'],
+    buildArgs(repoRoot) {
+      return ['--json', '--repo', repoRoot];
+    }
+  }
+]);
+
+const OPERATOR_COMMANDS_BY_ID = new Map(OPERATOR_COMMAND_SPECS.map((spec) => [spec.id, spec]));
+
+function resolveOperatorInvocation(spec, repoRoot, cliResolution) {
+  const extraArgs = typeof spec.buildArgs === 'function' ? spec.buildArgs(repoRoot) : [];
+  if (spec.invocation === 'script') {
+    const scriptPath = path.join(repoRoot, ...spec.scriptParts);
+    if (!fs.existsSync(scriptPath)) {
+      return {
+        ok: false,
+        message: `${spec.title} requires ${scriptPath}, but that file was not found in the selected repo.`,
+        detail: 'Open a PairOfCleats checkout or use the CLI directly for this workspace.'
+      };
+    }
+    return {
+      ok: true,
+      command: process.execPath,
+      args: [scriptPath, ...extraArgs]
+    };
+  }
+  return {
+    ok: true,
+    command: cliResolution.command,
+    args: [...cliResolution.argsPrefix, ...spec.cliArgs, ...extraArgs]
+  };
+}
+
+function appendOutputLines(output, lines) {
+  for (const line of lines) {
+    output.appendLine(line);
+  }
+}
+
+function appendJsonBlock(output, payload) {
+  const text = JSON.stringify(payload, null, 2);
+  for (const line of text.split(/\r?\n/)) {
+    output.appendLine(line);
+  }
+}
+
+function formatStatusLabel(value) {
+  if (value === true) return 'yes';
+  if (value === false) return 'no';
+  if (value === null || value === undefined || value === '') return 'n/a';
+  return String(value);
+}
+
+function formatStepSummary(step) {
+  if (!step || typeof step !== 'object') return 'n/a';
+  const parts = [];
+  if (step.skipped === true) parts.push('skipped');
+  if ('ok' in step) parts.push(step.ok === true ? 'ok' : 'issues');
+  if ('installed' in step) parts.push(step.installed ? 'installed' : 'not-installed');
+  if ('built' in step) parts.push(step.built ? 'built' : 'not-built');
+  if ('ready' in step) parts.push(step.ready ? 'ready' : 'not-ready');
+  if ('restored' in step && step.restored) parts.push('restored');
+  if ('present' in step) parts.push(`present=${formatStatusLabel(step.present)}`);
+  if ('downloaded' in step && step.downloaded) parts.push('downloaded');
+  if (Array.isArray(step.missing) && step.missing.length) parts.push(`missing=${step.missing.join(', ')}`);
+  if (!parts.length) parts.push('ok');
+  return parts.join(' | ');
+}
+
+function summarizeSetupLikePayload(payload) {
+  const errors = Array.isArray(payload?.errors) ? payload.errors : [];
+  const stepEntries = Object.entries(payload?.steps || {});
+  const lines = [
+    `- status: ${errors.length ? 'issues' : 'ok'}`,
+    `- repo: ${payload?.root || 'unknown'}`,
+    `- incremental: ${payload?.incremental === true ? 'yes' : 'no'}`
+  ];
+  if ('restoredArtifacts' in (payload || {})) {
+    lines.push(`- restored artifacts: ${payload?.restoredArtifacts === true ? 'yes' : 'no'}`);
+  }
+  if (stepEntries.length) {
+    lines.push('- steps:');
+    for (const [name, step] of stepEntries) {
+      lines.push(`  - ${name}: ${formatStepSummary(step)}`);
+    }
+  }
+  if (errors.length) {
+    lines.push('- errors:');
+    for (const error of errors) {
+      lines.push(`  - ${error.step || 'unknown'}: ${error.message || error.status || 'failed'}`);
+    }
+  }
+  lines.push('- next: PairOfCleats: Tooling Doctor');
+  lines.push('- next: PairOfCleats: Index Health');
+  return lines;
+}
+
+function summarizeDoctorPayload(payload) {
+  const providers = Array.isArray(payload?.providers) ? payload.providers : [];
+  const warnCount = providers.filter((provider) => provider?.status === 'warn').length;
+  const errorCount = providers.filter((provider) => provider?.status === 'error').length;
+  const lines = [
+    `- status: ${payload?.summary?.status || 'unknown'}`,
+    `- repo: ${payload?.repoRoot || 'unknown'}`
+  ];
+  if (payload?.scm) {
+    lines.push(`- scm: ${payload.scm.provider || 'unknown'} (${payload.scm.annotateEnabled ? 'annotate:on' : 'annotate:off'})`);
+  }
+  lines.push(`- providers: ${providers.length} total, ${warnCount} warn, ${errorCount} error`);
+  lines.push(`- chunkUid: ${payload?.identity?.chunkUid?.available ? 'ok' : 'missing'}`);
+  lines.push(`- xxhash: ${payload?.xxhash?.backend || 'unknown'}`);
+  if (errorCount || warnCount) {
+    lines.push('- next: review provider checks in the PairOfCleats output channel');
+    lines.push('- next: rerun PairOfCleats: Setup or install missing tooling');
+  } else {
+    lines.push('- next: PairOfCleats tooling looks healthy');
+  }
+  return lines;
+}
+
+function summarizeConfigDumpPayload(payload) {
+  const policy = payload?.policy || {};
+  return [
+    `- repo: ${payload?.repoRoot || 'unknown'}`,
+    `- cache root: ${payload?.derived?.cacheRoot || 'unknown'}`,
+    `- repo cache root: ${payload?.derived?.repoCacheRoot || 'unknown'}`,
+    `- quality: ${policy?.quality?.value || 'unknown'} (${policy?.quality?.source || 'unknown'})`,
+    `- mcp mode: ${payload?.derived?.mcp?.mode || 'unknown'} (${payload?.derived?.mcp?.modeSource || 'unknown'})`,
+    `- mcp sdk: ${payload?.derived?.mcp?.sdkAvailable ? 'available' : 'missing'}`,
+    '- next: adjust .pairofcleats.json or VS Code settings, then rerun this command'
+  ];
+}
+
+function summarizeIndexHealthPayload(payload) {
+  const lines = [
+    `- status: ${(Array.isArray(payload?.health?.issues) && payload.health.issues.length) || payload?.corruption?.ok === false ? 'issues' : 'ok'}`,
+    `- repo: ${payload?.repo?.root || 'unknown'}`,
+    `- cache root: ${payload?.repo?.cacheRoot || 'unknown'}`,
+    `- total cache bytes: ${payload?.repo?.totalBytes ?? 'n/a'}`
+  ];
+  if (payload?.repo?.sqlite) {
+    lines.push(`- sqlite code: ${payload.repo.sqlite.code ? 'present' : 'missing'}`);
+    lines.push(`- sqlite prose: ${payload.repo.sqlite.prose ? 'present' : 'missing'}`);
+    lines.push(`- sqlite extracted-prose: ${payload.repo.sqlite.extractedProse ? 'present' : 'missing'}`);
+    lines.push(`- sqlite records: ${payload.repo.sqlite.records ? 'present' : 'missing'}`);
+  }
+  if (payload?.corruption) {
+    lines.push(`- integrity: ${payload.corruption.ok ? 'ok' : 'issues'}`);
+  }
+  if (Array.isArray(payload?.health?.issues) && payload.health.issues.length) {
+    lines.push(`- health issues: ${payload.health.issues.length}`);
+  }
+  if (Array.isArray(payload?.health?.hints) && payload.health.hints.length) {
+    for (const hint of payload.health.hints.slice(0, 3)) {
+      lines.push(`- hint: ${hint}`);
+    }
+  }
+  lines.push('- next: rerun PairOfCleats: Bootstrap or rebuild indexes if health is not ok');
+  return lines;
+}
+
+function summarizeOperatorPayload(spec, payload) {
+  switch (spec.id) {
+    case 'pairofcleats.setup':
+    case 'pairofcleats.bootstrap':
+      return summarizeSetupLikePayload(payload);
+    case 'pairofcleats.doctor':
+      return summarizeDoctorPayload(payload);
+    case 'pairofcleats.configDump':
+      return summarizeConfigDumpPayload(payload);
+    case 'pairofcleats.indexHealth':
+      return summarizeIndexHealthPayload(payload);
+    default:
+      return [];
+  }
+}
+
+async function runBufferedJsonCommand({
+  spec,
+  repoRoot,
+  command,
+  args,
+  env,
+  output
+}) {
+  return vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: spec.progressTitle,
+      cancellable: true
+    },
+    (_, token) => new Promise((resolve) => {
+      const useShellWrapper = process.platform === 'win32' && /\.(cmd|bat)$/i.test(command);
+      const invocation = useShellWrapper
+        ? resolveWindowsCmdInvocation(command, args)
+        : { command, args };
+      const child = cp.spawn(invocation.command, invocation.args, {
+        cwd: repoRoot,
+        env: invocation.env ? { ...env, ...invocation.env } : env,
+        shell: false,
+        windowsHide: true
+      });
+      const stdoutAccumulator = createChunkAccumulator(DEFAULT_MAX_BUFFER_BYTES);
+      const stderrAccumulator = createChunkAccumulator(DEFAULT_MAX_BUFFER_BYTES);
+      let timedOut = false;
+      const timeout = setTimeout(() => {
+        timedOut = true;
+        output.appendLine(`[command] timeout after ${spec.timeoutMs}ms`);
+        try {
+          child.kill('SIGKILL');
+        } catch {}
+      }, spec.timeoutMs);
+      timeout.unref?.();
+      const cancelSub = token.onCancellationRequested(() => {
+        output.appendLine('[command] cancellation requested');
+        try {
+          child.kill('SIGKILL');
+        } catch {}
+      });
+      child.stdout?.on('data', (chunk) => {
+        stdoutAccumulator.push(chunk);
+      });
+      child.stderr?.on('data', (chunk) => {
+        stderrAccumulator.push(chunk);
+      });
+      child.once('error', (error) => {
+        clearTimeout(timeout);
+        cancelSub.dispose();
+        resolve({
+          ok: false,
+          kind: 'spawn-error',
+          message: `${spec.title} failed to start: ${error?.message || error}`,
+          detail: String(error?.stack || error?.message || error)
+        });
+      });
+      child.once('close', (code) => {
+        clearTimeout(timeout);
+        cancelSub.dispose();
+        if (token.isCancellationRequested) {
+          resolve({
+            ok: false,
+            kind: 'cancelled',
+            message: `${spec.title} was cancelled.`,
+            detail: null
+          });
+          return;
+        }
+        const stdout = stdoutAccumulator.text();
+        const stderr = stderrAccumulator.text();
+        const parsed = stdout.trim()
+          ? parseJsonPayload(stdout, {
+            stdoutTruncated: stdoutAccumulator.truncated(),
+            label: spec.title
+          })
+          : null;
+        if (parsed?.ok) {
+          resolve({
+            ok: code === 0,
+            code,
+            payload: parsed.payload,
+            stdout,
+            stderr,
+            timedOut
+          });
+          return;
+        }
+        const processFailure = summarizeProcessFailure({
+          code,
+          timedOut,
+          cancelled: false,
+          stderr,
+          stdout,
+          stdoutTruncated: stdoutAccumulator.truncated(),
+          stderrTruncated: stderrAccumulator.truncated(),
+          timeoutMs: spec.timeoutMs
+        });
+        if (processFailure) {
+          resolve({
+            ok: false,
+            kind: processFailure.kind,
+            message: processFailure.message,
+            detail: processFailure.detail
+          });
+          return;
+        }
+        resolve({
+          ok: false,
+          kind: parsed?.kind || 'invalid-json',
+          message: parsed?.message || `${spec.title} returned no JSON output.`,
+          detail: parsed?.detail || stderr || stdout || null
+        });
+      });
+    })
+  );
+}
+
+async function runOperatorCommand(spec) {
+  const repoContext = await resolveRepoContext();
+  if (!repoContext.ok) {
+    if (repoContext.message) {
+      if (repoContext.detail) {
+        const output = getOutputChannel();
+        output.appendLine(repoContext.detail);
+        output.show?.(true);
+      }
+      vscode.window.showErrorMessage(repoContext.message);
+    }
+    return;
+  }
+  const { repoRoot } = repoContext;
+  const config = getExtensionConfiguration();
+  const cliResolution = resolveCli(repoRoot, config);
+  if (spec.invocation !== 'script' && !cliResolution.ok) {
+    const output = getOutputChannel();
+    output.appendLine(cliResolution.detail || cliResolution.message);
+    output.show?.(true);
+    vscode.window.showErrorMessage(cliResolution.message);
+    return;
+  }
+  const invocation = resolveOperatorInvocation(spec, repoRoot, cliResolution);
+  if (!invocation.ok) {
+    const output = getOutputChannel();
+    output.appendLine(invocation.detail || invocation.message);
+    output.show?.(true);
+    vscode.window.showErrorMessage(invocation.message);
+    return;
+  }
+  const { command, args } = invocation;
+  const env = buildSpawnEnv(config);
+  const output = getOutputChannel();
+  output.appendLine('');
+  output.appendLine(`=== ${spec.title} ===`);
+  output.appendLine(`[command] command=${command}`);
+  output.appendLine(`[command] args=${JSON.stringify(args)}`);
+  const result = await runBufferedJsonCommand({
+    spec,
+    repoRoot,
+    command,
+    args,
+    env,
+    output
+  });
+  if (!result.payload) {
+    if (result.detail) output.appendLine(result.detail);
+    output.show?.(true);
+    const show = result.kind === 'cancelled'
+      ? vscode.window.showInformationMessage
+      : vscode.window.showErrorMessage;
+    show(result.message);
+    return;
+  }
+  appendOutputLines(output, summarizeOperatorPayload(spec, result.payload));
+  output.appendLine('- raw-json:');
+  appendJsonBlock(output, result.payload);
+  output.show?.(true);
+  if (result.ok) {
+    vscode.window.showInformationMessage(`${spec.title} completed.`);
+    return;
+  }
+  vscode.window.showErrorMessage(`${spec.title} reported issues. See PairOfCleats output for details.`);
+}
+
 /**
  * Prompt for query, run CLI search, and open selected result in editor.
  *
@@ -548,8 +962,12 @@ async function runSearch() {
  * @returns {void}
  */
 function activate(context) {
-  const command = vscode.commands.registerCommand('pairofcleats.search', runSearch);
-  context.subscriptions.push(command);
+  const searchCommand = vscode.commands.registerCommand('pairofcleats.search', runSearch);
+  context.subscriptions.push(searchCommand);
+  for (const spec of OPERATOR_COMMAND_SPECS) {
+    const command = vscode.commands.registerCommand(spec.id, () => runOperatorCommand(spec));
+    context.subscriptions.push(command);
+  }
 }
 
 /**
@@ -580,6 +998,8 @@ module.exports = {
     openSearchHit,
     resolveCli,
     resolveRepoContext,
-    runSearch
+    runOperatorCommand,
+    runSearch,
+    OPERATOR_COMMAND_SPECS
   }
 };

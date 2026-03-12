@@ -23,20 +23,32 @@ const contract = JSON.parse(fs.readFileSync(contractPath, 'utf8'));
 const guide = fs.readFileSync(guidePath, 'utf8');
 
 const activationEvents = new Set(manifest.activationEvents || []);
-if (!activationEvents.has('onCommand:pairofcleats.search')) {
-  console.error('VS Code extension activation event missing.');
-  process.exit(1);
+const expectedCommands = new Map([
+  ['pairofcleats.search', 'PairOfCleats: Search'],
+  ['pairofcleats.setup', 'PairOfCleats: Setup'],
+  ['pairofcleats.bootstrap', 'PairOfCleats: Bootstrap'],
+  ['pairofcleats.doctor', 'PairOfCleats: Tooling Doctor'],
+  ['pairofcleats.configDump', 'PairOfCleats: Config Dump'],
+  ['pairofcleats.indexHealth', 'PairOfCleats: Index Health']
+]);
+for (const commandId of expectedCommands.keys()) {
+  if (!activationEvents.has(`onCommand:${commandId}`)) {
+    console.error(`VS Code extension activation event missing for ${commandId}.`);
+    process.exit(1);
+  }
 }
 
 const commands = manifest.contributes?.commands || [];
-const searchCommand = commands.find((cmd) => cmd.command === 'pairofcleats.search');
-if (!searchCommand) {
-  console.error('VS Code extension command missing.');
-  process.exit(1);
-}
-if (searchCommand.title !== 'PairOfCleats: Search') {
-  console.error('VS Code extension command title drifted.');
-  process.exit(1);
+for (const [commandId, title] of expectedCommands.entries()) {
+  const command = commands.find((cmd) => cmd.command === commandId);
+  if (!command) {
+    console.error(`VS Code extension command missing: ${commandId}.`);
+    process.exit(1);
+  }
+  if (command.title !== title) {
+    console.error(`VS Code extension command title drifted for ${commandId}.`);
+    process.exit(1);
+  }
 }
 
 const settings = contract?.settings?.vscode || {};

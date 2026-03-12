@@ -11,7 +11,12 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:pairofcleats.search"
+    "onCommand:pairofcleats.search",
+    "onCommand:pairofcleats.setup",
+    "onCommand:pairofcleats.bootstrap",
+    "onCommand:pairofcleats.doctor",
+    "onCommand:pairofcleats.configDump",
+    "onCommand:pairofcleats.indexHealth"
   ],
   "main": "./extension.js",
   "contributes": {
@@ -19,6 +24,26 @@
       {
         "command": "pairofcleats.search",
         "title": "PairOfCleats: Search"
+      },
+      {
+        "command": "pairofcleats.setup",
+        "title": "PairOfCleats: Setup"
+      },
+      {
+        "command": "pairofcleats.bootstrap",
+        "title": "PairOfCleats: Bootstrap"
+      },
+      {
+        "command": "pairofcleats.doctor",
+        "title": "PairOfCleats: Tooling Doctor"
+      },
+      {
+        "command": "pairofcleats.configDump",
+        "title": "PairOfCleats: Config Dump"
+      },
+      {
+        "command": "pairofcleats.indexHealth",
+        "title": "PairOfCleats: Index Health"
       }
     ],
     "configuration": {
