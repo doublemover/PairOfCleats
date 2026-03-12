@@ -648,6 +648,7 @@ tooling/sublime/results-behavior
 tooling/sublime/navigation-behavior
 tooling/sublime/watch-behavior
 tooling/sublime/settings-behavior
+tooling/sublime/map-behavior
 retrieval/cache/query-signature-sharded-chunk-meta
 storage/vector-extension/missing
 tooling/lsp/adaptive-scope-plan

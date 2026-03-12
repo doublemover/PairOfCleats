@@ -1,7 +1,7 @@
 import json
 import os
 import webbrowser
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 import sublime
 import sublime_plugin
@@ -73,16 +73,26 @@ def _relative_focus(repo_root, path_value):
 
 def _open_in_browser(path_value):
     if not path_value:
-        return
-    try:
-        resolved = os.path.abspath(path_value)
-        url = 'file:///{0}'.format(quote(resolved.replace('\\', '/')))
-    except Exception:
-        url = 'file:///{0}'.format(path_value.replace('\\', '/'))
+        return False
+    parsed = _parse_browser_target(path_value)
+    if parsed.get('url'):
+        url = parsed['url']
+    else:
+        local_path = parsed.get('path')
+        if not local_path or not os.path.exists(local_path):
+            ui.show_error('PairOfCleats: map output not found: {0}'.format(local_path or path_value))
+            return False
+        try:
+            resolved = os.path.abspath(local_path)
+            url = 'file:///{0}'.format(quote(resolved.replace('\\', '/')))
+        except Exception:
+            url = 'file:///{0}'.format(local_path.replace('\\', '/'))
     try:
         webbrowser.open_new_tab(url)
+        return True
     except Exception:
         ui.show_error('PairOfCleats: failed to open browser.')
+        return False
 
 
 def _render_report(payload):
@@ -91,15 +101,33 @@ def _render_report(payload):
         return '\n'.join(lines)
     summary = payload.get('summary') or {}
     counts = summary.get('counts') or {}
+    lines.append('source: {0}'.format(payload.get('source') or 'cli'))
+    lines.append('format: {0}'.format(payload.get('format') or 'unknown'))
+    repo = payload.get('repo') or ''
+    if repo:
+        lines.append('repo: {0}'.format(repo))
     lines.append('files: {0}'.format(counts.get('files') or 0))
     lines.append('members: {0}'.format(counts.get('members') or 0))
     lines.append('edges: {0}'.format(counts.get('edges') or 0))
+    if payload.get('outPath'):
+        lines.append('output: {0}'.format(payload.get('outPath')))
+    if payload.get('modelPath'):
+        lines.append('model: {0}'.format(payload.get('modelPath')))
+    if payload.get('nodeListPath'):
+        lines.append('nodes: {0}'.format(payload.get('nodeListPath')))
+    if payload.get('cacheKey'):
+        lines.append('cache: {0}'.format(payload.get('cacheKey')))
     warnings = payload.get('warnings') or []
     if warnings:
         lines.append('')
         lines.append('Warnings:')
         for warning in warnings:
             lines.append('- {0}'.format(warning))
+    lines.append('')
+    lines.append('Follow-up:')
+    lines.append('- PairOfCleats: Map Open Last Viewer')
+    lines.append('- PairOfCleats: Map Jump to Node')
+    lines.append('- PairOfCleats: Map Show Last Report')
     return '\n'.join(lines) + '\n'
 
 
@@ -121,6 +149,45 @@ def _offer_rebuild(window, warnings):
         ['Rebuild index with dataflow/control-flow enabled', 'Dismiss'],
         on_select
     )
+
+def _parse_browser_target(path_value):
+    try:
+        parsed = urlparse(str(path_value))
+    except Exception:
+        parsed = None
+    if parsed and parsed.scheme in ('http', 'https', 'file'):
+        return {'url': path_value, 'path': None}
+    return {'url': None, 'path': path_value}
+
+
+def _should_show_report_panel(settings, payload):
+    preference = settings.get('map_show_report_panel')
+    if preference is True:
+        return True
+    if preference is False:
+        return False
+    warnings = payload.get('warnings') or []
+    return bool(warnings)
+
+
+def _open_map_output(window, payload):
+    resolved_path = payload.get('outPath') or ''
+    resolved_format = payload.get('format') or ''
+    if not resolved_path:
+        ui.show_status('PairOfCleats: no map output to reopen.')
+        return False
+    if resolved_format in ('html', 'html-iso', 'svg'):
+        return _open_in_browser(resolved_path)
+    parsed = _parse_browser_target(resolved_path)
+    local_path = parsed.get('path')
+    if parsed.get('url'):
+        return _open_in_browser(resolved_path)
+    if not local_path or not os.path.exists(local_path):
+        ui.show_error('PairOfCleats: map output not found: {0}'.format(local_path or resolved_path))
+        return False
+    window.open_file(local_path)
+    return True
+
 
 def _prompt_map_type(window, settings, on_done):
     default_type = map_lib.resolve_map_type(settings)
@@ -210,19 +277,18 @@ def _dispatch_map(window, scope, focus, map_type=None, map_format=None, path_hin
             ui.show_error('PairOfCleats map returned invalid JSON.')
             return
 
-        map_state.record_last_map(window, payload)
-        report_text = _render_report(payload)
-        if settings.get('map_show_report_panel'):
+        resolved_payload = dict(payload)
+        resolved_payload.setdefault('repo', repo_root)
+        resolved_payload.setdefault('format', map_format)
+        resolved_payload.setdefault('outPath', output_path)
+        resolved_payload.setdefault('modelPath', model_path)
+        resolved_payload.setdefault('nodeListPath', node_list_path)
+        report_text = _render_report(resolved_payload)
+        map_state.record_last_map(window, resolved_payload, report_text=report_text)
+        if _should_show_report_panel(settings, resolved_payload):
             ui.write_output_panel(window, 'pairofcleats-map', report_text)
-        _offer_rebuild(window, payload.get('warnings') or [])
-
-        resolved_path = payload.get('outPath') or output_path
-        resolved_format = payload.get('format') or map_format
-
-        if resolved_format in ('html', 'html-iso', 'svg'):
-            _open_in_browser(resolved_path)
-        elif resolved_path:
-            window.open_file(resolved_path)
+        _offer_rebuild(window, resolved_payload.get('warnings') or [])
+        _open_map_output(window, resolved_payload)
 
     runner.run_process(
         command,
@@ -372,19 +438,27 @@ class PairOfCleatsMapJumpToNodeCommand(sublime_plugin.WindowCommand):
 
         items = []
         for node in nodes:
-            label = node.get('label') or node.get('id')
-            detail = node.get('file') or ''
-            items.append([label, detail])
+            label = node.get('label') or node.get('id') or '(unnamed node)'
+            file_label = node.get('file') or '(no file)'
+            start_line = node.get('startLine')
+            if isinstance(start_line, int) and start_line > 0:
+                file_label = '{0}:{1}'.format(file_label, start_line)
+            items.append([label, file_label])
 
-        repo_root, reason = _resolve_repo_root(self.window)
+        repo_root = state.get('repo')
         if not repo_root:
-            ui.show_error('PairOfCleats: {0}'.format(reason))
-            return
+            repo_root, reason = _resolve_repo_root(self.window)
+            if not repo_root:
+                ui.show_error('PairOfCleats: {0}'.format(reason))
+                return
 
         def on_select(index):
             if index < 0:
                 return
             node = nodes[index]
+            if not node.get('file'):
+                ui.show_status('PairOfCleats: selected node has no source location.')
+                return
             hit = {
                 'file': node.get('file'),
                 'startLine': node.get('startLine'),
@@ -395,7 +469,7 @@ class PairOfCleatsMapJumpToNodeCommand(sublime_plugin.WindowCommand):
         self.window.show_quick_panel(items, on_select)
 
 
-class PairOfCleatsMapOpenLastViewerCommand(sublime_plugin.WindowCommand):       
+class PairOfCleatsMapOpenLastViewerCommand(sublime_plugin.WindowCommand):
     def is_enabled(self):
         return True
 
@@ -407,12 +481,21 @@ class PairOfCleatsMapOpenLastViewerCommand(sublime_plugin.WindowCommand):
         if not state:
             ui.show_status('PairOfCleats: no map history yet.')
             return
-        path_value = state.get('outPath')
-        if not path_value:
-            ui.show_status('PairOfCleats: no map output yet.')
+        _open_map_output(self.window, state)
+
+
+class PairOfCleatsMapShowLastReportCommand(sublime_plugin.WindowCommand):
+    def is_enabled(self):
+        return True
+
+    def is_visible(self):
+        return True
+
+    def run(self):
+        state = map_state.get_last_map(self.window)
+        if not state:
+            ui.show_status('PairOfCleats: no map history yet.')
             return
-        format_value = state.get('format') or ''
-        if format_value in ('html', 'html-iso', 'svg'):
-            _open_in_browser(path_value)
-        else:
-            self.window.open_file(path_value)
+        report_text = state.get('reportText') or _render_report(state)
+        ui.write_output_panel(self.window, 'pairofcleats-map', report_text)
+        ui.show_status('PairOfCleats: showing last map report.')

@@ -28,6 +28,7 @@ If the selected path ends in `.js`, the plugin runs it with `node_path` (or `nod
 Open the command palette and run:
 - `PairOfCleats: Open Settings`
 - `PairOfCleats: Open Project Settings`
+- `PairOfCleats: Project Settings Template`
 - `PairOfCleats: Show Effective Settings`
 - `PairOfCleats: Validate Settings`
 
@@ -107,6 +108,7 @@ Environment:
 - `PairOfCleats: Map (Selection)`
 - `PairOfCleats: Map Jump to Node`
 - `PairOfCleats: Map Open Last Viewer`
+- `PairOfCleats: Map Show Last Report`
 
 ## Project overrides
 
@@ -133,6 +135,7 @@ In your `.sublime-project` file:
 Project overrides replace base settings key-for-key.
 `env` is the only merged setting: package/user `env` values are loaded first, then project `env` values override conflicts.
 Use `PairOfCleats: Show Effective Settings` to inspect the final merged settings for the current window.
+Use `PairOfCleats: Project Settings Template` to open a copy/paste starter payload for `.sublime-project`.
 
 ## CLI output contract
 

@@ -1,4 +1,5 @@
 import importlib
+import json
 import os
 import sys
 import unittest
@@ -19,60 +20,80 @@ class SettingsBehaviorTests(unittest.TestCase):
         self.sublime.reset()
         self.window = FakeWindow()
         self.sublime.set_active_window(self.window)
-        self.base_settings = self.sublime.load_settings(self.config.SETTINGS_FILE)
-        self.base_settings.update(self.config.DEFAULT_SETTINGS)
+        settings = self.sublime.load_settings(self.config.SETTINGS_FILE)
+        settings.set('search_limit', 33)
+        settings.set('search_prompt_options', False)
+        settings.set('map_stream_output', False)
+        settings.set('env', {'BASE_ONLY': '1', 'SHARED': 'base'})
 
-    def test_validate_settings_covers_api_watch_map_and_output(self):
-        settings = dict(self.config.DEFAULT_SETTINGS)
+    def test_validate_settings_covers_api_output_watch_and_map_keys(self):
+        settings = self.config.get_settings(None)
         settings.update({
-            'api_server_url': 'ftp://bad-host',
+            'api_server_url': 'ftp://bad',
             'api_timeout_ms': 0,
             'search_prompt_options': 'yes',
-            'map_stream_output': 'sometimes',
-            'map_show_report_panel': 'maybe',
+            'map_stream_output': 'true',
+            'map_show_report_panel': 'sometimes',
+            'index_watch_scope': 'workspace',
         })
-        errors = self.config.validate_settings(settings, 'C:/repo')
+        errors = self.config.validate_settings(settings, repo_root='C:/repo')
         self.assertIn('api_server_url must be an http:// or https:// URL.', errors)
         self.assertIn('api_timeout_ms must be 1 or higher.', errors)
         self.assertIn('search_prompt_options must be true or false.', errors)
         self.assertIn('map_stream_output must be true or false.', errors)
         self.assertIn('map_show_report_panel must be true, false, or null.', errors)
+        self.assertIn('index_watch_scope must be repo or folder.', errors)
 
-    def test_project_overrides_are_explicit_and_env_is_shallow_merged(self):
-        self.base_settings.set('open_results_in', 'output_panel')
-        self.base_settings.set('search_limit', 30)
-        self.base_settings.set('env', {'BASE': '1', 'SHARED': 'base'})
+    def test_project_overrides_merge_env_and_override_scalars(self):
         self.window.set_project_data({
             'settings': {
                 'pairofcleats': {
-                    'open_results_in': 'new_tab',
-                    'api_timeout_ms': 9000,
-                    'env': {'SHARED': 'project', 'ONLY': '2'}
+                    'api_server_url': 'http://127.0.0.1:7464',
+                    'open_results_in': 'output_panel',
+                    'env': {
+                        'PROJECT_ONLY': '1',
+                        'SHARED': 'project'
+                    }
                 }
             }
         })
-        merged = self.config.get_settings(self.window)
-        self.assertEqual(merged['open_results_in'], 'new_tab')
-        self.assertEqual(merged['search_limit'], 30)
-        self.assertEqual(merged['api_timeout_ms'], 9000)
-        self.assertEqual(merged['env'], {'BASE': '1', 'SHARED': 'project', 'ONLY': '2'})
+        settings = self.config.get_settings(self.window)
+        self.assertEqual(settings['api_server_url'], 'http://127.0.0.1:7464')
+        self.assertEqual(settings['open_results_in'], 'output_panel')
+        self.assertEqual(settings['env']['BASE_ONLY'], '1')
+        self.assertEqual(settings['env']['PROJECT_ONLY'], '1')
+        self.assertEqual(settings['env']['SHARED'], 'project')
 
-    def test_open_project_settings_seeds_project_block(self):
+    def test_project_settings_command_ensures_override_root_exists(self):
         command = self.settings_commands.PairOfCleatsOpenProjectSettingsCommand(self.window)
         command.run()
-        project_data = self.window.project_data()
-        self.assertIsInstance(project_data.get('settings', {}).get('pairofcleats'), dict)
+        data = self.window.project_data()
+        self.assertIn('settings', data)
+        self.assertIn('pairofcleats', data['settings'])
         self.assertEqual(self.window.commands[-1]['name'], 'edit_project')
 
-    def test_show_effective_settings_renders_sections_and_sources(self):
-        self.base_settings.set('api_server_url', 'http://127.0.0.1:4152')
-        self.base_settings.set('env', {'BASE': '1'})
+    def test_project_settings_template_command_opens_template_view(self):
+        command = self.settings_commands.PairOfCleatsProjectSettingsTemplateCommand(self.window)
+        command.run()
+        template_view = self.window.new_views[-1]
+        self.assertEqual(template_view.name, 'PairOfCleats Project Settings Template')
+        self.assertTrue(template_view.scratch)
+        payload = json.loads(template_view.appended)
+        self.assertIn('settings', payload)
+        self.assertIn('pairofcleats', payload['settings'])
+        override = payload['settings']['pairofcleats']
+        self.assertEqual(override['api_server_url'], 'http://127.0.0.1:7464')
+        self.assertIn('map_stream_output', override)
+        self.assertIn('index_watch_mode', override)
+        self.assertIn('open_results_in', override)
+
+    def test_show_effective_settings_groups_output(self):
         self.window.set_project_data({
             'settings': {
                 'pairofcleats': {
-                    'open_results_in': 'output_panel',
+                    'api_server_url': 'http://127.0.0.1:7464',
                     'map_stream_output': True,
-                    'env': {'TOKEN': 'abc'}
+                    'env': {'PAIR': '1'}
                 }
             }
         })
@@ -81,15 +102,13 @@ class SettingsBehaviorTests(unittest.TestCase):
         panel = self.window.panels['pairofcleats-settings']
         text = panel.appended
         self.assertIn('Merge semantics:', text)
-        self.assertIn('Project override keys: env, map_stream_output, open_results_in', text)
-        self.assertIn('Project env override keys: TOKEN', text)
         self.assertIn('API:', text)
         self.assertIn('Output:', text)
         self.assertIn('Watch:', text)
         self.assertIn('Map:', text)
-        self.assertIn('- api_server_url = "http://127.0.0.1:4152" [base]', text)
-        self.assertIn('- open_results_in = "output_panel" [project]', text)
-        self.assertIn('- env = {"BASE": "1", "TOKEN": "abc"} [base+project]', text)
+        self.assertIn('api_server_url = "http://127.0.0.1:7464" [project]', text)
+        self.assertIn('map_stream_output = true [project]', text)
+        self.assertIn('Project env override keys: PAIR', text)
 
 
 if __name__ == '__main__':

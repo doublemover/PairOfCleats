@@ -126,5 +126,9 @@
   {
     "caption": "PairOfCleats: Map Open Last Viewer",
     "command": "pair_of_cleats_map_open_last_viewer"
+  },
+  {
+    "caption": "PairOfCleats: Map Show Last Report",
+    "command": "pair_of_cleats_map_show_last_report"
   }
 ]
