@@ -5,6 +5,10 @@ import { resolveEnvPath } from '../../shared/env-path.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
 import { spawnSubprocessSync } from '../../shared/subprocess.js';
 import { resolveWindowsCmdInvocation } from '../../shared/subprocess/windows-cmd.js';
+import {
+  resolveGlobalToolingBinDirs,
+  resolveLocalToolingBinDirs
+} from '../../shared/tooling-bin-dirs.js';
 import { createLspClient, pathToFileUri } from '../../integrations/tooling/lsp/client.js';
 import { findBinaryInDirs, findBinaryOnPath, splitPathEntries } from './binary-utils.js';
 import {
@@ -357,29 +361,18 @@ const resolvePyrightCommand = (repoRoot, toolingConfig) => {
   return findBinaryOnPath(cmd) || cmd;
 };
 
-const resolveGoToolCommand = (cmd, toolingConfig) => {
-  const toolingBin = toolingConfig?.dir
-    ? path.join(toolingConfig.dir, 'bin')
-    : null;
-  if (toolingBin) {
-    const found = findBinaryInDirs(cmd, [toolingBin]);
-    if (found) return found;
-  }
-  return findBinaryOnPath(cmd) || cmd;
+const resolveRuntimeToolDirs = ({ repoRoot, toolingConfig, includeGlobal = true }) => {
+  const repoBin = path.join(repoRoot, 'node_modules', '.bin');
+  const localToolingDirs = toolingConfig?.dir ? resolveLocalToolingBinDirs(toolingConfig.dir) : [];
+  const globalToolingDirs = includeGlobal ? resolveGlobalToolingBinDirs() : [];
+  return [repoBin, ...localToolingDirs, ...globalToolingDirs].filter(Boolean);
 };
 
 const resolveScopedCommand = ({ cmd, repoRoot, toolingConfig }) => {
   const requested = String(cmd || '').trim();
   if (!requested) return '';
   if (isExplicitCommandPath(requested)) return requested;
-  const repoBin = path.join(repoRoot, 'node_modules', '.bin');
-  const toolBin = toolingConfig?.dir
-    ? path.join(toolingConfig.dir, 'bin')
-    : null;
-  const toolingNodeBin = toolingConfig?.dir
-    ? path.join(toolingConfig.dir, 'node', 'node_modules', '.bin')
-    : null;
-  const scopedMatch = findBinaryInDirs(requested, [repoBin, toolBin, toolingNodeBin].filter(Boolean));
+  const scopedMatch = findBinaryInDirs(requested, resolveRuntimeToolDirs({ repoRoot, toolingConfig }));
   if (scopedMatch) return scopedMatch;
   return resolveWindowsCommand(findBinaryOnPath(requested) || requested);
 };
@@ -433,7 +426,11 @@ const resolveBaseCommand = ({ providerId, requestedCmd, repoRoot, toolingConfig 
       return normalizedRequested;
     }
     if (!normalizedRequested || requestedToken === 'gopls') {
-      return resolveGoToolCommand('gopls', toolingConfig);
+      return resolveScopedCommand({
+        cmd: 'gopls',
+        repoRoot,
+        toolingConfig
+      });
     }
     return resolveScopedCommand({
       cmd: normalizedRequested,

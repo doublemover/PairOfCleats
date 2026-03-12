@@ -15,7 +15,12 @@ await fs.mkdir(binDir, { recursive: true });
 if (process.platform === 'win32') {
   await fs.writeFile(
     path.join(binDir, 'go.cmd'),
-    '@echo off\r\nif "%1"=="version" exit /b 0\r\nif "%1"=="install" exit /b 0\r\nexit /b 1\r\n',
+    '@echo off\r\nnode "%~dp0\\ok.js" %*\r\n',
+    'utf8'
+  );
+  await fs.writeFile(
+    path.join(binDir, 'ok.js'),
+    '#!/usr/bin/env node\nprocess.exit(0);\n',
     'utf8'
   );
 } else {

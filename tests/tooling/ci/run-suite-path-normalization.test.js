@@ -2,7 +2,10 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { splitPathEntries } from '../../../src/index/tooling/binary-utils.js';
-import { __buildSuiteEnvForTests } from '../../../tools/ci/run-suite.js';
+import {
+  __buildSuiteEnvForTests,
+  __resolveSuiteToolingPathEntriesForTests
+} from '../../../tools/ci/run-suite.js';
 
 const root = process.cwd();
 const firstPathEntry = path.join(root, '.testLogs', 'run-suite-path-a');
@@ -26,5 +29,24 @@ assert.ok(normalizedSet.has(normalizeForCompare(firstPathEntry)), 'expected PATH
 assert.ok(normalizedSet.has(normalizeForCompare(secondPathEntry)), 'expected Path entry preserved after normalization');
 assert.ok(normalizedSet.has(normalizeForCompare(thirdPathEntry)), 'expected executable PATH entry preserved');
 assert.equal(env.PAIROFCLEATS_TESTING, '1', 'expected suite env builder to force testing mode');
+
+const suiteToolingEntries = __resolveSuiteToolingPathEntriesForTests(root, {
+  tooling: {
+    dir: path.join(root, '.ci-cache', 'pairofcleats', 'tooling')
+  }
+});
+const normalizedToolingEntries = suiteToolingEntries.map(normalizeForCompare);
+assert.ok(
+  normalizedToolingEntries.some((entry) => entry.endsWith(normalizeForCompare(path.join('.ci-cache', 'pairofcleats', 'tooling', 'bin')))),
+  'expected suite tooling entries to include cache bin dir'
+);
+assert.ok(
+  normalizedToolingEntries.some((entry) => entry.endsWith(normalizeForCompare(path.join('.ci-cache', 'pairofcleats', 'tooling', 'dotnet')))),
+  'expected suite tooling entries to include cache dotnet dir'
+);
+assert.ok(
+  normalizedToolingEntries.some((entry) => entry.endsWith(normalizeForCompare(path.join('.ci-cache', 'pairofcleats', 'tooling', 'composer', 'vendor', 'bin')))),
+  'expected suite tooling entries to include cache composer bin dir'
+);
 
 console.log('run-suite PATH normalization test passed');

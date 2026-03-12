@@ -9,7 +9,7 @@ import {
 const tempRoot = await createToolingDoctorTempRoot('tooling-doctor-runtime-reqs-phpactor');
 const resolveCommandProfile = createDoctorCommandResolver({
   available: ['phpactor'],
-  missing: ['php', 'composer']
+  missing: ['php']
 });
 
 const report = await runToolingDoctorFixture({
@@ -24,7 +24,6 @@ const phpRuntimeCheck = (provider.checks || []).find((check) => check.name === '
 assert.ok(phpRuntimeCheck, 'expected PHP runtime requirement check');
 assert.equal(phpRuntimeCheck.status, 'error', 'expected PHP runtime check error when php command missing');
 const composerRuntimeCheck = (provider.checks || []).find((check) => check.name === 'phpactor-runtime-composer');
-assert.ok(composerRuntimeCheck, 'expected Composer runtime requirement check');
-assert.equal(composerRuntimeCheck.status, 'error', 'expected Composer runtime check error when composer command missing');
+assert.equal(composerRuntimeCheck, undefined, 'expected no Composer runtime requirement check for phpactor PHAR runtime');
 
 console.log('tooling doctor dedicated phpactor runtime requirements test passed');

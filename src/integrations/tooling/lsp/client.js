@@ -569,9 +569,7 @@ export function createLspClient(options) {
         rawArgs: [...args],
         useShell
       })
-      : (useShell
-        ? spawn(spawnCmd, spawnOptions)
-        : spawn(spawnCmd, spawnArgs, spawnOptions));
+      : spawn(spawnCmd, spawnArgs, spawnOptions);
     if (!child || !isEventEmitterLike(child)) {
       cleanupInvalidSpawnCandidate(child, 'spawn_override_invalid_child');
       throw new Error('createLspClient spawnProcess override must return a ChildProcess-like object.');

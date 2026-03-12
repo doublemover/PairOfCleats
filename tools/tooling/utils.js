@@ -6,6 +6,13 @@ import { LOCK_FILES, MANIFEST_FILES, SKIP_DIRS, SKIP_FILES } from '../../src/ind
 import { findBinaryInDirs, splitPathEntries } from '../../src/index/tooling/binary-utils.js';
 import { toPosix } from '../../src/shared/files.js';
 import {
+  resolveGlobalComposerBinDirs,
+  resolveGlobalDotnetBinDirs,
+  resolveGlobalGemBinDirs,
+  resolveGlobalPhpactorBinDirs,
+  resolveLocalToolingBinDirs
+} from '../../src/shared/tooling-bin-dirs.js';
+import {
   normalizeEnvPathKeys as normalizeSharedEnvPathKeys,
   resolveEnvPath as resolveSharedEnvPath,
   resolvePathEnvKey as resolveSharedPathEnvKey
@@ -153,71 +160,6 @@ export function buildTestRuntimeEnv(baseEnv = process.env, overrides = null) {
   return env;
 }
 
-function resolveHomeDir() {
-  const home = process.platform === 'win32'
-    ? (process.env.USERPROFILE || process.env.HOME || '')
-    : (process.env.HOME || process.env.USERPROFILE || '');
-  return String(home || '').trim();
-}
-
-function expandRubyVersionBinDirs(baseDir) {
-  const root = path.join(baseDir, 'ruby');
-  let entries = [];
-  try {
-    entries = fs.readdirSync(root, { withFileTypes: true });
-  } catch {
-    return [];
-  }
-  return entries
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => path.join(root, entry.name, 'bin'));
-}
-
-function resolveGlobalDotnetBinDirs() {
-  const home = resolveHomeDir();
-  if (!home) return [];
-  return [path.join(home, '.dotnet', 'tools')];
-}
-
-function resolveGlobalComposerBinDirs() {
-  const home = resolveHomeDir();
-  const appData = String(process.env.APPDATA || '').trim();
-  const xdgConfigHome = String(process.env.XDG_CONFIG_HOME || '').trim();
-  return dedupePaths([
-    appData ? path.join(appData, 'Composer', 'vendor', 'bin') : '',
-    xdgConfigHome ? path.join(xdgConfigHome, 'composer', 'vendor', 'bin') : '',
-    home ? path.join(home, '.config', 'composer', 'vendor', 'bin') : '',
-    home ? path.join(home, '.composer', 'vendor', 'bin') : ''
-  ]);
-}
-
-function resolveGlobalPhpactorBinDirs() {
-  const home = resolveHomeDir();
-  const localAppData = String(process.env.LOCALAPPDATA || '').trim();
-  return dedupePaths([
-    localAppData ? path.join(localAppData, 'Programs', 'phpactor') : '',
-    home ? path.join(home, '.local', 'bin') : ''
-  ]);
-}
-
-function resolveGlobalGemBinDirs() {
-  const home = resolveHomeDir();
-  const localAppData = String(process.env.LOCALAPPDATA || '').trim();
-  const gemHome = String(process.env.GEM_HOME || '').trim();
-  const gemPathEntries = splitPathEntries(process.env.GEM_PATH || '');
-  const userGemRoots = [
-    home ? path.join(home, '.local', 'share', 'gem') : '',
-    home ? path.join(home, '.gem') : ''
-  ].filter(Boolean);
-  const versionedGemBins = userGemRoots.flatMap((root) => expandRubyVersionBinDirs(root));
-  return dedupePaths([
-    localAppData ? path.join(localAppData, 'Microsoft', 'WindowsApps') : '',
-    gemHome ? path.join(gemHome, 'bin') : '',
-    ...gemPathEntries.map((entry) => path.join(entry, 'bin')),
-    ...versionedGemBins
-  ]);
-}
-
 function resolveDetectArgCandidates(tool) {
   const candidates = [];
   const seen = new Set();
@@ -351,14 +293,11 @@ export async function detectRepoLanguages(root) {
 
 export function getToolingRegistry(toolingRoot, repoRoot) {
   const absoluteToolingRoot = path.resolve(toolingRoot);
+  const localBinDirs = resolveLocalToolingBinDirs(absoluteToolingRoot);
+  const [binDir, nodeBin, dotnetDir, composerBin] = localBinDirs;
   const nodeDir = path.join(absoluteToolingRoot, 'node');
-  const nodeBin = path.join(nodeDir, 'node_modules', '.bin');
   const repoNodeBin = path.join(repoRoot, 'node_modules', '.bin');
-  const binDir = path.join(absoluteToolingRoot, 'bin');
-  const dotnetDir = path.join(absoluteToolingRoot, 'dotnet');
   const gemsDir = path.join(absoluteToolingRoot, 'gems');
-  const composerDir = path.join(absoluteToolingRoot, 'composer');
-  const composerBin = path.join(composerDir, 'vendor', 'bin');
   const globalDotnetBins = resolveGlobalDotnetBinDirs();
   const globalGemBins = resolveGlobalGemBinDirs();
   const globalComposerBins = resolveGlobalComposerBinDirs();

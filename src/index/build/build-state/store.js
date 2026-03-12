@@ -43,6 +43,7 @@ const stateCaches = new Map();
 const recentPatchStagesByBuildRoot = new Map();
 const PATCH_STAGE_TRACK_MAX_BUILD_ROOTS = 64;
 const PATCH_STAGE_TRACK_MAX_PATCHES = 256;
+let patchInvocationCounter = 0;
 
 let activeStateKeyResolver = null;
 
@@ -1054,11 +1055,13 @@ export const applyStatePatch = async (
   let releaseError = null;
   try {
     const { main, progress, checkpoints } = splitPatch(patch);
+    patchInvocationCounter = (patchInvocationCounter + 1) >>> 0;
     const patchId = sha1(JSON.stringify({
       main: main || null,
       progress: progress || null,
       checkpoints: checkpoints || null,
-      events: Array.isArray(events) ? events : []
+      events: Array.isArray(events) ? events : [],
+      invocation: patchInvocationCounter
     }));
     const cache = getCacheEntry(buildRoot);
     const loadedState = await loadBuildState(buildRoot);
@@ -1120,7 +1123,11 @@ export const applyStatePatch = async (
     }
 
     if (writes.length) {
-      await Promise.all(writes);
+      const settledWrites = await Promise.allSettled(writes);
+      const rejectedWrite = settledWrites.find((entry) => entry.status === 'rejected');
+      if (rejectedWrite) {
+        throw rejectedWrite.reason;
+      }
     }
     const eventsPath = resolveEventsPath(buildRoot);
     if (events?.length && !(await hasPatchStageApplied(buildRoot, patchId, 'events', eventsPath))) {

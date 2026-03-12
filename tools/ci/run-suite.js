@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
 import { getEnvConfig } from '../../src/shared/env.js';
 import { spawnSubprocess } from '../../src/shared/subprocess.js';
+import { resolveLocalToolingBinDirs } from '../../src/shared/tooling-bin-dirs.js';
 import { getRuntimeConfig, getToolingDir, loadUserConfig, resolveRuntimeEnv } from '../shared/dict-utils.js';
 import { buildTestRuntimeEnv, normalizeEnvPathKeys, prependPathEntries } from '../tooling/utils.js';
 import { USR_GUARDRAIL_GATES, validateUsrGuardrailGates } from './usr/guardrails.js';
@@ -62,6 +63,9 @@ const buildSuiteEnv = (mode, baseEnv = process.env) => {
 };
 
 export const __buildSuiteEnvForTests = buildSuiteEnv;
+export const __resolveSuiteToolingPathEntriesForTests = (repoRoot, userConfig) => (
+  resolveLocalToolingBinDirs(getToolingDir(repoRoot, userConfig))
+);
 
 const renderCommand = (command, args) => [command, ...args].join(' ');
 const SCRIPT_COVERAGE_GROUPS = Object.freeze([
@@ -143,7 +147,7 @@ const main = async () => {
   const baseLane = argv.lane || (mode === 'nightly' ? 'ci' : 'ci-lite');
   const baseEnv = buildSuiteEnv(mode);
   const userConfig = loadUserConfig(ROOT);
-  prependPathEntries(baseEnv, path.join(getToolingDir(ROOT, userConfig), 'bin'));
+  prependPathEntries(baseEnv, ...__resolveSuiteToolingPathEntriesForTests(ROOT, userConfig));
   // Fixture LSP binaries remain opt-in for dedicated contract lanes.
   const envConfig = getEnvConfig(baseEnv);
   if (envConfig.ciUseLspFixtures === true) {

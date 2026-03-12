@@ -201,6 +201,7 @@ tooling/docs/jsdoc-standards-sync
 tooling/lsp/target-index
 indexing/tree-sitter/chunk-cache-persistent
 shared/fs/atomic-replace-restores-backup-on-missing-temp
+shared/fs/atomic-replace-final-committed-missing-temp
 shared/seed-ref/parse
 storage/sqlite/build-pragmas-restore
 indexing/postings/token-id-parse-resilience
@@ -342,6 +343,7 @@ lang/javascript/js-chunking
 graph/store-csr-artifact-load
 indexing/scm/jj-changed-files-parse
 retrieval/context-pack/assembly
+context-pack/risk-assembly
 shared/merge/spill-contract
 storage/sqlite/cache
 retrieval/pipeline/filter-compiled-reuse
@@ -529,6 +531,8 @@ storage/sqlite/token-text-materialization-skip
 tooling/doctor/command-profile-probe-cache-negative
 tooling/vfs/merge-heap-deterministic
 tooling/doctor/command-profile-tooling-dir-precedence
+tooling/doctor/command-profile-runtime-bin-dirs
+tooling/doctor/command-profile-global-bin-fallbacks
 indexing/tokenization/buffering
 tooling/dict-utils/dict-adaptive
 retrieval/backend/sqlite-fts-eligibility
@@ -1066,6 +1070,7 @@ indexing/embeddings/embedding-batcher-unref-timer
 perf/bench/repo-timeout-propagation
 indexing/watch/debounce
 indexing/state/build-state-log-repair
+indexing/state/build-state-identical-patch-repeat-logs
 indexing/state/build-state-skip-write-missing-files
 tooling/lsp/signature-help-timeout-adaptive-gates-next-symbol
 tooling/lsp/signature-help-timeout-adaptive
@@ -1082,6 +1087,7 @@ indexing/ordering/ordered-appender-retry-reset
 tooling/install/tooling-signal-exit
 tooling/install/tooling-resolve-preferred-enabled-fallback
 tooling/vscode/windows-cmd
+tooling/lsp/windows-wrapper-argv-forwarding
 ci/tooling-lsp-slo-gate-attempt-ratios
 ci/tooling-lsp-slo-gate-sampling
 ci/tooling-lsp-slo-gate-unavailable-skip
@@ -1092,3 +1098,4 @@ indexing/extracted-prose/low-yield-summary-family-evidence
 indexing/extracted-prose/extraction-report
 indexing/workers/worker-pool-lifecycle-destroy
 indexing/workers/worker-pool-lifecycle-destroy-during-restart
+

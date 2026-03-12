@@ -146,11 +146,6 @@ export const createPhpactorProvider = () => createDedicatedLspProvider({
     cmd: 'php',
     args: ['--version'],
     label: 'PHP runtime'
-  }, {
-    id: 'composer',
-    cmd: 'composer',
-    args: ['--version'],
-    label: 'Composer'
   }],
   command: {
     defaultCmd: 'phpactor',

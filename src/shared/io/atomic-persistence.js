@@ -383,6 +383,11 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
   const finalExistedAtStart = finalExists;
   let backupAvailable = false;
   let backupCreatedForReplace = false;
+  const commitSucceeded = () => {
+    if (!fsSync.existsSync(finalPath)) return false;
+    if (!backupCreatedForReplace) return true;
+    return !fsSync.existsSync(backupPath);
+  };
   const restoreBackup = async () => {
     if (!backupAvailable || !backupCreatedForReplace) return false;
     if (fsSync.existsSync(finalPath) || !fsSync.existsSync(backupPath)) return false;
@@ -399,6 +404,7 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
     attempts: REPLACE_TEMP_WAIT_ATTEMPTS,
     baseDelayMs: REPLACE_TEMP_WAIT_BASE_DELAY_MS
   }))) {
+    if (commitSucceeded()) return;
     if (await restoreBackup()) return;
     const err = new Error(`Temp file missing before replace: ${tempPath}`);
     err.code = 'ERR_TEMP_MISSING';
@@ -453,6 +459,14 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
     });
   } catch (err) {
     if (err?.code === 'ENOENT') {
+      if (commitSucceeded()) {
+        await cleanupBackupIfNeeded({
+          keepBackup,
+          backupAvailable: backupAvailable && backupCreatedForReplace,
+          bakPath: backupPath
+        });
+        return;
+      }
       if (await waitForPath(tempPath, {
         attempts: REPLACE_TEMP_WAIT_ATTEMPTS,
         baseDelayMs: REPLACE_TEMP_WAIT_BASE_DELAY_MS
@@ -464,6 +478,14 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
             retryableCodes: RETRYABLE_FILE_RENAME_CODES
           });
         } catch (retryErr) {
+          if (retryErr?.code === 'ENOENT' && commitSucceeded()) {
+            await cleanupBackupIfNeeded({
+              keepBackup,
+              backupAvailable: backupAvailable && backupCreatedForReplace,
+              bakPath: backupPath
+            });
+            return;
+          }
           await restoreBackup();
           throw retryErr;
         }
@@ -523,11 +545,6 @@ export const replaceFileSync = (tempPath, finalPath, options = {}) => {
     err.code = 'ERR_TEMP_MISSING';
     throw err;
   }
-  if (!fsSync.existsSync(tempPath)) {
-    const err = new Error(`Temp file missing before replace: ${tempPath}`);
-    err.code = 'ERR_TEMP_MISSING';
-    throw err;
-  }
   const finalExists = fsSync.existsSync(finalPath);
   if (finalExists) {
     let finalStat = null;
@@ -542,6 +559,17 @@ export const replaceFileSync = (tempPath, finalPath, options = {}) => {
   }
   let backupAvailable = false;
   let backupCreatedForReplace = false;
+  const commitSucceeded = () => {
+    if (!fsSync.existsSync(finalPath)) return false;
+    if (!backupCreatedForReplace) return true;
+    return !fsSync.existsSync(backupPath);
+  };
+  if (!fsSync.existsSync(tempPath)) {
+    if (commitSucceeded()) return;
+    const err = new Error(`Temp file missing before replace: ${tempPath}`);
+    err.code = 'ERR_TEMP_MISSING';
+    throw err;
+  }
   const restoreBackup = () => {
     if (!backupAvailable || !backupCreatedForReplace) return false;
     if (fsSync.existsSync(finalPath) || !fsSync.existsSync(backupPath)) return false;
@@ -600,6 +628,14 @@ export const replaceFileSync = (tempPath, finalPath, options = {}) => {
       bakPath: backupPath
     });
   } catch (err) {
+    if (err?.code === 'ENOENT' && commitSucceeded()) {
+      cleanupBackupIfNeededSync({
+        keepBackup,
+        backupAvailable: backupAvailable && backupCreatedForReplace,
+        bakPath: backupPath
+      });
+      return;
+    }
     if (!RETRYABLE_FILE_RENAME_CODES.has(err?.code)) {
       restoreBackup();
       throw err;
