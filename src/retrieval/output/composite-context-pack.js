@@ -35,6 +35,33 @@ const renderTypes = (types) => {
   return lines;
 };
 
+const renderRisk = (risk) => {
+  const lines = [];
+  lines.push('Risk');
+  if (!risk) {
+    lines.push('- (none)');
+    return lines.join('\n');
+  }
+  if (risk.status) {
+    lines.push(`- status: ${risk.status}${risk.reason ? ` (${risk.reason})` : ''}`);
+  }
+  const totals = risk?.summary?.totals || null;
+  if (totals) {
+    lines.push(`- summary: sources ${totals.sources || 0}, sinks ${totals.sinks || 0}, sanitizers ${totals.sanitizers || 0}, localFlows ${totals.localFlows || 0}`);
+  }
+  const stats = risk?.stats || null;
+  if (stats) {
+    const extras = [];
+    if (stats.flowsEmitted != null) extras.push(`flows ${stats.flowsEmitted}`);
+    if (stats.uniqueCallSitesReferenced != null) extras.push(`call sites ${stats.uniqueCallSitesReferenced}`);
+    if (Array.isArray(stats.capsHit) && stats.capsHit.length) extras.push(`caps ${stats.capsHit.join(', ')}`);
+    if (extras.length) lines.push(`- interprocedural: ${extras.join(', ')}`);
+  }
+  lines.push('');
+  lines.push(renderRiskExplain(risk.flows || [], { maxFlows: 5 }));
+  return lines.join('\n');
+};
+
 export const renderCompositeContextPack = (payload) => {
   const sections = [];
   sections.push(renderPrimary(payload?.primary).join('\n'));
@@ -45,7 +72,7 @@ export const renderCompositeContextPack = (payload) => {
     sections.push(renderTypes(payload.types).join('\n'));
   }
   if (payload?.risk) {
-    sections.push(renderRiskExplain(payload.risk.flows || [], { maxFlows: 5 }));
+    sections.push(renderRisk(payload.risk));
   }
   return sections.filter(Boolean).join('\n\n');
 };

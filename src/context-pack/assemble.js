@@ -13,8 +13,11 @@ import { isRelativePathEscape, readFileRangeSync } from '../shared/files.js';
 import { normalizePathForRepo } from '../shared/path-normalize.js';
 import {
   MAX_JSON_BYTES,
+  loadJsonArrayArtifactSync,
+  loadJsonObjectArtifactSync,
   loadJsonArrayArtifactRows,
-  loadPiecesManifest
+  loadPiecesManifest,
+  resolveArtifactPresence
 } from '../shared/artifact-io.js';
 
 const resolveSeedRef = (seed) => {
@@ -126,6 +129,304 @@ const resolvePrimaryRef = (seedRef, chunk) => {
   }
   if (chunk?.file) return { type: 'file', path: chunk.file };
   return seedRef || null;
+};
+
+const CONTEXT_PACK_MAX_RISK_FLOWS = 5;
+const CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP = 3;
+
+const normalizeRiskPathNodes = (flow) => {
+  const chunkUids = Array.isArray(flow?.path?.chunkUids) ? flow.path.chunkUids : [];
+  return chunkUids.map((chunkUid) => ({ type: 'chunk', chunkUid }));
+};
+
+const summarizeRiskStats = (stats) => ({
+  status: stats?.status || null,
+  reason: stats?.reason || null,
+  summaryOnly: stats?.effectiveConfig?.summaryOnly === true,
+  flowsEmitted: Number.isFinite(stats?.counts?.flowsEmitted) ? stats.counts.flowsEmitted : null,
+  uniqueCallSitesReferenced: Number.isFinite(stats?.counts?.uniqueCallSitesReferenced)
+    ? stats.counts.uniqueCallSitesReferenced
+    : null,
+  capsHit: Array.isArray(stats?.capsHit) ? stats.capsHit.slice() : [],
+  callSiteSampling: stats?.callSiteSampling || null
+});
+
+const buildRiskSlice = ({
+  indexDir,
+  primaryChunk,
+  warnings,
+  truncation
+}) => {
+  if (!indexDir || !primaryChunk?.chunkUid) {
+    warnings.push({
+      code: 'MISSING_RISK',
+      message: 'Risk slice unavailable because no index directory or primary chunk was resolved.'
+    });
+    return {
+      status: 'missing',
+      reason: 'no-index-or-primary-chunk',
+      flows: [],
+      summary: null,
+      stats: null,
+      degraded: true
+    };
+  }
+
+  let manifest = null;
+  try {
+    manifest = loadPiecesManifest(indexDir, { maxBytes: MAX_JSON_BYTES, strict: true });
+  } catch (err) {
+    warnings.push({
+      code: 'MISSING_RISK',
+      message: 'Risk slice unavailable because pieces manifest could not be loaded.',
+      data: { error: err?.message || String(err) }
+    });
+    return {
+      status: 'missing',
+      reason: 'missing-manifest',
+      flows: [],
+      summary: null,
+      stats: null,
+      degraded: true
+    };
+  }
+
+  const statsPresence = resolveArtifactPresence(indexDir, 'risk_interprocedural_stats', {
+    manifest,
+    maxBytes: MAX_JSON_BYTES,
+    strict: true
+  });
+  const summariesPresence = resolveArtifactPresence(indexDir, 'risk_summaries', {
+    manifest,
+    maxBytes: MAX_JSON_BYTES,
+    strict: true
+  });
+  const flowsPresence = resolveArtifactPresence(indexDir, 'risk_flows', {
+    manifest,
+    maxBytes: MAX_JSON_BYTES,
+    strict: true
+  });
+  const callSitesPresence = resolveArtifactPresence(indexDir, 'call_sites', {
+    manifest,
+    maxBytes: MAX_JSON_BYTES,
+    strict: true
+  });
+
+  const statsMissing = statsPresence.format === 'missing' || statsPresence.missingMeta || statsPresence.missingPaths.length > 0;
+  const summariesMissing = summariesPresence.format === 'missing' || summariesPresence.missingMeta || summariesPresence.missingPaths.length > 0;
+  if (statsMissing && summariesMissing) {
+    warnings.push({
+      code: 'MISSING_RISK',
+      message: 'Risk slice unavailable because interprocedural stats and summaries artifacts are missing.'
+    });
+    return {
+      status: 'missing',
+      reason: 'missing-risk-artifacts',
+      flows: [],
+      summary: null,
+      stats: null,
+      degraded: true
+    };
+  }
+
+  let stats = null;
+  if (!statsMissing) {
+    try {
+      stats = loadJsonObjectArtifactSync(indexDir, 'risk_interprocedural_stats', {
+        manifest,
+        maxBytes: MAX_JSON_BYTES,
+        strict: true
+      });
+    } catch (err) {
+      warnings.push({
+        code: 'RISK_STATS_LOAD_FAILED',
+        message: 'Risk stats artifact could not be loaded.',
+        data: { error: err?.message || String(err) }
+      });
+    }
+  }
+
+  let summary = null;
+  if (!summariesMissing) {
+    try {
+      const summaryRows = loadJsonArrayArtifactSync(indexDir, 'risk_summaries', {
+        manifest,
+        maxBytes: MAX_JSON_BYTES,
+        strict: true
+      });
+      summary = Array.isArray(summaryRows)
+        ? (summaryRows.find((row) => row?.chunkUid === primaryChunk.chunkUid) || null)
+        : null;
+    } catch (err) {
+      warnings.push({
+        code: 'RISK_SUMMARIES_LOAD_FAILED',
+        message: 'Risk summaries artifact could not be loaded.',
+        data: { error: err?.message || String(err) }
+      });
+    }
+  }
+
+  const summaryOnly = stats?.effectiveConfig?.summaryOnly === true;
+  const baseStatus = stats?.status === 'disabled'
+    ? 'disabled'
+    : summaryOnly
+      ? 'summary_only'
+      : stats
+        ? 'ok'
+        : 'missing';
+
+  if (baseStatus === 'disabled') {
+    return {
+      status: 'disabled',
+      reason: stats?.reason || 'disabled',
+      flows: [],
+      summary,
+      stats: summarizeRiskStats(stats),
+      degraded: false
+    };
+  }
+
+  if (baseStatus === 'summary_only') {
+    return {
+      status: 'summary_only',
+      reason: stats?.reason || null,
+      flows: [],
+      summary,
+      stats: summarizeRiskStats(stats),
+      degraded: false
+    };
+  }
+
+  let degraded = false;
+  let flows = [];
+  const flowsMissing = flowsPresence.format === 'missing' || flowsPresence.missingMeta || flowsPresence.missingPaths.length > 0;
+  const callSitesMissing = callSitesPresence.format === 'missing' || callSitesPresence.missingMeta || callSitesPresence.missingPaths.length > 0;
+  if (!flowsMissing) {
+    try {
+      const flowRows = loadJsonArrayArtifactSync(indexDir, 'risk_flows', {
+        manifest,
+        maxBytes: MAX_JSON_BYTES,
+        strict: true
+      });
+      const matchingFlows = Array.isArray(flowRows)
+        ? flowRows.filter((flow) => {
+          const chunkUids = Array.isArray(flow?.path?.chunkUids) ? flow.path.chunkUids : [];
+          return flow?.source?.chunkUid === primaryChunk.chunkUid
+            || flow?.sink?.chunkUid === primaryChunk.chunkUid
+            || chunkUids.includes(primaryChunk.chunkUid);
+        })
+        : [];
+      matchingFlows.sort((a, b) => {
+        const confidenceA = Number.isFinite(a?.confidence) ? a.confidence : -1;
+        const confidenceB = Number.isFinite(b?.confidence) ? b.confidence : -1;
+        if (confidenceA !== confidenceB) return confidenceB - confidenceA;
+        return compareStrings(a?.flowId || '', b?.flowId || '');
+      });
+      if (matchingFlows.length > CONTEXT_PACK_MAX_RISK_FLOWS) {
+        truncation.push({
+          scope: 'risk',
+          cap: 'maxPaths',
+          limit: CONTEXT_PACK_MAX_RISK_FLOWS,
+          observed: matchingFlows.length,
+          omitted: matchingFlows.length - CONTEXT_PACK_MAX_RISK_FLOWS,
+          note: 'Risk flows truncated for composite context pack.'
+        });
+      }
+      flows = matchingFlows.slice(0, CONTEXT_PACK_MAX_RISK_FLOWS);
+    } catch (err) {
+      warnings.push({
+        code: 'RISK_FLOWS_LOAD_FAILED',
+        message: 'Risk flows artifact could not be loaded.',
+        data: { error: err?.message || String(err) }
+      });
+      degraded = true;
+    }
+  } else if (stats?.counts?.flowsEmitted > 0) {
+    warnings.push({
+      code: 'RISK_FLOWS_MISSING',
+      message: 'Risk stats report emitted flows, but the risk_flows artifact is missing.'
+    });
+    degraded = true;
+  }
+
+  const referencedCallSiteIds = new Set();
+  for (const flow of flows) {
+    const steps = Array.isArray(flow?.path?.callSiteIdsByStep) ? flow.path.callSiteIdsByStep : [];
+    for (const ids of steps) {
+      for (const callSiteId of Array.isArray(ids) ? ids.slice(0, CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP) : []) {
+        if (callSiteId) referencedCallSiteIds.add(callSiteId);
+      }
+    }
+  }
+
+  const callSiteById = new Map();
+  if (referencedCallSiteIds.size > 0 && !callSitesMissing) {
+    try {
+      const callSiteRows = loadJsonArrayArtifactSync(indexDir, 'call_sites', {
+        manifest,
+        maxBytes: MAX_JSON_BYTES,
+        strict: true
+      });
+      for (const row of Array.isArray(callSiteRows) ? callSiteRows : []) {
+        if (row?.callSiteId && referencedCallSiteIds.has(row.callSiteId)) {
+          callSiteById.set(row.callSiteId, row);
+        }
+      }
+    } catch (err) {
+      warnings.push({
+        code: 'RISK_CALL_SITES_LOAD_FAILED',
+        message: 'Call-site evidence artifact could not be loaded for risk flows.',
+        data: { error: err?.message || String(err) }
+      });
+      degraded = true;
+    }
+  } else if (referencedCallSiteIds.size > 0 && callSitesMissing) {
+    warnings.push({
+      code: 'RISK_CALL_SITES_MISSING',
+      message: 'Risk flows reference call-site evidence, but the call_sites artifact is missing.'
+    });
+    degraded = true;
+  }
+
+  const normalizedFlows = flows.map((flow) => {
+    const steps = Array.isArray(flow?.path?.callSiteIdsByStep) ? flow.path.callSiteIdsByStep : [];
+    return {
+      flowId: flow?.flowId || null,
+      sourceChunkUid: flow?.source?.chunkUid || null,
+      sinkChunkUid: flow?.sink?.chunkUid || null,
+      category: flow?.sink?.category || flow?.source?.category || null,
+      severity: flow?.sink?.severity || flow?.source?.severity || null,
+      confidence: Number.isFinite(flow?.confidence) ? flow.confidence : null,
+      path: {
+        nodes: normalizeRiskPathNodes(flow),
+        callSiteIdsByStep: steps.map((ids) => (
+          Array.isArray(ids) ? ids.slice(0, CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP) : []
+        ))
+      },
+      evidence: {
+        sourceRuleId: flow?.source?.ruleId || null,
+        sinkRuleId: flow?.sink?.ruleId || null,
+        callSitesByStep: steps.map((ids) => (
+          Array.isArray(ids)
+            ? ids.slice(0, CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP).map((callSiteId) => ({
+              callSiteId,
+              details: callSiteById.get(callSiteId) || null
+            }))
+            : []
+        ))
+      }
+    };
+  });
+
+  const status = degraded ? 'degraded' : baseStatus;
+  return {
+    status,
+    reason: degraded ? 'partial-artifacts' : (stats?.reason || null),
+    flows: normalizedFlows,
+    summary,
+    stats: summarizeRiskStats(stats),
+    degraded
+  };
 };
 
 const trimUtf8Buffer = (buffer) => {
@@ -517,11 +818,12 @@ export const assembleCompositeContextPack = ({
 
   let risk = null;
   if (includeRisk) {
-    warnings.push({
-      code: 'MISSING_RISK',
-      message: 'Risk slice not available in this context pack.'
+    risk = buildRiskSlice({
+      indexDir,
+      primaryChunk,
+      warnings,
+      truncation
     });
-    risk = { flows: [] };
   }
 
   const capsUsed = {

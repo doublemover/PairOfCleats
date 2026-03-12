@@ -639,6 +639,14 @@ export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
     risk: {
       type: ['object', 'null'],
       properties: {
+        status: {
+          type: 'string',
+          enum: ['ok', 'disabled', 'missing', 'summary_only', 'degraded']
+        },
+        reason: nullableString,
+        degraded: { type: ['boolean', 'null'] },
+        summary: { type: ['object', 'null'], additionalProperties: true },
+        stats: { type: ['object', 'null'], additionalProperties: true },
         flows: { type: 'array', items: riskFlowSummarySchema }
       },
       additionalProperties: true
