@@ -20,130 +20,141 @@ def _has_repo_root(window):
     return paths.has_repo_root(window)
 
 
+def _with_mutating_repo_root(window, action_label, on_resolved):
+    def handle_repo_root(repo_root, reason):
+        if not repo_root:
+            ui.show_error('PairOfCleats: {0}'.format(reason))
+            return
+        if reason:
+            ui.show_status('PairOfCleats: {0}'.format(reason))
+        on_resolved(repo_root)
+
+    paths.resolve_repo_root_interactive(
+        window,
+        handle_repo_root,
+        allow_fallback=False,
+        prompt='PairOfCleats repo for {0}'.format(action_label),
+    )
+
+
 def _run_index_build(window, mode):
     settings = config.get_settings(window)
-    repo_root, reason = _resolve_repo_root(window)
-    if not repo_root:
-        ui.show_error('PairOfCleats: {0}'.format(reason))
-        return
-    if reason:
-        ui.show_status('PairOfCleats: {0}'.format(reason))
 
-    errors = config.validate_settings(settings, repo_root)
-    if errors:
-        ui.show_error('PairOfCleats settings need attention:\n- {0}'.format('\n- '.join(errors)))
-        return
-
-    args = indexing.build_index_args(mode, repo_root=repo_root)
-    cli = paths.resolve_cli(settings, repo_root)
-    command = cli['command']
-    full_args = list(cli.get('args_prefix') or []) + args
-    env = config.build_env(settings)
-
-    ui.show_status('PairOfCleats: index build started ({0}).'.format(mode))
-
-    def on_done(result):
-        if result.returncode == 0:
-            index_state.record_last_build(window, mode)
-            ui.show_status('PairOfCleats: index build complete ({0}).'.format(mode))
+    def on_repo_root(repo_root):
+        errors = config.validate_settings(settings, repo_root)
+        if errors:
+            ui.show_error('PairOfCleats settings need attention:\n- {0}'.format('\n- '.join(errors)))
             return
-        message = result.output.strip() or 'PairOfCleats index build failed.'
-        ui.show_error(message)
 
-    runner.run_process(
-        command,
-        full_args,
-        cwd=repo_root,
-        env=env,
-        window=window,
-        title='PairOfCleats index build',
-        capture_json=False,
-        on_done=on_done,
-        stream_output=True,
-        panel_name=INDEX_PANEL
-    )
+        args = indexing.build_index_args(mode, repo_root=repo_root)
+        cli = paths.resolve_cli(settings, repo_root)
+        command = cli['command']
+        full_args = list(cli.get('args_prefix') or []) + args
+        env = config.build_env(settings)
+
+        ui.show_status('PairOfCleats: index build started ({0}) for {1}.'.format(mode, repo_root))
+
+        def on_done(result):
+            if result.returncode == 0:
+                index_state.record_last_build(window, mode)
+                ui.show_status('PairOfCleats: index build complete ({0}) for {1}.'.format(mode, repo_root))
+                return
+            message = result.output.strip() or 'PairOfCleats index build failed.'
+            ui.show_error(message)
+
+        runner.run_process(
+            command,
+            full_args,
+            cwd=repo_root,
+            env=env,
+            window=window,
+            title='PairOfCleats index build',
+            capture_json=False,
+            on_done=on_done,
+            stream_output=True,
+            panel_name=INDEX_PANEL
+        )
+
+    _with_mutating_repo_root(window, 'index build', on_repo_root)
 
 
 def _run_index_watch(window):
     settings = config.get_settings(window)
-    repo_root, reason = _resolve_repo_root(window)
-    if not repo_root:
-        ui.show_error('PairOfCleats: {0}'.format(reason))
-        return
-    if reason:
-        ui.show_status('PairOfCleats: {0}'.format(reason))
 
-    errors = config.validate_settings(settings, repo_root)
-    if errors:
-        ui.show_error('PairOfCleats settings need attention:\n- {0}'.format('\n- '.join(errors)))
-        return
-
-    watch_root = paths.resolve_watch_root(window, settings)
-    if not watch_root:
-        ui.show_error('PairOfCleats: unable to resolve watch root.')
-        return
-
-    active_watch = watch.snapshot(window)
-    if active_watch:
-        active_root = active_watch.get('root')
-        if active_root == watch_root:
-            message = 'PairOfCleats: watch already running.'
-            if active_root:
-                message = '{0} ({1})'.format(message, active_root)
-            ui.show_status(message)
+    def on_repo_root(repo_root):
+        errors = config.validate_settings(settings, repo_root)
+        if errors:
+            ui.show_error('PairOfCleats settings need attention:\n- {0}'.format('\n- '.join(errors)))
             return
-        watch.stop(window, reason='restart')
-        ui.show_status('PairOfCleats: restarting watch ({0}).'.format(watch_root))
 
-    mode = settings.get('index_watch_mode') or 'all'
-    poll_ms = settings.get('index_watch_poll_ms')
-    debounce_ms = settings.get('index_watch_debounce_ms')
-
-    args = indexing.build_index_args(
-        mode,
-        repo_root=watch_root,
-        watch=True,
-        watch_poll_ms=poll_ms,
-        watch_debounce_ms=debounce_ms
-    )
-
-    cli = paths.resolve_cli(settings, repo_root)
-    command = cli['command']
-    full_args = list(cli.get('args_prefix') or []) + args
-    env = config.build_env(settings)
-
-    ui.show_status('PairOfCleats: watch started ({0}).'.format(watch_root))
-
-    token = None
-
-    def on_done(result):
-        current = watch.snapshot(window)
-        if current and current.get('token') != token:
+        watch_root = paths.resolve_watch_root(window, settings, repo_root=repo_root)
+        if not watch_root:
+            ui.show_error('PairOfCleats: unable to resolve watch root.')
             return
-        stop_reason = current.get('stopReason') if current else None
-        stopping = bool(current and current.get('stopping'))
-        watch.clear_if_done(window, token=token)
-        if stop_reason == 'restart':
-            return
-        if result.returncode == 0 or stopping:
-            ui.show_status('PairOfCleats: watch stopped.')
-            return
-        message = result.output.strip() or 'PairOfCleats watch failed.'
-        ui.show_error(message)
 
-    handle = runner.run_process(
-        command,
-        full_args,
-        cwd=watch_root,
-        env=env,
-        window=window,
-        title='PairOfCleats index watch',
-        capture_json=False,
-        on_done=on_done,
-        stream_output=True,
-        panel_name=INDEX_PANEL
-    )
-    token = watch.register(window, handle, watch_root)
+        active_watch = watch.snapshot(window)
+        if active_watch:
+            active_root = active_watch.get('root')
+            if active_root == watch_root:
+                message = 'PairOfCleats: watch already running.'
+                if active_root:
+                    message = '{0} ({1})'.format(message, active_root)
+                ui.show_status(message)
+                return
+            watch.stop(window, reason='restart')
+            ui.show_status('PairOfCleats: restarting watch ({0}).'.format(watch_root))
+
+        mode = settings.get('index_watch_mode') or 'all'
+        poll_ms = settings.get('index_watch_poll_ms')
+        debounce_ms = settings.get('index_watch_debounce_ms')
+
+        args = indexing.build_index_args(
+            mode,
+            repo_root=watch_root,
+            watch=True,
+            watch_poll_ms=poll_ms,
+            watch_debounce_ms=debounce_ms
+        )
+
+        cli = paths.resolve_cli(settings, repo_root)
+        command = cli['command']
+        full_args = list(cli.get('args_prefix') or []) + args
+        env = config.build_env(settings)
+
+        ui.show_status('PairOfCleats: watch started ({0}).'.format(watch_root))
+
+        token = None
+
+        def on_done(result):
+            current = watch.snapshot(window)
+            if current and current.get('token') != token:
+                return
+            stop_reason = current.get('stopReason') if current else None
+            stopping = bool(current and current.get('stopping'))
+            watch.clear_if_done(window, token=token)
+            if stop_reason == 'restart':
+                return
+            if result.returncode == 0 or stopping:
+                ui.show_status('PairOfCleats: watch stopped.')
+                return
+            message = result.output.strip() or 'PairOfCleats watch failed.'
+            ui.show_error(message)
+
+        handle = runner.run_process(
+            command,
+            full_args,
+            cwd=watch_root,
+            env=env,
+            window=window,
+            title='PairOfCleats index watch',
+            capture_json=False,
+            on_done=on_done,
+            stream_output=True,
+            panel_name=INDEX_PANEL
+        )
+        token = watch.register(window, handle, watch_root)
+
+    _with_mutating_repo_root(window, 'index watch', on_repo_root)
 
 
 def _run_index_watch_stop(window):

@@ -24,23 +24,62 @@ def find_repo_root(start_path):
     return None
 
 
-def resolve_repo_root(window, return_reason=False, path_hint=None):
-    root, reason = _resolve_repo_root(window, path_hint=path_hint)
+def resolve_repo_root(window, return_reason=False, path_hint=None, allow_fallback=True):
+    root, reason = _resolve_repo_root(window, path_hint=path_hint, allow_fallback=allow_fallback)
     if return_reason:
         return root, reason
     return root
 
 
-def has_repo_root(window, path_hint=None):
-    root, _ = resolve_repo_root(window, return_reason=True, path_hint=path_hint)
+def has_repo_root(window, path_hint=None, allow_fallback=True):
+    root, _ = resolve_repo_root(window, return_reason=True, path_hint=path_hint, allow_fallback=allow_fallback)
     return root is not None
 
 
-def _resolve_repo_root(window, path_hint=None):
+def resolve_repo_root_interactive(window, on_done, path_hint=None, allow_fallback=True, prompt='PairOfCleats repo'):
+    resolution = _describe_repo_root(window, path_hint=path_hint, allow_fallback=allow_fallback)
+    selected_root = resolution.get('selected_root')
+    if selected_root:
+        on_done(selected_root, resolution.get('reason'))
+        return
+    repo_roots = resolution.get('repo_roots') or []
+    if len(repo_roots) <= 1 or window is None or not hasattr(window, 'show_quick_panel'):
+        on_done(None, resolution.get('reason'))
+        return
+    items = []
+    for entry in repo_roots:
+        label = entry.get('root')
+        source = entry.get('source')
+        hint = 'repo root'
+        if source == 'folder':
+            hint = 'open folder'
+        elif source == 'hint':
+            hint = 'path hint'
+        elif source == 'active_file':
+            hint = 'active file'
+        items.append([label, hint])
+
+    def on_select(index):
+        if index < 0:
+            on_done(None, 'Repo selection cancelled.')
+            return
+        chosen = repo_roots[index]
+        on_done(chosen.get('root'), 'Using selected repo: {0}'.format(chosen.get('root')))
+
+    window.show_quick_panel(items, on_select)
+
+
+def _resolve_repo_root(window, path_hint=None, allow_fallback=True):
+    resolution = _describe_repo_root(window, path_hint=path_hint, allow_fallback=allow_fallback)
+    return resolution.get('selected_root'), resolution.get('reason')
+
+
+def _describe_repo_root(window, path_hint=None, allow_fallback=True):
     if window is None:
-        return None, 'No active window.'
+        return {'selected_root': None, 'reason': 'No active window.', 'repo_roots': []}
 
     hint_root = None
+    hint_repo_root = None
     if path_hint:
         hint_path = path_hint
         if os.path.isfile(hint_path):
@@ -48,51 +87,101 @@ def _resolve_repo_root(window, path_hint=None):
         if hint_path:
             root = find_repo_root(hint_path)
             if root:
-                return root, None
+                hint_repo_root = os.path.abspath(root)
             hint_root = os.path.abspath(hint_path)
 
-    candidates = []
     active_file = None
     folders = window.folders() or []
     folders = sorted([os.path.abspath(folder) for folder in folders if folder])
-    if folders:
-        candidates.extend(folders)
-    else:
-        view = window.active_view()
-        active_file = view.file_name() if view else None
-        if active_file:
-            candidates.append(active_file)
+    view = window.active_view()
+    active_file = view.file_name() if view else None
 
-    for candidate in candidates:
-        root = find_repo_root(candidate)
-        if root:
-            return root, None
+    repo_roots = []
+    seen_roots = set()
+
+    def add_root(root, source):
+        normalized = os.path.abspath(root)
+        if normalized in seen_roots:
+            return
+        seen_roots.add(normalized)
+        repo_roots.append({'root': normalized, 'source': source})
+
+    if hint_repo_root:
+        add_root(hint_repo_root, 'hint')
+    if active_file:
+        active_root = find_repo_root(active_file)
+        if active_root:
+            add_root(active_root, 'active_file')
+    for folder in folders:
+        folder_root = find_repo_root(folder)
+        if folder_root:
+            add_root(folder_root, 'folder')
+
+    if hint_repo_root:
+        return {'selected_root': hint_repo_root, 'reason': None, 'repo_roots': repo_roots}
+    if hint_root and not allow_fallback:
+        return {
+            'selected_root': None,
+            'reason': 'Repo root not found for the requested path. Choose a repo folder with .pairofcleats.json or .git.',
+            'repo_roots': [],
+        }
+    if len(repo_roots) == 1:
+        return {'selected_root': repo_roots[0]['root'], 'reason': None, 'repo_roots': repo_roots}
+    if len(repo_roots) > 1:
+        return {
+            'selected_root': None,
+            'reason': 'Multiple repo roots found. Choose a target repo.',
+            'repo_roots': repo_roots,
+        }
+
+    if not allow_fallback:
+        if hint_root:
+            return {
+                'selected_root': None,
+                'reason': 'Repo root not found for the requested path. Choose a repo folder with .pairofcleats.json or .git.',
+                'repo_roots': [],
+            }
+        if folders:
+            return {
+                'selected_root': None,
+                'reason': 'No repo root found in the open folders. Mutating PairOfCleats commands require an explicit repo root.',
+                'repo_roots': [],
+            }
+        if active_file:
+            return {
+                'selected_root': None,
+                'reason': 'No repo root found for the active file. Mutating PairOfCleats commands require an explicit repo root.',
+                'repo_roots': [],
+            }
+        return {
+            'selected_root': None,
+            'reason': 'No folders are open. Add a folder or project to enable PairOfCleats.',
+            'repo_roots': [],
+        }
 
     if hint_root:
-        return hint_root, 'Repo root not found; using hint path.'
+        return {'selected_root': hint_root, 'reason': 'Repo root not found; using hint path.', 'repo_roots': []}
     if folders:
-        return folders[0], 'Repo root not found; using open folder.'
+        return {'selected_root': folders[0], 'reason': 'Repo root not found; using open folder.', 'repo_roots': []}
     if active_file:
-        return os.path.dirname(active_file), 'Repo root not found; using active file folder.'
+        return {'selected_root': os.path.dirname(active_file), 'reason': 'Repo root not found; using active file folder.', 'repo_roots': []}
 
-    if candidates:
-        return None, 'Repo root not found. Open a folder with .pairofcleats.json or .git.'
+    if folders or active_file:
+        return {'selected_root': None, 'reason': 'Repo root not found. Open a folder with .pairofcleats.json or .git.', 'repo_roots': []}
 
-    return None, 'No folders are open. Add a folder or project to enable PairOfCleats.'
+    return {'selected_root': None, 'reason': 'No folders are open. Add a folder or project to enable PairOfCleats.', 'repo_roots': []}
 
 
-def resolve_watch_root(window, settings):
-    repo_root, _ = resolve_repo_root(window, return_reason=True)
+def resolve_watch_root(window, settings, repo_root=None):
+    if not repo_root:
+        repo_root, _ = resolve_repo_root(window, return_reason=True, allow_fallback=False)
     scope = (settings.get('index_watch_scope') or 'repo').strip().lower()
     folder_override = settings.get('index_watch_folder') or ''
     if scope == 'folder':
         if folder_override:
-            resolved = resolve_path(repo_root, folder_override)
+            resolved = resolve_path_within_repo(repo_root, folder_override)
             if resolved:
                 return resolved
-        folders = window.folders() if window is not None else []
-        if folders:
-            return folders[0]
     return repo_root
 
 
@@ -123,10 +212,25 @@ def resolve_path(repo_root, value):
     if not value:
         return None
     if os.path.isabs(value):
-        return value
+        return os.path.normpath(value)
     if repo_root:
         return os.path.normpath(os.path.join(repo_root, value))
-    return value
+    return os.path.normpath(value)
+
+
+def resolve_path_within_repo(repo_root, value):
+    resolved = resolve_path(repo_root, value)
+    if not resolved or not repo_root:
+        return None
+    try:
+        repo_root_norm = os.path.normcase(os.path.abspath(repo_root))
+        resolved_norm = os.path.normcase(os.path.abspath(resolved))
+        common = os.path.commonpath([repo_root_norm, resolved_norm])
+    except Exception:
+        return None
+    if common != repo_root_norm:
+        return None
+    return resolved
 
 
 def _find_local_binary(repo_root):

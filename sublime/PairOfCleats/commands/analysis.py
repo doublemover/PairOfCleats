@@ -33,8 +33,8 @@ ANALYSIS_ACTIONS = [
 ]
 
 
-def _resolve_repo_root(window, path_hint=None):
-    return paths.resolve_repo_root(window, return_reason=True, path_hint=path_hint)
+def _resolve_repo_root(window, path_hint=None, allow_fallback=True):
+    return paths.resolve_repo_root(window, return_reason=True, path_hint=path_hint, allow_fallback=allow_fallback)
 
 
 def _extract_selection(view):
@@ -97,9 +97,9 @@ def _prompt_value(window, caption, initial, on_done):
     window.show_input_panel(caption, initial or '', lambda value: on_done((value or '').strip()), None, None)
 
 
-def _resolve_cli_context(window, path_hint=None):
+def _resolve_cli_context(window, path_hint=None, allow_fallback=True):
     settings = config.get_settings(window)
-    repo_root, reason = _resolve_repo_root(window, path_hint=path_hint)
+    repo_root, reason = _resolve_repo_root(window, path_hint=path_hint, allow_fallback=allow_fallback)
     if not repo_root:
         ui.show_error('PairOfCleats: {0}'.format(reason))
         return None
@@ -118,6 +118,36 @@ def _resolve_cli_context(window, path_hint=None):
         'cli': cli,
         'env': env,
     }
+
+
+def _with_mutating_cli_context(window, action_label, on_resolved, path_hint=None):
+    settings = config.get_settings(window)
+
+    def handle_repo_root(repo_root, reason):
+        if not repo_root:
+            ui.show_error('PairOfCleats: {0}'.format(reason))
+            return
+        if reason:
+            ui.show_status('PairOfCleats: {0}'.format(reason))
+        errors = config.validate_settings(settings, repo_root)
+        if errors:
+            message = 'PairOfCleats settings need attention:\n- {0}'.format('\n- '.join(errors))
+            ui.show_error(message)
+            return
+        on_resolved({
+            'settings': settings,
+            'repo_root': repo_root,
+            'cli': paths.resolve_cli(settings, repo_root),
+            'env': config.build_env(settings),
+        })
+
+    paths.resolve_repo_root_interactive(
+        window,
+        handle_repo_root,
+        path_hint=path_hint,
+        allow_fallback=False,
+        prompt='PairOfCleats repo for {0}'.format(action_label),
+    )
 
 
 def _default_export_path(repo_root, kind, identity):
@@ -635,8 +665,8 @@ def _run_cli_json(window, title, repo_root, args, on_done, context=None):
 
 
 def _execute_analysis_command(window, title, kind, repo_root, args, collect_hits, render_text,
-                              export_json=False, out_path=None, export_identity=None):
-    context = _resolve_cli_context(window, path_hint=repo_root)
+                              export_json=False, out_path=None, export_identity=None, context=None):
+    context = context or _resolve_cli_context(window, path_hint=repo_root)
     if not context:
         return
     execution = config.resolve_execution_mode(context.get('settings') or {}, kind, supports_api=False)
@@ -1105,23 +1135,29 @@ class PairOfCleatsWorkspaceBuildCommand(PairOfCleatsWorkspaceManifestCommand):
         )
 
     def _execute_build(self, workspace_path, concurrency, export_json, out_path):
-        context = _resolve_cli_context(self.window, path_hint=workspace_path)
-        if not context:
-            return
-        repo_root = context['repo_root']
-        concurrency_value = int(concurrency) if str(concurrency).isdigit() else DEFAULT_WORKSPACE_BUILD_CONCURRENCY
-        args = ['workspace', 'build', '--workspace', workspace_path, '--concurrency', str(concurrency_value), '--json']
-        _execute_analysis_command(
+        def on_context(context):
+            repo_root = context['repo_root']
+            concurrency_value = int(concurrency) if str(concurrency).isdigit() else DEFAULT_WORKSPACE_BUILD_CONCURRENCY
+            args = ['workspace', 'build', '--workspace', workspace_path, '--concurrency', str(concurrency_value), '--json']
+            _execute_analysis_command(
+                self.window,
+                'PairOfCleats workspace build',
+                'workspace-build',
+                repo_root,
+                args,
+                _collect_workspace_hits,
+                lambda payload, hits: _render_workspace_text('workspace-build', payload, hits),
+                export_json=export_json,
+                out_path=out_path,
+                export_identity=workspace_path,
+                context=context,
+            )
+
+        _with_mutating_cli_context(
             self.window,
-            'PairOfCleats workspace build',
-            'workspace-build',
-            repo_root,
-            args,
-            _collect_workspace_hits,
-            lambda payload, hits: _render_workspace_text('workspace-build', payload, hits),
-            export_json=export_json,
-            out_path=out_path,
-            export_identity=workspace_path,
+            'workspace build',
+            on_context,
+            path_hint=workspace_path,
         )
 
 

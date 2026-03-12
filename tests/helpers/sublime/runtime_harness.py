@@ -122,6 +122,7 @@ class FakeWindow:
         self._id = FakeWindow._next_id
         FakeWindow._next_id += 1
         self._project_data = {}
+        self._folders = []
         self.quick_panel_items = None
         self.quick_panel_callback = None
         self.panels = {}
@@ -140,6 +141,9 @@ class FakeWindow:
 
     def set_project_data(self, value):
         self._project_data = value
+
+    def set_folders(self, folders):
+        self._folders = list(folders or [])
 
     def show_quick_panel(self, items, on_select, selected_index=-1):
         self.quick_panel_items = items
@@ -182,7 +186,7 @@ class FakeWindow:
         self.current_group = index
 
     def folders(self):
-        return []
+        return list(self._folders)
 
     def active_view(self):
         return self._active_view

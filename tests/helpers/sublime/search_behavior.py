@@ -32,7 +32,7 @@ class SearchBehaviorTests(unittest.TestCase):
             'api_run_async': self.search.api_client.run_async,
         }
         self.search.paths.resolve_repo_root = (
-            lambda _window, return_reason=True: ('C:/repo', None)
+            lambda _window, return_reason=True, path_hint=None, allow_fallback=True: ('C:/repo', None)
             if return_reason else 'C:/repo'
         )
         self.search.config.validate_settings = lambda _settings, _repo_root: []

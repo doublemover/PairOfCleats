@@ -658,6 +658,8 @@ indexing/build/stage-progression-contract
 retrieval/ann/hnsw-insert-failures
 storage/sqlite/build-memory-guard
 tooling/sublime/pycompile
+tooling/sublime/paths-behavior
+tooling/sublime/index-behavior
 tooling/sublime/results-behavior
 tooling/sublime/navigation-behavior
 tooling/sublime/watch-behavior

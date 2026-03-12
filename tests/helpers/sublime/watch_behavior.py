@@ -56,11 +56,11 @@ class WatchBehaviorTests(unittest.TestCase):
         self.index.config.get_settings = lambda _window: {'index_watch_mode': 'all'}
         self.index.config.validate_settings = lambda _settings, _repo_root: []
         self.index.paths.resolve_repo_root = (
-            lambda _window, return_reason=True: ('C:/repo', None)
+            lambda _window, return_reason=True, path_hint=None, allow_fallback=True: ('C:/repo', None)
             if return_reason else 'C:/repo'
         )
         self._next_watch_root = 'C:/repo'
-        self.index.paths.resolve_watch_root = lambda _window, _settings: self._next_watch_root
+        self.index.paths.resolve_watch_root = lambda _window, _settings, repo_root=None: self._next_watch_root
         self.index.paths.resolve_cli = lambda _settings, _repo_root: {
             'command': 'pairofcleats',
             'args_prefix': [],

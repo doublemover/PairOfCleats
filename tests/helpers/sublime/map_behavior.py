@@ -43,7 +43,7 @@ class MapBehaviorTests(unittest.TestCase):
         self.opened_urls = []
         self.map_commands.webbrowser.open_new_tab = lambda url: self.opened_urls.append(url) or True
         self.map_commands.paths.resolve_repo_root = (
-            lambda _window, return_reason=True, path_hint=None: ('C:/repo', None)
+            lambda _window, return_reason=True, path_hint=None, allow_fallback=True: ('C:/repo', None)
             if return_reason else 'C:/repo'
         )
         self.map_commands.config.get_settings = lambda _window: {
@@ -102,7 +102,7 @@ class MapBehaviorTests(unittest.TestCase):
             on_done(_FakeResult(payload))
 
         self.map_commands.runner.run_process = _run_process
-        self.map_commands._dispatch_map(self.window, 'repo', '')
+        self.map_commands._dispatch_map(self.window, 'repo', '', 'C:/repo')
 
         state = self.map_state.get_last_map(self.window)
         self.assertEqual(state['repo'], 'C:/repo')
@@ -181,12 +181,45 @@ class MapBehaviorTests(unittest.TestCase):
             on_done(self.map_commands.api_client.ApiResult(payload=request_fn()))
         )
 
-        self.map_commands._dispatch_map(self.window, 'repo', '')
+        self.map_commands._dispatch_map(self.window, 'repo', '', 'C:/repo')
 
         state = self.map_state.get_last_map(self.window)
         self.assertEqual(state['source'], 'api')
         self.assertEqual(self.opened_urls, ['https://example.test/map'])
         self.assertIn('PairOfCleats map', self.window.panels['pairofcleats-progress'].appended)
+
+    def test_repo_map_prompts_for_repo_when_multiple_roots_exist(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_a = os.path.join(tmp, 'repo-a')
+            repo_b = os.path.join(tmp, 'repo-b')
+            os.makedirs(os.path.join(repo_a, '.git'))
+            os.makedirs(os.path.join(repo_b, '.git'))
+            self.window.set_folders([repo_a, repo_b])
+            self.map_commands.paths.resolve_repo_root = self._originals['resolve_repo_root']
+            runner_calls = []
+
+            def _run_process(command, args, cwd=None, env=None, window=None, title=None, capture_json=None, on_done=None, stream_output=None, panel_name=None):
+                runner_calls.append({'cwd': cwd, 'title': title})
+                on_done(_FakeResult({
+                    'ok': True,
+                    'source': 'cli',
+                    'format': 'html-iso',
+                    'outPath': 'https://example.test/map',
+                    'summary': {'counts': {'files': 1, 'members': 1, 'edges': 0}},
+                    'warnings': [],
+                }))
+
+            self.map_commands.runner.run_process = _run_process
+            self.map_commands.PairOfCleatsMapRepoCommand(self.window).run()
+
+            self.assertEqual(runner_calls, [])
+            self.assertEqual(len(self.window.quick_panel_items), 2)
+            self.window.quick_panel_callback(1)
+            self.assertEqual(runner_calls[0]['cwd'], os.path.abspath(repo_b))
+            self.assertTrue(
+                any('Using selected repo:' in message for message in self.sublime.status_history),
+                'expected explicit selected-repo status message',
+            )
 
 
 if __name__ == '__main__':

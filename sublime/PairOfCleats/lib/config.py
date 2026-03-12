@@ -4,6 +4,8 @@ from urllib.parse import urlparse
 
 import sublime
 
+from . import paths
+
 SETTINGS_FILE = 'PairOfCleats.sublime-settings'
 
 DEFAULT_EDITOR_CONFIG_CONTRACT = {
@@ -346,8 +348,10 @@ def validate_settings(settings, repo_root=None):
 
     watch_folder = settings.get('index_watch_folder')
     if watch_folder and (os.path.isabs(watch_folder) or repo_root):
-        resolved = _resolve_path(repo_root, watch_folder)
-        if resolved and not os.path.exists(resolved):
+        resolved = paths.resolve_path_within_repo(repo_root, watch_folder) if repo_root else _resolve_path(repo_root, watch_folder)
+        if repo_root and not resolved:
+            errors.append('index_watch_folder must stay within the selected repo root.')
+        elif resolved and not os.path.exists(resolved):
             errors.append('index_watch_folder does not exist: {0}'.format(resolved))
 
     _validate_bool_setting(errors, settings, 'map_prompt_options')

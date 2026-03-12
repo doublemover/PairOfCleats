@@ -35,6 +35,7 @@ class AnalysisBehaviorTests(unittest.TestCase):
         self.view = FakeView(os.path.join(self.fixture_repo, 'src', 'index.js'), 'buildWidget')
         self.view.set_window(self.window)
         self.window.set_active_view(self.view)
+        self.runner_calls = []
         self._originals = {
             'get_settings': self.analysis.config.get_settings,
             'validate_settings': self.analysis.config.validate_settings,
@@ -50,7 +51,7 @@ class AnalysisBehaviorTests(unittest.TestCase):
         }
         self.analysis.config.validate_settings = lambda _settings, _repo_root: []
         self.analysis.paths.resolve_repo_root = (
-            lambda _window, return_reason=True, path_hint=None: (self.fixture_repo, None)
+            lambda _window, return_reason=True, path_hint=None, allow_fallback=True: (self.fixture_repo, None)
             if return_reason else self.fixture_repo
         )
         self.analysis.paths.resolve_cli = lambda _settings, _repo_root: {
@@ -198,6 +199,84 @@ class AnalysisBehaviorTests(unittest.TestCase):
         )
         self.assertTrue(self.sublime.clipboard.replace('\\', '/').endswith('.pairofcleats-workspace.jsonc'))
 
+    def test_workspace_build_prompts_for_repo_when_multiple_roots_exist(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_a = os.path.join(tmp, 'repo-a')
+            repo_b = os.path.join(tmp, 'repo-b')
+            os.makedirs(os.path.join(repo_a, '.git'))
+            os.makedirs(os.path.join(repo_b, '.git'))
+            workspace_path = os.path.join(repo_b, '.pairofcleats-workspace.jsonc')
+            with open(workspace_path, 'w', encoding='utf-8') as handle:
+                handle.write('{}\n')
+            self.window.set_active_view(None)
+            self.window.set_folders([repo_a, repo_b])
+
+            self.analysis.PairOfCleatsWorkspaceBuildCommand(self.window).run(
+                workspace_path=workspace_path,
+                concurrency=3,
+            )
+
+            self.assertEqual(self.runner_calls, [])
+            self.assertEqual(len(self.window.quick_panel_items), 2)
+            self.window.quick_panel_callback(1)
+            self.assertEqual(self.runner_calls[0]['cwd'], os.path.abspath(repo_b))
+            self.assertTrue(
+                any('Using selected repo:' in message for message in self.sublime.status_history),
+                'expected explicit selected-repo status message',
+            )
+
+    def test_workspace_build_fails_closed_without_repo_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace_dir = os.path.join(tmp, 'workspace')
+            os.makedirs(workspace_dir)
+            workspace_path = os.path.join(workspace_dir, '.pairofcleats-workspace.jsonc')
+            with open(workspace_path, 'w', encoding='utf-8') as handle:
+                handle.write('{}\n')
+            self.window.set_active_view(None)
+            self.window.set_folders([workspace_dir])
+
+            self.analysis.PairOfCleatsWorkspaceBuildCommand(self.window).run(
+                workspace_path=workspace_path,
+                concurrency=2,
+            )
+
+            self.assertEqual(self.runner_calls, [])
+            self.assertIn('require an explicit repo root', self.sublime.last_error)
+
+    def test_workspace_build_prefers_repo_root_from_workspace_path_hint(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_a = os.path.join(tmp, 'repo-a')
+            repo_b = os.path.join(tmp, 'repo-b')
+            workspace_path = os.path.join(repo_b, '.pairofcleats-workspace.jsonc')
+            os.makedirs(os.path.join(repo_a, '.git'))
+            os.makedirs(os.path.join(repo_b, '.git'))
+            with open(workspace_path, 'w', encoding='utf-8') as handle:
+                handle.write('{}\n')
+            self.window.set_folders([repo_a, repo_b])
+            self.analysis.paths.resolve_repo_root = self._originals['resolve_repo_root']
+
+            self.analysis.PairOfCleatsWorkspaceBuildCommand(self.window).run(workspace_path=workspace_path, concurrency=3)
+
+            self.assertIsNone(self.window.quick_panel_items)
+            panel = self.window.panels[self.results.RESULTS_PANEL]
+            self.assertIn('PairOfCleats workspace build', panel.appended)
+            self.assertEqual(self.sublime.status_history, [])
+
+    def test_workspace_build_fails_closed_without_repo_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = os.path.join(tmp, 'workspace')
+            workspace_path = os.path.join(folder, '.pairofcleats-workspace.jsonc')
+            os.makedirs(folder)
+            with open(workspace_path, 'w', encoding='utf-8') as handle:
+                handle.write('{}\n')
+            self.window.set_folders([folder])
+            self.analysis.paths.resolve_repo_root = self._originals['resolve_repo_root']
+
+            self.analysis.PairOfCleatsWorkspaceBuildCommand(self.window).run(workspace_path=workspace_path, concurrency=3)
+
+            self.assertIn('Repo root not found for the requested path', self.sublime.last_error)
+            self.assertIsNone(self.window.quick_panel_items)
+
     def test_require_api_fails_closed_for_cli_only_analysis_workflows(self):
         self.analysis.config.get_settings = lambda _window: {
             'api_execution_mode': 'require',
@@ -211,6 +290,12 @@ class AnalysisBehaviorTests(unittest.TestCase):
 
     def _run_process(self, command, args, cwd=None, env=None, window=None, title=None,
                      capture_json=None, on_done=None, stream_output=None, panel_name='pairofcleats'):
+        self.runner_calls.append({
+            'command': command,
+            'args': list(args or []),
+            'cwd': cwd,
+            'title': title,
+        })
         payload = self._payload_for_args(args)
         if on_done:
             on_done(_FakeResult(payload))

@@ -33,12 +33,30 @@ MAP_FORMAT_CHOICES = [
 ]
 
 
-def _resolve_repo_root(window, path_hint=None):
-    return paths.resolve_repo_root(window, return_reason=True, path_hint=path_hint)
+def _resolve_repo_root(window, path_hint=None, allow_fallback=True):
+    return paths.resolve_repo_root(window, return_reason=True, path_hint=path_hint, allow_fallback=allow_fallback)
 
 
-def _has_repo_root(window, path_hint=None):
-    return paths.has_repo_root(window, path_hint=path_hint)
+def _has_repo_root(window, path_hint=None, allow_fallback=True):
+    return paths.has_repo_root(window, path_hint=path_hint, allow_fallback=allow_fallback)
+
+
+def _with_map_repo_root(window, on_resolved, path_hint=None):
+    def handle_repo_root(repo_root, reason):
+        if not repo_root:
+            ui.show_error('PairOfCleats: {0}'.format(reason))
+            return
+        if reason:
+            ui.show_status('PairOfCleats: {0}'.format(reason))
+        on_resolved(repo_root)
+
+    paths.resolve_repo_root_interactive(
+        window,
+        handle_repo_root,
+        path_hint=path_hint,
+        allow_fallback=False,
+        prompt='PairOfCleats repo for map',
+    )
 
 
 def _extract_selection(view):
@@ -225,14 +243,8 @@ def _prompt_map_format(window, settings, on_done):
     window.show_quick_panel(labels, on_select, selected_index=selected_index)
 
 
-def _dispatch_map(window, scope, focus, map_type=None, map_format=None, path_hint=None):
+def _dispatch_map(window, scope, focus, repo_root, map_type=None, map_format=None):
     settings = config.get_settings(window)
-    repo_root, reason = _resolve_repo_root(window, path_hint=path_hint)
-    if not repo_root:
-        ui.show_error('PairOfCleats: {0}'.format(reason))
-        return
-    if reason:
-        ui.show_status('PairOfCleats: {0}'.format(reason))
 
     errors = config.validate_settings(settings, repo_root)
     if errors:
@@ -365,16 +377,20 @@ def _dispatch_map_cli(window, repo_root, settings, scope, focus, map_type, map_f
 
 def _run_with_options(window, scope, focus, map_type=None, map_format=None, path_hint=None):
     settings = config.get_settings(window)
-    if not settings.get('map_prompt_options'):
-        _dispatch_map(window, scope, focus, map_type=map_type, map_format=map_format, path_hint=path_hint)
-        return
 
-    def after_type(selected_type):
-        def after_format(selected_format):
-            _dispatch_map(window, scope, focus, map_type=selected_type, map_format=selected_format, path_hint=path_hint)
-        _prompt_map_format(window, settings, after_format)
+    def on_repo_root(repo_root):
+        if not settings.get('map_prompt_options'):
+            _dispatch_map(window, scope, focus, repo_root, map_type=map_type, map_format=map_format)
+            return
 
-    _prompt_map_type(window, settings, after_type)
+        def after_type(selected_type):
+            def after_format(selected_format):
+                _dispatch_map(window, scope, focus, repo_root, map_type=selected_type, map_format=selected_format)
+            _prompt_map_format(window, settings, after_format)
+
+        _prompt_map_type(window, settings, after_type)
+
+    _with_map_repo_root(window, on_repo_root, path_hint=path_hint)
 
 
 class PairOfCleatsMapRepoCommand(sublime_plugin.WindowCommand):
@@ -400,9 +416,12 @@ class PairOfCleatsMapCurrentFolderCommand(sublime_plugin.WindowCommand):
         folder = None
         if view and view.file_name():
             folder = os.path.dirname(view.file_name())
-        if not folder and self.window.folders():
+        if not folder and len(self.window.folders()) == 1:
             folder = self.window.folders()[0]
-        repo_root, reason = _resolve_repo_root(self.window, path_hint=folder)
+        if not folder:
+            ui.show_error('PairOfCleats: current folder map requires an active file or a single open folder.')
+            return
+        repo_root, reason = _resolve_repo_root(self.window, path_hint=folder, allow_fallback=False)
         if not repo_root:
             ui.show_error('PairOfCleats: {0}'.format(reason))
             return
@@ -423,7 +442,7 @@ class PairOfCleatsMapCurrentFileCommand(sublime_plugin.WindowCommand):
         if not view or not view.file_name():
             ui.show_status('PairOfCleats: no active file.')
             return
-        repo_root, reason = _resolve_repo_root(self.window, path_hint=view.file_name())
+        repo_root, reason = _resolve_repo_root(self.window, path_hint=view.file_name(), allow_fallback=False)
         if not repo_root:
             ui.show_error('PairOfCleats: {0}'.format(reason))
             return
@@ -444,7 +463,7 @@ class PairOfCleatsMapSymbolUnderCursorCommand(sublime_plugin.TextCommand):
             ui.show_status('PairOfCleats: no symbol under cursor.')
             return
         file_name = self.view.file_name() if self.view else None
-        repo_root, reason = _resolve_repo_root(self.view.window(), path_hint=file_name)
+        repo_root, reason = _resolve_repo_root(self.view.window(), path_hint=file_name, allow_fallback=False)
         if not repo_root:
             ui.show_error('PairOfCleats: {0}'.format(reason))
             return
@@ -506,7 +525,7 @@ class PairOfCleatsMapJumpToNodeCommand(sublime_plugin.WindowCommand):
 
         repo_root = state.get('repo')
         if not repo_root:
-            repo_root, reason = _resolve_repo_root(self.window)
+            repo_root, reason = _resolve_repo_root(self.window, allow_fallback=False)
             if not repo_root:
                 ui.show_error('PairOfCleats: {0}'.format(reason))
                 return

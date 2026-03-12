@@ -140,20 +140,20 @@ class PackageHarnessTests(unittest.TestCase):
         self.map_commands.config.validate_settings = lambda _settings, _repo_root: []
         self.analysis.config.validate_settings = lambda _settings, _repo_root: []
         self.search.paths.resolve_repo_root = (
-            lambda _window, return_reason=True, path_hint=None: (self.repo_root, None)
+            lambda _window, return_reason=True, path_hint=None, allow_fallback=True: (self.repo_root, None)
             if return_reason else self.repo_root
         )
         self.index.paths.resolve_repo_root = (
-            lambda _window, return_reason=True: (self.repo_root, None)
+            lambda _window, return_reason=True, path_hint=None, allow_fallback=True: (self.repo_root, None)
             if return_reason else self.repo_root
         )
-        self.index.paths.resolve_watch_root = lambda _window, _settings: self.repo_root
+        self.index.paths.resolve_watch_root = lambda _window, _settings, repo_root=None: self.repo_root
         self.map_commands.paths.resolve_repo_root = (
-            lambda _window, return_reason=True, path_hint=None: (self.repo_root, None)
+            lambda _window, return_reason=True, path_hint=None, allow_fallback=True: (self.repo_root, None)
             if return_reason else self.repo_root
         )
         self.analysis.paths.resolve_repo_root = (
-            lambda _window, return_reason=True, path_hint=None: (self.repo_root, None)
+            lambda _window, return_reason=True, path_hint=None, allow_fallback=True: (self.repo_root, None)
             if return_reason else self.repo_root
         )
         self.search.paths.resolve_cli = lambda _settings, _repo_root: dict(cli_profile)
