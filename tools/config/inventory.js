@@ -180,6 +180,9 @@ const KNOWN_ENV_VARS = new Set([
   'PAIROFCLEATS_TEST_THREADS',
   'PAIROFCLEATS_TEST_TIMEOUT_MS',
   'PAIROFCLEATS_TEST_WATCHDOG_MS',
+  'PAIROFCLEATS_SUBLIME_TEST_CLI',
+  'PAIROFCLEATS_SUBLIME_TEST_FIXTURE_REPO',
+  'PAIROFCLEATS_SUBLIME_TEST_NODE',
   'PAIROFCLEATS_THREADS',
   'PAIROFCLEATS_TUI_ALT_SCREEN',
   'PAIROFCLEATS_TUI_DIST_DIR',
@@ -471,3 +474,4 @@ export const buildInventory = async (options = {}) => {
 export { collectSchemaEntries, getLeafEntries, mergeEntry };
 
 await buildInventory();
+

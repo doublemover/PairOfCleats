@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-11T14:57:33.444Z",
+  "generatedAt": "2026-03-12T18:03:35.050Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -144,6 +144,9 @@
       "PAIROFCLEATS_SQLITE_TAIL_LATENCY_TUNING",
       "PAIROFCLEATS_STAGE",
       "PAIROFCLEATS_STORAGE_TIER",
+      "PAIROFCLEATS_SUBLIME_TEST_CLI",
+      "PAIROFCLEATS_SUBLIME_TEST_FIXTURE_REPO",
+      "PAIROFCLEATS_SUBLIME_TEST_NODE",
       "PAIROFCLEATS_SUITE_MODE",
       "PAIROFCLEATS_SUMMARY_CACHE_MAX",
       "PAIROFCLEATS_TESTING",
@@ -2102,6 +2105,7 @@
     {
       "name": "PAIROFCLEATS_API_TOKEN",
       "files": [
+        "extensions/vscode/extension.js",
         "src/shared/env.js",
         "tests/retrieval/filters/filter-index-config-hash.test.js",
         "tools/api/server.js",
@@ -2971,6 +2975,27 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_SUBLIME_TEST_CLI",
+      "files": [
+        "tests/tooling/sublime/package-harness.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SUBLIME_TEST_FIXTURE_REPO",
+      "files": [
+        "tests/tooling/sublime/package-harness.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SUBLIME_TEST_NODE",
+      "files": [
+        "tests/tooling/sublime/package-harness.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_SUITE_MODE",
       "files": [
         "tools/ci/run-suite.js",
@@ -3295,7 +3320,9 @@
         "tests/storage/sqlite/build-indexes.test.js",
         "tests/tooling/ci/lsp-embeddings-gates-testing-env.test.js",
         "tests/tooling/ci/run-suite-path-normalization.test.js",
+        "tests/tooling/doctor/command-profile-global-bin-fallbacks.test.js",
         "tests/tooling/doctor/command-profile-probe-cache-disabled.test.js",
+        "tests/tooling/doctor/command-profile-runtime-bin-dirs.test.js",
         "tests/tooling/doctor/command-profile-tooling-dir-precedence.test.js",
         "tools/bench/ab-sweep.js",
         "tools/bench/index/scheduler-store-format.js",
@@ -3521,7 +3548,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 396,
+    "totalFlags": 397,
     "publicFlags": [
       "allow-unauthenticated",
       "allowed-repo-roots",
@@ -3879,6 +3906,7 @@
       "sqlite-backend",
       "status",
       "strict",
+      "strictRisk",
       "stub-embeddings",
       "symbols",
       "table",
@@ -4042,7 +4070,8 @@
           "maxWallClockMs",
           "maxWorkUnits",
           "repo",
-          "seed"
+          "seed",
+          "strictRisk"
         ]
       },
       {
@@ -7347,6 +7376,7 @@
       }
     ],
     "dynamicOptionFiles": [
+      "extensions/vscode/extension.js",
       "search.js",
       "src/index/build/args.js",
       "src/index/build/context-window.js",
