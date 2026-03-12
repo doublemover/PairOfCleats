@@ -7,6 +7,18 @@
         "command": "pair_of_cleats_open_settings"
       },
       {
+        "caption": "PairOfCleats Project Settings",
+        "command": "pair_of_cleats_open_project_settings"
+      },
+      {
+        "caption": "PairOfCleats Project Settings Template",
+        "command": "pair_of_cleats_project_settings_template"
+      },
+      {
+        "caption": "PairOfCleats Show Effective Settings",
+        "command": "pair_of_cleats_show_effective_settings"
+      },
+      {
         "caption": "PairOfCleats Validate Settings",
         "command": "pair_of_cleats_validate_settings"
       }

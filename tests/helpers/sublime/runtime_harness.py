@@ -17,6 +17,13 @@ class FakeSettings:
     def set(self, key, value):
         self._data[key] = value
 
+    def update(self, values):
+        for key, value in (values or {}).items():
+            self._data[key] = value
+
+    def clear(self):
+        self._data.clear()
+
 
 class FakeRegion:
     def __init__(self, a, b):
@@ -207,10 +214,20 @@ def install_fake_modules():
         clipboard = ''
         last_status = ''
         last_error = ''
+        _settings_files = {}
+        _active_window = None
 
         @staticmethod
         def set_timeout(callback, delay=0):
             callback()
+
+        @staticmethod
+        def load_settings(name):
+            settings = FakeSublimeModule._settings_files.get(name)
+            if settings is None:
+                settings = FakeSettings()
+                FakeSublimeModule._settings_files[name] = settings
+            return settings
 
         @staticmethod
         def set_clipboard(value):
@@ -226,7 +243,19 @@ def install_fake_modules():
 
         @staticmethod
         def active_window():
-            return None
+            return FakeSublimeModule._active_window
+
+        @staticmethod
+        def set_active_window(window):
+            FakeSublimeModule._active_window = window
+
+        @staticmethod
+        def reset():
+            FakeSublimeModule.clipboard = ''
+            FakeSublimeModule.last_status = ''
+            FakeSublimeModule.last_error = ''
+            FakeSublimeModule._settings_files = {}
+            FakeSublimeModule._active_window = None
 
     class FakeSublimePluginModule:
         WindowCommand = FakeWindowCommand

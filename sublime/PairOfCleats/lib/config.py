@@ -1,5 +1,6 @@
 import json
 import os
+from urllib.parse import urlparse
 
 import sublime
 
@@ -92,11 +93,13 @@ DEFAULT_SETTINGS = {
     'node_path': '',
     'index_mode_default': 'both',
     'search_backend_default': '',
-    'open_results_in': 'quick_panel',
     'search_limit': 25,
-    'results_buffer_threshold': 50,
-    'history_limit': 25,
     'search_prompt_options': False,
+    'history_limit': 25,
+    'api_server_url': '',
+    'api_timeout_ms': 5000,
+    'open_results_in': 'quick_panel',
+    'results_buffer_threshold': 50,
     'index_watch_scope': 'repo',
     'index_watch_folder': '',
     'index_watch_mode': 'all',
@@ -125,6 +128,58 @@ DEFAULT_SETTINGS = {
     'env': {}
 }
 
+SETTING_GROUPS = (
+    ('Core', (
+        'pairofcleats_path',
+        'node_path',
+        'index_mode_default',
+        'search_backend_default',
+        'search_limit',
+        'search_prompt_options',
+        'history_limit',
+    )),
+    ('API', (
+        'api_server_url',
+        'api_timeout_ms',
+    )),
+    ('Output', (
+        'open_results_in',
+        'results_buffer_threshold',
+    )),
+    ('Watch', (
+        'index_watch_scope',
+        'index_watch_folder',
+        'index_watch_mode',
+        'index_watch_poll_ms',
+        'index_watch_debounce_ms',
+    )),
+    ('Map', (
+        'map_type_default',
+        'map_format_default',
+        'map_prompt_options',
+        'map_output_dir',
+        'map_only_exported',
+        'map_collapse_default',
+        'map_max_files',
+        'map_max_members_per_file',
+        'map_max_edges',
+        'map_top_k_by_degree',
+        'map_show_report_panel',
+        'map_stream_output',
+        'map_open_uri_template',
+        'map_three_url',
+        'map_index_mode',
+        'map_wasd_sensitivity',
+        'map_wasd_acceleration',
+        'map_wasd_max_speed',
+        'map_wasd_drag',
+        'map_zoom_sensitivity',
+    )),
+    ('Environment', (
+        'env',
+    )),
+)
+
 VALID_INDEX_MODES = {'code', 'prose', 'both'}
 VALID_BACKENDS = {'memory', 'sqlite', 'sqlite-fts', 'lmdb'}
 VALID_OPEN_TARGETS = {'quick_panel', 'new_tab', 'output_panel'}
@@ -143,10 +198,36 @@ def prime_settings():
         pass
 
 
+def get_setting_groups():
+    return tuple(
+        (name, tuple(keys))
+        for name, keys in SETTING_GROUPS
+    )
+
+
 def get_settings(window=None):
     base = _load_base_settings()
     overrides = extract_project_settings(window)
     return merge_settings(base, overrides)
+
+
+def build_project_settings_template():
+    overrides = {}
+    for _group_name, keys in SETTING_GROUPS:
+        for key in keys:
+            if key == 'env':
+                overrides[key] = {'PAIROFCLEATS_API_TOKEN': '...'}
+                continue
+            if key in ('pairofcleats_path', 'node_path', 'index_watch_folder', 'map_three_url'):
+                continue
+            overrides[key] = DEFAULT_SETTINGS.get(key)
+    overrides['api_server_url'] = 'http://127.0.0.1:7464'
+    payload = {
+        'settings': {
+            'pairofcleats': overrides
+        }
+    }
+    return json.dumps(payload, indent=2, sort_keys=False) + '\n'
 
 
 def extract_project_settings(window):
@@ -209,6 +290,10 @@ def validate_settings(settings, repo_root=None):
             'open_results_in must be one of: quick_panel, new_tab, output_panel.'
         )
 
+    api_server_url = settings.get('api_server_url')
+    if api_server_url and not _is_valid_base_url(api_server_url):
+        errors.append('api_server_url must be an http:// or https:// URL.')
+
     env = _get_env_settings(settings)
     if env is not None and not isinstance(env, dict):
         errors.append('env must be a JSON object (dictionary).')
@@ -231,8 +316,11 @@ def validate_settings(settings, repo_root=None):
     _validate_int_setting(errors, settings, 'search_limit', allow_zero=False)
     _validate_int_setting(errors, settings, 'results_buffer_threshold', allow_zero=True)
     _validate_int_setting(errors, settings, 'history_limit', allow_zero=True)
+    _validate_int_setting(errors, settings, 'api_timeout_ms', allow_zero=False)
     _validate_int_setting(errors, settings, 'index_watch_poll_ms', allow_zero=False)
     _validate_int_setting(errors, settings, 'index_watch_debounce_ms', allow_zero=False)
+
+    _validate_bool_setting(errors, settings, 'search_prompt_options')
 
     watch_scope = settings.get('index_watch_scope')
     if watch_scope and watch_scope not in VALID_WATCH_SCOPES:
@@ -247,6 +335,12 @@ def validate_settings(settings, repo_root=None):
         resolved = _resolve_path(repo_root, watch_folder)
         if resolved and not os.path.exists(resolved):
             errors.append('index_watch_folder does not exist: {0}'.format(resolved))
+
+    _validate_bool_setting(errors, settings, 'map_prompt_options')
+    _validate_bool_setting(errors, settings, 'map_only_exported')
+    _validate_bool_setting(errors, settings, 'map_top_k_by_degree')
+    _validate_bool_setting(errors, settings, 'map_stream_output')
+    _validate_nullable_bool_setting(errors, settings, 'map_show_report_panel')
 
     map_type = settings.get('map_type_default')
     if map_type and map_type not in VALID_MAP_TYPES:
@@ -320,6 +414,30 @@ def _validate_number_setting(errors, settings, key, allow_zero=False):
             errors.append('{0} must be 0 or higher.'.format(key))
     elif value <= 0:
         errors.append('{0} must be greater than 0.'.format(key))
+
+
+def _validate_bool_setting(errors, settings, key):
+    value = settings.get(key)
+    if value is None or value == '':
+        return
+    if not isinstance(value, bool):
+        errors.append('{0} must be true or false.'.format(key))
+
+
+def _validate_nullable_bool_setting(errors, settings, key):
+    value = settings.get(key)
+    if value is None or value == '':
+        return
+    if not isinstance(value, bool):
+        errors.append('{0} must be true, false, or null.'.format(key))
+
+
+def _is_valid_base_url(value):
+    try:
+        parsed = urlparse(str(value).strip())
+    except Exception:
+        return False
+    return parsed.scheme in ('http', 'https') and bool(parsed.netloc)
 
 
 def _is_env_key(key):
