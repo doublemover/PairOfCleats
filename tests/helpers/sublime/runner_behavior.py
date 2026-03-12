@@ -23,6 +23,7 @@ class RunnerBehaviorTests(unittest.TestCase):
         self.sublime.reset()
         self.window = FakeWindow()
         self.sublime.set_active_window(self.window)
+        self.config = importlib.import_module('PairOfCleats.lib.config')
         self.tasks = importlib.import_module('PairOfCleats.lib.tasks')
         self.tasks.clear_all()
 
@@ -93,6 +94,24 @@ class RunnerBehaviorTests(unittest.TestCase):
         panel = self.window.panels[self.tasks.TASK_PANEL]
         self.assertIn('watchdog:', panel.appended)
         self.assertTrue(any('still running' in message.lower() for message in self.sublime.status_history))
+
+    def test_progress_panel_setting_can_disable_auto_show(self):
+        settings = self.sublime.load_settings(self.config.SETTINGS_FILE)
+        settings.set('progress_panel_on_start', False)
+        proc = _FakeLongRunningProcess(wait_seconds=0.02)
+        done = threading.Event()
+        self.runner.run_process(
+            'fake-command',
+            [],
+            window=self.window,
+            title='PairOfCleats search',
+            stream_output=False,
+            spawn_process=lambda *args, **kwargs: proc,
+            on_done=lambda result: done.set(),
+        )
+        self.assertTrue(done.wait(5), 'runner did not complete in time')
+        show_panel_commands = [entry for entry in self.window.commands if entry['name'] == 'show_panel']
+        self.assertEqual(show_panel_commands, [])
 
 
 class _FakeLongRunningProcess:

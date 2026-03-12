@@ -101,6 +101,8 @@ DEFAULT_SETTINGS = {
     'api_execution_mode': 'cli',
     'open_results_in': 'quick_panel',
     'results_buffer_threshold': 50,
+    'progress_panel_on_start': True,
+    'progress_watchdog_ms': 15000,
     'index_watch_scope': 'repo',
     'index_watch_folder': '',
     'index_watch_mode': 'all',
@@ -147,6 +149,8 @@ SETTING_GROUPS = (
     ('Output', (
         'open_results_in',
         'results_buffer_threshold',
+        'progress_panel_on_start',
+        'progress_watchdog_ms',
     )),
     ('Watch', (
         'index_watch_scope',
@@ -323,6 +327,8 @@ def validate_settings(settings, repo_root=None):
 
     _validate_int_setting(errors, settings, 'search_limit', allow_zero=False)
     _validate_int_setting(errors, settings, 'results_buffer_threshold', allow_zero=True)
+    _validate_bool_setting(errors, settings, 'progress_panel_on_start')
+    _validate_int_setting(errors, settings, 'progress_watchdog_ms', allow_zero=False)
     _validate_int_setting(errors, settings, 'history_limit', allow_zero=True)
     _validate_int_setting(errors, settings, 'api_timeout_ms', allow_zero=False)
     _validate_int_setting(errors, settings, 'index_watch_poll_ms', allow_zero=False)

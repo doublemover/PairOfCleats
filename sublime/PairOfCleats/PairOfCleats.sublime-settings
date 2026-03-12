@@ -16,6 +16,8 @@
   // Search/output behavior
   "open_results_in": "quick_panel",
   "results_buffer_threshold": 50,
+  "progress_panel_on_start": true,
+  "progress_watchdog_ms": 15000,
 
   // Index watch behavior
   "index_watch_scope": "repo",

@@ -51,6 +51,8 @@ API:
 Output:
 - `open_results_in`: `quick_panel`, `new_tab`, or `output_panel`.
 - `results_buffer_threshold`: When using `quick_panel`, switch to the output panel once results reach this count (`0` disables).
+- `progress_panel_on_start`: Automatically show the structured task-progress panel when long-running work starts.
+- `progress_watchdog_ms`: Soft watchdog interval for quiet long-running commands before the progress panel records a no-progress warning.
 
 Watch:
 - `index_watch_scope`: `repo` or `folder` for watch root selection.

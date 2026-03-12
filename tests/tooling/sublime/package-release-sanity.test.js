@@ -125,6 +125,8 @@ const requiredSettingKeys = [
   'api_execution_mode',
   'open_results_in',
   'results_buffer_threshold',
+  'progress_panel_on_start',
+  'progress_watchdog_ms',
   'index_watch_scope',
   'index_watch_mode',
   'map_show_report_panel',

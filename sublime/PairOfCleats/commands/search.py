@@ -260,7 +260,7 @@ def _execute_search(window, query, overrides=None, explain=False):
             repo_root=repo_root,
             cancellable=False,
             details='Searching via API...',
-            show_panel=True,
+            show_panel=bool(settings.get('progress_panel_on_start', True)),
         )
 
         def on_api_done(result):
@@ -380,7 +380,7 @@ def _execute_symbol_lookup(window, query, on_hits, limit=25, title='PairOfCleats
             repo_root=repo_root,
             cancellable=False,
             details='Symbol lookup via API...',
-            show_panel=True,
+            show_panel=bool(settings.get('progress_panel_on_start', True)),
         )
         def on_api_done(result):
             if result.error:

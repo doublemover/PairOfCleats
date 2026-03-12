@@ -287,7 +287,7 @@ def _dispatch_map(window, scope, focus, map_type=None, map_format=None, path_hin
             repo_root=repo_root,
             cancellable=False,
             details='Generating map via API...',
-            show_panel=True,
+            show_panel=bool(settings.get('progress_panel_on_start', True)),
         )
 
         def on_api_done(result):

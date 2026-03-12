@@ -6,6 +6,7 @@ import time
 
 import sublime
 
+from . import config
 from . import tasks
 
 
@@ -51,10 +52,17 @@ class ProcessHandle(object):
 
 def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCleats',
                 capture_json=False, on_done=None, stream_output=True,
-                panel_name='pairofcleats', watchdog_ms=15000, show_progress_panel=True,
+                panel_name='pairofcleats', watchdog_ms=None, show_progress_panel=None,
                 spawn_process=None):
     if window is None:
         window = sublime.active_window()
+    settings = config.get_settings(window) if window is not None else {}
+    if show_progress_panel is None:
+        show_progress_panel = bool(settings.get('progress_panel_on_start', True))
+    if watchdog_ms is None:
+        watchdog_ms = settings.get('progress_watchdog_ms') if isinstance(settings, dict) else None
+    if not isinstance(watchdog_ms, int) or watchdog_ms <= 0:
+        watchdog_ms = 15000
     panel = None
     if stream_output:
         panel = _ensure_panel(window, panel_name)
