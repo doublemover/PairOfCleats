@@ -47,6 +47,7 @@ class WatchBehaviorTests(unittest.TestCase):
             'get_settings': self.index.config.get_settings,
             'validate_settings': self.index.config.validate_settings,
             'resolve_repo_root': self.index.paths.resolve_repo_root,
+            'resolve_repo_root_interactive': self.index.paths.resolve_repo_root_interactive,
             'resolve_watch_root': self.index.paths.resolve_watch_root,
             'resolve_cli': self.index.paths.resolve_cli,
             'build_env': self.index.config.build_env,
@@ -58,6 +59,10 @@ class WatchBehaviorTests(unittest.TestCase):
         self.index.paths.resolve_repo_root = (
             lambda _window, return_reason=True, path_hint=None, allow_fallback=True: ('C:/repo', None)
             if return_reason else 'C:/repo'
+        )
+        self.index.paths.resolve_repo_root_interactive = (
+            lambda _window, on_done, path_hint=None, allow_fallback=True, prompt='PairOfCleats repo':
+            on_done('C:/repo', None)
         )
         self._next_watch_root = 'C:/repo'
         self.index.paths.resolve_watch_root = lambda _window, _settings, repo_root=None: self._next_watch_root
@@ -86,6 +91,8 @@ class WatchBehaviorTests(unittest.TestCase):
                 self.index.config.validate_settings = value
             elif key == 'resolve_repo_root':
                 self.index.paths.resolve_repo_root = value
+            elif key == 'resolve_repo_root_interactive':
+                self.index.paths.resolve_repo_root_interactive = value
             elif key == 'resolve_watch_root':
                 self.index.paths.resolve_watch_root = value
             elif key == 'resolve_cli':

@@ -203,27 +203,44 @@ class AnalysisBehaviorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             repo_a = os.path.join(tmp, 'repo-a')
             repo_b = os.path.join(tmp, 'repo-b')
-            os.makedirs(os.path.join(repo_a, '.git'))
-            os.makedirs(os.path.join(repo_b, '.git'))
-            workspace_path = os.path.join(repo_b, '.pairofcleats-workspace.jsonc')
+            workspace_path = os.path.join(tmp, '.pairofcleats-workspace.jsonc')
             with open(workspace_path, 'w', encoding='utf-8') as handle:
                 handle.write('{}\n')
-            self.window.set_active_view(None)
-            self.window.set_folders([repo_a, repo_b])
 
-            self.analysis.PairOfCleatsWorkspaceBuildCommand(self.window).run(
-                workspace_path=workspace_path,
-                concurrency=3,
-            )
+            original_interactive = self.analysis.paths.resolve_repo_root_interactive
 
-            self.assertEqual(self.runner_calls, [])
-            self.assertEqual(len(self.window.quick_panel_items), 2)
-            self.window.quick_panel_callback(1)
-            self.assertEqual(self.runner_calls[0]['cwd'], os.path.abspath(repo_b))
-            self.assertTrue(
-                any('Using selected repo:' in message for message in self.sublime.status_history),
-                'expected explicit selected-repo status message',
-            )
+            def _interactive(_window, on_done, path_hint=None, allow_fallback=True, prompt='PairOfCleats repo'):
+                self.window.quick_panel_items = [
+                    [os.path.abspath(repo_a), 'open folder'],
+                    [os.path.abspath(repo_b), 'open folder'],
+                ]
+
+                def _select(index):
+                    if index < 0:
+                        on_done(None, 'Repo selection cancelled.')
+                        return
+                    chosen = os.path.abspath(repo_b if index == 1 else repo_a)
+                    on_done(chosen, 'Using selected repo: {0}'.format(chosen))
+
+                self.window.quick_panel_callback = _select
+
+            self.analysis.paths.resolve_repo_root_interactive = _interactive
+            try:
+                self.analysis.PairOfCleatsWorkspaceBuildCommand(self.window).run(
+                    workspace_path=workspace_path,
+                    concurrency=3,
+                )
+
+                self.assertEqual(self.runner_calls, [])
+                self.assertEqual(len(self.window.quick_panel_items), 2)
+                self.window.quick_panel_callback(1)
+                self.assertEqual(self.runner_calls[0]['cwd'], os.path.abspath(repo_b))
+                self.assertTrue(
+                    any('Using selected repo:' in message for message in self.sublime.status_history),
+                    'expected explicit selected-repo status message',
+                )
+            finally:
+                self.analysis.paths.resolve_repo_root_interactive = original_interactive
 
     def test_workspace_build_fails_closed_without_repo_root(self):
         with tempfile.TemporaryDirectory() as tmp:
