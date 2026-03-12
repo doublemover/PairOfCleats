@@ -242,6 +242,9 @@ const settings = contract?.settings?.vscode || {};
 const keyMap = {
   cliPathKey: 'pairofcleats',
   cliArgsKey: 'pairofcleats',
+  apiServerUrlKey: 'pairofcleats',
+  apiTimeoutKey: 'pairofcleats',
+  apiExecutionModeKey: 'pairofcleats',
   modeKey: 'pairofcleats',
   backendKey: 'pairofcleats',
   annKey: 'pairofcleats',
@@ -295,6 +298,29 @@ const backendEnum = configProps['pairofcleats.searchBackend']?.enum || [];
 for (const value of ['', 'auto', 'memory', 'sqlite', 'sqlite-fts', 'lmdb', 'tantivy']) {
   if (!backendEnum.includes(value)) {
     console.error(`VS Code searchBackend enum missing ${value || '<empty>'}.`);
+    process.exit(1);
+  }
+}
+
+if (configProps['pairofcleats.apiServerUrl']?.type !== 'string') {
+  console.error('VS Code apiServerUrl setting must be a string.');
+  process.exit(1);
+}
+
+if (configProps['pairofcleats.apiTimeoutMs']?.type !== 'number') {
+  console.error('VS Code apiTimeoutMs setting must be a number.');
+  process.exit(1);
+}
+
+if (configProps['pairofcleats.apiTimeoutMs']?.minimum !== 1) {
+  console.error('VS Code apiTimeoutMs setting must enforce a minimum of 1.');
+  process.exit(1);
+}
+
+const apiExecutionModeEnum = configProps['pairofcleats.apiExecutionMode']?.enum || [];
+for (const value of ['cli', 'prefer', 'require']) {
+  if (!apiExecutionModeEnum.includes(value)) {
+    console.error(`VS Code apiExecutionMode enum missing ${value}.`);
     process.exit(1);
   }
 }

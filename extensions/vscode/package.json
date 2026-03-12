@@ -430,6 +430,27 @@
             "type": "string"
           }
         },
+        "pairofcleats.apiServerUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Optional PairOfCleats API base URL for API-backed workflows."
+        },
+        "pairofcleats.apiTimeoutMs": {
+          "type": "number",
+          "default": 5000,
+          "minimum": 1,
+          "description": "Timeout for PairOfCleats API requests in milliseconds."
+        },
+        "pairofcleats.apiExecutionMode": {
+          "type": "string",
+          "default": "cli",
+          "enum": [
+            "cli",
+            "prefer",
+            "require"
+          ],
+          "description": "Execution mode for workflows that support the PairOfCleats API."
+        },
         "pairofcleats.searchMode": {
           "type": "string",
           "default": "both",

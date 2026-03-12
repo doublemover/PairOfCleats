@@ -147,17 +147,59 @@ function createTrackedStatusBarItem(statusBarItems) {
   return item;
 }
 
+function createFakeFetch(fetchCalls, queuedFetchResults, implementation = null) {
+  return async function fakeFetch(url, options = {}) {
+    fetchCalls.push({ url, options });
+    if (typeof implementation === 'function') {
+      return implementation(url, options, { fetchCalls, queuedFetchResults });
+    }
+    const result = queuedFetchResults.shift();
+    if (result?.throw) {
+      throw result.throw;
+    }
+    if (result?.pending) {
+      return new Promise((resolve, reject) => {
+        const abort = () => {
+          const error = new Error('The operation was aborted.');
+          error.name = 'AbortError';
+          reject(error);
+        };
+        if (options?.signal?.aborted) {
+          abort();
+          return;
+        }
+        options?.signal?.addEventListener?.('abort', abort, { once: true });
+      });
+    }
+    const status = Number.isFinite(Number(result?.status)) ? Number(result.status) : 200;
+    const responseText = result?.text != null
+      ? String(result.text)
+      : (result?.json != null ? JSON.stringify(result.json) : '');
+    return {
+      ok: result?.ok ?? (status >= 200 && status < 300),
+      status,
+      async text() {
+        return responseText;
+      }
+    };
+  };
+}
+
 export function createVsCodeRuntimeHarness({
   repoRoot,
   workspaceFolders = [{ name: 'repo', path: repoRoot }],
   activeFile = null,
   activeEditor = null,
   configValues = {},
-  workspaceState = {}
+  workspaceState = {},
+  fetchImpl = null
 } = {}) {
   const normalizedConfig = {
     cliPath: '',
     cliArgs: [],
+    apiServerUrl: '',
+    apiTimeoutMs: 5000,
+    apiExecutionMode: 'cli',
     searchMode: 'code',
     searchBackend: '',
     searchAnn: true,
@@ -190,6 +232,8 @@ export function createVsCodeRuntimeHarness({
   const spawnCalls = [];
   const killCalls = [];
   const queuedResults = [];
+  const fetchCalls = [];
+  const queuedFetchResults = [];
   const inputQueue = [];
   const quickPickQueue = [];
   const treeViews = [];
@@ -199,6 +243,9 @@ export function createVsCodeRuntimeHarness({
   const clipboardWrites = [];
   const editorHandlers = [];
   const workspaceHandlers = [];
+  const originalFetch = globalThis.fetch;
+  const fakeFetch = createFakeFetch(fetchCalls, queuedFetchResults, fetchImpl);
+  globalThis.fetch = fakeFetch;
 
   const resolveWorkspaceFolderPath = (folder) => {
     if (!folder) return null;
@@ -230,7 +277,7 @@ export function createVsCodeRuntimeHarness({
       getWorkspaceFolder(uri) {
         return this.workspaceFolders.find((folder) => {
           if (folder.uri.scheme !== uri?.scheme) return false;
-          if (uri?.fsPath && folder.uri.fsPath) {
+          if (folder.uri.scheme === 'file' && uri?.fsPath && folder.uri.fsPath) {
             return uri.fsPath === folder.uri.fsPath || uri.fsPath.startsWith(`${folder.uri.fsPath}${path.sep}`);
           }
           if (uri?.path && folder.uri.path) {
@@ -436,6 +483,8 @@ export function createVsCodeRuntimeHarness({
     spawnCalls,
     killCalls,
     queuedResults,
+    fetchCalls,
+    queuedFetchResults,
     inputQueue,
     quickPickQueue,
     treeViews,
@@ -443,6 +492,9 @@ export function createVsCodeRuntimeHarness({
     statusBarItems,
     openedDocuments,
     workspaceStateStore,
+    restoreGlobals() {
+      globalThis.fetch = originalFetch;
+    },
     activate() {
       extension.activate(context);
     },

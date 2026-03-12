@@ -79,6 +79,9 @@ Settings:
 
 - `pairofcleats.cliPath`
 - `pairofcleats.cliArgs`
+- `pairofcleats.apiServerUrl`
+- `pairofcleats.apiTimeoutMs`
+- `pairofcleats.apiExecutionMode`
 - `pairofcleats.searchMode`
 - `pairofcleats.searchBackend`
 - `pairofcleats.searchAnn`
@@ -101,6 +104,14 @@ Settings:
 - `pairofcleats.extraSearchArgs`
 
 The VS Code search command forwards these common search flags directly instead of forcing normal workflows through `extraSearchArgs`. `pairofcleats.searchAsOf` and `pairofcleats.searchSnapshot` are mutually exclusive; if both are set, the extension fails closed with an explicit configuration error.
+
+VS Code API-backed workflow behavior:
+
+- `pairofcleats.apiServerUrl` points at an `http://` or `https://` PairOfCleats API server.
+- `pairofcleats.apiTimeoutMs` controls API request timeout in milliseconds.
+- `pairofcleats.apiExecutionMode` accepts `cli`, `prefer`, or `require`.
+- `search`, symbol lookup, and index health can use the API path when the configured mode and server probe allow it.
+- CLI-only workflows fail closed when `require` forces API mode onto an unsupported surface.
 
 Repo targeting behavior:
 

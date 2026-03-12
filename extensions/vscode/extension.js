@@ -4,13 +4,23 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { EventEmitter: NodeEventEmitter } = require('node:events');
 const { resolveWindowsCmdInvocation } = require('./windows-cmd.js');
-const { readSearchOptions, buildSearchArgs, collectSearchHits } = require('./search-contract.js');
+const {
+  readSearchOptions,
+  buildSearchArgs,
+  buildSearchPayload,
+  collectSearchHits
+} = require('./search-contract.js');
 const {
   DEFAULT_MAX_BUFFER_BYTES,
+  DEFAULT_API_TIMEOUT_MS,
   createChunkAccumulator,
   resolveConfiguredCli,
   parseJsonPayload,
   parseSearchPayload,
+  normalizeApiBaseUrl,
+  normalizeApiTimeoutMs,
+  requestApiJson,
+  probeApiCapabilities: probeApiCapabilitiesRequest,
   summarizeProcessFailure,
   summarizeSpawnFailure,
   spawnBufferedProcess,
@@ -39,6 +49,9 @@ const DEFAULT_EDITOR_CONFIG_CONTRACT = Object.freeze({
       namespace: 'pairofcleats',
       cliPathKey: 'cliPath',
       cliArgsKey: 'cliArgs',
+      apiServerUrlKey: 'apiServerUrl',
+      apiTimeoutKey: 'apiTimeoutMs',
+      apiExecutionModeKey: 'apiExecutionMode',
       extraSearchArgsKey: 'extraSearchArgs',
       modeKey: 'searchMode',
       backendKey: 'searchBackend',
@@ -121,6 +134,18 @@ const VSCODE_SETTINGS = Object.freeze({
   namespace: String(readContract(['settings', 'vscode', 'namespace'], DEFAULT_VSCODE_SETTINGS.namespace)),
   cliPathKey: String(readContract(['settings', 'vscode', 'cliPathKey'], DEFAULT_VSCODE_SETTINGS.cliPathKey)),
   cliArgsKey: String(readContract(['settings', 'vscode', 'cliArgsKey'], DEFAULT_VSCODE_SETTINGS.cliArgsKey)),
+  apiServerUrlKey: String(readContract(
+    ['settings', 'vscode', 'apiServerUrlKey'],
+    DEFAULT_VSCODE_SETTINGS.apiServerUrlKey
+  )),
+  apiTimeoutKey: String(readContract(
+    ['settings', 'vscode', 'apiTimeoutKey'],
+    DEFAULT_VSCODE_SETTINGS.apiTimeoutKey
+  )),
+  apiExecutionModeKey: String(readContract(
+    ['settings', 'vscode', 'apiExecutionModeKey'],
+    DEFAULT_VSCODE_SETTINGS.apiExecutionModeKey
+  )),
   extraSearchArgsKey: String(readContract(
     ['settings', 'vscode', 'extraSearchArgsKey'],
     DEFAULT_VSCODE_SETTINGS.extraSearchArgsKey
@@ -212,6 +237,15 @@ const VSCODE_ENV_STRINGIFY_VALUES = readContract(
   ['env', 'stringifyValues'],
   DEFAULT_EDITOR_CONFIG_CONTRACT.env.stringifyValues
 ) !== false;
+const VALID_API_EXECUTION_MODES = new Set(['cli', 'prefer', 'require']);
+const API_CAPABILITY_CACHE_TTL_MS = 30 * 1000;
+const WORKFLOW_TRANSPORTS = Object.freeze({
+  search: { label: 'search', supportsCli: true, supportsApi: true },
+  'search-symbol': { label: 'search symbol lookup', supportsCli: true, supportsApi: true },
+  'explain-search': { label: 'explain search', supportsCli: true, supportsApi: false },
+  'index-health': { label: 'index health', supportsCli: true, supportsApi: true }
+});
+const apiCapabilityCache = new Map();
 
 /**
  * Normalize settings values that are expected to be arrays of strings.
@@ -230,6 +264,182 @@ function normalizeStringArray(value) {
  */
 function getExtensionConfiguration() {
   return vscode.workspace.getConfiguration(VSCODE_SETTINGS.namespace);
+}
+
+function getWorkflowTransport(workflow) {
+  const key = String(workflow || '').trim().toLowerCase();
+  const entry = WORKFLOW_TRANSPORTS[key];
+  if (!entry) {
+    return {
+      workflow: key,
+      label: key || 'this workflow',
+      supportsCli: true,
+      supportsApi: false
+    };
+  }
+  return {
+    workflow: key,
+    label: String(entry.label || key || 'this workflow'),
+    supportsCli: entry.supportsCli !== false,
+    supportsApi: entry.supportsApi === true
+  };
+}
+
+function readApiSettings(config) {
+  const baseUrl = normalizeApiBaseUrl(config.get(VSCODE_SETTINGS.apiServerUrlKey));
+  const timeoutMs = normalizeApiTimeoutMs(config.get(VSCODE_SETTINGS.apiTimeoutKey));
+  const rawMode = String(config.get(VSCODE_SETTINGS.apiExecutionModeKey) || 'cli').trim().toLowerCase();
+  const mode = VALID_API_EXECUTION_MODES.has(rawMode) ? rawMode : 'cli';
+  return { baseUrl, timeoutMs, mode };
+}
+
+function buildApiHeaders(config) {
+  const env = buildSpawnEnv(config);
+  const token = String(env?.PAIROFCLEATS_API_TOKEN || '').trim();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+async function getCachedApiCapabilities(baseUrl, timeoutMs, headers = null) {
+  const cacheKey = `${baseUrl}::${timeoutMs}::${headers?.Authorization || ''}`;
+  const cached = apiCapabilityCache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp) < API_CAPABILITY_CACHE_TTL_MS) {
+    return cached.result;
+  }
+  const probe = await probeApiCapabilitiesRequest(baseUrl, timeoutMs, headers);
+  const result = probe.ok
+    ? {
+      ok: true,
+      baseUrl,
+      timeoutMs,
+      payload: probe.payload,
+      capabilities: probe.capabilities && typeof probe.capabilities === 'object'
+        ? probe.capabilities
+        : {}
+    }
+    : probe;
+  apiCapabilityCache.set(cacheKey, {
+    timestamp: Date.now(),
+    result
+  });
+  return result;
+}
+
+async function resolveExecutionMode(config, workflow, requestedMode = null) {
+  const transport = getWorkflowTransport(workflow);
+  const apiSettings = readApiSettings(config);
+  const configuredMode = apiSettings.mode;
+  const { mode: _ignoredConfiguredMode, ...apiRuntimeSettings } = apiSettings;
+  const headers = buildApiHeaders(config);
+  if (requestedMode === 'cli') {
+    return transport.supportsCli
+      ? { ok: true, ...apiRuntimeSettings, configuredMode, mode: 'cli', transport, headers }
+      : {
+        ok: false,
+        message: `PairOfCleats CLI mode is not supported for ${transport.label}.`,
+        detail: null
+      };
+  }
+  if (requestedMode === 'api') {
+    if (!transport.supportsApi) {
+      return {
+        ok: false,
+        message: `PairOfCleats API mode is not supported for ${transport.label}.`,
+        detail: null
+      };
+    }
+    if (!apiSettings.baseUrl) {
+      return {
+        ok: false,
+        message: `PairOfCleats API mode requires ${VSCODE_SETTINGS.namespace}.${VSCODE_SETTINGS.apiServerUrlKey}.`,
+        detail: 'Set an http:// or https:// PairOfCleats API server URL in VS Code settings.'
+      };
+    }
+    const probe = await getCachedApiCapabilities(apiSettings.baseUrl, apiSettings.timeoutMs, headers);
+    if (!probe.ok) return probe;
+    if (probe.capabilities?.[transport.workflow] === false) {
+      return {
+        ok: false,
+        message: `PairOfCleats API mode is not supported for ${transport.label}.`,
+        detail: `The PairOfCleats API at ${apiSettings.baseUrl} does not advertise ${transport.workflow} support.`
+      };
+    }
+    return { ok: true, ...apiRuntimeSettings, configuredMode, mode: 'api', transport, headers, capabilities: probe.capabilities };
+  }
+  if (apiSettings.mode === 'cli') {
+    return transport.supportsCli
+      ? { ok: true, ...apiRuntimeSettings, configuredMode, mode: 'cli', transport, headers }
+      : {
+        ok: false,
+        message: `PairOfCleats CLI mode is not supported for ${transport.label}.`,
+        detail: null
+      };
+  }
+  if (!transport.supportsApi) {
+    if (apiSettings.mode === 'require') {
+      return {
+        ok: false,
+        message: `PairOfCleats API mode is not supported for ${transport.label}.`,
+        detail: null
+      };
+    }
+    return transport.supportsCli
+      ? { ok: true, ...apiRuntimeSettings, configuredMode, mode: 'cli', transport, headers }
+      : {
+        ok: false,
+        message: `PairOfCleats API mode is not supported for ${transport.label}.`,
+        detail: null
+      };
+  }
+  if (!apiSettings.baseUrl) {
+    if (apiSettings.mode === 'prefer' && transport.supportsCli) {
+      return { ok: true, ...apiRuntimeSettings, configuredMode, mode: 'cli', transport, headers, fallbackReason: 'missing-api-url' };
+    }
+    return {
+      ok: false,
+      message: `PairOfCleats API mode requires ${VSCODE_SETTINGS.namespace}.${VSCODE_SETTINGS.apiServerUrlKey}.`,
+      detail: 'Set an http:// or https:// PairOfCleats API server URL in VS Code settings.'
+    };
+  }
+  const probe = await getCachedApiCapabilities(apiSettings.baseUrl, apiSettings.timeoutMs, headers);
+  if (probe.ok) {
+    if (probe.capabilities?.[transport.workflow] === false) {
+      if (apiSettings.mode === 'prefer' && transport.supportsCli) {
+        return {
+          ok: true,
+          ...apiRuntimeSettings,
+          configuredMode,
+          mode: 'cli',
+          transport,
+          headers,
+          fallbackReason: `${transport.workflow}-unsupported`,
+          fallbackDetail: `The PairOfCleats API at ${apiSettings.baseUrl} does not advertise ${transport.workflow} support.`
+        };
+      }
+      return {
+        ok: false,
+        message: `PairOfCleats API mode is not supported for ${transport.label}.`,
+        detail: `The PairOfCleats API at ${apiSettings.baseUrl} does not advertise ${transport.workflow} support.`
+      };
+    }
+    return { ok: true, ...apiRuntimeSettings, configuredMode, mode: 'api', transport, headers, capabilities: probe.capabilities };
+  }
+  if (apiSettings.mode === 'prefer' && transport.supportsCli) {
+    return {
+      ok: true,
+      ...apiRuntimeSettings,
+      configuredMode,
+      mode: 'cli',
+      transport,
+      headers,
+      fallbackReason: probe.message,
+      fallbackDetail: probe.detail || null
+    };
+  }
+  return probe;
+}
+
+function buildApiSearchRequest(query, repoRoot, options) {
+  return buildSearchPayload(query, repoRoot, options);
 }
 
 /**
@@ -314,9 +524,15 @@ function isContainedPath(candidatePath, containerPath) {
   return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
 }
 
-function resolveFolderRepoRoot(folder, preferredPath = null) {
-  const workspacePath = getWorkspaceFolderPath(folder);
-  if (!workspacePath) return null;
+function resolveFolderRepoRoot(folder, preferredPath = null, { allowRemote = false } = {}) {
+  const descriptor = getWorkspaceFolderDescriptor(folder);
+  const workspacePath = descriptor.workspacePath;
+  if (!workspacePath) {
+    if (allowRemote && descriptor.workspaceUri?.scheme && descriptor.workspaceUri.scheme !== 'file') {
+      return String(descriptor.workspaceUri.path || descriptor.workspaceUri.fsPath || '').trim() || null;
+    }
+    return null;
+  }
   const normalizedPreferred = preferredPath ? path.resolve(preferredPath) : null;
   if (normalizedPreferred) {
     const preferredRoot = findRepoRoot(normalizedPreferred);
@@ -330,14 +546,15 @@ function resolveFolderRepoRoot(folder, preferredPath = null) {
 
 function createRepoCandidate(folder, repoRoot, source = 'workspace-folder') {
   const descriptor = getWorkspaceFolderDescriptor(folder);
-  if (!descriptor.workspacePath || !repoRoot) return null;
+  if (!repoRoot || !descriptor.workspaceUri) return null;
   return {
     repoRoot,
-    repoUri: vscode.Uri.file(repoRoot),
+    repoUri: descriptor.isLocalFile ? vscode.Uri.file(repoRoot) : descriptor.workspaceUri,
     workspaceFolder: descriptor.workspaceFolder,
     workspaceUri: descriptor.workspaceUri,
     workspacePath: descriptor.workspacePath,
     workspaceUriString: descriptor.workspaceUriString,
+    supportsLocalFs: descriptor.isLocalFile,
     repoLabel: formatRepoLabel(repoRoot),
     source
   };
@@ -346,7 +563,8 @@ function createRepoCandidate(folder, repoRoot, source = 'workspace-folder') {
 function collectRepoCandidates(folders, {
   hintUri = null,
   hintSource = 'active-editor',
-  includeLastSnapshot = false
+  includeLastSnapshot = false,
+  allowRemote = false
 } = {}) {
   const seen = new Set();
   const candidates = [];
@@ -361,7 +579,9 @@ function collectRepoCandidates(folders, {
     ? vscode.workspace.getWorkspaceFolder(hintUri)
     : null;
   if (hintedFolder?.uri?.scheme === 'file' && hintUri?.fsPath) {
-    pushCandidate(hintedFolder, resolveFolderRepoRoot(hintedFolder, hintUri.fsPath), hintSource);
+    pushCandidate(hintedFolder, resolveFolderRepoRoot(hintedFolder, hintUri.fsPath, { allowRemote }), hintSource);
+  } else if (allowRemote && hintedFolder?.uri?.scheme && hintedFolder.uri.scheme !== 'file') {
+    pushCandidate(hintedFolder, resolveFolderRepoRoot(hintedFolder, null, { allowRemote }), hintSource);
   }
 
   if (includeLastSnapshot?.repoRoot) {
@@ -377,7 +597,7 @@ function collectRepoCandidates(folders, {
   }
 
   for (const folder of folders) {
-    pushCandidate(folder, resolveFolderRepoRoot(folder), 'workspace-folder');
+    pushCandidate(folder, resolveFolderRepoRoot(folder, null, { allowRemote }), 'workspace-folder');
   }
 
   return candidates;
@@ -442,7 +662,7 @@ async function promptForRepoCandidate(candidates, { title = 'PairOfCleats reposi
  *
  * @returns {string|null}
  */
-async function resolveRepoContext({ pathHint = null, preferSelectedRepo = true, allowPrompt = true } = {}) {
+async function resolveRepoContext({ pathHint = null, preferSelectedRepo = true, allowPrompt = true, allowRemote = false } = {}) {
   const folders = vscode.workspace.workspaceFolders;
   if (!folders || !folders.length) {
     return {
@@ -452,13 +672,16 @@ async function resolveRepoContext({ pathHint = null, preferSelectedRepo = true, 
     };
   }
   const activeUri = pathHint || vscode.window.activeTextEditor?.document?.uri || null;
-  const fileFolders = folders.filter((folder) => getWorkspaceFolderDescriptor(folder).isLocalFile);
-  if (!fileFolders.length) {
+  const eligibleFolders = allowRemote
+    ? folders.filter((folder) => !!getWorkspaceFolderDescriptor(folder).workspaceUri)
+    : folders.filter((folder) => getWorkspaceFolderDescriptor(folder).isLocalFile);
+  if (!eligibleFolders.length) {
     return createUnsupportedWorkspaceResult(folders, activeUri);
   }
-  const candidates = collectRepoCandidates(fileFolders, {
+  const candidates = collectRepoCandidates(eligibleFolders, {
     hintUri: activeUri,
-    hintSource: pathHint ? 'path-hint' : 'active-editor'
+    hintSource: pathHint ? 'path-hint' : 'active-editor',
+    allowRemote
   });
   const pathHintCandidate = pathHint
     ? candidates.find((candidate) => candidate.source === 'path-hint') || null
@@ -480,7 +703,7 @@ async function resolveRepoContext({ pathHint = null, preferSelectedRepo = true, 
     return {
       ok: true,
       ...candidates[0],
-      source: fileFolders.length === 1 ? 'single-workspace' : 'single-repo-candidate'
+      source: eligibleFolders.length === 1 ? 'single-workspace' : 'single-repo-candidate'
     };
   }
   if (!allowPrompt || typeof vscode.window.showQuickPick !== 'function') {
@@ -578,6 +801,46 @@ function buildRepoSnapshot(repoContext) {
   };
 }
 
+function normalizeWorkflowInvocation(rawInvocation, fallbackTimeoutMs = 60000) {
+  if (!rawInvocation || typeof rawInvocation !== 'object') return null;
+  return {
+    kind: String(rawInvocation.kind || 'operator').trim() || 'operator',
+    command: String(rawInvocation.command || '').trim(),
+    args: Array.isArray(rawInvocation.args) ? rawInvocation.args.map((value) => String(value)) : [],
+    timeoutMs: Number.isFinite(rawInvocation.timeoutMs) ? rawInvocation.timeoutMs : fallbackTimeoutMs,
+    persistent: rawInvocation.persistent === true,
+    baseUrl: rawInvocation.baseUrl ? normalizeApiBaseUrl(rawInvocation.baseUrl) : '',
+    path: rawInvocation.path ? String(rawInvocation.path) : '',
+    method: rawInvocation.method ? String(rawInvocation.method).toUpperCase() : '',
+    transport: rawInvocation.transport ? String(rawInvocation.transport) : '',
+    payload: rawInvocation.payload && typeof rawInvocation.payload === 'object'
+      ? rawInvocation.payload
+      : null
+  };
+}
+
+function normalizeSearchInvocation(rawInvocation) {
+  if (!rawInvocation || typeof rawInvocation !== 'object') return null;
+  const kind = String(rawInvocation.kind || 'cli-search').trim() || 'cli-search';
+  if (kind === 'api-search') {
+    return {
+      kind,
+      baseUrl: normalizeApiBaseUrl(rawInvocation.baseUrl),
+      timeoutMs: Number.isFinite(rawInvocation.timeoutMs) ? rawInvocation.timeoutMs : DEFAULT_API_TIMEOUT_MS,
+      transport: rawInvocation.transport ? String(rawInvocation.transport) : 'api',
+      payload: rawInvocation.payload && typeof rawInvocation.payload === 'object'
+        ? rawInvocation.payload
+        : null
+    };
+  }
+  return {
+    kind,
+    command: String(rawInvocation.command || '').trim(),
+    args: Array.isArray(rawInvocation.args) ? rawInvocation.args.map((value) => String(value)) : [],
+    transport: rawInvocation.transport ? String(rawInvocation.transport) : 'cli'
+  };
+}
+
 function normalizeWorkflowSession(rawSession) {
   if (!rawSession || typeof rawSession !== 'object') return null;
   const sessionId = String(rawSession.sessionId || '').trim();
@@ -588,15 +851,7 @@ function normalizeWorkflowSession(rawSession) {
   const status = new Set(['running', 'succeeded', 'failed', 'cancelled', 'interrupted']).has(rawSession.status)
     ? rawSession.status
     : 'failed';
-  const invocation = rawSession.invocation && typeof rawSession.invocation === 'object'
-    ? {
-      kind: String(rawSession.invocation.kind || 'operator'),
-      command: String(rawSession.invocation.command || '').trim(),
-      args: Array.isArray(rawSession.invocation.args) ? rawSession.invocation.args.map((value) => String(value)) : [],
-      timeoutMs: Number.isFinite(rawSession.invocation.timeoutMs) ? rawSession.invocation.timeoutMs : 60000,
-      persistent: rawSession.invocation.persistent === true
-    }
-    : null;
+  const invocation = normalizeWorkflowInvocation(rawSession.invocation, 60000);
   return {
     sessionId,
     commandId,
@@ -673,7 +928,7 @@ function resolvePassiveRepoContext() {
     return {
       ok: false,
       kind: 'ambiguous-workspace',
-      repoLabel: `${candidates.length || fileFolders.length} repos`
+      repoLabel: `${candidates.length || eligibleFolders.length} repos`
     };
   }
   return {
@@ -749,9 +1004,14 @@ async function beginWorkflowSession(spec, repoContext, invocation) {
       ? {
         kind: invocation.kind || 'operator',
         command: invocation.command,
-        args: invocation.args.map((value) => String(value)),
+        args: Array.isArray(invocation.args) ? invocation.args.map((value) => String(value)) : [],
         timeoutMs: Number.isFinite(invocation.timeoutMs) ? invocation.timeoutMs : spec.timeoutMs,
-        persistent: invocation.persistent === true
+        persistent: invocation.persistent === true,
+        baseUrl: invocation.baseUrl ? normalizeApiBaseUrl(invocation.baseUrl) : '',
+        path: invocation.path ? String(invocation.path) : '',
+        method: invocation.method ? String(invocation.method).toUpperCase() : '',
+        transport: invocation.transport ? String(invocation.transport) : '',
+        payload: invocation.payload && typeof invocation.payload === 'object' ? invocation.payload : null
       }
       : null
   };
@@ -809,10 +1069,6 @@ async function finishWorkflowSession(sessionId, patch) {
 }
 
 async function rerunWorkflowSession(session) {
-  if (!session?.invocation?.command || !Array.isArray(session?.invocation?.args)) {
-    vscode.window.showErrorMessage('PairOfCleats cannot rerun that workflow because its invocation was not preserved.');
-    return;
-  }
   const spec = OPERATOR_COMMANDS_BY_ID.get(session.commandId) || {
     id: session.commandId,
     title: session.title,
@@ -822,10 +1078,32 @@ async function rerunWorkflowSession(session) {
   const repoContext = {
     ok: true,
     repoRoot: session.repoRoot,
+    repoUri: parsePersistedUri(session.workspaceUri, vscode.Uri.file(session.repoRoot)),
     workspacePath: session.workspacePath || session.repoRoot,
     workspaceUriString: session.workspaceUri || '',
     workspaceFolder: { uri: parsePersistedUri(session.workspaceUri, vscode.Uri.file(session.repoRoot)) }
   };
+  if (session.invocation?.kind === 'api-request') {
+    if (!session.invocation.baseUrl || !session.invocation.path || !session.invocation.method) {
+      vscode.window.showErrorMessage('PairOfCleats cannot rerun that workflow because its API invocation was not preserved.');
+      return;
+    }
+    return executeApiOperatorWorkflow(spec, repoContext, {
+      baseUrl: session.invocation.baseUrl,
+      timeoutMs: session.invocation.timeoutMs || spec.timeoutMs,
+      path: session.invocation.path,
+      method: session.invocation.method,
+      payload: session.invocation.payload || null,
+      transport: session.invocation.transport || 'api',
+      normalizePayload: spec.id === 'pairofcleats.indexHealth'
+        ? (payload) => payload?.status || payload
+        : null
+    });
+  }
+  if (!session?.invocation?.command || !Array.isArray(session?.invocation?.args)) {
+    vscode.window.showErrorMessage('PairOfCleats cannot rerun that workflow because its invocation was not preserved.');
+    return;
+  }
   if (session.invocation.kind === 'managed-process') {
     const managedSpec = MANAGED_COMMANDS_BY_ID.get(session.commandId);
     if (!managedSpec) {
@@ -1012,14 +1290,7 @@ function normalizeSearchResultSet(rawResultSet) {
     mode: rawResultSet.mode ? String(rawResultSet.mode) : '',
     backend: rawResultSet.backend ? String(rawResultSet.backend) : '',
     totalHits: Number.isFinite(rawResultSet.totalHits) ? Number(rawResultSet.totalHits) : hits.length,
-    invocation: rawResultSet.invocation && typeof rawResultSet.invocation === 'object'
-      ? {
-        command: String(rawResultSet.invocation.command || '').trim(),
-        args: Array.isArray(rawResultSet.invocation.args)
-          ? rawResultSet.invocation.args.map((value) => String(value))
-          : []
-      }
-      : null,
+    invocation: normalizeSearchInvocation(rawResultSet.invocation),
     hits
   };
 }
@@ -1189,8 +1460,7 @@ async function recordSearchResultSet({
   repoContext,
   query,
   searchOptions,
-  command,
-  args,
+  invocation,
   hits
 }) {
   const resultSet = normalizeSearchResultSet({
@@ -1202,7 +1472,7 @@ async function recordSearchResultSet({
     mode: searchOptions.mode,
     backend: searchOptions.backend,
     totalHits: hits.length,
-    invocation: { command, args },
+    invocation,
     hits
   });
   if (!resultSet) return null;
@@ -1270,15 +1540,15 @@ async function reopenLastResults() {
 
 async function rerunResultSet(nodeOrResultSet) {
   const resultSet = nodeOrResultSet?.resultSet || nodeOrResultSet;
-  if (!resultSet?.invocation?.command || !Array.isArray(resultSet?.invocation?.args)) {
+  const invocation = resultSet?.invocation || null;
+  const canRerun = (invocation?.kind === 'api-search' && invocation.payload)
+    || (invocation?.command && Array.isArray(invocation?.args));
+  if (!canRerun) {
     vscode.window.showErrorMessage('PairOfCleats cannot rerun that result set because its invocation was not preserved.');
     return;
   }
   const output = getOutputChannel();
-  const repoContext = {
-    repoRoot: resultSet.repoRoot,
-    repoUri: vscode.Uri.file(resultSet.repoRoot)
-  };
+  const repoContext = createStoredRepoContext(resultSet);
   output.appendLine(`[search] rerun query=${resultSet.query}`);
   const parsedResult = await runSavedSearchInvocation(resultSet, repoContext);
   if (parsedResult?.ok) {
@@ -2362,6 +2632,87 @@ async function runBufferedJsonCommand({
   );
 }
 
+async function runApiJsonCommand({
+  spec,
+  label,
+  baseUrl,
+  timeoutMs,
+  headers = null,
+  requestPath,
+  method = 'GET',
+  payload = null,
+  output
+}) {
+  return vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: spec.progressTitle,
+      cancellable: false
+    },
+    async () => {
+      output.appendLine(`[api] ${method} ${normalizeApiBaseUrl(baseUrl)}${requestPath}`);
+      return requestApiJson(baseUrl, requestPath, {
+        method,
+        payload,
+        headers,
+        timeoutMs,
+        label
+      });
+    }
+  );
+}
+
+async function executeApiOperatorWorkflow(spec, repoContext, request) {
+  const output = getOutputChannel();
+  output.appendLine('');
+  output.appendLine(`=== ${spec.title} ===`);
+  output.appendLine(`[api] baseUrl=${request.baseUrl}`);
+  const session = await beginWorkflowSession(spec, repoContext, {
+    kind: 'api-request',
+    baseUrl: request.baseUrl,
+    path: request.path,
+    method: request.method,
+    timeoutMs: request.timeoutMs,
+    transport: 'api',
+    payload: request.payload || null
+  });
+  const result = await runApiJsonCommand({
+    spec,
+    label: spec.title,
+    baseUrl: request.baseUrl,
+    timeoutMs: request.timeoutMs,
+    headers: request.headers || null,
+    requestPath: request.path,
+    method: request.method,
+    payload: request.payload,
+    output
+  });
+  if (!result.ok) {
+    if (result.detail) output.appendLine(result.detail);
+    output.show?.(true);
+    await finishWorkflowSession(session.sessionId, {
+      status: 'failed',
+      summaryLine: result.message
+    });
+    vscode.window.showErrorMessage(result.message);
+    return;
+  }
+  const payload = typeof request.normalizePayload === 'function'
+    ? request.normalizePayload(result.payload)
+    : result.payload;
+  const summaryLines = summarizeOperatorPayload(spec, payload);
+  for (const line of summaryLines) {
+    output.appendLine(line);
+  }
+  output.appendLine(JSON.stringify(payload, null, 2));
+  output.show?.(true);
+  await finishWorkflowSession(session.sessionId, {
+    status: 'succeeded',
+    summaryLine: `${spec.title} completed.`
+  });
+  vscode.window.showInformationMessage(`${spec.title} completed.`);
+}
+
 async function executeOperatorWorkflow(spec, repoContext, invocation) {
   const { repoRoot } = repoContext;
   const config = getExtensionConfiguration();
@@ -2411,7 +2762,18 @@ async function executeOperatorWorkflow(spec, repoContext, invocation) {
 }
 
 async function runOperatorCommand(spec) {
-  const repoContext = await resolveRepoContext();
+  const config = getExtensionConfiguration();
+  const workflow = spec.id === 'pairofcleats.indexHealth' ? 'index-health' : null;
+  const execution = workflow ? await resolveExecutionMode(config, workflow) : { ok: true, mode: 'cli', headers: buildApiHeaders(config) };
+  if (!execution.ok) {
+    const output = getOutputChannel();
+    output.appendLine(execution.detail || execution.message);
+    output.show?.(true);
+    vscode.window.showErrorMessage(execution.message);
+    return;
+  }
+  appendExecutionFallbackNote(getOutputChannel(), execution);
+  const repoContext = await resolveRepoContext({ allowRemote: execution.mode === 'api' });
   if (!repoContext.ok) {
     if (repoContext.message) {
       if (repoContext.detail) {
@@ -2424,19 +2786,25 @@ async function runOperatorCommand(spec) {
     return;
   }
   const { repoRoot } = repoContext;
-  const config = getExtensionConfiguration();
   const cliResolution = resolveCli(repoRoot, config);
-  if (spec.invocation !== 'script' && !cliResolution.ok) {
-    const output = getOutputChannel();
-    output.appendLine(cliResolution.detail || cliResolution.message);
-    output.show?.(true);
-    vscode.window.showErrorMessage(cliResolution.message);
-    return;
-  }
   const inputContext = typeof spec.resolveInput === 'function'
     ? await spec.resolveInput(repoContext)
     : undefined;
   if (inputContext === null) {
+    return;
+  }
+  if (execution.mode === 'api' && spec.id === 'pairofcleats.indexHealth') {
+    const requestPath = `/status?repo=${encodeURIComponent(repoRoot)}`;
+    await executeApiOperatorWorkflow(spec, repoContext, {
+      baseUrl: execution.baseUrl,
+      timeoutMs: execution.timeoutMs,
+      headers: execution.headers || null,
+      path: requestPath,
+      method: 'GET',
+      payload: null,
+      transport: 'api',
+      normalizePayload: (payload) => payload?.status || payload
+    });
     return;
   }
   const invocation = resolveOperatorInvocation(spec, repoContext, cliResolution, inputContext);
@@ -2445,6 +2813,13 @@ async function runOperatorCommand(spec) {
     output.appendLine(invocation.detail || invocation.message);
     output.show?.(true);
     vscode.window.showErrorMessage(invocation.message);
+    return;
+  }
+  if (spec.invocation !== 'script' && !cliResolution.ok) {
+    const output = getOutputChannel();
+    output.appendLine(cliResolution.detail || cliResolution.message);
+    output.show?.(true);
+    vscode.window.showErrorMessage(cliResolution.message);
     return;
   }
   await executeOperatorWorkflow(spec, repoContext, invocation);
@@ -2497,6 +2872,13 @@ function killChildProcess(child) {
 function appendRuntimeFailure(output, prefix, failure) {
   output.appendLine(`${prefix} failure kind=${failure.kind}`);
   if (failure.detail) output.appendLine(failure.detail);
+}
+
+function appendExecutionFallbackNote(output, execution) {
+  if (!execution || execution.mode !== 'cli' || execution.configuredMode !== 'prefer') return;
+  const detail = String(execution.fallbackDetail || execution.fallbackReason || '').trim();
+  if (!detail) return;
+  output.appendLine(`[transport] API fallback -> CLI: ${detail}`);
 }
 
 async function stopManagedProcessEntry(entry, { reason = 'cancelled', summaryLine } = {}) {
@@ -2690,8 +3072,8 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
   );
 }
 
-async function resolveSearchRepoContext() {
-  const repoContext = await resolveRepoContext();
+async function resolveSearchRepoContext(options = {}) {
+  const repoContext = await resolveRepoContext(options);
   if (!repoContext.ok) {
     if (repoContext.message) {
       if (repoContext.detail) {
@@ -2714,10 +3096,20 @@ async function promptSearchQuery({ prompt, placeHolder }) {
 async function executeSearchCommand({
   query,
   explain = false,
+  workflow = 'search',
   prompt = 'PairOfCleats search query',
   placeHolder = 'e.g. auth token validation'
 } = {}) {
-  const repoContext = await resolveSearchRepoContext();
+  const config = getExtensionConfiguration();
+  const execution = await resolveExecutionMode(config, explain ? 'explain-search' : workflow);
+  if (!execution.ok) {
+    const output = getOutputChannel();
+    output.appendLine(execution.detail || execution.message);
+    output.show?.(true);
+    vscode.window.showErrorMessage(execution.message);
+    return;
+  }
+  const repoContext = await resolveSearchRepoContext({ allowRemote: execution.mode === 'api' });
   if (!repoContext) return;
   const { repoRoot } = repoContext;
   const resolvedQuery = query && String(query).trim()
@@ -2725,23 +3117,26 @@ async function executeSearchCommand({
     : await promptSearchQuery({ prompt, placeHolder });
   if (!resolvedQuery) return;
 
-  const config = getExtensionConfiguration();
   const cliResolution = resolveCli(repoRoot, config);
-  if (!cliResolution.ok) {
+  if (execution.mode === 'cli' && !cliResolution.ok) {
     vscode.window.showErrorMessage(cliResolution.message);
     const output = getOutputChannel();
     output.appendLine(cliResolution.detail || cliResolution.message);
     output.show?.(true);
     return;
   }
-  const { command, argsPrefix } = cliResolution;
   const searchOptions = {
     ...readSearchOptions(config, VSCODE_SETTINGS),
     explain
   };
-  let searchArgs;
+  let searchArgs = null;
+  let searchPayload = null;
   try {
-    searchArgs = buildSearchArgs(resolvedQuery, repoRoot, searchOptions);
+    if (execution.mode === 'api') {
+      searchPayload = buildApiSearchRequest(resolvedQuery, repoRoot, searchOptions);
+    } else {
+      searchArgs = buildSearchArgs(resolvedQuery, repoRoot, searchOptions);
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'PairOfCleats search configuration is invalid.';
     const output = getOutputChannel();
@@ -2750,132 +3145,60 @@ async function executeSearchCommand({
     vscode.window.showErrorMessage(message);
     return;
   }
-  const args = [...argsPrefix, ...searchArgs];
   const env = buildSpawnEnv(config);
   const searchTimeoutMs = 60000;
   const output = getOutputChannel();
-  output.appendLine(`[search] command=${command}`);
-  output.appendLine(`[search] args=${JSON.stringify(args)}`);
+  appendExecutionFallbackNote(output, execution);
+  if (execution.mode === 'api') {
+    output.appendLine(`[search] transport=api baseUrl=${execution.baseUrl}`);
+  } else {
+    const { command, argsPrefix } = cliResolution;
+    const args = [...argsPrefix, ...searchArgs];
+    output.appendLine(`[search] command=${command}`);
+    output.appendLine(`[search] args=${JSON.stringify(args)}`);
+  }
   noteRepoContext(repoContext);
 
   await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
       title: 'PairOfCleats search',
-      cancellable: true
+      cancellable: execution.mode !== 'api'
     },
-    (_, token) => new Promise((resolve) => {
-      const useShellWrapper = process.platform === 'win32' && /\.(cmd|bat)$/i.test(command);
-      const invocation = useShellWrapper
-        ? resolveWindowsCmdInvocation(command, args)
-        : { command, args };
-      const spawned = spawnBufferedProcess(cp, invocation.command, invocation.args, {
-        cwd: repoRoot,
-        env: invocation.env ? { ...env, ...invocation.env } : env,
-        shell: false,
-        windowsHide: true
-      });
-      if (!spawned.ok) {
-        const failure = summarizeSpawnFailure('PairOfCleats search', spawned.error);
-        appendRuntimeFailure(output, '[search]', failure);
-        output.show?.(true);
-        vscode.window.showErrorMessage(failure.message);
-        resolve();
-        return;
-      }
-      const child = spawned.child;
-      const stdoutAccumulator = createChunkAccumulator(DEFAULT_MAX_BUFFER_BYTES);
-      const stderrAccumulator = createChunkAccumulator(DEFAULT_MAX_BUFFER_BYTES);
-      let timedOut = false;
-      const timeout = setTimeout(() => {
-        timedOut = true;
-        output.appendLine(`[search] timeout after ${searchTimeoutMs}ms`);
-        try {
-          child.kill('SIGKILL');
-        } catch {}
-      }, searchTimeoutMs);
-      timeout.unref?.();
-      const cancelSub = token.onCancellationRequested(() => {
-        output.appendLine('[search] cancellation requested');
-        try {
-          child.kill('SIGKILL');
-        } catch {}
-      });
-      child.stdout?.on('data', (chunk) => {
-        stdoutAccumulator.push(chunk);
-      });
-      child.stderr?.on('data', (chunk) => {
-        stderrAccumulator.push(chunk);
-      });
-      child.once('error', (error) => {
-        clearTimeout(timeout);
-        cancelSub.dispose();
-        appendRuntimeFailure(output, '[search]', summarizeSpawnFailure('PairOfCleats search', error));
-        output.show?.(true);
-        vscode.window.showErrorMessage(`PairOfCleats search failed: ${error?.message || error}`);
-        resolve();
-      });
-      child.once('close', async (code) => {
-        clearTimeout(timeout);
-        cancelSub.dispose();
-        if (token.isCancellationRequested) {
-          output.appendLine('[search] cancelled by user');
-          vscode.window.showInformationMessage('PairOfCleats search was cancelled.');
-          resolve();
-          return;
-        }
-        const stdout = stdoutAccumulator.text();
-        const stderr = stderrAccumulator.text();
-        const processFailure = summarizeProcessFailure({
-          code,
-          timedOut,
-          cancelled: false,
-          stderr,
-          stdout,
-          stdoutTruncated: stdoutAccumulator.truncated(),
-          stderrTruncated: stderrAccumulator.truncated(),
-          timeoutMs: searchTimeoutMs
+    async (_, token) => {
+      if (execution.mode === 'api') {
+        const result = await requestApiJson(execution.baseUrl, '/search', {
+          method: 'POST',
+          payload: searchPayload,
+          headers: execution.headers || null,
+          timeoutMs: execution.timeoutMs,
+          label: 'PairOfCleats search'
         });
-        if (processFailure) {
-          appendRuntimeFailure(output, '[search]', processFailure);
+        if (!result.ok) {
+          appendRuntimeFailure(output, '[search api]', result);
           output.show?.(true);
-          vscode.window.showErrorMessage(processFailure.message);
-          resolve();
+          vscode.window.showErrorMessage(result.message);
           return;
         }
-        if (stderrAccumulator.truncated()) {
-          output.appendLine('[search] stderr output was truncated');
-        }
-
-        const parsed = parseSearchPayload(stdout, {
-          stdoutTruncated: stdoutAccumulator.truncated()
-        });
-        if (!parsed.ok) {
-          appendRuntimeFailure(output, '[search] parse', parsed);
-          if (stderr.trim()) output.appendLine(stderr);
-          output.show?.(true);
-          vscode.window.showErrorMessage(parsed.message);
-          resolve();
-          return;
-        }
-        const payload = parsed.payload;
-
+        const payload = result.payload?.result || result.payload;
         const hits = collectSearchHits(payload);
         await recordSearchResultSet({
           repoContext,
           query: resolvedQuery,
           searchOptions,
-          command,
-          args,
+          invocation: {
+            kind: 'api-search',
+            baseUrl: execution.baseUrl,
+            timeoutMs: execution.timeoutMs,
+            payload: searchPayload,
+            transport: 'api'
+          },
           hits
         });
-
         if (!hits.length) {
           vscode.window.showInformationMessage('PairOfCleats: no results.');
-          resolve();
           return;
         }
-
         const items = hits.map((hit) => {
           const line = Number.isFinite(hit.startLine) ? `:${hit.startLine}` : '';
           const fileLabel = `${hit.file}${line}`;
@@ -2890,31 +3213,179 @@ async function executeSearchCommand({
             hit
           };
         });
-
         const selection = await vscode.window.showQuickPick(items, {
           title: `PairOfCleats results (${hits.length})`,
           matchOnDescription: true,
           matchOnDetail: true
         });
-        if (!selection) {
-          resolve();
-          return;
-        }
-
-        const selected = selection.hit;
-        const openResult = await openSearchHit(vscode, repoContext, selected);
+        if (!selection) return;
+        const openResult = await openSearchHit(vscode, repoContext, selection.hit);
         if (!openResult.ok) {
           output.appendLine(`[search] open failure path=${openResult.filePath}`);
           output.appendLine(openResult.detail);
           output.show?.(true);
           vscode.window.showErrorMessage(openResult.message);
+        }
+        return;
+      }
+      const { command, argsPrefix } = cliResolution;
+      const args = [...argsPrefix, ...searchArgs];
+      return await new Promise((resolve) => {
+        const useShellWrapper = process.platform === 'win32' && /\.(cmd|bat)$/i.test(command);
+        const invocation = useShellWrapper
+          ? resolveWindowsCmdInvocation(command, args)
+          : { command, args };
+        const spawned = spawnBufferedProcess(cp, invocation.command, invocation.args, {
+          cwd: repoRoot,
+          env: invocation.env ? { ...env, ...invocation.env } : env,
+          shell: false,
+          windowsHide: true
+        });
+        if (!spawned.ok) {
+          const failure = summarizeSpawnFailure('PairOfCleats search', spawned.error);
+          appendRuntimeFailure(output, '[search]', failure);
+          output.show?.(true);
+          vscode.window.showErrorMessage(failure.message);
           resolve();
           return;
         }
+        const child = spawned.child;
+        const stdoutAccumulator = createChunkAccumulator(DEFAULT_MAX_BUFFER_BYTES);
+        const stderrAccumulator = createChunkAccumulator(DEFAULT_MAX_BUFFER_BYTES);
+        let timedOut = false;
+        const timeout = setTimeout(() => {
+          timedOut = true;
+          output.appendLine(`[search] timeout after ${searchTimeoutMs}ms`);
+          try {
+            child.kill('SIGKILL');
+          } catch {}
+        }, searchTimeoutMs);
+        timeout.unref?.();
+        const cancelSub = token.onCancellationRequested(() => {
+          output.appendLine('[search] cancellation requested');
+          try {
+            child.kill('SIGKILL');
+          } catch {}
+        });
+        child.stdout?.on('data', (chunk) => {
+          stdoutAccumulator.push(chunk);
+        });
+        child.stderr?.on('data', (chunk) => {
+          stderrAccumulator.push(chunk);
+        });
+        child.once('error', (error) => {
+          clearTimeout(timeout);
+          cancelSub.dispose();
+          appendRuntimeFailure(output, '[search]', summarizeSpawnFailure('PairOfCleats search', error));
+          output.show?.(true);
+          vscode.window.showErrorMessage(`PairOfCleats search failed: ${error?.message || error}`);
+          resolve();
+        });
+        child.once('close', async (code) => {
+          clearTimeout(timeout);
+          cancelSub.dispose();
+          if (token.isCancellationRequested) {
+            output.appendLine('[search] cancelled by user');
+            vscode.window.showInformationMessage('PairOfCleats search was cancelled.');
+            resolve();
+            return;
+          }
+          const stdout = stdoutAccumulator.text();
+          const stderr = stderrAccumulator.text();
+          const processFailure = summarizeProcessFailure({
+            code,
+            timedOut,
+            cancelled: false,
+            stderr,
+            stdout,
+            stdoutTruncated: stdoutAccumulator.truncated(),
+            stderrTruncated: stderrAccumulator.truncated(),
+            timeoutMs: searchTimeoutMs
+          });
+          if (processFailure) {
+            appendRuntimeFailure(output, '[search]', processFailure);
+            output.show?.(true);
+            vscode.window.showErrorMessage(processFailure.message);
+            resolve();
+            return;
+          }
+          if (stderrAccumulator.truncated()) {
+            output.appendLine('[search] stderr output was truncated');
+          }
 
-        resolve();
+          const parsed = parseSearchPayload(stdout, {
+            stdoutTruncated: stdoutAccumulator.truncated()
+          });
+          if (!parsed.ok) {
+            appendRuntimeFailure(output, '[search] parse', parsed);
+            if (stderr.trim()) output.appendLine(stderr);
+            output.show?.(true);
+            vscode.window.showErrorMessage(parsed.message);
+            resolve();
+            return;
+          }
+          const payload = parsed.payload;
+
+          const hits = collectSearchHits(payload);
+          await recordSearchResultSet({
+            repoContext,
+            query: resolvedQuery,
+            searchOptions,
+            invocation: {
+              kind: 'cli-search',
+              command,
+              args,
+              transport: 'cli'
+            },
+            hits
+          });
+
+          if (!hits.length) {
+            vscode.window.showInformationMessage('PairOfCleats: no results.');
+            resolve();
+            return;
+          }
+
+          const items = hits.map((hit) => {
+            const line = Number.isFinite(hit.startLine) ? `:${hit.startLine}` : '';
+            const fileLabel = `${hit.file}${line}`;
+            const scoreLabel = Number.isFinite(hit.score)
+              ? `${hit.score.toFixed(2)} ${hit.scoreType || ''}`.trim()
+              : 'n/a';
+            const label = hit.name || hit.headline || fileLabel;
+            return {
+              label,
+              description: fileLabel,
+              detail: `${hit.section} • score ${scoreLabel}`,
+              hit
+            };
+          });
+
+          const selection = await vscode.window.showQuickPick(items, {
+            title: `PairOfCleats results (${hits.length})`,
+            matchOnDescription: true,
+            matchOnDetail: true
+          });
+          if (!selection) {
+            resolve();
+            return;
+          }
+
+          const selected = selection.hit;
+          const openResult = await openSearchHit(vscode, repoContext, selected);
+          if (!openResult.ok) {
+            output.appendLine(`[search] open failure path=${openResult.filePath}`);
+            output.appendLine(openResult.detail);
+            output.show?.(true);
+            vscode.window.showErrorMessage(openResult.message);
+            resolve();
+            return;
+          }
+
+          resolve();
+        });
       });
-    })
+    }
   );
 }
 
@@ -2924,7 +3395,7 @@ async function executeSearchCommand({
  * @returns {Promise<void>}
  */
 async function runSearch() {
-  await executeSearchCommand();
+  await executeSearchCommand({ workflow: 'search' });
 }
 
 async function runSelectionSearch() {
@@ -2933,7 +3404,7 @@ async function runSelectionSearch() {
     vscode.window.showInformationMessage('PairOfCleats could not find a non-empty editor selection to search.');
     return;
   }
-  await executeSearchCommand({ query, prompt: 'PairOfCleats selection search' });
+  await executeSearchCommand({ query, workflow: 'search', prompt: 'PairOfCleats selection search' });
 }
 
 async function runSymbolSearch() {
@@ -2942,11 +3413,12 @@ async function runSymbolSearch() {
     vscode.window.showInformationMessage('PairOfCleats could not resolve a symbol under the cursor.');
     return;
   }
-  await executeSearchCommand({ query, prompt: 'PairOfCleats symbol search' });
+  await executeSearchCommand({ query, workflow: 'search-symbol', prompt: 'PairOfCleats symbol search' });
 }
 
 async function runExplainSearch() {
   await executeSearchCommand({
+    workflow: 'explain-search',
     explain: true,
     prompt: 'PairOfCleats explain search query',
     placeHolder: 'e.g. auth token validation'
@@ -2955,27 +3427,46 @@ async function runExplainSearch() {
 
 async function runSavedSearchInvocation(resultSet, repoContext) {
   const output = getOutputChannel();
-  const searchTimeoutMs = 60000;
-  const spec = { title: 'PairOfCleats search', progressTitle: 'PairOfCleats search', timeoutMs: searchTimeoutMs };
-  const env = buildSpawnEnv(getExtensionConfiguration());
-  const result = await runBufferedJsonCommand({
-    spec,
-    repoRoot: repoContext.repoRoot,
-    command: resultSet.invocation.command,
-    args: resultSet.invocation.args,
-    env,
-    output
-  });
-  if (!result?.payload) {
-    if (result?.detail) output.appendLine(result.detail);
-    output.show?.(true);
-    const show = result?.kind === 'cancelled'
-      ? vscode.window.showInformationMessage
-      : vscode.window.showErrorMessage;
-    show(result?.message || 'PairOfCleats search failed.');
-    return { ok: false };
+  const invocation = resultSet?.invocation || null;
+  let hits = [];
+  if (invocation?.kind === 'api-search') {
+    const result = await requestApiJson(invocation.baseUrl, '/search', {
+      method: 'POST',
+      payload: invocation.payload,
+      headers: buildApiHeaders(getExtensionConfiguration()),
+      timeoutMs: invocation.timeoutMs || DEFAULT_API_TIMEOUT_MS,
+      label: 'PairOfCleats search'
+    });
+    if (!result.ok) {
+      if (result.detail) output.appendLine(result.detail);
+      output.show?.(true);
+      vscode.window.showErrorMessage(result.message || 'PairOfCleats search failed.');
+      return { ok: false };
+    }
+    hits = collectSearchHits(result.payload?.result || result.payload);
+  } else {
+    const searchTimeoutMs = 60000;
+    const spec = { title: 'PairOfCleats search', progressTitle: 'PairOfCleats search', timeoutMs: searchTimeoutMs };
+    const env = buildSpawnEnv(getExtensionConfiguration());
+    const result = await runBufferedJsonCommand({
+      spec,
+      repoRoot: repoContext.repoRoot,
+      command: resultSet.invocation.command,
+      args: resultSet.invocation.args,
+      env,
+      output
+    });
+    if (!result?.payload) {
+      if (result?.detail) output.appendLine(result.detail);
+      output.show?.(true);
+      const show = result?.kind === 'cancelled'
+        ? vscode.window.showInformationMessage
+        : vscode.window.showErrorMessage;
+      show(result?.message || 'PairOfCleats search failed.');
+      return { ok: false };
+    }
+    hits = collectSearchHits(result.payload);
   }
-  const hits = collectSearchHits(result.payload);
   await recordSearchResultSet({
     repoContext,
     query: resultSet.query,
@@ -2983,8 +3474,7 @@ async function runSavedSearchInvocation(resultSet, repoContext) {
       mode: resultSet.mode,
       backend: resultSet.backend
     },
-    command: resultSet.invocation.command,
-    args: resultSet.invocation.args,
+    invocation: resultSet.invocation,
     hits
   });
   return { ok: true, hits };
@@ -3136,6 +3626,7 @@ module.exports = {
     getOutputChannel,
     openSearchHit,
     resolveCli,
+    resolveExecutionMode,
     resolveRepoContext,
     resolvePassiveRepoContext,
     runOperatorCommand,

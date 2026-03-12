@@ -88,6 +88,56 @@ function buildSearchArgs(query, repoRoot, options = {}) {
   return args;
 }
 
+function buildSearchPayload(query, repoRoot, options = {}) {
+  const mode = normalizeStringSetting(options.mode) || 'both';
+  const backend = normalizeStringSetting(options.backend);
+  const file = normalizeStringSetting(options.file);
+  const pathValue = normalizeStringSetting(options.path);
+  const lang = normalizeStringSetting(options.lang);
+  const ext = normalizeStringSetting(options.ext);
+  const type = normalizeStringSetting(options.type);
+  const asOf = normalizeStringSetting(options.asOf);
+  const snapshot = normalizeStringSetting(options.snapshot);
+  const filter = normalizeStringSetting(options.filter);
+  const author = normalizeStringSetting(options.author);
+  const modifiedAfter = normalizeStringSetting(options.modifiedAfter);
+  const modifiedSince = normalizeStringSetting(options.modifiedSince);
+  const churn = normalizeStringSetting(options.churn);
+  const contextLines = Number.isFinite(Number(options.contextLines))
+    ? Math.max(0, Number(options.contextLines))
+    : 0;
+  const payload = {
+    query: String(query ?? ''),
+    repo: repoRoot || '',
+    top: Number.isFinite(Number(options.maxResults))
+      ? Math.max(1, Number(options.maxResults))
+      : 25,
+    mode
+  };
+
+  if (asOf && snapshot) {
+    throw new Error('PairOfCleats VS Code search cannot set both searchAsOf and searchSnapshot.');
+  }
+
+  if (backend) payload.backend = backend;
+  if (options.annEnabled === false) payload.ann = false;
+  if (contextLines > 0) payload.context = contextLines;
+  if (file) payload.file = file;
+  if (pathValue) payload.path = pathValue;
+  if (lang) payload.lang = lang;
+  if (ext) payload.ext = ext;
+  if (type) payload.type = type;
+  if (asOf) payload.asOf = asOf;
+  else if (snapshot) payload.snapshotId = snapshot;
+  if (filter) payload.filter = filter;
+  if (author) payload.author = author;
+  if (modifiedAfter) payload.modifiedAfter = modifiedAfter;
+  if (modifiedSince) payload.modifiedSince = modifiedSince;
+  if (churn) payload.churnMin = Number.isFinite(Number(churn)) ? Math.max(0, Number(churn)) : churn;
+  if (options.caseSensitive) payload.case = true;
+  return payload;
+}
+
 function collectSearchHits(payload) {
   const hits = [];
   const pushHits = (items, section) => {
@@ -111,5 +161,6 @@ function collectSearchHits(payload) {
 module.exports = {
   readSearchOptions,
   buildSearchArgs,
+  buildSearchPayload,
   collectSearchHits
 };

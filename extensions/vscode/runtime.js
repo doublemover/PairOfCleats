@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const DEFAULT_MAX_BUFFER_BYTES = 20 * 1024 * 1024;
+const DEFAULT_API_TIMEOUT_MS = 5000;
 
 function createChunkAccumulator(maxBytes = DEFAULT_MAX_BUFFER_BYTES) {
   const limit = Number.isFinite(Number(maxBytes)) ? Math.max(1, Number(maxBytes)) : DEFAULT_MAX_BUFFER_BYTES;
@@ -127,6 +128,155 @@ function parseSearchPayload(stdout, options = {}) {
     ...options,
     label: 'PairOfCleats search'
   });
+}
+
+function normalizeApiBaseUrl(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  return text.endsWith('/') ? text.slice(0, -1) : text;
+}
+
+function normalizeApiTimeoutMs(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? Math.max(1, Math.trunc(numeric)) : DEFAULT_API_TIMEOUT_MS;
+}
+
+function summarizeApiHttpFailure(label, status, payload, fallbackText) {
+  const bodyMessage = payload && typeof payload === 'object'
+    ? String(payload.message || payload.error || payload.code || '').trim()
+    : '';
+  if (status === 401) {
+    return {
+      kind: 'api-unauthorized',
+      message: `${label} failed: the PairOfCleats API rejected the request as unauthorized.`,
+      detail: bodyMessage || fallbackText || null
+    };
+  }
+  if (status === 403) {
+    return {
+      kind: 'api-forbidden',
+      message: `${label} failed: the PairOfCleats API rejected the request as forbidden.`,
+      detail: bodyMessage || fallbackText || null
+    };
+  }
+  return {
+    kind: 'api-http-error',
+    message: `${label} failed via the PairOfCleats API (HTTP ${status}).`,
+    detail: bodyMessage || fallbackText || null
+  };
+}
+
+async function requestApiJson(baseUrl, requestPath, {
+  method = 'GET',
+  payload = null,
+  headers = null,
+  timeoutMs = DEFAULT_API_TIMEOUT_MS,
+  label = 'PairOfCleats API request'
+} = {}) {
+  const normalizedBaseUrl = normalizeApiBaseUrl(baseUrl);
+  if (!normalizedBaseUrl) {
+    return {
+      ok: false,
+      kind: 'api-misconfigured',
+      message: `${label} failed: pairofcleats.apiServerUrl is not configured.`,
+      detail: 'Set pairofcleats.apiServerUrl to an http:// or https:// PairOfCleats API server.'
+    };
+  }
+  const fetchImpl = typeof globalThis.fetch === 'function' ? globalThis.fetch.bind(globalThis) : null;
+  if (!fetchImpl) {
+    return {
+      ok: false,
+      kind: 'api-unavailable',
+      message: `${label} failed: this VS Code runtime does not expose fetch().`,
+      detail: 'Use CLI mode or upgrade the VS Code extension host runtime.'
+    };
+  }
+  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  const timeout = setTimeout(() => controller?.abort?.(), normalizeApiTimeoutMs(timeoutMs));
+  timeout.unref?.();
+  try {
+    const response = await fetchImpl(`${normalizedBaseUrl}${requestPath}`, {
+      method,
+      headers: {
+        Accept: 'application/json',
+        ...(payload == null ? {} : { 'Content-Type': 'application/json' }),
+        ...(headers && typeof headers === 'object' ? headers : {})
+      },
+      body: payload == null ? undefined : JSON.stringify(payload),
+      signal: controller?.signal
+    });
+    const text = await response.text();
+    let body = null;
+    if (text.trim()) {
+      try {
+        body = JSON.parse(text);
+      } catch (error) {
+        if (!response.ok) {
+          return {
+            ok: false,
+            ...summarizeApiHttpFailure(label, response.status, null, text.trim() || error.message)
+          };
+        }
+        return {
+          ok: false,
+          kind: 'api-invalid-json',
+          message: `${label} failed: PairOfCleats API returned invalid JSON.`,
+          detail: text.trim() || error.message
+        };
+      }
+    }
+    if (!response.ok) {
+      return {
+        ok: false,
+        ...summarizeApiHttpFailure(label, response.status, body, text.trim())
+      };
+    }
+    return { ok: true, payload: body || {} };
+  } catch (error) {
+    const isAbort = error?.name === 'AbortError';
+    return {
+      ok: false,
+      kind: isAbort ? 'api-timeout' : 'api-request-error',
+      message: isAbort
+        ? `${label} timed out after ${normalizeApiTimeoutMs(timeoutMs)}ms.`
+        : `${label} failed: ${error?.message || error}`,
+      detail: String(error?.stack || error?.message || error)
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function probeApiHealth(baseUrl, timeoutMs = DEFAULT_API_TIMEOUT_MS, headers = null) {
+  return requestApiJson(baseUrl, '/health', {
+    method: 'GET',
+    headers,
+    timeoutMs,
+    label: 'PairOfCleats API health probe'
+  });
+}
+
+async function probeApiCapabilities(baseUrl, timeoutMs = DEFAULT_API_TIMEOUT_MS, headers = null) {
+  const response = await requestApiJson(baseUrl, '/capabilities', {
+    method: 'GET',
+    headers,
+    timeoutMs,
+    label: 'PairOfCleats API capability probe'
+  });
+  if (!response.ok) {
+    return response;
+  }
+  const payload = response.payload && typeof response.payload === 'object'
+    ? response.payload
+    : {};
+  const capabilities = payload.capabilities && typeof payload.capabilities === 'object'
+    ? payload.capabilities
+    : {};
+  return {
+    ok: true,
+    payload,
+    capabilities
+  };
 }
 
 function summarizeProcessFailure({ code, timedOut, cancelled, stderr, stdout, stdoutTruncated, stderrTruncated, timeoutMs }) {
@@ -340,10 +490,16 @@ function isAbsolutePathContained(rootPath, targetPath) {
 
 module.exports = {
   DEFAULT_MAX_BUFFER_BYTES,
+  DEFAULT_API_TIMEOUT_MS,
   createChunkAccumulator,
   resolveConfiguredCli,
   parseJsonPayload,
   parseSearchPayload,
+  normalizeApiBaseUrl,
+  normalizeApiTimeoutMs,
+  requestApiJson,
+  probeApiHealth,
+  probeApiCapabilities,
   summarizeProcessFailure,
   summarizeSpawnFailure,
   spawnBufferedProcess,

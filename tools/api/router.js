@@ -1,12 +1,14 @@
 import path from 'node:path';
 import { search, status } from '../../src/integrations/core/index.js';
+import { MCP_SCHEMA_VERSION } from '../../src/integrations/mcp/defs.js';
+import { getCapabilities } from '../../src/shared/capabilities.js';
 import { runFederatedSearch } from '../../src/retrieval/federation/coordinator.js';
 import { loadWorkspaceConfig } from '../../src/workspace/config.js';
 import { resolveFederationCacheRoot } from '../../src/workspace/manifest.js';
 import { createFederatedSearchValidator, createSearchValidator } from './validation.js';
 import { sendError, sendJson } from './response.js';
 import { ERROR_CODES } from '../../src/shared/error-codes.js';
-import { isWithinRoot, toRealPathSync } from '../shared/dict-utils.js';
+import { getToolVersion, isWithinRoot, toRealPathSync } from '../shared/dict-utils.js';
 import { createSseResponder } from './sse.js';
 import { createAuthGuard } from './router/auth.js';
 import { createBodyParser } from './router/body.js';
@@ -16,6 +18,12 @@ import { createRepoResolver } from './router/paths.js';
 import { handleIndexDiffsRoute } from './router/index-diffs.js';
 import { handleIndexSnapshotsRoute } from './router/index-snapshots.js';
 import { buildSearchParams, buildSearchPayloadFromQuery, isNoIndexError } from './router/search.js';
+
+const API_EDITOR_CAPABILITIES = Object.freeze({
+  search: true,
+  'search-symbol': true,
+  'index-health': true
+});
 
 /**
  * Create an API router for the HTTP server.
@@ -46,6 +54,7 @@ export const createApiRouter = ({
   indexCache = {},
   sqliteCache = {}
 }) => {
+  const toolVersion = getToolVersion() || '0.0.0';
   const validateSearchPayload = createSearchValidator();
   const validateFederatedPayload = createFederatedSearchValidator();
   const { resolveCorsHeaders } = createCorsResolver(cors);
@@ -167,6 +176,23 @@ export const createApiRouter = ({
 
       if (requestUrl.pathname === '/health' && req.method === 'GET') {
         sendJson(res, 200, { ok: true, uptimeMs: Math.round(process.uptime() * 1000) }, corsHeaders || {});
+        return;
+      }
+
+      if (requestUrl.pathname === '/capabilities' && req.method === 'GET') {
+        sendJson(res, 200, {
+          ok: true,
+          schemaVersion: MCP_SCHEMA_VERSION,
+          toolVersion,
+          serverInfo: {
+            name: 'PairOfCleats',
+            version: toolVersion
+          },
+          capabilities: {
+            ...API_EDITOR_CAPABILITIES
+          },
+          runtimeCapabilities: getCapabilities()
+        }, corsHeaders || {});
         return;
       }
 
