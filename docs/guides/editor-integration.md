@@ -44,6 +44,14 @@ The bundled VS Code extension lives in `extensions/vscode` and defines:
 - `PairOfCleats: Tooling Doctor`
 - `PairOfCleats: Config Dump`
 - `PairOfCleats: Index Health`
+- `PairOfCleats: Code Map`
+- `PairOfCleats: Architecture Check`
+- `PairOfCleats: Impact Analysis`
+- `PairOfCleats: Suggest Tests`
+- `PairOfCleats: Workspace Manifest`
+- `PairOfCleats: Workspace Status`
+- `PairOfCleats: Workspace Build`
+- `PairOfCleats: Workspace Catalog`
 
 Settings:
 
@@ -77,6 +85,11 @@ Operational command behavior:
 - setup/bootstrap/doctor use the configured CLI resolution path
 - config-dump uses `tools/config/dump.js --json --repo <repo>`
 - index-health uses `tools/index/report-artifacts.js --json --repo <repo>`
+- code-map uses `pairofcleats report map --json --format html-iso --out ...` and opens the generated map artifact
+- architecture-check uses `pairofcleats architecture-check --json --repo <repo> --rules <path>`
+- impact uses `pairofcleats impact --json --repo <repo> ...` with prompted seed/changed inputs
+- suggest-tests uses `pairofcleats suggest-tests --json --repo <repo> ...` with prompted changed paths
+- workspace commands use `pairofcleats workspace manifest|status|build|catalog --json --workspace <path>`
 - command output is summarized in the `PairOfCleats` output channel with the raw JSON payload appended below the summary
 
 ## Sublime package

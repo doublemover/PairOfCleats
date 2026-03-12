@@ -354,6 +354,157 @@ function buildSpawnEnv(config) {
   return env;
 }
 
+function toPosixPath(value) {
+  return String(value || '').replace(/\\/g, '/');
+}
+
+function resolveRelativeActiveFile(repoContext) {
+  const activeUri = vscode.window.activeTextEditor?.document?.uri || null;
+  if (!activeUri || activeUri.scheme !== 'file' || !activeUri.fsPath || !repoContext?.repoRoot) {
+    return '';
+  }
+  const rel = path.relative(repoContext.repoRoot, activeUri.fsPath);
+  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return '';
+  return toPosixPath(rel);
+}
+
+async function promptTextInput(options) {
+  if (typeof vscode.window.showInputBox !== 'function') return null;
+  const value = await vscode.window.showInputBox(options);
+  if (value === undefined) return null;
+  return String(value).trim();
+}
+
+async function promptRulesPath(repoContext) {
+  const defaultValue = fs.existsSync(path.join(repoContext.repoRoot, 'architecture.rules.json'))
+    ? path.join(repoContext.repoRoot, 'architecture.rules.json')
+    : '';
+  const value = await promptTextInput({
+    prompt: 'Path to architecture rules file',
+    placeHolder: 'e.g. architecture.rules.json',
+    value: defaultValue
+  });
+  if (!value) return null;
+  return path.isAbsolute(value) ? path.resolve(value) : path.resolve(repoContext.repoRoot, value);
+}
+
+async function promptWorkspaceConfigPath(repoContext) {
+  const workspaceRoot = repoContext?.workspaceFolder?.uri?.fsPath || repoContext?.repoRoot || '';
+  const defaultValue = path.join(workspaceRoot, '.pairofcleats-workspace.jsonc');
+  const value = await promptTextInput({
+    prompt: 'Workspace config path',
+    placeHolder: '.pairofcleats-workspace.jsonc',
+    value: defaultValue
+  });
+  if (!value) return null;
+  return path.isAbsolute(value) ? path.resolve(value) : path.resolve(workspaceRoot, value);
+}
+
+function parseDelimitedPaths(rawValue) {
+  return String(rawValue || '')
+    .split(/[\r\n,]+/)
+    .map((entry) => String(entry).trim())
+    .filter(Boolean)
+    .map((entry) => toPosixPath(entry));
+}
+
+async function promptChangedPaths(repoContext, {
+  prompt,
+  title,
+  fallbackActiveFile = true
+} = {}) {
+  const activeFile = fallbackActiveFile ? resolveRelativeActiveFile(repoContext) : '';
+  const value = await promptTextInput({
+    title,
+    prompt,
+    placeHolder: 'src/file.js, src/other.js',
+    value: activeFile
+  });
+  if (!value) return null;
+  return parseDelimitedPaths(value);
+}
+
+async function promptPositiveInteger({
+  prompt,
+  value,
+  placeHolder
+}) {
+  const raw = await promptTextInput({
+    prompt,
+    placeHolder,
+    value: String(value)
+  });
+  if (!raw) return null;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    vscode.window.showErrorMessage(`PairOfCleats expected a positive integer, got "${raw}".`);
+    return null;
+  }
+  return Math.max(1, Math.floor(parsed));
+}
+
+async function promptImpactInput(repoContext) {
+  const activeFile = resolveRelativeActiveFile(repoContext);
+  const seed = await promptTextInput({
+    prompt: 'Impact seed ref (optional). Leave empty to use changed paths.',
+    placeHolder: 'e.g. file:src/app.ts or chunk:chunkUid',
+    value: ''
+  });
+  let changed = [];
+  if (!seed) {
+    const changedValue = await promptChangedPaths(repoContext, {
+      prompt: 'Changed paths for impact analysis',
+      title: 'PairOfCleats impact',
+      fallbackActiveFile: true
+    });
+    if (!changedValue || !changedValue.length) return null;
+    changed = changedValue;
+  }
+  const direction = await vscode.window.showQuickPick(
+    [
+      { label: 'Downstream', value: 'downstream' },
+      { label: 'Upstream', value: 'upstream' }
+    ],
+    {
+      title: 'PairOfCleats impact direction',
+      placeHolder: 'Select traversal direction'
+    }
+  );
+  if (!direction) return null;
+  const depth = await promptPositiveInteger({
+    prompt: 'Impact traversal depth',
+    value: 2,
+    placeHolder: '2'
+  });
+  if (!depth) return null;
+  return {
+    seed: seed || '',
+    changed,
+    direction: direction.value,
+    depth,
+    activeFile
+  };
+}
+
+async function promptSuggestTestsInput(repoContext) {
+  const changed = await promptChangedPaths(repoContext, {
+    prompt: 'Changed paths for suggest-tests',
+    title: 'PairOfCleats suggest-tests',
+    fallbackActiveFile: true
+  });
+  if (!changed || !changed.length) return null;
+  const maxSuggestions = await promptPositiveInteger({
+    prompt: 'Maximum suggested tests',
+    value: 10,
+    placeHolder: '10'
+  });
+  if (!maxSuggestions) return null;
+  return {
+    changed,
+    maxSuggestions
+  };
+}
+
 const OPERATOR_COMMAND_SPECS = Object.freeze([
   {
     id: 'pairofcleats.setup',
@@ -409,13 +560,179 @@ const OPERATOR_COMMAND_SPECS = Object.freeze([
     buildArgs(repoRoot) {
       return ['--json', '--repo', repoRoot];
     }
+  },
+  {
+    id: 'pairofcleats.codeMap',
+    title: 'PairOfCleats: Code Map',
+    progressTitle: 'PairOfCleats code map',
+    timeoutMs: 5 * 60 * 1000,
+    invocation: 'cli',
+    cliArgs: ['report', 'map'],
+    buildArgs(repoRoot) {
+      return [
+        '--json',
+        '--repo',
+        repoRoot,
+        '--format',
+        'html-iso',
+        '--out',
+        path.join(repoRoot, '.pairofcleats', 'maps', 'vscode-map.iso.html')
+      ];
+    }
+  },
+  {
+    id: 'pairofcleats.architectureCheck',
+    title: 'PairOfCleats: Architecture Check',
+    progressTitle: 'PairOfCleats architecture check',
+    timeoutMs: 2 * 60 * 1000,
+    invocation: 'cli',
+    cliArgs: ['architecture-check'],
+    async resolveInput(repoContext) {
+      const rulesPath = await promptRulesPath(repoContext);
+      if (!rulesPath) return null;
+      return { rulesPath };
+    },
+    buildArgs(repoRoot, inputContext) {
+      return ['--json', '--repo', repoRoot, '--rules', inputContext.rulesPath];
+    }
+  },
+  {
+    id: 'pairofcleats.impact',
+    title: 'PairOfCleats: Impact Analysis',
+    progressTitle: 'PairOfCleats impact analysis',
+    timeoutMs: 2 * 60 * 1000,
+    invocation: 'cli',
+    cliArgs: ['impact'],
+    async resolveInput(repoContext) {
+      return promptImpactInput(repoContext);
+    },
+    buildArgs(repoRoot, inputContext) {
+      const args = [
+        '--json',
+        '--repo',
+        repoRoot,
+        '--direction',
+        inputContext.direction,
+        '--depth',
+        String(inputContext.depth)
+      ];
+      if (inputContext.seed) {
+        args.push('--seed', inputContext.seed);
+      } else {
+        for (const changed of inputContext.changed) {
+          args.push('--changed', changed);
+        }
+      }
+      return args;
+    }
+  },
+  {
+    id: 'pairofcleats.suggestTests',
+    title: 'PairOfCleats: Suggest Tests',
+    progressTitle: 'PairOfCleats suggest tests',
+    timeoutMs: 2 * 60 * 1000,
+    invocation: 'cli',
+    cliArgs: ['suggest-tests'],
+    async resolveInput(repoContext) {
+      return promptSuggestTestsInput(repoContext);
+    },
+    buildArgs(repoRoot, inputContext) {
+      const args = [
+        '--json',
+        '--repo',
+        repoRoot,
+        '--max',
+        String(inputContext.maxSuggestions)
+      ];
+      for (const changed of inputContext.changed) {
+        args.push('--changed', changed);
+      }
+      return args;
+    }
+  },
+  {
+    id: 'pairofcleats.workspaceManifest',
+    title: 'PairOfCleats: Workspace Manifest',
+    progressTitle: 'PairOfCleats workspace manifest',
+    timeoutMs: 2 * 60 * 1000,
+    invocation: 'cli',
+    cliArgs: ['workspace', 'manifest'],
+    async resolveInput(repoContext) {
+      const workspacePath = await promptWorkspaceConfigPath(repoContext);
+      if (!workspacePath) return null;
+      return { workspacePath };
+    },
+    buildArgs(_repoRoot, inputContext) {
+      return ['--json', '--workspace', inputContext.workspacePath];
+    }
+  },
+  {
+    id: 'pairofcleats.workspaceStatus',
+    title: 'PairOfCleats: Workspace Status',
+    progressTitle: 'PairOfCleats workspace status',
+    timeoutMs: 2 * 60 * 1000,
+    invocation: 'cli',
+    cliArgs: ['workspace', 'status'],
+    async resolveInput(repoContext) {
+      const workspacePath = await promptWorkspaceConfigPath(repoContext);
+      if (!workspacePath) return null;
+      return { workspacePath };
+    },
+    buildArgs(_repoRoot, inputContext) {
+      return ['--json', '--workspace', inputContext.workspacePath];
+    }
+  },
+  {
+    id: 'pairofcleats.workspaceBuild',
+    title: 'PairOfCleats: Workspace Build',
+    progressTitle: 'PairOfCleats workspace build',
+    timeoutMs: 10 * 60 * 1000,
+    invocation: 'cli',
+    cliArgs: ['workspace', 'build'],
+    async resolveInput(repoContext) {
+      const workspacePath = await promptWorkspaceConfigPath(repoContext);
+      if (!workspacePath) return null;
+      const concurrency = await promptPositiveInteger({
+        prompt: 'Workspace build concurrency',
+        value: 2,
+        placeHolder: '2'
+      });
+      if (!concurrency) return null;
+      return { workspacePath, concurrency };
+    },
+    buildArgs(_repoRoot, inputContext) {
+      return [
+        '--json',
+        '--workspace',
+        inputContext.workspacePath,
+        '--concurrency',
+        String(inputContext.concurrency)
+      ];
+    }
+  },
+  {
+    id: 'pairofcleats.workspaceCatalog',
+    title: 'PairOfCleats: Workspace Catalog',
+    progressTitle: 'PairOfCleats workspace catalog',
+    timeoutMs: 2 * 60 * 1000,
+    invocation: 'cli',
+    cliArgs: ['workspace', 'catalog'],
+    async resolveInput(repoContext) {
+      const workspacePath = await promptWorkspaceConfigPath(repoContext);
+      if (!workspacePath) return null;
+      return { workspacePath };
+    },
+    buildArgs(_repoRoot, inputContext) {
+      return ['--json', '--workspace', inputContext.workspacePath];
+    }
   }
 ]);
 
 const OPERATOR_COMMANDS_BY_ID = new Map(OPERATOR_COMMAND_SPECS.map((spec) => [spec.id, spec]));
 
-function resolveOperatorInvocation(spec, repoRoot, cliResolution) {
-  const extraArgs = typeof spec.buildArgs === 'function' ? spec.buildArgs(repoRoot) : [];
+function resolveOperatorInvocation(spec, repoContext, cliResolution, inputContext) {
+  const repoRoot = repoContext.repoRoot;
+  const extraArgs = typeof spec.buildArgs === 'function' ? spec.buildArgs(repoRoot, inputContext, repoContext) : [];
   if (spec.invocation === 'script') {
     const scriptPath = path.join(repoRoot, ...spec.scriptParts);
     if (!fs.existsSync(scriptPath)) {
@@ -566,6 +883,182 @@ function summarizeIndexHealthPayload(payload) {
   return lines;
 }
 
+function summarizeCodeMapPayload(payload) {
+  const counts = payload?.summary?.counts || {};
+  const warnings = Array.isArray(payload?.warnings) ? payload.warnings : [];
+  return [
+    `- status: ${warnings.length ? 'warnings' : 'ok'}`,
+    `- format: ${payload?.format || 'unknown'}`,
+    `- output: ${payload?.outPath || 'n/a'}`,
+    `- files: ${counts.files ?? 0}`,
+    `- members: ${counts.members ?? 0}`,
+    `- edges: ${counts.edges ?? 0}`,
+    `- warnings: ${warnings.length}`
+  ];
+}
+
+function summarizeArchitecturePayload(payload) {
+  const rules = Array.isArray(payload?.rules) ? payload.rules : [];
+  const violations = Array.isArray(payload?.violations) ? payload.violations : [];
+  const warnings = Array.isArray(payload?.warnings) ? payload.warnings : [];
+  return [
+    `- status: ${violations.length ? 'violations' : 'ok'}`,
+    `- rules: ${rules.length}`,
+    `- violations: ${violations.length}`,
+    `- warnings: ${warnings.length}`
+  ];
+}
+
+function summarizeImpactPayload(payload) {
+  const impacted = Array.isArray(payload?.impacted) ? payload.impacted : [];
+  const warnings = Array.isArray(payload?.warnings) ? payload.warnings : [];
+  const truncation = Array.isArray(payload?.truncation) ? payload.truncation : [];
+  return [
+    `- direction: ${payload?.direction || 'unknown'}`,
+    `- depth: ${payload?.depth ?? 'n/a'}`,
+    `- impacted: ${impacted.length}`,
+    `- warnings: ${warnings.length}`,
+    `- truncation: ${truncation.length}`
+  ];
+}
+
+function summarizeSuggestTestsPayload(payload) {
+  const suggestions = Array.isArray(payload?.suggestions) ? payload.suggestions : [];
+  const warnings = Array.isArray(payload?.warnings) ? payload.warnings : [];
+  return [
+    `- suggestions: ${suggestions.length}`,
+    `- top suggestion: ${suggestions[0]?.testPath || 'n/a'}`,
+    `- warnings: ${warnings.length}`
+  ];
+}
+
+function summarizeWorkspaceManifestPayload(payload) {
+  return [
+    `- workspace: ${payload?.workspacePath || 'unknown'}`,
+    `- manifest: ${payload?.manifestPath || 'n/a'}`,
+    `- repoSetId: ${payload?.repoSetId || 'unknown'}`,
+    `- manifestHash: ${payload?.manifestHash || 'unknown'}`,
+    `- diagnostics: warnings=${payload?.diagnostics?.warnings ?? 0}, errors=${payload?.diagnostics?.errors ?? 0}`
+  ];
+}
+
+function summarizeWorkspaceStatusPayload(payload) {
+  const repos = Array.isArray(payload?.repos) ? payload.repos : [];
+  return [
+    `- workspace: ${payload?.workspacePath || 'unknown'}`,
+    `- manifest: ${payload?.manifestPath || 'n/a'}`,
+    `- repoSetId: ${payload?.repoSetId || 'unknown'}`,
+    `- repos: ${repos.length}`
+  ];
+}
+
+function summarizeWorkspaceBuildPayload(payload) {
+  return [
+    `- workspace: ${payload?.workspacePath || 'unknown'}`,
+    `- manifest: ${payload?.manifestPath || 'n/a'}`,
+    `- repoSetId: ${payload?.repoSetId || 'unknown'}`,
+    `- repos built: ${payload?.diagnostics?.total ?? 0}`,
+    `- repos failed: ${payload?.diagnostics?.failed ?? 0}`
+  ];
+}
+
+function summarizeWorkspaceCatalogPayload(payload) {
+  const repos = Array.isArray(payload?.repos) ? payload.repos : [];
+  return [
+    `- workspace: ${payload?.workspacePath || 'unknown'}`,
+    `- workspace name: ${payload?.workspaceName || 'n/a'}`,
+    `- repoSetId: ${payload?.repoSetId || 'unknown'}`,
+    `- repos: ${repos.length}`,
+    `- manifest: ${payload?.cacheRoots?.workspaceManifestPath || 'n/a'}`
+  ];
+}
+
+function createNavigationTarget(filePath, label, description) {
+  const normalized = String(filePath || '').trim();
+  if (!normalized) return null;
+  return {
+    filePath: toPosixPath(normalized),
+    label: String(label || normalized),
+    description: description ? String(description) : ''
+  };
+}
+
+function collectOperatorNavigationTargets(spec, payload) {
+  const targets = [];
+  switch (spec.id) {
+    case 'pairofcleats.architectureCheck': {
+      for (const violation of payload?.violations || []) {
+        const fromPath = violation?.edge?.from?.path || '';
+        const toPath = violation?.edge?.to?.path || '';
+        const ruleId = violation?.ruleId || 'rule';
+        if (fromPath) targets.push(createNavigationTarget(fromPath, fromPath, `${ruleId} source`));
+        if (toPath) targets.push(createNavigationTarget(toPath, toPath, `${ruleId} target`));
+      }
+      break;
+    }
+    case 'pairofcleats.impact': {
+      for (const entry of payload?.impacted || []) {
+        const refPath = entry?.ref?.path || '';
+        if (refPath) targets.push(createNavigationTarget(refPath, refPath, 'impacted file'));
+        for (const node of entry?.witnessPath?.nodes || []) {
+          if (node?.path) targets.push(createNavigationTarget(node.path, node.path, 'witness path'));
+        }
+      }
+      break;
+    }
+    case 'pairofcleats.suggestTests': {
+      for (const suggestion of payload?.suggestions || []) {
+        if (!suggestion?.testPath) continue;
+        targets.push(createNavigationTarget(
+          suggestion.testPath,
+          suggestion.testPath,
+          Number.isFinite(suggestion?.score) ? `score ${suggestion.score.toFixed(3)}` : 'suggested test'
+        ));
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  const seen = new Set();
+  return targets.filter((target) => {
+    if (!target) return false;
+    const key = `${target.filePath}::${target.description}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 20);
+}
+
+async function maybeOpenOperatorArtifacts(spec, payload, repoContext, output) {
+  if (spec.id === 'pairofcleats.codeMap' && payload?.outPath && typeof vscode.env?.openExternal === 'function') {
+    const targetUri = vscode.Uri.file(payload.outPath);
+    output.appendLine(`- opening map: ${payload.outPath}`);
+    await vscode.env.openExternal(targetUri);
+    return;
+  }
+  const targets = collectOperatorNavigationTargets(spec, payload);
+  if (!targets.length || typeof vscode.window.showQuickPick !== 'function') return;
+  const selection = await vscode.window.showQuickPick(
+    targets.map((target) => ({
+      label: target.label,
+      description: target.description,
+      target
+    })),
+    {
+      title: `${spec.title} results`,
+      placeHolder: 'Select a file to open'
+    }
+  );
+  if (!selection?.target) return;
+  const openResult = await openSearchHit(vscode, repoContext, { file: selection.target.filePath });
+  if (!openResult.ok) {
+    output.appendLine(openResult.detail || openResult.message);
+    output.show?.(true);
+    vscode.window.showErrorMessage(openResult.message);
+  }
+}
+
 function summarizeOperatorPayload(spec, payload) {
   switch (spec.id) {
     case 'pairofcleats.setup':
@@ -577,6 +1070,22 @@ function summarizeOperatorPayload(spec, payload) {
       return summarizeConfigDumpPayload(payload);
     case 'pairofcleats.indexHealth':
       return summarizeIndexHealthPayload(payload);
+    case 'pairofcleats.codeMap':
+      return summarizeCodeMapPayload(payload);
+    case 'pairofcleats.architectureCheck':
+      return summarizeArchitecturePayload(payload);
+    case 'pairofcleats.impact':
+      return summarizeImpactPayload(payload);
+    case 'pairofcleats.suggestTests':
+      return summarizeSuggestTestsPayload(payload);
+    case 'pairofcleats.workspaceManifest':
+      return summarizeWorkspaceManifestPayload(payload);
+    case 'pairofcleats.workspaceStatus':
+      return summarizeWorkspaceStatusPayload(payload);
+    case 'pairofcleats.workspaceBuild':
+      return summarizeWorkspaceBuildPayload(payload);
+    case 'pairofcleats.workspaceCatalog':
+      return summarizeWorkspaceCatalogPayload(payload);
     default:
       return [];
   }
@@ -724,7 +1233,13 @@ async function runOperatorCommand(spec) {
     vscode.window.showErrorMessage(cliResolution.message);
     return;
   }
-  const invocation = resolveOperatorInvocation(spec, repoRoot, cliResolution);
+  const inputContext = typeof spec.resolveInput === 'function'
+    ? await spec.resolveInput(repoContext)
+    : undefined;
+  if (inputContext === null) {
+    return;
+  }
+  const invocation = resolveOperatorInvocation(spec, repoContext, cliResolution, inputContext);
   if (!invocation.ok) {
     const output = getOutputChannel();
     output.appendLine(invocation.detail || invocation.message);
@@ -759,6 +1274,7 @@ async function runOperatorCommand(spec) {
   appendOutputLines(output, summarizeOperatorPayload(spec, result.payload));
   output.appendLine('- raw-json:');
   appendJsonBlock(output, result.payload);
+  await maybeOpenOperatorArtifacts(spec, result.payload, repoContext, output);
   output.show?.(true);
   if (result.ok) {
     vscode.window.showInformationMessage(`${spec.title} completed.`);

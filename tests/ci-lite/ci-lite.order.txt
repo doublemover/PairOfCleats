@@ -25,6 +25,7 @@ tooling/lsp/runtime-config-resolution
 tooling/vscode/extension
 tooling/vscode/extension-runtime
 tooling/vscode/operator-runtime
+tooling/vscode/workflow-runtime
 tooling/vscode/runtime
 tooling/vscode/search-arg-mapping
 tooling/vscode/search-result-sections

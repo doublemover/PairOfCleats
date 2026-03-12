@@ -16,7 +16,15 @@
     "onCommand:pairofcleats.bootstrap",
     "onCommand:pairofcleats.doctor",
     "onCommand:pairofcleats.configDump",
-    "onCommand:pairofcleats.indexHealth"
+    "onCommand:pairofcleats.indexHealth",
+    "onCommand:pairofcleats.codeMap",
+    "onCommand:pairofcleats.architectureCheck",
+    "onCommand:pairofcleats.impact",
+    "onCommand:pairofcleats.suggestTests",
+    "onCommand:pairofcleats.workspaceManifest",
+    "onCommand:pairofcleats.workspaceStatus",
+    "onCommand:pairofcleats.workspaceBuild",
+    "onCommand:pairofcleats.workspaceCatalog"
   ],
   "main": "./extension.js",
   "contributes": {
@@ -44,6 +52,38 @@
       {
         "command": "pairofcleats.indexHealth",
         "title": "PairOfCleats: Index Health"
+      },
+      {
+        "command": "pairofcleats.codeMap",
+        "title": "PairOfCleats: Code Map"
+      },
+      {
+        "command": "pairofcleats.architectureCheck",
+        "title": "PairOfCleats: Architecture Check"
+      },
+      {
+        "command": "pairofcleats.impact",
+        "title": "PairOfCleats: Impact Analysis"
+      },
+      {
+        "command": "pairofcleats.suggestTests",
+        "title": "PairOfCleats: Suggest Tests"
+      },
+      {
+        "command": "pairofcleats.workspaceManifest",
+        "title": "PairOfCleats: Workspace Manifest"
+      },
+      {
+        "command": "pairofcleats.workspaceStatus",
+        "title": "PairOfCleats: Workspace Status"
+      },
+      {
+        "command": "pairofcleats.workspaceBuild",
+        "title": "PairOfCleats: Workspace Build"
+      },
+      {
+        "command": "pairofcleats.workspaceCatalog",
+        "title": "PairOfCleats: Workspace Catalog"
       }
     ],
     "configuration": {

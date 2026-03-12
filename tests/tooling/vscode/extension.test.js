@@ -29,7 +29,15 @@ const expectedCommands = new Map([
   ['pairofcleats.bootstrap', 'PairOfCleats: Bootstrap'],
   ['pairofcleats.doctor', 'PairOfCleats: Tooling Doctor'],
   ['pairofcleats.configDump', 'PairOfCleats: Config Dump'],
-  ['pairofcleats.indexHealth', 'PairOfCleats: Index Health']
+  ['pairofcleats.indexHealth', 'PairOfCleats: Index Health'],
+  ['pairofcleats.codeMap', 'PairOfCleats: Code Map'],
+  ['pairofcleats.architectureCheck', 'PairOfCleats: Architecture Check'],
+  ['pairofcleats.impact', 'PairOfCleats: Impact Analysis'],
+  ['pairofcleats.suggestTests', 'PairOfCleats: Suggest Tests'],
+  ['pairofcleats.workspaceManifest', 'PairOfCleats: Workspace Manifest'],
+  ['pairofcleats.workspaceStatus', 'PairOfCleats: Workspace Status'],
+  ['pairofcleats.workspaceBuild', 'PairOfCleats: Workspace Build'],
+  ['pairofcleats.workspaceCatalog', 'PairOfCleats: Workspace Catalog']
 ]);
 for (const commandId of expectedCommands.keys()) {
   if (!activationEvents.has(`onCommand:${commandId}`)) {
