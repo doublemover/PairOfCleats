@@ -28,8 +28,26 @@ const summaryRow = {
     signature: 'risky(input)'
   },
   signals: {
-    sources: [],
-    sinks: [],
+    sources: [{
+      ruleId: 'source.req.body',
+      ruleName: 'req.body',
+      ruleType: 'source',
+      category: 'input',
+      severity: 'low',
+      confidence: 0.6,
+      tags: ['a', 'b'],
+      evidence: []
+    }],
+    sinks: [{
+      ruleId: 'sink.sql.query',
+      ruleName: 'sql.query',
+      ruleType: 'sink',
+      category: 'logging',
+      severity: 'high',
+      confidence: 0.9,
+      tags: ['b'],
+      evidence: []
+    }],
     sanitizers: [],
     localFlows: []
   },
@@ -58,7 +76,8 @@ const flowRow = {
     ruleType: 'source',
     category: 'input',
     severity: 'low',
-    confidence: 0.6
+    confidence: 0.6,
+    tags: ['input', 'request']
   },
   sink: {
     chunkUid: 'chunk-risk-sink',
@@ -67,7 +86,8 @@ const flowRow = {
     ruleType: 'sink',
     category: 'injection',
     severity: 'high',
-    confidence: 0.9
+    confidence: 0.9,
+    tags: ['sql', 'exec']
   },
   path: {
     chunkUids: ['chunk-risk', 'chunk-risk-sink'],
@@ -210,13 +230,45 @@ const fullPack = await buildPack({
   callSites: [callSiteRow]
 });
 assert.equal(fullPack.risk?.status, 'ok');
+assert.equal(fullPack.risk?.version, 1);
 assert.equal(fullPack.risk?.summary?.chunkUid, 'chunk-risk');
+assert.deepEqual(
+  fullPack.risk?.analysisStatus?.artifactStatus,
+  {
+    stats: 'present',
+    summaries: 'present',
+    flows: 'present',
+    callSites: 'present'
+  }
+);
+assert.equal(fullPack.risk?.provenance?.compatibilityKey, 'compat-test');
+assert.equal(fullPack.risk?.caps?.maxFlows, 5);
+assert.equal(fullPack.risk?.caps?.maxCallSitesPerStep, 3);
 assert.equal(fullPack.risk?.flows?.length, 1);
+assert.equal(fullPack.risk?.flows?.[0]?.source?.ruleId, 'source.req.body');
+assert.equal(fullPack.risk?.flows?.[0]?.sink?.ruleId, 'sink.sql.query');
+assert.equal(fullPack.risk?.flows?.[0]?.notes?.hopCount, 1);
 assert.equal(fullPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.callSiteId, 'cs-1');
+assert.deepEqual(
+  fullPack.risk?.summary?.topCategories,
+  [
+    { category: 'input', count: 1 },
+    { category: 'logging', count: 1 }
+  ]
+);
+assert.deepEqual(
+  fullPack.risk?.summary?.topTags,
+  [
+    { tag: 'b', count: 2 },
+    { tag: 'a', count: 1 }
+  ]
+);
 assert.equal(validateCompositeContextPack(fullPack).ok, true, 'expected full risk slice to validate');
 const fullRendered = renderCompositeContextPack(fullPack);
 assert.ok(fullRendered.includes('status: ok'), 'expected rendered status');
 assert.ok(fullRendered.includes('cs-1'), 'expected rendered risk evidence');
+assert.ok(fullRendered.includes('top categories:'), 'expected rendered top categories');
+assert.ok(fullRendered.includes('rules: source.req.body -> sink.sql.query'), 'expected rendered rules');
 
 const summaryOnlyPack = await buildPack({
   name: 'summary-only',
@@ -230,11 +282,21 @@ const summaryOnlyPack = await buildPack({
 assert.equal(summaryOnlyPack.risk?.status, 'summary_only');
 assert.equal(summaryOnlyPack.risk?.flows?.length, 0);
 assert.equal(summaryOnlyPack.risk?.degraded, false);
+assert.equal(summaryOnlyPack.risk?.analysisStatus?.summaryOnly, true);
 
 const missingPack = await buildPack({
   name: 'missing'
 });
 assert.equal(missingPack.risk?.status, 'missing');
+assert.deepEqual(
+  missingPack.risk?.analysisStatus?.artifactStatus,
+  {
+    stats: 'missing',
+    summaries: 'missing',
+    flows: 'not_required',
+    callSites: 'not_required'
+  }
+);
 assert.ok(missingPack.warnings?.some((entry) => entry?.code === 'MISSING_RISK'), 'expected missing risk warning');
 
 const degradedPack = await buildPack({
@@ -245,6 +307,7 @@ const degradedPack = await buildPack({
 });
 assert.equal(degradedPack.risk?.status, 'degraded');
 assert.equal(degradedPack.risk?.degraded, true);
+assert.equal(degradedPack.risk?.analysisStatus?.artifactStatus?.callSites, 'missing');
 assert.ok(degradedPack.warnings?.some((entry) => entry?.code === 'RISK_CALL_SITES_MISSING'), 'expected degraded call-site warning');
 
 console.log('context pack risk assembly test passed');

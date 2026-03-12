@@ -132,7 +132,103 @@ const resolvePrimaryRef = (seedRef, chunk) => {
 };
 
 const CONTEXT_PACK_MAX_RISK_FLOWS = 5;
+const CONTEXT_PACK_MAX_RISK_STEPS_PER_FLOW = 8;
 const CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP = 3;
+const CONTEXT_PACK_MAX_RISK_BYTES = 24 * 1024;
+const CONTEXT_PACK_MAX_RISK_TOKENS = 2048;
+
+const buildRiskArtifactStatus = ({ presence, required = false, loadFailed = false }) => {
+  if (loadFailed) return 'load_failed';
+  const missing = presence?.format === 'missing' || presence?.missingMeta || presence?.missingPaths?.length > 0;
+  if (missing) return required ? 'missing' : 'not_required';
+  return 'present';
+};
+
+const summarizeRiskCategories = (summary) => {
+  const counts = new Map();
+  const groups = [
+    summary?.signals?.sources,
+    summary?.signals?.sinks,
+    summary?.signals?.sanitizers,
+    summary?.signals?.localFlows
+  ];
+  for (const group of groups) {
+    for (const entry of Array.isArray(group) ? group : []) {
+      const key = typeof entry?.category === 'string' && entry.category.trim() ? entry.category.trim() : null;
+      if (!key) continue;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+  }
+  return Array.from(counts.entries())
+    .map(([category, count]) => ({ category, count }))
+    .sort((a, b) => (b.count - a.count) || compareStrings(a.category, b.category));
+};
+
+const summarizeRiskTags = (summary) => {
+  const counts = new Map();
+  const groups = [
+    summary?.signals?.sources,
+    summary?.signals?.sinks,
+    summary?.signals?.sanitizers
+  ];
+  for (const group of groups) {
+    for (const entry of Array.isArray(group) ? group : []) {
+      for (const tag of Array.isArray(entry?.tags) ? entry.tags : []) {
+        const key = typeof tag === 'string' && tag.trim() ? tag.trim() : null;
+        if (!key) continue;
+        counts.set(key, (counts.get(key) || 0) + 1);
+      }
+    }
+  }
+  return Array.from(counts.entries())
+    .map(([tag, count]) => ({ tag, count }))
+    .sort((a, b) => (b.count - a.count) || compareStrings(a.tag, b.tag));
+};
+
+const normalizeRiskSummary = (summary, flows = []) => {
+  if (!summary || typeof summary !== 'object') return null;
+  return {
+    chunkUid: summary.chunkUid || null,
+    file: summary.file || null,
+    languageId: summary.languageId || null,
+    symbol: summary.symbol && typeof summary.symbol === 'object'
+      ? {
+        name: summary.symbol.name || null,
+        kind: summary.symbol.kind || null,
+        signature: summary.symbol.signature || null
+      }
+      : null,
+    totals: summary.totals && typeof summary.totals === 'object'
+      ? {
+        sources: Number.isFinite(summary.totals.sources) ? summary.totals.sources : 0,
+        sinks: Number.isFinite(summary.totals.sinks) ? summary.totals.sinks : 0,
+        sanitizers: Number.isFinite(summary.totals.sanitizers) ? summary.totals.sanitizers : 0,
+        localFlows: Number.isFinite(summary.totals.localFlows) ? summary.totals.localFlows : 0
+      }
+      : null,
+    truncated: summary.truncated && typeof summary.truncated === 'object'
+      ? {
+        sources: summary.truncated.sources === true,
+        sinks: summary.truncated.sinks === true,
+        sanitizers: summary.truncated.sanitizers === true,
+        localFlows: summary.truncated.localFlows === true,
+        evidence: summary.truncated.evidence === true
+      }
+      : null,
+    topCategories: summarizeRiskCategories(summary),
+    topTags: summarizeRiskTags(summary),
+    previewFlowIds: Array.isArray(flows) ? flows.map((flow) => flow?.flowId).filter(Boolean) : []
+  };
+};
+
+const normalizeRiskProvenance = ({ manifest, stats, artifactStatus }) => ({
+  manifestVersion: Number.isFinite(manifest?.version) ? manifest.version : null,
+  artifactSurfaceVersion: manifest?.artifactSurfaceVersion || null,
+  compatibilityKey: manifest?.compatibilityKey || null,
+  mode: stats?.mode || null,
+  generatedAt: stats?.generatedAt || null,
+  artifacts: artifactStatus
+});
 
 const normalizeRiskPathNodes = (flow) => {
   const chunkUids = Array.isArray(flow?.path?.chunkUids) ? flow.path.chunkUids : [];
@@ -144,11 +240,110 @@ const summarizeRiskStats = (stats) => ({
   reason: stats?.reason || null,
   summaryOnly: stats?.effectiveConfig?.summaryOnly === true,
   flowsEmitted: Number.isFinite(stats?.counts?.flowsEmitted) ? stats.counts.flowsEmitted : null,
+  summariesEmitted: Number.isFinite(stats?.counts?.summariesEmitted) ? stats.counts.summariesEmitted : null,
   uniqueCallSitesReferenced: Number.isFinite(stats?.counts?.uniqueCallSitesReferenced)
     ? stats.counts.uniqueCallSitesReferenced
     : null,
   capsHit: Array.isArray(stats?.capsHit) ? stats.capsHit.slice() : [],
-  callSiteSampling: stats?.callSiteSampling || null
+  callSiteSampling: stats?.callSiteSampling || null,
+  effectiveConfig: stats?.effectiveConfig || null
+});
+
+const RISK_SEVERITY_WEIGHT = Object.freeze({
+  critical: 5,
+  high: 4,
+  medium: 3,
+  moderate: 3,
+  low: 2,
+  info: 1
+});
+
+const resolveRiskSeverityWeight = (value) => {
+  const key = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return RISK_SEVERITY_WEIGHT[key] || 0;
+};
+
+const resolveRiskSeedRelevance = (flow, primaryChunkUid) => {
+  if (!primaryChunkUid) return 0;
+  if (flow?.source?.chunkUid === primaryChunkUid || flow?.sink?.chunkUid === primaryChunkUid) return 2;
+  const chunkUids = Array.isArray(flow?.path?.chunkUids) ? flow.path.chunkUids : [];
+  return chunkUids.includes(primaryChunkUid) ? 1 : 0;
+};
+
+const rankRiskFlows = (flows, primaryChunkUid) => Array.from(Array.isArray(flows) ? flows : [])
+  .map((flow) => ({
+    flow,
+    score: {
+      seedRelevance: resolveRiskSeedRelevance(flow, primaryChunkUid),
+      severity: resolveRiskSeverityWeight(flow?.sink?.severity || flow?.source?.severity),
+      confidence: Number.isFinite(flow?.confidence) ? flow.confidence : -1,
+      hopCount: Number.isFinite(flow?.notes?.hopCount) ? flow.notes.hopCount : Number.MAX_SAFE_INTEGER
+    }
+  }))
+  .sort((a, b) => {
+    if (a.score.seedRelevance !== b.score.seedRelevance) return b.score.seedRelevance - a.score.seedRelevance;
+    if (a.score.severity !== b.score.severity) return b.score.severity - a.score.severity;
+    if (a.score.confidence !== b.score.confidence) return b.score.confidence - a.score.confidence;
+    if (a.score.hopCount !== b.score.hopCount) return a.score.hopCount - b.score.hopCount;
+    return compareStrings(a.flow?.flowId || '', b.flow?.flowId || '');
+  })
+  .map((entry, index) => ({ ...entry, rank: index + 1 }));
+
+const estimateRiskByteSize = (value) => Buffer.byteLength(JSON.stringify(value), 'utf8');
+
+const estimateRiskTokenCount = (value) => {
+  const serialized = JSON.stringify(value);
+  const matches = serialized.match(/[A-Za-z0-9_./:-]+/g);
+  return matches ? matches.length : 0;
+};
+
+const normalizeRiskCallSiteDetails = (row) => {
+  if (!row || typeof row !== 'object') return null;
+  return {
+    callSiteId: row.callSiteId || null,
+    file: row.file || null,
+    languageId: row.languageId || null,
+    startLine: Number.isFinite(row.startLine) ? row.startLine : null,
+    startCol: Number.isFinite(row.startCol) ? row.startCol : null,
+    endLine: Number.isFinite(row.endLine) ? row.endLine : null,
+    endCol: Number.isFinite(row.endCol) ? row.endCol : null,
+    calleeRaw: row.calleeRaw || null,
+    calleeNormalized: row.calleeNormalized || null,
+    args: Array.isArray(row.args) ? row.args.slice(0, CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP) : []
+  };
+};
+
+const buildRiskCaps = ({ stats, counts, hits }) => ({
+  maxFlows: CONTEXT_PACK_MAX_RISK_FLOWS,
+  maxStepsPerFlow: CONTEXT_PACK_MAX_RISK_STEPS_PER_FLOW,
+  maxCallSitesPerStep: CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP,
+  maxBytes: CONTEXT_PACK_MAX_RISK_BYTES,
+  maxTokens: CONTEXT_PACK_MAX_RISK_TOKENS,
+  configured: stats?.effectiveConfig?.caps || null,
+  observed: {
+    candidateFlows: counts.candidateFlows,
+    selectedFlows: counts.selectedFlows,
+    omittedFlows: counts.omittedFlows,
+    emittedSteps: counts.emittedSteps,
+    omittedSteps: counts.omittedSteps,
+    omittedCallSites: counts.omittedCallSites,
+    bytes: counts.bytes,
+    tokens: counts.tokens
+  },
+  hits: Array.from(hits)
+});
+
+const buildRiskAnalysisStatus = ({ status, reason, degraded, summaryOnly, artifactStatus, stats, caps, degradedReasons }) => ({
+  requested: true,
+  status,
+  reason,
+  degraded,
+  summaryOnly,
+  artifactStatus,
+  degradedReasons,
+  flowsEmitted: stats?.flowsEmitted ?? null,
+  uniqueCallSitesReferenced: stats?.uniqueCallSitesReferenced ?? null,
+  capsHit: Array.from(new Set([...(Array.isArray(stats?.capsHit) ? stats.capsHit : []), ...(Array.isArray(caps?.hits) ? caps.hits : [])]))
 });
 
 const buildRiskSlice = ({
@@ -214,7 +409,18 @@ const buildRiskSlice = ({
 
   const statsMissing = statsPresence.format === 'missing' || statsPresence.missingMeta || statsPresence.missingPaths.length > 0;
   const summariesMissing = summariesPresence.format === 'missing' || summariesPresence.missingMeta || summariesPresence.missingPaths.length > 0;
+  let statsLoadFailed = false;
+  let summariesLoadFailed = false;
+  let flowsLoadFailed = false;
+  let callSitesLoadFailed = false;
+  const riskTruncation = [];
   if (statsMissing && summariesMissing) {
+    const artifactStatus = {
+      stats: buildRiskArtifactStatus({ presence: statsPresence, required: true }),
+      summaries: buildRiskArtifactStatus({ presence: summariesPresence, required: true }),
+      flows: buildRiskArtifactStatus({ presence: flowsPresence, required: false }),
+      callSites: buildRiskArtifactStatus({ presence: callSitesPresence, required: false })
+    };
     warnings.push({
       code: 'MISSING_RISK',
       message: 'Risk slice unavailable because interprocedural stats and summaries artifacts are missing.'
@@ -225,6 +431,15 @@ const buildRiskSlice = ({
       flows: [],
       summary: null,
       stats: null,
+      analysisStatus: {
+        requested: true,
+        summaryOnly: false,
+        artifactStatus,
+        degradedReasons: ['missing-risk-artifacts']
+      },
+      caps: null,
+      truncation: [],
+      provenance: normalizeRiskProvenance({ manifest, stats: null, artifactStatus }),
       degraded: true
     };
   }
@@ -238,6 +453,7 @@ const buildRiskSlice = ({
         strict: true
       });
     } catch (err) {
+      statsLoadFailed = true;
       warnings.push({
         code: 'RISK_STATS_LOAD_FAILED',
         message: 'Risk stats artifact could not be loaded.',
@@ -258,6 +474,7 @@ const buildRiskSlice = ({
         ? (summaryRows.find((row) => row?.chunkUid === primaryChunk.chunkUid) || null)
         : null;
     } catch (err) {
+      summariesLoadFailed = true;
       warnings.push({
         code: 'RISK_SUMMARIES_LOAD_FAILED',
         message: 'Risk summaries artifact could not be loaded.',
@@ -267,6 +484,17 @@ const buildRiskSlice = ({
   }
 
   const summaryOnly = stats?.effectiveConfig?.summaryOnly === true;
+  const normalizedSummary = normalizeRiskSummary(summary);
+  const baseArtifactStatus = {
+    stats: buildRiskArtifactStatus({ presence: statsPresence, required: true, loadFailed: statsLoadFailed }),
+    summaries: buildRiskArtifactStatus({ presence: summariesPresence, required: true, loadFailed: summariesLoadFailed }),
+    flows: buildRiskArtifactStatus({
+      presence: flowsPresence,
+      required: !(summaryOnly || stats?.status === 'disabled'),
+      loadFailed: flowsLoadFailed
+    }),
+    callSites: buildRiskArtifactStatus({ presence: callSitesPresence, required: false, loadFailed: callSitesLoadFailed })
+  };
   const baseStatus = stats?.status === 'disabled'
     ? 'disabled'
     : summaryOnly
@@ -277,22 +505,52 @@ const buildRiskSlice = ({
 
   if (baseStatus === 'disabled') {
     return {
+      version: 1,
       status: 'disabled',
       reason: stats?.reason || 'disabled',
       flows: [],
-      summary,
+      summary: normalizedSummary,
       stats: summarizeRiskStats(stats),
+      analysisStatus: {
+        requested: true,
+        summaryOnly,
+        artifactStatus: baseArtifactStatus,
+        degradedReasons: []
+      },
+      caps: {
+        maxFlows: CONTEXT_PACK_MAX_RISK_FLOWS,
+        maxCallSitesPerStep: CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP,
+        hit: Array.isArray(stats?.capsHit) ? stats.capsHit.slice() : [],
+        configured: stats?.effectiveConfig?.caps || null
+      },
+      truncation: [],
+      provenance: normalizeRiskProvenance({ manifest, stats, artifactStatus: baseArtifactStatus }),
       degraded: false
     };
   }
 
   if (baseStatus === 'summary_only') {
     return {
+      version: 1,
       status: 'summary_only',
       reason: stats?.reason || null,
       flows: [],
-      summary,
+      summary: normalizedSummary,
       stats: summarizeRiskStats(stats),
+      analysisStatus: {
+        requested: true,
+        summaryOnly,
+        artifactStatus: baseArtifactStatus,
+        degradedReasons: []
+      },
+      caps: {
+        maxFlows: CONTEXT_PACK_MAX_RISK_FLOWS,
+        maxCallSitesPerStep: CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP,
+        hit: Array.isArray(stats?.capsHit) ? stats.capsHit.slice() : [],
+        configured: stats?.effectiveConfig?.caps || null
+      },
+      truncation: [],
+      provenance: normalizeRiskProvenance({ manifest, stats, artifactStatus: baseArtifactStatus }),
       degraded: false
     };
   }
@@ -323,17 +581,20 @@ const buildRiskSlice = ({
         return compareStrings(a?.flowId || '', b?.flowId || '');
       });
       if (matchingFlows.length > CONTEXT_PACK_MAX_RISK_FLOWS) {
-        truncation.push({
+        const record = {
           scope: 'risk',
           cap: 'maxPaths',
           limit: CONTEXT_PACK_MAX_RISK_FLOWS,
           observed: matchingFlows.length,
           omitted: matchingFlows.length - CONTEXT_PACK_MAX_RISK_FLOWS,
           note: 'Risk flows truncated for composite context pack.'
-        });
+        };
+        truncation.push(record);
+        riskTruncation.push(record);
       }
       flows = matchingFlows.slice(0, CONTEXT_PACK_MAX_RISK_FLOWS);
     } catch (err) {
+      flowsLoadFailed = true;
       warnings.push({
         code: 'RISK_FLOWS_LOAD_FAILED',
         message: 'Risk flows artifact could not be loaded.',
@@ -373,6 +634,7 @@ const buildRiskSlice = ({
         }
       }
     } catch (err) {
+      callSitesLoadFailed = true;
       warnings.push({
         code: 'RISK_CALL_SITES_LOAD_FAILED',
         message: 'Call-site evidence artifact could not be loaded for risk flows.',
@@ -392,8 +654,28 @@ const buildRiskSlice = ({
     const steps = Array.isArray(flow?.path?.callSiteIdsByStep) ? flow.path.callSiteIdsByStep : [];
     return {
       flowId: flow?.flowId || null,
-      sourceChunkUid: flow?.source?.chunkUid || null,
-      sinkChunkUid: flow?.sink?.chunkUid || null,
+      source: flow?.source && typeof flow.source === 'object'
+        ? {
+          chunkUid: flow.source.chunkUid || null,
+          ruleId: flow.source.ruleId || null,
+          ruleName: flow.source.ruleName || null,
+          ruleType: flow.source.ruleType || null,
+          category: flow.source.category || null,
+          severity: flow.source.severity || null,
+          confidence: Number.isFinite(flow.source.confidence) ? flow.source.confidence : null
+        }
+        : null,
+      sink: flow?.sink && typeof flow.sink === 'object'
+        ? {
+          chunkUid: flow.sink.chunkUid || null,
+          ruleId: flow.sink.ruleId || null,
+          ruleName: flow.sink.ruleName || null,
+          ruleType: flow.sink.ruleType || null,
+          category: flow.sink.category || null,
+          severity: flow.sink.severity || null,
+          confidence: Number.isFinite(flow.sink.confidence) ? flow.sink.confidence : null
+        }
+        : null,
       category: flow?.sink?.category || flow?.source?.category || null,
       severity: flow?.sink?.severity || flow?.source?.severity || null,
       confidence: Number.isFinite(flow?.confidence) ? flow.confidence : null,
@@ -414,17 +696,59 @@ const buildRiskSlice = ({
             }))
             : []
         ))
-      }
+      },
+      notes: flow?.notes && typeof flow.notes === 'object'
+        ? {
+          strictness: flow.notes.strictness || null,
+          sanitizerPolicy: flow.notes.sanitizerPolicy || null,
+          hopCount: Number.isFinite(flow.notes.hopCount) ? flow.notes.hopCount : null,
+          sanitizerBarriersHit: Number.isFinite(flow.notes.sanitizerBarriersHit)
+            ? flow.notes.sanitizerBarriersHit
+            : null,
+          capsHit: Array.isArray(flow.notes.capsHit) ? flow.notes.capsHit.slice() : []
+        }
+        : null
     };
   });
 
   const status = degraded ? 'degraded' : baseStatus;
+  const resolvedArtifactStatus = {
+    ...baseArtifactStatus,
+    flows: buildRiskArtifactStatus({
+      presence: flowsPresence,
+      required: !(summaryOnly || stats?.status === 'disabled'),
+      loadFailed: flowsLoadFailed
+    }),
+    callSites: buildRiskArtifactStatus({
+      presence: callSitesPresence,
+      required: referencedCallSiteIds.size > 0,
+      loadFailed: callSitesLoadFailed
+    })
+  };
+  const degradedReasons = warnings
+    .filter((entry) => typeof entry?.code === 'string' && entry.code.startsWith('RISK_'))
+    .map((entry) => entry.code);
   return {
+    version: 1,
     status,
     reason: degraded ? 'partial-artifacts' : (stats?.reason || null),
     flows: normalizedFlows,
-    summary,
+    summary: normalizedSummary,
     stats: summarizeRiskStats(stats),
+    analysisStatus: {
+      requested: true,
+      summaryOnly,
+      artifactStatus: resolvedArtifactStatus,
+      degradedReasons
+    },
+    caps: {
+      maxFlows: CONTEXT_PACK_MAX_RISK_FLOWS,
+      maxCallSitesPerStep: CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP,
+      hit: Array.isArray(stats?.capsHit) ? stats.capsHit.slice() : [],
+      configured: stats?.effectiveConfig?.caps || null
+    },
+    truncation: riskTruncation,
+    provenance: normalizeRiskProvenance({ manifest, stats, artifactStatus: resolvedArtifactStatus }),
     degraded
   };
 };
