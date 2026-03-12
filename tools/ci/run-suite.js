@@ -66,6 +66,9 @@ export const __buildSuiteEnvForTests = buildSuiteEnv;
 export const __resolveSuiteToolingPathEntriesForTests = (repoRoot, userConfig) => (
   resolveLocalToolingBinDirs(getToolingDir(repoRoot, userConfig))
 );
+export const __applySuiteToolingPathEntriesForTests = (env, repoRoot, userConfig) => (
+  prependPathEntries(env, __resolveSuiteToolingPathEntriesForTests(repoRoot, userConfig))
+);
 
 const renderCommand = (command, args) => [command, ...args].join(' ');
 const SCRIPT_COVERAGE_GROUPS = Object.freeze([
@@ -147,7 +150,7 @@ const main = async () => {
   const baseLane = argv.lane || (mode === 'nightly' ? 'ci' : 'ci-lite');
   const baseEnv = buildSuiteEnv(mode);
   const userConfig = loadUserConfig(ROOT);
-  prependPathEntries(baseEnv, ...__resolveSuiteToolingPathEntriesForTests(ROOT, userConfig));
+  __applySuiteToolingPathEntriesForTests(baseEnv, ROOT, userConfig);
   // Fixture LSP binaries remain opt-in for dedicated contract lanes.
   const envConfig = getEnvConfig(baseEnv);
   if (envConfig.ciUseLspFixtures === true) {
