@@ -130,7 +130,15 @@ const fakeVscode = {
   },
   Uri: {
     file(filePath) {
-      return { fsPath: filePath };
+      return { scheme: 'file', fsPath: filePath, path: filePath };
+    },
+    joinPath(base, ...segments) {
+      const joined = path.posix.join(base.path || '', ...segments);
+      return {
+        ...base,
+        path: joined,
+        fsPath: joined.replace(/\//g, path.sep)
+      };
     }
   },
   Position: class Position {
@@ -158,11 +166,36 @@ const fakeVscode = {
 
 const openOk = await openSearchHit(fakeVscode, 'C:/repo', {
   file: 'src/index.js',
-  startLine: 4
+  startLine: 4,
+  startCol: 3,
+  endLine: 4,
+  endCol: 12
 });
 assert.equal(openOk.ok, true);
 assert.equal(openOk.filePath, path.join('C:/repo', 'src/index.js'));
 assert.equal(revealCalls.length, 1);
+assert.equal(revealCalls[0].range.start.line, 3);
+assert.equal(revealCalls[0].range.start.character, 2);
+assert.equal(revealCalls[0].range.end.character, 11);
+
+const openRemote = await openSearchHit(fakeVscode, {
+  repoRoot: null,
+  repoUri: { scheme: 'vscode-remote', path: '/workspace/repo', fsPath: '/workspace/repo' }
+}, {
+  file: 'src/remote.ts',
+  startLine: 2,
+  startCol: 1,
+  endLine: 2,
+  endCol: 7
+});
+assert.equal(openRemote.ok, true);
+assert.equal(openRemote.filePath, path.join(path.sep, 'workspace', 'repo', 'src', 'remote.ts'));
+
+const openTraversal = await openSearchHit(fakeVscode, 'C:/repo', {
+  file: '../outside.js'
+});
+assert.equal(openTraversal.ok, false);
+assert.match(openTraversal.message, /outside the repo/i);
 
 const navigateFail = await openSearchHit({
   ...fakeVscode,

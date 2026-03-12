@@ -58,6 +58,12 @@ Settings:
 
 The VS Code search command forwards these common search flags directly instead of forcing normal workflows through `extraSearchArgs`.
 
+Repo targeting behavior:
+
+- prefers the active editor's workspace folder when multiple folders are open
+- prompts for a workspace folder when no active editor pins the target
+- currently supports local `file:` workspaces only; remote workspace URIs fail closed with an explicit error
+
 ## Sublime package
 
 The Sublime package source lives under `sublime/PairOfCleats` and is emitted as `dist/sublime/pairofcleats.sublime-package`.

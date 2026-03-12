@@ -233,12 +233,67 @@ function findRepoRoot(startPath) {
  *
  * @returns {string|null}
  */
-function resolveRepoRoot() {
+async function resolveRepoContext() {
   const folders = vscode.workspace.workspaceFolders;
-  if (!folders || !folders.length) return null;
-  const workspacePath = folders[0].uri.fsPath;
-  if (!VSCODE_REPO_WALKUP) return workspacePath;
-  return findRepoRoot(workspacePath) || workspacePath;
+  if (!folders || !folders.length) {
+    return {
+      ok: false,
+      kind: 'no-workspace',
+      message: 'PairOfCleats: open a workspace to search.'
+    };
+  }
+  const activeUri = vscode.window.activeTextEditor?.document?.uri || null;
+  const activeFolder = activeUri && typeof vscode.workspace.getWorkspaceFolder === 'function'
+    ? vscode.workspace.getWorkspaceFolder(activeUri)
+    : null;
+  let selectedFolder = activeFolder || null;
+  if (!selectedFolder && folders.length === 1) {
+    selectedFolder = folders[0];
+  }
+  if (!selectedFolder) {
+    const picked = await vscode.window.showQuickPick(
+      folders.map((folder) => ({
+        label: folder.name || folder.uri?.fsPath || folder.uri?.path || String(folder.uri),
+        description: folder.uri?.fsPath || folder.uri?.path || folder.uri?.scheme || '',
+        folder
+      })),
+      {
+        title: 'PairOfCleats workspace',
+        placeHolder: 'Select the workspace folder to search'
+      }
+    );
+    if (!picked) {
+      return { ok: false, kind: 'cancelled', message: null };
+    }
+    selectedFolder = picked.folder;
+  }
+  const repoUri = selectedFolder?.uri || null;
+  const repoScheme = String(repoUri?.scheme || 'file');
+  if (repoScheme !== 'file') {
+    return {
+      ok: false,
+      kind: 'unsupported-workspace',
+      message: `PairOfCleats search only supports local file workspaces right now (got ${repoScheme}:).`,
+      detail: 'Open a local checkout or run the CLI directly for remote workspaces.'
+    };
+  }
+  const workspacePath = repoUri?.fsPath || null;
+  if (!workspacePath) {
+    return {
+      ok: false,
+      kind: 'unsupported-workspace',
+      message: 'PairOfCleats could not resolve a local filesystem path for the selected workspace.',
+      detail: 'Open a local file-based workspace or run the CLI directly.'
+    };
+  }
+  const repoRoot = VSCODE_REPO_WALKUP ? (findRepoRoot(workspacePath) || workspacePath) : workspacePath;
+  return {
+    ok: true,
+    repoRoot,
+    repoUri,
+    workspaceFolder: selectedFolder,
+    source: activeFolder ? 'active-editor' : (folders.length === 1 ? 'single-workspace' : 'workspace-picker')
+  };
 }
 
 /**
@@ -304,11 +359,19 @@ function buildSpawnEnv(config) {
  * @returns {Promise<void>}
  */
 async function runSearch() {
-  const repoRoot = resolveRepoRoot();
-  if (!repoRoot) {
-    vscode.window.showErrorMessage('PairOfCleats: open a workspace to search.');
+  const repoContext = await resolveRepoContext();
+  if (!repoContext.ok) {
+    if (repoContext.message) {
+      if (repoContext.detail) {
+        const output = getOutputChannel();
+        output.appendLine(repoContext.detail);
+        output.show?.(true);
+      }
+      vscode.window.showErrorMessage(repoContext.message);
+    }
     return;
   }
+  const { repoRoot } = repoContext;
 
   const query = await vscode.window.showInputBox({
     prompt: 'PairOfCleats search query',
@@ -462,7 +525,7 @@ async function runSearch() {
         }
 
         const selected = selection.hit;
-        const openResult = await openSearchHit(vscode, repoRoot, selected);
+        const openResult = await openSearchHit(vscode, repoContext, selected);
         if (!openResult.ok) {
           output.appendLine(`[search] open failure path=${openResult.filePath}`);
           output.appendLine(openResult.detail);
@@ -516,6 +579,7 @@ module.exports = {
     getOutputChannel,
     openSearchHit,
     resolveCli,
+    resolveRepoContext,
     runSearch
   }
 };

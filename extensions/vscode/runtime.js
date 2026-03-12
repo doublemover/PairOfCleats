@@ -147,18 +147,25 @@ function summarizeProcessFailure({ code, timedOut, cancelled, stderr, stdout, st
 }
 
 async function openSearchHit(vscodeApi, repoRoot, hit) {
-  const filePath = path.isAbsolute(hit.file)
-    ? hit.file
-    : path.join(repoRoot, hit.file);
+  const repoContext = normalizeRepoContext(repoRoot);
+  const pathError = validateHitPath(repoContext, hit?.file);
+  if (pathError) {
+    return {
+      ok: false,
+      filePath: String(hit?.file || ''),
+      message: pathError.message,
+      detail: pathError.detail
+    };
+  }
+  const targetUri = resolveHitUri(vscodeApi, repoContext, hit?.file);
+  const filePath = targetUri?.fsPath || String(hit?.file || '');
   try {
-    const document = await vscodeApi.workspace.openTextDocument(vscodeApi.Uri.file(filePath));
+    const document = await vscodeApi.workspace.openTextDocument(targetUri);
     try {
       const editor = await vscodeApi.window.showTextDocument(document, { preview: true });
-      if (Number.isFinite(hit.startLine) && hit.startLine > 0) {
-        const line = Math.max(0, Number(hit.startLine) - 1);
-        const pos = new vscodeApi.Position(line, 0);
-        const range = new vscodeApi.Range(pos, pos);
-        editor.selection = new vscodeApi.Selection(pos, pos);
+      const range = buildHitRange(vscodeApi, hit);
+      if (range) {
+        editor.selection = new vscodeApi.Selection(range.start, range.end);
         editor.revealRange(range, vscodeApi.TextEditorRevealType.InCenter);
       }
       return { ok: true, filePath };
@@ -178,6 +185,87 @@ async function openSearchHit(vscodeApi, repoRoot, hit) {
       detail: String(error?.stack || error?.message || error)
     };
   }
+}
+
+function normalizeRepoContext(value) {
+  if (value && typeof value === 'object' && (value.repoRoot || value.repoUri)) {
+    return value;
+  }
+  return { repoRoot: value || null, repoUri: null };
+}
+
+function resolveHitUri(vscodeApi, repoContext, hitFile) {
+  if (path.isAbsolute(hitFile)) {
+    return vscodeApi.Uri.file(hitFile);
+  }
+  if (repoContext.repoUri && typeof vscodeApi.Uri?.joinPath === 'function') {
+    const segments = String(hitFile || '').split(/[\\/]+/).filter(Boolean);
+    return vscodeApi.Uri.joinPath(repoContext.repoUri, ...segments);
+  }
+  return vscodeApi.Uri.file(path.join(repoContext.repoRoot || '', String(hitFile || '')));
+}
+
+function buildHitRange(vscodeApi, hit) {
+  if (!Number.isFinite(hit?.startLine) || hit.startLine <= 0) return null;
+  const startLine = Math.max(0, Number(hit.startLine) - 1);
+  const startCol = Number.isFinite(hit?.startCol) && hit.startCol > 0 ? Number(hit.startCol) - 1 : 0;
+  const endLine = Number.isFinite(hit?.endLine) && hit.endLine > 0
+    ? Math.max(startLine, Number(hit.endLine) - 1)
+    : startLine;
+  const endCol = Number.isFinite(hit?.endCol) && hit.endCol > 0
+    ? Math.max(startCol, Number(hit.endCol) - 1)
+    : startCol;
+  const start = new vscodeApi.Position(startLine, startCol);
+  const end = new vscodeApi.Position(endLine, endCol);
+  return new vscodeApi.Range(start, end);
+}
+
+function validateHitPath(repoContext, hitFile) {
+  const rawPath = String(hitFile || '');
+  if (!rawPath) {
+    return {
+      message: 'PairOfCleats returned an invalid result path.',
+      detail: 'The selected search hit did not include a file path.'
+    };
+  }
+  if (!path.isAbsolute(rawPath)) {
+    if (!isContainedRelativePath(rawPath)) {
+      return {
+        message: `PairOfCleats refused to open a path outside the repo: ${rawPath}`,
+        detail: 'The selected search hit escaped the repo root via relative traversal.'
+      };
+    }
+    return null;
+  }
+  if (repoContext.repoRoot && !isAbsolutePathContained(repoContext.repoRoot, rawPath)) {
+    return {
+      message: `PairOfCleats refused to open a path outside the repo: ${rawPath}`,
+      detail: `Resolved absolute path is outside repo root ${repoContext.repoRoot}.`
+    };
+  }
+  return null;
+}
+
+function isContainedRelativePath(rawPath) {
+  const segments = String(rawPath).split(/[\\/]+/).filter(Boolean);
+  let depth = 0;
+  for (const segment of segments) {
+    if (segment === '.') continue;
+    if (segment === '..') {
+      if (depth === 0) return false;
+      depth -= 1;
+      continue;
+    }
+    depth += 1;
+  }
+  return true;
+}
+
+function isAbsolutePathContained(rootPath, targetPath) {
+  const normalizedRoot = path.resolve(rootPath);
+  const normalizedTarget = path.resolve(targetPath);
+  const relative = path.relative(normalizedRoot, normalizedTarget);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
 }
 
 module.exports = {
