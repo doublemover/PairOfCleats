@@ -34,6 +34,9 @@ function loadExtensionWithVscode(fakeVscode) {
 const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-vscode-ext-'));
 fs.mkdirSync(path.join(repoRoot, 'bin'), { recursive: true });
 fs.writeFileSync(path.join(repoRoot, 'bin', 'pairofcleats.js'), 'console.log("ok");');
+const nestedRepoRoot = path.join(repoRoot, 'packages', 'nested');
+fs.mkdirSync(path.join(nestedRepoRoot, '.git'), { recursive: true });
+fs.writeFileSync(path.join(nestedRepoRoot, 'file.ts'), 'export const nested = true;\n');
 
 const configValues = {
   'cliPath': '',
@@ -57,11 +60,12 @@ const outputEvents = [];
 const errorMessages = [];
 const infoMessages = [];
 let quickPickCalls = 0;
+let lastQuickPickItems = [];
 const fakeVscode = {
   workspace: {
-    workspaceFolders: [{ uri: { fsPath: repoRoot } }],
+    workspaceFolders: [{ uri: { scheme: 'file', fsPath: repoRoot, path: repoRoot.replace(/\\/g, '/') } }],
     getWorkspaceFolder(uri) {
-      return this.workspaceFolders.find((folder) => folder.uri.fsPath === uri?.fsPath) || null;
+      return this.workspaceFolders.find((folder) => uri?.fsPath?.startsWith(folder.uri.fsPath)) || null;
     },
     getConfiguration() {
       return createFakeConfiguration(configValues);
@@ -74,6 +78,7 @@ const fakeVscode = {
     },
     async showQuickPick(items) {
       quickPickCalls += 1;
+      lastQuickPickItems = items;
       return items[1];
     },
     async withProgress(_options, task) {
@@ -110,6 +115,11 @@ const fakeVscode = {
   },
   ProgressLocation: {
     Notification: 1
+  },
+  Uri: {
+    file(fsPath) {
+      return { scheme: 'file', fsPath, path: fsPath.replace(/\\/g, '/') };
+    }
   }
 };
 
@@ -127,6 +137,16 @@ const repoContextSingle = await extension._test.resolveRepoContext();
 assert.equal(repoContextSingle.ok, true);
 assert.equal(repoContextSingle.repoRoot, repoRoot);
 assert.equal(repoContextSingle.source, 'single-workspace');
+
+fakeVscode.window.activeTextEditor = {
+  document: {
+    uri: { scheme: 'file', fsPath: path.join(nestedRepoRoot, 'file.ts'), path: path.join(nestedRepoRoot, 'file.ts').replace(/\\/g, '/') }
+  }
+};
+const repoContextNested = await extension._test.resolveRepoContext();
+assert.equal(repoContextNested.ok, true);
+assert.equal(repoContextNested.repoRoot, nestedRepoRoot);
+assert.equal(repoContextNested.source, 'active-editor');
 
 const otherRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-vscode-other-'));
 fakeVscode.workspace.workspaceFolders = [
@@ -147,8 +167,10 @@ fakeVscode.window.activeTextEditor = null;
 const repoContextPicked = await extension._test.resolveRepoContext();
 assert.equal(repoContextPicked.ok, true);
 assert.equal(repoContextPicked.repoRoot, otherRoot);
-assert.equal(repoContextPicked.source, 'workspace-picker');
+assert.equal(repoContextPicked.source, 'repo-picker');
 assert.equal(quickPickCalls, 1);
+assert.ok(lastQuickPickItems.every((item) => item.detail));
+assert.ok(lastQuickPickItems.some((item) => item.label === path.basename(otherRoot)));
 
 fakeVscode.workspace.workspaceFolders = [
   { name: 'remote', uri: { scheme: 'vscode-remote', fsPath: '/workspace/repo', path: '/workspace/repo' } }

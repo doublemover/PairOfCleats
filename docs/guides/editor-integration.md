@@ -83,8 +83,10 @@ The VS Code search command forwards these common search flags directly instead o
 
 Repo targeting behavior:
 
-- prefers the active editor's workspace folder when multiple folders are open
-- prompts for a workspace folder when no active editor pins the target
+- resolves repo context at the repo-root level, not only at the workspace-folder level
+- prefers the active editor's nearest repo root when it sits inside a nested repo
+- prompts for an explicit repo root when multiple local repo candidates are open and no active editor pins the target
+- keeps the selected repo label visible in workflow status and persisted search result sets
 - currently supports local `file:` workspaces only; remote workspace URIs fail closed with an explicit error
 
 Operational command behavior:

@@ -236,6 +236,84 @@ function findRepoRoot(startPath) {
   return null;
 }
 
+function getWorkspaceFolderPath(folder) {
+  return folder?.uri?.scheme === 'file' && folder?.uri?.fsPath
+    ? path.resolve(folder.uri.fsPath)
+    : null;
+}
+
+function isContainedPath(candidatePath, containerPath) {
+  if (!candidatePath || !containerPath) return false;
+  const relative = path.relative(containerPath, candidatePath);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+function resolveFolderRepoRoot(folder, preferredPath = null) {
+  const workspacePath = getWorkspaceFolderPath(folder);
+  if (!workspacePath) return null;
+  const normalizedPreferred = preferredPath ? path.resolve(preferredPath) : null;
+  if (normalizedPreferred) {
+    const preferredRoot = findRepoRoot(normalizedPreferred);
+    if (preferredRoot) {
+      if (isContainedPath(preferredRoot, workspacePath)) return preferredRoot;
+      if (VSCODE_REPO_WALKUP && isContainedPath(workspacePath, preferredRoot)) return preferredRoot;
+    }
+  }
+  return VSCODE_REPO_WALKUP ? (findRepoRoot(workspacePath) || workspacePath) : workspacePath;
+}
+
+function createRepoCandidate(folder, repoRoot, source = 'workspace-folder') {
+  const workspacePath = getWorkspaceFolderPath(folder);
+  if (!workspacePath || !repoRoot) return null;
+  return {
+    repoRoot,
+    repoUri: vscode.Uri.file(repoRoot),
+    workspaceFolder: folder,
+    workspacePath,
+    repoLabel: formatRepoLabel(repoRoot),
+    source
+  };
+}
+
+function collectRepoCandidates(folders, {
+  activeUri = null,
+  includeLastSnapshot = false
+} = {}) {
+  const seen = new Set();
+  const candidates = [];
+  const pushCandidate = (folder, repoRoot, source) => {
+    const candidate = createRepoCandidate(folder, repoRoot, source);
+    if (!candidate || seen.has(candidate.repoRoot)) return;
+    seen.add(candidate.repoRoot);
+    candidates.push(candidate);
+  };
+
+  const activeFolder = activeUri && typeof vscode.workspace.getWorkspaceFolder === 'function'
+    ? vscode.workspace.getWorkspaceFolder(activeUri)
+    : null;
+  if (activeFolder?.uri?.scheme === 'file' && activeUri?.fsPath) {
+    pushCandidate(activeFolder, resolveFolderRepoRoot(activeFolder, activeUri.fsPath), 'active-editor');
+  }
+
+  if (includeLastSnapshot?.repoRoot) {
+    for (const folder of folders) {
+      const workspacePath = getWorkspaceFolderPath(folder);
+      if (!workspacePath) continue;
+      if (isContainedPath(includeLastSnapshot.repoRoot, workspacePath)
+        || (VSCODE_REPO_WALKUP && isContainedPath(workspacePath, includeLastSnapshot.repoRoot))) {
+        pushCandidate(folder, path.resolve(includeLastSnapshot.repoRoot), 'last-session');
+        break;
+      }
+    }
+  }
+
+  for (const folder of folders) {
+    pushCandidate(folder, resolveFolderRepoRoot(folder), 'workspace-folder');
+  }
+
+  return candidates;
+}
+
 /**
  * Resolve repository root for current workspace settings.
  *
@@ -251,56 +329,54 @@ async function resolveRepoContext() {
     };
   }
   const activeUri = vscode.window.activeTextEditor?.document?.uri || null;
-  const activeFolder = activeUri && typeof vscode.workspace.getWorkspaceFolder === 'function'
-    ? vscode.workspace.getWorkspaceFolder(activeUri)
-    : null;
-  let selectedFolder = activeFolder || null;
-  if (!selectedFolder && folders.length === 1) {
-    selectedFolder = folders[0];
-  }
-  if (!selectedFolder) {
-    const picked = await vscode.window.showQuickPick(
-      folders.map((folder) => ({
-        label: folder.name || folder.uri?.fsPath || folder.uri?.path || String(folder.uri),
-        description: folder.uri?.fsPath || folder.uri?.path || folder.uri?.scheme || '',
-        folder
-      })),
-      {
-        title: 'PairOfCleats workspace',
-        placeHolder: 'Select the workspace folder to search'
-      }
-    );
-    if (!picked) {
-      return { ok: false, kind: 'cancelled', message: null };
-    }
-    selectedFolder = picked.folder;
-  }
-  const repoUri = selectedFolder?.uri || null;
-  const repoScheme = String(repoUri?.scheme || 'file');
-  if (repoScheme !== 'file') {
+  const fileFolders = folders.filter((folder) => folder?.uri?.scheme === 'file' && folder?.uri?.fsPath);
+  if (!fileFolders.length) {
     return {
       ok: false,
       kind: 'unsupported-workspace',
-      message: `PairOfCleats search only supports local file workspaces right now (got ${repoScheme}:).`,
+      message: 'PairOfCleats search only supports local file workspaces right now.',
       detail: 'Open a local checkout or run the CLI directly for remote workspaces.'
     };
   }
-  const workspacePath = repoUri?.fsPath || null;
-  if (!workspacePath) {
+  const candidates = collectRepoCandidates(fileFolders, { activeUri });
+  const activeCandidate = candidates.find((candidate) => candidate.source === 'active-editor') || null;
+  if (activeCandidate) {
+    return { ok: true, ...activeCandidate, source: 'active-editor' };
+  }
+  if (candidates.length === 1) {
     return {
-      ok: false,
-      kind: 'unsupported-workspace',
-      message: 'PairOfCleats could not resolve a local filesystem path for the selected workspace.',
-      detail: 'Open a local file-based workspace or run the CLI directly.'
+      ok: true,
+      ...candidates[0],
+      source: fileFolders.length === 1 ? 'single-workspace' : 'single-repo-candidate'
     };
   }
-  const repoRoot = VSCODE_REPO_WALKUP ? (findRepoRoot(workspacePath) || workspacePath) : workspacePath;
+  if (typeof vscode.window.showQuickPick !== 'function') {
+    return {
+      ok: false,
+      kind: 'ambiguous-workspace',
+      message: 'PairOfCleats needs an explicit repository selection for this workspace.',
+      detail: 'Focus a file inside the repo you want or use a workspace with a single repo root.'
+    };
+  }
+  const picked = await vscode.window.showQuickPick(
+    candidates.map((candidate) => ({
+      label: candidate.repoLabel,
+      description: `${candidate.workspaceFolder?.name || candidate.workspacePath}${candidate.source === 'workspace-folder' ? '' : ` • ${candidate.source}`}`,
+      detail: candidate.repoRoot,
+      candidate
+    })),
+    {
+      title: 'PairOfCleats repository',
+      placeHolder: 'Select the repository root to use'
+    }
+  );
+  if (!picked) {
+    return { ok: false, kind: 'cancelled', message: null };
+  }
   return {
     ok: true,
-    repoRoot,
-    repoUri,
-    workspaceFolder: selectedFolder,
-    source: activeFolder ? 'active-editor' : (folders.length === 1 ? 'single-workspace' : 'workspace-picker')
+    ...picked.candidate,
+    source: 'repo-picker'
   };
 }
 
@@ -443,34 +519,33 @@ function resolvePassiveRepoContext() {
     return { ok: false, kind: 'no-workspace', repoLabel: 'no repo' };
   }
   const activeUri = vscode.window.activeTextEditor?.document?.uri || null;
-  const activeFolder = activeUri && typeof vscode.workspace.getWorkspaceFolder === 'function'
-    ? vscode.workspace.getWorkspaceFolder(activeUri)
-    : null;
-  let selectedFolder = activeFolder || null;
-  if (!selectedFolder && lastWorkflowRepoSnapshot?.workspacePath) {
-    selectedFolder = folders.find((folder) => folder?.uri?.fsPath === lastWorkflowRepoSnapshot.workspacePath) || null;
+  const fileFolders = folders.filter((folder) => folder?.uri?.scheme === 'file' && folder?.uri?.fsPath);
+  if (!fileFolders.length) {
+    return { ok: false, kind: 'unsupported-workspace', repoLabel: 'no repo' };
   }
-  if (!selectedFolder && folders.length === 1) {
-    selectedFolder = folders[0];
+  const candidates = collectRepoCandidates(fileFolders, {
+    activeUri,
+    includeLastSnapshot: lastWorkflowRepoSnapshot
+  });
+  const activeCandidate = candidates.find((candidate) => candidate.source === 'active-editor') || null;
+  if (activeCandidate) {
+    return { ok: true, ...activeCandidate, source: 'active-editor' };
   }
-  if (!selectedFolder) {
+  const lastSessionCandidate = candidates.find((candidate) => candidate.source === 'last-session') || null;
+  if (lastSessionCandidate) {
+    return { ok: true, ...lastSessionCandidate, source: 'last-session' };
+  }
+  if (candidates.length !== 1) {
     return {
       ok: false,
       kind: 'ambiguous-workspace',
-      repoLabel: `${folders.length} workspaces`
+      repoLabel: `${candidates.length || fileFolders.length} repos`
     };
-  }
-  const repoRoot = VSCODE_REPO_WALKUP
-    ? (findRepoRoot(selectedFolder.uri?.fsPath || '') || selectedFolder.uri?.fsPath || '')
-    : (selectedFolder.uri?.fsPath || '');
-  if (!repoRoot) {
-    return { ok: false, kind: 'unsupported-workspace', repoLabel: 'no repo' };
   }
   return {
     ok: true,
-    repoRoot,
-    repoLabel: formatRepoLabel(repoRoot),
-    workspaceFolder: selectedFolder
+    ...candidates[0],
+    source: 'single-workspace'
   };
 }
 
