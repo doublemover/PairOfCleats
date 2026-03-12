@@ -664,7 +664,7 @@ const SQLITE_SIDECARS = ['-wal', '-shm'];
  * @param {string} basePath
  * @returns {Promise<void>}
  */
-export async function removeSqliteSidecars(basePath) {
+export async function removeSqliteSidecars(basePath, { swallowNonBenign = false, logger = null } = {}) {
   await Promise.all(SQLITE_SIDECARS.map(async (suffix) => {
     try {
       const targetPath = `${basePath}${suffix}`;
@@ -675,9 +675,10 @@ export async function removeSqliteSidecars(basePath) {
     } catch (err) {
       if (isBenignSqliteCleanupError(err)) return;
       emitSqliteCleanupWarning(
-        null,
+        logger,
         `[sqlite-cleanup] failed to remove sidecar ${basePath}${suffix}: ${err?.message || err}`
       );
+      if (swallowNonBenign) return;
       throw err;
     }
   }));
@@ -753,8 +754,8 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
     }
   };
 
-  await removeSqliteSidecars(tempDbPath);
-  await removeSqliteSidecars(finalDbPath);
+  await removeSqliteSidecars(tempDbPath, { logger: options.logger || null });
+  await removeSqliteSidecars(finalDbPath, { logger: options.logger || null });
 
   let backupAvailable = fs.existsSync(backupPath);
   let backupFromCurrentFinal = false;
@@ -838,9 +839,15 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
   if (!keepBackup) {
     await removeFileWithDiagnostics(backupPath, {
       context: 'final backup cleanup',
-      swallow: false
+      swallow: true
     });
   }
-  await removeSqliteSidecars(finalDbPath);
-  await removeSqliteSidecars(backupPath);
+  await removeSqliteSidecars(finalDbPath, {
+    logger: options.logger || null,
+    swallowNonBenign: true
+  });
+  await removeSqliteSidecars(backupPath, {
+    logger: options.logger || null,
+    swallowNonBenign: true
+  });
 }

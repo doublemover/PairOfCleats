@@ -3,6 +3,7 @@ import path from 'node:path';
 import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 import {
   normalizeBundleFormat,
+  removeBundleWriteArtifacts,
   resolveBundleShardFilename,
   resolveManifestBundleNames,
   writeBundleFile
@@ -99,6 +100,17 @@ const buildBundleShards = ({ relKey, bundleFormat, bundle }) => {
   }));
   const names = bundles.map((_, index) => resolveBundleShardFilename(relKey, bundleFormat, index));
   return { names, bundles };
+};
+
+const cleanupWrittenBundleArtifacts = async ({ bundleDir, bundleNames }) => {
+  if (!bundleDir || !Array.isArray(bundleNames) || !bundleNames.length) return;
+  await Promise.all(bundleNames.map(async (bundleName) => {
+    if (typeof bundleName !== 'string' || !bundleName) return;
+    const bundlePath = path.join(bundleDir, bundleName);
+    try {
+      await removeBundleWriteArtifacts(bundlePath);
+    } catch {}
+  }));
 };
 
 const removeManifestBundleFiles = async ({ bundleDir, entry, keep = null }) => {
@@ -240,6 +252,7 @@ export async function writeIncrementalBundle({
     encodingFallback: typeof fileEncodingFallback === 'boolean' ? fileEncodingFallback : null,
     encodingConfidence: Number.isFinite(fileEncodingConfidence) ? fileEncodingConfidence : null
   };
+  let writtenBundleNames = [];
   try {
     const { names: bundleNames, bundles } = buildBundleShards({
       relKey,
@@ -251,6 +264,7 @@ export async function writeIncrementalBundle({
     }
     let checksum = null;
     let checksumAlgo = null;
+    writtenBundleNames = [];
     for (let i = 0; i < bundleNames.length; i += 1) {
       const bundleName = bundleNames[i];
       const bundlePath = path.join(bundleDir, bundleName);
@@ -259,6 +273,7 @@ export async function writeIncrementalBundle({
         bundle: bundles[i],
         format: resolvedBundleFormat
       });
+      writtenBundleNames.push(bundleName);
       if (i === 0) {
         checksum = writeResult?.checksum || null;
         checksumAlgo = writeResult?.checksumAlgo || null;
@@ -293,6 +308,10 @@ export async function writeIncrementalBundle({
       encodingConfidence: Number.isFinite(fileEncodingConfidence) ? fileEncodingConfidence : null
     };
   } catch {
+    await cleanupWrittenBundleArtifacts({
+      bundleDir,
+      bundleNames: typeof writtenBundleNames !== 'undefined' ? writtenBundleNames : []
+    });
     return null;
   }
 }
@@ -508,6 +527,7 @@ export async function updateBundlesWithChunks({
         prefetchedHit = false,
         prefetchedRows = null
       } = prioritizedPendingUpdates[index];
+      let writtenBundleNames = [];
       const relations = resolveFileRelations(normalizedFile, file);
       let vfsManifestRows = null;
       let existingBundle = await readBundleOrNull({ bundleRecords });
@@ -545,6 +565,7 @@ export async function updateBundlesWithChunks({
         }
         let checksum = null;
         let checksumAlgo = null;
+        writtenBundleNames = [];
         for (let shardIndex = 0; shardIndex < bundleNames.length; shardIndex += 1) {
           const shardName = bundleNames[shardIndex];
           const shardPath = path.join(bundleDir, shardName);
@@ -553,6 +574,7 @@ export async function updateBundlesWithChunks({
             bundle: bundles[shardIndex],
             format: bundleFormatLocal
           });
+          writtenBundleNames.push(shardName);
           if (shardIndex === 0) {
             checksum = writeResult?.checksum || null;
             checksumAlgo = writeResult?.checksumAlgo || null;
@@ -581,6 +603,10 @@ export async function updateBundlesWithChunks({
         entry.bundleFormat = bundleFormatLocal;
         bundleUpdates += 1;
       } catch {
+        await cleanupWrittenBundleArtifacts({
+          bundleDir,
+          bundleNames: typeof writtenBundleNames !== 'undefined' ? writtenBundleNames : []
+        });
         bundleFailures += 1;
       }
       const completed = bundleUpdates + bundleFailures;

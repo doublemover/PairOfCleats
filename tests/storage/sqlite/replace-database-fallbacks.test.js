@@ -152,9 +152,38 @@ const runCrossDeviceBackupMoveCase = async () => {
   assert.ok(!fs.existsSync(backupPath), 'expected no backup file when backup move never succeeded');
 };
 
+const runBackupCleanupFailureNonFatalCase = async () => {
+  const finalPath = path.join(outDir, 'backup-cleanup.sqlite');
+  const tempPath = path.join(outDir, 'backup-cleanup.sqlite.tmp');
+  const backupPath = `${finalPath}.bak`;
+
+  await fsPromises.writeFile(finalPath, 'before', 'utf8');
+  await fsPromises.writeFile(tempPath, 'after', 'utf8');
+
+  const originalRm = fsPromises.rm;
+  fsPromises.rm = async (targetPath, options) => {
+    if (targetPath === backupPath) {
+      const err = new Error('EACCES');
+      err.code = 'EACCES';
+      throw err;
+    }
+    return originalRm(targetPath, options);
+  };
+
+  try {
+    await replaceSqliteDatabase(tempPath, finalPath);
+  } finally {
+    fsPromises.rm = originalRm;
+  }
+
+  assert.equal(await fsPromises.readFile(finalPath, 'utf8'), 'after');
+  assert.ok(fs.existsSync(backupPath), 'expected failed backup cleanup to leave backup behind');
+};
+
 await runCrossDeviceFallbackCase();
 await runRestoreBackupCase();
 await runStaleBackupNoRestoreCase();
 await runCrossDeviceBackupMoveCase();
+await runBackupCleanupFailureNonFatalCase();
 
 console.log('sqlite replace database fallback tests passed');

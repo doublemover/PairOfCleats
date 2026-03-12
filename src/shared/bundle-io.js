@@ -391,26 +391,64 @@ export function resolveBundleShardFilename(relKey, format, shardIndex = 0) {
 }
 
 export function resolveManifestBundleNames(entry) {
-  if (!entry || typeof entry !== 'object') return [];
+  return resolveManifestBundleNamesResult(entry).names;
+}
+
+export function resolveManifestBundleNamesResult(entry) {
+  if (!entry || typeof entry !== 'object') {
+    return {
+      ok: false,
+      reason: 'bundle manifest entry missing or invalid',
+      names: []
+    };
+  }
   const legacyBundle = typeof entry.bundle === 'string'
     ? entry.bundle.trim()
     : '';
   const rawBundleNames = Array.isArray(entry.bundles) && entry.bundles.length
     ? entry.bundles
     : (legacyBundle ? [legacyBundle] : []);
-  if (!rawBundleNames.length) return [];
+  if (!rawBundleNames.length) {
+    return {
+      ok: false,
+      reason: 'missing bundle entries',
+      names: []
+    };
+  }
   const names = [];
   const seen = new Set();
   for (const value of rawBundleNames) {
-    if (typeof value !== 'string') return [];
+    if (typeof value !== 'string') {
+      return {
+        ok: false,
+        reason: 'bundle entry names must be strings',
+        names: []
+      };
+    }
     const name = value.trim();
-    if (!name) return [];
-    if (name.includes('/') || name.includes('\\')) return [];
+    if (!name) {
+      return {
+        ok: false,
+        reason: 'bundle entry names must be non-empty strings',
+        names: []
+      };
+    }
+    if (name.includes('/') || name.includes('\\')) {
+      return {
+        ok: false,
+        reason: 'bundle entry names must not contain path separators',
+        names: []
+      };
+    }
     if (seen.has(name)) continue;
     seen.add(name);
     names.push(name);
   }
-  return names;
+  return {
+    ok: true,
+    reason: null,
+    names
+  };
 }
 
 export function resolveBundleFormatFromName(bundleName, fallback = 'json') {
@@ -429,6 +467,12 @@ export function resolveBundlePatchLockPath(bundlePath) {
 
 export function resolveBundlePatchMetaPath(bundlePath) {
   return `${resolveBundlePatchPath(bundlePath)}${BUNDLE_PATCH_META_SUFFIX}`;
+}
+
+export async function removeBundleWriteArtifacts(bundlePath) {
+  await removeFileOrThrow(bundlePath);
+  await removeFileOrThrow(resolveBundleJsonChecksumPath(bundlePath));
+  await clearBundlePatchFile(bundlePath);
 }
 
 const resolveBundleJsonChecksumPath = (bundlePath) => (
@@ -557,14 +601,21 @@ export async function writeBundlePatch({
         existingEntries = countPatchEntries(existingRaw);
       }
     }
-    if ((existingBytes + bytes) > MAX_BUNDLE_PATCH_BYTES) {
+    const appendBytes = existingBytes > 0 && !existingRaw
+      ? Buffer.byteLength(`\n${serialized}`, 'utf8')
+      : bytes;
+    if ((existingBytes + appendBytes) > MAX_BUNDLE_PATCH_BYTES) {
       workerResult = { applied: false, reason: 'patch-file-too-large' };
     } else if (existingEntries >= MAX_BUNDLE_PATCH_ENTRIES) {
       workerResult = { applied: false, reason: 'patch-entry-limit' };
     } else {
-      const nextRaw = appendSerializedPatchLine(existingRaw, serialized);
-      await atomicWriteText(patchPath, nextRaw, { newline: false });
-      const nextBytes = Buffer.byteLength(nextRaw, 'utf8');
+      if (existingBytes > 0 && !existingRaw) {
+        await fs.appendFile(patchPath, `\n${serialized}`, 'utf8');
+      } else {
+        const nextRaw = appendSerializedPatchLine(existingRaw, serialized);
+        await atomicWriteText(patchPath, nextRaw, { newline: false });
+      }
+      const nextBytes = existingBytes + appendBytes;
       const nextEntries = existingEntries + 1;
       await writeBundlePatchMeta(bundlePath, {
         bytes: nextBytes,

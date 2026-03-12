@@ -99,6 +99,32 @@ try {
   assert.equal(targetChunkId, 'new', 'expected worker loader to apply bundle patch sidecar');
 } finally {
   await loader.close();
+}
+
+const directLoader = createBundleLoader({ bundleThreads: 1, workerPath });
+try {
+  const loaded = await directLoader.loadBundle({
+    bundleDir,
+    file: relFile,
+    entry: { bundles: [bundleName] }
+  });
+  assert.equal(loaded.ok, true, `expected direct bundle loader success, got: ${loaded.reason || 'unknown'}`);
+  assert.equal(Array.isArray(loaded.bundleShards), true, 'expected direct loader to return bundleShards');
+  assert.equal(loaded.bundleShards.length, 1, 'expected direct loader to expose one shard');
+
+  const invalidEntry = await directLoader.loadBundle({
+    bundleDir,
+    file: relFile,
+    entry: { bundles: ['nested/invalid.json'] }
+  });
+  assert.equal(invalidEntry.ok, false, 'expected invalid manifest bundle entry to fail closed');
+  assert.match(
+    invalidEntry.reason || '',
+    /path separators/i,
+    'expected invalid bundle-name reason to be preserved'
+  );
+} finally {
+  await directLoader.close();
   await fsPromises.rm(tempRoot, { recursive: true, force: true });
 }
 

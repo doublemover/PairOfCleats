@@ -1065,6 +1065,7 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
   let eligible = 0;
   let rewritten = 0;
   let covered = 0;
+  let rewriteFailures = 0;
   let skippedNoMapping = 0;
   let skippedNoMappingChunks = 0;
   const mappingFailureReasons = createMappingFailureReasons();
@@ -1164,6 +1165,16 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
         const vectorIndex = mappingResult.vectorIndex;
         const vector = vectorIndex != null ? mergedVectors[vectorIndex] : null;
         const mappedButMissingVector = vectorIndex != null && !hasVectorPayload(vector);
+        if (vectorIndex == null || mappedButMissingVector) {
+          if (chunk.embedding_u8 !== undefined) {
+            delete chunk.embedding_u8;
+            changed = true;
+          }
+          if (chunk.embedding !== undefined) {
+            delete chunk.embedding;
+            changed = true;
+          }
+        }
         if (hasVectorPayload(vector)) {
           const quantized = toUint8Vector(vector);
           if (quantized && !vectorsEqual(chunk.embedding_u8, quantized)) {
@@ -1171,7 +1182,7 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
             changed = true;
           }
         }
-        if (chunk.embedding !== undefined) {
+        if (vectorIndex != null && chunk.embedding !== undefined) {
           delete chunk.embedding;
           changed = true;
         }
@@ -1204,6 +1215,7 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
       rewritten += 1;
       if (fileCovered) covered += 1;
     } catch (err) {
+      rewriteFailures += 1;
       warn(`[embeddings] ${mode}: failed to refresh bundle ${filePath}: ${err?.message || err}`);
     }
   };
@@ -1249,20 +1261,27 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
     ? covered === eligible && missingChunks === 0
     : skippedInvalidBundle === 0;
   let manifestWritten = false;
-  manifest.bundleEmbeddings = completeCoverage;
-  manifest.bundleEmbeddingMode = embeddingMode || null;
-  manifest.bundleEmbeddingIdentityKey = embeddingIdentityKey || null;
-  manifest.bundleEmbeddingStage = 'stage3';
-  manifest.bundleEmbeddingCoverageEligible = eligible;
-  manifest.bundleEmbeddingCoverageCovered = covered;
-  manifest.bundleEmbeddingCoverageMissingFiles = missingFiles;
-  manifest.bundleEmbeddingCoverageMissingChunks = missingChunks;
-  manifest.bundleEmbeddingCoverageComplete = completeCoverage;
-  manifestWritten = await scheduleIo(
-    () => writeIncrementalManifest(incremental.manifestPath, manifest)
-  );
-  if (!manifestWritten) {
-    warn(`[embeddings] ${mode}: failed to persist incremental manifest embedding metadata.`);
+  if (rewriteFailures === 0) {
+    manifest.bundleEmbeddings = completeCoverage;
+    manifest.bundleEmbeddingMode = embeddingMode || null;
+    manifest.bundleEmbeddingIdentityKey = embeddingIdentityKey || null;
+    manifest.bundleEmbeddingStage = 'stage3';
+    manifest.bundleEmbeddingCoverageEligible = eligible;
+    manifest.bundleEmbeddingCoverageCovered = covered;
+    manifest.bundleEmbeddingCoverageMissingFiles = missingFiles;
+    manifest.bundleEmbeddingCoverageMissingChunks = missingChunks;
+    manifest.bundleEmbeddingCoverageComplete = completeCoverage;
+    manifestWritten = await scheduleIo(
+      () => writeIncrementalManifest(incremental.manifestPath, manifest)
+    );
+    if (!manifestWritten) {
+      warn(`[embeddings] ${mode}: failed to persist incremental manifest embedding metadata.`);
+    }
+  } else {
+    warn(
+      `[embeddings] ${mode}: skipped manifest embedding coverage update after `
+      + `${rewriteFailures} bundle refresh failure${rewriteFailures === 1 ? '' : 's'}.`
+    );
   }
 
   if (scanned > 0) {
@@ -1275,6 +1294,7 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
     if (skippedEmptyBundle > 0) skippedNotes.push(`empty=${skippedEmptyBundle}`);
     if (skippedInvalidBundle > 0) skippedNotes.push(`invalid=${skippedInvalidBundle}`);
     if (lowYieldBailoutSkipped > 0) skippedNotes.push(`lowYieldBailout=${lowYieldBailoutSkipped}`);
+    if (rewriteFailures > 0) skippedNotes.push(`rewriteFailures=${rewriteFailures}`);
     const skippedSuffix = skippedNotes.length ? ` (skipped ${skippedNotes.join(', ')})` : '';
     const coverageText = eligible > 0 ? `${covered}/${eligible}` : 'n/a';
     log(
@@ -1306,7 +1326,8 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
     lowYieldBailoutSkipped,
     lowYieldBailout: lowYieldBailoutSummary,
     manifestWritten,
-    completeCoverage
+    completeCoverage,
+    rewriteFailures
   };
 };
 

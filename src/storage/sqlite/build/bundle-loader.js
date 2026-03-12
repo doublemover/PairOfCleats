@@ -2,7 +2,10 @@ import fsSync from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import Piscina from 'piscina';
-import { readBundleFile, resolveManifestBundleNames } from '../../../shared/bundle-io.js';
+import {
+  readBundleFile,
+  resolveManifestBundleNamesResult
+} from '../../../shared/bundle-io.js';
 import { destroyPiscinaPool } from '../../../shared/piscina-cleanup.js';
 import { createTimeoutError, runWithTimeout } from '../../../shared/promise-timeout.js';
 
@@ -76,13 +79,18 @@ export const createBundleLoader = ({ bundleThreads, workerPath }) => {
         reason: `bundle read failed (${bundlePath}): ${result.reason || 'invalid bundle'}`
       };
     }
-    return { file, ok: true, bundle: result.bundle };
+    return { file, ok: true, bundleShards: [result.bundle] };
   };
 
   const loadBundle = async ({ bundleDir, entry, file }) => {
-    const bundleNames = resolveManifestBundleNames(entry);
+    const bundleNameResult = resolveManifestBundleNamesResult(entry);
+    const bundleNames = bundleNameResult.names;
     if (!bundleNames.length) {
-      return { file, ok: false, reason: 'missing bundle entries' };
+      return {
+        file,
+        ok: false,
+        reason: bundleNameResult.reason || 'missing bundle entries'
+      };
     }
     const loadedShards = [];
     for (let shardIndex = 0; shardIndex < bundleNames.length; shardIndex += 1) {
@@ -116,7 +124,7 @@ export const createBundleLoader = ({ bundleThreads, workerPath }) => {
         }
         const loaded = await loadBundleDirect(bundlePath, file);
         if (!loaded.ok) return loaded;
-        loadedShards.push(loaded.bundle);
+        loadedShards.push(...loaded.bundleShards);
       } catch (err) {
         return { file, ok: false, reason: `bundle read failed (${bundlePath}): ${err?.message || err}` };
       }

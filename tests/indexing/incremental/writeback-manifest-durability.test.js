@@ -9,6 +9,7 @@ import {
   updateBundlesWithChunks,
   writeIncrementalBundle
 } from '../../../src/index/build/incremental.js';
+import { resolveBundleShardFilename } from '../../../src/shared/bundle-io.js';
 
 applyTestEnv({
   testing: '1',
@@ -185,6 +186,33 @@ assert.deepEqual(
   currentBundleNames.slice().sort(),
   'expected persisted manifest to reference active shard set after update'
 );
+
+const partialFailureRel = 'src/partial-failure-target.js';
+const partialFailureShardOne = resolveBundleShardFilename(partialFailureRel, 'json', 0);
+const partialFailureShardTwo = resolveBundleShardFilename(partialFailureRel, 'json', 1);
+await fs.mkdir(path.join(bundleDir, partialFailureShardTwo), { recursive: true });
+const partialFailureEntry = await writeIncrementalBundle({
+  enabled: true,
+  bundleDir,
+  relKey: partialFailureRel,
+  fileStat: baseStat,
+  fileHash: 'hash:partial-failure',
+  fileChunks: [
+    { file: partialFailureRel, chunkId: 'pf-a', text: largeText },
+    { file: partialFailureRel, chunkId: 'pf-b', text: largeText },
+    { file: partialFailureRel, chunkId: 'pf-c', text: largeText }
+  ],
+  fileRelations: { imports: [] },
+  vfsManifestRows: null,
+  bundleFormat: 'json'
+});
+assert.equal(partialFailureEntry, null, 'expected partial shard write failure to fail closed');
+assert.equal(
+  await pathExists(path.join(bundleDir, partialFailureShardOne)),
+  false,
+  'expected already-written shard artifacts to be cleaned up after partial write failure'
+);
+await fs.rm(path.join(bundleDir, partialFailureShardTwo), { recursive: true, force: true });
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 
