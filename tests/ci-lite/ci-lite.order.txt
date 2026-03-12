@@ -1056,6 +1056,7 @@ perf/bench/query-runtime
 perf/bench/language-timeout-profile
 perf/bench/language-process-idle-timeout
 perf/bench/language-process-idle-activity-probe
+perf/bench/language-process-idle-activity-probe-async
 shared/lifecycle/registry-unref-promise-drain
 shared/bundle-io-patch-append
 indexing/embeddings/embedding-batcher-unref-timer

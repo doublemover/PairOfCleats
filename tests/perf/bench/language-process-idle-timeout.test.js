@@ -16,7 +16,13 @@ const runner = createProcessRunner({
   logHistory: [],
   logPath: null,
   getLogPaths: () => [],
-  onProgressEvent: () => {}
+  onProgressEvent: () => {},
+  sampleProcessActivity: async (pid) => ({
+    alive: true,
+    pid,
+    cpuMs: 0,
+    rssBytes: 64 * 1024 * 1024
+  })
 });
 
 const activeScript = [

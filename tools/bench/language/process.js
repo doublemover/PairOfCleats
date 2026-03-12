@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { runSyncCommandWithTimeout, spawnSubprocess } from '../../../src/shared/subprocess.js';
+import { spawnSubprocess } from '../../../src/shared/subprocess.js';
 import { composeAbortSignals } from '../../../src/shared/abort.js';
 import { killProcessTree as killPidTree } from '../../../src/shared/kill-tree.js';
 import { createTimeoutError, runWithTimeout } from '../../../src/shared/promise-timeout.js';
@@ -194,7 +194,7 @@ const parsePosixPsActivity = (stdout, pid) => {
   };
 };
 
-const sampleChildProcessActivity = (pid) => {
+const sampleChildProcessActivity = async (pid) => {
   const numericPid = Number(pid);
   if (!Number.isFinite(numericPid) || numericPid <= 0) return null;
   try {
@@ -205,40 +205,46 @@ const sampleChildProcessActivity = (pid) => {
         '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8',
         'Write-Output ("{0},{1},{2}" -f $process.Id, $process.CPU, $process.WorkingSet64)'
       ].join('; ');
-      const processResult = runSyncCommandWithTimeout(
+      const processResult = await spawnSubprocess(
         'powershell.exe',
         ['-NoProfile', '-NonInteractive', '-Command', powerShellScript],
         {
-          encoding: 'utf8',
+          outputEncoding: 'utf8',
           windowsHide: true,
-          timeoutMs: PROCESS_ACTIVITY_PROBE_TIMEOUT_MS
+          timeoutMs: PROCESS_ACTIVITY_PROBE_TIMEOUT_MS,
+          rejectOnNonZeroExit: false,
+          cleanupOnParentExit: false
         }
-      );
-      if (!processResult?.error) {
+      ).catch(() => null);
+      if (!processResult?.error && Number(processResult?.exitCode) === 0) {
         const parsed = parseWindowsProcessProbeActivity(processResult.stdout, numericPid);
         if (parsed?.alive === true) return parsed;
       }
-      const fallback = runSyncCommandWithTimeout(
+      const fallback = await spawnSubprocess(
         'tasklist',
         ['/FI', `PID eq ${numericPid}`, '/FO', 'CSV', '/NH', '/V'],
         {
-          encoding: 'utf8',
+          outputEncoding: 'utf8',
           windowsHide: true,
-          timeoutMs: PROCESS_ACTIVITY_PROBE_TIMEOUT_MS
+          timeoutMs: PROCESS_ACTIVITY_PROBE_TIMEOUT_MS,
+          rejectOnNonZeroExit: false,
+          cleanupOnParentExit: false
         }
-      );
-      if (fallback?.error) return null;
+      ).catch(() => null);
+      if (!fallback || Number(fallback.exitCode) !== 0) return null;
       return parseWindowsTasklistActivity(fallback.stdout, numericPid);
     }
-    const result = runSyncCommandWithTimeout(
+    const result = await spawnSubprocess(
       'ps',
       ['-o', 'time=', '-o', 'rss=', '-p', String(numericPid)],
       {
-        encoding: 'utf8',
-        timeoutMs: PROCESS_ACTIVITY_PROBE_TIMEOUT_MS
+        outputEncoding: 'utf8',
+        timeoutMs: PROCESS_ACTIVITY_PROBE_TIMEOUT_MS,
+        rejectOnNonZeroExit: false,
+        cleanupOnParentExit: false
       }
-    );
-    if (result?.error) return null;
+    ).catch(() => null);
+    if (!result || Number(result.exitCode) !== 0) return null;
     return parsePosixPsActivity(result.stdout, numericPid);
   } catch {
     return null;
@@ -408,9 +414,9 @@ export const createProcessRunner = ({
     const pid = Number(activeChild?.pid ?? processActivityState.childPid);
     if (!Number.isFinite(pid) || pid <= 0) return { kind: 'unavailable', pid: null };
     if (processActivityState.probePromise) return processActivityState.probePromise;
-    const probePromise = Promise.resolve().then(() => {
+    const probePromise = Promise.resolve().then(async () => {
       const sample = typeof sampleProcessActivity === 'function'
-        ? sampleProcessActivity(pid)
+        ? await Promise.resolve(sampleProcessActivity(pid))
         : null;
       if (!sample || sample.alive !== true) return { kind: 'unavailable', pid };
       const prior = processActivityState.baseline;
@@ -1155,7 +1161,11 @@ export const createProcessRunner = ({
       writeLog(`[error] ${label} spawn failed: ${message}`);
       clearActiveChild(err?.result?.pid ?? null);
       appendLog(`[run] failed: ${label}`);
-      if (idleTimeoutTriggered || err?.code === 'ERR_BENCH_IDLE_TIMEOUT') {
+      const idleTimeoutFailure = idleTimeoutTriggered
+        || err?.code === 'ERR_BENCH_IDLE_TIMEOUT'
+        || spawnSignal?.reason?.code === 'ERR_BENCH_IDLE_TIMEOUT'
+        || idleAbortController?.signal?.reason?.code === 'ERR_BENCH_IDLE_TIMEOUT';
+      if (idleTimeoutFailure) {
         appendLog(
           `[run] idle timeout: ${label} (no activity for ${resolvedIdleTimeoutMs}ms; last=${lastActivitySource}${lastActivityText ? `: ${lastActivityText}` : ''})`,
           'warn'
@@ -1188,7 +1198,7 @@ export const createProcessRunner = ({
         schedulerEvents: getSchedulerEvents(),
         diagnostics: buildDiagnosticsSummary(),
         progressConfidence: buildProgressConfidenceSummary(),
-        ...(idleTimeoutTriggered
+        ...(idleTimeoutFailure
           ? {
             timeoutKind: 'idle',
             lastActivity: {
