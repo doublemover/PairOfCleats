@@ -35,7 +35,7 @@ class SearchBehaviorTests(unittest.TestCase):
             lambda _window, return_reason=True, path_hint=None, allow_fallback=True: ('C:/repo', None)
             if return_reason else 'C:/repo'
         )
-        self.search.config.validate_settings = lambda _settings, _repo_root: []
+        self.search.config.validate_settings = lambda _settings, _repo_root, workflow=None: []
         self.search.paths.resolve_cli = lambda _settings, _repo_root: {
             'command': 'pairofcleats',
             'args_prefix': [],

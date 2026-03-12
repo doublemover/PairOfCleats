@@ -97,7 +97,7 @@ def _prompt_value(window, caption, initial, on_done):
     window.show_input_panel(caption, initial or '', lambda value: on_done((value or '').strip()), None, None)
 
 
-def _resolve_cli_context(window, path_hint=None, allow_fallback=True):
+def _resolve_cli_context(window, path_hint=None, allow_fallback=True, workflow=None):
     settings = config.get_settings(window)
     repo_root, reason = _resolve_repo_root(window, path_hint=path_hint, allow_fallback=allow_fallback)
     if not repo_root:
@@ -105,7 +105,7 @@ def _resolve_cli_context(window, path_hint=None, allow_fallback=True):
         return None
     if reason:
         ui.show_status('PairOfCleats: {0}'.format(reason))
-    errors = config.validate_settings(settings, repo_root)
+    errors = config.validate_settings(settings, repo_root, workflow=workflow)
     if errors:
         message = 'PairOfCleats settings need attention:\n- {0}'.format('\n- '.join(errors))
         ui.show_error(message)
@@ -120,7 +120,7 @@ def _resolve_cli_context(window, path_hint=None, allow_fallback=True):
     }
 
 
-def _with_mutating_cli_context(window, action_label, on_resolved, path_hint=None):
+def _with_mutating_cli_context(window, action_label, on_resolved, path_hint=None, workflow=None):
     settings = config.get_settings(window)
 
     def handle_repo_root(repo_root, reason):
@@ -129,7 +129,7 @@ def _with_mutating_cli_context(window, action_label, on_resolved, path_hint=None
             return
         if reason:
             ui.show_status('PairOfCleats: {0}'.format(reason))
-        errors = config.validate_settings(settings, repo_root)
+        errors = config.validate_settings(settings, repo_root, workflow=workflow)
         if errors:
             message = 'PairOfCleats settings need attention:\n- {0}'.format('\n- '.join(errors))
             ui.show_error(message)
@@ -644,8 +644,8 @@ def _show_analysis_action_choices(window, session, hit):
     window.show_quick_panel(items, on_action)
 
 
-def _run_cli_json(window, title, repo_root, args, on_done, context=None):
-    context = context or _resolve_cli_context(window, path_hint=repo_root)
+def _run_cli_json(window, title, repo_root, args, on_done, context=None, workflow=None):
+    context = context or _resolve_cli_context(window, path_hint=repo_root, workflow=workflow)
     if not context:
         return None
     cli = context['cli']
@@ -666,10 +666,10 @@ def _run_cli_json(window, title, repo_root, args, on_done, context=None):
 
 def _execute_analysis_command(window, title, kind, repo_root, args, collect_hits, render_text,
                               export_json=False, out_path=None, export_identity=None, context=None):
-    context = context or _resolve_cli_context(window, path_hint=repo_root)
+    context = context or _resolve_cli_context(window, path_hint=repo_root, workflow=kind)
     if not context:
         return
-    execution = config.resolve_execution_mode(context.get('settings') or {}, kind, supports_api=False)
+    execution = config.resolve_execution_mode(context.get('settings') or {}, kind)
     if execution.get('error'):
         ui.show_error(execution['error'])
         return
@@ -779,10 +779,10 @@ class PairOfCleatsContextPackCommand(sublime_plugin.WindowCommand):
     def _execute(self, seed, hops, include_risk, include_types, include_paths, export_json, out_path):
         if not seed:
             return
-        context = _resolve_cli_context(self.window)
+        context = _resolve_cli_context(self.window, workflow='context-pack')
         if not context:
             return
-        execution = config.resolve_execution_mode(context.get('settings') or {}, 'context-pack', supports_api=False)
+        execution = config.resolve_execution_mode(context.get('settings') or {}, 'context-pack')
         if execution.get('error'):
             ui.show_error(execution['error'])
             return
@@ -825,7 +825,7 @@ class PairOfCleatsContextPackCommand(sublime_plugin.WindowCommand):
                 self.window.open_file(json_path)
                 ui.show_status('PairOfCleats: exported context pack JSON.')
 
-        _run_cli_json(self.window, 'PairOfCleats context pack', repo_root, args, on_done, context=context)
+        _run_cli_json(self.window, 'PairOfCleats context pack', repo_root, args, on_done, context=context, workflow='context-pack')
 
 
 class PairOfCleatsRiskExplainCommand(sublime_plugin.WindowCommand):
@@ -853,10 +853,10 @@ class PairOfCleatsRiskExplainCommand(sublime_plugin.WindowCommand):
     def _execute(self, chunk_uid, max_flows, source_rule, sink_rule, export_json, out_path):
         if not chunk_uid:
             return
-        context = _resolve_cli_context(self.window)
+        context = _resolve_cli_context(self.window, workflow='risk-explain')
         if not context:
             return
-        execution = config.resolve_execution_mode(context.get('settings') or {}, 'risk-explain', supports_api=False)
+        execution = config.resolve_execution_mode(context.get('settings') or {}, 'risk-explain')
         if execution.get('error'):
             ui.show_error(execution['error'])
             return
@@ -898,7 +898,7 @@ class PairOfCleatsRiskExplainCommand(sublime_plugin.WindowCommand):
                 self.window.open_file(json_path)
                 ui.show_status('PairOfCleats: exported risk explain JSON.')
 
-        _run_cli_json(self.window, 'PairOfCleats risk explain', repo_root, args, on_done, context=context)
+        _run_cli_json(self.window, 'PairOfCleats risk explain', repo_root, args, on_done, context=context, workflow='risk-explain')
 
 
 class PairOfCleatsArchitectureCheckCommand(sublime_plugin.WindowCommand):
@@ -920,7 +920,7 @@ class PairOfCleatsArchitectureCheckCommand(sublime_plugin.WindowCommand):
         )
 
     def _execute(self, rules_path, export_json, out_path):
-        context = _resolve_cli_context(self.window)
+        context = _resolve_cli_context(self.window, workflow='architecture-check')
         if not context:
             return
         repo_root = context['repo_root']
@@ -985,7 +985,7 @@ class PairOfCleatsImpactCommand(sublime_plugin.WindowCommand):
         )
 
     def _execute(self, seed, changed, direction, depth, export_json, out_path):
-        context = _resolve_cli_context(self.window)
+        context = _resolve_cli_context(self.window, workflow='suggest-tests')
         if not context:
             return
         repo_root = context['repo_root']
@@ -1041,7 +1041,7 @@ class PairOfCleatsSuggestTestsCommand(sublime_plugin.WindowCommand):
         )
 
     def _execute(self, changed, max_suggestions, export_json, out_path):
-        context = _resolve_cli_context(self.window)
+        context = _resolve_cli_context(self.window, workflow='suggest-tests')
         if not context:
             return
         repo_root = context['repo_root']
@@ -1090,7 +1090,7 @@ class PairOfCleatsWorkspaceManifestCommand(sublime_plugin.WindowCommand):
         )
 
     def _execute(self, kind, command_tokens, workspace_path, export_json, out_path):
-        context = _resolve_cli_context(self.window, path_hint=workspace_path)
+        context = _resolve_cli_context(self.window, path_hint=workspace_path, workflow=kind)
         if not context:
             return
         repo_root = context['repo_root']
@@ -1158,6 +1158,7 @@ class PairOfCleatsWorkspaceBuildCommand(PairOfCleatsWorkspaceManifestCommand):
             'workspace build',
             on_context,
             path_hint=workspace_path,
+            workflow='workspace-build',
         )
 
 

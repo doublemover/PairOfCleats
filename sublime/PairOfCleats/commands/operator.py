@@ -35,7 +35,7 @@ def _validate_repo_settings(window, settings, repo_root):
     return True
 
 
-def _with_repo_context(window, action_label, on_done, path_hint=None, allow_fallback=True):
+def _with_repo_context(window, action_label, on_done, path_hint=None, allow_fallback=True, validate_repo_settings=True):
     settings = config.get_settings(window)
 
     def handle_repo_root(repo_root, reason):
@@ -44,7 +44,7 @@ def _with_repo_context(window, action_label, on_done, path_hint=None, allow_fall
             return
         if reason:
             ui.show_status('PairOfCleats: {0}'.format(reason))
-        if not _validate_repo_settings(window, settings, repo_root):
+        if validate_repo_settings and not _validate_repo_settings(window, settings, repo_root):
             return
         on_done({
             'settings': settings,
@@ -283,6 +283,10 @@ class _RepoApiCommand(_ApiCommand):
 class PairOfCleatsShowConfigDumpCommand(_RepoContextCommand):
     def run(self):
         def on_context(context):
+            execution = config.resolve_execution_mode(context['settings'], 'config-dump', requested_mode='cli')
+            if execution.get('error'):
+                ui.show_error(execution['error'])
+                return
             args = indexing.build_config_dump_args(repo_root=context['repo_root'], json_output=True)
             _run_cli_json(
                 self.window,
@@ -298,12 +302,16 @@ class PairOfCleatsShowConfigDumpCommand(_RepoContextCommand):
                 'showing config dump.',
             )
 
-        _with_repo_context(self.window, 'config dump', on_context)
+        _with_repo_context(self.window, 'config dump', on_context, validate_repo_settings=False)
 
 
 class PairOfCleatsToolingDoctorCommand(_RepoContextCommand):
     def run(self):
         def on_context(context):
+            execution = config.resolve_execution_mode(context['settings'], 'tooling-doctor', requested_mode='cli')
+            if execution.get('error'):
+                ui.show_error(execution['error'])
+                return
             args = ['tooling', 'doctor', '--json', '--repo', context['repo_root']]
             _run_cli_json(
                 self.window,
@@ -315,21 +323,21 @@ class PairOfCleatsToolingDoctorCommand(_RepoContextCommand):
                 'showing tooling doctor.',
             )
 
-        _with_repo_context(self.window, 'tooling doctor', on_context)
+        _with_repo_context(self.window, 'tooling doctor', on_context, validate_repo_settings=False)
 
 
 class PairOfCleatsServerHealthCommand(_ApiCommand):
     def run(self):
         settings = config.get_settings(self.window)
-        base_url = api_client.normalize_base_url(settings.get('api_server_url'))
-        if not base_url:
-            ui.show_error('PairOfCleats: api_server_url must be set for server health.')
+        execution = config.resolve_execution_mode(settings, 'server-health', requested_mode='api')
+        if execution.get('error'):
+            ui.show_error(execution['error'])
             return
         _run_api(
             self.window,
             'PairOfCleats server health',
             HEALTH_PANEL,
-            lambda: api_client.health_json(base_url, settings),
+            lambda: api_client.health_json(execution.get('base_url'), settings),
             _render_server_health,
             'showing server health.',
         )
@@ -338,9 +346,9 @@ class PairOfCleatsServerHealthCommand(_ApiCommand):
 class PairOfCleatsServerStatusCommand(_RepoApiCommand):
     def run(self):
         settings = config.get_settings(self.window)
-        base_url = api_client.normalize_base_url(settings.get('api_server_url'))
-        if not base_url:
-            ui.show_error('PairOfCleats: api_server_url must be set for server status.')
+        execution = config.resolve_execution_mode(settings, 'server-status', requested_mode='api')
+        if execution.get('error'):
+            ui.show_error(execution['error'])
             return
 
         def on_context(context):
@@ -348,21 +356,21 @@ class PairOfCleatsServerStatusCommand(_RepoApiCommand):
                 self.window,
                 'PairOfCleats server status',
                 STATUS_PANEL,
-                lambda: api_client.status_json(base_url, context['repo_root'], settings),
+                lambda: api_client.status_json(execution.get('base_url'), context['repo_root'], settings),
                 _render_server_status,
                 'showing server status.',
                 repo_root=context['repo_root'],
             )
 
-        _with_repo_context(self.window, 'server status', on_context)
+        _with_repo_context(self.window, 'server status', on_context, validate_repo_settings=False)
 
 
 class PairOfCleatsIndexHealthCommand(_RepoApiCommand):
     def run(self):
         settings = config.get_settings(self.window)
-        base_url = api_client.normalize_base_url(settings.get('api_server_url'))
-        if not base_url:
-            ui.show_error('PairOfCleats: api_server_url must be set for index health.')
+        execution = config.resolve_execution_mode(settings, 'index-health', requested_mode='api')
+        if execution.get('error'):
+            ui.show_error(execution['error'])
             return
 
         def on_context(context):
@@ -370,10 +378,10 @@ class PairOfCleatsIndexHealthCommand(_RepoApiCommand):
                 self.window,
                 'PairOfCleats index health',
                 INDEX_HEALTH_PANEL,
-                lambda: api_client.status_json(base_url, context['repo_root'], settings),
+                lambda: api_client.status_json(execution.get('base_url'), context['repo_root'], settings),
                 _render_index_health,
                 'showing index health.',
                 repo_root=context['repo_root'],
             )
 
-        _with_repo_context(self.window, 'index health', on_context)
+        _with_repo_context(self.window, 'index health', on_context, validate_repo_settings=False)

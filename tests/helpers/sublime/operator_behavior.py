@@ -112,6 +112,18 @@ class OperatorBehaviorTests(unittest.TestCase):
         self.assertIn('PairOfCleats tooling doctor', panel.appended)
         self.assertIn('clangd', panel.appended)
 
+    def test_cli_operator_commands_ignore_global_api_require(self):
+        self.operator.config.get_settings = lambda _window: {
+            'api_server_url': '',
+            'api_timeout_ms': 5000,
+            'api_execution_mode': 'require',
+        }
+
+        self.operator.PairOfCleatsToolingDoctorCommand(self.window).run()
+
+        self.assertEqual(self.runner_calls[0]['args'], ['tooling', 'doctor', '--json', '--repo', self.fixture_repo])
+        self.assertEqual(self.sublime.last_error, '')
+
     def test_server_health_and_status_render_panels(self):
         self.operator.PairOfCleatsServerHealthCommand(self.window).run()
         self.operator.PairOfCleatsServerStatusCommand(self.window).run()
@@ -124,6 +136,18 @@ class OperatorBehaviorTests(unittest.TestCase):
         self.assertIn('Uptime:', health_panel.appended)
         self.assertIn('PairOfCleats server status', status_panel.appended)
         self.assertIn(self.fixture_repo, status_panel.appended)
+
+    def test_api_operator_commands_ignore_cli_global_mode(self):
+        self.operator.config.get_settings = lambda _window: {
+            'api_server_url': 'http://127.0.0.1:7464',
+            'api_timeout_ms': 5000,
+            'api_execution_mode': 'cli',
+        }
+
+        self.operator.PairOfCleatsServerHealthCommand(self.window).run()
+
+        self.assertEqual(self.api_calls[0]['kind'], 'health')
+        self.assertEqual(self.sublime.last_error, '')
 
     def test_index_health_renders_health_focus(self):
         self.operator.PairOfCleatsIndexHealthCommand(self.window).run()

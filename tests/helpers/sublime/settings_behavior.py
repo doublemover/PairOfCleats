@@ -87,6 +87,44 @@ class SettingsBehaviorTests(unittest.TestCase):
         errors = self.config.validate_settings(settings, repo_root='C:/repo')
         self.assertIn('api_server_url must be set when api_execution_mode is prefer or require.', errors)
 
+    def test_resolve_execution_mode_uses_workflow_transport_matrix(self):
+        settings = {
+            'api_server_url': 'http://127.0.0.1:7464',
+            'api_execution_mode': 'prefer',
+        }
+
+        search_mode = self.config.resolve_execution_mode(settings, 'search')
+        self.assertEqual(search_mode['mode'], 'api')
+        self.assertTrue(search_mode['allow_fallback'])
+
+        map_mode = self.config.resolve_execution_mode(settings, 'map')
+        self.assertEqual(map_mode['mode'], 'cli')
+        self.assertFalse(map_mode['allow_fallback'])
+        self.assertIsNone(map_mode['error'])
+
+        explain_mode = self.config.resolve_execution_mode({
+            'api_server_url': 'http://127.0.0.1:7464',
+            'api_execution_mode': 'require',
+        }, 'search-explain')
+        self.assertIsNone(explain_mode['mode'])
+        self.assertIn('API mode is not supported for search explain.', explain_mode['error'])
+
+    def test_resolve_execution_mode_supports_explicit_transports(self):
+        explicit_cli = self.config.resolve_execution_mode({
+            'api_server_url': '',
+            'api_execution_mode': 'require',
+        }, 'tooling-doctor', requested_mode='cli')
+        self.assertEqual(explicit_cli['mode'], 'cli')
+        self.assertIsNone(explicit_cli['error'])
+
+        explicit_api = self.config.resolve_execution_mode({
+            'api_server_url': 'http://127.0.0.1:7464',
+            'api_execution_mode': 'cli',
+        }, 'server-health', requested_mode='api')
+        self.assertEqual(explicit_api['mode'], 'api')
+        self.assertFalse(explicit_api['allow_fallback'])
+        self.assertIsNone(explicit_api['error'])
+
     def test_project_overrides_merge_env_and_override_scalars(self):
         self.window.set_project_data({
             'settings': {

@@ -283,7 +283,7 @@ def _execute_search(window, query, overrides=None, explain=False):
     if reason:
         ui.show_status('PairOfCleats: {0}'.format(reason))
 
-    errors = config.validate_settings(settings, repo_root)
+    errors = config.validate_settings(settings, repo_root, workflow='search-explain' if explain else 'search')
     if errors:
         message = 'PairOfCleats settings need attention:\n- {0}'.format(
             '\n- '.join(errors)
@@ -292,7 +292,7 @@ def _execute_search(window, query, overrides=None, explain=False):
         return
 
     resolved = _resolve_defaults(settings, overrides)
-    execution = config.resolve_execution_mode(settings, 'search explain' if explain else 'search', supports_api=not explain)
+    execution = config.resolve_execution_mode(settings, 'search-explain' if explain else 'search')
     if execution.get('error'):
         ui.show_error(execution['error'])
         return
@@ -466,7 +466,7 @@ def _execute_symbol_lookup(window, query, on_hits, limit=25, title='PairOfCleats
     if reason:
         ui.show_status('PairOfCleats: {0}'.format(reason))
 
-    errors = config.validate_settings(settings, repo_root)
+    errors = config.validate_settings(settings, repo_root, workflow='search-symbol')
     if errors:
         message = 'PairOfCleats settings need attention:\n- {0}'.format(
             '\n- '.join(errors)
@@ -475,7 +475,7 @@ def _execute_symbol_lookup(window, query, on_hits, limit=25, title='PairOfCleats
         return
 
     resolved = _resolve_defaults(settings, {'mode': 'code', 'limit': limit})
-    execution = config.resolve_execution_mode(settings, 'search', supports_api=True)
+    execution = config.resolve_execution_mode(settings, 'search-symbol')
     if execution.get('error'):
         ui.show_error(execution['error'])
         return

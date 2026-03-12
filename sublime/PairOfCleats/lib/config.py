@@ -250,6 +250,26 @@ VALID_SEARCH_ADVANCED_KEYS = {
 VALID_SEARCH_ADVANCED_LIST_KEYS = {'path', 'file', 'ext'}
 VALID_SEARCH_ADVANCED_BOOL_KEYS = {'case', 'case_file', 'case_tokens', 'lint', 'async', 'generator', 'returns'}
 VALID_SEARCH_ADVANCED_INT_KEYS = {'modified_since'}
+WORKFLOW_TRANSPORTS = {
+    'search': {'label': 'search', 'supports_cli': True, 'supports_api': True},
+    'search-explain': {'label': 'search explain', 'supports_cli': True, 'supports_api': False},
+    'search-symbol': {'label': 'search symbol lookup', 'supports_cli': True, 'supports_api': True},
+    'map': {'label': 'map', 'supports_cli': True, 'supports_api': False},
+    'context-pack': {'label': 'context pack', 'supports_cli': True, 'supports_api': False},
+    'risk-explain': {'label': 'risk explain', 'supports_cli': True, 'supports_api': False},
+    'architecture-check': {'label': 'architecture check', 'supports_cli': True, 'supports_api': False},
+    'impact': {'label': 'impact', 'supports_cli': True, 'supports_api': False},
+    'suggest-tests': {'label': 'suggest tests', 'supports_cli': True, 'supports_api': False},
+    'workspace-manifest': {'label': 'workspace manifest', 'supports_cli': True, 'supports_api': False},
+    'workspace-status': {'label': 'workspace status', 'supports_cli': True, 'supports_api': False},
+    'workspace-build': {'label': 'workspace build', 'supports_cli': True, 'supports_api': False},
+    'workspace-catalog': {'label': 'workspace catalog', 'supports_cli': True, 'supports_api': False},
+    'config-dump': {'label': 'config dump', 'supports_cli': True, 'supports_api': False},
+    'tooling-doctor': {'label': 'tooling doctor', 'supports_cli': True, 'supports_api': False},
+    'server-health': {'label': 'server health', 'supports_cli': False, 'supports_api': True},
+    'server-status': {'label': 'server status', 'supports_cli': False, 'supports_api': True},
+    'index-health': {'label': 'index health', 'supports_cli': False, 'supports_api': True},
+}
 
 
 def prime_settings():
@@ -330,7 +350,7 @@ def build_env(settings):
     return env
 
 
-def validate_settings(settings, repo_root=None):
+def validate_settings(settings, repo_root=None, workflow=None):
     errors = []
 
     mode = settings.get('index_mode_default')
@@ -408,8 +428,15 @@ def validate_settings(settings, repo_root=None):
     if api_server_url and not _is_valid_base_url(api_server_url):
         errors.append('api_server_url must be an http:// or https:// URL.')
     api_execution_mode = str(settings.get('api_execution_mode') or 'cli').strip().lower()
+    workflow_transport = get_workflow_transport(workflow) if workflow else None
     if api_execution_mode not in VALID_API_EXECUTION_MODES:
         errors.append('api_execution_mode must be one of: cli, prefer, require.')
+    elif workflow_transport and api_execution_mode in {'prefer', 'require'}:
+        if workflow_transport['supports_api']:
+            if not api_server_url:
+                errors.append('api_server_url must be set when api_execution_mode is prefer or require.')
+        elif api_execution_mode == 'require':
+            errors.append('API mode is not supported for {0}.'.format(workflow_transport['label']))
     elif api_execution_mode in {'prefer', 'require'} and not api_server_url:
         errors.append('api_server_url must be set when api_execution_mode is prefer or require.')
 
@@ -501,13 +528,77 @@ def _load_base_settings():
     return values
 
 
-def resolve_execution_mode(settings, workflow, supports_api=False):
+def get_workflow_transport(workflow):
+    key = str(workflow or '').strip().lower()
+    entry = WORKFLOW_TRANSPORTS.get(key)
+    if not isinstance(entry, dict):
+        label = key.replace('-', ' ') if key else 'this workflow'
+        return {
+            'workflow': key,
+            'label': label,
+            'supports_cli': True,
+            'supports_api': False,
+        }
+    resolved = dict(entry)
+    resolved['workflow'] = key
+    resolved['label'] = str(resolved.get('label') or key.replace('-', ' ') or 'this workflow')
+    resolved['supports_cli'] = bool(resolved.get('supports_cli'))
+    resolved['supports_api'] = bool(resolved.get('supports_api'))
+    return resolved
+
+
+def resolve_execution_mode(settings, workflow, requested_mode=None):
     mode = str((settings or {}).get('api_execution_mode') or 'cli').strip().lower()
     if mode not in VALID_API_EXECUTION_MODES:
         mode = 'cli'
     base_url = str((settings or {}).get('api_server_url') or '').strip()
-    workflow_label = str(workflow or 'this workflow').replace('-', ' ')
+    transport = get_workflow_transport(workflow)
+    workflow_label = transport['label']
+
+    if requested_mode in {'cli', 'api'}:
+        if requested_mode == 'cli':
+            if not transport['supports_cli']:
+                return {
+                    'mode': None,
+                    'allow_fallback': False,
+                    'base_url': base_url,
+                    'error': 'PairOfCleats: CLI mode is not supported for {0}.'.format(workflow_label),
+                }
+            return {
+                'mode': 'cli',
+                'allow_fallback': False,
+                'base_url': base_url,
+                'error': None,
+            }
+        if not transport['supports_api']:
+            return {
+                'mode': None,
+                'allow_fallback': False,
+                'base_url': base_url,
+                'error': 'PairOfCleats: API mode is not supported for {0}.'.format(workflow_label),
+            }
+        if not base_url:
+            return {
+                'mode': None,
+                'allow_fallback': False,
+                'base_url': '',
+                'error': 'PairOfCleats: api_server_url must be set for {0}.'.format(workflow_label),
+            }
+        return {
+            'mode': 'api',
+            'allow_fallback': False,
+            'base_url': base_url,
+            'error': None,
+        }
+
     if mode == 'cli':
+        if not transport['supports_cli']:
+            return {
+                'mode': None,
+                'allow_fallback': False,
+                'base_url': base_url,
+                'error': 'PairOfCleats: CLI mode is not supported for {0}.'.format(workflow_label),
+            }
         return {
             'mode': 'cli',
             'allow_fallback': False,
@@ -522,9 +613,9 @@ def resolve_execution_mode(settings, workflow, supports_api=False):
             'error': 'PairOfCleats: api_server_url must be set when api_execution_mode is {0}.'.format(mode)
             if mode == 'require' else None,
         }
-    if not supports_api:
+    if not transport['supports_api']:
         return {
-            'mode': None if mode == 'require' else 'cli',
+            'mode': None if mode == 'require' else ('cli' if transport['supports_cli'] else None),
             'allow_fallback': False,
             'base_url': base_url,
             'error': 'PairOfCleats: API mode is not supported for {0}.'.format(workflow_label)

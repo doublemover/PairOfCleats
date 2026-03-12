@@ -6,14 +6,12 @@ from urllib.parse import quote, urlparse
 import sublime
 import sublime_plugin
 
-from ..lib import api_client
 from ..lib import config
 from ..lib import map as map_lib
 from ..lib import map_state
 from ..lib import paths
 from ..lib import results
 from ..lib import runner
-from ..lib import tasks
 from ..lib import ui
 
 MAP_TYPE_CHOICES = [
@@ -246,7 +244,7 @@ def _prompt_map_format(window, settings, on_done):
 def _dispatch_map(window, scope, focus, repo_root, map_type=None, map_format=None):
     settings = config.get_settings(window)
 
-    errors = config.validate_settings(settings, repo_root)
+    errors = config.validate_settings(settings, repo_root, workflow='map')
     if errors:
         message = 'PairOfCleats settings need attention:\n- {0}'.format(
             '\n- '.join(errors)
@@ -259,7 +257,7 @@ def _dispatch_map(window, scope, focus, repo_root, map_type=None, map_format=Non
     output_path, model_path, node_list_path = map_lib.build_output_paths(
         repo_root, settings, scope, map_type, map_format
     )
-    execution = config.resolve_execution_mode(settings, 'map', supports_api=True)
+    execution = config.resolve_execution_mode(settings, 'map')
     if execution.get('error'):
         ui.show_error(execution['error'])
         return
@@ -290,58 +288,8 @@ def _dispatch_map(window, scope, focus, repo_root, map_type=None, map_format=Non
         _offer_rebuild(window, resolved_payload.get('warnings') or [])
         _open_map_output(window, resolved_payload)
 
-    if execution.get('mode') == 'api':
-        ui.show_status('PairOfCleats: generating map via API...')
-        task = tasks.start_task(
-            window,
-            'PairOfCleats map',
-            kind='map',
-            repo_root=repo_root,
-            cancellable=False,
-            details='Generating map via API...',
-            show_panel=bool(settings.get('progress_panel_on_start', True)),
-        )
-
-        def on_api_done(result):
-            if result.error:
-                tasks.complete_task(window, task, status='failed', details=result.error)
-                if execution.get('allow_fallback'):
-                    ui.show_status('PairOfCleats: API map failed; falling back to CLI.')
-                    _dispatch_map_cli(window, repo_root, settings, scope, focus, map_type, map_format, output_path, model_path, node_list_path, handle_payload)
-                    return
-                ui.show_error(result.error)
-                return
-            tasks.complete_task(window, task, status='done', details='Map completed via API.')
-            handle_payload(_ApiProcessResult(result.payload))
-
-        api_client.run_async(
-            lambda: api_client.generate_map_report(
-                execution.get('base_url'),
-                repo_root,
-                settings,
-                scope,
-                focus,
-                map_type,
-                map_format,
-                output_path,
-                model_path,
-                node_list_path,
-            ),
-            on_api_done,
-            on_progress=lambda message: tasks.note_progress(window, task, details=message),
-        )
-        return
-
     ui.show_status('PairOfCleats: generating map...')
     _dispatch_map_cli(window, repo_root, settings, scope, focus, map_type, map_format, output_path, model_path, node_list_path, handle_payload)
-
-
-class _ApiProcessResult(object):
-    def __init__(self, payload):
-        self.returncode = 0
-        self.output = ''
-        self.error = None
-        self.payload = payload
 
 
 def _dispatch_map_cli(window, repo_root, settings, scope, focus, map_type, map_format, output_path, model_path, node_list_path, on_done):

@@ -2,10 +2,11 @@
 
 ## CLI contract for editor tooling
 
-Editor integrations shell out to the CLI and expect JSON output.
+Editor integrations use structured JSON contracts for editor-facing workflows.
 
-- VS Code uses `--json`.
-- Sublime Text uses `--json` for structured result metadata.
+- VS Code shells out to the CLI with `--json`.
+- Sublime Text shells out to the CLI for index, map, analysis, workspace, and operator workflows.
+- Sublime Text can use the service API for search/symbol lookup when `api_execution_mode` allows it, and uses explicit API-only commands for server health/status surfaces.
 
 The JSON payload includes top-level search buckets (`code`, `prose`, `extractedProse`, `records`) plus backend and optional stats/explain fields.
 

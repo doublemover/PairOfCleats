@@ -37,8 +37,6 @@ class MapBehaviorTests(unittest.TestCase):
             'resolve_cli': self.map_commands.paths.resolve_cli,
             'build_env': self.map_commands.config.build_env,
             'run_process': self.map_commands.runner.run_process,
-            'api_generate_map_report': self.map_commands.api_client.generate_map_report,
-            'api_run_async': self.map_commands.api_client.run_async,
         }
         self.opened_urls = []
         self.map_commands.webbrowser.open_new_tab = lambda url: self.opened_urls.append(url) or True
@@ -59,7 +57,7 @@ class MapBehaviorTests(unittest.TestCase):
             'map_index_mode': 'code',
             'map_collapse_default': 'none',
         }
-        self.map_commands.config.validate_settings = lambda _settings, _repo_root: []
+        self.map_commands.config.validate_settings = lambda _settings, _repo_root, workflow=None: []
         self.map_commands.paths.resolve_cli = lambda _settings, _repo_root: {
             'command': 'pairofcleats',
             'args_prefix': [],
@@ -83,10 +81,6 @@ class MapBehaviorTests(unittest.TestCase):
                 self.map_commands.config.build_env = value
             elif key == 'run_process':
                 self.map_commands.runner.run_process = value
-            elif key == 'api_generate_map_report':
-                self.map_commands.api_client.generate_map_report = value
-            elif key == 'api_run_async':
-                self.map_commands.api_client.run_async = value
 
     def test_map_dispatch_records_report_and_reopens_url_output(self):
         payload = {
@@ -153,7 +147,7 @@ class MapBehaviorTests(unittest.TestCase):
         self.assertEqual(panel.appended, 'stored report\n')
         self.assertEqual(self.sublime.last_status, 'PairOfCleats: showing last map report.')
 
-    def test_map_prefers_api_when_configured(self):
+    def test_map_stays_cli_only_when_api_is_preferred(self):
         self.map_commands.config.get_settings = lambda _window: {
             'map_show_report_panel': None,
             'map_stream_output': False,
@@ -167,26 +161,46 @@ class MapBehaviorTests(unittest.TestCase):
             'map_index_mode': 'code',
             'map_collapse_default': 'none',
         }
-        self.map_commands.runner.run_process = lambda *_args, **_kwargs: self.fail('CLI fallback should not run')
-        self.map_commands.api_client.generate_map_report = lambda *args, **kwargs: ({
-            'ok': True,
-            'source': 'api',
-            'format': 'html-iso',
-            'outPath': 'https://example.test/map',
-            'summary': {'counts': {'files': 1, 'members': 1, 'edges': 0}},
-            'warnings': [],
-        })
-        self.map_commands.api_client.run_async = lambda request_fn, on_done, on_progress=None: (
-            on_progress('Request started.') if callable(on_progress) else None,
-            on_done(self.map_commands.api_client.ApiResult(payload=request_fn()))
-        )
+        runner_calls = []
+
+        def _run_process(command, args, cwd=None, env=None, window=None, title=None, capture_json=None, on_done=None, stream_output=None, panel_name=None):
+            runner_calls.append({'cwd': cwd, 'title': title})
+            on_done(_FakeResult({
+                'ok': True,
+                'source': 'cli',
+                'format': 'html-iso',
+                'outPath': 'https://example.test/map',
+                'summary': {'counts': {'files': 1, 'members': 1, 'edges': 0}},
+                'warnings': [],
+            }))
+
+        self.map_commands.runner.run_process = _run_process
 
         self.map_commands._dispatch_map(self.window, 'repo', '', 'C:/repo')
 
         state = self.map_state.get_last_map(self.window)
-        self.assertEqual(state['source'], 'api')
+        self.assertEqual(state['source'], 'cli')
         self.assertEqual(self.opened_urls, ['https://example.test/map'])
-        self.assertIn('PairOfCleats map', self.window.panels['pairofcleats-progress'].appended)
+        self.assertEqual(len(runner_calls), 1)
+
+    def test_map_require_api_fails_closed(self):
+        self.map_commands.config.get_settings = lambda _window: {
+            'map_show_report_panel': None,
+            'map_stream_output': False,
+            'map_prompt_options': False,
+            'api_execution_mode': 'require',
+            'api_server_url': 'http://127.0.0.1:7464',
+            'api_timeout_ms': 5000,
+            'map_type_default': 'combined',
+            'map_format_default': 'html-iso',
+            'map_output_dir': '.pairofcleats/maps',
+            'map_index_mode': 'code',
+            'map_collapse_default': 'none',
+        }
+
+        self.map_commands._dispatch_map(self.window, 'repo', '', 'C:/repo')
+
+        self.assertIn('API mode is not supported for map.', self.sublime.last_error)
 
     def test_repo_map_prompts_for_repo_when_multiple_roots_exist(self):
         with tempfile.TemporaryDirectory() as tmp:
