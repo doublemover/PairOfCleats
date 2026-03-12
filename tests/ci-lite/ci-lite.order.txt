@@ -1074,6 +1074,10 @@ indexing/stage1/barrier-keepalive
 indexing/runtime/runtime-teardown-order
 indexing/ordering/ordered-appender-retry-reset
 tooling/install/tooling-signal-exit
+tooling/install/tooling-resolve-preferred-enabled-fallback
+ci/tooling-lsp-slo-gate-attempt-ratios
+ci/tooling-lsp-slo-gate-sampling
+ci/tooling-lsp-slo-gate-unavailable-skip
 indexing/extracted-prose/low-yield-history-doclike-reinforcement
 indexing/extracted-prose/low-yield-history-unsampled-doclike-family
 indexing/extracted-prose/low-yield-unsampled-doclike-family-expansion

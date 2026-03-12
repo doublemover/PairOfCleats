@@ -651,7 +651,10 @@ export function resolveToolsForLanguages(languages, toolingRoot, repoRoot, tooli
     ? languages.map((entry) => String(entry || '').trim().toLowerCase()).filter(Boolean)
     : [];
   for (const language of normalizedLanguages) {
-    const candidates = registry.filter((tool) => tool.languages.some((lang) => String(lang || '').toLowerCase() === language));
+    const candidates = filterToolsByConfig(
+      registry.filter((tool) => tool.languages.some((lang) => String(lang || '').toLowerCase() === language)),
+      toolingConfig
+    );
     if (!candidates.length) continue;
     const preferredToolId = PREFERRED_TOOL_BY_LANGUAGE[language] || '';
     const preferred = preferredToolId
@@ -660,7 +663,7 @@ export function resolveToolsForLanguages(languages, toolingRoot, repoRoot, tooli
     selected.add((preferred || candidates[0]).id);
   }
   const matched = registry.filter((tool) => selected.has(tool.id));
-  return filterToolsByConfig(matched, toolingConfig);
+  return matched;
 }
 
 export function resolveToolsById(ids, toolingRoot, repoRoot, toolingConfig = null) {

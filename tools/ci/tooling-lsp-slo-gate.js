@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
 import {
   coerceClampedFraction,
@@ -94,13 +95,14 @@ const resolveProbeWorkspace = async (providerId, repoRoot) => {
 
 const createSampleFromHandshake = (provider, handshake) => {
   const latencyMs = coerceNumberAtLeast(handshake.latencyMs, 0);
+  const timedOut = isTimeoutLikeError(handshake);
   return {
     providerId: normalizeProviderId(provider.id),
     languages: Array.isArray(provider.languages) ? provider.languages.slice() : [],
     status: handshake.ok === true ? 'ok' : 'error',
     available: provider.available !== false,
     latencyMs: latencyMs ?? 0,
-    timedOut: isTimeoutLikeError(handshake),
+    timedOut,
     errorCode: handshake.ok === true ? null : (handshake.errorCode || null),
     errorMessage: handshake.ok === true ? null : (handshake.errorMessage || null),
     sampled: {
@@ -109,6 +111,8 @@ const createSampleFromHandshake = (provider, handshake) => {
       warmupCount: 0,
       successCount: handshake.ok === true ? 1 : 0,
       failureCount: handshake.ok === true ? 0 : 1,
+      timeoutCount: timedOut ? 1 : 0,
+      fatalFailureCount: handshake.ok === true ? 0 : 1,
       probeWorkspace: null
     }
   };
@@ -170,6 +174,8 @@ const probeProviderSamples = async ({
       warmupCount: warmupSamples,
       successCount: successfulAttempts.length,
       failureCount: Math.max(0, attempts.length - successfulAttempts.length),
+      timeoutCount: attempts.filter((attempt) => isTimeoutLikeError(attempt)).length,
+      fatalFailureCount: attempts.filter((attempt) => attempt?.ok !== true).length,
       probeWorkspace
     }
   };
@@ -186,6 +192,7 @@ const buildProviderSamples = async ({
   const rows = [];
   for (const provider of providers) {
     if (provider?.enabled !== true) continue;
+    if (provider?.available === false) continue;
     const providerId = normalizeProviderId(provider.id);
     if (!providerId) continue;
     const handshake = provider?.handshake && typeof provider.handshake === 'object'
@@ -214,6 +221,42 @@ const buildProviderSamples = async ({
     }
   }
   return rows;
+};
+
+export const summarizeSampleMetrics = (samples) => {
+  const requests = samples.length;
+  const measuredAttempts = samples.reduce(
+    (total, sample) => total + (coerceNumberAtLeast(sample?.sampled?.attemptCount, 0) ?? 0),
+    0
+  );
+  const measuredWarmups = samples.reduce(
+    (total, sample) => total + (coerceNumberAtLeast(sample?.sampled?.warmupCount, 0) ?? 0),
+    0
+  );
+  const timedOut = samples.reduce(
+    (total, sample) => total + (coerceNumberAtLeast(sample?.sampled?.timeoutCount, 0) ?? (sample?.timedOut ? 1 : 0)),
+    0
+  );
+  const fatalFailures = samples.reduce(
+    (total, sample) => total + (coerceNumberAtLeast(sample?.sampled?.fatalFailureCount, 0) ?? (sample?.status !== 'ok' ? 1 : 0)),
+    0
+  );
+  const enrichedSamples = samples.filter((sample) => sample.status === 'ok' && sample.available).length;
+  const successfulLatencyMs = samples
+    .filter((sample) => sample.status === 'ok')
+    .map((sample) => sample.latencyMs);
+  return {
+    requests,
+    measuredAttempts,
+    measuredWarmups,
+    timedOut,
+    fatalFailures,
+    enrichedSamples,
+    timeoutRatio: measuredAttempts > 0 ? (timedOut / measuredAttempts) : 0,
+    fatalFailureRate: measuredAttempts > 0 ? (fatalFailures / measuredAttempts) : 0,
+    enrichmentCoverage: requests > 0 ? (enrichedSamples / requests) : 0,
+    maxP95MsObserved: percentile(successfulLatencyMs, 0.95)
+  };
 };
 
 const main = async () => {
@@ -249,25 +292,18 @@ const main = async () => {
     minProviderSamples: coercePositiveInt(argv['min-provider-samples']) ?? 3
   };
 
-  const requests = samples.length;
-  const measuredAttempts = samples.reduce(
-    (total, sample) => total + (coerceNumberAtLeast(sample?.sampled?.attemptCount, 0) ?? 0),
-    0
-  );
-  const measuredWarmups = samples.reduce(
-    (total, sample) => total + (coerceNumberAtLeast(sample?.sampled?.warmupCount, 0) ?? 0),
-    0
-  );
-  const timedOut = samples.filter((sample) => sample.timedOut).length;
-  const fatalFailures = samples.filter((sample) => sample.status !== 'ok').length;
-  const enrichedSamples = samples.filter((sample) => sample.status === 'ok' && sample.available).length;
-  const successfulLatencyMs = samples
-    .filter((sample) => sample.status === 'ok')
-    .map((sample) => sample.latencyMs);
-  const timeoutRatio = requests > 0 ? (timedOut / requests) : 0;
-  const fatalFailureRate = requests > 0 ? (fatalFailures / requests) : 0;
-  const enrichmentCoverage = requests > 0 ? (enrichedSamples / requests) : 0;
-  const maxP95MsObserved = percentile(successfulLatencyMs, 0.95);
+  const {
+    requests,
+    measuredAttempts,
+    measuredWarmups,
+    timedOut,
+    fatalFailures,
+    enrichedSamples,
+    timeoutRatio,
+    fatalFailureRate,
+    enrichmentCoverage,
+    maxP95MsObserved
+  } = summarizeSampleMetrics(samples);
 
   const violations = [];
   if (requests < thresholds.minProviderSamples) {
@@ -340,7 +376,9 @@ const main = async () => {
   });
 };
 
-main().catch((error) => {
-  console.error(`tooling lsp slo gate failed: ${error?.message || String(error)}`);
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => {
+    console.error(`tooling lsp slo gate failed: ${error?.message || String(error)}`);
+    process.exit(1);
+  });
+}
