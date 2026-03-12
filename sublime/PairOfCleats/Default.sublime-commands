@@ -60,6 +60,24 @@
     "command": "pair_of_cleats_explain_search"
   },
   {
+    "caption": "PairOfCleats: Context Pack",
+    "command": "pair_of_cleats_context_pack"
+  },
+  {
+    "caption": "PairOfCleats: Context Pack (Export JSON)",
+    "command": "pair_of_cleats_context_pack",
+    "args": { "export_json": true }
+  },
+  {
+    "caption": "PairOfCleats: Risk Explain",
+    "command": "pair_of_cleats_risk_explain"
+  },
+  {
+    "caption": "PairOfCleats: Risk Explain (Export JSON)",
+    "command": "pair_of_cleats_risk_explain",
+    "args": { "export_json": true }
+  },
+  {
     "caption": "PairOfCleats: Reopen Last Results",
     "command": "pair_of_cleats_reopen_last_results"
   },
@@ -68,8 +86,26 @@
     "command": "pair_of_cleats_reopen_last_explain"
   },
   {
+    "caption": "PairOfCleats: Reopen Last Context Pack",
+    "command": "pair_of_cleats_reopen_last_context_pack"
+  },
+  {
+    "caption": "PairOfCleats: Reopen Last Risk Explain",
+    "command": "pair_of_cleats_reopen_last_risk_explain"
+  },
+  {
     "caption": "PairOfCleats: Result Actions",
     "command": "pair_of_cleats_result_actions"
+  },
+  {
+    "caption": "PairOfCleats: Context Pack Actions",
+    "command": "pair_of_cleats_analysis_actions",
+    "args": { "source": "context_pack" }
+  },
+  {
+    "caption": "PairOfCleats: Risk Explain Actions",
+    "command": "pair_of_cleats_analysis_actions",
+    "args": { "source": "risk_explain" }
   },
   {
     "caption": "PairOfCleats: Index Build (Code)",

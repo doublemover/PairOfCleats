@@ -6,12 +6,28 @@ def get_last_explain(window):
     return _get_last_session(window, 'last_explain')
 
 
+def get_last_context_pack(window):
+    return _get_last_session(window, 'last_context_pack')
+
+
+def get_last_risk_explain(window):
+    return _get_last_session(window, 'last_risk_explain')
+
+
 def record_last_results(window, payload):
     _record_last_session(window, 'last_results', payload)
 
 
 def record_last_explain(window, payload):
     _record_last_session(window, 'last_explain', payload)
+
+
+def record_last_context_pack(window, payload):
+    _record_last_session(window, 'last_context_pack', payload)
+
+
+def record_last_risk_explain(window, payload):
+    _record_last_session(window, 'last_risk_explain', payload)
 
 
 def _record_last_session(window, key, payload):

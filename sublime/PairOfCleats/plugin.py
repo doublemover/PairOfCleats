@@ -3,6 +3,7 @@ import sublime_plugin
 
 from .lib import config
 from .lib import watch
+from .commands import analysis as _analysis_commands
 from .commands import index as _index_commands
 from .commands import map as _map_commands
 from .commands import search as _search_commands
