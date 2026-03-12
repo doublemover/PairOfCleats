@@ -90,7 +90,39 @@ function createFakeSpawn(spawnCalls, queuedResults, killCalls) {
 }
 
 function normalizeFileUri(filePath) {
-  return { scheme: 'file', fsPath: filePath, path: filePath.replace(/\\/g, '/') };
+  return {
+    scheme: 'file',
+    fsPath: filePath,
+    path: filePath.replace(/\\/g, '/'),
+    toString() {
+      return `file:${this.path}`;
+    }
+  };
+}
+
+function normalizeWorkspaceUriLike(folder, fallbackPath = null) {
+  if (folder?.uri && typeof folder.uri === 'object') {
+    const scheme = String(folder.uri.scheme || 'file');
+    const fsPath = folder.uri.fsPath != null
+      ? String(folder.uri.fsPath)
+      : (scheme === 'file' && folder.uri.path ? String(folder.uri.path).replace(/\//g, path.sep) : '');
+    const uriPath = folder.uri.path != null
+      ? String(folder.uri.path)
+      : (fsPath ? fsPath.replace(/\\/g, '/') : '');
+    return {
+      ...folder.uri,
+      scheme,
+      fsPath,
+      path: uriPath,
+      toString() {
+        return `${this.scheme}:${this.path || this.fsPath || ''}`;
+      }
+    };
+  }
+  if (fallbackPath) {
+    return normalizeFileUri(fallbackPath);
+  }
+  return { scheme: 'untitled', fsPath: '', path: '' };
 }
 
 function createTrackedStatusBarItem(statusBarItems) {
@@ -180,9 +212,10 @@ export function createVsCodeRuntimeHarness({
   const buildWorkspaceFolders = (folders) => (
     folders.map((folder, index) => {
       const folderPath = resolveWorkspaceFolderPath(folder);
+      const folderUri = normalizeWorkspaceUriLike(folder, folderPath);
       return {
         name: folder.name || path.basename(folderPath || `workspace-${index + 1}`),
-        uri: normalizeFileUri(folderPath)
+        uri: folderUri
       };
     })
   );
@@ -195,7 +228,16 @@ export function createVsCodeRuntimeHarness({
     workspace: {
       workspaceFolders: buildWorkspaceFolders(workspaceFolders),
       getWorkspaceFolder(uri) {
-        return this.workspaceFolders.find((folder) => uri?.fsPath?.startsWith(folder.uri.fsPath)) || null;
+        return this.workspaceFolders.find((folder) => {
+          if (folder.uri.scheme !== uri?.scheme) return false;
+          if (uri?.fsPath && folder.uri.fsPath) {
+            return uri.fsPath === folder.uri.fsPath || uri.fsPath.startsWith(`${folder.uri.fsPath}${path.sep}`);
+          }
+          if (uri?.path && folder.uri.path) {
+            return uri.path === folder.uri.path || uri.path.startsWith(`${folder.uri.path}/`);
+          }
+          return false;
+        }) || null;
       },
       getConfiguration() {
         return createFakeConfiguration(normalizedConfig);
@@ -313,7 +355,34 @@ export function createVsCodeRuntimeHarness({
       }
     },
     Uri: {
-      file: normalizeFileUri
+      file: normalizeFileUri,
+      parse(value) {
+        const text = String(value || '');
+        const match = text.match(/^([a-z0-9+.-]+):(.*)$/i);
+        const scheme = match ? match[1] : 'file';
+        const uriPath = match ? match[2] : text;
+        return {
+          scheme,
+          path: uriPath,
+          fsPath: scheme === 'file' ? uriPath.replace(/\//g, path.sep) : uriPath,
+          toString() {
+            return `${this.scheme}:${this.path || this.fsPath || ''}`;
+          }
+        };
+      },
+      joinPath(base, ...segments) {
+        const joinedPath = [base?.path || base?.fsPath || '', ...segments]
+          .join('/')
+          .replace(/\/+/g, '/');
+        return {
+          ...base,
+          path: joinedPath,
+          fsPath: base?.scheme === 'file' ? joinedPath.replace(/\//g, path.sep) : joinedPath,
+          toString() {
+            return `${this.scheme}:${this.path || this.fsPath || ''}`;
+          }
+        };
+      }
     },
     Position: class Position {
       constructor(line, character) {

@@ -186,6 +186,39 @@ function spawnBufferedProcess(childProcessModule, command, args, options) {
 }
 
 async function openSearchHit(vscodeApi, repoRoot, hit) {
+  const target = resolveValidatedHitTarget(vscodeApi, repoRoot, hit);
+  if (!target.ok) {
+    return target;
+  }
+  try {
+    const document = await vscodeApi.workspace.openTextDocument(target.targetUri);
+    try {
+      const editor = await vscodeApi.window.showTextDocument(document, { preview: true });
+      const range = buildHitRange(vscodeApi, hit);
+      if (range) {
+        editor.selection = new vscodeApi.Selection(range.start, range.end);
+        editor.revealRange(range, vscodeApi.TextEditorRevealType.InCenter);
+      }
+      return { ok: true, filePath: target.filePath };
+    } catch (error) {
+      return {
+        ok: false,
+        filePath: target.filePath,
+        message: `PairOfCleats could not navigate to ${target.filePath}: ${error?.message || error}`,
+        detail: String(error?.stack || error?.message || error)
+      };
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      filePath: target.filePath,
+      message: `PairOfCleats could not open ${target.filePath}: ${error?.message || error}`,
+      detail: String(error?.stack || error?.message || error)
+    };
+  }
+}
+
+function resolveValidatedHitTarget(vscodeApi, repoRoot, hit) {
   const repoContext = normalizeRepoContext(repoRoot);
   const pathError = validateHitPath(repoContext, hit?.file);
   if (pathError) {
@@ -197,33 +230,11 @@ async function openSearchHit(vscodeApi, repoRoot, hit) {
     };
   }
   const targetUri = resolveHitUri(vscodeApi, repoContext, hit?.file);
-  const filePath = targetUri?.fsPath || String(hit?.file || '');
-  try {
-    const document = await vscodeApi.workspace.openTextDocument(targetUri);
-    try {
-      const editor = await vscodeApi.window.showTextDocument(document, { preview: true });
-      const range = buildHitRange(vscodeApi, hit);
-      if (range) {
-        editor.selection = new vscodeApi.Selection(range.start, range.end);
-        editor.revealRange(range, vscodeApi.TextEditorRevealType.InCenter);
-      }
-      return { ok: true, filePath };
-    } catch (error) {
-      return {
-        ok: false,
-        filePath,
-        message: `PairOfCleats could not navigate to ${filePath}: ${error?.message || error}`,
-        detail: String(error?.stack || error?.message || error)
-      };
-    }
-  } catch (error) {
-    return {
-      ok: false,
-      filePath,
-      message: `PairOfCleats could not open ${filePath}: ${error?.message || error}`,
-      detail: String(error?.stack || error?.message || error)
-    };
-  }
+  return {
+    ok: true,
+    targetUri,
+    filePath: targetUri?.fsPath || targetUri?.path || String(hit?.file || '')
+  };
 }
 
 function normalizeRepoContext(value) {
@@ -235,6 +246,14 @@ function normalizeRepoContext(value) {
 
 function resolveHitUri(vscodeApi, repoContext, hitFile) {
   if (path.isAbsolute(hitFile)) {
+    if (repoContext.repoUri && repoContext.repoUri.scheme && repoContext.repoUri.scheme !== 'file') {
+      const remotePath = String(hitFile || '').replace(/\\/g, '/');
+      return {
+        ...repoContext.repoUri,
+        path: remotePath,
+        fsPath: remotePath
+      };
+    }
     return vscodeApi.Uri.file(hitFile);
   }
   if (repoContext.repoUri && typeof vscodeApi.Uri?.joinPath === 'function') {
@@ -272,6 +291,18 @@ function validateHitPath(repoContext, hitFile) {
       return {
         message: `PairOfCleats refused to open a path outside the repo: ${rawPath}`,
         detail: 'The selected search hit escaped the repo root via relative traversal.'
+      };
+    }
+    return null;
+  }
+  if (repoContext.repoUri?.scheme && repoContext.repoUri.scheme !== 'file' && repoContext.repoUri.path) {
+    const normalizedRepoPath = path.posix.normalize(String(repoContext.repoUri.path || ''));
+    const normalizedTargetPath = path.posix.normalize(rawPath.replace(/\\/g, '/'));
+    const relative = path.posix.relative(normalizedRepoPath, normalizedTargetPath);
+    if (relative !== '' && (relative.startsWith('..') || path.posix.isAbsolute(relative))) {
+      return {
+        message: `PairOfCleats refused to open a path outside the repo: ${rawPath}`,
+        detail: `Resolved remote path is outside repo root ${normalizedRepoPath}.`
       };
     }
     return null;
@@ -316,5 +347,6 @@ module.exports = {
   summarizeProcessFailure,
   summarizeSpawnFailure,
   spawnBufferedProcess,
+  resolveValidatedHitTarget,
   openSearchHit
 };

@@ -14,6 +14,7 @@ const {
   summarizeProcessFailure,
   summarizeSpawnFailure,
   spawnBufferedProcess,
+  resolveValidatedHitTarget,
   openSearchHit
 } = require('./runtime.js');
 
@@ -265,6 +266,48 @@ function getWorkspaceFolderPath(folder) {
     : null;
 }
 
+function getWorkspaceFolderUri(folder) {
+  return folder?.uri && typeof folder.uri === 'object' ? folder.uri : null;
+}
+
+function getWorkspaceFolderDescriptor(folder) {
+  const workspaceUri = getWorkspaceFolderUri(folder);
+  const workspacePath = getWorkspaceFolderPath(folder);
+  const workspaceUriString = workspaceUri
+    ? (typeof workspaceUri.toString === 'function'
+      ? workspaceUri.toString()
+      : `${workspaceUri.scheme || 'file'}:${workspaceUri.path || workspaceUri.fsPath || ''}`)
+    : '';
+  return {
+    workspaceFolder: folder,
+    workspaceUri,
+    workspacePath,
+    workspaceUriString,
+    isLocalFile: workspaceUri?.scheme === 'file' && !!workspacePath
+  };
+}
+
+function createUnsupportedWorkspaceResult(folders, activeUri = null, { repoLabel = 'no repo' } = {}) {
+  const schemes = new Set();
+  if (activeUri?.scheme) schemes.add(String(activeUri.scheme));
+  for (const folder of folders || []) {
+    const scheme = folder?.uri?.scheme;
+    if (scheme) schemes.add(String(scheme));
+  }
+  const schemeList = Array.from(schemes).sort();
+  const schemeSummary = schemeList.length ? schemeList.join(', ') : 'unknown';
+  const scope = activeUri?.scheme && activeUri.scheme !== 'file'
+    ? `The active editor is using the ${activeUri.scheme} scheme.`
+    : `Workspace folders use these schemes: ${schemeSummary}.`;
+  return {
+    ok: false,
+    kind: 'unsupported-workspace',
+    repoLabel,
+    message: 'PairOfCleats local CLI workflows only support local file workspaces right now.',
+    detail: `${scope} Open a local checkout or use the PairOfCleats CLI directly for remote workspaces.`
+  };
+}
+
 function isContainedPath(candidatePath, containerPath) {
   if (!candidatePath || !containerPath) return false;
   const relative = path.relative(containerPath, candidatePath);
@@ -286,13 +329,15 @@ function resolveFolderRepoRoot(folder, preferredPath = null) {
 }
 
 function createRepoCandidate(folder, repoRoot, source = 'workspace-folder') {
-  const workspacePath = getWorkspaceFolderPath(folder);
-  if (!workspacePath || !repoRoot) return null;
+  const descriptor = getWorkspaceFolderDescriptor(folder);
+  if (!descriptor.workspacePath || !repoRoot) return null;
   return {
     repoRoot,
     repoUri: vscode.Uri.file(repoRoot),
-    workspaceFolder: folder,
-    workspacePath,
+    workspaceFolder: descriptor.workspaceFolder,
+    workspaceUri: descriptor.workspaceUri,
+    workspacePath: descriptor.workspacePath,
+    workspaceUriString: descriptor.workspaceUriString,
     repoLabel: formatRepoLabel(repoRoot),
     source
   };
@@ -343,10 +388,12 @@ function normalizeSelectedRepoSnapshot(rawSnapshot) {
   const repoRoot = String(rawSnapshot.repoRoot || '').trim();
   if (!repoRoot) return null;
   const workspacePath = String(rawSnapshot.workspacePath || '').trim();
+  const workspaceUriString = String(rawSnapshot.workspaceUri || '').trim();
   return {
     repoRoot: path.resolve(repoRoot),
     repoLabel: formatRepoLabel(repoRoot),
-    workspacePath: workspacePath ? path.resolve(workspacePath) : path.resolve(repoRoot)
+    workspacePath: workspacePath ? path.resolve(workspacePath) : path.resolve(repoRoot),
+    workspaceUriString
   };
 }
 
@@ -364,7 +411,8 @@ async function persistSelectedRepoCandidate(candidate) {
   }
   await writeWorkspaceState(SELECTED_REPO_STORAGE_KEY, {
     repoRoot: candidate.repoRoot,
-    workspacePath: candidate.workspacePath || candidate.repoRoot
+    workspacePath: candidate.workspacePath || candidate.repoRoot,
+    workspaceUri: candidate.workspaceUriString || ''
   });
   updateWorkflowStatusBar();
 }
@@ -377,7 +425,7 @@ async function promptForRepoCandidate(candidates, { title = 'PairOfCleats reposi
   const picked = await vscode.window.showQuickPick(
     candidates.map((candidate) => ({
       label: candidate.repoLabel,
-      description: `${candidate.workspaceFolder?.name || candidate.workspacePath}${candidate.source === 'workspace-folder' ? '' : ` • ${candidate.source}`}${selectedCandidate?.repoRoot === candidate.repoRoot ? ' • selected' : ''}`,
+      description: `${candidate.workspaceFolder?.name || candidate.workspacePath || candidate.workspaceUriString}${candidate.source === 'workspace-folder' ? '' : ` • ${candidate.source}`}${selectedCandidate?.repoRoot === candidate.repoRoot ? ' • selected' : ''}`,
       detail: candidate.repoRoot,
       candidate
     })),
@@ -404,14 +452,9 @@ async function resolveRepoContext({ pathHint = null, preferSelectedRepo = true, 
     };
   }
   const activeUri = pathHint || vscode.window.activeTextEditor?.document?.uri || null;
-  const fileFolders = folders.filter((folder) => folder?.uri?.scheme === 'file' && folder?.uri?.fsPath);
+  const fileFolders = folders.filter((folder) => getWorkspaceFolderDescriptor(folder).isLocalFile);
   if (!fileFolders.length) {
-    return {
-      ok: false,
-      kind: 'unsupported-workspace',
-      message: 'PairOfCleats search only supports local file workspaces right now.',
-      detail: 'Open a local checkout or run the CLI directly for remote workspaces.'
-    };
+    return createUnsupportedWorkspaceResult(folders, activeUri);
   }
   const candidates = collectRepoCandidates(fileFolders, {
     hintUri: activeUri,
@@ -527,7 +570,11 @@ function buildRepoSnapshot(repoContext) {
   return {
     repoRoot: repoContext.repoRoot,
     repoLabel: formatRepoLabel(repoContext.repoRoot),
-    workspacePath: repoContext?.workspaceFolder?.uri?.fsPath || repoContext.repoRoot
+    workspacePath: repoContext?.workspacePath || repoContext.repoRoot,
+    workspaceUri: repoContext?.workspaceUriString || '',
+    repoUri: repoContext?.repoUri && typeof repoContext.repoUri.toString === 'function'
+      ? repoContext.repoUri.toString()
+      : ''
   };
 }
 
@@ -556,6 +603,8 @@ function normalizeWorkflowSession(rawSession) {
     title,
     repoRoot,
     repoLabel: formatRepoLabel(repoRoot),
+    workspacePath: rawSession.workspacePath ? String(rawSession.workspacePath) : repoRoot,
+    workspaceUri: rawSession.workspaceUri ? String(rawSession.workspaceUri) : '',
     status,
     startedAt: String(rawSession.startedAt || ''),
     finishedAt: rawSession.finishedAt ? String(rawSession.finishedAt) : null,
@@ -599,9 +648,9 @@ function resolvePassiveRepoContext() {
     return { ok: false, kind: 'no-workspace', repoLabel: 'no repo' };
   }
   const activeUri = vscode.window.activeTextEditor?.document?.uri || null;
-  const fileFolders = folders.filter((folder) => folder?.uri?.scheme === 'file' && folder?.uri?.fsPath);
+  const fileFolders = folders.filter((folder) => getWorkspaceFolderDescriptor(folder).isLocalFile);
   if (!fileFolders.length) {
-    return { ok: false, kind: 'unsupported-workspace', repoLabel: 'no repo' };
+    return createUnsupportedWorkspaceResult(folders, activeUri);
   }
   const candidates = collectRepoCandidates(fileFolders, {
     hintUri: activeUri,
@@ -689,6 +738,8 @@ async function beginWorkflowSession(spec, repoContext, invocation) {
     title: spec.title,
     repoRoot: repoContext.repoRoot,
     repoLabel: formatRepoLabel(repoContext.repoRoot),
+    workspacePath: repoContext.workspacePath || repoContext.repoRoot,
+    workspaceUri: repoContext.workspaceUriString || '',
     status: 'running',
     startedAt: new Date().toISOString(),
     finishedAt: null,
@@ -716,9 +767,9 @@ async function selectRepo() {
     vscode.window.showErrorMessage('PairOfCleats: open a workspace to select a repository.');
     return;
   }
-  const fileFolders = folders.filter((folder) => folder?.uri?.scheme === 'file' && folder?.uri?.fsPath);
+  const fileFolders = folders.filter((folder) => getWorkspaceFolderDescriptor(folder).isLocalFile);
   if (!fileFolders.length) {
-    vscode.window.showErrorMessage('PairOfCleats only supports local file workspaces right now.');
+    vscode.window.showErrorMessage(createUnsupportedWorkspaceResult(folders, vscode.window.activeTextEditor?.document?.uri || null).message);
     return;
   }
   const activeUri = vscode.window.activeTextEditor?.document?.uri || null;
@@ -771,7 +822,9 @@ async function rerunWorkflowSession(session) {
   const repoContext = {
     ok: true,
     repoRoot: session.repoRoot,
-    workspaceFolder: { uri: vscode.Uri.file(session.repoRoot) }
+    workspacePath: session.workspacePath || session.repoRoot,
+    workspaceUriString: session.workspaceUri || '',
+    workspaceFolder: { uri: parsePersistedUri(session.workspaceUri, vscode.Uri.file(session.repoRoot)) }
   };
   if (session.invocation.kind === 'managed-process') {
     const managedSpec = MANAGED_COMMANDS_BY_ID.get(session.commandId);
@@ -954,6 +1007,7 @@ function normalizeSearchResultSet(rawResultSet) {
     query,
     repoRoot,
     repoLabel: formatRepoLabel(repoRoot),
+    repoUri: rawResultSet.repoUri ? String(rawResultSet.repoUri) : '',
     createdAt: String(rawResultSet.createdAt || ''),
     mode: rawResultSet.mode ? String(rawResultSet.mode) : '',
     backend: rawResultSet.backend ? String(rawResultSet.backend) : '',
@@ -967,6 +1021,37 @@ function normalizeSearchResultSet(rawResultSet) {
       }
       : null,
     hits
+  };
+}
+
+function parsePersistedUri(value, fallbackUri) {
+  const text = String(value || '').trim();
+  if (!text) return fallbackUri;
+  if (typeof vscode.Uri.parse === 'function') {
+    return vscode.Uri.parse(text);
+  }
+  const match = text.match(/^([a-z0-9+.-]+):(.*)$/i);
+  const scheme = match ? match[1] : (fallbackUri?.scheme || 'file');
+  const uriPath = match ? match[2] : text;
+  return {
+    ...(fallbackUri || {}),
+    scheme,
+    path: uriPath,
+    fsPath: scheme === 'file' ? uriPath.replace(/\//g, path.sep) : uriPath,
+    toString() {
+      return `${this.scheme}:${this.path || this.fsPath || ''}`;
+    }
+  };
+}
+
+function createStoredRepoContext(resultSet) {
+  if (!resultSet?.repoRoot) return null;
+  const repoUri = resultSet.repoUri
+    ? parsePersistedUri(resultSet.repoUri, vscode.Uri.file(resultSet.repoRoot))
+    : vscode.Uri.file(resultSet.repoRoot);
+  return {
+    repoRoot: resultSet.repoRoot,
+    repoUri
   };
 }
 
@@ -1112,6 +1197,7 @@ async function recordSearchResultSet({
     resultSetId: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     query,
     repoRoot: repoContext.repoRoot,
+    repoUri: repoContext.repoUri && typeof repoContext.repoUri.toString === 'function' ? repoContext.repoUri.toString() : '',
     createdAt: new Date().toISOString(),
     mode: searchOptions.mode,
     backend: searchOptions.backend,
@@ -1129,10 +1215,7 @@ async function recordSearchResultSet({
 
 async function openResultHitNode(node) {
   if (!node?.hit || !node?.resultSet) return;
-  const repoContext = {
-    repoRoot: node.resultSet.repoRoot,
-    repoUri: vscode.Uri.file(node.resultSet.repoRoot)
-  };
+  const repoContext = createStoredRepoContext(node.resultSet);
   const result = await openSearchHit(vscode, repoContext, node.hit);
   if (!result.ok) {
     getOutputChannel().appendLine(result.detail || result.message);
@@ -1143,23 +1226,34 @@ async function openResultHitNode(node) {
 
 async function revealResultHitNode(node) {
   if (!node?.hit?.file) return;
-  const repoContext = {
-    repoRoot: node.resultSet.repoRoot,
-    repoUri: vscode.Uri.file(node.resultSet.repoRoot)
-  };
-  const target = path.isAbsolute(node.hit.file)
-    ? vscode.Uri.file(node.hit.file)
-    : vscode.Uri.file(path.join(repoContext.repoRoot, node.hit.file));
-  await vscode.commands.executeCommand?.('revealInExplorer', target);
+  const repoContext = createStoredRepoContext(node.resultSet);
+  const target = resolveValidatedHitTarget(vscode, repoContext, node.hit);
+  if (!target.ok) {
+    getOutputChannel().appendLine(target.detail || target.message);
+    getOutputChannel().show?.(true);
+    vscode.window.showErrorMessage(target.message);
+    return;
+  }
+  await vscode.commands.executeCommand?.('revealInExplorer', target.targetUri);
 }
 
 async function copyResultHitPath(node) {
   if (!node?.hit?.file || typeof vscode.env?.clipboard?.writeText !== 'function') return;
-  const absolutePath = path.isAbsolute(node.hit.file)
-    ? node.hit.file
-    : path.join(node.resultSet.repoRoot, node.hit.file);
-  await vscode.env.clipboard.writeText(absolutePath);
-  vscode.window.showInformationMessage(`PairOfCleats copied ${absolutePath}`);
+  const repoContext = createStoredRepoContext(node.resultSet);
+  const target = resolveValidatedHitTarget(vscode, repoContext, node.hit);
+  if (!target.ok) {
+    getOutputChannel().appendLine(target.detail || target.message);
+    getOutputChannel().show?.(true);
+    vscode.window.showErrorMessage(target.message);
+    return;
+  }
+  const printablePath = target.targetUri?.scheme && target.targetUri.scheme !== 'file'
+    ? (typeof target.targetUri.toString === 'function'
+      ? target.targetUri.toString()
+      : `${target.targetUri.scheme}:${target.targetUri.path || target.targetUri.fsPath || ''}`)
+    : target.filePath;
+  await vscode.env.clipboard.writeText(printablePath);
+  vscode.window.showInformationMessage(`PairOfCleats copied ${printablePath}`);
 }
 
 async function reopenLastResults() {

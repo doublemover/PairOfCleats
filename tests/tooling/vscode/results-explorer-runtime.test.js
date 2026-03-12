@@ -100,6 +100,7 @@ const infoMessages = [];
 const errorMessages = [];
 const treeViews = [];
 const treeProviders = [];
+const shownEditors = [];
 
 const fakeVscode = {
   workspace: {
@@ -141,11 +142,15 @@ const fakeVscode = {
       errorMessages.push(message);
     },
     async showTextDocument(document) {
-      return {
+      const editor = {
         document,
         selection: null,
-        revealRange() {}
+        revealRange(range) {
+          shownEditors.push({ document, range });
+        }
       };
+      shownEditors.push(editor);
+      return editor;
     },
     createOutputChannel(name) {
       return {
@@ -185,7 +190,39 @@ const fakeVscode = {
   },
   Uri: {
     file(fsPath) {
-      return { scheme: 'file', fsPath, path: fsPath.replace(/\\/g, '/') };
+      return {
+        scheme: 'file',
+        fsPath,
+        path: fsPath.replace(/\\/g, '/'),
+        toString() {
+          return `file:${this.path}`;
+        }
+      };
+    },
+    parse(value) {
+      const text = String(value || '');
+      const match = text.match(/^([a-z0-9+.-]+):(.*)$/i);
+      const scheme = match ? match[1] : 'file';
+      const uriPath = match ? match[2] : text;
+      return {
+        scheme,
+        path: uriPath,
+        fsPath: scheme === 'file' ? uriPath.replace(/\//g, path.sep) : uriPath,
+        toString() {
+          return `${this.scheme}:${this.path || this.fsPath || ''}`;
+        }
+      };
+    },
+    joinPath(base, ...segments) {
+      const joined = path.posix.join(base.path || '', ...segments);
+      return {
+        ...base,
+        path: joined,
+        fsPath: base.scheme === 'file' ? joined.replace(/\//g, path.sep) : joined,
+        toString() {
+          return `${this.scheme}:${this.path || this.fsPath || ''}`;
+        }
+      };
     }
   },
   Position: class Position {
@@ -292,6 +329,17 @@ await registeredCommands.get('pairofcleats.revealResultHit')(resultNode);
 assert.equal(revealCalls[0].id, 'revealInExplorer');
 await registeredCommands.get('pairofcleats.openResultHit')(resultNode);
 assert.ok(openedPaths[0].endsWith(path.join('src', 'app.ts')));
+const openedEditor = shownEditors.find((entry) => entry?.selection);
+assert.equal(openedEditor.selection.start.line, 0);
+
+const traversalNode = {
+  ...resultNode,
+  hit: { ...resultNode.hit, file: '../outside.ts' }
+};
+const errorCountBeforeTraversal = errorMessages.length;
+await registeredCommands.get('pairofcleats.copyResultPath')(traversalNode);
+await registeredCommands.get('pairofcleats.revealResultHit')(traversalNode);
+assert.ok(errorMessages.slice(errorCountBeforeTraversal).some((message) => /outside the repo/i.test(message)));
 
 queuedResults.push({
   code: 0,
@@ -314,6 +362,6 @@ queuedResults.push({
 });
 await registeredCommands.get('pairofcleats.rerunResultSet')(history[0]);
 assert.deepEqual(spawnCalls[2].args, spawnCalls[0].args);
-assert.equal(errorMessages.length, 0, `unexpected errors: ${errorMessages.join('; ')}`);
+assert.equal(errorMessages.length, errorCountBeforeTraversal + 2, `unexpected errors: ${errorMessages.join('; ')}`);
 
 console.log('vscode results explorer runtime test passed');

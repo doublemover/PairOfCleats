@@ -79,6 +79,7 @@ const selectedRepoContext = await extension._test.resolveRepoContext();
 assert.equal(selectedRepoContext.ok, true);
 assert.equal(selectedRepoContext.repoRoot, otherWorkspace.root);
 assert.equal(selectedRepoContext.source, 'selected-repo');
+assert.ok(String(selectedRepoContext.workspaceUriString || '').includes(otherWorkspace.root.replace(/\\/g, '/')));
 assert.ok(harness.statusBarItems[0].text.includes('secondary-repo'));
 assert.ok(harness.statusBarItems[0].text.includes('selected'));
 
@@ -109,13 +110,39 @@ assert.equal(persistedSelectedContext.ok, true);
 assert.equal(persistedSelectedContext.repoRoot, otherWorkspace.root);
 assert.equal(persistedSelectedContext.source, 'selected-repo');
 
-harness.fakeVscode.workspace.workspaceFolders = [
-  { name: 'remote', uri: { scheme: 'vscode-remote', fsPath: '/workspace/repo', path: '/workspace/repo' } }
-];
+const remoteFolder = {
+  name: 'remote',
+  uri: { scheme: 'vscode-remote', fsPath: '/workspace/repo', path: '/workspace/repo' }
+};
+harness.setWorkspaceFolders([remoteFolder]);
 const remoteContext = await extension._test.resolveRepoContext();
 assert.equal(remoteContext.ok, false);
 assert.equal(remoteContext.kind, 'unsupported-workspace');
 assert.match(remoteContext.message, /local file workspaces/i);
+assert.match(remoteContext.detail, /vscode-remote/i);
+
+harness.setWorkspaceFolders([
+  { name: 'remote', uri: { scheme: 'vscode-remote', fsPath: '/workspace/remote', path: '/workspace/remote' } },
+  { name: 'local', path: workspace.root }
+]);
+harness.setActiveEditor({ document: { uri: { scheme: 'vscode-remote', fsPath: '/workspace/remote/src/app.ts', path: '/workspace/remote/src/app.ts' } } });
+const mixedPassive = extension._test.resolvePassiveRepoContext();
+assert.equal(mixedPassive.ok, true);
+assert.equal(mixedPassive.repoRoot, workspace.root);
+assert.equal(mixedPassive.source, 'single-workspace');
+
+harness.setActiveFile(workspace.resolvePath('src', 'app.ts'));
+const mixedActive = await extension._test.resolveRepoContext();
+assert.equal(mixedActive.ok, true);
+assert.equal(mixedActive.repoRoot, workspace.root);
+assert.equal(mixedActive.source, 'active-editor');
+
+const mixedPathHint = await extension._test.resolveRepoContext({
+  pathHint: { scheme: 'file', fsPath: workspace.resolvePath('src', 'app.ts'), path: workspace.resolvePath('src', 'app.ts').replace(/\\/g, '/') }
+});
+assert.equal(mixedPathHint.ok, true);
+assert.equal(mixedPathHint.repoRoot, workspace.root);
+assert.equal(mixedPathHint.source, 'path-hint');
 
 const invalidCliDir = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-vscode-cli-dir-'));
 harness.fakeVscode.workspace.workspaceFolders = [

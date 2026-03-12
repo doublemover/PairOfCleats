@@ -12,6 +12,7 @@ const {
   summarizeProcessFailure,
   summarizeSpawnFailure,
   spawnBufferedProcess,
+  resolveValidatedHitTarget,
   openSearchHit
 } = require('../../../extensions/vscode/runtime.js');
 
@@ -162,14 +163,38 @@ const fakeVscode = {
   },
   Uri: {
     file(filePath) {
-      return { scheme: 'file', fsPath: filePath, path: filePath };
+      return {
+        scheme: 'file',
+        fsPath: filePath,
+        path: filePath,
+        toString() {
+          return `file:${this.path}`;
+        }
+      };
+    },
+    parse(value) {
+      const text = String(value || '');
+      const match = text.match(/^([a-z0-9+.-]+):(.*)$/i);
+      const scheme = match ? match[1] : 'file';
+      const uriPath = match ? match[2] : text;
+      return {
+        scheme,
+        path: uriPath,
+        fsPath: scheme === 'file' ? uriPath.replace(/\//g, path.sep) : uriPath,
+        toString() {
+          return `${this.scheme}:${this.path || this.fsPath || ''}`;
+        }
+      };
     },
     joinPath(base, ...segments) {
       const joined = path.posix.join(base.path || '', ...segments);
       return {
         ...base,
         path: joined,
-        fsPath: joined.replace(/\//g, path.sep)
+        fsPath: joined.replace(/\//g, path.sep),
+        toString() {
+          return `${this.scheme}:${this.path || this.fsPath || ''}`;
+        }
       };
     }
   },
@@ -222,6 +247,25 @@ const openRemote = await openSearchHit(fakeVscode, {
 });
 assert.equal(openRemote.ok, true);
 assert.equal(openRemote.filePath, path.join(path.sep, 'workspace', 'repo', 'src', 'remote.ts'));
+
+const remoteAbsoluteTarget = resolveValidatedHitTarget(fakeVscode, {
+  repoRoot: null,
+  repoUri: { scheme: 'vscode-remote', path: '/workspace/repo', fsPath: '/workspace/repo', toString() { return 'vscode-remote:/workspace/repo'; } }
+}, {
+  file: '/workspace/repo/src/absolute.ts'
+});
+assert.equal(remoteAbsoluteTarget.ok, true);
+assert.equal(remoteAbsoluteTarget.targetUri.scheme, 'vscode-remote');
+assert.equal(remoteAbsoluteTarget.targetUri.path, '/workspace/repo/src/absolute.ts');
+
+const remoteOutsideTarget = resolveValidatedHitTarget(fakeVscode, {
+  repoRoot: null,
+  repoUri: { scheme: 'vscode-remote', path: '/workspace/repo', fsPath: '/workspace/repo', toString() { return 'vscode-remote:/workspace/repo'; } }
+}, {
+  file: '/workspace/other/outside.ts'
+});
+assert.equal(remoteOutsideTarget.ok, false);
+assert.match(remoteOutsideTarget.message, /outside the repo/i);
 
 const openTraversal = await openSearchHit(fakeVscode, 'C:/repo', {
   file: '../outside.js'
