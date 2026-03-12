@@ -53,8 +53,9 @@ await fsPromises.writeFile(
 );
 
 const preflightLine = '[tooling] preflight:ok provider=gopls id=gopls.workspace-model durationMs=87 state=ready';
-await fsPromises.writeFile(path.join(logsRoot, `run-${runSuffix}-repo-a.log`), `${preflightLine}\n`, 'utf8');
-await fsPromises.writeFile(path.join(logsRoot, `run-${runSuffix}-repo-b.log`), `${preflightLine}\n`, 'utf8');
+const preflightSummaryLine = '[tooling] preflight summary total=1 cached=0 timedOut=0 failed=0 queuePeak=1 teardownTimedOut=0 states=ready:1 classes=workspace:1 policies=block:1';
+await fsPromises.writeFile(path.join(logsRoot, `run-${runSuffix}-repo-a.log`), `${preflightLine}\n${preflightSummaryLine}\n`, 'utf8');
+await fsPromises.writeFile(path.join(logsRoot, `run-${runSuffix}-repo-b.log`), `${preflightLine}\n${preflightSummaryLine}\n`, 'utf8');
 
 const output = await buildReportOutput({
   configPath: path.join(tempRoot, 'repos.json'),
@@ -75,6 +76,11 @@ assert.equal(
   output.diagnostics.preflight.eventCount,
   2,
   'expected preflight events from two repo logs to remain distinct'
+);
+assert.equal(
+  output.diagnostics.preflight.summary.lineCount,
+  2,
+  'expected identical preflight summaries from two repo logs to remain distinct'
 );
 
 console.log('bench language report cross repo dedupe test passed');

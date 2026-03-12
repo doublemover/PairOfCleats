@@ -1091,6 +1091,7 @@ perf/bench/language-log-closeout
 perf/bench/language-log-emergency-close
 perf/bench/language-report-cross-repo-dedupe
 perf/bench/language-report-master-dedupe
+perf/bench/language-report-master-summary-recovery
 perf/bench/query-runtime
 perf/bench/language-timeout-profile
 perf/bench/language-process-idle-timeout

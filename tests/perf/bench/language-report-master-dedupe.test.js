@@ -35,8 +35,9 @@ await fsPromises.writeFile(
   'utf8'
 );
 const preflightLine = '[tooling] preflight:ok provider=gopls id=gopls.workspace-model durationMs=87 state=ready';
-await fsPromises.writeFile(path.join(logsRoot, `run-${runSuffix}-all.log`), `${preflightLine}\n`, 'utf8');
-await fsPromises.writeFile(path.join(logsRoot, `run-${runSuffix}-repo-a.log`), `${preflightLine}\n`, 'utf8');
+const preflightSummaryLine = '[tooling] preflight summary total=1 cached=0 timedOut=0 failed=0 queuePeak=1 teardownTimedOut=0 states=ready:1 classes=workspace:1 policies=block:1';
+await fsPromises.writeFile(path.join(logsRoot, `run-${runSuffix}-all.log`), `${preflightLine}\n${preflightSummaryLine}\n`, 'utf8');
+await fsPromises.writeFile(path.join(logsRoot, `run-${runSuffix}-repo-a.log`), `${preflightLine}\n${preflightSummaryLine}\n`, 'utf8');
 
 const output = await buildReportOutput({
   configPath: path.join(tempRoot, 'repos.json'),
@@ -57,5 +58,6 @@ assert.equal(output.diagnostics.preflight.fileCount, 2, 'expected both master an
 assert.equal(output.diagnostics.preflight.eventCount, 1, 'expected one preflight event after master-log dedupe');
 assert.equal(output.diagnostics.preflight.rawEventCount, 2, 'expected raw preflight count across master and repo');
 assert.equal(output.diagnostics.preflight.duplicateEventCount, 1, 'expected one duplicate preflight event');
+assert.equal(output.diagnostics.preflight.summary.lineCount, 1, 'expected master preflight summary to be ignored when repo summary exists');
 
 console.log('bench language report master dedupe test passed');

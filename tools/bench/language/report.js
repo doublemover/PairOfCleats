@@ -268,9 +268,10 @@ const buildPreflightEventKey = (event) => {
   ]);
 };
 
-const buildPreflightSummaryKey = (summary) => {
+const buildPreflightSummaryKey = (scope, summary) => {
   if (!summary || typeof summary !== 'object') return null;
   return JSON.stringify([
+    scope || null,
     Number.isFinite(summary.total) ? summary.total : null,
     Number.isFinite(summary.cached) ? summary.cached : null,
     Number.isFinite(summary.timedOut) ? summary.timedOut : null,
@@ -283,9 +284,10 @@ const buildPreflightSummaryKey = (summary) => {
   ]);
 };
 
-const buildPreflightSlowestKey = (entry) => {
+const buildPreflightSlowestKey = (scope, entry) => {
   if (!entry || typeof entry !== 'object') return null;
   return JSON.stringify([
+    scope || null,
     entry.providerId || null,
     entry.preflightId || null,
     entry.preflightClass || null,
@@ -295,11 +297,11 @@ const buildPreflightSlowestKey = (entry) => {
   ]);
 };
 
-const buildProgressConfidenceEventKey = (event) => {
+const buildProgressConfidenceEventKey = (scope, event) => {
   if (!event || typeof event !== 'object') return null;
   return JSON.stringify([
+    event.label || scope || null,
     event.ts || null,
-    event.label || null,
     event.bucket || null,
     Number.isFinite(event.score) ? Number(event.score) : null,
     event.reason || null
@@ -552,6 +554,8 @@ const buildPreflightLogSummary = async (resultsRoot, options = {}) => {
   let timeoutEvents = 0;
   const uniqueEventKeys = new Set();
   const repoEventKeys = new Set();
+  const repoSummaryKeys = new Set();
+  const repoSummarySlowKeys = new Set();
   const uniqueSummaryKeys = new Set();
   const uniqueSummarySlowKeys = new Set();
   for (const filePath of orderedFiles) {
@@ -562,11 +566,18 @@ const buildPreflightLogSummary = async (resultsRoot, options = {}) => {
       continue;
     }
     forEachNonEmptyLine(raw, (line) => {
+      const masterFile = isMasterBenchStreamFile(filePath);
+      const scope = resolveBenchStreamScope(filePath);
       const summary = parsePreflightSummaryLine(line);
       if (summary) {
-        const summaryKey = buildPreflightSummaryKey(summary);
+        const rawSummaryKey = buildPreflightSummaryKey(null, summary);
+        if (masterFile && rawSummaryKey && repoSummaryKeys.has(rawSummaryKey)) {
+          return;
+        }
+        const summaryKey = buildPreflightSummaryKey(scope, summary);
         if (!summaryKey || !uniqueSummaryKeys.has(summaryKey)) {
           if (summaryKey) uniqueSummaryKeys.add(summaryKey);
+          if (!masterFile && rawSummaryKey) repoSummaryKeys.add(rawSummaryKey);
           summaryLineCount += 1;
           if (Number.isFinite(summary.queuePeak)) {
             summaryMaxQueuePeak = Math.max(summaryMaxQueuePeak, summary.queuePeak);
@@ -585,18 +596,20 @@ const buildPreflightLogSummary = async (resultsRoot, options = {}) => {
       }
       const summarySlowEntries = parsePreflightSlowestLine(line);
       for (const entry of summarySlowEntries) {
-        const summarySlowKey = buildPreflightSlowestKey(entry);
+        const rawSummarySlowKey = buildPreflightSlowestKey(null, entry);
+        if (masterFile && rawSummarySlowKey && repoSummarySlowKeys.has(rawSummarySlowKey)) continue;
+        const summarySlowKey = buildPreflightSlowestKey(scope, entry);
         if (summarySlowKey && uniqueSummarySlowKeys.has(summarySlowKey)) continue;
         if (summarySlowKey) uniqueSummarySlowKeys.add(summarySlowKey);
+        if (!masterFile && rawSummarySlowKey) repoSummarySlowKeys.add(rawSummarySlowKey);
         pushTopSlowPreflights(summaryTopSlow, entry);
       }
       const event = parsePreflightLogLine(line);
       if (!event) return;
       rawEventCount += 1;
       const rawKey = buildPreflightEventKey(event);
-      const masterFile = isMasterBenchStreamFile(filePath);
       const scopedKey = buildSyntheticEventKey([
-        masterFile ? 'master' : resolveBenchStreamScope(filePath),
+        masterFile ? 'master' : scope,
         rawKey
       ]);
       if (masterFile && rawKey && repoEventKeys.has(rawKey)) return;
@@ -706,7 +719,7 @@ const buildProgressConfidenceSummary = async (resultsRoot, options = {}) => {
       }
       rawEventCount += 1;
       fileEventCount += 1;
-      const eventKey = buildProgressConfidenceEventKey(parsed);
+      const eventKey = buildProgressConfidenceEventKey(resolveBenchStreamScope(filePath), parsed);
       if (eventKey && uniqueEventKeys.has(eventKey)) return;
       if (eventKey) uniqueEventKeys.add(eventKey);
       const bucket = parsed.bucket || 'unknown';

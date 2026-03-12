@@ -58,16 +58,26 @@ export const createBundleLoader = ({ bundleThreads, workerPath }) => {
     : null;
   let workerAvailable = Boolean(pool);
   let workerPoolDestroyed = false;
+  let destroyPromise = null;
+
+  const destroyWorkerPool = async () => {
+    if (!pool) return;
+    if (destroyPromise) return destroyPromise;
+    workerPoolDestroyed = true;
+    workerAvailable = false;
+    destroyPromise = (async () => {
+      try {
+        await destroyPiscinaPool(pool, {
+          label: 'sqlite.bundle-loader.worker-pool'
+        });
+      } catch {}
+    })();
+    return destroyPromise;
+  };
 
   const disableWorkerPool = async () => {
     if (!pool || workerPoolDestroyed) return;
-    workerPoolDestroyed = true;
-    workerAvailable = false;
-    try {
-      await destroyPiscinaPool(pool, {
-        label: 'sqlite.bundle-loader.worker-pool'
-      });
-    } catch {}
+    await destroyWorkerPool();
   };
 
   const loadBundleDirect = async (bundlePath, file) => {
@@ -133,11 +143,7 @@ export const createBundleLoader = ({ bundleThreads, workerPath }) => {
   };
 
   const close = async () => {
-    if (pool && !workerPoolDestroyed) {
-      await destroyPiscinaPool(pool, {
-        label: 'sqlite.bundle-loader.worker-pool'
-      });
-    }
+    await destroyWorkerPool();
   };
 
   return { loadBundle, close, useWorkers };

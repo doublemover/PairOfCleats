@@ -98,6 +98,7 @@ try {
   const targetChunkId = firstShard?.chunks?.[0]?.metaV2?.relations?.calls?.[0]?.targetChunkId || null;
   assert.equal(targetChunkId, 'new', 'expected worker loader to apply bundle patch sidecar');
 } finally {
+  await Promise.all([loader.close(), loader.close()]);
   await loader.close();
 }
 
@@ -124,6 +125,7 @@ try {
     'expected invalid bundle-name reason to be preserved'
   );
 } finally {
+  await Promise.all([directLoader.close(), directLoader.close()]);
   await directLoader.close();
   await fsPromises.rm(tempRoot, { recursive: true, force: true });
 }
