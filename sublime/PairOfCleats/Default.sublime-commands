@@ -24,6 +24,18 @@
     "command": "pair_of_cleats_search_symbol_under_cursor"
   },
   {
+    "caption": "PairOfCleats: Go To Definition",
+    "command": "pair_of_cleats_goto_definition"
+  },
+  {
+    "caption": "PairOfCleats: Find References",
+    "command": "pair_of_cleats_find_references"
+  },
+  {
+    "caption": "PairOfCleats: Complete Symbol",
+    "command": "pair_of_cleats_complete_symbol"
+  },
+  {
     "caption": "PairOfCleats: Search History",
     "command": "pair_of_cleats_search_history"
   },

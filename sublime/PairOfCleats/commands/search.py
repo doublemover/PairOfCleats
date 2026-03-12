@@ -273,6 +273,71 @@ def _execute_search(window, query, overrides=None, explain=False):
     )
 
 
+def _execute_symbol_lookup(window, query, on_hits, limit=25, title='PairOfCleats symbol lookup'):
+    if not query:
+        return
+
+    settings = config.get_settings(window)
+    repo_root, reason = _resolve_repo_root(window)
+    if not repo_root:
+        ui.show_error('PairOfCleats: {0}'.format(reason))
+        return
+    if reason:
+        ui.show_status('PairOfCleats: {0}'.format(reason))
+
+    errors = config.validate_settings(settings, repo_root)
+    if errors:
+        message = 'PairOfCleats settings need attention:\n- {0}'.format(
+            '\n- '.join(errors)
+        )
+        ui.show_error(message)
+        return
+
+    resolved = _resolve_defaults(settings, {'mode': 'code', 'limit': limit})
+    args = search_lib.build_search_args(
+        query,
+        repo_root=repo_root,
+        mode='code',
+        backend=resolved.get('backend') or None,
+        limit=resolved.get('limit'),
+        explain=False,
+    )
+    cli = paths.resolve_cli(settings, repo_root)
+    command = cli['command']
+    full_args = list(cli.get('args_prefix') or []) + args
+    env = config.build_env(settings)
+
+    def on_done(result):
+        if result.returncode != 0:
+            message = result.output.strip() or '{0} failed.'.format(title)
+            ui.show_error(message)
+            return
+        if result.error:
+            ui.show_error(result.error)
+            return
+        payload = result.payload
+        if not isinstance(payload, dict):
+            ui.show_error('{0} returned invalid JSON.'.format(title))
+            return
+        if payload.get('ok') is False:
+            ui.show_error(payload.get('message') or '{0} failed.'.format(title))
+            return
+        hits = [hit for hit in results.collect_hits(payload) if hit.get('section') == 'code']
+        on_hits(hits, repo_root, resolved)
+
+    runner.run_process(
+        command,
+        full_args,
+        cwd=repo_root,
+        env=env,
+        window=window,
+        title=title,
+        capture_json=True,
+        on_done=on_done,
+        stream_output=False
+    )
+
+
 def _extract_selection(view):
     if view is None:
         return ''
@@ -291,6 +356,38 @@ def _extract_symbol(view):
     region = selection[0]
     word = view.word(region)
     return view.substr(word)
+
+
+def _show_symbol_hit_picker(window, hits, repo_root):
+    items = [results.format_quick_panel_item(hit) for hit in hits]
+
+    def on_select(index):
+        if index < 0:
+            return
+        results.open_hit(window, hits[index], repo_root)
+
+    window.show_quick_panel(items, on_select)
+
+
+def _rank_definition_hits(hits, query):
+    normalized_query = (query or '').strip()
+    lowered_query = normalized_query.lower()
+
+    def key(hit):
+        symbol_name = (hit.get('name') or hit.get('symbol') or '').strip()
+        headline = (hit.get('headline') or '').strip()
+        exact = int(symbol_name == normalized_query)
+        exact_ci = int(symbol_name.lower() == lowered_query if symbol_name else False)
+        headline_ci = int(headline.lower() == lowered_query if headline else False)
+        line = hit.get('startLine') or 0
+        return (-exact, -exact_ci, -headline_ci, line, hit.get('file') or '')
+
+    return sorted(hits, key=key)
+
+
+def _resolve_completion_text(hit):
+    value = hit.get('name') or hit.get('symbol') or hit.get('headline') or ''
+    return value.strip() if isinstance(value, str) else ''
 
 
 def _search_with_query(window, query, overrides=None, force_prompt=False):
@@ -378,6 +475,134 @@ class PairOfCleatsSearchSymbolUnderCursorCommand(sublime_plugin.TextCommand):
             ui.show_status('PairOfCleats: no symbol under cursor.')
             return
         _search_with_query(self.view.window(), query)
+
+
+class PairOfCleatsGotoDefinitionCommand(sublime_plugin.TextCommand):
+    def is_enabled(self):
+        return bool(self.view)
+
+    def is_visible(self):
+        return True
+
+    def run(self, edit):
+        query = _extract_symbol(self.view)
+        if not query:
+            ui.show_status('PairOfCleats: no symbol under cursor.')
+            return
+
+        def on_hits(hits, repo_root, _resolved):
+            if not hits:
+                ui.show_status('PairOfCleats: no indexed definitions found.')
+                return
+            ranked = _rank_definition_hits(hits, query)
+            if len(ranked) == 1:
+                results.open_hit(self.view.window(), ranked[0], repo_root)
+                return
+            _show_symbol_hit_picker(self.view.window(), ranked, repo_root)
+
+        _execute_symbol_lookup(
+            self.view.window(),
+            query,
+            on_hits,
+            limit=25,
+            title='PairOfCleats goto definition',
+        )
+
+
+class PairOfCleatsFindReferencesCommand(sublime_plugin.TextCommand):
+    def is_enabled(self):
+        return bool(self.view)
+
+    def is_visible(self):
+        return True
+
+    def run(self, edit):
+        query = _extract_symbol(self.view)
+        if not query:
+            ui.show_status('PairOfCleats: no symbol under cursor.')
+            return
+
+        def on_hits(hits, repo_root, _resolved):
+            if not hits:
+                ui.show_status('PairOfCleats: no indexed references found.')
+                return
+            _show_symbol_hit_picker(self.view.window(), hits, repo_root)
+
+        _execute_symbol_lookup(
+            self.view.window(),
+            query,
+            on_hits,
+            limit=50,
+            title='PairOfCleats find references',
+        )
+
+
+class PairOfCleatsCompleteSymbolCommand(sublime_plugin.TextCommand):
+    def is_enabled(self):
+        return bool(self.view)
+
+    def is_visible(self):
+        return True
+
+    def run(self, edit):
+        query = _extract_symbol(self.view)
+        if not query:
+            ui.show_status('PairOfCleats: no symbol prefix under cursor.')
+            return
+
+        def on_hits(hits, _repo_root, _resolved):
+            if not hits:
+                ui.show_status('PairOfCleats: no indexed completions found.')
+                return
+            seen = set()
+            candidates = []
+            for hit in hits:
+                text = _resolve_completion_text(hit)
+                if not text or text in seen:
+                    continue
+                seen.add(text)
+                candidates.append((text, hit))
+            if not candidates:
+                ui.show_status('PairOfCleats: no indexed completions found.')
+                return
+            items = [results.format_quick_panel_item(hit) for _, hit in candidates]
+
+            def on_select(index):
+                if index < 0:
+                    return
+                self.view.run_command(
+                    'pair_of_cleats_apply_completion',
+                    {'text': candidates[index][0]},
+                )
+
+            self.view.window().show_quick_panel(items, on_select)
+
+        _execute_symbol_lookup(
+            self.view.window(),
+            query,
+            on_hits,
+            limit=50,
+            title='PairOfCleats symbol completion',
+        )
+
+
+class PairOfCleatsApplyCompletionCommand(sublime_plugin.TextCommand):
+    def is_enabled(self):
+        return bool(self.view)
+
+    def is_visible(self):
+        return False
+
+    def run(self, edit, text=''):
+        if not text:
+            return
+        selection = self.view.sel()
+        if not selection:
+            return
+        region = selection[0]
+        word = self.view.word(region)
+        self.view.erase(edit, word)
+        self.view.insert(edit, word.a, text)
 
 
 class PairOfCleatsSearchHistoryCommand(sublime_plugin.WindowCommand):

@@ -645,6 +645,7 @@ retrieval/ann/hnsw-insert-failures
 storage/sqlite/build-memory-guard
 tooling/sublime/pycompile
 tooling/sublime/results-behavior
+tooling/sublime/navigation-behavior
 retrieval/cache/query-signature-sharded-chunk-meta
 storage/vector-extension/missing
 tooling/lsp/adaptive-scope-plan
