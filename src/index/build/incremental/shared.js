@@ -122,7 +122,15 @@ export const readBundleOrNull = async (input) => {
  * @param {object|null} bundle
  * @returns {Array<object>|null}
  */
-export const resolveBundleImports = (bundle) => {
+export const resolveBundleImports = (bundle, { expectedImportScanFingerprint = null } = {}) => {
+  if (expectedImportScanFingerprint != null) {
+    const cachedFingerprint = typeof bundle?.fileRelations?.importScanFingerprint === 'string'
+      ? bundle.fileRelations.importScanFingerprint
+      : null;
+    if (!cachedFingerprint || cachedFingerprint !== expectedImportScanFingerprint) {
+      return null;
+    }
+  }
   const imports = bundle?.fileRelations?.imports;
   return Array.isArray(imports) ? imports : null;
 };

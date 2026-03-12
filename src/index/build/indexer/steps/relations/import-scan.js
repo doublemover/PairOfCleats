@@ -368,6 +368,9 @@ export const postScanImports = async ({
     && typeof importResult.importHintsByFile === 'object'
     ? importResult.importHintsByFile
     : null;
+  const importScanFingerprint = typeof importResult?.importScanFingerprint === 'string'
+    ? importResult.importScanFingerprint
+    : null;
   if (!importsByFile || Object.keys(importsByFile).length === 0) {
     importsByFile = Object.create(null);
     for (const [file, relations] of state.fileRelations.entries()) {
@@ -666,6 +669,19 @@ export const postScanImports = async ({
       resolution.graph.stats.unresolvedBudgetExhausted = resolvedResolverBudgetExhausted;
       resolution.graph.stats.unresolvedBudgetExhaustedByType = resolverBudgetExhaustedByType;
       resolution.graph.stats.unresolvedResolverSuppressed = resolvedUnresolvedResolverSuppressed;
+    }
+  }
+  if (importScanFingerprint) {
+    for (const [file, imports] of Object.entries(importsByFile || {})) {
+      const existing = state.fileRelations.get(file);
+      if (existing && typeof existing === 'object') {
+        existing.importScanFingerprint = importScanFingerprint;
+        continue;
+      }
+      state.fileRelations.set(file, {
+        imports: Array.isArray(imports) ? imports.slice() : [],
+        importScanFingerprint
+      });
     }
   }
   const cacheDiagnostics = cacheEnabled

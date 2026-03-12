@@ -374,7 +374,8 @@ export function resolveImportLinks({
     resolverStaticScopeFingerprint,
     workspaceFingerprint: lookupCompatibilityFingerprint || fileSetFingerprint || 'none',
     buildContextFingerprint: buildContext?.fingerprint || 'none',
-    expectedArtifactsFingerprint: expectedArtifactsIndex?.fingerprint || 'none'
+    expectedArtifactsFingerprint: expectedArtifactsIndex?.fingerprint || 'none',
+    budgetPolicyStats
   }));
   const fsExistsIndexStats = {
     enabled: fsExistsIndex?.enabled !== false && typeof fsExistsIndex?.lookup === 'function',
@@ -684,7 +685,7 @@ export function resolveImportLinks({
     const canReuseCache = !!(fileCache
       && fileHash
       && fileCache.hash === fileHash
-      && (fileCache.resolverScopeFingerprint || '') === resolverStaticScopeFingerprint
+      && (fileCache.resolverScopeFingerprint || '') === resolverRuntimeScopeFingerprint
       && (fileCache.tsconfigFingerprint || null) === tsconfigFingerprint);
     if (cacheMetrics) {
       cacheMetrics.files += 1;
@@ -1154,7 +1155,7 @@ export function resolveImportLinks({
     if (nextSpecCache && fileHash && cacheState) {
       cacheState.files[relNormalized] = {
         hash: fileHash,
-        resolverScopeFingerprint: resolverStaticScopeFingerprint,
+        resolverScopeFingerprint: resolverRuntimeScopeFingerprint,
         tsconfigFingerprint,
         specs: nextSpecCache
       };

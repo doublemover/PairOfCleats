@@ -225,7 +225,8 @@ export async function readCachedImports({
   manifest,
   bundleDir,
   bundleFormat = null,
-  sharedReadState = null
+  sharedReadState = null,
+  expectedImportScanFingerprint = null
 }) {
   if (!enabled) return null;
   const resolvedBundleFormat = normalizeBundleFormat(bundleFormat || manifest?.bundleFormat);
@@ -255,7 +256,10 @@ export async function readCachedImports({
       });
       const fileHash = sharedRead.hash;
       if (fileHash !== cachedEntry.hash) return null;
-      return resolveBundleImports(await readBundleOrNull({ bundleRecords }));
+      return resolveBundleImports(
+        await readBundleOrNull({ bundleRecords }),
+        { expectedImportScanFingerprint }
+      );
     } catch {
       return null;
     }
@@ -278,5 +282,8 @@ export async function readCachedImports({
   for (const record of bundleRecords) {
     if (!(await pathExists(record.bundlePath))) return null;
   }
-  return resolveBundleImports(await readBundleOrNull({ bundleRecords }));
+  return resolveBundleImports(
+    await readBundleOrNull({ bundleRecords }),
+    { expectedImportScanFingerprint }
+  );
 }

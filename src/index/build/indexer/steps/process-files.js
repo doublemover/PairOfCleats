@@ -2644,7 +2644,7 @@ export const processFiles = async ({
         repoRoot: runtime.scmRepoRoot,
         repoProvenance: runtime.repoProvenance,
         filesPosix: scmFilesPosix,
-        includeChurn: scmSnapshotConfig.includeChurn !== false,
+        includeChurn: scmSnapshotConfig.includeChurn === true,
         timeoutMs: Number.isFinite(Number(scmSnapshotConfig.timeoutMs))
           ? Number(scmSnapshotConfig.timeoutMs)
           : runtime?.scmConfig?.timeoutMs,

@@ -77,26 +77,7 @@ export async function buildIgnoreMatcher({ root, userConfig, generatedPolicy = n
     ignoreFiles.push({ path: value, optional: false });
   }
 
-  const loadedFiles = [];
-  for (const ignoreFile of ignoreFiles) {
-    const resolved = resolveIgnorePath(ignoreFile?.path);
-    if (!resolved) continue;
-    try {
-      const contents = await fs.readFile(resolved.resolved, 'utf8');
-      ignoreMatcher.add(contents);
-      loadedFiles.push(resolved.rel || resolved.raw);
-    } catch (err) {
-      const code = String(err?.code || '').toUpperCase();
-      const missingOptional = ignoreFile?.optional === true && (code === 'ENOENT' || code === 'ENOTDIR');
-      if (missingOptional) continue;
-      recordWarning({
-        type: 'read-failed',
-        file: resolved.rel || resolved.raw,
-        detail: err?.code || err?.message || 'read-failed'
-      });
-    }
-  }
-  const expandExtraIgnore = (patterns) => {
+  const expandIgnorePatterns = (patterns) => {
     const expanded = [];
     const seen = new Set();
     const reignored = new Set();
@@ -134,13 +115,33 @@ export async function buildIgnoreMatcher({ root, userConfig, generatedPolicy = n
     }
     return expanded;
   };
+
+  const loadedFiles = [];
+  for (const ignoreFile of ignoreFiles) {
+    const resolved = resolveIgnorePath(ignoreFile?.path);
+    if (!resolved) continue;
+    try {
+      const contents = await fs.readFile(resolved.resolved, 'utf8');
+      ignoreMatcher.add(expandIgnorePatterns(contents.split(/\r?\n/)));
+      loadedFiles.push(resolved.rel || resolved.raw);
+    } catch (err) {
+      const code = String(err?.code || '').toUpperCase();
+      const missingOptional = ignoreFile?.optional === true && (code === 'ENOENT' || code === 'ENOTDIR');
+      if (missingOptional) continue;
+      recordWarning({
+        type: 'read-failed',
+        file: resolved.rel || resolved.raw,
+        detail: err?.code || err?.message || 'read-failed'
+      });
+    }
+  }
   if (config.extraIgnore.length) {
-    ignoreMatcher.add(expandExtraIgnore(config.extraIgnore));
+    ignoreMatcher.add(expandIgnorePatterns(config.extraIgnore));
   }
   const generatedIncludePatterns = effectiveGeneratedPolicy.includePatterns || [];
   if (generatedIncludePatterns.length) {
     const includeUnignore = generatedIncludePatterns.map((pattern) => `!${pattern}`);
-    ignoreMatcher.add(expandExtraIgnore(includeUnignore));
+    ignoreMatcher.add(expandIgnorePatterns(includeUnignore));
   }
 
   ignoreMatcher.shouldTraverseIgnoredDirectory = (relPath) => {

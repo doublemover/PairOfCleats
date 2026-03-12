@@ -11,7 +11,9 @@ import { runWithConcurrency, runWithQueue } from '../../shared/concurrency.js';
 import { coerceAbortSignal, throwIfAborted } from '../../shared/abort.js';
 import { readTextFile, readTextFileWithHash } from '../../shared/encoding.js';
 import { fileExt, toPosix } from '../../shared/files.js';
+import { sha1 } from '../../shared/hash.js';
 import { showProgress } from '../../shared/progress.js';
+import { canonicalizeForSignature, stableStringifyForSignature } from '../../shared/stable-json.js';
 import { readCachedImports } from './incremental.js';
 import {
   IMPORT_REASON_CODES,
@@ -46,6 +48,11 @@ const normalizeCollectorHint = (value) => {
     detail
   };
 };
+
+const buildImportScanFingerprint = ({ languageOptions, mode }) => sha1(stableStringifyForSignature({
+  mode: typeof mode === 'string' ? mode : 'code',
+  languageOptions: canonicalizeForSignature(languageOptions || null)
+}));
 
 const normalizeForClassifier = (value) => (
   typeof value === 'string' ? value.trim().replace(/\\/g, '/') : ''
@@ -450,6 +457,7 @@ export async function scanImports({
   throwIfAborted(effectiveAbortSignal);
   const importsByFile = new Map();
   const importHintsByFile = new Map();
+  const importScanFingerprint = buildImportScanFingerprint({ languageOptions, mode });
   const moduleSet = new Set();
   const start = Date.now();
   let processed = 0;
@@ -510,7 +518,8 @@ export async function scanImports({
           manifest: incrementalState.manifest,
           bundleDir: incrementalState.bundleDir,
           bundleFormat: incrementalState.bundleFormat,
-          sharedReadState: incrementalState.readHashCache || null
+          sharedReadState: incrementalState.readHashCache || null,
+          expectedImportScanFingerprint: importScanFingerprint
         });
         const cachedEntries = coerceCachedImportEntries(cachedImports);
         if (Array.isArray(cachedEntries)) {
@@ -663,7 +672,8 @@ export async function scanImports({
           manifest: incrementalState.manifest,
           bundleDir: incrementalState.bundleDir,
           bundleFormat: incrementalState.bundleFormat,
-          sharedReadState: incrementalState.readHashCache || null
+          sharedReadState: incrementalState.readHashCache || null,
+          expectedImportScanFingerprint: importScanFingerprint
         });
         const cachedFallbackEntries = coerceCachedImportEntries(cachedImportsFallback);
         if (Array.isArray(cachedFallbackEntries)) {
@@ -727,6 +737,7 @@ export async function scanImports({
   return {
     importsByFile: dedupedImportsByFile,
     importHintsByFile: dedupedImportHintsByFile,
+    importScanFingerprint,
     durationMs: Date.now() - start,
     stats: {
       modules: moduleSet.size,
