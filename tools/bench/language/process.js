@@ -300,7 +300,15 @@ const resolveInFlightCount = ({ message, event }) => {
   return null;
 };
 
-const appendJsonLineQueued = (queueByPath, filePath, payload) => {
+const recordTelemetryWriteFailure = (failureState, filePath, error) => {
+  if (!(failureState instanceof Map) || !filePath) return;
+  const current = failureState.get(filePath) || { count: 0, lastMessage: null };
+  current.count += 1;
+  current.lastMessage = error?.message || String(error);
+  failureState.set(filePath, current);
+};
+
+const appendJsonLineQueued = (queueByPath, failureState, filePath, payload) => {
   if (!(queueByPath instanceof Map)) return;
   if (!filePath) return;
   const prior = queueByPath.get(filePath) || Promise.resolve();
@@ -310,17 +318,21 @@ const appendJsonLineQueued = (queueByPath, filePath, payload) => {
       await fsPromises.mkdir(path.dirname(filePath), { recursive: true });
       await fsPromises.appendFile(filePath, `${JSON.stringify(payload)}\n`, 'utf8');
     })
-    .catch(() => {});
+    .catch((error) => {
+      recordTelemetryWriteFailure(failureState, filePath, error);
+    });
   queueByPath.set(filePath, next);
 };
 
-const flushQueuedJsonLines = async (queueByPath) => {
+const flushQueuedJsonLines = async (queueByPath, failureState) => {
   if (!(queueByPath instanceof Map) || queueByPath.size === 0) return;
   const pendingWrites = Array.from(queueByPath.values());
   const flushBatchSize = 32;
   for (let i = 0; i < pendingWrites.length; i += flushBatchSize) {
     const batch = pendingWrites.slice(i, i + flushBatchSize);
-    await Promise.all(batch.map((pending) => pending.catch(() => {})));
+    await Promise.all(batch.map((pending) => pending.catch((error) => {
+      recordTelemetryWriteFailure(failureState, '<flush>', error);
+    })));
   }
 };
 
@@ -683,6 +695,7 @@ export const createProcessRunner = ({
     );
     const schedulerEvents = [];
     const telemetryWriteQueues = new Map();
+    const telemetryWriteFailures = new Map();
     let diagnosticEventCount = 0;
     const diagnosticCountByType = new Map();
     const diagnosticCountById = new Map();
@@ -710,7 +723,7 @@ export const createProcessRunner = ({
     const flushTelemetryWrites = async (reason = 'flush') => {
       try {
         await runWithTimeout(
-          () => flushQueuedJsonLines(telemetryWriteQueues),
+          () => flushQueuedJsonLines(telemetryWriteQueues, telemetryWriteFailures),
           {
             timeoutMs: TELEMETRY_FLUSH_TIMEOUT_MS,
             errorFactory: () => createTimeoutError({
@@ -725,6 +738,13 @@ export const createProcessRunner = ({
           'warn'
         );
       }
+      if (telemetryWriteFailures.size > 0) {
+        const summary = Array.from(telemetryWriteFailures.entries())
+          .map(([filePath, info]) => `${path.basename(filePath)} x${info.count}${info.lastMessage ? ` (${info.lastMessage})` : ''}`)
+          .join('; ');
+        appendLog(`[bench] telemetry stream write failures during ${reason}: ${summary}`, 'warn');
+        telemetryWriteFailures.clear();
+      }
     };
 
     const buildDiagnosticsSummary = () => ({
@@ -735,6 +755,9 @@ export const createProcessRunner = ({
       countsByType: Object.fromEntries(
         Array.from(diagnosticCountByType.entries())
           .sort(([left], [right]) => String(left).localeCompare(String(right)))
+      ),
+      telemetryWriteFailures: Object.fromEntries(
+        Array.from(telemetryWriteFailures.entries()).map(([filePath, info]) => [filePath, info.count])
       )
     });
 
@@ -875,7 +898,7 @@ export const createProcessRunner = ({
         stallEvents: snapshot.stallEvents
       };
       for (const filePath of progressConfidenceStreams) {
-        appendJsonLineQueued(telemetryWriteQueues, filePath, payload);
+        appendJsonLineQueued(telemetryWriteQueues, telemetryWriteFailures, filePath, payload);
       }
 
       if (!interactive) return;
@@ -999,7 +1022,7 @@ export const createProcessRunner = ({
         taskId: toText(taskId) || null
       };
       for (const filePath of diagnosticStreams) {
-        appendJsonLineQueued(telemetryWriteQueues, filePath, payload);
+        appendJsonLineQueued(telemetryWriteQueues, telemetryWriteFailures, filePath, payload);
       }
       maybeEmitInteractiveDiagnostic({ eventType, eventId, message: payload.message });
       if (eventType === 'queue_delay_hotspot' || eventType === 'artifact_tail_stall') {

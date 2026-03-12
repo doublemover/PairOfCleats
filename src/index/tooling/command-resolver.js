@@ -4,7 +4,7 @@ import { resolveToolRoot } from '../../shared/dict-utils.js';
 import { resolveEnvPath } from '../../shared/env-path.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
 import { spawnSubprocessSync } from '../../shared/subprocess.js';
-import { buildWindowsShellCommand } from '../../shared/subprocess/windows-cmd.js';
+import { resolveWindowsCmdInvocation } from '../../shared/subprocess/windows-cmd.js';
 import { createLspClient, pathToFileUri } from '../../integrations/tooling/lsp/client.js';
 import { findBinaryInDirs, findBinaryOnPath, splitPathEntries } from './binary-utils.js';
 import {
@@ -49,10 +49,10 @@ const runProbeCommand = (cmd, args = [], options = {}) => {
       timeoutMs
     });
   }
-  const commandLine = buildWindowsShellCommand(cmd, args);
-  const shellExe = process.env.ComSpec || 'cmd.exe';
-  return spawnSubprocessSync(shellExe, ['/d', '/s', '/c', commandLine], {
+  const invocation = resolveWindowsCmdInvocation(cmd, args);
+  return spawnSubprocessSync(invocation.command, invocation.args, {
     stdio: ['ignore', 'pipe', 'pipe'],
+    env: invocation.env ? { ...process.env, ...invocation.env } : process.env,
     rejectOnNonZeroExit: false,
     captureStdout: true,
     captureStderr: true,

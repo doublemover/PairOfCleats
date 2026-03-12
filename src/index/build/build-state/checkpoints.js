@@ -56,6 +56,13 @@ const readFingerprint = async (filePath) => {
   }
 };
 
+const fingerprintsMatch = (left, right) => (
+  !!left
+  && !!right
+  && Number(left.size) === Number(right.size)
+  && Number(left.mtimeMs) === Number(right.mtimeMs)
+);
+
 const hashJson = (value) => {
   if (value == null) return null;
   return sha1(JSON.stringify(value));
@@ -195,6 +202,9 @@ export const writeCheckpointSlices = async (buildRoot, {
   if (!isObjectLike(cache.modeHashes)) {
     cache.modeHashes = {};
   }
+  if (!isObjectLike(cache.modeFingerprints)) {
+    cache.modeFingerprints = {};
+  }
   for (const mode of modeKeys) {
     const modePayload = mergedCheckpoints?.[mode];
     const descriptor = nextIndex.modes?.[mode] || null;
@@ -214,6 +224,9 @@ export const writeCheckpointSlices = async (buildRoot, {
       if (cache.modeHashes && mode in cache.modeHashes) {
         delete cache.modeHashes[mode];
       }
+      if (cache.modeFingerprints && mode in cache.modeFingerprints) {
+        delete cache.modeFingerprints[mode];
+      }
       continue;
     }
     const modePath = resolveCheckpointModePath(buildRoot, mode);
@@ -222,9 +235,14 @@ export const writeCheckpointSlices = async (buildRoot, {
     const priorModeHash = typeof cache.modeHashes[mode] === 'string'
       ? cache.modeHashes[mode]
       : null;
-    if (modeHash !== priorModeHash) {
+    const currentFingerprint = await readFingerprint(modePath);
+    const priorFingerprint = isObjectLike(cache.modeFingerprints?.[mode])
+      ? cache.modeFingerprints[mode]
+      : null;
+    if (modeHash !== priorModeHash || !fingerprintsMatch(currentFingerprint, priorFingerprint)) {
       await atomicWriteText(modePath, `${JSON.stringify(modePayload)}\n`);
     }
+    cache.modeFingerprints[mode] = await readFingerprint(modePath);
     cache.modeHashes[mode] = modeHash;
     nextIndex.modes[mode] = {
       path: relPath,

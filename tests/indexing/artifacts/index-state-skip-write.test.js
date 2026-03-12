@@ -104,4 +104,10 @@ if (statAfter.mtimeMs !== statBefore.mtimeMs) {
   fail('Expected index_state.json to be skipped when only volatile fields change.');
 }
 
+fs.rmSync(indexStatePath, { force: true });
+await runWrite();
+if (!fs.existsSync(indexStatePath)) {
+  fail('Expected index_state.json to be rewritten when the file is missing despite a warm stable hash.');
+}
+
 console.log('index state skip write test passed');

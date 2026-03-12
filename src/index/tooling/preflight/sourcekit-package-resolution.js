@@ -8,7 +8,7 @@ import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { acquireFileLock, releaseFileLockOrThrow } from '../../../shared/locks/file-lock.js';
 import { spawnSubprocess } from '../../../shared/subprocess.js';
-import { buildWindowsShellCommand } from '../../../shared/subprocess/windows-cmd.js';
+import { resolveWindowsCmdInvocation } from '../../../shared/subprocess/windows-cmd.js';
 import { resolveToolingCommandProfile } from '../command-resolver.js';
 import { splitPathEntries } from '../binary-utils.js';
 
@@ -29,12 +29,7 @@ const resolveSpawnCommandForExec = (cmd, args) => {
       args: Array.isArray(args) ? args : []
     };
   }
-  const shellExe = process.env.ComSpec || 'cmd.exe';
-  const commandLine = buildWindowsShellCommand(cmd, args);
-  return {
-    command: shellExe,
-    args: ['/d', '/s', '/c', commandLine]
-  };
+  return resolveWindowsCmdInvocation(cmd, args);
 };
 
 const asFiniteNumber = (value) => {
@@ -281,6 +276,7 @@ const runSourcekitPackagePreflight = async ({
       cwd: repoRoot,
       env: {
         ...process.env,
+        ...(resolvedCommand.env || {}),
         GIT_TERMINAL_PROMPT: process.env.GIT_TERMINAL_PROMPT || '0'
       },
       timeoutMs,

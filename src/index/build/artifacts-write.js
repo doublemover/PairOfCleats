@@ -136,6 +136,18 @@ export {
   selectMicroWriteBatch
 };
 
+const readStableIndexStateHash = async (indexStatePath, { maxBytes }) => {
+  try {
+    const parsed = readJsonFile(indexStatePath, { maxBytes });
+    const fields = parsed?.fields && typeof parsed.fields === 'object' ? parsed.fields : parsed;
+    if (!fields || typeof fields !== 'object' || Array.isArray(fields)) return null;
+    const stableState = stripIndexStateNondeterministicFields(fields, { forStableHash: true });
+    return sha1(stableStringifyForSignature(stableState));
+  } catch {
+    return null;
+  }
+};
+
 /**
  * Aggregate per-chunk boilerplate metadata into a compact reference catalog.
  *
@@ -1663,7 +1675,10 @@ export async function writeIndexArtifacts(input) {
       if (await pathExists(indexStateMetaPath) && await pathExists(indexStatePath)) {
         const metaRaw = readJsonFile(indexStateMetaPath, { maxBytes: maxJsonBytes });
         const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
-        if (meta?.stableHash === stableHash) {
+        const onDiskStableHash = await readStableIndexStateHash(indexStatePath, {
+          maxBytes: maxJsonBytes
+        });
+        if (meta?.stableHash === stableHash && onDiskStableHash === stableHash) {
           canSkipIndexState = true;
         }
       }

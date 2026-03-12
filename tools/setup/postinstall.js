@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { exitLikeChildResult } from './postinstall-exit.js';
+import { resolveWindowsCmdInvocation } from '../../src/shared/subprocess/windows-cmd.js';
 
 function hasPatchFiles(cwd) {
   const patchesDir = path.join(cwd, 'patches');
@@ -70,9 +71,13 @@ function run() {
     process.exit(0);
   }
 
-  const result = spawnSync(patchPackageBin, ['--exclude', 'a^'], {
+  const invocation = process.platform === 'win32'
+    ? resolveWindowsCmdInvocation(patchPackageBin, ['--exclude', 'a^'])
+    : { command: patchPackageBin, args: ['--exclude', 'a^'] };
+  const result = spawnSync(invocation.command, invocation.args, {
     stdio: 'inherit',
-    shell: process.platform === 'win32',
+    env: invocation.env ? { ...process.env, ...invocation.env } : process.env,
+    shell: false,
   });
 
   if (result.error) {

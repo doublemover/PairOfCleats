@@ -8,6 +8,7 @@ import { acquireFileLock } from '../../../shared/locks/file-lock.js';
 import { logLine } from '../../../shared/progress.js';
 import { readJsonFileSafe } from '../../../shared/files.js';
 import { loadCheckpointSlices, mergeStageCheckpoints, resolveCheckpointIndexPath, writeCheckpointSlices } from './checkpoints.js';
+import { buildStageCheckpointModeBasename } from '../stage-checkpoints/sidecar.js';
 import {
   BUILD_STATE_DURABILITY_CLASS,
   isRequiredBuildStateDurability,
@@ -269,16 +270,17 @@ const getRecentPatchStageMap = (buildRoot) => {
   return recentPatchStagesByBuildRoot.get(key);
 };
 
-const markPatchStageApplied = (buildRoot, patchId, stage) => {
+const markPatchStageApplied = (buildRoot, patchId, stage, fingerprint = null) => {
   if (!buildRoot || !patchId || !stage) return;
   const stageMap = getRecentPatchStageMap(buildRoot);
   const existingStages = stageMap.get(patchId);
-  if (existingStages) {
-    existingStages.add(stage);
+  const fingerprintValue = fingerprint ? { ...fingerprint } : null;
+  if (existingStages instanceof Map) {
+    existingStages.set(stage, fingerprintValue);
     stageMap.delete(patchId);
     stageMap.set(patchId, existingStages);
   } else {
-    stageMap.set(patchId, new Set([stage]));
+    stageMap.set(patchId, new Map([[stage, fingerprintValue]]));
   }
   while (stageMap.size > PATCH_STAGE_TRACK_MAX_PATCHES) {
     const oldestPatchId = stageMap.keys().next().value;
@@ -287,12 +289,31 @@ const markPatchStageApplied = (buildRoot, patchId, stage) => {
   }
 };
 
-const hasPatchStageApplied = (buildRoot, patchId, stage) => {
+const hasPatchStageApplied = async (buildRoot, patchId, stage, filePath = null) => {
   if (!buildRoot || !patchId || !stage) return false;
   const stageMap = recentPatchStagesByBuildRoot.get(path.resolve(buildRoot));
   if (!(stageMap instanceof Map)) return false;
   const stages = stageMap.get(patchId);
-  return stages instanceof Set && stages.has(stage);
+  if (!(stages instanceof Map) || !stages.has(stage)) return false;
+  if (!filePath) return true;
+  const fingerprint = await readFingerprint(filePath);
+  if (!fingerprint) {
+    stages.delete(stage);
+    if (stages.size === 0) {
+      stageMap.delete(patchId);
+    }
+    return false;
+  }
+  const recordedFingerprint = stages.get(stage);
+  if (!recordedFingerprint) return true;
+  if (!fingerprintsMatch(recordedFingerprint, fingerprint)) {
+    stages.delete(stage);
+    if (stages.size === 0) {
+      stageMap.delete(patchId);
+    }
+    return false;
+  }
+  return true;
 };
 
 const stripUpdatedAt = (value) => {
@@ -336,6 +357,7 @@ const getCacheEntry = (buildRoot) => {
       checkpointsFingerprint: null,
       checkpointsHash: null,
       checkpointsSerialized: null,
+      modeFingerprints: null,
       lastHash: null,
       lastComparableHash: null
     });
@@ -820,12 +842,40 @@ const loadSidecar = async (buildRoot, type) => {
   }
   const checkpointsFingerprint = await readFingerprint(resolveCheckpointIndexPath(buildRoot));
   if (fingerprintsMatch(checkpointsFingerprint, cache.checkpointsFingerprint) && cache.stageCheckpoints) {
-    return cache.stageCheckpoints;
+    const cachedModeFingerprints = cache.modeFingerprints;
+    const modeKeys = Object.keys(cache.stageCheckpoints || {});
+    if (isObjectLike(cachedModeFingerprints) && modeKeys.length) {
+      let allModeFingerprintsMatch = true;
+      for (const mode of modeKeys) {
+        const currentFingerprint = await readFingerprint(path.join(buildRoot, buildStageCheckpointModeBasename(mode)));
+        const priorFingerprint = isObjectLike(cachedModeFingerprints?.[mode])
+          ? cachedModeFingerprints[mode]
+          : null;
+        if (!fingerprintsMatch(currentFingerprint, priorFingerprint)) {
+          allModeFingerprintsMatch = false;
+          break;
+        }
+      }
+      if (allModeFingerprintsMatch) {
+        return cache.stageCheckpoints;
+      }
+    }
   }
   const parsed = await loadCheckpointSlices(buildRoot);
   cache.stageCheckpoints = parsed;
   cache.checkpointsFingerprint = checkpointsFingerprint;
   cache.checkpointsHash = parsed ? hashJson(parsed) : null;
+  if (parsed && typeof parsed === 'object') {
+    const modeFingerprints = {};
+    for (const mode of Object.keys(parsed)) {
+      modeFingerprints[mode] = await readFingerprint(
+        path.join(buildRoot, buildStageCheckpointModeBasename(mode))
+      );
+    }
+    cache.modeFingerprints = modeFingerprints;
+  } else {
+    cache.modeFingerprints = null;
+  }
   return parsed;
 };
 
@@ -861,7 +911,8 @@ const writeStateFile = async (
   const statePath = resolveStatePath(buildRoot);
   const resolvedDurabilityClass = resolveBuildStateDurabilityClass(durabilityClass);
   const fullHash = hashJson(state);
-  if (fullHash && cache.lastHash === fullHash) {
+  const currentFingerprint = fullHash ? await readFingerprint(statePath) : null;
+  if (fullHash && cache.lastHash === fullHash && fingerprintsMatch(currentFingerprint, cache.fingerprint)) {
     cache.state = state;
     if (comparableHash) cache.lastComparableHash = comparableHash;
     return state;
@@ -910,7 +961,12 @@ const writeSidecarFile = async (
   const jsonString = `${JSON.stringify(payload)}\n`;
   const nextHash = hashJsonString(jsonString);
   const cachedHash = cache.progressHash;
-  if (nextHash && cachedHash === nextHash) {
+  const currentFingerprint = nextHash ? await readFingerprint(filePath) : null;
+  if (
+    nextHash
+    && cachedHash === nextHash
+    && fingerprintsMatch(currentFingerprint, cache.progressFingerprint)
+  ) {
     cache.progress = payload;
     cache.progressSerialized = jsonString;
     return payload;
@@ -1046,7 +1102,11 @@ export const applyStatePatch = async (
       merged = mergeState(state, main);
       merged = sanitizeMainState(ensureStateVersions(merged, buildRoot, false));
       const comparableHash = hashJson(stripUpdatedAt(merged));
-      const shouldWrite = comparableHash && comparableHash !== cache.lastComparableHash;
+      const currentStateFingerprint = comparableHash ? await readFingerprint(resolveStatePath(buildRoot)) : null;
+      const shouldWrite = comparableHash && (
+        comparableHash !== cache.lastComparableHash
+        || !fingerprintsMatch(currentStateFingerprint, cache.fingerprint)
+      );
       if (shouldWrite) {
         merged.updatedAt = new Date().toISOString();
         writes.push(writeStateFile(buildRoot, merged, cache, {
@@ -1062,20 +1122,22 @@ export const applyStatePatch = async (
     if (writes.length) {
       await Promise.all(writes);
     }
-    if (events?.length && !hasPatchStageApplied(buildRoot, patchId, 'events')) {
+    const eventsPath = resolveEventsPath(buildRoot);
+    if (events?.length && !(await hasPatchStageApplied(buildRoot, patchId, 'events', eventsPath))) {
       const eventsWritten = await appendEventLog(buildRoot, events, {
         durabilityClass: resolvedDurabilityClass
       });
       if (eventsWritten) {
-        markPatchStageApplied(buildRoot, patchId, 'events');
+        markPatchStageApplied(buildRoot, patchId, 'events', await readFingerprint(eventsPath));
       }
     }
-    if (deltaEntries.length && !hasPatchStageApplied(buildRoot, patchId, 'deltas')) {
+    const deltasPath = resolveDeltasPath(buildRoot);
+    if (deltaEntries.length && !(await hasPatchStageApplied(buildRoot, patchId, 'deltas', deltasPath))) {
       const deltasWritten = await appendDeltaLog(buildRoot, deltaEntries, merged, {
         durabilityClass: resolvedDurabilityClass
       });
       if (deltasWritten) {
-        markPatchStageApplied(buildRoot, patchId, 'deltas');
+        markPatchStageApplied(buildRoot, patchId, 'deltas', await readFingerprint(deltasPath));
       }
     }
     return merged;

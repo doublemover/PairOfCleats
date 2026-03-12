@@ -19,7 +19,8 @@ const event = JSON.stringify({
   eventType: 'parser_crash',
   eventId: 'dedupe-event',
   signature: 'dedupe-event',
-  message: 'duplicated'
+  message: 'duplicated',
+  label: 'repo-a'
 });
 await fsPromises.writeFile(path.join(logsRoot, `run-${runSuffix}-all.diagnostics.jsonl`), `${event}\n`, 'utf8');
 await fsPromises.writeFile(path.join(logsRoot, `run-${runSuffix}-repo-a.diagnostics.jsonl`), `${event}\n`, 'utf8');
@@ -46,10 +47,15 @@ const output = await buildReportOutput({
   runSuffix
 });
 
-assert.equal(output.diagnostics.stream.fileCount, 1, 'expected master diagnostics stream to be ignored when repo streams exist');
+assert.equal(output.diagnostics.stream.fileCount, 2, 'expected both master and repo diagnostics streams to be scanned');
 assert.equal(output.diagnostics.stream.eventCount, 1, 'expected deduped diagnostics event count');
-assert.equal(output.diagnostics.progressConfidence.fileCount, 1, 'expected master progress-confidence stream to be ignored');
-assert.equal(output.diagnostics.preflight.fileCount, 1, 'expected master log to be ignored for preflight summary');
+assert.equal(output.diagnostics.stream.rawEventCount, 2, 'expected raw diagnostics count across master and repo');
+assert.equal(output.diagnostics.stream.duplicateEventCount, 1, 'expected one duplicate diagnostics event');
+assert.equal(output.diagnostics.progressConfidence.fileCount, 2, 'expected both master and repo progress-confidence streams to be scanned');
+assert.equal(output.diagnostics.progressConfidence.eventCount, 1, 'expected deduped progress-confidence event count');
+assert.equal(output.diagnostics.preflight.fileCount, 2, 'expected both master and repo logs to be scanned for preflight summary');
 assert.equal(output.diagnostics.preflight.eventCount, 1, 'expected one preflight event after master-log dedupe');
+assert.equal(output.diagnostics.preflight.rawEventCount, 2, 'expected raw preflight count across master and repo');
+assert.equal(output.diagnostics.preflight.duplicateEventCount, 1, 'expected one duplicate preflight event');
 
 console.log('bench language report master dedupe test passed');

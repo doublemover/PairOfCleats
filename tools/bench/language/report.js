@@ -160,21 +160,16 @@ const resolveRunLogPrefix = (runSuffix) => {
     : `run-${normalized}-`;
 };
 
+const isMasterBenchStreamFile = (filePath) => /^run-.*-all\.[^.]+(?:\..+)?$/i.test(path.basename(String(filePath || '')));
+
+const resolveBenchStreamScope = (filePath) => {
+  const name = path.basename(String(filePath || ''));
+  return name.replace(/^run-.*?-/, '').replace(/\.[^.]+(?:\..+)?$/i, '') || name;
+};
+
 const filterCanonicalBenchStreamFiles = (files) => {
   const list = Array.isArray(files) ? files.slice() : [];
-  if (!list.length) return [];
-  const repoSpecific = new Set();
-  const masterFiles = new Set();
-  for (const filePath of list) {
-    const name = path.basename(filePath);
-    if (/^run-.*-all\.[^.]+(?:\..+)?$/i.test(name)) {
-      masterFiles.add(filePath);
-      continue;
-    }
-    repoSpecific.add(filePath);
-  }
-  if (repoSpecific.size === 0) return list;
-  return list.filter((filePath) => !masterFiles.has(filePath));
+  return list;
 };
 
 const listBenchStreamFiles = async (resultsRoot, suffix, { runSuffix = null } = {}) => {
@@ -208,6 +203,18 @@ const listBenchStreamFiles = async (resultsRoot, suffix, { runSuffix = null } = 
     .sort((left, right) => left.localeCompare(right));
 };
 
+const buildSyntheticEventKey = (parts) => JSON.stringify(Array.isArray(parts) ? parts : []);
+
+const bumpMapCount = (map, key, count = 1) => {
+  if (!(map instanceof Map) || !key) return;
+  map.set(key, (map.get(key) || 0) + count);
+};
+
+const sortMapObject = (map) => Object.fromEntries(
+  Array.from((map instanceof Map ? map : new Map()).entries())
+    .sort(([left], [right]) => String(left).localeCompare(String(right)))
+);
+
 const listDiagnosticsStreamFiles = async (resultsRoot, options = {}) => (
   listBenchStreamFiles(resultsRoot, DIAGNOSTIC_STREAM_FILE_SUFFIX, options)
 );
@@ -236,24 +243,83 @@ const parseDiagnosticEventLine = (line) => {
     ? parsed.eventId.trim()
     : buildBenchDiagnosticEventId({ eventType, signature });
   const message = typeof parsed.message === 'string' ? parsed.message : '';
+  const label = typeof parsed.label === 'string' && parsed.label.trim()
+    ? parsed.label.trim()
+    : null;
   return {
     eventType,
     eventId,
     signature,
-    message
+    message,
+    label
   };
+};
+
+const buildPreflightEventKey = (event) => {
+  if (!event || typeof event !== 'object') return null;
+  return JSON.stringify([
+    event.event || null,
+    event.providerId || null,
+    event.preflightId || null,
+    event.preflightClass || null,
+    event.state || null,
+    Number.isFinite(event.durationMs) ? event.durationMs : null,
+    event.timedOut === true
+  ]);
+};
+
+const buildPreflightSummaryKey = (summary) => {
+  if (!summary || typeof summary !== 'object') return null;
+  return JSON.stringify([
+    Number.isFinite(summary.total) ? summary.total : null,
+    Number.isFinite(summary.cached) ? summary.cached : null,
+    Number.isFinite(summary.timedOut) ? summary.timedOut : null,
+    Number.isFinite(summary.failed) ? summary.failed : null,
+    Number.isFinite(summary.queuePeak) ? summary.queuePeak : null,
+    summary.teardownTimedOut === true,
+    summary.countsByState || null,
+    summary.countsByClass || null,
+    summary.countsByPolicy || null
+  ]);
+};
+
+const buildPreflightSlowestKey = (entry) => {
+  if (!entry || typeof entry !== 'object') return null;
+  return JSON.stringify([
+    entry.providerId || null,
+    entry.preflightId || null,
+    entry.preflightClass || null,
+    entry.state || null,
+    entry.event || null,
+    Number.isFinite(entry.durationMs) ? entry.durationMs : null
+  ]);
+};
+
+const buildProgressConfidenceEventKey = (event) => {
+  if (!event || typeof event !== 'object') return null;
+  return JSON.stringify([
+    event.ts || null,
+    event.label || null,
+    event.bucket || null,
+    Number.isFinite(event.score) ? Number(event.score) : null,
+    event.reason || null
+  ]);
 };
 
 const buildDiagnosticsStreamSummary = async (resultsRoot, options = {}) => {
   const files = await listDiagnosticsStreamFiles(resultsRoot, options);
+  const orderedFiles = files
+    .slice()
+    .sort((left, right) => Number(isMasterBenchStreamFile(left)) - Number(isMasterBenchStreamFile(right))
+      || left.localeCompare(right));
   const countsByType = new Map();
   const uniqueEventIds = new Set();
   const knownTypes = new Set(BENCH_DIAGNOSTIC_EVENT_TYPES);
   const perFile = [];
-  let eventCount = 0;
+  let rawEventCount = 0;
   let malformedLines = 0;
 
-  for (const filePath of files) {
+  for (const filePath of orderedFiles) {
     let raw = '';
     try {
       raw = await fsPromises.readFile(filePath, 'utf8');
@@ -269,9 +335,12 @@ const buildDiagnosticsStreamSummary = async (resultsRoot, options = {}) => {
         return;
       }
       if (!parsed.eventType) return;
-      eventCount += 1;
+      rawEventCount += 1;
       fileEventCount += 1;
-      uniqueEventIds.add(parsed.eventId);
+      const scope = parsed.label || resolveBenchStreamScope(filePath);
+      const eventKey = buildSyntheticEventKey([scope, parsed.eventId]);
+      if (uniqueEventIds.has(eventKey)) return;
+      uniqueEventIds.add(eventKey);
       countsByType.set(parsed.eventType, (countsByType.get(parsed.eventType) || 0) + 1);
       fileCounts.set(parsed.eventType, (fileCounts.get(parsed.eventType) || 0) + 1);
     });
@@ -297,7 +366,9 @@ const buildDiagnosticsStreamSummary = async (resultsRoot, options = {}) => {
     schemaVersion: BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION,
     fileCount: files.length,
     files: perFile,
-    eventCount,
+    eventCount: uniqueEventIds.size,
+    rawEventCount,
+    duplicateEventCount: Math.max(0, rawEventCount - uniqueEventIds.size),
     uniqueEventCount: uniqueEventIds.size,
     countsByType: Object.fromEntries(
       Array.from(countsByType.entries()).sort(([left], [right]) => left.localeCompare(right))
@@ -461,6 +532,10 @@ const pushTopSlowPreflights = (rows, entry) => {
 
 const buildPreflightLogSummary = async (resultsRoot, options = {}) => {
   const files = await listBenchStreamFiles(resultsRoot, LOG_FILE_SUFFIX, options);
+  const orderedFiles = files
+    .slice()
+    .sort((left, right) => Number(isMasterBenchStreamFile(left)) - Number(isMasterBenchStreamFile(right))
+      || left.localeCompare(right));
   const countsByEvent = new Map();
   const countsByState = new Map();
   const countsByClass = new Map();
@@ -473,9 +548,13 @@ const buildPreflightLogSummary = async (resultsRoot, options = {}) => {
   let summaryLineCount = 0;
   let summaryMaxQueuePeak = 0;
   let summaryTeardownTimedOutCount = 0;
-  let eventCount = 0;
+  let rawEventCount = 0;
   let timeoutEvents = 0;
-  for (const filePath of files) {
+  const uniqueEventKeys = new Set();
+  const repoEventKeys = new Set();
+  const uniqueSummaryKeys = new Set();
+  const uniqueSummarySlowKeys = new Set();
+  for (const filePath of orderedFiles) {
     let raw = '';
     try {
       raw = await fsPromises.readFile(filePath, 'utf8');
@@ -485,28 +564,45 @@ const buildPreflightLogSummary = async (resultsRoot, options = {}) => {
     forEachNonEmptyLine(raw, (line) => {
       const summary = parsePreflightSummaryLine(line);
       if (summary) {
-        summaryLineCount += 1;
-        if (Number.isFinite(summary.queuePeak)) {
-          summaryMaxQueuePeak = Math.max(summaryMaxQueuePeak, summary.queuePeak);
-        }
-        if (summary.teardownTimedOut === true) summaryTeardownTimedOutCount += 1;
-        for (const [name, count] of Object.entries(summary.countsByClass || {})) {
-          summaryCountsByClass.set(name, (summaryCountsByClass.get(name) || 0) + count);
-        }
-        for (const [name, count] of Object.entries(summary.countsByState || {})) {
-          summaryCountsByState.set(name, (summaryCountsByState.get(name) || 0) + count);
-        }
-        for (const [name, count] of Object.entries(summary.countsByPolicy || {})) {
-          summaryCountsByPolicy.set(name, (summaryCountsByPolicy.get(name) || 0) + count);
+        const summaryKey = buildPreflightSummaryKey(summary);
+        if (!summaryKey || !uniqueSummaryKeys.has(summaryKey)) {
+          if (summaryKey) uniqueSummaryKeys.add(summaryKey);
+          summaryLineCount += 1;
+          if (Number.isFinite(summary.queuePeak)) {
+            summaryMaxQueuePeak = Math.max(summaryMaxQueuePeak, summary.queuePeak);
+          }
+          if (summary.teardownTimedOut === true) summaryTeardownTimedOutCount += 1;
+          for (const [name, count] of Object.entries(summary.countsByClass || {})) {
+            summaryCountsByClass.set(name, (summaryCountsByClass.get(name) || 0) + count);
+          }
+          for (const [name, count] of Object.entries(summary.countsByState || {})) {
+            summaryCountsByState.set(name, (summaryCountsByState.get(name) || 0) + count);
+          }
+          for (const [name, count] of Object.entries(summary.countsByPolicy || {})) {
+            summaryCountsByPolicy.set(name, (summaryCountsByPolicy.get(name) || 0) + count);
+          }
         }
       }
       const summarySlowEntries = parsePreflightSlowestLine(line);
       for (const entry of summarySlowEntries) {
+        const summarySlowKey = buildPreflightSlowestKey(entry);
+        if (summarySlowKey && uniqueSummarySlowKeys.has(summarySlowKey)) continue;
+        if (summarySlowKey) uniqueSummarySlowKeys.add(summarySlowKey);
         pushTopSlowPreflights(summaryTopSlow, entry);
       }
       const event = parsePreflightLogLine(line);
       if (!event) return;
-      eventCount += 1;
+      rawEventCount += 1;
+      const rawKey = buildPreflightEventKey(event);
+      const masterFile = isMasterBenchStreamFile(filePath);
+      const scopedKey = buildSyntheticEventKey([
+        masterFile ? 'master' : resolveBenchStreamScope(filePath),
+        rawKey
+      ]);
+      if (masterFile && rawKey && repoEventKeys.has(rawKey)) return;
+      if (scopedKey && uniqueEventKeys.has(scopedKey)) return;
+      if (scopedKey) uniqueEventKeys.add(scopedKey);
+      if (!masterFile && rawKey) repoEventKeys.add(rawKey);
       countsByEvent.set(event.event, (countsByEvent.get(event.event) || 0) + 1);
       countsByClass.set(event.preflightClass, (countsByClass.get(event.preflightClass) || 0) + 1);
       if (event.state) {
@@ -539,7 +635,9 @@ const buildPreflightLogSummary = async (resultsRoot, options = {}) => {
   return {
     schemaVersion: PREFLIGHT_LOG_SCHEMA_VERSION,
     fileCount: files.length,
-    eventCount,
+    eventCount: uniqueEventKeys.size,
+    rawEventCount,
+    duplicateEventCount: Math.max(0, rawEventCount - uniqueEventKeys.size),
     timeoutEvents,
     countsByEvent: Object.fromEntries(
       Array.from(countsByEvent.entries()).sort(([left], [right]) => left.localeCompare(right))
@@ -572,18 +670,23 @@ const buildPreflightLogSummary = async (resultsRoot, options = {}) => {
 
 const buildProgressConfidenceSummary = async (resultsRoot, options = {}) => {
   const files = await listBenchStreamFiles(resultsRoot, PROGRESS_CONFIDENCE_STREAM_FILE_SUFFIX, options);
+  const orderedFiles = files
+    .slice()
+    .sort((left, right) => Number(isMasterBenchStreamFile(left)) - Number(isMasterBenchStreamFile(right))
+      || left.localeCompare(right));
   const bucketCounts = new Map();
   const perFile = [];
   const lowConfidenceEventsTop = [];
   const latestByLabel = new Map();
-  let eventCount = 0;
+  let rawEventCount = 0;
   let malformedLines = 0;
   let totalScore = 0;
   let totalScoreCount = 0;
   let minScoreGlobal = Number.POSITIVE_INFINITY;
   let maxScoreGlobal = Number.NEGATIVE_INFINITY;
+  const uniqueEventKeys = new Set();
 
-  for (const filePath of files) {
+  for (const filePath of orderedFiles) {
     let raw = '';
     try {
       raw = await fsPromises.readFile(filePath, 'utf8');
@@ -601,8 +704,11 @@ const buildProgressConfidenceSummary = async (resultsRoot, options = {}) => {
         malformedLines += 1;
         return;
       }
-      eventCount += 1;
+      rawEventCount += 1;
       fileEventCount += 1;
+      const eventKey = buildProgressConfidenceEventKey(parsed);
+      if (eventKey && uniqueEventKeys.has(eventKey)) return;
+      if (eventKey) uniqueEventKeys.add(eventKey);
       const bucket = parsed.bucket || 'unknown';
       bucketCounts.set(bucket, (bucketCounts.get(bucket) || 0) + 1);
       fileBucketCounts.set(bucket, (fileBucketCounts.get(bucket) || 0) + 1);
@@ -661,7 +767,9 @@ const buildProgressConfidenceSummary = async (resultsRoot, options = {}) => {
     schemaVersion: BENCH_PROGRESS_CONFIDENCE_SCHEMA_VERSION,
     fileCount: files.length,
     files: perFile,
-    eventCount,
+    eventCount: uniqueEventKeys.size,
+    rawEventCount,
+    duplicateEventCount: Math.max(0, rawEventCount - uniqueEventKeys.size),
     avgScore,
     minScore: Number.isFinite(minScoreGlobal) ? minScoreGlobal : null,
     maxScore: Number.isFinite(maxScoreGlobal) ? maxScoreGlobal : null,

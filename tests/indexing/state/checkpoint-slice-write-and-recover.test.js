@@ -114,6 +114,29 @@ assert.deepEqual(
   'slice sidecars should reconstruct deterministic checkpoint state after reload'
 );
 
+await fs.rm(codePath, { force: true });
+await updateBuildState(buildRoot, {
+  stageCheckpoints: {
+    code: {
+      stage1: {
+        generatedAt: new Date(1700000000000).toISOString(),
+        checkpoints: [{ stage: 'stage1', step: 'discover', elapsedMs: 1 }]
+      },
+      stage2: {
+        generatedAt: new Date(1700000002000).toISOString(),
+        checkpoints: [{ stage: 'stage2', step: 'write', elapsedMs: 3 }]
+      }
+    }
+  }
+});
+await flushBuildState(buildRoot);
+const restoredCode = JSON.parse(await fs.readFile(codePath, 'utf8'));
+assert.deepEqual(
+  restoredCode,
+  recovered.code,
+  'identical checkpoint updates should rewrite a missing mode sidecar when the warm cache is still populated'
+);
+
 await updateBuildState(buildRoot, {
   stageCheckpoints: {
     prose: null

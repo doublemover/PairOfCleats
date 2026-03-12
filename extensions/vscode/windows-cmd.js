@@ -1,14 +1,16 @@
-import fs from 'node:fs';
-import path from 'node:path';
+const fs = require('node:fs');
+const path = require('node:path');
 
 const WINDOWS_CMD_META_PATTERN = /[\s"%!&|<>^();]/u;
 
-const unwrapWrapperPrefix = (line) => String(line || '')
-  .replace(/^@/u, '')
-  .replace(/^endlocal\s+&\s+goto\b[\s\S]*?\|\|\s+title\s+%COMSPEC%\s+&\s*/iu, '')
-  .trim();
+function unwrapWrapperPrefix(line) {
+  return String(line || '')
+    .replace(/^@/u, '')
+    .replace(/^endlocal\s+&\s+goto\b[\s\S]*?\|\|\s+title\s+%COMSPEC%\s+&\s*/iu, '')
+    .trim();
+}
 
-const tokenizeCmdLine = (line) => {
+function tokenizeCmdLine(line) {
   const tokens = [];
   const pattern = /"((?:[^"]|"")*)"|(\S+)/gu;
   let match = null;
@@ -16,23 +18,23 @@ const tokenizeCmdLine = (line) => {
     tokens.push(match[1] != null ? match[1].replaceAll('""', '"') : match[2]);
   }
   return tokens;
-};
+}
 
-const resolveWrapperNodeProgram = (wrapperDir) => {
+function resolveWrapperNodeProgram(wrapperDir) {
   const localNode = path.join(wrapperDir, 'node.exe');
   if (fs.existsSync(localNode)) return localNode;
   return process.execPath || 'node';
-};
+}
 
-const normalizeWrapperToken = (token, { wrapperDir, nodeProgram }) => {
+function normalizeWrapperToken(token, { wrapperDir, nodeProgram }) {
   const wrapperPrefix = wrapperDir.endsWith(path.sep) ? wrapperDir : `${wrapperDir}${path.sep}`;
   return String(token || '')
     .replace(/%~dp0/giu, wrapperPrefix)
     .replace(/%dp0%/giu, wrapperPrefix)
     .replace(/%_prog%/giu, nodeProgram);
-};
+}
 
-const maybeResolveWindowsCmdShim = (cmd, args = []) => {
+function maybeResolveWindowsCmdShim(cmd, args = []) {
   if (!cmd || !/\.(cmd|bat)$/iu.test(String(cmd || ''))) return null;
   if (!fs.existsSync(cmd) || !fs.statSync(cmd).isFile()) return null;
   let raw = '';
@@ -63,20 +65,9 @@ const maybeResolveWindowsCmdShim = (cmd, args = []) => {
     };
   }
   return null;
-};
+}
 
-/**
- * Quote one argument for Windows `cmd.exe` command-line execution.
- *
- * This is used to build a safe explicit `cmd.exe /d /s /c` command line for
- * wrapper scripts. Escaping `%`, `!`, `^`, quotes, and other metacharacters
- * keeps user-controlled arguments literal even though the wrapper itself must
- * still be launched through `cmd.exe`.
- *
- * @param {unknown} value
- * @returns {string}
- */
-export const quoteWindowsCmdArg = (value) => {
+function quoteWindowsCmdArg(value) {
   const text = String(value ?? '');
   if (!text) return '""';
   const escaped = text
@@ -93,30 +84,15 @@ export const quoteWindowsCmdArg = (value) => {
     .replaceAll('"', '""');
   if (!WINDOWS_CMD_META_PATTERN.test(text)) return escaped;
   return `"${escaped}"`;
-};
+}
 
-/**
- * Build a command line string suitable for `cmd.exe /c`.
- *
- * @param {string} cmd
- * @param {Array<string>} [args]
- * @returns {string}
- */
-export const buildWindowsShellCommand = (cmd, args = []) => (
-  [cmd, ...(Array.isArray(args) ? args : [])]
+function buildWindowsShellCommand(cmd, args = []) {
+  return [cmd, ...(Array.isArray(args) ? args : [])]
     .map(quoteWindowsCmdArg)
-    .join(' ')
-);
+    .join(' ');
+}
 
-/**
- * Resolve a Windows wrapper invocation for `.cmd` / `.bat` targets without
- * relying on `shell:true`.
- *
- * @param {string} cmd
- * @param {Array<string>} [args]
- * @returns {{command:string,args:string[]}}
- */
-export const resolveWindowsCmdInvocation = (cmd, args = []) => {
+function resolveWindowsCmdInvocation(cmd, args = []) {
   const shimInvocation = maybeResolveWindowsCmdShim(cmd, args);
   if (shimInvocation) return shimInvocation;
   const shellExe = process.env.ComSpec || 'cmd.exe';
@@ -124,4 +100,10 @@ export const resolveWindowsCmdInvocation = (cmd, args = []) => {
     command: shellExe,
     args: ['/d', '/s', '/c', buildWindowsShellCommand(cmd, args)]
   };
+}
+
+module.exports = {
+  quoteWindowsCmdArg,
+  buildWindowsShellCommand,
+  resolveWindowsCmdInvocation
 };

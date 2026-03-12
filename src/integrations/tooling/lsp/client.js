@@ -8,7 +8,7 @@ import {
   isClosedStreamWriteError
 } from '../../../shared/jsonrpc.js';
 import { registerChildProcessForCleanup } from '../../../shared/subprocess.js';
-import { buildWindowsShellCommand } from '../../../shared/subprocess/windows-cmd.js';
+import { resolveWindowsCmdInvocation } from '../../../shared/subprocess/windows-cmd.js';
 import { killChildProcessTree, killChildProcessTreeSync } from '../../../shared/kill-tree.js';
 import { applyToolchainDaemonPolicyEnv } from '../../../shared/toolchain-env.js';
 
@@ -548,13 +548,16 @@ export function createLspClient(options) {
     }
     generation += 1;
     const childGen = generation;
-    const spawnCmd = useShell ? buildWindowsShellCommand(cmd, args) : cmd;
-    const spawnArgs = useShell ? [] : args;
+    const invocation = useShell
+      ? resolveWindowsCmdInvocation(cmd, args)
+      : { command: cmd, args };
+    const spawnCmd = invocation.command;
+    const spawnArgs = invocation.args;
     const spawnOptions = {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd,
-      env: resolvedEnv,
-      shell: useShell,
+      env: invocation.env ? { ...resolvedEnv, ...invocation.env } : resolvedEnv,
+      shell: false,
       detached: killTreeDetached
     };
     const child = typeof spawnProcess === 'function'

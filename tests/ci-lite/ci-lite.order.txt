@@ -1051,6 +1051,8 @@ indexing/imports/import-scan-budget-cache-key
 tooling/doctor/gating-reasons
 tooling/lsp/elixir-provider-initialize-stall-fail-open
 perf/bench/language-log-closeout
+perf/bench/language-log-emergency-close
+perf/bench/language-report-cross-repo-dedupe
 perf/bench/language-report-master-dedupe
 perf/bench/query-runtime
 perf/bench/language-timeout-profile
@@ -1059,9 +1061,12 @@ perf/bench/language-process-idle-activity-probe
 perf/bench/language-process-idle-activity-probe-async
 shared/lifecycle/registry-unref-promise-drain
 shared/bundle-io-patch-append
+shared/subprocess/windows-cmd
 indexing/embeddings/embedding-batcher-unref-timer
 perf/bench/repo-timeout-propagation
 indexing/watch/debounce
+indexing/state/build-state-log-repair
+indexing/state/build-state-skip-write-missing-files
 tooling/lsp/signature-help-timeout-adaptive-gates-next-symbol
 tooling/lsp/signature-help-timeout-adaptive
 runner/harness/skip-semantics
@@ -1076,6 +1081,7 @@ indexing/runtime/runtime-teardown-order
 indexing/ordering/ordered-appender-retry-reset
 tooling/install/tooling-signal-exit
 tooling/install/tooling-resolve-preferred-enabled-fallback
+tooling/vscode/windows-cmd
 ci/tooling-lsp-slo-gate-attempt-ratios
 ci/tooling-lsp-slo-gate-sampling
 ci/tooling-lsp-slo-gate-unavailable-skip

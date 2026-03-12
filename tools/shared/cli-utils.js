@@ -1,22 +1,7 @@
 import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
+import { resolveWindowsCmdInvocation } from '../../src/shared/subprocess/windows-cmd.js';
 
 const shouldUseCmdShell = (command) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(String(command || ''));
-
-const quoteWindowsCmdArg = (value) => {
-  const text = String(value ?? '');
-  if (!text) return '""';
-  if (!/[\s"&|<>^();]/u.test(text)) return text;
-  return `"${text.replaceAll('"', '""')}"`;
-};
-
-const resolveWindowsCmdInvocation = (command, args = []) => {
-  const shellExe = process.env.ComSpec || 'cmd.exe';
-  const commandLine = [command, ...args].map(quoteWindowsCmdArg).join(' ');
-  return {
-    command: shellExe,
-    args: ['/d', '/s', '/c', commandLine]
-  };
-};
 
 /**
  * Exit current process using child-command exit semantics.
@@ -65,7 +50,9 @@ export function runCommand(cmd, args, options = {}) {
     : null;
   const result = spawnSubprocessSync(invocation.command, invocation.args, {
     cwd: options.cwd,
-    env: options.env,
+    env: invocation.env
+      ? { ...(options.env || process.env), ...invocation.env }
+      : options.env,
     stdio: options.stdio,
     input: options.input,
     shell: options.shell,

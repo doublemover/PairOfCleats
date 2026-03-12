@@ -2,6 +2,7 @@ const vscode = require('vscode');
 const cp = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
+const { resolveWindowsCmdInvocation } = require('./windows-cmd.js');
 
 const DEFAULT_EDITOR_CONFIG_CONTRACT = Object.freeze({
   schemaVersion: 1,
@@ -343,11 +344,14 @@ async function runSearch() {
       cancellable: true
     },
     (_, token) => new Promise((resolve) => {
-      const useShell = process.platform === 'win32' && /\.(cmd|bat)$/i.test(command);
-      const child = cp.spawn(command, args, {
+      const useShellWrapper = process.platform === 'win32' && /\.(cmd|bat)$/i.test(command);
+      const invocation = useShellWrapper
+        ? resolveWindowsCmdInvocation(command, args)
+        : { command, args };
+      const child = cp.spawn(invocation.command, invocation.args, {
         cwd: repoRoot,
-        env,
-        shell: useShell,
+        env: invocation.env ? { ...env, ...invocation.env } : env,
+        shell: false,
         windowsHide: true
       });
       const maxBufferBytes = 20 * 1024 * 1024;
