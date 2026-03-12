@@ -6,10 +6,10 @@ from ..lib import ui
 
 class PairOfCleatsShowProgressCommand(sublime_plugin.WindowCommand):
     def is_enabled(self):
-        return True
+        return bool(tasks.active_tasks(self.window) or tasks.recent_tasks(self.window))
 
     def is_visible(self):
-        return True
+        return self.is_enabled()
 
     def run(self):
         tasks.show_progress(self.window)
@@ -17,10 +17,13 @@ class PairOfCleatsShowProgressCommand(sublime_plugin.WindowCommand):
 
 class PairOfCleatsCancelActiveTaskCommand(sublime_plugin.WindowCommand):
     def is_enabled(self):
-        return True
+        return any(
+            task.get('cancellable') and callable(task.get('cancel'))
+            for task in tasks.active_tasks(self.window)
+        )
 
     def is_visible(self):
-        return True
+        return self.is_enabled()
 
     def run(self):
         task = tasks.cancel_active(self.window)

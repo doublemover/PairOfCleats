@@ -322,10 +322,10 @@ def _run_open_index_dir(window):
 
 class PairOfCleatsIndexBuildCodeCommand(sublime_plugin.WindowCommand):
     def is_enabled(self):
-        return True
+        return _has_repo_root(self.window)
 
     def is_visible(self):
-        return True
+        return self.is_enabled()
 
     def run(self):
         _run_index_build(self.window, 'code')
@@ -333,10 +333,10 @@ class PairOfCleatsIndexBuildCodeCommand(sublime_plugin.WindowCommand):
 
 class PairOfCleatsIndexBuildProseCommand(sublime_plugin.WindowCommand):
     def is_enabled(self):
-        return True
+        return _has_repo_root(self.window)
 
     def is_visible(self):
-        return True
+        return self.is_enabled()
 
     def run(self):
         _run_index_build(self.window, 'prose')
@@ -344,10 +344,10 @@ class PairOfCleatsIndexBuildProseCommand(sublime_plugin.WindowCommand):
 
 class PairOfCleatsIndexBuildAllCommand(sublime_plugin.WindowCommand):
     def is_enabled(self):
-        return True
+        return _has_repo_root(self.window)
 
     def is_visible(self):
-        return True
+        return self.is_enabled()
 
     def run(self):
         _run_index_build(self.window, 'all')
@@ -355,10 +355,10 @@ class PairOfCleatsIndexBuildAllCommand(sublime_plugin.WindowCommand):
 
 class PairOfCleatsIndexWatchStartCommand(sublime_plugin.WindowCommand):
     def is_enabled(self):
-        return True
+        return _has_repo_root(self.window) and not watch.is_running(self.window)
 
     def is_visible(self):
-        return True
+        return _has_repo_root(self.window)
 
     def run(self):
         _run_index_watch(self.window)
@@ -366,10 +366,10 @@ class PairOfCleatsIndexWatchStartCommand(sublime_plugin.WindowCommand):
 
 class PairOfCleatsIndexWatchStopCommand(sublime_plugin.WindowCommand):
     def is_enabled(self):
-        return True
+        return watch.is_running(self.window)
 
     def is_visible(self):
-        return True
+        return self.is_enabled()
 
     def run(self):
         _run_index_watch_stop(self.window)
@@ -377,10 +377,10 @@ class PairOfCleatsIndexWatchStopCommand(sublime_plugin.WindowCommand):
 
 class PairOfCleatsIndexValidateCommand(sublime_plugin.WindowCommand):
     def is_enabled(self):
-        return True
+        return _has_repo_root(self.window)
 
     def is_visible(self):
-        return True
+        return self.is_enabled()
 
     def run(self):
         _run_index_validate(self.window)
@@ -388,10 +388,10 @@ class PairOfCleatsIndexValidateCommand(sublime_plugin.WindowCommand):
 
 class PairOfCleatsOpenIndexDirectoryCommand(sublime_plugin.WindowCommand):      
     def is_enabled(self):
-        return True
+        return _has_repo_root(self.window)
 
     def is_visible(self):
-        return True
+        return self.is_enabled()
 
     def run(self):
         _run_open_index_dir(self.window)

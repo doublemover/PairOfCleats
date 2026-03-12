@@ -39,6 +39,24 @@ def _has_repo_root(window, path_hint=None, allow_fallback=True):
     return paths.has_repo_root(window, path_hint=path_hint, allow_fallback=allow_fallback)
 
 
+def _has_active_file(window):
+    view = window.active_view() if window else None
+    return bool(view and view.file_name())
+
+
+def _has_current_folder(window):
+    if window is None:
+        return False
+    view = window.active_view()
+    if view and view.file_name():
+        return True
+    return len(window.folders()) == 1
+
+
+def _has_map_state(window):
+    return map_state.get_last_map(window) is not None
+
+
 def _with_map_repo_root(window, on_resolved, path_hint=None):
     def handle_repo_root(repo_root, reason):
         if not repo_root:
@@ -343,10 +361,10 @@ def _run_with_options(window, scope, focus, map_type=None, map_format=None, path
 
 class PairOfCleatsMapRepoCommand(sublime_plugin.WindowCommand):
     def is_enabled(self):
-        return True
+        return _has_repo_root(self.window, allow_fallback=False)
 
     def is_visible(self):
-        return True
+        return self.is_enabled()
 
     def run(self):
         _run_with_options(self.window, 'repo', '', path_hint=None)
@@ -354,10 +372,10 @@ class PairOfCleatsMapRepoCommand(sublime_plugin.WindowCommand):
 
 class PairOfCleatsMapCurrentFolderCommand(sublime_plugin.WindowCommand):        
     def is_enabled(self):
-        return True
+        return _has_current_folder(self.window)
 
     def is_visible(self):
-        return True
+        return self.is_enabled()
 
     def run(self):
         view = self.window.active_view()
@@ -383,7 +401,7 @@ class PairOfCleatsMapCurrentFileCommand(sublime_plugin.WindowCommand):
         return bool(view and view.file_name())
 
     def is_visible(self):
-        return True
+        return self.is_enabled()
 
     def run(self):
         view = self.window.active_view()
@@ -400,10 +418,10 @@ class PairOfCleatsMapCurrentFileCommand(sublime_plugin.WindowCommand):
 
 class PairOfCleatsMapSymbolUnderCursorCommand(sublime_plugin.TextCommand):
     def is_enabled(self):
-        return bool(self.view and self.view.file_name())
+        return bool(self.view and self.view.file_name() and _extract_symbol(self.view))
 
     def is_visible(self):
-        return True
+        return bool(self.view and self.view.file_name())
 
     def run(self, edit):
         symbol = _extract_symbol(self.view)
@@ -421,10 +439,10 @@ class PairOfCleatsMapSymbolUnderCursorCommand(sublime_plugin.TextCommand):
 
 class PairOfCleatsMapSelectionCommand(sublime_plugin.TextCommand):
     def is_enabled(self):
-        return bool(self.view)
+        return bool(self.view and _extract_selection(self.view).strip())
 
     def is_visible(self):
-        return True
+        return bool(self.view)
 
     def run(self, edit):
         selection = _extract_selection(self.view)
@@ -437,10 +455,14 @@ class PairOfCleatsMapSelectionCommand(sublime_plugin.TextCommand):
 
 class PairOfCleatsMapJumpToNodeCommand(sublime_plugin.WindowCommand):
     def is_enabled(self):
-        return True
+        state = map_state.get_last_map(self.window)
+        if not state:
+            return False
+        node_list_path = state.get('nodeListPath')
+        return bool(node_list_path and os.path.exists(node_list_path))
 
     def is_visible(self):
-        return True
+        return _has_map_state(self.window)
 
     def run(self):
         state = map_state.get_last_map(self.window)
@@ -497,10 +519,13 @@ class PairOfCleatsMapJumpToNodeCommand(sublime_plugin.WindowCommand):
 
 class PairOfCleatsMapOpenLastViewerCommand(sublime_plugin.WindowCommand):
     def is_enabled(self):
-        return True
+        state = map_state.get_last_map(self.window)
+        if not state:
+            return False
+        return bool(state.get('outPath') or state.get('browserUrl'))
 
     def is_visible(self):
-        return True
+        return _has_map_state(self.window)
 
     def run(self):
         state = map_state.get_last_map(self.window)
@@ -512,10 +537,10 @@ class PairOfCleatsMapOpenLastViewerCommand(sublime_plugin.WindowCommand):
 
 class PairOfCleatsMapShowLastReportCommand(sublime_plugin.WindowCommand):
     def is_enabled(self):
-        return True
+        return _has_map_state(self.window)
 
     def is_visible(self):
-        return True
+        return self.is_enabled()
 
     def run(self):
         state = map_state.get_last_map(self.window)

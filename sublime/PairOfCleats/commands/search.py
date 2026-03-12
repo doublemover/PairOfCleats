@@ -23,6 +23,30 @@ def _has_repo_root(window):
     return paths.has_repo_root(window)
 
 
+def _has_selection(view):
+    return bool(_extract_selection(view).strip()) if view else False
+
+
+def _has_symbol(view):
+    return bool(_extract_symbol(view).strip()) if view else False
+
+
+def _has_last_results(window):
+    return results_state.get_last_results(window) is not None
+
+
+def _has_last_explain(window):
+    return results_state.get_last_explain(window) is not None
+
+
+def _has_search_history(window):
+    return bool(history.load_history(window))
+
+
+def _has_last_query(window):
+    return history.get_last_query(window) is not None
+
+
 def _resolve_defaults(settings, overrides=None):
     overrides = overrides or {}
     mode = overrides.get('mode') or settings.get('index_mode_default') or 'both'
@@ -656,7 +680,7 @@ def _search_with_prompt(window, overrides=None, force_prompt=False):
 
 class PairOfCleatsSearchCommand(sublime_plugin.WindowCommand):
     def is_enabled(self):
-        return True
+        return _has_repo_root(self.window)
 
     def is_visible(self):
         return True
@@ -670,7 +694,7 @@ class PairOfCleatsSearchCommand(sublime_plugin.WindowCommand):
 
 class PairOfCleatsSearchWithOptionsCommand(sublime_plugin.WindowCommand):       
     def is_enabled(self):
-        return True
+        return _has_repo_root(self.window)
 
     def is_visible(self):
         return True
@@ -684,10 +708,10 @@ class PairOfCleatsSearchWithOptionsCommand(sublime_plugin.WindowCommand):
 
 class PairOfCleatsSearchSelectionCommand(sublime_plugin.TextCommand):
     def is_enabled(self):
-        return bool(self.view)
+        return _has_selection(self.view)
 
     def is_visible(self):
-        return True
+        return bool(self.view)
 
     def run(self, edit):
         query = _extract_selection(self.view)
@@ -699,10 +723,10 @@ class PairOfCleatsSearchSelectionCommand(sublime_plugin.TextCommand):
 
 class PairOfCleatsSearchSymbolUnderCursorCommand(sublime_plugin.TextCommand):   
     def is_enabled(self):
-        return bool(self.view)
+        return _has_symbol(self.view)
 
     def is_visible(self):
-        return True
+        return bool(self.view)
 
     def run(self, edit):
         query = _extract_symbol(self.view)
@@ -714,10 +738,10 @@ class PairOfCleatsSearchSymbolUnderCursorCommand(sublime_plugin.TextCommand):
 
 class PairOfCleatsGotoDefinitionCommand(sublime_plugin.TextCommand):
     def is_enabled(self):
-        return bool(self.view)
+        return bool(self.view and self.view.file_name() and _has_symbol(self.view))
 
     def is_visible(self):
-        return True
+        return bool(self.view and self.view.file_name())
 
     def run(self, edit):
         query = _extract_symbol(self.view)
@@ -746,10 +770,10 @@ class PairOfCleatsGotoDefinitionCommand(sublime_plugin.TextCommand):
 
 class PairOfCleatsFindReferencesCommand(sublime_plugin.TextCommand):
     def is_enabled(self):
-        return bool(self.view)
+        return bool(self.view and self.view.file_name() and _has_symbol(self.view))
 
     def is_visible(self):
-        return True
+        return bool(self.view and self.view.file_name())
 
     def run(self, edit):
         query = _extract_symbol(self.view)
@@ -774,10 +798,10 @@ class PairOfCleatsFindReferencesCommand(sublime_plugin.TextCommand):
 
 class PairOfCleatsCompleteSymbolCommand(sublime_plugin.TextCommand):
     def is_enabled(self):
-        return bool(self.view)
+        return bool(self.view and _has_symbol(self.view))
 
     def is_visible(self):
-        return True
+        return bool(self.view)
 
     def run(self, edit):
         query = _extract_symbol(self.view)
@@ -842,7 +866,7 @@ class PairOfCleatsApplyCompletionCommand(sublime_plugin.TextCommand):
 
 class PairOfCleatsSearchHistoryCommand(sublime_plugin.WindowCommand):
     def is_enabled(self):
-        return True
+        return _has_repo_root(self.window) and _has_search_history(self.window)
 
     def is_visible(self):
         return True
@@ -873,7 +897,7 @@ class PairOfCleatsSearchHistoryCommand(sublime_plugin.WindowCommand):
 
 class PairOfCleatsRepeatLastSearchCommand(sublime_plugin.WindowCommand):        
     def is_enabled(self):
-        return True
+        return _has_repo_root(self.window) and _has_last_query(self.window)
 
     def is_visible(self):
         return True
@@ -888,7 +912,7 @@ class PairOfCleatsRepeatLastSearchCommand(sublime_plugin.WindowCommand):
 
 class PairOfCleatsExplainSearchCommand(sublime_plugin.WindowCommand):
     def is_enabled(self):
-        return True
+        return _has_repo_root(self.window)
 
     def is_visible(self):
         return True
@@ -909,10 +933,10 @@ class PairOfCleatsExplainSearchCommand(sublime_plugin.WindowCommand):
 
 class PairOfCleatsReopenLastResultsCommand(sublime_plugin.WindowCommand):
     def is_enabled(self):
-        return True
+        return _has_last_results(self.window)
 
     def is_visible(self):
-        return True
+        return self.is_enabled()
 
     def run(self):
         session = results_state.get_last_results(self.window)
@@ -924,10 +948,10 @@ class PairOfCleatsReopenLastResultsCommand(sublime_plugin.WindowCommand):
 
 class PairOfCleatsReopenLastExplainCommand(sublime_plugin.WindowCommand):
     def is_enabled(self):
-        return True
+        return _has_last_explain(self.window)
 
     def is_visible(self):
-        return True
+        return self.is_enabled()
 
     def run(self):
         session = results_state.get_last_explain(self.window)
@@ -939,10 +963,10 @@ class PairOfCleatsReopenLastExplainCommand(sublime_plugin.WindowCommand):
 
 class PairOfCleatsResultActionsCommand(sublime_plugin.WindowCommand):
     def is_enabled(self):
-        return True
+        return _has_last_results(self.window)
 
     def is_visible(self):
-        return True
+        return self.is_enabled()
 
     def run(self, source='results', hit_index=None, action=None):
         session = _load_action_session(self.window, source)

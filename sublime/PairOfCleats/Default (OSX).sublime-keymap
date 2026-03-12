@@ -1,0 +1,22 @@
+[
+  {
+    "keys": ["super+alt+p", "s"],
+    "command": "pair_of_cleats_search"
+  },
+  {
+    "keys": ["super+alt+p", "q"],
+    "command": "pair_of_cleats_search_selection"
+  },
+  {
+    "keys": ["super+alt+p", "d"],
+    "command": "pair_of_cleats_goto_definition"
+  },
+  {
+    "keys": ["super+alt+p", "r"],
+    "command": "pair_of_cleats_find_references"
+  },
+  {
+    "keys": ["super+alt+p", "p"],
+    "command": "pair_of_cleats_show_progress"
+  }
+]

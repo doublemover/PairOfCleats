@@ -29,6 +29,10 @@ const requiredShippedPaths = [
   'PairOfCleats/plugin.py',
   'PairOfCleats/README.md',
   'PairOfCleats/Default.sublime-commands',
+  'PairOfCleats/Default (Windows).sublime-keymap',
+  'PairOfCleats/Default (Linux).sublime-keymap',
+  'PairOfCleats/Default (OSX).sublime-keymap',
+  'PairOfCleats/Context.sublime-menu',
   'PairOfCleats/Main.sublime-menu',
   'PairOfCleats/PairOfCleats.sublime-settings',
   'PairOfCleats/commands/search.py',
@@ -49,11 +53,19 @@ for (const entry of requiredShippedPaths) {
 
 const commandPalettePath = path.join(root, 'sublime', 'PairOfCleats', 'Default.sublime-commands');
 const menuPath = path.join(root, 'sublime', 'PairOfCleats', 'Main.sublime-menu');
+const contextMenuPath = path.join(root, 'sublime', 'PairOfCleats', 'Context.sublime-menu');
+const keymapPaths = [
+  path.join(root, 'sublime', 'PairOfCleats', 'Default (Windows).sublime-keymap'),
+  path.join(root, 'sublime', 'PairOfCleats', 'Default (Linux).sublime-keymap'),
+  path.join(root, 'sublime', 'PairOfCleats', 'Default (OSX).sublime-keymap'),
+];
 const settingsPath = path.join(root, 'sublime', 'PairOfCleats', 'PairOfCleats.sublime-settings');
 const pluginPath = path.join(root, 'sublime', 'PairOfCleats', 'plugin.py');
 
 const commandEntries = JSON.parse(fs.readFileSync(commandPalettePath, 'utf8'));
 const menuEntries = JSON.parse(fs.readFileSync(menuPath, 'utf8'));
+const contextMenuEntries = JSON.parse(fs.readFileSync(contextMenuPath, 'utf8'));
+const keymapEntries = keymapPaths.flatMap((keymapPath) => JSON.parse(fs.readFileSync(keymapPath, 'utf8')));
 const settingsText = fs.readFileSync(settingsPath, 'utf8');
 const pluginText = fs.readFileSync(pluginPath, 'utf8');
 
@@ -106,10 +118,26 @@ for (const command of requiredCommands) {
 const preferenceMenu = Array.isArray(menuEntries)
   ? menuEntries.find((entry) => entry.id === 'preferences')
   : null;
+const toolsMenu = Array.isArray(menuEntries)
+  ? menuEntries.find((entry) => entry.id === 'tools')
+  : null;
 const preferenceCommands = new Set(
   Array.isArray(preferenceMenu?.children)
     ? preferenceMenu.children.map((entry) => entry.command).filter(Boolean)
     : []
+);
+const toolsCommands = new Set(
+  Array.isArray(toolsMenu?.children?.[0]?.children)
+    ? toolsMenu.children[0].children.map((entry) => entry.command).filter(Boolean)
+    : []
+);
+const contextCommands = new Set(
+  Array.isArray(contextMenuEntries?.[0]?.children)
+    ? contextMenuEntries[0].children.map((entry) => entry.command).filter(Boolean)
+    : []
+);
+const keymapCommands = new Set(
+  keymapEntries.map((entry) => entry.command).filter(Boolean)
 );
 const requiredPreferenceCommands = [
   'pair_of_cleats_open_settings',
@@ -121,6 +149,55 @@ const requiredPreferenceCommands = [
 for (const command of requiredPreferenceCommands) {
   if (!preferenceCommands.has(command)) {
     console.error(`package-release-sanity test failed: missing preferences menu command ${command}`);
+    process.exit(1);
+  }
+}
+
+const requiredToolsCommands = [
+  'pair_of_cleats_search',
+  'pair_of_cleats_reopen_last_results',
+  'pair_of_cleats_show_progress',
+  'pair_of_cleats_index_build_all',
+  'pair_of_cleats_index_watch_start',
+  'pair_of_cleats_index_watch_stop',
+  'pair_of_cleats_map_current_file',
+  'pair_of_cleats_show_config_dump',
+  'pair_of_cleats_tooling_doctor',
+];
+for (const command of requiredToolsCommands) {
+  if (!toolsCommands.has(command)) {
+    console.error(`package-release-sanity test failed: missing tools menu command ${command}`);
+    process.exit(1);
+  }
+}
+
+const requiredContextCommands = [
+  'pair_of_cleats_search_selection',
+  'pair_of_cleats_search_symbol_under_cursor',
+  'pair_of_cleats_goto_definition',
+  'pair_of_cleats_find_references',
+  'pair_of_cleats_complete_symbol',
+  'pair_of_cleats_map_current_file',
+  'pair_of_cleats_map_symbol_under_cursor',
+  'pair_of_cleats_map_selection',
+];
+for (const command of requiredContextCommands) {
+  if (!contextCommands.has(command)) {
+    console.error(`package-release-sanity test failed: missing context menu command ${command}`);
+    process.exit(1);
+  }
+}
+
+const requiredKeymapCommands = [
+  'pair_of_cleats_search',
+  'pair_of_cleats_search_selection',
+  'pair_of_cleats_goto_definition',
+  'pair_of_cleats_find_references',
+  'pair_of_cleats_show_progress',
+];
+for (const command of requiredKeymapCommands) {
+  if (!keymapCommands.has(command)) {
+    console.error(`package-release-sanity test failed: missing keybinding command ${command}`);
     process.exit(1);
   }
 }

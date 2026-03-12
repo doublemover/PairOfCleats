@@ -671,6 +671,7 @@ tooling/sublime/map-behavior
 tooling/sublime/api-server
 tooling/sublime/runner-behavior
 tooling/sublime/task-behavior
+tooling/sublime/visibility-behavior
 tooling/sublime/package-release-sanity
 retrieval/cache/query-signature-sharded-chunk-meta
 storage/vector-extension/missing

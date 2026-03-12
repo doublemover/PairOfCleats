@@ -30,6 +30,9 @@ class FakeRegion:
         self.a = a
         self.b = b
 
+    def empty(self):
+        return self.a == self.b
+
 
 class FakeSelection(list):
     pass

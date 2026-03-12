@@ -624,6 +624,25 @@ def _load_analysis_session(window, source):
     return results_state.get_last_analysis(window, source)
 
 
+def _has_any_analysis_session(window):
+    if results_state.get_last_context_pack(window) is not None:
+        return True
+    if results_state.get_last_risk_explain(window) is not None:
+        return True
+    for kind in (
+        'architecture-check',
+        'impact',
+        'suggest-tests',
+        'workspace-manifest',
+        'workspace-status',
+        'workspace-build',
+        'workspace-catalog',
+    ):
+        if results_state.get_last_analysis(window, kind) is not None:
+            return True
+    return False
+
+
 def _run_analysis_action(window, session, hit, action):
     repo_root = session.get('repoRoot')
     return results.apply_hit_action(window, hit, repo_root=repo_root, action=action)
@@ -1169,10 +1188,10 @@ class PairOfCleatsWorkspaceCatalogCommand(PairOfCleatsWorkspaceManifestCommand):
 
 class PairOfCleatsReopenAnalysisCommand(sublime_plugin.WindowCommand):
     def is_enabled(self):
-        return True
+        return _has_any_analysis_session(self.window)
 
     def is_visible(self):
-        return True
+        return self.is_enabled()
 
     def run(self, source=None):
         session = _load_analysis_session(self.window, source or '')
@@ -1184,10 +1203,10 @@ class PairOfCleatsReopenAnalysisCommand(sublime_plugin.WindowCommand):
 
 class PairOfCleatsReopenLastContextPackCommand(sublime_plugin.WindowCommand):
     def is_enabled(self):
-        return True
+        return results_state.get_last_context_pack(self.window) is not None
 
     def is_visible(self):
-        return True
+        return self.is_enabled()
 
     def run(self):
         session = results_state.get_last_context_pack(self.window)
@@ -1199,10 +1218,10 @@ class PairOfCleatsReopenLastContextPackCommand(sublime_plugin.WindowCommand):
 
 class PairOfCleatsReopenLastRiskExplainCommand(sublime_plugin.WindowCommand):
     def is_enabled(self):
-        return True
+        return results_state.get_last_risk_explain(self.window) is not None
 
     def is_visible(self):
-        return True
+        return self.is_enabled()
 
     def run(self):
         session = results_state.get_last_risk_explain(self.window)
@@ -1214,10 +1233,10 @@ class PairOfCleatsReopenLastRiskExplainCommand(sublime_plugin.WindowCommand):
 
 class PairOfCleatsAnalysisActionsCommand(sublime_plugin.WindowCommand):
     def is_enabled(self):
-        return True
+        return _has_any_analysis_session(self.window)
 
     def is_visible(self):
-        return True
+        return self.is_enabled()
 
     def run(self, source='context_pack', hit_index=None, action=None):
         session = _load_analysis_session(self.window, source)
