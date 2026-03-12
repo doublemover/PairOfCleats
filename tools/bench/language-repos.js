@@ -477,6 +477,8 @@ const results = await runBenchExecutionLoop({
   benchTimeoutMs
 });
 
+await closeLogs();
+
 const output = await buildReportOutput({
   configPath,
   cacheRoot,

@@ -234,7 +234,7 @@ export const tryMirrorClone = ({
   repoPath,
   mirrorCacheRoot,
   mirrorRefreshMs = DEFAULT_MIRROR_REFRESH_MS,
-  timeoutMs = DEFAULT_MIRROR_TIMEOUT_MS,
+  timeoutMs = null,
   onLog = null
 }) => {
   if (!repo || !repoPath || !mirrorCacheRoot) {

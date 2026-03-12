@@ -283,7 +283,6 @@ export const startApiServer = async ({
   const stop = async () => {
     try {
       await terminateChild(server, { graceMs: 5000 });
-      await waitForChildExit(server, { timeoutMs: 5000, forceSignal: 'SIGKILL' });
     } finally {
       unregisterTrackedServer();
     }

@@ -153,7 +153,26 @@ const mapWithConcurrency = async (values, worker, { concurrency = 8 } = {}) => {
 const resolveRunLogPrefix = (runSuffix) => {
   const normalized = String(runSuffix || '').trim();
   if (!normalized) return null;
-  return `run-${normalized}-`;
+  return normalized.startsWith('run-')
+    ? `${normalized}-`
+    : `run-${normalized}-`;
+};
+
+const filterCanonicalBenchStreamFiles = (files) => {
+  const list = Array.isArray(files) ? files.slice() : [];
+  if (!list.length) return [];
+  const repoSpecific = new Set();
+  const masterFiles = new Set();
+  for (const filePath of list) {
+    const name = path.basename(filePath);
+    if (/^run-.*-all\.[^.]+(?:\..+)?$/i.test(name)) {
+      masterFiles.add(filePath);
+      continue;
+    }
+    repoSpecific.add(filePath);
+  }
+  if (repoSpecific.size === 0) return list;
+  return list.filter((filePath) => !masterFiles.has(filePath));
 };
 
 const listBenchStreamFiles = async (resultsRoot, suffix, { runSuffix = null } = {}) => {
@@ -183,7 +202,8 @@ const listBenchStreamFiles = async (resultsRoot, suffix, { runSuffix = null } = 
       files.push(resolved);
     }
   }
-  return files.sort((left, right) => left.localeCompare(right));
+  return filterCanonicalBenchStreamFiles(files)
+    .sort((left, right) => left.localeCompare(right));
 };
 
 const listDiagnosticsStreamFiles = async (resultsRoot, options = {}) => (

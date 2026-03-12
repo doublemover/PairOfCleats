@@ -106,33 +106,28 @@ const output = await buildReportOutput({
 const stream = output?.diagnostics?.stream;
 assert.ok(stream && typeof stream === 'object', 'expected diagnostics stream summary');
 assert.equal(stream.schemaVersion, BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION, 'expected diagnostics stream schema');
-assert.equal(stream.fileCount, 2, 'expected two diagnostics stream files');
-assert.equal(stream.eventCount, 6, 'expected all valid stream events to be counted');
-assert.equal(stream.uniqueEventCount, 5, 'expected dedupe across stable event IDs');
-assert.equal(stream.malformedLines, 1, 'expected malformed line accounting');
+assert.equal(stream.fileCount, 1, 'expected repo diagnostics stream to win over duplicated master stream');
+assert.equal(stream.eventCount, 3, 'expected only canonical repo stream events to be counted');
+assert.equal(stream.uniqueEventCount, 3, 'expected unique event count from canonical repo stream');
+assert.equal(stream.malformedLines, 0, 'expected malformed master stream lines to be ignored');
 
-assert.equal(stream.countsByType.parser_crash, 1, 'expected parser_crash count');
+assert.equal(stream.countsByType.parser_crash || 0, 0, 'expected master-only parser_crash to be ignored');
 assert.equal(stream.countsByType.scm_timeout, 1, 'expected scm_timeout count');
 assert.equal(stream.countsByType.queue_delay_hotspot, 1, 'expected queue_delay_hotspot count');
 assert.equal(stream.countsByType.artifact_tail_stall, 1, 'expected artifact_tail_stall count');
-assert.equal(stream.countsByType.fallback_used, 2, 'expected fallback_used duplicate count');
+assert.equal(stream.countsByType.fallback_used || 0, 0, 'expected fallback duplicates from master stream to be ignored');
 assert.equal(stream.unknownTypeCount, 0, 'expected no unknown event types');
 
-assert.equal(stream.required.parser_crash, 1, 'expected required parser_crash coverage');
+assert.equal(stream.required.parser_crash, 0, 'expected parser_crash from duplicated master stream to be ignored');
 assert.equal(stream.required.scm_timeout, 1, 'expected required scm_timeout coverage');
 assert.equal(stream.required.queue_delay_hotspot, 1, 'expected required queue_delay_hotspot coverage');
 assert.equal(stream.required.artifact_tail_stall, 1, 'expected required artifact_tail_stall coverage');
-assert.equal(stream.required.fallback_used, 2, 'expected required fallback_used coverage');
+assert.equal(stream.required.fallback_used, 0, 'expected duplicated fallback events to be ignored');
 
-assert.equal(
-  stream.files.some((entry) => entry.path === streamA && entry.eventCount === 3),
-  true,
-  'expected streamA file summary'
-);
 assert.equal(
   stream.files.some((entry) => entry.path === streamB && entry.eventCount === 3),
   true,
-  'expected streamB file summary'
+  'expected canonical repo stream summary'
 );
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
