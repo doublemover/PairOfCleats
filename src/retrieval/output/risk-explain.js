@@ -2,6 +2,7 @@ import {
   buildRiskExplanationModelFromRiskSlice,
   buildRiskExplanationModelFromStandalone
 } from '../../shared/risk-explain.js';
+import { renderRiskExplanationSarif } from './risk-sarif.js';
 
 const formatNodeRef = (ref) => {
   if (!ref || typeof ref !== 'object') return 'unknown';
@@ -174,7 +175,8 @@ export const renderRiskExplanationJson = (
     maxFlows,
     maxEvidencePerFlow
   },
-  flows: buildRiskFlowNarrativeList(model?.flows || [], { maxFlows, maxEvidencePerFlow }).flows
+  flows: buildRiskFlowNarrativeList(model?.flows || [], { maxFlows, maxEvidencePerFlow }).flows,
+  sarif: renderRiskExplanationSarif(model, { maxFlows, maxEvidencePerFlow })
 });
 
 const renderAnalysisStatus = (model, lines) => {

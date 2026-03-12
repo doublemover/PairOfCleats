@@ -1142,4 +1142,6 @@ context-pack/risk-ranking-budget
 context-pack/risk-strict-status
 
 retrieval/output/risk-explanation-contract
+retrieval/output/risk-explanation-sarif-contract
 retrieval/output/composite-context-pack-render-contract
+retrieval/output/composite-context-pack-sarif-contract

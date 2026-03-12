@@ -116,6 +116,11 @@ Minimum fields:
 - optional `truncation[]`
 - optional `warnings[]`
 
+Standards export boundary:
+- The native composite context pack JSON remains authoritative and is what `COMPOSITE_CONTEXT_PACK_SCHEMA` validates.
+- Standards-friendly interchange is emitted as a derived companion under `rendered.sarif` when a pack is rendered to JSON.
+- `rendered.sarif` is SARIF-compatible export data derived from the bounded native risk slice; it is not itself part of the native pack schema contract.
+
 ### API contracts report
 
 Schema: `API_CONTRACTS_SCHEMA`

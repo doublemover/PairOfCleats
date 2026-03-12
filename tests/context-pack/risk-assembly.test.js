@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
 import { assembleCompositeContextPack } from '../../src/context-pack/assemble.js';
-import { renderCompositeContextPack } from '../../src/retrieval/output/composite-context-pack.js';
+import { renderCompositeContextPack, renderCompositeContextPackJson } from '../../src/retrieval/output/composite-context-pack.js';
 import { validateCompositeContextPack } from '../../src/contracts/validators/analysis.js';
 import { applyTestEnv } from '../helpers/test-env.js';
 import { resolveTestCachePath } from '../helpers/test-cache.js';
@@ -412,6 +412,13 @@ assert.ok(fullRendered.includes('top categories:'), 'expected rendered top categ
 assert.ok(fullRendered.includes('rules 1.0.0 sha1:rulebundle-risk-assembly'), 'expected rendered rule bundle provenance');
 assert.ok(fullRendered.includes('artifact refs:'), 'expected rendered artifact refs');
 assert.ok(fullRendered.includes('rules: source.req.body -> sink.sql.query'), 'expected rendered rules');
+const fullRenderedJson = renderCompositeContextPackJson(fullPack);
+assert.equal(fullRenderedJson.rendered?.sarif?.runs?.[0]?.results?.[0]?.properties?.pairOfCleats?.flowId, flowRow.flowId);
+assert.equal(
+  fullRenderedJson.rendered?.sarif?.runs?.[0]?.results?.[0]?.codeFlows?.[0]?.threadFlows?.[0]?.locations?.[0]
+    ?.location?.physicalLocation?.artifactLocation?.uri,
+  'src/file.js'
+);
 
 const fullPackRepeat = await buildPack({
   name: 'full-repeat',

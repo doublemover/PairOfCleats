@@ -51,6 +51,16 @@ assert.equal(filteredResult.status, 0, 'expected filtered risk explain run to su
 const filteredOutput = getCombinedOutput(filteredResult, { trim: true });
 assert.ok(filteredOutput.includes(flow.flowId), 'expected filtered output to include requested flow');
 
+const jsonResult = spawnSync(
+  process.execPath,
+  [binPath, 'risk', 'explain', '--index', codeDir, '--chunk', chunkUid, '--max', '1', '--json'],
+  { encoding: 'utf8', env }
+);
+assert.equal(jsonResult.status, 0, 'expected JSON risk explain run to succeed');
+const jsonPayload = JSON.parse(getCombinedOutput(jsonResult, { trim: true }));
+assert.equal(jsonPayload.rendered.flowSelection.totalFlows, 1, 'expected rendered JSON risk summary');
+assert.equal(jsonPayload.rendered.sarif.runs[0].results[0].properties.pairOfCleats.flowId, flow.flowId, 'expected SARIF export to preserve flowId');
+
 const emptyResult = spawnSync(
   process.execPath,
   [binPath, 'risk', 'explain', '--index', codeDir, '--chunk', chunkUid, '--max', '5', '--flow-id', 'sha1:missing'],

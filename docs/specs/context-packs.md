@@ -258,6 +258,32 @@ Stable sort keys:
 
 ### 4.5 Track IQ retrieval bundle tie-break alignment
 
+## 5. Export boundary
+
+Native context-pack JSON is the authoritative representation. Standards-friendly exports are derived views and must
+not change the canonical pack schema.
+
+### 5.1 SARIF-compatible risk export
+
+- Risk flows may be exported as a SARIF v2.1.0-compatible log.
+- The export is bounded by the same flow and evidence caps as the native pack.
+- Stable `flowId` values remain the primary cross-surface identity and are copied into SARIF `properties` and
+  per-result `partialFingerprints`.
+- Ordered `threadFlowLocation` entries follow the native bounded flow-step ordering.
+- PairOfCleats-specific metadata stays in SARIF `properties`, including:
+  - confidence
+  - provenance
+  - truncation records
+  - cap state
+  - analysis status
+  - normalized filters
+
+### 5.2 Native vs export contract
+
+- Native pack JSON is validated by the PairOfCleats analysis/context-pack schemas.
+- SARIF export is a derived interchange view for external code-scanning consumers.
+- Consumers must not treat SARIF output as the canonical persistence format for packs.
+
 Retrieval result bundles (outside full context-pack generation) follow a reduced deterministic contract:
 - group by `file` (fallback synthetic bundle for missing file)
 - order bundles by `totalScore`, then `topScore`, then `modeCount`, then `file`, then `bundleId`

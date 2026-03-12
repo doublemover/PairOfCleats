@@ -108,6 +108,8 @@ const fullJson = renderRiskExplanationJson(fullModel, { title: 'Risk Explain', m
 assert.equal(fullJson.flows[0].flowId, 'flow-full');
 assert.equal(fullJson.flows[0].steps[0].step, 1);
 assert.deepEqual(fullJson.flows[0].steps[0].evidence, ['src/full.js:18:4 query(req.body)']);
+assert.equal(fullJson.sarif.runs[0].results[0].partialFingerprints.pairOfCleatsFlowId, 'flow-full');
+assert.equal(fullJson.sarif.runs[0].results[0].codeFlows[0].threadFlows[0].locations[0].location.physicalLocation.artifactLocation.uri, 'src/full.js');
 const fullMarkdown = renderRiskExplanation(fullModel, { maxFlows: 3, maxEvidencePerFlow: 2 });
 assert.match(fullMarkdown, /summary: sources 1, sinks 1, sanitizers 0, localFlows 1/);
 assert.match(fullMarkdown, /provenance: generated 2026-03-12T00:00:00.000Z, rules 1.0.0 sha1:bundle, config sha1:config/);
@@ -156,6 +158,7 @@ assert.deepEqual(cappedJson.flowSelection, {
   maxEvidencePerFlow: 1
 });
 assert.equal(cappedJson.flows.length, 1);
+assert.equal(cappedJson.sarif.runs[0].properties.pairOfCleats.flowSelection.omittedFlows, 1);
 const cappedMarkdown = renderRiskExplanation(cappedModel, { maxFlows: 1, maxEvidencePerFlow: 1 });
 assert.match(cappedMarkdown, /truncation: maxFlows/);
 assert.match(cappedMarkdown, /omitted 1 additional flow\(s\) after maxFlows=1/);

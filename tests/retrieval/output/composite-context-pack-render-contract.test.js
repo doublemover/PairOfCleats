@@ -97,5 +97,8 @@ assert.deepEqual(jsonPayload.rendered.warnings, payload.warnings);
 assert.equal(jsonPayload.rendered.risk.flowSelection.totalFlows, 1);
 assert.equal(jsonPayload.rendered.risk.flows[0].flowId, 'flow-a');
 assert.equal(jsonPayload.rendered.risk.filters.sourceRule[0], 'SRC');
+assert.equal(jsonPayload.rendered.sarif.runs[0].automationDetails.id, 'context-pack');
+assert.equal(jsonPayload.rendered.sarif.runs[0].properties.pairOfCleats.packWarnings[0].code, 'PACK_WARN');
+assert.equal(jsonPayload.rendered.sarif.runs[0].results[0].partialFingerprints.pairOfCleatsFlowId, 'flow-a');
 
 console.log('composite context pack render contract test passed');

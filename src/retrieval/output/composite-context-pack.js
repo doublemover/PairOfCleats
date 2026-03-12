@@ -1,5 +1,6 @@
 import { buildRiskExplanationModelFromRiskSlice, renderRiskExplanation, renderRiskExplanationJson } from './risk-explain.js';
 import { renderGraphContextPack } from './graph-context-pack.js';
+import { renderCompositeContextPackSarif } from './risk-sarif.js';
 
 const renderPrimary = (primary) => {
   const lines = [];
@@ -101,6 +102,10 @@ export const renderCompositeContextPackJson = (payload) => ({
         maxEvidencePerFlow: 3
       })
       : null,
+    sarif: renderCompositeContextPackSarif(payload, {
+      maxFlows: 5,
+      maxEvidencePerFlow: 3
+    }),
     truncation: Array.isArray(payload?.truncation) ? payload.truncation.slice() : [],
     warnings: Array.isArray(payload?.warnings) ? payload.warnings.slice() : []
   }
