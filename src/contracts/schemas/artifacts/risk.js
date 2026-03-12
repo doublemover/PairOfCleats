@@ -193,6 +193,24 @@ const riskInterproceduralStats = {
     status: { type: 'string' },
     reason: nullableString,
     effectiveConfig: { type: 'object', additionalProperties: true },
+    provenance: {
+      type: ['object', 'null'],
+      properties: {
+        indexSignature: nullableString,
+        indexCompatKey: nullableString,
+        ruleBundle: {
+          type: ['object', 'null'],
+          properties: {
+            version: nullableString,
+            fingerprint: nullableString,
+            provenance: { type: ['object', 'null'], additionalProperties: true }
+          },
+          additionalProperties: false
+        },
+        effectiveConfigFingerprint: nullableString
+      },
+      additionalProperties: false
+    },
     counts: { type: 'object', additionalProperties: true },
     callSiteSampling: { type: 'object', additionalProperties: true },
     capsHit: { type: 'array', items: { type: 'string' } },

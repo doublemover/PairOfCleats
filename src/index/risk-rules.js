@@ -2,7 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { compileSafeRegex, normalizeSafeRegexConfig } from '../shared/safe-regex.js';
 import { isAbsolutePathNative } from '../shared/files.js';
+import { sha1 } from '../shared/hash.js';
 import { toArray } from '../shared/iterables.js';
+import { stableStringifyForSignature } from '../shared/stable-json.js';
 
 const DEFAULT_RULES = {
   version: '1.0.0',
@@ -386,9 +388,20 @@ const serializeRule = (rule) => ({
   requires: rule?.requires ? serializePattern(rule.requires) : null
 });
 
+const fingerprintSerializedRiskRulesBundle = (serializedBundle) => {
+  if (!serializedBundle || typeof serializedBundle !== 'object') return null;
+  return `sha1:${sha1(stableStringifyForSignature(serializedBundle))}`;
+};
+
+export const buildRiskRulesBundleFingerprint = (bundle) => {
+  if (!bundle || typeof bundle !== 'object') return null;
+  const serialized = serializeRiskRulesBundle(bundle);
+  return serialized?.fingerprint || null;
+};
+
 export const serializeRiskRulesBundle = (bundle) => {
   if (!bundle || typeof bundle !== 'object') return null;
-  return {
+  const serialized = {
     version: typeof bundle.version === 'string' ? bundle.version : '1.0.0',
     sources: Array.isArray(bundle.sources) ? bundle.sources.map(serializeRule) : [],
     sinks: Array.isArray(bundle.sinks) ? bundle.sinks.map(serializeRule) : [],
@@ -396,5 +409,9 @@ export const serializeRiskRulesBundle = (bundle) => {
     regexConfig: bundle.regexConfig || null,
     diagnostics: bundle.diagnostics || null,
     provenance: bundle.provenance || null
+  };
+  return {
+    ...serialized,
+    fingerprint: fingerprintSerializedRiskRulesBundle(serialized)
   };
 };

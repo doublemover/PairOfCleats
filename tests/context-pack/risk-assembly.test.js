@@ -219,6 +219,49 @@ const baseStats = {
     propagation: 2,
     io: 1,
     total: 4
+  },
+  provenance: {
+    indexSignature: 'sig-risk-assembly',
+    indexCompatKey: 'compat-test',
+    ruleBundle: {
+      version: '1.0.0',
+      fingerprint: 'sha1:rulebundle-risk-assembly',
+      provenance: {
+        defaults: true,
+        sourcePath: null
+      }
+    },
+    effectiveConfigFingerprint: 'sha1:config-risk-assembly'
+  },
+  artifacts: {
+    stats: {
+      name: 'risk_interprocedural_stats',
+      format: 'json',
+      sharded: false,
+      entrypoint: 'risk_interprocedural_stats.json',
+      totalEntries: 1
+    },
+    riskSummaries: {
+      name: 'risk_summaries',
+      format: 'jsonl',
+      sharded: false,
+      entrypoint: 'risk_summaries.jsonl',
+      totalEntries: 1
+    },
+    riskFlows: {
+      name: 'risk_flows',
+      format: 'jsonl',
+      sharded: false,
+      entrypoint: 'risk_flows.jsonl',
+      totalEntries: 1
+    },
+    callSites: {
+      name: 'call_sites',
+      format: 'jsonl',
+      sharded: false,
+      entrypoint: 'call_sites.jsonl',
+      totalEntries: 1
+    }
   }
 };
 
@@ -316,6 +359,15 @@ assert.deepEqual(
   }
 );
 assert.equal(fullPack.risk?.provenance?.compatibilityKey, 'compat-test');
+assert.equal(fullPack.risk?.provenance?.indexSignature, 'sig-risk-assembly');
+assert.equal(fullPack.risk?.provenance?.indexCompatKey, 'compat-test');
+assert.equal(fullPack.risk?.provenance?.ruleBundle?.version, '1.0.0');
+assert.equal(fullPack.risk?.provenance?.ruleBundle?.fingerprint, 'sha1:rulebundle-risk-assembly');
+assert.equal(fullPack.risk?.provenance?.effectiveConfigFingerprint, 'sha1:config-risk-assembly');
+assert.equal(fullPack.risk?.provenance?.artifactRefs?.stats?.entrypoint, 'risk_interprocedural_stats.json');
+assert.equal(fullPack.risk?.provenance?.artifactRefs?.summaries?.entrypoint, 'risk_summaries.jsonl');
+assert.equal(fullPack.risk?.provenance?.artifactRefs?.flows?.entrypoint, 'risk_flows.jsonl');
+assert.equal(fullPack.risk?.provenance?.artifactRefs?.callSites?.entrypoint, 'call_sites.jsonl');
 assert.equal(fullPack.risk?.caps?.maxFlows, 5);
 assert.equal(fullPack.risk?.caps?.maxCallSitesPerStep, 3);
 assert.equal(fullPack.risk?.flows?.length, 1);
@@ -343,6 +395,8 @@ const fullRendered = renderCompositeContextPack(fullPack);
 assert.ok(fullRendered.includes('status: ok'), 'expected rendered status');
 assert.ok(fullRendered.includes('cs-1'), 'expected rendered risk evidence');
 assert.ok(fullRendered.includes('top categories:'), 'expected rendered top categories');
+assert.ok(fullRendered.includes('rules 1.0.0 sha1:rulebundle-risk-assembly'), 'expected rendered rule bundle provenance');
+assert.ok(fullRendered.includes('artifact refs:'), 'expected rendered artifact refs');
 assert.ok(fullRendered.includes('rules: source.req.body -> sink.sql.query'), 'expected rendered rules');
 
 const summaryOnlyPack = await buildPack({

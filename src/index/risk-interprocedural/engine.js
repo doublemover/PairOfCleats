@@ -154,9 +154,9 @@ const trimFlowRow = (row) => {
   return null;
 };
 
-const buildArtifactRef = ({ name, sharded, entrypoint, totalEntries }) => ({
+const buildArtifactRef = ({ name, format = 'jsonl', sharded, entrypoint, totalEntries }) => ({
   name,
-  format: 'jsonl',
+  format,
   sharded: !!sharded,
   entrypoint,
   totalEntries
@@ -570,9 +570,10 @@ export const computeInterproceduralRisk = ({
   };
 };
 
-export const attachArtifactRefs = ({ stats, summariesRef, flowsRef, callSitesRef }) => {
+export const attachArtifactRefs = ({ stats, statsRef, summariesRef, flowsRef, callSitesRef }) => {
   if (!stats || typeof stats !== 'object') return stats;
   const artifacts = stats.artifacts || {};
+  if (statsRef) artifacts.stats = statsRef;
   if (summariesRef) artifacts.riskSummaries = summariesRef;
   if (flowsRef) artifacts.riskFlows = flowsRef;
   if (callSitesRef) artifacts.callSites = callSitesRef;
@@ -580,10 +581,10 @@ export const attachArtifactRefs = ({ stats, summariesRef, flowsRef, callSitesRef
   return stats;
 };
 
-export const buildRiskInterproceduralStats = ({ stats, summariesRef, flowsRef, callSitesRef }) => (
-  attachArtifactRefs({ stats, summariesRef, flowsRef, callSitesRef })
+export const buildRiskInterproceduralStats = ({ stats, statsRef, summariesRef, flowsRef, callSitesRef }) => (
+  attachArtifactRefs({ stats, statsRef, summariesRef, flowsRef, callSitesRef })
 );
 
-export const buildRiskInterproceduralArtifactRef = ({ name, sharded, entrypoint, totalEntries }) => (
-  buildArtifactRef({ name, sharded, entrypoint, totalEntries })
+export const buildRiskInterproceduralArtifactRef = ({ name, format = 'jsonl', sharded, entrypoint, totalEntries }) => (
+  buildArtifactRef({ name, format, sharded, entrypoint, totalEntries })
 );

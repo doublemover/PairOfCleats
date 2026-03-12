@@ -33,6 +33,7 @@ tooling/vscode/operations-runtime
 tooling/vscode/search-failure-runtime
 tooling/vscode/workflow-runtime
 tooling/vscode/context-risk-runtime
+tooling/vscode/context-risk-renderers
 tooling/vscode/session-runtime
 tooling/vscode/runtime
 tooling/vscode/results-explorer-runtime

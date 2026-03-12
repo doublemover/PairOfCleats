@@ -1,5 +1,6 @@
 import { writeIndexArtifacts } from '../../artifacts.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../../contracts/versioning.js';
+import { sha1 } from '../../../../shared/hash.js';
 import {
   buildIndexProfileState,
 } from '../../../../contracts/index-profile.js';
@@ -8,6 +9,7 @@ import { serializeRiskRulesBundle } from '../../../risk-rules.js';
 import { finalizePerfProfile } from '../../perf-profile.js';
 import { finalizeMetaV2 } from '../../../metadata-v2.js';
 import { log } from '../../../../shared/progress.js';
+import { stableStringifyForSignature } from '../../../../shared/stable-json.js';
 import { computeInterproceduralRisk } from '../../../risk-interprocedural/engine.js';
 import { getTokenIdCollisionSummary } from '../../state.js';
 
@@ -24,6 +26,33 @@ const hasEmittedDenseVectors = (postings) => (
   || (Array.isArray(postings?.quantizedDocVectors) && postings.quantizedDocVectors.length > 0)
   || (Array.isArray(postings?.quantizedCodeVectors) && postings.quantizedCodeVectors.length > 0)
 );
+
+const buildRiskStatsProvenance = ({ stats, riskRules, runtime }) => {
+  if (!stats || typeof stats !== 'object') return null;
+  const effectiveConfigFingerprint = stats?.effectiveConfig
+    ? `sha1:${sha1(stableStringifyForSignature(stats.effectiveConfig))}`
+    : null;
+  return {
+    indexSignature: runtime?.indexSignature || runtime?.compatibilityKey || null,
+    indexCompatKey: runtime?.compatibilityKey || null,
+    ruleBundle: riskRules
+      ? {
+        version: riskRules.version || null,
+        fingerprint: riskRules.fingerprint || null,
+        provenance: riskRules.provenance || null
+      }
+      : null,
+    effectiveConfigFingerprint
+  };
+};
+
+const attachRiskStatsProvenance = ({ stats, riskRules, runtime }) => {
+  if (!stats || typeof stats !== 'object') return stats;
+  return {
+    ...stats,
+    provenance: buildRiskStatsProvenance({ stats, riskRules, runtime })
+  };
+};
 
 /**
  * Finalize mode state and emit index artifacts for stage2 write step.
@@ -146,6 +175,11 @@ export const writeIndexArtifactsForMode = async ({
         artifacts: {}
       };
     }
+    state.riskInterproceduralStats = attachRiskStatsProvenance({
+      stats: state.riskInterproceduralStats,
+      riskRules,
+      runtime
+    });
   }
   await writeIndexArtifacts({
     scheduler: runtime.scheduler,

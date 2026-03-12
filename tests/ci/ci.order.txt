@@ -48,6 +48,7 @@ services/api/federated-search-workspace-allowlist
 tooling/install/download-extensions
 services/api/federated-search-redacts-paths
 retrieval/contracts/result-shape
+retrieval/context-pack/risk-assembly
 retrieval/filters/types
 retrieval/federation/raw-args-query-forwarding
 tooling/lsp/protocol-malformed-initialize-fail-open

@@ -169,22 +169,36 @@ export const enqueueRiskInterproceduralArtifacts = ({
   }
 
   const finalStats = stats
-    ? buildRiskInterproceduralStats({
-      stats,
-      summariesRef,
-      flowsRef,
-      callSitesRef
-    })
+    ? (() => {
+      const statsPath = path.join(outDir, 'risk_interprocedural_stats.json');
+      const statsRef = buildRiskInterproceduralArtifactRef({
+        name: 'risk_interprocedural_stats',
+        format: 'json',
+        sharded: false,
+        entrypoint: formatArtifactLabel(statsPath),
+        totalEntries: 1
+      });
+      return {
+        statsPath,
+        finalStats: buildRiskInterproceduralStats({
+          stats,
+          statsRef,
+          summariesRef,
+          flowsRef,
+          callSitesRef
+        })
+      };
+    })()
     : null;
 
-  if (finalStats) {
-    const statsPath = path.join(outDir, 'risk_interprocedural_stats.json');
+  if (finalStats?.finalStats) {
+    const { statsPath } = finalStats;
     enqueueWrite(
       formatArtifactLabel(statsPath),
-      () => writeJsonObjectFile(statsPath, { fields: finalStats, atomic: true })
+      () => writeJsonObjectFile(statsPath, { fields: finalStats.finalStats, atomic: true })
     );
     addPieceFile({ type: 'risk', name: 'risk_interprocedural_stats', format: 'json' }, statsPath);
   }
 
-  return { summariesRef, flowsRef, stats: finalStats };
+  return { summariesRef, flowsRef, stats: finalStats?.finalStats || null };
 };

@@ -278,13 +278,51 @@ const normalizeRiskSummary = (summary, flows = []) => {
   };
 };
 
-const normalizeRiskProvenance = ({ manifest, stats, artifactStatus }) => ({
+const normalizeRiskArtifactRefs = (stats) => {
+  const artifacts = stats?.artifacts;
+  if (!artifacts || typeof artifacts !== 'object') return null;
+  const refs = {
+    stats: artifacts.stats || null,
+    summaries: artifacts.summaries || artifacts.riskSummaries || null,
+    flows: artifacts.flows || artifacts.riskFlows || null,
+    callSites: artifacts.callSites || null
+  };
+  return Object.values(refs).some(Boolean) ? refs : null;
+};
+
+const normalizeRiskRuleBundle = (stats) => {
+  const ruleBundle = stats?.provenance?.ruleBundle;
+  if (!ruleBundle || typeof ruleBundle !== 'object') return null;
+  return {
+    version: ruleBundle.version || null,
+    fingerprint: ruleBundle.fingerprint || null,
+    provenance: ruleBundle.provenance && typeof ruleBundle.provenance === 'object'
+      ? {
+        defaults: ruleBundle.provenance.defaults === true,
+        sourcePath: ruleBundle.provenance.sourcePath || null
+      }
+      : null
+  };
+};
+
+const normalizeRiskProvenance = ({
+  manifest,
+  stats,
+  artifactStatus,
+  indexSignature = null,
+  indexCompatKey = null
+}) => ({
   manifestVersion: Number.isFinite(manifest?.version) ? manifest.version : null,
   artifactSurfaceVersion: manifest?.artifactSurfaceVersion || null,
-  compatibilityKey: manifest?.compatibilityKey || null,
+  compatibilityKey: manifest?.compatibilityKey || indexCompatKey || null,
+  indexSignature: indexSignature || stats?.provenance?.indexSignature || null,
+  indexCompatKey: indexCompatKey || manifest?.compatibilityKey || stats?.provenance?.indexCompatKey || null,
   mode: stats?.mode || null,
   generatedAt: stats?.generatedAt || null,
-  artifacts: artifactStatus
+  ruleBundle: normalizeRiskRuleBundle(stats),
+  effectiveConfigFingerprint: stats?.provenance?.effectiveConfigFingerprint || null,
+  artifacts: artifactStatus,
+  artifactRefs: normalizeRiskArtifactRefs(stats)
 });
 
 const normalizeRiskPathNodes = (flow) => {
@@ -530,6 +568,8 @@ const buildRiskSlice = ({
   seedRef,
   primaryChunk,
   chunkIndex,
+  indexSignature = null,
+  indexCompatKey = null,
   warnings,
   truncation
 }) => {
@@ -688,7 +728,7 @@ const buildRiskSlice = ({
       },
       caps: null,
       truncation: [],
-      provenance: normalizeRiskProvenance({ manifest, stats: null, artifactStatus }),
+      provenance: normalizeRiskProvenance({ manifest, stats: null, artifactStatus, indexSignature, indexCompatKey }),
       degraded: true
     };
   }
@@ -809,7 +849,7 @@ const buildRiskSlice = ({
       }),
       caps: riskCaps,
       truncation: [],
-      provenance: normalizeRiskProvenance({ manifest, stats, artifactStatus: baseArtifactStatus }),
+      provenance: normalizeRiskProvenance({ manifest, stats, artifactStatus: baseArtifactStatus, indexSignature, indexCompatKey }),
       degraded: false
     };
   }
@@ -857,7 +897,7 @@ const buildRiskSlice = ({
       }),
       caps: riskCaps,
       truncation: [],
-      provenance: normalizeRiskProvenance({ manifest, stats, artifactStatus: baseArtifactStatus }),
+      provenance: normalizeRiskProvenance({ manifest, stats, artifactStatus: baseArtifactStatus, indexSignature, indexCompatKey }),
       degraded: false
     };
   }
@@ -1222,7 +1262,7 @@ const buildRiskSlice = ({
     }),
     caps: riskCaps,
     truncation: riskTruncation,
-    provenance: normalizeRiskProvenance({ manifest, stats, artifactStatus: resolvedArtifactStatus }),
+    provenance: normalizeRiskProvenance({ manifest, stats, artifactStatus: resolvedArtifactStatus, indexSignature, indexCompatKey }),
     degraded
   };
 };
@@ -1622,6 +1662,8 @@ export const assembleCompositeContextPack = ({
       seedRef,
       primaryChunk,
       chunkIndex: resolvedChunkIndex,
+      indexSignature,
+      indexCompatKey,
       warnings,
       truncation
     });

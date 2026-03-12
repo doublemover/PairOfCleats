@@ -208,6 +208,7 @@ export const RISK_RULES_BUNDLE_SCHEMA = {
   required: ['version', 'sources', 'sinks', 'sanitizers'],
   properties: {
     version: semverString,
+    fingerprint: nullableString,
     sources: { type: 'array', items: riskRuleSchema },
     sinks: { type: 'array', items: riskRuleSchema },
     sanitizers: { type: 'array', items: riskRuleSchema },
@@ -820,8 +821,27 @@ const riskProvenanceSchema = {
     manifestVersion: nullableNumber,
     artifactSurfaceVersion: nullableString,
     compatibilityKey: nullableString,
+    indexSignature: nullableString,
+    indexCompatKey: nullableString,
     mode: nullableString,
     generatedAt: nullableString,
+    ruleBundle: {
+      type: ['object', 'null'],
+      properties: {
+        version: nullableString,
+        fingerprint: nullableString,
+        provenance: {
+          type: ['object', 'null'],
+          properties: {
+            defaults: { type: ['boolean', 'null'] },
+            sourcePath: nullableString
+          },
+          additionalProperties: false
+        }
+      },
+      additionalProperties: false
+    },
+    effectiveConfigFingerprint: nullableString,
     artifacts: {
       type: ['object', 'null'],
       properties: {
@@ -829,6 +849,16 @@ const riskProvenanceSchema = {
         summaries: nullableString,
         flows: nullableString,
         callSites: nullableString
+      },
+      additionalProperties: false
+    },
+    artifactRefs: {
+      type: ['object', 'null'],
+      properties: {
+        stats: { type: ['object', 'null'], additionalProperties: true },
+        summaries: { type: ['object', 'null'], additionalProperties: true },
+        flows: { type: ['object', 'null'], additionalProperties: true },
+        callSites: { type: ['object', 'null'], additionalProperties: true }
       },
       additionalProperties: false
     }

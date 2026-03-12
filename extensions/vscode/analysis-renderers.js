@@ -164,6 +164,26 @@ function renderRisk(risk) {
   if (totals) {
     lines.push(`- summary: sources ${totals.sources || 0}, sinks ${totals.sinks || 0}, sanitizers ${totals.sanitizers || 0}, localFlows ${totals.localFlows || 0}`);
   }
+  const provenance = risk?.provenance || null;
+  if (provenance?.ruleBundle?.fingerprint || provenance?.effectiveConfigFingerprint || provenance?.generatedAt) {
+    const parts = [];
+    if (provenance.generatedAt) parts.push(`generated ${provenance.generatedAt}`);
+    if (provenance.ruleBundle?.version || provenance.ruleBundle?.fingerprint) {
+      const ruleBits = [
+        provenance.ruleBundle.version || null,
+        provenance.ruleBundle.fingerprint || null
+      ].filter(Boolean);
+      parts.push(`rules ${ruleBits.join(' ')}`);
+    }
+    if (provenance.effectiveConfigFingerprint) parts.push(`config ${provenance.effectiveConfigFingerprint}`);
+    if (parts.length) lines.push(`- provenance: ${parts.join(', ')}`);
+  }
+  if (provenance?.artifactRefs) {
+    const refs = Object.entries(provenance.artifactRefs)
+      .filter(([, value]) => value && typeof value === 'object')
+      .map(([key, value]) => `${key}=${value.entrypoint || value.name || 'present'}`);
+    if (refs.length) lines.push(`- artifact refs: ${refs.join(', ')}`);
+  }
   lines.push('');
   lines.push(renderRiskExplain(risk.flows || [], { maxFlows: 5 }));
   return lines.join('\n');
