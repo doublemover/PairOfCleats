@@ -32,6 +32,7 @@ Saved searches populate the `PairOfCleats Results` explorer view. From there you
 
 Long-running workflows stream into the `PairOfCleats` output channel.
 
+- `Setup`, `Bootstrap`, `Tooling Doctor`, `Config Dump`, and `Index Health` emit structured summaries with explicit next actions.
 - `Index Build` runs an indexed build against the active repo context.
 - `Start Index Watch` starts watch mode and leaves it running until `Stop Index Watch`.
 - `Start Service API` and `Start Service Indexer` launch the local service commands and keep session status visible in the extension workflow status surface.

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 
 import {
   prepareVsCodeFixtureWorkspace,
@@ -10,6 +11,10 @@ const workspace = await prepareVsCodeFixtureWorkspace('vscode/workspace-root', {
   prefix: 'poc-vscode-integration-'
 });
 const nestedSourceFile = workspace.resolvePath('packages', 'nested', 'src', 'service.ts');
+fs.mkdirSync(workspace.resolvePath('packages', 'nested', 'tools', 'config'), { recursive: true });
+fs.mkdirSync(workspace.resolvePath('packages', 'nested', 'tools', 'index'), { recursive: true });
+fs.writeFileSync(workspace.resolvePath('packages', 'nested', 'tools', 'config', 'dump.js'), 'console.log("ok");\n');
+fs.writeFileSync(workspace.resolvePath('packages', 'nested', 'tools', 'index', 'report-artifacts.js'), 'console.log("ok");\n');
 const harness = createVsCodeRuntimeHarness({
   repoRoot: workspace.root,
   workspaceFolders: [{ name: 'root', path: workspace.root }],
@@ -23,7 +28,16 @@ const harness = createVsCodeRuntimeHarness({
 
 harness.activate();
 
-for (const commandId of ['pairofcleats.search', 'pairofcleats.codeMap', 'pairofcleats.showSearchHistory']) {
+for (const commandId of [
+  'pairofcleats.search',
+  'pairofcleats.setup',
+  'pairofcleats.bootstrap',
+  'pairofcleats.doctor',
+  'pairofcleats.configDump',
+  'pairofcleats.indexHealth',
+  'pairofcleats.codeMap',
+  'pairofcleats.showSearchHistory'
+]) {
   assert.ok(harness.registeredCommands.has(commandId), `missing registered command ${commandId}`);
 }
 
@@ -93,5 +107,96 @@ assert.deepEqual(
 );
 assert.equal(harness.openExternalCalls.length, 1);
 assert.ok(harness.infoMessages.some((message) => /Code Map completed/i.test(message)));
+
+harness.queuedResults.push({
+  code: 0,
+  stdout: JSON.stringify({
+    root: workspace.resolvePath('packages', 'nested'),
+    incremental: true,
+    restoredArtifacts: false,
+    steps: {
+      tooling: { ok: true, installed: true },
+      cache: { ok: true, restored: false }
+    },
+    errors: []
+  })
+});
+await harness.runCommand('pairofcleats.setup');
+
+harness.queuedResults.push({
+  code: 0,
+  stdout: JSON.stringify({
+    root: workspace.resolvePath('packages', 'nested'),
+    incremental: true,
+    restoredArtifacts: true,
+    steps: {
+      tooling: { ok: true, installed: true },
+      artifacts: { ok: true, restored: true }
+    },
+    errors: []
+  })
+});
+await harness.runCommand('pairofcleats.bootstrap');
+
+harness.queuedResults.push({
+  code: 0,
+  stdout: JSON.stringify({
+    repoRoot: workspace.resolvePath('packages', 'nested'),
+    summary: { status: 'ok' },
+    identity: { chunkUid: { available: true } },
+    xxhash: { backend: 'native' },
+    providers: [{ id: 'gopls', status: 'ok', enabled: true }],
+    scm: { provider: 'git', annotateEnabled: true }
+  })
+});
+await harness.runCommand('pairofcleats.doctor');
+
+harness.queuedResults.push({
+  code: 0,
+  stdout: JSON.stringify({
+    repoRoot: workspace.resolvePath('packages', 'nested'),
+    policy: {
+      quality: { value: 'max', source: 'config' }
+    },
+    derived: {
+      mcp: {
+        mode: 'auto',
+        modeSource: 'default',
+        sdkAvailable: true
+      }
+    }
+  })
+});
+await harness.runCommand('pairofcleats.configDump');
+
+harness.queuedResults.push({
+  code: 0,
+  stdout: JSON.stringify({
+    repo: {
+      root: workspace.resolvePath('packages', 'nested'),
+      cacheRoot: workspace.resolvePath('packages', 'nested', '.cache'),
+      totalBytes: 2048,
+      sqlite: {
+        code: true,
+        prose: false,
+        extractedProse: false,
+        records: false
+      }
+    },
+    corruption: { ok: true },
+    health: { issues: [], hints: ['run bootstrap if sqlite pieces are missing'] }
+  })
+});
+await harness.runCommand('pairofcleats.indexHealth');
+
+assert.ok(harness.infoMessages.some((message) => /Setup completed/i.test(message)));
+assert.ok(harness.infoMessages.some((message) => /Bootstrap completed/i.test(message)));
+assert.ok(harness.infoMessages.some((message) => /Tooling Doctor completed/i.test(message)));
+assert.ok(harness.infoMessages.some((message) => /Config Dump completed/i.test(message)));
+assert.ok(harness.infoMessages.some((message) => /Index Health completed/i.test(message)));
+assert.ok(harness.outputEvents.some((event) => event.kind === 'append' && /next: PairOfCleats: Tooling Doctor/i.test(event.line)));
+assert.ok(harness.outputEvents.some((event) => event.kind === 'append' && /next: PairOfCleats: Index Health/i.test(event.line)));
+assert.ok(harness.outputEvents.some((event) => event.kind === 'append' && /mcp mode: auto/i.test(event.line)));
+assert.ok(harness.outputEvents.some((event) => event.kind === 'append' && /sqlite code: present/i.test(event.line)));
 
 console.log('vscode integration harness test passed');
