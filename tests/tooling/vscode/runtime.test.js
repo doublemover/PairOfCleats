@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { createRequire } from 'node:module';
+import os from 'node:os';
+import path from 'node:path';
 
 const require = createRequire(import.meta.url);
 const {
@@ -10,12 +13,29 @@ const {
   openSearchHit
 } = require('../../../extensions/vscode/runtime.js');
 
+const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-vscode-runtime-'));
+
+const directCommand = resolveConfiguredCli('C:/repo', 'pairofcleats', ['--verbose'], {
+  command: 'pairofcleats',
+  jsExtension: '.js'
+});
+assert.equal(directCommand.ok, true);
+assert.equal(directCommand.command, 'pairofcleats');
+assert.deepEqual(directCommand.argsPrefix, ['--verbose']);
+
 const missing = resolveConfiguredCli('C:/repo', 'missing/pairofcleats.js', [], {
   command: 'pairofcleats',
   jsExtension: '.js'
 });
 assert.equal(missing.ok, false);
 assert.match(missing.message, /does not exist/i);
+
+const invalidDir = resolveConfiguredCli(tempRoot, '.', [], {
+  command: 'pairofcleats',
+  jsExtension: '.js'
+});
+assert.equal(invalidDir.ok, false);
+assert.match(invalidDir.message, /not a file/i);
 
 const timeout = summarizeProcessFailure({
   code: null,
@@ -141,8 +161,20 @@ const openOk = await openSearchHit(fakeVscode, 'C:/repo', {
   startLine: 4
 });
 assert.equal(openOk.ok, true);
-assert.equal(openOk.filePath, 'C:\\repo\\src\\index.js'.replace(/\\/g, require('node:path').sep));
+assert.equal(openOk.filePath, path.join('C:/repo', 'src/index.js'));
 assert.equal(revealCalls.length, 1);
+
+const navigateFail = await openSearchHit({
+  ...fakeVscode,
+  window: {
+    async showTextDocument() {
+      throw new Error('cannot reveal');
+    }
+  }
+}, 'C:/repo', { file: 'src/index.js' });
+assert.equal(navigateFail.ok, false);
+assert.match(navigateFail.message, /could not navigate/i);
+assert.match(navigateFail.detail, /cannot reveal/i);
 
 const openFail = await openSearchHit({
   ...fakeVscode,

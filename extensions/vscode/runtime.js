@@ -38,12 +38,30 @@ function createChunkAccumulator(maxBytes = DEFAULT_MAX_BUFFER_BYTES) {
 function resolveConfiguredCli(repoRoot, configuredPath, extraArgs = [], defaults = {}) {
   const rawPath = String(configuredPath || '').trim();
   if (!rawPath) return { ok: true, command: defaults.command, argsPrefix: extraArgs };
+  if (!isPathLike(rawPath)) {
+    return {
+      ok: true,
+      command: rawPath,
+      argsPrefix: extraArgs
+    };
+  }
   const resolvedPath = resolveConfigPath(repoRoot, rawPath);
   if (!resolvedPath || !fs.existsSync(resolvedPath)) {
     return {
       ok: false,
       message: `PairOfCleats CLI path does not exist: ${rawPath}`,
       detail: `Configured path resolved to ${resolvedPath || rawPath}. Update pairofcleats.cliPath or clear it to use auto-detection.`
+    };
+  }
+  let stats = null;
+  try {
+    stats = fs.statSync(resolvedPath);
+  } catch {}
+  if (!stats || !stats.isFile()) {
+    return {
+      ok: false,
+      message: `PairOfCleats CLI path is not a file: ${rawPath}`,
+      detail: `Configured path resolved to ${resolvedPath}. Point pairofcleats.cliPath at an executable file or JS entrypoint, or clear it to use auto-detection.`
     };
   }
   if (resolvedPath.toLowerCase().endsWith(String(defaults.jsExtension || '.js').toLowerCase())) {
@@ -61,6 +79,13 @@ function resolveConfigPath(repoRoot, rawPath) {
   if (path.isAbsolute(rawPath) && fs.existsSync(rawPath)) return rawPath;
   if (repoRoot) return path.join(repoRoot, rawPath);
   return rawPath;
+}
+
+function isPathLike(rawPath) {
+  return path.isAbsolute(rawPath)
+    || rawPath.startsWith('.')
+    || rawPath.includes('/')
+    || rawPath.includes('\\');
 }
 
 function parseSearchPayload(stdout, options = {}) {
@@ -127,15 +152,24 @@ async function openSearchHit(vscodeApi, repoRoot, hit) {
     : path.join(repoRoot, hit.file);
   try {
     const document = await vscodeApi.workspace.openTextDocument(vscodeApi.Uri.file(filePath));
-    const editor = await vscodeApi.window.showTextDocument(document, { preview: true });
-    if (Number.isFinite(hit.startLine) && hit.startLine > 0) {
-      const line = Math.max(0, Number(hit.startLine) - 1);
-      const pos = new vscodeApi.Position(line, 0);
-      const range = new vscodeApi.Range(pos, pos);
-      editor.selection = new vscodeApi.Selection(pos, pos);
-      editor.revealRange(range, vscodeApi.TextEditorRevealType.InCenter);
+    try {
+      const editor = await vscodeApi.window.showTextDocument(document, { preview: true });
+      if (Number.isFinite(hit.startLine) && hit.startLine > 0) {
+        const line = Math.max(0, Number(hit.startLine) - 1);
+        const pos = new vscodeApi.Position(line, 0);
+        const range = new vscodeApi.Range(pos, pos);
+        editor.selection = new vscodeApi.Selection(pos, pos);
+        editor.revealRange(range, vscodeApi.TextEditorRevealType.InCenter);
+      }
+      return { ok: true, filePath };
+    } catch (error) {
+      return {
+        ok: false,
+        filePath,
+        message: `PairOfCleats could not navigate to ${filePath}: ${error?.message || error}`,
+        detail: String(error?.stack || error?.message || error)
+      };
     }
-    return { ok: true, filePath };
   } catch (error) {
     return {
       ok: false,

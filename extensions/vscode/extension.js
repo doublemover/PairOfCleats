@@ -262,7 +262,7 @@ function resolveCli(repoRoot, config) {
   if (repoRoot) {
     const localCli = path.join(repoRoot, ...CLI_REPO_ENTRYPOINT_PARTS);
     if (fs.existsSync(localCli)) {
-      return { ok: true, command: process.execPath, argsPrefix: [localCli] };
+      return { ok: true, command: process.execPath, argsPrefix: [localCli, ...extraArgs] };
     }
   }
 
@@ -320,7 +320,9 @@ async function runSearch() {
   const cliResolution = resolveCli(repoRoot, config);
   if (!cliResolution.ok) {
     vscode.window.showErrorMessage(cliResolution.message);
-    getOutputChannel().appendLine(cliResolution.detail || cliResolution.message);
+    const output = getOutputChannel();
+    output.appendLine(cliResolution.detail || cliResolution.message);
+    output.show?.(true);
     return;
   }
   const { command, argsPrefix } = cliResolution;
@@ -376,6 +378,7 @@ async function runSearch() {
         clearTimeout(timeout);
         cancelSub.dispose();
         output.appendLine(`[search] spawn error=${error?.message || error}`);
+        output.show?.(true);
         vscode.window.showErrorMessage(`PairOfCleats search failed: ${error?.message || error}`);
         resolve();
       });
@@ -403,6 +406,7 @@ async function runSearch() {
         if (processFailure) {
           output.appendLine(`[search] failure kind=${processFailure.kind}`);
           if (processFailure.detail) output.appendLine(processFailure.detail);
+          output.show?.(true);
           vscode.window.showErrorMessage(processFailure.message);
           resolve();
           return;
@@ -417,6 +421,7 @@ async function runSearch() {
         if (!parsed.ok) {
           output.appendLine(`[search] parse failure kind=${parsed.kind}`);
           if (parsed.detail) output.appendLine(parsed.detail);
+          output.show?.(true);
           vscode.window.showErrorMessage(parsed.message);
           resolve();
           return;
@@ -461,6 +466,7 @@ async function runSearch() {
         if (!openResult.ok) {
           output.appendLine(`[search] open failure path=${openResult.filePath}`);
           output.appendLine(openResult.detail);
+          output.show?.(true);
           vscode.window.showErrorMessage(openResult.message);
           resolve();
           return;
@@ -508,6 +514,8 @@ module.exports = {
     buildSearchArgs,
     collectSearchHits,
     getOutputChannel,
-    openSearchHit
+    openSearchHit,
+    resolveCli,
+    runSearch
   }
 };
