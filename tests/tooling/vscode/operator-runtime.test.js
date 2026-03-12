@@ -141,6 +141,11 @@ const fakeVscode = {
       return { id, handler, dispose() {} };
     }
   },
+  Uri: {
+    file(fsPath) {
+      return { scheme: 'file', fsPath, path: fsPath.replace(/\\/g, '/') };
+    }
+  },
   ProgressLocation: {
     Notification: 1
   }

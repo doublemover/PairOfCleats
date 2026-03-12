@@ -17,6 +17,14 @@
     "onCommand:pairofcleats.repeatLastSearch",
     "onCommand:pairofcleats.explainSearch",
     "onCommand:pairofcleats.openIndexDirectory",
+    "onCommand:pairofcleats.indexBuild",
+    "onCommand:pairofcleats.indexWatchStart",
+    "onCommand:pairofcleats.indexWatchStop",
+    "onCommand:pairofcleats.indexValidate",
+    "onCommand:pairofcleats.serviceApiStart",
+    "onCommand:pairofcleats.serviceApiStop",
+    "onCommand:pairofcleats.serviceIndexerStart",
+    "onCommand:pairofcleats.serviceIndexerStop",
     "onCommand:pairofcleats.setup",
     "onCommand:pairofcleats.bootstrap",
     "onCommand:pairofcleats.doctor",
@@ -69,6 +77,38 @@
       {
         "command": "pairofcleats.openIndexDirectory",
         "title": "PairOfCleats: Open Index Directory"
+      },
+      {
+        "command": "pairofcleats.indexBuild",
+        "title": "PairOfCleats: Index Build"
+      },
+      {
+        "command": "pairofcleats.indexWatchStart",
+        "title": "PairOfCleats: Start Index Watch"
+      },
+      {
+        "command": "pairofcleats.indexWatchStop",
+        "title": "PairOfCleats: Stop Index Watch"
+      },
+      {
+        "command": "pairofcleats.indexValidate",
+        "title": "PairOfCleats: Index Validate"
+      },
+      {
+        "command": "pairofcleats.serviceApiStart",
+        "title": "PairOfCleats: Start Service API"
+      },
+      {
+        "command": "pairofcleats.serviceApiStop",
+        "title": "PairOfCleats: Stop Service API"
+      },
+      {
+        "command": "pairofcleats.serviceIndexerStart",
+        "title": "PairOfCleats: Start Service Indexer"
+      },
+      {
+        "command": "pairofcleats.serviceIndexerStop",
+        "title": "PairOfCleats: Stop Service Indexer"
       },
       {
         "command": "pairofcleats.setup",
@@ -211,6 +251,38 @@
         },
         {
           "command": "pairofcleats.openIndexDirectory",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.indexBuild",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.indexWatchStart",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.indexWatchStop",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.indexValidate",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.serviceApiStart",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.serviceApiStop",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.serviceIndexerStart",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "pairofcleats.serviceIndexerStop",
           "when": "workbenchState != empty"
         },
         {

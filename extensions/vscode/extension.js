@@ -467,7 +467,8 @@ function normalizeWorkflowSession(rawSession) {
       kind: String(rawSession.invocation.kind || 'operator'),
       command: String(rawSession.invocation.command || '').trim(),
       args: Array.isArray(rawSession.invocation.args) ? rawSession.invocation.args.map((value) => String(value)) : [],
-      timeoutMs: Number.isFinite(rawSession.invocation.timeoutMs) ? rawSession.invocation.timeoutMs : 60000
+      timeoutMs: Number.isFinite(rawSession.invocation.timeoutMs) ? rawSession.invocation.timeoutMs : 60000,
+      persistent: rawSession.invocation.persistent === true
     }
     : null;
   return {
@@ -607,10 +608,11 @@ async function beginWorkflowSession(spec, repoContext, invocation) {
     outputHint: 'PairOfCleats output',
     invocation: invocation
       ? {
-        kind: 'operator',
+        kind: invocation.kind || 'operator',
         command: invocation.command,
         args: invocation.args.map((value) => String(value)),
-        timeoutMs: spec.timeoutMs
+        timeoutMs: Number.isFinite(invocation.timeoutMs) ? invocation.timeoutMs : spec.timeoutMs,
+        persistent: invocation.persistent === true
       }
       : null
   };
@@ -647,6 +649,22 @@ async function rerunWorkflowSession(session) {
     repoRoot: session.repoRoot,
     workspaceFolder: { uri: vscode.Uri.file(session.repoRoot) }
   };
+  if (session.invocation.kind === 'managed-process') {
+    const managedSpec = MANAGED_COMMANDS_BY_ID.get(session.commandId);
+    if (!managedSpec) {
+      vscode.window.showErrorMessage('PairOfCleats cannot rerun that workflow because its managed command is no longer registered.');
+      return;
+    }
+    return startManagedCommand(managedSpec, {
+      repoContext,
+      invocation: {
+        command: session.invocation.command,
+        args: session.invocation.args.slice(),
+        timeoutMs: session.invocation.timeoutMs,
+        persistent: session.invocation.persistent === true
+      }
+    });
+  }
   return executeOperatorWorkflow(spec, repoContext, {
     command: session.invocation.command,
     args: session.invocation.args.slice()
@@ -683,6 +701,15 @@ async function showWorkflowStatus() {
       action: 'output'
     }
   ];
+  const runningSession = getMostRecentRunningWorkflowSession();
+  if (runningSession && MANAGED_COMMANDS_BY_ID.has(runningSession.commandId)) {
+    const managedSpec = MANAGED_COMMANDS_BY_ID.get(runningSession.commandId);
+    items.push({
+      label: `Stop ${managedSpec.title.replace(/^PairOfCleats:\s*/, '')}`,
+      description: runningSession.repoLabel,
+      action: 'stop-running'
+    });
+  }
   if (getMostRecentWorkflowSession()) {
     items.push({
       label: 'Rerun last workflow',
@@ -713,6 +740,14 @@ async function showWorkflowStatus() {
       return;
     }
     await rerunWorkflowSession(session);
+    return;
+  }
+  if (selection.action === 'stop-running') {
+    if (!runningSession) return;
+    const stopSpec = Array.from(MANAGED_STOP_COMMANDS_BY_ID.values()).find((entry) => entry.targetId === runningSession.commandId);
+    if (stopSpec) {
+      await stopManagedCommand(stopSpec);
+    }
     return;
   }
   if (selection.action === 'recent') {
@@ -1348,6 +1383,17 @@ const OPERATOR_COMMAND_SPECS = Object.freeze([
     }
   },
   {
+    id: 'pairofcleats.indexValidate',
+    title: 'PairOfCleats: Index Validate',
+    progressTitle: 'PairOfCleats index validate',
+    timeoutMs: 2 * 60 * 1000,
+    invocation: 'script',
+    scriptParts: ['tools', 'index', 'validate.js'],
+    buildArgs(repoRoot) {
+      return ['--json', '--repo', repoRoot];
+    }
+  },
+  {
     id: 'pairofcleats.codeMap',
     title: 'PairOfCleats: Code Map',
     progressTitle: 'PairOfCleats code map',
@@ -1515,6 +1561,82 @@ const OPERATOR_COMMAND_SPECS = Object.freeze([
 ]);
 
 const OPERATOR_COMMANDS_BY_ID = new Map(OPERATOR_COMMAND_SPECS.map((spec) => [spec.id, spec]));
+
+const MANAGED_COMMAND_SPECS = Object.freeze([
+  {
+    id: 'pairofcleats.indexBuild',
+    title: 'PairOfCleats: Index Build',
+    progressTitle: 'PairOfCleats index build',
+    invocation: 'cli',
+    cliArgs: ['index', 'build'],
+    timeoutMs: 30 * 60 * 1000,
+    persistent: false,
+    buildArgs(repoRoot) {
+      return ['--repo', repoRoot, '--progress', 'log'];
+    }
+  },
+  {
+    id: 'pairofcleats.indexWatchStart',
+    title: 'PairOfCleats: Index Watch',
+    progressTitle: 'PairOfCleats index watch',
+    invocation: 'cli',
+    cliArgs: ['index', 'watch'],
+    timeoutMs: 0,
+    persistent: true,
+    stopCommandId: 'pairofcleats.indexWatchStop',
+    buildArgs(repoRoot) {
+      return ['--repo', repoRoot, '--progress', 'log'];
+    }
+  },
+  {
+    id: 'pairofcleats.serviceApiStart',
+    title: 'PairOfCleats: Service API',
+    progressTitle: 'PairOfCleats service api',
+    invocation: 'cli',
+    cliArgs: ['service', 'api'],
+    timeoutMs: 0,
+    persistent: true,
+    stopCommandId: 'pairofcleats.serviceApiStop',
+    buildArgs(repoRoot) {
+      return ['--repo', repoRoot];
+    }
+  },
+  {
+    id: 'pairofcleats.serviceIndexerStart',
+    title: 'PairOfCleats: Service Indexer',
+    progressTitle: 'PairOfCleats service indexer',
+    invocation: 'cli',
+    cliArgs: ['service', 'indexer'],
+    timeoutMs: 0,
+    persistent: true,
+    stopCommandId: 'pairofcleats.serviceIndexerStop',
+    buildArgs(repoRoot) {
+      return ['--repo', repoRoot, '--watch'];
+    }
+  }
+]);
+
+const MANAGED_COMMANDS_BY_ID = new Map(MANAGED_COMMAND_SPECS.map((spec) => [spec.id, spec]));
+
+const MANAGED_STOP_COMMAND_SPECS = Object.freeze([
+  {
+    id: 'pairofcleats.indexWatchStop',
+    title: 'PairOfCleats: Stop Index Watch',
+    targetId: 'pairofcleats.indexWatchStart'
+  },
+  {
+    id: 'pairofcleats.serviceApiStop',
+    title: 'PairOfCleats: Stop Service API',
+    targetId: 'pairofcleats.serviceApiStart'
+  },
+  {
+    id: 'pairofcleats.serviceIndexerStop',
+    title: 'PairOfCleats: Stop Service Indexer',
+    targetId: 'pairofcleats.serviceIndexerStart'
+  }
+]);
+
+const MANAGED_STOP_COMMANDS_BY_ID = new Map(MANAGED_STOP_COMMAND_SPECS.map((spec) => [spec.id, spec]));
 
 function resolveOperatorInvocation(spec, repoContext, cliResolution, inputContext) {
   const repoRoot = repoContext.repoRoot;
@@ -2084,6 +2206,233 @@ async function runOperatorCommand(spec) {
   await executeOperatorWorkflow(spec, repoContext, invocation);
 }
 
+function resolveManagedInvocation(spec, repoContext, cliResolution) {
+  const repoRoot = repoContext.repoRoot;
+  if (!cliResolution.ok) {
+    return cliResolution;
+  }
+  const extraArgs = typeof spec.buildArgs === 'function' ? spec.buildArgs(repoRoot, repoContext) : [];
+  return {
+    ok: true,
+    command: cliResolution.command,
+    args: [...cliResolution.argsPrefix, ...spec.cliArgs, ...extraArgs]
+  };
+}
+
+function getManagedProcessKey(spec, repoRoot) {
+  return `${spec.id}:${repoRoot}`;
+}
+
+function appendStreamChunk(output, prefix, chunkState, chunk) {
+  const text = `${chunkState.carry}${String(chunk || '')}`;
+  const lines = text.split(/\r?\n/);
+  chunkState.carry = lines.pop() || '';
+  for (const line of lines) {
+    output.appendLine(`${prefix}${line}`);
+  }
+}
+
+function flushStreamChunk(output, prefix, chunkState) {
+  if (!chunkState.carry) return;
+  output.appendLine(`${prefix}${chunkState.carry}`);
+  chunkState.carry = '';
+}
+
+function killChildProcess(child) {
+  if (!child || typeof child.kill !== 'function') return;
+  try {
+    child.kill('SIGTERM');
+  } catch {}
+  setTimeout(() => {
+    try {
+      child.kill('SIGKILL');
+    } catch {}
+  }, 5000).unref?.();
+}
+
+async function stopManagedProcessEntry(entry, { reason = 'cancelled', summaryLine } = {}) {
+  if (!entry || entry.stopping) return false;
+  entry.stopping = true;
+  entry.stopReason = reason;
+  entry.stopSummaryLine = summaryLine || '';
+  killChildProcess(entry.child);
+  return entry.completion;
+}
+
+async function stopManagedCommand(stopSpec) {
+  const repoContext = await resolveRepoContext();
+  if (!repoContext.ok) {
+    if (repoContext.message) {
+      vscode.window.showErrorMessage(repoContext.message);
+    }
+    return;
+  }
+  const managedSpec = MANAGED_COMMANDS_BY_ID.get(stopSpec.targetId);
+  if (!managedSpec) {
+    vscode.window.showErrorMessage(`${stopSpec.title} is not configured correctly.`);
+    return;
+  }
+  const key = getManagedProcessKey(managedSpec, repoContext.repoRoot);
+  const active = managedProcesses.get(key);
+  if (!active) {
+    vscode.window.showInformationMessage(`${managedSpec.title} is not running for ${formatRepoLabel(repoContext.repoRoot)}.`);
+    return;
+  }
+  const output = getOutputChannel();
+  output.appendLine(`[managed] stopping ${managedSpec.title}`);
+  output.show?.(true);
+  await stopManagedProcessEntry(active, {
+    reason: 'cancelled',
+    summaryLine: `${managedSpec.title} stopped.`
+  });
+  vscode.window.showInformationMessage(`${managedSpec.title} stopped.`);
+}
+
+async function startManagedCommand(spec, { repoContext: seededRepoContext = null, invocation: seededInvocation = null } = {}) {
+  const repoContext = seededRepoContext || await resolveRepoContext();
+  if (!repoContext.ok) {
+    if (repoContext.message) {
+      vscode.window.showErrorMessage(repoContext.message);
+    }
+    return;
+  }
+  const { repoRoot } = repoContext;
+  const config = getExtensionConfiguration();
+  const cliResolution = resolveCli(repoRoot, config);
+  const invocation = seededInvocation || resolveManagedInvocation(spec, repoContext, cliResolution);
+  if (!invocation.ok) {
+    const output = getOutputChannel();
+    output.appendLine(invocation.detail || invocation.message);
+    output.show?.(true);
+    vscode.window.showErrorMessage(invocation.message);
+    return;
+  }
+  const key = getManagedProcessKey(spec, repoRoot);
+  const existing = managedProcesses.get(key);
+  if (existing) {
+    const output = getOutputChannel();
+    output.appendLine(`[managed] ${spec.title} already running for ${repoRoot}`);
+    output.show?.(true);
+    vscode.window.showInformationMessage(`${spec.title} is already running for ${formatRepoLabel(repoRoot)}.`);
+    return existing.completion;
+  }
+  const output = getOutputChannel();
+  const env = buildSpawnEnv(config);
+  output.appendLine('');
+  output.appendLine(`=== ${spec.title} ===`);
+  output.appendLine(`[command] command=${invocation.command}`);
+  output.appendLine(`[command] args=${JSON.stringify(invocation.args)}`);
+  output.show?.(true);
+  const useShellWrapper = process.platform === 'win32' && /\.(cmd|bat)$/i.test(invocation.command);
+  const resolved = useShellWrapper
+    ? resolveWindowsCmdInvocation(invocation.command, invocation.args)
+    : { command: invocation.command, args: invocation.args };
+  const child = cp.spawn(resolved.command, resolved.args, {
+    cwd: repoRoot,
+    env: resolved.env ? { ...env, ...resolved.env } : env,
+    shell: false,
+    windowsHide: true
+  });
+  const session = await beginWorkflowSession(spec, repoContext, {
+    kind: 'managed-process',
+    command: invocation.command,
+    args: invocation.args,
+    timeoutMs: Number.isFinite(spec.timeoutMs) ? spec.timeoutMs : 0,
+    persistent: spec.persistent === true
+  });
+  noteRepoContext(repoContext);
+  const stdoutState = { carry: '' };
+  const stderrState = { carry: '' };
+  let timedOut = false;
+  let resolvedCompletion = false;
+  let resolveCompletion;
+  const completion = new Promise((resolve) => {
+    resolveCompletion = resolve;
+  });
+  const finalize = async ({ code = 0, error = null } = {}) => {
+    if (resolvedCompletion) return;
+    resolvedCompletion = true;
+    managedProcesses.delete(key);
+    flushStreamChunk(output, '[stdout] ', stdoutState);
+    flushStreamChunk(output, '[stderr] ', stderrState);
+    const stoppedByUser = entry.stopReason === 'cancelled';
+    const failed = Boolean(error) || timedOut || (!stoppedByUser && code !== 0);
+    const status = stoppedByUser ? 'cancelled' : failed ? 'failed' : 'succeeded';
+    const summaryLine = stoppedByUser
+      ? (entry.stopSummaryLine || `${spec.title} stopped.`)
+      : failed
+        ? `${spec.title} exited with code ${code}.`
+        : `${spec.title} completed.`;
+    await finishWorkflowSession(session.sessionId, { status, summaryLine });
+    if (!stoppedByUser) {
+      if (failed) {
+        output.appendLine(`[managed] ${summaryLine}`);
+        vscode.window.showErrorMessage(`${summaryLine} See PairOfCleats output for details.`);
+      } else if (spec.persistent !== true) {
+        vscode.window.showInformationMessage(`${spec.title} completed.`);
+      }
+    }
+    resolveCompletion({ ok: !failed, status, code });
+  };
+  const entry = {
+    key,
+    spec,
+    child,
+    sessionId: session.sessionId,
+    stopReason: null,
+    stopping: false,
+    completion
+  };
+  managedProcesses.set(key, entry);
+  if (Number.isFinite(spec.timeoutMs) && spec.timeoutMs > 0) {
+    entry.timeout = setTimeout(() => {
+      timedOut = true;
+      output.appendLine(`[managed] timeout after ${spec.timeoutMs}ms`);
+      killChildProcess(child);
+    }, spec.timeoutMs);
+    entry.timeout.unref?.();
+  }
+  child.stdout?.on('data', (chunk) => appendStreamChunk(output, '[stdout] ', stdoutState, chunk));
+  child.stderr?.on('data', (chunk) => appendStreamChunk(output, '[stderr] ', stderrState, chunk));
+  child.once('error', async (error) => {
+    clearTimeout(entry.timeout);
+    output.appendLine(`[managed] spawn error=${error?.message || error}`);
+    await finalize({ code: 1, error });
+  });
+  child.once('close', async (code) => {
+    clearTimeout(entry.timeout);
+    await finalize({ code: Number.isFinite(code) ? code : 1 });
+  });
+  if (spec.persistent) {
+    const stopTitle = spec.stopCommandId
+      ? (MANAGED_STOP_COMMANDS_BY_ID.get(spec.stopCommandId)?.title || 'the stop command')
+      : 'the stop command';
+    vscode.window.showInformationMessage(`${spec.title} started. Use ${stopTitle} to stop it.`);
+    return { ok: true, status: 'running', sessionId: session.sessionId };
+  }
+  return vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: spec.progressTitle,
+      cancellable: true
+    },
+    async (_, token) => {
+      const cancelSub = token.onCancellationRequested(() => {
+        output.appendLine(`[managed] cancellation requested for ${spec.title}`);
+        void stopManagedProcessEntry(entry, {
+          reason: 'cancelled',
+          summaryLine: `${spec.title} cancelled.`
+        });
+      });
+      try {
+        return await completion;
+      } finally {
+        cancelSub.dispose();
+      }
+    }
+  );
+}
+
 async function resolveSearchRepoContext() {
   const repoContext = await resolveRepoContext();
   if (!repoContext.ok) {
@@ -2392,13 +2741,27 @@ function activate(context) {
   const repeatLastSearchCommand = vscode.commands.registerCommand('pairofcleats.repeatLastSearch', repeatLastSearch);
   const explainSearchCommand = vscode.commands.registerCommand('pairofcleats.explainSearch', runExplainSearch);
   const openIndexDirectoryCommand = vscode.commands.registerCommand('pairofcleats.openIndexDirectory', openIndexDirectory);
+  const indexBuildCommand = vscode.commands.registerCommand('pairofcleats.indexBuild', () => startManagedCommand(MANAGED_COMMANDS_BY_ID.get('pairofcleats.indexBuild')));
+  const indexWatchStartCommand = vscode.commands.registerCommand('pairofcleats.indexWatchStart', () => startManagedCommand(MANAGED_COMMANDS_BY_ID.get('pairofcleats.indexWatchStart')));
+  const indexWatchStopCommand = vscode.commands.registerCommand('pairofcleats.indexWatchStop', () => stopManagedCommand(MANAGED_STOP_COMMANDS_BY_ID.get('pairofcleats.indexWatchStop')));
+  const serviceApiStartCommand = vscode.commands.registerCommand('pairofcleats.serviceApiStart', () => startManagedCommand(MANAGED_COMMANDS_BY_ID.get('pairofcleats.serviceApiStart')));
+  const serviceApiStopCommand = vscode.commands.registerCommand('pairofcleats.serviceApiStop', () => stopManagedCommand(MANAGED_STOP_COMMANDS_BY_ID.get('pairofcleats.serviceApiStop')));
+  const serviceIndexerStartCommand = vscode.commands.registerCommand('pairofcleats.serviceIndexerStart', () => startManagedCommand(MANAGED_COMMANDS_BY_ID.get('pairofcleats.serviceIndexerStart')));
+  const serviceIndexerStopCommand = vscode.commands.registerCommand('pairofcleats.serviceIndexerStop', () => stopManagedCommand(MANAGED_STOP_COMMANDS_BY_ID.get('pairofcleats.serviceIndexerStop')));
   context.subscriptions.push(
     searchCommand,
     searchSelectionCommand,
     searchSymbolCommand,
     repeatLastSearchCommand,
     explainSearchCommand,
-    openIndexDirectoryCommand
+    openIndexDirectoryCommand,
+    indexBuildCommand,
+    indexWatchStartCommand,
+    indexWatchStopCommand,
+    serviceApiStartCommand,
+    serviceApiStopCommand,
+    serviceIndexerStartCommand,
+    serviceIndexerStopCommand
   );
   const workflowStatusCommand = vscode.commands.registerCommand('pairofcleats.showWorkflowStatus', showWorkflowStatus);
   const rerunLastWorkflowCommand = vscode.commands.registerCommand('pairofcleats.rerunLastWorkflow', async () => {
@@ -2456,7 +2819,12 @@ function activate(context) {
  *
  * @returns {void}
  */
-function deactivate() {}
+function deactivate() {
+  for (const entry of managedProcesses.values()) {
+    killChildProcess(entry.child);
+  }
+  managedProcesses.clear();
+}
 
 let outputChannel = null;
 let extensionContext = null;
@@ -2468,6 +2836,7 @@ let activeSearchResultId = null;
 let searchGroupMode = 'section';
 let resultsTreeProvider = null;
 let resultsTreeView = null;
+let managedProcesses = new Map();
 
 function getOutputChannel() {
   if (!outputChannel) {
@@ -2504,8 +2873,11 @@ module.exports = {
     reopenLastResults,
     repeatLastSearch,
     openIndexDirectory,
+    startManagedCommand,
+    stopManagedCommand,
     setSearchGroupingMode,
     buildResultsTree,
-    OPERATOR_COMMAND_SPECS
+    OPERATOR_COMMAND_SPECS,
+    MANAGED_COMMAND_SPECS
   }
 };
