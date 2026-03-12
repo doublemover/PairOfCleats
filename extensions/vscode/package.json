@@ -27,7 +27,16 @@
     "onCommand:pairofcleats.workspaceCatalog",
     "onCommand:pairofcleats.showWorkflowStatus",
     "onCommand:pairofcleats.rerunLastWorkflow",
-    "onCommand:pairofcleats.showRecentWorkflows"
+    "onCommand:pairofcleats.showRecentWorkflows",
+    "onCommand:pairofcleats.reopenLastResults",
+    "onCommand:pairofcleats.showSearchHistory",
+    "onCommand:pairofcleats.groupResultsBySection",
+    "onCommand:pairofcleats.groupResultsByFile",
+    "onCommand:pairofcleats.groupResultsByQuery",
+    "onCommand:pairofcleats.openResultHit",
+    "onCommand:pairofcleats.revealResultHit",
+    "onCommand:pairofcleats.copyResultPath",
+    "onCommand:pairofcleats.rerunResultSet"
   ],
   "main": "./extension.js",
   "contributes": {
@@ -99,8 +108,52 @@
       {
         "command": "pairofcleats.showRecentWorkflows",
         "title": "PairOfCleats: Recent Workflows"
+      },
+      {
+        "command": "pairofcleats.reopenLastResults",
+        "title": "PairOfCleats: Reopen Last Results"
+      },
+      {
+        "command": "pairofcleats.showSearchHistory",
+        "title": "PairOfCleats: Search History"
+      },
+      {
+        "command": "pairofcleats.groupResultsBySection",
+        "title": "PairOfCleats: Group Results by Section"
+      },
+      {
+        "command": "pairofcleats.groupResultsByFile",
+        "title": "PairOfCleats: Group Results by File"
+      },
+      {
+        "command": "pairofcleats.groupResultsByQuery",
+        "title": "PairOfCleats: Group Results by Query"
+      },
+      {
+        "command": "pairofcleats.openResultHit",
+        "title": "PairOfCleats: Open Result Hit"
+      },
+      {
+        "command": "pairofcleats.revealResultHit",
+        "title": "PairOfCleats: Reveal Result Hit"
+      },
+      {
+        "command": "pairofcleats.copyResultPath",
+        "title": "PairOfCleats: Copy Result Path"
+      },
+      {
+        "command": "pairofcleats.rerunResultSet",
+        "title": "PairOfCleats: Rerun Result Set"
       }
     ],
+    "views": {
+      "explorer": [
+        {
+          "id": "pairofcleats.resultsExplorer",
+          "name": "PairOfCleats Results"
+        }
+      ]
+    },
     "configuration": {
       "title": "PairOfCleats",
       "properties": {

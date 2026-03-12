@@ -2,6 +2,7 @@ const vscode = require('vscode');
 const cp = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
+const { EventEmitter: NodeEventEmitter } = require('node:events');
 const { resolveWindowsCmdInvocation } = require('./windows-cmd.js');
 const { readSearchOptions, buildSearchArgs, collectSearchHits } = require('./search-contract.js');
 const {
@@ -149,6 +150,10 @@ const CLI_JS_EXTENSION = String(readContract(
 )).toLowerCase();
 const WORKFLOW_SESSION_STORAGE_KEY = 'pairofcleats.workflowSessions';
 const MAX_WORKFLOW_SESSIONS = 20;
+const SEARCH_HISTORY_STORAGE_KEY = 'pairofcleats.searchHistory';
+const SEARCH_GROUP_MODE_STORAGE_KEY = 'pairofcleats.searchResultsGroupMode';
+const SEARCH_RESULTS_VIEW_ID = 'pairofcleats.resultsExplorer';
+const MAX_SEARCH_HISTORY = 20;
 
 const REPO_MARKERS_RAW = readContract(['repoRoot', 'markers'], DEFAULT_EDITOR_CONFIG_CONTRACT.repoRoot.markers);
 const REPO_MARKERS = Array.isArray(REPO_MARKERS_RAW)
@@ -638,6 +643,327 @@ async function showWorkflowStatus() {
   if (selection.action === 'recent') {
     await showRecentWorkflows();
   }
+}
+
+function createTreeChangeEmitter() {
+  if (typeof vscode.EventEmitter === 'function') {
+    return new vscode.EventEmitter();
+  }
+  const emitter = new NodeEventEmitter();
+  return {
+    event(listener) {
+      emitter.on('change', listener);
+      return {
+        dispose() {
+          emitter.off('change', listener);
+        }
+      };
+    },
+    fire(value) {
+      emitter.emit('change', value);
+    },
+    dispose() {
+      emitter.removeAllListeners('change');
+    }
+  };
+}
+
+function normalizeSearchHit(hit) {
+  if (!hit || typeof hit !== 'object' || !hit.file) return null;
+  return {
+    file: String(hit.file),
+    section: String(hit.section || 'code'),
+    headline: hit.headline ? String(hit.headline) : '',
+    name: hit.name ? String(hit.name) : '',
+    score: Number.isFinite(hit.score) ? Number(hit.score) : null,
+    scoreType: hit.scoreType ? String(hit.scoreType) : '',
+    startLine: Number.isFinite(hit.startLine) ? Number(hit.startLine) : null,
+    startCol: Number.isFinite(hit.startCol) ? Number(hit.startCol) : null,
+    endLine: Number.isFinite(hit.endLine) ? Number(hit.endLine) : null,
+    endCol: Number.isFinite(hit.endCol) ? Number(hit.endCol) : null
+  };
+}
+
+function normalizeSearchResultSet(rawResultSet) {
+  if (!rawResultSet || typeof rawResultSet !== 'object') return null;
+  const resultSetId = String(rawResultSet.resultSetId || '').trim();
+  const query = String(rawResultSet.query || '').trim();
+  const repoRoot = String(rawResultSet.repoRoot || '').trim();
+  if (!resultSetId || !query || !repoRoot) return null;
+  const hits = Array.isArray(rawResultSet.hits)
+    ? rawResultSet.hits.map((hit) => normalizeSearchHit(hit)).filter(Boolean)
+    : [];
+  return {
+    resultSetId,
+    query,
+    repoRoot,
+    repoLabel: formatRepoLabel(repoRoot),
+    createdAt: String(rawResultSet.createdAt || ''),
+    mode: rawResultSet.mode ? String(rawResultSet.mode) : '',
+    backend: rawResultSet.backend ? String(rawResultSet.backend) : '',
+    totalHits: Number.isFinite(rawResultSet.totalHits) ? Number(rawResultSet.totalHits) : hits.length,
+    invocation: rawResultSet.invocation && typeof rawResultSet.invocation === 'object'
+      ? {
+        command: String(rawResultSet.invocation.command || '').trim(),
+        args: Array.isArray(rawResultSet.invocation.args)
+          ? rawResultSet.invocation.args.map((value) => String(value))
+          : []
+      }
+      : null,
+    hits
+  };
+}
+
+function normalizeSearchHistory(rawHistory) {
+  return Array.isArray(rawHistory)
+    ? rawHistory.map((entry) => normalizeSearchResultSet(entry)).filter(Boolean).slice(0, MAX_SEARCH_HISTORY)
+    : [];
+}
+
+function readSearchGroupMode() {
+  const rawMode = String(readWorkspaceState(SEARCH_GROUP_MODE_STORAGE_KEY, 'section') || 'section');
+  return new Set(['section', 'file', 'query']).has(rawMode) ? rawMode : 'section';
+}
+
+async function persistSearchHistory() {
+  searchHistory = searchHistory.slice(0, MAX_SEARCH_HISTORY);
+  await writeWorkspaceState(SEARCH_HISTORY_STORAGE_KEY, searchHistory);
+  await writeWorkspaceState('pairofcleats.searchResults.active', activeSearchResultId || '');
+}
+
+async function persistSearchGroupingMode() {
+  await writeWorkspaceState(SEARCH_GROUP_MODE_STORAGE_KEY, searchGroupMode);
+}
+
+function getActiveSearchResultSet() {
+  return searchHistory.find((entry) => entry.resultSetId === activeSearchResultId) || searchHistory[0] || null;
+}
+
+function createTreeItem(label, { description = '', tooltip = '', collapsibleState = 0, command = null, contextValue = '' } = {}) {
+  if (typeof vscode.TreeItem === 'function') {
+    const item = new vscode.TreeItem(label, collapsibleState);
+    item.description = description;
+    item.tooltip = tooltip || label;
+    item.command = command || undefined;
+    item.contextValue = contextValue || undefined;
+    return item;
+  }
+  return {
+    label,
+    description,
+    tooltip: tooltip || label,
+    collapsibleState,
+    command,
+    contextValue
+  };
+}
+
+function buildResultsTree() {
+  const activeResultSet = getActiveSearchResultSet();
+  if (!activeResultSet) return [];
+  if (searchGroupMode === 'query') {
+    return searchHistory.slice(0, 10).map((resultSet) => ({
+      kind: 'result-set',
+      resultSet,
+      treeItem: createTreeItem(resultSet.query, {
+        description: `${resultSet.repoLabel} • ${resultSet.totalHits} hit(s)`,
+        tooltip: `${resultSet.repoRoot}\n${resultSet.query}`,
+        collapsibleState: 1,
+        contextValue: 'pairofcleats.resultSet'
+      }),
+      children: resultSet.hits.map((hit) => buildResultHitNode(resultSet, hit))
+    }));
+  }
+  const groups = new Map();
+  for (const hit of activeResultSet.hits) {
+    const key = searchGroupMode === 'file' ? hit.file : hit.section;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(hit);
+  }
+  return Array.from(groups.entries()).map(([key, hits]) => ({
+    kind: 'group',
+    treeItem: createTreeItem(
+      key,
+      {
+        description: `${hits.length} hit(s)`,
+        collapsibleState: 1,
+        contextValue: 'pairofcleats.resultGroup'
+      }
+    ),
+    children: hits.map((hit) => buildResultHitNode(activeResultSet, hit))
+  }));
+}
+
+function buildResultHitNode(resultSet, hit) {
+  const label = hit.name || hit.headline || hit.file;
+  return {
+    kind: 'hit',
+    resultSet,
+    hit,
+    treeItem: createTreeItem(label, {
+      description: `${hit.file}${Number.isFinite(hit.startLine) ? `:${hit.startLine}` : ''}`,
+      tooltip: `${hit.section}${hit.score !== null ? ` • score ${hit.score}` : ''}`,
+      collapsibleState: 0,
+      command: {
+        command: 'pairofcleats.openResultHit',
+        title: 'Open Result',
+        arguments: [{ resultSet, hit }]
+      },
+      contextValue: 'pairofcleats.resultHit'
+    }),
+    children: []
+  };
+}
+
+function refreshResultsExplorer() {
+  resultsTreeProvider?.refresh?.();
+}
+
+function ensureResultsExplorer() {
+  if (resultsTreeProvider) return;
+  const emitter = createTreeChangeEmitter();
+  resultsTreeProvider = {
+    _emitter: emitter,
+    onDidChangeTreeData: emitter.event,
+    refresh() {
+      emitter.fire(undefined);
+    },
+    getTreeItem(element) {
+      return element.treeItem;
+    },
+    getChildren(element) {
+      return element ? (element.children || []) : buildResultsTree();
+    }
+  };
+  if (typeof vscode.window.createTreeView === 'function') {
+    resultsTreeView = vscode.window.createTreeView(SEARCH_RESULTS_VIEW_ID, {
+      treeDataProvider: resultsTreeProvider,
+      showCollapseAll: true
+    });
+    extensionContext?.subscriptions?.push?.(resultsTreeView);
+  }
+}
+
+async function recordSearchResultSet({
+  repoContext,
+  query,
+  searchOptions,
+  command,
+  args,
+  hits
+}) {
+  const resultSet = normalizeSearchResultSet({
+    resultSetId: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    query,
+    repoRoot: repoContext.repoRoot,
+    createdAt: new Date().toISOString(),
+    mode: searchOptions.mode,
+    backend: searchOptions.backend,
+    totalHits: hits.length,
+    invocation: { command, args },
+    hits
+  });
+  if (!resultSet) return null;
+  searchHistory = [resultSet, ...searchHistory.filter((entry) => entry.resultSetId !== resultSet.resultSetId)].slice(0, MAX_SEARCH_HISTORY);
+  activeSearchResultId = resultSet.resultSetId;
+  await persistSearchHistory();
+  refreshResultsExplorer();
+  return resultSet;
+}
+
+async function openResultHitNode(node) {
+  if (!node?.hit || !node?.resultSet) return;
+  const repoContext = {
+    repoRoot: node.resultSet.repoRoot,
+    repoUri: vscode.Uri.file(node.resultSet.repoRoot)
+  };
+  const result = await openSearchHit(vscode, repoContext, node.hit);
+  if (!result.ok) {
+    getOutputChannel().appendLine(result.detail || result.message);
+    getOutputChannel().show?.(true);
+    vscode.window.showErrorMessage(result.message);
+  }
+}
+
+async function revealResultHitNode(node) {
+  if (!node?.hit?.file) return;
+  const repoContext = {
+    repoRoot: node.resultSet.repoRoot,
+    repoUri: vscode.Uri.file(node.resultSet.repoRoot)
+  };
+  const target = path.isAbsolute(node.hit.file)
+    ? vscode.Uri.file(node.hit.file)
+    : vscode.Uri.file(path.join(repoContext.repoRoot, node.hit.file));
+  await vscode.commands.executeCommand?.('revealInExplorer', target);
+}
+
+async function copyResultHitPath(node) {
+  if (!node?.hit?.file || typeof vscode.env?.clipboard?.writeText !== 'function') return;
+  const absolutePath = path.isAbsolute(node.hit.file)
+    ? node.hit.file
+    : path.join(node.resultSet.repoRoot, node.hit.file);
+  await vscode.env.clipboard.writeText(absolutePath);
+  vscode.window.showInformationMessage(`PairOfCleats copied ${absolutePath}`);
+}
+
+async function reopenLastResults() {
+  const resultSet = getActiveSearchResultSet();
+  if (!resultSet) {
+    vscode.window.showInformationMessage('PairOfCleats has no saved search results.');
+    return;
+  }
+  activeSearchResultId = resultSet.resultSetId;
+  await persistSearchHistory();
+  refreshResultsExplorer();
+  vscode.window.showInformationMessage(`PairOfCleats reopened results for "${resultSet.query}".`);
+}
+
+async function rerunResultSet(nodeOrResultSet) {
+  const resultSet = nodeOrResultSet?.resultSet || nodeOrResultSet;
+  if (!resultSet?.invocation?.command || !Array.isArray(resultSet?.invocation?.args)) {
+    vscode.window.showErrorMessage('PairOfCleats cannot rerun that result set because its invocation was not preserved.');
+    return;
+  }
+  const output = getOutputChannel();
+  const repoContext = {
+    repoRoot: resultSet.repoRoot,
+    repoUri: vscode.Uri.file(resultSet.repoRoot)
+  };
+  output.appendLine(`[search] rerun query=${resultSet.query}`);
+  const parsedResult = await runSavedSearchInvocation(resultSet, repoContext);
+  if (parsedResult?.ok) {
+    vscode.window.showInformationMessage(`PairOfCleats reran "${resultSet.query}".`);
+  }
+}
+
+async function showSearchHistory() {
+  if (!searchHistory.length || typeof vscode.window.showQuickPick !== 'function') {
+    vscode.window.showInformationMessage('PairOfCleats has no saved search history.');
+    return;
+  }
+  const selection = await vscode.window.showQuickPick(
+    searchHistory.slice(0, 10).map((resultSet) => ({
+      label: resultSet.query,
+      description: `${resultSet.repoLabel} • ${resultSet.totalHits} hit(s)`,
+      detail: resultSet.createdAt,
+      resultSet
+    })),
+    {
+      title: 'PairOfCleats search history',
+      placeHolder: 'Select a result set to reopen'
+    }
+  );
+  if (!selection?.resultSet) return;
+  activeSearchResultId = selection.resultSet.resultSetId;
+  await persistSearchHistory();
+  refreshResultsExplorer();
+}
+
+async function setSearchGroupingMode(mode) {
+  if (!new Set(['section', 'file', 'query']).has(mode)) return;
+  searchGroupMode = mode;
+  await persistSearchGroupingMode();
+  refreshResultsExplorer();
 }
 
 function toPosixPath(value) {
@@ -1627,6 +1953,7 @@ async function runSearch() {
   const output = getOutputChannel();
   output.appendLine(`[search] command=${command}`);
   output.appendLine(`[search] args=${JSON.stringify(args)}`);
+  noteRepoContext(repoContext);
 
   await vscode.window.withProgress(
     {
@@ -1723,6 +2050,14 @@ async function runSearch() {
         const payload = parsed.payload;
 
         const hits = collectSearchHits(payload);
+        await recordSearchResultSet({
+          repoContext,
+          query: query.trim(),
+          searchOptions,
+          command,
+          args,
+          hits
+        });
 
         if (!hits.length) {
           vscode.window.showInformationMessage('PairOfCleats: no results.');
@@ -1772,6 +2107,43 @@ async function runSearch() {
   );
 }
 
+async function runSavedSearchInvocation(resultSet, repoContext) {
+  const output = getOutputChannel();
+  const searchTimeoutMs = 60000;
+  const spec = { title: 'PairOfCleats search', progressTitle: 'PairOfCleats search', timeoutMs: searchTimeoutMs };
+  const env = buildSpawnEnv(getExtensionConfiguration());
+  const result = await runBufferedJsonCommand({
+    spec,
+    repoRoot: repoContext.repoRoot,
+    command: resultSet.invocation.command,
+    args: resultSet.invocation.args,
+    env,
+    output
+  });
+  if (!result?.payload) {
+    if (result?.detail) output.appendLine(result.detail);
+    output.show?.(true);
+    const show = result?.kind === 'cancelled'
+      ? vscode.window.showInformationMessage
+      : vscode.window.showErrorMessage;
+    show(result?.message || 'PairOfCleats search failed.');
+    return { ok: false };
+  }
+  const hits = collectSearchHits(result.payload);
+  await recordSearchResultSet({
+    repoContext,
+    query: resultSet.query,
+    searchOptions: {
+      mode: resultSet.mode,
+      backend: resultSet.backend
+    },
+    command: resultSet.invocation.command,
+    args: resultSet.invocation.args,
+    hits
+  });
+  return { ok: true, hits };
+}
+
 /**
  * Extension activation hook: register search command and subscriptions.
  *
@@ -1781,6 +2153,10 @@ async function runSearch() {
 function activate(context) {
   extensionContext = context;
   workflowSessions = normalizeWorkflowSessions(readWorkspaceState(WORKFLOW_SESSION_STORAGE_KEY, []));
+  searchHistory = normalizeSearchHistory(readWorkspaceState(SEARCH_HISTORY_STORAGE_KEY, []));
+  activeSearchResultId = String(readWorkspaceState('pairofcleats.searchResults.active', '') || '').trim() || (searchHistory[0]?.resultSetId || null);
+  searchGroupMode = readSearchGroupMode();
+  ensureResultsExplorer();
   workflowStatusBar = typeof vscode.window.createStatusBarItem === 'function'
     ? vscode.window.createStatusBarItem(vscode.StatusBarAlignment?.Left ?? 0, 100)
     : null;
@@ -1801,7 +2177,29 @@ function activate(context) {
     await rerunWorkflowSession(session);
   });
   const recentWorkflowCommand = vscode.commands.registerCommand('pairofcleats.showRecentWorkflows', showRecentWorkflows);
-  context.subscriptions.push(workflowStatusCommand, rerunLastWorkflowCommand, recentWorkflowCommand);
+  const reopenLastResultsCommand = vscode.commands.registerCommand('pairofcleats.reopenLastResults', reopenLastResults);
+  const showSearchHistoryCommand = vscode.commands.registerCommand('pairofcleats.showSearchHistory', showSearchHistory);
+  const groupResultsBySectionCommand = vscode.commands.registerCommand('pairofcleats.groupResultsBySection', () => setSearchGroupingMode('section'));
+  const groupResultsByFileCommand = vscode.commands.registerCommand('pairofcleats.groupResultsByFile', () => setSearchGroupingMode('file'));
+  const groupResultsByQueryCommand = vscode.commands.registerCommand('pairofcleats.groupResultsByQuery', () => setSearchGroupingMode('query'));
+  const openResultHitCommand = vscode.commands.registerCommand('pairofcleats.openResultHit', openResultHitNode);
+  const revealResultHitCommand = vscode.commands.registerCommand('pairofcleats.revealResultHit', revealResultHitNode);
+  const copyResultPathCommand = vscode.commands.registerCommand('pairofcleats.copyResultPath', copyResultHitPath);
+  const rerunResultSetCommand = vscode.commands.registerCommand('pairofcleats.rerunResultSet', rerunResultSet);
+  context.subscriptions.push(
+    workflowStatusCommand,
+    rerunLastWorkflowCommand,
+    recentWorkflowCommand,
+    reopenLastResultsCommand,
+    showSearchHistoryCommand,
+    groupResultsBySectionCommand,
+    groupResultsByFileCommand,
+    groupResultsByQueryCommand,
+    openResultHitCommand,
+    revealResultHitCommand,
+    copyResultPathCommand,
+    rerunResultSetCommand
+  );
   for (const spec of OPERATOR_COMMAND_SPECS) {
     const command = vscode.commands.registerCommand(spec.id, () => runOperatorCommand(spec));
     context.subscriptions.push(command);
@@ -1817,6 +2215,7 @@ function activate(context) {
     }));
   }
   void restoreWorkflowSessions();
+  refreshResultsExplorer();
 }
 
 /**
@@ -1831,6 +2230,11 @@ let extensionContext = null;
 let workflowSessions = [];
 let workflowStatusBar = null;
 let lastWorkflowRepoSnapshot = null;
+let searchHistory = [];
+let activeSearchResultId = null;
+let searchGroupMode = 'section';
+let resultsTreeProvider = null;
+let resultsTreeView = null;
 
 function getOutputChannel() {
   if (!outputChannel) {
@@ -1854,10 +2258,15 @@ module.exports = {
     resolvePassiveRepoContext,
     runOperatorCommand,
     executeOperatorWorkflow,
+    runSavedSearchInvocation,
     runSearch,
     showWorkflowStatus,
     showRecentWorkflows,
     rerunWorkflowSession,
+    showSearchHistory,
+    reopenLastResults,
+    setSearchGroupingMode,
+    buildResultsTree,
     OPERATOR_COMMAND_SPECS
   }
 };

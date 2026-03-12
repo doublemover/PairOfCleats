@@ -55,6 +55,11 @@ The bundled VS Code extension lives in `extensions/vscode` and defines:
 - `PairOfCleats: Workflow Status`
 - `PairOfCleats: Rerun Last Workflow`
 - `PairOfCleats: Recent Workflows`
+- `PairOfCleats: Reopen Last Results`
+- `PairOfCleats: Search History`
+- `PairOfCleats: Group Results by Section`
+- `PairOfCleats: Group Results by File`
+- `PairOfCleats: Group Results by Query`
 
 Settings:
 
@@ -94,6 +99,8 @@ Operational command behavior:
 - suggest-tests uses `pairofcleats suggest-tests --json --repo <repo> ...` with prompted changed paths
 - workspace commands use `pairofcleats workspace manifest|status|build|catalog --json --workspace <path>`
 - long-running workflow commands persist session metadata in workspace state, drive a status bar item keyed to the active repo context, and expose rerun/recent-workflow commands without requiring a second task runner stack
+- search runs persist normalized result sets in workspace state, populate the `PairOfCleats Results` explorer view, and support grouping by query, section, or file
+- saved result-set actions support open, reveal-in-explorer, copy-path, reopen-last-results, and rerun from history
 - command output is summarized in the `PairOfCleats` output channel with the raw JSON payload appended below the summary
 
 ## Sublime package

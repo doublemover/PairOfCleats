@@ -28,6 +28,7 @@ tooling/vscode/operator-runtime
 tooling/vscode/workflow-runtime
 tooling/vscode/session-runtime
 tooling/vscode/runtime
+tooling/vscode/results-explorer-runtime
 tooling/vscode/search-arg-mapping
 tooling/vscode/search-result-sections
 indexing/postings/queue-metrics

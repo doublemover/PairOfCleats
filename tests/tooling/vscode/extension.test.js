@@ -40,7 +40,16 @@ const expectedCommands = new Map([
   ['pairofcleats.workspaceCatalog', 'PairOfCleats: Workspace Catalog'],
   ['pairofcleats.showWorkflowStatus', 'PairOfCleats: Workflow Status'],
   ['pairofcleats.rerunLastWorkflow', 'PairOfCleats: Rerun Last Workflow'],
-  ['pairofcleats.showRecentWorkflows', 'PairOfCleats: Recent Workflows']
+  ['pairofcleats.showRecentWorkflows', 'PairOfCleats: Recent Workflows'],
+  ['pairofcleats.reopenLastResults', 'PairOfCleats: Reopen Last Results'],
+  ['pairofcleats.showSearchHistory', 'PairOfCleats: Search History'],
+  ['pairofcleats.groupResultsBySection', 'PairOfCleats: Group Results by Section'],
+  ['pairofcleats.groupResultsByFile', 'PairOfCleats: Group Results by File'],
+  ['pairofcleats.groupResultsByQuery', 'PairOfCleats: Group Results by Query'],
+  ['pairofcleats.openResultHit', 'PairOfCleats: Open Result Hit'],
+  ['pairofcleats.revealResultHit', 'PairOfCleats: Reveal Result Hit'],
+  ['pairofcleats.copyResultPath', 'PairOfCleats: Copy Result Path'],
+  ['pairofcleats.rerunResultSet', 'PairOfCleats: Rerun Result Set']
 ]);
 for (const commandId of expectedCommands.keys()) {
   if (!activationEvents.has(`onCommand:${commandId}`)) {
@@ -60,6 +69,12 @@ for (const [commandId, title] of expectedCommands.entries()) {
     console.error(`VS Code extension command title drifted for ${commandId}.`);
     process.exit(1);
   }
+}
+
+const explorerViews = manifest.contributes?.views?.explorer || [];
+if (!explorerViews.some((view) => view.id === 'pairofcleats.resultsExplorer')) {
+  console.error('VS Code extension explorer view missing pairofcleats.resultsExplorer.');
+  process.exit(1);
 }
 
 const settings = contract?.settings?.vscode || {};
